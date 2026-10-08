@@ -71,7 +71,11 @@ import {
 } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { formatDate } from '#app/utils/format.ts'
-import { DISCIPLINE_LABELS, VOLUME_CURRENCY_LABELS } from '#app/utils/labels.ts'
+import {
+	DISCIPLINE_LABELS,
+	VOLUME_CURRENCY_LABELS,
+	APP_TAB_LABELS,
+} from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	PlanOutlineCreateSchema,
@@ -331,6 +335,8 @@ function refusalMessage(reason: CreateOutlineRefusal): string {
 			return 'That event is cancelled, so it cannot anchor a plan.'
 		case 'event-already-planned':
 			return 'That event already has a plan.'
+		case 'open-ended-already-active':
+			return 'You already have a plan with no end. Open it from your plan page.'
 	}
 }
 
@@ -411,7 +417,7 @@ export default function NewPlanStructureRoute({
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title="Lay out your season"
-				back={{ to: '/training/plan/new', label: 'Choose a goal' }}
+				back={{ to: '/training/plan/new', label: APP_TAB_LABELS.season }}
 				className="mb-4"
 			/>
 

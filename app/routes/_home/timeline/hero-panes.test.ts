@@ -41,26 +41,24 @@ function week(overrides: Partial<TimelineWeek> = {}): TimelineWeek {
 	return {
 		key: '2030-02-18',
 		rangeLabel: '18–24 February',
-		stripLabel: '18–24 Feb',
-		phaseLabel: 'Build 3 · This week',
-		stripPhaseLabel: 'build 3',
-		statsLabel: '2 of 5 done · 48 of 312 TSS',
 		plannedTss: 312,
 		doneTss: 48,
 		imported: false,
 		planStart: false,
 		isNow: true,
-		dayDots: [
-			'done',
-			'done',
-			'planned',
-			'planned',
-			'planned',
-			'empty',
-			'empty',
-		],
 		rows: [],
 		bands: [],
+		tracks: [],
+		otherTrack: null,
+		relativeName: 'Denne uka',
+		phaseName: 'Build',
+		role: 'loading',
+		roleLabel: 'hard uke',
+		kindLabel: 'Build · hard uke',
+		shape: 'open',
+		foldLabel: null,
+		shownDayKeys: [],
+		loadLine: '0 av 0 gjort',
 		...overrides,
 	}
 }
@@ -69,7 +67,11 @@ function week(overrides: Partial<TimelineWeek> = {}): TimelineWeek {
 
 test('the triad reads Fitness, Fatigue and Form, in that order', () => {
 	const stats = panes().form.stats
-	expect(stats.map((stat) => stat.legend.short)).toEqual(['Fit', 'Fat', 'Form'])
+	expect(stats.map((stat) => stat.legend.short)).toEqual([
+		'Kond',
+		'Tretth',
+		'Form',
+	])
 	expect(stats.map((stat) => stat.value)).toEqual(['62', '58', '4'])
 })
 
@@ -77,8 +79,8 @@ test('every abbreviation carries the full term it stands for (#181)', () => {
 	// The legend is the trigger's own copy: the accessible name is the spelled-out
 	// term, never the three letters on screen.
 	expect(panes().form.stats.map((stat) => stat.legend.term)).toEqual([
-		'Fitness (CTL)',
-		'Fatigue (ATL)',
+		'Kondisjon (CTL)',
+		'Tretthet (ATL)',
 		'Form (TSB)',
 	])
 })
@@ -86,7 +88,7 @@ test('every abbreviation carries the full term it stands for (#181)', () => {
 test('a cold start keeps the two averages and refuses Form, saying why', () => {
 	const form = panes({ trust: COLD }).form
 	expect(form.stats.map((stat) => stat.value)).toEqual(['62', '58', null])
-	expect(form.caveat).toBe('Building baseline — day 12/42')
+	expect(form.caveat).toBe('Bygger grunnlag — dag 12/42')
 })
 
 test('a trustworthy reading carries no caveat', () => {
@@ -96,7 +98,7 @@ test('a trustworthy reading carries no caveat', () => {
 test('with no load computed at all the triad shows no numbers', () => {
 	const form = panes({ current: null, trust: COLD }).form
 	expect(form.stats.map((stat) => stat.value)).toEqual([null, null, null])
-	expect(form.caveat).toBe('Building baseline — day 12/42')
+	expect(form.caveat).toBe('Bygger grunnlag — dag 12/42')
 })
 
 test('past the gate with nothing computed, the pane is quiet rather than wrong', () => {
@@ -114,7 +116,7 @@ test('the fitness trend reads off the snapshots, from the day they start', () =>
 				{ date: '2030-02-20', ctl: 62 },
 			],
 		}).form.trend,
-	).toBe('Fitness 51 → 62 since 4 Jan')
+	).toBe('Kondisjon 51 → 62 siden 4. jan')
 })
 
 test('one snapshot is not a trend, and the other end is not invented', () => {
@@ -130,17 +132,13 @@ test('the week pane says what the stream’s own week header says', () => {
 	// One derivation, read twice: an overview that disagrees with the thing it
 	// overviews is worse than no overview.
 	const pane = panes({ thisWeek: week() }).week
-	expect(pane.stats).toBe('2 of 5 done · 48 of 312 TSS')
-	// Minus the clause the pane's heading already carries — the header's own
-	// label is `Build 3 · This week`, and saying "this week" twice reads as two
-	// claims rather than one.
-	expect(pane.phase).toBe('Build 3')
+	expect(pane.stats).toBe('0 av 0 gjort')
+	// The week's kind, exactly as its header in the stream names it.
+	expect(pane.phase).toBe('Build · hard uke')
 })
 
 test('without a plan there is no phase to name, and the heading is enough', () => {
-	expect(
-		panes({ thisWeek: week({ phaseLabel: 'This week' }) }).week.phase,
-	).toBeNull()
+	expect(panes({ thisWeek: week({ kindLabel: null }) }).week.phase).toBeNull()
 })
 
 test('adherence names its band and the track the ratio belongs to', () => {
@@ -156,33 +154,42 @@ test('adherence names its band and the track the ratio belongs to', () => {
 		totalPlanned: 300,
 	}
 	expect(panes({ weeklyAdherence }).week.adherence).toBe(
-		'On target · 94% of planned endurance load',
+		'I rute · 94 % av planlagt utholdenhetsbelastning',
 	)
 })
 
 test('an unmeasurable week says so rather than reading 0%', () => {
-	expect(panes().week.adherence).toBe('Planned endurance load unavailable')
+	expect(panes().week.adherence).toBe(
+		'Planlagt utholdenhetsbelastning kan ikke måles',
+	)
 })
 
 test('the strength companion is a count, never a second ratio (ADR 0046 §4)', () => {
 	expect(
 		panes({ strengthCount: { completed: 2, planned: 3 } }).week.strength,
-	).toBe('2 of 3 lifting sessions logged')
-	expect(panes().week.strength).toBe('No lifting sessions this week')
+	).toBe('2 av 3 styrkeøkter logget')
+	expect(panes().week.strength).toBe('Ingen styrkeøkter denne uka')
 })
 
-test('the Week Replan line names the stored outcome and quotes its reason', () => {
-	const pane = panes({
-		weekReplan: {
-			outcome: 'adjusted',
-			reason:
-				'Last week came in 62% of plan with Form −18, so next week is 10% lighter.',
-		},
-	}).week
-	expect(pane.replan).toEqual({
-		outcome: 'This week adjusted',
-		reason:
-			'Last week came in 62% of plan with Form −18, so next week is 10% lighter.',
+test('the Week Replan line names the stored outcome, and quotes a proposal’s own reason', () => {
+	const reason =
+		'Uka gikk under planen. Vi foreslår å gjøre de neste øktene ca. 10 % kortere.'
+	expect(
+		panes({ weekReplan: { outcome: 'proposed', reason } }).week.replan,
+	).toEqual({ outcome: 'Endringer foreslått', reason })
+	// An older outcome's stored reason is an English sentence, so the pane says
+	// it in its own words instead (ADR 0081).
+	expect(
+		panes({
+			weekReplan: {
+				outcome: 'adjusted',
+				reason:
+					'Last week came in 62% of plan with Form −18, so next week is 10% lighter.',
+			},
+		}).week.replan,
+	).toEqual({
+		outcome: 'Uka er justert',
+		reason: 'Vi gjorde denne uka lettere etter uka som gikk.',
 	})
 })
 
@@ -190,7 +197,7 @@ test('a declined replan is still a decision, and says which', () => {
 	expect(
 		panes({ weekReplan: { outcome: 'no-change', reason: 'On target.' } }).week
 			.replan?.outcome,
-	).toBe('No change')
+	).toBe('Ingen endring')
 	expect(
 		panes({
 			weekReplan: {
@@ -198,7 +205,7 @@ test('a declined replan is still a decision, and says which', () => {
 				reason: 'Nothing to compare.',
 			},
 		}).week.replan?.outcome,
-	).toBe('No adjustment')
+	).toBe('Ingen justering')
 })
 
 test('no stored decision renders no line — never an invented status', () => {
@@ -209,13 +216,13 @@ test('an outcome the app has no word for falls back rather than printing the enu
 	expect(
 		panes({ weekReplan: { outcome: 'reshuffled', reason: 'Something new.' } })
 			.week.replan?.outcome,
-	).toBe('Week replan')
+	).toBe('Ukeskiftet')
 })
 
 test('a week with nothing in it says so rather than showing an empty line', () => {
 	const pane = panes({ thisWeek: null }).week
 	expect(pane.phase).toBeNull()
-	expect(pane.stats).toBe('Nothing written')
+	expect(pane.stats).toBe('')
 })
 
 // ── Records: the Proof Strip, through its own builder ──
@@ -244,15 +251,15 @@ test('records come through the Proof Strip builder, gain and all (ADR 0021)', ()
 	expect(panes({ personalRecords: records }).records.records).toEqual([
 		{
 			discipline: 'run',
-			disciplineLabel: 'Run',
-			label: 'Longest run',
+			disciplineLabel: 'Løping',
+			label: 'Lengste løpetur',
 			value: '21.1 km',
 			delta: '+11.1 km',
 		},
 		{
 			discipline: 'swim',
-			disciplineLabel: 'Swim',
-			label: 'Longest swim',
+			disciplineLabel: 'Svømming',
+			label: 'Lengste svømmeøkt',
 			value: '1,500 m',
 			delta: null,
 		},

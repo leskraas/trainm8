@@ -11,7 +11,14 @@ import {
 	PERIODIZATION_PRESETS,
 	PRESET_KEYS,
 	PRESET_PROFILE_ANCHOR,
+	PRESET_FAMILIES,
 	PRESET_RAMP,
+	familyOfPreset,
+	familyRunUp,
+	familySeason,
+	openEndedRound,
+	outlineFamily,
+	presetFamilyOf,
 	presetFor,
 	presetPhaseSpecs,
 	presetProfile,
@@ -36,15 +43,21 @@ function deepKeys(value: unknown): string[] {
 	return []
 }
 
-/** The three families, each as its short, standard and long variant. */
+/** The five families, each as its short, standard and long variant. */
 const FAMILIES = {
 	classic: ['classic-linear-short', 'classic-linear', 'classic-linear-long'],
 	masters: ['masters-2-1-short', 'masters-2-1', 'masters-2-1-long'],
 	bigBase: ['big-base-short', 'big-base', 'big-base-long'],
+	polarized: ['polarized-short', 'polarized', 'polarized-long'],
+	threshold: [
+		'threshold-focus-short',
+		'threshold-focus',
+		'threshold-focus-long',
+	],
 } as const satisfies Record<string, readonly PresetKey[]>
 
 describe('what ships', () => {
-	test('nine presets: three families at three lengths each', () => {
+	test('fifteen presets: five families at three lengths each', () => {
 		expect(PRESET_KEYS).toEqual([
 			'classic-linear-short',
 			'classic-linear',
@@ -55,6 +68,12 @@ describe('what ships', () => {
 			'big-base-short',
 			'big-base',
 			'big-base-long',
+			'polarized-short',
+			'polarized',
+			'polarized-long',
+			'threshold-focus-short',
+			'threshold-focus',
+			'threshold-focus-long',
 		])
 		expect(PERIODIZATION_PRESETS.map((p) => p.key)).toEqual([...PRESET_KEYS])
 	})
@@ -217,8 +236,13 @@ describe('the Quality Session Mix each preset authors', () => {
 		}
 	})
 
-	test('intensity climbs as the season does: zone 3 in the opening phase, zone 5 by the peak', () => {
-		for (const preset of PERIODIZATION_PRESETS) {
+	test('Klassisk, Masters and big base climb in intensity: zone 3 in the opening phase, zone 5 by the peak', () => {
+		const climbing = [
+			...FAMILIES.classic,
+			...FAMILIES.masters,
+			...FAMILIES.bigBase,
+		].map(presetFor)
+		for (const preset of climbing) {
 			expect(preset.phases.at(0)?.mix.map((e) => e.zone)).toEqual([3])
 			const zones = preset.phases.flatMap((p) => p.mix.map((e) => e.zone))
 			expect(zones).toContain(5)
@@ -380,5 +404,123 @@ describe('the three families are three different pictures', () => {
 			weekRole(phases, week),
 		)
 		expect(roles).toContain('recovery')
+	})
+})
+
+describe('polarized 80/20 and threshold focus differ from Klassisk by their mix', () => {
+	const mixOf = (key: PresetKey) => presetFor(key).phases.map((p) => p.mix)
+	const sessionsIn = (key: PresetKey, zones: number[]) =>
+		presetFor(key)
+			.phases.flatMap((p) => p.mix)
+			.filter((entry) => zones.includes(entry.zone))
+			.reduce((sum, entry) => sum + entry.sessionsPerWeek, 0)
+
+	test('each is Klassisk at Klassisk’s lengths, in everything but the mix', () => {
+		for (const family of [FAMILIES.polarized, FAMILIES.threshold]) {
+			family.forEach((key, length) => {
+				const classic = presetFor(FAMILIES.classic[length]!)
+				expect(
+					presetFor(key).phases.map(({ mix: _mix, ...shape }) => shape),
+				).toEqual(classic.phases.map(({ mix: _mix, ...shape }) => shape))
+				expect(mixOf(key)).not.toEqual(mixOf(FAMILIES.classic[length]!))
+			})
+		}
+	})
+
+	test('polarized is mostly easy and a little very hard: zone 5 only, no threshold or tempo', () => {
+		for (const key of FAMILIES.polarized) {
+			expect(sessionsIn(key, [3, 4])).toBe(0)
+			expect(sessionsIn(key, [5])).toBeGreaterThan(0)
+			// "A little": never more than two hard sessions in a week.
+			for (const phase of presetFor(key).phases) {
+				expect(
+					phase.mix.reduce((sum, e) => sum + e.sessionsPerWeek, 0),
+				).toBeLessThanOrEqual(2)
+			}
+		}
+	})
+
+	test('threshold focus is built around threshold and tempo: zones 3–4 in every loading block, no zone 5', () => {
+		for (const key of FAMILIES.threshold) {
+			expect(sessionsIn(key, [5])).toBe(0)
+			for (const phase of presetFor(key).phases.filter((p) => !p.tapers)) {
+				expect(phase.mix.length).toBeGreaterThan(0)
+				expect(phase.mix.every((e) => e.zone === 3 || e.zone === 4)).toBe(true)
+			}
+			expect(sessionsIn(key, [3, 4])).toBeGreaterThan(
+				sessionsIn(FAMILIES.classic[1], [3, 4]),
+			)
+		}
+	})
+
+	test('every preset says which family it is a length of', () => {
+		for (const [family, keys] of [
+			['classic', FAMILIES.classic],
+			['masters', FAMILIES.masters],
+			['big-base', FAMILIES.bigBase],
+			['polarized', FAMILIES.polarized],
+			['threshold', FAMILIES.threshold],
+		] as const) {
+			for (const key of keys) expect(familyOfPreset(key)).toBe(family)
+		}
+		expect(new Set(PRESET_KEYS.map(familyOfPreset))).toEqual(
+			new Set(PRESET_FAMILIES),
+		)
+	})
+})
+
+describe('every family can drive an open-ended plan (ADR 0079 §5)', () => {
+	test('one round is one block of the family’s rhythm', () => {
+		const shape = (family: (typeof PRESET_FAMILIES)[number]) => {
+			const { weeks, rhythm } = openEndedRound(family)
+			return { weeks, rhythm }
+		}
+		expect(shape('classic')).toEqual({ weeks: 4, rhythm: '3:1' })
+		expect(shape('masters')).toEqual({ weeks: 3, rhythm: '2:1' })
+		expect(shape('big-base')).toEqual({ weeks: 4, rhythm: '3:1' })
+		expect(shape('polarized')).toEqual({ weeks: 4, rhythm: '3:1' })
+		expect(shape('threshold')).toEqual({ weeks: 4, rhythm: '3:1' })
+	})
+
+	test('a round runs on the rhythm, climb and mix its family’s seasons open with', () => {
+		for (const family of PRESET_FAMILIES) {
+			const opening = familySeason(family)[0]!
+			const round = openEndedRound(family)
+			expect(round.rhythm).toBe(opening.rhythm)
+			expect(round.ramp).toBe(opening.ramp)
+			expect(round.mix).toEqual(opening.mix)
+			expect(round.boundaryStep).toBeNull()
+			// A round is a whole block of its rhythm, so it holds its easy week.
+			const phases = [
+				{ weeks: round.weeks, rhythm: round.rhythm, tapers: false },
+			]
+			expect(weekRole(phases, round.weeks - 1)).toBe('recovery')
+		}
+		// What tells the philosophies' rounds apart is their mix.
+		expect(openEndedRound('polarized').mix).toEqual([
+			{ zone: 5, sessionsPerWeek: 1 },
+		])
+		expect(openEndedRound('threshold').mix.map((entry) => entry.zone)).toEqual([
+			3, 4,
+		])
+	})
+
+	test('every family has a run-up toward an Event that ends in a taper', () => {
+		for (const family of PRESET_FAMILIES) {
+			const runUp = familyRunUp(family)
+			expect(runUp.length).toBeGreaterThan(0)
+			expect(runUp.at(-1)?.tapers).toBe(true)
+			expect(runUp).toEqual(familySeason(family).slice(1))
+		}
+	})
+
+	test('a plan follows the family it records, else the one its rhythm reads as', () => {
+		expect(outlineFamily('polarized', '3:1')).toBe('polarized')
+		expect(outlineFamily('threshold', '2:1')).toBe('threshold')
+		expect(outlineFamily(null, '3:1')).toBe('classic')
+		expect(outlineFamily(null, '2:1')).toBe('masters')
+		expect(outlineFamily('not-a-family', 'none')).toBeNull()
+		expect(presetFamilyOf('big-base')).toBe('big-base')
+		expect(presetFamilyOf(null)).toBeNull()
 	})
 })

@@ -18,6 +18,10 @@
 > reason to leave the best-evidenced rule in periodization unwritten. See
 > [`docs/research/planning-calendar-and-wellness.md`](../research/planning-calendar-and-wellness.md).
 
+**§1 is amended by [ADR 0079](0079-a-training-plan-may-be-open-ended.md)**
+(#505): a Plan Outline may have no Event — an open-ended plan — so it is no
+longer _"1:1 with Event"_.
+
 #367 asked what the extended **Plan Outline**'s stored shape is and how today's
 data migrates. Both halves of the question had moved since it was written.
 

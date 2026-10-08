@@ -123,8 +123,9 @@ import { PlanCard } from './__plan-chrome.tsx'
 export type SeasonChartSeason = {
 	startWeekKey: string
 	timezone: string
-	eventName: string
-	eventDate: Date
+	/** Null, with the date, for an open-ended plan (ADR 0079). */
+	eventName: string | null
+	eventDate: Date | null
 	phases: Array<{
 		name: string
 		weeks: number
@@ -361,6 +362,8 @@ export function SeasonChart({
  * same key every week-scoped row on this plan hangs off.
  */
 function eventWeekIndexOf(season: SeasonChartSeason): number | null {
+	// An open-ended plan has no Event, so no week carries the flag (ADR 0079).
+	if (!season.eventDate) return null
 	const index = weekIndexOf(
 		season.startWeekKey,
 		weekMonday(season.eventDate, season.timezone),
@@ -900,7 +903,7 @@ function FitnessPanel({
 				plotHeightClass="h-32"
 				ariaLabel="Projected fitness (CTL) across the season, replayed from your plan. Use the arrow keys to read a week."
 				dataTable={{
-					caption: `Projected fitness (CTL) at the end of each Training Week, replayed from ${season.eventName}'s plan.`,
+					caption: `Projected fitness (CTL) at the end of each Training Week, replayed from ${season.eventName ? `${season.eventName}'s plan` : 'your plan'}.`,
 					columns: ['Week', 'Projected fitness (CTL)'],
 					rows: model.weeks.map((week, i) => [
 						String(week.weekInPlan),

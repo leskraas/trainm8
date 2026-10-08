@@ -5,7 +5,7 @@ import { expect, test } from 'vitest'
 import { localTimeUTC } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
-import { createPlanOutline } from './authoring.server.ts'
+import { createOpenEndedPlan, createPlanOutline } from './authoring.server.ts'
 import { copyWeek, type CopyWeekResult } from './copy-week.server.ts'
 
 const START_WEEK_KEY = '2030-01-07' // a Monday
@@ -73,6 +73,10 @@ async function addRunSession(
 		title = `${km} km`,
 		status = 'scheduled',
 		eventId = plan.eventId as string | null,
+		// Laid by the plan unless a test says otherwise: the athlete's own sessions
+		// are the ones a rewrite must never touch.
+		source = 'generated',
+		adoptedAt = null as Date | null,
 	}: {
 		weekKey: string
 		weekday: number
@@ -81,6 +85,8 @@ async function addRunSession(
 		title?: string
 		status?: string
 		eventId?: string | null
+		source?: string
+		adoptedAt?: Date | null
 	},
 ) {
 	const day = new Date(`${weekKey}T00:00:00.000Z`)
@@ -127,8 +133,10 @@ async function addRunSession(
 			workoutId: workout.id,
 			scheduledAt: localTimeUTC(dateStr, time, timezone),
 			status,
-			source: 'authored',
+			source,
+			adoptedAt,
 			targetEventId: eventId,
+			planOutlineId: eventId ? plan.outlineId : null,
 		},
 	})
 }
@@ -186,6 +194,7 @@ async function addStrengthSession(
 			status: 'scheduled',
 			source: 'authored',
 			targetEventId: plan.eventId,
+			planOutlineId: plan.outlineId,
 		},
 	})
 	return { ...session, exerciseId: exercise.id }
@@ -208,6 +217,7 @@ async function sessionsIn(plan: Plan, weekKey: string) {
 			status: true,
 			source: true,
 			targetEventId: true,
+			planOutlineId: true,
 			workoutId: true,
 			workout: {
 				select: {
@@ -375,7 +385,7 @@ test('a copy across a DST boundary keeps the local time, not the instant', async
 	expect(copied!.scheduledAt.toISOString()).toBe('2030-04-03T05:00:00.000Z')
 })
 
-test('copied sessions are anchored to the same Event and carry the authored source', async () => {
+test('copied sessions are anchored to the same Event and carry the generated source', async () => {
 	const plan = await setupPlan()
 	await addRunSession(plan, {
 		weekKey: WEEK_1,
@@ -395,7 +405,10 @@ test('copied sessions are anchored to the same Event and carry the authored sour
 	const [copied] = await sessionsIn(plan, WEEK_2)
 	expect(copied).toMatchObject({
 		targetEventId: plan.eventId,
-		source: 'authored',
+		planOutlineId: plan.outlineId,
+		// The machine laid the copy, so it is the machine's until the athlete
+		// edits it (Session Adoption).
+		source: 'generated',
 		// A copy is a plan, never a record of what the source did.
 		status: 'scheduled',
 	})
@@ -547,6 +560,47 @@ test('a trained session in the target week is kept, whatever the athlete confirm
 	expect(ids).toHaveLength(2)
 })
 
+test("the athlete's own sessions in the target week are kept, whatever the athlete confirms", async () => {
+	const plan = await setupPlan()
+	await addRunSession(plan, { weekKey: WEEK_1, weekday: 2, km: 12 })
+	const authored = await addRunSession(plan, {
+		weekKey: WEEK_2,
+		weekday: 4,
+		km: 5,
+		source: 'authored',
+	})
+	const adopted = await addRunSession(plan, {
+		weekKey: WEEK_2,
+		weekday: 5,
+		km: 21,
+		adoptedAt: new Date('2030-01-01T00:00:00Z'),
+	})
+
+	const asked = await copyWeek(plan.athleteId, {
+		outlineId: plan.outlineId,
+		sourceWeekKey: WEEK_1,
+		targetWeekKey: WEEK_2,
+		replace: false,
+	})
+	expect(asked).toMatchObject({
+		reason: 'target-week-filled',
+		conflict: { replacing: 0, keeping: 2 },
+	})
+
+	const report = ok(
+		await copyWeek(plan.athleteId, {
+			outlineId: plan.outlineId,
+			sourceWeekKey: WEEK_1,
+			targetWeekKey: WEEK_2,
+			replace: true,
+		}),
+	)
+	expect(report).toMatchObject({ sessions: 1, replaced: 0 })
+	const ids = (await sessionsIn(plan, WEEK_2)).map((session) => session.id)
+	expect(ids).toEqual(expect.arrayContaining([authored.id, adopted.id]))
+	expect(ids).toHaveLength(3)
+})
+
 test('copying an empty week is refused with a reason, not silently done', async () => {
 	const plan = await setupPlan()
 
@@ -570,6 +624,7 @@ test('a week holding only structureless sessions is refused, not copied as blank
 			status: 'completed',
 			source: 'recorded',
 			targetEventId: plan.eventId,
+			planOutlineId: plan.outlineId,
 		},
 	})
 
@@ -594,6 +649,7 @@ test('a structureless session beside a real one is reported, not faked', async (
 			status: 'completed',
 			source: 'recorded',
 			targetEventId: plan.eventId,
+			planOutlineId: plan.outlineId,
 		},
 	})
 
@@ -755,3 +811,27 @@ async function setupPlanFrom(
 	if (!created.ok) throw new Error(`plan setup failed: ${created.reason}`)
 	return { athleteId: user.id, eventId: event.id, outlineId: created.outlineId }
 }
+
+test('an open-ended plan resting behind a race plan refuses a copy (ADR 0079)', async () => {
+	// The race plan is active from NOW, so the open-ended plan rests.
+	const race = await setupPlan()
+	const open = await createOpenEndedPlan(
+		race.athleteId,
+		{ discipline: 'run', weeklyHours: 4 },
+		NOW,
+	)
+	if (!open.ok) throw new Error(open.reason)
+
+	expect(
+		await copyWeek(
+			race.athleteId,
+			{
+				outlineId: open.outlineId,
+				sourceWeekKey: WEEK_1,
+				targetWeekKey: WEEK_2,
+				replace: true,
+			},
+			NOW,
+		),
+	).toEqual({ ok: false, reason: 'plan-resting' })
+})

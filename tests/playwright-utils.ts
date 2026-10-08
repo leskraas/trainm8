@@ -1,4 +1,4 @@
-import { test as base, type Response } from '@playwright/test'
+import { test as base, type Locator, type Response } from '@playwright/test'
 import { type User as UserModel } from '@prisma/client'
 import { href, type Register } from 'react-router'
 import * as setCookieParser from 'set-cookie-parser'
@@ -19,6 +19,43 @@ import {
 } from './mocks/github.ts'
 
 export * from './db-utils.ts'
+
+/**
+ * An athlete timezone where it is midday now (local 12:00–12:59).
+ *
+ * The app's day is the athlete's day. A seed placed hours either side of now —
+ * "done earlier today", "later today" — leaves a UTC athlete's today in the
+ * last or first hours of the UTC day, so it is seeded for an athlete whose
+ * day has room on both sides. The local hour is the UTC hour plus the offset
+ * with no wrap, so the athlete's date is the UTC date: a spec's
+ * `toISOString().slice(0, 10)` still names their today.
+ */
+export function middayTimezone(now = new Date()) {
+	const offset = 12 - now.getUTCHours()
+	if (offset === 0) return 'UTC'
+	// POSIX signs: Etc/GMT-3 is three hours *ahead* of UTC.
+	return `Etc/GMT${offset > 0 ? '-' : '+'}${Math.abs(offset)}`
+}
+
+/**
+ * Wait until React has hydrated `control`: its props are on the host node.
+ *
+ * A tap that lands before hydration is lost, or worse, a form posts natively
+ * and the page navigates to a resource route's raw answer. Where a tap is a
+ * write, retrying it is no fix (the first may have landed), so wait for the
+ * handler instead and tap once.
+ */
+export async function untilHydrated(control: Locator) {
+	await expect
+		.poll(
+			() =>
+				control.evaluate((el) =>
+					Object.keys(el).some((key) => key.startsWith('__reactProps$')),
+				),
+			{ timeout: 15_000 },
+		)
+		.toBe(true)
+}
 
 type GetOrInsertUserOptions = {
 	id?: string
@@ -73,7 +110,28 @@ export const test = base.extend<{
 	insertNewUser(options?: GetOrInsertUserOptions): Promise<User>
 	login(options?: GetOrInsertUserOptions): Promise<User>
 	prepareGitHubUser(): Promise<GitHubUser>
+	hideDevtools: void
 }>({
+	/**
+	 * The dev server's React Router devtools trigger floats over the bottom-right
+	 * corner, which on a phone is the Meg tab (ADR 0083). It is a dev-only
+	 * overlay — the CI server runs the production build — so every test hides
+	 * it rather than clicking round it.
+	 */
+	hideDevtools: [
+		async ({ page }, use) => {
+			await page.addInitScript(() => {
+				document.addEventListener('DOMContentLoaded', () => {
+					const style = document.createElement('style')
+					style.textContent =
+						'[data-testid="react-router-devtools-trigger"]{display:none!important}'
+					document.head.append(style)
+				})
+			})
+			await use()
+		},
+		{ auto: true },
+	],
 	navigate: async ({ page }, use) => {
 		await use((...args) => {
 			return page.goto(href(...args))

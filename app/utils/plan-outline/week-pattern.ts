@@ -60,6 +60,19 @@ export function calendarWeekdayOf(weekday: PatternWeekday): number {
 	return (weekday + 1) % 7
 }
 
+/** A list of pattern weekdays as Sunday-first calendar days, in the same order. */
+export function calendarWeekdaysOf(days: readonly PatternWeekday[]): number[] {
+	return days.map(calendarWeekdayOf)
+}
+
+/**
+ * Weekday numbers read from a form or a URL as pattern weekdays: anything
+ * outside 0–6 dropped, each day once, in the week's order.
+ */
+export function patternWeekdaysOf(values: readonly number[]): PatternWeekday[] {
+	return [...new Set(values.filter(isPatternWeekday))].sort((a, b) => a - b)
+}
+
 /** What a day *is*. Two kinds and no third: there is no unscaled-share shape. */
 export const PATTERN_DAY_KINDS = ['fixed', 'share'] as const
 export type PatternDayKind = (typeof PATTERN_DAY_KINDS)[number]
@@ -300,7 +313,12 @@ function isShareDay(
 type PrescribedBlock = {
 	repeatCount: number
 	seriesRepeatCount?: number | null
-	steps: Array<{ durationSec: number | null; distanceM: number | null }>
+	steps: Array<{
+		/** `rest` marks a recovery step (ADR 0007); absent reads as work. */
+		kind?: string
+		durationSec: number | null
+		distanceM: number | null
+	}>
 }
 
 /**
@@ -319,6 +337,7 @@ type PrescribedBlock = {
 function prescribedTotal(
 	blocks: readonly PrescribedBlock[],
 	read: (step: PrescribedBlock['steps'][number]) => number | null,
+	{ restsMayOmit = false }: { restsMayOmit?: boolean } = {},
 ): number | null {
 	let total = 0
 	let steps = 0
@@ -326,6 +345,10 @@ function prescribedTotal(
 
 	for (const block of blocks) {
 		for (const step of block.steps) {
+			// A timed rest between reps (`6 × 1 km p 1 min`) is a recovery and
+			// not distance the session prescribes: it adds no km, and it does not
+			// make the reps' km unknown (#505 S11).
+			if (restsMayOmit && step.kind === 'rest' && read(step) == null) continue
 			steps++
 			const value = read(step)
 			if (value != null) {
@@ -342,6 +365,10 @@ function prescribedTotal(
 /**
  * The volume a fixed day's Workout prescribes, read in the track's own currency.
  *
+ * In `km`, a rest step that states no distance is skipped: `6 × 1 km p 1 min`
+ * prescribes 6 km. In `hours` a rest's time is time the session takes, so it
+ * counts, and a rest with no time leaves the hours unknown as before.
+ *
  * `km` and `hours` are read off the prescription, and only where it prescribes
  * that unit from end to end ({@link prescribedTotal}). `tss` and `sets` return
  * `null` rather than a fabricated figure: a TSS price needs the athlete's own Zone
@@ -357,7 +384,9 @@ export function fixedDayVolume(
 ): number | null {
 	switch (currency) {
 		case 'km': {
-			const metres = prescribedTotal(blocks, (step) => step.distanceM)
+			const metres = prescribedTotal(blocks, (step) => step.distanceM, {
+				restsMayOmit: true,
+			})
 			return metres == null ? null : roundToCurrency(metres / 1000, 'km')
 		}
 		case 'hours': {

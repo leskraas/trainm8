@@ -43,6 +43,7 @@ import {
 	readAttribution,
 } from '#app/utils/community.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { LIBRARY_LABELS } from '#app/utils/labels.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { type Route } from './+types/catalogue.report.$workoutId.ts'
 
@@ -155,7 +156,7 @@ export default function ReportRoute({
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title="Report this session"
-				back={{ to: '/training/catalogue', label: 'the Catalogue' }}
+				back={{ to: '/training/catalogue', label: LIBRARY_LABELS.catalogue }}
 				className="mb-6"
 			/>
 

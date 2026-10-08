@@ -32,6 +32,13 @@ import {
 	type DisplayTarget,
 	sessionMetricTarget,
 } from '#app/utils/intensity-target.ts'
+import {
+	HERO_PANE_TEXT,
+	NB_RECORD_NOUNS,
+	nbDisciplineLabel,
+	openEndedBlockLabel,
+	RECOMPUTE_NOTICE_LABELS,
+} from '#app/utils/labels.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import {
 	type CoachRecommendation,
@@ -40,6 +47,7 @@ import {
 } from '#app/utils/load/coach.ts'
 import { buildEasedPrescription } from '#app/utils/load/eased-prescription.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
+import { isLoadRecomputeKind } from '#app/utils/load/recompute-notice.ts'
 import {
 	type SessionNudge,
 	decideSessionNudge,
@@ -130,8 +138,10 @@ export function sessionCtaLabel(session: {
  */
 export type TodayLiftLine = {
 	name: string
-	/** `5×5` where the sets agree on a rep count, otherwise `3 sets`. */
-	scheme: string
+	/** The working sets, and their reps where every set agrees on one — the
+	 * scheme as numbers, worded by the surface that shows it (`5×5`, `3 sett`). */
+	setCount: number
+	reps: number | null
 	/** The resolved working weight, e.g. `82.5 kg`; null when the sets carry no
 	 * single weight (mixed, or no load prescribed at all). */
 	loadLabel: string | null
@@ -147,6 +157,8 @@ export type TodayCard = {
 	discipline: string
 	disciplineLabel: string
 	title: string
+	/** The session's own title, or null when `title` is the fallback. */
+	ownTitle: string | null
 	durationMin: number | null
 	plannedTss: number | null
 	/** Zone profile bars derived from the workout's real steps (may be empty). */
@@ -201,9 +213,8 @@ export function buildTodayLiftLines(
 					const sameKg = kg != null && sets.every((set) => set.weightKg === kg)
 					return {
 						name: step.exercise!.name,
-						scheme: sameReps
-							? `${sets.length}×${reps}`
-							: `${sets.length} ${sets.length === 1 ? 'set' : 'sets'}`,
+						setCount: sets.length,
+						reps: sameReps ? reps : null,
 						loadLabel: sameKg ? `${formatKg(kg)} kg` : null,
 					}
 				}),
@@ -246,6 +257,7 @@ export function buildTodayCard(
 		discipline: entry.discipline,
 		disciplineLabel: getDisciplineLabel(entry.discipline),
 		title: sessionTitle(entry.discipline, entry.title),
+		ownTitle: entry.title ?? null,
 		durationMin: entry.durationMin,
 		plannedTss: entry.plannedTss != null ? roundLoad(entry.plannedTss) : null,
 		profile: deriveSessionProfile(session.workout).bars,
@@ -403,9 +415,15 @@ function easedPrescriptionPersisted(
 // falls back to the plan-less surface).
 // ---------------------------------------------------------------------------
 export type PlanContext = {
-	eventId: string
-	eventName: string
-	daysToEvent: number
+	/** Null, with the name and the countdown, for an open-ended plan (ADR 0079). */
+	eventId: string | null
+	eventName: string | null
+	daysToEvent: number | null
+	/**
+	 * `blokk 2 av ∞` — where an open-ended plan stands, counted by phase position
+	 * (#505 story 9). Null for a plan toward an Event, which counts weeks instead.
+	 */
+	blockLabel: string | null
 	phase: string
 	weekInPlan: number
 	totalWeeks: number
@@ -445,31 +463,42 @@ export function buildPlanContext(
 	now: Date = new Date(),
 ): PlanContext | null {
 	if (!activePlan) return null
-	const eventDate = new Date(activePlan.eventDate)
+	const eventDate = activePlan.eventDate ? new Date(activePlan.eventDate) : null
 	const arc = planArc(
 		activePlan.phases,
 		new Date(activePlan.planStart),
 		eventDate,
 		now,
 	)
-	const daysToEvent = Math.max(
-		0,
-		Math.ceil((eventDate.getTime() - now.getTime()) / DAY_MS),
-	)
+	// No Event, no countdown: an open-ended plan has no race day to count to, and
+	// a number here would be one invented for it (ADR 0079).
+	const daysToEvent = eventDate
+		? Math.max(0, Math.ceil((eventDate.getTime() - now.getTime()) / DAY_MS))
+		: null
 	const weekLoadPct = weeklyAdherence
 		? Math.round(weeklyAdherence.ratio * 100)
 		: null
-	const arcLabel = `Week ${arc.weekInPlan} of ${arc.totalWeeks} · ${arc.phase} phase`
+	// The round comes from the server, which counts it in the Athlete Timezone
+	// exactly as the plan page does (`ActivePlan.round`).
+	const blockLabel =
+		activePlan.round == null ? null : openEndedBlockLabel(activePlan.round)
+	const arcLabel =
+		blockLabel ??
+		`Week ${arc.weekInPlan} of ${arc.totalWeeks} · ${arc.phase} phase`
 	return {
 		eventId: activePlan.eventId,
 		eventName: activePlan.eventName,
 		daysToEvent,
+		blockLabel,
 		phase: arc.phase,
 		weekInPlan: arc.weekInPlan,
 		totalWeeks: arc.totalWeeks,
 		weekLoadPct,
 		arcLabel,
-		arcChipLabel: `${daysToEvent} ${daysToEvent === 1 ? 'day' : 'days'} to race · ${arcLabel}`,
+		arcChipLabel:
+			daysToEvent == null
+				? arcLabel
+				: `${daysToEvent} ${daysToEvent === 1 ? 'day' : 'days'} to race · ${arcLabel}`,
 		weekLoadLabel:
 			weekLoadPct != null
 				? `${weekLoadPct}% of planned endurance load`
@@ -499,7 +528,7 @@ export function buildPhaseBands(
 	const currentPhaseIndex = planArc(
 		activePlan.phases,
 		planStart,
-		new Date(activePlan.eventDate),
+		activePlan.eventDate ? new Date(activePlan.eventDate) : null,
 		now,
 	).phaseIndex
 	let cumulativeWeeks = 0
@@ -536,7 +565,11 @@ export type ProofRecord = {
 	delta: string | null
 }
 
-const BENCHMARK_VERB: Record<BenchmarkKind, string> = { farthest: 'Longest' }
+/** The benchmark a record holds, as the Records pane names it (ADR 0081). */
+const BENCHMARK_LABEL: Record<BenchmarkKind, (discipline: string) => string> = {
+	farthest: (discipline) =>
+		HERO_PANE_TEXT.longest(NB_RECORD_NOUNS[discipline] ?? 'økt'),
+}
 
 // Swims read in metres (a swimmer thinks "1,500 m", not "1.5 km"); run and bike
 // reuse the shared distance formatter so the strip matches the kilometres shown
@@ -547,11 +580,10 @@ function formatRecordDistance(discipline: string, meters: number): string {
 
 export function buildProofStrip(records: PersonalRecord[]): ProofRecord[] {
 	return records.map((record) => {
-		const disciplineLabel = getDisciplineLabel(record.discipline)
 		return {
 			discipline: record.discipline,
-			disciplineLabel,
-			label: `${BENCHMARK_VERB[record.kind]} ${disciplineLabel.toLowerCase()}`,
+			disciplineLabel: nbDisciplineLabel(record.discipline),
+			label: BENCHMARK_LABEL[record.kind](record.discipline),
 			value: formatRecordDistance(record.discipline, record.value),
 			delta:
 				record.delta != null
@@ -589,34 +621,12 @@ export type LoadRecomputeLine = {
 	movement: string
 }
 
-/**
- * Kicker and explanation are written together per correction, so a `kind` can
- * never inherit another's headline — the reason this is one record and not a
- * hardcoded kicker beside a map of bodies.
- *
- * The explanation deliberately does **not** point the athlete at the discipline
- * mix as the honest home for their strength load. The mix is a share-of-total
- * surface that still prices a strength slice against endurance TSS — the same
- * defect one surface over, and its own open ruling. Copy that sent readers there
- * would be vouching for a number this change hasn't fixed.
- */
-const LOAD_RECOMPUTE_COPY: Record<
-	string,
-	{ kicker: string; explanation: string }
-> = {
-	'strength-left-the-triad': {
-		kicker: 'Fitness recalculated',
-		explanation:
-			"Strength sessions no longer count toward Fitness, Fatigue and Form. There's no honest way to price a lifting session in the same units as an endurance session, so these three numbers are now endurance only — and say so — rather than mixing the two. Your training hasn't changed; what changed is what they claim to measure.",
-	},
-}
-
 export function buildLoadRecomputeLine(
 	notice: LoadRecomputeNotice | null,
 ): LoadRecomputeLine | null {
 	if (!notice) return null
-	const copy = LOAD_RECOMPUTE_COPY[notice.kind]
-	if (!copy) return null
+	if (!isLoadRecomputeKind(notice.kind)) return null
+	const copy = RECOMPUTE_NOTICE_LABELS.copy[notice.kind]
 	// "by up to … at the widest point": the stored pair is the day the recompute
 	// moved CTL most, which for a past gym block is a historical chart point and
 	// not today's figure. A present-tense "moved from A to B" would be false there.
@@ -626,6 +636,6 @@ export function buildLoadRecomputeLine(
 	return {
 		kind: notice.kind,
 		...copy,
-		movement: `Fitness fell by up to ${drop} — ${before} → ${after} at the widest point`,
+		movement: RECOMPUTE_NOTICE_LABELS.movement(drop, before, after),
 	}
 }

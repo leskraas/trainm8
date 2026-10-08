@@ -29,7 +29,9 @@ import {
 	buildSessionNudge,
 	buildTodayCard,
 } from '#app/routes/_home/presenter.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { MACHINE_OWNED_SESSION } from '#app/utils/session-ownership.ts'
 import {
 	getDisciplineThresholds,
 	getRecentWeeklyAdherence,
@@ -57,21 +59,17 @@ export async function applySessionNudgeForUser(
 	userId: string,
 	now: Date = new Date(),
 ): Promise<void> {
-	const [ledger, currentLoad, trust, weeklyBuild, thresholds, athleteProfile] =
+	const [ledger, currentLoad, trust, weeklyBuild, thresholds, timezone] =
 		await Promise.all([
 			getSessionLedger(userId, { now }),
 			getCurrentLoad(userId),
 			getTsbTrust(userId, now),
 			getRecentWeeklyAdherence(userId, BUILD_WEEKS, now),
 			getDisciplineThresholds(userId),
-			prisma.athleteProfile.findUnique({
-				where: { userId },
-				select: { timezone: true },
-			}),
+			getAthleteTimezone(userId),
 		])
 	// The same Athlete Timezone the home surface decides/labels with (#172), so
 	// the applied nudge and the displayed one select the same "today".
-	const timezone = athleteProfile?.timezone ?? 'UTC'
 
 	const current = currentLoad
 		? { ctl: currentLoad.ctl, atl: currentLoad.atl, tsb: currentLoad.tsb }
@@ -106,6 +104,13 @@ export async function applySessionNudgeForUser(
  * Rewrite a single session's blocks/steps to the canonical eased prescription
  * and recompute its Planned TSS — without touching `source`. Idempotent: the
  * target is absolute, so re-applying writes the identical prescription.
+ *
+ * **Only the machine's sessions** (ADR 0080: ownership gates every machine
+ * write). The athlete's own session is skipped, not proposed to: the ease is a
+ * silent rewrite with no answer surface of its own, and the Coach card already
+ * says what it advises, so the athlete stays the one who changes their session
+ * (by hand, or with "Gjør uka lettere"). The nudge does not fall through to
+ * the next machine session either — the card names this one.
  */
 async function applyEaseToSession(
 	userId: string,
@@ -113,7 +118,7 @@ async function applyEaseToSession(
 	source: Parameters<typeof buildEasedPrescription>[0],
 ): Promise<void> {
 	const session = await prisma.workoutSession.findFirst({
-		where: { id: sessionId, userId },
+		where: { id: sessionId, userId, ...MACHINE_OWNED_SESSION },
 		select: { id: true, workoutId: true },
 	})
 	if (!session?.workoutId) return

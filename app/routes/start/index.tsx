@@ -1,0 +1,134 @@
+import { getFormProps, getInputProps, useForm } from '@conform-to/react'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { data, Form, Link, redirect } from 'react-router'
+import { z } from 'zod'
+import { ErrorList, Field } from '#app/components/forms.tsx'
+import { StatusButton } from '#app/components/ui/status-button.tsx'
+import {
+	linkIntervalsIcu,
+	type LinkIntervalsIcuRefusal,
+} from '#app/integrations/intervalsicu/link.server.ts'
+import { INTERVALSICU_PROVIDER } from '#app/integrations/intervalsicu/types.ts'
+import { getAccountConnection } from '#app/utils/account-connection.server.ts'
+import { requireFirstRunAthlete } from '#app/utils/first-run/plan.server.ts'
+import { FIRST_RUN_LABELS } from '#app/utils/labels.ts'
+import { useIsPending } from '#app/utils/misc.tsx'
+import { type Route } from './+types/index.ts'
+import {
+	FirstRunFrame,
+	PRIMARY_ACTION,
+	SECONDARY_ACTION,
+} from './__first-run-frame.tsx'
+
+/**
+ * The first run, step 1 (#505 story 61): connect intervals.icu so the app can
+ * read the athlete's history, or skip it and say what that costs. The link is
+ * the Integration Hub's own (`linkIntervalsIcu`), Backfill Window included.
+ */
+
+const L = FIRST_RUN_LABELS.connect
+
+const ConnectSchema = z.object({
+	apiKey: z.string({ required_error: L.emptyKey }).trim().min(1, L.emptyKey),
+})
+
+const REFUSALS: Record<LinkIntervalsIcuRefusal, string> = {
+	'empty-key': L.emptyKey,
+	'key-rejected': L.rejected,
+	unreachable: L.unreachable,
+}
+
+export const meta: Route.MetaFunction = () => [
+	{ title: `${FIRST_RUN_LABELS.start} | Trainm8` },
+]
+
+export async function loader({ request }: Route.LoaderArgs) {
+	const userId = await requireFirstRunAthlete(request)
+	const link = await getAccountConnection(userId, INTERVALSICU_PROVIDER)
+	return { connected: link?.status === 'active' }
+}
+
+export async function action({ request }: Route.ActionArgs) {
+	const userId = await requireFirstRunAthlete(request)
+	const formData = await request.formData()
+	const submission = parseWithZod(formData, { schema: ConnectSchema })
+	if (submission.status !== 'success') {
+		return data({ result: submission.reply() }, { status: 400 })
+	}
+	const linked = await linkIntervalsIcu(userId, submission.value.apiKey)
+	if (!linked.ok) {
+		return data(
+			{
+				result: submission.reply({
+					fieldErrors: { apiKey: [REFUSALS[linked.reason]] },
+				}),
+			},
+			{ status: linked.reason === 'unreachable' ? 502 : 400 },
+		)
+	}
+	throw redirect('/start/funn')
+}
+
+export default function ConnectStep({
+	loaderData,
+	actionData,
+}: Route.ComponentProps) {
+	const isPending = useIsPending()
+	const [form, fields] = useForm({
+		id: 'first-run-connect',
+		constraint: getZodConstraint(ConnectSchema),
+		lastResult: actionData?.result,
+		onValidate({ formData }) {
+			return parseWithZod(formData, { schema: ConnectSchema })
+		},
+		shouldRevalidate: 'onBlur',
+	})
+
+	return (
+		<FirstRunFrame step={1} title={L.title} intro={L.intro}>
+			{loaderData.connected ? (
+				<div className="space-y-4">
+					<p className="text-[15px] font-medium">{L.connected}</p>
+					<Link to="/start/funn" className={PRIMARY_ACTION}>
+						{L.next}
+					</Link>
+				</div>
+			) : (
+				<>
+					<Form method="POST" className="space-y-3" {...getFormProps(form)}>
+						<Field
+							labelProps={{ children: L.keyLabel }}
+							inputProps={{
+								...getInputProps(fields.apiKey, { type: 'password' }),
+								autoComplete: 'off',
+								className: 'text-base',
+							}}
+							errors={fields.apiKey.errors}
+						/>
+						<p className="text-muted-foreground text-[13px]">{L.keyHelp}</p>
+						<ErrorList errors={form.errors} id={form.errorId} />
+						<StatusButton
+							type="submit"
+							className="w-full"
+							status={isPending ? 'pending' : (form.status ?? 'idle')}
+							disabled={isPending}
+						>
+							{L.submit}
+						</StatusButton>
+					</Form>
+					<section
+						aria-labelledby="first-run-skip"
+						className="border-border space-y-3 border-t pt-6"
+					>
+						<p id="first-run-skip" className="text-muted-foreground text-sm">
+							{L.skipConsequence}
+						</p>
+						<Link to="/start/funn" className={SECONDARY_ACTION}>
+							{L.skip}
+						</Link>
+					</section>
+				</>
+			)}
+		</FirstRunFrame>
+	)
+}

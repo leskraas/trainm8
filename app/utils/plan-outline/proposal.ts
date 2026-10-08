@@ -291,3 +291,35 @@ export function defaultTrackDiscipline(
 		volume.sessions > most.sessions ? volume : most,
 	).discipline
 }
+
+/**
+ * A **strength Training Track** the athlete's own lifting proposes (#505 story
+ * 15): how often they lift, and the sets a week the track would be anchored on.
+ * Offered, never imposed — the athlete accepts it or not.
+ */
+export type StrengthTrackOffer = {
+	/** Strength sessions a week over the window, rounded: the "~N" of the offer. */
+	sessionsPerWeek: number
+	/** The first **Season Anchor**, in `sets` a week, with its derivation. */
+	anchor: AnchorPrefill
+}
+
+/**
+ * The strength track this history proposes, or `null` where it proposes none:
+ * no lifting in the window, lifting too seldom to make a weekly habit of (fewer
+ * sessions than the window has weeks — under one a week on average), or
+ * sessions that logged no sets to size a
+ * track by. The frequency is read off the history and never invented — the
+ * rule no preset could keep, since none carries a strength segment.
+ */
+export function proposeStrengthTrack(
+	volume: LoggedVolume,
+): StrengthTrackOffer | null {
+	if (volume.discipline !== 'strength') return null
+	// At least one session a week on average: a habit, not an occasion.
+	if (volume.sessions < ANCHOR_WINDOW_WEEKS) return null
+	const sessionsPerWeek = Math.round(volume.sessions / ANCHOR_WINDOW_WEEKS)
+	const anchor = anchorFor(volume, 'sets')
+	if (!anchor) return null
+	return { sessionsPerWeek, anchor }
+}

@@ -153,7 +153,13 @@ export async function action({ request, params }: Route.ActionArgs) {
 	)
 
 	return redirectWithToast(
-		safeRedirect(redirectTo),
+		// A new athlete starts with the first run (#505 story 61). The provider
+		// button remembers the page it was pressed on, and the sign-up or log-in
+		// page is no place to land once signed in.
+		safeRedirect(
+			redirectTo === '/signup' || redirectTo === '/login' ? null : redirectTo,
+			'/start',
+		),
 		{ title: 'Welcome', description: 'Thanks for signing up!' },
 		{ headers },
 	)
@@ -178,7 +184,10 @@ export default function OnboardingProviderRoute({
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: SignupFormSchema })
 		},
-		shouldRevalidate: 'onBlur',
+		// A fixed field clears its error as it is fixed. On blur, the error line
+		// under the terms box would vanish as the athlete presses the button
+		// below it, moving the button out from under the click.
+		shouldRevalidate: 'onInput',
 	})
 
 	return (

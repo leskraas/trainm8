@@ -1,5 +1,5 @@
 import { type Locator, type Page } from '@playwright/test'
-import { expect, test } from '#tests/playwright-utils.ts'
+import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
 
 /**
  * Plan authoring end-to-end (#399, ADR 0039/0043/0044): the whole manual
@@ -56,18 +56,23 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	// ---------------------------------------------------------------------
 
 	await navigate('/')
-	// The far end of the stream is the way in while there is no plan (#178): with
-	// no season there is no season plan to open, so the slot offers to author one.
-	await expect(page.getByText(/no season plan yet/i)).toBeVisible()
-	await page.getByRole('link', { name: 'Plan a season' }).click()
-	await expect(page).toHaveURL('/training/plan/new')
+	// Sesong is the way in (ADR 0083): with no season there is no season plan to
+	// open, so the tab lands on authoring one. The first tap after a load can race
+	// hydration, so retry until it lands.
+	await expect(async () => {
+		await page
+			.getByRole('navigation', { name: 'Hovedmeny' })
+			.getByRole('link', { name: 'Sesong' })
+			.click()
+		await expect(page).toHaveURL('/training/plan/new', { timeout: 5000 })
+	}).toPass()
 
 	// Nothing on the calendar yet, so the way forward is the dated goal — which
 	// visibly creates a `fitness-goal` Event rather than writing one behind the
 	// athlete's back (ADR 0039).
-	await page.getByRole('textbox', { name: 'Goal' }).fill(goalName)
-	await page.getByLabel('Date', { exact: true }).fill(goalDate)
-	await page.getByRole('button', { name: /create goal and continue/i }).click()
+	await page.getByRole('textbox', { name: 'Mål' }).fill(goalName)
+	await page.getByLabel('Dato', { exact: true }).fill(goalDate)
+	await page.getByRole('button', { name: /lag målet og gå videre/i }).click()
 
 	// ---------------------------------------------------------------------
 	// Story 3–4: the shape of the season, and what it is derived from
@@ -86,12 +91,21 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 
 	// A shape carries the blocks, the ramps and the mixes with it. The 21-week
 	// pyramidal one is *not* the default here, so checking it is an authored
-	// choice and its "Big base" block is the proof it landed.
-	await page.getByRole('radio', { name: /Big base \/ pyramidal/ }).check()
+	// choice and its "Big base" block is the proof it landed. The gallery leads
+	// with the shapes nearest the Event, so a longer one is behind the other
+	// lengths.
+	await section(page, 'more lengths').click()
+	await page
+		.getByRole('radio', { name: /^Big base \/ pyramidal A long aerobic base/ })
+		.check()
 
 	// This athlete has trained nothing, so there is no history to read a unit
 	// from and the currency is honestly theirs to pick (ADR 0043 §2).
-	await page.getByRole('combobox', { name: /what do you plan/i }).click()
+	// The select is drawn by the client and opens nothing until React has it,
+	// which on a cold dev server can be after the page shows.
+	const unit = page.getByRole('combobox', { name: /what do you plan/i })
+	await untilHydrated(unit)
+	await unit.click()
 	await page.getByRole('option', { name: 'Kilometres per week' }).click()
 	await page.getByLabel(/where you are starting from/i).fill('40')
 
@@ -107,12 +121,17 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	// the picture is of: one track, in the unit it was authored in.
 	await expect(page.getByRole('heading', { name: 'Your season' })).toBeVisible()
 	await expect(page.getByText('21 weeks · Run in km/wk')).toBeVisible()
-	// The picked shape's blocks, and the anchor typed a moment ago read back in
-	// the track's own currency on the closed section that edits it.
+	// The picked shape's blocks, the philosophy it is a length of, and the
+	// anchor typed a moment ago read back in the track's own currency.
 	await expect(page.getByRole('list', { name: 'Phases' })).toContainText(
 		'Big base',
 	)
-	await expect(page.getByText('Run from 40.0 km/wk')).toBeVisible()
+	await expect(
+		page.getByRole('region', { name: 'Filosofi' }).getByText('Planen følger'),
+	).toContainText('Stor base')
+	await expect(
+		page.getByRole('list', { name: 'Training tracks' }),
+	).toContainText(/Run\s*· authored in km\/wk · starts at 40\.0 km\/wk/)
 	// A plan from a shape already climbs, so what is left is the half a
 	// first-time planner does not know is a half: a typical week, and the calendar.
 	await expect(page.getByText('2 steps left')).toBeVisible()
@@ -127,7 +146,7 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	const currentBlock = page.getByRole('article').filter({ hasText: 'Big base' })
 	await expect(currentBlock.getByText('Current')).toBeVisible()
 	await expect(currentBlock).toContainText('with 1 quality session a week')
-	await section(currentBlock, 'How this block progresses').click()
+	await section(currentBlock, 'Avansert').click()
 	await currentBlock.getByLabel('Zone 4 threshold, sessions a week').fill('2')
 	await currentBlock.getByRole('button', { name: /save quality mix/i }).click()
 
@@ -168,15 +187,17 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 
 	await navigate('/')
 	// Home now knows about the plan: the header says where in it today falls, the
-	// far end names the race the season is for, and the offer to author one is
-	// gone.
-	await expect(page.getByText(/week \d+ of 21/i)).toBeVisible()
-	await expect(page.getByText(/no season plan yet/i)).toHaveCount(0)
+	// hero counts down to the race the season is for, the strip runs out to the
+	// plan's taper, and the line saying there is no plan is gone.
+	await expect(page.getByText(/uke \d+ av 21/i)).toBeVisible()
+	await expect(page.getByText(/\d+ uker til løpsdagen/)).toBeVisible()
+	await expect(page.getByText(/ingen (sesong)?plan ennå/i)).toHaveCount(0)
 	await expect(
-		page.getByRole('link', { name: 'Season plan' }).first(),
+		page.getByRole('link', { name: 'Sesongplan' }).first(),
 	).toBeVisible()
-	// The strip's far end is race day.
-	await expect(page.getByTestId('week-strip')).toContainText(/race day/i)
+	await expect(
+		page.getByTestId('week-strip').getByRole('button').last(),
+	).toHaveAccessibleName(/Taper/)
 
 	// The stamped sessions are ordinary sessions on the athlete's week, in the
 	// stream: the starter pattern's four days, its long day weighted double,

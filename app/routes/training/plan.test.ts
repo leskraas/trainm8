@@ -1,9 +1,10 @@
 // The planning surface's loader: it reads the active plan, and sends an athlete
 // who has none to the flow's first question rather than to an empty page.
 import { type AppLoadContext } from 'react-router'
-import { expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { createOpenEndedPlan } from '#app/utils/plan-outline/authoring.server.ts'
 import { weekKeyAt } from '#app/utils/plan-outline/week-keys.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
@@ -55,6 +56,7 @@ async function createPlannedEvent(
 	const outline = await prisma.planOutline.create({
 		select: { id: true, phases: { select: { id: true } } },
 		data: {
+			athleteId,
 			eventId: event.id,
 			startWeekKey: monday,
 			phases: { create: [{ orderIndex: 0, name: 'Base', weeks: 4 }] },
@@ -121,26 +123,6 @@ function postMix(
 	counts: Record<string, string>,
 ): Parameters<typeof action>[0] {
 	return postPlan(cookie, { intent: 'set-quality-mix', ...counts })
-}
-
-/**
- * Hand-set one week — a **Week Volume Override**. The row identity is the track and
- * the week's Monday, and `value` is what the field carries: a number, `0`, or the
- * empty string, which is the athlete reverting to the rule.
- */
-function postWeekOverride(
-	cookie: string,
-	fields: { trackId: string; weekKey: string; value: string },
-): Parameters<typeof action>[0] {
-	return postPlan(cookie, { intent: 'set-week-override', ...fields })
-}
-
-/** Revert one week to the rule, from its own control: the row identity and no value. */
-function postClearWeekOverride(
-	cookie: string,
-	fields: { trackId: string; weekKey: string },
-): Parameters<typeof action>[0] {
-	return postPlan(cookie, { intent: 'clear-week-override', ...fields })
 }
 
 /** The stored **Week Volume Override** rows of one track, earliest week first. */
@@ -306,7 +288,7 @@ test('a named Event shows that Event’s season, not the nearest one', async () 
 	})
 
 	expect(result.season.eventId).toBe(later.eventId)
-	expect(result.eventQuery).toBe(later.eventId)
+	expect(result.seasonQuery).toEqual({ name: 'event', value: later.eventId })
 })
 
 test('a named Event with no plan of its own falls back to the active plan', async () => {
@@ -326,6 +308,57 @@ test('a named Event with no plan of its own falls back to the active plan', asyn
 
 	const response = await loader({
 		request: request(athlete.cookie, `?event=${marker.id}`),
+		...ARGS_BASE,
+	}).catch((error: unknown) => error)
+
+	expect((response as Response).headers.get('location')).toBe('/training/plan')
+})
+
+test('`?outline=` shows that open-ended plan, and says it rests behind a race plan', async () => {
+	const athlete = await setupAthlete()
+	await createPlannedEvent(athlete.userId)
+	const created = await createOpenEndedPlan(athlete.userId, {
+		discipline: 'run',
+		weeklyHours: 4,
+	})
+	if (!created.ok) throw new Error(created.reason)
+
+	// Without the param the race plan is the active one…
+	const active = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+	expect(active.season.eventId).not.toBeNull()
+
+	// …and with it, the open-ended plan, resting behind the race (ADR 0079).
+	const result = await loader({
+		request: request(athlete.cookie, `?outline=${created.outlineId}`),
+		...ARGS_BASE,
+	})
+	expect(result.season).toMatchObject({
+		outlineId: created.outlineId,
+		eventId: null,
+		fit: null,
+		round: 1,
+		resting: true,
+	})
+	expect(result.seasonQuery).toEqual({
+		name: 'outline',
+		value: created.outlineId,
+	})
+})
+
+test('another athlete’s `?outline=` falls back to the athlete’s own plan', async () => {
+	const owner = await setupAthlete()
+	const theirs = await createOpenEndedPlan(owner.userId, {
+		discipline: 'run',
+		weeklyHours: 4,
+	})
+	if (!theirs.ok) throw new Error(theirs.reason)
+	const athlete = await setupAthlete()
+
+	const response = await loader({
+		request: request(athlete.cookie, `?outline=${theirs.outlineId}`),
 		...ARGS_BASE,
 	}).catch((error: unknown) => error)
 
@@ -377,59 +410,6 @@ async function firstPhase(eventId: string) {
 	})
 }
 
-test('a phase is renamed from the Blocks reading, one row at a time', async () => {
-	const athlete = await setupAthlete()
-	const { eventId } = await createPlannedEvent(athlete.userId)
-	const phase = await firstPhase(eventId)
-
-	const result = await submit(athlete.cookie, {
-		intent: 'rename-phase',
-		phaseId: phase.id,
-		name: 'Return to run',
-	})
-
-	expect(result).toEqual({ ok: true })
-	expect((await firstPhase(eventId)).name).toBe('Return to run')
-})
-
-test('resizing a phase re-derives every week on the next read, with none stored', async () => {
-	const athlete = await setupAthlete()
-	const { eventId, monday } = await createPlannedEvent(athlete.userId)
-	const phase = await firstPhase(eventId)
-
-	await submit(athlete.cookie, {
-		intent: 'resize-phase',
-		phaseId: phase.id,
-		weeks: '6',
-	})
-
-	const result = await loader({
-		request: request(athlete.cookie),
-		...ARGS_BASE,
-	})
-	expect(result.season.weeks).toHaveLength(6)
-	// The plan grew forward: its first week is the week it was authored to open on.
-	expect(result.season.startWeekKey).toBe(monday)
-})
-
-test('a phase’s rhythm and taper flag are set from its own row', async () => {
-	const athlete = await setupAthlete()
-	const { eventId } = await createPlannedEvent(athlete.userId)
-	const phase = await firstPhase(eventId)
-
-	await submit(athlete.cookie, {
-		intent: 'set-phase-rhythm',
-		phaseId: phase.id,
-		rhythm: '2:1',
-		tapers: 'on',
-	})
-
-	expect(await firstPhase(eventId)).toMatchObject({
-		rhythm: '2:1',
-		tapers: true,
-	})
-})
-
 test('a phase is added at a position without moving the Plan Start Week', async () => {
 	const athlete = await setupAthlete()
 	const { eventId, monday } = await createPlannedEvent(athlete.userId)
@@ -457,48 +437,6 @@ test('a phase is added at a position without moving the Plan Start Week', async 
 	])
 	expect(result.season.startWeekKey).toBe(monday)
 	expect(result.season.weeks).toHaveLength(7)
-})
-
-test('a week count the athlete cleared is worded, not thrown', async () => {
-	const athlete = await setupAthlete()
-	const { eventId } = await createPlannedEvent(athlete.userId)
-	const phase = await firstPhase(eventId)
-
-	const response = await submit(athlete.cookie, {
-		intent: 'resize-phase',
-		phaseId: phase.id,
-		weeks: '',
-	})
-
-	expect(refusal(response)).toEqual({
-		error: 'How many weeks is this phase?',
-		status: 400,
-	})
-	expect((await firstPhase(eventId)).weeks).toBe(4)
-})
-
-test('a body with no rhythm is refused, never written as the convention', async () => {
-	const athlete = await setupAthlete()
-	const { eventId } = await createPlannedEvent(athlete.userId)
-	const phase = await firstPhase(eventId)
-	await submit(athlete.cookie, {
-		intent: 'set-phase-rhythm',
-		phaseId: phase.id,
-		rhythm: 'none',
-	})
-
-	const response = await submit(athlete.cookie, {
-		intent: 'set-phase-rhythm',
-		phaseId: phase.id,
-	})
-
-	// Defaulting to 3:1 here would overwrite the `none` the athlete chose with a
-	// convention they never picked (ADR 0044 §4).
-	expect(refusal(response)).toEqual({
-		error: 'Pick how this phase recovers',
-		status: 400,
-	})
-	expect((await firstPhase(eventId)).rhythm).toBe('none')
 })
 
 test('an unreadable position is refused rather than landing at the season’s front', async () => {
@@ -534,10 +472,9 @@ test('another athlete cannot edit or delete this plan', async () => {
 		select: { id: true },
 	})
 
-	const renamed = await submit(intruder.cookie, {
-		intent: 'rename-phase',
+	const moved = await submit(intruder.cookie, {
+		intent: 'remove-phase',
 		phaseId: phase.id,
-		name: 'Mine now',
 	})
 	const deleted = await submit(intruder.cookie, {
 		intent: 'delete-plan',
@@ -545,12 +482,32 @@ test('another athlete cannot edit or delete this plan', async () => {
 	})
 
 	// A row that is not the caller's reads as absent rather than as forbidden.
-	expect(refusal(renamed).status).toBe(400)
+	expect(refusal(moved).status).toBe(400)
 	expect(refusal(deleted).status).toBe(400)
 	expect(await firstPhase(eventId)).toMatchObject({ name: 'Base' })
 	expect(
 		await prisma.planOutline.findUnique({ where: { id: outline.id } }),
 	).not.toBeNull()
+})
+
+// #505 S13: a phase's name, length and rhythm and a week's target are Sesong
+// edits, behind a preview; the direct writes they replaced are gone.
+test('the direct-write intents the Sesong edits replaced are refused', async () => {
+	const athlete = await setupAthlete()
+	const { eventId, trackId, monday } = await createPlannedEvent(athlete.userId)
+	const phase = await firstPhase(eventId)
+	const retired: Array<Record<string, string>> = [
+		{ intent: 'rename-phase', phaseId: phase.id, name: 'Mine' },
+		{ intent: 'resize-phase', phaseId: phase.id, weeks: '6' },
+		{ intent: 'set-phase-rhythm', phaseId: phase.id, rhythm: '2:1' },
+		{ intent: 'set-week-override', trackId, weekKey: monday, value: '40' },
+		{ intent: 'clear-week-override', trackId, weekKey: monday },
+	]
+	for (const fields of retired) {
+		expect(refusal(await submit(athlete.cookie, fields)).status).toBe(400)
+	}
+	expect(await firstPhase(eventId)).toMatchObject({ name: 'Base' })
+	expect(await storedOverrides(trackId)).toEqual([])
 })
 
 test('deleting the plan lands home and leaves the Event and its sessions', async () => {
@@ -885,7 +842,50 @@ async function outlineIdFor(eventId: string) {
 	).id
 }
 
+/**
+ * Pin the clock to this week's Monday morning, or its Wednesday (UTC, the
+ * athletes' timezone here). The plans above open this Monday, and a shape
+ * replaces every phase, so it is only offered while no week has begun (#505
+ * story 14): on the Monday, with nothing trained, the first week has not; by
+ * Wednesday it has.
+ */
+function onPlanDay(day: 'monday' | 'wednesday') {
+	const monday = mondayOf(new Date())
+	vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true })
+	vi.setSystemTime(
+		new Date(
+			new Date(`${monday}T09:00:00Z`).getTime() +
+				(day === 'wednesday' ? 2 * DAY_MS : 0),
+		),
+	)
+}
+
+afterEach(() => {
+	vi.useRealTimers()
+})
+
+test('once a week of the plan has begun, a shape is refused and points to Bytt filosofi', async () => {
+	onPlanDay('wednesday')
+	const athlete = await setupAthlete()
+	const { eventId } = await createPlannedEvent(athlete.userId)
+
+	const response = await submit(athlete.cookie, {
+		intent: 'apply-preset',
+		outlineId: await outlineIdFor(eventId),
+		presetKey: 'classic-linear',
+	})
+
+	expect(refusal(response)).toEqual({
+		status: 400,
+		error: expect.stringContaining('Bytt filosofi i stedet'),
+	})
+	expect(await phasesOf(eventId)).toEqual([
+		{ name: 'Base', weeks: 4, rhythm: '3:1', tapers: false },
+	])
+})
+
 test('applying a shape lays its blocks down and says the plan is now the athlete’s', async () => {
+	onPlanDay('monday')
 	const athlete = await setupAthlete()
 	const { eventId } = await createPlannedEvent(athlete.userId)
 
@@ -916,6 +916,7 @@ test('applying a shape lays its blocks down and says the plan is now the athlete
 })
 
 test('a shape that does not fill the run-in says so, and stretches nothing', async () => {
+	onPlanDay('monday')
 	const athlete = await setupAthlete()
 	// An event roughly 10 weeks out, against an 18-week shape. The preset's phases
 	// are fixed length, so the plan runs *past* the Event and the surface reports
@@ -931,7 +932,7 @@ test('a shape that does not fill the run-in says so, and stretches nothing', asy
 	expect(after.season.weeks).toHaveLength(18)
 	// The direction, not the exact gap: the run-in's week count depends on which
 	// weekday the suite runs on, and `event-fit.test.ts` already pins the arithmetic.
-	expect(after.season.fit.kind).toBe('runs-past')
+	expect(after.season.fit?.kind).toBe('runs-past')
 	// Every phase is the length the preset authored — nothing was scaled to fit.
 	expect((await phasesOf(eventId)).map((phase) => phase.weeks)).toEqual([
 		8, 6, 2, 2,
@@ -939,6 +940,7 @@ test('a shape that does not fill the run-in says so, and stretches nothing', asy
 })
 
 test('a shape longer than the run-in leaves the plan ending before the event', async () => {
+	onPlanDay('monday')
 	const athlete = await setupAthlete()
 	// The mirror case: an event far out, so the same fixed-length shape ends early.
 	const { eventId } = await createPlannedEvent(athlete.userId, { inDays: 175 })
@@ -950,15 +952,17 @@ test('a shape longer than the run-in leaves the plan ending before the event', a
 
 	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
 	expect(after.season.weeks).toHaveLength(18)
-	expect(after.season.fit.kind).toBe('ends-before')
+	expect(after.season.fit?.kind).toBe('ends-before')
 })
 
 test('the shape is copied in as ordinary blocks the athlete can then edit', async () => {
+	onPlanDay('monday')
 	const athlete = await setupAthlete()
 	const { eventId } = await createPlannedEvent(athlete.userId)
+	const outlineId = await outlineIdFor(eventId)
 	await submit(athlete.cookie, {
 		intent: 'apply-preset',
-		outlineId: await outlineIdFor(eventId),
+		outlineId,
 		presetKey: 'classic-linear',
 	})
 
@@ -972,17 +976,22 @@ test('the shape is copied in as ordinary blocks the athlete can then edit', asyn
 		taperCut: null,
 	})
 
-	// And an ordinary rename lands on a phase the preset wrote.
+	// And an ordinary rename previews on a phase the preset wrote.
 	const first = await firstPhase(eventId)
-	const renamed = await submit(athlete.cookie, {
-		intent: 'rename-phase',
+	const previewed = (await submit(athlete.cookie, {
+		intent: 'preview-season-edit',
+		edit: 'phase',
+		outlineId,
 		phaseId: first.id,
 		name: 'Return to run',
-	})
-	expect(renamed).toEqual({ ok: true })
+	})) as { data: { seasonEdit?: { preview?: { message: string } } } }
+	expect(previewed.data.seasonEdit?.preview?.message).toMatch(
+		/heter nå «Return to run»/,
+	)
 })
 
 test('a shape that overruns the event can be fitted to it in one tap', async () => {
+	onPlanDay('monday')
 	const athlete = await setupAthlete()
 	// Roughly ten weeks out against an 18-week shape: the plan runs past the
 	// Event, which the surface states — and now offers to close.
@@ -1011,7 +1020,7 @@ test('a shape that overruns the event can be fitted to it in one tap', async () 
 	)
 
 	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
-	expect(after.season.fit.kind).toBe('ends-on-event-week')
+	expect(after.season.fit?.kind).toBe('ends-on-event-week')
 	// The taper is the one block fitting never re-plans.
 	expect((await phasesOf(eventId)).find((phase) => phase.tapers)).toMatchObject(
 		{ weeks: 2 },
@@ -1220,211 +1229,6 @@ test('availability the athlete never set reads as null, so nothing is compared',
 // pin because nothing else can: **`0` is a value** — a week without training, never
 // a blank — and **blank is the revert**, which is the only meaning that leaves `0`
 // free to mean what the vocabulary says it means.
-
-test('a hand-set week stores one row, on that week’s own Monday', async () => {
-	const athlete = await setupAthlete()
-	const { monday, trackId } = await createPlannedEvent(athlete.userId)
-
-	const result = await action(
-		postWeekOverride(athlete.cookie, {
-			trackId,
-			weekKey: weekKeyAt(monday, 2),
-			value: '42',
-		}),
-	)
-
-	expect(result).toMatchObject({ intent: 'set-week-override', trackId })
-	expect(await storedOverrides(trackId)).toEqual([
-		{ weekKey: weekKeyAt(monday, 2), value: 42 },
-	])
-	// And it is the week's **final** target on the next read — no role factor on top,
-	// so the number the athlete typed is the number they get (ADR 0044 §5).
-	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
-	expect(after.season.weeks[2]!.targets[0]).toMatchObject({
-		value: 42,
-		overridden: true,
-	})
-})
-
-test('a week hand-set to 0 stores 0 — a week without training, not a blank', async () => {
-	const athlete = await setupAthlete()
-	const { monday, trackId } = await createPlannedEvent(athlete.userId)
-
-	await action(
-		postWeekOverride(athlete.cookie, {
-			trackId,
-			weekKey: weekKeyAt(monday, 1),
-			value: '0',
-		}),
-	)
-
-	// `Number('')` is 0, so a form boundary that tests the blank *after* coercing
-	// would make a week off unauthorable. `0` expresses a week without training and
-	// needs no separate flag (GLOSSARY.md, Week Volume Override).
-	expect(await storedOverrides(trackId)).toEqual([
-		{ weekKey: weekKeyAt(monday, 1), value: 0 },
-	])
-	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
-	expect(after.season.weeks[1]!.targets[0]).toMatchObject({
-		value: 0,
-		overridden: true,
-	})
-})
-
-test('a blank target reverts the week to the rule', async () => {
-	const athlete = await setupAthlete()
-	const { monday, trackId } = await createPlannedEvent(athlete.userId)
-	const weekKey = weekKeyAt(monday, 1)
-	await action(
-		postWeekOverride(athlete.cookie, { trackId, weekKey, value: '9' }),
-	)
-
-	const result = await action(
-		postWeekOverride(athlete.cookie, { trackId, weekKey, value: '' }),
-	)
-
-	// Blank is a *value* on this page and it is the athlete taking their hand off the
-	// week — distinct from `0`, which is a week they hand-set to nothing.
-	expect(result).toMatchObject({ intent: 'set-week-override' })
-	expect(await storedOverrides(trackId)).toEqual([])
-})
-
-test('a blank on a week that already follows the rule is a save, not a refusal', async () => {
-	const athlete = await setupAthlete()
-	const { monday, trackId } = await createPlannedEvent(athlete.userId)
-
-	const result = await action(
-		postWeekOverride(athlete.cookie, {
-			trackId,
-			weekKey: weekKeyAt(monday, 0),
-			value: '',
-		}),
-	)
-
-	// The state the blank asked for already holds, so there is nothing to act on and
-	// nothing to say. The revert *control* below keeps its refusal, because pressing
-	// it claims there was something to revert.
-	expect(result).toMatchObject({ intent: 'set-week-override' })
-	expect(await storedOverrides(trackId)).toEqual([])
-})
-
-test('the revert control removes the row, and the week derives again', async () => {
-	const athlete = await setupAthlete()
-	const { monday, trackId } = await createPlannedEvent(athlete.userId)
-	const weekKey = weekKeyAt(monday, 3)
-	await action(
-		postWeekOverride(athlete.cookie, { trackId, weekKey, value: '42' }),
-	)
-
-	const result = await action(
-		postClearWeekOverride(athlete.cookie, { trackId, weekKey }),
-	)
-
-	expect(result).toEqual({ ok: true })
-	expect(await storedOverrides(trackId)).toEqual([])
-	// The row is deleted rather than blanked, so the rule answers for the week again
-	// — week 4 of a 3:1 phase recovers, at 50 × (1 − 30%).
-	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
-	expect(after.season.weeks[3]!.targets[0]).toMatchObject({
-		value: 35,
-		overridden: false,
-	})
-})
-
-test('reverting a week that was never hand-set is worded, not thrown', async () => {
-	const athlete = await setupAthlete()
-	const { monday, trackId } = await createPlannedEvent(athlete.userId)
-
-	const result = await submit(athlete.cookie, {
-		intent: 'clear-week-override',
-		trackId,
-		weekKey: weekKeyAt(monday, 1),
-	})
-
-	// What a revert offered from a stale reading gets: an answer, rather than a false
-	// success or an exception.
-	expect(refusal(result)).toEqual({
-		error: 'That week was not hand-set, so there is nothing to revert.',
-		status: 400,
-	})
-})
-
-test('a target below zero is a form error rather than a throw, and stores nothing', async () => {
-	const athlete = await setupAthlete()
-	const { monday, trackId } = await createPlannedEvent(athlete.userId)
-
-	const result = (await action(
-		postWeekOverride(athlete.cookie, {
-			trackId,
-			weekKey: weekKeyAt(monday, 1),
-			value: '-5',
-		}),
-	).catch((error: unknown) => error)) as { init: { status: number } }
-
-	// The storage schema *throws* on a negative, so the route re-parses through it at
-	// the form boundary and words the result instead (ADR 0044 §8).
-	expect(result).not.toBeInstanceOf(Error)
-	expect(result.init.status).toBe(400)
-	expect(await storedOverrides(trackId)).toEqual([])
-})
-
-test('a week key that is not a Monday is a form error rather than a throw', async () => {
-	const athlete = await setupAthlete()
-	const { monday, trackId } = await createPlannedEvent(athlete.userId)
-
-	const result = (await action(
-		postWeekOverride(athlete.cookie, {
-			trackId,
-			// The Tuesday after the plan opens: a day inside the plan that is not a week
-			// of it, which only a hand-made body can carry.
-			weekKey: new Date(Date.parse(monday) + DAY_MS).toISOString().slice(0, 10),
-			value: '42',
-		}),
-	).catch((error: unknown) => error)) as { init: { status: number } }
-
-	expect(result).not.toBeInstanceOf(Error)
-	expect(result.init.status).toBe(400)
-	expect(await storedOverrides(trackId)).toEqual([])
-})
-
-test('a week outside the plan is refused rather than stored', async () => {
-	const athlete = await setupAthlete()
-	const { monday, trackId } = await createPlannedEvent(athlete.userId)
-
-	// The plan runs four weeks, so index 4 is the first Monday past its end.
-	const result = await submit(athlete.cookie, {
-		intent: 'set-week-override',
-		trackId,
-		weekKey: weekKeyAt(monday, 4),
-		value: '42',
-	})
-
-	expect(refusal(result)).toEqual({
-		error: 'That week is not in your plan.',
-		status: 400,
-	})
-	expect(await storedOverrides(trackId)).toEqual([])
-})
-
-test('another athlete’s track cannot have a week hand-set', async () => {
-	const owner = await setupAthlete()
-	const intruder = await setupAthlete()
-	const { monday, trackId } = await createPlannedEvent(owner.userId)
-
-	const result = await submit(intruder.cookie, {
-		intent: 'set-week-override',
-		trackId,
-		weekKey: weekKeyAt(monday, 1),
-		value: '42',
-	})
-
-	// A row that is not the caller's reads as absent rather than as forbidden.
-	expect(refusal(result)).toEqual({
-		error: 'That training track is no longer part of this plan.',
-		status: 400,
-	})
-	expect(await storedOverrides(trackId)).toEqual([])
-})
 
 // ── Authoring a Week Pattern, and reading it against a week (#410) ────────────
 
@@ -2750,11 +2554,8 @@ test('a blank anchor is a sentence on its own field, and never a zero', async ()
 test('a hand-set week survives a re-anchor authored over it, still marked', async () => {
 	const athlete = await setupAthlete()
 	const { monday, trackId } = await createPlannedEvent(athlete.userId)
-	await submit(athlete.cookie, {
-		intent: 'set-week-override',
-		trackId,
-		weekKey: weekAfter(monday, 2),
-		value: '44',
+	await prisma.weekVolumeOverride.create({
+		data: { trackId, weekKey: weekAfter(monday, 2), value: 44 },
 	})
 
 	await submit(athlete.cookie, {

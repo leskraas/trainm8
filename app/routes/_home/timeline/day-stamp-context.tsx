@@ -24,7 +24,10 @@ import {
 import { useFetcher } from 'react-router'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
-import { type Discipline } from '#app/utils/workout-schema.ts'
+import {
+	type CardioDiscipline,
+	type Discipline,
+} from '#app/utils/workout-schema.ts'
 
 /** A ledger session that carries a prescription — the only kind the Token
  * Sentence has anything to render. */
@@ -66,6 +69,18 @@ export type DayStamp = {
 	closeDraft: () => void
 	closeOpen: () => void
 	stamp: (dayKey: string, discipline: Discipline) => void
+	/**
+	 * Write a sentence from the **writing line** onto a day (#505 stories
+	 * 35–40). The same in-flight and failure states as a stamp, keyed by the
+	 * day. `open: false` leaves the row closed — the panel's case, whose day may
+	 * be anywhere in the list.
+	 */
+	write: (
+		dayKey: string,
+		discipline: CardioDiscipline | null,
+		sentence: string,
+		options?: { open?: boolean },
+	) => void
 	undo: (sessionId: string) => void
 }
 
@@ -100,6 +115,13 @@ export function DayStampProvider({
 	const [pendingDayKey, setPendingDayKey] = useState<string | null>(null)
 	const [failedDayKey, setFailedDayKey] = useState<string | null>(null)
 	const [undoingSessionId, setUndoingSessionId] = useState<string | null>(null)
+	// Whether the write in flight opens its row once it lands. A ref, because it
+	// is read by the landing effect and never rendered.
+	const openOnLandRef = useRef(true)
+	// The id the fetcher already held when this post left. A second write's
+	// failure leaves the first one's id in place, and without this it would read
+	// as the second write landing.
+	const landedBeforeRef = useRef<string | undefined>(undefined)
 
 	// The stamped session's id comes back on the action's own reply, so the row
 	// opens on the thing that was actually written rather than on a guess about
@@ -110,7 +132,7 @@ export function DayStampProvider({
 		setPendingDayKey(null)
 		setFailedDayKey(null)
 		setDraftDayKey(null)
-		setOpenSessionId(stampedSessionId)
+		if (openOnLandRef.current) setOpenSessionId(stampedSessionId)
 	}, [stampedSessionId])
 
 	// **The other ending.** A post that comes back with no id — a dropped
@@ -132,7 +154,7 @@ export function DayStampProvider({
 		}
 		if (!inFlightRef.current) return
 		inFlightRef.current = false
-		if (stampedSessionId) return
+		if (stampedSessionId && stampedSessionId !== landedBeforeRef.current) return
 		setFailedDayKey(pendingDayKey)
 		setPendingDayKey(null)
 	}, [pendingDayKey, stampState, stampedSessionId])
@@ -171,6 +193,8 @@ export function DayStampProvider({
 			},
 			closeOpen: () => setOpenSessionId(null),
 			stamp: (dayKey, discipline) => {
+				openOnLandRef.current = true
+				landedBeforeRef.current = stampFetcher.data?.stampedSessionId
 				setPendingDayKey(dayKey)
 				// A retry starts from a clean row: the failure being reported is the
 				// last one, never a stale one from the attempt before it.
@@ -181,6 +205,22 @@ export function DayStampProvider({
 				// unless the index is named — and root has no action at all.
 				void stampFetcher.submit(
 					{ intent: 'stamp-day', date: dayKey, discipline },
+					{ method: 'POST' },
+				)
+			},
+			write: (dayKey, discipline, sentence, { open = true } = {}) => {
+				openOnLandRef.current = open
+				landedBeforeRef.current = stampFetcher.data?.stampedSessionId
+				setPendingDayKey(dayKey)
+				setFailedDayKey(null)
+				// Home's own index action, as the stamp — see above.
+				void stampFetcher.submit(
+					{
+						intent: 'write-session',
+						date: dayKey,
+						discipline: discipline ?? '',
+						sentence,
+					},
 					{ method: 'POST' },
 				)
 			},

@@ -16,7 +16,7 @@
  *   target — the pace window and the HR ceiling — rather than an outcome. This
  *   applies to every planned week, not only the current one.
  * - **No band without both sides** (ADR 0008/0019). An unplanned session reads
- *   `UNPLANNED · NO PLAN TO COMPARE`, never a fabricated percentage; an imported
+ *   `UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED`, never a fabricated percentage; an imported
  *   session gets no chip at all, because the week header already says the week
  *   came from before the plan and repeating it on every row is noise.
  * - **A missed session invents nothing.** `Nothing recorded` and `MISSED`. No
@@ -59,10 +59,15 @@ import {
 	formatSpeed,
 	formatTss,
 } from '#app/utils/format.ts'
+import {
+	NB_ADHERENCE_CHIP_LABELS,
+	NB_LOAD_WORDS,
+	ROW_LABELS,
+} from '#app/utils/labels.ts'
 import { type SessionRow } from '#app/utils/session-ledger-rows.ts'
 import {
 	formatKg,
-	loadValueText,
+	type LoadValue,
 	parseStoredLoadValue,
 } from '#app/utils/strength-log.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
@@ -133,7 +138,7 @@ export function buildRowContent(
 	if (isToday && entry.status === 'planned') {
 		chips.push({
 			id: 'today',
-			label: 'TODAY · NOT DONE YET',
+			label: ROW_LABELS.todayNotDone,
 			tone: 'primary',
 		})
 	}
@@ -164,7 +169,7 @@ export function buildRowContent(
 
 /** True when a chip's label already carries the actual TSS figure. */
 function statesTss(chip: RowChip): boolean {
-	return chip.label.startsWith('TSS ')
+	return chip.id === 'compliance' && chip.label.startsWith('TSS ')
 }
 
 // ---------------------------------------------------------------------------
@@ -175,7 +180,7 @@ function externalLoad(
 	session: LedgerSession,
 	entry: SessionLedgerEntry,
 ): string | null {
-	if (entry.status === 'missed') return 'Nothing recorded'
+	if (entry.status === 'missed') return ROW_LABELS.nothingRecorded
 	if (entry.status === 'completed') {
 		// A lifting session's actual is its set rows (ADR 0056) — never its
 		// prescription's duration, which is not what it did.
@@ -221,7 +226,7 @@ function liftedLine(session: LedgerSession): string | null {
 	// honest reading is that nothing was logged, which is also what the `SETS 0 /
 	// n` chip beside it says. `Nothing recorded` is kept for a *missed* session:
 	// these are different facts and must not share a sentence.
-	if (session.setLogs.length === 0) return 'Nothing logged'
+	if (session.setLogs.length === 0) return ROW_LABELS.nothingLogged
 	return clauses(...byLift(session.setLogs).map(liftClause))
 }
 
@@ -306,8 +311,9 @@ function loadText(set: LoggedWorkingSet): string | null {
 	const load = parseStoredLoadValue(set.load)
 	if (!load) return null
 	if (load.kind === 'external') return formatKg(load.kg)
-	if (load.kind === 'perSide') return `${formatKg(load.kg)} per side`
-	return loadValueText(load)
+	if (load.kind === 'perSide')
+		return `${formatKg(load.kg)} ${ROW_LABELS.perSide}`
+	return nbLoadValueText(load)
 }
 
 /**
@@ -386,9 +392,9 @@ function plannedLine(entry: SessionLedgerEntry): string | null {
 			? `${entry.durationMin} min`
 			: null
 	if (entry.plannedTss == null) {
-		return duration ? `${duration} planned` : null
+		return duration ? ROW_LABELS.planned(duration) : null
 	}
-	return clauses(duration, `${formatTss(entry.plannedTss)} planned`)
+	return clauses(duration, ROW_LABELS.planned(formatTss(entry.plannedTss)))
 }
 
 // ---------------------------------------------------------------------------
@@ -437,7 +443,7 @@ function internalLoad({
  */
 function liftingCostLine(entry: SessionLedgerEntry): string | null {
 	if (entry.load != null) {
-		return `sRPE ${formatLoad(entry.load)} — from time and effort, not from the sets`
+		return ROW_LABELS.srpe(formatLoad(entry.load))
 	}
 	return entry.rpe != null ? `RPE ${entry.rpe}` : null
 }
@@ -458,14 +464,14 @@ function plannedTargetLine(
 		const sets = plannedWorkingSets(workout)
 		// "First time at 90 kg" and "squat up 2.5 kg from Tuesday" need the lift's
 		// own history, which nothing here has. The count is what is true.
-		return sets > 0 ? `${sets} ${sets === 1 ? 'set' : 'sets'}` : null
+		return sets > 0 ? ROW_LABELS.sets(sets) : null
 	}
 	const steps = workout.blocks.flatMap((block) => block.steps)
 	const distance = sumBlockDistanceM(workout.blocks)
 	const pace = paceWindow(steps, entry.discipline)
 	const effort =
 		distance != null && pace
-			? `${formatDistance(distance)} at ${pace}`
+			? ROW_LABELS.distanceAt(formatDistance(distance), pace)
 			: (pace ?? (distance != null ? formatDistance(distance) : null))
 	return clauses(effort, hrCeiling(steps))
 }
@@ -528,7 +534,7 @@ function hrCeiling(steps: PlannedStep[]): string | null {
 		.map((step) => step.intensityHrMax)
 		.filter((cap): cap is number => cap != null)
 	if (caps.length === 0) return null
-	return `under ${Math.max(...caps)} bpm`
+	return ROW_LABELS.hrCeiling(Math.max(...caps))
 }
 
 /**
@@ -582,7 +588,7 @@ function setsChip(
 	const logged = session.setLogs.length
 	return {
 		id: 'sets',
-		label: `SETS ${logged} / ${prescribed}`,
+		label: ROW_LABELS.setsChip(logged, prescribed),
 		tone: logged >= prescribed ? 'primary' : 'warn',
 	}
 }
@@ -611,7 +617,7 @@ function complianceChip({
 	// again on every row in it is noise.
 	if (week.imported) return null
 	if (entry.status === 'missed') {
-		return { id: 'compliance', label: 'MISSED', tone: 'bad' }
+		return { id: 'compliance', label: ROW_LABELS.missed, tone: 'bad' }
 	}
 	// Nothing has happened on a planned row, so there is nothing to comply with.
 	// `isToday` is read only so that today's own chip can take the slot instead.
@@ -622,7 +628,7 @@ function complianceChip({
 	if (unplanned(session)) {
 		return {
 			id: 'compliance',
-			label: 'UNPLANNED · NO PLAN TO COMPARE',
+			label: ROW_LABELS.unplanned,
 			tone: 'muted',
 		}
 	}
@@ -638,7 +644,7 @@ function complianceChip({
 	}
 	return {
 		id: 'compliance',
-		label: `TSS ${formatLoad(entry.load)} / ${formatLoad(entry.plannedTss)} · ${entry.adherence.label.toUpperCase()}`,
+		label: `TSS ${formatLoad(entry.load)} / ${formatLoad(entry.plannedTss)} · ${NB_ADHERENCE_CHIP_LABELS[entry.adherence.tone]}`,
 		tone: entry.adherence.tone === 'on-target' ? 'primary' : 'warn',
 	}
 }
@@ -652,4 +658,30 @@ function complianceChip({
  */
 function unplanned(session: LedgerSession): boolean {
 	return session.source === 'recorded' || session.source === 'detected'
+}
+
+/**
+ * A logged load that is not plain kilos, in the row's Norwegian — the same
+ * kinds `loadValueText` words for the English surfaces, so a bodyweight dip and
+ * an assisted pull-up can never be read as bar weights here either.
+ */
+function nbLoadValueText(load: LoadValue): string {
+	switch (load.kind) {
+		case 'external':
+			return `${formatKg(load.kg)} kg`
+		case 'perSide':
+			return `${load.sides} × ${formatKg(load.kg)} kg`
+		case 'bodyweight':
+			return NB_LOAD_WORDS.bodyweight
+		case 'bodyweightPlus':
+			return `${NB_LOAD_WORDS.bodyweight} + ${formatKg(load.addedKg)} kg`
+		case 'assisted':
+			return `${NB_LOAD_WORDS.assisted} − ${formatKg(load.assistKg)} kg`
+		case 'stackLevel':
+			return load.label ?? NB_LOAD_WORDS.level(load.level)
+		case 'band':
+			return NB_LOAD_WORDS.band(load.band)
+		case 'unloaded':
+			return NB_LOAD_WORDS.unloaded
+	}
 }

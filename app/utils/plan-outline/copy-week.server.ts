@@ -13,10 +13,11 @@
 //   Wednesday in the new week edit Wednesday in the old one. `copyWorkout` is the one
 //   deep-copy seam and this reuses it rather than growing a second (ADR 0044 §6).
 // - **A copied session is an ordinary session.** Anchored to the same **Event** and
-//   carrying the `authored` **Session Source** — the two marks a hand-authored
-//   session has. Nothing records that it was copied, so there is nothing to keep in
-//   sync and no "copied session" category to explain.
-// - **Copied as authored, never scaled.** This is what makes copying a week a
+//   carrying the `generated` **Session Source**: the plan laid the copy, so it is
+//   the machine's until the athlete edits it, which adopts it (ADR 0080). Nothing
+//   records that it was copied, so there is nothing to keep in sync and no "copied
+//   session" category to explain.
+// - **Copied verbatim, never scaled.** This is what makes copying a week a
 //   *different* offer from stamping a pattern. A pattern's share days absorb the
 //   week's derived volume; a copy carries the week the athlete already wrote. If the
 //   target week's derived target differs, the Weeks reading shows the sessions
@@ -31,6 +32,7 @@ import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
 import { copyWorkout, workoutCopySelect } from '../workout.server.ts'
+import { isOutlineResting } from './active-outline.server.ts'
 import {
 	planWeekCopy,
 	WeekCopySchema,
@@ -52,6 +54,8 @@ import { clearPlanWeek, readWeekOccupancy } from './week-sessions.server.ts'
  */
 export type CopyWeekRefusal =
 	| 'plan-gone'
+	/** An open-ended plan resting behind an active plan toward a race (ADR 0079). */
+	| 'plan-resting'
 	| 'week-outside-plan'
 	| 'same-week'
 	| 'source-week-empty'
@@ -108,12 +112,14 @@ function refuse(
 export async function copyWeek(
 	userId: string,
 	input: WeekCopyInput,
+	now: Date = new Date(),
 ): Promise<CopyWeekResult> {
 	const copy = WeekCopySchema.parse(input)
 
 	const outline = await prisma.planOutline.findFirst({
-		where: { id: copy.outlineId, event: { athleteId: userId } },
+		where: { id: copy.outlineId, athleteId: userId },
 		select: {
+			id: true,
 			startWeekKey: true,
 			event: { select: { id: true } },
 			phases: {
@@ -129,6 +135,11 @@ export async function copyWeek(
 		},
 	})
 	if (!outline) return refuse('plan-gone')
+	if (
+		await isOutlineResting(userId, { eventId: outline.event?.id ?? null }, now)
+	) {
+		return refuse('plan-resting')
+	}
 
 	// The plan's span, and nothing else about it: a copy reads no track, no anchor and
 	// no ramp, because a copied week is not priced against the week it lands on.
@@ -141,10 +152,11 @@ export async function copyWeek(
 	// Said as its own reason rather than run.
 	if (copy.sourceWeekKey === copy.targetWeekKey) return refuse('same-week')
 
-	const eventId = outline.event.id
+	// An open-ended plan has no Event (ADR 0079); the plan itself is the scope.
+	const eventId = outline.event?.id ?? null
 	const timezone = await getAthleteTimezone(userId)
 
-	// Scoped to this Event, exactly as the replacement scope is: the plan copies the
+	// Scoped to this plan, exactly as the replacement scope is: the plan copies the
 	// week *of this plan*, so a session the athlete authored outside it is neither
 	// taken nor overwritten. Every status comes across — a week that went well is a
 	// week that was *trained*, and refusing to copy a completed session would make
@@ -153,7 +165,7 @@ export async function copyWeek(
 	const sources = await prisma.workoutSession.findMany({
 		where: {
 			userId,
-			targetEventId: eventId,
+			planOutlineId: outline.id,
 			scheduledAt: { gte: bounds.start, lte: bounds.end },
 		},
 		orderBy: { scheduledAt: 'asc' },
@@ -182,7 +194,7 @@ export async function copyWeek(
 	// silently lost.
 	const occupancy = await readWeekOccupancy(
 		userId,
-		eventId,
+		outline.id,
 		copy.targetWeekKey,
 		timezone,
 	)
@@ -214,7 +226,7 @@ export async function copyWeek(
 		const replaced = await clearPlanWeek(
 			tx,
 			userId,
-			eventId,
+			outline.id,
 			copy.targetWeekKey,
 			timezone,
 		)
@@ -234,10 +246,12 @@ export async function copyWeek(
 					// scheduled, with no Session Log and no Recording, whatever had happened
 					// to the session it was copied from.
 					status: 'scheduled',
-					// The two marks that make this an ordinary session: authored by the
-					// athlete, anchored to the same Event as the week it came from.
-					source: 'authored',
+					// Laid by the plan, so the machine's (ADR 0080) until the athlete edits
+					// it — that edit is Session Adoption — and anchored to the plan, and
+					// to its Event when it has one.
+					source: 'generated',
 					targetEventId: eventId,
+					planOutlineId: outline.id,
 				},
 				select: { id: true },
 			})

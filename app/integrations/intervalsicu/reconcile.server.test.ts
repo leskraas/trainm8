@@ -234,11 +234,43 @@ test('a swept activity that auto-matches a planned session earns TSS from the lo
 	// 160) — previously nothing recomputed after the sweep, so TSS stayed null.
 	const imported = await prisma.activityImport.findFirstOrThrow({
 		where: { athleteId: user.id, externalId: 'i5001' },
-		select: { promotedSessionId: true, tssValue: true, tssFormula: true },
+		select: {
+			promotedSessionId: true,
+			promotedSession: { select: { tssValue: true, tssFormula: true } },
+		},
 	})
 	expect(imported.promotedSessionId).not.toBeNull()
-	expect(imported.tssFormula).toBe('hrTSS')
-	expect(imported.tssValue).toBeGreaterThan(0)
+	// A matched session is done, so the TSS is the session's own.
+	expect(imported.promotedSession?.tssFormula).toBe('hrTSS')
+	expect(imported.promotedSession?.tssValue).toBeGreaterThan(0)
+})
+
+test('a swept activity that fits no plan becomes an ekstra session on its day', async () => {
+	const { user } = await setupConnection()
+
+	server.use(
+		http.get(ACTIVITIES_URL, () =>
+			HttpResponse.json([missedActivity('i5101')]),
+		),
+	)
+
+	const swept = await runIntervalsIcuReconciliation(user.id)
+
+	invariant(swept.ok, 'expected a successful reconciliation')
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: user.id, externalId: 'i5101' },
+		select: {
+			startedAt: true,
+			promotedSession: {
+				select: { source: true, status: true, scheduledAt: true },
+			},
+		},
+	})
+	expect(imported.promotedSession).toEqual({
+		source: 'recorded',
+		status: 'completed',
+		scheduledAt: imported.startedAt,
+	})
 })
 
 test('a 401 flips the connection to revoked and reports it', async () => {

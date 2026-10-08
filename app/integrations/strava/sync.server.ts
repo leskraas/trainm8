@@ -19,8 +19,9 @@ import { STRAVA_PROVIDER } from './types.ts'
  * mapped to disciplines via the provider-private table (ADR 0014); unmodeled
  * types collapse to `'other'` (ADR 0015) and are excluded from auto-match.
  *
- * Unlike the Backfill Window (#74), manual sync only *links* imports to an
- * existing planned session — it never auto-creates recording-only sessions.
+ * Like every ingest path, each activity goes through `autoSaveImport`: linked
+ * to the one planned session that fits, or stood up as a recording-only
+ * session of its own when none does.
  *
  * Token refresh — including the rotated refresh token — is handled transparently
  * by the API client. A permanently revoked grant surfaces as a `revoked` result

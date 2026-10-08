@@ -7,12 +7,18 @@
 // and the direction it would drift is toward deleting something the athlete trained.
 //
 // The policy, in one sentence: a session is the plan's to replace only while it is
-// still merely **scheduled**, anchored to **this Event**, with no **Session Log** and
-// no **Recording** behind it.
+// still merely **scheduled**, laid by **this plan**, still the **machine's**, with
+// no **Session Log** and no **Recording** behind it.
 //
-// - **Scoped to this Event.** A session the athlete authored outside the plan is none
-//   of the plan's business, and deleting it would be the app removing something it
-//   never wrote.
+// - **Scoped to this plan.** By `planOutlineId`, the plan that laid the session,
+//   and not by its Event: an open-ended plan has none (ADR 0079). A session the
+//   athlete authored outside the plan is none of the plan's business, and deleting
+//   it would be the app removing something it never wrote. Rows laid before
+//   ADR 0079 were scoped by `targetEventId`; the migration that added the column
+//   backfilled them from it, so no event-anchored path is kept.
+// - **Only the machine's own sessions.** A session the athlete wrote, or a plan
+//   session they edited and so adopted, is theirs — the plan never
+//   deletes it, whatever the athlete confirms (`session-ownership.ts`, ADR 0080).
 // - **A trained week is never rewritten.** Completed, skipped or missed sessions,
 //   anything carrying a Session Log, and anything backed by a Recording are left
 //   exactly alone — and that is a *hard* rule, enforced here rather than at the
@@ -20,8 +26,12 @@
 //   preserved" posture, applied to the reflection and the status too).
 
 import { type Prisma } from '@prisma/client'
-import { weekBoundsFromMondayUTC, weekMonday } from '../athlete-calendar.ts'
-import { prisma } from '../db.server.ts'
+import {
+	weekBoundsFromMondayUTC,
+	weekMonday,
+} from '#app/utils/athlete-calendar.ts'
+import { prisma } from '#app/utils/db.server.ts'
+import { MACHINE_OWNED_SESSION } from '#app/utils/session-ownership.ts'
 
 /**
  * What makes a session the plan's to replace. Kept as a `where` fragment rather than
@@ -29,6 +39,7 @@ import { prisma } from '../db.server.ts'
  * one rule.
  */
 export const REPLACEABLE_SESSION = {
+	...MACHINE_OWNED_SESSION,
 	status: 'scheduled',
 	recordingId: null,
 	sessionLog: { is: null },
@@ -50,7 +61,7 @@ export type WeekOccupancy = {
  */
 export async function readWeekOccupancy(
 	userId: string,
-	eventId: string,
+	planOutlineId: string,
 	weekKey: string,
 	timezone: string,
 ): Promise<WeekOccupancy> {
@@ -62,7 +73,7 @@ export async function readWeekOccupancy(
 	// the number this returns is the number the athlete is asked to confirm.
 	const inWeek = {
 		userId,
-		targetEventId: eventId,
+		planOutlineId,
 		scheduledAt: { gte: start, lte: end },
 	}
 	const [total, replacing] = await Promise.all([
@@ -75,6 +86,29 @@ export async function readWeekOccupancy(
 }
 
 /**
+ * How many sessions in one week a plan laid there — a stamp, a copy, the horizon
+ * fill — whoever owns them now. An adopted one counts: it is still the plan's
+ * week, edited, and laying the week again would put a second one beside it. A
+ * session the athlete wrote themselves (`authored`) does not.
+ */
+export async function countPlanLaidSessions(
+	userId: string,
+	planOutlineId: string,
+	weekKey: string,
+	timezone: string,
+): Promise<number> {
+	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
+	return prisma.workoutSession.count({
+		where: {
+			userId,
+			planOutlineId,
+			scheduledAt: { gte: start, lte: end },
+			source: { not: 'authored' },
+		},
+	})
+}
+
+/**
  * Delete this plan's replaceable sessions in one week, returning how many went.
  *
  * The sessions first, then their Workouts: the `workoutId` FK cascades, so deleting a
@@ -84,7 +118,7 @@ export async function readWeekOccupancy(
 export async function clearPlanWeek(
 	tx: Prisma.TransactionClient,
 	userId: string,
-	eventId: string,
+	planOutlineId: string,
 	weekKey: string,
 	timezone: string,
 ): Promise<number> {
@@ -92,7 +126,7 @@ export async function clearPlanWeek(
 	const doomed = await tx.workoutSession.findMany({
 		where: {
 			userId,
-			targetEventId: eventId,
+			planOutlineId,
 			scheduledAt: { gte: start, lte: end },
 			...REPLACEABLE_SESSION,
 		},
@@ -121,15 +155,15 @@ export async function clearPlanWeek(
  * not in sessions, because that is the unit the question is asked in and the unit
  * the week list is drawn in.
  *
- * Every session anchored to this Event inside the plan's span counts, whatever
- * wrote it: a stamped pattern, a copied week, or a session the athlete authored by
- * hand against the Event. A week with training in it is a week with training in
+ * Every session this plan laid inside its span counts, whoever owns it now: a
+ * stamped pattern, a copied week, the horizon fill or the generator, adopted or
+ * not. A week with training in it is a week with training in
  * it, and {@link REPLACEABLE_SESSION}'s narrower rule is about what a *rewrite* may
  * touch, which is a different question.
  */
 export async function countWeeksWithSessions(
 	userId: string,
-	eventId: string,
+	planOutlineId: string,
 	weekKeys: readonly string[],
 	timezone: string,
 ): Promise<number> {
@@ -142,7 +176,7 @@ export async function countWeeksWithSessions(
 	const sessions = await prisma.workoutSession.findMany({
 		where: {
 			userId,
-			targetEventId: eventId,
+			planOutlineId,
 			scheduledAt: { gte: start, lte: end },
 		},
 		select: { scheduledAt: true },

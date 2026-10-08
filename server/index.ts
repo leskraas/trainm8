@@ -306,8 +306,16 @@ const { startReconciliationSchedule } =
 	await import('#app/integrations/reconcile-sweep.server.ts')
 const stopReconciliationSchedule = startReconciliationSchedule()
 
+// Start the hourly week-change sweep (#505, ADR 0080): one job per athlete whose
+// Training Week has closed (Sunday 20:00 local) or whose morning's silence is
+// due (06:00 local), so Ukeskiftet happens whether or not new data lands.
+const { startWeekChangeSchedule } =
+	await import('#app/utils/load/week-change.server.ts')
+const stopWeekChangeSchedule = startWeekChangeSchedule()
+
 closeWithGrace(async ({ err }) => {
 	stopReconciliationSchedule()
+	stopWeekChangeSchedule()
 	stopJobWorker()
 	await new Promise((resolve, reject) => {
 		server.close((e) => (e ? reject(e) : resolve('ok')))

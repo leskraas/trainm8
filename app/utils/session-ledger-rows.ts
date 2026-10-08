@@ -46,6 +46,8 @@ export type LedgerRow = SessionRow | NowRow
 export function buildLedgerRows(
 	sessions: LedgerSession[],
 	now: Date = new Date(),
+	/** The Athlete Timezone: today's sessions stay planned (`deriveLedgerStatus`). */
+	timezone?: string,
 ): LedgerRow[] {
 	const nowMs = now.getTime()
 	const rows: LedgerRow[] = []
@@ -61,7 +63,7 @@ export function buildLedgerRows(
 			kind: 'session',
 			id: s.id,
 			session: s,
-			entry: toSessionLedgerEntry(s, now),
+			entry: toSessionLedgerEntry(s, now, timezone),
 			bars: profile.bars,
 			groups: profile.groups,
 			isPast,

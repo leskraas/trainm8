@@ -168,7 +168,10 @@ function Document({
 				<ClientHintCheck nonce={nonce} />
 				<Meta />
 				<meta charSet="utf-8" />
-				<meta name="viewport" content="width=device-width,initial-scale=1" />
+				<meta
+					name="viewport"
+					content="width=device-width,initial-scale=1,viewport-fit=cover"
+				/>
 				{allowIndexing ? null : (
 					<meta name="robots" content="noindex, nofollow" />
 				)}
@@ -224,12 +227,13 @@ function App() {
 			getSrc={getImgSrc}
 		>
 			{user ? (
-				<div className="flex min-h-screen flex-col">
+				<div className="flex min-h-screen flex-col pr-[env(safe-area-inset-right)] pb-(--tab-bar-space) pl-[env(safe-area-inset-left)]">
 					{/*
-						Embedded navigation (#178): the wordmark row is the only
-						persistent chrome; it renders in normal flow (no floating or
-						sticky bar). Every other destination is reached through page
-						elements.
+						The four tabs (ADR 0083, superseding #178's embedded
+						navigation): the wordmark row carries them from `md` up, and on
+						a phone they pin to the bottom edge. The bottom padding is the
+						room that bar takes (`--tab-bar-space`, 0 from `md` up), so no
+						page ends underneath it.
 					*/}
 					<WordmarkRow
 						user={user}

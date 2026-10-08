@@ -315,17 +315,26 @@ export async function recomputeLoadFrom(
 
 	// Real data just landed and Form (TSB) is fresh — this is the ADR 0008
 	// load-recompute path (session log / import promotion / threshold change /
-	// recorded status all flow through here), never a GET. Both appliers are
-	// dynamically imported to keep the module graph acyclic (they read back from
-	// this module).
+	// recorded status all flow through here), never a GET. Both are dynamically
+	// imported to keep the module graph acyclic (they read back from this
+	// module).
 	//
-	// The Week Replan (ADR 0025) runs FIRST: if a Training Week just closed
-	// clearly over plan with Form confirming the overload, the coming week's
-	// volume softens — at most once per closed week. The Session Nudge (#158)
-	// runs second so its single-session ease composes on top of the week-scoped
-	// rescale, not under it.
-	const { applyWeekReplanForUser } = await import('./week-replan.server.ts')
-	await applyWeekReplanForUser(athleteId, now)
+	// The week change (ADR 0080) runs FIRST, the same step the hourly job runs:
+	// if a Training Week has closed (Sunday 20:00 local) it stores that week's
+	// proposals — at most once per closed week — and moves the Planning Horizon,
+	// and from the morning after it lets silence apply what may apply. The
+	// Session Nudge (#158) runs second; a softening proposal on the session it
+	// eases goes stale and silence leaves it alone, so the two never compound.
+	//
+	// Contained: the week change is the athlete's plan moving on, not this log
+	// or import, so a failed stamp or silence is logged and never fails the
+	// write that triggered the recompute. The hourly job retries what failed.
+	try {
+		const { runWeekChangeForUser } = await import('./week-change.server.ts')
+		await runWeekChangeForUser(athleteId, now)
+	} catch (error) {
+		console.error('[week-change] failed during load recompute', error)
+	}
 	const { applySessionNudgeForUser } = await import('./session-nudge.server.ts')
 	await applySessionNudgeForUser(athleteId, now)
 }

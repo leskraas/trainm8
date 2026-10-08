@@ -106,15 +106,21 @@ test('onboarding with link', async ({ page, navigate, getOnboardingData }) => {
 
 	await page.getByRole('button', { name: /Create an account/i }).click()
 
-	await expect(page).toHaveURL(`/`)
+	// A new athlete lands on the first run (#505 story 61).
+	await expect(page).toHaveURL(`/start`)
 
-	// The wordmark row's avatar links straight to Settings, and logout lives
-	// on the Settings profile page (#178).
-	await page.getByRole('link', { name: /^settings$/i }).click()
+	// The first run carries no tab bar (ADR 0083): one way forward.
+	await expect(page.getByRole('navigation', { name: 'Hovedmeny' })).toHaveCount(
+		0,
+	)
 
-	await expect(page).toHaveURL(`/settings/profile`)
+	// Meg is the account tab, and logout lives on it.
+	await page.goto('/me')
+	await expect(
+		page.getByRole('heading', { name: 'Meg', level: 1 }),
+	).toBeVisible()
 
-	await page.getByRole('button', { name: /^log out$/i }).click()
+	await page.getByRole('button', { name: /^logg ut$/i }).click()
 	await expect(page).toHaveURL(`/`)
 })
 
@@ -169,7 +175,11 @@ test('completes onboarding after GitHub OAuth given valid user details', async (
 	await expect(
 		page.getByRole('heading', { name: /welcome aboard/i }),
 	).toBeVisible()
-	await expect(page.getByText(ghUser.primaryEmail)).toBeVisible()
+	// Scoped to the page: the dev server's devtools panel keeps the route's
+	// loader data (this email among it) in the DOM.
+	await expect(
+		page.getByRole('main').getByText(ghUser.primaryEmail),
+	).toBeVisible()
 
 	// fields are pre-populated for the user, so we only need to accept
 	// terms of service and hit the 'crete an account' button
@@ -192,7 +202,8 @@ test('completes onboarding after GitHub OAuth given valid user details', async (
 		.click()
 	await createAccountButton.click()
 
-	await expect(page).toHaveURL('/')
+	// A new athlete lands on the first run (#505 story 61).
+	await expect(page).toHaveURL('/start')
 	await expect(page.getByText(/thanks for signing up/i)).toBeVisible()
 
 	// internally, a user has been created:
@@ -265,7 +276,11 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 	await expect(
 		page.getByRole('heading', { name: /welcome aboard/i }),
 	).toBeVisible()
-	await expect(page.getByText(ghUser.primaryEmail)).toBeVisible()
+	// Scoped to the page: the dev server's devtools panel keeps the route's
+	// loader data (this email among it) in the DOM.
+	await expect(
+		page.getByRole('main').getByText(ghUser.primaryEmail),
+	).toBeVisible()
 
 	const usernameInput = page.getByRole('textbox', { name: /username/i })
 
@@ -336,7 +351,13 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 		.getByRole('checkbox', {
 			name: /do you agree to our terms of service and privacy policy/i,
 		})
-		.click()
+		.check()
+	// Checking the box clears its error at once, so the button below it is
+	// already where it will stay when it is pressed. (Cleared only on blur,
+	// the line vanished on the press and the button moved out from under it.)
+	await expect(
+		page.getByText(/must agree to the terms of service and privacy policy/i),
+	).not.toBeVisible()
 	await createAccountButton.click()
 	await expect(createAccountButton.getByText('error')).not.toBeAttached()
 
@@ -354,9 +375,13 @@ test('login as existing user', async ({ page, navigate, insertNewUser }) => {
 	await page.getByRole('button', { name: /log in/i }).click()
 	await expect(page).toHaveURL(`/`)
 
-	// The wordmark row's avatar (→ Settings) only renders for authenticated
+	// The tab bar (and its Meg tab) only renders for authenticated
 	// users (#178), so it doubles as the logged-in proof.
-	await expect(page.getByRole('link', { name: /^settings$/i })).toBeVisible()
+	await expect(
+		page
+			.getByRole('navigation', { name: 'Hovedmeny' })
+			.getByRole('link', { name: 'Meg' }),
+	).toBeVisible()
 })
 
 test('reset password with a link', async ({
@@ -414,9 +439,13 @@ test('reset password with a link', async ({
 
 	await expect(page).toHaveURL(`/`)
 
-	// The wordmark row's avatar (→ Settings) only renders for authenticated
+	// The tab bar (and its Meg tab) only renders for authenticated
 	// users (#178), so it doubles as the logged-in proof.
-	await expect(page.getByRole('link', { name: /^settings$/i })).toBeVisible()
+	await expect(
+		page
+			.getByRole('navigation', { name: 'Hovedmeny' })
+			.getByRole('link', { name: 'Meg' }),
+	).toBeVisible()
 })
 
 test('reset password with a short code', async ({

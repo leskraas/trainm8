@@ -22,6 +22,7 @@ import {
 	isCardioDiscipline,
 	type WorkoutAuthoringInput,
 } from './workout-schema.ts'
+import { parseWorkoutSentence } from './workout-sentence.ts'
 
 /**
  * The stamped step's duration. Three quarters of an hour is the shape of an
@@ -107,6 +108,38 @@ export function buildDayStamp({
 		...structure,
 		title: deriveWorkoutTitle(structure),
 		intent: STAMP_INTENT,
+		scheduledAt,
+	}
+}
+
+/** The longest title a Workout takes (`WorkoutAuthoringSchema`). */
+const TITLE_MAX = 120
+
+/**
+ * A **written** session (#505 stories 35–40): the sentence the athlete typed on
+ * the writing line, read into structure by `parseWorkoutSentence` and handed
+ * to the same `createWorkoutSession` a stamp goes through. Null when the reader
+ * is unsure of anything in it — the server reads the sentence again rather
+ * than trusting the client's preview, and writes nothing it could not read.
+ *
+ * The title is the sentence itself: the athlete's own words name the session
+ * (`3x10 min terskel`), as a name is content and not chrome (ADR 0027 A3).
+ */
+export function buildWrittenSession({
+	sentence,
+	discipline,
+	scheduledAt,
+}: {
+	sentence: string
+	discipline: CardioDiscipline | null
+	scheduledAt: Date
+}): WorkoutAuthoringInput | null {
+	const parsed = parseWorkoutSentence(sentence, { discipline })
+	if (!parsed.structure || !parsed.intent) return null
+	return {
+		...parsed.structure,
+		title: sentence.trim().replace(/\s+/g, ' ').slice(0, TITLE_MAX),
+		intent: parsed.intent,
 		scheduledAt,
 	}
 }

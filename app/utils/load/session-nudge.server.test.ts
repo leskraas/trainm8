@@ -211,6 +211,33 @@ test('a generated session stays generated after an ease (source preserved, no ad
 	expect(after.source).toBe('generated')
 })
 
+// ── ownership: the ease never rewrites the athlete's own session (ADR 0080) ───
+
+test("a back-off call leaves the athlete's own next session exactly as they wrote it", async () => {
+	const user = await createBiker({ tsb: -18 })
+	const own = await createIntervalSession(user.id, { source: 'authored' })
+	const before = await readPrescription(own.id)
+
+	await applySessionNudgeForUser(user.id, NOW)
+
+	expect(await readPrescription(own.id)).toEqual(before)
+})
+
+test('a back-off call eases a session the athlete handed back (lås opp)', async () => {
+	const user = await createBiker({ tsb: -18 })
+	const released = await createIntervalSession(user.id, { source: 'authored' })
+	await prisma.workoutSession.update({
+		where: { id: released.id },
+		data: { releasedAt: new Date('2026-06-09T08:00:00.000Z') },
+	})
+
+	await applySessionNudgeForUser(user.id, NOW)
+
+	const step = (await readPrescription(released.id)).workout!.blocks[0]!
+		.steps[0]!
+	expect(step.durationSec).toBe(60 * 60)
+})
+
 // ── trust gate: below 42 days nothing is mutated (Form-derived) ───────────────
 
 test('below the trust gate a Form-derived back-off does not mutate the session', async () => {

@@ -59,6 +59,7 @@ async function createPlan(athleteId: string) {
 	const outline = await prisma.planOutline.create({
 		select: { id: true, phases: { select: { id: true } } },
 		data: {
+			athleteId,
 			eventId: event.id,
 			startWeekKey: monday,
 			phases: {
@@ -125,8 +126,16 @@ async function addSession(
 			workoutId: workout.id,
 			scheduledAt: localTimeUTC(addDays(weekKey, weekday), '07:00', 'UTC'),
 			status: 'scheduled',
-			source: 'authored',
+			// Laid by the plan, so a confirmed copy may replace it (ADR 0080).
+			source: 'generated',
 			targetEventId: eventId,
+			// The plan that laid it, which is what a copy scopes by (ADR 0079).
+			planOutlineId: (
+				await prisma.planOutline.findUniqueOrThrow({
+					where: { eventId },
+					select: { id: true },
+				})
+			).id,
 		},
 	})
 }

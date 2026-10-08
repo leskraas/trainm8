@@ -172,6 +172,43 @@ test('the season plan does not overflow at 390px', async ({
 	await expectNoHorizontalOverflow(page)
 })
 
+test('the Bibliotek and Meg tabs do not overflow, and the tab bar covers no content', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	await login()
+
+	// The two hub tabs are new surfaces (ADR 0083); the bottom tab bar is fixed
+	// over the phone's bottom edge, so it is the one new way to push a page
+	// sideways or hide its last line.
+	await navigate('/library')
+	await expect(
+		page.getByRole('heading', { name: 'Bibliotek', level: 1 }),
+	).toBeVisible()
+	await expectNoHorizontalOverflow(page)
+
+	await navigate('/me')
+	await expect(
+		page.getByRole('heading', { name: 'Meg', level: 1 }),
+	).toBeVisible()
+	await expectNoHorizontalOverflow(page)
+
+	// Scrolled to the end, the page's last control sits above the bar, never
+	// under it: the layout pads itself by the room the bar takes.
+	await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+	const logout = await page
+		.getByRole('button', { name: /^logg ut$/i })
+		.boundingBox()
+	const bar = await page
+		.getByRole('navigation', { name: 'Hovedmeny' })
+		.boundingBox()
+	expect(logout, 'Logg ut has no box').not.toBeNull()
+	expect(bar, 'the tab bar has no box').not.toBeNull()
+	expect(logout!.y + logout!.height).toBeLessThanOrEqual(bar!.y)
+})
+
 test('onboarding does not overflow at 390px', async ({ page, navigate }) => {
 	test.setTimeout(120_000)
 	// Onboarding is gated by a verify-session cookie carrying the email being

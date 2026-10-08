@@ -20,7 +20,7 @@ async function createOutlineEvent() {
 		},
 	})
 	return prisma.event.create({
-		select: { id: true },
+		select: { id: true, athleteId: true },
 		data: {
 			athleteId: user.id,
 			name: 'Spring Half Marathon',
@@ -51,6 +51,7 @@ async function createOutline() {
 	const event = await createOutlineEvent()
 	return prisma.planOutline.create({
 		data: {
+			athleteId: event.athleteId,
 			eventId: event.id,
 			startWeekKey: START_WEEK_KEY,
 			phases: { create: [{ orderIndex: 0, name: 'Base', weeks: 4 }] },
@@ -494,10 +495,12 @@ test('the backfill lays one endurance segment per phase on a segmentless track',
 	// author a progression yet. `20260731100000_backfill_endurance_segments` adds the
 	// row those rates hang off — so this exercises the same statement the migration
 	// ran, which is the only way to catch a later table rebuild dropping it.
+	const anchor = await createOutlineEvent()
 	const outline = await prisma.planOutline.create({
 		select: { id: true },
 		data: {
-			eventId: (await createOutlineEvent()).id,
+			athleteId: anchor.athleteId,
+			eventId: anchor.id,
 			startWeekKey: START_WEEK_KEY,
 			phases: {
 				create: [
@@ -546,7 +549,7 @@ test('deleting the Event takes the whole Outline with it', async () => {
 		select: { eventId: true },
 	})
 
-	await prisma.event.delete({ where: { id: event.eventId } })
+	await prisma.event.delete({ where: { id: event.eventId! } })
 
 	expect(
 		await prisma.planOutline.findUnique({ where: { id: outline.id } }),

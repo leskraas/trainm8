@@ -32,12 +32,17 @@ import { Link } from 'react-router'
 import { ScheduledWorkoutSentence } from '#app/routes/training/__workout-detail-editor.tsx'
 import { STAMP_SENTENCE, isStampableDiscipline } from '#app/utils/day-stamp.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
-import { getDisciplineLabel } from '#app/utils/labels.ts'
-import { cn } from '#app/utils/misc.tsx'
-import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
+import { DAY_STAMP_LABELS, WRITING_LINE_LABELS } from '#app/utils/labels.ts'
+import { type Discipline } from '#app/utils/workout-schema.ts'
 import { type StampedLedgerSession, useDayStamp } from './day-stamp-context.tsx'
-import { DiscDot } from './disc-dot.tsx'
 import { growIn } from './reflow.ts'
+import {
+	cardioChip,
+	DisciplineChips,
+	useParsedSentence,
+	WriteButton,
+	WritingLine,
+} from './writing-line.tsx'
 
 /**
  * The height the cell had before it was tapped — ADR 0028's control floor, and
@@ -58,9 +63,6 @@ function fullEditorTo(dayKey: string, discipline: Discipline | null) {
 	if (discipline) params.set('discipline', discipline)
 	return `/training/sessions/new?${params}`
 }
-
-const CHIP =
-	'flex h-[30px] items-center gap-1.5 rounded-[9px] border px-2.5 text-[11.5px]/[1] font-semibold'
 
 /**
  * The draft — everything the cell has to say **before** anything is written.
@@ -103,11 +105,23 @@ export function StampDraft({
 	}, [])
 
 	const stampable = chosen != null && isStampableDiscipline(chosen)
+	// A lift has to be named, which no sentence on this line can do yet, so
+	// strength keeps its way to the full route and the line is not offered.
+	const lifting = chosen != null && !stampable
+	const [text, setText] = useState('')
+	const parsed = useParsedSentence(text, chosen)
+	const typed = text.trim().length > 0
+	const write = () => {
+		if (!parsed.structure || pending) return
+		stamp.write(dayKey, cardioChip(chosen), text)
+	}
 
 	return (
 		<div
 			ref={ref}
 			data-timeline-draft={dayKey}
+			role="group"
+			aria-label={DAY_STAMP_LABELS.draftFor(`${dayLabel} ${dateLabel}`)}
 			className="bg-primary/4 reflow grid grid-cols-[46px_1fr] items-start gap-3 px-[18px] py-[10px]"
 		>
 			<span className="flex flex-col gap-0.5 pt-px">
@@ -118,46 +132,45 @@ export function StampDraft({
 			</span>
 			<div className="flex min-w-0 flex-col gap-2">
 				<p className="text-ink-dimmer text-[11px]/[1.3]">
-					{stamp.prefill
-						? 'What you train most — tap another to change it.'
-						: 'Nothing on record to read this from, so: which one?'}
+					{stamp.prefill ? DAY_STAMP_LABELS.prefilled : DAY_STAMP_LABELS.ask}
 				</p>
-				<div
-					role="radiogroup"
-					aria-label="Discipline"
-					className="flex flex-wrap gap-1.5"
-				>
-					{DISCIPLINES.map((discipline) => {
-						const active = chosen === discipline
-						return (
-							<button
-								key={discipline}
-								type="button"
-								role="radio"
-								aria-checked={active}
-								onClick={() => setChosen(discipline)}
-								className={cn(
-									CHIP,
-									active
-										? 'border-primary text-primary bg-primary/10'
-										: 'border-hairline-edge text-ink-dim',
-								)}
-							>
-								<DiscDot solid discipline={discipline} className="size-[6px]" />
-								{getDisciplineLabel(discipline)}
-							</button>
-						)
-					})}
-				</div>
+				<DisciplineChips
+					chosen={chosen}
+					onChoose={setChosen}
+					label={DAY_STAMP_LABELS.discipline}
+				/>
+				{lifting ? null : (
+					<WritingLine
+						dayKey={dayKey}
+						text={text}
+						onText={setText}
+						parsed={parsed}
+						thresholds={stamp.thresholds}
+						onSubmit={write}
+						emptyHint={stampable ? WRITING_LINE_LABELS.hint : null}
+					/>
+				)}
 				<div className="flex flex-wrap items-center gap-2">
-					{stampable ? (
+					{typed && !lifting ? (
+						/* The sentence, once the line says something. Offered only
+						   when the reader is sure of every word, so what is written is
+						   what the preview above showed. */
+						<WriteButton
+							text={text}
+							parsed={parsed}
+							pending={pending}
+							onWrite={write}
+						/>
+					) : stampable ? (
 						<button
 							type="button"
 							disabled={pending}
 							onClick={() => stamp.stamp(dayKey, chosen)}
 							className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[34px] items-center rounded-[10px] px-[13px] text-[12.5px]/[1] font-bold disabled:opacity-60"
 						>
-							{pending ? 'Adding…' : `Add ${STAMP_SENTENCE}`}
+							{pending
+								? DAY_STAMP_LABELS.adding
+								: DAY_STAMP_LABELS.add(STAMP_SENTENCE)}
 						</button>
 					) : chosen != null ? (
 						/* A lifting session has to name a lift, and no lift can be read
@@ -167,7 +180,7 @@ export function StampDraft({
 							to={fullEditorTo(dayKey, chosen)}
 							className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[34px] items-center rounded-[10px] px-[13px] text-[12.5px]/[1] font-bold"
 						>
-							Name the lifts
+							{DAY_STAMP_LABELS.nameTheLifts}
 						</Link>
 					) : /* Nothing chosen and nothing derived: there is no session to
 						   offer yet, so the row offers none. The question above is the
@@ -177,19 +190,19 @@ export function StampDraft({
 						to={fullEditorTo(dayKey, chosen)}
 						className="border-hairline-edge text-foreground hover:border-primary flex h-[34px] items-center rounded-[10px] border px-[13px] text-[12.5px]/[1] font-semibold"
 					>
-						More
+						{DAY_STAMP_LABELS.more}
 					</Link>
 					<button
 						type="button"
 						onClick={stamp.closeDraft}
 						className="text-ink-dim h-[34px] px-1 text-[12.5px]/[1] font-semibold"
 					>
-						Cancel
+						{DAY_STAMP_LABELS.cancel}
 					</button>
 				</div>
 				{chosen != null && !stampable ? (
 					<p className="text-ink-dimmer text-[11px]/[1.35]">
-						A lifting session says which lifts — more than the line can hold.
+						{DAY_STAMP_LABELS.liftsNote}
 					</p>
 				) : null}
 				{/* Nothing was written, and the row says so rather than sitting on
@@ -199,7 +212,7 @@ export function StampDraft({
 				    at the line under it. */}
 				{failed ? (
 					<p role="status" className="text-destructive text-[11px]/[1.35]">
-						That did not save. Nothing was written — try again.
+						{DAY_STAMP_LABELS.failed}
 					</p>
 				) : null}
 			</div>
@@ -352,21 +365,21 @@ function StampedRowActions({
 				disabled={undoing}
 				className="border-hairline-edge text-foreground hover:border-destructive hover:text-destructive flex h-[30px] items-center rounded-[9px] border px-[11px] text-[11.5px]/[1] font-semibold disabled:opacity-60"
 			>
-				{undoing ? 'Removing…' : 'Undo'}
+				{undoing ? DAY_STAMP_LABELS.removing : DAY_STAMP_LABELS.undo}
 			</button>
 			<Link
 				to={to}
 				prefetch="intent"
 				className="border-hairline-edge text-foreground hover:border-primary flex h-[30px] items-center rounded-[9px] border px-[11px] text-[11.5px]/[1] font-semibold"
 			>
-				More
+				{DAY_STAMP_LABELS.more}
 			</Link>
 			<button
 				type="button"
 				onClick={onDone}
 				className="text-primary h-[30px] px-1 text-[11.5px]/[1] font-bold"
 			>
-				Done
+				{DAY_STAMP_LABELS.done}
 			</button>
 		</div>
 	)

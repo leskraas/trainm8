@@ -16,6 +16,16 @@ export type EventKind = (typeof EVENT_KINDS)[number]
 export const EVENT_PRIORITIES = ['A', 'B', 'C'] as const
 export type EventPriority = (typeof EVENT_PRIORITIES)[number]
 
+/** An Event's stored `kind`, read back as the enum it was written from. */
+export function isEventKind(value: string): value is EventKind {
+	return (EVENT_KINDS as readonly string[]).includes(value)
+}
+
+/** An Event's stored `priority`, read back as the enum it was written from. */
+export function isEventPriority(value: string): value is EventPriority {
+	return (EVENT_PRIORITIES as readonly string[]).includes(value)
+}
+
 export const EVENT_STATUSES = ['planned', 'completed', 'cancelled'] as const
 export type EventStatus = (typeof EVENT_STATUSES)[number]
 

@@ -15,15 +15,20 @@ import {
 	getTsbTrust,
 	recomputeLoadFrom,
 } from './snapshot.server.ts'
+import { applyDueProposals } from './week-replan-proposals.server.ts'
 import { applyWeekReplanForUser } from './week-replan.server.ts'
 
 // ── fixtures ──────────────────────────────────────────────────────────────
 //
 // The applier runs on the load-recompute path: when the most recently closed
-// Training Week has no stored WeekReplan yet, it decides one (decideWeekReplan)
-// and persists it — on `adjusted`, rescaling the target week's quantified
-// cardio Step Quantities in place. These tests set up the persisted state each
-// branch needs and assert the *persisted* effect — external behaviour only.
+// Training Week has no stored WeekReplan yet, it decides one (decideWeekReplan,
+// through the proposal author) and stores it with its proposals (ADR 0080).
+// Nothing is rescaled until a proposal applies, so the softening branches run
+// `replanAndSleep`: the replan, then the next morning's silence
+// (`applyDueProposals`), which applies the machine's softenings. These tests
+// set up the persisted state each branch needs and assert the *persisted*
+// effect — external behaviour only. The proposal rules themselves are
+// week-replan-proposals.server.test.ts's.
 //
 // The clock is anchored to *this* week's Wednesday noon UTC (rather than a
 // fixed date) because the TSB trust gate counts history against the real
@@ -38,6 +43,10 @@ const CURRENT_MONDAY = weekMonday(NOW, 'UTC')
 const CLOSED_MONDAY = addDays(CURRENT_MONDAY, -7)
 
 const dayMs = 24 * 60 * 60 * 1000
+
+/** The Replan Note a softening proposal leaves on the session it applied to. */
+const SESSION_NOTE =
+	'Forrige uke ble 25 % tyngre enn planlagt, og formen er −12. Vi foreslår å gjøre denne økta ca. 20 % kortere.'
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 
 async function createBiker({
@@ -133,6 +142,7 @@ async function createTargetSession(
 		durationSec = 3600 as number | null,
 		distanceM = null as number | null,
 		source = 'generated' as string,
+		adoptedAt = null as Date | null,
 		status = 'scheduled' as string,
 		scheduledAt = new Date(`${addDays(CURRENT_MONDAY, 3)}T08:00:00.000Z`),
 		discipline = 'bike' as string,
@@ -176,7 +186,14 @@ async function createTargetSession(
 		select: { id: true },
 	})
 	const session = await prisma.workoutSession.create({
-		data: { userId, workoutId: workout.id, scheduledAt, status, source },
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt,
+			status,
+			source,
+			adoptedAt,
+		},
 		select: { id: true },
 	})
 	await recomputePlannedTssForSession(userId, session.id)
@@ -224,9 +241,15 @@ async function readReplans(userId: string) {
 	})
 }
 
-// ── adjusted: an over + fatigued closed week softens the target week ─────────
+/** The replan, then the next morning's silence applying what it may. */
+async function replanAndSleep(userId: string) {
+	await applyWeekReplanForUser(userId, NOW)
+	await applyDueProposals(userId, NOW)
+}
 
-test('an over + fatigued closed week rescales the target week, attaches the note, recomputes Planned TSS, and stores the decision', async () => {
+// ── an over + fatigued closed week softens the target week ──────────────────
+
+test('an over + fatigued closed week proposes a softening that silence applies: rescaled, noted, re-priced, and the decision stored', async () => {
 	const user = await createBiker({ tsb: -12 })
 	await createClosedWeekSession(user.id) // 25% over
 	const session = await createTargetSession(user.id, {
@@ -237,15 +260,18 @@ test('an over + fatigued closed week rescales the target week, attaches the note
 	expect(before.plannedTssValue).not.toBeNull()
 
 	await applyWeekReplanForUser(user.id, NOW)
+	// Proposed, not yet applied.
+	expect(
+		(await readSession(session.id)).workout!.blocks[0]!.steps[0]!.durationSec,
+	).toBe(3600)
+	await applyDueProposals(user.id, NOW)
 
 	const after = await readSession(session.id)
 	const step = after.workout!.blocks[0]!.steps[0]!
 	// 0.8 × 3600s → 2880s (48 min, on the minute); 0.8 × 10000m → 8000m.
 	expect(step.durationSec).toBe(2880)
 	expect(step.distanceM).toBe(8000)
-	expect(after.replanReason).toBe(
-		'Last week ran 25% over plan and Form was −12 — softened this session ~20%.',
-	)
+	expect(after.replanReason).toBe(SESSION_NOTE)
 	// The softened prescription re-prices itself through the same formulas.
 	expect(after.plannedTssValue).not.toBeNull()
 	expect(after.plannedTssValue!).toBeLessThan(before.plannedTssValue!)
@@ -253,12 +279,14 @@ test('an over + fatigued closed week rescales the target week, attaches the note
 	expect(await readReplans(user.id)).toEqual([
 		{
 			weekKey: CLOSED_MONDAY,
-			outcome: 'adjusted',
+			outcome: 'proposed',
+			// Nothing had applied when it was written: it proposes.
 			reason:
-				"Last week ran 25% over plan and Form was −12 — softened this week's remaining sessions ~20%.",
+				'Forrige uke ble 25 % tyngre enn planlagt, og formen er −12. Vi foreslår å gjøre de neste øktene ca. 20 % kortere.',
 			adherenceRatio: 1.25,
 			tsb: -12,
-			appliedScale: 0.8,
+			// A proposal carries its own factor; this column is ADR 0025's.
+			appliedScale: null,
 		},
 	])
 })
@@ -268,7 +296,7 @@ test('a generated session stays generated after a rescale (source preserved, no 
 	await createClosedWeekSession(user.id)
 	const session = await createTargetSession(user.id, { source: 'generated' })
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 
 	const after = await readSession(session.id)
 	expect(after.workout!.blocks[0]!.steps[0]!.durationSec).toBe(2880)
@@ -301,7 +329,7 @@ test('completed, past, next-week, strength, and unquantified sessions are untouc
 		distanceM: null,
 	})
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 
 	expect(
 		(await readSession(adjustable.id)).workout!.blocks[0]!.steps[0]!
@@ -318,13 +346,56 @@ test('completed, past, next-week, strength, and unquantified sessions are untouc
 	}
 })
 
+// ── ownership gate: the athlete's own sessions are never the replan's ───────
+
+test("the athlete's own sessions — authored or adopted — are never rescaled, beside a machine session that is", async () => {
+	const user = await createBiker()
+	await createClosedWeekSession(user.id)
+	const machine = await createTargetSession(user.id, { source: 'generated' })
+	const authored = await createTargetSession(user.id, { source: 'authored' })
+	const adopted = await createTargetSession(user.id, {
+		source: 'generated',
+		adoptedAt: new Date(NOW.getTime() - dayMs),
+	})
+
+	await replanAndSleep(user.id)
+
+	expect(
+		(await readSession(machine.id)).workout!.blocks[0]!.steps[0]!.durationSec,
+	).toBe(2880)
+	for (const own of [authored, adopted]) {
+		const after = await readSession(own.id)
+		expect(after.workout!.blocks[0]!.steps[0]!.durationSec).toBe(3600)
+		expect(after.replanReason).toBeNull()
+	}
+})
+
+test("a week holding only the athlete's own sessions is proposed to, and silence leaves it as it is", async () => {
+	const user = await createBiker()
+	await createClosedWeekSession(user.id)
+	const authored = await createTargetSession(user.id, { source: 'authored' })
+
+	await replanAndSleep(user.id)
+
+	expect(
+		(await readSession(authored.id)).workout!.blocks[0]!.steps[0]!.durationSec,
+	).toBe(3600)
+	const [replan] = await readReplans(user.id)
+	expect(replan).toMatchObject({ outcome: 'proposed', appliedScale: null })
+	// The proposal stands, unanswered: only a yes applies it (ADR 0080 step 3).
+	const proposal = await prisma.weekReplanProposal.findFirstOrThrow({
+		where: { athleteId: user.id, targetSessionId: authored.id },
+	})
+	expect(proposal).toMatchObject({ answer: 'pending', appliedAt: null })
+})
+
 test('an over + fatigued week with nothing adjustable stores an explicit no-change refusal', async () => {
 	const user = await createBiker()
 	await createClosedWeekSession(user.id)
 	// The only candidate is completed — nothing the rule can honestly soften.
 	const session = await createTargetSession(user.id, { status: 'completed' })
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 
 	const replans = await readReplans(user.id)
 	expect(replans).toHaveLength(1)
@@ -341,9 +412,9 @@ test('a second recompute for the same closed week changes nothing — the scale 
 	await createClosedWeekSession(user.id)
 	const session = await createTargetSession(user.id)
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 	const once = await readSession(session.id)
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 	const twice = await readSession(session.id)
 
 	// Not 0.8 × 2880 = 2304 — the first evaluation won.
@@ -357,7 +428,7 @@ test('idempotency survives the notes and rescaled rows being wiped — the guard
 	await createClosedWeekSession(user.id)
 	const session = await createTargetSession(user.id)
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 
 	// Undo everything the applier wrote to the session; keep only the row.
 	await prisma.workoutSession.update({
@@ -369,7 +440,7 @@ test('idempotency survives the notes and rescaled rows being wiped — the guard
 		data: { durationSec: 3600 },
 	})
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 
 	const after = await readSession(session.id)
 	expect(after.workout!.blocks[0]!.steps[0]!.durationSec).toBe(3600)
@@ -377,9 +448,6 @@ test('idempotency survives the notes and rescaled rows being wiped — the guard
 })
 
 // ── note lifecycle: prescription rewrites clear the note (#197, ADR 0025 §4) ──
-
-const SESSION_NOTE =
-	'Last week ran 25% over plan and Form was −12 — softened this session ~20%.'
 
 test('a manual edit clears the edited session note; other notes and the WeekReplan row survive, and no recompute re-softens', async () => {
 	const user = await createBiker({ tsb: -12 })
@@ -389,7 +457,7 @@ test('a manual edit clears the edited session note; other notes and the WeekRepl
 		scheduledAt: new Date(`${addDays(CURRENT_MONDAY, 4)}T08:00:00.000Z`),
 	})
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 	expect((await readSession(edited.id)).replanReason).toBe(SESSION_NOTE)
 	const storedReplans = await readReplans(user.id)
 
@@ -424,7 +492,7 @@ test('a manual edit clears the edited session note; other notes and the WeekRepl
 	expect(await readReplans(user.id)).toEqual(storedReplans)
 
 	// A subsequent recompute never re-softens the edited session (at-most-once)…
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 	const afterRecompute = await readSession(edited.id)
 	expect(afterRecompute.replanReason).toBeNull()
 	expect(afterRecompute.workout!.blocks[0]!.steps[0]!.durationSec).toBe(5400)
@@ -446,7 +514,7 @@ test('a Session Nudge ease clears the eased session note; the WeekReplan row sta
 		scheduledAt: new Date(`${addDays(CURRENT_MONDAY, 4)}T08:00:00.000Z`),
 	})
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 	expect((await readSession(eased.id)).replanReason).toBe(SESSION_NOTE)
 	expect(
 		(await readSession(eased.id)).workout!.blocks[0]!.steps[0]!.durationSec,
@@ -465,7 +533,7 @@ test('a Session Nudge ease clears the eased session note; the WeekReplan row sta
 	expect(await readReplans(user.id)).toEqual(storedReplans)
 
 	// A subsequent recompute never re-softens the eased session (at-most-once).
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 	const afterRecompute = await readSession(eased.id)
 	expect(afterRecompute.workout!.blocks[0]!.steps[0]!.durationSec).toBe(3600)
 	expect(afterRecompute.replanReason).toBeNull()
@@ -481,7 +549,7 @@ test('an under week stores no-change with the "bank the planned work" reason and
 	await createClosedWeekSession(user.id, { plannedTss: 100, actualTss: 50 })
 	const session = await createTargetSession(user.id)
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 
 	const replans = await readReplans(user.id)
 	expect(replans).toHaveLength(1)
@@ -498,7 +566,7 @@ test('an over week with fresh Form stores no-change (the body is absorbing it)',
 	await createClosedWeekSession(user.id)
 	const session = await createTargetSession(user.id)
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 
 	const replans = await readReplans(user.id)
 	expect(replans).toHaveLength(1)
@@ -512,7 +580,7 @@ test('an over week below the TSB trust gate stores insufficient-data and touches
 	await createClosedWeekSession(user.id)
 	const session = await createTargetSession(user.id)
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 
 	const replans = await readReplans(user.id)
 	expect(replans).toHaveLength(1)
@@ -526,7 +594,7 @@ test('an over week below the TSB trust gate stores insufficient-data and touches
 test('a closed week with no measurable adherence stores insufficient-data', async () => {
 	const user = await createBiker()
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 
 	const replans = await readReplans(user.id)
 	expect(replans).toHaveLength(1)
@@ -540,10 +608,10 @@ test('a stored declined outcome is never re-evaluated, even when late data would
 	const session = await createTargetSession(user.id)
 
 	// First recompute: empty closed week → insufficient-data, stored.
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 	// Late data lands for the closed week: clearly over, Form fatigued.
 	await createClosedWeekSession(user.id)
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 
 	const replans = await readReplans(user.id)
 	expect(replans).toHaveLength(1)
@@ -570,13 +638,13 @@ test('Oslo: a Sunday-night session counts in the closed week it belongs to', asy
 	})
 	const session = await createTargetSession(user.id)
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 
 	const replans = await readReplans(user.id)
 	expect(replans).toEqual([
 		expect.objectContaining({
 			weekKey: CLOSED_MONDAY,
-			outcome: 'adjusted',
+			outcome: 'proposed',
 			adherenceRatio: 1.25,
 		}),
 	])
@@ -600,7 +668,7 @@ test('Oslo: a Monday-00:30 local session (still Sunday in UTC) belongs to the ne
 	})
 	const session = await createTargetSession(user.id)
 
-	await applyWeekReplanForUser(user.id, NOW)
+	await replanAndSleep(user.id)
 
 	const replans = await readReplans(user.id)
 	expect(replans).toEqual([
@@ -617,7 +685,7 @@ test('Oslo: a Monday-00:30 local session (still Sunday in UTC) belongs to the ne
 
 // ── wiring: the recompute path runs the replan, before the Session Nudge ──────
 
-test('recomputeLoadFrom evaluates the Week Replan before the Session Nudge (the ease composes on top of the rescale)', async () => {
+test('recomputeLoadFrom evaluates the Week Replan before the Session Nudge, and a softening the nudge overtook never applies on silence', async () => {
 	const userData = createUser()
 	const user = await prisma.user.create({
 		select: { id: true },
@@ -643,7 +711,8 @@ test('recomputeLoadFrom evaluates the Week Replan before the Session Nudge (the 
 	})
 	// Trust anchor 60 days back, and a deeply fatigued snapshot the day before
 	// NOW — the recompute re-derives today's snapshot from that anchor, so both
-	// appliers read TSB −18 (replan: over + fatigued → adjust; nudge: back-off).
+	// appliers read TSB −18 (replan: over + fatigued → propose a softening;
+	// nudge: back-off).
 	await prisma.loadSnapshot.create({
 		data: {
 			athleteId: user.id,
@@ -667,19 +736,27 @@ test('recomputeLoadFrom evaluates the Week Replan before the Session Nudge (the 
 		},
 	})
 	await createClosedWeekSession(user.id) // 25% over
-	// A 90-minute session: replan-then-nudge ends at the eased 60-minute cap,
-	// while the reverse order would rescale the eased hour down to 48 minutes.
+	// A 90-minute session: the nudge eases it to the 60-minute cap after the
+	// replan proposed softening it to 72.
 	const session = await createTargetSession(user.id, { durationSec: 5400 })
 
 	await recomputeLoadFrom(user.id, iso(NOW), NOW)
 
 	const replans = await readReplans(user.id)
 	expect(replans).toEqual([
-		expect.objectContaining({ outcome: 'adjusted', appliedScale: 0.8 }),
+		expect.objectContaining({ outcome: 'proposed', appliedScale: null }),
 	])
-	const after = await readSession(session.id)
-	// The Session Nudge's canonical eased target, un-rescaled: the nudge ran last.
-	expect(after.workout!.blocks[0]!.steps[0]!.durationSec).toBe(3600)
+	// The Session Nudge's canonical eased target: the nudge ran after the replan.
+	expect(
+		(await readSession(session.id)).workout!.blocks[0]!.steps[0]!.durationSec,
+	).toBe(3600)
+
+	// The proposal describes a prescription the ease replaced, so the morning's
+	// silence leaves it alone rather than compounding on top of the ease.
+	await applyDueProposals(user.id, NOW)
+	expect(
+		(await readSession(session.id)).workout!.blocks[0]!.steps[0]!.durationSec,
+	).toBe(3600)
 })
 
 test('read paths never evaluate a Week Replan (never on a GET)', async () => {

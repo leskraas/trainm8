@@ -1,5 +1,46 @@
 # Every Activity Import auto-saves; there is no Activity Inbox
 
+> **Amended (#505 S15): the correction path also lives on I dag, and the app
+> asks when it is unsure.** The rule above stands — match onto the one planned
+> session that fits, else stand up a recording-only session — and every ingest
+> path still funnels through `autoSaveImport` (the intervals.icu sync and sweep
+> included; their comments claiming otherwise were stale). Four things change:
+>
+> 1. **A link completes the session.** Linking a Recording onto a planned
+>    session never set its status, so a matched session in the past read as
+>    _ikke gjort_ and was left out of the week's Actual Volume, while Training
+>    Load counted its import. Linking now sets `completed` and keeps the status
+>    it replaced (`statusBeforeLink`). Undoing a link restores that status —
+>    done regardless if the athlete marked it _Gjort_ by hand, lifted sets on
+>    it, or adopted it as an ekstra — and clears the session's TSS, which was
+>    the Recording's and would otherwise count twice. A data migration completes
+>    the `scheduled` sessions already holding a Recording (missed and skipped
+>    keep what the athlete said); their TSS stays null until a load recompute
+>    covers their day.
+> 2. **Unsure is a verdict, not a pile.** One rule, `fitsImport`
+>    (`app/utils/import-fit.ts`), says which planned sessions an import could
+>    be: auto-save links when exactly one fits, flags `unsure` when several do,
+>    I dag offers exactly those as answers, and a link answer naming any other
+>    session is refused. The ekstra row asks **"hva var dette?"** — one of those
+>    sessions, _en ekstra økt_, or Annet — while one still fits, never twice
+>    (any answer is stored as `linkAnsweredAt`), and only for imports from the
+>    last 14 days (`IMPORT_QUESTION_DAYS`), so history from before this change
+>    is not asked about all at once. There is still no inbox — the question sits
+>    on the row of a session that already counts.
+> 3. **_Angre kobling_ / _Koble igjen_ on the row.** Every planned session
+>    holding an import offers to lift it off, and the ekstra session that made
+>    offers to put it back on the session it came from
+>    (`unlinkedFromSessionId`). The Workout Detail View's "detach" is the same
+>    call (`undoImportLink`), so there is one path.
+> 4. **_Gjort_ by hand.** A session marked done with no Recording says its
+>    numbers come from the import when a source is connected, and _uten tall_
+>    when none is. An import that lands later links onto it as onto any planned
+>    session.
+>
+> See `app/utils/import-link.server.ts` (the answers),
+> `app/routes/_home/timeline/import-link.ts` (what each row says) and the
+> GLOSSARY's **Auto-Save**, **Ekstra** and **Gjort (by hand)**.
+
 Until now an imported activity landed in an **Activity Inbox** (`/imports`) and
 waited for the athlete to press **Promote** — except when it arrived via the
 **Backfill Window**, which already auto-matched-or-created a session, and except

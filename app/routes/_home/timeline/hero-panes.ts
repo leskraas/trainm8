@@ -24,21 +24,21 @@
  * disagrees with the thing it overviews is worse than no overview.
  */
 import { dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
-import { formatDayMonth, formatLoad } from '#app/utils/format.ts'
-import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
+import { formatLoad, formatNbDayMonth } from '#app/utils/format.ts'
 import {
-	FATIGUE_LEGEND,
-	FITNESS_LEGEND,
-	FORM_LEGEND,
-	type LoadLegend,
-} from '#app/utils/load/legends.ts'
+	HERO_PANE_TEXT,
+	HOME_REPLAN_FALLBACK,
+	HOME_REPLAN_LABELS,
+	NB_ADHERENCE_LABELS,
+	NB_LOAD_LEGENDS,
+} from '#app/utils/labels.ts'
+import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
+import { type LoadLegend } from '#app/utils/load/legends.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
+import { type WeekReplanOutcome } from '#app/utils/load/week-replan.ts'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
-import {
-	strengthSummaryCountLabel,
-	type StrengthSummaryCount,
-} from '#app/utils/strength-log.ts'
+import { type StrengthSummaryCount } from '#app/utils/strength-log.ts'
 import { type WeekReplanSummary } from '#app/utils/training.server.ts'
 import { buildProofStrip, type ProofRecord } from '../presenter.ts'
 import { type TimelineWeek } from './presenter.ts'
@@ -107,19 +107,6 @@ export type HeroPanes = {
 type LoadSnapshotReading = { date: string; ctl: number }
 
 /** The clause the This week pane's own heading already carries. */
-const THIS_WEEK = 'This week'
-
-/**
- * The name each stored Week Replan outcome goes by — a straight mapping of the
- * persisted enum, never a status derived at render. An outcome the app has no
- * word for falls back to the neutral name rather than printing the enum.
- */
-const REPLAN_OUTCOME_LABEL: Record<string, string> = {
-	adjusted: 'This week adjusted',
-	'no-change': 'No change',
-	'insufficient-data': 'No adjustment',
-}
-
 export function buildHeroPanes({
 	current,
 	trust,
@@ -174,15 +161,15 @@ function buildFormPane({
 	return {
 		stats: [
 			{
-				legend: FITNESS_LEGEND,
+				legend: NB_LOAD_LEGENDS.fitness,
 				value: current ? formatLoad(current.ctl) : null,
 			},
 			{
-				legend: FATIGUE_LEGEND,
+				legend: NB_LOAD_LEGENDS.fatigue,
 				value: current ? formatLoad(current.atl) : null,
 			},
 			{
-				legend: FORM_LEGEND,
+				legend: NB_LOAD_LEGENDS.form,
 				value: coldStart ? null : formatLoad(current!.tsb),
 			},
 		],
@@ -191,7 +178,7 @@ function buildFormPane({
 		// snapshot yet gets dashes and silence rather than "day 60/42".
 		caveat: trust.trustworthy
 			? null
-			: `Building baseline — day ${trust.daysOfHistory}/${trust.requiredDays}`,
+			: HERO_PANE_TEXT.baseline(trust.daysOfHistory, trust.requiredDays),
 		trend: fitnessTrend(snapshots, timezone),
 	}
 }
@@ -210,11 +197,15 @@ function fitnessTrend(
 	if (snapshots.length < 2) return null
 	const first = snapshots[0]!
 	const last = snapshots[snapshots.length - 1]!
-	const from = formatDayMonth(
+	const from = formatNbDayMonth(
 		dayBoundsUTC(first.date, timezone).start,
 		timezone,
 	)
-	return `Fitness ${formatLoad(first.ctl)} → ${formatLoad(last.ctl)} since ${from}`
+	return HERO_PANE_TEXT.fitnessTrend(
+		formatLoad(first.ctl),
+		formatLoad(last.ctl),
+		from,
+	)
 }
 
 function buildWeekPane({
@@ -231,26 +222,36 @@ function buildWeekPane({
 	// The stream's week header says `Build 3 · This week`; the pane's own heading
 	// already says which week this is, so the clause that repeats it comes out.
 	// Saying it twice, in two type sizes, reads as two different claims.
-	const phase = (thisWeek?.phaseLabel ?? '')
-		.split(' · ')
-		.filter((part) => part !== THIS_WEEK)
-		.join(' · ')
+	// An outcome the app has no words for still names a decision, never prints
+	// the enum.
+	const outcome = weekReplan
+		? (HOME_REPLAN_LABELS[weekReplan.outcome as WeekReplanOutcome] ?? {
+				outcome: HOME_REPLAN_FALLBACK,
+				reason: null,
+			})
+		: null
 	return {
-		phase: phase || null,
-		stats: thisWeek?.statsLabel ?? 'Nothing written',
-		// The same spelled-out claim the Dashboard's week reading made (#181), and
-		// the same honest refusal when there is no ratio to quote — a week with no
-		// comparable session has no adherence, and 0% would be a lie about a week
-		// nobody planned.
+		// The week's kind, as its header in the stream says it.
+		phase: thisWeek?.kindLabel ?? null,
+		stats: thisWeek?.loadLine ?? '',
 		adherence: weeklyAdherence
-			? `${weeklyAdherence.band.label} · ${Math.round(weeklyAdherence.ratio * 100)}% of planned endurance load`
-			: 'Planned endurance load unavailable',
-		strength: strengthSummaryCountLabel(strengthCount),
-		replan: weekReplan
-			? {
-					outcome: REPLAN_OUTCOME_LABEL[weekReplan.outcome] ?? 'Week replan',
-					reason: weekReplan.reason,
-				}
-			: null,
+			? HERO_PANE_TEXT.adherence(
+					NB_ADHERENCE_LABELS[weeklyAdherence.band.tone],
+					Math.round(weeklyAdherence.ratio * 100),
+				)
+			: HERO_PANE_TEXT.adherenceUnavailable,
+		strength: strengthCount
+			? HERO_PANE_TEXT.strength(strengthCount.completed, strengthCount.planned)
+			: HERO_PANE_TEXT.noStrength,
+		replan:
+			weekReplan && outcome
+				? {
+						outcome: outcome.outcome,
+						// A `proposed` replan's reason is Norwegian prose of its own;
+						// the older outcomes' stored reasons are English, so they are
+						// said in these words instead (ADR 0081).
+						reason: outcome.reason ?? weekReplan.reason,
+					}
+				: null,
 	}
 }

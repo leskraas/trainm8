@@ -1,5 +1,12 @@
 # Adaptive Week Replan: a persistent, at-most-once, volume-only rescale of the next Training Week
 
+**Amended by
+[ADR 0080](0080-week-replan-proposes-and-the-athletes-sessions-need-a-yes.md)**
+(#505): §1 stands — one decision per closed week, made at most once — but §3 is
+replaced, since the decision is now a set of proposals the athlete answers
+rather than a rescale written straight onto the sessions, and §2 is widened
+beyond a downward volume scale.
+
 The Coach card's one-session ease (#159) and the missed-session nudge (#188)
 adapt exactly one upcoming session, ephemerally re-decided on every load
 recompute. The North-star ("your plan adapts to what you actually did") needs a

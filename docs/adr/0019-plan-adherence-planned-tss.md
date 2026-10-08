@@ -99,3 +99,15 @@ pattern established for the Coach card readiness label.
   rollup in the home loader; the this-week stats render a "Plan adherence" stat.
 - Cut points are placeholders; tuning them later is a constant change, not a
   structural one.
+
+## Note (#505 S8): the week volume grade reads these cut points
+
+The three week numbers (`plan-outline/week-volumes.ts`) grade a week's Actual
+Volume per Training Track — km, hours, sets or TSS — and read **these** cut
+points under their own names, `VOLUME_ON_AT_OR_ABOVE` (0.85) and
+`VOLUME_OVER_ABOVE` (1.08). One week read in TSS and the same week read in km
+should not disagree about where "under" begins, so the two move together until
+there is a reason for them not to; then the volume grade changes its two
+constants and nothing else. It grades only sessions measured on both sides (a
+planned number and, when done, a recorded one) through the days already past; a
+session with either side missing is left out of both sums, never read as 0.

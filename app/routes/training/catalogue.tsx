@@ -576,7 +576,7 @@ export default function CatalogueRoute({ loaderData }: Route.ComponentProps) {
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title="The Catalogue"
-				back={{ to: '/', label: 'Home' }}
+				back={{ to: '/library', label: 'Bibliotek' }}
 				className="mb-2"
 			/>
 			<p className="text-muted-foreground mb-4 text-sm">

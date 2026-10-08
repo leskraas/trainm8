@@ -40,7 +40,7 @@ function flick({
 }
 
 test('the four panes are today first, then the facets of it', () => {
-	expect([...HERO_PANES]).toEqual(['Today', 'Form', 'This week', 'Records'])
+	expect([...HERO_PANES]).toEqual(['today', 'form', 'week', 'records'])
 })
 
 test('the spring is critically damped, at the canvas’s duration', () => {

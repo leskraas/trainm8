@@ -41,6 +41,7 @@ import {
 	PATTERN_WEEKDAY_LABELS,
 	SESSION_ARCHETYPE_LABELS,
 	VOLUME_CURRENCY_LABELS,
+	APP_TAB_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
@@ -170,6 +171,8 @@ function refusalMessage(reason: GenerationRefusal): string {
 			return 'That event is cancelled, so it cannot anchor a plan.'
 		case 'event-already-planned':
 			return 'That event already has a plan.'
+		case 'open-ended-already-active':
+			return 'You already have a plan with no end. Open it from your plan page.'
 	}
 }
 
@@ -185,7 +188,7 @@ export default function GenerateSeasonRoute({
 			<main className="container mx-auto max-w-2xl py-6 md:py-8">
 				<PageHeader
 					title="Your season"
-					back={{ to: '/training/plan/new', label: 'Choose a goal' }}
+					back={{ to: '/training/plan/new', label: APP_TAB_LABELS.season }}
 					className="mb-4"
 				/>
 				<p className="text-sm">{refusalMessage(refusal!)}</p>

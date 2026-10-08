@@ -10,12 +10,13 @@ import { Link, useMatches } from 'react-router'
 import { z } from 'zod'
 import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { PAGE_HEADER_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 
 export type PageHeaderBack = {
 	/** Explicit parent route the back button navigates to. */
 	to: string
-	/** The parent screen's name, read out as "Back to {label}". */
+	/** The parent screen's name, read out as "Tilbake til {label}". */
 	label: string
 }
 
@@ -26,24 +27,31 @@ export function PageHeader({
 	className,
 }: {
 	title: string
-	back: PageHeaderBack
+	/**
+	 * Explicit parent route. Omitted only on a tab's own landing page (ADR
+	 * 0083): a top-level screen carries no back affordance (§3.3) — the tab bar
+	 * is the way out.
+	 */
+	back?: PageHeaderBack
 	/** Optional action pinned to the right of the title row. */
 	actions?: ReactNode
 	className?: string
 }) {
 	return (
 		<header className={cn('flex items-center gap-2', className)}>
-			<Link
-				to={back.to}
-				aria-label={`Back to ${back.label}`}
-				className={cn(
-					buttonVariants({ variant: 'ghost', size: 'icon' }),
-					// ~44px effective touch target on a 32px control (#280).
-					'relative -ml-2 shrink-0 after:absolute after:-inset-1.5',
-				)}
-			>
-				<Icon name="arrow-left" size="md" />
-			</Link>
+			{back ? (
+				<Link
+					to={back.to}
+					aria-label={PAGE_HEADER_LABELS.back(back.label)}
+					className={cn(
+						buttonVariants({ variant: 'ghost', size: 'icon' }),
+						// ~44px effective touch target on a 32px control (#280).
+						'relative -ml-2 shrink-0 after:absolute after:-inset-1.5',
+					)}
+				>
+					<Icon name="arrow-left" size="md" />
+				</Link>
+			) : null}
 			<h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{title}</h1>
 			{actions ? (
 				<div className="flex shrink-0 items-center gap-2">{actions}</div>

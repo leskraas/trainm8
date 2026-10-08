@@ -15,17 +15,19 @@
 
 import { addDays, dayBoundsUTC, weekMonday } from '../athlete-calendar.ts'
 import { getAthleteTimezone } from '../athlete.server.ts'
+import { sumBlockSets } from '../dashboard.ts'
 import { prisma } from '../db.server.ts'
 import {
-	blockRepeatTotal,
 	CARDIO_DISCIPLINES,
 	DISCIPLINES,
 	type Discipline,
 } from '../workout-schema.ts'
 import {
 	ANCHOR_WINDOW_WEEKS,
+	proposeStrengthTrack,
 	type EnduranceWindow,
 	type LoggedVolume,
+	type StrengthTrackOffer,
 } from './proposal.ts'
 
 /** What the authoring flow needs to propose a track and default a start week. */
@@ -121,7 +123,7 @@ export async function readAnchorContext(
 			const bucket = buckets.get('strength')!
 			bucket.sessions += 1
 			bucket.weeks.add(weekKey)
-			bucket.sets = (bucket.sets ?? 0) + countSets(session.workout.blocks)
+			bucket.sets = (bucket.sets ?? 0) + sumBlockSets(session.workout.blocks)
 		}
 	}
 
@@ -141,6 +143,20 @@ export async function readAnchorContext(
 			}
 		}),
 	}
+}
+
+/**
+ * The strength track the athlete's own lifting proposes (#505 story 15), or
+ * null where their last four weeks hold no lifting habit to propose one from
+ * (`proposeStrengthTrack`). Read the way every pre-fill is: once, when offered.
+ */
+export async function readStrengthTrackOffer(
+	athleteId: string,
+	now: Date = new Date(),
+): Promise<StrengthTrackOffer | null> {
+	const { volumes } = await readAnchorContext(athleteId, now)
+	const strength = volumes.find((volume) => volume.discipline === 'strength')
+	return strength ? proposeStrengthTrack(strength) : null
 }
 
 type Bucket = {
@@ -190,24 +206,4 @@ function emptyBucket(): Bucket {
 		seconds: null,
 		sets: null,
 	}
-}
-
-/**
- * Total working sets across a workout's blocks: a repeated block's sets count
- * once per repeat, the same reading `sumBlockDurationMin` gives duration.
- */
-function countSets(
-	blocks: Array<{
-		repeatCount: number
-		seriesRepeatCount?: number | null
-		steps: Array<{ sets: unknown[] }>
-	}>,
-): number {
-	let total = 0
-	for (const block of blocks) {
-		for (const step of block.steps) {
-			total += step.sets.length * blockRepeatTotal(block)
-		}
-	}
-	return total
 }

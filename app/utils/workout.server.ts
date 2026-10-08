@@ -1,5 +1,8 @@
 import { type Prisma } from '@prisma/client'
+import { addDays, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
+import { canMarkDone, MARK_DONE_REACH_DAYS } from './import-fit.ts'
+import { type MarkDoneRefusal } from './import-link-schema.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import { triggerRecomputeForSession } from './session-log.server.ts'
 import { deriveWorkoutTitle } from './session-title.ts'
@@ -467,6 +470,88 @@ export async function markSessionMissed(userId: string, sessionId: string) {
 	})
 	await triggerRecomputeForSession(session.id, { clampFutureToToday: true })
 	return { marked: true as const }
+}
+
+export type MarkSessionDoneResult =
+	| { ok: true }
+	| { ok: false; reason: MarkDoneRefusal }
+
+/**
+ * _Gjort_ (#505 story 82): the athlete says a session is done, by hand, before
+ * — or instead of — a Recording saying how much. Only where `canMarkDone`
+ * says so, the same rule the row on I dag offers the action by: open, no
+ * Recording, a sport an import brings numbers for, on a day that has begun
+ * and is at most a week back (in the Athlete Timezone). Stamps
+ * `markedDoneAt`, so undoing a later link keeps it done (`releaseRecording`).
+ *
+ * An import that lands later links onto it like onto any planned session
+ * (`autoSaveImport`: it holds no Recording), and the week's numbers follow.
+ */
+export async function markSessionDone(
+	userId: string,
+	sessionId: string,
+	{ now = new Date(), timezone }: { now?: Date; timezone: string },
+): Promise<MarkSessionDoneResult> {
+	const session = await prisma.workoutSession.findFirst({
+		where: { id: sessionId, userId },
+		select: {
+			id: true,
+			status: true,
+			recordingId: true,
+			scheduledAt: true,
+			workout: { select: { discipline: true } },
+		},
+	})
+	if (!session) return { ok: false, reason: 'session-not-found' }
+	const todayKey = localDate(now, timezone)
+	const markable = canMarkDone(
+		{
+			status: session.status,
+			hasRecording: session.recordingId != null,
+			workoutDiscipline: session.workout?.discipline ?? null,
+			dayKey: localDate(session.scheduledAt, timezone),
+		},
+		{ todayKey, reachFromKey: addDays(todayKey, -MARK_DONE_REACH_DAYS) },
+	)
+	if (!markable) return { ok: false, reason: 'not-markable' }
+
+	await prisma.workoutSession.update({
+		where: { id: session.id },
+		data: { status: 'completed', markedDoneAt: now },
+	})
+	await triggerRecomputeForSession(session.id)
+	return { ok: true }
+}
+
+export type CountsInNoTrackResult =
+	| { ok: true }
+	| { ok: false; reason: 'session-not-found' }
+
+/**
+ * Put one of the athlete's sessions in **Annet**, or take it back into its
+ * track (#505 story 33): a bike commute on a plan with a ride track, say. It
+ * moves no track's Planned or Actual Volume while it is there; its TSS still
+ * feeds Training Load.
+ *
+ * Owner-scoped: another athlete's session is not found. Written without
+ * touching `updatedAt`, because the Week Replan reads `updatedAt` as "the
+ * athlete changed this session since the proposal" (the stale guard in
+ * `week-replan-proposals.server.ts`), and choosing which track a session counts
+ * in changes nothing a proposal was written against. It neither adopts nor
+ * releases the session for the same reason.
+ */
+export async function setCountsInNoTrack(
+	userId: string,
+	sessionId: string,
+	countsInNoTrack: boolean,
+): Promise<CountsInNoTrackResult> {
+	const updated = await prisma.$executeRaw`
+		UPDATE "WorkoutSession"
+		SET "countsInNoTrack" = ${countsInNoTrack}
+		WHERE "id" = ${sessionId} AND "userId" = ${userId}`
+	return updated === 0
+		? { ok: false, reason: 'session-not-found' }
+		: { ok: true }
 }
 
 export async function getWorkoutSessionForEdit(
@@ -1048,6 +1133,7 @@ export async function updateWorkoutSession(
 			id: true,
 			source: true,
 			adoptedAt: true,
+			releasedAt: true,
 			workout: { select: workoutCopySelect },
 		},
 	})
@@ -1070,11 +1156,17 @@ export async function updateWorkoutSession(
 		}
 	}
 
+	const rewritesPrescription =
+		previous == null || prescriptionChanged(previous, input)
 	const adopting =
 		previous != null &&
 		session.adoptedAt == null &&
 		isMachineWritten(session.source) &&
-		prescriptionChanged(previous, input)
+		rewritesPrescription
+	// A session handed back to the app ("lås opp") is taken back by the same act
+	// that adopts one: rewriting its prescription. A reschedule or a rename is
+	// not a takeover here either (#459).
+	const readopting = session.releasedAt != null && rewritesPrescription
 
 	const updated = await prisma.$transaction(async (tx) => {
 		let workoutId = previous?.id ?? null
@@ -1132,6 +1224,7 @@ export async function updateWorkoutSession(
 				...(adopting && workoutId != null
 					? { workoutId, adoptedAt: new Date() }
 					: {}),
+				...(readopting ? { releasedAt: null } : {}),
 			},
 			select: { id: true },
 		})

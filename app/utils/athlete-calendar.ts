@@ -133,9 +133,42 @@ export function addDays(dateStr: string, days: number): string {
 	return d.toISOString().slice(0, 10)
 }
 
+/** Calendar days from `from` to `to` (YYYY-MM-DD each); negative when earlier. */
+export function daysBetween(from: string, to: string): number {
+	const ms =
+		new Date(`${to}T00:00:00.000Z`).getTime() -
+		new Date(`${from}T00:00:00.000Z`).getTime()
+	return Math.round(ms / 86_400_000)
+}
+
 /** Day-of-week (0=Sun..6=Sat) for a YYYY-MM-DD date string. */
 function dayOfWeek(dateStr: string): number {
 	return new Date(`${dateStr}T00:00:00.000Z`).getUTCDay()
+}
+
+/**
+ * Monday-first weekday index (0 = Monday … 6 = Sunday) of a YYYY-MM-DD date
+ * string — the Training Week's own order (ADR 0019), and a Week Pattern day's.
+ */
+export function weekdayIndex(dateStr: string): number {
+	return (dayOfWeek(dateStr) + 6) % 7
+}
+
+/**
+ * The ISO 8601 week number of a YYYY-MM-DD date string — `Uke 41` as a
+ * Norwegian calendar counts it: Monday-first, and week 1 is the week holding
+ * the year's first Thursday. Read off the date alone, so a week key names the
+ * same week number in every timezone.
+ */
+export function isoWeekNumber(dateStr: string): number {
+	// The week's Thursday decides which year the week belongs to.
+	const thursday = addDays(dateStr, 3 - weekdayIndex(dateStr))
+	const yearStart = `${thursday.slice(0, 4)}-01-01`
+	const days =
+		(Date.parse(`${thursday}T00:00:00.000Z`) -
+			Date.parse(`${yearStart}T00:00:00.000Z`)) /
+		(24 * 60 * 60 * 1000)
+	return Math.floor(days / 7) + 1
 }
 
 /**
@@ -180,6 +213,11 @@ export function isCalendarDay(dateStr: string, timezone: string): boolean {
 	)
 }
 
+/** The Monday (YYYY-MM-DD) opening the Training Week a calendar day is in. */
+export function mondayOfDay(dateStr: string): string {
+	return addDays(dateStr, -weekdayIndex(dateStr))
+}
+
 /**
  * The Monday (YYYY-MM-DD) opening the calendar Monday–Sunday Training Week
  * containing `now`, evaluated in the athlete `timezone` — the canonical key
@@ -187,8 +225,28 @@ export function isCalendarDay(dateStr: string, timezone: string): boolean {
  */
 export function weekMonday(now: Date, timezone: string): string {
 	const today = localDate(now, timezone)
-	const daysFromMonday = (dayOfWeek(today) + 6) % 7 // Mon→0 … Sun→6
-	return addDays(today, -daysFromMonday)
+	return addDays(today, -weekdayIndex(today))
+}
+
+/**
+ * The first Training Week not yet begun at `now`: this week on its Monday
+ * (nothing of it is behind the athlete yet), else next week. Where a week is
+ * laid, or a round opens, without placing anything in the past.
+ *
+ * A week is begun once its Monday is past **or** the athlete has trained in
+ * it: a Monday with a completed session is begun, so `completedThisWeek` makes
+ * it next week's. The server reads that fact (`readFirstUnbegunWeekKey`);
+ * this stays pure.
+ */
+export function firstUnbegunWeekKey(
+	now: Date,
+	timezone: string,
+	{ completedThisWeek = false }: { completedThisWeek?: boolean } = {},
+): string {
+	const monday = weekMonday(now, timezone)
+	return localDate(now, timezone) === monday && !completedThisWeek
+		? monday
+		: addDays(monday, 7)
 }
 
 /**

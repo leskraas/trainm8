@@ -35,6 +35,9 @@ model User {
   loadSnapshots        LoadSnapshot[]
   accountConnections   AccountConnection[]
   weekReplans          WeekReplan[]
+  weekReplanProposals  WeekReplanProposal[]
+  /// Every Plan Outline this athlete owns, event-anchored or open-ended (ADR 0079).
+  planOutlines         PlanOutline[]
   loadRecomputeNotices LoadRecomputeNotice[]
   catalogueSaves       CatalogueSave[]
   programInstances     ProgramInstance[]
@@ -1030,7 +1033,7 @@ model WorkoutSession {
   /// retracted from it. That is the *same* engine restating what it found about
   /// its own recording, never a takeover, and it is guarded to unadopted
   /// sessions.
-  source    String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
+  source           String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
   /// **Session Adoption** (#460) — when the athlete took a machine-produced
   /// session over. Null means untouched, which is what re-detection (ADR 0033)
   /// and regeneration (ADR 0016) are really asking about; a timestamp means the
@@ -1040,7 +1043,28 @@ model WorkoutSession {
   /// Set only when a save actually changes the prescription — the blocks, the
   /// discipline or the intent. A reschedule, a rename, or a no-op save is not a
   /// takeover (#459).
-  adoptedAt DateTime?
+  adoptedAt        DateTime?
+  /// **Session Release** ("lås opp", #505, ADR 0080) — when the athlete handed
+  /// one of their own sessions back to the app. A released session is the
+  /// machine's again (`session-ownership.ts`), whatever its source and adoption
+  /// say, so the Week Replan may change it without asking. Cleared the moment
+  /// the athlete rewrites its prescription again: that re-adopts it.
+  releasedAt       DateTime?
+  /// **Annet** (#505 story 33) — the athlete put this session in no Training
+  /// Track: it moves no track's Planned or Actual Volume, whatever its
+  /// Discipline (a bike commute on a plan with a ride track). Its TSS still
+  /// feeds Training Load, which is physiological. Not a prescription change, so
+  /// it neither adopts nor releases the session.
+  countsInNoTrack  Boolean   @default(false)
+  /// When the athlete marked this session done by hand (_Gjort_, #505 story
+  /// 82) — done, with no Recording yet to say how much. A Recording linked
+  /// later completes it as any link does; undoing that link puts the session
+  /// back to done-by-hand rather than to not done, because the athlete said so.
+  markedDoneAt     DateTime?
+  /// The status this session had when a Recording was linked onto it (#505
+  /// story 81), so _Angre kobling_ puts it back as it was. Null when nothing
+  /// is linked, or the link predates this column.
+  statusBeforeLink String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1057,18 +1081,29 @@ model WorkoutSession {
   // toward. Distinct from `Event.resultSessionId` (the Event Result).
   targetEvent   Event?          @relation("TargetEvent", fields: [targetEventId], references: [id], onDelete: SetNull)
   targetEventId String?
+  /// The Plan Outline that laid this session, or null for one no plan wrote.
+  /// What a plan's clearing, occupancy and counting scope by, because an
+  /// open-ended plan has no Event to anchor to (ADR 0079). Deleting the plan
+  /// leaves its sessions on the calendar, unanchored.
+  planOutline   PlanOutline?    @relation(fields: [planOutlineId], references: [id], onDelete: SetNull)
+  planOutlineId String?
 
   promotedImports     ActivityImport[]            @relation("ImportPromotedTo")
+  /// Imports the athlete lifted off this session with _Angre kobling_.
+  unlinkedImports     ActivityImport[]            @relation("ImportUnlinkedFrom")
   /// The sets lifted on this occasion — the strength track's actual, and the only
   /// route by which one can exist (no provider exports set-by-set data).
   setLogs             ExerciseSetLog[]
   /// The program runs this session has already been folded into — at most one per
   /// run, which is what makes finishing happen exactly once.
   programApplications ProgramSessionApplication[]
+  /// The Week Replan proposals aimed at this session (ADR 0080).
+  replanProposals     WeekReplanProposal[]
 
   @@index([userId])
   @@index([userId, scheduledAt])
   @@index([targetEventId])
+  @@index([planOutlineId])
 }
 
 model AthleteProfile {
@@ -1268,11 +1303,31 @@ model PlanOutline {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event    Event              @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  eventId  String             @unique
-  phases   PlanOutlinePhase[]
-  tracks   TrainingTrack[]
-  patterns WeekPattern[]
+  /// The athlete the plan belongs to. Its own column since ADR 0079: an
+  /// open-ended plan has no Event to read its owner through.
+  athlete   User               @relation(fields: [athleteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  athleteId String
+  /// The Target Event, or null for an **open-ended** plan: no Event and no end
+  /// date (ADR 0079). Still unique: one plan per Event, and SQLite lets any
+  /// number of rows hold NULL. An athlete has at most one open-ended plan; the
+  /// app holds that rule (`createPlanOutline`), not the database.
+  event     Event?             @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  eventId   String?            @unique
+  phases    PlanOutlinePhase[]
+  tracks    TrainingTrack[]
+  patterns  WeekPattern[]
+  /// The sessions this plan laid: a stamp, a copied week, the horizon fill, the
+  /// generator. What clearing, occupancy and counting scope by (ADR 0079).
+  sessions  WorkoutSession[]
+  /// The Periodization Preset family the plan follows — its _filosofi_
+  /// (#505 stories 10–14): 'classic' | 'masters' | 'big-base' | 'polarized' |
+  /// 'threshold'. Written by a shape, by Hold meg aktiv and by a philosophy
+  /// switch; null for a plan made before it existed or from phases the athlete
+  /// typed, which is read off its rhythm instead (`outlineFamily`). The shape
+  /// itself is still copied in and stays editable (ADR 0044 §2).
+  family    String?
+
+  @@index([athleteId])
 }
 
 /// One stretch of the season: its span, its intent, its loading/recovery rhythm
@@ -1284,20 +1339,24 @@ model PlanOutlinePhase {
   /// dates of its own, and its span is derived from the Outline's `startWeekKey`
   /// plus the weeks of the phases before it. A gap or an overlap in the season is
   /// therefore unrepresentable rather than merely invalid (ADR 0044 §3).
-  orderIndex Int
+  orderIndex        Int
   /// Free text, and the only word a phase carries (ADR 0042 §1). Deliberately not
   /// an enum: nothing in the app branches on it, the name carries *intent* that no
   /// derived quantity can, and a closed vocabulary would refuse "Off-season" or
   /// "Return to run" (ADR 0044 §2). Preset names are #371's.
-  name       String
-  weeks      Int
+  name              String
+  weeks             Int
   /// Which weeks of the phase are recovery weeks — time structure, so it belongs
   /// here. The *size* of the cut is a volume quantity and belongs to the track
   /// segment (ADR 0041 §1, ADR 0044 §4). A strength track ignores this entirely:
   /// its deload comes when MRV is reached, not when the phase says so.
-  rhythm     String  @default("3:1") // '3:1' | '2:1' | 'none'
+  rhythm            String  @default("3:1") // '3:1' | '2:1' | 'none'
   /// Whether this phase tapers. The magnitude is the track segment's `taperCut`.
-  tapers     Boolean @default(false)
+  tapers            Boolean @default(false)
+  /// Which week of the phase is the easy one, 0-based, when the athlete chose
+  /// it (#505 story 74). Null means the rhythm's own position: the last week of
+  /// each `3:1` or `2:1` block. Honoured only by a rhythm that recovers.
+  recoveryWeekIndex Int?
 
   id        String                 @id @default(cuid())
   outline   PlanOutline            @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -1561,37 +1620,47 @@ model SessionLog {
 }
 
 model ActivityImport {
-  id                String   @id @default(cuid())
-  athleteId         String
-  externalProvider  String // 'manual' | 'strava' | 'intervalsicu' | 'garmin'
-  externalId        String
-  startedAt         DateTime
-  endedAt           DateTime
-  durationSec       Int
-  distanceM         Float?
-  discipline        String // run | bike | swim | strength
-  hrAvg             Float?
-  hrMax             Float?
-  powerAvg          Float?
-  powerMax          Float?
-  powerWeightedAvg  Float? // provider weighted-average power ≈ Normalized Power
-  cadenceAvg        Float?
-  paceAvgSecPerKm   Float?
-  speedMaxMps       Float?
-  elevationGainM    Float?
-  kilojoules        Float? // total mechanical work (rides)
-  polyline          String?
-  phaseBarsJson     String? // derived intensity-zone phases (JSON ProfileBar[]) for recordings
-  lapsJson          String? // provider lap markers (JSON), populated later (#328); null when absent
-  rawJson           String // full provider payload, verbatim (lossless; see strava/types.ts)
-  promotedSessionId String?
-  tssValue          Float? // computed TSS (null = unavailable)
-  tssFormula        String? // 'coggan' | 'hrTSS' | 'rTSS' | 'sTSS' | 'sRPE'
-  tssConfidence     String? // 'high' | 'medium' | 'low'
-  createdAt         DateTime @default(now())
+  id                    String    @id @default(cuid())
+  athleteId             String
+  externalProvider      String // 'manual' | 'strava' | 'intervalsicu' | 'garmin'
+  externalId            String
+  startedAt             DateTime
+  endedAt               DateTime
+  durationSec           Int
+  distanceM             Float?
+  discipline            String // run | bike | swim | strength
+  hrAvg                 Float?
+  hrMax                 Float?
+  powerAvg              Float?
+  powerMax              Float?
+  powerWeightedAvg      Float? // provider weighted-average power ≈ Normalized Power
+  cadenceAvg            Float?
+  paceAvgSecPerKm       Float?
+  speedMaxMps           Float?
+  elevationGainM        Float?
+  kilojoules            Float? // total mechanical work (rides)
+  polyline              String?
+  phaseBarsJson         String? // derived intensity-zone phases (JSON ProfileBar[]) for recordings
+  lapsJson              String? // provider lap markers (JSON), populated later (#328); null when absent
+  rawJson               String // full provider payload, verbatim (lossless; see strava/types.ts)
+  promotedSessionId     String?
+  /// When the athlete answered for this import on I dag (#505 stories 80–81):
+  /// linked it to a planned session, kept it as an _ekstra_ session, put it in
+  /// Annet, or undid an automatic link. Once answered, the app stops asking
+  /// "hva var dette?" about it. Null while nobody has said anything.
+  linkAnsweredAt        DateTime?
+  /// The planned session the athlete lifted this import off with _Angre
+  /// kobling_ (#505 story 81), so _Koble igjen_ knows where it came from.
+  /// Cleared by any later link; null when the session itself is deleted.
+  unlinkedFromSessionId String?
+  tssValue              Float? // computed TSS (null = unavailable)
+  tssFormula            String? // 'coggan' | 'hrTSS' | 'rTSS' | 'sTSS' | 'sRPE'
+  tssConfidence         String? // 'high' | 'medium' | 'low'
+  createdAt             DateTime  @default(now())
 
   athlete         User              @relation(fields: [athleteId], references: [id], onDelete: Cascade)
   promotedSession WorkoutSession?   @relation("ImportPromotedTo", fields: [promotedSessionId], references: [id])
+  unlinkedFrom    WorkoutSession?   @relation("ImportUnlinkedFrom", fields: [unlinkedFromSessionId], references: [id], onDelete: SetNull)
   recordingFor    WorkoutSession[]  @relation("SessionRecording")
   stream          ActivityStream?
   detection       WorkoutDetection?
@@ -1741,21 +1810,79 @@ model LoadRecomputeNotice {
 model WeekReplan {
   id      String @id @default(cuid())
   weekKey String // closed week's Monday, YYYY-MM-DD in the Athlete Timezone
-  outcome String // 'adjusted' | 'no-change' | 'insufficient-data'
+  /// 'proposed' (ADR 0080: the decision is the set of proposals below, at
+  /// least one of them a change) | 'no-change' | 'insufficient-data' (both hold
+  /// one explicit `keep` proposal) | 'adjusted' (ADR 0025 rows written before
+  /// the proposals, rescaled in place).
+  outcome String
   reason  String // plain-language reason composed by decideWeekReplan
 
   // Provenance: the inputs the decision was made on, as available at the time.
   adherenceRatio Float? // the closed week's Weekly Plan Adherence ratio (null = unmeasurable)
   tsb            Float? // the TSB the decision read (null = no load history)
-  appliedScale   Float? // the volume scale applied to the target week (null unless adjusted)
+  appliedScale   Float? // the volume scale applied in place (ADR 0025 `adjusted` rows only; a proposal carries its own factor)
+
+  /// The week change's two once-only steps for this closed week (#505, ADR
+  /// 0080): when it filled the Planning Horizon week, and when the morning's
+  /// silence ran over these proposals. Null = not yet; a failed step stays
+  /// null, so the next run retries it, and a set one never runs again.
+  horizonFilledAt DateTime?
+  silencedAt      DateTime?
 
   createdAt DateTime @default(now())
 
-  athlete   User   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  athlete   User                 @relation(fields: [athleteId], references: [id], onDelete: Cascade)
   athleteId String
+  proposals WeekReplanProposal[]
 
   @@unique([athleteId, weekKey])
   @@index([athleteId])
+}
+
+/// One change the Week Replan proposes for the week after a closed one (ADR
+/// 0080): keep, move, swap, add or scale, with a plain-language reason. Applied
+/// on the athlete's Ok, never on their Nei takk, and on silence only when it
+/// keeps or reduces load and its target is the machine's at apply time.
+model WeekReplanProposal {
+  id      String @id @default(cuid())
+  /// 'keep' | 'move' | 'swap' | 'add' | 'scale' — the discriminator of `payload`,
+  /// kept as its own column so a query can filter on it.
+  kind    String
+  /// The kind's payload as JSON, validated by the discriminated union in
+  /// `app/utils/load/week-replan-proposal.ts`. Never free text.
+  payload String
+  /// The only prose field: why the app proposes this, in plain Norwegian.
+  reason  String
+
+  /// 'adds' | 'keeps-or-reduces' — derived from the payload when written, and
+  /// what decides whether silence may apply it.
+  loadDirection String
+  /// 'this-time' | 'from-now-on' for a move; null for every other kind.
+  scope         String?
+  answer        String    @default("pending") // 'pending' | 'accepted' | 'declined'
+  answeredAt    DateTime?
+  /// When the change was written to the sessions — by an Ok, or by silence (then
+  /// `answer` stays 'pending' and `answeredAt` null). Null = not applied.
+  appliedAt     DateTime?
+
+  /// The Monday (YYYY-MM-DD, Athlete Timezone) of the week the change lands in.
+  targetWeekKey   String
+  /// The session the change is aimed at; null for a week-wide change.
+  targetSession   WorkoutSession? @relation(fields: [targetSessionId], references: [id], onDelete: SetNull)
+  targetSessionId String?
+
+  createdAt DateTime @default(now())
+
+  athlete      User        @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  athleteId    String
+  /// The closed week's decision this proposal belongs to; null for a change the
+  /// athlete asked for themselves ("Gjør uka lettere").
+  weekReplan   WeekReplan? @relation(fields: [weekReplanId], references: [id], onDelete: Cascade)
+  weekReplanId String?
+
+  @@index([athleteId, answer])
+  @@index([weekReplanId])
+  @@index([targetSessionId])
 }
 
 /// An athlete's authorized link to an external training service account

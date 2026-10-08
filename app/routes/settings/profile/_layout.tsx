@@ -8,6 +8,7 @@ import {
 } from '#app/components/page-header.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { APP_TAB_LABELS } from '#app/utils/labels.ts'
 import { type Route } from './+types/_layout.tsx'
 
 export const handle: PageHeaderHandle & SEOHandle = {
@@ -26,7 +27,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export default function EditUserProfile() {
-	const { title, back } = useRoutePageHeader({ to: '/', label: 'Home' })
+	const { title, back } = useRoutePageHeader({
+		to: '/me',
+		label: APP_TAB_LABELS.me,
+	})
 
 	return (
 		<div className="container mx-auto max-w-2xl py-6 md:py-8">

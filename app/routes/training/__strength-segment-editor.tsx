@@ -277,6 +277,14 @@ export type StrengthActionData =
 	 */
 	| { stamp: unknown }
 	| { copy: unknown }
+	/**
+	 * _Bytt filosofi_'s and the strength offer's replies (#505 S7), each under
+	 * its own key; read by `__philosophy-switch.tsx`, not here.
+	 */
+	| { philosophy: unknown }
+	| { strengthOffer: unknown }
+	/** The Sesong edits' reply (#505 S13); read by `__season-edits.tsx`. */
+	| { seasonEdit: unknown }
 	| undefined
 
 /**

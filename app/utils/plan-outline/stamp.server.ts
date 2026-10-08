@@ -13,10 +13,10 @@
 //   Wednesday in week 2 edit weeks 1, 3 and 4 with it. `copyWorkout` is what makes
 //   "editing one week never touches its siblings" true (ADR 0044 §6).
 // - **A stamped session is an ordinary session.** Anchored to the **Event** by
-//   `targetEventId` and carrying the `authored` **Session Source** — the same two
-//   marks a hand-authored session has. Nothing points back at the pattern, so
-//   there is no live link to keep in sync and no "pattern session" category to
-//   explain to the athlete.
+//   `planOutlineId` (and to the **Event** by `targetEventId`, when the plan has
+//   one) and carrying the `generated` **Session Source**: the plan laid it, so it is the machine's to re-lay until the athlete edits it, which adopts
+//   it (ADR 0080). Nothing points back at the pattern, so there is no live link
+//   to keep in sync and no "pattern session" category to explain to the athlete.
 // - **A session lands on its local day, at the local time.** A pattern weekday is
 //   Monday-first (ADR 0019) and `scheduledAt` is stored UTC, so the crossing goes
 //   through the **Athlete Timezone** once, here, via `localTimeUTC`.
@@ -33,8 +33,10 @@ import { type Prisma } from '@prisma/client'
 import {
 	addDays,
 	dayBoundsUTC,
+	localDate,
 	localTimeUTC,
 	weekBoundsFromMondayUTC,
+	weekdayIndex,
 	weekMonday,
 } from '../athlete-calendar.ts'
 import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
@@ -60,6 +62,7 @@ import {
 	workoutCopySelect,
 	type CopyableWorkout,
 } from '../workout.server.ts'
+import { isOutlineResting } from './active-outline.server.ts'
 import { phaseIndexForWeek, totalWeeks, type VolumeCurrency } from './derive.ts'
 import { phaseSpecs, resolvedTracks } from './from-rows.ts'
 import {
@@ -89,6 +92,11 @@ import { clearPlanWeek, readWeekOccupancy } from './week-sessions.server.ts'
 export type StampRefusal =
 	| 'pattern-gone'
 	| 'pattern-empty'
+	/**
+	 * An open-ended plan resting behind an active plan toward a race (ADR 0079):
+	 * laying its weeks would put two plans in the same weeks.
+	 */
+	| 'plan-resting'
 	| 'week-outside-plan'
 	| 'nothing-to-stamp'
 	| 'weeks-already-filled'
@@ -137,7 +145,7 @@ function refuse(
 const stampOutlineSelect = {
 	id: true,
 	startWeekKey: true,
-	event: { select: { id: true, athleteId: true } },
+	event: { select: { id: true } },
 	phases: {
 		select: {
 			id: true,
@@ -146,6 +154,7 @@ const stampOutlineSelect = {
 			weeks: true,
 			rhythm: true,
 			tapers: true,
+			recoveryWeekIndex: true,
 		},
 	},
 	tracks: {
@@ -223,18 +232,45 @@ type StampPattern = Prisma.WeekPatternGetPayload<{
 export async function stampWeekPattern(
 	userId: string,
 	input: WeekPatternStampInput,
+	now: Date = new Date(),
+	{
+		aroundKeptSessions = false,
+	}: {
+		/**
+		 * Lay the week **around** the plan sessions a replace keeps (#505 S7
+		 * review): a session the plan laid that the athlete adopted, or trained,
+		 * still fills its slot — its weekday and Discipline — so the pattern day
+		 * for that slot is not laid a second time beside it, and every other
+		 * day is. How a re-lay after a plan edit keeps a week at its target
+		 * without touching the athlete's session (`relayPlanFrom`). Sessions the
+		 * athlete wrote themselves (`authored`) fill no slot: they are extra to
+		 * the plan's week, as they are to every stamp.
+		 */
+		aroundKeptSessions?: boolean
+	} = {},
 ): Promise<StampResult> {
 	const stamp = WeekPatternStampSchema.parse(input)
 
 	const pattern = await prisma.weekPattern.findFirst({
-		where: { id: stamp.patternId, outline: { event: { athleteId: userId } } },
+		where: { id: stamp.patternId, outline: { athleteId: userId } },
 		select: stampPatternSelect,
 	})
 	if (!pattern) return refuse('pattern-gone')
 	if (pattern.days.length === 0) return refuse('pattern-empty')
+	if (
+		await isOutlineResting(
+			userId,
+			{ eventId: pattern.outline.event?.id ?? null },
+			now,
+		)
+	) {
+		return refuse('plan-resting')
+	}
 
 	const outline = pattern.outline
-	const eventId = outline.event.id
+	// An open-ended plan has no Event (ADR 0079): its sessions anchor to the plan
+	// alone.
+	const eventId = outline.event?.id ?? null
 	const timezone = await getAthleteTimezone(userId)
 	const trainingTime = await defaultTrainingTime(userId)
 	const weekCount = totalWeeks(phaseSpecs(outline))
@@ -273,7 +309,7 @@ export async function stampWeekPattern(
 	// what a re-stamp would replace *before* it replaces it, so an edited week is
 	// never silently lost.
 	const conflicts = (
-		await readOccupancy(userId, eventId, plans, timezone)
+		await readOccupancy(userId, outline.id, plans, timezone)
 	).filter((week) => week.replacing > 0 || week.keeping > 0)
 	if (conflicts.length > 0 && !stamp.replace) {
 		return { ok: false, reason: 'weeks-already-filled', conflicts }
@@ -293,11 +329,20 @@ export async function stampWeekPattern(
 			replaced += await clearPlanWeek(
 				tx,
 				userId,
-				eventId,
+				outline.id,
 				plan.weekKey,
 				timezone,
 			)
+			const filled = aroundKeptSessions
+				? await filledSlots(tx, userId, outline.id, plan.weekKey, timezone)
+				: new Map<string, number>()
 			for (const session of plan.sessions) {
+				const slot = slotKey(session.weekday, session.discipline)
+				const taken = filled.get(slot) ?? 0
+				if (taken > 0) {
+					filled.set(slot, taken - 1)
+					continue
+				}
 				const workoutId = await workoutForSession(
 					tx,
 					userId,
@@ -319,10 +364,12 @@ export async function stampWeekPattern(
 							timezone,
 						),
 						status: 'scheduled',
-						// The two marks that make this an ordinary session: authored by the
-						// athlete (they authored the pattern), anchored to the Event.
-						source: 'authored',
+						// Laid by the plan, so the machine's (ADR 0080) until the athlete edits
+						// it — that edit is Session Adoption — and anchored to the plan that
+						// laid it, and to its Event when it has one.
+						source: 'generated',
 						targetEventId: eventId,
+						planOutlineId: outline.id,
 					},
 					select: { id: true },
 				})
@@ -348,6 +395,45 @@ export async function stampWeekPattern(
 			skipped: plans.flatMap((plan) => plan.skipped),
 		},
 	}
+}
+
+/** A pattern slot: the weekday (Monday-first) and the Discipline laid there. */
+function slotKey(weekday: number, discipline: string): string {
+	return `${weekday}|${discipline}`
+}
+
+/**
+ * The slots the plan's own sessions still fill in one week after its clearing
+ * — the ones it kept: adopted, or trained — counted per weekday and
+ * Discipline. Read inside the stamp's transaction, after the clearing.
+ */
+async function filledSlots(
+	tx: Prisma.TransactionClient,
+	userId: string,
+	planOutlineId: string,
+	weekKey: string,
+	timezone: string,
+): Promise<Map<string, number>> {
+	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
+	const kept = await tx.workoutSession.findMany({
+		where: {
+			userId,
+			planOutlineId,
+			scheduledAt: { gte: start, lte: end },
+			source: { not: 'authored' },
+		},
+		select: { scheduledAt: true, workout: { select: { discipline: true } } },
+	})
+	const filled = new Map<string, number>()
+	for (const session of kept) {
+		if (!session.workout) continue
+		const slot = slotKey(
+			weekdayIndex(localDate(session.scheduledAt, timezone)),
+			session.workout.discipline,
+		)
+		filled.set(slot, (filled.get(slot) ?? 0) + 1)
+	}
+	return filled
 }
 
 /**
@@ -450,7 +536,7 @@ function scaleBlocks(
  */
 async function readOccupancy(
 	userId: string,
-	eventId: string,
+	planOutlineId: string,
 	plans: readonly StampWeekPlan[],
 	timezone: string,
 ): Promise<StampConflict[]> {
@@ -458,7 +544,7 @@ async function readOccupancy(
 	for (const plan of plans) {
 		const occupancy = await readWeekOccupancy(
 			userId,
-			eventId,
+			planOutlineId,
 			plan.weekKey,
 			timezone,
 		)
@@ -529,6 +615,7 @@ function pricingBlocks(workout: CopyableWorkout) {
 	return workout.blocks.map((block) => ({
 		repeatCount: block.repeatCount,
 		steps: block.steps.map((step) => ({
+			kind: step.kind,
 			durationSec: step.durationSec,
 			distanceM: step.distanceM,
 		})),
@@ -580,10 +667,10 @@ export type StampedMixWarning = {
  */
 export async function readStampedMixWarnings(
 	userId: string,
-	eventId: string,
+	outlineId: string,
 ): Promise<StampedMixWarning[]> {
 	const outline = await prisma.planOutline.findFirst({
-		where: { eventId, event: { athleteId: userId } },
+		where: { id: outlineId, athleteId: userId },
 		select: stampOutlineSelect,
 	})
 	if (!outline) return []
@@ -601,7 +688,7 @@ export async function readStampedMixWarnings(
 	const sessions = await prisma.workoutSession.findMany({
 		where: {
 			userId,
-			targetEventId: outline.event.id,
+			planOutlineId: outline.id,
 			scheduledAt: { gte: start, lte: end },
 		},
 		select: { scheduledAt: true, workout: { select: sessionZoneSelect } },

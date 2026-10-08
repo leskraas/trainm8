@@ -188,8 +188,10 @@ duplicate a footer dismiss button — the ✕ is the dismissal affordance.
 
 ### 3.3 Top-level screens
 
-Top-level surfaces (Dashboard, auth entry screens) carry no back affordance.
-Auth flows use the page-title rules (§1.3) at the narrow tier.
+Top-level surfaces (each tab's landing page — I dag, Sesong, Bibliotek and Meg —
+and the auth entry screens) carry no back affordance: the tab bar is the way out
+(ADR 0083). A page inside a tab backs out to its tab's landing page. Auth flows
+use the page-title rules (§1.3) at the narrow tier.
 
 ## 4. Enum labels
 
@@ -197,7 +199,9 @@ Auth flows use the page-title rules (§1.3) at the narrow tier.
 (discipline, intent, step/intensity kind, event kind/priority/status/target,
 units, week-start, structure mode, provider) — a sibling of
 `app/utils/format.ts` under the same house policy (ADR 0023: English-only, fixed
-wording). It is the future i18n seam.
+wording). It is the future i18n seam. The #505 planning surfaces use the spec's
+Norwegian words instead (ADR 0081); their labels live in the same module under
+the same completeness rule.
 
 - UI code never capitalizes or hand-maps an enum value; it imports the map or
   helper (`getDisciplineLabel`, `getStatusLabel`, `providerLabel`).

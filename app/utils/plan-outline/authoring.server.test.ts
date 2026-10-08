@@ -15,12 +15,14 @@ import {
 	applyPreset,
 	clearWeekVolumeOverride,
 	createFitnessGoalEvent,
+	createOpenEndedPlan,
 	createPlanOutline,
 	createStarterWeekPattern,
 	deletePlanOutline,
 	fitPlanToEvent,
 	listPlanAnchorCandidates,
 	movePhase,
+	readOpenEndedPlanDefaults,
 	moveWeekPattern,
 	moveWeekPatternDay,
 	removePhase,
@@ -319,6 +321,233 @@ test('a refused create leaves nothing behind', async () => {
 
 	expect(await prisma.planOutline.count({ where: { eventId } })).toBe(0)
 	expect(await prisma.trainingTrack.count()).toBe(0)
+})
+
+/** An open-ended plan's input: no Event, one round of a 3:1 rhythm (ADR 0079). */
+function openEndedInput() {
+	const { eventId: _none, ...rest } = planInput('unused')
+	return {
+		...rest,
+		structure: {
+			phases: [{ name: 'Blokk 1', weeks: 4, rhythm: '3:1' as const }],
+		},
+	}
+}
+
+describe('an open-ended plan (ADR 0079)', () => {
+	test('is created with no Event, owned by the athlete', async () => {
+		const athleteId = await createAthlete()
+
+		const result = await createPlanOutline(athleteId, openEndedInput(), NOW)
+
+		expect(result).toEqual({ ok: true, outlineId: expect.any(String) })
+		const outline = await prisma.planOutline.findUniqueOrThrow({
+			where: { id: result.ok ? result.outlineId : '' },
+			select: {
+				athleteId: true,
+				eventId: true,
+				phases: { select: { name: true, weeks: true, rhythm: true } },
+			},
+		})
+		expect(outline).toEqual({
+			athleteId,
+			eventId: null,
+			phases: [{ name: 'Blokk 1', weeks: 4, rhythm: '3:1' }],
+		})
+		// No Event is invented for it, fitness goal or otherwise.
+		expect(await prisma.event.count({ where: { athleteId } })).toBe(0)
+	})
+
+	test('is at most one per athlete', async () => {
+		const athleteId = await createAthlete()
+		await createPlanOutline(athleteId, openEndedInput(), NOW)
+
+		expect(await createPlanOutline(athleteId, openEndedInput(), NOW)).toEqual({
+			ok: false,
+			reason: 'open-ended-already-active',
+		})
+		expect(
+			await prisma.planOutline.count({ where: { athleteId, eventId: null } }),
+		).toBe(1)
+	})
+
+	test('does not stop another athlete, or a plan toward an Event', async () => {
+		const athleteId = await createAthlete()
+		const otherId = await createAthlete()
+		await createPlanOutline(athleteId, openEndedInput(), NOW)
+
+		expect((await createPlanOutline(otherId, openEndedInput(), NOW)).ok).toBe(
+			true,
+		)
+		const eventId = await createRace(athleteId)
+		expect(
+			(await createPlanOutline(athleteId, planInput(eventId), NOW)).ok,
+		).toBe(true)
+	})
+
+	test('is the active plan, with no Event, no end date and no countdown', async () => {
+		const athleteId = await createAthlete()
+		await createPlanOutline(athleteId, openEndedInput(), NOW)
+
+		const plan = await getActivePlan(athleteId, NOW)
+
+		expect(plan).toMatchObject({
+			eventId: null,
+			eventName: null,
+			eventDate: null,
+			phases: [{ name: 'Blokk 1', weeks: 4 }],
+		})
+		const season = await getActiveSeason(athleteId, NOW)
+		expect(season).toMatchObject({ eventId: null, fit: null, round: 1 })
+	})
+
+	test('a phaseless Outline on the nearest Event does not hide a phased one later', async () => {
+		const athleteId = await createAthlete()
+		const nearest = await createRace(athleteId, {
+			startDate: new Date('2030-02-03T09:00:00Z'),
+		})
+		await prisma.planOutline.create({
+			data: { athleteId, eventId: nearest, startWeekKey: START_WEEK_KEY },
+		})
+		const later = await createRace(athleteId)
+		await createPlanOutline(athleteId, planInput(later), NOW)
+		await createPlanOutline(athleteId, openEndedInput(), NOW)
+
+		expect((await getActivePlan(athleteId, NOW))?.eventId).toBe(later)
+	})
+
+	test('rests while a plan toward an upcoming Event is active, and returns after it', async () => {
+		const athleteId = await createAthlete()
+		const open = await createPlanOutline(athleteId, openEndedInput(), NOW)
+		const eventId = await createRace(athleteId, {
+			startDate: new Date('2030-03-03T09:00:00Z'),
+		})
+		await createPlanOutline(athleteId, planInput(eventId), NOW)
+
+		// Both exist: the race is the more specific statement, so it wins.
+		expect((await getActivePlan(athleteId, NOW))?.eventId).toBe(eventId)
+
+		// Once the race has passed, the open-ended plan is the active one again.
+		const after = await getActiveSeason(
+			athleteId,
+			new Date('2030-03-10T12:00:00Z'),
+		)
+		expect(after?.outlineId).toBe(open.ok ? open.outlineId : null)
+		expect(after?.eventId).toBeNull()
+	})
+
+	test('“Hold meg aktiv” opens this week with Blokk 1, one 3:1 block in hours', async () => {
+		const athleteId = await createAthlete()
+
+		const created = await createOpenEndedPlan(
+			athleteId,
+			{ discipline: 'run', weeklyHours: 4.5 },
+			NOW,
+		)
+
+		expect(created.ok).toBe(true)
+		const outline = await prisma.planOutline.findUniqueOrThrow({
+			where: { id: created.ok ? created.outlineId : '' },
+			select: {
+				eventId: true,
+				startWeekKey: true,
+				phases: { select: { name: true, weeks: true, rhythm: true } },
+				tracks: {
+					select: {
+						discipline: true,
+						currency: true,
+						anchors: { select: { fromWeekKey: true, value: true } },
+					},
+				},
+			},
+		})
+		expect(outline).toEqual({
+			eventId: null,
+			startWeekKey: START_WEEK_KEY,
+			phases: [{ name: 'Blokk 1', weeks: 4, rhythm: '3:1' }],
+			tracks: [
+				{
+					discipline: 'run',
+					currency: 'hours',
+					anchors: [{ fromWeekKey: START_WEEK_KEY, value: 4.5 }],
+				},
+			],
+		})
+		expect(
+			await createOpenEndedPlan(
+				athleteId,
+				{ discipline: 'bike', weeklyHours: 3 },
+				NOW,
+			),
+		).toEqual({ ok: false, reason: 'open-ended-already-active' })
+	})
+
+	test('home and the plan page count the round in the athlete’s own week', async () => {
+		const athleteId = await createAthlete()
+		await prisma.athleteProfile.create({
+			data: { userId: athleteId, timezone: 'Europe/Oslo' },
+		})
+		await createPlanOutline(
+			athleteId,
+			{
+				...openEndedInput(),
+				structure: {
+					phases: [
+						{ name: 'Blokk 1', weeks: 1, rhythm: 'none' as const },
+						{ name: 'Blokk 2', weeks: 1, rhythm: 'none' as const },
+					],
+				},
+			},
+			NOW,
+		)
+		// 00:30 on Monday 14 Jan in Oslo is still Sunday in UTC: the second round
+		// has begun for the athlete, though not on a UTC calendar.
+		const mondayInOslo = new Date('2030-01-13T23:30:00Z')
+
+		expect((await getActivePlan(athleteId, mondayInOslo))?.round).toBe(2)
+		expect((await getActiveSeason(athleteId, mondayInOslo))?.round).toBe(2)
+	})
+
+	test('pre-fills nothing it cannot read, and names the plan the athlete has', async () => {
+		const athleteId = await createAthlete()
+		expect(await readOpenEndedPlanDefaults(athleteId, NOW)).toEqual({
+			outlineId: null,
+			hoursByDiscipline: {},
+			defaultDiscipline: 'run',
+		})
+
+		const created = await createPlanOutline(athleteId, openEndedInput(), NOW)
+		expect((await readOpenEndedPlanDefaults(athleteId, NOW)).outlineId).toBe(
+			created.ok ? created.outlineId : 'missing',
+		)
+	})
+
+	test('cannot be fitted to an Event it does not have', async () => {
+		const athleteId = await createAthlete()
+		const created = await createPlanOutline(athleteId, openEndedInput(), NOW)
+
+		expect(
+			await fitPlanToEvent(athleteId, {
+				outlineId: created.ok ? created.outlineId : '',
+			}),
+		).toEqual({ ok: false, reason: 'no-event' })
+	})
+
+	test('is deleted by its owner, which frees the place for a new one', async () => {
+		const athleteId = await createAthlete()
+		const created = await createPlanOutline(athleteId, openEndedInput(), NOW)
+		const outlineId = created.ok ? created.outlineId : ''
+
+		expect(
+			await deletePlanOutline(await createAthlete(), { outlineId }),
+		).toEqual({ ok: false, reason: 'outline-not-found' })
+		expect(await deletePlanOutline(athleteId, { outlineId })).toEqual({
+			ok: true,
+		})
+		expect((await createPlanOutline(athleteId, openEndedInput(), NOW)).ok).toBe(
+			true,
+		)
+	})
 })
 
 test('the goal Event is created as a dated fitness-goal, visibly', async () => {
@@ -1650,6 +1879,42 @@ test('rhythm and the taper flag are authored per phase, not per season', async (
 	])
 })
 
+test('a chosen easy week goes when a resize leaves it outside the phase, or a new rhythm reshapes its blocks', async () => {
+	const { athleteId, phaseIds } = await authoredPlan()
+	const easyWeekOf = async (id: string) =>
+		(
+			await prisma.planOutlinePhase.findUniqueOrThrow({
+				where: { id },
+				select: { recoveryWeekIndex: true },
+			})
+		).recoveryWeekIndex
+	await prisma.planOutlinePhase.update({
+		where: { id: phaseIds[0]! },
+		data: { recoveryWeekIndex: 5 },
+	})
+	await resizePhase(athleteId, { phaseId: phaseIds[0]!, weeks: 7 })
+	expect(await easyWeekOf(phaseIds[0]!)).toBe(5)
+	await resizePhase(athleteId, { phaseId: phaseIds[0]!, weeks: 5 })
+	expect(await easyWeekOf(phaseIds[0]!)).toBeNull()
+
+	await prisma.planOutlinePhase.update({
+		where: { id: phaseIds[0]! },
+		data: { recoveryWeekIndex: 1 },
+	})
+	await setPhaseRhythm(athleteId, {
+		phaseId: phaseIds[0]!,
+		rhythm: '3:1',
+		tapers: false,
+	})
+	expect(await easyWeekOf(phaseIds[0]!)).toBe(1)
+	await setPhaseRhythm(athleteId, {
+		phaseId: phaseIds[0]!,
+		rhythm: '2:1',
+		tapers: false,
+	})
+	expect(await easyWeekOf(phaseIds[0]!)).toBeNull()
+})
+
 test('a phase moves one position at a time, and the ends refuse', async () => {
 	const { athleteId, outlineId, phaseIds } = await authoredPlan()
 
@@ -2139,6 +2404,32 @@ describe('applyPreset', () => {
 		expect(await storedPhases(outlineId)).toEqual(before)
 		expect(await segmentCount(outlineId)).toBe(3)
 		expect(await mixCount(outlineId)).toBe(0)
+	})
+
+	test('once a week of the plan has begun, a shape is refused and nothing moves', async () => {
+		const { athleteId, outlineId } = await authoredPlan()
+		const before = await storedPhases(outlineId)
+
+		// The plan opens Monday 7 Jan 2030. On its Monday, with nothing trained,
+		// the first week has not begun: a shape may still replace every phase.
+		// By Wednesday it has, and a shape would rewrite a week lived — the
+		// philosophy switch is the way to another method then (story 14).
+		expect(
+			await applyPreset(
+				athleteId,
+				{ outlineId, presetKey: 'big-base' },
+				new Date('2030-01-09T12:00:00Z'),
+			),
+		).toEqual({ ok: false, reason: 'plan-begun' })
+		expect(await storedPhases(outlineId)).toEqual(before)
+
+		expect(
+			await applyPreset(
+				athleteId,
+				{ outlineId, presetKey: 'big-base' },
+				new Date('2030-01-07T09:00:00Z'),
+			),
+		).toEqual({ ok: true })
 	})
 
 	test('a missing Outline is the same refusal', async () => {

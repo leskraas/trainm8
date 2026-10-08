@@ -47,7 +47,12 @@
  * therefore says which blank it is, and the mix's fields are deliberately not built
  * out of the rate fields' components.
  */
-import { getFormProps, getInputProps, useForm } from '@conform-to/react'
+import {
+	getFormProps,
+	getInputProps,
+	useForm,
+	type SubmissionResult,
+} from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { data, Form, Link, redirect } from 'react-router'
@@ -63,9 +68,8 @@ import {
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { Input } from '#app/components/ui/input.tsx'
-import { dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { getEventsForUser } from '#app/utils/event.server.ts'
 import {
 	formatDate,
 	formatEmphasisLabel,
@@ -76,14 +80,25 @@ import {
 	formatSignedPercent,
 	formatVolumeTotal,
 	formatWeeklyVolume,
-	formatWeeklyVolumeField,
 	formatWeekSpan,
-	volumeFieldStep,
 } from '#app/utils/format.ts'
 import {
 	ACCUMULATED_SPAN_LABELS,
+	ATTACH_EVENT_LABELS,
+	ATTACH_EVENT_REFUSAL_LABELS,
+	attachedEventSentence,
+	APP_TAB_LABELS,
 	BOUNDARY_STEP_OUT_OF_FORCE_LABELS,
 	DISCIPLINE_LABELS,
+	OPEN_ENDED_PLAN_LABEL,
+	openEndedBlockLabel,
+	PHILOSOPHY_SWITCH_LABELS,
+	PRESET_GALLERY_LABELS,
+	PHILOSOPHY_SWITCH_REFUSAL_LABELS,
+	SEASON_ADVANCED_LABELS,
+	SEASON_EDIT_LABELS,
+	STRENGTH_OFFER_LABELS,
+	switchedPhilosophySentence,
 	QUALITY_ZONE_LABELS,
 	STRENGTH_GOAL_SENTENCE_LABELS,
 	UNAVAILABLE_READING_LABELS,
@@ -91,10 +106,8 @@ import {
 	WEEK_ROLE_LABELS,
 	type BoundaryStepOutOfForce,
 } from '#app/utils/labels.ts'
-import {
-	getCtlOnOrBefore,
-	getTsbTrust,
-} from '#app/utils/load/snapshot.server.ts'
+import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
+import { AttachEventFormSchema } from '#app/utils/plan-outline/attach-event-schema.ts'
 import {
 	EnduranceSegmentSetSchema,
 	MAX_QUALITY_SESSIONS_PER_WEEK,
@@ -108,8 +121,6 @@ import {
 	StrengthSegmentAddSchema,
 	StrengthSegmentSetSchema,
 	WeekPatternNameSchema,
-	WeekVolumeOverrideClearSchema,
-	WeekVolumeOverrideSetSchema,
 } from '#app/utils/plan-outline/authoring-schema.ts'
 import {
 	addPhase,
@@ -118,9 +129,9 @@ import {
 	addWeekPattern,
 	addWeekPatternDay,
 	applyPreset,
-	clearWeekVolumeOverride,
 	createStarterWeekPattern,
 	deletePlanOutline,
+	listPlanAnchorCandidates,
 	movePhase,
 	fitPlanToEvent,
 	moveWeekPattern,
@@ -131,24 +142,18 @@ import {
 	removeTrack,
 	removeWeekPattern,
 	removeWeekPatternDay,
-	renamePhase,
 	renameWeekPattern,
-	resizePhase,
 	setEnduranceSegment,
-	setPhaseRhythm,
 	setQualitySessionMix,
 	setSeasonAnchorValue,
 	setStrengthSegment,
-	setWeekVolumeOverride,
 	type AddTrackRefusal,
 	type FitToEventRefusal,
-	type ClearWeekVolumeOverrideResult,
 	type PhaseEditRefusal,
 	type RemoveTrackRefusal,
 	type SeasonAnchorRefusal,
 	type StrengthSegmentRefusal,
 	type WeekPatternEditRefusal,
-	type WeekVolumeOverrideRefusal,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import { accumulatesAcrossDisciplines } from '#app/utils/plan-outline/commensurability.ts'
 import {
@@ -172,7 +177,23 @@ import {
 	proposeFit,
 	type FitProposal,
 } from '#app/utils/plan-outline/fit-proposal.ts'
-import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
+import {
+	readAnchorContext,
+	readStrengthTrackOffer,
+} from '#app/utils/plan-outline/history.server.ts'
+import {
+	addRaceToOpenEndedPlan,
+	attachEventToOutline,
+} from '#app/utils/plan-outline/open-ended.server.ts'
+import {
+	PhilosophySwitchFormSchema,
+	StrengthOfferFormSchema,
+} from '#app/utils/plan-outline/philosophy-schema.ts'
+import {
+	readPhilosophySwitch,
+	switchPhilosophy,
+} from '#app/utils/plan-outline/philosophy.server.ts'
+import { type PhilosophySwitchPreview } from '#app/utils/plan-outline/philosophy.ts'
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
 	proposeTrack,
@@ -188,7 +209,10 @@ import {
 	RAMP_GUARD_MAX,
 	type RampWarning,
 } from '#app/utils/plan-outline/ramp-guard.ts'
-import { type FitnessAnchor } from '#app/utils/plan-outline/season-chart.ts'
+import {
+	readSeasonChartInputs,
+	withWeekStarts,
+} from '#app/utils/plan-outline/season-chart.server.ts'
 import {
 	readStampedMixWarnings,
 	stampWeekPattern,
@@ -200,8 +224,8 @@ import {
 	type StampSkipReason,
 } from '#app/utils/plan-outline/stamp.ts'
 import { type StarterProposal } from '#app/utils/plan-outline/starter-pattern.ts'
+import { addProposedStrengthTrack } from '#app/utils/plan-outline/strength-offer.server.ts'
 import { type UnavailableReading } from '#app/utils/plan-outline/unavailable-readings.ts'
-import { readConversionContexts } from '#app/utils/plan-outline/volume-conversion.server.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import { PATTERN_DAY_KINDS } from '#app/utils/plan-outline/week-pattern.ts'
 import { countWeeksWithSessions } from '#app/utils/plan-outline/week-sessions.server.ts'
@@ -210,6 +234,7 @@ import {
 	getActiveSeason,
 	getAuthoredWorkouts,
 	getSeasonForEvent,
+	getSeasonForOutline,
 	type AuthoredSeason,
 	type SeasonAvailabilityWarning,
 	type SeasonBandWarning,
@@ -221,12 +246,18 @@ import {
 	type Discipline,
 } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.ts'
+import { AttachEventOffer } from './__attach-event.tsx'
 import { CopyWeekSection, type PendingCopy } from './__copy-week.tsx'
 import {
 	AddPhaseForm,
 	DeletePlanSection,
 	PhaseCard,
 } from './__phase-editor.tsx'
+import {
+	PhilosophyCard,
+	StrengthTrackOfferCard,
+	type PhilosophyPreviewView,
+} from './__philosophy-switch.tsx'
 import {
 	Disclosure,
 	PhaseSpark,
@@ -242,6 +273,9 @@ import {
 	type EditableAnchorTrack,
 } from './__season-anchor-editor.tsx'
 import { SeasonChart } from './__season-chart.tsx'
+import { seasonEditAction } from './__season-edits.server.ts'
+import { SeasonEditLink, SeasonEditsCard } from './__season-edits.tsx'
+import { SEASON_EVENTS_SHOWN, SeasonEvents } from './__season-events.tsx'
 import { StampSection, type PendingStamp } from './__stamp-pattern.tsx'
 import {
 	StrengthBlocksSection,
@@ -249,7 +283,10 @@ import {
 	type EditableStrengthTrack,
 } from './__strength-segment-editor.tsx'
 import { TrackRoster } from './__track-editor.tsx'
-import { WeekPatternSection } from './__week-pattern-editor.tsx'
+import {
+	type SeasonQuery,
+	WeekPatternSection,
+} from './__week-pattern-editor.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Plan | Trainm8' }]
 
@@ -398,55 +435,6 @@ const MixFormSchema = z.object({
 })
 
 /**
- * One week's hand-set target as the athlete types it: a number in the track's own
- * **Volume Currency**, or blank.
- *
- * **Blank reverts.** It is the athlete taking their hand off the week so the rule
- * answers again — the house "blank is a value" rule (ADR 0044 §4) applied to a
- * **Week Volume Override** — and it is a *third* meaning of blank on this page,
- * which is why the field says so where the athlete reads it.
- *
- * `0` is the other thing entirely: a week without training, which the vocabulary
- * says needs no flag of its own. So the empty string is tested **before** `Number`
- * is reached — `Number('')` is `0`, and that one coercion would collapse the revert
- * into the week off and make a week off unauthorable.
- *
- * No unit is parsed and none is offered: the currency is the track's, and hand-
- * setting a week changes value only (ADR 0043).
- */
-const WeekTargetSchema = z
-	.string()
-	.trim()
-	.transform((raw, ctx) => {
-		if (raw === '') return null
-		const value = Number(raw)
-		if (!Number.isFinite(value)) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: 'Type a weekly volume, or leave it blank to follow the rule',
-			})
-			return z.NEVER
-		}
-		return value
-	})
-
-/**
- * What one week's target form submits: the row it belongs to — a track and a week —
- * and the value.
- *
- * `weekKey` is only checked for *presence* here. Whether it is a Monday, and whether
- * the value is in range, are the authoring schemas' rules, and the action re-parses
- * through those so a violation reads as a sentence on the row rather than as a throw
- * from the service (ADR 0044 §8) — restating them here would put the same rule in
- * two places and let them drift.
- */
-const WeekOverrideFormSchema = z.object({
-	trackId: z.string().min(1),
-	weekKey: z.string().min(1),
-	value: WeekTargetSchema.default(''),
-})
-
-/**
  * The name of a shape, read straight off the body like every other field on this
  * page. `PRESET_KEYS` is the one list of shipped keys — the service's schema reads
  * the same constant — so the surface cannot ask for a preset the app never
@@ -460,14 +448,29 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// an Event linked to. Without it the surface shows the active plan: the nearest
 	// upcoming outlined Event (ADR 0018), which is the plan the athlete is living
 	// in but not necessarily the one they just asked for.
-	const eventId = new URL(request.url).searchParams.get('event')
+	//
+	// `?outline=` addresses an open-ended plan the same way, which has no Event to
+	// be named by (ADR 0079) — the plan just authored with "Hold meg aktiv", or one
+	// resting while a plan toward a race is the active one.
+	const searchParams = new URL(request.url).searchParams
+	const eventId = searchParams.get('event')
+	const outlineId = eventId ? null : searchParams.get('outline')
+	const seasonQuery: SeasonQuery = eventId
+		? { name: 'event', value: eventId }
+		: outlineId
+			? { name: 'outline', value: outlineId }
+			: null
 	const season = eventId
 		? await getSeasonForEvent(userId, eventId)
-		: await getActiveSeason(userId)
+		: outlineId
+			? await getSeasonForOutline(userId, outlineId)
+			: await getActiveSeason(userId)
 	// An Event with no plan of its own falls back to the active plan rather than
 	// dead-ending; with no plan at all, the flow's first question is the honest
 	// destination — not a hollow page.
-	if (!season) throw redirect(eventId ? '/training/plan' : '/training/plan/new')
+	if (!season) {
+		throw redirect(seasonQuery ? '/training/plan' : '/training/plan/new')
+	}
 
 	// A **fixed** pattern day prescribes a Workout, and this app has no Workout
 	// library: a Workout is authored inline with a session (`sessions.new.tsx`), so
@@ -479,7 +482,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// segment authors — read here rather than derived on the client, because it is a
 	// reading of the *sessions* and this page otherwise holds none (ADR 0042 §9).
 	// Empty for a plan nobody has stamped yet, which is the ordinary state.
-	const mixWarnings = await readStampedMixWarnings(userId, season.eventId)
+	const mixWarnings = await readStampedMixWarnings(userId, season.outlineId)
 
 	// How much of the season is actually on the calendar — the last step of
 	// authoring a plan, and the one an athlete planning for the first time does not
@@ -487,13 +490,52 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// that is the unit the week list below is drawn in.
 	const weeksWithSessions = await countWeeksWithSessions(
 		userId,
-		season.eventId,
+		season.outlineId,
 		season.weeks.map((week) => week.weekKey),
 		season.timezone,
 	)
 
+	// An open-ended plan may gain an Event (ADR 0079 §4): the athlete's upcoming
+	// Events that have no plan of their own are the ones it can take.
+	const attachableEvents =
+		season.eventId == null
+			? (await listPlanAnchorCandidates(userId))
+					.filter((event) => event.plannedOutlineId == null)
+					.map(({ id, name, startDate }) => ({ id, name, startDate }))
+			: []
+
+	// A strength track proposed from the athlete's own lifting (#505 story 15),
+	// for a plan that measures no lifting yet. No lifting habit, no offer.
+	const strengthOffer = season.tracks.some(
+		(track) => track.discipline === 'strength',
+	)
+		? null
+		: await readStrengthTrackOffer(userId)
+
+	// The first week not yet begun: the Sesong edits offer no week before it,
+	// since a week already begun is history (#505 S13).
+	const firstUnbegunWeekKey = await readFirstUnbegunWeekKey(
+		userId,
+		new Date(),
+		season.timezone,
+	)
+
+	// The Events the season is planned around, on Sesong itself (ADR 0083). The
+	// same "upcoming" the Events page reads: planned, and not yet started.
+	const now = new Date()
+	const upcomingEvents = (await getEventsForUser(userId)).filter(
+		(event) => event.status === 'planned' && event.startDate >= now,
+	)
+
 	return {
-		eventQuery: eventId,
+		seasonQuery,
+		attachableEvents,
+		strengthOffer,
+		firstUnbegunWeekKey,
+		seasonEvents: {
+			events: upcomingEvents.slice(0, SEASON_EVENTS_SHOWN),
+			upcomingCount: upcomingEvents.length,
+		},
 		tab: tabFrom(request),
 		week: chosenWeekKey(request, season.weeks),
 		workouts,
@@ -502,20 +544,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 		strengthTracks: strengthTracksOf(season),
 		anchorTracks: anchorTracksOf(season),
 		/**
-		 * The **season chart**'s two server-side inputs (#413). Both are read here
-		 * rather than folded into `AuthoredSeason` because they belong to the
-		 * *athlete*, not to the plan: the per-Discipline conversion context is their
-		 * zone recipe and thresholds, and the fitness anchor is their measured load
-		 * history. Handing them over as data keeps every layer the chart draws a pure
-		 * function the component can recompute as the athlete switches track or
-		 * currency, with no round trip and no second reading of the same week.
+		 * The **season chart**'s two server-side inputs (#413), read the way every
+		 * surface that mounts the chart reads them (`season-chart.server.ts`).
 		 */
-		conversionContexts: await readConversionContexts(
-			userId,
-			season.startWeekKey,
-			season.tracks.map((track) => track.discipline),
-		),
-		fitnessAnchor: await readFitnessAnchor(userId, season.startWeekKey),
+		...(await readSeasonChartInputs(userId, season)),
 		/**
 		 * What the add-track form proposes for the Disciplines this plan does not
 		 * measure yet. Read here because a proposal is a reading of the *athlete's*
@@ -527,41 +559,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 			userId,
 			season.tracks.map((track) => track.discipline),
 		),
-		season: {
-			...season,
-			/**
-			 * Each week's Monday as the instant of local midnight, so the display layer
-			 * formats the calendar day the athlete's week actually opens on.
-			 */
-			weeks: season.weeks.map((week) => ({
-				...week,
-				startsAt: dayBoundsUTC(week.weekKey, season.timezone).start,
-			})),
-			phases: season.phases.map((phase) => ({
-				...phase,
-				startsAt: dayBoundsUTC(phase.fromWeekKey, season.timezone).start,
-			})),
-		},
+		season: withWeekStarts(season),
 	}
-}
-
-/**
- * The measured fitness the season chart's projection opens on, with the trust gate
- * that decides whether it may be used at all (ADR 0008).
- *
- * `null` for an athlete with no load history before their plan starts, and the
- * chart's Fitness layer then declines with that as its reason rather than replaying
- * from a fabricated zero.
- */
-async function readFitnessAnchor(
-	userId: string,
-	startWeekKey: string,
-): Promise<FitnessAnchor | null> {
-	const [ctl, trust] = await Promise.all([
-		getCtlOnOrBefore(userId, startWeekKey),
-		getTsbTrust(userId),
-	])
-	return ctl == null ? null : { ctl, ...trust }
 }
 
 /**
@@ -860,34 +859,6 @@ export async function action({ request }: Route.ActionArgs) {
 				}),
 			)
 		}
-		case 'rename-phase': {
-			const name = NameField.safeParse(formData.get('name'))
-			if (!phaseId.success) return refuse(PHASE_GONE)
-			if (!name.success) return refuse(firstIssue(name.error))
-			return report(
-				await renamePhase(userId, { phaseId: phaseId.data, name: name.data }),
-			)
-		}
-		case 'resize-phase': {
-			const weeks = WeeksField.safeParse(formData.get('weeks'))
-			if (!phaseId.success) return refuse(PHASE_GONE)
-			if (!weeks.success) return refuse(firstIssue(weeks.error))
-			return report(
-				await resizePhase(userId, { phaseId: phaseId.data, weeks: weeks.data }),
-			)
-		}
-		case 'set-phase-rhythm': {
-			const rhythm = RhythmField.safeParse(formData.get('rhythm'))
-			if (!phaseId.success) return refuse(PHASE_GONE)
-			if (!rhythm.success) return refuse(firstIssue(rhythm.error))
-			return report(
-				await setPhaseRhythm(userId, {
-					phaseId: phaseId.data,
-					rhythm: rhythm.data,
-					tapers: checked(formData, 'tapers'),
-				}),
-			)
-		}
 		case 'move-phase': {
 			if (!phaseId.success) return refuse(PHASE_GONE)
 			return report(
@@ -1062,27 +1033,6 @@ export async function action({ request }: Route.ActionArgs) {
 		// the second submit is this one plus a yes (ADR 0044 §6).
 		case 'copy-week':
 			return copyWeekOnto(userId, request, formData)
-		// ── Hand-setting one week (#406) ──────────────────────────────────────
-		// One week of one track, and nothing about the rest of the season: an override
-		// is a leaf, so every later week is still derived from the anchor and the ramps
-		// on the next read (ADR 0044 §5).
-		case 'set-week-override':
-			return authorWeekOverride(userId, formData)
-		case 'clear-week-override': {
-			const trackId = IdField.safeParse(formData.get('trackId'))
-			if (!trackId.success) return refuse(TRACK_GONE)
-			const reverted = await revertWeek(userId, {
-				trackId: trackId.data,
-				weekKey: formData.get('weekKey'),
-			})
-			// A body the storage schema refuses is a week no row of this plan is keyed to,
-			// said here as the plan's own span rather than as a parse failure.
-			if (!reverted.parsed) return refuse(WEEK_OUTSIDE_PLAN)
-			// This control keeps the `override-not-found` refusal, where the blank field
-			// in `authorWeekOverride` treats it as a success: pressing *this* button
-			// claims there was something to revert.
-			return reportWeekOverride(reverted.result)
-		}
 		// ── Re-anchoring a track mid-season (#407) ────────────────────────────
 		// One track's **Season Anchor** list. Adding and editing are one write on
 		// `(trackId, fromWeekKey)` — the pair is the segment's identity — and the two
@@ -1129,7 +1079,11 @@ export async function action({ request }: Route.ActionArgs) {
 				outlineId: outlineId.data,
 				presetKey: presetKey.data,
 			})
-			if (!applied.ok) return report(applied)
+			if (!applied.ok) {
+				return applied.reason === 'plan-begun'
+					? refuse(PRESET_GALLERY_LABELS.begun)
+					: report(applied)
+			}
 			// A redirect rather than falling through to the loader, because there is
 			// something to *say* that the page cannot say by itself. Applying copies the
 			// shape in: nothing records where the blocks came from, no reference back
@@ -1168,6 +1122,152 @@ export async function action({ request }: Route.ActionArgs) {
 				description: `${fitProposalSentence(fitted.proposal)} Resize any block back if that is not what you wanted.`,
 			})
 		}
+		case 'attach-event': {
+			const submission = parseWithZod(formData, {
+				schema: AttachEventFormSchema,
+			})
+			if (submission.status !== 'success') {
+				return data(
+					{ intent: 'attach-event', result: submission.reply() },
+					{ status: 400 },
+				)
+			}
+			const { outlineId: attachTo, choice } = submission.value
+			const attached =
+				choice.kind === 'event'
+					? await attachEventToOutline(userId, attachTo, choice.eventId)
+					: await addRaceToOpenEndedPlan(userId, attachTo, choice)
+			if (!attached.ok) {
+				return data(
+					{
+						intent: 'attach-event',
+						result: submission.reply({
+							formErrors: [ATTACH_EVENT_REFUSAL_LABELS[attached.reason]],
+						}),
+					},
+					{ status: 400 },
+				)
+			}
+			// To the plan by its Event now: it is an ordinary plan toward it.
+			return redirectWithToast(`/training/plan?event=${attached.eventId}`, {
+				type: 'success',
+				title: ATTACH_EVENT_LABELS.done,
+				description: attachedEventSentence(attached.ended, attached.phases),
+			})
+		}
+		case 'preview-philosophy':
+		case 'switch-philosophy': {
+			const submission = parseWithZod(formData, {
+				schema: PhilosophySwitchFormSchema,
+			})
+			if (submission.status !== 'success') {
+				return data(
+					{ philosophy: philosophyReply({ result: submission.reply() }) },
+					{ status: 400 },
+				)
+			}
+			const { intent: asked, outlineId: switching, family } = submission.value
+			if (asked === 'preview-philosophy') {
+				const preview = await readPhilosophySwitch(userId, switching, family)
+				if (!preview.ok) {
+					return data(
+						{
+							philosophy: philosophyReply({
+								result: submission.reply({
+									formErrors: [
+										PHILOSOPHY_SWITCH_REFUSAL_LABELS[preview.reason],
+									],
+								}),
+							}),
+						},
+						{ status: 400 },
+					)
+				}
+				// Nothing written: the preview, for the athlete to confirm under.
+				return {
+					philosophy: philosophyReply({
+						result: submission.reply(),
+						preview: previewView(preview),
+					}),
+				}
+			}
+			const switched = await switchPhilosophy(
+				userId,
+				switching,
+				family,
+				new Date(),
+				{ digest: submission.value.digest },
+			)
+			if (!switched.ok) {
+				// Said under the preview as it stands now when there is one, so the
+				// athlete reads what would land and confirms that instead.
+				const message = PHILOSOPHY_SWITCH_REFUSAL_LABELS[switched.reason]
+				const fresh = await readPhilosophySwitch(userId, switching, family)
+				return data(
+					{
+						philosophy: fresh.ok
+							? philosophyReply({
+									confirmResult: submission.reply({ formErrors: [message] }),
+									preview: previewView(fresh),
+								})
+							: philosophyReply({
+									result: submission.reply({ formErrors: [message] }),
+								}),
+					},
+					{ status: 400 },
+				)
+			}
+			const url = new URL(request.url)
+			return redirectWithToast(`${url.pathname}${url.search}`, {
+				type: 'success',
+				title: PHILOSOPHY_SWITCH_LABELS.done,
+				description: switchedPhilosophySentence(
+					family,
+					formatDate(new Date(`${switched.fromWeekKey}T12:00:00Z`), 'UTC'),
+				),
+			})
+		}
+		// The Sesong edits (#505 stories 72–77): preview, then apply.
+		case 'preview-season-edit':
+		case 'apply-season-edit':
+			return seasonEditAction(userId, request, formData)
+		case 'add-strength-track': {
+			const submission = parseWithZod(formData, {
+				schema: StrengthOfferFormSchema,
+			})
+			if (submission.status !== 'success') {
+				return data(
+					{ strengthOffer: { result: submission.reply() } },
+					{ status: 400 },
+				)
+			}
+			const added = await addProposedStrengthTrack(
+				userId,
+				submission.value.outlineId,
+			)
+			if (!added.ok) {
+				return data(
+					{
+						strengthOffer: {
+							result: submission.reply({
+								formErrors: [
+									added.reason === 'no-strength-history'
+										? STRENGTH_OFFER_LABELS.noHistory
+										: trackRefusalMessage(added.reason),
+								],
+							}),
+						},
+					},
+					{ status: 400 },
+				)
+			}
+			const url = new URL(request.url)
+			return redirectWithToast(`${url.pathname}${url.search}`, {
+				type: 'success',
+				title: STRENGTH_OFFER_LABELS.done,
+				description: STRENGTH_OFFER_LABELS.doneDetail,
+			})
+		}
 		case 'delete-plan': {
 			if (!outlineId.success) return refuse(OUTLINE_GONE)
 			const deleted = await deletePlanOutline(userId, {
@@ -1201,12 +1301,20 @@ function fitRefusalMessage(reason: FitToEventRefusal): string {
 	switch (reason) {
 		case 'outline-not-found':
 			return OUTLINE_GONE
+		case 'no-event':
+			return 'This plan has no event, so there is nothing to fit it to.'
 		case 'already-fits':
 			return 'Your plan already ends on your event’s week.'
 		case 'cannot-fit':
 			return 'Your blocks cannot be resized to reach your event without one of them disappearing. Shorten or remove a block yourself.'
 	}
 }
+/**
+ * An open-ended plan resting behind a plan toward a race (ADR 0079). Said in
+ * the #505 surface's Norwegian, like the plan's own hero (ADR 0081).
+ */
+const PLAN_RESTING =
+	'Planen hviler mens planen mot løpet ditt er i gang, så ingen uker legges for den nå.'
 const PATTERN_GONE = 'That week pattern is no longer part of this plan.'
 /**
  * The one state a starter week declines in: an athlete whose availability says
@@ -1233,8 +1341,6 @@ const WEEK_OUTSIDE_PLAN = 'That week is not in your plan.'
 const WEEK_NOT_ONE_OF_THE_PLANS =
 	'That week is not one of your plan’s weeks. Pick a week between your first and your last, or add weeks to your plan first.'
 const ANCHOR_GONE = 'That anchor is no longer part of this plan.'
-const WEEK_NOT_HAND_SET =
-	'That week was not hand-set, so there is nothing to revert.'
 const TRACK_MISSING = 'Choose which training track this day draws from.'
 const WORKOUT_MISSING =
 	'A fixed day prescribes a workout, so choose the session it stamps.'
@@ -1258,6 +1364,28 @@ function refuse(error: string) {
  */
 function refuseTrack(error: string) {
 	return data({ error, scope: 'track' as const }, { status: 400 })
+}
+
+/**
+ * _Bytt filosofi_'s reply, under a key of its own so the page narrows to it:
+ * the preview form's result, the confirm form's, and the preview to show.
+ */
+function philosophyReply({
+	result = null,
+	confirmResult = null,
+	preview = null,
+}: {
+	result?: SubmissionResult<string[]> | null
+	confirmResult?: SubmissionResult<string[]> | null
+	preview?: PhilosophyPreviewView | null
+}) {
+	return { result, confirmResult, preview }
+}
+
+/** The preview as the page shows it: the diff and its digest, not the rows. */
+function previewView(preview: PhilosophySwitchPreview): PhilosophyPreviewView {
+	const { rows: _rows, edit: _edit, ok: _ok, ...view } = preview
+	return view
 }
 
 /** One track-set refusal, worded (#414). */
@@ -1351,38 +1479,6 @@ function patternRefusalMessage(reason: WeekPatternEditRefusal): string {
 			// moves through the plan's list and a day moves within its own weekday, and
 			// naming either end would be the wrong word half the time.
 			return 'That is already at that end of its order.'
-	}
-}
-
-/**
- * One **Week Volume Override** service result, worded. A third pair beside `report`
- * and `reportPattern` for the reason those two are separate: the refusal unions are
- * separate vocabularies, and a week-scoped write can refuse over a week — which is
- * neither a phase nor a pattern. Typing the map to the union makes a refusal added
- * later a compile error here rather than a silent catch-all.
- */
-function reportWeekOverride(
-	result: { ok: true } | { ok: false; reason: WeekVolumeOverrideRefusal },
-) {
-	if (result.ok) return { ok: true as const }
-	return refuse(weekOverrideRefusalMessage(result.reason))
-}
-
-function weekOverrideRefusalMessage(reason: WeekVolumeOverrideRefusal): string {
-	switch (reason) {
-		case 'track-not-found':
-			// The same absence a pattern day's `track-gone` names, so the same sentence:
-			// a row that is not the athlete's reads as gone rather than as forbidden.
-			return TRACK_GONE
-		case 'week-outside-plan':
-			// Not an invalid week — a week of some other plan, or of none. Said as the
-			// plan's own span, because resizing a phase is what would bring it in.
-			return WEEK_OUTSIDE_PLAN
-		case 'override-not-found':
-			// Reachable from a stale reading, whose revert control was rendered before a
-			// second tab reverted the week. Naming the state is the answer; there is
-			// nothing to undo and nothing was changed.
-			return WEEK_NOT_HAND_SET
 	}
 }
 
@@ -1491,40 +1587,6 @@ async function authorSeasonAnchor(
 }
 
 /**
- * Revert one week to the rule: parse against the service's own schema, then clear.
- *
- * One path from "no value for this week" to the row being gone, because two controls
- * ask for it — the **blank field** and the explicit **revert button** — and a second
- * copy of the pair could drift in what it parses or what it calls.
- *
- * The parse belongs at this boundary because the service *throws* on a week key that
- * is not a Monday, and only a hand-made body can carry one (ADR 0044 §8). What each
- * caller does with a rejected parse differs — one words it on the row it was typed
- * into, the other at the top of the reading — so the issues come back rather than a
- * response, and the same is true of `override-not-found`: the two controls disagree
- * about it deliberately, so this hands the service's result over untouched.
- */
-async function revertWeek(
-	userId: string,
-	fields: { trackId: string; weekKey: unknown },
-): Promise<
-	| { parsed: false; issues: string[] }
-	| { parsed: true; result: ClearWeekVolumeOverrideResult }
-> {
-	const revert = WeekVolumeOverrideClearSchema.safeParse(fields)
-	if (!revert.success) {
-		return {
-			parsed: false,
-			issues: revert.error.issues.map((issue) => issue.message),
-		}
-	}
-	return {
-		parsed: true,
-		result: await clearWeekVolumeOverride(userId, revert.data),
-	}
-}
-
-/**
  * Stamp a **Week Pattern** into the weeks the athlete ticked (#412).
  *
  * The only write on this route that leaves **Workout Sessions** behind rather than
@@ -1620,6 +1682,8 @@ function stampRefusalMessage(
 	reason: Exclude<StampRefusal, 'weeks-already-filled'>,
 ): string {
 	switch (reason) {
+		case 'plan-resting':
+			return PLAN_RESTING
 		case 'pattern-gone':
 			return PATTERN_GONE
 		case 'pattern-empty':
@@ -1721,6 +1785,8 @@ function copyRefusalMessage(
 	reason: Exclude<CopyWeekRefusal, 'target-week-filled'>,
 ): string {
 	switch (reason) {
+		case 'plan-resting':
+			return PLAN_RESTING
 		case 'plan-gone':
 			return OUTLINE_GONE
 		case 'week-outside-plan':
@@ -1734,81 +1800,6 @@ function copyRefusalMessage(
 			// prescription behind it. Named rather than reported as a copy of nothing.
 			return 'That week only holds recorded activities, which carry no workout to copy. Nothing was changed.'
 	}
-}
-
-/**
- * Hand-set one week's volume target, or revert it — the write behind the Weeks
- * reading's per-week field (#406).
- *
- * **Blank reverts**, so both live in one function: the field is the whole control,
- * and "clear this box" has to mean something. It means the athlete taking their hand
- * off the week, distinct from the `0` that means a week without training — and the
- * two are separated *before* `Number` is reached, in `WeekTargetSchema`.
- *
- * A blank aimed at a week that already follows the rule is a **success**: the state
- * the athlete asked for holds, so there is nothing to act on and nothing to say. The
- * revert *control* keeps that refusal, because pressing it claims there was something
- * to revert.
- *
- * The reply is keyed by the intent **and the row** — `trackId` plus `weekKey` — for
- * the reason `authorSegmentRates` keys by `segmentId`: this page renders one of these
- * forms per week per track, and a reply read by the wrong one would blank a week it
- * says nothing about. Service refusals travel as a sentence at the top of the reading
- * instead, like every other one-button edit here; only the field's own problems are
- * the field's to report.
- */
-async function authorWeekOverride(userId: string, formData: FormData) {
-	const submission = parseWithZod(formData, { schema: WeekOverrideFormSchema })
-	// Off the body rather than off the parse, so a rejected submission still reports
-	// on the row it was typed into.
-	const row = {
-		intent: 'set-week-override' as const,
-		trackId: String(formData.get('trackId') ?? ''),
-		weekKey: String(formData.get('weekKey') ?? ''),
-	}
-	if (submission.status !== 'success') {
-		return data({ ...row, result: submission.reply() }, { status: 400 })
-	}
-	const { trackId, weekKey, value } = submission.value
-	// A rejection the *field* reports, on the row it was typed into — written once for
-	// the two schemas re-parsed below, the revert's and the target's, because both
-	// land on the same week's field.
-	const fieldErrors = (issues: string[]) =>
-		data(
-			{ ...row, result: submission.reply({ formErrors: issues }) },
-			{ status: 400 },
-		)
-
-	if (value == null) {
-		const reverted = await revertWeek(userId, { trackId, weekKey })
-		if (!reverted.parsed) return fieldErrors(reverted.issues)
-		const cleared = reverted.result
-		// A blank aimed at a week that already follows the rule is a **success**: the
-		// state the athlete asked for holds, so there is nothing to act on and nothing
-		// to say. The revert *control* keeps that refusal — see `clear-week-override`.
-		if (!cleared.ok && cleared.reason !== 'override-not-found') {
-			return refuse(weekOverrideRefusalMessage(cleared.reason))
-		}
-		return { ...row, result: submission.reply() }
-	}
-
-	// The service's own gate, applied here first for the reason `authorSegmentRates`
-	// gives: a target the storage schema refuses — a negative, an infinity, a week key
-	// that is not a Monday — reads as a sentence on this row rather than as a throw
-	// from the service that re-parses it (ADR 0044 §8).
-	const authored = WeekVolumeOverrideSetSchema.safeParse({
-		trackId,
-		weekKey,
-		value,
-	})
-	if (!authored.success) {
-		return fieldErrors(authored.error.issues.map((issue) => issue.message))
-	}
-
-	const saved = await setWeekVolumeOverride(userId, authored.data)
-	if (!saved.ok) return refuse(weekOverrideRefusalMessage(saved.reason))
-
-	return { ...row, result: submission.reply() }
 }
 
 /**
@@ -2081,7 +2072,7 @@ export default function PlanRoute({
 	const {
 		season,
 		tab,
-		eventQuery,
+		seasonQuery,
 		week,
 		workouts,
 		strengthTracks,
@@ -2091,6 +2082,10 @@ export default function PlanRoute({
 		conversionContexts,
 		fitnessAnchor,
 		trackProposals,
+		attachableEvents,
+		strengthOffer,
+		firstUnbegunWeekKey,
+		seasonEvents,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -2103,6 +2098,21 @@ export default function PlanRoute({
 	const error =
 		actionData && 'error' in actionData && trackError === undefined
 			? actionData.error
+			: undefined
+	// _Legg til et løp_ answers inside its own form, with what was typed kept.
+	const attachResult =
+		actionData && 'intent' in actionData && actionData.intent === 'attach-event'
+			? actionData.result
+			: undefined
+	// _Bytt filosofi_ and the strength offer answer inside their own forms.
+	const philosophy =
+		actionData && 'philosophy' in actionData ? actionData.philosophy : null
+	// The Sesong edits answer inside their own forms too.
+	const seasonEdit =
+		actionData && 'seasonEdit' in actionData ? actionData.seasonEdit : null
+	const strengthOfferResult =
+		actionData && 'strengthOffer' in actionData
+			? actionData.strengthOffer.result
 			: undefined
 	// A stamp the service came back asking about. Not an `error`: nothing was
 	// written and there is a question on the page rather than a refusal above it.
@@ -2128,7 +2138,7 @@ export default function PlanRoute({
 	// together, with the defaults kept out of the URL.
 	function readingHref(name: Tab): string {
 		const params = new URLSearchParams()
-		if (eventQuery) params.set('event', eventQuery)
+		if (seasonQuery) params.set(seasonQuery.name, seasonQuery.value)
 		if (name !== 'blocks') params.set('tab', name)
 		if (weekQuery) params.set('week', weekQuery)
 		const search = params.toString()
@@ -2137,11 +2147,9 @@ export default function PlanRoute({
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
-			<PageHeader
-				title="Season plan"
-				back={{ to: '/', label: 'Home' }}
-				className="mb-2"
-			/>
+			{/* Sesong is a tab's landing page (ADR 0083), so it carries no back
+			    affordance (ui-conventions §3.3): the tab bar is the way out. */}
+			<PageHeader title={APP_TAB_LABELS.season} className="mb-2" />
 
 			{/* The surface's own order, and it is variant F's (#366, spec #399): what
 			    you are building toward, the shape of the season, what the season adds
@@ -2150,31 +2158,79 @@ export default function PlanRoute({
 			    paragraph in one column — "one thing at a time" is a layout claim
 			    before it is a copy one. */}
 			<div className="mb-8 space-y-6">
-				<PlanHero
-					eyebrow="You’re building toward"
-					title={
-						<Link
-							to={`/training/events/${season.eventId}`}
-							className="hover:underline"
-						>
-							{season.eventName}
+				{season.eventId != null && season.eventDate != null ? (
+					<PlanHero
+						eyebrow="You’re building toward"
+						title={
+							<Link
+								to={`/training/events/${season.eventId}`}
+								className="hover:underline"
+							>
+								{season.eventName}
+							</Link>
+						}
+						meta={
+							<>
+								{/* The Event's date is a calendar day anchor, formatted in UTC like
+								    every other Event date in the app (ADR 0023). */}
+								{formatDate(season.eventDate, 'UTC')} ·{' '}
+								{totalWeeks === 1 ? '1 week' : `${totalWeeks} weeks`} from{' '}
+								{formatDate(season.phases[0]!.startsAt, timezone)}
+							</>
+						}
+						action={
+							<PillLink to={`/training/events/${season.eventId}`}>
+								<Icon name="calendar" size="sm" />
+								Change what you’re building toward
+							</PillLink>
+						}
+					/>
+				) : (
+					// An open-ended plan has no Event and no end date (ADR 0079): its hero
+					// says which round it is in and that there is no end, never a race
+					// day it would have to invent (#505 story 9).
+					<PlanHero
+						eyebrow={OPEN_ENDED_PLAN_LABEL}
+						title={
+							<span data-open-ended-round>
+								{openEndedBlockLabel(season.round ?? 1)}
+							</span>
+						}
+						meta={
+							<>
+								Ingen løp og ingen sluttdato · fra{' '}
+								{formatDate(season.phases[0]!.startsAt, timezone)}
+							</>
+						}
+						action={
+							<AttachEventOffer
+								outlineId={season.outlineId}
+								events={attachableEvents}
+								lastResult={attachResult}
+							/>
+						}
+					/>
+				)}
+				{season.resting ? (
+					// A plan toward a race is the active one, so this plan lays no weeks
+					// until that race has passed (ADR 0079).
+					<p
+						data-plan-resting
+						className="text-muted-foreground text-center text-sm"
+					>
+						Planen hviler mens planen mot løpet ditt er i gang. Den tar over
+						igjen når løpet er over.{' '}
+						<Link to="/training/plan" className="underline">
+							Åpne løpsplanen
 						</Link>
-					}
-					meta={
-						<>
-							{/* The Event's date is a calendar day anchor, formatted in UTC like
-							    every other Event date in the app (ADR 0023). */}
-							{formatDate(season.eventDate, 'UTC')} ·{' '}
-							{totalWeeks === 1 ? '1 week' : `${totalWeeks} weeks`} from{' '}
-							{formatDate(season.phases[0]!.startsAt, timezone)}
-						</>
-					}
-					action={
-						<PillLink to={`/training/events/${season.eventId}`}>
-							<Icon name="calendar" size="sm" />
-							Change what you’re building toward
-						</PillLink>
-					}
+					</p>
+				) : null}
+
+				{/* The Events the season is planned around and the way to plan
+				    another, right under the one it builds toward (spec #505 story 57). */}
+				<SeasonEvents
+					events={seasonEvents.events}
+					upcomingCount={seasonEvents.upcomingCount}
 				/>
 
 				{/* The season chart is the surface's **primary object**, above the two
@@ -2207,20 +2263,62 @@ export default function PlanRoute({
 					    The proposal is derived here from the phases and the fit already on
 					    the page, and recomputed server-side when it is applied, so a stale
 					    reading can never land an edit the athlete was not shown. */}
-					<div className="border-border/70 space-y-3 border-t pt-4">
-						<p className="text-muted-foreground text-sm">
-							{fitSentence(season.fit)}
-						</p>
-						<FitToEventOffer
+					{/* No Event, nothing to fit to: an open-ended plan says nothing here
+					    rather than measuring itself against a race it does not have. */}
+					{season.fit ? (
+						<div className="border-border/70 space-y-3 border-t pt-4">
+							<p className="text-muted-foreground text-sm">
+								{fitSentence(season.fit)}
+							</p>
+						</div>
+					) : null}
+					{strengthOffer ? (
+						<StrengthTrackOfferCard
 							outlineId={season.outlineId}
-							proposal={proposeFit(season.phases, season.fit)}
+							offer={strengthOffer}
+							lastResult={strengthOfferResult}
 						/>
-					</div>
+					) : null}
 					<TrackRoster
 						outlineId={season.outlineId}
 						tracks={season.tracks}
 						proposals={trackProposals}
 						error={trackError}
+					/>
+				</PlanCard>
+
+				{/* The philosophy the plan follows, and the way to another one behind a
+				    preview (#505 stories 10–14). Its own card: it is a choice about the
+				    whole season, not a figure of it. */}
+				<PlanCard
+					titleId="philosophy"
+					title={PHILOSOPHY_SWITCH_LABELS.title}
+					contentClassName="space-y-3"
+				>
+					<PhilosophyCard
+						key={philosophy?.preview?.digest ?? 'none'}
+						outlineId={season.outlineId}
+						family={season.family}
+						preview={philosophy?.preview ?? null}
+						lastResult={philosophy?.result}
+						confirmResult={philosophy?.confirmResult}
+					/>
+				</PlanCard>
+
+				{/* The Sesong edits (#505 stories 72–77): a week's target, a phase's
+				    name and length, and the easy week — each behind a preview. */}
+				<PlanCard
+					titleId="season-edits"
+					title={SEASON_EDIT_LABELS.title}
+					contentClassName="space-y-3"
+				>
+					<SeasonEditsCard
+						outlineId={season.outlineId}
+						weeks={season.weeks}
+						phases={season.phases}
+						tracks={season.tracks}
+						firstUnbegunWeekKey={firstUnbegunWeekKey}
+						reply={seasonEdit}
 					/>
 				</PlanCard>
 
@@ -2271,6 +2369,7 @@ export default function PlanRoute({
 					actionData={actionData}
 					strengthTracks={strengthTracks}
 					anchorTracks={anchorTracks}
+					firstUnbegunWeekKey={firstUnbegunWeekKey}
 				/>
 			) : (
 				<WeeksReading
@@ -2278,11 +2377,11 @@ export default function PlanRoute({
 					error={error}
 					chosenWeek={previewWeek}
 					workouts={workouts}
-					eventQuery={eventQuery}
-					actionData={actionData}
+					seasonQuery={seasonQuery}
 					pendingStamp={pendingStamp}
 					pendingCopy={pendingCopy}
 					mixWarnings={mixWarnings}
+					firstUnbegunWeekKey={firstUnbegunWeekKey}
 				/>
 			)}
 		</main>
@@ -2922,8 +3021,14 @@ function BlocksReading({
 	actionData,
 	strengthTracks,
 	anchorTracks,
+	firstUnbegunWeekKey,
 }: {
 	season: SeasonData
+	/**
+	 * The first week not yet begun: a plan whose start is before it has begun,
+	 * and a shape would rewrite weeks lived (#505 story 14).
+	 */
+	firstUnbegunWeekKey: string
 	/** A refused *structural* edit, said once above the phases it was aimed at. */
 	error?: string
 	actionData: SegmentActionData
@@ -3094,74 +3199,104 @@ function BlocksReading({
 
 			{/* Everything below the phases is something an athlete does **once, or
 			    rarely** — pick a shape, say what they start from, lay out a lifting
-			    block, add a phase, throw the plan away. Each was a full open section,
-			    and together they were most of the page. Closed, they are a list of five
-			    lines under the blocks they act on; open, each is exactly the surface
-			    that shipped. Nothing is removed and no copy is cut: the prose that
-			    explains a control now arrives *with* the control instead of ahead of it.
-			 */}
+			    block, add a phase, fit the season to its Event. None of them is one of
+			    the four Sesong edits of #505 v1 (ADR 0084 §1): they apply directly,
+			    with no preview, so they wait behind one closed _Avansert_ line that
+			    says so before it opens. Inside, each is exactly the surface that
+			    shipped. */}
 			<div className="border-border/70 border-b">
-				{/* The shape leads, still: an athlete who does not want to build a season
-				    block by block should be offered one before being handed the controls
-				    (#399 story 7). Applying re-derives where the plan ends against the
-				    Event rather than stretching anything, and the headline card above
-				    says where that is — deliberately no second copy of it down here. */}
 				<Disclosure
-					summary="Start from a shape"
-					detail="Three built-in periodization shapes, each drawn as the load profile it lays down. Applying one replaces your blocks."
+					summary={SEASON_ADVANCED_LABELS.title}
+					detail={SEASON_ADVANCED_LABELS.note}
 				>
-					<PresetGallery outlineId={season.outlineId} />
-				</Disclosure>
+					{/* Where the season misses its Event, the edit that would close the
+					    gap, named in full before it is offered. The proposal is
+					    recomputed server-side when it is applied, so a stale reading can
+					    never land an edit the athlete was not shown. */}
+					{season.fit ? (
+						<FitToEventOffer
+							outlineId={season.outlineId}
+							proposal={proposeFit(season.phases, season.fit)}
+						/>
+					) : null}
 
-				{/* The anchor is the level the ramps above multiply — reading the number
-				    first and the progression second is the order the formula has
-				    (ADR 0040 §3) — and re-anchoring is a statement about the *season*,
-				    not about a phase: it takes effect from a week the athlete picks and
-				    floats free of where the blocks fall (ADR 0040 §5). It reads *after*
-				    the blocks here and not before them, because the number is authored
-				    once at the start of a season and the ramps over it are what an
-				    athlete comes back to change. */}
-				<Disclosure
-					summary="Season anchors"
-					detail={anchorSummary(anchorTracks)}
-				>
-					<SeasonAnchorSection
-						tracks={anchorTracks}
-						weeks={season.weeks}
-						timezone={season.timezone}
-						actionData={actionData}
-					/>
-				</Disclosure>
+					{/* A shape replaces every phase, so it is offered only while no week
+					    of the plan has begun. After that the way to another method is
+					    _Bytt filosofi_, which keeps the weeks lived and the athlete's
+					    sessions and previews first (#505 stories 13–14). */}
+					{season.startWeekKey < firstUnbegunWeekKey ? (
+						<div
+							className="border-border/70 space-y-1 border-t py-3"
+							data-preset-gallery-begun
+						>
+							<p className="text-sm font-medium">Start from a shape</p>
+							<p className="text-muted-foreground text-sm">
+								{PRESET_GALLERY_LABELS.begun}
+							</p>
+							<a
+								href="#philosophy"
+								className="text-sm font-medium underline underline-offset-4"
+							>
+								{PRESET_GALLERY_LABELS.switchLink}
+							</a>
+						</div>
+					) : (
+						<Disclosure
+							summary="Start from a shape"
+							detail="Three built-in periodization shapes, each drawn as the load profile it lays down. Applying one replaces your blocks."
+						>
+							<PresetGallery outlineId={season.outlineId} />
+						</Disclosure>
+					)}
 
-				{/* The lifting blocks sit *beside* the phase list rather than inside it,
-				    because a dated block has no phase card to belong to (ADR 0047 §6) —
-				    it is laid out along the plan's own weeks instead. Offered even with
-				    no strength track, because the section is where its own empty state
-				    is said. */}
-				{strengthTracks.length > 0 ? (
+					{/* The anchor is the level the ramps above multiply, and re-anchoring
+					    is a statement about the *season*, not about a phase: it takes
+					    effect from a week the athlete picks and floats free of where the
+					    blocks fall (ADR 0040 §5). */}
 					<Disclosure
-						summary="Lifting blocks"
-						detail={strengthSummary(strengthTracks)}
+						summary="Season anchors"
+						detail={anchorSummary(anchorTracks)}
 					>
-						<StrengthBlocksSection
-							tracks={strengthTracks}
+						<SeasonAnchorSection
+							tracks={anchorTracks}
 							weeks={season.weeks}
 							timezone={season.timezone}
 							actionData={actionData}
 						/>
 					</Disclosure>
-				) : null}
 
-				<Disclosure
-					summary="Add a phase"
-					detail="A new phase at a position you choose. Your plan’s start week never moves."
-				>
-					<AddPhaseForm outlineId={season.outlineId} phases={season.phases} />
+					{/* The lifting blocks sit *beside* the phase list rather than inside
+					    it, because a dated block has no phase card to belong to (ADR 0047
+					    §6) — it is laid out along the plan's own weeks instead. */}
+					{strengthTracks.length > 0 ? (
+						<Disclosure
+							summary="Lifting blocks"
+							detail={strengthSummary(strengthTracks)}
+						>
+							<StrengthBlocksSection
+								tracks={strengthTracks}
+								weeks={season.weeks}
+								timezone={season.timezone}
+								actionData={actionData}
+							/>
+						</Disclosure>
+					) : null}
+
+					<Disclosure
+						summary="Add a phase"
+						detail="A new phase at a position you choose. Your plan’s start week never moves."
+					>
+						<AddPhaseForm outlineId={season.outlineId} phases={season.phases} />
+					</Disclosure>
 				</Disclosure>
 
 				<Disclosure
 					summary="Delete this plan"
-					detail="Your event and the sessions you have already trained stay."
+					detail={
+						season.eventId
+							? 'Your event and the sessions you have already trained stay.'
+							: 'The sessions you have already trained stay.'
+					}
 				>
 					<DeletePlanSection
 						outlineId={season.outlineId}
@@ -3700,149 +3835,44 @@ type WeekData = SeasonData['weeks'][number]
 type WeekTargetData = WeekData['targets'][number]
 
 /**
- * One week's target for one track, hand-settable — the **Week Volume Override**
- * control (#406).
+ * One track's target in one week, read-only, with the way to change it.
  *
- * Three things this component has to keep straight, and they are the whole of it.
- *
- * - **The box holds the athlete's number, or nothing.** A week nobody hand-set reads
- *   as **blank**, with the rule's own figure stated beside it as text. Pre-filling the
- *   derived number would make the rule look like an edit to the athlete's plan, which
- *   is the mistake ADR 0044 §4 rules out for the recovery and taper cuts and rules out
- *   here for the same reason.
- * - **A hand-set week is marked, in words.** A `Badge` reading *hand-set* — the
- *   vocabulary's own word — plus a muted sentence naming what the rule would give, so
- *   the revert is legible before it is pressed rather than a leap.
- * - **The revert is one action**, its own single-button form, and it appears only on a
- *   week that has something to revert.
- *
- * A track whose week is Unavailable is still hand-settable: it is a real track with a
- * real currency, and the athlete knowing what they want for a week the rule cannot
- * price is exactly the case an override exists for. Only the derived sentence goes
- * quiet, because there is no number to name.
- *
- * On a strength track the figure also carries the week's place in the **lifting
- * block** holding it — a `· Deload` on the block's own tail, and the gap between
- * blocks read as "No lifting" rather than as the `0` the rule gives (ADR 0047 §6).
- * Both come off the same target that priced the week, so the marker and the number
- * beside it cannot disagree.
+ * The Weeks reading used to carry an input per week per track (#406). Every
+ * week target is now changed in _Endre sesongen_, behind a preview (#505
+ * story 75), so this says what the week reads — and, for a hand-set week, what
+ * the rule would give — and links there, pre-filled. A week already begun is
+ * history and offers no link.
  */
-function WeekTargetField({
+function WeekTargetLine({
 	week,
 	target,
-	actionData,
+	editable,
 }: {
 	week: WeekData
 	target: WeekTargetData
-	actionData: SegmentActionData
+	editable: boolean
 }) {
 	const discipline = DISCIPLINE_LABELS[target.discipline]
-	const unit = VOLUME_CURRENCY_UNITS[target.currency]
-	// The row named once, for the accessible names below: there is one of these forms
-	// per week *per track*, so "Target" or "Save" alone would repeat dozens of times
-	// in a row and name nothing.
-	const row = `week ${week.weekInPlan} ${discipline}`
-	const [form, fields] = useForm({
-		id: `week-target-${target.trackId}-${week.weekKey}`,
-		// Keyed by the intent **and the row** — see `authorWeekOverride`. A reply read
-		// by the wrong week would blank a box the athlete never touched.
-		lastResult:
-			actionData &&
-			'weekKey' in actionData &&
-			actionData.intent === 'set-week-override' &&
-			actionData.trackId === target.trackId &&
-			actionData.weekKey === week.weekKey
-				? actionData.result
-				: undefined,
-		defaultValue: {
-			// The athlete's own number where they hand-set one, and **blank** otherwise.
-			// `target.value` is not what goes in the box: on a derived week that is the
-			// rule's number, and the rule belongs in the prose beside the field.
-			value: formatWeeklyVolumeField(
-				target.overridden ? target.value : null,
-				target.currency,
-			),
-		},
-		onValidate({ formData }) {
-			return parseWithZod(formData, { schema: WeekOverrideFormSchema })
-		},
-	})
-
 	return (
-		<div className="space-y-1.5">
-			{/* The label carries what the box takes — the track and its unit — and the
-			    input's own `aria-label` carries the week as well, so every one of these
-			    fields is distinguishable in a list of dozens. The visible words are the
-			    tail of the accessible name rather than different words.
-
-			    What the week currently *reads* is not repeated here: it is on the row's
-			    own summary line, which stays on screen while this panel is open
-			    (`WeekTargetsReading`). One figure per week per track, in one place. */}
-			<label htmlFor={fields.value.id} className="block text-sm font-medium">
-				{discipline}, {unit}
-			</label>
-
-			<Form
-				method="POST"
-				{...getFormProps(form)}
-				className="flex flex-wrap items-start gap-2"
-			>
-				{/* Named, because this page's action dispatches on `intent`; the track and
-				    the week are the row this write addresses. */}
-				<input type="hidden" name="intent" value="set-week-override" />
-				<input type="hidden" name="trackId" value={target.trackId} />
-				<input type="hidden" name="weekKey" value={week.weekKey} />
-				<Input
-					{...getInputProps(fields.value, { type: 'number' })}
-					// `0` is a week without training and needs no flag of its own, so the
-					// floor is zero rather than anything above it.
-					min={0}
-					step={volumeFieldStep(target.currency)}
-					inputMode="decimal"
-					aria-label={`Week ${week.weekInPlan} ${discipline}, ${unit}`}
-					className="w-28"
-				/>
-				<Button
-					type="submit"
-					variant="outline"
-					size="sm"
-					aria-label={`Save ${row}`}
-				>
-					Save
-				</Button>
-			</Form>
-
-			<ErrorList
-				id={fields.value.errorId}
-				errors={fields.value.errors as string[] | undefined}
-			/>
-			<ErrorList errors={form.errors as string[] | undefined} />
-
+		<div className="space-y-1">
+			<p className="text-sm font-medium">
+				{discipline}, {VOLUME_CURRENCY_UNITS[target.currency]}
+			</p>
 			{target.overridden ? (
-				<div className="flex flex-wrap items-center gap-2">
-					<p className="text-muted-foreground text-sm">
-						{target.derivedValue == null
-							? 'The rule has no number for this week, so reverting would leave it Unavailable.'
-							: `The rule gives ${formatWeeklyVolume(target.derivedValue, target.currency)}.`}
-					</p>
-					{/* Its own form, because a submit carries one name/value pair and the
-					    revert is a different act from the save above — one action, per the
-					    vocabulary, and no value at all: reverting deletes the athlete's
-					    statement rather than storing what the rule happens to give. */}
-					<Form method="POST">
-						<input type="hidden" name="intent" value="clear-week-override" />
-						<input type="hidden" name="trackId" value={target.trackId} />
-						<input type="hidden" name="weekKey" value={week.weekKey} />
-						<Button
-							type="submit"
-							variant="ghost"
-							size="sm"
-							aria-label={`Revert to the rule for ${row}`}
-						>
-							Revert to the rule
-						</Button>
-					</Form>
-				</div>
+				<p className="text-muted-foreground text-sm">
+					{target.derivedValue == null
+						? 'Hand-set. The rule has no number for this week.'
+						: `Hand-set. The rule gives ${formatWeeklyVolume(target.derivedValue, target.currency)}.`}
+				</p>
+			) : null}
+			{editable ? (
+				<SeasonEditLink
+					edit="week-target"
+					fields={{ weekKey: week.weekKey, trackId: target.trackId }}
+					aria-label={`${SEASON_EDIT_LABELS.weekTargetOpen}: week ${week.weekInPlan} ${discipline}`}
+				>
+					{SEASON_EDIT_LABELS.weekTargetOpen}
+				</SeasonEditLink>
 			) : null}
 		</div>
 	)
@@ -3938,11 +3968,11 @@ function WeeksReading({
 	error,
 	chosenWeek,
 	workouts,
-	eventQuery,
-	actionData,
+	seasonQuery,
 	pendingStamp,
 	pendingCopy,
 	mixWarnings,
+	firstUnbegunWeekKey,
 }: {
 	season: SeasonData
 	/** A refused pattern edit, said once above the patterns it was aimed at. */
@@ -3950,14 +3980,14 @@ function WeeksReading({
 	/** The week the **Pattern Preview** is read against (`?week=`). */
 	chosenWeek: SeasonData['weeks'][number] | null
 	workouts: Route.ComponentProps['loaderData']['workouts']
-	eventQuery: string | null
-	/** A rejected hand-set week's reply, read by that week's field and no other. */
-	actionData: SegmentActionData
+	seasonQuery: SeasonQuery
 	/** A stamp waiting on the athlete's yes, with what it would replace. */
 	pendingStamp: PendingStamp | null
 	/** A week copy waiting on the athlete's yes, with what it would replace. */
 	pendingCopy: PendingCopy | null
 	mixWarnings: Route.ComponentProps['loaderData']['mixWarnings']
+	/** Weeks before it are history: their targets are shown, not offered to edit. */
+	firstUnbegunWeekKey: string
 }) {
 	// A track whose every week reads Unavailable gets its reason said once, rather
 	// than a column of dashes the athlete has to interpret (Unavailable Metric).
@@ -4046,22 +4076,17 @@ function WeeksReading({
 										/>
 									</summary>
 
-									{/* One field per track, stacked at every width: this row carries
-									    an input apiece, and a phone has no second column to put them
-									    in (ADR 0028). */}
-									<div className="space-y-4 pt-1 pb-4 pl-2">
+									{/* What each track's week reads, and the way to change it. The
+									    Weeks reading edits nothing itself: every week target is
+									    changed in _Endre sesongen_, behind a preview (#505 story 75),
+									    and this link opens it on this week and this track. */}
+									<div className="space-y-3 pt-1 pb-4 pl-2">
 										{week.targets.map((target) => (
-											<WeekTargetField
-												// Re-keyed on the stored value, for the reason
-												// `__phase-editor.tsx` re-keys a phase's name field: a save that
-												// lands changes the field's default, and an uncontrolled input
-												// would keep showing the old one. Remounting shows what the plan
-												// now says — and a *rejected* save leaves the key alone, so what
-												// the athlete typed survives to be corrected.
-												key={`${target.trackId}-${target.overridden ? target.value : ''}`}
+											<WeekTargetLine
+												key={target.trackId}
 												week={week}
 												target={target}
-												actionData={actionData}
+												editable={week.weekKey >= firstUnbegunWeekKey}
 											/>
 										))}
 									</div>
@@ -4080,12 +4105,12 @@ function WeeksReading({
 				    likely to doubt — `0` — is spelled out beside it. */}
 				<div className="border-border/70 space-y-3 border-t pt-4">
 					<p className="text-muted-foreground text-sm">
-						Open a week to hand-set it. What you type is that week&rsquo;s final
-						target — no recovery or taper cut on top — and it changes that week
-						only: the rest of your season still follows your anchor and your
-						ramps. Leave the box <strong>blank</strong> to hand the week back to
-						the rule. <strong>0</strong> is a week without training, which is a
-						plan and not a gap.
+						Open a week to change its target in <em>Endre sesongen</em>, where
+						you see the change before it applies. A hand-set target is that
+						week&rsquo;s final number — no recovery or taper cut on top — and it
+						changes that week only: the rest of your season still follows your
+						anchor and your ramps. <strong>0</strong> is a week without
+						training, which is a plan and not a gap.
 					</p>
 					{/* Since ADR 0047 §1 **both** walks price their weeks — a strength track
 					    derives its target from the same anchor and ramp an endurance one does
@@ -4146,7 +4171,7 @@ function WeeksReading({
 						weeks={season.weeks}
 						week={chosenWeek}
 						workouts={workouts}
-						eventQuery={eventQuery}
+						seasonQuery={seasonQuery}
 					/>
 				</Disclosure>
 
@@ -4215,7 +4240,7 @@ function patternSummary(patterns: SeasonData['patterns']): string {
  * stretched to meet the Event: the athlete decides whether to add weeks (ADR 0044
  * §3, spec #399 story 4).
  */
-function fitSentence(fit: SeasonData['fit']): string {
+function fitSentence(fit: NonNullable<SeasonData['fit']>): string {
 	const weeks = fit.kind === 'ends-on-event-week' ? 0 : fit.weeks
 	const plural = weeks === 1 ? 'week' : 'weeks'
 	if (fit.kind === 'ends-on-event-week') {

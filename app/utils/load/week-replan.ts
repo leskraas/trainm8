@@ -69,6 +69,18 @@ export type ReplanNote = {
 }
 
 /**
+ * Every outcome a stored `WeekReplan` row carries: ADR 0025's three, plus
+ * ADR 0080's `proposed`. `adjusted` survives only on rows written before #505.
+ */
+export const WEEK_REPLAN_OUTCOMES = [
+	'adjusted',
+	'proposed',
+	'no-change',
+	'insufficient-data',
+] as const
+export type WeekReplanOutcome = (typeof WEEK_REPLAN_OUTCOMES)[number]
+
+/**
  * The Week Replan decision — a discriminated union of three outcomes (the
  * same trio the persisted `WeekReplan` row stores):
  *
@@ -85,8 +97,29 @@ export type ReplanNote = {
  */
 export type WeekReplanDecision =
 	| { outcome: 'adjusted'; scale: number; notes: ReplanNote[]; reason: string }
-	| { outcome: 'no-change'; reason: string }
-	| { outcome: 'insufficient-data'; reason: string }
+	| { outcome: 'no-change'; why: NoChangeWhy; reason: string }
+	| { outcome: 'insufficient-data'; why: InsufficientDataWhy; reason: string }
+
+/**
+ * Which branch held the week — an enum beside the English `reason`, so a second
+ * composer (the Norwegian proposal reasons, `propose-week-change.ts`) words the
+ * same judgment without parsing a sentence.
+ */
+export const NO_CHANGE_WHYS = [
+	'under',
+	'on-target',
+	'fresh',
+	'nothing-adjustable',
+] as const
+export type NoChangeWhy = (typeof NO_CHANGE_WHYS)[number]
+export const INSUFFICIENT_DATA_WHYS = [
+	'no-adherence',
+	'form-untrusted',
+	'form-missing',
+] as const
+export type InsufficientDataWhy = (typeof INSUFFICIENT_DATA_WHYS)[number]
+/** Every branch that holds a week, each worded in `WEEK_HOLD_REASON_LABELS`. */
+export type WeekHoldWhy = NoChangeWhy | InsufficientDataWhy
 
 /**
  * The one documented scale (ADR 0025 §2): the inverse of the overshoot,
@@ -106,9 +139,10 @@ export type StepQuantities = {
 
 /**
  * Round a scaled quantity to the nearest unit, honestly bounded: a positive
- * quantity never rounds to zero (the step survives) and never above its
- * original (downward only — a sub-unit quantity the rounding can't soften is
- * left unchanged rather than inflated to a whole unit).
+ * quantity never rounds to zero (the step survives) and never crosses its
+ * original against the scale's direction — a sub-unit quantity a softening
+ * can't soften is left unchanged rather than inflated to a whole unit, and a
+ * scale-up never rounds below where it started.
  */
 function scaleQuantity(
 	value: number | null,
@@ -116,12 +150,13 @@ function scaleQuantity(
 	unit: number,
 ): number | null {
 	if (value == null) return null
-	const rounded = Math.round((value * scale) / unit) * unit
-	return Math.min(value, Math.max(unit, rounded))
+	const rounded = Math.max(unit, Math.round((value * scale) / unit) * unit)
+	return scale <= 1 ? Math.min(value, rounded) : Math.max(value, rounded)
 }
 
 /**
- * Apply the replan scale to one step's quantified cardio volume: durations
+ * Apply a volume scale to one step's quantified cardio volume — the Week
+ * Replan's softening, and any scale proposal (ADR 0080), up or down: durations
  * round to the nearest minute, distances to the nearest 100 m; `null` stays
  * `null`. Intensity Targets are structurally out of reach — the helper only
  * accepts quantities, so zones and threshold percentages can never change
@@ -197,6 +232,7 @@ export function decideWeekReplan(input: {
 	if (!adherence) {
 		return {
 			outcome: 'insufficient-data',
+			why: 'no-adherence',
 			reason:
 				'Last week has no measurable Plan Adherence — no adjustment, not enough data.',
 		}
@@ -205,6 +241,7 @@ export function decideWeekReplan(input: {
 	if (adherence.band.tone === 'under') {
 		return {
 			outcome: 'no-change',
+			why: 'under',
 			reason: `Last week ran ${Math.round((1 - adherence.ratio) * 100)}% under plan — bank the planned work; this week stands as planned.`,
 		}
 	}
@@ -212,6 +249,7 @@ export function decideWeekReplan(input: {
 	if (adherence.band.tone === 'on-target') {
 		return {
 			outcome: 'no-change',
+			why: 'on-target',
 			reason: 'Last week matched the plan — this week stands as planned.',
 		}
 	}
@@ -220,24 +258,28 @@ export function decideWeekReplan(input: {
 	if (!trust.trustworthy) {
 		return {
 			outcome: 'insufficient-data',
+			why: 'form-untrusted',
 			reason: `${overshootClause(adherence.ratio)}, but your Form reading is reliable after ${trust.requiredDays} days — day ${trust.daysOfHistory}/${trust.requiredDays} — no adjustment yet.`,
 		}
 	}
 	if (tsb == null) {
 		return {
 			outcome: 'insufficient-data',
+			why: 'form-missing',
 			reason: `${overshootClause(adherence.ratio)}, but Form is unavailable — no adjustment without it.`,
 		}
 	}
 	if (tsb > REPLAN_TSB_GATE) {
 		return {
 			outcome: 'no-change',
+			why: 'fresh',
 			reason: `${overshootClause(adherence.ratio)} but Form is ${formatSignedTsb(tsb)} — you're absorbing it, so this week stands as planned.`,
 		}
 	}
 	if (adjustableSessions.length === 0) {
 		return {
 			outcome: 'no-change',
+			why: 'nothing-adjustable',
 			reason: `${overshootClause(adherence.ratio)} and Form was ${formatSignedTsb(tsb)}, but nothing in the coming week can be softened — no change made.`,
 		}
 	}

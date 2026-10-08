@@ -74,6 +74,7 @@
  */
 import { Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
+import { sessionOwner } from './session-ownership.ts'
 import {
 	getExercisePlateContext,
 	getGymProfile,
@@ -1192,6 +1193,13 @@ export async function openNextProgramSession(input: {
 	instanceId: string
 	scheduledAt?: Date
 	now?: Date
+	/**
+	 * Re-open **this** session only: re-stamp it with the prescription as it
+	 * stands now (or give it its stamped copy), and create nothing. Null when it
+	 * is not the run's open session — what the quick strength log on I dag
+	 * calls before it logs a program session at its working weight (#505 S16).
+	 */
+	onlySessionId?: string
 }): Promise<OpenedProgramSession | null> {
 	const run = await loadRun(input.userId, input.instanceId)
 	if (!run) return null
@@ -1228,11 +1236,17 @@ export async function openNextProgramSession(input: {
 	// been folded into a run, which is spent — reopening it would offer the
 	// athlete a session whose log has already moved the weights.
 	const existing = await prisma.workoutSession.findFirst({
-		where: runOwnSessionWhere(input.userId, instance, day.workoutId),
+		where: {
+			...runOwnSessionWhere(input.userId, instance, day.workoutId),
+			...(input.onlySessionId ? { id: input.onlySessionId } : {}),
+		},
 		orderBy: { scheduledAt: 'desc' },
 		select: {
 			id: true,
 			workoutId: true,
+			source: true,
+			adoptedAt: true,
+			releasedAt: true,
 			_count: { select: { setLogs: true } },
 		},
 	})
@@ -1241,7 +1255,14 @@ export async function openNextProgramSession(input: {
 	// `ExerciseSetLog` rows name that Workout's Steps, so moving or re-stamping it
 	// would strand the athlete's own sets outside the grid, and the weight they
 	// have been lifting all session is the weight they were shown.
-	const inProgress = existing != null && existing._count.setLogs > 0
+	if (input.onlySessionId && existing == null) return null
+	// **The athlete's session is theirs** (#505, ownership is the gate for
+	// every machine write): a program session they edited — adopted, and not
+	// handed back with _lås opp_ — keeps the weights they wrote. It is kept as
+	// it stands, exactly as a session already in progress is.
+	const kept =
+		existing != null &&
+		(existing._count.setLogs > 0 || sessionOwner(existing) === 'athlete')
 	// A session opened **before** the load was materialised points straight at the
 	// shared shape and therefore prescribes no kilos. With nothing logged against
 	// it, it is repointed at a stamped copy, because a prescription with no weight
@@ -1254,12 +1275,12 @@ export async function openNextProgramSession(input: {
 	// same session, same second — read `20.25 kg`, because the stale copy was
 	// handed back verbatim. Nothing has been logged against it, so it is
 	// re-stamped from the prescription as it stands now.
-	if (existing != null && !inProgress && !pointsAtSharedShape) {
+	if (existing != null && !kept && !pointsAtSharedShape) {
 		await restampSessionLoads(existing.workoutId, prescription)
 	}
 
 	const session =
-		existing != null && (inProgress || !pointsAtSharedShape)
+		existing != null && (kept || !pointsAtSharedShape)
 			? existing
 			: // The copy and the session that points at it commit together: a copy with
 				// no session is an orphan prescription, and a session pointing at a
@@ -1678,76 +1699,10 @@ export async function recordProgramSession(input: {
 	sessionId: string
 	now?: Date
 }): Promise<RecordProgramSessionResult> {
-	const run = await loadRun(input.userId, input.instanceId)
-	if (!run) return { ok: false, reason: 'not-found' }
-	const { programRow, definition } = run
-
-	const session = await prisma.workoutSession.findFirst({
-		where: { id: input.sessionId, userId: input.userId },
-		select: {
-			id: true,
-			workoutId: true,
-			workout: { select: { copiedFromId: true } },
-		},
-	})
-	if (!session) return { ok: false, reason: 'not-found' }
-
-	// **Which day was performed, through the copy.** The session points at the
-	// athlete's stamped copy of the day shape and `copiedFromId` points back at the
-	// shape itself, so the day is found one hop up the lineage. The direct match is
-	// kept for a session opened before the load was materialised, which points at
-	// the shared shape.
-	const performedDayId =
-		programRow.days.find(
-			(day) =>
-				day.workoutId === session.workoutId ||
-				day.workoutId === session.workout?.copiedFromId,
-		)?.dayId ?? null
-	if (performedDayId == null) return { ok: false, reason: 'no-day' }
-
-	const logs: LoggedSetRow[] = await prisma.exerciseSetLog.findMany({
-		where: { sessionId: session.id },
-		orderBy: { orderIndex: 'asc' },
-		select: {
-			id: true,
-			orderIndex: true,
-			role: true,
-			outcome: true,
-			reps: true,
-			effectiveKg: true,
-			load: true,
-			bodyweightKg: true,
-			exerciseId: true,
-			rir: true,
-			toFailure: true,
-			completedAt: true,
-			// The stamp, not a join: the key half is the row's own statement.
-			equipment: true,
-		},
-	})
-	const movementPatterns = new Map(
-		(
-			await prisma.exercise.findMany({
-				where: {
-					id: { in: definition.liftRules.map((rule) => rule.exerciseId) },
-				},
-				select: { id: true, movementPattern: true },
-			})
-		).map((row) => [row.id, row.movementPattern]),
-	)
-
-	const now = input.now ?? new Date()
-	const names = Object.fromEntries(
-		programRow.liftRules.map((rule) => [
-			rule.exerciseId,
-			rule.exercise?.name ?? 'Lift',
-		]),
-	)
-	const { roundToLoadable, loadabilityBasis } = await buildLoadableRounder(
-		input.userId,
-		definition.liftRules.map((rule) => rule.exerciseId),
-	)
-	const stampedPrescription = await readStampedPrescription(session.workoutId)
+	const prepared = await prepareProgramFold(input)
+	if (!prepared.ok) return prepared
+	const { names, performedDayId, definition, now } = prepared
+	const session = { id: input.sessionId }
 
 	// **Together or not at all, and once.** The claim, the cursor, every lift's
 	// new state and the appended weight and stall history are one write: a partial
@@ -1755,90 +1710,9 @@ export async function recordProgramSession(input: {
 	// second advance would leave a history that says the same session twice.
 	let firstFold: LiftOutcome[] | null = null
 	try {
-		firstFold = await prisma.$transaction(async (tx) => {
-			// The athlete's own statement that the session is done, written here so
-			// that finishing it and folding it in land together. It guards nothing:
-			// `status` is shared calendar and list state that other surfaces own.
-			await tx.workoutSession.updateMany({
-				where: { id: session.id, userId: input.userId },
-				data: { status: 'completed' },
-			})
-
-			// Re-read inside the transaction: the state the engine folds must be the
-			// state as it stands now, not as it stood before the transaction opened.
-			const fresh = await loadRun(input.userId, input.instanceId, tx)
-			if (!fresh) {
-				throw new Error(
-					'the program run disappeared while it was being advanced',
-				)
-			}
-			const loggedSets = toLoggedWorkSets(logs, fresh.state)
-			const applied = applySession(
-				fresh.state,
-				definition,
-				loggedSets,
-				session.id,
-				now.toISOString(),
-				{
-					performedDayId,
-					reEstimateAnchor: anchorReEstimator({
-						now,
-						logs,
-						movementPatterns,
-						rules: definition.liftRules,
-					}),
-					// **The prescription the grid actually showed**, read off the
-					// athlete's own stamped `ExerciseSet` rows. The rounder is still
-					// passed for the fallback and for the weights the engine *writes*
-					// (an increment, a Stall Cut), and the basis with it so a rounding
-					// sentence never claims to know a rack that was never described.
-					stampedPrescription,
-					roundToLoadable,
-					loadabilityBasis,
-				},
-			)
-			await tx.programInstance.update({
-				where: { id: fresh.instance.id },
-				data: { cursor: JSON.stringify(applied.nextState.cursor) },
-				select: { id: true },
-			})
-			for (const lift of applied.nextState.lifts) {
-				// `updateMany` rather than `update`: the progression key's `equipment`
-				// half is nullable, and Prisma's compound-unique input cannot express a
-				// null. The `(instanceId, exerciseId, equipment)` triple is unique by
-				// schema, so this still touches exactly one row.
-				await tx.programLiftState.updateMany({
-					where: {
-						instanceId: fresh.instance.id,
-						exerciseId: lift.exerciseId,
-						equipment: lift.equipment,
-					},
-					data: {
-						currentWorkingWeightKg: lift.currentWorkingWeightKg,
-						unroundedWorkingWeightKg: lift.unroundedWorkingWeightKg,
-						trainingMaxKg: lift.trainingMaxKg,
-						workingFraction: lift.workingFraction,
-						stallCount: lift.stallCount,
-						currentIncrement: JSON.stringify(lift.currentIncrement),
-						weightHistory: JSON.stringify(lift.weightHistory),
-						stallHistory: JSON.stringify(lift.stallHistory),
-					},
-				})
-			}
-			// **The guard, and the answer kept.** The unique index refuses the second
-			// insert, which aborts this transaction and rolls the whole second advance
-			// back; the stored `outcomes` are what a second Finish then replays.
-			await tx.programSessionApplication.create({
-				select: { id: true },
-				data: {
-					instanceId: fresh.instance.id,
-					sessionId: session.id,
-					appliedAt: now,
-					outcomes: JSON.stringify(applied.outcomes),
-				},
-			})
-			return applied.outcomes
-		})
+		firstFold = await prisma.$transaction((tx) =>
+			foldProgramSessionIn(tx, prepared),
+		)
 	} catch (error) {
 		// A unique-constraint failure here is the guard doing its job, and it is an
 		// answer rather than an error: this session had already been folded in.
@@ -1908,6 +1782,209 @@ export async function recordProgramSession(input: {
 		liftNames: names,
 		alreadyRecorded: true,
 	}
+}
+
+/** Everything a fold reads that does not change while it runs, read before
+ * its transaction opens — the run's definition, the day performed, the rack's
+ * rounding and the stamp the grid showed. */
+export type PreparedProgramFold = {
+	ok: true
+	userId: string
+	instanceId: string
+	sessionId: string
+	now: Date
+	performedDayId: string
+	definition: ProgramDefinition
+	names: Record<string, string>
+	movementPatterns: Map<string, string | null>
+	rounder: Awaited<ReturnType<typeof buildLoadableRounder>>
+	stampedPrescription: StampedPrescriptionReader
+}
+
+/**
+ * Read what folding `sessionId` into the run needs, outside any transaction —
+ * so a caller that folds inside its own (the quick strength log, #505 S16)
+ * issues no query on another connection while it holds the write.
+ */
+export async function prepareProgramFold(input: {
+	userId: string
+	instanceId: string
+	sessionId: string
+	now?: Date
+}): Promise<
+	PreparedProgramFold | { ok: false; reason: 'not-found' | 'no-day' }
+> {
+	const run = await loadRun(input.userId, input.instanceId)
+	if (!run) return { ok: false, reason: 'not-found' }
+	const { programRow, definition } = run
+
+	const session = await prisma.workoutSession.findFirst({
+		where: { id: input.sessionId, userId: input.userId },
+		select: {
+			id: true,
+			workoutId: true,
+			workout: { select: { copiedFromId: true } },
+		},
+	})
+	if (!session) return { ok: false, reason: 'not-found' }
+
+	// **Which day was performed, through the copy.** The session points at the
+	// athlete's stamped copy of the day shape and `copiedFromId` points back at the
+	// shape itself, so the day is found one hop up the lineage. The direct match is
+	// kept for a session opened before the load was materialised, which points at
+	// the shared shape.
+	const performedDayId =
+		programRow.days.find(
+			(day) =>
+				day.workoutId === session.workoutId ||
+				day.workoutId === session.workout?.copiedFromId,
+		)?.dayId ?? null
+	if (performedDayId == null) return { ok: false, reason: 'no-day' }
+
+	const movementPatterns = new Map(
+		(
+			await prisma.exercise.findMany({
+				where: {
+					id: { in: definition.liftRules.map((rule) => rule.exerciseId) },
+				},
+				select: { id: true, movementPattern: true },
+			})
+		).map((row) => [row.id, row.movementPattern]),
+	)
+	return {
+		ok: true,
+		userId: input.userId,
+		instanceId: input.instanceId,
+		sessionId: session.id,
+		now: input.now ?? new Date(),
+		performedDayId,
+		definition,
+		names: Object.fromEntries(
+			programRow.liftRules.map((rule) => [
+				rule.exerciseId,
+				rule.exercise?.name ?? 'Lift',
+			]),
+		),
+		movementPatterns,
+		rounder: await buildLoadableRounder(
+			input.userId,
+			definition.liftRules.map((rule) => rule.exerciseId),
+		),
+		stampedPrescription: await readStampedPrescription(session.workoutId),
+	}
+}
+
+/**
+ * **The fold itself, inside the caller's transaction**: mark the session done,
+ * advance every lift from the sets as they stand in `tx`, and record the
+ * application. Its unique index refuses a second fold, which aborts `tx`.
+ */
+export async function foldProgramSessionIn(
+	tx: Prisma.TransactionClient,
+	prepared: PreparedProgramFold,
+): Promise<LiftOutcome[]> {
+	const { userId, instanceId, sessionId, now, definition } = prepared
+	// The athlete's own statement that the session is done, written here so
+	// that finishing it and folding it in land together. It guards nothing:
+	// `status` is shared calendar and list state that other surfaces own.
+	await tx.workoutSession.updateMany({
+		where: { id: sessionId, userId },
+		data: { status: 'completed' },
+	})
+
+	// Read inside the transaction: the sets and the state the engine folds must
+	// be as they stand now — a caller may have written the sets in this same
+	// transaction.
+	const logs: LoggedSetRow[] = await tx.exerciseSetLog.findMany({
+		where: { sessionId },
+		orderBy: { orderIndex: 'asc' },
+		select: {
+			id: true,
+			orderIndex: true,
+			role: true,
+			outcome: true,
+			reps: true,
+			effectiveKg: true,
+			load: true,
+			bodyweightKg: true,
+			exerciseId: true,
+			rir: true,
+			toFailure: true,
+			completedAt: true,
+			// The stamp, not a join: the key half is the row's own statement.
+			equipment: true,
+		},
+	})
+	const fresh = await loadRun(userId, instanceId, tx)
+	if (!fresh) {
+		throw new Error('the program run disappeared while it was being advanced')
+	}
+	const loggedSets = toLoggedWorkSets(logs, fresh.state)
+	const applied = applySession(
+		fresh.state,
+		definition,
+		loggedSets,
+		sessionId,
+		now.toISOString(),
+		{
+			performedDayId: prepared.performedDayId,
+			reEstimateAnchor: anchorReEstimator({
+				now,
+				logs,
+				movementPatterns: prepared.movementPatterns,
+				rules: definition.liftRules,
+			}),
+			// **The prescription the grid actually showed**, read off the
+			// athlete's own stamped `ExerciseSet` rows. The rounder is still
+			// passed for the fallback and for the weights the engine *writes*
+			// (an increment, a Stall Cut), and the basis with it so a rounding
+			// sentence never claims to know a rack that was never described.
+			stampedPrescription: prepared.stampedPrescription,
+			roundToLoadable: prepared.rounder.roundToLoadable,
+			loadabilityBasis: prepared.rounder.loadabilityBasis,
+		},
+	)
+	await tx.programInstance.update({
+		where: { id: fresh.instance.id },
+		data: { cursor: JSON.stringify(applied.nextState.cursor) },
+		select: { id: true },
+	})
+	for (const lift of applied.nextState.lifts) {
+		// `updateMany` rather than `update`: the progression key's `equipment`
+		// half is nullable, and Prisma's compound-unique input cannot express a
+		// null. The `(instanceId, exerciseId, equipment)` triple is unique by
+		// schema, so this still touches exactly one row.
+		await tx.programLiftState.updateMany({
+			where: {
+				instanceId: fresh.instance.id,
+				exerciseId: lift.exerciseId,
+				equipment: lift.equipment,
+			},
+			data: {
+				currentWorkingWeightKg: lift.currentWorkingWeightKg,
+				unroundedWorkingWeightKg: lift.unroundedWorkingWeightKg,
+				trainingMaxKg: lift.trainingMaxKg,
+				workingFraction: lift.workingFraction,
+				stallCount: lift.stallCount,
+				currentIncrement: JSON.stringify(lift.currentIncrement),
+				weightHistory: JSON.stringify(lift.weightHistory),
+				stallHistory: JSON.stringify(lift.stallHistory),
+			},
+		})
+	}
+	// **The guard, and the answer kept.** The unique index refuses the second
+	// insert, which aborts this transaction and rolls the whole second advance
+	// back; the stored `outcomes` are what a second Finish then replays.
+	await tx.programSessionApplication.create({
+		select: { id: true },
+		data: {
+			instanceId: fresh.instance.id,
+			sessionId,
+			appliedAt: now,
+			outcomes: JSON.stringify(applied.outcomes),
+		},
+	})
+	return applied.outcomes
 }
 
 /** The stored answer, or `null` where there is none to replay — a legacy row, or

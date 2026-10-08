@@ -29,6 +29,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { LoadLegendLabel } from '#app/components/load-legend.tsx'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
+import {
+	HERO_LABELS,
+	HERO_PANE_LABELS,
+	HERO_PANE_TEXT,
+} from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	HERO_PANES,
@@ -111,7 +116,7 @@ export function HeroPager({
 				// not reachable.
 				role="group"
 				aria-roledescription="carousel"
-				aria-label="Today, four ways"
+				aria-label={HERO_LABELS.carousel}
 				tabIndex={0}
 				onKeyDown={(event) => {
 					if (event.key === 'ArrowRight') goTo(index + 1)
@@ -153,7 +158,11 @@ export function HeroPager({
 							key={name}
 							role="group"
 							aria-roledescription="slide"
-							aria-label={`${name}, pane ${i + 1} of ${HERO_PANES.length}`}
+							aria-label={HERO_LABELS.pane(
+								HERO_PANE_LABELS[name],
+								i + 1,
+								HERO_PANES.length,
+							)}
 							// `inert` on the panes that are not showing, for the reason
 							// #487 gave the folded hero: a pane off screen is out of the
 							// eye but not out of the tab order, and a keyboard user must
@@ -171,7 +180,11 @@ export function HeroPager({
 			{/* The pane change, said out loud. A carousel that only animates has
 			    nothing to announce to a reader who cannot see it move. */}
 			<p aria-live="polite" className="sr-only">
-				{`${HERO_PANES[index]}, pane ${index + 1} of ${HERO_PANES.length}`}
+				{HERO_LABELS.pane(
+					HERO_PANE_LABELS[HERO_PANES[index]!],
+					index + 1,
+					HERO_PANES.length,
+				)}
 			</p>
 
 			<PaneDots index={index} onSelect={goTo} />
@@ -198,7 +211,7 @@ function PaneDots({
 	return (
 		<div
 			role="group"
-			aria-label="Choose which pane the hero shows"
+			aria-label={HERO_LABELS.choosePane}
 			data-testid="hero-pane-dots"
 			className="flex [touch-action:none] items-center justify-center gap-2 pb-2"
 		>
@@ -207,7 +220,7 @@ function PaneDots({
 					key={name}
 					type="button"
 					onClick={() => onSelect(i)}
-					aria-label={name}
+					aria-label={HERO_PANE_LABELS[name]}
 					aria-current={i === index ? 'true' : undefined}
 					className="focus-visible:outline-ring relative grid size-[26px] place-items-center rounded-full after:absolute after:-inset-y-1 focus-visible:outline-2 focus-visible:outline-offset-1"
 				>
@@ -238,13 +251,13 @@ function PaneContent({
 	panes: HeroPanes
 }) {
 	switch (name) {
-		case 'Today':
+		case 'today':
 			return hero ? <Hero hero={hero} /> : <NothingScheduled />
-		case 'Form':
+		case 'form':
 			return <FormPane pane={panes.form} />
-		case 'This week':
+		case 'week':
 			return <WeekPane pane={panes.week} />
-		case 'Records':
+		case 'records':
 			return <RecordsPane pane={panes.records} />
 	}
 }
@@ -303,7 +316,7 @@ function Hero({ hero }: { hero: TimelineHero }) {
 					to="/training/plan"
 					className="border-hairline-edge text-foreground hover:border-primary flex h-[50px] flex-none items-center rounded-[15px] border px-4 text-[13px]/[1] font-semibold"
 				>
-					Season plan
+					{HERO_LABELS.seasonPlan}
 				</Link>
 			</div>
 		</>
@@ -315,16 +328,16 @@ function NothingScheduled() {
 	return (
 		<>
 			<h1 className="text-[30px]/[1.08] font-semibold tracking-[-0.035em]">
-				Nothing scheduled
+				{HERO_LABELS.nothingScheduled}
 			</h1>
 			<p className="text-muted-foreground text-[13.5px]/[1.5]">
-				There is no session ahead of you on the calendar.
+				{HERO_LABELS.nothingScheduledNote}
 			</p>
 			<Link
 				to="/training/sessions/new"
 				className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[50px] items-center justify-center rounded-[15px] text-[14.5px]/[1] font-bold"
 			>
-				Plan a session
+				{HERO_LABELS.planASession}
 			</Link>
 		</>
 	)
@@ -339,7 +352,7 @@ function NothingScheduled() {
 function FormPane({ pane }: { pane: HeroFormPane }) {
 	return (
 		<>
-			<h2 className={KICKER}>Form</h2>
+			<h2 className={KICKER}>{HERO_PANE_LABELS.form}</h2>
 			<dl className="flex gap-6">
 				{pane.stats.map((stat) => (
 					// `dt` before `dd` in the markup, reversed in the layout: the
@@ -374,7 +387,7 @@ function FormPane({ pane }: { pane: HeroFormPane }) {
 function WeekPane({ pane }: { pane: HeroWeekPane }) {
 	return (
 		<>
-			<h2 className={KICKER}>This week</h2>
+			<h2 className={KICKER}>{HERO_PANE_LABELS.week}</h2>
 			{pane.phase ? (
 				<p className="text-[17px]/[1.2] font-semibold tracking-[-0.02em]">
 					{pane.phase}
@@ -413,11 +426,10 @@ function WeekPane({ pane }: { pane: HeroWeekPane }) {
 function RecordsPane({ pane }: { pane: HeroRecordsPane }) {
 	return (
 		<>
-			<h2 className={KICKER}>Records</h2>
+			<h2 className={KICKER}>{HERO_PANE_LABELS.records}</h2>
 			{pane.records.length === 0 ? (
 				<p className="text-muted-foreground text-[13.5px]/[1.5]">
-					No personal records yet — they appear once you have logged recorded
-					efforts.
+					{HERO_PANE_TEXT.noRecords}
 				</p>
 			) : (
 				<ul className="flex flex-col">
@@ -436,8 +448,8 @@ function RecordsPane({ pane }: { pane: HeroRecordsPane }) {
 							</span>
 							<span className="text-muted-foreground flex-none text-[11.5px]/[1.3] tabular-nums">
 								{record.delta
-									? `${record.delta} over your previous best`
-									: 'First on record'}
+									? HERO_PANE_TEXT.overBest(record.delta)
+									: HERO_PANE_TEXT.firstOnRecord}
 							</span>
 						</li>
 					))}

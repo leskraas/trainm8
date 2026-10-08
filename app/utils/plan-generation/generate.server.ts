@@ -530,6 +530,7 @@ export async function approveSeason(
 	const sessionIds = await writeSessions(
 		athleteId,
 		eventId,
+		created.outlineId,
 		season,
 		context.timezone,
 		await defaultTrainingTime(athleteId),
@@ -565,6 +566,7 @@ async function defaultTrainingTime(athleteId: string): Promise<string> {
 async function writeSessions(
 	athleteId: string,
 	eventId: string,
+	planOutlineId: string,
 	season: GeneratedSeason,
 	timezone: string,
 	trainingTime: string,
@@ -601,6 +603,8 @@ async function writeSessions(
 					status: 'scheduled',
 					source: 'generated',
 					targetEventId: eventId,
+					// The plan that laid it: what clearing and counting scope by (ADR 0079).
+					planOutlineId,
 				},
 				select: { id: true },
 			})

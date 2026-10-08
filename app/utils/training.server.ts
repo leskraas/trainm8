@@ -1,7 +1,6 @@
 import { type Prisma } from '@prisma/client'
 import { type ActivityStream, parseStoredStream } from './activity-stream.ts'
 import {
-	addDays,
 	dayBoundsUTC,
 	weekBoundsFromMondayUTC,
 	weekBoundsUTC,
@@ -18,6 +17,11 @@ import {
 	type WeeklyAdherence,
 	type WeeklyLoad,
 } from './load/adherence.ts'
+import { lastClosedWeekKey } from './load/week-change.ts'
+import {
+	anchoredActiveOutlineWhere,
+	isOutlineResting,
+} from './plan-outline/active-outline.server.ts'
 import {
 	availabilityFitWarnings,
 	hoursFitWarnings,
@@ -55,6 +59,7 @@ import {
 	plannedWeeklyLoad,
 	type PlannedLoadBasis,
 } from './plan-outline/planned-load.ts'
+import { outlineFamily, type PresetFamily } from './plan-outline/presets.ts'
 import { type RampWarning } from './plan-outline/ramp-guard.ts'
 import { type SeasonSpanReading } from './plan-outline/season-span.ts'
 import { type Pct1RMBand } from './plan-outline/strength-goal.ts'
@@ -69,6 +74,10 @@ import {
 	isPatternWeekday,
 	type PatternDaySpec,
 } from './plan-outline/week-pattern.ts'
+import {
+	planTrackTargets,
+	type PlanTrackTargets,
+} from './plan-outline/week-volumes.ts'
 import {
 	DISCIPLINES,
 	isCardioDiscipline,
@@ -124,23 +133,17 @@ const stepSelect = {
 	},
 } satisfies Prisma.WorkoutStepSelect
 
-/**
- * An Event is still upcoming when it hasn't finished yet: a multi-day Event
- * counts until its end date passes; a single-day Event (no end date) until its
- * start date does.
- */
-function notYetPast(now: Date): Prisma.EventWhereInput {
-	return {
-		OR: [{ endDate: null, startDate: { gte: now } }, { endDate: { gte: now } }],
-	}
-}
-
 export type ActivePlan = {
-	/** The Target Event the plan anchors to; tapping the card opens its detail. */
-	eventId: string
-	eventName: string
-	/** Target Event date — the plan's finish line (arc end). */
-	eventDate: Date
+	/**
+	 * The Target Event the plan anchors to; tapping the card opens its detail.
+	 * Null, with the two below, for an **open-ended** plan: no Event and no end
+	 * date (ADR 0079). Every surface that reads an Event (countdown, taper, event
+	 * fit, the projection to race day) declines then rather than inventing one.
+	 */
+	eventId: string | null
+	eventName: string | null
+	/** Target Event date — the plan's finish line (arc end), or null when open-ended. */
+	eventDate: Date | null
 	/**
 	 * The plan's authored first Training Week, as an instant: that week's Monday in
 	 * the Athlete Timezone (ADR 0044 §3). The arc lays the phases forward from here
@@ -171,12 +174,39 @@ export type ActivePlan = {
 	 * why. Codes only; the surface words them (ADR 0023).
 	 */
 	loadBasis: PlannedLoadBasis
+	/**
+	 * The round of an open-ended plan this week is in, the "n" of _blokk n av ∞_;
+	 * null for a plan toward an Event. The same derivation the plan page reads
+	 * (`AuthoredSeason.round`), in the Athlete Timezone.
+	 */
+	round: number | null
+	/**
+	 * Every Training Track's Week Target per plan week, in its own Volume
+	 * Currency (with a strength track's Strength Frequency) — what the home week
+	 * header holds Planned and Actual Volume against (#505, `week-volumes.ts`).
+	 */
+	tracks: PlanTrackTargets[]
+	/**
+	 * Every plan week's role in its phase's rhythm, earliest first — a hard
+	 * (`loading`) week or an easy one (`recovery`, `taper`) — so home can say
+	 * what kind of week it is (#505 story 19). The same `weekRole` the plan
+	 * page reads, so the two surfaces cannot disagree about which week rests.
+	 */
+	weekRoles: WeekRole[]
+	/**
+	 * Whether the week change will lay this plan's weeks as the Planning
+	 * Horizon reaches them: the plan has a Week Pattern with days in it
+	 * (`fillPlanWeek`). Home promises a week past the horizon will be filled
+	 * only when this is true.
+	 */
+	fillsWeeks: boolean
 }
 
 /**
  * The active plan (ADR 0018): a Training Plan is a *view*, not an entity — it's
- * the nearest upcoming Target Event carrying a Plan Outline. Events without an
- * Outline are calendar markers, not plans, and are skipped even when nearer;
+ * the nearest upcoming Target Event carrying a Plan Outline, or else the athlete's
+ * open-ended plan (ADR 0079; `findActiveOutline` holds the rule). Events without
+ * an Outline are calendar markers, not plans, and are skipped even when nearer;
  * past/cancelled events don't anchor an active plan either. Returns the arc
  * essentials (event + phases) plus the derived per-week load for the home Plan
  * card, or null when there's no active plan (the card's empty state).
@@ -190,12 +220,13 @@ export async function getActivePlan(
 	const { event, outline } = found
 
 	const timezone = await getAthleteTimezone(userId)
+	const specs = phaseSpecs(outline)
 	const tracks = resolvedTracks(outline)
 	// Every track, strength included. Exclusion is the projection's own decision,
 	// stated with its reason, rather than a filter here that would leave the
 	// surface unable to say why a lifting block moves nothing (ADR 0047 §5).
 	const load = plannedWeeklyLoad({
-		phases: phaseSpecs(outline),
+		phases: specs,
 		tracks,
 		contexts: await readConversionContexts(
 			userId,
@@ -205,120 +236,126 @@ export async function getActivePlan(
 	})
 
 	return {
-		eventId: event.id,
-		eventName: event.name,
-		eventDate: event.startDate,
+		eventId: event?.id ?? null,
+		eventName: event?.name ?? null,
+		eventDate: event?.startDate ?? null,
 		planStart: dayBoundsUTC(outline.startWeekKey, timezone).start,
 		phases: phaseReadings(outline),
 		weeklyTss: load.weeklyTss,
 		loadBasis: load.basis,
+		round: event
+			? null
+			: roundOfWeek(specs, outline.startWeekKey, now, timezone),
+		tracks: planTrackTargets(outline),
+		weekRoles: Array.from({ length: totalWeeks(specs) }, (_, week) =>
+			weekRole(specs, week),
+		),
+		fillsWeeks: outline.patterns.some((pattern) => pattern.days.length > 0),
 	}
 }
 
 const activeOutlineSelect = {
 	id: true,
-	name: true,
-	startDate: true,
-	planOutline: {
+	startWeekKey: true,
+	/** The philosophy the plan records, if any (#505 S7). */
+	family: true,
+	/** The Target Event, or null for an open-ended plan (ADR 0079). */
+	event: { select: { id: true, name: true, startDate: true } },
+	phases: {
 		select: {
 			id: true,
-			startWeekKey: true,
-			phases: {
+			orderIndex: true,
+			name: true,
+			weeks: true,
+			rhythm: true,
+			tapers: true,
+			recoveryWeekIndex: true,
+		},
+	},
+	tracks: {
+		select: {
+			// The handle a **Week Pattern** day joins on: a day references its
+			// track by foreign key rather than by Discipline (ADR 0044 §7).
+			id: true,
+			discipline: true,
+			currency: true,
+			anchors: { select: { fromWeekKey: true, value: true } },
+			// Both segment kinds, with everything each carries: since #400 a
+			// strength segment is resolved rather than filtered out, and it is
+			// positioned by its own dates with a deload tail of its own
+			// (ADR 0047 §6).
+			segments: {
 				select: {
 					id: true,
-					orderIndex: true,
-					name: true,
+					kind: true,
+					phaseId: true,
+					ramp: true,
+					boundaryStep: true,
+					recoveryCut: true,
+					taperCut: true,
+					startWeekKey: true,
 					weeks: true,
-					rhythm: true,
-					tapers: true,
-				},
-			},
-			tracks: {
-				select: {
-					// The handle a **Week Pattern** day joins on: a day references its
-					// track by foreign key rather than by Discipline (ADR 0044 §7).
-					id: true,
-					discipline: true,
-					currency: true,
-					anchors: { select: { fromWeekKey: true, value: true } },
-					// Both segment kinds, with everything each carries: since #400 a
-					// strength segment is resolved rather than filtered out, and it is
-					// positioned by its own dates with a deload tail of its own
-					// (ADR 0047 §6).
-					segments: {
-						select: {
-							id: true,
-							kind: true,
-							phaseId: true,
-							ramp: true,
-							boundaryStep: true,
-							recoveryCut: true,
-							taperCut: true,
-							startWeekKey: true,
-							weeks: true,
-							goal: true,
-							sessionsPerWeek: true,
-							deloadCut: true,
-							deloadWeeks: true,
-							// The **Quality Session Mix** an endurance segment authors: the
-							// second axis beside volume (ADR 0042 §3). The Quality Session
-							// Count and the emphasis label are derived from these rows on
-							// every read and never stored (§4, §5), and no rows is an *empty*
-							// mix rather than an unknown one (§6).
-							mix: {
-								select: { zone: true, sessionsPerWeek: true },
-								orderBy: { zone: 'asc' },
-							},
-						},
+					goal: true,
+					sessionsPerWeek: true,
+					deloadCut: true,
+					deloadWeeks: true,
+					// The **Quality Session Mix** an endurance segment authors: the
+					// second axis beside volume (ADR 0042 §3). The Quality Session
+					// Count and the emphasis label are derived from these rows on
+					// every read and never stored (§4, §5), and no rows is an *empty*
+					// mix rather than an unknown one (§6).
+					mix: {
+						select: { zone: true, sessionsPerWeek: true },
+						orderBy: { zone: 'asc' },
 					},
-					overrides: { select: { weekKey: true, value: true } },
 				},
 			},
-			/**
-			 * The **Week Patterns** this plan holds — the microcycle the athlete
-			 * authors once (ADR 0044 §6–§7), with the days each one carries.
-			 *
-			 * A fixed day's Workout comes with the blocks and steps `fixedDayVolume`
-			 * reads, because the prescription *is* that day's volume: `5×1000m Z4` is
-			 * 5 km in a 50 km week and in a 65 km week alike, so it is priced off the
-			 * stored session rather than off the week. The `title` rides along so the
-			 * surface can name the session without a second query.
-			 */
-			patterns: {
-				orderBy: { orderIndex: 'asc' },
+			overrides: { select: { weekKey: true, value: true } },
+		},
+	},
+	/**
+	 * The **Week Patterns** this plan holds — the microcycle the athlete
+	 * authors once (ADR 0044 §6–§7), with the days each one carries.
+	 *
+	 * A fixed day's Workout comes with the blocks and steps `fixedDayVolume`
+	 * reads, because the prescription *is* that day's volume: `5×1000m Z4` is
+	 * 5 km in a 50 km week and in a 65 km week alike, so it is priced off the
+	 * stored session rather than off the week. The `title` rides along so the
+	 * surface can name the session without a second query.
+	 */
+	patterns: {
+		orderBy: { orderIndex: 'asc' },
+		select: {
+			id: true,
+			name: true,
+			orderIndex: true,
+			days: {
+				// Weekday then position within the day: the order the reading is
+				// taken in, so nothing downstream depends on a caller's sort.
+				orderBy: [{ weekday: 'asc' }, { orderInDay: 'asc' }],
 				select: {
 					id: true,
-					name: true,
-					orderIndex: true,
-					days: {
-						// Weekday then position within the day: the order the reading is
-						// taken in, so nothing downstream depends on a caller's sort.
-						orderBy: [{ weekday: 'asc' }, { orderInDay: 'asc' }],
+					weekday: true,
+					orderInDay: true,
+					kind: true,
+					weight: true,
+					trackId: true,
+					// The day's own track, for its **Volume Currency**: a fixed day
+					// is priced in the currency of the track it draws from, and a
+					// swim day draws swim volume (ADR 0043 §5).
+					track: { select: { currency: true } },
+					workout: {
 						select: {
 							id: true,
-							weekday: true,
-							orderInDay: true,
-							kind: true,
-							weight: true,
-							trackId: true,
-							// The day's own track, for its **Volume Currency**: a fixed day
-							// is priced in the currency of the track it draws from, and a
-							// swim day draws swim volume (ADR 0043 §5).
-							track: { select: { currency: true } },
-							workout: {
+							title: true,
+							blocks: {
+								orderBy: { orderIndex: 'asc' },
 								select: {
-									id: true,
-									title: true,
-									blocks: {
+									repeatCount: true,
+									seriesRepeatCount: true,
+									steps: {
 										orderBy: { orderIndex: 'asc' },
-										select: {
-											repeatCount: true,
-											seriesRepeatCount: true,
-											steps: {
-												orderBy: { orderIndex: 'asc' },
-												select: { durationSec: true, distanceM: true },
-											},
-										},
+										select: { kind: true, durationSec: true, distanceM: true },
 									},
 								},
 							},
@@ -328,29 +365,39 @@ const activeOutlineSelect = {
 			},
 		},
 	},
-} satisfies Prisma.EventSelect
+} satisfies Prisma.PlanOutlineSelect
 
 /**
- * The nearest upcoming Target Event carrying a Plan Outline, with the Outline's
- * rows. Shared by the Plan card's reading and the planning surface's, so the two
- * can never disagree about which plan is active or what it says.
+ * The active Plan Outline, with its rows and its Event (null when open-ended).
+ * Shared by the Plan card's reading and the planning surface's, so the two can
+ * never disagree about which plan is active or what it says.
+ *
+ * **The rule when both kinds exist** (ADR 0079): the nearest upcoming,
+ * uncancelled Target Event carrying an Outline wins, and the athlete's
+ * open-ended plan is the fallback. A race is the more specific statement: while
+ * a plan toward it runs, the open-ended plan rests rather than claiming the same
+ * weeks, and it is active again once that Event has passed. Folding the two into
+ * one is adding an Event to the open-ended plan (#505 S6), not this read.
+ *
+ * A phaseless Outline draws no arc and projects nothing, so it is not a plan: an
+ * anchored one is skipped for the next phased one, or the open-ended one, and a
+ * phaseless open-ended one is no plan at all.
  */
-async function findActiveOutline(userId: string, now: Date) {
-	const event = await prisma.event.findFirst({
-		where: {
-			athleteId: userId,
-			status: { not: 'cancelled' },
-			planOutline: { isNot: null },
-			...notYetPast(now),
-		},
-		orderBy: { startDate: 'asc' },
+export async function findActiveOutline(userId: string, now: Date) {
+	// Phased only, so a phaseless outline on the nearest Event never hides a
+	// phased one on a later Event (`active-outline.server.ts` holds the rule).
+	const anchored = await prisma.planOutline.findFirst({
+		where: anchoredActiveOutlineWhere(userId, now),
+		orderBy: { event: { startDate: 'asc' } },
 		select: activeOutlineSelect,
 	})
-	const outline = event?.planOutline
-	if (!event || !outline) return null
-	// A phaseless Outline draws no arc and projects nothing, so it is not a plan.
-	if (outline.phases.length === 0) return null
-	return { event, outline }
+	if (anchored) return { event: anchored.event, outline: anchored }
+	const openEnded = await prisma.planOutline.findFirst({
+		where: { athleteId: userId, eventId: null },
+		select: activeOutlineSelect,
+	})
+	if (!openEnded || openEnded.phases.length === 0) return null
+	return { event: null, outline: openEnded }
 }
 
 /** One Training Week of the authored season, as the planning surface reads it. */
@@ -545,9 +592,13 @@ export type SeasonPhase = PhaseReading & {
  */
 export type AuthoredSeason = {
 	outlineId: string
-	eventId: string
-	eventName: string
-	eventDate: Date
+	/**
+	 * The Target Event, or null with the two below for an **open-ended** plan: no
+	 * Event and no end date, run in rounds (ADR 0079).
+	 */
+	eventId: string | null
+	eventName: string | null
+	eventDate: Date | null
 	/** The authored Plan Start Week — the key every week-scoped row hangs off. */
 	startWeekKey: string
 	timezone: string
@@ -657,8 +708,11 @@ export type AuthoredSeason = {
 	 * nowhere (the **Pattern Preview**, ADR 0044 §7).
 	 */
 	patterns: SeasonPattern[]
-	/** Where the season ends relative to the Event — shown, never corrected. */
-	fit: EventFit
+	/**
+	 * Where the season ends relative to the Event — shown, never corrected. Null
+	 * for an open-ended plan: there is no Event to fit to (ADR 0079).
+	 */
+	fit: EventFit | null
 	/**
 	 * The phase this week falls in, **by position**, or null when today is outside
 	 * the plan.
@@ -668,6 +722,25 @@ export type AuthoredSeason = {
 	 * defect `presenter.ts` had).
 	 */
 	currentPhaseIndex: number | null
+	/**
+	 * For an **open-ended** plan, the round this week is in: the 1-based position
+	 * of its phase, the "n" of _blokk n av ∞_ (#505 story 9). Before the plan opens
+	 * it is the first round, and past its last phase it stays the last until the
+	 * next round is appended (#505 S6). Null for a plan toward an Event, which
+	 * counts weeks to race day instead.
+	 */
+	round: number | null
+	/**
+	 * An open-ended plan resting while a plan toward a race is the active one
+	 * (ADR 0079): it is shown, but nothing lays sessions for it.
+	 */
+	resting: boolean
+	/**
+	 * The philosophy the plan follows (#505 story 10): the family it records,
+	 * or for a plan that records none the one its last phase's rhythm reads as
+	 * (`outlineFamily`). Null for a plan that reads as none.
+	 */
+	family: PresetFamily | null
 }
 
 export async function getActiveSeason(
@@ -693,22 +766,38 @@ export async function getSeasonForEvent(
 	eventId: string,
 	now: Date = new Date(),
 ): Promise<AuthoredSeason | null> {
-	const event = await prisma.event.findFirst({
-		where: { id: eventId, athleteId: userId },
+	const outline = await prisma.planOutline.findFirst({
+		where: { eventId, athleteId: userId },
 		select: activeOutlineSelect,
 	})
-	const outline = event?.planOutline
-	if (!event || !outline || outline.phases.length === 0) return null
-	return toSeason(userId, event, outline, now)
+	if (!outline || outline.phases.length === 0) return null
+	return toSeason(userId, outline.event, outline, now)
 }
 
-type OutlineRowsFor = NonNullable<
-	Prisma.EventGetPayload<{ select: typeof activeOutlineSelect }>['planOutline']
->
+/**
+ * One Plan Outline's season, addressed by the Outline itself — how an
+ * open-ended plan is named, since it has no Event to name it by (ADR 0079).
+ */
+export async function getSeasonForOutline(
+	userId: string,
+	outlineId: string,
+	now: Date = new Date(),
+): Promise<AuthoredSeason | null> {
+	const outline = await prisma.planOutline.findFirst({
+		where: { id: outlineId, athleteId: userId },
+		select: activeOutlineSelect,
+	})
+	if (!outline || outline.phases.length === 0) return null
+	return toSeason(userId, outline.event, outline, now)
+}
+
+type OutlineRowsFor = Prisma.PlanOutlineGetPayload<{
+	select: typeof activeOutlineSelect
+}>
 
 async function toSeason(
 	userId: string,
-	event: { id: string; name: string; startDate: Date },
+	event: { id: string; name: string; startDate: Date } | null,
 	outline: OutlineRowsFor,
 	now: Date,
 ): Promise<AuthoredSeason> {
@@ -746,9 +835,9 @@ async function toSeason(
 
 	return {
 		outlineId: outline.id,
-		eventId: event.id,
-		eventName: event.name,
-		eventDate: event.startDate,
+		eventId: event?.id ?? null,
+		eventName: event?.name ?? null,
+		eventDate: event?.startDate ?? null,
 		startWeekKey: outline.startWeekKey,
 		timezone,
 		trainableWeekdays,
@@ -857,16 +946,45 @@ async function toSeason(
 			})),
 		})),
 		patterns: outline.patterns.map(patternReading),
-		fit: eventFit(
-			outline.startWeekKey,
-			weekCount,
-			weekMonday(event.startDate, timezone),
-		),
+		fit: event
+			? eventFit(
+					outline.startWeekKey,
+					weekCount,
+					weekMonday(event.startDate, timezone),
+				)
+			: null,
 		currentPhaseIndex: phaseIndexForWeek(
 			specs,
 			weekIndexOf(outline.startWeekKey, weekMonday(now, timezone)),
 		),
+		round: event
+			? null
+			: roundOfWeek(specs, outline.startWeekKey, now, timezone),
+		resting: await isOutlineResting(
+			userId,
+			{ eventId: event?.id ?? null },
+			now,
+		),
+		family: outlineFamily(outline.family, specs.at(-1)?.rhythm ?? 'none'),
 	}
+}
+
+/**
+ * The round of an open-ended plan this week is in: the 1-based position of its
+ * phase, the first before the plan opens and the last past its end. Home and
+ * the plan page both read it from here (`ActivePlan.round`,
+ * `AuthoredSeason.round`), so the two cannot count differently.
+ */
+function roundOfWeek(
+	specs: ReturnType<typeof phaseSpecs>,
+	startWeekKey: string,
+	now: Date,
+	timezone: string,
+): number {
+	const week = weekIndexOf(startWeekKey, weekMonday(now, timezone))
+	const index =
+		phaseIndexForWeek(specs, week) ?? (week < 0 ? 0 : specs.length - 1)
+	return index + 1
 }
 
 /**
@@ -1309,6 +1427,14 @@ export async function getUpcomingSessions(
 
 const ledgerSessionSelect = {
 	...upcomingSessionSelect,
+	// Session Adoption (#460): with `source` (already in the upcoming select) it
+	// says whose a session is, which the home timeline marks on every planned
+	// row (#505, `session-ownership.ts`), and Session Release hands one back.
+	adoptedAt: true,
+	releasedAt: true,
+	// Annet (#505 story 33): the athlete put this session in no Training Track,
+	// so the week's three numbers leave it out (`week-volumes.ts`).
+	countsInNoTrack: true,
 	tssValue: true,
 	plannedTssValue: true,
 	plannedTssConfidence: true,
@@ -1326,6 +1452,11 @@ const ledgerSessionSelect = {
 			startedAt: true,
 			endedAt: true,
 			phaseBarsJson: true,
+			// What the athlete said about this import on I dag (#505 stories
+			// 80–81): once answered, "hva var dette?" is not asked again, and an
+			// Angre kobling remembers the session Koble igjen puts it back on.
+			linkAnsweredAt: true,
+			unlinkedFromSessionId: true,
 		},
 	},
 	sessionLog: {
@@ -1408,6 +1539,24 @@ export async function getSessionLedger(
 }
 
 /**
+ * One Training Week's ledger rows — Monday to Sunday in the Athlete Timezone —
+ * in the same select home reads, so a week read on its own and the week on
+ * home are the same rows (`week-volumes.server.ts`).
+ */
+export async function getLedgerWeek(
+	userId: string,
+	weekKey: string,
+	timezone: string,
+): Promise<LedgerSession[]> {
+	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
+	return prisma.workoutSession.findMany({
+		where: { userId, scheduledAt: { gte: start, lte: end } },
+		orderBy: { scheduledAt: 'asc' },
+		select: ledgerSessionSelect,
+	})
+}
+
+/**
  * Weekly Plan Adherence (ADR 0019, #119): roll the current training week —
  * calendar Monday–Sunday in the Athlete Timezone (see `weekBoundsUTC`)
  * — up to a single banded ratio of summed actual to summed Planned TSS.
@@ -1421,11 +1570,7 @@ export async function getWeeklyAdherence(
 	userId: string,
 	now: Date = new Date(),
 ): Promise<WeeklyAdherence | null> {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { timezone: true },
-	})
-	const { start, end } = weekBoundsUTC(now, profile?.timezone ?? 'UTC')
+	const { start, end } = weekBoundsUTC(now, await getAthleteTimezone(userId))
 	const sessions = await prisma.workoutSession.findMany({
 		where: { userId, scheduledAt: { gte: start, lte: end } },
 		select: { tssValue: true, plannedTssValue: true },
@@ -1448,8 +1593,9 @@ export type WeekReplanSummary = {
 
 /**
  * The stored `WeekReplan` decision for the most recently closed Training Week
- * (ADR 0025): the same (athlete, closed week's Monday) key the recompute-path
- * applier writes, resolved in the Athlete Timezone. Read-only — display never
+ * (ADR 0025): the same (athlete, closed week's Monday) key the week change
+ * writes, resolved in the Athlete Timezone — so from Sunday 20:00 it is the
+ * week that just closed (`lastClosedWeekKey`). Read-only — display never
  * re-derives the decision, so what was applied and what is said can never
  * disagree. Returns `null` when no decision row exists yet (nothing has closed
  * a week since the feature landed, or no recompute has run this week); the
@@ -1459,11 +1605,7 @@ export async function getLatestWeekReplan(
 	userId: string,
 	now: Date = new Date(),
 ): Promise<WeekReplanSummary | null> {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { timezone: true },
-	})
-	const weekKey = addDays(weekMonday(now, profile?.timezone ?? 'UTC'), -7)
+	const weekKey = lastClosedWeekKey(now, await getAthleteTimezone(userId))
 	return prisma.weekReplan.findUnique({
 		where: { athleteId_weekKey: { athleteId: userId, weekKey } },
 		select: { outcome: true, reason: true },
@@ -1526,11 +1668,7 @@ async function recentWeeklySessions(
 ): Promise<
 	Array<Array<{ plannedTss: number | null; actualTss: number | null }>>
 > {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { timezone: true },
-	})
-	const timezone = profile?.timezone ?? 'UTC'
+	const timezone = await getAthleteTimezone(userId)
 
 	const bounds = Array.from({ length: Math.max(weeks, 0) }, (_, index) => {
 		const back = weeks - 1 - index

@@ -144,9 +144,9 @@ test('tapping an empty day commits a real session on that date', async () => {
 			],
 			cookie,
 		),
-	})) as { stampedSessionId: string }
+	})) as { data: { stampedSessionId: string } }
 
-	expect(result.stampedSessionId).toEqual(expect.any(String))
+	expect(result.data.stampedSessionId).toEqual(expect.any(String))
 	const stamped = await stampedSession(session.userId)
 	// The date the athlete tapped, at their Default Training Time.
 	expect(localDate(stamped.scheduledAt, 'UTC')).toBe(IN_WINDOW)
@@ -265,14 +265,14 @@ test('a mistake is recoverable without leaving the timeline', async () => {
 			],
 			cookie,
 		),
-	})) as { stampedSessionId: string }
+	})) as { data: { stampedSessionId: string } }
 
 	await action({
 		...ARGS_BASE,
 		request: post(
 			[
 				['intent', 'undo-stamp'],
-				['sessionId', stamped.stampedSessionId],
+				['sessionId', stamped.data.stampedSessionId],
 			],
 			cookie,
 		),
@@ -300,14 +300,14 @@ test('one athlete cannot undo another athlete’s session', async () => {
 			],
 			await getSessionCookieHeader(owner),
 		),
-	})) as { stampedSessionId: string }
+	})) as { data: { stampedSessionId: string } }
 
 	await action({
 		...ARGS_BASE,
 		request: post(
 			[
 				['intent', 'undo-stamp'],
-				['sessionId', stamped.stampedSessionId],
+				['sessionId', stamped.data.stampedSessionId],
 			],
 			await getSessionCookieHeader(other),
 		),
@@ -348,13 +348,14 @@ test('a day nobody could point at on a calendar is refused', async () => {
 
 test('a day outside the window the timeline renders is refused', async () => {
 	// ADR 0076's way back lives on the row, and a row exists only inside the
-	// window home queries. A session stamped a year out would be a database row
-	// the athlete cannot see and therefore cannot undo from where they made it.
+	// window home queries. A session stamped past it — more than two years out
+	// — would be a database row the athlete cannot see and therefore cannot
+	// undo from where they made it.
 	const session = await setupUser()
 	const cookie = await getSessionCookieHeader(session)
 	const todayKey = localDate(new Date(), 'UTC')
 
-	for (const date of [addDays(todayKey, 400), addDays(todayKey, -400)]) {
+	for (const date of [addDays(todayKey, 800), addDays(todayKey, -400)]) {
 		await expect(
 			action({
 				...ARGS_BASE,

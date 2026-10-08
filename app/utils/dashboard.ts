@@ -97,6 +97,46 @@ export function sumBlockDistanceM(blocks: DistanceBlock[]): number | null {
 	return totalM
 }
 
+type SetBlock = {
+	repeatCount: number
+	seriesRepeatCount?: number | null
+	steps: Array<{ sets: readonly unknown[] }>
+}
+
+/**
+ * **The planned sets of a workout, read once for everyone** — the strength
+ * track's Planned Volume, the quick strength log's offer and its write (#505
+ * S16). `total` counts a repeated block's sets once per repeat, the same
+ * reading `sumBlockDurationMin` gives duration; `repeated` says some block with
+ * sets is repeated, which the set log cannot hold per repeat (one row per
+ * `(session, step, set)`), so such a session is logged set by set in the
+ * runner rather than from I dag.
+ */
+export function readPlannedSets(blocks: readonly SetBlock[]): {
+	total: number
+	repeated: boolean
+} {
+	let total = 0
+	let repeated = false
+	for (const block of blocks) {
+		const repeats = blockRepeatTotal(block)
+		for (const step of block.steps) {
+			total += step.sets.length * repeats
+			if (step.sets.length > 0 && repeats > 1) repeated = true
+		}
+	}
+	return { total, repeated }
+}
+
+/**
+ * Total prescribed sets across a workout's blocks (`readPlannedSets`). The
+ * strength track's `sets` currency is total working sets per week (ADR 0047),
+ * so this is a lifting session's Planned Volume.
+ */
+export function sumBlockSets(blocks: readonly SetBlock[]): number {
+	return readPlannedSets(blocks).total
+}
+
 export function countdownLabel(
 	scheduledAt: Date,
 	now: Date = new Date(),
@@ -138,8 +178,8 @@ export type PlanArc = {
 	totalWeeks: number
 	/** Weeks-elapsed of total weeks, 0–100. Never a sessions-completed ratio. */
 	progressPct: number
-	/** Countdown to the Target Event date. */
-	countdown: string
+	/** Countdown to the Target Event date; null for an open-ended plan (ADR 0079). */
+	countdown: string | null
 }
 
 /**
@@ -159,7 +199,7 @@ export type PlanArc = {
 export function planArc(
 	phases: PlanPhaseSpec[],
 	planStart: Date,
-	eventDate: Date,
+	eventDate: Date | null,
 	now: Date = new Date(),
 ): PlanArc {
 	const totalWeeks = phases.reduce((sum, p) => sum + p.weeks, 0)
@@ -189,7 +229,7 @@ export function planArc(
 		weekInPlan,
 		totalWeeks,
 		progressPct,
-		countdown: countdownLabel(eventDate, now),
+		countdown: eventDate ? countdownLabel(eventDate, now) : null,
 	}
 }
 

@@ -1,9 +1,10 @@
 import { faker } from '@faker-js/faker'
 import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
-import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
+import { addDays } from '#app/utils/athlete-calendar.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { lastClosedWeekKey } from '#app/utils/load/week-change.ts'
 import { createSessionLog } from '#app/utils/session-log.server.ts'
 import { deriveLedgerStatus } from '#app/utils/training.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
@@ -328,7 +329,7 @@ test('weekly plan adherence is null when the week has no resolvable planned load
 
 // The closed week's Monday — the same (athlete, weekKey) the recompute-path
 // applier writes, so the loader reads exactly the stored decision.
-const closedWeekKey = () => addDays(weekMonday(new Date(), 'UTC'), -7)
+const closedWeekKey = () => lastClosedWeekKey(new Date(), 'UTC')
 
 test('the loader surfaces the stored Week Replan for the latest closed week verbatim', async () => {
 	const session = await setupUser()

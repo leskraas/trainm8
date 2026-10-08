@@ -37,6 +37,8 @@ export type PhaseRow = {
 	weeks: number
 	rhythm: string
 	tapers: boolean
+	/** The chosen easy week, 0-based in the phase (#505 story 74); see `weekRole`. */
+	recoveryWeekIndex?: number | null
 }
 
 export type SegmentRow = {
@@ -203,6 +205,7 @@ export function phaseSpecs(rows: OutlineRows): PhaseSpec[] {
 		weeks: phase.weeks,
 		rhythm: phase.rhythm as Rhythm,
 		tapers: phase.tapers,
+		recoveryWeekIndex: phase.recoveryWeekIndex ?? null,
 	}))
 }
 
@@ -217,6 +220,8 @@ export type PhaseReading = {
 	weeks: number
 	rhythm: Rhythm
 	tapers: boolean
+	/** The chosen easy week, 0-based in the phase, or null for the rhythm's own. */
+	recoveryWeekIndex: number | null
 }
 
 /**
@@ -232,6 +237,7 @@ export function phaseReadings(rows: OutlineRows): PhaseReading[] {
 		weeks: phase.weeks,
 		rhythm: phase.rhythm as Rhythm,
 		tapers: phase.tapers,
+		recoveryWeekIndex: phase.recoveryWeekIndex ?? null,
 	}))
 }
 

@@ -942,6 +942,7 @@ async function seed() {
 	// Phases carry time only — no volume, no unit, no discipline (ADR 0041, 0042).
 	const outline = await prisma.planOutline.create({
 		data: {
+			athleteId: kody.id,
 			eventId: raceEvent.id,
 			startWeekKey: planStartWeekKey,
 			phases: {

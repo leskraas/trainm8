@@ -623,6 +623,19 @@ function renderPlan(
 		weeksWithSessions?: number
 		/** What the add-track form proposes; unread history unless a test says so. */
 		trackProposals?: Proposal[]
+		/** Sesong's Events card (ADR 0083); none coming up unless a test says so. */
+		seasonEvents?: {
+			events: Array<{
+				id: string
+				name: string
+				kind: string
+				priority: string
+				startDate: Date
+			}>
+			upcomingCount: number
+		}
+		/** The first week not yet begun; weeks before it offer no edit. */
+		firstUnbegunWeekKey?: string
 	} = {},
 ) {
 	const week =
@@ -641,7 +654,7 @@ function renderPlan(
 			loader: () => ({
 				season,
 				tab,
-				eventQuery,
+				seasonQuery: eventQuery ? { name: 'event', value: eventQuery } : null,
 				week,
 				workouts,
 				strengthTracks,
@@ -660,6 +673,10 @@ function renderPlan(
 				conversionContexts: {},
 				fitnessAnchor: null,
 				trackProposals: extra.trackProposals ?? proposalsFor(season),
+				seasonEvents: extra.seasonEvents ?? { events: [], upcomingCount: 0 },
+				// Every week of these fixtures is ahead, so each offers its edit.
+				firstUnbegunWeekKey:
+					extra.firstUnbegunWeekKey ?? season.weeks[0]?.weekKey ?? '2030-01-07',
 			}),
 			action: action as any,
 			HydrateFallback: () => <div>Loading...</div>,
@@ -686,6 +703,45 @@ test('the season names its Event, its length and where it ends against it', asyn
 	expect(
 		screen.getByText(/plan ends 6 weeks before your event’s week/i),
 	).toBeInTheDocument()
+})
+
+test('Sesong is a tab: no way back, and the Events it plans around are on it (ADR 0083)', async () => {
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		seasonEvents: {
+			events: [
+				{
+					id: 'event-7',
+					name: 'Fjellmaraton',
+					kind: 'race',
+					priority: 'B',
+					startDate: new Date('2030-06-01T00:00:00.000Z'),
+				},
+			],
+			upcomingCount: 4,
+		},
+	})
+
+	expect(
+		await screen.findByRole('heading', { name: 'Sesong', level: 1 }),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('link', { name: /tilbake til/i }),
+	).not.toBeInTheDocument()
+	const events = within(
+		screen.getByRole('region', { name: 'Løp og arrangementer' }),
+	)
+	expect(events.getByText('4 kommende')).toBeInTheDocument()
+	expect(events.getByRole('link', { name: /Fjellmaraton/ })).toHaveAttribute(
+		'href',
+		'/training/events/event-7',
+	)
+	expect(events.getByRole('link', { name: 'Alle løp' })).toHaveAttribute(
+		'href',
+		'/training/events',
+	)
+	expect(
+		events.getByRole('link', { name: 'Planlegg en ny sesong' }),
+	).toHaveAttribute('href', '/training/plan/new')
 })
 
 test('a plan that is not finished says what is left, and where to do it', async () => {
@@ -769,45 +825,55 @@ test('the Weeks reading shows each week’s role and its derived target', async 
 	expect(weeks[0]).toHaveTextContent('50.0 km/wk')
 	expect(weeks[2]).toHaveTextContent('Taper')
 	expect(weeks[2]).toHaveTextContent('27.5 km/wk')
-	// Every week is hand-settable, and none of these is hand-set: the boxes are blank
-	// and no week is marked (ADR 0044 §4–§5).
+	// The reading edits nothing itself (#505 S13): each week links to the Sesong
+	// edit, and none of these is hand-set.
+	const list = screen.getByRole('list', { name: 'Training weeks' })
+	expect(within(list).queryByRole('spinbutton')).not.toBeInTheDocument()
 	expect(
-		screen.getByRole('spinbutton', { name: 'Week 1 Run, km/wk' }),
-	).toHaveValue(null)
+		screen.getByRole('link', { name: 'Endre ukemålet: week 1 Run' }),
+	).toBeInTheDocument()
 	expect(screen.queryByText('Hand-set')).not.toBeInTheDocument()
 })
 
-test('a derived week reads as blank, with the rule’s own number beside the box', async () => {
+test('a week opens its target edit in Endre sesongen, pre-filled for that week and track', async () => {
 	renderPlan(SEASON, 'weeks')
 
-	const field = await screen.findByRole('spinbutton', {
-		name: 'Week 2 Run, km/wk',
+	const link = await screen.findByRole('link', {
+		name: 'Endre ukemålet: week 2 Run',
 	})
-	// **Not** pre-filled with 55: the rule's number in the box would make the rule
-	// look like an edit to the athlete's plan (ADR 0044 §4).
-	expect(field).toHaveValue(null)
-	expect(field).toHaveAttribute('min', '0')
-	// A tenth of a kilometre, from the currency's own precision.
-	expect(field).toHaveAttribute('step', '0.1')
+	expect(link.getAttribute('href')).toBe(
+		`/training/plan?tab=weeks&edit=week-target&weekKey=2030-01-14&trackId=${RUN_TRACK}#season-edits`,
+	)
 	const row = within(
 		within(screen.getByRole('list', { name: 'Training weeks' })).getAllByRole(
 			'listitem',
 		)[1]!,
 	)
 	expect(row.getByText('55.0 km/wk')).toBeInTheDocument()
-	// Nothing to revert, so no control that claims there is.
+	// Nothing hand-set, so nothing says what the rule would give instead.
+	expect(row.queryByText(/The rule gives/)).not.toBeInTheDocument()
+})
+
+test('a week already begun shows its target and offers no edit', async () => {
+	renderPlan(SEASON, 'weeks', null, undefined, {
+		firstUnbegunWeekKey: '2030-01-14',
+	})
+
 	expect(
-		row.queryByRole('button', { name: /revert to the rule/i }),
+		await screen.findByRole('link', { name: 'Endre ukemålet: week 2 Run' }),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('link', { name: 'Endre ukemålet: week 1 Run' }),
 	).not.toBeInTheDocument()
 })
 
-test('the blank-and-zero rule is stated once, where the boxes are', async () => {
+test('where a week changes, and what 0 means, is stated once under the weeks', async () => {
 	renderPlan(SEASON, 'weeks')
 
 	// Blank means something different a third time on this page, and `0` is the one
 	// number an athlete would otherwise have to guess at.
 	expect(
-		await screen.findByText(/hand the week back to the rule/i),
+		await screen.findByText(/where you see the change before it applies/i),
 	).toBeInTheDocument()
 	expect(screen.getByText(/is a week without training/i)).toBeInTheDocument()
 })
@@ -822,21 +888,18 @@ test('a hand-set week is marked, and says what the rule would give instead', asy
 		await screen.findByRole('list', { name: 'Training weeks' }),
 	).getAllByRole('listitem')
 	const row = within(rows[1]!)
-	// The athlete's own number, in the box and in the reading.
-	expect(
-		row.getByRole('spinbutton', { name: 'Week 2 Run, km/wk' }),
-	).toHaveValue(42)
-	// Marked in words, and the revert made legible before it is pressed.
+	// The athlete's own number in the reading, marked in words, and what going
+	// back to the plan's target would restore said before the edit is opened.
+	expect(row.getByText('42.0 km/wk')).toBeInTheDocument()
 	expect(row.getByText('Hand-set')).toBeInTheDocument()
-	expect(row.getByText('The rule gives 55.0 km/wk.')).toBeInTheDocument()
 	expect(
-		row.getByRole('button', { name: 'Revert to the rule for week 2 Run' }),
-	).toBeEnabled()
+		row.getByText('Hand-set. The rule gives 55.0 km/wk.'),
+	).toBeInTheDocument()
 	// And the week beside it is untouched — an override is a leaf.
 	expect(within(rows[0]!).queryByText('Hand-set')).not.toBeInTheDocument()
 })
 
-test('a hand-set week the rule cannot price says the revert has nothing to restore', async () => {
+test('a hand-set week the rule cannot price says so', async () => {
 	renderPlan(
 		{
 			...SEASON,
@@ -850,22 +913,19 @@ test('a hand-set week the rule cannot price says the revert has nothing to resto
 	)
 
 	expect(
-		await screen.findByText(/reverting would leave it Unavailable/i),
+		await screen.findByText(/The rule has no number for this week/i),
 	).toBeInTheDocument()
 })
 
-test('a week hand-set to 0 reads as a week without training, not as a blank box', async () => {
+test('a week hand-set to 0 reads as a week without training, not as nothing', async () => {
 	renderPlan(
 		{ ...SEASON, weeks: [week(1, { targets: [handSet(0, 50)] })] },
 		'weeks',
 	)
 
-	// `0` is a value the athlete authored and needs no flag of its own, so it sits in
-	// the box as a zero rather than reading as "nothing typed" (GLOSSARY.md).
-	expect(
-		await screen.findByRole('spinbutton', { name: 'Week 1 Run, km/wk' }),
-	).toHaveValue(0)
-	expect(screen.getByText('Hand-set')).toBeInTheDocument()
+	// `0` is a value the athlete authored and needs no flag of its own, so it reads
+	// as a zero rather than as "nothing typed" (GLOSSARY.md).
+	expect(await screen.findByText('Hand-set')).toBeInTheDocument()
 	// Scoped to the week list: the season chart above it carries every week's
 	// figure again in its accessible data-table equivalent (ADR 0030 rule 2), so
 	// an unscoped query would match the picture as well as the field.
@@ -873,7 +933,7 @@ test('a week hand-set to 0 reads as a week without training, not as a blank box'
 	expect(within(weeks).getByText('0.0 km/wk')).toBeInTheDocument()
 })
 
-test('a week a track cannot price is still hand-settable', async () => {
+test('a week a track cannot price can still have its target set', async () => {
 	renderPlan(
 		{
 			...SEASON,
@@ -896,109 +956,11 @@ test('a week a track cannot price is still hand-settable', async () => {
 	// the rule cannot price is exactly what an override is for. Only the derived
 	// sentence has nothing to name.
 	expect(
-		await screen.findByRole('spinbutton', {
-			name: 'Week 1 Strength, sets/wk',
+		await screen.findByRole('link', {
+			name: 'Endre ukemålet: week 1 Strength',
 		}),
-	).toBeEnabled()
+	).toBeInTheDocument()
 	expect(screen.getByText('Unavailable')).toBeInTheDocument()
-})
-
-test('a week posts its own track, its own Monday and the number typed', async () => {
-	const user = userEvent.setup()
-	let posted: Record<string, string> = {}
-	renderPlan(SEASON, 'weeks', null, async ({ request }) => {
-		posted = Object.fromEntries(await request.formData()) as Record<
-			string,
-			string
-		>
-		return { ok: true }
-	})
-
-	await user.type(
-		await screen.findByRole('spinbutton', { name: 'Week 2 Run, km/wk' }),
-		'42',
-	)
-	await user.click(screen.getByRole('button', { name: 'Save week 2 Run' }))
-
-	expect(posted).toMatchObject({
-		intent: 'set-week-override',
-		trackId: RUN_TRACK,
-		weekKey: '2030-01-14',
-		value: '42',
-	})
-})
-
-test('a week typed as 0 posts 0, and never a blank', async () => {
-	const user = userEvent.setup()
-	let posted: Record<string, string> = {}
-	renderPlan(SEASON, 'weeks', null, async ({ request }) => {
-		posted = Object.fromEntries(await request.formData()) as Record<
-			string,
-			string
-		>
-		return { ok: true }
-	})
-
-	await user.type(
-		await screen.findByRole('spinbutton', { name: 'Week 1 Run, km/wk' }),
-		'0',
-	)
-	await user.click(screen.getByRole('button', { name: 'Save week 1 Run' }))
-
-	// The whole distinction rides on this: `0` is a week without training and blank is
-	// the revert, so a `0` that arrived as `''` would make a week off unauthorable.
-	expect(posted.value).toBe('0')
-})
-
-test('the revert control posts the week it is beside, and no value', async () => {
-	const user = userEvent.setup()
-	let posted: Record<string, string> = {}
-	renderPlan(
-		{ ...SEASON, weeks: [week(1, { targets: [handSet(42, 50)] })] },
-		'weeks',
-		null,
-		async ({ request }) => {
-			posted = Object.fromEntries(await request.formData()) as Record<
-				string,
-				string
-			>
-			return { ok: true }
-		},
-	)
-
-	await user.click(
-		await screen.findByRole('button', {
-			name: 'Revert to the rule for week 1 Run',
-		}),
-	)
-
-	// No value at all: reverting deletes the athlete's statement rather than storing
-	// what the rule happens to give today.
-	expect(posted).toEqual({
-		intent: 'clear-week-override',
-		trackId: RUN_TRACK,
-		weekKey: '2030-01-07',
-	})
-})
-
-test('a refused hand-set week is said at the top of the reading that asked for it', async () => {
-	const user = userEvent.setup()
-	renderPlan(
-		{ ...SEASON, weeks: [week(1, { targets: [handSet(42, 50)] })] },
-		'weeks',
-		null,
-		() => ({ error: 'That week is not in your plan.' }),
-	)
-
-	await user.click(
-		await screen.findByRole('button', {
-			name: 'Revert to the rule for week 1 Run',
-		}),
-	)
-
-	expect(
-		await screen.findByRole('alert', {}, { timeout: REFUSAL_TIMEOUT }),
-	).toHaveTextContent('That week is not in your plan.')
 })
 
 test('a week a track cannot price reads Unavailable, with the reason once', async () => {
@@ -1079,35 +1041,24 @@ async function phaseCards() {
 	).getAllByRole('listitem')
 }
 
-test('every phase carries its own edit actions, addressed by its own id', async () => {
+test('every phase links to its own edit in Endre sesongen, and edits no name, length or rhythm itself', async () => {
 	renderPlan()
 
 	const [base, taper] = await phaseCards()
-	// Rename, resize and rhythm are separate actions on the row, so fixing one
-	// mistyped week count is not a re-submission of the season.
-	expect(within(base!).getByRole('textbox', { name: 'Name' })).toHaveValue(
-		'Base',
-	)
-	expect(within(base!).getByRole('spinbutton', { name: 'Weeks' })).toHaveValue(
-		2,
-	)
-	expect(within(base!).getByRole('button', { name: 'Rename' })).toBeEnabled()
 	expect(
-		within(base!).getByRole('button', { name: 'Save weeks' }),
-	).toBeEnabled()
+		within(base!)
+			.getByRole('link', { name: 'Endre navn eller lengde på en fase' })
+			.getAttribute('href'),
+	).toBe('/training/plan?edit=phase&phaseId=phase-base#season-edits')
 	expect(
-		within(base!).getByRole('button', { name: 'Save rhythm' }),
-	).toBeEnabled()
-
-	// Each row's forms name the phase they act on, so no action can land on a
-	// neighbour.
-	const phaseIds = Array.from(
-		base!.querySelectorAll('input[name="phaseId"]'),
-	).map((input) => (input as HTMLInputElement).value)
-	expect(new Set(phaseIds)).toEqual(new Set(['phase-base']))
+		within(taper!)
+			.getByRole('link', { name: 'Endre navn eller lengde på en fase' })
+			.getAttribute('href'),
+	).toBe('/training/plan?edit=phase&phaseId=phase-taper#season-edits')
+	expect(within(base!).queryByRole('textbox', { name: 'Name' })).toBeNull()
 	expect(
-		(taper!.querySelector('input[name="phaseId"]') as HTMLInputElement).value,
-	).toBe('phase-taper')
+		within(base!).queryByRole('button', { name: 'Save rhythm' }),
+	).toBeNull()
 })
 
 test('the season’s ends have nothing to swap with, and say so', async () => {
@@ -1172,24 +1123,6 @@ test('the recovery weeks of the chosen rhythm are marked before saving', async (
 	).toBeInTheDocument()
 })
 
-test('marking a phase as tapering redraws its weeks before it is saved', async () => {
-	const user = userEvent.setup()
-	renderPlan({
-		...SEASON,
-		phases: [{ ...SEASON.phases[0]!, weeks: 4 }],
-		weeks: [week(1)],
-	})
-
-	const [phase] = await phaseCards()
-	await user.click(within(phase!).getByRole('checkbox', { name: /tapers/i }))
-
-	const marks = within(phase!).getByRole('group', { name: 'Week roles' })
-	expect(within(marks).getAllByText(/: Taper$/)).toHaveLength(4)
-	expect(
-		within(phase!).getByText(/steps down toward your event/i),
-	).toBeInTheDocument()
-})
-
 test('a phase is added at a position, and the copy promises the start week stays', async () => {
 	renderPlan()
 
@@ -1231,7 +1164,7 @@ test('a refused edit is said at the top of the reading that asked for it', async
 	}))
 
 	const [base] = await phaseCards()
-	await user.click(within(base!).getByRole('button', { name: 'Rename' }))
+	await user.click(within(base!).getByRole('button', { name: 'Move later' }))
 
 	expect(
 		await screen.findByRole('alert', {}, { timeout: REFUSAL_TIMEOUT }),
@@ -2206,11 +2139,11 @@ async function shapeCards() {
 	).getAllByRole('listitem')
 }
 
-test('every shape is on offer, three families at three lengths, each with an Apply', async () => {
+test('every shape is on offer, five families at three lengths, each with an Apply', async () => {
 	renderPlan()
 
 	const cards = await shapeCards()
-	expect(cards).toHaveLength(9)
+	expect(cards).toHaveLength(15)
 	// Family first, length within it: the three lengths of one season sit together
 	// rather than being scattered across the gallery by week count.
 	expect(cards[0]).toHaveTextContent('Classic 3:1 linear, short run-in')
@@ -2218,13 +2151,63 @@ test('every shape is on offer, three families at three lengths, each with an App
 	expect(cards[2]).toHaveTextContent('Classic 3:1 linear, long run-in')
 	expect(cards[4]).toHaveTextContent('Masters 2:1')
 	expect(cards[7]).toHaveTextContent('Big base / pyramidal')
+	expect(cards[10]).toHaveTextContent('Polarized 80/20')
+	expect(cards[13]).toHaveTextContent('Threshold focus')
 	for (const name of [
 		'Apply Classic 3:1 linear',
 		'Apply Masters 2:1, short run-in',
 		'Apply Big base / pyramidal, long run-in',
+		'Apply Polarized 80/20',
+		'Apply Threshold focus, short run-in',
 	]) {
 		expect(screen.getByRole('button', { name })).toBeEnabled()
 	}
+})
+
+test('once the plan has begun, no shape is offered: Bytt filosofi is, behind its preview', async () => {
+	// The plan opens 7 Jan; its first week is lived. A shape would replace every
+	// phase, lived weeks included, with no preview (#505 stories 14, 75).
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		firstUnbegunWeekKey: '2030-01-14',
+	})
+
+	expect(
+		await screen.findByText(
+			/Planen er i gang, og en ny form ville skrevet over/,
+		),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('list', { name: 'Season shapes' }),
+	).not.toBeInTheDocument()
+	expect(
+		screen.queryByRole('button', { name: /^Apply / }),
+	).not.toBeInTheDocument()
+	expect(
+		screen.getByRole('link', { name: 'Til Bytt filosofi' }),
+	).toHaveAttribute('href', '#philosophy')
+})
+
+test('the edits outside Sesong v1 wait behind Avansert, which says they apply directly', async () => {
+	renderPlan()
+
+	const advanced = (await screen.findAllByText('Avansert')).map(
+		(summary) => summary.closest('details')!,
+	)
+	// One per block card, and one for the season's own rules.
+	expect(advanced.length).toBeGreaterThan(1)
+	for (const details of advanced) {
+		expect(details).not.toHaveAttribute('open')
+		expect(details).toHaveTextContent(/uten forhåndsvisning/)
+	}
+	const season = advanced.at(-1)!
+	for (const name of ['Start from a shape', 'Season anchors', 'Add a phase']) {
+		expect(within(season).getAllByText(name).length).toBeGreaterThan(0)
+	}
+	// A block's climb and its place are behind its own Avansert line.
+	const block = advanced[0]!
+	expect(
+		within(block).getByRole('button', { name: 'Move later' }),
+	).toBeInTheDocument()
 })
 
 test('the gallery states the fitting rule: base first, taper never', async () => {
@@ -2325,7 +2308,7 @@ test('applying replaces the blocks, and the card says so without blocking', asyn
 	expect(
 		screen.getByText(/Applying one replaces the blocks you have now/),
 	).toBeInTheDocument()
-	expect(screen.getAllByText('Replaces your current blocks.')).toHaveLength(9)
+	expect(screen.getAllByText('Replaces your current blocks.')).toHaveLength(15)
 	// A warning and never a dialog: this repo warns and never blocks, so the tap
 	// submits rather than opening a confirmation in front of a picker.
 	await user.click(within(cards[0]!).getByRole('button', { name: /^Apply/ }))

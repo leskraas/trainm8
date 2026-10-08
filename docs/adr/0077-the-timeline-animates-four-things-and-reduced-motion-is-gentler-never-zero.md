@@ -1,6 +1,11 @@
 # The timeline animates four things, and reduced motion is gentler rather than zero
 
-Status: Accepted
+Status: Accepted. **§4 is superseded by
+[ADR 0082](0082-i-dag-reads-like-a-printed-plan-and-the-season-strip-frames-the-reader.md)**
+(#505 S9): the back-to-today pill moved into the season strip as the _I dag_
+pill, which never comes or goes and changes look instantly, so its two
+transitions are gone. A folded week reuses the past band's accordion and the
+press; no new ingredient or curve was added.
 
 Scope: `app/routes/_home/timeline/`, plus the easing scale and the `hover:`
 variant in `app/styles/tailwind.css`, which are app-wide. Issue #502, under

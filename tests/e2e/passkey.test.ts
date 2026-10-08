@@ -24,6 +24,9 @@ test('Users can register and use passkeys', async ({
 	navigate,
 	login,
 }) => {
+	// Several pages in one test, and on the dev server each first visit pays
+	// its cold Vite transform.
+	test.setTimeout(60_000)
 	await login()
 
 	const { client, authenticatorId } = await setupWebAuthn(page)
@@ -81,9 +84,13 @@ test('Users can register and use passkeys', async ({
 
 	await Promise.race([passkeyAssertedPromise, errorPromise])
 
-	// Verify successful login — the wordmark row's avatar (→ Settings) only
+	// Verify successful login — the tab bar's Meg (→ the account tab) only
 	// renders for authenticated users (#178).
-	await expect(page.getByRole('link', { name: /^settings$/i })).toBeVisible()
+	await expect(
+		page
+			.getByRole('navigation', { name: 'Hovedmeny' })
+			.getByRole('link', { name: 'Meg' }),
+	).toBeVisible()
 
 	// Verify the sign count increased
 	const afterLoginCredentials = await client.send('WebAuthn.getCredentials', {

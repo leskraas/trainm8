@@ -13,11 +13,27 @@
 export type Box = { top: number }
 
 /**
- * Today's row parks this far below the top of the stream, leaving the week
- * header and a little air above it so the row reads as *arrived at* rather than
- * flush against the edge.
+ * Today's row parks this far below the bottom of its week's **sticky header**,
+ * so it reads as *arrived at* rather than tucked under the header or flush
+ * against it. The header's height is measured, never assumed: it grows with
+ * the week's Training Tracks (#505 S9), and a fixed offset that once cleared a
+ * one-line header parked today *under* a three-line one.
+ */
+export const LANDING_GAP = 12
+
+/**
+ * The offset used before anything can be measured — the server render, jsdom,
+ * a week whose header is not in the DOM yet. The live landing is always the
+ * measured header plus {@link LANDING_GAP} (`landingOffsetFor`).
  */
 export const LANDING_OFFSET = 96
+
+/** How far below the stream's top today parks, given its header's height. */
+export function landingOffsetFor(headerHeight: number): number {
+	return headerHeight > 0
+		? Math.ceil(headerHeight) + LANDING_GAP
+		: LANDING_OFFSET
+}
 
 /**
  * A week jumped to from the strip parks flush, minus a hair: its sticky header
@@ -71,13 +87,6 @@ export const SETTLE_LADDER = [0, 60, 160, 320, 700, 1200] as const
  */
 export const SETTLE_WINDOW_MS = 1300
 
-/**
- * The strip centres itself on this ladder after mounting. Same reason as
- * `SETTLE_LADDER`: cell widths are fixed but the fonts inside them are not, so
- * the scroll-snap container needs more than one chance to land centred.
- */
-export const STRIP_CENTRE_LADDER = [0, 120, 400, 900] as const
-
 /** Loading may not start until the landing has settled — see `SETTLE_WINDOW_MS`. */
 export const LOAD_PAD_MIN = 80
 export const LOAD_PAD_MAX = 320
@@ -108,8 +117,11 @@ export function offsetWithin(
  * fold moved and the fold would be measured from a point the fold itself had
  * shifted.
  */
-export function landingPosition(todayOffset: number): number {
-	return Math.max(0, todayOffset - LANDING_OFFSET)
+export function landingPosition(
+	todayOffset: number,
+	offset: number = LANDING_OFFSET,
+): number {
+	return Math.max(0, todayOffset - offset)
 }
 
 /** Everything the hero's collapse needs written to the DOM, in one shape. */
@@ -139,6 +151,15 @@ export type HeroFold = {
  * number a full fold can be done in — and anything shorter buys a quicker fold
  * by multiplying the lurch it was supposed to remove.
  *
+ * **Except where the stream runs out above the landing.** An athlete with a
+ * few weeks of history has less than a hero's height of stream above today, so
+ * the very top of the stream used to leave the hero part-folded *and already
+ * faded* — a blank box the reader could not scroll away (#505 S9 review). Above
+ * the landing the travel shortens to the room there is, so the top of the
+ * stream is a full fold — but only once that room reaches the fade
+ * ({@link HERO_FADE_SHARE}): with less, the top is a hero still visibly
+ * folding, never an empty one, and a few pixels of room never snap it shut.
+ *
  * `null` when the hero has not been measured yet: on the server, before layout,
  * and in jsdom. The caller writes nothing then and the hero renders at its
  * natural height, which is what "not collapsed" has to look like with no
@@ -155,7 +176,12 @@ export function heroFold({
 	openHeight: number
 }): HeroFold | null {
 	if (!(openHeight > 0)) return null
-	const progress = clamp01(Math.abs(scrollTop - landing) / openHeight)
+	const room = Math.max(0, landing)
+	const travel =
+		scrollTop < landing && room >= openHeight * HERO_FADE_SHARE
+			? Math.min(openHeight, room)
+			: openHeight
+	const progress = clamp01(Math.abs(scrollTop - landing) / travel)
 	return {
 		progress,
 		heightPx: openHeight * (1 - progress),
@@ -242,15 +268,30 @@ export function activeWeekFrom(
 }
 
 /**
- * How far to scroll the strip so a cell sits in the middle of it. Expressed as
- * a target `scrollLeft`, so the caller only has to assign it.
+ * The first and last week the stream is showing — the season strip's frame
+ * (#505 story 17). The first is the week whose header is at or above the top
+ * edge, the last the week whose header is above the bottom edge: the weeks a
+ * reader would name if asked what is on their screen. Null with no week
+ * mounted.
+ *
+ * It replaced centring a scrolled strip on the active cell: a strip that shows
+ * the whole season at once has nothing to scroll, and shows *where* the reader
+ * is by outlining it instead (ADR 0082).
  */
-export function centreScrollLeft(
-	cellLeft: number,
-	cellWidth: number,
-	stripWidth: number,
-): number {
-	return Math.max(0, cellLeft - (stripWidth - cellWidth) / 2)
+export function weeksInView(
+	weeks: Array<{ key: string; offset: number }>,
+	scrollTop: number,
+	clientHeight: number,
+): { from: string; to: string } | null {
+	const first = weeks[0]
+	if (!first) return null
+	let from = first.key
+	let to = first.key
+	for (const week of weeks) {
+		if (week.offset <= scrollTop) from = week.key
+		if (week.offset < scrollTop + clientHeight) to = week.key
+	}
+	return { from, to }
 }
 
 /**

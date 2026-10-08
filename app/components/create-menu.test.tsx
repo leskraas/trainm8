@@ -17,26 +17,26 @@ function renderMenu() {
 	return render(<App initialEntries={['/']} />)
 }
 
-test('the "+ New" control opens the single creation menu: New session, New event, New plan', async () => {
+test('the "+ Ny" control opens the single creation menu: Ny økt, Nytt løp, Ny plan', async () => {
 	const user = userEvent.setup()
 	renderMenu()
 
-	const createButton = await screen.findByRole('button', { name: /create/i })
+	const createButton = await screen.findByRole('button', { name: /lag ny/i })
 	await user.click(createButton)
 
 	const menu = await screen.findByRole('menu')
 
 	const newSession = within(menu).getByRole('menuitem', {
-		name: /new session/i,
+		name: /ny økt/i,
 	})
 	expect(newSession).toHaveAttribute('href', '/training/sessions/new')
 
-	const newEvent = within(menu).getByRole('menuitem', { name: /new event/i })
+	const newEvent = within(menu).getByRole('menuitem', { name: /nytt løp/i })
 	expect(newEvent).toHaveAttribute('href', '/training/events/new')
 
 	// Plan Generation is gone (ADR 0044); a plan is now something the athlete
 	// authors, so the menu creates sessions, events and plans.
-	const newPlan = within(menu).getByRole('menuitem', { name: /new plan/i })
+	const newPlan = within(menu).getByRole('menuitem', { name: /ny plan/i })
 	expect(newPlan).toHaveAttribute('href', '/training/plan/new')
 
 	expect(within(menu).getAllByRole('menuitem')).toHaveLength(3)

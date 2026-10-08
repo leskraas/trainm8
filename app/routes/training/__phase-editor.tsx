@@ -42,6 +42,8 @@ import { formatDate } from '#app/utils/format.ts'
 import {
 	RHYTHM_LABELS,
 	RHYTHM_SUMMARY_LABELS,
+	SEASON_ADVANCED_LABELS,
+	SEASON_EDIT_LABELS,
 	WEEK_ROLE_LABELS,
 } from '#app/utils/labels.ts'
 import {
@@ -51,6 +53,7 @@ import {
 	type Rhythm,
 } from '#app/utils/plan-outline/derive.ts'
 import { Disclosure, DisclosureCard } from './__plan-chrome.tsx'
+import { SeasonEditLink } from './__season-edits.tsx'
 
 /**
  * A phase as this module edits it: what it stores, plus the span the route derived
@@ -79,13 +82,10 @@ const MOVE_LABELS = {
 } as const satisfies Record<'earlier' | 'later', string>
 
 /**
- * One phase, read and edited.
- *
- * The rhythm and the taper flag are held in local state so the recovery weeks below
- * them redraw as the athlete chooses — the rhythm's consequence is visible *before*
- * it is saved rather than discovered on the Weeks reading afterwards. The week
- * count is **not** previewed against: it belongs to a different action, and drawing
- * a rhythm over a span that has not been saved would mark weeks that do not exist.
+ * One phase, read, with its progression edited in place and its name, length
+ * and rhythm linked to _Endre sesongen_ — the Sesong edits apply behind a
+ * preview (#505 story 75), so this card shows which weeks recover and links
+ * there pre-filled. Moving and removing a block stay here.
  */
 export function PhaseCard({
 	phase,
@@ -123,9 +123,6 @@ export function PhaseCard({
 	 */
 	children?: ReactNode
 }) {
-	const [rhythm, setRhythm] = useState<Rhythm>(phase.rhythm)
-	const [tapers, setTapers] = useState(phase.tapers)
-
 	return (
 		// Closed by default, **except** the phase the athlete is living in. That is
 		// the whole of the progressive disclosure this card buys: four forms per
@@ -160,96 +157,38 @@ export function PhaseCard({
 				<p className="text-muted-foreground pb-2 text-sm">{reading}</p>
 			) : null}
 
-			{/* The two acts, each behind its own line. Five independent saves rendered
-			    at once — name, span, rhythm, progression, mix — is a wall of expert
-			    controls on a phone, and #366's posture is one thing at a time. Nothing
-			    is removed: opened, each half is exactly the surface that shipped.
-
-			    The progression comes **first**, because how a block climbs is what an
-			    athlete comes back to change; its name and its length are what they set
-			    once. Both are closed: the sentence above already says what the block
-			    does, so opening a block answers the question without putting eleven
-			    controls on a phone to do it. */}
+			{/* The Sesong edits first: name, length, rhythm and the easy week are
+			    changed in _Endre sesongen_, behind a preview of the weeks they move
+			    (#505 story 75), so this card shows the rhythm and links there. */}
 			<Disclosure
-				summary="How this block progresses"
-				detail="Its climb, its step at the opening, and its quality sessions."
+				summary="Rename or resize this block"
+				detail="Which weeks recover, and where to change it."
 			>
-				{children}
+				{phase.tapers ? null : (
+					<p className="text-sm">{RHYTHM_LABELS[phase.rhythm]}</p>
+				)}
+				<RecoveryPreview phase={phase} />
+				<div className="flex flex-col gap-1">
+					<SeasonEditLink edit="phase" fields={{ phaseId: phase.id }}>
+						{SEASON_EDIT_LABELS.phaseOpen}
+					</SeasonEditLink>
+					{phase.rhythm !== 'none' && !phase.tapers ? (
+						<SeasonEditLink edit="easy-week" fields={{}}>
+							{SEASON_EDIT_LABELS.easyWeekOpen}
+						</SeasonEditLink>
+					) : null}
+				</div>
 			</Disclosure>
 
+			{/* Everything else about the block — how it climbs, its quality
+			    sessions, where it sits — is outside the Sesong edits of #505 v1
+			    (ADR 0084 §1): it applies directly, with no preview, so it waits
+			    behind _Avansert_ and says so. */}
 			<Disclosure
-				summary="Rename, resize or move this block"
-				detail="Its name, how many weeks it runs, and which weeks recover."
+				summary={SEASON_ADVANCED_LABELS.title}
+				detail={SEASON_ADVANCED_LABELS.phaseNote}
 			>
-				<Form
-					method="POST"
-					className="flex flex-col gap-2 sm:flex-row sm:items-end"
-				>
-					<input type="hidden" name="intent" value="rename-phase" />
-					<input type="hidden" name="phaseId" value={phase.id} />
-					{/* Re-keyed on the stored value: an edit that lands changes the field's
-					    default, and an uncontrolled input would keep the old one — and Base UI
-					    warns about exactly that. Remounting shows what the season now says. */}
-					<Field
-						key={phase.name}
-						className="flex-1"
-						labelProps={{ children: 'Name' }}
-						inputProps={{
-							id: `name-${phase.id}`,
-							name: 'name',
-							type: 'text',
-							defaultValue: phase.name,
-							maxLength: 60,
-							// Free text, and no vocabulary: "Off-season" and "Return to run"
-							// store exactly as well as "Base" (ADR 0044 §2).
-							required: true,
-						}}
-					/>
-					<Button type="submit" variant="outline" className="w-full sm:w-auto">
-						Rename
-					</Button>
-				</Form>
-
-				<Form
-					method="POST"
-					className="flex flex-col gap-2 sm:flex-row sm:items-end"
-				>
-					<input type="hidden" name="intent" value="resize-phase" />
-					<input type="hidden" name="phaseId" value={phase.id} />
-					<Field
-						key={phase.weeks}
-						className="sm:w-28"
-						labelProps={{ children: 'Weeks' }}
-						inputProps={{
-							id: `weeks-${phase.id}`,
-							name: 'weeks',
-							type: 'number',
-							min: 1,
-							max: 52,
-							inputMode: 'numeric',
-							defaultValue: phase.weeks,
-						}}
-					/>
-					<Button type="submit" variant="outline" className="w-full sm:w-auto">
-						Save weeks
-					</Button>
-				</Form>
-
-				<Form method="POST" className="space-y-4">
-					<input type="hidden" name="intent" value="set-phase-rhythm" />
-					<input type="hidden" name="phaseId" value={phase.id} />
-					<RhythmFields
-						idSuffix={phase.id}
-						rhythm={rhythm}
-						onRhythmChange={setRhythm}
-						tapers={tapers}
-						onTapersChange={setTapers}
-					/>
-					<RecoveryPreview phase={{ weeks: phase.weeks, rhythm, tapers }} />
-					<Button type="submit" variant="outline" className="w-full sm:w-auto">
-						Save rhythm
-					</Button>
-				</Form>
+				{children}
 
 				{/* One form per button: a submit carries a single name/value pair, and the
 				    move needs its direction alongside its intent. */}
@@ -563,7 +502,8 @@ export function DeletePlanSection({
 	eventName,
 }: {
 	outlineId: string
-	eventName: string
+	/** Null for an open-ended plan, which has no Event to keep (ADR 0079). */
+	eventName: string | null
 }) {
 	return (
 		<section aria-labelledby="delete-plan" className="space-y-4">
@@ -574,8 +514,9 @@ export function DeletePlanSection({
 				Delete this plan
 			</h2>
 			<p className="text-muted-foreground text-sm">
-				Removes the season you authored. {eventName} stays on your calendar, and
-				every session you have already trained stays exactly as it is.
+				Removes the season you authored.{' '}
+				{eventName ? `${eventName} stays on your calendar, and every` : 'Every'}{' '}
+				session you have already trained stays exactly as it is.
 			</p>
 			<AlertDialog>
 				<AlertDialogTrigger
@@ -590,8 +531,10 @@ export function DeletePlanSection({
 						<AlertDialogTitle>Delete this plan?</AlertDialogTitle>
 						<AlertDialogDescription>
 							This removes your phases, your training tracks and your starting
-							volumes. It does not touch {eventName} or any session you have
-							already trained — your event stays on your calendar as a marker.
+							volumes.{' '}
+							{eventName
+								? `It does not touch ${eventName} or any session you have already trained — your event stays on your calendar as a marker.`
+								: 'It does not touch any session you have already trained.'}{' '}
 							This cannot be undone.
 						</AlertDialogDescription>
 					</AlertDialogHeader>

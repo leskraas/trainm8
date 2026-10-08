@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import {
+	formatNbDate,
 	formatClockDuration,
 	formatDate,
 	formatDateLong,
@@ -409,4 +410,10 @@ test('an authored zero rate is a rate, and an unparseable one is null', () => {
 	expect(parseRateField('-12')).toBe(-0.12)
 	// Never a guessed number (ADR 0023 §6).
 	expect(parseRateField('a bit')).toBeNull()
+})
+
+test('formatNbDate states the year, the Norwegian way', () => {
+	expect(formatNbDate('2030-03-05T00:00:00.000Z', 'UTC')).toBe('5. mar 2030')
+	// A calendar-day anchor read in UTC never slips to the day before.
+	expect(formatNbDate('2027-01-01T00:00:00.000Z', 'UTC')).toBe('1. jan 2027')
 })

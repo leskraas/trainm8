@@ -165,23 +165,12 @@ function Harness() {
 			>
 				<div data-testid="hero-content" />
 			</div>
-			<div
-				data-testid="strip"
-				ref={(node) => {
-					if (node) fixHeight(node, 'clientWidth', () => 390)
-					scroll.stripRef(node)
-				}}
-			>
-				{KEYS.map((key, i) => (
+			<div data-testid="strip">
+				{KEYS.map((key) => (
 					<button
 						key={key}
 						type="button"
 						{...{ [CELL_ATTR]: key }}
-						ref={(node) => {
-							if (!node) return
-							fixHeight(node, 'offsetWidth', () => 124)
-							stub(node, () => i * 128)
-						}}
 						onClick={() => scroll.goToWeek(key)}
 					/>
 				))}

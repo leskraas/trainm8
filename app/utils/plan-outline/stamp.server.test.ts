@@ -1,11 +1,15 @@
-import { expect, test } from 'vitest'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { describe, expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { getSeasonForEvent } from '#app/utils/training.server.ts'
+import { updateWorkoutSession } from '#app/utils/workout.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import {
 	addWeekPattern,
 	addWeekPatternDay,
 	createPlanOutline,
+	deletePlanOutline,
 	setQualitySessionMix,
 } from './authoring.server.ts'
 import {
@@ -20,7 +24,8 @@ const OSLO = 'Europe/Oslo' // UTC+1 in January — a non-UTC athlete on purpose
 
 type Plan = {
 	athleteId: string
-	eventId: string
+	/** Null for an open-ended plan (ADR 0079). */
+	eventId: string | null
 	outlineId: string
 	runTrackId: string
 	liftTrackId: string
@@ -31,6 +36,7 @@ type Plan = {
 async function setupPlan({
 	timezone = OSLO,
 	defaultTrainingTime = '07:00' as string | null,
+	openEnded = false,
 } = {}): Promise<Plan> {
 	const userData = createUser()
 	const user = await prisma.user.create({
@@ -41,22 +47,24 @@ async function setupPlan({
 			athleteProfile: { create: { timezone, defaultTrainingTime } },
 		},
 	})
-	const event = await prisma.event.create({
-		select: { id: true },
-		data: {
-			athleteId: user.id,
-			name: 'Spring Half Marathon',
-			kind: 'race',
-			priority: 'A',
-			startDate: new Date('2030-04-07T09:00:00Z'),
-			disciplines: JSON.stringify(['run']),
-		},
-	})
+	const event = openEnded
+		? null
+		: await prisma.event.create({
+				select: { id: true },
+				data: {
+					athleteId: user.id,
+					name: 'Spring Half Marathon',
+					kind: 'race',
+					priority: 'A',
+					startDate: new Date('2030-04-07T09:00:00Z'),
+					disciplines: JSON.stringify(['run']),
+				},
+			})
 
 	const created = await createPlanOutline(
 		user.id,
 		{
-			eventId: event.id,
+			...(event ? { eventId: event.id } : {}),
 			startWeekKey: START_WEEK_KEY,
 			// `none` so every week is a loading week and the target is flat: this
 			// suite is about the stamp, not about the rhythm.
@@ -91,7 +99,7 @@ async function setupPlan({
 
 	return {
 		athleteId: user.id,
-		eventId: event.id,
+		eventId: event?.id ?? null,
 		outlineId: outline.id,
 		runTrackId: outline.tracks.find((t) => t.discipline === 'run')!.id,
 		liftTrackId: outline.tracks.find((t) => t.discipline === 'strength')!.id,
@@ -205,6 +213,7 @@ async function sessionsOf(plan: Plan) {
 			source: true,
 			status: true,
 			targetEventId: true,
+			planOutlineId: true,
 			plannedTssValue: true,
 			workoutId: true,
 			workout: {
@@ -249,7 +258,7 @@ test('stamps a pattern across the chosen weeks in one action', async () => {
 	expect(sessions).toHaveLength(3)
 })
 
-test('stamped sessions are anchored to the Event and carry the authored source', async () => {
+test('stamped sessions are anchored to the Event and carry the generated source', async () => {
 	const plan = await setupPlan()
 	await addDay(plan, {
 		kind: 'share',
@@ -267,7 +276,9 @@ test('stamped sessions are anchored to the Event and carry the authored source',
 	)
 
 	const [session] = await sessionsOf(plan)
-	expect(session?.source).toBe('authored')
+	// The machine laid it from the pattern, so it is the machine's until the
+	// athlete edits it (Session Adoption).
+	expect(session?.source).toBe('generated')
 	expect(session?.targetEventId).toBe(plan.eventId)
 	expect(session?.status).toBe('scheduled')
 })
@@ -577,6 +588,215 @@ test('a trained session is kept, never replaced, whatever is confirmed', async (
 	expect(after).toHaveLength(2)
 })
 
+test("the athlete's own session in a stamped week is kept on a confirmed re-stamp", async () => {
+	const plan = await setupPlan()
+	await addDay(plan, {
+		kind: 'share',
+		trackId: plan.runTrackId,
+		weekday: 5,
+		weight: 1,
+	})
+	// Written by hand against the Event, on the same week the pattern lays.
+	const own = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: plan.athleteId,
+			scheduledAt: new Date('2030-01-12T08:00:00Z'),
+			status: 'scheduled',
+			source: 'authored',
+			targetEventId: plan.eventId,
+			planOutlineId: plan.outlineId,
+		},
+	})
+
+	const conflict = await stampWeekPattern(plan.athleteId, {
+		patternId: plan.patternId,
+		weekKeys: ['2030-01-07'],
+		replace: false,
+	})
+	expect(conflict).toMatchObject({
+		reason: 'weeks-already-filled',
+		conflicts: [{ replacing: 0, keeping: 1 }],
+	})
+
+	const report = ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: true,
+		}),
+	)
+	expect(report).toMatchObject({ sessions: 1, replaced: 0 })
+	const ids = (await sessionsOf(plan)).map((session) => session.id)
+	expect(ids).toContain(own.id)
+	expect(ids).toHaveLength(2)
+})
+
+test('a stamped session the athlete edited becomes theirs and survives a re-stamp', async () => {
+	const plan = await setupPlan()
+	await addDay(plan, {
+		kind: 'share',
+		trackId: plan.runTrackId,
+		weekday: 5,
+		weight: 1,
+	})
+	ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: false,
+		}),
+	)
+	const [stamped] = await sessionsOf(plan)
+
+	const edited = await updateWorkoutSession(plan.athleteId, stamped!.id, {
+		title: 'Langtur med gjengen',
+		discipline: 'run',
+		intent: 'endurance',
+		scheduledAt: stamped!.scheduledAt,
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [{ kind: 'cardio', discipline: 'run', distanceM: 18000 }],
+			},
+		],
+	})
+	expect(edited.ok).toBe(true)
+
+	const report = ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: true,
+		}),
+	)
+	expect(report).toMatchObject({ replaced: 0 })
+	const kept = (await sessionsOf(plan)).find(
+		(session) => session.id === stamped!.id,
+	)
+	expect(kept?.workout?.title).toBe('Langtur med gjengen')
+})
+
+// ── Rows stamped before #505 ───────────────────────────────────────────────
+//
+// They were written `authored`, which ownership now reads as the athlete's. The
+// data migration hands them back to the machine unless they were edited later.
+// These tests run the real migration SQL, because the rule *is* the SQL.
+
+const LEGACY_PLAN_ROWS_MIGRATION =
+	'prisma/migrations/20261007182406_legacy_plan_rows_are_the_machines_unless_the_athlete_edited_them/migration.sql'
+
+/** Apply the migration as `migrate deploy` would: comments stripped, split. */
+async function applyLegacyPlanRowsMigration() {
+	const sql = await readFile(
+		path.join(process.cwd(), LEGACY_PLAN_ROWS_MIGRATION),
+		{ encoding: 'utf8' },
+	)
+	const statements = sql
+		.split('\n')
+		.filter((line) => !line.trimStart().startsWith('--'))
+		.join('\n')
+		.split(';')
+		.map((statement) => statement.trim())
+		.filter((statement) => statement.length > 0)
+	for (const statement of statements) {
+		await prisma.$executeRawUnsafe(statement)
+	}
+}
+
+/** Put a stamped session back in its pre-#505 state: `authored`, as written. */
+async function makeLegacy(sessionId: string, { editedLater = false } = {}) {
+	await prisma.workoutSession.update({
+		where: { id: sessionId },
+		data: { source: 'authored' },
+	})
+	if (editedLater) {
+		// Raw, because Prisma stamps `updatedAt` itself on every update.
+		await prisma.$executeRaw`UPDATE "WorkoutSession" SET "updatedAt" = "createdAt" + ${2 * 86_400_000} WHERE "id" = ${sessionId}`
+	}
+}
+
+test('re-stamping a week stamped before #505 replaces it rather than doubling it', async () => {
+	const plan = await setupPlan()
+	await addDay(plan, {
+		kind: 'share',
+		trackId: plan.runTrackId,
+		weekday: 5,
+		weight: 1,
+	})
+	ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: false,
+		}),
+	)
+	const [legacy] = await sessionsOf(plan)
+	await makeLegacy(legacy!.id)
+
+	await applyLegacyPlanRowsMigration()
+	const report = ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: true,
+		}),
+	)
+
+	expect(report).toMatchObject({ sessions: 1, replaced: 1 })
+	const after = await sessionsOf(plan)
+	expect(after).toHaveLength(1)
+	expect(after[0]).toMatchObject({ source: 'generated' })
+	expect(after[0]?.id).not.toBe(legacy!.id)
+})
+
+test('a pre-#505 stamped session edited after it was laid stays the athlete’s', async () => {
+	const plan = await setupPlan()
+	await addDay(plan, {
+		kind: 'share',
+		trackId: plan.runTrackId,
+		weekday: 5,
+		weight: 1,
+	})
+	ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: false,
+		}),
+	)
+	const [legacy] = await sessionsOf(plan)
+	await makeLegacy(legacy!.id, { editedLater: true })
+
+	await applyLegacyPlanRowsMigration()
+
+	const migrated = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: legacy!.id },
+		select: {
+			source: true,
+			adoptedAt: true,
+			updatedAt: true,
+			plannedTssValue: true,
+		},
+	})
+	// Generated now, but adopted at its last edit — so nothing re-lays it, and
+	// no number on it moved.
+	expect(migrated.source).toBe('generated')
+	expect(migrated.adoptedAt).toEqual(migrated.updatedAt)
+	expect(migrated.plannedTssValue).toBe(legacy!.plannedTssValue)
+	const report = ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: true,
+		}),
+	)
+	expect(report).toMatchObject({ replaced: 0 })
+	expect((await sessionsOf(plan)).map((session) => session.id)).toContain(
+		legacy!.id,
+	)
+})
+
 test('a double submit of the same confirmed stamp leaves the same sessions, not twice as many', async () => {
 	const plan = await setupPlan()
 	await addDay(plan, {
@@ -640,7 +860,7 @@ test('nothing limits how many weeks are stamped, and the guideline figures do no
 		weekday: 5,
 		weight: 1,
 	})
-	const before = await getSeasonForEvent(plan.athleteId, plan.eventId, NOW)
+	const before = await getSeasonForEvent(plan.athleteId, plan.eventId!, NOW)
 
 	const report = ok(
 		await stampWeekPattern(plan.athleteId, {
@@ -651,7 +871,7 @@ test('nothing limits how many weeks are stamped, and the guideline figures do no
 	)
 	expect(report.weeks).toBe(4)
 
-	const after = await getSeasonForEvent(plan.athleteId, plan.eventId, NOW)
+	const after = await getSeasonForEvent(plan.athleteId, plan.eventId!, NOW)
 	expect(after?.tracks.map((track) => track.span)).toEqual(
 		before?.tracks.map((track) => track.span),
 	)
@@ -755,7 +975,7 @@ test('a stamped week disagreeing with the Quality Session Mix warns softly', asy
 		}),
 	)
 
-	const warnings = await readStampedMixWarnings(plan.athleteId, plan.eventId)
+	const warnings = await readStampedMixWarnings(plan.athleteId, plan.outlineId)
 	expect(warnings).toEqual([
 		{
 			weekKey: '2030-01-07',
@@ -808,7 +1028,9 @@ test('a week that matches its mix says nothing at all', async () => {
 		}),
 	)
 
-	expect(await readStampedMixWarnings(plan.athleteId, plan.eventId)).toEqual([])
+	expect(await readStampedMixWarnings(plan.athleteId, plan.outlineId)).toEqual(
+		[],
+	)
 })
 
 test('a pattern with no days has nothing to stamp', async () => {
@@ -821,4 +1043,232 @@ test('a pattern with no days has nothing to stamp', async () => {
 			replace: false,
 		}),
 	).toEqual({ ok: false, reason: 'pattern-empty' })
+})
+
+describe('an open-ended plan (ADR 0079)', () => {
+	test('stamps sessions anchored to the plan, with no Event', async () => {
+		const plan = await setupPlan({ openEnded: true })
+		await addDay(plan, {
+			kind: 'share',
+			trackId: plan.runTrackId,
+			weekday: 5,
+			weight: 1,
+		})
+
+		ok(
+			await stampWeekPattern(plan.athleteId, {
+				patternId: plan.patternId,
+				weekKeys: ['2030-01-07'],
+				replace: false,
+			}),
+		)
+
+		const [session] = await sessionsOf(plan)
+		expect(session).toMatchObject({
+			source: 'generated',
+			targetEventId: null,
+			planOutlineId: plan.outlineId,
+		})
+	})
+
+	test('a re-stamp clears only this plan’s machine sessions in the week', async () => {
+		const plan = await setupPlan({ openEnded: true })
+		await addDay(plan, {
+			kind: 'share',
+			trackId: plan.runTrackId,
+			weekday: 5,
+			weight: 1,
+		})
+		ok(
+			await stampWeekPattern(plan.athleteId, {
+				patternId: plan.patternId,
+				weekKeys: ['2030-01-07'],
+				replace: false,
+			}),
+		)
+		const [laid] = await sessionsOf(plan)
+		// Two sessions in the same week that are not this plan's machine sessions:
+		// one no plan laid (no Event, no outline — the loose session an open-ended
+		// path must not mistake for its own), and one the athlete wrote.
+		const loose = await prisma.workoutSession.create({
+			select: { id: true },
+			data: {
+				userId: plan.athleteId,
+				scheduledAt: new Date('2030-01-10T08:00:00Z'),
+				status: 'scheduled',
+				source: 'generated',
+			},
+		})
+		const own = await prisma.workoutSession.create({
+			select: { id: true },
+			data: {
+				userId: plan.athleteId,
+				scheduledAt: new Date('2030-01-11T08:00:00Z'),
+				status: 'scheduled',
+				source: 'authored',
+				planOutlineId: plan.outlineId,
+			},
+		})
+
+		const conflict = await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: false,
+		})
+		expect(conflict).toMatchObject({
+			reason: 'weeks-already-filled',
+			conflicts: [{ replacing: 1, keeping: 1 }],
+		})
+
+		const report = ok(
+			await stampWeekPattern(plan.athleteId, {
+				patternId: plan.patternId,
+				weekKeys: ['2030-01-07'],
+				replace: true,
+			}),
+		)
+
+		expect(report).toMatchObject({ sessions: 1, replaced: 1 })
+		const ids = (await sessionsOf(plan)).map((session) => session.id)
+		expect(ids).not.toContain(laid!.id)
+		expect(ids).toEqual(expect.arrayContaining([loose.id, own.id]))
+	})
+
+	test('another athlete’s open-ended plan cannot be stamped', async () => {
+		const plan = await setupPlan({ openEnded: true })
+		const other = await setupPlan({ openEnded: true })
+		await addDay(plan, {
+			kind: 'share',
+			trackId: plan.runTrackId,
+			weekday: 5,
+			weight: 1,
+		})
+
+		expect(
+			await stampWeekPattern(other.athleteId, {
+				patternId: plan.patternId,
+				weekKeys: ['2030-01-07'],
+				replace: false,
+			}),
+		).toEqual({ ok: false, reason: 'pattern-gone' })
+	})
+})
+
+test('a plan deleted and re-created for its Event re-stamps a week without doubling it', async () => {
+	const plan = await setupPlan()
+	await addDay(plan, {
+		kind: 'share',
+		trackId: plan.runTrackId,
+		weekday: 5,
+		weight: 1,
+	})
+	ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: false,
+		}),
+	)
+	expect(
+		await deletePlanOutline(plan.athleteId, { outlineId: plan.outlineId }),
+	).toEqual({ ok: true })
+
+	// The same Event planned again: the new plan takes back the old one's sessions.
+	const again = await createPlanOutline(
+		plan.athleteId,
+		{
+			eventId: plan.eventId!,
+			startWeekKey: START_WEEK_KEY,
+			structure: { phases: [{ name: 'Base', weeks: 4, rhythm: 'none' }] },
+			tracks: [{ discipline: 'run', currency: 'km', anchorValue: 50 }],
+		},
+		NOW,
+	)
+	if (!again.ok) throw new Error(again.reason)
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { id: again.outlineId },
+		select: { tracks: { select: { id: true } } },
+	})
+	const added = await addWeekPattern(plan.athleteId, {
+		outlineId: again.outlineId,
+		name: 'Typical week',
+	})
+	if (!added.ok) throw new Error(added.reason)
+	const pattern = await prisma.weekPattern.findFirstOrThrow({
+		where: { outlineId: again.outlineId },
+		select: { id: true },
+	})
+	await addWeekPatternDay(plan.athleteId, {
+		patternId: pattern.id,
+		kind: 'share',
+		trackId: outline.tracks[0]!.id,
+		weekday: 5,
+		weight: 1,
+	})
+
+	const report = ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: pattern.id,
+			weekKeys: ['2030-01-07'],
+			replace: true,
+		}),
+	)
+
+	expect(report).toMatchObject({ sessions: 1, replaced: 1 })
+	const sessions = await sessionsOf(plan)
+	expect(sessions).toHaveLength(1)
+	expect(sessions[0]?.planOutlineId).toBe(again.outlineId)
+})
+
+test('an open-ended plan resting behind a race plan refuses a stamp (ADR 0079)', async () => {
+	const plan = await setupPlan({ openEnded: true })
+	await addDay(plan, {
+		kind: 'share',
+		trackId: plan.runTrackId,
+		weekday: 5,
+		weight: 1,
+	})
+	const event = await prisma.event.create({
+		select: { id: true },
+		data: {
+			athleteId: plan.athleteId,
+			name: 'Spring 10k',
+			kind: 'race',
+			priority: 'A',
+			startDate: new Date('2030-03-10T09:00:00Z'),
+			disciplines: JSON.stringify(['run']),
+		},
+	})
+	const race = await createPlanOutline(
+		plan.athleteId,
+		{
+			eventId: event.id,
+			startWeekKey: START_WEEK_KEY,
+			structure: { phases: [{ name: 'Base', weeks: 8 }] },
+			tracks: [{ discipline: 'run', currency: 'km', anchorValue: 40 }],
+		},
+		NOW,
+	)
+	if (!race.ok) throw new Error(race.reason)
+
+	const stamp = {
+		patternId: plan.patternId,
+		weekKeys: ['2030-01-07'],
+		replace: true,
+	}
+	expect(await stampWeekPattern(plan.athleteId, stamp, NOW)).toEqual({
+		ok: false,
+		reason: 'plan-resting',
+	})
+	expect(await sessionsOf(plan)).toHaveLength(0)
+	// Once the race has passed, the open-ended plan is active and lays weeks again.
+	expect(
+		(
+			await stampWeekPattern(
+				plan.athleteId,
+				stamp,
+				new Date('2030-03-11T12:00:00Z'),
+			)
+		).ok,
+	).toBe(true)
 })

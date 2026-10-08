@@ -10,8 +10,13 @@ and reflects on their training through structured workouts and session logs.
 **Training Plan**: The athlete's forward-looking schedule of planned training
 sessions, shaped by a **Plan Outline** and either anchored to a **Target Event**
 or open-ended — no Event and no end date, for the athlete who only wants to stay
-active. An open-ended plan is real, not a plan toward an invented Event; adding
-an Event later turns it into a plan toward that Event. It remains a concept/view
+active (_UI word:_ _Hold meg aktiv_; its mark is _blokk n av ∞_). An open-ended
+plan is real, not a plan toward an invented Event; adding an Event later turns
+it into a plan toward that Event. An athlete has at most one open-ended plan.
+The **active** plan is the nearest upcoming Target Event carrying a Plan
+Outline, and the open-ended plan when there is none: while a plan toward a race
+runs, the open-ended plan rests (ADR 0079). Countdown, taper and **Season Fit**
+decline without an Event rather than inventing one. It remains a concept/view
 over **Workout Sessions**, not a stored entity — whether the Outline was written
 by **Plan Generation** (retired, ADR 0044) or authored manually (ADR 0039). In
 periodization terms the plan spanning the season toward its Target Event is the
@@ -38,60 +43,86 @@ history and two athletes stamping the same template read different figures (ADR
 0045). _Avoid_: Plan library entry, generic plan, shared plan
 
 **Periodization Preset**: A built-in season **shape** the athlete starts from
-instead of a blank page — nine ship as code constants in
-`app/utils/plan-outline/presets.ts`: **three families at three lengths each**.
-The families are classic 3:1 linear, masters 2:1 and big base / pyramidal; a
-family is the shape (its blocks, rhythm, ramp, **Block Boundary Step** and
-**Quality Session Mix**) and a variant changes the week counts and nothing else,
-which is enforced structurally rather than by convention. The lengths —
-12/18/24, 11/19/25 and 14/21/27 — put every run-in from ten to twenty-seven
+instead of a blank page — fifteen ship as code constants in
+`app/utils/plan-outline/presets.ts`: **five families at three lengths each**.
+The families are classic 3:1 linear, masters 2:1, big base / pyramidal,
+polarized 80/20 and threshold focus; a family is the shape (its blocks, rhythm,
+ramp, **Block Boundary Step** and **Quality Session Mix**) and a variant changes
+the week counts and nothing else, which is enforced structurally rather than by
+convention. The lengths — 12/18/24, 11/19/25 and 14/21/27, polarized and
+threshold focus running Klassisk's — put every run-in from ten to twenty-seven
 weeks within **two weeks** of a shipped shape, which is how a fixed-length shape
 covers an arbitrary run-in: coverage is a property of how many shapes ship,
 never of a shape resizing itself (ADR 0048 §6). The **Peak** and the **Taper**
-hold at two weeks in every one of the nine, and the shortest shape is a masters
-one, because a 2:1 block still contains a recovery week at three weeks where a
-3:1 block needs four. No preset carries a **strength** segment, so deterministic
-generation cannot produce a strength track — an **Unavailable Metric** to be
-named, never a `sessionsPerWeek` to be invented. _Being redesigned (2026-10-07
-design grill):_ a strength track will be proposed from the athlete's own history
-(e.g. two sessions a week) with session contents from the strength module, so
-the frequency comes from history and is still never invented. Shown to the
-athlete as a _filosofi_ (training philosophy): each family is one philosophy,
-and further ways to train (e.g. polarized 80/20, threshold focus) are new
-families, not a new concept. Every family can also drive an open-ended
-**Training Plan**: one round is one block of the family's rhythm. Switching
-philosophy mid-season re-lays the plan from today on only, behind a preview the
-athlete approves: weeks already lived and the athlete's own sessions stay as
-they are. It is picked from **an illustration of the load profile it lays down**
-rather than from a sentence describing it, and that picture is derived from the
-preset's own configuration through the real derivation, so it cannot promise a
-shape applying does not deliver. It carries, per phase, a name, a week count, a
-rhythm and whether it tapers; and per endurance **Training Track segment** a
-**Volume Ramp**, a **Block Boundary Step** and a **Quality Session Mix**. It
-carries no **Volume Currency**, no **Season Anchor** value and no **Plan Start
-Week** — a preset is shape and never size — and leaves `recoveryCut`/`taperCut`
-unset so the documented convention applies rather than being stored as though
-the athlete had chosen it. Phases are **fixed length**: a preset applied to a
-run-in it does not fill shows the plan ending before or after the **Target
-Event** and stretches nothing — and each shape says **where it would land
-against this Event** before it is picked, including what the **Season Fit** rule
-would cost if it were applied — _runs 9 weeks past your event · fitting it
-shortens Base by 7 weeks and Build by 2 weeks_ — since that is the one thing its
-illustration cannot show (ADR 0048 §2, §6). Applying **copies it in and says
-so** — nothing stays linked, there is no provenance column, and every value is
-editable afterwards through the ordinary edit paths. A preset is picked **before
-the plan exists**: authoring a plan leads with the shapes — ordered by how close
-each lands to this Event, which is a default and never a label — and the chosen
-one lands whole — its phases _and_ each endurance segment's ramp, step and mix —
-with laying out your own blocks as the escape hatch beside them (ADR 0048 §1).
-Applying one to a plan that already exists is the same act on the plan surface.
-Distinct from a **Plan Template**, which is a stored, identity-carrying entity
-and is not yet built. The athlete-facing noun on the surface is **a shape** —
-"Start from a shape" — which is the word the domain reads naturally in; note
-that it is a _season_ shape and shares nothing with the **Workout Shape**, which
-is one session's structure. Where both could be meant, say **season shape**.
-_Avoid_: Plan preset, plan template (a different thing), periodization model,
-periodization scheme
+hold at two weeks in every one of the fifteen, and the shortest shape is a
+masters one, because a 2:1 block still contains a recovery week at three weeks
+where a 3:1 block needs four. No preset carries a **strength** segment, so
+deterministic generation cannot produce a strength track — an **Unavailable
+Metric** to be named, never a `sessionsPerWeek` to be invented. Instead the plan
+page **offers** a strength track from the athlete's own history — "Vi ser at du
+styrketrener ~2 ganger i uka. Legg til et styrkespor?" — when their last four
+complete weeks average at least one lifting session a week with sets logged;
+accepting adds a `sets` track anchored on that average, a strength block over
+the plan's weeks left at that frequency, and lifting days in the week pattern
+(the athlete's most recent strength session), so the weeks ahead get lifting
+targets and sessions with nothing set up by hand; with no such history nothing
+is offered, so the frequency still comes from history and is never invented.
+Shown to the athlete as a _filosofi_ (training philosophy): each family is one
+philosophy — _Klassisk 3:1_, _Masters 2:1_, _Stor base_, _Polarisert 80/20_,
+_Terskelfokus_ — with a plain sentence saying what it is. Polarized 80/20 and
+threshold focus are Klassisk's blocks, rhythm and lengths with a different
+**Quality Session Mix**: polarized is mostly easy plus a little very hard (zone
+5 only, one or two sessions a week, no threshold or tempo); threshold focus is
+built around tempo and threshold (zones 3–4, two a week, no zone 5). Every
+family can also drive an open-ended **Training Plan**: one round is one block of
+the family's opening rhythm, with that block's climb and mix — four weeks (three
+hard, one easy) on 3:1, three for Masters 2:1. The Outline **records the family
+it follows** (`PlanOutline.family`, since #505 S7) — the one place applying is
+not pure copying, because the philosophy is something the athlete sees and
+switches; a plan that records none (older, or hand-laid) is read off its rhythm,
+3:1 as Klassisk and 2:1 as Masters. Switching philosophy mid-season re-lays the
+plan from the first week not yet begun, behind a preview (_Forhåndsvisning_) the
+athlete approves: the phases behind that week stay (the one being lived is cut
+to its lived weeks), an open-ended plan gets one round of the new family and a
+plan toward an Event the new family's season fitted to the weeks left so it
+still ends on the Event's week, and the plan's later weeks are laid again
+through the gated clearing, around the athlete's sessions: a week holding one
+keeps it and gets the plan's other days at the new targets. Weeks already lived
+(a week is begun once its Monday is past or something in it is trained) and the
+athlete's own and adopted sessions stay as they are, and the confirm applies
+only the switch the preview showed. It is picked from **an illustration of the
+load profile it lays down** rather than from a sentence describing it, and that
+picture is derived from the preset's own configuration through the real
+derivation, so it cannot promise a shape applying does not deliver. It carries,
+per phase, a name, a week count, a rhythm and whether it tapers; and per
+endurance **Training Track segment** a **Volume Ramp**, a **Block Boundary
+Step** and a **Quality Session Mix**. It carries no **Volume Currency**, no
+**Season Anchor** value and no **Plan Start Week** — a preset is shape and never
+size — and leaves `recoveryCut`/`taperCut` unset so the documented convention
+applies rather than being stored as though the athlete had chosen it. Phases are
+**fixed length**: a preset applied to a run-in it does not fill shows the plan
+ending before or after the **Target Event** and stretches nothing — and each
+shape says **where it would land against this Event** before it is picked,
+including what the **Season Fit** rule would cost if it were applied — _runs 9
+weeks past your event · fitting it shortens Base by 7 weeks and Build by 2
+weeks_ — since that is the one thing its illustration cannot show (ADR 0048 §2,
+§6). Applying **copies it in and says so** — nothing stays linked, there is no
+provenance column, and every value is editable afterwards through the ordinary
+edit paths. A preset is picked **before the plan exists**: authoring a plan
+leads with the shapes — ordered by how close each lands to this Event, which is
+a default and never a label — and the chosen one lands whole — its phases _and_
+each endurance segment's ramp, step and mix — with laying out your own blocks as
+the escape hatch beside them (ADR 0048 §1). Applying one to a plan that already
+exists is the same act on the plan surface — **until a week of it has begun**: a
+shape replaces every phase with no preview, so once the plan is under way it is
+refused, and changing method is the philosophy switch, which keeps the weeks
+lived (#505 story 14). Distinct from a **Plan Template**, which is a stored,
+identity-carrying entity and is not yet built. The athlete-facing noun on the
+surface is **a shape** — "Start from a shape" — which is the word the domain
+reads naturally in; note that it is a _season_ shape and shares nothing with the
+**Workout Shape**, which is one session's structure. Where both could be meant,
+say **season shape**. _Avoid_: Plan preset, plan template (a different thing),
+periodization model, periodization scheme
 
 **Workout Template**: _Not a thing — the term is retired._ It described "a
 reusable workout definition that can be scheduled multiple times", which ADR
@@ -139,10 +170,12 @@ Timeline**, whose **Stream** is the timeline this entry once told readers to
 avoid saying. What did not leave is the projection — `getSessionLedger`,
 `toSessionLedgerEntry` and `buildLedgerRows` still decide what a session _is_
 (status, load, **Adherence Band**, shape bars), and the Stream builds every row
-from them, so the two can never disagree about a session. Use **Session Ledger**
-for that projection and **Stream** for the surface an athlete reads. _Avoid_:
-for the surface — History, log, home list; do not use this term for what home
-shows
+from them, so the two can never disagree about a session. On I dag a session
+still scheduled reads _ikke gjort_ (missed) only once its **day** has passed in
+the Athlete Timezone, not once its start time has: this morning's gym session is
+planned until midnight (#505 story 24). Use **Session Ledger** for that
+projection and **Stream** for the surface an athlete reads. _Avoid_: for the
+surface — History, log, home list; do not use this term for what home shows
 
 ### Workout structure
 
@@ -762,8 +795,10 @@ graph, timeline
 
 **Workout Notation**: The app's dense textual notation for a workout's structure
 (e.g. `2 km warm-up → 4 × 6 min @ 4:40/km · Z3 → cool-down`), always rendered
-from the Workout → Block → Step structure — never parsed from free text (ADR
-0027). _Avoid_: Shorthand, syntax, grammar (no parser exists)
+from the Workout → Block → Step structure (ADR 0027). One reader goes the other
+way, and only on the **Writing Line**: it turns a typed sentence into structure,
+and what is shown is still rendered from that structure (ADR 0027 as amended by
+#505 S11). _Avoid_: Shorthand, syntax
 
 **Token Sentence**: The rendering of a workout in the Workout Notation where
 every value is a **Token**. Rendered as the **Score stanza** (#251): one Block
@@ -1119,31 +1154,91 @@ periodization terms the Training Week is the microcycle. _Avoid_: Rolling 7 days
 — recognized synonym only)
 
 **Week Replan**: The persistent, at-most-once decision made when a Training Week
-closes (ADR 0025): from that week's **Weekly Plan Adherence** and current
-**TSB**, either soften the following week's still-scheduled sessions by one
-documented volume rule (downward only, floored), or explicitly decline —
-`no-change` or `insufficient-data` — with a plain-language reason. Stored per
-closed week and never re-opened by late-arriving data, so a multiplicative
-adjustment can never compound. Read on the **Hero**'s **This week** pane as the
-outcome's name plus its stored reason, verbatim — never re-derived at render, so
-what was applied and what is said cannot disagree. Distinct from the ephemeral
-one-session ease the Coach card's nudge applies. **Endurance-only**, and it
-stays that way: its scale inverts a _TSS_ ratio, and a strength week's
-completed-vs-planned **Summary Count** carries no volume semantics to invert — a
-skipped gym week is not evidence for softening runs (ADR 0046 §4). _Being
-redesigned (2026-10-07 design grill, ADR to follow):_ the decision becomes a set
-of **proposals**, each with its reason, shown to the athlete as the week closes
-(UI word: _Ukeskiftet_). A proposal on a machine-made, unadopted session that
-the athlete does not answer is applied the next morning; a proposal on the
-athlete's own session (`authored`, or adopted — see **Session Adoption**) is
-applied only on an explicit yes. _Avoid_: Auto-adjust, replanning engine, plan
+closes (ADR 0025, amended by ADR 0080): a set of **Week Replan Proposals**, each
+with its reason, shown to the athlete as the week closes (UI word:
+_Ukeskiftet_). The week-level judgment is still ADR 0025's — from that week's
+**Weekly Plan Adherence** and current **TSB**, either propose softening the
+following week's still-scheduled sessions by one documented volume rule
+(floored), or explicitly hold with a `keep` and a plain-language reason — and
+each missed session of the closed week gets a proposal of its own. Stored per
+closed week (outcome `proposed`, `no-change` or `insufficient-data`) and never
+re-opened by late-arriving data, so no week ever gets a second set. The week
+closes **Sunday 20:00** in the Athlete Timezone, and the **Week Change** (the
+hourly job, or any load recompute, whichever comes first) writes the set from
+then on. It writes nothing onto the sessions itself: an unanswered proposal that
+keeps or reduces load is applied from **06:00 the next morning** (Monday, for a
+Sunday close) to the machine's sessions, in one pass that runs once — what it
+held then waits for the athlete's answer; the athlete's own (`authored`, or
+adopted — see **Session Adoption**) change only on an explicit yes; and added
+load always needs a yes. Answered on the **Week Change Card** on I dag, and read
+on the **Hero**'s **This week** pane as the outcome's name plus its stored
+reason, verbatim. Distinct from the ephemeral one-session ease the Coach card's
+nudge applies. **Endurance-only**, and it stays that way: its scale inverts a
+_TSS_ ratio, and a strength week's completed-vs-planned **Summary Count**
+carries no volume semantics to invert — a skipped gym week is not evidence for
+softening runs (ADR 0046 §4). _Avoid_: Auto-adjust, replanning engine, plan
 correction
 
-**Replan Note**: The plain-language reason a **Week Replan** attaches to each
-**Workout Session** it softened, surfaced on the Workout Detail View and as a
-chip on the session's **Stream** row. Cleared when the prescription it explains
-is rewritten (a manual edit or a Session Nudge ease). _Avoid_: Adjustment flag,
-audit note, coach comment
+**Week Replan Proposal**: One change a **Week Replan** proposes for the week
+after a closed one — `keep`, `move`, `swap`, `add` or `scale`, or `add-phase`
+for an open-ended plan's next round, whose target is the plan rather than a
+session — with a plain-language reason, its **load direction** (adds load, or
+keeps or reduces it), a move's scope (_bare denne gangen_ or _fra nå av_), and
+the athlete's answer (Ok / Nei takk, or none). Applied on Ok, never on Nei takk,
+and on silence only when it keeps or reduces load and its target is the
+machine's when it applies. A missed session is never moved: a make-up proposal
+places a copy on a free day (only _bare denne gangen_ — a copy has no slot to
+move onward) and the missed session stays on its own day as _ikke gjort_. A
+proposal aimed at a session that has since been deleted applies nothing. "Keep"
+is a real proposal, never the absence of one. Written by a **proposal author** —
+a deterministic rule set today, AI later — and the apply rules do not depend on
+which (ADR 0080). The athlete's "Gjør uka lettere −15 %" is a proposal they
+create and accept in one tap. _Avoid_: Suggestion, recommendation, adjustment
+(that is the old in-place rescale)
+
+**Week Change**: The one server step that turns a week over (UI word:
+_Ukeskiftet_; `runWeekChangeForUser`, ADR 0080) — run hourly for every athlete
+with something due (the `week-change` job) and on every load recompute, never on
+a page load. In order, each at most once and claimed before it runs: it closes
+the Training Week from **Sunday 20:00** local and writes its **Week Replan**; in
+the same step it moves the **Planning Horizon** one week and fills the new week
+from the plan's **Week Pattern**; and from **06:00** the next morning it lets
+silence apply the **Week Replan Proposals** that may apply on silence. The
+**Week Replan** is the decision; the Week Change is the step that makes it,
+moves the horizon and lets silence answer; the **Week Change Card** is how the
+athlete sees it. _Avoid_: Week rollover, weekly cron, replan job
+
+**Week Change Card**: The card on I dag that carries a closed week's **Week
+Replan** to the athlete (UI word: _Ukeskiftet_; #505 stories 42–55). It shows
+from the close (Sunday 20:00 local) until every **Week Replan Proposal** is
+answered, applied, or past answering, and a line at the top of I dag
+(_Ukeskiftet: n forslag venter_) leads to it while any can be answered. It shows
+the week that went — plan against done per **Training Track**, in the track's
+own unit, with the sessions _ikke gjort_ and the _ekstra_ ones — then each
+proposal with what it proposes, its reason, whether it is aimed at the athlete's
+own session (_din økt_), and Ok / Nei takk (a move also asks _bare denne gangen_
+or _fra nå av_; an open-ended plan's next round lets the athlete choose its
+volume first, with the last round's peak week before → after in the track's
+unit). What silence applied that morning reads as done (_Gjort i morges_); a
+proposal whose session has passed reads _For sent_. Each answer says what it
+changed and what it did not (_Ukemålet står._). It also offers "Gjør uka lettere
+−15 %" once, for the coming week only, and keeps that week's planned sum before
+and after, so it says them after a reload too. Sits under today's row in the
+list. _Avoid_: Replan modal, review screen
+
+**Session Release**: The athlete handing one of their own sessions back to the
+app (UI words: _lås opp_, offered on their own planned rows on I dag) —
+`WorkoutSession.releasedAt`. A released session is the machine's again for
+**ownership** (see **Session Source**), so a **Week Replan Proposal** may apply
+to it on silence. Rewriting its prescription takes it back, the same act that is
+**Session Adoption**. _Avoid_: Unlock (as a code term), un-adopt
+
+**Replan Note**: The plain-language reason a **Week Replan Proposal** leaves on
+each **Workout Session** it changed when it applied (an ADR 0025 rescale left
+one too), surfaced on the Workout Detail View and as a chip on the session's
+**Stream** row. Cleared when the prescription it explains is rewritten (a manual
+edit or a Session Nudge ease). _Avoid_: Adjustment flag, audit note, coach
+comment
 
 **Athlete Timezone**: The IANA timezone used to determine which calendar day a
 Workout Session or Activity Import belongs to for load aggregation. Stored on
@@ -1365,12 +1460,27 @@ in viewer-local time. _Avoid_: Stored time, DB time
 **14-Day Horizon**: The fixed rolling window used to determine which sessions
 are upcoming. _Avoid_: Sprint window, month view
 
-**Planning Horizon**: How far ahead the app places concrete sessions — about two
-weeks; past it a week has only its phase and **Week Target**, and it is filled
-one week at a time as each **Training Week** closes. It limits the app only: the
-athlete may write sessions any distance ahead, and those are kept as theirs.
+**Planning Horizon**: How far ahead the app places concrete sessions — the
+coming **Training Week** and the one after it, counted from the week that last
+closed; past it a week has only its phase and **Week Target**. It moves one week
+at a time, in the same step that closes a week (_Ukeskiftet_, Sunday 20:00 in
+the Athlete Timezone): the machine fills the week after next from the active
+plan's **Week Pattern** with `generated` sessions, through the ordinary stamp,
+once per closed week (a fill that failed is retried until the next close). A
+week the plan already laid — even one whose sessions the athlete has since
+adopted — is not laid again, the athlete's own sessions in it are left as they
+are, and with no plan or no pattern nothing is filled. It limits the app only:
+the athlete may write sessions any distance ahead, and those are kept as theirs.
 Distinct from the **14-Day Horizon**, which only decides what reads as upcoming.
-_Avoid_: Wall, lookahead, sprint window.
+On home a plan week past it that nothing has laid reads as one line, a
+**Collapsed Week** (ADR 0082 §3), whose line says when the horizon reaches it:
+_fylles søndag kveld i uke N_, where N is the week **two before** it. The
+arithmetic is the close's own: the Sunday 20:00 close of week N fills week N+2,
+so week 41 is filled on the Sunday evening that ends week 39 — a moment on the
+calendar, not a condition on the athlete's training (an earlier _fylles når uke
+39 er ferdig_ read as the latter). With no **Week Pattern** nothing fills, and
+the line says _ingen økter lagt inn ennå_ instead. _Avoid_: Wall, lookahead,
+sprint window.
 
 **Discipline Query**: The URL query parameter that preserves the selected
 discipline filter. _Avoid_: Local filter state, tab state
@@ -1386,7 +1496,9 @@ User** for internal identity, **Account Connection** for an external service
 account)
 
 **Owner**: The authenticated user who owns workouts and workout sessions.
-_Avoid_: Creator, participant
+_Avoid_: Creator, participant, "the session's owner" for athlete-versus-machine
+(that is **Session Ownership**: every session has one Owner, the athlete, and
+still may be the machine's to change)
 
 ### App structure
 
@@ -1408,47 +1520,88 @@ model", "a possible future direction" — it is the home surface
 **Home Timeline**: The athlete's home view at `/`, and the default destination
 after login: **The Tape** as one screen. Three parts in one column — a header
 block holding the **Hero**, its **Pane Dots** and the **Week Strip**, the
-**Stream** beneath them, and the **Back-to-Today Pill** floating over both —
-plus the single "+ New" creation menu (#178), which the header carries because
-the design's bottom tab bar was not built. It carries **two horizontal axes and
-one vertical one**, and the rule that explains the whole screen is that the Hero
-never moves in time while the Week Strip and the Stream always do (ADR 0065 §8).
-It opens at the **Landing Position**, and the header collapses as the athlete
-moves away from that point in **either** direction, so the Stream gets the whole
-screen the moment it is being read rather than looked at. The Stream, the Week
-Strip and the Hero's Today pane are all derived from the one `LedgerSession[]`
-the **Session Ledger**'s query already shipped — the strip and the stream are
-two views of one array, so an overview cannot disagree with the thing it
-overviews — and the Hero's other three panes read the **Load Snapshots**,
-**Personal Records**, adherence and **Week Replan** the loader was already
-fetching. Nothing is fetched twice, and nothing new was fetched to bring those
-panes back. _Avoid_: Dashboard, Cockpit, home page, landing page, feed, tabs
+**Stream** beneath them — plus the single "+ New" creation menu (#178), which
+the header carries, and the **Back-to-Today Pill** (_I dag_) at the strip's
+corner. From `lg` up the **Season Pane** sits beside the column (ADR 0082). UI
+word: _I dag_. It carries **two horizontal axes and one vertical one**, and the
+rule that explains the whole screen is that the Hero never moves in time while
+the Week Strip and the Stream always do (ADR 0065 §8). It opens at the **Landing
+Position**, and the header collapses as the athlete moves away from that point
+in **either** direction, so the Stream gets the whole screen the moment it is
+being read rather than looked at. The Stream, the Week Strip and the Hero's
+Today pane are all derived from the one `LedgerSession[]` the **Session
+Ledger**'s query already shipped — the strip and the stream are two views of one
+array, so an overview cannot disagree with the thing it overviews — and the
+Hero's other three panes read the **Load Snapshots**, **Personal Records**,
+adherence and **Week Replan** the loader was already fetching. Nothing is
+fetched twice, and nothing new was fetched to bring those panes back. _Avoid_:
+Dashboard, Cockpit, home page, landing page, feed, tabs
 
 **Every-Day Grid**: The home stream's row model (ADR 0065): the row is a **day**
 and a day owns **zero or more Workout Sessions**, so every date from today
-forward renders whether or not anything is planned on it, and runs of empty days
-behind today collapse into a **Past Band** that expands on tap. An empty day is
-a real 44px control — tapping it stamps a one-step block and _renders_ it as a
-**Token Sentence** (ADR 0027), never parses one. It is a shortcut into authoring
-a session, never an editor for the **Plan Outline**. "Rest day" is written only
-where the plan prescribes recovery; every other empty day carries no label.
-_Avoid_: Calendar, cell (for a row), "a row is a session"
+forward is a day whether or not anything is planned on it, and runs of empty
+days collapse into a **Past Band** that expands on tap — behind today the
+record's `ingenting logget`, ahead of it the free days a printed plan folds into
+one short row, `3 ledige dager` (ADR 0082 §4). Today never folds. An empty day
+is a real 44px control — tapping it stamps a one-step block and _renders_ it as
+a **Token Sentence** (ADR 0027), or writes what the **Writing Line** read. It is
+a shortcut into authoring a session, never an editor for the **Plan Outline**.
+"Rest day" is written only where the plan prescribes recovery; every other empty
+day carries no label. _Avoid_: Calendar, cell (for a row), "a row is a session"
 
 **Day Stamp**: What tapping an empty day in the **Every-Day Grid** writes (ADR
 0065 §5, #501): a minimal **one-step block** — 45 min at Z2, in the prefilled
 **Discipline** — committed through the same `createWorkoutSession` the full
 authoring route uses, so a session authored from a cell is indistinguishable
 from one authored there. The row then renders it as an editable **Token
-Sentence**; nothing is ever parsed. The Discipline chip is prefilled from the
-athlete's **most-trained discipline**, read from their own completed sessions
-and shown _before_ it commits — and where there is no history to read it from
-the cell **asks**, because a default that is a guess dressed as a derivation is
-not a derivation. A discipline the line cannot say — **strength**, which must
-name a lift — is handed to the full route instead of half-written. On a past day
-the gesture and what it writes are identical: a prescription that carries a date
-in the past, never an actual. Undoing one is a real delete and leaves nothing
-behind (ADR 0076). _Avoid_: quick add, inline create, "logging a session",
-"recording"
+Sentence**. The same draft holds the **Writing Line**: typed into, it writes the
+sentence's structure instead of the stamp. The Discipline chip is prefilled from
+the athlete's **most-trained discipline**, read from their own completed
+sessions and shown _before_ it commits — and where there is no history to read
+it from the cell **asks**, because a default that is a guess dressed as a
+derivation is not a derivation. A discipline the line cannot say — **strength**,
+which must name a lift — is handed to the full route instead of half-written. On
+a past day the gesture and what it writes are identical: a prescription that
+carries a date in the past, never an actual. Undoing one is a real delete and
+leaves nothing behind (ADR 0076). _Avoid_: quick add, inline create, "logging a
+session", "recording"
+
+**Writing Line**: The text input on I dag where the athlete writes a session as
+a short sentence — `10 km rolig`, `3x10 min terskel p 1 min` (#505 stories
+35–41). It lives in a tapped empty day's draft and behind "+ Ny" →
+`Skriv en økt` for any other day up to two years ahead (or the plan's end, where
+later), past the **Planning Horizon** too; a far week past the plan reads as one
+collapsed line showing only the sessions written into it. While the athlete
+types it shows what was understood (the **Token Sentence** rendered from the
+structure the reader produced), the **Planned Volume** before → after against
+the **Week Target** (`40 → 46 km, målet står på 52`; a session with no number in
+the track's unit is `+1 uten km`, never a silent zero), and a suggestion for
+every word the reader did not know. It saves only a sentence it understood in
+full, as an `authored` session; the server reads the sentence again. Writing a
+session never moves the Week Target, and the toast after a write, a stamp or an
+undo says so (`Løping denne uka: 40 → 46 km. Ukemålet står på 52.`). Free-text
+commands (`syk til onsdag`) are not part of it. _Avoid_: command line, quick
+add, search box, chat
+
+**First Run**: The five screens a new athlete, or one with no plan, goes through
+to their first **Training Plan** (`/start`, #505 stories 61–71): connect
+intervals.icu (or _Hopp over_, which says that nothing will be pre-filled) →
+_Dette fant vi_ (the last four weeks: the most-trained sport, the weekly hours
+with their arithmetic — `43 km/uke à 5:35 ≈ 4 t` — the usual days and the
+lifting; every _ikke målt_ says why, and _Noe er feil_ sets the pre-fill right)
+→ three questions, pre-filled (what they train toward, a race or _Hold meg
+aktiv_; hours a week; which days) → the plan with _Vi valgte X fordi …_ in plain
+words and a switch to any of the five philosophies → the first two weeks, day by
+day → I dag. The days and hours become the athlete's **Training Availability**
+and **Weekly Capacity**; the plan is one endurance **Training Track** in hours
+whose heaviest week is at or under the hours given (the first week starts lower,
+so the family's climb fits), its hard sessions cut to fit the chosen days, a
+starter **Week Pattern** on those days and no others, and its first two weeks
+laid as `generated` sessions. What the screens show and what is made come from
+the same draft, so the plan is the one shown. _Jeg vil heller sette opp sesongen
+selv_ makes the same plan and opens it in Sesong; there is no empty-season
+start. The answers travel in the URL until the plan is made. _Avoid_: onboarding
+(the account sign-up), wizard, setup
 
 **Hero**: The **Home Timeline**'s top band — **four panes of _now_**, always
 anchored on today, paged sideways one full-width pane at a time (ADR 0065 §8):
@@ -1483,23 +1636,32 @@ pane is reached without a swipe — the pager is also keyboard-operable, and a
 pane change is announced. _Avoid_: Tabs, page indicator, carousel controls
 
 **Week Strip**: The **Home Timeline**'s _navigating_ horizontal axis — the whole
-season as one cell per **Training Week**, scrolled sideways. It **scrolls**
-where the **Hero** above it **pages**, and that is what keeps two swipeable
-bands on one screen legible as two instruments (ADR 0065 §8): cells are cut off
-at both edges with proximity snap and no indicator, because a cell sliced in
-half says _"this keeps going"_ where a full-width pane says _"one of several"_.
-Moving it moves the **Stream**; moving the Hero moves nothing. Both take
-`touch-action: pan-x`, so a diagonal drag reaches the Stream instead of being
-eaten sideways, and both carry a name and a role of their own. A cell carries
-the week's range, seven day dots (done, planned, missed, today, nothing), a load
-bar drawn against the season's heaviest planned week with what was actually done
-filled inside it, the **Plan Outline** phase in one quiet word, and one load
-figure — `48 / 312` for the week being decided, a single number for every other.
-It never carries a session name: an overview that competes with the thing it
-overviews is not an overview. Tapping a cell jumps the **Stream** to that week,
-loading it first if it is outside the window. Every week renders, including the
-ones outside that window, dimmed rather than dropped. _Avoid_: Filmstrip,
-calendar, carousel, tabs, This Week strip
+season as one bar per **Training Week**, every week on screen at once, with a
+**frame** over the weeks the **Stream** is showing (ADR 0082 §5). A bar is the
+lead track's `max(target, planned)` against the season's largest — exactly,
+never floored — so overplanning shows, with what was done filling it from the
+foot; a hard week reads darker than an easy one, today's week carries a mark
+under its bar and a week that asks for lifting a dot. With no plan it reads
+load. It never carries a session name: an overview that competes with the thing
+it overviews is not an overview. Every week is a real button named with its
+numbers; tapping one jumps the Stream there, loading it first if it is outside
+the window, and opening it if it is a **Folded Week**. The weeks are one toolbar
+and one tab stop, moved along with the arrow keys; a finger is read off its x
+over the whole row's height rather than off the bar under it, and dragging
+scrubs the Stream through the season. It does not scroll — only the **Hero**
+moves sideways — and its corner holds the **Back-to-Today Pill**. UI words:
+_Sesongen_, _I dag_. _Avoid_: Filmstrip, calendar, carousel, tabs, This Week
+strip, scrubber
+
+**Week Fold**: How the **Stream** draws a week that is not this week or a
+concrete one ahead (ADR 0082 §2–§3). A **Folded Week** is a closed week behind
+today, one line — `Forrige uke · 35 av 46 km · under` — that opens in place into
+the whole week and stays as its disclosure. A **Collapsed Week** is a plan week
+past the **Planning Horizon** that nothing machine-owned is in: one line —
+`Uke 41 · Oppbygging · mål 58 km · fylles søndag kveld i uke 39` — plus any
+session the athlete wrote there themselves, which is never hidden. A week the
+plan already laid stays open whatever the horizon says. _Avoid_: Accordion,
+hidden week, archived week
 
 **Stream**: The **Home Timeline**'s vertical axis, and the screen's reading
 surface: weeks in order, each a sticky header plus its days in weekday order,
@@ -1516,21 +1678,23 @@ is the difference between an overview and a list. _Avoid_: Session Ledger (that
 is the row model behind it), list, log, feed, history, "a row is a session"
 
 **Past Band**: A run of consecutive empty days behind today, rendered as **one
-row** in the **Stream** — `17–23 Aug` · `7 days · nothing logged` — that expands
-in place into ordinary day rows (ADR 0065 §3, ADR 0075). It says the thing the
-blank rows only imply, and it keeps stream height behind the reader stable,
-which is what the **Landing Position**'s growth compensation depends on. A run
-stops at the **Training Week**'s edge, because a week block is what the Stream
-mounts and windows, so seven days is the longest band there is; two days is the
-shortest, since a single empty day behind today is just a day. It never covers a
-date older than the query's own reach — _nothing was fetched_ is not _nothing
-was logged_. A real disclosure, not a swap: the control keeps its place above
-the days it opened, carrying its `aria-expanded` and the way back, and opening
-it never moves the reader's scroll position. The run **grows in** over 200ms
-rather than appearing — one of the two places on the surface that animates
+row** in the **Stream** — `17–23 Aug` · `7 dager · ingenting logget` — that
+expands in place into ordinary day rows (ADR 0065 §3, ADR 0075). It says the
+thing the blank rows only imply, and it keeps stream height behind the reader
+stable, which is what the **Landing Position**'s growth compensation depends on.
+A run stops at the **Training Week**'s edge, because a week block is what the
+Stream mounts and windows, so seven days is the longest band there is; two days
+is the shortest, since a single empty day behind today is just a day. It never
+covers a date older than the query's own reach — _nothing was fetched_ is not
+_nothing was logged_. A real disclosure, not a swap: the control keeps its place
+above the days it opened, carrying its `aria-expanded` and the way back, and
+opening it never moves the reader's scroll position. The run **grows in** over
+200ms rather than appearing — one of the two places on the surface that animates
 `height`, because seven rows arriving in one frame is the jarring change the
-band exists to prevent (ADR 0077). _Avoid_: Gap, collapsed rows, accordion,
-"skipped days", rest block
+band exists to prevent (ADR 0077). Ahead of today the same control folds a run
+of free days — `3 ledige dager` — into one short row that opens into cells to
+write in (ADR 0082 §4); today itself never folds. _Avoid_: Gap, collapsed rows,
+accordion, "skipped days", rest block
 
 **Start Cap** / **End Cap**: The **Stream**'s two stated ends. An infinite
 scroll that runs out of content and stops is indistinguishable from one that
@@ -1538,59 +1702,70 @@ broke, so the near end states **how far back home reads** ("Home reads back to
 22 Feb — 26 weeks of it, and the earliest session in that reach is 7 Jul") and
 the far end names the date everything is written through, says whether the rest
 of the season is sketched or simply absent, and offers the next step — write the
-remaining weeks, or pick the race the season is for. The End Cap also carries
-the "Elsewhere in trainm8" nav to the destinations home only links to:
-**Events**, the **Catalogue** and Programs (#471, #477). Those are not garnish —
-the design put them in a bottom tab bar, `app/root.tsx` keeps the wordmark row
-as the only persistent chrome (#178), and without this nav the Catalogue and
-Programs would have no way in at all. The Programs link is what #477's
-strength-programs entry row asked for, and it is why ADR 0074 could delete that
-row rather than re-home it: the job was making the programs module reachable
-from home without a small chip, and one on-page link at the far end of the
-stream does that job. _Avoid_: Empty state, footer, load-more, end of list
+remaining weeks, or plan a season. The End Cap used to carry an "Elsewhere in
+trainm8" nav to **Events**, the **Catalogue** and Programs (#471, #477), for
+want of a tab bar; the **Tab Bar** reaches them now and the nav is gone (ADR
+0083). _Avoid_: Empty state, footer, load-more, end of list
+
+**Tab Bar**: The app's four tabs and its only persistent navigation (ADR 0083):
+**I dag** (the **Home Timeline**), **Sesong** (the season plan, its Events and
+plan creation), **Bibliotek** (the Catalogue, Programs, every exercise and the
+athlete's own lifts) and **Meg** (profile, settings, the intervals.icu
+connection and the file upload; imports have no page of their own). A bottom bar
+on a phone, links in the wordmark row from `md` up. A tab is a home for URLs,
+not a URL: pages that moved into a tab keep their addresses, and the bar marks
+the tab a page lives under. The first run carries no bar. UI words: _I dag_,
+_Sesong_, _Bibliotek_, _Meg_. _Avoid_: menu, nav bar, sidebar; "Settings tab"
+(it is Meg)
 
 **Landing Position**: Where the **Home Timeline** parks on open — today's row,
-96 px below the top of the **Stream**, so the row reads as _arrived at_ rather
-than flush against the edge. It is a live measurement, never a number remembered
-from mount: a week loading in above moves today's row down the stream without
-the athlete having scrolled at all. Everything positional is measured from it
-rather than from `scrollTop === 0` — the **Hero**'s collapse, the loading pads,
-and the **Back-to-Today Pill** — because landing sits thousands of pixels down a
+12 px below the bottom of its week's sticky header, measured (ADR 0082 §10), so
+the row reads as _arrived at_ rather than tucked under the header or flush
+against it. It is a live measurement, never a number remembered from mount: a
+week loading in above moves today's row down the stream without the athlete
+having scrolled at all. Everything positional is measured from it rather than
+from `scrollTop === 0` — the **Hero**'s collapse, the loading pads, and the
+**Back-to-Today Pill** — because landing sits thousands of pixels down a
 bi-directional stream and an absolute test would have the hero collapsed on
 open. Re-applied on a ladder of timers until layout stops moving, then released,
 after which the athlete owns the scroll position. _Avoid_: Scroll restore,
 initial scroll, scroll anchor, offset
 
 **Back-to-Today Pill**: The one control that undoes navigation on the **Home
-Timeline** — a pill just above the bottom edge, shown only while today's row is
-off screen, pointing the way back (`↑ Back to today` when today is above,
-`↓ Back to today` when it is below). It returns the **Stream** to the **Landing
-Position**, which also re-opens the **Hero**. It is the one thing on the surface
-that floats rather than sits, so it is the only owner of `--shadow-pill` — a
-token rather than a number because a drop shadow is a claim about where the
-light is, and lifting the pill off a white stream is not the same job as lifting
-it off a near-black one (#486). It **enters from the bottom edge it lives on and
-leaves the same way** — a fade and an 8px lift, 200ms on the **Motion Scale**
-(ADR 0077) — which is why it is always mounted and "today is in view" is what
-makes it _not there_: transparent, untappable and out of the tab order, rather
-than absent. _Avoid_: Scroll to top, jump button, FAB, today button
+Timeline** — the _I dag_ pill at the **Week Strip**'s corner (ADR 0082 §6). It
+is always there: quiet while today's row is on screen, and filled, pointing the
+way back (`↑ I dag` when today is above, `↓ I dag` when it is below), once the
+reader has scrolled today away. Its accessible name says the way in words — _Gå
+til i dag_, _Gå opp til i dag_, _Gå ned til i dag_ — so it is never confused
+with the Hero's _I dag_ pane dot. It returns the **Stream** to the **Landing
+Position**, which also re-opens the **Hero**. It changes look instantly and
+never comes or goes, so it carries no animation; filled, it is the only owner of
+`--shadow-pill` — a token rather than a number because a drop shadow is a claim
+about where the light is (#486). UI word: _I dag_. _Avoid_: Scroll to top, jump
+button, FAB, today button
+
+**Season Pane**: What sits beside the **Home Timeline**'s column from `lg` up
+(#505 story 60, ADR 0082 §7): the plan page's **season chart** and a table of
+the plan's weeks — the lead track's three week numbers and the verdict — whose
+rows jump the **Stream**. Mounted and fetched only on a large screen. Not the
+full spreadsheet season, which is not built. _Avoid_: Sidebar, dashboard
 
 **Motion Scale**: The app's two easing tokens — `--ease-out`
 (`cubic-bezier(0.23, 1, 0.32, 1)`) and `--ease-in-out`
 (`cubic-bezier(0.77, 0, 0.175, 1)`) — and the rule they serve on the **Home
-Timeline**: four animations, each with a purpose it can name, and nothing else
-(ADR 0077). The four are the empty cell opening into the editor, the **Past
-Band** opening into its days, the press feedback on a row, a cell and the band
-(`scale(0.97)`, 160ms), and the **Back-to-Today Pill**'s arrival and departure.
-Only `transform` and `opacity` animate apart from the two accordions, whose
-`height` is the sanctioned exception because they genuinely reflow their
-neighbours — both stay at 200ms for it. `prefers-reduced-motion` is **gentler,
-never zero**: the transforms and both smooth scrollers go, the opacity halves
-stay. Hover motion is gated on `(hover: hover) and (pointer: fine)`; press
-feedback is not, because `:active` is a real press on touch. The **Hero**'s fold
-is not on this scale at all — it is scroll-driven and has no duration (#498).
-_Avoid_: Animation system, transition tokens, motion library (the tokens are
-CSS; the Hero's pager spring is `motion`'s and is a gesture, not an animation)
+Timeline**: animations each with a purpose it can name, and nothing else (ADR
+0077, ADR 0082 §6) — the accordions (the empty cell opening into the editor, a
+**Past Band** opening into its days, a **Folded Week** opening) and the press
+feedback on a row, a cell, a band and a fold (`scale(0.97)`, 160ms). Only
+`transform` and `opacity` animate apart from the accordions, whose `height` is
+the sanctioned exception because they genuinely reflow their neighbours — they
+stay at 200ms for it. `prefers-reduced-motion` is **gentler, never zero**: the
+transforms and both smooth scrollers go, the opacity halves stay. Hover motion
+is gated on `(hover: hover) and (pointer: fine)`; press feedback is not, because
+`:active` is a real press on touch. The **Hero**'s fold is not on this scale at
+all — it is scroll-driven and has no duration (#498). _Avoid_: Animation system,
+transition tokens, motion library (the tokens are CSS; the Hero's pager spring
+is `motion`'s and is a gesture, not an animation)
 
 **Ink Ladder**: The five tones between and below `foreground` and
 `muted-foreground` — `ink-body`, `ink-facts`, `ink-dim`, `ink-dimmer`,
@@ -1757,8 +1932,53 @@ Window**, file upload, share target), so an import is never left unattached and
 invisible. There is no **Activity Inbox** and no confirmation step; a wrong
 auto-match is corrected from the **Workout Detail View**, which can move a
 **Recording** to another planned session that day or lift it off the plan onto
-its own. `'other'` imports (ADR 0015) never match a plan but still auto-save.
-_Avoid_: Activity Inbox, import queue, promote step, confirmation.
+its own. `'other'` imports (ADR 0015) never match a plan but still auto-save. A
+link completes the planned session it lands on (a session holding a
+**Recording** is done), and undoing the link puts it back to not done — or to
+done, if the athlete marked it **Gjort** by hand. On I dag (#505 stories 78–82)
+each import's row offers **Angre kobling** (lift it off the plan onto an
+**Ekstra** session of its own) and **Koble igjen** (put it back), and the row
+asks **"hva var dette?"** only when auto-save was unsure: an Ekstra from the
+last 14 days on a day that still has a planned session it fits (same sport, no
+Recording — the one rule auto-save links by) — two or more fitted, or the plan
+was written after the run landed. The answers are _it was this session_, _en
+ekstra økt_, or **Annet**; any answer, or an Angre kobling, is remembered on the
+import, so nothing is asked twice. _Avoid_: Activity Inbox, import queue,
+promote step, confirmation.
+
+**Ekstra**: A session that exists only because an activity was recorded — a
+recording-only session (Session Source `recorded` or `detected`, not adopted)
+with no plan behind it. Once the athlete adopts it, it carries their work and is
+theirs rather than an Ekstra. Labelled `ekstra` on its row on I dag. It counts
+in its sport's track like any done session (unless put in **Annet**), and is
+never Planned Volume. _Avoid_: Unplanned session, orphan, extra workout.
+
+**Gjort (by hand)**: The athlete marks a session done with no **Recording**
+(#505 story 82): `markedDoneAt`, status `completed`. Its numbers come later,
+from the import that links onto it; until then the row says _tallene kommer fra
+importen_ when an import source is connected, and _uten tall_ when none is,
+rather than promising numbers nothing will bring. The week counts it as done
+without a number (`+1 uten km`), never as zero.
+
+**Quick Strength Log**: The short log under a strength session's row on I dag
+(#505 stories 83–84; UI words: _Logg økta_, _Som planlagt_, _Endre_), offered
+from the session's day to a week back while **no working Exercise Set Log is
+in** — whatever its status, because a session an import linked or one marked
+done is `completed` with nothing lifted in it (no provider carries sets). A
+session the runner has started is finished in the runner. It lists the planned
+lifts and sets as the prescription resolves today — a program session is
+re-stamped first, as opening it does, so the weight is the run's current one.
+_Som planlagt_ logs every planned set at its target in one tap; _Endre_ changes
+a set's reps (a hold's seconds) or leaves it empty for not done. The sets go in
+through the set log's upsert at the **weight the prescription resolved**, the
+same one a tap on the runner's circle logs (ADR 0064 §2: an off-program weight
+still has no way in), and the finish follows — one transaction, opened by a
+claim that matches only while no working set is logged, so a double tap or a
+runner tap in between cannot log twice. A lift whose weight or count does not
+resolve, or a repeated block (the set log has one row per prescribed set, not
+per repeat), sends the whole session to the runner rather than logging part of
+it as all of it. _Avoid_: Quick log (bare), log as planned (that is the button),
+Gjort (that is for cardio, whose numbers an import brings).
 
 **Auto-Save Mirror**: An **Activity Import** the athlete has not built anything
 on — its recording-only session is still structureless and carries no **Session
@@ -1944,17 +2164,25 @@ session stays `generated` forever instead of being rewritten to `authored`.
 _Avoid_: AI workout, auto session.
 
 **Session Source**: **Where a Workout Session came from, and only that** —
-`authored` (created by the athlete), `generated` (produced by **Plan
-Generation**), `recorded` (materialized from an **Activity Import** with no
-plan, no structure), or `detected` (a recording-only session whose **Workout**
-was auto-materialized from a **Structure Detection** above the honesty gate; ADR
-0033). **Immutable with respect to the athlete** (#460): it used to double as
-"has the athlete taken this over", so recording the takeover meant overwriting
-the origin — which is how rescheduling a `detected` session permanently
-destroyed re-detection (#459). The takeover is **Session Adoption** now. The one
-write that remains is the engine's own `recorded` ⇄ `detected` pair as a
-detection materializes or is retracted — the same engine restating what it found
-about its own recording, never a takeover. _Avoid_: Origin, type.
+`authored` (created by the athlete), `generated` (machine-produced: **Plan
+Generation**, a stamped **Week Pattern**, a copied week, the strength program —
+since #505 every plan materialization writes it, and a data migration moved rows
+stamped or copied before that from `authored`), `recorded` (materialized from an
+**Activity Import** with no plan, no structure), or `detected` (a recording-only
+session whose **Workout** was auto-materialized from a **Structure Detection**
+above the honesty gate; ADR 0033). Together with **Session Adoption** it decides
+**ownership**, the gate for every machine write (ADR 0080): a session is the
+**athlete's** when it is `authored` or adopted and not released (**Session
+Release**), and the **machine's** otherwise. The **Week Replan**'s silent
+applies, the Session Nudge and the clearing of a re-laid week touch only the
+machine's (`app/utils/session-ownership.ts`). **Immutable with respect to the
+athlete** (#460): it used to double as "has the athlete taken this over", so
+recording the takeover meant overwriting the origin — which is how rescheduling
+a `detected` session permanently destroyed re-detection (#459). The takeover is
+**Session Adoption** now. The one write that remains is the engine's own
+`recorded` ⇄ `detected` pair as a detection materializes or is retracted — the
+same engine restating what it found about its own recording, never a takeover.
+_Avoid_: Origin, type.
 
 **Session Adoption**: The athlete **taking over** a machine-produced **Workout
 Session** — recorded as `WorkoutSession.adoptedAt`, a second axis alongside
@@ -1974,24 +2202,45 @@ count_, which is a `CatalogueSave` tally, not this. _Avoid_: Taking ownership,
 claiming, promotion (that is an **Activity Import** term), "flipping to
 authored" (nothing flips any more).
 
+**Session Ownership**: Whether a **Workout Session** is the **athlete's** or the
+**machine's** to change — the gate for every machine write (ADR 0080). A session
+is the athlete's when its **Session Source** is `authored` or it has been
+adopted (**Session Adoption**), and it has not been handed back (**Session
+Release**); every other session is the machine's, whichever generator wrote it.
+The **Week Replan**'s silent applies, the Session Nudge and the clearing of a
+re-laid week touch only the machine's sessions; a proposal on the athlete's own
+needs their yes. A **reschedule or a rename does not change ownership** (#459,
+#460): only a save that changes the prescription adopts, so dragging the app's
+Tuesday run to Wednesday leaves it the app's. Shown on a planned home row as a
+quiet mark (UI words: _din økt_ / _appens økt_). One rule in two readings that
+must agree: `sessionOwner()` and `MACHINE_OWNED_SESSION`
+(`app/utils/session-ownership.ts`). Rows stamped or copied before #505 were
+handed to the machine by a data migration, except those edited after they were
+laid. _Avoid_: Owner (that is the authenticated user every session belongs to),
+"locked", authorship (a **Catalogue** term).
+
 **Target Event**: The **Event** a **Workout Session** builds toward. Distinct
 from **Event Result**, which is the single session that _was_ the event's
 execution. A Generated Session anchors to the Target Event that drove its
 generation. _Avoid_: Goal event, linked event.
 
 **Plan Outline**: The periodized structure spanning the full horizon, stored
-**relationally** against the **Event** — a sequence of phases (e.g. base / build
-/ peak / taper) plus the **Training Tracks** measured over them. Rows, not a
-JSON blob: manual authoring makes it primary data the athlete edits piece by
-piece, and the repo already models authored nested structure as rows while
-reserving JSON for value objects, so the invariants (one track per
-**Discipline**, one endurance segment per phase, zones 3–5 in a mix) are
-enforced by the database rather than by a validator (ADR 0044). The single
-authored periodization structure (ADR 0039); manual authoring is its only
-producer in V1, since **Plan Generation** is retired. Its phases are the
-mesocycles of periodization theory. _Avoid_: Periodization blob (what it was
-until ADR 0044), schedule template, mesocycle (as a UI/code term — recognized
-synonym for a phase only).
+**relationally** and owned by the athlete, against the **Event** when it has one
+and against none for an open-ended **Training Plan** (ADR 0079) — a sequence of
+phases (e.g. base / build / peak / taper; "Blokk 1", "Blokk 2" for the rounds of
+an open-ended plan) plus the **Training Tracks** measured over them. Every
+session a plan lays (a stamp, a copied week, the horizon fill, the generator)
+points back at its Outline, and the plan's clearing, occupancy and counting
+scope by that pointer rather than by the Event. Rows, not a JSON blob: manual
+authoring makes it primary data the athlete edits piece by piece, and the repo
+already models authored nested structure as rows while reserving JSON for value
+objects, so the invariants (one track per **Discipline**, one endurance segment
+per phase, zones 3–5 in a mix) are enforced by the database rather than by a
+validator (ADR 0044). The single authored periodization structure (ADR 0039);
+manual authoring is its only producer in V1, since **Plan Generation** is
+retired. Its phases are the mesocycles of periodization theory. _Avoid_:
+Periodization blob (what it was until ADR 0044), schedule template, mesocycle
+(as a UI/code term — recognized synonym for a phase only).
 
 **Plan Start Week**: The **Plan Outline**'s first **Training Week** — that
 week's Monday, stored as a `weekKey` (`YYYY-MM-DD` in the **Athlete Timezone**,
@@ -2041,12 +2290,28 @@ construction — position plus a week count, with dates derived from the **Plan
 Start Week** — so a gap or an overlap in a season is unrepresentable. An
 open-ended **Training Plan** is a run of phases with no last one: each round
 (named freely, e.g. "Blokk 4") is an ordinary phase, and the next is added when
-the current one ends. The next round's volume is proposed, never applied
-silently: the app suggests it with its reason (more after a round done to plan,
-the same after a round with missed weeks) and the athlete accepts or changes it.
-Adding an Event later ends the current round early and lays the phases toward
-that Event from there. _Avoid_: Block (UI word only), mesocycle, load phase,
-focus (the removed prototype field, ADR 0042).
+the current one ends. At the close of the last round's second-to-last week the
+**Week Replan** proposes the next round (an `add-phase` **Week Replan
+Proposal**): _Blokk n+1_, one block of the rhythm the round runs on, with its
+volume and the reason for it, graded on the weeks lived and the planned sessions
+in them only. A round **done to plan** — every graded week's planned sessions
+came to 85 % of their Planned TSS or more — proposes about 5 % more, which adds
+load and so waits for a yes; a **missed week** (under 85 %), or a week with
+nothing planned to measure, keeps the volume, and silence appends that. The
+athlete may accept at a volume of their own. A round is never placed in the
+past: answered after the plan's end, it opens on the first week not yet begun
+and the last round runs on over the weeks between. A lifting block that ran to
+the plan's end runs on into the new round. Rounds stop at two years of weeks
+(`MAX_PLAN_WEEKS`), the longest season the Sesong edits can change. Adding an
+Event later ends the current round early — at the weeks lived, this one included
+— and lays the family's run-up toward that Event from next week, fitted by the
+**Season Fit** rule; lived weeks and the athlete's sessions stay. The athlete
+may choose **which week of a block is the easy one** (`recoveryWeekIndex`, #505
+story 74): the block that week falls in — the rhythm's period counted from the
+phase's first week — recovers on it and on no other, every other block keeps the
+rhythm's own position, and one choice per phase (ADR 0084 §2). _Avoid_: Block
+(UI word only), mesocycle, load phase, focus (the removed prototype field, ADR
+0042).
 
 **Training Track**: One **Discipline** measured over a **Plan Outline**'s
 phases, owning its **Volume Currency**, its progression rule, its own
@@ -2175,7 +2440,9 @@ a ramp figure, and the number is stored exactly as authored. Its copy must name
 it a **convention** and make **no injury claim**: the 10% rule has a failed RCT
 behind it (Buist 2008, P=.90). _Avoid_: Ramp limit, safe ramp, injury risk
 warning (all three claim something the evidence does not support), `RAMP_WARN` /
-`RAMP_HOT` (the retired prototype's two-level scheme).
+`RAMP_HOT` (the retired prototype's two-level scheme). Its sibling on **Week
+Targets** — `weekRiseWarnings`, +10 % between two loading weeks — is ADR 0084's
+amendment to §12, not a week-over-week diff on every week.
 
 **Block Boundary Step**: The optional volume change a **Training Track** authors
 at a segment's opening, default `0` — expressing a deliberate volume drop
@@ -2280,10 +2547,12 @@ the week's **final** target: the week's role factor is not applied on top, or
 the number the athlete typed would never be the number they get. A **leaf**,
 never folded forward, so the following week still computes from the **Season
 Anchor** and the ramps and the derivation stays indexed rather than sequential
-(ADR 0040 §3, ADR 0044). Marks itself, reverts to the rule in one action, and
-survives a later re-anchor rather than being silently discarded. `0` expresses a
-week without training and needs no separate flag. _Avoid_: Manual week (every
-week is authored), exception, adjustment (that is **Week Replan**'s word).
+(ADR 0040 §3, ADR 0044). Marks itself, and survives a later re-anchor rather
+than being silently discarded. Set, and handed back to the rule ("Tilbake til
+planens mål"), only in _Endre sesongen_, behind a preview (ADR 0084). `0`
+expresses a week without training and needs no separate flag. _Avoid_: Manual
+week (every week is authored), exception, adjustment (that is **Week Replan**'s
+word).
 
 **Week Target**: The volume a **Training Track** aims at in one **Training
 Week**, in its **Volume Currency** — derived from the **Plan Outline**, or a
@@ -2291,8 +2560,56 @@ Week**, in its **Volume Currency** — derived from the **Plan Outline**, or a
 shown per week per track, never blended: **Week Target**, **Planned Volume**
 (the sum of that week's planned sessions) and **Actual Volume** (what was done).
 Adding, moving or editing a session changes Planned Volume and never the Week
-Target; a gap between the two is shown, not hidden. _Avoid_: Plan (as a number),
-goal, sum.
+Target; a gap between the two is shown, not hidden — a week planned more than 10
+% off its target carries the `≠` mark, and the season strip draws the larger of
+the two so overplanning shows (#505, `week-volumes.ts`). Changed in _Sesong_
+behind a preview (_Endre sesongen_, ADR 0084): a loading week whose target would
+rise more than 10 % over the loading week before it — easy weeks skipped, a
+taper never compared — is warned on and never blocked, and the message names the
+numbers that held ("Fasen og de andre ukene står som før."). _Avoid_: Plan (as a
+number), goal, sum.
+
+**Planned Volume**: The sum of one **Training Week**'s sessions that carry a
+prescription, per **Training Track**, in the track's **Volume Currency** — km or
+hours read off the prescription only where every step carries the unit (the
+**Week Pattern**'s own reading; in km a timed rest between reps carries none and
+is skipped, so `6x1 km p 1 min` is 6 km), **Planned TSS** on a TSS track,
+prescribed sets on a strength track. A missed session still counts: it was
+planned. A session with no number in the currency is **counted apart with its
+reason** ("+2 uten km") and never added as zero, so a week whose sessions are
+all unmeasured has no Planned Volume rather than a planned zero. Writing, moving
+or editing a session moves this number and never the **Week Target**. _Avoid_:
+Planned load (that is Planned TSS, per session), week sum.
+
+**Actual Volume**: The same sum over the week's **completed** sessions, from
+what was recorded or logged — the recording's distance or duration, the
+session's TSS, the working **Exercise Set Logs**. A session done with nothing in
+yet reads "tallene kommer fra importen" and is counted apart, like Planned
+Volume's unmeasured ones. A week is **graded only through the days already
+past** — so a Monday never reads "under" — and only over sessions measured on
+**both** sides: a planned number in the currency and, when done, a recorded one
+(a missed session is a true zero done). A session with either side missing is
+left out of both sums, never read as 0. With no such pair, a closed week whose
+done sessions all have a number is held against its whole Week Target; otherwise
+the week is _ikke målt_, with that reason. The grade reads the **Adherence
+Band**'s cut points (on from 85 %, over above 108 %; ADR 0019 note). A week
+closes with the **Week Replan**, Sunday 20:00 local, so that evening it grades
+through Sunday. A strength week logged up to a day and not after says so ("til
+og med torsdag · resten ikke målt") and is graded only that far. _Avoid_: Done
+volume, completed load, adherence (that is the TSS ratio, **Adherence Band**).
+
+**Annet**: The track that counts in nothing (#505 story 33): sessions shown
+apart from every **Training Track**, moving no **Week Target**, **Planned
+Volume** or **Actual Volume**. A session is there because its Discipline is the
+import-only `other` (ADR 0015), because the plan has no track for its
+Discipline, or because the athlete put it there
+(`WorkoutSession.countsInNoTrack`) — a bike commute on a plan with a ride track.
+The athlete chooses it on a done session's row on home — _Tell i Annet_, and
+_Tell i sporet_ to put it back (ADR 0082 §8). Choosing Annet is not a
+prescription change: it neither adopts nor releases the session (**Session
+Ownership**). Its TSS **still feeds Training Load**, which is physiological:
+Annet leaves the track volumes, never the load. _Avoid_: Other track (in UI),
+excluded, ignored.
 
 **Quality Session Count**: The **derived** sum of a **Quality Session Mix** —
 the axis Tønnessen 2020 showed to be decisive at matched volume and matched zone
@@ -2608,11 +2925,11 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   ADR 0044). A **Week Volume Override** short-circuits the whole function for
   its own week only.
 - A **Week Replan** decision exists at most once per athlete per closed
-  **Training Week**; when it adjusts, it rescales quantified **Step Quantities**
-  of the following week's still-scheduled **Workout Sessions** (never
-  **Intensity Targets**, never **Session Source**) and attaches a **Replan
-  Note** to each; every non-adjusting outcome carries an explicit reason
-  instead.
+  **Training Week** and holds one or more **Week Replan Proposals**; a `scale`
+  that applies rescales quantified **Step Quantities** of the following week's
+  still-scheduled **Workout Sessions** (never **Intensity Targets**, never
+  **Session Source**) and attaches a **Replan Note** to each; a holding week
+  carries an explicit `keep` with its reason instead.
 - A **Portable Anchor** is authored once and never rewritten into a number; a
   **Target Resolution** is computed from it against the athlete's profile. A
   _scheduled_ **Workout Session** re-resolves at view time; a _completed_ one

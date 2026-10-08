@@ -879,6 +879,59 @@ test('a session already being logged keeps the numbers it was opened with', asyn
 	])
 })
 
+test('a program session the athlete adopted keeps the weights they wrote, until they hand it back', async () => {
+	const userId = await createAthlete()
+	const instanceId = await startStrongLifts(userId, 60)
+	const opened = await openNextProgramSession({ userId, instanceId })
+	const sessionId = opened!.sessionId
+
+	// The athlete changes the squat to 65 kg on their own session: an edit to
+	// the prescription adopts it (Session Adoption), so it is theirs now.
+	await prisma.exerciseSet.updateMany({
+		where: {
+			step: {
+				exerciseId: SQUAT,
+				block: { workout: { sessions: { some: { id: sessionId } } } },
+			},
+		},
+		data: { weightKg: 65 },
+	})
+	await prisma.workoutSession.update({
+		where: { id: sessionId },
+		data: { adoptedAt: new Date() },
+	})
+
+	// The working weight moves, and the run reopens the session — from the
+	// program page or from the quick log on I dag. A machine write, so it may
+	// not touch the athlete's numbers.
+	await setWorkingWeight({
+		userId,
+		instanceId,
+		exerciseId: SQUAT,
+		equipment: BARBELL,
+		weightKg: 100,
+	})
+	const reopened = await openNextProgramSession({ userId, instanceId })
+	expect(reopened!.sessionId).toBe(sessionId)
+	expect(await stampedKg(sessionId, SQUAT)).toEqual([65, 65, 65, 65, 65])
+	expect(
+		await openNextProgramSession({
+			userId,
+			instanceId,
+			onlySessionId: sessionId,
+		}),
+	).toMatchObject({ sessionId })
+	expect(await stampedKg(sessionId, SQUAT)).toEqual([65, 65, 65, 65, 65])
+
+	// _Lås opp_ hands it back: the machine's again, it takes the run's weight.
+	await prisma.workoutSession.update({
+		where: { id: sessionId },
+		data: { releasedAt: new Date() },
+	})
+	await openNextProgramSession({ userId, instanceId })
+	expect(await stampedKg(sessionId, SQUAT)).toEqual([100, 100, 100, 100, 100])
+})
+
 test('a scheduled session left over from an ended run is not adopted by a new one', async () => {
 	const userId = await createAthlete()
 	const first = await startStrongLifts(userId, 60)

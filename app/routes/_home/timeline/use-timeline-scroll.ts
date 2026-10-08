@@ -39,18 +39,17 @@ import {
 	type AwayFromToday,
 	activeWeekFrom,
 	awayFromToday,
-	centreScrollLeft,
 	compensatedScrollTop,
 	heroFold,
 	HERO_LIFT_SHARE,
-	LANDING_OFFSET,
+	landingOffsetFor,
 	landingPosition,
 	loadEdge,
 	offsetWithin,
 	SETTLE_LADDER,
 	SETTLE_WINDOW_MS,
-	STRIP_CENTRE_LADDER,
 	WEEK_JUMP_OFFSET,
+	weeksInView,
 } from './anchoring.ts'
 
 /** The DOM contract between this hook and the markup that renders the timeline. */
@@ -70,11 +69,12 @@ export const STREAM_ATTR = 'data-timeline-stream'
  */
 export const HELD_ATTR = 'data-timeline-held'
 export const TODAY_ATTR = 'data-timeline-today'
+/** A week's sticky header — what today's row must land clear of. */
+export const WEEK_HEADER_ATTR = 'data-week-header'
 export const CELL_ATTR = 'data-timeline-cell'
 
 export type TimelineScroll = {
 	streamRef: (node: HTMLDivElement | null) => void
-	stripRef: (node: HTMLDivElement | null) => void
 	/**
 	 * The hero's clip box. The hook measures its open height and writes the fold
 	 * straight onto it, because a fold that re-rendered React on every scroll
@@ -91,6 +91,12 @@ export type TimelineScroll = {
 	collapsed: boolean
 	/** The week the stream is parked in — the strip's active cell. */
 	activeWeekKey: string
+	/**
+	 * The first and last week the stream is showing — the edges of the strip's
+	 * frame (#505 story 17). Re-measured on the same pass as the active week,
+	 * and set only when an edge moves to another week.
+	 */
+	frame: { from: string; to: string }
 	/** −1 above the fold, 0 in view, +1 below; drives the back-to-today pill. */
 	away: AwayFromToday
 	/** How many weeks either side of today are mounted. */
@@ -113,14 +119,17 @@ export function useTimelineScroll({
 	const [after, setAfter] = useState(1)
 	const [collapsed, setCollapsed] = useState(false)
 	const [activeWeekKey, setActiveWeekKey] = useState(homeKey)
+	const [frame, setFrame] = useState({ from: homeKey, to: homeKey })
+	// A mirror of `frame`, so the scroll pass compares without setting state it
+	// already has — the reason `activeKeyRef` mirrors the active week.
+	const frameRef = useRef(frame)
 	const [away, setAway] = useState<AwayFromToday>(0)
 	// A mirror of `activeWeekKey` for the measuring path to read. A state updater
-	// must stay pure — React may run it more than once — and deciding to re-centre
-	// the strip is a side effect, so the comparison happens out here instead.
+	// must stay pure — React may run it more than once — and deciding whether to
+	// set state at all is the comparison, so it happens out here instead.
 	const activeKeyRef = useRef(homeKey)
 
 	const streamElRef = useRef<HTMLDivElement | null>(null)
-	const stripElRef = useRef<HTMLDivElement | null>(null)
 	const heroElRef = useRef<HTMLDivElement | null>(null)
 	/** The hero's height with nothing folded away — the fold's whole travel. */
 	const heroOpenRef = useRef(0)
@@ -148,8 +157,6 @@ export function useTimelineScroll({
 	const markRef = useRef<{ key: string; offset: number } | null>(null)
 	/** A jump waiting for its week to reach the DOM. */
 	const pendingJumpRef = useRef<string | null>(null)
-	/** A strip cell waiting to be centred after the render that mounts it. */
-	const pendingCentreRef = useRef<string | null>(null)
 	/** One growth per pass; two in the same tick would double-count the window. */
 	const growingRef = useRef(false)
 
@@ -191,6 +198,20 @@ export function useTimelineScroll({
 		[],
 	)
 
+	/**
+	 * How far below the stream's top today parks: its week's sticky header,
+	 * measured, plus a little air (`landingOffsetFor`). Measured on every use,
+	 * because the header's height is the week's tracks and the hero's fold is
+	 * not, and a remembered number is the bug this replaced.
+	 */
+	const landingOffset = useCallback((el: HTMLElement) => {
+		const header = el
+			.querySelector(`[${TODAY_ATTR}]`)
+			?.closest(`[${WEEK_ATTR}]`)
+			?.querySelector(`[${WEEK_HEADER_ATTR}]`)
+		return landingOffsetFor(header?.getBoundingClientRect().height ?? 0)
+	}, [])
+
 	const todayOffset = useCallback(
 		(el: HTMLElement) => {
 			const node = el.querySelector(`[${TODAY_ATTR}]`)
@@ -203,9 +224,11 @@ export function useTimelineScroll({
 	const landing = useCallback(
 		(el: HTMLElement) => {
 			const offset = todayOffset(el)
-			return offset == null ? landingRef.current : landingPosition(offset)
+			return offset == null
+				? landingRef.current
+				: landingPosition(offset, landingOffset(el))
 		},
-		[todayOffset],
+		[landingOffset, todayOffset],
 	)
 
 	/**
@@ -280,27 +303,6 @@ export function useTimelineScroll({
 		[],
 	)
 
-	const centreStrip = useCallback(
-		(key: string) => {
-			const strip = stripElRef.current
-			if (!strip?.isConnected) return
-			const cell = strip.querySelector<HTMLElement>(
-				`[${CELL_ATTR}="${cssEscape(key)}"]`,
-			)
-			if (!cell) return
-			const left =
-				cell.getBoundingClientRect().left -
-				strip.getBoundingClientRect().left +
-				strip.scrollLeft
-			jumpTo(
-				strip,
-				'x',
-				centreScrollLeft(left, cell.offsetWidth, strip.clientWidth),
-			)
-		},
-		[jumpTo],
-	)
-
 	// ——— the scroll pass ——————————————————————————————————————————————————
 
 	/**
@@ -321,8 +323,16 @@ export function useTimelineScroll({
 		const nextWeek = activeWeekFrom(weeks, top, activeKeyRef.current)
 		if (nextWeek !== activeKeyRef.current) {
 			activeKeyRef.current = nextWeek
-			pendingCentreRef.current = nextWeek
 			setActiveWeekKey(nextWeek)
+		}
+		const inView = weeksInView(weeks, top, el.clientHeight)
+		if (
+			inView &&
+			(inView.from !== frameRef.current.from ||
+				inView.to !== frameRef.current.to)
+		) {
+			frameRef.current = inView
+			setFrame(inView)
 		}
 		const offset = todayOffset(el)
 		if (offset != null) setAway(awayFromToday(offset, top, el.clientHeight))
@@ -383,11 +393,11 @@ export function useTimelineScroll({
 		// Nothing to aim at yet: no anchor, or a stream that has not laid out far
 		// enough to be scrollable at all.
 		if (offset == null || el.scrollHeight <= el.clientHeight) return
-		const want = landingPosition(offset)
+		const want = landingPosition(offset, landingOffset(el))
 		if (!want) return
 		jumpTo(el, 'y', want)
 		landingRef.current = want
-	}, [jumpTo, scroller, todayOffset])
+	}, [jumpTo, landingOffset, scroller, todayOffset])
 
 	/**
 	 * Hand the scroll position back to the athlete. On its own timer rather than
@@ -402,8 +412,9 @@ export function useTimelineScroll({
 		setAway(0)
 		activeKeyRef.current = homeKey
 		setActiveWeekKey(homeKey)
-		pendingCentreRef.current = homeKey
-	}, [homeKey])
+		// Where the landing actually left the reader, for the strip's frame.
+		resync()
+	}, [homeKey, resync])
 
 	const streamRef = useCallback(
 		(node: HTMLDivElement | null) => {
@@ -420,17 +431,6 @@ export function useTimelineScroll({
 		heroElRef.current = node
 	}, [])
 
-	const stripRef = useCallback(
-		(node: HTMLDivElement | null) => {
-			if (!node || stripElRef.current === node) return
-			stripElRef.current = node
-			for (const delay of STRIP_CENTRE_LADDER) {
-				later(() => centreStrip(homeKey), delay)
-			}
-		},
-		[centreStrip, homeKey, later],
-	)
-
 	// ——— jumping ——————————————————————————————————————————————————————————
 
 	const backToToday = useCallback(() => {
@@ -440,9 +440,8 @@ export function useTimelineScroll({
 		activeKeyRef.current = homeKey
 		setActiveWeekKey(homeKey)
 		setAway(0)
-		pendingCentreRef.current = homeKey
 		const offset = todayOffset(el)
-		if (offset != null) jumpTo(el, 'y', offset - LANDING_OFFSET)
+		if (offset != null) jumpTo(el, 'y', offset - landingOffset(el))
 		// Measured here rather than on a ladder of timers. The jump above is
 		// instant, so there is no smooth scroll to land mid-flight of, and the
 		// fold is a write rather than a transition — both are true of the position
@@ -450,7 +449,7 @@ export function useTimelineScroll({
 		// reliably emit a `scroll` event, which is why this is by hand at all.
 		resync()
 		applyFold(el)
-	}, [applyFold, homeKey, jumpTo, resync, scroller, todayOffset])
+	}, [applyFold, homeKey, jumpTo, landingOffset, resync, scroller, todayOffset])
 
 	/**
 	 * Drain a queued jump once its week is mounted. A jump into an unloaded week
@@ -486,7 +485,6 @@ export function useTimelineScroll({
 			if (index > todayIndex + after) setAfter(index - todayIndex)
 			activeKeyRef.current = key
 			setActiveWeekKey(key)
-			pendingCentreRef.current = key
 			pendingJumpRef.current = key
 			// A week already inside the window mounts nothing new, so there is no
 			// render for the effect below to drain the jump from.
@@ -500,11 +498,6 @@ export function useTimelineScroll({
 	useEffect(() => {
 		const jumped = drainJump()
 		settle()
-		const centre = pendingCentreRef.current
-		if (centre) {
-			pendingCentreRef.current = null
-			centreStrip(centre)
-		}
 		const el = scroller()
 		if (!el) return
 		// Credit against the node that was actually marked, not against whichever
@@ -578,11 +571,11 @@ export function useTimelineScroll({
 
 	return {
 		streamRef,
-		stripRef,
 		heroRef,
 		onStreamScroll,
 		collapsed,
 		activeWeekKey,
+		frame,
 		away,
 		loaded: { before, after },
 		backToToday,

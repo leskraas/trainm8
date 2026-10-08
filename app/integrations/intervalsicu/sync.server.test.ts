@@ -235,6 +235,76 @@ test('two same-day runs against one plan: one matches it, the other gets its own
 	expect(standalone).toMatchObject({ workoutId: null, source: 'recorded' })
 })
 
+test('the sync goes through auto-save: a run that fits its plan completes it, one that fits two stands as ekstra', async () => {
+	const { user } = await setupConnection()
+	const plannedRun = async (scheduledAt: string) => {
+		const workout = await prisma.workout.create({
+			select: { id: true },
+			data: {
+				title: faker.lorem.words(3),
+				discipline: 'run',
+				intent: 'endurance',
+				ownerId: user.id,
+			},
+		})
+		return prisma.workoutSession.create({
+			select: { id: true },
+			data: {
+				userId: user.id,
+				workoutId: workout.id,
+				scheduledAt: new Date(scheduledAt),
+			},
+		})
+	}
+	// 21 May: one planned run. 22 May: two, so the rule cannot pick.
+	const single = await plannedRun('2026-05-21T09:00:00.000Z')
+	const pair = await Promise.all([
+		plannedRun('2026-05-22T06:00:00.000Z'),
+		plannedRun('2026-05-22T17:00:00.000Z'),
+	])
+	server.use(
+		http.get(ACTIVITIES_URL, () =>
+			HttpResponse.json([
+				newActivity('i9101'),
+				{ ...newActivity('i9102'), start_date: '2026-05-22T07:00:00Z' },
+			]),
+		),
+		http.get(STREAMS_URL, () => new HttpResponse(null, { status: 404 })),
+	)
+
+	const result = await syncIntervalsIcuActivities(user.id, {
+		now: new Date('2026-05-23T00:00:00.000Z'),
+	})
+	invariant(result.ok, 'expected a successful sync')
+
+	const linked = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: single.id },
+		select: { status: true, recording: { select: { externalId: true } } },
+	})
+	expect(linked).toEqual({
+		status: 'completed',
+		recording: { externalId: 'i9101' },
+	})
+	// The unsure one is an ekstra session of its own on its day, recorded only;
+	// both planned runs wait for the athlete's answer on I dag.
+	const unsure = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: user.id, externalId: 'i9102' },
+		select: {
+			linkAnsweredAt: true,
+			promotedSession: { select: { source: true, workoutId: true } },
+		},
+	})
+	expect(unsure).toEqual({
+		linkAnsweredAt: null,
+		promotedSession: { source: 'recorded', workoutId: null },
+	})
+	const waiting = await prisma.workoutSession.findMany({
+		where: { id: { in: pair.map((session) => session.id) } },
+		select: { recordingId: true },
+	})
+	expect(waiting).toEqual([{ recordingId: null }, { recordingId: null }])
+})
+
 test('an auto-matched activity earns TSS from the post-sync load recompute', async () => {
 	const { user } = await setupConnection()
 	await prisma.athleteProfile.create({
@@ -273,11 +343,15 @@ test('an auto-matched activity earns TSS from the post-sync load recompute', asy
 	// 160) — previously nothing recomputed after sync, so TSS stayed null.
 	const imported = await prisma.activityImport.findFirstOrThrow({
 		where: { athleteId: user.id, externalId: 'i9030' },
-		select: { promotedSessionId: true, tssValue: true, tssFormula: true },
+		select: {
+			promotedSessionId: true,
+			promotedSession: { select: { tssValue: true, tssFormula: true } },
+		},
 	})
 	expect(imported.promotedSessionId).not.toBeNull()
-	expect(imported.tssFormula).toBe('hrTSS')
-	expect(imported.tssValue).toBeGreaterThan(0)
+	// A matched session is done, so the TSS is the session's own.
+	expect(imported.promotedSession?.tssFormula).toBe('hrTSS')
+	expect(imported.promotedSession?.tssValue).toBeGreaterThan(0)
 })
 
 test('a 401 flips the connection to revoked and reports it', async () => {

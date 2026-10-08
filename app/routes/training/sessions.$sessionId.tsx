@@ -60,7 +60,7 @@ import {
 } from '#app/components/ui/select.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
-	detachRecordingFromPlan,
+	ImportLinkNotFoundError,
 	relinkRecordingToSession,
 } from '#app/utils/activity-import.server.ts'
 import { type ActivityStream, isNum } from '#app/utils/activity-stream.ts'
@@ -83,6 +83,7 @@ import {
 	formatSpeed,
 	formatTime,
 } from '#app/utils/format.ts'
+import { undoImportLink } from '#app/utils/import-link.server.ts'
 import {
 	type DisciplineThresholdMap,
 	parseAuthoredIntensity,
@@ -90,7 +91,7 @@ import {
 	targetText,
 	unresolvedThresholdReasons,
 } from '#app/utils/intensity-target.ts'
-import { SESSION_ARCHETYPE_LABELS } from '#app/utils/labels.ts'
+import { SESSION_ARCHETYPE_LABELS, APP_TAB_LABELS } from '#app/utils/labels.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
@@ -153,6 +154,7 @@ import {
 	markSessionMissed,
 	updateWorkoutSession,
 } from '#app/utils/workout.server.ts'
+import { withWeekSumToast } from '#app/utils/writing-line.server.ts'
 import { type Route } from './+types/sessions.$sessionId.ts'
 import { type ExerciseItem } from './__exercise-combobox.tsx'
 import { ScheduledWorkoutSentence } from './__workout-detail-editor.tsx'
@@ -394,9 +396,32 @@ export async function action({ request, params }: Route.ActionArgs) {
 	const intent = formData.get('intent')
 
 	if (intent === 'delete') {
-		const deleted = await deleteWorkoutSession(userId, params.sessionId)
+		const sessionId = params.sessionId
+		// Read before it goes, owner-scoped: what the toast's week sum is about
+		// (#505 story 39). A recording-only session has no prescription to sum.
+		const target = await prisma.workoutSession.findFirst({
+			where: { id: sessionId, userId },
+			select: { scheduledAt: true, workout: { select: { discipline: true } } },
+		})
+		invariantResponse(target, 'Workout session not found', { status: 404 })
+		if (!target.workout) {
+			const deleted = await deleteWorkoutSession(userId, sessionId)
+			invariantResponse(deleted, 'Workout session not found', { status: 404 })
+			return redirect('/')
+		}
+		const timezone = await getAthleteTimezone(userId)
+		const { result: deleted, headers } = await withWeekSumToast(
+			userId,
+			{
+				dayKey: localDate(target.scheduledAt, timezone),
+				discipline: target.workout.discipline,
+				change: 'removed',
+				timezone,
+			},
+			() => deleteWorkoutSession(userId, sessionId),
+		)
 		invariantResponse(deleted, 'Workout session not found', { status: 404 })
-		return redirect('/')
+		return redirect('/', headers ? { headers } : undefined)
 	}
 
 	if (intent === 'mark-missed') {
@@ -424,8 +449,11 @@ export async function action({ request, params }: Route.ActionArgs) {
 		})
 
 		if (intent === 'detach') {
-			const moved = await detachRecordingFromPlan(userId, current.recording.id)
-			invariantResponse(moved, 'This recording is not attached to a plan', {
+			// The same path as _Angre kobling_ on I dag (#505 story 81): the
+			// answer is remembered, and the ekstra session it makes offers
+			// _Koble igjen_ back to this one.
+			const moved = await undoImportLink(userId, current.recording.id)
+			invariantResponse(moved.ok, 'This recording is not attached to a plan', {
 				status: 400,
 			})
 			return redirect(`/training/sessions/${moved.sessionId}`)
@@ -444,7 +472,8 @@ export async function action({ request, params }: Route.ActionArgs) {
 				targetSessionId,
 			)
 			return redirect(`/training/sessions/${moved.sessionId}`)
-		} catch {
+		} catch (error) {
+			if (!(error instanceof ImportLinkNotFoundError)) throw error
 			return data(
 				{ error: 'Could not move the recording to that session.' },
 				{ status: 400 },
@@ -532,10 +561,21 @@ export async function action({ request, params }: Route.ActionArgs) {
 			)
 		}
 
-		const updated = await updateWorkoutSession(
+		// The token edit's toast (#505 story 39): what the change did to its
+		// week's sum, and that the Week Target stayed — said only when the sum
+		// moved, so retyping an intensity or a time of day says nothing.
+		const timezone = await getAthleteTimezone(userId)
+		const sessionId = params.sessionId
+		const { result: updated, headers: toastHeaders } = await withWeekSumToast(
 			userId,
-			params.sessionId,
-			authoringInput.data,
+			{
+				dayKey: localDate(authoringInput.data.scheduledAt, timezone),
+				discipline: authoringInput.data.discipline,
+				change: 'added',
+				timezone,
+				quietUnlessMoved: true,
+			},
+			() => updateWorkoutSession(userId, sessionId, authoringInput.data),
 		)
 		invariantResponse(
 			updated.ok || updated.reason !== 'not-found',
@@ -592,7 +632,10 @@ export async function action({ request, params }: Route.ActionArgs) {
 		 * resets the form to its defaults, and an autosave has no business
 		 * rewinding the draft the athlete is still typing into.
 		 */
-		return { saved: true as const }
+		return data(
+			{ saved: true as const },
+			toastHeaders ? { headers: toastHeaders } : undefined,
+		)
 	}
 
 	const session = await getSessionByIdForUser(userId, params.sessionId)
@@ -682,7 +725,7 @@ export default function SessionDetailRoute({
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title="Session"
-				back={{ to: '/', label: 'Home' }}
+				back={{ to: '/', label: APP_TAB_LABELS.today }}
 				className="mb-6"
 			/>
 
@@ -868,6 +911,7 @@ export default function SessionDetailRoute({
 			{session.recording ? (
 				<RecordingPanel
 					recording={session.recording}
+					sessionTss={session.tssValue}
 					relinkTargets={relinkTargets}
 					onPlannedSession={session.workout != null}
 				/>
@@ -2251,7 +2295,8 @@ type Metric = { label: string; value: string }
 
 /** Build the metric tiles a recording actually has — omit anything the provider
  * didn't send so the grid never shows empty cells. */
-function recordingMetrics(rec: Recording): Metric[] {
+function recordingMetrics(rec: Recording, sessionTss: number | null): Metric[] {
+	const tss = sessionTss ?? rec.tssValue
 	const cadenceUnit = rec.discipline === 'bike' ? 'rpm' : 'spm'
 	const bpm = (v: number) => `${Math.round(v)} bpm`
 	const watts = (v: number) => `${Math.round(v)} W`
@@ -2290,9 +2335,7 @@ function recordingMetrics(rec: Recording): Metric[] {
 		rec.kilojoules != null
 			? { label: 'Work', value: `${Math.round(rec.kilojoules)} kJ` }
 			: null,
-		rec.tssValue != null
-			? { label: 'Load (TSS)', value: formatLoad(rec.tssValue) }
-			: null,
+		tss != null ? { label: 'Load (TSS)', value: formatLoad(tss) } : null,
 	]
 	return candidates.filter((m): m is Metric => m !== null)
 }
@@ -2301,12 +2344,19 @@ function RecordingPanel({
 	recording,
 	relinkTargets,
 	onPlannedSession,
+	sessionTss,
 }: {
 	recording: Recording
 	relinkTargets: RelinkTarget[]
 	onPlannedSession: boolean
+	/**
+	 * The session's own TSS. A Recording on a done session is priced on the
+	 * session (the import row keeps a figure only while no counted session
+	 * carries it), so the session's number is the one the load counted.
+	 */
+	sessionTss: number | null
 }) {
-	const metrics = recordingMetrics(recording)
+	const metrics = recordingMetrics(recording, sessionTss)
 	const phaseBars = parseRecordingPhaseBars(recording.phaseBarsJson)
 	const provider =
 		recording.externalProvider === 'strava'
