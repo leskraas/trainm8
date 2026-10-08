@@ -1895,18 +1895,20 @@ link completes the planned session it lands on (a session holding a
 done, if the athlete marked it **Gjort** by hand. On I dag (#505 stories 78–82)
 each import's row offers **Angre kobling** (lift it off the plan onto an
 **Ekstra** session of its own) and **Koble igjen** (put it back), and the row
-asks **"hva var dette?"** only when auto-save was unsure: an Ekstra on a day
-that still has an unrecorded planned session of the same sport — two or more
-fitted, or the plan was written after the run landed. The answers are _it was
-this session_, _en ekstra økt_, or **Annet**; any answer, or an Angre kobling,
-is remembered on the import, so nothing is asked twice. _Avoid_: Activity Inbox,
-import queue, promote step, confirmation.
+asks **"hva var dette?"** only when auto-save was unsure: an Ekstra from the
+last 14 days on a day that still has a planned session it fits (same sport, no
+Recording — the one rule auto-save links by) — two or more fitted, or the plan
+was written after the run landed. The answers are _it was this session_, _en
+ekstra økt_, or **Annet**; any answer, or an Angre kobling, is remembered on the
+import, so nothing is asked twice. _Avoid_: Activity Inbox, import queue,
+promote step, confirmation.
 
 **Ekstra**: A session that exists only because an activity was recorded — a
-recording-only session (Session Source `recorded` or `detected`) with no plan
-behind it. Labelled `ekstra` on its row on I dag. It counts in its sport's track
-like any done session (unless put in **Annet**), and is never Planned Volume.
-_Avoid_: Unplanned session, orphan, extra workout.
+recording-only session (Session Source `recorded` or `detected`, not adopted)
+with no plan behind it. Once the athlete adopts it, it carries their work and is
+theirs rather than an Ekstra. Labelled `ekstra` on its row on I dag. It counts
+in its sport's track like any done session (unless put in **Annet**), and is
+never Planned Volume. _Avoid_: Unplanned session, orphan, extra workout.
 
 **Gjort (by hand)**: The athlete marks a session done with no **Recording**
 (#505 story 82): `markedDoneAt`, status `completed`. Its numbers come later,

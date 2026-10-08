@@ -1033,7 +1033,7 @@ model WorkoutSession {
   /// retracted from it. That is the *same* engine restating what it found about
   /// its own recording, never a takeover, and it is guarded to unadopted
   /// sessions.
-  source          String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
+  source           String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
   /// **Session Adoption** (#460) — when the athlete took a machine-produced
   /// session over. Null means untouched, which is what re-detection (ADR 0033)
   /// and regeneration (ADR 0016) are really asking about; a timestamp means the
@@ -1043,24 +1043,28 @@ model WorkoutSession {
   /// Set only when a save actually changes the prescription — the blocks, the
   /// discipline or the intent. A reschedule, a rename, or a no-op save is not a
   /// takeover (#459).
-  adoptedAt       DateTime?
+  adoptedAt        DateTime?
   /// **Session Release** ("lås opp", #505, ADR 0080) — when the athlete handed
   /// one of their own sessions back to the app. A released session is the
   /// machine's again (`session-ownership.ts`), whatever its source and adoption
   /// say, so the Week Replan may change it without asking. Cleared the moment
   /// the athlete rewrites its prescription again: that re-adopts it.
-  releasedAt      DateTime?
+  releasedAt       DateTime?
   /// **Annet** (#505 story 33) — the athlete put this session in no Training
   /// Track: it moves no track's Planned or Actual Volume, whatever its
   /// Discipline (a bike commute on a plan with a ride track). Its TSS still
   /// feeds Training Load, which is physiological. Not a prescription change, so
   /// it neither adopts nor releases the session.
-  countsInNoTrack Boolean   @default(false)
+  countsInNoTrack  Boolean   @default(false)
   /// When the athlete marked this session done by hand (_Gjort_, #505 story
   /// 82) — done, with no Recording yet to say how much. A Recording linked
   /// later completes it as any link does; undoing that link puts the session
   /// back to done-by-hand rather than to not done, because the athlete said so.
-  markedDoneAt    DateTime?
+  markedDoneAt     DateTime?
+  /// The status this session had when a Recording was linked onto it (#505
+  /// story 81), so _Angre kobling_ puts it back as it was. Null when nothing
+  /// is linked, or the link predates this column.
+  statusBeforeLink String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

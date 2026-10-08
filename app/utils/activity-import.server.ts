@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import { dayBoundsUTC, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
+import { fitsImport, isRecordingOnlySource } from './import-fit.ts'
 import { publishActivityImportCreated } from './imports-events.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
+import { triggerRecomputeForSession } from './session-log.server.ts'
 import {
 	materializeDetectedStructure,
 	parseStoredWorkoutStructure,
@@ -231,13 +233,25 @@ export async function deleteImportIfAutoSaveMirror(
 }
 
 /**
- * The planned sessions an import could be: same local day, same discipline,
- * carrying a Workout, and not already holding a Recording. The one rule both
- * auto-match and its "unsure" verdict read, so they cannot disagree about what
- * fits. Empty for an unknown import and for `'other'` — an import-only
- * discipline (ADR 0015) with no modeled planned session to match against.
+ * Why a link could not be made: the import or the session is not the
+ * athlete's, or the session already holds another Recording. The one error the
+ * link paths throw on purpose, so a caller can tell "not found" from a fault.
  */
-async function findPlanCandidates(
+export class ImportLinkNotFoundError extends Error {
+	constructor(what: 'import' | 'session') {
+		super(what === 'import' ? 'Import not found' : 'Session not found')
+		this.name = 'ImportLinkNotFoundError'
+	}
+}
+
+/**
+ * The planned sessions an import could be, by `fitsImport` (same local day,
+ * same sport, a planned session holding no Recording). The one rule
+ * auto-save links by, its `unsure` verdict reads, I dag's "hva var dette?"
+ * offers by, and a link answer is checked against. Empty for an unknown
+ * import and for `'other'` (ADR 0015).
+ */
+export async function findPlanCandidates(
 	athleteId: string,
 	importId: string,
 	athleteTimezone: string,
@@ -248,43 +262,38 @@ async function findPlanCandidates(
 	})
 	if (!imported || imported.discipline === 'other') return []
 
-	const { start: dayStart, end: dayEnd } = dayBoundsUTC(
-		localDate(imported.startedAt, athleteTimezone),
-		athleteTimezone,
-	)
+	const dayKey = localDate(imported.startedAt, athleteTimezone)
+	const { start: dayStart, end: dayEnd } = dayBoundsUTC(dayKey, athleteTimezone)
 
-	const candidates = await prisma.workoutSession.findMany({
+	const sessions = await prisma.workoutSession.findMany({
 		where: {
 			userId: athleteId,
 			scheduledAt: { gte: dayStart, lte: dayEnd },
-			recordingId: null, // not already claimed
-			workout: { discipline: imported.discipline },
 		},
-		select: { id: true },
+		orderBy: { scheduledAt: 'asc' },
+		select: {
+			id: true,
+			scheduledAt: true,
+			source: true,
+			adoptedAt: true,
+			recordingId: true,
+			workout: { select: { discipline: true } },
+		},
 	})
-	return candidates.map((candidate) => candidate.id)
-}
-
-/**
- * Attempts to auto-match the import to a planned same-day same-discipline
- * WorkoutSession. Returns null if there are zero or multiple candidates.
- * athleteTimezone is an IANA tz string used to determine the calendar day.
- */
-export async function autoMatchImport(
-	athleteId: string,
-	importId: string,
-	athleteTimezone: string,
-) {
-	const candidates = await findPlanCandidates(
-		athleteId,
-		importId,
-		athleteTimezone,
-	)
-	if (candidates.length !== 1) return null
-
-	const sessionId = candidates[0]!
-	await linkImportToSession(importId, sessionId)
-	return { importId, sessionId }
+	return sessions
+		.filter((session) =>
+			fitsImport(
+				{
+					source: session.source,
+					adoptedAt: session.adoptedAt,
+					hasRecording: session.recordingId != null,
+					workoutDiscipline: session.workout?.discipline ?? null,
+					dayKey: localDate(session.scheduledAt, athleteTimezone),
+				},
+				{ discipline: imported.discipline, dayKey },
+			),
+		)
+		.map((session) => session.id)
 }
 
 export async function promoteToExistingSession(
@@ -296,13 +305,13 @@ export async function promoteToExistingSession(
 		where: { id: importId, athleteId },
 		select: { id: true },
 	})
-	if (!imported) throw new Error('Import not found')
+	if (!imported) throw new ImportLinkNotFoundError('import')
 
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId: athleteId },
 		select: { id: true },
 	})
-	if (!session) throw new Error('Session not found')
+	if (!session) throw new ImportLinkNotFoundError('session')
 
 	await linkImportToSession(importId, sessionId)
 	await triggerRecomputeForImport(importId)
@@ -313,7 +322,7 @@ export async function promoteToNewSession(athleteId: string, importId: string) {
 		where: { id: importId, athleteId },
 		select: { id: true, startedAt: true },
 	})
-	if (!imported) throw new Error('Import not found')
+	if (!imported) throw new ImportLinkNotFoundError('import')
 
 	const result = await prisma.$transaction(async (tx) => {
 		const session = await tx.workoutSession.create({
@@ -402,7 +411,10 @@ export async function autoSaveImport(
 	}
 
 	const promoted = await promoteToNewSession(athleteId, importId).catch(
-		() => null,
+		(error: unknown) => {
+			if (error instanceof ImportLinkNotFoundError) return null
+			throw error
+		},
 	)
 	if (!promoted) return null
 	// Several planned sessions fit and the rule will not pick one: the import
@@ -470,13 +482,13 @@ export async function relinkRecordingToSession(
 		where: { id: importId, athleteId },
 		select: { id: true, promotedSessionId: true },
 	})
-	if (!imported) throw new Error('Import not found')
+	if (!imported) throw new ImportLinkNotFoundError('import')
 
 	const target = await prisma.workoutSession.findFirst({
 		where: { id: targetSessionId, userId: athleteId, recordingId: null },
 		select: { id: true },
 	})
-	if (!target) throw new Error('Session not found')
+	if (!target) throw new ImportLinkNotFoundError('session')
 
 	if (imported.promotedSessionId) {
 		await releaseRecording(importId, imported.promotedSessionId)
@@ -484,28 +496,6 @@ export async function relinkRecordingToSession(
 	await linkImportToSession(importId, targetSessionId)
 	await triggerRecomputeForImport(importId)
 	return { sessionId: targetSessionId }
-}
-
-/**
- * A session auto-save stood up for a Recording, rather than a plan the athlete
- * (or Plan Generation) authored: `recorded` while structureless, `detected`
- * once Structure Detection materialized a Workout onto it (ADR 0033). Both
- * exist only to carry their Recording, so both go when it moves away — unlike
- * an `authored` / `generated` session, which is a plan and outlives it.
- *
- * **Unless the athlete has adopted it** (#460). Once they have corrected the
- * detected structure, the session is carrying their work as well as the
- * Recording, and deleting it because the Recording moved elsewhere would destroy
- * that work. Adoption used to be invisible here only because it rewrote `source`
- * to `authored`; reading `adoptedAt` keeps the same outcome now that the origin
- * survives.
- */
-function isRecordingOnlySource(session: {
-	source: string
-	adoptedAt: Date | null
-}): boolean {
-	if (session.adoptedAt != null) return false
-	return session.source === 'recorded' || session.source === 'detected'
 }
 
 /**
@@ -522,14 +512,11 @@ async function releaseRecording(importId: string, sessionId: string) {
 			source: true,
 			adoptedAt: true,
 			markedDoneAt: true,
+			statusBeforeLink: true,
 			_count: { select: { setLogs: true } },
 		},
 	})
 	if (!session) return
-	// The Recording was what made the session done. Without it the session is
-	// done only if the athlete said so by hand, or lifted sets on it — the two
-	// ways a session is done with no Recording (#505 story 82, ADR 0056).
-	const stillDone = session.markedDoneAt != null || session._count.setLogs > 0
 
 	await prisma.$transaction(async (tx) => {
 		// Clear the import's promoted pointer first to avoid FK issues.
@@ -550,11 +537,45 @@ async function releaseRecording(importId: string, sessionId: string) {
 				where: { id: session.id },
 				data: {
 					recordingId: null,
-					status: stillDone ? 'completed' : 'scheduled',
+					status: statusWithoutRecording(session),
+					statusBeforeLink: null,
+					// The TSS was the Recording's. Left behind it would count twice —
+					// here and on the session the Recording moves to — so it goes,
+					// and the recompute below prices what is left (an RPE, or nothing).
+					tssValue: null,
+					tssFormula: null,
+					tssConfidence: null,
 				},
 			})
 		}
 	})
+	if (!isRecordingOnlySource(session)) {
+		await triggerRecomputeForSession(session.id)
+	}
+}
+
+/**
+ * The status a session goes back to when its Recording leaves. The status it
+ * had before the link, when that was kept; done regardless when the athlete
+ * said so by hand, lifted sets on it, or adopted it as an ekstra session — the
+ * ways a session is done with no Recording (#505 stories 81–82, ADR 0056,
+ * #460). Otherwise not done: the Recording was what said it happened.
+ */
+function statusWithoutRecording(session: {
+	source: string
+	markedDoneAt: Date | null
+	statusBeforeLink: string | null
+	_count: { setLogs: number }
+}): string {
+	if (
+		session.markedDoneAt != null ||
+		session._count.setLogs > 0 ||
+		session.source === 'recorded' ||
+		session.source === 'detected'
+	) {
+		return 'completed'
+	}
+	return session.statusBeforeLink ?? 'scheduled'
 }
 
 /**
@@ -564,14 +585,23 @@ async function releaseRecording(importId: string, sessionId: string) {
  * _Angre kobling_ is forgotten: the import has a session again.
  */
 async function linkImportToSession(importId: string, sessionId: string) {
-	await prisma.$transaction([
-		prisma.workoutSession.update({
+	await prisma.$transaction(async (tx) => {
+		const before = await tx.workoutSession.findUniqueOrThrow({
 			where: { id: sessionId },
-			data: { recordingId: importId, status: 'completed' },
-		}),
-		prisma.activityImport.update({
+			select: { status: true },
+		})
+		await tx.workoutSession.update({
+			where: { id: sessionId },
+			data: {
+				recordingId: importId,
+				status: 'completed',
+				// Kept so _Angre kobling_ can put the session back as it was.
+				statusBeforeLink: before.status,
+			},
+		})
+		await tx.activityImport.update({
 			where: { id: importId },
 			data: { promotedSessionId: sessionId, unlinkedFromSessionId: null },
-		}),
-	])
+		})
+	})
 }

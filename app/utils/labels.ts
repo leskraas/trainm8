@@ -990,8 +990,6 @@ export const IMPORT_LINK_LABELS = {
 	linkTo: (title: string) => `Det var ${title}`,
 	keep: 'En ekstra økt',
 	annet: 'Annet, teller ikke',
-	/** The group's accessible name: which session is asked about. */
-	questionFor: (title: string) => `Hva var ${title}?`,
 	undo: 'Angre kobling',
 	undoFor: (title: string) => `Angre kobling på ${title}`,
 	undoNote: 'Hentet fra importen. Feil økt? Da blir den en ekstra økt.',
@@ -1006,6 +1004,8 @@ export const IMPORT_LINK_LABELS = {
 export const IMPORT_LINK_REFUSAL_LABELS: Record<ImportLinkRefusal, string> = {
 	'import-not-found': 'Fant ikke importen. Den kan være slettet.',
 	'session-not-found': 'Fant ikke økta, eller den har fått en annen import.',
+	'not-a-fit':
+		'Den økta passer ikke med importen: en annen dag, en annen idrett, eller den har allerede en import.',
 	'not-linked': 'Importen er ikke koblet til en planlagt økt.',
 	'nothing-to-relink':
 		'Økta den kom fra er borte eller har fått en annen import.',

@@ -167,7 +167,7 @@ export async function applyWeekReplanForUser(
  * summed actual over summed Planned TSS across the week's sessions, `null`
  * when unmeasurable — `weeklyAdherence` owns the exclusion gate.
  */
-async function getClosedWeekAdherence(
+export async function getClosedWeekAdherence(
 	userId: string,
 	weekKey: string,
 	timezone: string,

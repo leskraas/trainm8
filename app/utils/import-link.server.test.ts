@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest'
-import { localTimeUTC } from '#app/utils/athlete-calendar.ts'
+import {
+	addDays,
+	localTimeUTC,
+	weekMonday,
+} from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import {
@@ -11,6 +15,7 @@ import {
 	redoImportLink,
 	undoImportLink,
 } from './import-link.server.ts'
+import { getClosedWeekAdherence } from './load/week-replan.server.ts'
 import { createPlanOutline } from './plan-outline/authoring.server.ts'
 import { getWeekVolumes } from './plan-outline/week-volumes.server.ts'
 import { markSessionDone } from './workout.server.ts'
@@ -332,6 +337,175 @@ test('another athlete is refused every answer, and nothing moves', async () => {
 		}),
 	).toEqual({ ok: false, reason: 'session-not-found' })
 	expect(await statusOf(strangersPlan.id)).toEqual({
+		status: 'scheduled',
+		recordingId: null,
+	})
+})
+
+test('Angre kobling leaves no TSS behind: the week’s adherence and volumes count the run once', async () => {
+	// Real past dates: the load recompute prices days up to today only.
+	const userId = await createAthlete()
+	await prisma.athleteProfile.update({
+		where: { userId },
+		data: {
+			timezone: 'UTC',
+			disciplineProfiles: { create: [{ discipline: 'run', lthr: 160 }] },
+		},
+	})
+	const now = new Date()
+	const thisMonday = weekMonday(now, 'UTC')
+	const weekKey = addDays(thisMonday, -7)
+	const created = await createPlanOutline(
+		userId,
+		{
+			startWeekKey: weekKey,
+			structure: { phases: [{ name: 'Blokk 1', weeks: 4, rhythm: '3:1' }] },
+			tracks: [{ discipline: 'run', currency: 'km', anchorValue: 40 }],
+		},
+		new Date(`${addDays(weekKey, -5)}T12:00:00Z`),
+	)
+	if (!created.ok) throw new Error(`plan setup failed: ${created.reason}`)
+	const tuesday = addDays(weekKey, 1)
+	const plan = await planRun(userId, { date: tuesday })
+	await prisma.workoutSession.update({
+		where: { id: plan.id },
+		data: { plannedTssValue: 60 },
+	})
+	const startedAt = localTimeUTC(tuesday, '07:30', 'UTC')
+	const imported = await createActivityImport(userId, {
+		externalProvider: 'intervalsicu',
+		externalId: `${userId}-adherence`,
+		startedAt,
+		endedAt: new Date(startedAt.getTime() + 3000_000),
+		durationSec: 3000,
+		distanceM: 10_500,
+		discipline: 'run',
+		hrAvg: 150,
+		rawJson: '{}',
+	})
+	await autoSaveImport(userId, imported.id, 'UTC')
+
+	const read = async () => {
+		const sessions = await prisma.workoutSession.findMany({
+			where: { userId },
+			select: { tssValue: true },
+		})
+		const volumes = await getWeekVolumes(userId, { weekKey, now })
+		return {
+			adherence: await getClosedWeekAdherence(userId, weekKey, 'UTC'),
+			tssOnSessions: sessions.reduce((sum, s) => sum + (s.tssValue ?? 0), 0),
+			actualKm: volumes.tracks[0]!.actual,
+		}
+	}
+
+	const linked = await read()
+	expect(linked.adherence).toMatchObject({ sessionCount: 1, totalPlanned: 60 })
+	const runTss = linked.adherence!.totalActual
+	expect(runTss).toBeGreaterThan(0)
+	expect(linked.tssOnSessions).toBeCloseTo(runTss)
+	expect(linked.actualKm).toBe(10.5)
+
+	await undoImportLink(userId, imported.id)
+
+	// The planned run was not done after all: nothing to compare, and its
+	// old TSS does not linger beside the ekstra that now carries it.
+	const apart = await read()
+	expect(apart.adherence).toBeNull()
+	expect(apart.tssOnSessions).toBeCloseTo(runTss)
+	expect(apart.actualKm).toBe(10.5)
+	expect(
+		await prisma.workoutSession.findUniqueOrThrow({
+			where: { id: plan.id },
+			select: { status: true, tssValue: true, tssFormula: true },
+		}),
+	).toEqual({ status: 'scheduled', tssValue: null, tssFormula: null })
+
+	await redoImportLink(userId, imported.id)
+
+	const together = await read()
+	expect(together.adherence).toMatchObject({ sessionCount: 1 })
+	expect(together.adherence!.totalActual).toBeCloseTo(runTss)
+	expect(together.tssOnSessions).toBeCloseTo(runTss)
+})
+
+test('undo restores the status the session had before the link', async () => {
+	const userId = await setUp()
+	const plan = await planRun(userId)
+	await prisma.workoutSession.update({
+		where: { id: plan.id },
+		data: { status: 'missed' },
+	})
+	const { importId } = await importRun(userId)
+	expect(await statusOf(plan.id)).toEqual({
+		status: 'completed',
+		recordingId: importId,
+	})
+
+	await undoImportLink(userId, importId, THURSDAY)
+
+	// The athlete had said it was missed; the run was not it.
+	expect(await statusOf(plan.id)).toEqual({
+		status: 'missed',
+		recordingId: null,
+	})
+})
+
+test('linking away from an adopted ekstra keeps it done', async () => {
+	const userId = await setUp()
+	const { importId, sessionId: ekstraId } = await importRun(userId)
+	// The athlete corrected the detected structure: the session is theirs now.
+	await prisma.workoutSession.update({
+		where: { id: ekstraId },
+		data: { source: 'detected', adoptedAt: THURSDAY },
+	})
+	const plan = await planRun(userId, { time: '18:00' })
+
+	const answered = await answerImportQuestion(
+		userId,
+		importId,
+		{ kind: 'link', sessionId: plan.id },
+		THURSDAY,
+	)
+
+	expect(answered).toEqual({ ok: true, sessionId: plan.id })
+	expect(await statusOf(ekstraId)).toEqual({
+		status: 'completed',
+		recordingId: null,
+	})
+})
+
+test('a link answer must name a session the import fits', async () => {
+	const userId = await setUp()
+	const { importId } = await importRun(userId)
+	// Another day, and another sport that day: neither fits.
+	const wednesday = await planRun(userId, { date: '2030-01-16' })
+	const bike = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId: userId,
+			title: 'Sykkel',
+			discipline: 'bike',
+			intent: 'endurance',
+		},
+	})
+	const ride = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId,
+			workoutId: bike.id,
+			scheduledAt: localTimeUTC(TUESDAY, '18:00', OSLO),
+		},
+	})
+
+	for (const sessionId of [wednesday.id, ride.id]) {
+		expect(
+			await answerImportQuestion(userId, importId, {
+				kind: 'link',
+				sessionId,
+			}),
+		).toEqual({ ok: false, reason: 'not-a-fit' })
+	}
+	expect(await statusOf(wednesday.id)).toEqual({
 		status: 'scheduled',
 		recordingId: null,
 	})

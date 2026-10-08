@@ -7,10 +7,12 @@
  * - **ekstra** — a session that exists only because an activity was recorded
  *   (Session Source `recorded` / `detected`): no plan stood behind it.
  * - **"hva var dette?"** — asked only when the app is unsure: an ekstra session
- *   nobody has answered for, on a day that still has a planned session of the
- *   same sport with no Recording. Auto-save links when exactly one plan fits,
- *   so this is the day two fitted, or the plan was written after the run
- *   landed. Never asked about Annet, `'other'`, or an answered import.
+ *   nobody has answered for, on a day that still has a planned session the
+ *   import fits (`fitsImport`, the rule auto-save links by). Auto-save links
+ *   when exactly one fits, so this is the day two fitted, or the plan was
+ *   written after the run landed. Never asked about Annet, `'other'`, an
+ *   answered import, or one older than `IMPORT_QUESTION_DAYS` — the athlete
+ *   is not asked about last spring the day this ships.
  * - **Angre kobling** — on a planned session holding an import.
  * - **Koble igjen** — on the ekstra session an Angre kobling made, while the
  *   session it came from is still on I dag and still has no Recording.
@@ -19,6 +21,14 @@
  */
 
 import { addDays, localDate } from '#app/utils/athlete-calendar.ts'
+import {
+	canMarkDone,
+	fitsImport,
+	IMPORT_QUESTION_DAYS,
+	importBringsNumbers,
+	isRecordingOnlySource,
+	MARK_DONE_REACH_DAYS,
+} from '#app/utils/import-fit.ts'
 import { IMPORT_LINK_LABELS, MARK_DONE_LABELS } from '#app/utils/labels.ts'
 import { type SessionRow } from '#app/utils/session-ledger-rows.ts'
 
@@ -27,10 +37,9 @@ export type TimelineImportLink =
 	| {
 			kind: 'ask'
 			importId: string
+			/** The group's heading, which also names it. */
 			question: string
 			note: string
-			/** The group's accessible name. */
-			label: string
 			/** "Det var <title>", one per planned session that fits. */
 			options: Array<{ sessionId: string; label: string }>
 			keepLabel: string
@@ -58,25 +67,13 @@ export type TimelineImportFacts = {
 	importLink: TimelineImportLink | null
 	/** A done session with no numbers says where they will come from. */
 	doneNote: string | null
-	/** _Gjort_ by hand, on a session of a day that has begun; else null. */
+	/** _Gjort_ by hand, where `canMarkDone` allows it; else null. */
 	markDone: { actionLabel: string; label: string } | null
 }
 
-/** How far back _Gjort_ is offered: this day and the six before it. */
-const MARK_DONE_REACH_DAYS = 6
-
-/** A session that exists only to carry its Recording — no plan behind it. */
-function isRecordedOnly(row: SessionRow): boolean {
-	const { session } = row
-	return (
-		session.recording != null &&
-		(session.source === 'recorded' || session.source === 'detected')
-	)
-}
-
-/** Strength is logged set by set (ADR 0056); no import brings its numbers. */
-function bringsNumbers(discipline: string): boolean {
-	return discipline !== 'strength' && discipline !== 'other'
+/** An ekstra: a session that exists only to carry its Recording. */
+function isEkstra(row: SessionRow): boolean {
+	return row.session.recording != null && isRecordingOnlySource(row.session)
 }
 
 /**
@@ -108,18 +105,19 @@ export function buildImportFacts(
 		const key = dayOf(row)
 		byDay.set(key, [...(byDay.get(key) ?? []), row])
 	}
+	const askFrom = addDays(todayKey, -IMPORT_QUESTION_DAYS)
 	const markDoneFrom = addDays(todayKey, -MARK_DONE_REACH_DAYS)
 
 	const facts = new Map<string, TimelineImportFacts>()
 	for (const row of rows) {
 		const { session, entry } = row
 		const dayKey = dayOf(row)
-		const recordedOnly = isRecordedOnly(row)
+		const ekstra = isEkstra(row)
 		const title = entry.title ?? ''
+		const recording = session.recording
 
 		let importLink: TimelineImportLink | null = null
-		const recording = session.recording
-		if (recording && !recordedOnly) {
+		if (recording && !ekstra) {
 			importLink = {
 				kind: 'undo',
 				importId: recording.id,
@@ -127,10 +125,13 @@ export function buildImportFacts(
 				label: IMPORT_LINK_LABELS.undoFor(title),
 				note: IMPORT_LINK_LABELS.undoNote,
 			}
-		} else if (recording && recordedOnly) {
+		} else if (recording && ekstra) {
 			const from = recording.unlinkedFromSessionId
 				? byId.get(recording.unlinkedFromSessionId)
 				: undefined
+			// An ekstra stands on its import's start (`promoteToNewSession`), so
+			// its own day is the import's.
+			const importDay = dayKey
 			if (from && from.session.recording == null) {
 				const fromTitle = from.entry.title ?? ''
 				importLink = {
@@ -143,14 +144,19 @@ export function buildImportFacts(
 			} else if (
 				recording.linkAnsweredAt == null &&
 				!session.countsInNoTrack &&
-				recording.discipline !== 'other'
+				importDay >= askFrom
 			) {
-				const candidates = (byDay.get(dayKey) ?? []).filter(
-					(other) =>
-						other !== row &&
-						!isRecordedOnly(other) &&
-						other.session.recording == null &&
-						other.session.workout?.discipline === recording.discipline,
+				const candidates = (byDay.get(importDay) ?? []).filter((other) =>
+					fitsImport(
+						{
+							source: other.session.source,
+							adoptedAt: other.session.adoptedAt,
+							hasRecording: other.session.recording != null,
+							workoutDiscipline: other.session.workout?.discipline ?? null,
+							dayKey: dayOf(other),
+						},
+						{ discipline: recording.discipline, dayKey: importDay },
+					),
 				)
 				if (candidates.length > 0) {
 					importLink = {
@@ -158,7 +164,6 @@ export function buildImportFacts(
 						importId: recording.id,
 						question: IMPORT_LINK_LABELS.question,
 						note: IMPORT_LINK_LABELS.questionNote(candidates.length),
-						label: IMPORT_LINK_LABELS.questionFor(title),
 						options: candidates.map((candidate) => ({
 							sessionId: candidate.session.id,
 							label: IMPORT_LINK_LABELS.linkTo(candidate.entry.title ?? ''),
@@ -179,17 +184,19 @@ export function buildImportFacts(
 			recording == null &&
 			session.setLogs.length === 0 &&
 			session.tssValue == null &&
-			bringsNumbers(entry.discipline)
-		const markable =
-			recording == null &&
-			session.workout != null &&
-			(session.status === 'scheduled' || session.status === 'missed') &&
-			dayKey <= todayKey &&
-			dayKey >= markDoneFrom &&
-			bringsNumbers(entry.discipline)
+			importBringsNumbers(entry.discipline)
+		const markable = canMarkDone(
+			{
+				status: session.status,
+				hasRecording: recording != null,
+				workoutDiscipline: session.workout?.discipline ?? null,
+				dayKey,
+			},
+			{ todayKey, reachFromKey: markDoneFrom },
+		)
 
 		facts.set(session.id, {
-			extraLabel: recordedOnly ? IMPORT_LINK_LABELS.extra : null,
+			extraLabel: ekstra ? IMPORT_LINK_LABELS.extra : null,
 			importLink,
 			doneNote: noNumbers
 				? importConnected

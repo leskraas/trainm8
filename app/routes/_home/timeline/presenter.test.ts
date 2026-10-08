@@ -2619,7 +2619,6 @@ describe('imports on the row: ekstra, hva var dette?, Angre kobling, Gjort (#505
 			importId: 'import-1',
 			question: 'Hva var dette?',
 			note: 'Det lå 2 planlagte økter denne dagen, og vi vet ikke hvilken.',
-			label: expect.stringContaining('Hva var'),
 			options: [
 				{ sessionId: 'morning', label: 'Det var 10 km rolig' },
 				{ sessionId: 'evening', label: 'Det var 6 km rolig' },
@@ -2653,6 +2652,46 @@ describe('imports on the row: ekstra, hva var dette?, Angre kobling, Gjort (#505
 			kind: 'ask',
 			annetLabel: null,
 		})
+	})
+
+	test('an ekstra from more than two weeks back is not asked about', () => {
+		const old = (overrides: Partial<LedgerSession>) =>
+			on(-15, {
+				status: 'scheduled',
+				recording: null,
+				source: 'generated',
+				...overrides,
+			})
+		const result = season(
+			[
+				on(-15, {
+					id: 'ekstra',
+					source: 'recorded',
+					workout: null,
+					recording: recording('import-1'),
+				}),
+				old({ id: 'old-plan', workout: workout({ id: 'w-old' }) }),
+			],
+			runPlan(),
+		)
+		expect(rowOf(result, 'ekstra').extraLabel).toBe('ekstra')
+		expect(rowOf(result, 'ekstra').importLink).toBeNull()
+	})
+
+	test('an adopted detected session is the athlete’s, not an ekstra', () => {
+		const result = season(
+			[
+				on(-1, {
+					id: 'adopted',
+					source: 'detected',
+					adoptedAt: NOW,
+					recording: recording('import-1'),
+				}),
+			],
+			runPlan(),
+		)
+		expect(rowOf(result, 'adopted').extraLabel).toBeNull()
+		expect(rowOf(result, 'adopted').importLink).toMatchObject({ kind: 'undo' })
 	})
 
 	test('a planned session holding an import offers Angre kobling', () => {

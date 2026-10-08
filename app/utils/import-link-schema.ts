@@ -17,6 +17,7 @@ export const SESSION_DONE_ACTION = '/resources/session-done'
 export const IMPORT_LINK_REFUSALS = [
 	'import-not-found',
 	'session-not-found',
+	'not-a-fit',
 	'not-linked',
 	'nothing-to-relink',
 ] as const

@@ -1,6 +1,7 @@
 import { type Prisma } from '@prisma/client'
-import { localDate } from './athlete-calendar.ts'
+import { addDays, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
+import { canMarkDone, MARK_DONE_REACH_DAYS } from './import-fit.ts'
 import { type MarkDoneRefusal } from './import-link-schema.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import { triggerRecomputeForSession } from './session-log.server.ts'
@@ -477,9 +478,10 @@ export type MarkSessionDoneResult =
 
 /**
  * _Gjort_ (#505 story 82): the athlete says a session is done, by hand, before
- * — or instead of — a Recording saying how much. Only a session not yet done,
- * holding no Recording, on a day that has begun (today or earlier, in the
- * Athlete Timezone): a session cannot be done ahead of its day. Stamps
+ * — or instead of — a Recording saying how much. Only where `canMarkDone`
+ * says so, the same rule the row on I dag offers the action by: open, no
+ * Recording, a sport an import brings numbers for, on a day that has begun
+ * and is at most a week back (in the Athlete Timezone). Stamps
  * `markedDoneAt`, so undoing a later link keeps it done (`releaseRecording`).
  *
  * An import that lands later links onto it like onto any planned session
@@ -492,14 +494,26 @@ export async function markSessionDone(
 ): Promise<MarkSessionDoneResult> {
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
-		select: { id: true, status: true, recordingId: true, scheduledAt: true },
+		select: {
+			id: true,
+			status: true,
+			recordingId: true,
+			scheduledAt: true,
+			workout: { select: { discipline: true } },
+		},
 	})
 	if (!session) return { ok: false, reason: 'session-not-found' }
-	const begun =
-		localDate(session.scheduledAt, timezone) <= localDate(now, timezone)
-	if (session.status === 'completed' || session.recordingId != null || !begun) {
-		return { ok: false, reason: 'not-markable' }
-	}
+	const todayKey = localDate(now, timezone)
+	const markable = canMarkDone(
+		{
+			status: session.status,
+			hasRecording: session.recordingId != null,
+			workoutDiscipline: session.workout?.discipline ?? null,
+			dayKey: localDate(session.scheduledAt, timezone),
+		},
+		{ todayKey, reachFromKey: addDays(todayKey, -MARK_DONE_REACH_DAYS) },
+	)
+	if (!markable) return { ok: false, reason: 'not-markable' }
 
 	await prisma.workoutSession.update({
 		where: { id: session.id },

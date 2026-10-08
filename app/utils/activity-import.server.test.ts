@@ -3,7 +3,6 @@ import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import {
-	autoMatchImport,
 	autoSaveImport,
 	createActivityImport,
 	detachRecordingFromPlan,
@@ -255,11 +254,9 @@ test('auto-match: links import to same-day same-discipline planned session', asy
 		user.id,
 		makeImportData({ startedAt, endedAt, discipline: 'run' }),
 	)
-	const matched = await autoMatchImport(user.id, imported.id, 'UTC')
+	const matched = await autoSaveImport(user.id, imported.id, 'UTC')
 
-	expect(matched).not.toBeNull()
-	expect(matched!.sessionId).toBeDefined()
-	expect(matched!.importId).toBe(imported.id)
+	expect(matched).toMatchObject({ matchedPlan: true, unsure: false })
 })
 
 test('auto-match: skips when discipline does not match', async () => {
@@ -279,9 +276,9 @@ test('auto-match: skips when discipline does not match', async () => {
 		user.id,
 		makeImportData({ startedAt, endedAt, discipline: 'run' }),
 	)
-	const matched = await autoMatchImport(user.id, imported.id, 'UTC')
+	const matched = await autoSaveImport(user.id, imported.id, 'UTC')
 
-	expect(matched).toBeNull()
+	expect(matched).toMatchObject({ matchedPlan: false, unsure: false })
 })
 
 test('auto-match: skips when multiple candidates exist (ambiguous)', async () => {
@@ -307,9 +304,9 @@ test('auto-match: skips when multiple candidates exist (ambiguous)', async () =>
 		user.id,
 		makeImportData({ startedAt, endedAt, discipline: 'run' }),
 	)
-	const matched = await autoMatchImport(user.id, imported.id, 'UTC')
+	const matched = await autoSaveImport(user.id, imported.id, 'UTC')
 
-	expect(matched).toBeNull()
+	expect(matched).toMatchObject({ matchedPlan: false, unsure: true })
 })
 
 test('auto-match: skips session that already has a recording', async () => {
@@ -337,8 +334,8 @@ test('auto-match: skips session that already has a recording', async () => {
 		user.id,
 		makeImportData({ startedAt, endedAt, discipline: 'run' }),
 	)
-	const matched = await autoMatchImport(user.id, second.id, 'UTC')
-	expect(matched).toBeNull()
+	const matched = await autoSaveImport(user.id, second.id, 'UTC')
+	expect(matched).toMatchObject({ matchedPlan: false, unsure: false })
 })
 
 // ── promote to existing ────────────────────────────────────────────────────

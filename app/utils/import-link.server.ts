@@ -10,8 +10,11 @@
 
 import {
 	detachRecordingFromPlan,
+	findPlanCandidates,
+	ImportLinkNotFoundError,
 	relinkRecordingToSession,
 } from './activity-import.server.ts'
+import { getAthleteTimezone } from './athlete.server.ts'
 import { prisma } from './db.server.ts'
 import { type ImportLinkRefusal } from './import-link-schema.ts'
 import { setCountsInNoTrack } from './plan-outline/week-volumes.server.ts'
@@ -40,6 +43,20 @@ async function findImport(athleteId: string, importId: string) {
 	})
 }
 
+/** A relink that finds nothing to link reads as null; any other fault throws. */
+async function relinkOrNull(
+	athleteId: string,
+	importId: string,
+	sessionId: string,
+) {
+	return relinkRecordingToSession(athleteId, importId, sessionId).catch(
+		(error: unknown) => {
+			if (error instanceof ImportLinkNotFoundError) return null
+			throw error
+		},
+	)
+}
+
 async function markAnswered(importId: string, now: Date) {
 	await prisma.activityImport.update({
 		where: { id: importId },
@@ -65,11 +82,23 @@ export async function answerImportQuestion(
 	}
 
 	if (answer.kind === 'link') {
-		const moved = await relinkRecordingToSession(
+		const owned = await prisma.workoutSession.findFirst({
+			where: { id: answer.sessionId, userId: athleteId },
+			select: { id: true },
+		})
+		if (!owned) return { ok: false, reason: 'session-not-found' }
+		// Only a session the import could be: the same rule auto-save links by
+		// and the question offers (`fitsImport`) — same day, same sport, a
+		// planned session holding no Recording.
+		const candidates = await findPlanCandidates(
 			athleteId,
 			importId,
-			answer.sessionId,
-		).catch(() => null)
+			await getAthleteTimezone(athleteId),
+		)
+		if (!candidates.includes(answer.sessionId)) {
+			return { ok: false, reason: 'not-a-fit' }
+		}
+		const moved = await relinkOrNull(athleteId, importId, answer.sessionId)
 		if (!moved) return { ok: false, reason: 'session-not-found' }
 		await markAnswered(importId, now)
 		return { ok: true, sessionId: moved.sessionId }
@@ -129,11 +158,11 @@ export async function redoImportLink(
 		return { ok: false, reason: 'nothing-to-relink' }
 	}
 
-	const moved = await relinkRecordingToSession(
+	const moved = await relinkOrNull(
 		athleteId,
 		importId,
 		imported.unlinkedFromSessionId,
-	).catch(() => null)
+	)
 	if (!moved) return { ok: false, reason: 'nothing-to-relink' }
 	await markAnswered(importId, now)
 	return { ok: true, sessionId: moved.sessionId }

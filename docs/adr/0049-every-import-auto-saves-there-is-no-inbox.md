@@ -9,22 +9,29 @@
 > 1. **A link completes the session.** Linking a Recording onto a planned
 >    session never set its status, so a matched session in the past read as
 >    _ikke gjort_ and was left out of the week's Actual Volume, while Training
->    Load counted its import. Linking now sets `completed`; undoing a link sets
->    the session back to `scheduled`, unless the athlete marked it done by hand
->    (`markedDoneAt`, _Gjort_) or lifted sets on it. A data migration completes
->    every session already holding a Recording.
-> 2. **Unsure is a verdict, not a pile.** When more than one planned session
->    fits, auto-save still stands the import up on its own (`unsure: true`), and
->    the row on I dag — labelled _ekstra_ — asks **"hva var dette?"**: one of
->    the planned sessions that day, _en ekstra økt_, or Annet. It asks only
->    while a same-sport planned session that day holds no Recording, and never
->    twice: any answer is stored on the import (`linkAnsweredAt`). There is
->    still no inbox — the question sits on the row of a session that already
->    counts.
+>    Load counted its import. Linking now sets `completed` and keeps the status
+>    it replaced (`statusBeforeLink`). Undoing a link restores that status —
+>    done regardless if the athlete marked it _Gjort_ by hand, lifted sets on
+>    it, or adopted it as an ekstra — and clears the session's TSS, which was
+>    the Recording's and would otherwise count twice. A data migration completes
+>    the `scheduled` sessions already holding a Recording (missed and skipped
+>    keep what the athlete said); their TSS stays null until a load recompute
+>    covers their day.
+> 2. **Unsure is a verdict, not a pile.** One rule, `fitsImport`
+>    (`app/utils/import-fit.ts`), says which planned sessions an import could
+>    be: auto-save links when exactly one fits, flags `unsure` when several do,
+>    I dag offers exactly those as answers, and a link answer naming any other
+>    session is refused. The ekstra row asks **"hva var dette?"** — one of those
+>    sessions, _en ekstra økt_, or Annet — while one still fits, never twice
+>    (any answer is stored as `linkAnsweredAt`), and only for imports from the
+>    last 14 days (`IMPORT_QUESTION_DAYS`), so history from before this change
+>    is not asked about all at once. There is still no inbox — the question sits
+>    on the row of a session that already counts.
 > 3. **_Angre kobling_ / _Koble igjen_ on the row.** Every planned session
->    holding an import offers to lift it off (the Workout Detail View's
->    "detach", one tap closer), and the ekstra session that made offers to put
->    it back on the session it came from (`unlinkedFromSessionId`).
+>    holding an import offers to lift it off, and the ekstra session that made
+>    offers to put it back on the session it came from
+>    (`unlinkedFromSessionId`). The Workout Detail View's "detach" is the same
+>    call (`undoImportLink`), so there is one path.
 > 4. **_Gjort_ by hand.** A session marked done with no Recording says its
 >    numbers come from the import when a source is connected, and _uten tall_
 >    when none is. An import that lands later links onto it as onto any planned

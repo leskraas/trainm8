@@ -60,7 +60,7 @@ import {
 } from '#app/components/ui/select.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
-	detachRecordingFromPlan,
+	ImportLinkNotFoundError,
 	relinkRecordingToSession,
 } from '#app/utils/activity-import.server.ts'
 import { type ActivityStream, isNum } from '#app/utils/activity-stream.ts'
@@ -83,6 +83,7 @@ import {
 	formatSpeed,
 	formatTime,
 } from '#app/utils/format.ts'
+import { undoImportLink } from '#app/utils/import-link.server.ts'
 import {
 	type DisciplineThresholdMap,
 	parseAuthoredIntensity,
@@ -448,8 +449,11 @@ export async function action({ request, params }: Route.ActionArgs) {
 		})
 
 		if (intent === 'detach') {
-			const moved = await detachRecordingFromPlan(userId, current.recording.id)
-			invariantResponse(moved, 'This recording is not attached to a plan', {
+			// The same path as _Angre kobling_ on I dag (#505 story 81): the
+			// answer is remembered, and the ekstra session it makes offers
+			// _Koble igjen_ back to this one.
+			const moved = await undoImportLink(userId, current.recording.id)
+			invariantResponse(moved.ok, 'This recording is not attached to a plan', {
 				status: 400,
 			})
 			return redirect(`/training/sessions/${moved.sessionId}`)
@@ -468,7 +472,8 @@ export async function action({ request, params }: Route.ActionArgs) {
 				targetSessionId,
 			)
 			return redirect(`/training/sessions/${moved.sessionId}`)
-		} catch {
+		} catch (error) {
+			if (!(error instanceof ImportLinkNotFoundError)) throw error
 			return data(
 				{ error: 'Could not move the recording to that session.' },
 				{ status: 400 },
@@ -906,6 +911,7 @@ export default function SessionDetailRoute({
 			{session.recording ? (
 				<RecordingPanel
 					recording={session.recording}
+					sessionTss={session.tssValue}
 					relinkTargets={relinkTargets}
 					onPlannedSession={session.workout != null}
 				/>
@@ -2289,7 +2295,8 @@ type Metric = { label: string; value: string }
 
 /** Build the metric tiles a recording actually has — omit anything the provider
  * didn't send so the grid never shows empty cells. */
-function recordingMetrics(rec: Recording): Metric[] {
+function recordingMetrics(rec: Recording, sessionTss: number | null): Metric[] {
+	const tss = sessionTss ?? rec.tssValue
 	const cadenceUnit = rec.discipline === 'bike' ? 'rpm' : 'spm'
 	const bpm = (v: number) => `${Math.round(v)} bpm`
 	const watts = (v: number) => `${Math.round(v)} W`
@@ -2328,9 +2335,7 @@ function recordingMetrics(rec: Recording): Metric[] {
 		rec.kilojoules != null
 			? { label: 'Work', value: `${Math.round(rec.kilojoules)} kJ` }
 			: null,
-		rec.tssValue != null
-			? { label: 'Load (TSS)', value: formatLoad(rec.tssValue) }
-			: null,
+		tss != null ? { label: 'Load (TSS)', value: formatLoad(tss) } : null,
 	]
 	return candidates.filter((m): m is Metric => m !== null)
 }
@@ -2339,12 +2344,19 @@ function RecordingPanel({
 	recording,
 	relinkTargets,
 	onPlannedSession,
+	sessionTss,
 }: {
 	recording: Recording
 	relinkTargets: RelinkTarget[]
 	onPlannedSession: boolean
+	/**
+	 * The session's own TSS. A Recording on a done session is priced on the
+	 * session (the import row keeps a figure only while no counted session
+	 * carries it), so the session's number is the one the load counted.
+	 */
+	sessionTss: number | null
 }) {
-	const metrics = recordingMetrics(recording)
+	const metrics = recordingMetrics(recording, sessionTss)
 	const phaseBars = parseRecordingPhaseBars(recording.phaseBarsJson)
 	const provider =
 		recording.externalProvider === 'strava'

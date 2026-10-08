@@ -21,7 +21,6 @@ import {
 	SessionDoneSchema,
 } from '#app/utils/import-link-schema.ts'
 import { IMPORT_LINK_LABELS, MARK_DONE_LABELS } from '#app/utils/labels.ts'
-import { cn } from '#app/utils/misc.tsx'
 import { type TimelineImportLink } from './presenter.ts'
 
 const ACTION_TEXT =
@@ -62,7 +61,6 @@ function ImportQuestion({
 		<section
 			role="group"
 			aria-labelledby={headingId}
-			aria-label={ask.label}
 			data-import-question={ask.importId}
 			className="border-border/70 -mt-[6px] mr-[18px] mb-3 ml-[76px] rounded-[12px] border px-3 py-2.5"
 		>
@@ -207,11 +205,7 @@ export function MarkDoneAction({
 					{MARK_DONE_LABELS.saving}
 				</span>
 			) : (
-				<button
-					type="submit"
-					aria-label={ariaLabel}
-					className={cn(ACTION_TEXT)}
-				>
+				<button type="submit" aria-label={ariaLabel} className={ACTION_TEXT}>
 					<Icon name="check" size="xs" />
 					{label}
 				</button>

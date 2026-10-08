@@ -8,6 +8,7 @@ import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
+import { action as detailAction } from '../training/sessions.$sessionId.tsx'
 import { action } from './import-link.tsx'
 import { action as doneAction } from './session-done.tsx'
 
@@ -150,4 +151,38 @@ test('Gjort marks the athlete’s own session done; another athlete’s is not f
 		(await prisma.workoutSession.findUniqueOrThrow({ where: { id: plan.id } }))
 			.status,
 	).toBe('completed')
+})
+
+test('the detail page’s detach is Angre kobling: Koble igjen can put it back', async () => {
+	const { userId, cookie } = await athlete()
+	const plan = await plannedRun(userId)
+	const importId = await importRun(userId)
+	const form = new URLSearchParams({ intent: 'detach' })
+
+	const response = await detailAction({
+		...ARGS,
+		params: { sessionId: plan.id },
+		unstable_pattern: '/training/sessions/:sessionId',
+		request: new Request(
+			new URL(`/training/sessions/${plan.id}`, BASE_URL).toString(),
+			{
+				method: 'POST',
+				headers: {
+					cookie,
+					'content-type': 'application/x-www-form-urlencoded',
+				},
+				body: form.toString(),
+			},
+		),
+	})
+
+	expect((response as Response).status).toBe(302)
+	expect(
+		await prisma.activityImport.findUniqueOrThrow({
+			where: { id: importId },
+			select: { unlinkedFromSessionId: true },
+		}),
+	).toEqual({ unlinkedFromSessionId: plan.id })
+	const relinked = await send({ intent: 'relink', importId }, cookie)
+	expect(relinked.data.result).toEqual({ ok: true, sessionId: plan.id })
 })

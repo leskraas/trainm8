@@ -2,23 +2,33 @@
 --
 -- 1. `ActivityImport.linkAnsweredAt` — when the athlete answered for an import
 --    ("hva var dette?", Angre kobling, Koble igjen). Null on every existing
---    row: nobody has answered yet.
+--    row: nobody has answered yet. Existing ekstra sessions are not asked
+--    about all at once: I dag asks only about imports from the last 14 days
+--    (`IMPORT_QUESTION_DAYS`), so nothing needs backfilling here.
 -- 2. `ActivityImport.unlinkedFromSessionId` — the planned session an Angre
 --    kobling lifted the import off, so Koble igjen can put it back. FK, set
 --    null when that session is deleted. Null on every existing row.
 -- 3. `WorkoutSession.markedDoneAt` — the athlete marked the session done by
 --    hand (Gjort). Null on every existing row.
--- 4. A correction, and the one place a number can move: a planned session
+-- 4. `WorkoutSession.statusBeforeLink` — the status a session had when a
+--    Recording was linked onto it, so undoing the link restores it. Null on
+--    every existing row (undo then falls back: see `releaseRecording`).
+-- 5. A correction, and the one place a number can move: a planned session
 --    that holds a Recording is done. Linking a Recording onto a planned session
 --    never set its status, so a matched session in the past read as "ikke
 --    gjort" on I dag and was left out of the Actual Volume, while Training Load
---    already counted its import. Every session holding a Recording now reads
---    `completed`. No TSS or snapshot is rewritten here; the next load
---    recompute prices those sessions from the same import Training Load
---    already counted, so the load itself does not move. No corpus data ships.
+--    already counted its import. Only `scheduled` sessions holding a Recording
+--    become `completed`; a session the athlete marked missed or skipped keeps
+--    what they said. Their previous status is kept in `statusBeforeLink`.
+--    No TSS or snapshot is rewritten here: these sessions keep `tssValue`
+--    null until a load recompute covers their day (the next import, log or
+--    status change from that date or earlier), which prices them from the
+--    same import Training Load already counts — so the load itself does not
+--    move, only which row carries it. No corpus data ships.
 
 -- AlterTable
 ALTER TABLE "WorkoutSession" ADD COLUMN "markedDoneAt" DATETIME;
+ALTER TABLE "WorkoutSession" ADD COLUMN "statusBeforeLink" TEXT;
 
 -- RedefineTables
 PRAGMA defer_foreign_keys=ON;
@@ -66,6 +76,7 @@ CREATE UNIQUE INDEX "ActivityImport_externalProvider_externalId_key" ON "Activit
 PRAGMA foreign_keys=ON;
 PRAGMA defer_foreign_keys=OFF;
 
--- 4. A session holding a Recording is done.
-UPDATE "WorkoutSession" SET "status" = 'completed'
-WHERE "recordingId" IS NOT NULL AND "status" <> 'completed';
+-- 5. A planned session holding a Recording is done.
+UPDATE "WorkoutSession"
+SET "statusBeforeLink" = "status", "status" = 'completed'
+WHERE "recordingId" IS NOT NULL AND "status" = 'scheduled';
