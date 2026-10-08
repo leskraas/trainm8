@@ -1,7 +1,8 @@
-// The single "+ New" creation menu (#178). With the pill nav gone, everything
+// The single "+ Ny" creation menu (#178), in I dag's Norwegian (ADR 0081). With the pill nav gone, everything
 // the athlete creates lives behind this one control — currently rendered in
 // the Dashboard header, next to where #184's decision strip will land.
 import { Link } from 'react-router'
+import { CREATE_MENU_LABELS } from '#app/utils/labels.ts'
 import { Button } from './ui/button.tsx'
 import {
 	DropdownMenu,
@@ -13,11 +14,23 @@ import {
 import { Icon, type IconName } from './ui/icon.tsx'
 
 const createItems: { label: string; href: string; icon: IconName }[] = [
-	{ label: 'New session', href: '/training/sessions/new', icon: 'barbell' },
-	{ label: 'New event', href: '/training/events/new', icon: 'calendar' },
+	{
+		label: CREATE_MENU_LABELS.session,
+		href: '/training/sessions/new',
+		icon: 'barbell',
+	},
+	{
+		label: CREATE_MENU_LABELS.event,
+		href: '/training/events/new',
+		icon: 'calendar',
+	},
 	// Authoring a season is a creation act like the other two, and it is the only
 	// producer of a Plan Outline now that Plan Generation is retired (ADR 0039).
-	{ label: 'New plan', href: '/training/plan/new', icon: 'bar-chart' },
+	{
+		label: CREATE_MENU_LABELS.plan,
+		href: '/training/plan/new',
+		icon: 'bar-chart',
+	},
 ]
 
 export function CreateMenu() {
@@ -33,10 +46,10 @@ export function CreateMenu() {
 				render={
 					<Button variant="default" size="sm" className="transition-none" />
 				}
-				aria-label="Create"
+				aria-label={CREATE_MENU_LABELS.name}
 			>
 				<Icon name="plus" size="sm" aria-hidden />
-				New
+				{CREATE_MENU_LABELS.trigger}
 			</DropdownMenuTrigger>
 			<DropdownMenuPortal>
 				<DropdownMenuContent align="end" sideOffset={8}>

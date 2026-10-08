@@ -19,11 +19,11 @@ async function createEasyRun({
 }) {
 	await navigate('/')
 
-	// Creation goes through the "+ New" menu (#178). The first interaction after
+	// Creation goes through the "+ Ny" menu (#178). The first interaction after
 	// page load can race client hydration, so retry until the menu opens.
-	const newSessionItem = page.getByRole('menuitem', { name: /new session/i })
+	const newSessionItem = page.getByRole('menuitem', { name: /ny økt/i })
 	await expect(async () => {
-		await page.getByRole('button', { name: /create/i }).click()
+		await page.getByRole('button', { name: /lag ny/i }).click()
 		await expect(newSessionItem).toBeVisible({ timeout: 2000 })
 	}).toPass()
 	await newSessionItem.click()

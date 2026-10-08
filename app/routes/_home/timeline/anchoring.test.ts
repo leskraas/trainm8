@@ -156,6 +156,26 @@ describe('the hero fold reads straight off the scroll offset', () => {
 		expect(tall!.foldPx).toBe(200)
 	})
 
+	test('a short history above today still folds the hero whole at the top', () => {
+		// Fewer than a hero's height of stream above today: the top of the stream
+		// used to leave a part-folded, already-faded hero — a blank box.
+		const short = (scrollTop: number) =>
+			heroFold({ scrollTop, landing: 300, openHeight: open })!
+		expect(short(0)).toMatchObject({
+			progress: 1,
+			heightPx: 0,
+			collapsed: true,
+		})
+		expect(short(150).progress).toBe(0.5)
+		// Downward it is the hero's own height as ever.
+		expect(short(300 + 200).progress).toBe(0.5)
+		// Too little room to reach the fade: the top shows a hero still folding
+		// — never a blank one, and never one snapped shut by a few pixels.
+		const tiny = heroFold({ scrollTop: 0, landing: 100, openHeight: open })!
+		expect(tiny.progress).toBe(0.25)
+		expect(tiny.opacity).toBeGreaterThan(0)
+	})
+
 	test('an unmeasured hero folds nothing at all', () => {
 		// The server render, the first paint and jsdom: there is no height to fold
 		// and writing one would collapse a hero nobody has measured.

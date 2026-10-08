@@ -21,6 +21,9 @@
  */
 
 import {
+	NB_MONTHS_SHORT,
+	NB_WEEKDAY_LABELS,
+	NB_WEEKDAYS_SHORT,
 	QUALITY_ZONE_LABELS,
 	VOLUME_CURRENCY_UNITS,
 	VOLUME_UNITS,
@@ -259,6 +262,96 @@ export function formatMonthShort(instant: DateInput, timeZone: string): string {
 /** Day of month as text, e.g. `4`. */
 export function formatDayOfMonth(instant: DateInput, timeZone: string): string {
 	return wallClockParts(instant, timeZone).day
+}
+
+// ---------------------------------------------------------------------------
+// Norwegian dates — I dag's own (#505, ADR 0081 as amended by ADR 0082)
+// ---------------------------------------------------------------------------
+
+const NB_PART_FORMATTERS = new Map<string, Intl.DateTimeFormat>()
+
+/**
+ * The calendar day of `instant` in `timeZone` as numbers — the day of month,
+ * the month (0-based) and the weekday (0 = Monday) — so the Norwegian words
+ * come from `labels.ts` and never from the runtime's ICU data.
+ */
+function nbParts(instant: DateInput, timeZone: string) {
+	let formatter = NB_PART_FORMATTERS.get(timeZone)
+	if (!formatter) {
+		formatter = new Intl.DateTimeFormat('en-CA', {
+			timeZone,
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+		})
+		NB_PART_FORMATTERS.set(timeZone, formatter)
+	}
+	const key = formatter.format(new Date(instant))
+	const [year, month, day] = key.split('-').map(Number) as [
+		number,
+		number,
+		number,
+	]
+	const weekday = (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7
+	return { day, month: month - 1, weekday }
+}
+
+/** `ons` — the weekday, as a Norwegian day gutter prints it. */
+export function formatNbWeekdayShort(
+	instant: DateInput,
+	timeZone: string,
+): string {
+	return NB_WEEKDAYS_SHORT[nbParts(instant, timeZone).weekday]!
+}
+
+/** `onsdag` — the weekday in full. */
+export function formatNbWeekday(instant: DateInput, timeZone: string): string {
+	return NB_WEEKDAY_LABELS[nbParts(instant, timeZone).weekday]!
+}
+
+/** `28. sep` — day and month, the Norwegian way. */
+export function formatNbDayMonth(instant: DateInput, timeZone: string): string {
+	const p = nbParts(instant, timeZone)
+	return `${p.day}. ${NB_MONTHS_SHORT[p.month]}`
+}
+
+/** `sep` — the month alone. */
+export function formatNbMonthShort(
+	instant: DateInput,
+	timeZone: string,
+): string {
+	return NB_MONTHS_SHORT[nbParts(instant, timeZone).month]!
+}
+
+/** `28` — the day of month alone. */
+export function formatNbDayOfMonth(
+	instant: DateInput,
+	timeZone: string,
+): string {
+	return String(nbParts(instant, timeZone).day)
+}
+
+/** `ons 7. okt` — weekday and date, for the header's one line. */
+export function formatNbDayDate(instant: DateInput, timeZone: string): string {
+	return `${formatNbWeekdayShort(instant, timeZone)} ${formatNbDayMonth(instant, timeZone)}`
+}
+
+/**
+ * A span of days, compact enough for one line at 390 px: `5.–11. okt`, or
+ * `28. sep – 4. okt` across a month — the month stated once where both ends
+ * share it, as a week is read aloud.
+ */
+export function formatNbDateSpan(
+	from: DateInput,
+	to: DateInput,
+	timeZone: string,
+): string {
+	const start = nbParts(from, timeZone)
+	const end = nbParts(to, timeZone)
+	if (start.month === end.month) {
+		return `${start.day}.–${end.day}. ${NB_MONTHS_SHORT[end.month]}`
+	}
+	return `${start.day}. ${NB_MONTHS_SHORT[start.month]} – ${end.day}. ${NB_MONTHS_SHORT[end.month]}`
 }
 
 /** Date and 24h time, e.g. `Sat 4 Jul, 14:05`. */

@@ -32,7 +32,7 @@ import { Link } from 'react-router'
 import { ScheduledWorkoutSentence } from '#app/routes/training/__workout-detail-editor.tsx'
 import { STAMP_SENTENCE, isStampableDiscipline } from '#app/utils/day-stamp.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
-import { getDisciplineLabel } from '#app/utils/labels.ts'
+import { DAY_STAMP_LABELS, nbDisciplineLabel } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
 import { type StampedLedgerSession, useDayStamp } from './day-stamp-context.tsx'
@@ -118,13 +118,11 @@ export function StampDraft({
 			</span>
 			<div className="flex min-w-0 flex-col gap-2">
 				<p className="text-ink-dimmer text-[11px]/[1.3]">
-					{stamp.prefill
-						? 'What you train most — tap another to change it.'
-						: 'Nothing on record to read this from, so: which one?'}
+					{stamp.prefill ? DAY_STAMP_LABELS.prefilled : DAY_STAMP_LABELS.ask}
 				</p>
 				<div
 					role="radiogroup"
-					aria-label="Discipline"
+					aria-label={DAY_STAMP_LABELS.discipline}
 					className="flex flex-wrap gap-1.5"
 				>
 					{DISCIPLINES.map((discipline) => {
@@ -144,7 +142,7 @@ export function StampDraft({
 								)}
 							>
 								<DiscDot solid discipline={discipline} className="size-[6px]" />
-								{getDisciplineLabel(discipline)}
+								{nbDisciplineLabel(discipline)}
 							</button>
 						)
 					})}
@@ -157,7 +155,9 @@ export function StampDraft({
 							onClick={() => stamp.stamp(dayKey, chosen)}
 							className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[34px] items-center rounded-[10px] px-[13px] text-[12.5px]/[1] font-bold disabled:opacity-60"
 						>
-							{pending ? 'Adding…' : `Add ${STAMP_SENTENCE}`}
+							{pending
+								? DAY_STAMP_LABELS.adding
+								: DAY_STAMP_LABELS.add(STAMP_SENTENCE)}
 						</button>
 					) : chosen != null ? (
 						/* A lifting session has to name a lift, and no lift can be read
@@ -167,7 +167,7 @@ export function StampDraft({
 							to={fullEditorTo(dayKey, chosen)}
 							className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[34px] items-center rounded-[10px] px-[13px] text-[12.5px]/[1] font-bold"
 						>
-							Name the lifts
+							{DAY_STAMP_LABELS.nameTheLifts}
 						</Link>
 					) : /* Nothing chosen and nothing derived: there is no session to
 						   offer yet, so the row offers none. The question above is the
@@ -177,19 +177,19 @@ export function StampDraft({
 						to={fullEditorTo(dayKey, chosen)}
 						className="border-hairline-edge text-foreground hover:border-primary flex h-[34px] items-center rounded-[10px] border px-[13px] text-[12.5px]/[1] font-semibold"
 					>
-						More
+						{DAY_STAMP_LABELS.more}
 					</Link>
 					<button
 						type="button"
 						onClick={stamp.closeDraft}
 						className="text-ink-dim h-[34px] px-1 text-[12.5px]/[1] font-semibold"
 					>
-						Cancel
+						{DAY_STAMP_LABELS.cancel}
 					</button>
 				</div>
 				{chosen != null && !stampable ? (
 					<p className="text-ink-dimmer text-[11px]/[1.35]">
-						A lifting session says which lifts — more than the line can hold.
+						{DAY_STAMP_LABELS.liftsNote}
 					</p>
 				) : null}
 				{/* Nothing was written, and the row says so rather than sitting on
@@ -199,7 +199,7 @@ export function StampDraft({
 				    at the line under it. */}
 				{failed ? (
 					<p role="status" className="text-destructive text-[11px]/[1.35]">
-						That did not save. Nothing was written — try again.
+						{DAY_STAMP_LABELS.failed}
 					</p>
 				) : null}
 			</div>
@@ -352,21 +352,21 @@ function StampedRowActions({
 				disabled={undoing}
 				className="border-hairline-edge text-foreground hover:border-destructive hover:text-destructive flex h-[30px] items-center rounded-[9px] border px-[11px] text-[11.5px]/[1] font-semibold disabled:opacity-60"
 			>
-				{undoing ? 'Removing…' : 'Undo'}
+				{undoing ? DAY_STAMP_LABELS.removing : DAY_STAMP_LABELS.undo}
 			</button>
 			<Link
 				to={to}
 				prefetch="intent"
 				className="border-hairline-edge text-foreground hover:border-primary flex h-[30px] items-center rounded-[9px] border px-[11px] text-[11.5px]/[1] font-semibold"
 			>
-				More
+				{DAY_STAMP_LABELS.more}
 			</Link>
 			<button
 				type="button"
 				onClick={onDone}
 				className="text-primary h-[30px] px-1 text-[11.5px]/[1] font-bold"
 			>
-				Done
+				{DAY_STAMP_LABELS.done}
 			</button>
 		</div>
 	)

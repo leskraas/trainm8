@@ -42,7 +42,7 @@ import {
 	compensatedScrollTop,
 	heroFold,
 	HERO_LIFT_SHARE,
-	LANDING_OFFSET,
+	landingOffsetFor,
 	landingPosition,
 	loadEdge,
 	offsetWithin,
@@ -69,6 +69,8 @@ export const STREAM_ATTR = 'data-timeline-stream'
  */
 export const HELD_ATTR = 'data-timeline-held'
 export const TODAY_ATTR = 'data-timeline-today'
+/** A week's sticky header — what today's row must land clear of. */
+export const WEEK_HEADER_ATTR = 'data-week-header'
 export const CELL_ATTR = 'data-timeline-cell'
 
 export type TimelineScroll = {
@@ -196,6 +198,20 @@ export function useTimelineScroll({
 		[],
 	)
 
+	/**
+	 * How far below the stream's top today parks: its week's sticky header,
+	 * measured, plus a little air (`landingOffsetFor`). Measured on every use,
+	 * because the header's height is the week's tracks and the hero's fold is
+	 * not, and a remembered number is the bug this replaced.
+	 */
+	const landingOffset = useCallback((el: HTMLElement) => {
+		const header = el
+			.querySelector(`[${TODAY_ATTR}]`)
+			?.closest(`[${WEEK_ATTR}]`)
+			?.querySelector(`[${WEEK_HEADER_ATTR}]`)
+		return landingOffsetFor(header?.getBoundingClientRect().height ?? 0)
+	}, [])
+
 	const todayOffset = useCallback(
 		(el: HTMLElement) => {
 			const node = el.querySelector(`[${TODAY_ATTR}]`)
@@ -208,9 +224,11 @@ export function useTimelineScroll({
 	const landing = useCallback(
 		(el: HTMLElement) => {
 			const offset = todayOffset(el)
-			return offset == null ? landingRef.current : landingPosition(offset)
+			return offset == null
+				? landingRef.current
+				: landingPosition(offset, landingOffset(el))
 		},
-		[todayOffset],
+		[landingOffset, todayOffset],
 	)
 
 	/**
@@ -375,11 +393,11 @@ export function useTimelineScroll({
 		// Nothing to aim at yet: no anchor, or a stream that has not laid out far
 		// enough to be scrollable at all.
 		if (offset == null || el.scrollHeight <= el.clientHeight) return
-		const want = landingPosition(offset)
+		const want = landingPosition(offset, landingOffset(el))
 		if (!want) return
 		jumpTo(el, 'y', want)
 		landingRef.current = want
-	}, [jumpTo, scroller, todayOffset])
+	}, [jumpTo, landingOffset, scroller, todayOffset])
 
 	/**
 	 * Hand the scroll position back to the athlete. On its own timer rather than
@@ -423,7 +441,7 @@ export function useTimelineScroll({
 		setActiveWeekKey(homeKey)
 		setAway(0)
 		const offset = todayOffset(el)
-		if (offset != null) jumpTo(el, 'y', offset - LANDING_OFFSET)
+		if (offset != null) jumpTo(el, 'y', offset - landingOffset(el))
 		// Measured here rather than on a ladder of timers. The jump above is
 		// instant, so there is no smooth scroll to land mid-flight of, and the
 		// fold is a write rather than a transition — both are true of the position
@@ -431,7 +449,7 @@ export function useTimelineScroll({
 		// reliably emit a `scroll` event, which is why this is by hand at all.
 		resync()
 		applyFold(el)
-	}, [applyFold, homeKey, jumpTo, resync, scroller, todayOffset])
+	}, [applyFold, homeKey, jumpTo, landingOffset, resync, scroller, todayOffset])
 
 	/**
 	 * Drain a queued jump once its week is mounted. A jump into an unloaded week

@@ -44,7 +44,23 @@ async function streamState(page: Page) {
 					el.scrollTop,
 			)
 		})(),
+		// How far below the top today parks: its week's sticky header, measured,
+		// plus the 12px of air the landing leaves (`LANDING_GAP`). Never a fixed
+		// number — the header grows with the week's tracks.
+		landingOffset: (() => {
+			const header = el
+				.querySelector('[data-timeline-today]')
+				?.closest('[data-timeline-week]')
+				?.querySelector('[data-week-header]')
+			return header ? Math.ceil(header.getBoundingClientRect().height) + 12 : 96
+		})(),
 	}))
+}
+
+/** Where "parked on today" is right now, from the measured header. */
+async function landingOf(page: Page) {
+	const state = await streamState(page)
+	return Math.max(0, state.todayOffset! - state.landingOffset)
 }
 
 /**
@@ -128,8 +144,7 @@ async function openFoldedWeeks(page: Page) {
  * growth is a number about a stream that no longer exists.
  */
 async function driftFromLanding(page: Page, drift: number) {
-	const { todayOffset } = await streamState(page)
-	await scrollStreamTo(page, Math.max(0, todayOffset! - 96 + drift))
+	await scrollStreamTo(page, (await landingOf(page)) + drift)
 }
 
 /** How far the stream really is from the landing, and how folded the hero is. */
@@ -137,7 +152,7 @@ async function foldAtRest(page: Page) {
 	const state = await streamState(page)
 	const { height, opacity, lift } = await heroFold(page)
 	return {
-		drift: Math.abs(state.scrollTop - Math.max(0, state.todayOffset! - 96)),
+		drift: Math.abs(state.scrollTop - (await landingOf(page))),
 		height,
 		opacity,
 		lift,
@@ -156,10 +171,9 @@ async function foldAtRest(page: Page) {
  * opens and closes the thing being measured.
  */
 async function heroInTabOrder(page: Page) {
-	// From the strip itself rather than from its first cell: the strip is a
-	// focusable region of its own now (#496), so it sits between the hero and its
-	// cells in the tab order and one keystroke from a cell never leaves it.
-	await page.getByTestId('week-strip').focus()
+	// From the strip's first stop, the "I dag" pill: the strip is the hero's
+	// next-door neighbour, and its pill is the first thing in it to tab to.
+	await page.locator('[data-today-pill]').focus()
 	await page.keyboard.press('Shift+Tab')
 	return page.evaluate(() => {
 		const hero = document.querySelector('[data-testid="hero-fold"]')
@@ -395,7 +409,21 @@ test('opens parked on today, with the hero showing and no pill', async ({
 	expect(state.scrollHeight).toBeGreaterThan(state.clientHeight)
 	// Parked on today: today's row, less the landing offset.
 	expect(state.todayOffset).not.toBeNull()
-	expect(state.scrollTop).toBe(Math.max(0, state.todayOffset! - 96))
+	expect(state.scrollTop).toBe(
+		Math.max(0, state.todayOffset! - state.landingOffset),
+	)
+	// And today lands *below* its week's sticky header, never under it: the
+	// landing is measured off the header, so a taller header cannot hide today.
+	const clear = await page.getByTestId('timeline-stream').evaluate((el) => {
+		const today = el.querySelector('[data-timeline-today]')!
+		const header = today
+			.closest('[data-timeline-week]')!
+			.querySelector('[data-week-header]')!
+		return (
+			today.getBoundingClientRect().top - header.getBoundingClientRect().bottom
+		)
+	})
+	expect(clear).toBeGreaterThanOrEqual(8)
 	// And the page itself does not scroll — the frame is the viewport.
 	expect(
 		await page.evaluate(
@@ -483,7 +511,9 @@ test('the hero folds with the scroll, 1:1 and both ways, and comes back', async 
 	// A folded hero is folded away from the keyboard too (#487): its links are
 	// zero-height and unreadable, so tabbing must not land in them.
 	expect(await heroInTabOrder(page)).toBe(false)
-	await expect(page.getByRole('button', { name: '↑ I dag' })).toBeVisible()
+	await expect(
+		page.getByRole('button', { name: 'Gå opp til i dag' }),
+	).toBeVisible()
 
 	// Back to the landing point: whole again, to the height it had — within
 	// the one pixel the landing itself is rounded to. The landing is a whole
@@ -569,7 +599,7 @@ test('the pill appears with the direction back to today, and takes you there', a
 
 	// The label carries the direction: today is above, so the arrow points up —
 	// and the pill, which was there all along, changes look rather than arriving.
-	const pill = page.getByRole('button', { name: '↑ I dag' })
+	const pill = page.getByRole('button', { name: 'Gå opp til i dag' })
 	await expect(pill).toBeVisible()
 	await expect(pill).toHaveAttribute('data-away', '-1')
 
@@ -691,7 +721,7 @@ test('reading forwards loads later weeks, and the far end states itself', async 
 	expect((await streamState(page)).weeks).toBeGreaterThan(start.weeks)
 
 	// Both ends are stated rather than left as an empty scroll.
-	await expect(page.getByText(/everything is written through/i)).toBeVisible()
+	await expect(page.getByText(/alt er skrevet til og med/i)).toBeVisible()
 })
 
 test('tapping a week in the strip jumps the stream there, and the frame follows the scroll', async ({
@@ -803,14 +833,14 @@ test('a comparable session names its basis and its band; an unplanned one refuse
 	await page.waitForTimeout(2500)
 
 	// The session done earlier today has both sides, so it bands.
-	await expect(page.getByText('TSS 88 / 91 · ON TARGET')).toBeVisible()
+	await expect(page.getByText('TSS 88 / 91 · I RUTE')).toBeVisible()
 
 	// The recorded session three weeks back has no plan to compare against.
 	const strip = page.getByTestId('week-strip')
 	await strip.locator('[data-timeline-cell]').first().click()
 	await page.waitForTimeout(1000)
 	await expect(
-		page.getByText('UNPLANNED · NO PLAN TO COMPARE').first(),
+		page.getByText('UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED').first(),
 	).toBeVisible()
 	// Never a fabricated percentage.
 	await expect(page.getByTestId('timeline-stream')).not.toContainText('%')
@@ -1067,7 +1097,7 @@ for (const theme of ['light', 'dark'] as const) {
 		await missedRow.evaluate((el) => el.scrollIntoView({ block: 'center' }))
 		await page.waitForTimeout(800)
 		const missed = await dotPaint(
-			page.getByRole('img', { name: /— missed$/ }).first(),
+			page.getByRole('img', { name: /— ikke gjort$/ }).first(),
 		)
 
 		// Each of the three is a mark at all…
@@ -1098,7 +1128,7 @@ for (const theme of ['light', 'dark'] as const) {
 			const state = await streamState(page)
 			if (state.todayOffset! - state.scrollTop < -60) break
 		}
-		const pill = page.getByRole('button', { name: '↑ I dag' })
+		const pill = page.getByRole('button', { name: 'Gå opp til i dag' })
 		await expect(pill).toBeVisible()
 		// …and it is the token the pill is painting with, not a literal of its own.
 		const shadow = await pill.evaluate((el) => getComputedStyle(el).boxShadow)
@@ -1127,10 +1157,16 @@ type TodayShape = 'to-come' | 'completed' | 'empty'
 /** The weekday name the hero must use for a session two days out. */
 function weekdayTwoDaysOut(): string {
 	const day = 24 * 60 * 60 * 1000
-	return new Intl.DateTimeFormat('en-GB', {
-		weekday: 'long',
-		timeZone: 'UTC',
-	}).format(new Date(Date.now() + 2 * day))
+	const weekday = [
+		'søndag',
+		'mandag',
+		'tirsdag',
+		'onsdag',
+		'torsdag',
+		'fredag',
+		'lørdag',
+	][new Date(Date.now() + 2 * day).getUTCDay()]!
+	return weekday[0]!.toUpperCase() + weekday.slice(1)
 }
 
 async function seedHeroDay(userId: string, shape: TodayShape) {
@@ -1217,9 +1253,9 @@ test('today still to come: the kicker says today and the heading is that session
 	await expect(
 		page.getByRole('heading', { name: 'Tempo Run', level: 1 }),
 	).toBeVisible()
-	await expect(page.getByText(/^today · run/i)).toBeVisible()
+	await expect(page.getByText(/^i dag · løping/i)).toBeVisible()
 	// The headline is already today's, so there is nothing to demote to a fact.
-	await expect(page.getByText(/next up ·/i)).toHaveCount(0)
+	await expect(page.getByText(/neste ·/i)).toHaveCount(0)
 	expect(
 		await page.evaluate(
 			() =>
@@ -1242,14 +1278,14 @@ test("today completed: the hero says today is done, never headlining a later ses
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 
 	await expect(
-		page.getByRole('heading', { name: 'Today is done', level: 1 }),
+		page.getByRole('heading', { name: 'I dag er gjort', level: 1 }),
 	).toBeVisible()
-	await expect(page.getByText('Next up · Interval Run')).toBeVisible()
+	await expect(page.getByText('Neste · Interval Run')).toBeVisible()
 	// The kicker names the day that session is actually on.
 	await expect(
-		page.getByText(new RegExp(`^${weekdayTwoDaysOut()} · run`, 'i')),
+		page.getByText(new RegExp(`^${weekdayTwoDaysOut()} · løping`, 'i')),
 	).toBeVisible()
-	await expect(page.getByText(/^today · run/i)).toHaveCount(0)
+	await expect(page.getByText(/^i dag · løping/i)).toHaveCount(0)
 })
 
 test('today empty: the hero says so and presents what is next as a fact', async ({
@@ -1265,13 +1301,13 @@ test('today empty: the hero says so and presents what is next as a fact', async 
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 
 	await expect(
-		page.getByRole('heading', { name: 'Nothing on today', level: 1 }),
+		page.getByRole('heading', { name: 'Ingenting i dag', level: 1 }),
 	).toBeVisible()
-	await expect(page.getByText('Next up · Interval Run')).toBeVisible()
+	await expect(page.getByText('Neste · Interval Run')).toBeVisible()
 	await expect(
-		page.getByText(new RegExp(`^${weekdayTwoDaysOut()} · run`, 'i')),
+		page.getByText(new RegExp(`^${weekdayTwoDaysOut()} · løping`, 'i')),
 	).toBeVisible()
-	await expect(page.getByText(/^today · run/i)).toHaveCount(0)
+	await expect(page.getByText(/^i dag · løping/i)).toHaveCount(0)
 	expect(
 		await page.evaluate(
 			() =>
@@ -1400,12 +1436,12 @@ for (const theme of ['light', 'dark'] as const) {
 		// ── the hero's band pages, and moves nothing else ──
 		const before = await streamState(page)
 		const stripLeft = await strip.evaluate((el) => el.scrollLeft)
-		expect(await showingPane(page)).toBe('Today, pane 1 of 4')
+		expect(await showingPane(page)).toBe('I dag, side 1 av 4')
 
 		// 60px of travel on a 390px pane: nowhere near the halfway a
 		// release-position rule would need, and the flick lands on pane 2 anyway.
 		await flick(page, await centreOf(pager), -60)
-		expect(await showingPane(page)).toBe('Form, pane 2 of 4')
+		expect(await showingPane(page)).toBe('Form, side 2 av 4')
 
 		const after = await streamState(page)
 		expect(after.scrollTop).toBe(before.scrollTop)
@@ -1414,12 +1450,12 @@ for (const theme of ['light', 'dark'] as const) {
 
 		// The pane it paged to is the Training Load triad, off the snapshots the
 		// loader has been fetching all along.
-		const form = page.getByLabel('Form, pane 2 of 4')
+		const form = page.getByLabel('Form, side 2 av 4')
 		await expect(
-			form.getByRole('button', { name: 'Fitness (CTL)' }),
+			form.getByRole('button', { name: 'Kondisjon (CTL)' }),
 		).toBeVisible()
 		await expect(
-			form.getByRole('button', { name: 'Fatigue (ATL)' }),
+			form.getByRole('button', { name: 'Tretthet (ATL)' }),
 		).toBeVisible()
 		await expect(form.getByRole('button', { name: 'Form (TSB)' })).toBeVisible()
 		await expect(form).toContainText('62')
@@ -1434,13 +1470,13 @@ for (const theme of ['light', 'dark'] as const) {
 		await page.mouse.wheel(240, 0)
 		await page.waitForTimeout(600)
 		expect(await strip.evaluate((el) => el.scrollLeft)).toBe(stripLeft)
-		expect(await showingPane(page)).toBe('Form, pane 2 of 4')
+		expect(await showingPane(page)).toBe('Form, side 2 av 4')
 
 		// ── every pane is reachable without a swipe at all ──
 		for (const [name, label] of [
-			['This week', 'This week, pane 3 of 4'],
-			['Records', 'Records, pane 4 of 4'],
-			['Today', 'Today, pane 1 of 4'],
+			['Denne uka', 'Denne uka, side 3 av 4'],
+			['Rekorder', 'Rekorder, side 4 av 4'],
+			['I dag', 'I dag, side 1 av 4'],
 		] as const) {
 			await page.getByRole('button', { name, exact: true }).click()
 			await page.waitForTimeout(500)
@@ -1486,11 +1522,11 @@ for (const theme of ['light', 'dark'] as const) {
 		await expect(stream.getByText('Back Squat 82.5 × 5')).toBeVisible()
 		// Line 2: the figure, naming where it came from.
 		await expect(
-			stream.getByText('sRPE 78 — from time and effort, not from the sets'),
+			stream.getByText('sRPE 78 — fra tid og innsats, ikke fra settene'),
 		).toBeVisible()
 		// The chip: four of five, because the abandoned set is not a set that
 		// happened and the warm-up rung was never asked for.
-		const chip = stream.getByText('SETS 4 / 5')
+		const chip = stream.getByText('SETT 4 / 5')
 		await expect(chip).toBeVisible()
 		// Amber, and a real colour rather than an unresolved token.
 		const colour = await chip.evaluate(
@@ -1659,13 +1695,13 @@ for (const around of [true, false] as const) {
 			// No label where nothing prescribed one. Nothing in the model states
 			// per-day recovery, so this holds on every empty day the app can build
 			// — including this one, whatever the week around it looks like.
-			expect(cell.text).not.toMatch(/rest day/i)
+			expect(cell.text).not.toMatch(/hviledag/i)
 		}
 		// Today's cell names its own day, so 182 identical prompts are still
 		// distinguishable to a screen reader.
 		await expect(
 			page.getByTestId('timeline-stream').getByRole('button', {
-				name: /^add a workout on /i,
+				name: /^legg inn en økt /i,
 			}),
 		).not.toHaveCount(0)
 
@@ -1710,7 +1746,9 @@ test('with nothing on today the stream still lands on today, the hero still coll
 	const landed = await streamState(page)
 	expect(landed.scrollHeight).toBeGreaterThan(landed.clientHeight)
 	expect(landed.todayOffset).not.toBeNull()
-	expect(landed.scrollTop).toBe(Math.max(0, landed.todayOffset! - 96))
+	expect(landed.scrollTop).toBe(
+		Math.max(0, landed.todayOffset! - landed.landingOffset),
+	)
 	const anchorIsEmpty = await stream.evaluate(
 		(el) =>
 			!!el
@@ -1735,7 +1773,7 @@ test('with nothing on today the stream still lands on today, the hero still coll
 	}
 	await readToTheEnd(page)
 	await heroFolded()
-	const pill = page.getByRole('button', { name: '↑ I dag' })
+	const pill = page.getByRole('button', { name: 'Gå opp til i dag' })
 	await expect(pill).toBeVisible()
 
 	// 4 — and it works: today's row is back in view and the hero re-opens.
@@ -1963,12 +2001,24 @@ for (const theme of ['light', 'dark'] as const) {
 		expect(paint.contrast).toBeGreaterThan(MARK_MIN)
 		// And it must stay quieter than a row that carries content, or a week of
 		// blanks reads as a list of prompts rather than as a blank column.
-		const session = page.locator('[data-status] [data-session-title]').first()
-		// Centred rather than merely scrolled into view: the week header is
-		// sticky, and a title under it is a header that was measured instead.
-		await session.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+		// A title the reader can actually see: the week header is sticky and the
+		// hero folds with the scroll, so "centred" can still leave a title under
+		// one of them — measured, that is the header's paint, not the title's.
+		const titles = page.locator('[data-status] [data-session-title]')
+		await titles.last().evaluate((el) => el.scrollIntoView({ block: 'center' }))
 		await page.waitForTimeout(400)
-		const title = await inkPaint(session)
+		const seen = await titles.evaluateAll((nodes) =>
+			nodes.findIndex((node) => {
+				const box = node.getBoundingClientRect()
+				const hit = document.elementFromPoint(
+					box.x + Math.min(box.width / 2, 20),
+					box.y + box.height / 2,
+				)
+				return box.height > 0 && !!hit && node.contains(hit)
+			}),
+		)
+		expect(seen).toBeGreaterThanOrEqual(0)
+		const title = await inkPaint(titles.nth(seen))
 		expect(title.contrast).toBeGreaterThan(paint.contrast)
 	})
 }
@@ -2177,7 +2227,7 @@ test('a run of empty days behind today is one band, and opening it does not move
 	expect(cells).toHaveLength(7)
 	for (const cell of cells) {
 		expect(cell.tag).toBe('BUTTON')
-		expect(cell.name).toMatch(/^add a workout on /i)
+		expect(cell.name).toMatch(/^legg inn en økt /i)
 		expect(cell.height).toBeGreaterThanOrEqual(44)
 	}
 
@@ -2285,12 +2335,12 @@ test('the near end states how far home reads, never how far the athlete has trai
 		if ((await streamState(page)).weeks === before.weeks) break
 	}
 
-	await expect(stream.getByText(/home reads back to/i)).toBeVisible()
-	await expect(stream.getByText(/26 weeks of it/i)).toBeVisible()
+	await expect(stream.getByText(/i dag leser tilbake til/i)).toBeVisible()
+	await expect(stream.getByText(/26 uker av det/i)).toBeVisible()
 	// The claim that had to go: the query's own bound, stated as the beginning of
 	// the athlete's training (#500).
-	await expect(stream).not.toContainText(/as far back as your history goes/i)
-	await expect(stream).not.toContainText(/nothing logged before/i)
+	await expect(stream).not.toContainText(/så langt tilbake som historikken/i)
+	await expect(stream).not.toContainText(/ingenting logget før/i)
 })
 
 /**
@@ -2332,8 +2382,8 @@ test('tapping an empty day stamps a Token Sentence, and its popover does not cov
 	await cell.click()
 
 	// Derived, and shown before it commits — never silently defaulted.
-	await expect(page.getByRole('radio', { name: 'Run' })).toBeChecked()
-	await page.getByRole('button', { name: 'Add 45 min Z2' }).click()
+	await expect(page.getByRole('radio', { name: 'Løping' })).toBeChecked()
+	await page.getByRole('button', { name: 'Legg til 45 min Z2' }).click()
 
 	// The row now renders the sentence, and every value in it is a token.
 	const sentence = page.locator('[data-timeline-stamped]')
@@ -2394,7 +2444,7 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
 	await cell.scrollIntoViewIfNeeded()
 	const key = await cell.getAttribute('data-timeline-empty')
 	await cell.click()
-	await page.getByRole('button', { name: 'Add 45 min Z2' }).click()
+	await page.getByRole('button', { name: 'Legg til 45 min Z2' }).click()
 	await expect(page.locator('[data-timeline-stamped]')).toBeVisible()
 
 	// What it wrote is a prescription, never an actual: the row states planned
@@ -2413,7 +2463,7 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
 	// The way back, on the row (ADR 0076).
 	await page
 		.locator('[data-timeline-stamped]')
-		.getByRole('button', { name: 'Undo', exact: true })
+		.getByRole('button', { name: 'Angre', exact: true })
 		.click()
 	await expect(page.locator(`[data-timeline-empty="${key}"]`)).toBeVisible()
 	// A real delete, not a status: the day is an empty cell again and nothing is
@@ -2860,8 +2910,27 @@ test('a closed week folds to one line above today, and opens in place (#505 stor
 	const height = (await fold.boundingBox())!.height
 	expect(height).toBeGreaterThanOrEqual(44)
 	expect(height).toBeLessThan(90)
+	// Read from the top of the stream, where the reader is last parked in a
+	// *later* week than the fold: the run must open below the line without the
+	// stream crediting it to that week and throwing the reader down — which
+	// also brought the hero half back open over an empty box (S9 review).
+	await scrollStreamTo(page, (await streamState(page)).scrollTop + 900)
+	await page.waitForTimeout(600)
+	await scrollStreamTo(page, 0)
+	await page.waitForTimeout(600)
+	const lineAt = (await fold.boundingBox())!.y
 	await fold.click()
 	await expect(fold).toHaveAttribute('aria-expanded', 'true')
+	await page.waitForTimeout(600)
+	expect((await streamState(page)).scrollTop).toBe(0)
+	expect(Math.abs((await fold.boundingBox())!.y - lineAt)).toBeLessThanOrEqual(
+		2,
+	)
+	// The opened week's figures sit on the stream's own gutter, not flush left.
+	const figures = page
+		.locator(`[data-timeline-week="${lastWeek}"] [data-week-track]`)
+		.first()
+	expect((await figures.boundingBox())!.x).toBeGreaterThanOrEqual(16)
 	await expect(
 		page.locator(`[data-timeline-week="${lastWeek}"] [data-week-track]`),
 	).toContainText('mål 40')

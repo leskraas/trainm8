@@ -26,6 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Form, Link } from 'react-router'
 import { CreateMenu } from '#app/components/create-menu.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
+import { RECOMPUTE_NOTICE_LABELS } from '#app/utils/labels.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
@@ -257,19 +258,24 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		},
 		[scrollStreamRef],
 	)
+	// The open set as of the last render, read by the jump rather than depended
+	// on: a strip tap must not get a new callback every time a week opens, or
+	// every memoised strip bar and table row would re-render with it.
+	const openWeeksRef = useRef(openWeeks)
+	openWeeksRef.current = openWeeks
 	const jumpToWeek = useCallback(
 		(key: string) => {
 			const week = season.weeks.find((w) => w.key === key)
-			if (week?.shape === 'folded' && !openWeeks.has(key)) {
+			if (week?.shape === 'folded' && !openWeeksRef.current.has(key)) {
 				// The days open below the week's own top, which is where the jump
 				// lands — so the reading position this render produces is the
 				// jump's, and the stream's compensation must not credit it again.
 				streamNode.current?.setAttribute(HELD_ATTR, '')
-				toggleWeek(key)
+				setOpenWeeks((current) => new Set(current).add(key))
 			}
 			goToWeek(key)
 		},
-		[goToWeek, openWeeks, season.weeks, toggleWeek],
+		[goToWeek, season.weeks],
 	)
 	const large = useLargeScreen()
 
@@ -420,7 +426,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 						<StartCap
 							loggedFromLabel={season.loggedFromLabel}
 							reachesBackToLabel={season.reachesBackToLabel}
-							reachLabel={season.reachLabel}
+							reachWeeks={season.reachWeeks}
 						/>
 					) : null}
 					{visibleWeeks.map((week) => (
@@ -441,6 +447,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 			{large ? (
 				<SeasonPane
 					weeks={season.weeks}
+					leadTrackId={season.leadTrackId}
 					frame={scroll.frame}
 					onJump={jumpToWeek}
 				/>
@@ -483,7 +490,7 @@ function LoadRecomputeNoticeBar({ line }: { line: LoadRecomputeLine }) {
 					value="dismiss-load-recompute-notice"
 					className="border-hairline-edge text-foreground hover:border-primary rounded-[8px] border px-2.5 py-1 text-[11px]/[1.2] font-semibold"
 				>
-					Got it
+					{RECOMPUTE_NOTICE_LABELS.gotIt}
 				</button>
 			</Form>
 		</section>

@@ -28,7 +28,7 @@
  */
 
 /** The four facets of now, in order. The hero opens on the first (ADR 0065 §8). */
-export const HERO_PANES = ['Today', 'Form', 'This week', 'Records'] as const
+export const HERO_PANES = ['today', 'form', 'week', 'records'] as const
 
 export type HeroPaneName = (typeof HERO_PANES)[number]
 

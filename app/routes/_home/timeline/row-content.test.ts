@@ -380,7 +380,7 @@ describe('rule 4: the compliance chip names its basis and its band', () => {
 	test('an on-target session names TSS, both sides and the band', () => {
 		expect(chip(88, 91)).toEqual({
 			id: 'compliance',
-			label: 'TSS 88 / 91 · ON TARGET',
+			label: 'TSS 88 / 91 · I RUTE',
 			tone: 'primary',
 		})
 	})
@@ -403,7 +403,7 @@ describe('rule 4: the compliance chip names its basis and its band', () => {
 
 	test('exactly 0.85 is still ON TARGET — the under edge is exclusive', () => {
 		expect(ADHERENCE_ON_TARGET_AT_OR_ABOVE).toBe(0.85)
-		expect(chip(85, 100)?.label).toBe('TSS 85 / 100 · ON TARGET')
+		expect(chip(85, 100)?.label).toBe('TSS 85 / 100 · I RUTE')
 	})
 
 	test('a hair under 0.85 is UNDER', () => {
@@ -412,7 +412,7 @@ describe('rule 4: the compliance chip names its basis and its band', () => {
 
 	test('exactly 1.08 is still ON TARGET — the over edge is exclusive', () => {
 		expect(ADHERENCE_OVER_ABOVE).toBe(1.08)
-		expect(chip(108, 100)?.label).toBe('TSS 108 / 100 · ON TARGET')
+		expect(chip(108, 100)?.label).toBe('TSS 108 / 100 · I RUTE')
 	})
 
 	test('a hair over 1.08 is OVER', () => {
@@ -420,7 +420,7 @@ describe('rule 4: the compliance chip names its basis and its band', () => {
 	})
 
 	test('the chip rounds both sides to the load numbers athletes read', () => {
-		expect(chip(87.6, 91.4)?.label).toBe('TSS 88 / 91 · ON TARGET')
+		expect(chip(87.6, 91.4)?.label).toBe('TSS 88 / 91 · I RUTE')
 	})
 
 	test('a completed strength session bands on TSS, since no set actual exists', () => {
@@ -435,7 +435,7 @@ describe('rule 4: the compliance chip names its basis and its band', () => {
 			PLANNED_WEEK,
 		)
 		expect(content.chips).toEqual([
-			{ id: 'compliance', label: 'TSS 44 / 45 · ON TARGET', tone: 'primary' },
+			{ id: 'compliance', label: 'TSS 44 / 45 · I RUTE', tone: 'primary' },
 		])
 	})
 })
@@ -453,7 +453,7 @@ describe('rule 5: no band without both sides', () => {
 		expect(content.chips).toEqual([
 			{
 				id: 'compliance',
-				label: 'UNPLANNED · NO PLAN TO COMPARE',
+				label: 'UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED',
 				tone: 'muted',
 			},
 		])
@@ -475,7 +475,7 @@ describe('rule 5: no band without both sides', () => {
 		expect(content.chips).toEqual([
 			{
 				id: 'compliance',
-				label: 'UNPLANNED · NO PLAN TO COMPARE',
+				label: 'UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED',
 				tone: 'muted',
 			},
 		])
@@ -550,10 +550,10 @@ describe('rule 6: a missed session invents nothing', () => {
 			}),
 			THIS_WEEK,
 		)
-		expect(content.externalLoad).toBe('Nothing recorded')
+		expect(content.externalLoad).toBe('Ingenting registrert')
 		expect(content.internalLoad).toBeNull()
 		expect(content.chips).toEqual([
-			{ id: 'compliance', label: 'MISSED', tone: 'bad' },
+			{ id: 'compliance', label: 'IKKE GJORT', tone: 'bad' },
 		])
 	})
 
@@ -562,8 +562,8 @@ describe('rule 6: a missed session invents nothing', () => {
 			row({ status: 'skipped', workout: workout([block([step()])]) }),
 			THIS_WEEK,
 		)
-		expect(content.externalLoad).toBe('Nothing recorded')
-		expect(content.chips[0]?.label).toBe('MISSED')
+		expect(content.externalLoad).toBe('Ingenting registrert')
+		expect(content.chips[0]?.label).toBe('IKKE GJORT')
 	})
 
 	test('a past session still marked scheduled is missed', () => {
@@ -575,8 +575,8 @@ describe('rule 6: a missed session invents nothing', () => {
 			}),
 			THIS_WEEK,
 		)
-		expect(content.externalLoad).toBe('Nothing recorded')
-		expect(content.chips[0]?.label).toBe('MISSED')
+		expect(content.externalLoad).toBe('Ingenting registrert')
+		expect(content.chips[0]?.label).toBe('IKKE GJORT')
 	})
 
 	test('a missed session in an imported week gets no chip', () => {
@@ -630,7 +630,7 @@ describe('rule 7: planned rows are instructions', () => {
 			),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('50 min · 42 TSS planned')
+		expect(content.externalLoad).toBe('50 min · 42 TSS planlagt')
 		expect(content.internalLoad).toBe('5:25–5:40 /km · under 145 bpm')
 	})
 
@@ -650,8 +650,8 @@ describe('rule 7: planned rows are instructions', () => {
 			),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('42 TSS planned')
-		expect(content.internalLoad).toBe('9 km at 5:25–5:40 /km · under 145 bpm')
+		expect(content.externalLoad).toBe('42 TSS planlagt')
+		expect(content.internalLoad).toBe('9 km i 5:25–5:40 /km · under 145 bpm')
 	})
 
 	test('a repeated block multiplies both the duration and the distance', () => {
@@ -666,7 +666,7 @@ describe('rule 7: planned rows are instructions', () => {
 			),
 			PLANNED_WEEK,
 		)
-		expect(content.internalLoad).toBe('8 km at 4:00 /km')
+		expect(content.internalLoad).toBe('8 km i 4:00 /km')
 	})
 
 	test('a single-bound pace target reads as one pace', () => {
@@ -698,7 +698,7 @@ describe('rule 7: planned rows are instructions', () => {
 			),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('30 min · 42 TSS planned')
+		expect(content.externalLoad).toBe('30 min · 42 TSS planlagt')
 		expect(content.internalLoad).toBe('under 172 bpm')
 	})
 
@@ -727,7 +727,7 @@ describe('rule 7: planned rows are instructions', () => {
 			plannedRow(workout([block([step({ durationSec: 3000 })])])),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('50 min · 42 TSS planned')
+		expect(content.externalLoad).toBe('50 min · 42 TSS planlagt')
 		expect(content.internalLoad).toBeNull()
 	})
 
@@ -752,8 +752,8 @@ describe('rule 7: planned rows are instructions', () => {
 			),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('42 TSS planned')
-		expect(content.internalLoad).toBe('15 sets')
+		expect(content.externalLoad).toBe('42 TSS planlagt')
+		expect(content.internalLoad).toBe('15 sett')
 	})
 
 	test('a planned strength session with no authored sets states nothing', () => {
@@ -788,7 +788,7 @@ describe('rule 7: planned rows are instructions', () => {
 		)
 		// "first time at 90 kg" needs the lift's history; the set is at 90 kg and
 		// the row still refuses to claim it is a first.
-		expect(content.internalLoad).toBe('1 set')
+		expect(content.internalLoad).toBe('1 sett')
 		expect(content.internalLoad).not.toMatch(/first time/)
 	})
 
@@ -833,7 +833,7 @@ describe('rule 7: planned rows are instructions', () => {
 			PLANNED_WEEK,
 		)
 		const near = buildRowContent(plannedRow(w), THIS_WEEK)
-		expect(far.internalLoad).toBe('9 km at 5:25–5:40 /km')
+		expect(far.internalLoad).toBe('9 km i 5:25–5:40 /km')
 		expect(far.internalLoad).toBe(near.internalLoad)
 	})
 })
@@ -898,9 +898,9 @@ describe("today's row", () => {
 			{ isToday: true },
 		)
 		expect(content.chips).toEqual([
-			{ id: 'today', label: 'TODAY · NOT DONE YET', tone: 'primary' },
+			{ id: 'today', label: 'I DAG · IKKE GJORT ENNÅ', tone: 'primary' },
 		])
-		expect(content.externalLoad).toBe('62 min · 91 TSS planned')
+		expect(content.externalLoad).toBe('62 min · 91 TSS planlagt')
 	})
 
 	test('a session already done today is not "not done yet"', () => {
@@ -918,7 +918,7 @@ describe("today's row", () => {
 			THIS_WEEK,
 			{ isToday: true },
 		)
-		expect(content.chips.map((c) => c.label)).toEqual(['MISSED'])
+		expect(content.chips.map((c) => c.label)).toEqual(['IKKE GJORT'])
 	})
 
 	test('the today chip leads, then the band, then the Replan Note', () => {
@@ -1109,7 +1109,7 @@ describe('a lifting session states what it lifted', () => {
 			PLANNED_WEEK,
 		)
 		expect(content.internalLoad).toBe(
-			'sRPE 78 — from time and effort, not from the sets',
+			'sRPE 78 — fra tid og innsats, ikke fra settene',
 		)
 		// It is not called TSS: a strength session resolves to no TSS at all for
 		// Training Load purposes (ADR 0046 §2).
@@ -1138,7 +1138,7 @@ describe('a lifting session states what it lifted', () => {
 			PLANNED_WEEK,
 		)
 		expect(content.chips).toEqual([
-			{ id: 'sets', label: 'SETS 14 / 15', tone: 'warn' },
+			{ id: 'sets', label: 'SETT 14 / 15', tone: 'warn' },
 		])
 	})
 
@@ -1151,7 +1151,7 @@ describe('a lifting session states what it lifted', () => {
 			PLANNED_WEEK,
 		)
 		expect(content.chips).toEqual([
-			{ id: 'sets', label: 'SETS 15 / 15', tone: 'primary' },
+			{ id: 'sets', label: 'SETT 15 / 15', tone: 'primary' },
 		])
 	})
 
@@ -1165,7 +1165,7 @@ describe('a lifting session states what it lifted', () => {
 		)
 		expect(content.chips[0]).toEqual({
 			id: 'sets',
-			label: 'SETS 16 / 15',
+			label: 'SETT 16 / 15',
 			tone: 'primary',
 		})
 	})
@@ -1175,10 +1175,10 @@ describe('a lifting session states what it lifted', () => {
 			liftingRow({ prescribed: 15, logs: [] }),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('Nothing logged')
+		expect(content.externalLoad).toBe('Ingen sett logget')
 		expect(content.externalLoad).not.toMatch(/0/)
 		expect(content.chips).toEqual([
-			{ id: 'sets', label: 'SETS 0 / 15', tone: 'warn' },
+			{ id: 'sets', label: 'SETT 0 / 15', tone: 'warn' },
 		])
 	})
 
@@ -1187,7 +1187,7 @@ describe('a lifting session states what it lifted', () => {
 			liftingRow({ prescribed: 0, logs: [setLog(), setLog(), setLog()] }),
 			PLANNED_WEEK,
 		)
-		// `SETS 3 / 0` is not a fraction. Line 1 carries the lifts on its own.
+		// `SETT 3 / 0` is not a fraction. Line 1 carries the lifts on its own.
 		expect(content.chips).toEqual([])
 		expect(content.externalLoad).toBe('Back Squat 82.5 × 5')
 	})
@@ -1204,7 +1204,7 @@ describe('a lifting session states what it lifted', () => {
 		)
 		expect(content.chips.map((chip) => chip.id)).not.toContain('sets')
 		// The planned row keeps its own instruction: rule 7's set count on line 2.
-		expect(content.internalLoad).toBe('15 sets')
+		expect(content.internalLoad).toBe('15 sett')
 	})
 
 	test('a missed lifting session keeps MISSED and gains no set count', () => {
@@ -1217,9 +1217,9 @@ describe('a lifting session states what it lifted', () => {
 			}),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('Nothing recorded')
+		expect(content.externalLoad).toBe('Ingenting registrert')
 		expect(content.chips).toEqual([
-			{ id: 'compliance', label: 'MISSED', tone: 'bad' },
+			{ id: 'compliance', label: 'IKKE GJORT', tone: 'bad' },
 		])
 	})
 
@@ -1242,12 +1242,12 @@ describe('a lifting session states what it lifted', () => {
 
 describe('a load that is not bar kilos is never rendered as bar kilos', () => {
 	test.each([
-		[{ kind: 'bodyweight' }, 'Pull-up bodyweight × 5'],
-		[{ kind: 'bodyweightPlus', addedKg: 30 }, 'Pull-up bodyweight + 30 kg × 5'],
-		[{ kind: 'assisted', assistKg: 10 }, 'Pull-up assisted − 10 kg × 5'],
-		[{ kind: 'stackLevel', level: 7 }, 'Pull-up level 7 × 5'],
-		[{ kind: 'band', band: 'green' }, 'Pull-up green band × 5'],
-		[{ kind: 'unloaded' }, 'Pull-up no load × 5'],
+		[{ kind: 'bodyweight' }, 'Pull-up kroppsvekt × 5'],
+		[{ kind: 'bodyweightPlus', addedKg: 30 }, 'Pull-up kroppsvekt + 30 kg × 5'],
+		[{ kind: 'assisted', assistKg: 10 }, 'Pull-up assistert − 10 kg × 5'],
+		[{ kind: 'stackLevel', level: 7 }, 'Pull-up nivå 7 × 5'],
+		[{ kind: 'band', band: 'green' }, 'Pull-up green strikk × 5'],
+		[{ kind: 'unloaded' }, 'Pull-up uten vekt × 5'],
 		// `loadValueText` writes this `2 × 22.5 kg`; a second `×` right after it
 		// would read as one multiplication too many.
 		[{ kind: 'perSide', sides: 2, kg: 22.5 }, 'Pull-up 22.5 per side × 5'],
@@ -1293,7 +1293,7 @@ describe('a load that is not bar kilos is never rendered as bar kilos', () => {
 			}),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('Plank no load × 45 s')
+		expect(content.externalLoad).toBe('Plank uten vekt × 45 s')
 	})
 
 	test('a unilateral set keeps both rep counts rather than averaging them', () => {
@@ -1332,7 +1332,7 @@ describe('a load that is not bar kilos is never rendered as bar kilos', () => {
 		)
 		expect(content.externalLoad).toBe('Back Squat 82.5 × 5')
 		expect(content.chips).toEqual([
-			{ id: 'sets', label: 'SETS 3 / 3', tone: 'primary' },
+			{ id: 'sets', label: 'SETT 3 / 3', tone: 'primary' },
 		])
 	})
 })

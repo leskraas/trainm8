@@ -34,6 +34,15 @@ surface would be the worst of both.
 3. **Formatting does not change.** Numbers, dates and times stay `format.ts`'s
    fixed, pure, Athlete-Timezone formatting (ADR 0023 §1–2). Only wording is
    amended.
+
+   _Amended by
+   [ADR 0082](./0082-i-dag-reads-like-a-printed-plan-and-the-season-strip-frames-the-reader.md)
+   §9:_ on the home surface (`I dag`) **dates** are Norwegian too —
+   `ons 7. okt`, `28. sep – 4. okt` — from `format.ts`'s `formatNb*` family,
+   still fixed, pure and in the Athlete Timezone, with the month and weekday
+   words in `labels.ts`. An English month beside a Norwegian sentence was the
+   half-and-half surface the Context rules out. Numbers keep the house format.
+
 4. **Surfaces #505 does not redesign stay English** until they are redesigned.
    Code, identifiers, logs, ADRs and the glossary stay English; the glossary
    records each Norwegian UI word next to the term it names (_UI word:_

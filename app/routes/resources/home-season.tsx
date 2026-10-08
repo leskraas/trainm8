@@ -18,10 +18,19 @@ import { type Route } from './+types/home-season.ts'
  */
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const season = await getActiveSeason(userId)
-	if (!season) return { season: null }
-	return {
-		season: withWeekStarts(season),
-		...(await readSeasonChartInputs(userId, season)),
+	// A failed read answers as data rather than throwing: a fetcher's error
+	// would reach home's own error boundary and take the list down with a pane
+	// that is only ever extra. The pane says the curve could not load, quietly.
+	try {
+		const season = await getActiveSeason(userId)
+		if (!season) return { season: null, failed: false as const }
+		return {
+			season: withWeekStarts(season),
+			failed: false as const,
+			...(await readSeasonChartInputs(userId, season)),
+		}
+	} catch (error) {
+		console.error('[home-season] the season pane could not be read', error)
+		return { season: null, failed: true as const }
 	}
 }

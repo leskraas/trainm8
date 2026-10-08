@@ -452,8 +452,8 @@ describe('buildTodayCard', () => {
 		expect(card.cta).toBe('Log your sets')
 		expect(card.title).toBe('Workout A')
 		expect(card.lifts).toEqual([
-			{ name: 'Squat', scheme: '5×5', loadLabel: '82.5 kg' },
-			{ name: 'Bench Press', scheme: '2×5', loadLabel: '60 kg' },
+			{ name: 'Squat', setCount: 5, reps: 5, loadLabel: '82.5 kg' },
+			{ name: 'Bench Press', setCount: 2, reps: 5, loadLabel: '60 kg' },
 		])
 	})
 
@@ -474,8 +474,8 @@ describe('buildTodayCard', () => {
 			NOW,
 		)!
 		expect(card.lifts).toEqual([
-			{ name: 'Deadlift', scheme: '2 sets', loadLabel: null },
-			{ name: 'Chin-up', scheme: '1×8', loadLabel: null },
+			{ name: 'Deadlift', setCount: 2, reps: null, loadLabel: null },
+			{ name: 'Chin-up', setCount: 1, reps: 8, loadLabel: null },
 		])
 	})
 
@@ -545,18 +545,18 @@ describe('buildProofStrip', () => {
 	test('labels and formats a run record in kilometres', () => {
 		expect(buildProofStrip([record()])[0]).toEqual({
 			discipline: 'run',
-			disciplineLabel: 'Run',
-			label: 'Longest run',
+			disciplineLabel: 'Løping',
+			label: 'Lengste løpetur',
 			value: '21.1 km',
 			delta: '+11.1 km',
 		})
 	})
 
-	test('uses the Ride label and kilometres for bike records', () => {
+	test('names a bike record a ride, in kilometres', () => {
 		const proof = buildProofStrip([
 			record({ discipline: 'bike', value: 82_400, delta: 12_000 }),
 		])[0]!
-		expect(proof.label).toBe('Longest ride')
+		expect(proof.label).toBe('Lengste sykkeltur')
 		expect(proof.value).toBe('82.4 km')
 		// Whole-kilometre gains drop the decimal — the shared distance formatter.
 		expect(proof.delta).toBe('+12 km')
@@ -566,7 +566,7 @@ describe('buildProofStrip', () => {
 		const proof = buildProofStrip([
 			record({ discipline: 'swim', value: 1_500, delta: 200 }),
 		])[0]!
-		expect(proof.label).toBe('Longest swim')
+		expect(proof.label).toBe('Lengste svømmeøkt')
 		expect(proof.value).toBe('1,500 m')
 		expect(proof.delta).toBe('+200 m')
 	})
@@ -814,17 +814,17 @@ describe('buildLoadRecomputeLine', () => {
 			ctlAfter: 47.8,
 		})
 		expect(line).not.toBeNull()
-		expect(line!.kicker).toBe('Fitness recalculated')
+		expect(line!.kicker).toBe('Kondisjonen er regnet ut på nytt')
 		// The movement is spelled out in the same rounded units the triad shows,
 		// and hedged to "up to … at the widest point" because the stored pair is
 		// the day CTL moved most — which for a past gym block is not today.
 		expect(line!.movement).toBe(
-			'Fitness fell by up to 15 — 62 → 48 at the widest point',
+			'Kondisjonen falt med opptil 15 — 62 → 48 på det meste',
 		)
 		// Why, in the athlete's terms — and the reassurance that this is the app
 		// correcting itself, not their training slipping.
-		expect(line!.explanation).toMatch(/strength/i)
-		expect(line!.explanation).toMatch(/your training hasn't changed/i)
+		expect(line!.explanation).toMatch(/styrke/i)
+		expect(line!.explanation).toMatch(/treningen din er den samme/i)
 		// The kind rides along so acknowledging this notice dismisses only it.
 		expect(line!.kind).toBe('strength-left-the-triad')
 	})
@@ -840,7 +840,7 @@ describe('buildLoadRecomputeLine', () => {
 		})
 		// No pointer to that surface. ("mixing the two" is the copy describing what
 		// it stopped doing, which is the opposite of a recommendation.)
-		expect(line!.explanation).not.toMatch(/discipline mix|in the mix/i)
+		expect(line!.explanation).not.toMatch(/fordeling|discipline mix/i)
 	})
 
 	test('renders nothing when there is no notice', () => {

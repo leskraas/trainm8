@@ -43,7 +43,9 @@ import type {
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
 // The domain owns *which* outcomes a stored Week Replan can carry (ADR 0080);
 // this module owns the name each one goes by.
+import type { AdherenceTone } from './load/adherence.ts'
 import type { RoundVerdict } from './load/propose-next-round.ts'
+import type { ReadinessTone } from './load/readiness.ts'
 import type { WeekReplanOutcome } from './load/week-replan.ts'
 // The domain owns *which* currencies accumulate across Disciplines (ADR 0043 §5);
 // this module owns the sentence each accumulation is explained by.
@@ -696,10 +698,11 @@ export function missedCountLabel(count: number): string {
 
 /**
  * A week past the Planning Horizon (#505 story 27): when the week change will
- * fill it — the close of the week two before it (`horizonWeekKey`).
+ * fill it — the Sunday-evening close of the week two before it
+ * (`horizonWeekKey`), stated as the time it happens.
  */
 export function horizonFillLabel(closesWeekNumber: number): string {
-	return `fylles når uke ${closesWeekNumber} er ferdig`
+	return `fylles søndag kveld i uke ${closesWeekNumber}`
 }
 
 /** A week past the horizon of a plan with no Week Pattern to fill it from. */
@@ -743,6 +746,14 @@ export const SEASON_STRIP_LABELS = {
 	title: 'Sesongen',
 	region: 'Sesongen, uke for uke',
 	today: 'I dag',
+	/**
+	 * The pill's accessible name: a verb, so it never collides with the hero's
+	 * "I dag" pane dot, and with the way back in it once today is off-screen —
+	 * the arrow a sighted reader gets, said in words.
+	 */
+	todayName: 'Gå til i dag',
+	todayNameUp: 'Gå opp til i dag',
+	todayNameDown: 'Gå ned til i dag',
 	/** The pill, when today is off-screen above or below. */
 	todayUp: '↑ I dag',
 	todayDown: '↓ I dag',
@@ -774,6 +785,334 @@ export const SEASON_PANE_LABELS = {
 	load: 'økter og belastning',
 	jumpTo: (week: string) => `Gå til ${week}`,
 	noPlan: 'Ingen plan ennå, så sesongen er bare ukene du har skrevet.',
+	loadFailed:
+		'Sesongkurven kunne ikke lastes nå. Lista til venstre er den samme.',
+} as const
+
+// ---------------------------------------------------------------------------
+// I dag, the whole surface (#505, ADR 0081 §1 and ADR 0082): the home list,
+// its rows, the hero, the caps and the strip read in Norwegian, so no English
+// word sits beside a Norwegian one on the screen the athlete opens daily.
+// ---------------------------------------------------------------------------
+
+/** Months as a Norwegian calendar abbreviates them: `28. sep`. */
+export const NB_MONTHS_SHORT = [
+	'jan',
+	'feb',
+	'mar',
+	'apr',
+	'mai',
+	'jun',
+	'jul',
+	'aug',
+	'sep',
+	'okt',
+	'nov',
+	'des',
+] as const
+
+/** Weekdays, Monday first, the way a day gutter prints them: `ons`. */
+export const NB_WEEKDAYS_SHORT = [
+	'man',
+	'tir',
+	'ons',
+	'tor',
+	'fre',
+	'lør',
+	'søn',
+] as const
+
+/** `av` — the word between two figures: `35 av 46 km`. */
+export const OF_WORD = 'av'
+
+/** A sport's name, with a fallback for an import-only activity (ADR 0015). */
+export function nbDisciplineLabel(discipline: string): string {
+	return (
+		(NB_DISCIPLINE_LABELS as Record<string, string>)[discipline] ??
+		'Annen aktivitet'
+	)
+}
+
+/**
+ * What a session with no title of its own is called: `Løpeøkt`, `Sykkeløkt` —
+ * an untitled plan session, or a recording that arrived with no workout.
+ */
+export function nbSessionNoun(discipline: string): string {
+	return (
+		(
+			{
+				run: 'Løpeøkt',
+				bike: 'Sykkeløkt',
+				swim: 'Svømmeøkt',
+				strength: 'Styrkeøkt',
+			} as Record<string, string>
+		)[discipline] ?? 'Økt'
+	)
+}
+
+/** `5×5` where every set agrees on its reps, otherwise `3 sett`. */
+export function liftSchemeLabel(sets: number, reps: number | null): string {
+	return reps != null ? `${sets}×${reps}` : `${sets} sett`
+}
+
+/** The empty day, the rest day and the row's own words. */
+export const DAY_ROW_LABELS = {
+	addWorkout: 'Legg inn en økt',
+	addWorkoutOn: (day: string) => `Legg inn en økt ${day}`,
+	restDay: 'Hviledag',
+	restDayOn: (day: string) => `Hviledag — ${day}`,
+	restDayNote: 'Planen ber ikke om noe i dag.',
+	open: 'Åpne',
+	missedMark: (discipline: string) => `${discipline} — ikke gjort`,
+	planStart:
+		'Alt over denne linja er trening du hadde med deg — ingen plan å holde den opp mot.',
+} as const
+
+/** What a session row says on its two lines and its chips. */
+export const ROW_LABELS = {
+	todayNotDone: 'I DAG · IKKE GJORT ENNÅ',
+	missed: 'IKKE GJORT',
+	unplanned: 'UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED',
+	nothingRecorded: 'Ingenting registrert',
+	nothingLogged: 'Ingen sett logget',
+	planned: (what: string) => `${what} planlagt`,
+	perSide: 'per side',
+	distanceAt: (distance: string, pace: string) => `${distance} i ${pace}`,
+	hrCeiling: (bpm: number) => `under ${bpm} bpm`,
+	sets: (count: number) => `${count} sett`,
+	setsChip: (logged: number, prescribed: number) =>
+		`SETT ${logged} / ${prescribed}`,
+	srpe: (load: string) => `sRPE ${load} — fra tid og innsats, ikke fra settene`,
+} as const
+
+/** A session's TSS band on its chip: `TSS 88 / 91 · I RUTE`. */
+export const NB_ADHERENCE_CHIP_LABELS: Record<AdherenceTone, string> = {
+	'on-target': 'I RUTE',
+	under: 'UNDER',
+	over: 'OVER',
+}
+
+/** The same band in a sentence: `I rute · 94 % av …`. */
+export const NB_ADHERENCE_LABELS: Record<AdherenceTone, string> = {
+	'on-target': 'I rute',
+	under: 'Under',
+	over: 'Over',
+}
+
+/** A logged load that is not plain kilos, in a lifter's Norwegian. */
+export const NB_LOAD_WORDS = {
+	bodyweight: 'kroppsvekt',
+	assisted: 'assistert',
+	level: (level: number) => `nivå ${level}`,
+	band: (band: string) => `${band} strikk`,
+	unloaded: 'uten vekt',
+} as const
+
+/** The hero: today's session, what today is, and the way in. */
+export const HERO_LABELS = {
+	today: 'I dag',
+	tomorrow: 'I morgen',
+	nextUp: (title: string) => `Neste · ${title}`,
+	todayDone: 'I dag er gjort',
+	nothingLeftToday: 'Ingenting igjen i dag',
+	nothingToday: 'Ingenting i dag',
+	daysToRace: (days: number) =>
+		days === 1 ? '1 dag til løpsdagen' : `${days} dager til løpsdagen`,
+	weeksToRace: (weeks: number) =>
+		weeks === 1 ? '1 uke til løpsdagen' : `${weeks} uker til løpsdagen`,
+	seasonPlan: 'Sesongplan',
+	nothingScheduled: 'Ingenting planlagt',
+	nothingScheduledNote: 'Det står ingen økt foran deg i kalenderen.',
+	planASession: 'Planlegg en økt',
+	carousel: 'I dag, på fire måter',
+	pane: (name: string, index: number, count: number) =>
+		`${name}, side ${index} av ${count}`,
+	choosePane: 'Velg hva toppen viser',
+} as const
+
+/** The hero's four panes, by their codes. */
+export const HERO_PANE_LABELS = {
+	today: 'I dag',
+	form: 'Form',
+	week: 'Denne uka',
+	records: 'Rekorder',
+} as const
+
+/** The hero's one honest action (#179), in Norwegian. */
+export const NB_SESSION_CTA_LABELS: Record<
+	'View session' | 'Log session' | 'Log your sets',
+	string
+> = {
+	'View session': 'Se økta',
+	'Log session': 'Logg økta',
+	'Log your sets': 'Logg settene',
+}
+
+/** Form, read as a state, and what to do about it (ADR 0008/0010). */
+export const NB_READINESS_LABELS: Record<ReadinessTone, string> = {
+	fresh: 'uthvilt',
+	neutral: 'i balanse',
+	fatigued: 'sliten',
+}
+
+export const NB_READINESS_ADVICE: Record<ReadinessTone, string> = {
+	fresh: 'du er uthvilt, kjør økta',
+	neutral: 'tren som planlagt',
+	fatigued: 'ta det med ro i dag',
+}
+
+/** The coach's one line, in words the athlete reads every day. */
+export const VERDICT_LABELS = {
+	form: (signed: string, state: string) => `Form ${signed}, ${state}`,
+	coldStart: (day: number, required: number) =>
+		`Formen kan leses etter ${required} dager — dag ${day}/${required}.`,
+	sustainedOver: (weeks: number) =>
+		`Over planen ${weeks} uker på rad — formen synker. Ta det ned før det koster deg.`,
+	sustainedUnder: (weeks: number) =>
+		`Under planen ${weeks} uker på rad — formen glir fra målet. Få inn den planlagte treningen.`,
+	eased: (duration: string | null) =>
+		duration
+			? `neste økt er gjort lettere: ${duration} rolig i sone 2`
+			: 'neste økt er gjort lettere: rolig i sone 2',
+	heldStrength: 'neste økt er styrke, så den står som planlagt',
+} as const
+
+/** The Form pane's triad, as the hero names it (ADR 0008). */
+export const NB_LOAD_LEGENDS = {
+	fitness: {
+		short: 'Kond',
+		term: 'Kondisjon (CTL)',
+		description:
+			'Kondisjon (CTL): snittet av treningsbelastningen (TSS) de siste 42 dagene, vektet — formen du har bygd opp.',
+	},
+	fatigue: {
+		short: 'Tretth',
+		term: 'Tretthet (ATL)',
+		description:
+			'Tretthet (ATL): snittet av treningsbelastningen (TSS) de siste 7 dagene, vektet — slitet du bærer nå.',
+	},
+	form: {
+		short: 'Form',
+		term: 'Form (TSB)',
+		description:
+			'Form (TSB): kondisjon minus tretthet. Positiv betyr uthvilt, negativ betyr under belastning.',
+	},
+} as const
+
+/** The hero's other three panes. */
+export const HERO_PANE_TEXT = {
+	baseline: (day: number, required: number) =>
+		`Bygger grunnlag — dag ${day}/${required}`,
+	fitnessTrend: (from: string, to: string, since: string) =>
+		`Kondisjon ${from} → ${to} siden ${since}`,
+	adherence: (band: string, percent: number) =>
+		`${band} · ${percent} % av planlagt utholdenhetsbelastning`,
+	adherenceUnavailable: 'Planlagt utholdenhetsbelastning kan ikke måles',
+	strength: (completed: number, planned: number) =>
+		`${completed} av ${planned} styrkeøkter logget`,
+	noStrength: 'Ingen styrkeøkter denne uka',
+	noRecords:
+		'Ingen personlige rekorder ennå — de kommer når du har logget registrerte økter.',
+	overBest: (delta: string) => `${delta} over forrige beste`,
+	firstOnRecord: 'Første registrerte',
+	longest: (discipline: string) => `Lengste ${discipline}`,
+} as const
+
+/** The record's sport, as the noun after `Lengste`. */
+export const NB_RECORD_NOUNS: Record<string, string> = {
+	run: 'løpetur',
+	bike: 'sykkeltur',
+	swim: 'svømmeøkt',
+	strength: 'styrkeøkt',
+}
+
+/**
+ * A closed week's Week Replan outcome on the hero (ADR 0025, ADR 0080). Only a
+ * `proposed` outcome's reason is Norwegian prose; the older outcomes' stored
+ * reasons are English sentences, so they are said in these words instead.
+ */
+export const HOME_REPLAN_LABELS: Record<
+	WeekReplanOutcome,
+	{ outcome: string; reason: string | null }
+> = {
+	adjusted: {
+		outcome: 'Uka er justert',
+		reason: 'Vi gjorde denne uka lettere etter uka som gikk.',
+	},
+	proposed: { outcome: 'Endringer foreslått', reason: null },
+	'no-change': {
+		outcome: 'Ingen endring',
+		reason: 'Uka som gikk holdt planen, så denne står som den er.',
+	},
+	'insufficient-data': {
+		outcome: 'Ingen justering',
+		reason: 'Det var for lite å lese av uka som gikk til å endre noe.',
+	},
+}
+
+/** An outcome with no words of its own still names a decision. */
+export const HOME_REPLAN_FALLBACK = 'Ukeskiftet'
+
+/** The header's one line of orientation: `ons 7. okt · uke 9 av 10`. */
+export function planWeekLabel(week: number, total: number): string {
+	return `uke ${week} av ${total}`
+}
+
+/** The two ends of the list (ADR 0075 §3). */
+export const CAP_LABELS = {
+	readsBackTo: (date: string) => `I dag leser tilbake til ${date}`,
+	reach: (weeks: number, earliest: string | null) =>
+		earliest
+			? `${weeks} uker av det, og den første økta i den perioden er ${earliest}. Eldre trening vises ikke her — stripa stopper her også.`
+			: `${weeks} uker av det, uten noe logget i den perioden. Eldre trening vises ikke her — stripa stopper her også.`,
+	writtenThrough: (date: string) => `Alt er skrevet til og med ${date}`,
+	noPlan:
+		'Det finnes ingen sesongplan ennå, så lista er bare så lang som det du har skrevet.',
+	sketched: (weeks: number, event: string | null, date: string) =>
+		`Resten av sesongen er skissert, ikke skrevet — ${weeks === 1 ? '1 uke' : `${weeks} uker`} uten økter ennå, frem til ${event ?? 'løpsdagen'} ${date}.`,
+	whole: 'Det er hele planen. Ingenting er lagt inn etter dette.',
+	writeLast: (weeks: number) =>
+		weeks === 1 ? 'Skriv den siste uka' : `Skriv de siste ${weeks} ukene`,
+	seasonPlan: 'Sesongplan',
+	planASeason: 'Planlegg en sesong',
+	elsewhere: 'Andre steder i trainm8',
+	events: 'Løp og arrangementer',
+	catalogue: 'Katalog',
+	programs: 'Programmer',
+} as const
+
+/** The creation menu in I dag's header (#178). */
+export const CREATE_MENU_LABELS = {
+	trigger: 'Ny',
+	name: 'Lag ny',
+	session: 'Ny økt',
+	event: 'Nytt løp',
+	plan: 'Ny plan',
+} as const
+
+/** The day stamp's draft (ADR 0065 §5, #501). */
+export const DAY_STAMP_LABELS = {
+	prefilled: 'Det du trener mest — trykk på en annen for å bytte.',
+	ask: 'Ingenting å lese det av ennå, så: hvilken?',
+	discipline: 'Idrett',
+	liftsNote: 'En styrkeøkt sier hvilke løft — mer enn linja har plass til.',
+	failed: 'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
+	done: 'Ferdig',
+	add: (sentence: string) => `Legg til ${sentence}`,
+	adding: 'Legger til…',
+	nameTheLifts: 'Navngi løftene',
+	more: 'Mer',
+	cancel: 'Avbryt',
+	undo: 'Angre',
+	removing: 'Fjerner…',
+} as const
+
+/** The Load Recompute Notice on I dag (ADR 0046 §2). */
+export const RECOMPUTE_NOTICE_LABELS = {
+	kicker: 'Kondisjonen er regnet ut på nytt',
+	movement: (drop: string, before: string, after: string) =>
+		`Kondisjonen falt med opptil ${drop} — ${before} → ${after} på det meste`,
+	gotIt: 'Skjønner',
 } as const
 
 /**

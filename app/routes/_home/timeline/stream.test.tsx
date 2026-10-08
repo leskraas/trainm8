@@ -54,21 +54,15 @@ function week(rows: TimelineDay[], bands: TimelineBand[] = []): TimelineWeek {
 	return {
 		key: '2030-02-18',
 		rangeLabel: '18–24 February',
-		stripLabel: '18–24 Feb',
-		phaseLabel: 'Build 2 · This week',
-		stripPhaseLabel: 'this week',
-		statsLabel: '0 of 0 done',
 		plannedTss: null,
 		doneTss: null,
 		imported: false,
 		planStart: false,
 		isNow: true,
-		dayDots: ['empty', 'empty', 'today', 'empty', 'empty', 'empty', 'empty'],
 		rows,
 		bands,
 		tracks: [],
 		otherTrack: null,
-		weekNumber: 8,
 		relativeName: 'Denne uka',
 		phaseName: 'Build',
 		role: 'loading',
@@ -135,12 +129,12 @@ function pastRun() {
 test('a day the plan prescribes recovery on says Rest day, and says what it means', () => {
 	renderWeek([day({ restPrescribed: true })])
 
-	const cell = screen.getByRole('button', { name: 'Rest day — Fri 22' })
-	expect(cell).toHaveTextContent('Rest day')
-	expect(cell).toHaveTextContent('The plan asks for nothing today.')
+	const cell = screen.getByRole('button', { name: 'Hviledag — Fri 22' })
+	expect(cell).toHaveTextContent('Hviledag')
+	expect(cell).toHaveTextContent('Planen ber ikke om noe i dag.')
 	// The affordance is not offered where the plan has spoken: the day is not
 	// blank, it is prescribed.
-	expect(cell).not.toHaveTextContent('Add a workout')
+	expect(cell).not.toHaveTextContent('Legg inn en økt')
 })
 
 test('every other empty day carries no label at all, only the affordance', () => {
@@ -148,8 +142,8 @@ test('every other empty day carries no label at all, only the affordance', () =>
 	// the branch every empty day actually takes today.
 	renderWeek([day()])
 
-	const cell = screen.getByRole('button', { name: 'Add a workout on Fri 22' })
-	expect(cell).toHaveTextContent('Add a workout')
+	const cell = screen.getByRole('button', { name: 'Legg inn en økt Fri 22' })
+	expect(cell).toHaveTextContent('Legg inn en økt')
 	expect(cell).not.toHaveTextContent(/rest/i)
 })
 
@@ -160,7 +154,7 @@ test('an empty cell is a real button at the control floor, not a clickable box',
 	// in the 390×844 spec; jsdom reports every box as zero.
 	renderWeek([day()])
 
-	const cell = screen.getByRole('button', { name: /add a workout/i })
+	const cell = screen.getByRole('button', { name: /legg inn en økt/i })
 	expect(cell.tagName).toBe('BUTTON')
 	expect(cell).toHaveAttribute('type', 'button')
 	expect(cell).toHaveClass('min-h-11')
@@ -169,7 +163,7 @@ test('an empty cell is a real button at the control floor, not a clickable box',
 test('an empty cell states its own date, in the gutter every row aligns to', () => {
 	renderWeek([day({ dayLabel: 'Sat', dateLabel: '23 Feb', key: '2030-02-23' })])
 
-	const cell = screen.getByRole('button', { name: /add a workout/i })
+	const cell = screen.getByRole('button', { name: /legg inn en økt/i })
 	expect(within(cell).getByText('Sat')).toBeInTheDocument()
 	expect(within(cell).getByText('23 Feb')).toBeInTheDocument()
 })
@@ -181,7 +175,7 @@ test('an empty today is still the landing anchor', () => {
 		day({ key: '2030-02-20', dayLabel: 'Wed', dateLabel: '20', isToday: true }),
 	])
 
-	const cell = screen.getByRole('button', { name: 'Add a workout on Wed 20' })
+	const cell = screen.getByRole('button', { name: 'Legg inn en økt Wed 20' })
 	expect(cell.closest('[data-timeline-today]')).not.toBeNull()
 })
 
@@ -200,7 +194,7 @@ test('a run of empty days behind today is one row stating the count and the date
 	expect(control).toHaveTextContent('Feb')
 	// And the days it speaks for are not rows while it is closed.
 	expect(
-		screen.queryByRole('button', { name: /add a workout on tue 19/i }),
+		screen.queryByRole('button', { name: /legg inn en økt tue 19/i }),
 	).not.toBeInTheDocument()
 })
 
@@ -218,9 +212,9 @@ test('the band is a real control with an expanded state, and tapping it opens th
 	// Every day of the run is now a row, and each one takes the same gesture a
 	// day forward of today takes — the same component on the same model.
 	for (const name of [
-		'Add a workout on Mon 18 Feb',
-		'Add a workout on Tue 19 Feb',
-		'Add a workout on Wed 20 Feb',
+		'Legg inn en økt Mon 18 Feb',
+		'Legg inn en økt Tue 19 Feb',
+		'Legg inn en økt Wed 20 Feb',
 	]) {
 		expect(screen.getByRole('button', { name })).toHaveClass('min-h-11')
 	}
@@ -232,7 +226,7 @@ test('the band is a real control with an expanded state, and tapping it opens th
 	await userEvent.click(control)
 	expect(control).toHaveAttribute('aria-expanded', 'false')
 	expect(
-		screen.queryByRole('button', { name: /add a workout on tue 19/i }),
+		screen.queryByRole('button', { name: /legg inn en økt tue 19/i }),
 	).not.toBeInTheDocument()
 })
 
@@ -250,7 +244,7 @@ test('a day the presenter left out of a band is an ordinary row, band or no band
 
 	expect(
 		screen.getByRole('button', {
-			name: `Add a workout on Mon ${monday.dateLabel}`,
+			name: `Legg inn en økt Mon ${monday.dateLabel}`,
 		}),
 	).toBeInTheDocument()
 })
@@ -265,17 +259,17 @@ test('tapping an empty cell opens the draft on the athlete’s most-trained disc
 		prefill: 'bike',
 	})
 
-	await user.click(screen.getByRole('button', { name: /add a workout/i }))
+	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
 
 	// The sport, named the way the full authoring route's own Discipline select
 	// names it — the chip and the select are the same choice.
-	expect(screen.getByRole('radio', { name: 'Ride' })).toBeChecked()
+	expect(screen.getByRole('radio', { name: 'Sykling' })).toBeChecked()
 	expect(
-		screen.getByText('What you train most — tap another to change it.'),
+		screen.getByText('Det du trener mest — trykk på en annen for å bytte.'),
 	).toBeInTheDocument()
 	// The sentence the stamp is about to write, in the notation's own words.
 	expect(
-		screen.getByRole('button', { name: 'Add 45 min Z2' }),
+		screen.getByRole('button', { name: 'Legg til 45 min Z2' }),
 	).toBeInTheDocument()
 })
 
@@ -283,11 +277,11 @@ test('the prefilled discipline is one tap to change', async () => {
 	const user = userEvent.setup()
 	renderWeek([day()], { prefill: 'bike' })
 
-	await user.click(screen.getByRole('button', { name: /add a workout/i }))
-	await user.click(screen.getByRole('radio', { name: 'Swim' }))
+	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
+	await user.click(screen.getByRole('radio', { name: 'Svømming' }))
 
-	expect(screen.getByRole('radio', { name: 'Swim' })).toBeChecked()
-	expect(screen.getByRole('radio', { name: 'Ride' })).not.toBeChecked()
+	expect(screen.getByRole('radio', { name: 'Svømming' })).toBeChecked()
+	expect(screen.getByRole('radio', { name: 'Sykling' })).not.toBeChecked()
 })
 
 test('an athlete with no history is asked, never assigned a discipline', async () => {
@@ -297,17 +291,17 @@ test('an athlete with no history is asked, never assigned a discipline', async (
 	const user = userEvent.setup()
 	renderWeek([day()], { prefill: null })
 
-	await user.click(screen.getByRole('button', { name: /add a workout/i }))
+	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
 
-	for (const name of ['Run', 'Ride', 'Swim', 'Strength']) {
+	for (const name of ['Løping', 'Sykling', 'Svømming', 'Styrke']) {
 		expect(screen.getByRole('radio', { name })).not.toBeChecked()
 	}
 	expect(
-		screen.getByText('Nothing on record to read this from, so: which one?'),
+		screen.getByText('Ingenting å lese det av ennå, så: hvilken?'),
 	).toBeInTheDocument()
 	// And nothing to confirm: there is no session to offer until they answer.
-	expect(screen.queryByRole('button', { name: /^Add / })).toBeNull()
-	expect(screen.queryByRole('link', { name: /name the lifts/i })).toBeNull()
+	expect(screen.queryByRole('button', { name: /^Legg til / })).toBeNull()
+	expect(screen.queryByRole('link', { name: /navngi løftene/i })).toBeNull()
 })
 
 test('the draft carries the More escape, and it names the day it was opened on', async () => {
@@ -319,11 +313,11 @@ test('the draft carries the More escape, and it names the day it was opened on',
 		},
 	)
 
-	await user.click(screen.getByRole('button', { name: /add a workout/i }))
+	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
 
 	// The full route now accepts both — the day the athlete tapped, and the chip
 	// they were looking at when they tapped it.
-	expect(screen.getByRole('link', { name: 'More' })).toHaveAttribute(
+	expect(screen.getByRole('link', { name: 'Mer' })).toHaveAttribute(
 		'href',
 		'/training/sessions/new?date=2030-02-23&discipline=run',
 	)
@@ -336,16 +330,16 @@ test('strength takes the full route rather than stamping a session with no lift'
 	const user = userEvent.setup()
 	renderWeek([day({ key: '2030-02-23' })], { prefill: 'strength' })
 
-	await user.click(screen.getByRole('button', { name: /add a workout/i }))
+	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
 
-	expect(screen.queryByRole('button', { name: /^Add / })).toBeNull()
-	expect(screen.getByRole('link', { name: 'Name the lifts' })).toHaveAttribute(
+	expect(screen.queryByRole('button', { name: /^Legg til / })).toBeNull()
+	expect(screen.getByRole('link', { name: 'Navngi løftene' })).toHaveAttribute(
 		'href',
 		'/training/sessions/new?date=2030-02-23&discipline=strength',
 	)
 	expect(
 		screen.getByText(
-			'A lifting session says which lifts — more than the line can hold.',
+			'En styrkeøkt sier hvilke løft — mer enn linja har plass til.',
 		),
 	).toBeInTheDocument()
 })
@@ -359,19 +353,23 @@ test('a stamp that writes nothing gives the row back, and says so', async () => 
 	const user = userEvent.setup()
 	renderWeek([day()], { prefill: 'run', action: () => ({ oops: true }) })
 
-	await user.click(screen.getByRole('button', { name: /add a workout/i }))
-	await user.click(screen.getByRole('button', { name: 'Add 45 min Z2' }))
+	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
+	await user.click(screen.getByRole('button', { name: 'Legg til 45 min Z2' }))
 
 	// The button is offering the stamp again rather than reporting one in
 	// flight, and the row states what happened to the last one.
-	const retry = await screen.findByRole('button', { name: 'Add 45 min Z2' })
+	const retry = await screen.findByRole('button', {
+		name: 'Legg til 45 min Z2',
+	})
 	expect(retry).toBeEnabled()
 	expect(
-		screen.getByText('That did not save. Nothing was written — try again.'),
+		screen.getByText(
+			'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
+		),
 	).toBeInTheDocument()
 	// And the draft is still the athlete's own draft: the chip they chose is
 	// where they left it, so retrying is one tap and not a re-answered question.
-	expect(screen.getByRole('radio', { name: 'Run' })).toBeChecked()
+	expect(screen.getByRole('radio', { name: 'Løping' })).toBeChecked()
 })
 
 test('retrying a failed stamp clears the last failure off the row', async () => {
@@ -385,16 +383,20 @@ test('retrying a failed stamp clears the last failure off the row', async () => 
 		},
 	})
 
-	await user.click(screen.getByRole('button', { name: /add a workout/i }))
-	await user.click(screen.getByRole('button', { name: 'Add 45 min Z2' }))
-	await screen.findByText('That did not save. Nothing was written — try again.')
-	await user.click(screen.getByRole('button', { name: 'Add 45 min Z2' }))
+	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
+	await user.click(screen.getByRole('button', { name: 'Legg til 45 min Z2' }))
+	await screen.findByText(
+		'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
+	)
+	await user.click(screen.getByRole('button', { name: 'Legg til 45 min Z2' }))
 
 	// The draft is gone: the second post wrote a session, and the row moves on to
 	// the sentence for it (which needs the ledger to carry it — see the provider).
 	await waitFor(() => {
 		expect(
-			screen.queryByText('That did not save. Nothing was written — try again.'),
+			screen.queryByText(
+				'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
+			),
 		).toBeNull()
 	})
 	expect(attempts).toBe(2)
@@ -404,10 +406,10 @@ test('the draft closes without writing anything', async () => {
 	const user = userEvent.setup()
 	renderWeek([day()], { prefill: 'run' })
 
-	await user.click(screen.getByRole('button', { name: /add a workout/i }))
-	await user.click(screen.getByRole('button', { name: 'Cancel' }))
+	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
+	await user.click(screen.getByRole('button', { name: 'Avbryt' }))
 
 	expect(
-		screen.getByRole('button', { name: /add a workout/i }),
+		screen.getByRole('button', { name: /legg inn en økt/i }),
 	).toBeInTheDocument()
 })

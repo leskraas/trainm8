@@ -101,10 +101,10 @@ test('Home at 390px: a row carries every field, the strip fits whole, no page ov
 	await expect(row).toContainText('TSS 56 / 85 · UNDER')
 	await expect(row).toContainText('RPE 8')
 	// The lane is named, not only coloured.
-	await expect(row.getByRole('img', { name: 'Ride' })).toBeVisible()
+	await expect(row.getByRole('img', { name: 'Sykling' })).toBeVisible()
 
 	// The planned row states its prescription honestly and never as an actual.
-	await expect(stream.getByText('74 TSS planned')).toBeVisible()
+	await expect(stream.getByText('74 TSS planlagt')).toBeVisible()
 
 	// The season strip is the navigation axis, and on a phone it shows the
 	// whole season at once (#505): nothing to scroll sideways, every week a bar

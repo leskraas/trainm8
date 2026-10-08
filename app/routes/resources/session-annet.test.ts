@@ -129,3 +129,20 @@ test('a request with no signed-in athlete is turned away', async () => {
 	).rejects.toBeInstanceOf(Response)
 	expect(await countsInNoTrack(rideId)).toBe(false)
 })
+
+test('a malformed request is refused before anything is written', async () => {
+	const { rideId, cookie } = await athlete()
+	await expect(
+		action({
+			...ARGS,
+			request: post(
+				[
+					['sessionId', rideId],
+					['countsInNoTrack', 'maybe'],
+				],
+				cookie,
+			),
+		}),
+	).rejects.toMatchObject({ status: 400 })
+	expect(await countsInNoTrack(rideId)).toBe(false)
+})

@@ -95,7 +95,7 @@ test('Dashboard renders no unrounded floats even from raw TSS values', async ({
 	}
 
 	// Both caps state their own numbers, and neither may leak a raw float.
-	await expect(page.getByText(/everything is written through/i)).toBeVisible()
+	await expect(page.getByText(/alt er skrevet til og med/i)).toBeVisible()
 	expect(await page.evaluate(() => document.body.innerText)).not.toMatch(
 		RAW_FLOAT,
 	)

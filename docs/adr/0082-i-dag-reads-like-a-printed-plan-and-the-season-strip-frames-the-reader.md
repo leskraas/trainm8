@@ -50,10 +50,15 @@ cells at a time is not a pattern.
 - **Per Training Track, the three numbers side by side** —
   `Løping · mål 46 · planlagt 44 · gjort 35 km` — with the verdict (`under`,
   `i rute`, `over`) only once a day of the week is past, the `≠` mark when
-  planned is more than 10 % off target, and what has no number said beside the
-  sum (`+1 uten km`), never folded into it. Annet sits apart and counts in
-  nothing. A week with no track to read it in carries its sessions and load
-  instead (`2 av 5 gjort · 48 av 312 TSS`).
+  planned is more than 10 % off target — **and only in a week that holds a
+  session**: a week nobody has written into is not "off" its target, it is
+  unwritten, and the collapsed line already says so — and what has no number
+  said beside the sum (`+1 uten km`), never folded into it. A track whose
+  target, planned and done are all zero or absent is **left out**, by the same
+  rule the strip's lifting dot is drawn by (`trackHasFigures`): a line of zeros
+  is noise, not a reading. Annet sits apart and counts in nothing. A week with
+  no track to read it in carries its sessions and load instead
+  (`2 av 5 gjort · 48 av 312 TSS`).
 
 The numbers are S8's (`buildWeekVolumes`); the presenter only puts the words on
 them. A figure a week cannot state is a dash, never a `0` — and a week wholly
@@ -62,13 +67,19 @@ ahead states no "done" at all.
 ### 2. A closed week folds to one line above today
 
 Every week before this one is **folded**: one line,
-`Forrige uke 28 Sep–4 Oct · 35 av 46 km · under`, read in the lead track (the
-first track not counted in sets) or, with no track, in sessions and load. The
-line is a real disclosure, the way ADR 0075 §5 made the past band one: it opens
-the week below itself and stays, carrying `aria-expanded` and the way back.
-Opening it holds the reading position with the past band's own arithmetic
-(`bandScrollTop`, ADR 0075 §6) and tells the stream's compensation the insertion
-is paid for (`HELD_ATTR`).
+`Forrige uke 28. sep – 4. okt · 35 av 46 km · under`, read in the lead track
+(the first track not counted in sets) or, with no track, in sessions and load.
+The line's reference is the target, or the planned figure when the target is
+zero or absent — never `35 av 0 km` — and with neither it states what was done
+(`12 km gjort`). The line is a real disclosure, the way ADR 0075 §5 made the
+past band one: it opens the week below itself and stays, carrying
+`aria-expanded` and the way back. Opening it holds the reading position with the
+past band's own arithmetic (`bandScrollTop`, ADR 0075 §6) and tells the stream's
+compensation the insertion is paid for (`HELD_ATTR`) — set **before** the render
+the toggle causes, since the open weeks are the stream's own state and its
+compensation runs inside that render. Set after, it credited the opened run to
+the week the reader was last parked in and threw the stream down by the run's
+height, bringing the hero half back open over an empty box.
 
 A jump into a folded week from the strip **opens it**: the jump asked to see the
 week, not its one line. Which weeks are open is therefore the frame's state, not
@@ -80,15 +91,18 @@ The season now runs to the **plan's last week**, written or not, so its shape is
 all there. A week is **collapsed** when all of these hold: there is a plan, the
 week is past the Planning Horizon (`horizonWeekKey(lastClosedWeekKey)`), it sits
 inside a phase, and **nothing machine-owned is in it**. It reads as one line —
-`Uke 41 · Oppbygging · mål 58 km · fylles når uke 39 er ferdig` — and draws only
-the days that hold a session, which can only be the athlete's own: their fixed
-points far ahead are never hidden.
+`Uke 41 · Oppbygging · mål 58 km · fylles søndag kveld i uke 39` — and draws
+only the days that hold a session, which can only be the athlete's own: their
+fixed points far ahead are never hidden.
 
-The last clause of that line is the week change's own rule: a close fills the
-week after next, so a week fills when the week two before it is done. A plan
-with no Week Pattern has nothing to fill from and says
-`ingen økter lagt inn ennå` instead — a promise the app would not keep is not
-printed.
+The last clause of that line is the week change's own rule, stated as the moment
+it happens: the Sunday 20:00 close of a week fills the week after next
+(`horizonWeekKey`), so week 41 fills on the Sunday evening that ends week 39. An
+earlier wording, `fylles når uke 39 er ferdig`, read as "once week 39's training
+is done" — a condition on the athlete, which the fill is not. The Planning
+Horizon entry in `GLOSSARY.md` carries the arithmetic. A plan with no Week
+Pattern has nothing to fill from and says `ingen økter lagt inn ennå` instead —
+a promise the app would not keep is not printed.
 
 A week the plan has **already laid** (a legacy full laydown, a stamp of many
 weeks) is written, whatever the horizon says, so it stays open. Collapsing it
@@ -132,7 +146,15 @@ to say, and the two horizontal instruments stay distinct because only the
   its bar; a week that asks for lifting carries a dot (variant C's
   strength-as-dots, so km and sets never share an axis — ADR 0043).
 - Every week is a real button with the week's numbers in its name; tapping one
-  jumps the stream there (`goToWeek`).
+  jumps the stream there (`goToWeek`). The weeks are one **toolbar** and one tab
+  stop — a roving `tabindex`, with the arrow keys, `Home` and `End` to move
+  along it — so the season is a single stop in the tab order, not fifty, and the
+  strip itself is no longer a focusable region wrapping its buttons.
+- A finger is read off its **x over the whole row's height**, not off the bar
+  under it: a bar is a few pixels wide on a phone and a short one is a few
+  pixels tall, so the hit target is the week's column. Holding and dragging
+  scrubs the stream through the season (pointer capture, `touch-action: none` on
+  the row only, so the page still scrolls everywhere else).
 - The frame is the first and last week whose headers are on screen
   (`weeksInView`), measured on the same scroll pass as the active week and set
   only when an edge moves to another week. It is positioned by index, never by a
@@ -147,10 +169,13 @@ longer centres anything, so `centreScrollLeft` and its timer ladder are deleted.
 **Supersedes ADR 0077 §4.** The way back to today is the **I dag pill** at the
 strip's corner: always there, quiet while today's row is on screen, filled with
 its arrow (`↑ I dag`, `↓ I dag`) once the reader has scrolled today away (idea
-I). It replaced the pill that floated over the stream's bottom edge and arrived
-and left on an animation; a control that never comes or goes needs no entrance,
-and it changes look **instantly**, because a look that eases in lags the scroll
-it reports.
+I). Its accessible name is a verb with the direction in words — `Gå til i dag`,
+`Gå opp til i dag`, `Gå ned til i dag` — so it never collides with the hero's
+`I dag` pane dot and a screen reader hears the arrow a sighted reader sees. It
+replaced the pill that floated over the stream's bottom edge and arrived and
+left on an animation; a control that never comes or goes needs no entrance, and
+it changes look **instantly**, because a look that eases in lags the scroll it
+reports.
 
 So the timeline's CSS motion is now the accordions (the draft, a band's run, a
 folded week's days: height + opacity, 200ms) and the press (a row, a cell, a
@@ -170,6 +195,14 @@ phone neither renders nor fetches it. The plan page and the pane read the same
 inputs through `season-chart.server.ts`. The full spreadsheet season (variant N)
 is not this.
 
+The pane is **memoised**, and so are the chart and the table under it: the list
+beside it re-renders on every scroll frame that moves the frame, and the chart
+must not re-render with it (ADR 0078's rule — memoisation is load-bearing). Its
+callbacks are stable (`jumpToWeek` reads the open weeks through a ref rather
+than depending on them). It fetches **once**: a failed read answers
+`{ season: null, failed: true }` rather than throwing, and the pane shows a
+quiet line (`Sesongkurven kunne ikke lastes nå.`) instead of retrying in a loop.
+
 ### 8. A done session can be counted in Annet from its row
 
 S8 left `setCountsInNoTrack` without a surface. A done session in a sport the
@@ -179,6 +212,39 @@ athlete put in Annet carries an `Annet` chip and `Tell i sporet`. It posts to
 answers 404 and moves nothing). A sibling of the row's link, never inside it — a
 control inside a link is two targets under one thumb. A planned session is not
 offered it: the bike ride to work is a thing that happened.
+
+### 9. The home surface speaks Norwegian, dates included
+
+**Completes ADR 0081 for `I dag`.** Every word on the home surface — the rows,
+the hero and its panes, the empty cells, the start and end caps, the plan-start
+line, the day stamp, the create menu, the recompute notice — comes from
+`labels.ts` and is Norwegian: `IKKE GJORT`, `Ingenting registrert`,
+`Legg inn en økt`, `60 TSS planlagt`, `Se økta`, `Sesongplan`, the Form reading
+(`Form -13, sliten — …`). Dates are Norwegian too, from the `formatNb*` family
+in `format.ts` and the month and weekday maps in `labels.ts`: `ons` / `7`,
+`ons 7. okt`, and the week's span in the compact form a printed calendar uses —
+`5.–11. okt`, `28. sep – 4. okt` — which also keeps the header on one line at
+390px. No figure in a week header is below 12px; the extras are 11px.
+
+What stays English is named, not hidden: the season chart's own words inside the
+large-screen pane (it is the plan page's component, ADR 0081 §4), the Token
+Sentence's accessible descriptions (`45 min duration`, the shared editor's), and
+an imported activity's own title.
+
+### 10. Today lands below its week's header, measured
+
+The landing offset was a constant (`LANDING_OFFSET = 96`) from when a week
+header was one line. With a header of up to three track lines that parked
+today's row **under** the sticky header. The landing is now the measured height
+of today's week header plus `LANDING_GAP` (12px) (`landingOffsetFor`), measured
+on every landing, settle and return to today; the constant survives only as the
+fallback before anything is laid out. The e2e landing test asserts today's row
+top clears the header's bottom, so a taller header cannot regress it silently.
+
+Where there is less than a hero's height of stream above the landing — a short
+history — the fold's travel upward shortens to the room there is (`heroFold`),
+so the top of the stream is a full fold rather than a half-folded, already-faded
+hero: a blank box nobody could scroll away.
 
 ## Consequences
 
@@ -195,8 +261,8 @@ offered it: the bike ride to work is a thing that happened.
   strip, where navigation lives. Its `--shadow-pill` now lifts it only while it
   points somewhere.
 - **The plan page's chart words stay English** in the large-screen pane: that
-  surface is not redesigned yet (ADR 0081 §4). The week rows, the start and end
-  caps and the hero also stay English until their slices.
+  surface is not redesigned yet (ADR 0081 §4). Everything else on the home
+  surface is Norwegian (§9).
 - **`ActivePlan` carries two new readings**: `weekRoles` and `fillsWeeks`
   (whether a Week Pattern with days exists).
 
@@ -211,7 +277,7 @@ offered it: the bike ride to work is a thing that happened.
   weeks are the ones the athlete reads every day, and they are where half-blank
   weeks cost the most.
 - **Keep the floating pill as well as the strip pill.** Rejected: two controls
-  for one act, one English and one Norwegian, on one screen.
+  for one act on one screen.
 - **Mount the season chart on every home load and hide it below `lg`.**
   Rejected: a phone would pay the season read and the conversion contexts on
   every visit for a pane it never draws, and the hidden subtree would still

@@ -378,7 +378,7 @@ test("the hero is today's session, with its kicker, title and numbers", async ()
 	await screen.findByRole('heading', { name: 'Threshold 4 × 8 min', level: 1 })
 	// The kicker: when, which discipline, and how far to race day.
 	expect(
-		screen.getByText(/today · run · 8 weeks to race day/i),
+		screen.getByText(/i dag · løping · 8 uker til løpsdagen/i),
 	).toBeInTheDocument()
 	expect(screen.getByText('62 min')).toBeInTheDocument()
 	expect(screen.getByText('91 TSS')).toBeInTheDocument()
@@ -392,13 +392,13 @@ test('the hero is open on first paint — the athlete must see today', async () 
 	await screen.findByRole('heading', { name: 'Threshold 4 × 8 min', level: 1 })
 	// The collapsed header shows the title at 13px beside an Open button; the
 	// open hero shows the h1. Only one of the two is ever rendered.
-	expect(screen.queryByRole('link', { name: 'Open' })).not.toBeInTheDocument()
+	expect(screen.queryByRole('link', { name: 'Åpne' })).not.toBeInTheDocument()
 })
 
 test('the hero CTA opens the session, with the label the presenter chose', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
-	const cta = await screen.findByRole('link', { name: /view session/i })
+	const cta = await screen.findByRole('link', { name: /se økta/i })
 	expect(cta).toHaveAttribute('href', `/training/sessions/${TODAY_SESSION.id}`)
 })
 
@@ -411,9 +411,7 @@ test('the hero verdict never shows a Form number on a cold start', async () => {
 		}),
 	)
 
-	await screen.findByText(
-		/your form reading is reliable after 42 days — day 9\/42\./i,
-	)
+	await screen.findByText(/formen kan leses etter 42 dager — dag 9\/42\./i)
 	expect(screen.queryByText(/^Form \+/)).not.toBeInTheDocument()
 })
 
@@ -481,9 +479,9 @@ test("today still to come: the kicker says today and the heading is today's sess
 		name: 'Threshold 4 × 8 min',
 		level: 1,
 	})
-	expect(screen.getByText(/^today · run/i)).toBeInTheDocument()
+	expect(screen.getByText(/^i dag · løping/i)).toBeInTheDocument()
 	// Nothing is demoted to a fact, because the headline is already today's.
-	expect(screen.queryByText(/next up ·/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/neste ·/i)).not.toBeInTheDocument()
 })
 
 test('today empty: the heading says so and the next session is a fact, not the headline', async () => {
@@ -494,11 +492,11 @@ test('today empty: the heading says so and the next session is a fact, not the h
 		}),
 	)
 
-	await screen.findByRole('heading', { name: 'Nothing on today', level: 1 })
-	expect(screen.getByText('Next up · Intervals 6 × 3 min')).toBeInTheDocument()
+	await screen.findByRole('heading', { name: 'Ingenting i dag', level: 1 })
+	expect(screen.getByText('Neste · Intervals 6 × 3 min')).toBeInTheDocument()
 	// The kicker names Friday â the day the session is actually on.
-	expect(screen.getByText(/^friday · run/i)).toBeInTheDocument()
-	expect(screen.queryByText(/^today · /i)).not.toBeInTheDocument()
+	expect(screen.getByText(/^fredag · løping/i)).toBeInTheDocument()
+	expect(screen.queryByText(/^i dag · /i)).not.toBeInTheDocument()
 })
 
 test("today completed: the hero says today is done rather than headlining Friday as today's", async () => {
@@ -509,9 +507,9 @@ test("today completed: the hero says today is done rather than headlining Friday
 		}),
 	)
 
-	await screen.findByRole('heading', { name: 'Today is done', level: 1 })
-	expect(screen.getByText('Next up · Intervals 6 × 3 min')).toBeInTheDocument()
-	expect(screen.getByText(/^friday · run/i)).toBeInTheDocument()
+	await screen.findByRole('heading', { name: 'I dag er gjort', level: 1 })
+	expect(screen.getByText('Neste · Intervals 6 × 3 min')).toBeInTheDocument()
+	expect(screen.getByText(/^fredag · løping/i)).toBeInTheDocument()
 	expect(
 		screen.queryByRole('heading', {
 			name: 'Intervals 6 × 3 min',
@@ -523,17 +521,16 @@ test("today completed: the hero says today is done rather than headlining Friday
 test('nothing scheduled says so, and offers to plan one', async () => {
 	renderRoute(dashboardLoader({ ledger: [at(-3, { status: 'completed' })] }))
 
-	await screen.findByRole('heading', { name: /nothing scheduled/i, level: 1 })
-	expect(screen.getByRole('link', { name: /plan a session/i })).toHaveAttribute(
-		'href',
-		'/training/sessions/new',
-	)
+	await screen.findByRole('heading', { name: /ingenting planlagt/i, level: 1 })
+	expect(
+		screen.getByRole('link', { name: /planlegg en økt/i }),
+	).toHaveAttribute('href', '/training/sessions/new')
 })
 
 test('the hero offers the season plan, since the tab bar that would carry it is not built', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
-	const links = await screen.findAllByRole('link', { name: /season plan/i })
+	const links = await screen.findAllByRole('link', { name: /sesongplan/i })
 	expect(links[0]).toHaveAttribute('href', '/training/plan')
 })
 
@@ -598,19 +595,21 @@ function showingPane() {
 test('the hero is a pager of four panes, anchored on today', async () => {
 	renderRoute(dashboardLoader(PANE_FIXTURES))
 
-	const pager = await screen.findByRole('group', { name: 'Today, four ways' })
+	const pager = await screen.findByRole('group', {
+		name: 'I dag, på fire måter',
+	})
 	expect(pager).toHaveAttribute('aria-roledescription', 'carousel')
 	const panes = within(pager)
 		.getAllByRole('group')
 		.map((pane) => pane.getAttribute('aria-label'))
 	expect(panes).toEqual([
-		'Today, pane 1 of 4',
-		'Form, pane 2 of 4',
-		'This week, pane 3 of 4',
-		'Records, pane 4 of 4',
+		'I dag, side 1 av 4',
+		'Form, side 2 av 4',
+		'Denne uka, side 3 av 4',
+		'Rekorder, side 4 av 4',
 	])
 	// It opens on today, whatever else it can be paged to.
-	expect(showingPane()).toHaveAttribute('aria-label', 'Today, pane 1 of 4')
+	expect(showingPane()).toHaveAttribute('aria-label', 'I dag, side 1 av 4')
 })
 
 test('the strip carries a name and a role of its own', async () => {
@@ -618,10 +617,16 @@ test('the strip carries a name and a role of its own', async () => {
 	// pager does not, and a screen reader has to be able to tell them apart.
 	renderRoute(dashboardLoader(PANE_FIXTURES))
 
-	const strip = await screen.findByRole('region', {
+	// A toolbar with one tab stop: the season is a single stop in the tab
+	// order, and the arrow keys move along it.
+	const toolbar = await screen.findByRole('toolbar', {
 		name: 'Sesongen, uke for uke',
 	})
-	expect(strip).toBe(screen.getByTestId('week-strip'))
+	expect(screen.getByTestId('week-strip')).toContainElement(toolbar)
+	const tabbable = [...toolbar.querySelectorAll('button')].filter(
+		(cell) => cell.tabIndex === 0,
+	)
+	expect(tabbable).toHaveLength(1)
 })
 
 test('every pane is reachable without swiping — the dots are real buttons', async () => {
@@ -631,22 +636,22 @@ test('every pane is reachable without swiping — the dots are real buttons', as
 		'button',
 	)
 	expect(dots.map((dot) => dot.getAttribute('aria-label'))).toEqual([
-		'Today',
+		'I dag',
 		'Form',
-		'This week',
-		'Records',
+		'Denne uka',
+		'Rekorder',
 	])
 
 	for (const [index, name] of [
 		'Form',
-		'This week',
-		'Records',
-		'Today',
+		'Denne uka',
+		'Rekorder',
+		'I dag',
 	].entries()) {
 		await userEvent.click(screen.getByRole('button', { name }))
 		expect(showingPane()).toHaveAttribute(
 			'aria-label',
-			`${name}, pane ${[2, 3, 4, 1][index]} of 4`,
+			`${name}, side ${[2, 3, 4, 1][index]} av 4`,
 		)
 		expect(screen.getByRole('button', { name })).toHaveAttribute(
 			'aria-current',
@@ -658,32 +663,36 @@ test('every pane is reachable without swiping — the dots are real buttons', as
 test('the pager is keyboard-operable, and the arrow keys page it', async () => {
 	renderRoute(dashboardLoader(PANE_FIXTURES))
 
-	const pager = await screen.findByRole('group', { name: 'Today, four ways' })
+	const pager = await screen.findByRole('group', {
+		name: 'I dag, på fire måter',
+	})
 	pager.focus()
 	expect(pager).toHaveFocus()
 
 	await userEvent.keyboard('{ArrowRight}')
-	expect(showingPane()).toHaveAttribute('aria-label', 'Form, pane 2 of 4')
+	expect(showingPane()).toHaveAttribute('aria-label', 'Form, side 2 av 4')
 	await userEvent.keyboard('{End}')
-	expect(showingPane()).toHaveAttribute('aria-label', 'Records, pane 4 of 4')
+	expect(showingPane()).toHaveAttribute('aria-label', 'Rekorder, side 4 av 4')
 	await userEvent.keyboard('{ArrowLeft}')
-	expect(showingPane()).toHaveAttribute('aria-label', 'This week, pane 3 of 4')
+	expect(showingPane()).toHaveAttribute('aria-label', 'Denne uka, side 3 av 4')
 	await userEvent.keyboard('{Home}')
-	expect(showingPane()).toHaveAttribute('aria-label', 'Today, pane 1 of 4')
+	expect(showingPane()).toHaveAttribute('aria-label', 'I dag, side 1 av 4')
 	// The ends hold rather than wrapping: a pager that loops has no ends to count.
 	await userEvent.keyboard('{ArrowLeft}')
-	expect(showingPane()).toHaveAttribute('aria-label', 'Today, pane 1 of 4')
+	expect(showingPane()).toHaveAttribute('aria-label', 'I dag, side 1 av 4')
 })
 
 test('a pane change is announced', async () => {
 	renderRoute(dashboardLoader(PANE_FIXTURES))
 
-	const pager = await screen.findByRole('group', { name: 'Today, four ways' })
+	const pager = await screen.findByRole('group', {
+		name: 'I dag, på fire måter',
+	})
 	const announcement = pager.parentElement!.querySelector('[aria-live]')!
-	expect(announcement).toHaveTextContent('Today, pane 1 of 4')
+	expect(announcement).toHaveTextContent('I dag, side 1 av 4')
 
-	await userEvent.click(screen.getByRole('button', { name: 'This week' }))
-	expect(announcement).toHaveTextContent('This week, pane 3 of 4')
+	await userEvent.click(screen.getByRole('button', { name: 'Denne uka' }))
+	expect(announcement).toHaveTextContent('Denne uka, side 3 av 4')
 })
 
 test('paging the hero moves neither the strip nor the stream', async () => {
@@ -712,10 +721,10 @@ test('paging the hero moves neither the strip nor the stream', async () => {
 	// landing settles on a ladder of timers (`anchoring.ts`), and a timer cannot
 	// fire while no macrotask is awaited. So anything that moved between these
 	// two readings moved because the hero was paged.
-	fireEvent.click(screen.getByRole('button', { name: 'Records' }))
+	fireEvent.click(screen.getByRole('button', { name: 'Rekorder' }))
 	fireEvent.click(screen.getByRole('button', { name: 'Form' }))
 
-	expect(showingPane()).toHaveAttribute('aria-label', 'Form, pane 2 of 4')
+	expect(showingPane()).toHaveAttribute('aria-label', 'Form, side 2 av 4')
 	expect(axes()).toEqual(before)
 })
 
@@ -727,14 +736,14 @@ test('the Form pane brings the load triad back, as legend triggers (#181)', asyn
 	await userEvent.click(await screen.findByRole('button', { name: 'Form' }))
 	const pane = showingPane()
 	// The abbreviation is what is written; the accessible name is the full term.
-	for (const term of ['Fitness (CTL)', 'Fatigue (ATL)', 'Form (TSB)']) {
+	for (const term of ['Kondisjon (CTL)', 'Tretthet (ATL)', 'Form (TSB)']) {
 		expect(within(pane).getByRole('button', { name: term })).toBeInTheDocument()
 	}
-	expect(within(pane).getByText('Fit')).toBeInTheDocument()
+	expect(within(pane).getByText('Kond')).toBeInTheDocument()
 	expect(pane).toHaveTextContent('62')
 	expect(pane).toHaveTextContent('58')
 	// And the trend the triad is one day of, off the snapshots already loaded.
-	expect(pane).toHaveTextContent('Fitness 51 → 62 since 4 Nov')
+	expect(pane).toHaveTextContent('Kondisjon 51 → 62 siden 4. nov')
 })
 
 test('the Form pane refuses a Form number on a cold start, and says why', async () => {
@@ -747,7 +756,7 @@ test('the Form pane refuses a Form number on a cold start, and says why', async 
 
 	await userEvent.click(await screen.findByRole('button', { name: 'Form' }))
 	const pane = showingPane()
-	expect(pane).toHaveTextContent('Building baseline — day 12/42')
+	expect(pane).toHaveTextContent('Bygger grunnlag — dag 12/42')
 	// Fitness and Fatigue are averages of what was logged and still read.
 	expect(pane).toHaveTextContent('62')
 	expect(pane).toHaveTextContent('—')
@@ -759,35 +768,39 @@ test('the This week pane brings back adherence, the strength count and the repla
 	)
 
 	await userEvent.click(
-		await screen.findByRole('button', { name: 'This week' }),
+		await screen.findByRole('button', { name: 'Denne uka' }),
 	)
 	const pane = showingPane()
 	// Where the week sits in the plan, minus the clause its own heading carries.
-	expect(pane).toHaveTextContent('Build 1')
-	expect(pane).toHaveTextContent('On target · 94% of planned endurance load')
-	expect(pane).toHaveTextContent('2 of 3 lifting sessions logged')
+	expect(pane).toHaveTextContent('Build · hard uke')
+	expect(pane).toHaveTextContent(
+		'I rute · 94 % av planlagt utholdenhetsbelastning',
+	)
+	expect(pane).toHaveTextContent('2 av 3 styrkeøkter logget')
 	const replan = within(pane).getByTestId('hero-week-replan')
-	expect(replan).toHaveTextContent('This week adjusted')
+	expect(replan).toHaveTextContent('Uka er justert')
+	// The stored English reason of an older outcome is said in the pane's own
+	// words rather than quoted (ADR 0081).
 	expect(replan).toHaveTextContent(
-		'Last week came in 62% of plan, so this week is 10% lighter.',
+		'Vi gjorde denne uka lettere etter uka som gikk.',
 	)
 })
 
 test('the Records pane brings the Proof Strip back', async () => {
 	renderRoute(dashboardLoader(PANE_FIXTURES))
 
-	await userEvent.click(await screen.findByRole('button', { name: 'Records' }))
+	await userEvent.click(await screen.findByRole('button', { name: 'Rekorder' }))
 	const pane = showingPane()
-	expect(pane).toHaveTextContent('Longest run')
+	expect(pane).toHaveTextContent('Lengste løpetur')
 	expect(pane).toHaveTextContent('21.1 km')
-	expect(pane).toHaveTextContent('+11.1 km over your previous best')
+	expect(pane).toHaveTextContent('+11.1 km over forrige beste')
 })
 
 test('no qualifying record says so rather than showing a zero', async () => {
 	renderRoute(dashboardLoader({ ...PANE_FIXTURES, personalRecords: [] }))
 
-	await userEvent.click(await screen.findByRole('button', { name: 'Records' }))
-	expect(showingPane()).toHaveTextContent('No personal records yet')
+	await userEvent.click(await screen.findByRole('button', { name: 'Rekorder' }))
+	expect(showingPane()).toHaveTextContent('Ingen personlige rekorder ennå')
 })
 
 // ── the header ────────────────────────────────────────────────────────────
@@ -800,13 +813,13 @@ test('the header names today and where in the plan today falls', async () => {
 		}),
 	)
 
-	await screen.findByText('Wed 2 Jan · week 5 of 12')
+	await screen.findByText('ons 2. jan · uke 5 av 12')
 })
 
 test('with no plan the header says only the date it knows', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
-	await screen.findByText('Wed 2 Jan')
+	await screen.findByText('ons 2. jan')
 })
 
 // ── the week strip ────────────────────────────────────────────────────────
@@ -853,7 +866,7 @@ test('the strip marks the week the stream is parked in', async () => {
 	)
 	expect(active).toHaveLength(1)
 	// This week is 31 Dec – 6 Jan, and the strip names it the way the header does.
-	expect(active[0]).toHaveAccessibleName(/^Denne uka, 31 December – 6 January/)
+	expect(active[0]).toHaveAccessibleName(/^Denne uka, 31\. des – 6\. jan/)
 	// And its frame sits over the weeks the stream is showing.
 	expect(strip.querySelector('[data-strip-frame]')).not.toBeNull()
 })
@@ -862,7 +875,7 @@ test('the "I dag" pill is there and quiet while today is in view', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	const strip = await screen.findByTestId('week-strip')
-	const pill = within(strip).getByRole('button', { name: 'I dag' })
+	const pill = within(strip).getByRole('button', { name: 'Gå til i dag' })
 	expect(pill).toHaveAttribute('data-away', '0')
 })
 
@@ -916,7 +929,7 @@ test('a week header carries its range, its phase and what happened in it', async
 	)
 
 	const header = await screen.findByRole('heading', {
-		name: 'Denne uka 31 December – 6 January',
+		name: 'Denne uka 31. des – 6. jan',
 		level: 2,
 	})
 	const block = header.closest('[data-timeline-week]')!
@@ -931,8 +944,8 @@ test("today's row carries the inline action and the chip that says where the day
 	const stream = await screen.findByTestId('timeline-stream')
 	const row = within(stream).getByRole('link', { name: /threshold 4 × 8 min/i })
 	expect(row).toHaveAttribute('href', `/training/sessions/${TODAY_SESSION.id}`)
-	expect(row).toHaveTextContent('TODAY · NOT DONE YET')
-	expect(row).toHaveTextContent('Open')
+	expect(row).toHaveTextContent('I DAG · IKKE GJORT ENNÅ')
+	expect(row).toHaveTextContent('Åpne')
 })
 
 test('a completed row reads two kinds of load and names its band', async () => {
@@ -957,9 +970,7 @@ test('a completed row reads two kinds of load and names its band', async () => {
 		within(stream).getByText('9.2 km · 50 min · 5:26 /km'),
 	).toBeInTheDocument()
 	expect(within(stream).getByText('RPE 8')).toBeInTheDocument()
-	expect(
-		within(stream).getByText('TSS 88 / 91 · ON TARGET'),
-	).toBeInTheDocument()
+	expect(within(stream).getByText('TSS 88 / 91 · I RUTE')).toBeInTheDocument()
 })
 
 test('an unplanned session says there is no plan to compare, never a percentage', async () => {
@@ -980,7 +991,7 @@ test('an unplanned session says there is no plan to compare, never a percentage'
 
 	const stream = await screen.findByTestId('timeline-stream')
 	expect(
-		within(stream).getByText('UNPLANNED · NO PLAN TO COMPARE'),
+		within(stream).getByText('UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED'),
 	).toBeInTheDocument()
 	expect(stream).not.toHaveTextContent(/%/)
 })
@@ -993,8 +1004,8 @@ test('a missed session invents nothing', async () => {
 	)
 
 	const stream = await screen.findByTestId('timeline-stream')
-	expect(within(stream).getByText('Nothing recorded')).toBeInTheDocument()
-	expect(within(stream).getByText('MISSED')).toBeInTheDocument()
+	expect(within(stream).getByText('Ingenting registrert')).toBeInTheDocument()
+	expect(within(stream).getByText('IKKE GJORT')).toBeInTheDocument()
 })
 
 test('a planned row is an instruction: line 1 ends in "planned", line 2 is the target', async () => {
@@ -1027,7 +1038,7 @@ test('a planned row is an instruction: line 1 ends in "planned", line 2 is the t
 
 	const stream = await screen.findByTestId('timeline-stream')
 	expect(
-		within(stream).getByText('50 min · 42 TSS planned'),
+		within(stream).getByText('50 min · 42 TSS planlagt'),
 	).toBeInTheDocument()
 	expect(
 		within(stream).getByText('5:25–5:40 /km · under 145 bpm'),
@@ -1058,7 +1069,7 @@ test('an imported week says so once, in its header, and its rows carry no chip',
 
 	const stream = screen.getByTestId('timeline-stream')
 	const row = within(stream).getByRole('link', { name: /morning run/i })
-	expect(row).not.toHaveTextContent(/ON TARGET/)
+	expect(row).not.toHaveTextContent(/I RUTE/)
 	expect(row).not.toHaveTextContent(/IMPORTED/)
 	// With no chip to carry it, the load moves onto line 2.
 	expect(row).toHaveTextContent('61 TSS')
@@ -1143,7 +1154,7 @@ test('two sessions on one day sit under one date gutter, said once', async () =>
 	const day = morning.parentElement!
 	expect(evening.parentElement).toBe(day)
 	// The gutter is the day's, so the date is stated once for both.
-	expect(within(day).getAllByText('Wed')).toHaveLength(1)
+	expect(within(day).getAllByText('ons')).toHaveLength(1)
 	// And the landing anchor is that day — not whichever of its sessions came
 	// first, which is what lets it survive a day with no sessions at all.
 	expect(day).toHaveAttribute('data-timeline-today')
@@ -1164,16 +1175,16 @@ test('every day from today forward is a row, whether anything is on it or not', 
 		within(stream).getByRole('button', { name: /^4 ledige dager, / }),
 	)
 	for (const name of [
-		'Add a workout on Thu 3',
-		'Add a workout on Fri 4',
-		'Add a workout on Sat 5',
-		'Add a workout on Sun 6',
+		'Legg inn en økt tor 3',
+		'Legg inn en økt fre 4',
+		'Legg inn en økt lør 5',
+		'Legg inn en økt søn 6',
 	]) {
 		expect(within(stream).getByRole('button', { name })).toBeInTheDocument()
 	}
 	// And today is not one of them: it has a session on it.
 	expect(
-		within(stream).queryByRole('button', { name: /add a workout on wed 2/i }),
+		within(stream).queryByRole('button', { name: /legg inn en økt ons 2/i }),
 	).not.toBeInTheDocument()
 })
 
@@ -1187,12 +1198,12 @@ test('a run of empty days behind today is one band, and tapping it opens the day
 
 	const stream = await screen.findByTestId('timeline-stream')
 	const band = within(stream).getByRole('button', {
-		name: '2 dager uten noe logget, 31 December – 1 January',
+		name: '2 dager uten noe logget, 31. des – 1. jan',
 	})
 	expect(band).toHaveTextContent('2 dager · ingenting logget')
 	expect(band).toHaveAttribute('aria-expanded', 'false')
 	expect(
-		within(stream).queryByRole('button', { name: /add a workout on mon/i }),
+		within(stream).queryByRole('button', { name: /legg inn en økt man/i }),
 	).not.toBeInTheDocument()
 
 	await userEvent.click(band)
@@ -1201,10 +1212,10 @@ test('a run of empty days behind today is one band, and tapping it opens the day
 	// forward of today takes.
 	expect(band).toHaveAttribute('aria-expanded', 'true')
 	expect(
-		within(stream).getByRole('button', { name: 'Add a workout on Mon 31' }),
+		within(stream).getByRole('button', { name: 'Legg inn en økt man 31' }),
 	).toBeInTheDocument()
 	expect(
-		within(stream).getByRole('button', { name: 'Add a workout on Tue 1' }),
+		within(stream).getByRole('button', { name: 'Legg inn en økt tir 1' }),
 	).toBeInTheDocument()
 })
 
@@ -1222,7 +1233,7 @@ test('a single empty day behind today is a day, not a one-day band', async () =>
 
 	const stream = await screen.findByTestId('timeline-stream')
 	expect(
-		within(stream).getByRole('button', { name: 'Add a workout on Mon 31' }),
+		within(stream).getByRole('button', { name: 'Legg inn en økt man 31' }),
 	).toBeInTheDocument()
 	expect(
 		within(stream).queryByRole('button', { name: /uten noe logget/i }),
@@ -1241,7 +1252,7 @@ test('with nothing on today, today is still a row and still the anchor', async (
 
 	const stream = await screen.findByTestId('timeline-stream')
 	const today = within(stream).getByRole('button', {
-		name: 'Add a workout on Wed 2',
+		name: 'Legg inn en økt ons 2',
 	})
 	expect(today.closest('[data-timeline-today]')).not.toBeNull()
 })
@@ -1264,7 +1275,7 @@ test('an empty day is never called a rest day — nothing prescribes one', async
 		within(stream).getAllByRole('button', { name: /ledige dager/i })[0]!,
 	)
 	expect(
-		within(stream).getAllByRole('button', { name: /add a workout on/i }).length,
+		within(stream).getAllByRole('button', { name: /legg inn en økt/i }).length,
 	).toBeGreaterThan(0)
 	expect(stream).not.toHaveTextContent(/rest day/i)
 })
@@ -1276,7 +1287,7 @@ test('the free days ahead are one short row, and today is never folded into it',
 
 	const stream = await screen.findByTestId('timeline-stream')
 	const free = within(stream).getByRole('button', {
-		name: '4 ledige dager, 3–6 January — åpne for å legge inn en økt',
+		name: '4 ledige dager, 3.–6. jan — åpne for å legge inn en økt',
 	})
 	expect(free).toHaveTextContent('4 ledige dager')
 	expect(free).toHaveAttribute('aria-expanded', 'false')
@@ -1293,7 +1304,7 @@ test('every empty cell is a real button, not a clickable box', async () => {
 		within(stream).getByRole('button', { name: /ledige dager/i }),
 	)
 	const cells = within(stream).getAllByRole('button', {
-		name: /add a workout on/i,
+		name: /legg inn en økt/i,
 	})
 	expect(cells).toHaveLength(4)
 	for (const cell of cells) {
@@ -1318,10 +1329,12 @@ test("the near end states the query's reach, not the end of the athlete's histor
 	)
 
 	const stream = await screen.findByTestId('timeline-stream')
-	expect(stream).toHaveTextContent(/home reads back to 4 Jul/i)
-	expect(stream).toHaveTextContent(/26 weeks of it/i)
-	expect(stream).toHaveTextContent(/earliest session in that reach is 26 Dec/i)
-	expect(stream).toHaveTextContent(/older training is not on this screen/i)
+	expect(stream).toHaveTextContent(/i dag leser tilbake til 4\. jul/i)
+	expect(stream).toHaveTextContent(/26 uker av det/i)
+	expect(stream).toHaveTextContent(
+		/den første økta i den perioden er 26\. des/i,
+	)
+	expect(stream).toHaveTextContent(/eldre trening vises ikke her/i)
 	expect(stream).not.toHaveTextContent(/as far back as your history goes/i)
 })
 
@@ -1340,10 +1353,10 @@ test('the far end says how far the plan is written, and offers to write the rest
 		.getByTestId('week-strip')
 		.querySelectorAll('[data-timeline-cell]')
 	await userEvent.click(cells[cells.length - 1]!)
-	expect(stream).toHaveTextContent(/everything is written through 2 Jan/i)
-	expect(stream).toHaveTextContent(/sketched, not written/i)
+	expect(stream).toHaveTextContent(/alt er skrevet til og med 2\. jan/i)
+	expect(stream).toHaveTextContent(/skissert, ikke skrevet/i)
 	expect(
-		within(stream).getByRole('link', { name: /write the last 8 weeks/i }),
+		within(stream).getByRole('link', { name: /skriv de siste 8 ukene/i }),
 	).toHaveAttribute('href', '/training/plan')
 })
 
@@ -1353,12 +1366,12 @@ test('the pill does not point anywhere on first paint — today is already in vi
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	await screen.findByRole('heading', { name: 'Threshold 4 × 8 min', level: 1 })
-	expect(screen.getByRole('button', { name: 'I dag' })).toHaveAttribute(
+	expect(screen.getByRole('button', { name: 'Gå til i dag' })).toHaveAttribute(
 		'data-away',
 		'0',
 	)
 	expect(
-		screen.queryByRole('button', { name: /↑ I dag|↓ I dag/ }),
+		screen.queryByRole('button', { name: /gå (opp|ned) til i dag/i }),
 	).not.toBeInTheDocument()
 })
 
@@ -1369,7 +1382,7 @@ test('creation survives the re-composition: "+ New" is in the header', async () 
 
 	// #178's single creation menu. Losing it would leave an athlete with no way
 	// to author a session from the screen they open the app on.
-	await screen.findByRole('button', { name: /create/i })
+	await screen.findByRole('button', { name: /lag ny/i })
 })
 
 test('the far end carries the destinations home only links to', async () => {
@@ -1378,16 +1391,16 @@ test('the far end carries the destinations home only links to', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	const elsewhere = await screen.findByRole('navigation', {
-		name: /elsewhere in trainm8/i,
+		name: /andre steder i trainm8/i,
 	})
 	expect(
-		within(elsewhere).getByRole('link', { name: 'Events' }),
+		within(elsewhere).getByRole('link', { name: 'Løp og arrangementer' }),
 	).toHaveAttribute('href', '/training/events')
 	expect(
-		within(elsewhere).getByRole('link', { name: 'Catalogue' }),
+		within(elsewhere).getByRole('link', { name: 'Katalog' }),
 	).toHaveAttribute('href', '/training/catalogue')
 	expect(
-		within(elsewhere).getByRole('link', { name: 'Programs' }),
+		within(elsewhere).getByRole('link', { name: 'Programmer' }),
 	).toHaveAttribute('href', '/training/programs')
 })
 
@@ -1395,7 +1408,7 @@ test('an athlete with no plan is offered one at the far end', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	expect(
-		await screen.findByRole('link', { name: /plan a season/i }),
+		await screen.findByRole('link', { name: /planlegg en sesong/i }),
 	).toHaveAttribute('href', '/training/plan/new')
 })
 
@@ -1430,12 +1443,12 @@ test('an outstanding notice explains the drop above the timeline', async () => {
 	)
 
 	const callout = await screen.findByTestId('load-recompute-notice')
-	expect(callout).toHaveTextContent(/fitness recalculated/i)
+	expect(callout).toHaveTextContent(/kondisjonen er regnet ut på nytt/i)
 	// The movement, in the same rounded units the triad shows.
-	expect(callout).toHaveTextContent(/fitness fell by up to 15/i)
+	expect(callout).toHaveTextContent(/kondisjonen falt med opptil 15/i)
 	// The cause, and that the athlete's own training is not what changed.
-	expect(callout).toHaveTextContent(/strength sessions no longer count/i)
-	expect(callout).toHaveTextContent(/your training hasn't changed/i)
+	expect(callout).toHaveTextContent(/styrkeøkter teller ikke lenger/i)
+	expect(callout).toHaveTextContent(/treningen din er den samme/i)
 })
 
 test('no notice renders nothing — a dismissed correction stays dismissed', async () => {
@@ -1476,7 +1489,7 @@ test('acknowledging the notice posts the dismiss intent for that kind only', asy
 	)
 
 	await screen.findByTestId('load-recompute-notice')
-	await userEvent.click(screen.getByRole('button', { name: /got it/i }))
+	await userEvent.click(screen.getByRole('button', { name: /skjønner/i }))
 
 	// The kind travels with the acknowledgement, so "got it" can never silence an
 	// explanation the athlete hasn't seen.

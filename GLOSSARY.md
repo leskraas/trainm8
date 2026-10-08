@@ -1435,7 +1435,14 @@ are, and with no plan or no pattern nothing is filled. It limits the app only:
 the athlete may write sessions any distance ahead, and those are kept as theirs.
 Distinct from the **14-Day Horizon**, which only decides what reads as upcoming.
 On home a plan week past it that nothing has laid reads as one line, a
-**Collapsed Week** (ADR 0082 §3). _Avoid_: Wall, lookahead, sprint window.
+**Collapsed Week** (ADR 0082 §3), whose line says when the horizon reaches it:
+_fylles søndag kveld i uke N_, where N is the week **two before** it. The
+arithmetic is the close's own: the Sunday 20:00 close of week N fills week N+2,
+so week 41 is filled on the Sunday evening that ends week 39 — a moment on the
+calendar, not a condition on the athlete's training (an earlier _fylles når uke
+39 er ferdig_ read as the latter). With no **Week Pattern** nothing fills, and
+the line says _ingen økter lagt inn ennå_ instead. _Avoid_: Wall, lookahead,
+sprint window.
 
 **Discipline Query**: The URL query parameter that preserves the selected
 discipline filter. _Avoid_: Local filter state, tab state
@@ -1563,17 +1570,20 @@ under its bar and a week that asks for lifting a dot. With no plan it reads
 load. It never carries a session name: an overview that competes with the thing
 it overviews is not an overview. Every week is a real button named with its
 numbers; tapping one jumps the Stream there, loading it first if it is outside
-the window, and opening it if it is a **Folded Week**. It does not scroll — only
-the **Hero** moves sideways — and its corner holds the **Back-to-Today Pill**.
-UI words: _Sesongen_, _I dag_. _Avoid_: Filmstrip, calendar, carousel, tabs,
-This Week strip, scrubber
+the window, and opening it if it is a **Folded Week**. The weeks are one toolbar
+and one tab stop, moved along with the arrow keys; a finger is read off its x
+over the whole row's height rather than off the bar under it, and dragging
+scrubs the Stream through the season. It does not scroll — only the **Hero**
+moves sideways — and its corner holds the **Back-to-Today Pill**. UI words:
+_Sesongen_, _I dag_. _Avoid_: Filmstrip, calendar, carousel, tabs, This Week
+strip, scrubber
 
 **Week Fold**: How the **Stream** draws a week that is not this week or a
 concrete one ahead (ADR 0082 §2–§3). A **Folded Week** is a closed week behind
 today, one line — `Forrige uke · 35 av 46 km · under` — that opens in place into
 the whole week and stays as its disclosure. A **Collapsed Week** is a plan week
 past the **Planning Horizon** that nothing machine-owned is in: one line —
-`Uke 41 · Oppbygging · mål 58 km · fylles når uke 39 er ferdig` — plus any
+`Uke 41 · Oppbygging · mål 58 km · fylles søndag kveld i uke 39` — plus any
 session the athlete wrote there themselves, which is never hidden. A week the
 plan already laid stays open whatever the horizon says. _Avoid_: Accordion,
 hidden week, archived week
@@ -1629,12 +1639,13 @@ from home without a small chip, and one on-page link at the far end of the
 stream does that job. _Avoid_: Empty state, footer, load-more, end of list
 
 **Landing Position**: Where the **Home Timeline** parks on open — today's row,
-96 px below the top of the **Stream**, so the row reads as _arrived at_ rather
-than flush against the edge. It is a live measurement, never a number remembered
-from mount: a week loading in above moves today's row down the stream without
-the athlete having scrolled at all. Everything positional is measured from it
-rather than from `scrollTop === 0` — the **Hero**'s collapse, the loading pads,
-and the **Back-to-Today Pill** — because landing sits thousands of pixels down a
+12 px below the bottom of its week's sticky header, measured (ADR 0082 §10), so
+the row reads as _arrived at_ rather than tucked under the header or flush
+against it. It is a live measurement, never a number remembered from mount: a
+week loading in above moves today's row down the stream without the athlete
+having scrolled at all. Everything positional is measured from it rather than
+from `scrollTop === 0` — the **Hero**'s collapse, the loading pads, and the
+**Back-to-Today Pill** — because landing sits thousands of pixels down a
 bi-directional stream and an absolute test would have the hero collapsed on
 open. Re-applied on a ladder of timers until layout stops moving, then released,
 after which the athlete owns the scroll position. _Avoid_: Scroll restore,
@@ -1644,7 +1655,9 @@ initial scroll, scroll anchor, offset
 Timeline** — the _I dag_ pill at the **Week Strip**'s corner (ADR 0082 §6). It
 is always there: quiet while today's row is on screen, and filled, pointing the
 way back (`↑ I dag` when today is above, `↓ I dag` when it is below), once the
-reader has scrolled today away. It returns the **Stream** to the **Landing
+reader has scrolled today away. Its accessible name says the way in words — _Gå
+til i dag_, _Gå opp til i dag_, _Gå ned til i dag_ — so it is never confused
+with the Hero's _I dag_ pane dot. It returns the **Stream** to the **Landing
 Position**, which also re-opens the **Hero**. It changes look instantly and
 never comes or goes, so it carries no animation; filled, it is the only owner of
 `--shadow-pill` — a token rather than a number because a drop shadow is a claim

@@ -28,6 +28,8 @@ import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import {
 	ANNET_ACTION_LABELS,
+	CAP_LABELS,
+	DAY_ROW_LABELS,
 	DRIFT_MARK,
 	foldedWeekControlLabel,
 	WEEK_FIGURE_LABELS,
@@ -52,6 +54,7 @@ import {
 	STREAM_ATTR,
 	TODAY_ATTR,
 	WEEK_ATTR,
+	WEEK_HEADER_ATTR,
 } from './use-timeline-scroll.ts'
 
 /**
@@ -117,11 +120,16 @@ export const WeekBlock = memo(function WeekBlock({
 			scrollTop: stream.scrollTop,
 		}
 		const was = runRef.current?.scrollHeight ?? 0
+		// Held **before** the render, not after it. Unlike a band's, this toggle
+		// is the stream's own state, so the render it causes runs the stream's
+		// compensation inside the `flushSync` — and that compensation, crediting
+		// the run to the week the reader was last parked in, threw the stream
+		// hundreds of pixels down and the hero half back open (#505 S9 review).
+		stream.setAttribute(HELD_ATTR, '')
 		flushSync(() => onToggle(week.key))
 		const run = runRef.current
 		const next = bandScrollTop(before, (run?.scrollHeight ?? 0) - was)
 		if (next != null) stream.scrollTop = next
-		stream.setAttribute(HELD_ATTR, '')
 		if (run) growIn(run)
 	}
 
@@ -132,8 +140,7 @@ export const WeekBlock = memo(function WeekBlock({
 			    imported row above stay chip-free. */}
 			{week.planStart ? (
 				<p className="border-hairline text-muted-foreground bg-primary/5 border-b px-[18px] py-[11px] text-[11.5px]/[1.45]">
-					Everything above this line is history you brought with you — no plan
-					to compare it against.
+					{DAY_ROW_LABELS.planStart}
 				</p>
 			) : null}
 			{streamRows(week).map((row) =>
@@ -162,7 +169,10 @@ export const WeekBlock = memo(function WeekBlock({
 			{folded ? (
 				open ? (
 					<div ref={runRef} data-timeline-fold-run className="reflow">
-						<WeekFigures week={week} className="border-hairline border-b" />
+						<WeekFigures
+							week={week}
+							className="border-hairline border-b px-[18px] py-[10px]"
+						/>
 						{days}
 					</div>
 				) : null
@@ -182,7 +192,10 @@ export const WeekBlock = memo(function WeekBlock({
  */
 function WeekHeader({ week }: { week: TimelineWeek }) {
 	return (
-		<div className="bg-background border-hairline-week sticky top-0 z-2 flex flex-col gap-1.5 border-t border-b px-[18px] py-[10px]">
+		<div
+			{...{ [WEEK_HEADER_ATTR]: '' }}
+			className="bg-background border-hairline-week sticky top-0 z-2 flex flex-col gap-1.5 border-t border-b px-[18px] py-[10px]"
+		>
 			<WeekTitle week={week} />
 			<WeekFigures week={week} />
 		</div>
@@ -240,14 +253,16 @@ function WeekFigures({
 	return (
 		<div className={cn('flex flex-col gap-1', className)}>
 			{week.tracks.length === 0 ? (
-				<span className="text-ink-dim text-[11px]/[1.3]">{week.loadLine}</span>
+				<span className="text-ink-dim text-[12px]/[1.3]">{week.loadLine}</span>
 			) : (
-				week.tracks.map((track) => (
-					<TrackLine key={track.trackId} track={track} />
-				))
+				// A track with no target, nothing planned and nothing done is a line of
+				// zeros: left out, by the rule the strip's lifting dot is drawn by.
+				week.tracks
+					.filter((track) => track.hasFigures)
+					.map((track) => <TrackLine key={track.trackId} track={track} />)
 			)}
 			{week.otherTrack ? (
-				<span data-week-annet className="text-ink-dimmer text-[10.5px]/[1.3]">
+				<span data-week-annet className="text-ink-dimmer text-[11px]/[1.3]">
 					{`${week.otherTrack.label} · ${week.otherTrack.sessions} · ${week.otherTrack.note}`}
 				</span>
 			) : null}
@@ -281,7 +296,7 @@ function TrackLine({ track }: { track: TimelineTrackWeek }) {
 	].filter((part): part is string => !!part)
 	return (
 		<div data-week-track={track.trackId} className="flex flex-col gap-0.5">
-			<div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[11.5px]/[1.3] tabular-nums">
+			<div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]/[1.3] tabular-nums">
 				<span className="text-ink-dim font-semibold">{track.name}</span>
 				<span className="flex flex-wrap items-baseline gap-x-1.5">
 					<Figure
@@ -311,7 +326,7 @@ function TrackLine({ track }: { track: TimelineTrackWeek }) {
 					<span
 						data-week-grade={track.grade.status}
 						className={cn(
-							'rounded-[6px] border px-[6px] text-[10px]/[1.5] font-semibold',
+							'rounded-[6px] border px-[6px] text-[11px]/[1.45] font-semibold',
 							GRADE_TONE[track.grade.status],
 						)}
 					>
@@ -320,7 +335,7 @@ function TrackLine({ track }: { track: TimelineTrackWeek }) {
 				) : null}
 			</div>
 			{extras.length > 0 ? (
-				<span className="text-ink-dimmer text-[10.5px]/[1.35]">
+				<span className="text-ink-dimmer text-[11px]/[1.35]">
 					{extras.join(' · ')}
 				</span>
 			) : null}
@@ -375,7 +390,7 @@ function FoldedHeader({
 					<span className="text-ink-dim flex min-w-0 items-baseline gap-2 text-[11px]/[1.2] font-bold tracking-[0.02em] uppercase">
 						<span className="whitespace-nowrap">{week.relativeName}</span>
 						<span className="text-ink-dimmer text-[10.5px]/[1.2] font-semibold tracking-normal normal-case">
-							{week.stripLabel}
+							{week.rangeLabel}
 						</span>
 					</span>
 					{week.kindLabel ? (
@@ -683,8 +698,8 @@ function EmptyDay({ day }: { day: TimelineDay }) {
 			// reader user would otherwise hear "Add a workout" 182 times.
 			aria-label={
 				day.restPrescribed
-					? `Rest day — ${day.dayLabel} ${day.dateLabel}`
-					: `Add a workout on ${day.dayLabel} ${day.dateLabel}`
+					? DAY_ROW_LABELS.restDayOn(`${day.dayLabel} ${day.dateLabel}`)
+					: DAY_ROW_LABELS.addWorkoutOn(`${day.dayLabel} ${day.dateLabel}`)
 			}
 			className={cn(
 				'press grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 px-[18px] py-[7px] text-left',
@@ -702,10 +717,10 @@ function EmptyDay({ day }: { day: TimelineDay }) {
 			{day.restPrescribed ? (
 				<span className="flex min-w-0 flex-col gap-0.5">
 					<span className="text-ink-body text-[13px]/[1.25] font-semibold">
-						Rest day
+						{DAY_ROW_LABELS.restDay}
 					</span>
 					<span className="text-ink-dimmer text-[11.5px]/[1.35]">
-						The plan asks for nothing today.
+						{DAY_ROW_LABELS.restDayNote}
 					</span>
 				</span>
 			) : (
@@ -713,7 +728,7 @@ function EmptyDay({ day }: { day: TimelineDay }) {
 				   quieter than any row that carries content, so a week of them reads
 				   as a blank column rather than as a list of prompts. */
 				<span className="text-ink-dimmest text-[12.5px]/[1.2]">
-					Add a workout
+					{DAY_ROW_LABELS.addWorkout}
 				</span>
 			)}
 		</button>
@@ -800,8 +815,8 @@ function SessionRow({
 					{missed ? (
 						<span
 							role="img"
-							aria-label={`${session.disciplineLabel} — missed`}
-							title={`${session.disciplineLabel} — missed`}
+							aria-label={DAY_ROW_LABELS.missedMark(session.disciplineLabel)}
+							title={DAY_ROW_LABELS.missedMark(session.disciplineLabel)}
 							className="bg-ink-dimmest mt-[6px] size-[6px] flex-none rounded-full"
 						/>
 					) : (
@@ -858,7 +873,7 @@ function SessionRow({
 					    came here to act on should not need a second tap to find. */}
 					{day.isToday ? (
 						<span className="bg-primary text-primary-foreground -my-[5px] h-[28px] flex-none rounded-[9px] px-3 text-[11.5px]/[28px] font-bold">
-							Open
+							{DAY_ROW_LABELS.open}
 						</span>
 					) : null}
 				</span>
@@ -1000,21 +1015,19 @@ function AnnetAction({
 export function StartCap({
 	loggedFromLabel,
 	reachesBackToLabel,
-	reachLabel,
+	reachWeeks,
 }: {
 	loggedFromLabel: string | null
 	reachesBackToLabel: string
-	reachLabel: string
+	reachWeeks: number
 }) {
 	return (
 		<div className="border-hairline-week flex flex-col gap-[5px] border-b px-[18px] pt-[20px] pb-[14px]">
 			<span className="text-muted-foreground text-[12.5px]/[1.3] font-semibold">
-				{`Home reads back to ${reachesBackToLabel}`}
+				{CAP_LABELS.readsBackTo(reachesBackToLabel)}
 			</span>
 			<span className="text-ink-dimmer text-[11.5px]/[1.45]">
-				{loggedFromLabel
-					? `${reachLabel} of it, and the earliest session in that reach is ${loggedFromLabel}. Older training is not on this screen — the strip stops here too.`
-					: `${reachLabel} of it, with nothing logged in that reach. Older training is not on this screen — the strip stops here too.`}
+				{CAP_LABELS.reach(reachWeeks, loggedFromLabel)}
 			</span>
 		</div>
 	)
@@ -1036,14 +1049,18 @@ export function EndCap({ cap }: { cap: TimelineEndCap }) {
 	return (
 		<div className="border-hairline-week flex flex-col gap-2.5 border-t p-[18px]">
 			<span className="text-foreground text-[15px]/[1.2] font-semibold tracking-[-0.015em]">
-				{`Everything is written through ${cap.writtenThroughLabel}`}
+				{CAP_LABELS.writtenThrough(cap.writtenThroughLabel)}
 			</span>
 			<span className="text-muted-foreground text-[12.5px]/[1.5]">
 				{!planned
-					? 'There is no season plan yet, so the timeline is only as long as what you have written.'
+					? CAP_LABELS.noPlan
 					: unwritten > 0
-						? `The rest of the season is sketched, not written — ${unwritten} ${unwritten === 1 ? 'week' : 'weeks'} with no sessions in them yet, up to ${cap.eventName ?? 'race day'} on ${cap.eventDateLabel}.`
-						: 'That is the whole plan. Nothing beyond this is scheduled.'}
+						? CAP_LABELS.sketched(
+								unwritten,
+								cap.eventName,
+								cap.eventDateLabel ?? '',
+							)
+						: CAP_LABELS.whole}
 			</span>
 			<div className="flex flex-wrap gap-2">
 				{planned && unwritten > 0 ? (
@@ -1051,19 +1068,19 @@ export function EndCap({ cap }: { cap: TimelineEndCap }) {
 						to="/training/plan"
 						className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[42px] items-center rounded-[13px] px-[15px] text-[12.5px]/[1] font-bold"
 					>
-						{`Write the last ${unwritten === 1 ? 'week' : `${unwritten} weeks`}`}
+						{CAP_LABELS.writeLast(unwritten)}
 					</Link>
 				) : null}
 				{planned ? (
 					<Link to="/training/plan" className={CAP_LINK}>
-						Season plan
+						{CAP_LABELS.seasonPlan}
 					</Link>
 				) : (
 					<Link
 						to="/training/plan/new"
 						className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[42px] items-center rounded-[13px] px-[15px] text-[12.5px]/[1] font-bold"
 					>
-						Plan a season
+						{CAP_LABELS.planASeason}
 					</Link>
 				)}
 			</div>
@@ -1083,17 +1100,17 @@ export function EndCap({ cap }: { cap: TimelineEndCap }) {
 			 * TODO(#178): if the bottom tab bar is adopted, these move into it.
 			 */}
 			<nav
-				aria-label="Elsewhere in trainm8"
+				aria-label={CAP_LABELS.elsewhere}
 				className="border-hairline mt-1 flex flex-wrap gap-2 border-t pt-3.5"
 			>
 				<Link to="/training/events" className={CAP_LINK}>
-					Events
+					{CAP_LABELS.events}
 				</Link>
 				<Link to="/training/catalogue" className={CAP_LINK}>
-					Catalogue
+					{CAP_LABELS.catalogue}
 				</Link>
 				<Link to="/training/programs" className={CAP_LINK}>
-					Programs
+					{CAP_LABELS.programs}
 				</Link>
 			</nav>
 		</div>

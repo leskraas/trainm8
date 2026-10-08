@@ -363,7 +363,7 @@ test('every sport a week header names has its own Norwegian word, and the folds 
 	expect(
 		foldedTrackLabel({ done: null, of: '46', unit: 'km', grade: null }),
 	).toBe('ikke målt av 46 km')
-	expect(horizonFillLabel(39)).toBe('fylles når uke 39 er ferdig')
+	expect(horizonFillLabel(39)).toBe('fylles søndag kveld i uke 39')
 	expect(pastBandLabels(7, '4–10 August').summary).toBe(
 		'7 dager · ingenting logget',
 	)

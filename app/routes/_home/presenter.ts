@@ -32,7 +32,13 @@ import {
 	type DisplayTarget,
 	sessionMetricTarget,
 } from '#app/utils/intensity-target.ts'
-import { openEndedBlockLabel } from '#app/utils/labels.ts'
+import {
+	HERO_PANE_TEXT,
+	NB_RECORD_NOUNS,
+	nbDisciplineLabel,
+	openEndedBlockLabel,
+	RECOMPUTE_NOTICE_LABELS,
+} from '#app/utils/labels.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import {
 	type CoachRecommendation,
@@ -131,8 +137,10 @@ export function sessionCtaLabel(session: {
  */
 export type TodayLiftLine = {
 	name: string
-	/** `5×5` where the sets agree on a rep count, otherwise `3 sets`. */
-	scheme: string
+	/** The working sets, and their reps where every set agrees on one — the
+	 * scheme as numbers, worded by the surface that shows it (`5×5`, `3 sett`). */
+	setCount: number
+	reps: number | null
 	/** The resolved working weight, e.g. `82.5 kg`; null when the sets carry no
 	 * single weight (mixed, or no load prescribed at all). */
 	loadLabel: string | null
@@ -148,6 +156,8 @@ export type TodayCard = {
 	discipline: string
 	disciplineLabel: string
 	title: string
+	/** The session's own title, or null when `title` is the fallback. */
+	ownTitle: string | null
 	durationMin: number | null
 	plannedTss: number | null
 	/** Zone profile bars derived from the workout's real steps (may be empty). */
@@ -202,9 +212,8 @@ export function buildTodayLiftLines(
 					const sameKg = kg != null && sets.every((set) => set.weightKg === kg)
 					return {
 						name: step.exercise!.name,
-						scheme: sameReps
-							? `${sets.length}×${reps}`
-							: `${sets.length} ${sets.length === 1 ? 'set' : 'sets'}`,
+						setCount: sets.length,
+						reps: sameReps ? reps : null,
 						loadLabel: sameKg ? `${formatKg(kg)} kg` : null,
 					}
 				}),
@@ -247,6 +256,7 @@ export function buildTodayCard(
 		discipline: entry.discipline,
 		disciplineLabel: getDisciplineLabel(entry.discipline),
 		title: sessionTitle(entry.discipline, entry.title),
+		ownTitle: entry.title ?? null,
 		durationMin: entry.durationMin,
 		plannedTss: entry.plannedTss != null ? roundLoad(entry.plannedTss) : null,
 		profile: deriveSessionProfile(session.workout).bars,
@@ -554,7 +564,11 @@ export type ProofRecord = {
 	delta: string | null
 }
 
-const BENCHMARK_VERB: Record<BenchmarkKind, string> = { farthest: 'Longest' }
+/** The benchmark a record holds, as the Records pane names it (ADR 0081). */
+const BENCHMARK_LABEL: Record<BenchmarkKind, (discipline: string) => string> = {
+	farthest: (discipline) =>
+		HERO_PANE_TEXT.longest(NB_RECORD_NOUNS[discipline] ?? 'økt'),
+}
 
 // Swims read in metres (a swimmer thinks "1,500 m", not "1.5 km"); run and bike
 // reuse the shared distance formatter so the strip matches the kilometres shown
@@ -565,11 +579,10 @@ function formatRecordDistance(discipline: string, meters: number): string {
 
 export function buildProofStrip(records: PersonalRecord[]): ProofRecord[] {
 	return records.map((record) => {
-		const disciplineLabel = getDisciplineLabel(record.discipline)
 		return {
 			discipline: record.discipline,
-			disciplineLabel,
-			label: `${BENCHMARK_VERB[record.kind]} ${disciplineLabel.toLowerCase()}`,
+			disciplineLabel: nbDisciplineLabel(record.discipline),
+			label: BENCHMARK_LABEL[record.kind](record.discipline),
 			value: formatRecordDistance(record.discipline, record.value),
 			delta:
 				record.delta != null
@@ -623,9 +636,9 @@ const LOAD_RECOMPUTE_COPY: Record<
 	{ kicker: string; explanation: string }
 > = {
 	'strength-left-the-triad': {
-		kicker: 'Fitness recalculated',
+		kicker: RECOMPUTE_NOTICE_LABELS.kicker,
 		explanation:
-			"Strength sessions no longer count toward Fitness, Fatigue and Form. There's no honest way to price a lifting session in the same units as an endurance session, so these three numbers are now endurance only — and say so — rather than mixing the two. Your training hasn't changed; what changed is what they claim to measure.",
+			'Styrkeøkter teller ikke lenger med i kondisjon, tretthet og form. Det finnes ingen ærlig måte å prise en styrkeøkt i samme enhet som en utholdenhetsøkt, så de tre tallene gjelder nå bare utholdenhet — og sier det. Treningen din er den samme; det som er endret, er hva tallene påstår å måle.',
 	},
 }
 
@@ -644,6 +657,6 @@ export function buildLoadRecomputeLine(
 	return {
 		kind: notice.kind,
 		...copy,
-		movement: `Fitness fell by up to ${drop} — ${before} → ${after} at the widest point`,
+		movement: RECOMPUTE_NOTICE_LABELS.movement(drop, before, after),
 	}
 }
