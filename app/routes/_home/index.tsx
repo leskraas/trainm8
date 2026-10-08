@@ -1,5 +1,5 @@
 import { invariantResponse } from '@epic-web/invariant'
-import { useLoaderData } from 'react-router'
+import { data, useLoaderData } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import {
 	Tooltip,
@@ -11,10 +11,16 @@ import {
 	addDays,
 	isCalendarDay,
 	localDate,
+	mondayOfDay,
+	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
-import { stampSessionOnDay, undoDayStamp } from '#app/utils/day-stamp.server.ts'
+import {
+	stampSessionOnDay,
+	undoDayStamp,
+	writeSessionOnDay,
+} from '#app/utils/day-stamp.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
 import { SUSTAINED_WEEKS, sustainedAdherence } from '#app/utils/load/coach.ts'
@@ -31,7 +37,10 @@ import { readWeekChange } from '#app/utils/load/week-change-card.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { readMostTrainedDiscipline } from '#app/utils/most-trained-discipline.server.ts'
 import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
+import { weekSumChangeLine } from '#app/utils/plan-outline/week-sum-words.ts'
+import { getWeekVolumes } from '#app/utils/plan-outline/week-volumes.server.ts'
 import { getStrengthSummaryCount } from '#app/utils/strength-log.server.ts'
+import { createToastHeaders } from '#app/utils/toast.server.ts'
 import {
 	getActivePlan,
 	getDisciplineThresholds,
@@ -40,12 +49,21 @@ import {
 	getSessionLedger,
 	getWeeklyAdherence,
 } from '#app/utils/training.server.ts'
-import { DISCIPLINES } from '#app/utils/workout-schema.ts'
+import {
+	CARDIO_DISCIPLINES,
+	type CardioDiscipline,
+	DISCIPLINES,
+} from '#app/utils/workout-schema.ts'
+import { parseWorkoutSentence } from '#app/utils/workout-sentence.ts'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 import { buildSessionNudge } from './presenter.ts'
 import { HomeTimeline } from './timeline/home-timeline.tsx'
-import { TIMELINE_TRAILING_DAYS } from './timeline/presenter.ts'
+import {
+	TIMELINE_HORIZON_DAYS,
+	TIMELINE_TRAILING_DAYS,
+} from './timeline/presenter.ts'
+import { relativeWeekName } from './timeline/week-words.ts'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 
@@ -54,20 +72,17 @@ export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 // longer window is a strict superset of the SUSTAINED_WEEKS the coach needs).
 const BUILD_WEEKS = Math.max(8, SUSTAINED_WEEKS)
 
-/**
- * How far forward the home timeline reaches. The screen is a season, not a
- * fortnight: the week strip renders every week at once and the stream scrolls
- * back through the weeks the athlete imported from before their plan existed, so
- * the Cockpit's 42-day trailing window would have cut the history the design is
- * about.
- *
- * Half a year each way rather than everything: an unbounded query grows with the
- * account, and both ends of the stream state their own limit, so a bound the
- * athlete can see is better than one they cannot. The trailing half is
- * `TIMELINE_TRAILING_DAYS`, which the presenter owns because the start cap
- * states it and no day behind it is built (#500).
- */
-const TIMELINE_HORIZON_DAYS = 182
+// How far forward the home timeline reaches (`TIMELINE_HORIZON_DAYS`). The
+// screen is a season, not a fortnight: the week strip renders every week at
+// once and the stream scrolls back through the weeks the athlete imported from
+// before their plan existed, so the Cockpit's 42-day trailing window would have
+// cut the history the design is about.
+//
+// Half a year each way rather than everything: an unbounded query grows with
+// the account, and both ends of the stream state their own limit, so a bound
+// the athlete can see is better than one they cannot. Both halves live in the
+// presenter: the start cap states the trailing one (#500), and the writing
+// line's panel offers no day past the leading one.
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await getUserId(request)
@@ -184,6 +199,59 @@ export async function loader({ request }: Route.LoaderArgs) {
 	}
 }
 
+/**
+ * Whether a posted day is one the timeline renders. Checked against a
+ * **calendar**, not a shape — `2026-13-45` matches `YYYY-MM-DD` and the day
+ * maths would roll it over rather than refuse it — and then against the window
+ * this screen renders, because a session written outside it is invisible on
+ * the only surface that offers the way back (ADR 0076). The bound is the
+ * loader's own, so what can be written is exactly what can be read back and
+ * taken away again. Half a year ahead is far past the Planning Horizon, which
+ * limits what the app lays and never what the athlete writes (#505 story 40).
+ */
+function isWritableDay(date: unknown, timezone: string): date is string {
+	const todayKey = localDate(new Date(), timezone)
+	return (
+		typeof date === 'string' &&
+		isCalendarDay(date, timezone) &&
+		date >= addDays(todayKey, -TIMELINE_TRAILING_DAYS) &&
+		date <= addDays(todayKey, TIMELINE_HORIZON_DAYS)
+	)
+}
+
+/**
+ * Run a write that adds or removes one session, and say what it did to the
+ * week (#505 story 39): the week read on both sides of the write, so the toast
+ * states the sum before → after as the database now has it, and that the Week
+ * Target stayed — which it always does, because no session moves it.
+ */
+async function withWeekSumToast<T>(
+	userId: string,
+	{
+		dayKey,
+		discipline,
+		change,
+	}: { dayKey: string; discipline: string; change: 'added' | 'removed' },
+	write: () => Promise<T>,
+): Promise<{ result: T; headers: Headers }> {
+	const timezone = await getAthleteTimezone(userId)
+	const weekKey = mondayOfDay(dayKey)
+	const before = await getWeekVolumes(userId, { weekKey })
+	const result = await write()
+	const after = await getWeekVolumes(userId, { weekKey })
+	const description = weekSumChangeLine({
+		before,
+		after,
+		discipline,
+		weekName: relativeWeekName(weekKey, weekMonday(new Date(), timezone)),
+		change,
+	})
+	return {
+		result,
+		headers: await createToastHeaders({ description, type: 'success' }),
+	}
+}
+
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
@@ -217,44 +285,83 @@ export async function action({ request }: Route.ActionArgs) {
 	if (intent === 'stamp-day') {
 		const date = formData.get('date')
 		const discipline = formData.get('discipline')
-		// The day is checked against a **calendar**, not against a shape.
-		// `2026-13-45` and `9999-99-99` both match `YYYY-MM-DD`, and the day-bounds
-		// maths rolls them over rather than refusing them — so a post naming a day
-		// nobody could point at would still land a session on some other day.
-		//
-		// And then against the window this screen renders. A session stamped
-		// outside it is invisible on the only surface that offers the way back
-		// (ADR 0076), which makes a mistap unundoable from the place it was made.
-		// The bound is the loader's own, so what can be written is exactly what can
-		// be read back and taken away again.
 		const timezone = await getAthleteTimezone(userId)
-		const todayKey = localDate(new Date(), timezone)
-		invariantResponse(
-			typeof date === 'string' &&
-				isCalendarDay(date, timezone) &&
-				date >= addDays(todayKey, -TIMELINE_TRAILING_DAYS) &&
-				date <= addDays(todayKey, TIMELINE_HORIZON_DAYS),
-			'A day is required',
-			{ status: 400 },
-		)
+		invariantResponse(isWritableDay(date, timezone), 'A day is required', {
+			status: 400,
+		})
 		invariantResponse(
 			typeof discipline === 'string' &&
 				(DISCIPLINES as readonly string[]).includes(discipline),
 			'A discipline is required',
 			{ status: 400 },
 		)
-		const stamped = await stampSessionOnDay({
+		const { result: stamped, headers } = await withWeekSumToast(
 			userId,
-			dateKey: date,
-			discipline: discipline as (typeof DISCIPLINES)[number],
-		})
+			{ dayKey: date, discipline, change: 'added' },
+			() =>
+				stampSessionOnDay({
+					userId,
+					dateKey: date,
+					discipline: discipline as (typeof DISCIPLINES)[number],
+				}),
+		)
 		// A discipline the line cannot say (strength needs a lift named) never
 		// reaches here — the cell sends those to the full route instead — so a
 		// refusal is a malformed post rather than a state to render.
 		invariantResponse(stamped.ok, 'That discipline needs the full editor', {
 			status: 400,
 		})
-		return { stampedSessionId: stamped.sessionId }
+		return data({ stampedSessionId: stamped.sessionId }, { headers })
+	}
+
+	/**
+	 * **The writing line** (#505 stories 35–40): a session typed as a sentence,
+	 * read again here — the client's preview is never trusted as structure —
+	 * and written through the stamp's own path onto the day it names. The chip
+	 * travels with it and a discipline word in the sentence wins over it; a
+	 * sentence the reader is unsure of writes nothing.
+	 */
+	if (intent === 'write-session') {
+		const date = formData.get('date')
+		const sentence = formData.get('sentence')
+		const chip = formData.get('discipline')
+		const timezone = await getAthleteTimezone(userId)
+		invariantResponse(isWritableDay(date, timezone), 'A day is required', {
+			status: 400,
+		})
+		invariantResponse(
+			typeof sentence === 'string' && sentence.trim().length > 0,
+			'A sentence is required',
+			{ status: 400 },
+		)
+		const discipline =
+			typeof chip === 'string' &&
+			(CARDIO_DISCIPLINES as readonly string[]).includes(chip)
+				? (chip as CardioDiscipline)
+				: null
+		// Refused before anything is read or written: a sentence the reader is
+		// unsure of is a malformed post, since the line never offers to save one.
+		const read = parseWorkoutSentence(sentence, { discipline })
+		invariantResponse(
+			read.structure != null,
+			'The sentence could not be read',
+			{ status: 400 },
+		)
+		const { result: written, headers } = await withWeekSumToast(
+			userId,
+			{
+				dayKey: date,
+				// The toast's sport is the one the reader settled on, which a word
+				// in the sentence may have changed from the chip.
+				discipline: read.structure.discipline,
+				change: 'added',
+			},
+			() => writeSessionOnDay({ userId, dateKey: date, discipline, sentence }),
+		)
+		invariantResponse(written.ok, 'The sentence could not be read', {
+			status: 400,
+		})
+		return data({ stampedSessionId: written.sessionId }, { headers })
 	}
 
 	/**
@@ -269,10 +376,29 @@ export async function action({ request }: Route.ActionArgs) {
 			'A session is required',
 			{ status: 400 },
 		)
+		// Read before it goes, owner-scoped: the day and the sport are what the
+		// toast's week sum is about.
+		const target = await prisma.workoutSession.findFirst({
+			where: { id: sessionId, userId },
+			select: { scheduledAt: true, workout: { select: { discipline: true } } },
+		})
 		// Null when there is nothing there — a double tap on Undo, or a session
 		// already gone — which is a no-op and not an error the athlete caused.
-		await undoDayStamp(userId, sessionId)
-		return { undone: true as const }
+		if (!target?.workout) {
+			await undoDayStamp(userId, sessionId)
+			return { undone: true as const }
+		}
+		const timezone = await getAthleteTimezone(userId)
+		const { headers } = await withWeekSumToast(
+			userId,
+			{
+				dayKey: localDate(target.scheduledAt, timezone),
+				discipline: target.workout.discipline,
+				change: 'removed',
+			},
+			() => undoDayStamp(userId, sessionId),
+		)
+		return data({ undone: true as const }, { headers })
 	}
 
 	invariantResponse(false, 'Unknown intent', { status: 400 })

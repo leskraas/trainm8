@@ -33,7 +33,11 @@ const createItems: { label: string; href: string; icon: IconName }[] = [
 	},
 ]
 
-export function CreateMenu() {
+/**
+ * `onWrite` adds the **writing line**'s way in (#505 story 40) — I dag's own
+ * item, first, because it is the one that never leaves the list.
+ */
+export function CreateMenu({ onWrite }: { onWrite?: () => void } = {}) {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
@@ -53,6 +57,13 @@ export function CreateMenu() {
 			</DropdownMenuTrigger>
 			<DropdownMenuPortal>
 				<DropdownMenuContent align="end" sideOffset={8}>
+					{onWrite ? (
+						<DropdownMenuItem onClick={onWrite}>
+							<Icon name="pencil-1" className="text-body-md">
+								{CREATE_MENU_LABELS.write}
+							</Icon>
+						</DropdownMenuItem>
+					) : null}
 					{createItems.map((item) => (
 						<DropdownMenuItem key={item.href} render={<Link to={item.href} />}>
 							<Icon name={item.icon} className="text-body-md">

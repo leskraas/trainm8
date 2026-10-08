@@ -95,6 +95,7 @@ import type {
 	StepKind,
 	WorkoutIntent,
 } from './workout-schema.ts'
+import type { SentenceProblem } from './workout-sentence.ts'
 /* eslint-enable import/consistent-type-specifier-style */
 
 // ---------------------------------------------------------------------------
@@ -1275,6 +1276,7 @@ export const CAP_LABELS = {
 export const CREATE_MENU_LABELS = {
 	trigger: 'Ny',
 	name: 'Lag ny',
+	write: 'Skriv en økt',
 	session: 'Ny økt',
 	event: 'Nytt løp',
 	plan: 'Ny plan',
@@ -1295,6 +1297,81 @@ export const DAY_STAMP_LABELS = {
 	cancel: 'Avbryt',
 	undo: 'Angre',
 	removing: 'Fjerner…',
+} as const
+
+/**
+ * The **writing line** (#505 stories 35–41): a session typed as a sentence,
+ * what the app understood of it, and what it does to the week.
+ */
+export const WRITING_LINE_LABELS = {
+	input: 'Skriv økta',
+	placeholder: 'f.eks. 10 km rolig eller 3x10 min terskel p 1 min',
+	hint: 'Eller la linja stå tom og legg til 45 min Z2.',
+	understood: 'Forstått',
+	/** `Til sammen 10 km`, `Til sammen 5 km og 7 min 30 s`. */
+	totals: (parts: string[]) => `Til sammen ${parts.join(' og ')}`,
+	unknownWord: (word: string) => `Kjenner ikke «${word}»`,
+	noSuggestion: 'Prøv et ord som rolig, terskel eller pause.',
+	suggestionsFor: (word: string) => `Forslag for «${word}»`,
+	replace: (from: string, to: string) => `Bytt «${from}» med «${to}»`,
+	weekSum: 'Uka',
+	/** `Løping denne uka:` — the week the session lands in. */
+	weekLead: (sport: string, weekName: string) =>
+		`${sport} ${weekName.toLowerCase()}:`,
+	problems: {
+		empty: '',
+		'no-quantity': 'Skriv hvor langt eller hvor lenge: 10 km, 45 min, 1 t.',
+		'two-quantities': 'En del sier enten km eller tid, ikke begge.',
+		'no-discipline': 'Velg idrett over, eller skriv den: løp, sykkel, svøm.',
+	} satisfies Record<SentenceProblem, string>,
+	add: (sentence: string) => `Legg til «${sentence}»`,
+	addEmpty: 'Legg til',
+	notYet: 'Rett ordene over før du legger til',
+	/** The creation menu's way in, and the panel it opens (story 40). */
+	open: 'Skriv en økt',
+	day: 'Dag',
+	close: 'Lukk',
+	saved: 'Lagt inn.',
+	failed: 'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
+	outsideWindow: 'Velg en dag innenfor et halvt år fra i dag.',
+} as const
+
+/** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */
+export function nbDurationLabel(seconds: number): string {
+	const hours = Math.floor(seconds / 3600)
+	const minutes = Math.floor((seconds % 3600) / 60)
+	const rest = Math.round(seconds % 60)
+	return [
+		hours > 0 ? `${hours} t` : null,
+		minutes > 0 ? `${minutes} min` : null,
+		rest > 0 ? `${rest} s` : null,
+	]
+		.filter(Boolean)
+		.join(' ')
+}
+
+/**
+ * What one session does to its week, in the track's unit (#505 stories 37 and
+ * 39) — the preview under the writing line and the toast after a change.
+ */
+export const WEEK_SUM_LABELS = {
+	unit: (currency: VolumeCurrency) => NB_VOLUME_UNITS[currency],
+	targetStands: (target: string) => `målet står på ${target}`,
+	targetStayed: (target: string) => `Ukemålet står på ${target}.`,
+	noTargetPreview: 'uka har ikke noe ukemål',
+	noTargetChange: 'Uka har ikke noe ukemål.',
+	pricedOnSave: (currency: VolumeCurrency) =>
+		`${NB_VOLUME_UNITS[currency]} regnes ut når økta er lagret`,
+	annetPreview: 'Teller i Annet — ingen ukesum flytter seg',
+	noPlanPreview: 'Ingen plan, så ikke noe ukemål å regne mot',
+	noPlanChange: (change: 'added' | 'removed') =>
+		change === 'added'
+			? 'Økta er lagt inn. Uten plan er det ikke noe ukemål.'
+			: 'Økta er fjernet. Uten plan er det ikke noe ukemål.',
+	annetChange: (change: 'added' | 'removed') =>
+		change === 'added'
+			? 'Økta teller i Annet. Ingen ukesum flyttet seg.'
+			: 'Økta talte i Annet. Ingen ukesum flyttet seg.',
 } as const
 
 /** The Load Recompute Notice on I dag (ADR 0046 §2). */

@@ -144,9 +144,9 @@ test('tapping an empty day commits a real session on that date', async () => {
 			],
 			cookie,
 		),
-	})) as { stampedSessionId: string }
+	})) as { data: { stampedSessionId: string } }
 
-	expect(result.stampedSessionId).toEqual(expect.any(String))
+	expect(result.data.stampedSessionId).toEqual(expect.any(String))
 	const stamped = await stampedSession(session.userId)
 	// The date the athlete tapped, at their Default Training Time.
 	expect(localDate(stamped.scheduledAt, 'UTC')).toBe(IN_WINDOW)
@@ -265,14 +265,14 @@ test('a mistake is recoverable without leaving the timeline', async () => {
 			],
 			cookie,
 		),
-	})) as { stampedSessionId: string }
+	})) as { data: { stampedSessionId: string } }
 
 	await action({
 		...ARGS_BASE,
 		request: post(
 			[
 				['intent', 'undo-stamp'],
-				['sessionId', stamped.stampedSessionId],
+				['sessionId', stamped.data.stampedSessionId],
 			],
 			cookie,
 		),
@@ -300,14 +300,14 @@ test('one athlete cannot undo another athlete’s session', async () => {
 			],
 			await getSessionCookieHeader(owner),
 		),
-	})) as { stampedSessionId: string }
+	})) as { data: { stampedSessionId: string } }
 
 	await action({
 		...ARGS_BASE,
 		request: post(
 			[
 				['intent', 'undo-stamp'],
-				['sessionId', stamped.stampedSessionId],
+				['sessionId', stamped.data.stampedSessionId],
 			],
 			await getSessionCookieHeader(other),
 		),

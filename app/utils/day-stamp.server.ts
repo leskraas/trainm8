@@ -10,14 +10,38 @@
 import { localTimeUTC } from './athlete-calendar.ts'
 import { DEFAULT_TRAINING_TIME } from './athlete-schema.ts'
 import { getAthleteTimezone } from './athlete.server.ts'
-import { buildDayStamp, isStampableDiscipline } from './day-stamp.ts'
+import {
+	buildDayStamp,
+	buildWrittenSession,
+	isStampableDiscipline,
+} from './day-stamp.ts'
 import { prisma } from './db.server.ts'
-import { type Discipline } from './workout-schema.ts'
+import { type CardioDiscipline, type Discipline } from './workout-schema.ts'
 import { createWorkoutSession, deleteWorkoutSession } from './workout.server.ts'
 
 export type DayStampResult =
 	| { ok: true; sessionId: string }
 	| { ok: false; reason: 'not-stampable' }
+
+/**
+ * A day's instant: `dateKey` in the athlete's own timezone at their Default
+ * Training Time — the resolution the Plan Outline's stamp and the Catalogue's
+ * place use too.
+ */
+async function scheduledAtOn(userId: string, dateKey: string): Promise<Date> {
+	const [timezone, profile] = await Promise.all([
+		getAthleteTimezone(userId),
+		prisma.athleteProfile.findUnique({
+			where: { userId },
+			select: { defaultTrainingTime: true },
+		}),
+	])
+	return localTimeUTC(
+		dateKey,
+		profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME,
+		timezone,
+	)
+}
 
 /**
  * Stamp a session onto a calendar day.
@@ -45,21 +69,42 @@ export async function stampSessionOnDay({
 	if (!isStampableDiscipline(discipline))
 		return { ok: false, reason: 'not-stampable' }
 
-	const [timezone, profile] = await Promise.all([
-		getAthleteTimezone(userId),
-		prisma.athleteProfile.findUnique({
-			where: { userId },
-			select: { defaultTrainingTime: true },
-		}),
-	])
-	const scheduledAt = localTimeUTC(
-		dateKey,
-		profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME,
-		timezone,
-	)
-
+	const scheduledAt = await scheduledAtOn(userId, dateKey)
 	const input = buildDayStamp({ discipline, scheduledAt })
 
+	const session = await createWorkoutSession(userId, input)
+	return { ok: true, sessionId: session.id }
+}
+
+export type WrittenSessionResult =
+	| { ok: true; sessionId: string }
+	| { ok: false; reason: 'not-understood' }
+
+/**
+ * Write a session the athlete typed on the **writing line** onto a day (#505
+ * stories 35–40). The same day resolution and the same `createWorkoutSession`
+ * as a stamp, so a written session is an authored session like every other —
+ * and, like every other, it never touches the Week Target: nothing on this path
+ * reads or writes the Plan Outline.
+ *
+ * Any day the timeline renders takes it, past the Planning Horizon included;
+ * the horizon limits what the app lays, never what the athlete writes.
+ */
+export async function writeSessionOnDay({
+	userId,
+	dateKey,
+	discipline,
+	sentence,
+}: {
+	userId: string
+	dateKey: string
+	/** The chip; a discipline word in the sentence wins over it. */
+	discipline: CardioDiscipline | null
+	sentence: string
+}): Promise<WrittenSessionResult> {
+	const scheduledAt = await scheduledAtOn(userId, dateKey)
+	const input = buildWrittenSession({ sentence, discipline, scheduledAt })
+	if (!input) return { ok: false, reason: 'not-understood' }
 	const session = await createWorkoutSession(userId, input)
 	return { ok: true, sessionId: session.id }
 }

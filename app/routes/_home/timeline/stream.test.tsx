@@ -92,6 +92,18 @@ function renderWeek(
 ) {
 	const App = createRoutesStub([
 		{
+			// The writing line reads the day's week as it opens; an empty plan
+			// keeps the line's own preview out of these tests.
+			path: '/resources/week-sum',
+			loader: ({ request }) => ({
+				day: new URL(request.url).searchParams.get('day'),
+				week: {
+					weekName: 'Denne uka',
+					volumes: { weekKey: '2030-02-18', tracks: [], other: null },
+				},
+			}),
+		},
+		{
 			path: '/',
 			action,
 			Component: () => (

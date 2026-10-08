@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Form, Link } from 'react-router'
 import { CreateMenu } from '#app/components/create-menu.tsx'
+import { addDays } from '#app/utils/athlete-calendar.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { RECOMPUTE_NOTICE_LABELS } from '#app/utils/labels.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
@@ -51,7 +52,12 @@ import {
 import { DayStampProvider } from './day-stamp-context.tsx'
 import { buildHeroPanes } from './hero-panes.ts'
 import { HeroPager } from './hero.tsx'
-import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
+import {
+	buildTimelineHero,
+	buildTimelineSeason,
+	TIMELINE_HORIZON_DAYS,
+	TIMELINE_TRAILING_DAYS,
+} from './presenter.ts'
 import { SeasonPane, useLargeScreen } from './season-pane.tsx'
 import { EndCap, StartCap, WeekBlock } from './stream.tsx'
 import {
@@ -66,6 +72,7 @@ import {
 } from './week-change-card.tsx'
 import { buildWeekChangeCard } from './week-change.ts'
 import { WeekStrip } from './week-strip.tsx'
+import { WritingPanel } from './writing-line.tsx'
 
 export type HomeTimelineData = {
 	now?: Date | string
@@ -251,6 +258,11 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 	// The closed weeks the athlete has opened (#505 story 31). Held here rather
 	// than in each week, so a strip jump into a folded week can open it on the
 	// way — a jump is a request to see the week, not its one-line fold.
+	// The creation menu's writing line (#505 story 40): open under the header
+	// row until the write lands or the athlete closes it.
+	const [writing, setWriting] = useState(false)
+	const openWriting = useCallback(() => setWriting(true), [])
+	const closeWriting = useCallback(() => setWriting(false), [])
 	const [openWeeks, setOpenWeeks] = useState<ReadonlySet<string>>(
 		() => new Set(),
 	)
@@ -383,13 +395,22 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 								 * its action, and squeezing a third control in beside them
 								 * would crowd the one thing the athlete scrolled away from.
 								 */}
-								<CreateMenu />
+								<CreateMenu onWrite={openWriting} />
 								<span className="text-muted-foreground flex-1 text-right text-[12px]/[1.2]">
 									{season.headerLabel}
 								</span>
 							</>
 						)}
 					</div>
+
+					{writing ? (
+						<WritingPanel
+							todayKey={season.todayKey}
+							minDayKey={addDays(season.todayKey, -TIMELINE_TRAILING_DAYS)}
+							maxDayKey={addDays(season.todayKey, TIMELINE_HORIZON_DAYS)}
+							onClose={closeWriting}
+						/>
+					) : null}
 
 					{/*
 					 * The hero is a scroll-position-driven collapse, not a drawer: it

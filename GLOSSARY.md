@@ -790,8 +790,10 @@ graph, timeline
 
 **Workout Notation**: The app's dense textual notation for a workout's structure
 (e.g. `2 km warm-up → 4 × 6 min @ 4:40/km · Z3 → cool-down`), always rendered
-from the Workout → Block → Step structure — never parsed from free text (ADR
-0027). _Avoid_: Shorthand, syntax, grammar (no parser exists)
+from the Workout → Block → Step structure (ADR 0027). One reader goes the other
+way, and only on the **Writing Line**: it turns a typed sentence into structure,
+and what is shown is still rendered from that structure (ADR 0027 as amended by
+#505 S11). _Avoid_: Shorthand, syntax
 
 **Token Sentence**: The rendering of a workout in the Workout Notation where
 every value is a **Token**. Rendered as the **Score stanza** (#251): one Block
@@ -1525,26 +1527,43 @@ days collapse into a **Past Band** that expands on tap — behind today the
 record's `ingenting logget`, ahead of it the free days a printed plan folds into
 one short row, `3 ledige dager` (ADR 0082 §4). Today never folds. An empty day
 is a real 44px control — tapping it stamps a one-step block and _renders_ it as
-a **Token Sentence** (ADR 0027), never parses one. It is a shortcut into
-authoring a session, never an editor for the **Plan Outline**. "Rest day" is
-written only where the plan prescribes recovery; every other empty day carries
-no label. _Avoid_: Calendar, cell (for a row), "a row is a session"
+a **Token Sentence** (ADR 0027), or writes what the **Writing Line** read. It is
+a shortcut into authoring a session, never an editor for the **Plan Outline**.
+"Rest day" is written only where the plan prescribes recovery; every other empty
+day carries no label. _Avoid_: Calendar, cell (for a row), "a row is a session"
 
 **Day Stamp**: What tapping an empty day in the **Every-Day Grid** writes (ADR
 0065 §5, #501): a minimal **one-step block** — 45 min at Z2, in the prefilled
 **Discipline** — committed through the same `createWorkoutSession` the full
 authoring route uses, so a session authored from a cell is indistinguishable
 from one authored there. The row then renders it as an editable **Token
-Sentence**; nothing is ever parsed. The Discipline chip is prefilled from the
-athlete's **most-trained discipline**, read from their own completed sessions
-and shown _before_ it commits — and where there is no history to read it from
-the cell **asks**, because a default that is a guess dressed as a derivation is
-not a derivation. A discipline the line cannot say — **strength**, which must
-name a lift — is handed to the full route instead of half-written. On a past day
-the gesture and what it writes are identical: a prescription that carries a date
-in the past, never an actual. Undoing one is a real delete and leaves nothing
-behind (ADR 0076). _Avoid_: quick add, inline create, "logging a session",
-"recording"
+Sentence**. The same draft holds the **Writing Line**: typed into, it writes the
+sentence's structure instead of the stamp. The Discipline chip is prefilled from
+the athlete's **most-trained discipline**, read from their own completed
+sessions and shown _before_ it commits — and where there is no history to read
+it from the cell **asks**, because a default that is a guess dressed as a
+derivation is not a derivation. A discipline the line cannot say — **strength**,
+which must name a lift — is handed to the full route instead of half-written. On
+a past day the gesture and what it writes are identical: a prescription that
+carries a date in the past, never an actual. Undoing one is a real delete and
+leaves nothing behind (ADR 0076). _Avoid_: quick add, inline create, "logging a
+session", "recording"
+
+**Writing Line**: The text input on I dag where the athlete writes a session as
+a short sentence — `10 km rolig`, `3x10 min terskel p 1 min` (#505 stories
+35–41). It lives in a tapped empty day's draft and behind "+ Ny" →
+`Skriv en økt` for any other day the list renders, past the **Planning Horizon**
+too. While the athlete types it shows what was understood (the **Token
+Sentence** rendered from the structure the reader produced), the **Planned
+Volume** before → after against the **Week Target**
+(`40 → 46 km, målet står på 52`; a session with no number in the track's unit is
+`+1 uten km`, never a silent zero), and a suggestion for every word the reader
+did not know. It saves only a sentence it understood in full, as an `authored`
+session; the server reads the sentence again. Writing a session never moves the
+Week Target, and the toast after a write, a stamp or an undo says so
+(`Løping denne uka: 40 → 46 km. Ukemålet står på 52.`). Free-text commands
+(`syk til onsdag`) are not part of it. _Avoid_: command line, quick add, search
+box, chat
 
 **Hero**: The **Home Timeline**'s top band — **four panes of _now_**, always
 anchored on today, paged sideways one full-width pane at a time (ADR 0065 §8):

@@ -213,6 +213,11 @@ export function isCalendarDay(dateStr: string, timezone: string): boolean {
 	)
 }
 
+/** The Monday (YYYY-MM-DD) opening the Training Week a calendar day is in. */
+export function mondayOfDay(dateStr: string): string {
+	return addDays(dateStr, -weekdayIndex(dateStr))
+}
+
 /**
  * The Monday (YYYY-MM-DD) opening the calendar Monday–Sunday Training Week
  * containing `now`, evaluated in the athlete `timezone` — the canonical key

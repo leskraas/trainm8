@@ -143,6 +143,13 @@ export type { TimelineTrackWeek } from './week-words.ts'
  */
 export const TIMELINE_TRAILING_DAYS = 182
 
+/**
+ * How far forward the timeline reaches — the loader's query bound, and the
+ * last day the writing line's panel offers, so a session can only be written
+ * where it can be read back and taken away again (ADR 0076).
+ */
+export const TIMELINE_HORIZON_DAYS = 182
+
 /** One session, as the stream renders it inside the day that owns it. */
 export type TimelineSession = {
 	id: string

@@ -246,6 +246,64 @@ history — the fold's travel upward shortens to the room there is (`heroFold`),
 so the top of the stream is a full fold rather than a half-folded, already-faded
 hero: a blank box nobody could scroll away.
 
+## As built (#505 S11): the writing line
+
+Stories 35–41. Where it lives, and why there:
+
+- **In the tapped empty day's draft.** The draft already held the day, the
+  Discipline chips and the stamp; it now also holds a 16px text input
+  (`Skriv økta`) under the chips. Empty, the draft offers what it always did —
+  `Legg til 45 min Z2`. Once the line says something, the button becomes
+  `Legg til «10 km rolig»` and is enabled only when every word was understood.
+  After the write the row opens as its Token Sentence with Angre / Mer / Ferdig,
+  exactly as a stamp does (ADR 0065 §5, ADR 0076). Strength still takes **Mer**
+  to the full route: a sentence cannot name a lift yet.
+- **Behind "+ Ny" → "Skriv en økt"** for every day the list does not offer as
+  empty: a day that already has a session, a day in a collapsed week past the
+  Planning Horizon (§3), months out. A panel under I dag's header row with a
+  date field, the same chips and the same line. It closes when the write lands;
+  the toast says what happened. The days it offers are the loader's window (±182
+  days, `TIMELINE_HORIZON_DAYS` now lives beside `TIMELINE_TRAILING_DAYS` in the
+  presenter), so whatever is written can be read back and undone on this surface
+  — the Planning Horizon limits what the app lays, never what the athlete
+  writes.
+
+What the line shows while the athlete types (`writing-line.tsx`):
+
+1. **What was understood** — the `ScoreStanza` rendered by
+   `deriveWorkoutNotation` from the structure the reader produced
+   (`sentenceNotationInput`), with the athlete's thresholds resolving zone
+   facets, plus `Til sammen 10 km` / `Til sammen 33 min`. Never the typed text
+   echoed back.
+2. **The week sum** — `Løping denne uka: 40 → 46 km, målet står på 52`. The pure
+   `weekSumPreview(weekVolumes, workout, track)` (`plan-outline/ week-sum.ts`)
+   prices the session with the week model's own `fixedDayVolume`, so the "after"
+   is the number the header shows once saved. A session with no number in the
+   track's unit says `40 km, +1 uten km`; a TSS track says the TSS is priced on
+   save; a sport the plan has no track for says it counts in Annet; no plan says
+   there is no target. The week is read once per day from `resources/week-sum`
+   (`getWeekVolumes`), which answers a failure as data so the list never falls
+   to its error boundary over a preview.
+3. **Suggestions** for each word the reader did not know: the nearest known
+   words (one edit for a short word, two for a longer one, nearest tier only),
+   and for a bare number `10 km` / `10 min`. Tapping one replaces exactly that
+   word.
+
+The save posts `intent=write-session` to home's own action, which **reads the
+sentence again** (`parseWorkoutSentence`) and refuses with 400 a sentence it is
+unsure of; `writeSessionOnDay` writes it through the stamp's day resolution and
+`createWorkoutSession` — an `authored` session whose title is the sentence. The
+stamp, the write and the undo now each answer with a toast built from the week
+read on both sides of the write (`weekSumChangeLine`):
+`Løping denne uka: 40 → 46 km. Ukemålet står på 52.` Nothing on the path reads
+or writes the Plan Outline, and a route test asserts the stored targets are
+unchanged.
+
+The reader is the free-text parser ADR 0027 §1 left room for; see that ADR's
+amendment. Not built: edits to a token in an open row do not toast (they save
+through the full route's edit action, shared with the detail view), and
+free-text commands (`syk til onsdag`) are a later step.
+
 ## Consequences
 
 - **The season is longer.** It runs to the plan's last week, so the End Cap is

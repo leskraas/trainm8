@@ -15,6 +15,11 @@ than row count. See the closed question below. **§1 and §8 are amended by
 into its cells (today never folds), and the strip no longer scrolls — it shows
 the whole season at once with a frame over the weeks in view.
 
+**The draft gains a writing line (#505 S11, ADR 0082 "As built (#505 S11)")**:
+an empty draft still stamps `45 min Z2`; a typed sentence is read into structure
+and written through the same `createWorkoutSession`, and the row then renders it
+as a Token Sentence like any stamp. ADR 0027 is amended to match.
+
 **Confirms [ADR 0027](./0027-text-first-workout-authoring.md)** — the cell
 authors by _stamping structure_ and rendering the Token Sentence from it, so
 render-never-parse survives being moved onto a 44px row. **Confirms
