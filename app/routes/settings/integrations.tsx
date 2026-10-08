@@ -27,9 +27,9 @@ import { INTERVALSICU_PROVIDER } from '#app/integrations/intervalsicu/types.ts'
 import { isStravaOAuthConfigured } from '#app/integrations/strava/oauth.server.ts'
 import { STRAVA_PROVIDER } from '#app/integrations/strava/types.ts'
 import {
+	connectionHubStatus,
 	disconnectAccountConnection,
 	getAccountConnection,
-	isBackfillInProgress,
 } from '#app/utils/account-connection.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { formatDateTime } from '#app/utils/format.ts'
@@ -44,64 +44,17 @@ export const meta: Route.MetaFunction = () => [
 	{ title: 'Integrations | Trainm8' },
 ]
 
-/**
- * Plain-language hub state for the Strava connection (ADR 0026 #1):
- * connected / importing history (backfilling) / needs re-authorization
- * (revoked). `expired` self-heals via background token refresh and is never
- * surfaced (GLOSSARY.md); `error` is shown as needing re-authorization since
- * reconnecting is the only remedy the athlete has.
- */
-export type StravaHubStatus =
-	| 'disconnected'
-	| 'connected'
-	| 'backfilling'
-	| 'revoked'
-
-/**
- * Plain-language hub state for the Intervals.icu connection, mirroring
- * Strava's: connected / importing history (backfilling, #204) / needs
- * re-authorization (revoked). `error` reads as needing re-authorization for
- * the same reason as Strava; `expired` never happens for key providers (ADR
- * 0026 #4).
- */
-export type IntervalsIcuHubStatus =
-	| 'disconnected'
-	| 'connected'
-	| 'backfilling'
-	| 'revoked'
-
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	const connection = await getAccountConnection(userId, STRAVA_PROVIDER)
 
-	let status: StravaHubStatus = 'disconnected'
-	if (connection) {
-		if (connection.status === 'revoked' || connection.status === 'error') {
-			status = 'revoked'
-		} else if (isBackfillInProgress(connection)) {
-			status = 'backfilling'
-		} else {
-			status = 'connected'
-		}
-	}
+	const status = connectionHubStatus(connection)
 
 	const intervalsIcuConnection = await getAccountConnection(
 		userId,
 		INTERVALSICU_PROVIDER,
 	)
-	let intervalsIcuStatus: IntervalsIcuHubStatus = 'disconnected'
-	if (intervalsIcuConnection) {
-		if (
-			intervalsIcuConnection.status === 'revoked' ||
-			intervalsIcuConnection.status === 'error'
-		) {
-			intervalsIcuStatus = 'revoked'
-		} else if (isBackfillInProgress(intervalsIcuConnection)) {
-			intervalsIcuStatus = 'backfilling'
-		} else {
-			intervalsIcuStatus = 'connected'
-		}
-	}
+	const intervalsIcuStatus = connectionHubStatus(intervalsIcuConnection)
 
 	return {
 		strava: {

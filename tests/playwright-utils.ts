@@ -73,7 +73,28 @@ export const test = base.extend<{
 	insertNewUser(options?: GetOrInsertUserOptions): Promise<User>
 	login(options?: GetOrInsertUserOptions): Promise<User>
 	prepareGitHubUser(): Promise<GitHubUser>
+	hideDevtools: void
 }>({
+	/**
+	 * The dev server's React Router devtools trigger floats over the bottom-right
+	 * corner, which on a phone is the Meg tab (ADR 0083). It is a dev-only
+	 * overlay — the CI server runs the production build — so every test hides
+	 * it rather than clicking round it.
+	 */
+	hideDevtools: [
+		async ({ page }, use) => {
+			await page.addInitScript(() => {
+				document.addEventListener('DOMContentLoaded', () => {
+					const style = document.createElement('style')
+					style.textContent =
+						'[data-testid="react-router-devtools-trigger"]{display:none!important}'
+					document.head.append(style)
+				})
+			})
+			await use()
+		},
+		{ auto: true },
+	],
 	navigate: async ({ page }, use) => {
 		await use((...args) => {
 			return page.goto(href(...args))

@@ -70,9 +70,9 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	// Nothing on the calendar yet, so the way forward is the dated goal — which
 	// visibly creates a `fitness-goal` Event rather than writing one behind the
 	// athlete's back (ADR 0039).
-	await page.getByRole('textbox', { name: 'Goal' }).fill(goalName)
-	await page.getByLabel('Date', { exact: true }).fill(goalDate)
-	await page.getByRole('button', { name: /create goal and continue/i }).click()
+	await page.getByRole('textbox', { name: 'Mål' }).fill(goalName)
+	await page.getByLabel('Dato', { exact: true }).fill(goalDate)
+	await page.getByRole('button', { name: /lag målet og gå videre/i }).click()
 
 	// ---------------------------------------------------------------------
 	// Story 3–4: the shape of the season, and what it is derived from

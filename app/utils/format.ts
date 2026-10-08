@@ -293,7 +293,7 @@ function nbParts(instant: DateInput, timeZone: string) {
 		number,
 	]
 	const weekday = (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7
-	return { day, month: month - 1, weekday }
+	return { year, day, month: month - 1, weekday }
 }
 
 /** `ons` — the weekday, as a Norwegian day gutter prints it. */
@@ -313,6 +313,16 @@ export function formatNbWeekday(instant: DateInput, timeZone: string): string {
 export function formatNbDayMonth(instant: DateInput, timeZone: string): string {
 	const p = nbParts(instant, timeZone)
 	return `${p.day}. ${NB_MONTHS_SHORT[p.month]}`
+}
+
+/**
+ * `5. mar 2030` — a whole date, for a day that may lie in another year: an
+ * Event's date on Sesong (ADR 0083). Event dates are calendar-day anchors, so
+ * callers pass `'UTC'` as they do to `formatDate` (ADR 0023).
+ */
+export function formatNbDate(instant: DateInput, timeZone: string): string {
+	const p = nbParts(instant, timeZone)
+	return `${p.day}. ${NB_MONTHS_SHORT[p.month]} ${p.year}`
 }
 
 /** `sep` — the month alone. */

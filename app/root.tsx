@@ -227,7 +227,7 @@ function App() {
 			getSrc={getImgSrc}
 		>
 			{user ? (
-				<div className="flex min-h-screen flex-col pb-(--tab-bar-space)">
+				<div className="flex min-h-screen flex-col pr-[env(safe-area-inset-right)] pb-(--tab-bar-space) pl-[env(safe-area-inset-left)]">
 					{/*
 						The four tabs (ADR 0083, superseding #178's embedded
 						navigation): the wordmark row carries them from `md` up, and on

@@ -24,7 +24,7 @@ test('switching philosophy shows a preview first, and the plan follows the new o
 	await login()
 	await navigate('/training/plan/new')
 	const holdActive = page.getByRole('region', { name: 'Hold meg aktiv' })
-	await holdActive.getByRole('radio', { name: 'Run' }).check()
+	await holdActive.getByRole('radio', { name: 'Løping' }).check()
 	await holdActive.getByLabel('Timer i uka').fill('4')
 	await holdActive.getByRole('button', { name: 'Lag planen' }).click()
 	await expect(page.getByText('blokk 1 av ∞')).toBeVisible()

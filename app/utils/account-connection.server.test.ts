@@ -4,6 +4,7 @@ import { createUser } from '#tests/db-utils.ts'
 import {
 	BACKFILL_EXPECTED_DURATION_MS,
 	connectAccountConnection,
+	connectionHubStatus,
 	disconnectAccountConnection,
 	getAccountConnection,
 	isBackfillInProgress,
@@ -326,4 +327,37 @@ test('reconnect after disconnect creates a fresh Account Connection', async () =
 	expect(second.id).not.toBe(first.id)
 	const connection = await getAccountConnection(athlete.id, STRAVA)
 	expect(connection!.status).toBe('active')
+})
+
+test('the athlete reads a connection in four states, shared by the integrations page and Meg', () => {
+	const now = new Date('2026-05-29T12:00:00.000Z')
+	const settled = {
+		backfillCompletedAt: new Date(now.getTime() - 1000),
+		connectedAt: new Date(now.getTime() - 60 * 60 * 1000),
+	}
+	expect(connectionHubStatus(null, now)).toBe('disconnected')
+	expect(connectionHubStatus({ ...settled, status: 'active' }, now)).toBe(
+		'connected',
+	)
+	// `expired` self-heals and is never shown.
+	expect(connectionHubStatus({ ...settled, status: 'expired' }, now)).toBe(
+		'connected',
+	)
+	expect(connectionHubStatus({ ...settled, status: 'revoked' }, now)).toBe(
+		'revoked',
+	)
+	// Reconnecting is the only remedy for an error, so it reads as revoked.
+	expect(connectionHubStatus({ ...settled, status: 'error' }, now)).toBe(
+		'revoked',
+	)
+	expect(
+		connectionHubStatus(
+			{
+				status: 'active',
+				backfillCompletedAt: null,
+				connectedAt: new Date(now.getTime() - 30_000),
+			},
+			now,
+		),
+	).toBe('backfilling')
 })

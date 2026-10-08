@@ -94,7 +94,7 @@ export function BlockEditorSheet({
 					// a bottom drawer on phones (bottom edge, rounded top, capped at
 					// 85dvh so the steps list scrolls inside it, slides up), flipping
 					// to the tall right-side sheet at `md` (slides in from the right).
-					className="bg-background border-border data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-4 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-4 md:data-open:slide-in-from-bottom-0 md:data-open:motion-safe:slide-in-from-right-4 md:data-closed:slide-out-to-bottom-0 md:data-closed:slide-out-to-right-4 fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] w-full flex-col gap-4 overflow-y-auto rounded-t-2xl border-t p-6 shadow-xl duration-150 outline-none md:inset-x-auto md:inset-y-0 md:right-0 md:max-h-none md:max-w-md md:rounded-t-none md:border-t-0 md:border-l"
+					className="bg-background border-border data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-4 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-4 md:data-open:slide-in-from-bottom-0 md:data-open:motion-safe:slide-in-from-right-4 md:data-closed:slide-out-to-bottom-0 md:data-closed:slide-out-to-right-4 fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] w-full flex-col gap-4 overflow-y-auto rounded-t-2xl border-t p-6 pr-[max(1.5rem,env(safe-area-inset-right))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] pl-[max(1.5rem,env(safe-area-inset-left))] shadow-xl duration-150 outline-none md:inset-x-auto md:inset-y-0 md:right-0 md:max-h-none md:max-w-md md:rounded-t-none md:border-t-0 md:border-l"
 				>
 					{open ? (
 						<>

@@ -20,32 +20,25 @@ test.use({ viewport: VIEWPORT })
 
 const SCREENSHOTS = process.env.TAB_BAR_SCREENSHOTS
 
-// The dev server's React Router devtools trigger floats over the bottom-right
-// corner, which on a phone is the Meg tab. It is a dev-only overlay (the CI
-// server runs the production build), so it is hidden rather than clicked round.
-test.beforeEach(async ({ page }) => {
-	await page.addInitScript(() => {
-		document.addEventListener('DOMContentLoaded', () => {
-			const style = document.createElement('style')
-			style.textContent =
-				'[data-testid="react-router-devtools-trigger"]{display:none!important}'
-			document.head.append(style)
-		})
-	})
-})
-
 function tabBar(page: Page) {
 	return page.getByRole('navigation', { name: 'Hovedmeny' })
 }
 
-async function expectCurrentTab(page: Page, name: string) {
+/**
+ * The tab a page lives under is current: `page` on the tab's own landing page,
+ * `true` on a page deeper in it. Exactly one tab is ever current.
+ */
+async function expectCurrentTab(
+	page: Page,
+	name: string,
+	current: 'page' | 'true' = 'page',
+) {
 	const bar = tabBar(page)
 	await expect(bar.getByRole('link', { name })).toHaveAttribute(
 		'aria-current',
-		'page',
+		current,
 	)
-	// Exactly one tab is current.
-	await expect(bar.locator('[aria-current="page"]')).toHaveCount(1)
+	await expect(bar.locator('[aria-current]')).toHaveCount(1)
 }
 
 async function tapTab(page: Page, name: string, url: string | RegExp) {
@@ -132,7 +125,10 @@ test('every tab navigates and marks itself current on a phone', async ({
 	await expect(
 		page.getByRole('link', { name: /styrkeprogrammer/i }),
 	).toHaveAttribute('href', '/training/programs')
-	await expect(page.getByRole('heading', { name: 'Øvelser' })).toBeVisible()
+	await expect(
+		page.getByRole('link', { name: /alle øvelser/i }),
+	).toHaveAttribute('href', '/library/exercises')
+	await expect(page.getByRole('heading', { name: 'Dine løft' })).toBeVisible()
 	await expectCurrentTab(page, 'Bibliotek')
 	if (SCREENSHOTS)
 		await page.screenshot({ path: `${SCREENSHOTS}/tab-bibliotek.png` })
@@ -180,10 +176,10 @@ test('a page that moved into a tab keeps its URL and lights its tab', async ({
 
 	// Events live under Sesong; their old URLs still open them.
 	await navigate('/training/events')
-	await expectCurrentTab(page, 'Sesong')
+	await expectCurrentTab(page, 'Sesong', 'true')
 	await page.getByRole('link', { name: new RegExp(eventName) }).click()
 	await expect(page).toHaveURL(`/training/events/${event.id}`)
-	await expectCurrentTab(page, 'Sesong')
+	await expectCurrentTab(page, 'Sesong', 'true')
 	// The guessed `/events` still forwards to the real list.
 	await page.goto('/events')
 	await expect(page).toHaveURL('/training/events')
@@ -195,13 +191,54 @@ test('a page that moved into a tab keeps its URL and lights its tab', async ({
 
 	// The catalogue lives under Bibliotek, and backs out to it.
 	await navigate('/training/catalogue')
-	await expectCurrentTab(page, 'Bibliotek')
+	await expectCurrentTab(page, 'Bibliotek', 'true')
 	await page.getByRole('link', { name: /back to bibliotek/i }).click()
 	await expect(page).toHaveURL('/library')
 
 	// Settings live under Meg, and back out to it.
 	await navigate('/settings/profile')
-	await expectCurrentTab(page, 'Meg')
+	await expectCurrentTab(page, 'Meg', 'true')
 	await page.getByRole('link', { name: /back to meg/i }).click()
 	await expect(page).toHaveURL('/me')
+})
+
+test('Bibliotek lists every exercise, searchable, for an athlete with no lifts yet', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	await login()
+
+	await navigate('/library')
+	await expect(page.getByText(/løftene du legger inn i en økt/i)).toBeVisible()
+	await page.getByRole('link', { name: /alle øvelser/i }).click()
+	await expect(page).toHaveURL('/library/exercises')
+	await expectCurrentTab(page, 'Bibliotek', 'true')
+	await expect(
+		page.getByRole('heading', { name: 'Alle øvelser', level: 1 }),
+	).toBeVisible()
+
+	// The seeded bank has a squat; the search narrows to it and opens its history.
+	await page.getByRole('searchbox', { name: 'Søk etter øvelse' }).fill('squat')
+	await page.getByRole('button', { name: 'Søk' }).click()
+	await expect(page).toHaveURL(/\/library\/exercises\?q=squat/)
+	const squat = page.getByRole('link', { name: /squat/i }).first()
+	await expect(squat).toBeVisible()
+	await squat.click()
+	await expect(page).toHaveURL(/\/training\/exercises\/[\w-]+$/)
+
+	// A search that finds nothing says so in words.
+	await page.goto('/library/exercises?q=zzzz')
+	await expect(
+		page.getByText('Ingen øvelse heter noe med «zzzz».'),
+	).toBeVisible()
+})
+
+test('the first run carries no tab bar', async ({ page, navigate, login }) => {
+	test.setTimeout(120_000)
+	await login()
+	await navigate('/start')
+	await expect(page.getByRole('main')).toBeVisible()
+	await expect(tabBar(page)).toHaveCount(0)
 })

@@ -41,6 +41,7 @@ import type {
 	CatalogueTier,
 	SessionArchetype,
 } from './catalogue.ts'
+import type { ConnectionHubStatus } from './connection-hub-status.ts'
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
 import type { FirstRunPlanRefusal } from './first-run/first-run-schema.ts'
 import type {
@@ -2508,6 +2509,40 @@ export const SEASON_EVENTS_LABELS = {
 	newPlan: 'Planlegg en ny sesong',
 } as const
 
+/** An Event's kind in the #505 surfaces' Norwegian (ADR 0081). */
+export const NB_EVENT_KIND_LABELS: Record<EventKind, string> = {
+	race: 'Løp',
+	'time-trial': 'Testløp',
+	'fitness-goal': 'Datomål',
+}
+
+/**
+ * Plan creation's first step (`/training/plan/new`), which is Sesong's own
+ * landing while there is no plan (ADR 0083): what the season builds toward.
+ */
+export const PLAN_NEW_LABELS = {
+	heading: 'Hva bygger du mot?',
+	intro: 'Velg løpet sesongen skal bygge mot, eller sett et mål med dato.',
+	yourEvents: 'Dine kommende løp',
+	allEvents: 'Alle løp',
+	noEventsBefore: 'Ingenting i kalenderen ennå — sett et mål under, eller ',
+	addEvent: 'legg inn et løp',
+	planForEvent: 'Planlegg mot dette løpet',
+	alreadyPlanned: 'har allerede en plan',
+	openItsPlan: 'Åpne planen',
+	setAGoal: 'Eller sett et mål',
+	setAGoalIntro:
+		'Dette lager et datomål i kalenderen din, så sesongen har noe ekte å bygge mot.',
+	goal: 'Mål',
+	goalPlaceholder: 'f.eks. Under 40 på 10 km',
+	date: 'Dato',
+	discipline: 'Idrett',
+	create: 'Lag målet og gå videre',
+	nameRequired: 'Skriv hva du bygger mot',
+	dateRequired: 'Skriv en gyldig dato',
+	disciplineRequired: 'Velg en idrett',
+} as const
+
 /**
  * Bibliotek (spec #505 story 58): the hub that names the catalogue, the
  * strength programs and the athlete's own lifts. The pages it opens keep their
@@ -2518,9 +2553,23 @@ export const LIBRARY_LABELS = {
 	catalogueDetail: 'Ferdige økter du kan ta inn i uka di.',
 	programs: 'Styrkeprogrammer',
 	programsDetail: 'Programmer som setter neste vekt ut fra forrige logg.',
-	exercises: 'Øvelser',
+	recentLifts: 'Dine løft',
 	noExercises:
 		'Løftene du legger inn i en økt vises her, hver med sin historikk.',
+	allExercises: 'Alle øvelser',
+	allExercisesDetail: 'Hele øvelsesbanken, med søk.',
+} as const
+
+/**
+ * Bibliotek's exercise list (spec #505 story 58): every exercise an athlete can
+ * put in a session, searchable by name, each opening its history.
+ */
+export const EXERCISE_LIST_LABELS = {
+	search: 'Søk etter øvelse',
+	searchButton: 'Søk',
+	count: (count: number) => (count === 1 ? '1 øvelse' : `${count} øvelser`),
+	none: (query: string) => `Ingen øvelse heter noe med «${query}».`,
+	own: 'egen',
 } as const
 
 /**
@@ -2529,32 +2578,24 @@ export const LIBRARY_LABELS = {
  * own.
  */
 export const ME_LABELS = {
-	editProfile: 'Endre profil',
+	profileDetail:
+		'Profil, e-post, passord, totrinns, passnøkler og dataene dine',
 	settings: 'Innstillinger',
 	training: 'Trening og terskler',
-	account: 'Konto',
-	accountDetail: 'E-post, passord, totrinns, passnøkler og dataene dine',
 	integrations: 'Koblinger',
 	upload: 'Last opp en aktivitetsfil',
 	uploadDetail: '.fit, .tcx eller .gpx fra en klokke eller en annen app',
 	logout: 'Logg ut',
 } as const
 
-/** The intervals.icu connection, as Meg reads it. */
-export const INTERVALSICU_STATES = [
-	'disconnected',
-	'connected',
-	'backfilling',
-	'revoked',
-] as const
-export type IntervalsIcuState = (typeof INTERVALSICU_STATES)[number]
-
-export const INTERVALSICU_STATE_LABELS: Record<IntervalsIcuState, string> = {
-	disconnected: 'Ikke koblet til',
-	connected: 'Koblet til',
-	backfilling: 'Koblet til · henter historikken din',
-	revoked: 'Må kobles til på nytt',
-}
+/** An Account Connection's state, as Meg reads it (`connection-hub-status.ts`). */
+export const CONNECTION_HUB_STATUS_LABELS: Record<ConnectionHubStatus, string> =
+	{
+		disconnected: 'Ikke koblet til',
+		connected: 'Koblet til',
+		backfilling: 'Koblet til · henter historikken din',
+		revoked: 'Må kobles til på nytt',
+	}
 
 // ---------------------------------------------------------------------------
 

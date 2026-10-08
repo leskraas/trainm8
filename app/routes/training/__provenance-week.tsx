@@ -282,7 +282,7 @@ function Drawer({
 				role="dialog"
 				aria-modal="true"
 				aria-label={title}
-				className="border-border bg-card absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-2xl border-t shadow-2xl"
+				className="border-border bg-card absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-2xl border-t pb-[env(safe-area-inset-bottom)] shadow-2xl"
 			>
 				<div className="bg-card/95 sticky top-0 z-10 px-4 pt-2.5 pb-3 backdrop-blur">
 					<div

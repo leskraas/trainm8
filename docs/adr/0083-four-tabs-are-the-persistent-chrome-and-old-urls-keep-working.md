@@ -33,10 +33,13 @@ page of their own.
    URLs each is home to; `labels.ts` owns their words (`APP_TAB_LABELS`);
    `app/components/tab-bar.tsx` draws them with the `Icon` sprite.
 2. **One element, two placements.** On a phone it is a bottom tab bar, fixed to
-   the bottom edge and padded by `env(safe-area-inset-bottom)`
-   (`viewport-fit=cover`). From `md` up it is not fixed: the same `<nav>` sits
-   in the wordmark row as a row of links. There is only ever one "Hovedmeny"
-   landmark in the page.
+   the bottom edge and padded by the safe area below and beside it
+   (`viewport-fit=cover`; the app layout pads its sides by the left and right
+   insets too, and a bottom sheet pads by the bottom one). From `md` up it is
+   not fixed: the same `<nav>` sits in the wordmark row as a row of links, each
+   44px tall (ui-conventions §2.2). There is only ever one "Hovedmeny" landmark
+   in the page. The first run (`/start…`) carries no bar: it is a flow with one
+   way forward.
 3. **The room the bar takes is one CSS variable**, `--tab-bar-space`
    (`tailwind.css`): the bar's 56px plus the safe-area inset when the bar is in
    the page and fixed, `0` otherwise (logged out, auth screens, `md` and up).
@@ -48,21 +51,27 @@ page of their own.
    their addresses — `/training/events/…`, `/training/catalogue`,
    `/training/programs`, `/training/exercises/…`, `/settings/…`,
    `/imports/upload` — so no bookmark or deep link breaks. The bar marks the tab
-   a page lives under (`aria-current="page"`); a page under no tab (a session, a
-   log) marks none rather than guessing. Guessed and retired roots redirect:
+   a page lives under: `aria-current="page"` on the tab's own landing page,
+   `aria-current="true"` on a page deeper in it; a page under no tab (a session,
+   a log) marks none rather than guessing. Guessed and retired roots redirect:
    `/settings` and `/imports` (the retired Activity Inbox, ADR 0049) go to Meg,
    `/events` to the Events list as before.
 5. **Sesong** is the season plan, which now lists the upcoming Events it is
    planned around with _Alle løp_, _Nytt løp_ and _Planlegg en ny sesong_. With
-   no plan, Sesong lands on plan creation, which lists the athlete's Events and
-   links the full list.
-6. **Bibliotek** is a hub page: the Catalogue, the strength programs, and the
-   athlete's own recent lifts, each opening its exercise history. The full
-   exercise database has no list page; nobody reads it top to bottom.
-7. **Meg** is a hub page: the profile, training settings, the account, the
-   intervals.icu connection with its state, the file upload, and logging out.
-   The wordmark row's avatar link to Settings is gone with it — two ways to the
-   same place in one row is one too many.
+   no plan, Sesong lands on plan creation (`/training/plan/new`), which is then
+   Sesong's landing page: titled _Sesong_, no back arrow, every word in
+   Norwegian (its Event dates too, `formatNbDate`), listing the athlete's Events
+   and linking the full list.
+6. **Bibliotek** is a hub page: the Catalogue, the strength programs, every
+   exercise (`/library/exercises`, the whole bank the athlete can put in a
+   session, searched by name on the server), and the athlete's own recent lifts
+   — each exercise opening its history. An athlete with no lifts still finds the
+   exercises.
+7. **Meg** is a hub page: one profile card (profile and account), training
+   settings, the intervals.icu connection with its state, the file upload, and
+   logging out. The connection's state is one derivation the integrations page
+   shares (`connectionHubStatus`). The wordmark row's avatar link to Settings is
+   gone with it — two ways to the same place in one row is one too many.
 8. **A tab's landing page is a top-level screen** (ui-conventions §3.3): no back
    affordance; the bar is the way out. A page inside a tab backs out to its
    tab's landing page (Events → Sesong, the Catalogue → Bibliotek, settings →
@@ -91,6 +100,6 @@ page of their own.
 - The hub pages are new #505 surfaces and speak Norwegian (ADR 0081 §1); the
   pages they open keep their English until they are redesigned (ADR 0081 §4).
 - The dev-only React Router devtools trigger floats over the Meg tab on a phone;
-  e2e tests that tap Meg hide it.
+  a shared Playwright fixture hides it in every e2e test.
 - `docs/product.md`'s old "Home, Training, Settings" tab line is replaced by
   this ADR.

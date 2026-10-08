@@ -1,4 +1,5 @@
 import { type AccountConnection } from '@prisma/client'
+import { type ConnectionHubStatus } from './connection-hub-status.ts'
 import { prisma } from './db.server.ts'
 
 /**
@@ -70,6 +71,24 @@ export function isBackfillInProgress(
 		now.getTime() - connection.connectedAt.getTime() <
 		BACKFILL_EXPECTED_DURATION_MS
 	)
+}
+
+/**
+ * The connection as the athlete reads it (`connection-hub-status.ts`): the one
+ * derivation the integrations page and Meg share.
+ */
+export function connectionHubStatus(
+	connection: Pick<
+		AccountConnection,
+		'status' | 'backfillCompletedAt' | 'connectedAt'
+	> | null,
+	now: Date = new Date(),
+): ConnectionHubStatus {
+	if (!connection) return 'disconnected'
+	if (connection.status === 'revoked' || connection.status === 'error') {
+		return 'revoked'
+	}
+	return isBackfillInProgress(connection, now) ? 'backfilling' : 'connected'
 }
 
 /** The active Account Connection for an athlete/provider, if any. */

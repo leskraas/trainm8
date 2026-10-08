@@ -68,34 +68,41 @@ function renderStep(
 	return { submitted }
 }
 
-test('the flow opens by asking what the athlete is building toward', async () => {
+test('the flow opens by asking what the athlete is building toward, as Sesong’s landing (ADR 0083)', async () => {
 	renderStep()
 
 	expect(
-		await screen.findByRole('heading', {
-			name: /what are you building toward/i,
-		}),
+		await screen.findByRole('heading', { name: 'Sesong', level: 1 }),
 	).toBeInTheDocument()
+	expect(screen.getByText('Hva bygger du mot?')).toBeInTheDocument()
+	// A tab's landing page: the tab bar is the way out, not a back arrow.
+	expect(
+		screen.queryByRole('link', { name: /^back to/i }),
+	).not.toBeInTheDocument()
+	expect(screen.getByRole('link', { name: 'Alle løp' })).toHaveAttribute(
+		'href',
+		'/training/events',
+	)
 })
 
 test('an upcoming Event is offered as the plan’s anchor', async () => {
 	renderStep()
 
 	expect(await screen.findByText('Spring Half Marathon')).toBeInTheDocument()
-	expect(screen.getByText(/5 Mar 2030/)).toBeInTheDocument()
+	expect(screen.getByText(/5\. mar 2030/)).toBeInTheDocument()
 	expect(
-		screen.getByRole('link', { name: /plan for this event/i }),
+		screen.getByRole('link', { name: /planlegg mot dette løpet/i }),
 	).toHaveAttribute('href', '/training/plan/new/event-1')
 })
 
 test('an Event that already has a plan says so instead of offering itself', async () => {
 	renderStep([candidate({ plannedOutlineId: 'outline-1' })])
 
-	expect(await screen.findByText(/already has a plan/i)).toBeInTheDocument()
+	expect(await screen.findByText(/har allerede en plan/i)).toBeInTheDocument()
 	expect(
-		screen.queryByRole('link', { name: /plan for this event/i }),
+		screen.queryByRole('link', { name: /planlegg mot dette løpet/i }),
 	).not.toBeInTheDocument()
-	expect(screen.getByRole('link', { name: /open its plan/i })).toHaveAttribute(
+	expect(screen.getByRole('link', { name: /åpne planen/i })).toHaveAttribute(
 		'href',
 		'/training/plan?event=event-1',
 	)
@@ -105,10 +112,10 @@ test('with nothing on the calendar the athlete is pointed at the goal step', asy
 	renderStep([])
 
 	expect(
-		await screen.findByText(/nothing on the calendar yet/i),
+		await screen.findByText(/ingenting i kalenderen ennå/i),
 	).toBeInTheDocument()
 	expect(
-		screen.getByRole('button', { name: /create goal and continue/i }),
+		screen.getByRole('button', { name: /lag målet og gå videre/i }),
 	).toBeInTheDocument()
 })
 
@@ -116,17 +123,16 @@ test('setting a goal submits a named, dated goal in a discipline', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderStep()
 
-	await user.type(await screen.findByLabelText(/^goal$/i), 'Sub-40 10k shape')
-	await user.clear(screen.getByLabelText(/^date$/i))
-	await user.type(screen.getByLabelText(/^date$/i), '2030-06-01')
+	await user.type(await screen.findByLabelText(/^mål$/i), 'Sub-40 10k shape')
+	await user.clear(screen.getByLabelText(/^dato$/i))
+	await user.type(screen.getByLabelText(/^dato$/i), '2030-06-01')
 	await user.click(
-		within(screen.getByRole('region', { name: /or set a goal/i })).getByRole(
-			'radio',
-			{ name: 'Ride' },
-		),
+		within(
+			screen.getByRole('region', { name: /eller sett et mål/i }),
+		).getByRole('radio', { name: 'Sykling' }),
 	)
 	await user.click(
-		screen.getByRole('button', { name: /create goal and continue/i }),
+		screen.getByRole('button', { name: /lag målet og gå videre/i }),
 	)
 
 	expect(submitted).toHaveBeenCalledWith(
@@ -144,7 +150,7 @@ test('the goal step says out loud that it creates a calendar entry', async () =>
 	// Never created behind the athlete's back (ADR 0039): the step states what it
 	// will write before it writes it.
 	expect(
-		await screen.findByText(/creates a dated fitness goal on your calendar/i),
+		await screen.findByText(/lager et datomål i kalenderen din/i),
 	).toBeInTheDocument()
 })
 
@@ -169,7 +175,7 @@ test('“Hold meg aktiv” submits a discipline and hours a week, pre-filled fro
 		await screen.findByRole('region', { name: 'Hold meg aktiv' }),
 	)
 	expect(section.getByLabelText(/timer i uka/i)).toHaveValue(5)
-	await user.click(section.getByRole('radio', { name: 'Run' }))
+	await user.click(section.getByRole('radio', { name: 'Løping' }))
 	expect(section.getByLabelText(/timer i uka/i)).toHaveValue(3.5)
 	await user.clear(section.getByLabelText(/timer i uka/i))
 	await user.type(section.getByLabelText(/timer i uka/i), '4')

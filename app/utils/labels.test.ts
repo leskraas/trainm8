@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 
 import { APP_TABS } from './app-tabs.ts'
+import { CONNECTION_HUB_STATUSES } from './connection-hub-status.ts'
 import {
 	EVENT_KINDS,
 	EVENT_PRIORITIES,
@@ -13,8 +14,8 @@ import {
 import {
 	APP_TAB_LABELS,
 	CONVERSION_CONVENTION_LABELS,
-	INTERVALSICU_STATE_LABELS,
-	INTERVALSICU_STATES,
+	CONNECTION_HUB_STATUS_LABELS,
+	NB_EVENT_KIND_LABELS,
 	SEASON_EVENTS_LABELS,
 	quotedSession,
 	roundFactorLabel,
@@ -511,12 +512,15 @@ test('every tab has its name in the spec’s own words', () => {
 })
 
 test('Meg names every state of the intervals.icu connection in words (ADR 0083)', () => {
-	for (const state of INTERVALSICU_STATES) {
-		expect(INTERVALSICU_STATE_LABELS[state]).toBeTruthy()
+	for (const state of CONNECTION_HUB_STATUSES) {
+		expect(CONNECTION_HUB_STATUS_LABELS[state]).toBeTruthy()
 	}
-	expect(new Set(Object.values(INTERVALSICU_STATE_LABELS)).size).toBe(
-		INTERVALSICU_STATES.length,
+	expect(new Set(Object.values(CONNECTION_HUB_STATUS_LABELS)).size).toBe(
+		CONNECTION_HUB_STATUSES.length,
 	)
+	for (const kind of EVENT_KINDS) {
+		expect(NB_EVENT_KIND_LABELS[kind]).toBeTruthy()
+	}
 	expect(SEASON_EVENTS_LABELS.comingUp(0)).toBe('ingen kommende')
 	expect(SEASON_EVENTS_LABELS.comingUp(2)).toBe('2 kommende')
 })

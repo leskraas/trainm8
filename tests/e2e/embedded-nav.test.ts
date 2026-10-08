@@ -9,20 +9,6 @@ import { expect, test } from '#tests/playwright-utils.ts'
 // from there; Meg is where the account lives.
 test.use({ viewport: { width: 390, height: 844 } })
 
-// The dev server's React Router devtools trigger floats over the bottom-right
-// corner, which on a phone is the Meg tab. It is a dev-only overlay (the CI
-// server runs the production build), so it is hidden rather than clicked round.
-test.beforeEach(async ({ page }) => {
-	await page.addInitScript(() => {
-		document.addEventListener('DOMContentLoaded', () => {
-			const style = document.createElement('style')
-			style.textContent =
-				'[data-testid="react-router-devtools-trigger"]{display:none!important}'
-			document.head.append(style)
-		})
-	})
-})
-
 test('walks Sesong → Events → back → Meg → profile with no plan', async ({
 	page,
 	navigate,
@@ -69,9 +55,11 @@ test('walks Sesong → Events → back → Meg → profile with no plan', async 
 		'page',
 	)
 	await expect(page.getByText(eventName).first()).toBeVisible()
+	// A tab's landing page: no way back but the bar.
+	await expect(page.getByRole('link', { name: /^back to/i })).toHaveCount(0)
 
 	// Sesong → the full Events list → the Event, all through page elements.
-	await page.getByRole('link', { name: 'All events' }).click()
+	await page.getByRole('link', { name: 'Alle løp' }).click()
 	await expect(page).toHaveURL('/training/events')
 	await page.getByRole('link', { name: new RegExp(eventName, 'i') }).click()
 	await expect(page).toHaveURL(/\/training\/events\/[a-z0-9]+$/i)
@@ -87,7 +75,7 @@ test('walks Sesong → Events → back → Meg → profile with no plan', async 
 	// Meg → the profile, and back.
 	await tabs.getByRole('link', { name: 'Meg' }).click()
 	await expect(page).toHaveURL('/me')
-	await page.getByRole('link', { name: /endre profil/i }).click()
+	await page.getByRole('link', { name: /e-post, passord/i }).click()
 	await expect(page).toHaveURL('/settings/profile')
 	await page.getByRole('link', { name: /back to meg/i }).click()
 	await expect(page).toHaveURL('/me')

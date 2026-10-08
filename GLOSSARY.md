@@ -1692,13 +1692,14 @@ want of a tab bar; the **Tab Bar** reaches them now and the nav is gone (ADR
 
 **Tab Bar**: The app's four tabs and its only persistent navigation (ADR 0083):
 **I dag** (the **Home Timeline**), **Sesong** (the season plan, its Events and
-plan creation), **Bibliotek** (the Catalogue, Programs and the athlete's own
-lifts) and **Meg** (profile, settings, the intervals.icu connection and the file
-upload; imports have no page of their own). A bottom bar on a phone, links in
-the wordmark row from `md` up. A tab is a home for URLs, not a URL: pages that
-moved into a tab keep their addresses, and the bar marks the tab a page lives
-under. UI words: _I dag_, _Sesong_, _Bibliotek_, _Meg_. _Avoid_: menu, nav bar,
-sidebar; "Settings tab" (it is Meg)
+plan creation), **Bibliotek** (the Catalogue, Programs, every exercise and the
+athlete's own lifts) and **Meg** (profile, settings, the intervals.icu
+connection and the file upload; imports have no page of their own). A bottom bar
+on a phone, links in the wordmark row from `md` up. A tab is a home for URLs,
+not a URL: pages that moved into a tab keep their addresses, and the bar marks
+the tab a page lives under. The first run carries no bar. UI words: _I dag_,
+_Sesong_, _Bibliotek_, _Meg_. _Avoid_: menu, nav bar, sidebar; "Settings tab"
+(it is Meg)
 
 **Landing Position**: Where the **Home Timeline** parks on open — today's row,
 12 px below the bottom of its week's sticky header, measured (ADR 0082 §10), so

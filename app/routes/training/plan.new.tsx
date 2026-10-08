@@ -29,8 +29,15 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { formatDate } from '#app/utils/format.ts'
-import { EVENT_KIND_LABELS, OPEN_ENDED_PLAN_LABEL } from '#app/utils/labels.ts'
+import { formatNbDate } from '#app/utils/format.ts'
+import {
+	APP_TAB_LABELS,
+	NB_DISCIPLINE_LABELS,
+	NB_EVENT_KIND_LABELS,
+	nbDisciplineLabel,
+	OPEN_ENDED_PLAN_LABEL,
+	PLAN_NEW_LABELS,
+} from '#app/utils/labels.ts'
 import {
 	createFitnessGoalEvent,
 	createOpenEndedPlan,
@@ -38,17 +45,15 @@ import {
 	readOpenEndedPlanDefaults,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import { OPEN_ENDED_ROUND_WEEKS } from '#app/utils/plan-outline/presets.ts'
-import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	CARDIO_DISCIPLINES,
 	DISCIPLINES,
 	type CardioDiscipline,
-	type Discipline,
 } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.new.ts'
 
 export const meta: Route.MetaFunction = () => [
-	{ title: 'Plan a season | Trainm8' },
+	{ title: `${APP_TAB_LABELS.season} | Trainm8` },
 ]
 
 /**
@@ -57,12 +62,12 @@ export const meta: Route.MetaFunction = () => [
  * and it is what proposes the plan's first Training Track in the next step.
  */
 const GoalFormSchema = z.object({
-	name: z.string().trim().min(1, 'Name what you are building toward').max(120),
+	name: z.string().trim().min(1, PLAN_NEW_LABELS.nameRequired).max(120),
 	startDate: z.coerce.date({
-		errorMap: () => ({ message: 'A valid date is required' }),
+		errorMap: () => ({ message: PLAN_NEW_LABELS.dateRequired }),
 	}),
 	discipline: z.enum(DISCIPLINES, {
-		errorMap: () => ({ message: 'Pick the discipline' }),
+		errorMap: () => ({ message: PLAN_NEW_LABELS.disciplineRequired }),
 	}),
 })
 
@@ -175,34 +180,32 @@ export default function NewPlanRoute({
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
-			<PageHeader
-				title="What are you building toward?"
-				back={{ to: '/', label: 'Home' }}
-				className="mb-2"
-			/>
+			{/* Sesong's own landing while there is no plan (ADR 0083): a tab's
+			    landing page, so no back affordance — the tab bar is the way out. */}
+			<PageHeader title={APP_TAB_LABELS.season} className="mb-2" />
+			<p className="mb-1 text-base font-semibold">{PLAN_NEW_LABELS.heading}</p>
 			<p className="text-muted-foreground mb-6 text-sm">
-				Pick the event your season builds toward, or set a dated goal instead.
+				{PLAN_NEW_LABELS.intro}
 			</p>
 
 			<section aria-labelledby="your-events" className="mb-8 space-y-4">
-				{/* Sesong's own landing while there is no plan (ADR 0083), so the
-				    full Events list is reached from here as it is from the plan. */}
+				{/* The full Events list is reached from here as it is from the plan. */}
 				<div className="flex items-baseline justify-between gap-3">
 					<h2 id="your-events" className="text-lg font-semibold">
-						Your upcoming events
+						{PLAN_NEW_LABELS.yourEvents}
 					</h2>
 					<Link
 						to="/training/events"
 						className="text-muted-foreground text-sm underline"
 					>
-						All events
+						{PLAN_NEW_LABELS.allEvents}
 					</Link>
 				</div>
 				{candidates.length === 0 ? (
 					<p className="text-muted-foreground text-sm">
-						Nothing on the calendar yet — set a goal below, or{' '}
+						{PLAN_NEW_LABELS.noEventsBefore}
 						<Link to="/training/events/new" className="underline">
-							add an event
+							{PLAN_NEW_LABELS.addEvent}
 						</Link>
 						.
 					</p>
@@ -213,14 +216,14 @@ export default function NewPlanRoute({
 							<CardTitle className="flex flex-wrap items-center gap-2 text-base">
 								{candidate.name}
 								<Badge variant="secondary">
-									{EVENT_KIND_LABELS[candidate.kind]}
+									{NB_EVENT_KIND_LABELS[candidate.kind]}
 								</Badge>
 							</CardTitle>
 							<p className="text-muted-foreground text-sm">
-								{formatDate(candidate.startDate, 'UTC')}
+								{formatNbDate(candidate.startDate, 'UTC')}
 								{candidate.disciplines.length > 0
 									? ` · ${candidate.disciplines
-											.map((discipline) => getDisciplineLabel(discipline))
+											.map((discipline) => nbDisciplineLabel(discipline))
 											.join(', ')}`
 									: null}
 							</p>
@@ -230,7 +233,7 @@ export default function NewPlanRoute({
 								to={`/training/plan/new/${candidate.id}`}
 								className={buttonVariants({ size: 'sm' })}
 							>
-								Plan for this event
+								{PLAN_NEW_LABELS.planForEvent}
 							</Link>
 						</CardContent>
 					</Card>
@@ -240,8 +243,8 @@ export default function NewPlanRoute({
 						<CardHeader className="gap-1">
 							<CardTitle className="text-base">{candidate.name}</CardTitle>
 							<p className="text-muted-foreground text-sm">
-								{formatDate(candidate.startDate, 'UTC')} · this already has a
-								plan
+								{formatNbDate(candidate.startDate, 'UTC')} ·{' '}
+								{PLAN_NEW_LABELS.alreadyPlanned}
 							</p>
 						</CardHeader>
 						<CardContent>
@@ -249,7 +252,7 @@ export default function NewPlanRoute({
 								to={`/training/plan?event=${candidate.id}`}
 								className={buttonVariants({ variant: 'outline', size: 'sm' })}
 							>
-								Open its plan
+								{PLAN_NEW_LABELS.openItsPlan}
 							</Link>
 						</CardContent>
 					</Card>
@@ -268,32 +271,33 @@ export default function NewPlanRoute({
 
 			<section aria-labelledby="set-a-goal" className="space-y-4">
 				<h2 id="set-a-goal" className="text-lg font-semibold">
-					Or set a goal
+					{PLAN_NEW_LABELS.setAGoal}
 				</h2>
 				<p className="text-muted-foreground text-sm">
-					This creates a dated fitness goal on your calendar, so the season has
-					something real to build toward.
+					{PLAN_NEW_LABELS.setAGoalIntro}
 				</p>
 				<Form method="POST" {...getFormProps(form)}>
 					<div className="space-y-4">
 						<Field
-							labelProps={{ children: 'Goal' }}
+							labelProps={{ children: PLAN_NEW_LABELS.goal }}
 							inputProps={{
 								...getInputProps(fields.name, { type: 'text' }),
-								placeholder: 'e.g. Sub-40 10k shape',
+								placeholder: PLAN_NEW_LABELS.goalPlaceholder,
 							}}
 							errors={fields.name.errors as string[] | undefined}
 						/>
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<Field
-								labelProps={{ children: 'Date' }}
+								labelProps={{ children: PLAN_NEW_LABELS.date }}
 								inputProps={{
 									...getInputProps(fields.startDate, { type: 'date' }),
 								}}
 								errors={fields.startDate.errors as string[] | undefined}
 							/>
 							<fieldset className="space-y-1.5">
-								<legend className="text-sm font-medium">Discipline</legend>
+								<legend className="text-sm font-medium">
+									{PLAN_NEW_LABELS.discipline}
+								</legend>
 								<div className="flex flex-wrap gap-x-4">
 									{DISCIPLINES.map((discipline) => (
 										<label
@@ -308,7 +312,7 @@ export default function NewPlanRoute({
 												className="size-4"
 											/>
 											<span className="text-sm">
-												{getDisciplineLabel(discipline as Discipline)}
+												{NB_DISCIPLINE_LABELS[discipline]}
 											</span>
 										</label>
 									))}
@@ -320,7 +324,7 @@ export default function NewPlanRoute({
 						</div>
 						<ErrorList errors={form.errors as string[] | undefined} />
 						<Button type="submit" className="w-full sm:w-auto">
-							Create goal and continue
+							{PLAN_NEW_LABELS.create}
 						</Button>
 					</div>
 				</Form>
@@ -403,7 +407,7 @@ function OpenEndedSection({
 											className="size-4"
 										/>
 										<span className="text-sm">
-											{getDisciplineLabel(option)}
+											{NB_DISCIPLINE_LABELS[option]}
 										</span>
 									</label>
 								))}

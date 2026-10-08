@@ -16,15 +16,14 @@ import { PageHeader } from '#app/components/page-header.tsx'
 import { Icon, type IconName } from '#app/components/ui/icon.tsx'
 import { INTERVALSICU_PROVIDER } from '#app/integrations/intervalsicu/types.ts'
 import {
+	connectionHubStatus,
 	getAccountConnection,
-	isBackfillInProgress,
 } from '#app/utils/account-connection.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	APP_TAB_LABELS,
-	INTERVALSICU_STATE_LABELS,
-	type IntervalsIcuState,
+	CONNECTION_HUB_STATUS_LABELS,
 	ME_LABELS,
 	providerLabel,
 } from '#app/utils/labels.ts'
@@ -48,18 +47,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 		}),
 		getAccountConnection(userId, INTERVALSICU_PROVIDER),
 	])
-	// The same reading the integrations page makes: `error` reads as needing a
-	// reconnect, because reconnecting is the only remedy the athlete has.
-	let intervalsicu: IntervalsIcuState = 'disconnected'
-	if (connection) {
-		if (connection.status === 'revoked' || connection.status === 'error') {
-			intervalsicu = 'revoked'
-		} else if (isBackfillInProgress(connection)) {
-			intervalsicu = 'backfilling'
-		} else {
-			intervalsicu = 'connected'
-		}
-	}
+	// The same reading the integrations page makes (`connectionHubStatus`).
+	const intervalsicu = connectionHubStatus(connection)
 	return { user, intervalsicu }
 }
 
@@ -153,8 +142,8 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 					<span className="text-muted-foreground block truncate text-sm">
 						@{user.username}
 					</span>
-					<span className="text-primary block text-sm font-medium">
-						{ME_LABELS.editProfile}
+					<span className="text-muted-foreground block text-sm">
+						{ME_LABELS.profileDetail}
 					</span>
 				</span>
 				<Icon
@@ -171,12 +160,6 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 					icon="settings"
 					title={ME_LABELS.training}
 				/>
-				<MeLink
-					to="/settings/profile"
-					icon="avatar"
-					title={ME_LABELS.account}
-					detail={ME_LABELS.accountDetail}
-				/>
 			</MeSection>
 
 			<MeSection id="me-integrations" title={ME_LABELS.integrations}>
@@ -184,7 +167,7 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 					to="/settings/integrations"
 					icon="link-2"
 					title={providerLabel(INTERVALSICU_PROVIDER)}
-					detail={INTERVALSICU_STATE_LABELS[intervalsicu]}
+					detail={CONNECTION_HUB_STATUS_LABELS[intervalsicu]}
 				/>
 				<MeLink
 					to="/imports/upload"

@@ -20,7 +20,6 @@ type WordmarkRowUser =
 			id: string
 			name: string | null
 			username: string
-			image?: { objectKey: string } | null
 	  }
 	| null
 	| undefined

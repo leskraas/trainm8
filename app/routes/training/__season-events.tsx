@@ -11,17 +11,44 @@
  */
 import { Link } from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { formatDate } from '#app/utils/format.ts'
-import { EVENT_KIND_LABELS, SEASON_EVENTS_LABELS } from '#app/utils/labels.ts'
-import { type EventKind } from '#app/utils/event-schema.ts'
+import {
+	type EventKind,
+	type EventPriority,
+	isEventKind,
+	isEventPriority,
+} from '#app/utils/event-schema.ts'
+import { formatNbDate } from '#app/utils/format.ts'
+import {
+	NB_EVENT_KIND_LABELS,
+	SEASON_EVENTS_LABELS,
+} from '#app/utils/labels.ts'
 import { PillLink, PlanCard } from './__plan-chrome.tsx'
 
-export type SeasonEvent = {
+/**
+ * An Event as the loader reads it: its stored columns, with kind and priority
+ * as the text the database holds.
+ */
+export type SeasonEventRow = {
 	id: string
 	name: string
 	kind: string
 	priority: string
 	startDate: Date | string
+}
+
+/** An Event as the card says it: kind and priority read back as their enums. */
+type SeasonEvent = Omit<SeasonEventRow, 'kind' | 'priority'> & {
+	/** `null` for a stored value outside the enum: said plainly, never guessed. */
+	kind: EventKind | null
+	priority: EventPriority | null
+}
+
+function seasonEventOf(row: SeasonEventRow): SeasonEvent {
+	return {
+		...row,
+		kind: isEventKind(row.kind) ? row.kind : null,
+		priority: isEventPriority(row.priority) ? row.priority : null,
+	}
 }
 
 /** How many upcoming Events the section lists before "All events" takes over. */
@@ -32,7 +59,7 @@ export function SeasonEvents({
 	upcomingCount,
 }: {
 	/** The next upcoming Events, soonest first, already cut to what is shown. */
-	events: SeasonEvent[]
+	events: SeasonEventRow[]
 	/** How many upcoming Events there are in all, so the aside never undercounts. */
 	upcomingCount: number
 }) {
@@ -45,7 +72,7 @@ export function SeasonEvents({
 		>
 			{events.length > 0 ? (
 				<ul className="divide-border/70 divide-y">
-					{events.map((event) => (
+					{events.map(seasonEventOf).map((event) => (
 						<li key={event.id}>
 							<Link
 								to={`/training/events/${event.id}`}
@@ -53,13 +80,15 @@ export function SeasonEvents({
 								className="flex min-h-11 items-center gap-3 py-2 hover:underline"
 							>
 								<span className="bg-primary text-primary-foreground flex size-6 flex-none items-center justify-center rounded-full text-xs font-bold">
-									{event.priority}
+									{event.priority ?? '·'}
 								</span>
 								<span className="min-w-0 flex-1">
 									<span className="block font-medium">{event.name}</span>
 									<span className="text-muted-foreground block text-xs">
-										{EVENT_KIND_LABELS[event.kind as EventKind]} ·{' '}
-										{formatDate(event.startDate, 'UTC')}
+										{event.kind
+											? `${NB_EVENT_KIND_LABELS[event.kind]} · `
+											: null}
+										{formatNbDate(event.startDate, 'UTC')}
 									</span>
 								</span>
 							</Link>

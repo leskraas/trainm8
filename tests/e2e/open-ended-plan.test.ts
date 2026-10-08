@@ -29,7 +29,7 @@ test('Hold meg aktiv makes a plan with no race, marked blokk 1 av ∞ on the pla
 		holdActive.getByText(/ingen løp og ingen sluttdato/i),
 	).toBeVisible()
 	// A fresh athlete has no history to pre-fill from, so they say it themselves.
-	await holdActive.getByRole('radio', { name: 'Run' }).check()
+	await holdActive.getByRole('radio', { name: 'Løping' }).check()
 	await holdActive.getByLabel('Timer i uka').fill('4')
 	await holdActive.getByRole('button', { name: 'Lag planen' }).click()
 
@@ -68,7 +68,7 @@ test('Legg til et løp turns an open-ended plan into a plan toward the race, wit
 	await login()
 	await navigate('/training/plan/new')
 	const holdActive = page.getByRole('region', { name: 'Hold meg aktiv' })
-	await holdActive.getByRole('radio', { name: 'Run' }).check()
+	await holdActive.getByRole('radio', { name: 'Løping' }).check()
 	await holdActive.getByLabel('Timer i uka').fill('4')
 	await holdActive.getByRole('button', { name: 'Lag planen' }).click()
 	await expect(page.getByText('blokk 1 av ∞')).toBeVisible()

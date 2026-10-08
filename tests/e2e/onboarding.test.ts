@@ -109,13 +109,16 @@ test('onboarding with link', async ({ page, navigate, getOnboardingData }) => {
 	// A new athlete lands on the first run (#505 story 61).
 	await expect(page).toHaveURL(`/start`)
 
-	// Meg is the account tab, and logout lives on it (ADR 0083).
-	await page
-		.getByRole('navigation', { name: 'Hovedmeny' })
-		.getByRole('link', { name: 'Meg' })
-		.click()
+	// The first run carries no tab bar (ADR 0083): one way forward.
+	await expect(page.getByRole('navigation', { name: 'Hovedmeny' })).toHaveCount(
+		0,
+	)
 
-	await expect(page).toHaveURL(`/me`)
+	// Meg is the account tab, and logout lives on it.
+	await page.goto('/me')
+	await expect(
+		page.getByRole('heading', { name: 'Meg', level: 1 }),
+	).toBeVisible()
 
 	await page.getByRole('button', { name: /^logg ut$/i }).click()
 	await expect(page).toHaveURL(`/`)

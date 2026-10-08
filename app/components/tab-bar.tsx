@@ -18,7 +18,8 @@ import {
 	APP_TAB_HREFS,
 	APP_TABS,
 	type AppTab,
-	appTabFor,
+	appTabPlace,
+	showsTabBar,
 } from '#app/utils/app-tabs.ts'
 import { APP_TAB_LABELS, APP_TABS_NAV_LABEL } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
@@ -32,7 +33,10 @@ const TAB_ICONS: Record<AppTab, IconName> = {
 
 export function TabBar({ className }: { className?: string }) {
 	const { pathname } = useLocation()
-	const current = appTabFor(pathname)
+	// The first run carries no bar (ADR 0083), and with no `[data-tab-bar]` in
+	// the page `--tab-bar-space` is 0, so nothing makes room for one.
+	if (!showsTabBar(pathname)) return null
+	const place = appTabPlace(pathname)
 
 	return (
 		<nav
@@ -40,24 +44,31 @@ export function TabBar({ className }: { className?: string }) {
 			data-tab-bar=""
 			className={cn(
 				// Phone: the bottom bar.
-				'bg-background/95 border-border/60 fixed inset-x-0 bottom-0 z-40 border-t pb-[env(safe-area-inset-bottom)] backdrop-blur',
+				// Padded by the safe area on three sides: the home indicator below, and
+				// a notch or rounded corner beside it in landscape.
+				'bg-background/95 border-border/60 fixed inset-x-0 bottom-0 z-40 border-t pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur',
 				// md+: links in the wordmark row, in normal flow.
-				'md:static md:z-auto md:border-0 md:bg-transparent md:pb-0 md:backdrop-blur-none',
+				'md:static md:z-auto md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none',
 				className,
 			)}
 		>
 			<ul className="mx-auto grid h-14 max-w-md grid-cols-4 md:flex md:h-auto md:max-w-none md:gap-1">
 				{APP_TABS.map((tab) => {
-					const active = tab === current
+					const active = place?.tab === tab
 					return (
 						<li key={tab} className="flex">
 							<Link
 								to={APP_TAB_HREFS[tab]}
-								aria-current={active ? 'page' : undefined}
+								// The tab's own landing page is the page; a page deeper in the
+								// tab is only inside it.
+								aria-current={
+									active ? (place.landing ? 'page' : 'true') : undefined
+								}
 								prefetch="intent"
 								className={cn(
 									'focus-visible:outline-ring flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px]/[1.1] font-semibold focus-visible:outline-2 focus-visible:-outline-offset-2',
-									'md:h-9 md:flex-row md:gap-1.5 md:rounded-full md:px-3 md:text-sm',
+									// 44px to a pointer or a thumb on a tablet (ui-conventions §2.2).
+									'md:h-11 md:flex-row md:gap-1.5 md:rounded-full md:px-3.5 md:text-sm',
 									active
 										? 'text-primary md:bg-primary/10'
 										: 'text-muted-foreground hover:text-foreground',

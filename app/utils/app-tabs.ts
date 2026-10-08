@@ -35,7 +35,7 @@ export const APP_TAB_HREFS: Record<AppTab, string> = {
  */
 const TAB_PREFIXES: Record<AppTab, readonly string[]> = {
 	today: [],
-	season: ['/training/plan', '/training/events', '/events'],
+	season: ['/training/plan', '/training/events'],
 	library: [
 		'/library',
 		'/training/catalogue',
@@ -45,16 +45,58 @@ const TAB_PREFIXES: Record<AppTab, readonly string[]> = {
 	me: ['/me', '/settings', '/integrations', '/imports'],
 }
 
+/**
+ * The URLs that are a tab's **landing page**: its own address, plus Sesong's
+ * plan creation, which is where Sesong lands while there is no plan (the plan
+ * page redirects there). A landing page is the tab itself
+ * (`aria-current="page"`); a page deeper in the tab is only inside it
+ * (`aria-current="true"`).
+ */
+const TAB_LANDINGS: Record<AppTab, readonly string[]> = {
+	today: ['/'],
+	season: ['/training/plan', '/training/plan/new'],
+	library: ['/library'],
+	me: ['/me'],
+}
+
+/**
+ * Pages that carry no tab bar at all: the first run (`/start…`) is a flow with
+ * one way forward, and four ways out of it would be four ways to abandon it.
+ */
+const BARLESS_PREFIXES = ['/start'] as const
+
 function underPrefix(pathname: string, prefix: string): boolean {
 	return pathname === prefix || pathname.startsWith(`${prefix}/`)
 }
 
+function normalized(pathname: string): string {
+	return pathname.length > 1 && pathname.endsWith('/')
+		? pathname.slice(0, -1)
+		: pathname
+}
+
+/** Whether a page shows the tab bar at all. */
+export function showsTabBar(pathname: string): boolean {
+	const path = normalized(pathname)
+	return !BARLESS_PREFIXES.some((prefix) => underPrefix(path, prefix))
+}
+
+/**
+ * How a page stands to the tabs: the tab it lives under, and whether it is that
+ * tab's landing page. `null` for a page that belongs to no tab.
+ */
+export function appTabPlace(
+	pathname: string,
+): { tab: AppTab; landing: boolean } | null {
+	const path = normalized(pathname)
+	const tab = appTabFor(path)
+	if (tab == null) return null
+	return { tab, landing: TAB_LANDINGS[tab].includes(path) }
+}
+
 /** The tab a page lives under, or `null` for a page that belongs to none. */
 export function appTabFor(pathname: string): AppTab | null {
-	const path =
-		pathname.length > 1 && pathname.endsWith('/')
-			? pathname.slice(0, -1)
-			: pathname
+	const path = normalized(pathname)
 	if (path === '/') return 'today'
 	for (const tab of APP_TABS) {
 		if (TAB_PREFIXES[tab].some((prefix) => underPrefix(path, prefix))) {

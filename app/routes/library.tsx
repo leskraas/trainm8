@@ -3,10 +3,10 @@
  * 58, ADR 0083). The catalogue, the strength programs and the exercises each
  * keep their own pages and URLs; this is the hub that names them in one place.
  *
- * Exercises have no list page of their own — the full exercise database is
- * hundreds of rows nobody reads top to bottom — so the hub lists the lifts the
- * athlete has actually put in a session, most recent first, each opening its
- * history. An athlete with none is told where they come from instead.
+ * The hub lists the lifts the athlete has actually put in a session, most
+ * recent first, each opening its history; the whole exercise bank is one tap
+ * further, searchable (`library_.exercises.tsx`), so an athlete with no lifts
+ * still finds the exercises.
  */
 import { Link } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -96,11 +96,17 @@ export default function LibraryRoute({ loaderData }: Route.ComponentProps) {
 					title={LIBRARY_LABELS.programs}
 					description={LIBRARY_LABELS.programsDetail}
 				/>
+				<HubLink
+					to="/library/exercises"
+					icon="magnifying-glass"
+					title={LIBRARY_LABELS.allExercises}
+					description={LIBRARY_LABELS.allExercisesDetail}
+				/>
 			</div>
 
 			<section aria-labelledby="library-exercises" className="mt-8">
 				<h2 id="library-exercises" className="mb-3 text-base font-semibold">
-					{LIBRARY_LABELS.exercises}
+					{LIBRARY_LABELS.recentLifts}
 				</h2>
 				{lifts.length > 0 ? (
 					<ul className="divide-border/70 divide-y">
