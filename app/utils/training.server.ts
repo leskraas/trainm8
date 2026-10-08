@@ -269,6 +269,7 @@ const activeOutlineSelect = {
 			weeks: true,
 			rhythm: true,
 			tapers: true,
+			recoveryWeekIndex: true,
 		},
 	},
 	tracks: {

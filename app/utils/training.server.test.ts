@@ -557,6 +557,7 @@ test('getActivePlan returns the upcoming Target Event carrying a Plan Outline', 
 	expect(plan?.eventName).toBe('Spring Half')
 	// The arc's phases carry everything a phase stores — name, span, rhythm, taper
 	// — and no dates: those are derived from the Plan Start Week (ADR 0044 §3).
+	// No easy week chosen reads as null: the rhythm's own (#505 story 74).
 	expect(plan?.phases).toEqual([
 		{
 			id: expect.any(String),
@@ -564,6 +565,7 @@ test('getActivePlan returns the upcoming Target Event carrying a Plan Outline', 
 			weeks: 4,
 			rhythm: '3:1',
 			tapers: false,
+			recoveryWeekIndex: null,
 		},
 		{
 			id: expect.any(String),
@@ -571,6 +573,7 @@ test('getActivePlan returns the upcoming Target Event carrying a Plan Outline', 
 			weeks: 4,
 			rhythm: '3:1',
 			tapers: false,
+			recoveryWeekIndex: null,
 		},
 	])
 	// The plan's authored first Training Week, not a count back from the Event.
@@ -855,6 +858,7 @@ test('getActiveSeason lays the phases forward from the authored Plan Start Week'
 			weeks: 4,
 			rhythm: '3:1',
 			tapers: false,
+			recoveryWeekIndex: null,
 			fromWeekInPlan: 1,
 			toWeekInPlan: 4,
 			fromWeekKey: '2030-01-07',
@@ -865,6 +869,7 @@ test('getActiveSeason lays the phases forward from the authored Plan Start Week'
 			weeks: 4,
 			rhythm: '2:1',
 			tapers: false,
+			recoveryWeekIndex: null,
 			fromWeekInPlan: 5,
 			toWeekInPlan: 8,
 			fromWeekKey: '2030-02-04',

@@ -218,6 +218,13 @@ intensity-distribution literature. Two findings reframed the decision:
     behalf, which is a different thing from the athlete authoring their own
     plan.
 
+    _Amended by
+    [ADR 0084](./0084-sesong-edits-preview-first-and-a-week-target-rise-is-warned-between-loading-weeks.md)
+    (#505 story 76): a second guard reads the **week targets** — a hand-set week
+    included, which no authored rate records — but only between two **loading**
+    weeks, the reference skipping easy weeks and never a taper, so the rebound
+    and the taper stay unwarned. +10 %, warns and never blocks; §13 holds._
+
 13. **The threshold is one documented constant in code, sourced and honest about
     its status.** It is currently duplicated across four prototype files
     (`RAMP_WARN = 8`, `RAMP_HOT = 12`). Precedent for the location: ADR 0006

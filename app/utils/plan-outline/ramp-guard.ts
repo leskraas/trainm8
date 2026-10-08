@@ -16,11 +16,20 @@
 //
 // The copy belongs to the surface, not to this module, but the rule it must follow
 // is documented on `RAMP_GUARD_MAX`: a **convention**, never injury prevention.
+//
+// **A second guard, on week targets** (#505 story 76, ADR 0084, amending ADR
+// 0040 §12): `weekRiseWarnings` reads what the week targets *come to* — a
+// hand-set week included, which no authored rate can see — but only between
+// two **loading** weeks in a row. A recovery week's rebound and a taper are the
+// plan working as designed, so neither is ever one side of a comparison: the
+// two false positives §12 retired stay retired. Like the ramp guard it warns
+// and never blocks, and no write path consults it.
 
 import {
 	phaseIndexForWeek,
 	type PhaseSpec,
 	type SegmentSpec,
+	type WeekRole,
 } from './derive.ts'
 
 /**
@@ -138,4 +147,67 @@ function warn(
  */
 function isSteep(authored: number | null): authored is number {
 	return authored != null && authored > RAMP_GUARD_MAX
+}
+
+/**
+ * The steepest rise between two loading weeks in a row that goes unremarked:
+ * **+10 %** (#505 story 76). Exactly 10 % is not more than 10 %.
+ *
+ * Wider than `RAMP_GUARD_MAX` on purpose: this one reads a single step between
+ * two weeks, where the ramp guard reads a rate authored over a whole block, and
+ * the athlete asked about "10 % week on week" in those words. The honesty rule
+ * on `RAMP_GUARD_MAX` holds here too — a **convention**, never injury
+ * prevention (ADR 0040 §13; Buist et al. 2008 found the 10 % rule no better).
+ */
+export const WEEK_RISE_WARN = 0.1
+
+/** One week whose target rises too fast over the loading week before it. */
+export type WeekRiseWarning = {
+	weekIndex: number
+	/** The loading week it is compared with: the one before, past any easy weeks. */
+	fromWeekIndex: number
+	from: number
+	to: number
+	/** `to / from - 1`: `0.15` for +15 %. */
+	rise: number
+}
+
+/**
+ * Every loading week whose target rises more than {@link WEEK_RISE_WARN} over
+ * the **loading week before it** — one track's weeks, in order.
+ *
+ * The reference skips easy weeks: after a recovery week the loading week is
+ * compared with the last loading week before it (ADR 0040 §2: the climb resumes
+ * from the last *loading* week), so the rebound out of the easy week is never
+ * the subject, and a loading week that overshoots the climb still is. A taper
+ * week is never compared and ends the search for a reference. A week with no
+ * number, and a reference of zero or less, say nothing.
+ */
+export function weekRiseWarnings(
+	weeks: ReadonlyArray<{ role: WeekRole; value: number | null }>,
+): WeekRiseWarning[] {
+	const warnings: WeekRiseWarning[] = []
+	weeks.forEach((week, weekIndex) => {
+		if (week.role !== 'loading' || week.value == null) return
+		let fromWeekIndex = weekIndex - 1
+		while (fromWeekIndex >= 0 && weeks[fromWeekIndex]!.role === 'recovery') {
+			fromWeekIndex--
+		}
+		const before = weeks[fromWeekIndex]
+		if (!before || before.role !== 'loading' || before.value == null) return
+		if (before.value <= 0) return
+		const rise = week.value / before.value - 1
+		// A hair of tolerance, so a target that rounds to exactly +10 % is not
+		// warned on for a floating-point remainder.
+		if (rise > WEEK_RISE_WARN + 1e-9) {
+			warnings.push({
+				weekIndex,
+				fromWeekIndex,
+				from: before.value,
+				to: week.value,
+				rise,
+			})
+		}
+	})
+	return warnings
 }

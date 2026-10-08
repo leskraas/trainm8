@@ -245,7 +245,14 @@ export function PhaseCard({
 						tapers={tapers}
 						onTapersChange={setTapers}
 					/>
-					<RecoveryPreview phase={{ weeks: phase.weeks, rhythm, tapers }} />
+					<RecoveryPreview
+						phase={{
+							weeks: phase.weeks,
+							rhythm,
+							tapers,
+							recoveryWeekIndex: phase.recoveryWeekIndex,
+						}}
+					/>
 					<Button type="submit" variant="outline" className="w-full sm:w-auto">
 						Save rhythm
 					</Button>

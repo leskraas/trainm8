@@ -2281,8 +2281,13 @@ past: answered after the plan's end, it opens on the first week not yet begun
 and the last round runs on over the weeks between. Adding an Event later ends
 the current round early — at the weeks lived, this one included — and lays the
 family's run-up toward that Event from next week, fitted by the **Season Fit**
-rule; lived weeks and the athlete's sessions stay. _Avoid_: Block (UI word
-only), mesocycle, load phase, focus (the removed prototype field, ADR 0042).
+rule; lived weeks and the athlete's sessions stay. The athlete may choose
+**which week of a block is the easy one** (`recoveryWeekIndex`, #505 story 74):
+the block that week falls in — the rhythm's period counted from the phase's
+first week — recovers on it and on no other, every other block keeps the
+rhythm's own position, and one choice per phase (ADR 0084 §2). _Avoid_: Block
+(UI word only), mesocycle, load phase, focus (the removed prototype field, ADR
+0042).
 
 **Training Track**: One **Discipline** measured over a **Plan Outline**'s
 phases, owning its **Volume Currency**, its progression rule, its own
@@ -2411,7 +2416,9 @@ a ramp figure, and the number is stored exactly as authored. Its copy must name
 it a **convention** and make **no injury claim**: the 10% rule has a failed RCT
 behind it (Buist 2008, P=.90). _Avoid_: Ramp limit, safe ramp, injury risk
 warning (all three claim something the evidence does not support), `RAMP_WARN` /
-`RAMP_HOT` (the retired prototype's two-level scheme).
+`RAMP_HOT` (the retired prototype's two-level scheme). Its sibling on **Week
+Targets** — `weekRiseWarnings`, +10 % between two loading weeks — is ADR 0084's
+amendment to §12, not a week-over-week diff on every week.
 
 **Block Boundary Step**: The optional volume change a **Training Track** authors
 at a segment's opening, default `0` — expressing a deliberate volume drop
@@ -2529,7 +2536,11 @@ shown per week per track, never blended: **Week Target**, **Planned Volume**
 Adding, moving or editing a session changes Planned Volume and never the Week
 Target; a gap between the two is shown, not hidden — a week planned more than 10
 % off its target carries the `≠` mark, and the season strip draws the larger of
-the two so overplanning shows (#505, `week-volumes.ts`). _Avoid_: Plan (as a
+the two so overplanning shows (#505, `week-volumes.ts`). Changed in _Sesong_
+behind a preview (_Endre sesongen_, ADR 0084): a loading week whose target would
+rise more than 10 % over the loading week before it — easy weeks skipped, a
+taper never compared — is warned on and never blocked, and the message names the
+numbers that held ("Fasen og de andre ukene står som før."). _Avoid_: Plan (as a
 number), goal, sum.
 
 **Planned Volume**: The sum of one **Training Week**'s sessions that carry a

@@ -166,6 +166,120 @@ describe('phaseWeekRoles', () => {
 	})
 })
 
+// #505 story 74: the athlete picks which week of a block is the easy one. The
+// choice moves the easy week of the block it falls in, and only that block.
+describe('a chosen easy week', () => {
+	const eight = { weeks: 8, rhythm: '3:1' as const, tapers: false }
+
+	test('moves the easy week of its own block, and leaves the other block on the rhythm', () => {
+		expect(phaseWeekRoles({ ...eight, recoveryWeekIndex: 5 })).toEqual([
+			'loading',
+			'loading',
+			'loading',
+			'recovery',
+			'loading',
+			'recovery',
+			'loading',
+			'loading',
+		])
+		expect(phaseWeekRoles({ ...eight, recoveryWeekIndex: 1 })).toEqual([
+			'loading',
+			'recovery',
+			'loading',
+			'loading',
+			'loading',
+			'loading',
+			'loading',
+			'recovery',
+		])
+	})
+
+	test('gives a short last block the easy week the rhythm leaves out', () => {
+		const six = { weeks: 6, rhythm: '3:1' as const, tapers: false }
+		expect(phaseWeekRoles(six).filter((r) => r === 'recovery')).toHaveLength(1)
+		expect(phaseWeekRoles({ ...six, recoveryWeekIndex: 5 })).toEqual([
+			'loading',
+			'loading',
+			'loading',
+			'recovery',
+			'loading',
+			'recovery',
+		])
+	})
+
+	test('counts blocks by the rhythm: 2:1 blocks are three weeks', () => {
+		expect(
+			phaseWeekRoles({
+				weeks: 6,
+				rhythm: '2:1',
+				tapers: false,
+				recoveryWeekIndex: 3,
+			}),
+		).toEqual([
+			'loading',
+			'loading',
+			'recovery',
+			'recovery',
+			'loading',
+			'loading',
+		])
+	})
+
+	test('is ignored by a rhythm with no easy week, by a taper, and outside the phase', () => {
+		expect(
+			phaseWeekRoles({
+				weeks: 3,
+				rhythm: 'none',
+				tapers: false,
+				recoveryWeekIndex: 1,
+			}),
+		).toEqual(['loading', 'loading', 'loading'])
+		expect(
+			phaseWeekRoles({ ...eight, tapers: true, recoveryWeekIndex: 1 }),
+		).toEqual(Array(8).fill('taper'))
+		expect(phaseWeekRoles({ ...eight, recoveryWeekIndex: 8 })).toEqual(
+			phaseWeekRoles(eight),
+		)
+		expect(phaseWeekRoles({ ...eight, recoveryWeekIndex: null })).toEqual(
+			phaseWeekRoles(eight),
+		)
+	})
+
+	test('is read in the season, counted from its own phase', () => {
+		const season: PhaseSpec[] = [
+			{ weeks: 4, rhythm: '3:1', tapers: false },
+			{ weeks: 4, rhythm: '3:1', tapers: false, recoveryWeekIndex: 1 },
+		]
+		expect(weekRole(season, 3)).toBe('recovery')
+		expect(weekRole(season, 5)).toBe('recovery')
+		expect(weekRole(season, 7)).toBe('loading')
+	})
+
+	test('moves the climb with it: the loading week after the easy one resumes one step above', () => {
+		const season: PhaseSpec[] = [
+			{ weeks: 4, rhythm: '3:1', tapers: false, recoveryWeekIndex: 1 },
+		]
+		const spec: TrackSpec = {
+			currency: 'km',
+			anchors: [{ fromWeekIndex: 0, value: 40 }],
+			segments: [
+				{
+					kind: 'endurance',
+					phaseIndex: 0,
+					ramp: 0.1,
+					boundaryStep: null,
+					recoveryCut: null,
+					taperCut: null,
+				},
+			],
+			overrides: [],
+		}
+		expect(weekTargets(season, spec).map((value) => value?.toFixed(1))).toEqual(
+			['40.0', '28.0', '44.0', '48.4'],
+		)
+	})
+})
+
 describe('weekTarget', () => {
 	test('the anchor week is the anchor, unramped', () => {
 		expect(weekTarget(phases, track(), 0)).toBe(50)

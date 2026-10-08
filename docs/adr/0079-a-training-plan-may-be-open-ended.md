@@ -62,8 +62,8 @@ defined a **Training Plan** as anchored to a **Target Event**.
   optional and still unique (SQLite allows many NULLs),
   `WorkoutSession.planOutlineId` (SET NULL on delete; backfilled by joining
   `targetEventId` to `PlanOutline.eventId`), and
-  `PlanOutlinePhase.recoveryWeekIndex` for #505 story 74, not yet read by the
-  rhythm. No stored number moves.
+  `PlanOutlinePhase.recoveryWeekIndex` for #505 story 74, read by the rhythm
+  since #505 S13 (ADR 0084 §2). No stored number moves.
 - **At most one open-ended plan per athlete.** The app holds the rule in
   `createPlanOutline`, inside the creating transaction
   (`open-ended-already-active`); the database does not, since Prisma has no
