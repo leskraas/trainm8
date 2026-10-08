@@ -2559,8 +2559,8 @@ describe('the Ukeskiftet card (#505 stories 4–6, 42–55)', () => {
 				eased: {
 					at: NOW,
 					volumes: {
-						before: { distanceM: 12000, durationMin: 60, plannedTss: 70 },
-						after: { distanceM: 10200, durationMin: 51, plannedTss: 60 },
+						before: { tracks: [runPlanned(12)] },
+						after: { tracks: [runPlanned(10.2)] },
 					},
 				},
 			}).ease,
@@ -2570,17 +2570,37 @@ describe('the Ukeskiftet card (#505 stories 4–6, 42–55)', () => {
 		})
 	})
 
-	test('the eased week is said in the track’s unit, never in metres or minutes', () => {
-		const before = { distanceM: 44000, durationMin: 240, plannedTss: 300 }
-		const after = { distanceM: 37400, durationMin: 204, plannedTss: 255 }
-		expect(easedLine(before, after, 'km')).toBe(
-			'Uka: 44 → 37,4 km planlagt. Ukemålet står.',
-		)
-		expect(easedLine(before, after, 'hours')).toBe(
-			'Uka: 4 → 3,4 t planlagt. Ukemålet står.',
-		)
-		expect(easedLine(before, before, 'km')).toBe(
-			'Det var ingen økter igjen å gjøre lettere. Ukemålet står.',
+	test('the eased week is said in the lead track’s Planned Volume, the header’s own number', () => {
+		const strength = {
+			trackId: 'track-strength',
+			discipline: 'strength',
+			currency: 'sets' as const,
+			planned: 12,
+		}
+		const ride = {
+			trackId: 'track-ride',
+			discipline: 'bike',
+			currency: 'hours' as const,
+		}
+		// Sets are never eased: the line is said for the first track that can be.
+		expect(
+			easedLine(
+				{ tracks: [strength, runPlanned(44), { ...ride, planned: 4 }] },
+				{ tracks: [strength, runPlanned(37.4), { ...ride, planned: 3.4 }] },
+			),
+		).toBe('Uka: 44 → 37,4 km planlagt. Ukemålet står.')
+		expect(
+			easedLine(
+				{ tracks: [strength, { ...ride, planned: 4 }] },
+				{ tracks: [strength, { ...ride, planned: 3.4 }] },
+			),
+		).toBe('Uka: 4 → 3,4 t planlagt. Ukemålet står.')
+		expect(
+			easedLine({ tracks: [runPlanned(44)] }, { tracks: [runPlanned(44)] }),
+		).toBe('Det var ingen økter igjen å gjøre lettere. Ukemålet står.')
+		// Only strength: no number the ease moved, so no line.
+		expect(easedLine({ tracks: [strength] }, { tracks: [strength] })).toBe(
+			null,
 		)
 	})
 
@@ -3104,3 +3124,12 @@ describe('a day is not graded before it is over (#505 story 24)', () => {
 		expect(rows.find((row) => row.id === 'yesterday')?.status).toBe('missed')
 	})
 })
+
+function runPlanned(km: number | null) {
+	return {
+		trackId: 'track-run',
+		discipline: 'run',
+		currency: 'km' as const,
+		planned: km,
+	}
+}

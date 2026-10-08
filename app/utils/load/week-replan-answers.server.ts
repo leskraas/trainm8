@@ -6,15 +6,11 @@
  * uses, so a proposal means the same thing whoever applies it.
  */
 
-import { type Prisma } from '@prisma/client'
-import {
-	addDays,
-	weekBoundsFromMondayUTC,
-	weekdayIndex,
-} from '#app/utils/athlete-calendar.ts'
+import { addDays, weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
-import { sumBlockDistanceM, sumBlockDurationMin } from '#app/utils/dashboard.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { getWeekVolumes } from '#app/utils/plan-outline/week-volumes.server.ts'
+import { type WeekVolumes } from '#app/utils/plan-outline/week-volumes.ts'
 import { sessionOwner } from '#app/utils/session-ownership.ts'
 import { ROUND_FACTOR_MAX, ROUND_FACTOR_MIN } from './week-change-schema.ts'
 import { lastClosedWeekKey } from './week-change.ts'
@@ -221,6 +217,9 @@ export async function easeWeek(
 		factor: EASE_WEEK_FACTOR,
 		scope: 'week',
 	}
+	// Read before the transaction (the week reader goes through its own
+	// connection); a double submit that loses the claim below never uses it.
+	const before = plannedByTrack(await getWeekVolumes(userId, { weekKey, now }))
 	const eased = await prisma.$transaction(async (tx) => {
 		// Inside the transaction, so a double submit cannot ease twice.
 		const already = await tx.weekReplanProposal.findFirst({
@@ -234,7 +233,6 @@ export async function easeWeek(
 			select: { id: true },
 		})
 		if (already) return null
-		const before = await readWeekVolume(tx, userId, weekKey, timezone)
 		// The closed week's decision this week answers to, when there is one.
 		const replan = await tx.weekReplan.findUnique({
 			where: {
@@ -268,20 +266,20 @@ export async function easeWeek(
 			now,
 			timezone,
 		})
-		return { proposalId: row.id, changed: result.changed, before }
+		return { proposalId: row.id, changed: result.changed }
 	})
 	if (!eased) return { ok: false, reason: 'already-eased' }
 	await repriceSessions(userId, eased.changed)
 
 	// Read once the sessions are re-priced, and kept with the proposal, so the
 	// card can say "før → etter" after a reload too.
-	const after = await readWeekVolume(prisma, userId, weekKey, timezone)
+	const after = plannedByTrack(await getWeekVolumes(userId, { weekKey, now }))
 	await prisma.weekReplanProposal.update({
 		where: { id: eased.proposalId },
 		data: {
 			payload: JSON.stringify({
 				...payload,
-				volumes: { before: eased.before, after },
+				volumes: { before, after },
 			} satisfies ProposalPayload),
 		},
 	})
@@ -289,7 +287,7 @@ export async function easeWeek(
 		ok: true,
 		proposalId: eased.proposalId,
 		sessionsChanged: eased.changed.length,
-		before: eased.before,
+		before,
 		after,
 	}
 }
@@ -298,41 +296,19 @@ function isMonday(weekKey: string): boolean {
 	return /^\d{4}-\d{2}-\d{2}$/.test(weekKey) && weekdayIndex(weekKey) === 0
 }
 
-async function readWeekVolume(
-	db: Prisma.TransactionClient,
-	userId: string,
-	weekKey: string,
-	timezone: string,
-): Promise<WeekVolume> {
-	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
-	const sessions = await db.workoutSession.findMany({
-		where: { userId, scheduledAt: { gte: start, lte: end } },
-		select: {
-			plannedTssValue: true,
-			workout: {
-				select: {
-					blocks: {
-						select: {
-							repeatCount: true,
-							seriesRepeatCount: true,
-							steps: { select: { durationSec: true, distanceM: true } },
-						},
-					},
-				},
-			},
-		},
-	})
-	return sessions.reduce<WeekVolume>(
-		(sum, session) => ({
-			durationMin:
-				sum.durationMin +
-				(sumBlockDurationMin(session.workout?.blocks ?? []) ?? 0),
-			distanceM:
-				sum.distanceM + (sumBlockDistanceM(session.workout?.blocks ?? []) ?? 0),
-			plannedTss: sum.plannedTss + (session.plannedTssValue ?? 0),
-		}),
-		{ durationMin: 0, distanceM: 0, plannedTss: 0 },
-	)
+/**
+ * The week's Planned Volume per track, as the week header reads it (#505 S8) —
+ * so "før → etter" is said in the header's own numbers.
+ */
+function plannedByTrack(volumes: WeekVolumes): WeekVolume {
+	return {
+		tracks: volumes.tracks.map(({ trackId, discipline, currency, planned }) => ({
+			trackId,
+			discipline,
+			currency,
+			planned,
+		})),
+	}
 }
 
 // ── lås opp ─────────────────────────────────────────────────────────────────
