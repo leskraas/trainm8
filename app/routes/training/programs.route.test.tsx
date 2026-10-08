@@ -135,13 +135,12 @@ test('with no programs published the screen says so is nobody’s fault and poin
 	).toHaveAttribute('href', '/training/sessions/new')
 })
 
-test('the back link leaves for Home, because there is no training index route to land on', async () => {
+test('the back link leaves for Bibliotek, the tab programs live under (ADR 0083)', async () => {
 	renderPrograms()
 
-	expect(await screen.findByRole('link', { name: /home/i })).toHaveAttribute(
-		'href',
-		'/',
-	)
+	expect(
+		await screen.findByRole('link', { name: /back to bibliotek/i }),
+	).toHaveAttribute('href', '/library')
 })
 
 const runningInstance: Instance = {

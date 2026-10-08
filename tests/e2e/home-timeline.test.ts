@@ -1039,28 +1039,41 @@ for (const theme of ['light', 'dark'] as const) {
 		// ~115px tall in a ~380px scroller with a sticky week header over the top
 		// of it, so both "wait for a whole row" and "take the middle of what shows"
 		// land on nothing worth measuring.
-		const probe = await page.getByTestId('timeline-stream').evaluate((el) => {
-			const stream = el.getBoundingClientRect()
-			for (const node of el.querySelectorAll<HTMLElement>('[data-status]')) {
-				if (getComputedStyle(node).backgroundColor !== 'rgba(0, 0, 0, 0)')
-					continue
-				const box = node.getBoundingClientRect()
-				const floor = Math.max(box.top, stream.top)
-				for (
-					let y = Math.min(box.bottom, stream.bottom) - 8;
-					y > floor;
-					y -= 8
-				) {
-					const owns = (x: number) =>
-						node.contains(document.elementFromPoint(x, y))
-					// The right margin, where no text can be mistaken for a tint.
-					if (owns(box.right - 8) && owns(box.x + box.width / 2)) {
-						return { x: box.right - 8, y, centre: box.x + box.width / 2 }
+		//
+		// On a phone the tab bar (ADR 0083) takes the bottom of the screen, so at
+		// rest today's tinted rows can be all the stream shows. Then the probe reads
+		// the stream once more, a little further on.
+		const findProbe = () =>
+			page.getByTestId('timeline-stream').evaluate((el) => {
+				const stream = el.getBoundingClientRect()
+				for (const node of el.querySelectorAll<HTMLElement>('[data-status]')) {
+					if (getComputedStyle(node).backgroundColor !== 'rgba(0, 0, 0, 0)')
+						continue
+					const box = node.getBoundingClientRect()
+					const floor = Math.max(box.top, stream.top)
+					for (
+						let y = Math.min(box.bottom, stream.bottom) - 8;
+						y > floor;
+						y -= 8
+					) {
+						const owns = (x: number) =>
+							node.contains(document.elementFromPoint(x, y))
+						// The right margin, where no text can be mistaken for a tint.
+						if (owns(box.right - 8) && owns(box.x + box.width / 2)) {
+							return { x: box.right - 8, y, centre: box.x + box.width / 2 }
+						}
 					}
 				}
-			}
-			return null
-		})
+				return null
+			})
+		let probe = await findProbe()
+		if (probe == null) {
+			await page
+				.getByTestId('timeline-stream')
+				.evaluate((el) => el.scrollBy({ top: 240, behavior: 'instant' }))
+			await page.waitForTimeout(600)
+			probe = await findProbe()
+		}
 		expect(probe).not.toBeNull()
 		const atRest = await pixelAt(page, probe!.x, probe!.y)
 		await page.mouse.move(probe!.centre, probe!.y)

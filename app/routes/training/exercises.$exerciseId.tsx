@@ -149,7 +149,7 @@ export default function ExerciseHistoryRoute({
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title={model.title}
-				back={{ to: '/', label: 'Home' }}
+				back={{ to: '/library', label: 'Bibliotek' }}
 				className="mb-6"
 			/>
 

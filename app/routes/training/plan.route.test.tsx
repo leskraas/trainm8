@@ -623,6 +623,17 @@ function renderPlan(
 		weeksWithSessions?: number
 		/** What the add-track form proposes; unread history unless a test says so. */
 		trackProposals?: Proposal[]
+		/** Sesong's Events card (ADR 0083); none coming up unless a test says so. */
+		seasonEvents?: {
+			events: Array<{
+				id: string
+				name: string
+				kind: string
+				priority: string
+				startDate: Date
+			}>
+			upcomingCount: number
+		}
 	} = {},
 ) {
 	const week =
@@ -660,6 +671,7 @@ function renderPlan(
 				conversionContexts: {},
 				fitnessAnchor: null,
 				trackProposals: extra.trackProposals ?? proposalsFor(season),
+				seasonEvents: extra.seasonEvents ?? { events: [], upcomingCount: 0 },
 			}),
 			action: action as any,
 			HydrateFallback: () => <div>Loading...</div>,
@@ -686,6 +698,45 @@ test('the season names its Event, its length and where it ends against it', asyn
 	expect(
 		screen.getByText(/plan ends 6 weeks before your event’s week/i),
 	).toBeInTheDocument()
+})
+
+test('Sesong is a tab: no way back, and the Events it plans around are on it (ADR 0083)', async () => {
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		seasonEvents: {
+			events: [
+				{
+					id: 'event-7',
+					name: 'Fjellmaraton',
+					kind: 'race',
+					priority: 'B',
+					startDate: new Date('2030-06-01T00:00:00.000Z'),
+				},
+			],
+			upcomingCount: 4,
+		},
+	})
+
+	expect(
+		await screen.findByRole('heading', { name: 'Sesong', level: 1 }),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('link', { name: /back to/i }),
+	).not.toBeInTheDocument()
+	const events = within(
+		screen.getByRole('region', { name: 'Løp og arrangementer' }),
+	)
+	expect(events.getByText('4 kommende')).toBeInTheDocument()
+	expect(events.getByRole('link', { name: /Fjellmaraton/ })).toHaveAttribute(
+		'href',
+		'/training/events/event-7',
+	)
+	expect(events.getByRole('link', { name: 'Alle løp' })).toHaveAttribute(
+		'href',
+		'/training/events',
+	)
+	expect(
+		events.getByRole('link', { name: 'Planlegg en ny sesong' }),
+	).toHaveAttribute('href', '/training/plan/new')
 })
 
 test('a plan that is not finished says what is left, and where to do it', async () => {

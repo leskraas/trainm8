@@ -33,6 +33,7 @@
 // import cycle this module exists to avoid (server boot then dies on a TDZ
 // error). `import type` statements are erased entirely.
 /* eslint-disable import/consistent-type-specifier-style */
+import type { AppTab } from './app-tabs.ts'
 import type {
 	CatalogueGoalEvent,
 	CatalogueLevel,
@@ -1414,10 +1415,6 @@ export const CAP_LABELS = {
 		weeks === 1 ? 'Skriv den siste uka' : `Skriv de siste ${weeks} ukene`,
 	seasonPlan: 'Sesongplan',
 	planASeason: 'Planlegg en sesong',
-	elsewhere: 'Andre steder i trainm8',
-	events: 'Løp og arrangementer',
-	catalogue: 'Katalog',
-	programs: 'Programmer',
 } as const
 
 /** The creation menu in I dag's header (#178). */
@@ -2426,6 +2423,87 @@ export const PROVIDER_LABELS: Record<string, string> = {
 
 export function providerLabel(provider: string): string {
 	return PROVIDER_LABELS[provider] ?? capitalize(provider)
+}
+
+// ---------------------------------------------------------------------------
+// The four tabs
+// ---------------------------------------------------------------------------
+
+/**
+ * The tab names, in the spec's Norwegian (spec #505 stories 56–59; ADR 0081
+ * lets the #505 surfaces use the spec's own words). They are the bar's labels
+ * and the titles of the tabs' landing pages, so the two never disagree.
+ */
+export const APP_TAB_LABELS: Record<AppTab, string> = {
+	today: 'I dag',
+	season: 'Sesong',
+	library: 'Bibliotek',
+	me: 'Meg',
+}
+
+/** The tab bar's own name, for the landmark it is. */
+export const APP_TABS_NAV_LABEL = 'Hovedmeny'
+
+/**
+ * Sesong's Events card (spec #505 story 57): the upcoming Events the season is
+ * planned around, and the way to plan another.
+ */
+export const SEASON_EVENTS_LABELS = {
+	title: 'Løp og arrangementer',
+	comingUp: (count: number) =>
+		count === 0 ? 'ingen kommende' : `${count} kommende`,
+	none: 'Ingen kommende løp. Løp, testløp og datomål samles her.',
+	all: 'Alle løp',
+	newEvent: 'Nytt løp',
+	newPlan: 'Planlegg en ny sesong',
+} as const
+
+/**
+ * Bibliotek (spec #505 story 58): the hub that names the catalogue, the
+ * strength programs and the athlete's own lifts. The pages it opens keep their
+ * own (English) words until they are redesigned (ADR 0081 §4).
+ */
+export const LIBRARY_LABELS = {
+	catalogue: 'Katalog',
+	catalogueDetail: 'Ferdige økter du kan ta inn i uka di.',
+	programs: 'Styrkeprogrammer',
+	programsDetail: 'Programmer som setter neste vekt ut fra forrige logg.',
+	exercises: 'Øvelser',
+	noExercises:
+		'Løftene du legger inn i en økt vises her, hver med sin historikk.',
+} as const
+
+/**
+ * Meg (spec #505 story 59): the account, the training settings, the
+ * intervals.icu connection and the file upload — imports have no page of their
+ * own.
+ */
+export const ME_LABELS = {
+	editProfile: 'Endre profil',
+	settings: 'Innstillinger',
+	training: 'Trening og terskler',
+	account: 'Konto',
+	accountDetail: 'E-post, passord, totrinns, passnøkler og dataene dine',
+	integrations: 'Koblinger',
+	upload: 'Last opp en aktivitetsfil',
+	uploadDetail: '.fit, .tcx eller .gpx fra en klokke eller en annen app',
+	logout: 'Logg ut',
+} as const
+
+/** The intervals.icu connection, as Meg reads it. */
+export const INTERVALSICU_STATES = [
+	'disconnected',
+	'connected',
+	'backfilling',
+	'revoked',
+] as const
+export type IntervalsIcuState = (typeof INTERVALSICU_STATES)[number]
+
+export const INTERVALSICU_STATE_LABELS: Record<IntervalsIcuState, string> = {
+	disconnected: 'Ikke koblet til',
+	connected: 'Koblet til',
+	backfilling: 'Koblet til · henter historikken din',
+	revoked: 'Må kobles til på nytt',
 }
 
 // ---------------------------------------------------------------------------

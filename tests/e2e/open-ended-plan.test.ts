@@ -89,7 +89,9 @@ test('Legg til et løp turns an open-ended plan into a plan toward the race, wit
 	// Now an ordinary plan toward that race, addressed by it.
 	await expect(page).toHaveURL(/\/training\/plan\?event=[a-z0-9]+$/i)
 	await expect(page.getByText('Planen bygger mot løpet nå')).toBeVisible()
-	await expect(page.getByRole('link', { name: 'Vårmilen' })).toBeVisible()
+	await expect(
+		page.getByRole('link', { name: 'Vårmilen', exact: true }),
+	).toBeVisible()
 	await expect(page.getByText('blokk 1 av ∞')).toHaveCount(0)
 	// The round lived so far stays; the run-up to the race follows it.
 	for (const phase of ['Blokk 1', 'Build', 'Peak', 'Taper']) {

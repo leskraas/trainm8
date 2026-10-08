@@ -92,6 +92,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 		candidates,
 		defaultDate: new Date().toISOString().slice(0, 10),
 		openEnded,
+		// Read here, not imported by the component: the constant lives in a
+		// `.server` module, and a client-side visit (the Sesong tab, ADR 0083)
+		// cannot load one.
+		roundWeeks: OPEN_ENDED_ROUND_WEEKS,
 	}
 }
 
@@ -146,7 +150,7 @@ export default function NewPlanRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { candidates, defaultDate, openEnded } = loaderData
+	const { candidates, defaultDate, openEnded, roundWeeks } = loaderData
 	const plannable = candidates.filter(
 		(candidate) => candidate.plannedOutlineId == null,
 	)
@@ -181,9 +185,19 @@ export default function NewPlanRoute({
 			</p>
 
 			<section aria-labelledby="your-events" className="mb-8 space-y-4">
-				<h2 id="your-events" className="text-lg font-semibold">
-					Your upcoming events
-				</h2>
+				{/* Sesong's own landing while there is no plan (ADR 0083), so the
+				    full Events list is reached from here as it is from the plan. */}
+				<div className="flex items-baseline justify-between gap-3">
+					<h2 id="your-events" className="text-lg font-semibold">
+						Your upcoming events
+					</h2>
+					<Link
+						to="/training/events"
+						className="text-muted-foreground text-sm underline"
+					>
+						All events
+					</Link>
+				</div>
 				{candidates.length === 0 ? (
 					<p className="text-muted-foreground text-sm">
 						Nothing on the calendar yet — set a goal below, or{' '}
@@ -244,6 +258,7 @@ export default function NewPlanRoute({
 
 			<OpenEndedSection
 				{...openEnded}
+				roundWeeks={roundWeeks}
 				lastResult={
 					actionData?.result?.initialValue?.intent === 'open-ended'
 						? actionData.result
@@ -324,9 +339,11 @@ function OpenEndedSection({
 	outlineId,
 	hoursByDiscipline,
 	defaultDiscipline,
+	roundWeeks,
 	lastResult,
 }: {
 	outlineId: string | null
+	roundWeeks: number
 	hoursByDiscipline: Partial<Record<CardioDiscipline, number>>
 	defaultDiscipline: CardioDiscipline
 	lastResult: Parameters<typeof useForm>[0]['lastResult']
@@ -350,9 +367,8 @@ function OpenEndedSection({
 				{OPEN_ENDED_PLAN_LABEL}
 			</h2>
 			<p className="text-muted-foreground text-sm">
-				Ingen løp og ingen sluttdato. Planen går i blokker på{' '}
-				{OPEN_ENDED_ROUND_WEEKS} uker, tre som bygger og én lett, og fortsetter
-				blokk for blokk.
+				Ingen løp og ingen sluttdato. Planen går i blokker på {roundWeeks} uker,
+				tre som bygger og én lett, og fortsetter blokk for blokk.
 			</p>
 			{outlineId ? (
 				<p className="text-sm">

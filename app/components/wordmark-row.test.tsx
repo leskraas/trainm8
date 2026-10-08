@@ -16,8 +16,10 @@ const defaultUser = { id: 'user-1', name: 'Kody', username: 'kody' }
 
 function renderRow({
 	user = defaultUser,
+	at = '/',
 }: {
 	user?: typeof defaultUser | null
+	at?: string
 } = {}) {
 	const App = createRoutesStub([
 		{
@@ -25,44 +27,68 @@ function renderRow({
 			Component: () => <WordmarkRow user={user} />,
 		},
 	])
-	return render(<App initialEntries={['/']} />)
+	return render(<App initialEntries={[at]} />)
 }
 
-test('wordmark links home and the avatar links to Settings', async () => {
+test('the wordmark links home', async () => {
 	renderRow()
 
-	const nav = await screen.findByRole('navigation', { name: /primary/i })
+	const banner = await screen.findByRole('banner')
+	expect(
+		within(banner).getByRole('link', { name: /trainm8/i }),
+	).toHaveAttribute('href', '/')
+})
 
-	const wordmark = within(nav).getByRole('link', { name: /trainm8/i })
-	expect(wordmark).toHaveAttribute('href', '/')
+test('the four tabs land where they say (ADR 0083)', async () => {
+	renderRow()
 
-	const settingsLink = within(nav).getByRole('link', { name: /settings/i })
-	expect(settingsLink).toHaveAttribute('href', '/settings/profile')
+	const tabs = await screen.findByRole('navigation', { name: 'Hovedmeny' })
+	const links = within(tabs).getAllByRole('link')
+	expect(
+		links.map((link) => [link.textContent, link.getAttribute('href')]),
+	).toEqual([
+		['I dag', '/'],
+		['Sesong', '/training/plan'],
+		['Bibliotek', '/library'],
+		['Meg', '/me'],
+	])
+})
+
+test('a page that moved into a tab marks that tab current', async () => {
+	renderRow({ at: '/settings/profile/passkeys' })
+
+	const tabs = await screen.findByRole('navigation', { name: 'Hovedmeny' })
+	expect(within(tabs).getByRole('link', { name: 'Meg' })).toHaveAttribute(
+		'aria-current',
+		'page',
+	)
+	expect(within(tabs).getByRole('link', { name: 'I dag' })).not.toHaveAttribute(
+		'aria-current',
+	)
+})
+
+test('a page under no tab marks none', async () => {
+	renderRow({ at: '/training/sessions/abc' })
+
+	const tabs = await screen.findByRole('navigation', { name: 'Hovedmeny' })
+	for (const link of within(tabs).getAllByRole('link')) {
+		expect(link).not.toHaveAttribute('aria-current')
+	}
 })
 
 test('carries no Inbox chip — imports auto-save, so there is no queue', async () => {
 	renderRow()
 
-	const nav = await screen.findByRole('navigation', { name: /primary/i })
+	const banner = await screen.findByRole('banner')
 	expect(
-		within(nav).queryByRole('link', { name: /inbox/i }),
+		within(banner).queryByRole('link', { name: /inbox/i }),
 	).not.toBeInTheDocument()
-})
-
-test('renders no floating or sticky chrome — the row is in normal flow', async () => {
-	renderRow()
-
-	const nav = await screen.findByRole('navigation', { name: /primary/i })
-	const header = nav.closest('header')
-	expect(header).not.toBeNull()
-	expect(header?.className).not.toMatch(/fixed|sticky/)
-	expect(nav.className).not.toMatch(/fixed|sticky/)
 })
 
 test('renders nothing when the user is not authenticated', async () => {
 	renderRow({ user: null })
 
 	expect(
-		screen.queryByRole('navigation', { name: /primary/i }),
+		screen.queryByRole('navigation', { name: 'Hovedmeny' }),
 	).not.toBeInTheDocument()
 })

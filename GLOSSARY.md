@@ -1506,22 +1506,21 @@ model", "a possible future direction" — it is the home surface
 after login: **The Tape** as one screen. Three parts in one column — a header
 block holding the **Hero**, its **Pane Dots** and the **Week Strip**, the
 **Stream** beneath them — plus the single "+ New" creation menu (#178), which
-the header carries because the design's bottom tab bar was not built, and the
-**Back-to-Today Pill** (_I dag_) at the strip's corner. From `lg` up the
-**Season Pane** sits beside the column (ADR 0082). UI word: _I dag_. It carries
-**two horizontal axes and one vertical one**, and the rule that explains the
-whole screen is that the Hero never moves in time while the Week Strip and the
-Stream always do (ADR 0065 §8). It opens at the **Landing Position**, and the
-header collapses as the athlete moves away from that point in **either**
-direction, so the Stream gets the whole screen the moment it is being read
-rather than looked at. The Stream, the Week Strip and the Hero's Today pane are
-all derived from the one `LedgerSession[]` the **Session Ledger**'s query
-already shipped — the strip and the stream are two views of one array, so an
-overview cannot disagree with the thing it overviews — and the Hero's other
-three panes read the **Load Snapshots**, **Personal Records**, adherence and
-**Week Replan** the loader was already fetching. Nothing is fetched twice, and
-nothing new was fetched to bring those panes back. _Avoid_: Dashboard, Cockpit,
-home page, landing page, feed, tabs
+the header carries, and the **Back-to-Today Pill** (_I dag_) at the strip's
+corner. From `lg` up the **Season Pane** sits beside the column (ADR 0082). UI
+word: _I dag_. It carries **two horizontal axes and one vertical one**, and the
+rule that explains the whole screen is that the Hero never moves in time while
+the Week Strip and the Stream always do (ADR 0065 §8). It opens at the **Landing
+Position**, and the header collapses as the athlete moves away from that point
+in **either** direction, so the Stream gets the whole screen the moment it is
+being read rather than looked at. The Stream, the Week Strip and the Hero's
+Today pane are all derived from the one `LedgerSession[]` the **Session
+Ledger**'s query already shipped — the strip and the stream are two views of one
+array, so an overview cannot disagree with the thing it overviews — and the
+Hero's other three panes read the **Load Snapshots**, **Personal Records**,
+adherence and **Week Replan** the loader was already fetching. Nothing is
+fetched twice, and nothing new was fetched to bring those panes back. _Avoid_:
+Dashboard, Cockpit, home page, landing page, feed, tabs
 
 **Every-Day Grid**: The home stream's row model (ADR 0065): the row is a **day**
 and a day owns **zero or more Workout Sessions**, so every date from today
@@ -1687,16 +1686,20 @@ broke, so the near end states **how far back home reads** ("Home reads back to
 22 Feb — 26 weeks of it, and the earliest session in that reach is 7 Jul") and
 the far end names the date everything is written through, says whether the rest
 of the season is sketched or simply absent, and offers the next step — write the
-remaining weeks, or pick the race the season is for. The End Cap also carries
-the "Elsewhere in trainm8" nav to the destinations home only links to:
-**Events**, the **Catalogue** and Programs (#471, #477). Those are not garnish —
-the design put them in a bottom tab bar, `app/root.tsx` keeps the wordmark row
-as the only persistent chrome (#178), and without this nav the Catalogue and
-Programs would have no way in at all. The Programs link is what #477's
-strength-programs entry row asked for, and it is why ADR 0074 could delete that
-row rather than re-home it: the job was making the programs module reachable
-from home without a small chip, and one on-page link at the far end of the
-stream does that job. _Avoid_: Empty state, footer, load-more, end of list
+remaining weeks, or plan a season. The End Cap used to carry an "Elsewhere in
+trainm8" nav to **Events**, the **Catalogue** and Programs (#471, #477), for
+want of a tab bar; the **Tab Bar** reaches them now and the nav is gone (ADR
+0083). _Avoid_: Empty state, footer, load-more, end of list
+
+**Tab Bar**: The app's four tabs and its only persistent navigation (ADR 0083):
+**I dag** (the **Home Timeline**), **Sesong** (the season plan, its Events and
+plan creation), **Bibliotek** (the Catalogue, Programs and the athlete's own
+lifts) and **Meg** (profile, settings, the intervals.icu connection and the file
+upload; imports have no page of their own). A bottom bar on a phone, links in
+the wordmark row from `md` up. A tab is a home for URLs, not a URL: pages that
+moved into a tab keep their addresses, and the bar marks the tab a page lives
+under. UI words: _I dag_, _Sesong_, _Bibliotek_, _Meg_. _Avoid_: menu, nav bar,
+sidebar; "Settings tab" (it is Meg)
 
 **Landing Position**: Where the **Home Timeline** parks on open — today's row,
 12 px below the bottom of its week's sticky header, measured (ADR 0082 §10), so

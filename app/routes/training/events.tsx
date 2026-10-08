@@ -97,7 +97,7 @@ export default function EventsRoute({ loaderData }: Route.ComponentProps) {
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title="Events"
-				back={{ to: '/', label: 'Home' }}
+				back={{ to: '/training/plan', label: 'Sesong' }}
 				actions={
 					<Link
 						to="/training/events/new"

@@ -145,7 +145,7 @@ export default function ImportsUploadRoute() {
 		<main className="container mx-auto max-w-md py-6 md:py-8">
 			<PageHeader
 				title="Upload Activity"
-				back={{ to: '/settings/integrations', label: 'Sources' }}
+				back={{ to: '/me', label: 'Meg' }}
 			/>
 
 			{/* Form sits directly on the page background — no card wrap (§1.6). */}

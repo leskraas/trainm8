@@ -55,9 +55,17 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	// Story 1–2: what are you building toward?
 	// ---------------------------------------------------------------------
 
-	// Home's far end now opens the first run (#505 S14, tests/e2e/first-run.test.ts);
-	// authoring a season by hand starts on the plan page's own step.
-	await navigate('/training/plan/new')
+	await navigate('/')
+	// Sesong is the way in (ADR 0083): with no season there is no season plan to
+	// open, so the tab lands on authoring one. The first tap after a load can race
+	// hydration, so retry until it lands.
+	await expect(async () => {
+		await page
+			.getByRole('navigation', { name: 'Hovedmeny' })
+			.getByRole('link', { name: 'Sesong' })
+			.click()
+		await expect(page).toHaveURL('/training/plan/new', { timeout: 5000 })
+	}).toPass()
 
 	// Nothing on the calendar yet, so the way forward is the dated goal — which
 	// visibly creates a `fitness-goal` Event rather than writing one behind the

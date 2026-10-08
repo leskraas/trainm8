@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 
+import { APP_TABS } from './app-tabs.ts'
 import {
 	EVENT_KINDS,
 	EVENT_PRIORITIES,
@@ -10,7 +11,11 @@ import {
 	MARK_DONE_REFUSALS,
 } from './import-link-schema.ts'
 import {
+	APP_TAB_LABELS,
 	CONVERSION_CONVENTION_LABELS,
+	INTERVALSICU_STATE_LABELS,
+	INTERVALSICU_STATES,
+	SEASON_EVENTS_LABELS,
 	quotedSession,
 	roundFactorLabel,
 	silencedLabel,
@@ -462,4 +467,24 @@ test('every Sesong edit message says which numbers did not move, in the spec’s
 	expect(weekRiseSentence(43, '42', '50', 'km', 0.1905)).toBe(
 		'Uke 43: 42 → 50 km, +19 % over forrige harde uke.',
 	)
+})
+
+test('every tab has its name in the spec’s own words', () => {
+	expect(APP_TABS.map((tab) => APP_TAB_LABELS[tab])).toEqual([
+		'I dag',
+		'Sesong',
+		'Bibliotek',
+		'Meg',
+	])
+})
+
+test('Meg names every state of the intervals.icu connection in words (ADR 0083)', () => {
+	for (const state of INTERVALSICU_STATES) {
+		expect(INTERVALSICU_STATE_LABELS[state]).toBeTruthy()
+	}
+	expect(new Set(Object.values(INTERVALSICU_STATE_LABELS)).size).toBe(
+		INTERVALSICU_STATES.length,
+	)
+	expect(SEASON_EVENTS_LABELS.comingUp(0)).toBe('ingen kommende')
+	expect(SEASON_EVENTS_LABELS.comingUp(2)).toBe('2 kommende')
 })

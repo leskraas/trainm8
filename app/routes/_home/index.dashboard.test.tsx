@@ -1389,25 +1389,6 @@ test('creation survives the re-composition: "+ New" is in the header', async () 
 	await screen.findByRole('button', { name: /lag ny/i })
 })
 
-test('the far end carries the destinations home only links to', async () => {
-	// Programs and the Catalogue have no other way in at all (#471, #477), and
-	// the bottom tab bar the design would have put them in is not built.
-	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
-
-	const elsewhere = await screen.findByRole('navigation', {
-		name: /andre steder i trainm8/i,
-	})
-	expect(
-		within(elsewhere).getByRole('link', { name: 'Løp og arrangementer' }),
-	).toHaveAttribute('href', '/training/events')
-	expect(
-		within(elsewhere).getByRole('link', { name: 'Katalog' }),
-	).toHaveAttribute('href', '/training/catalogue')
-	expect(
-		within(elsewhere).getByRole('link', { name: 'Programmer' }),
-	).toHaveAttribute('href', '/training/programs')
-})
-
 test('an athlete with no plan is offered the first run at the far end', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 

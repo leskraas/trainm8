@@ -1207,10 +1207,9 @@ export function StartCap({
 export function EndCap({ cap }: { cap: TimelineEndCap }) {
 	const unwritten = cap.unwrittenWeeks
 	// With no active plan there is no season plan to open, and pointing at one
-	// would be an empty promise. The honest next step is picking the race the
-	// season is for — so the slot carries the Events entry instead. It is also
-	// the only route from home to Events now that the plan-less Cockpit slot
-	// that used to carry it is gone (#178: destinations live in page elements).
+	// would be an empty promise. The honest next step is planning one. Events,
+	// the Catalogue and Programs used to be linked from here too, for want of
+	// anywhere else; they live in the Sesong and Bibliotek tabs now (ADR 0083).
 	const planned = cap.eventDateLabel != null
 	return (
 		<div className="border-hairline-week flex flex-col gap-2.5 border-t p-[18px]">
@@ -1250,35 +1249,6 @@ export function EndCap({ cap }: { cap: TimelineEndCap }) {
 					</Link>
 				)}
 			</div>
-			{/*
-			 * The destinations home only links to. The design puts them in a bottom
-			 * tab bar; `app/root.tsx` says the wordmark row is the only persistent
-			 * chrome (#178), so they live at the far end of the stream instead — the
-			 * one place on this screen that is already about leaving it.
-			 *
-			 * Not optional garnish: before the re-composition these were the
-			 * Cockpit header's plan slot, and Programs and the Catalogue have no
-			 * other way in at all (#471, #477). Each earns its place in **both**
-			 * plan states — retrieving one catalogue session, or running a program
-			 * off the last weight lifted, is exactly what an athlete with no season
-			 * wants to do.
-			 *
-			 * TODO(#178): if the bottom tab bar is adopted, these move into it.
-			 */}
-			<nav
-				aria-label={CAP_LABELS.elsewhere}
-				className="border-hairline mt-1 flex flex-wrap gap-2 border-t pt-3.5"
-			>
-				<Link to="/training/events" className={CAP_LINK}>
-					{CAP_LABELS.events}
-				</Link>
-				<Link to="/training/catalogue" className={CAP_LINK}>
-					{CAP_LABELS.catalogue}
-				</Link>
-				<Link to="/training/programs" className={CAP_LINK}>
-					{CAP_LABELS.programs}
-				</Link>
-			</nav>
 		</div>
 	)
 }

@@ -72,7 +72,7 @@ export default function ProgramsRoute({ loaderData }: Route.ComponentProps) {
 			    `training/index.tsx` — so the guessed prefix is not a 404 either.) */}
 			<PageHeader
 				title="Strength programs"
-				back={{ to: '/', label: 'Home' }}
+				back={{ to: '/library', label: 'Bibliotek' }}
 				className="mb-2"
 			/>
 			<p className="text-body-2xs text-muted-foreground mb-6 leading-relaxed">

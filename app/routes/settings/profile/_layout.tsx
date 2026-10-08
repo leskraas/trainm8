@@ -26,7 +26,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export default function EditUserProfile() {
-	const { title, back } = useRoutePageHeader({ to: '/', label: 'Home' })
+	const { title, back } = useRoutePageHeader({ to: '/me', label: 'Meg' })
 
 	return (
 		<div className="container mx-auto max-w-2xl py-6 md:py-8">

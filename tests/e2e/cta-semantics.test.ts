@@ -5,7 +5,8 @@ import { expect, test } from '#tests/playwright-utils.ts'
  * CTA semantics (#179): buttons must promise exactly what they do.
  *
  * - Home's today-session CTA derives its label from Session Status
- *   ("View session" for a scheduled session) and never says "Start session" —
+ *   ("Se økta", View session, for a scheduled session — I dag speaks the
+ *   spec's Norwegian, ADR 0081) and never says "Start session" —
  *   in-app recording is a stated non-goal, and the button only opens the
  *   Workout Detail View.
  * - Deleting an Event is destructive and must go through a confirmation
@@ -46,7 +47,7 @@ test('today-session CTA says "View session" and opens the Workout Detail View', 
 	// The CTA is honest about Session Status: a scheduled session is viewed. On
 	// the home timeline the hero's action is a plain link to the detail view, so
 	// it carries the link role rather than base-ui Button's role="button".
-	const cta = page.getByRole('link', { name: 'View session' })
+	const cta = page.getByRole('link', { name: 'Se økta' })
 	await expect(cta).toBeVisible()
 	// It never promises recording — that affordance does not exist in-app.
 	await expect(page.getByText('Start session')).not.toBeVisible()

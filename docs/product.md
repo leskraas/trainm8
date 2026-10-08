@@ -70,8 +70,8 @@ Time handling:
   planned); the standalone Upcoming Ledger is retired (ADR 0017).
 - `/training/sessions/:sessionId` — Workout Detail View.
 - `/settings/profile/*` — Identity and account management.
-- Navigation: bottom tab bar on mobile (Home, Training, Settings), horizontal
-  top nav on desktop.
+- Navigation: four tabs — I dag, Sesong, Bibliotek, Meg — as a bottom tab bar on
+  a phone and links in the wordmark row from `md` up (ADR 0083).
 
 ## What we are not building yet
 

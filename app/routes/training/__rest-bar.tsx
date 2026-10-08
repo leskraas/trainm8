@@ -90,12 +90,13 @@ export function RestBar({
 			// `aria-live="off"`: a clock that announced itself every half second
 			// would make the screen reader unusable for the thing this screen is for.
 			// The bar is a status the athlete looks at, not one that interrupts them.
+			// It rides on top of the phone's tab bar (ADR 0083), never under it.
 			role="status"
 			aria-live="off"
 			aria-label="Rest timer"
 			data-rest-bar=""
 			data-past={clock.past ? '' : undefined}
-			className="bg-card fixed inset-x-0 bottom-0 z-20 border-t px-3.5 py-2.5"
+			className="bg-card fixed inset-x-0 bottom-(--tab-bar-space) z-20 border-t px-3.5 py-2.5"
 		>
 			<div className="container mx-auto flex max-w-2xl items-center gap-2">
 				<Icon

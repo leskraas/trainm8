@@ -345,17 +345,19 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 			// `app/root.tsx` gives its layout `min-h-screen` — a minimum, not a
 			// height — so a `flex-1` child here inherits nothing to scroll within and
 			// the whole page scrolls instead. The frame therefore states its own
-			// height: the viewport, less whatever chrome sits above it.
+			// height: the viewport, less whatever chrome sits above it and the
+			// phone's tab bar below it (`--tab-bar-space`, ADR 0083; 0 from `md` up).
 			//
 			// `100dvh` is the server-rendered and no-JS answer, which is right to
 			// within the height of the wordmark row; the measured value below takes
 			// that row out. Measuring rather than hardcoding, because how tall the
-			// only persistent chrome (#178) happens to be is not this screen's
-			// business.
+			// chrome above happens to be is not this screen's business.
 			style={
-				chrome == null ? undefined : { height: `calc(100dvh - ${chrome}px)` }
+				chrome == null
+					? undefined
+					: { height: `calc(100dvh - ${chrome}px - var(--tab-bar-space))` }
 			}
-			className="relative flex h-[100dvh] min-h-0 overflow-hidden"
+			className="relative flex h-[calc(100dvh-var(--tab-bar-space))] min-h-0 overflow-hidden"
 		>
 			{/* The list: one column, the whole width on a phone and a readable
 			    column beside the season on a large screen (#505 story 60). */}
@@ -401,8 +403,9 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 								 * "+ New" is the app's single creation menu (#178). It was the
 								 * Cockpit header's, and creation has to survive the
 								 * re-composition: the design's header has only a wordmark, a
-								 * date and an avatar — and `app/root.tsx` already renders the
-								 * first and the last — so this row has the room for it.
+								 * date and an avatar — `app/root.tsx` renders the wordmark, and
+								 * the account is the Meg tab now (ADR 0083) — so this row has
+								 * the room for it.
 								 *
 								 * Expanded only. The collapsed row is the session summary and
 								 * its action, and squeezing a third control in beside them

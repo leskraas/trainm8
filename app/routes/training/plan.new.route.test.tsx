@@ -51,7 +51,12 @@ function renderStep(
 			Component: (props: Record<string, unknown>) => (
 				<NewPlanRoute {...(props as any)} />
 			),
-			loader: () => ({ candidates, defaultDate: '2030-01-09', openEnded }),
+			loader: () => ({
+				candidates,
+				defaultDate: '2030-01-09',
+				openEnded,
+				roundWeeks: 4,
+			}),
 			action: async ({ request }) => {
 				submitted(Object.fromEntries(await request.formData()))
 				return { result: null }

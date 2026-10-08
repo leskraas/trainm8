@@ -61,7 +61,11 @@ test('Users can add 2FA to their account and use it when logging in', async ({
 
 	await page.getByRole('button', { name: /submit/i }).click()
 
-	// The wordmark row's avatar (→ Settings) only renders for authenticated
+	// The tab bar (and its Meg tab) only renders for authenticated
 	// users, so it doubles as the logged-in proof (#178).
-	await expect(page.getByRole('link', { name: /^settings$/i })).toBeVisible()
+	await expect(
+		page
+			.getByRole('navigation', { name: 'Hovedmeny' })
+			.getByRole('link', { name: 'Meg' }),
+	).toBeVisible()
 })

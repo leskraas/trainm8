@@ -109,13 +109,15 @@ test('onboarding with link', async ({ page, navigate, getOnboardingData }) => {
 	// A new athlete lands on the first run (#505 story 61).
 	await expect(page).toHaveURL(`/start`)
 
-	// The wordmark row's avatar links straight to Settings, and logout lives
-	// on the Settings profile page (#178).
-	await page.getByRole('link', { name: /^settings$/i }).click()
+	// Meg is the account tab, and logout lives on it (ADR 0083).
+	await page
+		.getByRole('navigation', { name: 'Hovedmeny' })
+		.getByRole('link', { name: 'Meg' })
+		.click()
 
-	await expect(page).toHaveURL(`/settings/profile`)
+	await expect(page).toHaveURL(`/me`)
 
-	await page.getByRole('button', { name: /^log out$/i }).click()
+	await page.getByRole('button', { name: /^logg ut$/i }).click()
 	await expect(page).toHaveURL(`/`)
 })
 
@@ -356,9 +358,13 @@ test('login as existing user', async ({ page, navigate, insertNewUser }) => {
 	await page.getByRole('button', { name: /log in/i }).click()
 	await expect(page).toHaveURL(`/`)
 
-	// The wordmark row's avatar (→ Settings) only renders for authenticated
+	// The tab bar (and its Meg tab) only renders for authenticated
 	// users (#178), so it doubles as the logged-in proof.
-	await expect(page.getByRole('link', { name: /^settings$/i })).toBeVisible()
+	await expect(
+		page
+			.getByRole('navigation', { name: 'Hovedmeny' })
+			.getByRole('link', { name: 'Meg' }),
+	).toBeVisible()
 })
 
 test('reset password with a link', async ({
@@ -416,9 +422,13 @@ test('reset password with a link', async ({
 
 	await expect(page).toHaveURL(`/`)
 
-	// The wordmark row's avatar (→ Settings) only renders for authenticated
+	// The tab bar (and its Meg tab) only renders for authenticated
 	// users (#178), so it doubles as the logged-in proof.
-	await expect(page.getByRole('link', { name: /^settings$/i })).toBeVisible()
+	await expect(
+		page
+			.getByRole('navigation', { name: 'Hovedmeny' })
+			.getByRole('link', { name: 'Meg' }),
+	).toBeVisible()
 })
 
 test('reset password with a short code', async ({

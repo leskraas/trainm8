@@ -70,6 +70,7 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { getEventsForUser } from '#app/utils/event.server.ts'
 import {
 	formatDate,
 	formatEmphasisLabel,
@@ -89,6 +90,7 @@ import {
 	ATTACH_EVENT_LABELS,
 	ATTACH_EVENT_REFUSAL_LABELS,
 	attachedEventSentence,
+	APP_TAB_LABELS,
 	BOUNDARY_STEP_OUT_OF_FORCE_LABELS,
 	DISCIPLINE_LABELS,
 	OPEN_ENDED_PLAN_LABEL,
@@ -283,6 +285,7 @@ import {
 import { SeasonChart } from './__season-chart.tsx'
 import { seasonEditAction } from './__season-edits.server.ts'
 import { SeasonEditsCard } from './__season-edits.tsx'
+import { SEASON_EVENTS_SHOWN, SeasonEvents } from './__season-events.tsx'
 import { StampSection, type PendingStamp } from './__stamp-pattern.tsx'
 import {
 	StrengthBlocksSection,
@@ -576,11 +579,22 @@ export async function loader({ request }: Route.LoaderArgs) {
 		season.timezone,
 	)
 
+	// The Events the season is planned around, on Sesong itself (ADR 0083). The
+	// same "upcoming" the Events page reads: planned, and not yet started.
+	const now = new Date()
+	const upcomingEvents = (await getEventsForUser(userId)).filter(
+		(event) => event.status === 'planned' && event.startDate >= now,
+	)
+
 	return {
 		seasonQuery,
 		attachableEvents,
 		strengthOffer,
 		firstUnbegunWeekKey,
+		seasonEvents: {
+			events: upcomingEvents.slice(0, SEASON_EVENTS_SHOWN),
+			upcomingCount: upcomingEvents.length,
+		},
 		tab: tabFrom(request),
 		week: chosenWeekKey(request, season.weeks),
 		workouts,
@@ -2318,6 +2332,7 @@ export default function PlanRoute({
 		attachableEvents,
 		strengthOffer,
 		firstUnbegunWeekKey,
+		seasonEvents,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -2379,11 +2394,9 @@ export default function PlanRoute({
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
-			<PageHeader
-				title="Season plan"
-				back={{ to: '/', label: 'Home' }}
-				className="mb-2"
-			/>
+			{/* Sesong is a tab's landing page (ADR 0083), so it carries no back
+			    affordance (ui-conventions §3.3): the tab bar is the way out. */}
+			<PageHeader title={APP_TAB_LABELS.season} className="mb-2" />
 
 			{/* The surface's own order, and it is variant F's (#366, spec #399): what
 			    you are building toward, the shape of the season, what the season adds
@@ -2459,6 +2472,13 @@ export default function PlanRoute({
 						</Link>
 					</p>
 				) : null}
+
+				{/* The Events the season is planned around and the way to plan
+				    another, right under the one it builds toward (spec #505 story 57). */}
+				<SeasonEvents
+					events={seasonEvents.events}
+					upcomingCount={seasonEvents.upcomingCount}
+				/>
 
 				{/* The season chart is the surface's **primary object**, above the two
 				    readings rather than beside one of them (#413, variant F): the shape is

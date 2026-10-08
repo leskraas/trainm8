@@ -180,7 +180,7 @@ export default function IntegrationsRoute({
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
-			<PageHeader title="Integrations" back={{ to: '/', label: 'Home' }} />
+			<PageHeader title="Integrations" back={{ to: '/me', label: 'Meg' }} />
 			{/* Content sits on the page background — no full-page card wrap (§1.6);
 			    the provider list items keep their cards. */}
 			<p className="text-muted-foreground mt-6 text-sm">
