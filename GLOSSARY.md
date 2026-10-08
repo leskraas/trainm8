@@ -1917,6 +1917,22 @@ importen_ when an import source is connected, and _uten tall_ when none is,
 rather than promising numbers nothing will bring. The week counts it as done
 without a number (`+1 uten km`), never as zero.
 
+**Quick Strength Log**: The short log under a strength session's row on I dag
+(#505 stories 83–84; UI words: _Logg økta_, _Som planlagt_, _Endre_), offered
+from the session's day to a week back while it is not finished and no working
+**Exercise Set Log** is in — a session the runner has started is finished in
+the runner. It lists the planned lifts and sets as the prescription resolves
+today. _Som planlagt_ logs every planned set at its target in one tap; _Endre_
+changes a set's reps (a hold's seconds) or leaves it empty for not done. Either
+writes one Exercise Set Log per set through the set log's upsert — so a double
+tap cannot log a set twice — at the **weight the prescription resolved**, the
+same one a tap on the runner's circle logs (ADR 0064 §2: an off-program weight
+still has no way in), then finishes the session as the runner's Finish does.
+A lift whose weight or count does not resolve sends the whole session to the
+runner rather than logging part of it as all of it. _Avoid_: Quick log (bare),
+log as planned (that is the button), Gjort (that is for cardio, whose numbers
+an import brings).
+
 **Auto-Save Mirror**: An **Activity Import** the athlete has not built anything
 on — its recording-only session is still structureless and carries no **Session
 Log**. This is the line ADR 0012's source-side rules now use in place of

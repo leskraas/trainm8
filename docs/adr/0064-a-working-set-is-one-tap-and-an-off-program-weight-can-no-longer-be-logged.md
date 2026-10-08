@@ -2,6 +2,17 @@
 
 Status: Accepted
 
+> **As built (#505 S16): the quick strength log on I dag follows §2.** The
+> short log under a strength session's row (_Som planlagt_ / _Endre_) writes
+> each set through the same upsert at the weight `buildWorkingLoad` resolves —
+> the one a circle posts — and its editor changes reps (or a hold's seconds) and
+> marks a set not done, but has **no weight field**. It says so where a weight
+> field would be (_"Vekta står som planlagt. En annen vekt kan ikke logges
+> her."_). So §2's cost now reaches a second surface, stated there as here; the
+> load editor §2 names is still the honest fix and is still not built. A lift
+> whose weight does not resolve (§3) is not logged from I dag at all: the whole
+> session goes to the runner.
+
 **Supersedes
 [ADR 0060](./0060-the-session-runner-is-a-grid-with-a-deadline-and-a-rack-that-cannot-make-the-number-says-so.md)
 §1** — the three-controls-per-row set grid — and **confirms ADR 0060 §§2–8**

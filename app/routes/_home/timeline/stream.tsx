@@ -59,6 +59,7 @@ import {
 } from './presenter.ts'
 import { growIn } from './reflow.ts'
 import { type RowChipTone } from './row-content.ts'
+import { StrengthLogPanel } from './strength-log-panel.tsx'
 import {
 	HELD_ATTR,
 	STREAM_ATTR,
@@ -991,7 +992,8 @@ function SessionRow({
 		!session.annet &&
 		!session.release &&
 		!session.importLink &&
-		!session.markDone
+		!session.markDone &&
+		!session.strengthLog
 	) {
 		return row
 	}
@@ -1028,6 +1030,9 @@ function SessionRow({
 						/>
 					) : null}
 				</div>
+			) : null}
+			{session.strengthLog ? (
+				<StrengthLogPanel sessionId={session.id} words={session.strengthLog} />
 			) : null}
 		</div>
 	)

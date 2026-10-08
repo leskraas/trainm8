@@ -120,6 +120,7 @@ import {
 	type RowChip,
 	type RowWeekContext,
 } from './row-content.ts'
+import { strengthLogOf, type TimelineStrengthLog } from './strength-log.ts'
 import { buildStrip, type TimelineStrip } from './strip.ts'
 import {
 	collapsedWeekLine,
@@ -135,6 +136,7 @@ import {
 export type { TimelineStrip, TimelineStripWeek } from './strip.ts'
 export type { TimelineTrackWeek } from './week-words.ts'
 export type { TimelineImportLink } from './import-link.ts'
+export type { TimelineStrengthLog } from './strength-log.ts'
 
 /**
  * How far back home's own query reaches — half a year, the bound
@@ -192,6 +194,12 @@ export type TimelineSession = {
 	 * the app's sessions, which are the app's already, and on history.
 	 */
 	release: { actionLabel: string; note: string } | null
+	/**
+	 * The quick strength log under a gym day's row (#505 stories 83–84):
+	 * _Som planlagt_ in one tap, or _Endre_. Null where `canQuickLogStrength`
+	 * says no — a run, a day not begun, a session logged or started.
+	 */
+	strengthLog: TimelineStrengthLog | null
 } & TimelineImportFacts
 
 /**
@@ -1005,6 +1013,7 @@ function buildDay({
 				isToday,
 				trackDisciplines,
 				imports: importFacts.get(row.session.id) ?? NO_IMPORT_FACTS,
+				strengthLog: strengthLogOf(row, { timezone, todayKey }),
 			}),
 		),
 	}
@@ -1026,6 +1035,7 @@ function buildSession({
 	isToday,
 	trackDisciplines,
 	imports,
+	strengthLog,
 }: {
 	row: SessionRow
 	week: RowWeekContext
@@ -1033,6 +1043,7 @@ function buildSession({
 	isToday: boolean
 	trackDisciplines: ReadonlySet<string>
 	imports: TimelineImportFacts
+	strengthLog: TimelineStrengthLog | null
 }): TimelineSession {
 	const { session, entry } = row
 	const content = buildRowContent(row, week, { isToday })
@@ -1065,6 +1076,7 @@ function buildSession({
 					}
 				: null,
 		...imports,
+		strengthLog,
 	}
 }
 

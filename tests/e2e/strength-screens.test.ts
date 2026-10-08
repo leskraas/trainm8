@@ -222,10 +222,11 @@ async function waitForHydration(page: Page, selector: string) {
  * success would hang on exactly the case worth seeing.
  */
 async function pressAndSettle(page: Page, key: 'Enter' | 'Space') {
-	await Promise.all([
+	const [answer] = await Promise.all([
 		page.waitForResponse((response) => response.request().method() === 'POST'),
 		page.keyboard.press(key),
 	])
+	return answer
 }
 
 /** Which element the browser has focus on, named the way a reader would. */
@@ -692,7 +693,14 @@ test.fail(
 		await pressAndSettle(page, 'Enter')
 		for (const count of ['4', '3', '2', '1', '0']) {
 			await tabTo(page, circle)
-			await pressAndSettle(page, 'Space')
+			const answer = await pressAndSettle(page, 'Space')
+			// **The server's answer, not the optimistic face.** The circle shows
+			// the new count before the write is answered, so reading only the
+			// circle let this test pass on a thumb fast enough to tap again inside
+			// that window (S9 saw it "pass unexpectedly"; at #505 S16 it passed
+			// every run). At a human pace the refusal lands first and puts `1`
+			// back, so the write itself is what the rung is checked by.
+			expect(answer.ok(), `the write of ${count} was refused`).toBe(true)
 			await expect(circle).toHaveText(count)
 		}
 		await tabTo(page, circle)
@@ -965,4 +973,216 @@ test('every control on lift over time is 44px to a thumb', async ({
 	// cannot reach. Naming them here rather than fabricating a second variant to
 	// catch them: the fixture would be a lift nobody logged.
 	await expectEveryControlTappable(page.getByRole('main'))
+})
+
+// ——— The quick log on I dag (#505 stories 83–84) ——————————————————————————
+
+const SHOTS = process.env.STRENGTH_SHOTS
+
+/** A screenshot for review, when `STRENGTH_SHOTS=<dir>` is set. I dag scrolls
+ * inside its own box, so the subject is brought up a third of the screen,
+ * clear of the folded hero. */
+async function shot(page: Page, name: string, centre: Locator) {
+	if (!SHOTS) return
+	await page.waitForTimeout(1500)
+	for (let pass = 0; pass < 2; pass++) {
+		await centre.evaluate((el) => {
+			const stream = el.closest('[data-testid="timeline-stream"]')!
+			const offset =
+				el.getBoundingClientRect().top -
+				stream.getBoundingClientRect().top +
+				stream.scrollTop
+			stream.scrollTo({ top: offset - 140, behavior: 'instant' })
+		})
+		await page.waitForTimeout(400)
+	}
+	await page.screenshot({ path: `${SHOTS}/${name}.png` })
+}
+
+/** This week's Monday and today, `YYYY-MM-DD` in UTC — the athlete's zone. */
+function thisWeek() {
+	const now = new Date()
+	const today = now.toISOString().slice(0, 10)
+	const monday = new Date(now)
+	monday.setUTCDate(now.getUTCDate() - ((now.getUTCDay() + 6) % 7))
+	return { today, monday: monday.toISOString().slice(0, 10) }
+}
+
+/**
+ * An open-ended plan with a strength track of 12 sets a week, and this
+ * morning's gym day: three squats of five at 60 kg. The day is today, so the
+ * row sits in the open current week whatever weekday it runs.
+ */
+async function seedGymDay(userId: string) {
+	const { today, monday } = thisWeek()
+	await prisma.planOutline.create({
+		data: {
+			athleteId: userId,
+			startWeekKey: monday,
+			phases: {
+				create: [
+					{ orderIndex: 0, name: 'Oppbygging', weeks: 8, rhythm: '3:1' },
+				],
+			},
+			tracks: {
+				create: [
+					{
+						discipline: 'strength',
+						currency: 'sets',
+						anchors: { create: [{ fromWeekKey: monday, value: 12 }] },
+						segments: {
+							create: [
+								{
+									kind: 'strength',
+									startWeekKey: monday,
+									weeks: 8,
+									goal: 'hypertrophy',
+									sessionsPerWeek: 2,
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Styrke A',
+			discipline: 'strength',
+			intent: 'strength',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						steps: {
+							create: [
+								{
+									orderIndex: 0,
+									kind: 'strength',
+									exerciseId: 'ex_bb_back_squat',
+									sets: {
+										create: [0, 1, 2].map((orderIndex) => ({
+											orderIndex,
+											kind: 'reps',
+											reps: 5,
+											load: JSON.stringify({ kind: 'absolute', kg: 60 }),
+										})),
+									},
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	return prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt: new Date(`${today}T00:30:00.000Z`),
+			source: 'authored',
+		},
+	})
+}
+
+test('a gym day is logged som planlagt from I dag in one tap, and the week counts its sets', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const errors: string[] = []
+	page.on('pageerror', (error) => {
+		if (!/websocket/i.test(error.message)) errors.push(error.message)
+	})
+	const user = await login()
+	await seedAthlete(user.id)
+	const gym = await seedGymDay(user.id)
+	const { monday } = thisWeek()
+
+	await navigate('/')
+	const log = page.getByRole('region', { name: 'Logg Styrke A' })
+	await expect(log).toBeVisible()
+	// Pre-filled from the plan, in the athlete's words.
+	await expect(log.getByText('Back Squat')).toBeVisible()
+	await expect(log.getByText('· 3×5 · 60 kg')).toBeVisible()
+	const track = page.locator(
+		`[data-timeline-week="${monday}"] [data-week-track]`,
+	)
+	await expect(track).toContainText('Styrke')
+	await expect(track).toContainText('planlagt 3')
+	await expect(track).toContainText('gjort 0')
+	await shot(page, 'quick-log-1-offered', log)
+
+	await log.getByRole('button', { name: 'Logg Styrke A som planlagt' }).click()
+
+	// The row is the confirmation: done, every set counted, the log gone.
+	await expect(log).toHaveCount(0)
+	await expect(track).toContainText('gjort 3')
+	await expect(
+		page.getByRole('link', { name: /Styrke A/ }).getByText(/3 \/ 3/),
+	).toBeVisible()
+	await expect(page.getByText(/3 sett logget/)).toBeVisible()
+	const sets = await prisma.exerciseSetLog.findMany({
+		where: { sessionId: gym.id },
+		select: { reps: true, effectiveKg: true },
+	})
+	expect(sets).toEqual([
+		{ reps: 5, effectiveKg: 60 },
+		{ reps: 5, effectiveKg: 60 },
+		{ reps: 5, effectiveKg: 60 },
+	])
+	await shot(page, 'quick-log-2-logged', track)
+	await expectNoHorizontalOverflow(page)
+	expect(errors).toEqual([])
+})
+
+test('Endre logs the set that went differently, at the planned weight', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedAthlete(user.id)
+	const gym = await seedGymDay(user.id)
+	const { monday } = thisWeek()
+
+	await navigate('/')
+	const log = page.getByRole('region', { name: 'Logg Styrke A' })
+	await expect(log.getByText('Back Squat')).toBeVisible()
+	await log.getByRole('button', { name: 'Endre' }).click()
+
+	// One field per set, pre-filled; no weight field — ADR 0064 §2, said here.
+	const third = log.getByRole('spinbutton', {
+		name: 'Sett 3 av Back Squat, reps',
+	})
+	await expect(third).toHaveValue('5')
+	await expect(log.getByText(/Vekta står som planlagt/)).toBeVisible()
+	await expectEveryControlTappable(log)
+	await log
+		.getByRole('spinbutton', { name: 'Sett 2 av Back Squat, reps' })
+		.fill('3')
+	await third.fill('')
+	await shot(page, 'quick-log-3-edit', log)
+	await log.getByRole('button', { name: 'Lagre' }).click()
+
+	await expect(log).toHaveCount(0)
+	await expect(
+		page.locator(`[data-timeline-week="${monday}"] [data-week-track]`),
+	).toContainText('gjort 2')
+	const sets = await prisma.exerciseSetLog.findMany({
+		where: { sessionId: gym.id },
+		orderBy: { orderIndex: 'asc' },
+		select: { orderIndex: true, reps: true, effectiveKg: true },
+	})
+	expect(sets).toEqual([
+		{ orderIndex: 0, reps: 5, effectiveKg: 60 },
+		{ orderIndex: 1, reps: 3, effectiveKg: 60 },
+	])
 })

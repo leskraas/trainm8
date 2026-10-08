@@ -93,6 +93,7 @@ import type {
 // The domain owns *who* a session belongs to (ADR 0080); this module owns the
 // words the athlete reads for each owner.
 import type { SessionOwner } from './session-ownership.ts'
+import type { QuickLogRefusal } from './strength-quick-log.ts'
 import type {
 	Discipline,
 	IntensityTarget,
@@ -1027,6 +1028,91 @@ export const MARK_DONE_LABELS = {
 export const MARK_DONE_REFUSAL_LABELS: Record<MarkDoneRefusal, string> = {
 	'session-not-found': 'Fant ikke økta. Den kan være slettet.',
 	'not-markable': 'Økta kan ikke merkes som gjort nå.',
+}
+
+// ---------------------------------------------------------------------------
+// The quick strength log on I dag (#505 stories 83–84, ADR 0064)
+// ---------------------------------------------------------------------------
+
+/** A kilo as a Norwegian surface writes it: `82,5`. */
+function nbKg(kg: number): string {
+	return String(Number(kg.toFixed(2))).replace('.', ',')
+}
+
+/** The short log under a strength session's row. */
+export const QUICK_LOG_LABELS = {
+	heading: 'Logg økta',
+	/** The group's accessible name: which session it logs. */
+	headingFor: (title: string) => `Logg ${title}`,
+	asPlanned: 'Som planlagt',
+	asPlannedFor: (title: string) => `Logg ${title} som planlagt`,
+	edit: 'Endre',
+	editFor: (title: string) => `Endre loggen for ${title}`,
+	save: 'Lagre',
+	cancel: 'Avbryt',
+	saving: 'Logger …',
+	loading: 'Henter planen …',
+	loadFailed: 'Planen kunne ikke hentes nå. Som planlagt virker likevel.',
+	/** ADR 0064 §2, said where the athlete would look for a weight field. */
+	weightNote: 'Vekta står som planlagt. En annen vekt kan ikke logges her.',
+	notDoneNote: 'Tomt eller 0 betyr at settet ikke ble gjort.',
+	setInput: (lift: string, position: number, unit: 'reps' | 'seconds') =>
+		`Sett ${position} av ${lift}, ${unit === 'reps' ? 'reps' : 'sekunder'}`,
+	notLoggable:
+		'Ett av løftene har ingen fast vekt eller antall, så økta logges sett for sett.',
+	runnerLink: 'Logg sett for sett',
+	/** `5×5`, `3×45 s`, or `4 sett` where the sets ask for different counts. */
+	scheme: (
+		sets: number,
+		same: { count: number; unit: 'reps' | 'seconds' } | null,
+	) =>
+		same == null
+			? `${sets} sett`
+			: same.unit === 'reps'
+				? `${sets}×${same.count}`
+				: `${sets}×${same.count} s`,
+	/** The toast once the sets are in: how many, and the week's done sets. */
+	logged: (
+		sets: number,
+		week: { name: string; before: number; after: number } | null,
+	) => {
+		const head = `${sets} sett logget.`
+		if (week == null) return head
+		return `${head} Styrke ${week.name.toLowerCase()}: ${week.before} → ${week.after} sett gjort.`
+	},
+	/** The prescription's weight, in the load's own semantics (ADR 0056 §3). */
+	load: (
+		kind:
+			| 'external'
+			| 'bodyweight'
+			| 'bodyweightPlus'
+			| 'assisted'
+			| 'unloaded',
+		kg: number | null,
+	) => {
+		switch (kind) {
+			case 'external':
+				return kg == null ? null : `${nbKg(kg)} kg`
+			case 'bodyweight':
+				return 'kroppsvekt'
+			case 'bodyweightPlus':
+				return kg == null ? 'kroppsvekt' : `kroppsvekt + ${nbKg(kg)} kg`
+			case 'assisted':
+				return kg == null ? null : `${nbKg(kg)} kg avlastning`
+			case 'unloaded':
+				return 'uten vekt'
+		}
+	},
+} as const
+
+export const QUICK_LOG_REFUSAL_LABELS: Record<QuickLogRefusal, string> = {
+	'session-not-found': 'Fant ikke økta. Den kan være slettet.',
+	'not-loggable': 'Økta kan ikke logges herfra nå.',
+	'not-plannable':
+		'Ett av løftene har ingen fast vekt eller antall. Logg økta sett for sett.',
+	'unknown-set':
+		'Ett av settene finnes ikke i planen lenger. Last siden på nytt.',
+	'nothing-done': 'Ingen sett er merket som gjort. Skriv inn minst ett.',
 }
 
 /** The large-screen season pane beside the list (#505 story 60). */

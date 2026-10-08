@@ -2793,3 +2793,124 @@ describe('imports on the row: ekstra, hva var dette?, Angre kobling, Gjort (#505
 		expect(rowOf(result, 'recorded').markDone).toBeNull()
 	})
 })
+
+describe('the quick strength log under a strength session’s row (#505 stories 83–84)', () => {
+	const rowOf = (result: ReturnType<typeof season>, id: string) =>
+		result.weeks
+			.flatMap((week) => week.rows)
+			.flatMap((day) => day.sessions)
+			.find((row) => row.id === id)!
+
+	/** A gym day `days` from NOW: two prescribed sets, `logged` working sets in. */
+	function gymDay(
+		days: number,
+		{
+			status = 'scheduled',
+			logged = 0,
+			sets = 2,
+		}: { status?: string; logged?: number; sets?: number } = {},
+	) {
+		return on(days, {
+			id: `gym${days}`,
+			status,
+			recording: null,
+			tssValue: null,
+			plannedTssValue: null,
+			workout: workout({
+				discipline: 'strength',
+				title: 'Styrke A',
+				blocks: [
+					{
+						id: 'block-gym',
+						name: 'Main',
+						orderIndex: 0,
+						repeatCount: 1,
+						seriesRepeatCount: 1,
+						betweenSeriesRestSec: null,
+						sendOff: null,
+						steps: [
+							step({
+								kind: 'strength',
+								discipline: 'strength',
+								durationSec: null,
+								sets: Array.from({ length: sets }, (_, i) => ({
+									id: `set-${i}`,
+									kind: 'reps',
+									orderIndex: i,
+									load: JSON.stringify({ kind: 'absolute', kg: 60 }),
+									weightKg: null,
+									pct1RM: null,
+									effortCap: null,
+									tempo: null,
+									reps: 5,
+									durationSec: null,
+									terminationRir: null,
+									velocityLossPct: null,
+								})),
+							}),
+						],
+					},
+				],
+			}),
+			setLogs: Array.from({ length: logged }, () => ({
+				load: JSON.stringify({ kind: 'external', kg: 60 }),
+				reps: 5,
+				repsLeft: null,
+				durationSec: null,
+				exerciseId: 'ex-squat',
+				exercise: { name: 'Back Squat' },
+			})),
+		})
+	}
+
+	test('offered on a planned gym day from today back a week, and named for it', () => {
+		const result = season([
+			gymDay(0),
+			gymDay(-1),
+			gymDay(-6),
+			gymDay(-7),
+			gymDay(1),
+		])
+		expect(rowOf(result, 'gym0').strengthLog).toEqual({
+			heading: 'Logg økta',
+			label: 'Logg Styrke A',
+			asPlannedLabel: 'Logg Styrke A som planlagt',
+		})
+		// Yesterday's reads "ikke gjort" until it is logged — and is offered.
+		expect(rowOf(result, 'gym-1').status).toBe('missed')
+		expect(rowOf(result, 'gym-1').strengthLog).not.toBeNull()
+		expect(rowOf(result, 'gym-6').strengthLog).not.toBeNull()
+		// Past the week's reach, and a day that has not begun: not offered.
+		expect(rowOf(result, 'gym-7').strengthLog).toBeNull()
+		expect(rowOf(result, 'gym1').strengthLog).toBeNull()
+	})
+
+	test('not offered once logged, once started in the runner, or with nothing planned', () => {
+		const result = season([
+			gymDay(0, { status: 'completed', logged: 2 }),
+			gymDay(-1, { logged: 1 }),
+			gymDay(-2, { sets: 0 }),
+		])
+		expect(rowOf(result, 'gym0').strengthLog).toBeNull()
+		expect(rowOf(result, 'gym-1').strengthLog).toBeNull()
+		expect(rowOf(result, 'gym-2').strengthLog).toBeNull()
+	})
+
+	test('never on a run, and never as Gjort: a gym day is logged, not marked', () => {
+		const result = season([
+			gymDay(0),
+			on(0, { id: 'run', status: 'scheduled', recording: null }),
+		])
+		expect(rowOf(result, 'run').strengthLog).toBeNull()
+		expect(rowOf(result, 'gym0').markDone).toBeNull()
+	})
+
+	test('logged, the row reads done with its sets counted', () => {
+		const result = season([gymDay(0, { status: 'completed', logged: 2 })])
+		const row = rowOf(result, 'gym0')
+		expect(row.status).toBe('completed')
+		expect(row.chips.find((chip) => chip.id === 'sets')?.label).toMatch(
+			/2 \/ 2/,
+		)
+	})
+})

@@ -36,6 +36,8 @@ import {
 	SESSION_OWNER_LABELS,
 	IMPORT_LINK_REFUSAL_LABELS,
 	MARK_DONE_REFUSAL_LABELS,
+	QUICK_LOG_LABELS,
+	QUICK_LOG_REFUSAL_LABELS,
 	WEEK_REPLAN_OUTCOME_LABELS,
 	STEP_KIND_LABELS,
 	STRENGTH_GOAL_LABELS,
@@ -94,6 +96,7 @@ import {
 // runtime leaf, and pinning its Monday-first list against the canonical mapping is
 // the whole reason this file reaches for the function.
 import { SESSION_OWNERS } from './session-ownership.ts'
+import { QUICK_LOG_REFUSALS } from './strength-quick-log.ts'
 import {
 	DISCIPLINES,
 	IntensityTargetSchema,
@@ -398,4 +401,15 @@ test('every refusal on an import row is said in words (#505 stories 80–82)', (
 	for (const reason of MARK_DONE_REFUSALS) {
 		expect(MARK_DONE_REFUSAL_LABELS[reason]).toBeTruthy()
 	}
+})
+
+test('the quick strength log speaks the spec’s words, and every refusal is said (#505 stories 83–84)', () => {
+	expect(QUICK_LOG_LABELS.asPlanned).toBe('Som planlagt')
+	expect(QUICK_LOG_LABELS.edit).toBe('Endre')
+	for (const reason of QUICK_LOG_REFUSALS) {
+		expect(QUICK_LOG_REFUSAL_LABELS[reason]).toBeTruthy()
+	}
+	// A weight in the load's own semantics, with a decimal comma.
+	expect(QUICK_LOG_LABELS.load('external', 82.5)).toBe('82,5 kg')
+	expect(QUICK_LOG_LABELS.load('bodyweightPlus', 15)).toBe('kroppsvekt + 15 kg')
 })
