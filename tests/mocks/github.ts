@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker/locale/en'
 import fsExtra from 'fs-extra'
 import { HttpResponse, passthrough, http, type HttpHandler } from 'msw'
 import { USERNAME_MAX_LENGTH } from '#app/utils/user-validation.ts'

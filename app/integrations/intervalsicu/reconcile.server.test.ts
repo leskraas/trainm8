@@ -1,5 +1,5 @@
 import { invariant } from '@epic-web/invariant'
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker/locale/en'
 import { http, HttpResponse } from 'msw'
 import { expect, test } from 'vitest'
 import { parseStoredStream } from '#app/utils/activity-stream.ts'

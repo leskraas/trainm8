@@ -1,5 +1,5 @@
 import { invariant } from '@epic-web/invariant'
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker/locale/en'
 import { http, HttpResponse } from 'msw'
 import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'

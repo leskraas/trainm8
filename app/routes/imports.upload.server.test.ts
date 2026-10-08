@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { invariant } from '@epic-web/invariant'
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker/locale/en'
 import { expect, test } from 'vitest'
 import {
 	isNum,

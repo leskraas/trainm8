@@ -1,5 +1,5 @@
 import { invariant } from '@epic-web/invariant'
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker/locale/en'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	normalizeEmail,
