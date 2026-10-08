@@ -22,6 +22,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
 import { layEnduranceSegments } from './authoring.server.ts'
 import { closePendingRounds, relayPlanFrom } from './open-ended.server.ts'
+import { outlinePreviewSelect } from './outline-preview.ts'
 import {
 	previewPhilosophySwitch,
 	type PhilosophySwitchPreview,
@@ -43,56 +44,6 @@ export type SwitchPhilosophyResult =
 	| PhilosophySwitchPreview
 	| { ok: false; reason: SwitchPhilosophyRefusal }
 
-/**
- * A Plan Outline's rows as `from-rows.ts` reads them, plus its philosophy and
- * its Event — the read a preview recomputes from. Shared with the Sesong edits
- * (`season-edit.server.ts`).
- */
-export const switchOutlineSelect = {
-	id: true,
-	startWeekKey: true,
-	family: true,
-	event: { select: { startDate: true } },
-	phases: {
-		select: {
-			id: true,
-			orderIndex: true,
-			name: true,
-			weeks: true,
-			rhythm: true,
-			tapers: true,
-			recoveryWeekIndex: true,
-		},
-	},
-	tracks: {
-		select: {
-			id: true,
-			discipline: true,
-			currency: true,
-			anchors: { select: { fromWeekKey: true, value: true } },
-			segments: {
-				select: {
-					id: true,
-					kind: true,
-					phaseId: true,
-					ramp: true,
-					boundaryStep: true,
-					recoveryCut: true,
-					taperCut: true,
-					startWeekKey: true,
-					weeks: true,
-					goal: true,
-					sessionsPerWeek: true,
-					deloadCut: true,
-					deloadWeeks: true,
-					mix: { select: { zone: true, sessionsPerWeek: true } },
-				},
-			},
-			overrides: { select: { weekKey: true, value: true } },
-		},
-	},
-} satisfies Prisma.PlanOutlineSelect
-
 /** The switch as it would land now, inside the caller's client. */
 async function computeSwitch(
 	db: Prisma.TransactionClient,
@@ -103,7 +54,7 @@ async function computeSwitch(
 ): Promise<SwitchPhilosophyResult> {
 	const outline = await db.planOutline.findFirst({
 		where: { id: outlineId, athleteId: userId },
-		select: switchOutlineSelect,
+		select: outlinePreviewSelect,
 	})
 	if (!outline) return { ok: false, reason: 'outline-not-found' }
 	const fromWeekKey = await readFirstUnbegunWeekKey(userId, now, timezone, db)

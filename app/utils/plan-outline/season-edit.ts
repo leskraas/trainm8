@@ -1,5 +1,6 @@
-// _Sesong_ edits, version 1 (#505 stories 72–77): a week's target, a phase's
-// name and length, and which week of a block is the easy one — each worked out
+// _Sesong_ edits, version 1 (#505 stories 72–77): a week's target (or back to
+// the plan's own), a phase's name, length and rhythm, and which week of a block
+// is the easy one — each worked out
 // before anything is written, so the preview the athlete approves and the edit
 // that lands are one computation. (The fourth Sesong edit, the philosophy, is
 // `philosophy.ts`, built the same way.)
@@ -34,10 +35,11 @@ import {
 	rhythmOf,
 	rhythmPeriod,
 	totalWeeks,
+	type Rhythm,
 	type VolumeCurrency,
 } from './derive.ts'
-import { phaseSpecs, type OutlineRows } from './from-rows.ts'
-import { digestOf, weekViews, type WeekView } from './philosophy.ts'
+import { phaseSpecs, resolvedTracks, type OutlineRows } from './from-rows.ts'
+import { digestOf, weekViews, type WeekView } from './outline-preview.ts'
 import { weekRiseWarnings } from './ramp-guard.ts'
 import { weekIndexOf, weekKeyAt } from './week-keys.ts'
 
@@ -46,13 +48,21 @@ export type SeasonEditKind = (typeof SEASON_EDIT_KINDS)[number]
 
 /** What the athlete asked for, as the form posts it. */
 export type SeasonEdit =
-	| { kind: 'week-target'; trackId: string; weekKey: string; value: number }
+	/** `value: null` hands the week back to the plan's own target. */
+	| {
+			kind: 'week-target'
+			trackId: string
+			weekKey: string
+			value: number | null
+	  }
 	/** A null field keeps what the phase has. */
 	| {
 			kind: 'phase'
 			phaseId: string
 			name: string | null
 			weeks: number | null
+			rhythm: Rhythm | null
+			tapers: boolean | null
 	  }
 	/** The week chosen as the easy one; its phase is the one it falls in. */
 	| { kind: 'easy-week'; weekKey: string }
@@ -70,6 +80,8 @@ export type SeasonEditRefusal =
 	| 'plan-too-long'
 	/** What was asked for is what the plan already says. */
 	| 'no-change'
+	/** Back to the plan's target, for a week that already follows it. */
+	| 'not-hand-set'
 
 /**
  * The numbers an edit leaves where they were — the message names them (story
@@ -94,12 +106,17 @@ export type SeasonEditSummary =
 			weekNumber: number
 			currency: VolumeCurrency
 			before: number | null
-			after: number
+			/** Null when the plan's own target for the week is Unavailable. */
+			after: number | null
+			/** Whether the week goes back to the plan's own target. */
+			revert: boolean
 	  }
 	| {
 			kind: 'phase'
 			name: { before: string; after: string }
 			weeks: { before: number; after: number }
+			rhythm: { before: Rhythm; after: Rhythm }
+			tapers: { before: boolean; after: boolean }
 	  }
 	| {
 			kind: 'easy-week'
@@ -111,13 +128,24 @@ export type SeasonEditSummary =
 
 /** What the apply writes, exactly. */
 export type SeasonEditWrite =
-	| { kind: 'week-target'; trackId: string; weekKey: string; value: number }
+	/** `value: null` removes the week's override. */
+	| {
+			kind: 'week-target'
+			trackId: string
+			weekKey: string
+			value: number | null
+	  }
 	| {
 			kind: 'phase'
 			phaseId: string
 			name: string
 			weeks: number
-			/** The chosen easy week, cleared when the phase no longer reaches it. */
+			rhythm: Rhythm
+			tapers: boolean
+			/**
+			 * The chosen easy week, cleared when the phase no longer reaches it or
+			 * its blocks change shape (a new rhythm, or a taper) — ADR 0084 §2.
+			 */
 			recoveryWeekIndex: number | null
 	  }
 	| { kind: 'easy-week'; phaseId: string; recoveryWeekIndex: number }
@@ -188,8 +216,9 @@ export function previewSeasonEdit(
 
 /**
  * Hand-set one week's target in one track (story 72) — a **Week Volume
- * Override**. An override is a leaf: no other week derives from it (ADR 0044
- * §5), so the phase and the other weeks stay as they were.
+ * Override** — or hand it back to the plan's own target (`value: null`). An
+ * override is a leaf: no other week derives from it (ADR 0044 §5), so the
+ * phase and the other weeks stay as they were.
  */
 export function previewWeekTarget(
 	outline: OutlineRows,
@@ -203,6 +232,10 @@ export function previewWeekTarget(
 		return refuse('week-outside-plan')
 	}
 	if (edit.weekKey < firstUnbegunWeekKey) return refuse('week-lived')
+	const revert = edit.value == null
+	if (revert && !track.overrides.some((o) => o.weekKey === edit.weekKey)) {
+		return refuse('not-hand-set')
+	}
 
 	const after: OutlineRows = {
 		...outline,
@@ -212,16 +245,19 @@ export function previewWeekTarget(
 						...t,
 						overrides: [
 							...t.overrides.filter((o) => o.weekKey !== edit.weekKey),
-							{ weekKey: edit.weekKey, value: edit.value },
+							...(edit.value == null
+								? []
+								: [{ weekKey: edit.weekKey, value: edit.value }]),
 						],
 					}
 				: t,
 		),
 	}
-	const before =
-		weekViews(outline)[weekIndex]?.targets.find((t) => t.trackId === track.id)
+	const targetOf = (rows: OutlineRows) =>
+		weekViews(rows)[weekIndex]?.targets.find((t) => t.trackId === track.id)
 			?.value ?? null
-	if (before === edit.value) return refuse('no-change')
+	const before = targetOf(outline)
+	if (!revert && before === edit.value) return refuse('no-change')
 
 	return finish(outline, after, firstUnbegunWeekKey, {
 		summary: {
@@ -230,7 +266,8 @@ export function previewWeekTarget(
 			weekNumber: isoWeekNumber(edit.weekKey),
 			currency: track.currency as VolumeCurrency,
 			before,
-			after: edit.value,
+			after: revert ? targetOf(after) : edit.value,
+			revert,
 		},
 		scope: new Set([edit.weekKey]),
 		held: (otherWeeksHeld) => [
@@ -247,9 +284,11 @@ export function previewWeekTarget(
 }
 
 /**
- * Rename a phase, change its length, or both (story 73). The phases after it
- * slide, because none stores a date; the plan's start stays (ADR 0044 §3). A
- * phase already begun can grow, or shrink down to the weeks lived in it.
+ * Rename a phase, change its length, its rhythm or whether it tapers — any of
+ * them at once (story 73). The phases after it slide, because none stores a
+ * date; the plan's start stays (ADR 0044 §3). A phase already begun can grow,
+ * or shrink down to the weeks lived in it; its rhythm can change only where
+ * that leaves the weeks lived as they were.
  */
 export function previewPhaseEdit(
 	outline: OutlineRows,
@@ -260,27 +299,38 @@ export function previewPhaseEdit(
 	if (!phase) return refuse('phase-not-found')
 	const name = edit.name?.trim() || phase.name
 	const weeks = edit.weeks ?? phase.weeks
-	if (name === phase.name && weeks === phase.weeks) return refuse('no-change')
+	const wasRhythm = rhythmOf(phase.rhythm)
+	const rhythm = edit.rhythm ?? wasRhythm
+	const tapers = edit.tapers ?? phase.tapers
+	const renamed = name !== phase.name
+	const resized = weeks !== phase.weeks
+	const rhythmChanged = rhythm !== wasRhythm || tapers !== phase.tapers
+	if (!renamed && !resized && !rhythmChanged) return refuse('no-change')
 	const season = totalWeeks(phaseSpecs(outline))
 	if (season - phase.weeks + weeks > MAX_PLAN_WEEKS) {
 		return refuse('plan-too-long')
 	}
+	// A chosen easy week belongs to the blocks it was chosen in: a new rhythm
+	// or a taper reshapes them, and a shorter phase may no longer reach it.
 	const chosen = phase.recoveryWeekIndex ?? null
-	const recoveryWeekIndex = chosen != null && chosen < weeks ? chosen : null
+	const recoveryWeekIndex =
+		chosen != null && chosen < weeks && !rhythmChanged ? chosen : null
 
 	const after: OutlineRows = {
 		...outline,
 		phases: outline.phases.map((p) =>
-			p.id === phase.id ? { ...p, name, weeks, recoveryWeekIndex } : p,
+			p.id === phase.id
+				? { ...p, name, weeks, rhythm, tapers, recoveryWeekIndex }
+				: p,
 		),
 	}
-	const renamed = name !== phase.name
-	const resized = weeks !== phase.weeks
 	return finish(outline, after, firstUnbegunWeekKey, {
 		summary: {
 			kind: 'phase',
 			name: { before: phase.name, after: name },
 			weeks: { before: phase.weeks, after: weeks },
+			rhythm: { before: wasRhythm, after: rhythm },
+			tapers: { before: phase.tapers, after: tapers },
 		},
 		scope: null,
 		held: () =>
@@ -290,12 +340,16 @@ export function previewPhaseEdit(
 						'plan-start',
 						'other-phases',
 					]
-				: ['phase-length', 'week-targets'],
+				: rhythmChanged
+					? [...(renamed ? [] : (['phase-name'] as const)), 'phase-length']
+					: ['phase-length', 'week-targets'],
 		write: {
 			kind: 'phase',
 			phaseId: phase.id,
 			name,
 			weeks,
+			rhythm,
+			tapers,
 			recoveryWeekIndex,
 		},
 	})
@@ -415,9 +469,21 @@ function finish(
 
 	const touched = new Set(relayWeekKeys)
 	const warnings: SeasonEditWarning[] = []
+	const resolved = resolvedTracks(after)
 	for (const [trackIndex, track] of after.tracks.entries()) {
-		const series = afterViews.map((view) => ({
-			role: view.role,
+		// A strength track rests on its own block's deload, not on the phase's
+		// rhythm (ADR 0047 §6): its deload is its easy week, and a gap between
+		// blocks is never compared, like a taper.
+		const strengthRoles = resolved[trackIndex]?.strengthRoles ?? null
+		const series = afterViews.map((view, week) => ({
+			role:
+				strengthRoles == null
+					? view.role
+					: strengthRoles[week] === 'loading'
+						? ('loading' as const)
+						: strengthRoles[week] === 'deload'
+							? ('recovery' as const)
+							: ('taper' as const),
 			value: view.targets[trackIndex]?.value ?? null,
 		}))
 		for (const rise of weekRiseWarnings(series)) {

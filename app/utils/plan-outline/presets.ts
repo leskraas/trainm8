@@ -66,6 +66,7 @@
 
 import { invariant } from '@epic-web/invariant'
 import {
+	rhythmPeriod,
 	totalWeeks,
 	weekTargets,
 	type EnduranceSegmentSpec,
@@ -636,6 +637,13 @@ export function presetFamilyOf(stored: string | null): PresetFamily | null {
 }
 
 /**
+ * How long the first round of a "Hold meg aktiv" plan runs: one 3:1 block.
+ * Here rather than in `authoring.server.ts` so the plan-creation page can say
+ * it without reaching into a server module.
+ */
+export const OPEN_ENDED_ROUND_WEEKS = 4
+
+/**
  * One round of an open-ended plan on a family: **one block of the family's
  * opening rhythm** (ADR 0079 §5) — three loading weeks and one easy on 3:1
  * (Klassisk, big base, polarized, threshold focus), two and one for Masters
@@ -653,7 +661,9 @@ export function openEndedRound(family: PresetFamily): {
 } {
 	const opening = FAMILY_TABLE[family].shape[0]!
 	return {
-		weeks: opening.rhythm === '2:1' ? 3 : 4,
+		// One block of the rhythm; a family opening with no easy week (none
+		// ships) would still run a four-week round.
+		weeks: rhythmPeriod(opening.rhythm) || 4,
 		rhythm: opening.rhythm,
 		ramp: opening.ramp,
 		boundaryStep: null,

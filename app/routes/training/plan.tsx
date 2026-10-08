@@ -68,7 +68,6 @@ import {
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { Input } from '#app/components/ui/input.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { getEventsForUser } from '#app/utils/event.server.ts'
 import {
@@ -81,9 +80,7 @@ import {
 	formatSignedPercent,
 	formatVolumeTotal,
 	formatWeeklyVolume,
-	formatWeeklyVolumeField,
 	formatWeekSpan,
-	volumeFieldStep,
 } from '#app/utils/format.ts'
 import {
 	ACCUMULATED_SPAN_LABELS,
@@ -122,8 +119,6 @@ import {
 	StrengthSegmentAddSchema,
 	StrengthSegmentSetSchema,
 	WeekPatternNameSchema,
-	WeekVolumeOverrideClearSchema,
-	WeekVolumeOverrideSetSchema,
 } from '#app/utils/plan-outline/authoring-schema.ts'
 import {
 	addPhase,
@@ -132,7 +127,6 @@ import {
 	addWeekPattern,
 	addWeekPatternDay,
 	applyPreset,
-	clearWeekVolumeOverride,
 	createStarterWeekPattern,
 	deletePlanOutline,
 	listPlanAnchorCandidates,
@@ -146,24 +140,18 @@ import {
 	removeTrack,
 	removeWeekPattern,
 	removeWeekPatternDay,
-	renamePhase,
 	renameWeekPattern,
-	resizePhase,
 	setEnduranceSegment,
-	setPhaseRhythm,
 	setQualitySessionMix,
 	setSeasonAnchorValue,
 	setStrengthSegment,
-	setWeekVolumeOverride,
 	type AddTrackRefusal,
 	type FitToEventRefusal,
-	type ClearWeekVolumeOverrideResult,
 	type PhaseEditRefusal,
 	type RemoveTrackRefusal,
 	type SeasonAnchorRefusal,
 	type StrengthSegmentRefusal,
 	type WeekPatternEditRefusal,
-	type WeekVolumeOverrideRefusal,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import { accumulatesAcrossDisciplines } from '#app/utils/plan-outline/commensurability.ts'
 import {
@@ -284,7 +272,7 @@ import {
 } from './__season-anchor-editor.tsx'
 import { SeasonChart } from './__season-chart.tsx'
 import { seasonEditAction } from './__season-edits.server.ts'
-import { SeasonEditsCard } from './__season-edits.tsx'
+import { SeasonEditLink, SeasonEditsCard } from './__season-edits.tsx'
 import { SEASON_EVENTS_SHOWN, SeasonEvents } from './__season-events.tsx'
 import { StampSection, type PendingStamp } from './__stamp-pattern.tsx'
 import {
@@ -442,55 +430,6 @@ const MixFormSchema = z.object({
 	...(Object.fromEntries(
 		QUALITY_ZONES.map((zone) => [mixFieldName(zone), MixCountField]),
 	) as Record<`zone${QualityZone}`, typeof MixCountField>),
-})
-
-/**
- * One week's hand-set target as the athlete types it: a number in the track's own
- * **Volume Currency**, or blank.
- *
- * **Blank reverts.** It is the athlete taking their hand off the week so the rule
- * answers again — the house "blank is a value" rule (ADR 0044 §4) applied to a
- * **Week Volume Override** — and it is a *third* meaning of blank on this page,
- * which is why the field says so where the athlete reads it.
- *
- * `0` is the other thing entirely: a week without training, which the vocabulary
- * says needs no flag of its own. So the empty string is tested **before** `Number`
- * is reached — `Number('')` is `0`, and that one coercion would collapse the revert
- * into the week off and make a week off unauthorable.
- *
- * No unit is parsed and none is offered: the currency is the track's, and hand-
- * setting a week changes value only (ADR 0043).
- */
-const WeekTargetSchema = z
-	.string()
-	.trim()
-	.transform((raw, ctx) => {
-		if (raw === '') return null
-		const value = Number(raw)
-		if (!Number.isFinite(value)) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: 'Type a weekly volume, or leave it blank to follow the rule',
-			})
-			return z.NEVER
-		}
-		return value
-	})
-
-/**
- * What one week's target form submits: the row it belongs to — a track and a week —
- * and the value.
- *
- * `weekKey` is only checked for *presence* here. Whether it is a Monday, and whether
- * the value is in range, are the authoring schemas' rules, and the action re-parses
- * through those so a violation reads as a sentence on the row rather than as a throw
- * from the service (ADR 0044 §8) — restating them here would put the same rule in
- * two places and let them drift.
- */
-const WeekOverrideFormSchema = z.object({
-	trackId: z.string().min(1),
-	weekKey: z.string().min(1),
-	value: WeekTargetSchema.default(''),
 })
 
 /**
@@ -918,34 +857,6 @@ export async function action({ request }: Route.ActionArgs) {
 				}),
 			)
 		}
-		case 'rename-phase': {
-			const name = NameField.safeParse(formData.get('name'))
-			if (!phaseId.success) return refuse(PHASE_GONE)
-			if (!name.success) return refuse(firstIssue(name.error))
-			return report(
-				await renamePhase(userId, { phaseId: phaseId.data, name: name.data }),
-			)
-		}
-		case 'resize-phase': {
-			const weeks = WeeksField.safeParse(formData.get('weeks'))
-			if (!phaseId.success) return refuse(PHASE_GONE)
-			if (!weeks.success) return refuse(firstIssue(weeks.error))
-			return report(
-				await resizePhase(userId, { phaseId: phaseId.data, weeks: weeks.data }),
-			)
-		}
-		case 'set-phase-rhythm': {
-			const rhythm = RhythmField.safeParse(formData.get('rhythm'))
-			if (!phaseId.success) return refuse(PHASE_GONE)
-			if (!rhythm.success) return refuse(firstIssue(rhythm.error))
-			return report(
-				await setPhaseRhythm(userId, {
-					phaseId: phaseId.data,
-					rhythm: rhythm.data,
-					tapers: checked(formData, 'tapers'),
-				}),
-			)
-		}
 		case 'move-phase': {
 			if (!phaseId.success) return refuse(PHASE_GONE)
 			return report(
@@ -1120,27 +1031,6 @@ export async function action({ request }: Route.ActionArgs) {
 		// the second submit is this one plus a yes (ADR 0044 §6).
 		case 'copy-week':
 			return copyWeekOnto(userId, request, formData)
-		// ── Hand-setting one week (#406) ──────────────────────────────────────
-		// One week of one track, and nothing about the rest of the season: an override
-		// is a leaf, so every later week is still derived from the anchor and the ramps
-		// on the next read (ADR 0044 §5).
-		case 'set-week-override':
-			return authorWeekOverride(userId, formData)
-		case 'clear-week-override': {
-			const trackId = IdField.safeParse(formData.get('trackId'))
-			if (!trackId.success) return refuse(TRACK_GONE)
-			const reverted = await revertWeek(userId, {
-				trackId: trackId.data,
-				weekKey: formData.get('weekKey'),
-			})
-			// A body the storage schema refuses is a week no row of this plan is keyed to,
-			// said here as the plan's own span rather than as a parse failure.
-			if (!reverted.parsed) return refuse(WEEK_OUTSIDE_PLAN)
-			// This control keeps the `override-not-found` refusal, where the blank field
-			// in `authorWeekOverride` treats it as a success: pressing *this* button
-			// claims there was something to revert.
-			return reportWeekOverride(reverted.result)
-		}
 		// ── Re-anchoring a track mid-season (#407) ────────────────────────────
 		// One track's **Season Anchor** list. Adding and editing are one write on
 		// `(trackId, fromWeekKey)` — the pair is the segment's identity — and the two
@@ -1445,8 +1335,6 @@ const WEEK_OUTSIDE_PLAN = 'That week is not in your plan.'
 const WEEK_NOT_ONE_OF_THE_PLANS =
 	'That week is not one of your plan’s weeks. Pick a week between your first and your last, or add weeks to your plan first.'
 const ANCHOR_GONE = 'That anchor is no longer part of this plan.'
-const WEEK_NOT_HAND_SET =
-	'That week was not hand-set, so there is nothing to revert.'
 const TRACK_MISSING = 'Choose which training track this day draws from.'
 const WORKOUT_MISSING =
 	'A fixed day prescribes a workout, so choose the session it stamps.'
@@ -1589,38 +1477,6 @@ function patternRefusalMessage(reason: WeekPatternEditRefusal): string {
 }
 
 /**
- * One **Week Volume Override** service result, worded. A third pair beside `report`
- * and `reportPattern` for the reason those two are separate: the refusal unions are
- * separate vocabularies, and a week-scoped write can refuse over a week — which is
- * neither a phase nor a pattern. Typing the map to the union makes a refusal added
- * later a compile error here rather than a silent catch-all.
- */
-function reportWeekOverride(
-	result: { ok: true } | { ok: false; reason: WeekVolumeOverrideRefusal },
-) {
-	if (result.ok) return { ok: true as const }
-	return refuse(weekOverrideRefusalMessage(result.reason))
-}
-
-function weekOverrideRefusalMessage(reason: WeekVolumeOverrideRefusal): string {
-	switch (reason) {
-		case 'track-not-found':
-			// The same absence a pattern day's `track-gone` names, so the same sentence:
-			// a row that is not the athlete's reads as gone rather than as forbidden.
-			return TRACK_GONE
-		case 'week-outside-plan':
-			// Not an invalid week — a week of some other plan, or of none. Said as the
-			// plan's own span, because resizing a phase is what would bring it in.
-			return WEEK_OUTSIDE_PLAN
-		case 'override-not-found':
-			// Reachable from a stale reading, whose revert control was rendered before a
-			// second tab reverted the week. Naming the state is the answer; there is
-			// nothing to undo and nothing was changed.
-			return WEEK_NOT_HAND_SET
-	}
-}
-
-/**
  * One **Season Anchor** service result, worded — the pair `reportWeekOverride` is,
  * for a fourth vocabulary: an anchor edit refuses over a *segment*, which is neither
  * a phase, a pattern nor a week. Typing the map to the union makes a refusal added
@@ -1722,40 +1578,6 @@ async function authorSeasonAnchor(
 	if (!saved.ok) return formErrors([anchorRefusalMessage(saved.reason)])
 
 	return { ...row, result: submission.reply() }
-}
-
-/**
- * Revert one week to the rule: parse against the service's own schema, then clear.
- *
- * One path from "no value for this week" to the row being gone, because two controls
- * ask for it — the **blank field** and the explicit **revert button** — and a second
- * copy of the pair could drift in what it parses or what it calls.
- *
- * The parse belongs at this boundary because the service *throws* on a week key that
- * is not a Monday, and only a hand-made body can carry one (ADR 0044 §8). What each
- * caller does with a rejected parse differs — one words it on the row it was typed
- * into, the other at the top of the reading — so the issues come back rather than a
- * response, and the same is true of `override-not-found`: the two controls disagree
- * about it deliberately, so this hands the service's result over untouched.
- */
-async function revertWeek(
-	userId: string,
-	fields: { trackId: string; weekKey: unknown },
-): Promise<
-	| { parsed: false; issues: string[] }
-	| { parsed: true; result: ClearWeekVolumeOverrideResult }
-> {
-	const revert = WeekVolumeOverrideClearSchema.safeParse(fields)
-	if (!revert.success) {
-		return {
-			parsed: false,
-			issues: revert.error.issues.map((issue) => issue.message),
-		}
-	}
-	return {
-		parsed: true,
-		result: await clearWeekVolumeOverride(userId, revert.data),
-	}
 }
 
 /**
@@ -1972,81 +1794,6 @@ function copyRefusalMessage(
 			// prescription behind it. Named rather than reported as a copy of nothing.
 			return 'That week only holds recorded activities, which carry no workout to copy. Nothing was changed.'
 	}
-}
-
-/**
- * Hand-set one week's volume target, or revert it — the write behind the Weeks
- * reading's per-week field (#406).
- *
- * **Blank reverts**, so both live in one function: the field is the whole control,
- * and "clear this box" has to mean something. It means the athlete taking their hand
- * off the week, distinct from the `0` that means a week without training — and the
- * two are separated *before* `Number` is reached, in `WeekTargetSchema`.
- *
- * A blank aimed at a week that already follows the rule is a **success**: the state
- * the athlete asked for holds, so there is nothing to act on and nothing to say. The
- * revert *control* keeps that refusal, because pressing it claims there was something
- * to revert.
- *
- * The reply is keyed by the intent **and the row** — `trackId` plus `weekKey` — for
- * the reason `authorSegmentRates` keys by `segmentId`: this page renders one of these
- * forms per week per track, and a reply read by the wrong one would blank a week it
- * says nothing about. Service refusals travel as a sentence at the top of the reading
- * instead, like every other one-button edit here; only the field's own problems are
- * the field's to report.
- */
-async function authorWeekOverride(userId: string, formData: FormData) {
-	const submission = parseWithZod(formData, { schema: WeekOverrideFormSchema })
-	// Off the body rather than off the parse, so a rejected submission still reports
-	// on the row it was typed into.
-	const row = {
-		intent: 'set-week-override' as const,
-		trackId: String(formData.get('trackId') ?? ''),
-		weekKey: String(formData.get('weekKey') ?? ''),
-	}
-	if (submission.status !== 'success') {
-		return data({ ...row, result: submission.reply() }, { status: 400 })
-	}
-	const { trackId, weekKey, value } = submission.value
-	// A rejection the *field* reports, on the row it was typed into — written once for
-	// the two schemas re-parsed below, the revert's and the target's, because both
-	// land on the same week's field.
-	const fieldErrors = (issues: string[]) =>
-		data(
-			{ ...row, result: submission.reply({ formErrors: issues }) },
-			{ status: 400 },
-		)
-
-	if (value == null) {
-		const reverted = await revertWeek(userId, { trackId, weekKey })
-		if (!reverted.parsed) return fieldErrors(reverted.issues)
-		const cleared = reverted.result
-		// A blank aimed at a week that already follows the rule is a **success**: the
-		// state the athlete asked for holds, so there is nothing to act on and nothing
-		// to say. The revert *control* keeps that refusal — see `clear-week-override`.
-		if (!cleared.ok && cleared.reason !== 'override-not-found') {
-			return refuse(weekOverrideRefusalMessage(cleared.reason))
-		}
-		return { ...row, result: submission.reply() }
-	}
-
-	// The service's own gate, applied here first for the reason `authorSegmentRates`
-	// gives: a target the storage schema refuses — a negative, an infinity, a week key
-	// that is not a Monday — reads as a sentence on this row rather than as a throw
-	// from the service that re-parses it (ADR 0044 §8).
-	const authored = WeekVolumeOverrideSetSchema.safeParse({
-		trackId,
-		weekKey,
-		value,
-	})
-	if (!authored.success) {
-		return fieldErrors(authored.error.issues.map((issue) => issue.message))
-	}
-
-	const saved = await setWeekVolumeOverride(userId, authored.data)
-	if (!saved.ok) return refuse(weekOverrideRefusalMessage(saved.reason))
-
-	return { ...row, result: submission.reply() }
 }
 
 /**
@@ -2628,10 +2375,10 @@ export default function PlanRoute({
 					chosenWeek={previewWeek}
 					workouts={workouts}
 					seasonQuery={seasonQuery}
-					actionData={actionData}
 					pendingStamp={pendingStamp}
 					pendingCopy={pendingCopy}
 					mixWarnings={mixWarnings}
+					firstUnbegunWeekKey={firstUnbegunWeekKey}
 				/>
 			)}
 		</main>
@@ -4053,149 +3800,44 @@ type WeekData = SeasonData['weeks'][number]
 type WeekTargetData = WeekData['targets'][number]
 
 /**
- * One week's target for one track, hand-settable — the **Week Volume Override**
- * control (#406).
+ * One track's target in one week, read-only, with the way to change it.
  *
- * Three things this component has to keep straight, and they are the whole of it.
- *
- * - **The box holds the athlete's number, or nothing.** A week nobody hand-set reads
- *   as **blank**, with the rule's own figure stated beside it as text. Pre-filling the
- *   derived number would make the rule look like an edit to the athlete's plan, which
- *   is the mistake ADR 0044 §4 rules out for the recovery and taper cuts and rules out
- *   here for the same reason.
- * - **A hand-set week is marked, in words.** A `Badge` reading *hand-set* — the
- *   vocabulary's own word — plus a muted sentence naming what the rule would give, so
- *   the revert is legible before it is pressed rather than a leap.
- * - **The revert is one action**, its own single-button form, and it appears only on a
- *   week that has something to revert.
- *
- * A track whose week is Unavailable is still hand-settable: it is a real track with a
- * real currency, and the athlete knowing what they want for a week the rule cannot
- * price is exactly the case an override exists for. Only the derived sentence goes
- * quiet, because there is no number to name.
- *
- * On a strength track the figure also carries the week's place in the **lifting
- * block** holding it — a `· Deload` on the block's own tail, and the gap between
- * blocks read as "No lifting" rather than as the `0` the rule gives (ADR 0047 §6).
- * Both come off the same target that priced the week, so the marker and the number
- * beside it cannot disagree.
+ * The Weeks reading used to carry an input per week per track (#406). Every
+ * week target is now changed in _Endre sesongen_, behind a preview (#505
+ * story 75), so this says what the week reads — and, for a hand-set week, what
+ * the rule would give — and links there, pre-filled. A week already begun is
+ * history and offers no link.
  */
-function WeekTargetField({
+function WeekTargetLine({
 	week,
 	target,
-	actionData,
+	editable,
 }: {
 	week: WeekData
 	target: WeekTargetData
-	actionData: SegmentActionData
+	editable: boolean
 }) {
 	const discipline = DISCIPLINE_LABELS[target.discipline]
-	const unit = VOLUME_CURRENCY_UNITS[target.currency]
-	// The row named once, for the accessible names below: there is one of these forms
-	// per week *per track*, so "Target" or "Save" alone would repeat dozens of times
-	// in a row and name nothing.
-	const row = `week ${week.weekInPlan} ${discipline}`
-	const [form, fields] = useForm({
-		id: `week-target-${target.trackId}-${week.weekKey}`,
-		// Keyed by the intent **and the row** — see `authorWeekOverride`. A reply read
-		// by the wrong week would blank a box the athlete never touched.
-		lastResult:
-			actionData &&
-			'weekKey' in actionData &&
-			actionData.intent === 'set-week-override' &&
-			actionData.trackId === target.trackId &&
-			actionData.weekKey === week.weekKey
-				? actionData.result
-				: undefined,
-		defaultValue: {
-			// The athlete's own number where they hand-set one, and **blank** otherwise.
-			// `target.value` is not what goes in the box: on a derived week that is the
-			// rule's number, and the rule belongs in the prose beside the field.
-			value: formatWeeklyVolumeField(
-				target.overridden ? target.value : null,
-				target.currency,
-			),
-		},
-		onValidate({ formData }) {
-			return parseWithZod(formData, { schema: WeekOverrideFormSchema })
-		},
-	})
-
 	return (
-		<div className="space-y-1.5">
-			{/* The label carries what the box takes — the track and its unit — and the
-			    input's own `aria-label` carries the week as well, so every one of these
-			    fields is distinguishable in a list of dozens. The visible words are the
-			    tail of the accessible name rather than different words.
-
-			    What the week currently *reads* is not repeated here: it is on the row's
-			    own summary line, which stays on screen while this panel is open
-			    (`WeekTargetsReading`). One figure per week per track, in one place. */}
-			<label htmlFor={fields.value.id} className="block text-sm font-medium">
-				{discipline}, {unit}
-			</label>
-
-			<Form
-				method="POST"
-				{...getFormProps(form)}
-				className="flex flex-wrap items-start gap-2"
-			>
-				{/* Named, because this page's action dispatches on `intent`; the track and
-				    the week are the row this write addresses. */}
-				<input type="hidden" name="intent" value="set-week-override" />
-				<input type="hidden" name="trackId" value={target.trackId} />
-				<input type="hidden" name="weekKey" value={week.weekKey} />
-				<Input
-					{...getInputProps(fields.value, { type: 'number' })}
-					// `0` is a week without training and needs no flag of its own, so the
-					// floor is zero rather than anything above it.
-					min={0}
-					step={volumeFieldStep(target.currency)}
-					inputMode="decimal"
-					aria-label={`Week ${week.weekInPlan} ${discipline}, ${unit}`}
-					className="w-28"
-				/>
-				<Button
-					type="submit"
-					variant="outline"
-					size="sm"
-					aria-label={`Save ${row}`}
-				>
-					Save
-				</Button>
-			</Form>
-
-			<ErrorList
-				id={fields.value.errorId}
-				errors={fields.value.errors as string[] | undefined}
-			/>
-			<ErrorList errors={form.errors as string[] | undefined} />
-
+		<div className="space-y-1">
+			<p className="text-sm font-medium">
+				{discipline}, {VOLUME_CURRENCY_UNITS[target.currency]}
+			</p>
 			{target.overridden ? (
-				<div className="flex flex-wrap items-center gap-2">
-					<p className="text-muted-foreground text-sm">
-						{target.derivedValue == null
-							? 'The rule has no number for this week, so reverting would leave it Unavailable.'
-							: `The rule gives ${formatWeeklyVolume(target.derivedValue, target.currency)}.`}
-					</p>
-					{/* Its own form, because a submit carries one name/value pair and the
-					    revert is a different act from the save above — one action, per the
-					    vocabulary, and no value at all: reverting deletes the athlete's
-					    statement rather than storing what the rule happens to give. */}
-					<Form method="POST">
-						<input type="hidden" name="intent" value="clear-week-override" />
-						<input type="hidden" name="trackId" value={target.trackId} />
-						<input type="hidden" name="weekKey" value={week.weekKey} />
-						<Button
-							type="submit"
-							variant="ghost"
-							size="sm"
-							aria-label={`Revert to the rule for ${row}`}
-						>
-							Revert to the rule
-						</Button>
-					</Form>
-				</div>
+				<p className="text-muted-foreground text-sm">
+					{target.derivedValue == null
+						? 'Hand-set. The rule has no number for this week.'
+						: `Hand-set. The rule gives ${formatWeeklyVolume(target.derivedValue, target.currency)}.`}
+				</p>
+			) : null}
+			{editable ? (
+				<SeasonEditLink
+					edit="week-target"
+					fields={{ weekKey: week.weekKey, trackId: target.trackId }}
+					aria-label={`${SEASON_EDIT_LABELS.weekTargetOpen}: week ${week.weekInPlan} ${discipline}`}
+				>
+					{SEASON_EDIT_LABELS.weekTargetOpen}
+				</SeasonEditLink>
 			) : null}
 		</div>
 	)
@@ -4292,10 +3934,10 @@ function WeeksReading({
 	chosenWeek,
 	workouts,
 	seasonQuery,
-	actionData,
 	pendingStamp,
 	pendingCopy,
 	mixWarnings,
+	firstUnbegunWeekKey,
 }: {
 	season: SeasonData
 	/** A refused pattern edit, said once above the patterns it was aimed at. */
@@ -4304,13 +3946,13 @@ function WeeksReading({
 	chosenWeek: SeasonData['weeks'][number] | null
 	workouts: Route.ComponentProps['loaderData']['workouts']
 	seasonQuery: SeasonQuery
-	/** A rejected hand-set week's reply, read by that week's field and no other. */
-	actionData: SegmentActionData
 	/** A stamp waiting on the athlete's yes, with what it would replace. */
 	pendingStamp: PendingStamp | null
 	/** A week copy waiting on the athlete's yes, with what it would replace. */
 	pendingCopy: PendingCopy | null
 	mixWarnings: Route.ComponentProps['loaderData']['mixWarnings']
+	/** Weeks before it are history: their targets are shown, not offered to edit. */
+	firstUnbegunWeekKey: string
 }) {
 	// A track whose every week reads Unavailable gets its reason said once, rather
 	// than a column of dashes the athlete has to interpret (Unavailable Metric).
@@ -4399,22 +4041,17 @@ function WeeksReading({
 										/>
 									</summary>
 
-									{/* One field per track, stacked at every width: this row carries
-									    an input apiece, and a phone has no second column to put them
-									    in (ADR 0028). */}
-									<div className="space-y-4 pt-1 pb-4 pl-2">
+									{/* What each track's week reads, and the way to change it. The
+									    Weeks reading edits nothing itself: every week target is
+									    changed in _Endre sesongen_, behind a preview (#505 story 75),
+									    and this link opens it on this week and this track. */}
+									<div className="space-y-3 pt-1 pb-4 pl-2">
 										{week.targets.map((target) => (
-											<WeekTargetField
-												// Re-keyed on the stored value, for the reason
-												// `__phase-editor.tsx` re-keys a phase's name field: a save that
-												// lands changes the field's default, and an uncontrolled input
-												// would keep showing the old one. Remounting shows what the plan
-												// now says — and a *rejected* save leaves the key alone, so what
-												// the athlete typed survives to be corrected.
-												key={`${target.trackId}-${target.overridden ? target.value : ''}`}
+											<WeekTargetLine
+												key={target.trackId}
 												week={week}
 												target={target}
-												actionData={actionData}
+												editable={week.weekKey >= firstUnbegunWeekKey}
 											/>
 										))}
 									</div>
@@ -4433,12 +4070,12 @@ function WeeksReading({
 				    likely to doubt — `0` — is spelled out beside it. */}
 				<div className="border-border/70 space-y-3 border-t pt-4">
 					<p className="text-muted-foreground text-sm">
-						Open a week to hand-set it. What you type is that week&rsquo;s final
-						target — no recovery or taper cut on top — and it changes that week
-						only: the rest of your season still follows your anchor and your
-						ramps. Leave the box <strong>blank</strong> to hand the week back to
-						the rule. <strong>0</strong> is a week without training, which is a
-						plan and not a gap.
+						Open a week to change its target in <em>Endre sesongen</em>, where
+						you see the change before it applies. A hand-set target is that
+						week&rsquo;s final number — no recovery or taper cut on top — and it
+						changes that week only: the rest of your season still follows your
+						anchor and your ramps. <strong>0</strong> is a week without
+						training, which is a plan and not a gap.
 					</p>
 					{/* Since ADR 0047 §1 **both** walks price their weeks — a strength track
 					    derives its target from the same anchor and ramp an endurance one does

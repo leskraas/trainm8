@@ -435,6 +435,7 @@ test('every Sesong edit message says which numbers did not move, in the spec’s
 				before: '40',
 				after: '46',
 				unit: 'km',
+				revert: false,
 			},
 			['phase', 'other-weeks'],
 		),
@@ -445,6 +446,8 @@ test('every Sesong edit message says which numbers did not move, in the spec’s
 				kind: 'phase',
 				name: { before: 'Base', after: 'Base' },
 				weeks: { before: 4, after: 6 },
+				rhythm: { before: '3:1', after: '3:1' },
+				tapers: { before: false, after: false },
 			},
 			['phase-name', 'plan-start', 'other-phases'],
 		),
@@ -463,6 +466,35 @@ test('every Sesong edit message says which numbers did not move, in the spec’s
 		),
 	).toBe(
 		'Blokk 1: den lette uka flyttes fra uke 44 til uke 43. Lengden på fasen står som før.',
+	)
+	expect(
+		seasonEditSentence(
+			{
+				kind: 'phase',
+				name: { before: 'Base', after: 'Grunn' },
+				weeks: { before: 4, after: 4 },
+				rhythm: { before: '3:1', after: '2:1' },
+				tapers: { before: false, after: false },
+			},
+			['phase-length'],
+		),
+	).toBe(
+		'«Base» heter nå «Grunn» og går nå 2:1 (var 3:1). Lengden på fasen står som før.',
+	)
+	expect(
+		seasonEditSentence(
+			{
+				kind: 'week-target',
+				weekNumber: 42,
+				before: '46',
+				after: '40',
+				unit: 'km',
+				revert: true,
+			},
+			['phase', 'other-weeks'],
+		),
+	).toBe(
+		'Uke 42: tilbake til planens mål, 46 → 40 km. Fasen og de andre ukene står som før.',
 	)
 	expect(weekRiseSentence(43, '42', '50', 'km', 0.1905)).toBe(
 		'Uke 43: 42 → 50 km, +19 % over forrige harde uke.',

@@ -16,7 +16,7 @@ import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
 import { relayPlanFrom } from './open-ended.server.ts'
-import { switchOutlineSelect } from './philosophy.server.ts'
+import { outlinePreviewSelect } from './outline-preview.ts'
 import {
 	previewSeasonEdit,
 	type SeasonEdit,
@@ -46,7 +46,7 @@ async function computeEdit(
 ): Promise<SeasonEditServerResult> {
 	const outline = await db.planOutline.findFirst({
 		where: { id: outlineId, athleteId: userId },
-		select: switchOutlineSelect,
+		select: outlinePreviewSelect,
 	})
 	if (!outline) return { ok: false, reason: 'outline-not-found' }
 	const firstUnbegun = await readFirstUnbegunWeekKey(userId, now, timezone, db)
@@ -80,16 +80,16 @@ export async function readSeasonEdit(
  * and written in one transaction, then the weeks it changed laid again.
  * Returns what was applied — the same model the preview returned.
  *
- * `digest` is the preview's own, posted back by the confirm: when the edit
- * recomputed now has another, nothing is written (`preview-stale`). Omitted,
- * nothing is compared — a caller that never showed a preview.
+ * `digest` is the preview's own, posted back by the confirm, and required:
+ * every Sesong edit shows its preview first (#505 story 75). When the edit
+ * recomputed now has another, nothing is written (`preview-stale`).
  */
 export async function applySeasonEdit(
 	userId: string,
 	outlineId: string,
 	edit: SeasonEdit,
-	now: Date = new Date(),
-	{ digest }: { digest?: string } = {},
+	now: Date,
+	{ digest }: { digest: string },
 ): Promise<SeasonEditServerResult> {
 	const timezone = await getAthleteTimezone(userId)
 	const result = await prisma.$transaction(async (tx) => {
@@ -98,12 +98,18 @@ export async function applySeasonEdit(
 			timezone,
 		})
 		if (!computed.ok) return computed
-		if (digest != null && computed.digest !== digest) {
+		if (computed.digest !== digest) {
 			return { ok: false as const, reason: 'preview-stale' as const }
 		}
 		const { write } = computed
 		switch (write.kind) {
 			case 'week-target':
+				if (write.value == null) {
+					await tx.weekVolumeOverride.deleteMany({
+						where: { trackId: write.trackId, weekKey: write.weekKey },
+					})
+					break
+				}
 				await tx.weekVolumeOverride.upsert({
 					where: {
 						trackId_weekKey: { trackId: write.trackId, weekKey: write.weekKey },
@@ -122,6 +128,8 @@ export async function applySeasonEdit(
 					data: {
 						name: write.name,
 						weeks: write.weeks,
+						rhythm: write.rhythm,
+						tapers: write.tapers,
 						recoveryWeekIndex: write.recoveryWeekIndex,
 					},
 				})

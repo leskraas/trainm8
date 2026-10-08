@@ -9,9 +9,9 @@ import {
 	addWeekPattern,
 	addWeekPatternDay,
 	createPlanOutline,
-	setWeekVolumeOverride,
 } from './authoring.server.ts'
 import { applySeasonEdit, readSeasonEdit } from './season-edit.server.ts'
+import { type SeasonEdit } from './season-edit.ts'
 import { stampWeekPattern } from './stamp.server.ts'
 import { getWeekVolumes } from './week-volumes.server.ts'
 
@@ -101,6 +101,19 @@ async function sessionsOn(userId: string, weekKey: string) {
 	})
 }
 
+/** The preview the athlete sees, then the apply confirmed from it. */
+async function previewThenApply(
+	userId: string,
+	outlineId: string,
+	edit: SeasonEdit,
+) {
+	const preview = await readSeasonEdit(userId, outlineId, edit, WEDNESDAY)
+	if (!preview.ok) return preview
+	return applySeasonEdit(userId, outlineId, edit, WEDNESDAY, {
+		digest: preview.digest,
+	})
+}
+
 async function plannedKm(userId: string, weekKey: string) {
 	const volumes = await getWeekVolumes(userId, { weekKey, now: WEDNESDAY })
 	return volumes.tracks[0]?.planned
@@ -176,10 +189,8 @@ test('a stale preview is refused and nothing is written', async () => {
 	if (!preview.ok) throw new Error(preview.reason)
 	// Another tab hand-sets the week before it after the preview was shown, so
 	// the rise the preview warned about is no longer the one that would land.
-	await setWeekVolumeOverride(userId, {
-		trackId,
-		weekKey: '2030-01-07',
-		value: 33,
+	await prisma.weekVolumeOverride.create({
+		data: { trackId, weekKey: '2030-01-07', value: 33 },
 	})
 	const [machine] = await sessionsOn(userId, '2030-01-14')
 
@@ -267,12 +278,14 @@ test('a phase renamed and lengthened lands as previewed; a rename alone lays not
 		orderBy: { id: 'asc' },
 	})
 
-	const renamed = await applySeasonEdit(
-		userId,
-		outlineId,
-		{ kind: 'phase', phaseId: phase.id, name: 'Bygg', weeks: null },
-		WEDNESDAY,
-	)
+	const renamed = await previewThenApply(userId, outlineId, {
+		kind: 'phase',
+		phaseId: phase.id,
+		name: 'Bygg',
+		weeks: null,
+		rhythm: null,
+		tapers: null,
+	})
 	expect(renamed).toMatchObject({
 		ok: true,
 		held: ['phase-length', 'week-targets'],
@@ -286,12 +299,14 @@ test('a phase renamed and lengthened lands as previewed; a rename alone lays not
 		}),
 	).toEqual(before)
 
-	const resized = await applySeasonEdit(
-		userId,
-		outlineId,
-		{ kind: 'phase', phaseId: phase.id, name: null, weeks: 6 },
-		WEDNESDAY,
-	)
+	const resized = await previewThenApply(userId, outlineId, {
+		kind: 'phase',
+		phaseId: phase.id,
+		name: null,
+		weeks: 6,
+		rhythm: null,
+		tapers: null,
+	})
 	expect(resized).toMatchObject({
 		ok: true,
 		held: ['phase-name', 'plan-start', 'other-phases'],
@@ -301,4 +316,67 @@ test('a phase renamed and lengthened lands as previewed; a rename alone lays not
 		['Blokk 1', 4],
 		['Bygg', 6],
 	])
+})
+
+test('back to the plan’s target removes the override and lays the week again at the plan’s number', async () => {
+	const { userId, outlineId, trackId } = await plan()
+	const edit = {
+		kind: 'week-target' as const,
+		trackId,
+		weekKey: '2030-01-14',
+		value: 34,
+	}
+	expect((await previewThenApply(userId, outlineId, edit)).ok).toBe(true)
+	expect(await plannedKm(userId, '2030-01-14')).toBe(34)
+
+	const reverted = await previewThenApply(userId, outlineId, {
+		...edit,
+		value: null,
+	})
+	expect(reverted).toMatchObject({
+		ok: true,
+		summary: { before: 34, after: 30, revert: true },
+	})
+	expect(
+		await prisma.weekVolumeOverride.findMany({ where: { trackId } }),
+	).toEqual([])
+	expect(await plannedKm(userId, '2030-01-14')).toBe(30)
+})
+
+test('a new rhythm lands behind its preview and clears the easy week chosen under the old one', async () => {
+	const { userId, outlineId } = await plan()
+	const phase = await prisma.planOutlinePhase.findFirstOrThrow({
+		where: { outlineId, orderIndex: 1 },
+		select: { id: true },
+	})
+	expect(
+		(
+			await previewThenApply(userId, outlineId, {
+				kind: 'easy-week',
+				weekKey: '2030-02-04',
+			})
+		).ok,
+	).toBe(true)
+	expect(
+		await prisma.planOutlinePhase.findUniqueOrThrow({
+			where: { id: phase.id },
+			select: { recoveryWeekIndex: true },
+		}),
+	).toEqual({ recoveryWeekIndex: 1 })
+
+	const changed = await previewThenApply(userId, outlineId, {
+		kind: 'phase',
+		phaseId: phase.id,
+		name: null,
+		weeks: null,
+		rhythm: '2:1',
+		tapers: null,
+	})
+	expect(changed.ok).toBe(true)
+	expect(
+		await prisma.planOutlinePhase.findUniqueOrThrow({
+			where: { id: phase.id },
+			select: { rhythm: true, recoveryWeekIndex: true },
+		}),
+	).toEqual({ rhythm: '2:1', recoveryWeekIndex: null })
 })

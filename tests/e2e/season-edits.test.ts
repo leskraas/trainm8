@@ -29,27 +29,32 @@ test('a new week target shows a preview with the 10 % warning, and the message s
 	await holdActive.getByRole('button', { name: 'Lag planen' }).click()
 	await expect(page.getByText('blokk 1 av ∞')).toBeVisible()
 
+	// The Weeks reading edits nothing itself: the plan's third week (a hard
+	// week after a hard week, never begun whatever day this runs) links to
+	// _Endre sesongen_, pre-filled for that week.
+	await page
+		.getByRole('navigation', { name: 'Season views' })
+		.getByRole('link', { name: 'Weeks' })
+		.click()
+	await page
+		.getByRole('list', { name: 'Training weeks' })
+		.getByText('Week 3', { exact: true })
+		.click()
+	const link = page.getByRole('link', { name: 'Endre ukemålet: week 3 Run' })
+	const weekKey = /weekKey=([\d-]+)/.exec(
+		(await link.getAttribute('href')) ?? '',
+	)?.[1]
+	expect(weekKey).toBeTruthy()
+	await link.click()
+
 	const card = page.getByRole('region', { name: 'Endre sesongen' })
-	await card.getByText('Endre ukemålet').click()
 	const form = card.getByRole('form', { name: 'Endre ukemålet' })
-	// The plan's third week: a hard week after a hard week, never begun
-	// whatever day this runs — the last of the open weeks at a full 4 hours
-	// (the fourth is the easy one).
-	const third = page
-		.getByRole('option')
-		.filter({ hasText: /· 4 t$/ })
-		.last()
-	// The shared select needs the page hydrated; retried until it opens.
-	await expect(async () => {
-		await form.getByRole('combobox', { name: 'Uke' }).click()
-		await expect(third).toBeVisible({ timeout: 1000 })
-	}).toPass()
-	const weekNumber = /Uke (\d+)/.exec((await third.textContent()) ?? '')?.[1]
+	await expect(form).toBeVisible()
+	const weekNumber = /Uke (\d+)/.exec(
+		(await form.getByRole('combobox', { name: 'Uke' }).textContent()) ?? '',
+	)?.[1]
 	expect(weekNumber).toBeTruthy()
-	await third.click()
-	await expect(form.getByRole('combobox', { name: 'Uke' })).toContainText(
-		`Uke ${weekNumber}`,
-	)
+	await expect(form.getByText('Nå: 4 t')).toBeVisible()
 	await form.getByLabel('Nytt ukemål (t)').fill('5')
 	await form.getByRole('button', { name: 'Vis forhåndsvisning' }).click()
 
@@ -71,6 +76,13 @@ test('a new week target shows a preview with the 10 % warning, and the message s
 			path: `${process.env.SEASON_EDIT_SHOTS}/week-target-preview.png`,
 		})
 	}
+
+	// Changing the form after previewing hides the preview: its confirm could
+	// otherwise apply a number the field no longer says.
+	await form.getByLabel('Nytt ukemål (t)').fill('6')
+	await expect(preview).toBeHidden()
+	await form.getByLabel('Nytt ukemål (t)').fill('5')
+	await expect(preview).toBeVisible()
 
 	await preview.getByRole('button', { name: 'Bruk endringen' }).click()
 

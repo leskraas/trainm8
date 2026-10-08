@@ -59,9 +59,26 @@ target or phase (`changes-lived-weeks`), is refused — the line ADR 0040 §5 dr
 for the anchor and the philosophy switch draws for itself. A name is intent, not
 a number, so a phase lived in may still be renamed.
 
-The direct-write intents (`rename-phase`, `resize-phase`, `set-week-override`)
-stay for the Blocks and Weeks readings; the _Endre sesongen_ card is the
-preview-first surface #505 asks for.
+**The Sesong edits are the only way these numbers change.** The plan page's
+direct writes — `rename-phase`, `resize-phase`, `set-phase-rhythm`,
+`set-week-override` and `clear-week-override` — are gone from its action (S13
+review). The Blocks and Weeks readings show a phase's rhythm and a week's target
+read-only and link to _Endre sesongen_ pre-filled (`?edit=phase&phaseId=…`,
+`?edit=week-target&weekKey=…&trackId=…`). The phase edit carries the rhythm and
+the taper flag too, and the week-target edit offers _Tilbake til planens mål_
+(removing the override) behind the same preview. A preview whose form has
+changed since is hidden, so its confirm can only apply what the fields say. The
+domain writes `renamePhase`, `resizePhase`, `setPhaseRhythm` and
+`set`/`clearWeekVolumeOverride` stay as tested primitives with no route caller;
+resize and rhythm keep a chosen easy week honest the same way (§2).
+
+**Still direct, and not routed through this preview:** applying a preset
+(`apply-preset`, which shows the shape before its Apply button), fitting to the
+Event (`fit-to-event`, which names the edit in full before its button), adding,
+moving and removing a phase, a segment's ramp, step, cuts and mix, a Season
+Anchor, a lifting block, and the Week Pattern. Those are authoring of the plan's
+rules rather than the four Sesong edits #505 v1 names; routing them through a
+preview is a follow-up.
 
 ### 2. A chosen easy week moves the easy week of its own block, and no other
 
@@ -75,7 +92,8 @@ block edge when the athlete puts them there; the preview shows both. A rhythm
 with no easy week, a taper, and an index outside the phase ignore it. One choice
 per phase: choosing again moves it, and a choice that would move one out of a
 block already lived is refused (§1). A resize that leaves the chosen week
-outside the phase clears it.
+outside the phase clears it, and so does a new rhythm or a taper, which reshape
+the blocks the choice was made in.
 
 `weekRole` reads it, so `phaseWeekRoles`, the targets (the climb resumes from
 the last loading week, ADR 0040 §2), home's `ActivePlan.weekRoles`, the season

@@ -13,6 +13,7 @@
 import { z } from 'zod'
 import { SEASON_EDIT_LABELS } from '#app/utils/labels.ts'
 import { PhaseWeeksSchema } from './authoring-schema.ts'
+import { RHYTHMS } from './derive.ts'
 import { type SeasonEdit, type SeasonEditKind } from './season-edit.ts'
 
 export const SEASON_EDIT_INTENTS = [
@@ -29,18 +30,18 @@ const shared = {
 const required = (message: string) =>
 	z.string({ required_error: message }).min(1, message)
 
-/** Blank is "keep what it has"; anything else is read as written. */
-const blankIsKeep = <T extends z.ZodTypeAny>(schema: T) =>
-	z.preprocess(
-		(value) =>
-			typeof value === 'string' && value.trim() === '' ? undefined : value,
-		schema.optional(),
-	)
+/**
+ * Blank is "keep what it has": conform reads an empty field as absent, so an
+ * optional schema is all a keep-field needs, and its input stays a string.
+ */
+function blankIsKeep<T extends z.ZodTypeAny>(schema: T) {
+	return schema.optional()
+}
 
 /**
  * A week target as typed: a number of 0 or more, a decimal comma allowed
- * (`46,5`). Blank is not "back to the rule" here — the edit says what the
- * week becomes.
+ * (`46,5`). Blank is allowed only beside _Tilbake til planens mål_ (`revert`),
+ * which hands the week back to the plan's own target.
  */
 const TargetField = z
 	.string({ required_error: SEASON_EDIT_LABELS.targetRequired })
@@ -70,7 +71,13 @@ export const WeekTargetEditFormSchema = z
 		edit: z.literal('week-target'),
 		weekKey: required(SEASON_EDIT_LABELS.pickWeek),
 		trackId: required(SEASON_EDIT_LABELS.pickTrack),
-		value: TargetField,
+		// Blank only with _Tilbake til planens mål_, which posts `revert`.
+		value: blankIsKeep(TargetField),
+		revert: z.literal('on').optional(),
+	})
+	.refine((value) => value.revert === 'on' || value.value != null, {
+		message: SEASON_EDIT_LABELS.targetRequired,
+		path: ['value'],
 	})
 	.refine(confirmedFromPreview.check, confirmedFromPreview.message)
 
@@ -97,6 +104,10 @@ export const PhaseEditFormSchema = z
 					}
 					return weeks
 				}),
+		),
+		rhythm: blankIsKeep(z.enum(RHYTHMS)),
+		tapers: blankIsKeep(
+			z.enum(['yes', 'no']).transform((tapers) => tapers === 'yes'),
 		),
 	})
 	.refine(confirmedFromPreview.check, confirmedFromPreview.message)
@@ -127,7 +138,7 @@ export function seasonEditOf(value: SeasonEditFormValue): SeasonEdit {
 				kind: 'week-target',
 				trackId: value.trackId,
 				weekKey: value.weekKey,
-				value: value.value,
+				value: value.revert === 'on' ? null : (value.value ?? null),
 			}
 		case 'phase':
 			return {
@@ -135,6 +146,8 @@ export function seasonEditOf(value: SeasonEditFormValue): SeasonEdit {
 				phaseId: value.phaseId,
 				name: value.name ?? null,
 				weeks: value.weeks ?? null,
+				rhythm: value.rhythm ?? null,
+				tapers: value.tapers ?? null,
 			}
 		case 'easy-week':
 			return { kind: 'easy-week', weekKey: value.weekKey }

@@ -2022,7 +2022,31 @@ export const SEASON_EDIT_LABELS = {
 	targetNumber: 'Ukemålet er et tall, 0 eller mer.',
 	weeksNumber: 'En fase varer fra 1 til 52 uker.',
 	nameTooLong: 'Navnet kan ha opptil 60 tegn.',
+	revert: 'Tilbake til planens mål',
+	revertHint:
+		'Tilbake til planens mål tar bort ukemålet du har satt selv, og uka følger planen igjen.',
+	phaseRhythm: 'Rytme',
+	phaseTapers: 'Trapper ned',
+	keep: 'Som nå',
+	yes: 'Ja',
+	no: 'Nei',
+	editHere: 'Endre i «Endre sesongen»',
+	now: 'Nå',
 } as const
+
+/** A phase's rhythm in the #505 surfaces' words (#505 story 73). */
+export const NB_RHYTHM_LABELS: Record<Rhythm, string> = {
+	'3:1': '3:1',
+	'2:1': '2:1',
+	none: 'uten lett uke',
+}
+
+/** A rhythm as a choice in the phase edit: what it means, not just its ratio. */
+export const NB_RHYTHM_CHOICE_LABELS: Record<Rhythm, string> = {
+	'3:1': '3:1 — tre harde uker, så en lett',
+	'2:1': '2:1 — to harde uker, så en lett',
+	none: 'Ingen lett uke',
+}
 
 /** Why a Sesong edit was refused, as the athlete reads it. */
 export const SEASON_EDIT_REFUSAL_LABELS: Record<
@@ -2041,6 +2065,7 @@ export const SEASON_EDIT_REFUSAL_LABELS: Record<
 	'plan-too-long':
 		'Da blir planen lengre enn to år. Gjør en fase kortere først.',
 	'no-change': 'Det er det planen allerede sier. Ingenting å endre.',
+	'not-hand-set': 'Den uka følger allerede planens mål.',
 	'outline-not-found': 'Fant ikke planen.',
 	'preview-stale':
 		'Planen har endret seg siden forhåndsvisningen. Se over den nye forhåndsvisningen før du godkjenner.',
@@ -2077,13 +2102,16 @@ export type SeasonEditWords =
 			kind: 'week-target'
 			weekNumber: number
 			before: string | null
-			after: string
+			after: string | null
 			unit: string
+			revert: boolean
 	  }
 	| {
 			kind: 'phase'
 			name: { before: string; after: string }
 			weeks: { before: number; after: number }
+			rhythm: { before: Rhythm; after: Rhythm }
+			tapers: { before: boolean; after: boolean }
 	  }
 	| {
 			kind: 'easy-week'
@@ -2107,20 +2135,42 @@ export function seasonEditSentence(
 
 function seasonEditHeadline(words: SeasonEditWords): string {
 	switch (words.kind) {
-		case 'week-target':
+		case 'week-target': {
+			const week = `Uke ${words.weekNumber}`
+			if (words.revert) {
+				return words.after == null || words.before == null
+					? `${week}: tilbake til planens mål.`
+					: `${week}: tilbake til planens mål, ${words.before} → ${words.after} ${words.unit}.`
+			}
 			return words.before == null
-				? `Uke ${words.weekNumber}: mål ${words.after} ${words.unit}.`
-				: `Uke ${words.weekNumber}: mål ${words.before} → ${words.after} ${words.unit}.`
+				? `${week}: mål ${words.after} ${words.unit}.`
+				: `${week}: mål ${words.before} → ${words.after} ${words.unit}.`
+		}
 		case 'phase': {
-			const renamed = words.name.before !== words.name.after
-			const resized = words.weeks.before !== words.weeks.after
-			if (renamed && resized) {
-				return `«${words.name.before}» heter nå «${words.name.after}» og varer ${nbWeeks(words.weeks.after)} (var ${words.weeks.before}).`
+			const { name, weeks, rhythm, tapers } = words
+			const clauses = [
+				...(name.before !== name.after ? [`heter nå «${name.after}»`] : []),
+				...(weeks.before !== weeks.after
+					? [`varer ${nbWeeks(weeks.after)} (var ${weeks.before})`]
+					: []),
+				...(rhythm.before !== rhythm.after
+					? [
+							`går nå ${NB_RHYTHM_LABELS[rhythm.after]} (var ${NB_RHYTHM_LABELS[rhythm.before]})`,
+						]
+					: []),
+				...(tapers.before !== tapers.after
+					? [tapers.after ? 'trapper nå ned' : 'trapper ikke lenger ned']
+					: []),
+			]
+			// A length alone reads as the figure it is: `Base: 4 → 6 uker.`
+			if (clauses.length === 1 && weeks.before !== weeks.after) {
+				return `${name.before}: ${weeks.before} → ${nbWeeks(weeks.after)}.`
 			}
-			if (renamed) {
-				return `«${words.name.before}» heter nå «${words.name.after}».`
-			}
-			return `${words.name.before}: ${words.weeks.before} → ${nbWeeks(words.weeks.after)}.`
+			const list =
+				clauses.length === 1
+					? clauses[0]!
+					: `${clauses.slice(0, -1).join(', ')} og ${clauses.at(-1)}`
+			return `«${name.before}» ${list}.`
 		}
 		case 'easy-week':
 			return words.previousWeekNumber == null

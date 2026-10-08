@@ -1879,6 +1879,42 @@ test('rhythm and the taper flag are authored per phase, not per season', async (
 	])
 })
 
+test('a chosen easy week goes when a resize leaves it outside the phase, or a new rhythm reshapes its blocks', async () => {
+	const { athleteId, phaseIds } = await authoredPlan()
+	const easyWeekOf = async (id: string) =>
+		(
+			await prisma.planOutlinePhase.findUniqueOrThrow({
+				where: { id },
+				select: { recoveryWeekIndex: true },
+			})
+		).recoveryWeekIndex
+	await prisma.planOutlinePhase.update({
+		where: { id: phaseIds[0]! },
+		data: { recoveryWeekIndex: 5 },
+	})
+	await resizePhase(athleteId, { phaseId: phaseIds[0]!, weeks: 7 })
+	expect(await easyWeekOf(phaseIds[0]!)).toBe(5)
+	await resizePhase(athleteId, { phaseId: phaseIds[0]!, weeks: 5 })
+	expect(await easyWeekOf(phaseIds[0]!)).toBeNull()
+
+	await prisma.planOutlinePhase.update({
+		where: { id: phaseIds[0]! },
+		data: { recoveryWeekIndex: 1 },
+	})
+	await setPhaseRhythm(athleteId, {
+		phaseId: phaseIds[0]!,
+		rhythm: '3:1',
+		tapers: false,
+	})
+	expect(await easyWeekOf(phaseIds[0]!)).toBe(1)
+	await setPhaseRhythm(athleteId, {
+		phaseId: phaseIds[0]!,
+		rhythm: '2:1',
+		tapers: false,
+	})
+	expect(await easyWeekOf(phaseIds[0]!)).toBeNull()
+})
+
 test('a phase moves one position at a time, and the ends refuse', async () => {
 	const { athleteId, outlineId, phaseIds } = await authoredPlan()
 
