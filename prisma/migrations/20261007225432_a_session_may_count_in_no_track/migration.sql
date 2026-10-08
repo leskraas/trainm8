@@ -3,5 +3,8 @@
 -- still feeds Training Load.
 --
 -- Additive only. Every existing session reads `false` — counted in its track,
--- exactly as before — so no stored number moves, and no corpus data ships here.
+-- exactly as before.
+--
+-- **No stored number moves. No Load Recompute Notice is owed.** No existing
+-- value is rewritten and no corpus data ships here.
 ALTER TABLE "WorkoutSession" ADD COLUMN "countsInNoTrack" BOOLEAN NOT NULL DEFAULT false;
