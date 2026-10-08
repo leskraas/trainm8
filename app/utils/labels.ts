@@ -41,6 +41,10 @@ import type {
 	SessionArchetype,
 } from './catalogue.ts'
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
+import type {
+	ImportLinkRefusal,
+	MarkDoneRefusal,
+} from './import-link-schema.ts'
 // The domain owns *which* outcomes a stored Week Replan can carry (ADR 0080);
 // this module owns the name each one goes by.
 import type { AdherenceTone } from './load/adherence.ts'
@@ -968,6 +972,62 @@ export const RELEASE_ACTION_LABELS = {
 	released: 'Låst opp. Appen kan justere økta igjen.',
 	notFound: 'Fant ikke økta. Den kan være slettet.',
 } as const
+
+// ---------------------------------------------------------------------------
+// Imports on I dag (#505 stories 78–82, ADR 0049 as amended)
+// ---------------------------------------------------------------------------
+
+/** An import's row: ekstra, "hva var dette?", Angre kobling / Koble igjen. */
+export const IMPORT_LINK_LABELS = {
+	/** The chip on a session that was recorded with no plan behind it. */
+	extra: 'ekstra',
+	question: 'Hva var dette?',
+	/** Under the question: why it is asked at all. */
+	questionNote: (count: number) =>
+		count === 1
+			? 'Det lå en planlagt økt denne dagen som ikke ble koblet.'
+			: `Det lå ${count} planlagte økter denne dagen, og vi vet ikke hvilken.`,
+	linkTo: (title: string) => `Det var ${title}`,
+	keep: 'En ekstra økt',
+	annet: 'Annet, teller ikke',
+	/** The group's accessible name: which session is asked about. */
+	questionFor: (title: string) => `Hva var ${title}?`,
+	undo: 'Angre kobling',
+	undoFor: (title: string) => `Angre kobling på ${title}`,
+	undoNote: 'Hentet fra importen. Feil økt? Da blir den en ekstra økt.',
+	relink: 'Koble igjen',
+	relinkFor: (title: string) => `Koble igjen til ${title}`,
+	relinkNote: (title: string) => `Tilbake til ${title}.`,
+	/** Said while the post is in flight, before the row moves. */
+	saving: 'Lagrer …',
+} as const
+
+/** Why the server turned an import answer down, said to the athlete. */
+export const IMPORT_LINK_REFUSAL_LABELS: Record<ImportLinkRefusal, string> = {
+	'import-not-found': 'Fant ikke importen. Den kan være slettet.',
+	'session-not-found': 'Fant ikke økta, eller den har fått en annen import.',
+	'not-linked': 'Importen er ikke koblet til en planlagt økt.',
+	'nothing-to-relink':
+		'Økta den kom fra er borte eller har fått en annen import.',
+}
+
+/**
+ * _Gjort_ by hand, and what a done session with no numbers says (#505 story
+ * 82). With an import connected the numbers are on their way; without one,
+ * nothing will bring them, and the row says so instead of promising.
+ */
+export const MARK_DONE_LABELS = {
+	action: 'Gjort',
+	actionFor: (title: string) => `Merk ${title} som gjort`,
+	fromImport: 'Gjort · tallene kommer fra importen',
+	noImport: 'Gjort · uten tall, ingen import er koblet til',
+	saving: 'Merket som gjort …',
+} as const
+
+export const MARK_DONE_REFUSAL_LABELS: Record<MarkDoneRefusal, string> = {
+	'session-not-found': 'Fant ikke økta. Den kan være slettet.',
+	'not-markable': 'Økta kan ikke merkes som gjort nå.',
+}
 
 /** The large-screen season pane beside the list (#505 story 60). */
 export const SEASON_PANE_LABELS = {

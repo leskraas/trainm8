@@ -112,7 +112,80 @@ test('auto-save: matches a same-day planned session when exactly one fits', asyn
 
 	const saved = await autoSaveImport(user.id, imported.id, 'UTC')
 
-	expect(saved).toEqual({ sessionId: session.id, matchedPlan: true })
+	expect(saved).toEqual({
+		sessionId: session.id,
+		matchedPlan: true,
+		unsure: false,
+	})
+	// The activity happened, so the planned session it fits is done (#505
+	// story 78) — not left reading "ikke gjort" with a Recording on it.
+	const linked = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: session.id },
+		select: { status: true, recordingId: true },
+	})
+	expect(linked).toEqual({ status: 'completed', recordingId: imported.id })
+})
+
+test('auto-save: an import that fits nothing becomes an ekstra session on its day, and nothing is asked', async () => {
+	const user = await createUserWithPassword()
+	// A ride planned that day is not a run: nothing fits.
+	const ride = await createWorkoutForUser(user.id, 'bike')
+	await prisma.workoutSession.create({
+		data: { userId: user.id, workoutId: ride.id, scheduledAt: daysAgo(1) },
+	})
+	const imported = await createActivityImport(
+		user.id,
+		makeImportData({ discipline: 'run', startedAt: daysAgo(1) }),
+	)
+
+	const saved = await autoSaveImport(user.id, imported.id, 'UTC')
+
+	expect(saved).toMatchObject({ matchedPlan: false, unsure: false })
+	const ekstra = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: saved!.sessionId },
+		select: { source: true, status: true, workoutId: true, scheduledAt: true },
+	})
+	expect(ekstra).toEqual({
+		source: 'recorded',
+		status: 'completed',
+		workoutId: null,
+		scheduledAt: imported.startedAt,
+	})
+})
+
+test('auto-save: two planned sessions that both fit leave it unsure — ekstra, flagged, and neither plan is taken', async () => {
+	const user = await createUserWithPassword()
+	const morning = await createWorkoutForUser(user.id, 'run')
+	const evening = await createWorkoutForUser(user.id, 'run')
+	const plans = await Promise.all(
+		[morning, evening].map((workout) =>
+			prisma.workoutSession.create({
+				select: { id: true },
+				data: {
+					userId: user.id,
+					workoutId: workout.id,
+					scheduledAt: daysAgo(1),
+				},
+			}),
+		),
+	)
+	const imported = await createActivityImport(
+		user.id,
+		makeImportData({ discipline: 'run', startedAt: daysAgo(1) }),
+	)
+
+	const saved = await autoSaveImport(user.id, imported.id, 'UTC')
+
+	expect(saved).toMatchObject({ matchedPlan: false, unsure: true })
+	expect(plans.map((plan) => plan.id)).not.toContain(saved!.sessionId)
+	const untouched = await prisma.workoutSession.findMany({
+		where: { id: { in: plans.map((plan) => plan.id) } },
+		select: { recordingId: true, status: true },
+	})
+	expect(untouched).toEqual([
+		{ recordingId: null, status: 'scheduled' },
+		{ recordingId: null, status: 'scheduled' },
+	])
 })
 
 test('auto-save: stands up a recording-only session when no plan fits', async () => {

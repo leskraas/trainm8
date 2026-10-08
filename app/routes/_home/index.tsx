@@ -116,6 +116,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		athleteProfile,
 		strengthCount,
 		stampDiscipline,
+		importConnections,
 	] = await Promise.all([
 		ledgerRead,
 		getCurrentLoad(userId),
@@ -151,6 +152,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 		// derives its own default with, so the two ways in cannot disagree about
 		// what this athlete trains.
 		readMostTrainedDiscipline(userId),
+		// Whether an import source is connected, so a session marked done with
+		// no numbers may say the numbers come from the import (#505 story 82) —
+		// and says something honest instead when nothing will bring them.
+		prisma.accountConnection.count({
+			where: { athleteId: userId, status: 'active' },
+		}),
 	])
 	// The Athlete Timezone the shared formatting layer renders in (#172) — the
 	// same zone the server-computed nudge names weekdays with.
@@ -202,6 +209,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		loadRecomputeNotice,
 		strengthCount,
 		stampDiscipline,
+		importConnected: importConnections > 0,
 	}
 }
 

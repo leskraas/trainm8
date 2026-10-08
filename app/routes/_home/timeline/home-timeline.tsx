@@ -95,6 +95,11 @@ export type HomeTimelineData = {
 	 * while one still waits for an answer; null otherwise.
 	 */
 	weekChange?: WeekChangeData | null
+	/**
+	 * Whether an import source is connected (#505 story 82): a session done by
+	 * hand then says its numbers come from the import.
+	 */
+	importConnected?: boolean
 	personalRecords: PersonalRecord[]
 	/**
 	 * The Discipline a tapped empty cell prefills — the athlete's **most-trained**,
@@ -142,6 +147,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		weekReplan,
 		personalRecords,
 		weekChange = null,
+		importConnected = false,
 	} = data
 	// `now` comes from the loader so SSR and hydration agree on "today", and the
 	// Athlete Timezone fixes which calendar day that instant reads as — the same
@@ -153,8 +159,15 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 	const timezone = useAthleteTimezone()
 
 	const season = useMemo(
-		() => buildTimelineSeason({ ledger, now, timezone, activePlan }),
-		[activePlan, ledger, now, timezone],
+		() =>
+			buildTimelineSeason({
+				ledger,
+				now,
+				timezone,
+				activePlan,
+				importConnected,
+			}),
+		[activePlan, importConnected, ledger, now, timezone],
 	)
 	const hero = useMemo(
 		() =>

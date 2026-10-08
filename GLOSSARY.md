@@ -1889,8 +1889,31 @@ Window**, file upload, share target), so an import is never left unattached and
 invisible. There is no **Activity Inbox** and no confirmation step; a wrong
 auto-match is corrected from the **Workout Detail View**, which can move a
 **Recording** to another planned session that day or lift it off the plan onto
-its own. `'other'` imports (ADR 0015) never match a plan but still auto-save.
-_Avoid_: Activity Inbox, import queue, promote step, confirmation.
+its own. `'other'` imports (ADR 0015) never match a plan but still auto-save. A
+link completes the planned session it lands on (a session holding a
+**Recording** is done), and undoing the link puts it back to not done — or to
+done, if the athlete marked it **Gjort** by hand. On I dag (#505 stories 78–82)
+each import's row offers **Angre kobling** (lift it off the plan onto an
+**Ekstra** session of its own) and **Koble igjen** (put it back), and the row
+asks **"hva var dette?"** only when auto-save was unsure: an Ekstra on a day
+that still has an unrecorded planned session of the same sport — two or more
+fitted, or the plan was written after the run landed. The answers are _it was
+this session_, _en ekstra økt_, or **Annet**; any answer, or an Angre kobling,
+is remembered on the import, so nothing is asked twice. _Avoid_: Activity Inbox,
+import queue, promote step, confirmation.
+
+**Ekstra**: A session that exists only because an activity was recorded — a
+recording-only session (Session Source `recorded` or `detected`) with no plan
+behind it. Labelled `ekstra` on its row on I dag. It counts in its sport's track
+like any done session (unless put in **Annet**), and is never Planned Volume.
+_Avoid_: Unplanned session, orphan, extra workout.
+
+**Gjort (by hand)**: The athlete marks a session done with no **Recording**
+(#505 story 82): `markedDoneAt`, status `completed`. Its numbers come later,
+from the import that links onto it; until then the row says _tallene kommer fra
+importen_ when an import source is connected, and _uten tall_ when none is,
+rather than promising numbers nothing will bring. The week counts it as done
+without a number (`+1 uten km`), never as zero.
 
 **Auto-Save Mirror**: An **Activity Import** the athlete has not built anything
 on — its recording-only session is still structureless and carries no **Session

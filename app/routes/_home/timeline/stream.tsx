@@ -48,6 +48,7 @@ import { bandScrollTop, offsetWithin } from './anchoring.ts'
 import { StampDraft, StampedSentence } from './day-stamp-cell.tsx'
 import { useDayStamp } from './day-stamp-context.tsx'
 import { DiscDot } from './disc-dot.tsx'
+import { ImportLinkAction, MarkDoneAction } from './import-actions.tsx'
 import {
 	type TimelineBand,
 	type TimelineDay,
@@ -928,8 +929,31 @@ function SessionRow({
 						{session.internalLoad}
 					</span>
 				) : null}
-				{session.chips.length > 0 || session.annet?.inAnnet ? (
+				{/* Done with no numbers: where they will come from (story 82). */}
+				{session.doneNote ? (
+					<span
+						data-done-note
+						className="text-ink-dim text-[11.5px]/[1.35] [text-wrap:pretty]"
+					>
+						{session.doneNote}
+					</span>
+				) : null}
+				{session.chips.length > 0 ||
+				session.annet?.inAnnet ||
+				session.extraLabel ? (
 					<span className="flex flex-wrap gap-1.5">
+						{/* Recorded with no plan behind it (#505 story 79). */}
+						{session.extraLabel ? (
+							<span
+								data-extra-chip
+								className={cn(
+									'rounded-[6px] border px-[7px] py-[2px] text-[10px]/[1.5]',
+									CHIP_TONE.muted,
+								)}
+							>
+								{session.extraLabel}
+							</span>
+						) : null}
 						{/* Counted in nothing, by the athlete's own choice (story 33). */}
 						{session.annet?.inAnnet ? (
 							<span
@@ -963,10 +987,20 @@ function SessionRow({
 			</span>
 		</Link>
 	)
-	if (!session.annet && !session.release) return row
+	if (
+		!session.annet &&
+		!session.release &&
+		!session.importLink &&
+		!session.markDone
+	) {
+		return row
+	}
 	return (
 		<div className={cn(day.isToday && 'bg-primary/7')}>
 			{row}
+			{session.importLink ? (
+				<ImportLinkAction link={session.importLink} />
+			) : null}
 			{session.annet ? (
 				<AnnetAction
 					sessionId={session.id}
@@ -974,13 +1008,26 @@ function SessionRow({
 					label={session.annet.actionLabel}
 				/>
 			) : null}
-			{session.release ? (
-				<ReleaseAction
-					sessionId={session.id}
-					title={session.title}
-					label={session.release.actionLabel}
-					note={session.release.note}
-				/>
+			{/* _Gjort_ and _Lås opp_ share one line: both are about a planned
+			    session, and a row should not grow a line per offer. */}
+			{session.markDone || session.release ? (
+				<div className="-mt-[14px] flex flex-wrap items-center gap-x-4 pr-[18px] pl-[76px]">
+					{session.markDone ? (
+						<MarkDoneAction
+							sessionId={session.id}
+							label={session.markDone.actionLabel}
+							ariaLabel={session.markDone.label}
+						/>
+					) : null}
+					{session.release ? (
+						<ReleaseAction
+							sessionId={session.id}
+							title={session.title}
+							label={session.release.actionLabel}
+							note={session.release.note}
+						/>
+					) : null}
+				</div>
 			) : null}
 		</div>
 	)
@@ -1025,7 +1072,7 @@ function ReleaseAction({
 			method="post"
 			action={SESSION_RELEASE_ACTION}
 			{...getFormProps(form)}
-			className="-mt-[14px] flex flex-wrap items-center gap-x-2 pr-[18px] pl-[76px]"
+			className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2"
 		>
 			<input {...getInputProps(fields.sessionId, { type: 'hidden' })} />
 			{sent ? (

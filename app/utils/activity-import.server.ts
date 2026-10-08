@@ -231,25 +231,22 @@ export async function deleteImportIfAutoSaveMirror(
 }
 
 /**
- * Attempts to auto-match the import to a planned same-day same-discipline
- * WorkoutSession. Returns null if there are zero or multiple candidates.
- * athleteTimezone is an IANA tz string used to determine the calendar day.
+ * The planned sessions an import could be: same local day, same discipline,
+ * carrying a Workout, and not already holding a Recording. The one rule both
+ * auto-match and its "unsure" verdict read, so they cannot disagree about what
+ * fits. Empty for an unknown import and for `'other'` — an import-only
+ * discipline (ADR 0015) with no modeled planned session to match against.
  */
-export async function autoMatchImport(
+async function findPlanCandidates(
 	athleteId: string,
 	importId: string,
 	athleteTimezone: string,
-) {
+): Promise<string[]> {
 	const imported = await prisma.activityImport.findFirst({
 		where: { id: importId, athleteId },
 		select: { id: true, startedAt: true, discipline: true },
 	})
-	if (!imported) return null
-
-	// 'other' is an import-only discipline (ADR 0015): it has no modeled planned
-	// session to match against, so it never matches. Auto-save still gives it a
-	// recording-only session of its own (ADR 0049).
-	if (imported.discipline === 'other') return null
+	if (!imported || imported.discipline === 'other') return []
 
 	const { start: dayStart, end: dayEnd } = dayBoundsUTC(
 		localDate(imported.startedAt, athleteTimezone),
@@ -265,12 +262,29 @@ export async function autoMatchImport(
 		},
 		select: { id: true },
 	})
+	return candidates.map((candidate) => candidate.id)
+}
 
+/**
+ * Attempts to auto-match the import to a planned same-day same-discipline
+ * WorkoutSession. Returns null if there are zero or multiple candidates.
+ * athleteTimezone is an IANA tz string used to determine the calendar day.
+ */
+export async function autoMatchImport(
+	athleteId: string,
+	importId: string,
+	athleteTimezone: string,
+) {
+	const candidates = await findPlanCandidates(
+		athleteId,
+		importId,
+		athleteTimezone,
+	)
 	if (candidates.length !== 1) return null
 
-	const session = candidates[0]!
-	await linkImportToSession(importId, session.id)
-	return { importId, sessionId: session.id }
+	const sessionId = candidates[0]!
+	await linkImportToSession(importId, sessionId)
+	return { importId, sessionId }
 }
 
 export async function promoteToExistingSession(
@@ -375,19 +389,41 @@ export async function autoSaveImport(
 	athleteId: string,
 	importId: string,
 	athleteTimezone: string,
-): Promise<{ sessionId: string; matchedPlan: boolean } | null> {
-	const matched = await autoMatchImport(athleteId, importId, athleteTimezone)
-	if (matched) {
-		// autoMatchImport links but leaves the load recompute to its caller.
+): Promise<AutoSaveResult | null> {
+	const candidates = await findPlanCandidates(
+		athleteId,
+		importId,
+		athleteTimezone,
+	)
+	if (candidates.length === 1) {
+		await linkImportToSession(importId, candidates[0]!)
 		await triggerRecomputeForImport(importId)
-		return { sessionId: matched.sessionId, matchedPlan: true }
+		return { sessionId: candidates[0]!, matchedPlan: true, unsure: false }
 	}
 
 	const promoted = await promoteToNewSession(athleteId, importId).catch(
 		() => null,
 	)
 	if (!promoted) return null
-	return { sessionId: promoted.session.id, matchedPlan: false }
+	// Several planned sessions fit and the rule will not pick one: the import
+	// stands as an _ekstra_ session, and I dag asks "hva var dette?" (#505
+	// story 80). One that fits nothing is simply ekstra — nothing to ask.
+	return {
+		sessionId: promoted.session.id,
+		matchedPlan: false,
+		unsure: candidates.length > 1,
+	}
+}
+
+/**
+ * What auto-save did with an import: linked it to the one planned session
+ * that fit, or stood it up as an _ekstra_ session of its own — `unsure` when
+ * more than one planned session could have been it, so the athlete is asked.
+ */
+export type AutoSaveResult = {
+	sessionId: string
+	matchedPlan: boolean
+	unsure: boolean
 }
 
 /**
@@ -480,9 +516,20 @@ function isRecordingOnlySource(session: {
 async function releaseRecording(importId: string, sessionId: string) {
 	const session = await prisma.workoutSession.findUnique({
 		where: { id: sessionId },
-		select: { id: true, workoutId: true, source: true, adoptedAt: true },
+		select: {
+			id: true,
+			workoutId: true,
+			source: true,
+			adoptedAt: true,
+			markedDoneAt: true,
+			_count: { select: { setLogs: true } },
+		},
 	})
 	if (!session) return
+	// The Recording was what made the session done. Without it the session is
+	// done only if the athlete said so by hand, or lifted sets on it — the two
+	// ways a session is done with no Recording (#505 story 82, ADR 0056).
+	const stillDone = session.markedDoneAt != null || session._count.setLogs > 0
 
 	await prisma.$transaction(async (tx) => {
 		// Clear the import's promoted pointer first to avoid FK issues.
@@ -501,21 +548,30 @@ async function releaseRecording(importId: string, sessionId: string) {
 		} else {
 			await tx.workoutSession.update({
 				where: { id: session.id },
-				data: { recordingId: null },
+				data: {
+					recordingId: null,
+					status: stillDone ? 'completed' : 'scheduled',
+				},
 			})
 		}
 	})
 }
 
+/**
+ * Put a Recording on a session. A session holding a Recording is done — the
+ * activity happened — so the link completes it, which is what moves it from
+ * "ikke gjort" to done on I dag and into the week's Actual Volume. Any earlier
+ * _Angre kobling_ is forgotten: the import has a session again.
+ */
 async function linkImportToSession(importId: string, sessionId: string) {
 	await prisma.$transaction([
 		prisma.workoutSession.update({
 			where: { id: sessionId },
-			data: { recordingId: importId },
+			data: { recordingId: importId, status: 'completed' },
 		}),
 		prisma.activityImport.update({
 			where: { id: importId },
-			data: { promotedSessionId: sessionId },
+			data: { promotedSessionId: sessionId, unlinkedFromSessionId: null },
 		}),
 	])
 }

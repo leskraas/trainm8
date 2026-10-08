@@ -6,6 +6,10 @@ import {
 	EVENT_STATUSES,
 } from './event-schema.ts'
 import {
+	IMPORT_LINK_REFUSALS,
+	MARK_DONE_REFUSALS,
+} from './import-link-schema.ts'
+import {
 	CONVERSION_CONVENTION_LABELS,
 	quotedSession,
 	roundFactorLabel,
@@ -30,6 +34,8 @@ import {
 	RHYTHM_SUMMARY_LABELS,
 	NB_WEEKDAY_LABELS,
 	SESSION_OWNER_LABELS,
+	IMPORT_LINK_REFUSAL_LABELS,
+	MARK_DONE_REFUSAL_LABELS,
 	WEEK_REPLAN_OUTCOME_LABELS,
 	STEP_KIND_LABELS,
 	STRENGTH_GOAL_LABELS,
@@ -383,4 +389,13 @@ test('the Ukeskiftet card says a round’s volume, silence and its answers in th
 	expect(quotedSession(null)).toBe('økta')
 	expect(WEEK_CHANGE_LABELS.ok).toBe('Ok')
 	expect(WEEK_CHANGE_LABELS.no).toBe('Nei takk')
+})
+
+test('every refusal on an import row is said in words (#505 stories 80–82)', () => {
+	for (const reason of IMPORT_LINK_REFUSALS) {
+		expect(IMPORT_LINK_REFUSAL_LABELS[reason]).toBeTruthy()
+	}
+	for (const reason of MARK_DONE_REFUSALS) {
+		expect(MARK_DONE_REFUSAL_LABELS[reason]).toBeTruthy()
+	}
 })

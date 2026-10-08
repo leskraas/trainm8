@@ -1033,7 +1033,7 @@ model WorkoutSession {
   /// retracted from it. That is the *same* engine restating what it found about
   /// its own recording, never a takeover, and it is guarded to unadopted
   /// sessions.
-  source     String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
+  source          String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
   /// **Session Adoption** (#460) — when the athlete took a machine-produced
   /// session over. Null means untouched, which is what re-detection (ADR 0033)
   /// and regeneration (ADR 0016) are really asking about; a timestamp means the
@@ -1043,19 +1043,24 @@ model WorkoutSession {
   /// Set only when a save actually changes the prescription — the blocks, the
   /// discipline or the intent. A reschedule, a rename, or a no-op save is not a
   /// takeover (#459).
-  adoptedAt  DateTime?
+  adoptedAt       DateTime?
   /// **Session Release** ("lås opp", #505, ADR 0080) — when the athlete handed
   /// one of their own sessions back to the app. A released session is the
   /// machine's again (`session-ownership.ts`), whatever its source and adoption
   /// say, so the Week Replan may change it without asking. Cleared the moment
   /// the athlete rewrites its prescription again: that re-adopts it.
-  releasedAt DateTime?
+  releasedAt      DateTime?
   /// **Annet** (#505 story 33) — the athlete put this session in no Training
   /// Track: it moves no track's Planned or Actual Volume, whatever its
   /// Discipline (a bike commute on a plan with a ride track). Its TSS still
   /// feeds Training Load, which is physiological. Not a prescription change, so
   /// it neither adopts nor releases the session.
-  countsInNoTrack Boolean @default(false)
+  countsInNoTrack Boolean   @default(false)
+  /// When the athlete marked this session done by hand (_Gjort_, #505 story
+  /// 82) — done, with no Recording yet to say how much. A Recording linked
+  /// later completes it as any link does; undoing that link puts the session
+  /// back to done-by-hand rather than to not done, because the athlete said so.
+  markedDoneAt    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1080,6 +1085,8 @@ model WorkoutSession {
   planOutlineId String?
 
   promotedImports     ActivityImport[]            @relation("ImportPromotedTo")
+  /// Imports the athlete lifted off this session with _Angre kobling_.
+  unlinkedImports     ActivityImport[]            @relation("ImportUnlinkedFrom")
   /// The sets lifted on this occasion — the strength track's actual, and the only
   /// route by which one can exist (no provider exports set-by-set data).
   setLogs             ExerciseSetLog[]
@@ -1609,37 +1616,47 @@ model SessionLog {
 }
 
 model ActivityImport {
-  id                String   @id @default(cuid())
-  athleteId         String
-  externalProvider  String // 'manual' | 'strava' | 'intervalsicu' | 'garmin'
-  externalId        String
-  startedAt         DateTime
-  endedAt           DateTime
-  durationSec       Int
-  distanceM         Float?
-  discipline        String // run | bike | swim | strength
-  hrAvg             Float?
-  hrMax             Float?
-  powerAvg          Float?
-  powerMax          Float?
-  powerWeightedAvg  Float? // provider weighted-average power ≈ Normalized Power
-  cadenceAvg        Float?
-  paceAvgSecPerKm   Float?
-  speedMaxMps       Float?
-  elevationGainM    Float?
-  kilojoules        Float? // total mechanical work (rides)
-  polyline          String?
-  phaseBarsJson     String? // derived intensity-zone phases (JSON ProfileBar[]) for recordings
-  lapsJson          String? // provider lap markers (JSON), populated later (#328); null when absent
-  rawJson           String // full provider payload, verbatim (lossless; see strava/types.ts)
-  promotedSessionId String?
-  tssValue          Float? // computed TSS (null = unavailable)
-  tssFormula        String? // 'coggan' | 'hrTSS' | 'rTSS' | 'sTSS' | 'sRPE'
-  tssConfidence     String? // 'high' | 'medium' | 'low'
-  createdAt         DateTime @default(now())
+  id                    String    @id @default(cuid())
+  athleteId             String
+  externalProvider      String // 'manual' | 'strava' | 'intervalsicu' | 'garmin'
+  externalId            String
+  startedAt             DateTime
+  endedAt               DateTime
+  durationSec           Int
+  distanceM             Float?
+  discipline            String // run | bike | swim | strength
+  hrAvg                 Float?
+  hrMax                 Float?
+  powerAvg              Float?
+  powerMax              Float?
+  powerWeightedAvg      Float? // provider weighted-average power ≈ Normalized Power
+  cadenceAvg            Float?
+  paceAvgSecPerKm       Float?
+  speedMaxMps           Float?
+  elevationGainM        Float?
+  kilojoules            Float? // total mechanical work (rides)
+  polyline              String?
+  phaseBarsJson         String? // derived intensity-zone phases (JSON ProfileBar[]) for recordings
+  lapsJson              String? // provider lap markers (JSON), populated later (#328); null when absent
+  rawJson               String // full provider payload, verbatim (lossless; see strava/types.ts)
+  promotedSessionId     String?
+  /// When the athlete answered for this import on I dag (#505 stories 80–81):
+  /// linked it to a planned session, kept it as an _ekstra_ session, put it in
+  /// Annet, or undid an automatic link. Once answered, the app stops asking
+  /// "hva var dette?" about it. Null while nobody has said anything.
+  linkAnsweredAt        DateTime?
+  /// The planned session the athlete lifted this import off with _Angre
+  /// kobling_ (#505 story 81), so _Koble igjen_ knows where it came from.
+  /// Cleared by any later link; null when the session itself is deleted.
+  unlinkedFromSessionId String?
+  tssValue              Float? // computed TSS (null = unavailable)
+  tssFormula            String? // 'coggan' | 'hrTSS' | 'rTSS' | 'sTSS' | 'sRPE'
+  tssConfidence         String? // 'high' | 'medium' | 'low'
+  createdAt             DateTime  @default(now())
 
   athlete         User              @relation(fields: [athleteId], references: [id], onDelete: Cascade)
   promotedSession WorkoutSession?   @relation("ImportPromotedTo", fields: [promotedSessionId], references: [id])
+  unlinkedFrom    WorkoutSession?   @relation("ImportUnlinkedFrom", fields: [unlinkedFromSessionId], references: [id], onDelete: SetNull)
   recordingFor    WorkoutSession[]  @relation("SessionRecording")
   stream          ActivityStream?
   detection       WorkoutDetection?

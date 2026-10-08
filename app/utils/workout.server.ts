@@ -1,5 +1,7 @@
 import { type Prisma } from '@prisma/client'
+import { localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
+import { type MarkDoneRefusal } from './import-link-schema.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import { triggerRecomputeForSession } from './session-log.server.ts'
 import { deriveWorkoutTitle } from './session-title.ts'
@@ -467,6 +469,44 @@ export async function markSessionMissed(userId: string, sessionId: string) {
 	})
 	await triggerRecomputeForSession(session.id, { clampFutureToToday: true })
 	return { marked: true as const }
+}
+
+export type MarkSessionDoneResult =
+	| { ok: true }
+	| { ok: false; reason: MarkDoneRefusal }
+
+/**
+ * _Gjort_ (#505 story 82): the athlete says a session is done, by hand, before
+ * — or instead of — a Recording saying how much. Only a session not yet done,
+ * holding no Recording, on a day that has begun (today or earlier, in the
+ * Athlete Timezone): a session cannot be done ahead of its day. Stamps
+ * `markedDoneAt`, so undoing a later link keeps it done (`releaseRecording`).
+ *
+ * An import that lands later links onto it like onto any planned session
+ * (`autoSaveImport`: it holds no Recording), and the week's numbers follow.
+ */
+export async function markSessionDone(
+	userId: string,
+	sessionId: string,
+	{ now = new Date(), timezone }: { now?: Date; timezone: string },
+): Promise<MarkSessionDoneResult> {
+	const session = await prisma.workoutSession.findFirst({
+		where: { id: sessionId, userId },
+		select: { id: true, status: true, recordingId: true, scheduledAt: true },
+	})
+	if (!session) return { ok: false, reason: 'session-not-found' }
+	const begun =
+		localDate(session.scheduledAt, timezone) <= localDate(now, timezone)
+	if (session.status === 'completed' || session.recordingId != null || !begun) {
+		return { ok: false, reason: 'not-markable' }
+	}
+
+	await prisma.workoutSession.update({
+		where: { id: session.id },
+		data: { status: 'completed', markedDoneAt: now },
+	})
+	await triggerRecomputeForSession(session.id)
+	return { ok: true }
 }
 
 export async function getWorkoutSessionForEdit(

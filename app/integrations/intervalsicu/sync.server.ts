@@ -20,8 +20,12 @@ import { INTERVALSICU_PROVIDER } from './types.ts'
  * unmodeled types collapse to
  * `'other'` (ADR 0015) and are excluded from auto-match.
  *
- * Like Strava's manual sync (#72), this only *links* imports to an existing
- * planned session — it never auto-creates recording-only sessions.
+ * The activities endpoint lists completed activities only — Intervals.icu keeps
+ * planned workouts as calendar events, which this never reads. Each one goes
+ * through `autoSaveImport` (via `fileIntervalsIcuActivities`): linked to the
+ * one planned session that fits, or stood up as an _ekstra_ recording-only
+ * session on its day — flagged unsure when several planned sessions fit, so
+ * I dag asks "hva var dette?" (#505 stories 78–80).
  *
  * A key rejection (401/403) flips the connection to `revoked` on the row —
  * regenerated keys never come back on their own (ADR 0026); the athlete

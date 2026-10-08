@@ -104,6 +104,8 @@ function session(overrides: Partial<LedgerSession> = {}): LedgerSession {
 			startedAt: NOW,
 			endedAt: NOW,
 			phaseBarsJson: null,
+			linkAnsweredAt: null,
+			unlinkedFromSessionId: null,
 		},
 		sessionLog: null,
 		setLogs: [],
@@ -1337,6 +1339,8 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 						startedAt: NOW,
 						endedAt: NOW,
 						phaseBarsJson: null,
+						linkAnsweredAt: null,
+						unlinkedFromSessionId: null,
 					},
 				}),
 				// Tuesday: a lift with 12 sets logged of 12.
@@ -1364,6 +1368,8 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 						startedAt: NOW,
 						endedAt: NOW,
 						phaseBarsJson: null,
+						linkAnsweredAt: null,
+						unlinkedFromSessionId: null,
 					},
 				}),
 			],
@@ -1542,6 +1548,8 @@ describe('a week header says which week, what kind, and its numbers (#505 storie
 							startedAt: NOW,
 							endedAt: NOW,
 							phaseBarsJson: null,
+							linkAnsweredAt: null,
+							unlinkedFromSessionId: null,
 						},
 					}),
 					on(1, {
@@ -1619,6 +1627,8 @@ describe('past weeks fold above today, one line each (#505 story 31)', () => {
 				startedAt: NOW,
 				endedAt: NOW,
 				phaseBarsJson: null,
+				linkAnsweredAt: null,
+				unlinkedFromSessionId: null,
 			},
 		})
 
@@ -2026,6 +2036,8 @@ describe('the review’s edges (#505 S9)', () => {
 				startedAt: NOW,
 				endedAt: NOW,
 				phaseBarsJson: null,
+				linkAnsweredAt: null,
+				unlinkedFromSessionId: null,
 			},
 		})
 		const result = season(
@@ -2517,5 +2529,228 @@ describe('the Ukeskiftet card (#505 stories 4–6, 42–55)', () => {
 			'Toppuka: 30 → 31,5 km',
 		)
 		expect(roundVolumeLine(view!.round!.peak!, 0.9)).toBe('Toppuka: 30 → 27 km')
+	})
+})
+
+describe('imports on the row: ekstra, hva var dette?, Angre kobling, Gjort (#505 stories 78–82)', () => {
+	const runPlan = () =>
+		plan({
+			tracks: [
+				{
+					trackId: 'track-run',
+					discipline: 'run',
+					currency: 'km',
+					targets: Array<number>(12).fill(40),
+					overridden: Array<boolean>(12).fill(false),
+					sessionTargets: null,
+				},
+			],
+		})
+	const rowsOf = (result: ReturnType<typeof season>) =>
+		result.weeks.flatMap((week) => week.rows).flatMap((day) => day.sessions)
+	const rowOf = (result: ReturnType<typeof season>, id: string) =>
+		rowsOf(result).find((s) => s.id === id)!
+	const recording = (
+		id: string,
+		overrides: Partial<NonNullable<LedgerSession['recording']>> = {},
+	) => ({
+		id,
+		discipline: 'run',
+		durationSec: 3000,
+		distanceM: 9200,
+		startedAt: NOW,
+		endedAt: NOW,
+		phaseBarsJson: null,
+		linkAnsweredAt: null,
+		unlinkedFromSessionId: null,
+		...overrides,
+	})
+	/** Yesterday's run, recorded with no plan behind it. */
+	const ekstra = (overrides: Partial<LedgerSession> = {}) =>
+		on(-1, {
+			id: 'ekstra',
+			source: 'recorded',
+			workout: null,
+			recording: recording('import-1'),
+			...overrides,
+		})
+	/** A planned run that day with no Recording yet. */
+	const plannedRun = (id: string, title: string) =>
+		on(-1, {
+			id,
+			status: 'scheduled',
+			source: 'generated',
+			recording: null,
+			workout: workout({ id: `w-${id}`, title }),
+		})
+
+	test('a recorded session with no plan reads ekstra; a planned one does not', () => {
+		const result = season(
+			[ekstra(), on(-2, { id: 'linked', recording: recording('import-2') })],
+			runPlan(),
+		)
+		expect(rowOf(result, 'ekstra').extraLabel).toBe('ekstra')
+		expect(rowOf(result, 'linked').extraLabel).toBeNull()
+	})
+
+	test('an ekstra that fits nothing that day is not asked about', () => {
+		const result = season([ekstra()], runPlan())
+		expect(rowOf(result, 'ekstra').importLink).toBeNull()
+	})
+
+	test('an ekstra on a day with unrecorded planned runs asks hva var dette?, with each as an answer', () => {
+		const result = season(
+			[
+				ekstra(),
+				plannedRun('morning', '10 km rolig'),
+				plannedRun('evening', '6 km rolig'),
+				// A ride that day is not a run: not an answer.
+				on(-1, {
+					id: 'ride',
+					status: 'scheduled',
+					recording: null,
+					workout: workout({ id: 'w-ride', discipline: 'bike' }),
+				}),
+			],
+			runPlan(),
+		)
+		expect(rowOf(result, 'ekstra').importLink).toEqual({
+			kind: 'ask',
+			importId: 'import-1',
+			question: 'Hva var dette?',
+			note: 'Det lå 2 planlagte økter denne dagen, og vi vet ikke hvilken.',
+			label: expect.stringContaining('Hva var'),
+			options: [
+				{ sessionId: 'morning', label: 'Det var 10 km rolig' },
+				{ sessionId: 'evening', label: 'Det var 6 km rolig' },
+			],
+			keepLabel: 'En ekstra økt',
+			annetLabel: 'Annet, teller ikke',
+		})
+	})
+
+	test('once answered, in Annet, or with no track to leave, the question changes or goes', () => {
+		const answered = season(
+			[
+				ekstra({
+					recording: recording('import-1', { linkAnsweredAt: NOW }),
+				}),
+				plannedRun('morning', '10 km rolig'),
+			],
+			runPlan(),
+		)
+		expect(rowOf(answered, 'ekstra').importLink).toBeNull()
+
+		const inAnnet = season(
+			[ekstra({ countsInNoTrack: true }), plannedRun('morning', '10 km')],
+			runPlan(),
+		)
+		expect(rowOf(inAnnet, 'ekstra').importLink).toBeNull()
+
+		// No plan, no track: Annet would change nothing, so it is not offered.
+		const noPlan = season([ekstra(), plannedRun('morning', '10 km rolig')])
+		expect(rowOf(noPlan, 'ekstra').importLink).toMatchObject({
+			kind: 'ask',
+			annetLabel: null,
+		})
+	})
+
+	test('a planned session holding an import offers Angre kobling', () => {
+		const result = season(
+			[on(-1, { id: 'linked', recording: recording('import-2') })],
+			runPlan(),
+		)
+		expect(rowOf(result, 'linked').importLink).toMatchObject({
+			kind: 'undo',
+			importId: 'import-2',
+			actionLabel: 'Angre kobling',
+		})
+	})
+
+	test('after Angre kobling the ekstra offers Koble igjen to the session it came from, while that one is free', () => {
+		const undone = ekstra({
+			recording: recording('import-1', {
+				linkAnsweredAt: NOW,
+				unlinkedFromSessionId: 'morning',
+			}),
+		})
+		const result = season(
+			[undone, plannedRun('morning', '10 km rolig')],
+			runPlan(),
+		)
+		expect(rowOf(result, 'ekstra').importLink).toEqual({
+			kind: 'relink',
+			importId: 'import-1',
+			actionLabel: 'Koble igjen',
+			label: 'Koble igjen til 10 km rolig',
+			note: 'Tilbake til 10 km rolig.',
+		})
+		// The plan's session took another import since: nothing to go back to.
+		const taken = season(
+			[
+				undone,
+				on(-1, {
+					id: 'morning',
+					recording: recording('import-3'),
+					workout: workout({ id: 'w-morning', title: '10 km rolig' }),
+				}),
+			],
+			runPlan(),
+		)
+		expect(rowOf(taken, 'ekstra').importLink).toBeNull()
+	})
+
+	test('Gjort with no numbers says the numbers come from the import, when one is connected', () => {
+		const doneByHand = on(-1, {
+			id: 'done',
+			status: 'completed',
+			recording: null,
+			tssValue: null,
+		})
+		const connected = buildTimelineSeason({
+			ledger: [doneByHand],
+			now: NOW,
+			timezone: 'UTC',
+			activePlan: runPlan(),
+			importConnected: true,
+		})
+		expect(rowOf(connected, 'done').doneNote).toBe(
+			'Gjort · tallene kommer fra importen',
+		)
+		// Without a connection nothing will bring them, and the row says so.
+		expect(rowOf(season([doneByHand], runPlan()), 'done').doneNote).toBe(
+			'Gjort · uten tall, ingen import er koblet til',
+		)
+		// A session with a Recording has its numbers; so has one an RPE priced.
+		expect(rowOf(season([on(-1, { id: 'rec' })]), 'rec').doneNote).toBeNull()
+		expect(
+			rowOf(
+				season([on(-1, { id: 'rpe', recording: null, tssValue: 40 })]),
+				'rpe',
+			).doneNote,
+		).toBeNull()
+	})
+
+	test('Gjort is offered on a run whose day has begun and that has no Recording', () => {
+		const result = season(
+			[
+				plannedRun('yesterday', '10 km rolig'),
+				on(0, {
+					id: 'today',
+					status: 'scheduled',
+					recording: null,
+				}),
+				on(2, { id: 'ahead', status: 'scheduled', recording: null }),
+				on(-2, { id: 'recorded' }),
+			],
+			runPlan(),
+		)
+		expect(rowOf(result, 'yesterday').markDone).toEqual({
+			actionLabel: 'Gjort',
+			label: 'Merk 10 km rolig som gjort',
+		})
+		expect(rowOf(result, 'today').markDone).not.toBeNull()
+		expect(rowOf(result, 'ahead').markDone).toBeNull()
+		expect(rowOf(result, 'recorded').markDone).toBeNull()
 	})
 })

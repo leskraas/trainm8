@@ -111,6 +111,11 @@ import {
 	buildTodayCard,
 } from '../presenter.ts'
 import {
+	buildImportFacts,
+	NO_IMPORT_FACTS,
+	type TimelineImportFacts,
+} from './import-link.ts'
+import {
 	buildRowContent,
 	type RowChip,
 	type RowWeekContext,
@@ -129,6 +134,7 @@ import {
 
 export type { TimelineStrip, TimelineStripWeek } from './strip.ts'
 export type { TimelineTrackWeek } from './week-words.ts'
+export type { TimelineImportLink } from './import-link.ts'
 
 /**
  * How far back home's own query reaches — half a year, the bound
@@ -186,7 +192,7 @@ export type TimelineSession = {
 	 * the app's sessions, which are the app's already, and on history.
 	 */
 	release: { actionLabel: string; note: string } | null
-}
+} & TimelineImportFacts
 
 /**
  * One day of the season — **the stream's row** (ADR 0065 §1).
@@ -415,11 +421,17 @@ export function buildTimelineSeason({
 	now = new Date(),
 	timezone = 'UTC',
 	activePlan = null,
+	importConnected = false,
 }: {
 	ledger: LedgerSession[]
 	now?: Date
 	timezone?: string
 	activePlan?: ActivePlan | null
+	/**
+	 * Whether an import source is connected (intervals.icu, Strava), so a done
+	 * session with no numbers may say they are on their way (#505 story 82).
+	 */
+	importConnected?: boolean
 }): TimelineSeason {
 	const todayKey = localDate(now, timezone)
 	const nowMonday = weekMonday(now, timezone)
@@ -468,6 +480,15 @@ export function buildTimelineSeason({
 	const phases = phaseLookup(activePlan, now, timezone)
 	const tracks = activePlan?.tracks ?? []
 	const leadTrackId = leadTrack(tracks)?.trackId ?? null
+	// What each row says about imports (#505 stories 78–82): read across the
+	// whole ledger, because a question reads its day and Koble igjen reads a
+	// session that may sit anywhere on I dag.
+	const importFacts = buildImportFacts(ledgerRows, {
+		timezone,
+		todayKey,
+		importConnected,
+		trackDisciplines: new Set(tracks.map((t) => t.discipline)),
+	})
 	// The week the Week Replan has closed (Sunday 20:00 local): on Sunday
 	// evening this week grades through Sunday, as Ukeskiftet reads it.
 	const closedThrough = lastClosedWeekKey(now, timezone)
@@ -501,6 +522,7 @@ export function buildTimelineSeason({
 			horizon,
 			fillsWeeks: activePlan?.fillsWeeks ?? false,
 			leadTrackId,
+			importFacts,
 		}),
 	)
 
@@ -659,6 +681,7 @@ function buildWeek({
 	horizon,
 	fillsWeeks,
 	leadTrackId,
+	importFacts,
 }: {
 	monday: string
 	rows: SessionRow[]
@@ -680,6 +703,7 @@ function buildWeek({
 	fillsWeeks: boolean
 	/** The track a one-line week is read in (`leadTrack`). */
 	leadTrackId: string | null
+	importFacts: ReadonlyMap<string, TimelineImportFacts>
 }): TimelineWeek {
 	const isNow = monday === nowMonday
 	const start = dayBoundsUTC(monday, timezone).start
@@ -707,6 +731,7 @@ function buildWeek({
 				timezone,
 				sameMonth: isNow,
 				trackDisciplines,
+				importFacts,
 			}),
 		)
 	const bands = buildBands(rows, todayKey, timezone)
@@ -944,6 +969,7 @@ function buildDay({
 	timezone,
 	sameMonth,
 	trackDisciplines,
+	importFacts,
 }: {
 	key: string
 	rows: SessionRow[]
@@ -954,6 +980,7 @@ function buildDay({
 	sameMonth: boolean
 	/** The plan's tracks' sports: what a session can count in, or be taken out of. */
 	trackDisciplines: ReadonlySet<string>
+	importFacts: ReadonlyMap<string, TimelineImportFacts>
 }): TimelineDay {
 	const isToday = key === todayKey
 	const midday = middayOf(key, timezone)
@@ -972,7 +999,13 @@ function buildDay({
 		// week-granular rhythm or from availability (ADR 0065 §4).
 		restPrescribed: false,
 		sessions: rows.map((row) =>
-			buildSession({ row, week, isToday, trackDisciplines }),
+			buildSession({
+				row,
+				week,
+				isToday,
+				trackDisciplines,
+				imports: importFacts.get(row.session.id) ?? NO_IMPORT_FACTS,
+			}),
 		),
 	}
 }
@@ -992,12 +1025,14 @@ function buildSession({
 	week,
 	isToday,
 	trackDisciplines,
+	imports,
 }: {
 	row: SessionRow
 	week: RowWeekContext
 	/** A property of the day, so every session on it agrees about it. */
 	isToday: boolean
 	trackDisciplines: ReadonlySet<string>
+	imports: TimelineImportFacts
 }): TimelineSession {
 	const { session, entry } = row
 	const content = buildRowContent(row, week, { isToday })
@@ -1029,6 +1064,7 @@ function buildSession({
 						note: RELEASE_ACTION_LABELS.note,
 					}
 				: null,
+		...imports,
 	}
 }
 

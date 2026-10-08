@@ -1451,6 +1451,11 @@ const ledgerSessionSelect = {
 			startedAt: true,
 			endedAt: true,
 			phaseBarsJson: true,
+			// What the athlete said about this import on I dag (#505 stories
+			// 80–81): once answered, "hva var dette?" is not asked again, and an
+			// Angre kobling remembers the session Koble igjen puts it back on.
+			linkAnsweredAt: true,
+			unlinkedFromSessionId: true,
 		},
 	},
 	sessionLog: {

@@ -113,6 +113,8 @@ function recording(overrides: Partial<Recording> = {}): Recording {
 		startedAt: EARLIER_TODAY,
 		endedAt: NOW,
 		phaseBarsJson: null,
+		linkAnsweredAt: null,
+		unlinkedFromSessionId: null,
 		...overrides,
 	}
 }
