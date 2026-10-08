@@ -1920,18 +1920,18 @@ without a number (`+1 uten km`), never as zero.
 **Quick Strength Log**: The short log under a strength session's row on I dag
 (#505 stories 83–84; UI words: _Logg økta_, _Som planlagt_, _Endre_), offered
 from the session's day to a week back while it is not finished and no working
-**Exercise Set Log** is in — a session the runner has started is finished in
-the runner. It lists the planned lifts and sets as the prescription resolves
-today. _Som planlagt_ logs every planned set at its target in one tap; _Endre_
-changes a set's reps (a hold's seconds) or leaves it empty for not done. Either
-writes one Exercise Set Log per set through the set log's upsert — so a double
-tap cannot log a set twice — at the **weight the prescription resolved**, the
-same one a tap on the runner's circle logs (ADR 0064 §2: an off-program weight
-still has no way in), then finishes the session as the runner's Finish does.
-A lift whose weight or count does not resolve sends the whole session to the
-runner rather than logging part of it as all of it. _Avoid_: Quick log (bare),
-log as planned (that is the button), Gjort (that is for cardio, whose numbers
-an import brings).
+**Exercise Set Log** is in — a session the runner has started is finished in the
+runner. It lists the planned lifts and sets as the prescription resolves today.
+_Som planlagt_ logs every planned set at its target in one tap; _Endre_ changes
+a set's reps (a hold's seconds) or leaves it empty for not done. Either writes
+one Exercise Set Log per set through the set log's upsert — so a double tap
+cannot log a set twice — at the **weight the prescription resolved**, the same
+one a tap on the runner's circle logs (ADR 0064 §2: an off-program weight still
+has no way in), then finishes the session as the runner's Finish does. A lift
+whose weight or count does not resolve sends the whole session to the runner
+rather than logging part of it as all of it. _Avoid_: Quick log (bare), log as
+planned (that is the button), Gjort (that is for cardio, whose numbers an import
+brings).
 
 **Auto-Save Mirror**: An **Activity Import** the athlete has not built anything
 on — its recording-only session is still structureless and carries no **Session
@@ -2256,8 +2256,13 @@ past: answered after the plan's end, it opens on the first week not yet begun
 and the last round runs on over the weeks between. Adding an Event later ends
 the current round early — at the weeks lived, this one included — and lays the
 family's run-up toward that Event from next week, fitted by the **Season Fit**
-rule; lived weeks and the athlete's sessions stay. _Avoid_: Block (UI word
-only), mesocycle, load phase, focus (the removed prototype field, ADR 0042).
+rule; lived weeks and the athlete's sessions stay. The athlete may choose
+**which week of a block is the easy one** (`recoveryWeekIndex`, #505 story 74):
+the block that week falls in — the rhythm's period counted from the phase's
+first week — recovers on it and on no other, every other block keeps the
+rhythm's own position, and one choice per phase (ADR 0084 §2). _Avoid_: Block
+(UI word only), mesocycle, load phase, focus (the removed prototype field, ADR
+0042).
 
 **Training Track**: One **Discipline** measured over a **Plan Outline**'s
 phases, owning its **Volume Currency**, its progression rule, its own
@@ -2386,7 +2391,9 @@ a ramp figure, and the number is stored exactly as authored. Its copy must name
 it a **convention** and make **no injury claim**: the 10% rule has a failed RCT
 behind it (Buist 2008, P=.90). _Avoid_: Ramp limit, safe ramp, injury risk
 warning (all three claim something the evidence does not support), `RAMP_WARN` /
-`RAMP_HOT` (the retired prototype's two-level scheme).
+`RAMP_HOT` (the retired prototype's two-level scheme). Its sibling on **Week
+Targets** — `weekRiseWarnings`, +10 % between two loading weeks — is ADR 0084's
+amendment to §12, not a week-over-week diff on every week.
 
 **Block Boundary Step**: The optional volume change a **Training Track** authors
 at a segment's opening, default `0` — expressing a deliberate volume drop
@@ -2504,7 +2511,11 @@ shown per week per track, never blended: **Week Target**, **Planned Volume**
 Adding, moving or editing a session changes Planned Volume and never the Week
 Target; a gap between the two is shown, not hidden — a week planned more than 10
 % off its target carries the `≠` mark, and the season strip draws the larger of
-the two so overplanning shows (#505, `week-volumes.ts`). _Avoid_: Plan (as a
+the two so overplanning shows (#505, `week-volumes.ts`). Changed in _Sesong_
+behind a preview (_Endre sesongen_, ADR 0084): a loading week whose target would
+rise more than 10 % over the loading week before it — easy weeks skipped, a
+taper never compared — is warned on and never blocked, and the message names the
+numbers that held ("Fasen og de andre ukene står som før."). _Avoid_: Plan (as a
 number), goal, sum.
 
 **Planned Volume**: The sum of one **Training Week**'s sessions that carry a

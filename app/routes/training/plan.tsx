@@ -95,6 +95,7 @@ import {
 	openEndedBlockLabel,
 	PHILOSOPHY_SWITCH_LABELS,
 	PHILOSOPHY_SWITCH_REFUSAL_LABELS,
+	SEASON_EDIT_LABELS,
 	STRENGTH_OFFER_LABELS,
 	switchedPhilosophySentence,
 	QUALITY_ZONE_LABELS,
@@ -104,6 +105,7 @@ import {
 	WEEK_ROLE_LABELS,
 	type BoundaryStepOutOfForce,
 } from '#app/utils/labels.ts'
+import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
 import { AttachEventFormSchema } from '#app/utils/plan-outline/attach-event-schema.ts'
 import {
 	EnduranceSegmentSetSchema,
@@ -279,6 +281,8 @@ import {
 	type EditableAnchorTrack,
 } from './__season-anchor-editor.tsx'
 import { SeasonChart } from './__season-chart.tsx'
+import { seasonEditAction } from './__season-edits.server.ts'
+import { SeasonEditsCard } from './__season-edits.tsx'
 import { StampSection, type PendingStamp } from './__stamp-pattern.tsx'
 import {
 	StrengthBlocksSection,
@@ -564,10 +568,19 @@ export async function loader({ request }: Route.LoaderArgs) {
 		? null
 		: await readStrengthTrackOffer(userId)
 
+	// The first week not yet begun: the Sesong edits offer no week before it,
+	// since a week already begun is history (#505 S13).
+	const firstUnbegunWeekKey = await readFirstUnbegunWeekKey(
+		userId,
+		new Date(),
+		season.timezone,
+	)
+
 	return {
 		seasonQuery,
 		attachableEvents,
 		strengthOffer,
+		firstUnbegunWeekKey,
 		tab: tabFrom(request),
 		week: chosenWeekKey(request, season.weeks),
 		workouts,
@@ -1304,6 +1317,10 @@ export async function action({ request }: Route.ActionArgs) {
 				),
 			})
 		}
+		// The Sesong edits (#505 stories 72–77): preview, then apply.
+		case 'preview-season-edit':
+		case 'apply-season-edit':
+			return seasonEditAction(userId, request, formData)
 		case 'add-strength-track': {
 			const submission = parseWithZod(formData, {
 				schema: StrengthOfferFormSchema,
@@ -2300,6 +2317,7 @@ export default function PlanRoute({
 		trackProposals,
 		attachableEvents,
 		strengthOffer,
+		firstUnbegunWeekKey,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -2321,6 +2339,9 @@ export default function PlanRoute({
 	// _Bytt filosofi_ and the strength offer answer inside their own forms.
 	const philosophy =
 		actionData && 'philosophy' in actionData ? actionData.philosophy : null
+	// The Sesong edits answer inside their own forms too.
+	const seasonEdit =
+		actionData && 'seasonEdit' in actionData ? actionData.seasonEdit : null
 	const strengthOfferResult =
 		actionData && 'strengthOffer' in actionData
 			? actionData.strengthOffer.result
@@ -2512,6 +2533,23 @@ export default function PlanRoute({
 						preview={philosophy?.preview ?? null}
 						lastResult={philosophy?.result}
 						confirmResult={philosophy?.confirmResult}
+					/>
+				</PlanCard>
+
+				{/* The Sesong edits (#505 stories 72–77): a week's target, a phase's
+				    name and length, and the easy week — each behind a preview. */}
+				<PlanCard
+					titleId="season-edits"
+					title={SEASON_EDIT_LABELS.title}
+					contentClassName="space-y-3"
+				>
+					<SeasonEditsCard
+						outlineId={season.outlineId}
+						weeks={season.weeks}
+						phases={season.phases}
+						tracks={season.tracks}
+						firstUnbegunWeekKey={firstUnbegunWeekKey}
+						reply={seasonEdit}
 					/>
 				</PlanCard>
 

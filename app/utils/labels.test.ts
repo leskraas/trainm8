@@ -64,6 +64,9 @@ import {
 	freeBandLabels,
 	foldedTrackLabel,
 	horizonFillLabel,
+	HELD_NUMBER_LABELS,
+	seasonEditSentence,
+	weekRiseSentence,
 } from './labels.ts'
 import { WEEK_REPLAN_OUTCOMES } from './load/week-replan.ts'
 import {
@@ -75,6 +78,7 @@ import {
 // this file pins one worded sentence to each of them. A pure module, so the label
 // seam's test stays the leaf it is and drags no database in.
 import { PRESET_FAMILIES } from './plan-outline/presets.ts'
+import { HELD_NUMBERS } from './plan-outline/season-edit.ts'
 import { UNAVAILABLE_READINGS } from './plan-outline/unavailable-readings.ts'
 // The conventions the Volume Conversion stacks are the domain's tuple (ADR 0045
 // §10); this file pins one noun phrase to each of them.
@@ -412,4 +416,48 @@ test('the quick strength log speaks the spec’s words, and every refusal is sai
 	// A weight in the load's own semantics, with a decimal comma.
 	expect(QUICK_LOG_LABELS.load('external', 82.5)).toBe('82,5 kg')
 	expect(QUICK_LOG_LABELS.load('bodyweightPlus', 15)).toBe('kroppsvekt + 15 kg')
+})
+
+test('every Sesong edit message says which numbers did not move, in the spec’s words', () => {
+	for (const held of HELD_NUMBERS) expect(HELD_NUMBER_LABELS[held]).toBeTruthy()
+	expect(
+		seasonEditSentence(
+			{
+				kind: 'week-target',
+				weekNumber: 42,
+				before: '40',
+				after: '46',
+				unit: 'km',
+			},
+			['phase', 'other-weeks'],
+		),
+	).toBe('Uke 42: mål 40 → 46 km. Fasen og de andre ukene står som før.')
+	expect(
+		seasonEditSentence(
+			{
+				kind: 'phase',
+				name: { before: 'Base', after: 'Base' },
+				weeks: { before: 4, after: 6 },
+			},
+			['phase-name', 'plan-start', 'other-phases'],
+		),
+	).toBe(
+		'Base: 4 → 6 uker. Navnet, starten på planen og de andre fasene står som før.',
+	)
+	expect(
+		seasonEditSentence(
+			{
+				kind: 'easy-week',
+				phaseName: 'Blokk 1',
+				weekNumber: 43,
+				previousWeekNumber: 44,
+			},
+			['phase-length'],
+		),
+	).toBe(
+		'Blokk 1: den lette uka flyttes fra uke 44 til uke 43. Lengden på fasen står som før.',
+	)
+	expect(weekRiseSentence(43, '42', '50', 'km', 0.1905)).toBe(
+		'Uke 43: 42 → 50 km, +19 % over forrige harde uke.',
+	)
 })

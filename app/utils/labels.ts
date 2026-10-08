@@ -67,6 +67,8 @@ import type { SwitchPhilosophyRefusal } from './plan-outline/philosophy.server.t
 import type { NoContributionReason } from './plan-outline/planned-load.ts'
 import type { PresetFamily } from './plan-outline/presets.ts'
 import type { QualityZone } from './plan-outline/quality-mix.ts'
+import type { ApplySeasonEditRefusal } from './plan-outline/season-edit.server.ts'
+import type { HeldNumber } from './plan-outline/season-edit.ts'
 // The domain owns *which* readings a strength plan cannot state (ADR 0047 §5);
 // this module owns how each one is worded.
 import type { UnavailableReading } from './plan-outline/unavailable-readings.ts'
@@ -1765,6 +1767,167 @@ export const NB_WEEK_ROLE_LABELS: Record<WeekRole, string> = {
 	loading: 'hard uke',
 	recovery: 'lett uke',
 	taper: 'nedtrapping',
+}
+
+/** The Sesong edits on the plan page (#505 stories 72–77). */
+export const SEASON_EDIT_LABELS = {
+	title: 'Endre sesongen',
+	intro:
+		'Du ser hver endring før den gjelder. Ukene du har trent og øktene du har skrevet selv blir stående.',
+	weekTargetOpen: 'Endre ukemålet',
+	phaseOpen: 'Endre navn eller lengde på en fase',
+	easyWeekOpen: 'Velg hvilken uke som er lett',
+	week: 'Uke',
+	track: 'Spor',
+	newTarget: 'Nytt ukemål',
+	phase: 'Fase',
+	phaseName: 'Nytt navn',
+	phaseWeeks: 'Antall uker',
+	phaseHint: 'La et felt stå tomt for å beholde det som er.',
+	easyWeek: 'Lett uke',
+	easyWeekHint:
+		'Den lette uka flyttes i blokka uka ligger i. De andre blokkene følger rytmen.',
+	showPreview: 'Vis forhåndsvisning',
+	preview: 'Forhåndsvisning',
+	before: 'Nå',
+	after: 'Etter endringen',
+	weeks: 'Ukene som endres',
+	weekColumn: 'Uke',
+	apply: 'Bruk endringen',
+	done: 'Sesongen er endret',
+	warningTitle: 'Raskt opp',
+	warningNote:
+		'Mer enn 10 % fra én hard uke til den neste er raskt. Det er en tommelfingerregel, ikke en grense, og du kan godkjenne likevel.',
+	aroundYours:
+		'Tallene er ukemålene. I uker der du har egne økter, legges appens økter rundt dem.',
+	ended: 'utenfor planen',
+	previewFirst: 'Se forhåndsvisningen før du godkjenner.',
+	pickWeek: 'Velg en uke.',
+	pickPhase: 'Velg en fase.',
+	pickTrack: 'Velg et spor.',
+	targetRequired: 'Skriv et ukemål.',
+	targetNumber: 'Ukemålet er et tall, 0 eller mer.',
+	weeksNumber: 'En fase varer fra 1 til 52 uker.',
+	nameTooLong: 'Navnet kan ha opptil 60 tegn.',
+} as const
+
+/** Why a Sesong edit was refused, as the athlete reads it. */
+export const SEASON_EDIT_REFUSAL_LABELS: Record<
+	ApplySeasonEditRefusal,
+	string
+> = {
+	'track-not-found': 'Det sporet er ikke lenger en del av planen.',
+	'phase-not-found': 'Den fasen er ikke lenger en del av planen.',
+	'week-outside-plan': 'Den uka er ikke i planen.',
+	'week-lived':
+		'Den uka har begynt eller er over. Ukene du har trent står som de ble.',
+	'changes-lived-weeks':
+		'Det ville endre en uke du allerede har trent. Ukene du har trent står som de ble.',
+	'no-easy-week':
+		'Den fasen har ingen lett uke å flytte: rytmen har ingen, eller fasen trapper ned.',
+	'plan-too-long':
+		'Da blir planen lengre enn to år. Gjør en fase kortere først.',
+	'no-change': 'Det er det planen allerede sier. Ingenting å endre.',
+	'outline-not-found': 'Fant ikke planen.',
+	'preview-stale':
+		'Planen har endret seg siden forhåndsvisningen. Se over den nye forhåndsvisningen før du godkjenner.',
+}
+
+/**
+ * The numbers an edit left where they were, as the message names them
+ * (#505 story 77): `Fasen og de andre ukene står som før.`
+ */
+export const HELD_NUMBER_LABELS: Record<HeldNumber, string> = {
+	phase: 'fasen',
+	'phase-name': 'navnet',
+	'phase-length': 'lengden på fasen',
+	'other-weeks': 'de andre ukene',
+	'week-targets': 'ukemålene',
+	'plan-start': 'starten på planen',
+	'other-phases': 'de andre fasene',
+}
+
+/** `Fasen og de andre ukene står som før.` — empty when nothing is named. */
+export function heldSentence(held: readonly HeldNumber[]): string {
+	const words = held.map((number) => HELD_NUMBER_LABELS[number])
+	if (words.length === 0) return ''
+	const list =
+		words.length === 1
+			? words[0]!
+			: `${words.slice(0, -1).join(', ')} og ${words.at(-1)}`
+	return `${list.charAt(0).toUpperCase()}${list.slice(1)} står som før.`
+}
+
+/** A Sesong edit's headline, with its figures already written out. */
+export type SeasonEditWords =
+	| {
+			kind: 'week-target'
+			weekNumber: number
+			before: string | null
+			after: string
+			unit: string
+	  }
+	| {
+			kind: 'phase'
+			name: { before: string; after: string }
+			weeks: { before: number; after: number }
+	  }
+	| {
+			kind: 'easy-week'
+			phaseName: string
+			weekNumber: number
+			previousWeekNumber: number | null
+	  }
+
+/**
+ * What an edit does, then what it left alone (#505 story 77):
+ * `Uke 42: mål 40 → 46 km. Fasen og de andre ukene står som før.`
+ */
+export function seasonEditSentence(
+	words: SeasonEditWords,
+	held: readonly HeldNumber[],
+): string {
+	return [seasonEditHeadline(words), heldSentence(held)]
+		.filter(Boolean)
+		.join(' ')
+}
+
+function seasonEditHeadline(words: SeasonEditWords): string {
+	switch (words.kind) {
+		case 'week-target':
+			return words.before == null
+				? `Uke ${words.weekNumber}: mål ${words.after} ${words.unit}.`
+				: `Uke ${words.weekNumber}: mål ${words.before} → ${words.after} ${words.unit}.`
+		case 'phase': {
+			const renamed = words.name.before !== words.name.after
+			const resized = words.weeks.before !== words.weeks.after
+			if (renamed && resized) {
+				return `«${words.name.before}» heter nå «${words.name.after}» og varer ${nbWeeks(words.weeks.after)} (var ${words.weeks.before}).`
+			}
+			if (renamed) {
+				return `«${words.name.before}» heter nå «${words.name.after}».`
+			}
+			return `${words.name.before}: ${words.weeks.before} → ${nbWeeks(words.weeks.after)}.`
+		}
+		case 'easy-week':
+			return words.previousWeekNumber == null
+				? `${words.phaseName}: uke ${words.weekNumber} blir den lette uka.`
+				: `${words.phaseName}: den lette uka flyttes fra uke ${words.previousWeekNumber} til uke ${words.weekNumber}.`
+	}
+}
+
+/**
+ * A week target rising more than 10 % over the hard week before it (#505
+ * story 76): `Uke 43: 42 → 50 km, +19 % over forrige harde uke.`
+ */
+export function weekRiseSentence(
+	weekNumber: number,
+	from: string,
+	to: string,
+	unit: string,
+	rise: number,
+): string {
+	return `Uke ${weekNumber}: ${from} → ${to} ${unit}, +${Math.round(rise * 100)} % over forrige harde uke.`
 }
 
 /** A strength track proposed from the athlete's own lifting (#505 story 15). */

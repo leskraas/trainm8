@@ -154,6 +154,7 @@ const stampOutlineSelect = {
 			weeks: true,
 			rhythm: true,
 			tapers: true,
+			recoveryWeekIndex: true,
 		},
 	},
 	tracks: {

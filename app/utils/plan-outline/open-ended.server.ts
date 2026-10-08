@@ -457,7 +457,10 @@ async function layAfterAttach(
  * After the plan's phases changed under weeks already on the calendar: lay
  * every week from `fromWeekKey` on that the plan laid again at its new
  * targets, then fill the weeks up to the horizon it never laid. Shared by
- * adding an Event and switching philosophy; the caller contains a failure.
+ * adding an Event, switching philosophy and the Sesong edits; the caller
+ * contains a failure. `onlyWeekKeys` narrows the re-lay to the weeks an edit
+ * changed (a Sesong edit knows them), so a week it left alone keeps its
+ * sessions as they are.
  */
 export async function relayPlanFrom(
 	userId: string,
@@ -465,8 +468,11 @@ export async function relayPlanFrom(
 	fromWeekKey: string,
 	timezone: string,
 	now: Date,
+	{ onlyWeekKeys }: { onlyWeekKeys?: readonly string[] } = {},
 ): Promise<void> {
-	await relayFutureWeeks(userId, outlineId, fromWeekKey, timezone, now)
+	await relayFutureWeeks(userId, outlineId, fromWeekKey, timezone, now, {
+		onlyWeekKeys,
+	})
 	await fillPlanWeeksToHorizon(userId, timezone, now)
 }
 
@@ -489,6 +495,7 @@ async function relayFutureWeeks(
 	fromWeekKey: string,
 	timezone: string,
 	now: Date,
+	{ onlyWeekKeys }: { onlyWeekKeys?: readonly string[] } = {},
 ): Promise<number> {
 	const sessions = await prisma.workoutSession.findMany({
 		where: {
@@ -502,6 +509,7 @@ async function relayFutureWeeks(
 		...new Set(sessions.map((s) => weekMonday(s.scheduledAt, timezone))),
 	]
 		.filter((weekKey) => weekKey >= fromWeekKey)
+		.filter((weekKey) => !onlyWeekKeys || onlyWeekKeys.includes(weekKey))
 		.sort()
 	if (weekKeys.length === 0) return 0
 

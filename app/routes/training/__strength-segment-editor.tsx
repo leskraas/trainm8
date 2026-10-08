@@ -283,6 +283,8 @@ export type StrengthActionData =
 	 */
 	| { philosophy: unknown }
 	| { strengthOffer: unknown }
+	/** The Sesong edits' reply (#505 S13); read by `__season-edits.tsx`. */
+	| { seasonEdit: unknown }
 	| undefined
 
 /**

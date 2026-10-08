@@ -153,6 +153,12 @@ export type PhaseSpec = {
 	weeks: number
 	rhythm: Rhythm
 	tapers: boolean
+	/**
+	 * The week of the phase the athlete chose as the easy one, 0-based from the
+	 * phase's first week (#505 story 74). Absent or null keeps the rhythm's own
+	 * position. See {@link weekRole} for what it moves.
+	 */
+	recoveryWeekIndex?: number | null
 }
 
 /**
@@ -266,6 +272,16 @@ export function phaseIndexForWeek(
  * a progressive taper beats a step taper, so the whole phase descends rather than
  * its last week dropping. Otherwise the rhythm places the recovery weeks: 3:1
  * makes every 4th week recovery, 2:1 every 3rd, and `none` has none at all.
+ *
+ * **A chosen easy week** (`recoveryWeekIndex`, #505 story 74) moves the easy
+ * week of the one **block** it falls in — a block being the rhythm's period, 4
+ * weeks for 3:1 and 3 for 2:1, counted from the phase's first week. That block
+ * recovers on the chosen week and on no other; every other block of the phase
+ * keeps the rhythm's own position. So a short last block (a 6-week 3:1 phase
+ * ends on two loading weeks) can be given the easy week the rhythm leaves out,
+ * and two easy weeks may sit side by side across a block edge when the athlete
+ * puts them there. One choice per phase: choosing again moves it. A rhythm with
+ * no easy week, a taper, or an index outside the phase ignores it.
  */
 export function weekRole(phases: PhaseSpec[], weekIndex: number): WeekRole {
 	const phaseIndex = phaseIndexForWeek(phases, weekIndex)
@@ -273,9 +289,33 @@ export function weekRole(phases: PhaseSpec[], weekIndex: number): WeekRole {
 	const phase = phases[phaseIndex]!
 	if (phase.tapers) return 'taper'
 	const weekInPhase = weekIndex - phaseStartIndices(phases)[phaseIndex]!
-	const period = phase.rhythm === '3:1' ? 4 : phase.rhythm === '2:1' ? 3 : 0
+	const period = rhythmPeriod(phase.rhythm)
 	if (period === 0) return 'loading'
+	const chosen = chosenEasyWeek(phase)
+	if (
+		chosen != null &&
+		blockOf(chosen, period) === blockOf(weekInPhase, period)
+	) {
+		return weekInPhase === chosen ? 'recovery' : 'loading'
+	}
 	return (weekInPhase + 1) % period === 0 ? 'recovery' : 'loading'
+}
+
+/** Weeks in one block of a rhythm: loading weeks plus its easy week; 0 for none. */
+export function rhythmPeriod(rhythm: Rhythm): number {
+	return rhythm === '3:1' ? 4 : rhythm === '2:1' ? 3 : 0
+}
+
+/** The 0-based block a week of the phase sits in. */
+function blockOf(weekInPhase: number, period: number): number {
+	return Math.floor(weekInPhase / period)
+}
+
+/** The chosen easy week when it is one this phase can honour, else null. */
+function chosenEasyWeek(phase: PhaseSpec): number | null {
+	const chosen = phase.recoveryWeekIndex
+	if (chosen == null || !Number.isInteger(chosen)) return null
+	return chosen >= 0 && chosen < phase.weeks ? chosen : null
 }
 
 /**

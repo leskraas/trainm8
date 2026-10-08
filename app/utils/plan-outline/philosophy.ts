@@ -281,7 +281,7 @@ export function previewPhilosophySwitch(
  * now has a different one — a plan edited, or a week begun, since the athlete
  * looked (`preview-stale`).
  */
-function digestOf(value: unknown): string {
+export function digestOf(value: unknown): string {
 	// FNV-1a over the JSON: stable across server and tests, and only ever
 	// compared with itself.
 	let hash = 0x811c9dc5
@@ -387,7 +387,7 @@ function phaseViews(rows: OutlineRows, boundary: number): PhaseView[] {
 }
 
 /** Every week of the plan as the derivation reads it. */
-function weekViews(rows: OutlineRows): WeekView[] {
+export function weekViews(rows: OutlineRows): WeekView[] {
 	const specs = phaseSpecs(rows)
 	const ordered = [...rows.phases].sort((a, b) => a.orderIndex - b.orderIndex)
 	const tracks = resolvedTracks(rows)

@@ -43,7 +43,12 @@ export type SwitchPhilosophyResult =
 	| PhilosophySwitchPreview
 	| { ok: false; reason: SwitchPhilosophyRefusal }
 
-const switchOutlineSelect = {
+/**
+ * A Plan Outline's rows as `from-rows.ts` reads them, plus its philosophy and
+ * its Event — the read a preview recomputes from. Shared with the Sesong edits
+ * (`season-edit.server.ts`).
+ */
+export const switchOutlineSelect = {
 	id: true,
 	startWeekKey: true,
 	family: true,
@@ -56,6 +61,7 @@ const switchOutlineSelect = {
 			weeks: true,
 			rhythm: true,
 			tapers: true,
+			recoveryWeekIndex: true,
 		},
 	},
 	tracks: {
