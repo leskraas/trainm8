@@ -159,10 +159,18 @@ export async function runIntervalsIcuBackfill(
 		},
 	})
 
-	// Recompute Training Load across the CTL window (BACKFILL_MIN_DAYS) so
-	// CTL/ATL/TSB reflect the backfilled history — earned from the imported
-	// activities' own data, never Intervals.icu's computed CTL/ATL.
-	const loadWindowStartStr = formatDateInTz(new Date(minCutoffMs), timezone)
+	// Recompute Training Load once for the whole batch (auto-save deferred it),
+	// from the oldest kept activity's day or the CTL window (BACKFILL_MIN_DAYS),
+	// whichever reaches further back, so CTL/ATL/TSB reflect the backfilled
+	// history (auto-promoted and auto-matched imports alike) and today's CTL is
+	// anchored on the older imports rather than on zero — earned from the
+	// imported activities' own data, never Intervals.icu's computed CTL/ATL.
+	const oldestKeptMs =
+		activities.at(-1)?.input.startedAt.getTime() ?? minCutoffMs
+	const loadWindowStartStr = formatDateInTz(
+		new Date(Math.min(minCutoffMs, oldestKeptMs)),
+		timezone,
+	)
 	await recomputeLoadFrom(athleteId, loadWindowStartStr)
 
 	return { ok: true, created, promoted }
@@ -212,7 +220,8 @@ async function ensurePromoted(
 	})
 	if (!imp || imp.promotedSessionId != null) return false
 
-	await autoSaveImport(athleteId, importId, timezone)
+	// The backfill recomputes load once, after the whole batch has landed.
+	await autoSaveImport(athleteId, importId, timezone, { recomputeLoad: false })
 	return true
 }
 

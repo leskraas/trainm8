@@ -1,6 +1,7 @@
 import { type AccountConnection } from '@prisma/client'
 import {
 	autoSaveImport,
+	recomputeLoadAfterBatch,
 	createActivityImport,
 	type ActivityImportInput,
 } from '#app/utils/activity-import.server.ts'
@@ -114,29 +115,41 @@ export async function fileActivitiesWithAutoSave(
 	let created = 0
 	let skipped = 0
 	let latestActivityAt: Date | null = null
+	let oldestCreatedAt: Date | null = null
 
-	for (const activity of activities) {
-		const input = mapActivityToImportInput(activity)
-		if (latestActivityAt == null || input.startedAt > latestActivityAt) {
-			latestActivityAt = input.startedAt
-		}
-
-		let importId: string
-		try {
-			importId = (await createActivityImport(athleteId, input)).id
-		} catch (err) {
-			if (
-				err instanceof Error &&
-				err.message.toLowerCase().includes('unique')
-			) {
-				skipped++
-				continue
+	try {
+		for (const activity of activities) {
+			const input = mapActivityToImportInput(activity)
+			if (latestActivityAt == null || input.startedAt > latestActivityAt) {
+				latestActivityAt = input.startedAt
 			}
-			throw err
-		}
-		created++
 
-		await autoSaveImport(athleteId, importId, timezone)
+			let importId: string
+			try {
+				importId = (await createActivityImport(athleteId, input)).id
+			} catch (err) {
+				if (
+					err instanceof Error &&
+					err.message.toLowerCase().includes('unique')
+				) {
+					skipped++
+					continue
+				}
+				throw err
+			}
+			created++
+			if (oldestCreatedAt == null || input.startedAt < oldestCreatedAt) {
+				oldestCreatedAt = input.startedAt
+			}
+
+			await autoSaveImport(athleteId, importId, timezone, {
+				recomputeLoad: false,
+			})
+		}
+	} finally {
+		// One load recompute for the batch, from its oldest new import's day —
+		// also when an activity throws, so the imports already saved count.
+		await recomputeLoadAfterBatch(athleteId, oldestCreatedAt, timezone)
 	}
 
 	return { created, skipped, latestActivityAt }
