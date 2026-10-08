@@ -1568,6 +1568,24 @@ Week Target, and the toast after a write, a stamp or an undo says so
 (`syk til onsdag`) are not part of it. _Avoid_: command line, quick add, search
 box, chat
 
+**First Run**: The five screens a new athlete, or one with no plan, goes through
+to their first **Training Plan** (`/start`, #505 stories 61–71): connect
+intervals.icu (or _Hopp over_, which says that nothing will be pre-filled) →
+_Dette fant vi_ (the last four weeks: the most-trained sport, the weekly hours
+with their arithmetic — `43 km/uke à 5:35 ≈ 4 t` — the usual days and the
+lifting; every _ikke målt_ says why, and _Noe er feil_ sets the pre-fill right)
+→ three questions, pre-filled (what they train toward, a race or _Hold meg
+aktiv_; hours a week; which days) → the plan with _Vi valgte X fordi …_ in plain
+words and a switch to any of the five philosophies → the first two weeks, day by
+day → I dag. The days and hours become the athlete's **Training Availability**
+and **Weekly Capacity**; the plan is one endurance **Training Track** in hours
+anchored on the hours given, a starter **Week Pattern** on the chosen days and
+no others, and its first two weeks laid as `generated` sessions. What the
+screens show and what is made come from the same draft, so the plan is the one
+shown. _Jeg vil heller sette opp sesongen selv_ makes the same plan and opens it
+in Sesong; there is no empty-season start. The answers travel in the URL until
+the plan is made. _Avoid_: onboarding (the account sign-up), wizard, setup
+
 **Hero**: The **Home Timeline**'s top band — **four panes of _now_**, always
 anchored on today, paged sideways one full-width pane at a time (ADR 0065 §8):
 **Today** (today's session as a headline — a kicker

@@ -277,3 +277,39 @@ nullable `PlanOutline.family` and nothing else, no backfill.
   average (as many sessions as the window has weeks). An open-ended plan's block
   ends with the plan's current last round; appended rounds do not extend it yet
   (as S6 noted for strength segments).
+
+## As built (#505 S14): the first run makes the first plan
+
+- **One draft, shown and made.** `first-run/draft.ts` builds the plan before it
+  exists from the same pieces that make it: the family's phases (one
+  `openEndedRound` for _Hold meg aktiv_, `familySeason` fitted by `fitRunUp` to
+  the weeks up to and including the race week), the stored-row shape the
+  derivation reads (`resolvedTracks`), the starter Week Pattern on the chosen
+  days (`proposeStarterPattern` with those days as the availability), and the
+  stamp's own planner (`planStamp`) for the first two weeks.
+  `createFirstRunPlan` (`first-run/plan.server.ts`) then writes it:
+  `createOpenEndedPlan` — extended to take the family (the round carries the
+  family's climb and mix through `createPlanOutline`'s server-only
+  `familyRates`; without a family it is Klassisk's block with every rate unset,
+  as before), the start week and the days — or, for a dated goal,
+  `createFitnessGoalEvent` + `createPlanOutline` with the fitted phases and the
+  family's rates, and `createStarterWeekPattern` with the stated days instead of
+  the stored availability. The first two weeks are laid by the horizon fill's
+  `fillPlanWeek`, as `generated` sessions. Tests check that what is made equals
+  what was shown, minute for minute.
+- **It starts on the first week not yet begun** (`readFirstUnbegunWeekKey`): on
+  a Wednesday the plan opens next Monday, and nothing is laid on days behind the
+  athlete, which would read as _ikke gjort_ on days nobody planned. A race needs
+  at least two plan weeks, the race week among them.
+- **The answers become the profile.** The days and hours are written as
+  **Training Availability** and **Weekly Capacity**, since the athlete stated
+  them and the plan's fit checks read them.
+- **The philosophy is proposed with one reason** (`chooseFamily`, first match
+  wins): 50 or older → Masters; fewer than three of the last four weeks trained
+  → Klassisk; fewer than three days → Klassisk; under 4 h → Klassisk; a race 24
+  weeks or more away → Stor base; 7 h or more → Polarisert; a race →
+  Terskelfokus; else Klassisk. The athlete's switch wins and the proposal stays
+  visible beside it. Thresholds are conventions, named as constants, not
+  research findings.
+- Refused while the athlete has an active plan; every first-run screen sends
+  such an athlete to Sesong.

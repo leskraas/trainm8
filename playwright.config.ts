@@ -37,6 +37,10 @@ export default defineConfig({
 		env: {
 			PORT,
 			NODE_ENV: 'test',
+			// The first run connects Intervals.icu with the mock's key
+			// (tests/e2e/first-run.test.ts); `dev` and `start:mocks` set NODE_ENV
+			// themselves, so the mock is opted into by name.
+			MOCK_INTERVALSICU: 'true',
 		},
 	},
 })

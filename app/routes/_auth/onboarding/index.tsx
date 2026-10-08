@@ -121,7 +121,8 @@ export async function action({ request }: Route.ActionArgs) {
 	)
 
 	return redirectWithToast(
-		safeRedirect(redirectTo),
+		// A new athlete starts with the first run (#505 story 61).
+		safeRedirect(redirectTo, '/start'),
 		{ title: 'Welcome', description: 'Thanks for signing up!' },
 		{ headers },
 	)

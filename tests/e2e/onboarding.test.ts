@@ -106,7 +106,8 @@ test('onboarding with link', async ({ page, navigate, getOnboardingData }) => {
 
 	await page.getByRole('button', { name: /Create an account/i }).click()
 
-	await expect(page).toHaveURL(`/`)
+	// A new athlete lands on the first run (#505 story 61).
+	await expect(page).toHaveURL(`/start`)
 
 	// The wordmark row's avatar links straight to Settings, and logout lives
 	// on the Settings profile page (#178).
@@ -192,7 +193,8 @@ test('completes onboarding after GitHub OAuth given valid user details', async (
 		.click()
 	await createAccountButton.click()
 
-	await expect(page).toHaveURL('/')
+	// A new athlete lands on the first run (#505 story 61).
+	await expect(page).toHaveURL('/start')
 	await expect(page.getByText(/thanks for signing up/i)).toBeVisible()
 
 	// internally, a user has been created:

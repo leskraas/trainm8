@@ -94,13 +94,20 @@ import {
 import { eventFit } from './event-fit.ts'
 import { proposeFit, type FitProposal } from './fit-proposal.ts'
 import { readAnchorContext } from './history.server.ts'
-import { familyOfPreset, presetFor, type PresetPhase } from './presets.ts'
+import {
+	familyOfPreset,
+	openEndedRound,
+	presetFor,
+	type PresetFamily,
+	type PresetPhase,
+} from './presets.ts'
 import { proposeTrack } from './proposal.ts'
 import {
 	proposeStarterPattern,
 	type StarterProposal,
 } from './starter-pattern.ts'
 import { weekIndexOf } from './week-keys.ts'
+import { calendarWeekdayOf, isPatternWeekday } from './week-pattern.ts'
 
 /**
  * Why a create was refused. Each is a state the athlete can see and act on, so
@@ -297,6 +304,21 @@ export async function createPlanOutline(
 	athleteId: string,
 	input: PlanOutlineCreateInput,
 	now: Date = new Date(),
+	{
+		familyRates,
+	}: {
+		/**
+		 * The climb and **Quality Session Mix** of each phase, by position, when
+		 * the caller laid the phases from a family rather than having the athlete
+		 * type them (#505 S14: the first run's plan, a round of a family). Not on
+		 * the form schema: only the server lays a family's rates, read from
+		 * `presets.ts`, so an athlete's typed phase still opens with every rate
+		 * unset.
+		 */
+		familyRates?: ReadonlyArray<
+			Pick<PresetPhase, 'ramp' | 'boundaryStep' | 'mix'>
+		>
+	} = {},
 ): Promise<CreateOutlineResult> {
 	const plan = PlanOutlineCreateSchema.parse(input)
 
@@ -347,13 +369,13 @@ export async function createPlanOutline(
 					boundaryStep: phase.boundaryStep,
 					mix: phase.mix,
 				}))
-			: plan.structure.phases.map((phase) => ({
+			: plan.structure.phases.map((phase, index) => ({
 					...phase,
 					// Every rate unset, which is what a hand-authored phase has always
-					// opened with.
-					ramp: null,
-					boundaryStep: null,
-					mix: [],
+					// opened with — unless the server laid the phases from a family.
+					ramp: familyRates?.[index]?.ramp ?? null,
+					boundaryStep: familyRates?.[index]?.boundaryStep ?? null,
+					mix: familyRates?.[index]?.mix ?? [],
 				}))
 
 	try {
@@ -531,26 +553,42 @@ export const OPEN_ENDED_ROUND_WEEKS = 4
  * Everything here goes through `createPlanOutline`, so its refusals are the same,
  * `open-ended-already-active` among them. The next round is appended by its own
  * proposal (#505 S6), never here.
+ *
+ * The first run (#505 S14) says more: the **family** the athlete chose — then
+ * the round is one block of that family, its rhythm, climb and mix
+ * (`openEndedRound`) — the week it **starts**, and the **days** they can
+ * train, which lay a starter **Week Pattern** on those days and no others.
+ * Without a family the round is Klassisk's block with every rate unset, as
+ * _Hold meg aktiv_ on the plan page has always made it.
  */
 export async function createOpenEndedPlan(
 	athleteId: string,
-	input: { discipline: CardioDiscipline; weeklyHours: number },
+	input: {
+		discipline: CardioDiscipline
+		weeklyHours: number
+		family?: PresetFamily
+		/** The plan's first Monday; this Training Week where not said. */
+		startWeekKey?: string
+		/** Monday-first weekdays (`PatternWeekday`) the starter pattern lays. */
+		days?: number[]
+	},
 	now: Date = new Date(),
 ): Promise<CreateOutlineResult> {
 	const timezone = await getAthleteTimezone(athleteId)
-	return createPlanOutline(
+	const round = input.family ? openEndedRound(input.family) : null
+	const created = await createPlanOutline(
 		athleteId,
 		{
-			startWeekKey: weekMonday(now, timezone),
+			startWeekKey: input.startWeekKey ?? weekMonday(now, timezone),
 			structure: {
 				phases: [
 					{
 						name: openEndedRoundName(1),
-						weeks: OPEN_ENDED_ROUND_WEEKS,
-						rhythm: '3:1',
+						weeks: round?.weeks ?? OPEN_ENDED_ROUND_WEEKS,
+						rhythm: round?.rhythm ?? '3:1',
 					},
 				],
-				family: 'classic',
+				family: input.family ?? 'classic',
 			},
 			tracks: [
 				{
@@ -561,7 +599,21 @@ export async function createOpenEndedPlan(
 			],
 		},
 		now,
+		round ? { familyRates: [round] } : {},
 	)
+	if (created.ok && input.days) {
+		await createStarterWeekPattern(
+			athleteId,
+			{ outlineId: created.outlineId },
+			{ trainableWeekdays: calendarWeekdaysOf(input.days) },
+		)
+	}
+	return created
+}
+
+/** Monday-first pattern weekdays as the profile's Sunday-first calendar days. */
+function calendarWeekdaysOf(days: readonly number[]): number[] {
+	return days.filter(isPatternWeekday).map(calendarWeekdayOf)
 }
 
 // ── Authoring a second Training Track, and taking one away (#414) ────────────
@@ -2319,20 +2371,33 @@ export type StarterPatternResult =
 export async function createStarterWeekPattern(
 	userId: string,
 	input: WeekPatternStarterInput,
+	{
+		trainableWeekdays: stated,
+	}: {
+		/**
+		 * The days the athlete just said they can train (the first run's third
+		 * question, Sunday-first like the profile column) — laid instead of the
+		 * stored availability, so the pattern is exactly the days they chose.
+		 */
+		trainableWeekdays?: number[]
+	} = {},
 ): Promise<StarterPatternResult> {
 	const start = WeekPatternStarterSchema.parse(input)
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { trainableWeekdays: true },
-	})
+	const profile = stated
+		? null
+		: await prisma.athleteProfile.findUnique({
+				where: { userId },
+				select: { trainableWeekdays: true },
+			})
 	// `null` — never set — is distinct from an explicit empty list, and the two get
 	// different answers: a default week, or none at all. Mapped straight through
 	// rather than parsed to `[]`, which is `readTrainingAvailability`'s rule for the
 	// same column and the same reason.
 	const trainableWeekdays =
-		profile?.trainableWeekdays == null
+		stated ??
+		(profile?.trainableWeekdays == null
 			? null
-			: parseTrainableWeekdays(profile.trainableWeekdays)
+			: parseTrainableWeekdays(profile.trainableWeekdays))
 
 	return prisma.$transaction(async (tx) => {
 		const outline = await tx.planOutline.findFirst({
