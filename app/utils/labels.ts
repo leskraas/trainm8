@@ -93,6 +93,11 @@ import type {
 // The domain owns *who* a session belongs to (ADR 0080); this module owns the
 // words the athlete reads for each owner.
 import type { SessionOwner } from './session-ownership.ts'
+import type {
+	LiftScheme,
+	SetUnit,
+	WorkingLoad,
+} from './strength/working-load.ts'
 import type { QuickLogRefusal } from './strength-quick-log.ts'
 import type {
 	Discipline,
@@ -1034,10 +1039,8 @@ export const MARK_DONE_REFUSAL_LABELS: Record<MarkDoneRefusal, string> = {
 // The quick strength log on I dag (#505 stories 83–84, ADR 0064)
 // ---------------------------------------------------------------------------
 
-/** A kilo as a Norwegian surface writes it: `82,5`. */
-function nbKg(kg: number): string {
-	return String(Number(kg.toFixed(2))).replace('.', ',')
-}
+/** The `LoadValue` member a resolved working load is logged as. */
+type WorkingLoadKind = Extract<WorkingLoad, { kind: 'resolved' }>['loadKind']
 
 /** The short log under a strength session's row. */
 export const QUICK_LOG_LABELS = {
@@ -1052,20 +1055,16 @@ export const QUICK_LOG_LABELS = {
 	cancel: 'Avbryt',
 	saving: 'Logger …',
 	loading: 'Henter planen …',
-	loadFailed: 'Planen kunne ikke hentes nå. Som planlagt virker likevel.',
 	/** ADR 0064 §2, said where the athlete would look for a weight field. */
 	weightNote: 'Vekta står som planlagt. En annen vekt kan ikke logges her.',
 	notDoneNote: 'Tomt eller 0 betyr at settet ikke ble gjort.',
-	setInput: (lift: string, position: number, unit: 'reps' | 'seconds') =>
+	setInput: (lift: string, position: number, unit: SetUnit) =>
 		`Sett ${position} av ${lift}, ${unit === 'reps' ? 'reps' : 'sekunder'}`,
 	notLoggable:
 		'Ett av løftene har ingen fast vekt eller antall, så økta logges sett for sett.',
 	runnerLink: 'Logg sett for sett',
 	/** `5×5`, `3×45 s`, or `4 sett` where the sets ask for different counts. */
-	scheme: (
-		sets: number,
-		same: { count: number; unit: 'reps' | 'seconds' } | null,
-	) =>
+	scheme: ({ sets, same }: LiftScheme) =>
 		same == null
 			? `${sets} sett`
 			: same.unit === 'reps'
@@ -1080,25 +1079,18 @@ export const QUICK_LOG_LABELS = {
 		if (week == null) return head
 		return `${head} Styrke ${week.name.toLowerCase()}: ${week.before} → ${week.after} sett gjort.`
 	},
-	/** The prescription's weight, in the load's own semantics (ADR 0056 §3). */
-	load: (
-		kind:
-			| 'external'
-			| 'bodyweight'
-			| 'bodyweightPlus'
-			| 'assisted'
-			| 'unloaded',
-		kg: number | null,
-	) => {
+	/** The prescription's weight, in the load's own semantics (ADR 0056 §3);
+	 * `kg` is the kilo as `formatKg` writes it. */
+	load: (kind: WorkingLoadKind, kg: string | null) => {
 		switch (kind) {
 			case 'external':
-				return kg == null ? null : `${nbKg(kg)} kg`
+				return kg == null ? null : `${kg} kg`
 			case 'bodyweight':
 				return 'kroppsvekt'
 			case 'bodyweightPlus':
-				return kg == null ? 'kroppsvekt' : `kroppsvekt + ${nbKg(kg)} kg`
+				return kg == null ? 'kroppsvekt' : `kroppsvekt + ${kg} kg`
 			case 'assisted':
-				return kg == null ? null : `${nbKg(kg)} kg avlastning`
+				return kg == null ? null : `${kg} kg avlastning`
 			case 'unloaded':
 				return 'uten vekt'
 		}

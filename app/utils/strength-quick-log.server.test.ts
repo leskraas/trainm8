@@ -1,5 +1,10 @@
+import { invariant } from '@epic-web/invariant'
 import { expect, test } from 'vitest'
 import { createPassword, createUser } from '#tests/db-utils.ts'
+import {
+	autoSaveImport,
+	createActivityImport,
+} from './activity-import.server.ts'
 import { prisma } from './db.server.ts'
 import {
 	PROGRAM_LIFT_EQUIPMENT,
@@ -8,6 +13,7 @@ import {
 } from './strength-program-seed.server.ts'
 import {
 	openNextProgramSession,
+	setWorkingWeight,
 	startProgram,
 } from './strength-program.server.ts'
 import {
@@ -71,7 +77,8 @@ async function gymDay(
 	daysFromNow = 0,
 	{
 		squatLoad = { kind: 'absolute', kg: 100 } as object,
-	}: { squatLoad?: object } = {},
+		repeatCount = 1,
+	}: { squatLoad?: object; repeatCount?: number } = {},
 ) {
 	const squat = await exercise('Back Squat')
 	const plank = await exercise('Plank', 'bodyweight')
@@ -89,6 +96,7 @@ async function gymDay(
 				create: [
 					{
 						orderIndex: 0,
+						repeatCount,
 						steps: {
 							create: [
 								{
@@ -132,11 +140,14 @@ async function gymDay(
 			source: 'authored',
 		},
 	})
-	const steps = workout.blocks[0]!.steps
+	const steps = workout.blocks.flatMap((block) => block.steps)
+	const squatStep = steps.find((s) => s.exerciseId === squat.id)
+	const plankStep = steps.find((s) => s.exerciseId === plank.id)
+	invariant(squatStep && plankStep, 'the gym day has its two lifts')
 	return {
 		sessionId: session.id,
-		squatStep: steps.find((s) => s.exerciseId === squat.id)!.id,
-		plankStep: steps.find((s) => s.exerciseId === plank.id)!.id,
+		squatStep: squatStep.id,
+		plankStep: plankStep.id,
 	}
 }
 
@@ -238,7 +249,10 @@ test('som planlagt writes every planned set exactly once, at the planned weight,
 		[45, null],
 	])
 	// A bodyweight hold bakes the athlete's weight, as the runner's tap does.
-	expect(JSON.parse(planks[0]!.load)).toEqual({ kind: 'bodyweight' })
+	expect(planks.map((set) => JSON.parse(set.load))).toEqual([
+		{ kind: 'bodyweight' },
+		{ kind: 'bodyweight' },
+	])
 	expect(await statusOf(sessionId)).toBe('completed')
 	// Done, the quick log is no longer offered.
 	expect(await readQuickLog(userId, sessionId, at)).toBeNull()
@@ -259,6 +273,7 @@ test('a double tap logs once: the second finds the session done and writes nothi
 		loggedSets: 0,
 		alreadyLogged: true,
 		finished: null,
+		week: null,
 	})
 	expect(await setsOf(sessionId)).toEqual(before)
 })
@@ -483,4 +498,122 @@ test('a program session logged as planned folds into the run once, however often
 		select: { load: true },
 	})
 	expect(JSON.parse(squat.load)).toEqual({ kind: 'external', kg: 60 })
+})
+
+test('a gym day an import linked is still logged: the import brought no sets', async () => {
+	const userId = await createAthlete()
+	const { sessionId } = await gymDay(userId, -1)
+	// intervals.icu carries the workout but no kilos and no sets (ADR 0056 §1).
+	const start = new Date(NOW.getTime() - DAY - 3 * 3600_000)
+	const imported = await createActivityImport(userId, {
+		externalProvider: 'intervalsicu',
+		externalId: `gym-${userId}`,
+		startedAt: start,
+		endedAt: new Date(start.getTime() + 50 * 60_000),
+		durationSec: 50 * 60,
+		discipline: 'strength',
+		rawJson: '{}',
+	})
+	const saved = await autoSaveImport(userId, imported.id, TZ)
+	expect(saved?.sessionId).toBe(sessionId)
+	expect(await statusOf(sessionId)).toBe('completed')
+
+	expect(await readQuickLog(userId, sessionId, at)).not.toBeNull()
+	const result = await logStrengthSession(userId, sessionId, asPlanned, at)
+
+	expect(result).toMatchObject({
+		ok: true,
+		loggedSets: 5,
+		alreadyLogged: false,
+	})
+	expect(await setsOf(sessionId)).toHaveLength(5)
+	expect(await statusOf(sessionId)).toBe('completed')
+	// Logged, it is not offered again.
+	expect(await readQuickLog(userId, sessionId, at)).toBeNull()
+})
+
+test('a repeated block is logged in the runner, not as fewer sets than planned', async () => {
+	const userId = await createAthlete()
+	// Squats and planks, twice through: 10 sets planned, one set-log row per
+	// prescribed set — logging "as planned" from here would log 5.
+	const { sessionId } = await gymDay(userId, 0, { repeatCount: 2 })
+
+	const log = await readQuickLog(userId, sessionId, at)
+	expect(log?.loggable).toBe(false)
+	expect(await logStrengthSession(userId, sessionId, asPlanned, at)).toEqual({
+		ok: false,
+		reason: 'not-plannable',
+	})
+	expect(await setsOf(sessionId)).toEqual([])
+})
+
+test('the sets and the finish land together: a finish that fails leaves no set behind', async () => {
+	const userId = await createAthlete()
+	const { sessionId } = await gymDay(userId)
+	await prisma.$executeRawUnsafe(`
+		CREATE TRIGGER quick_log_finish_fails
+		BEFORE UPDATE OF status ON WorkoutSession
+		WHEN NEW.status = 'completed'
+		BEGIN SELECT RAISE(ABORT, 'the finish failed'); END`)
+	try {
+		await expect(
+			logStrengthSession(userId, sessionId, asPlanned, at),
+		).rejects.toThrow()
+	} finally {
+		await prisma.$executeRawUnsafe(`DROP TRIGGER quick_log_finish_fails`)
+	}
+	expect(await setsOf(sessionId)).toEqual([])
+	expect(await statusOf(sessionId)).toBe('scheduled')
+	// Nothing half-written, so the log is still there to try again.
+	expect(await readQuickLog(userId, sessionId, at)).not.toBeNull()
+})
+
+test('a program session is logged at the run’s current working weight', async () => {
+	const userId = await createAthlete()
+	await seedStrengthPrograms(prisma)
+	const now = new Date()
+	const started = await startProgram({
+		userId,
+		programId: 'prog_stronglifts_5x5_basic',
+		startedOn: new Date(now.getTime() - DAY),
+		startingWeights: [
+			{
+				exerciseId: PROGRAM_LIFT_EXERCISE_IDS.squat,
+				equipment: PROGRAM_LIFT_EQUIPMENT.squat,
+				weightKg: 60,
+			},
+		],
+	})
+	if (!started.ok) throw new Error(started.reason)
+	const opened = await openNextProgramSession({
+		userId,
+		instanceId: started.instanceId,
+	})
+	if (!opened) throw new Error('expected a session')
+	// Stamped at 60 kg when it was opened; the athlete has moved the squat since.
+	await setWorkingWeight({
+		userId,
+		instanceId: started.instanceId,
+		exerciseId: PROGRAM_LIFT_EXERCISE_IDS.squat,
+		equipment: PROGRAM_LIFT_EQUIPMENT.squat,
+		weightKg: 70,
+	})
+
+	const log = await logStrengthSession(userId, opened.sessionId, asPlanned, {
+		now,
+		timezone: TZ,
+	})
+
+	expect(log).toMatchObject({ ok: true, alreadyLogged: false })
+	const squats = await prisma.exerciseSetLog.findMany({
+		where: {
+			sessionId: opened.sessionId,
+			exerciseId: PROGRAM_LIFT_EXERCISE_IDS.squat,
+		},
+		select: { load: true },
+	})
+	expect(squats.length).toBeGreaterThan(0)
+	for (const squat of squats) {
+		expect(JSON.parse(squat.load)).toEqual({ kind: 'external', kg: 70 })
+	}
 })

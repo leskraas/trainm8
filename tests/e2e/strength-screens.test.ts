@@ -979,29 +979,21 @@ test('every control on lift over time is 44px to a thumb', async ({
 
 const SHOTS = process.env.STRENGTH_SHOTS
 
-/** A screenshot for review, when `STRENGTH_SHOTS=<dir>` is set. I dag scrolls
- * inside its own box, so the subject is brought up a third of the screen,
- * clear of the folded hero. */
-async function shot(page: Page, name: string, centre: Locator) {
+/** A screenshot for review, when `STRENGTH_SHOTS=<dir>` is set, with the
+ * subject scrolled into I dag's own scroll box and on screen. */
+async function shot(page: Page, name: string, subject: Locator) {
 	if (!SHOTS) return
-	await page.waitForTimeout(1500)
-	for (let pass = 0; pass < 2; pass++) {
-		await centre.evaluate((el) => {
-			const stream = el.closest('[data-testid="timeline-stream"]')!
-			const offset =
-				el.getBoundingClientRect().top -
-				stream.getBoundingClientRect().top +
-				stream.scrollTop
-			stream.scrollTo({ top: offset - 140, behavior: 'instant' })
-		})
-		await page.waitForTimeout(400)
-	}
+	await subject.scrollIntoViewIfNeeded()
+	await expect(subject).toBeInViewport()
 	await page.screenshot({ path: `${SHOTS}/${name}.png` })
 }
 
-/** This week's Monday and today, `YYYY-MM-DD` in UTC — the athlete's zone. */
-function thisWeek() {
-	const now = new Date()
+/**
+ * The athlete's day and its week, `YYYY-MM-DD` in UTC — the athlete's zone —
+ * read off one instant, so the seed and the assertions agree about which day
+ * and week it is.
+ */
+function weekOf(now: Date) {
 	const today = now.toISOString().slice(0, 10)
 	const monday = new Date(now)
 	monday.setUTCDate(now.getUTCDate() - ((now.getUTCDay() + 6) % 7))
@@ -1013,8 +1005,10 @@ function thisWeek() {
  * morning's gym day: three squats of five at 60 kg. The day is today, so the
  * row sits in the open current week whatever weekday it runs.
  */
-async function seedGymDay(userId: string) {
-	const { today, monday } = thisWeek()
+async function seedGymDay(
+	userId: string,
+	{ today, monday }: ReturnType<typeof weekOf>,
+) {
 	await prisma.planOutline.create({
 		data: {
 			athleteId: userId,
@@ -1084,7 +1078,9 @@ async function seedGymDay(userId: string) {
 		data: {
 			userId,
 			workoutId: workout.id,
-			scheduledAt: new Date(`${today}T00:30:00.000Z`),
+			// The day's first instant: today whatever time the test runs, and
+			// already begun, so the quick log is offered.
+			scheduledAt: new Date(`${today}T00:00:00.000Z`),
 			source: 'authored',
 		},
 	})
@@ -1102,8 +1098,9 @@ test('a gym day is logged som planlagt from I dag in one tap, and the week count
 	})
 	const user = await login()
 	await seedAthlete(user.id)
-	const gym = await seedGymDay(user.id)
-	const { monday } = thisWeek()
+	const week = weekOf(new Date())
+	const gym = await seedGymDay(user.id, week)
+	const { monday } = week
 
 	await navigate('/')
 	const log = page.getByRole('region', { name: 'Logg Styrke A' })
@@ -1150,8 +1147,9 @@ test('Endre logs the set that went differently, at the planned weight', async ({
 	test.setTimeout(120_000)
 	const user = await login()
 	await seedAthlete(user.id)
-	const gym = await seedGymDay(user.id)
-	const { monday } = thisWeek()
+	const week = weekOf(new Date())
+	const gym = await seedGymDay(user.id, week)
+	const { monday } = week
 
 	await navigate('/')
 	const log = page.getByRole('region', { name: 'Logg Styrke A' })

@@ -41,10 +41,28 @@ export async function getWeekVolumes(
 		sessions: sessions.map((session) =>
 			volumeSessionOf(session, {
 				dayKey: localDate(session.scheduledAt, timezone),
-				status: deriveLedgerStatus(session, now),
+				status: deriveLedgerStatus(session, now, timezone),
 			}),
 		),
 	})
+}
+
+/**
+ * The Actual Volume of one discipline's track in the week holding `weekKey` —
+ * what a log just moved — or null where the plan has no track for it. A track
+ * with nothing done reads 0 here, the number a "0 → 3 sett" toast starts from.
+ */
+export async function getWeekTrackActual(
+	userId: string,
+	{
+		weekKey,
+		discipline,
+		now = new Date(),
+	}: { weekKey: string; discipline: string; now?: Date },
+): Promise<number | null> {
+	const volumes = await getWeekVolumes(userId, { weekKey, now })
+	const track = volumes.tracks.find((t) => t.discipline === discipline)
+	return track ? (track.actual ?? 0) : null
 }
 
 export type CountsInNoTrackResult =

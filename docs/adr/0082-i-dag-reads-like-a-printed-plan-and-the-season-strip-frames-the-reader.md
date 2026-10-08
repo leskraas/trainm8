@@ -330,6 +330,19 @@ write still works, and the toast after it reads the week on the server.
 The reader is the free-text parser ADR 0027 §1 left room for; see that ADR's
 amendment. Free-text commands (`syk til onsdag`) are a later step.
 
+## As built (#505 S16): a day is not graded before it is over
+
+A session still scheduled on **today** reads planned on I dag until the day is
+over in the Athlete Timezone, not _ikke gjort_ from its start time on:
+`deriveLedgerStatus` takes the timezone where the reader thinks in days (the
+stream's rows and the week's volumes), story 24's rule applied to the row as
+it already was to the week's grade. The hero's "next session" still reads the
+instant, so a session earlier today is not offered there as coming.
+
+The quick strength log sits under a gym day's row (_Logg økta_: _Som planlagt_
+/ _Endre_), beside the row's other actions; see GLOSSARY "Quick Strength Log"
+and ADR 0064's S16 note.
+
 ## Consequences
 
 - **The season is longer.** It runs to the plan's last week, so the End Cap is

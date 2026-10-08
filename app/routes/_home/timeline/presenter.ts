@@ -450,7 +450,7 @@ export function buildTimelineSeason({
 	// profile bars), so the stream and the Session Ledger can never disagree
 	// about a session. Its `now` divider is dropped here: the week headers and
 	// today's own row already say where the boundary is, twice over.
-	const ledgerRows = buildLedgerRows(ledger, now).filter(
+	const ledgerRows = buildLedgerRows(ledger, now, timezone).filter(
 		(row): row is SessionRow => row.kind === 'session',
 	)
 	// Weeks are bucketed by the Athlete Calendar, the same Monday–Sunday windows

@@ -751,8 +751,19 @@ export type SaveLoggedSetResult =
  */
 export async function saveLoggedSet(
 	input: SaveLoggedSetInput,
+	{
+		db = prisma,
+		detectRecords = true,
+	}: {
+		/** The caller's transaction, when the set is one write of several that
+		 * land together (the quick strength log, #505 S16). */
+		db?: Prisma.TransactionClient
+		/** False where no banner reads the answer; the records read goes through
+		 * the shared client, so a caller holding a transaction turns it off. */
+		detectRecords?: boolean
+	} = {},
 ): Promise<SaveLoggedSetResult> {
-	const step = await prisma.workoutStep.findFirst({
+	const step = await db.workoutStep.findFirst({
 		where: {
 			id: input.stepId,
 			block: { workout: { sessions: { some: { id: input.sessionId } } } },
@@ -770,7 +781,7 @@ export async function saveLoggedSet(
 	if (!statesWhatWasPerformed(input)) return { ok: false, reason: 'no-count' }
 	// Ownership is checked against the session rather than the Step, because a
 	// Catalogue Workout's Step is reachable by everyone and its sessions are not.
-	const session = await prisma.workoutSession.findFirst({
+	const session = await db.workoutSession.findFirst({
 		where: { id: input.sessionId, userId: input.athleteId },
 		select: { id: true },
 	})
@@ -780,7 +791,7 @@ export async function saveLoggedSet(
 	// upsert, because the upsert cannot tell a correction from an overwrite: an
 	// `update` that carries a different `kind` rewrites history, and no rep-count
 	// edit has any business doing that (see `changeLoadKind`).
-	const recorded = await prisma.exerciseSetLog.findUnique({
+	const recorded = await db.exerciseSetLog.findUnique({
 		where: {
 			sessionId_stepId_orderIndex: {
 				sessionId: input.sessionId,
@@ -801,7 +812,7 @@ export async function saveLoggedSet(
 		return { ok: false, reason: 'load-kind-locked', recordedKind }
 	}
 
-	const profile = await prisma.athleteProfile.findUnique({
+	const profile = await db.athleteProfile.findUnique({
 		where: { userId: input.athleteId },
 		select: { weightKg: true },
 	})
@@ -815,10 +826,10 @@ export async function saveLoggedSet(
 		exerciseId: step.exerciseId,
 		// The other half of the progression key, both halves of it. Resolved here
 		// rather than posted, for the same reason `exerciseSetId` is.
-		...(await realizationForStep(step.exercise)),
+		...(await realizationForStep(step.exercise, db)),
 	})
 
-	const row = await prisma.exerciseSetLog.upsert({
+	const row = await db.exerciseSetLog.upsert({
 		where: {
 			sessionId_stepId_orderIndex: {
 				sessionId: input.sessionId,
@@ -839,9 +850,11 @@ export async function saveLoggedSet(
 	// The gate is asked here, off what was just posted, so a warm-up rung — most
 	// of the taps on a heavy day — never pays for the history read at all. The
 	// hottest surface in the app stays one write and one cheap question.
-	const records = countsTowardWork({ role: input.role, outcome: input.outcome })
-		? await recordsSetBy(input.athleteId, row.id)
-		: []
+	const records =
+		detectRecords &&
+		countsTowardWork({ role: input.role, outcome: input.outcome })
+			? await recordsSetBy(input.athleteId, row.id)
+			: []
 	return { ok: true, id: row.id, records }
 }
 
@@ -1005,10 +1018,11 @@ function canonicalLoad(load: LoadValue): string {
  */
 async function realizationForStep(
 	exercise: { id: string; equipment: string | null } | null,
+	db: Prisma.TransactionClient = prisma,
 ): Promise<{ variantId: string | null; equipment: string | null }> {
 	if (!exercise?.equipment) return { variantId: null, equipment: null }
 	const variant = await findVariantByEquipment(
-		prisma,
+		db,
 		exercise.id,
 		exercise.equipment,
 	)

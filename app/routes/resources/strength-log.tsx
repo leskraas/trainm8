@@ -1,19 +1,12 @@
 import { parseWithZod } from '@conform-to/zod'
 import { data } from 'react-router'
-import {
-	localDate,
-	mondayOfDay,
-	weekMonday,
-} from '#app/utils/athlete-calendar.ts'
+import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { prisma } from '#app/utils/db.server.ts'
 import {
 	QUICK_LOG_LABELS,
 	QUICK_LOG_REFUSAL_LABELS,
 } from '#app/utils/labels.ts'
-import { trackForDiscipline } from '#app/utils/plan-outline/week-sum.ts'
-import { getWeekVolumes } from '#app/utils/plan-outline/week-volumes.server.ts'
 import { relativeWeekName } from '#app/utils/relative-week.ts'
 import {
 	type QuickLogEntry,
@@ -31,26 +24,16 @@ import { type Route } from './+types/strength-log.ts'
  * The quick strength log under a strength session's row on I dag (#505
  * stories 83–84). Owner-scoped both ways: another athlete's session reads as
  * nothing and answers a post with 404.
- *
- * The read answers as data and never throws after auth — a fetcher's error
- * would reach home's own error boundary over a panel whose one-tap button
- * works without it (the post reads the plan on the server).
  */
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	const query = StrengthLogQuerySchema.safeParse(
 		Object.fromEntries(new URL(request.url).searchParams),
 	)
-	if (!query.success) return { quickLog: null, failed: false }
-	try {
-		const timezone = await getAthleteTimezone(userId)
-		return {
-			quickLog: await readQuickLog(userId, query.data.sessionId, { timezone }),
-			failed: false,
-		}
-	} catch (error) {
-		console.error('[strength-log] the plan could not be read', error)
-		return { quickLog: null, failed: true }
+	if (!query.success) return { quickLog: null }
+	const timezone = await getAthleteTimezone(userId)
+	return {
+		quickLog: await readQuickLog(userId, query.data.sessionId, { timezone }),
 	}
 }
 
@@ -77,8 +60,6 @@ export async function action({ request }: Route.ActionArgs) {
 			: { kind: 'edited', sets: submission.value.sets }
 	const timezone = await getAthleteTimezone(userId)
 	const now = new Date()
-	const weekKey = await weekOf(userId, sessionId, timezone)
-	const before = weekKey ? await doneSets(userId, weekKey, now) : null
 	const result = await logStrengthSession(userId, sessionId, entry, {
 		now,
 		timezone,
@@ -97,14 +78,16 @@ export async function action({ request }: Route.ActionArgs) {
 	if (result.alreadyLogged) {
 		return data({ submission: submission.reply(), result })
 	}
-	const after = weekKey ? await doneSets(userId, weekKey, now) : null
 	const description = QUICK_LOG_LABELS.logged(
 		result.loggedSets,
-		weekKey && before != null && after != null
+		result.week
 			? {
-					name: relativeWeekName(weekKey, weekMonday(now, timezone)),
-					before,
-					after,
+					name: relativeWeekName(
+						result.week.weekKey,
+						weekMonday(now, timezone),
+					),
+					before: result.week.before,
+					after: result.week.after,
 				}
 			: null,
 	)
@@ -112,32 +95,4 @@ export async function action({ request }: Route.ActionArgs) {
 		{ submission: submission.reply(), result },
 		{ headers: await createToastHeaders({ description, type: 'success' }) },
 	)
-}
-
-/** The Training Week the athlete's session sits in, or null where it is not
- * theirs. */
-async function weekOf(
-	userId: string,
-	sessionId: string,
-	timezone: string,
-): Promise<string | null> {
-	const session = await prisma.workoutSession.findFirst({
-		where: { id: sessionId, userId },
-		select: { scheduledAt: true },
-	})
-	return session ? mondayOfDay(localDate(session.scheduledAt, timezone)) : null
-}
-
-/** The week's done working sets in the plan's strength track; null without
- * one, where the toast says only how many sets went in. */
-async function doneSets(
-	userId: string,
-	weekKey: string,
-	now: Date,
-): Promise<number | null> {
-	const track = trackForDiscipline(
-		await getWeekVolumes(userId, { weekKey, now }),
-		'strength',
-	)
-	return track ? (track.actual ?? 0) : null
 }

@@ -409,7 +409,9 @@ test('the quick strength log speaks the spec’s words, and every refusal is sai
 	for (const reason of QUICK_LOG_REFUSALS) {
 		expect(QUICK_LOG_REFUSAL_LABELS[reason]).toBeTruthy()
 	}
-	// A weight in the load's own semantics, with a decimal comma.
-	expect(QUICK_LOG_LABELS.load('external', 82.5)).toBe('82,5 kg')
-	expect(QUICK_LOG_LABELS.load('bodyweightPlus', 15)).toBe('kroppsvekt + 15 kg')
+	// A weight in the load's own semantics, as `formatKg` writes the kilo.
+	expect(QUICK_LOG_LABELS.load('external', '82.5')).toBe('82.5 kg')
+	expect(QUICK_LOG_LABELS.load('bodyweightPlus', '15')).toBe(
+		'kroppsvekt + 15 kg',
+	)
 })

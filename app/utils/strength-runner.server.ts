@@ -32,9 +32,15 @@
  *
  * Queries and writes; decides nothing.
  */
+import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import { type LiftOutcome } from './strength/program-engine.ts'
-import { recordProgramSession } from './strength-program.server.ts'
+import {
+	type PreparedProgramFold,
+	foldProgramSessionIn,
+	prepareProgramFold,
+	recordProgramSession,
+} from './strength-program.server.ts'
 
 export type FinishSessionResult =
 	| {
@@ -85,26 +91,7 @@ export async function finishStrengthSession(input: {
 	if (session.setLogs.length === 0)
 		return { ok: false, reason: 'nothing-logged' }
 
-	// **The run this session belongs to, found through the copy.** Opening a program
-	// session materialises the athlete's own copy of the day shape — that is where
-	// the resolved load lives — so the day shape is `Workout.copiedFromId`. The
-	// session's own `workoutId` is kept in the search for a session opened before
-	// the load was materialised, which points at the shared shape directly.
-	const dayShapeIds = [
-		session.workoutId,
-		session.workout?.copiedFromId ?? null,
-	].filter((id): id is string => id != null)
-	const instance = dayShapeIds.length
-		? await prisma.programInstance.findFirst({
-				where: {
-					userId: input.userId,
-					status: 'active',
-					program: { days: { some: { workoutId: { in: dayShapeIds } } } },
-				},
-				orderBy: { startedOn: 'desc' },
-				select: { id: true, program: { select: { name: true } } },
-			})
-		: null
+	const instance = await activeRunFor(input.userId, session)
 
 	let outcomes: LiftOutcome[] = []
 	let liftNames: Record<string, string> = {}
@@ -149,4 +136,120 @@ export async function finishStrengthSession(input: {
 		loggedWorkingSets: session.setLogs.length,
 		alreadyFinished: !claimed,
 	}
+}
+
+/**
+ * **The run this session belongs to, found through the copy.** Opening a program
+ * session materialises the athlete's own copy of the day shape — that is where
+ * the resolved load lives — so the day shape is `Workout.copiedFromId`. The
+ * session's own `workoutId` is kept in the search for a session opened before
+ * the load was materialised, which points at the shared shape directly.
+ */
+export async function activeRunFor(
+	userId: string,
+	session: {
+		workoutId: string | null
+		workout: { copiedFromId: string | null } | null
+	},
+) {
+	const dayShapeIds = [
+		session.workoutId,
+		session.workout?.copiedFromId ?? null,
+	].filter((id): id is string => id != null)
+	return dayShapeIds.length
+		? prisma.programInstance.findFirst({
+				where: {
+					userId,
+					status: 'active',
+					program: { days: { some: { workoutId: { in: dayShapeIds } } } },
+				},
+				orderBy: { startedOn: 'desc' },
+				select: { id: true, program: { select: { name: true } } },
+			})
+		: null
+}
+
+/** A finish read ahead of the caller's transaction: the program fold, where
+ * the session belongs to a running program it has not been folded into. */
+export type PreparedFinish = {
+	userId: string
+	sessionId: string
+	programName: string | null
+	fold: PreparedProgramFold | null
+}
+
+/**
+ * Read what finishing `sessionId` needs before a transaction opens (#505 S16:
+ * the quick strength log writes its sets and the finish in one). Null when the
+ * session is not this athlete's.
+ */
+export async function prepareFinish(input: {
+	userId: string
+	sessionId: string
+	now?: Date
+	/** What the caller already read about the session: its running program, if
+	 * any, and whether it has been folded into one. Saves the reads here. */
+	known?: {
+		run: { id: string; program: { name: string } } | null
+		folded: boolean
+	}
+}): Promise<PreparedFinish | null> {
+	let known = input.known
+	if (!known) {
+		const session = await prisma.workoutSession.findFirst({
+			where: { id: input.sessionId, userId: input.userId },
+			select: {
+				workoutId: true,
+				workout: { select: { copiedFromId: true } },
+				_count: { select: { programApplications: true } },
+			},
+		})
+		if (!session) return null
+		known = {
+			run: await activeRunFor(input.userId, session),
+			folded: session._count.programApplications > 0,
+		}
+	}
+	// A session already folded in is spent: finishing it again only marks it.
+	const fold =
+		known.run && !known.folded
+			? await prepareProgramFold({
+					userId: input.userId,
+					instanceId: known.run.id,
+					sessionId: input.sessionId,
+					now: input.now,
+				})
+			: null
+	return {
+		userId: input.userId,
+		sessionId: input.sessionId,
+		programName: known.run?.program.name ?? null,
+		fold: fold?.ok ? fold : null,
+	}
+}
+
+/**
+ * Finish inside the caller's transaction: fold into the run where there is one
+ * to fold into — which marks the session done with it — or just mark it done.
+ */
+export async function finishIn(
+	tx: Prisma.TransactionClient,
+	prepared: PreparedFinish,
+): Promise<{
+	outcomes: LiftOutcome[]
+	liftNames: Record<string, string>
+	programName: string | null
+}> {
+	if (prepared.fold) {
+		return {
+			outcomes: await foldProgramSessionIn(tx, prepared.fold),
+			liftNames: prepared.fold.names,
+			programName: prepared.programName,
+		}
+	}
+	await tx.workoutSession.updateMany({
+		where: { id: prepared.sessionId, userId: prepared.userId },
+		data: { status: 'completed' },
+	})
+	return { outcomes: [], liftNames: {}, programName: prepared.programName }
 }

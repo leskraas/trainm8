@@ -7,7 +7,7 @@
  */
 
 import { addDays, localDate } from '#app/utils/athlete-calendar.ts'
-import { sumBlockSets } from '#app/utils/dashboard.ts'
+import { readPlannedSets } from '#app/utils/dashboard.ts'
 import { QUICK_LOG_LABELS } from '#app/utils/labels.ts'
 import { type SessionRow } from '#app/utils/session-ledger-rows.ts'
 import {
@@ -31,9 +31,8 @@ export function strengthLogOf(
 	const { session, entry } = row
 	const offered = canQuickLogStrength(
 		{
-			status: session.status,
 			workoutDiscipline: session.workout?.discipline ?? null,
-			plannedSets: session.workout ? sumBlockSets(session.workout.blocks) : 0,
+			plannedSets: readPlannedSets(session.workout?.blocks ?? []).total,
 			loggedWorkingSets: session.setLogs.length,
 			dayKey: localDate(new Date(session.scheduledAt), timezone),
 		},

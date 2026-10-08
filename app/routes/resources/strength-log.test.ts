@@ -1,3 +1,4 @@
+import { invariant } from '@epic-web/invariant'
 import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
@@ -88,9 +89,11 @@ async function athlete() {
 		},
 		select: { id: true },
 	})
+	const step = workout.blocks[0]?.steps[0]
+	invariant(step, 'the gym day has its squat')
 	return {
 		sessionId: own.id,
-		stepId: workout.blocks[0]!.steps[0]!.id,
+		stepId: step.id,
 		cookie: await getSessionCookieHeader(session),
 	}
 }

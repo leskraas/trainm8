@@ -81,11 +81,7 @@ export function StrengthLogPanel({
 				)
 			) : (
 				<p aria-live="polite" className="text-ink-dimmer text-[12px]/[1.35]">
-					{reader.data?.failed
-						? QUICK_LOG_LABELS.loadFailed
-						: reader.data
-							? null
-							: QUICK_LOG_LABELS.loading}
+					{reader.data ? null : QUICK_LOG_LABELS.loading}
 				</p>
 			)}
 			{quickLog && !quickLog.loggable ? (

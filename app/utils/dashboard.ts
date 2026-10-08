@@ -104,19 +104,37 @@ type SetBlock = {
 }
 
 /**
- * Total prescribed sets across a workout's blocks: a repeated block's sets count
- * once per repeat, the same reading `sumBlockDurationMin` gives duration. The
+ * **The planned sets of a workout, read once for everyone** — the strength
+ * track's Planned Volume, the quick strength log's offer and its write (#505
+ * S16). `total` counts a repeated block's sets once per repeat, the same
+ * reading `sumBlockDurationMin` gives duration; `repeated` says some block with
+ * sets is repeated, which the set log cannot hold per repeat (one row per
+ * `(session, step, set)`), so such a session is logged set by set in the
+ * runner rather than from I dag.
+ */
+export function readPlannedSets(blocks: readonly SetBlock[]): {
+	total: number
+	repeated: boolean
+} {
+	let total = 0
+	let repeated = false
+	for (const block of blocks) {
+		const repeats = blockRepeatTotal(block)
+		for (const step of block.steps) {
+			total += step.sets.length * repeats
+			if (step.sets.length > 0 && repeats > 1) repeated = true
+		}
+	}
+	return { total, repeated }
+}
+
+/**
+ * Total prescribed sets across a workout's blocks (`readPlannedSets`). The
  * strength track's `sets` currency is total working sets per week (ADR 0047),
  * so this is a lifting session's Planned Volume.
  */
-export function sumBlockSets(blocks: SetBlock[]): number {
-	let total = 0
-	for (const block of blocks) {
-		for (const step of block.steps) {
-			total += step.sets.length * blockRepeatTotal(block)
-		}
-	}
-	return total
+export function sumBlockSets(blocks: readonly SetBlock[]): number {
+	return readPlannedSets(blocks).total
 }
 
 export function countdownLabel(

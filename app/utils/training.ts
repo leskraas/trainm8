@@ -1,3 +1,4 @@
+import { localDate } from './athlete-calendar.ts'
 import { sumBlockDurationMin } from './dashboard.ts'
 // Enum display labels live in the shared label seam (#281); re-exported here so
 // existing importers of these helpers are unchanged.
@@ -50,12 +51,27 @@ export type LedgerStatus = 'completed' | 'planned' | 'missed'
 export function deriveLedgerStatus(
 	session: { status: string; scheduledAt: Date },
 	now: Date = new Date(),
+	/**
+	 * The Athlete Timezone, where the reader thinks in days: a session still
+	 * scheduled on **today** is then planned until the day is over — I dag
+	 * never grades a day before it has passed (#505 story 24), and a gym
+	 * session at 07:00 is not "ikke gjort" at 09:00. Without it the instant
+	 * decides, as it always has.
+	 */
+	timezone?: string,
 ): LedgerStatus {
 	if (session.status === 'completed') return 'completed'
 	if (session.status === 'missed' || session.status === 'skipped') {
 		return 'missed'
 	}
-	return session.scheduledAt.getTime() >= now.getTime() ? 'planned' : 'missed'
+	if (session.scheduledAt.getTime() >= now.getTime()) return 'planned'
+	if (
+		timezone != null &&
+		localDate(session.scheduledAt, timezone) >= localDate(now, timezone)
+	) {
+		return 'planned'
+	}
+	return 'missed'
 }
 
 /** Actual duration (from the recording) when present, else the planned duration derived from the workout steps. */
@@ -128,6 +144,8 @@ export function toSessionLedgerEntry(
 		sessionLog: { rpe: number | null } | null
 	},
 	now: Date = new Date(),
+	/** Passed on to `deriveLedgerStatus`: today's sessions stay planned. */
+	timezone?: string,
 ): SessionLedgerEntry {
 	const load = session.tssValue ?? null
 	const plannedTss = session.plannedTssValue ?? null
@@ -151,7 +169,7 @@ export function toSessionLedgerEntry(
 						distanceM: session.recording.distanceM ?? null,
 					})
 				: null),
-		status: deriveLedgerStatus(session, now),
+		status: deriveLedgerStatus(session, now, timezone),
 		durationMin: getSessionDurationMin(session),
 		load,
 		plannedTss,

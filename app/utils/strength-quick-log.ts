@@ -17,6 +17,7 @@
 
 import { z } from 'zod'
 import { MARK_DONE_REACH_DAYS } from './import-fit.ts'
+import { type SetUnit } from './strength/working-load.ts'
 
 /** Where the quick log is read and posted (`routes/resources/strength-log.tsx`). */
 export const STRENGTH_LOG_ACTION = '/resources/strength-log'
@@ -33,15 +34,17 @@ export const QUICK_LOG_MAX_COUNT = 600
 
 /**
  * Whether a session takes the quick log: a strength session with sets on its
- * plan, on a day that has begun and is at most a week back, not yet finished
- * (`scheduled`, or marked `missed`) and with no working set logged — a session
- * the runner has started is finished in the runner, where its sets are.
+ * plan, on a day that has begun and is at most a week back, with **no working
+ * set logged yet**. Its status does not enter into it: a session an import
+ * linked, or one marked done, is `completed` with nothing lifted in it — no
+ * provider carries kilos or sets (ADR 0056 §1), which is the log's main case.
+ * A session the runner has started is finished in the runner, where its sets
+ * are.
  */
 export function canQuickLogStrength(
 	session: {
-		status: string
 		workoutDiscipline: string | null
-		/** Prescribed working sets on the session's Workout. */
+		/** Prescribed working sets on the session's Workout (`readPlannedSets`). */
 		plannedSets: number
 		/** Working sets already logged against this session. */
 		loggedWorkingSets: number
@@ -51,7 +54,6 @@ export function canQuickLogStrength(
 ): boolean {
 	return (
 		session.workoutDiscipline === 'strength' &&
-		(session.status === 'scheduled' || session.status === 'missed') &&
 		session.plannedSets > 0 &&
 		session.loggedWorkingSets === 0 &&
 		session.dayKey <= todayKey &&
@@ -110,7 +112,7 @@ export type QuickLogSet = {
 	orderIndex: number
 	/** The prescribed count: reps, or seconds for a timed hold. */
 	target: number
-	unit: 'reps' | 'seconds'
+	unit: SetUnit
 }
 
 /** One lift of the session, as the quick log shows it. */

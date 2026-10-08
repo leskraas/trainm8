@@ -1,3 +1,4 @@
+import { invariant } from '@epic-web/invariant'
 import { describe, expect, test } from 'vitest'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
@@ -2896,6 +2897,20 @@ describe('the quick strength log under a strength session’s row (#505 stories 
 		expect(rowOf(result, 'gym-2').strengthLog).toBeNull()
 	})
 
+	test('offered on a gym day an import marked done: it brought no sets', () => {
+		const result = season([gymDay(-1, { status: 'completed' })])
+		expect(rowOf(result, 'gym-1').status).toBe('completed')
+		expect(rowOf(result, 'gym-1').strengthLog).not.toBeNull()
+	})
+
+	test('a repeated block is still offered: the log itself sends it to the runner', () => {
+		const repeated = gymDay(0)
+		const block = repeated.workout?.blocks[0]
+		invariant(block, 'the gym day has its block')
+		block.repeatCount = 2
+		expect(rowOf(season([repeated]), 'gym0').strengthLog).not.toBeNull()
+	})
+
 	test('never on a run, and never as Gjort: a gym day is logged, not marked', () => {
 		const result = season([
 			gymDay(0),
@@ -2912,5 +2927,30 @@ describe('the quick strength log under a strength session’s row (#505 stories 
 		expect(row.chips.find((chip) => chip.id === 'sets')?.label).toMatch(
 			/2 \/ 2/,
 		)
+	})
+})
+
+describe('a day is not graded before it is over (#505 story 24)', () => {
+	test('a session earlier today still reads planned; yesterday’s reads ikke gjort', () => {
+		const result = season([
+			session({
+				id: 'morning',
+				scheduledAt: new Date(NOW.getTime() - 3 * 60 * 60 * 1000),
+				status: 'scheduled',
+				recording: null,
+				tssValue: null,
+			}),
+			on(-1, {
+				id: 'yesterday',
+				status: 'scheduled',
+				recording: null,
+				tssValue: null,
+			}),
+		])
+		const rows = result.weeks
+			.flatMap((week) => week.rows)
+			.flatMap((day) => day.sessions)
+		expect(rows.find((row) => row.id === 'morning')?.status).toBe('planned')
+		expect(rows.find((row) => row.id === 'yesterday')?.status).toBe('missed')
 	})
 })
