@@ -68,6 +68,16 @@ function week(rows: TimelineDay[], bands: TimelineBand[] = []): TimelineWeek {
 		bands,
 		tracks: [],
 		otherTrack: null,
+		weekNumber: 8,
+		relativeName: 'Denne uka',
+		phaseName: 'Build',
+		role: 'loading',
+		roleLabel: 'hard uke',
+		kindLabel: 'Build · hard uke',
+		shape: 'open',
+		foldLabel: null,
+		shownDayKeys: rows.map((d) => d.key),
+		loadLine: '0 av 0 gjort',
 	}
 }
 
@@ -111,11 +121,13 @@ function pastRun() {
 	]
 	const band: TimelineBand = {
 		key: '2030-02-18',
+		kind: 'past',
 		dayKeys: days.map((d) => d.key),
 		daysLabel: '18–20',
 		monthLabel: 'Feb',
-		summaryLabel: '3 days · nothing logged',
+		summaryLabel: '3 dager · ingenting logget',
 		rangeLabel: '18–20 February',
+		controlLabel: '3 dager uten noe logget, 18–20 February',
 	}
 	return { days, band }
 }
@@ -181,9 +193,9 @@ test('a run of empty days behind today is one row stating the count and the date
 
 	// The fact the blank rows only imply, said once (ADR 0065 §3).
 	const control = screen.getByRole('button', {
-		name: '3 days with nothing logged, 18–20 February',
+		name: '3 dager uten noe logget, 18–20 February',
 	})
-	expect(control).toHaveTextContent('3 days · nothing logged')
+	expect(control).toHaveTextContent('3 dager · ingenting logget')
 	expect(control).toHaveTextContent('18–20')
 	expect(control).toHaveTextContent('Feb')
 	// And the days it speaks for are not rows while it is closed.
@@ -196,7 +208,7 @@ test('the band is a real control with an expanded state, and tapping it opens th
 	const { days, band } = pastRun()
 	renderWeek(days, { bands: [band] })
 
-	const control = screen.getByRole('button', { name: /3 days with nothing/i })
+	const control = screen.getByRole('button', { name: /3 dager uten noe/i })
 	expect(control.tagName).toBe('BUTTON')
 	expect(control).toHaveAttribute('aria-expanded', 'false')
 
@@ -213,7 +225,7 @@ test('the band is a real control with an expanded state, and tapping it opens th
 		expect(screen.getByRole('button', { name })).toHaveClass('min-h-11')
 	}
 	// The control stays: a disclosure that vanishes on open has no way back.
-	expect(screen.getByRole('button', { name: /3 days with nothing/i })).toBe(
+	expect(screen.getByRole('button', { name: /3 dager uten noe/i })).toBe(
 		control,
 	)
 

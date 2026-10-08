@@ -1434,7 +1434,8 @@ adopted — is not laid again, the athlete's own sessions in it are left as they
 are, and with no plan or no pattern nothing is filled. It limits the app only:
 the athlete may write sessions any distance ahead, and those are kept as theirs.
 Distinct from the **14-Day Horizon**, which only decides what reads as upcoming.
-_Avoid_: Wall, lookahead, sprint window.
+On home a plan week past it that nothing has laid reads as one line, a
+**Collapsed Week** (ADR 0082 §3). _Avoid_: Wall, lookahead, sprint window.
 
 **Discipline Query**: The URL query parameter that preserves the selected
 discipline filter. _Avoid_: Local filter state, tab state
@@ -1474,31 +1475,35 @@ model", "a possible future direction" — it is the home surface
 **Home Timeline**: The athlete's home view at `/`, and the default destination
 after login: **The Tape** as one screen. Three parts in one column — a header
 block holding the **Hero**, its **Pane Dots** and the **Week Strip**, the
-**Stream** beneath them, and the **Back-to-Today Pill** floating over both —
-plus the single "+ New" creation menu (#178), which the header carries because
-the design's bottom tab bar was not built. It carries **two horizontal axes and
-one vertical one**, and the rule that explains the whole screen is that the Hero
-never moves in time while the Week Strip and the Stream always do (ADR 0065 §8).
-It opens at the **Landing Position**, and the header collapses as the athlete
-moves away from that point in **either** direction, so the Stream gets the whole
-screen the moment it is being read rather than looked at. The Stream, the Week
-Strip and the Hero's Today pane are all derived from the one `LedgerSession[]`
-the **Session Ledger**'s query already shipped — the strip and the stream are
-two views of one array, so an overview cannot disagree with the thing it
-overviews — and the Hero's other three panes read the **Load Snapshots**,
-**Personal Records**, adherence and **Week Replan** the loader was already
-fetching. Nothing is fetched twice, and nothing new was fetched to bring those
-panes back. _Avoid_: Dashboard, Cockpit, home page, landing page, feed, tabs
+**Stream** beneath them — plus the single "+ New" creation menu (#178), which
+the header carries because the design's bottom tab bar was not built, and the
+**Back-to-Today Pill** (_I dag_) at the strip's corner. From `lg` up the
+**Season Pane** sits beside the column (ADR 0082). UI word: _I dag_. It carries
+**two horizontal axes and one vertical one**, and the rule that explains the
+whole screen is that the Hero never moves in time while the Week Strip and the
+Stream always do (ADR 0065 §8). It opens at the **Landing Position**, and the
+header collapses as the athlete moves away from that point in **either**
+direction, so the Stream gets the whole screen the moment it is being read
+rather than looked at. The Stream, the Week Strip and the Hero's Today pane are
+all derived from the one `LedgerSession[]` the **Session Ledger**'s query
+already shipped — the strip and the stream are two views of one array, so an
+overview cannot disagree with the thing it overviews — and the Hero's other
+three panes read the **Load Snapshots**, **Personal Records**, adherence and
+**Week Replan** the loader was already fetching. Nothing is fetched twice, and
+nothing new was fetched to bring those panes back. _Avoid_: Dashboard, Cockpit,
+home page, landing page, feed, tabs
 
 **Every-Day Grid**: The home stream's row model (ADR 0065): the row is a **day**
 and a day owns **zero or more Workout Sessions**, so every date from today
-forward renders whether or not anything is planned on it, and runs of empty days
-behind today collapse into a **Past Band** that expands on tap. An empty day is
-a real 44px control — tapping it stamps a one-step block and _renders_ it as a
-**Token Sentence** (ADR 0027), never parses one. It is a shortcut into authoring
-a session, never an editor for the **Plan Outline**. "Rest day" is written only
-where the plan prescribes recovery; every other empty day carries no label.
-_Avoid_: Calendar, cell (for a row), "a row is a session"
+forward is a day whether or not anything is planned on it, and runs of empty
+days collapse into a **Past Band** that expands on tap — behind today the
+record's `ingenting logget`, ahead of it the free days a printed plan folds into
+one short row, `3 ledige dager` (ADR 0082 §4). Today never folds. An empty day
+is a real 44px control — tapping it stamps a one-step block and _renders_ it as
+a **Token Sentence** (ADR 0027), never parses one. It is a shortcut into
+authoring a session, never an editor for the **Plan Outline**. "Rest day" is
+written only where the plan prescribes recovery; every other empty day carries
+no label. _Avoid_: Calendar, cell (for a row), "a row is a session"
 
 **Day Stamp**: What tapping an empty day in the **Every-Day Grid** writes (ADR
 0065 §5, #501): a minimal **one-step block** — 45 min at Z2, in the prefilled
@@ -1549,23 +1554,29 @@ pane is reached without a swipe — the pager is also keyboard-operable, and a
 pane change is announced. _Avoid_: Tabs, page indicator, carousel controls
 
 **Week Strip**: The **Home Timeline**'s _navigating_ horizontal axis — the whole
-season as one cell per **Training Week**, scrolled sideways. It **scrolls**
-where the **Hero** above it **pages**, and that is what keeps two swipeable
-bands on one screen legible as two instruments (ADR 0065 §8): cells are cut off
-at both edges with proximity snap and no indicator, because a cell sliced in
-half says _"this keeps going"_ where a full-width pane says _"one of several"_.
-Moving it moves the **Stream**; moving the Hero moves nothing. Both take
-`touch-action: pan-x`, so a diagonal drag reaches the Stream instead of being
-eaten sideways, and both carry a name and a role of their own. A cell carries
-the week's range, seven day dots (done, planned, missed, today, nothing), a load
-bar drawn against the season's heaviest planned week with what was actually done
-filled inside it, the **Plan Outline** phase in one quiet word, and one load
-figure — `48 / 312` for the week being decided, a single number for every other.
-It never carries a session name: an overview that competes with the thing it
-overviews is not an overview. Tapping a cell jumps the **Stream** to that week,
-loading it first if it is outside the window. Every week renders, including the
-ones outside that window, dimmed rather than dropped. _Avoid_: Filmstrip,
-calendar, carousel, tabs, This Week strip
+season as one bar per **Training Week**, every week on screen at once, with a
+**frame** over the weeks the **Stream** is showing (ADR 0082 §5). A bar is the
+lead track's `max(target, planned)` against the season's largest — exactly,
+never floored — so overplanning shows, with what was done filling it from the
+foot; a hard week reads darker than an easy one, today's week carries a mark
+under its bar and a week that asks for lifting a dot. With no plan it reads
+load. It never carries a session name: an overview that competes with the thing
+it overviews is not an overview. Every week is a real button named with its
+numbers; tapping one jumps the Stream there, loading it first if it is outside
+the window, and opening it if it is a **Folded Week**. It does not scroll — only
+the **Hero** moves sideways — and its corner holds the **Back-to-Today Pill**.
+UI words: _Sesongen_, _I dag_. _Avoid_: Filmstrip, calendar, carousel, tabs,
+This Week strip, scrubber
+
+**Week Fold**: How the **Stream** draws a week that is not this week or a
+concrete one ahead (ADR 0082 §2–§3). A **Folded Week** is a closed week behind
+today, one line — `Forrige uke · 35 av 46 km · under` — that opens in place into
+the whole week and stays as its disclosure. A **Collapsed Week** is a plan week
+past the **Planning Horizon** that nothing machine-owned is in: one line —
+`Uke 41 · Oppbygging · mål 58 km · fylles når uke 39 er ferdig` — plus any
+session the athlete wrote there themselves, which is never hidden. A week the
+plan already laid stays open whatever the horizon says. _Avoid_: Accordion,
+hidden week, archived week
 
 **Stream**: The **Home Timeline**'s vertical axis, and the screen's reading
 surface: weeks in order, each a sticky header plus its days in weekday order,
@@ -1582,21 +1593,23 @@ is the difference between an overview and a list. _Avoid_: Session Ledger (that
 is the row model behind it), list, log, feed, history, "a row is a session"
 
 **Past Band**: A run of consecutive empty days behind today, rendered as **one
-row** in the **Stream** — `17–23 Aug` · `7 days · nothing logged` — that expands
-in place into ordinary day rows (ADR 0065 §3, ADR 0075). It says the thing the
-blank rows only imply, and it keeps stream height behind the reader stable,
-which is what the **Landing Position**'s growth compensation depends on. A run
-stops at the **Training Week**'s edge, because a week block is what the Stream
-mounts and windows, so seven days is the longest band there is; two days is the
-shortest, since a single empty day behind today is just a day. It never covers a
-date older than the query's own reach — _nothing was fetched_ is not _nothing
-was logged_. A real disclosure, not a swap: the control keeps its place above
-the days it opened, carrying its `aria-expanded` and the way back, and opening
-it never moves the reader's scroll position. The run **grows in** over 200ms
-rather than appearing — one of the two places on the surface that animates
+row** in the **Stream** — `17–23 Aug` · `7 dager · ingenting logget` — that
+expands in place into ordinary day rows (ADR 0065 §3, ADR 0075). It says the
+thing the blank rows only imply, and it keeps stream height behind the reader
+stable, which is what the **Landing Position**'s growth compensation depends on.
+A run stops at the **Training Week**'s edge, because a week block is what the
+Stream mounts and windows, so seven days is the longest band there is; two days
+is the shortest, since a single empty day behind today is just a day. It never
+covers a date older than the query's own reach — _nothing was fetched_ is not
+_nothing was logged_. A real disclosure, not a swap: the control keeps its place
+above the days it opened, carrying its `aria-expanded` and the way back, and
+opening it never moves the reader's scroll position. The run **grows in** over
+200ms rather than appearing — one of the two places on the surface that animates
 `height`, because seven rows arriving in one frame is the jarring change the
-band exists to prevent (ADR 0077). _Avoid_: Gap, collapsed rows, accordion,
-"skipped days", rest block
+band exists to prevent (ADR 0077). Ahead of today the same control folds a run
+of free days — `3 ledige dager` — into one short row that opens into cells to
+write in (ADR 0082 §4); today itself never folds. _Avoid_: Gap, collapsed rows,
+accordion, "skipped days", rest block
 
 **Start Cap** / **End Cap**: The **Stream**'s two stated ends. An infinite
 scroll that runs out of content and stops is indistinguishable from one that
@@ -1628,35 +1641,38 @@ after which the athlete owns the scroll position. _Avoid_: Scroll restore,
 initial scroll, scroll anchor, offset
 
 **Back-to-Today Pill**: The one control that undoes navigation on the **Home
-Timeline** — a pill just above the bottom edge, shown only while today's row is
-off screen, pointing the way back (`↑ Back to today` when today is above,
-`↓ Back to today` when it is below). It returns the **Stream** to the **Landing
-Position**, which also re-opens the **Hero**. It is the one thing on the surface
-that floats rather than sits, so it is the only owner of `--shadow-pill` — a
-token rather than a number because a drop shadow is a claim about where the
-light is, and lifting the pill off a white stream is not the same job as lifting
-it off a near-black one (#486). It **enters from the bottom edge it lives on and
-leaves the same way** — a fade and an 8px lift, 200ms on the **Motion Scale**
-(ADR 0077) — which is why it is always mounted and "today is in view" is what
-makes it _not there_: transparent, untappable and out of the tab order, rather
-than absent. _Avoid_: Scroll to top, jump button, FAB, today button
+Timeline** — the _I dag_ pill at the **Week Strip**'s corner (ADR 0082 §6). It
+is always there: quiet while today's row is on screen, and filled, pointing the
+way back (`↑ I dag` when today is above, `↓ I dag` when it is below), once the
+reader has scrolled today away. It returns the **Stream** to the **Landing
+Position**, which also re-opens the **Hero**. It changes look instantly and
+never comes or goes, so it carries no animation; filled, it is the only owner of
+`--shadow-pill` — a token rather than a number because a drop shadow is a claim
+about where the light is (#486). UI word: _I dag_. _Avoid_: Scroll to top, jump
+button, FAB, today button
+
+**Season Pane**: What sits beside the **Home Timeline**'s column from `lg` up
+(#505 story 60, ADR 0082 §7): the plan page's **season chart** and a table of
+the plan's weeks — the lead track's three week numbers and the verdict — whose
+rows jump the **Stream**. Mounted and fetched only on a large screen. Not the
+full spreadsheet season, which is not built. _Avoid_: Sidebar, dashboard
 
 **Motion Scale**: The app's two easing tokens — `--ease-out`
 (`cubic-bezier(0.23, 1, 0.32, 1)`) and `--ease-in-out`
 (`cubic-bezier(0.77, 0, 0.175, 1)`) — and the rule they serve on the **Home
-Timeline**: four animations, each with a purpose it can name, and nothing else
-(ADR 0077). The four are the empty cell opening into the editor, the **Past
-Band** opening into its days, the press feedback on a row, a cell and the band
-(`scale(0.97)`, 160ms), and the **Back-to-Today Pill**'s arrival and departure.
-Only `transform` and `opacity` animate apart from the two accordions, whose
-`height` is the sanctioned exception because they genuinely reflow their
-neighbours — both stay at 200ms for it. `prefers-reduced-motion` is **gentler,
-never zero**: the transforms and both smooth scrollers go, the opacity halves
-stay. Hover motion is gated on `(hover: hover) and (pointer: fine)`; press
-feedback is not, because `:active` is a real press on touch. The **Hero**'s fold
-is not on this scale at all — it is scroll-driven and has no duration (#498).
-_Avoid_: Animation system, transition tokens, motion library (the tokens are
-CSS; the Hero's pager spring is `motion`'s and is a gesture, not an animation)
+Timeline**: animations each with a purpose it can name, and nothing else (ADR
+0077, ADR 0082 §6) — the accordions (the empty cell opening into the editor, a
+**Past Band** opening into its days, a **Folded Week** opening) and the press
+feedback on a row, a cell, a band and a fold (`scale(0.97)`, 160ms). Only
+`transform` and `opacity` animate apart from the accordions, whose `height` is
+the sanctioned exception because they genuinely reflow their neighbours — they
+stay at 200ms for it. `prefers-reduced-motion` is **gentler, never zero**: the
+transforms and both smooth scrollers go, the opacity halves stay. Hover motion
+is gated on `(hover: hover) and (pointer: fine)`; press feedback is not, because
+`:active` is a real press on touch. The **Hero**'s fold is not on this scale at
+all — it is scroll-driven and has no duration (#498). _Avoid_: Animation system,
+transition tokens, motion library (the tokens are CSS; the Hero's pager spring
+is `motion`'s and is a gesture, not an animation)
 
 **Ink Ladder**: The five tones between and below `foreground` and
 `muted-foreground` — `ink-body`, `ink-facts`, `ink-dim`, `ink-dimmer`,
@@ -2434,10 +2450,12 @@ Volume** or **Actual Volume**. A session is there because its Discipline is the
 import-only `other` (ADR 0015), because the plan has no track for its
 Discipline, or because the athlete put it there
 (`WorkoutSession.countsInNoTrack`) — a bike commute on a plan with a ride track.
-Choosing Annet is not a prescription change: it neither adopts nor releases the
-session (**Session Ownership**). Its TSS **still feeds Training Load**, which is
-physiological: Annet leaves the track volumes, never the load. _Avoid_: Other
-track (in UI), excluded, ignored.
+The athlete chooses it on a done session's row on home — _Tell i Annet_, and
+_Tell i sporet_ to put it back (ADR 0082 §8). Choosing Annet is not a
+prescription change: it neither adopts nor releases the session (**Session
+Ownership**). Its TSS **still feeds Training Load**, which is physiological:
+Annet leaves the track volumes, never the load. _Avoid_: Other track (in UI),
+excluded, ignored.
 
 **Quality Session Count**: The **derived** sum of a **Quality Session Mix** —
 the axis Tønnessen 2020 showed to be decisive at matched volume and matched zone

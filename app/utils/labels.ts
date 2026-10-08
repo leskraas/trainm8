@@ -573,6 +573,209 @@ export function strengthPartialLabel(weekday: number): string {
 	return `til og med ${NB_WEEKDAY_LABELS[weekday]} · resten ikke målt`
 }
 
+// ---------------------------------------------------------------------------
+// I dag: the home week model and the season strip (#505 stories 16–31, 60)
+// ---------------------------------------------------------------------------
+
+/**
+ * A Training Track's name in a week header: `Løping · mål 46 · planlagt 44 ·
+ * gjort 35 km`. The sport, in the #505 surfaces' Norwegian (ADR 0081).
+ */
+export const NB_DISCIPLINE_LABELS: Record<Discipline, string> = {
+	run: 'Løping',
+	bike: 'Sykling',
+	swim: 'Svømming',
+	strength: 'Styrke',
+}
+
+/**
+ * The three week numbers side by side (#505 story 23): the Week Target, the
+ * Planned Volume and the Actual Volume.
+ */
+export const WEEK_FIGURE_LABELS = {
+	target: 'mål',
+	planned: 'planlagt',
+	done: 'gjort',
+} as const
+
+/**
+ * A week named the way the athlete names it (#505, idea D): the three weeks
+ * around today by where they sit, every other week by its number.
+ */
+export const RELATIVE_WEEK_LABELS = {
+	previous: 'Forrige uke',
+	current: 'Denne uka',
+	next: 'Neste uke',
+} as const
+
+/** `Uke 41` — an ISO week number, as a Norwegian calendar prints it. */
+export function weekNumberLabel(weekNumber: number): string {
+	return `Uke ${weekNumber}`
+}
+
+/** A week before the plan began: history the athlete brought with them. */
+export const BEFORE_PLAN_LABEL = 'før planen'
+
+/** What the `≠` mark means, for the reader who cannot see it. */
+export const DRIFT_MARK_LABEL = 'planlagt er mer enn 10 % unna målet'
+
+/** `1 av 2 økter` — a strength week's sessions against its Strength Frequency. */
+export function sessionsAgainstLabel(done: number, of: number): string {
+	return `${done} av ${of} ${of === 1 ? 'økt' : 'økter'}`
+}
+
+/** `snitt 5:00 /km` — the week's running pace, from its completed runs. */
+export function averagePaceLabel(pace: string): string {
+	return `snitt ${pace}`
+}
+
+/**
+ * `rolig 78 % · plan 80 %` — the easy share of a week's zone split, done
+ * against the plan's intention (story 21). Either side may be missing.
+ */
+export function easyShareLabel(
+	done: string | null,
+	planned: string | null,
+): string {
+	return [done ? `rolig ${done}` : null, planned ? `plan ${planned}` : null]
+		.filter((part): part is string => part != null)
+		.join(' · ')
+}
+
+/**
+ * A closed week folded to one line (#505 story 31): `35 av 46 km · under`.
+ * `of` is the Week Target, or the Planned Volume where the week had no target;
+ * `done` null means nothing done was measured, which is said rather than
+ * counted as zero.
+ */
+export function foldedTrackLabel({
+	done,
+	of,
+	unit,
+	grade,
+}: {
+	done: string | null
+	of: string | null
+	unit: string
+	grade: string | null
+}): string {
+	const figure =
+		done == null
+			? of == null
+				? 'ikke målt'
+				: `ikke målt av ${of} ${unit}`
+			: of == null
+				? `${done} ${unit} ${WEEK_FIGURE_LABELS.done}`
+				: `${done} av ${of} ${unit}`
+	return grade ? `${figure} · ${grade}` : figure
+}
+
+/**
+ * A week's load line where it has no Training Track to be read in — before
+ * the plan, or with no plan at all. Counts and TSS only.
+ */
+export const WEEK_LOAD_LABELS = {
+	nothingWritten: 'Ingenting lagt inn',
+	nothingLogged: 'Ingenting logget',
+} as const
+
+/** `2 av 5 gjort` — the sessions of a week that has begun. */
+export function sessionsDoneLabel(done: number, total: number): string {
+	return `${done} av ${total} gjort`
+}
+
+/** `3 økter` / `1 økt`. */
+export function sessionCountLabel(count: number): string {
+	return `${count} ${count === 1 ? 'økt' : 'økter'}`
+}
+
+/** `1 ikke gjort` — the missed sessions of a week. */
+export function missedCountLabel(count: number): string {
+	return `${count} ikke gjort`
+}
+
+/**
+ * A week past the Planning Horizon (#505 story 27): when the week change will
+ * fill it — the close of the week two before it (`horizonWeekKey`).
+ */
+export function horizonFillLabel(closesWeekNumber: number): string {
+	return `fylles når uke ${closesWeekNumber} er ferdig`
+}
+
+/** A week past the horizon of a plan with no Week Pattern to fill it from. */
+export const NOT_FILLED_LABEL = 'ingen økter lagt inn ennå'
+
+/** A fold's control, for the reader who hears it rather than sees it. */
+export function foldedWeekControlLabel(name: string, line: string): string {
+	return `${name}, ${line}`
+}
+
+/**
+ * A run of empty days behind today (ADR 0065 §3, ADR 0075): `7 dager ·
+ * ingenting logget`, named in full as `7 dager uten noe logget, 4–10 August`.
+ */
+export function pastBandLabels(
+	days: number,
+	range: string,
+): { summary: string; control: string } {
+	return {
+		summary: `${days} dager · ingenting logget`,
+		control: `${days} dager uten noe logget, ${range}`,
+	}
+}
+
+/**
+ * A run of free days ahead of today (#505 story 30): `2 ledige dager`, a short
+ * row that opens into the days so one of them can be written into.
+ */
+export function freeBandLabels(
+	days: number,
+	range: string,
+): { summary: string; control: string } {
+	return {
+		summary: `${days} ledige dager`,
+		control: `${days} ledige dager, ${range} — åpne for å legge inn en økt`,
+	}
+}
+
+/** The season strip (#505 stories 17–18, 26). */
+export const SEASON_STRIP_LABELS = {
+	title: 'Sesongen',
+	region: 'Sesongen, uke for uke',
+	today: 'I dag',
+	/** The pill, when today is off-screen above or below. */
+	todayUp: '↑ I dag',
+	todayDown: '↓ I dag',
+	noFigure: 'ingen tall',
+} as const
+
+/** A sessions-only week in the strip, where no Training Track reads it. */
+export function stripTssLabel(tss: string): string {
+	return `${tss} TSS`
+}
+
+/**
+ * Which track a session counts in, as a row action (#505 story 33): a session
+ * the athlete put in Annet counts in nothing, and goes back on the same tap.
+ */
+export const ANNET_ACTION_LABELS = {
+	toAnnet: 'Tell i Annet',
+	toTrack: 'Tell i sporet',
+	/** The chip a session the athlete put in Annet carries. */
+	chip: 'Annet',
+} as const
+
+/** The large-screen season pane beside the list (#505 story 60). */
+export const SEASON_PANE_LABELS = {
+	heading: 'Sesongen',
+	week: 'Uke',
+	phase: 'Fase',
+	grade: 'vurdering',
+	load: 'økter og belastning',
+	jumpTo: (week: string) => `Gå til ${week}`,
+	noPlan: 'Ingen plan ennå, så sesongen er bare ukene du har skrevet.',
+} as const
+
 /**
  * The option that makes a plan with no Event and no end date (#505 story 1,
  * ADR 0079). Norwegian, as the #505 surfaces are (ADR 0081).

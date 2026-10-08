@@ -71,13 +71,6 @@ export const SETTLE_LADDER = [0, 60, 160, 320, 700, 1200] as const
  */
 export const SETTLE_WINDOW_MS = 1300
 
-/**
- * The strip centres itself on this ladder after mounting. Same reason as
- * `SETTLE_LADDER`: cell widths are fixed but the fonts inside them are not, so
- * the scroll-snap container needs more than one chance to land centred.
- */
-export const STRIP_CENTRE_LADDER = [0, 120, 400, 900] as const
-
 /** Loading may not start until the landing has settled — see `SETTLE_WINDOW_MS`. */
 export const LOAD_PAD_MIN = 80
 export const LOAD_PAD_MAX = 320
@@ -242,15 +235,30 @@ export function activeWeekFrom(
 }
 
 /**
- * How far to scroll the strip so a cell sits in the middle of it. Expressed as
- * a target `scrollLeft`, so the caller only has to assign it.
+ * The first and last week the stream is showing — the season strip's frame
+ * (#505 story 17). The first is the week whose header is at or above the top
+ * edge, the last the week whose header is above the bottom edge: the weeks a
+ * reader would name if asked what is on their screen. Null with no week
+ * mounted.
+ *
+ * It replaced centring a scrolled strip on the active cell: a strip that shows
+ * the whole season at once has nothing to scroll, and shows *where* the reader
+ * is by outlining it instead (ADR 0082).
  */
-export function centreScrollLeft(
-	cellLeft: number,
-	cellWidth: number,
-	stripWidth: number,
-): number {
-	return Math.max(0, cellLeft - (stripWidth - cellWidth) / 2)
+export function weeksInView(
+	weeks: Array<{ key: string; offset: number }>,
+	scrollTop: number,
+	clientHeight: number,
+): { from: string; to: string } | null {
+	const first = weeks[0]
+	if (!first) return null
+	let from = first.key
+	let to = first.key
+	for (const week of weeks) {
+		if (week.offset <= scrollTop) from = week.key
+		if (week.offset < scrollTop + clientHeight) to = week.key
+	}
+	return { from, to }
 }
 
 /**

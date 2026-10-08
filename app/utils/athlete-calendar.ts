@@ -147,6 +147,23 @@ export function weekdayIndex(dateStr: string): number {
 }
 
 /**
+ * The ISO 8601 week number of a YYYY-MM-DD date string — `Uke 41` as a
+ * Norwegian calendar counts it: Monday-first, and week 1 is the week holding
+ * the year's first Thursday. Read off the date alone, so a week key names the
+ * same week number in every timezone.
+ */
+export function isoWeekNumber(dateStr: string): number {
+	// The week's Thursday decides which year the week belongs to.
+	const thursday = addDays(dateStr, 3 - weekdayIndex(dateStr))
+	const yearStart = `${thursday.slice(0, 4)}-01-01`
+	const days =
+		(Date.parse(`${thursday}T00:00:00.000Z`) -
+			Date.parse(`${yearStart}T00:00:00.000Z`)) /
+		(24 * 60 * 60 * 1000)
+	return Math.floor(days / 7) + 1
+}
+
+/**
  * UTC bounds `[start, end]` of the local calendar day `dateStr` in `timezone`.
  * `start` is local midnight; `end` is 1ms before the next local midnight (so a
  * DST day is correctly 23h or 25h long). Pass to a `scheduledAt` range filter

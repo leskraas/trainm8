@@ -265,6 +265,14 @@ function activePlanFixture(now: Date = NOW): ActivePlan {
 		weeklyTss: Array<number>(12).fill(320),
 		round: null,
 		tracks: [],
+		// Base and Build at 3:1, then the taper — the rhythm `weekRole` reads.
+		weekRoles: [
+			...(['loading', 'loading', 'loading', 'recovery'] as const),
+			...(['loading', 'loading', 'loading', 'recovery'] as const),
+			...(['loading', 'loading'] as const),
+			...(['taper', 'taper'] as const),
+		],
+		fillsWeeks: false,
 		loadBasis: {
 			tracks: [
 				{
@@ -611,7 +619,7 @@ test('the strip carries a name and a role of its own', async () => {
 	renderRoute(dashboardLoader(PANE_FIXTURES))
 
 	const strip = await screen.findByRole('region', {
-		name: 'The season, week by week',
+		name: 'Sesongen, uke for uke',
 	})
 	expect(strip).toBe(screen.getByTestId('week-strip'))
 })
@@ -691,7 +699,9 @@ test('paging the hero moves neither the strip nor the stream', async () => {
 	const strip = await screen.findByTestId('week-strip')
 	const stream = screen.getByTestId('timeline-stream')
 	const axes = () => ({
-		activeCell: strip.querySelector('[aria-current="true"]')?.textContent,
+		activeCell: strip
+			.querySelector('[aria-current="true"]')
+			?.getAttribute('aria-label'),
 		scrollLeft: strip.scrollLeft,
 		scrollTop: stream.scrollTop,
 		weeks: stream.querySelectorAll('[data-timeline-week]').length,
@@ -699,9 +709,9 @@ test('paging the hero moves neither the strip nor the stream', async () => {
 	const before = axes()
 
 	// `fireEvent` rather than `userEvent`, and nothing awaited in between: the
-	// landing re-centres the strip on a ladder of timers (`anchoring.ts`), and a
-	// timer cannot fire while no macrotask is awaited. So anything that moved
-	// between these two readings moved because the hero was paged.
+	// landing settles on a ladder of timers (`anchoring.ts`), and a timer cannot
+	// fire while no macrotask is awaited. So anything that moved between these
+	// two readings moved because the hero was paged.
 	fireEvent.click(screen.getByRole('button', { name: 'Records' }))
 	fireEvent.click(screen.getByRole('button', { name: 'Form' }))
 
@@ -810,34 +820,25 @@ test('the strip renders the whole season, not a window over it', async () => {
 	renderRoute(dashboardLoader({ ledger }))
 
 	const strip = await screen.findByTestId('week-strip')
-	const cells = within(strip).getAllByRole('button')
-	expect(cells).toHaveLength(5)
+	expect(strip.querySelectorAll('[data-timeline-cell]')).toHaveLength(5)
 })
 
-test('a strip cell is in the DOM but does not render until it is near', async () => {
-	// The other half of the rule above (#503). Every week of the season is a
-	// cell, and a season is ~52 of them against a phone that shows three, so a
-	// cell off-screen skips its own style, layout and paint — seven dots and a
-	// three-band bar each — and states its box so the strip's scroll width, which
-	// the centring measures against, is still the real one.
-	//
-	// jsdom has no rendering to skip, so what is pinned here is the declaration:
-	// the browser behaviour is verified against Chromium at 390px, where 39 of 52
-	// cells are skipped on landing.
-	const ledger = [-28, -21, -14, -7, 0].map((days) =>
-		at(days, { id: `s${days}`, status: 'completed', tssValue: 50 }),
-	)
+test('a strip bar is exactly as tall as its share of the season, never floored', async () => {
+	// ADR 0066 §3: a bar's height is its value. With no plan the strip reads
+	// load, so 50 TSS against the season's 100 is a bar half as tall.
+	const ledger = [
+		at(-7, { id: 'big', status: 'completed', tssValue: 100 }),
+		at(-1, { id: 'small', status: 'completed', tssValue: 50 }),
+	]
 	renderRoute(dashboardLoader({ ledger }))
 
 	const strip = await screen.findByTestId('week-strip')
-	// The content-box height a skipped cell claims, stated once on the scroller.
-	expect(strip.style.getPropertyValue('--strip-cell-height')).toBe('59px')
-	for (const cell of within(strip).getAllByRole('button')) {
-		expect(cell.className).toContain('[content-visibility:auto]')
-		expect(cell.className).toContain(
-			'[contain-intrinsic-size:auto_124px_auto_var(--strip-cell-height)]',
-		)
-	}
+	const bar = (key: string) =>
+		strip.querySelector<HTMLElement>(
+			`[data-timeline-cell="${key}"] [data-strip-bar]`,
+		)!
+	expect(bar('2029-12-24').style.height).toBe('100%')
+	expect(bar('2029-12-31').style.height).toBe('50%')
 })
 
 test('the strip marks the week the stream is parked in', async () => {
@@ -847,26 +848,22 @@ test('the strip marks the week the stream is parked in', async () => {
 	renderRoute(dashboardLoader({ ledger }))
 
 	const strip = await screen.findByTestId('week-strip')
-	const active = within(strip)
-		.getAllByRole('button')
-		.filter((cell) => cell.getAttribute('aria-current') === 'true')
+	const active = [...strip.querySelectorAll('[data-timeline-cell]')].filter(
+		(cell) => cell.getAttribute('aria-current') === 'true',
+	)
 	expect(active).toHaveLength(1)
-	// This week is 31 Dec – 6 Jan.
-	expect(active[0]).toHaveTextContent('31 Dec – 6 Jan')
+	// This week is 31 Dec – 6 Jan, and the strip names it the way the header does.
+	expect(active[0]).toHaveAccessibleName(/^Denne uka, 31 December – 6 January/)
+	// And its frame sits over the weeks the stream is showing.
+	expect(strip.querySelector('[data-strip-frame]')).not.toBeNull()
 })
 
-test('the strip states both ends of the season', async () => {
-	renderRoute(
-		dashboardLoader({
-			ledger: [TODAY_SESSION],
-			activePlan: activePlanFixture(),
-		}),
-	)
+test('the "I dag" pill is there and quiet while today is in view', async () => {
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	const strip = await screen.findByTestId('week-strip')
-	expect(strip).toHaveTextContent(/no earlier weeks/i)
-	// Race day, at the far end.
-	expect(strip).toHaveTextContent(/27 Feb race day/i)
+	const pill = within(strip).getByRole('button', { name: 'I dag' })
+	expect(pill).toHaveAttribute('data-away', '0')
 })
 
 test('tapping a strip cell outside the window loads that week into the stream', async () => {
@@ -893,9 +890,10 @@ test('tapping a strip cell outside the window loads that week into the stream', 
 	expect(within(stream).queryByText('Session -28')).not.toBeInTheDocument()
 
 	const strip = screen.getByTestId('week-strip')
-	const oldest = within(strip).getAllByRole('button')[0]!
-	await userEvent.click(oldest)
+	await userEvent.click(strip.querySelector('[data-timeline-cell]')!)
 
+	// A closed week is folded, and a jump into one opens it: the jump asked to
+	// see the week, not its one line.
 	expect(within(stream).getByText('Session -28')).toBeInTheDocument()
 })
 
@@ -918,12 +916,13 @@ test('a week header carries its range, its phase and what happened in it', async
 	)
 
 	const header = await screen.findByRole('heading', {
-		name: '31 December – 6 January',
+		name: 'Denne uka 31 December – 6 January',
 		level: 2,
 	})
 	const block = header.closest('[data-timeline-week]')!
-	expect(block).toHaveTextContent('Build 1 · This week')
-	expect(block).toHaveTextContent('1 of 2 done · 48 of 141 TSS')
+	expect(block).toHaveTextContent('Build · hard uke')
+	// No track to read the week in, so it carries its sessions and load.
+	expect(block).toHaveTextContent('1 av 2 gjort · 48 av 141 TSS')
 })
 
 test("today's row carries the inline action and the chip that says where the day stands", async () => {
@@ -1055,7 +1054,7 @@ test('an imported week says so once, in its header, and its rows carry no chip',
 
 	// Reach the imported week through the strip: it is outside the initial window.
 	const strip = await screen.findByTestId('week-strip')
-	await userEvent.click(within(strip).getAllByRole('button')[0]!)
+	await userEvent.click(strip.querySelector('[data-timeline-cell]')!)
 
 	const stream = screen.getByTestId('timeline-stream')
 	const row = within(stream).getByRole('link', { name: /morning run/i })
@@ -1063,7 +1062,7 @@ test('an imported week says so once, in its header, and its rows carry no chip',
 	expect(row).not.toHaveTextContent(/IMPORTED/)
 	// With no chip to carry it, the load moves onto line 2.
 	expect(row).toHaveTextContent('61 TSS')
-	const header = within(stream).getByText(/before this plan · imported/i)
+	const header = within(stream).getByText('før planen')
 	expect(header).toBeInTheDocument()
 })
 
@@ -1159,6 +1158,11 @@ test('every day from today forward is a row, whether anything is on it or not', 
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	const stream = await screen.findByTestId('timeline-stream')
+	// Four free days in a row fold into one short row (#505 story 30), which
+	// opens into the four cells.
+	await userEvent.click(
+		within(stream).getByRole('button', { name: /^4 ledige dager, / }),
+	)
 	for (const name of [
 		'Add a workout on Thu 3',
 		'Add a workout on Fri 4',
@@ -1183,9 +1187,9 @@ test('a run of empty days behind today is one band, and tapping it opens the day
 
 	const stream = await screen.findByTestId('timeline-stream')
 	const band = within(stream).getByRole('button', {
-		name: '2 days with nothing logged, 31 December – 1 January',
+		name: '2 dager uten noe logget, 31 December – 1 January',
 	})
-	expect(band).toHaveTextContent('2 days · nothing logged')
+	expect(band).toHaveTextContent('2 dager · ingenting logget')
 	expect(band).toHaveAttribute('aria-expanded', 'false')
 	expect(
 		within(stream).queryByRole('button', { name: /add a workout on mon/i }),
@@ -1221,7 +1225,7 @@ test('a single empty day behind today is a day, not a one-day band', async () =>
 		within(stream).getByRole('button', { name: 'Add a workout on Mon 31' }),
 	).toBeInTheDocument()
 	expect(
-		within(stream).queryByRole('button', { name: /nothing logged/i }),
+		within(stream).queryByRole('button', { name: /uten noe logget/i }),
 	).not.toBeInTheDocument()
 })
 
@@ -1256,48 +1260,38 @@ test('an empty day is never called a rest day — nothing prescribes one', async
 	)
 
 	const stream = await screen.findByTestId('timeline-stream')
+	await userEvent.click(
+		within(stream).getAllByRole('button', { name: /ledige dager/i })[0]!,
+	)
 	expect(
 		within(stream).getAllByRole('button', { name: /add a workout on/i }).length,
 	).toBeGreaterThan(0)
 	expect(stream).not.toHaveTextContent(/rest day/i)
 })
 
-test('the strip’s dots and the stream’s rows agree about which days are empty', async () => {
-	// Both axes are derived from one day list precisely so they cannot disagree
-	// (ADR 0065, consequences), and every day dot now has a row it must match.
+test('the free days ahead are one short row, and today is never folded into it', async () => {
+	// Thursday to Sunday hold nothing, so they read as one row — a printed plan's
+	// `4 ledige dager` — while today, which is the landing, stays its own row.
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	const stream = await screen.findByTestId('timeline-stream')
-	const thisWeek = screen
-		.getByTestId('week-strip')
-		.querySelector('[data-timeline-cell="2029-12-31"]')!
-	for (const [weekday, date] of [
-		['Thursday', 'Thu 3'],
-		['Friday', 'Fri 4'],
-		['Saturday', 'Sat 5'],
-		['Sunday', 'Sun 6'],
-	]) {
-		expect(
-			within(thisWeek as HTMLElement).getByTitle(`${weekday} — nothing`),
-		).toBeInTheDocument()
-		expect(
-			within(stream).getByRole('button', { name: `Add a workout on ${date}` }),
-		).toBeInTheDocument()
-	}
-	// And today, which has a session on it, is neither: the dot says today and
-	// the row is that session.
+	const free = within(stream).getByRole('button', {
+		name: '4 ledige dager, 3–6 January — åpne for å legge inn en økt',
+	})
+	expect(free).toHaveTextContent('4 ledige dager')
+	expect(free).toHaveAttribute('aria-expanded', 'false')
 	expect(
-		within(thisWeek as HTMLElement).getByTitle('Wednesday — today'),
+		within(stream).getByRole('link', { name: /threshold 4 × 8 min/i }),
 	).toBeInTheDocument()
-	expect(
-		within(stream).queryByRole('button', { name: /add a workout on wed/i }),
-	).not.toBeInTheDocument()
 })
 
 test('every empty cell is a real button, not a clickable box', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	const stream = await screen.findByTestId('timeline-stream')
+	await userEvent.click(
+		within(stream).getByRole('button', { name: /ledige dager/i }),
+	)
 	const cells = within(stream).getAllByRole('button', {
 		name: /add a workout on/i,
 	})
@@ -1340,6 +1334,12 @@ test('the far end says how far the plan is written, and offers to write the rest
 	)
 
 	const stream = await screen.findByTestId('timeline-stream')
+	// The season runs to the plan's last week now (#505 story 27), so the far
+	// end is reached through the strip rather than sitting under this week.
+	const cells = screen
+		.getByTestId('week-strip')
+		.querySelectorAll('[data-timeline-cell]')
+	await userEvent.click(cells[cells.length - 1]!)
 	expect(stream).toHaveTextContent(/everything is written through 2 Jan/i)
 	expect(stream).toHaveTextContent(/sketched, not written/i)
 	expect(
@@ -1349,12 +1349,16 @@ test('the far end says how far the plan is written, and offers to write the rest
 
 // ── the back-to-today pill ────────────────────────────────────────────────
 
-test('the pill is not visible on first paint — today is already in view', async () => {
+test('the pill does not point anywhere on first paint — today is already in view', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	await screen.findByRole('heading', { name: 'Threshold 4 × 8 min', level: 1 })
+	expect(screen.getByRole('button', { name: 'I dag' })).toHaveAttribute(
+		'data-away',
+		'0',
+	)
 	expect(
-		screen.queryByRole('button', { name: /back to today/i }),
+		screen.queryByRole('button', { name: /↑ I dag|↓ I dag/ }),
 	).not.toBeInTheDocument()
 })
 

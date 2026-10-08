@@ -528,6 +528,20 @@ export function formatVolumeTotal(
 	return `${volumeDigits(value, currency)} ${VOLUME_UNITS[currency]}`
 }
 
+/**
+ * A week number in a track's **Volume Currency**, bare, the way a printed plan
+ * sets it beside two others (`35 av 46 km`): the currency's own precision, with
+ * a whole number left whole — `46`, `10.4`, `5.5` — because three `.0`s on one
+ * 390px line are noise. The unit is the caller's, said once after the figures.
+ */
+export function formatVolumeFigure(
+	value: number,
+	currency: VolumeCurrency,
+): string {
+	const digits = volumeDigits(value, currency)
+	return digits.includes('.') ? digits.replace(/\.0+$/, '') : digits
+}
+
 // ---------------------------------------------------------------------------
 // Weekly Capacity — the derivation behind a pre-filled hours-per-week figure
 // ---------------------------------------------------------------------------

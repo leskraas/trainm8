@@ -63,6 +63,16 @@ function week(overrides: Partial<TimelineWeek> = {}): TimelineWeek {
 		bands: [],
 		tracks: [],
 		otherTrack: null,
+		weekNumber: 8,
+		relativeName: 'Denne uka',
+		phaseName: 'Build',
+		role: 'loading',
+		roleLabel: 'hard uke',
+		kindLabel: 'Build · hard uke',
+		shape: 'open',
+		foldLabel: null,
+		shownDayKeys: [],
+		loadLine: '0 av 0 gjort',
 		...overrides,
 	}
 }

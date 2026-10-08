@@ -6,14 +6,15 @@ import { expect, test } from '#tests/playwright-utils.ts'
  * a primary surface. The home timeline is designed *for* that width, and this
  * spec holds it to the same obligation the Session Ledger cards carried before
  * it: every field of a session is readable on a phone, nothing is clipped
- * off-screen, the week strip scrolls sideways, and no zone overflows the page.
+ * off-screen, the season strip fits the phone whole, and no zone overflows the
+ * page.
  */
 
 const MOBILE_VIEWPORT = { width: 390, height: 844 }
 
 test.use({ viewport: MOBILE_VIEWPORT })
 
-test('Home at 390px: a row carries every field, the strip scrolls, no page overflow', async ({
+test('Home at 390px: a row carries every field, the strip fits whole, no page overflow', async ({
 	page,
 	navigate,
 	login,
@@ -62,8 +63,7 @@ test('Home at 390px: a row carries every field, the strip scrolls, no page overf
 			sessionLog: { create: { content: 'Legs heavy but held power.', rpe: 8 } },
 		},
 	})
-	// Two more weeks of season, so the strip is wider than the phone and the
-	// claim that it scrolls sideways is actually under test.
+	// Two more weeks of season, so the strip has more than one week to fit.
 	for (const daysBack of [9, 16]) {
 		await prisma.workoutSession.create({
 			data: {
@@ -106,18 +106,19 @@ test('Home at 390px: a row carries every field, the strip scrolls, no page overf
 	// The planned row states its prescription honestly and never as an actual.
 	await expect(stream.getByText('74 TSS planned')).toBeVisible()
 
-	// The week strip is the navigation axis and scrolls sideways on a phone.
+	// The season strip is the navigation axis, and on a phone it shows the
+	// whole season at once (#505): nothing to scroll sideways, every week a bar
+	// inside the screen.
 	const strip = page.getByTestId('week-strip')
 	await expect(strip).toBeVisible()
-	const scrollable = await strip.evaluate(
-		(el) => el.scrollWidth > el.clientWidth,
-	)
-	expect(scrollable).toBe(true)
-	const scrolled = await strip.evaluate((el) => {
-		el.scrollLeft = 120
-		return el.scrollLeft
-	})
-	expect(scrolled).toBeGreaterThan(0)
+	expect(await strip.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0)
+	const bars = strip.locator('[data-timeline-cell]')
+	expect(await bars.count()).toBeGreaterThanOrEqual(3)
+	for (const bar of await bars.all()) {
+		const box = (await bar.boundingBox())!
+		expect(box.x).toBeGreaterThanOrEqual(0)
+		expect(box.x + box.width).toBeLessThanOrEqual(MOBILE_VIEWPORT.width)
+	}
 
 	// Nothing overflows the page horizontally at 390px…
 	expect(

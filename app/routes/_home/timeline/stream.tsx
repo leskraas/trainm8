@@ -23,9 +23,15 @@
  */
 import { memo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { Link } from 'react-router'
+import { Link, useFetcher } from 'react-router'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import {
+	ANNET_ACTION_LABELS,
+	DRIFT_MARK,
+	foldedWeekControlLabel,
+	WEEK_FIGURE_LABELS,
+} from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { bandScrollTop, offsetWithin } from './anchoring.ts'
 import { StampDraft, StampedSentence } from './day-stamp-cell.tsx'
@@ -36,6 +42,7 @@ import {
 	type TimelineDay,
 	type TimelineEndCap,
 	type TimelineSession,
+	type TimelineTrackWeek,
 	type TimelineWeek,
 } from './presenter.ts'
 import { growIn } from './reflow.ts'
@@ -48,19 +55,23 @@ import {
 } from './use-timeline-scroll.ts'
 
 /**
- * A week and its days.
+ * A week and its days — or, folded or collapsed, a week as one line (#505
+ * stories 27, 31).
  *
  * **Memoised, and that is load-bearing at full span** (#503). Every scroll frame
  * that crosses a week header sets the active week, and a re-render of the frame
  * re-renders every week mounted in it: measured on a 52-week season, one fling
  * cost 1,470 `WeekBlock` renders — thirty full passes over the whole stream —
  * for a state change no week block reads. A week's props are the week itself,
- * which comes off a memoised season, and the anchor day, which is a date string,
- * so the comparison is two reference checks and the fan-out is gone.
+ * which comes off a memoised season, the anchor day, which is a date string,
+ * and a folded week's open flag and its stable toggle, so the comparison stays
+ * a handful of reference checks and the fan-out is gone.
  */
 export const WeekBlock = memo(function WeekBlock({
 	week,
 	anchorDayKey,
+	open = false,
+	onToggle,
 }: {
 	week: TimelineWeek
 	/**
@@ -70,33 +81,52 @@ export const WeekBlock = memo(function WeekBlock({
 	 * whether it holds two sessions, one, or none.
 	 */
 	anchorDayKey: string
+	/** A folded week the athlete (or a strip jump) has opened. */
+	open?: boolean
+	/** Open or close a folded week; stable, so the memo above holds. */
+	onToggle?: (key: string) => void
 }) {
-	return (
-		<div {...{ [WEEK_ATTR]: week.key }}>
-			<div className="bg-background border-hairline-week sticky top-0 z-2 flex flex-col gap-1.5 border-t border-b px-[18px] py-[10px]">
-				<div className="flex items-baseline justify-between gap-2.5">
-					<h2
-						className={cn(
-							'text-[11.5px]/[1.2] font-bold tracking-[0.02em] uppercase',
-							week.isNow
-								? 'text-primary'
-								: week.imported
-									? 'text-muted-foreground'
-									: 'text-foreground',
-						)}
-					>
-						{week.rangeLabel}
-					</h2>
-					{week.phaseLabel ? (
-						<span className="text-ink-dimmer text-right text-[10.5px]/[1.2] uppercase">
-							{week.phaseLabel}
-						</span>
-					) : null}
-				</div>
-				<span className="text-ink-dim text-[11px]/[1.2]">
-					{week.statsLabel}
-				</span>
-			</div>
+	const ref = useRef<HTMLDivElement>(null)
+	const runRef = useRef<HTMLDivElement>(null)
+	const folded = week.shape === 'folded'
+	const showDays = !folded || open
+
+	/**
+	 * Open or close a folded week without moving the reader — the past band's
+	 * own arithmetic, for the same reason (ADR 0075 §6): the days arrive below
+	 * the fold's line, so only a fold whose top has gone up past the reading
+	 * edge needs the height handed back, and the stream's own compensation is
+	 * told the insertion is paid for.
+	 */
+	function toggle() {
+		const node = ref.current
+		const stream = node?.closest<HTMLElement>(`[${STREAM_ATTR}]`)
+		if (!onToggle) return
+		if (!node || !stream) {
+			onToggle(week.key)
+			return
+		}
+		const before = {
+			offset: offsetWithin(
+				{
+					top: stream.getBoundingClientRect().top,
+					scrollTop: stream.scrollTop,
+				},
+				{ top: node.getBoundingClientRect().top },
+			),
+			scrollTop: stream.scrollTop,
+		}
+		const was = runRef.current?.scrollHeight ?? 0
+		flushSync(() => onToggle(week.key))
+		const run = runRef.current
+		const next = bandScrollTop(before, (run?.scrollHeight ?? 0) - was)
+		if (next != null) stream.scrollTop = next
+		stream.setAttribute(HELD_ATTR, '')
+		if (run) growIn(run)
+	}
+
+	const days = (
+		<>
 			{/* The line where the plan begins. Above it is history the athlete
 			    brought with them, and saying so once — here — is what lets every
 			    imported row above stay chip-free. */}
@@ -117,9 +147,275 @@ export const WeekBlock = memo(function WeekBlock({
 					/>
 				),
 			)}
+		</>
+	)
+
+	return (
+		<div ref={ref} {...{ [WEEK_ATTR]: week.key }} data-week-shape={week.shape}>
+			{week.shape === 'collapsed' ? (
+				<CollapsedHeader week={week} />
+			) : folded ? (
+				<FoldedHeader week={week} open={open} onToggle={toggle} />
+			) : (
+				<WeekHeader week={week} />
+			)}
+			{folded ? (
+				open ? (
+					<div ref={runRef} data-timeline-fold-run className="reflow">
+						<WeekFigures week={week} className="border-hairline border-b" />
+						{days}
+					</div>
+				) : null
+			) : showDays ? (
+				days
+			) : null}
 		</div>
 	)
 })
+
+/**
+ * The header a week reads under (#505 stories 19, 23): which week, its phase
+ * and rhythm, and its numbers — per Training Track, the Week Target, the
+ * Planned Volume and the Actual Volume side by side in the track's own unit.
+ *
+ * Sticky, so the week being read always says what it is.
+ */
+function WeekHeader({ week }: { week: TimelineWeek }) {
+	return (
+		<div className="bg-background border-hairline-week sticky top-0 z-2 flex flex-col gap-1.5 border-t border-b px-[18px] py-[10px]">
+			<WeekTitle week={week} />
+			<WeekFigures week={week} />
+		</div>
+	)
+}
+
+/** `DENNE UKA 18–24 Feb` … `Build · hard uke`. */
+function WeekTitle({ week }: { week: TimelineWeek }) {
+	return (
+		<div className="flex items-baseline justify-between gap-2.5">
+			<h2
+				className={cn(
+					'flex min-w-0 items-baseline gap-2 text-[11.5px]/[1.2] font-bold tracking-[0.02em] uppercase',
+					week.isNow
+						? 'text-primary'
+						: week.imported
+							? 'text-muted-foreground'
+							: 'text-foreground',
+				)}
+			>
+				<span>{week.relativeName}</span>{' '}
+				<span className="text-ink-dimmer text-[10.5px]/[1.2] font-semibold tracking-normal normal-case">
+					{week.rangeLabel}
+				</span>
+			</h2>
+			{week.kindLabel ? (
+				<span
+					data-week-kind
+					className={cn(
+						'flex-none text-right text-[10.5px]/[1.2]',
+						week.role === 'loading' ? 'text-ink-dim' : 'text-ink-dimmer',
+					)}
+				>
+					{week.kindLabel}
+				</span>
+			) : null}
+		</div>
+	)
+}
+
+/**
+ * The week's numbers. A plan week reads one line per track — `Løping · mål 46
+ * · planlagt 44 · gjort 35 km`, its verdict, and the `≠` mark — with what has
+ * no number said beside it (`+1 uten km`), never folded into the sum. A week
+ * with no track to read it in carries its sessions and load instead, and Annet
+ * sits apart, counting in nothing.
+ */
+function WeekFigures({
+	week,
+	className,
+}: {
+	week: TimelineWeek
+	className?: string
+}) {
+	return (
+		<div className={cn('flex flex-col gap-1', className)}>
+			{week.tracks.length === 0 ? (
+				<span className="text-ink-dim text-[11px]/[1.3]">{week.loadLine}</span>
+			) : (
+				week.tracks.map((track) => (
+					<TrackLine key={track.trackId} track={track} />
+				))
+			)}
+			{week.otherTrack ? (
+				<span data-week-annet className="text-ink-dimmer text-[10.5px]/[1.3]">
+					{`${week.otherTrack.label} · ${week.otherTrack.sessions} · ${week.otherTrack.note}`}
+				</span>
+			) : null}
+		</div>
+	)
+}
+
+/** A figure, or a quiet dash where the week has none to state. */
+function Figure({ label, value }: { label: string; value: string | null }) {
+	return (
+		<span className="whitespace-nowrap">
+			<span className="text-ink-dimmer">{label}</span>{' '}
+			<span className="text-foreground font-semibold">{value ?? '–'}</span>
+		</span>
+	)
+}
+
+function TrackLine({ track }: { track: TimelineTrackWeek }) {
+	const extras = [
+		track.gradeNote,
+		track.sessionsLabel,
+		track.plannedUnmeasuredLabel,
+		track.actualUnmeasuredLabel,
+		track.partialLabel,
+		track.paceLabel,
+		track.zoneLabel
+			? track.zoneIntentNote
+				? `${track.zoneLabel} (${track.zoneIntentNote})`
+				: track.zoneLabel
+			: null,
+	].filter((part): part is string => !!part)
+	return (
+		<div data-week-track={track.trackId} className="flex flex-col gap-0.5">
+			<div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[11.5px]/[1.3] tabular-nums">
+				<span className="text-ink-dim font-semibold">{track.name}</span>
+				<span className="flex flex-wrap items-baseline gap-x-1.5">
+					<Figure
+						label={WEEK_FIGURE_LABELS.target}
+						value={track.figures.target}
+					/>
+					<span className="text-ink-dimmest">·</span>
+					<Figure
+						label={WEEK_FIGURE_LABELS.planned}
+						value={track.figures.planned}
+					/>
+					<span className="text-ink-dimmest">·</span>
+					<Figure label={WEEK_FIGURE_LABELS.done} value={track.figures.done} />
+					<span className="text-ink-dim">{track.unit}</span>
+				</span>
+				{track.driftLabel ? (
+					<span
+						role="img"
+						aria-label={track.driftLabel}
+						title={track.driftLabel}
+						className="text-warning font-bold"
+					>
+						{DRIFT_MARK}
+					</span>
+				) : null}
+				{track.gradeLabel ? (
+					<span
+						data-week-grade={track.grade.status}
+						className={cn(
+							'rounded-[6px] border px-[6px] text-[10px]/[1.5] font-semibold',
+							GRADE_TONE[track.grade.status],
+						)}
+					>
+						{track.gradeLabel}
+					</span>
+				) : null}
+			</div>
+			{extras.length > 0 ? (
+				<span className="text-ink-dimmer text-[10.5px]/[1.35]">
+					{extras.join(' · ')}
+				</span>
+			) : null}
+		</div>
+	)
+}
+
+/**
+ * A verdict's tone. Muted, and coloured only on a deviation — the reference
+ * apps' lesson that a compliance colour on every week is a colour nobody reads.
+ */
+const GRADE_TONE: Record<TimelineTrackWeek['grade']['status'], string> = {
+	'not-yet': 'border-hairline-edge text-ink-dim',
+	ungraded: 'border-hairline-edge text-ink-dimmer',
+	under: 'border-warning/40 text-warning',
+	on: 'border-hairline-edge text-ink-dim',
+	over: 'border-warning/40 text-warning',
+}
+
+/**
+ * A closed week, folded to one line above today (#505 story 31): its name and
+ * dates, and what was done against what was asked — `35 av 46 km · under`.
+ * Reachable, but out of the way: a tap opens the whole week below the line,
+ * and the line stays, carrying the way back (ADR 0075 §5's disclosure).
+ */
+function FoldedHeader({
+	week,
+	open,
+	onToggle,
+}: {
+	week: TimelineWeek
+	open: boolean
+	onToggle: () => void
+}) {
+	return (
+		<button
+			type="button"
+			data-timeline-fold={week.key}
+			onClick={onToggle}
+			aria-expanded={open}
+			aria-label={foldedWeekControlLabel(
+				`${week.relativeName}, ${week.rangeLabel}`,
+				week.foldLabel ?? '',
+			)}
+			className={cn(
+				'border-hairline-week press flex min-h-11 w-full items-center gap-3 border-t border-b px-[18px] py-[7px] text-left',
+				open && 'bg-background sticky top-0 z-2',
+			)}
+		>
+			<span className="flex min-w-0 flex-1 flex-col gap-0.5">
+				<span className="flex items-baseline justify-between gap-2.5">
+					<span className="text-ink-dim flex min-w-0 items-baseline gap-2 text-[11px]/[1.2] font-bold tracking-[0.02em] uppercase">
+						<span className="whitespace-nowrap">{week.relativeName}</span>
+						<span className="text-ink-dimmer text-[10.5px]/[1.2] font-semibold tracking-normal normal-case">
+							{week.stripLabel}
+						</span>
+					</span>
+					{week.kindLabel ? (
+						<span className="text-ink-dimmer flex-none text-[10.5px]/[1.2]">
+							{week.kindLabel}
+						</span>
+					) : null}
+				</span>
+				<span className="text-ink-body text-[12px]/[1.3] tabular-nums">
+					{week.foldLabel}
+				</span>
+			</span>
+			<Icon
+				name={open ? 'chevron-up' : 'chevron-down'}
+				size="xs"
+				className="text-ink-dimmest flex-none"
+			/>
+		</button>
+	)
+}
+
+/**
+ * A plan week past the Planning Horizon (#505 story 27): one line saying what
+ * it will be and when the week change fills it. Not a control — there is
+ * nothing in it to open — and the athlete's own sessions there follow as
+ * ordinary rows, because their fixed points are never hidden (story 28).
+ */
+function CollapsedHeader({ week }: { week: TimelineWeek }) {
+	return (
+		<div
+			data-timeline-collapsed={week.key}
+			className="border-hairline-week flex min-h-11 flex-col justify-center gap-0.5 border-t border-b px-[18px] py-[7px]"
+		>
+			<span className="text-ink-dim text-[12px]/[1.3]">{week.foldLabel}</span>
+			<span className="text-ink-dimmer text-[10.5px]/[1.2]">
+				{[week.rangeLabel, week.roleLabel].filter(Boolean).join(' · ')}
+			</span>
+		</div>
+	)
+}
 
 /**
  * One thing the stream renders between the week header and the next: a day, or
@@ -139,14 +435,17 @@ type StreamRow =
  * any day forward of it) is rendered exactly as it always was.
  */
 function streamRows(week: TimelineWeek): StreamRow[] {
+	// A collapsed week draws only the days holding the athlete's own sessions.
+	const shown = new Set(week.shownDayKeys)
+	const rowsShown = week.rows.filter((day) => shown.has(day.key))
 	if (week.bands.length === 0) {
-		return week.rows.map((day) => ({ band: null, day }))
+		return rowsShown.map((day) => ({ band: null, day }))
 	}
 	const byKey = new Map(week.rows.map((day) => [day.key, day]))
 	const startsAt = new Map(week.bands.map((band) => [band.key, band]))
 	const covered = new Set(week.bands.flatMap((band) => band.dayKeys))
 	const rows: StreamRow[] = []
-	for (const day of week.rows) {
+	for (const day of rowsShown) {
 		const band = startsAt.get(day.key)
 		if (band) {
 			rows.push({
@@ -229,7 +528,14 @@ function PastBand({ band, days }: { band: TimelineBand; days: TimelineDay[] }) {
 	}
 
 	return (
-		<div ref={ref} data-timeline-band={band.key}>
+		<div
+			ref={ref}
+			data-timeline-band={band.key}
+			data-band-kind={band.kind}
+			// The days the band stands for, so a reader of the DOM — the 390×844
+			// spec — can tell a folded day from a missing one.
+			data-band-days={band.dayKeys.join(' ')}
+		>
 			<button
 				type="button"
 				onClick={toggle}
@@ -237,7 +543,7 @@ function PastBand({ band, days }: { band: TimelineBand; days: TimelineDay[] }) {
 				// The dates, then the fact. One of several bands in a season, so the
 				// name has to say *which* run this is — the gutter says that to a
 				// sighted reader and nothing else would say it to anyone else.
-				aria-label={`${band.dayKeys.length} days with nothing logged, ${band.rangeLabel}`}
+				aria-label={band.controlLabel}
 				className="border-hairline press grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 border-b px-[18px] py-[7px] text-left"
 			>
 				<span className="flex flex-col gap-0.5">
@@ -458,7 +764,7 @@ function SessionRow({
 	showDate: boolean
 }) {
 	const missed = session.status === 'missed'
-	return (
+	const row = (
 		<Link
 			to={session.to}
 			prefetch="intent"
@@ -576,8 +882,20 @@ function SessionRow({
 						{session.internalLoad}
 					</span>
 				) : null}
-				{session.chips.length > 0 ? (
+				{session.chips.length > 0 || session.annet?.inAnnet ? (
 					<span className="flex flex-wrap gap-1.5">
+						{/* Counted in nothing, by the athlete's own choice (story 33). */}
+						{session.annet?.inAnnet ? (
+							<span
+								data-annet-chip
+								className={cn(
+									'rounded-[6px] border px-[7px] py-[2px] text-[10px]/[1.5]',
+									CHIP_TONE.muted,
+								)}
+							>
+								{ANNET_ACTION_LABELS.chip}
+							</span>
+						) : null}
 						{session.chips.map((chip) => (
 							<span
 								key={chip.id}
@@ -598,6 +916,71 @@ function SessionRow({
 				) : null}
 			</span>
 		</Link>
+	)
+	if (!session.annet) return row
+	return (
+		<div className={cn(day.isToday && 'bg-primary/7')}>
+			{row}
+			<AnnetAction
+				sessionId={session.id}
+				inAnnet={session.annet.inAnnet}
+				label={session.annet.actionLabel}
+			/>
+		</div>
+	)
+}
+
+/**
+ * The row's one action besides opening it: count the session in Annet, or put
+ * it back in its track (#505 story 33). A sibling of the row's link rather than
+ * inside it — a control inside a link is two targets under one thumb — set on
+ * the gutter's edge, quiet, under the row it belongs to.
+ *
+ * It posts to its own resource route, owner-scoped on the server
+ * (`setCountsInNoTrack`), and the home loader revalidates after it, so the week
+ * header's numbers move with the tap. While the post is in flight the button
+ * already says what it will say after, so a second tap is not needed to see
+ * that the first one took.
+ */
+function AnnetAction({
+	sessionId,
+	inAnnet,
+	label,
+}: {
+	sessionId: string
+	inAnnet: boolean
+	label: string
+}) {
+	const fetcher = useFetcher()
+	const pending = fetcher.formData?.get('countsInNoTrack')
+	const willBeInAnnet = pending == null ? inAnnet : pending === 'true'
+	return (
+		<fetcher.Form
+			method="post"
+			action="/resources/session-annet"
+			className="-mt-[14px] flex pr-[18px] pl-[76px]"
+		>
+			<input type="hidden" name="sessionId" value={sessionId} />
+			<input
+				type="hidden"
+				name="countsInNoTrack"
+				value={String(!willBeInAnnet)}
+			/>
+			<button
+				type="submit"
+				data-annet-action={sessionId}
+				// The 44px floor is the control's (ADR 0028 §2); the words are as
+				// quiet as the row's own facts, so the action never outranks the
+				// session it belongs to.
+				className="text-ink-dimmer flex min-h-11 items-center text-[11px]/[1] font-semibold underline decoration-dotted underline-offset-[3px]"
+			>
+				{pending == null
+					? label
+					: willBeInAnnet
+						? ANNET_ACTION_LABELS.toTrack
+						: ANNET_ACTION_LABELS.toAnnet}
+			</button>
+		</fetcher.Form>
 	)
 }
 

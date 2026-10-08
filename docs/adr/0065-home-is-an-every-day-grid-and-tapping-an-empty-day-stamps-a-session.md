@@ -9,7 +9,11 @@ who owns scroll position — is settled by
 [ADR 0078](0078-the-stream-keeps-its-own-windowing-and-the-cost-at-full-span-was-never-the-rows.md)
 (#503): the stream keeps its own windowing and no virtualiser is adopted,
 because the measurement found the cost at full span was re-render fan-out rather
-than row count. See the closed question below.
+than row count. See the closed question below. **§1 and §8 are amended by
+[ADR 0082](0082-i-dag-reads-like-a-printed-plan-and-the-season-strip-frames-the-reader.md)**
+(#505 S9): a run of free days ahead of today folds into one short row that opens
+into its cells (today never folds), and the strip no longer scrolls — it shows
+the whole season at once with a frame over the weeks in view.
 
 **Confirms [ADR 0027](./0027-text-first-workout-authoring.md)** — the cell
 authors by _stamping structure_ and rendering the Token Sentence from it, so

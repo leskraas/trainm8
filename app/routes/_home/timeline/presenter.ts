@@ -27,6 +27,7 @@
 import {
 	addDays,
 	dayBoundsUTC,
+	isoWeekNumber,
 	localDate,
 	localTimeUTC,
 	weekdayIndex,
@@ -40,7 +41,10 @@ import {
 	formatLoad,
 	formatMonthShort,
 	formatSigned,
+	formatPace,
+	formatPercent,
 	formatTss,
+	formatVolumeFigure,
 	formatWeekday,
 	formatWeekdayShort,
 	formatWeeks,
@@ -51,10 +55,34 @@ import {
 	targetText,
 } from '#app/utils/intensity-target.ts'
 import {
+	ANNET_ACTION_LABELS,
 	ANNET_TRACK_LABELS,
+	averagePaceLabel,
+	BEFORE_PLAN_LABEL,
+	DRIFT_MARK_LABEL,
+	easyShareLabel,
+	foldedTrackLabel,
+	freeBandLabels,
+	horizonFillLabel,
+	missedCountLabel,
+	NB_DISCIPLINE_LABELS,
+	NB_VOLUME_UNITS,
+	NB_WEEK_ROLE_LABELS,
+	NOT_FILLED_LABEL,
+	pastBandLabels,
+	RELATIVE_WEEK_LABELS,
+	SEASON_STRIP_LABELS,
 	SESSION_OWNER_LABELS,
+	sessionCountLabel,
+	sessionsAgainstLabel,
+	sessionsDoneLabel,
 	strengthPartialLabel,
+	stripTssLabel,
 	unmeasuredCountLabel,
+	VOLUME_GRADE_LABELS,
+	WEEK_FIGURE_LABELS,
+	WEEK_LOAD_LABELS,
+	weekNumberLabel,
 	ZONE_INTENT_NOTE,
 } from '#app/utils/labels.ts'
 import {
@@ -65,7 +93,11 @@ import { readinessFromTsb } from '#app/utils/load/readiness.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
-import { lastClosedWeekKey } from '#app/utils/load/week-change.ts'
+import {
+	horizonWeekKey,
+	lastClosedWeekKey,
+} from '#app/utils/load/week-change.ts'
+import { type WeekRole } from '#app/utils/plan-outline/derive.ts'
 import {
 	buildWeekVolumes,
 	type OtherWeekVolume,
@@ -165,6 +197,12 @@ export type TimelineSession = {
 	 * whose it was tells the athlete nothing and the row stays quiet.
 	 */
 	ownerLabel: string | null
+	/**
+	 * The row's Annet action, or null where it would change nothing:
+	 * `Tell i Annet` takes a done session out of the track it counts in, and
+	 * `Tell i sporet` puts it back (#505 story 33, `setCountsInNoTrack`).
+	 */
+	annet: { inAnnet: boolean; actionLabel: string } | null
 }
 
 /**
@@ -232,17 +270,38 @@ export type TimelineDay = {
 export type TimelineBand = {
 	/** The run's first day, `YYYY-MM-DD` — the band's own identity. */
 	key: string
+	/**
+	 * `past` — empty days behind today, a fact about the record (ADR 0075).
+	 * `free` — empty days ahead of it, folded into one short row so a printed
+	 * plan's week is not half blank cells (#505 story 30). Today is neither: it
+	 * is the landing, and never folds.
+	 */
+	kind: 'past' | 'free'
 	/** Every day the run covers, in order. They are rows of the week too. */
 	dayKeys: string[]
 	/** `4–10` — the day numbers, in the gutter every row aligns to. */
 	daysLabel: string
 	/** `Aug`, or `Jul–Aug` where the run crosses a month. */
 	monthLabel: string
-	/** `7 days · nothing logged` — what the band says that the blanks do not. */
+	/** `7 dager · ingenting logget`, `2 ledige dager` — what the blanks only imply. */
 	summaryLabel: string
 	/** `4–10 August` — the range as the control's own name says it. */
 	rangeLabel: string
+	/** The control's accessible name: the count, the fact and the dates. */
+	controlLabel: string
 }
+
+/**
+ * How the stream draws a week (#505 stories 27, 31).
+ *
+ * - `open` — the header and every day: this week, and every week ahead that
+ *   the Planning Horizon has reached or the plan has already laid.
+ * - `folded` — a closed week, one line above today; it opens on a tap.
+ * - `collapsed` — a plan week past the Planning Horizon that nothing has laid
+ *   yet: one line saying what it will be, plus any session the athlete wrote
+ *   there themselves, because their fixed points are never hidden.
+ */
+export type WeekShape = 'open' | 'folded' | 'collapsed'
 
 /** One training week, on both axes at once. */
 export type TimelineWeek = {
@@ -296,6 +355,38 @@ export type TimelineWeek = {
 	tracks: TimelineTrackWeek[]
 	/** Annet: sessions that count in nothing (#505 story 33), or null. */
 	otherTrack: TimelineOtherTrack | null
+	/** The ISO week number — `Uke 41`. */
+	weekNumber: number
+	/** `Forrige uke`, `Denne uka`, `Neste uke`, otherwise `Uke 41`. */
+	relativeName: string
+	/** The plan phase the week sits in, by its own name; null outside a plan. */
+	phaseName: string | null
+	/** The week's role in its phase's rhythm — hard or easy; null outside a plan. */
+	role: WeekRole | null
+	/** `hard uke`, `lett uke`, `nedtrapping`. */
+	roleLabel: string | null
+	/**
+	 * What kind of week it is, in the header's corner: `Build · hard uke`, or
+	 * `før planen` for history the athlete brought with them. Null with neither.
+	 */
+	kindLabel: string | null
+	shape: WeekShape
+	/**
+	 * The one line a folded or collapsed week reads as — `35 av 46 km · under`,
+	 * `Uke 41 · Build · mål 58 km · fylles når uke 39 er ferdig` — or null for an
+	 * open week, whose header says it at length.
+	 */
+	foldLabel: string | null
+	/**
+	 * The days the stream draws for the week. Every row, except in a collapsed
+	 * week, which draws only the days holding a session — the athlete's own.
+	 */
+	shownDayKeys: string[]
+	/**
+	 * The week's sessions and load in a line, in the header's Norwegian: `2 av 5
+	 * gjort · 48 av 312 TSS`. What a week with no track to read it in says.
+	 */
+	loadLine: string
 }
 
 /**
@@ -310,6 +401,34 @@ export type TimelineTrackWeek = TrackWeekVolume & {
 	partialLabel: string | null
 	/** `hensikt, ikke en måling` beside a planned zone split, or null. */
 	zoneIntentNote: string | null
+	/** `Løping` — the track's sport. */
+	name: string
+	/** `km`, `t`, `TSS`, `sett` — said once, after the three figures. */
+	unit: string
+	/**
+	 * The three numbers, side by side (#505 story 23): `mål 46 · planlagt 44 ·
+	 * gjort 35`. A figure the week cannot state is null, never `0`.
+	 */
+	figures: {
+		target: string | null
+		planned: string | null
+		done: string | null
+	}
+	/** `under`, `i rute`, `over` — the verdict, once a day of the week is past. */
+	gradeLabel: string | null
+	/**
+	 * `ikke målt · ingen tall å holde opp mot` — why a week that could be graded
+	 * is not. Said quietly beside the numbers rather than as a verdict.
+	 */
+	gradeNote: string | null
+	/** The `≠` mark's meaning when planned is more than 10 % off target. */
+	driftLabel: string | null
+	/** `1 av 2 økter` on a strength track. */
+	sessionsLabel: string | null
+	/** `snitt 5:00 /km` on a km track with a pace to state. */
+	paceLabel: string | null
+	/** `rolig 78 % · plan 80 %` on an endurance track with a zone split. */
+	zoneLabel: string | null
 }
 
 /** Annet, with its name and what it says about itself. */
@@ -359,6 +478,44 @@ export type TimelineSeason = {
 	/** `Wed 19 Aug · week 3 of 12` — the header's one line of orientation. */
 	headerLabel: string
 	endCap: TimelineEndCap
+	/**
+	 * The last week the Planning Horizon reaches — `horizonWeekKey` of the last
+	 * closed week. Null without a plan, which has nothing to fill a week from.
+	 */
+	horizonWeekKey: string | null
+	strip: TimelineStrip
+}
+
+/**
+ * The season strip (#505 stories 17–18, 26): every week of the season as one
+ * bar, read in one track's own unit — the **lead track**, the first that is
+ * not counted in sets — or in load where there is no plan to read one in.
+ */
+export type TimelineStrip = {
+	/** `km`, `t`, `TSS`. */
+	unit: string
+	weeks: TimelineStripWeek[]
+}
+
+export type TimelineStripWeek = {
+	key: string
+	/** `max(target, planned)` (S8's `stripValue`), so overplanning shows. */
+	value: number | null
+	/** What was done, in the same unit. */
+	done: number | null
+	/**
+	 * `value` over the season's largest, exactly — a bar is as tall as its
+	 * value and never floored (ADR 0066 §3). Null where the week has no figure.
+	 */
+	height: number | null
+	/** `done` on the same scale, capped at the bar it sits in. */
+	doneHeight: number | null
+	role: WeekRole | null
+	isNow: boolean
+	/** A sets track asks for lifting this week: a dot under the bar. */
+	strength: boolean
+	/** The week, its rhythm and its figures, as one accessible name. */
+	label: string
 }
 
 const DAYS_IN_WEEK = 7
@@ -400,10 +557,20 @@ export function buildTimelineSeason({
 	const planStartMonday = activePlan
 		? weekMonday(new Date(activePlan.planStart), timezone)
 		: null
+	// The plan's last week, so the season runs to the end of the plan and its
+	// whole shape is there to read, written or not (#505 story 27).
+	const planWeeks = activePlan
+		? activePlan.phases.reduce((sum, phase) => sum + phase.weeks, 0)
+		: 0
+	const planEndMonday =
+		planStartMonday != null && planWeeks > 0
+			? addDays(planStartMonday, 7 * (planWeeks - 1))
+			: null
 	const mondays = seasonMondays({
 		sessionWeeks: [...byWeek.keys()],
 		nowMonday,
 		planStartMonday,
+		planEndMonday,
 		// The week the reach lands in is the earliest one the strip may draw:
 		// behind it there is nothing to draw a cell *about*.
 		reachMonday: weekMonday(middayOf(reachesBackKey, timezone), timezone),
@@ -413,6 +580,9 @@ export function buildTimelineSeason({
 	// The week the Week Replan has closed (Sunday 20:00 local): on Sunday
 	// evening this week grades through Sunday, as Ukeskiftet reads it.
 	const closedThrough = lastClosedWeekKey(now, timezone)
+	// The last week the week change has filled, or will by the next close
+	// (`horizonWeekKey`). Only a plan fills weeks, so only a plan has one.
+	const horizon = activePlan ? horizonWeekKey(closedThrough) : null
 
 	const weeks = mondays.map((monday) =>
 		buildWeek({
@@ -433,9 +603,12 @@ export function buildTimelineSeason({
 			imported: planStartMonday != null && monday < planStartMonday,
 			planStart: monday === planStartMonday,
 			phase: phases.get(monday) ?? null,
+			role: planRole(activePlan, planStartMonday, monday),
 			planStartMonday,
 			tracks,
 			closed: monday <= closedThrough,
+			horizon,
+			fillsWeeks: activePlan?.fillsWeeks ?? false,
 		}),
 	)
 
@@ -462,8 +635,34 @@ export function buildTimelineSeason({
 		),
 		reachLabel: formatWeeks(Math.round(TIMELINE_TRAILING_DAYS / DAYS_IN_WEEK)),
 		headerLabel: headerLabel(activePlan, now, timezone),
-		endCap: buildEndCap({ ledger, activePlan, timezone, mondays }),
+		endCap: buildEndCap({
+			ledger,
+			activePlan,
+			timezone,
+			mondays,
+			lastWrittenMonday: [...byWeek.keys(), nowMonday].reduce((a, b) =>
+				a > b ? a : b,
+			),
+		}),
+		horizonWeekKey: horizon,
+		strip: buildStrip(weeks),
 	}
+}
+
+/**
+ * A plan week's role in its phase's rhythm (`weekRole`, read on the server),
+ * or null for a week outside the plan — before it, after it, or with no plan.
+ */
+function planRole(
+	activePlan: ActivePlan | null,
+	planStartMonday: string | null,
+	monday: string,
+): WeekRole | null {
+	if (!activePlan || planStartMonday == null) return null
+	const index = Math.round(
+		(Date.parse(monday) - Date.parse(planStartMonday)) / (7 * 24 * 3600_000),
+	)
+	return activePlan.weekRoles[index] ?? null
 }
 
 /**
@@ -509,16 +708,20 @@ function seasonMondays({
 	sessionWeeks,
 	nowMonday,
 	planStartMonday,
+	planEndMonday,
 	reachMonday,
 }: {
 	sessionWeeks: string[]
 	nowMonday: string
 	planStartMonday: string | null
+	/** The plan's last week: the season runs at least this far. */
+	planEndMonday: string | null
 	/** The Monday of the week the query's earliest day falls in. */
 	reachMonday: string
 }): string[] {
 	const anchors = [...sessionWeeks, nowMonday]
 	if (planStartMonday) anchors.push(planStartMonday)
+	if (planEndMonday) anchors.push(planEndMonday)
 	const first = anchors.reduce((a, b) => (a < b ? a : b))
 	const last = anchors.reduce((a, b) => (a > b ? a : b))
 	const withSessions = new Set(sessionWeeks)
@@ -563,9 +766,12 @@ function buildWeek({
 	imported,
 	planStart,
 	phase,
+	role,
 	planStartMonday,
 	tracks,
 	closed,
+	horizon,
+	fillsWeeks,
 }: {
 	monday: string
 	rows: SessionRow[]
@@ -577,9 +783,14 @@ function buildWeek({
 	imported: boolean
 	planStart: boolean
 	phase: { name: string; weekInPhase: number } | null
+	role: WeekRole | null
 	planStartMonday: string | null
 	tracks: readonly PlanTrackTargets[]
 	closed: boolean
+	/** The last week the Planning Horizon reaches; null without a plan. */
+	horizon: string | null
+	/** Whether the week change will fill a week once the horizon reaches it. */
+	fillsWeeks: boolean
 }): TimelineWeek {
 	const isNow = monday === nowMonday
 	const start = dayBoundsUTC(monday, timezone).start
@@ -595,6 +806,7 @@ function buildWeek({
 	// claim that a day was empty, never a day the caller actually handed us.
 	// Which of those past days the stream actually *shows* is the bands' business.
 	const byDay = bucketByDay(sessionRows, timezone)
+	const trackDisciplines = new Set<string>(tracks.map((t) => t.discipline))
 	const rows = weekDayKeys(monday)
 		.filter((key) => key >= reachesBackKey || byDay.has(key))
 		.map((key) =>
@@ -605,6 +817,7 @@ function buildWeek({
 				todayKey,
 				timezone,
 				sameMonth: isNow,
+				trackDisciplines,
 			}),
 		)
 	const bands = buildBands(rows, todayKey, timezone)
@@ -672,6 +885,35 @@ function buildWeek({
 		}
 	}
 
+	const weekNumber = isoWeekNumber(monday)
+	const relativeName = relativeWeekName(monday, nowMonday, weekNumber)
+	const ahead = monday > nowMonday
+	const trackWeeks = volumes.tracks.map((track) =>
+		wordTrackWeek(track, { ahead }),
+	)
+	const loadLine = weekLoadLine({
+		imported,
+		past: monday < nowMonday,
+		isNow,
+		total: sessionRows.length,
+		done,
+		missed,
+		doneTss: doneTss != null ? roundLoad(doneTss) : null,
+		plannedTss: plannedTss != null ? roundLoad(plannedTss) : null,
+	})
+	// A week the plan has laid is written, whatever the horizon says: only a
+	// week nothing but the athlete has written in is still the plan's to fill.
+	const laid = sessionRows.some(
+		({ session }) => sessionOwner(session) === 'machine',
+	)
+	const shape: WeekShape =
+		monday < nowMonday
+			? 'folded'
+			: horizon != null && monday > horizon && phase != null && !laid
+				? 'collapsed'
+				: 'open'
+	const lead = leadTrack(trackWeeks)
+
 	return {
 		key: monday,
 		rangeLabel: formatDateSpan(start, end, timezone),
@@ -695,8 +937,9 @@ function buildWeek({
 		isNow,
 		dayDots,
 		rows,
-		bands,
-		tracks: volumes.tracks.map(wordTrackWeek),
+		// A collapsed week draws no empty days, so it has no run of them to fold.
+		bands: shape === 'collapsed' ? [] : bands,
+		tracks: trackWeeks,
 		otherTrack: volumes.other
 			? {
 					...volumes.other,
@@ -704,13 +947,270 @@ function buildWeek({
 					note: ANNET_TRACK_LABELS.note,
 				}
 			: null,
+		weekNumber,
+		relativeName,
+		phaseName: imported ? null : (phase?.name ?? null),
+		role: imported ? null : role,
+		roleLabel: imported || role == null ? null : NB_WEEK_ROLE_LABELS[role],
+		kindLabel: imported
+			? BEFORE_PLAN_LABEL
+			: [phase?.name, role ? NB_WEEK_ROLE_LABELS[role] : null]
+					.filter((part): part is string => !!part)
+					.join(' · ') || null,
+		shape,
+		foldLabel:
+			shape === 'folded'
+				? lead
+					? foldedTrackLabel({
+							done: lead.figures.done,
+							of: lead.figures.target ?? positive(lead.figures.planned),
+							unit: lead.unit,
+							grade: foldGrade(lead),
+						})
+					: loadLine
+				: shape === 'collapsed'
+					? [
+							relativeName,
+							phase?.name ?? null,
+							lead?.figures.target != null
+								? `${WEEK_FIGURE_LABELS.target} ${lead.figures.target} ${lead.unit}`
+								: null,
+							// A close fills the week after next (`horizonWeekKey`), so
+							// this week fills when the week two before it is done.
+							fillsWeeks
+								? horizonFillLabel(isoWeekNumber(addDays(monday, -14)))
+								: NOT_FILLED_LABEL,
+						]
+							.filter((part): part is string => part != null)
+							.join(' · ')
+					: null,
+		shownDayKeys:
+			shape === 'collapsed'
+				? rows.filter((day) => day.sessions.length > 0).map((day) => day.key)
+				: rows.map((day) => day.key),
+		loadLine,
+	}
+}
+
+/** `Forrige uke`, `Denne uka`, `Neste uke`, otherwise `Uke 41`. */
+function relativeWeekName(
+	monday: string,
+	nowMonday: string,
+	weekNumber: number,
+): string {
+	if (monday === nowMonday) return RELATIVE_WEEK_LABELS.current
+	if (monday === addDays(nowMonday, -7)) return RELATIVE_WEEK_LABELS.previous
+	if (monday === addDays(nowMonday, 7)) return RELATIVE_WEEK_LABELS.next
+	return weekNumberLabel(weekNumber)
+}
+
+/**
+ * The track a one-line week and the strip are read in: the first that is not
+ * counted in sets. A season's shape is its endurance volume; a lifting week
+ * reads as a dot beside it rather than as a second bar in another unit, which
+ * would be an exchange rate between km and sets that does not exist (ADR 0043).
+ */
+function leadTrack<T extends { currency: string }>(tracks: T[]): T | null {
+	return tracks.find((track) => track.currency !== 'sets') ?? tracks[0] ?? null
+}
+
+/** A planned figure worth holding done against: `0` planned is no reference. */
+function positive(figure: string | null): string | null {
+	return figure == null || Number(figure) === 0 ? null : figure
+}
+
+/** The verdict a folded week ends on, when it has one worth a word. */
+function foldGrade(track: TimelineTrackWeek): string | null {
+	const status = track.grade.status
+	return status === 'under' || status === 'on' || status === 'over'
+		? VOLUME_GRADE_LABELS[status]
+		: null
+}
+
+/**
+ * The week's sessions and load in the header's own Norwegian — the reading a
+ * week with no Training Track to be read in carries. The same three readings
+ * as {@link weekStatsLabel}: history counts what was done, the future counts
+ * what is asked for, and an imported week counts only sessions.
+ */
+function weekLoadLine({
+	imported,
+	past,
+	isNow,
+	total,
+	done,
+	missed,
+	doneTss,
+	plannedTss,
+}: {
+	imported: boolean
+	past: boolean
+	isNow: boolean
+	total: number
+	done: number
+	missed: number
+	doneTss: number | null
+	plannedTss: number | null
+}): string {
+	if (total === 0) {
+		if (plannedTss != null) {
+			return join(WEEK_LOAD_LABELS.nothingWritten, formatTss(plannedTss))
+		}
+		return past
+			? WEEK_LOAD_LABELS.nothingLogged
+			: WEEK_LOAD_LABELS.nothingWritten
+	}
+	if (imported) {
+		return join(
+			sessionCountLabel(total),
+			doneTss != null ? formatTss(doneTss) : null,
+		)
+	}
+	if (past || isNow) {
+		return join(
+			sessionsDoneLabel(done, total),
+			missed > 0 ? missedCountLabel(missed) : null,
+			nbLoadClause(doneTss, plannedTss),
+		)
+	}
+	return join(
+		`${sessionCountLabel(total)} ${WEEK_FIGURE_LABELS.planned}`,
+		nbLoadClause(null, plannedTss),
+	)
+}
+
+/** `48 av 312 TSS`, or whichever single side exists. Never a zero-filled pair. */
+function nbLoadClause(
+	doneTss: number | null,
+	plannedTss: number | null,
+): string | null {
+	if (doneTss != null && plannedTss != null) {
+		return `${formatLoad(doneTss)} av ${formatTss(plannedTss)}`
+	}
+	if (doneTss != null) return formatTss(doneTss)
+	if (plannedTss != null) return formatTss(plannedTss)
+	return null
+}
+
+/**
+ * The strip's model: one bar per week, in the lead track's unit, each against
+ * the season's largest so the bars compare weeks to the season and not each
+ * to itself. A bar is exactly as tall as its value (ADR 0066 §3); a week with
+ * no figure draws no bar and its name says so.
+ */
+function buildStrip(weeks: TimelineWeek[]): TimelineStrip {
+	const leadId = leadTrack(weeks[0]?.tracks ?? [])?.trackId ?? null
+	const read = (week: TimelineWeek) => {
+		const track = leadId
+			? week.tracks.find((t) => t.trackId === leadId)
+			: undefined
+		if (track) {
+			return {
+				value: track.stripValue,
+				done: track.actual,
+				figure: (n: number) => formatVolumeFigure(n, track.currency),
+				unit: NB_VOLUME_UNITS[track.currency],
+			}
+		}
+		// No plan to read a track in: the week's load, as the strip always read it.
+		return {
+			value: week.plannedTss ?? week.doneTss,
+			done: week.doneTss,
+			figure: formatLoad,
+			unit: NB_VOLUME_UNITS.tss,
+		}
+	}
+	const readings = weeks.map(read)
+	const scale = Math.max(
+		0,
+		...readings.flatMap((r) => [r.value ?? 0, r.done ?? 0]),
+	)
+	const unit = readings[0]?.unit ?? NB_VOLUME_UNITS.tss
+	return {
+		unit,
+		weeks: weeks.map((week, index) => {
+			const { value, done, figure } = readings[index]!
+			const height = value == null ? null : scale > 0 ? value / scale : 0
+			const doneHeight = done == null ? null : scale > 0 ? done / scale : 0
+			const reading =
+				value == null
+					? SEASON_STRIP_LABELS.noFigure
+					: unit === NB_VOLUME_UNITS.tss && !leadId
+						? stripTssLabel(figure(value))
+						: `${figure(value)} ${unit}`
+			return {
+				key: week.key,
+				value,
+				done,
+				height,
+				doneHeight,
+				role: week.role,
+				isNow: week.isNow,
+				strength: week.tracks.some(
+					(track) =>
+						track.currency === 'sets' &&
+						((track.target ?? 0) > 0 || (track.planned ?? 0) > 0),
+				),
+				label: [
+					week.relativeName,
+					week.rangeLabel,
+					week.phaseName,
+					week.roleLabel,
+					reading,
+				]
+					.filter((part): part is string => !!part)
+					.join(', '),
+			}
+		}),
 	}
 }
 
 /** The words a track's week header carries, put on the model's codes. */
-function wordTrackWeek(track: TrackWeekVolume): TimelineTrackWeek {
+function wordTrackWeek(
+	track: TrackWeekVolume,
+	{ ahead }: { ahead: boolean },
+): TimelineTrackWeek {
+	const figure = (value: number | null) =>
+		value == null ? null : formatVolumeFigure(value, track.currency)
+	const status = track.grade.status
 	return {
 		...track,
+		name: NB_DISCIPLINE_LABELS[track.discipline],
+		unit: NB_VOLUME_UNITS[track.currency],
+		figures: {
+			target: figure(track.target),
+			planned: figure(track.planned),
+			// A week wholly ahead has done nothing yet, and "gjort 0" says less
+			// than an empty place where the number will be.
+			done: ahead ? null : figure(track.actual),
+		},
+		gradeLabel:
+			status === 'under' || status === 'on' || status === 'over'
+				? VOLUME_GRADE_LABELS[status]
+				: null,
+		gradeNote: status === 'ungraded' ? VOLUME_GRADE_LABELS.ungraded : null,
+		driftLabel: track.driftMark === true ? DRIFT_MARK_LABEL : null,
+		sessionsLabel:
+			track.currency === 'sets' &&
+			(track.sessions.target ?? track.sessions.planned) > 0
+				? sessionsAgainstLabel(
+						track.sessions.done,
+						track.sessions.target ?? track.sessions.planned,
+					)
+				: null,
+		paceLabel:
+			track.pace?.actualSecPerKm != null
+				? averagePaceLabel(formatPace(track.pace.actualSecPerKm))
+				: null,
+		zoneLabel:
+			track.zones && (track.zones.done || track.zones.planned)
+				? easyShareLabel(
+						track.zones.done ? formatPercent(track.zones.done.easyShare) : null,
+						track.zones.planned
+							? formatPercent(track.zones.planned.easyShare)
+							: null,
+					)
+				: null,
 		plannedUnmeasuredLabel:
 			track.plannedUnmeasuredCount > 0
 				? unmeasuredCountLabel(track.plannedUnmeasuredCount, track.currency)
@@ -727,18 +1227,21 @@ function wordTrackWeek(track: TrackWeekVolume): TimelineTrackWeek {
 }
 
 /**
- * The week's runs of consecutive empty days behind today, as bands.
+ * The week's runs of consecutive empty days, as bands — behind today the past
+ * band (ADR 0065 §3, ADR 0075), ahead of it the free days a printed plan folds
+ * into one short row (#505 story 30).
  *
  * Maximal runs, in calendar order, and **two days is the shortest one there
- * is** — a single empty day behind today stays a day, because a band over one
- * row says no more than the row does and asks for a tap to say it.
+ * is** — a single empty day stays a day, because a band over one row says no
+ * more than the row does and asks for a tap to say it. **Today never folds**:
+ * it is the landing, so it is the one empty day that is always a row, and it
+ * is also what splits a past run from a free one.
  *
  * A day the **Plan Outline** prescribes recovery on breaks the run rather than
- * joining it: `Rest day` is a statement the plan made, and `nothing logged`
- * would swallow it. Nothing produces that flag yet (ADR 0065 §4), so today
- * every empty day behind today is band material — but the rule is written where
- * it belongs rather than waiting to be discovered by whoever gives it a
- * producer.
+ * joining it: `Rest day` is a statement the plan made, and a band would
+ * swallow it. Nothing produces that flag yet (ADR 0065 §4), so today every
+ * empty day but today is band material — but the rule is written where it
+ * belongs rather than waiting to be discovered by whoever gives it a producer.
  */
 function buildBands(
 	days: TimelineDay[],
@@ -748,12 +1251,12 @@ function buildBands(
 	const bands: TimelineBand[] = []
 	let run: TimelineDay[] = []
 	const close = () => {
-		if (run.length > 1) bands.push(bandOf(run, timezone))
+		if (run.length > 1) bands.push(bandOf(run, todayKey, timezone))
 		run = []
 	}
 	for (const day of days) {
 		const collapsible =
-			day.key < todayKey && day.sessions.length === 0 && !day.restPrescribed
+			day.key !== todayKey && day.sessions.length === 0 && !day.restPrescribed
 		if (!collapsible) {
 			close()
 			continue
@@ -770,21 +1273,35 @@ function buildBands(
 	return bands
 }
 
-function bandOf(run: TimelineDay[], timezone: string): TimelineBand {
+function bandOf(
+	run: TimelineDay[],
+	todayKey: string,
+	timezone: string,
+): TimelineBand {
 	const first = middayOf(run[0]!.key, timezone)
 	const last = middayOf(run[run.length - 1]!.key, timezone)
 	const fromMonth = formatMonthShort(first, timezone)
 	const toMonth = formatMonthShort(last, timezone)
+	const rangeLabel = formatDateSpan(first, last, timezone)
+	// A run never holds today, so its first day says which side of today it is.
+	const kind = run[0]!.key < todayKey ? 'past' : 'free'
+	// The count first, because the count is the fact. Behind today `nothing
+	// logged` and not `nothing planned`: what the band knows is that no session
+	// sits on these dates, which is a statement about the record and not about
+	// the plan. Ahead of it the days are free to write in, and say only that.
+	const words =
+		kind === 'past'
+			? pastBandLabels(run.length, rangeLabel)
+			: freeBandLabels(run.length, rangeLabel)
 	return {
 		key: run[0]!.key,
+		kind,
 		dayKeys: run.map((day) => day.key),
 		daysLabel: `${formatDayOfMonth(first, timezone)}–${formatDayOfMonth(last, timezone)}`,
 		monthLabel: fromMonth === toMonth ? toMonth : `${fromMonth}–${toMonth}`,
-		// The count first, because the count is the fact. `nothing logged` and not
-		// `nothing planned`: what the band knows is that no session sits on these
-		// dates, which is a statement about the record and not about the plan.
-		summaryLabel: `${run.length} days · nothing logged`,
-		rangeLabel: formatDateSpan(first, last, timezone),
+		summaryLabel: words.summary,
+		rangeLabel,
+		controlLabel: words.control,
 	}
 }
 
@@ -826,6 +1343,7 @@ function buildDay({
 	todayKey,
 	timezone,
 	sameMonth,
+	trackDisciplines,
 }: {
 	key: string
 	rows: SessionRow[]
@@ -834,6 +1352,8 @@ function buildDay({
 	timezone: string
 	/** Inside the current week the month is the header's job, not the row's. */
 	sameMonth: boolean
+	/** The plan's tracks' sports: what a session can count in, or be taken out of. */
+	trackDisciplines: ReadonlySet<string>
 }): TimelineDay {
 	const isToday = key === todayKey
 	const midday = middayOf(key, timezone)
@@ -851,7 +1371,9 @@ function buildDay({
 		// branch exists and waits for a producer rather than being faked from
 		// week-granular rhythm or from availability (ADR 0065 §4).
 		restPrescribed: false,
-		sessions: rows.map((row) => buildSession({ row, week, isToday })),
+		sessions: rows.map((row) =>
+			buildSession({ row, week, isToday, trackDisciplines }),
+		),
 	}
 }
 
@@ -869,11 +1391,13 @@ function buildSession({
 	row,
 	week,
 	isToday,
+	trackDisciplines,
 }: {
 	row: SessionRow
 	week: RowWeekContext
 	/** A property of the day, so every session on it agrees about it. */
 	isToday: boolean
+	trackDisciplines: ReadonlySet<string>
 }): TimelineSession {
 	const { session, entry } = row
 	const content = buildRowContent(row, week, { isToday })
@@ -892,7 +1416,35 @@ function buildSession({
 		chips: content.chips,
 		owner,
 		ownerLabel: entry.status === 'planned' ? SESSION_OWNER_LABELS[owner] : null,
+		annet: annetOf(
+			session.countsInNoTrack,
+			entry.status,
+			entry.discipline,
+			trackDisciplines,
+		),
 	}
+}
+
+/**
+ * Whether the row offers to move the session in or out of Annet (#505 story
+ * 33), and which way. Only where the tap changes a number: a done session in a
+ * sport the plan has a track for, or one the athlete already put in Annet. A
+ * planned session is not offered it — the bike ride to work is a thing that
+ * happened — and a session in a sport with no track is in Annet anyway.
+ */
+function annetOf(
+	countsInNoTrack: boolean,
+	status: LedgerStatus,
+	discipline: string,
+	trackDisciplines: ReadonlySet<string>,
+): TimelineSession['annet'] {
+	if (countsInNoTrack) {
+		return { inAnnet: true, actionLabel: ANNET_ACTION_LABELS.toTrack }
+	}
+	if (status === 'completed' && trackDisciplines.has(discipline)) {
+		return { inAnnet: false, actionLabel: ANNET_ACTION_LABELS.toAnnet }
+	}
+	return null
 }
 
 function dotFor(session: TimelineSession): DayDot {
@@ -1025,11 +1577,18 @@ function buildEndCap({
 	activePlan,
 	timezone,
 	mondays,
+	lastWrittenMonday,
 }: {
 	ledger: LedgerSession[]
 	activePlan: ActivePlan | null
 	timezone: string
 	mondays: string[]
+	/**
+	 * The last week anything is written in (or this week). The season itself
+	 * runs on to the plan's end, so its last Monday is no longer the last one
+	 * written — the unwritten weeks are counted from this one.
+	 */
+	lastWrittenMonday: string
 }): TimelineEndCap {
 	const last = ledger[ledger.length - 1]
 	const lastMonday = mondays[mondays.length - 1]!
@@ -1045,7 +1604,7 @@ function buildEndCap({
 					(new Date(
 						`${weekMonday(eventDate, timezone)}T00:00:00.000Z`,
 					).getTime() -
-						new Date(`${lastMonday}T00:00:00.000Z`).getTime()) /
+						new Date(`${lastWrittenMonday}T00:00:00.000Z`).getTime()) /
 						(7 * 24 * 60 * 60 * 1000),
 				),
 			)

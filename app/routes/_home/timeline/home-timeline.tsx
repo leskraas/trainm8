@@ -22,7 +22,7 @@
  * allowed to say in `row-content.ts`. What is left here is markup and
  * composition.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Form, Link } from 'react-router'
 import { CreateMenu } from '#app/components/create-menu.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
@@ -46,13 +46,17 @@ import {
 	type LoadRecomputeLine,
 	type LoadRecomputeNotice,
 } from '../presenter.ts'
-import { type AwayFromToday } from './anchoring.ts'
 import { DayStampProvider } from './day-stamp-context.tsx'
 import { buildHeroPanes } from './hero-panes.ts'
 import { HeroPager } from './hero.tsx'
 import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
+import { SeasonPane, useLargeScreen } from './season-pane.tsx'
 import { EndCap, StartCap, WeekBlock } from './stream.tsx'
-import { STREAM_ATTR, useTimelineScroll } from './use-timeline-scroll.ts'
+import {
+	HELD_ATTR,
+	STREAM_ATTR,
+	useTimelineScroll,
+} from './use-timeline-scroll.ts'
 import { WeekStrip } from './week-strip.tsx'
 
 export type HomeTimelineData = {
@@ -222,27 +226,52 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		season.todayWeekIndex + scroll.loaded.after,
 	)
 	// Memoised on the bounds rather than sliced inline (#503). This frame
-	// re-renders on every scroll frame that crosses a week header, and a fresh
-	// array each time is a fresh `loadedKeys` each time — which is a prop every
-	// one of the season's ~52 strip cells reads, so the memo below only holds if
-	// this one does.
+	// re-renders on every scroll frame that crosses a week header, and the week
+	// blocks are memoised on props that come off this list.
 	const visibleWeeks = useMemo(
 		() => season.weeks.slice(from, to + 1),
 		[season.weeks, from, to],
 	)
-	const loadedKeys = useMemo(
-		() => new Set(visibleWeeks.map((week) => week.key)),
-		[visibleWeeks],
-	)
 	const notice = buildLoadRecomputeLine(loadRecomputeNotice)
 
-	// Which way the back-to-today pill points. Held over the moment it is *not*
-	// pointing anywhere, so the label survives the pill's own departure (#502);
-	// a ref rather than state because remembering a direction is not a reason to
-	// render, and every render that could change it has already happened.
-	const lastAway = useRef<AwayFromToday>(-1)
-	if (scroll.away !== 0) lastAway.current = scroll.away
-	const away = scroll.away === 0 ? lastAway.current : scroll.away
+	// The closed weeks the athlete has opened (#505 story 31). Held here rather
+	// than in each week, so a strip jump into a folded week can open it on the
+	// way — a jump is a request to see the week, not its one-line fold.
+	const [openWeeks, setOpenWeeks] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	)
+	const toggleWeek = useCallback((key: string) => {
+		setOpenWeeks((current) => {
+			const next = new Set(current)
+			if (next.has(key)) next.delete(key)
+			else next.add(key)
+			return next
+		})
+	}, [])
+	const streamNode = useRef<HTMLDivElement | null>(null)
+	const { streamRef: scrollStreamRef, goToWeek } = scroll
+	const streamRef = useCallback(
+		(node: HTMLDivElement | null) => {
+			streamNode.current = node
+			scrollStreamRef(node)
+		},
+		[scrollStreamRef],
+	)
+	const jumpToWeek = useCallback(
+		(key: string) => {
+			const week = season.weeks.find((w) => w.key === key)
+			if (week?.shape === 'folded' && !openWeeks.has(key)) {
+				// The days open below the week's own top, which is where the jump
+				// lands — so the reading position this render produces is the
+				// jump's, and the stream's compensation must not credit it again.
+				streamNode.current?.setAttribute(HELD_ATTR, '')
+				toggleWeek(key)
+			}
+			goToWeek(key)
+		},
+		[goToWeek, openWeeks, season.weeks, toggleWeek],
+	)
+	const large = useLargeScreen()
 
 	return (
 		<main
@@ -261,163 +290,161 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 			style={
 				chrome == null ? undefined : { height: `calc(100dvh - ${chrome}px)` }
 			}
-			className="relative flex h-[100dvh] min-h-0 flex-col overflow-hidden"
+			className="relative flex h-[100dvh] min-h-0 overflow-hidden"
 		>
-			{/* Why a number the athlete had already read moved (ADR 0046 §2). It sits
-			    above everything because it is a one-shot explanation, not a panel. */}
-			{notice ? <LoadRecomputeNoticeBar line={notice} /> : null}
-
+			{/* The list: one column, the whole width on a phone and a readable
+			    column beside the season on a large screen (#505 story 60). */}
 			<div
-				className={cn(
-					'bg-background z-4 flex-none',
-					scroll.collapsed && 'border-hairline-edge border-b',
-				)}
+				data-timeline-column
+				className="relative flex min-h-0 min-w-0 flex-1 flex-col lg:max-w-[480px]"
 			>
-				<div className="flex items-center gap-3 px-[18px] py-[14px]">
-					{scroll.collapsed && hero ? (
-						<>
-							<span className="flex min-w-0 flex-1 flex-col gap-0.5">
-								<span className="truncate text-[13px]/[1.2] font-semibold">
-									{hero.collapsed.title}
-								</span>
-								<span className="text-primary text-[10.5px]/[1.2]">
-									{hero.collapsed.summary}
-								</span>
-							</span>
-							<Link
-								to={hero.cta.to}
-								className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[34px] flex-none items-center rounded-[10px] px-[14px] text-[12.5px]/[1] font-bold"
-							>
-								{hero.cta.label}
-							</Link>
-						</>
-					) : (
-						<>
-							{/*
-							 * "+ New" is the app's single creation menu (#178). It was the
-							 * Cockpit header's, and creation has to survive the
-							 * re-composition: the design's header has only a wordmark, a
-							 * date and an avatar — and `app/root.tsx` already renders the
-							 * first and the last — so this row has the room for it.
-							 *
-							 * Expanded only. The collapsed row is the session summary and
-							 * its action, and squeezing a third control in beside them
-							 * would crowd the one thing the athlete scrolled away from.
-							 */}
-							<CreateMenu />
-							<span className="text-muted-foreground flex-1 text-right text-[12px]/[1.2]">
-								{season.headerLabel}
-							</span>
-						</>
-					)}
-				</div>
+				{/* Why a number the athlete had already read moved (ADR 0046 §2). It
+				    sits above everything because it is a one-shot explanation, not a
+				    panel. */}
+				{notice ? <LoadRecomputeNoticeBar line={notice} /> : null}
 
-				{/*
-				 * The hero is a scroll-position-driven collapse, not a drawer: it has
-				 * no open/closed control, no focus to trap and nothing to dismiss.
-				 *
-				 * It is also not an animation (#498). The height, the opacity and the
-				 * lift are read off the scroll offset and written by
-				 * `use-timeline-scroll.ts` on the same pass that measures everything
-				 * else, so a gesture gets continuous feedback instead of a 280ms
-				 * transition that fired once the gesture was over. There is nothing to
-				 * style here but the clip and the lift: no transition, no `max-h`
-				 * pairs, and no height at all until something has measured one — which
-				 * is what the server render and a no-JS browser get, and it is right,
-				 * because an unmeasured hero is an open one.
-				 *
-				 * `inert` rather than `aria-hidden` (#487). A hero folded to nothing is
-				 * away from the eye but not from the tab order, so `aria-hidden` alone
-				 * left its two links focusable while unreadable — a keyboard user
-				 * tabbing into a box that is not there. `inert` takes the subtree out
-				 * of the accessibility tree *and* the tab order, which is the whole of
-				 * what collapsed means here.
-				 */}
 				<div
-					ref={scroll.heroRef}
-					data-testid="hero-fold"
-					inert={scroll.collapsed}
-					className="overflow-hidden"
+					className={cn(
+						'bg-background z-4 flex-none',
+						scroll.collapsed && 'border-hairline-edge border-b',
+					)}
 				>
-					<div className="hero-lift">
-						<HeroPager hero={hero} panes={panes} />
+					<div className="flex items-center gap-3 px-[18px] py-[14px]">
+						{scroll.collapsed && hero ? (
+							<>
+								<span className="flex min-w-0 flex-1 flex-col gap-0.5">
+									<span className="truncate text-[13px]/[1.2] font-semibold">
+										{hero.collapsed.title}
+									</span>
+									<span className="text-primary text-[10.5px]/[1.2]">
+										{hero.collapsed.summary}
+									</span>
+								</span>
+								<Link
+									to={hero.cta.to}
+									className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[34px] flex-none items-center rounded-[10px] px-[14px] text-[12.5px]/[1] font-bold"
+								>
+									{hero.cta.label}
+								</Link>
+							</>
+						) : (
+							<>
+								{/*
+								 * "+ New" is the app's single creation menu (#178). It was the
+								 * Cockpit header's, and creation has to survive the
+								 * re-composition: the design's header has only a wordmark, a
+								 * date and an avatar — and `app/root.tsx` already renders the
+								 * first and the last — so this row has the room for it.
+								 *
+								 * Expanded only. The collapsed row is the session summary and
+								 * its action, and squeezing a third control in beside them
+								 * would crowd the one thing the athlete scrolled away from.
+								 */}
+								<CreateMenu />
+								<span className="text-muted-foreground flex-1 text-right text-[12px]/[1.2]">
+									{season.headerLabel}
+								</span>
+							</>
+						)}
 					</div>
+
+					{/*
+					 * The hero is a scroll-position-driven collapse, not a drawer: it
+					 * has no open/closed control, no focus to trap and nothing to
+					 * dismiss.
+					 *
+					 * It is also not an animation (#498). The height, the opacity and
+					 * the lift are read off the scroll offset and written by
+					 * `use-timeline-scroll.ts` on the same pass that measures
+					 * everything else, so a gesture gets continuous feedback instead
+					 * of a 280ms transition that fired once the gesture was over.
+					 * There is nothing to style here but the clip and the lift: no
+					 * transition, no `max-h` pairs, and no height at all until
+					 * something has measured one — which is what the server render
+					 * and a no-JS browser get, and it is right, because an unmeasured
+					 * hero is an open one.
+					 *
+					 * `inert` rather than `aria-hidden` (#487). A hero folded to
+					 * nothing is away from the eye but not from the tab order, so
+					 * `aria-hidden` alone left its two links focusable while
+					 * unreadable — a keyboard user tabbing into a box that is not
+					 * there. `inert` takes the subtree out of the accessibility tree
+					 * *and* the tab order, which is the whole of what collapsed means
+					 * here.
+					 */}
+					<div
+						ref={scroll.heroRef}
+						data-testid="hero-fold"
+						inert={scroll.collapsed}
+						className="overflow-hidden"
+					>
+						<div className="hero-lift">
+							<HeroPager hero={hero} panes={panes} />
+						</div>
+					</div>
+
+					{/*
+					 * The season strip (#505 stories 17–18): every week at once, a
+					 * frame over the weeks in view, and the "I dag" pill — which is
+					 * the way back to today, always in the same place, quiet while
+					 * today is on screen and filled once it is not. It replaced the
+					 * pill that used to float over the stream's bottom edge.
+					 */}
+					<WeekStrip
+						strip={season.strip}
+						activeWeekKey={scroll.activeWeekKey}
+						frame={scroll.frame}
+						away={scroll.away}
+						onSelect={jumpToWeek}
+						onToday={scroll.backToToday}
+					/>
 				</div>
 
-				<WeekStrip
+				<div
+					ref={streamRef}
+					onScroll={scroll.onStreamScroll}
+					data-testid="timeline-stream"
+					// Named for the markup as well as for the tests: a past band deep
+					// in the stream finds the box it scrolls in through this, so
+					// expanding it can hold the reading position (#500).
+					{...{ [STREAM_ATTR]: 'true' }}
+					// `overflow-anchor: none` because the browser's own scroll
+					// anchoring fights the manual compensation a week loading in above
+					// needs. `scroll-behavior: smooth` is for the athlete's own
+					// keyboard scrolling only — every write this screen makes is a
+					// jump, and `motion-safe:` is what the Motion sheet asks of the
+					// scroller.
+					className="relative min-h-0 flex-1 overflow-y-auto [overflow-anchor:none] motion-safe:[scroll-behavior:smooth]"
+				>
+					{from === 0 ? (
+						<StartCap
+							loggedFromLabel={season.loggedFromLabel}
+							reachesBackToLabel={season.reachesBackToLabel}
+							reachLabel={season.reachLabel}
+						/>
+					) : null}
+					{visibleWeeks.map((week) => (
+						<WeekBlock
+							key={week.key}
+							week={week}
+							anchorDayKey={season.todayKey}
+							open={openWeeks.has(week.key)}
+							onToggle={toggleWeek}
+						/>
+					))}
+					{to === season.weeks.length - 1 ? (
+						<EndCap cap={season.endCap} />
+					) : null}
+				</div>
+			</div>
+
+			{large ? (
+				<SeasonPane
 					weeks={season.weeks}
-					activeWeekKey={scroll.activeWeekKey}
-					loadedKeys={loadedKeys}
-					heaviestPlannedTss={season.heaviestPlannedTss}
-					raceDayLabel={season.endCap.eventDateLabel}
-					onSelect={scroll.goToWeek}
-					stripRef={scroll.stripRef}
+					frame={scroll.frame}
+					onJump={jumpToWeek}
 				/>
-			</div>
-
-			<div
-				ref={scroll.streamRef}
-				onScroll={scroll.onStreamScroll}
-				data-testid="timeline-stream"
-				// Named for the markup as well as for the tests: a past band deep in
-				// the stream finds the box it scrolls in through this, so expanding it
-				// can hold the reading position (#500).
-				{...{ [STREAM_ATTR]: 'true' }}
-				// `overflow-anchor: none` because the browser's own scroll anchoring
-				// fights the manual compensation a week loading in above needs.
-				// `scroll-behavior: smooth` is for the athlete's own keyboard
-				// scrolling only — every write this screen makes is a jump, and
-				// `motion-safe:` is what the Motion sheet asks of both scrollers.
-				className="relative min-h-0 flex-1 overflow-y-auto [overflow-anchor:none] motion-safe:[scroll-behavior:smooth]"
-			>
-				{from === 0 ? (
-					<StartCap
-						loggedFromLabel={season.loggedFromLabel}
-						reachesBackToLabel={season.reachesBackToLabel}
-						reachLabel={season.reachLabel}
-					/>
-				) : null}
-				{visibleWeeks.map((week) => (
-					<WeekBlock
-						key={week.key}
-						week={week}
-						anchorDayKey={season.todayKey}
-					/>
-				))}
-				{to === season.weeks.length - 1 ? <EndCap cap={season.endCap} /> : null}
-			</div>
-
-			{/*
-			 * The back-to-today pill. The design floats it 70px up to clear a bottom
-			 * tab bar; there is no tab bar in this app — `app/root.tsx` states the
-			 * wordmark row is the only persistent chrome (#178) — so it sits just
-			 * above the bottom edge instead.
-			 *
-			 * **Always mounted, and `away === 0` is what makes it not there** (#502).
-			 * It enters from the bottom edge it lives on and leaves the same way,
-			 * and a component that unmounts cannot animate out — so the pill stays
-			 * in the frame and the state travels on `data-away`, which `pill-fold`
-			 * reads: transparent, 8px down, and untappable at rest. `inert` and
-			 * `aria-hidden` take it out of the tab order and the accessibility tree
-			 * with it, for the reason #487 gave the folded hero — a control that is
-			 * not there must not be reachable, by any route.
-			 *
-			 * TODO(#178): if the bottom tab bar is ever adopted, it mounts here as
-			 * the third child of the frame and this pill goes back to `bottom-[70px]`.
-			 */}
-			<button
-				type="button"
-				onClick={scroll.backToToday}
-				data-away={scroll.away}
-				inert={scroll.away === 0}
-				aria-hidden={scroll.away === 0}
-				className="bg-primary text-primary-foreground hover:bg-primary/85 pill-fold absolute bottom-4 left-1/2 z-5 h-[40px] rounded-[40px] px-[18px] text-[12.5px]/[1] font-bold shadow-(--shadow-pill)"
-			>
-				{/* The arrow the pill left with is the arrow it leaves with: the
-				    direction is held over the departure, so a pill fading out does
-				    not flip its label on the way. */}
-				{away < 0 ? '↑ Back to today' : '↓ Back to today'}
-			</button>
+			) : null}
 		</main>
 	)
 }

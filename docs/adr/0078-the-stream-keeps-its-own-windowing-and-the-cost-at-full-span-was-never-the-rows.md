@@ -1,6 +1,9 @@
 # The stream keeps its own windowing, and the cost at full span was never the rows
 
-Status: Accepted.
+Status: Accepted. **§4 is superseded by
+[ADR 0082](0082-i-dag-reads-like-a-printed-plan-and-the-season-strip-frames-the-reader.md)**
+(#505 S9): the strip is fixed and draws every week at once, so its cells no
+longer carry `content-visibility`. §1–§3 and §5 stand.
 
 **Settles the open question in
 [ADR 0065](./0065-home-is-an-every-day-grid-and-tapping-an-empty-day-stamps-a-session.md)**

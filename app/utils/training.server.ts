@@ -186,6 +186,20 @@ export type ActivePlan = {
 	 * header holds Planned and Actual Volume against (#505, `week-volumes.ts`).
 	 */
 	tracks: PlanTrackTargets[]
+	/**
+	 * Every plan week's role in its phase's rhythm, earliest first — a hard
+	 * (`loading`) week or an easy one (`recovery`, `taper`) — so home can say
+	 * what kind of week it is (#505 story 19). The same `weekRole` the plan
+	 * page reads, so the two surfaces cannot disagree about which week rests.
+	 */
+	weekRoles: WeekRole[]
+	/**
+	 * Whether the week change will lay this plan's weeks as the Planning
+	 * Horizon reaches them: the plan has a Week Pattern with days in it
+	 * (`fillPlanWeek`). Home promises a week past the horizon will be filled
+	 * only when this is true.
+	 */
+	fillsWeeks: boolean
 }
 
 /**
@@ -233,6 +247,10 @@ export async function getActivePlan(
 			? null
 			: roundOfWeek(specs, outline.startWeekKey, now, timezone),
 		tracks: planTrackTargets(outline),
+		weekRoles: Array.from({ length: totalWeeks(specs) }, (_, week) =>
+			weekRole(specs, week),
+		),
+		fillsWeeks: outline.patterns.some((pattern) => pattern.days.length > 0),
 	}
 }
 

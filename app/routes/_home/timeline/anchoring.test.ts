@@ -4,7 +4,6 @@ import {
 	activeWeekFrom,
 	awayFromToday,
 	bandScrollTop,
-	centreScrollLeft,
 	compensatedScrollTop,
 	HERO_FADE_SHARE,
 	heroFold,
@@ -18,6 +17,7 @@ import {
 	SETTLE_LADDER,
 	SETTLE_WINDOW_MS,
 	WEEK_JUMP_OFFSET,
+	weeksInView,
 } from './anchoring.ts'
 
 // A phone-sized stream: the viewport these thresholds have to hold for.
@@ -343,13 +343,23 @@ describe('the back-to-today pill', () => {
 	})
 })
 
-describe('centring a strip cell', () => {
-	test('a cell is centred against the strip, not the page', () => {
-		// A 124px cell in a 390px strip: 133px of slack either side.
-		expect(centreScrollLeft(500, 124, 390)).toBe(367)
+describe('the weeks a reader can see, for the strip’s frame', () => {
+	const weeks = [
+		{ key: 'a', offset: 0 },
+		{ key: 'b', offset: 400 },
+		{ key: 'c', offset: 800 },
+		{ key: 'd', offset: 1200 },
+	]
+
+	test('from the week at the top edge to the week whose header shows at the bottom', () => {
+		expect(weeksInView(weeks, 450, 400)).toEqual({ from: 'b', to: 'c' })
 	})
 
-	test('the first cell cannot scroll to a negative position', () => {
-		expect(centreScrollLeft(0, 124, 390)).toBe(0)
+	test('one tall week filling the screen is a frame of one', () => {
+		expect(weeksInView(weeks, 410, 380)).toEqual({ from: 'b', to: 'b' })
+	})
+
+	test('nothing mounted is no frame at all', () => {
+		expect(weeksInView([], 0, 400)).toBeNull()
 	})
 })

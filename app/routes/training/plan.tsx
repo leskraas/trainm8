@@ -69,7 +69,6 @@ import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
-import { dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	formatDate,
@@ -105,10 +104,6 @@ import {
 	WEEK_ROLE_LABELS,
 	type BoundaryStepOutOfForce,
 } from '#app/utils/labels.ts'
-import {
-	getCtlOnOrBefore,
-	getTsbTrust,
-} from '#app/utils/load/snapshot.server.ts'
 import { AttachEventFormSchema } from '#app/utils/plan-outline/attach-event-schema.ts'
 import {
 	EnduranceSegmentSetSchema,
@@ -220,7 +215,10 @@ import {
 	RAMP_GUARD_MAX,
 	type RampWarning,
 } from '#app/utils/plan-outline/ramp-guard.ts'
-import { type FitnessAnchor } from '#app/utils/plan-outline/season-chart.ts'
+import {
+	readSeasonChartInputs,
+	withWeekStarts,
+} from '#app/utils/plan-outline/season-chart.server.ts'
 import {
 	readStampedMixWarnings,
 	stampWeekPattern,
@@ -234,7 +232,6 @@ import {
 import { type StarterProposal } from '#app/utils/plan-outline/starter-pattern.ts'
 import { addProposedStrengthTrack } from '#app/utils/plan-outline/strength-offer.server.ts'
 import { type UnavailableReading } from '#app/utils/plan-outline/unavailable-readings.ts'
-import { readConversionContexts } from '#app/utils/plan-outline/volume-conversion.server.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import { PATTERN_DAY_KINDS } from '#app/utils/plan-outline/week-pattern.ts'
 import { countWeeksWithSessions } from '#app/utils/plan-outline/week-sessions.server.ts'
@@ -579,20 +576,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 		strengthTracks: strengthTracksOf(season),
 		anchorTracks: anchorTracksOf(season),
 		/**
-		 * The **season chart**'s two server-side inputs (#413). Both are read here
-		 * rather than folded into `AuthoredSeason` because they belong to the
-		 * *athlete*, not to the plan: the per-Discipline conversion context is their
-		 * zone recipe and thresholds, and the fitness anchor is their measured load
-		 * history. Handing them over as data keeps every layer the chart draws a pure
-		 * function the component can recompute as the athlete switches track or
-		 * currency, with no round trip and no second reading of the same week.
+		 * The **season chart**'s two server-side inputs (#413), read the way every
+		 * surface that mounts the chart reads them (`season-chart.server.ts`).
 		 */
-		conversionContexts: await readConversionContexts(
-			userId,
-			season.startWeekKey,
-			season.tracks.map((track) => track.discipline),
-		),
-		fitnessAnchor: await readFitnessAnchor(userId, season.startWeekKey),
+		...(await readSeasonChartInputs(userId, season)),
 		/**
 		 * What the add-track form proposes for the Disciplines this plan does not
 		 * measure yet. Read here because a proposal is a reading of the *athlete's*
@@ -604,41 +591,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 			userId,
 			season.tracks.map((track) => track.discipline),
 		),
-		season: {
-			...season,
-			/**
-			 * Each week's Monday as the instant of local midnight, so the display layer
-			 * formats the calendar day the athlete's week actually opens on.
-			 */
-			weeks: season.weeks.map((week) => ({
-				...week,
-				startsAt: dayBoundsUTC(week.weekKey, season.timezone).start,
-			})),
-			phases: season.phases.map((phase) => ({
-				...phase,
-				startsAt: dayBoundsUTC(phase.fromWeekKey, season.timezone).start,
-			})),
-		},
+		season: withWeekStarts(season),
 	}
-}
-
-/**
- * The measured fitness the season chart's projection opens on, with the trust gate
- * that decides whether it may be used at all (ADR 0008).
- *
- * `null` for an athlete with no load history before their plan starts, and the
- * chart's Fitness layer then declines with that as its reason rather than replaying
- * from a fabricated zero.
- */
-async function readFitnessAnchor(
-	userId: string,
-	startWeekKey: string,
-): Promise<FitnessAnchor | null> {
-	const [ctl, trust] = await Promise.all([
-		getCtlOnOrBefore(userId, startWeekKey),
-		getTsbTrust(userId),
-	])
-	return ctl == null ? null : { ctl, ...trust }
 }
 
 /**

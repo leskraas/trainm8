@@ -214,6 +214,8 @@ const planFixture = (): ActivePlan => ({
 	// recipe, so the Build weeks carry both more volume and a harder mix.
 	round: null,
 	tracks: [],
+	weekRoles: [],
+	fillsWeeks: false,
 	weeklyTss: [
 		...Array<number>(4).fill(360),
 		...Array<number>(3).fill(540),
