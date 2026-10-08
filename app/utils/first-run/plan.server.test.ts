@@ -3,15 +3,19 @@ import { addDays, weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { parseTrainableWeekdays } from '#app/utils/athlete-schema.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createOpenEndedPlan } from '#app/utils/plan-outline/authoring.server.ts'
-import { getActivePlan } from '#app/utils/training.server.ts'
+import { getActivePlan, getActiveSeason } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { readFirstRunFindings } from './findings.server.ts'
 import { type FirstRunAnswers } from './first-run-schema.ts'
-import { createFirstRunPlan, readFirstRunPlan } from './plan.server.ts'
+import {
+	createFirstRunPlan,
+	firstRunRefusalOf,
+	readFirstRunPlan,
+} from './plan.server.ts'
 
 // The first run's plan on the server (#505 S14): the plan it makes honours the
 // chosen days and hours — sessions only on those days, each week adding up to
-// its target, the first one to the hours given — and is the plan it showed.
+// its target, no week over the hours given — and is the plan it showed.
 
 const NOW = new Date('2030-01-09T12:00:00Z') // a Wednesday
 const START = '2030-01-14' // the first week not yet begun: next Monday
@@ -127,8 +131,10 @@ test('an open-ended first plan lays its first two weeks on the chosen days only,
 		true,
 	)
 
-	// The first week is the hours given; each laid week adds up to its target.
-	expect(targets[0]).toBe(4.5)
+	// No week asks for more than the 4,5 t given: the round's climb is kept,
+	// so the first week starts lower. Each laid week adds up to its target.
+	expect(Math.max(...targets.map((t) => t ?? 0))).toBeLessThanOrEqual(4.5)
+	expect(targets[0]).toBe(4)
 	for (const [index, weekKey] of [START, addDays(START, 7)].entries()) {
 		const week = sessions.filter(inWeek(weekKey))
 		expect(week).toHaveLength(3)
@@ -237,11 +243,141 @@ test('a dated goal gets an Event and the family’s season fitted to it, laid on
 
 	const sessions = await laidSessions(athleteId)
 	expect(new Set(sessions.map((s) => s.weekday))).toEqual(new Set([0, 2, 4, 6]))
+	const plan = await getActivePlan(athleteId, NOW)
+	const targets = plan!.tracks[0]!.targets
 	const firstWeek = sessions.filter(inWeek(START))
 	expect(firstWeek.reduce((sum, s) => sum + s.seconds, 0) / 3600).toBeCloseTo(
-		6,
-		2,
+		targets[0]!,
+		1,
 	)
+	expect(Math.max(...targets.map((t) => t ?? 0))).toBeLessThanOrEqual(6)
+})
+
+/** The plan's weeks as Sesong reads them, and both of its fit checks. */
+async function readSeason(athleteId: string) {
+	const plan = await getActivePlan(athleteId, NOW)
+	const season = await getActiveSeason(athleteId, NOW)
+	return {
+		targets: plan!.tracks[0]!.targets.map((t) => t ?? 0),
+		hoursWarnings: season!.hoursWarnings,
+		availabilityWarnings: season!.availabilityWarnings,
+	}
+}
+
+test.each([
+	['a race 25 weeks out', 25],
+	['a race 51 weeks out', 51],
+	['no race', null],
+] as const)(
+	'a 5 h athlete with %s never gets a week over 5 h, and no fit check fires',
+	async (_, weeks) => {
+		for (const family of ['classic', 'big-base', 'polarized'] as const) {
+			const athleteId = await createAthlete()
+			const created = await createFirstRunPlan(
+				athleteId,
+				answers({
+					hours: 5,
+					// One day only: every family's hard sessions must fit it too.
+					days: [5],
+					family,
+					goal:
+						weeks == null
+							? { kind: 'active' }
+							: {
+									kind: 'event',
+									name: 'Målløpet',
+									date: addDays(START, 7 * (weeks - 1) + 5),
+								},
+				}),
+				NOW,
+			)
+			if (!created.ok) throw new Error(created.reason)
+
+			const season = await readSeason(athleteId)
+			if (weeks != null) expect(season.targets).toHaveLength(weeks)
+			expect(Math.max(...season.targets)).toBeLessThanOrEqual(5)
+			// The heaviest week is the hours given, near enough: not a timid plan.
+			expect(Math.max(...season.targets)).toBeGreaterThan(4.5)
+			expect(season.hoursWarnings).toEqual([])
+			expect(season.availabilityWarnings).toEqual([])
+		}
+	},
+)
+
+test('two submits of a race plan at once make one plan and one Event', async () => {
+	const athleteId = await createAthlete()
+	const race = answers({
+		goal: {
+			kind: 'event',
+			name: 'Dobbeltklikk',
+			date: addDays(START, 7 * 11 + 5),
+		},
+	})
+
+	const results = await Promise.all([
+		createFirstRunPlan(athleteId, race, NOW),
+		createFirstRunPlan(athleteId, race, NOW),
+	])
+
+	expect(results.filter((result) => result.ok)).toHaveLength(1)
+	expect(results.find((result) => !result.ok)).toEqual({
+		ok: false,
+		reason: 'plan-already-active',
+	})
+	expect(await prisma.planOutline.count({ where: { athleteId } })).toBe(1)
+	expect(await prisma.event.count({ where: { athleteId } })).toBe(1)
+})
+
+test('a race plan that fails to write leaves no Event behind', async () => {
+	const athleteId = await createAthlete()
+
+	// Zero hours anchors the track at nothing, which the plan's schema refuses
+	// inside the transaction that made the Event.
+	await expect(
+		createFirstRunPlan(
+			athleteId,
+			answers({
+				hours: 0,
+				goal: { kind: 'event', name: 'Ingenting', date: addDays(START, 40) },
+			}),
+			NOW,
+		),
+	).rejects.toThrow()
+	expect(await prisma.event.count({ where: { athleteId } })).toBe(0)
+	expect(await prisma.planOutline.count({ where: { athleteId } })).toBe(0)
+})
+
+test('a race past the longest plan is refused as too far, and nothing is made', async () => {
+	const athleteId = await createAthlete()
+
+	expect(
+		await createFirstRunPlan(
+			athleteId,
+			answers({
+				goal: {
+					kind: 'event',
+					name: 'Langt unna',
+					date: addDays(START, 7 * 104 + 1),
+				},
+			}),
+			NOW,
+		),
+	).toEqual({ ok: false, reason: 'event-too-far' })
+	expect(await prisma.event.count({ where: { athleteId } })).toBe(0)
+})
+
+test('each refusal of the plan write is said as what it is', () => {
+	expect(firstRunRefusalOf('open-ended-already-active')).toBe(
+		'plan-already-active',
+	)
+	expect(firstRunRefusalOf('event-past')).toBe('event-too-soon')
+	for (const reason of [
+		'event-not-found',
+		'event-cancelled',
+		'event-already-planned',
+	] as const) {
+		expect(firstRunRefusalOf(reason)).toBe('goal-unavailable')
+	}
 })
 
 test('a race this week or next is refused, and nothing is made', async () => {

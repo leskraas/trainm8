@@ -1,7 +1,9 @@
-import { type FieldMetadata } from '@conform-to/react'
 import { ErrorList } from '#app/components/forms.tsx'
 import { NB_DISCIPLINE_LABELS, NB_WEEKDAY_LABELS } from '#app/utils/labels.ts'
 import { CARDIO_DISCIPLINES } from '#app/utils/workout-schema.ts'
+
+/** What a field needs from conform's metadata: its name and its errors. */
+type FieldMeta = { name: string; errorId: string; errors?: string[] }
 
 /**
  * The weekday checkboxes the first run asks its days with — Monday first, the
@@ -14,7 +16,7 @@ export function DaysField({
 	note,
 	asQuestion = false,
 }: {
-	meta: FieldMetadata<number[] | undefined>
+	meta: FieldMeta
 	legend: string
 	defaultDays: readonly number[]
 	note?: string
@@ -61,7 +63,7 @@ export function DisciplineField({
 	legend,
 	defaultDiscipline,
 }: {
-	meta: FieldMetadata<string | undefined>
+	meta: FieldMeta
 	legend: string
 	defaultDiscipline: string
 }) {

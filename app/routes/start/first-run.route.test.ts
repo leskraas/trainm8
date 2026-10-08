@@ -120,6 +120,10 @@ async function seedRunningHistory(userId: string) {
 	}
 }
 
+function inDays(days: number): string {
+	return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+}
+
 const ACTIVE = 'discipline=run&hours=4.5&days=1,3,5&goal=active'
 
 test('an athlete who already has a plan is sent to it, from every step', async () => {
@@ -127,7 +131,8 @@ test('an athlete who already has a plan is sent to it, from every step', async (
 	await createOpenEndedPlan(userId, { discipline: 'run', weeklyHours: 3 })
 
 	for (const run of [
-		(): Promise<unknown> => connectLoader({ request: get('/start', cookie), ...ARGS }),
+		(): Promise<unknown> =>
+			connectLoader({ request: get('/start', cookie), ...ARGS }),
 		() => findingsLoader({ request: get('/start/funn', cookie), ...ARGS }),
 		() => questionsLoader({ request: get('/start/sporsmal', cookie), ...ARGS }),
 		() =>
@@ -320,6 +325,29 @@ describe('step 3: three questions', () => {
 		expect(tooSoon.data.result.error?.eventDate?.[0]).toMatch(
 			/Velg en dato etter neste uke/,
 		)
+
+		for (const [eventDate, message] of [
+			['2026-99-99', /Velg en dato som finnes i kalenderen/],
+			[inDays(7 * 110), /Velg en dato innen 104 uker/],
+		] as const) {
+			const refused = (await questionsAction({
+				request: post(
+					'/start/sporsmal',
+					[
+						['discipline', 'run'],
+						['goal', 'event'],
+						['eventName', 'Lokalløpet'],
+						['eventDate', eventDate],
+						['hours', '4'],
+						['days', '2'],
+					],
+					cookie,
+				),
+				...ARGS,
+			})) as unknown as Reply
+			expect(refused.init?.status).toBe(400)
+			expect(refused.data.result.error?.eventDate?.[0]).toMatch(message)
+		}
 	})
 })
 
@@ -334,7 +362,10 @@ describe('step 4: the plan, and why', () => {
 		expect(plan).toMatchObject({
 			family: 'classic',
 			switched: false,
-			firstWeek: 'Første uke: 4,5 t',
+			// The 4,5 t are the cap: the round climbs to them from 4 t.
+			firstWeek: 'Første uke: 4 t',
+			capNote:
+				'Ingen uke går over 4,5 t – timene du sa du har. Første uke starter lavere, så planen har rom til å bygge seg opp.',
 		})
 		expect(plan.reason).toMatch(/^Vi valgte Klassisk 3:1 fordi /)
 
@@ -360,6 +391,36 @@ describe('step 4: the plan, and why', () => {
 			familyLabel: 'Polarisert 80/20',
 			switched: true,
 		})
+	})
+
+	test('a race plan names its phases in Norwegian, and a tampered date goes back', async () => {
+		const { cookie } = await setUp()
+		const race = `discipline=run&hours=5&days=1,3,5&goal=event&name=Birken&date=${inDays(7 * 20)}`
+
+		const plan = await planLoader({
+			request: get(`/start/plan?${race}&family=classic`, cookie),
+			...ARGS,
+		})
+		expect(plan.phases.map((phase) => phase.split(' · ')[0])).toEqual([
+			'Grunntrening',
+			'Oppbygging',
+			'Topp',
+			'Nedtrapping',
+		])
+
+		expect(
+			location(
+				await settle(() =>
+					planLoader({
+						request: get(
+							`/start/plan?${race.replace(/date=.*/, 'date=2026-99-99')}`,
+							cookie,
+						),
+						...ARGS,
+					}),
+				),
+			),
+		).toBe('/start/sporsmal')
 	})
 
 	test('without answers it goes back to the questions', async () => {
@@ -390,13 +451,13 @@ describe('step 5: the first two weeks, and the way out', () => {
 				'lørdag',
 			])
 		}
-		expect(weeks.weeks[0]!.total).toBe('4,5 t planlagt · målet er 4,5 t')
-		// One share each, the long Saturday two, at the tenth of an hour a share
-		// is priced in: 1,1 + 1,1 + 2,3 = 4,5 t.
+		// Under the 4,5 t cap the round opens at 4 t: one share each, the long
+		// Saturday two.
+		expect(weeks.weeks[0]!.total).toBe('4 t planlagt · målet er 4 t')
 		expect(weeks.weeks[0]!.sessions.map((s) => s.duration)).toEqual([
-			'1 t 6 min',
-			'1 t 6 min',
-			'2 t 18 min',
+			'1 t',
+			'1 t',
+			'2 t',
 		])
 
 		const response = await settle(() =>

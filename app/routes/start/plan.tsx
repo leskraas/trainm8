@@ -18,6 +18,7 @@ import {
 	familyChoiceSentence,
 	FIRST_RUN_LABELS,
 	nbHoursLabel,
+	nbPhaseName,
 	PHILOSOPHY_DESCRIPTIONS,
 	PHILOSOPHY_LABELS,
 } from '#app/utils/labels.ts'
@@ -72,11 +73,21 @@ export async function loader({ request }: Route.LoaderArgs) {
 				: L.openEnded(weeks),
 		phases:
 			answers.goal.kind === 'event'
-				? draft.phases.map((phase) => L.phase(phase.name, phase.weeks))
+				? draft.phases.map((phase) =>
+						L.phase(nbPhaseName(phase.name), phase.weeks),
+					)
 				: [],
 		firstWeek: hours[0] != null ? L.firstWeek(nbHoursLabel(hours[0])) : null,
 		peakWeek:
 			hours.length > 1 ? L.peakWeek(nbHoursLabel(Math.max(...hours))) : null,
+		capNote: [
+			L.withinHours(nbHoursLabel(answers.hours)),
+			draft.anchor < answers.hours ? L.startsLower : null,
+		]
+			.filter(Boolean)
+			.join(' '),
+		strengthNote:
+			plan.strengthPerWeek != null ? L.strength(plan.strengthPerWeek) : null,
 		startsOn: L.startsOn(`mandag ${formatNbDayMonth(monday, 'UTC')}`),
 		weeksLink: `/start/uker?${answersSearch({ ...answers, family })}`,
 		questionsLink: questionsLink(answers),
@@ -146,6 +157,14 @@ export default function PlanStep({
 				) : null}
 				<li className="py-2">{loaderData.startsOn}</li>
 			</ul>
+			<p className="text-muted-foreground text-sm" data-hours-cap>
+				{loaderData.capNote}
+			</p>
+			{loaderData.strengthNote ? (
+				<p className="text-muted-foreground text-sm">
+					{loaderData.strengthNote}
+				</p>
+			) : null}
 
 			<details
 				className="border-border rounded-xl border p-4"

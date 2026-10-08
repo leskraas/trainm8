@@ -20,7 +20,6 @@ const SHOTS = process.env.FIRST_RUN_SHOTS
 
 async function shot(page: Page, name: string) {
 	if (!SHOTS) return
-	await page.waitForTimeout(300)
 	await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true })
 }
 
@@ -130,7 +129,11 @@ test('a new athlete goes from intervals.icu to I dag with a plan on the days and
 	// Step 4: the plan, why it was chosen, and a switch.
 	await expect(page).toHaveURL(/\/start\/plan\?/)
 	await expect(main.getByText(/^Vi valgte Klassisk 3:1 fordi /)).toBeVisible()
-	await expect(main.getByText('Første uke: 4,5 t')).toBeVisible()
+	// The 4,5 t are the cap: the round climbs to them from a lower first week.
+	await expect(main.getByText('Første uke: 4 t')).toBeVisible()
+	await expect(
+		main.getByText(/^Ingen uke går over 4,5 t – timene du sa du har\./),
+	).toBeVisible()
 	await shot(page, '4-plan')
 	await main.getByText('Bytt filosofi').first().click()
 	await page.getByRole('radio', { name: /Polarisert 80\/20/ }).check()
@@ -152,7 +155,7 @@ test('a new athlete goes from intervals.icu to I dag with a plan on the days and
 		await expect(week.getByText(/^lørdag /)).toBeVisible()
 	}
 	await expect(
-		weeks.first().getByText('4,5 t planlagt · målet er 4,5 t'),
+		weeks.first().getByText(/^\d+(,\d)? t planlagt · målet er \d+(,\d)? t$/),
 	).toBeVisible()
 	await shot(page, '5-weeks')
 	await page.getByRole('button', { name: 'Start planen' }).click()

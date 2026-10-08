@@ -313,3 +313,15 @@ nullable `PlanOutline.family` and nothing else, no backfill.
   research findings.
 - Refused while the athlete has an active plan; every first-run screen sends
   such an athlete to Sesong.
+- **The hours are a cap, the days a limit (S14 review).** The hours a week the
+  athlete gives are their Weekly Capacity, and no week of the plan may ask for
+  more: the draft lowers the Season Anchor until the heaviest week is at or
+  under them (the derivation is multiplicative, so the family's climb keeps its
+  shape and week 1 starts lower). Each phase's Quality Session Mix is cut, one
+  hard session at a time from the zone asking most, until it fits the chosen
+  days. So neither of Sesong's fit checks fires on a plan the first run just
+  made. A race date is a real calendar day, after this week and within 104 plan
+  weeks, checked on the form and again when read back from the URL. The goal
+  Event and its Outline are written in one transaction that first re-checks
+  that the athlete has no plan (`createPlanOutlineInTx`), so a double submit
+  makes one plan, and a write that fails leaves no Event behind.

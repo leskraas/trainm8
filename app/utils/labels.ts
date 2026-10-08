@@ -1559,6 +1559,25 @@ export const FINDING_ABSENCE_LABELS: Record<FindingAbsence, string> = {
 	importing: 'Ikke målt ennå · historikken hentes fortsatt fra intervals.icu',
 	'no-sessions': 'Ikke målt · vi fant ingen økter de siste fire ukene',
 	'no-duration': 'Ikke målt · øktene dine har ingen tid registrert',
+	'only-strength':
+		'Ikke målt · vi fant styrkeøkter, men ingen løping, sykling eller svømming',
+}
+
+/**
+ * The shipped presets' phase names as the first run says them (stories 66
+ * and 70). Display only: the stored names stay as the preset wrote them.
+ */
+export const PRESET_PHASE_NAME_LABELS: Record<string, string> = {
+	Base: 'Grunntrening',
+	'Big base': 'Stor base',
+	Build: 'Oppbygging',
+	Peak: 'Topp',
+	Taper: 'Nedtrapping',
+}
+
+/** A phase's name in Norwegian where it is a preset's, else as written. */
+export function nbPhaseName(name: string): string {
+	return PRESET_PHASE_NAME_LABELS[name] ?? name
 }
 
 /**
@@ -1666,6 +1685,12 @@ export const FIRST_RUN_LABELS = {
 			`${name} · ${weeks} ${weeks === 1 ? 'uke' : 'uker'}`,
 		firstWeek: (hours: string) => `Første uke: ${hours}`,
 		peakWeek: (hours: string) => `Tyngste uke: ${hours}`,
+		withinHours: (hours: string) =>
+			`Ingen uke går over ${hours} – timene du sa du har.`,
+		startsLower:
+			'Første uke starter lavere, så planen har rom til å bygge seg opp.',
+		strength: (perWeek: number) =>
+			`Du løfter ${nbNumber(perWeek)} ${perWeek === 1 ? 'gang' : 'ganger'} i uka. Styrken legger du til i Sesong når planen er laget – der foreslår vi et styrkespor fra historikken din.`,
 		startsOn: (date: string) => `Planen starter ${date}.`,
 		switchTitle: 'Bytt filosofi',
 		switchSubmit: 'Bruk denne',
@@ -1682,8 +1707,6 @@ export const FIRST_RUN_LABELS = {
 			`${planned} planlagt · målet er ${target}`,
 		long: 'Langtur',
 		easy: 'Rolig økt',
-		tooManyHardSessions: (hard: number, days: number) =>
-			`Planen ber senere om ${hard} harde økter i uka, men du har ${days} ${days === 1 ? 'dag' : 'dager'}. Du kan ta to økter samme dag, eller velge flere dager i Sesong.`,
 		create: 'Start planen',
 		selfSetUp: 'Jeg vil heller sette opp sesongen selv',
 		selfSetUpHelp: 'Du får den samme planen i Sesong, og kan endre alt i den.',
@@ -1698,6 +1721,10 @@ export const FIRST_RUN_REFUSAL_LABELS: Record<FirstRunPlanRefusal, string> = {
 	'plan-already-active': 'Du har allerede en plan. Du finner den i Sesong.',
 	'event-too-soon':
 		'Velg en dato etter neste uke, så det blir uker å trene mot den.',
+	'event-too-far':
+		'Velg en dato innen 104 uker – lenger kan ikke en plan være.',
+	'goal-unavailable':
+		'Målet kunne ikke få en plan. Prøv igjen, eller velg Hold meg aktiv.',
 	'nothing-to-lay':
 		'Med disse svarene ble det ingen økter å legge. Velg minst én dag og noen timer i uka.',
 }

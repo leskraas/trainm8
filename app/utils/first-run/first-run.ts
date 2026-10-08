@@ -26,12 +26,15 @@ export type FirstRunConnection = (typeof FIRST_RUN_CONNECTIONS)[number]
  * - `importing` — the history is still on its way from intervals.icu.
  * - `no-sessions` — connected, and the last four weeks hold nothing.
  * - `no-duration` — sessions are there, but none recorded how long it took.
+ * - `only-strength` — the history is lifting, with no endurance session to
+ *   read a sport or hours from.
  */
 export const FINDING_ABSENCES = [
 	'not-connected',
 	'importing',
 	'no-sessions',
 	'no-duration',
+	'only-strength',
 ] as const
 export type FindingAbsence = (typeof FINDING_ABSENCES)[number]
 
@@ -176,6 +179,11 @@ export function buildFindings({
 				? 'importing'
 				: 'no-sessions'
 	const absent = { measured: false as const, reason: noHistory }
+	// Lifting with no endurance beside it: history, but not the kind the
+	// sport and the hours are read from — never "no sessions".
+	const noEndurance = hasHistory
+		? { measured: false as const, reason: 'only-strength' as const }
+		: absent
 
 	const endurance = volumes
 		.filter((volume) => isCardioDiscipline(volume.discipline))
@@ -197,12 +205,12 @@ export function buildFindings({
 							weeksTrained: lead.weeksTrained,
 						},
 					}
-				: absent,
+				: noEndurance,
 		volume: estimate
 			? { measured: true, value: estimate }
 			: lead
 				? { measured: false, reason: 'no-duration' }
-				: absent,
+				: noEndurance,
 		days: days.length > 0 ? { measured: true, value: days } : absent,
 		strength: hasHistory
 			? {
