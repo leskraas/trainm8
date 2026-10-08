@@ -176,3 +176,41 @@ Sunday.
     athlete with a plan and no session yet, whose weeks only the fill lays.
   - Both once-only columns came with migration
     `20261007190320_the_week_change_runs_each_step_once`.
+
+## As built (#505 S10): the Ukeskiftet card
+
+- **Where.** A card on I dag, under today's row, so the landing (which parks
+  today under its week header) shows it rather than scrolling past it. It shows
+  from the close until every proposal is answered or applied: `readWeekChange`
+  (`app/utils/load/week-change-card.server.ts`) reads the latest closed week's
+  Week Replan with its proposals and their sessions; home asks only for an open
+  card (`onlyOpen`), so on the days between it costs one indexed lookup and
+  ships nothing.
+- **The week that went** is not read again: the closed week is already in home's
+  ledger and season model (`week-volumes.ts`, graded through Sunday once closed
+  — the same model `getWeekVolumes` builds), so the card reads its track lines,
+  its missed sessions and its recording-only _ekstra_ sessions off that week.
+- **The view model** is `buildWeekChangeCard`
+  (`app/routes/_home/timeline/week-change.ts`): each proposal is answerable
+  (pending, unapplied), silenced (pending, applied by the morning — _Gjort i
+  morges_), or answered, with a headline saying what it proposes, its reason
+  verbatim, _din økt_ when it is aimed at the athlete's own session, a scope
+  choice only on a move that is not a make-up, and the round's factor on an
+  `add-phase`. What an answer did is read back from the stored answer, scope and
+  `appliedAt`, so a reload says the same thing; every line about a session says
+  the Week Target stands.
+- **Answers** post to `routes/resources/week-change.tsx` (intents `answer`,
+  `accept-round`, `ease`, `release`; one zod union in
+  `app/utils/load/week-change-schema.ts`, shared with the card's conform form).
+  Another athlete's proposal or session answers 404; any other refusal 409. Each
+  reply carries the card as it now stands, so after the last answer — when home
+  no longer ships the card — the athlete still reads what it did, then closes
+  it. The round's factor is a select of five-percent steps within
+  `ROUND_FACTOR_MIN`–`ROUND_FACTOR_MAX`.
+- **"Gjør uka lettere −15 %"** eases the coming week (closed week + 7). Before
+  the tap it states the coming week's planned sum in its lead track's unit;
+  after it, `easeWeek`'s before and after in km or hours (hours without a plan:
+  the minutes are always there, the Planned TSS not).
+- **"Lås opp"** sits under the athlete's own planned rows, beside the closed
+  lock, with one sentence saying the app may adjust the session again. The row's
+  lock opening is the confirmation.

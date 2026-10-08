@@ -21,7 +21,7 @@
  * says how far back this screen reads and the last says how far the plan is
  * written — and offers to write the rest.
  */
-import { memo, useRef, useState } from 'react'
+import { Fragment, memo, type ReactNode, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useFetcher } from 'react-router'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
@@ -32,9 +32,11 @@ import {
 	DAY_ROW_LABELS,
 	DRIFT_MARK,
 	foldedWeekControlLabel,
+	RELEASE_ACTION_LABELS,
 	WEEK_FIGURE_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { type action as weekChangeAction } from '../../resources/week-change.tsx'
 import { bandScrollTop, offsetWithin } from './anchoring.ts'
 import { StampDraft, StampedSentence } from './day-stamp-cell.tsx'
 import { useDayStamp } from './day-stamp-context.tsx'
@@ -75,6 +77,7 @@ export const WeekBlock = memo(function WeekBlock({
 	anchorDayKey,
 	open = false,
 	onToggle,
+	afterAnchor = null,
 }: {
 	week: TimelineWeek
 	/**
@@ -88,6 +91,13 @@ export const WeekBlock = memo(function WeekBlock({
 	open?: boolean
 	/** Open or close a folded week; stable, so the memo above holds. */
 	onToggle?: (key: string) => void
+	/**
+	 * What sits right under today's row — the Ukeskiftet card (#505 story 42).
+	 * Below the anchor rather than above it, so the landing, which parks today
+	 * under the week header, lands with the card in view instead of scrolled
+	 * past it.
+	 */
+	afterAnchor?: ReactNode
 }) {
 	const ref = useRef<HTMLDivElement>(null)
 	const runRef = useRef<HTMLDivElement>(null)
@@ -147,11 +157,10 @@ export const WeekBlock = memo(function WeekBlock({
 				row.band ? (
 					<PastBand key={row.band.key} band={row.band} days={row.days} />
 				) : (
-					<DayRow
-						key={row.day.key}
-						day={row.day}
-						isAnchor={row.day.key === anchorDayKey}
-					/>
+					<Fragment key={row.day.key}>
+						<DayRow day={row.day} isAnchor={row.day.key === anchorDayKey} />
+						{row.day.key === anchorDayKey ? afterAnchor : null}
+					</Fragment>
 				),
 			)}
 		</>
@@ -280,7 +289,17 @@ function Figure({ label, value }: { label: string; value: string | null }) {
 	)
 }
 
-function TrackLine({ track }: { track: TimelineTrackWeek }) {
+export function TrackLine({
+	track,
+	review = false,
+}: {
+	track: TimelineTrackWeek
+	/**
+	 * Drawn in the Ukeskiftet card's review of the week that went, not in a
+	 * week header — marked apart, so the two are never read as one.
+	 */
+	review?: boolean
+}) {
 	const extras = [
 		track.gradeNote,
 		track.sessionsLabel,
@@ -295,7 +314,12 @@ function TrackLine({ track }: { track: TimelineTrackWeek }) {
 			: null,
 	].filter((part): part is string => !!part)
 	return (
-		<div data-week-track={track.trackId} className="flex flex-col gap-0.5">
+		<div
+			{...(review
+				? { 'data-review-track': track.trackId }
+				: { 'data-week-track': track.trackId })}
+			className="flex flex-col gap-0.5"
+		>
 			<div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]/[1.3] tabular-nums">
 				<span className="text-ink-dim font-semibold">{track.name}</span>
 				<span className="flex flex-wrap items-baseline gap-x-1.5">
@@ -932,16 +956,81 @@ function SessionRow({
 			</span>
 		</Link>
 	)
-	if (!session.annet) return row
+	if (!session.annet && !session.release) return row
 	return (
 		<div className={cn(day.isToday && 'bg-primary/7')}>
 			{row}
-			<AnnetAction
-				sessionId={session.id}
-				inAnnet={session.annet.inAnnet}
-				label={session.annet.actionLabel}
-			/>
+			{session.annet ? (
+				<AnnetAction
+					sessionId={session.id}
+					inAnnet={session.annet.inAnnet}
+					label={session.annet.actionLabel}
+				/>
+			) : null}
+			{session.release ? (
+				<ReleaseAction
+					sessionId={session.id}
+					label={session.release.actionLabel}
+					note={session.release.note}
+				/>
+			) : null}
 		</div>
+	)
+}
+
+/**
+ * "Lås opp" (#505 story 55): hand one of the athlete's own planned sessions
+ * back to the app, so the Week Replan may adjust it again
+ * (`releaseSession`). Beside the row's closed lock, as quiet as the Annet
+ * action, with the one sentence that says what the tap gives away.
+ *
+ * Once it has taken, home revalidates and the row's lock opens — the mark is
+ * the confirmation. While the post is in flight the action already says so.
+ */
+function ReleaseAction({
+	sessionId,
+	label,
+	note,
+}: {
+	sessionId: string
+	label: string
+	note: string
+}) {
+	const fetcher = useFetcher<typeof weekChangeAction>()
+	// Said once it is sent, and kept once the server agreed; a refusal (the
+	// session is gone) puts the action back rather than claiming a release.
+	const sent = fetcher.state !== 'idle' || fetcher.data?.result.ok === true
+	return (
+		<fetcher.Form
+			method="post"
+			action="/resources/week-change"
+			className="-mt-[14px] flex flex-wrap items-center gap-x-2 pr-[18px] pl-[76px]"
+		>
+			<input type="hidden" name="intent" value="release" />
+			<input type="hidden" name="sessionId" value={sessionId} />
+			{sent ? (
+				<span
+					aria-live="polite"
+					className="text-ink-dimmer flex min-h-11 items-center text-[11px]/[1.35]"
+				>
+					{RELEASE_ACTION_LABELS.released}
+				</span>
+			) : (
+				<>
+					<button
+						type="submit"
+						data-release-action={sessionId}
+						className="text-ink-dimmer flex min-h-11 flex-none items-center gap-1 text-[11px]/[1] font-semibold underline decoration-dotted underline-offset-[3px]"
+					>
+						<Icon name="lock-open-1" size="xs" />
+						{label}
+					</button>
+					<span className="text-ink-dimmest min-w-0 flex-1 text-[11px]/[1.35]">
+						{note}
+					</span>
+				</>
+			)}
+		</fetcher.Form>
 	)
 }
 

@@ -27,6 +27,7 @@ import {
 	getLoadSnapshots,
 	getTsbTrust,
 } from '#app/utils/load/snapshot.server.ts'
+import { readWeekChange } from '#app/utils/load/week-change-card.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { readMostTrainedDiscipline } from '#app/utils/most-trained-discipline.server.ts'
 import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
@@ -86,6 +87,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		thresholds,
 		personalRecords,
 		weekReplan,
+		weekChange,
 		loadRecomputeNotice,
 		athleteProfile,
 		strengthCount,
@@ -106,6 +108,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 		// The stored Week Replan decision for the latest closed week (ADR 0025) —
 		// read-only; the recompute-path applier is the only writer.
 		getLatestWeekReplan(userId),
+		// The Ukeskiftet card (#505 stories 42–55): the closed week's proposals,
+		// only while one still waits for an answer — on every other day this is
+		// one indexed lookup that ships nothing.
+		readWeekChange(userId, { onlyOpen: true }),
 		// The undismissed Load Recompute Notice (ADR 0046 §2) — why a number the
 		// athlete had already read moved. Read-only; the one-shot backfill writes it
 		// and the dismiss action below clears it.
@@ -171,6 +177,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		nudge,
 		personalRecords,
 		weekReplan,
+		weekChange,
 		loadRecomputeNotice,
 		strengthCount,
 		stampDiscipline,

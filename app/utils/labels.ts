@@ -776,6 +776,147 @@ export const ANNET_ACTION_LABELS = {
 	chip: 'Annet',
 } as const
 
+// ---------------------------------------------------------------------------
+// Ukeskiftet, the week change card on I dag (#505 stories 4–6, 42–55, ADR 0080)
+// ---------------------------------------------------------------------------
+
+/** The card's fixed words. */
+export const WEEK_CHANGE_LABELS = {
+	heading: 'Ukeskiftet',
+	weekThatWent: 'Uka som gikk',
+	proposals: 'Forslag for neste uke',
+	missed: 'Ikke gjort',
+	extras: 'Ekstra',
+	nothingMissed: 'Alt planlagt ble gjort.',
+	emptyWeek: 'Ingenting var planlagt eller gjort.',
+	ok: 'Ok',
+	no: 'Nei takk',
+	saving: 'Lagrer …',
+	scopeLegend: 'Hvor lenge?',
+	thisTime: 'bare denne gangen',
+	fromNowOn: 'fra nå av',
+	own: 'din økt',
+	ownNote: 'Endres bare hvis du sier ja.',
+	addsLoad: 'mer trening',
+	answeredOk: 'Du sa ok',
+	answeredNo: 'Du sa nei takk',
+	ease: 'Gjør uka lettere −15 %',
+	easeNote: 'Gjør de øktene som er igjen ca. 15 % kortere. Én gang per uke.',
+	eased: 'Uka er gjort lettere (−15 %).',
+	easeNothing: 'Det var ingen økter igjen å gjøre lettere. Ukemålet står.',
+	targetStands: 'Ukemålet står.',
+	nothingChanged: 'Ingenting er endret.',
+	allAnswered: 'Alt er besvart. Vi sees neste søndag.',
+	close: 'Lukk',
+	failed: 'Svaret ble ikke lagret. Prøv igjen.',
+	factorLegend: 'Hvor mye trening i neste blokk?',
+} as const
+
+/** "Gjort i morges" — a proposal silence applied, on the morning it did. */
+export function silencedLabel(today: boolean, weekday: number): string {
+	return today ? 'Gjort i morges' : `Gjort ${NB_WEEKDAY_LABELS[weekday]} morgen`
+}
+
+/** `«Terskel 5×5»`, or `økta` when the session has no title to quote. */
+export function quotedSession(title: string | null): string {
+	return title ? `«${title}»` : 'økta'
+}
+
+/** A round's volume against the one before: `samme volum`, `+5 % volum`. */
+export function roundFactorLabel(factor: number): string {
+	const percent = Math.round((factor - 1) * 100)
+	if (percent === 0) return 'samme volum'
+	return `${percent > 0 ? '+' : '−'}${Math.abs(percent)} % volum`
+}
+
+/** A softening or a lengthening, said as the change: `ca. 10 % kortere`. */
+function scaleWords(factor: number): string {
+	const percent = Math.round(Math.abs(1 - factor) * 100)
+	return `ca. ${percent} % ${factor < 1 ? 'kortere' : 'lengre'}`
+}
+
+const weekdayOf = (weekday: number) => NB_WEEKDAY_LABELS[weekday]!
+
+/**
+ * What each proposal proposes, as its headline. The reason says why; this says
+ * what — so the athlete reads the change before the argument for it.
+ */
+export const WEEK_CHANGE_PROPOSAL_LABELS = {
+	keepWeek: 'Uka står som planlagt',
+	letGo: (session: string) => `La ${session} gå`,
+	makeUp: (session: string, toWeekday: number) =>
+		`Ta igjen ${session} ${weekdayOf(toWeekday)}`,
+	move: (session: string, fromWeekday: number, toWeekday: number) =>
+		`Flytt ${session} fra ${weekdayOf(fromWeekday)} til ${weekdayOf(toWeekday)}`,
+	scale: (session: string, weekday: number | null, factor: number) =>
+		weekday == null
+			? `${session} ${scaleWords(factor)}`
+			: `${session} ${weekdayOf(weekday)} ${scaleWords(factor)}`,
+	scaleWeek: (factor: number) => `Uka ${scaleWords(factor)}`,
+	swap: (session: string, other: string) =>
+		`Bytt dag på ${session} og ${other}`,
+	add: (weekday: number) => `Legg til en økt ${weekdayOf(weekday)}`,
+	round: (name: string, weeks: number, factor: number) =>
+		`${name}: ${nbWeeks(weeks)}, ${roundFactorLabel(factor)}`,
+} as const
+
+/**
+ * What an answer did, said once it is given — what changed, and what did not
+ * (#505 story 39's rule, here for the week change): a session moved or eased
+ * never moves the Week Target, so the line says the target stands.
+ */
+export const WEEK_CHANGE_DONE_LABELS = {
+	keepWeek: 'Ingenting er endret. Ukemålet står.',
+	letGo: (session: string) =>
+		`${session} står som ikke gjort. Ingenting er flyttet.`,
+	makeUp: (session: string, toWeekday: number) =>
+		`${session} er lagt inn igjen ${weekdayOf(toWeekday)}. Den gamle står som ikke gjort. Ukemålet står.`,
+	moveThisTime: (session: string, toWeekday: number) =>
+		`${session} er flyttet til ${weekdayOf(toWeekday)}, bare denne gangen. Ukemålet står.`,
+	moveFromNowOn: (session: string, toWeekday: number) =>
+		`${session} er flyttet til ${weekdayOf(toWeekday)}, også de neste ukene. Ukemålet står.`,
+	scale: (session: string, factor: number) =>
+		`${session} er gjort ${scaleWords(factor)}. Ukemålet står.`,
+	scaleWeek: (factor: number) =>
+		`Uka er gjort ${scaleWords(factor)}. Ukemålet står.`,
+	swap: (session: string, other: string) =>
+		`${session} og ${other} har byttet dag. Ukemålet står.`,
+	add: (weekday: number) =>
+		`Økta er lagt til ${weekdayOf(weekday)}. Ukemålet står.`,
+	round: (name: string, factor: number) =>
+		`${name} er lagt til planen, ${roundFactorLabel(factor)}.`,
+	/** An Ok that found its session already past or gone. */
+	tooLate: 'Økta var allerede passert eller borte, så ingenting ble endret.',
+	declined: (session: string) => `${session} står som den var. Ukemålet står.`,
+	declinedWeek: 'Ingenting er endret. Ukemålet står.',
+	declinedAdd: 'Ingenting er lagt til. Ukemålet står.',
+	declinedMakeUp: (session: string) =>
+		`${session} står som ikke gjort, og blir ikke tatt igjen. Ukemålet står.`,
+	declinedRound: 'Ingen ny blokk ennå. Vi spør igjen neste søndag.',
+	/** An Ok on a round whose plan has changed shape since it was proposed. */
+	roundNotApplied:
+		'Planen er endret siden forslaget, så ingen blokk ble lagt til.',
+	/** "Gjør uka lettere" done, with the week's planned sum before and after. */
+	eased: (before: string, after: string, unit: string) =>
+		`Uka: ${before} → ${after} ${unit} planlagt. Ukemålet står.`,
+} as const
+
+/** The coming week's planned sum, under the ease action: `Neste uke: 44 km planlagt`. */
+export function easePlannedLabel(
+	weekName: string,
+	figure: string,
+	unit: string,
+): string {
+	return `${weekName}: ${figure} ${unit} planlagt`
+}
+
+/** "Lås opp" on one of the athlete's own planned rows (#505 story 55). */
+export const RELEASE_ACTION_LABELS = {
+	action: 'Lås opp',
+	note: 'Gi økta tilbake til appen, så den kan justere den igjen.',
+	released: 'Låst opp. Appen kan justere økta igjen.',
+} as const
+
 /** The large-screen season pane beside the list (#505 story 60). */
 export const SEASON_PANE_LABELS = {
 	heading: 'Sesongen',

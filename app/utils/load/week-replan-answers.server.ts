@@ -15,6 +15,7 @@ import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { sumBlockDistanceM, sumBlockDurationMin } from '#app/utils/dashboard.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { sessionOwner } from '#app/utils/session-ownership.ts'
+import { ROUND_FACTOR_MAX, ROUND_FACTOR_MIN } from './week-change-schema.ts'
 import {
 	loadDirectionOf,
 	type ProposalPayload,
@@ -51,13 +52,9 @@ export type AnswerProposalResult =
 				| 'factor-out-of-range'
 	  }
 
-/**
- * The range a round's volume factor may be edited within: from half the
- * round before to half as much again. Wide on purpose — the athlete is saying
- * what their life allows — but bounded, so a typo never doubles a plan.
- */
-export const ROUND_FACTOR_MIN = 0.5
-export const ROUND_FACTOR_MAX = 1.5
+// The range a round's volume factor may be edited within lives with the
+// card's forms, so the browser and this function hold the same bounds.
+export { ROUND_FACTOR_MAX, ROUND_FACTOR_MIN }
 
 /**
  * The athlete's Ok or Nei takk on one proposal. Ok applies it (with the move

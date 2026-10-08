@@ -1151,8 +1151,10 @@ test('two sessions on one day sit under one date gutter, said once', async () =>
 	const evening = within(stream).getByRole('link', { name: /evening lift/i })
 	// One row, two sessions: the day owns both, rather than the two of them being
 	// unrelated rows that happen to share a date (ADR 0065 §1).
-	const day = morning.parentElement!
-	expect(evening.parentElement).toBe(day)
+	// Read through the day's own mark rather than the parent: a planned row of
+	// the athlete's own carries its "lås opp" beside it (#505 story 55).
+	const day = morning.closest<HTMLElement>('[data-timeline-day]')!
+	expect(evening.closest('[data-timeline-day]')).toBe(day)
 	// The gutter is the day's, so the date is stated once for both.
 	expect(within(day).getAllByText('ons')).toHaveLength(1)
 	// And the landing anchor is that day — not whichever of its sessions came

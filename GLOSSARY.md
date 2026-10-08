@@ -1163,13 +1163,13 @@ reduces load is applied from **06:00 the next morning** (Monday, for a Sunday
 close) to the machine's sessions, in one pass that runs once — what it held then
 waits for the athlete's answer; the athlete's own (`authored`, or adopted — see
 **Session Adoption**) change only on an explicit yes; and added load always
-needs a yes. Read on the **Hero**'s **This week** pane as the outcome's name
-plus its stored reason, verbatim. Distinct from the ephemeral one-session ease
-the Coach card's nudge applies. **Endurance-only**, and it stays that way: its
-scale inverts a _TSS_ ratio, and a strength week's completed-vs-planned
-**Summary Count** carries no volume semantics to invert — a skipped gym week is
-not evidence for softening runs (ADR 0046 §4). _Avoid_: Auto-adjust, replanning
-engine, plan correction
+needs a yes. Answered on the **Week Change Card** on I dag, and read on the
+**Hero**'s **This week** pane as the outcome's name plus its stored reason,
+verbatim. Distinct from the ephemeral one-session ease the Coach card's nudge
+applies. **Endurance-only**, and it stays that way: its scale inverts a _TSS_
+ratio, and a strength week's completed-vs-planned **Summary Count** carries no
+volume semantics to invert — a skipped gym week is not evidence for softening
+runs (ADR 0046 §4). _Avoid_: Auto-adjust, replanning engine, plan correction
 
 **Week Replan Proposal**: One change a **Week Replan** proposes for the week
 after a closed one — `keep`, `move`, `swap`, `add` or `scale`, or `add-phase`
@@ -1188,12 +1188,27 @@ which (ADR 0080). The athlete's "Gjør uka lettere −15 %" is a proposal they
 create and accept in one tap. _Avoid_: Suggestion, recommendation, adjustment
 (that is the old in-place rescale)
 
+**Week Change Card**: The card on I dag that carries a closed week's **Week
+Replan** to the athlete (UI word: _Ukeskiftet_; #505 stories 42–55). It shows
+from the close (Sunday 20:00 local) until every **Week Replan Proposal** is
+answered or applied: the week that went — plan against done per **Training
+Track**, in the track's own unit, with the sessions _ikke gjort_ and the
+_ekstra_ ones — then each proposal with what it proposes, its reason, whether it
+is aimed at the athlete's own session (_din økt_), and Ok / Nei takk (a move
+also asks _bare denne gangen_ or _fra nå av_; an open-ended plan's next round
+lets the athlete choose its volume first). What silence applied that morning
+reads as done (_Gjort i morges_), not as a question. Each answer says what it
+changed and what it did not (_Ukemålet står._). It also offers "Gjør uka lettere
+−15 %" once per week, with the week's planned sum before and after. Sits under
+today's row in the list, so the landing shows it. _Avoid_: Replan modal, review
+screen
+
 **Session Release**: The athlete handing one of their own sessions back to the
-app (UI words: _lås opp_) — `WorkoutSession.releasedAt`. A released session is
-the machine's again for **ownership** (see **Session Source**), so a **Week
-Replan Proposal** may apply to it on silence. Rewriting its prescription takes
-it back, the same act that is **Session Adoption**. _Avoid_: Unlock (as a code
-term), un-adopt
+app (UI words: _lås opp_, offered on their own planned rows on I dag) —
+`WorkoutSession.releasedAt`. A released session is the machine's again for
+**ownership** (see **Session Source**), so a **Week Replan Proposal** may apply
+to it on silence. Rewriting its prescription takes it back, the same act that is
+**Session Adoption**. _Avoid_: Unlock (as a code term), un-adopt
 
 **Replan Note**: The plain-language reason a **Week Replan Proposal** leaves on
 each **Workout Session** it changed when it applied (an ADR 0025 rescale left

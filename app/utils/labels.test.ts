@@ -7,6 +7,10 @@ import {
 } from './event-schema.ts'
 import {
 	CONVERSION_CONVENTION_LABELS,
+	quotedSession,
+	roundFactorLabel,
+	silencedLabel,
+	WEEK_CHANGE_LABELS,
 	DISCIPLINE_LABELS,
 	EVENT_KIND_LABELS,
 	EVENT_PRIORITY_LABELS,
@@ -368,4 +372,15 @@ test('every sport a week header names has its own Norwegian word, and the folds 
 		'7 dager · ingenting logget',
 	)
 	expect(freeBandLabels(2, '8–9 October').summary).toBe('2 ledige dager')
+})
+
+test('the Ukeskiftet card says a round’s volume, silence and its answers in the spec’s words (#505 S10)', () => {
+	expect(roundFactorLabel(1)).toBe('samme volum')
+	expect(roundFactorLabel(1.05)).toBe('+5 % volum')
+	expect(roundFactorLabel(0.9)).toBe('−10 % volum')
+	expect(silencedLabel(true, 0)).toBe('Gjort i morges')
+	expect(silencedLabel(false, 0)).toBe('Gjort mandag morgen')
+	expect(quotedSession(null)).toBe('økta')
+	expect(WEEK_CHANGE_LABELS.ok).toBe('Ok')
+	expect(WEEK_CHANGE_LABELS.no).toBe('Nei takk')
 })

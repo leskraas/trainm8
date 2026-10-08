@@ -64,6 +64,7 @@ import {
 	planWeekLabel,
 	SESSION_OWNER_LABELS,
 	VERDICT_LABELS,
+	RELEASE_ACTION_LABELS,
 } from '#app/utils/labels.ts'
 import {
 	reconcileCoach,
@@ -176,6 +177,12 @@ export type TimelineSession = {
 	 * `Tell i sporet` puts it back (#505 story 33, `setCountsInNoTrack`).
 	 */
 	annet: { inAnnet: boolean; actionLabel: string } | null
+	/**
+	 * "Lås opp" on one of the athlete's own planned sessions (#505 story 55):
+	 * hand it back so the app may adjust it again (`releaseSession`). Null on
+	 * the app's sessions, which are the app's already, and on history.
+	 */
+	release: { actionLabel: string; note: string } | null
 }
 
 /**
@@ -1012,6 +1019,13 @@ function buildSession({
 			entry.discipline,
 			trackDisciplines,
 		),
+		release:
+			entry.status === 'planned' && owner === 'athlete'
+				? {
+						actionLabel: RELEASE_ACTION_LABELS.action,
+						note: RELEASE_ACTION_LABELS.note,
+					}
+				: null,
 	}
 }
 

@@ -3,10 +3,15 @@ import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import {
+	type WeekChangeData,
+	type WeekChangeProposal,
+} from '#app/utils/load/week-change-card.server.ts'
+import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
 import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
+import { buildWeekChangeCard, easedLine } from './week-change.ts'
 
 const DAY = 24 * 60 * 60 * 1000
 // Wednesday 20 February 2030, at local noon. A midweek anchor is what makes the
@@ -2026,5 +2031,376 @@ describe('the review’s edges (#505 S9)', () => {
 		const last = result.weeks.find((week) => week.key === LAST_MONDAY)!
 		expect(last.foldLabel).toBe('12 km gjort')
 		expect(last.foldLabel).not.toContain('av 0')
+	})
+})
+
+describe('"lås opp" is offered on the athlete’s own planned sessions only (#505 story 55)', () => {
+	function rowOf(overrides: Partial<LedgerSession>, days = 2) {
+		return season([
+			on(days, {
+				id: 'row',
+				status: 'scheduled',
+				tssValue: null,
+				recording: null,
+				...overrides,
+			}),
+		])
+			.weeks.flatMap((week) => week.rows)
+			.flatMap((day) => day.sessions)
+			.find((row) => row.id === 'row')!
+	}
+
+	test('the athlete’s own planned session can be handed back', () => {
+		expect(rowOf({ source: 'authored' }).release).toEqual({
+			actionLabel: 'Lås opp',
+			note: 'Gi økta tilbake til appen, så den kan justere den igjen.',
+		})
+	})
+
+	test('the app’s session, a released one and history are not offered it', () => {
+		expect(rowOf({ source: 'generated' }).release).toBeNull()
+		expect(
+			rowOf({ source: 'authored', releasedAt: new Date('2030-02-19') }).release,
+		).toBeNull()
+		expect(rowOf({ source: 'authored' }, -2).release).toBeNull()
+	})
+})
+
+describe('the Ukeskiftet card (#505 stories 4–6, 42–55)', () => {
+	// NOW is Wednesday: the closed week is last week, the coming one this week.
+	function card(
+		proposals: WeekChangeProposal[],
+		{
+			ledger = [] as LedgerSession[],
+			activePlan = null as ActivePlan | null,
+			eased = null as WeekChangeData['eased'],
+			open = true,
+		} = {},
+	) {
+		const { weeks } = season(ledger, activePlan)
+		return buildWeekChangeCard({
+			data: {
+				closedWeekKey: LAST_MONDAY,
+				comingWeekKey: THIS_MONDAY,
+				reason: 'Forrige uke gikk som planlagt.',
+				open,
+				proposals,
+				eased,
+			},
+			weeks,
+			ledger,
+			now: NOW,
+			timezone: 'UTC',
+		})!
+	}
+
+	const machineTarget = {
+		id: 'target',
+		title: 'Terskel',
+		discipline: 'run',
+		dayKey: '2030-02-21',
+		owner: 'machine' as const,
+		status: 'planned' as const,
+	}
+
+	function proposal(
+		overrides: Partial<WeekChangeProposal> = {},
+	): WeekChangeProposal {
+		return {
+			id: 'p1',
+			payload: { kind: 'scale', factor: 0.9 },
+			reason: 'Forrige uke ble 25 % tyngre enn planlagt.',
+			loadDirection: 'keeps-or-reduces',
+			scope: null,
+			answer: 'pending',
+			answeredAt: null,
+			appliedAt: null,
+			targetWeekKey: THIS_MONDAY,
+			target: machineTarget,
+			other: null,
+			...overrides,
+		}
+	}
+
+	test('there is no card without a closed week’s Week Replan', () => {
+		expect(
+			buildWeekChangeCard({
+				data: null,
+				weeks: [],
+				ledger: [],
+				now: NOW,
+				timezone: 'UTC',
+			}),
+		).toBeNull()
+	})
+
+	test('an unanswered proposal asks, with what it proposes and why', () => {
+		const [view] = card([proposal()]).proposals
+		expect(view).toMatchObject({
+			state: 'answerable',
+			stateLabel: null,
+			confirmation: null,
+			headline: '«Terskel» torsdag ca. 10 % kortere',
+			reason: 'Forrige uke ble 25 % tyngre enn planlagt.',
+			ownLabel: null,
+			scope: null,
+			round: null,
+		})
+	})
+
+	test('a proposal on the athlete’s own session says it is theirs', () => {
+		const [view] = card([
+			proposal({ target: { ...machineTarget, owner: 'athlete' } }),
+		]).proposals
+		expect(view!.ownLabel).toBe('din økt')
+	})
+
+	test('"keep" is a real proposal with its reason, answerable like any other', () => {
+		const [view] = card([
+			proposal({
+				payload: { kind: 'keep' },
+				target: null,
+				reason: 'Forrige uke gikk som planlagt. Denne uka står som den er.',
+			}),
+		]).proposals
+		expect(view).toMatchObject({
+			kind: 'keep',
+			headline: 'Uka står som planlagt',
+			reason: 'Forrige uke gikk som planlagt. Denne uka står som den er.',
+			state: 'answerable',
+		})
+	})
+
+	test('a move asks for its reach; a make-up does not', () => {
+		const [move, makeUp] = card([
+			proposal({
+				id: 'move',
+				payload: {
+					kind: 'move',
+					fromDate: '2030-02-21',
+					toDate: '2030-02-22',
+					makeUp: false,
+				},
+				scope: 'this-time',
+			}),
+			proposal({
+				id: 'make-up',
+				payload: {
+					kind: 'move',
+					fromDate: '2030-02-13',
+					toDate: '2030-02-23',
+					makeUp: true,
+				},
+				loadDirection: 'adds',
+				target: { ...machineTarget, dayKey: '2030-02-13', status: 'missed' },
+			}),
+		]).proposals
+		expect(move).toMatchObject({
+			headline: 'Flytt «Terskel» fra torsdag til fredag',
+			scope: {
+				options: [
+					{ value: 'this-time', label: 'bare denne gangen' },
+					{ value: 'from-now-on', label: 'fra nå av' },
+				],
+			},
+		})
+		expect(makeUp).toMatchObject({
+			headline: 'Ta igjen «Terskel» lørdag',
+			addsLoad: true,
+			scope: null,
+		})
+	})
+
+	test('what silence applied this morning reads as done, not answerable', () => {
+		const [today, yesterday] = card([
+			proposal({ id: 'today', appliedAt: new Date('2030-02-20T06:00:00Z') }),
+			proposal({
+				id: 'yesterday',
+				appliedAt: new Date('2030-02-19T06:00:00Z'),
+			}),
+		]).proposals
+		expect(today).toMatchObject({
+			state: 'silenced',
+			stateLabel: 'Gjort i morges',
+			confirmation: '«Terskel» er gjort ca. 10 % kortere. Ukemålet står.',
+		})
+		expect(yesterday).toMatchObject({
+			state: 'silenced',
+			stateLabel: 'Gjort tirsdag morgen',
+		})
+	})
+
+	test('an answer says what changed, and what did not', () => {
+		const [fromNowOn, declined, tooLate] = card([
+			proposal({
+				id: 'a',
+				payload: {
+					kind: 'move',
+					fromDate: '2030-02-21',
+					toDate: '2030-02-22',
+					makeUp: false,
+				},
+				scope: 'from-now-on',
+				answer: 'accepted',
+				appliedAt: NOW,
+			}),
+			proposal({ id: 'b', answer: 'declined' }),
+			proposal({ id: 'c', answer: 'accepted', appliedAt: null }),
+		]).proposals
+		expect(fromNowOn).toMatchObject({
+			state: 'accepted',
+			stateLabel: 'Du sa ok',
+			confirmation:
+				'«Terskel» er flyttet til fredag, også de neste ukene. Ukemålet står.',
+		})
+		expect(declined).toMatchObject({
+			state: 'declined',
+			stateLabel: 'Du sa nei takk',
+			confirmation: '«Terskel» står som den var. Ukemålet står.',
+		})
+		expect(tooLate!.confirmation).toBe(
+			'Økta var allerede passert eller borte, så ingenting ble endret.',
+		)
+	})
+
+	test('the next round shows its volume change and the factor the athlete may change', () => {
+		const [view] = card([
+			proposal({
+				payload: {
+					kind: 'add-phase',
+					outlineId: 'o',
+					afterPhaseId: 'p',
+					name: 'Blokk 5',
+					weeks: 4,
+					rhythm: '3:1',
+					factor: 1.05,
+				},
+				loadDirection: 'adds',
+				target: null,
+			}),
+		]).proposals
+		expect(view).toMatchObject({
+			headline: 'Blokk 5: 4 uker, +5 % volum',
+			addsLoad: true,
+			round: { factor: 1.05, min: 0.5, max: 1.5, step: 0.05 },
+		})
+	})
+
+	test('the week that went: plan against done per track, missed and extra sessions', () => {
+		const run = workout({
+			title: 'Langtur',
+			blocks: [
+				{
+					id: 'b',
+					name: 'Main',
+					orderIndex: 0,
+					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
+					steps: [step({ distanceM: 10000, durationSec: null })],
+				},
+			],
+		})
+		const ledger = [
+			on(-7, { id: 'done', workout: run }),
+			on(-6, {
+				id: 'missed',
+				status: 'scheduled',
+				tssValue: null,
+				recording: null,
+				workout: workout({ title: 'Terskel' }),
+			}),
+			on(-5, { id: 'extra', workout: null, plannedTssValue: null }),
+		]
+		const targets = Array<number>(12).fill(30)
+		const { review } = card([proposal()], {
+			ledger,
+			activePlan: plan({
+				tracks: [
+					{
+						trackId: 'track-run',
+						discipline: 'run',
+						currency: 'km',
+						targets,
+						overridden: targets.map(() => false),
+						sessionTargets: null,
+					},
+				],
+			}),
+		})
+		expect(review).toMatchObject({ weekName: 'Forrige uke' })
+		expect(review!.tracks).toHaveLength(1)
+		expect(review!.tracks[0]).toMatchObject({
+			name: 'Løping',
+			unit: 'km',
+			// Done is what was recorded: the run and the extra ride, 9.2 km each.
+			figures: { target: '30', done: '18.4' },
+		})
+		expect(review!.missed.map((s) => s.title)).toEqual(['Terskel'])
+		expect(review!.extras.map((s) => s.id)).toEqual(['extra'])
+	})
+
+	test('"Gjør uka lettere" is offered once a week, with the number it moves', () => {
+		const targets = Array<number>(12).fill(30)
+		const activePlan = plan({
+			tracks: [
+				{
+					trackId: 'track-run',
+					discipline: 'run',
+					currency: 'km',
+					targets,
+					overridden: targets.map(() => false),
+					sessionTargets: null,
+				},
+			],
+		})
+		const ahead = on(2, {
+			id: 'ahead',
+			status: 'scheduled',
+			tssValue: null,
+			recording: null,
+			workout: workout({
+				blocks: [
+					{
+						id: 'b',
+						name: 'Main',
+						orderIndex: 0,
+						repeatCount: 1,
+						seriesRepeatCount: 1,
+						betweenSeriesRestSec: null,
+						sendOff: null,
+						steps: [step({ distanceM: 12000, durationSec: null })],
+					},
+				],
+			}),
+		})
+		expect(card([proposal()], { ledger: [ahead], activePlan }).ease).toEqual({
+			weekKey: THIS_MONDAY,
+			state: 'offered',
+			plannedLabel: 'Denne uka: 12 km planlagt',
+			currency: 'km',
+		})
+		expect(
+			card([proposal()], {
+				ledger: [ahead],
+				activePlan,
+				eased: { at: NOW },
+			}).ease.state,
+		).toBe('done')
+	})
+
+	test('the eased week is said in the track’s unit, never in metres or minutes', () => {
+		const before = { distanceM: 44000, durationMin: 240, plannedTss: 300 }
+		const after = { distanceM: 37400, durationMin: 204, plannedTss: 255 }
+		expect(easedLine(before, after, 'km')).toBe(
+			'Uka: 44 → 37.4 km planlagt. Ukemålet står.',
+		)
+		expect(easedLine(before, after, 'hours')).toBe(
+			'Uka: 4 → 3.4 t planlagt. Ukemålet står.',
+		)
+		expect(easedLine(before, before, 'km')).toBe(
+			'Det var ingen økter igjen å gjøre lettere. Ukemålet står.',
+		)
 	})
 })

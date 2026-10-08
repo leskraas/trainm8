@@ -32,6 +32,7 @@ import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
+import { type WeekChangeData } from '#app/utils/load/week-change-card.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import { type StrengthSummaryCount } from '#app/utils/strength-log.ts'
@@ -58,6 +59,7 @@ import {
 	STREAM_ATTR,
 	useTimelineScroll,
 } from './use-timeline-scroll.ts'
+import { WeekChangeCard } from './week-change-card.tsx'
 import { WeekStrip } from './week-strip.tsx'
 
 export type HomeTimelineData = {
@@ -81,6 +83,11 @@ export type HomeTimelineData = {
 	weeklyAdherence: WeeklyAdherence | null
 	strengthCount: StrengthSummaryCount | null
 	weekReplan: WeekReplanSummary | null
+	/**
+	 * The Ukeskiftet card's proposals (#505 stories 42–55): the closed week's,
+	 * while one still waits for an answer; null otherwise.
+	 */
+	weekChange?: WeekChangeData | null
 	personalRecords: PersonalRecord[]
 	/**
 	 * The Discipline a tapped empty cell prefills — the athlete's **most-trained**,
@@ -127,6 +134,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		strengthCount,
 		weekReplan,
 		personalRecords,
+		weekChange = null,
 	} = data
 	// `now` comes from the loader so SSR and hydration agree on "today", and the
 	// Athlete Timezone fixes which calendar day that instant reads as — the same
@@ -278,6 +286,21 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		[goToWeek, season.weeks],
 	)
 	const large = useLargeScreen()
+
+	// The Ukeskiftet card, under today's row (#505 story 42). Built once per
+	// change of what it reads, so today's memoised week block keeps its props.
+	const weekChangeCard = useMemo(
+		() => (
+			<WeekChangeCard
+				data={weekChange}
+				weeks={season.weeks}
+				ledger={ledger}
+				now={now}
+				timezone={timezone}
+			/>
+		),
+		[weekChange, season.weeks, ledger, now, timezone],
+	)
 
 	return (
 		<main
@@ -436,6 +459,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 							anchorDayKey={season.todayKey}
 							open={openWeeks.has(week.key)}
 							onToggle={toggleWeek}
+							afterAnchor={week.isNow ? weekChangeCard : null}
 						/>
 					))}
 					{to === season.weeks.length - 1 ? (
