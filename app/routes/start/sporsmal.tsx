@@ -88,13 +88,14 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 	// A race needs weeks to lay toward it; said on the date, before the plan.
 	const plan = await readFirstRunPlan(userId, answers)
-	if (!plan.ok && plan.reason === 'event-too-soon') {
+	if (
+		!plan.ok &&
+		(plan.reason === 'event-too-soon' || plan.reason === 'event-too-far')
+	) {
 		return data(
 			{
 				result: submission.reply({
-					fieldErrors: {
-						eventDate: [FIRST_RUN_REFUSAL_LABELS['event-too-soon']],
-					},
+					fieldErrors: { eventDate: [FIRST_RUN_REFUSAL_LABELS[plan.reason]] },
 				}),
 			},
 			{ status: 400 },

@@ -28,6 +28,10 @@ import {
 	type PresetPhase,
 } from '../plan-outline/presets.ts'
 import {
+	qualitySessionCount,
+	type QualitySessionMixEntry,
+} from '../plan-outline/quality-mix.ts'
+import {
 	planStamp,
 	type StampDay,
 	type StampWeekPlan,
@@ -38,7 +42,7 @@ import {
 } from '../plan-outline/starter-pattern.ts'
 import { weekKeyAt } from '../plan-outline/week-keys.ts'
 import {
-	calendarWeekdayOf,
+	calendarWeekdaysOf,
 	type PatternWeekday,
 } from '../plan-outline/week-pattern.ts'
 import { type CardioDiscipline } from '../workout-schema.ts'
@@ -126,18 +130,82 @@ export type DraftWeek = StampWeekPlan & {
 export type FirstRunDraft = {
 	phases: PresetPhase[]
 	rows: OutlineRows
+	/**
+	 * The first week's target in hours — the track's **Season Anchor**. Set so
+	 * the plan's heaviest week lands at or under the hours the athlete gave.
+	 */
+	anchor: number
 	/** Every plan week's target in hours, earliest first. */
 	targets: Array<number | null>
 	/** The starter pattern's days: the chosen days, the last one long. */
 	pattern: StarterDay[]
 	/** The plan's first two weeks, as the stamp lays them. */
 	weeks: DraftWeek[]
-	/** Where the plan's hard sessions outnumber the chosen days, if anywhere. */
+	/**
+	 * Where the plan's hard sessions outnumber the chosen days. Empty by
+	 * construction (`mixWithinDays`); read back so tests can hold it to that.
+	 */
 	dayWarnings: AvailabilityFitWarning[]
 }
 
 /** How many weeks the first run shows and lays at once (story 68). */
 export const FIRST_RUN_WEEKS = 2
+
+/**
+ * A phase's **Quality Session Mix** cut to fit the athlete's days: one hard
+ * session fewer at a time, taken from the zone that asks for the most (the
+ * harder zone on a tie), until the week asks for no more hard sessions than
+ * there are days — equality is a plan, not a warning (ADR 0047 §4). A mix
+ * that fits comes back as it is.
+ */
+export function mixWithinDays(
+	mix: readonly QualitySessionMixEntry[],
+	days: number,
+): QualitySessionMixEntry[] {
+	const fitted = mix.map((entry) => ({ ...entry }))
+	while (fitted.length > 0 && qualitySessionCount(fitted) > days) {
+		const most = fitted.reduce((top, entry) =>
+			entry.sessionsPerWeek > top.sessionsPerWeek ||
+			(entry.sessionsPerWeek === top.sessionsPerWeek && entry.zone > top.zone)
+				? entry
+				: top,
+		)
+		most.sessionsPerWeek -= 1
+		if (most.sessionsPerWeek === 0) fitted.splice(fitted.indexOf(most), 1)
+	}
+	return fitted
+}
+
+/** The heaviest week's target, or null where no week is priced. */
+function peakOf(targets: ReadonlyArray<number | null>): number | null {
+	const priced = targets.filter((value): value is number => value != null)
+	return priced.length === 0 ? null : Math.max(...priced)
+}
+
+/** One step of the hours currency (ADR 0043): a tenth of an hour. */
+const HOURS_STEP = 0.1
+
+/**
+ * The first week's hours that put the plan's heaviest week at or under the
+ * athlete's weekly hours. The hours they gave are their **Weekly Capacity**,
+ * and no week of the plan may ask for more (#505: "the plan honours the
+ * chosen hours"). The derivation is multiplicative from the anchor (ADR 0040
+ * §3), so the family's whole climb scales with it: the shape is kept, and
+ * week 1 starts lower. Rounded down to the tenth the currency is authored in,
+ * then stepped down until no week is over.
+ */
+function cappedAnchor(
+	targetsAt: (anchor: number) => Array<number | null>,
+	capacity: number,
+): number {
+	const peak = peakOf(targetsAt(capacity))
+	if (peak == null || peak <= capacity) return capacity
+	let anchor = Math.floor(((capacity * capacity) / peak) * 10) / 10
+	while (anchor > HOURS_STEP && (peakOf(targetsAt(anchor)) ?? 0) > capacity) {
+		anchor = Math.round((anchor - HOURS_STEP) * 10) / 10
+	}
+	return Math.max(HOURS_STEP, anchor)
+}
 
 /**
  * The whole draft, or null where there is nothing to lay: no phase toward a
@@ -155,19 +223,36 @@ export function draftFirstRunPlan({
 	goal: DraftGoal
 	startWeekKey: string
 	discipline: CardioDiscipline
+	/** The hours a week the athlete has: the cap no week may exceed. */
 	weeklyHours: number
 	/** Monday-first weekdays the athlete can train. */
 	days: readonly PatternWeekday[]
 }): FirstRunDraft | null {
-	const phases = firstRunPhases(family, goal)
-	if (!phases) return null
-	const rows = draftRows({ phases, startWeekKey, discipline, weeklyHours })
+	const familyPhases = firstRunPhases(family, goal)
+	if (!familyPhases || days.length === 0) return null
+	const phases = familyPhases.map((phase) => ({
+		...phase,
+		mix: mixWithinDays(phase.mix, days.length),
+	}))
+	const targetsAt = (anchor: number) =>
+		(
+			resolvedTracks(
+				draftRows({ phases, startWeekKey, discipline, weeklyHours: anchor }),
+			)[0]?.targets ?? []
+		).map((target) => target.value)
+	const anchor = cappedAnchor(targetsAt, weeklyHours)
+	const rows = draftRows({
+		phases,
+		startWeekKey,
+		discipline,
+		weeklyHours: anchor,
+	})
 	const [track] = resolvedTracks(rows)
 	if (!track) return null
 	const targets = track.targets.map((target) => target.value)
 
 	const starter = proposeStarterPattern({
-		trainableWeekdays: days.map(calendarWeekdayOf),
+		trainableWeekdays: calendarWeekdaysOf(days),
 		tracks: [{ trackId: DRAFT_TRACK_ID, discipline, sessionsPerWeek: null }],
 	})
 	if (!starter) return null
@@ -204,6 +289,7 @@ export function draftFirstRunPlan({
 	return {
 		phases,
 		rows,
+		anchor,
 		targets,
 		pattern: starter.days,
 		weeks: planned.map((week, index) => ({

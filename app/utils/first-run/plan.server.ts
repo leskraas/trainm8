@@ -7,6 +7,7 @@
 // hours they gave, a Week Pattern on the days they chose and no others, and
 // its first two weeks laid by the stamp the horizon fill uses.
 
+import { type Prisma } from '@prisma/client'
 import { redirect } from 'react-router'
 import { mondayOfDay } from '../athlete-calendar.ts'
 import { getAthleteTimezone, updateAthleteProfile } from '../athlete.server.ts'
@@ -14,14 +15,16 @@ import { requireUserId } from '../auth.server.ts'
 import { prisma } from '../db.server.ts'
 import { fillPlanWeek } from '../load/horizon-fill.server.ts'
 import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
+import { anchoredActiveOutlineWhere } from '../plan-outline/active-outline.server.ts'
+import { MAX_PLAN_WEEKS } from '../plan-outline/authoring-schema.ts'
 import {
-	createFitnessGoalEvent,
 	createOpenEndedPlan,
-	createPlanOutline,
+	createPlanOutlineInTx,
 	createStarterWeekPattern,
+	type CreateOutlineRefusal,
 } from '../plan-outline/authoring.server.ts'
 import { weekIndexOf, weekKeyAt } from '../plan-outline/week-keys.ts'
-import { calendarWeekdayOf } from '../plan-outline/week-pattern.ts'
+import { calendarWeekdaysOf } from '../plan-outline/week-pattern.ts'
 import { findActiveOutline } from '../training.server.ts'
 import {
 	draftFirstRunPlan,
@@ -49,6 +52,8 @@ export type FirstRunPlan = {
 	/** The proposal, or the family the athlete switched to. */
 	family: FamilyChoice['family']
 	draft: FirstRunDraft
+	/** Lifting sessions a week in the history, where there is any lifting. */
+	strengthPerWeek: number | null
 }
 
 /**
@@ -68,6 +73,9 @@ export async function readFirstRunPlan(
 	const goal = draftGoal(answers, startWeekKey)
 	if (goal.kind === 'event' && goal.weeks < MIN_EVENT_WEEKS) {
 		return { ok: false, reason: 'event-too-soon' }
+	}
+	if (goal.kind === 'event' && goal.weeks > MAX_PLAN_WEEKS) {
+		return { ok: false, reason: 'event-too-far' }
 	}
 	const { findings, age } = await readFirstRunFindings(userId, now)
 	const proposed = chooseFamily({
@@ -90,7 +98,19 @@ export async function readFirstRunPlan(
 	if (!draft) return { ok: false, reason: 'nothing-to-lay' }
 	return {
 		ok: true,
-		plan: { timezone, startWeekKey, goal, proposed, family, draft },
+		plan: {
+			timezone,
+			startWeekKey,
+			goal,
+			proposed,
+			family,
+			draft,
+			strengthPerWeek:
+				findings.strength.measured &&
+				findings.strength.value.sessionsPerWeek > 0
+					? findings.strength.value.sessionsPerWeek
+					: null,
+		},
 	}
 }
 
@@ -114,20 +134,53 @@ export type CreateFirstRunPlanResult =
 	| { ok: false; reason: FirstRunPlanRefusal }
 
 /**
+ * What a refused create means to the first run, said honestly: an athlete
+ * who has a plan already is told so, a date that has passed is too soon, and
+ * the goal's other refusals say the goal could not carry a plan.
+ */
+export function firstRunRefusalOf(
+	reason: CreateOutlineRefusal,
+): FirstRunPlanRefusal {
+	switch (reason) {
+		case 'open-ended-already-active':
+			return 'plan-already-active'
+		case 'event-past':
+			return 'event-too-soon'
+		case 'event-not-found':
+		case 'event-cancelled':
+		case 'event-already-planned':
+			return 'goal-unavailable'
+	}
+}
+
+/** An active plan of any kind, or any open-ended one: a first plan exists. */
+function existingPlanWhere(
+	userId: string,
+	now: Date,
+): Prisma.PlanOutlineWhereInput {
+	return {
+		OR: [
+			anchoredActiveOutlineWhere(userId, now),
+			{ athleteId: userId, eventId: null },
+		],
+	}
+}
+
+/**
  * Make the plan the first run showed.
  *
- * 1. The days and hours become the athlete's **Training Availability** and
- *    **Weekly Capacity** — they said them, and the plan's fit checks read them.
- * 2. The plan: open-ended (`createOpenEndedPlan` with the family, the start
- *    week and the days), or toward a dated goal — the Event first through the
- *    ordinary write path, then the family's season fitted to it
- *    (`createPlanOutline` with the family's rates) and the starter pattern on
- *    the chosen days.
+ * 1. The plan: open-ended (`createOpenEndedPlan` with the family's round as
+ *    drawn, the start week and the days), or toward a dated goal — the Event
+ *    and its plan in **one transaction**, which first re-checks that the
+ *    athlete still has no plan, so a double submit makes one plan and a
+ *    malformed write leaves no Event behind — then the starter pattern on the
+ *    chosen days.
+ * 2. The track is anchored on the draft's first week, set so no week asks for
+ *    more than the hours the athlete gave; those hours and the days become
+ *    their **Weekly Capacity** and **Training Availability**, which the plan's
+ *    fit checks read, so neither check fires on the plan just made.
  * 3. Its first two weeks laid through the horizon fill's own `fillPlanWeek`,
  *    as `generated` sessions.
- *
- * Refused while the athlete has an active plan: the first run makes a first
- * plan, and never a second one beside it.
  */
 export async function createFirstRunPlan(
 	userId: string,
@@ -140,78 +193,95 @@ export async function createFirstRunPlan(
 	const read = await readFirstRunPlan(userId, answers, now)
 	if (!read.ok) return read
 	const { plan } = read
-
-	await updateAthleteProfile(userId, {
-		trainableWeekdays: answers.days.map(calendarWeekdayOf),
-		weeklyCapacityHours: answers.hours,
-	})
+	const { draft } = plan
+	const calendarDays = calendarWeekdaysOf(answers.days)
 
 	let outlineId: string
 	let eventId: string | null = null
 	if (answers.goal.kind === 'active') {
+		const round = draft.phases[0]
+		if (!round) return { ok: false, reason: 'nothing-to-lay' }
 		const created = await createOpenEndedPlan(
 			userId,
 			{
 				discipline: answers.discipline,
-				weeklyHours: answers.hours,
+				weeklyHours: draft.anchor,
 				family: plan.family,
+				round,
 				startWeekKey: plan.startWeekKey,
 				days: answers.days,
 			},
 			now,
 		)
-		if (!created.ok) return { ok: false, reason: 'plan-already-active' }
-		outlineId = created.outlineId
-	} else {
-		const event = await createFitnessGoalEvent(userId, {
-			name: answers.goal.name,
-			startDate: new Date(`${answers.goal.date}T00:00:00.000Z`),
-			disciplines: [answers.discipline],
-		})
-		const created = await createPlanOutline(
-			userId,
-			{
-				eventId: event.id,
-				startWeekKey: plan.startWeekKey,
-				structure: {
-					phases: plan.draft.phases.map((phase) => ({
-						name: phase.name,
-						weeks: phase.weeks,
-						rhythm: phase.rhythm,
-						tapers: phase.tapers,
-					})),
-					family: plan.family,
-				},
-				tracks: [
-					{
-						discipline: answers.discipline,
-						currency: 'hours',
-						anchorValue: answers.hours,
-					},
-				],
-			},
-			now,
-			{ familyRates: plan.draft.phases },
-		)
 		if (!created.ok) {
-			// A goal with no plan is not what the athlete asked for.
-			await prisma.event.delete({ where: { id: event.id } })
-			return {
-				ok: false,
-				reason:
-					created.reason === 'event-past'
-						? 'event-too-soon'
-						: 'plan-already-active',
-			}
+			return { ok: false, reason: firstRunRefusalOf(created.reason) }
 		}
 		outlineId = created.outlineId
-		eventId = event.id
+	} else {
+		const goal = answers.goal
+		const created = await prisma.$transaction(async (tx) => {
+			const existing = await tx.planOutline.findFirst({
+				where: existingPlanWhere(userId, now),
+				select: { id: true },
+			})
+			if (existing) return null
+			const event = await tx.event.create({
+				data: {
+					athleteId: userId,
+					name: goal.name,
+					// A goal a whole season is built toward is the season's A-target
+					// (`createFitnessGoalEvent`, ADR 0039), and an explicit step the
+					// athlete took on the questions screen.
+					kind: 'fitness-goal',
+					priority: 'A',
+					startDate: new Date(`${goal.date}T00:00:00.000Z`),
+					endDate: null,
+					disciplines: JSON.stringify([answers.discipline]),
+					status: 'planned',
+				},
+				select: { id: true },
+			})
+			const outline = await createPlanOutlineInTx(
+				tx,
+				userId,
+				{
+					eventId: event.id,
+					startWeekKey: plan.startWeekKey,
+					structure: {
+						phases: draft.phases.map((phase) => ({
+							name: phase.name,
+							weeks: phase.weeks,
+							rhythm: phase.rhythm,
+							tapers: phase.tapers,
+						})),
+						family: plan.family,
+					},
+					tracks: [
+						{
+							discipline: answers.discipline,
+							currency: 'hours',
+							anchorValue: draft.anchor,
+						},
+					],
+				},
+				{ familyRates: draft.phases },
+			)
+			return { eventId: event.id, outlineId: outline }
+		})
+		if (!created) return { ok: false, reason: 'plan-already-active' }
+		outlineId = created.outlineId
+		eventId = created.eventId
 		await createStarterWeekPattern(
 			userId,
 			{ outlineId },
-			{ trainableWeekdays: answers.days.map(calendarWeekdayOf) },
+			{ trainableWeekdays: calendarDays },
 		)
 	}
+
+	await updateAthleteProfile(userId, {
+		trainableWeekdays: calendarDays,
+		weeklyCapacityHours: answers.hours,
+	})
 
 	let laid = 0
 	for (let index = 0; index < FIRST_RUN_WEEKS; index++) {

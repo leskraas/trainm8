@@ -1579,12 +1579,14 @@ aktiv_; hours a week; which days) → the plan with _Vi valgte X fordi …_ in p
 words and a switch to any of the five philosophies → the first two weeks, day by
 day → I dag. The days and hours become the athlete's **Training Availability**
 and **Weekly Capacity**; the plan is one endurance **Training Track** in hours
-anchored on the hours given, a starter **Week Pattern** on the chosen days and
-no others, and its first two weeks laid as `generated` sessions. What the
-screens show and what is made come from the same draft, so the plan is the one
-shown. _Jeg vil heller sette opp sesongen selv_ makes the same plan and opens it
-in Sesong; there is no empty-season start. The answers travel in the URL until
-the plan is made. _Avoid_: onboarding (the account sign-up), wizard, setup
+whose heaviest week is at or under the hours given (the first week starts lower,
+so the family's climb fits), its hard sessions cut to fit the chosen days, a
+starter **Week Pattern** on those days and no others, and its first two weeks
+laid as `generated` sessions. What the screens show and what is made come from
+the same draft, so the plan is the one shown. _Jeg vil heller sette opp sesongen
+selv_ makes the same plan and opens it in Sesong; there is no empty-season
+start. The answers travel in the URL until the plan is made. _Avoid_: onboarding
+(the account sign-up), wizard, setup
 
 **Hero**: The **Home Timeline**'s top band — **four panes of _now_**, always
 anchored on today, paged sideways one full-width pane at a time (ADR 0065 §8):

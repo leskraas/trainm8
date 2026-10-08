@@ -86,12 +86,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 				),
 			})),
 		})),
-		dayWarning: draft.dayWarnings[0]
-			? L.tooManyHardSessions(
-					draft.dayWarnings[0].qualitySessions,
-					draft.dayWarnings[0].trainableWeekdays,
-				)
-			: null,
+		capNote: FIRST_RUN_LABELS.plan.withinHours(nbHoursLabel(answers.hours)),
 		planLink: `/start/plan?${answersSearch(answers)}`,
 	}
 }
@@ -179,11 +174,7 @@ export default function WeeksStep({
 					<p className="text-muted-foreground text-[13px]">{week.total}</p>
 				</section>
 			))}
-			{loaderData.dayWarning ? (
-				<p className="bg-muted rounded-xl p-3 text-sm">
-					{loaderData.dayWarning}
-				</p>
-			) : null}
+			<p className="text-muted-foreground text-sm">{loaderData.capNote}</p>
 
 			<Form method="POST" className="space-y-3" {...getFormProps(form)}>
 				<ErrorList errors={form.errors} id={form.errorId} />

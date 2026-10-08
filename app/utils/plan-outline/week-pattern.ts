@@ -60,6 +60,19 @@ export function calendarWeekdayOf(weekday: PatternWeekday): number {
 	return (weekday + 1) % 7
 }
 
+/** A list of pattern weekdays as Sunday-first calendar days, in the same order. */
+export function calendarWeekdaysOf(days: readonly PatternWeekday[]): number[] {
+	return days.map(calendarWeekdayOf)
+}
+
+/**
+ * Weekday numbers read from a form or a URL as pattern weekdays: anything
+ * outside 0–6 dropped, each day once, in the week's order.
+ */
+export function patternWeekdaysOf(values: readonly number[]): PatternWeekday[] {
+	return [...new Set(values.filter(isPatternWeekday))].sort((a, b) => a - b)
+}
+
 /** What a day *is*. Two kinds and no third: there is no unscaled-share shape. */
 export const PATTERN_DAY_KINDS = ['fixed', 'share'] as const
 export type PatternDayKind = (typeof PATTERN_DAY_KINDS)[number]

@@ -107,7 +107,7 @@ import {
 	type StarterProposal,
 } from './starter-pattern.ts'
 import { weekIndexOf } from './week-keys.ts'
-import { calendarWeekdayOf, isPatternWeekday } from './week-pattern.ts'
+import { calendarWeekdaysOf, type PatternWeekday } from './week-pattern.ts'
 
 /**
  * Why a create was refused. Each is a state the athlete can see and act on, so
@@ -350,33 +350,7 @@ export async function createPlanOutline(
 		eventId = event.id
 	}
 
-	// The phases to write, whichever way the athlete said them. A shape's phases are
-	// read from `presets.ts` — the same constants `applyPreset` reads — so the two
-	// ways into a season cannot drift apart.
-	const phases: PhaseLay[] =
-		'presetKey' in plan.structure
-			? presetFor(plan.structure.presetKey).phases.map((phase) => ({
-					name: phase.name,
-					weeks: phase.weeks,
-					// A preset *chooses* its rhythm and where the taper falls — most of
-					// what tells one shape from another — so both are written rather than
-					// left to the column defaults. The two **cuts** are written nowhere:
-					// unset, the documented convention applies and stays visible as a
-					// convention (ADR 0044 §4).
-					rhythm: phase.rhythm,
-					tapers: phase.tapers,
-					ramp: phase.ramp,
-					boundaryStep: phase.boundaryStep,
-					mix: phase.mix,
-				}))
-			: plan.structure.phases.map((phase, index) => ({
-					...phase,
-					// Every rate unset, which is what a hand-authored phase has always
-					// opened with — unless the server laid the phases from a family.
-					ramp: familyRates?.[index]?.ramp ?? null,
-					boundaryStep: familyRates?.[index]?.boundaryStep ?? null,
-					mix: familyRates?.[index]?.mix ?? [],
-				}))
+	const phases = phaseLays(plan, familyRates)
 
 	try {
 		// Three writes rather than one nested create, because an endurance segment
@@ -392,88 +366,7 @@ export async function createPlanOutline(
 				})
 				if (openEnded) return null
 			}
-			const created = await tx.planOutline.create({
-				data: {
-					athleteId,
-					eventId,
-					startWeekKey: plan.startWeekKey,
-					// The philosophy the plan follows (#505 story 10): the shape's
-					// family, or the one the caller laid its phases from.
-					family:
-						'presetKey' in plan.structure
-							? familyOfPreset(plan.structure.presetKey)
-							: (plan.structure.family ?? null),
-					phases: {
-						// `rhythm` and `tapers` are passed only where they were authored or
-						// chosen by a shape: omitted, the column's documented default
-						// applies, so no convention is stored as though it had been chosen
-						// (ADR 0044 §4).
-						create: phases.map((phase, orderIndex) => ({
-							orderIndex,
-							name: phase.name,
-							weeks: phase.weeks,
-							...(phase.rhythm == null ? {} : { rhythm: phase.rhythm }),
-							...(phase.tapers == null ? {} : { tapers: phase.tapers }),
-						})),
-					},
-				},
-				select: {
-					id: true,
-					phases: { select: { id: true }, orderBy: { orderIndex: 'asc' } },
-				},
-			})
-
-			// A plan re-created for an Event takes back the sessions the deleted one
-			// laid: deleting an Outline sets their `planOutlineId` to null and keeps
-			// them, and left unclaimed they would be invisible to the new plan's
-			// clearing and occupancy, so a re-stamp or the horizon fill would lay
-			// the week a second time beside them (ADR 0079).
-			if (eventId != null) {
-				await tx.workoutSession.updateMany({
-					where: {
-						userId: athleteId,
-						targetEventId: eventId,
-						planOutlineId: null,
-					},
-					data: { planOutlineId: created.id },
-				})
-			}
-
-			for (const track of plan.tracks) {
-				await tx.trainingTrack.create({
-					data: {
-						outlineId: created.id,
-						discipline: track.discipline,
-						currency: track.currency,
-						// The first anchor takes effect from the plan's own first week; a
-						// later re-anchor is a second dated segment, never an edit of this
-						// one (ADR 0040 §5).
-						anchors: {
-							create: [
-								{ fromWeekKey: plan.startWeekKey, value: track.anchorValue },
-							],
-						},
-					},
-				})
-			}
-
-			// An endurance track gets one segment per phase, 1:1 (ADR 0042 §8), so the
-			// progression is authorable from the moment the plan exists rather than
-			// after a second act the athlete has to discover. A strength track gets
-			// none: its segments are dated and float free of the phases (ADR 0047 §6),
-			// and the helper holds that rule for every caller.
-			await layEnduranceSegments(
-				tx,
-				created.id,
-				created.phases.map((phase, index) => ({
-					phaseId: phase.id,
-					ramp: phases[index]!.ramp,
-					boundaryStep: phases[index]!.boundaryStep,
-					mix: phases[index]!.mix,
-				})),
-			)
-
-			return created
+			return writePlanOutline(tx, athleteId, plan, eventId, phases)
 		})
 
 		if (!outline) return { ok: false, reason: 'open-ended-already-active' }
@@ -492,6 +385,164 @@ export async function createPlanOutline(
 		}
 		throw error
 	}
+}
+
+/**
+ * {@link createPlanOutline}'s writes inside a transaction the caller holds,
+ * for a caller that makes the Event in the same transaction (#505 S14: the
+ * first run's goal and its plan land together or not at all). The Event's
+ * checks are the caller's — it has just created it — and a malformed input
+ * throws, which rolls the caller's transaction back with it.
+ */
+export async function createPlanOutlineInTx(
+	tx: Prisma.TransactionClient,
+	athleteId: string,
+	input: PlanOutlineCreateInput,
+	{
+		familyRates,
+	}: {
+		familyRates?: ReadonlyArray<
+			Pick<PresetPhase, 'ramp' | 'boundaryStep' | 'mix'>
+		>
+	} = {},
+): Promise<string> {
+	const plan = PlanOutlineCreateSchema.parse(input)
+	const created = await writePlanOutline(
+		tx,
+		athleteId,
+		plan,
+		plan.eventId ?? null,
+		phaseLays(plan, familyRates),
+	)
+	return created.id
+}
+
+/**
+ * The phases to write, whichever way the athlete said them. A shape's phases are
+ * read from `presets.ts` — the same constants `applyPreset` reads — so the two
+ * ways into a season cannot drift apart.
+ */
+function phaseLays(
+	plan: PlanOutlineCreateOutput,
+	familyRates:
+		| ReadonlyArray<Pick<PresetPhase, 'ramp' | 'boundaryStep' | 'mix'>>
+		| undefined,
+): PhaseLay[] {
+	return 'presetKey' in plan.structure
+		? presetFor(plan.structure.presetKey).phases.map((phase) => ({
+				name: phase.name,
+				weeks: phase.weeks,
+				// A preset *chooses* its rhythm and where the taper falls — most of
+				// what tells one shape from another — so both are written rather than
+				// left to the column defaults. The two **cuts** are written nowhere:
+				// unset, the documented convention applies and stays visible as a
+				// convention (ADR 0044 §4).
+				rhythm: phase.rhythm,
+				tapers: phase.tapers,
+				ramp: phase.ramp,
+				boundaryStep: phase.boundaryStep,
+				mix: phase.mix,
+			}))
+		: plan.structure.phases.map((phase, index) => ({
+				...phase,
+				// Every rate unset, which is what a hand-authored phase has always
+				// opened with — unless the server laid the phases from a family.
+				ramp: familyRates?.[index]?.ramp ?? null,
+				boundaryStep: familyRates?.[index]?.boundaryStep ?? null,
+				mix: familyRates?.[index]?.mix ?? [],
+			}))
+}
+
+/** The Outline, its tracks and their segments, written with `tx`. */
+async function writePlanOutline(
+	tx: Prisma.TransactionClient,
+	athleteId: string,
+	plan: PlanOutlineCreateOutput,
+	eventId: string | null,
+	phases: PhaseLay[],
+): Promise<{ id: string }> {
+	const created = await tx.planOutline.create({
+		data: {
+			athleteId,
+			eventId,
+			startWeekKey: plan.startWeekKey,
+			// The philosophy the plan follows (#505 story 10): the shape's
+			// family, or the one the caller laid its phases from.
+			family:
+				'presetKey' in plan.structure
+					? familyOfPreset(plan.structure.presetKey)
+					: (plan.structure.family ?? null),
+			phases: {
+				// `rhythm` and `tapers` are passed only where they were authored or
+				// chosen by a shape: omitted, the column's documented default
+				// applies, so no convention is stored as though it had been chosen
+				// (ADR 0044 §4).
+				create: phases.map((phase, orderIndex) => ({
+					orderIndex,
+					name: phase.name,
+					weeks: phase.weeks,
+					...(phase.rhythm == null ? {} : { rhythm: phase.rhythm }),
+					...(phase.tapers == null ? {} : { tapers: phase.tapers }),
+				})),
+			},
+		},
+		select: {
+			id: true,
+			phases: { select: { id: true }, orderBy: { orderIndex: 'asc' } },
+		},
+	})
+
+	// A plan re-created for an Event takes back the sessions the deleted one
+	// laid: deleting an Outline sets their `planOutlineId` to null and keeps
+	// them, and left unclaimed they would be invisible to the new plan's
+	// clearing and occupancy, so a re-stamp or the horizon fill would lay
+	// the week a second time beside them (ADR 0079).
+	if (eventId != null) {
+		await tx.workoutSession.updateMany({
+			where: {
+				userId: athleteId,
+				targetEventId: eventId,
+				planOutlineId: null,
+			},
+			data: { planOutlineId: created.id },
+		})
+	}
+
+	for (const track of plan.tracks) {
+		await tx.trainingTrack.create({
+			data: {
+				outlineId: created.id,
+				discipline: track.discipline,
+				currency: track.currency,
+				// The first anchor takes effect from the plan's own first week; a
+				// later re-anchor is a second dated segment, never an edit of this
+				// one (ADR 0040 §5).
+				anchors: {
+					create: [
+						{ fromWeekKey: plan.startWeekKey, value: track.anchorValue },
+					],
+				},
+			},
+		})
+	}
+
+	// An endurance track gets one segment per phase, 1:1 (ADR 0042 §8), so the
+	// progression is authorable from the moment the plan exists rather than
+	// after a second act the athlete has to discover. A strength track gets
+	// none: its segments are dated and float free of the phases (ADR 0047 §6),
+	// and the helper holds that rule for every caller.
+	await layEnduranceSegments(
+		tx,
+		created.id,
+		created.phases.map((phase, index) => ({
+			phaseId: phase.id,
+			ramp: phases[index]!.ramp,
+			boundaryStep: phases[index]!.boundaryStep,
+			mix: phases[index]!.mix,
+		})),
+	)
+
+	return { id: created.id }
 }
 
 /** What _Hold meg aktiv_ opens on, before the athlete answers anything. */
@@ -567,15 +618,24 @@ export async function createOpenEndedPlan(
 		discipline: CardioDiscipline
 		weeklyHours: number
 		family?: PresetFamily
+		/**
+		 * The round as the caller drew it from the family — the first run cuts
+		 * its mix to the athlete's days — in place of `openEndedRound(family)`.
+		 */
+		round?: Pick<
+			PresetPhase,
+			'weeks' | 'rhythm' | 'ramp' | 'boundaryStep' | 'mix'
+		>
 		/** The plan's first Monday; this Training Week where not said. */
 		startWeekKey?: string
-		/** Monday-first weekdays (`PatternWeekday`) the starter pattern lays. */
-		days?: number[]
+		/** The weekdays the starter pattern lays. */
+		days?: PatternWeekday[]
 	},
 	now: Date = new Date(),
 ): Promise<CreateOutlineResult> {
 	const timezone = await getAthleteTimezone(athleteId)
-	const round = input.family ? openEndedRound(input.family) : null
+	const round =
+		input.round ?? (input.family ? openEndedRound(input.family) : null)
 	const created = await createPlanOutline(
 		athleteId,
 		{
@@ -609,11 +669,6 @@ export async function createOpenEndedPlan(
 		)
 	}
 	return created
-}
-
-/** Monday-first pattern weekdays as the profile's Sunday-first calendar days. */
-function calendarWeekdaysOf(days: readonly number[]): number[] {
-	return days.filter(isPatternWeekday).map(calendarWeekdayOf)
 }
 
 // ── Authoring a second Training Track, and taking one away (#414) ────────────
@@ -1207,6 +1262,9 @@ async function renumberPhases(
  * endurance segment spans exactly one phase (ADR 0042 §8) — the same pairing
  * `PresetPhase` keeps, which is what lets a shape land through this type unchanged.
  */
+/** A create input once the schema has read it. */
+type PlanOutlineCreateOutput = ReturnType<typeof PlanOutlineCreateSchema.parse>
+
 type PhaseLay = PhaseCreateInput &
 	Pick<EnduranceSegmentLay, 'ramp' | 'boundaryStep' | 'mix'>
 

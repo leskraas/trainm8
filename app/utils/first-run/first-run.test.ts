@@ -7,7 +7,13 @@ import {
 	nbWeekdayList,
 } from '#app/utils/labels.ts'
 import { type LoggedVolume } from '#app/utils/plan-outline/proposal.ts'
-import { FIRST_RUN_PLAN_REFUSALS } from './first-run-schema.ts'
+import {
+	EVENT_DATE_MESSAGES,
+	FIRST_RUN_PLAN_REFUSALS,
+	QuestionsSchema,
+	readAnswers,
+	readCorrections,
+} from './first-run-schema.ts'
 import {
 	buildFindings,
 	FINDING_ABSENCES,
@@ -303,4 +309,101 @@ test('every ikke målt and every refusal has its own words (story 71)', () => {
 	}
 	expect(nbWeekdayList([1, 3, 5])).toBe('tirsdag, torsdag og lørdag')
 	expect(nbWeekdayList([6])).toBe('søndag')
+})
+
+test('lifting with no endurance beside it says so, never "no sessions"', () => {
+	const lifter = buildFindings({
+		connection: 'ready',
+		volumes: withVolumes(
+			volume({
+				discipline: 'strength',
+				sessions: 8,
+				weeksTrained: 4,
+				sets: 96,
+			}),
+		),
+		weeksTrained: 4,
+		sessionDays: [
+			{ weekKey: '2026-09-07', weekday: 0 },
+			{ weekKey: '2026-09-14', weekday: 0 },
+		],
+	})
+	expect(lifter.discipline).toEqual({
+		measured: false,
+		reason: 'only-strength',
+	})
+	expect(lifter.volume).toEqual({ measured: false, reason: 'only-strength' })
+	expect(lifter.strength).toEqual({
+		measured: true,
+		value: { sessionsPerWeek: 2 },
+	})
+	expect(lifter.days).toEqual({ measured: true, value: [0] })
+	expect(FINDING_ABSENCE_LABELS['only-strength']).toMatch(/styrkeøkter/)
+})
+
+const TODAY = new Date().toISOString().slice(0, 10)
+function inDays(days: number): string {
+	return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+}
+
+function dateError(eventDate: string): string | undefined {
+	const parsed = QuestionsSchema.safeParse({
+		discipline: 'run',
+		goal: 'event',
+		eventName: 'Løpet',
+		eventDate,
+		hours: '4',
+		days: ['1', '3'],
+	})
+	return parsed.success
+		? undefined
+		: parsed.error.issues.find((issue) => issue.path[0] === 'eventDate')
+				?.message
+}
+
+test('a race date must be a real day, after this week and within the longest plan', () => {
+	expect(dateError('2026-99-99')).toBe(EVENT_DATE_MESSAGES.invalid)
+	expect(dateError('2027-02-30')).toBe(EVENT_DATE_MESSAGES.invalid)
+	expect(dateError('i morgen')).toBe(EVENT_DATE_MESSAGES.invalid)
+	expect(dateError('')).toBe(EVENT_DATE_MESSAGES.missing)
+	expect(dateError(TODAY)).toBe(EVENT_DATE_MESSAGES.tooSoon)
+	expect(dateError(inDays(7 * 105))).toBe(EVENT_DATE_MESSAGES.tooFar)
+	expect(dateError(inDays(7 * 20))).toBeUndefined()
+})
+
+test('a tampered URL is held to the form’s rules', () => {
+	const base = 'discipline=run&hours=4&days=1,3&goal=event&name=L%C3%B8pet'
+	expect(readAnswers(new URLSearchParams(`${base}&date=2026-99-99`))).toBeNull()
+	expect(
+		readAnswers(new URLSearchParams(`${base}&date=${inDays(7 * 110)}`)),
+	).toBeNull()
+	expect(readAnswers(new URLSearchParams(`${base}&date=${TODAY}`))).toBeNull()
+	expect(
+		readAnswers(new URLSearchParams(`${base}&date=${inDays(7 * 20)}`)),
+	).toMatchObject({ days: [1, 3], goal: { kind: 'event', name: 'Løpet' } })
+	// Days outside the week or repeated are read once, in order.
+	expect(
+		readAnswers(
+			new URLSearchParams('discipline=run&hours=4&days=5,1,5&goal=active'),
+		),
+	).toMatchObject({ days: [1, 5] })
+	expect(
+		readAnswers(
+			new URLSearchParams('discipline=run&hours=4&days=9&goal=active'),
+		),
+	).toBeNull()
+	// The questions read a correction field by field, keeping what reads.
+	expect(
+		readCorrections(new URLSearchParams('discipline=ski&hours=6&days=0,2')),
+	).toEqual({ hours: 6, days: [0, 2] })
+})
+
+test('one ticked day is read as a list of one', () => {
+	const parsed = QuestionsSchema.safeParse({
+		discipline: 'run',
+		goal: 'active',
+		hours: '4',
+		days: '6',
+	})
+	expect(parsed.success && parsed.data.days).toEqual([6])
 })
