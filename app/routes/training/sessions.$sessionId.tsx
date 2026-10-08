@@ -91,7 +91,7 @@ import {
 	targetText,
 	unresolvedThresholdReasons,
 } from '#app/utils/intensity-target.ts'
-import { SESSION_ARCHETYPE_LABELS } from '#app/utils/labels.ts'
+import { SESSION_ARCHETYPE_LABELS, APP_TAB_LABELS } from '#app/utils/labels.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
@@ -725,7 +725,7 @@ export default function SessionDetailRoute({
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title="Session"
-				back={{ to: '/', label: 'Home' }}
+				back={{ to: '/', label: APP_TAB_LABELS.today }}
 				className="mb-6"
 			/>
 

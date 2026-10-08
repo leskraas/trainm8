@@ -3,11 +3,9 @@
  * `write-session` intent and the week-sum resource's `day` parameter.
  */
 import { z } from 'zod'
+import { DayKeySchema } from './calendar-key-schema.ts'
 import { CARDIO_DISCIPLINES } from './workout-schema.ts'
 import { MAX_SENTENCE_LENGTH } from './workout-sentence.ts'
-
-/** `YYYY-MM-DD` — the shape. Whether it is a real day is the calendar's call. */
-export const DayKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 export const WriteSessionSchema = z.object({
 	intent: z.literal('write-session'),

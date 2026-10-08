@@ -9,6 +9,7 @@ import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { DEFAULT_TRAINING_TIME } from '#app/utils/athlete-schema.ts'
 import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { APP_TAB_LABELS } from '#app/utils/labels.ts'
 import { readMostTrainedDiscipline } from '#app/utils/most-trained-discipline.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { buildBlocksInput, FormSchema } from '#app/utils/workout-authoring.ts'
@@ -190,7 +191,7 @@ export default function NewSessionRoute({
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title="New Workout Session"
-				back={{ to: '/', label: 'Home' }}
+				back={{ to: '/', label: APP_TAB_LABELS.today }}
 				className="mb-6"
 			/>
 

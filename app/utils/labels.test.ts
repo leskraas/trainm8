@@ -7,6 +7,7 @@ import {
 	EVENT_PRIORITIES,
 	EVENT_STATUSES,
 } from './event-schema.ts'
+import { EVENT_DATE_PROBLEMS } from './first-run/first-run-schema.ts'
 import {
 	IMPORT_LINK_REFUSALS,
 	MARK_DONE_REFUSALS,
@@ -21,6 +22,11 @@ import {
 	roundFactorLabel,
 	silencedLabel,
 	WEEK_CHANGE_LABELS,
+	WEEK_HOLD_REASON_LABELS,
+	RECOMPUTE_NOTICE_LABELS,
+	EVENT_DATE_LABELS,
+	PAGE_HEADER_LABELS,
+	HOME_REPLAN_LABELS,
 	DISCIPLINE_LABELS,
 	EVENT_KIND_LABELS,
 	EVENT_PRIORITY_LABELS,
@@ -44,7 +50,6 @@ import {
 	MARK_DONE_REFUSAL_LABELS,
 	QUICK_LOG_LABELS,
 	QUICK_LOG_REFUSAL_LABELS,
-	WEEK_REPLAN_OUTCOME_LABELS,
 	STEP_KIND_LABELS,
 	STRENGTH_GOAL_LABELS,
 	STRENGTH_GOAL_SENTENCE_LABELS,
@@ -59,12 +64,8 @@ import {
 	NB_VOLUME_UNITS,
 	UNMEASURED_REASON_LABELS,
 	VOLUME_GRADE_LABELS,
-	TARGET_ABSENCE_LABELS,
-	PACE_ABSENCE_LABELS,
-	ZONE_ABSENCE_LABELS,
 	unmeasuredCountLabel,
 	strengthPartialLabel,
-	ANNET_REASON_LABELS,
 	NB_DISCIPLINE_LABELS,
 	pastBandLabels,
 	freeBandLabels,
@@ -74,7 +75,13 @@ import {
 	seasonEditSentence,
 	weekRiseSentence,
 } from './labels.ts'
-import { WEEK_REPLAN_OUTCOMES } from './load/week-replan.ts'
+import { LOAD_RECOMPUTE_KINDS } from './load/recompute-notice.ts'
+import {
+	INSUFFICIENT_DATA_WHYS,
+	NO_CHANGE_WHYS,
+	WEEK_REPLAN_OUTCOMES,
+} from './load/week-replan.ts'
+import { MAX_PLAN_WEEKS } from './plan-outline/authoring-schema.ts'
 import {
 	RHYTHMS,
 	STRENGTH_GOALS,
@@ -95,12 +102,8 @@ import {
 	PATTERN_WEEKDAYS,
 } from './plan-outline/week-pattern.ts'
 import {
-	ANNET_REASONS,
-	PACE_ABSENCES,
-	TARGET_ABSENCES,
 	UNMEASURED_REASONS,
 	VOLUME_GRADES,
-	ZONE_ABSENCES,
 } from './plan-outline/week-volumes.ts'
 // A value import, which `labels.ts` itself may not make: only that module is the
 // runtime leaf, and pinning its Monday-first list against the canonical mapping is
@@ -194,11 +197,49 @@ test('every session owner has a label of its own', () => {
 	)
 })
 
-test('every stored Week Replan outcome has a name, and the #505 one is Norwegian', () => {
+test('every stored Week Replan outcome has a name on the hero, in Norwegian', () => {
 	for (const outcome of WEEK_REPLAN_OUTCOMES) {
-		expect(WEEK_REPLAN_OUTCOME_LABELS[outcome]).toBeTruthy()
+		expect(HOME_REPLAN_LABELS[outcome].outcome).toBeTruthy()
 	}
-	expect(WEEK_REPLAN_OUTCOME_LABELS.proposed).toBe('Endringer foreslått')
+	expect(HOME_REPLAN_LABELS.proposed.outcome).toBe('Endringer foreslått')
+})
+
+test('every branch that holds a week has its own reason, so "keep" always says why (#505 story 50)', () => {
+	const facts = {
+		over: '25 %',
+		under: '20 %',
+		tsb: '−12',
+		requiredDays: 42,
+		daysOfHistory: 10,
+	}
+	const whys = [...NO_CHANGE_WHYS, ...INSUFFICIENT_DATA_WHYS]
+	for (const why of whys) {
+		expect(WEEK_HOLD_REASON_LABELS[why](facts)).toBeTruthy()
+	}
+	expect(
+		new Set(whys.map((why) => WEEK_HOLD_REASON_LABELS[why](facts))).size,
+	).toBe(whys.length)
+	expect(WEEK_HOLD_REASON_LABELS['form-untrusted'](facts)).toBe(
+		'Forrige uke ble 25 % tyngre enn planlagt, men formtallet er først til å stole på etter 42 dager (dag 10 av 42). Vi endrer ingenting ennå.',
+	)
+})
+
+test('every Load Recompute Notice kind has its own words, so none renders blank', () => {
+	for (const kind of LOAD_RECOMPUTE_KINDS) {
+		expect(RECOMPUTE_NOTICE_LABELS.copy[kind].kicker).toBeTruthy()
+		expect(RECOMPUTE_NOTICE_LABELS.copy[kind].explanation).toBeTruthy()
+	}
+})
+
+test('every race-date problem is said on the field, the longest plan named right', () => {
+	for (const problem of EVENT_DATE_PROBLEMS) {
+		expect(EVENT_DATE_LABELS[problem]).toBeTruthy()
+	}
+	expect(EVENT_DATE_LABELS['too-far']).toContain(`${MAX_PLAN_WEEKS} uker`)
+})
+
+test('the page header names the screen it goes back to, in Norwegian', () => {
+	expect(PAGE_HEADER_LABELS.back(APP_TAB_LABELS.me)).toBe('Tilbake til Meg')
 })
 
 test('the Norwegian weekdays run Monday first, seven distinct names', () => {
@@ -360,10 +401,6 @@ test('every week-number code has its own Norwegian words, so no "ikke målt" goe
 		[VOLUME_CURRENCIES, NB_VOLUME_UNITS],
 		[UNMEASURED_REASONS, UNMEASURED_REASON_LABELS],
 		[VOLUME_GRADES, VOLUME_GRADE_LABELS],
-		[TARGET_ABSENCES, TARGET_ABSENCE_LABELS],
-		[PACE_ABSENCES, PACE_ABSENCE_LABELS],
-		[ZONE_ABSENCES, ZONE_ABSENCE_LABELS],
-		[ANNET_REASONS, ANNET_REASON_LABELS],
 	]
 	for (const [codes, labels] of maps) {
 		for (const code of codes) expect(labels[code]).toBeTruthy()
@@ -384,8 +421,14 @@ test('every sport a week header names has its own Norwegian word, and the folds 
 		foldedTrackLabel({ done: '35', of: '46', unit: 'km', grade: 'under' }),
 	).toBe('35 av 46 km · under')
 	expect(
-		foldedTrackLabel({ done: null, of: '46', unit: 'km', grade: null }),
-	).toBe('ikke målt av 46 km')
+		foldedTrackLabel({
+			done: null,
+			of: '46',
+			unit: 'km',
+			grade: null,
+			why: ['awaiting-import'],
+		}),
+	).toBe('ikke målt av 46 km (tallene kommer fra importen)')
 	expect(horizonFillLabel(39)).toBe('fylles søndag kveld i uke 39')
 	expect(pastBandLabels(7, '4–10 August').summary).toBe(
 		'7 dager · ingenting logget',

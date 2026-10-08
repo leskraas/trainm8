@@ -27,8 +27,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 		Object.fromEntries(new URL(request.url).searchParams),
 	)
 	const day = query.success ? query.data.day : ''
-	// Every other ending answers as data rather than throwing — a decision
-	// recorded in ADR 0082's S11 notes: a fetcher's error would reach home's
+	// Every other ending answers as data rather than throwing — the recorded
+	// exception, ADR 0082 §11: a fetcher's error would reach home's
 	// own error boundary and take the whole list down over a line that is only
 	// ever a preview. Without the week, the line says nothing about it, the
 	// write still works, and the toast after it reads the week on the server.

@@ -8,6 +8,12 @@
 > unit and precision metadata plus a key, a value type and an aggregation rule.
 > See [`docs/research/workouts-swimming.md`](../research/workouts-swimming.md).
 
+**§1 is amended by
+[ADR 0081](0081-the-planning-redesign-speaks-norwegian-and-labels-ts-still-owns-every-word.md)**
+(#505): the planning redesign's surfaces speak the spec's Norwegian, and
+`labels.ts` still owns every word. The rest of the house, and every format,
+stand.
+
 Athlete-facing values were formatted ad hoc across ~15 files: raw TSS floats
 (`120.6488888888889 TSS`) reached the Dashboard week timeline and
 planned-vs-actual rows, dates mixed `en-US`/`en-GB`/runtime-default locales and

@@ -17,9 +17,9 @@
  */
 
 import { z } from 'zod'
+import { DayKeySchema } from '#app/utils/calendar-key-schema.ts'
 import { RHYTHMS, VOLUME_CURRENCIES } from '#app/utils/plan-outline/derive.ts'
 
-const DateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const ClockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)
 
 /**
@@ -37,8 +37,8 @@ const KeepPayload = z.object({ kind: z.literal('keep') })
  */
 const MovePayload = z.object({
 	kind: z.literal('move'),
-	fromDate: DateKey,
-	toDate: DateKey,
+	fromDate: DayKeySchema,
+	toDate: DayKeySchema,
 	makeUp: z.boolean(),
 })
 
@@ -52,7 +52,7 @@ const SwapPayload = z.object({
 const AddPayload = z.object({
 	kind: z.literal('add'),
 	workoutId: z.string().min(1),
-	date: DateKey,
+	date: DayKeySchema,
 	time: ClockTime,
 })
 
@@ -125,7 +125,6 @@ export const ProposalPayloadSchema = z.discriminatedUnion('kind', [
 ])
 
 export type ProposalPayload = z.infer<typeof ProposalPayloadSchema>
-export type ProposalKind = ProposalPayload['kind']
 
 /** Whether a proposal puts more training on the athlete (ADR 0080 §Consequences). */
 export const LoadDirectionSchema = z.enum(['adds', 'keeps-or-reduces'])

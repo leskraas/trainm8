@@ -20,6 +20,7 @@ import {
 } from '#app/utils/activity-file-ingest.server.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { APP_TAB_LABELS } from '#app/utils/labels.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/imports.upload.ts'
@@ -145,7 +146,7 @@ export default function ImportsUploadRoute() {
 		<main className="container mx-auto max-w-md py-6 md:py-8">
 			<PageHeader
 				title="Upload Activity"
-				back={{ to: '/me', label: 'Meg' }}
+				back={{ to: '/me', label: APP_TAB_LABELS.me }}
 			/>
 
 			{/* Form sits directly on the page background — no card wrap (§1.6). */}

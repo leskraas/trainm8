@@ -56,7 +56,7 @@ test('walks Sesong → Events → back → Meg → profile with no plan', async 
 	)
 	await expect(page.getByText(eventName).first()).toBeVisible()
 	// A tab's landing page: no way back but the bar.
-	await expect(page.getByRole('link', { name: /^back to/i })).toHaveCount(0)
+	await expect(page.getByRole('link', { name: /^tilbake til/i })).toHaveCount(0)
 
 	// Sesong → the full Events list → the Event, all through page elements.
 	await page.getByRole('link', { name: 'Alle løp' }).click()
@@ -67,9 +67,9 @@ test('walks Sesong → Events → back → Meg → profile with no plan', async 
 
 	// Event → back to the Events list → back up to Sesong, which is still plan
 	// creation for this athlete.
-	await page.getByRole('link', { name: /back to events/i }).click()
+	await page.getByRole('link', { name: /tilbake til events/i }).click()
 	await expect(page).toHaveURL('/training/events')
-	await page.getByRole('link', { name: /back to sesong/i }).click()
+	await page.getByRole('link', { name: /tilbake til sesong/i }).click()
 	await expect(page).toHaveURL('/training/plan/new')
 
 	// Meg → the profile, and back.
@@ -77,6 +77,6 @@ test('walks Sesong → Events → back → Meg → profile with no plan', async 
 	await expect(page).toHaveURL('/me')
 	await page.getByRole('link', { name: /e-post, passord/i }).click()
 	await expect(page).toHaveURL('/settings/profile')
-	await page.getByRole('link', { name: /back to meg/i }).click()
+	await page.getByRole('link', { name: /tilbake til meg/i }).click()
 	await expect(page).toHaveURL('/me')
 })

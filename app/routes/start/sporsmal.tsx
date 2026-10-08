@@ -7,13 +7,14 @@ import { Button } from '#app/components/ui/button.tsx'
 import { readFirstRunFindings } from '#app/utils/first-run/findings.server.ts'
 import {
 	answersSearch,
-	QuestionsSchema,
+	questionsSchema,
 	readAnswers,
 	readCorrections,
 	type FirstRunAnswers,
 } from '#app/utils/first-run/first-run-schema.ts'
 import { questionPrefill } from '#app/utils/first-run/first-run.ts'
 import {
+	readFirstRunCalendar,
 	readFirstRunPlan,
 	requireFirstRunAthlete,
 } from '#app/utils/first-run/plan.server.ts'
@@ -37,17 +38,20 @@ import { FirstRunFrame } from './__first-run-frame.tsx'
 const L = FIRST_RUN_LABELS.questions
 
 export const meta: Route.MetaFunction = () => [
-	{ title: 'Tre spørsmål | Trainm8' },
+	{ title: `${L.title} | Trainm8` },
 ]
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireFirstRunAthlete(request)
 	const search = new URL(request.url).searchParams
-	const { findings } = await readFirstRunFindings(userId)
+	const [{ findings }, calendar] = await Promise.all([
+		readFirstRunFindings(userId),
+		readFirstRunCalendar(userId),
+	])
 	const corrections = readCorrections(search)
 	const prefill = questionPrefill(findings, corrections)
 	// Back from the plan screen: the answers already given come back with it.
-	const given = readAnswers(search)
+	const given = readAnswers(search, calendar)
 
 	return {
 		discipline: prefill.discipline,
@@ -67,13 +71,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 					? L.daysCorrected
 					: L.daysDefault,
 		goal: given?.goal ?? { kind: 'active' as const },
+		// The form judges a race date against the athlete's today, not the
+		// browser's.
+		calendar,
 	}
 }
 
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireFirstRunAthlete(request)
 	const formData = await request.formData()
-	const submission = parseWithZod(formData, { schema: QuestionsSchema })
+	const submission = parseWithZod(formData, {
+		schema: questionsSchema(await readFirstRunCalendar(userId)),
+	})
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
@@ -109,9 +118,10 @@ export default function QuestionsStep({
 	actionData,
 }: Route.ComponentProps) {
 	const [goal, setGoal] = useState<'active' | 'event'>(loaderData.goal.kind)
+	const schema = questionsSchema(loaderData.calendar)
 	const [form, fields] = useForm({
 		id: 'first-run-questions',
-		constraint: getZodConstraint(QuestionsSchema),
+		constraint: getZodConstraint(schema),
 		lastResult: actionData?.result,
 		defaultValue: {
 			eventName:
@@ -120,7 +130,7 @@ export default function QuestionsStep({
 				loaderData.goal.kind === 'event' ? loaderData.goal.date : undefined,
 		},
 		onValidate({ formData }) {
-			return parseWithZod(formData, { schema: QuestionsSchema })
+			return parseWithZod(formData, { schema })
 		},
 		shouldRevalidate: 'onBlur',
 	})

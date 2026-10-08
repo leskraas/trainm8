@@ -1,5 +1,12 @@
 # Mobile-first UI standard: structural conventions for the logged-in app
 
+**§4 is amended by
+[ADR 0081](0081-the-planning-redesign-speaks-norwegian-and-labels-ts-still-owns-every-word.md)**
+(#505): the planning redesign's surfaces are worded in Norwegian.
+**`docs/design/ui-conventions.md` §3.3 is amended by
+[ADR 0083](0083-four-tabs-are-the-persistent-chrome-and-old-urls-keep-working.md)**
+(#505 S12): the four tabs' landing pages are the top-level screens.
+
 The app grew screen by screen with no shared layout rules. A full audit at
 390×844 (`docs/design/mobile-audit.md`, #278) found horizontal overflow on every
 settings subpage (non-wrapping breadcrumb trails, up to +110px), onboarding

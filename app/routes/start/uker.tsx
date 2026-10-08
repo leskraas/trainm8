@@ -11,6 +11,7 @@ import {
 } from '#app/utils/first-run/first-run-schema.ts'
 import {
 	createFirstRunPlan,
+	readFirstRunCalendar,
 	readFirstRunPlan,
 	requireFirstRunAthlete,
 } from '#app/utils/first-run/plan.server.ts'
@@ -39,11 +40,14 @@ import { FirstRunFrame, SECONDARY_ACTION } from './__first-run-frame.tsx'
 const L = FIRST_RUN_LABELS.weeks
 
 export const meta: Route.MetaFunction = () => [
-	{ title: 'De to første ukene | Trainm8' },
+	{ title: `${L.title} | Trainm8` },
 ]
 
-async function readAnswersOrBack(request: Request) {
-	const answers = readAnswers(new URL(request.url).searchParams)
+async function readAnswersOrBack(request: Request, userId: string) {
+	const answers = readAnswers(
+		new URL(request.url).searchParams,
+		await readFirstRunCalendar(userId),
+	)
 	if (!answers) throw redirect('/start/sporsmal')
 	return answers
 }
@@ -55,7 +59,7 @@ function dayLabel(dayKey: string): string {
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireFirstRunAthlete(request)
-	const answers = await readAnswersOrBack(request)
+	const answers = await readAnswersOrBack(request, userId)
 	const read = await readFirstRunPlan(userId, answers)
 	if (!read.ok) throw redirect(`/start/sporsmal?${answersSearch(answers)}`)
 	const { draft } = read.plan
@@ -93,7 +97,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireFirstRunAthlete(request)
-	const answers = await readAnswersOrBack(request)
+	const answers = await readAnswersOrBack(request, userId)
 	const formData = await request.formData()
 	const submission = parseWithZod(formData, { schema: FirstRunCreateSchema })
 	if (submission.status !== 'success') {

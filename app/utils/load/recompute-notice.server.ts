@@ -1,4 +1,5 @@
 import { prisma } from '#app/utils/db.server.ts'
+import { type LoadRecomputeKind } from './recompute-notice.ts'
 
 /**
  * The **Load Recompute Notice** (GLOSSARY.md): the one-time, athlete-visible
@@ -13,15 +14,6 @@ import { prisma } from '#app/utils/db.server.ts'
  * One-shot backfills are the only writers; the athlete acknowledging the notice
  * is the only other mutation.
  */
-
-/**
- * The corrections the app has words for. A closed union rather than a bare
- * string: a `kind` with no written copy renders nothing (see the Dashboard
- * presenter), so adding a member here is a commitment to write that copy.
- */
-export const LOAD_RECOMPUTE_KINDS = ['strength-left-the-triad'] as const
-
-export type LoadRecomputeKind = (typeof LOAD_RECOMPUTE_KINDS)[number]
 
 export type LoadRecomputeNoticeRecord = {
 	kind: string

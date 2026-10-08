@@ -10,10 +10,9 @@
  */
 
 import { z } from 'zod'
+import { DAY_KEY_PATTERN } from '#app/utils/calendar-key-schema.ts'
 import { EventFormSchema } from '#app/utils/event-schema.ts'
 import { ATTACH_EVENT_LABELS } from '#app/utils/labels.ts'
-
-const DateKey = /^\d{4}-\d{2}-\d{2}$/
 
 export const AttachEventFormSchema = z
 	.object({
@@ -22,7 +21,7 @@ export const AttachEventFormSchema = z
 		eventId: z.string().min(1).optional(),
 		name: EventFormSchema.shape.name.optional(),
 		startDate: EventFormSchema.shape.startDate
-			.regex(DateKey, ATTACH_EVENT_LABELS.dateMissing)
+			.regex(DAY_KEY_PATTERN, ATTACH_EVENT_LABELS.dateMissing)
 			.optional(),
 	})
 	.superRefine((value, ctx) => {

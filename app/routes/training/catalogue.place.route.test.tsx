@@ -102,7 +102,7 @@ test('back and cancel return to the list the athlete filtered', async () => {
 	renderPlace({}, ['/training/catalogue/place/stock-1?archetype=threshold'])
 
 	expect(
-		await screen.findByRole('link', { name: /back to the catalogue/i }),
+		await screen.findByRole('link', { name: /tilbake til katalog/i }),
 	).toHaveAttribute('href', '/training/catalogue?archetype=threshold')
 	expect(screen.getByRole('link', { name: /cancel/i })).toHaveAttribute(
 		'href',

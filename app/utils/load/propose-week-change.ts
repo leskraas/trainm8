@@ -40,7 +40,11 @@
 
 import { weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { formatSignedTsb } from '#app/utils/format.ts'
-import { NB_WEEKDAY_LABELS } from '#app/utils/labels.ts'
+import {
+	NB_WEEKDAY_LABELS,
+	WEEK_CHANGE_REASON_LABELS,
+	WEEK_HOLD_REASON_LABELS,
+} from '#app/utils/labels.ts'
 import { type SessionOwner } from '#app/utils/session-ownership.ts'
 import { type WeeklyAdherence } from './adherence.ts'
 import { proposeNextRound, type RoundFacts } from './propose-next-round.ts'
@@ -117,12 +121,7 @@ function percent(fraction: number): string {
 	return `${Math.round(fraction * 100)} %`
 }
 
-/** "Forrige uke ble 25 % tyngre enn planlagt" — the overshoot, in Norwegian. */
-function overClause(ratio: number): string {
-	return `Forrige uke ble ${percent(ratio - 1)} tyngre enn planlagt`
-}
-
-const THEIRS = 'Dette er din økt, så den endres bare hvis du sier ja.'
+const R = WEEK_CHANGE_REASON_LABELS
 
 /** The week-level keep's reason, one per branch that holds the week. */
 function keepReason(
@@ -130,23 +129,13 @@ function keepReason(
 	facts: WeekChangeFacts,
 ): string {
 	const ratio = facts.adherence?.ratio ?? 1
-	const tsb = facts.tsb == null ? '' : formatSignedTsb(facts.tsb)
-	switch (decision.why) {
-		case 'no-adherence':
-			return 'Forrige uke hadde ingen planlagt belastning å måle mot, så vi har for lite å gå på. Denne uka står som planlagt.'
-		case 'under':
-			return `Forrige uke ble ${percent(1 - ratio)} lettere enn planlagt. Vi legger ikke på noe ekstra – denne uka står som planlagt.`
-		case 'on-target':
-			return 'Forrige uke gikk som planlagt. Denne uka står som den er.'
-		case 'form-untrusted':
-			return `${overClause(ratio)}, men formtallet er først til å stole på etter ${facts.trust.requiredDays} dager (dag ${facts.trust.daysOfHistory} av ${facts.trust.requiredDays}). Vi endrer ingenting ennå.`
-		case 'form-missing':
-			return `${overClause(ratio)}, men vi har ikke noe formtall. Uten det endrer vi ingenting.`
-		case 'fresh':
-			return `${overClause(ratio)}, men formen er ${tsb} – du tåler det. Denne uka står som planlagt.`
-		case 'nothing-adjustable':
-			return `${overClause(ratio)} og formen er ${tsb}, men det er ingen økter igjen denne uka som kan gjøres lettere. Vi endrer ingenting.`
-	}
+	return WEEK_HOLD_REASON_LABELS[decision.why]({
+		over: percent(ratio - 1),
+		under: percent(1 - ratio),
+		tsb: facts.tsb == null ? '' : formatSignedTsb(facts.tsb),
+		requiredDays: facts.trust.requiredDays,
+		daysOfHistory: facts.trust.daysOfHistory,
+	})
 }
 
 function scaleReason(
@@ -155,43 +144,13 @@ function scaleReason(
 	scale: number,
 	owner: SessionOwner,
 ): string {
-	const base = `${overClause(ratio)}, og formen er ${formatSignedTsb(tsb)}. Vi foreslår å gjøre denne økta ca. ${percent(1 - scale)} kortere.`
-	return owner === 'athlete' ? `${base} ${THEIRS}` : base
+	const base = R.scale(
+		percent(ratio - 1),
+		formatSignedTsb(tsb),
+		percent(1 - scale),
+	)
+	return owner === 'athlete' ? `${base} ${R.theirs}` : base
 }
-
-/**
- * A swap of two sessions' days, as any rule that proposes one must write it.
- * Exported though no v1 rule proposes a swap yet: it is the one home of the
- * swap-reason rule below, for this author's later rules and for the next
- * author behind the same seam, so the rule is written and tested once rather
- * than left for each to remember.
- * Silence takes a swap only when **both** sessions are the machine's when it
- * applies, so when either is the athlete's the reason says so — the athlete
- * reads why the swap waits for their yes.
- */
-export function swapProposal({
-	target,
-	other,
-	targetWeekKey,
-	why,
-}: {
-	target: { id: string; owner: SessionOwner }
-	other: { id: string; owner: SessionOwner }
-	targetWeekKey: string
-	/** The rule's own reason, a full sentence. */
-	why: string
-}): ProposalDraft {
-	const theirs = target.owner === 'athlete' || other.owner === 'athlete'
-	return {
-		payload: { kind: 'swap', otherSessionId: other.id },
-		targetSessionId: target.id,
-		targetWeekKey,
-		reason: theirs ? `${why} ${THEIRS_IN_SWAP}` : why,
-	}
-}
-
-const THEIRS_IN_SWAP =
-	'En av øktene er din, så byttet skjer bare hvis du sier ja.'
 
 type Missed = WeekChangeFacts['missedSessions'][number]
 
@@ -211,7 +170,7 @@ function missedProposals(facts: WeekChangeFacts): ProposalDraft[] {
 	const key = overloaded ? null : keyMissed(facts.missedSessions)
 	const freeDay = facts.freeDays[0] ?? null
 	return facts.missedSessions.map((missed) => {
-		const notDone = `«${missed.title}» ble ikke gjort ${weekday(missed.date)}, og står der som ikke gjort.`
+		const notDone = R.notDone(missed.title, weekday(missed.date))
 		const draft = (payload: ProposalPayload, reason: string) => ({
 			payload,
 			targetSessionId: missed.id,
@@ -219,10 +178,7 @@ function missedProposals(facts: WeekChangeFacts): ProposalDraft[] {
 			reason,
 		})
 		if (overloaded) {
-			return draft(
-				{ kind: 'keep' },
-				`${notDone} Uka var tung nok likevel, så vi foreslår å la den gå.`,
-			)
+			return draft({ kind: 'keep' }, R.letGoHeavyWeek(notDone))
 		}
 		if (missed === key && freeDay) {
 			return draft(
@@ -232,19 +188,13 @@ function missedProposals(facts: WeekChangeFacts): ProposalDraft[] {
 					toDate: freeDay,
 					makeUp: true,
 				},
-				`${notDone} Vil du ta den igjen ${weekday(freeDay)}? Den dagen er ledig. Det gir mer trening denne uka, så den legges bare inn hvis du sier ja.`,
+				R.makeUp(notDone, weekday(freeDay)),
 			)
 		}
 		if (missed === key) {
-			return draft(
-				{ kind: 'keep' },
-				`${notDone} Det er ingen ledig dag igjen denne uka, så vi foreslår å la den gå.`,
-			)
+			return draft({ kind: 'keep' }, R.letGoNoFreeDay(notDone))
 		}
-		return draft(
-			{ kind: 'keep' },
-			`${notDone} Vi foreslår å la den gå, så uka ikke blir for full.`,
-		)
+		return draft({ kind: 'keep' }, R.letGo(notDone))
 	})
 }
 
@@ -274,7 +224,7 @@ function repeatMissProposals(
 			},
 			targetSessionId: miss.next.id,
 			targetWeekKey: facts.targetWeekKey,
-			reason: `«${miss.title}» ble ikke gjort ${slot} to uker på rad. Kanskje ${slot} ikke passer? Vi foreslår å flytte den til ${weekday(toDate)}, som er ledig – bare denne gangen, eller fra nå av.`,
+			reason: R.slotMove(miss.title, slot, weekday(toDate)),
 		})
 	}
 	return drafts
@@ -333,10 +283,14 @@ export const proposeWeekChange: ProposalAuthor = (facts) => {
 		return {
 			outcome: 'proposed',
 			reason: softening
-				? `${overClause(facts.adherence!.ratio)}, og formen er ${formatSignedTsb(facts.tsb!)}. Vi foreslår å gjøre de neste øktene ca. ${percent(1 - decision.scale)} kortere.`
+				? R.weekSoften(
+						percent(facts.adherence!.ratio - 1),
+						formatSignedTsb(facts.tsb!),
+						percent(1 - decision.scale),
+					)
 				: madeUpOn.size > 0
-					? 'En økt forrige uke ble ikke gjort. Vi foreslår å ta den igjen, men bare hvis du sier ja.'
-					: 'En økt er ikke gjort to uker på rad. Vi foreslår å flytte den til en dag som er ledig.',
+					? R.weekMakeUp
+					: R.weekSlotMove,
 			proposals,
 		}
 	}

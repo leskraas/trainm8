@@ -43,7 +43,10 @@ import type {
 } from './catalogue.ts'
 import type { ConnectionHubStatus } from './connection-hub-status.ts'
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
-import type { FirstRunPlanRefusal } from './first-run/first-run-schema.ts'
+import type {
+	EventDateProblem,
+	FirstRunPlanRefusal,
+} from './first-run/first-run-schema.ts'
 import type {
 	FamilyChoice,
 	FindingAbsence,
@@ -58,7 +61,8 @@ import type {
 import type { AdherenceTone } from './load/adherence.ts'
 import type { RoundVerdict } from './load/propose-next-round.ts'
 import type { ReadinessTone } from './load/readiness.ts'
-import type { WeekReplanOutcome } from './load/week-replan.ts'
+import type { LoadRecomputeKind } from './load/recompute-notice.ts'
+import type { WeekHoldWhy, WeekReplanOutcome } from './load/week-replan.ts'
 // The domain owns *which* currencies accumulate across Disciplines (ADR 0043 §5);
 // this module owns the sentence each accumulation is explained by.
 import type { AccumulatingCurrency } from './plan-outline/commensurability.ts'
@@ -93,12 +97,8 @@ import type {
 // The domain owns *why* a week number is missing and how a week grades (#505
 // stories 20–26, 34); this module owns the words for each.
 import type {
-	AnnetReason,
-	PaceAbsence,
-	TargetAbsence,
 	UnmeasuredReason,
 	VolumeGrade,
-	ZoneAbsence,
 } from './plan-outline/week-volumes.ts'
 // The domain owns *who* a session belongs to (ADR 0080); this module owns the
 // words the athlete reads for each owner.
@@ -480,18 +480,6 @@ export const VOLUME_UNITS: Record<VolumeCurrency, string> = {
 }
 
 /**
- * The name each stored **Week Replan** outcome goes by on the Hero's This week
- * pane. `proposed` is the #505 Ukeskiftet word, so it is Norwegian (ADR 0081);
- * the older outcomes keep their English until their surface is redesigned.
- */
-export const WEEK_REPLAN_OUTCOME_LABELS: Record<WeekReplanOutcome, string> = {
-	adjusted: 'This week adjusted',
-	proposed: 'Endringer foreslått',
-	'no-change': 'No change',
-	'insufficient-data': 'No adjustment',
-}
-
-/**
  * Whose a planned session is (**Session Ownership**, ADR 0080), as the mark on a
  * home row names it (#505 story 29). Norwegian, as the #505 surfaces are (ADR
  * 0081), and lower-case: it reads as a quiet aside beside the title.
@@ -553,24 +541,6 @@ export const VOLUME_GRADE_LABELS: Record<VolumeGrade, string> = {
 	over: 'over',
 }
 
-/** Why a week has no Week Target. */
-export const TARGET_ABSENCE_LABELS: Record<TargetAbsence, string> = {
-	'outside-plan': 'utenfor planen',
-	'no-anchor': 'planen har ikke noe mål for uka',
-}
-
-/** Why a pace has no figure. */
-export const PACE_ABSENCE_LABELS: Record<PaceAbsence, string> = {
-	'no-recorded-pace': 'ingen økt med både tid og km',
-	'no-easy-session': 'ingen rolig økt gjort',
-}
-
-/** Why a zone split has no figure. */
-export const ZONE_ABSENCE_LABELS: Record<ZoneAbsence, string> = {
-	'no-zone-prescribed': 'øktene har ingen soner',
-	'no-zone-recorded': 'importen har ingen soner',
-}
-
 /** A planned zone split is what the plan means, not what was measured (idea M). */
 export const ZONE_INTENT_NOTE = 'hensikt, ikke en måling'
 
@@ -582,13 +552,6 @@ export const ANNET_TRACK_LABELS = {
 	name: 'Annet',
 	note: 'teller ikke med',
 } as const
-
-/** Why a session is in Annet. */
-export const ANNET_REASON_LABELS: Record<AnnetReason, string> = {
-	'other-discipline': 'en aktivitet appen ikke følger',
-	'no-track': 'planen har ikke denne idretten',
-	'athlete-choice': 'du valgte at den ikke teller',
-}
 
 /**
  * `til og med torsdag · resten ikke målt` — strength logged up to a day and not
@@ -678,17 +641,24 @@ export function foldedTrackLabel({
 	of,
 	unit,
 	grade,
+	why = [],
 }: {
 	done: string | null
 	of: string | null
 	unit: string
 	grade: string | null
+	/** Why nothing done was measured: every "ikke målt" says (story 71). */
+	why?: readonly UnmeasuredReason[]
 }): string {
+	const reason =
+		why.length > 0
+			? ` (${why.map((code) => UNMEASURED_REASON_LABELS[code]).join(', ')})`
+			: ''
 	const figure =
 		done == null
 			? of == null
-				? 'ikke målt'
-				: `ikke målt av ${of} ${unit}`
+				? `ikke målt${reason}`
+				: `ikke målt av ${of} ${unit}${reason}`
 			: of == null
 				? `${done} ${unit} ${WEEK_FIGURE_LABELS.done}`
 				: `${done} av ${of} ${unit}`
@@ -803,6 +773,7 @@ export const ANNET_ACTION_LABELS = {
 	toTrack: 'Tell i sporet',
 	/** The chip a session the athlete put in Annet carries. */
 	chip: 'Annet',
+	notFound: 'Fant ikke økta. Den kan være slettet.',
 } as const
 
 // ---------------------------------------------------------------------------
@@ -984,6 +955,86 @@ export function easePlannedLabel(
 ): string {
 	return `${weekName}: ${figure} ${unit} planlagt`
 }
+
+/**
+ * The facts a held week's reason is worded from, already formatted: the
+ * overshoot and the shortfall as `25 %`, the form as `−12`, and the trust gate's
+ * days.
+ */
+export type WeekHoldFacts = {
+	over: string
+	under: string
+	tsb: string
+	requiredDays: number
+	daysOfHistory: number
+}
+
+/** "Forrige uke ble 25 % tyngre enn planlagt" — the overshoot, said once. */
+function overClause(over: string): string {
+	return `Forrige uke ble ${over} tyngre enn planlagt`
+}
+
+/**
+ * Why the Week Replan holds a week (#505 story 50: "keep" is a real proposal
+ * with a reason), one sentence per branch of ADR 0025's judgment.
+ */
+export const WEEK_HOLD_REASON_LABELS: Record<
+	WeekHoldWhy,
+	(facts: WeekHoldFacts) => string
+> = {
+	'no-adherence': () =>
+		'Forrige uke hadde ingen planlagt belastning å måle mot, så vi har for lite å gå på. Denne uka står som planlagt.',
+	under: ({ under }) =>
+		`Forrige uke ble ${under} lettere enn planlagt. Vi legger ikke på noe ekstra – denne uka står som planlagt.`,
+	'on-target': () =>
+		'Forrige uke gikk som planlagt. Denne uka står som den er.',
+	'form-untrusted': ({ over, requiredDays, daysOfHistory }) =>
+		`${overClause(over)}, men formtallet er først til å stole på etter ${requiredDays} dager (dag ${daysOfHistory} av ${requiredDays}). Vi endrer ingenting ennå.`,
+	'form-missing': ({ over }) =>
+		`${overClause(over)}, men vi har ikke noe formtall. Uten det endrer vi ingenting.`,
+	fresh: ({ over, tsb }) =>
+		`${overClause(over)}, men formen er ${tsb} – du tåler det. Denne uka står som planlagt.`,
+	'nothing-adjustable': ({ over, tsb }) =>
+		`${overClause(over)} og formen er ${tsb}, men det er ingen økter igjen denne uka som kan gjøres lettere. Vi endrer ingenting.`,
+}
+
+/**
+ * The Week Replan's proposal reasons (#505 story 44, ADR 0080), as the
+ * deterministic author (`propose-week-change.ts`) writes them. Never worded as
+ * though anything were already applied: nothing has changed when they are
+ * written.
+ */
+export const WEEK_CHANGE_REASON_LABELS = {
+	/** One session softened: `over` and `cut` as `25 %`, `tsb` as `−12`. */
+	scale: (over: string, tsb: string, cut: string) =>
+		`${overClause(over)}, og formen er ${tsb}. Vi foreslår å gjøre denne økta ca. ${cut} kortere.`,
+	/** Said after a proposal on one of the athlete's own sessions. */
+	theirs: 'Dette er din økt, så den endres bare hvis du sier ja.',
+	/** A missed session, which stays on its day either way (story 53). */
+	notDone: (title: string, weekday: string) =>
+		`«${title}» ble ikke gjort ${weekday}, og står der som ikke gjort.`,
+	letGoHeavyWeek: (notDone: string) =>
+		`${notDone} Uka var tung nok likevel, så vi foreslår å la den gå.`,
+	makeUp: (notDone: string, weekday: string) =>
+		`${notDone} Vil du ta den igjen ${weekday}? Den dagen er ledig. Det gir mer trening denne uka, så den legges bare inn hvis du sier ja.`,
+	letGoNoFreeDay: (notDone: string) =>
+		`${notDone} Det er ingen ledig dag igjen denne uka, så vi foreslår å la den gå.`,
+	letGo: (notDone: string) =>
+		`${notDone} Vi foreslår å la den gå, så uka ikke blir for full.`,
+	/** A slot missed two closed weeks running, moved to a free day. */
+	slotMove: (title: string, slot: string, toWeekday: string) =>
+		`«${title}» ble ikke gjort ${slot} to uker på rad. Kanskje ${slot} ikke passer? Vi foreslår å flytte den til ${toWeekday}, som er ledig – bare denne gangen, eller fra nå av.`,
+	/** The week-level sentences for a week with changes proposed. */
+	weekSoften: (over: string, tsb: string, cut: string) =>
+		`${overClause(over)}, og formen er ${tsb}. Vi foreslår å gjøre de neste øktene ca. ${cut} kortere.`,
+	weekMakeUp:
+		'En økt forrige uke ble ikke gjort. Vi foreslår å ta den igjen, men bare hvis du sier ja.',
+	weekSlotMove:
+		'En økt er ikke gjort to uker på rad. Vi foreslår å flytte den til en dag som er ledig.',
+	/** The athlete's own "Gjør uka lettere −15 %" (story 51), as its reason. */
+	easeWeek:
+		'Du ba om en lettere uke, så de øktene som er igjen er gjort ca. 15 % kortere.',
+} as const
 
 /** "Lås opp" on one of the athlete's own planned rows (#505 story 55). */
 export const RELEASE_ACTION_LABELS = {
@@ -1618,9 +1669,29 @@ export function familyChoiceSentence(choice: FamilyChoice): string {
 	return `Vi valgte ${name} fordi ${because}`
 }
 
+/**
+ * Why a race date cannot be planned toward, said on the date field. `too-far`
+ * names `MAX_PLAN_WEEKS` (pinned by the label test).
+ */
+export const EVENT_DATE_LABELS: Record<EventDateProblem, string> = {
+	missing: 'Velg en dato',
+	invalid: 'Velg en dato som finnes i kalenderen',
+	'too-soon': 'Velg en dato etter neste uke, så det blir uker å trene mot den.',
+	'too-far': 'Velg en dato innen 104 uker – lenger kan ikke en plan være.',
+}
+
 /** The first run's own words, screen by screen. */
 export const FIRST_RUN_LABELS = {
 	stepOf: (step: number, of: number) => `Steg ${step} av ${of}`,
+	/** The page title of the first run's first step. */
+	start: 'Kom i gang',
+	/** What a question left unanswered says. */
+	messages: {
+		daysRequired: 'Velg minst én dag',
+		goalRequired: 'Velg hva du trener mot',
+		eventNameRequired: 'Skriv hva løpet heter',
+		familyRequired: 'Velg en filosofi',
+	},
 	connect: {
 		title: 'Koble til intervals.icu',
 		intro:
@@ -1725,10 +1796,8 @@ export const FIRST_RUN_LABELS = {
 /** Why the first run's plan could not be made, said where it is refused. */
 export const FIRST_RUN_REFUSAL_LABELS: Record<FirstRunPlanRefusal, string> = {
 	'plan-already-active': 'Du har allerede en plan. Du finner den i Sesong.',
-	'event-too-soon':
-		'Velg en dato etter neste uke, så det blir uker å trene mot den.',
-	'event-too-far':
-		'Velg en dato innen 104 uker – lenger kan ikke en plan være.',
+	'event-too-soon': EVENT_DATE_LABELS['too-soon'],
+	'event-too-far': EVENT_DATE_LABELS['too-far'],
 	'goal-unavailable':
 		'Målet kunne ikke få en plan. Prøv igjen, eller velg Hold meg aktiv.',
 	'nothing-to-lay':
@@ -1761,7 +1830,27 @@ export const WEEK_SUM_LABELS = {
 
 /** The Load Recompute Notice on I dag (ADR 0046 §2). */
 export const RECOMPUTE_NOTICE_LABELS = {
-	kicker: 'Kondisjonen er regnet ut på nytt',
+	/**
+	 * Each correction's kicker and explanation, written together, so a `kind`
+	 * can never inherit another's headline.
+	 *
+	 * The explanation deliberately does **not** point the athlete at the
+	 * discipline mix as the honest home for their strength load. The mix is a
+	 * share-of-total surface that still prices a strength slice against
+	 * endurance TSS — the same defect one surface over, and its own open ruling.
+	 * Copy that sent readers there would be vouching for a number this change
+	 * hasn't fixed.
+	 */
+	copy: {
+		'strength-left-the-triad': {
+			kicker: 'Kondisjonen er regnet ut på nytt',
+			explanation:
+				'Styrkeøkter teller ikke lenger med i kondisjon, tretthet og form. Det finnes ingen ærlig måte å prise en styrkeøkt i samme enhet som en utholdenhetsøkt, så de tre tallene gjelder nå bare utholdenhet — og sier det. Treningen din er den samme; det som er endret, er hva tallene påstår å måle.',
+		},
+	} satisfies Record<
+		LoadRecomputeKind,
+		{ kicker: string; explanation: string }
+	>,
 	movement: (drop: string, before: string, after: string) =>
 		`Kondisjonen falt med opptil ${drop} — ${before} → ${after} på det meste`,
 	gotIt: 'Skjønner',
@@ -1772,6 +1861,28 @@ export const RECOMPUTE_NOTICE_LABELS = {
  * ADR 0079). Norwegian, as the #505 surfaces are (ADR 0081).
  */
 export const OPEN_ENDED_PLAN_LABEL = 'Hold meg aktiv'
+
+/**
+ * _Hold meg aktiv_'s form on Sesong's plan creation (ADR 0079), and the two
+ * questions' messages it shares with the first run (`open-ended-schema.ts`).
+ */
+export const OPEN_ENDED_FORM_LABELS = {
+	intro: (roundWeeks: number) =>
+		`Ingen løp og ingen sluttdato. Planen går i blokker på ${roundWeeks} uker, tre som bygger og én lett, og fortsetter blokk for blokk.`,
+	alreadyActive: 'Du har allerede en plan uten slutt.',
+	openPlan: 'Åpne planen',
+	discipline: 'Hva trener du mest?',
+	hours: 'Timer i uka',
+	hoursFromHistory: 'Snittet ditt de siste 4 ukene. Endre det om du vil.',
+	hoursUnmeasured:
+		'Vi fant ingen økter å regne fra, så skriv det du har tid til.',
+	create: 'Lag planen',
+	createFailed: 'Planen kunne ikke lages.',
+	disciplineRequired: 'Velg en aktivitet',
+	hoursRequired: 'Skriv hvor mange timer i uka',
+	hoursPositive: 'Mer enn null timer i uka',
+	hoursMax: 'Høyst 40 timer i uka',
+} as const
 
 /**
  * The name a round of an open-ended plan is laid with: `Blokk 1`, `Blokk 2`.
@@ -2521,6 +2632,11 @@ export const APP_TAB_LABELS: Record<AppTab, string> = {
 	library: 'Bibliotek',
 	me: 'Meg',
 }
+
+/** The page header's back button, named for the screen it goes back to. */
+export const PAGE_HEADER_LABELS = {
+	back: (screen: string) => `Tilbake til ${screen}`,
+} as const
 
 /** The tab bar's own name, for the landmark it is. */
 export const APP_TABS_NAV_LABEL = 'Hovedmeny'

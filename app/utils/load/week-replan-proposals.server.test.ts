@@ -7,7 +7,6 @@ import { createUser, createPassword } from '#tests/db-utils.ts'
 import { createPlanOutline } from '../plan-outline/authoring.server.ts'
 import { getWeekVolumes } from '../plan-outline/week-volumes.server.ts'
 import { recomputePlannedTssForSession } from './planned-tss.server.ts'
-import { swapProposal } from './propose-week-change.ts'
 import {
 	answerProposal,
 	easeWeek,
@@ -549,7 +548,7 @@ test('a proposal whose session was deleted applies nothing on Ok — it never wi
 	expect(after.replanReason).toBeNull()
 })
 
-test('silence takes a swap only when both sessions are the machine’s, and a swap with the athlete’s own says so', async () => {
+test('silence takes a swap only when both sessions are the machine’s', async () => {
 	const user = await createBiker()
 	const thursday = await createSession(user.id)
 	const friday = await createSession(user.id, { scheduledAt: at(FRIDAY) })
@@ -557,21 +556,14 @@ test('silence takes a swap only when both sessions are the machine’s, and a sw
 		source: 'authored',
 		scheduledAt: at(SATURDAY),
 	})
-	const why = 'Terskelen passer bedre etter hviledagen.'
-	const machinesOwn = swapProposal({
-		target: { id: thursday.id, owner: 'machine' },
-		other: { id: friday.id, owner: 'machine' },
+	const swap = (targetId: string, otherId: string): ProposalDraft => ({
+		payload: { kind: 'swap', otherSessionId: otherId },
+		targetSessionId: targetId,
 		targetWeekKey: CURRENT_MONDAY,
-		why,
+		reason: 'Terskelen passer bedre etter hviledagen.',
 	})
-	const withTheirs = swapProposal({
-		target: { id: friday.id, owner: 'machine' },
-		other: { id: theirs.id, owner: 'athlete' },
-		targetWeekKey: CURRENT_MONDAY,
-		why,
-	})
-	expect(machinesOwn.reason).toBe(why)
-	expect(withTheirs.reason).toMatch(/En av øktene er din/)
+	const machinesOwn = swap(thursday.id, friday.id)
+	const withTheirs = swap(friday.id, theirs.id)
 	await prisma.$transaction((tx) => recordProposals(tx, user.id, [withTheirs]))
 
 	const held = await applyDueProposals(user.id, NOW)

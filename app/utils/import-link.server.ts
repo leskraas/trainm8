@@ -17,7 +17,7 @@ import {
 import { getAthleteTimezone } from './athlete.server.ts'
 import { prisma } from './db.server.ts'
 import { type ImportLinkRefusal } from './import-link-schema.ts'
-import { setCountsInNoTrack } from './plan-outline/week-volumes.server.ts'
+import { setCountsInNoTrack } from './workout.server.ts'
 
 /** The three answers to "hva var dette?" (#505 story 80). */
 export type ImportAnswer =

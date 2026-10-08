@@ -35,7 +35,7 @@ const L = FIRST_RUN_LABELS.findings
 const IMPORT_POLL_MS = 3000
 
 export const meta: Route.MetaFunction = () => [
-	{ title: 'Dette fant vi | Trainm8' },
+	{ title: `${L.title} | Trainm8` },
 ]
 
 export async function loader({ request }: Route.LoaderArgs) {

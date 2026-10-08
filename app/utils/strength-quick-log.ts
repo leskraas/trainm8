@@ -102,7 +102,6 @@ export const StrengthLogActionSchema = z.discriminatedUnion('intent', [
 	StrengthLogAsPlannedSchema,
 	StrengthLogEditSchema,
 ])
-export type StrengthLogAction = z.infer<typeof StrengthLogActionSchema>
 
 /** `?sessionId=` on the quick log's read. */
 export const StrengthLogQuerySchema = z.object({ sessionId: SessionId })

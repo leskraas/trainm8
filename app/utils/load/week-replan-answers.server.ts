@@ -6,9 +6,11 @@
  * uses, so a proposal means the same thing whoever applies it.
  */
 
-import { addDays, weekdayIndex } from '#app/utils/athlete-calendar.ts'
+import { addDays } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
+import { WeekKeySchema } from '#app/utils/calendar-key-schema.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { WEEK_CHANGE_REASON_LABELS } from '#app/utils/labels.ts'
 import { getWeekVolumes } from '#app/utils/plan-outline/week-volumes.server.ts'
 import { type WeekVolumes } from '#app/utils/plan-outline/week-volumes.ts'
 import { sessionOwner } from '#app/utils/session-ownership.ts'
@@ -31,9 +33,6 @@ import {
 
 /** The athlete's "Gjør uka lettere −15 %" (#505 user story 51). */
 export const EASE_WEEK_FACTOR = 0.85
-
-const EASE_WEEK_REASON =
-	'Du ba om en lettere uke, så de øktene som er igjen er gjort ca. 15 % kortere.'
 
 // ── answering ───────────────────────────────────────────────────────────────
 
@@ -203,7 +202,9 @@ export async function easeWeek(
 	weekKey: string,
 	now: Date = new Date(),
 ): Promise<EaseWeekResult> {
-	if (!isMonday(weekKey)) return { ok: false, reason: 'not-a-week' }
+	if (!WeekKeySchema.safeParse(weekKey).success) {
+		return { ok: false, reason: 'not-a-week' }
+	}
 	const timezone = await getAthleteTimezone(userId)
 	// Only the week the closed week's change is about: the one after it. An
 	// older week is history; a later one has not been laid as it will be.
@@ -248,7 +249,7 @@ export async function easeWeek(
 						payload,
 						targetSessionId: null,
 						targetWeekKey: weekKey,
-						reason: EASE_WEEK_REASON,
+						reason: WEEK_CHANGE_REASON_LABELS.easeWeek,
 					},
 					replan?.id ?? null,
 				),
@@ -292,22 +293,20 @@ export async function easeWeek(
 	}
 }
 
-function isMonday(weekKey: string): boolean {
-	return /^\d{4}-\d{2}-\d{2}$/.test(weekKey) && weekdayIndex(weekKey) === 0
-}
-
 /**
  * The week's Planned Volume per track, as the week header reads it (#505 S8) —
  * so "før → etter" is said in the header's own numbers.
  */
 function plannedByTrack(volumes: WeekVolumes): WeekVolume {
 	return {
-		tracks: volumes.tracks.map(({ trackId, discipline, currency, planned }) => ({
-			trackId,
-			discipline,
-			currency,
-			planned,
-		})),
+		tracks: volumes.tracks.map(
+			({ trackId, discipline, currency, planned }) => ({
+				trackId,
+				discipline,
+				currency,
+				planned,
+			}),
+		),
 	}
 }
 

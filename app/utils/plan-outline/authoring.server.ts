@@ -24,6 +24,7 @@ import { prisma } from '../db.server.ts'
 import { parseEventDisciplines, type EventKind } from '../event-schema.ts'
 import { createEvent } from '../event.server.ts'
 import { openEndedRoundName } from '../labels.ts'
+import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
 import {
 	isCardioDiscipline,
 	type CardioDiscipline,
@@ -93,7 +94,6 @@ import {
 } from './authoring-schema.ts'
 import { eventFit } from './event-fit.ts'
 import { proposeFit, type FitProposal } from './fit-proposal.ts'
-import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
 import { readAnchorContext } from './history.server.ts'
 import {
 	familyOfPreset,
@@ -628,7 +628,15 @@ export async function createOpenEndedPlan(
 			PresetPhase,
 			'weeks' | 'rhythm' | 'ramp' | 'boundaryStep' | 'mix'
 		>
-		/** The plan's first Monday; this Training Week where not said. */
+		/**
+		 * The plan's first Monday; this Training Week where not said — even one
+		 * already begun, because the start is the week the plan is read from,
+		 * not one it lays in: `Blokk 1` holds the week the athlete is in, and
+		 * every lay (the horizon fill, a re-lay) starts at the first week not yet
+		 * begun (`readFirstUnbegunWeekKey`), so nothing is placed in the past.
+		 * The first run says its start instead: the first week not yet begun,
+		 * since it lays its first two weeks itself.
+		 */
 		startWeekKey?: string
 		/** The weekdays the starter pattern lays. */
 		days?: PatternWeekday[]

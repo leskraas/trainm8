@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest'
+import { addDays } from '#app/utils/athlete-calendar.ts'
 import {
+	EVENT_DATE_LABELS,
 	familyChoiceSentence,
 	FINDING_ABSENCE_LABELS,
 	FIRST_RUN_REFUSAL_LABELS,
@@ -8,9 +10,8 @@ import {
 } from '#app/utils/labels.ts'
 import { type LoggedVolume } from '#app/utils/plan-outline/proposal.ts'
 import {
-	EVENT_DATE_MESSAGES,
 	FIRST_RUN_PLAN_REFUSALS,
-	QuestionsSchema,
+	questionsSchema,
 	readAnswers,
 	readCorrections,
 } from './first-run-schema.ts'
@@ -341,9 +342,13 @@ test('lifting with no endurance beside it says so, never "no sessions"', () => {
 	expect(FINDING_ABSENCE_LABELS['only-strength']).toMatch(/styrkeøkter/)
 })
 
-const TODAY = new Date().toISOString().slice(0, 10)
+// Today is passed in, as the route reads it in the Athlete Timezone: the
+// schema never reads a clock of its own.
+const CALENDAR = { today: '2030-01-01', timezone: 'Europe/Oslo' }
+const TODAY = CALENDAR.today
+const QuestionsSchema = questionsSchema(CALENDAR)
 function inDays(days: number): string {
-	return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+	return addDays(TODAY, days)
 }
 
 function dateError(eventDate: string): string | undefined {
@@ -362,36 +367,31 @@ function dateError(eventDate: string): string | undefined {
 }
 
 test('a race date must be a real day, after this week and within the longest plan', () => {
-	expect(dateError('2026-99-99')).toBe(EVENT_DATE_MESSAGES.invalid)
-	expect(dateError('2027-02-30')).toBe(EVENT_DATE_MESSAGES.invalid)
-	expect(dateError('i morgen')).toBe(EVENT_DATE_MESSAGES.invalid)
-	expect(dateError('')).toBe(EVENT_DATE_MESSAGES.missing)
-	expect(dateError(TODAY)).toBe(EVENT_DATE_MESSAGES.tooSoon)
-	expect(dateError(inDays(7 * 105))).toBe(EVENT_DATE_MESSAGES.tooFar)
+	expect(dateError('2026-99-99')).toBe(EVENT_DATE_LABELS.invalid)
+	expect(dateError('2027-02-30')).toBe(EVENT_DATE_LABELS.invalid)
+	expect(dateError('i morgen')).toBe(EVENT_DATE_LABELS.invalid)
+	expect(dateError('')).toBe(EVENT_DATE_LABELS.missing)
+	expect(dateError(TODAY)).toBe(EVENT_DATE_LABELS['too-soon'])
+	expect(dateError(inDays(7 * 105))).toBe(EVENT_DATE_LABELS['too-far'])
 	expect(dateError(inDays(7 * 20))).toBeUndefined()
 })
 
 test('a tampered URL is held to the form’s rules', () => {
+	const read = (query: string) =>
+		readAnswers(new URLSearchParams(query), CALENDAR)
 	const base = 'discipline=run&hours=4&days=1,3&goal=event&name=L%C3%B8pet'
-	expect(readAnswers(new URLSearchParams(`${base}&date=2026-99-99`))).toBeNull()
-	expect(
-		readAnswers(new URLSearchParams(`${base}&date=${inDays(7 * 110)}`)),
-	).toBeNull()
-	expect(readAnswers(new URLSearchParams(`${base}&date=${TODAY}`))).toBeNull()
-	expect(
-		readAnswers(new URLSearchParams(`${base}&date=${inDays(7 * 20)}`)),
-	).toMatchObject({ days: [1, 3], goal: { kind: 'event', name: 'Løpet' } })
+	expect(read(`${base}&date=2026-99-99`)).toBeNull()
+	expect(read(`${base}&date=${inDays(7 * 110)}`)).toBeNull()
+	expect(read(`${base}&date=${TODAY}`)).toBeNull()
+	expect(read(`${base}&date=${inDays(7 * 20)}`)).toMatchObject({
+		days: [1, 3],
+		goal: { kind: 'event', name: 'Løpet' },
+	})
 	// Days outside the week or repeated are read once, in order.
-	expect(
-		readAnswers(
-			new URLSearchParams('discipline=run&hours=4&days=5,1,5&goal=active'),
-		),
-	).toMatchObject({ days: [1, 5] })
-	expect(
-		readAnswers(
-			new URLSearchParams('discipline=run&hours=4&days=9&goal=active'),
-		),
-	).toBeNull()
+	expect(read('discipline=run&hours=4&days=5,1,5&goal=active')).toMatchObject({
+		days: [1, 5],
+	})
+	expect(read('discipline=run&hours=4&days=9&goal=active')).toBeNull()
 	// The questions read a correction field by field, keeping what reads.
 	expect(
 		readCorrections(new URLSearchParams('discipline=ski&hours=6&days=0,2')),

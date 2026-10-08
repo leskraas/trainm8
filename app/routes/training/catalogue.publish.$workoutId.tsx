@@ -50,7 +50,7 @@ import {
 	readPublishState,
 } from '#app/utils/community.ts'
 import { formatDate } from '#app/utils/format.ts'
-import { SESSION_ARCHETYPE_LABELS } from '#app/utils/labels.ts'
+import { SESSION_ARCHETYPE_LABELS, LIBRARY_LABELS } from '#app/utils/labels.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Route } from './+types/catalogue.publish.$workoutId.ts'
@@ -181,7 +181,7 @@ export default function PublishRoute({
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title="Publish to the Catalogue"
-				back={{ to: '/training/catalogue', label: 'the Catalogue' }}
+				back={{ to: '/training/catalogue', label: LIBRARY_LABELS.catalogue }}
 				className="mb-6"
 			/>
 

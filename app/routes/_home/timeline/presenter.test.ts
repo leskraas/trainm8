@@ -1753,6 +1753,20 @@ describe('past weeks fold above today, one line each (#505 story 31)', () => {
 		expect(last.foldLabel).toBe('35 av 46 km · under')
 	})
 
+	test('a closed week with nothing measured says why, never a bare "ikke målt" (#505 story 71)', () => {
+		const doneUnrecorded = {
+			...ran(-9, 10, 10),
+			status: 'completed',
+			tssValue: null,
+			recording: null,
+		}
+		const result = season([doneUnrecorded, on(0)], runPlan())
+		const last = result.weeks.find((week) => week.key === LAST_MONDAY)!
+		expect(last.foldLabel).toBe(
+			'ikke målt av 46 km (tallene kommer fra importen)',
+		)
+	})
+
 	test('this week and every week ahead stay open', () => {
 		const result = season([on(0), on(7)], runPlan())
 		expect(
@@ -2599,9 +2613,7 @@ describe('the Ukeskiftet card (#505 stories 4–6, 42–55)', () => {
 			easedLine({ tracks: [runPlanned(44)] }, { tracks: [runPlanned(44)] }),
 		).toBe('Det var ingen økter igjen å gjøre lettere. Ukemålet står.')
 		// Only strength: no number the ease moved, so no line.
-		expect(easedLine({ tracks: [strength] }, { tracks: [strength] })).toBe(
-			null,
-		)
+		expect(easedLine({ tracks: [strength] }, { tracks: [strength] })).toBeNull()
 	})
 
 	test('a proposal whose session has passed says "for sent" and asks nothing', () => {

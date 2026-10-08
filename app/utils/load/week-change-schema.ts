@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod'
+import { WeekKeySchema } from '#app/utils/calendar-key-schema.ts'
 import { ProposalScopeSchema } from '#app/utils/load/week-replan-proposal.ts'
 
 /** Where the card's answers post (`routes/resources/week-change.tsx`). */
@@ -23,7 +24,6 @@ export const ROUND_FACTOR_MIN = 0.5
 export const ROUND_FACTOR_MAX = 1.5
 export const ROUND_FACTOR_STEP = 0.05
 
-const DateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const ProposalId = z.string().min(1)
 
 /**
@@ -57,7 +57,7 @@ export const WeekChangeActionSchema = z.discriminatedUnion('intent', [
 		proposalId: ProposalId,
 		factor: RoundFactor,
 	}),
-	z.object({ intent: z.literal('ease'), weekKey: DateKey }),
+	z.object({ intent: z.literal('ease'), weekKey: WeekKeySchema }),
 ])
 export type WeekChangeAction = z.infer<typeof WeekChangeActionSchema>
 

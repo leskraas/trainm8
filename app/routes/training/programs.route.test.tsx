@@ -139,7 +139,7 @@ test('the back link leaves for Bibliotek, the tab programs live under (ADR 0083)
 	renderPrograms()
 
 	expect(
-		await screen.findByRole('link', { name: /back to bibliotek/i }),
+		await screen.findByRole('link', { name: /tilbake til bibliotek/i }),
 	).toHaveAttribute('href', '/library')
 })
 

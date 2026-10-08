@@ -315,17 +315,6 @@ export type FamilyReason =
 
 export type FamilyChoice = { family: PresetFamily; reason: FamilyReason }
 
-export const FAMILY_REASON_CODES = [
-	'older-athlete',
-	'little-history',
-	'few-days',
-	'few-hours',
-	'long-run-up',
-	'many-hours',
-	'race-on-limited-time',
-	'steady',
-] as const satisfies ReadonlyArray<FamilyReason['code']>
-
 /**
  * The philosophy the first run proposes, and the one reason it says for it.
  *

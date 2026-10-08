@@ -7,11 +7,11 @@
 
 import { type Prisma } from '@prisma/client'
 import {
+	firstUnbegunWeekKey,
 	weekBoundsFromMondayUTC,
 	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { firstUnbegunWeekKey } from './week-change.ts'
 
 export async function readFirstUnbegunWeekKey(
 	userId: string,
