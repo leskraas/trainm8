@@ -1,4 +1,4 @@
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker/locale/en'
 import { generateTOTP } from '#app/utils/totp.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 

@@ -1,5 +1,5 @@
 import { invariant } from '@epic-web/invariant'
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker/locale/en'
 import { SetCookie } from '@mjackson/headers'
 import { http } from 'msw'
 import { type AppLoadContext } from 'react-router'

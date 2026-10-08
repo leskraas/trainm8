@@ -1,4 +1,4 @@
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker/locale/en'
 import { type Page } from '@playwright/test'
 import * as setCookieParser from 'set-cookie-parser'
 import { autoSaveImport } from '#app/utils/activity-import.server.ts'

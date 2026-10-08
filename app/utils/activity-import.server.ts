@@ -54,6 +54,24 @@ async function triggerRecomputeForImport(importId: string): Promise<void> {
 }
 
 /**
+ * The one load recompute a batch owes after auto-saving its imports with
+ * `recomputeLoad: false`: from the oldest saved import's day through today.
+ * Fire-and-forget like the per-import recompute it replaces.
+ */
+export async function recomputeLoadAfterBatch(
+	athleteId: string,
+	oldestStartedAt: Date | null,
+	timezone: string,
+): Promise<void> {
+	if (oldestStartedAt == null) return
+	try {
+		await recomputeLoadFrom(athleteId, localDate(oldestStartedAt, timezone))
+	} catch {
+		// Fire-and-forget: silently skip if the DB is unavailable.
+	}
+}
+
+/**
  * The provider-neutral shape every import is filed as, validated at the insert
  * boundary. Optional physiological/mechanical metrics are `nullish` — absent
  * whenever the provider didn't report them. Distances are metres, speeds m/s,
@@ -317,7 +335,11 @@ export async function promoteToExistingSession(
 	await triggerRecomputeForImport(importId)
 }
 
-export async function promoteToNewSession(athleteId: string, importId: string) {
+export async function promoteToNewSession(
+	athleteId: string,
+	importId: string,
+	{ recomputeLoad = true }: LoadRecomputeOption = {},
+) {
 	const imported = await prisma.activityImport.findFirst({
 		where: { id: importId, athleteId },
 		select: { id: true, startedAt: true },
@@ -378,9 +400,19 @@ export async function promoteToNewSession(athleteId: string, importId: string) {
 		}
 	}
 
-	await triggerRecomputeForImport(importId)
+	if (recomputeLoad) await triggerRecomputeForImport(importId)
 	return result
 }
+
+/**
+ * A batch ingest (a Backfill Window, a sync of many activities) passes
+ * `recomputeLoad: false` and runs `recomputeLoadFrom` once, from its oldest
+ * activity's day, after the whole batch has landed. Recomputing per import
+ * rewrites every day from that import to today, so a batch of N recomputes
+ * O(N × days) and a 50-activity backfill ran ~30,000 queries; one pass from the
+ * oldest day writes the same snapshots.
+ */
+type LoadRecomputeOption = { recomputeLoad?: boolean }
 
 /**
  * **Auto-save** — the one thing that happens to every Activity Import the moment
@@ -398,6 +430,7 @@ export async function autoSaveImport(
 	athleteId: string,
 	importId: string,
 	athleteTimezone: string,
+	{ recomputeLoad = true }: LoadRecomputeOption = {},
 ): Promise<AutoSaveResult | null> {
 	const candidates = await findPlanCandidates(
 		athleteId,
@@ -406,16 +439,16 @@ export async function autoSaveImport(
 	)
 	if (candidates.length === 1) {
 		await linkImportToSession(importId, candidates[0]!)
-		await triggerRecomputeForImport(importId)
+		if (recomputeLoad) await triggerRecomputeForImport(importId)
 		return { sessionId: candidates[0]!, matchedPlan: true, unsure: false }
 	}
 
-	const promoted = await promoteToNewSession(athleteId, importId).catch(
-		(error: unknown) => {
-			if (error instanceof ImportLinkNotFoundError) return null
-			throw error
-		},
-	)
+	const promoted = await promoteToNewSession(athleteId, importId, {
+		recomputeLoad,
+	}).catch((error: unknown) => {
+		if (error instanceof ImportLinkNotFoundError) return null
+		throw error
+	})
 	if (!promoted) return null
 	// Several planned sessions fit and the rule will not pick one: the import
 	// stands as an _ekstra_ session, and I dag asks "hva var dette?" (#505

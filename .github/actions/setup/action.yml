@@ -1,0 +1,36 @@
+name: Setup
+description: Node, cached node_modules, test env vars and the Prisma client
+
+runs:
+  using: composite
+  steps:
+    - name: ⎔ Setup node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    # node_modules itself, not ~/.npm: a hit skips `npm ci` entirely (~35s per
+    # job). Keyed on the lockfile, so any dependency change installs afresh.
+    - name: 🏦 Cache node_modules
+      id: node-modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key:
+          node-modules-${{ runner.os }}-node22-${{
+          hashFiles('package-lock.json') }}
+
+    - name: 📥 Download deps
+      if: steps.node-modules.outputs.cache-hit != 'true'
+      shell: bash
+      run: npm ci --no-audit --no-fund
+
+    - name: 🏄 Copy test env vars
+      shell: bash
+      run: cp .env.example .env
+
+    # Regenerated on every run, so a cached node_modules never carries a client
+    # built from an older schema.
+    - name: 🛠 Setup Database
+      shell: bash
+      run: npx prisma migrate deploy && npx prisma generate --sql

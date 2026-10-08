@@ -1,5 +1,6 @@
 import {
 	autoSaveImport,
+	recomputeLoadAfterBatch,
 	createActivityImport,
 	type ActivityImportInput,
 } from '#app/utils/activity-import.server.ts'
@@ -43,7 +44,10 @@ import {
  * per-athlete budget — see pacer.ts for why no sliding-window limiter).
  */
 const intervalsIcuPacer = createCourtesyPacer({
-	minIntervalMs: INTERVALSICU_COURTESY_INTERVAL_MS,
+	// Tests talk to MSW, not Intervals.icu: real spacing there only sleeps (a
+	// 50-activity backfill waited 12s). pacer.test.ts covers the spacing itself.
+	minIntervalMs:
+		process.env.NODE_ENV === 'test' ? 0 : INTERVALSICU_COURTESY_INTERVAL_MS,
 })
 
 /**
@@ -123,36 +127,48 @@ export async function fileIntervalsIcuActivities(
 	let created = 0
 	let skipped = 0
 	let latestActivityAt: Date | null = null
+	let oldestCreatedAt: Date | null = null
 	let oldestActivityAt: Date | null = null
 
-	for (const activity of activities) {
-		const input = mapActivityToImportInput(activity)
-		if (latestActivityAt == null || input.startedAt > latestActivityAt) {
-			latestActivityAt = input.startedAt
-		}
-		if (oldestActivityAt == null || input.startedAt < oldestActivityAt) {
-			oldestActivityAt = input.startedAt
-		}
-
-		let importId: string
-		try {
-			importId = (await createActivityImport(athleteId, input)).id
-		} catch (err) {
-			if (
-				err instanceof Error &&
-				err.message.toLowerCase().includes('unique')
-			) {
-				skipped++
-				continue
+	try {
+		for (const activity of activities) {
+			const input = mapActivityToImportInput(activity)
+			if (latestActivityAt == null || input.startedAt > latestActivityAt) {
+				latestActivityAt = input.startedAt
 			}
-			throw err
-		}
-		created++
+			if (oldestActivityAt == null || input.startedAt < oldestActivityAt) {
+				oldestActivityAt = input.startedAt
+			}
 
-		// Auto-save (ADR 0049): matched onto a same-day plan when exactly one fits,
-		// else onto a recording-only session of its own. 'other' is import-only
-		// (ADR 0015) — never matched to a plan, but still saved.
-		await autoSaveImport(athleteId, importId, timezone)
+			let importId: string
+			try {
+				importId = (await createActivityImport(athleteId, input)).id
+			} catch (err) {
+				if (
+					err instanceof Error &&
+					err.message.toLowerCase().includes('unique')
+				) {
+					skipped++
+					continue
+				}
+				throw err
+			}
+			created++
+			if (oldestCreatedAt == null || input.startedAt < oldestCreatedAt) {
+				oldestCreatedAt = input.startedAt
+			}
+
+			// Auto-save (ADR 0049): matched onto a same-day plan when exactly one fits,
+			// else onto a recording-only session of its own. 'other' is import-only
+			// (ADR 0015) — never matched to a plan, but still saved.
+			await autoSaveImport(athleteId, importId, timezone, {
+				recomputeLoad: false,
+			})
+		}
+	} finally {
+		// One load recompute for the batch, from its oldest new import's day —
+		// also when an activity throws, so the imports already saved count.
+		await recomputeLoadAfterBatch(athleteId, oldestCreatedAt, timezone)
 	}
 
 	return { created, skipped, latestActivityAt, oldestActivityAt }

@@ -1,4 +1,4 @@
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker/locale/en'
 import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
 import { addDays } from '#app/utils/athlete-calendar.ts'

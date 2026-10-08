@@ -1,5 +1,5 @@
 import { invariant } from '@epic-web/invariant'
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker/locale/en'
 import { http, HttpResponse } from 'msw'
 import { expect, test } from 'vitest'
 import { BACKFILL_TARGET_SESSIONS } from '#app/integrations/backfill-window.ts'
@@ -398,14 +398,10 @@ test('a rejected API key flips the connection to revoked and imports nothing', a
 })
 
 // Backfilling the full count target drives 50 activities through the whole
-// import → promote → stream-ingest → load-recompute pipeline sequentially, so
-// it legitimately runs several seconds. Give it real headroom (see the Strava
-// twin of this test for the full rationale).
-//
-// Measured: ~39s alone on an unloaded dev machine. A 2-core CI runner runs this
-// file's tests 5–7× slower (its siblings take 7–21s there against 1–3s here), so
-// a 120s ceiling left no margin and this test hit it at exactly 120 003ms. The
-// ceiling is sized off the measurement, not off how long it "should" take.
+// import → promote → stream-ingest → load-recompute pipeline sequentially. It
+// ran ~39s locally (and hit a 120s ceiling on CI) while every import recomputed
+// Training Load from its own day to today; with one recompute for the batch it
+// runs in a couple of seconds, so the suite's 30s timeout is headroom enough.
 test('a prolific athlete is backfilled to the count target, trimming older activities', async () => {
 	const { user } = await setupBackfillAthlete()
 	const now = new Date('2026-06-30T12:00:00.000Z')
@@ -428,7 +424,46 @@ test('a prolific athlete is backfilled to the count target, trimming older activ
 		where: { athleteId: user.id },
 	})
 	expect(imports).toBe(BACKFILL_TARGET_SESSIONS)
-}, 240_000)
+})
+
+test('Training Load reaches back to a backfilled activity older than the CTL window', async () => {
+	const { user } = await setupBackfillAthlete()
+	const now = new Date('2026-06-30T12:00:00.000Z')
+	// A sparse athlete: the window reaches to the age cap, past the 42-day floor.
+	// Auto-save defers load to one recompute for the batch, which has to start at
+	// this run rather than at the floor, or it never counts and today's CTL is
+	// anchored on zero.
+	const oldRunAt = daysBefore(now, 100)
+	mockActivityFeed([
+		{
+			id: 'i7001',
+			name: 'Old Run',
+			type: 'Run',
+			distance: 10000,
+			moving_time: 3600,
+			elapsed_time: 3600,
+			average_heartrate: 150,
+			start_date: oldRunAt.toISOString(),
+		},
+	])
+	server.use(
+		http.get(STREAMS_URL, () => new HttpResponse('Not Found', { status: 404 })),
+	)
+
+	const result = await runIntervalsIcuBackfill(user.id, { now })
+	invariant(result.ok, 'expected a successful backfill')
+
+	const snapshot = await prisma.loadSnapshot.findUnique({
+		where: {
+			athleteId_date: {
+				athleteId: user.id,
+				date: oldRunAt.toISOString().slice(0, 10),
+			},
+		},
+	})
+	expect(snapshot?.tssTotal).toBeGreaterThan(0)
+	expect(snapshot?.ctl).toBeGreaterThan(0)
+})
 
 test('activities older than the age cap are not imported', async () => {
 	const { user } = await setupBackfillAthlete()

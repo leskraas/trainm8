@@ -1,4 +1,4 @@
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker/locale/en'
 import { expect, test } from 'vitest'
 import { createUser } from '#tests/db-utils.ts'
 import {

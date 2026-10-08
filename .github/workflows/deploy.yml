@@ -4,7 +4,14 @@ on:
     branches:
       - main
       - dev
-  pull_request: {}
+    # Docs-only changes (ADRs, glossary, agent notes) cannot change the app.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,118 +22,65 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: ⬣ ESLint
-    runs-on: ubuntu-22.04
+  # Lint and type check share one job: each needs the same install and Prisma
+  # client, and a job is billed by the started minute.
+  static:
+    name: ⬣ Lint & ʦ TypeScript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - name: ⬇️ Checkout repo
         uses: actions/checkout@v4
 
-      - name: ⎔ Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
+      - name: 🧰 Setup
+        uses: ./.github/actions/setup
 
-      - name: 📥 Download deps
-        uses: bahmutov/npm-install@v1
-
-      - name: 🏄 Copy test env vars
-        run: cp .env.example .env
-
-      - name: 🛠 Setup Database
-        run: npx prisma migrate deploy && npx prisma generate --sql
+      # Generates the icon sprite types the type check reads.
+      - name: 🏗 Build
+        run: npm run build
 
       - name: 🔬 Lint
         run: npm run lint
 
-  typecheck:
-    name: ʦ TypeScript
-    runs-on: ubuntu-22.04
-    steps:
-      - name: ⬇️ Checkout repo
-        uses: actions/checkout@v4
-
-      - name: ⎔ Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: 📥 Download deps
-        uses: bahmutov/npm-install@v1
-
-      - name: 🏗 Build
-        run: npm run build
-
-      - name: 🏄 Copy test env vars
-        run: cp .env.example .env
-
-      - name: 🛠 Setup Database
-        run: npx prisma migrate deploy && npx prisma generate --sql
-
       - name: 🔎 Type check
-        run: npm run typecheck --if-present
+        if: ${{ !cancelled() }}
+        run: npm run typecheck
 
   vitest:
-    name: ⚡ Vitest
-    runs-on: ubuntu-22.04
+    name: ⚡ Vitest (${{ matrix.shard }}/3)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - name: ⬇️ Checkout repo
         uses: actions/checkout@v4
 
-      - name: ⎔ Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: 📥 Download deps
-        uses: bahmutov/npm-install@v1
-
-      - name: 🏄 Copy test env vars
-        run: cp .env.example .env
-
-      - name: 🛠 Setup Database
-        run: npx prisma migrate deploy && npx prisma generate --sql
+      - name: 🧰 Setup
+        uses: ./.github/actions/setup
 
       - name: ⚡ Run vitest
-        run: npm run test -- --coverage
+        run: npx vitest run --shard=${{ matrix.shard }}/3
 
   playwright:
     name: 🎭 Playwright
-    runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: ⬇️ Checkout repo
         uses: actions/checkout@v4
 
-      - name: 🏄 Copy test env vars
-        run: cp .env.example .env
+      - name: 🧰 Setup
+        uses: ./.github/actions/setup
 
-      - name: ⎔ Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: 📥 Download deps
-        uses: bahmutov/npm-install@v1
-
-      - name: 📥 Install Playwright Browsers
-        run: npm run test:e2e:install
-
-      - name: 🛠 Setup Database
-        run: npx prisma migrate deploy && npx prisma generate --sql
-
-      - name: 🏦 Cache Database
-        id: db-cache
-        uses: actions/cache@v4
-        with:
-          path: prisma/data.db
-          key:
-            db-cache-schema_${{ hashFiles('./prisma/schema.prisma')
-            }}-migrations_${{ hashFiles('./prisma/migrations/*/migration.sql')
-            }}
+      # The runner image already carries Chromium's system libraries, so only
+      # the browser itself is downloaded (~10s).
+      - name: 📥 Install Playwright Chromium
+        run: npx playwright install chromium
 
       - name: 🌱 Seed Database
-        if: steps.db-cache.outputs.cache-hit != 'true'
         run: npx prisma migrate reset --force
 
       - name: 🏗 Build
@@ -137,7 +91,7 @@ jobs:
 
       - name: 📊 Upload report
         uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
           name: playwright-report
           path: playwright-report/
@@ -146,6 +100,7 @@ jobs:
   container:
     name: 📦 Prepare Container
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     # only prepare container on pushes
     if: ${{ github.event_name == 'push' }}
     steps:
@@ -192,7 +147,8 @@ jobs:
   deploy:
     name: 🚀 Deploy
     runs-on: ubuntu-24.04
-    needs: [lint, typecheck, vitest, playwright, container]
+    timeout-minutes: 15
+    needs: [static, vitest, playwright, container]
     # only deploy on pushes
     if: ${{ github.event_name == 'push' }}
     steps:

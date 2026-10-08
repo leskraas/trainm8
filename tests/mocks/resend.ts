@@ -1,4 +1,4 @@
-import { faker } from '@faker-js/faker'
+import { faker } from '@faker-js/faker/locale/en'
 import { HttpResponse, http, type HttpHandler } from 'msw'
 import { requireHeader, writeEmail } from './utils.ts'
 
