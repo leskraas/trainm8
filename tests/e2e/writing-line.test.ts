@@ -4,7 +4,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { formatNbDayOfMonth, formatNbWeekdayShort } from '#app/utils/format.ts'
 import { createPlanOutline } from '#app/utils/plan-outline/authoring.server.ts'
 import { getWeekVolumes } from '#app/utils/plan-outline/week-volumes.server.ts'
-import { expect, test } from '#tests/playwright-utils.ts'
+import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
 
 /**
  * The writing line end to end on a phone (#505 stories 35–41): a session typed
@@ -87,11 +87,11 @@ test('writing a session on an empty day: the parse, the week sum, a suggestion, 
 		name: new RegExp(`^Ny økt ${dayName}`),
 	})
 	await cell.scrollIntoViewIfNeeded()
-	// The cell is a button the moment it is drawn; retried until hydrated.
-	await expect(async () => {
-		await cell.click({ timeout: 1000 })
-		await expect(draft).toBeVisible({ timeout: 1000 })
-	}).toPass()
+	// The cell is a button the moment it is drawn, and opens nothing until
+	// hydrated. Opening replaces it with the draft, so it is pressed once.
+	await untilHydrated(cell)
+	await cell.click()
+	await expect(draft).toBeVisible()
 
 	// No history to read a sport from, so the draft asks; the athlete answers.
 	await draft.getByRole('radio', { name: 'Løping' }).click()
@@ -164,12 +164,11 @@ test('the creation menu writes a day months out, past the Planning Horizon and t
 
 	await navigate('/')
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
-	await expect(async () => {
-		await page.getByRole('button', { name: 'Lag ny' }).click({ timeout: 1000 })
-		await page
-			.getByRole('menuitem', { name: 'Skriv en økt' })
-			.click({ timeout: 1000 })
-	}).toPass()
+	// Pressed once, hydrated: a second press would close the menu again.
+	const create = page.getByRole('button', { name: 'Lag ny' })
+	await untilHydrated(create)
+	await create.click()
+	await page.getByRole('menuitem', { name: 'Skriv en økt' }).click()
 
 	const panel = page.getByRole('region', { name: 'Skriv en økt' })
 	await panel.getByLabel('Dag').fill(far)

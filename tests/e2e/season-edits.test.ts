@@ -1,4 +1,4 @@
-import { expect, test } from '#tests/playwright-utils.ts'
+import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
 
 /**
  * _Endre sesongen_ end to end (#505 stories 72–77): an athlete with an
@@ -125,10 +125,11 @@ test('choosing the easy week shows the weeks that change first, then says the ph
 		.getByRole('option')
 		.filter({ hasText: /hard uke$/ })
 		.last()
-	await expect(async () => {
-		await form.getByRole('combobox', { name: 'Lett uke' }).click()
-		await expect(chosen).toBeVisible({ timeout: 1000 })
-	}).toPass()
+	// Pressed once, hydrated: a second press would close the list again.
+	const easyWeek = form.getByRole('combobox', { name: 'Lett uke' })
+	await untilHydrated(easyWeek)
+	await easyWeek.click()
+	await expect(chosen).toBeVisible()
 	const weekNumber = /Uke (\d+)/.exec((await chosen.textContent()) ?? '')?.[1]
 	await chosen.click()
 	await form.getByRole('button', { name: 'Vis forhåndsvisning' }).click()

@@ -7,6 +7,9 @@ test('Users can add 2FA to their account and use it when logging in', async ({
 	navigate,
 	login,
 }) => {
+	// Several pages in one test, and on the dev server each first visit pays
+	// its cold Vite transform.
+	test.setTimeout(60_000)
 	const password = faker.internet.password()
 	const user = await login({ password })
 	await navigate('/settings/profile')

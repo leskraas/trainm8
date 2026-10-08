@@ -5,7 +5,7 @@ import {
 } from '#app/utils/activity-import.server.ts'
 import { localDate, localTimeUTC } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { expect, test } from '#tests/playwright-utils.ts'
+import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
 
 /**
  * Imports on I dag end to end on a phone (#505 stories 79–82): a run that
@@ -142,14 +142,12 @@ test('hva var dette? answered by linking, then Angre kobling and Koble igjen', a
 	await shot(page, '1-question', question)
 
 	// It was the planned run: the ekstra goes, the plan holds the import.
-	await expect(async () => {
-		await question.getByRole('button', { name: 'Det var Rolig 10 km' }).click()
-		await expect
-			.poll(async () => (await recordingOf(plan.id))?.recordingId, {
-				timeout: 2000,
-			})
-			.toBe(importId)
-	}).toPass()
+	const answer = question.getByRole('button', { name: 'Det var Rolig 10 km' })
+	await untilHydrated(answer)
+	await answer.click()
+	await expect
+		.poll(async () => (await recordingOf(plan.id))?.recordingId)
+		.toBe(importId)
 	expect((await recordingOf(plan.id))?.status).toBe('completed')
 	await expect(question).toHaveCount(0)
 	await expect(page.getByText('ekstra', { exact: true })).toHaveCount(0)
@@ -204,14 +202,11 @@ test('Gjort by hand says the numbers are not coming when no import is connected'
 	await navigate('/')
 
 	const done = page.getByRole('button', { name: 'Merk Morgentur som gjort' })
-	await expect(async () => {
-		await done.click({ timeout: 2000 })
-		await expect
-			.poll(async () => (await recordingOf(plan.id))?.status, {
-				timeout: 2000,
-			})
-			.toBe('completed')
-	}).toPass()
+	await untilHydrated(done)
+	await done.click()
+	await expect
+		.poll(async () => (await recordingOf(plan.id))?.status)
+		.toBe('completed')
 	await expect(
 		page.getByText('Gjort · uten tall, ingen import er koblet til'),
 	).toBeVisible()

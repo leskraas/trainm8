@@ -24,6 +24,9 @@ test('Users can register and use passkeys', async ({
 	navigate,
 	login,
 }) => {
+	// Several pages in one test, and on the dev server each first visit pays
+	// its cold Vite transform.
+	test.setTimeout(60_000)
 	await login()
 
 	const { client, authenticatorId } = await setupWebAuthn(page)

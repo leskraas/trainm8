@@ -1,5 +1,5 @@
 import { type Locator, type Page } from '@playwright/test'
-import { expect, test } from '#tests/playwright-utils.ts'
+import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
 
 /**
  * Plan authoring end-to-end (#399, ADR 0039/0043/0044): the whole manual
@@ -101,7 +101,11 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 
 	// This athlete has trained nothing, so there is no history to read a unit
 	// from and the currency is honestly theirs to pick (ADR 0043 §2).
-	await page.getByRole('combobox', { name: /what do you plan/i }).click()
+	// The select is drawn by the client and opens nothing until React has it,
+	// which on a cold dev server can be after the page shows.
+	const unit = page.getByRole('combobox', { name: /what do you plan/i })
+	await untilHydrated(unit)
+	await unit.click()
 	await page.getByRole('option', { name: 'Kilometres per week' }).click()
 	await page.getByLabel(/where you are starting from/i).fill('40')
 

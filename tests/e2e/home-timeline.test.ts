@@ -3,7 +3,7 @@ import sharp from 'sharp'
 import { HERO_FADE_SHARE } from '#app/routes/_home/timeline/anchoring.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { type Theme } from '#app/utils/theme.server.ts'
-import { expect, test } from '#tests/playwright-utils.ts'
+import { expect, middayTimezone, test } from '#tests/playwright-utils.ts'
 
 /**
  * The home timeline: one bi-directional stream anchored on today.
@@ -189,6 +189,11 @@ async function heroInTabOrder(page: Page) {
 async function seedSeason(userId: string) {
 	const now = new Date()
 	const day = 24 * 60 * 60 * 1000
+	// "Earlier today" and "later today" below are hours from now, so the
+	// athlete's day has to have those hours in it.
+	await prisma.athleteProfile.create({
+		data: { userId, timezone: middayTimezone(now) },
+	})
 	const workout = await prisma.workout.create({
 		data: {
 			title: 'Threshold Run',
