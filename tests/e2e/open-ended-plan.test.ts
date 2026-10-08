@@ -50,7 +50,7 @@ test('Hold meg aktiv makes a plan with no race, marked blokk 1 av ∞ on the pla
 	// down to no race day.
 	await navigate('/')
 	await expect(page.getByText(/· blokk 1 av ∞$/)).toBeVisible()
-	await expect(page.getByText(/to race day/i)).toHaveCount(0)
+	await expect(page.getByText(/til løpsdagen/i)).toHaveCount(0)
 	expect(errors).toEqual([])
 })
 
