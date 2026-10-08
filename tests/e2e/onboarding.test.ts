@@ -175,7 +175,11 @@ test('completes onboarding after GitHub OAuth given valid user details', async (
 	await expect(
 		page.getByRole('heading', { name: /welcome aboard/i }),
 	).toBeVisible()
-	await expect(page.getByText(ghUser.primaryEmail)).toBeVisible()
+	// Scoped to the page: the dev server's devtools panel keeps the route's
+	// loader data (this email among it) in the DOM.
+	await expect(
+		page.getByRole('main').getByText(ghUser.primaryEmail),
+	).toBeVisible()
 
 	// fields are pre-populated for the user, so we only need to accept
 	// terms of service and hit the 'crete an account' button
@@ -272,7 +276,11 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 	await expect(
 		page.getByRole('heading', { name: /welcome aboard/i }),
 	).toBeVisible()
-	await expect(page.getByText(ghUser.primaryEmail)).toBeVisible()
+	// Scoped to the page: the dev server's devtools panel keeps the route's
+	// loader data (this email among it) in the DOM.
+	await expect(
+		page.getByRole('main').getByText(ghUser.primaryEmail),
+	).toBeVisible()
 
 	const usernameInput = page.getByRole('textbox', { name: /username/i })
 
@@ -343,7 +351,13 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 		.getByRole('checkbox', {
 			name: /do you agree to our terms of service and privacy policy/i,
 		})
-		.click()
+		.check()
+	// Checking the box clears its error at once, so the button below it is
+	// already where it will stay when it is pressed. (Cleared only on blur,
+	// the line vanished on the press and the button moved out from under it.)
+	await expect(
+		page.getByText(/must agree to the terms of service and privacy policy/i),
+	).not.toBeVisible()
 	await createAccountButton.click()
 	await expect(createAccountButton.getByText('error')).not.toBeAttached()
 

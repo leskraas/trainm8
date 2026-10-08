@@ -148,7 +148,10 @@ export default function OnboardingRoute({
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: SignupFormSchema })
 		},
-		shouldRevalidate: 'onBlur',
+		// A fixed field clears its error as it is fixed. On blur, the error line
+		// under the terms box would vanish as the athlete presses the button
+		// below it, moving the button out from under the click.
+		shouldRevalidate: 'onInput',
 	})
 
 	return (
