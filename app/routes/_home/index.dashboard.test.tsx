@@ -1408,12 +1408,12 @@ test('the far end carries the destinations home only links to', async () => {
 	).toHaveAttribute('href', '/training/programs')
 })
 
-test('an athlete with no plan is offered one at the far end', async () => {
+test('an athlete with no plan is offered the first run at the far end', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	expect(
 		await screen.findByRole('link', { name: /planlegg en sesong/i }),
-	).toHaveAttribute('href', '/training/plan/new')
+	).toHaveAttribute('href', '/start')
 })
 
 // ── the re-composition: what left home ────────────────────────────────────

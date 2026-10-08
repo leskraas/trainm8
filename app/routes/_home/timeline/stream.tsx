@@ -1243,7 +1243,7 @@ export function EndCap({ cap }: { cap: TimelineEndCap }) {
 					</Link>
 				) : (
 					<Link
-						to="/training/plan/new"
+						to="/start"
 						className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[42px] items-center rounded-[13px] px-[15px] text-[12.5px]/[1] font-bold"
 					>
 						{CAP_LABELS.planASeason}

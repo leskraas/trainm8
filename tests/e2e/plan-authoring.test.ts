@@ -55,12 +55,9 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	// Story 1–2: what are you building toward?
 	// ---------------------------------------------------------------------
 
-	await navigate('/')
-	// The far end of the stream is the way in while there is no plan (#178): with
-	// no season there is no season plan to open, so the slot offers to author one.
-	await expect(page.getByText(/no season plan yet/i)).toBeVisible()
-	await page.getByRole('link', { name: 'Plan a season' }).click()
-	await expect(page).toHaveURL('/training/plan/new')
+	// Home's far end now opens the first run (#505 S14, tests/e2e/first-run.test.ts);
+	// authoring a season by hand starts on the plan page's own step.
+	await navigate('/training/plan/new')
 
 	// Nothing on the calendar yet, so the way forward is the dated goal — which
 	// visibly creates a `fitness-goal` Event rather than writing one behind the

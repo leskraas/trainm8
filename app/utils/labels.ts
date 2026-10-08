@@ -41,6 +41,12 @@ import type {
 	SessionArchetype,
 } from './catalogue.ts'
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
+import type { FirstRunPlanRefusal } from './first-run/first-run-schema.ts'
+import type {
+	FamilyChoice,
+	FindingAbsence,
+	HoursEstimate,
+} from './first-run/first-run.ts'
 import type {
 	ImportLinkRefusal,
 	MarkDoneRefusal,
@@ -1511,6 +1517,197 @@ export function nbDurationLabel(seconds: number): string {
 	]
 		.filter(Boolean)
 		.join(' ')
+}
+
+// ---------------------------------------------------------------------------
+// The first run (#505 stories 61–71): plain words, no zone codes
+// ---------------------------------------------------------------------------
+
+/** A number the Norwegian way: `6,5`, `1,5`. */
+function nbNumber(value: number): string {
+	return String(Math.round(value * 10) / 10).replace('.', ',')
+}
+
+/** `5:35` from seconds per kilometre. */
+function paceClock(secPerKm: number): string {
+	const total = Math.round(secPerKm)
+	return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
+/** Monday-first weekdays as a list: `tirsdag, torsdag og lørdag`. */
+export function nbWeekdayList(days: readonly number[]): string {
+	const names = days.map((day) => NB_WEEKDAY_LABELS[day] ?? '')
+	if (names.length <= 1) return names.join('')
+	return `${names.slice(0, -1).join(', ')} og ${names.at(-1)}`
+}
+
+/** Hours a week, Norwegian: `4 t`, `6,5 t`. */
+export function nbHoursLabel(hours: number): string {
+	return `${nbNumber(hours)} t`
+}
+
+/**
+ * The hours estimate with its arithmetic shown (#505 story 65):
+ * `43 km/uke à 5:35 ≈ 4 t`, and sport by sport where there are several —
+ * `43 km/uke à 5:35 + 2 økter/uke à 1 t 15 min ≈ 6,5 t`.
+ */
+export function hoursEstimateLabel(estimate: HoursEstimate): string {
+	const parts = estimate.parts.map((part) =>
+		part.kind === 'pace'
+			? `${part.kmPerWeek} km/uke à ${paceClock(part.paceSecPerKm)}`
+			: `${nbNumber(part.sessionsPerWeek)} ${part.sessionsPerWeek === 1 ? 'økt' : 'økter'}/uke à ${nbDurationLabel(part.secondsPerSession)}`,
+	)
+	return `${parts.join(' + ')} ≈ ${nbHoursLabel(estimate.hours)}`
+}
+
+/** Why a finding on "Dette fant vi" has no number (#505 story 71). */
+export const FINDING_ABSENCE_LABELS: Record<FindingAbsence, string> = {
+	'not-connected':
+		'Ikke målt · intervals.icu er ikke koblet til, og du har ikke logget økter her',
+	importing: 'Ikke målt ennå · historikken hentes fortsatt fra intervals.icu',
+	'no-sessions': 'Ikke målt · vi fant ingen økter de siste fire ukene',
+	'no-duration': 'Ikke målt · øktene dine har ingen tid registrert',
+}
+
+/**
+ * "Vi valgte X fordi …" (#505 stories 66 and 70): the philosophy the first
+ * run proposes, and its one reason, in plain words.
+ */
+export function familyChoiceSentence(choice: FamilyChoice): string {
+	const name = PHILOSOPHY_LABELS[choice.family]
+	const reason = choice.reason
+	const because = (() => {
+		switch (reason.code) {
+			case 'older-athlete':
+				return `du er ${reason.age} år. Da trenger kroppen hvile oftere, så hver tredje uke er lett.`
+			case 'little-history':
+				return reason.weeksTrained == null || reason.weeksTrained === 0
+					? 'vi ikke har noe trening å lese fra. En jevn økning med en lett uke hver fjerde uke er den tryggeste starten.'
+					: `vi fant trening i ${reason.weeksTrained} av de siste fire ukene. En jevn økning med en lett uke hver fjerde uke er den tryggeste starten.`
+			case 'few-days':
+				return `du har ${reason.days} ${reason.days === 1 ? 'dag' : 'dager'} i uka. Da passer en jevn økning med en lett uke hver fjerde uke best.`
+			case 'few-hours':
+				return `du har ${nbHoursLabel(reason.hours)} i uka. Med lite tid gir en jevn økning med en lett uke hver fjerde uke mest.`
+			case 'long-run-up':
+				return `det er ${reason.weeks} uker til løpet. Da rekker du en lang periode med rolig trening før de harde øktene kommer.`
+			case 'many-hours':
+				return `du har ${nbHoursLabel(reason.hours)} i uka. Med så mye tid lønner det seg å trene det meste rolig og litt veldig hardt.`
+			case 'race-on-limited-time':
+				return `du har ${nbHoursLabel(reason.hours)} i uka mot et løp. Med begrenset tid gir kontrollert harde økter mest igjen.`
+			case 'steady':
+				return 'du trener jevnt og vil holde deg i form. Tre uker som bygger og én lett holder formen oppe uten å slite deg ut.'
+		}
+	})()
+	return `Vi valgte ${name} fordi ${because}`
+}
+
+/** The first run's own words, screen by screen. */
+export const FIRST_RUN_LABELS = {
+	stepOf: (step: number, of: number) => `Steg ${step} av ${of}`,
+	connect: {
+		title: 'Koble til intervals.icu',
+		intro:
+			'Da kan vi lese de siste ukene dine og fylle ut svarene for deg. Vi henter bare fullførte økter.',
+		keyLabel: 'API-nøkkel fra intervals.icu',
+		keyHelp:
+			'Du finner den i intervals.icu under Settings → Developer Settings.',
+		submit: 'Koble til',
+		connected: 'intervals.icu er koblet til.',
+		next: 'Fortsett',
+		skip: 'Hopp over',
+		skipConsequence:
+			'Hopper du over, har vi ingen historikk å lese. Da fyller du inn svarene selv, og planen bygger bare på det du sier.',
+		emptyKey: 'Lim inn API-nøkkelen fra intervals.icu.',
+		rejected:
+			'intervals.icu godtok ikke nøkkelen. Lager du en ny nøkkel, slutter den gamle å virke – kopier den som gjelder nå.',
+		unreachable: 'Vi fikk ikke kontakt med intervals.icu. Prøv igjen om litt.',
+	},
+	findings: {
+		title: 'Dette fant vi',
+		intro: 'Fra de siste fire ukene dine.',
+		importing:
+			'Historikken hentes fra intervals.icu. Siden oppdaterer seg selv når den er hentet.',
+		discipline: 'Mest trent',
+		volume: 'Timer i uka',
+		days: 'Vanlige treningsdager',
+		strength: 'Styrke',
+		disciplineValue: (sport: string, sessions: number, weeks: number) =>
+			`${sport} · ${sessions} ${sessions === 1 ? 'økt' : 'økter'} på ${weeks} ${weeks === 1 ? 'uke' : 'uker'}`,
+		strengthValue: (perWeek: number) =>
+			perWeek === 0
+				? 'Ingen styrkeøkter'
+				: `${nbNumber(perWeek)} ${perWeek === 1 ? 'økt' : 'økter'} i uka`,
+		correct: 'Det stemmer',
+		wrong: 'Noe er feil',
+		wrongIntro:
+			'Rett det som ikke stemmer. Svarene på neste side fylles ut med det du skriver her.',
+		saveCorrection: 'Bruk dette',
+	},
+	questions: {
+		title: 'Tre spørsmål',
+		intro: 'Fylt ut fra historikken din. Endre det som ikke passer.',
+		goal: 'Hva trener du mot?',
+		goalActive: 'Hold meg aktiv',
+		goalActiveHelp: 'Ingen løp og ingen sluttdato. Planen går i blokker.',
+		goalEvent: 'Et løp eller en dato',
+		eventName: 'Hva heter det?',
+		eventDate: 'Dato',
+		hours: 'Timer i uka',
+		hoursFromHistory: (arithmetic: string) => `Fra historikken: ${arithmetic}`,
+		hoursUnmeasured: (reason: string) => `${reason}. Skriv det du har tid til.`,
+		days: 'Hvilke dager kan du trene?',
+		daysFromHistory: 'Dagene du pleier å trene.',
+		daysDefault:
+			'Et forslag – vi hadde ingen dager å lese fra. Velg dagene som passer deg.',
+		daysCorrected: 'Dagene du skrev.',
+		discipline: 'Planen gjelder',
+		next: 'Vis planen',
+	},
+	plan: {
+		title: 'Planen',
+		youChose: (name: string) => `Du valgte ${name}.`,
+		weSuggested: (sentence: string) => `Vårt forslag: ${sentence}`,
+		openEnded: (weeks: number) =>
+			`Blokk 1 · ${weeks} uker, så neste blokk. Ingen sluttdato.`,
+		towardEvent: (name: string, weeks: number) => `${weeks} uker mot ${name}.`,
+		phase: (name: string, weeks: number) =>
+			`${name} · ${weeks} ${weeks === 1 ? 'uke' : 'uker'}`,
+		firstWeek: (hours: string) => `Første uke: ${hours}`,
+		peakWeek: (hours: string) => `Tyngste uke: ${hours}`,
+		startsOn: (date: string) => `Planen starter ${date}.`,
+		switchTitle: 'Bytt filosofi',
+		switchSubmit: 'Bruk denne',
+		next: 'Se de to første ukene',
+		back: 'Endre svarene',
+	},
+	weeks: {
+		title: 'De to første ukene',
+		intro: (days: string, hours: string) =>
+			`Øktene ligger på ${days}. Første uke er ${hours} til sammen.`,
+		weekHeading: (weekNumber: number, from: string) =>
+			`Uke ${weekNumber} · fra ${from}`,
+		weekTotal: (planned: string, target: string) =>
+			`${planned} planlagt · målet er ${target}`,
+		long: 'Langtur',
+		easy: 'Rolig økt',
+		tooManyHardSessions: (hard: number, days: number) =>
+			`Planen ber senere om ${hard} harde økter i uka, men du har ${days} ${days === 1 ? 'dag' : 'dager'}. Du kan ta to økter samme dag, eller velge flere dager i Sesong.`,
+		create: 'Start planen',
+		selfSetUp: 'Jeg vil heller sette opp sesongen selv',
+		selfSetUpHelp: 'Du får den samme planen i Sesong, og kan endre alt i den.',
+		created: 'Planen er klar',
+		createdDescription: 'De to første ukene ligger i I dag.',
+		back: 'Tilbake til planen',
+	},
+} as const
+
+/** Why the first run's plan could not be made, said where it is refused. */
+export const FIRST_RUN_REFUSAL_LABELS: Record<FirstRunPlanRefusal, string> = {
+	'plan-already-active': 'Du har allerede en plan. Du finner den i Sesong.',
+	'event-too-soon':
+		'Velg en dato etter neste uke, så det blir uker å trene mot den.',
+	'nothing-to-lay':
+		'Med disse svarene ble det ingen økter å legge. Velg minst én dag og noen timer i uka.',
 }
 
 /**
