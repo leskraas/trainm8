@@ -341,6 +341,33 @@ describe('reading a fixed day in the track currency', () => {
 		).toBe(5)
 	})
 
+	test('a timed rest between reps adds no km and leaves the reps measured', () => {
+		const reps = [
+			{
+				repeatCount: 6,
+				steps: [
+					{ kind: 'cardio', durationSec: null, distanceM: 1000 },
+					{ kind: 'rest', durationSec: 60, distanceM: null },
+				],
+			},
+		]
+		expect(fixedDayVolume(reps, 'km')).toBe(6)
+		// In hours the reps state no time, so the session's hours stay unknown.
+		expect(fixedDayVolume(reps, 'hours')).toBeNull()
+		// A rest is skipped only where it states no distance; work never is.
+		expect(
+			fixedDayVolume(
+				[
+					{
+						repeatCount: 1,
+						steps: [{ kind: 'cardio', durationSec: 600, distanceM: null }],
+					},
+				],
+				'km',
+			),
+		).toBeNull()
+	})
+
 	test('a tss or sets track cannot price a prescription yet, and says so', () => {
 		expect(fixedDayVolume(blocks, 'tss')).toBeNull()
 		expect(fixedDayVolume(blocks, 'sets')).toBeNull()

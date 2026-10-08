@@ -354,7 +354,7 @@ const activeOutlineSelect = {
 									seriesRepeatCount: true,
 									steps: {
 										orderBy: { orderIndex: 'asc' },
-										select: { durationSec: true, distanceM: true },
+										select: { kind: true, durationSec: true, distanceM: true },
 									},
 								},
 							},

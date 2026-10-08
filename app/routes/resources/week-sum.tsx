@@ -1,4 +1,3 @@
-import { relativeWeekName } from '#app/routes/_home/timeline/week-words.ts'
 import {
 	isCalendarDay,
 	mondayOfDay,
@@ -7,6 +6,8 @@ import {
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { getWeekVolumes } from '#app/utils/plan-outline/week-volumes.server.ts'
+import { relativeWeekName } from '#app/utils/relative-week.ts'
+import { WeekSumQuerySchema } from '#app/utils/writing-line-schema.ts'
 import { type Route } from './+types/week-sum.ts'
 
 /**
@@ -22,14 +23,20 @@ import { type Route } from './+types/week-sum.ts'
  */
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const day = new URL(request.url).searchParams.get('day') ?? ''
-	// Every other ending answers as data rather than throwing: a fetcher's error
-	// would reach home's own error boundary and take the list down with a line
-	// that is only ever a preview. Without the week, the line says nothing about
-	// it and the write still works.
+	const query = WeekSumQuerySchema.safeParse(
+		Object.fromEntries(new URL(request.url).searchParams),
+	)
+	const day = query.success ? query.data.day : ''
+	// Every other ending answers as data rather than throwing — a decision
+	// recorded in ADR 0082's S11 notes: a fetcher's error would reach home's
+	// own error boundary and take the whole list down over a line that is only
+	// ever a preview. Without the week, the line says nothing about it, the
+	// write still works, and the toast after it reads the week on the server.
 	try {
 		const timezone = await getAthleteTimezone(userId)
-		if (!isCalendarDay(day, timezone)) return { day, week: null }
+		if (!query.success || !isCalendarDay(day, timezone)) {
+			return { day, week: null }
+		}
 		const weekKey = mondayOfDay(day)
 		return {
 			day,

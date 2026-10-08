@@ -95,7 +95,7 @@ import type {
 	StepKind,
 	WorkoutIntent,
 } from './workout-schema.ts'
-import type { SentenceProblem } from './workout-sentence.ts'
+import type { SentenceProblem, UnreadReason } from './workout-sentence.ts'
 /* eslint-enable import/consistent-type-specifier-style */
 
 // ---------------------------------------------------------------------------
@@ -508,8 +508,10 @@ const NB_UNMEASURED_WORDS: Record<VolumeCurrency, string> = {
 export function unmeasuredCountLabel(
 	count: number,
 	currency: VolumeCurrency,
+	/** `−` when sessions without a number left the week (an undo). */
+	sign: '+' | '−' = '+',
 ): string {
-	return `+${count} uten ${NB_UNMEASURED_WORDS[currency]}`
+	return `${sign}${count} uten ${NB_UNMEASURED_WORDS[currency]}`
 }
 
 /** Why one session has no number — every "ikke målt" gives a reason (story 71). */
@@ -1287,6 +1289,8 @@ export const DAY_STAMP_LABELS = {
 	prefilled: 'Det du trener mest — trykk på en annen for å bytte.',
 	ask: 'Ingenting å lese det av ennå, så: hvilken?',
 	discipline: 'Idrett',
+	/** The open draft, named for the day it writes on. */
+	draftFor: (day: string) => `Ny økt ${day}`,
 	liftsNote: 'En styrkeøkt sier hvilke løft — mer enn linja har plass til.',
 	failed: 'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
 	done: 'Ferdig',
@@ -1310,30 +1314,43 @@ export const WRITING_LINE_LABELS = {
 	understood: 'Forstått',
 	/** `Til sammen 10 km`, `Til sammen 5 km og 7 min 30 s`. */
 	totals: (parts: string[]) => `Til sammen ${parts.join(' og ')}`,
-	unknownWord: (word: string) => `Kjenner ikke «${word}»`,
+	/** Why a piece of the sentence was not read, said where it stands. */
+	unread: {
+		'unknown-word': (word: string) => `Kjenner ikke «${word}»`,
+		'no-unit': (word: string) => `«${word}» mangler enhet`,
+		'ambiguous-time': (word: string) => `«${word}» kan leses på to måter`,
+		'ambiguous-number': (word: string) =>
+			`«${word}» kan være tusen eller desimaler`,
+		stray: (word: string) => `Tegnet «${word}» hører ikke hjemme her`,
+	} satisfies Record<UnreadReason, (word: string) => string>,
 	noSuggestion: 'Prøv et ord som rolig, terskel eller pause.',
 	suggestionsFor: (word: string) => `Forslag for «${word}»`,
 	replace: (from: string, to: string) => `Bytt «${from}» med «${to}»`,
-	weekSum: 'Uka',
 	/** `Løping denne uka:` — the week the session lands in. */
 	weekLead: (sport: string, weekName: string) =>
 		`${sport} ${weekName.toLowerCase()}:`,
 	problems: {
 		empty: '',
+		'too-long': 'Linja tar en kort setning — høyst 200 tegn.',
+		'empty-part': 'Det står et + eller komma uten noe på den ene siden.',
 		'no-quantity': 'Skriv hvor langt eller hvor lenge: 10 km, 45 min, 1 t.',
 		'two-quantities': 'En del sier enten km eller tid, ikke begge.',
+		'two-repeats': 'En del kan gjentas én gang: 3x10 min, ikke 2 x 3 x 10 min.',
+		'two-intensities': 'En del har én intensitet — ett ord eller én fart.',
+		'two-disciplines': 'Setningen nevner to idretter. Skriv én økt om gangen.',
+		'dangling-rest': 'Pausen mangler tid: p 1 min.',
+		'distance-rest': 'En pause skrives som tid her, f.eks. p 1 min.',
+		'out-of-range': 'Et av tallene er utenfor det en økt kan være.',
 		'no-discipline': 'Velg idrett over, eller skriv den: løp, sykkel, svøm.',
 	} satisfies Record<SentenceProblem, string>,
 	add: (sentence: string) => `Legg til «${sentence}»`,
 	addEmpty: 'Legg til',
-	notYet: 'Rett ordene over før du legger til',
 	/** The creation menu's way in, and the panel it opens (story 40). */
 	open: 'Skriv en økt',
 	day: 'Dag',
 	close: 'Lukk',
-	saved: 'Lagt inn.',
 	failed: 'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
-	outsideWindow: 'Velg en dag innenfor et halvt år fra i dag.',
+	outsideWindow: 'Den dagen ligger utenfor det I dag viser.',
 } as const
 
 /** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */

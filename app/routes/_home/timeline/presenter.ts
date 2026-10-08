@@ -99,6 +99,7 @@ import {
 	type ProfileBar,
 	type ProfileBarGroup,
 } from '#app/utils/session-profile.ts'
+import { TIMELINE_TRAILING_DAYS } from '#app/utils/timeline-window.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -131,24 +132,19 @@ export type { TimelineTrackWeek } from './week-words.ts'
 
 /**
  * How far back home's own query reaches — half a year, the bound
- * `getSessionLedger` is called with on this route.
+ * `getSessionLedger` is called with on this route. It lives with the rest of
+ * the window in `timeline-window.ts` (the writing line reads it too) and is
+ * re-exported here for the stream.
  *
- * It lives here rather than in the loader because two things have to agree
- * about it and neither of them is the query: the **start cap** states this
+ * Two things have to agree about it and neither of them is the query: the
+ * **start cap** states this
  * bound instead of claiming the athlete's history starts there, and no day
  * behind it is built at all (ADR 0075 §2 and §3). A band saying
  * `9 days · nothing logged` over dates the query never asked about would be a
  * fabrication, and this is the line between "nothing was logged" and "nothing
  * was fetched".
  */
-export const TIMELINE_TRAILING_DAYS = 182
-
-/**
- * How far forward the timeline reaches — the loader's query bound, and the
- * last day the writing line's panel offers, so a session can only be written
- * where it can be read back and taken away again (ADR 0076).
- */
-export const TIMELINE_HORIZON_DAYS = 182
+export { TIMELINE_TRAILING_DAYS }
 
 /** One session, as the stream renders it inside the day that owns it. */
 export type TimelineSession = {

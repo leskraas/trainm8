@@ -1,6 +1,7 @@
 import { type Page } from '@playwright/test'
 import { addDays, mondayOfDay } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { formatNbDayOfMonth, formatNbWeekdayShort } from '#app/utils/format.ts'
 import { createPlanOutline } from '#app/utils/plan-outline/authoring.server.ts'
 import { getWeekVolumes } from '#app/utils/plan-outline/week-volumes.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
@@ -25,13 +26,13 @@ async function shot(page: Page, name: string) {
 	if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` })
 }
 
-async function seedRunner(userId: string) {
+async function seedRunner(userId: string, weeks = 26) {
 	await prisma.athleteProfile.create({
 		data: { userId, timezone: TZ, defaultTrainingTime: '07:00' },
 	})
 	const created = await createPlanOutline(userId, {
 		startWeekKey: mondayOfDay(todayKey()),
-		structure: { phases: [{ name: 'Blokk 1', weeks: 26, rhythm: '3:1' }] },
+		structure: { phases: [{ name: 'Blokk 1', weeks, rhythm: '3:1' }] },
 		tracks: [{ discipline: 'run', currency: 'km', anchorValue: 40 }],
 	})
 	if (!created.ok) throw new Error(`plan setup failed: ${created.reason}`)
@@ -77,16 +78,20 @@ test('writing a session on an empty day: the parse, the week sum, a suggestion, 
 	const day = todayKey()
 	const before = await runWeek(user.id, day)
 
-	const cell = page.locator(`[data-timeline-empty="${day}"]`)
+	const midday = new Date(`${day}T12:00:00Z`)
+	const dayName = `${formatNbWeekdayShort(midday, TZ)} ${formatNbDayOfMonth(midday, TZ)}`
+	const cell = page.getByRole('button', {
+		name: new RegExp(`^Legg inn en økt ${dayName}`),
+	})
+	const draft = page.getByRole('group', {
+		name: new RegExp(`^Ny økt ${dayName}`),
+	})
 	await cell.scrollIntoViewIfNeeded()
 	// The cell is a button the moment it is drawn; retried until hydrated.
 	await expect(async () => {
 		await cell.click({ timeout: 1000 })
-		await expect(page.locator(`[data-timeline-draft="${day}"]`)).toBeVisible({
-			timeout: 1000,
-		})
+		await expect(draft).toBeVisible({ timeout: 1000 })
 	}).toPass()
-	const draft = page.locator(`[data-timeline-draft="${day}"]`)
 
 	// No history to read a sport from, so the draft asks; the athlete answers.
 	await draft.getByRole('radio', { name: 'Løping' }).click()
@@ -135,9 +140,7 @@ test('writing a session on an empty day: the parse, the week sum, a suggestion, 
 	await expect(done).toBeVisible()
 	await shot(page, '3-saved')
 	await done.click()
-	await expect(
-		page.locator(`[data-timeline-day="${day}"]`).getByText('10 km rolig'),
-	).toBeVisible()
+	await expect(page.getByRole('link', { name: /10 km rolig/ })).toBeVisible()
 	await shot(page, '4-row')
 
 	const after = await runWeek(user.id, day)
@@ -148,15 +151,16 @@ test('writing a session on an empty day: the parse, the week sum, a suggestion, 
 	expect(errors).toEqual([])
 })
 
-test('the creation menu writes a day months out, past the Planning Horizon', async ({
+test('the creation menu writes a day months out, past the Planning Horizon and the half year', async ({
 	page,
 	navigate,
 	login,
 }) => {
 	test.setTimeout(120_000)
 	const user = await login()
-	await seedRunner(user.id)
-	const far = addDays(todayKey(), 90)
+	// Forty weeks: the plan runs past the half year, and so does the window.
+	await seedRunner(user.id, 40)
+	const far = addDays(todayKey(), 250)
 
 	await navigate('/')
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()

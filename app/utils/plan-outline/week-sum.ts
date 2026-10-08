@@ -72,6 +72,7 @@ function addedIn(
 			// A lift states no distance or time, so a strength step carries
 			// neither and the session reads as unmeasured in km and hours.
 			steps: block.steps.map((step) => ({
+				kind: step.kind,
 				durationSec:
 					step.kind === 'strength' ? null : (step.durationSec ?? null),
 				distanceM: step.kind === 'cardio' ? (step.distanceM ?? null) : null,
@@ -113,4 +114,23 @@ export function weekSumPreview(
 		unmeasuredAdded: absence === 'no-number' ? 1 : 0,
 		target: track.target,
 	}
+}
+
+/**
+ * Whether a change moved a week's sum for this sport: its track's Planned
+ * Volume or its count of sessions without a number. False where no track
+ * counts the sport — there is no sum to have moved.
+ */
+export function weekSumMoved(
+	before: WeekVolumes,
+	after: WeekVolumes,
+	discipline: string,
+): boolean {
+	const was = trackForDiscipline(before, discipline)
+	const now = trackForDiscipline(after, discipline)
+	if (!was || !now) return false
+	return (
+		was.planned !== now.planned ||
+		was.plannedUnmeasuredCount !== now.plannedUnmeasuredCount
+	)
 }

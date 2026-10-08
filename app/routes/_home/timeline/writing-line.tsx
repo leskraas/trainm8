@@ -21,9 +21,11 @@ import { ScoreStanza } from '#app/components/score-stanza.tsx'
 import { type loader as weekSumLoader } from '#app/routes/resources/week-sum.tsx'
 import { addDays } from '#app/utils/athlete-calendar.ts'
 import { isStampableDiscipline } from '#app/utils/day-stamp.ts'
+import { formatNbVolumeFigure } from '#app/utils/format.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
 	DAY_STAMP_LABELS,
+	NB_VOLUME_UNITS,
 	nbDisciplineLabel,
 	nbDurationLabel,
 	WRITING_LINE_LABELS,
@@ -42,6 +44,7 @@ import {
 	type Discipline,
 } from '#app/utils/workout-schema.ts'
 import {
+	MAX_SENTENCE_LENGTH,
 	type ParsedSentence,
 	parseWorkoutSentence,
 	replaceWord,
@@ -121,7 +124,7 @@ export function WritingLine({
 
 	const totals = [
 		parsed.totals.distanceM != null
-			? `${String(parsed.totals.distanceM / 1000).replace('.', ',')} km`
+			? `${formatNbVolumeFigure(parsed.totals.distanceM / 1000, 'km')} ${NB_VOLUME_UNITS.km}`
 			: null,
 		parsed.totals.durationSec != null
 			? nbDurationLabel(parsed.totals.durationSec)
@@ -144,6 +147,7 @@ export function WritingLine({
 				aria-label={WRITING_LINE_LABELS.input}
 				placeholder={WRITING_LINE_LABELS.placeholder}
 				autoFocus={autoFocus}
+				maxLength={MAX_SENTENCE_LENGTH}
 				autoComplete="off"
 				autoCapitalize="off"
 				autoCorrect="off"
@@ -193,7 +197,7 @@ export function WritingLine({
 						className="flex flex-wrap items-center gap-1.5"
 					>
 						<span className="text-ink-body text-[12px]/[1.35]">
-							{WRITING_LINE_LABELS.unknownWord(word.text)}
+							{WRITING_LINE_LABELS.unread[word.reason](word.text)}
 						</span>
 						{word.suggestions.length > 0 ? (
 							<span
@@ -220,11 +224,11 @@ export function WritingLine({
 									</button>
 								))}
 							</span>
-						) : (
+						) : word.reason === 'unknown-word' ? (
 							<span className="text-ink-dimmer text-[11px]/[1.35]">
 								{WRITING_LINE_LABELS.noSuggestion}
 							</span>
-						)}
+						) : null}
 					</div>
 				))}
 				{typed
@@ -399,18 +403,13 @@ export function WritingPanel({
 				</p>
 			)}
 			<div className="flex flex-wrap items-center gap-2">
-				<button
-					type="button"
-					disabled={!parsed.structure || !validDay || pending}
-					onClick={submit}
-					className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[34px] items-center rounded-[10px] px-[13px] text-[12.5px]/[1] font-bold disabled:opacity-60"
-				>
-					{pending
-						? DAY_STAMP_LABELS.adding
-						: text.trim()
-							? WRITING_LINE_LABELS.add(text.trim())
-							: WRITING_LINE_LABELS.addEmpty}
-				</button>
+				<WriteButton
+					text={text}
+					parsed={parsed}
+					pending={pending}
+					disabled={!validDay}
+					onWrite={submit}
+				/>
 				<button
 					type="button"
 					onClick={onClose}
@@ -425,5 +424,40 @@ export function WritingPanel({
 				</p>
 			) : null}
 		</section>
+	)
+}
+
+/**
+ * The line's save, shared by the day's draft and the panel: `Legg til «…»`,
+ * offered only once the reader understood every word, so what is written is
+ * what the preview above it showed.
+ */
+export function WriteButton({
+	text,
+	parsed,
+	pending,
+	disabled = false,
+	onWrite,
+}: {
+	text: string
+	parsed: ParsedSentence
+	pending: boolean
+	disabled?: boolean
+	onWrite: () => void
+}) {
+	const typed = text.trim()
+	return (
+		<button
+			type="button"
+			disabled={disabled || pending || !parsed.structure}
+			onClick={onWrite}
+			className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[34px] items-center rounded-[10px] px-[13px] text-[12.5px]/[1] font-bold disabled:opacity-60"
+		>
+			{pending
+				? DAY_STAMP_LABELS.adding
+				: typed
+					? WRITING_LINE_LABELS.add(typed)
+					: WRITING_LINE_LABELS.addEmpty}
+		</button>
 	)
 }

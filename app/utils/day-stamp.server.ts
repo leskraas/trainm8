@@ -28,9 +28,13 @@ export type DayStampResult =
  * Training Time — the resolution the Plan Outline's stamp and the Catalogue's
  * place use too.
  */
-async function scheduledAtOn(userId: string, dateKey: string): Promise<Date> {
+async function scheduledAtOn(
+	userId: string,
+	dateKey: string,
+	knownTimezone?: string,
+): Promise<Date> {
 	const [timezone, profile] = await Promise.all([
-		getAthleteTimezone(userId),
+		knownTimezone ?? getAthleteTimezone(userId),
 		prisma.athleteProfile.findUnique({
 			where: { userId },
 			select: { defaultTrainingTime: true },
@@ -61,15 +65,18 @@ export async function stampSessionOnDay({
 	userId,
 	dateKey,
 	discipline,
+	timezone,
 }: {
 	userId: string
 	dateKey: string
 	discipline: Discipline
+	/** The Athlete Timezone, when the caller has already read it. */
+	timezone?: string
 }): Promise<DayStampResult> {
 	if (!isStampableDiscipline(discipline))
 		return { ok: false, reason: 'not-stampable' }
 
-	const scheduledAt = await scheduledAtOn(userId, dateKey)
+	const scheduledAt = await scheduledAtOn(userId, dateKey, timezone)
 	const input = buildDayStamp({ discipline, scheduledAt })
 
 	const session = await createWorkoutSession(userId, input)
@@ -87,22 +94,26 @@ export type WrittenSessionResult =
  * and, like every other, it never touches the Week Target: nothing on this path
  * reads or writes the Plan Outline.
  *
- * Any day the timeline renders takes it, past the Planning Horizon included;
- * the horizon limits what the app lays, never what the athlete writes.
+ * Any day I dag renders takes it, past the Planning Horizon included
+ * (`timeline-window.ts`); the horizon limits what the app lays, never what the
+ * athlete writes.
  */
 export async function writeSessionOnDay({
 	userId,
 	dateKey,
 	discipline,
 	sentence,
+	timezone,
 }: {
 	userId: string
 	dateKey: string
 	/** The chip; a discipline word in the sentence wins over it. */
 	discipline: CardioDiscipline | null
 	sentence: string
+	/** The Athlete Timezone, when the caller has already read it. */
+	timezone?: string
 }): Promise<WrittenSessionResult> {
-	const scheduledAt = await scheduledAtOn(userId, dateKey)
+	const scheduledAt = await scheduledAtOn(userId, dateKey, timezone)
 	const input = buildWrittenSession({ sentence, discipline, scheduledAt })
 	if (!input) return { ok: false, reason: 'not-understood' }
 	const session = await createWorkoutSession(userId, input)

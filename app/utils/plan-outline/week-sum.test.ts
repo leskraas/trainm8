@@ -104,6 +104,16 @@ describe('weekSumPreview', () => {
 		expect(preview).toMatchObject({ before: 40, after: 50, added: 10 })
 	})
 
+	test('a timed rest between reps adds no km and does not unmeasure the reps', () => {
+		const volumes = weekOf(FORTY)
+		const preview = weekSumPreview(
+			volumes,
+			structure('6x1 km p 1 min'),
+			trackForDiscipline(volumes, 'run'),
+		)
+		expect(preview).toMatchObject({ before: 40, after: 46, added: 6 })
+	})
+
 	test('a session with no number in the track’s unit is counted, not added as zero', () => {
 		const volumes = weekOf(FORTY)
 		const preview = weekSumPreview(
@@ -216,6 +226,18 @@ describe('weekSumChangeLine', () => {
 				change: 'added',
 			}),
 		).toBe('Løping neste uke: 40 km, +1 uten km. Ukemålet står på 52.')
+	})
+
+	test('a removed session with no km takes its count with it', () => {
+		expect(
+			weekSumChangeLine({
+				before: weekOf([...FORTY, run(TUESDAY, null)]),
+				after: weekOf(FORTY),
+				discipline: 'run',
+				weekName: 'Denne uka',
+				change: 'removed',
+			}),
+		).toBe('Løping denne uka: 40 km, −1 uten km. Ukemålet står på 52.')
 	})
 
 	test('no plan and Annet say what happened without a sum', () => {

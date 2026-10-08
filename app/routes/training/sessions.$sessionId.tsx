@@ -153,6 +153,7 @@ import {
 	markSessionMissed,
 	updateWorkoutSession,
 } from '#app/utils/workout.server.ts'
+import { withWeekSumToast } from '#app/utils/writing-line.server.ts'
 import { type Route } from './+types/sessions.$sessionId.ts'
 import { type ExerciseItem } from './__exercise-combobox.tsx'
 import { ScheduledWorkoutSentence } from './__workout-detail-editor.tsx'
@@ -394,9 +395,32 @@ export async function action({ request, params }: Route.ActionArgs) {
 	const intent = formData.get('intent')
 
 	if (intent === 'delete') {
-		const deleted = await deleteWorkoutSession(userId, params.sessionId)
+		const sessionId = params.sessionId
+		// Read before it goes, owner-scoped: what the toast's week sum is about
+		// (#505 story 39). A recording-only session has no prescription to sum.
+		const target = await prisma.workoutSession.findFirst({
+			where: { id: sessionId, userId },
+			select: { scheduledAt: true, workout: { select: { discipline: true } } },
+		})
+		invariantResponse(target, 'Workout session not found', { status: 404 })
+		if (!target.workout) {
+			const deleted = await deleteWorkoutSession(userId, sessionId)
+			invariantResponse(deleted, 'Workout session not found', { status: 404 })
+			return redirect('/')
+		}
+		const timezone = await getAthleteTimezone(userId)
+		const { result: deleted, headers } = await withWeekSumToast(
+			userId,
+			{
+				dayKey: localDate(target.scheduledAt, timezone),
+				discipline: target.workout.discipline,
+				change: 'removed',
+				timezone,
+			},
+			() => deleteWorkoutSession(userId, sessionId),
+		)
 		invariantResponse(deleted, 'Workout session not found', { status: 404 })
-		return redirect('/')
+		return redirect('/', headers ? { headers } : undefined)
 	}
 
 	if (intent === 'mark-missed') {
@@ -532,10 +556,21 @@ export async function action({ request, params }: Route.ActionArgs) {
 			)
 		}
 
-		const updated = await updateWorkoutSession(
+		// The token edit's toast (#505 story 39): what the change did to its
+		// week's sum, and that the Week Target stayed — said only when the sum
+		// moved, so retyping an intensity or a time of day says nothing.
+		const timezone = await getAthleteTimezone(userId)
+		const sessionId = params.sessionId
+		const { result: updated, headers: toastHeaders } = await withWeekSumToast(
 			userId,
-			params.sessionId,
-			authoringInput.data,
+			{
+				dayKey: localDate(authoringInput.data.scheduledAt, timezone),
+				discipline: authoringInput.data.discipline,
+				change: 'added',
+				timezone,
+				quietUnlessMoved: true,
+			},
+			() => updateWorkoutSession(userId, sessionId, authoringInput.data),
 		)
 		invariantResponse(
 			updated.ok || updated.reason !== 'not-found',
@@ -592,7 +627,10 @@ export async function action({ request, params }: Route.ActionArgs) {
 		 * resets the form to its defaults, and an autosave has no business
 		 * rewinding the draft the athlete is still typing into.
 		 */
-		return { saved: true as const }
+		return data(
+			{ saved: true as const },
+			toastHeaders ? { headers: toastHeaders } : undefined,
+		)
 	}
 
 	const session = await getSessionByIdForUser(userId, params.sessionId)

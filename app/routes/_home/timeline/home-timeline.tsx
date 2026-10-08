@@ -25,7 +25,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Form, Link } from 'react-router'
 import { CreateMenu } from '#app/components/create-menu.tsx'
-import { addDays } from '#app/utils/athlete-calendar.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { RECOMPUTE_NOTICE_LABELS } from '#app/utils/labels.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
@@ -37,6 +36,7 @@ import { type WeekChangeData } from '#app/utils/load/week-change-card.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import { type StrengthSummaryCount } from '#app/utils/strength-log.ts'
+import { timelineWindow } from '#app/utils/timeline-window.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -52,12 +52,7 @@ import {
 import { DayStampProvider } from './day-stamp-context.tsx'
 import { buildHeroPanes } from './hero-panes.ts'
 import { HeroPager } from './hero.tsx'
-import {
-	buildTimelineHero,
-	buildTimelineSeason,
-	TIMELINE_HORIZON_DAYS,
-	TIMELINE_TRAILING_DAYS,
-} from './presenter.ts'
+import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
 import { SeasonPane, useLargeScreen } from './season-pane.tsx'
 import { EndCap, StartCap, WeekBlock } from './stream.tsx'
 import {
@@ -261,6 +256,11 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 	// The creation menu's writing line (#505 story 40): open under the header
 	// row until the write lands or the athlete closes it.
 	const [writing, setWriting] = useState(false)
+	// The days the line may write: the loader's own window, to the plan's end.
+	const writable = useMemo(
+		() => timelineWindow({ now, timezone, plan: activePlan }),
+		[activePlan, now, timezone],
+	)
 	const openWriting = useCallback(() => setWriting(true), [])
 	const closeWriting = useCallback(() => setWriting(false), [])
 	const [openWeeks, setOpenWeeks] = useState<ReadonlySet<string>>(
@@ -406,8 +406,8 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 					{writing ? (
 						<WritingPanel
 							todayKey={season.todayKey}
-							minDayKey={addDays(season.todayKey, -TIMELINE_TRAILING_DAYS)}
-							maxDayKey={addDays(season.todayKey, TIMELINE_HORIZON_DAYS)}
+							minDayKey={writable.firstDayKey}
+							maxDayKey={writable.lastDayKey}
 							onClose={closeWriting}
 						/>
 					) : null}

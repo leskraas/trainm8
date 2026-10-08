@@ -121,7 +121,13 @@ describe('parseWorkoutSentence', () => {
 		})
 		expect(parsed.structure).toBeNull()
 		expect(parsed.unknown).toEqual([
-			{ start: 9, end: 16, text: 'terksel', suggestions: ['terskel'] },
+			{
+				start: 9,
+				end: 16,
+				text: 'terksel',
+				reason: 'unknown-word',
+				suggestions: ['terskel'],
+			},
 		])
 	})
 
@@ -129,7 +135,13 @@ describe('parseWorkoutSentence', () => {
 		const parsed = parseWorkoutSentence('10 rolig', { discipline: 'run' })
 		expect(parsed.structure).toBeNull()
 		expect(parsed.unknown).toEqual([
-			{ start: 0, end: 2, text: '10', suggestions: ['10 km', '10 min'] },
+			{
+				start: 0,
+				end: 2,
+				text: '10',
+				reason: 'no-unit',
+				suggestions: ['10 km', '10 min'],
+			},
 		])
 	})
 
@@ -167,6 +179,143 @@ describe('parseWorkoutSentence', () => {
 	})
 })
 
+describe('what is saved is exactly what was typed, or nothing is', () => {
+	const read = (text: string) =>
+		parseWorkoutSentence(text, { discipline: 'run' })
+	const refused = (text: string) => {
+		const parsed = read(text)
+		expect({ text, structure: parsed.structure }).toEqual({
+			text,
+			structure: null,
+		})
+		expect(parsed.unknown.length + parsed.problems.length).toBeGreaterThan(0)
+		return parsed
+	}
+
+	test('a clock alone could be two durations, and asks which', () => {
+		expect(refused('1:30').unknown[0]).toMatchObject({
+			text: '1:30',
+			reason: 'ambiguous-time',
+			suggestions: ['1 t 30 min', '1 min 30 s'],
+		})
+		const reps = refused('4x1:30 p 1:00')
+		expect(reps.unknown.map((u) => u.text)).toEqual(['1:30', '1:00'])
+	})
+
+	test('h:mm:ss can only be a duration', () => {
+		expect(read('1:30:00 rolig').structure?.blocks[0]?.steps[0]).toMatchObject({
+			durationSec: 5400,
+		})
+	})
+
+	test('a lap time on a short rep is not read as a pace', () => {
+		expect(refused('5 x 400 m @ 1:30').unknown[0]).toMatchObject({
+			text: '1:30',
+			reason: 'ambiguous-time',
+			suggestions: ['1:30/km'],
+		})
+		// Said per km, it is a pace whatever the distance.
+		expect(
+			read('5 x 400 m @ 3:45/km').structure?.blocks[0]?.steps[0],
+		).toMatchObject({ intensity: { kind: 'pace', minSecPerKm: 225 } })
+		// On a time, `@ 4:00` can only be a pace.
+		expect(
+			read('2x 20 min @ 4:00 p 3 min').structure?.blocks[0]?.steps[0],
+		).toMatchObject({ intensity: { kind: 'pace', minSecPerKm: 240 } })
+	})
+
+	test('a thousands separator is never read as a decimal', () => {
+		expect(refused('10.000 m').unknown[0]).toMatchObject({
+			text: '10.000',
+			reason: 'ambiguous-number',
+			suggestions: ['10000'],
+		})
+		expect(refused('1,500 km').unknown[0]?.suggestions).toEqual(['1500', '1,5'])
+	})
+
+	test('one repeat per part', () => {
+		expect(refused('2 x 3 x 1 km').problems).toContain('two-repeats')
+	})
+
+	test('a rest is a time; a distance rest is refused, never dropped', () => {
+		expect(refused('6x1 km p 200 m jogg').problems).toContain('distance-rest')
+		expect(refused('10 km rolig p').problems).toContain('dangling-rest')
+	})
+
+	test('two intensities or two sports in one sentence are refused', () => {
+		expect(refused('10 km rolig z5').problems).toContain('two-intensities')
+		expect(refused('10 km rolig @ 5:00/km').problems).toContain(
+			'two-intensities',
+		)
+		expect(refused('10 km sykkel løp').problems).toContain('two-disciplines')
+		// The same word twice says one thing.
+		expect(read('rolig 10 km rolig').structure).not.toBeNull()
+	})
+
+	test('a character no rule reads is a stray, never skipped', () => {
+		for (const text of [
+			'-5 km',
+			'10 km rolig :)',
+			'10 km rolig!!!',
+			'10 km; 5 km',
+			'2x(3x1 km)',
+			'１０ km',
+		]) {
+			const parsed = refused(text)
+			expect({
+				text,
+				stray: parsed.unknown.some((u) => u.reason === 'stray'),
+			}).toEqual({ text, stray: true })
+		}
+		expect(refused('10 km "rolig"').unknown[0]).toMatchObject({ text: '"' })
+	})
+
+	test('a join with nothing on one side is refused', () => {
+		expect(refused('5 km + + 5 km').problems).toContain('empty-part')
+		expect(refused('10 km +').problems).toContain('empty-part')
+	})
+
+	test('numbers past any sane bound, and zero, are refused', () => {
+		for (const text of [
+			'99999 km',
+			'1000x 400 m',
+			'0 km',
+			'25 t',
+			'3x1 km p 2 t',
+		]) {
+			expect(refused(text).problems).toContain('out-of-range')
+		}
+	})
+
+	test('a larger time unit then a smaller one adds up', () => {
+		expect(read('1 t 30 min').structure?.blocks[0]?.steps[0]).toMatchObject({
+			durationSec: 5400,
+		})
+		expect(refused('30 min 1 t').problems).toContain('two-quantities')
+	})
+
+	test('a stray x or a command is unknown, not ignored', () => {
+		expect(refused('400m x 10').unknown.map((u) => u.text)).toEqual(['x', '10'])
+		expect(refused('syk til onsdag').unknown).toHaveLength(3)
+	})
+
+	test('a sentence longer than the line takes is refused before it is read', () => {
+		const long = '10 km rolig + '.repeat(20) + '1 km'
+		expect(refused(long).problems).toEqual(['too-long'])
+	})
+
+	test('a timed rest adds no km; the totals follow the week’s rule', () => {
+		expect(read('6x1 km p 1 min').totals).toEqual({
+			distanceM: 6000,
+			durationSec: null,
+		})
+		expect(read('20 min oppv + 4x4 min hardt p 3 min').totals).toEqual({
+			distanceM: null,
+			durationSec: 20 * 60 + 4 * 7 * 60,
+		})
+	})
+})
+
 describe('suggestWords', () => {
 	test('a misspelt word is close to the word it was meant to be', () => {
 		expect(suggestWords('roilg')).toEqual(['rolig'])
@@ -176,6 +325,12 @@ describe('suggestWords', () => {
 
 	test('a word near nothing has no suggestion', () => {
 		expect(suggestWords('banan')).toEqual([])
+	})
+
+	test('a long word is not measured at all', () => {
+		expect(suggestWords('a'.repeat(200_000))).toEqual([])
+		// Nor is a letter or two, which is one edit from any short word.
+		expect(suggestWords('x')).toEqual([])
 	})
 })
 

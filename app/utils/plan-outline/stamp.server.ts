@@ -614,6 +614,7 @@ function pricingBlocks(workout: CopyableWorkout) {
 	return workout.blocks.map((block) => ({
 		repeatCount: block.repeatCount,
 		steps: block.steps.map((step) => ({
+			kind: step.kind,
 			durationSec: step.durationSec,
 			distanceM: step.distanceM,
 		})),

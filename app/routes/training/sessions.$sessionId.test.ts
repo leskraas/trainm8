@@ -1108,7 +1108,8 @@ test('saveWorkout action updates the scheduled session and stays where it was', 
 	// the home timeline's stamped row, and a redirect there would take the
 	// athlete off the surface the gesture exists to keep them on.
 	expect(response).not.toBeInstanceOf(Response)
-	expect(response).toEqual({ saved: true })
+	// No plan track counts the week, so the save says nothing (#505 story 39).
+	expect(response).toMatchObject({ data: { saved: true }, init: null })
 
 	const updated = await prisma.workoutSession.findUnique({
 		where: { id: createdSession.id },

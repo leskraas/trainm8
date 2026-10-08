@@ -262,11 +262,14 @@ Stories 35–41. Where it lives, and why there:
   empty: a day that already has a session, a day in a collapsed week past the
   Planning Horizon (§3), months out. A panel under I dag's header row with a
   date field, the same chips and the same line. It closes when the write lands;
-  the toast says what happened. The days it offers are the loader's window (±182
-  days, `TIMELINE_HORIZON_DAYS` now lives beside `TIMELINE_TRAILING_DAYS` in the
-  presenter), so whatever is written can be read back and undone on this surface
-  — the Planning Horizon limits what the app lays, never what the athlete
-  writes.
+  the toast says what happened.
+- **The window: half a year, or to the plan's end.** The days the line takes are
+  the days I dag reads (`app/utils/timeline-window.ts`): half a year back, and
+  ahead half a year **or to the end of the active plan (or its Event), whichever
+  is later**, so every week the season shows — a collapsed week months out
+  included — can take a session. The loader's ledger reaches the same day, so
+  whatever is written is read back and can be undone on this surface (ADR 0076).
+  The Planning Horizon limits what the app lays, never what the athlete writes.
 
 What the line shows while the athlete types (`writing-line.tsx`):
 
@@ -284,25 +287,48 @@ What the line shows while the athlete types (`writing-line.tsx`):
    there is no target. The week is read once per day from `resources/week-sum`
    (`getWeekVolumes`), which answers a failure as data so the list never falls
    to its error boundary over a preview.
-3. **Suggestions** for each word the reader did not know: the nearest known
-   words (one edit for a short word, two for a longer one, nearest tier only),
-   and for a bare number `10 km` / `10 min`. Tapping one replaces exactly that
-   word.
+3. **Suggestions** for each piece the reader did not read: the nearest known
+   words (one edit for a short word, two for a longer one, nearest tier only;
+   none for a word of under three or over twenty letters), `10 km` / `10 min`
+   for a bare number, both readings of `1:30` (`1 t 30 min`, `1 min 30 s`),
+   `1:30/km` for a lap time on a short rep, `10000` for `10.000`. Tapping one
+   replaces exactly that piece.
 
-The save posts `intent=write-session` to home's own action, which **reads the
-sentence again** (`parseWorkoutSentence`) and refuses with 400 a sentence it is
-unsure of; `writeSessionOnDay` writes it through the stamp's day resolution and
-`createWorkoutSession` — an `authored` session whose title is the sentence. The
-stamp, the write and the undo now each answer with a toast built from the week
-read on both sides of the write (`weekSumChangeLine`):
-`Løping denne uka: 40 → 46 km. Ukemålet står på 52.` Nothing on the path reads
-or writes the Plan Outline, and a route test asserts the stored targets are
-unchanged.
+**The reader is strict: what is saved is exactly what was typed, or nothing
+is.** Every character is read by a rule; a stray character, a second repeat, two
+intensities or two sports, a dangling `p`, a rest given as a distance, an empty
+part between two `+`, a number past any sane bound (300 km, 24 h, 50 repeats, an
+hour's rest) and anything over 200 characters each refuse the sentence and say
+why. The input's `maxLength` and the action's `WriteSessionSchema` hold the
+same 200.
+
+**A timed rest adds no km** (`fixedDayVolume`): `6x1 km p 1 min` is 6 km in the
+preview, the totals line and the week header alike, and the rest does not make
+the reps "uten km". In hours a rest's time counts, as it always did.
+
+The save posts `intent=write-session` to home's own action, parsed by
+`WriteSessionSchema`; the action **reads the sentence again**
+(`parseWorkoutSentence`) and refuses with 400 a sentence it is unsure of;
+`writeSessionOnDay` writes it through the stamp's day resolution and
+`createWorkoutSession` — an `authored` session whose title is the sentence.
+
+**Every change says what it did to its week** (`withWeekSumToast` in
+`app/utils/writing-line.server.ts`, the week read on both sides of the write):
+the stamp, the write, the undo, a token edit in the open row and a delete from
+the detail view all toast `Løping denne uka: 40 → 46 km. Ukemålet står på 52.` A
+token edit toasts only when the week's sum moved, so retyping an intensity says
+nothing; a moved session reports the week it moved into. Nothing on these paths
+reads or writes the Plan Outline, and a route test asserts the stored targets
+are unchanged.
+
+**A failed week read is swallowed, by decision.** `resources/week-sum` answers
+an invalid day or a failed read as `{ week: null }` rather than throwing: a
+fetcher's error would reach home's error boundary and take the whole list down
+over a line that is only ever a preview. The line then shows no week sum, the
+write still works, and the toast after it reads the week on the server.
 
 The reader is the free-text parser ADR 0027 §1 left room for; see that ADR's
-amendment. Not built: edits to a token in an open row do not toast (they save
-through the full route's edit action, shared with the detail view), and
-free-text commands (`syk til onsdag`) are a later step.
+amendment. Free-text commands (`syk til onsdag`) are a later step.
 
 ## Consequences
 

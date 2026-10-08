@@ -26,7 +26,6 @@ import {
 	NB_VOLUME_UNITS,
 	NOT_FILLED_LABEL,
 	OF_WORD,
-	RELATIVE_WEEK_LABELS,
 	sessionCountLabel,
 	sessionsAgainstLabel,
 	sessionsDoneLabel,
@@ -35,7 +34,6 @@ import {
 	VOLUME_GRADE_LABELS,
 	WEEK_FIGURE_LABELS,
 	WEEK_LOAD_LABELS,
-	weekNumberLabel,
 	ZONE_INTENT_NOTE,
 } from '#app/utils/labels.ts'
 import { type TrackWeekVolume } from '#app/utils/plan-outline/week-volumes.ts'
@@ -115,13 +113,7 @@ export function leadTrack<T extends { currency: string }>(
 	return tracks.find((track) => track.currency !== 'sets') ?? tracks[0] ?? null
 }
 
-/** `Forrige uke`, `Denne uka`, `Neste uke`, otherwise `Uke 41`. */
-export function relativeWeekName(monday: string, nowMonday: string): string {
-	if (monday === nowMonday) return RELATIVE_WEEK_LABELS.current
-	if (monday === addDays(nowMonday, -7)) return RELATIVE_WEEK_LABELS.previous
-	if (monday === addDays(nowMonday, 7)) return RELATIVE_WEEK_LABELS.next
-	return weekNumberLabel(isoWeekNumber(monday))
-}
+export { relativeWeekName } from '#app/utils/relative-week.ts'
 
 /** The words a track's week header carries, put on the model's codes. */
 export function wordTrackWeek(

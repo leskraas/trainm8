@@ -1,5 +1,6 @@
 import { type Locator, type Page } from '@playwright/test'
 import sharp from 'sharp'
+import { HERO_FADE_SHARE } from '#app/routes/_home/timeline/anchoring.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { type Theme } from '#app/utils/theme.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
@@ -528,9 +529,21 @@ test('the hero folds with the scroll, 1:1 and both ways, and comes back', async 
 	expect(await heroInTabOrder(page)).toBe(true)
 	await expect(todayPill(page)).toHaveAttribute('data-away', '0')
 
-	// Backward — the same travel, the other way, still a pixel for a pixel.
+	// Backward — the other way, still continuous. Upward the travel is the
+	// room above the landing when that is shorter than the hero (`heroFold`,
+	// since the S9 review: a short history's top must be a full fold, not a
+	// half-folded blank band). How much room there is depends on the weekday —
+	// closed weeks fold above today — so the expected height reads the same
+	// rule rather than assuming the room is at least the hero.
+	const room = await landingOf(page)
+	const travel = room >= open * HERO_FADE_SHARE ? Math.min(open, room) : open
 	await driftFromLanding(page, -Math.round(open / 2))
-	await oneToOne()
+	await expect
+		.poll(async () => {
+			const at = await foldAtRest(page)
+			return at.height - open * Math.max(0, 1 - at.drift / travel)
+		})
+		.toBeCloseTo(0, -1)
 })
 
 test('the fold has no duration: reduced motion drops the movement and keeps the collapse', async ({

@@ -38,7 +38,7 @@ function sumMove({
 	const count =
 		unmeasured > 0
 			? unmeasuredCountLabel(unmeasured, currency)
-			: unmeasuredCountLabel(unmeasured, currency).replace('+-', '−')
+			: unmeasuredCountLabel(-unmeasured, currency, '−')
 	return `${moved}, ${count}`
 }
 

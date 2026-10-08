@@ -34,6 +34,8 @@
 > stanza component and its own verifiable slice — where these three were
 > corrections to text the component already renders.
 
+Status: accepted · Feature issue: #219 · Slug: text-first-authoring
+
 > **Amended (#505 S11): a reader now exists, for the writing line.** I dag's
 > writing line takes a session typed as a sentence (`10 km rolig`,
 > `3x10 min terskel p 1 min`) and `parseWorkoutSentence`
@@ -41,15 +43,17 @@
 > _render, never parse_ survives in the form that mattered: the parser's only
 > output is structure, checked by `WorkoutStructureSchema`; what the athlete
 > sees is the Token Sentence rendered from that structure, never the typed text;
-> and a sentence the reader is unsure of — an unknown word, a number with no
-> unit, a part with no quantity — produces no structure at all, with a
-> suggestion instead of a guess. The rejected alternative's cost, invalid
-> intermediate states, is paid only inside the line: nothing invalid can be
-> saved, and the server reads the sentence again rather than trusting the
-> client. The grammar is small on purpose and its vocabulary (`rolig`,
-> `terskel`, `langtur`) is content per A3. See ADR 0082's "As built (#505 S11)".
-
-Status: accepted · Feature issue: #219 · Slug: text-first-authoring
+> and every character of the sentence is read by a rule or the sentence produces
+> no structure at all — an unknown word, a stray character, a number with no
+> unit, a clock that could be two durations, a lap time that could be a pace,
+> `10.000`, a second repeat, two intensities or two sports, a dangling `p`, a
+> number past any sane bound — with a suggestion instead of a guess. What is
+> saved is exactly what was typed, or nothing is. The rejected alternative's
+> cost, invalid intermediate states, is paid only inside the line: nothing
+> invalid can be saved, and the server reads the sentence again rather than
+> trusting the client. The grammar is small on purpose and its vocabulary
+> (`rolig`, `terskel`, `langtur`) is content per A3. See ADR 0082's "As built
+> (#505 S11)".
 
 Structured authoring today is a long vertical form: ~540 lines of Block/Step
 editor JSX duplicated across the create and edit routes, an intensity picker

@@ -184,6 +184,52 @@ test('writing a session moves the Planned Volume and never the Week Target', asy
 	expect(after.tracks[0]!.planned).toBe(25)
 })
 
+test('reps with a timed rest count their km; the rest adds none', async () => {
+	const userId = await setUp()
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId: userId,
+			title: '6x1 km p 1 min',
+			discipline: 'run',
+			intent: 'threshold',
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 6,
+						steps: {
+							create: [
+								{
+									orderIndex: 0,
+									kind: 'cardio',
+									discipline: 'run',
+									distanceM: 1000,
+								},
+								{ orderIndex: 1, kind: 'rest', durationSec: 60 },
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	await prisma.workoutSession.create({
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt: localTimeUTC('2030-01-18', '07:00', OSLO),
+			status: 'scheduled',
+			source: 'authored',
+		},
+	})
+	const { tracks } = await getWeekVolumes(userId, {
+		weekKey: WEEK,
+		now: THURSDAY,
+	})
+	expect(tracks[0]).toMatchObject({ planned: 6, plannedUnmeasuredCount: 0 })
+})
+
 test('a Monday grades nothing yet', async () => {
 	const userId = await setUp()
 	await addRun(userId, { date: '2030-01-14', km: 10 })

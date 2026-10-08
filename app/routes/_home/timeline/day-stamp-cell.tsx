@@ -40,6 +40,7 @@ import {
 	cardioChip,
 	DisciplineChips,
 	useParsedSentence,
+	WriteButton,
 	WritingLine,
 } from './writing-line.tsx'
 
@@ -119,6 +120,8 @@ export function StampDraft({
 		<div
 			ref={ref}
 			data-timeline-draft={dayKey}
+			role="group"
+			aria-label={DAY_STAMP_LABELS.draftFor(`${dayLabel} ${dateLabel}`)}
 			className="bg-primary/4 reflow grid grid-cols-[46px_1fr] items-start gap-3 px-[18px] py-[10px]"
 		>
 			<span className="flex flex-col gap-0.5 pt-px">
@@ -152,17 +155,12 @@ export function StampDraft({
 						/* The sentence, once the line says something. Offered only
 						   when the reader is sure of every word, so what is written is
 						   what the preview above showed. */
-						<button
-							type="button"
-							data-writing-save
-							disabled={pending || !parsed.structure}
-							onClick={write}
-							className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[34px] items-center rounded-[10px] px-[13px] text-[12.5px]/[1] font-bold disabled:opacity-60"
-						>
-							{pending
-								? DAY_STAMP_LABELS.adding
-								: WRITING_LINE_LABELS.add(text.trim())}
-						</button>
+						<WriteButton
+							text={text}
+							parsed={parsed}
+							pending={pending}
+							onWrite={write}
+						/>
 					) : stampable ? (
 						<button
 							type="button"

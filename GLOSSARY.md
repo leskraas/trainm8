@@ -2469,13 +2469,14 @@ number), goal, sum.
 **Planned Volume**: The sum of one **Training Week**'s sessions that carry a
 prescription, per **Training Track**, in the track's **Volume Currency** — km or
 hours read off the prescription only where every step carries the unit (the
-**Week Pattern**'s own reading), **Planned TSS** on a TSS track, prescribed sets
-on a strength track. A missed session still counts: it was planned. A session
-with no number in the currency is **counted apart with its reason** ("+2 uten
-km") and never added as zero, so a week whose sessions are all unmeasured has no
-Planned Volume rather than a planned zero. Writing, moving or editing a session
-moves this number and never the **Week Target**. _Avoid_: Planned load (that is
-Planned TSS, per session), week sum.
+**Week Pattern**'s own reading; in km a timed rest between reps carries none and
+is skipped, so `6x1 km p 1 min` is 6 km), **Planned TSS** on a TSS track,
+prescribed sets on a strength track. A missed session still counts: it was
+planned. A session with no number in the currency is **counted apart with its
+reason** ("+2 uten km") and never added as zero, so a week whose sessions are
+all unmeasured has no Planned Volume rather than a planned zero. Writing, moving
+or editing a session moves this number and never the **Week Target**. _Avoid_:
+Planned load (that is Planned TSS, per session), week sum.
 
 **Actual Volume**: The same sum over the week's **completed** sessions, from
 what was recorded or logged — the recording's distance or duration, the
