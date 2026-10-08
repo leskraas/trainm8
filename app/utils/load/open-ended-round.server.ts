@@ -13,11 +13,16 @@
  * length, never before the round opened), so a re-proposal reads what has
  * happened since, not the same stale round again. Where the new round lands
  * when it applies is `appendOpenEndedRound`'s: never in the past.
+ *
+ * None either when the next round would take the plan past `MAX_PLAN_WEEKS`:
+ * an open-ended plan runs for at most two years of rounds, the longest season
+ * the Sesong edits can change (ADR 0079 "As built (#505 gaps)").
  */
 
 import { weekBoundsFromMondayUTC } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { isOutlineResting } from '#app/utils/plan-outline/active-outline.server.ts'
+import { MAX_PLAN_WEEKS } from '#app/utils/plan-outline/authoring-schema.ts'
 import { rhythmOf, type Rhythm } from '#app/utils/plan-outline/derive.ts'
 import {
 	openEndedRound,
@@ -90,6 +95,12 @@ export async function readRoundFacts(
 		return null
 	}
 
+	const next = nextRoundShape(outline.family, {
+		weeks: last.weeks,
+		rhythm: rhythmOf(last.rhythm),
+	})
+	if (total + next.weeks > MAX_PLAN_WEEKS) return null
+
 	const roundStart = total - last.weeks
 	const firstGraded = Math.max(roundStart, closed - last.weeks + 1)
 	const weeks = await Promise.all(
@@ -118,10 +129,7 @@ export async function readRoundFacts(
 		phaseId: last.id,
 		round: outline.phases.length,
 		nextWeekKey: weekKeyAt(outline.startWeekKey, total),
-		next: nextRoundShape(outline.family, {
-			weeks: last.weeks,
-			rhythm: rhythmOf(last.rhythm),
-		}),
+		next,
 		weeks,
 	}
 }

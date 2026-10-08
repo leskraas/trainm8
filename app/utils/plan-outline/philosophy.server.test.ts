@@ -524,3 +524,51 @@ test('a confirm whose preview no longer matches is refused, and nothing moves', 
 		}),
 	).toMatchObject({ ok: true, digest: preview.digest })
 })
+
+test('the preview warns where the new plan would rise more than 10 % in a week, and only from the switch on', async () => {
+	const { userId, outlineId } = await openEndedPlan()
+
+	// The family's own climb rises about 5 % a loading week: nothing to warn.
+	const plain = await readPhilosophySwitch(
+		userId,
+		outlineId,
+		'threshold',
+		WEDNESDAY,
+	)
+	if (!plain.ok) throw new Error(plain.reason)
+	expect(plain.warnings).toEqual([])
+
+	// A week the athlete hand-set stays through the switch (a Week Volume
+	// Override is kept), so the new round's second week now jumps from its
+	// first. The preview says so, in the track's own unit; an equal jump in a
+	// lived week is history, and is not warned on.
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId },
+		select: { id: true },
+	})
+	await prisma.weekVolumeOverride.createMany({
+		data: [
+			{ trackId: track.id, weekKey: '2030-01-07', value: 60 },
+			{ trackId: track.id, weekKey: '2030-01-21', value: 60 },
+		],
+	})
+	const preview = await readPhilosophySwitch(
+		userId,
+		outlineId,
+		'threshold',
+		WEDNESDAY,
+	)
+	if (!preview.ok) throw new Error(preview.reason)
+	const first = preview.weeks.find((w) => w.weekKey === '2030-01-14')!
+	expect(preview.warnings).toEqual([
+		expect.objectContaining({
+			trackId: track.id,
+			currency: 'km',
+			weekKey: '2030-01-21',
+			fromWeekKey: '2030-01-14',
+			from: first.after!.targets[0]!.value,
+			to: 60,
+		}),
+	])
+	expect(preview.warnings[0]!.rise).toBeGreaterThan(0.1)
+})

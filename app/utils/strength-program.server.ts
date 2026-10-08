@@ -74,6 +74,7 @@
  */
 import { Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
+import { sessionOwner } from './session-ownership.ts'
 import {
 	getExercisePlateContext,
 	getGymProfile,
@@ -1243,6 +1244,9 @@ export async function openNextProgramSession(input: {
 		select: {
 			id: true,
 			workoutId: true,
+			source: true,
+			adoptedAt: true,
+			releasedAt: true,
 			_count: { select: { setLogs: true } },
 		},
 	})
@@ -1252,7 +1256,13 @@ export async function openNextProgramSession(input: {
 	// would strand the athlete's own sets outside the grid, and the weight they
 	// have been lifting all session is the weight they were shown.
 	if (input.onlySessionId && existing == null) return null
-	const inProgress = existing != null && existing._count.setLogs > 0
+	// **The athlete's session is theirs** (#505, ownership is the gate for
+	// every machine write): a program session they edited — adopted, and not
+	// handed back with _lås opp_ — keeps the weights they wrote. It is kept as
+	// it stands, exactly as a session already in progress is.
+	const kept =
+		existing != null &&
+		(existing._count.setLogs > 0 || sessionOwner(existing) === 'athlete')
 	// A session opened **before** the load was materialised points straight at the
 	// shared shape and therefore prescribes no kilos. With nothing logged against
 	// it, it is repointed at a stamped copy, because a prescription with no weight
@@ -1265,12 +1275,12 @@ export async function openNextProgramSession(input: {
 	// same session, same second — read `20.25 kg`, because the stale copy was
 	// handed back verbatim. Nothing has been logged against it, so it is
 	// re-stamped from the prescription as it stands now.
-	if (existing != null && !inProgress && !pointsAtSharedShape) {
+	if (existing != null && !kept && !pointsAtSharedShape) {
 		await restampSessionLoads(existing.workoutId, prescription)
 	}
 
 	const session =
-		existing != null && (inProgress || !pointsAtSharedShape)
+		existing != null && (kept || !pointsAtSharedShape)
 			? existing
 			: // The copy and the session that points at it commit together: a copy with
 				// no session is an orphan prescription, and a session pointing at a

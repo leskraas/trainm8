@@ -7,6 +7,7 @@
 // Prisma.
 
 import { type Prisma } from '@prisma/client'
+import { isoWeekNumber } from '../athlete-calendar.ts'
 import { type Discipline } from '../workout-schema.ts'
 import {
 	phaseIndexForWeek,
@@ -15,6 +16,8 @@ import {
 	type WeekRole,
 } from './derive.ts'
 import { phaseSpecs, resolvedTracks, type OutlineRows } from './from-rows.ts'
+import { weekRiseWarnings } from './ramp-guard.ts'
+import { weekKeyAt } from './week-keys.ts'
 
 /** One track's target in one week. */
 export type TargetView = {
@@ -48,6 +51,68 @@ export function weekViews(rows: OutlineRows): WeekView[] {
 			value: track.targets[week]?.value ?? null,
 		})),
 	}))
+}
+
+/** A loading week a preview would raise more than 10 % over the one before. */
+export type RiseWarning = {
+	trackId: string
+	discipline: Discipline
+	currency: VolumeCurrency
+	weekKey: string
+	weekNumber: number
+	fromWeekKey: string
+	from: number
+	to: number
+	rise: number
+}
+
+/**
+ * The rise warnings (`weekRiseWarnings`, ADR 0084 §3) over the week targets
+ * `rows` derive — `views` is `weekViews(rows)` — for each track, kept where
+ * `include` says the pair of weeks is the preview's business. Shared by the
+ * Sesong edits and the philosophy switch (story 76), so both warn by one rule.
+ */
+export function riseWarnings(
+	rows: OutlineRows,
+	views: WeekView[],
+	include: (weekKey: string, fromWeekKey: string) => boolean,
+): RiseWarning[] {
+	const warnings: RiseWarning[] = []
+	const resolved = resolvedTracks(rows)
+	for (const [trackIndex, track] of rows.tracks.entries()) {
+		// A strength track rests on its own block's deload, not on the phase's
+		// rhythm (ADR 0047 §6): its deload is its easy week, and a gap between
+		// blocks is never compared, like a taper.
+		const strengthRoles = resolved[trackIndex]?.strengthRoles ?? null
+		const series = views.map((view, week) => ({
+			role:
+				strengthRoles == null
+					? view.role
+					: strengthRoles[week] === 'loading'
+						? ('loading' as const)
+						: strengthRoles[week] === 'deload'
+							? ('recovery' as const)
+							: ('taper' as const),
+			value: view.targets[trackIndex]?.value ?? null,
+		}))
+		for (const rise of weekRiseWarnings(series)) {
+			const weekKey = weekKeyAt(rows.startWeekKey, rise.weekIndex)
+			const fromWeekKey = weekKeyAt(rows.startWeekKey, rise.fromWeekIndex)
+			if (!include(weekKey, fromWeekKey)) continue
+			warnings.push({
+				trackId: track.id,
+				discipline: track.discipline as Discipline,
+				currency: track.currency as VolumeCurrency,
+				weekKey,
+				weekNumber: isoWeekNumber(weekKey),
+				fromWeekKey,
+				from: rise.from,
+				to: rise.to,
+				rise: rise.rise,
+			})
+		}
+	}
+	return warnings
 }
 
 /**

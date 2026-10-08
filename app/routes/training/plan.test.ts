@@ -1,7 +1,7 @@
 // The planning surface's loader: it reads the active plan, and sends an athlete
 // who has none to the flow's first question rather than to an empty page.
 import { type AppLoadContext } from 'react-router'
-import { expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createOpenEndedPlan } from '#app/utils/plan-outline/authoring.server.ts'
@@ -842,7 +842,50 @@ async function outlineIdFor(eventId: string) {
 	).id
 }
 
+/**
+ * Pin the clock to this week's Monday morning, or its Wednesday (UTC, the
+ * athletes' timezone here). The plans above open this Monday, and a shape
+ * replaces every phase, so it is only offered while no week has begun (#505
+ * story 14): on the Monday, with nothing trained, the first week has not; by
+ * Wednesday it has.
+ */
+function onPlanDay(day: 'monday' | 'wednesday') {
+	const monday = mondayOf(new Date())
+	vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true })
+	vi.setSystemTime(
+		new Date(
+			new Date(`${monday}T09:00:00Z`).getTime() +
+				(day === 'wednesday' ? 2 * DAY_MS : 0),
+		),
+	)
+}
+
+afterEach(() => {
+	vi.useRealTimers()
+})
+
+test('once a week of the plan has begun, a shape is refused and points to Bytt filosofi', async () => {
+	onPlanDay('wednesday')
+	const athlete = await setupAthlete()
+	const { eventId } = await createPlannedEvent(athlete.userId)
+
+	const response = await submit(athlete.cookie, {
+		intent: 'apply-preset',
+		outlineId: await outlineIdFor(eventId),
+		presetKey: 'classic-linear',
+	})
+
+	expect(refusal(response)).toEqual({
+		status: 400,
+		error: expect.stringContaining('Bytt filosofi i stedet'),
+	})
+	expect(await phasesOf(eventId)).toEqual([
+		{ name: 'Base', weeks: 4, rhythm: '3:1', tapers: false },
+	])
+})
+
 test('applying a shape lays its blocks down and says the plan is now the athlete’s', async () => {
+	onPlanDay('monday')
 	const athlete = await setupAthlete()
 	const { eventId } = await createPlannedEvent(athlete.userId)
 
@@ -873,6 +916,7 @@ test('applying a shape lays its blocks down and says the plan is now the athlete
 })
 
 test('a shape that does not fill the run-in says so, and stretches nothing', async () => {
+	onPlanDay('monday')
 	const athlete = await setupAthlete()
 	// An event roughly 10 weeks out, against an 18-week shape. The preset's phases
 	// are fixed length, so the plan runs *past* the Event and the surface reports
@@ -896,6 +940,7 @@ test('a shape that does not fill the run-in says so, and stretches nothing', asy
 })
 
 test('a shape longer than the run-in leaves the plan ending before the event', async () => {
+	onPlanDay('monday')
 	const athlete = await setupAthlete()
 	// The mirror case: an event far out, so the same fixed-length shape ends early.
 	const { eventId } = await createPlannedEvent(athlete.userId, { inDays: 175 })
@@ -911,6 +956,7 @@ test('a shape longer than the run-in leaves the plan ending before the event', a
 })
 
 test('the shape is copied in as ordinary blocks the athlete can then edit', async () => {
+	onPlanDay('monday')
 	const athlete = await setupAthlete()
 	const { eventId } = await createPlannedEvent(athlete.userId)
 	const outlineId = await outlineIdFor(eventId)
@@ -945,6 +991,7 @@ test('the shape is copied in as ordinary blocks the athlete can then edit', asyn
 })
 
 test('a shape that overruns the event can be fitted to it in one tap', async () => {
+	onPlanDay('monday')
 	const athlete = await setupAthlete()
 	// Roughly ten weeks out against an 18-week shape: the plan runs past the
 	// Event, which the surface states — and now offers to close.

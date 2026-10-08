@@ -64,17 +64,17 @@ export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 // longer window is a strict superset of the SUSTAINED_WEEKS the coach needs).
 const BUILD_WEEKS = Math.max(8, SUSTAINED_WEEKS)
 
-// How far forward the home timeline reaches (`TIMELINE_HORIZON_DAYS`). The
+// How far the home timeline reaches (`timeline-window.ts`). The
 // screen is a season, not a fortnight: the week strip renders every week at
 // once and the stream scrolls back through the weeks the athlete imported from
 // before their plan existed, so the Cockpit's 42-day trailing window would have
 // cut the history the design is about.
 //
-// Half a year each way rather than everything: an unbounded query grows with
-// the account, and both ends of the stream state their own limit, so a bound
-// the athlete can see is better than one they cannot. Both halves live in the
-// presenter: the start cap states the trailing one (#500), and the writing
-// line's panel offers no day past the leading one.
+// Half a year back and two years ahead rather than everything: an unbounded
+// query grows with the account, and both ends of the stream state their own
+// limit, so a bound the athlete can see is better than one they cannot. The
+// start cap states the trailing one (#500), and the writing line's panel
+// offers no day past the leading one.
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await getUserId(request)
@@ -83,8 +83,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 	}
 	// Reflections (Session Logs) left the home scroll in the #184 re-composition;
 	// they live on the Workout Detail View, so the loader no longer fetches them.
-	// The ledger reaches as far ahead as the writing line may write — half a
-	// year, or the plan's end where that is later (`timeline-window.ts`) — so
+	// The ledger reaches as far ahead as the writing line may write — two
+	// years, or the plan's end where that is later (`timeline-window.ts`) — so
 	// a session written into a collapsed week months out is read back here.
 	const requestedAt = new Date()
 	const activePlanRead = getActivePlan(userId)

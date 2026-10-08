@@ -1972,6 +1972,44 @@ test('a planned row says whose it is, and its title is never cut short (#505)', 
 	expect(box.lines).toBeGreaterThan(1)
 })
 
+test('the collapsed hero’s header wraps the session’s title, never cutting it (#505 story 32)', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedSeason(user.id)
+	const longTitle =
+		'Terskeløkt med gjengen fra Sognsvann rundt Nordmarka og hjem over Frognerseteren'
+	await prisma.workout.updateMany({
+		where: { ownerId: user.id, title: 'Threshold Run' },
+		data: { title: longTitle },
+	})
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	await page.waitForTimeout(2500)
+
+	// Read down until the hero has folded away: the header takes over, and
+	// names today's session whole, on as many lines as it takes.
+	await readToTheEnd(page)
+	await expect.poll(async () => (await heroFold(page)).height).toBe(0)
+	const collapsed = page.locator('[data-hero-collapsed-title]')
+	await expect(collapsed).toHaveText(longTitle)
+	const header = await collapsed.evaluate((el) => ({
+		overflows: el.scrollWidth > el.clientWidth,
+		ellipsis: getComputedStyle(el).textOverflow === 'ellipsis',
+		lines: Math.round(
+			el.getBoundingClientRect().height /
+				parseFloat(getComputedStyle(el).lineHeight),
+		),
+	}))
+	expect(header.overflows).toBe(false)
+	expect(header.ellipsis).toBe(false)
+	expect(header.lines).toBeGreaterThan(1)
+})
+
 /**
  * What an element paints, and the surface it paints it on. The surface is the
  * commonest colour in the box — a row of text is mostly background — and the

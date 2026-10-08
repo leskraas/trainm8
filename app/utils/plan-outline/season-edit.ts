@@ -27,7 +27,6 @@
 // number, so renaming a phase that has been lived in is fine.
 
 import { isoWeekNumber } from '../athlete-calendar.ts'
-import { type Discipline } from '../workout-schema.ts'
 import { MAX_PLAN_WEEKS } from './authoring-schema.ts'
 import {
 	phaseIndexForWeek,
@@ -38,9 +37,14 @@ import {
 	type Rhythm,
 	type VolumeCurrency,
 } from './derive.ts'
-import { phaseSpecs, resolvedTracks, type OutlineRows } from './from-rows.ts'
-import { digestOf, weekViews, type WeekView } from './outline-preview.ts'
-import { weekRiseWarnings } from './ramp-guard.ts'
+import { phaseSpecs, type OutlineRows } from './from-rows.ts'
+import {
+	digestOf,
+	riseWarnings,
+	weekViews,
+	type RiseWarning,
+	type WeekView,
+} from './outline-preview.ts'
 import { weekIndexOf, weekKeyAt } from './week-keys.ts'
 
 export const SEASON_EDIT_KINDS = ['week-target', 'phase', 'easy-week'] as const
@@ -151,17 +155,7 @@ export type SeasonEditWrite =
 	| { kind: 'easy-week'; phaseId: string; recoveryWeekIndex: number }
 
 /** A loading week the edit would raise more than 10 % over the one before. */
-export type SeasonEditWarning = {
-	trackId: string
-	discipline: Discipline
-	currency: VolumeCurrency
-	weekKey: string
-	weekNumber: number
-	fromWeekKey: string
-	from: number
-	to: number
-	rise: number
-}
+export type SeasonEditWarning = RiseWarning
 
 export type SeasonEditPreview = {
 	ok: true
@@ -468,42 +462,13 @@ function finish(
 	}
 
 	const touched = new Set(relayWeekKeys)
-	const warnings: SeasonEditWarning[] = []
-	const resolved = resolvedTracks(after)
-	for (const [trackIndex, track] of after.tracks.entries()) {
-		// A strength track rests on its own block's deload, not on the phase's
-		// rhythm (ADR 0047 §6): its deload is its easy week, and a gap between
-		// blocks is never compared, like a taper.
-		const strengthRoles = resolved[trackIndex]?.strengthRoles ?? null
-		const series = afterViews.map((view, week) => ({
-			role:
-				strengthRoles == null
-					? view.role
-					: strengthRoles[week] === 'loading'
-						? ('loading' as const)
-						: strengthRoles[week] === 'deload'
-							? ('recovery' as const)
-							: ('taper' as const),
-			value: view.targets[trackIndex]?.value ?? null,
-		}))
-		for (const rise of weekRiseWarnings(series)) {
-			const weekKey = weekKeyAt(after.startWeekKey, rise.weekIndex)
-			const fromWeekKey = weekKeyAt(after.startWeekKey, rise.fromWeekIndex)
-			if (weekKey < firstUnbegunWeekKey) continue
-			if (!touched.has(weekKey) && !touched.has(fromWeekKey)) continue
-			warnings.push({
-				trackId: track.id,
-				discipline: track.discipline as Discipline,
-				currency: track.currency as VolumeCurrency,
-				weekKey,
-				weekNumber: isoWeekNumber(weekKey),
-				fromWeekKey,
-				from: rise.from,
-				to: rise.to,
-				rise: rise.rise,
-			})
-		}
-	}
+	const warnings: SeasonEditWarning[] = riseWarnings(
+		after,
+		afterViews,
+		(weekKey, fromWeekKey) =>
+			weekKey >= firstUnbegunWeekKey &&
+			(touched.has(weekKey) || touched.has(fromWeekKey)),
+	)
 
 	const otherWeeksHeld =
 		scope != null && relayWeekKeys.every((weekKey) => scope.has(weekKey))

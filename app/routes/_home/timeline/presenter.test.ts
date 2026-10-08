@@ -1403,6 +1403,119 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 		})
 	})
 
+	test('an hours track reads hours, and the zone split done against the plan’s (story 21)', () => {
+		const hourTargets = Array<number>(12).fill(6)
+		const ride = (id: string, zones: Array<[string, number]>) =>
+			workout({
+				id,
+				discipline: 'bike',
+				blocks: [
+					{
+						id: `block-${id}`,
+						name: 'Main',
+						orderIndex: 0,
+						repeatCount: 1,
+						seriesRepeatCount: 1,
+						betweenSeriesRestSec: null,
+						sendOff: null,
+						steps: zones.map(([intensity, durationSec], orderIndex) =>
+							step({
+								id: `${id}-${orderIndex}`,
+								orderIndex,
+								discipline: 'bike',
+								intensity,
+								durationSec,
+							}),
+						),
+					},
+				],
+			})
+		const result = season(
+			[
+				// Monday: 1 t Z2 + 30 min Z4 asked; 1,5 t ridden, three quarters easy.
+				on(-2, {
+					id: 'mon-ride',
+					workout: ride('mon', [
+						['Z2', 3600],
+						['Z4', 1800],
+					]),
+					recording: {
+						id: 'rec-ride',
+						discipline: 'bike',
+						durationSec: 5400,
+						distanceM: null,
+						startedAt: NOW,
+						endedAt: NOW,
+						phaseBarsJson: JSON.stringify([
+							{ id: 'a', zone: 2, durationSec: 4050 },
+							{ id: 'b', zone: 4, durationSec: 1350 },
+						]),
+						linkAnsweredAt: null,
+						unlinkedFromSessionId: null,
+					},
+				}),
+				// Friday: 2 t easy ahead.
+				on(2, {
+					id: 'fri-ride',
+					status: 'scheduled',
+					recording: null,
+					workout: ride('fri', [['Z2', 7200]]),
+				}),
+			],
+			plan({
+				tracks: [
+					{
+						trackId: 'track-ride',
+						discipline: 'bike',
+						currency: 'hours',
+						targets: hourTargets,
+						overridden: hourTargets.map(() => false),
+						sessionTargets: null,
+					},
+				],
+			}),
+		)
+		const track = result.weeks
+			.find((w) => w.key === THIS_MONDAY)!
+			.tracks.find((t) => t.trackId === 'track-ride')!
+		expect(track).toMatchObject({
+			name: 'Sykling',
+			unit: 't',
+			figures: { target: '6', planned: '3.5', done: '1.5' },
+			// No distance in an hours track is never "uten km".
+			plannedUnmeasuredLabel: null,
+			paceLabel: null,
+			// The plan's split is what was prescribed, and says so.
+			zoneIntentNote: 'hensikt, ikke en måling',
+		})
+		// Done: 4050 of 5400 s easy = 75 %. Planned: 3 t of 3,5 t easy = 86 %.
+		expect(track.zones?.done?.easyShare).toBe(0.75)
+		expect(track.zones?.planned?.easyShare).toBe(0.86)
+		expect(track.zoneLabel).toMatch(/^rolig 75\s?% · plan 86\s?%$/)
+	})
+
+	test('a strength week logged through Monday, with Tuesday done but unlogged, says how far it is measured (story 85)', () => {
+		const result = season(
+			[
+				lift(-2, 12),
+				// Done (by an import, or Gjort) but no set logged.
+				{ ...lift(-1, 0), status: 'completed' },
+			],
+			planWithTracks(),
+		)
+		const lifting = result.weeks
+			.find((w) => w.key === THIS_MONDAY)!
+			.tracks.find((t) => t.trackId === 'track-lift')!
+		expect(lifting.partialLabel).toBe('til og med mandag · resten ikke målt')
+		expect(lifting).toMatchObject({ actual: 12, unit: 'sett' })
+
+		// Logged on both days, nothing is left unmeasured: no partial line.
+		const whole = season([lift(-2, 12), lift(-1, 12)], planWithTracks())
+			.weeks.find((w) => w.key === THIS_MONDAY)!
+			.tracks.find((t) => t.trackId === 'track-lift')!
+		expect(whole.partialLabel).toBeNull()
+	})
+
 	test('on a Wednesday the week is graded through Tuesday only', () => {
 		const run = thisWeek().tracks.find((t) => t.trackId === 'track-run')!
 		expect(run.grade).toMatchObject({
@@ -1756,6 +1869,43 @@ describe('weeks past the Planning Horizon collapse, and keep the athlete’s own
 		const result = season([on(0), on(21)])
 		expect(result.weeks.every((week) => week.shape !== 'collapsed')).toBe(true)
 		expect(result.horizonWeekKey).toBeNull()
+	})
+})
+
+describe('a session written far ahead shows on its day, its weeks collapsed (#505 story 40)', () => {
+	const race = (days: number) =>
+		on(days, {
+			id: 'race',
+			status: 'scheduled',
+			source: 'authored',
+			recording: null,
+			workout: workout({ title: 'Birkebeinerløpet' }),
+		})
+
+	test('a year out, with no plan, the week holds the race and nothing else', () => {
+		const result = season([on(0), race(400)])
+		const raceMonday = nextDay(THIS_MONDAY, 7 * 57)
+		const week = result.weeks.find((w) => w.key === raceMonday)!
+		expect(week.shape).toBe('collapsed')
+		expect(week.shownDayKeys).toEqual([nextDay(THIS_MONDAY, 402)])
+		expect(
+			week.rows.flatMap((day) => day.sessions.map((s) => s.title)),
+		).toEqual(['Birkebeinerløpet'])
+		expect(week.foldLabel).toMatch(/langt fram · bare øktene du skriver selv$/)
+		// The empty weeks before it are one line each, drawing no day.
+		const between = result.weeks.find(
+			(w) => w.key === nextDay(THIS_MONDAY, 7 * 40),
+		)!
+		expect(between).toMatchObject({ shape: 'collapsed', shownDayKeys: [] })
+	})
+
+	test('inside the half year every week is still drawn day by day', () => {
+		const result = season([on(0), race(400)])
+		const near = result.weeks.find(
+			(w) => w.key === nextDay(THIS_MONDAY, 7 * 20),
+		)!
+		expect(near.shape).toBe('open')
+		expect(near.shownDayKeys).toHaveLength(7)
 	})
 })
 

@@ -700,23 +700,7 @@ function SeasonEditPreviewPanel({
 			<p id={messageId} className="text-sm" data-season-edit-message>
 				{preview.message}
 			</p>
-			{preview.warnings.length > 0 ? (
-				<div
-					role="status"
-					className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
-					data-season-edit-warning
-				>
-					<p className="font-medium">{SEASON_EDIT_LABELS.warningTitle}</p>
-					<ul className="mt-1 space-y-1">
-						{preview.warnings.map((warning) => (
-							<li key={warning}>{warning}</li>
-						))}
-					</ul>
-					<p className="text-muted-foreground mt-1 text-xs">
-						{SEASON_EDIT_LABELS.warningNote}
-					</p>
-				</div>
-			) : null}
+			<RiseWarningNotice warnings={preview.warnings} />
 			{preview.weeks.length > 0 ? (
 				<table className="w-full text-left text-sm tabular-nums">
 					<caption className="text-muted-foreground pb-1 text-left text-xs">
@@ -783,4 +767,30 @@ function SeasonEditPreviewPanel({
 function weekCell(week: WeekView | null): string {
 	if (!week) return SEASON_EDIT_LABELS.ended
 	return `${week.phaseName} · ${targetsLabel(week.targets)} · ${NB_WEEK_ROLE_LABELS[week.role]}`
+}
+
+/**
+ * The rise warnings of a preview (story 76, ADR 0084 §3), worded: shared by
+ * the Sesong edits and the philosophy switch, so both warn in one voice. It
+ * warns and never blocks — the confirm stays offered under it.
+ */
+export function RiseWarningNotice({ warnings }: { warnings: string[] }) {
+	if (warnings.length === 0) return null
+	return (
+		<div
+			role="status"
+			className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
+			data-season-edit-warning
+		>
+			<p className="font-medium">{SEASON_EDIT_LABELS.warningTitle}</p>
+			<ul className="mt-1 space-y-1">
+				{warnings.map((warning) => (
+					<li key={warning}>{warning}</li>
+				))}
+			</ul>
+			<p className="text-muted-foreground mt-1 text-xs">
+				{SEASON_EDIT_LABELS.warningNote}
+			</p>
+		</div>
+	)
 }

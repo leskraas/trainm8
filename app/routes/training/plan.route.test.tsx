@@ -2164,6 +2164,52 @@ test('every shape is on offer, five families at three lengths, each with an Appl
 	}
 })
 
+test('once the plan has begun, no shape is offered: Bytt filosofi is, behind its preview', async () => {
+	// The plan opens 7 Jan; its first week is lived. A shape would replace every
+	// phase, lived weeks included, with no preview (#505 stories 14, 75).
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		firstUnbegunWeekKey: '2030-01-14',
+	})
+
+	expect(
+		await screen.findByText(
+			/Planen er i gang, og en ny form ville skrevet over/,
+		),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('list', { name: 'Season shapes' }),
+	).not.toBeInTheDocument()
+	expect(
+		screen.queryByRole('button', { name: /^Apply / }),
+	).not.toBeInTheDocument()
+	expect(
+		screen.getByRole('link', { name: 'Til Bytt filosofi' }),
+	).toHaveAttribute('href', '#philosophy')
+})
+
+test('the edits outside Sesong v1 wait behind Avansert, which says they apply directly', async () => {
+	renderPlan()
+
+	const advanced = (await screen.findAllByText('Avansert')).map(
+		(summary) => summary.closest('details')!,
+	)
+	// One per block card, and one for the season's own rules.
+	expect(advanced.length).toBeGreaterThan(1)
+	for (const details of advanced) {
+		expect(details).not.toHaveAttribute('open')
+		expect(details).toHaveTextContent(/uten forhåndsvisning/)
+	}
+	const season = advanced.at(-1)!
+	for (const name of ['Start from a shape', 'Season anchors', 'Add a phase']) {
+		expect(within(season).getAllByText(name).length).toBeGreaterThan(0)
+	}
+	// A block's climb and its place are behind its own Avansert line.
+	const block = advanced[0]!
+	expect(
+		within(block).getByRole('button', { name: 'Move later' }),
+	).toBeInTheDocument()
+})
+
 test('the gallery states the fitting rule: base first, taper never', async () => {
 	renderPlan()
 	await shapeCards()

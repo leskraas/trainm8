@@ -731,6 +731,12 @@ export function horizonFillLabel(closesWeekNumber: number): string {
 /** A week past the horizon of a plan with no Week Pattern to fill it from. */
 export const NOT_FILLED_LABEL = 'ingen økter lagt inn ennå'
 
+/**
+ * A week far ahead, past any plan (#505 story 40): the app fills nothing
+ * there, so it shows only the sessions the athlete wrote into it.
+ */
+export const FAR_WEEK_LABEL = 'langt fram · bare øktene du skriver selv'
+
 /** A fold's control, for the reader who hears it rather than sees it. */
 export function foldedWeekControlLabel(name: string, line: string): string {
 	return `${name}, ${line}`
@@ -2033,6 +2039,30 @@ export const SEASON_EDIT_LABELS = {
 	no: 'Nei',
 	editHere: 'Endre i «Endre sesongen»',
 	now: 'Nå',
+} as const
+
+/**
+ * _Avansert_ on Sesong (#505 story 75, ADR 0084 §1): the plan's rules that are
+ * outside the four Sesong edits of v1 — a segment's climb and quality mix, a
+ * phase's place, a Season Anchor, a lifting block, a shape, the Event fit.
+ * They apply directly, and the disclosure says so before it opens.
+ */
+export const SEASON_ADVANCED_LABELS = {
+	title: 'Avansert',
+	note: 'Disse endringene gjelder med en gang, uten forhåndsvisning.',
+	phaseNote:
+		'Stigning, kvalitetsøkter og plassering. Gjelder med en gang, uten forhåndsvisning.',
+} as const
+
+/**
+ * "Start from a shape" once the plan has begun (#505 stories 14, 75): a shape
+ * replaces every phase with no preview, so the page points to the philosophy
+ * switch instead, which keeps the weeks lived and previews first.
+ */
+export const PRESET_GALLERY_LABELS = {
+	begun:
+		'Planen er i gang, og en ny form ville skrevet over ukene du har trent. Bytt filosofi i stedet: ukene du har trent og øktene dine blir stående, og du ser endringen før den gjelder.',
+	switchLink: 'Til Bytt filosofi',
 } as const
 
 /** A phase's rhythm in the #505 surfaces' words (#505 story 73). */

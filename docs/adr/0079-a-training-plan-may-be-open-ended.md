@@ -322,6 +322,23 @@ nullable `PlanOutline.family` and nothing else, no backfill.
   days. So neither of Sesong's fit checks fires on a plan the first run just
   made. A race date is a real calendar day, after this week and within 104 plan
   weeks, checked on the form and again when read back from the URL. The goal
-  Event and its Outline are written in one transaction that first re-checks
-  that the athlete has no plan (`createPlanOutlineInTx`), so a double submit
-  makes one plan, and a write that fails leaves no Event behind.
+  Event and its Outline are written in one transaction that first re-checks that
+  the athlete has no plan (`createPlanOutlineInTx`), so a double submit makes
+  one plan, and a write that fails leaves no Event behind.
+
+## As built (#505 gaps): rounds stop at two years, and lifting carries on
+
+- **At most `MAX_PLAN_WEEKS` (104).** A round that would take an open-ended plan
+  past two years of weeks is not proposed (`readRoundFacts`) and not appended
+  (`appendOpenEndedRound`, the lived gap counted). Two years is the longest
+  season the Sesong edits can change — each refuses `plan-too-long` past it —
+  and the longest the authoring forms accept, so an uncapped plan would grow
+  into one nobody could edit. Past it the athlete starts a new plan; a rolling
+  window that retires lived rounds is the follow-up if anyone reaches it.
+- **A lifting block that ran to the plan's end keeps going.** Strength segments
+  float free of the phases (ADR 0047 §6), so a new round gets none of its own;
+  instead `appendOpenEndedRound` extends every strength segment that ended where
+  the plan ended to the new end, the lived gap included. A block that ended
+  earlier — the athlete stopped lifting — stays where it ended.
+- **A shape is not applied to a begun plan** (`plan-begun`, ADR 0084 §1): the
+  philosophy switch is the way to another family once a week is lived.

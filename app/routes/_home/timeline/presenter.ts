@@ -99,7 +99,10 @@ import {
 	type ProfileBar,
 	type ProfileBarGroup,
 } from '#app/utils/session-profile.ts'
-import { TIMELINE_TRAILING_DAYS } from '#app/utils/timeline-window.ts'
+import {
+	TIMELINE_HORIZON_DAYS,
+	TIMELINE_TRAILING_DAYS,
+} from '#app/utils/timeline-window.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -296,7 +299,11 @@ export type TimelineBand = {
  * - `folded` — a closed week, one line above today; it opens on a tap.
  * - `collapsed` — a plan week past the Planning Horizon that nothing has laid
  *   yet: one line saying what it will be, plus any session the athlete wrote
- *   there themselves, because their fixed points are never hidden.
+ *   there themselves, because their fixed points are never hidden. A **far**
+ *   week — past the plan's end and past half a year (`TIMELINE_HORIZON_DAYS`),
+ *   where the athlete may still write (#505 story 40) — collapses the same
+ *   way, so a race written a year out shows on its day without a year of
+ *   empty days drawn before it.
  */
 export type WeekShape = 'open' | 'folded' | 'collapsed'
 
@@ -476,6 +483,16 @@ export function buildTimelineSeason({
 		planStartMonday != null && planWeeks > 0
 			? addDays(planStartMonday, 7 * (planWeeks - 1))
 			: null
+	// Past this Monday a week is far: past the plan's end and past the half
+	// year the stream draws in full (`TIMELINE_HORIZON_DAYS`).
+	const halfYearMonday = weekMonday(
+		middayOf(addDays(todayKey, TIMELINE_HORIZON_DAYS), timezone),
+		timezone,
+	)
+	const farAfter =
+		planEndMonday != null && planEndMonday > halfYearMonday
+			? planEndMonday
+			: halfYearMonday
 	const mondays = seasonMondays({
 		sessionWeeks: [...byWeek.keys()],
 		nowMonday,
@@ -528,6 +545,7 @@ export function buildTimelineSeason({
 			tracks,
 			closed: monday <= closedThrough,
 			horizon,
+			far: monday > farAfter,
 			fillsWeeks: activePlan?.fillsWeeks ?? false,
 			leadTrackId,
 			importFacts,
@@ -687,6 +705,7 @@ function buildWeek({
 	tracks,
 	closed,
 	horizon,
+	far,
 	fillsWeeks,
 	leadTrackId,
 	importFacts,
@@ -707,6 +726,8 @@ function buildWeek({
 	closed: boolean
 	/** The last week the Planning Horizon reaches; null without a plan. */
 	horizon: string | null
+	/** Past the plan's end and the half year the stream draws in full. */
+	far: boolean
 	/** Whether the week change will fill a week once the horizon reaches it. */
 	fillsWeeks: boolean
 	/** The track a one-line week is read in (`leadTrack`). */
@@ -803,7 +824,7 @@ function buildWeek({
 	const shape: WeekShape =
 		monday < nowMonday
 			? 'folded'
-			: horizon != null && monday > horizon && phase != null && !laid
+			: !laid && ((horizon != null && monday > horizon && phase != null) || far)
 				? 'collapsed'
 				: 'open'
 	const lead = trackWeeks.find((track) => track.trackId === leadTrackId) ?? null
@@ -848,7 +869,8 @@ function buildWeek({
 							relativeName,
 							phaseName,
 							lead,
-							fillsWeeks,
+							fillsWeeks: fillsWeeks && phase != null,
+							far: phase == null,
 						})
 					: null,
 		shownDayKeys:

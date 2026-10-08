@@ -93,7 +93,9 @@ import {
 	OPEN_ENDED_PLAN_LABEL,
 	openEndedBlockLabel,
 	PHILOSOPHY_SWITCH_LABELS,
+	PRESET_GALLERY_LABELS,
 	PHILOSOPHY_SWITCH_REFUSAL_LABELS,
+	SEASON_ADVANCED_LABELS,
 	SEASON_EDIT_LABELS,
 	STRENGTH_OFFER_LABELS,
 	switchedPhilosophySentence,
@@ -1077,7 +1079,11 @@ export async function action({ request }: Route.ActionArgs) {
 				outlineId: outlineId.data,
 				presetKey: presetKey.data,
 			})
-			if (!applied.ok) return report(applied)
+			if (!applied.ok) {
+				return applied.reason === 'plan-begun'
+					? refuse(PRESET_GALLERY_LABELS.begun)
+					: report(applied)
+			}
 			// A redirect rather than falling through to the loader, because there is
 			// something to *say* that the page cannot say by itself. Applying copies the
 			// shape in: nothing records where the blocks came from, no reference back
@@ -2264,10 +2270,6 @@ export default function PlanRoute({
 							<p className="text-muted-foreground text-sm">
 								{fitSentence(season.fit)}
 							</p>
-							<FitToEventOffer
-								outlineId={season.outlineId}
-								proposal={proposeFit(season.phases, season.fit)}
-							/>
 						</div>
 					) : null}
 					{strengthOffer ? (
@@ -2367,6 +2369,7 @@ export default function PlanRoute({
 					actionData={actionData}
 					strengthTracks={strengthTracks}
 					anchorTracks={anchorTracks}
+					firstUnbegunWeekKey={firstUnbegunWeekKey}
 				/>
 			) : (
 				<WeeksReading
@@ -3018,8 +3021,14 @@ function BlocksReading({
 	actionData,
 	strengthTracks,
 	anchorTracks,
+	firstUnbegunWeekKey,
 }: {
 	season: SeasonData
+	/**
+	 * The first week not yet begun: a plan whose start is before it has begun,
+	 * and a shape would rewrite weeks lived (#505 story 14).
+	 */
+	firstUnbegunWeekKey: string
 	/** A refused *structural* edit, said once above the phases it was aimed at. */
 	error?: string
 	actionData: SegmentActionData
@@ -3190,69 +3199,95 @@ function BlocksReading({
 
 			{/* Everything below the phases is something an athlete does **once, or
 			    rarely** — pick a shape, say what they start from, lay out a lifting
-			    block, add a phase, throw the plan away. Each was a full open section,
-			    and together they were most of the page. Closed, they are a list of five
-			    lines under the blocks they act on; open, each is exactly the surface
-			    that shipped. Nothing is removed and no copy is cut: the prose that
-			    explains a control now arrives *with* the control instead of ahead of it.
-			 */}
+			    block, add a phase, fit the season to its Event. None of them is one of
+			    the four Sesong edits of #505 v1 (ADR 0084 §1): they apply directly,
+			    with no preview, so they wait behind one closed _Avansert_ line that
+			    says so before it opens. Inside, each is exactly the surface that
+			    shipped. */}
 			<div className="border-border/70 border-b">
-				{/* The shape leads, still: an athlete who does not want to build a season
-				    block by block should be offered one before being handed the controls
-				    (#399 story 7). Applying re-derives where the plan ends against the
-				    Event rather than stretching anything, and the headline card above
-				    says where that is — deliberately no second copy of it down here. */}
 				<Disclosure
-					summary="Start from a shape"
-					detail="Three built-in periodization shapes, each drawn as the load profile it lays down. Applying one replaces your blocks."
+					summary={SEASON_ADVANCED_LABELS.title}
+					detail={SEASON_ADVANCED_LABELS.note}
 				>
-					<PresetGallery outlineId={season.outlineId} />
-				</Disclosure>
+					{/* Where the season misses its Event, the edit that would close the
+					    gap, named in full before it is offered. The proposal is
+					    recomputed server-side when it is applied, so a stale reading can
+					    never land an edit the athlete was not shown. */}
+					{season.fit ? (
+						<FitToEventOffer
+							outlineId={season.outlineId}
+							proposal={proposeFit(season.phases, season.fit)}
+						/>
+					) : null}
 
-				{/* The anchor is the level the ramps above multiply — reading the number
-				    first and the progression second is the order the formula has
-				    (ADR 0040 §3) — and re-anchoring is a statement about the *season*,
-				    not about a phase: it takes effect from a week the athlete picks and
-				    floats free of where the blocks fall (ADR 0040 §5). It reads *after*
-				    the blocks here and not before them, because the number is authored
-				    once at the start of a season and the ramps over it are what an
-				    athlete comes back to change. */}
-				<Disclosure
-					summary="Season anchors"
-					detail={anchorSummary(anchorTracks)}
-				>
-					<SeasonAnchorSection
-						tracks={anchorTracks}
-						weeks={season.weeks}
-						timezone={season.timezone}
-						actionData={actionData}
-					/>
-				</Disclosure>
+					{/* A shape replaces every phase, so it is offered only while no week
+					    of the plan has begun. After that the way to another method is
+					    _Bytt filosofi_, which keeps the weeks lived and the athlete's
+					    sessions and previews first (#505 stories 13–14). */}
+					{season.startWeekKey < firstUnbegunWeekKey ? (
+						<div
+							className="border-border/70 space-y-1 border-t py-3"
+							data-preset-gallery-begun
+						>
+							<p className="text-sm font-medium">Start from a shape</p>
+							<p className="text-muted-foreground text-sm">
+								{PRESET_GALLERY_LABELS.begun}
+							</p>
+							<a
+								href="#philosophy"
+								className="text-sm font-medium underline underline-offset-4"
+							>
+								{PRESET_GALLERY_LABELS.switchLink}
+							</a>
+						</div>
+					) : (
+						<Disclosure
+							summary="Start from a shape"
+							detail="Three built-in periodization shapes, each drawn as the load profile it lays down. Applying one replaces your blocks."
+						>
+							<PresetGallery outlineId={season.outlineId} />
+						</Disclosure>
+					)}
 
-				{/* The lifting blocks sit *beside* the phase list rather than inside it,
-				    because a dated block has no phase card to belong to (ADR 0047 §6) —
-				    it is laid out along the plan's own weeks instead. Offered even with
-				    no strength track, because the section is where its own empty state
-				    is said. */}
-				{strengthTracks.length > 0 ? (
+					{/* The anchor is the level the ramps above multiply, and re-anchoring
+					    is a statement about the *season*, not about a phase: it takes
+					    effect from a week the athlete picks and floats free of where the
+					    blocks fall (ADR 0040 §5). */}
 					<Disclosure
-						summary="Lifting blocks"
-						detail={strengthSummary(strengthTracks)}
+						summary="Season anchors"
+						detail={anchorSummary(anchorTracks)}
 					>
-						<StrengthBlocksSection
-							tracks={strengthTracks}
+						<SeasonAnchorSection
+							tracks={anchorTracks}
 							weeks={season.weeks}
 							timezone={season.timezone}
 							actionData={actionData}
 						/>
 					</Disclosure>
-				) : null}
 
-				<Disclosure
-					summary="Add a phase"
-					detail="A new phase at a position you choose. Your plan’s start week never moves."
-				>
-					<AddPhaseForm outlineId={season.outlineId} phases={season.phases} />
+					{/* The lifting blocks sit *beside* the phase list rather than inside
+					    it, because a dated block has no phase card to belong to (ADR 0047
+					    §6) — it is laid out along the plan's own weeks instead. */}
+					{strengthTracks.length > 0 ? (
+						<Disclosure
+							summary="Lifting blocks"
+							detail={strengthSummary(strengthTracks)}
+						>
+							<StrengthBlocksSection
+								tracks={strengthTracks}
+								weeks={season.weeks}
+								timezone={season.timezone}
+								actionData={actionData}
+							/>
+						</Disclosure>
+					) : null}
+
+					<Disclosure
+						summary="Add a phase"
+						detail="A new phase at a position you choose. Your plan’s start week never moves."
+					>
+						<AddPhaseForm outlineId={season.outlineId} phases={season.phases} />
+					</Disclosure>
 				</Disclosure>
 
 				<Disclosure

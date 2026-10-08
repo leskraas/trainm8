@@ -415,3 +415,98 @@ test('an extra session the plan never asked for does not make a missed week done
 
 	expect((await roundProposal(userId)).payload).toMatchObject({ factor: 1 })
 })
+
+test('a lifting block that runs to the plan’s end keeps going in the new round; one that ended stays ended', async () => {
+	const { userId, outlineId } = await createOpenEndedAthlete()
+	const track = await prisma.trainingTrack.create({
+		data: { outlineId, discipline: 'strength', currency: 'sets' },
+		select: { id: true },
+	})
+	const block = (startWeekKey: string, weeks: number) =>
+		prisma.trainingTrackSegment.create({
+			data: {
+				kind: 'strength',
+				trackId: track.id,
+				startWeekKey,
+				weeks,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 2,
+			},
+			select: { id: true },
+		})
+	// One block from the round's second week to its last (14 Jan) …
+	const running = await block('2030-01-07', 2)
+	// … and an earlier one that stopped after its first week.
+	const stopped = await block(PLAN_START, 1)
+	await trainTheRound(userId, [50, null])
+
+	await runWeekChangeForUser(userId, CLOSE)
+	await runWeekChangeForUser(userId, MORNING)
+
+	// The round is appended (Blokk 2, four weeks from 21 Jan), and the block
+	// that reached the old end now reaches the new one: 2 + 4 weeks.
+	expect((await phasesOf(outlineId)).map((p) => [p.name, p.weeks])).toEqual([
+		['Blokk 1', 3],
+		['Blokk 2', 4],
+	])
+	const weeksOf = async (id: string) =>
+		await prisma.trainingTrackSegment.findUniqueOrThrow({
+			where: { id },
+			select: { weeks: true, startWeekKey: true },
+		})
+	expect(await weeksOf(running.id)).toEqual({
+		startWeekKey: '2030-01-07',
+		weeks: 6,
+	})
+	expect(await weeksOf(stopped.id)).toEqual({
+		startWeekKey: PLAN_START,
+		weeks: 1,
+	})
+})
+
+test('an open-ended plan stops proposing rounds at two years of weeks (MAX_PLAN_WEEKS)', async () => {
+	const userData = createUser()
+	const user = await prisma.user.create({
+		select: { id: true },
+		data: {
+			...userData,
+			password: { create: createPassword(userData.username) },
+			athleteProfile: {
+				create: { timezone: OSLO, defaultTrainingTime: '07:00' },
+			},
+		},
+	})
+	// 101 weeks, ending on 21 Jan 2030: the close on 13 Jan is its
+	// second-to-last week, when a round would be proposed. One more block of
+	// 3:1 would make it 105 weeks.
+	const start = '2028-02-14'
+	const created = await createPlanOutline(
+		user.id,
+		{
+			startWeekKey: start,
+			structure: {
+				phases: [
+					{ name: 'Blokk 1', weeks: 52, rhythm: '3:1' },
+					{ name: 'Blokk 2', weeks: 49, rhythm: '3:1' },
+				],
+			},
+			tracks: [{ discipline: 'run', currency: 'hours', anchorValue: 4 }],
+		},
+		new Date('2028-02-20T12:00:00Z'),
+	)
+	if (!created.ok) throw new Error(`plan setup failed: ${created.reason}`)
+	await trainTheRound(user.id, [50, 50])
+
+	await runWeekChangeForUser(user.id, CLOSE)
+	expect(
+		await prisma.weekReplanProposal.count({
+			where: { athleteId: user.id, kind: 'add-phase' },
+		}),
+	).toBe(0)
+	expect(
+		(await phasesOf(created.outlineId)).map((p) => [p.name, p.weeks]),
+	).toEqual([
+		['Blokk 1', 52],
+		['Blokk 2', 49],
+	])
+})

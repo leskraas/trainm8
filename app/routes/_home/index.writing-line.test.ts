@@ -325,7 +325,8 @@ describe('the branches, on a fixed clock', () => {
 			'2030-02-30',
 			'30-03-2030',
 			addDays(TODAY, -200),
-			addDays(TODAY, 200),
+			// Two years ahead is as far as the athlete writes (#505 story 40).
+			addDays(TODAY, 740),
 		]) {
 			expect({
 				date,
@@ -339,10 +340,11 @@ describe('the branches, on a fixed clock', () => {
 		).toBe(0)
 	})
 
-	test('the window runs to the plan’s end, and the loader reads the session back', async () => {
-		// Forty weeks: the plan ends about 280 days out, past the half year.
+	test('the window runs two years ahead, past the plan’s end, and the loader reads the session back', async () => {
+		// Forty weeks: the plan ends about 280 days out. A race placed past it,
+		// more than a year away, is written and read back (#505 story 40).
 		const user = await setUp({ weeks: 40 })
-		const far = addDays(TODAY, 250)
+		const far = addDays(TODAY, 500)
 		const reply = (await write(user.cookie, {
 			date: far,
 			sentence: '30 km langtur',
@@ -358,11 +360,11 @@ describe('the branches, on a fixed clock', () => {
 		if (!home.isAuthenticated) throw new Error('expected a signed-in home')
 		expect(home.ledger.map((s) => s.id)).toContain(reply.data.stampedSessionId)
 
-		// Past the plan's end, the window closes again.
+		// Past two years, the window closes.
 		expect(
 			await status(
 				await write(user.cookie, {
-					date: addDays(TODAY, 300),
+					date: addDays(TODAY, 740),
 					sentence: '10 km',
 				}),
 			),

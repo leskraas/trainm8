@@ -132,7 +132,7 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	const currentBlock = page.getByRole('article').filter({ hasText: 'Big base' })
 	await expect(currentBlock.getByText('Current')).toBeVisible()
 	await expect(currentBlock).toContainText('with 1 quality session a week')
-	await section(currentBlock, 'How this block progresses').click()
+	await section(currentBlock, 'Avansert').click()
 	await currentBlock.getByLabel('Zone 4 threshold, sessions a week').fill('2')
 	await currentBlock.getByRole('button', { name: /save quality mix/i }).click()
 

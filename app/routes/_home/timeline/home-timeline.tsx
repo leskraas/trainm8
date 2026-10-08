@@ -382,8 +382,15 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 					<div className="flex items-center gap-3 px-[18px] py-[14px]">
 						{scroll.collapsed && hero ? (
 							<>
+								{/* The whole title, on as many lines as it takes — never cut
+								    with "…" (#505 story 32). The row grows with it; nothing
+								    is measured off this row (the landing reads the week's
+								    own header, and the frame's height the chrome above). */}
 								<span className="flex min-w-0 flex-1 flex-col gap-0.5">
-									<span className="truncate text-[13px]/[1.2] font-semibold">
+									<span
+										data-hero-collapsed-title
+										className="text-[13px]/[1.2] font-semibold break-words"
+									>
 										{hero.collapsed.title}
 									</span>
 									<span className="text-primary text-[10.5px]/[1.2]">

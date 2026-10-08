@@ -1,13 +1,17 @@
 /**
  * The window of days I dag reads and lets the athlete write into (ADR 0082,
- * "As built (#505 S11)").
+ * "As built (#505 S11)", and "As built (#505 gaps)").
  *
  * One window for both, so a session can only be written where it can be read
  * back and taken away again (ADR 0076). Behind today it is half a year; ahead
- * it is half a year **or the end of the active plan, whichever is later** —
- * so every week the season shows, a collapsed week months out included, can
- * take a session the athlete writes (#505 story 40). The Planning Horizon
+ * it is **two years, or the end of the active plan or its race, whichever is
+ * later** — so a race or a group run can be placed months out, past the
+ * Planning Horizon and past the plan (#505 story 40). The Planning Horizon
  * limits what the app lays, never what the athlete writes.
+ *
+ * Reading two years ahead costs one indexed range query: the rows are only
+ * what the athlete wrote there, and the presenter draws a far week as one
+ * collapsed line with just those sessions (ADR 0078's cost was never rows).
  */
 import {
 	addDays,
@@ -22,8 +26,15 @@ import {
  */
 export const TIMELINE_TRAILING_DAYS = 182
 
-/** How far forward the timeline reaches at the least. */
+/**
+ * How far ahead the stream draws every day of a week with no plan to read it
+ * by: past it (and past the plan's end) a week is **far**, and is drawn as
+ * one collapsed line with only the sessions written into it.
+ */
 export const TIMELINE_HORIZON_DAYS = 182
+
+/** How far forward the athlete may write, and the timeline reads, at the least. */
+export const TIMELINE_WRITE_AHEAD_DAYS = 730
 
 /** The plan as the window reads it: where it starts, how long it runs, its race. */
 export type WindowPlan = {
@@ -52,7 +63,7 @@ export function timelineWindow({
 	plan: WindowPlan | null
 }): TimelineWindow {
 	const todayKey = localDate(now, timezone)
-	let lastDayKey = addDays(todayKey, TIMELINE_HORIZON_DAYS)
+	let lastDayKey = addDays(todayKey, TIMELINE_WRITE_AHEAD_DAYS)
 	if (plan) {
 		const weeks = plan.phases.reduce((sum, phase) => sum + phase.weeks, 0)
 		if (weeks > 0) {

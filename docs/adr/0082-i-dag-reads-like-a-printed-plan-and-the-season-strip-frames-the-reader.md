@@ -335,13 +335,32 @@ amendment. Free-text commands (`syk til onsdag`) are a later step.
 A session still scheduled on **today** reads planned on I dag until the day is
 over in the Athlete Timezone, not _ikke gjort_ from its start time on:
 `deriveLedgerStatus` takes the timezone where the reader thinks in days (the
-stream's rows and the week's volumes), story 24's rule applied to the row as
-it already was to the week's grade. The hero's "next session" still reads the
+stream's rows and the week's volumes), story 24's rule applied to the row as it
+already was to the week's grade. The hero's "next session" still reads the
 instant, so a session earlier today is not offered there as coming.
 
-The quick strength log sits under a gym day's row (_Logg økta_: _Som planlagt_
-/ _Endre_), beside the row's other actions; see GLOSSARY "Quick Strength Log"
-and ADR 0064's S16 note.
+The quick strength log sits under a gym day's row (_Logg økta_: _Som planlagt_ /
+_Endre_), beside the row's other actions; see GLOSSARY "Quick Strength Log" and
+ADR 0064's S16 note.
+
+## As built (#505 gaps): two years ahead, far weeks, and a header that wraps
+
+- **The athlete writes up to two years ahead** (story 40). `timeline-window.ts`
+  reads forward to `TIMELINE_WRITE_AHEAD_DAYS` (730), or to the plan's end or
+  its race where later; the loader's ledger query reaches as far, and the
+  writing line's panel and the stamp refuse only past it. The cost is one
+  indexed range query: the rows are only what the athlete wrote there.
+- **A far week collapses.** Past the plan's end and past half a year
+  (`TIMELINE_HORIZON_DAYS`), a week nothing of the machine's is in is drawn as
+  one collapsed line — `Uke 9 · langt fram · bare øktene du skriver selv` —
+  showing only the days that hold a session. So a race written a year out shows
+  on its day without a year of empty days before it; the weeks between are one
+  line each (§3's shape, with no phase to name). ADR 0078's measurement still
+  holds: the cost was never the rows.
+- **The collapsed hero header wraps the session's title** (story 32): no
+  `truncate`, so the row grows with the title. Nothing is measured off that row
+  — the landing reads today's week header (§10) and the frame's height the
+  chrome above — so the landing is unchanged.
 
 ## Consequences
 

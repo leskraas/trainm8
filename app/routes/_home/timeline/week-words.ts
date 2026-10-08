@@ -24,6 +24,7 @@ import {
 	missedCountLabel,
 	NB_DISCIPLINE_LABELS,
 	NB_VOLUME_UNITS,
+	FAR_WEEK_LABEL,
 	NOT_FILLED_LABEL,
 	OF_WORD,
 	sessionCountLabel,
@@ -218,12 +219,15 @@ export function collapsedWeekLine({
 	phaseName,
 	lead,
 	fillsWeeks,
+	far = false,
 }: {
 	monday: string
 	relativeName: string
 	phaseName: string | null
 	lead: TimelineTrackWeek | null
 	fillsWeeks: boolean
+	/** Past any plan: nothing will fill it, only what the athlete writes. */
+	far?: boolean
 }): string {
 	const target = reference(lead?.figures.target ?? null)
 	return [
@@ -232,9 +236,11 @@ export function collapsedWeekLine({
 		target != null && lead
 			? `${WEEK_FIGURE_LABELS.target} ${target} ${lead.unit}`
 			: null,
-		fillsWeeks
-			? horizonFillLabel(isoWeekNumber(addDays(monday, -14)))
-			: NOT_FILLED_LABEL,
+		far
+			? FAR_WEEK_LABEL
+			: fillsWeeks
+				? horizonFillLabel(isoWeekNumber(addDays(monday, -14)))
+				: NOT_FILLED_LABEL,
 	]
 		.filter((part): part is string => part != null)
 		.join(' · ')

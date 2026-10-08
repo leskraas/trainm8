@@ -2406,6 +2406,32 @@ describe('applyPreset', () => {
 		expect(await mixCount(outlineId)).toBe(0)
 	})
 
+	test('once a week of the plan has begun, a shape is refused and nothing moves', async () => {
+		const { athleteId, outlineId } = await authoredPlan()
+		const before = await storedPhases(outlineId)
+
+		// The plan opens Monday 7 Jan 2030. On its Monday, with nothing trained,
+		// the first week has not begun: a shape may still replace every phase.
+		// By Wednesday it has, and a shape would rewrite a week lived — the
+		// philosophy switch is the way to another method then (story 14).
+		expect(
+			await applyPreset(
+				athleteId,
+				{ outlineId, presetKey: 'big-base' },
+				new Date('2030-01-09T12:00:00Z'),
+			),
+		).toEqual({ ok: false, reason: 'plan-begun' })
+		expect(await storedPhases(outlineId)).toEqual(before)
+
+		expect(
+			await applyPreset(
+				athleteId,
+				{ outlineId, presetKey: 'big-base' },
+				new Date('2030-01-07T09:00:00Z'),
+			),
+		).toEqual({ ok: true })
+	})
+
 	test('a missing Outline is the same refusal', async () => {
 		const athleteId = await createAthlete()
 

@@ -113,13 +113,16 @@ leads with the shapes — ordered by how close each lands to this Event, which i
 a default and never a label — and the chosen one lands whole — its phases _and_
 each endurance segment's ramp, step and mix — with laying out your own blocks as
 the escape hatch beside them (ADR 0048 §1). Applying one to a plan that already
-exists is the same act on the plan surface. Distinct from a **Plan Template**,
-which is a stored, identity-carrying entity and is not yet built. The
-athlete-facing noun on the surface is **a shape** — "Start from a shape" — which
-is the word the domain reads naturally in; note that it is a _season_ shape and
-shares nothing with the **Workout Shape**, which is one session's structure.
-Where both could be meant, say **season shape**. _Avoid_: Plan preset, plan
-template (a different thing), periodization model, periodization scheme
+exists is the same act on the plan surface — **until a week of it has begun**: a
+shape replaces every phase with no preview, so once the plan is under way it is
+refused, and changing method is the philosophy switch, which keeps the weeks
+lived (#505 story 14). Distinct from a **Plan Template**, which is a stored,
+identity-carrying entity and is not yet built. The athlete-facing noun on the
+surface is **a shape** — "Start from a shape" — which is the word the domain
+reads naturally in; note that it is a _season_ shape and shares nothing with the
+**Workout Shape**, which is one session's structure. Where both could be meant,
+say **season shape**. _Avoid_: Plan preset, plan template (a different thing),
+periodization model, periodization scheme
 
 **Workout Template**: _Not a thing — the term is retired._ It described "a
 reusable workout definition that can be scheduled multiple times", which ADR
@@ -1553,18 +1556,19 @@ session", "recording"
 **Writing Line**: The text input on I dag where the athlete writes a session as
 a short sentence — `10 km rolig`, `3x10 min terskel p 1 min` (#505 stories
 35–41). It lives in a tapped empty day's draft and behind "+ Ny" →
-`Skriv en økt` for any other day the list renders, past the **Planning Horizon**
-too. While the athlete types it shows what was understood (the **Token
-Sentence** rendered from the structure the reader produced), the **Planned
-Volume** before → after against the **Week Target**
-(`40 → 46 km, målet står på 52`; a session with no number in the track's unit is
-`+1 uten km`, never a silent zero), and a suggestion for every word the reader
-did not know. It saves only a sentence it understood in full, as an `authored`
-session; the server reads the sentence again. Writing a session never moves the
-Week Target, and the toast after a write, a stamp or an undo says so
-(`Løping denne uka: 40 → 46 km. Ukemålet står på 52.`). Free-text commands
-(`syk til onsdag`) are not part of it. _Avoid_: command line, quick add, search
-box, chat
+`Skriv en økt` for any other day up to two years ahead (or the plan's end, where
+later), past the **Planning Horizon** too; a far week past the plan reads as one
+collapsed line showing only the sessions written into it. While the athlete
+types it shows what was understood (the **Token Sentence** rendered from the
+structure the reader produced), the **Planned Volume** before → after against
+the **Week Target** (`40 → 46 km, målet står på 52`; a session with no number in
+the track's unit is `+1 uten km`, never a silent zero), and a suggestion for
+every word the reader did not know. It saves only a sentence it understood in
+full, as an `authored` session; the server reads the sentence again. Writing a
+session never moves the Week Target, and the toast after a write, a stamp or an
+undo says so (`Løping denne uka: 40 → 46 km. Ukemålet står på 52.`). Free-text
+commands (`syk til onsdag`) are not part of it. _Avoid_: command line, quick
+add, search box, chat
 
 **First Run**: The five screens a new athlete, or one with no plan, goes through
 to their first **Training Plan** (`/start`, #505 stories 61–71): connect
@@ -2283,13 +2287,15 @@ load and so waits for a yes; a **missed week** (under 85 %), or a week with
 nothing planned to measure, keeps the volume, and silence appends that. The
 athlete may accept at a volume of their own. A round is never placed in the
 past: answered after the plan's end, it opens on the first week not yet begun
-and the last round runs on over the weeks between. Adding an Event later ends
-the current round early — at the weeks lived, this one included — and lays the
-family's run-up toward that Event from next week, fitted by the **Season Fit**
-rule; lived weeks and the athlete's sessions stay. The athlete may choose
-**which week of a block is the easy one** (`recoveryWeekIndex`, #505 story 74):
-the block that week falls in — the rhythm's period counted from the phase's
-first week — recovers on it and on no other, every other block keeps the
+and the last round runs on over the weeks between. A lifting block that ran to
+the plan's end runs on into the new round. Rounds stop at two years of weeks
+(`MAX_PLAN_WEEKS`), the longest season the Sesong edits can change. Adding an
+Event later ends the current round early — at the weeks lived, this one included
+— and lays the family's run-up toward that Event from next week, fitted by the
+**Season Fit** rule; lived weeks and the athlete's sessions stay. The athlete
+may choose **which week of a block is the easy one** (`recoveryWeekIndex`, #505
+story 74): the block that week falls in — the rhythm's period counted from the
+phase's first week — recovers on it and on no other, every other block keeps the
 rhythm's own position, and one choice per phase (ADR 0084 §2). _Avoid_: Block
 (UI word only), mesocycle, load phase, focus (the removed prototype field, ADR
 0042).

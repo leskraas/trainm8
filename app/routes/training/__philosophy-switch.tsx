@@ -48,6 +48,8 @@ import {
 	type PresetFamily,
 } from '#app/utils/plan-outline/presets.ts'
 import { type StrengthTrackOffer } from '#app/utils/plan-outline/proposal.ts'
+import { seasonEditWarningMessage } from '#app/utils/plan-outline/season-edit-words.ts'
+import { RiseWarningNotice } from './__season-edits.tsx'
 
 /** The preview as the page shows it: the diff and its digest, not the rows. */
 export type PhilosophyPreviewView = Omit<
@@ -220,6 +222,9 @@ function PhilosophyPreview({
 					formatDate(dayOf(preview.fromWeekKey), 'UTC'),
 				)}
 			</p>
+			<RiseWarningNotice
+				warnings={preview.warnings.map(seasonEditWarningMessage)}
+			/>
 			<div className="grid gap-3 sm:grid-cols-2">
 				<PhaseList
 					title={PHILOSOPHY_SWITCH_LABELS.before}

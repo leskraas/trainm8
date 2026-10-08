@@ -44,7 +44,13 @@ import {
 	type PhaseRow,
 	type SegmentRow,
 } from './from-rows.ts'
-import { digestOf, weekViews, type WeekView } from './outline-preview.ts'
+import {
+	digestOf,
+	riseWarnings,
+	weekViews,
+	type RiseWarning,
+	type WeekView,
+} from './outline-preview.ts'
 import {
 	familyRunUp,
 	familySeason,
@@ -112,6 +118,13 @@ export type PhilosophySwitchPreview = {
 		before: WeekView | null
 		after: WeekView | null
 	}>
+	/**
+	 * The loading weeks the new plan would raise more than 10 % over the
+	 * loading week before (story 76, ADR 0084 §3), from `fromWeekKey` on — read
+	 * over the after side, so a family that climbs steeper says so before the
+	 * athlete switches. It warns and never blocks.
+	 */
+	warnings: RiseWarning[]
 	/**
 	 * A fingerprint of everything above and of the edit: the confirm posts it
 	 * back, so the switch applied is the one the athlete saw.
@@ -242,6 +255,11 @@ export function previewPhilosophySwitch(
 			after: afterWeeks[boundary + i] ?? null,
 		}),
 	)
+	const warnings = riseWarnings(
+		rows,
+		afterWeeks,
+		(weekKey) => weekKey >= fromWeekKey,
+	)
 	const edit = { resize, remove, add }
 	return {
 		ok: true,
@@ -250,7 +268,16 @@ export function previewPhilosophySwitch(
 		fromWeekKey,
 		phases,
 		weeks,
-		digest: digestOf({ from, to: family, fromWeekKey, phases, weeks, edit }),
+		warnings,
+		digest: digestOf({
+			from,
+			to: family,
+			fromWeekKey,
+			phases,
+			weeks,
+			warnings,
+			edit,
+		}),
 		edit,
 		rows,
 	}

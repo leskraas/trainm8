@@ -1,3 +1,4 @@
+import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
 /**
@@ -69,4 +70,50 @@ test('switching philosophy shows a preview first, and the plan follows the new o
 	// The week being lived is still the first round's.
 	await expect(page.getByText('blokk 1 av ∞')).toBeVisible()
 	expect(errors).toEqual([])
+})
+
+test('the preview warns where the new plan would rise more than 10 % in a week (story 76)', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await navigate('/training/plan/new')
+	const holdActive = page.getByRole('region', { name: 'Hold meg aktiv' })
+	await holdActive.getByRole('radio', { name: 'Løping' }).check()
+	await holdActive.getByLabel('Timer i uka').fill('4')
+	await holdActive.getByRole('button', { name: 'Lag planen' }).click()
+	await expect(page.getByText('blokk 1 av ∞')).toBeVisible()
+
+	// A week the athlete hand-set stays through a switch; set the plan's
+	// second week far above its first, so the new plan jumps there.
+	const outline = await prisma.planOutline.findFirstOrThrow({
+		where: { athleteId: user.id },
+		select: { startWeekKey: true, tracks: { select: { id: true } } },
+	})
+	const second = new Date(`${outline.startWeekKey}T12:00:00Z`)
+	second.setUTCDate(second.getUTCDate() + 7)
+	await prisma.weekVolumeOverride.create({
+		data: {
+			trackId: outline.tracks[0]!.id,
+			weekKey: second.toISOString().slice(0, 10),
+			value: 40,
+		},
+	})
+	await page.reload()
+
+	const card = page.getByRole('region', { name: 'Filosofi' })
+	await card.getByText('Bytt filosofi').click()
+	await card.getByRole('radio', { name: /Polarisert 80\/20/ }).check()
+	await card.getByRole('button', { name: 'Vis forhåndsvisning' }).click()
+
+	const preview = page.getByRole('region', { name: 'Forhåndsvisning' })
+	const warning = preview.getByRole('status')
+	await expect(warning).toContainText('Raskt opp')
+	await expect(warning).toContainText(/over forrige harde uke/)
+	// It warns and never blocks: the switch is still offered under it.
+	await expect(
+		preview.getByRole('button', { name: 'Bytt til Polarisert 80/20' }),
+	).toBeEnabled()
 })

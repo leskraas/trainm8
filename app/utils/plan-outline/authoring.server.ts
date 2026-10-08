@@ -93,6 +93,7 @@ import {
 } from './authoring-schema.ts'
 import { eventFit } from './event-fit.ts'
 import { proposeFit, type FitProposal } from './fit-proposal.ts'
+import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
 import { readAnchorContext } from './history.server.ts'
 import {
 	familyOfPreset,
@@ -1566,6 +1567,13 @@ export async function removePhase(
 export type ApplyPresetResult =
 	| { ok: true }
 	| { ok: false; reason: 'outline-not-found' }
+	/**
+	 * A week of the plan has begun. A shape replaces every phase, lived weeks
+	 * included, with no preview — so once the plan is under way the way to
+	 * another method is the philosophy switch, which keeps the weeks lived and
+	 * shows the change first (#505 stories 13–14, 75).
+	 */
+	| { ok: false; reason: 'plan-begun' }
 
 /**
  * Apply a **periodization preset**: replace the Outline's phase structure with the
@@ -1603,22 +1611,37 @@ export type ApplyPresetResult =
  *
  * Phases are **fixed length**: the preset's own week counts land as authored, and
  * nothing here stretches them to fill the run-in to the Event.
+ *
+ * **Only before the plan begins** (`plan-begun`): replacing every phase would
+ * rewrite weeks already lived, so a plan whose first week is begun
+ * (`readFirstUnbegunWeekKey`) changes method through `switchPhilosophy`.
  */
 export async function applyPreset(
 	athleteId: string,
 	input: PresetApplyInput,
+	now: Date = new Date(),
 ): Promise<ApplyPresetResult> {
 	const apply = PresetApplySchema.parse(input)
 	// Total over the parsed key: `PresetApplySchema` admits the shipped keys and
 	// nothing else, so there is no unknown-preset case for a caller to handle.
 	const preset = presetFor(apply.presetKey)
+	const timezone = await getAthleteTimezone(athleteId)
 
 	return prisma.$transaction(async (tx) => {
 		const outline = await tx.planOutline.findFirst({
 			where: { id: apply.outlineId, athleteId },
-			select: { id: true },
+			select: { id: true, startWeekKey: true },
 		})
 		if (!outline) return { ok: false as const, reason: 'outline-not-found' }
+		const firstUnbegun = await readFirstUnbegunWeekKey(
+			athleteId,
+			now,
+			timezone,
+			tx,
+		)
+		if (outline.startWeekKey < firstUnbegun) {
+			return { ok: false as const, reason: 'plan-begun' }
+		}
 
 		await tx.planOutlinePhase.deleteMany({ where: { outlineId: outline.id } })
 		// The one thing that is recorded: which philosophy the plan now follows.

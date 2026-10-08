@@ -72,13 +72,33 @@ domain writes `renamePhase`, `resizePhase`, `setPhaseRhythm` and
 `set`/`clearWeekVolumeOverride` stay as tested primitives with no route caller;
 resize and rhythm keep a chosen easy week honest the same way (§2).
 
-**Still direct, and not routed through this preview:** applying a preset
-(`apply-preset`, which shows the shape before its Apply button), fitting to the
-Event (`fit-to-event`, which names the edit in full before its button), adding,
-moving and removing a phase, a segment's ramp, step, cuts and mix, a Season
-Anchor, a lifting block, and the Week Pattern. Those are authoring of the plan's
-rules rather than the four Sesong edits #505 v1 names; routing them through a
-preview is a follow-up.
+**Outside v1, and behind _Avansert_.** The four edits above and the philosophy
+are #505's Sesong edits, version 1. Everything else that changes the plan's
+numbers applies **directly, with no preview**, and is recorded here as outside
+v1: a segment's ramp, step, cuts and Quality Session Mix, moving and removing a
+phase, adding a phase, a Season Anchor, a lifting block, a shape
+(`apply-preset`), and fitting the season to its Event (`fit-to-event`, which
+names the edit in full before its button). They are authoring of the plan's
+rules rather than the edits v1 names. So they do not sit beside the v1 edits as
+equals: each block card keeps its reading and its links to _Endre sesongen_
+open, and puts its climb, quality mix and move/remove behind a closed _Avansert_
+line; the season's own rules (the Event fit, the shapes, the anchors, the
+lifting blocks, adding a phase) sit behind one closed _Avansert_ line under the
+blocks. Each line says, before it opens, that these apply at once, without a
+preview (`SEASON_ADVANCED_LABELS`). Routing any of them through a preview is a
+follow-up; the Week Pattern and the stamp write sessions, not targets, and stay
+where they are.
+
+**A shape is offered only before the plan begins (#505 gaps).** Applying a shape
+replaces every phase — lived weeks included — and previews nothing, which story
+14 forbids once a week has been lived. So `applyPreset` refuses `plan-begun`
+when the plan's start is before the first unbegun week
+(`readFirstUnbegunWeekKey`), and the plan page shows, in the gallery's place,
+why, with a link to _Bytt filosofi_ — which keeps the weeks lived and the
+athlete's sessions and previews first. Routing the gallery through
+`previewPhilosophySwitch` instead was considered: a shape is a family at a
+length, and the switch already picks the length that fits, so a second door to
+the same edit would only differ by the name of a length.
 
 ### 2. A chosen easy week moves the easy week of its own block, and no other
 
@@ -112,12 +132,15 @@ two false positives §12 retired — the rebound out of an easy week and the tap
 this reads only the pair that measures overload.
 
 It warns and never blocks, and no write path consults it. The preview shows only
-warnings on weeks the edit touches. Its copy names it a rule of thumb (_en
-tommelfingerregel, ikke en grense_) and makes no injury claim — §13 holds: the
-10 % rule has a failed RCT behind it (Buist et al. 2008). The constant is wider
-than `RAMP_GUARD_MAX` (+8 % a loading week) because it reads one step the
-athlete typed rather than a rate over a block, and the spec asked in those
-words.
+warnings on weeks the edit touches. The **philosophy switch's preview** warns by
+the same rule (`riseWarnings` in `outline-preview.ts`, shared), over the plan as
+it would be from the first week the switch changes on, and shows them in the
+same notice above its phase lists (#505 gaps, story 76); the warnings are part
+of its digest. Its copy names it a rule of thumb (_en tommelfingerregel, ikke en
+grense_) and makes no injury claim — §13 holds: the 10 % rule has a failed RCT
+behind it (Buist et al. 2008). The constant is wider than `RAMP_GUARD_MAX` (+8 %
+a loading week) because it reads one step the athlete typed rather than a rate
+over a block, and the spec asked in those words.
 
 ### 4. Each message names what held
 

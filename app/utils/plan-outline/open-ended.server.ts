@@ -16,6 +16,7 @@ import {
 	type ProposalPayload,
 } from '#app/utils/load/week-replan-proposal.ts'
 import { CARDIO_DISCIPLINES } from '#app/utils/workout-schema.ts'
+import { MAX_PLAN_WEEKS } from './authoring-schema.ts'
 import { layEnduranceSegments } from './authoring.server.ts'
 import { phaseIndexForWeek, phaseStartIndices, rhythmOf } from './derive.ts'
 import { fitRunUp } from './fit-proposal.ts'
@@ -54,9 +55,18 @@ export function roundBoundaryStep(factor: number): number | null {
  *
  * The round's endurance segments carry on from the round before it — its
  * ramp, its cuts and its Quality Session Mix, so an edit the athlete made to a
- * round is not lost at the next one — with the factor as the boundary step. A
- * strength track gets none: its segments float free of the phases (ADR 0047
- * §6). Returns the Monday the round opens on.
+ * round is not lost at the next one — with the factor as the boundary step.
+ * A strength track's segments float free of the phases (ADR 0047 §6), so they
+ * get no new one: a lifting block that ran to the plan's end is **extended**
+ * to the new end instead, so strength keeps going in every round rather than
+ * stopping where the first round did. A block that ended earlier — the athlete
+ * stopped lifting — stays where it ended.
+ *
+ * **At most `MAX_PLAN_WEEKS`.** A plan longer than two years is one no Sesong
+ * edit can change (each refuses `plan-too-long`), so a round that would take
+ * the plan past it is not appended; `readRoundFacts` stops proposing one
+ * first (ADR 0079 "As built (#505 gaps)"). Returns the Monday the round opens
+ * on.
  */
 export async function appendOpenEndedRound(
 	tx: Prisma.TransactionClient,
@@ -84,6 +94,8 @@ export async function appendOpenEndedRound(
 	)
 	const unbegun = await readFirstUnbegunWeekKey(athleteId, now, timezone, tx)
 	const opens = end >= unbegun ? end : unbegun
+	const newEnd = weekKeyAt(opens, round.weeks)
+	if (weekIndexOf(outline.startWeekKey, newEnd) > MAX_PLAN_WEEKS) return null
 	if (opens > end) {
 		await tx.planOutlinePhase.update({
 			where: { id: last.id },
@@ -134,6 +146,21 @@ export async function appendOpenEndedRound(
 						}
 					: {}),
 			},
+		})
+	}
+
+	// Lifting carries on: a strength block that ran to the old end runs to the
+	// new one, the lived gap included.
+	const lifting = await tx.trainingTrackSegment.findMany({
+		where: { kind: 'strength', track: { outlineId: outline.id } },
+		select: { id: true, startWeekKey: true, weeks: true },
+	})
+	for (const segment of lifting) {
+		if (segment.startWeekKey == null || segment.weeks == null) continue
+		if (weekKeyAt(segment.startWeekKey, segment.weeks) !== end) continue
+		await tx.trainingTrackSegment.update({
+			where: { id: segment.id },
+			data: { weeks: weekIndexOf(segment.startWeekKey, newEnd) },
 		})
 	}
 

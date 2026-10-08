@@ -42,6 +42,7 @@ import { formatDate } from '#app/utils/format.ts'
 import {
 	RHYTHM_LABELS,
 	RHYTHM_SUMMARY_LABELS,
+	SEASON_ADVANCED_LABELS,
 	SEASON_EDIT_LABELS,
 	WEEK_ROLE_LABELS,
 } from '#app/utils/labels.ts'
@@ -156,30 +157,13 @@ export function PhaseCard({
 				<p className="text-muted-foreground pb-2 text-sm">{reading}</p>
 			) : null}
 
-			{/* The two acts, each behind its own line. Five independent saves rendered
-			    at once — name, span, rhythm, progression, mix — is a wall of expert
-			    controls on a phone, and #366's posture is one thing at a time. Nothing
-			    is removed: opened, each half is exactly the surface that shipped.
-
-			    The progression comes **first**, because how a block climbs is what an
-			    athlete comes back to change; its name and its length are what they set
-			    once. Both are closed: the sentence above already says what the block
-			    does, so opening a block answers the question without putting eleven
-			    controls on a phone to do it. */}
+			{/* The Sesong edits first: name, length, rhythm and the easy week are
+			    changed in _Endre sesongen_, behind a preview of the weeks they move
+			    (#505 story 75), so this card shows the rhythm and links there. */}
 			<Disclosure
-				summary="How this block progresses"
-				detail="Its climb, its step at the opening, and its quality sessions."
+				summary="Rename or resize this block"
+				detail="Which weeks recover, and where to change it."
 			>
-				{children}
-			</Disclosure>
-
-			<Disclosure
-				summary="Rename, resize or move this block"
-				detail="Which weeks recover, where it sits, and where to change it."
-			>
-				{/* Its name, length and rhythm are Sesong edits now: changed in
-				    _Endre sesongen_, behind a preview of the weeks they move (#505
-				    story 75), so this card shows the rhythm and links there. */}
 				{phase.tapers ? null : (
 					<p className="text-sm">{RHYTHM_LABELS[phase.rhythm]}</p>
 				)}
@@ -194,6 +178,17 @@ export function PhaseCard({
 						</SeasonEditLink>
 					) : null}
 				</div>
+			</Disclosure>
+
+			{/* Everything else about the block — how it climbs, its quality
+			    sessions, where it sits — is outside the Sesong edits of #505 v1
+			    (ADR 0084 §1): it applies directly, with no preview, so it waits
+			    behind _Avansert_ and says so. */}
+			<Disclosure
+				summary={SEASON_ADVANCED_LABELS.title}
+				detail={SEASON_ADVANCED_LABELS.phaseNote}
+			>
+				{children}
 
 				{/* One form per button: a submit carries a single name/value pair, and the
 				    move needs its direction alongside its intent. */}
