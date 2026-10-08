@@ -84,6 +84,7 @@ describe('a week target', () => {
 			currency: 'km',
 			before: 44.1,
 			after: 44,
+			revert: false,
 		})
 		expect(preview.weeks.map((week) => week.weekKey)).toEqual(['2026-10-19'])
 		expect(preview.weeks[0]!.after?.targets[0]!.value).toBe(44)
@@ -177,7 +178,14 @@ describe('a phase', () => {
 		const preview = ok(
 			previewSeasonEdit(
 				outline(),
-				{ kind: 'phase', phaseId: 'build', name: 'Bygg', weeks: null },
+				{
+					kind: 'phase',
+					phaseId: 'build',
+					name: 'Bygg',
+					weeks: null,
+					rhythm: null,
+					tapers: null,
+				},
 				UNBEGUN,
 			),
 		)
@@ -185,6 +193,8 @@ describe('a phase', () => {
 			kind: 'phase',
 			name: { before: 'Build', after: 'Bygg' },
 			weeks: { before: 4, after: 4 },
+			rhythm: { before: '3:1', after: '3:1' },
+			tapers: { before: false, after: false },
 		})
 		expect(preview.weeks).toHaveLength(4)
 		expect(
@@ -198,7 +208,14 @@ describe('a phase', () => {
 		const preview = ok(
 			previewSeasonEdit(
 				outline(),
-				{ kind: 'phase', phaseId: 'build', name: null, weeks: 6 },
+				{
+					kind: 'phase',
+					phaseId: 'build',
+					name: null,
+					weeks: 6,
+					rhythm: null,
+					tapers: null,
+				},
 				UNBEGUN,
 			),
 		)
@@ -213,6 +230,8 @@ describe('a phase', () => {
 			phaseId: 'build',
 			name: 'Build',
 			weeks: 6,
+			rhythm: '3:1',
+			tapers: false,
 			recoveryWeekIndex: null,
 		})
 	})
@@ -221,7 +240,14 @@ describe('a phase', () => {
 		expect(
 			previewSeasonEdit(
 				outline(),
-				{ kind: 'phase', phaseId: 'base', name: null, weeks: 2 },
+				{
+					kind: 'phase',
+					phaseId: 'base',
+					name: null,
+					weeks: 2,
+					rhythm: null,
+					tapers: null,
+				},
 				'2026-10-26',
 			),
 		).toEqual({ ok: false, reason: 'changes-lived-weeks' })
@@ -231,7 +257,14 @@ describe('a phase', () => {
 		expect(
 			previewSeasonEdit(
 				outline(),
-				{ kind: 'phase', phaseId: 'base', name: 'Grunn', weeks: null },
+				{
+					kind: 'phase',
+					phaseId: 'base',
+					name: 'Grunn',
+					weeks: null,
+					rhythm: null,
+					tapers: null,
+				},
 				'2026-10-26',
 			).ok,
 		).toBe(true)
@@ -241,7 +274,14 @@ describe('a phase', () => {
 		const preview = ok(
 			previewSeasonEdit(
 				outline([{}, { recoveryWeekIndex: 3 }]),
-				{ kind: 'phase', phaseId: 'build', name: null, weeks: 2 },
+				{
+					kind: 'phase',
+					phaseId: 'build',
+					name: null,
+					weeks: 2,
+					rhythm: null,
+					tapers: null,
+				},
 				UNBEGUN,
 			),
 		)
@@ -338,4 +378,156 @@ test('the digest tells two previews apart and repeats for the same one', () => {
 	const c = ok(previewSeasonEdit(outline(), { ...edit, value: 45 }, UNBEGUN))
 	expect(a.digest).toBe(b.digest)
 	expect(a.digest).not.toBe(c.digest)
+})
+
+describe('back to the plan’s target', () => {
+	test('removes the hand-set week, and says it goes back', () => {
+		const rows = outline()
+		rows.tracks[0]!.overrides.push({ weekKey: '2026-10-19', value: 50 })
+		const preview = ok(
+			previewSeasonEdit(
+				rows,
+				{
+					kind: 'week-target',
+					trackId: 'run',
+					weekKey: '2026-10-19',
+					value: null,
+				},
+				UNBEGUN,
+			),
+		)
+		expect(preview.summary).toMatchObject({
+			kind: 'week-target',
+			before: 50,
+			after: 44.1,
+			revert: true,
+		})
+		expect(preview.write).toEqual({
+			kind: 'week-target',
+			trackId: 'run',
+			weekKey: '2026-10-19',
+			value: null,
+		})
+		expect(preview.held).toEqual(['phase', 'other-weeks'])
+	})
+
+	test('a week that already follows the plan is refused', () => {
+		expect(
+			previewSeasonEdit(
+				outline(),
+				{
+					kind: 'week-target',
+					trackId: 'run',
+					weekKey: '2026-10-19',
+					value: null,
+				},
+				UNBEGUN,
+			),
+		).toEqual({ ok: false, reason: 'not-hand-set' })
+	})
+})
+
+describe('a phase’s rhythm', () => {
+	test('changes behind the preview, and clears a chosen easy week with the blocks it was chosen in', () => {
+		const preview = ok(
+			previewSeasonEdit(
+				outline([{}, { recoveryWeekIndex: 1 }]),
+				{
+					kind: 'phase',
+					phaseId: 'build',
+					name: null,
+					weeks: null,
+					rhythm: '2:1',
+					tapers: null,
+				},
+				UNBEGUN,
+			),
+		)
+		expect(preview.write).toEqual({
+			kind: 'phase',
+			phaseId: 'build',
+			name: 'Build',
+			weeks: 4,
+			rhythm: '2:1',
+			tapers: false,
+			recoveryWeekIndex: null,
+		})
+		expect(preview.summary).toMatchObject({
+			rhythm: { before: '3:1', after: '2:1' },
+		})
+		expect(preview.held).toEqual(['phase-name', 'phase-length'])
+		expect(preview.relayWeekKeys.length).toBeGreaterThan(0)
+	})
+})
+
+describe('a strength track', () => {
+	// Lifting blocks of their own (ADR 0047 §6): 3 weeks with a deload as the
+	// last, then 4 more. The phases have no easy week, so only the lifting
+	// block's deload is one.
+	function withStrength(): OutlineRows {
+		const rows = outline([{ rhythm: 'none' }, { rhythm: 'none' }])
+		const block = (id: string, startWeekKey: string, weeks: number) => ({
+			id,
+			kind: 'strength',
+			phaseId: null,
+			ramp: null,
+			boundaryStep: null,
+			recoveryCut: null,
+			taperCut: null,
+			startWeekKey,
+			weeks,
+			goal: null,
+			sessionsPerWeek: null,
+			deloadCut: null,
+			deloadWeeks: null,
+			mix: [],
+		})
+		rows.tracks.push({
+			id: 'lift',
+			discipline: 'strength',
+			currency: 'sets',
+			anchors: [{ fromWeekKey: START, value: 12 }],
+			overrides: [],
+			segments: [block('b1', START, 3), block('b2', '2026-10-26', 4)],
+		})
+		return rows
+	}
+
+	test('the rebound out of a lifting deload is not a rise; the week is read against the last loading week', () => {
+		const rows = withStrength()
+		const quiet = ok(
+			previewSeasonEdit(
+				rows,
+				{
+					kind: 'week-target',
+					trackId: 'lift',
+					weekKey: '2026-10-26',
+					value: 13,
+				},
+				UNBEGUN,
+			),
+		)
+		expect(quiet.warnings).toEqual([])
+		const steep = ok(
+			previewSeasonEdit(
+				rows,
+				{
+					kind: 'week-target',
+					trackId: 'lift',
+					weekKey: '2026-10-26',
+					value: 18,
+				},
+				UNBEGUN,
+			),
+		)
+		expect(steep.warnings).toEqual([
+			expect.objectContaining({
+				trackId: 'lift',
+				weekKey: '2026-10-26',
+				fromWeekKey: '2026-10-12',
+				from: 12,
+				to: 18,
+			}),
+		])
+	})
 })

@@ -100,8 +100,9 @@ export async function seasonEditAction(
 		})
 	}
 
+	// The schema refuses an apply without the preview's digest, so it is here.
 	const applied = await applySeasonEdit(userId, outlineId, edit, new Date(), {
-		digest,
+		digest: digest ?? '',
 	})
 	if (!applied.ok) {
 		// Said under the preview as it stands now when there is one, so the
@@ -122,7 +123,12 @@ export async function seasonEditAction(
 			400,
 		)
 	}
+	// Back to the page as it was read, without the request that opened the
+	// edit: the edit is done, so the form need not open on it again.
 	const url = new URL(request.url)
+	for (const name of ['edit', 'weekKey', 'trackId', 'phaseId']) {
+		url.searchParams.delete(name)
+	}
 	return redirectWithToast(`${url.pathname}${url.search}`, {
 		type: 'success',
 		title: SEASON_EDIT_LABELS.done,

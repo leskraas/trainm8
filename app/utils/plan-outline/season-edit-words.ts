@@ -31,8 +31,12 @@ export function seasonEditMessage(
 						summary.before == null
 							? null
 							: formatNbVolumeFigure(summary.before, summary.currency),
-					after: formatNbVolumeFigure(summary.after, summary.currency),
+					after:
+						summary.after == null
+							? null
+							: formatNbVolumeFigure(summary.after, summary.currency),
 					unit: NB_VOLUME_UNITS[summary.currency],
+					revert: summary.revert,
 				}
 			: summary
 	return seasonEditSentence(words, preview.held)

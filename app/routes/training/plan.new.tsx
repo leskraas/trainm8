@@ -35,9 +35,9 @@ import {
 	createFitnessGoalEvent,
 	createOpenEndedPlan,
 	listPlanAnchorCandidates,
-	OPEN_ENDED_ROUND_WEEKS,
 	readOpenEndedPlanDefaults,
 } from '#app/utils/plan-outline/authoring.server.ts'
+import { OPEN_ENDED_ROUND_WEEKS } from '#app/utils/plan-outline/presets.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	CARDIO_DISCIPLINES,

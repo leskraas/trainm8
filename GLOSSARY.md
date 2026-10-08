@@ -169,11 +169,10 @@ avoid saying. What did not leave is the projection — `getSessionLedger`,
 (status, load, **Adherence Band**, shape bars), and the Stream builds every row
 from them, so the two can never disagree about a session. On I dag a session
 still scheduled reads _ikke gjort_ (missed) only once its **day** has passed in
-the Athlete Timezone, not once its start time has: this morning's gym session
-is planned until midnight (#505 story 24). Use **Session Ledger**
-for that projection and **Stream** for the surface an athlete reads. _Avoid_:
-for the surface — History, log, home list; do not use this term for what home
-shows
+the Athlete Timezone, not once its start time has: this morning's gym session is
+planned until midnight (#505 story 24). Use **Session Ledger** for that
+projection and **Stream** for the surface an athlete reads. _Avoid_: for the
+surface — History, log, home list; do not use this term for what home shows
 
 ### Workout structure
 
@@ -1955,8 +1954,8 @@ claim that matches only while no working set is logged, so a double tap or a
 runner tap in between cannot log twice. A lift whose weight or count does not
 resolve, or a repeated block (the set log has one row per prescribed set, not
 per repeat), sends the whole session to the runner rather than logging part of
-it as all of it. _Avoid_: Quick log (bare), log as planned (that is the
-button), Gjort (that is for cardio, whose numbers an import brings).
+it as all of it. _Avoid_: Quick log (bare), log as planned (that is the button),
+Gjort (that is for cardio, whose numbers an import brings).
 
 **Auto-Save Mirror**: An **Activity Import** the athlete has not built anything
 on — its recording-only session is still structureless and carries no **Session
@@ -2523,10 +2522,12 @@ the week's **final** target: the week's role factor is not applied on top, or
 the number the athlete typed would never be the number they get. A **leaf**,
 never folded forward, so the following week still computes from the **Season
 Anchor** and the ramps and the derivation stays indexed rather than sequential
-(ADR 0040 §3, ADR 0044). Marks itself, reverts to the rule in one action, and
-survives a later re-anchor rather than being silently discarded. `0` expresses a
-week without training and needs no separate flag. _Avoid_: Manual week (every
-week is authored), exception, adjustment (that is **Week Replan**'s word).
+(ADR 0040 §3, ADR 0044). Marks itself, and survives a later re-anchor rather
+than being silently discarded. Set, and handed back to the rule ("Tilbake til
+planens mål"), only in _Endre sesongen_, behind a preview (ADR 0084). `0`
+expresses a week without training and needs no separate flag. _Avoid_: Manual
+week (every week is authored), exception, adjustment (that is **Week Replan**'s
+word).
 
 **Week Target**: The volume a **Training Track** aims at in one **Training
 Week**, in its **Volume Currency** — derived from the **Plan Outline**, or a

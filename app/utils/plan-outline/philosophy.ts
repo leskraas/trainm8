@@ -35,19 +35,16 @@ import {
 	phaseIndexForWeek,
 	phaseStartIndices,
 	rhythmOf,
-	weekRole,
 	type Rhythm,
-	type VolumeCurrency,
-	type WeekRole,
 } from './derive.ts'
 import { fitRunUp } from './fit-proposal.ts'
 import {
 	phaseSpecs,
-	resolvedTracks,
 	type OutlineRows,
 	type PhaseRow,
 	type SegmentRow,
 } from './from-rows.ts'
+import { digestOf, weekViews, type WeekView } from './outline-preview.ts'
 import {
 	familyRunUp,
 	familySeason,
@@ -87,22 +84,6 @@ export type PhaseView = {
 	tapers: boolean
 	/** The first endurance track's mix over this phase; `[]` is "no quality sessions". */
 	mix: QualitySessionMixEntry[]
-}
-
-/** One track's target in one week. */
-export type TargetView = {
-	trackId: string
-	discipline: Discipline
-	currency: VolumeCurrency
-	/** In the track's own currency; null is an Unavailable week. */
-	value: number | null
-}
-
-/** One week as the plan reads it on one side of the switch. */
-export type WeekView = {
-	phaseName: string
-	role: WeekRole
-	targets: TargetView[]
 }
 
 export type PhilosophySwitchRefusal =
@@ -275,23 +256,6 @@ export function previewPhilosophySwitch(
 	}
 }
 
-/**
- * A short fingerprint of what a preview showed and the edit behind it. The
- * confirm posts it back, and the apply refuses when the switch it would make
- * now has a different one — a plan edited, or a week begun, since the athlete
- * looked (`preview-stale`).
- */
-export function digestOf(value: unknown): string {
-	// FNV-1a over the JSON: stable across server and tests, and only ever
-	// compared with itself.
-	let hash = 0x811c9dc5
-	for (const char of JSON.stringify(value)) {
-		hash ^= char.codePointAt(0)!
-		hash = Math.imul(hash, 0x01000193) >>> 0
-	}
-	return hash.toString(16).padStart(8, '0')
-}
-
 /** The rows as the edit leaves them, the new ones under preview ids. */
 function rowsAfter(
 	outline: PhilosophyOutline,
@@ -384,22 +348,4 @@ function phaseViews(rows: OutlineRows, boundary: number): PhaseView[] {
 			},
 		]
 	})
-}
-
-/** Every week of the plan as the derivation reads it. */
-export function weekViews(rows: OutlineRows): WeekView[] {
-	const specs = phaseSpecs(rows)
-	const ordered = [...rows.phases].sort((a, b) => a.orderIndex - b.orderIndex)
-	const tracks = resolvedTracks(rows)
-	const total = specs.reduce((sum, phase) => sum + phase.weeks, 0)
-	return Array.from({ length: total }, (_, week) => ({
-		phaseName: ordered[phaseIndexForWeek(specs, week) ?? 0]?.name ?? '',
-		role: weekRole(specs, week),
-		targets: tracks.map((track) => ({
-			trackId: track.trackId,
-			discipline: track.discipline,
-			currency: track.currency,
-			value: track.targets[week]?.value ?? null,
-		})),
-	}))
 }

@@ -1,6 +1,5 @@
 import { type AppLoadContext } from 'react-router'
-import { expect, test } from 'vitest'
-import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -18,8 +17,21 @@ import { action } from './plan.tsx'
 // the confirm applies it, a stale confirm is refused under a fresh preview,
 // and each message says which numbers did not move.
 //
-// The plan is an open-ended one made today: one four-week block on 3:1 at a
-// flat 4 hours. Its third week is never begun, whatever day the test runs.
+// The clock is pinned to Thursday 8 October 2026 (Oslo), so the plan — an
+// open-ended one made that day: one four-week block on 3:1 at a flat 4 hours —
+// opens Monday 5 October (week 41), which is begun, and its third week (43) is
+// the second one not yet begun.
+
+const THURSDAY = new Date('2026-10-08T10:00:00Z')
+
+beforeEach(() => {
+	vi.useFakeTimers({ toFake: ['Date'] })
+	vi.setSystemTime(THURSDAY)
+})
+
+afterEach(() => {
+	vi.useRealTimers()
+})
 
 const ROUTE_PATH = '/training/plan'
 const ARGS = {
@@ -132,16 +144,17 @@ test('a week target: the preview warns on a rise over 10 %, says what stays, and
 		['value', '5'],
 	]
 
+	expect(thirdWeek).toBe('2026-10-19')
 	const preview = replyOf(
 		await send([['intent', 'preview-season-edit'], ...fields], cookie),
 	)
 	expect(preview.init).toBeNull()
 	expect(preview.data.seasonEdit?.result?.status).toBe('success')
 	expect(preview.data.seasonEdit?.preview?.message).toBe(
-		`Uke ${isoWeekNumber(thirdWeek)}: mål 4 → 5 t. Fasen og de andre ukene står som før.`,
+		`Uke 43: mål 4 → 5 t. Fasen og de andre ukene står som før.`,
 	)
 	expect(preview.data.seasonEdit?.preview?.warnings).toEqual([
-		`Uke ${isoWeekNumber(thirdWeek)}: 4 → 5 t, +25 % over forrige harde uke.`,
+		`Uke 43: 4 → 5 t, +25 % over forrige harde uke.`,
 	])
 	expect(await overridesOf(trackId)).toEqual([])
 
@@ -274,7 +287,7 @@ test('the easy week: moved within its block behind a preview', async () => {
 	)
 	expect(preview.data.seasonEdit?.preview?.message).toMatch(
 		new RegExp(
-			`^Blokk 1: den lette uka flyttes fra uke \\d+ til uke ${isoWeekNumber(thirdWeek)}\\. Lengden på fasen og de andre ukene står som før\\.$`,
+			`^Blokk 1: den lette uka flyttes fra uke 44 til uke 43\\. Lengden på fasen og de andre ukene står som før\\.$`,
 		),
 	)
 	expect(preview.data.seasonEdit?.preview?.weeks).toHaveLength(2)
@@ -316,4 +329,94 @@ test('an easy week the plan already has is refused in the form', async () => {
 	expect(reply.data.seasonEdit?.result?.error?.['']).toEqual([
 		SEASON_EDIT_REFUSAL_LABELS['no-change'],
 	])
+})
+
+test('back to the plan’s target: previewed, then applied, and the week follows the plan again', async () => {
+	const { outlineId, trackId, thirdWeek, cookie } = await setUp()
+	await prisma.weekVolumeOverride.create({
+		data: { trackId, weekKey: thirdWeek, value: 5 },
+	})
+	const fields: Array<[string, string]> = [
+		['edit', 'week-target'],
+		['outlineId', outlineId],
+		['trackId', trackId],
+		['weekKey', thirdWeek],
+		['value', ''],
+		['revert', 'on'],
+	]
+
+	const preview = replyOf(
+		await send([['intent', 'preview-season-edit'], ...fields], cookie),
+	)
+	expect(preview.data.seasonEdit?.preview?.message).toBe(
+		'Uke 43: tilbake til planens mål, 5 → 4 t. Fasen og de andre ukene står som før.',
+	)
+	expect(await overridesOf(trackId)).toHaveLength(1)
+
+	const applied = await send(
+		[
+			['intent', 'apply-season-edit'],
+			...fields,
+			['digest', preview.data.seasonEdit!.preview!.digest],
+		],
+		cookie,
+	)
+	expect(applied).toBeInstanceOf(Response)
+	expect(await overridesOf(trackId)).toEqual([])
+})
+
+test('back to the plan’s target on a week that already follows it is refused in the form', async () => {
+	const { outlineId, trackId, thirdWeek, cookie } = await setUp()
+
+	const reply = replyOf(
+		await send(
+			[
+				['intent', 'preview-season-edit'],
+				['edit', 'week-target'],
+				['outlineId', outlineId],
+				['trackId', trackId],
+				['weekKey', thirdWeek],
+				['revert', 'on'],
+			],
+			cookie,
+		),
+	)
+	expect(reply.init?.status).toBe(400)
+	expect(reply.data.seasonEdit?.result?.error?.['']).toEqual([
+		SEASON_EDIT_REFUSAL_LABELS['not-hand-set'],
+	])
+})
+
+test('a phase’s rhythm changes behind its preview', async () => {
+	const { outlineId, phaseId, cookie } = await setUp()
+	const fields: Array<[string, string]> = [
+		['edit', 'phase'],
+		['outlineId', outlineId],
+		['phaseId', phaseId],
+		['rhythm', '2:1'],
+	]
+
+	const preview = replyOf(
+		await send([['intent', 'preview-season-edit'], ...fields], cookie),
+	)
+	expect(preview.data.seasonEdit?.preview?.message).toBe(
+		'«Blokk 1» går nå 2:1 (var 3:1). Navnet og lengden på fasen står som før.',
+	)
+	expect(await phaseOf(phaseId)).toMatchObject({ weeks: 4 })
+
+	const applied = await send(
+		[
+			['intent', 'apply-season-edit'],
+			...fields,
+			['digest', preview.data.seasonEdit!.preview!.digest],
+		],
+		cookie,
+	)
+	expect(applied).toBeInstanceOf(Response)
+	expect(
+		await prisma.planOutlinePhase.findUniqueOrThrow({
+			where: { id: phaseId },
+			select: { rhythm: true },
+		}),
+	).toEqual({ rhythm: '2:1' })
 })

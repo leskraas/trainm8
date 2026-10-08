@@ -96,6 +96,7 @@ import { proposeFit, type FitProposal } from './fit-proposal.ts'
 import { readAnchorContext } from './history.server.ts'
 import {
 	familyOfPreset,
+	OPEN_ENDED_ROUND_WEEKS,
 	openEndedRound,
 	presetFor,
 	type PresetFamily,
@@ -538,8 +539,8 @@ export async function readOpenEndedPlanDefaults(
 	}
 }
 
-/** How long the first round of a "Hold meg aktiv" plan runs: one 3:1 block. */
-export const OPEN_ENDED_ROUND_WEEKS = 4
+// `OPEN_ENDED_ROUND_WEEKS` lives in `presets.ts`, where the client may read it.
+export { OPEN_ENDED_ROUND_WEEKS }
 
 /**
  * Author an **open-ended** plan in one step, for the athlete who just wants to
@@ -1113,6 +1114,13 @@ export async function clearWeekVolumeOverride(
 //
 // Nothing per week is written by any of them: the targets, the week roles and the
 // phase spans are re-derived on the next read (ADR 0040 §1).
+//
+// Since #505 S13 the plan page reaches rename, resize, rhythm and the week
+// overrides only through the Sesong edits (`season-edit.server.ts`), which
+// write behind a preview. `renamePhase`, `resizePhase`, `setPhaseRhythm` and
+// `set`/`clearWeekVolumeOverride` stay as the tested domain writes; resize and
+// rhythm keep a chosen easy week honest the same way the Sesong edit does
+// (ADR 0084 §2).
 
 /**
  * Why a phase edit was refused — the athlete-visible states, all of them
@@ -1392,6 +1400,12 @@ export async function resizePhase(
 			where: { id: owned.phase.id },
 			data: { weeks: resize.weeks },
 		})
+		// A chosen easy week the phase no longer reaches is cleared rather than
+		// left to re-apply if the phase grows again (ADR 0084 §2).
+		await tx.planOutlinePhase.updateMany({
+			where: { id: owned.phase.id, recoveryWeekIndex: { gte: resize.weeks } },
+			data: { recoveryWeekIndex: null },
+		})
 		return { ok: true as const }
 	})
 }
@@ -1405,13 +1419,26 @@ export async function setPhaseRhythm(
 	input: PhaseRhythmSetInput,
 ): Promise<SetPhaseRhythmResult> {
 	const set = PhaseRhythmSetSchema.parse(input)
-	const updated = await prisma.planOutlinePhase.updateMany({
-		where: { id: set.phaseId, outline: { athleteId } },
-		data: { rhythm: set.rhythm, tapers: set.tapers },
+	return prisma.$transaction(async (tx) => {
+		const phase = await tx.planOutlinePhase.findFirst({
+			where: { id: set.phaseId, outline: { athleteId } },
+			select: { id: true, rhythm: true, tapers: true },
+		})
+		if (!phase)
+			return { ok: false as const, reason: 'phase-not-found' as const }
+		// A chosen easy week belongs to the blocks it was chosen in; a new rhythm
+		// or a taper reshapes them, so the choice goes (ADR 0084 §2).
+		const reshaped = phase.rhythm !== set.rhythm || phase.tapers !== set.tapers
+		await tx.planOutlinePhase.update({
+			where: { id: phase.id },
+			data: {
+				rhythm: set.rhythm,
+				tapers: set.tapers,
+				...(reshaped ? { recoveryWeekIndex: null } : {}),
+			},
+		})
+		return { ok: true as const }
 	})
-	return updated.count === 0
-		? { ok: false, reason: 'phase-not-found' }
-		: { ok: true }
 }
 
 /** Move a phase one position earlier or later, swapping with its neighbour. */

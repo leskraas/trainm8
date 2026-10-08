@@ -42,6 +42,7 @@ import { formatDate } from '#app/utils/format.ts'
 import {
 	RHYTHM_LABELS,
 	RHYTHM_SUMMARY_LABELS,
+	SEASON_EDIT_LABELS,
 	WEEK_ROLE_LABELS,
 } from '#app/utils/labels.ts'
 import {
@@ -51,6 +52,7 @@ import {
 	type Rhythm,
 } from '#app/utils/plan-outline/derive.ts'
 import { Disclosure, DisclosureCard } from './__plan-chrome.tsx'
+import { SeasonEditLink } from './__season-edits.tsx'
 
 /**
  * A phase as this module edits it: what it stores, plus the span the route derived
@@ -79,13 +81,10 @@ const MOVE_LABELS = {
 } as const satisfies Record<'earlier' | 'later', string>
 
 /**
- * One phase, read and edited.
- *
- * The rhythm and the taper flag are held in local state so the recovery weeks below
- * them redraw as the athlete chooses — the rhythm's consequence is visible *before*
- * it is saved rather than discovered on the Weeks reading afterwards. The week
- * count is **not** previewed against: it belongs to a different action, and drawing
- * a rhythm over a span that has not been saved would mark weeks that do not exist.
+ * One phase, read, with its progression edited in place and its name, length
+ * and rhythm linked to _Endre sesongen_ — the Sesong edits apply behind a
+ * preview (#505 story 75), so this card shows which weeks recover and links
+ * there pre-filled. Moving and removing a block stay here.
  */
 export function PhaseCard({
 	phase,
@@ -123,9 +122,6 @@ export function PhaseCard({
 	 */
 	children?: ReactNode
 }) {
-	const [rhythm, setRhythm] = useState<Rhythm>(phase.rhythm)
-	const [tapers, setTapers] = useState(phase.tapers)
-
 	return (
 		// Closed by default, **except** the phase the athlete is living in. That is
 		// the whole of the progressive disclosure this card buys: four forms per
@@ -179,84 +175,25 @@ export function PhaseCard({
 
 			<Disclosure
 				summary="Rename, resize or move this block"
-				detail="Its name, how many weeks it runs, and which weeks recover."
+				detail="Which weeks recover, where it sits, and where to change it."
 			>
-				<Form
-					method="POST"
-					className="flex flex-col gap-2 sm:flex-row sm:items-end"
-				>
-					<input type="hidden" name="intent" value="rename-phase" />
-					<input type="hidden" name="phaseId" value={phase.id} />
-					{/* Re-keyed on the stored value: an edit that lands changes the field's
-					    default, and an uncontrolled input would keep the old one — and Base UI
-					    warns about exactly that. Remounting shows what the season now says. */}
-					<Field
-						key={phase.name}
-						className="flex-1"
-						labelProps={{ children: 'Name' }}
-						inputProps={{
-							id: `name-${phase.id}`,
-							name: 'name',
-							type: 'text',
-							defaultValue: phase.name,
-							maxLength: 60,
-							// Free text, and no vocabulary: "Off-season" and "Return to run"
-							// store exactly as well as "Base" (ADR 0044 §2).
-							required: true,
-						}}
-					/>
-					<Button type="submit" variant="outline" className="w-full sm:w-auto">
-						Rename
-					</Button>
-				</Form>
-
-				<Form
-					method="POST"
-					className="flex flex-col gap-2 sm:flex-row sm:items-end"
-				>
-					<input type="hidden" name="intent" value="resize-phase" />
-					<input type="hidden" name="phaseId" value={phase.id} />
-					<Field
-						key={phase.weeks}
-						className="sm:w-28"
-						labelProps={{ children: 'Weeks' }}
-						inputProps={{
-							id: `weeks-${phase.id}`,
-							name: 'weeks',
-							type: 'number',
-							min: 1,
-							max: 52,
-							inputMode: 'numeric',
-							defaultValue: phase.weeks,
-						}}
-					/>
-					<Button type="submit" variant="outline" className="w-full sm:w-auto">
-						Save weeks
-					</Button>
-				</Form>
-
-				<Form method="POST" className="space-y-4">
-					<input type="hidden" name="intent" value="set-phase-rhythm" />
-					<input type="hidden" name="phaseId" value={phase.id} />
-					<RhythmFields
-						idSuffix={phase.id}
-						rhythm={rhythm}
-						onRhythmChange={setRhythm}
-						tapers={tapers}
-						onTapersChange={setTapers}
-					/>
-					<RecoveryPreview
-						phase={{
-							weeks: phase.weeks,
-							rhythm,
-							tapers,
-							recoveryWeekIndex: phase.recoveryWeekIndex,
-						}}
-					/>
-					<Button type="submit" variant="outline" className="w-full sm:w-auto">
-						Save rhythm
-					</Button>
-				</Form>
+				{/* Its name, length and rhythm are Sesong edits now: changed in
+				    _Endre sesongen_, behind a preview of the weeks they move (#505
+				    story 75), so this card shows the rhythm and links there. */}
+				{phase.tapers ? null : (
+					<p className="text-sm">{RHYTHM_LABELS[phase.rhythm]}</p>
+				)}
+				<RecoveryPreview phase={phase} />
+				<div className="flex flex-col gap-1">
+					<SeasonEditLink edit="phase" fields={{ phaseId: phase.id }}>
+						{SEASON_EDIT_LABELS.phaseOpen}
+					</SeasonEditLink>
+					{phase.rhythm !== 'none' && !phase.tapers ? (
+						<SeasonEditLink edit="easy-week" fields={{}}>
+							{SEASON_EDIT_LABELS.easyWeekOpen}
+						</SeasonEditLink>
+					) : null}
+				</div>
 
 				{/* One form per button: a submit carries a single name/value pair, and the
 				    move needs its direction alongside its intent. */}

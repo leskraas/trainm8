@@ -34,6 +34,7 @@ import {
 	switchToLabel,
 	NB_WEEK_ROLE_LABELS,
 } from '#app/utils/labels.ts'
+import { type WeekView } from '#app/utils/plan-outline/outline-preview.ts'
 import {
 	PhilosophySwitchFormSchema,
 	StrengthOfferFormSchema,
@@ -41,7 +42,6 @@ import {
 import {
 	type PhaseView,
 	type PhilosophySwitchPreview,
-	type WeekView,
 } from '#app/utils/plan-outline/philosophy.ts'
 import {
 	PRESET_FAMILIES,

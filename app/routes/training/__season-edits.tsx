@@ -1,17 +1,23 @@
 /**
- * _Endre sesongen_ on the plan page (#505 stories 72–77): a week's target, a
- * phase's name and length, and which week of a block is the easy one — each
- * behind a _Forhåndsvisning_ that shows the weeks that change, warns where a
- * target would rise more than 10 % over the hard week before it, and says which
- * numbers stay. (The fourth Sesong edit, the philosophy, is
- * `__philosophy-switch.tsx`, built the same way.)
+ * _Endre sesongen_ on the plan page (#505 stories 72–77): a week's target (or
+ * back to the plan's own), a phase's name, length and rhythm, and which week of
+ * a block is the easy one — each behind a _Forhåndsvisning_ that shows the
+ * weeks that change, warns where a target would rise more than 10 % over the
+ * hard week before it, and says which numbers stay. (The fourth Sesong edit,
+ * the philosophy, is `__philosophy-switch.tsx`, built the same way.)
+ *
+ * This is the **only** place those numbers are edited: the Blocks and Weeks
+ * readings show them and link here with {@link SeasonEditLink}, which opens
+ * the matching edit pre-filled through the URL (`?edit=…`).
  *
  * Split out of `plan.tsx` like the other editors: the route owns the loader
  * and the action (`preview-season-edit`, `apply-season-edit`), this module
  * owns the controls. Each edit is two steps on purpose: the first posts the
  * edit for a preview and writes nothing; only the confirm under that preview
  * applies, carrying the preview's digest, and the server recomputes the very
- * preview it showed rather than trusting it back from the form.
+ * preview it showed rather than trusting it back from the form. A preview
+ * whose form has changed since is hidden, so the confirm under it can never
+ * apply something other than what the fields say.
  */
 import {
 	getFormProps,
@@ -20,7 +26,7 @@ import {
 	type SubmissionResult,
 } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { Form } from 'react-router'
+import { Form, Link, useLocation, useSearchParams } from 'react-router'
 import { type z } from 'zod'
 import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
@@ -28,17 +34,22 @@ import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { formatNbDayMonth, formatNbVolumeFigure } from '#app/utils/format.ts'
 import {
 	NB_DISCIPLINE_LABELS,
+	NB_RHYTHM_CHOICE_LABELS,
 	NB_VOLUME_UNITS,
 	NB_WEEK_ROLE_LABELS,
 	nbWeeks,
 	SEASON_EDIT_LABELS,
 } from '#app/utils/labels.ts'
 import {
+	RHYTHMS,
 	type Rhythm,
 	type VolumeCurrency,
 	type WeekRole,
 } from '#app/utils/plan-outline/derive.ts'
-import { type WeekView } from '#app/utils/plan-outline/philosophy.ts'
+import {
+	type TargetView,
+	type WeekView,
+} from '#app/utils/plan-outline/outline-preview.ts'
 import {
 	EasyWeekEditFormSchema,
 	PhaseEditFormSchema,
@@ -46,6 +57,7 @@ import {
 	WeekTargetEditFormSchema,
 } from '#app/utils/plan-outline/season-edit-schema.ts'
 import {
+	SEASON_EDIT_KINDS,
 	type SeasonEdit,
 	type SeasonEditKind,
 	type SeasonEditPreview,
@@ -77,12 +89,7 @@ type SeasonWeek = {
 	weekKey: string
 	phaseIndex: number
 	role: WeekRole
-	targets: Array<{
-		trackId: string
-		discipline: Discipline
-		currency: VolumeCurrency
-		value: number | null
-	}>
+	targets: TargetView[]
 }
 
 type SeasonPhase = {
@@ -100,6 +107,10 @@ type SeasonTrack = {
 	currency: VolumeCurrency
 }
 
+/** The fields the URL may pre-fill an edit with (`SeasonEditLink`). */
+const LINK_FIELDS = ['weekKey', 'trackId', 'phaseId'] as const
+const ANCHOR = 'season-edits'
+
 /** A week key's calendar day, as a date with no zone to shift it. */
 const dayOf = (weekKey: string) => new Date(`${weekKey}T12:00:00Z`)
 
@@ -107,14 +118,74 @@ function weekLabel(weekKey: string): string {
 	return `Uke ${isoWeekNumber(weekKey)} · ${formatNbDayMonth(dayOf(weekKey), 'UTC')}`
 }
 
-function targetsLabel(targets: SeasonWeek['targets']): string {
+/**
+ * Each track's target, in its own unit — named by its sport when the plan has
+ * more than one, so `44 km · 12 sett` never leaves the reader guessing.
+ */
+function targetsLabel(targets: TargetView[]): string {
+	const named = targets.length > 1
 	return targets
-		.map((target) =>
-			target.value == null
-				? '–'
-				: `${formatNbVolumeFigure(target.value, target.currency)} ${NB_VOLUME_UNITS[target.currency]}`,
-		)
+		.map((target) => {
+			const figure =
+				target.value == null
+					? '–'
+					: `${formatNbVolumeFigure(target.value, target.currency)} ${NB_VOLUME_UNITS[target.currency]}`
+			return named
+				? `${NB_DISCIPLINE_LABELS[target.discipline]} ${figure}`
+				: figure
+		})
 		.join(' · ')
+}
+
+/**
+ * A link from a read-only reading (Blocks, Weeks) to the edit that changes
+ * what it shows, pre-filled: the page's own query kept, the edit and its
+ * fields added, and the card scrolled to.
+ */
+export function SeasonEditLink({
+	edit,
+	fields,
+	children,
+	className,
+	'aria-label': ariaLabel,
+}: {
+	edit: SeasonEditKind
+	fields: Partial<Record<(typeof LINK_FIELDS)[number], string>>
+	children: React.ReactNode
+	className?: string
+	'aria-label'?: string
+}) {
+	const location = useLocation()
+	const params = new URLSearchParams(location.search)
+	params.set('edit', edit)
+	for (const name of LINK_FIELDS) {
+		const value = fields[name]
+		if (value) params.set(name, value)
+		else params.delete(name)
+	}
+	return (
+		<Link
+			to={{ search: `?${params.toString()}`, hash: ANCHOR }}
+			className={className ?? 'text-sm underline'}
+			aria-label={ariaLabel}
+			data-season-edit-link={edit}
+		>
+			{children}
+		</Link>
+	)
+}
+
+/** The edit the URL asks for, with the fields it pre-fills, if any. */
+function useRequestedEdit() {
+	const [params] = useSearchParams()
+	const edit = SEASON_EDIT_KINDS.find((kind) => kind === params.get('edit'))
+	if (!edit) return null
+	const fields: Record<string, string> = {}
+	for (const name of LINK_FIELDS) {
+		const value = params.get(name)
+		if (value) fields[name] = value
+	}
+	return { edit, fields }
 }
 
 export function SeasonEditsCard({
@@ -132,6 +203,7 @@ export function SeasonEditsCard({
 	firstUnbegunWeekKey: string
 	reply: SeasonEditReply | null
 }) {
+	const requested = useRequestedEdit()
 	// Weeks already begun are history: no edit is offered on them.
 	const open = weeks.filter((week) => week.weekKey >= firstUnbegunWeekKey)
 	// Only a phase whose rhythm has an easy week can have it moved.
@@ -141,6 +213,11 @@ export function SeasonEditsCard({
 	})
 	const replyFor = (kind: SeasonEditKind) =>
 		reply?.edit === kind ? reply : null
+	// The URL's request opens its edit, unless the action has answered another.
+	const requestFor = (kind: SeasonEditKind) =>
+		reply == null && requested?.edit === kind ? requested.fields : null
+	const requestKey = (kind: SeasonEditKind) =>
+		`${kind}:${JSON.stringify(requested?.edit === kind ? requested.fields : null)}`
 
 	return (
 		<div className="space-y-3" data-season-edits>
@@ -149,29 +226,44 @@ export function SeasonEditsCard({
 			</p>
 			{tracks.length > 0 && open.length > 0 ? (
 				<WeekTargetEdit
+					// A link from a reading re-fills the form, so it remounts on one.
+					key={requestKey('week-target')}
 					outlineId={outlineId}
 					weeks={open}
 					tracks={tracks}
 					reply={replyFor('week-target')}
+					requested={requestFor('week-target')}
 				/>
 			) : null}
 			{phases.length > 0 ? (
 				<PhaseEdit
+					// A link from a reading re-fills the form, so it remounts on one.
+					key={requestKey('phase')}
 					outlineId={outlineId}
 					phases={phases}
 					reply={replyFor('phase')}
+					requested={requestFor('phase')}
 				/>
 			) : null}
 			{easyChoices.length > 0 ? (
 				<EasyWeekEdit
+					// A link from a reading re-fills the form, so it remounts on one.
+					key={requestKey('easy-week')}
 					outlineId={outlineId}
 					weeks={easyChoices}
 					phases={phases}
 					reply={replyFor('easy-week')}
+					requested={requestFor('easy-week')}
 				/>
 			) : null}
 		</div>
 	)
+}
+
+type EditProps = {
+	outlineId: string
+	reply: SeasonEditReply | null
+	requested: Record<string, string> | null
 }
 
 function WeekTargetEdit({
@@ -179,12 +271,8 @@ function WeekTargetEdit({
 	weeks,
 	tracks,
 	reply,
-}: {
-	outlineId: string
-	weeks: SeasonWeek[]
-	tracks: SeasonTrack[]
-	reply: SeasonEditReply | null
-}) {
+	requested,
+}: EditProps & { weeks: SeasonWeek[]; tracks: SeasonTrack[] }) {
 	const [form, fields] = useForm<
 		z.input<typeof WeekTargetEditFormSchema>,
 		z.output<typeof WeekTargetEditFormSchema>
@@ -192,22 +280,43 @@ function WeekTargetEdit({
 		id: 'season-edit-week-target',
 		constraint: getZodConstraint(WeekTargetEditFormSchema),
 		lastResult: reply?.result,
-		defaultValue: defaultsOf(reply),
+		defaultValue: defaultsOf(reply, requested),
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: WeekTargetEditFormSchema })
 		},
 		shouldRevalidate: 'onBlur',
 	})
 	const onlyTrack = tracks.length === 1 ? tracks[0]! : null
+	const chosen = weeks.find((week) => week.weekKey === form.value?.weekKey)
+	const hintId = 'season-edit-week-target-revert-hint'
 	return (
 		<EditShell
 			kind="week-target"
 			summary={SEASON_EDIT_LABELS.weekTargetOpen}
 			outlineId={outlineId}
 			reply={reply}
+			open={requested != null}
+			formValue={form.value}
 			formProps={getFormProps(form)}
 			formErrors={form.errors}
 			formErrorId={form.errorId}
+			extraActions={
+				<>
+					<Button
+						type="submit"
+						name="revert"
+						value="on"
+						variant="ghost"
+						className="w-full"
+						aria-describedby={hintId}
+					>
+						{SEASON_EDIT_LABELS.revert}
+					</Button>
+					<p id={hintId} className="text-muted-foreground text-xs">
+						{SEASON_EDIT_LABELS.revertHint}
+					</p>
+				</>
+			}
 		>
 			<SelectField
 				meta={fields.weekKey}
@@ -217,9 +326,14 @@ function WeekTargetEdit({
 				}}
 				items={weeks.map((week) => ({
 					value: week.weekKey,
-					label: `${weekLabel(week.weekKey)} · ${targetsLabel(week.targets)}`,
+					label: weekLabel(week.weekKey),
 				}))}
 			/>
+			{chosen ? (
+				<p className="text-muted-foreground text-sm" data-season-edit-current>
+					{SEASON_EDIT_LABELS.now}: {targetsLabel(chosen.targets)}
+				</p>
+			) : null}
 			{onlyTrack ? (
 				<input
 					type="hidden"
@@ -261,11 +375,8 @@ function PhaseEdit({
 	outlineId,
 	phases,
 	reply,
-}: {
-	outlineId: string
-	phases: SeasonPhase[]
-	reply: SeasonEditReply | null
-}) {
+	requested,
+}: EditProps & { phases: SeasonPhase[] }) {
 	const [form, fields] = useForm<
 		z.input<typeof PhaseEditFormSchema>,
 		z.output<typeof PhaseEditFormSchema>
@@ -273,18 +384,21 @@ function PhaseEdit({
 		id: 'season-edit-phase',
 		constraint: getZodConstraint(PhaseEditFormSchema),
 		lastResult: reply?.result,
-		defaultValue: defaultsOf(reply),
+		defaultValue: defaultsOf(reply, requested),
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: PhaseEditFormSchema })
 		},
 		shouldRevalidate: 'onBlur',
 	})
+	const keep = { value: '', label: SEASON_EDIT_LABELS.keep }
 	return (
 		<EditShell
 			kind="phase"
 			summary={SEASON_EDIT_LABELS.phaseOpen}
 			outlineId={outlineId}
 			reply={reply}
+			open={requested != null}
+			formValue={form.value}
 			formProps={getFormProps(form)}
 			formErrors={form.errors}
 			formErrorId={form.errorId}
@@ -322,6 +436,34 @@ function PhaseEdit({
 				}}
 				errors={fields.weeks.errors}
 			/>
+			<SelectField
+				meta={fields.rhythm}
+				labelProps={{
+					children: SEASON_EDIT_LABELS.phaseRhythm,
+					className: 'text-sm font-medium',
+				}}
+				placeholder={SEASON_EDIT_LABELS.keep}
+				items={[
+					keep,
+					...RHYTHMS.map((rhythm) => ({
+						value: rhythm,
+						label: NB_RHYTHM_CHOICE_LABELS[rhythm],
+					})),
+				]}
+			/>
+			<SelectField
+				meta={fields.tapers}
+				labelProps={{
+					children: SEASON_EDIT_LABELS.phaseTapers,
+					className: 'text-sm font-medium',
+				}}
+				placeholder={SEASON_EDIT_LABELS.keep}
+				items={[
+					keep,
+					{ value: 'yes', label: SEASON_EDIT_LABELS.yes },
+					{ value: 'no', label: SEASON_EDIT_LABELS.no },
+				]}
+			/>
 		</EditShell>
 	)
 }
@@ -331,12 +473,8 @@ function EasyWeekEdit({
 	weeks,
 	phases,
 	reply,
-}: {
-	outlineId: string
-	weeks: SeasonWeek[]
-	phases: SeasonPhase[]
-	reply: SeasonEditReply | null
-}) {
+	requested,
+}: EditProps & { weeks: SeasonWeek[]; phases: SeasonPhase[] }) {
 	const [form, fields] = useForm<
 		z.input<typeof EasyWeekEditFormSchema>,
 		z.output<typeof EasyWeekEditFormSchema>
@@ -344,22 +482,27 @@ function EasyWeekEdit({
 		id: 'season-edit-easy-week',
 		constraint: getZodConstraint(EasyWeekEditFormSchema),
 		lastResult: reply?.result,
-		defaultValue: defaultsOf(reply),
+		defaultValue: defaultsOf(reply, requested),
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: EasyWeekEditFormSchema })
 		},
 		shouldRevalidate: 'onBlur',
 	})
+	const chosen = weeks.find((week) => week.weekKey === form.value?.weekKey)
 	return (
 		<EditShell
 			kind="easy-week"
 			summary={SEASON_EDIT_LABELS.easyWeekOpen}
 			outlineId={outlineId}
 			reply={reply}
+			open={requested != null}
+			formValue={form.value}
 			formProps={getFormProps(form)}
 			formErrors={form.errors}
 			formErrorId={form.errorId}
 		>
+			{/* Short enough for a phone's trigger: the week and its role. Which
+			    phase it sits in is said under the field once a week is chosen. */}
 			<SelectField
 				meta={fields.weekKey}
 				labelProps={{
@@ -368,9 +511,14 @@ function EasyWeekEdit({
 				}}
 				items={weeks.map((week) => ({
 					value: week.weekKey,
-					label: `${weekLabel(week.weekKey)} · ${phases[week.phaseIndex]!.name} · ${NB_WEEK_ROLE_LABELS[week.role]}`,
+					label: `Uke ${isoWeekNumber(week.weekKey)} · ${NB_WEEK_ROLE_LABELS[week.role]}`,
 				}))}
 			/>
+			{chosen ? (
+				<p className="text-muted-foreground text-sm" data-season-edit-current>
+					{weekLabel(chosen.weekKey)} · {phases[chosen.phaseIndex]?.name}
+				</p>
+			) : null}
 			<p className="text-muted-foreground text-xs">
 				{SEASON_EDIT_LABELS.easyWeekHint}
 			</p>
@@ -378,39 +526,77 @@ function EasyWeekEdit({
 	)
 }
 
-/** What the edit's form starts with: the edit a preview is showing, if any. */
-function defaultsOf(reply: SeasonEditReply | null) {
-	return reply?.preview ? formValues(reply.preview.edit) : undefined
+/**
+ * What the edit's form starts with: the edit a preview is showing, else what
+ * the URL asked for (`SeasonEditLink`), else nothing.
+ */
+function defaultsOf(
+	reply: SeasonEditReply | null,
+	requested: Record<string, string> | null,
+) {
+	if (reply?.preview) return formValues(reply.preview.edit)
+	return requested ?? undefined
+}
+
+/**
+ * Whether the form still says what the preview was made from. Any field
+ * changed since — a week, a number, a phase — and the preview is someone
+ * else's: it is hidden rather than confirmed.
+ */
+function previewStillShown(
+	formValue: Record<string, unknown> | undefined,
+	edit: SeasonEdit,
+): boolean {
+	const shown = formValues(edit)
+	return Object.entries(shown).every(([name, value]) => {
+		// The revert is a button, not a field; the value it leaves blank is not
+		// the form's to keep.
+		if (name === 'revert' || (shown.revert && name === 'value')) return true
+		const current = formValue?.[name]
+		return (typeof current === 'string' ? current : '') === value
+	})
 }
 
 /**
  * One edit: a disclosure holding its form, and — once the action answered
- * with one — the preview and its confirm.
+ * with one, and while the form still says what it was made from — the preview
+ * and its confirm.
  */
 function EditShell({
 	kind,
 	summary,
 	outlineId,
 	reply,
+	open,
+	formValue,
 	formProps,
 	formErrors,
 	formErrorId,
+	extraActions,
 	children,
 }: {
 	kind: SeasonEditKind
 	summary: string
 	outlineId: string
 	reply: SeasonEditReply | null
+	/** Opened by the URL (`SeasonEditLink`) as well as by an answer. */
+	open: boolean
+	formValue: Record<string, unknown> | undefined
 	formProps: ReturnType<typeof getFormProps>
 	formErrors: string[] | undefined
 	formErrorId: string
+	extraActions?: React.ReactNode
 	children: React.ReactNode
 }) {
 	const preview = reply?.preview ?? null
+	const shown =
+		preview != null && previewStillShown(formValue, preview.edit)
+			? preview
+			: null
 	return (
 		<details
 			className="border-border/70 rounded-xl border px-4 py-2"
-			open={reply != null}
+			open={reply != null || open}
 			data-season-edit={kind}
 		>
 			<summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">
@@ -435,13 +621,14 @@ function EditShell({
 				<Button type="submit" variant="outline" className="w-full">
 					{SEASON_EDIT_LABELS.showPreview}
 				</Button>
+				{extraActions}
 			</Form>
-			{preview ? (
+			{shown ? (
 				<SeasonEditPreviewPanel
-					key={preview.digest}
+					key={shown.digest}
 					kind={kind}
 					outlineId={outlineId}
-					preview={preview}
+					preview={shown}
 					lastResult={reply?.confirmResult}
 				/>
 			) : null}
@@ -453,16 +640,25 @@ function EditShell({
 function formValues(edit: SeasonEdit): Record<string, string> {
 	switch (edit.kind) {
 		case 'week-target':
-			return {
-				weekKey: edit.weekKey,
-				trackId: edit.trackId,
-				value: String(edit.value).replace('.', ','),
-			}
+			return edit.value == null
+				? {
+						weekKey: edit.weekKey,
+						trackId: edit.trackId,
+						value: '',
+						revert: 'on',
+					}
+				: {
+						weekKey: edit.weekKey,
+						trackId: edit.trackId,
+						value: String(edit.value).replace('.', ','),
+					}
 		case 'phase':
 			return {
 				phaseId: edit.phaseId,
 				name: edit.name ?? '',
 				weeks: edit.weeks == null ? '' : String(edit.weeks),
+				rhythm: edit.rhythm ?? '',
+				tapers: edit.tapers == null ? '' : edit.tapers ? 'yes' : 'no',
 			}
 		case 'easy-week':
 			return { weekKey: edit.weekKey }
@@ -572,10 +768,7 @@ function SeasonEditPreviewPanel({
 				))}
 				{form.errors ? (
 					<div role="alert">
-						<ErrorList
-							id={form.errorId}
-							errors={form.errors as string[] | undefined}
-						/>
+						<ErrorList id={form.errorId} errors={form.errors} />
 					</div>
 				) : null}
 				<Button type="submit" className="w-full sm:w-auto">

@@ -1,14 +1,14 @@
 /**
  * @vitest-environment jsdom
  *
- * The phase card's **rhythm** controls (#402, ADR 0044 §4).
+ * The phase card's **rhythm** reading and the new-phase form (#402, ADR 0044 §4).
  *
- * One thing is under test here and it is a copy question as much as a wiring one:
- * a tapering phase's weeks are *all* taper weeks — `weekRole` reads `tapers` before
- * it reads the rhythm — so a loading rhythm chosen on one changes nothing. ADR 0044
- * §8 rules that state out, so the control goes and a sentence says why. What the
- * form still has to do is carry the stored rhythm through the save, or a phase that
- * later stops tapering would come back on whatever the action defaults to.
+ * Since #505 S13 an existing phase's name, length and rhythm are Sesong edits,
+ * changed in _Endre sesongen_ behind a preview; the card shows which weeks
+ * recover and links there. The new-phase form keeps its rhythm controls: a
+ * tapering phase's weeks are *all* taper weeks — `weekRole` reads `tapers`
+ * before the rhythm — so the rhythm select goes and a sentence says why, while
+ * the form still posts a rhythm.
  *
  * The rest of the card is covered where it is used, in `plan.route.test.tsx`.
  */
@@ -64,53 +64,22 @@ function renderCard({
 	render(<App initialEntries={['/training/plan']} />)
 }
 
-test('a phase that does not taper chooses its loading rhythm', async () => {
+test('an existing phase is edited in Endre sesongen, pre-filled, and not on the card', async () => {
 	renderCard()
 
-	expect(
-		await screen.findByRole('combobox', { name: 'Loading rhythm' }),
-	).toBeInTheDocument()
-	expect(screen.queryByText(/no loading rhythm to set/)).not.toBeInTheDocument()
-})
-
-test('a tapering phase offers no loading rhythm, and says why', async () => {
-	renderCard({ spec: phase({ tapers: true }) })
-
-	// Not a disabled select and not a select that does nothing: the control is gone
-	// and the reason is on the page (ADR 0044 §8).
-	expect(
-		await screen.findByText(
-			/A tapering phase’s weeks are all taper weeks, so there is no loading rhythm to set/,
-		),
-	).toBeInTheDocument()
-	expect(
-		screen.queryByRole('combobox', { name: 'Loading rhythm' }),
-	).not.toBeInTheDocument()
-})
-
-test('the stored rhythm still travels on a tapering phase, so saving cannot lose it', async () => {
-	const user = userEvent.setup()
-	let posted: Array<[string, string]> = []
-	renderCard({
-		spec: phase({ rhythm: '2:1', tapers: true }),
-		action: async ({ request }) => {
-			posted = [...(await request.formData()).entries()] as Array<
-				[string, string]
-			>
-			return null
-		},
+	const link = await screen.findByRole('link', {
+		name: 'Endre navn eller lengde på en fase',
 	})
-
-	await user.click(await screen.findByRole('button', { name: 'Save rhythm' }))
-
-	// `set-phase-rhythm` rewrites both fields every time, so a phase that stops
-	// tapering has to find the rhythm it came in with.
-	expect(posted).toEqual([
-		['intent', 'set-phase-rhythm'],
-		['phaseId', 'phase-base'],
-		['rhythm', '2:1'],
-		['tapers', 'on'],
-	])
+	expect(link.getAttribute('href')).toBe(
+		'/training/plan?edit=phase&phaseId=phase-base#season-edits',
+	)
+	expect(
+		screen.getByRole('link', { name: 'Velg hvilken uke som er lett' }),
+	).toBeInTheDocument()
+	// Nothing on the card writes a name, a length or a rhythm any more.
+	expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull()
+	expect(screen.queryByRole('button', { name: 'Save weeks' })).toBeNull()
+	expect(screen.queryByRole('button', { name: 'Save rhythm' })).toBeNull()
 })
 
 test('the recovery preview still reads the phase, with every week a taper', async () => {
@@ -123,21 +92,6 @@ test('the recovery preview still reads the phase, with every week a taper', asyn
 			/steps down toward your event, so it holds no recovery week/,
 		),
 	).toBeInTheDocument()
-})
-
-test('checking “This phase tapers” takes the rhythm away as it is checked', async () => {
-	const user = userEvent.setup()
-	renderCard()
-
-	await user.click(
-		await screen.findByRole('checkbox', { name: 'This phase tapers' }),
-	)
-
-	// The consequence is visible *before* the save, the way the recovery marks are.
-	expect(
-		screen.queryByRole('combobox', { name: 'Loading rhythm' }),
-	).not.toBeInTheDocument()
-	expect(screen.getByText(/no loading rhythm to set/)).toBeInTheDocument()
 })
 
 test('the new-phase form follows the same rule, and still posts a rhythm', async () => {
