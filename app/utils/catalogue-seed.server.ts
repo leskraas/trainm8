@@ -48,7 +48,10 @@ import {
 	defaultVariantFor,
 	type SeedExercise,
 } from './exercise-corpus.ts'
-import { seedExercises } from './exercise-seed.server.ts'
+import {
+	SEED_TRANSACTION_TIMEOUT_MS,
+	writeExercises,
+} from './exercise-seed.server.ts'
 import { buildBlocksCreate } from './workout.server.ts'
 
 /**
@@ -102,7 +105,7 @@ type SeedClient = Pick<
 	| 'exercise'
 	| 'exerciseVariant'
 	| 'exerciseAlias'
-	// Needed only because this seeder writes exercises through `seedExercises`,
+	// Needed only because this seeder writes exercises through `writeExercises`,
 	// whose variant writer asks whether any logged set is keyed on the equipment
 	// it is about to restate.
 	| 'exerciseSetLog'
@@ -232,8 +235,18 @@ async function seedSession(prisma: SeedClient, session: CorpusSession) {
  * corpus test forbids one, so this is a belt on top of a brace.
  */
 export async function seedCatalogue(
-	prisma: SeedClient,
+	prisma: Pick<PrismaClient, '$transaction'>,
 	corpus: CorpusSession[] = CATALOGUE_CORPUS,
+): Promise<CatalogueSeedResult> {
+	// One commit for the whole corpus, for the reasons `seedExercises` states.
+	return prisma.$transaction((tx) => writeCatalogue(tx, corpus), {
+		timeout: SEED_TRANSACTION_TIMEOUT_MS,
+	})
+}
+
+async function writeCatalogue(
+	prisma: SeedClient,
+	corpus: CorpusSession[],
 ): Promise<CatalogueSeedResult> {
 	const keys = new Set(corpus.map((session) => session.key))
 
@@ -242,7 +255,7 @@ export async function seedCatalogue(
 	// They are catalog entries in the same sense the shipped ones are, so they go
 	// through the exercise database's own writer, which asserts authorship and
 	// gives each row its default **Exercise Variant** (#469).
-	const exercises = await seedExercises(prisma, STRENGTH_EXERCISE_CORPUS)
+	const exercises = await writeExercises(prisma, STRENGTH_EXERCISE_CORPUS)
 
 	for (const session of corpus) {
 		await seedSession(prisma, session)

@@ -55,14 +55,37 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     steps:
+      # Depth 2: on a PR, HEAD is the merge commit and HEAD^1 the base branch,
+      # so `HEAD^1..HEAD` is exactly what the PR changes.
       - name: ⬇️ Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # A PR runs only the tests whose import graph reaches a changed file, on
+      # shard 1 alone. Anything that graph cannot see — dependencies, the schema
+      # and migrations, test setup, mocks and fixtures, config, this workflow —
+      # runs the full suite, and so does every push to main before it deploys.
+      - name: 🎯 Pick tests
+        id: scope
+        run: |
+          full='^(package(-lock)?\.json|vite\.config\.ts|tsconfig\.json|\.env\.example|prisma/|tests/(setup|mocks|fixtures)/|other/|\.github/)'
+          if [ "${{ github.event_name }}" = pull_request ] &&
+            ! git diff --name-only HEAD^1 HEAD | grep -qE "$full"; then
+            echo "args=--changed HEAD^1 --passWithNoTests" >> "$GITHUB_OUTPUT"
+            echo "run=${{ matrix.shard == 1 }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=--shard=${{ matrix.shard }}/3" >> "$GITHUB_OUTPUT"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: 🧰 Setup
+        if: steps.scope.outputs.run == 'true'
         uses: ./.github/actions/setup
 
       - name: ⚡ Run vitest
-        run: npx vitest run --shard=${{ matrix.shard }}/3
+        if: steps.scope.outputs.run == 'true'
+        run: npx vitest run ${{ steps.scope.outputs.args }}
 
   playwright:
     name: 🎭 Playwright

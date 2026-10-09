@@ -182,8 +182,29 @@ const ATHLETE_OWNED = {
  * them (#469).
  */
 export async function seedExercises(
-	prisma: SeedClient,
+	prisma: Pick<PrismaClient, '$transaction'>,
 	corpus: SeedExercise[] = EXERCISE_CORPUS,
+): Promise<ExerciseSeedResult> {
+	return prisma.$transaction((tx) => writeExercises(tx, corpus), {
+		timeout: SEED_TRANSACTION_TIMEOUT_MS,
+	})
+}
+
+/**
+ * One transaction for the whole corpus: SQLite syncs to disk on every commit,
+ * so ~2,500 auto-committed writes took 5.7s and one commit takes 2.1s. It also
+ * makes a refused row (see `seedExercise`) roll the run back whole rather than
+ * leave the corpus half-written.
+ */
+export const SEED_TRANSACTION_TIMEOUT_MS = 120_000
+
+/**
+ * The body of `seedExercises`, for a caller already inside a transaction (the
+ * catalogue seed writes its strength exercises through it).
+ */
+export async function writeExercises(
+	prisma: SeedClient,
+	corpus: SeedExercise[],
 ): Promise<ExerciseSeedResult> {
 	const ids = corpus.map((row) => row.id)
 	const athleteOwned = await prisma.exercise.findMany({
