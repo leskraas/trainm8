@@ -2916,6 +2916,17 @@ export const CONNECTION_HUB_STATUS_LABELS: Record<ConnectionHubStatus, string> =
 	}
 
 // ---------------------------------------------------------------------------
+// Round 2 · first run, stamped titles, integrations and upload
+// (branch claude/first-run-integrations). One block; other PRs add their own.
+// ---------------------------------------------------------------------------
+
+/** What a `StatusButton` says to a screen reader while it works, and when done. */
+export const STATUS_BUTTON_LABELS = {
+	pending: 'Arbeider',
+	success: 'Ferdig',
+} as const
+
+// ---------------------------------------------------------------------------
 
 /** Capitalize the first character; the fallback for open-ended enum sets. */
 function capitalize(value: string): string {
