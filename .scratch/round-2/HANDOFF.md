@@ -98,3 +98,16 @@ The work was paused because the owner's budget ran low. Everything needed to pic
     - ADR + GLOSSARY for the stamp/hours change
     - build, e2e, screenshots, Emil reviews
     - the list of stored titles, and what PR D needs
+- **claude/cross-cutting-polish** 9f5b99b (WIP, all 4 fixes in one commit)
+  - **Done:**
+    - `formatNbKg`/`formatLiftWork` render `82,5 kg × 5 · 5 · 5 · 4`. `formatKg` is unchanged, and a round-trip test pins it.
+    - `--track-*-ink` tokens reach ≥5.0:1 on card and page; the design-system doc has the numbers. They colour I dag's week header and the season table heads.
+    - The token popover now uses `motion-popup`.
+    - The replan generator and session nudges produce Norwegian via labels.ts; old English rows are mapped at display time, with no migration.
+    - Lint and typecheck: 0 errors.
+  - **Left:**
+    - build, e2e, screenshots, Emil review
+    - the Workout Detail View's English "Replan note" label
+    - `coach.ts` English
+    - English session-title fallbacks (owner decision)
+  - **Shared open issue:** `index.dashboard.test.tsx` has 7 failures stuck on "Loading..." on several branches (sentence-reader reports the same). Investigate it once, on a quiet machine.
