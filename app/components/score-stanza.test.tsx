@@ -154,6 +154,27 @@ test('notes render italic-quoted note text — never an asterisk marker', () => 
 	).not.toContain('*')
 })
 
+test('a long note wraps in full — never cut with "…" (#505 story 32)', () => {
+	const long =
+		'Steady aerobic effort, conversational the whole way; walk the hills if the heart rate climbs'
+	const notation = deriveWorkoutNotation({
+		blocks: [
+			{
+				name: null,
+				repeatCount: 1,
+				steps: [{ kind: 'cardio', distanceM: 2000, notes: long }],
+			},
+		],
+	})
+	render(<ScoreStanza notation={notation} />)
+
+	const note = document.querySelector('[data-token-type="notes"]')!
+	expect(note).toHaveTextContent(long)
+	// The cut was a class, not the text: `truncate` and a 11ch/22ch cap.
+	expect(note.className).not.toMatch(/truncate|max-w-\[/)
+	expect(note.className).toContain('whitespace-normal')
+})
+
 test('strength rest-between-sets folds in with a mid-dot — parens stay reserved for rest steps', () => {
 	const notation = deriveWorkoutNotation({
 		blocks: [

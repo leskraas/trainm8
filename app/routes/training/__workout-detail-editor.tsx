@@ -44,6 +44,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFetcher } from 'react-router'
 import { formatDistance, formatDuration } from '#app/utils/format.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
+import { WORKOUT_DETAIL_EDITOR_LABELS } from '#app/utils/labels.ts'
 import { type ResolveContext } from '#app/utils/strength/anchors.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
 import { FormSchema } from '#app/utils/workout-authoring.ts'
@@ -263,7 +264,7 @@ export function ScheduledWorkoutSentence({
 			<HiddenField meta={fields.scheduledAtTime} />
 			<HiddenField meta={fields.structure} />
 
-			<div className="text-body-sm">
+			<div className="text-callout font-normal">
 				<TokenSentenceEditor
 					form={form}
 					blocksField={fields.blocks}
@@ -304,9 +305,9 @@ export function ScheduledWorkoutSentence({
 			<p
 				aria-live="polite"
 				role="status"
-				className="text-muted-foreground pointer-events-none absolute right-0 -bottom-5 text-xs"
+				className="text-caption text-muted-foreground pointer-events-none absolute right-0 -bottom-5"
 			>
-				{showSaving ? 'Saving…' : ''}
+				{showSaving ? WORKOUT_DETAIL_EDITOR_LABELS.saving : ''}
 			</p>
 			<LoggedSetNotice workout={workout} loggedSetsByStep={loggedSetsByStep} />
 		</fetcher.Form>
@@ -342,7 +343,7 @@ function LoggedSetNotice({
 				{
 					id: step.id,
 					count,
-					name: step.exercise?.name ?? 'this exercise',
+					name: step.exercise?.name ?? WORKOUT_DETAIL_EDITOR_LABELS.thisExercise,
 				},
 			]
 		}),
@@ -350,13 +351,10 @@ function LoggedSetNotice({
 	if (locked.length === 0) return null
 
 	return (
-		<ul className="text-muted-foreground text-body-xs mt-3 flex flex-col gap-1">
+		<ul className="text-footnote text-muted-foreground mt-3 flex flex-col gap-1">
 			{locked.map((step) => (
 				<li key={step.id}>
-					{step.count === 1 ? '1 set is' : `${step.count} sets are`} logged
-					against {step.name}, so which exercise this is stays fixed — the
-					numbers are still yours to edit. To make it a different lift, delete
-					those sets first.
+					{WORKOUT_DETAIL_EDITOR_LABELS.loggedSetsFixed(step.count, step.name)}
 				</li>
 			))}
 		</ul>

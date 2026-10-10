@@ -9,14 +9,18 @@ import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { DEFAULT_TRAINING_TIME } from '#app/utils/athlete-schema.ts'
 import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { APP_TAB_LABELS } from '#app/utils/labels.ts'
+import {
+	APP_TAB_LABELS,
+	NB_INTENT_LABELS,
+	NEW_SESSION_LABELS,
+	WORKOUT_DETAIL_LABELS,
+	nbDisciplineLabel,
+} from '#app/utils/labels.ts'
 import { readMostTrainedDiscipline } from '#app/utils/most-trained-discipline.server.ts'
-import { getDisciplineLabel } from '#app/utils/training.ts'
 import { buildBlocksInput, FormSchema } from '#app/utils/workout-authoring.ts'
 import {
 	DISCIPLINES,
 	WORKOUT_INTENTS,
-	INTENT_LABELS,
 	WorkoutAuthoringSchema,
 } from '#app/utils/workout-schema.ts'
 import {
@@ -27,9 +31,16 @@ import {
 import { type Route } from './+types/sessions.new.ts'
 import { WorkoutStructureEditor } from './__workout-editor.tsx'
 
-export const meta: Route.MetaFunction = () => [
-	{ title: 'New Workout Session | Trainm8' },
-]
+const L = NEW_SESSION_LABELS
+
+/**
+ * The full editor page, in Norwegian on the design system (#505 round 2). It
+ * is the no-JS and deep-link way in — the composer's full snap point is the
+ * quick one (owner decision 1) — and the page a strength day's "Mer" opens.
+ * The route and its query (`?date=`, `?discipline=`) stay as they are: the
+ * composer and I dag link here.
+ */
+export const meta: Route.MetaFunction = () => [{ title: L.metaTitle }]
 
 /** `YYYY-MM-DD`, and nothing else — a malformed `?date` is ignored rather than
  * coerced into whatever `new Date` makes of it. */
@@ -118,7 +129,7 @@ export async function action({ request }: Route.ActionArgs) {
 			{
 				result: submission.reply({
 					fieldErrors: {
-						scheduledAtDate: ['Invalid date and time combination'],
+						scheduledAtDate: [WORKOUT_DETAIL_LABELS.errors.badDateTime],
 					},
 				}),
 			},
@@ -190,7 +201,7 @@ export default function NewSessionRoute({
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
-				title="New Workout Session"
+				title={L.title}
 				back={{ to: '/', label: APP_TAB_LABELS.today }}
 				className="mb-6"
 			/>
@@ -200,54 +211,49 @@ export default function NewSessionRoute({
 					<Form method="POST" {...getFormProps(form)}>
 						<div className="space-y-6">
 							<Field
-								labelProps={{ children: 'Title' }}
+								labelProps={{ children: L.name }}
 								inputProps={{
 									...getInputProps(fields.title, { type: 'text' }),
-									placeholder: 'e.g. Tuesday Tempo Run',
+									placeholder: L.namePlaceholder,
 									autoFocus: true,
+									enterKeyHint: 'next',
 								}}
 								errors={fields.title.errors as string[] | undefined}
 							/>
 
 							<SelectField
 								meta={fields.discipline}
-								labelProps={{
-									children: 'Discipline',
-									className: 'text-body-xs text-muted-foreground font-medium',
-								}}
+								labelProps={{ children: L.sport }}
 								items={DISCIPLINES.map((type) => ({
 									value: type,
-									label: getDisciplineLabel(type),
+									label: nbDisciplineLabel(type),
 								}))}
 								// Shown when nothing is prefilled, which is what an athlete
 								// with no history to derive one from gets (ADR 0065 §5).
-								placeholder="Pick a discipline"
+								placeholder={L.sportPlaceholder}
 								errors={fields.discipline.errors as string[] | undefined}
 							/>
 
 							<SelectField
 								meta={fields.intent}
-								labelProps={{
-									children: 'Intent',
-									className: 'text-body-xs text-muted-foreground font-medium',
-								}}
+								labelProps={{ children: L.intent }}
 								items={WORKOUT_INTENTS.map((value) => ({
 									value,
-									label: INTENT_LABELS[value],
+									label: NB_INTENT_LABELS[value],
 								}))}
 								errors={fields.intent.errors as string[] | undefined}
 							/>
 
 							<div className="grid grid-cols-2 gap-4">
 								<Field
-									labelProps={{ children: 'Date' }}
+									labelProps={{ children: L.date }}
 									inputProps={{
 										...getInputProps(fields.scheduledAtDate, { type: 'date' }),
 									}}
 									errors={fields.scheduledAtDate.errors as string[] | undefined}
 								/>
 								<Field
-									labelProps={{ children: 'Time' }}
+									labelProps={{ children: L.time }}
 									inputProps={{
 										...getInputProps(fields.scheduledAtTime, { type: 'time' }),
 									}}
@@ -278,10 +284,11 @@ export default function NewSessionRoute({
 							    validation summary — one error system on the card. */}
 
 							{/* One action row; dismissal lives in the header's back
-							    button (#279, #282). */}
+							    button (#279, #282). It sits clear of the fixed tab bar
+							    at 390px: the page pads its foot for the bar. */}
 							<div className="flex">
 								<Button type="submit" className="w-full sm:w-auto">
-									Create Session
+									{L.create}
 								</Button>
 							</div>
 						</div>
