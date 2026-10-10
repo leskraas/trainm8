@@ -29,6 +29,10 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
+import {
+	buildWeekVolumes,
+	type VolumeSession,
+} from '#app/utils/plan-outline/week-volumes.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 import { DayStampProvider } from './day-stamp-context.tsx'
 import {
@@ -37,7 +41,8 @@ import {
 	type TimelineEndCap,
 	type TimelineWeek,
 } from './presenter.ts'
-import { EndCap, WeekBlock } from './stream.tsx'
+import { EndCap, TrackLine, WeekBlock } from './stream.tsx'
+import { wordTrackWeek } from './week-words.ts'
 
 function day(overrides: Partial<TimelineDay> = {}): TimelineDay {
 	return {
@@ -509,4 +514,76 @@ test('with no plan the far end offers to plan a season', async () => {
 	expect(
 		screen.getByRole('link', { name: 'Planlegg en sesong' }),
 	).toHaveAttribute('href', '/start')
+})
+
+// ---------------------------------------------------------------------------
+// A track line says one true thing (#505 S9 review D7, S6)
+// ---------------------------------------------------------------------------
+
+test('a skier’s line says what stands where no sum is, and the zone split done and planned on lines of their own', () => {
+	const ride = (
+		dayKey: string,
+		status: VolumeSession['status'],
+		bars: VolumeSession['plannedZones'],
+	): VolumeSession => ({
+		dayKey,
+		status,
+		discipline: 'bike',
+		easy: false,
+		// Prescribed with no hours a week can sum: a structure with gaps.
+		prescribed: { km: null, hours: null, tss: null, sets: null },
+		recorded:
+			status === 'completed'
+				? { km: 30, hours: 1.5, tss: 80, sets: null }
+				: null,
+		plannedZones: bars,
+		doneZones:
+			status === 'completed'
+				? [
+						{ id: 'd1', zone: 1, durationSec: 4212 },
+						{ id: 'd3', zone: 3, durationSec: 648 },
+						{ id: 'd5', zone: 5, durationSec: 540 },
+					]
+				: [],
+		countsInNoTrack: false,
+	})
+	const volumes = buildWeekVolumes({
+		weekKey: '2030-02-18',
+		todayKey: '2030-02-20',
+		planStartWeekKey: '2030-02-18',
+		tracks: [
+			{
+				trackId: 'track-ski',
+				discipline: 'bike',
+				currency: 'hours',
+				targets: [8],
+				overridden: [false],
+				sessionTargets: null,
+			},
+		],
+		sessions: [
+			ride('2030-02-18', 'completed', [
+				{ id: 'p1', zone: 2, durationSec: 5400 },
+			]),
+			ride('2030-02-22', 'planned', [{ id: 'p2', zone: 2, durationSec: 3600 }]),
+		],
+	})
+	render(
+		<TrackLine
+			track={wordTrackWeek(volumes.tracks[0]!, {
+				ahead: false,
+				hasSessions: true,
+			})}
+		/>,
+	)
+	// Two sessions planned with no hours: never `planlagt –`.
+	expect(screen.getByText('2 økter uten timer')).toBeInTheDocument()
+	expect(screen.getByText('1,5')).toBeInTheDocument()
+	// toHaveTextContent folds the no-break space before % into a space.
+	expect(document.querySelector('[data-zone-split="done"]')).toHaveTextContent(
+		'gjort Z1 78 % · Z3 12 % · Z5 10 %',
+	)
+	expect(
+		document.querySelector('[data-zone-split="planned"]'),
+	).toHaveTextContent('plan Z2 100 % · hensikt, ikke en måling')
 })
