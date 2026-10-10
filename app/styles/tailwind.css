@@ -136,7 +136,12 @@
 	 *   --status-missed  ikke gjort   red, quieter than `--destructive`
 	 */
 	--status-on: var(--primary);
-	--status-under: oklch(0.62 0.14 65);
+	/*
+	 * L 0.55 rather than 0.62 (#505 polish): `under` and the `≠` mark are
+	 * caption-sized *text*, and 0.62 was 3.8:1 on the card. 0.55 is 5.0:1 on
+	 * the card and 4.7:1 on the page — AA — and still reads as amber.
+	 */
+	--status-under: oklch(0.55 0.13 65);
 	--status-over: oklch(0.55 0.13 275);
 	--status-missed: oklch(0.56 0.17 25);
 

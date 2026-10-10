@@ -927,16 +927,23 @@ function buildWeek({
 	let missed = 0
 	let doneTss: number | null = null
 	let plannedTss: number | null = null
+	// Whether some of the done load came from a session with no Planned TSS —
+	// one the athlete added, a lifting session (ADR 0046 §2), an import. Then
+	// the done sum is not a part of the planned one, and `176 av 85 TSS` would
+	// read as a week done twice over when it was a week done differently.
+	let unplannedLoad = false
 	for (const { entry } of sessionRows) {
 		if (entry.status === 'completed') done += 1
 		if (entry.status === 'missed') missed += 1
 		// Planned and actual are summed independently (ADR 0030): a week that was
 		// planned but never trustworthily recorded still carries its planned load
 		// while its actual reads honestly absent.
-		if (entry.load != null) doneTss = (doneTss ?? 0) + entry.load
-		if (entry.plannedTss != null && entry.plannedTss > 0) {
-			plannedTss = (plannedTss ?? 0) + entry.plannedTss
+		const planned = entry.plannedTss != null && entry.plannedTss > 0
+		if (entry.load != null) {
+			doneTss = (doneTss ?? 0) + entry.load
+			if (!planned) unplannedLoad = true
 		}
+		if (planned) plannedTss = (plannedTss ?? 0) + entry.plannedTss!
 	}
 	const relativeName = relativeWeekName(monday, nowMonday)
 	const trackWeeks = volumes.tracks.map((track) =>
@@ -954,6 +961,7 @@ function buildWeek({
 		missed,
 		doneTss: doneTss != null ? roundLoad(doneTss) : null,
 		plannedTss: plannedTss != null ? roundLoad(plannedTss) : null,
+		unplannedLoad,
 	})
 	// A week the plan has laid is written, whatever the horizon says: only a
 	// week nothing but the athlete has written in is still the plan's to fill.

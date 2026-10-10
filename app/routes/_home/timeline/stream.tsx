@@ -76,6 +76,8 @@ import {
 	ownerGlyphName,
 	RELEASE_ACTION_LABELS,
 	SESSION_DETAIL_LABELS,
+	sessionCountLabel,
+	WEEK_DETAIL_LABELS,
 	WEEK_FIGURE_LABELS,
 } from '#app/utils/labels.ts'
 import {
@@ -172,10 +174,9 @@ export const WeekBlock = memo(function WeekBlock({
 					...week,
 					tracks: week.tracks.map((track) => ({
 						hasFigures: track.hasFigures,
-						noteCount:
-							(trackNotes(track).length > 0 ? 1 : 0) +
-							(track.zoneSplit?.done ? 1 : 0) +
-							(track.zoneSplit?.planned ? 1 : 0),
+						// One quiet line at most per track (`trackEssentials`); the
+						// rest is behind the summary's disclosure.
+						noteCount: trackEssentials(track).length > 0 ? 1 : 0,
 					})),
 				})}px`,
 			}}
@@ -247,16 +248,22 @@ function phaseEdge(week: TimelineWeek): string {
 
 /**
  * The header a week reads under (#505 stories 19, 23), drawn as variant P
- * draws it: one line naming the week — `Denne uka · 5.–11. okt · Spissing ·
- * hard uke` — with the phase's colour on its left edge; one line per Training
- * Track with the track's name in its colour, `done / target unit`, the planned
- * figure where it says something, the `≠` mark and the verdict, beside a
- * Meter (done filled, planned dashed, the target a tick); and the week's one
+ * draws it — three lines and a tail: one line naming the week — `Denne uka ·
+ * 5.–11. okt · Spissing · hard uke` — with the phase's colour on its left
+ * edge; one line per Training Track with the track's name, `done / target
+ * unit`, the planned figure where it says something, the `≠` mark and the
+ * verdict, beside a Meter (done filled, planned dashed, the target a tick); and the week's one
  * muted sentence (`week.summary`).
  *
- * Only that much is **sticky**: the notes under it — what was not measured,
- * pace, the zone split, Annet — follow in the flow and scroll away, so a
- * header never stands a third of a phone tall over its own rows.
+ * Only that much is **sticky**. Under it, in the flow, at most **one quiet
+ * line per track**, and only for what keeps the numbers above it honest: the
+ * sessions with no number beside a sum (`gjort +1 uten km`, its side named,
+ * story 34) and a strength week logged only part-way. Everything else the
+ * wave-1 notes said — why a track is not graded, pace, the easy share, the
+ * zone split and that a planned split is an intention, Annet — sits behind the
+ * summary line (`WeekDetails`): one tap opens it in a popover, and a screen
+ * reader reads it in place. A header no longer stands a third of a phone tall
+ * over its own rows.
  *
  * It sits on the card the days sit on, marked by its phase's edge and a
  * hairline under it rather than a heavy rule; the top bar above the list is
@@ -264,6 +271,11 @@ function phaseEdge(week: TimelineWeek): string {
  */
 function WeekHeader({ week }: { week: TimelineWeek }) {
 	const past = week.shape === 'past'
+	const tracks = week.tracks.filter((track) => track.hasFigures)
+	const details = weekDetails(week)
+	const essentials = tracks
+		.map((track) => ({ track, notes: trackEssentials(track) }))
+		.filter(({ notes }) => notes.length > 0)
 	return (
 		<>
 			<div
@@ -274,24 +286,37 @@ function WeekHeader({ week }: { week: TimelineWeek }) {
 				)}
 			>
 				<WeekTitle week={week} />
-				<WeekFigures week={week} part="numbers" />
-				{week.summary ? (
-					<p
-						data-week-summary
-						className={cn(
-							'text-caption font-normal [text-wrap:pretty] italic',
-							past ? 'text-muted-foreground/80' : 'text-muted-foreground',
-						)}
-					>
-						{week.summary}
-					</p>
+				{week.tracks.length === 0 ? (
+					<span className="text-muted-foreground text-caption font-normal">
+						{week.loadLine}
+					</span>
+				) : null}
+				{tracks.map((track) => (
+					<TrackMeter key={track.trackId} track={track} past={past} />
+				))}
+				{week.summary || details.length > 0 ? (
+					<WeekDetails week={week} details={details} />
 				) : null}
 			</div>
-			<WeekFigures
-				week={week}
-				part="notes"
-				className={cn('bg-card border-l-4 pr-4 pb-2 pl-3', phaseEdge(week))}
-			/>
+			{essentials.length > 0 ? (
+				<div
+					data-week-notes
+					className={cn(
+						'bg-card flex flex-col gap-0.5 border-l-4 pr-4 pb-2 pl-3',
+						phaseEdge(week),
+					)}
+				>
+					{essentials.map(({ track, notes }) => (
+						<span
+							key={track.trackId}
+							data-week-track-notes={track.trackId}
+							className={NOTE}
+						>
+							{`${track.name} · ${notes.join(' · ')}`}
+						</span>
+					))}
+				</div>
+			) : null}
 		</>
 	)
 }
@@ -328,57 +353,143 @@ function WeekTitle({ week }: { week: TimelineWeek }) {
 	)
 }
 
+/** One group of a week's details: a track (or Annet) and what it says. */
+type WeekDetailGroup = { key: string; name: string; facts: string[] }
+
 /**
- * The week's numbers. A plan week reads one line per track — `Løping · mål 46
- * · planlagt 44 · gjort 35 km`, its verdict, and the `≠` mark — with what has
- * no number said beside it (`+1 uten km`), never folded into the sum. A week
- * with no track to read it in carries its sessions and load instead, and Annet
- * sits apart, counting in nothing.
+ * What a track's line keeps in view under the header: the sessions with no
+ * number beside a sum, with their side named (story 34), and a strength week
+ * logged only part-way. The figures above would read wrong without them.
  */
-function WeekFigures({
+function trackEssentials(track: TimelineTrackWeek): string[] {
+	return [
+		track.actualUnmeasuredLabel,
+		track.plannedUnmeasuredLabel,
+		track.partialLabel,
+	].filter((part): part is string => !!part)
+}
+
+/**
+ * The week's details, for the disclosure: per track, why it is not graded,
+ * its pace, its easy share or zone split (the planned side always beside
+ * `hensikt, ikke en måling`), then Annet. Nothing here changes a number in
+ * the header; it qualifies one.
+ */
+function weekDetails(week: TimelineWeek): WeekDetailGroup[] {
+	const groups: WeekDetailGroup[] = week.tracks
+		.filter((track) => track.hasFigures)
+		.map((track) => ({
+			key: track.trackId,
+			name: track.name,
+			facts: [
+				track.gradeNote,
+				track.paceLabel,
+				track.zoneLabel
+					? track.zoneIntentNote
+						? `${track.zoneLabel} (${track.zoneIntentNote})`
+						: track.zoneLabel
+					: null,
+				track.zoneSplit?.done ?? null,
+				track.zoneSplit?.planned
+					? [track.zoneSplit.planned, track.zoneIntentNote]
+							.filter(Boolean)
+							.join(' · ')
+					: null,
+			].filter((fact): fact is string => !!fact),
+		}))
+		.filter((group) => group.facts.length > 0)
+	if (week.otherTrack) {
+		groups.push({
+			key: 'annet',
+			name: week.otherTrack.label,
+			facts: [
+				`${sessionCountLabel(week.otherTrack.sessions)} · ${week.otherTrack.note}`,
+			],
+		})
+	}
+	return groups
+}
+
+/**
+ * The week's summary line, and — where the week has details to give — the
+ * disclosure behind it (#505 polish): the line is the trigger, with a small
+ * info mark, and the details open in a popover anchored to it. The same
+ * details ride along as screen-reader text right after it, so nothing the
+ * notes used to say is hidden from anyone; it is only out of the sighted
+ * reader's way until asked for.
+ *
+ * The trigger is the whole width of the header and reaches up over the track
+ * lines (which hold nothing to press) to make a 44px target without making
+ * the sticky header any taller.
+ */
+function WeekDetails({
 	week,
-	className,
-	part = 'all',
+	details,
 }: {
 	week: TimelineWeek
-	className?: string
-	/** The numbers (the sticky half), the notes (the flowing half), or both. */
-	part?: TrackLinePart
+	details: WeekDetailGroup[]
 }) {
-	// A track with no target, nothing planned and nothing done is a line of
-	// zeros: left out, by the rule the strip's lifting dot is drawn by.
-	const tracks = week.tracks.filter((track) => track.hasFigures)
-	if (
-		part === 'notes' &&
-		!week.otherTrack &&
-		!tracks.some((track) => trackNotes(track).length > 0 || track.zoneSplit)
-	) {
-		return null
+	const summaryClass =
+		'text-caption text-muted-foreground font-normal [text-wrap:pretty] italic'
+	if (details.length === 0) {
+		return (
+			<p data-week-summary className={summaryClass}>
+				{week.summary}
+			</p>
+		)
 	}
 	return (
-		<div
-			{...(part === 'notes' ? { 'data-week-notes': '' } : {})}
-			className={cn('flex flex-col gap-0.5', className)}
-		>
-			{part === 'notes' ? null : week.tracks.length === 0 ? (
-				<span className="text-muted-foreground text-caption font-normal">
-					{week.loadLine}
-				</span>
-			) : null}
-			{tracks.map((track) => (
-				<Fragment key={track.trackId}>
-					{part === 'notes' ? null : (
-						<TrackMeter track={track} past={week.shape === 'past'} />
-					)}
-					{part === 'numbers' ? null : <TrackLine track={track} part="notes" />}
-				</Fragment>
+		<>
+			<Popover>
+				<PopoverTrigger
+					data-week-details-trigger
+					className="pressable hover:text-foreground aria-expanded:text-foreground text-muted-foreground relative -mt-1 -mb-2 flex w-full items-start gap-1.5 pt-1 pb-2 text-left after:absolute after:inset-x-0 after:-top-4 after:bottom-0"
+				>
+					<span data-week-summary className={cn(summaryClass, 'min-w-0')}>
+						{week.summary ?? WEEK_DETAIL_LABELS.trigger}
+					</span>
+					<Icon
+						name="info-circle"
+						size="xs"
+						aria-hidden
+						className="mt-0.5 flex-none"
+					/>
+					<span className="sr-only">{` · ${WEEK_DETAIL_LABELS.more}`}</span>
+				</PopoverTrigger>
+				<PopoverContent
+					align="start"
+					data-week-details-popover={week.key}
+					className="w-72 gap-3"
+				>
+					<PopoverHeader>
+						<PopoverTitle className="text-callout font-semibold tabular-nums">
+							{WEEK_DETAIL_LABELS.title(week.relativeName, week.rangeLabel)}
+						</PopoverTitle>
+					</PopoverHeader>
+					<WeekDetailList details={details} />
+				</PopoverContent>
+			</Popover>
+			<div className="sr-only" data-week-details-text>
+				<WeekDetailList details={details} />
+			</div>
+		</>
+	)
+}
+
+function WeekDetailList({ details }: { details: WeekDetailGroup[] }) {
+	return (
+		<dl className="text-footnote flex flex-col gap-2 tabular-nums">
+			{details.map((group) => (
+				<div key={group.key} className="flex flex-col gap-0.5">
+					<dt className="text-foreground font-semibold">{group.name}</dt>
+					{group.facts.map((fact, index) => (
+						<dd key={`${index}-${fact}`} className="text-muted-foreground">
+							{fact}
+						</dd>
+					))}
+				</div>
 			))}
-			{part !== 'numbers' && week.otherTrack ? (
-				<span data-week-annet className={NOTE}>
-					{`${week.otherTrack.label} · ${week.otherTrack.sessions} · ${week.otherTrack.note}`}
-				</span>
-			) : null}
-		</div>
+		</dl>
 	)
 }
 
@@ -529,15 +640,10 @@ export function TrackLine({
 
 /**
  * A Training Track's colour, by its sport (`track-*`, ADR 0085): for marks —
- * a track's name in a header, a session's rule, a meter's fill — never for a
- * fill under text. Literal classes, for Tailwind.
+ * a session's rule, a meter's fill and outline — never for text (at caption
+ * size most hues are under 4.5:1 on a light card) and never for a fill under
+ * text. Literal classes, for Tailwind.
  */
-const TRACK_TEXT: Record<string, string> = {
-	run: 'text-track-run',
-	bike: 'text-track-bike',
-	swim: 'text-track-swim',
-	strength: 'text-track-strength',
-}
 const TRACK_BG: Record<string, string> = {
 	run: 'bg-track-run',
 	bike: 'bg-track-bike',
@@ -561,11 +667,12 @@ const GRADE_INK: Record<TimelineTrackWeek['grade']['status'], string> = {
 }
 
 /**
- * One track's line in a week header, after variant P: the track's name in its
- * colour, `11,6 / 36 km` (or `mål 52 km` before anything is done), what was
- * planned where it says something, the `≠` mark and the verdict — and beside
- * it a **Meter** (`components/ui/meter.tsx`): done filled in the track's
- * colour, planned as a dashed outline, the target as a tick. A week with a
+ * One track's line in a week header, after variant P: the track's name,
+ * `11,6 / 36 km` (or `mål 52 km` before anything is done), what was
+ * planned where it says something, a strength week's sessions (`0 av 2
+ * økter`), the `≠` mark and the verdict — and beside it a **Meter** (`components/ui/meter.tsx`): done
+ * filled in the track's colour, planned as a dashed outline, the target as a
+ * tick. A week with a
  * target and nothing planned yet — ahead, or past the horizon — draws the
  * target itself dashed, the way the strip draws an unfilled week.
  *
@@ -607,15 +714,13 @@ function TrackMeter({
 	return (
 		<div
 			data-week-track={track.trackId}
-			className="grid grid-cols-[minmax(0,auto)_minmax(40px,1fr)] items-center gap-x-3"
+			className="grid grid-cols-[minmax(0,auto)_minmax(72px,1fr)] items-center gap-x-3"
 		>
 			<span className="text-caption flex min-w-0 flex-wrap items-baseline gap-x-1.5 font-normal tabular-nums">
-				<span
-					className={cn(
-						'font-semibold break-words',
-						TRACK_TEXT[track.discipline] ?? 'text-foreground',
-					)}
-				>
+				{/* The name in ink, not in the track's hue: at caption size the
+				    run, bike and swim hues are under 4.5:1 on a light card. The
+				    Meter beside it carries the colour. */}
+				<span className="text-foreground font-semibold break-words">
 					{track.name}
 				</span>
 				{done != null ? (
@@ -650,6 +755,11 @@ function TrackMeter({
 				{plannedText != null ? (
 					<span className="text-muted-foreground whitespace-nowrap">
 						· {WEEK_FIGURE_LABELS.planned} {plannedText}
+					</span>
+				) : null}
+				{track.sessionsLabel ? (
+					<span className="text-muted-foreground whitespace-nowrap">
+						· {track.sessionsLabel}
 					</span>
 				) : null}
 				{track.driftLabel ? (
@@ -935,9 +1045,9 @@ function EmptyDay({ day, past }: { day: TimelineDay; past: boolean }) {
 							'text-footnote',
 							day.isToday
 								? 'text-foreground'
-								: past
-									? 'text-muted-foreground/70 italic'
-									: 'text-muted-foreground italic',
+								: // Past or not, the muted ink: a step lighter than it fell
+									// under 4.5:1. The past reads quieter by its muted date.
+									'text-muted-foreground italic',
 						)}
 					>
 						{day.isToday ? DAY_ROW_LABELS.nothingToday : DAY_ROW_LABELS.free}
@@ -946,7 +1056,7 @@ function EmptyDay({ day, past }: { day: TimelineDay; past: boolean }) {
 						aria-hidden
 						className={cn(
 							'flex size-8 flex-none items-center justify-center',
-							past ? 'text-muted-foreground/60' : 'text-primary',
+							past ? 'text-muted-foreground' : 'text-primary',
 						)}
 					>
 						<Icon name="plus" size="sm" />
@@ -1209,7 +1319,7 @@ function SessionGlyph({
 				) : (
 					<span
 						aria-hidden
-						className="border-muted-foreground/70 size-2.5 rounded-full border-[1.5px] border-dashed"
+						className="border-muted-foreground size-2.5 rounded-full border-[1.5px] border-dashed"
 					/>
 				)}
 			</PopoverTrigger>
@@ -1390,7 +1500,7 @@ function AnnetAction({
 				// The 44px floor is the control's (ADR 0028 §2); the words are as
 				// quiet as the row's own facts, so the action never outranks the
 				// session it belongs to.
-				className="text-muted-foreground text-caption flex min-h-11 items-center underline decoration-dotted underline-offset-[3px]"
+				className="text-muted-foreground text-caption pressable flex min-h-11 items-center underline decoration-dotted underline-offset-[3px]"
 			>
 				{pending == null
 					? label

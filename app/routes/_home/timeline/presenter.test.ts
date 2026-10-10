@@ -976,7 +976,9 @@ describe('a lifting row reconciles with the week header it sits under', () => {
 			.flatMap((day) => day.sessions)
 			.find((s) => s.discipline === 'strength')!
 		expect(lift.internalLoad).toContain('sRPE 78')
-		expect(week.loadLine).toContain('138 av 50 TSS')
+		// The gym session has no Planned TSS, so its 78 is not a share of the
+		// run's planned 50: each side is named, never `138 av 50 TSS`.
+		expect(week.loadLine).toContain('gjort 138 · planlagt 50 TSS')
 	})
 
 	test('naming the figure sRPE moves no rollup — only what the row calls it', () => {

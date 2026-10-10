@@ -29,10 +29,10 @@
  */
 import { dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
 import {
-	formatDistance,
 	formatLoad,
 	formatNbDate,
 	formatNbDayMonth,
+	formatNbVolumeFigure,
 	formatSignedTsb,
 } from '#app/utils/format.ts'
 import {
@@ -235,9 +235,11 @@ function formatRecordDistance(discipline: string, meters: number): string {
 		)
 		return `${grouped} m`
 	}
-	// A whole kilometre is written whole (`15 km`, not `15,0 km`), as the week
-	// figures write it (`formatVolumeFigure`).
-	return formatDistance(meters).replace(/\.0 /, ' ').replace('.', ',')
+	if (meters < 1000) return `${Math.round(meters)} m`
+	// The week figures' own writing (`formatNbVolumeFigure`): a whole kilometre
+	// written whole (`15 km`, not `15,0 km`), a decimal comma, and a long ride
+	// grouped (`1 204,5 km`).
+	return `${formatNbVolumeFigure(meters / 1000, 'km')} km`
 }
 
 export function buildRecordLines(

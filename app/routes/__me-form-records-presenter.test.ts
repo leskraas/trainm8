@@ -38,8 +38,8 @@ function form(
 test('the triad reads Kondisjon, Tretthet and Form, in that order', () => {
 	const stats = form().stats
 	expect(stats.map((stat) => stat.legend.short)).toEqual([
-		'Kond',
-		'Tretth',
+		'Kondisjon',
+		'Tretthet',
 		'Form',
 	])
 	// The stored numbers, rounded as they always were; Form signed the way the
@@ -187,6 +187,19 @@ test('a whole kilometre is written whole, not with a trailing zero', () => {
 	const line = buildRecordLines([whole])[0]!
 	expect(line.value).toBe('15 km')
 	expect(line.gain).toBe('+4,5 km over forrige beste')
+})
+
+test('a very long record groups its thousands, so it is never misread', () => {
+	const tour: PersonalRecord = {
+		...RECORDS[0]!,
+		discipline: 'bike',
+		value: 1_204_480,
+		delta: 954,
+	}
+	const line = buildRecordLines([tour])[0]!
+	expect(line.value).toBe('1\u00a0204,5 km')
+	// Under a kilometre the gain is metres, never `+1 km`.
+	expect(line.gain).toBe('+954 m over forrige beste')
 })
 
 test('the day a record was set is read in the athlete’s zone', () => {

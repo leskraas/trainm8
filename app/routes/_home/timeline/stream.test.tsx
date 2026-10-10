@@ -218,7 +218,15 @@ test('a past free day is quieter, and can still be written into (ADR 0065 §6)',
 
 	const cell = screen.getByRole('button', { name: 'Legg inn en økt Mon 11' })
 	expect(cell).toHaveTextContent('fri')
-	expect(within(cell).getByText('fri')).toHaveClass('text-muted-foreground/70')
+	// Quieter by its date and its plus, both muted — never by text so light it
+	// falls under 4.5:1 (#505 polish).
+	expect(within(cell).getByText('fri')).toHaveClass('text-muted-foreground')
+	expect(cell.querySelector('[data-gutter-date]')).toHaveClass(
+		'text-muted-foreground',
+	)
+	expect(cell.querySelector('span[aria-hidden]')).not.toHaveClass(
+		'text-primary',
+	)
 	await user.click(cell)
 	expect(
 		await screen.findByRole('radio', { name: /løping/i }),
@@ -503,7 +511,7 @@ test('with no plan the far end offers to plan a season', async () => {
 // A track line says one true thing (#505 S9 review D7, S6)
 // ---------------------------------------------------------------------------
 
-test('a skier’s line says what stands where no sum is, and the zone split done and planned on lines of their own', () => {
+function skierTrack() {
 	const ride = (
 		dayKey: string,
 		status: VolumeSession['status'],
@@ -551,14 +559,14 @@ test('a skier’s line says what stands where no sum is, and the zone split done
 			ride('2030-02-22', 'planned', [{ id: 'p2', zone: 2, durationSec: 3600 }]),
 		],
 	})
-	render(
-		<TrackLine
-			track={wordTrackWeek(volumes.tracks[0]!, {
-				ahead: false,
-				hasSessions: true,
-			})}
-		/>,
-	)
+	return wordTrackWeek(volumes.tracks[0]!, {
+		ahead: false,
+		hasSessions: true,
+	})
+}
+
+test('a skier’s line says what stands where no sum is, and the zone split done and planned on lines of their own', () => {
+	render(<TrackLine track={skierTrack()} />)
 	// Two sessions planned with no hours: never `planlagt –`.
 	expect(screen.getByText('2 økter uten timer')).toBeInTheDocument()
 	expect(screen.getByText('1,5')).toBeInTheDocument()
@@ -569,4 +577,35 @@ test('a skier’s line says what stands where no sum is, and the zone split done
 	expect(
 		document.querySelector('[data-zone-split="planned"]'),
 	).toHaveTextContent('plan Z2 100 % · hensikt, ikke en måling')
+})
+
+test('a week header keeps three lines and a summary; the qualifying notes sit behind it, and in the accessible text', async () => {
+	const user = userEvent.setup()
+	renderWeek([day({ key: '2030-02-19', dayLabel: 'Tue', dateLabel: '19' })], {
+		weekOverrides: {
+			tracks: [skierTrack()],
+			summary: '1 av 2 gjort · 80 TSS',
+		},
+	})
+
+	// The two unmeasured sessions stand in the planned figure's place, on the
+	// track's own line — visible, never `planlagt –`.
+	const line = document.querySelector('[data-week-track]')!
+	expect(line).toHaveTextContent('2 økter uten timer')
+	// The zone split is no longer a line under the header…
+	expect(document.querySelector('[data-zone-split]')).toBeNull()
+	expect(document.querySelector('[data-week-notes]')).toBeNull()
+	// …but a screen reader still reads it, in place.
+	const text = document.querySelector('[data-week-details-text]')!
+	expect(text).toHaveClass('sr-only')
+	expect(text).toHaveTextContent('plan Z2 100 % · hensikt, ikke en måling')
+
+	// The summary is the disclosure: one tap shows the details.
+	const trigger = screen.getByRole('button', { name: /1 av 2 gjort · 80 TSS/ })
+	expect(trigger).toHaveAccessibleName(/mer om uka/)
+	await user.click(trigger)
+	const popover = await screen.findByRole('dialog')
+	expect(popover).toHaveTextContent('Denne uka · 18–24 February')
+	expect(popover).toHaveTextContent('gjort Z1 78 % · Z3 12 % · Z5 10 %')
+	expect(popover).toHaveTextContent('hensikt, ikke en måling')
 })

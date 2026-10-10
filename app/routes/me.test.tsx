@@ -7,6 +7,7 @@
  * "ikke målt" states saying why.
  */
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
@@ -95,6 +96,24 @@ test('the Form section shows the triad as legend triggers, with its trust and tr
 	expect(section).toHaveTextContent('Kondisjon 51 → 62 siden 4. jan')
 	expect(within(section).queryByText('ikke målt')).not.toBeInTheDocument()
 	expect(within(section).queryByRole('progressbar')).not.toBeInTheDocument()
+})
+
+test('each term is written whole and opens its definition on a tap, not only on hover', async () => {
+	const user = userEvent.setup()
+	renderMe()
+
+	const section = await screen.findByRole('region', { name: 'Form' })
+	// Plain words under the figures, never `Kond` / `Tretth` (#505 story 70).
+	expect(screen.getByTestId('me-form-fitness')).toHaveTextContent('Kondisjon')
+	expect(screen.getByTestId('me-form-fatigue')).toHaveTextContent('Tretthet')
+	await user.click(
+		within(section).getByRole('button', { name: 'Kondisjon (CTL)' }),
+	)
+	expect(
+		await screen.findByText(
+			/snittet av treningsbelastningen \(TSS\) de siste 42 dagene/,
+		),
+	).toBeInTheDocument()
 })
 
 test('on a cold start Form reads "ikke målt", says why, and shows the gate filling', async () => {

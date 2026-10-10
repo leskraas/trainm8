@@ -98,10 +98,18 @@ export function WeekChangeBadge({ count }: { count: number }) {
 			data-week-change-waiting
 			onClick={goToWeekChange}
 			aria-label={TOP_LINE_LABELS.weekChangeName(count)}
-			className="bg-primary/10 text-primary text-caption pressable relative flex h-7 flex-none items-center gap-1 rounded-full px-2.5 font-semibold whitespace-nowrap tabular-nums after:absolute after:inset-x-0 after:-inset-y-2"
+			// The tint is 6 % in light: at 10 % the green caption on it fell to
+			// 4.3:1, under AA for 12px text.
+			className="bg-primary/6 dark:bg-primary/12 text-primary text-caption pressable relative flex h-7 flex-none items-center gap-1 rounded-full px-2.5 font-semibold whitespace-nowrap tabular-nums after:absolute after:inset-x-0 after:-inset-y-2"
 		>
 			<span aria-hidden className="bg-primary size-1.5 rounded-full" />
-			{TOP_LINE_LABELS.weekChange(count)}
+			{/* Under 360px the word gives way and the count stays (`● 1`), so the
+			    race's name beside it has room to stay whole; the button's name
+			    still says the whole sentence. */}
+			{count}
+			<span className="max-[359px]:hidden">
+				{` ${TOP_LINE_LABELS.weekChangeWord}`}
+			</span>
 		</button>
 	)
 }

@@ -5,7 +5,7 @@
  */
 import { describe, expect, test } from 'vitest'
 import { MIN_BAR_PX, stripWindow, WINDOW_MARGIN } from './strip.ts'
-import { fitPhaseName } from './week-strip.tsx'
+import { placePhaseNames } from './week-strip.tsx'
 
 const PHONE = 358
 
@@ -105,10 +105,64 @@ describe('the strip’s window (S10)', () => {
 	})
 })
 
-describe('a phase name in its band', () => {
-	test('whole where it fits, cut with a full stop where it does not, gone when tiny', () => {
-		expect(fitPhaseName('Spissing', 200)).toBe('Spissing')
-		expect(fitPhaseName('Grunntrening', 50)).toBe('Grunntr.')
-		expect(fitPhaseName('Grunntrening', 20)).toBeNull()
+describe('the phase names under the strip', () => {
+	const season = [
+		{ name: 'Grunntrening', from: 0, to: 3 },
+		{ name: 'Oppbygging', from: 4, to: 5 },
+		{ name: 'Spissing', from: 6, to: 6 },
+		{ name: 'Nedtrapping', from: 7, to: 7 },
+	]
+
+	test('every name is whole where its band is wide enough', () => {
+		const placed = placePhaseNames(season, { barPx: 80, count: 8, current: 0 })
+		expect(placed.map((phase) => phase.name)).toEqual([
+			'Grunntrening',
+			'Oppbygging',
+			'Spissing',
+			'Nedtrapping',
+		])
+	})
+
+	test('a name that does not fit is left out, never abbreviated', () => {
+		const placed = placePhaseNames(season, { barPx: 14, count: 8, current: 0 })
+		// 4 × 14 = 56px is too narrow for `Grunntrening` (~71px), but today is
+		// in it, so it is named whole and runs on; every other name is left out.
+		expect(placed.map((phase) => phase.name)).toEqual([
+			'Grunntrening',
+			null,
+			null,
+			null,
+		])
+		for (const phase of placed) {
+			expect(phase.name ?? '').not.toMatch(/\.$/)
+		}
+	})
+
+	test('the current phase is named in full, inside the strip, and a name it would cover gives way', () => {
+		const placed = placePhaseNames(
+			[
+				{ name: 'Grunntrening', from: 0, to: 9 },
+				{ name: 'Spissing', from: 10, to: 10 },
+				{ name: 'Nedtrapping', from: 11, to: 18 },
+			],
+			{ barPx: 10, count: 19, current: 10 },
+		)
+		const peak = placed[1]!
+		expect(peak.name).toBe('Spissing')
+		// Kept inside the 190px strip.
+		expect(peak.nameLeft + 'Spissing'.length * 5.6).toBeLessThanOrEqual(190)
+		// `Grunntrening` ends before it starts, so it stays; `Nedtrapping`
+		// would fit its own band, but the current phase's name covers it.
+		expect(placed[0]!.name).toBe('Grunntrening')
+		expect(placed[2]!.name).toBeNull()
+	})
+
+	test('with no current phase in view, only the names that fit are drawn', () => {
+		const placed = placePhaseNames(season, {
+			barPx: 14,
+			count: 8,
+			current: null,
+		})
+		expect(placed.map((phase) => phase.name)).toEqual([null, null, null, null])
 	})
 })

@@ -26,6 +26,7 @@
  * strip is used tens of times a day) — the frame moves because the reader did.
  */
 import {
+	Fragment,
 	memo,
 	useLayoutEffect,
 	useRef,
@@ -68,18 +69,86 @@ const PHASE_TINT: Record<PhaseTone, string> = {
 /** The two edge buttons and their gaps, taken from the bars once windowed. */
 const EDGES_PX = 2 * (28 + 4)
 
-/** Roughly how wide a phase name sets at the band's 10px. */
+/** Roughly how wide a phase name sets at the band's 10px, and its inset. */
 const NAME_PX_PER_CHAR = 5.6
+const NAME_INSET_PX = 4
+
+/** A phase's name under the strip: where it starts and whether it is drawn. */
+export type PhaseNamePlacement = {
+	/** The phase's own band, in px from the bars' left edge. */
+	bandLeft: number
+	bandWidth: number
+	/** The name, whole, or null where it is left out. Never abbreviated. */
+	name: string | null
+	/** Where the name starts, in px from the bars' left edge. */
+	nameLeft: number
+}
 
 /**
- * A phase's name as wide as its band allows (variant P): whole where it fits,
- * cut to `Grunntr.` where it does not, and left out below three letters —
- * the week's own name still says its phase in full.
+ * The phase names under the strip (variant P, #505 polish): **whole or not at
+ * all** — never `Grunntr.`, an abbreviation nobody chose.
+ *
+ * Every phase whose band is wide enough is named in full. A phase whose band
+ * is too narrow is left unnamed — except the phase **today** falls in (or,
+ * when today is outside the window, the phase the reader is in), which is
+ * always named in full: its name may run on past its own band, kept inside
+ * the strip, and a neighbour's name it would overlap gives way. The week
+ * buttons' accessible names carry every week's phase, so nothing is lost to a
+ * screen reader; this row is for the eye.
+ *
+ * `phases` are already clipped to the window, in week indices relative to its
+ * first week; `barPx` is one column's width.
  */
-export function fitPhaseName(name: string, px: number): string | null {
-	const room = Math.floor((px - 4) / NAME_PX_PER_CHAR)
-	if (name.length <= room) return name
-	return room >= 4 ? `${name.slice(0, room - 1)}.` : null
+export function placePhaseNames(
+	phases: ReadonlyArray<{ name: string; from: number; to: number }>,
+	{
+		barPx,
+		count,
+		current,
+	}: { barPx: number; count: number; current: number | null },
+): PhaseNamePlacement[] {
+	const total = barPx * count
+	const textWidth = (name: string) =>
+		name.length * NAME_PX_PER_CHAR + NAME_INSET_PX
+	const placed = phases.map((phase) => {
+		const bandLeft = phase.from * barPx
+		const bandWidth = (phase.to - phase.from + 1) * barPx
+		const fits = textWidth(phase.name) <= bandWidth
+		return {
+			bandLeft,
+			bandWidth,
+			name: fits ? phase.name : null,
+			nameLeft: bandLeft,
+		}
+	})
+	const currentIndex =
+		current == null
+			? -1
+			: phases.findIndex(
+					(phase) => phase.from <= current && current <= phase.to,
+				)
+	const own = phases[currentIndex]
+	const mine = placed[currentIndex]
+	if (!own || !mine || mine.name != null) return placed
+	// The current phase's band is too narrow: its name runs on, kept inside
+	// the strip, and whatever name it would cover is left out.
+	const width = textWidth(own.name)
+	if (width > total) return placed
+	const left = Math.max(0, Math.min(mine.bandLeft, total - width))
+	mine.name = own.name
+	mine.nameLeft = left
+	const right = left + width
+	placed.forEach((other, index) => {
+		if (index === currentIndex || other.name == null) return
+		const otherRight = other.nameLeft + textWidth(other.name)
+		if (
+			other.nameLeft < right + NAME_INSET_PX &&
+			otherRight + NAME_INSET_PX > left
+		) {
+			other.name = null
+		}
+	})
+	return placed
 }
 
 export function WeekStrip({
@@ -216,7 +285,27 @@ export function WeekStrip({
 	const frameStart = Math.max(frameFrom, shown.start)
 	const frameEnd = Math.min(frameTo, shown.end)
 	const horizon = strip.horizonIndex
-	const barPx = width / Math.max(1, n)
+	// The bars' own width: the row less the edge buttons once there is a window.
+	const barPx = Math.max(0, width - (windowed ? EDGES_PX : 0)) / Math.max(1, n)
+	const shownPhases = strip.phases
+		.filter((phase) => phase.to >= shown.start && phase.from <= shown.end)
+		.map((phase) => ({
+			...phase,
+			from: Math.max(phase.from, shown.start) - shown.start,
+			to: Math.min(phase.to, shown.end) - shown.start,
+		}))
+	// The phase named whatever its band's width: today's, or the reader's when
+	// today is outside the window. Today's, first, so the name holds still
+	// while the list scrolls.
+	const todayIndex = visible.findIndex((week) => week.isNow)
+	const activeIndex = visible.findIndex((week) => week.key === activeWeekKey)
+	const phaseNames = placePhaseNames(shownPhases, {
+		barPx,
+		count: n,
+		current:
+			todayIndex >= 0 ? todayIndex : activeIndex >= 0 ? activeIndex : null,
+	})
+	const px = (value: number) => `${(value / Math.max(1, barPx * n)) * 100}%`
 
 	return (
 		<div
@@ -306,32 +395,37 @@ export function WeekStrip({
 						) : null}
 					</div>
 					{/* The phases, under the bars: a coloured rule per phase and its
-					    name where it fits. Decoration for the eye; each week's name
-					    already says its phase. */}
+					    name, whole, where it fits (`placePhaseNames`). Decoration for
+					    the eye; each week's name already says its phase. */}
 					<div aria-hidden data-strip-phases className="relative mt-1 h-3.5">
-						{strip.phases
-							.filter(
-								(phase) => phase.to >= shown.start && phase.from <= shown.end,
-							)
-							.map((phase) => {
-								const from = Math.max(phase.from, shown.start)
-								const to = Math.min(phase.to, shown.end)
-								const span = to - from + 1
-								const name = fitPhaseName(phase.name, span * barPx)
-								return (
+						{shownPhases.map((phase, index) => {
+							const placed = phaseNames[index]!
+							return (
+								<Fragment key={`${phase.from}-${phase.name}`}>
 									<span
-										key={`${phase.from}-${phase.name}`}
 										data-strip-phase={phase.tone ?? 'none'}
+										title={phase.name}
 										className={cn(
-											'text-muted-foreground absolute top-0 overflow-hidden border-t-2 pl-0.5 text-[10px]/[12px] whitespace-nowrap',
+											'absolute top-0 h-full border-t-2',
 											phase.tone ? PHASE_BAND[phase.tone] : 'border-border',
 										)}
-										style={{ left: pct(from), width: `${(span / n) * 100}%` }}
-									>
-										{name}
-									</span>
-								)
-							})}
+										style={{
+											left: px(placed.bandLeft),
+											width: px(placed.bandWidth),
+										}}
+									/>
+									{placed.name ? (
+										<span
+											data-strip-phase-name
+											className="text-muted-foreground absolute top-0.5 pl-0.5 text-[10px]/[12px] whitespace-nowrap"
+											style={{ left: px(placed.nameLeft) }}
+										>
+											{placed.name}
+										</span>
+									) : null}
+								</Fragment>
+							)
+						})}
 					</div>
 				</div>
 				{windowed ? (

@@ -400,9 +400,13 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 /**
  * The top line (variant P): the plan and its goal on the left, then the
  * Ukeskiftet badge while a proposal waits, "+ Ny" (icon only, named `Lag
- * ny`), and the I dag pill — one 44px line, as variant P's. The plan's name
- * gives way first, then the race's name; the countdown and the controls never
- * do.
+ * ny`), and the I dag pill — a 44px line, as variant P's. On a phone the
+ * plan's name gives way to the goal; the goal itself is **never cut** (#505
+ * story 32): a race's name that does not fit beside the controls wraps to a
+ * second line inside the same 44px (13/18 type, two lines are 36px), and only
+ * a name too long for two lines makes the bar taller. The countdown never
+ * breaks inside itself (`om 2 uker` is one unit), and the controls keep their
+ * size and stay centred on the line.
  */
 function TopLine({
 	line,
@@ -418,49 +422,54 @@ function TopLine({
 	onWrite: () => void
 }) {
 	return (
-		<div className="flex h-11 items-center gap-2">
+		<div className="flex min-h-11 items-center gap-2 py-1">
 			<p
 				data-top-line-plan
-				className="text-footnote flex min-w-0 flex-1 items-baseline gap-1.5 whitespace-nowrap"
+				className="text-footnote flex min-w-0 flex-1 items-center gap-1.5"
 			>
 				{line.goal || line.planLabel ? (
 					<>
-						{/* The plan's name gives way first; then the race's name; the
-						    countdown never does — it is the part an ellipsis would eat. */}
 						{line.planLabel ? (
 							// On a phone the goal has the line: the plan's name, squeezed beside
-							// the badge, "+ Ny" and the pill, would read `S…`.
-							<span className="text-muted-foreground min-w-[3ch] shrink-[4] truncate max-sm:hidden">
+							// the badge, "+ Ny" and the pill, would read `S…`. From `sm` up it
+							// is the one part allowed to give way, as a cut with its whole
+							// name in the tooltip — the goal beside it never is.
+							<span
+								title={line.planLabel}
+								className="text-muted-foreground min-w-[3ch] shrink-[4] truncate whitespace-nowrap max-sm:hidden"
+							>
 								{line.planLabel}
 							</span>
 						) : null}
 						{line.goal ? (
+							// Inline text, so the race's name wraps between words like any
+							// sentence (and anywhere, for a name with no space to break at),
+							// and the countdown wraps only as a whole.
 							<span
 								data-top-line-goal
-								className="text-foreground flex min-w-0 shrink items-baseline gap-1 font-semibold"
+								className="text-foreground min-w-0 font-semibold [text-wrap:balance] [overflow-wrap:anywhere]"
 							>
 								{line.goal.name ? (
 									<>
-										<span aria-hidden className="flex-none">
-											⚑
-										</span>
-										<span className="min-w-0 truncate">
-											{line.goal.name}
-										</span>{' '}
+										<span aria-hidden>⚑ </span>
+										{line.goal.name}{' '}
 									</>
 								) : null}
-								<span className="flex-none tabular-nums">{line.goal.when}</span>
+								<span className="whitespace-nowrap tabular-nums">
+									{line.goal.when}
+								</span>
 							</span>
 						) : null}
 					</>
 				) : (
 					<>
-						<span className="text-muted-foreground">
+						<span className="text-muted-foreground flex-none whitespace-nowrap">
 							{TOP_LINE_LABELS.noPlan}
 						</span>
+						{/* Wraps rather than cuts; the line's own 44px is its hit area. */}
 						<Link
 							to="/training/plan"
-							className="text-primary min-w-0 truncate font-semibold underline-offset-4 hover:underline"
+							className="text-primary relative min-w-0 font-semibold underline-offset-4 after:absolute after:inset-x-0 after:-inset-y-3 hover:underline"
 						>
 							{TOP_LINE_LABELS.noPlanAction}
 						</Link>
@@ -489,7 +498,9 @@ function TopLine({
 				}
 				onClick={onToday}
 				className={cn(
-					'text-caption relative h-8 flex-none rounded-full border px-3 font-semibold whitespace-nowrap after:absolute after:inset-x-0 after:-inset-y-1.5',
+					// Press feedback with no transition: the pill's look changes
+					// instantly, so its press does too.
+					'text-caption relative h-8 flex-none rounded-full border px-3 font-semibold whitespace-nowrap after:absolute after:inset-x-0 after:-inset-y-1.5 active:opacity-80',
 					away === 0
 						? 'border-border text-muted-foreground bg-card'
 						: 'bg-primary text-primary-foreground border-primary shadow-sm',

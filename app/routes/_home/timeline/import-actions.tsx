@@ -24,7 +24,7 @@ import { IMPORT_LINK_LABELS, MARK_DONE_LABELS } from '#app/utils/labels.ts'
 import { type TimelineImportLink } from './presenter.ts'
 
 const ACTION_TEXT =
-	'text-muted-foreground text-caption flex min-h-11 flex-none items-center gap-1 underline decoration-dotted underline-offset-[3px]'
+	'text-muted-foreground text-caption pressable flex min-h-11 flex-none items-center gap-1 underline decoration-dotted underline-offset-[3px]'
 
 /** The one import offer a row carries, by kind. */
 export function ImportLinkAction({
@@ -52,7 +52,7 @@ export function ImportLinkAction({
 				icon={link.kind === 'undo' ? 'reset' : 'link-2'}
 				className={ACTION_TEXT}
 			/>
-			<span className="text-muted-foreground/70 min-w-0 flex-1 text-[11px]/[1.35]">
+			<span className="text-muted-foreground min-w-0 flex-1 text-[11px]/[1.35]">
 				{link.note}
 			</span>
 		</div>

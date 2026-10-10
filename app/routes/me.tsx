@@ -119,7 +119,10 @@ function MeLink({
 			<Link
 				to={to}
 				prefetch="intent"
-				className="flex min-h-11 items-center gap-3 py-2.5 hover:underline"
+				// A row of a list, so the press is a tint rather than a scale (a
+				// whole-width row shrinking reads as the page moving), on the
+				// app's press curve.
+				className="active:bg-muted/60 duration-press -mx-2 flex min-h-11 items-center gap-3 rounded-2xl px-2 py-2.5 transition-colors ease-out hover:underline"
 			>
 				<Icon
 					name={icon}
@@ -130,7 +133,7 @@ function MeLink({
 				<span className="min-w-0 flex-1">
 					<span className="block">{title}</span>
 					{detail ? (
-						<span className="text-muted-foreground block text-sm">
+						<span className="text-muted-foreground text-footnote block">
 							{detail}
 						</span>
 					) : null}
@@ -171,7 +174,9 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 
 			<Link
 				to="/settings/profile"
-				className="border-border/70 bg-card hover:bg-muted/50 flex items-center gap-4 rounded-3xl border p-4 shadow-xs transition-colors"
+				// The press is the app's (`pressable`: scale 0.97 on the press curve,
+				// colours on the same curve), not the built-in `transition-colors`.
+				className="border-border/70 bg-card hover:bg-muted/50 active:bg-muted/50 pressable flex items-center gap-4 rounded-4xl border p-4 shadow-xs"
 			>
 				<Img
 					className="bg-muted size-14 flex-none rounded-full object-cover"
@@ -181,14 +186,16 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 					height={256}
 					aria-hidden="true"
 				/>
-				<span className="min-w-0 flex-1">
-					<span className="block truncate font-semibold">
+				{/* Whose page this is, whole: a long name or username wraps (and
+				    breaks anywhere if it has no space), never `Aleksandra Wiś…`. */}
+				<span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+					<span className="text-callout block font-semibold">
 						{user.name ?? user.username}
 					</span>
-					<span className="text-muted-foreground block truncate text-sm">
+					<span className="text-muted-foreground text-footnote block">
 						@{user.username}
 					</span>
-					<span className="text-muted-foreground block text-sm">
+					<span className="text-muted-foreground text-footnote mt-0.5 block">
 						{ME_LABELS.profileDetail}
 					</span>
 				</span>

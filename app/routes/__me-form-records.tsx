@@ -56,8 +56,9 @@ export function FormSection({ reading }: { reading: FormReading }) {
 								className="flex min-w-0 flex-col-reverse gap-1"
 							>
 								<dt className="text-caption text-muted-foreground">
-									{/* The abbreviation is what is written; the trigger's
-									    accessible name is the full term (#181). */}
+									{/* The plain word is what is written (`Kondisjon`, never
+									    `Kond`); the trigger's accessible name is the term with
+									    its abbreviation (#181), and a tap opens what it means. */}
 									<LoadLegendLabel legend={stat.legend} />
 								</dt>
 								<dd
@@ -142,7 +143,10 @@ export function RecordsSection({ records }: { records: RecordLine[] }) {
 								{records.map((record) => (
 									<li
 										key={`${record.discipline}-${record.label}`}
-										className="flex items-baseline justify-between gap-3 py-3 first:pt-0 last:pb-0"
+										// The gain and the date wrap under the record on a
+										// narrow phone rather than squeezing its name to two
+										// lines (`Lengste` / `løpetur` at 320px).
+										className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-3 first:pt-0 last:pb-0"
 									>
 										<span className="flex min-w-0 flex-col gap-0.5">
 											<span className="text-footnote text-muted-foreground">
@@ -152,7 +156,7 @@ export function RecordsSection({ records }: { records: RecordLine[] }) {
 												{record.value}
 											</span>
 										</span>
-										<span className="text-footnote text-muted-foreground flex flex-none flex-col items-end gap-0.5 text-right tabular-nums">
+										<span className="text-footnote text-muted-foreground ml-auto flex min-w-0 flex-col items-end gap-0.5 text-right tabular-nums">
 											<span className="text-foreground">{record.gain}</span>
 											<span>{record.setOn}</span>
 										</span>

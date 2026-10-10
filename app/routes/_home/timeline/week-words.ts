@@ -329,6 +329,7 @@ export function weekLoadLine({
 	missed,
 	doneTss,
 	plannedTss,
+	unplannedLoad = false,
 }: {
 	imported: boolean
 	past: boolean
@@ -338,6 +339,11 @@ export function weekLoadLine({
 	missed: number
 	doneTss: number | null
 	plannedTss: number | null
+	/**
+	 * Some of the done load came from sessions with no Planned TSS, so the
+	 * done sum is not a share of the planned one (see `loadClause`).
+	 */
+	unplannedLoad?: boolean
 }): string {
 	if (total === 0) {
 		if (plannedTss != null) {
@@ -357,7 +363,7 @@ export function weekLoadLine({
 		return join(
 			sessionsDoneLabel(done, total),
 			missed > 0 ? missedCountLabel(missed) : null,
-			loadClause(doneTss, plannedTss),
+			loadClause(doneTss, plannedTss, unplannedLoad),
 		)
 	}
 	return join(
@@ -366,13 +372,25 @@ export function weekLoadLine({
 	)
 }
 
-/** `48 av 312 TSS`, or whichever single side exists. Never a zero-filled pair. */
+/**
+ * `48 av 312 TSS`, or whichever single side exists. Never a zero-filled pair.
+ *
+ * `av` only where the done load is a share of the planned: when every session
+ * that carries done load also carried a Planned TSS. Otherwise the two sides
+ * are two different sets of sessions — a run the athlete added, a lifting
+ * session with no planned figure, an import — and the line names each side
+ * instead (`gjort 176 · planlagt 85 TSS`), the way the track lines above it
+ * do, so it never reads as a week done twice over.
+ */
 function loadClause(
 	doneTss: number | null,
 	plannedTss: number | null,
+	unplannedLoad = false,
 ): string | null {
 	if (doneTss != null && plannedTss != null) {
-		return `${formatLoad(doneTss)} ${OF_WORD} ${formatTss(plannedTss)}`
+		return unplannedLoad
+			? `${WEEK_FIGURE_LABELS.done} ${formatLoad(doneTss)} · ${WEEK_FIGURE_LABELS.planned} ${formatTss(plannedTss)}`
+			: `${formatLoad(doneTss)} ${OF_WORD} ${formatTss(plannedTss)}`
 	}
 	if (doneTss != null) return formatTss(doneTss)
 	if (plannedTss != null) return formatTss(plannedTss)

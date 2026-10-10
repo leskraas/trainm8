@@ -747,6 +747,20 @@ export const WEEK_LOAD_LABELS = {
 	nothingLogged: 'Ingenting logget',
 } as const
 
+/**
+ * The week header's disclosure (#505 polish): the facts that qualify a week's
+ * numbers but are not them — why a track is not graded, pace, the easy share,
+ * the zone split, Annet — behind the week's summary line instead of under it.
+ */
+export const WEEK_DETAIL_LABELS = {
+	/** Said after the summary, for a screen reader and as the icon's name. */
+	more: 'mer om uka',
+	/** The popover's title: `Denne uka · 5.–11. okt`. */
+	title: (week: string, range: string) => `${week} · ${range}`,
+	/** Where a week has no summary line to hang the disclosure on. */
+	trigger: 'Mer om uka',
+} as const
+
 /** `2 av 5 gjort` — the sessions of a week that has begun. */
 export function sessionsDoneLabel(done: number, total: number): string {
 	return `${done} av ${total} gjort`
@@ -895,8 +909,11 @@ export const TOP_LINE_LABELS = {
 	noPlanAction: 'Lag en i Sesong',
 	/** A race with no name, on the countdown. */
 	raceDay: 'Løpsdagen',
-	/** The Ukeskiftet badge: short on screen, whole in its name. */
-	weekChange: (count: number) => `${count} forslag`,
+	/**
+	 * The Ukeskiftet badge: short on screen (`1 forslag` — the count, then
+	 * this word, which gives way on the narrowest phones), whole in its name.
+	 */
+	weekChangeWord: 'forslag',
 	weekChangeName: (count: number) =>
 		`Ukeskiftet: ${count} forslag venter. Gå til forslagene`,
 } as const
@@ -1447,16 +1464,21 @@ export const VERDICT_LABELS = {
 	heldStrength: 'neste økt er styrke, så den står som planlagt',
 } as const
 
-/** The Training Load triad, as Meg's Form section names it (ADR 0008). */
+/**
+ * The Training Load triad, as Meg's Form section names it (ADR 0008). `short`
+ * is what is written under each figure — plain words, never a clipped one
+ * (`Kond`, `Tretth`): #505 story 70 asks for words over jargon, and the three
+ * fit a phone's three columns whole.
+ */
 export const NB_LOAD_LEGENDS = {
 	fitness: {
-		short: 'Kond',
+		short: 'Kondisjon',
 		term: 'Kondisjon (CTL)',
 		description:
 			'Kondisjon (CTL): snittet av treningsbelastningen (TSS) de siste 42 dagene, vektet — formen du har bygd opp.',
 	},
 	fatigue: {
-		short: 'Tretth',
+		short: 'Tretthet',
 		term: 'Tretthet (ATL)',
 		description:
 			'Tretthet (ATL): snittet av treningsbelastningen (TSS) de siste 7 dagene, vektet — slitet du bærer nå.',
