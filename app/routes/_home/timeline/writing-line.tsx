@@ -18,6 +18,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFetcher } from 'react-router'
 import { ScoreStanza } from '#app/components/score-stanza.tsx'
+import { type loader as sentenceExercisesLoader } from '#app/routes/resources/sentence-exercises.tsx'
 import { type loader as weekSumLoader } from '#app/routes/resources/week-sum.tsx'
 import { addDays } from '#app/utils/athlete-calendar.ts'
 import { isStampableDiscipline } from '#app/utils/day-stamp.ts'
@@ -48,6 +49,7 @@ import {
 	type ParsedSentence,
 	parseWorkoutSentence,
 	replaceWord,
+	type SentenceExercise,
 	sentenceNotationInput,
 } from '#app/utils/workout-sentence.ts'
 import { useDayStamp } from './day-stamp-context.tsx'
@@ -58,15 +60,42 @@ export function cardioChip(chip: Discipline | null): CardioDiscipline | null {
 	return chip != null && isStampableDiscipline(chip) ? chip : null
 }
 
-/** The sentence as the reader sees it, for the chip the athlete has chosen. */
+/**
+ * The sentence as the reader sees it, for the chip the athlete has chosen —
+ * lifts included, named against the athlete's exercise catalogue once it has
+ * arrived (ADR 0089). Until then a lift waits rather than reading as a typo.
+ */
 export function useParsedSentence(
 	text: string,
 	chip: Discipline | null,
 ): ParsedSentence {
+	const exercises = useSentenceExercises()
 	return useMemo(
-		() => parseWorkoutSentence(text, { discipline: cardioChip(chip) }),
-		[text, chip],
+		() =>
+			parseWorkoutSentence(text, {
+				discipline: chip,
+				exercises: exercises ?? undefined,
+			}),
+		[text, chip, exercises],
 	)
+}
+
+/**
+ * The exercise catalogue the line names lifts against, read once per page
+ * from `resources/sentence-exercises` and shared by every line on it (one
+ * fetcher key). Null until it arrives, and if it never does.
+ */
+function useSentenceExercises(): SentenceExercise[] | null {
+	const fetcher = useFetcher<typeof sentenceExercisesLoader>({
+		key: 'sentence-exercises',
+	})
+	const { load, state, data } = fetcher
+	useEffect(() => {
+		if (data === undefined && state === 'idle') {
+			void load('/resources/sentence-exercises')
+		}
+	}, [data, load, state])
+	return data?.exercises ?? null
 }
 
 /**
@@ -83,6 +112,7 @@ export function WritingLine({
 	onSubmit,
 	autoFocus = false,
 	emptyHint = null,
+	lifting = false,
 }: {
 	dayKey: string
 	text: string
@@ -94,6 +124,8 @@ export function WritingLine({
 	autoFocus?: boolean
 	/** What the line says while it is empty — the draft's stamp, if any. */
 	emptyHint?: string | null
+	/** The Styrke chip is chosen: the example in the empty line is a lift. */
+	lifting?: boolean
 }) {
 	const inputRef = useRef<HTMLInputElement>(null)
 	const week = useWeekSum(dayKey)
@@ -102,11 +134,14 @@ export function WritingLine({
 	const notation = useMemo(
 		() =>
 			parsed.structure
-				? deriveWorkoutNotation(sentenceNotationInput(parsed.structure), {
-						thresholds,
-					})
+				? deriveWorkoutNotation(
+						sentenceNotationInput(parsed.structure, {
+							exerciseNames: parsed.exerciseNames,
+						}),
+						{ thresholds },
+					)
 				: null,
-		[parsed.structure, thresholds],
+		[parsed.structure, parsed.exerciseNames, thresholds],
 	)
 
 	const sum = useMemo(() => {
@@ -145,7 +180,11 @@ export function WritingLine({
 					if (parsed.structure) onSubmit()
 				}}
 				aria-label={WRITING_LINE_LABELS.input}
-				placeholder={WRITING_LINE_LABELS.placeholder}
+				placeholder={
+					lifting
+						? WRITING_LINE_LABELS.placeholderLifts
+						: WRITING_LINE_LABELS.placeholder
+				}
 				autoFocus={autoFocus}
 				maxLength={MAX_SENTENCE_LENGTH}
 				autoComplete="off"
@@ -362,7 +401,7 @@ export function WritingPanel({
 	const submit = () => {
 		if (!parsed.structure || !validDay || pending) return
 		setSubmittedFor(dayKey)
-		stamp.write(dayKey, cardioChip(chosen), text, { open: false })
+		stamp.write(dayKey, chosen, text, { open: false })
 	}
 
 	return (
@@ -390,8 +429,8 @@ export function WritingPanel({
 					/>
 				</label>
 			</div>
-			{/* The sports a sentence can say. A lift has to be named, which the
-			    draft's **Mer** route does and this line cannot yet. */}
+			{/* The sports a sentence can say. A lift names its own sport
+			    (`Knebøy 5×5 @ 80 kg`, ADR 0089), under any chip. */}
 			<DisciplineChips
 				chosen={chosen}
 				onChoose={setChosen}

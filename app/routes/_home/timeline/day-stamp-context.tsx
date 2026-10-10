@@ -33,10 +33,7 @@ import { toast } from 'sonner'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { DAY_STAMP_LABELS } from '#app/utils/labels.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
-import {
-	type CardioDiscipline,
-	type Discipline,
-} from '#app/utils/workout-schema.ts'
+import { type Discipline } from '#app/utils/workout-schema.ts'
 
 /** A ledger session that carries a prescription — the only kind the Token
  * Sentence has anything to render. */
@@ -86,7 +83,8 @@ export type DayStamp = {
 	 */
 	write: (
 		dayKey: string,
-		discipline: CardioDiscipline | null,
+		/** The chip; Styrke too, since a sentence can name lifts (ADR 0089). */
+		discipline: Discipline | null,
 		sentence: string,
 		options?: { open?: boolean },
 	) => void

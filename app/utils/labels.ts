@@ -112,6 +112,7 @@ import type { QuickLogRefusal } from './strength-quick-log.ts'
 import type {
 	Discipline,
 	IntensityTarget,
+	RestAct,
 	StepKind,
 	WorkoutIntent,
 } from './workout-schema.ts'
@@ -1645,6 +1646,8 @@ export const DAY_STAMP_LABELS = {
 export const WRITING_LINE_LABELS = {
 	input: 'Skriv økta',
 	placeholder: 'f.eks. 10 km rolig eller 3x10 min terskel p 1 min',
+	/** The empty line under the Styrke chip (ADR 0089). */
+	placeholderLifts: 'f.eks. Knebøy 5×5 @ 80 kg · Benkpress 5×5 @ 60 kg',
 	hint: 'Eller la linja stå tom og legg til 45 min Z2.',
 	understood: 'Forstått',
 	/** `Til sammen 10 km`, `Til sammen 5 km og 7 min 30 s`. */
@@ -1657,6 +1660,7 @@ export const WRITING_LINE_LABELS = {
 		'ambiguous-number': (word: string) =>
 			`«${word}» kan være tusen eller desimaler`,
 		stray: (word: string) => `Tegnet «${word}» hører ikke hjemme her`,
+		'unknown-exercise': (word: string) => `Finner ikke øvelsen «${word}»`,
 	} satisfies Record<UnreadReason, (word: string) => string>,
 	noSuggestion: 'Prøv et ord som rolig, terskel eller pause.',
 	suggestionsFor: (word: string) => `Forslag for «${word}»`,
@@ -1677,6 +1681,10 @@ export const WRITING_LINE_LABELS = {
 		'distance-rest': 'En pause skrives som tid her, f.eks. p 1 min.',
 		'out-of-range': 'Et av tallene er utenfor det en økt kan være.',
 		'no-discipline': 'Velg idrett over, eller skriv den: løp, sykkel, svøm.',
+		'no-sets': 'Skriv sett og repetisjoner etter løftet: Knebøy 5×5.',
+		'no-exercise': 'Skriv hvilket løft settene er: Knebøy 5×5 @ 80 kg.',
+		'dangling-load': 'Vekten mangler tall: @ 80 kg.',
+		'two-loads': 'Et sett har én vekt — skriv neste vekt som egne sett.',
 	} satisfies Record<SentenceProblem, string>,
 	add: (sentence: string) => `Legg til «${sentence}»`,
 	addEmpty: 'Legg til',
@@ -2914,6 +2922,113 @@ export const CONNECTION_HUB_STATUS_LABELS: Record<ConnectionHubStatus, string> =
 		backfilling: 'Koblet til · henter historikken din',
 		revoked: 'Må kobles til på nytt',
 	}
+
+// ---------------------------------------------------------------------------
+// Token Sentence words (owner decision 8, round 2; ADR 0089)
+// ---------------------------------------------------------------------------
+
+/**
+ * The **Token Sentence**'s own words in Norwegian, wherever it is drawn: the
+ * echo under the writing line, a session's row, the Workout Detail View and
+ * its editor. They replace ADR 0027 A3's English glue (`rest`, `+ block`,
+ * `repeat count`) on display only — nothing stored is a word from here: a rest
+ * is a `RestSpec`, a zone is its stored label, and the writing line's grammar
+ * (`p 90 s`, `pause`) is read in `workout-sentence.ts`, not here.
+ */
+export const TOKEN_SENTENCE_WORDS = {
+	/** A rest with nothing more said, and the word after a rest's time. */
+	rest: 'pause',
+	/** `1 min 30 s pause`. */
+	restFor: (duration: string) => `${duration} pause`,
+	/** A recovery by distance: `200 m rolig`. */
+	recoveryOver: (distance: string) => `${distance} rolig`,
+	/** A recovery that ends at a heart rate: `til puls < 120 bpm`. */
+	untilHeartRate: (bpm: number) => `til puls < ${bpm} bpm`,
+	untilHeartRatePct: (pct: number) => `til puls < ${pct} % av maks`,
+	/** A send-off: the set leaves on a clock, `på 1:40`, `på CSS + 10 s`. */
+	sendOff: (clock: string) => `på ${clock}`,
+	/** Metres of climb: `200 hm`. */
+	vertical: (metres: number) => `${metres} hm`,
+	/** The placeholders a step shows before its exercise or sets are chosen. */
+	exercise: 'øvelse',
+	sets: 'sett',
+	/** A load with no number. */
+	bodyweight: 'kroppsvekt',
+	bodyweightPlus: (kg: string) => `kroppsvekt + ${kg} kg`,
+	bodyweightMinus: (kg: string) => `kroppsvekt − ${kg} kg`,
+	pctBodyweight: (pct: number) => `${pct}% kroppsvekt`,
+	/** The absence beside a load that needs an anchor this athlete lacks. */
+	noRepMax: (reps: number) => `ingen ${reps}RM registrert`,
+	no1RM: 'ingen 1RM registrert',
+	noBodyweight: 'ingen kroppsvekt registrert',
+	notALoad: 'ingen belastning',
+	/** The editor's last line: one more block. */
+	addBlock: '+ blokk',
+	addBlockAction: 'Legg til blokk',
+} as const
+
+/** A rest that is an act, not a clock (ADR 0007). */
+export const REST_ACT_WORDS: Record<RestAct, string> = {
+	jogBack: 'jogg tilbake',
+	walkDown: 'gå ned',
+	rideDown: 'sykle ned',
+	swimDown: 'svøm rolig',
+}
+
+/**
+ * The title over a token's popover in the editor — `ganger`, not `REPEAT
+ * COUNT`. Keyed by the editor's own kinds of popover.
+ */
+export const TOKEN_EDITOR_TITLES = {
+	duration: 'mengde',
+	distance: 'mengde',
+	repeat: 'ganger',
+	rest: 'pause',
+	restSeconds: 'pause',
+	notes: 'notat',
+	intensity: 'intensitet',
+	sets: 'sett',
+	discipline: 'idrett',
+} as const
+
+/**
+ * A stored zone label read in Norwegian. The English words the archetype
+ * seeds, the stamp's older rows and the Catalogue store (`easy`, `threshold`)
+ * read as the words the athletes train in; a zone code (`Z2`, `I4`, `T`) and a
+ * Norwegian word are already what the athlete reads, and pass through. The
+ * stored label never changes.
+ */
+const ZONE_LABEL_WORDS: Record<string, string> = {
+	recovery: 'restitusjon',
+	easy: 'rolig',
+	endurance: 'rolig',
+	aerobic: 'rolig',
+	steady: 'moderat',
+	moderate: 'moderat',
+	tempo: 'tempo',
+	threshold: 'terskel',
+	'sub-threshold': 'under terskel',
+	subthreshold: 'under terskel',
+	interval: 'intervall',
+	intervals: 'intervall',
+	vo2max: 'hardt',
+	'vo2 max': 'hardt',
+	'vo₂ max': 'hardt',
+	hard: 'hardt',
+	max: 'maks',
+	maximal: 'maks',
+	'warm-up': 'oppvarming',
+	warmup: 'oppvarming',
+	'cool-down': 'nedjogg',
+	cooldown: 'nedjogg',
+}
+
+/** `Rolig` for a stored `easy`; `Z2` for `Z2`. Capitalised, as the chip draws it. */
+export function zoneLabelWord(label: string): string {
+	const trimmed = label.trim()
+	const word = ZONE_LABEL_WORDS[trimmed.toLowerCase()] ?? trimmed
+	return capitalize(word)
+}
 
 // ---------------------------------------------------------------------------
 

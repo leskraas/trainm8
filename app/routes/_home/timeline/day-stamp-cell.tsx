@@ -40,7 +40,6 @@ import { type Discipline } from '#app/utils/workout-schema.ts'
 import { type StampedLedgerSession, useDayStamp } from './day-stamp-context.tsx'
 import { growIn } from './reflow.ts'
 import {
-	cardioChip,
 	DisciplineChips,
 	useParsedSentence,
 	WriteButton,
@@ -108,15 +107,16 @@ export function StampDraft({
 	}, [])
 
 	const stampable = chosen != null && isStampableDiscipline(chosen)
-	// A lift has to be named, which no sentence on this line can do yet, so
-	// strength keeps its way to the full route and the line is not offered.
+	// A lift is named on the line like a run is written on it (ADR 0089):
+	// `Knebøy 5×5 @ 80 kg`. Nothing can be stamped for it — no lift can be read
+	// off a tap — so its empty line has no stamp to offer, only an example.
 	const lifting = chosen != null && !stampable
 	const [text, setText] = useState('')
 	const parsed = useParsedSentence(text, chosen)
 	const typed = text.trim().length > 0
 	const write = () => {
 		if (!parsed.structure || pending) return
-		stamp.write(dayKey, cardioChip(chosen), text)
+		stamp.write(dayKey, chosen, text)
 	}
 
 	return (
@@ -144,19 +144,18 @@ export function StampDraft({
 					onChoose={setChosen}
 					label={DAY_STAMP_LABELS.discipline}
 				/>
-				{lifting ? null : (
-					<WritingLine
-						dayKey={dayKey}
-						text={text}
-						onText={setText}
-						parsed={parsed}
-						thresholds={stamp.thresholds}
-						onSubmit={write}
-						emptyHint={stampable ? WRITING_LINE_LABELS.hint : null}
-					/>
-				)}
+				<WritingLine
+					dayKey={dayKey}
+					text={text}
+					onText={setText}
+					parsed={parsed}
+					thresholds={stamp.thresholds}
+					onSubmit={write}
+					emptyHint={stampable ? WRITING_LINE_LABELS.hint : null}
+					lifting={lifting}
+				/>
 				<div className="flex flex-wrap items-center gap-2">
-					{typed && !lifting ? (
+					{typed ? (
 						/* The sentence, once the line says something. Offered only
 						   when the reader is sure of every word, so what is written is
 						   what the preview above showed. */
@@ -179,8 +178,9 @@ export function StampDraft({
 						</button>
 					) : chosen != null ? (
 						/* A lifting session has to name a lift, and no lift can be read
-						   off a tap on a Thursday — so strength takes the **More**
-						   escape rather than stamping a half-made session. */
+						   off a tap on a Thursday — so with the line empty, strength
+						   offers the full route rather than stamping a half-made
+						   session. Typed, the line writes it (ADR 0089). */
 						<Link
 							to={fullEditorTo(dayKey, chosen)}
 							className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[34px] items-center rounded-[10px] px-[13px] text-[12.5px]/[1] font-bold"
@@ -205,11 +205,6 @@ export function StampDraft({
 						{DAY_STAMP_LABELS.cancel}
 					</button>
 				</div>
-				{chosen != null && !stampable ? (
-					<p className="text-muted-foreground text-[11px]/[1.35]">
-						{DAY_STAMP_LABELS.liftsNote}
-					</p>
-				) : null}
 				{/* Nothing was written, and the row says so rather than sitting on
 				    `Adding…` (#501 AC 8). The draft is still open on the chip they
 				    chose, so the way out of a failure is the same tap that got here —

@@ -132,7 +132,7 @@ test('zero steps renders the honest composition: three ghost seeds + scratch, no
 	expect(
 		document.querySelector('[data-testid="editor-workout-shape"]'),
 	).toBeNull()
-	expect(screen.queryByRole('button', { name: 'Add block' })).toBeNull()
+	expect(screen.queryByRole('button', { name: 'Legg til blokk' })).toBeNull()
 })
 
 test('the seeds and the scratch affordance are native tab stops in order (§9.3)', async () => {

@@ -106,7 +106,7 @@ test('an unresolved percentage renders the authored form plus its stated absence
 	)
 
 	expect(text).toContain('85% 1RM')
-	expect(text).toContain('no 1RM on file')
+	expect(text).toContain('ingen 1RM registrert')
 	// The failure this rule exists to prevent: any kilo at all beside an anchor
 	// nobody has.
 	expect(text).not.toMatch(/\d+(\.\d+)?\s*kg/)

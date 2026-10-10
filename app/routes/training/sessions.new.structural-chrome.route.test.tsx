@@ -182,7 +182,7 @@ test('the ⠿ menu reorders blocks, with the ends disabled — the keyboard reor
 	await addStructure(user)
 	// Distinguish the two blocks: block 1 becomes 6 min, block 2 seeds 10 min.
 	await retypeDuration(user, /^10 min duration/, '6 min')
-	await user.click(screen.getByRole('button', { name: 'Add block' }))
+	await user.click(screen.getByRole('button', { name: 'Legg til blokk' }))
 	await screen.findByRole('button', { name: 'Block 2 of 2 actions' })
 
 	// The first block can't move earlier.
@@ -208,7 +208,7 @@ test('the ⠿ menu adds a block after its own block, not at the end', async () =
 	renderNewSession()
 	await addStructure(user)
 	await retypeDuration(user, /^10 min duration/, '6 min')
-	await user.click(screen.getByRole('button', { name: 'Add block' }))
+	await user.click(screen.getByRole('button', { name: 'Legg til blokk' }))
 	await screen.findByRole('button', { name: 'Block 2 of 2 actions' })
 	await retypeDuration(user, /^10 min duration/, '20 min')
 
@@ -230,7 +230,7 @@ test('the ⠿ menu deletes a block', async () => {
 	renderNewSession()
 	await addStructure(user)
 
-	await user.click(screen.getByRole('button', { name: 'Add block' }))
+	await user.click(screen.getByRole('button', { name: 'Legg til blokk' }))
 	await screen.findByRole('button', { name: 'Block 2 of 2 actions' })
 	await user.click(grip(2, 2))
 	await user.click(
@@ -289,7 +289,7 @@ test('dragging a block grip onto another line reorders the blocks', async () => 
 	renderNewSession()
 	await addStructure(user)
 	await retypeDuration(user, /^10 min duration/, '6 min')
-	await user.click(screen.getByRole('button', { name: 'Add block' }))
+	await user.click(screen.getByRole('button', { name: 'Legg til blokk' }))
 	await screen.findByRole('button', { name: 'Block 2 of 2 actions' })
 
 	const lines = document.querySelectorAll('[data-stanza-line]')
@@ -370,7 +370,7 @@ test("removing a block's only step removes the block itself", async () => {
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.click(screen.getByRole('button', { name: 'Add block' }))
+	await user.click(screen.getByRole('button', { name: 'Legg til blokk' }))
 	await screen.findByRole('button', { name: 'Block 2 of 2 actions' })
 
 	await user.click(

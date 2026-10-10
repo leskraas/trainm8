@@ -16,8 +16,10 @@ import {
 	isStampableDiscipline,
 } from './day-stamp.ts'
 import { prisma } from './db.server.ts'
-import { type CardioDiscipline, type Discipline } from './workout-schema.ts'
+import { type Discipline } from './workout-schema.ts'
+import { type SentenceExercise } from './workout-sentence.ts'
 import { createWorkoutSession, deleteWorkoutSession } from './workout.server.ts'
+import { readSentenceExercises } from './writing-line.server.ts'
 
 export type DayStampResult =
 	| { ok: true; sessionId: string }
@@ -104,17 +106,29 @@ export async function writeSessionOnDay({
 	discipline,
 	sentence,
 	timezone,
+	exercises,
 }: {
 	userId: string
 	dateKey: string
-	/** The chip; a discipline word in the sentence wins over it. */
-	discipline: CardioDiscipline | null
+	/** The chip; a discipline word or a lift in the sentence wins over it. */
+	discipline: Discipline | null
 	sentence: string
 	/** The Athlete Timezone, when the caller has already read it. */
 	timezone?: string
+	/**
+	 * The exercises a lift may name (ADR 0089), when the caller has already
+	 * read them; read here otherwise. Never the client's list: the server reads
+	 * the sentence against its own copy of the athlete's catalogue.
+	 */
+	exercises?: readonly SentenceExercise[]
 }): Promise<WrittenSessionResult> {
 	const scheduledAt = await scheduledAtOn(userId, dateKey, timezone)
-	const input = buildWrittenSession({ sentence, discipline, scheduledAt })
+	const input = buildWrittenSession({
+		sentence,
+		discipline,
+		scheduledAt,
+		exercises: exercises ?? (await readSentenceExercises(userId)),
+	})
 	if (!input) return { ok: false, reason: 'not-understood' }
 	const session = await createWorkoutSession(userId, input)
 	return { ok: true, sessionId: session.id }

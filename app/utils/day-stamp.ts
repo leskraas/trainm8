@@ -22,7 +22,10 @@ import {
 	isCardioDiscipline,
 	type WorkoutAuthoringInput,
 } from './workout-schema.ts'
-import { parseWorkoutSentence } from './workout-sentence.ts'
+import {
+	parseWorkoutSentence,
+	type SentenceExercise,
+} from './workout-sentence.ts'
 
 /**
  * The stamped step's duration. Three quarters of an hour is the shape of an
@@ -129,12 +132,16 @@ export function buildWrittenSession({
 	sentence,
 	discipline,
 	scheduledAt,
+	exercises,
 }: {
 	sentence: string
-	discipline: CardioDiscipline | null
+	/** The chip; `strength` is allowed, since a lift names its own sport. */
+	discipline: Discipline | null
 	scheduledAt: Date
+	/** The athlete's exercise catalogue, for a sentence that names lifts (ADR 0089). */
+	exercises?: readonly SentenceExercise[]
 }): WorkoutAuthoringInput | null {
-	const parsed = parseWorkoutSentence(sentence, { discipline })
+	const parsed = parseWorkoutSentence(sentence, { discipline, exercises })
 	if (!parsed.structure || !parsed.intent) return null
 	return {
 		...parsed.structure,

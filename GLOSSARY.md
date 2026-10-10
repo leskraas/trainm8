@@ -798,7 +798,10 @@ graph, timeline
 from the Workout → Block → Step structure (ADR 0027). One reader goes the other
 way, and only on the **Writing Line**: it turns a typed sentence into structure,
 and what is shown is still rendered from that structure (ADR 0027 as amended by
-#505 S11). _Avoid_: Shorthand, syntax
+#505 S11). It reads lifts too (`Knebøy 5×5 @ 80 kg`, ADR 0089). The notation's
+glue words and zone labels are Norwegian on display (`pause`, `ganger`, a stored
+`easy` read as _Rolig_; ADR 0089); nothing stored is one of those words.
+_Avoid_: Shorthand, syntax
 
 **Token Sentence**: The rendering of a workout in the Workout Notation where
 every value is a **Token**. Rendered as the **Score stanza** (#251): one Block
@@ -1563,19 +1566,22 @@ session", "recording"
 
 **Writing Line**: The text input on I dag where the athlete writes a session as
 a short sentence — `10 km rolig`, `3x10 min terskel p 1 min` (#505 stories
-35–41). It lives in a tapped empty day's draft and behind "+ Ny" →
-`Skriv en økt` for any other day, any distance ahead (story 40) — past the
-**Planning Horizon**, past the plan's end and past the two years I dag reads; a
-far week past the plan reads as one collapsed line showing only the sessions
-written into it, and a session written past what I dag reads is still taken back
-from the toast. While the athlete types it shows what was understood (the
-**Token Sentence** rendered from the structure the reader produced), the
-**Planned Volume** before → after against the **Week Target**
-(`40 → 46 km, målet står på 52`; a session with no number in the track's unit is
-`+1 uten km`, never a silent zero), and a suggestion for every word the reader
-did not know. It saves only a sentence it understood in full, as an `authored`
-session; the server reads the sentence again. Writing a session never moves the
-Week Target, and the toast after a write, a stamp or an undo says so
+35–41), or a session of lifts — `Knebøy 5×5 @ 80 kg · Benkpress 5×5 @ 60 kg`,
+named against the exercise database and its Norwegian aliases, where a name it
+does not hold is offered back as the nearest names it does (ADR 0089). It lives
+in a tapped empty day's draft and behind "+ Ny" → `Skriv en økt` for any other
+day, any distance ahead (story 40) — past the **Planning Horizon**, past the
+plan's end and past the two years I dag reads; a far week past the plan reads as
+one collapsed line showing only the sessions written into it, and a session
+written past what I dag reads is still taken back from the toast. While the
+athlete types it shows what was understood (the **Token Sentence** rendered from
+the structure the reader produced), the **Planned Volume** before → after
+against the **Week Target** (`40 → 46 km, målet står på 52`; a session with no
+number in the track's unit is `+1 uten km`, never a silent zero), and a
+suggestion for every word the reader did not know. It saves only a sentence it
+understood in full, as an `authored` session; the server reads the sentence
+again. Writing a session never moves the Week Target, and the toast after a
+write, a stamp or an undo says so
 (`Løping denne uka: 40 → 46 km. Ukemålet står på 52.`). Every write can be taken
 back on I dag (ADR 0076): from the draft the row opens with _Angre_, and from "+
 Ny", whose day may be anywhere, the toast carries _Angre_. Free-text commands
