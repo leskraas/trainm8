@@ -123,6 +123,136 @@ test('action returns 400 on invalid form data', async () => {
 	expect(result.init.status).toBe(400)
 })
 
+type ActionReply = {
+	data: {
+		result: {
+			status: string
+			error?: Record<string, string[] | null>
+		}
+	}
+	init: { status: number }
+}
+
+test('a missing name and sport are each said in Norwegian at their own field', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const request = makeActionRequest(
+		[
+			['kind', 'race'],
+			['priority', 'A'],
+			['startDate', '2026-06-15'],
+		],
+		cookie,
+	)
+	const result = (await action({
+		request,
+		...LOADER_ARGS_BASE,
+	})) as ActionReply
+	expect(result.init.status).toBe(400)
+	expect(result.data.result.error?.name).toEqual(['Skriv hva løpet heter'])
+	expect(result.data.result.error?.disciplines).toEqual([
+		'Velg minst én idrett',
+	])
+})
+
+test('a last day before the first is refused at the last-day field, in Norwegian', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const request = makeActionRequest(
+		validFormEntries([['endDate', '2026-06-01']]),
+		cookie,
+	)
+	const result = (await action({
+		request,
+		...LOADER_ARGS_BASE,
+	})) as ActionReply
+	expect(result.init.status).toBe(400)
+	expect(result.data.result.error?.endDate).toEqual([
+		'Siste dag kan ikke være før første dag',
+	])
+})
+
+test('a target time is written as a clock and stored in seconds', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const request = makeActionRequest(
+		validFormEntries([
+			['targetKind', 'time'],
+			['targetTime', '3:29:45'],
+		]),
+		cookie,
+	)
+	await action({ request, ...LOADER_ARGS_BASE }).catch((e: unknown) => e)
+	const [event] = await prisma.event.findMany({
+		where: { athleteId: session.userId },
+	})
+	expect(JSON.parse(event!.target!)).toEqual({ kind: 'time', seconds: 12585 })
+})
+
+test('a target distance takes a decimal comma and is stored in metres', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const request = makeActionRequest(
+		validFormEntries([
+			['targetKind', 'distance'],
+			['targetDistance', '21,1'],
+		]),
+		cookie,
+	)
+	await action({ request, ...LOADER_ARGS_BASE }).catch((e: unknown) => e)
+	const [event] = await prisma.event.findMany({
+		where: { athleteId: session.userId },
+	})
+	expect(JSON.parse(event!.target!)).toEqual({
+		kind: 'distance',
+		meters: 21100,
+	})
+})
+
+test('a target time that is not a clock is refused at its field, in Norwegian', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const request = makeActionRequest(
+		validFormEntries([
+			['targetKind', 'time'],
+			['targetTime', 'fort'],
+		]),
+		cookie,
+	)
+	const result = (await action({
+		request,
+		...LOADER_ARGS_BASE,
+	})) as ActionReply
+	expect(result.init.status).toBe(400)
+	expect(result.data.result.error?.targetTime).toEqual([
+		'Skriv tiden som 3:30:00 eller 42:30',
+	])
+})
+
+test('a bad target is said on the same submit as a missing name', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const request = makeActionRequest(
+		[
+			['kind', 'race'],
+			['priority', 'A'],
+			['startDate', '2026-06-15'],
+			['disciplines', 'run'],
+			['targetKind', 'pace'],
+			['targetPace', 'rask'],
+		],
+		cookie,
+	)
+	const result = (await action({
+		request,
+		...LOADER_ARGS_BASE,
+	})) as ActionReply
+	expect(result.data.result.error?.name).toEqual(['Skriv hva løpet heter'])
+	expect(result.data.result.error?.targetPace).toEqual([
+		'Skriv farten som 4:15',
+	])
+})
+
 test('action with endDate before startDate returns 400', async () => {
 	const session = await setupUser()
 	const cookie = await getSessionCookieHeader(session)

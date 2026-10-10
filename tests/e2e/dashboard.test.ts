@@ -125,8 +125,8 @@ test('Event detail renders with zero hydration warnings and console errors', asy
 	await page.goto(`/training/events/${event.id}`)
 	await expect(page.getByText('Spring Half Marathon')).toBeVisible()
 	// The shared, timezone-explicit date renders — the same string the server
-	// sent, so hydration cannot diverge.
-	await expect(page.getByText('Sunday 18 April 2027')).toBeVisible()
+	// sent, so hydration cannot diverge — in Norwegian (ADR 0081).
+	await expect(page.getByText(/søndag 18\. apr 2027/)).toBeVisible()
 
 	// Dev-server infrastructure noise is not an app error; hydration warnings
 	// ("Hydration failed", "did not match", React error #418/#423) and any other

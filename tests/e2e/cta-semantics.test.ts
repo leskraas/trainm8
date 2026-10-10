@@ -88,26 +88,26 @@ test('deleting an Event requires confirmation with copy that distinguishes it fr
 	// Retried because a click that lands before React hydrates is a no-op.
 	const dialog = page.getByRole('alertdialog')
 	await expect(async () => {
-		await page.getByRole('button', { name: 'Delete', exact: true }).click()
+		await page.getByRole('button', { name: 'Slett', exact: true }).click()
 		await expect(dialog).toBeVisible({ timeout: 1000 })
 	}).toPass()
-	await expect(dialog.getByText('Delete this event?')).toBeVisible()
-	// The copy explains the Cancel-vs-Delete distinction.
-	await expect(dialog.getByText(/cancelled status/)).toBeVisible()
-	await expect(dialog.getByText(/cannot be undone/)).toBeVisible()
+	await expect(dialog.getByText('Slette løpet?')).toBeVisible()
+	// The copy explains the Cancel-vs-Delete distinction (Avlys vs Slett).
+	await expect(dialog.getByText(/som avlyst/)).toBeVisible()
+	await expect(dialog.getByText(/kan ikke angres/)).toBeVisible()
 
 	// Backing out keeps the event.
-	await dialog.getByRole('button', { name: 'Keep event' }).click()
+	await dialog.getByRole('button', { name: 'Behold løpet' }).click()
 	await expect(dialog).not.toBeVisible()
 	expect(
 		await prisma.event.findUnique({ where: { id: event.id } }),
 	).not.toBeNull()
 
 	// Confirming actually deletes and returns to the events list.
-	await page.getByRole('button', { name: 'Delete', exact: true }).click()
+	await page.getByRole('button', { name: 'Slett', exact: true }).click()
 	await page
 		.getByRole('alertdialog')
-		.getByRole('button', { name: 'Delete event' })
+		.getByRole('button', { name: 'Slett løpet' })
 		.click()
 	await page.waitForURL('/training/events')
 	expect(await prisma.event.findUnique({ where: { id: event.id } })).toBeNull()
