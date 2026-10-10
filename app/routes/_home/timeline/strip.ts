@@ -128,13 +128,13 @@ export function buildStrip(
 		horizonWeekKey == null
 			? null
 			: weeks.findIndex(
-					(week) => week.key > horizonWeekKey && week.shape === 'collapsed',
+					(week) => week.key > horizonWeekKey && week.shape === 'beyond',
 				)
 	return {
 		unit: readings[0]?.unit ?? NB_VOLUME_UNITS.tss,
 		weeks: weeks.map((week, index) => {
 			const { value, done, figure, unit } = readings[index]!
-			const unfilled = week.shape === 'collapsed' && week.phaseName != null
+			const unfilled = week.shape === 'beyond' && week.phaseName != null
 			const event = eventWeekKey != null && week.key === eventWeekKey
 			const reading =
 				value == null

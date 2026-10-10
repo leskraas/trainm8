@@ -9,10 +9,12 @@
  * deciding half is covered by unit tests.
  *
  * What is **not** here any more, and why (ADR 0086): the hero's fold, the
- * settle ladder and the load pad. The hero is gone; the landing is one write
- * before first paint plus a `ResizeObserver` that stops at the reader's first
- * input, so it has no timers to tune; and every week before today is mounted
- * up front, so nothing grows above the reader and there is no edge to load at.
+ * settle ladder, the load pad and the past band's own compensation. The hero
+ * is gone; the landing is one write before first paint plus a
+ * `ResizeObserver` that stops at the reader's first input, so it has no timers
+ * to tune; every week before today is mounted up front, so nothing grows
+ * above the reader and there is no edge to load at; and nothing folds, so
+ * nothing opens above the reader either.
  */
 
 /** The one fact these helpers need from a DOM node: where its box starts. */
@@ -64,11 +66,11 @@ export const AWAY_BELOW = 40
 /**
  * How many weeks ahead of today are mounted on open, and how many more each
  * time the reader comes within {@link AHEAD_PAD} of the end. Every week
- * *before* today is always mounted (ADR 0086): a closed week is one folded
- * line, so the whole past is a few dozen short rows, and mounting it up front
- * is what removes growth above the reader — and the scroll writes that paid
- * for it — altogether. Growth below needs no compensation: nothing the reader
- * can see moves when a week is appended under them.
+ * *before* today is always mounted (ADR 0086) — every one of its days, since
+ * nothing folds, which `content-visibility` makes cheap: mounting the past up
+ * front is what removes growth above the reader, and the scroll writes that
+ * paid for it, altogether. Growth below needs no compensation: nothing the
+ * reader can see moves when a week is appended under them.
  */
 export const AHEAD_INITIAL = 6
 export const AHEAD_STEP = 6
@@ -135,6 +137,82 @@ export function landingTop({
 	return fits
 		? Math.max(0, weekOffset)
 		: landingPosition(todayOffset, landingOffsetFor(headerHeight))
+}
+
+/**
+ * A week block's height at a phone's width, estimated from what it holds — the
+ * `contain-intrinsic-size` its `content-visibility: auto` box keeps until the
+ * browser has laid it out once (and `auto` remembers the real one after).
+ *
+ * Measured at 390px, Public Sans, on the built app (ADR 0086): what an empty
+ * day, a one-line session, a wrapping one and a header line come to. Close is
+ * what matters, not exact: the estimate keeps the scrollbar and a strip jump's
+ * first landing honest, and the browser's scroll anchoring absorbs the
+ * difference when a week above the reader is laid out for real.
+ */
+export const WEEK_HEIGHTS = {
+	/** The header's padding and its title line. */
+	header: 36,
+	/** One Training Track's line, or the load line of a week with none. */
+	track: 20,
+	/** The week's one sentence. */
+	summary: 20,
+	/** One line of notes under the header (11px over 15). */
+	note: 15,
+	/** The planStart line and the horizon divider. */
+	banner: 44,
+	/** A day with nothing on it: the 44px floor and its hairline. */
+	emptyDay: 49,
+	/** A day's first session on one line: the gutter sets the floor. */
+	session: 50,
+	/** Each further session under the same date. */
+	extraSession: 36,
+	/** Each further line a long sentence wraps onto. */
+	wrap: 21,
+	/** A session's action line (`Se økta`, _Gjort_). */
+	actions: 44,
+	/** Roughly how many characters a session's sentence sets on one line. */
+	charsPerLine: 30,
+} as const
+
+/** The model a week's height is estimated from: only what changes it. */
+export type WeekHeightInput = {
+	tracks: ReadonlyArray<{ hasFigures?: boolean; noteCount?: number }>
+	summary: string | null
+	planStart: boolean
+	opensHorizon: boolean
+	rows: ReadonlyArray<{
+		sessions: ReadonlyArray<{ title: string; markDone?: unknown }>
+	}>
+}
+
+export function weekHeightEstimate(week: WeekHeightInput): number {
+	const h = WEEK_HEIGHTS
+	const shownTracks = week.tracks.filter((t) => t.hasFigures !== false)
+	let total =
+		h.header +
+		h.track * Math.max(1, shownTracks.length) +
+		(week.summary ? h.summary : 0) +
+		h.note * shownTracks.reduce((n, t) => n + (t.noteCount ?? 0), 0) +
+		(week.planStart ? h.banner : 0) +
+		(week.opensHorizon ? h.banner : 0)
+	for (const day of week.rows) {
+		if (day.sessions.length === 0) {
+			total += h.emptyDay
+			continue
+		}
+		day.sessions.forEach((session, index) => {
+			const lines = Math.max(
+				1,
+				Math.ceil(session.title.length / h.charsPerLine),
+			)
+			total +=
+				(index === 0 ? h.session : h.extraSession) +
+				(lines - 1) * h.wrap +
+				(session.markDone ? h.actions : 0)
+		})
+	}
+	return Math.round(total)
 }
 
 /** The next count of weeks ahead to mount, capped at what the season has. */
@@ -238,31 +316,6 @@ export function frameOf(
 		to = key
 	}
 	return from && to ? { from, to } : null
-}
-
-/**
- * The reading position after a **past band** has expanded or collapsed in place
- * (#500). `before` is the band's own offset inside the scroller and the scroll
- * position, both read before the toggle; `delta` is the height the toggle added
- * (or, collapsing, removed).
- *
- * The one rule: *what the reader can see does not move*. A band that opens at
- * or below the top edge needs no correction at all — the days grow downwards
- * from the row they tapped. A band whose top has already gone up past the edge
- * is the other case: every pixel the reader is looking at is *below* the
- * insertion, so the position takes the delta back.
- *
- * Null means "leave it alone", so the caller never writes a `scrollTop` it did
- * not need to. This is a write the reader asked for with a tap, never one made
- * under a scrolling finger (ADR 0086).
- */
-export function bandScrollTop(
-	before: { offset: number; scrollTop: number },
-	delta: number,
-): number | null {
-	if (delta === 0) return null
-	if (before.offset >= before.scrollTop) return null
-	return Math.max(0, before.scrollTop + delta)
 }
 
 /**

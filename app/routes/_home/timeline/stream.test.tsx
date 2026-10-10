@@ -1,15 +1,14 @@
 /**
  * @vitest-environment jsdom
  *
- * The stream's **empty cell** — the row a day with nothing on it gets — and the
- * **band** that stands in for a run of them behind today (#500).
+ * The stream's **empty cell** — the row a day with nothing on it gets, every
+ * day, behind today and ahead of it (ADR 0086) — the horizon's divider, and a
+ * week header's track line at its edges.
  *
  * `index.dashboard.test.tsx` drives the whole screen through the loader, which
- * is where the grid as a whole is asserted. This file exists for the two things
- * that cannot be reached that way: `Rest day`, the band's own interaction, and
- * what a tapped cell says **before** it writes anything. Which runs *become*
- * bands is the presenter's rule and is asserted there; what a band does when it
- * is tapped is here.
+ * is where the grid as a whole is asserted. This file exists for the things
+ * that cannot be reached that way: `Rest day`, a week's shape handed in
+ * directly, and what a tapped cell says **before** it writes anything.
  *
  * `restPrescribed` has **no producer** (ADR 0065 §4 and its consequences).
  * Nothing in the model prescribes recovery per day — `PlanOutlinePhase.rhythm`
@@ -36,19 +35,21 @@ import {
 import { type Discipline } from '#app/utils/workout-schema.ts'
 import { DayStampProvider } from './day-stamp-context.tsx'
 import {
-	type TimelineBand,
 	type TimelineDay,
 	type TimelineEndCap,
 	type TimelineWeek,
+	type WeekShape,
 } from './presenter.ts'
 import { EndCap, TrackLine, WeekBlock } from './stream.tsx'
 import { wordTrackWeek } from './week-words.ts'
 
 function day(overrides: Partial<TimelineDay> = {}): TimelineDay {
+	const dateLabel = overrides.dateLabel ?? '22'
 	return {
 		key: '2030-02-22',
 		dayLabel: 'Fri',
-		dateLabel: '22',
+		dateLabel,
+		dayOfMonth: dateLabel.split(/[. ]/)[0]!,
 		isToday: false,
 		restPrescribed: false,
 		sessions: [],
@@ -56,7 +57,10 @@ function day(overrides: Partial<TimelineDay> = {}): TimelineDay {
 	}
 }
 
-function week(rows: TimelineDay[], bands: TimelineBand[] = []): TimelineWeek {
+function week(
+	rows: TimelineDay[],
+	overrides: Partial<TimelineWeek> = {},
+): TimelineWeek {
 	return {
 		key: '2030-02-18',
 		rangeLabel: '18–24 February',
@@ -66,7 +70,6 @@ function week(rows: TimelineDay[], bands: TimelineBand[] = []): TimelineWeek {
 		planStart: false,
 		isNow: true,
 		rows,
-		bands,
 		tracks: [],
 		otherTrack: null,
 		relativeName: 'Denne uka',
@@ -75,21 +78,24 @@ function week(rows: TimelineDay[], bands: TimelineBand[] = []): TimelineWeek {
 		roleLabel: 'hard uke',
 		kindLabel: 'Build · hard uke',
 		shape: 'open',
-		foldLabel: null,
-		shownDayKeys: rows.map((d) => d.key),
+		opensHorizon: false,
+		summary: null,
 		loadLine: '0 av 0 gjort',
+		...overrides,
 	}
 }
 
 function renderWeek(
 	rows: TimelineDay[],
 	{
-		bands = [],
+		shape = 'open',
+		weekOverrides = {},
 		anchorDayKey = '2030-02-20',
 		prefill = null,
 		action,
 	}: {
-		bands?: TimelineBand[]
+		shape?: WeekShape
+		weekOverrides?: Partial<TimelineWeek>
 		anchorDayKey?: string
 		prefill?: Discipline | null
 		/** Home's own action, as the draft's fetcher posts to it. */
@@ -116,32 +122,15 @@ function renderWeek(
 				// Every cell in the stream is a write target, so the stream only
 				// renders inside the provider — see `day-stamp-context.tsx`.
 				<DayStampProvider prefill={prefill} thresholds={{}} ledger={[]}>
-					<WeekBlock week={week(rows, bands)} anchorDayKey={anchorDayKey} />
+					<WeekBlock
+						week={week(rows, { shape, ...weekOverrides })}
+						anchorDayKey={anchorDayKey}
+					/>
 				</DayStampProvider>
 			),
 		},
 	])
 	render(<App initialEntries={['/']} />)
-}
-
-/** Monday to Wednesday, empty, behind a today of Thursday the 21st. */
-function pastRun() {
-	const days = [
-		day({ key: '2030-02-18', dayLabel: 'Mon', dateLabel: '18 Feb' }),
-		day({ key: '2030-02-19', dayLabel: 'Tue', dateLabel: '19 Feb' }),
-		day({ key: '2030-02-20', dayLabel: 'Wed', dateLabel: '20 Feb' }),
-	]
-	const band: TimelineBand = {
-		key: '2030-02-18',
-		kind: 'past',
-		dayKeys: days.map((d) => d.key),
-		daysLabel: '18–20',
-		monthLabel: 'Feb',
-		summaryLabel: '3 dager · ingenting logget',
-		rangeLabel: '18–20 February',
-		controlLabel: '3 dager uten noe logget, 18–20 February',
-	}
-	return { days, band }
 }
 
 test('a day the plan prescribes recovery on says Rest day, and says what it means', () => {
@@ -181,9 +170,13 @@ test('an empty cell is a real button at the control floor, not a clickable box',
 test('an empty cell states its own date, in the gutter every row aligns to', () => {
 	renderWeek([day({ dayLabel: 'Sat', dateLabel: '23 Feb', key: '2030-02-23' })])
 
-	const cell = screen.getByRole('button', { name: /legg inn en økt/i })
+	// The gutter prints the weekday over the date alone; the week header says
+	// the month, and the control's name says it in full.
+	const cell = screen.getByRole('button', {
+		name: 'Legg inn en økt Sat 23 Feb',
+	})
 	expect(within(cell).getByText('Sat')).toBeInTheDocument()
-	expect(within(cell).getByText('23 Feb')).toBeInTheDocument()
+	expect(within(cell).getByText('23')).toBeInTheDocument()
 })
 
 test('an empty today is still the landing anchor', () => {
@@ -197,73 +190,63 @@ test('an empty today is still the landing anchor', () => {
 	expect(cell.closest('[data-timeline-today]')).not.toBeNull()
 })
 
-// ── the band a run of empty days behind today collapses into (#500) ────────
+// ── a calendar: every day a row, the past quieter, the horizon stated ──────
 
-test('a run of empty days behind today is one row stating the count and the dates', () => {
-	const { days, band } = pastRun()
-	renderWeek(days, { bands: [band] })
+test('every empty day of a week is its own row, none folded into another (ADR 0086)', () => {
+	renderWeek([
+		day({ key: '2030-02-18', dayLabel: 'Mon', dateLabel: '18' }),
+		day({ key: '2030-02-19', dayLabel: 'Tue', dateLabel: '19' }),
+		day({ key: '2030-02-20', dayLabel: 'Wed', dateLabel: '20' }),
+	])
 
-	// The fact the blank rows only imply, said once (ADR 0065 §3).
-	const control = screen.getByRole('button', {
-		name: '3 dager uten noe logget, 18–20 February',
-	})
-	expect(control).toHaveTextContent('3 dager · ingenting logget')
-	expect(control).toHaveTextContent('18–20')
-	expect(control).toHaveTextContent('Feb')
-	// And the days it speaks for are not rows while it is closed.
-	expect(
-		screen.queryByRole('button', { name: /legg inn en økt tue 19/i }),
-	).not.toBeInTheDocument()
+	for (const name of [
+		'Legg inn en økt Mon 18',
+		'Legg inn en økt Tue 19',
+		'Legg inn en økt Wed 20',
+	]) {
+		expect(screen.getByRole('button', { name })).toHaveTextContent('fri')
+	}
+	expect(screen.queryByRole('button', { expanded: false })).toBeNull()
 })
 
-test('the band is a real control with an expanded state, and tapping it opens the days', async () => {
-	const { days, band } = pastRun()
-	renderWeek(days, { bands: [band] })
+test('a past free day is quieter, and can still be written into (ADR 0065 §6)', async () => {
+	const user = userEvent.setup()
+	renderWeek([day({ key: '2030-02-11', dayLabel: 'Mon', dateLabel: '11' })], {
+		shape: 'past',
+		prefill: 'run',
+	})
 
-	const control = screen.getByRole('button', { name: /3 dager uten noe/i })
-	expect(control.tagName).toBe('BUTTON')
-	expect(control).toHaveAttribute('aria-expanded', 'false')
+	const cell = screen.getByRole('button', { name: 'Legg inn en økt Mon 11' })
+	expect(cell).toHaveTextContent('fri')
+	expect(within(cell).getByText('fri')).toHaveClass('text-muted-foreground/70')
+	await user.click(cell)
+	expect(
+		await screen.findByRole('radio', { name: /løping/i }),
+	).toBeInTheDocument()
+})
 
-	await userEvent.click(control)
-
-	expect(control).toHaveAttribute('aria-expanded', 'true')
-	// Every day of the run is now a row, and each one takes the same gesture a
-	// day forward of today takes — the same component on the same model.
-	for (const name of [
-		'Legg inn en økt Mon 18 Feb',
-		'Legg inn en økt Tue 19 Feb',
-		'Legg inn en økt Wed 20 Feb',
-	]) {
-		expect(screen.getByRole('button', { name })).toHaveClass('min-h-11')
-	}
-	// The control stays: a disclosure that vanishes on open has no way back.
-	expect(screen.getByRole('button', { name: /3 dager uten noe/i })).toBe(
-		control,
+test('the first week past the horizon stands under the divider, its days empty rows to write in', () => {
+	renderWeek(
+		[
+			day({ key: '2030-03-11', dayLabel: 'Mon', dateLabel: '11. mar' }),
+			day({ key: '2030-03-12', dayLabel: 'Tue', dateLabel: '12. mar' }),
+		],
+		{
+			shape: 'beyond',
+			weekOverrides: {
+				opensHorizon: true,
+				summary: 'fylles søndag kveld i uke 9',
+			},
+		},
 	)
 
-	await userEvent.click(control)
-	expect(control).toHaveAttribute('aria-expanded', 'false')
+	const divider = screen.getByRole('separator', { name: /^Horisont: / })
+	expect(divider).toHaveTextContent(
+		/^Horisont\s*·\s*herfra bare mål, ingen økter ennå$/,
+	)
+	expect(screen.getByText('fylles søndag kveld i uke 9')).toBeInTheDocument()
 	expect(
-		screen.queryByRole('button', { name: /legg inn en økt tue 19/i }),
-	).not.toBeInTheDocument()
-})
-
-test('a day the presenter left out of a band is an ordinary row, band or no band', () => {
-	// A single empty day behind today is a day, not a one-day band — the rule is
-	// the presenter's, and this is the stream keeping its half of it: a day that
-	// is not named by a band renders exactly as it always did.
-	const { days, band } = pastRun()
-	const monday = days[0]!
-	renderWeek(days, {
-		bands: [
-			{ ...band, key: days[1]!.key, dayKeys: [days[1]!.key, days[2]!.key] },
-		],
-	})
-
-	expect(
-		screen.getByRole('button', {
-			name: `Legg inn en økt Mon ${monday.dateLabel}`,
-		}),
+		screen.getByRole('button', { name: 'Legg inn en økt Tue 12. mar' }),
 	).toBeInTheDocument()
 })
 

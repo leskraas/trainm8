@@ -1,11 +1,12 @@
 /**
- * The words a week carries on I dag (#505 S9, ADR 0082): its name, its three
- * numbers per Training Track, its one-line folds and its load line — put on
+ * The words a week carries on I dag (#505 S9, ADR 0082, ADR 0086): its name,
+ * its three numbers per Training Track, its load line and what a week past
+ * the horizon says about when it is filled — put on
  * the pure week model's numbers and codes (`week-volumes.ts`) here, at the
  * edge, so the model stays free of language (ADR 0081).
  *
- * Kept apart from `presenter.ts`, which decides what a week *is* (its days, its
- * shape, its bands); this module only decides what it *says*.
+ * Kept apart from `presenter.ts`, which decides what a week *is* (its days and
+ * its shape); this module only decides what it *says*.
  */
 import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import {
@@ -19,7 +20,6 @@ import {
 	averagePaceLabel,
 	DRIFT_MARK_LABEL,
 	easyShareLabel,
-	foldedTrackLabel,
 	horizonFillLabel,
 	missedCountLabel,
 	NB_DISCIPLINE_LABELS,
@@ -283,85 +283,32 @@ export function zoneShares(
 	)
 }
 
-/** A number worth holding done against: a `0` is no reference. */
-function reference(value: number | null): number | null {
-	return value == null || value === 0 ? null : value
-}
-
 /**
- * A closed week as one line (#505 story 31): `35 av 46 km · under`, read in
- * the lead track. What was done is held against the target, or the plan where
- * the week had no target; a week with neither above zero states only what was
- * done — never `x av 0 km`.
+ * What a week past the Planning Horizon says under its numbers (#505 story
+ * 27): when it is filled — `fylles søndag kveld i uke 41`.
  *
- * The verdict is said only when it was graded against the figure the line
- * names (#505 S9 review, S3): a closed week with a target is graded against
- * that target (`week-volumes.ts`), so `35 av 46 km · under` means 35 against
- * 46. Where the model had to fall back to the planned sessions — a done
- * session whose number has not come — the line states the figures and no
- * verdict, rather than pairing the target with a grade read against
- * something else.
+ * That is the week change's own rule, stated as a time: a close (Sunday 20:00
+ * in the Athlete Timezone) fills the week after next (`horizonWeekKey`), so
+ * this week is filled the Sunday evening its week-before-last closes. A plan
+ * with no Week Pattern has nothing to fill from, and says so rather than
+ * promising; a week past any plan says only the athlete's sessions will be
+ * there.
  */
-export function foldedTrackLine(lead: TimelineTrackWeek): string {
-	const status = lead.grade.status
-	const target = reference(lead.target)
-	const of = target ?? reference(lead.planned)
-	const basis = target != null ? 'target' : 'planned'
-	return foldedTrackLabel({
-		done: lead.figures.done,
-		of: of == null ? null : formatNbVolumeFigure(of, lead.currency),
-		unit: lead.unit,
-		grade:
-			of != null &&
-			lead.grade.basis === basis &&
-			(status === 'under' || status === 'on' || status === 'over')
-				? VOLUME_GRADE_LABELS[status]
-				: null,
-		why: lead.actualUnmeasured.map((u) => u.reason),
-	})
-}
-
-/**
- * A plan week past the Planning Horizon as one line (#505 story 27): `Uke 43 ·
- * Oppbygging · mål 58 km · fylles søndag kveld i uke 41`.
- *
- * The last clause is the week change's own rule, stated as a time: a close
- * (Sunday 20:00 in the Athlete Timezone) fills the week after next
- * (`horizonWeekKey`), so this week is filled the Sunday evening its
- * week-before-last closes. A plan with no Week Pattern has nothing to fill
- * from, and says so rather than promising.
- */
-export function collapsedWeekLine({
+export function beyondWeekNote({
 	monday,
-	relativeName,
-	phaseName,
-	lead,
 	fillsWeeks,
 	far = false,
 }: {
 	monday: string
-	relativeName: string
-	phaseName: string | null
-	lead: TimelineTrackWeek | null
 	fillsWeeks: boolean
 	/** Past any plan: nothing will fill it, only what the athlete writes. */
 	far?: boolean
 }): string {
-	const target = reference(lead?.target ?? null)
-	return [
-		relativeName,
-		phaseName,
-		target != null && lead
-			? `${WEEK_FIGURE_LABELS.target} ${formatNbVolumeFigure(target, lead.currency)} ${lead.unit}`
-			: null,
-		far
-			? FAR_WEEK_LABEL
-			: fillsWeeks
-				? horizonFillLabel(isoWeekNumber(addDays(monday, -14)))
-				: NOT_FILLED_LABEL,
-	]
-		.filter((part): part is string => part != null)
-		.join(' · ')
+	return far
+		? FAR_WEEK_LABEL
+		: fillsWeeks
+			? horizonFillLabel(isoWeekNumber(addDays(monday, -14)))
+			: NOT_FILLED_LABEL
 }
 
 /**

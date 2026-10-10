@@ -423,7 +423,9 @@ const StripWeek = memo(function StripWeek({
 			title={week.label}
 			className={cn(
 				'focus-visible:outline-ring relative flex min-w-0 flex-1 flex-col justify-end pt-3.5 pb-[7px] focus-visible:outline-2 focus-visible:-outline-offset-2',
-				week.phaseTone ? PHASE_TINT[week.phaseTone] : null,
+				// Outside a plan's phases (history from before it, a named phase) the
+				// column is a neutral tone, so the strip still reads as one band.
+				week.phaseTone ? PHASE_TINT[week.phaseTone] : 'bg-muted/70',
 			)}
 		>
 			{week.event ? (

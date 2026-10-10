@@ -550,7 +550,7 @@ test('the "I dag" pill is on the top line, and quiet while today is in view', as
 	expect(pill).toHaveAttribute('data-away', '0')
 })
 
-test('every week before today is mounted, and a strip tap opens a folded one', async () => {
+test('every week before today is mounted in full, and a strip tap jumps to one', async () => {
 	const ledger = [-28, -21, -14, -7, 0].map((days) =>
 		at(days, {
 			id: `s${days}`,
@@ -570,18 +570,18 @@ test('every week before today is mounted, and a strip tap opens a folded one', a
 	renderRoute(dashboardLoader({ ledger }))
 
 	const stream = await screen.findByTestId('timeline-stream')
-	// The whole past is mounted up front (ADR 0086), folded: the week is there,
-	// its sessions behind its one line.
+	// The whole past is mounted up front, and whole (ADR 0086): every closed
+	// week with all its days and sessions, nothing behind a tap.
 	expect(
-		stream.querySelectorAll('[data-week-shape="folded"]').length,
+		stream.querySelectorAll('[data-week-shape="past"]').length,
 	).toBeGreaterThanOrEqual(4)
-	expect(within(stream).queryByText('Session -28')).not.toBeInTheDocument()
+	expect(within(stream).getByText('Session -28')).toBeInTheDocument()
+	expect(
+		stream.querySelector('[data-timeline-fold], [data-timeline-band]'),
+	).toBeNull()
 
 	const strip = screen.getByTestId('week-strip')
 	await userEvent.click(strip.querySelector('[data-timeline-cell]')!)
-
-	// A closed week is folded, and a jump into one opens it: the jump asked to
-	// see the week, not its one line.
 	expect(within(stream).getByText('Session -28')).toBeInTheDocument()
 })
 
@@ -843,23 +843,20 @@ test('two sessions on one day sit under one date gutter, said once', async () =>
 
 test('every day from today forward is a row, whether anything is on it or not', async () => {
 	// NOW is Wednesday 2 January, so the rest of this week is Thursday through
-	// Sunday — four cells the athlete can write into, with no plan and no
-	// sessions anywhere near them.
+	// Sunday — four cells the athlete can write into, each its own row (ADR
+	// 0086, overriding #505 story 30's folded free days).
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	const stream = await screen.findByTestId('timeline-stream')
-	// Four free days in a row fold into one short row (#505 story 30), which
-	// opens into the four cells.
-	await userEvent.click(
-		within(stream).getByRole('button', { name: /^4 ledige dager, / }),
-	)
 	for (const name of [
 		'Legg inn en økt tor 3',
 		'Legg inn en økt fre 4',
 		'Legg inn en økt lør 5',
 		'Legg inn en økt søn 6',
 	]) {
-		expect(within(stream).getByRole('button', { name })).toBeInTheDocument()
+		expect(within(stream).getByRole('button', { name })).toHaveTextContent(
+			'fri',
+		)
 	}
 	// And today is not one of them: it has a session on it.
 	expect(
@@ -867,38 +864,27 @@ test('every day from today forward is a row, whether anything is on it or not', 
 	).not.toBeInTheDocument()
 })
 
-// ── behind today, a run of empty days is one band (#500) ──────────────────
+// ── behind today, every day is a row too (ADR 0086) ──────────────────────
 
-test('a run of empty days behind today is one band, and tapping it opens the days', async () => {
+test('the empty days behind today are rows like any other, never one band', async () => {
 	// NOW is Wednesday 2 January, so Monday and Tuesday sit behind today with
-	// nothing on them. Nine blank rows in front of the athlete's history read
-	// worse than none, and the band states the fact they only imply (ADR 0065 §3).
+	// nothing on them. Until ADR 0086 they read as `2 dager · ingenting
+	// logget`; a calendar draws the two days.
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	const stream = await screen.findByTestId('timeline-stream')
-	const band = within(stream).getByRole('button', {
-		name: '2 dager uten noe logget, 31. des – 1. jan',
-	})
-	expect(band).toHaveTextContent('2 dager · ingenting logget')
-	expect(band).toHaveAttribute('aria-expanded', 'false')
-	expect(
-		within(stream).queryByRole('button', { name: /legg inn en økt man/i }),
-	).not.toBeInTheDocument()
-
-	await userEvent.click(band)
-
-	// Expanded, they are day rows like any other — the same add gesture a day
-	// forward of today takes.
-	expect(band).toHaveAttribute('aria-expanded', 'true')
 	expect(
 		within(stream).getByRole('button', { name: 'Legg inn en økt man 31' }),
 	).toBeInTheDocument()
 	expect(
 		within(stream).getByRole('button', { name: 'Legg inn en økt tir 1' }),
 	).toBeInTheDocument()
+	expect(
+		within(stream).queryByRole('button', { name: /uten noe logget/i }),
+	).not.toBeInTheDocument()
 })
 
-test('a single empty day behind today is a day, not a one-day band', async () => {
+test('a single empty day behind today is a row like the rest', async () => {
 	// Tuesday was trained and today is Wednesday, so Monday is a run of one —
 	// and a band over one row says no more than the row does.
 	renderRoute(
@@ -950,42 +936,21 @@ test('an empty day is never called a rest day — nothing prescribes one', async
 	)
 
 	const stream = await screen.findByTestId('timeline-stream')
-	await userEvent.click(
-		within(stream).getAllByRole('button', { name: /ledige dager/i })[0]!,
-	)
 	expect(
 		within(stream).getAllByRole('button', { name: /legg inn en økt/i }).length,
 	).toBeGreaterThan(0)
 	expect(stream).not.toHaveTextContent(/rest day/i)
 })
 
-test('the free days ahead are one short row, and today is never folded into it', async () => {
-	// Thursday to Sunday hold nothing, so they read as one row — a printed plan's
-	// `4 ledige dager` — while today, which is the landing, stays its own row.
-	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
-
-	const stream = await screen.findByTestId('timeline-stream')
-	const free = within(stream).getByRole('button', {
-		name: '4 ledige dager, 3.–6. jan — åpne for å legge inn en økt',
-	})
-	expect(free).toHaveTextContent('4 ledige dager')
-	expect(free).toHaveAttribute('aria-expanded', 'false')
-	expect(
-		within(stream).getByRole('link', { name: /threshold 4 × 8 min/i }),
-	).toBeInTheDocument()
-})
-
 test('every empty cell is a real button, not a clickable box', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	const stream = await screen.findByTestId('timeline-stream')
-	await userEvent.click(
-		within(stream).getByRole('button', { name: /ledige dager/i }),
-	)
 	const cells = within(stream).getAllByRole('button', {
 		name: /legg inn en økt/i,
 	})
-	expect(cells).toHaveLength(4)
+	// Monday, Tuesday, and Thursday to Sunday: every day but today's.
+	expect(cells).toHaveLength(6)
 	for (const cell of cells) {
 		expect(cell.tagName).toBe('BUTTON')
 		expect(cell).toHaveClass('min-h-11')

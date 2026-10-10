@@ -12,16 +12,15 @@
  * A row is a day and a day owns zero or more sessions (ADR 0065 §1), and **every
  * day is in the model** whether anything is on it or not: the grid exists
  * before the content does. Behind today the days are built back as far as the
- * query itself reaches. What the stream *draws* is less: a **run** of two or
- * more empty days — behind today or ahead of it, never today — is handed over
- * as a band the stream shows as one row (ADR 0065 §3, ADR 0082 §4), a closed
- * week folds to one line, and a week past the Planning Horizon collapses to one
- * (ADR 0082 §2–3).
+ * query itself reaches. The stream draws every one of them (ADR 0086): I dag
+ * reads like a calendar, so nothing folds — not a run of empty days, not a
+ * closed week, not a week past the Planning Horizon. A week only says which
+ * of three it is (`WeekShape`), and the stream tones it accordingly.
  *
- * The strip renders the **whole season**; the stream renders a window around
- * today that grows as the athlete reads. That is why the week list here is
- * complete and unfiltered: windowing is the component's business, and a strip
- * with holes in it is not an overview.
+ * The strip renders the **whole season**; the stream mounts every week up to
+ * today and the weeks ahead as the athlete reads toward them. That is why the
+ * week list here is complete and unfiltered: mounting is the component's
+ * business, and a strip with holes in it is not an overview.
  *
  * Everything is derived, nothing is fetched: the same `LedgerSession[]` the
  * ledger already ships feeds all of it, through `toSessionLedgerEntry` for
@@ -40,7 +39,6 @@ import {
 	formatNbDayDate,
 	formatNbDayMonth,
 	formatNbDayOfMonth,
-	formatNbMonthShort,
 	formatNbWeekdayShort,
 	formatSigned,
 	roundLoad,
@@ -51,7 +49,6 @@ import {
 	ANNET_TRACK_LABELS,
 	BEFORE_PLAN_LABEL,
 	eventCountdownWhen,
-	freeBandLabels,
 	TOP_LINE_LABELS,
 	NB_READINESS_ADVICE,
 	NB_READINESS_LABELS,
@@ -61,7 +58,6 @@ import {
 	nbPhaseName,
 	nbSessionNoun,
 	openEndedBlockLabel,
-	pastBandLabels,
 	PHILOSOPHY_LABELS,
 	planWeekLabel,
 	SESSION_OWNER_LABELS,
@@ -132,8 +128,7 @@ import {
 import { strengthLogOf, type TimelineStrengthLog } from './strength-log.ts'
 import { buildStrip, type TimelineStrip } from './strip.ts'
 import {
-	collapsedWeekLine,
-	foldedTrackLine,
+	beyondWeekNote,
 	join,
 	leadTrack,
 	relativeWeekName,
@@ -233,18 +228,25 @@ export type TimelineSession = {
  * its content does, the way a spreadsheet cell does.
  *
  * **Every day the query reached is built**, session or not — forward to the
- * horizon and back to `TIMELINE_TRAILING_DAYS`. Behind today a *run* of empty
- * ones is not rendered as rows, though: the week hands the stream a
- * {@link TimelineBand} over it, and the rows stay in the model so expanding the
- * band has something to expand into (ADR 0065 §3).
+ * season's end and back to `TIMELINE_TRAILING_DAYS` — and every one is a row
+ * on I dag (ADR 0086). A day before the query's reach is not built: it is not
+ * a day with nothing on it, it is a day nobody asked about (ADR 0075 §3).
  */
 export type TimelineDay = {
 	/** `YYYY-MM-DD` in the athlete's own timezone — the day's own identity. */
 	key: string
 	/** `ons` — the weekday, in the athlete's own timezone. */
 	dayLabel: string
-	/** `19. aug` for a past week, `19` inside the current one. */
+	/**
+	 * `19. aug` outside the current week, `19` inside it — the day as its
+	 * controls name it, so a cell lifted out of context still reads as a date.
+	 */
 	dateLabel: string
+	/**
+	 * `19` — the date alone, as the gutter prints it under the weekday (variant
+	 * P). The week header above already says the month.
+	 */
+	dayOfMonth: string
 	isToday: boolean
 	/**
 	 * The **Plan Outline** prescribes recovery on this day, which is the only
@@ -270,61 +272,24 @@ export type TimelineDay = {
 }
 
 /**
- * A run of consecutive empty days, as **one row** — `4–10` · `7 dager ·
- * ingenting logget` behind today, `3 ledige dager` ahead of it — that expands
- * in place into the days it covers.
+ * Which of three kinds of week this is (ADR 0086). Every kind is drawn whole —
+ * its header and all seven days — and the kind only sets the tone:
  *
- * Two reasons it exists, and the second is the load-bearing one (ADR 0065 §3):
- * the band **states the fact the blank rows only imply**, and it keeps stream
- * height behind the reader stable, which is what the scroll module's growth
- * compensation depends on.
+ * - `past` — a week before this one: the record, muted, with its verdict.
+ * - `open` — this week, and every week ahead that the Planning Horizon has
+ *   reached or the plan has already laid.
+ * - `beyond` — a week the plan has not laid and will not until the Planning
+ *   Horizon reaches it: its header says its phase and target and when it is
+ *   filled, its days are empty rows to write in, and the athlete's own
+ *   sessions there show on their days (#505 stories 27–28). A **far** week —
+ *   past the plan's end and past half a year (`TIMELINE_HORIZON_DAYS`), where
+ *   the athlete may still write (#505 story 40) — is `beyond` too, and says
+ *   that only what the athlete writes will be there.
  *
- * A run of **one** is not a band — a single empty day behind today is just a
- * day, because collapsing one row into one row states nothing and costs a tap.
- * A run stops at the week's edge: a week block is the unit the stream mounts,
- * windows and anchors on, so a band that spanned two of them would have to
- * exist in a week that is not loaded (ADR 0075 §1 and §4, amending 0065 §3's
- * nine-day example).
+ * (Until ADR 0086 a closed week folded to one line and a week past the horizon
+ * collapsed to one; the owner's calendar decision of 2026-10-10 ended both.)
  */
-export type TimelineBand = {
-	/** The run's first day, `YYYY-MM-DD` — the band's own identity. */
-	key: string
-	/**
-	 * `past` — empty days behind today, a fact about the record (ADR 0075).
-	 * `free` — empty days ahead of it, folded into one short row so a printed
-	 * plan's week is not half blank cells (#505 story 30). Today is neither: it
-	 * is the landing, and never folds.
-	 */
-	kind: 'past' | 'free'
-	/** Every day the run covers, in order. They are rows of the week too. */
-	dayKeys: string[]
-	/** `4–10` — the day numbers, in the gutter every row aligns to. */
-	daysLabel: string
-	/** `aug`, or `jul–aug` where the run crosses a month. */
-	monthLabel: string
-	/** `7 dager · ingenting logget`, `2 ledige dager` — what the blanks only imply. */
-	summaryLabel: string
-	/** `4.–10. aug` — the range as the control's own name says it. */
-	rangeLabel: string
-	/** The control's accessible name: the count, the fact and the dates. */
-	controlLabel: string
-}
-
-/**
- * How the stream draws a week (#505 stories 27, 31).
- *
- * - `open` — the header and every day: this week, and every week ahead that
- *   the Planning Horizon has reached or the plan has already laid.
- * - `folded` — a closed week, one line above today; it opens on a tap.
- * - `collapsed` — a plan week past the Planning Horizon that nothing has laid
- *   yet: one line saying what it will be, plus any session the athlete wrote
- *   there themselves, because their fixed points are never hidden. A **far**
- *   week — past the plan's end and past half a year (`TIMELINE_HORIZON_DAYS`),
- *   where the athlete may still write (#505 story 40) — collapses the same
- *   way, so a race written a year out shows on its day without a year of
- *   empty days drawn before it.
- */
-export type WeekShape = 'open' | 'folded' | 'collapsed'
+export type WeekShape = 'past' | 'open' | 'beyond'
 
 /**
  * Which of the four phase colours (`phase-*` tokens, ADR 0085) a phase is
@@ -379,16 +344,10 @@ export type TimelineWeek = {
 	isNow: boolean
 	/**
 	 * The week's days, earliest first — a row is a day, not a session. All seven
-	 * from today forward; behind today, every day the query reached. Which of
-	 * them the stream draws is `bands`' and `shownDayKeys`' business.
+	 * from today forward; behind today, every day the query reached. The stream
+	 * draws every one.
 	 */
 	rows: TimelineDay[]
-	/**
-	 * The runs of empty days behind today that render as one row until they are
-	 * expanded. Every day named here is also in `rows`: the band is a *view* on
-	 * them, so the stream can expand it without asking for anything more.
-	 */
-	bands: TimelineBand[]
 	/**
 	 * The three week numbers per **Training Track** of the active plan — Week
 	 * Target, Planned Volume, Actual Volume — each in the track's own Volume
@@ -420,16 +379,18 @@ export type TimelineWeek = {
 	kindLabel: string | null
 	shape: WeekShape
 	/**
-	 * The one line a folded or collapsed week reads as — `35 av 46 km · under`,
-	 * `Uke 41 · Oppbygging · mål 58 km · fylles søndag kveld i uke 39` — or null for an
-	 * open week, whose header says it at length.
+	 * The first `beyond` week of the season: the stream draws the horizon's
+	 * divider above it (ADR 0086), once.
 	 */
-	foldLabel: string | null
+	opensHorizon: boolean
 	/**
-	 * The days the stream draws for the week. Every row, except in a collapsed
-	 * week, which draws only the days holding a session — the athlete's own.
+	 * The week's one muted sentence under its numbers (variant P): its sessions
+	 * and load — `2 av 5 gjort · 48 av 312 TSS` — or, past the horizon, when it
+	 * is filled (`fylles søndag kveld i uke 39`). Null where the header's
+	 * numbers already say it all: a week with no track to read it in carries
+	 * its load line as its numbers.
 	 */
-	shownDayKeys: string[]
+	summary: string | null
 	/**
 	 * The week's sessions and load in a line, in the header's Norwegian: `2 av 5
 	 * gjort · 48 av 312 TSS`. What a week with no track to read it in says.
@@ -499,8 +460,8 @@ export type TimelineSeason = {
 	 */
 	horizonWeekKey: string | null
 	/**
-	 * The track a one-line week, the strip and the season table are read in
-	 * (`leadTrack`) — one decision, made once, for all three. Null without a plan.
+	 * The track the strip and the season table are read in (`leadTrack`) — one
+	 * decision, made once, for both. Null without a plan.
 	 */
 	leadTrackId: string | null
 	strip: TimelineStrip
@@ -650,11 +611,12 @@ export function buildTimelineSeason({
 			horizon,
 			far: monday > farAfter,
 			fillsWeeks: activePlan?.fillsWeeks ?? false,
-			leadTrackId,
 			importFacts,
 		}),
 	)
 
+	const firstBeyond = weeks.find((week) => week.shape === 'beyond')
+	if (firstBeyond) firstBeyond.opensHorizon = true
 	const todayWeekIndex = Math.max(
 		0,
 		weeks.findIndex((week) => week.isNow),
@@ -880,7 +842,6 @@ function buildWeek({
 	horizon,
 	far,
 	fillsWeeks,
-	leadTrackId,
 	importFacts,
 }: {
 	monday: string
@@ -903,8 +864,6 @@ function buildWeek({
 	far: boolean
 	/** Whether the week change will fill a week once the horizon reaches it. */
 	fillsWeeks: boolean
-	/** The track a one-line week is read in (`leadTrack`). */
-	leadTrackId: string | null
 	importFacts: ReadonlyMap<string, TimelineImportFacts>
 }): TimelineWeek {
 	const isNow = monday === nowMonday
@@ -945,7 +904,6 @@ function buildWeek({
 				importFacts,
 			}),
 		)
-	const bands = buildBands(rows, todayKey, timezone)
 	const volumes = buildWeekVolumes({
 		weekKey: monday,
 		todayKey,
@@ -1005,11 +963,10 @@ function buildWeek({
 	)
 	const shape: WeekShape =
 		monday < nowMonday
-			? 'folded'
+			? 'past'
 			: !laid && ((horizon != null && monday > horizon && phase != null) || far)
-				? 'collapsed'
+				? 'beyond'
 				: 'open'
-	const lead = trackWeeks.find((track) => track.trackId === leadTrackId) ?? null
 	const phaseName = imported ? null : (phase?.name ?? null)
 	const roleLabel = imported || role == null ? null : NB_WEEK_ROLE_LABELS[role]
 	// A taper phase's taper week would read `Nedtrapping · nedtrapping`: the
@@ -1030,8 +987,6 @@ function buildWeek({
 		planStart,
 		isNow,
 		rows,
-		// A collapsed week draws no empty days, so it has no run of them to fold.
-		bands: shape === 'collapsed' ? [] : bands,
 		tracks: trackWeeks,
 		otherTrack: volumes.other
 			? {
@@ -1048,105 +1003,19 @@ function buildWeek({
 		roleLabel,
 		kindLabel: imported ? BEFORE_PLAN_LABEL : join(phaseName, kindRole) || null,
 		shape,
-		foldLabel:
-			shape === 'folded'
-				? lead
-					? foldedTrackLine(lead)
-					: loadLine
-				: shape === 'collapsed'
-					? collapsedWeekLine({
-							monday,
-							relativeName,
-							phaseName,
-							lead,
-							fillsWeeks: fillsWeeks && phase != null,
-							far: phase == null,
-						})
+		// Set across the season once every week is built (`buildTimelineSeason`).
+		opensHorizon: false,
+		summary:
+			shape === 'beyond'
+				? beyondWeekNote({
+						monday,
+						fillsWeeks: fillsWeeks && phase != null,
+						far: phase == null,
+					})
+				: trackWeeks.length > 0
+					? loadLine
 					: null,
-		shownDayKeys:
-			shape === 'collapsed'
-				? rows.filter((day) => day.sessions.length > 0).map((day) => day.key)
-				: rows.map((day) => day.key),
 		loadLine,
-	}
-}
-
-/**
- * The week's runs of consecutive empty days, as bands — behind today the past
- * band (ADR 0065 §3, ADR 0075), ahead of it the free days a printed plan folds
- * into one short row (#505 story 30).
- *
- * Maximal runs, in calendar order, and **two days is the shortest one there
- * is** — a single empty day stays a day, because a band over one row says no
- * more than the row does and asks for a tap to say it. **Today never folds**:
- * it is the landing, so it is the one empty day that is always a row, and it
- * is also what splits a past run from a free one.
- *
- * A day the **Plan Outline** prescribes recovery on breaks the run rather than
- * joining it: `Rest day` is a statement the plan made, and a band would
- * swallow it. Nothing produces that flag yet (ADR 0065 §4), so today every
- * empty day but today is band material — but the rule is written where it
- * belongs rather than waiting to be discovered by whoever gives it a producer.
- */
-function buildBands(
-	days: TimelineDay[],
-	todayKey: string,
-	timezone: string,
-): TimelineBand[] {
-	const bands: TimelineBand[] = []
-	let run: TimelineDay[] = []
-	const close = () => {
-		if (run.length > 1) bands.push(bandOf(run, todayKey, timezone))
-		run = []
-	}
-	for (const day of days) {
-		const collapsible =
-			day.key !== todayKey && day.sessions.length === 0 && !day.restPrescribed
-		if (!collapsible) {
-			close()
-			continue
-		}
-		// Only *consecutive* days collapse. Inside one week the row order is the
-		// calendar's, so the run breaks wherever a day is missing from it — which
-		// is what the query's own reach leaves behind in the earliest week.
-		if (run.length > 0 && day.key !== addDays(run[run.length - 1]!.key, 1)) {
-			close()
-		}
-		run.push(day)
-	}
-	close()
-	return bands
-}
-
-function bandOf(
-	run: TimelineDay[],
-	todayKey: string,
-	timezone: string,
-): TimelineBand {
-	const first = middayOf(run[0]!.key, timezone)
-	const last = middayOf(run[run.length - 1]!.key, timezone)
-	const fromMonth = formatNbMonthShort(first, timezone)
-	const toMonth = formatNbMonthShort(last, timezone)
-	const rangeLabel = formatNbDateSpan(first, last, timezone)
-	// A run never holds today, so its first day says which side of today it is.
-	const kind = run[0]!.key < todayKey ? 'past' : 'free'
-	// The count first, because the count is the fact. Behind today `nothing
-	// logged` and not `nothing planned`: what the band knows is that no session
-	// sits on these dates, which is a statement about the record and not about
-	// the plan. Ahead of it the days are free to write in, and say only that.
-	const words =
-		kind === 'past'
-			? pastBandLabels(run.length, rangeLabel)
-			: freeBandLabels(run.length, rangeLabel)
-	return {
-		key: run[0]!.key,
-		kind,
-		dayKeys: run.map((day) => day.key),
-		daysLabel: `${formatNbDayOfMonth(first, timezone)}–${formatNbDayOfMonth(last, timezone)}`,
-		monthLabel: fromMonth === toMonth ? toMonth : `${fromMonth}–${toMonth}`,
-		summaryLabel: words.summary,
-		rangeLabel,
-		controlLabel: words.control,
 	}
 }
 
@@ -1214,6 +1083,7 @@ function buildDay({
 		dateLabel: sameMonth
 			? formatNbDayOfMonth(midday, timezone)
 			: formatNbDayMonth(midday, timezone),
+		dayOfMonth: formatNbDayOfMonth(midday, timezone),
 		isToday,
 		// The Plan Outline has no per-day recovery statement to read, so this is
 		// the only honest answer — see the field's own note. The row's `Rest day`

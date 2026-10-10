@@ -739,41 +739,6 @@ export function zoneSplitLabel(
 }
 
 /**
- * A closed week folded to one line (#505 story 31): `35 av 46 km · under`.
- * `of` is the Week Target, or the Planned Volume where the week had no target;
- * `done` null means nothing done was measured, which is said rather than
- * counted as zero.
- */
-export function foldedTrackLabel({
-	done,
-	of,
-	unit,
-	grade,
-	why = [],
-}: {
-	done: string | null
-	of: string | null
-	unit: string
-	grade: string | null
-	/** Why nothing done was measured: every "ikke målt" says (story 71). */
-	why?: readonly UnmeasuredReason[]
-}): string {
-	const reason =
-		why.length > 0
-			? ` (${why.map((code) => UNMEASURED_REASON_LABELS[code]).join(', ')})`
-			: ''
-	const figure =
-		done == null
-			? of == null
-				? `ikke målt${reason}`
-				: `ikke målt av ${of} ${unit}${reason}`
-			: of == null
-				? `${done} ${unit} ${WEEK_FIGURE_LABELS.done}`
-				: `${done} av ${of} ${unit}`
-	return grade ? `${figure} · ${grade}` : figure
-}
-
-/**
  * A week's load line where it has no Training Track to be read in — before
  * the plan, or with no plan at all. Counts and TSS only.
  */
@@ -806,6 +771,18 @@ export function horizonFillLabel(closesWeekNumber: number): string {
 	return `fylles søndag kveld i uke ${closesWeekNumber}`
 }
 
+/**
+ * The divider above the first week past the Planning Horizon (ADR 0086):
+ * `Horisont · herfra bare mål, ingen økter ennå`. Past it the weeks are whole
+ * calendar weeks with empty days; what they carry is a target, not sessions.
+ * With no plan the only weeks past it are far ones, and it says that instead.
+ */
+export const HORIZON_LABELS = {
+	name: 'Horisont',
+	plan: 'herfra bare mål, ingen økter ennå',
+	far: 'herfra bare øktene du skriver selv',
+} as const
+
 /** A week past the horizon of a plan with no Week Pattern to fill it from. */
 export const NOT_FILLED_LABEL = 'ingen økter lagt inn ennå'
 
@@ -814,39 +791,6 @@ export const NOT_FILLED_LABEL = 'ingen økter lagt inn ennå'
  * there, so it shows only the sessions the athlete wrote into it.
  */
 export const FAR_WEEK_LABEL = 'langt fram · bare øktene du skriver selv'
-
-/** A fold's control, for the reader who hears it rather than sees it. */
-export function foldedWeekControlLabel(name: string, line: string): string {
-	return `${name}, ${line}`
-}
-
-/**
- * A run of empty days behind today (ADR 0065 §3, ADR 0075): `7 dager ·
- * ingenting logget`, named in full as `7 dager uten noe logget, 4–10 August`.
- */
-export function pastBandLabels(
-	days: number,
-	range: string,
-): { summary: string; control: string } {
-	return {
-		summary: `${days} dager · ingenting logget`,
-		control: `${days} dager uten noe logget, ${range}`,
-	}
-}
-
-/**
- * A run of free days ahead of today (#505 story 30): `2 ledige dager`, a short
- * row that opens into the days so one of them can be written into.
- */
-export function freeBandLabels(
-	days: number,
-	range: string,
-): { summary: string; control: string } {
-	return {
-		summary: `${days} ledige dager`,
-		control: `${days} ledige dager, ${range} — åpne for å legge inn en økt`,
-	}
-}
 
 /** The season strip (#505 stories 17–18, 26). */
 export const SEASON_STRIP_LABELS = {

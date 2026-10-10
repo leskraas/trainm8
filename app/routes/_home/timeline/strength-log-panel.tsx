@@ -69,7 +69,7 @@ export function StrengthLogPanel({
 		<section
 			aria-label={words.label}
 			data-strength-log
-			className="border-border bg-card mt-[-6px] mr-[18px] mb-3 ml-[76px] flex flex-col gap-2.5 rounded-[12px] border px-3 py-3"
+			className="border-border bg-card mr-4 mb-3 ml-[103px] flex flex-col gap-2.5 rounded-2xl border px-3 py-3"
 		>
 			<h3 className="text-primary text-[11px]/[1.2] font-bold tracking-[0.04em] uppercase">
 				{words.heading}
@@ -80,7 +80,10 @@ export function StrengthLogPanel({
 					<PlanLines quickLog={quickLog} />
 				)
 			) : (
-				<p aria-live="polite" className="text-muted-foreground text-[12px]/[1.35]">
+				<p
+					aria-live="polite"
+					className="text-muted-foreground text-[12px]/[1.35]"
+				>
 					{reader.data ? null : QUICK_LOG_LABELS.loading}
 				</p>
 			)}

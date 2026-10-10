@@ -41,7 +41,7 @@ export function ImportLinkAction({
 			className={
 				inline
 					? 'flex flex-wrap items-center gap-x-2'
-					: '-mt-2 flex flex-wrap items-center gap-x-2 pr-4 pl-[74px]'
+					: '-mt-1 flex flex-wrap items-center gap-x-2 pr-4 pl-[103px]'
 			}
 		>
 			<ImportLinkButton
@@ -75,7 +75,7 @@ function ImportQuestion({
 			role="group"
 			aria-labelledby={headingId}
 			data-import-question={ask.importId}
-			className="border-border/70 -mt-[6px] mr-[18px] mb-3 ml-[76px] rounded-[12px] border px-3 py-2.5"
+			className="border-border/70 mr-4 mb-3 ml-[103px] rounded-2xl border px-3 py-2.5"
 		>
 			<p
 				id={headingId}

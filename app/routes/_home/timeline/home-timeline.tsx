@@ -222,20 +222,6 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 	const openWriting = useCallback(() => setWriting(true), [])
 	const closeWriting = useCallback(() => setWriting(false), [])
 
-	// The closed weeks the athlete has opened (#505 story 31). Held here rather
-	// than in each week, so a strip jump into a folded week can open it on the
-	// way — a jump is a request to see the week, not its one-line fold.
-	const [openWeeks, setOpenWeeks] = useState<ReadonlySet<string>>(
-		() => new Set(),
-	)
-	const toggleWeek = useCallback((key: string) => {
-		setOpenWeeks((value) => {
-			const next = new Set(value)
-			if (next.has(key)) next.delete(key)
-			else next.add(key)
-			return next
-		})
-	}, [])
 	const streamNode = useRef<HTMLDivElement | null>(null)
 	const { streamRef: scrollStreamRef, goToWeek, readerKey } = scroll
 	const streamRef = useCallback(
@@ -246,23 +232,6 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		[scrollStreamRef],
 	)
 	const streamOf = useCallback(() => streamNode.current, [])
-	// The open set as of the last render, read by the jump rather than depended
-	// on: a strip tap must not get a new callback every time a week opens, or
-	// every memoised strip bar and table row would re-render with it.
-	const openWeeksRef = useRef(openWeeks)
-	openWeeksRef.current = openWeeks
-	const jumpToWeek = useCallback(
-		(key: string) => {
-			const week = season.weeks.find((w) => w.key === key)
-			if (week?.shape === 'folded' && !openWeeksRef.current.has(key)) {
-				// The days open below the week's own top, which is where the jump
-				// lands, so nothing above the reader moves for it.
-				setOpenWeeks((value) => new Set(value).add(key))
-			}
-			goToWeek(key)
-		},
-		[goToWeek, season.weeks],
-	)
 	const large = useLargeScreen()
 
 	// The Ukeskiftet card, after this week's days (#505 story 42), and the badge on
@@ -347,7 +316,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 						strip={season.strip}
 						activeWeekKey={scroll.activeWeekKey}
 						frame={scroll.frame}
-						onSelect={jumpToWeek}
+						onSelect={goToWeek}
 					/>
 				</header>
 
@@ -359,12 +328,13 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 					// in the stream finds the box it scrolls in through this.
 					{...{ [STREAM_ATTR]: 'true' }}
 					// `overscroll-behavior: contain` so the end of the list never drags
-					// the page behind it (mobile baseline, #505 P7). `overflow-anchor:
-					// none` because the one compensation this list makes is its own
-					// (`ReadingHold`), and the browser's anchoring would make it twice.
+					// the page behind it (mobile baseline, #505 P7). The browser's own
+					// scroll anchoring is left on: it is what absorbs a week above the
+					// reader turning out taller than its `content-visibility` estimate
+					// (`ReadingHold` stands in for it where there is none).
 					// `scroll-behavior: smooth` is for the reader's own keyboard
 					// scrolling only — every write the app makes is a jump.
-					className="bg-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none] motion-safe:[scroll-behavior:smooth]"
+					className="bg-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain motion-safe:[scroll-behavior:smooth]"
 				>
 					<ReadingHold
 						revision={season.weeks}
@@ -384,8 +354,6 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 									key={week.key}
 									week={week}
 									anchorDayKey={season.todayKey}
-									open={openWeeks.has(week.key)}
-									onToggle={toggleWeek}
 									afterDays={week.isNow ? weekChangeCard : null}
 									today={week.isNow ? today : null}
 								/>
@@ -419,7 +387,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 					weeks={season.weeks}
 					leadTrackId={season.leadTrackId}
 					frame={scroll.frame}
-					onJump={jumpToWeek}
+					onJump={goToWeek}
 				/>
 			) : null}
 		</main>

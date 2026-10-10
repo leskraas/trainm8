@@ -9,9 +9,10 @@
  * exactly then.
  *
  * - **The past is mounted up front.** Every week before today renders on the
- *   first pass (a closed week is one folded line), so nothing ever grows
- *   *above* the reader and there is nothing to compensate. Weeks ahead are
- *   appended as the reader nears the end, which moves nothing they can see.
+ *   first pass, every day of it (nothing folds), so nothing ever grows *above*
+ *   the reader and there is nothing to compensate. `content-visibility: auto`
+ *   on each week keeps that cheap. Weeks ahead are appended in chunks as the
+ *   reader nears the end, which moves nothing they can see.
  * - **The landing happens before first paint.** The server renders a small
  *   script right after the list (`landingScript`), so the browser parks it on
  *   today while parsing; hydration re-measures the same spot in a layout
@@ -26,11 +27,13 @@
  *   something crosses, and state is set only when a value changes.
  * - **Jumps are instant writes**, made because the reader tapped, and the
  *   observers report the new position on their own.
- * - **A revalidation that adds height above the reader** is the one case left
- *   that writes on its own: {@link ReadingHold} measures the reader's week
- *   just before the new data commits and hands the delta back in the same
- *   frame — the write native scroll anchoring would make, and the stream
- *   carries `overflow-anchor: none` so the two never both make it.
+ * - **Height that changes above the reader** — a revalidation that adds a
+ *   session to a day already scrolled past, or a week laid out for real
+ *   taller than its `content-visibility` estimate — is the browser's scroll
+ *   anchoring's to absorb, which it does without a script write. Where the
+ *   browser has no anchoring (Safari), {@link ReadingHold} makes the one
+ *   write for a revalidation, and the weeks are not `content-visibility`
+ *   there, so their estimate never needs absorbing.
  */
 import {
 	Component,
@@ -449,16 +452,16 @@ export function useTimelineScroll({
 
 /**
  * Holds the reading position when the loader revalidates and puts height above
- * the reader — the one write this list makes on its own (ADR 0086).
+ * the reader — where the browser does not anchor scrolling itself (ADR 0086).
+ * With native anchoring (`overflow-anchor`) this does nothing: the browser
+ * already made the same correction, and making it twice would move the reader.
  *
  * A class for `getSnapshotBeforeUpdate`, which is the only hook React offers
  * that runs **after** the render and **before** the DOM changes: the reader's
  * week is measured there, against the old layout, and again in
  * `componentDidUpdate`, against the new one, in the same frame. Nothing is
  * measured on renders that did not bring new data (`revision` is the season's
- * week list, so a scroll that moves the active week costs nothing here). A
- * band or a folded week opening is not new data, and holds its own position
- * (`bandScrollTop`), so the two never pay for the same height.
+ * week list, so a scroll that moves the active week costs nothing here).
  */
 export class ReadingHold extends Component<{
 	/** Changes when the data under the list does — the season's weeks. */
@@ -469,6 +472,7 @@ export class ReadingHold extends Component<{
 }> {
 	getSnapshotBeforeUpdate(previous: { revision: unknown }) {
 		if (previous.revision === this.props.revision) return null
+		if (anchorsNatively()) return null
 		const el = this.props.stream()
 		if (!el?.isConnected) return null
 		const key = this.props.readerKey()
@@ -509,6 +513,19 @@ export class ReadingHold extends Component<{
 	render() {
 		return this.props.children
 	}
+}
+
+/**
+ * Whether the browser anchors scrolling itself (`overflow-anchor`, Chromium
+ * and Firefox). Read on demand: it is a property of the browser, not of the
+ * render, and the server never asks.
+ */
+function anchorsNatively(): boolean {
+	return (
+		typeof CSS !== 'undefined' &&
+		typeof CSS.supports === 'function' &&
+		CSS.supports('overflow-anchor', 'auto')
+	)
 }
 
 /**

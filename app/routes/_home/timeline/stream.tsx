@@ -1,47 +1,57 @@
 /**
- * The stream — the season's vertical axis, and I dag's reading surface.
+ * The stream — the season's vertical axis, and I dag's reading surface. It
+ * reads like a calendar (ADR 0086, the owner's decision of 2026-10-10): every
+ * week is drawn whole — its header and all seven days — and nothing folds.
  *
- * A week is a sticky header plus its **days** in order, always: an unplanned
- * session that landed in a past week goes in by weekday, never appended, because
- * the athlete reads their week as a week and not as an audit log. The header
- * carries the phase's colour on its left edge, as the strip's phase band does.
+ * A week is a header plus its **days** in order, always: an unplanned session
+ * that landed in a past week goes in by weekday, never appended, because the
+ * athlete reads their week as a week and not as an audit log. The header
+ * names the week on one line with its phase's colour on its left edge, draws
+ * one line per Training Track (the name in the track's colour, `done / target
+ * unit`, a Meter), and closes on one muted sentence. A past week is the same
+ * week, muted; a week past the Planning Horizon is the same week with empty
+ * days under a target, and the first of them stands under the horizon's
+ * divider.
  *
  * A row is a day and a day owns zero or more sessions (ADR 0065 §1), so the date
- * gutter is stated once per day and a morning run and an evening lift stack
- * under it. A day with nothing on it is a **cell**: every date is one in the
- * model, at the 44px control floor, as a real button rather than a clickable
- * box (ADR 0028 §2, ADR 0065 §7).
+ * gutter — weekday over date, today's date circled — is stated once per day
+ * and a morning run and an evening lift stack under it. A day with nothing on
+ * it reads `fri` and is the control that writes one, at the 44px floor, as a
+ * real button (ADR 0028 §2, ADR 0065 §7). Rows are separated by hairlines; no
+ * row is a card.
  *
- * **Today's row is emphasised** by tone, not by a loud colour (ADR 0086): its
- * date sits in a ring, and it carries what the hero used to — the primary
- * action (`Se økta`) and the coach's one line (`Form -13, sliten — …`). On a
- * day with nothing on it, it says so and is the cell that writes one.
+ * A session is one line (#505 D6): a thin rule in its track's colour, a small
+ * glyph saying whose session it is, the whole session sentence — wrapped,
+ * never cut — and its own volume at the right in tabular figures (`6,1 km`),
+ * with a dot in the verdict's colour once it is done. The glyph opens a
+ * popover with what the row knows and its quieter actions (_Lås opp_, _Tell i
+ * Annet_, _Angre kobling_), said once rather than under every row.
  *
- * A session row reads like a printed plan (#505 D6): the whole title, wrapped
- * and never cut; its own volume in its track's unit at the right edge
- * (`6,1 km`), in tabular figures; and whose session it is as a small glyph,
- * whose meaning — and the _Lås opp_ that hands it back — sit behind it in a
- * popover, said once rather than under every row.
- *
- * On screen, a **run** of two or more empty days renders as one band that
- * opens in place: behind today `7 dager · ingenting logget` (ADR 0065 §3, ADR
- * 0075), ahead of it `3 ledige dager` (ADR 0082 §4, #505 story 30). Today never
- * folds. A closed week folds to one line, and a week past the Planning Horizon
- * collapses to one (ADR 0082 §2–3).
+ * **Today's row is emphasised** by tone, not by a loud colour: a tint, its
+ * date circled, and what the hero used to carry — `Se økta` beside _Gjort_,
+ * and the coach's one line under it.
  *
  * Both ends of the season are **stated**. A list that runs out of content and
  * stops is indistinguishable from one that broke, so the first week says how
  * far back this screen reads and the last says how far the plan is written —
  * and offers to write the rest.
  *
+ * **Cost.** With every day drawn a season is up to ~900 rows, so each week is
+ * `content-visibility: auto` with an intrinsic size estimated from what it
+ * holds (`weekHeightEstimate`): the browser skips laying out and painting the
+ * weeks off screen, and the estimate keeps the scrollbar honest until it does.
+ * Only where the browser also anchors scrolling, so a week that turns out
+ * taller than estimated above the reader is absorbed by the browser rather
+ * than seen (ADR 0086). `WeekBlock` and `DayRow` are memoised and carry no
+ * effects.
+ *
  * Motion (ADR 0077 as amended by 0085 and 0086): the press (`pressable`) on
- * every row, cell, band and fold, and the 200ms reflow when a draft, a band or
- * a folded week opens. Nothing else here moves.
+ * every control, the popover's origin-aware entry, and the 200ms reflow when a
+ * draft opens. Nothing moves with the scroll.
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
-import { Fragment, memo, type ReactNode, useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
+import { Fragment, memo, type ReactNode } from 'react'
 import { Link, useFetcher } from 'react-router'
 import { ErrorList } from '#app/components/forms.tsx'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
@@ -62,7 +72,7 @@ import {
 	CAP_LABELS,
 	DAY_ROW_LABELS,
 	DRIFT_MARK,
-	foldedWeekControlLabel,
+	HORIZON_LABELS,
 	ownerGlyphName,
 	RELEASE_ACTION_LABELS,
 	SESSION_DETAIL_LABELS,
@@ -74,24 +84,21 @@ import {
 } from '#app/utils/load/week-change-schema.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { SESSION_ANNET_ACTION } from '#app/utils/session-annet-schema.ts'
-import { bandScrollTop, offsetWithin } from './anchoring.ts'
+import { weekHeightEstimate } from './anchoring.ts'
 import { StampDraft, StampedSentence } from './day-stamp-cell.tsx'
 import { useDayStamp } from './day-stamp-context.tsx'
 import { ImportLinkAction, MarkDoneAction } from './import-actions.tsx'
 import {
 	type PhaseTone,
-	type TimelineBand,
 	type TimelineDay,
 	type TimelineEndCap,
 	type TimelineSession,
 	type TimelineTrackWeek,
 	type TimelineWeek,
 } from './presenter.ts'
-import { growIn } from './reflow.ts'
 import { type RowChipTone } from './row-content.ts'
 import { StrengthLogPanel } from './strength-log-panel.tsx'
 import {
-	STREAM_ATTR,
 	TODAY_ATTR,
 	WEEK_ATTR,
 	WEEK_HEADER_ATTR,
@@ -113,23 +120,23 @@ export type TodayRowExtras = {
 }
 
 /**
- * A week and its days — or, folded or collapsed, a week as one line (#505
- * stories 27, 31).
+ * A week and its days — every one of them (ADR 0086).
  *
  * **Memoised, and that is load-bearing at full span** (#503). Every time the
  * reader crosses a week header the active week changes, and a re-render of
  * the frame re-renders every week mounted in it: measured on a 52-week season,
  * one fling cost 1,470 `WeekBlock` renders for a state change no week block
- * reads. Since ADR 0086 every week before today is mounted from the start, so
- * the memo matters more, not less. A week's props are the week itself (off a
- * memoised season), the anchor day (a string), a folded week's open flag and
- * stable toggle, and today's extras (memoised, and only on today's week).
+ * reads. Every week before today is mounted from the start, so the memo
+ * matters more, not less. A week's props are the week itself (off a memoised
+ * season), the anchor day (a string), and on today's week only, today's
+ * extras and the Ukeskiftet card (both memoised).
+ *
+ * The block is `content-visibility: auto` (see the module's note on cost):
+ * off screen, the browser keeps only its estimated box.
  */
 export const WeekBlock = memo(function WeekBlock({
 	week,
 	anchorDayKey,
-	open = false,
-	onToggle,
 	afterDays = null,
 	today = null,
 }: {
@@ -141,10 +148,6 @@ export const WeekBlock = memo(function WeekBlock({
 	 * whether it holds two sessions, one, or none.
 	 */
 	anchorDayKey: string
-	/** A folded week the athlete (or a strip jump) has opened. */
-	open?: boolean
-	/** Open or close a folded week; stable, so the memo above holds. */
-	onToggle?: (key: string) => void
 	/**
 	 * What follows the week's last day — the Ukeskiftet card (#505 story 42),
 	 * on this week. After the days rather than right under today's row (ADR
@@ -155,45 +158,32 @@ export const WeekBlock = memo(function WeekBlock({
 	/** Today's action and coach line; passed to today's week only. */
 	today?: TodayRowExtras | null
 }) {
-	const ref = useRef<HTMLDivElement>(null)
-	const runRef = useRef<HTMLDivElement>(null)
-	const folded = week.shape === 'folded'
-	const showDays = !folded || open
-
-	/**
-	 * Open or close a folded week without moving the reader — the past band's
-	 * own arithmetic, for the same reason (ADR 0075 §6): the days arrive below
-	 * the fold's line, so only a fold whose top has gone up past the reading
-	 * edge needs the height handed back. A tap, never a scroll in flight.
-	 */
-	function toggle() {
-		const node = ref.current
-		const stream = node?.closest<HTMLElement>(`[${STREAM_ATTR}]`)
-		if (!onToggle) return
-		if (!node || !stream) {
-			onToggle(week.key)
-			return
-		}
-		const before = {
-			offset: offsetWithin(
-				{
-					top: stream.getBoundingClientRect().top,
-					scrollTop: stream.scrollTop,
-				},
-				{ top: node.getBoundingClientRect().top },
-			),
-			scrollTop: stream.scrollTop,
-		}
-		const was = runRef.current?.scrollHeight ?? 0
-		flushSync(() => onToggle(week.key))
-		const run = runRef.current
-		const next = bandScrollTop(before, (run?.scrollHeight ?? 0) - was)
-		if (next != null) stream.scrollTop = next
-		if (run) growIn(run)
-	}
-
-	const days = (
-		<>
+	return (
+		<section
+			{...{ [WEEK_ATTR]: week.key }}
+			data-week-shape={week.shape}
+			aria-label={`${week.relativeName}, ${week.rangeLabel}`}
+			// Off screen, a box of the estimated size and nothing laid out or
+			// painted inside it — only where the browser anchors scrolling too,
+			// so the estimate being off never moves what the reader sees.
+			className="supports-[overflow-anchor:auto]:[content-visibility:auto]"
+			style={{
+				containIntrinsicSize: `auto ${weekHeightEstimate({
+					...week,
+					tracks: week.tracks.map((track) => ({
+						hasFigures: track.hasFigures,
+						noteCount:
+							(trackNotes(track).length > 0 ? 1 : 0) +
+							(track.zoneSplit?.done ? 1 : 0) +
+							(track.zoneSplit?.planned ? 1 : 0),
+					})),
+				})}px`,
+			}}
+		>
+			{week.opensHorizon ? (
+				<HorizonDivider far={week.phaseName == null} />
+			) : null}
+			<WeekHeader week={week} />
 			{/* The line where the plan begins. Above it is history the athlete
 			    brought with them, and saying so once — here — is what lets every
 			    imported row above stay chip-free. */}
@@ -202,51 +192,43 @@ export const WeekBlock = memo(function WeekBlock({
 					{DAY_ROW_LABELS.planStart}
 				</p>
 			) : null}
-			{streamRows(week).map((row) =>
-				row.band ? (
-					<PastBand key={row.band.key} band={row.band} days={row.days} />
-				) : (
-					<Fragment key={row.day.key}>
-						<DayRow
-							day={row.day}
-							isAnchor={row.day.key === anchorDayKey}
-							today={row.day.key === anchorDayKey ? today : null}
-						/>
-					</Fragment>
-				),
-			)}
-			{afterDays}
-		</>
-	)
-
-	return (
-		<div ref={ref} {...{ [WEEK_ATTR]: week.key }} data-week-shape={week.shape}>
-			{week.shape === 'collapsed' ? (
-				<CollapsedHeader week={week} />
-			) : folded ? (
-				<FoldedHeader week={week} open={open} onToggle={toggle} />
-			) : (
-				<WeekHeader
-					week={week}
-					summary={(week.isNow ? today?.verdict : null) ?? week.loadLine}
+			{week.rows.map((day) => (
+				<DayRow
+					key={day.key}
+					day={day}
+					past={week.shape === 'past'}
+					isAnchor={day.key === anchorDayKey}
+					today={day.key === anchorDayKey ? today : null}
 				/>
-			)}
-			{folded ? (
-				open ? (
-					<div ref={runRef} data-timeline-fold-run className="reflow">
-						<WeekFigures
-							week={week}
-							className="border-border/70 border-b px-4 py-2.5"
-						/>
-						{days}
-					</div>
-				) : null
-			) : showDays ? (
-				days
-			) : null}
-		</div>
+			))}
+			{afterDays}
+		</section>
 	)
 })
+
+/**
+ * The Planning Horizon, drawn once above the first week past it (ADR 0086):
+ * `Horisont · herfra bare mål, ingen økter ennå`. From here the weeks are a
+ * target and empty days, and the strip draws the same line dashed.
+ */
+function HorizonDivider({ far }: { far: boolean }) {
+	return (
+		<div
+			data-horizon-divider
+			role="separator"
+			aria-label={`${HORIZON_LABELS.name}: ${far ? HORIZON_LABELS.far : HORIZON_LABELS.plan}`}
+			className="border-foreground/30 bg-background text-muted-foreground text-caption flex min-h-11 items-center gap-1.5 border-t-[1.5px] border-dashed px-4 pt-3 pb-2"
+		>
+			<span className="text-foreground text-overline uppercase">
+				{HORIZON_LABELS.name}
+			</span>
+			<span aria-hidden>·</span>
+			<span className="font-normal">
+				{far ? HORIZON_LABELS.far : HORIZON_LABELS.plan}
+			</span>
+		</div>
+	)
+}
 
 /**
  * The left edge a week's header carries: its phase's colour, as the strip's
@@ -268,72 +250,80 @@ function phaseEdge(week: TimelineWeek): string {
  * draws it: one line naming the week — `Denne uka · 5.–11. okt · Spissing ·
  * hard uke` — with the phase's colour on its left edge; one line per Training
  * Track with the track's name in its colour, `done / target unit`, the planned
- * figure where it says something, and a meter (done filled, planned dashed,
- * the target a tick); and one muted sentence about the week.
+ * figure where it says something, the `≠` mark and the verdict, beside a
+ * Meter (done filled, planned dashed, the target a tick); and the week's one
+ * muted sentence (`week.summary`).
  *
- * Only the name and the track lines are **sticky** (ADR 0086): the notes under
- * them — what was not measured, pace, the zone split, Annet — follow in the
- * flow and scroll away, so a header never stands a third of a phone tall over
- * its own rows.
+ * Only that much is **sticky**: the notes under it — what was not measured,
+ * pace, the zone split, Annet — follow in the flow and scroll away, so a
+ * header never stands a third of a phone tall over its own rows.
+ *
+ * It sits on the card the days sit on, marked by its phase's edge and a
+ * hairline under it rather than a heavy rule; the top bar above the list is
+ * the page's own tone, which is what sets the two apart.
  */
-function WeekHeader({
-	week,
-	summary,
-}: {
-	week: TimelineWeek
-	/** The week's one sentence: the coach's on this week, the tally otherwise. */
-	summary: string | null
-}) {
+function WeekHeader({ week }: { week: TimelineWeek }) {
+	const past = week.shape === 'past'
 	return (
 		<>
 			<div
 				{...{ [WEEK_HEADER_ATTR]: '' }}
 				className={cn(
-					'bg-card border-border/70 sticky top-0 z-2 flex flex-col gap-1 border-b border-l-4 py-2 pr-4 pl-3',
+					'bg-card sticky top-0 z-2 flex flex-col gap-1 border-l-4 py-2 pr-4 pl-3',
 					phaseEdge(week),
 				)}
 			>
 				<WeekTitle week={week} />
 				<WeekFigures week={week} part="numbers" />
-				{summary ? (
+				{week.summary ? (
 					<p
 						data-week-summary
-						className="text-muted-foreground text-caption font-normal [text-wrap:pretty] italic"
+						className={cn(
+							'text-caption font-normal [text-wrap:pretty] italic',
+							past ? 'text-muted-foreground/80' : 'text-muted-foreground',
+						)}
 					>
-						{summary}
+						{week.summary}
 					</p>
 				) : null}
 			</div>
 			<WeekFigures
 				week={week}
 				part="notes"
-				className={cn(
-					'bg-card border-border border-b border-l-4 pt-1 pr-4 pb-2 pl-3',
-					phaseEdge(week),
-				)}
+				className={cn('bg-card border-l-4 pr-4 pb-2 pl-3', phaseEdge(week))}
 			/>
 		</>
 	)
 }
 
-/** `Denne uka · 5.–11. okt · Oppbygging · hard uke`, on one line. */
+/**
+ * `Denne uka · 5.–11. okt · Oppbygging · hard uke`, on one line where it fits.
+ * The week's own name leads in the ink of what it is: this week in the green,
+ * a past week muted, history from before the plan quieter still.
+ */
 function WeekTitle({ week }: { week: TimelineWeek }) {
 	return (
-		<h2 className="text-footnote text-muted-foreground min-w-0">
+		<h2 className="text-footnote text-muted-foreground min-w-0 [text-wrap:pretty]">
 			<span
 				className={cn(
 					'font-semibold',
 					week.isNow
 						? 'text-primary'
-						: week.imported
-							? 'text-muted-foreground'
+						: week.imported || week.shape === 'past'
+							? 'text-foreground/70'
 							: 'text-foreground',
 				)}
 			>
 				{week.relativeName}
 			</span>
-			<span className="tabular-nums"> · {week.rangeLabel}</span>
-			{week.kindLabel ? <span data-week-kind> · {week.kindLabel}</span> : null}
+			{' · '}
+			<span className="tabular-nums">{week.rangeLabel}</span>
+			{week.kindLabel ? (
+				<>
+					{' · '}
+					<span data-week-kind>{week.kindLabel}</span>
+				</>
+			) : null}
 		</h2>
 	)
 }
@@ -377,7 +367,9 @@ function WeekFigures({
 			) : null}
 			{tracks.map((track) => (
 				<Fragment key={track.trackId}>
-					{part === 'notes' ? null : <TrackMeter track={track} />}
+					{part === 'notes' ? null : (
+						<TrackMeter track={track} past={week.shape === 'past'} />
+					)}
 					{part === 'numbers' ? null : <TrackLine track={track} part="notes" />}
 				</Fragment>
 			))}
@@ -573,28 +565,61 @@ const GRADE_INK: Record<TimelineTrackWeek['grade']['status'], string> = {
  * colour, `11,6 / 36 km` (or `mål 52 km` before anything is done), what was
  * planned where it says something, the `≠` mark and the verdict — and beside
  * it a **Meter** (`components/ui/meter.tsx`): done filled in the track's
- * colour, planned as a dashed outline, the target as a tick. The wave-1 rules
- * hold: a side with sessions but no number says so in the number's place
- * (`2 økter uten km`), never `0`, and the verdict is a word as well as a colour.
+ * colour, planned as a dashed outline, the target as a tick. A week with a
+ * target and nothing planned yet — ahead, or past the horizon — draws the
+ * target itself dashed, the way the strip draws an unfilled week.
+ *
+ * The wave-1 rules hold: a side with sessions but no number says so in the
+ * number's place (`2 økter uten km`), never `0`; a target of 0 is no
+ * reference, so the line states what was done and never `12 / 0 km`; and the
+ * verdict is a word as well as a colour.
  */
-function TrackMeter({ track }: { track: TimelineTrackWeek }) {
-	const { target, planned, actual } = track
+function TrackMeter({
+	track,
+	past,
+}: {
+	track: TimelineTrackWeek
+	past: boolean
+}) {
+	const { planned, actual } = track
+	const target = track.target != null && track.target > 0 ? track.target : null
 	const scale = Math.max(target ?? 0, planned ?? 0, actual ?? 0)
 	const share = (value: number | null) =>
 		value == null || scale <= 0 ? 0 : Math.min(100, (value / scale) * 100)
 	const done = track.figures.done ?? track.figureNotes.done
 	const plannedText = track.figures.planned ?? track.figureNotes.planned
+	// The outline the sessions add up to; where nothing is laid yet, the target.
+	const outline =
+		planned != null && planned > 0 ? planned : past ? null : target
+	const name = `${track.name}: ${[
+		track.figures.done != null
+			? `${WEEK_FIGURE_LABELS.done} ${track.figures.done}`
+			: null,
+		target != null
+			? `${WEEK_FIGURE_LABELS.target} ${track.figures.target}`
+			: null,
+		track.figures.planned != null
+			? `${WEEK_FIGURE_LABELS.planned} ${track.figures.planned}`
+			: null,
+	]
+		.filter(Boolean)
+		.join(', ')} ${track.unit}`
 	return (
 		<div
 			data-week-track={track.trackId}
-			className="grid grid-cols-[auto_minmax(48px,1fr)] items-center gap-x-3"
+			className="grid grid-cols-[minmax(0,auto)_minmax(40px,1fr)] items-center gap-x-3"
 		>
-			<span className="text-caption flex flex-wrap items-baseline gap-x-1.5 font-normal tabular-nums">
-				<span className={cn('font-semibold', TRACK_TEXT[track.discipline])}>
+			<span className="text-caption flex min-w-0 flex-wrap items-baseline gap-x-1.5 font-normal tabular-nums">
+				<span
+					className={cn(
+						'font-semibold break-words',
+						TRACK_TEXT[track.discipline] ?? 'text-foreground',
+					)}
+				>
 					{track.name}
 				</span>
 				{done != null ? (
-					<span>
+					<span className="whitespace-nowrap">
 						<span
 							className={cn(
 								'font-semibold',
@@ -606,21 +631,24 @@ function TrackMeter({ track }: { track: TimelineTrackWeek }) {
 							{done}
 						</span>
 						<span className="text-muted-foreground">
-							{' / '}
-							{track.figures.target ?? '–'} {track.unit}
+							{target != null ? ` / ${track.figures.target}` : null}{' '}
+							{track.figures.done != null ? track.unit : null}
+							{target == null && track.figures.done != null
+								? ` ${WEEK_FIGURE_LABELS.done}`
+								: null}
 						</span>
 					</span>
-				) : (
-					<span>
+				) : target != null ? (
+					<span className="whitespace-nowrap">
 						<span className="text-muted-foreground">
 							{WEEK_FIGURE_LABELS.target}{' '}
 						</span>
-						<span className="font-semibold">{track.figures.target ?? '–'}</span>{' '}
+						<span className="font-semibold">{track.figures.target}</span>{' '}
 						<span className="text-muted-foreground">{track.unit}</span>
 					</span>
-				)}
+				) : null}
 				{plannedText != null ? (
-					<span className="text-muted-foreground">
+					<span className="text-muted-foreground whitespace-nowrap">
 						· {WEEK_FIGURE_LABELS.planned} {plannedText}
 					</span>
 				) : null}
@@ -637,28 +665,30 @@ function TrackMeter({ track }: { track: TimelineTrackWeek }) {
 				{track.gradeLabel ? (
 					<span
 						data-week-grade={track.grade.status}
-						className={cn('font-semibold', GRADE_INK[track.grade.status])}
+						className={cn(
+							'font-semibold whitespace-nowrap',
+							GRADE_INK[track.grade.status],
+						)}
 					>
 						{track.gradeLabel}
 					</span>
 				) : null}
 			</span>
 			<Meter
-				value={actual ?? 0}
+				value={Math.min(actual ?? 0, scale > 0 ? scale : 1)}
 				max={scale > 0 ? scale : 1}
-				aria-label={`${track.name}: ${track.figures.done ?? '–'} / ${track.figures.target ?? '–'} ${track.unit}`}
+				aria-label={name}
 				className="block"
 			>
 				<MeterTrack className="relative h-2 overflow-visible bg-transparent">
-					{/* Planned: the outline the sessions add up to. */}
-					{planned != null && planned > 0 ? (
+					{outline != null ? (
 						<span
 							data-meter-planned
 							className={cn(
-								'absolute inset-y-0 left-0 rounded-full border-[1.5px] border-dashed',
+								'absolute inset-y-0 left-0 rounded-full border-[1.5px] border-dashed opacity-80',
 								TRACK_BORDER[track.discipline] ?? 'border-muted-foreground',
 							)}
-							style={{ width: `${share(planned)}%` }}
+							style={{ width: `${share(outline)}%` }}
 						/>
 					) : (
 						<span className="bg-muted absolute inset-0 rounded-full" />
@@ -666,11 +696,12 @@ function TrackMeter({ track }: { track: TimelineTrackWeek }) {
 					<MeterIndicator
 						className={cn(
 							'relative rounded-full',
+							past && 'opacity-80',
 							TRACK_BG[track.discipline] ?? 'bg-muted-foreground',
 						)}
 					/>
 					{/* The target: a tick, where the week is asked to reach. */}
-					{target != null && target > 0 ? (
+					{target != null ? (
 						<span
 							data-meter-target
 							className="bg-foreground absolute -inset-y-[3px] w-0.5 -translate-x-1/2 rounded-full"
@@ -695,246 +726,6 @@ const GRADE_TONE: Record<TimelineTrackWeek['grade']['status'], string> = {
 	over: 'border-status-under/40 text-status-under',
 }
 
-/**
- * A closed week, folded to one line above today (#505 story 31): its name and
- * dates, and what was done against what was asked — `35 av 46 km · under`.
- * Reachable, but out of the way: a tap opens the whole week below the line,
- * and the line stays, carrying the way back (ADR 0075 §5's disclosure).
- */
-function FoldedHeader({
-	week,
-	open,
-	onToggle,
-}: {
-	week: TimelineWeek
-	open: boolean
-	onToggle: () => void
-}) {
-	return (
-		<button
-			type="button"
-			data-timeline-fold={week.key}
-			onClick={onToggle}
-			aria-expanded={open}
-			aria-label={foldedWeekControlLabel(
-				`${week.relativeName}, ${week.rangeLabel}`,
-				week.foldLabel ?? '',
-			)}
-			className={cn(
-				'border-border pressable flex min-h-11 w-full items-center gap-3 border-b border-l-4 py-2 pr-4 pl-3 text-left',
-				phaseEdge(week),
-				open && 'bg-card sticky top-0 z-2',
-			)}
-		>
-			<span className="flex min-w-0 flex-1 flex-col gap-0.5">
-				<span className="flex items-baseline justify-between gap-2.5">
-					<span className="text-muted-foreground text-overline flex min-w-0 items-baseline gap-2 uppercase">
-						<span className="whitespace-nowrap">{week.relativeName}</span>
-						<span className="text-caption normal-case tabular-nums">
-							{week.rangeLabel}
-						</span>
-					</span>
-					{week.kindLabel ? (
-						<span className="text-muted-foreground text-caption flex-none font-normal">
-							{week.kindLabel}
-						</span>
-					) : null}
-				</span>
-				<span className="text-foreground text-footnote tabular-nums">
-					{week.foldLabel}
-				</span>
-			</span>
-			<Icon
-				name={open ? 'chevron-up' : 'chevron-down'}
-				size="xs"
-				className="text-muted-foreground/70 flex-none"
-			/>
-		</button>
-	)
-}
-
-/**
- * A plan week past the Planning Horizon (#505 story 27): one line saying what
- * it will be and when the week change fills it. Not a control — there is
- * nothing in it to open — and the athlete's own sessions there follow as
- * ordinary rows, because their fixed points are never hidden (story 28).
- * Hatched, as the strip draws the same week dashed: a target, not a plan yet.
- */
-function CollapsedHeader({ week }: { week: TimelineWeek }) {
-	return (
-		<div
-			data-timeline-collapsed={week.key}
-			className={cn(
-				'border-border flex min-h-11 flex-col justify-center gap-0.5 border-b border-l-4 bg-[repeating-linear-gradient(135deg,transparent_0_6px,var(--color-muted)_6px_7px)] py-2 pr-4 pl-3',
-				phaseEdge(week),
-			)}
-		>
-			<span className="text-foreground/80 text-footnote">{week.foldLabel}</span>
-			<span className="text-muted-foreground text-caption font-normal">
-				{[week.rangeLabel, week.roleLabel].filter(Boolean).join(' · ')}
-			</span>
-		</div>
-	)
-}
-
-/**
- * One thing the stream renders between the week header and the next: a day, or
- * a band standing in for a run of them.
- */
-type StreamRow =
-	| { band: TimelineBand; days: TimelineDay[] }
-	| { band: null; day: TimelineDay }
-
-/**
- * The week's rows in order, with each run of empty days behind today replaced by
- * the band that speaks for it.
- *
- * The days themselves are not dropped — they are handed to the band, which is
- * what lets it expand into them without asking the presenter for anything more.
- * A day the presenter left out of a band (a single empty one behind today, or
- * any day forward of it) is rendered exactly as it always was.
- */
-function streamRows(week: TimelineWeek): StreamRow[] {
-	// A collapsed week draws only the days holding the athlete's own sessions.
-	const shown = new Set(week.shownDayKeys)
-	const rowsShown = week.rows.filter((day) => shown.has(day.key))
-	if (week.bands.length === 0) {
-		return rowsShown.map((day) => ({ band: null, day }))
-	}
-	const byKey = new Map(week.rows.map((day) => [day.key, day]))
-	const startsAt = new Map(week.bands.map((band) => [band.key, band]))
-	const covered = new Set(week.bands.flatMap((band) => band.dayKeys))
-	const rows: StreamRow[] = []
-	for (const day of rowsShown) {
-		const band = startsAt.get(day.key)
-		if (band) {
-			rows.push({
-				band,
-				days: band.dayKeys.flatMap((key) => byKey.get(key) ?? []),
-			})
-		} else if (!covered.has(day.key)) {
-			rows.push({ band: null, day })
-		}
-	}
-	return rows
-}
-
-/**
- * A run of empty days, as one row that opens into them: behind today the past
- * band (ADR 0065 §3, ADR 0075, #500), ahead of it the free days (ADR 0082 §4).
- * Its summary wraps rather than being cut with "…" (#505 story 32).
- *
- * A **disclosure**, and a real one (ADR 0075 §5): a button that owns
- * `aria-expanded`, states the count and the dates it stands for, and keeps
- * standing there once open so there is a way back. Expanded, the days below it
- * are ordinary `DayRow`s — they take the same add gesture any empty day takes,
- * because they are the same component rendering the same model.
- *
- * **Opening it does not move the reader.** The days are inserted *below* the
- * button, so everything above the band — every pixel the reader is actually
- * looking at — keeps its position and `scrollTop` is left alone. The one case
- * that needs arithmetic is a band whose own top has gone up past the reading
- * edge, and `bandScrollTop` is that arithmetic (ADR 0075 §6). The measurement
- * either side of the toggle has to belong to one reading position, which is why
- * the state is flushed synchronously rather than left to an effect a paint
- * later. It is a write the reader asked for with a tap; the list never writes
- * under a scrolling one (ADR 0086).
- *
- * The run **grows in** rather than appearing (#502): seven rows arriving in one
- * frame is the jarring change the band exists to prevent, so it is one of the
- * accordions the timeline animates `height` on — the draft, a band's run and a
- * folded week's days (ADR 0082 §6). That is also why the delta handed
- * to `bandScrollTop` is read off the run's *content* and not off the band's
- * box — mid-transition the box is a number on its way somewhere, and the
- * position has to be compensated for where the run ends up.
- */
-function PastBand({ band, days }: { band: TimelineBand; days: TimelineDay[] }) {
-	const [expanded, setExpanded] = useState(false)
-	const ref = useRef<HTMLDivElement>(null)
-	const runRef = useRef<HTMLDivElement>(null)
-
-	function toggle() {
-		const node = ref.current
-		const stream = node?.closest<HTMLElement>(`[${STREAM_ATTR}]`)
-		if (!node || !stream) {
-			setExpanded((open) => !open)
-			return
-		}
-		const before = {
-			offset: offsetWithin(
-				{
-					top: stream.getBoundingClientRect().top,
-					scrollTop: stream.scrollTop,
-				},
-				{ top: node.getBoundingClientRect().top },
-			),
-			scrollTop: stream.scrollTop,
-		}
-		// What the run is worth, either side of the toggle. Closing, the wrapper
-		// is gone afterwards and its height is what was taken away; opening, it
-		// arrives at its natural height and is what was added.
-		const was = runRef.current?.scrollHeight ?? 0
-		flushSync(() => setExpanded((open) => !open))
-		const run = runRef.current
-		const next = bandScrollTop(before, (run?.scrollHeight ?? 0) - was)
-		if (next != null) stream.scrollTop = next
-		// After the compensation, never before it: the growth starts by writing
-		// the closed height back onto the box, and the position it is being
-		// compensated against is the open one.
-		if (run) growIn(run)
-	}
-
-	return (
-		<div
-			ref={ref}
-			data-timeline-band={band.key}
-			data-band-kind={band.kind}
-			// The days the band stands for, so a reader of the DOM — the 390×844
-			// spec — can tell a folded day from a missing one.
-			data-band-days={band.dayKeys.join(' ')}
-		>
-			<button
-				type="button"
-				onClick={toggle}
-				aria-expanded={expanded}
-				// The dates, then the fact. One of several bands in a season, so the
-				// name has to say *which* run this is — the gutter says that to a
-				// sighted reader and nothing else would say it to anyone else.
-				aria-label={band.controlLabel}
-				className="border-border/70 pressable grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 border-b py-2 pr-4 pl-4 text-left"
-			>
-				<span className="flex flex-col items-center gap-0.5 text-center">
-					<span className="text-muted-foreground text-overline tabular-nums">
-						{band.daysLabel}
-					</span>
-					<span className="text-muted-foreground text-caption font-normal">
-						{band.monthLabel}
-					</span>
-				</span>
-				<span className="flex min-w-0 items-center gap-2">
-					<span className="text-muted-foreground text-footnote min-w-0 flex-1 text-pretty break-words">
-						{band.summaryLabel}
-					</span>
-					<Icon
-						name={expanded ? 'chevron-up' : 'chevron-down'}
-						size="xs"
-						className="text-muted-foreground/70 flex-none"
-					/>
-				</span>
-			</button>
-			{expanded ? (
-				<div ref={runRef} className="reflow">
-					{days.map((day) => (
-						// Never the anchor: a band is behind today by construction, and
-						// today is not behind itself.
-						<DayRow key={day.key} day={day} isAnchor={false} />
-					))}
-				</div>
-			) : null}
-		</div>
-	)
-}
-
 /** A quiet outline link, at the caps' own scale. */
 const CAP_LINK = cn(buttonVariants({ variant: 'outline' }), 'rounded-full')
 /** The caps' one primary action. */
@@ -946,17 +737,37 @@ const CAP_PRIMARY = cn(buttonVariants(), 'rounded-full')
  */
 const TODAY_TONE = 'bg-primary/6 dark:bg-primary/10'
 
+/** The hairline between two rows. A rule, never a card per row. */
+const ROW_RULE = 'border-border/60 border-b'
+
 /**
- * The date gutter every row of a day aligns to (ADR 0065 §7): the weekday over
- * the date. Today's date sits in a ring — the one mark that says "you are
- * here" without colouring the row loud.
+ * Every row's grid: the 42px date gutter and the content beside it, so the
+ * gutters of a week line up whatever the rows hold (ADR 0065 §7).
+ */
+const DAY_GRID =
+	'grid grid-cols-[42px_minmax(0,1fr)] items-start gap-x-2.5 pl-4'
+
+/**
+ * Where a session's sentence starts — the gutter (16 + 42 + 10), the track's
+ * rule (3 + 6) and the glyph (20 + 6) — so what hangs under a session (its
+ * actions, today's coach line) lines up with its words.
+ */
+const TITLE_INSET = 'pl-[103px]'
+
+/**
+ * The date gutter every row of a day aligns to (ADR 0065 §7): the weekday in
+ * small capitals over the date. Today's date is circled — the one mark that
+ * says "you are here" without colouring the row loud — and a past day's date
+ * is muted, as a calendar greys the days gone by.
  */
 function DateGutter({
 	day,
+	past = false,
 	show = true,
 	className,
 }: {
 	day: TimelineDay
+	past?: boolean
 	show?: boolean
 	className?: string
 }) {
@@ -964,7 +775,7 @@ function DateGutter({
 	return (
 		<span
 			className={cn(
-				'flex flex-col items-center gap-0.5 pt-px text-center',
+				'flex flex-col items-center gap-0.5 pt-1.5 text-center',
 				className,
 			)}
 		>
@@ -974,39 +785,46 @@ function DateGutter({
 			<span
 				data-gutter-date
 				className={cn(
-					'text-footnote tabular-nums',
+					'text-callout grid min-w-7 place-items-center rounded-full px-1 tabular-nums',
 					day.isToday
-						? 'ring-primary text-primary rounded-full px-1.5 font-bold ring-[1.5px]'
-						: 'text-muted-foreground',
+						? 'ring-primary text-primary bg-primary/10 h-7 font-bold ring-[1.5px]'
+						: past
+							? 'text-muted-foreground font-normal'
+							: 'text-foreground font-normal',
 				)}
 			>
-				{day.dateLabel}
+				{day.dayOfMonth}
 			</span>
 		</span>
 	)
 }
 
 /**
- * One day of the stream. The date gutter is the day's, stated once, and every
- * session on the day aligns to it — the gutter is the grid's alignment
- * contract, which is what makes a column of ragged-height rows read as a grid
- * (ADR 0065 §7).
+ * One day of the stream: a row, every day (ADR 0086). The date gutter is the
+ * day's, stated once, and every session on the day aligns to it — the gutter
+ * is the grid's alignment contract, which is what makes a column of
+ * ragged-height rows read as a grid (ADR 0065 §7).
  *
  * A day with no sessions is an **empty cell** rather than nothing at all, which
- * is what makes today addressable on a rest day and every date ahead a write
- * target. Which days get one is the presenter's call, not this component's: it
- * renders the days it is handed.
+ * is what makes today addressable on a rest day and every date a write target
+ * (ADR 0065 §6 lets the past be written into too).
  *
  * Today's day carries the session's action (`Se økta`, {@link
- * TodayRowExtras}); the coach's line, the hero's other half, is this week's
- * sentence in its header.
+ * TodayRowExtras}) on its session, and the coach's line under it all — the
+ * hero's today pane, in one row.
+ *
+ * Memoised: a day's props are its model, two flags and today's extras, all
+ * stable across the scroll-driven renders of the frame.
  */
-function DayRow({
+const DayRow = memo(function DayRow({
 	day,
+	past,
 	isAnchor,
 	today = null,
 }: {
 	day: TimelineDay
+	/** In a week before this one: the row is the record, muted. */
+	past: boolean
 	isAnchor: boolean
 	today?: TodayRowExtras | null
 }) {
@@ -1015,19 +833,20 @@ function DayRow({
 			// The landing anchor is today itself — not a zero-height marker: it is
 			// the day, so it survives the day being empty.
 			{...(isAnchor ? { [TODAY_ATTR]: 'true' } : {})}
-			// The row states which day it is. Nothing reads it at runtime; it is how
-			// the 390×844 spec proves the grid has no holes in it.
+			// The row states which day it is: how the 390×844 spec proves the
+			// grid has no holes in it.
 			data-timeline-day={day.key}
-			className={cn('border-border/70 border-b', day.isToday && TODAY_TONE)}
+			className={cn(ROW_RULE, day.isToday && TODAY_TONE)}
 		>
 			{day.sessions.length === 0 ? (
-				<EmptyDay day={day} />
+				<EmptyDay day={day} past={past} />
 			) : (
 				day.sessions.map((session, index) => (
 					<DaySession
 						key={session.id}
 						session={session}
 						day={day}
+						past={past}
 						// The gutter belongs to the day, so only the first session under it
 						// prints it. The column stays reserved for the rest.
 						showDate={index === 0}
@@ -1035,28 +854,42 @@ function DayRow({
 					/>
 				))
 			)}
+			{today?.verdict ? (
+				<p
+					data-today-verdict
+					className={cn(
+						'text-footnote text-muted-foreground pr-4 pb-2.5 [text-wrap:pretty]',
+						TITLE_INSET,
+					)}
+				>
+					{today.verdict}
+				</p>
+			) : null}
 		</div>
 	)
-}
+})
 
 /**
- * A day with nothing on it — the cell the grid is made of.
+ * A day with nothing on it — the cell the grid is made of, after variant P:
+ * `fri` in quiet italics and a plus at the right edge, the whole row the
+ * control.
  *
  * A **real button**, not a clickable box: ADR 0028's second pillar is the actual
  * 44px control rather than a hit-area painted around something inert, and this
  * is the row the athlete is meant to write into. `min-h-11` because 44px is a
- * **floor**. What makes the column read as a grid is the date gutter every row
- * aligns to, not a uniform height (ADR 0065 §7).
+ * **floor**.
  *
- * It says only what the app knows (ADR 0065 §4). `Rest day` is written where the
- * **Plan Outline** prescribes recovery and nowhere else, so today it is written
- * nowhere. Every other empty day is a blank cell carrying its date and the add
- * affordance — except **today**, which says that it holds nothing, because it
- * is the row the athlete opened the app to read (ADR 0086).
+ * It says only what the app knows (ADR 0065 §4). `Hviledag` is written where
+ * the **Plan Outline** prescribes recovery and nowhere else, so today it is
+ * written nowhere; `fri` says only that nothing is written in the day.
+ * **Today** says it holds nothing in words, because it is the row the athlete
+ * opened the app to read. A past day is quieter: its plus is muted, since
+ * writing into the past is allowed (ADR 0065 §6) but is not what the row is
+ * for.
  *
  * Pressing it opens the **draft** in place (#501) — see `day-stamp-cell.tsx`.
  */
-function EmptyDay({ day }: { day: TimelineDay }) {
+function EmptyDay({ day, past }: { day: TimelineDay; past: boolean }) {
 	const stamp = useDayStamp()
 
 	// The tapped cell opens **in place**, as layout rather than as a floating
@@ -1076,18 +909,18 @@ function EmptyDay({ day }: { day: TimelineDay }) {
 			type="button"
 			data-timeline-empty={day.key}
 			onClick={() => stamp.openDraft(day.key)}
-			// One of up to 182 identical-looking cells, so the name says which day
-			// it is. Sighted readers get that from the gutter beside it.
+			// One of up to hundreds of identical-looking cells, so the name says
+			// which day it is. Sighted readers get that from the gutter beside it.
 			aria-label={
 				day.restPrescribed
 					? DAY_ROW_LABELS.restDayOn(`${day.dayLabel} ${day.dateLabel}`)
 					: DAY_ROW_LABELS.addWorkoutOn(`${day.dayLabel} ${day.dateLabel}`)
 			}
-			className="pressable grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 py-1 pr-2 pl-4 text-left"
+			className={cn(DAY_GRID, 'pressable min-h-11 w-full pr-2 text-left')}
 		>
-			<DateGutter day={day} />
+			<DateGutter day={day} past={past} />
 			{day.restPrescribed ? (
-				<span className="flex min-w-0 flex-col gap-0.5">
+				<span className="flex min-w-0 flex-col gap-0.5 pt-2">
 					<span className="text-foreground text-callout">
 						{DAY_ROW_LABELS.restDay}
 					</span>
@@ -1096,21 +929,25 @@ function EmptyDay({ day }: { day: TimelineDay }) {
 					</span>
 				</span>
 			) : (
-				/* Variant P's free day: `fri` in quiet italics and a plus at the
-				   right edge — the whole row is the control. Today says it holds
-				   nothing in words, since it is the row the athlete came to read. */
-				<span className="flex min-w-0 items-center justify-between gap-2">
+				<span className="flex min-h-11 min-w-0 items-center justify-between gap-2 self-stretch">
 					<span
 						className={cn(
 							'text-footnote',
-							day.isToday ? 'text-foreground' : 'text-muted-foreground italic',
+							day.isToday
+								? 'text-foreground'
+								: past
+									? 'text-muted-foreground/70 italic'
+									: 'text-muted-foreground italic',
 						)}
 					>
 						{day.isToday ? DAY_ROW_LABELS.nothingToday : DAY_ROW_LABELS.free}
 					</span>
 					<span
 						aria-hidden
-						className="text-primary flex size-8 flex-none items-center justify-center"
+						className={cn(
+							'flex size-8 flex-none items-center justify-center',
+							past ? 'text-muted-foreground/60' : 'text-primary',
+						)}
 					>
 						<Icon name="plus" size="sm" />
 					</span>
@@ -1128,11 +965,13 @@ function EmptyDay({ day }: { day: TimelineDay }) {
 function DaySession({
 	session,
 	day,
+	past,
 	showDate,
 	cta = null,
 }: {
 	session: TimelineSession
 	day: TimelineDay
+	past: boolean
 	showDate: boolean
 	cta?: TodayRowExtras['cta']
 }) {
@@ -1150,7 +989,13 @@ function DaySession({
 		)
 	}
 	return (
-		<SessionRow session={session} day={day} showDate={showDate} cta={cta} />
+		<SessionRow
+			session={session}
+			day={day}
+			past={past}
+			showDate={showDate}
+			cta={cta}
+		/>
 	)
 }
 
@@ -1173,11 +1018,13 @@ function DaySession({
 function SessionRow({
 	session,
 	day,
+	past,
 	showDate,
 	cta = null,
 }: {
 	session: TimelineSession
 	day: TimelineDay
+	past: boolean
 	showDate: boolean
 	/** Today's action (`Se økta`), on the session it opens (ADR 0086). */
 	cta?: TodayRowExtras['cta']
@@ -1195,9 +1042,9 @@ function SessionRow({
 	].filter((fact): fact is string => !!fact)
 	return (
 		<div data-session-row={session.id}>
-			<div className="grid grid-cols-[46px_1fr] gap-x-3 pr-4 pl-4">
-				<DateGutter day={day} show={showDate} className="py-2" />
-				<div className="flex min-w-0 items-stretch gap-1 py-1">
+			<div className={cn(DAY_GRID, 'pr-4')}>
+				<DateGutter day={day} past={past} show={showDate} />
+				<div className="flex min-w-0 items-stretch gap-1.5 py-1.5">
 					{/* The track's rule: the one mark naming the discipline, so it
 					    carries the name — a colour alone is not a label. */}
 					<span
@@ -1220,21 +1067,23 @@ function SessionRow({
 						to={session.to}
 						prefetch="intent"
 						data-status={session.status}
-						className="pressable flex min-h-10 min-w-0 flex-1 items-start gap-2 py-1.5"
+						className="pressable relative flex min-h-8 min-w-0 flex-1 items-start gap-2 py-1 after:absolute after:inset-x-0 after:-inset-y-1.5"
 					>
 						<span
 							data-session-title
 							className={cn(
-								'text-footnote min-w-0 flex-1 [text-wrap:pretty] break-words',
+								'text-callout min-w-0 flex-1 font-normal [text-wrap:pretty] [overflow-wrap:anywhere]',
 								missed
 									? 'text-muted-foreground line-through decoration-1'
-									: 'text-foreground',
-								day.isToday && !missed ? 'font-semibold' : null,
+									: past
+										? 'text-foreground/80'
+										: 'text-foreground',
+								day.isToday && !missed ? 'font-medium' : null,
 							)}
 						>
 							{session.title}
-						</span>
-						<span className="text-footnote flex flex-none items-center gap-1.5 pt-px text-right whitespace-nowrap tabular-nums">
+						</span>{' '}
+						<span className="text-footnote flex flex-none items-center gap-1.5 pt-0.5 text-right whitespace-nowrap tabular-nums">
 							{missed ? (
 								<span className="text-status-missed italic">
 									{SESSION_DETAIL_LABELS.missed}
@@ -1282,7 +1131,10 @@ function SessionRow({
 			{cta || session.markDone ? (
 				<div
 					data-session-actions
-					className="flex flex-wrap items-center gap-x-4 pr-4 pb-2 pl-[86px]"
+					className={cn(
+						'flex flex-wrap items-center gap-x-4 pr-4 pb-2',
+						TITLE_INSET,
+					)}
 				>
 					{cta ? (
 						<Link
@@ -1348,7 +1200,9 @@ function SessionGlyph({
 						? ownerGlyphName(owner, session.title)
 						: SESSION_DETAIL_LABELS.name(session.title)
 				}
-				className="pressable text-muted-foreground hover:bg-muted aria-expanded:bg-muted relative mt-1 flex size-7 flex-none items-center justify-center rounded-full after:absolute after:-inset-2"
+				// 20px wide on screen, 44px under a thumb (the `after:` hit area),
+				// and above the row's link where the two meet.
+				className="pressable text-muted-foreground hover:bg-muted aria-expanded:bg-muted relative z-1 flex h-7 w-5 flex-none items-center justify-center rounded-full after:absolute after:-inset-x-3 after:-inset-y-2"
 			>
 				{athlete ? (
 					<Icon name="pencil-1" size="xs" />

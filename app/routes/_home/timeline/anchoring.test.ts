@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  *
  * The arithmetic behind I dag's list and strip (ADR 0086): the landing, what
- * the observers' reports mean, and the two tapped toggles' and the
- * revalidation's position holds. The landing script the server renders is
+ * the observers' reports mean, the revalidation's position hold, and a week's
+ * estimated height. The landing script the server renders is
  * held to `landingTop` here, against a fake layout, so the copy that runs
  * before hydration cannot drift from the one that runs after it.
  */
@@ -16,7 +16,6 @@ import {
 	AHEAD_STEP,
 	awayFromEntry,
 	awayOf,
-	bandScrollTop,
 	compensatedScrollTop,
 	frameOf,
 	LANDING_GAP,
@@ -28,7 +27,10 @@ import {
 	landingTop,
 	nextAhead,
 	offsetWithin,
+	WEEK_HEIGHTS,
 	WEEK_JUMP_OFFSET,
+	type WeekHeightInput,
+	weekHeightEstimate,
 } from './anchoring.ts'
 
 // A phone-sized list: the viewport these thresholds have to hold for.
@@ -295,25 +297,54 @@ describe('holding the reading position when the loader revalidates', () => {
 	})
 })
 
-describe('holding the reading position when a band or a folded week opens', () => {
-	test('a band below the reading edge moves nothing, however much it inserts', () => {
-		expect(bandScrollTop({ offset: 900, scrollTop: 640 }, 352)).toBeNull()
-		expect(bandScrollTop({ offset: 640, scrollTop: 640 }, 352)).toBeNull()
+describe("a week's estimated height, for content-visibility (ADR 0086)", () => {
+	const day = (titles: string[] = []) => ({
+		sessions: titles.map((title) => ({ title })),
+	})
+	const week = (overrides: Partial<WeekHeightInput> = {}): WeekHeightInput => ({
+		tracks: [{ hasFigures: true, noteCount: 0 }],
+		summary: '2 av 5 gjort',
+		planStart: false,
+		opensHorizon: false,
+		rows: Array.from({ length: 7 }, () => day()),
+		...overrides,
 	})
 
-	test('a band that has gone up past the edge hands the height back', () => {
-		expect(bandScrollTop({ offset: 600, scrollTop: 640 }, 352)).toBe(992)
+	test('an empty week is its header and seven empty days', () => {
+		const h = WEEK_HEIGHTS
+		expect(weekHeightEstimate(week())).toBe(
+			h.header + h.track + h.summary + 7 * h.emptyDay,
+		)
 	})
 
-	test('collapsing one above the edge pulls the position back the same way', () => {
-		expect(bandScrollTop({ offset: 600, scrollTop: 992 }, -352)).toBe(640)
+	test('sessions, a wrapping sentence and an action line each add their height', () => {
+		const one = weekHeightEstimate(week({ rows: [day(['6 km rolig'])] }))
+		const long = weekHeightEstimate(
+			week({
+				rows: [
+					day([
+						'Knebøy 5×5 @ 80 kg · Benkpress 5×5 @ 60 kg · Roing 3×8 · Markløft 3×5',
+					]),
+				],
+			}),
+		)
+		const two = weekHeightEstimate(
+			week({ rows: [day(['6 km rolig', 'Styrke A'])] }),
+		)
+		expect(long).toBeGreaterThan(one)
+		expect(two).toBe(one + WEEK_HEIGHTS.extraSession)
 	})
 
-	test('a toggle that changed no height is left alone', () => {
-		expect(bandScrollTop({ offset: 600, scrollTop: 640 }, 0)).toBeNull()
-	})
-
-	test('the position never goes negative', () => {
-		expect(bandScrollTop({ offset: 0, scrollTop: 40 }, -352)).toBe(0)
+	test('notes, the plan-start line and the horizon divider are counted', () => {
+		const base = weekHeightEstimate(week())
+		expect(
+			weekHeightEstimate(
+				week({
+					tracks: [{ hasFigures: true, noteCount: 2 }],
+					planStart: true,
+					opensHorizon: true,
+				}),
+			),
+		).toBe(base + 2 * WEEK_HEIGHTS.note + 2 * WEEK_HEIGHTS.banner)
 	})
 })
