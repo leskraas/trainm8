@@ -1472,17 +1472,16 @@ adopted — is not laid again, the athlete's own sessions in it are left as they
 are, and with no plan or no pattern nothing is filled. It limits the app only:
 the athlete may write sessions any distance ahead — the **Writing Line** takes
 any day from half a year back onward, with no last day — and those are kept as
-theirs.
-Distinct from the **14-Day Horizon**, which only decides what reads as upcoming.
-On home a plan week past it that nothing has laid reads as one line, a
-**Collapsed Week** (ADR 0082 §3), whose line says when the horizon reaches it:
-_fylles søndag kveld i uke N_, where N is the week **two before** it. The
-arithmetic is the close's own: the Sunday 20:00 close of week N fills week N+2,
-so week 41 is filled on the Sunday evening that ends week 39 — a moment on the
-calendar, not a condition on the athlete's training (an earlier _fylles når uke
-39 er ferdig_ read as the latter). With no **Week Pattern** nothing fills, and
-the line says _ingen økter lagt inn ennå_ instead. _Avoid_: Wall, lookahead,
-sprint window.
+theirs. Distinct from the **14-Day Horizon**, which only decides what reads as
+upcoming. On home a plan week past it that nothing has laid is drawn whole under
+a _Horisont_ divider (ADR 0086): its days empty rows, its header its phase and
+target, and its sentence when the horizon reaches it: _fylles søndag kveld i uke
+N_, where N is the week **two before** it. The arithmetic is the close's own:
+the Sunday 20:00 close of week N fills week N+2, so week 41 is filled on the
+Sunday evening that ends week 39 — a moment on the calendar, not a condition on
+the athlete's training (an earlier _fylles når uke 39 er ferdig_ read as the
+latter). With no **Week Pattern** nothing fills, and it says _ingen økter lagt
+inn ennå_ instead. _Avoid_: Wall, lookahead, sprint window.
 
 **Discipline Query**: The URL query parameter that preserves the selected
 discipline filter. _Avoid_: Local filter state, tab state
@@ -1520,36 +1519,30 @@ different thing and does use the word; _avoid_ "not the current navigation
 model", "a possible future direction" — it is the home surface
 
 **Home Timeline**: The athlete's home view at `/`, and the default destination
-after login: **The Tape** as one screen. Three parts in one column — a header
-block holding the **Hero**, its **Pane Dots** and the **Week Strip**, the
-**Stream** beneath them — plus the single "+ New" creation menu (#178), which
-the header carries, and the **Back-to-Today Pill** (_I dag_) at the strip's
-corner. From `lg` up the **Season Pane** sits beside the column (ADR 0082). UI
-word: _I dag_. It carries **two horizontal axes and one vertical one**, and the
-rule that explains the whole screen is that the Hero never moves in time while
-the Week Strip and the Stream always do (ADR 0065 §8). It opens at the **Landing
-Position**, and the header collapses as the athlete moves away from that point
-in **either** direction, so the Stream gets the whole screen the moment it is
-being read rather than looked at. The Stream, the Week Strip and the Hero's
-Today pane are all derived from the one `LedgerSession[]` the **Session
-Ledger**'s query already shipped — the strip and the stream are two views of one
-array, so an overview cannot disagree with the thing it overviews — and the
-Hero's other three panes read the **Load Snapshots**, **Personal Records**,
-adherence and **Week Replan** the loader was already fetching. Nothing is
-fetched twice, and nothing new was fetched to bring those panes back. _Avoid_:
+after login: **The Tape** as one screen. Three parts in one column (ADR 0086): a
+pinned **top bar** — the plan and its goal countdown, the Ukeskiftet badge while
+a proposal waits, the "+ Ny" creation menu (#178) and the **Back-to-Today Pill**
+(_I dag_) — the **Week Strip** under it, and the **Stream**, which gets the rest
+of the screen and reads like a calendar: every week whole, every day a row.
+There is no hero (its Form and Rekorder panes live on Meg) and nothing collapses
+or folds. From `lg` up the **Season Pane** sits beside the column (ADR 0082). UI
+word: _I dag_. It opens at the **Landing Position**, already parked before the
+first paint. The Stream and the Week Strip are derived from the one
+`LedgerSession[]` the **Session Ledger**'s query already shipped — two views of
+one array, so an overview cannot disagree with the thing it overviews. _Avoid_:
 Dashboard, Cockpit, home page, landing page, feed, tabs
 
-**Every-Day Grid**: The home stream's row model (ADR 0065): the row is a **day**
-and a day owns **zero or more Workout Sessions**, so every date from today
-forward is a day whether or not anything is planned on it, and runs of empty
-days collapse into a **Past Band** that expands on tap — behind today the
-record's `ingenting logget`, ahead of it the free days a printed plan folds into
-one short row, `3 ledige dager` (ADR 0082 §4). Today never folds. An empty day
-is a real 44px control — tapping it stamps a one-step block and _renders_ it as
-a **Token Sentence** (ADR 0027), or writes what the **Writing Line** read. It is
-a shortcut into authoring a session, never an editor for the **Plan Outline**.
-"Rest day" is written only where the plan prescribes recovery; every other empty
-day carries no label. _Avoid_: Calendar, cell (for a row), "a row is a session"
+**Every-Day Grid**: The home stream's row model (ADR 0065, ADR 0086): the row is
+a **day** and a day owns **zero or more Workout Sessions**, so every date the
+query reached is a row whether or not anything is on it — behind today, ahead of
+it, and in weeks past the **Planning Horizon**. Nothing folds: a free day reads
+_fri_ with a "+", today with nothing on it _Ingenting i dag_. An empty day is a
+real 44px control — tapping it stamps a one-step block and _renders_ it as a
+**Token Sentence** (ADR 0027), or writes what the **Writing Line** read; a past
+day takes the same gesture (ADR 0065 §6). It is a shortcut into authoring a
+session, never an editor for the **Plan Outline**. "Rest day" is written only
+where the plan prescribes recovery; every other empty day says only _fri_.
+_Avoid_: Calendar (as its name), cell (for a row), "a row is a session"
 
 **Day Stamp**: What tapping an empty day in the **Every-Day Grid** writes (ADR
 0065 §5, #501): a minimal **one-step block** — 45 min at Z2, in the prefilled
@@ -1574,20 +1567,20 @@ a short sentence — `10 km rolig`, `3x10 min terskel p 1 min` (#505 stories
 `Skriv en økt` for any other day, any distance ahead (story 40) — past the
 **Planning Horizon**, past the plan's end and past the two years I dag reads; a
 far week past the plan reads as one collapsed line showing only the sessions
-written into it, and a session written past what I dag reads is still taken
-back from the toast. While the athlete
-types it shows what was understood (the **Token Sentence** rendered from the
-structure the reader produced), the **Planned Volume** before → after against
-the **Week Target** (`40 → 46 km, målet står på 52`; a session with no number in
-the track's unit is `+1 uten km`, never a silent zero), and a suggestion for
-every word the reader did not know. It saves only a sentence it understood in
-full, as an `authored` session; the server reads the sentence again. Writing a
-session never moves the Week Target, and the toast after a write, a stamp or an
-undo says so (`Løping denne uka: 40 → 46 km. Ukemålet står på 52.`). Every write
-can be taken back on I dag (ADR 0076): from the draft the row opens with
-_Angre_, and from "+ Ny", whose day may be anywhere, the toast carries _Angre_. Free-text
-commands (`syk til onsdag`) are not part of it. _Avoid_: command line, quick
-add, search box, chat
+written into it, and a session written past what I dag reads is still taken back
+from the toast. While the athlete types it shows what was understood (the
+**Token Sentence** rendered from the structure the reader produced), the
+**Planned Volume** before → after against the **Week Target**
+(`40 → 46 km, målet står på 52`; a session with no number in the track's unit is
+`+1 uten km`, never a silent zero), and a suggestion for every word the reader
+did not know. It saves only a sentence it understood in full, as an `authored`
+session; the server reads the sentence again. Writing a session never moves the
+Week Target, and the toast after a write, a stamp or an undo says so
+(`Løping denne uka: 40 → 46 km. Ukemålet står på 52.`). Every write can be taken
+back on I dag (ADR 0076): from the draft the row opens with _Angre_, and from "+
+Ny", whose day may be anywhere, the toast carries _Angre_. Free-text commands
+(`syk til onsdag`) are not part of it. _Avoid_: command line, quick add, search
+box, chat
 
 **First Run**: The five screens a new athlete, or one with no plan, goes through
 to their first **Training Plan** (`/start`, #505 stories 61–71): connect
@@ -1609,37 +1602,13 @@ selv_ makes the same plan and opens it in Sesong; there is no empty-season
 start. The answers travel in the URL until the plan is made. _Avoid_: onboarding
 (the account sign-up), wizard, setup
 
-**Hero**: The **Home Timeline**'s top band — **four panes of _now_**, always
-anchored on today, paged sideways one full-width pane at a time (ADR 0065 §8):
-**Today** (today's session as a headline — a kicker
-`Today · Run · 9 weeks to race day`, the title, the shape bars, the facts that
-resolved, the **Coach card**'s one-line verdict and a single honest action),
-**Form** (the **Training Load Section**), **This week** (the week's **Weekly
-Plan Adherence**, its strength **Summary Count** and the **Week Replan**
-decision) and **Records** (the **Proof Strip**). It **never moves in time**:
-paging it changes which facet of today is showing and moves neither the **Week
-Strip** nor the **Stream**, and scrolling the Stream folds the whole band down
-to a one-line summary plus its action rather than re-pointing it at another day.
-With nothing ahead the Today pane says "Nothing scheduled" rather than rendering
-an empty shape. The fold is a scroll-position collapse and not a drawer — no
-open/closed control, no focus to trap, nothing to dismiss — and it is **not an
-animation**: collapse progress is read straight off the drift from the **Landing
-Position**, with no duration and no threshold, so half a drag leaves the Hero
-half folded and reversing reverses it from there (#498). Its travel is the
-Hero's own open height, one pixel of fold per pixel of drift, because the Hero
-sits above the **Stream** rather than inside it and every pixel the fold takes
-off the header is a pixel the Stream's viewport gains — a shorter travel would
-buy a quicker fold by multiplying the lurch. The band's parallax lift is the
-only _movement_ in it, and the only part `prefers-reduced-motion` drops.
-_Avoid_: Coach card (that is the sentence inside it), decision strip, today
-card, banner, masthead, tabs (the panes are not tabs — all four exist at once
-and a swipe is the gesture)
+**Hero** (retired): The **Home Timeline**'s former top band — four paged panes
+of _now_ (Today, Form, This week, Records) that folded as the Stream scrolled
+(ADR 0065 §8). Removed by ADR 0086: today's action and the coach's line live on
+today's row, the week pane was already the week header, and Form and Records
+moved to Meg. _Avoid_: the word, for anything on I dag now
 
-**Pane Dots**: The four dots under the **Hero**, which are the pager's indicator
-_and_ its boundary: they belong to neither horizontal scroller and swallow a
-stray thumb that lands between them. Real buttons, because they are how every
-pane is reached without a swipe — the pager is also keyboard-operable, and a
-pane change is announced. _Avoid_: Tabs, page indicator, carousel controls
+**Pane Dots** (retired): The **Hero**'s pager dots; gone with it (ADR 0086).
 
 **Week Strip**: The **Home Timeline**'s _navigating_ horizontal axis — the whole
 season as one bar per **Training Week**, every week on screen at once, with a
@@ -1651,56 +1620,43 @@ under its bar and a week that asks for lifting a dot. With no plan it reads
 load. It never carries a session name: an overview that competes with the thing
 it overviews is not an overview. Every week is a real button named with its
 numbers; tapping one jumps the Stream there, loading it first if it is outside
-the window, and opening it if it is a **Folded Week**. The weeks are one toolbar
-and one tab stop, moved along with the arrow keys; a finger is read off its x
-over the whole row's height rather than off the bar under it, and dragging
-scrubs the Stream through the season. It does not scroll — only the **Hero**
-moves sideways — and its corner holds the **Back-to-Today Pill**. UI words:
-_Sesongen_, _I dag_. _Avoid_: Filmstrip, calendar, carousel, tabs, This Week
-strip, scrubber
+the window. The weeks are one toolbar and one tab stop, moved along with the
+arrow keys; a finger is read off its x over the whole row's height rather than
+off the bar under it, and dragging scrubs the Stream through the season. It does
+not scroll; a season too long for bars of 6px shows a window around the reader
+with edge buttons counting the weeks beyond (ADR 0086, #505 S10). Columns are
+tinted by phase, the phases named under them; a dashed line marks the **Planning
+Horizon** and the weeks past it are dashed outlines; the race week carries a
+flag. UI words: _Sesongen_, _I dag_. _Avoid_: Filmstrip, calendar, carousel,
+tabs, This Week strip, scrubber
 
-**Week Fold**: How the **Stream** draws a week that is not this week or a
-concrete one ahead (ADR 0082 §2–§3). A **Folded Week** is a closed week behind
-today, one line — `Forrige uke · 35 av 46 km · under` — that opens in place into
-the whole week and stays as its disclosure. A **Collapsed Week** is a plan week
-past the **Planning Horizon** that nothing machine-owned is in: one line —
-`Uke 41 · Oppbygging · mål 58 km · fylles søndag kveld i uke 39` — plus any
-session the athlete wrote there themselves, which is never hidden. A week the
-plan already laid stays open whatever the horizon says. _Avoid_: Accordion,
-hidden week, archived week
+**Week Fold** (retired): How the **Stream** used to draw a closed week (a
+**Folded Week**, one line that opened in place) and a plan week past the
+**Planning Horizon** (a **Collapsed Week**, one line) (ADR 0082 §2–§3).
+Superseded by ADR 0086: every week is drawn whole — a past week muted with its
+numbers and verdict, a week past the horizon under its target with empty days to
+write in. _Avoid_: the words, for anything on I dag now
 
 **Stream**: The **Home Timeline**'s vertical axis, and the screen's reading
-surface: weeks in order, each a sticky header plus its days in weekday order,
-from the athlete's imported history through to the far end of what is written. A
-row is a **day** and a day owns zero or more **Workout Sessions** — see
-**Every-Day Grid** for which days get one. A session on a row says two things
-and refuses a third — line 1 external load (what was done, or what is asked
-for), line 2 internal load (what it cost, or what to hold it to) — plus at most
-one compliance chip that names its own basis and band; a day with none is an
-empty cell at the 44px control floor, carrying its date and an add affordance
-and no label the plan has not earned. Windowed around today and grown from
-whichever edge the athlete reads past; the **Week Strip** is not windowed, which
-is the difference between an overview and a list. _Avoid_: Session Ledger (that
-is the row model behind it), list, log, feed, history, "a row is a session"
+surface: weeks in order, each a sticky header plus all its days in weekday
+order, from the athlete's imported history through to the far end of what is
+written — read like a calendar, nothing folded (ADR 0086). A row is a **day**
+and a day owns zero or more **Workout Sessions** — see **Every-Day Grid**. A
+session is one line: a rule in its track's colour, a glyph saying whose it is,
+the whole session sentence and its own volume (`6,1 km`) with a done dot; what
+else the row knows — load, the compliance chip that names its basis and band,
+_Lås opp_, _Tell i Annet_ — sits behind the glyph, said once. Every week before
+today is mounted up front and the weeks ahead are appended as the reader nears
+them; off-screen weeks are skipped by `content-visibility`. The **Week Strip**
+is not a list, which is the difference between an overview and a list. _Avoid_:
+Session Ledger (that is the row model behind it), list, log, feed, history, "a
+row is a session"
 
-**Past Band**: A run of consecutive empty days behind today, rendered as **one
-row** in the **Stream** — `17–23 Aug` · `7 dager · ingenting logget` — that
-expands in place into ordinary day rows (ADR 0065 §3, ADR 0075). It says the
-thing the blank rows only imply, and it keeps stream height behind the reader
-stable, which is what the **Landing Position**'s growth compensation depends on.
-A run stops at the **Training Week**'s edge, because a week block is what the
-Stream mounts and windows, so seven days is the longest band there is; two days
-is the shortest, since a single empty day behind today is just a day. It never
-covers a date older than the query's own reach — _nothing was fetched_ is not
-_nothing was logged_. A real disclosure, not a swap: the control keeps its place
-above the days it opened, carrying its `aria-expanded` and the way back, and
-opening it never moves the reader's scroll position. The run **grows in** over
-200ms rather than appearing — one of the two places on the surface that animates
-`height`, because seven rows arriving in one frame is the jarring change the
-band exists to prevent (ADR 0077). Ahead of today the same control folds a run
-of free days — `3 ledige dager` — into one short row that opens into cells to
-write in (ADR 0082 §4); today itself never folds. _Avoid_: Gap, collapsed rows,
-accordion, "skipped days", rest block
+**Past Band** (retired): A run of empty days drawn as one row that opened into
+them, behind today (`7 dager · ingenting logget`) and ahead of it
+(`3 ledige dager`) (ADR 0065 §3, ADR 0075, ADR 0082 §4). Superseded by ADR 0086:
+every day is its own row. What survives is ADR 0075 §2's rule — no row speaks
+for a day the query did not fetch. _Avoid_: Gap, collapsed rows, "skipped days"
 
 **Start Cap** / **End Cap**: The **Stream**'s two stated ends. An infinite
 scroll that runs out of content and stops is indistinguishable from one that
@@ -1724,31 +1680,26 @@ the tab a page lives under. The first run carries no bar. UI words: _I dag_,
 _Sesong_, _Bibliotek_, _Meg_. _Avoid_: menu, nav bar, sidebar; "Settings tab"
 (it is Meg)
 
-**Landing Position**: Where the **Home Timeline** parks on open — today's row,
-12 px below the bottom of its week's sticky header, measured (ADR 0082 §10), so
-the row reads as _arrived at_ rather than tucked under the header or flush
-against it. It is a live measurement, never a number remembered from mount: a
-week loading in above moves today's row down the stream without the athlete
-having scrolled at all. Everything positional is measured from it rather than
-from `scrollTop === 0` — the **Hero**'s collapse, the loading pads, and the
-**Back-to-Today Pill** — because landing sits thousands of pixels down a
-bi-directional stream and an absolute test would have the hero collapsed on
-open. Re-applied on a ladder of timers until layout stops moving, then released,
-after which the athlete owns the scroll position. _Avoid_: Scroll restore,
-initial scroll, scroll anchor, offset
+**Landing Position**: Where the **Home Timeline** parks on open (ADR 0086): the
+top of today's week when the week fits on screen up to today's row, otherwise
+today's row 12px below its week's sticky header, measured (ADR 0082 §10). The
+server renders a script that parks the list there while the page is parsed, so
+the first paint is already on today; after that a `ResizeObserver` re-lands on
+late layout only until the reader's first input, and never after — the app never
+writes the scroll position under a reader. Everything positional is measured
+from it rather than from `scrollTop === 0`, including the **Back-to-Today
+Pill**. _Avoid_: Scroll restore, initial scroll, scroll anchor, offset
 
 **Back-to-Today Pill**: The one control that undoes navigation on the **Home
-Timeline** — the _I dag_ pill at the **Week Strip**'s corner (ADR 0082 §6). It
-is always there: quiet while today's row is on screen, and filled, pointing the
-way back (`↑ I dag` when today is above, `↓ I dag` when it is below), once the
-reader has scrolled today away. Its accessible name says the way in words — _Gå
-til i dag_, _Gå opp til i dag_, _Gå ned til i dag_ — so it is never confused
-with the Hero's _I dag_ pane dot. It returns the **Stream** to the **Landing
-Position**, which also re-opens the **Hero**. It changes look instantly and
-never comes or goes, so it carries no animation; filled, it is the only owner of
-`--shadow-pill` — a token rather than a number because a drop shadow is a claim
-about where the light is (#486). UI word: _I dag_. _Avoid_: Scroll to top, jump
-button, FAB, today button
+Timeline** — the _I dag_ pill at the end of the top bar (ADR 0086, moved from
+the Week Strip's corner, ADR 0082 §6). It is always there: outlined while
+today's row is on screen, and filled, pointing the way back (`↑ I dag` when
+today is above, `↓ I dag` when it is below), once the reader has scrolled today
+away. Its accessible name says the way in words — _Gå til i dag_, _Gå opp til i
+dag_, _Gå ned til i dag_. It returns the **Stream** to the **Landing Position**
+in one instant jump. It changes look instantly and never comes or goes, so it
+carries no animation. UI word: _I dag_. _Avoid_: Scroll to top, jump button,
+FAB, today button
 
 **Season Pane**: What sits beside the **Home Timeline**'s column from `lg` up
 (#505 story 60, ADR 0082 §7): the plan page's **season chart** and a table of
@@ -1756,35 +1707,24 @@ the plan's weeks — the lead track's three week numbers and the verdict — who
 rows jump the **Stream**. Mounted and fetched only on a large screen. Not the
 full spreadsheet season, which is not built. _Avoid_: Sidebar, dashboard
 
-**Motion Scale**: The app's two easing tokens — `--ease-out`
-(`cubic-bezier(0.23, 1, 0.32, 1)`) and `--ease-in-out`
-(`cubic-bezier(0.77, 0, 0.175, 1)`) — and the rule they serve on the **Home
-Timeline**: animations each with a purpose it can name, and nothing else (ADR
-0077, ADR 0082 §6) — the accordions (the empty cell opening into the editor, a
-**Past Band** opening into its days, a **Folded Week** opening) and the press
-feedback on a row, a cell, a band and a fold (`scale(0.97)`, 160ms). Only
-`transform` and `opacity` animate apart from the accordions, whose `height` is
-the sanctioned exception because they genuinely reflow their neighbours — they
-stay at 200ms for it. `prefers-reduced-motion` is **gentler, never zero**: the
-transforms and both smooth scrollers go, the opacity halves stay. Hover motion
-is gated on `(hover: hover) and (pointer: fine)`; press feedback is not, because
-`:active` is a real press on touch. The **Hero**'s fold is not on this scale at
-all — it is scroll-driven and has no duration (#498). _Avoid_: Animation system,
-transition tokens, motion library (the tokens are CSS; the Hero's pager spring
-is `motion`'s and is a gesture, not an animation)
+**Motion Scale**: The app's easing tokens — `--ease-out`
+(`cubic-bezier(0.23, 1, 0.32, 1)`), `--ease-in-out`
+(`cubic-bezier(0.77, 0, 0.175, 1)`) and `--ease-drawer` — and the rule they
+serve (ADR 0077, ADR 0085, ADR 0086): animations each with a purpose they can
+name, and nothing else. On the **Home Timeline** that is the press
+(`scale(0.97)`, 160ms) on what the athlete taps, the session popover's
+origin-aware entry, and the draft opening in place, whose `height` is the
+sanctioned exception because it genuinely reflows its neighbours (200ms).
+Nothing moves with the list's scroll or on the Week Strip.
+`prefers-reduced-motion` is **gentler, never zero**: the transforms go, the
+fades stay. Hover is gated on `(hover: hover) and (pointer: fine)`; press
+feedback is not, because `:active` is a real press on touch. _Avoid_: Animation
+system, transition tokens, motion library
 
-**Ink Ladder**: The five tones between and below `foreground` and
-`muted-foreground` — `ink-body`, `ink-facts`, `ink-dim`, `ink-dimmer`,
-`ink-dimmest` — that let a **Stream** row rank its own lines: internal load
-lighter than external load, the date gutter lighter again, the **Week Strip**'s
-end labels lightest of all. They are lightness steps on one hue, which is why an
-alpha modifier on `muted-foreground` cannot express them; the light theme
-mirrors the ladder rather than copying it, walking _down_ from `foreground`
-instead of up. Mostly text, but not only: a **Stream** row for a missed session
-takes `ink-dimmest` as the _fill_ of its lane dot, because a lane gone quiet is
-a tone of its own rather than a weaker version of the row it sits on — which an
-alpha on `foreground` would have made it (#486). _Avoid_: Greys, muted text,
-opacity steps, text-secondary
+**Ink Ladder** (retired): The five tones (`ink-body` … `ink-dimmest`) the
+**Stream** once ranked its lines with. Gone with the home rebuild on the design
+system's roles (ADR 0085, ADR 0086): `foreground` and `muted-foreground` with
+opacity steps.
 
 **Dashboard**: _Retired (the home rebuild, `cd0928b`)._ Formerly the home view
 at `/` as #184 composed it: a header carrying the **Plan card**'s plan-arc chip

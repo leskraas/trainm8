@@ -1,5 +1,9 @@
 # The past band stops at the week boundary, and never speaks for a day the query did not fetch
 
+**§1 and §4–§6 are superseded by
+[ADR 0086](0086-i-dag-has-no-hero-reads-like-a-calendar-and-the-scroll-engine-never-writes-under-a-reader.md)**:
+there is no band; every day the query reached is its own row. §2–§3 stand.
+
 Status: Accepted. **§1's scope is amended by
 [ADR 0082](0082-i-dag-reads-like-a-printed-plan-and-the-season-strip-frames-the-reader.md)**
 (#505 S9): a run of free days ahead of today folds into one row too, and §1's

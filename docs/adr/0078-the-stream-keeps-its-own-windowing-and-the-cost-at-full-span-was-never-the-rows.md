@@ -1,5 +1,10 @@
 # The stream keeps its own windowing, and the cost at full span was never the rows
 
+**§2–§3 are superseded by
+[ADR 0086](0086-i-dag-has-no-hero-reads-like-a-calendar-and-the-scroll-engine-never-writes-under-a-reader.md)**:
+the past is mounted up front and nothing grows above the reader; height that
+changes there is the browser's scroll anchoring's to absorb.
+
 Status: Accepted. **§4 is superseded by
 [ADR 0082](0082-i-dag-reads-like-a-printed-plan-and-the-season-strip-frames-the-reader.md)**
 (#505 S9): the strip is fixed and draws every week at once, so its cells no

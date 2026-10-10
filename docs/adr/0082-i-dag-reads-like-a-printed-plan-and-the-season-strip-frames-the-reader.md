@@ -1,5 +1,10 @@
 # I dag reads like a printed plan, and the season strip frames the reader
 
+**§2–§4 and §6's placement of the pill are superseded by
+[ADR 0086](0086-i-dag-has-no-hero-reads-like-a-calendar-and-the-scroll-engine-never-writes-under-a-reader.md)**:
+closed weeks, weeks past the horizon and free days render whole, and the pill is
+on the top bar.
+
 Status: Accepted
 
 **Amends
