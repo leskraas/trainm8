@@ -1,11 +1,11 @@
 /**
- * The two accordions' measurement (#502).
+ * The draft's measurement (#502).
  *
- * The home timeline declares exactly four animations in CSS, and two of them
- * animate `height`: the empty cell opening into the editor, and the past band opening
- * into the run of days it stands for. Both genuinely reflow their neighbours —
- * the rows below really do move — and no transform does that, which is the case
- * the "transform and opacity only" rule carves out.
+ * The home timeline animates `height` in one place since ADR 0086: the empty
+ * cell opening into the draft (the past band and the folded week, the other
+ * accordions, are gone with the folding). It genuinely reflows its neighbours
+ * — the rows below really do move — and no transform does that, which is the
+ * case the "transform and opacity only" rule carves out.
  *
  * The curve, the duration and the properties are the stylesheet's (`reflow` in
  * `tailwind.css`). What is here is the one thing CSS cannot supply: *the number
@@ -47,9 +47,8 @@ export const REFLOW_MS = 200
 export function growIn(node: HTMLElement, fromPx = 0): () => void {
 	const to = node.scrollHeight
 	// Nothing has laid out — the server render, and jsdom, which has no layout
-	// at all. `heroFold` answers the same measurement the same way (#498): write
-	// nothing rather than animate to zero, because an unmeasured box is an open
-	// one.
+	// at all: write nothing rather than animate to zero, because an unmeasured
+	// box is an open one (#498).
 	if (to <= fromPx) return () => {}
 
 	// The closed box first, forced through a layout so the browser has a value

@@ -16,7 +16,7 @@
  *   target — the pace window and the HR ceiling — rather than an outcome. This
  *   applies to every planned week, not only the current one.
  * - **No band without both sides** (ADR 0008/0019). An unplanned session reads
- *   `UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED`, never a fabricated percentage; an imported
+ *   `Utenfor planen · ingen plan å sammenligne med`, never a fabricated percentage; an imported
  *   session gets no chip at all, because the week header already says the week
  *   came from before the plan and repeating it on every row is noise.
  * - **A missed session invents nothing.** `Nothing recorded` and `MISSED`. No
@@ -340,6 +340,20 @@ function countText(set: LoggedWorkingSet): string | null {
 	return set.durationSec != null ? formatDuration(set.durationSec) : null
 }
 
+/**
+ * A decimal figure as I dag writes it, with a comma — `9,2 km`, `24,0 km/h` —
+ * the house format's digits with the Norwegian separator (#505 S9 review D2).
+ * Only a point between two digits is a decimal point; nothing else moves.
+ */
+function nbDecimalComma(text: string): string {
+	return text.replace(/(\d)\.(\d)/g, '$1,$2')
+}
+
+/** {@link formatDistance}, with the decimal comma. */
+function nbDistance(metres: number): string {
+	return nbDecimalComma(formatDistance(metres))
+}
+
 /** Kilometres for a run or a ride; metres for a swim, which is read that way. */
 function distanceClause(
 	session: LedgerSession,
@@ -347,9 +361,7 @@ function distanceClause(
 ): string | null {
 	const metres = session.recording?.distanceM
 	if (metres == null || metres <= 0) return null
-	return entry.discipline === 'swim'
-		? formatMeters(metres)
-		: formatDistance(metres)
+	return entry.discipline === 'swim' ? formatMeters(metres) : nbDistance(metres)
 }
 
 /**
@@ -367,7 +379,7 @@ function rateClause(
 	const { distanceM, durationSec } = recording
 	switch (entry.discipline) {
 		case 'bike':
-			return formatSpeed(distanceM / durationSec)
+			return nbDecimalComma(formatSpeed(distanceM / durationSec))
 		case 'swim':
 			return `${formatPaceClock(durationSec / (distanceM / 100))} /100m`
 		case 'run':
@@ -471,8 +483,8 @@ function plannedTargetLine(
 	const pace = paceWindow(steps, entry.discipline)
 	const effort =
 		distance != null && pace
-			? ROW_LABELS.distanceAt(formatDistance(distance), pace)
-			: (pace ?? (distance != null ? formatDistance(distance) : null))
+			? ROW_LABELS.distanceAt(nbDistance(distance), pace)
+			: (pace ?? (distance != null ? nbDistance(distance) : null))
 	return clauses(effort, hrCeiling(steps))
 }
 

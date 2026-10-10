@@ -1,11 +1,13 @@
 @import 'tailwindcss';
-@import 'tw-animate-css';
-@import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
-@import '@fontsource-variable/inter';
-@import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
-@import '@fontsource-variable/inter';
+/*
+ * `tw-animate-css` stays for the three overlays outside `components/ui` that
+ * still enter on its keyframes (`token-popover.tsx`, the block-editor sheet,
+ * the lift-help panel). Nothing in `components/ui` uses it any more: the
+ * primitives animate on Base UI's `data-starting-style` / `data-ending-style`
+ * through the motion utilities below (ADR 0085 §4). Each import appears once —
+ * the shadcn CLI had appended three copies of each, plus an Inter face nothing
+ * rendered.
+ */
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/public-sans';
@@ -13,18 +15,18 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Hover is a *pointer* affordance (#502).
+ * Hover is a *pointer* affordance (#502, ADR 0077 §6, ADR 0085 §5).
  *
  * Tailwind v4 already wraps `hover:` in `@media (hover: hover)`, which keeps a
  * hover style off a phone — but a hybrid device (a tablet with a stylus, a
  * laptop with a touchscreen) answers that query with `hover` and still fires a
- * false hover on every tap, which is the exact defect the home timeline's row
- * tint was removed for. `pointer: fine` is the other half: a hover style now
+ * false hover on every tap. `pointer: fine` is the other half: a hover style
  * needs a device that can hover *and* a pointer precise enough to mean it.
  *
- * Deliberately the variant rather than a hand-written media query on the few
- * places that needed it. A rule that only some hovers follow is not a rule, and
- * every `hover:` in the app is on a surface a thumb can reach.
+ * Redefining the variant reaches every derived form too — `group-hover:`,
+ * `peer-hover:`, `[a]:hover:` — because Tailwind compounds them from this one
+ * definition. Hand-written `:hover` in CSS has to repeat the query; there is
+ * none in the app today.
  */
 @custom-variant hover {
 	@media (hover: hover) and (pointer: fine) {
@@ -34,32 +36,68 @@
 	}
 }
 
-:root {
-	--radius: 0.625rem;
+/* ==========================================================================
+ * TOKENS — shadcn's CSS-variable conventions are the backbone (ADR 0085 §2).
+ *
+ * The shadcn roles, under their shadcn names: `--background`/`--foreground`,
+ * `--card`, `--popover`, `--primary`, `--secondary`, `--muted`, `--accent`,
+ * `--destructive`, `--border`, `--input`, `--ring`, `--chart-1…5`,
+ * `--sidebar-*`, and one `--radius` with the `--radius-*` scale derived from
+ * it — each mapped to a utility through `@theme inline` below, exactly as the
+ * shadcn CLI writes them, so every generated component reads them unchanged.
+ *
+ * App roles are added only where shadcn has none, named in the same style
+ * (a plain role name, `--color-*` in `@theme inline`): status, training
+ * tracks, phases, and motion. One older app token stays because pages
+ * outside home still read it (`zone-*`); the home timeline's own (`ink-*`,
+ * `hairline*`, `warning`, `--shadow-pill`) went when home moved to the shadcn
+ * roles (ADR 0086). `docs/design/design-system.md` is the full map; `/design` is the
+ * live sheet.
+ *
+ * The direction (#505, "luma"): rounder and calmer, the `base-luma` shadcn
+ * style. The page is a faint tint and cards are white on it, so surfaces
+ * separate by tone and shadow before any 1px line.
+ *
+ * Light is `:root`; dark is `.dark` on <html>. `.light` re-scopes a subtree to
+ * the light values (the `/design` sheet shows both themes side by side).
+ * ========================================================================== */
 
-	--background: oklch(1 0 0);
+:root,
+.light {
+	/*
+	 * The radius base. shadcn derives the whole scale from it (`@theme inline`
+	 * below), and the luma components use the top of the scale: buttons and
+	 * cards `rounded-4xl`, inputs and popups `rounded-3xl`, menu items
+	 * `rounded-2xl`. 6px puts those at the #505 numbers — cards and buttons
+	 * ~16px, controls and popups ~13px, items ~11px — without touching a
+	 * generated class name. `rounded-full` is the pill.
+	 */
+	--radius: 0.375rem;
+
+	/* The page and the top chrome (root.tsx's `theme-color` matches it). */
+	--background: oklch(0.975 0.003 197);
 	--foreground: oklch(0.148 0.004 228.8);
-
+	/* Raised: cards and list groups, white on the tinted page. */
 	--card: oklch(1 0 0);
 	--card-foreground: oklch(0.148 0.004 228.8);
-
+	/* Overlay: popovers, menus, sheets, dialogs. */
 	--popover: oklch(1 0 0);
 	--popover-foreground: oklch(0.148 0.004 228.8);
 
+	/* The one green (#505: keep it). */
 	--primary: #0d7a68;
 	--primary-foreground: #ffffff;
 
-	--secondary: oklch(0.967 0.001 286.375);
+	--secondary: oklch(0.955 0.004 197);
 	--secondary-foreground: oklch(0.21 0.006 285.885);
-
-	--muted: oklch(0.963 0.002 197.1);
-	--muted-foreground: oklch(0.56 0.021 213.5);
-
-	--accent: oklch(0.963 0.002 197.1);
+	/* Sunken: wells, tracks, the segmented control's rail, hover fills. */
+	--muted: oklch(0.948 0.004 197);
+	--muted-foreground: oklch(0.52 0.016 213.5);
+	--accent: oklch(0.955 0.004 197);
 	--accent-foreground: oklch(0.218 0.008 223.9);
 
-	--border: oklch(0.925 0.005 214.3);
-	--input: oklch(0.925 0.005 214.3);
+	--border: oklch(0.915 0.005 214.3);
+	--input: oklch(0.915 0.005 214.3);
 	--input-invalid: oklch(63.68% 0.2078 25.33);
 
 	--destructive: oklch(0.577 0.245 27.325);
@@ -67,83 +105,68 @@
 	/* prefixed with foreground because it should look good on the background */
 	--foreground-destructive: oklch(51.46% 0.1979 16.57);
 
-	--ring: oklch(0.723 0.014 214.4);
+	/* Focus rings in the green, so focus reads as the app's, not the browser's. */
+	--ring: color-mix(in oklab, var(--primary) 55%, transparent);
 
 	--chart-1: oklch(0.855 0.138 181.071);
-
 	--chart-2: oklch(0.704 0.14 182.503);
-
 	--chart-3: oklch(0.6 0.118 184.704);
-
 	--chart-4: oklch(0.511 0.096 186.391);
-
 	--chart-5: oklch(0.437 0.078 188.216);
 
 	--sidebar: oklch(0.987 0.002 197.1);
-
 	--sidebar-foreground: oklch(0.148 0.004 228.8);
-
 	--sidebar-primary: oklch(0.6 0.118 184.704);
-
 	--sidebar-primary-foreground: oklch(0.984 0.014 180.72);
-
 	--sidebar-accent: oklch(0.963 0.002 197.1);
-
 	--sidebar-accent-foreground: oklch(0.218 0.008 223.9);
-
 	--sidebar-border: oklch(0.925 0.005 214.3);
-
 	--sidebar-ring: oklch(0.723 0.014 214.4);
 
+	/* ── App roles shadcn has no equivalent for ─────────────────────────── */
+
 	/*
-	 * The ink ladder (home-timeline handoff §"Design tokens"). The dark theme
-	 * ships two text weights — `foreground` for titles and `muted-foreground`
-	 * for secondary text — and the timeline needs five more steps *between and
-	 * below* them, because a row deliberately ranks its own lines: the internal
-	 * load line is lighter than the external one, the date gutter lighter
-	 * again, and the strip's end labels lightest of all. These are lightness
-	 * steps on one hue, so an alpha modifier on `muted-foreground` cannot
-	 * express them.
+	 * Status: how a week or a session stands against its plan — the four
+	 * verdicts labels.ts speaks (`VOLUME_GRADE_LABELS`, plus a missed
+	 * session). Colour is never the only carrier; the word is always beside it.
 	 *
-	 * Light-theme values mirror the ladder rather than copy it: the same rank
-	 * order, walking *down* from `foreground` instead of up from it.
+	 *   --status-on      i rute       the primary green
+	 *   --status-under   under        amber
+	 *   --status-over    over         blue-violet: more than asked, not alarming
+	 *   --status-missed  ikke gjort   red, quieter than `--destructive`
 	 */
-	--ink-body: oklch(0.3 0.008 214.4);
-	--ink-facts: oklch(0.4 0.012 214.4);
-	--ink-dim: oklch(0.48 0.014 214.4);
-	--ink-dimmer: oklch(0.56 0.014 214.4);
-	--ink-dimmest: oklch(0.62 0.014 214.4);
+	--status-on: var(--primary);
+	/*
+	 * L 0.55 rather than 0.62 (#505 polish): `under` and the `≠` mark are
+	 * caption-sized *text*, and 0.62 was 3.8:1 on the card. 0.55 is 5.0:1 on
+	 * the card and 4.7:1 on the page — AA — and still reads as amber.
+	 */
+	--status-under: oklch(0.55 0.13 65);
+	--status-over: oklch(0.55 0.13 275);
+	--status-missed: oklch(0.56 0.17 25);
 
 	/*
-	 * The third compliance tone. `destructive` already carries "this went
-	 * wrong" and `primary` "this went to plan"; an Adherence Band that came in
-	 * light (UNDER) is neither, and the handoff gives it its own amber. Also
-	 * the tone of a partly-completed strength session (`SETS 14 / 15`).
+	 * Training tracks, one hue per discipline. Marks, not fills — a dot, a bar,
+	 * an edge; text that names a track stays `foreground`.
 	 */
-	--warning: oklch(0.62 0.14 65);
+	--track-run: oklch(0.63 0.16 32);
+	--track-bike: oklch(0.72 0.13 78);
+	--track-swim: oklch(0.62 0.1 225);
+	--track-strength: oklch(0.55 0.11 300);
 
 	/*
-	 * Hairlines. The timeline separates at three strengths — inside a week
-	 * (row rules), between weeks, and at the edge of a block (the strip, the
-	 * collapsed header) — and reading them off `border` with alpha modifiers
-	 * would tie all three to one number that means "the default border".
+	 * Phases: Grunntrening · Oppbygging · Spissing · Nedtrapping. The ground a
+	 * week stands on (bands, the strip's phase line), so lower chroma than the
+	 * tracks.
 	 */
-	--hairline: oklch(0 0 0 / 7%);
-	--hairline-week: oklch(0 0 0 / 9%);
-	--hairline-edge: oklch(0 0 0 / 12%);
+	--phase-base: oklch(0.66 0.06 240);
+	--phase-build: oklch(0.72 0.1 80);
+	--phase-peak: oklch(0.64 0.12 35);
+	--phase-taper: oklch(0.68 0.08 160);
 
-	/*
-	 * The one shadow on the home timeline: the back-to-today pill, which floats
-	 * over the stream rather than sitting in it. A drop shadow is a claim about
-	 * where the light is, so it cannot be one number — the dark theme needs a
-	 * deeper, harder shadow to lift the pill off a near-black stream than the
-	 * light theme needs to lift it off a white one.
-	 */
-	--shadow-pill: 0 6px 20px oklch(0 0 0 / 0.16);
+	/* ── Older app token, still read outside home ─────────────────────── */
 
-	/* The Score direction's intensity scale (workout-editor spec §2.5/§7):
-	   the design artifact's Z1–Z5 zone hues. Chip tints mix these ~22–26%
-	   toward the card surface, so the same hues serve both themes. */
+	/* The Score direction's Z1–Z5 hues (workout-editor spec §2.5/§7). */
 	--zone-1: #5f9fe0;
 	--zone-2: #3fae7d;
 	--zone-3: #d9b13b;
@@ -154,22 +177,18 @@
 .dark {
 	--background: oklch(0.148 0.004 228.8);
 	--foreground: oklch(0.987 0.002 197.1);
-
-	--card: oklch(0.218 0.008 223.9);
+	--card: oklch(0.205 0.007 223.9);
 	--card-foreground: oklch(0.987 0.002 197.1);
-
-	--popover: oklch(0.218 0.008 223.9);
+	--popover: oklch(0.235 0.008 223.9);
 	--popover-foreground: oklch(0.987 0.002 197.1);
 
 	--primary: #35b89c;
 	--primary-foreground: #0c1512;
 
-	--secondary: oklch(0.274 0.006 286.033);
+	--secondary: oklch(0.275 0.011 216.9);
 	--secondary-foreground: oklch(0.985 0 0);
-
-	--muted: oklch(0.275 0.011 216.9);
+	--muted: oklch(0.255 0.01 216.9);
 	--muted-foreground: oklch(0.723 0.014 214.4);
-
 	--accent: oklch(0.275 0.011 216.9);
 	--accent-foreground: oklch(0.987 0.002 197.1);
 
@@ -179,58 +198,48 @@
 
 	--destructive: oklch(0.704 0.191 22.216);
 	--destructive-foreground: oklch(97.1% 0.0127 17.38);
-	/* prefixed with foreground because it should look good on the background */
 	--foreground-destructive: oklch(63.72% 0.2071 21.89);
 
-	--ring: oklch(0.56 0.021 213.5);
-
-	--chart-1: oklch(0.855 0.138 181.071);
-
-	--chart-2: oklch(0.704 0.14 182.503);
-
-	--chart-3: oklch(0.6 0.118 184.704);
-
-	--chart-4: oklch(0.511 0.096 186.391);
-
-	--chart-5: oklch(0.437 0.078 188.216);
+	--ring: color-mix(in oklab, var(--primary) 60%, transparent);
 
 	--sidebar: oklch(0.218 0.008 223.9);
-
 	--sidebar-foreground: oklch(0.987 0.002 197.1);
-
 	--sidebar-primary: oklch(0.704 0.14 182.503);
-
 	--sidebar-primary-foreground: oklch(0.277 0.046 192.524);
-
 	--sidebar-accent: oklch(0.275 0.011 216.9);
-
 	--sidebar-accent-foreground: oklch(0.987 0.002 197.1);
-
 	--sidebar-border: oklch(1 0 0 / 10%);
-
 	--sidebar-ring: oklch(0.56 0.021 213.5);
 
-	/* The ink ladder the home timeline ranks its lines with — see `:root`. */
-	--ink-body: oklch(0.86 0.008 214.4);
-	--ink-facts: oklch(0.7 0.012 214.4);
-	--ink-dim: oklch(0.62 0.014 214.4);
-	--ink-dimmer: oklch(0.52 0.014 214.4);
-	--ink-dimmest: oklch(0.46 0.014 214.4);
+	--status-on: var(--primary);
+	--status-under: oklch(0.82 0.12 65);
+	--status-over: oklch(0.74 0.11 275);
+	--status-missed: oklch(0.7 0.15 25);
 
-	--warning: oklch(0.82 0.12 65);
+	--track-run: oklch(0.7 0.14 32);
+	--track-bike: oklch(0.78 0.12 78);
+	--track-swim: oklch(0.72 0.09 225);
+	--track-strength: oklch(0.7 0.1 300);
 
-	--hairline: oklch(1 0 0 / 7%);
-	--hairline-week: oklch(1 0 0 / 9%);
-	--hairline-edge: oklch(1 0 0 / 12%);
-
-	--shadow-pill: 0 8px 24px oklch(0 0 0 / 0.45);
+	--phase-base: oklch(0.6 0.06 240);
+	--phase-build: oklch(0.66 0.09 80);
+	--phase-peak: oklch(0.62 0.11 35);
+	--phase-taper: oklch(0.62 0.08 160);
 }
 
 @theme inline {
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
+	/*
+	 * shadcn's radius scale, derived from `--radius` (6px): sm 3.6, md 4.8,
+	 * lg 6, xl 8.4, 2xl 10.8, 3xl 13.2, 4xl 15.6.
+	 */
+	--radius-sm: calc(var(--radius) * 0.6);
+	--radius-md: calc(var(--radius) * 0.8);
 	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
+	--radius-xl: calc(var(--radius) * 1.4);
+	--radius-2xl: calc(var(--radius) * 1.8);
+	--radius-3xl: calc(var(--radius) * 2.2);
+	--radius-4xl: calc(var(--radius) * 2.6);
+
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
@@ -246,47 +255,112 @@
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
-	--color-border: var(--border);
-	--color-input: var(--input);
-	--color-ring: var(--ring);
-	--color-input-invalid: var(--input-invalid);
 	--color-destructive-foreground: var(--destructive-foreground);
 	--color-foreground-destructive: var(--foreground-destructive);
-	--font-heading: var(--font-sans);
-	--font-sans: 'Public Sans Variable', sans-serif;
-	--color-sidebar-ring: var(--sidebar-ring);
-	--color-sidebar-border: var(--sidebar-border);
-	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-	--color-sidebar-accent: var(--sidebar-accent);
-	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-	--color-sidebar-primary: var(--sidebar-primary);
-	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-input-invalid: var(--input-invalid);
+	--color-ring: var(--ring);
+	--color-chart-1: var(--chart-1);
+	--color-chart-2: var(--chart-2);
+	--color-chart-3: var(--chart-3);
+	--color-chart-4: var(--chart-4);
+	--color-chart-5: var(--chart-5);
 	--color-sidebar: var(--sidebar);
-	--color-ink-body: var(--ink-body);
-	--color-ink-facts: var(--ink-facts);
-	--color-ink-dim: var(--ink-dim);
-	--color-ink-dimmer: var(--ink-dimmer);
-	--color-ink-dimmest: var(--ink-dimmest);
-	--color-warning: var(--warning);
-	--color-hairline: var(--hairline);
-	--color-hairline-week: var(--hairline-week);
-	--color-hairline-edge: var(--hairline-edge);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-ring: var(--sidebar-ring);
+
+	--color-status-on: var(--status-on);
+	--color-status-under: var(--status-under);
+	--color-status-over: var(--status-over);
+	--color-status-missed: var(--status-missed);
+	--color-track-run: var(--track-run);
+	--color-track-bike: var(--track-bike);
+	--color-track-swim: var(--track-swim);
+	--color-track-strength: var(--track-strength);
+	--color-phase-base: var(--phase-base);
+	--color-phase-build: var(--phase-build);
+	--color-phase-peak: var(--phase-peak);
+	--color-phase-taper: var(--phase-taper);
+
 	--color-zone-1: var(--zone-1);
 	--color-zone-2: var(--zone-2);
 	--color-zone-3: var(--zone-3);
 	--color-zone-4: var(--zone-4);
 	--color-zone-5: var(--zone-5);
-	--color-chart-5: var(--chart-5);
-	--color-chart-4: var(--chart-4);
-	--color-chart-3: var(--chart-3);
-	--color-chart-2: var(--chart-2);
-	--color-chart-1: var(--chart-1);
-	--radius-2xl: calc(var(--radius) * 1.8);
-	--radius-3xl: calc(var(--radius) * 2.2);
-	--radius-4xl: calc(var(--radius) * 2.6);
+
+	--font-heading: var(--font-sans);
+	--font-sans: 'Public Sans Variable', sans-serif;
 }
 
+/*
+ * The type scale (ADR 0085 §3) — an app role: shadcn ships no type tokens,
+ * so this uses Tailwind's own `--text-*` namespace (size, `--line-height`,
+ * `--font-weight`, `--letter-spacing` per step), and the generated components
+ * keep their `text-sm`/`text-base`. Page content uses these steps.
+ *
+ * Each step is a **set** — size, line height, weight and tracking together —
+ * because hierarchy comes from all four at once, and a step that only sets the
+ * size leaves the other three to whoever writes the class list. Tracking is
+ * size-specific: negative as type grows (letters drift apart at display
+ * sizes), zero for body, slightly positive at caption sizes. Line height runs
+ * the other way: tight on headings, open on body copy.
+ *
+ * Override the weight with a `font-*` class where a step needs it (a
+ * `text-callout font-semibold` row title); never override the tracking.
+ */
 @theme {
+	--text-display: 2rem;
+	--text-display--line-height: 2.375rem;
+	--text-display--font-weight: 700;
+	--text-display--letter-spacing: -0.025em;
+
+	--text-title: 1.5rem;
+	--text-title--line-height: 1.875rem;
+	--text-title--font-weight: 650;
+	--text-title--letter-spacing: -0.02em;
+
+	--text-heading: 1.125rem;
+	--text-heading--line-height: 1.5rem;
+	--text-heading--font-weight: 600;
+	--text-heading--letter-spacing: -0.012em;
+
+	--text-body: 1rem;
+	--text-body--line-height: 1.5rem;
+	--text-body--font-weight: 400;
+	--text-body--letter-spacing: -0.004em;
+
+	--text-callout: 0.9375rem;
+	--text-callout--line-height: 1.3125rem;
+	--text-callout--font-weight: 500;
+	--text-callout--letter-spacing: -0.004em;
+
+	--text-footnote: 0.8125rem;
+	--text-footnote--line-height: 1.125rem;
+	--text-footnote--font-weight: 400;
+	--text-footnote--letter-spacing: 0.002em;
+
+	--text-caption: 0.75rem;
+	--text-caption--line-height: 1rem;
+	--text-caption--font-weight: 500;
+	--text-caption--letter-spacing: 0.01em;
+
+	/* Pair with `uppercase`: section kickers, the strip's month labels. */
+	--text-overline: 0.6875rem;
+	--text-overline--line-height: 1rem;
+	--text-overline--font-weight: 600;
+	--text-overline--letter-spacing: 0.06em;
+
+	/*
+	 * The Epic Stack's marketing scale. Kept because the marketing and auth
+	 * pages use it (`text-h1`…`text-h6`, `text-body-*`, `text-button`); new
+	 * in-app UI uses the scale above.
+	 */
 	--text-mega: 5rem;
 	--text-mega--line-height: 5.25rem;
 	--text-mega--font-weight: 700;
@@ -322,44 +396,13 @@
 	--text-body-xs--line-height: 1.125rem;
 	--text-body-2xs: 0.75rem;
 	--text-body-2xs--line-height: 1rem;
-	--text-caption: 1.125rem;
-	--text-caption--line-height: 1.5rem;
-	--text-caption--font-weight: 600;
 	--text-button: 0.75rem;
 	--text-button--line-height: 1rem;
 	--text-button--font-weight: 700;
-	/*
-	 * The easing scale (#502).
-	 *
-	 * The repo had `--animate-*` keyframes and no easing, so every deliberate
-	 * animation reached for a built-in curve — and the built-ins are too weak to
-	 * read as chosen. These two are the whole scale, and they *replace* Tailwind's
-	 * own `--ease-out` / `--ease-in-out` rather than sitting beside them, so that
-	 * `ease-out` means one thing in this app and there is no second system to
-	 * pick from.
-	 *
-	 * `--ease-in` is left alone on purpose: nothing that answers a person should
-	 * start slowly, so there is no ease-in on UI here to give a curve to.
-	 */
-	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 
-	--animate-roll-reveal: roll-reveal 0.4s cubic-bezier(0.22, 1.28, 0.54, 0.99);
-	--animate-slide-left: slide-left 0.3s ease-out;
-	--animate-slide-top: slide-top 0.3s ease-out;
+	--animate-slide-left: slide-left 0.3s var(--ease-out);
+	--animate-slide-top: slide-top 0.3s var(--ease-out);
 	--animate-caret-blink: caret-blink 1.25s ease-out infinite;
-
-	@keyframes roll-reveal {
-		from {
-			transform: rotate(12deg) scale(0);
-			opacity: 0;
-		}
-
-		to {
-			transform: rotate(0deg) scale(1);
-			opacity: 1;
-		}
-	}
 
 	@keyframes slide-left {
 		from {
@@ -400,103 +443,266 @@
 }
 
 /*
- * The hero's parallax lift while it folds (#498).
+ * Motion tokens (#502, ADR 0077 §1, ADR 0085 §4).
  *
- * The fold itself is a height the home timeline's scroll pass writes 1:1 with
- * the scroll offset; this is the half-rate drift that makes the band read as
- * *receding* rather than as being squashed. It is the only **movement** in the
- * collapse, which is why it is the only part `prefers-reduced-motion` drops —
- * the fold and the fade are not movement, and they still collapse the hero on
- * their own. Gentler, never zero.
+ * `static` so every variable is always emitted: the motion utilities below and
+ * the `/design` sheet read them whether or not a Tailwind class does.
  *
- * `--hero-lift` is published by `use-timeline-scroll.ts` as a length, so the
- * preference is read here, in CSS, and the hook never has to ask.
+ * Three curves, and they *replace* Tailwind's own `--ease-out` /
+ * `--ease-in-out` rather than sitting beside them, so `ease-out` means one
+ * thing in this app. `--ease-in` is left alone on purpose: nothing that
+ * answers a person should start slowly.
+ *
+ *   ease-out     entering and exiting — fast start, the moment you watch
+ *   ease-in-out  something already on screen moving to a new place
+ *   ease-drawer  a sheet travelling its own height (iOS / Ionic curve)
+ *
+ * Durations by element (`duration-press` … as utilities). Exits are shorter
+ * than entrances: the arrival is what the eye follows; the departure is the
+ * system getting out of the way.
  */
-@utility hero-lift {
-	@media (prefers-reduced-motion: no-preference) {
-		transform: translateY(calc(var(--hero-lift, 0px) * -1));
-	}
+@theme static {
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+	--transition-duration-press: 160ms;
+	--transition-duration-tooltip: 150ms;
+	--transition-duration-tooltip-exit: 100ms;
+	--transition-duration-dropdown: 200ms;
+	--transition-duration-dropdown-exit: 150ms;
+	--transition-duration-collapse: 200ms;
+	--transition-duration-collapse-exit: 150ms;
+	--transition-duration-modal: 250ms;
+	--transition-duration-modal-exit: 200ms;
+	/* In; the drawer's exit is Base UI's `--drawer-swipe-strength` × 400ms. */
+	--transition-duration-drawer: 450ms;
 }
 
-/*
- * Press feedback — the timeline's only *hover-free* motion (#502).
+/* ==========================================================================
+ * MOTION UTILITIES — the only places a curve and a duration meet.
  *
- * A row, a cell and the past band are the things the athlete taps, and a tap
- * that changes nothing for 300ms reads as a tap that missed. 160ms, and a scale
- * inside the 0.95–0.98 band: further than that is a flinch, nearer is nothing.
- *
- * **Not** behind `@media (hover: hover)`. `:active` is a real press on a
- * touchscreen — it is the one state a thumb genuinely enters — so gating it the
- * way hover is gated would take the feedback away from exactly the device that
- * has no hover to fall back on.
- *
- * `prefers-reduced-motion` drops the transform and keeps the tap; the row still
- * answers, in ink rather than in movement.
- */
-@utility press {
-	@media (prefers-reduced-motion: no-preference) {
-		transition: transform 160ms var(--ease-out);
+ * The shadcn components keep the classes the CLI generated, except where
+ * those named tw-animate keyframes or a built-in curve: there the class list
+ * swaps to one of these utilities (deviations D1, D4, D6 in
+ * `docs/design/design-system.md`), so the curve, the duration, the from-state
+ * and the reduced-motion answer are decided once, here. Every popup animates
+ * `transform` and `opacity` only; the one layout property is `height` in
+ * `motion-collapse` (ADR 0085 §4 amends ADR 0077 §3, which named two
+ * accordions).
+ * ========================================================================== */
 
-		&:active {
+/*
+ * Press feedback for controls — buttons, toggles, segments, triggers.
+ *
+ * A tap that changes nothing for a moment reads as a tap that missed, so the
+ * control answers on pointer-down: `scale(0.97)` at 160ms on the strong
+ * ease-out. Further than 0.95 is a flinch, nearer than 0.98 is nothing.
+ *
+ * Colour changes ride along on the same curve. Emil's table gives a hover
+ * plain `ease`; ADR 0077 §1 keeps one easing scale with no built-ins in it,
+ * and at 160ms the two are indistinguishable, so the scale wins. Under
+ * `prefers-reduced-motion` the scale goes and the colours stay: the control
+ * still answers, in ink rather than in movement.
+ *
+ * `:active` is deliberately *not* behind the hover query — it is a real press
+ * on a touchscreen, the one state a thumb genuinely enters. A trigger that
+ * owns a popup (`aria-haspopup`) does not scale: the popup is measured off it
+ * at the same instant, and the popup arriving is the feedback.
+ */
+@utility pressable {
+	transition:
+		color var(--transition-duration-press) var(--ease-out),
+		background-color var(--transition-duration-press) var(--ease-out),
+		border-color var(--transition-duration-press) var(--ease-out);
+
+	@media (prefers-reduced-motion: no-preference) {
+		transition:
+			transform var(--transition-duration-press) var(--ease-out),
+			color var(--transition-duration-press) var(--ease-out),
+			background-color var(--transition-duration-press) var(--ease-out),
+			border-color var(--transition-duration-press) var(--ease-out);
+
+		&:active:not(
+				:disabled,
+				[data-disabled],
+				[aria-disabled='true'],
+				[aria-haspopup]
+			) {
 			transform: scale(0.97);
 		}
 	}
 }
 
 /*
- * The sanctioned height animation — the two accordions and nothing else (#502).
+ * Popovers, menus and selects: they scale out of their trigger.
  *
- * `height` is the exception the rule carves out: an empty cell opening into the
- * editor and the past band opening into its days both genuinely **reflow their
- * neighbours**, and no transform moves the rows below a box. It costs layout
- * every frame, which is why both are 200ms and neither goes longer, and why
- * this is the only place in the app that animates it.
+ * `--transform-origin` is Base UI's, set on the popup to the side of the
+ * trigger it came from, so the panel reads as having come out of the thing
+ * you pressed. From `scale(0.96)` plus opacity — never from nothing.
+ * 200ms in, 150ms out, both on the strong ease-out.
  *
- * The transition lives here; the two numbers it interpolates between are
- * written by `timeline/reflow.ts`, because "the height the content wants" is a
- * measurement and CSS cannot take one.
+ * A select whose list opens *over* its trigger (`data-side="none"`, Base UI's
+ * align-item-with-trigger) only fades: the selected item is already where the
+ * eye is, and nothing should travel to it.
  *
- * Not gated on `prefers-reduced-motion`: this *is* the gentler answer. The
- * reflow is what stops seven rows arriving at once, and the ingredients are
- * height and opacity — there is no transform in it to drop.
+ * Reduced motion keeps the fade and drops the scale.
  */
-@utility reflow {
+@utility motion-popup {
+	transform-origin: var(--transform-origin);
 	transition:
-		height 200ms var(--ease-out),
-		opacity 200ms var(--ease-out);
+		opacity var(--transition-duration-dropdown) var(--ease-out),
+		transform var(--transition-duration-dropdown) var(--ease-out);
+
+	&[data-starting-style],
+	&[data-ending-style] {
+		opacity: 0;
+		transform: scale(0.96);
+	}
+	&[data-ending-style] {
+		transition-duration: var(--transition-duration-dropdown-exit);
+	}
+	&[data-side='none'][data-starting-style],
+	&[data-side='none'][data-ending-style] {
+		transform: none;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		&[data-starting-style],
+		&[data-ending-style] {
+			transform: none;
+		}
+	}
 }
 
 /*
- * The back-to-today pill's arrival and departure (#502).
+ * Tooltips: the popup recipe, smaller and faster — 150ms in, 100ms out, from
+ * `scale(0.97)`.
  *
- * It enters from the bottom edge it lives on and leaves the same way — a
- * surface that arrives one way and departs another reads as two different
- * things — which is why the pill is always in the frame and `data-away="0"` is
- * what makes it *not there*. A component that unmounts cannot animate out.
- *
- * The `translateX(-50%)` centring is owned here rather than by a utility class
- * because the lift has to compose with it in one `transform`, and because the
- * AC is that only `transform` and `opacity` animate — Tailwind's own translate
- * utilities animate the `translate` property instead.
- *
- * Reduced motion keeps the fade and drops the lift. Gentler, never zero.
+ * And the detail that makes a toolbar feel quick: once one tooltip is open,
+ * the next opens with no delay (the provider's `timeout`) *and* no animation.
+ * Base UI marks that popup `data-instant`; it skips the transition entirely.
  */
-@utility pill-fold {
-	transform: translateX(-50%);
+@utility motion-tooltip {
+	transform-origin: var(--transform-origin);
 	transition:
-		opacity 200ms var(--ease-out),
-		transform 200ms var(--ease-out);
+		opacity var(--transition-duration-tooltip) var(--ease-out),
+		transform var(--transition-duration-tooltip) var(--ease-out);
 
-	&[data-away='0'] {
+	&[data-starting-style],
+	&[data-ending-style] {
 		opacity: 0;
-		pointer-events: none;
+		transform: scale(0.97);
+	}
+	&[data-ending-style] {
+		transition-duration: var(--transition-duration-tooltip-exit);
+	}
+	&[data-instant] {
+		transition-duration: 0ms;
 	}
 
-	@media (prefers-reduced-motion: no-preference) {
-		&[data-away='0'] {
-			transform: translateX(-50%) translateY(8px);
+	@media (prefers-reduced-motion: reduce) {
+		&[data-starting-style],
+		&[data-ending-style] {
+			transform: none;
 		}
 	}
+}
+
+/*
+ * Dialogs and alert dialogs: the one popup that stays centred. A modal is not
+ * anchored to a trigger, so it grows from its own centre — 250ms in, 200ms
+ * out, from `scale(0.96)`.
+ */
+@utility motion-modal {
+	transform-origin: center;
+	transition:
+		opacity var(--transition-duration-modal) var(--ease-out),
+		transform var(--transition-duration-modal) var(--ease-out);
+
+	&[data-starting-style],
+	&[data-ending-style] {
+		opacity: 0;
+		transform: scale(0.96);
+	}
+	&[data-ending-style] {
+		transition-duration: var(--transition-duration-modal-exit);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		&[data-starting-style],
+		&[data-ending-style] {
+			transform: none;
+		}
+	}
+}
+
+/*
+ * The dimming layer behind a modal or a sheet: opacity only, in step with the
+ * surface it belongs to so the two read as one arrival. A sheet's backdrop
+ * also fades with the swipe (`--drawer-swipe-progress`), and follows the
+ * finger with no transition while one is down.
+ */
+@utility motion-backdrop {
+	opacity: calc(1 - var(--drawer-swipe-progress, 0));
+	transition: opacity var(--transition-duration-modal) var(--ease-out);
+
+	&[data-starting-style],
+	&[data-ending-style] {
+		opacity: 0;
+	}
+	&[data-ending-style] {
+		transition-duration: var(--transition-duration-modal-exit);
+	}
+	&[data-swiping] {
+		transition-duration: 0ms;
+	}
+}
+
+/*
+ * A collapsible panel opening and closing: the sanctioned height animation.
+ *
+ * `height` is the exception the GPU-only rule carves out: an opening panel
+ * genuinely moves what is below it, and no transform does that. It costs
+ * layout every frame, which is why it is short (200ms in, 150ms out). Base UI
+ * measures the panel and publishes `--collapsible-panel-height`, so nothing
+ * here animates to `auto`.
+ *
+ * Not gated on reduced motion: height and opacity have no movement *of the
+ * panel* to drop, and the reflow is what stops the content below from jumping
+ * (ADR 0077 §5's answer for the timeline's accordions).
+ */
+@utility motion-collapse {
+	overflow: hidden;
+	height: var(--collapsible-panel-height);
+	transition:
+		height var(--transition-duration-collapse) var(--ease-out),
+		opacity var(--transition-duration-collapse) var(--ease-out);
+
+	&[data-starting-style],
+	&[data-ending-style] {
+		height: 0;
+		opacity: 0;
+	}
+	&[data-ending-style] {
+		transition-duration: var(--transition-duration-collapse-exit);
+	}
+}
+
+/*
+ * The home timeline's one accordion (#502, ADR 0082 §6 as amended by 0086): an
+ * empty cell opening into the draft. Bands and folded weeks were the others;
+ * since ADR 0086 nothing on I dag folds.
+ *
+ * Same ingredients as `motion-collapse`, but the two pixel values it
+ * interpolates between are written by `timeline/reflow.ts`, because the draft
+ * is not a Base UI Collapsible and CSS cannot measure. Not gated on reduced
+ * motion, for `motion-collapse`'s reason.
+ */
+@utility reflow {
+	transition:
+		height var(--transition-duration-collapse) var(--ease-out),
+		opacity var(--transition-duration-collapse) var(--ease-out);
 }
 
 @utility container {
@@ -523,7 +729,7 @@
 	::before,
 	::backdrop,
 	::file-selector-button {
-		border-color: hsl(var(--border));
+		border-color: var(--border);
 	}
 	* {
 		@apply border-border outline-ring/50;
@@ -548,8 +754,54 @@
 			--tab-bar-space: 0px;
 		}
 	}
+	/*
+	 * The mobile baseline (ADR 0085 §5, Emil's mobile-native floor).
+	 *
+	 * - No grey tap flash: it fights the press feedback every control has.
+	 * - No font inflation when a phone turns to landscape.
+	 * - `color-scheme` so native controls, scrollbars and the date picker
+	 *   follow the theme rather than the OS.
+	 */
 	html {
 		@apply font-sans;
+		-webkit-tap-highlight-color: transparent;
+		-webkit-text-size-adjust: 100%;
+		text-size-adjust: 100%;
+		color-scheme: light;
+	}
+	html.dark {
+		color-scheme: dark;
+	}
+	/*
+	 * Controls fire on the tap, not 300ms later (`touch-action: manipulation`
+	 * says this element never double-tap-zooms), and a long press on one does
+	 * not select its label or pop the link callout. Only on controls: body text
+	 * and plain links stay selectable — people copy what they read.
+	 */
+	a,
+	button,
+	summary,
+	label,
+	[role='button'],
+	[role='tab'],
+	[role='switch'],
+	[role='checkbox'],
+	[role='radio'],
+	[role='menuitem'],
+	[role='option'] {
+		touch-action: manipulation;
+	}
+	button,
+	summary,
+	[role='button'],
+	[role='tab'],
+	[role='switch'],
+	[role='menuitem'],
+	[role='option'],
+	[data-slot='button'] {
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
 	}
 	/*
 	 * Native date/time inputs render their own internal chrome (notably on iOS
@@ -567,5 +819,22 @@
 	}
 	[data-slot='input']::-webkit-calendar-picker-indicator {
 		margin: 0;
+	}
+}
+
+/*
+ * The 16px input floor on touch (ADR 0028 §2.3).
+ *
+ * iOS zooms the page into any focused field under 16px and does not zoom back
+ * out. The primitives already say `text-base md:text-sm`, but a tablet is
+ * `md` wide *and* touch, and a route can still pass `text-sm`. Unlayered on
+ * purpose: unlayered rules outrank every Tailwind layer, so no class can take
+ * the floor away on a coarse pointer — and a mouse keeps the compact size.
+ */
+@media (pointer: coarse) {
+	input:not([type='checkbox'], [type='radio'], [type='range']),
+	textarea,
+	select {
+		font-size: max(1rem, 16px);
 	}
 }

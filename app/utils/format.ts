@@ -71,6 +71,15 @@ export function formatPercent(fraction: number): string {
 }
 
 /**
+ * A share as a Norwegian surface writes it (ADR 0081): whole percent with a
+ * no-break space before the sign — `42 %` — so the figure and its sign never
+ * part at a line end.
+ */
+export function formatNbPercent(fraction: number): string {
+	return `${Math.round(fraction * 100)} %`
+}
+
+/**
  * A signed whole-percent rate — a **Volume Ramp**, a **Block Boundary Step** or a
  * cut's depth: `+5%` / `−12%` / `+0%`. A real minus sign (−), matching
  * {@link formatSignedTsb}, because these sit in prose the athlete reads.
@@ -645,15 +654,26 @@ export function formatVolumeFigure(
 	return digits.includes('.') ? digits.replace(/\.0+$/, '') : digits
 }
 
+/** The thousands mark of a Norwegian figure: a space that never breaks. */
+const NO_BREAK_SPACE = '\u00a0'
+
 /**
  * A volume figure as a Norwegian surface writes it (ADR 0081): the same digits
- * as {@link formatVolumeFigure}, with a decimal comma — `3,9`, not `3.9`.
+ * as {@link formatVolumeFigure}, with a decimal comma — `3,9`, not `3.9` — and
+ * the thousands grouped by a no-break space — `1 270,3`, not `1270,3`. A
+ * comma or a point would read as a decimal mark in Norwegian, and the space
+ * must not break: a figure split across two lines is two figures.
  */
 export function formatNbVolumeFigure(
 	value: number,
 	currency: VolumeCurrency,
 ): string {
-	return formatVolumeFigure(value, currency).replace('.', ',')
+	const [whole = '', fraction] = formatVolumeFigure(value, currency).split('.')
+	const sign = whole.startsWith('-') ? '-' : ''
+	const grouped = whole
+		.slice(sign.length)
+		.replace(/\B(?=(\d{3})+(?!\d))/g, NO_BREAK_SPACE)
+	return `${sign}${grouped}${fraction != null ? `,${fraction}` : ''}`
 }
 
 // ---------------------------------------------------------------------------

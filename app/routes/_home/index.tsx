@@ -22,28 +22,21 @@ import {
 	dismissLoadRecomputeNotice,
 	getLoadRecomputeNotice,
 } from '#app/utils/load/recompute-notice.server.ts'
-import {
-	getCurrentLoad,
-	getLoadSnapshots,
-	getTsbTrust,
-} from '#app/utils/load/snapshot.server.ts'
+import { getCurrentLoad, getTsbTrust } from '#app/utils/load/snapshot.server.ts'
 import { readWeekChange } from '#app/utils/load/week-change-card.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { readMostTrainedDiscipline } from '#app/utils/most-trained-discipline.server.ts'
-import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
-import { getStrengthSummaryCount } from '#app/utils/strength-log.server.ts'
 import {
 	isInWindow,
+	isWritableDay,
 	TIMELINE_TRAILING_DAYS,
 	timelineWindow,
 } from '#app/utils/timeline-window.ts'
 import {
 	getActivePlan,
 	getDisciplineThresholds,
-	getLatestWeekReplan,
 	getRecentWeeklyBuild,
 	getSessionLedger,
-	getWeeklyAdherence,
 } from '#app/utils/training.server.ts'
 import { DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { parseWorkoutSentence } from '#app/utils/workout-sentence.ts'
@@ -85,7 +78,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// they live on the Workout Detail View, so the loader no longer fetches them.
 	// The ledger reaches as far ahead as the writing line may write — two
 	// years, or the plan's end where that is later (`timeline-window.ts`) — so
-	// a session written into a collapsed week months out is read back here.
+	// a session written into a week months out is read back here.
 	const requestedAt = new Date()
 	const activePlanRead = getActivePlan(userId)
 	const ledgerRead = Promise.all([
@@ -103,33 +96,22 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const [
 		ledger,
 		currentLoad,
-		snapshots,
 		tsbTrust,
 		activePlan,
-		weeklyAdherence,
 		weeklyBuild,
 		thresholds,
-		personalRecords,
-		weekReplan,
 		weekChange,
 		loadRecomputeNotice,
 		athleteProfile,
-		strengthCount,
 		stampDiscipline,
 		importConnections,
 	] = await Promise.all([
 		ledgerRead,
 		getCurrentLoad(userId),
-		getLoadSnapshots(userId, 90),
 		getTsbTrust(userId),
 		activePlanRead,
-		getWeeklyAdherence(userId),
 		getRecentWeeklyBuild(userId, BUILD_WEEKS),
 		getDisciplineThresholds(userId),
-		getPersonalRecords(userId),
-		// The stored Week Replan decision for the latest closed week (ADR 0025) —
-		// read-only; the recompute-path applier is the only writer.
-		getLatestWeekReplan(userId),
 		// The Ukeskiftet card (#505 stories 42–55): the closed week's proposals,
 		// only while one still waits for an answer — on every other day this is
 		// one indexed lookup that ships nothing.
@@ -142,10 +124,6 @@ export async function loader({ request }: Route.LoaderArgs) {
 			where: { userId },
 			select: { timezone: true },
 		}),
-		// ADR 0046 §4's Strength Summary Count — mandated there and unbuilt until
-		// `ExerciseSetLog` existed, because "completed" on a gym session used to
-		// mean only that somebody had typed an RPE (ADR 0056).
-		getStrengthSummaryCount(userId),
 		// The Discipline a tapped empty cell prefills (ADR 0065 §5) — read from
 		// the athlete's own history, and null where there is none, in which case
 		// the cell asks. One query, and the same reader the full authoring route
@@ -189,13 +167,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 		now,
 		ledger,
 		current,
-		// Only the two fields the Form pane's trend line reads (#499). Fatigue and
-		// Form are a *day's* numbers and come from `current`; shipping 90 days of
-		// them was payload for a chart that no longer exists.
-		snapshots: snapshots.map((s) => ({ date: s.date, ctl: s.ctl })),
 		tsbTrust,
 		activePlan,
-		weeklyAdherence,
 		// `weeklyBuild` itself is deliberately NOT returned: the trailing series
 		// fed the retired weekly-build chart, and what survives of it is the
 		// `sustained` streak computed just below. The query stays because that
@@ -203,30 +176,39 @@ export async function loader({ request }: Route.LoaderArgs) {
 		thresholds,
 		sustained,
 		nudge,
-		personalRecords,
-		weekReplan,
 		weekChange,
 		loadRecomputeNotice,
-		strengthCount,
 		stampDiscipline,
 		importConnected: importConnections > 0,
 	}
 }
 
 /**
- * Whether a posted day is one this athlete's I dag renders. Checked against a
- * **calendar**, not a shape — `2026-13-45` matches `YYYY-MM-DD` and the day
- * maths would roll it over rather than refuse it — and then against the window
- * the loader reads (`timeline-window.ts`), because a session written outside
- * it is invisible on the only surface that offers the way back (ADR 0076).
+ * Whether a posted day may be written on. Checked against a **calendar**, not
+ * a shape — `2026-13-45` matches `YYYY-MM-DD` and the day maths would roll it
+ * over rather than refuse it — and then against the window the loader reads
+ * (`timeline-window.ts`).
+ *
+ * Two readings of that window. A **stamp** comes from an empty cell, which
+ * only exists inside it, so it is held to it (`stamp`). A **sentence** may go
+ * any distance ahead (#505 story 40): it is held only to the window's first
+ * day, since its way back is the toast's Angre and not a row on screen (ADR
+ * 0076).
  */
-async function isWritableDay(
+async function isPostableDay(
 	userId: string,
 	date: unknown,
-	{ now, timezone }: { now: Date; timezone: string },
+	{
+		now,
+		timezone,
+		reach,
+	}: { now: Date; timezone: string; reach: 'stamp' | 'sentence' },
 ): Promise<boolean> {
 	if (typeof date !== 'string' || !isCalendarDay(date, timezone)) return false
-	return isInWindow(date, await readTimelineWindow(userId, { now, timezone }))
+	const window = await readTimelineWindow(userId, { now, timezone })
+	return reach === 'stamp'
+		? isInWindow(date, window)
+		: isWritableDay(date, window)
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -266,7 +248,7 @@ export async function action({ request }: Route.ActionArgs) {
 		const timezone = await getAthleteTimezone(userId)
 		invariantResponse(
 			typeof date === 'string' &&
-				(await isWritableDay(userId, date, { now, timezone })),
+				(await isPostableDay(userId, date, { now, timezone, reach: 'stamp' })),
 			'A day is required',
 			{ status: 400 },
 		)
@@ -311,11 +293,11 @@ export async function action({ request }: Route.ActionArgs) {
 		invariantResponse(posted.success, 'A day and a sentence are required', {
 			status: 400,
 		})
-		const { date, sentence, discipline = null } = posted.data
+		const { date, sentence, discipline = null, landing } = posted.data
 		const now = new Date()
 		const timezone = await getAthleteTimezone(userId)
 		invariantResponse(
-			await isWritableDay(userId, date, { now, timezone }),
+			await isPostableDay(userId, date, { now, timezone, reach: 'sentence' }),
 			'A day is required',
 			{ status: 400 },
 		)
@@ -329,7 +311,11 @@ export async function action({ request }: Route.ActionArgs) {
 				status: 400,
 			},
 		)
-		const { result: written, headers } = await withWeekSumToast(
+		const {
+			result: written,
+			headers,
+			description,
+		} = await withWeekSumToast(
 			userId,
 			{
 				dayKey: date,
@@ -352,6 +338,15 @@ export async function action({ request }: Route.ActionArgs) {
 		invariantResponse(written.ok, 'The sentence could not be read', {
 			status: 400,
 		})
+		// From "+ Ny" the row may be anywhere in the list, so the way back is the
+		// toast: the client shows the week's sum itself, with Angre on it, and no
+		// second toast is flashed beside it (ADR 0082 S11, ADR 0076).
+		if (landing === 'toast') {
+			return data({
+				stampedSessionId: written.sessionId,
+				weekSumLine: description,
+			})
+		}
 		return data(
 			{ stampedSessionId: written.sessionId },
 			headers ? { headers } : undefined,

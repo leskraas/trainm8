@@ -43,7 +43,7 @@ import { type TimelineStrengthLog } from './strength-log.ts'
 const PRIMARY =
 	'bg-primary text-primary-foreground hover:bg-primary/85 disabled:opacity-60 min-h-11 flex-1 rounded-[10px] px-4 text-[13px]/[1] font-bold'
 const SECONDARY =
-	'border-hairline-edge text-foreground hover:border-primary disabled:opacity-60 min-h-11 flex-1 rounded-[10px] border px-4 text-[13px]/[1] font-semibold'
+	'border-border text-foreground hover:border-primary disabled:opacity-60 min-h-11 flex-1 rounded-[10px] border px-4 text-[13px]/[1] font-semibold'
 
 export function StrengthLogPanel({
 	sessionId,
@@ -69,7 +69,7 @@ export function StrengthLogPanel({
 		<section
 			aria-label={words.label}
 			data-strength-log
-			className="border-hairline-edge bg-card mt-[-6px] mr-[18px] mb-3 ml-[76px] flex flex-col gap-2.5 rounded-[12px] border px-3 py-3"
+			className="border-border bg-card mr-4 mb-3 ml-[103px] flex flex-col gap-2.5 rounded-2xl border px-3 py-3"
 		>
 			<h3 className="text-primary text-[11px]/[1.2] font-bold tracking-[0.04em] uppercase">
 				{words.heading}
@@ -80,12 +80,15 @@ export function StrengthLogPanel({
 					<PlanLines quickLog={quickLog} />
 				)
 			) : (
-				<p aria-live="polite" className="text-ink-dimmer text-[12px]/[1.35]">
+				<p
+					aria-live="polite"
+					className="text-muted-foreground text-[12px]/[1.35]"
+				>
 					{reader.data ? null : QUICK_LOG_LABELS.loading}
 				</p>
 			)}
 			{quickLog && !quickLog.loggable ? (
-				<p className="text-ink-dim text-[12px]/[1.4] [text-wrap:pretty]">
+				<p className="text-muted-foreground text-[12px]/[1.4] [text-wrap:pretty]">
 					{QUICK_LOG_LABELS.notLoggable}{' '}
 					<Link
 						to={quickLog.runnerTo}
@@ -118,7 +121,7 @@ function PlanLines({ quickLog }: { quickLog: QuickLog }) {
 					className="text-foreground text-[13px]/[1.35] [text-wrap:pretty]"
 				>
 					<span className="font-semibold">{lift.name}</span>
-					<span className="text-ink-dim tabular-nums">
+					<span className="text-muted-foreground tabular-nums">
 						{` · ${lift.scheme}`}
 						{lift.loadLabel ? ` · ${lift.loadLabel}` : null}
 					</span>
@@ -164,7 +167,7 @@ function AsPlannedForm({
 			{sent ? (
 				<p
 					aria-live="polite"
-					className="text-ink-dimmer flex min-h-11 items-center text-[12px]/[1.35]"
+					className="text-muted-foreground flex min-h-11 items-center text-[12px]/[1.35]"
 				>
 					{QUICK_LOG_LABELS.saving}
 				</p>
@@ -243,7 +246,7 @@ function EditForm({
 					<legend className="text-foreground mb-1.5 text-[12.5px]/[1.3] font-semibold">
 						{lift.name}
 						{lift.loadLabel ? (
-							<span className="text-ink-dim font-normal tabular-nums">
+							<span className="text-muted-foreground font-normal tabular-nums">
 								{` · ${lift.loadLabel}`}
 							</span>
 						) : null}
@@ -266,13 +269,13 @@ function EditForm({
 					</div>
 				</fieldset>
 			))}
-			<p className="text-ink-dimmer text-[11.5px]/[1.4] [text-wrap:pretty]">
+			<p className="text-muted-foreground text-[11.5px]/[1.4] [text-wrap:pretty]">
 				{QUICK_LOG_LABELS.notDoneNote} {QUICK_LOG_LABELS.weightNote}
 			</p>
 			{sent ? (
 				<p
 					aria-live="polite"
-					className="text-ink-dimmer flex min-h-11 items-center text-[12px]/[1.35]"
+					className="text-muted-foreground flex min-h-11 items-center text-[12px]/[1.35]"
 				>
 					{QUICK_LOG_LABELS.saving}
 				</p>
@@ -310,7 +313,7 @@ function SetInput({
 				inputMode="numeric"
 				min={0}
 				max={QUICK_LOG_MAX_COUNT}
-				className="border-hairline-edge bg-background focus-visible:ring-ring aria-[invalid]:border-destructive h-11 w-14 rounded-[10px] border text-center text-[16px] tabular-nums focus-visible:ring-2 focus-visible:outline-none"
+				className="border-border bg-background focus-visible:ring-ring aria-[invalid]:border-destructive h-11 w-14 rounded-[10px] border text-center text-[16px] tabular-nums focus-visible:ring-2 focus-visible:outline-none"
 			/>
 		</span>
 	)

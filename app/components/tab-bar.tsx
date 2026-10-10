@@ -66,7 +66,10 @@ export function TabBar({ className }: { className?: string }) {
 								}
 								prefetch="intent"
 								className={cn(
-									'focus-visible:outline-ring flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px]/[1.1] font-semibold focus-visible:outline-2 focus-visible:-outline-offset-2',
+									// The press is an instant tint: the tap highlight is off
+									// app-wide, so this is the only feedback a thumb gets, and a
+									// control used a hundred times a day gets no transition.
+									'focus-visible:outline-ring active:bg-muted/60 flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px]/[1.1] font-semibold focus-visible:outline-2 focus-visible:-outline-offset-2',
 									// 44px to a pointer or a thumb on a tablet (ui-conventions §2.2).
 									'md:h-11 md:flex-row md:gap-1.5 md:rounded-full md:px-3.5 md:text-sm',
 									active

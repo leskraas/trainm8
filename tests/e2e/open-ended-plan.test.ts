@@ -47,9 +47,13 @@ test('Hold meg aktiv makes a plan with no race, marked blokk 1 av ∞ on the pla
 	await expect(page.getByText('blokk 1 av ∞')).toBeVisible()
 
 	// Home knows the plan: its header says which round today is in, and counts
-	// down to no race day.
+	// down to no race day. The top line is the phone's surface; from 1024px up
+	// the season pane's plan card says it instead (ADR 0087).
+	await page.setViewportSize({ width: 390, height: 844 })
 	await navigate('/')
-	await expect(page.getByText(/· blokk 1 av ∞$/)).toBeVisible()
+	await expect(
+		page.getByTestId('timeline-top').getByText('Blokk 1 av ∞'),
+	).toBeVisible()
 	await expect(page.getByText(/til løpsdagen/i)).toHaveCount(0)
 	expect(errors).toEqual([])
 })

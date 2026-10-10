@@ -1,17 +1,22 @@
-'use client'
-
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip'
-
 import { cn } from '#app/utils/misc.tsx'
 
+// shadcn `base-luma` tooltip. Deviations (docs/design/design-system.md):
+// D4 `motion-tooltip` replaces tw-animate's keyframes — from scale 0.97,
+// 150ms in / 100ms out, and no animation at all on a popup Base UI marks
+// `data-instant`; D13 the provider waits 500ms before the first tooltip (the
+// CLI's 0 opened one on every pass of the pointer), and within `timeout` the
+// next opens at once — no delay, no animation.
 function TooltipProvider({
-	delay = 0,
+	delay = 500,
+	timeout = 400,
 	...props
 }: TooltipPrimitive.Provider.Props) {
 	return (
 		<TooltipPrimitive.Provider
 			data-slot="tooltip-provider"
 			delay={delay}
+			timeout={timeout}
 			{...props}
 		/>
 	)
@@ -50,7 +55,7 @@ function TooltipContent({
 				<TooltipPrimitive.Popup
 					data-slot="tooltip-content"
 					className={cn(
-						'bg-foreground text-background data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs has-data-[slot=kbd]:pr-1.5 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-lg',
+						'bg-foreground text-background motion-tooltip z-50 inline-flex w-fit max-w-xs items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs has-data-[slot=kbd]:pr-1.5 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-lg',
 						className,
 					)}
 					{...props}
@@ -63,4 +68,4 @@ function TooltipContent({
 	)
 }
 
-export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger }
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }

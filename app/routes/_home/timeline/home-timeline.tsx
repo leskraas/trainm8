@@ -1,46 +1,59 @@
 /**
- * The home screen: one bi-directional timeline anchored on today.
+ * I dag: the season as one list, opened on today, with nothing in front of it
+ * (#505 owner decision 3, Arket variant P, ADR 0086).
  *
- * It opens on today's session, scrolls back through everything that has been
- * done — including the weeks imported from before the plan existed — and forward
- * through everything that is written. Above it sits a week strip for crossing
- * the season at speed. Today is not a separate surface here; it is the row the
- * athlete happens to be parked on.
+ * Three things in one column, top to bottom:
  *
- * Three children, in one column: the header block (which holds the hero and the
- * strip), the stream, and the back-to-today pill floating over both. The header
- * collapses as the athlete moves away from today in **either** direction, so the
- * stream gets the whole screen the moment it is being read rather than looked at.
+ * - **The top bar**, pinned, on the page's own tone with a soft shadow over
+ *   the list: one line with the plan and what it counts toward (`Klassisk
+ *   3:1 · Halvmaraton om 12 uker`, `Blokk 3 av ∞`, or `Ingen plan` with the
+ *   way to Sesong), the Ukeskiftet badge while a proposal waits (`1 forslag`,
+ *   a jump to the card — never a row of its own), a compact "+ Ny", and the
+ *   **I dag pill**, outlined while today is on screen and filled with the way
+ *   back once it is not.
+ * - **The season strip** under it — every week as a bar, the plan's phases
+ *   under it, a frame over the weeks the list is showing (`week-strip.tsx`).
+ * - **The list**, which gets every pixel left, and reads like a calendar:
+ *   every week whole, every day a row (`stream.tsx`). Today's row carries what
+ *   the hero used to: the session's action and the coach's one line.
  *
- * The screen carries **two horizontal axes** and they are different instruments
- * (ADR 0065 §8): the hero pages sideways through facets of today and moves
- * nothing else, while the strip scrolls continuously and takes the stream with
- * it. The hero never moves in time; the strip and the stream always do.
+ * There is no hero, no collapsing header and nothing folds, with the scroll or
+ * otherwise: the top is a fixed ~115px, and the list under it is a plain
+ * scroller.
  *
- * The measuring lives in `use-timeline-scroll.ts`, the arithmetic in
- * `anchoring.ts`, the hero's gesture in `hero-pager.ts`, and what a row is
- * allowed to say in `row-content.ts`. What is left here is markup and
- * composition.
+ * **On a large screen** (ADR 0087, Arket variant Q) the frame is three cards:
+ * the season — plan card, season table, compact curve (`season-pane.tsx`) —
+ * left of the list, and the selected day (`day-pane.tsx`) right of it from
+ * `xl`, in a Sheet from `lg` to `xl`. The strip steps aside for the table.
+ * A click on a row picks its day without navigating (`use-day-selection.ts`). The hero's Form and Rekorder panes live on the Meg tab now; its
+ * "Uka" pane was already the week header.
+ *
+ * The measuring lives in `use-timeline-scroll.ts` (which never writes under a
+ * scrolling reader), the arithmetic in `anchoring.ts`, and what a row is
+ * allowed to say in `row-content.ts`. What is left here is composition.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Form, Link } from 'react-router'
 import { CreateMenu } from '#app/components/create-menu.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
-import { RECOMPUTE_NOTICE_LABELS } from '#app/utils/labels.ts'
-import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
+import {
+	DAY_PANE_LABELS,
+	RECOMPUTE_NOTICE_LABELS,
+	SEASON_PANE_LABELS,
+	SEASON_STRIP_LABELS,
+	TOP_LINE_LABELS,
+} from '#app/utils/labels.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
 import { type WeekChangeData } from '#app/utils/load/week-change-card.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { type PersonalRecord } from '#app/utils/personal-records.ts'
-import { type StrengthSummaryCount } from '#app/utils/strength-log.ts'
+import { useNonce } from '#app/utils/nonce-provider.ts'
 import { timelineWindow } from '#app/utils/timeline-window.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
-	type WeekReplanSummary,
 } from '#app/utils/training.server.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
@@ -49,21 +62,27 @@ import {
 	type LoadRecomputeLine,
 	type LoadRecomputeNotice,
 } from '../presenter.ts'
+import { type AwayFromToday, landingScript } from './anchoring.ts'
+import { DayDetail, DaySheet } from './day-pane.tsx'
 import { DayStampProvider } from './day-stamp-context.tsx'
-import { buildHeroPanes } from './hero-panes.ts'
-import { HeroPager } from './hero.tsx'
-import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
-import { SeasonPane, useLargeScreen } from './season-pane.tsx'
-import { EndCap, StartCap, WeekBlock } from './stream.tsx'
 import {
-	HELD_ATTR,
+	buildTimelineSeason,
+	buildTodayRow,
+	type TimelineTopLine,
+} from './presenter.ts'
+import { SeasonPane, useLargeScreen, useWideScreen } from './season-pane.tsx'
+import { EndCap, StartCap, type TodayRowExtras, WeekBlock } from './stream.tsx'
+import { useDaySelection } from './use-day-selection.ts'
+import {
+	AHEAD_SENTINEL_ATTR,
+	ReadingHold,
 	STREAM_ATTR,
 	useTimelineScroll,
 } from './use-timeline-scroll.ts'
 import {
 	useWeekChange,
+	WeekChangeBadge,
 	WeekChangeCard,
-	WeekChangeWaiting,
 } from './week-change-card.tsx'
 import { buildWeekChangeCard } from './week-change.ts'
 import { WeekStrip } from './week-strip.tsx'
@@ -79,17 +98,6 @@ export type HomeTimelineData = {
 	nudge: SessionNudge
 	thresholds: DisciplineThresholdMap
 	loadRecomputeNotice: LoadRecomputeNotice | null
-	/*
-	 * The other three hero panes' data (#496). Every field here was already
-	 * fetched on every home request and rendered by nothing: the load snapshots,
-	 * the records, the week's adherence, the strength count and the stored Week
-	 * Replan decision. Nothing new is queried — the panes are a surface, not a
-	 * feature.
-	 */
-	snapshots: Array<{ date: string; ctl: number }>
-	weeklyAdherence: WeeklyAdherence | null
-	strengthCount: StrengthSummaryCount | null
-	weekReplan: WeekReplanSummary | null
 	/**
 	 * The Ukeskiftet card's proposals (#505 stories 42–55): the closed week's,
 	 * while one still waits for an answer; null otherwise.
@@ -100,7 +108,6 @@ export type HomeTimelineData = {
 	 * hand then says its numbers come from the import.
 	 */
 	importConnected?: boolean
-	personalRecords: PersonalRecord[]
 	/**
 	 * The Discipline a tapped empty cell prefills — the athlete's **most-trained**,
 	 * read from their own history, or null when there is none to read (ADR 0065
@@ -130,8 +137,7 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 
 function TimelineFrame({ data }: { data: HomeTimelineData }) {
 	// Destructured up front so the memo dependency lists name the values they
-	// actually read; a `data.x` dependency is a property read on a mutable object,
-	// which the exhaustive-deps rule cannot verify.
+	// actually read.
 	const {
 		ledger,
 		activePlan,
@@ -141,17 +147,11 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		nudge,
 		thresholds,
 		loadRecomputeNotice,
-		snapshots,
-		weeklyAdherence,
-		strengthCount,
-		weekReplan,
-		personalRecords,
 		weekChange = null,
 		importConnected = false,
 	} = data
 	// `now` comes from the loader so SSR and hydration agree on "today", and the
-	// Athlete Timezone fixes which calendar day that instant reads as — the same
-	// contract every other surface holds (#172).
+	// Athlete Timezone fixes which calendar day that instant reads as (#172).
 	const now = useMemo(
 		() => (data.now ? new Date(data.now) : new Date()),
 		[data.now],
@@ -169,58 +169,21 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 			}),
 		[activePlan, importConnected, ledger, now, timezone],
 	)
-	const hero = useMemo(
+	// What the hero used to say about today, now said in today's row: the
+	// session's action — only on today's own session — and the coach's line.
+	const today = useMemo<TodayRowExtras>(
 		() =>
-			buildTimelineHero({
+			buildTodayRow({
 				ledger,
 				now,
 				timezone,
 				thresholds,
-				activePlan,
 				current,
 				trust: tsbTrust,
 				sustained,
 				nudge,
 			}),
-		[
-			activePlan,
-			current,
-			ledger,
-			nudge,
-			sustained,
-			thresholds,
-			tsbTrust,
-			now,
-			timezone,
-		],
-	)
-	// The hero's other three panes (#496). The week pane reads the week today
-	// falls in off the season that was already built, so the pane and the stream
-	// header it summarises cannot disagree about the week they are both about.
-	const panes = useMemo(
-		() =>
-			buildHeroPanes({
-				current,
-				trust: tsbTrust,
-				snapshots,
-				thisWeek: season.weeks[season.todayWeekIndex] ?? null,
-				weeklyAdherence,
-				strengthCount,
-				weekReplan,
-				personalRecords,
-				timezone,
-			}),
-		[
-			current,
-			personalRecords,
-			season,
-			snapshots,
-			strengthCount,
-			timezone,
-			tsbTrust,
-			weekReplan,
-			weeklyAdherence,
-		],
+		[current, ledger, nudge, sustained, thresholds, tsbTrust, now, timezone],
 	)
 
 	// How much chrome sits above the frame — see the `style` note on `<main>`.
@@ -231,7 +194,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		if (!el) return
 		const measure = () => {
 			const top = Math.round(el.getBoundingClientRect().top + window.scrollY)
-			setChrome((current) => (current === top ? current : top))
+			setChrome((value) => (value === top ? value : top))
 		}
 		measure()
 		window.addEventListener('resize', measure)
@@ -247,48 +210,33 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		todayIndex: season.todayWeekIndex,
 	})
 
-	// The window: one week either side of today at first, widening as the athlete
-	// reads past either edge.
-	const from = Math.max(0, season.todayWeekIndex - scroll.loaded.before)
+	// Every week before today, always (ADR 0086), and the weeks ahead the
+	// reader has come near. Memoised on the bound, because the week blocks are
+	// memoised on props that come off this list (#503).
 	const to = Math.min(
 		season.weeks.length - 1,
-		season.todayWeekIndex + scroll.loaded.after,
+		season.todayWeekIndex + scroll.after,
 	)
-	// Memoised on the bounds rather than sliced inline (#503). This frame
-	// re-renders on every scroll frame that crosses a week header, and the week
-	// blocks are memoised on props that come off this list.
 	const visibleWeeks = useMemo(
-		() => season.weeks.slice(from, to + 1),
-		[season.weeks, from, to],
+		() => season.weeks.slice(0, to + 1),
+		[season.weeks, to],
 	)
 	const notice = buildLoadRecomputeLine(loadRecomputeNotice)
 
-	// The closed weeks the athlete has opened (#505 story 31). Held here rather
-	// than in each week, so a strip jump into a folded week can open it on the
-	// way — a jump is a request to see the week, not its one-line fold.
-	// The creation menu's writing line (#505 story 40): open under the header
-	// row until the write lands or the athlete closes it.
+	// The creation menu's writing line (#505 story 40): open under the top line
+	// until the write lands or the athlete closes it.
 	const [writing, setWriting] = useState(false)
-	// The days the line may write: the loader's own window, to the plan's end.
+	// The first day the line may write on: the loader's own window. It writes
+	// any distance ahead (story 40), so there is no last day.
 	const writable = useMemo(
 		() => timelineWindow({ now, timezone, plan: activePlan }),
 		[activePlan, now, timezone],
 	)
 	const openWriting = useCallback(() => setWriting(true), [])
 	const closeWriting = useCallback(() => setWriting(false), [])
-	const [openWeeks, setOpenWeeks] = useState<ReadonlySet<string>>(
-		() => new Set(),
-	)
-	const toggleWeek = useCallback((key: string) => {
-		setOpenWeeks((current) => {
-			const next = new Set(current)
-			if (next.has(key)) next.delete(key)
-			else next.add(key)
-			return next
-		})
-	}, [])
+
 	const streamNode = useRef<HTMLDivElement | null>(null)
-	const { streamRef: scrollStreamRef, goToWeek } = scroll
+	const { streamRef: scrollStreamRef, goToWeek, readerKey } = scroll
 	const streamRef = useCallback(
 		(node: HTMLDivElement | null) => {
 			streamNode.current = node
@@ -296,30 +244,32 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		},
 		[scrollStreamRef],
 	)
-	// The open set as of the last render, read by the jump rather than depended
-	// on: a strip tap must not get a new callback every time a week opens, or
-	// every memoised strip bar and table row would re-render with it.
-	const openWeeksRef = useRef(openWeeks)
-	openWeeksRef.current = openWeeks
-	const jumpToWeek = useCallback(
-		(key: string) => {
-			const week = season.weeks.find((w) => w.key === key)
-			if (week?.shape === 'folded' && !openWeeksRef.current.has(key)) {
-				// The days open below the week's own top, which is where the jump
-				// lands — so the reading position this render produces is the
-				// jump's, and the stream's compensation must not credit it again.
-				streamNode.current?.setAttribute(HELD_ATTR, '')
-				setOpenWeeks((current) => new Set(current).add(key))
-			}
-			goToWeek(key)
-		},
-		[goToWeek, season.weeks],
-	)
+	const streamOf = useCallback(() => streamNode.current, [])
+	// The large screen (ADR 0087): the season pane from `lg`, and the day
+	// beside the list from `xl` — in a Sheet between the two. False on the
+	// server and on a phone, where none of it mounts.
 	const large = useLargeScreen()
+	const wide = useWideScreen()
+	const dayPaneRef = useRef<HTMLElement>(null)
+	const revealDay = useCallback(() => dayPaneRef.current?.focus(), [])
+	const days = useDaySelection({
+		stream: streamOf,
+		todayKey: season.todayKey,
+		mode: large ? (wide ? 'pane' : 'sheet') : 'off',
+		revision: visibleWeeks,
+		onReveal: revealDay,
+	})
+	const { select: selectDay } = days
+	const { backToToday } = scroll
+	const toToday = useCallback(() => {
+		selectDay(season.todayKey)
+		backToToday()
+	}, [backToToday, selectDay, season.todayKey])
+	const dayHeadingId = useId()
 
-	// The Ukeskiftet card, under today's row (#505 story 42), and the line on
-	// top that leads to it. Built once per change of what it reads, so today's
-	// memoised week block keeps its props.
+	// The Ukeskiftet card, after this week's days (#505 story 42), and the badge on
+	// the top line that leads to it. Built once per change of what it reads, so
+	// today's memoised week block keeps its props.
 	const { held: weekChangeData, onCard } = useWeekChange(weekChange)
 	const weekChangeView = useMemo(
 		() =>
@@ -338,203 +288,348 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		[weekChangeView, onCard],
 	)
 
+	const streamId = useId()
+	const nonce = useNonce()
+
 	return (
 		<main
 			ref={frameRef}
-			// The stream can only scroll inside a box with a **definite** height, and
-			// `app/root.tsx` gives its layout `min-h-screen` — a minimum, not a
-			// height — so a `flex-1` child here inherits nothing to scroll within and
-			// the whole page scrolls instead. The frame therefore states its own
-			// height: the viewport, less whatever chrome sits above it and the
-			// phone's tab bar below it (`--tab-bar-space`, ADR 0083; 0 from `md` up).
-			//
-			// `100dvh` is the server-rendered and no-JS answer, which is right to
-			// within the height of the wordmark row; the measured value below takes
-			// that row out. Measuring rather than hardcoding, because how tall the
-			// chrome above happens to be is not this screen's business.
+			// The landing script sets this same height before hydration, so the
+			// first paint is measured in the box it will keep.
+			suppressHydrationWarning
+			// The list can only scroll inside a box with a **definite** height, and
+			// `app/root.tsx` gives its layout `min-h-screen` — a minimum — so the
+			// frame states its own: the viewport, less the chrome above it and the
+			// phone's tab bar below it (`--tab-bar-space`, ADR 0083; 0 from `md`
+			// up). `100dvh` is the server-rendered answer, right to within the
+			// wordmark row; the measured value takes that row out.
 			style={
 				chrome == null
 					? undefined
 					: { height: `calc(100dvh - ${chrome}px - var(--tab-bar-space))` }
 			}
-			className="relative flex h-[calc(100dvh-var(--tab-bar-space))] min-h-0 overflow-hidden"
+			//
+			// From `lg` up the frame is a grid of cards on the page's tone (ADR
+			// 0087, Arket variant Q): the season, the list at a reading width, and
+			// from `xl` the selected day. Each card scrolls on its own and keeps
+			// its scroll to itself. The cards are drawn by CSS from the first byte,
+			// so the list does not move sideways when the panes fill in on the
+			// client.
+			className={cn(
+				'relative flex h-[calc(100dvh-var(--tab-bar-space))] min-h-0 overflow-hidden',
+				'lg:grid lg:grid-cols-[300px_minmax(0,760px)] lg:justify-center lg:gap-3 lg:p-3',
+				'xl:grid-cols-[300px_minmax(0,760px)_340px] 2xl:grid-cols-[320px_minmax(0,800px)_380px]',
+			)}
 		>
-			{/* The list: one column, the whole width on a phone and a readable
-			    column beside the season on a large screen (#505 story 60). */}
+			{/* The season, left of the list (#505 story 60). Its card is drawn at
+			    `lg` whatever runs; its content only once the screen is known to be
+			    large, so a phone never renders a table it would hide. */}
+			<aside
+				data-season-pane-column
+				aria-label={SEASON_PANE_LABELS.heading}
+				className={cn(LARGE_CARD, 'hidden p-4 lg:flex')}
+			>
+				{large ? (
+					<SeasonPane
+						season={season}
+						frame={scroll.frame}
+						onJump={goToWeek}
+						onToday={toToday}
+					/>
+				) : null}
+			</aside>
+
+			{/* The list: one column, the whole width on a phone; a card at a
+			    reading width between the season and the day on a large screen. */}
 			<div
 				data-timeline-column
-				className="relative flex min-h-0 min-w-0 flex-1 flex-col lg:max-w-[480px]"
+				className="lg:ring-foreground/5 relative flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-hidden lg:rounded-4xl lg:shadow-md lg:ring-1"
 			>
 				{/* Why a number the athlete had already read moved (ADR 0046 §2). It
 				    sits above everything because it is a one-shot explanation, not a
 				    panel. */}
 				{notice ? <LoadRecomputeNoticeBar line={notice} /> : null}
-				{weekChangeView?.waitingLabel ? (
-					<WeekChangeWaiting label={weekChangeView.waitingLabel} />
-				) : null}
 
-				<div
-					className={cn(
-						'bg-background z-4 flex-none',
-						scroll.collapsed && 'border-hairline-edge border-b',
-					)}
+				<header
+					data-testid="timeline-top"
+					// Pinned above the list, and set apart from it by tone and a soft
+					// shadow rather than a rule (the luma direction, ADR 0085).
+					className="bg-background relative z-10 flex flex-none flex-col gap-0.5 px-4 pb-2 shadow-[0_1px_3px_oklch(0_0_0/0.06)]"
 				>
-					<div className="flex items-center gap-3 px-[18px] py-[14px]">
-						{scroll.collapsed && hero ? (
-							<>
-								{/* The whole title, on as many lines as it takes — never cut
-								    with "…" (#505 story 32). The row grows with it; nothing
-								    is measured off this row (the landing reads the week's
-								    own header, and the frame's height the chrome above). */}
-								<span className="flex min-w-0 flex-1 flex-col gap-0.5">
-									<span
-										data-hero-collapsed-title
-										className="text-[13px]/[1.2] font-semibold break-words"
-									>
-										{hero.collapsed.title}
-									</span>
-									<span className="text-primary text-[10.5px]/[1.2]">
-										{hero.collapsed.summary}
-									</span>
-								</span>
-								<Link
-									to={hero.cta.to}
-									className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[34px] flex-none items-center rounded-[10px] px-[14px] text-[12.5px]/[1] font-bold"
-								>
-									{hero.cta.label}
-								</Link>
-							</>
-						) : (
-							<>
-								{/*
-								 * "+ New" is the app's single creation menu (#178). It was the
-								 * Cockpit header's, and creation has to survive the
-								 * re-composition: the design's header has only a wordmark, a
-								 * date and an avatar — `app/root.tsx` renders the wordmark, and
-								 * the account is the Meg tab now (ADR 0083) — so this row has
-								 * the room for it.
-								 *
-								 * Expanded only. The collapsed row is the session summary and
-								 * its action, and squeezing a third control in beside them
-								 * would crowd the one thing the athlete scrolled away from.
-								 */}
-								<CreateMenu onWrite={openWriting} />
-								<span className="text-muted-foreground flex-1 text-right text-[12px]/[1.2]">
-									{season.headerLabel}
-								</span>
-							</>
-						)}
-					</div>
-
+					<TopLine
+						line={season.topLine}
+						weekChangeCount={weekChangeView?.waitingCount ?? 0}
+						away={scroll.away}
+						onToday={toToday}
+						onWrite={openWriting}
+					/>
 					{writing ? (
 						<WritingPanel
 							todayKey={season.todayKey}
 							minDayKey={writable.firstDayKey}
-							maxDayKey={writable.lastDayKey}
 							onClose={closeWriting}
 						/>
 					) : null}
-
 					{/*
-					 * The hero is a scroll-position-driven collapse, not a drawer: it
-					 * has no open/closed control, no focus to trap and nothing to
-					 * dismiss.
-					 *
-					 * It is also not an animation (#498). The height, the opacity and
-					 * the lift are read off the scroll offset and written by
-					 * `use-timeline-scroll.ts` on the same pass that measures
-					 * everything else, so a gesture gets continuous feedback instead
-					 * of a 280ms transition that fired once the gesture was over.
-					 * There is nothing to style here but the clip and the lift: no
-					 * transition, no `max-h` pairs, and no height at all until
-					 * something has measured one — which is what the server render
-					 * and a no-JS browser get, and it is right, because an unmeasured
-					 * hero is an open one.
-					 *
-					 * `inert` rather than `aria-hidden` (#487). A hero folded to
-					 * nothing is away from the eye but not from the tab order, so
-					 * `aria-hidden` alone left its two links focusable while
-					 * unreadable — a keyboard user tabbing into a box that is not
-					 * there. `inert` takes the subtree out of the accessibility tree
-					 * *and* the tab order, which is the whole of what collapsed means
-					 * here.
+					 * The season strip (#505 stories 17–18, D5): every week, the
+					 * phases under it, the frame over the weeks in view. From `lg`
+					 * the season pane's table and curve say the same beside the list
+					 * (ADR 0087), so the strip steps aside.
 					 */}
-					<div
-						ref={scroll.heroRef}
-						data-testid="hero-fold"
-						inert={scroll.collapsed}
-						className="overflow-hidden"
-					>
-						<div className="hero-lift">
-							<HeroPager hero={hero} panes={panes} />
-						</div>
+					<div className="lg:hidden">
+						<WeekStrip
+							strip={season.strip}
+							activeWeekKey={scroll.activeWeekKey}
+							frame={scroll.frame}
+							onSelect={goToWeek}
+						/>
 					</div>
-
-					{/*
-					 * The season strip (#505 stories 17–18): every week at once, a
-					 * frame over the weeks in view, and the "I dag" pill — which is
-					 * the way back to today, always in the same place, quiet while
-					 * today is on screen and filled once it is not. It replaced the
-					 * pill that used to float over the stream's bottom edge.
-					 */}
-					<WeekStrip
-						strip={season.strip}
-						activeWeekKey={scroll.activeWeekKey}
-						frame={scroll.frame}
-						away={scroll.away}
-						onSelect={jumpToWeek}
-						onToday={scroll.backToToday}
-					/>
-				</div>
+				</header>
 
 				<div
 					ref={streamRef}
-					onScroll={scroll.onStreamScroll}
+					id={streamId}
 					data-testid="timeline-stream"
-					// Named for the markup as well as for the tests: a past band deep
-					// in the stream finds the box it scrolls in through this, so
-					// expanding it can hold the reading position (#500).
+					// Named for the markup as well as for the tests: a row deep in the
+					// stream finds the box it scrolls in through this.
 					{...{ [STREAM_ATTR]: 'true' }}
-					// `overflow-anchor: none` because the browser's own scroll
-					// anchoring fights the manual compensation a week loading in above
-					// needs. `scroll-behavior: smooth` is for the athlete's own
-					// keyboard scrolling only — every write this screen makes is a
-					// jump, and `motion-safe:` is what the Motion sheet asks of the
-					// scroller.
-					className="relative min-h-0 flex-1 overflow-y-auto [overflow-anchor:none] motion-safe:[scroll-behavior:smooth]"
+					// `overscroll-behavior: contain` so the end of the list never drags
+					// the page behind it (mobile baseline, #505 P7). The browser's own
+					// scroll anchoring is left on: it is what absorbs a week above the
+					// reader turning out taller than its `content-visibility` estimate
+					// (`ReadingHold` stands in for it where there is none).
+					// `scroll-behavior: smooth` is for the reader's own keyboard
+					// scrolling only — every write the app makes is a jump.
+					//
+					// On a large screen a click on a day's row picks it for the day
+					// pane (`use-day-selection.ts`), and the picked row carries a
+					// green edge — drawn here, so the memoised rows never re-render
+					// for a pick.
+					className={cn(
+						'bg-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain motion-safe:[scroll-behavior:smooth]',
+						'lg:[&_[data-day-selected]]:shadow-[inset_3px_0_0_var(--color-primary)] lg:[&_[data-timeline-day]]:cursor-pointer',
+					)}
+					aria-describedby={large && !wide ? `${streamId}-keys` : undefined}
 				>
-					{from === 0 ? (
-						<StartCap
-							loggedFromLabel={season.loggedFromLabel}
-							reachesBackToLabel={season.reachesBackToLabel}
-							reachWeeks={season.reachWeeks}
-						/>
+					{large && !wide ? (
+						<p id={`${streamId}-keys`} className="sr-only">
+							{DAY_PANE_LABELS.keyHint}
+						</p>
 					) : null}
-					{visibleWeeks.map((week) => (
-						<WeekBlock
-							key={week.key}
-							week={week}
-							anchorDayKey={season.todayKey}
-							open={openWeeks.has(week.key)}
-							onToggle={toggleWeek}
-							afterAnchor={week.isNow ? weekChangeCard : null}
-						/>
-					))}
-					{to === season.weeks.length - 1 ? (
-						<EndCap cap={season.endCap} />
-					) : null}
+					<ReadingHold
+						revision={season.weeks}
+						stream={streamOf}
+						readerKey={readerKey}
+					>
+						{/* One box for the list's content: what the landing's
+						    `ResizeObserver` watches for late layout. */}
+						<div data-timeline-content>
+							<StartCap
+								loggedFromLabel={season.loggedFromLabel}
+								reachesBackToLabel={season.reachesBackToLabel}
+								reachWeeks={season.reachWeeks}
+							/>
+							{visibleWeeks.map((week) => (
+								<WeekBlock
+									key={week.key}
+									week={week}
+									anchorDayKey={season.todayKey}
+									afterDays={week.isNow ? weekChangeCard : null}
+									today={week.isNow ? today : null}
+								/>
+							))}
+							{to === season.weeks.length - 1 ? (
+								<EndCap cap={season.endCap} />
+							) : (
+								// In reach, the next weeks ahead mount below — which moves
+								// nothing the reader can see.
+								<div aria-hidden {...{ [AHEAD_SENTINEL_ATTR]: '' }} />
+							)}
+						</div>
+					</ReadingHold>
 				</div>
+				{/*
+				 * Park the list on today **before the first paint** (ADR 0086, #505
+				 * P6): the browser runs this as it parses, right after the list, so
+				 * the server-rendered page opens on today instead of on the start
+				 * of the season and jumping once the app hydrates. The hook's layout
+				 * effect then measures the same position and writes nothing.
+				 */}
+				<script
+					nonce={nonce}
+					suppressHydrationWarning
+					dangerouslySetInnerHTML={{ __html: landingScript(streamId) }}
+				/>
 			</div>
 
-			{large ? (
-				<SeasonPane
+			{/* The selected day, right of the list from `xl` (ADR 0087). Focusable
+			    so `I` on a row in the list can bring the reader here. */}
+			<aside
+				ref={dayPaneRef}
+				tabIndex={-1}
+				data-day-pane
+				aria-labelledby={large && wide ? dayHeadingId : undefined}
+				aria-label={large && wide ? undefined : DAY_PANE_LABELS.region}
+				className={cn(
+					LARGE_CARD,
+					'focus-visible:outline-ring hidden p-5 focus-visible:outline-2 xl:flex',
+				)}
+			>
+				{large && wide ? (
+					<DayDetail
+						weeks={season.weeks}
+						dayKey={days.selected}
+						todayKey={season.todayKey}
+						minWriteKey={writable.firstDayKey}
+						today={today}
+						headingId={dayHeadingId}
+					/>
+				) : null}
+			</aside>
+			{large && !wide ? (
+				<DaySheet
+					open={days.sheetOpen}
+					onOpenChange={days.setSheetOpen}
 					weeks={season.weeks}
-					leadTrackId={season.leadTrackId}
-					frame={scroll.frame}
-					onJump={jumpToWeek}
+					dayKey={days.selected}
+					todayKey={season.todayKey}
+					minWriteKey={writable.firstDayKey}
+					today={today}
+					headingId={dayHeadingId}
 				/>
 			) : null}
 		</main>
+	)
+}
+
+/**
+ * A pane's card on a large screen (ADR 0087): the luma card — rounded, on the
+ * card tone, a soft shadow and a hairline ring rather than a border — that
+ * scrolls on its own and keeps its overscroll to itself.
+ */
+const LARGE_CARD =
+	'bg-card min-h-0 flex-col overflow-y-auto overscroll-contain rounded-4xl shadow-md ring-1 ring-foreground/5'
+
+/**
+ * The top line (variant P): the plan and its goal on the left, then the
+ * Ukeskiftet badge while a proposal waits, "+ Ny" (icon only, named `Lag
+ * ny`), and the I dag pill — a 44px line, as variant P's. On a phone the
+ * plan's name gives way to the goal; the goal itself is **never cut** (#505
+ * story 32): a race's name that does not fit beside the controls wraps to a
+ * second line inside the same 44px (13/18 type, two lines are 36px), and only
+ * a name too long for two lines makes the bar taller. The countdown never
+ * breaks inside itself (`om 2 uker` is one unit), and the controls keep their
+ * size and stay centred on the line.
+ */
+function TopLine({
+	line,
+	weekChangeCount,
+	away,
+	onToday,
+	onWrite,
+}: {
+	line: TimelineTopLine
+	weekChangeCount: number
+	away: AwayFromToday
+	onToday: () => void
+	onWrite: () => void
+}) {
+	return (
+		<div className="flex min-h-11 items-center gap-2 py-1">
+			{/* From `lg` up the season pane's plan card already names the plan
+			    and its goal (ADR 0087), so the line keeps only its controls,
+			    pushed right by a spacer. */}
+			<span aria-hidden className="hidden flex-1 lg:block" />
+			<p
+				data-top-line-plan
+				className="text-footnote flex min-w-0 flex-1 items-center gap-1.5 lg:hidden"
+			>
+				{line.goal || line.planLabel ? (
+					<>
+						{line.planLabel ? (
+							// On a phone the goal has the line: the plan's name, squeezed beside
+							// the badge, "+ Ny" and the pill, would read `S…`. From `sm` up it
+							// is the one part allowed to give way, as a cut with its whole
+							// name in the tooltip — the goal beside it never is.
+							<span
+								title={line.planLabel}
+								className="text-muted-foreground min-w-[3ch] shrink-[4] truncate whitespace-nowrap max-sm:hidden"
+							>
+								{line.planLabel}
+							</span>
+						) : null}
+						{line.goal ? (
+							// Inline text, so the race's name wraps between words like any
+							// sentence (and anywhere, for a name with no space to break at),
+							// and the countdown wraps only as a whole.
+							<span
+								data-top-line-goal
+								className="text-foreground min-w-0 font-semibold [text-wrap:balance] [overflow-wrap:anywhere]"
+							>
+								{line.goal.name ? (
+									<>
+										<span aria-hidden>⚑ </span>
+										{line.goal.name}{' '}
+									</>
+								) : null}
+								<span className="whitespace-nowrap tabular-nums">
+									{line.goal.when}
+								</span>
+							</span>
+						) : null}
+					</>
+				) : (
+					<>
+						<span className="text-muted-foreground flex-none whitespace-nowrap">
+							{TOP_LINE_LABELS.noPlan}
+						</span>
+						{/* Wraps rather than cuts; the line's own 44px is its hit area. */}
+						<Link
+							to="/training/plan"
+							className="text-primary relative min-w-0 font-semibold underline-offset-4 after:absolute after:inset-x-0 after:-inset-y-3 hover:underline"
+						>
+							{TOP_LINE_LABELS.noPlanAction}
+						</Link>
+					</>
+				)}
+			</p>
+			{weekChangeCount > 0 ? <WeekChangeBadge count={weekChangeCount} /> : null}
+			<CreateMenu onWrite={onWrite} compact />
+			{/*
+			 * The "I dag" pill (#505, idea I): always there, quiet while today is
+			 * on screen, and filled — with the way back in its arrow — once the
+			 * reader has scrolled today away. It changes look rather than coming
+			 * and going, and it changes instantly: a look that eases in lags the
+			 * scroll it reports (Emil: tens of times a day, no animation).
+			 */}
+			<button
+				type="button"
+				data-today-pill
+				data-away={away}
+				aria-label={
+					away < 0
+						? SEASON_STRIP_LABELS.todayNameUp
+						: away > 0
+							? SEASON_STRIP_LABELS.todayNameDown
+							: SEASON_STRIP_LABELS.todayName
+				}
+				onClick={onToday}
+				className={cn(
+					// Press feedback with no transition: the pill's look changes
+					// instantly, so its press does too.
+					'text-caption relative h-8 flex-none rounded-full border px-3 font-semibold whitespace-nowrap after:absolute after:inset-x-0 after:-inset-y-1.5 active:opacity-80',
+					away === 0
+						? 'border-border text-muted-foreground bg-card'
+						: 'bg-primary text-primary-foreground border-primary shadow-sm',
+				)}
+			>
+				{away < 0
+					? SEASON_STRIP_LABELS.todayUp
+					: away > 0
+						? SEASON_STRIP_LABELS.todayDown
+						: SEASON_STRIP_LABELS.today}
+			</button>
+		</div>
 	)
 }
 
@@ -548,18 +643,18 @@ function LoadRecomputeNoticeBar({ line }: { line: LoadRecomputeLine }) {
 		<section
 			data-testid="load-recompute-notice"
 			aria-labelledby="load-recompute-kicker"
-			className="border-hairline-edge flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-[18px] py-2.5"
+			className="border-border flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2.5"
 		>
 			<h2
 				id="load-recompute-kicker"
-				className="text-foreground text-[11px]/[1.2] font-semibold tracking-wide uppercase"
+				className="text-foreground text-overline uppercase"
 			>
 				{line.kicker}
 			</h2>
-			<p className="text-foreground text-[11.5px]/[1.35] font-medium tabular-nums">
+			<p className="text-foreground text-caption tabular-nums">
 				{line.movement}
 			</p>
-			<p className="text-muted-foreground w-full text-[11.5px]/[1.4]">
+			<p className="text-muted-foreground text-caption w-full font-normal">
 				{line.explanation}
 			</p>
 			<Form method="post">
@@ -570,7 +665,7 @@ function LoadRecomputeNoticeBar({ line }: { line: LoadRecomputeLine }) {
 					type="submit"
 					name="intent"
 					value="dismiss-load-recompute-notice"
-					className="border-hairline-edge text-foreground hover:border-primary rounded-[8px] border px-2.5 py-1 text-[11px]/[1.2] font-semibold"
+					className="border-border text-foreground pressable text-caption hover:border-primary rounded-full border px-3 py-1 font-semibold"
 				>
 					{RECOMPUTE_NOTICE_LABELS.gotIt}
 				</button>

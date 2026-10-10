@@ -11,7 +11,7 @@ import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
-import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
+import { buildTimelineSeason, buildTodayRow } from './presenter.ts'
 import {
 	buildWeekChangeCard,
 	easedLine,
@@ -19,6 +19,8 @@ import {
 } from './week-change.ts'
 
 const DAY = 24 * 60 * 60 * 1000
+/** A Norwegian percent: the figure, a no-break space, the sign. */
+const PCT = '\u00a0%'
 // Wednesday 20 February 2030, at local noon. A midweek anchor is what makes the
 // Monday-first week bucketing worth testing: a Sunday or a Monday would hide an
 // off-by-one.
@@ -214,13 +216,11 @@ describe('the season is every week, with no holes', () => {
 		// The strip is an overview, and an overview with holes in it is not one.
 		const result = season([on(-14), on(0)])
 		expect(result.weeks).toHaveLength(3)
-		// Seven days behind today with nothing on any of them: one band, and no
-		// rows of its own until the athlete opens it (#500).
+		// Seven days behind today with nothing on any of them: seven rows all the
+		// same, as a calendar draws an empty week (ADR 0086).
 		expect(withSessions(result.weeks[1]!)).toEqual([])
 		expect(result.weeks[1]?.rows).toHaveLength(7)
-		expect(result.weeks[1]?.bands.map((band) => band.summaryLabel)).toEqual([
-			'7 dager · ingenting logget',
-		])
+		expect(result.weeks[1]?.shape).toBe('past')
 	})
 
 	test('this week always exists, even with nothing in it', () => {
@@ -353,10 +353,9 @@ describe('a row is a day, and a day owns its sessions', () => {
 
 describe('from today forward, every day is a row', () => {
 	test('the rest of this week renders even with nothing written in it', () => {
-		// NOW is Wednesday: today plus Thursday through Sunday are all rows of the
-		// model. Monday and Tuesday are behind today, so they are the week's past
-		// band; Thursday to Sunday are free, so they fold into one short row
-		// (#505 story 30). Today stays a row of its own whatever it holds.
+		// NOW is Wednesday: every day of the week is a row, behind today and
+		// ahead of it, and none folds into another (ADR 0086, overriding #505
+		// story 30).
 		const thisWeek = season([]).weeks.find((week) => week.isNow)!
 		expect(thisWeek.rows.map((day) => day.key)).toEqual([
 			'2030-02-18',
@@ -367,10 +366,6 @@ describe('from today forward, every day is a row', () => {
 			'2030-02-23',
 			'2030-02-24',
 		])
-		const banded = new Set(thisWeek.bands.flatMap((band) => band.dayKeys))
-		expect(
-			thisWeek.rows.map((day) => day.key).filter((key) => !banded.has(key)),
-		).toEqual(['2030-02-20'])
 		expect(thisWeek.rows.every((day) => day.sessions.length === 0)).toBe(true)
 	})
 
@@ -440,35 +435,18 @@ describe('from today forward, every day is a row', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Behind today, runs of empty days collapse into one band (ADR 0065 §3, #500)
+// Behind today, every day the query reached is a row (ADR 0075 §3, ADR 0086)
 // ---------------------------------------------------------------------------
 
-describe('behind today, a run of empty days is one band', () => {
-	/** Every band behind today, first day first. */
-	function bands(result: ReturnType<typeof season>) {
-		return result.weeks
-			.flatMap((week) => week.bands)
-			.filter((band) => band.kind === 'past')
-	}
-
-	test('a run states the count and the dates it stands for', () => {
+describe('behind today, every day the query reached is a row', () => {
+	test('a run of empty days is that many rows, not one band', () => {
 		// Tuesday the 12th through Sunday the 17th: six days with nothing on any
-		// of them, between a session on the Monday and this week.
+		// of them. Until ADR 0086 they read as one `6 dager · ingenting logget`
+		// row; a calendar draws the six days.
 		const result = season([on(-9), on(0)])
-		expect(bands(result).map((band) => band.summaryLabel)).toEqual([
-			'6 dager · ingenting logget',
-			'2 dager · ingenting logget',
-		])
-		const [lastWeek] = bands(result)
-		expect(lastWeek?.key).toBe('2030-02-12')
-		expect(lastWeek?.daysLabel).toBe('12–17')
-		expect(lastWeek?.monthLabel).toBe('feb')
-		expect(lastWeek?.rangeLabel).toBe('12.–17. feb')
-	})
-
-	test('the days it covers are still rows, so it has something to expand into', () => {
-		const band = bands(season([on(-9), on(0)]))[0]!
-		expect(band.dayKeys).toEqual([
+		const lastWeek = result.weeks[0]!
+		expect(lastWeek.rows.map((day) => day.key)).toEqual([
+			'2030-02-11',
 			'2030-02-12',
 			'2030-02-13',
 			'2030-02-14',
@@ -476,92 +454,16 @@ describe('behind today, a run of empty days is one band', () => {
 			'2030-02-16',
 			'2030-02-17',
 		])
-		const rows = new Set(
-			season([on(-9), on(0)])
-				.weeks.flatMap((week) => week.rows)
-				.map((day) => day.key),
-		)
-		for (const key of band.dayKeys) expect(rows).toContain(key)
-	})
-
-	test('a single empty day behind today is a day, not a one-day band', () => {
-		// Monday has a session and Wednesday is today, so Tuesday is a run of one.
-		// A band over one row says no more than the row does, and asks for a tap
-		// to say it.
-		const result = season([on(-2), on(0)])
-		const thisWeek = result.weeks.find((week) => week.isNow)!
-		expect(thisWeek.bands.filter((band) => band.kind === 'past')).toEqual([])
-		expect(thisWeek.rows.map((day) => day.key)).toContain('2030-02-19')
-	})
-
-	test('a day with a session on it breaks the run', () => {
-		// Monday empty, Tuesday trained, Wednesday and Thursday empty, then today:
-		// two runs of two, never one run of five with a session inside it.
-		const result = season([on(-6), on(0)])
-		const lastWeek = result.weeks[0]!
-		expect(lastWeek.bands.map((band) => band.dayKeys)).toEqual([
-			['2030-02-11', '2030-02-12', '2030-02-13'],
-			['2030-02-15', '2030-02-16', '2030-02-17'],
-		])
-	})
-
-	test('forward of today only free days fold, and today itself never does', () => {
-		// Ahead of today a run of free days is a short row of its own kind
-		// (#505 story 30); the past band's `nothing logged` never speaks there.
-		const result = season([on(-1), on(0)], plan())
-		const all = result.weeks.flatMap((week) => week.bands)
-		for (const band of all) {
-			expect(band.dayKeys).not.toContain(result.todayKey)
-			expect(band.kind).toBe(
-				band.dayKeys[0]! < result.todayKey ? 'past' : 'free',
-			)
-		}
-		expect(
-			bands(result)
-				.flatMap((band) => band.dayKeys)
-				.every((key) => key < result.todayKey),
-		).toBe(true)
-	})
-
-	test('a run stops at the week boundary, because a week block is what mounts', () => {
-		// Sixteen empty days back would be one run on the calendar. The stream
-		// mounts, windows and anchors on *weeks*, so a band that spanned two of
-		// them would have to live in a week that is not loaded.
-		const result = season([on(-17), on(0)])
-		const runs = bands(result)
-		expect(runs.length).toBeGreaterThan(1)
-		for (const band of runs) {
-			expect(band.dayKeys.length).toBeLessThanOrEqual(7)
-			const week = result.weeks.find((w) => w.bands.includes(band))!
-			expect(band.dayKeys.every((key) => key >= week.key)).toBe(true)
-			expect(band.dayKeys.every((key) => key <= nextDay(week.key, 6))).toBe(
-				true,
-			)
-		}
-	})
-
-	test('a run crossing a month names both months', () => {
-		// Thirty-one days back is January; the run that ends this week starts in
-		// one month and finishes in the next.
-		const crossing = bands(season([on(-31), on(0)])).find((band) =>
-			band.monthLabel.includes('–'),
-		)
-		expect(crossing?.monthLabel).toBe('jan–feb')
-		expect(crossing?.rangeLabel).toContain(' – ')
+		expect(withSessions(lastWeek)).toEqual(['2030-02-11'])
 	})
 
 	test("nothing behind the query's own reach is built, or spoken for", () => {
-		// The band claims a day was empty. Half a year back the query stopped
-		// asking, and "nothing was fetched" is not "nothing was logged" (#500).
+		// A row claims a day was empty. Half a year back the query stopped asking,
+		// and "nothing was fetched" is not "nothing was logged" (#500).
 		const result = season([on(-190), on(0)])
 		const days = result.weeks.flatMap((week) => week.rows).map((day) => day.key)
 		const reach = nextDay(result.todayKey, -182)
 		expect(days.filter((key) => key < reach)).toEqual(['2029-08-14'])
-		expect(
-			bands(result)
-				.flatMap((band) => band.dayKeys)
-				.some((key) => key < reach),
-		).toBe(false)
 	})
 
 	test('a session older than the reach still gets its row', () => {
@@ -621,9 +523,6 @@ describe('the strip never speaks for a day the query did not fetch', () => {
 			'2029-08-25',
 			'2029-08-26',
 		])
-		for (const band of reachWeek.bands) {
-			for (const key of band.dayKeys) expect(built).toContain(key)
-		}
 	})
 
 	test('a session behind the reach still gets its week, however old it is', () => {
@@ -695,14 +594,16 @@ describe('weeks before the plan are imported history', () => {
 		// The plan began 4 weeks ago with a 4-week Base, so this week is Build's
 		// first — a hard week in its 3:1.
 		expect(result.weeks.find((week) => week.isNow)?.kindLabel).toBe(
-			'Build · hard uke',
+			'Oppbygging · hard uke',
 		)
 	})
 
 	test('the strip names a week the way its header does', () => {
 		const result = season([on(-35), on(0)], plan())
 		const now = result.strip.weeks.find((week) => week.isNow)!
-		expect(now.label).toMatch(/^Denne uka, 18\.–24\. feb, Build · hard uke, /)
+		expect(now.label).toMatch(
+			/^Denne uka, 18\.–24\. feb, Oppbygging · hard uke, /,
+		)
 		expect(result.strip.weeks[0]?.label).toContain('før planen')
 	})
 })
@@ -807,8 +708,14 @@ describe('both ends of the season are stated', () => {
 
 	test('with no plan there is no race day and nothing unwritten', () => {
 		const result = season([on(0)])
+		expect(result.endCap.plan).toBe('none')
 		expect(result.endCap.unwrittenWeeks).toBe(0)
 		expect(result.endCap.eventDateLabel).toBeNull()
+		expect(result.endCap.planEndLabel).toBeNull()
+	})
+
+	test('a plan toward a race says so', () => {
+		expect(season([on(0)], plan()).endCap.plan).toBe('event')
 	})
 })
 
@@ -849,11 +756,24 @@ describe('an open-ended plan never invents a race day (ADR 0079)', () => {
 		round: 1,
 	})
 
-	test('the end cap names no race and counts no unwritten weeks to one', () => {
+	test('the end cap names no race, and is still a plan: its weeks are counted to the last round’s end (S1)', () => {
+		// Twelve plan weeks from four weeks back: the last round ends in the week
+		// of 8 Apr, seven weeks past this one, on Sunday 14 Apr.
 		const result = season([on(0)], openEnded)
-		expect(result.endCap).toMatchObject({
+		expect(result.endCap).toEqual({
+			plan: 'open-ended',
+			writtenThroughLabel: '20. feb',
 			eventName: null,
 			eventDateLabel: null,
+			unwrittenWeeks: 7,
+			planEndLabel: '14. apr',
+		})
+	})
+
+	test('an open-ended plan written to its last week has nothing left to write', () => {
+		const result = season([on(0), on(7 * 7)], openEnded)
+		expect(result.endCap).toMatchObject({
+			plan: 'open-ended',
 			unwrittenWeeks: 0,
 		})
 	})
@@ -875,27 +795,24 @@ const COLD: TsbTrust = {
 }
 const NO_NUDGE: SessionNudge = { outcome: 'none', reason: '' } as SessionNudge
 
-function hero({
+function todayRow({
 	ledger,
 	trust = TRUSTED,
 	current = { ctl: 60, atl: 56, tsb: 4 },
-	activePlan = plan(),
 	sustained = null,
 	nudge = NO_NUDGE,
 }: {
 	ledger: LedgerSession[]
 	trust?: TsbTrust
 	current?: { ctl: number; atl: number; tsb: number } | null
-	activePlan?: ActivePlan | null
 	sustained?: SustainedDeviation | null
 	nudge?: SessionNudge
 }) {
-	return buildTimelineHero({
+	return buildTodayRow({
 		ledger,
 		now: NOW,
 		timezone: 'UTC',
 		thresholds: {},
-		activePlan,
 		current,
 		trust,
 		sustained,
@@ -903,103 +820,15 @@ function hero({
 	})
 }
 
-describe("the hero is today's session and the verdict on it", () => {
+describe("today's row carries today's action and the coach's line (ADR 0086)", () => {
 	const planned = on(0, {
+		id: 'today',
 		status: 'scheduled',
 		scheduledAt: new Date('2030-02-20T18:00:00'),
 		tssValue: null,
 		plannedTssValue: 91,
 		workout: workout({ title: 'Threshold 4 × 8 min' }),
 	})
-
-	test('with nothing ahead there is no hero at all', () => {
-		expect(hero({ ledger: [on(-1)] })).toBeNull()
-	})
-
-	test('the kicker says when, which discipline, and how far to race day', () => {
-		expect(hero({ ledger: [planned] })?.kicker).toBe(
-			'I dag · Løping · 8 uker til løpsdagen',
-		)
-	})
-
-	test('the countdown drops to days inside the last week', () => {
-		const soon = plan({ eventDate: new Date(NOW.getTime() + 3 * DAY) })
-		expect(hero({ ledger: [planned], activePlan: soon })?.kicker).toBe(
-			'I dag · Løping · 3 dager til løpsdagen',
-		)
-	})
-
-	test('with no plan the kicker says only what it knows', () => {
-		expect(hero({ ledger: [planned], activePlan: null })?.kicker).toBe(
-			'I dag · Løping',
-		)
-	})
-
-	test('an open-ended plan has no countdown in the kicker', () => {
-		const openEnded = plan({
-			eventId: null,
-			eventName: null,
-			eventDate: null,
-			round: 1,
-		})
-		expect(hero({ ledger: [planned], activePlan: openEnded })?.kicker).toBe(
-			'I dag · Løping',
-		)
-	})
-
-	test('a session later this week is named by its weekday, not called today', () => {
-		const later = on(2, { status: 'scheduled', tssValue: null })
-		expect(hero({ ledger: [later] })?.kicker).toMatch(/^Fredag · Løping/)
-	})
-
-	test("tomorrow's session is called tomorrow", () => {
-		const later = on(1, { status: 'scheduled', tssValue: null })
-		expect(hero({ ledger: [later] })?.kicker).toMatch(/^I morgen · Løping/)
-	})
-
-	test('past the coming week a weekday would be ambiguous, so the date is used', () => {
-		const later = on(8, { status: 'scheduled', tssValue: null })
-		expect(hero({ ledger: [later] })?.kicker).toMatch(/^28\. feb · Løping/)
-	})
-
-	test('the facts are the ones that resolved', () => {
-		expect(hero({ ledger: [planned] })?.facts).toEqual(['50 min', '91 TSS'])
-	})
-
-	test('the verdict states Form, its reading, and what to do about it', () => {
-		const verdict = hero({ ledger: [planned] })?.verdict
-		expect(verdict).toMatch(/^Form \+4, /)
-		expect(verdict).toContain(' — ')
-	})
-
-	test('a cold start never shows a Form number', () => {
-		const verdict = hero({ ledger: [planned], trust: COLD })?.verdict
-		expect(verdict).toBe('Formen kan leses etter 42 dager — dag 9/42.')
-		expect(verdict).not.toMatch(/Form [+-]/)
-	})
-
-	test('no TSB at all is a cold start too, however long the history', () => {
-		const verdict = hero({ ledger: [planned], current: null })?.verdict
-		expect(verdict).not.toMatch(/Form [+-]/)
-	})
-
-	test("the collapsed header carries the title and the day's shape", () => {
-		expect(hero({ ledger: [planned] })?.collapsed).toEqual({
-			title: 'Threshold 4 × 8 min',
-			summary: 'I dag · 50 min · 91 TSS',
-		})
-	})
-
-	test('the CTA label and destination both come from the presenter', () => {
-		const cta = hero({ ledger: [planned] })?.cta
-		expect(cta?.to).toContain('/training/sessions/')
-		expect(cta?.label.length).toBeGreaterThan(0)
-	})
-})
-
-describe('the hero stays honest about today (#493)', () => {
-	// The three days the hero has to tell apart, each with the same session
-	// waiting on Friday so only today differs between them.
 	const friday = on(2, {
 		id: 'friday',
 		status: 'scheduled',
@@ -1007,77 +836,34 @@ describe('the hero stays honest about today (#493)', () => {
 		plannedTssValue: 55,
 		workout: workout({ title: 'Threshold 4 × 8 min' }),
 	})
-	const todayToCome = on(0, {
-		id: 'today',
-		status: 'scheduled',
-		scheduledAt: new Date('2030-02-20T18:00:00'),
-		tssValue: null,
-		plannedTssValue: 91,
-		workout: workout({ title: 'Tempo 3 × 10 min' }),
-	})
-	const todayCompleted = on(0, {
-		id: 'today',
-		status: 'completed',
-		scheduledAt: new Date('2030-02-20T06:00:00'),
-		tssValue: 88,
-		plannedTssValue: 91,
-		workout: workout({ title: 'Tempo 3 × 10 min' }),
+
+	test("the action opens today's own session, label and destination both from the presenter", () => {
+		const cta = todayRow({ ledger: [planned, friday] }).cta
+		expect(cta?.sessionId).toBe('today')
+		expect(cta?.to).toContain('/training/sessions/')
+		expect(cta?.label.length).toBeGreaterThan(0)
 	})
 
-	test('today still to come: the kicker says today and the heading is the session', () => {
-		const result = hero({ ledger: [todayToCome, friday] })
-		expect(result?.kicker).toMatch(/^I dag · Løping/)
-		expect(result?.title).toBe('Tempo 3 × 10 min')
-		expect(result?.next).toBeNull()
+	test('a next session on another day lends today no action (#493)', () => {
+		expect(todayRow({ ledger: [friday] }).cta).toBeNull()
+		expect(todayRow({ ledger: [on(-1)] }).cta).toBeNull()
 	})
 
-	test('today empty: the heading says so and Friday is a fact, not the headline', () => {
-		const result = hero({ ledger: [friday] })
-		expect(result?.title).toBe('Ingenting i dag')
-		expect(result?.next).toBe('Neste · Threshold 4 × 8 min')
-		expect(result?.kicker).not.toMatch(/Today/)
-		expect(result?.kicker).toMatch(/^Fredag · Løping/)
+	test('the verdict states Form, its reading, and what to do about it', () => {
+		const verdict = todayRow({ ledger: [planned] }).verdict
+		expect(verdict).toMatch(/^Form \+4, /)
+		expect(verdict).toContain(' — ')
 	})
 
-	test("today completed: the hero never headlines a future session as today's", () => {
-		const result = hero({ ledger: [todayCompleted, friday] })
-		expect(result?.title).toBe('I dag er gjort')
-		expect(result?.next).toBe('Neste · Threshold 4 × 8 min')
-		expect(result?.kicker).toMatch(/^Fredag · Løping/)
+	test('a cold start never shows a Form number', () => {
+		const verdict = todayRow({ ledger: [planned], trust: COLD }).verdict
+		expect(verdict).toBe('Formen kan leses etter 42 dager — dag 9/42.')
+		expect(verdict).not.toMatch(/Form [+-]/)
 	})
 
-	test('today missed says that, rather than claiming today was empty', () => {
-		const missed = on(0, {
-			id: 'today',
-			status: 'scheduled',
-			scheduledAt: new Date('2030-02-20T06:00:00'),
-			tssValue: null,
-			plannedTssValue: 91,
-		})
-		expect(hero({ ledger: [missed, friday] })?.title).toBe(
-			'Ingenting igjen i dag',
-		)
-	})
-
-	test('the collapsed summary names the day too, so it cannot imply today', () => {
-		expect(hero({ ledger: [friday] })?.collapsed.summary).toMatch(/^Fredag · /)
-	})
-
-	test('the hero and the stream row agree on which day the session is', () => {
-		const ledger = [todayCompleted, friday]
-		const result = hero({ ledger })
-		const days = season(ledger).weeks.flatMap((week) => week.rows)
-		// A stream row is a day rather than a session since #495, and `dayLabel`
-		// and `isToday` moved with it — so the row this is checked against is the
-		// day carrying the session, not the session itself.
-		const day = days.find((candidate) =>
-			candidate.sessions.some((session) => session.id === 'friday'),
-		)
-		// The kicker's first word is the row's own weekday, and neither of them
-		// calls it today.
-		expect(result?.kicker.split(' · ')[0]).toBe('Fredag')
-		expect(day?.dayLabel).toBe('fre')
-		expect(day?.isToday).toBe(false)
+	test('no TSB at all is a cold start too, however long the history', () => {
+		const verdict = todayRow({ ledger: [planned], current: null }).verdict
+		expect(verdict).not.toMatch(/Form [+-]/)
 	})
 })
 
@@ -1190,7 +976,9 @@ describe('a lifting row reconciles with the week header it sits under', () => {
 			.flatMap((day) => day.sessions)
 			.find((s) => s.discipline === 'strength')!
 		expect(lift.internalLoad).toContain('sRPE 78')
-		expect(week.loadLine).toContain('138 av 50 TSS')
+		// The gym session has no Planned TSS, so its 78 is not a share of the
+		// run's planned 50: each side is named, never `138 av 50 TSS`.
+		expect(week.loadLine).toContain('gjort 138 · planlagt 50 TSS')
 	})
 
 	test('naming the figure sRPE moves no rollup — only what the row calls it', () => {
@@ -1387,8 +1175,10 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 			planned: 22,
 			actual: 10.4,
 		})
-		// The long run with no km is counted beside the sum, not as zero.
-		expect(run.plannedUnmeasuredLabel).toBe('+1 uten km')
+		// The long run with no km is counted beside the sum, not as zero — and
+		// says it is the planned side's count (story 34).
+		expect(run.plannedUnmeasuredLabel).toBe('planlagt +1 uten km')
+		expect(run.figureNotes.planned).toBeNull()
 		expect(run.pace?.actualSecPerKm).toBe(300)
 	})
 
@@ -1481,7 +1271,8 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 		expect(track).toMatchObject({
 			name: 'Sykling',
 			unit: 't',
-			figures: { target: '6', planned: '3.5', done: '1.5' },
+			// A decimal comma, as a Norwegian surface writes it.
+			figures: { target: '6', planned: '3,5', done: '1,5' },
 			// No distance in an hours track is never "uten km".
 			plannedUnmeasuredLabel: null,
 			paceLabel: null,
@@ -1491,7 +1282,14 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 		// Done: 4050 of 5400 s easy = 75 %. Planned: 3 t of 3,5 t easy = 86 %.
 		expect(track.zones?.done?.easyShare).toBe(0.75)
 		expect(track.zones?.planned?.easyShare).toBe(0.86)
-		expect(track.zoneLabel).toMatch(/^rolig 75\s?% · plan 86\s?%$/)
+		// An hours track carries the whole split, each side on its own, rather
+		// than the easy share alone (story 21: a skier reads hours and zones).
+		expect(track.zoneLabel).toBeNull()
+		expect(track.zoneSplit).toEqual({
+			done: `gjort Z2 75${PCT} · Z4 25${PCT}`,
+			// 10 800 s of Z2 and 1 800 s of Z4: 85,7 / 14,3, which add to 100.
+			planned: `plan Z2 86${PCT} · Z4 14${PCT}`,
+		})
 	})
 
 	test('a strength week logged through Monday, with Tuesday done but unlogged, says how far it is measured (story 85)', () => {
@@ -1558,9 +1356,12 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 			tssPlan,
 		).weeks.find((w) => w.key === THIS_MONDAY)!
 		expect(week.plannedTss).toBeNull()
+		// No sum to put the count beside: it stands in the figure's place.
 		expect(week.tracks[0]).toMatchObject({
 			planned: null,
-			plannedUnmeasuredLabel: '+1 uten TSS',
+			figures: { planned: null },
+			figureNotes: { planned: '1 økt uten TSS' },
+			plannedUnmeasuredLabel: null,
 		})
 	})
 
@@ -1576,6 +1377,365 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 // ---------------------------------------------------------------------------
 // I dag: the week model a printed plan reads like (#505 S9)
 // ---------------------------------------------------------------------------
+
+describe('a week header says one true thing per track (#505 S9 review)', () => {
+	const kmTargets = Array<number>(12).fill(46)
+	const kmPlan = (overrides: Partial<ActivePlan> = {}) =>
+		plan({
+			tracks: [
+				{
+					trackId: 'track-run',
+					discipline: 'run',
+					currency: 'km',
+					targets: kmTargets,
+					overridden: kmTargets.map(() => false),
+					sessionTargets: null,
+				},
+			],
+			...overrides,
+		})
+	/** A run prescribed by time at Z2: a planned session with no km in it. */
+	const timedRun = (id: string) =>
+		workout({
+			id,
+			blocks: [
+				{
+					id: `block-${id}`,
+					name: 'Main',
+					orderIndex: 0,
+					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
+					steps: [step({ id: `${id}-s`, intensity: 'Z2', durationSec: 3600 })],
+				},
+			],
+		})
+	const kmRun = (km: number) =>
+		workout({
+			blocks: [
+				{
+					id: `block-${km}`,
+					name: 'Main',
+					orderIndex: 0,
+					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
+					steps: [step({ distanceM: km * 1000, durationSec: null })],
+				},
+			],
+		})
+	const recorded = (id: string, km: number) => ({
+		id,
+		discipline: 'run',
+		durationSec: km * 300,
+		distanceM: km * 1000,
+		startedAt: NOW,
+		endedAt: NOW,
+		phaseBarsJson: null,
+		linkAnsweredAt: null,
+		unlinkedFromSessionId: null,
+	})
+	const thisWeek = (result: ReturnType<typeof season>) =>
+		result.weeks.find((week) => week.key === THIS_MONDAY)!
+
+	test('sessions planned with no km say so where the sum would be, never `planlagt –` beside a planned zone split', () => {
+		const run = thisWeek(
+			season(
+				[
+					on(1, {
+						id: 'thu',
+						status: 'scheduled',
+						recording: null,
+						workout: timedRun('thu'),
+					}),
+					on(3, {
+						id: 'sat',
+						status: 'scheduled',
+						recording: null,
+						workout: timedRun('sat'),
+					}),
+				],
+				kmPlan(),
+			),
+		).tracks[0]!
+		expect(run.planned).toBeNull()
+		expect(run.figures.planned).toBeNull()
+		// In the figure's place, not a dash — and not repeated beside it.
+		expect(run.figureNotes.planned).toBe('2 økter uten km')
+		expect(run.plannedUnmeasuredLabel).toBeNull()
+		// The plan's zones are still read, and still an intention.
+		expect(run.zoneLabel).toMatch(/plan 100/)
+		expect(run.zoneIntentNote).toBe('hensikt, ikke en måling')
+	})
+
+	test('a week with km done but no planned km to hold it against says the reference is missing, never "ikke målt"', () => {
+		const run = thisWeek(
+			season(
+				[
+					// Monday: "60 min rolig", run as 9.8 km.
+					on(-2, {
+						id: 'mon',
+						workout: timedRun('mon'),
+						recording: recorded('rec-mon', 9.8),
+					}),
+				],
+				kmPlan(),
+			),
+		).tracks[0]!
+		expect(run.grade.status).toBe('ungraded')
+		expect(run.figures.done).toBe('9,8')
+		expect(run.gradeNote).toBe(
+			'ikke vurdert · ingen planlagte km å holde det opp mot',
+		)
+		expect(run.gradeNote).not.toMatch(/ikke målt/)
+	})
+
+	test('done sessions still waiting for their numbers are "ikke målt", and say how many in the figure’s place', () => {
+		const run = thisWeek(
+			season(
+				[
+					on(-2, {
+						id: 'mon',
+						workout: kmRun(10),
+						recording: null,
+						tssValue: null,
+					}),
+				],
+				kmPlan(),
+			),
+		).tracks[0]!
+		expect(run.figures.done).toBeNull()
+		expect(run.figureNotes.done).toBe('1 økt uten km')
+		expect(run.gradeNote).toBe('ikke målt · ingen tall å holde opp mot')
+	})
+
+	test('lifting sessions with no sets in them are unmeasured, not `planlagt 0 sett` beside `0 av 2 økter`', () => {
+		const sets = Array<number>(12).fill(6)
+		const bareLift = (days: number) =>
+			on(days, {
+				id: `lift-${days}`,
+				status: 'scheduled',
+				recording: null,
+				plannedTssValue: null,
+				tssValue: null,
+				// A stamped `Styrke`: a strength Workout with no sets named.
+				workout: workout({
+					discipline: 'strength',
+					title: 'Styrke',
+					blocks: [
+						{
+							id: `block-lift-${days}`,
+							name: 'Main',
+							orderIndex: 0,
+							repeatCount: 1,
+							seriesRepeatCount: 1,
+							betweenSeriesRestSec: null,
+							sendOff: null,
+							steps: [
+								step({
+									kind: 'strength',
+									discipline: 'strength',
+									durationSec: 2700,
+								}),
+							],
+						},
+					],
+				}),
+			})
+		const lifting = thisWeek(
+			season(
+				[bareLift(1), bareLift(3)],
+				plan({
+					tracks: [
+						{
+							trackId: 'track-lift',
+							discipline: 'strength',
+							currency: 'sets',
+							targets: sets,
+							overridden: sets.map(() => false),
+							sessionTargets: Array<number>(12).fill(2),
+						},
+					],
+				}),
+			),
+		).tracks[0]!
+		expect(lifting).toMatchObject({
+			planned: null,
+			figures: { target: '6', planned: null },
+			figureNotes: { planned: '2 økter uten sett' },
+			sessionsLabel: '0 av 2 økter',
+		})
+	})
+
+	test('the planned and the done "+n uten km" each say which side they belong to (story 34)', () => {
+		const run = thisWeek(
+			season(
+				[
+					on(-2, {
+						id: 'mon',
+						workout: kmRun(10),
+						recording: recorded('rec-mon', 10),
+					}),
+					// Done, and its import has not come.
+					on(-1, {
+						id: 'tue',
+						workout: kmRun(8),
+						recording: null,
+						tssValue: null,
+					}),
+					on(1, {
+						id: 'thu',
+						status: 'scheduled',
+						recording: null,
+						workout: timedRun('thu'),
+					}),
+				],
+				kmPlan(),
+			),
+		).tracks[0]!
+		expect(run.figures).toMatchObject({ planned: '18', done: '10' })
+		expect(run.plannedUnmeasuredLabel).toBe('planlagt +1 uten km')
+		expect(run.actualUnmeasuredLabel).toBe('gjort +1 uten km')
+	})
+
+	test('a taper week names its phase once: `Nedtrapping`, never `Nedtrapping · nedtrapping`', () => {
+		// Plan weeks 10 and 11 are the Taper phase, at the taper role.
+		const result = season([on(0)], kmPlan())
+		const taper = result.weeks.find(
+			(week) => week.key === nextDay(THIS_MONDAY, 7 * 6),
+		)!
+		expect(taper.phaseName).toBe('Nedtrapping')
+		expect(taper.kindLabel).toBe('Nedtrapping')
+	})
+
+	test('every phase of a preset reads in Norwegian on I dag; a phase the athlete named reads as written', () => {
+		const result = season(
+			[on(0)],
+			kmPlan({
+				planStart: new Date(NOW.getTime() - 2 * 7 * DAY),
+				phases: [
+					{ name: 'Big base', weeks: 1 },
+					{ name: 'Base', weeks: 1 },
+					{ name: 'Build', weeks: 1 },
+					{ name: 'Peak', weeks: 1 },
+					{ name: 'Taper', weeks: 1 },
+					{ name: 'Blokk 4', weeks: 1 },
+				],
+			}),
+		)
+		expect(
+			[0, 1, 2, 3, 4, 5].map(
+				(week) =>
+					result.weeks.find(
+						(w) => w.key === nextDay(THIS_MONDAY, 7 * (week - 2)),
+					)!.phaseName,
+			),
+		).toEqual([
+			'Stor base',
+			'Grunntrening',
+			'Oppbygging',
+			'Spissing',
+			'Nedtrapping',
+			'Blokk 4',
+		])
+	})
+})
+
+describe('a folded week and its verdict agree (#505 story 31, S9 review S3)', () => {
+	// Target 46 every week, so a week planned at 36 is planned under it.
+	const targets = Array<number>(12).fill(46)
+	const runPlan = () =>
+		plan({
+			tracks: [
+				{
+					trackId: 'track-run',
+					discipline: 'run',
+					currency: 'km',
+					targets,
+					overridden: targets.map(() => false),
+					sessionTargets: null,
+				},
+			],
+		})
+	const ran = (days: number, km: number, plannedKm: number) =>
+		on(days, {
+			id: `run-${days}`,
+			workout: workout({
+				blocks: [
+					{
+						id: `block-${days}`,
+						name: 'Main',
+						orderIndex: 0,
+						repeatCount: 1,
+						seriesRepeatCount: 1,
+						betweenSeriesRestSec: null,
+						sendOff: null,
+						steps: [step({ distanceM: plannedKm * 1000, durationSec: null })],
+					},
+				],
+			}),
+			recording: {
+				id: `rec-${days}`,
+				discipline: 'run',
+				durationSec: km * 330,
+				distanceM: km * 1000,
+				startedAt: NOW,
+				endedAt: NOW,
+				phaseBarsJson: null,
+				linkAnsweredAt: null,
+				unlinkedFromSessionId: null,
+			},
+		})
+	const lastWeek = (result: ReturnType<typeof season>) =>
+		result.weeks.find((week) => week.key === LAST_MONDAY)!
+
+	test('with target ≠ planned, the line names the target and the verdict is graded against it', () => {
+		// 36 planned, 35 done: on the plan's sessions, under the week's 46.
+		const week = lastWeek(
+			season([ran(-9, 20, 18), ran(-8, 15, 18), on(0)], runPlan()),
+		)
+		expect(week.tracks[0]).toMatchObject({
+			figures: { target: '46', done: '35' },
+			gradeLabel: 'under',
+			grade: { basis: 'target', reference: 46, actual: 35 },
+		})
+
+		// 42 done is over the plan's 36, and on the week's 46: `i rute`.
+		const over = lastWeek(
+			season([ran(-9, 22, 18), ran(-8, 20, 18), on(0)], runPlan()),
+		)
+		expect(over.tracks[0]).toMatchObject({
+			figures: { done: '42' },
+			gradeLabel: 'i rute',
+		})
+	})
+
+	test('a closed week whose done number has not come states the figures without a verdict it cannot back', () => {
+		const pending = {
+			...ran(-8, 15, 18),
+			recording: null,
+			tssValue: null,
+		}
+		const week = lastWeek(season([ran(-9, 20, 18), pending, on(0)], runPlan()))
+		// Graded on the measured pair only (20 of 18), not against the 46.
+		expect(week.tracks[0]!.grade.basis).toBe('planned')
+		expect(week.tracks[0]!.figures).toMatchObject({ done: '20', target: '46' })
+	})
+
+	test('a figure with a decimal reads with a comma in the header and the strip', () => {
+		// 47,5 planned against 46: the strip's bar is the larger, with a comma.
+		const result = season(
+			[ran(-9, 20.5, 23), ran(-8, 15, 24.5), on(0)],
+			runPlan(),
+		)
+		expect(lastWeek(result).tracks[0]!.figures.done).toBe('35,5')
+		expect(
+			result.strip.weeks.find((week) => week.key === LAST_MONDAY)!.label,
+		).toMatch(/, 47,5 km$/)
+	})
+})
 
 describe('a week header says which week, what kind, and its numbers (#505 stories 19, 23)', () => {
 	// Plan weeks, Monday first: the plan began on 21 Jan (plan week 0), so this
@@ -1626,12 +1786,12 @@ describe('a week header says which week, what kind, and its numbers (#505 storie
 	test('a plan week names its phase and whether it is a hard or an easy week', () => {
 		const result = season([on(0)], runPlan())
 		expect(byKey(result, THIS_MONDAY)).toMatchObject({
-			phaseName: 'Build',
+			phaseName: 'Oppbygging',
 			role: 'loading',
 			roleLabel: 'hard uke',
 		})
 		expect(byKey(result, nextDay(THIS_MONDAY, 21))).toMatchObject({
-			phaseName: 'Build',
+			phaseName: 'Oppbygging',
 			role: 'recovery',
 			roleLabel: 'lett uke',
 		})
@@ -1680,7 +1840,7 @@ describe('a week header says which week, what kind, and its numbers (#505 storie
 		expect(week.tracks[0]).toMatchObject({
 			name: 'Løping',
 			unit: 'km',
-			figures: { target: '40', planned: '22', done: '10.4' },
+			figures: { target: '40', planned: '22', done: '10,4' },
 			// Graded through Tuesday only: Monday's 10 of 10 is on plan.
 			gradeLabel: 'i rute',
 			// 22 planned against a target of 40 is more than 10 % off.
@@ -1701,7 +1861,7 @@ describe('a week header says which week, what kind, and its numbers (#505 storie
 	})
 })
 
-describe('past weeks fold above today, one line each (#505 story 31)', () => {
+describe('past weeks are whole weeks, with their numbers and verdict (ADR 0086)', () => {
 	const runTargets = Array<number>(12).fill(46)
 	const runPlan = () =>
 		plan({
@@ -1746,11 +1906,17 @@ describe('past weeks fold above today, one line each (#505 story 31)', () => {
 			},
 		})
 
-	test('a closed week folds to what was done against its target, and the verdict', () => {
+	test('a closed week is every one of its days, under its header and verdict', () => {
 		const result = season([ran(-9, 20, 23), ran(-8, 15, 23), on(0)], runPlan())
 		const last = result.weeks.find((week) => week.key === LAST_MONDAY)!
-		expect(last.shape).toBe('folded')
-		expect(last.foldLabel).toBe('35 av 46 km · under')
+		expect(last.shape).toBe('past')
+		expect(last.rows).toHaveLength(7)
+		expect(last.tracks[0]).toMatchObject({
+			figures: { target: '46', done: '35' },
+			gradeLabel: 'under',
+		})
+		// Its one muted sentence is the week's tally.
+		expect(last.summary).toBe('2 av 2 gjort · 100 av 100 TSS')
 	})
 
 	test('a closed week with nothing measured says why, never a bare "ikke målt" (#505 story 71)', () => {
@@ -1762,12 +1928,11 @@ describe('past weeks fold above today, one line each (#505 story 31)', () => {
 		}
 		const result = season([doneUnrecorded, on(0)], runPlan())
 		const last = result.weeks.find((week) => week.key === LAST_MONDAY)!
-		expect(last.foldLabel).toBe(
-			'ikke målt av 46 km (tallene kommer fra importen)',
-		)
+		expect(last.tracks[0]!.figures.done).toBeNull()
+		expect(last.tracks[0]!.figureNotes.done).toBe('1 økt uten km')
 	})
 
-	test('this week and every week ahead stay open', () => {
+	test('this week and every week ahead are open', () => {
 		const result = season([on(0), on(7)], runPlan())
 		expect(
 			result.weeks
@@ -1777,28 +1942,29 @@ describe('past weeks fold above today, one line each (#505 story 31)', () => {
 		).toEqual(['open', 'open'])
 	})
 
-	test('a folded week with no track to read counts its sessions instead', () => {
+	test('a week with no track to read counts its sessions as its numbers, and needs no sentence', () => {
 		const result = season([
 			on(-9),
 			on(-8, { status: 'missed', tssValue: null }),
 			on(0),
 		])
 		const last = result.weeks.find((week) => week.key === LAST_MONDAY)!
-		expect(last.shape).toBe('folded')
-		expect(last.foldLabel).toBe('1 av 2 gjort · 1 ikke gjort · 50 av 100 TSS')
+		expect(last.shape).toBe('past')
+		expect(last.loadLine).toBe('1 av 2 gjort · 1 ikke gjort · 50 av 100 TSS')
+		expect(last.summary).toBeNull()
 	})
 
-	test('a folded week with nothing in it says so, never a zero', () => {
+	test('a past week with nothing in it says so, never a zero', () => {
 		const result = season([on(-14), on(0)])
 		expect(
-			result.weeks.find((week) => week.key === LAST_MONDAY)!.foldLabel,
+			result.weeks.find((week) => week.key === LAST_MONDAY)!.loadLine,
 		).toBe('Ingenting logget')
 	})
 })
 
-describe('weeks past the Planning Horizon collapse, and keep the athlete’s own sessions (#505 stories 27–28)', () => {
+describe('weeks past the Planning Horizon are whole weeks of empty days under a target (#505 stories 27–28, ADR 0086)', () => {
 	// On Wednesday 20 Feb the last closed week is 11 Feb, so the horizon is the
-	// week of 25 Feb: next week is concrete and the week after collapses.
+	// week of 25 Feb: next week is concrete and the week after is past it.
 	const HORIZON = nextDay(THIS_MONDAY, 7)
 	const PAST_HORIZON = nextDay(THIS_MONDAY, 14)
 	const runTargets = [30, 33, 36, 27, 40, 44, 58, 36, 50, 54, 30, 20]
@@ -1823,24 +1989,32 @@ describe('weeks past the Planning Horizon collapse, and keep the athlete’s own
 		expect(result.horizonWeekKey).toBe(HORIZON)
 	})
 
-	test('a week past the horizon is one line: week, phase, target, and when it fills', () => {
+	test('a week past the horizon is seven empty days under its phase, target and when it fills', () => {
 		const result = season([on(0)], runPlan())
 		const week = result.weeks.find((w) => w.key === PAST_HORIZON)!
-		expect(week.shape).toBe('collapsed')
-		expect(week.foldLabel).toBe(
-			'Uke 10 · Build · mål 58 km · fylles søndag kveld i uke 8',
-		)
+		expect(week.shape).toBe('beyond')
+		expect(week.rows).toHaveLength(7)
+		expect(week.kindLabel).toMatch(/^Oppbygging/)
+		expect(week.tracks[0]!.figures.target).toBe('58')
+		expect(week.summary).toBe('fylles søndag kveld i uke 8')
 		expect(result.weeks.find((w) => w.key === HORIZON)!.shape).toBe('open')
+	})
+
+	test('the divider stands above the first week past the horizon, once', () => {
+		const result = season([on(0)], runPlan())
+		expect(
+			result.weeks.filter((w) => w.opensHorizon).map((w) => w.key),
+		).toEqual([PAST_HORIZON])
 	})
 
 	test('a plan with nothing to fill from does not promise it will fill', () => {
 		const result = season([on(0)], runPlan({ fillsWeeks: false }))
-		expect(result.weeks.find((w) => w.key === PAST_HORIZON)!.foldLabel).toBe(
-			'Uke 10 · Build · mål 58 km · ingen økter lagt inn ennå',
+		expect(result.weeks.find((w) => w.key === PAST_HORIZON)!.summary).toBe(
+			'ingen økter lagt inn ennå',
 		)
 	})
 
-	test('the athlete’s own session far ahead still shows in the collapsed week', () => {
+	test('the athlete’s own session past the horizon shows on its day (story 28)', () => {
 		const result = season(
 			[
 				on(0),
@@ -1855,15 +2029,12 @@ describe('weeks past the Planning Horizon collapse, and keep the athlete’s own
 			runPlan(),
 		)
 		const week = result.weeks.find((w) => w.key === PAST_HORIZON)!
-		expect(week.shape).toBe('collapsed')
-		expect(
-			week.rows.flatMap((day) => day.sessions.map((s) => s.title)),
-		).toEqual(['Langtur med gjengen'])
-		// Only the day that holds it is shown; the rest of the week is the line.
-		expect(week.shownDayKeys).toEqual([nextDay(PAST_HORIZON, 3)])
+		expect(week.shape).toBe('beyond')
+		expect(withSessions(week)).toEqual([nextDay(PAST_HORIZON, 3)])
+		expect(week.rows).toHaveLength(7)
 	})
 
-	test('a week the plan already laid is written, so it stays open', () => {
+	test('a week the plan already laid is written, so it is open', () => {
 		const result = season(
 			[
 				on(0),
@@ -1879,14 +2050,14 @@ describe('weeks past the Planning Horizon collapse, and keep the athlete’s own
 		expect(result.weeks.find((w) => w.key === PAST_HORIZON)!.shape).toBe('open')
 	})
 
-	test('without a plan nothing collapses — there is nothing to fill a week from', () => {
+	test('without a plan no week inside the half year is past a horizon', () => {
 		const result = season([on(0), on(21)])
-		expect(result.weeks.every((week) => week.shape !== 'collapsed')).toBe(true)
+		expect(result.weeks.every((week) => week.shape !== 'beyond')).toBe(true)
 		expect(result.horizonWeekKey).toBeNull()
 	})
 })
 
-describe('a session written far ahead shows on its day, its weeks collapsed (#505 story 40)', () => {
+describe('a session written far ahead shows on its day, in a whole week (#505 story 40)', () => {
 	const race = (days: number) =>
 		on(days, {
 			id: 'race',
@@ -1896,75 +2067,51 @@ describe('a session written far ahead shows on its day, its weeks collapsed (#50
 			workout: workout({ title: 'Birkebeinerløpet' }),
 		})
 
-	test('a year out, with no plan, the week holds the race and nothing else', () => {
+	test('a year out, with no plan, the week holds the race on its day', () => {
 		const result = season([on(0), race(400)])
 		const raceMonday = nextDay(THIS_MONDAY, 7 * 57)
 		const week = result.weeks.find((w) => w.key === raceMonday)!
-		expect(week.shape).toBe('collapsed')
-		expect(week.shownDayKeys).toEqual([nextDay(THIS_MONDAY, 402)])
-		expect(
-			week.rows.flatMap((day) => day.sessions.map((s) => s.title)),
-		).toEqual(['Birkebeinerløpet'])
-		expect(week.foldLabel).toMatch(/langt fram · bare øktene du skriver selv$/)
-		// The empty weeks before it are one line each, drawing no day.
+		expect(week.shape).toBe('beyond')
+		expect(withSessions(week)).toEqual([nextDay(THIS_MONDAY, 402)])
+		expect(week.rows).toHaveLength(7)
+		expect(week.summary).toBe('langt fram · bare øktene du skriver selv')
+		// The weeks before it are whole empty weeks, and the first one opens the
+		// horizon.
 		const between = result.weeks.find(
 			(w) => w.key === nextDay(THIS_MONDAY, 7 * 40),
 		)!
-		expect(between).toMatchObject({ shape: 'collapsed', shownDayKeys: [] })
+		expect(between.shape).toBe('beyond')
+		expect(between.rows).toHaveLength(7)
+		expect(result.weeks.filter((w) => w.opensHorizon)).toHaveLength(1)
 	})
 
-	test('inside the half year every week is still drawn day by day', () => {
+	test('inside the half year every week is open', () => {
 		const result = season([on(0), race(400)])
 		const near = result.weeks.find(
 			(w) => w.key === nextDay(THIS_MONDAY, 7 * 20),
 		)!
 		expect(near.shape).toBe('open')
-		expect(near.shownDayKeys).toHaveLength(7)
+		expect(near.rows).toHaveLength(7)
 	})
 })
 
-describe('free days ahead fold into short rows (#505 story 30)', () => {
-	test('a run of free days ahead of today is one band that opens into its days', () => {
+describe('every free day is its own row (ADR 0086, overriding #505 story 30)', () => {
+	test('free days ahead of today are rows, none folded into another', () => {
 		// Wednesday today, Thursday written, Friday to Sunday free.
 		const result = season([on(0), on(1)])
 		const week = result.weeks.find((w) => w.key === THIS_MONDAY)!
-		const free = week.bands.filter((band) => band.kind === 'free')
-		expect(free).toHaveLength(1)
-		expect(free[0]).toMatchObject({
-			dayKeys: [
-				nextDay(THIS_MONDAY, 4),
-				nextDay(THIS_MONDAY, 5),
-				nextDay(THIS_MONDAY, 6),
-			],
-			summaryLabel: '3 ledige dager',
-		})
-		// The days are still rows, so the band has something to open into.
-		expect(week.rows.map((day) => day.key)).toContain(nextDay(THIS_MONDAY, 5))
-	})
-
-	test('today is never folded, even with nothing on it — it is the landing', () => {
-		const result = season([on(-1)])
-		const week = result.weeks.find((w) => w.key === THIS_MONDAY)!
-		for (const band of week.bands) {
-			expect(band.dayKeys).not.toContain(nextDay(THIS_MONDAY, 2))
-		}
-		expect(week.bands.find((b) => b.kind === 'free')?.dayKeys[0]).toBe(
-			nextDay(THIS_MONDAY, 3),
+		expect(week.rows.map((day) => day.key)).toEqual(
+			[0, 1, 2, 3, 4, 5, 6].map((n) => nextDay(THIS_MONDAY, n)),
 		)
-	})
-
-	test('a single free day between two written ones stays a day', () => {
-		const result = season([on(0), on(1), on(3), on(4)])
-		const week = result.weeks.find((w) => w.key === THIS_MONDAY)!
-		expect(week.bands.filter((b) => b.kind === 'free')).toEqual([])
-	})
-
-	test('behind today a run is still the past band, in the same words', () => {
-		const result = season([on(0)])
-		const past = result.weeks
-			.find((w) => w.key === THIS_MONDAY)!
-			.bands.find((b) => b.kind === 'past')
-		expect(past?.summaryLabel).toBe('2 dager · ingenting logget')
+		expect(
+			week.rows.filter((day) => day.sessions.length === 0).map((d) => d.key),
+		).toEqual([
+			nextDay(THIS_MONDAY, 0),
+			nextDay(THIS_MONDAY, 1),
+			nextDay(THIS_MONDAY, 4),
+			nextDay(THIS_MONDAY, 5),
+			nextDay(THIS_MONDAY, 6),
+		])
 	})
 })
 
@@ -2059,6 +2206,186 @@ describe('the season strip (#505 stories 17–18, 26)', () => {
 		expect(result.strip.weeks.find((w) => w.key === LAST_MONDAY)!.height).toBe(
 			1,
 		)
+	})
+})
+
+describe('the strip draws the plan as variant P does (#505 D5, ADR 0086)', () => {
+	const runTargets = [30, 33, 36, 27, 40, 44, 48, 36, 50, 54, 30, 20]
+	const runPlan = (overrides: Partial<ActivePlan> = {}) =>
+		plan({
+			tracks: [
+				{
+					trackId: 'track-run',
+					discipline: 'run',
+					currency: 'km',
+					targets: runTargets,
+					overridden: runTargets.map(() => false),
+					sessionTargets: null,
+				},
+			],
+			...overrides,
+		})
+
+	test('the phases are runs of weeks in the phase colours, named in Norwegian', () => {
+		const strip = season([on(0)], runPlan()).strip
+		expect(
+			strip.phases.map((p) => [p.name, p.tone, p.to - p.from + 1]),
+		).toEqual([
+			['Grunntrening', 'base', 4],
+			['Oppbygging', 'build', 6],
+			['Nedtrapping', 'taper', 2],
+		])
+	})
+
+	test('a phase the athlete named themselves is drawn neutral, not guessed at', () => {
+		const strip = season(
+			[on(0)],
+			runPlan({
+				phases: [
+					{ name: 'Blokk 4', weeks: 10 },
+					{ name: 'Taper', weeks: 2 },
+				],
+			}),
+		).strip
+		expect(strip.phases[0]).toMatchObject({ name: 'Blokk 4', tone: null })
+	})
+
+	test('past the Planning Horizon the bars are dashed, and the line stands where they start', () => {
+		const strip = season([on(0)], runPlan()).strip
+		const first = strip.horizonIndex!
+		expect(first).toBeGreaterThan(0)
+		expect(strip.weeks[first]!.unfilled).toBe(true)
+		expect(strip.weeks[first - 1]!.unfilled).toBe(false)
+		expect(strip.weeks[first]!.label).toContain('bare mål')
+	})
+
+	test('the race week carries the flag, and its name says which race', () => {
+		// Race day inside the plan's last week, so the week is in the season.
+		const strip = season(
+			[on(0)],
+			runPlan({ eventDate: new Date(NOW.getTime() + 6 * 7 * DAY) }),
+		).strip
+		const flagged = strip.weeks.filter((week) => week.event)
+		expect(flagged.map((week) => week.key)).toEqual([nextDay(THIS_MONDAY, 42)])
+		expect(flagged[0]!.label).toContain('⚑ Spring Half')
+	})
+
+	test('without a plan there are no phases, no horizon and no flag', () => {
+		const strip = season([on(0)]).strip
+		expect(strip.phases).toEqual([])
+		expect(strip.horizonIndex).toBeNull()
+		expect(strip.weeks.some((week) => week.event || week.unfilled)).toBe(false)
+	})
+})
+
+describe('a session row says its own volume in its track’s unit (#505 D6)', () => {
+	const kmRun = (km: number) =>
+		workout({
+			blocks: [
+				{
+					id: `block-${km}`,
+					name: 'Main',
+					orderIndex: 0,
+					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
+					steps: [step({ distanceM: km * 1000, durationSec: null })],
+				},
+			],
+		})
+	const runPlan = () =>
+		plan({
+			tracks: [
+				{
+					trackId: 'track-run',
+					discipline: 'run',
+					currency: 'km',
+					targets: Array<number>(12).fill(40),
+					overridden: Array<boolean>(12).fill(false),
+					sessionTargets: null,
+				},
+			],
+		})
+	const sessionOn = (result: ReturnType<typeof season>, id: string) =>
+		result.weeks
+			.flatMap((week) => week.rows)
+			.flatMap((day) => day.sessions)
+			.find((session) => session.id === id)!
+
+	test('a planned run says what it asks for, with a decimal comma', () => {
+		const result = season(
+			[
+				on(1, {
+					id: 'run',
+					status: 'scheduled',
+					recording: null,
+					workout: kmRun(6.1),
+				}),
+			],
+			runPlan(),
+		)
+		expect(sessionOn(result, 'run').volumeLabel).toBe('6,1 km')
+	})
+
+	test('a missed session says nothing: nothing was done', () => {
+		const result = season(
+			[
+				on(-2, {
+					id: 'missed',
+					status: 'scheduled',
+					recording: null,
+					workout: kmRun(8),
+				}),
+			],
+			runPlan(),
+		)
+		const missed = sessionOn(result, 'missed')
+		expect(missed.status).toBe('missed')
+		expect(missed.volumeLabel).toBeNull()
+	})
+
+	test('a planned session says whose it is once, behind the glyph', () => {
+		const result = season(
+			[on(1, { id: 'run', status: 'scheduled', recording: null })],
+			runPlan(),
+		)
+		const run = sessionOn(result, 'run')
+		expect(run.ownerLabel).not.toBeNull()
+		expect(run.ownerNote).toMatch(/Appen/)
+	})
+})
+
+describe('the top line names the plan and its goal (ADR 0086)', () => {
+	test('toward a race: the countdown in whole weeks, with the race’s name', () => {
+		const line = season([on(0)], plan()).topLine
+		expect(line.goalLabel).toBe('Spring Half om 8 uker')
+		// No philosophy recorded: the phase it is in names the plan, and where in
+		// the plan today falls.
+		expect(line.planLabel).toBe('Oppbygging · uke 5 av 12')
+	})
+
+	test('a recorded philosophy names the plan', () => {
+		expect(season([on(0)], plan({ family: 'classic' })).topLine.planLabel).toBe(
+			'Klassisk 3:1 · uke 5 av 12',
+		)
+	})
+
+	test('an open-ended plan counts its blocks, never an end date (#505 story 9)', () => {
+		const line = season(
+			[on(0)],
+			plan({ eventId: null, eventName: null, eventDate: null, round: 3 }),
+		).topLine
+		expect(line.goalLabel).toBe('Blokk 3 av ∞')
+		expect(line.planLabel).not.toMatch(/uke \d+ av/)
+	})
+
+	test('with no plan there is nothing to name', () => {
+		expect(season([on(0)]).topLine).toEqual({
+			planLabel: null,
+			goalLabel: null,
+			goal: null,
+		})
 	})
 })
 
@@ -2189,30 +2516,6 @@ describe('the review’s edges (#505 S9)', () => {
 		// The strip's lifting dot reads the same rule.
 		expect(result.strip.weeks.find((w) => w.isNow)?.strength).toBe(false)
 	})
-
-	test('a folded week whose target is 0 states only what was done, never “x av 0 km”', () => {
-		const ran = on(-9, {
-			id: 'ran',
-			recording: {
-				id: 'rec',
-				discipline: 'run',
-				durationSec: 3600,
-				distanceM: 12_000,
-				startedAt: NOW,
-				endedAt: NOW,
-				phaseBarsJson: null,
-				linkAnsweredAt: null,
-				unlinkedFromSessionId: null,
-			},
-		})
-		const result = season(
-			[ran, on(0)],
-			plan({ tracks: [runTrack(Array(12).fill(0))] }),
-		)
-		const last = result.weeks.find((week) => week.key === LAST_MONDAY)!
-		expect(last.foldLabel).toBe('12 km gjort')
-		expect(last.foldLabel).not.toContain('av 0')
-	})
 })
 
 describe('"lås opp" is offered on the athlete’s own planned sessions only (#505 story 55)', () => {
@@ -2315,6 +2618,21 @@ describe('the Ukeskiftet card (#505 stories 4–6, 42–55)', () => {
 				timezone: 'UTC',
 			}),
 		).toBeNull()
+	})
+
+	test('a week that holds leads with its keep, not with a second (English) sentence', () => {
+		// The stored week-level reason is `decideWeekReplan`'s English hold; the
+		// keep proposal carries the same thing in Norwegian.
+		const holds = card([
+			proposal({
+				payload: { kind: 'keep' },
+				target: null,
+				reason: 'Forrige uke gikk som planlagt. Denne uka står som den er.',
+			}),
+		])
+		expect(holds.summary).toBeNull()
+		// A week with a change keeps its own sentence.
+		expect(card([proposal()]).summary).toBe('Forrige uke gikk som planlagt.')
 	})
 
 	test('an unanswered proposal asks, with what it proposes and why', () => {
@@ -2517,8 +2835,8 @@ describe('the Ukeskiftet card (#505 stories 4–6, 42–55)', () => {
 		expect(review!.tracks[0]).toMatchObject({
 			name: 'Løping',
 			unit: 'km',
-			// Done is what was recorded: the run and the extra ride, 9.2 km each.
-			figures: { target: '30', done: '18.4' },
+			// Done is what was recorded: the run and the extra ride, 9,2 km each.
+			figures: { target: '30', done: '18,4' },
 		})
 		expect(review!.missed.map((s) => s.title)).toEqual(['Terskel'])
 		expect(review!.extras.map((s) => s.id)).toEqual(['extra'])

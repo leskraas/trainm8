@@ -23,7 +23,7 @@ test('today-session CTA says "View session" and opens the Workout Detail View', 
 	test.setTimeout(120_000)
 	const user = await login()
 
-	// A session scheduled later today — the Today hero's subject.
+	// A session scheduled later today — today's row's subject.
 	const workout = await prisma.workout.create({
 		data: {
 			title: 'Threshold Run',
@@ -45,7 +45,7 @@ test('today-session CTA says "View session" and opens the Workout Detail View', 
 	await navigate('/')
 
 	// The CTA is honest about Session Status: a scheduled session is viewed. On
-	// the home timeline the hero's action is a plain link to the detail view, so
+	// I dag, today's row's action is a plain link to the detail view, so
 	// it carries the link role rather than base-ui Button's role="button".
 	const cta = page.getByRole('link', { name: 'Se økta' })
 	await expect(cta).toBeVisible()

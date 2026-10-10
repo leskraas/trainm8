@@ -1,5 +1,10 @@
 # Home is an every-day grid, and tapping an empty day stamps a session into it
 
+**§3 and §8 are superseded by
+[ADR 0086](0086-i-dag-has-no-hero-reads-like-a-calendar-and-the-scroll-engine-never-writes-under-a-reader.md)**:
+nothing on I dag folds any more (every empty day is its own row), and there is
+no hero.
+
 Status: Accepted. §3's worked example (`4–12 · 9 days`) is amended by
 [ADR 0075](0075-the-past-band-stops-at-the-week-boundary-and-never-speaks-for-a-day-the-query-did-not-fetch.md)
 (#500): a run of empty days stops at the week boundary, so seven days is the

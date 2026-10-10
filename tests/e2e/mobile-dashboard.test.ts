@@ -100,8 +100,14 @@ test('Home at 390px: a row carries every field, the strip fits whole, no page ov
 	await expect(row).toContainText('55 min')
 	await expect(row).toContainText('TSS 56 / 85 · UNDER')
 	await expect(row).toContainText('RPE 8')
-	// The lane is named, not only coloured.
-	await expect(row.getByRole('img', { name: 'Sykling' })).toBeVisible()
+	// The lane is named, not only coloured: the track's rule beside the row's
+	// link carries the sport's name (ADR 0086).
+	await expect(
+		stream
+			.locator('[data-session-row]')
+			.filter({ hasText: /Threshold 4x8/ })
+			.getByRole('img', { name: 'Sykling' }),
+	).toBeVisible()
 
 	// The planned row states its prescription honestly and never as an actual.
 	await expect(stream.getByText('74 TSS planlagt')).toBeVisible()

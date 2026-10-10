@@ -62,7 +62,7 @@ import type { AdherenceTone } from './load/adherence.ts'
 import type { RoundVerdict } from './load/propose-next-round.ts'
 import type { ReadinessTone } from './load/readiness.ts'
 import type { LoadRecomputeKind } from './load/recompute-notice.ts'
-import type { WeekHoldWhy, WeekReplanOutcome } from './load/week-replan.ts'
+import type { WeekHoldWhy } from './load/week-replan.ts'
 // The domain owns *which* currencies accumulate across Disciplines (ADR 0043 §5);
 // this module owns the sentence each accumulation is explained by.
 import type { AccumulatingCurrency } from './plan-outline/commensurability.ts'
@@ -490,6 +490,57 @@ export const SESSION_OWNER_LABELS: Record<SessionOwner, string> = {
 }
 
 /**
+ * What the ownership glyph on a planned row means, said once behind it rather
+ * than under every row (#505 D6, ADR 0086). The athlete's own session is
+ * changed only with their yes (ADR 0080); the app's may be adjusted when the
+ * week changes.
+ */
+export const SESSION_OWNER_NOTES: Record<SessionOwner, string> = {
+	athlete:
+		'Du la inn eller endret denne økta. Appen endrer den bare hvis du sier ja.',
+	machine:
+		'Planen la inn denne økta. Appen kan justere den når uka endrer seg.',
+}
+
+/** What a session row's glyph opens (ADR 0086): the row's details, once. */
+export const SESSION_DETAIL_LABELS = {
+	open: 'Åpne økta',
+	/** The glyph's name on a session whose ownership no longer matters. */
+	name: (title: string) => `${title}: detaljer`,
+	/** The done dot's name where no verdict is known. */
+	done: 'gjort',
+	missed: 'ikke gjort',
+} as const
+
+/** The glyph's own name: what it is, on which session, and that it explains. */
+export function ownerGlyphName(owner: string, title: string): string {
+	return `${owner[0]!.toUpperCase()}${owner.slice(1)}: ${title}. Hva betyr det?`
+}
+
+/**
+ * A session's own volume, in its track's unit, at the row's right edge
+ * (#505 D6): `6,1 km`, `55 min`, `13 sett`. Hours are said in minutes on a
+ * single session — `0,9 t` is a week's number, not a run's.
+ */
+export function sessionVolumeLabel(
+	value: number,
+	currency: VolumeCurrency,
+): string {
+	switch (currency) {
+		case 'km':
+			// One decimal and a comma, as `formatNbVolumeFigure` writes km (labels.ts
+			// imports no values, so `format.ts` can import it).
+			return `${String(Math.round(value * 10) / 10).replace('.', ',')} km`
+		case 'hours':
+			return `${Math.round(value * 60)} min`
+		case 'sets':
+			return `${Math.round(value)} sett`
+		case 'tss':
+			return `${Math.round(value)} TSS`
+	}
+}
+
+/**
  * The three week numbers' words (#505 stories 20–26, 33, 34, 85): the Week
  * Target, the Planned Volume and the Actual Volume per Training Track. Norwegian,
  * as the #505 surfaces are (ADR 0081).
@@ -520,6 +571,48 @@ export function unmeasuredCountLabel(
 	sign: '+' | '−' = '+',
 ): string {
 	return `${sign}${count} uten ${NB_UNMEASURED_WORDS[currency]}`
+}
+
+/**
+ * `planlagt +2 uten km` / `gjort +1 uten km` — the same count as
+ * {@link unmeasuredCountLabel}, with the side it belongs to said first, so the
+ * planned and the done counts never read as one number twice (#505 story 34).
+ */
+export function sidedUnmeasuredLabel(
+	side: 'planned' | 'done',
+	count: number,
+	currency: VolumeCurrency,
+): string {
+	return `${WEEK_FIGURE_LABELS[side]} ${unmeasuredCountLabel(count, currency)}`
+}
+
+/**
+ * `2 økter uten km` — what stands where a sum would be when every session on
+ * that side has no number in the track's unit: a dash would read as "nothing
+ * planned" beside a zone split that says otherwise, and `0` would be a lie.
+ */
+export function unmeasuredFigureLabel(
+	count: number,
+	currency: VolumeCurrency,
+): string {
+	return `${count} ${count === 1 ? 'økt' : 'økter'} uten ${NB_UNMEASURED_WORDS[currency]}`
+}
+
+/**
+ * Why a week whose days are past carries no verdict (`ungraded`), said so it
+ * never contradicts the done figure beside it. Nothing done measured is the
+ * plain `ikke målt`; something done and measured means the **reference** is
+ * what is missing (`ikke vurdert · ingen planlagte km å holde det opp mot`);
+ * nothing done at all is simply not graded yet.
+ */
+export function ungradedNoteLabel(
+	currency: VolumeCurrency,
+	actual: number | null,
+): string {
+	if (actual == null) return VOLUME_GRADE_LABELS.ungraded
+	return actual > 0
+		? `ikke vurdert · ingen planlagte ${NB_UNMEASURED_WORDS[currency]} å holde det opp mot`
+		: 'ikke vurdert · ingen tall å holde opp mot'
 }
 
 /** Why one session has no number — every "ikke målt" gives a reason (story 71). */
@@ -631,38 +724,18 @@ export function easyShareLabel(
 }
 
 /**
- * A closed week folded to one line (#505 story 31): `35 av 46 km · under`.
- * `of` is the Week Target, or the Planned Volume where the week had no target;
- * `done` null means nothing done was measured, which is said rather than
- * counted as zero.
+ * A week's zone split, one side of it (#505 story 21, the skier's header):
+ * `gjort Z2 75 % · Z4 25 %`, or `plan Z2 86 % · Z4 14 %` for what the plan
+ * prescribes — said beside {@link ZONE_INTENT_NOTE}, since a prescription is
+ * an intention and not a measurement. `parts` are already formatted.
  */
-export function foldedTrackLabel({
-	done,
-	of,
-	unit,
-	grade,
-	why = [],
-}: {
-	done: string | null
-	of: string | null
-	unit: string
-	grade: string | null
-	/** Why nothing done was measured: every "ikke målt" says (story 71). */
-	why?: readonly UnmeasuredReason[]
-}): string {
-	const reason =
-		why.length > 0
-			? ` (${why.map((code) => UNMEASURED_REASON_LABELS[code]).join(', ')})`
-			: ''
-	const figure =
-		done == null
-			? of == null
-				? `ikke målt${reason}`
-				: `ikke målt av ${of} ${unit}${reason}`
-			: of == null
-				? `${done} ${unit} ${WEEK_FIGURE_LABELS.done}`
-				: `${done} av ${of} ${unit}`
-	return grade ? `${figure} · ${grade}` : figure
+export function zoneSplitLabel(
+	side: 'done' | 'planned',
+	parts: ReadonlyArray<{ zone: number; share: string }>,
+): string {
+	return `${side === 'done' ? WEEK_FIGURE_LABELS.done : 'plan'} ${parts
+		.map((part) => `Z${part.zone} ${part.share}`)
+		.join(' · ')}`
 }
 
 /**
@@ -672,6 +745,20 @@ export function foldedTrackLabel({
 export const WEEK_LOAD_LABELS = {
 	nothingWritten: 'Ingenting lagt inn',
 	nothingLogged: 'Ingenting logget',
+} as const
+
+/**
+ * The week header's disclosure (#505 polish): the facts that qualify a week's
+ * numbers but are not them — why a track is not graded, pace, the easy share,
+ * the zone split, Annet — behind the week's summary line instead of under it.
+ */
+export const WEEK_DETAIL_LABELS = {
+	/** Said after the summary, for a screen reader and as the icon's name. */
+	more: 'mer om uka',
+	/** The popover's title: `Denne uka · 5.–11. okt`. */
+	title: (week: string, range: string) => `${week} · ${range}`,
+	/** Where a week has no summary line to hang the disclosure on. */
+	trigger: 'Mer om uka',
 } as const
 
 /** `2 av 5 gjort` — the sessions of a week that has begun. */
@@ -698,6 +785,18 @@ export function horizonFillLabel(closesWeekNumber: number): string {
 	return `fylles søndag kveld i uke ${closesWeekNumber}`
 }
 
+/**
+ * The divider above the first week past the Planning Horizon (ADR 0086):
+ * `Horisont · herfra bare mål, ingen økter ennå`. Past it the weeks are whole
+ * calendar weeks with empty days; what they carry is a target, not sessions.
+ * With no plan the only weeks past it are far ones, and it says that instead.
+ */
+export const HORIZON_LABELS = {
+	name: 'Horisont',
+	plan: 'herfra bare mål, ingen økter ennå',
+	far: 'herfra bare øktene du skriver selv',
+} as const
+
 /** A week past the horizon of a plan with no Week Pattern to fill it from. */
 export const NOT_FILLED_LABEL = 'ingen økter lagt inn ennå'
 
@@ -706,39 +805,6 @@ export const NOT_FILLED_LABEL = 'ingen økter lagt inn ennå'
  * there, so it shows only the sessions the athlete wrote into it.
  */
 export const FAR_WEEK_LABEL = 'langt fram · bare øktene du skriver selv'
-
-/** A fold's control, for the reader who hears it rather than sees it. */
-export function foldedWeekControlLabel(name: string, line: string): string {
-	return `${name}, ${line}`
-}
-
-/**
- * A run of empty days behind today (ADR 0065 §3, ADR 0075): `7 dager ·
- * ingenting logget`, named in full as `7 dager uten noe logget, 4–10 August`.
- */
-export function pastBandLabels(
-	days: number,
-	range: string,
-): { summary: string; control: string } {
-	return {
-		summary: `${days} dager · ingenting logget`,
-		control: `${days} dager uten noe logget, ${range}`,
-	}
-}
-
-/**
- * A run of free days ahead of today (#505 story 30): `2 ledige dager`, a short
- * row that opens into the days so one of them can be written into.
- */
-export function freeBandLabels(
-	days: number,
-	range: string,
-): { summary: string; control: string } {
-	return {
-		summary: `${days} ledige dager`,
-		control: `${days} ledige dager, ${range} — åpne for å legge inn en økt`,
-	}
-}
 
 /** The season strip (#505 stories 17–18, 26). */
 export const SEASON_STRIP_LABELS = {
@@ -757,6 +823,18 @@ export const SEASON_STRIP_LABELS = {
 	todayUp: '↑ I dag',
 	todayDown: '↓ I dag',
 	noFigure: 'ingen tall',
+	/** A week the plan has not filled yet: its bar is the target, dashed. */
+	unfilled: 'bare mål',
+	/** The race week's flag, in the week's name. */
+	event: (name: string) => `⚑ ${name}`,
+	/**
+	 * The strip's window on a season too long for the width (S10): how many
+	 * weeks lie beyond each edge, and the buttons that step the window there.
+	 */
+	earlier: (weeks: number) => `${weeks} uker før`,
+	later: (weeks: number) => `${weeks} uker etter`,
+	earlierName: (weeks: number) => `Vis ${weeks} tidligere uker`,
+	laterName: (weeks: number) => `Vis ${weeks} senere uker`,
 } as const
 
 /** A sessions-only week in the strip, where no Training Track reads it. */
@@ -818,6 +896,43 @@ export const WEEK_CHANGE_LABELS = {
 /** The line on I dag that leads to the card: `Ukeskiftet: 3 forslag venter`. */
 export function weekChangeWaitingLabel(count: number): string {
 	return `Ukeskiftet: ${count} forslag venter`
+}
+
+/**
+ * I dag's top line (#505 owner decision 3, ADR 0086): the plan, its goal,
+ * "+ Ny", the Ukeskiftet badge and the I dag pill on one compact row.
+ */
+export const TOP_LINE_LABELS = {
+	region: 'Planen',
+	noPlan: 'Ingen plan',
+	/** The no-plan line's link, to Sesong. */
+	noPlanAction: 'Lag en i Sesong',
+	/** A race with no name, on the countdown. */
+	raceDay: 'Løpsdagen',
+	/**
+	 * The Ukeskiftet badge: short on screen (`1 forslag` — the count, then
+	 * this word, which gives way on the narrowest phones), whole in its name.
+	 */
+	weekChangeWord: 'forslag',
+	weekChangeName: (count: number) =>
+		`Ukeskiftet: ${count} forslag venter. Gå til forslagene`,
+} as const
+
+/**
+ * The goal countdown on the top line: `Halvmaraton om 12 uker`, counted in
+ * whole weeks the way an athlete counts them, and in days in the last week.
+ */
+export function eventCountdownLabel(name: string, days: number): string {
+	return `${name} ${eventCountdownWhen(days)}`
+}
+
+/** The countdown half alone — `om 12 uker` — which the top line never cuts. */
+export function eventCountdownWhen(days: number): string {
+	if (days <= 0) return 'i dag'
+	if (days === 1) return 'i morgen'
+	if (days < 7) return `om ${days} dager`
+	const weeks = Math.round(days / 7)
+	return `om ${weeks} ${weeks === 1 ? 'uke' : 'uker'}`
 }
 
 /** A round's peak week before → after its factor: `Toppuka: 4,5 → 5 t`. */
@@ -1174,18 +1289,84 @@ export const QUICK_LOG_REFUSAL_LABELS: Record<QuickLogRefusal, string> = {
 	'nothing-done': 'Ingen sett er merket som gjort. Skriv inn minst ett.',
 }
 
-/** The large-screen season pane beside the list (#505 story 60). */
+/**
+ * The large-screen season pane beside the list (#505 story 60, ADR 0087): the
+ * plan card, the season table and its compact curve, after Arket variant Q.
+ */
 export const SEASON_PANE_LABELS = {
 	heading: 'Sesongen',
+	/** The plan card's region name. */
+	plan: 'Planen',
+	/** The table's caption corner: what a cell holds. */
+	perWeek: 'Per uke',
+	cellKey: 'mål · gjort',
 	week: 'Uke',
-	phase: 'Fase',
-	grade: 'vurdering',
-	load: 'økter og belastning',
+	rhythm: 'Rytme',
+	/** A week with no plan behind it: a load column instead of tracks. */
+	load: 'TSS',
+	sessions: 'økter',
+	table: 'Sesongtabell',
 	jumpTo: (week: string) => `Gå til ${week}`,
-	noPlan: 'Ingen plan ennå, så sesongen er bare ukene du har skrevet.',
-	loadFailed:
-		'Sesongkurven kunne ikke lastes nå. Lista til venstre er den samme.',
+	/** The row of the table where the Planning Horizon stands. */
+	horizon: 'horisont · økter fylles hit, videre bare mål',
+	noPlan: 'Ingen plan ennå',
+	noPlanNote: 'Sesongen er bare ukene du har skrevet.',
+	noPlanAction: 'Lag en i Sesong',
+	/** A table cell's accessible name: `Løping: mål 46 km, gjort 35`. */
+	cellName: (track: string, target: string, done: string) =>
+		`${track}: mål ${target}, gjort ${done}`,
+	/** The curve: what it draws, said once for a screen reader. */
+	curveName: (track: string, unit: string) =>
+		`${track} (${unit}): ukemål som linje, gjort som søyler, i dag og horisont markert`,
+	curveCaption: (track: string) => `${track}, uke for uke`,
+	/** The curve's legend, in the order the marks are drawn. */
+	legendTarget: (track: string, unit: string) =>
+		`mål ${track.toLowerCase()} (${unit})`,
+	legendDone: 'gjort',
+	legendToday: 'i dag',
+	legendHorizon: 'horisont',
+	legendPhase: 'fargestripe = fase',
+	legendDrift: '≠ øktene avviker over 10 % fra målet',
 } as const
+
+/**
+ * The day beside the list on a large screen (#505 story 60, ADR 0087): the
+ * selected day's sessions, what they ask and who owns them, their actions,
+ * and the week's zones.
+ */
+export const DAY_PANE_LABELS = {
+	region: 'Dagen',
+	/** `torsdag 17. sep · i dag`. */
+	today: 'i dag',
+	track: 'Spor',
+	status: 'Status',
+	owner: 'Eier',
+	volume: 'Volum',
+	statusWord: {
+		planned: 'planlagt',
+		completed: 'gjort',
+		missed: 'ikke gjort',
+	},
+	open: 'Se økta',
+	edit: 'Rediger',
+	/** A Link's name, so two "Se økta" on one day are told apart. */
+	openFor: (title: string) => `Se økta ${title}`,
+	editFor: (title: string) => `Rediger ${title}`,
+	free: 'Ingen økt · fri.',
+	write: 'Skriv økt her',
+	zones: (week: string) => `${week} i soner`,
+	noZones: 'Ingen soner å vise for denne uka.',
+	close: 'Lukk',
+	/** The sheet's own heading, before the day's. */
+	sheet: 'Dagen',
+	/** How a keyboard reaches the day from a row (1024–1279, the sheet). */
+	keyHint: 'Trykk I på en dag i lista for å se den ved siden av.',
+} as const
+
+/** `torsdag 17. sep` — a day as the day pane names it. */
+export function dayPaneTitle(weekday: number, day: number, month: number) {
+	return `${NB_WEEKDAY_LABELS[weekday]} ${day}. ${NB_MONTHS_SHORT[month]}`
+}
 
 // ---------------------------------------------------------------------------
 // I dag, the whole surface (#505, ADR 0081 §1 and ADR 0082): the home list,
@@ -1256,6 +1437,10 @@ export function liftSchemeLabel(sets: number, reps: number | null): string {
 /** The empty day, the rest day and the row's own words. */
 export const DAY_ROW_LABELS = {
 	addWorkout: 'Legg inn en økt',
+	/** Today's row with nothing on it: it still says so (ADR 0086). */
+	nothingToday: 'Ingenting i dag',
+	/** A day with nothing on it, as variant P writes it: free to write into. */
+	free: 'fri',
 	addWorkoutOn: (day: string) => `Legg inn en økt ${day}`,
 	restDay: 'Hviledag',
 	restDayOn: (day: string) => `Hviledag — ${day}`,
@@ -1266,11 +1451,17 @@ export const DAY_ROW_LABELS = {
 		'Alt over denne linja er trening du hadde med deg — ingen plan å holde den opp mot.',
 } as const
 
-/** What a session row says on its two lines and its chips. */
+/**
+ * What a session row says on its two lines and its chips. Sentence case, in
+ * the muted footnote the row's facts are set in (#505 polish): the chips were
+ * capitals (`I DAG · IKKE GJORT ENNÅ`), which shouted in a list of quiet facts
+ * and, on today's row, repeated what its tint, its circled date and `Se økta`
+ * already say.
+ */
 export const ROW_LABELS = {
-	todayNotDone: 'I DAG · IKKE GJORT ENNÅ',
-	missed: 'IKKE GJORT',
-	unplanned: 'UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED',
+	todayNotDone: 'I dag · ikke gjort ennå',
+	missed: 'Ikke gjort',
+	unplanned: 'Utenfor planen · ingen plan å sammenligne med',
 	nothingRecorded: 'Ingenting registrert',
 	nothingLogged: 'Ingen sett logget',
 	planned: (what: string) => `${what} planlagt`,
@@ -1306,37 +1497,7 @@ export const NB_LOAD_WORDS = {
 	unloaded: 'uten vekt',
 } as const
 
-/** The hero: today's session, what today is, and the way in. */
-export const HERO_LABELS = {
-	today: 'I dag',
-	tomorrow: 'I morgen',
-	nextUp: (title: string) => `Neste · ${title}`,
-	todayDone: 'I dag er gjort',
-	nothingLeftToday: 'Ingenting igjen i dag',
-	nothingToday: 'Ingenting i dag',
-	daysToRace: (days: number) =>
-		days === 1 ? '1 dag til løpsdagen' : `${days} dager til løpsdagen`,
-	weeksToRace: (weeks: number) =>
-		weeks === 1 ? '1 uke til løpsdagen' : `${weeks} uker til løpsdagen`,
-	seasonPlan: 'Sesongplan',
-	nothingScheduled: 'Ingenting planlagt',
-	nothingScheduledNote: 'Det står ingen økt foran deg i kalenderen.',
-	planASession: 'Planlegg en økt',
-	carousel: 'I dag, på fire måter',
-	pane: (name: string, index: number, count: number) =>
-		`${name}, side ${index} av ${count}`,
-	choosePane: 'Velg hva toppen viser',
-} as const
-
-/** The hero's four panes, by their codes. */
-export const HERO_PANE_LABELS = {
-	today: 'I dag',
-	form: 'Form',
-	week: 'Denne uka',
-	records: 'Rekorder',
-} as const
-
-/** The hero's one honest action (#179), in Norwegian. */
+/** Today's one honest action (#179), on today's row (ADR 0086). */
 export const NB_SESSION_CTA_LABELS: Record<
 	'View session' | 'Log session' | 'Log your sets',
 	string
@@ -1375,16 +1536,21 @@ export const VERDICT_LABELS = {
 	heldStrength: 'neste økt er styrke, så den står som planlagt',
 } as const
 
-/** The Form pane's triad, as the hero names it (ADR 0008). */
+/**
+ * The Training Load triad, as Meg's Form section names it (ADR 0008). `short`
+ * is what is written under each figure — plain words, never a clipped one
+ * (`Kond`, `Tretth`): #505 story 70 asks for words over jargon, and the three
+ * fit a phone's three columns whole.
+ */
 export const NB_LOAD_LEGENDS = {
 	fitness: {
-		short: 'Kond',
+		short: 'Kondisjon',
 		term: 'Kondisjon (CTL)',
 		description:
 			'Kondisjon (CTL): snittet av treningsbelastningen (TSS) de siste 42 dagene, vektet — formen du har bygd opp.',
 	},
 	fatigue: {
-		short: 'Tretth',
+		short: 'Tretthet',
 		term: 'Tretthet (ATL)',
 		description:
 			'Tretthet (ATL): snittet av treningsbelastningen (TSS) de siste 7 dagene, vektet — slitet du bærer nå.',
@@ -1397,25 +1563,6 @@ export const NB_LOAD_LEGENDS = {
 	},
 } as const
 
-/** The hero's other three panes. */
-export const HERO_PANE_TEXT = {
-	baseline: (day: number, required: number) =>
-		`Bygger grunnlag — dag ${day}/${required}`,
-	fitnessTrend: (from: string, to: string, since: string) =>
-		`Kondisjon ${from} → ${to} siden ${since}`,
-	adherence: (band: string, percent: number) =>
-		`${band} · ${percent} % av planlagt utholdenhetsbelastning`,
-	adherenceUnavailable: 'Planlagt utholdenhetsbelastning kan ikke måles',
-	strength: (completed: number, planned: number) =>
-		`${completed} av ${planned} styrkeøkter logget`,
-	noStrength: 'Ingen styrkeøkter denne uka',
-	noRecords:
-		'Ingen personlige rekorder ennå — de kommer når du har logget registrerte økter.',
-	overBest: (delta: string) => `${delta} over forrige beste`,
-	firstOnRecord: 'Første registrerte',
-	longest: (discipline: string) => `Lengste ${discipline}`,
-} as const
-
 /** The record's sport, as the noun after `Lengste`. */
 export const NB_RECORD_NOUNS: Record<string, string> = {
 	run: 'løpetur',
@@ -1423,33 +1570,6 @@ export const NB_RECORD_NOUNS: Record<string, string> = {
 	swim: 'svømmeøkt',
 	strength: 'styrkeøkt',
 }
-
-/**
- * A closed week's Week Replan outcome on the hero (ADR 0025, ADR 0080). Only a
- * `proposed` outcome's reason is Norwegian prose; the older outcomes' stored
- * reasons are English sentences, so they are said in these words instead.
- */
-export const HOME_REPLAN_LABELS: Record<
-	WeekReplanOutcome,
-	{ outcome: string; reason: string | null }
-> = {
-	adjusted: {
-		outcome: 'Uka er justert',
-		reason: 'Vi gjorde denne uka lettere etter uka som gikk.',
-	},
-	proposed: { outcome: 'Endringer foreslått', reason: null },
-	'no-change': {
-		outcome: 'Ingen endring',
-		reason: 'Uka som gikk holdt planen, så denne står som den er.',
-	},
-	'insufficient-data': {
-		outcome: 'Ingen justering',
-		reason: 'Det var for lite å lese av uka som gikk til å endre noe.',
-	},
-}
-
-/** An outcome with no words of its own still names a decision. */
-export const HOME_REPLAN_FALLBACK = 'Ukeskiftet'
 
 /** The header's one line of orientation: `ons 7. okt · uke 9 av 10`. */
 export function planWeekLabel(week: number, total: number): string {
@@ -1469,6 +1589,15 @@ export const CAP_LABELS = {
 	sketched: (weeks: number, event: string | null, date: string) =>
 		`Resten av sesongen er skissert, ikke skrevet — ${weeks === 1 ? '1 uke' : `${weeks} uker`} uten økter ennå, frem til ${event ?? 'løpsdagen'} ${date}.`,
 	whole: 'Det er hele planen. Ingenting er lagt inn etter dette.',
+	/**
+	 * An open-ended plan's end (ADR 0079): a plan with no end date, never "no
+	 * plan". Its last round is sketched past what is written, and the next
+	 * round is proposed in Ukeskiftet before this one ends.
+	 */
+	openEnded: (weeks: number, date: string) =>
+		weeks > 0
+			? `Resten av blokka er skissert, ikke skrevet — ${weeks === 1 ? '1 uke' : `${weeks} uker`} uten økter ennå, til og med ${date}. Planen har ingen sluttdato: neste blokk foreslås i Ukeskiftet før denne er ferdig.`
+			: `Det er hele blokka, til og med ${date}. Planen har ingen sluttdato: neste blokk foreslås i Ukeskiftet før denne er ferdig.`,
 	writeLast: (weeks: number) =>
 		weeks === 1 ? 'Skriv den siste uka' : `Skriv de siste ${weeks} ukene`,
 	seasonPlan: 'Sesongplan',
@@ -1502,6 +1631,11 @@ export const DAY_STAMP_LABELS = {
 	cancel: 'Avbryt',
 	undo: 'Angre',
 	removing: 'Fjerner…',
+	/**
+	 * The toast after a write from "+ Ny" → "Skriv en økt", when the reply had
+	 * no week sum to say (it always has one today; this is the floor).
+	 */
+	written: 'Økta er lagt inn.',
 } as const
 
 /**
@@ -1551,7 +1685,8 @@ export const WRITING_LINE_LABELS = {
 	day: 'Dag',
 	close: 'Lukk',
 	failed: 'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
-	outsideWindow: 'Den dagen ligger utenfor det I dag viser.',
+	outsideWindow:
+		'Den dagen ligger for langt tilbake — I dag leser et halvt år bakover.',
 } as const
 
 /** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */
@@ -1621,14 +1756,16 @@ export const FINDING_ABSENCE_LABELS: Record<FindingAbsence, string> = {
 }
 
 /**
- * The shipped presets' phase names as the first run says them (stories 66
- * and 70). Display only: the stored names stay as the preset wrote them.
+ * The shipped presets' phase names as the first run and I dag say them
+ * (stories 19, 27, 66 and 70). Display only: the stored names stay as the
+ * preset wrote them, so a plan made before this map still reads in Norwegian
+ * and a phase the athlete named themselves reads as they wrote it.
  */
 export const PRESET_PHASE_NAME_LABELS: Record<string, string> = {
 	Base: 'Grunntrening',
 	'Big base': 'Stor base',
 	Build: 'Oppbygging',
-	Peak: 'Topp',
+	Peak: 'Spissing',
 	Taper: 'Nedtrapping',
 }
 
@@ -2732,6 +2869,41 @@ export const ME_LABELS = {
 	upload: 'Last opp en aktivitetsfil',
 	uploadDetail: '.fit, .tcx eller .gpx fra en klokke eller en annen app',
 	logout: 'Logg ut',
+} as const
+
+/**
+ * Meg's Form section: the Training Load triad and how far it can be trusted
+ * (ADR 0008/0010). It came from the home hero's Form pane when the hero went
+ * (#505). Every "ikke målt" here is said with its reason (story 71).
+ */
+export const ME_FORM_LABELS = {
+	title: 'Form',
+	notMeasured: 'ikke målt',
+	noLoad:
+		'Ikke målt ennå: ingen treningsbelastning er regnet ut. Den kommer når du har logget økter.',
+	formColdStart: (day: number, required: number) =>
+		`Formen er ikke målt ennå: den trenger ${required} dager med belastning, og du har ${day}. Kondisjon og tretthet kan leses fra første dag.`,
+	baseline: 'Bygger grunnlag',
+	baselineValue: (day: number, required: number) => `dag ${day} av ${required}`,
+	trusted: (days: number) => `Bygger på ${days} dager med belastning`,
+	asOf: (date: string) => `regnet ut ${date}`,
+	fitnessTrend: (from: string, to: string, since: string) =>
+		`Kondisjon ${from} → ${to} siden ${since}`,
+} as const
+
+/**
+ * Meg's Rekorder section: Personal Records (ADR 0021), moved from the home
+ * hero's Records pane (#505). Records only come from trusted, recorded efforts,
+ * so the empty state says what will fill it rather than showing a zero.
+ */
+export const ME_RECORD_LABELS = {
+	title: 'Rekorder',
+	source: 'Fra økter med registrerte data fra klokke eller import',
+	none: 'Ingen personlige rekorder ennå. De kommer når du har logget økter med registrerte data.',
+	longest: (noun: string) => `Lengste ${noun}`,
+	overBest: (delta: string) => `${delta} over forrige beste`,
+	firstOnRecord: 'Første registrerte',
+	setOn: (date: string) => `satt ${date}`,
 } as const
 
 /** An Account Connection's state, as Meg reads it (`connection-hub-status.ts`). */

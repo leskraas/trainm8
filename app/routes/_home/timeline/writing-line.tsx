@@ -6,8 +6,8 @@
  * It lives where writing already lived on I dag: in the tapped empty day's
  * draft (ADR 0065 §5), beside the Discipline chips and the stamp it extends,
  * and behind the creation menu's "Skriv en økt" for a day the list does not
- * show as empty — a day that already has a session, or one in a collapsed week
- * past the Planning Horizon. Both post the same intent to home's own action.
+ * show as empty — a day that already has a session, or one far ahead of the
+ * weeks the list has mounted. Both post the same intent to home's own action.
  *
  * Three things under the input, and none of them is the typed text echoed back:
  * the session as the **Token Sentence** rendered from the structure the reader
@@ -156,7 +156,7 @@ export function WritingLine({
 				// 16px, never less: iOS zooms the page into any input whose text is
 				// smaller, and a list that jumps every time the athlete writes is the
 				// opposite of a notebook (#505 story 41).
-				className="border-hairline-edge bg-background focus-visible:border-primary h-11 w-full min-w-0 rounded-[10px] border px-3 text-[16px]/[1.2] outline-none"
+				className="border-border bg-background focus-visible:border-primary h-11 w-full min-w-0 rounded-[10px] border px-3 text-[16px]/[1.2] outline-none"
 			/>
 			<div
 				data-writing-preview
@@ -164,18 +164,20 @@ export function WritingLine({
 				className="flex flex-col gap-1.5"
 			>
 				{!typed && emptyHint ? (
-					<p className="text-ink-dimmer text-[11px]/[1.35]">{emptyHint}</p>
+					<p className="text-muted-foreground text-[11px]/[1.35]">
+						{emptyHint}
+					</p>
 				) : null}
 				{notation ? (
 					<div data-writing-understood className="flex flex-col gap-1">
-						<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
+						<span className="text-muted-foreground text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
 							{WRITING_LINE_LABELS.understood}
 						</span>
 						<ScoreStanza notation={notation} className="text-[13px]" />
 						{totals.length > 0 ? (
 							<p
 								data-writing-totals
-								className="text-ink-body text-[12px]/[1.35] tabular-nums"
+								className="text-foreground text-[12px]/[1.35] tabular-nums"
 							>
 								{WRITING_LINE_LABELS.totals(totals)}
 							</p>
@@ -196,7 +198,7 @@ export function WritingLine({
 						data-writing-unknown={word.text}
 						className="flex flex-wrap items-center gap-1.5"
 					>
-						<span className="text-ink-body text-[12px]/[1.35]">
+						<span className="text-foreground text-[12px]/[1.35]">
 							{WRITING_LINE_LABELS.unread[word.reason](word.text)}
 						</span>
 						{word.suggestions.length > 0 ? (
@@ -225,7 +227,7 @@ export function WritingLine({
 								))}
 							</span>
 						) : word.reason === 'unknown-word' ? (
-							<span className="text-ink-dimmer text-[11px]/[1.35]">
+							<span className="text-muted-foreground text-[11px]/[1.35]">
 								{WRITING_LINE_LABELS.noSuggestion}
 							</span>
 						) : null}
@@ -244,7 +246,7 @@ export function WritingLine({
 								<p
 									key={problem}
 									data-writing-problem={problem}
-									className="text-ink-body text-[12px]/[1.35]"
+									className="text-foreground text-[12px]/[1.35]"
 								>
 									{WRITING_LINE_LABELS.problems[problem]}
 								</p>
@@ -299,7 +301,7 @@ export function DisciplineChips({
 							CHIP,
 							active
 								? 'border-primary text-primary bg-primary/10'
-								: 'border-hairline-edge text-ink-dim',
+								: 'border-border text-muted-foreground',
 						)}
 					>
 						<DiscDot solid discipline={discipline} className="size-[6px]" />
@@ -313,35 +315,45 @@ export function DisciplineChips({
 
 /**
  * The creation menu's way in (#505 story 40): the same line, with the day as a
- * field — for a day the list does not offer as empty, months out included.
- * It sits under I dag's header row and closes once the write lands; the toast
- * says what it did to the week.
+ * field — for a day the list does not offer as empty, months or years out
+ * included. **Any distance ahead**: the day has a first day (half a year back,
+ * where I dag stops reading) and no last one, so a race can be placed past
+ * the season the list shows. It sits under I dag's header row and closes once
+ * the write lands; the toast says what it did to the week and carries Angre,
+ * since the row may be past anything on screen (`day-stamp-context.tsx`).
  */
 export function WritingPanel({
 	todayKey,
 	minDayKey,
-	maxDayKey,
+	initialDayKey,
 	onClose,
 }: {
 	todayKey: string
 	minDayKey: string
-	maxDayKey: string
+	/**
+	 * The day the line opens on: the day pane's "Skriv økt her" (ADR 0087)
+	 * names it; "+ Ny" leaves it to tomorrow.
+	 */
+	initialDayKey?: string
 	onClose: () => void
 }) {
 	const stamp = useDayStamp()
-	const [dayKey, setDayKey] = useState(() => addDays(todayKey, 1))
+	const [dayKey, setDayKey] = useState(
+		() => initialDayKey ?? addDays(todayKey, 1),
+	)
 	const [chosen, setChosen] = useState<Discipline | null>(
 		cardioChip(stamp.prefill),
 	)
 	const [text, setText] = useState('')
 	const [submittedFor, setSubmittedFor] = useState<string | null>(null)
 	const parsed = useParsedSentence(text, chosen)
-	const validDay = dayKey >= minDayKey && dayKey <= maxDayKey
+	const validDay = dayKey >= minDayKey
 	const pending = submittedFor != null && stamp.pendingDayKey === submittedFor
 	const failed = submittedFor != null && stamp.failedDayKey === submittedFor
 
 	// The write landed: nothing left for the panel to say. The toast carries the
-	// week sum, and the row arrives through the ledger like any other.
+	// week sum and Angre, and the row arrives through the ledger like any other
+	// where the list reads that far.
 	useEffect(() => {
 		if (submittedFor == null || pending || failed) return
 		onClose()
@@ -357,25 +369,24 @@ export function WritingPanel({
 		<section
 			data-writing-panel
 			aria-label={WRITING_LINE_LABELS.open}
-			className="border-hairline-edge bg-primary/4 flex flex-col gap-2.5 border-t px-[18px] py-3"
+			className="border-border bg-primary/4 flex flex-col gap-2.5 border-t px-[18px] py-3"
 		>
 			<div className="flex items-center gap-3">
 				<h2 className="text-[13px]/[1.2] font-semibold">
 					{WRITING_LINE_LABELS.open}
 				</h2>
-				<label className="text-ink-dim ml-auto flex items-center gap-2 text-[11.5px]/[1] font-semibold">
+				<label className="text-muted-foreground ml-auto flex items-center gap-2 text-[11.5px]/[1] font-semibold">
 					{WRITING_LINE_LABELS.day}
 					<input
 						type="date"
 						data-writing-day
 						value={dayKey}
 						min={minDayKey}
-						max={maxDayKey}
 						onChange={(event) => {
 							const next = event.currentTarget.value
 							if (next) setDayKey(next)
 						}}
-						className="border-hairline-edge bg-background h-9 rounded-[9px] border px-2 text-[16px]/[1]"
+						className="border-border bg-background h-9 rounded-[9px] border px-2 text-[16px]/[1]"
 					/>
 				</label>
 			</div>
@@ -398,7 +409,7 @@ export function WritingPanel({
 					autoFocus
 				/>
 			) : (
-				<p className="text-ink-body text-[12px]/[1.35]">
+				<p className="text-foreground text-[12px]/[1.35]">
 					{WRITING_LINE_LABELS.outsideWindow}
 				</p>
 			)}
@@ -413,7 +424,7 @@ export function WritingPanel({
 				<button
 					type="button"
 					onClick={onClose}
-					className="text-ink-dim h-[34px] px-1 text-[12.5px]/[1] font-semibold"
+					className="text-muted-foreground h-[34px] px-1 text-[12.5px]/[1] font-semibold"
 				>
 					{WRITING_LINE_LABELS.close}
 				</button>

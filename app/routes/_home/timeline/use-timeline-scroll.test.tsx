@@ -1,196 +1,243 @@
 /**
  * @vitest-environment jsdom
  *
- * The scroll module's *wired* paths — settle, release, the jumps, the fold and
- * growth compensation.
+ * The scroll module's wired paths (ADR 0086): the landing before first paint,
+ * the `ResizeObserver` that follows late layout until the reader's first
+ * input and never after it, the observers that report where the reader is,
+ * the weeks ahead mounting below, the jumps, and the one write the list makes
+ * on its own — a revalidation that put height above the reader.
  *
- * `anchoring.test.ts` covers the arithmetic, which is where the numbers that
- * were hard to get right live. What it cannot reach is the sequencing: when the
- * landing is re-applied and when it stops being, what a week arriving above the
- * reader does to the position *and* to the hero, and whether a jump is measured
- * from where it actually landed. Those were the untested half, and #498 changed
- * every one of them.
+ * The rule under all of it, asserted as a count: **no `scrollTop` write while
+ * the reader scrolls.** The old module's settle ladder and growth
+ * compensation both wrote exactly then (#505 P1, P2).
  *
- * jsdom has no layout, so this file supplies one. Each node is given a rect
- * derived from a content offset the harness owns, which is exactly the fiction
- * the hook is written against: it never reads `offsetTop`, only a node's box
- * measured against the scroller's own box (see `offsetWithin`).
+ * jsdom has no layout and no observers, so this file supplies both: each node
+ * gets a rect from a content offset the harness owns, and the observers are
+ * fakes the test fires by hand.
  */
 import { act, fireEvent, render } from '@testing-library/react'
-import { useRef, useState } from 'react'
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { SETTLE_WINDOW_MS } from './anchoring.ts'
+import { useCallback, useRef, useState } from 'react'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import {
-	CELL_ATTR,
-	HELD_ATTR,
+	AHEAD_INITIAL,
+	AHEAD_STEP,
+	AWAY_MARGIN,
+	LANDING_GAP,
+} from './anchoring.ts'
+import {
+	AHEAD_SENTINEL_ATTR,
+	ReadingHold,
 	TODAY_ATTR,
 	useTimelineScroll,
 	WEEK_ATTR,
+	WEEK_HEADER_ATTR,
 } from './use-timeline-scroll.ts'
 
-/** A phone's stream: the viewport all of this has to hold for. */
-const VIEWPORT = 620
-/** Every week in the fake layout is this tall, so a delta is countable. */
+const VIEWPORT = 600
 const WEEK_HEIGHT = 900
-/** How far into its own week today's row sits. */
-const TODAY_IN_WEEK = 400
-/** The hero's open height — the fold's whole travel. */
-const HERO_OPEN = 400
-/** The start cap above the first loaded week. */
-const TOP_PAD = 120
-/**
- * Height that appeared above the first mounted week without a week having been
- * loaded — a revalidated loader that put a session on a day the reader has
- * already scrolled past. `grow()` never runs for this, which is exactly what
- * makes it worth a test of its own.
- */
+const HEADER = 60
+/** Deep enough into its week that the week does not fit above it. */
+const TODAY_IN_WEEK = 700
+const TODAY_HEIGHT = 120
+/** Before the first week: the start cap. */
+const TOP_PAD = 100
+const KEYS = Array.from(
+	{ length: 30 },
+	(_, i) =>
+		`2030-${String(1 + Math.floor(i / 4)).padStart(2, '0')}-${String(1 + (i % 4) * 7).padStart(2, '0')}`,
+)
+const TODAY_INDEX = 12
+
+/** Height a revalidation put above every week (a session on a past day). */
 let insertedAbove = 0
+/** Height each revalidation puts above every week. */
+let pendingInsert = 0
+/** Height late layout put inside today's week, above today's row. */
+let lateLayout = 0
 
-const KEYS = [
-	'2030-01-07',
-	'2030-01-14',
-	'2030-01-21',
-	'2030-01-28',
-	'2030-02-04',
-	'2030-02-11',
-	'2030-02-18',
-]
-const TODAY_INDEX = 3
+const weekOffset = (index: number) =>
+	TOP_PAD +
+	insertedAbove +
+	index * WEEK_HEIGHT +
+	(index > TODAY_INDEX ? lateLayout : 0)
+const todayOffset = () => weekOffset(TODAY_INDEX) + TODAY_IN_WEEK + lateLayout
+const landing = () => todayOffset() - (HEADER + LANDING_GAP)
 
-/**
- * The fake layout. Weeks stack at a fixed height from a fixed top pad, so a
- * week arriving above the reader moves everything below it by exactly
- * `WEEK_HEIGHT` — which is the one number growth compensation is allowed to add
- * back.
- */
-function weekOffset(indexInWindow: number) {
-	return TOP_PAD + insertedAbove + indexInWindow * WEEK_HEIGHT
+// ——— fake observers ————————————————————————————————————————————————————————
+
+class FakeIntersectionObserver {
+	static all: FakeIntersectionObserver[] = []
+	observed = new Set<Element>()
+	disconnected = false
+	constructor(
+		public callback: IntersectionObserverCallback,
+		public options: IntersectionObserverInit = {},
+	) {
+		FakeIntersectionObserver.all.push(this)
+	}
+	observe(node: Element) {
+		this.observed.add(node)
+	}
+	unobserve(node: Element) {
+		this.observed.delete(node)
+	}
+	disconnect() {
+		this.observed.clear()
+		this.disconnected = true
+	}
+	takeRecords() {
+		return []
+	}
+	report(
+		entries: Array<{ target: Element; isIntersecting: boolean; top?: number }>,
+	) {
+		act(() =>
+			this.callback(
+				entries.map((entry) => ({
+					target: entry.target,
+					isIntersecting: entry.isIntersecting,
+					boundingClientRect: { top: entry.top ?? 0 } as DOMRect,
+					intersectionRect: {
+						height: entry.isIntersecting ? 40 : 0,
+					} as DOMRect,
+					rootBounds: { top: 0 } as DOMRect,
+				})) as unknown as IntersectionObserverEntry[],
+				this as unknown as IntersectionObserver,
+			),
+		)
+	}
 }
 
-function stub(node: Element, offset: () => number) {
-	node.getBoundingClientRect = () =>
-		({ top: offset(), left: 0, width: 390, height: 40 }) as DOMRect
+class FakeResizeObserver {
+	static all: FakeResizeObserver[] = []
+	disconnected = false
+	constructor(public callback: ResizeObserverCallback) {
+		FakeResizeObserver.all.push(this)
+	}
+	observe() {}
+	unobserve() {}
+	disconnect() {
+		this.disconnected = true
+	}
+	fire() {
+		act(() => this.callback([], this as unknown as ResizeObserver))
+	}
 }
 
-/**
- * Every write to the scroller's position, and what `scroll-behavior` was in
- * force when it landed. The scrollers carry `scroll-behavior: smooth` for the
- * athlete's own keyboard scrolling, and a programmatic write held back into a
- * smooth scroller *animates* — which is a bug wherever the hook has to trust
- * the position it just assigned. jsdom has no smooth scrolling to observe, so
- * this observes the switch instead.
- */
-let writes: Array<{ top: number; behavior: string }> = []
+const live = <T extends { disconnected: boolean }>(list: T[]) =>
+	list.filter((o) => !o.disconnected)
+const observer = (match: (options: IntersectionObserverInit) => boolean) =>
+	live(FakeIntersectionObserver.all).find((o) => match(o.options))!
+const weeksObserver = () =>
+	observer((o) => o.rootMargin == null && o.root != null)
+const lineObserver = () =>
+	observer((o) => o.rootMargin?.startsWith('-70px') ?? false)
+const todayObserver = () => observer((o) => o.rootMargin === AWAY_MARGIN)
+const aheadObserver = () =>
+	observer((o) => o.rootMargin?.startsWith('0px 0px') ?? false)
 
-const recorded = new WeakSet<HTMLElement>()
+// ——— the harness ———————————————————————————————————————————————————————————
 
-function recordScrollTop(node: HTMLElement) {
-	// Once per node: an inline `ref` is a new function every render, so React
-	// re-runs it, and redefining the property would reset the position.
-	if (recorded.has(node)) return
-	recorded.add(node)
-	let top = 0
-	Object.defineProperty(node, 'scrollTop', {
-		configurable: true,
-		get: () => top,
-		set: (value: number) => {
-			top = value
-			writes.push({ top: value, behavior: node.style.scrollBehavior })
-		},
-	})
-}
-
-function fixHeight(
-	node: Element,
-	prop: 'scrollHeight' | 'clientHeight' | 'clientWidth' | 'offsetWidth',
-	value: () => number,
-) {
-	Object.defineProperty(node, prop, { configurable: true, get: value })
-}
+let writes: number[] = []
+let renders = 0
 
 function Harness() {
-	const streamRef = useRef<HTMLDivElement | null>(null)
-	const [revalidations, bump] = useState(0)
+	const stream = useRef<HTMLDivElement | null>(null)
+	const [revision, setRevision] = useState(0)
 	const scroll = useTimelineScroll({ weekKeys: KEYS, todayIndex: TODAY_INDEX })
-	const from = Math.max(0, TODAY_INDEX - scroll.loaded.before)
-	const to = Math.min(KEYS.length - 1, TODAY_INDEX + scroll.loaded.after)
-	const window_ = KEYS.slice(from, to + 1)
-	const top = () => streamRef.current?.scrollTop ?? 0
+	renders += 1
+	const to = Math.min(KEYS.length - 1, TODAY_INDEX + scroll.after)
+	const top = () => stream.current?.scrollTop ?? 0
+	// Stable, as the app's is: an inline ref is detached and re-attached on
+	// every commit, after the children's updates have already run.
+	const { streamRef: hookRef } = scroll
+	const streamRef = useCallback(
+		(node: HTMLDivElement | null) => {
+			stream.current = node
+			if (node && !Object.getOwnPropertyDescriptor(node, 'scrollTop')) {
+				let value = 0
+				Object.defineProperty(node, 'scrollTop', {
+					configurable: true,
+					get: () => value,
+					set: (v: number) => {
+						value = v
+						writes.push(v)
+					},
+				})
+				Object.defineProperty(node, 'clientHeight', {
+					get: () => VIEWPORT,
+				})
+				node.getBoundingClientRect = () =>
+					({ top: 0, height: VIEWPORT }) as DOMRect
+			}
+			hookRef(node)
+		},
+		[hookRef],
+	)
+	const stub = (node: Element | null, offset: () => number, height = 40) => {
+		if (node)
+			node.getBoundingClientRect = () =>
+				({ top: offset() - top(), height, left: 0, width: 390 }) as DOMRect
+	}
 	return (
 		<div>
-			<div
-				data-testid="stream"
-				ref={(node) => {
-					streamRef.current = node
-					if (node) {
-						recordScrollTop(node)
-						fixHeight(node, 'clientHeight', () => VIEWPORT)
-						fixHeight(
-							node,
-							'scrollHeight',
-							() => TOP_PAD * 2 + insertedAbove + window_.length * WEEK_HEIGHT,
-						)
-					}
-					scroll.streamRef(node)
-				}}
-				onScroll={scroll.onStreamScroll}
-			>
-				{window_.map((key, i) => (
-					<div
-						key={key}
-						{...{ [WEEK_ATTR]: key }}
-						ref={(node) => {
-							if (node) stub(node, () => weekOffset(i) - top())
-						}}
-					>
-						{key === KEYS[TODAY_INDEX] ? (
+			<div data-testid="stream" ref={streamRef}>
+				<ReadingHold
+					revision={revision}
+					stream={() => stream.current}
+					readerKey={scroll.readerKey}
+				>
+					<div>
+						{/* The new data's height arrives with the commit, as a real DOM
+						    mutation does: after the snapshot, before the hold's update. */}
+						<span
+							key={revision}
+							ref={() => {
+								insertedAbove = revision * pendingInsert
+							}}
+						/>
+						{KEYS.slice(0, to + 1).map((key, i) => (
 							<div
-								{...{ [TODAY_ATTR]: 'true' }}
-								ref={(node) => {
-									if (node) {
-										stub(node, () => weekOffset(i) + TODAY_IN_WEEK - top())
-									}
-								}}
-							/>
+								key={key}
+								{...{ [WEEK_ATTR]: key }}
+								ref={(node) => stub(node, () => weekOffset(i), WEEK_HEIGHT)}
+							>
+								<div
+									{...{ [WEEK_HEADER_ATTR]: '' }}
+									ref={(node) => stub(node, () => weekOffset(i), HEADER)}
+								/>
+								{i === TODAY_INDEX ? (
+									<div
+										{...{ [TODAY_ATTR]: 'true' }}
+										ref={(node) => stub(node, todayOffset, TODAY_HEIGHT)}
+									/>
+								) : null}
+							</div>
+						))}
+						{to < KEYS.length - 1 ? (
+							<div {...{ [AHEAD_SENTINEL_ATTR]: '' }} />
 						) : null}
 					</div>
-				))}
+				</ReadingHold>
 			</div>
-			<div
-				data-testid="hero"
-				ref={(node) => {
-					if (node) fixHeight(node, 'scrollHeight', () => HERO_OPEN)
-					scroll.heroRef(node)
-				}}
-			>
-				<div data-testid="hero-content" />
-			</div>
-			<div data-testid="strip">
-				{KEYS.map((key) => (
-					<button
-						key={key}
-						type="button"
-						{...{ [CELL_ATTR]: key }}
-						onClick={() => scroll.goToWeek(key)}
-					/>
-				))}
-			</div>
-			<span data-testid="collapsed">{String(scroll.collapsed)}</span>
-			<span data-testid="away">{String(scroll.away)}</span>
 			<span data-testid="active">{scroll.activeWeekKey}</span>
-			<span data-testid="loaded">{`${scroll.loaded.before}/${scroll.loaded.after}`}</span>
+			<span data-testid="frame">{`${scroll.frame.from}/${scroll.frame.to}`}</span>
+			<span data-testid="away">{scroll.away}</span>
+			<span data-testid="after">{scroll.after}</span>
 			<button type="button" data-testid="back" onClick={scroll.backToToday} />
-			{/* Stands in for the revalidated loader: taller content above the first
-			    mounted week, with no week having been loaded to cause it. */}
 			<button
 				type="button"
 				data-testid="revalidate"
-				onClick={() => {
-					insertedAbove += WEEK_HEIGHT
-					bump((n) => n + 1)
-				}}
+				onClick={() => setRevision((n) => n + 1)}
 			/>
-			<span data-testid="revalidations">{revalidations}</span>
+			{KEYS.map((key) => (
+				<button
+					key={key}
+					type="button"
+					data-testid={`jump-${key}`}
+					onClick={() => scroll.goToWeek(key)}
+				/>
+			))}
 		</div>
 	)
 }
@@ -198,357 +245,215 @@ function Harness() {
 function mount() {
 	const view = render(<Harness />)
 	const stream = view.getByTestId('stream')
-	const hero = view.getByTestId('hero')
 	return {
 		...view,
 		stream,
-		hero,
-		/** Where the landing wants the stream, given the window it has now. */
-		landingFor: (windowIndexOfToday: number) =>
-			weekOffset(windowIndexOfToday) + TODAY_IN_WEEK - 96,
-		scrollTo(top: number) {
-			stream.scrollTop = top
-			// `fireEvent` wraps its own `act`, and the assignment above is a plain
-			// property write that React has no view on.
+		text: (id: string) => view.getByTestId(id).textContent,
+		week: (key: string) => stream.querySelector(`[${WEEK_ATTR}="${key}"]`)!,
+		/** The reader scrolls: a wheel (their input), then the position moves. */
+		readerScrollsTo(top: number) {
+			fireEvent.wheel(stream)
+			Object.getOwnPropertyDescriptor(stream, 'scrollTop')!.set!.call(
+				stream,
+				top,
+			)
+			writes.pop() // the reader's own scroll is not the app's write
 			fireEvent.scroll(stream)
 		},
-		tick(ms: number) {
-			act(() => {
-				vi.advanceTimersByTime(ms)
-			})
-		},
-		read: () => ({
-			scrollTop: stream.scrollTop,
-			height: hero.style.height,
-			opacity: hero.style.opacity,
-			lift: hero.style.getPropertyValue('--hero-lift'),
-			collapsed: view.getByTestId('collapsed').textContent,
-			away: view.getByTestId('away').textContent,
-			active: view.getByTestId('active').textContent,
-			loaded: view.getByTestId('loaded').textContent,
-		}),
 	}
 }
 
 beforeEach(() => {
-	vi.useFakeTimers()
+	FakeIntersectionObserver.all = []
+	FakeResizeObserver.all = []
+	globalThis.IntersectionObserver =
+		FakeIntersectionObserver as unknown as typeof IntersectionObserver
+	globalThis.ResizeObserver =
+		FakeResizeObserver as unknown as typeof ResizeObserver
 	writes = []
+	renders = 0
 	insertedAbove = 0
+	pendingInsert = 0
+	lateLayout = 0
 })
 afterEach(() => {
-	vi.useRealTimers()
+	// @ts-expect-error — removed again, as jsdom has none.
+	delete globalThis.IntersectionObserver
 })
 
-describe('settling on today', () => {
-	test('the stream is on the landing position by the end of the first commit', () => {
-		const view = mount()
-		// One week either side of today, so today is the middle of three. The
-		// after-every-render effect is the first thing that can measure anything,
-		// and it settles there and then — the ladder is for what layout does next.
-		expect(view.read().scrollTop).toBe(view.landingFor(1))
+describe('landing on today', () => {
+	test('the list is on today by the end of the first commit, before any paint', () => {
+		const { stream } = mount()
+		expect(stream.scrollTop).toBe(landing())
 	})
 
-	test('a late layout pass moves today, and the ladder follows it', () => {
-		// Rows keep laying out after the first frame — profile bars resolve, a
-		// long title wraps. This is the whole reason the landing is a ladder and
-		// not an effect, and nothing about the fold going scroll-driven changes it.
-		const view = mount()
-		view.tick(0)
-		const first = view.read().scrollTop
-		// Something moves the position out from under the landing before it has
-		// been released — a late layout pass, a row that finished resolving.
-		view.stream.scrollTop = 0
-		view.tick(700)
-		expect(view.read().scrollTop).toBe(first)
-	})
-
-	test('the athlete is not re-landed once the window has passed', () => {
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		view.scrollTo(2000)
-		view.tick(5000)
-		// Released: the position is the athlete's now, and no rung takes it back.
-		expect(view.read().scrollTop).toBe(2000)
-	})
-
-	test('nothing loads while the landing still owns the position', () => {
-		const view = mount()
-		view.tick(0)
-		// Reading past the top edge — but before the release, so the window must
-		// not grow: a week arriving mid-landing moves today's row while the ladder
-		// is still aiming at it.
-		view.scrollTo(0)
-		expect(view.read().loaded).toBe('1/1')
-	})
-})
-
-describe('releasing the landing', () => {
-	test('the release happens on its own timer, even with nothing re-rendering', () => {
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS)
-		expect(view.read().active).toBe(KEYS[TODAY_INDEX])
-		expect(view.read().away).toBe('0')
-	})
-
-	test('after the release, reading past an edge grows the window', () => {
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		view.scrollTo(0)
-		expect(view.read().loaded).toBe('2/1')
-	})
-
-	test('the release is what lets the hero fold at all', () => {
-		// Until it happens every scroll of the athlete's is undone by the next
-		// settle: the first scroll away from today would snap straight back and
-		// the hero would never fold.
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		const landing = view.read().scrollTop
-		view.scrollTo(landing + HERO_OPEN)
-		expect(view.read().scrollTop).toBe(landing + HERO_OPEN)
-		expect(view.read().collapsed).toBe('true')
-	})
-})
-
-describe('the fold, written off the scroll offset', () => {
-	function landed() {
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		return { view, landing: view.read().scrollTop }
-	}
-
-	test('the hero is whole on open, though the stream is parked far from zero', () => {
-		const { view, landing } = landed()
-		expect(landing).toBeGreaterThan(HERO_OPEN)
-		expect(view.read()).toMatchObject({
-			height: `${HERO_OPEN}px`,
-			opacity: '1',
-			lift: '0px',
-			collapsed: 'false',
-		})
-	})
-
-	test('dragging halfway leaves the hero halfway', () => {
-		const { view, landing } = landed()
-		view.scrollTo(landing + HERO_OPEN / 2)
-		expect(view.read()).toMatchObject({
-			height: `${HERO_OPEN / 2}px`,
-			lift: `${HERO_OPEN / 4}px`,
-			collapsed: 'false',
-		})
-	})
-
-	test('reversing reverses from where it is, with no jump', () => {
-		const { view, landing } = landed()
-		const heights: string[] = []
-		for (const d of [40, 120, 260, 400, 260, 120, 40, 0]) {
-			view.scrollTo(landing + d)
-			heights.push(view.read().height)
-		}
-		expect(heights).toEqual([
-			'360px',
-			'280px',
-			'140px',
-			'0px',
-			'140px',
-			'280px',
-			'360px',
-			'400px',
-		])
-	})
-
-	test('reading *up* past today folds it too', () => {
-		const { view, landing } = landed()
-		view.scrollTo(landing - HERO_OPEN / 4)
-		expect(view.read().height).toBe(`${HERO_OPEN * 0.75}px`)
-	})
-
-	test('only a hero folded all the way away re-renders the header', () => {
-		const { view, landing } = landed()
-		view.scrollTo(landing + HERO_OPEN - 1)
-		expect(view.read().collapsed).toBe('false')
-		view.scrollTo(landing + HERO_OPEN)
-		expect(view.read().collapsed).toBe('true')
-		view.scrollTo(landing + 9000)
-		expect(view.read()).toMatchObject({ height: '0px', collapsed: 'true' })
-	})
-})
-
-describe('holding the reading position when a week loads in above', () => {
-	test('the position holds, and the fold holds with it', () => {
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		// Part-way through the fold first, to prove the write is live at all.
-		const landing = view.read().scrollTop
-		expect(landing).toBe(view.landingFor(1))
-		view.scrollTo(landing - 200)
-		expect(view.read().height).toBe('200px')
-
-		// Now read up past the top edge, which is far enough from today that the
-		// hero is gone by the time the week arrives.
-		view.scrollTo(0)
-		expect(view.read().loaded).toBe('2/1')
-		// A whole week arrived above the reader. The compensation is the marked
-		// week's own offset delta, so the position moves by exactly the height
-		// inserted — never by the `scrollHeight` delta, which also counts a week
-		// appended below.
-		expect(view.read().scrollTop).toBe(WEEK_HEIGHT)
-		// And today's row moved by exactly the same amount, so the *distance from
-		// the landing* — the only number the fold is made of — did not change. A
-		// fold measured from a landing remembered at mount would have jumped a
-		// whole week here.
-		expect(view.landingFor(2) - view.landingFor(1)).toBe(WEEK_HEIGHT)
-		expect(view.read().scrollTop - view.landingFor(2)).toBe(
-			0 - view.landingFor(1),
+	test('every week before today is mounted from the start, and a few after it', () => {
+		const { stream, text } = mount()
+		expect(stream.querySelectorAll(`[${WEEK_ATTR}]`)).toHaveLength(
+			TODAY_INDEX + 1 + AHEAD_INITIAL,
 		)
+		expect(text('after')).toBe(String(AHEAD_INITIAL))
 	})
 
-	test('the landing tracked the growth, so the hero opens again at the new one', () => {
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		view.scrollTo(0)
-		expect(view.read().loaded).toBe('2/1')
-		expect(view.read().height).toBe('0px')
-		// The landing is a live measurement, never a number kept from mount: park
-		// on where today's row is *now* and the hero is whole again.
-		view.scrollTo(view.landingFor(2))
-		expect(view.read()).toMatchObject({
-			height: `${HERO_OPEN}px`,
-			opacity: '1',
-			collapsed: 'false',
-			away: '0',
-		})
+	test('late layout before the reader acts is followed', () => {
+		const { stream } = mount()
+		lateLayout = 140
+		FakeResizeObserver.all[0]!.fire()
+		expect(stream.scrollTop).toBe(landing())
 	})
 
-	test('growth below moves nothing: the mark did not move', () => {
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		const landing = view.read().scrollTop
-		// Read past the bottom edge instead.
-		view.scrollTo(TOP_PAD * 2 + 3 * WEEK_HEIGHT - VIEWPORT)
-		expect(view.read().loaded).toBe('1/2')
-		// The earliest week is still the first in the DOM and still at the same
-		// offset, so nothing is added back and the athlete keeps their place.
-		expect(view.read().scrollTop).toBe(TOP_PAD * 2 + 3 * WEEK_HEIGHT - VIEWPORT)
-		expect(landing).toBeGreaterThan(0)
-	})
+	test.each(['pointerDown', 'wheel', 'touchStart', 'keyDown'] as const)(
+		'after the reader’s first input (%s) late layout never moves them back',
+		(input) => {
+			const { stream } = mount()
+			fireEvent[input](document.body)
+			expect(FakeResizeObserver.all[0]!.disconnected).toBe(true)
+			Object.getOwnPropertyDescriptor(stream, 'scrollTop')!.set!.call(
+				stream,
+				300,
+			)
+			writes = []
+			lateLayout = 140
+			FakeResizeObserver.all[0]!.fire()
+			expect(stream.scrollTop).toBe(300)
+			expect(writes).toEqual([])
+		},
+	)
+})
 
-	test('the compensation jumps: it is never handed back into a smooth scroller', () => {
-		// Held back into a smooth scroller the compensation *animates*, and every
-		// frame it animates through is a scroll event of its own re-running the
-		// pass that decided to grow. Two growths then compensate against each
-		// other's half-finished positions and the reading position is lost.
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
+describe('no write under a scrolling reader', () => {
+	test('scrolling up through the whole past writes nothing and mounts nothing', () => {
+		const { stream, readerScrollsTo } = mount()
+		const weeks = stream.querySelectorAll(`[${WEEK_ATTR}]`).length
 		writes = []
-		view.scrollTo(0)
-		expect(view.read().loaded).toBe('2/1')
-		const compensation = writes.filter((write) => write.top === WEEK_HEIGHT)
-		expect(compensation).not.toHaveLength(0)
-		for (const write of compensation) expect(write.behavior).toBe('auto')
-		// And smooth is handed straight back, in the same tick: nothing is left
-		// for it to animate, and the athlete's own scrolling still glides.
-		expect(view.stream.style.scrollBehavior).toBe('')
+		for (let top = landing(); top > 0; top -= 240) readerScrollsTo(top)
+		readerScrollsTo(0)
+		expect(writes).toEqual([])
+		expect(stream.querySelectorAll(`[${WEEK_ATTR}]`)).toHaveLength(weeks)
 	})
 
-	test('one growth per pass, whatever the scroll handler is told', () => {
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		view.scrollTo(0)
-		view.scrollTo(0)
-		expect(view.read().loaded).toBe('2/1')
+	test('weeks ahead mount below as the end comes near, and nothing is written', () => {
+		const { text, readerScrollsTo, stream } = mount()
+		readerScrollsTo(weekOffset(TODAY_INDEX + AHEAD_INITIAL - 1))
+		writes = []
+		const sentinel = stream.querySelector(`[${AHEAD_SENTINEL_ATTR}]`)!
+		aheadObserver().report([{ target: sentinel, isIntersecting: true }])
+		expect(text('after')).toBe(String(AHEAD_INITIAL + AHEAD_STEP))
+		expect(writes).toEqual([])
 	})
 })
 
-describe('holding the reading position when the loader revalidates', () => {
-	test('a control that already held the position is not paid for twice', () => {
-		// The past band corrects its own expansion (`bandScrollTop` in `stream.tsx`)
-		// and is the finer-grained judge of whether its run opened above the
-		// reading edge. When it says so, this compensation stands down for the
-		// pass — otherwise both apply and the reader is moved by the inserted
-		// height rather than held against it (#503).
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		view.scrollTo(0)
-		expect(view.read().loaded).toBe('2/1')
-		const held = view.read().scrollTop
-
-		act(() => {
-			// What the band does: hold the position itself, then say so.
-			view.stream.setAttribute(HELD_ATTR, '')
-			view.getByTestId('revalidate').click()
-		})
-
-		// Not credited — and the flag is spent, not left to swallow the next one.
-		expect(view.read().scrollTop).toBe(held)
-		expect(view.stream.hasAttribute(HELD_ATTR)).toBe(false)
+describe('where the reader is, from the observers', () => {
+	test('the frame follows the weeks on screen, and only moves when an edge does', () => {
+		const { text, week } = mount()
+		const before = renders
+		weeksObserver().report([
+			{ target: week(KEYS[12]!), isIntersecting: true },
+			{ target: week(KEYS[13]!), isIntersecting: true },
+		])
+		expect(text('frame')).toBe(`${KEYS[12]}/${KEYS[13]}`)
+		const after = renders
+		// The same weeks reported again: no state change, no render.
+		weeksObserver().report([{ target: week(KEYS[13]!), isIntersecting: true }])
+		expect(renders).toBe(after)
+		expect(after).toBeGreaterThan(before)
 	})
 
-	test('a session arriving above the reader does not walk them down the stream', () => {
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		// Read back past today, so the content that arrives is genuinely above.
-		view.scrollTo(0)
-		expect(view.read().loaded).toBe('2/1')
-		const before = view.read().scrollTop
-		// What the reader is looking at, in content coordinates: the offset of the
-		// first mounted week relative to their own scroll position.
-		const seenBefore = weekOffset(0) - before
+	test('the active week is the week crossing the reading line', () => {
+		const { text, week } = mount()
+		lineObserver().report([{ target: week(KEYS[9]!), isIntersecting: true }])
+		expect(text('active')).toBe(KEYS[9])
+		lineObserver().report([
+			{ target: week(KEYS[9]!), isIntersecting: false },
+			{ target: week(KEYS[10]!), isIntersecting: true },
+		])
+		expect(text('active')).toBe(KEYS[10])
+	})
 
-		act(() => {
-			view.getByTestId('revalidate').click()
-		})
-
-		// The same content is under their eye. Without compensation the whole
-		// stream would have slid down by a week.
-		expect(weekOffset(0) - view.read().scrollTop).toBe(seenBefore)
+	test("the I dag pill reads today's row going off the top and coming back", () => {
+		const { text, stream } = mount()
+		const today = stream.querySelector(`[${TODAY_ATTR}]`)!
+		expect(todayObserver().observed.has(today)).toBe(true)
+		todayObserver().report([
+			{ target: today, isIntersecting: false, top: -500 },
+		])
+		expect(text('away')).toBe('-1')
+		todayObserver().report([{ target: today, isIntersecting: true }])
+		expect(text('away')).toBe('0')
 	})
 })
 
-describe('jumping, measured the moment it has moved', () => {
-	test('back to today lands on the landing and re-opens the hero, with no timer to wait for', () => {
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		const landing = view.read().scrollTop
-		view.scrollTo(landing + 3000)
-		expect(view.read()).toMatchObject({ collapsed: 'true', away: '-1' })
+test('a jump past today that never crossed its row still points the pill back up', () => {
+	const { text, stream, week } = mount()
+	const today = stream.querySelector(`[${TODAY_ATTR}]`)!
+	todayObserver().report([{ target: today, isIntersecting: false, top: 900 }])
+	expect(text('away')).toBe('1')
+	// The reader lands far below today in one move: only the weeks report.
+	weeksObserver().report([
+		{ target: week(KEYS[12]!), isIntersecting: false },
+		{ target: week(KEYS[16]!), isIntersecting: true },
+	])
+	expect(text('away')).toBe('-1')
+})
 
-		act(() => {
-			view.getByTestId('back').click()
-		})
-		// No `advanceTimersByTime`: the jump is instant and the fold is a write,
-		// so both are true the moment the click returns. The post-jump ladder used
-		// to exist because neither was.
-		expect(view.read()).toMatchObject({
-			scrollTop: landing,
-			height: `${HERO_OPEN}px`,
-			collapsed: 'false',
-			away: '0',
-		})
+describe('jumps are instant writes the reader asked for', () => {
+	test('back to today lands where the landing does', () => {
+		const { stream, readerScrollsTo, getByTestId } = mount()
+		readerScrollsTo(200)
+		fireEvent.click(getByTestId('back'))
+		expect(stream.scrollTop).toBe(landing())
 	})
 
-	test('a strip cell inside the window jumps straight away', () => {
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		act(() => {
-			view.getByTestId('strip').querySelectorAll('button')[2]!.click()
-		})
-		// The week before today, already loaded: it mounts nothing new, so there
-		// is no render to drain the jump from and it has to happen on the spot.
-		expect(view.read().scrollTop).toBe(weekOffset(0) - 2)
-		expect(view.read().active).toBe(KEYS[2])
+	test('a mounted week jumps straight to its header', () => {
+		const { stream, getByTestId } = mount()
+		fireEvent.click(getByTestId(`jump-${KEYS[3]}`))
+		expect(stream.scrollTop).toBe(weekOffset(3) - 2)
 	})
 
-	test('a strip cell outside the window loads it, then jumps to it', () => {
-		const view = mount()
-		view.tick(SETTLE_WINDOW_MS + 1)
-		act(() => {
-			view.getByTestId('strip').querySelectorAll('button')[0]!.click()
-		})
-		expect(view.read().loaded).toBe('3/1')
-		// Three weeks now sit above today, and the jumped-to week is the first.
-		expect(view.read().scrollTop).toBe(weekOffset(0) - 2)
-		expect(view.read().active).toBe(KEYS[0])
-		expect(view.read().collapsed).toBe('true')
+	test('a week ahead of the window is mounted, then jumped to, in one commit', () => {
+		const { stream, getByTestId } = mount()
+		writes = []
+		fireEvent.click(getByTestId(`jump-${KEYS[27]}`))
+		expect(stream.querySelector(`[${WEEK_ATTR}="${KEYS[27]}"]`)).not.toBeNull()
+		expect(stream.scrollTop).toBe(weekOffset(27) - 2)
+		expect(writes).toEqual([weekOffset(27) - 2])
+	})
+
+	test('a jump hands the position to the reader: late layout no longer re-lands', () => {
+		const { stream, getByTestId } = mount()
+		fireEvent.click(getByTestId(`jump-${KEYS[3]}`))
+		lateLayout = 140
+		FakeResizeObserver.all[0]!.fire()
+		expect(stream.scrollTop).toBe(weekOffset(3) - 2)
+	})
+})
+
+describe('a revalidation that puts height above the reader', () => {
+	test('is handed back in the same commit, against the reader’s week', () => {
+		const { stream, week, getByTestId, readerScrollsTo } = mount()
+		readerScrollsTo(weekOffset(5) + 100)
+		lineObserver().report([{ target: week(KEYS[5]!), isIntersecting: true }])
+		writes = []
+		pendingInsert = 300
+		fireEvent.click(getByTestId('revalidate'))
+		expect(stream.scrollTop).toBe(weekOffset(5) + 100)
+		expect(writes).toHaveLength(1)
+	})
+
+	test('a render that brought no new data measures and writes nothing', () => {
+		const { week, readerScrollsTo } = mount()
+		readerScrollsTo(weekOffset(5) + 100)
+		writes = []
+		lineObserver().report([{ target: week(KEYS[5]!), isIntersecting: true }])
+		expect(writes).toEqual([])
+	})
+
+	test('new data that moved nothing above the reader writes nothing', () => {
+		const { week, getByTestId, readerScrollsTo } = mount()
+		readerScrollsTo(weekOffset(5) + 100)
+		lineObserver().report([{ target: week(KEYS[5]!), isIntersecting: true }])
+		writes = []
+		fireEvent.click(getByTestId('revalidate'))
+		expect(writes).toEqual([])
 	})
 })

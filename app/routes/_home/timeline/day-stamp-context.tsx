@@ -12,9 +12,16 @@
  * home's own action, which revalidates the loader — so the row the athlete just
  * wrote into arrives back through the ledger like every other session, with a
  * shape and a Planned TSS, and there is no second copy of a session anywhere.
+ *
+ * **Every write has a way back on I dag** (ADR 0076, ADR 0082 S11). A stamp or
+ * a draft's sentence opens its row with Angre. A sentence from "+ Ny" →
+ * "Skriv en økt" lands on a day that may be anywhere in the list — far ahead,
+ * past what the stream has mounted — so its way back is the toast instead:
+ * the week's sum, with Angre on it.
  */
 import {
 	createContext,
+	useCallback,
 	useContext,
 	useEffect,
 	useMemo,
@@ -22,7 +29,9 @@ import {
 	useState,
 } from 'react'
 import { useFetcher } from 'react-router'
+import { toast } from 'sonner'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
+import { DAY_STAMP_LABELS } from '#app/utils/labels.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
 import {
 	type CardioDiscipline,
@@ -73,7 +82,7 @@ export type DayStamp = {
 	 * Write a sentence from the **writing line** onto a day (#505 stories
 	 * 35–40). The same in-flight and failure states as a stamp, keyed by the
 	 * day. `open: false` leaves the row closed — the panel's case, whose day may
-	 * be anywhere in the list.
+	 * be anywhere in the list — and offers Angre on the toast instead.
 	 */
 	write: (
 		dayKey: string,
@@ -85,6 +94,12 @@ export type DayStamp = {
 }
 
 const DayStampContext = createContext<DayStamp | null>(null)
+
+/**
+ * How long the toast after a "+ Ny" write stays: long enough to read the
+ * week's sum and reach Angre, the way back it carries.
+ */
+const WRITE_TOAST_MS = 10_000
 
 /** Never optional: every cell in the stream is a write target, so a stream
  * rendered outside the provider is a bug rather than a degraded mode. */
@@ -110,8 +125,13 @@ export function DayStampProvider({
 }) {
 	const [draftDayKey, setDraftDayKey] = useState<string | null>(null)
 	const [openSessionId, setOpenSessionId] = useState<string | null>(null)
-	const stampFetcher = useFetcher<{ stampedSessionId?: string }>()
+	const stampFetcher = useFetcher<{
+		stampedSessionId?: string
+		/** The week's sum after a panel write, for the toast that carries Angre. */
+		weekSumLine?: string | null
+	}>()
 	const undoFetcher = useFetcher()
+	const submitUndo = undoFetcher.submit
 	const [pendingDayKey, setPendingDayKey] = useState<string | null>(null)
 	const [failedDayKey, setFailedDayKey] = useState<string | null>(null)
 	const [undoingSessionId, setUndoingSessionId] = useState<string | null>(null)
@@ -127,13 +147,42 @@ export function DayStampProvider({
 	// opens on the thing that was actually written rather than on a guess about
 	// which of the day's sessions is the new one.
 	const stampedSessionId = stampFetcher.data?.stampedSessionId
+	const weekSumLine = stampFetcher.data?.weekSumLine ?? null
+
+	const undoSession = useCallback(
+		(sessionId: string) => {
+			setUndoingSessionId(sessionId)
+			setOpenSessionId(null)
+			void submitUndo({ intent: 'undo-stamp', sessionId }, { method: 'POST' })
+		},
+		[submitUndo],
+	)
+
+	// The session the toast already offered Angre for: the effect below re-runs
+	// when the undo callback changes, and one write is one toast.
+	const toastedRef = useRef<string | null>(null)
 	useEffect(() => {
 		if (!stampedSessionId) return
 		setPendingDayKey(null)
 		setFailedDayKey(null)
 		setDraftDayKey(null)
-		if (openOnLandRef.current) setOpenSessionId(stampedSessionId)
-	}, [stampedSessionId])
+		if (openOnLandRef.current) {
+			setOpenSessionId(stampedSessionId)
+			return
+		}
+		if (toastedRef.current === stampedSessionId) return
+		toastedRef.current = stampedSessionId
+		// The panel's write: the row is not opened, so the way back rides on the
+		// toast that says what the write did to its week (ADR 0076).
+		toast.success(weekSumLine ?? DAY_STAMP_LABELS.written, {
+			id: `write-${stampedSessionId}`,
+			duration: WRITE_TOAST_MS,
+			action: {
+				label: DAY_STAMP_LABELS.undo,
+				onClick: () => undoSession(stampedSessionId),
+			},
+		})
+	}, [stampedSessionId, undoSession, weekSumLine])
 
 	// **The other ending.** A post that comes back with no id — a dropped
 	// connection, a refusal, a 500 out of `createWorkoutSession` — returns the
@@ -220,18 +269,12 @@ export function DayStampProvider({
 						date: dayKey,
 						discipline: discipline ?? '',
 						sentence,
+						landing: open ? 'row' : 'toast',
 					},
 					{ method: 'POST' },
 				)
 			},
-			undo: (sessionId) => {
-				setUndoingSessionId(sessionId)
-				setOpenSessionId(null)
-				void undoFetcher.submit(
-					{ intent: 'undo-stamp', sessionId },
-					{ method: 'POST' },
-				)
-			},
+			undo: undoSession,
 		}),
 		[
 			draftDayKey,
@@ -242,7 +285,7 @@ export function DayStampProvider({
 			prefill,
 			stampFetcher,
 			thresholds,
-			undoFetcher,
+			undoSession,
 			undoingSessionId,
 		],
 	)

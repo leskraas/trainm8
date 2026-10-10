@@ -1,10 +1,8 @@
 import { faker } from '@faker-js/faker/locale/en'
 import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
-import { addDays } from '#app/utils/athlete-calendar.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { lastClosedWeekKey } from '#app/utils/load/week-change.ts'
 import { createSessionLog } from '#app/utils/session-log.server.ts'
 import { deriveLedgerStatus } from '#app/utils/training.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
@@ -102,15 +100,23 @@ test('authenticated user receives the session ledger with upcoming sessions', as
 	const data = response as {
 		isAuthenticated: true
 		ledger: Array<{ id: string }>
-		personalRecords: Array<unknown>
 	}
 	expect(data.isAuthenticated).toBe(true)
 	// The home timeline reads everything off the ledger (a season either way,
 	// since the stream scrolls back through imported weeks), which carries the
 	// upcoming sessions instead of a separate next/upcoming split.
 	expect(data.ledger.length).toBeGreaterThanOrEqual(2)
-	// The Proof Strip's derived Personal Records are surfaced by the loader.
-	expect(Array.isArray(data.personalRecords)).toBe(true)
+	// The hero's other panes left with it (ADR 0086): Form and Rekorder read
+	// their own on Meg, so home no longer fetches what only they drew.
+	for (const field of [
+		'snapshots',
+		'personalRecords',
+		'weeklyAdherence',
+		'weekReplan',
+		'strengthCount',
+	]) {
+		expect(data).not.toHaveProperty(field)
+	}
 	// And the trailing weekly-build series is not: it fed the retired
 	// weekly-build chart, and the streak it still supports is computed on the
 	// server into `sustained` rather than shipped as a series nothing draws
@@ -246,151 +252,6 @@ async function setSessionLoad(
 		data: { tssValue, plannedTssValue },
 	})
 }
-
-test('weekly plan adherence rolls the current week into a banded ratio', async () => {
-	const session = await setupUser()
-	// Two sessions this week: 90/100 and 110/100 → 200/200 = on target,
-	// even though neither session matched its plan alone.
-	const w1 = await createWorkoutWithSession(
-		session.userId,
-		new Date(),
-		'completed',
-	)
-	const w2 = await createWorkoutWithSession(
-		session.userId,
-		new Date(),
-		'completed',
-	)
-	await setSessionLoad(w1.sessions[0]!.id, 90, 100)
-	await setSessionLoad(w2.sessions[0]!.id, 110, 100)
-
-	const cookieHeader = await getSessionCookieHeader(session)
-	const request = makeRequest(cookieHeader)
-	const response = await loader({ request, ...LOADER_ARGS_BASE })
-
-	const data = response as {
-		weeklyAdherence: {
-			ratio: number
-			band: { tone: string }
-			sessionCount: number
-		} | null
-	}
-	expect(data.weeklyAdherence).not.toBeNull()
-	expect(data.weeklyAdherence!.ratio).toBe(1)
-	expect(data.weeklyAdherence!.band.tone).toBe('on-target')
-	expect(data.weeklyAdherence!.sessionCount).toBe(2)
-})
-
-test('weekly plan adherence excludes sessions missing a planned or actual side', async () => {
-	const session = await setupUser()
-	const w1 = await createWorkoutWithSession(
-		session.userId,
-		new Date(),
-		'completed',
-	)
-	const w2 = await createWorkoutWithSession(
-		session.userId,
-		new Date(),
-		'completed',
-	)
-	await setSessionLoad(w1.sessions[0]!.id, 80, 100) // both present
-	await setSessionLoad(w2.sessions[0]!.id, 200, null) // no planned — excluded
-
-	const cookieHeader = await getSessionCookieHeader(session)
-	const request = makeRequest(cookieHeader)
-	const response = await loader({ request, ...LOADER_ARGS_BASE })
-
-	const data = response as {
-		weeklyAdherence: { ratio: number; sessionCount: number } | null
-	}
-	// Only the first session counts: 80 / 100, not (80+200)/100.
-	expect(data.weeklyAdherence!.sessionCount).toBe(1)
-	expect(data.weeklyAdherence!.ratio).toBeCloseTo(0.8)
-})
-
-test('weekly plan adherence is null when the week has no resolvable planned load', async () => {
-	const session = await setupUser()
-	const w = await createWorkoutWithSession(
-		session.userId,
-		new Date(),
-		'completed',
-	)
-	await setSessionLoad(w.sessions[0]!.id, 80, null)
-
-	const cookieHeader = await getSessionCookieHeader(session)
-	const request = makeRequest(cookieHeader)
-	const response = await loader({ request, ...LOADER_ARGS_BASE })
-
-	const data = response as { weeklyAdherence: unknown | null }
-	expect(data.weeklyAdherence).toBeNull()
-})
-
-// ── the Week Replan decision line (ADR 0025): stored state only ──
-
-// The closed week's Monday — the same (athlete, weekKey) the recompute-path
-// applier writes, so the loader reads exactly the stored decision.
-const closedWeekKey = () => lastClosedWeekKey(new Date(), 'UTC')
-
-test('the loader surfaces the stored Week Replan for the latest closed week verbatim', async () => {
-	const session = await setupUser()
-	await prisma.weekReplan.create({
-		data: {
-			athleteId: session.userId,
-			weekKey: closedWeekKey(),
-			outcome: 'adjusted',
-			reason:
-				'Last week ran 32% over plan and Form was −12 — softened this week’s remaining sessions ~24%.',
-			adherenceRatio: 1.32,
-			tsb: -12,
-			appliedScale: 0.76,
-		},
-	})
-
-	const cookieHeader = await getSessionCookieHeader(session)
-	const request = makeRequest(cookieHeader)
-	const response = await loader({ request, ...LOADER_ARGS_BASE })
-
-	const data = response as {
-		weekReplan: { outcome: string; reason: string } | null
-	}
-	// The stored row, verbatim — never re-derived at render.
-	expect(data.weekReplan).toEqual({
-		outcome: 'adjusted',
-		reason:
-			'Last week ran 32% over plan and Form was −12 — softened this week’s remaining sessions ~24%.',
-	})
-})
-
-test('the loader returns no Week Replan when no decision row exists yet', async () => {
-	const session = await setupUser()
-	const cookieHeader = await getSessionCookieHeader(session)
-	const request = makeRequest(cookieHeader)
-	const response = await loader({ request, ...LOADER_ARGS_BASE })
-
-	const data = response as { weekReplan: unknown | null }
-	// No stored decision → nothing to show; the Week tab never invents a status.
-	expect(data.weekReplan).toBeNull()
-})
-
-test('an older closed week’s decision does not stand in for the latest one', async () => {
-	const session = await setupUser()
-	// A decision two weeks back — its "Last week …" copy would be stale now.
-	await prisma.weekReplan.create({
-		data: {
-			athleteId: session.userId,
-			weekKey: addDays(closedWeekKey(), -7),
-			outcome: 'no-change',
-			reason: 'Last week matched the plan — this week stands as planned.',
-		},
-	})
-
-	const cookieHeader = await getSessionCookieHeader(session)
-	const request = makeRequest(cookieHeader)
-	const response = await loader({ request, ...LOADER_ARGS_BASE })
-
-	const data = response as { weekReplan: unknown | null }
-	expect(data.weekReplan).toBeNull()
-})
 
 test('two straight weeks under the plan surface as a sustained under deviation (#120)', async () => {
 	const session = await setupUser()

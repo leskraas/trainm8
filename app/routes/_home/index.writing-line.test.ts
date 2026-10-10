@@ -277,6 +277,31 @@ test('without a plan the toast says there is no target', async () => {
 	)
 })
 
+test('from "+ Ny" the reply carries the week’s sum for the toast that holds Angre, and flashes none', async () => {
+	const user = await setUp()
+	const day = addDays(localDate(new Date(), 'UTC'), 7)
+	const reply = (await action({
+		...ARGS_BASE,
+		request: post(
+			[
+				['intent', 'write-session'],
+				['date', day],
+				['discipline', 'run'],
+				['sentence', '6 km rolig'],
+				['landing', 'toast'],
+			],
+			user.cookie,
+		),
+	})) as Reply & { data: { weekSumLine?: string | null } }
+
+	expect(reply.data.stampedSessionId).toEqual(expect.any(String))
+	expect(reply.data.weekSumLine).toMatch(
+		/^Løping neste uke: 0 → 6 km\. Ukemålet står på \d+\.$/,
+	)
+	// One toast, the client's: the server flashes nothing beside it.
+	expect(await toastOf(reply)).toBeNull()
+})
+
 test('taking a session back states the sum the other way', async () => {
 	const user = await setUp()
 	const day = addDays(localDate(new Date(), 'UTC'), 7)
@@ -319,14 +344,13 @@ describe('the branches, on a fixed clock', () => {
 		return reply instanceof Response ? reply.status : 200
 	}
 
-	test('a day no calendar has, or one outside the window, is refused', async () => {
+	test('a day no calendar has, or one behind what I dag reads, is refused', async () => {
 		const user = await setUp()
 		for (const date of [
 			'2030-02-30',
 			'30-03-2030',
+			// Half a year back is where I dag stops reading, and writing with it.
 			addDays(TODAY, -200),
-			// Two years ahead is as far as the athlete writes (#505 story 40).
-			addDays(TODAY, 740),
 		]) {
 			expect({
 				date,
@@ -359,16 +383,53 @@ describe('the branches, on a fixed clock', () => {
 		})
 		if (!home.isAuthenticated) throw new Error('expected a signed-in home')
 		expect(home.ledger.map((s) => s.id)).toContain(reply.data.stampedSessionId)
+	})
 
-		// Past two years, the window closes.
-		expect(
-			await status(
-				await write(user.cookie, {
-					date: addDays(TODAY, 740),
-					sentence: '10 km',
-				}),
+	test('a sentence goes any distance ahead, past what I dag reads, and is still taken back (#505 story 40)', async () => {
+		const user = await setUp()
+		// Past the two years the loader reads: written all the same.
+		const farther = addDays(TODAY, 3 * 365)
+		const reply = (await write(user.cookie, {
+			date: farther,
+			sentence: '42 km løp',
+		})) as Reply
+		expect(reply.data.stampedSessionId).toEqual(expect.any(String))
+		const row = await prisma.workoutSession.findUniqueOrThrow({
+			where: { id: reply.data.stampedSessionId },
+			select: { scheduledAt: true },
+		})
+		expect(localDate(row.scheduledAt, 'UTC')).toBe(farther)
+
+		// Its way back is the toast's Angre, the same undo the open row posts.
+		await action({
+			...ARGS_BASE,
+			request: post(
+				[
+					['intent', 'undo-stamp'],
+					['sessionId', reply.data.stampedSessionId!],
+				],
+				user.cookie,
 			),
-		).toBe(400)
+		})
+		expect(
+			await prisma.workoutSession.count({ where: { userId: user.userId } }),
+		).toBe(0)
+	})
+
+	test('a stamp comes from a cell on screen, so it stays inside what I dag reads', async () => {
+		const user = await setUp()
+		const reply = await action({
+			...ARGS_BASE,
+			request: post(
+				[
+					['intent', 'stamp-day'],
+					['date', addDays(TODAY, 3 * 365)],
+					['discipline', 'run'],
+				],
+				user.cookie,
+			),
+		}).catch((response: unknown) => response)
+		expect(await status(reply as Reply | Response)).toBe(400)
 	})
 
 	test('an empty or overlong sentence is refused', async () => {

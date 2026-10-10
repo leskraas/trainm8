@@ -34,7 +34,10 @@ export function WordmarkRow({
 	if (!user) return null
 
 	return (
-		<header className="border-border/40 border-b">
+		// `viewport-fit=cover` lets the page paint under the notch (root.tsx), so
+		// the top chrome pads itself back out: in an installed app with a
+		// translucent status bar the wordmark would otherwise sit under it.
+		<header className="border-border/40 border-b pt-[env(safe-area-inset-top)]">
 			<div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3">
 				<Link to="/" className="leading-snug font-bold">
 					Trainm8

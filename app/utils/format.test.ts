@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import {
 	formatNbDate,
+	formatNbVolumeFigure,
 	formatClockDuration,
 	formatDate,
 	formatDateLong,
@@ -416,4 +417,14 @@ test('formatNbDate states the year, the Norwegian way', () => {
 	expect(formatNbDate('2030-03-05T00:00:00.000Z', 'UTC')).toBe('5. mar 2030')
 	// A calendar-day anchor read in UTC never slips to the day before.
 	expect(formatNbDate('2027-01-01T00:00:00.000Z', 'UTC')).toBe('1. jan 2027')
+})
+
+test('formatNbVolumeFigure writes a decimal comma and groups thousands with a no-break space', () => {
+	expect(formatNbVolumeFigure(73.8, 'km')).toBe('73,8')
+	expect(formatNbVolumeFigure(46, 'km')).toBe('46')
+	expect(formatNbVolumeFigure(999.9, 'km')).toBe('999,9')
+	// `1 270,3`: the space is U+00A0, so the figure never breaks across lines.
+	expect(formatNbVolumeFigure(1270.3, 'km')).toBe('1\u00a0270,3')
+	expect(formatNbVolumeFigure(1234567, 'tss')).toBe('1\u00a0234\u00a0567')
+	expect(formatNbVolumeFigure(12.25, 'hours')).toMatch(/^12,[23]$/)
 })

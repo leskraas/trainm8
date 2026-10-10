@@ -26,7 +26,6 @@ import {
 	RECOMPUTE_NOTICE_LABELS,
 	EVENT_DATE_LABELS,
 	PAGE_HEADER_LABELS,
-	HOME_REPLAN_LABELS,
 	DISCIPLINE_LABELS,
 	EVENT_KIND_LABELS,
 	EVENT_PRIORITY_LABELS,
@@ -67,20 +66,14 @@ import {
 	unmeasuredCountLabel,
 	strengthPartialLabel,
 	NB_DISCIPLINE_LABELS,
-	pastBandLabels,
-	freeBandLabels,
-	foldedTrackLabel,
+	HORIZON_LABELS,
 	horizonFillLabel,
 	HELD_NUMBER_LABELS,
 	seasonEditSentence,
 	weekRiseSentence,
 } from './labels.ts'
 import { LOAD_RECOMPUTE_KINDS } from './load/recompute-notice.ts'
-import {
-	INSUFFICIENT_DATA_WHYS,
-	NO_CHANGE_WHYS,
-	WEEK_REPLAN_OUTCOMES,
-} from './load/week-replan.ts'
+import { INSUFFICIENT_DATA_WHYS, NO_CHANGE_WHYS } from './load/week-replan.ts'
 import { MAX_PLAN_WEEKS } from './plan-outline/authoring-schema.ts'
 import {
 	RHYTHMS,
@@ -195,13 +188,6 @@ test('every session owner has a label of its own', () => {
 	expect(new Set(Object.values(SESSION_OWNER_LABELS)).size).toBe(
 		SESSION_OWNERS.length,
 	)
-})
-
-test('every stored Week Replan outcome has a name on the hero, in Norwegian', () => {
-	for (const outcome of WEEK_REPLAN_OUTCOMES) {
-		expect(HOME_REPLAN_LABELS[outcome].outcome).toBeTruthy()
-	}
-	expect(HOME_REPLAN_LABELS.proposed.outcome).toBe('Endringer foreslått')
 })
 
 test('every branch that holds a week has its own reason, so "keep" always says why (#505 story 50)', () => {
@@ -410,30 +396,16 @@ test('every week-number code has its own Norwegian words, so no "ikke målt" goe
 	expect(strengthPartialLabel(3)).toBe('til og med torsdag · resten ikke målt')
 })
 
-test('every sport a week header names has its own Norwegian word, and the folds read as a printed plan (#505 S9)', () => {
+test('every sport a week header names has its own Norwegian word, and the horizon says what lies past it (#505 S9, ADR 0086)', () => {
 	for (const discipline of DISCIPLINES) {
 		expect(NB_DISCIPLINE_LABELS[discipline]).toBeTruthy()
 	}
 	expect(new Set(Object.values(NB_DISCIPLINE_LABELS)).size).toBe(
 		DISCIPLINES.length,
 	)
-	expect(
-		foldedTrackLabel({ done: '35', of: '46', unit: 'km', grade: 'under' }),
-	).toBe('35 av 46 km · under')
-	expect(
-		foldedTrackLabel({
-			done: null,
-			of: '46',
-			unit: 'km',
-			grade: null,
-			why: ['awaiting-import'],
-		}),
-	).toBe('ikke målt av 46 km (tallene kommer fra importen)')
 	expect(horizonFillLabel(39)).toBe('fylles søndag kveld i uke 39')
-	expect(pastBandLabels(7, '4–10 August').summary).toBe(
-		'7 dager · ingenting logget',
-	)
-	expect(freeBandLabels(2, '8–9 October').summary).toBe('2 ledige dager')
+	expect(HORIZON_LABELS.plan).toBe('herfra bare mål, ingen økter ennå')
+	expect(HORIZON_LABELS.name).toBe('Horisont')
 })
 
 test('the Ukeskiftet card says a round’s volume, silence and its answers in the spec’s words (#505 S10)', () => {

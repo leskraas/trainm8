@@ -477,7 +477,9 @@ describe('the current week is graded only against the days already past', () => 
 		})
 	})
 
-	test('a closed week is graded through Sunday', () => {
+	test('a closed week is graded through Sunday, against its whole target (#505 story 31)', () => {
+		// Target 50, 30 planned, 36 done: over the plan's sessions, but under
+		// what the week asked for — and the folded line names the target.
 		const run = only(
 			week({
 				todayKey: NEXT_MONDAY,
@@ -487,10 +489,31 @@ describe('the current week is graded only against the days already past', () => 
 				],
 			}).tracks,
 		)
+		expect(run.grade).toEqual({
+			status: 'under',
+			gradedThroughKey: SUNDAY,
+			reference: 50,
+			actual: 36,
+			basis: 'target',
+		})
+	})
+
+	test('a closed week with a done number still missing falls back to the measured pairs', () => {
+		const run = only(
+			week({
+				todayKey: NEXT_MONDAY,
+				sessions: [
+					done(MONDAY, { km: 10 }, { km: 10, hours: 1 }),
+					done(SATURDAY, { km: 20 }, { km: 26, hours: 2 }),
+					// Done, its import not in yet: 0 against the target would lie.
+					done(SUNDAY, { km: 8 }, null),
+				],
+			}).tracks,
+		)
 		expect(run.grade).toMatchObject({
 			status: 'over',
-			gradedThroughKey: SUNDAY,
 			reference: 30,
+			actual: 36,
 			basis: 'planned',
 		})
 	})
@@ -575,7 +598,7 @@ describe('the current week is graded only against the days already past', () => 
 				weekKey: MONDAY,
 				todayKey: SUNDAY,
 				planStartWeekKey: PLAN_START,
-				tracks: [runTrack],
+				tracks: [track({ targets: [40, 44, 30, 35] })],
 				sessions: sessionsOfTheWeek,
 				closed: true,
 			}).tracks,
@@ -585,6 +608,7 @@ describe('the current week is graded only against the days already past', () => 
 			gradedThroughKey: SUNDAY,
 			reference: 30,
 			actual: 30,
+			basis: 'target',
 		})
 	})
 

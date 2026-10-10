@@ -269,11 +269,12 @@ test('on Sunday evening the closed week is graded through Sunday', async () => {
 		weekKey: WEEK,
 		now: new Date('2030-01-20T19:30:00Z'),
 	})
+	// Closed, it is held against the week's whole target (#505 story 31).
 	expect(after.tracks[0]!.grade).toMatchObject({
 		gradedThroughKey: '2030-01-20',
-		reference: 30,
+		reference: after.tracks[0]!.target,
 		actual: 30,
-		status: 'on',
+		basis: 'target',
 	})
 })
 

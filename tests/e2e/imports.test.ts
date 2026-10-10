@@ -26,11 +26,11 @@ const SHOTS = process.env.IMPORTS_SHOTS
 async function shot(page: Page, name: string, centre?: Locator) {
 	if (!SHOTS) return
 	// The stream scrolls inside its own box: bring the subject up to a third of
-	// the screen, where the folded hero no longer covers it.
+	// the screen, clear of the sticky week header.
 	if (centre) {
 		// After the landing has settled, or it pins today back to the top.
 		await page.waitForTimeout(1500)
-		// Twice: the first scroll folds the hero, which resizes the stream.
+		// Twice, in case late layout moved it after the first.
 		for (let pass = 0; pass < 2; pass++) {
 			await centre.evaluate((el) => {
 				const stream = el.closest('[data-testid="timeline-stream"]')!
@@ -151,9 +151,11 @@ test('hva var dette? answered by linking, then Angre kobling and Koble igjen', a
 	expect((await recordingOf(plan.id))?.status).toBe('completed')
 	await expect(question).toHaveCount(0)
 	await expect(page.getByText('ekstra', { exact: true })).toHaveCount(0)
+	// The row's quieter actions sit behind its glyph, said once (ADR 0086).
 	const undo = page.getByRole('button', {
 		name: 'Angre kobling på Rolig 10 km',
 	})
+	await openDetailsHolding(page, undo)
 	await expect(undo).toBeVisible()
 	await shot(page, '2-linked', undo)
 
@@ -162,18 +164,23 @@ test('hva var dette? answered by linking, then Angre kobling and Koble igjen', a
 	const relink = page.getByRole('button', {
 		name: 'Koble igjen til Rolig 10 km',
 	})
+	await page.keyboard.press('Escape')
+	await openDetailsHolding(page, relink)
 	await expect(relink).toBeVisible()
 	expect(await recordingOf(plan.id)).toEqual({
 		recordingId: null,
 		status: 'scheduled',
 	})
-	await expect(page.getByText('ekstra', { exact: true })).toBeVisible()
+	// The row is ekstra again — said on it, and in its details.
+	await expect(page.getByText('ekstra', { exact: true }).first()).toBeVisible()
 	// Answered once: not asked again.
 	await expect(question).toHaveCount(0)
 	await shot(page, '3-undone', relink)
 
 	// Koble igjen: back on the plan.
 	await relink.click()
+	await page.keyboard.press('Escape')
+	await openDetailsHolding(page, undo)
 	await expect(undo).toBeVisible()
 	expect(await recordingOf(plan.id)).toEqual({
 		recordingId: importId,
@@ -216,3 +223,25 @@ test('Gjort by hand says the numbers are not coming when no import is connected'
 		page.getByText('Gjort · uten tall, ingen import er koblet til'),
 	)
 })
+
+/**
+ * Open the session glyph whose popover holds `target` (ADR 0086: a row's
+ * quieter actions — Angre kobling, Koble igjen — live behind its glyph).
+ */
+async function openDetailsHolding(page: Page, target: Locator) {
+	const glyphs = page.locator('[data-owner-glyph]')
+	await expect(glyphs.first()).toBeVisible()
+	// The write that puts the action there revalidates the page, so look again
+	// until it has landed.
+	await expect
+		.poll(async () => {
+			for (let i = 0; i < (await glyphs.count()); i++) {
+				await glyphs.nth(i).click()
+				await page.waitForTimeout(300)
+				if (await target.isVisible()) return true
+				await page.keyboard.press('Escape')
+			}
+			return false
+		})
+		.toBe(true)
+}

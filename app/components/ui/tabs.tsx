@@ -1,48 +1,69 @@
 'use client'
 
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
-import * as React from 'react'
-
+import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '#app/utils/misc.tsx'
 
-// Base UI supplies the tablist semantics: roving tabindex with arrow-key
-// activation, `role="tab"`/`role="tabpanel"` wiring, and `aria-selected` on
-// the active tab. Panels unmount while hidden (no `keepMounted`), so only one
-// panel's content renders at a time.
-
-function Tabs({ className, ...props }: TabsPrimitive.Root.Props) {
+function Tabs({
+	className,
+	orientation = 'horizontal',
+	...props
+}: TabsPrimitive.Root.Props) {
 	return (
 		<TabsPrimitive.Root
 			data-slot="tabs"
-			className={cn('flex flex-col gap-4', className)}
+			data-orientation={orientation}
+			className={cn(
+				'group/tabs flex gap-2 data-horizontal:flex-col',
+				className,
+			)}
 			{...props}
 		/>
 	)
 }
 
-function TabsList({ className, ...props }: TabsPrimitive.List.Props) {
+const tabsListVariants = cva(
+	'group/tabs-list text-muted-foreground inline-flex w-fit items-center justify-center rounded-full p-1 group-data-horizontal/tabs:h-9 group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col group-data-vertical/tabs:rounded-2xl data-[variant=line]:rounded-none',
+	{
+		variants: {
+			variant: {
+				default: 'bg-muted',
+				line: 'gap-1 bg-transparent',
+			},
+		},
+		defaultVariants: {
+			variant: 'default',
+		},
+	},
+)
+
+function TabsList({
+	className,
+	variant = 'default',
+	...props
+}: TabsPrimitive.List.Props & VariantProps<typeof tabsListVariants>) {
 	return (
 		<TabsPrimitive.List
 			data-slot="tabs-list"
-			className={cn(
-				'bg-muted text-muted-foreground inline-flex w-fit max-w-full items-center justify-center gap-0.5 overflow-x-auto rounded-lg p-1',
-				className,
-			)}
+			data-variant={variant}
+			className={cn(tabsListVariants({ variant }), className)}
 			{...props}
 		/>
 	)
 }
 
-function TabsTab({ className, ...props }: TabsPrimitive.Tab.Props) {
+// D1/D2 (docs/design/design-system.md): `pressable` replaces
+// `transition-all`, and an invisible `before:` hit area takes the 34px tab to
+// ~44px (`after:` is the CLI's line indicator, so the hit area uses `before:`).
+function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
 	return (
 		<TabsPrimitive.Tab
-			data-slot="tabs-tab"
+			data-slot="tabs-trigger"
 			className={cn(
-				// Touch target (ui-conventions §2.2): the segmented tab stays 32px
-				// visually inside its compact pill (it can't be a real h-11 without
-				// bloating the pill), so it reaches ~44px effective via the invisible
-				// `after:` hit-area extension — the checkbox.tsx pattern.
-				'focus-visible:outline-ring data-active:bg-background data-active:text-foreground relative inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition after:absolute after:inset-x-0 after:-inset-y-1.5 focus-visible:outline-2 focus-visible:outline-offset-[-2px] data-active:shadow-sm',
+				"text-foreground/60 hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:text-muted-foreground dark:hover:text-foreground pressable relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-2 rounded-full border border-transparent! px-3 py-1 text-sm font-medium whitespace-nowrap group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start group-data-vertical/tabs:rounded-2xl group-data-vertical/tabs:px-3 group-data-vertical/tabs:py-1.5 before:absolute before:inset-x-0 before:-inset-y-1.5 focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+				'group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent',
+				'data-active:bg-background data-active:text-foreground dark:data-active:border-input dark:data-active:bg-input/30 dark:data-active:text-foreground',
+				'after:bg-foreground after:absolute after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100',
 				className,
 			)}
 			{...props}
@@ -50,14 +71,14 @@ function TabsTab({ className, ...props }: TabsPrimitive.Tab.Props) {
 	)
 }
 
-function TabsPanel({ className, ...props }: TabsPrimitive.Panel.Props) {
+function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
 	return (
 		<TabsPrimitive.Panel
-			data-slot="tabs-panel"
-			className={cn('flex-1 outline-none', className)}
+			data-slot="tabs-content"
+			className={cn('flex-1 text-sm outline-none', className)}
 			{...props}
 		/>
 	)
 }
 
-export { Tabs, TabsList, TabsTab, TabsPanel }
+export { Tabs, TabsList, TabsTrigger, TabsContent, tabsListVariants }

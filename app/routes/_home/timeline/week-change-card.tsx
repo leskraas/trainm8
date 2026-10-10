@@ -29,7 +29,11 @@ import { useFetcher } from 'react-router'
 import { ErrorList, SelectField } from '#app/components/forms.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { type action as weekChangeAction } from '#app/routes/resources/week-change.tsx'
-import { roundFactorLabel, WEEK_CHANGE_LABELS } from '#app/utils/labels.ts'
+import {
+	roundFactorLabel,
+	TOP_LINE_LABELS,
+	WEEK_CHANGE_LABELS,
+} from '#app/utils/labels.ts'
 import { type WeekChangeData } from '#app/utils/load/week-change-card.ts'
 import {
 	WEEK_CHANGE_ACTION,
@@ -64,44 +68,49 @@ export function useWeekChange(data: WeekChangeData | null) {
 	return { held, onCard }
 }
 
-/** The card's own anchor, for the line on top of I dag that leads to it. */
+/** The card's own anchor, for the badge on I dag's top line that leads to it. */
 export const WEEK_CHANGE_ATTR = 'data-week-change'
 
 /**
  * Bring the card's first open question into view: the proposal still asking,
- * centred, so its Ok sits on screen under the sticky week header.
+ * centred, so its Ok sits on screen under the sticky week header. A jump, not
+ * a glide (ADR 0086): the list's `scroll-behavior: smooth` is for the
+ * reader's own keyboard, and every write the app makes is instant.
  */
 export function goToWeekChange() {
 	const card = document.querySelector(`[${WEEK_CHANGE_ATTR}]`)
 	const first =
 		card?.querySelector('[data-proposal-state="answerable"]') ?? card
-	first?.scrollIntoView({ block: 'center' })
+	first?.scrollIntoView({ block: 'center', behavior: 'instant' })
 }
 
 /**
- * `Ukeskiftet: 3 forslag venter` — one line at the top of I dag while a
- * proposal waits, which takes the athlete to the card (#505 story 42): the card
- * itself sits in the list, under today's row, where a tall hero can leave it
- * below the fold.
+ * Ukeskiftet's way in from the top of I dag (#505 story 42, ADR 0086): a small
+ * badge on the top line — `2 forslag` — that jumps to the card under today's
+ * row. It used to be a line of its own above the hero, a whole row of the
+ * phone's height spent on every visit while a proposal waited; on the top
+ * line it costs no row, and its name still says the whole sentence.
  */
-export function WeekChangeWaiting({ label }: { label: string }) {
+export function WeekChangeBadge({ count }: { count: number }) {
 	return (
-		<div
+		<button
+			type="button"
 			data-week-change-waiting
-			className="border-hairline-edge bg-primary/6 flex items-center justify-between gap-3 border-b px-4 py-2"
+			onClick={goToWeekChange}
+			aria-label={TOP_LINE_LABELS.weekChangeName(count)}
+			// The tint is 6 % in light: at 10 % the green caption on it fell to
+			// 4.3:1, under AA for 12px text.
+			className="bg-primary/6 dark:bg-primary/12 text-primary text-caption pressable relative flex h-7 flex-none items-center gap-1 rounded-full px-2.5 font-semibold whitespace-nowrap tabular-nums after:absolute after:inset-x-0 after:-inset-y-2"
 		>
-			<span className="text-foreground text-[12.5px]/[1.3] font-semibold">
-				{label}
+			<span aria-hidden className="bg-primary size-1.5 rounded-full" />
+			{/* Under 360px the word gives way and the count stays (`● 1`), so the
+			    race's name beside it has room to stay whole; the button's name
+			    still says the whole sentence. */}
+			{count}
+			<span className="max-[359px]:hidden">
+				{` ${TOP_LINE_LABELS.weekChangeWord}`}
 			</span>
-			<button
-				type="button"
-				onClick={goToWeekChange}
-				className="text-primary flex min-h-11 flex-none items-center gap-1 text-[12.5px]/[1] font-bold"
-			>
-				{WEEK_CHANGE_LABELS.goToCard}
-				<Icon name="chevron-down" size="xs" />
-			</button>
-		</div>
+		</button>
 	)
 }
 
@@ -120,7 +129,7 @@ export function WeekChangeCard({
 			{...{ [WEEK_CHANGE_ATTR]: '' }}
 			data-week-change-open={card.open}
 			aria-labelledby="week-change-heading"
-			className="border-hairline-edge bg-card mx-4 my-3 flex flex-col gap-4 rounded-[14px] border px-4 py-4"
+			className="border-border bg-card mx-4 my-3 flex flex-col gap-4 rounded-[14px] border px-4 py-4"
 		>
 			<header className="flex flex-col gap-1">
 				<h2
@@ -129,15 +138,17 @@ export function WeekChangeCard({
 				>
 					{WEEK_CHANGE_LABELS.heading}
 				</h2>
-				<p className="text-foreground text-[13.5px]/[1.4] [text-wrap:pretty]">
-					{card.summary}
-				</p>
+				{card.summary ? (
+					<p className="text-foreground text-[13.5px]/[1.4] [text-wrap:pretty]">
+						{card.summary}
+					</p>
+				) : null}
 			</header>
 
 			<Review review={card.review} />
 
 			<div className="flex flex-col gap-2">
-				<h3 className="text-ink-dim text-[11px]/[1.2] font-bold tracking-[0.04em] uppercase">
+				<h3 className="text-muted-foreground text-[11px]/[1.2] font-bold tracking-[0.04em] uppercase">
 					{card.proposalsHeading}
 				</h3>
 				<ul className="flex flex-col gap-3">
@@ -152,14 +163,14 @@ export function WeekChangeCard({
 			<Ease ease={card.ease} onCard={onCard} />
 
 			{card.open ? null : (
-				<div className="border-hairline flex items-center justify-between gap-3 border-t pt-3">
-					<p className="text-ink-dim text-[12px]/[1.35]">
+				<div className="border-border/70 flex items-center justify-between gap-3 border-t pt-3">
+					<p className="text-muted-foreground text-[12px]/[1.35]">
 						{WEEK_CHANGE_LABELS.allAnswered}
 					</p>
 					<button
 						type="button"
 						onClick={() => setClosed(true)}
-						className="border-hairline-edge text-foreground hover:border-primary min-h-11 flex-none rounded-[10px] border px-4 text-[12.5px]/[1] font-semibold"
+						className="border-border text-foreground hover:border-primary min-h-11 flex-none rounded-[10px] border px-4 text-[12.5px]/[1] font-semibold"
 					>
 						{WEEK_CHANGE_LABELS.close}
 					</button>
@@ -174,8 +185,10 @@ function Review({ review }: { review: WeekChangeReview }) {
 	return (
 		<div data-week-change-review className="flex flex-col gap-2">
 			<h3 className="flex items-baseline gap-2 text-[11px]/[1.2] font-bold tracking-[0.04em] uppercase">
-				<span className="text-ink-dim">{WEEK_CHANGE_LABELS.weekThatWent}</span>
-				<span className="text-ink-dimmer font-semibold tracking-normal normal-case">
+				<span className="text-muted-foreground">
+					{WEEK_CHANGE_LABELS.weekThatWent}
+				</span>
+				<span className="text-muted-foreground font-semibold tracking-normal normal-case">
 					{review.rangeLabel
 						? `${review.weekName} · ${review.rangeLabel}`
 						: review.weekName}
@@ -185,10 +198,12 @@ function Review({ review }: { review: WeekChangeReview }) {
 				<TrackLine key={track.trackId} track={track} review />
 			))}
 			{review.loadLine ? (
-				<p className="text-ink-dim text-[12px]/[1.3]">{review.loadLine}</p>
+				<p className="text-muted-foreground text-[12px]/[1.3]">
+					{review.loadLine}
+				</p>
 			) : null}
 			{review.plannedCount === 0 && review.extras.length === 0 ? (
-				<p className="text-ink-dimmer text-[12px]/[1.35]">
+				<p className="text-muted-foreground text-[12px]/[1.35]">
 					{WEEK_CHANGE_LABELS.emptyWeek}
 				</p>
 			) : (
@@ -227,7 +242,7 @@ function SessionList({
 }) {
 	if (sessions.length === 0) {
 		return empty ? (
-			<p className="text-ink-dimmer text-[12px]/[1.35]">{empty}</p>
+			<p className="text-muted-foreground text-[12px]/[1.35]">{empty}</p>
 		) : null
 	}
 	return (
@@ -235,12 +250,12 @@ function SessionList({
 			{...{ [`data-review-${marker}`]: '' }}
 			className="text-[12px]/[1.45] [text-wrap:pretty]"
 		>
-			<span className="text-ink-dim font-semibold">{label}: </span>
+			<span className="text-muted-foreground font-semibold">{label}: </span>
 			{sessions.map((session, index) => (
 				<span key={session.id} className="text-foreground">
 					{index > 0 ? ', ' : null}
 					{session.title}
-					<span className="text-ink-dimmer">{` (${session.dayLabel})`}</span>
+					<span className="text-muted-foreground">{` (${session.dayLabel})`}</span>
 				</span>
 			))}
 		</p>
@@ -317,25 +332,25 @@ function Proposal({
 			data-proposal-kind={proposal.kind}
 			data-proposal-state={pending ? 'saving' : proposal.state}
 			aria-label={proposal.headline}
-			className="border-hairline flex flex-col gap-2 rounded-[12px] border px-3 py-3"
+			className="border-border/70 flex flex-col gap-2 rounded-[12px] border px-3 py-3"
 		>
 			<div className="flex flex-wrap items-start gap-x-2 gap-y-1">
 				<h4 className="text-foreground min-w-0 flex-1 text-[14px]/[1.3] font-semibold [text-wrap:pretty]">
 					{proposal.headline}
 				</h4>
 				{proposal.ownLabel ? (
-					<span className="border-hairline-edge text-ink-dim flex flex-none items-center gap-1 rounded-[6px] border px-[6px] text-[10.5px]/[1.6] font-semibold">
+					<span className="border-border text-muted-foreground flex flex-none items-center gap-1 rounded-[6px] border px-[6px] text-[10.5px]/[1.6] font-semibold">
 						<Icon name="lock-closed" size="xs" />
 						{proposal.ownLabel}
 					</span>
 				) : null}
 				{proposal.addsLoad ? (
-					<span className="border-hairline-edge text-ink-dim flex-none rounded-[6px] border px-[6px] text-[10.5px]/[1.6] font-semibold">
+					<span className="border-border text-muted-foreground flex-none rounded-[6px] border px-[6px] text-[10.5px]/[1.6] font-semibold">
 						{WEEK_CHANGE_LABELS.addsLoad}
 					</span>
 				) : null}
 			</div>
-			<p className="text-ink-dim text-[12.5px]/[1.45] [text-wrap:pretty]">
+			<p className="text-muted-foreground text-[12.5px]/[1.45] [text-wrap:pretty]">
 				{proposal.reason}
 			</p>
 
@@ -355,7 +370,8 @@ function Proposal({
 									meta={fields.factor}
 									labelProps={{
 										children: WEEK_CHANGE_LABELS.factorLegend,
-										className: 'text-ink-dim text-[11.5px]/[1.2] font-semibold',
+										className:
+											'text-muted-foreground text-[11.5px]/[1.2] font-semibold',
 									}}
 									items={roundFactorItems(round)}
 									triggerClassName="tabular-nums"
@@ -363,7 +379,7 @@ function Proposal({
 								{round.peak ? (
 									<p
 										aria-live="polite"
-										className="text-ink-dim text-[12px]/[1.35] tabular-nums"
+										className="text-muted-foreground text-[12px]/[1.35] tabular-nums"
 									>
 										{roundVolumeLine(round.peak, factor)}
 									</p>
@@ -372,14 +388,14 @@ function Proposal({
 						) : null}
 						{proposal.scope ? (
 							<fieldset className="flex flex-col gap-1.5">
-								<legend className="text-ink-dim mb-1.5 text-[11.5px]/[1.2] font-semibold">
+								<legend className="text-muted-foreground mb-1.5 text-[11.5px]/[1.2] font-semibold">
 									{WEEK_CHANGE_LABELS.scopeLegend}
 								</legend>
 								<div className="flex flex-wrap gap-2">
 									{proposal.scope.options.map((option) => (
 										<label
 											key={option.value}
-											className="border-hairline-edge has-[:checked]:border-primary has-[:checked]:bg-primary/8 has-[:focus-visible]:ring-ring flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border px-3 text-[12.5px]/[1.2] has-[:focus-visible]:ring-2"
+											className="border-border has-[:checked]:border-primary has-[:checked]:bg-primary/8 has-[:focus-visible]:ring-ring flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border px-3 text-[12.5px]/[1.2] has-[:focus-visible]:ring-2"
 										>
 											<input
 												{...getInputProps(fields.scope, {
@@ -409,7 +425,7 @@ function Proposal({
 								form={round ? declineForm.id : undefined}
 								name="answer"
 								value="declined"
-								className="border-hairline-edge text-foreground hover:border-primary min-h-11 flex-1 rounded-[10px] border px-4 text-[13px]/[1] font-semibold"
+								className="border-border text-foreground hover:border-primary min-h-11 flex-1 rounded-[10px] border px-4 text-[13px]/[1] font-semibold"
 							>
 								{WEEK_CHANGE_LABELS.no}
 							</button>
@@ -471,7 +487,7 @@ function Answered({
 			<span
 				className={cn(
 					'flex items-center gap-1.5 text-[12px]/[1.3] font-semibold',
-					quiet ? 'text-ink-dim' : 'text-primary',
+					quiet ? 'text-muted-foreground' : 'text-primary',
 				)}
 			>
 				{pending || proposal.state === 'too-late' ? null : (
@@ -506,7 +522,7 @@ function Ease({ ease, onCard }: { ease: WeekChangeEase; onCard: OnCard }) {
 			data-week-change-ease={
 				ease.state === 'done' ? 'done' : saving ? 'saving' : 'offered'
 			}
-			className="border-hairline flex flex-col gap-2 border-t pt-3"
+			className="border-border/70 flex flex-col gap-2 border-t pt-3"
 		>
 			{ease.state === 'done' ? (
 				<div className="flex flex-col gap-1" aria-live="polite">
@@ -535,11 +551,11 @@ function Ease({ ease, onCard }: { ease: WeekChangeEase; onCard: OnCard }) {
 					<button
 						type="submit"
 						disabled={saving}
-						className="border-hairline-edge text-foreground hover:border-primary min-h-11 rounded-[10px] border px-4 text-[13px]/[1] font-semibold disabled:opacity-60"
+						className="border-border text-foreground hover:border-primary min-h-11 rounded-[10px] border px-4 text-[13px]/[1] font-semibold disabled:opacity-60"
 					>
 						{saving ? WEEK_CHANGE_LABELS.saving : WEEK_CHANGE_LABELS.ease}
 					</button>
-					<p className="text-ink-dimmer text-[11.5px]/[1.4] [text-wrap:pretty]">
+					<p className="text-muted-foreground text-[11.5px]/[1.4] [text-wrap:pretty]">
 						{ease.plannedLabel
 							? `${ease.plannedLabel}. ${WEEK_CHANGE_LABELS.easeNote}`
 							: WEEK_CHANGE_LABELS.easeNote}

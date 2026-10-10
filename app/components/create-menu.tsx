@@ -1,6 +1,6 @@
-// The single "+ Ny" creation menu (#178), in I dag's Norwegian (ADR 0081). With the pill nav gone, everything
-// the athlete creates lives behind this one control — currently rendered in
-// the Dashboard header, next to where #184's decision strip will land.
+// The single "+ Ny" creation menu (#178), in I dag's Norwegian (ADR 0081). With
+// the pill nav gone, everything the athlete creates lives behind this one
+// control — on I dag's top line (ADR 0086), as a compact pill.
 import { Link } from 'react-router'
 import { CREATE_MENU_LABELS } from '#app/utils/labels.ts'
 import { Button } from './ui/button.tsx'
@@ -37,23 +37,38 @@ const createItems: { label: string; href: string; icon: IconName }[] = [
  * `onWrite` adds the **writing line**'s way in (#505 story 40) — I dag's own
  * item, first, because it is the one that never leaves the list.
  */
-export function CreateMenu({ onWrite }: { onWrite?: () => void } = {}) {
+export function CreateMenu({
+	onWrite,
+	compact = false,
+}: {
+	onWrite?: () => void
+	/**
+	 * Icon only — I dag's top line, where the plan's goal needs the width. The
+	 * control keeps its name (`Lag ny`), so nothing that finds it by name moves.
+	 */
+	compact?: boolean
+} = {}) {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
-				// `transition-none`, because this control lives on the home timeline
-				// and nowhere else, and the timeline declares four animations in CSS
-				// (#502, ADR 0077 §2).
-				// The shared Button's `transition-all` is the app's default for every
-				// other surface; here it would be a fifth animation nobody chose, on
-				// a built-in curve, over `all`.
+				// The shared Button's press (`pressable`, ADR 0085) — a trigger that
+				// owns a popup keeps its colours and skips the scale. A pill, as the
+				// top line's other controls are.
 				render={
-					<Button variant="default" size="sm" className="transition-none" />
+					compact ? (
+						<Button variant="default" size="icon-sm" className="rounded-full" />
+					) : (
+						<Button
+							variant="default"
+							size="sm"
+							className="rounded-full pl-2.5"
+						/>
+					)
 				}
 				aria-label={CREATE_MENU_LABELS.name}
 			>
 				<Icon name="plus" size="sm" aria-hidden />
-				{CREATE_MENU_LABELS.trigger}
+				{compact ? null : CREATE_MENU_LABELS.trigger}
 			</DropdownMenuTrigger>
 			<DropdownMenuPortal>
 				<DropdownMenuContent align="end" sideOffset={8}>

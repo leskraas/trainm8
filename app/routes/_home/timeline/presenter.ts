@@ -9,16 +9,18 @@
  * with the stream about what a week contains, and an overview that disagrees
  * with the thing it overviews is worse than no overview.
  *
- * A row is a day and a day owns zero or more sessions (ADR 0065 §1), and **from
- * today forward every day is a row** whether anything is on it or not: the grid
- * exists before the content does. Behind today the days are built too, back as
- * far as the query itself reaches, but a **run** of consecutive empty ones is
- * handed over as a band the stream collapses into a single row (ADR 0065 §3).
+ * A row is a day and a day owns zero or more sessions (ADR 0065 §1), and **every
+ * day is in the model** whether anything is on it or not: the grid exists
+ * before the content does. Behind today the days are built back as far as the
+ * query itself reaches. The stream draws every one of them (ADR 0086): I dag
+ * reads like a calendar, so nothing folds — not a run of empty days, not a
+ * closed week, not a week past the Planning Horizon. A week only says which
+ * of three it is (`WeekShape`), and the stream tones it accordingly.
  *
- * The strip renders the **whole season**; the stream renders a window around
- * today that grows as the athlete reads. That is why the week list here is
- * complete and unfiltered: windowing is the component's business, and a strip
- * with holes in it is not an overview.
+ * The strip renders the **whole season**; the stream mounts every week up to
+ * today and the weeks ahead as the athlete reads toward them. That is why the
+ * week list here is complete and unfiltered: mounting is the component's
+ * business, and a strip with holes in it is not an overview.
  *
  * Everything is derived, nothing is fetched: the same `LedgerSession[]` the
  * ledger already ships feeds all of it, through `toSessionLedgerEntry` for
@@ -31,38 +33,36 @@ import {
 	localTimeUTC,
 	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
+import { planArc } from '#app/utils/dashboard.ts'
 import {
 	formatNbDateSpan,
 	formatNbDayDate,
 	formatNbDayMonth,
 	formatNbDayOfMonth,
-	formatNbMonthShort,
-	formatNbWeekday,
 	formatNbWeekdayShort,
 	formatSigned,
-	formatTss,
 	roundLoad,
 } from '#app/utils/format.ts'
-import {
-	type DisciplineThresholdMap,
-	targetText,
-} from '#app/utils/intensity-target.ts'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
 	ANNET_ACTION_LABELS,
 	ANNET_TRACK_LABELS,
 	BEFORE_PLAN_LABEL,
-	freeBandLabels,
-	HERO_LABELS,
-	liftSchemeLabel,
+	eventCountdownWhen,
+	TOP_LINE_LABELS,
 	NB_READINESS_ADVICE,
 	NB_READINESS_LABELS,
 	NB_SESSION_CTA_LABELS,
 	NB_WEEK_ROLE_LABELS,
 	nbDisciplineLabel,
+	nbPhaseName,
 	nbSessionNoun,
-	pastBandLabels,
+	openEndedBlockLabel,
+	PHILOSOPHY_LABELS,
 	planWeekLabel,
 	SESSION_OWNER_LABELS,
+	SESSION_OWNER_NOTES,
+	sessionVolumeLabel,
 	VERDICT_LABELS,
 	RELEASE_ACTION_LABELS,
 } from '#app/utils/labels.ts'
@@ -78,7 +78,10 @@ import {
 	horizonWeekKey,
 	lastClosedWeekKey,
 } from '#app/utils/load/week-change.ts'
-import { type WeekRole } from '#app/utils/plan-outline/derive.ts'
+import {
+	type VolumeCurrency,
+	type WeekRole,
+} from '#app/utils/plan-outline/derive.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import {
 	buildWeekVolumes,
@@ -95,7 +98,6 @@ import {
 	sessionOwner,
 } from '#app/utils/session-ownership.ts'
 import {
-	deriveSessionProfile,
 	type ProfileBar,
 	type ProfileBarGroup,
 } from '#app/utils/session-profile.ts'
@@ -107,7 +109,7 @@ import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
-import { deriveLedgerStatus, type LedgerStatus } from '#app/utils/training.ts'
+import { type LedgerStatus } from '#app/utils/training.ts'
 import {
 	buildPhaseBands,
 	buildPlanContext,
@@ -126,8 +128,7 @@ import {
 import { strengthLogOf, type TimelineStrengthLog } from './strength-log.ts'
 import { buildStrip, type TimelineStrip } from './strip.ts'
 import {
-	collapsedWeekLine,
-	foldedTrackLine,
+	beyondWeekNote,
 	join,
 	leadTrack,
 	relativeWeekName,
@@ -150,10 +151,9 @@ export type { TimelineStrengthLog } from './strength-log.ts'
  * Two things have to agree about it and neither of them is the query: the
  * **start cap** states this
  * bound instead of claiming the athlete's history starts there, and no day
- * behind it is built at all (ADR 0075 §2 and §3). A band saying
- * `9 days · nothing logged` over dates the query never asked about would be a
- * fabrication, and this is the line between "nothing was logged" and "nothing
- * was fetched".
+ * behind it is built at all (ADR 0075 §2 and §3). A `fri` row over a date the
+ * query never asked about would be a fabrication, and this is the line between
+ * "nothing was logged" and "nothing was fetched".
  */
 export { TIMELINE_TRAILING_DAYS }
 
@@ -186,6 +186,18 @@ export type TimelineSession = {
 	 */
 	ownerLabel: string | null
 	/**
+	 * What the ownership glyph explains once, behind it (#505 D6): whose
+	 * session this is and what that means. Null wherever `ownerLabel` is.
+	 */
+	ownerNote: string | null
+	/**
+	 * The session's own volume in its track's unit — `6,1 km`, `55 min`,
+	 * `13 sett` — at the row's right edge (#505 D6). What was done on a done
+	 * session, what is asked on a planned one, nothing on a missed one; null
+	 * where the session has no number in that unit.
+	 */
+	volumeLabel: string | null
+	/**
 	 * The row's Annet action, or null where it would change nothing:
 	 * `Tell i Annet` takes a done session out of the track it counts in, and
 	 * `Tell i sporet` puts it back (#505 story 33, `setCountsInNoTrack`).
@@ -215,18 +227,25 @@ export type TimelineSession = {
  * its content does, the way a spreadsheet cell does.
  *
  * **Every day the query reached is built**, session or not — forward to the
- * horizon and back to `TIMELINE_TRAILING_DAYS`. Behind today a *run* of empty
- * ones is not rendered as rows, though: the week hands the stream a
- * {@link TimelineBand} over it, and the rows stay in the model so expanding the
- * band has something to expand into (ADR 0065 §3).
+ * season's end and back to `TIMELINE_TRAILING_DAYS` — and every one is a row
+ * on I dag (ADR 0086). A day before the query's reach is not built: it is not
+ * a day with nothing on it, it is a day nobody asked about (ADR 0075 §3).
  */
 export type TimelineDay = {
 	/** `YYYY-MM-DD` in the athlete's own timezone — the day's own identity. */
 	key: string
-	/** `WED` — the weekday, in the athlete's own timezone. */
+	/** `ons` — the weekday, in the athlete's own timezone. */
 	dayLabel: string
-	/** `19 Aug` for a past week, `19` inside the current one. */
+	/**
+	 * `19. aug` outside the current week, `19` inside it — the day as its
+	 * controls name it, so a cell lifted out of context still reads as a date.
+	 */
 	dateLabel: string
+	/**
+	 * `19` — the date alone, as the gutter prints it under the weekday (variant
+	 * P). The week header above already says the month.
+	 */
+	dayOfMonth: string
 	isToday: boolean
 	/**
 	 * The **Plan Outline** prescribes recovery on this day, which is the only
@@ -252,60 +271,59 @@ export type TimelineDay = {
 }
 
 /**
- * A run of consecutive empty days behind today, as **one row** — `4–10` ·
- * `7 days · nothing logged` — that expands in place into the days it covers.
+ * Which of three kinds of week this is (ADR 0086). Every kind is drawn whole —
+ * its header and all seven days — and the kind only sets the tone:
  *
- * Two reasons it exists, and the second is the load-bearing one (ADR 0065 §3):
- * the band **states the fact the blank rows only imply**, and it keeps stream
- * height behind the reader stable, which is what the scroll module's growth
- * compensation depends on.
+ * - `past` — a week before this one: the record, muted, with its verdict.
+ * - `open` — this week, and every week ahead that the Planning Horizon has
+ *   reached or the plan has already laid.
+ * - `beyond` — a week the plan has not laid and will not until the Planning
+ *   Horizon reaches it: its header says its phase and target and when it is
+ *   filled, its days are empty rows to write in, and the athlete's own
+ *   sessions there show on their days (#505 stories 27–28). A **far** week —
+ *   past the plan's end and past half a year (`TIMELINE_HORIZON_DAYS`), where
+ *   the athlete may still write (#505 story 40) — is `beyond` too, and says
+ *   that only what the athlete writes will be there.
  *
- * A run of **one** is not a band — a single empty day behind today is just a
- * day, because collapsing one row into one row states nothing and costs a tap.
- * A run stops at the week's edge: a week block is the unit the stream mounts,
- * windows and anchors on, so a band that spanned two of them would have to
- * exist in a week that is not loaded (ADR 0075 §1 and §4, amending 0065 §3's
- * nine-day example).
+ * (Until ADR 0086 a closed week folded to one line and a week past the horizon
+ * collapsed to one; the owner's calendar decision of 2026-10-10 ended both.)
  */
-export type TimelineBand = {
-	/** The run's first day, `YYYY-MM-DD` — the band's own identity. */
-	key: string
-	/**
-	 * `past` — empty days behind today, a fact about the record (ADR 0075).
-	 * `free` — empty days ahead of it, folded into one short row so a printed
-	 * plan's week is not half blank cells (#505 story 30). Today is neither: it
-	 * is the landing, and never folds.
-	 */
-	kind: 'past' | 'free'
-	/** Every day the run covers, in order. They are rows of the week too. */
-	dayKeys: string[]
-	/** `4–10` — the day numbers, in the gutter every row aligns to. */
-	daysLabel: string
-	/** `Aug`, or `Jul–Aug` where the run crosses a month. */
-	monthLabel: string
-	/** `7 dager · ingenting logget`, `2 ledige dager` — what the blanks only imply. */
-	summaryLabel: string
-	/** `4–10 August` — the range as the control's own name says it. */
-	rangeLabel: string
-	/** The control's accessible name: the count, the fact and the dates. */
-	controlLabel: string
-}
+export type WeekShape = 'past' | 'open' | 'beyond'
 
 /**
- * How the stream draws a week (#505 stories 27, 31).
- *
- * - `open` — the header and every day: this week, and every week ahead that
- *   the Planning Horizon has reached or the plan has already laid.
- * - `folded` — a closed week, one line above today; it opens on a tap.
- * - `collapsed` — a plan week past the Planning Horizon that nothing has laid
- *   yet: one line saying what it will be, plus any session the athlete wrote
- *   there themselves, because their fixed points are never hidden. A **far**
- *   week — past the plan's end and past half a year (`TIMELINE_HORIZON_DAYS`),
- *   where the athlete may still write (#505 story 40) — collapses the same
- *   way, so a race written a year out shows on its day without a year of
- *   empty days drawn before it.
+ * Which of the four phase colours (`phase-*` tokens, ADR 0085) a phase is
+ * drawn in: a preset's stored name maps to its kind, and a phase the athlete
+ * named themselves — `Blokk 4` — has no kind and is drawn neutral rather than
+ * guessed at.
  */
-export type WeekShape = 'open' | 'folded' | 'collapsed'
+export type PhaseTone = 'base' | 'build' | 'peak' | 'taper'
+
+/** A plan week's phase: its display name, where in it the week sits, its colour. */
+type WeekPhase = {
+	name: string
+	weekInPhase: number
+	/** The phase's position in the outline — two phases may share a name. */
+	index: number
+	tone: PhaseTone | null
+}
+
+const PHASE_TONES: Record<string, PhaseTone> = {
+	base: 'base',
+	'big base': 'base',
+	grunntrening: 'base',
+	'stor base': 'base',
+	build: 'build',
+	oppbygging: 'build',
+	peak: 'peak',
+	spissing: 'peak',
+	taper: 'taper',
+	nedtrapping: 'taper',
+}
+
+/** A phase's colour from its stored (or Norwegian) name; null for its own name. */
+export function phaseToneOf(name: string): PhaseTone | null {
+	return PHASE_TONES[name.trim().toLowerCase()] ?? null
+}
 
 /** One training week, on both axes at once. */
 export type TimelineWeek = {
@@ -325,15 +343,10 @@ export type TimelineWeek = {
 	isNow: boolean
 	/**
 	 * The week's days, earliest first — a row is a day, not a session. All seven
-	 * from today forward; behind today, every day the query reached.
+	 * from today forward; behind today, every day the query reached. The stream
+	 * draws every one.
 	 */
 	rows: TimelineDay[]
-	/**
-	 * The runs of empty days behind today that render as one row until they are
-	 * expanded. Every day named here is also in `rows`: the band is a *view* on
-	 * them, so the stream can expand it without asking for anything more.
-	 */
-	bands: TimelineBand[]
 	/**
 	 * The three week numbers per **Training Track** of the active plan — Week
 	 * Target, Planned Volume, Actual Volume — each in the track's own Volume
@@ -347,27 +360,36 @@ export type TimelineWeek = {
 	relativeName: string
 	/** The plan phase the week sits in, by its own name; null outside a plan. */
 	phaseName: string | null
+	/**
+	 * The phase's colour (`phase-*`), or null outside a plan or for a named
+	 * phase. Optional only so a hand-built week in a test may leave it out.
+	 */
+	phaseTone?: PhaseTone | null
+	/** The phase's position in the outline, so the strip can draw its band. */
+	phaseIndex?: number | null
 	/** The week's role in its phase's rhythm — hard or easy; null outside a plan. */
 	role: WeekRole | null
 	/** `hard uke`, `lett uke`, `nedtrapping`. */
 	roleLabel: string | null
 	/**
-	 * What kind of week it is, in the header's corner: `Build · hard uke`, or
+	 * What kind of week it is, in the header's corner: `Oppbygging · hard uke`, or
 	 * `før planen` for history the athlete brought with them. Null with neither.
 	 */
 	kindLabel: string | null
 	shape: WeekShape
 	/**
-	 * The one line a folded or collapsed week reads as — `35 av 46 km · under`,
-	 * `Uke 41 · Build · mål 58 km · fylles når uke 39 er ferdig` — or null for an
-	 * open week, whose header says it at length.
+	 * The first `beyond` week of the season: the stream draws the horizon's
+	 * divider above it (ADR 0086), once.
 	 */
-	foldLabel: string | null
+	opensHorizon: boolean
 	/**
-	 * The days the stream draws for the week. Every row, except in a collapsed
-	 * week, which draws only the days holding a session — the athlete's own.
+	 * The week's one muted sentence under its numbers (variant P): its sessions
+	 * and load — `2 av 5 gjort · 48 av 312 TSS` — or, past the horizon, when it
+	 * is filled (`fylles søndag kveld i uke 39`). Null where the header's
+	 * numbers already say it all: a week with no track to read it in carries
+	 * its load line as its numbers.
 	 */
-	shownDayKeys: string[]
+	summary: string | null
 	/**
 	 * The week's sessions and load in a line, in the header's Norwegian: `2 av 5
 	 * gjort · 48 av 312 TSS`. What a week with no track to read it in says.
@@ -383,13 +405,28 @@ export type TimelineOtherTrack = OtherWeekVolume & {
 
 /** The far end of the season, stated rather than left as an empty scroll. */
 export type TimelineEndCap = {
-	/** `20 September` — the last day anything is written for. */
+	/**
+	 * What the season runs to: `none` — no plan, so the list is as long as
+	 * what was written; `event` — a plan toward a race; `open-ended` — a plan
+	 * with no race and no end (ADR 0079), which is a plan all the same and
+	 * never reads as "no plan".
+	 */
+	plan: 'none' | 'event' | 'open-ended'
+	/** `20. sep` — the last day anything is written for. */
 	writtenThroughLabel: string
-	/** Plan weeks past that with no sessions in them; 0 when the plan is written. */
+	/**
+	 * Plan weeks past that with no sessions in them — to race week, or to the
+	 * last week of an open-ended plan's last round; 0 when it is all written.
+	 */
 	unwrittenWeeks: number
 	eventName: string | null
-	/** `25 Oct` — race day, when there is a plan anchored to one. */
+	/** `25. okt` — race day, when there is a plan anchored to one. */
 	eventDateLabel: string | null
+	/**
+	 * `22. mar` — the Sunday an open-ended plan's last round ends on, where
+	 * the next round takes over; null for any other plan.
+	 */
+	planEndLabel: string | null
 }
 
 export type TimelineSeason = {
@@ -401,19 +438,19 @@ export type TimelineSeason = {
 	 * Today, as `YYYY-MM-DD` in the athlete's own timezone — **the stream's
 	 * landing anchor**. It names a day rather than a session, so it is a fact
 	 * about the calendar instead of a fact about what happens to be scheduled,
-	 * and because every day from today forward is a row there is always a node
-	 * carrying it — on a rest day too. That is what lets the landing, the hero's
-	 * collapse threshold and the back-to-today pill work with no fallback and no
-	 * special case anywhere (ADR 0065 §1).
+	 * and because every day is a row there is always one carrying it — on a
+	 * rest day too. That is what lets the landing and the I dag pill
+	 * work with no fallback and no special case anywhere (ADR 0065 §1, ADR 0082
+	 * §4 and §6).
 	 */
 	todayKey: string
-	/** `7 Jul` — the first day anything is logged for, inside the reach below. */
+	/** `7. jul` — the first day anything is logged for, inside the reach below. */
 	loggedFromLabel: string | null
-	/** `22 Feb` — the earliest day home's own query reaches. */
+	/** `22. feb` — the earliest day home's own query reaches. */
 	reachesBackToLabel: string
 	/** How many weeks of the athlete's history that reach is. */
 	reachWeeks: number
-	/** `Wed 19 Aug · week 3 of 12` — the header's one line of orientation. */
+	/** `ons 19. aug · uke 3 av 12` — the header's one line of orientation. */
 	headerLabel: string
 	endCap: TimelineEndCap
 	/**
@@ -422,11 +459,37 @@ export type TimelineSeason = {
 	 */
 	horizonWeekKey: string | null
 	/**
-	 * The track a one-line week, the strip and the season table are read in
-	 * (`leadTrack`) — one decision, made once, for all three. Null without a plan.
+	 * The track the strip and the season table are read in (`leadTrack`) — one
+	 * decision, made once, for both. Null without a plan.
 	 */
 	leadTrackId: string | null
 	strip: TimelineStrip
+	/** What I dag's top line says about the plan (ADR 0086). */
+	topLine: TimelineTopLine
+}
+
+/**
+ * I dag's top line, about the plan (#505 owner decision 3, ADR 0086): which
+ * plan, and what it is counting towards.
+ */
+export type TimelineTopLine = {
+	/**
+	 * `Klassisk 3:1 · uke 9 av 10` — the plan's philosophy, or the current
+	 * phase's name for a plan that records none, and where in a plan toward a
+	 * race today falls. Null with no plan.
+	 */
+	planLabel: string | null
+	/**
+	 * `Halvmaraton om 12 uker` toward a race, `Blokk 3 av ∞` for an open-ended
+	 * plan (#505 story 9). Null with no plan, where the line says so instead.
+	 */
+	goalLabel: string | null
+	/**
+	 * The goal in its two halves, for a line that may cut the race's name but
+	 * never its countdown: `Halvmaraton` and `om 12 uker`; for an
+	 * open-ended plan no name and `Blokk 3 av ∞`.
+	 */
+	goal: { name: string | null; when: string } | null
 }
 
 const DAYS_IN_WEEK = 7
@@ -451,7 +514,7 @@ export function buildTimelineSeason({
 	const todayKey = localDate(now, timezone)
 	const nowMonday = weekMonday(now, timezone)
 	// The earliest day this screen knows anything about. Behind it the query
-	// asked nothing, so nothing behind it is built and no band speaks for it.
+	// asked nothing, so nothing behind it is built and no row speaks for it.
 	const reachesBackKey = addDays(todayKey, -TIMELINE_TRAILING_DAYS)
 	// The ledger's own row builder decides what a row *is* (status, load, band,
 	// profile bars), so the stream and the Session Ledger can never disagree
@@ -547,11 +610,12 @@ export function buildTimelineSeason({
 			horizon,
 			far: monday > farAfter,
 			fillsWeeks: activePlan?.fillsWeeks ?? false,
-			leadTrackId,
 			importFacts,
 		}),
 	)
 
+	const firstBeyond = weeks.find((week) => week.shape === 'beyond')
+	if (firstBeyond) firstBeyond.opensHorizon = true
 	const todayWeekIndex = Math.max(
 		0,
 		weeks.findIndex((week) => week.isNow),
@@ -576,14 +640,75 @@ export function buildTimelineSeason({
 			activePlan,
 			timezone,
 			mondays,
+			planEndMonday,
 			lastWrittenMonday: [...byWeek.keys(), nowMonday].reduce((a, b) =>
 				a > b ? a : b,
 			),
 		}),
 		horizonWeekKey: horizon,
 		leadTrackId,
-		strip: buildStrip(weeks, leadTrackId),
+		strip: buildStrip(weeks, leadTrackId, {
+			horizonWeekKey: horizon,
+			eventWeekKey: activePlan?.eventDate
+				? weekMonday(new Date(activePlan.eventDate), timezone)
+				: null,
+			eventName: activePlan?.eventName ?? null,
+		}),
+		topLine: buildTopLine(activePlan, now),
 	}
+}
+
+/**
+ * The plan half of the top line. The philosophy names the plan where it has
+ * one; otherwise the phase it is in now does, which is the same name the week
+ * header carries. The goal is the race and how far away it is, or the round
+ * of an open-ended plan — never an invented end date (ADR 0079).
+ */
+export function buildTopLine(
+	activePlan: ActivePlan | null,
+	now: Date,
+): TimelineTopLine {
+	if (!activePlan) return { planLabel: null, goalLabel: null, goal: null }
+	const eventDate = activePlan.eventDate ? new Date(activePlan.eventDate) : null
+	const arc =
+		activePlan.phases.length > 0
+			? planArc(
+					activePlan.phases,
+					new Date(activePlan.planStart),
+					eventDate,
+					now,
+				)
+			: null
+	const name = activePlan.family
+		? PHILOSOPHY_LABELS[activePlan.family]
+		: arc
+			? nbPhaseName(arc.phase)
+			: null
+	// Toward a race the plan has a length to count in (`uke 9 av 10`); an
+	// open-ended plan's position is its block, which the goal half says.
+	const position =
+		eventDate && arc ? planWeekLabel(arc.weekInPlan, arc.totalWeeks) : null
+	const planLabel = [name, position].filter(Boolean).join(' · ') || null
+	const goal = eventDate
+		? {
+				name: activePlan.eventName ?? TOP_LINE_LABELS.raceDay,
+				when: eventCountdownWhen(
+					Math.ceil(
+						(eventDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+					),
+				),
+			}
+		: activePlan.round != null
+			? { name: null, when: capitalise(openEndedBlockLabel(activePlan.round)) }
+			: null
+	const goalLabel = goal
+		? [goal.name, goal.when].filter(Boolean).join(' ')
+		: null
+	return { planLabel, goalLabel, goal }
+}
+
+function capitalise(text: string): string {
+	return text ? `${text[0]!.toUpperCase()}${text.slice(1)}` : text
 }
 
 /**
@@ -600,8 +725,8 @@ function planRole(
 }
 
 /**
- * `Wed 19 Aug · week 3 of 12` — today's date, and where in the plan it falls.
- * The plan half is dropped rather than faked when there is no plan: "week 3 of
+ * `ons 19. aug · uke 3 av 12` — today's date, and where in the plan it falls.
+ * The plan half is dropped rather than faked when there is no plan: "uke 3 av
  * 12" with nothing to count against is a claim, not a label.
  */
 function headerLabel(
@@ -668,21 +793,30 @@ function seasonMondays({
 
 /**
  * Which phase each week of the plan sits in, and where in that phase it sits —
- * `Build 3` is the third week of the Build phase, counted by position and never
- * by name, because a season with two A-races runs Base twice (ADR 0044 §2).
+ * the third week of Oppbygging is counted by position and never by name,
+ * because a season with two A-races runs Base twice (ADR 0044 §2).
+ *
+ * The name is the display name (`nbPhaseName`): a preset's stored `Build`
+ * reads `Oppbygging` on I dag (ADR 0081), and a phase the athlete named
+ * themselves — `Blokk 4` — reads as they wrote it. The stored key is untouched.
  */
 function phaseLookup(
 	activePlan: ActivePlan | null,
 	now: Date,
 	timezone: string,
-): Map<string, { name: string; weekInPhase: number }> {
-	const lookup = new Map<string, { name: string; weekInPhase: number }>()
-	for (const band of buildPhaseBands(activePlan, now)) {
+): Map<string, WeekPhase> {
+	const lookup = new Map<string, WeekPhase>()
+	for (const [index, band] of buildPhaseBands(activePlan, now).entries()) {
 		let monday = weekMonday(band.start, timezone)
 		const endMonday = weekMonday(new Date(band.end.getTime() - 1), timezone)
 		let weekInPhase = 1
 		while (monday <= endMonday) {
-			lookup.set(monday, { name: band.name, weekInPhase })
+			lookup.set(monday, {
+				name: nbPhaseName(band.name),
+				weekInPhase,
+				index,
+				tone: phaseToneOf(band.name),
+			})
 			monday = addDays(monday, 7)
 			weekInPhase += 1
 		}
@@ -707,7 +841,6 @@ function buildWeek({
 	horizon,
 	far,
 	fillsWeeks,
-	leadTrackId,
 	importFacts,
 }: {
 	monday: string
@@ -719,7 +852,7 @@ function buildWeek({
 	timezone: string
 	imported: boolean
 	planStart: boolean
-	phase: { name: string; weekInPhase: number } | null
+	phase: WeekPhase | null
 	role: WeekRole | null
 	planStartMonday: string | null
 	tracks: readonly PlanTrackTargets[]
@@ -730,8 +863,6 @@ function buildWeek({
 	far: boolean
 	/** Whether the week change will fill a week once the horizon reaches it. */
 	fillsWeeks: boolean
-	/** The track a one-line week is read in (`leadTrack`). */
-	leadTrackId: string | null
 	importFacts: ReadonlyMap<string, TimelineImportFacts>
 }): TimelineWeek {
 	const isNow = monday === nowMonday
@@ -740,15 +871,23 @@ function buildWeek({
 	const week = { imported, isNow }
 
 	// The week's rows are its **days**, and a day owns its sessions (ADR 0065 §1).
-	// Every day from today forward earns a row whether anything is on it or not —
+	// Every day from today forward is built whether anything is on it or not —
 	// that is the grid, and it is what puts a node on today on a rest day. Behind
 	// today the days are built as well, back to the day the query reaches and no
 	// further: a day the query never asked about is not a day with nothing on it.
 	// A session older than that still gets its row — what the reach bounds is the
 	// claim that a day was empty, never a day the caller actually handed us.
-	// Which of those past days the stream actually *shows* is the bands' business.
+	// The stream shows every one of them (ADR 0086).
 	const byDay = bucketByDay(sessionRows, timezone)
 	const trackDisciplines = new Set<string>(tracks.map((t) => t.discipline))
+	// The unit a session's own volume is said in: its track's, where the plan
+	// has one for its sport (the first, as the week header reads it).
+	const trackCurrencies = new Map<string, VolumeCurrency>()
+	for (const track of tracks) {
+		if (!trackCurrencies.has(track.discipline)) {
+			trackCurrencies.set(track.discipline, track.currency)
+		}
+	}
 	const rows = weekDayKeys(monday)
 		.filter((key) => key >= reachesBackKey || byDay.has(key))
 		.map((key) =>
@@ -760,10 +899,10 @@ function buildWeek({
 				timezone,
 				sameMonth: isNow,
 				trackDisciplines,
+				trackCurrencies,
 				importFacts,
 			}),
 		)
-	const bands = buildBands(rows, todayKey, timezone)
 	const volumes = buildWeekVolumes({
 		weekKey: monday,
 		todayKey,
@@ -788,16 +927,23 @@ function buildWeek({
 	let missed = 0
 	let doneTss: number | null = null
 	let plannedTss: number | null = null
+	// Whether some of the done load came from a session with no Planned TSS —
+	// one the athlete added, a lifting session (ADR 0046 §2), an import. Then
+	// the done sum is not a part of the planned one, and `176 av 85 TSS` would
+	// read as a week done twice over when it was a week done differently.
+	let unplannedLoad = false
 	for (const { entry } of sessionRows) {
 		if (entry.status === 'completed') done += 1
 		if (entry.status === 'missed') missed += 1
 		// Planned and actual are summed independently (ADR 0030): a week that was
 		// planned but never trustworthily recorded still carries its planned load
 		// while its actual reads honestly absent.
-		if (entry.load != null) doneTss = (doneTss ?? 0) + entry.load
-		if (entry.plannedTss != null && entry.plannedTss > 0) {
-			plannedTss = (plannedTss ?? 0) + entry.plannedTss
+		const planned = entry.plannedTss != null && entry.plannedTss > 0
+		if (entry.load != null) {
+			doneTss = (doneTss ?? 0) + entry.load
+			if (!planned) unplannedLoad = true
 		}
+		if (planned) plannedTss = (plannedTss ?? 0) + entry.plannedTss!
 	}
 	const relativeName = relativeWeekName(monday, nowMonday)
 	const trackWeeks = volumes.tracks.map((track) =>
@@ -815,6 +961,7 @@ function buildWeek({
 		missed,
 		doneTss: doneTss != null ? roundLoad(doneTss) : null,
 		plannedTss: plannedTss != null ? roundLoad(plannedTss) : null,
+		unplannedLoad,
 	})
 	// A week the plan has laid is written, whatever the horizon says: only a
 	// week nothing but the athlete has written in is still the plan's to fill.
@@ -823,13 +970,20 @@ function buildWeek({
 	)
 	const shape: WeekShape =
 		monday < nowMonday
-			? 'folded'
+			? 'past'
 			: !laid && ((horizon != null && monday > horizon && phase != null) || far)
-				? 'collapsed'
+				? 'beyond'
 				: 'open'
-	const lead = trackWeeks.find((track) => track.trackId === leadTrackId) ?? null
 	const phaseName = imported ? null : (phase?.name ?? null)
 	const roleLabel = imported || role == null ? null : NB_WEEK_ROLE_LABELS[role]
+	// A taper phase's taper week would read `Nedtrapping · nedtrapping`: the
+	// role says nothing the phase's name has not, so it is said once.
+	const kindRole =
+		roleLabel != null &&
+		phaseName != null &&
+		roleLabel.toLowerCase() === phaseName.toLowerCase()
+			? null
+			: roleLabel
 
 	return {
 		key: monday,
@@ -840,8 +994,6 @@ function buildWeek({
 		planStart,
 		isNow,
 		rows,
-		// A collapsed week draws no empty days, so it has no run of them to fold.
-		bands: shape === 'collapsed' ? [] : bands,
 		tracks: trackWeeks,
 		otherTrack: volumes.other
 			? {
@@ -852,111 +1004,25 @@ function buildWeek({
 			: null,
 		relativeName,
 		phaseName,
+		phaseTone: imported ? null : (phase?.tone ?? null),
+		phaseIndex: imported ? null : (phase?.index ?? null),
 		role: imported ? null : role,
 		roleLabel,
-		kindLabel: imported
-			? BEFORE_PLAN_LABEL
-			: join(phaseName, roleLabel) || null,
+		kindLabel: imported ? BEFORE_PLAN_LABEL : join(phaseName, kindRole) || null,
 		shape,
-		foldLabel:
-			shape === 'folded'
-				? lead
-					? foldedTrackLine(lead)
-					: loadLine
-				: shape === 'collapsed'
-					? collapsedWeekLine({
-							monday,
-							relativeName,
-							phaseName,
-							lead,
-							fillsWeeks: fillsWeeks && phase != null,
-							far: phase == null,
-						})
+		// Set across the season once every week is built (`buildTimelineSeason`).
+		opensHorizon: false,
+		summary:
+			shape === 'beyond'
+				? beyondWeekNote({
+						monday,
+						fillsWeeks: fillsWeeks && phase != null,
+						far: phase == null,
+					})
+				: trackWeeks.length > 0
+					? loadLine
 					: null,
-		shownDayKeys:
-			shape === 'collapsed'
-				? rows.filter((day) => day.sessions.length > 0).map((day) => day.key)
-				: rows.map((day) => day.key),
 		loadLine,
-	}
-}
-
-/**
- * The week's runs of consecutive empty days, as bands — behind today the past
- * band (ADR 0065 §3, ADR 0075), ahead of it the free days a printed plan folds
- * into one short row (#505 story 30).
- *
- * Maximal runs, in calendar order, and **two days is the shortest one there
- * is** — a single empty day stays a day, because a band over one row says no
- * more than the row does and asks for a tap to say it. **Today never folds**:
- * it is the landing, so it is the one empty day that is always a row, and it
- * is also what splits a past run from a free one.
- *
- * A day the **Plan Outline** prescribes recovery on breaks the run rather than
- * joining it: `Rest day` is a statement the plan made, and a band would
- * swallow it. Nothing produces that flag yet (ADR 0065 §4), so today every
- * empty day but today is band material — but the rule is written where it
- * belongs rather than waiting to be discovered by whoever gives it a producer.
- */
-function buildBands(
-	days: TimelineDay[],
-	todayKey: string,
-	timezone: string,
-): TimelineBand[] {
-	const bands: TimelineBand[] = []
-	let run: TimelineDay[] = []
-	const close = () => {
-		if (run.length > 1) bands.push(bandOf(run, todayKey, timezone))
-		run = []
-	}
-	for (const day of days) {
-		const collapsible =
-			day.key !== todayKey && day.sessions.length === 0 && !day.restPrescribed
-		if (!collapsible) {
-			close()
-			continue
-		}
-		// Only *consecutive* days collapse. Inside one week the row order is the
-		// calendar's, so the run breaks wherever a day is missing from it — which
-		// is what the query's own reach leaves behind in the earliest week.
-		if (run.length > 0 && day.key !== addDays(run[run.length - 1]!.key, 1)) {
-			close()
-		}
-		run.push(day)
-	}
-	close()
-	return bands
-}
-
-function bandOf(
-	run: TimelineDay[],
-	todayKey: string,
-	timezone: string,
-): TimelineBand {
-	const first = middayOf(run[0]!.key, timezone)
-	const last = middayOf(run[run.length - 1]!.key, timezone)
-	const fromMonth = formatNbMonthShort(first, timezone)
-	const toMonth = formatNbMonthShort(last, timezone)
-	const rangeLabel = formatNbDateSpan(first, last, timezone)
-	// A run never holds today, so its first day says which side of today it is.
-	const kind = run[0]!.key < todayKey ? 'past' : 'free'
-	// The count first, because the count is the fact. Behind today `nothing
-	// logged` and not `nothing planned`: what the band knows is that no session
-	// sits on these dates, which is a statement about the record and not about
-	// the plan. Ahead of it the days are free to write in, and say only that.
-	const words =
-		kind === 'past'
-			? pastBandLabels(run.length, rangeLabel)
-			: freeBandLabels(run.length, rangeLabel)
-	return {
-		key: run[0]!.key,
-		kind,
-		dayKeys: run.map((day) => day.key),
-		daysLabel: `${formatNbDayOfMonth(first, timezone)}–${formatNbDayOfMonth(last, timezone)}`,
-		monthLabel: fromMonth === toMonth ? toMonth : `${fromMonth}–${toMonth}`,
-		summaryLabel: words.summary,
-		rangeLabel,
-		controlLabel: words.control,
 	}
 }
 
@@ -999,6 +1065,7 @@ function buildDay({
 	timezone,
 	sameMonth,
 	trackDisciplines,
+	trackCurrencies,
 	importFacts,
 }: {
 	key: string
@@ -1010,6 +1077,7 @@ function buildDay({
 	sameMonth: boolean
 	/** The plan's tracks' sports: what a session can count in, or be taken out of. */
 	trackDisciplines: ReadonlySet<string>
+	trackCurrencies: ReadonlyMap<string, VolumeCurrency>
 	importFacts: ReadonlyMap<string, TimelineImportFacts>
 }): TimelineDay {
 	const isToday = key === todayKey
@@ -1022,6 +1090,7 @@ function buildDay({
 		dateLabel: sameMonth
 			? formatNbDayOfMonth(midday, timezone)
 			: formatNbDayMonth(midday, timezone),
+		dayOfMonth: formatNbDayOfMonth(midday, timezone),
 		isToday,
 		// The Plan Outline has no per-day recovery statement to read, so this is
 		// the only honest answer — see the field's own note. The row's `Rest day`
@@ -1033,7 +1102,9 @@ function buildDay({
 				row,
 				week,
 				isToday,
+				dayKey: key,
 				trackDisciplines,
+				trackCurrencies,
 				imports: importFacts.get(row.session.id) ?? NO_IMPORT_FACTS,
 				strengthLog: strengthLogOf(row, { timezone, todayKey }),
 			}),
@@ -1055,7 +1126,9 @@ function buildSession({
 	row,
 	week,
 	isToday,
+	dayKey,
 	trackDisciplines,
+	trackCurrencies,
 	imports,
 	strengthLog,
 }: {
@@ -1063,7 +1136,9 @@ function buildSession({
 	week: RowWeekContext
 	/** A property of the day, so every session on it agrees about it. */
 	isToday: boolean
+	dayKey: string
 	trackDisciplines: ReadonlySet<string>
+	trackCurrencies: ReadonlyMap<string, VolumeCurrency>
 	imports: TimelineImportFacts
 	strengthLog: TimelineStrengthLog | null
 }): TimelineSession {
@@ -1084,6 +1159,14 @@ function buildSession({
 		chips: content.chips,
 		owner,
 		ownerLabel: entry.status === 'planned' ? SESSION_OWNER_LABELS[owner] : null,
+		ownerNote: entry.status === 'planned' ? SESSION_OWNER_NOTES[owner] : null,
+		volumeLabel: sessionVolume(
+			session,
+			entry.status,
+			entry.discipline,
+			dayKey,
+			trackCurrencies,
+		),
 		annet: annetOf(
 			session.countsInNoTrack,
 			entry.status,
@@ -1100,6 +1183,35 @@ function buildSession({
 		...imports,
 		strengthLog,
 	}
+}
+
+/**
+ * A session's own volume, as its row's right edge says it (#505 D6): in its
+ * track's unit where the plan has a track for its sport, else in sets for a
+ * lift and in km — or minutes, where no distance is known — for anything
+ * else. Read through `volumeSessionOf`, the week header's own reading, so a
+ * row and its week cannot disagree about what the session is worth.
+ *
+ * A done session says what was **recorded**, never what was asked: a run done
+ * with no distance yet says nothing rather than claiming the plan's 10 km. A
+ * missed session says nothing — nothing was done.
+ */
+function sessionVolume(
+	session: LedgerSession,
+	status: LedgerStatus,
+	discipline: string,
+	dayKey: string,
+	currencies: ReadonlyMap<string, VolumeCurrency>,
+): string | null {
+	if (status === 'missed') return null
+	const read = volumeSessionOf(session, { dayKey, status })
+	const figures = status === 'completed' ? read.recorded : read.prescribed
+	if (!figures) return null
+	const currency =
+		currencies.get(discipline) ??
+		(discipline === 'strength' ? 'sets' : figures.km != null ? 'km' : 'hours')
+	const value = figures[currency]
+	return value != null && value > 0 ? sessionVolumeLabel(value, currency) : null
 }
 
 /**
@@ -1129,18 +1241,26 @@ function annetOf(
  * past it, and saying which is which is the whole point of the cap: an athlete
  * who scrolls into empty weeks should be told the weeks are unwritten, not left
  * wondering whether the app lost them.
+ *
+ * An **open-ended** plan (ADR 0079) is a plan: it has no race to count to, so
+ * its unwritten weeks are counted to the end of its last round — where the next
+ * round is proposed and appended — and the cap says the plan has no end rather
+ * than that there is no plan.
  */
 function buildEndCap({
 	ledger,
 	activePlan,
 	timezone,
 	mondays,
+	planEndMonday,
 	lastWrittenMonday,
 }: {
 	ledger: LedgerSession[]
 	activePlan: ActivePlan | null
 	timezone: string
 	mondays: string[]
+	/** The plan's last week (the last round's, for an open-ended plan). */
+	planEndMonday: string | null
 	/**
 	 * The last week anything is written in (or this week). The season itself
 	 * runs on to the plan's end, so its last Monday is no longer the last one
@@ -1153,21 +1273,32 @@ function buildEndCap({
 	const eventDate = activePlan?.eventDate
 		? new Date(activePlan.eventDate)
 		: null
-	// Whole weeks of the plan past the last one anything is written for. Counted
-	// from Mondays so a race mid-week counts its own week as unwritten.
-	const unwrittenWeeks = eventDate
-		? Math.max(
-				0,
-				Math.round(
-					(new Date(
-						`${weekMonday(eventDate, timezone)}T00:00:00.000Z`,
-					).getTime() -
-						new Date(`${lastWrittenMonday}T00:00:00.000Z`).getTime()) /
-						(7 * 24 * 60 * 60 * 1000),
-				),
-			)
-		: 0
+	const plan: TimelineEndCap['plan'] = !activePlan
+		? 'none'
+		: eventDate
+			? 'event'
+			: 'open-ended'
+	// The Monday of the last week the plan asks for: race week, or the
+	// open-ended plan's last round. Counted from Mondays so a race mid-week
+	// counts its own week as unwritten.
+	const endMonday = eventDate
+		? weekMonday(eventDate, timezone)
+		: plan === 'open-ended'
+			? planEndMonday
+			: null
+	const unwrittenWeeks =
+		endMonday != null
+			? Math.max(
+					0,
+					Math.round(
+						(new Date(`${endMonday}T00:00:00.000Z`).getTime() -
+							new Date(`${lastWrittenMonday}T00:00:00.000Z`).getTime()) /
+							(7 * 24 * 60 * 60 * 1000),
+					),
+				)
+			: 0
 	return {
+		plan,
 		writtenThroughLabel: last
 			? formatNbDayMonth(new Date(last.scheduledAt), timezone)
 			: formatNbDayMonth(
@@ -1177,58 +1308,45 @@ function buildEndCap({
 		unwrittenWeeks,
 		eventName: activePlan?.eventName ?? null,
 		eventDateLabel: eventDate ? formatNbDayMonth(eventDate, timezone) : null,
+		planEndLabel:
+			plan === 'open-ended' && planEndMonday != null
+				? formatNbDayMonth(
+						dayBoundsUTC(addDays(planEndMonday, DAYS_IN_WEEK - 1), timezone)
+							.start,
+						timezone,
+					)
+				: null,
 	}
 }
 
 // ---------------------------------------------------------------------------
-// The hero — today's session, and the one sentence that says whether to do it
+// Today's row — the session's action, and the one sentence about today
 // ---------------------------------------------------------------------------
 
 /**
- * The hero above the stream: what today asks for, and the coach's verdict on it.
+ * What today's row carries beyond its sessions (ADR 0086), now that there is
+ * no hero to carry it: the one honest action on today's own session (`Se
+ * økta`, `Logg økta`), and the coach's one line.
  *
- * It is the decision strip's content in the timeline's shape — the same
- * `buildTodayCard` session, the same reconciled coach voice, the same honestly
- * named CTA. Nothing new is computed about the session here; only how it reads.
- *
- * The hero is anchored on **today** and never moves off it: the strip and the
- * stream travel, this does not. `buildTodayCard` answers "what is the next
- * thing to do", which on a rest day — or once today's session is logged — is a
- * session days away. So two things are said rather than one: the kicker names
- * the day that session is *actually* on (`Today`, `Tomorrow`, `Friday`), and
- * the heading states today's own standing. A session that is not today's is
- * demoted from the headline to a fact, because a heading that reads `TODAY`
- * above Friday's intervals answers the screen's one question wrongly (#493).
+ * Built off `buildTodayCard`, as the hero was, so the action names the same
+ * session the Session Nudge and the old decision strip did. That card answers
+ * "what is the next thing to do", which on a rest day — or once today's
+ * session is logged — is a session days away; its action belongs on *that*
+ * session's row, not on today's, so the action is offered only when the
+ * session it opens is today's (#493's rule, kept).
  */
-export type TimelineHero = {
-	/** `Today · Run · 9 weeks to race day` — rendered as the kicker. */
-	kicker: string
-	/** Today's session, or — when today holds none — what today actually is. */
-	title: string
-	/**
-	 * `Next up · Threshold 4 × 8 min` — the session the rest of the hero
-	 * describes, when the heading is about today rather than about it. Null when
-	 * the hero is showing today's own session, which the heading already names.
-	 */
-	next: string | null
-	bars: ProfileBar[]
-	groups: ProfileBarGroup[]
-	/** `62 min`, `91 TSS`, `4:05–4:12 /km` — only the ones that resolved. */
-	facts: string[]
+export type TimelineTodayRow = {
+	/** Today's session's action; null when the next session is not today's. */
+	cta: { label: string; to: string; sessionId: string } | null
 	/** The one sentence: Form, its reading, and what to do about it. */
 	verdict: string
-	/** The single honest action, label and destination both from the presenter. */
-	cta: { label: string; to: string }
-	/** What the collapsed header shows instead of the whole hero. */
-	collapsed: { title: string; summary: string }
 }
 
-export function buildTimelineHero({
+export function buildTodayRow({
 	ledger,
 	now = new Date(),
 	timezone = 'UTC',
 	thresholds = {},
-	activePlan = null,
 	current,
 	trust,
 	sustained = null,
@@ -1238,124 +1356,23 @@ export function buildTimelineHero({
 	now?: Date
 	timezone?: string
 	thresholds?: DisciplineThresholdMap
-	activePlan?: ActivePlan | null
 	current: LoadTriad | null
 	trust: TsbTrust
 	sustained?: SustainedDeviation | null
 	nudge?: SessionNudge
-}): TimelineHero | null {
+}): TimelineTodayRow {
 	const today = buildTodayCard(ledger, now, thresholds, timezone)
-	if (!today) return null
-	const profile = deriveSessionProfile(
-		ledger.find((session) => session.id === today.id)?.workout ?? null,
-	)
-	const target = targetText(today.target)
-	const facts = [
-		today.durationMin != null ? `${today.durationMin} min` : null,
-		today.plannedTss != null ? formatTss(today.plannedTss) : null,
-		target,
-		// A lifting session has no TSS and no pace; its lifts are its facts.
-		...(today.lifts ?? []).map((lift) => {
-			const scheme = liftSchemeLabel(lift.setCount, lift.reps)
-			return lift.loadLabel
-				? `${lift.name} ${scheme} · ${lift.loadLabel}`
-				: `${lift.name} ${scheme}`
-		}),
-	].filter((fact): fact is string => !!fact)
-	// The day the session is actually on — the kicker's first word, and the one
-	// the stream's own row for this session carries. Both read it off the same
-	// instant in the same Athlete Timezone, so they cannot disagree about which
-	// day it is.
-	const when = dayName(today.date, now, timezone)
-	const title = today.ownTitle ?? nbSessionNoun(today.discipline)
 	return {
-		kicker: join(
-			when,
-			nbDisciplineLabel(today.discipline),
-			activePlan ? raceCountdown(activePlan, now) : null,
-		),
-		// The headline belongs to today. Only when the session shown *is* today's
-		// does it get to be the title; otherwise today speaks for itself and the
-		// session drops to the line below.
-		title: today.isToday ? title : todayStanding(ledger, now, timezone),
-		next: today.isToday ? null : HERO_LABELS.nextUp(title),
-		bars: profile.bars,
-		groups: profile.groups,
-		facts,
+		cta:
+			today && today.isToday
+				? {
+						label: NB_SESSION_CTA_LABELS[today.cta],
+						to: today.ctaTo,
+						sessionId: today.id,
+					}
+				: null,
 		verdict: coachVerdict({ current, trust, sustained, nudge }),
-		cta: { label: NB_SESSION_CTA_LABELS[today.cta], to: today.ctaTo },
-		collapsed: {
-			// Collapsed, the row is the thing its button opens, so the session keeps
-			// the title there — with the day beside it, which is what stops the
-			// summary from implying today.
-			title,
-			summary: join(when, ...facts.slice(0, 2)),
-		},
 	}
-}
-
-/**
- * `Today`, `Tomorrow`, `Friday`, `22 Feb` — the day a session falls on, named
- * the way an athlete would name it. A weekday alone is unambiguous only inside
- * the next six days; past that it could be either of two Fridays, so the date
- * is the honest answer.
- */
-function dayName(date: Date, now: Date, timezone: string): string {
-	const todayKey = localDate(now, timezone)
-	const key = localDate(date, timezone)
-	if (key === todayKey) return HERO_LABELS.today
-	if (key === addDays(todayKey, 1)) return HERO_LABELS.tomorrow
-	if (key > todayKey && key <= addDays(todayKey, DAYS_IN_WEEK - 1)) {
-		const weekday = formatNbWeekday(date, timezone)
-		return weekday[0]!.toUpperCase() + weekday.slice(1)
-	}
-	return formatNbDayMonth(date, timezone)
-}
-
-/**
- * What today itself holds, as the heading states it when the session on show is
- * not today's. Read straight off the ledger through the ledger's own status
- * rule, so "done" here means exactly what a completed row means in the stream.
- *
- * There is deliberately no `still to come` case: a planned session today is the
- * earliest planned session there is, so `buildTodayCard` would have picked it
- * and the heading would be its title.
- */
-function todayStanding(
-	ledger: LedgerSession[],
-	now: Date,
-	timezone: string,
-): string {
-	const todayKey = localDate(now, timezone)
-	const statuses = ledger
-		.filter(
-			(session) =>
-				localDate(new Date(session.scheduledAt), timezone) === todayKey,
-		)
-		.map((session) =>
-			deriveLedgerStatus(
-				{ status: session.status, scheduledAt: new Date(session.scheduledAt) },
-				now,
-			),
-		)
-	if (statuses.includes('completed')) return HERO_LABELS.todayDone
-	if (statuses.length > 0) return HERO_LABELS.nothingLeftToday
-	return HERO_LABELS.nothingToday
-}
-
-/** `9 weeks to race day`, counted in whole weeks the way an athlete counts them. */
-function raceCountdown(activePlan: ActivePlan, now: Date): string | null {
-	// An open-ended plan has no race day (ADR 0079), so there is nothing to count.
-	if (!activePlan.eventDate) return null
-	const days = Math.ceil(
-		(new Date(activePlan.eventDate).getTime() - now.getTime()) /
-			(24 * 60 * 60 * 1000),
-	)
-	if (days <= 0) return null
-	if (days <= DAYS_IN_WEEK) {
-		return HERO_LABELS.daysToRace(days)
-	}
-	return HERO_LABELS.weeksToRace(Math.round(days / DAYS_IN_WEEK))
 }
 
 /**
@@ -1365,7 +1382,7 @@ function raceCountdown(activePlan: ActivePlan, now: Date): string | null {
  * other, and a Session Nudge's reason replaces the generic recommendation when
  * the coach actually did something to the next session (#157/#158/#187).
  */
-function coachVerdict({
+export function coachVerdict({
 	current,
 	trust,
 	sustained,

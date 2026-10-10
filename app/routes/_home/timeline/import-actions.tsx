@@ -24,13 +24,26 @@ import { IMPORT_LINK_LABELS, MARK_DONE_LABELS } from '#app/utils/labels.ts'
 import { type TimelineImportLink } from './presenter.ts'
 
 const ACTION_TEXT =
-	'text-ink-dimmer flex min-h-11 flex-none items-center gap-1 text-[11px]/[1] font-semibold underline decoration-dotted underline-offset-[3px]'
+	'text-muted-foreground text-caption pressable flex min-h-11 flex-none items-center gap-1 underline decoration-dotted underline-offset-[3px]'
 
 /** The one import offer a row carries, by kind. */
-export function ImportLinkAction({ link }: { link: TimelineImportLink }) {
+export function ImportLinkAction({
+	link,
+	inline = false,
+}: {
+	link: TimelineImportLink
+	/** Inside the row's glyph popover (ADR 0086), not under the row. */
+	inline?: boolean
+}) {
 	if (link.kind === 'ask') return <ImportQuestion ask={link} />
 	return (
-		<div className="-mt-[14px] flex flex-wrap items-center gap-x-2 pr-[18px] pl-[76px]">
+		<div
+			className={
+				inline
+					? 'flex flex-wrap items-center gap-x-2'
+					: '-mt-1 flex flex-wrap items-center gap-x-2 pr-4 pl-[103px]'
+			}
+		>
 			<ImportLinkButton
 				intent={link.kind === 'undo' ? 'undo' : 'relink'}
 				importId={link.importId}
@@ -39,7 +52,7 @@ export function ImportLinkAction({ link }: { link: TimelineImportLink }) {
 				icon={link.kind === 'undo' ? 'reset' : 'link-2'}
 				className={ACTION_TEXT}
 			/>
-			<span className="text-ink-dimmest min-w-0 flex-1 text-[11px]/[1.35]">
+			<span className="text-muted-foreground min-w-0 flex-1 text-[11px]/[1.35]">
 				{link.note}
 			</span>
 		</div>
@@ -62,7 +75,7 @@ function ImportQuestion({
 			role="group"
 			aria-labelledby={headingId}
 			data-import-question={ask.importId}
-			className="border-border/70 -mt-[6px] mr-[18px] mb-3 ml-[76px] rounded-[12px] border px-3 py-2.5"
+			className="border-border/70 mr-4 mb-3 ml-[103px] rounded-2xl border px-3 py-2.5"
 		>
 			<p
 				id={headingId}
@@ -70,7 +83,7 @@ function ImportQuestion({
 			>
 				{ask.question}
 			</p>
-			<p className="text-ink-dim mt-0.5 text-[11px]/[1.4] [text-wrap:pretty]">
+			<p className="text-muted-foreground mt-0.5 text-[11px]/[1.4] [text-wrap:pretty]">
 				{ask.note}
 			</p>
 			<div className="mt-1.5 flex flex-col items-start">
@@ -88,14 +101,14 @@ function ImportQuestion({
 					intent="keep"
 					importId={ask.importId}
 					label={ask.keepLabel}
-					className="text-ink-dim flex min-h-11 items-center text-[12px]/[1.3] font-semibold"
+					className="text-muted-foreground flex min-h-11 items-center text-[12px]/[1.3] font-semibold"
 				/>
 				{ask.annetLabel ? (
 					<ImportLinkButton
 						intent="annet"
 						importId={ask.importId}
 						label={ask.annetLabel}
-						className="text-ink-dim flex min-h-11 items-center text-[12px]/[1.3] font-semibold"
+						className="text-muted-foreground flex min-h-11 items-center text-[12px]/[1.3] font-semibold"
 					/>
 				) : null}
 			</div>
@@ -151,7 +164,7 @@ function ImportLinkButton({
 			{sent ? (
 				<span
 					aria-live="polite"
-					className="text-ink-dimmer flex min-h-11 items-center text-[11px]/[1.35]"
+					className="text-muted-foreground flex min-h-11 items-center text-[11px]/[1.35]"
 				>
 					{IMPORT_LINK_LABELS.saving}
 				</span>
@@ -200,7 +213,7 @@ export function MarkDoneAction({
 			{sent ? (
 				<span
 					aria-live="polite"
-					className="text-ink-dimmer flex min-h-11 items-center text-[11px]/[1.35]"
+					className="text-muted-foreground flex min-h-11 items-center text-[11px]/[1.35]"
 				>
 					{MARK_DONE_LABELS.saving}
 				</span>
