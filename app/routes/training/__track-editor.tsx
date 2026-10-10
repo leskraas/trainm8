@@ -157,27 +157,33 @@ export function TrackRoster({
 						key={track.trackId}
 						className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
 					>
-						<span className="font-medium">
-							{DISCIPLINE_LABELS[track.discipline]}
-						</span>
-						<span className="text-muted-foreground">
-							· authored in {VOLUME_CURRENCY_UNITS[track.currency]}
-							{track.anchors[0]
-								? ` · starts at ${formatWeeklyVolume(track.anchors[0].value, track.currency)}`
-								: null}
-							{/* Whether the athlete has re-anchored is part of what their season
+						{/* One run of text, not two flex items: as items, the detail wrapped
+						    whole onto its own line at 390 px and opened it with an orphaned
+						    `·` (audit B9). The no-break space holds the name to its
+						    separator, so the line can only break after it. */}
+						<span className="min-w-0 flex-1">
+							<span className="font-medium">
+								{DISCIPLINE_LABELS[track.discipline]}
+							</span>
+							<span className="text-muted-foreground">
+								{'\u00a0'}· authored in {VOLUME_CURRENCY_UNITS[track.currency]}
+								{track.anchors[0]
+									? ` · starts at ${formatWeeklyVolume(track.anchors[0].value, track.currency)}`
+									: null}
+								{/* Whether the athlete has re-anchored is part of what their season
 							    *is*, so it is stated here and not only down in the anchor
 							    section: a **Season Anchor** is an ordered list, and a line that
 							    named only its first value would describe a plan that stopped
 							    being the whole truth the moment they re-anchored (ADR 0040 §5).
 							    The list itself, with the weeks and the controls, is on the
 							    Blocks reading. */}
-							{track.anchors.length > 1
-								? ` · re-anchored ${track.anchors.length - 1 === 1 ? 'once' : `${track.anchors.length - 1} times`}, most recently to ${formatWeeklyVolume(
-										track.anchors[track.anchors.length - 1]!.value,
-										track.currency,
-									)}`
-								: null}
+								{track.anchors.length > 1
+									? ` · re-anchored ${track.anchors.length - 1 === 1 ? 'once' : `${track.anchors.length - 1} times`}, most recently to ${formatWeeklyVolume(
+											track.anchors[track.anchors.length - 1]!.value,
+											track.currency,
+										)}`
+									: null}
+							</span>
 						</span>
 						{/* Only where there is another track to fall back on. A plan with no
 						    track measures nothing, so the honest action for an athlete who

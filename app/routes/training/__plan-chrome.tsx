@@ -42,6 +42,26 @@ import { Icon } from '#app/components/ui/icon.tsx'
 import { cn } from '#app/utils/misc.tsx'
 
 /**
+ * The disclosure chevron's turn, keyed to **its own** `<details>` and nothing
+ * above it.
+ *
+ * The chevron is a direct child of its `<summary>`, which is a direct child of
+ * its `<details>`, so `details[open]>summary>&` reads exactly one element's state.
+ * A `group`, named or not, cannot: Tailwind compiles `group-open/x:` to "any
+ * ancestor `.group/x` is open", and these disclosures nest in their own kind
+ * (_Avansert_ holds `Disclosure`s, a phase card holds them too), so a closed
+ * section pointed "open" whenever anything around it was (audit B5). A bare
+ * `group` here also reached down into children that keep their own `group`
+ * (`group-has-[:checked]` on the preset cards).
+ *
+ * The turn is the answer to a press, so it moves on transform alone, on the
+ * strong ease-out at the press duration (160 ms), and not at all under reduced
+ * motion: the chevron still flips, it just does not travel.
+ */
+const DISCLOSURE_CHEVRON =
+	'text-muted-foreground shrink-0 [details[open]>summary>&]:rotate-180 motion-safe:transition-transform motion-safe:duration-press motion-safe:ease-out'
+
+/**
  * The one question the surface opens with: **what are you building toward?**
  *
  * Centred and given the page's largest type because #366 made the anchor the
@@ -223,7 +243,7 @@ export function Disclosure({
 	return (
 		<details
 			open={defaultOpen}
-			className={cn('group border-border/70 border-t py-1', className)}
+			className={cn('border-border/70 border-t py-1', className)}
 		>
 			<summary
 				className={cn(
@@ -243,11 +263,7 @@ export function Disclosure({
 					) : null}
 				</span>
 				{aside ? <span className="shrink-0">{aside}</span> : null}
-				<Icon
-					name="chevron-down"
-					size="sm"
-					className="text-muted-foreground shrink-0 transition-transform group-open:rotate-180"
-				/>
+				<Icon name="chevron-down" size="sm" className={DISCLOSURE_CHEVRON} />
 			</summary>
 			<div className="space-y-4 pt-1 pb-4">{children}</div>
 		</details>
@@ -290,7 +306,7 @@ export function DisclosureCard({
 }) {
 	return (
 		<article className="border-border/70 bg-card overflow-hidden rounded-3xl border shadow-xs">
-			<details open={defaultOpen} className="group">
+			<details open={defaultOpen}>
 				<summary
 					className={cn(
 						'flex cursor-pointer list-none flex-wrap items-center gap-3 p-4 text-left md:px-5',
@@ -328,11 +344,7 @@ export function DisclosureCard({
 							{aside}
 						</span>
 					) : null}
-					<Icon
-						name="chevron-down"
-						size="sm"
-						className="text-muted-foreground shrink-0 transition-transform group-open:rotate-180"
-					/>
+					<Icon name="chevron-down" size="sm" className={DISCLOSURE_CHEVRON} />
 				</summary>
 				<div
 					className={cn(

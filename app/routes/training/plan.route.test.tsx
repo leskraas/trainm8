@@ -798,6 +798,24 @@ test('the track reads its own currency and its authored anchor', async () => {
 	expect(screen.getByText(/starts at 50\.0 km\/wk/)).toBeInTheDocument()
 })
 
+test('a track’s line never wraps with its separator leading the next line', async () => {
+	renderPlan()
+
+	// The name and what follows it are one run of text, and the name is held to
+	// its `·` by a no-break space: at 390 px the line breaks *after* the
+	// separator, never into "Run" over "· authored in…" (audit B9).
+	const text = await screen.findByText(
+		/authored in km\/wk/,
+		{},
+		{ timeout: REFUSAL_TIMEOUT },
+	)
+	// Raw `textContent`: the matchers normalise a no-break space to a space.
+	expect(text.textContent).toMatch(/^\u00a0· authored in km\/wk/)
+	expect(text.closest('li')?.textContent).toMatch(/^Run\u00a0· authored in/)
+	// The name sits right before it, inside the same run of text.
+	expect(text.previousElementSibling).toHaveTextContent(/^Run$/)
+})
+
 test('the Blocks reading lists the phases in order with their spans and rhythm', async () => {
 	renderPlan()
 
@@ -833,6 +851,33 @@ test('the Weeks reading shows each week’s role and its derived target', async 
 		screen.getByRole('link', { name: 'Endre ukemålet: week 1 Run' }),
 	).toBeInTheDocument()
 	expect(screen.queryByText('Hand-set')).not.toBeInTheDocument()
+})
+
+test('a week’s chevron says whether that week is open, not whether anything around it is', async () => {
+	renderPlan(SEASON, 'weeks')
+
+	const list = await screen.findByRole(
+		'list',
+		{ name: 'Training weeks' },
+		{ timeout: REFUSAL_TIMEOUT },
+	)
+	const rows = [...list.querySelectorAll<HTMLElement>(':scope > li')]
+	// The chevron closes the week's summary row.
+	const chevronOf = (row: HTMLElement) =>
+		row.querySelector('summary')!.lastElementChild!
+	// The selector the chevron's rotate class compiles to (audit B5): its own
+	// `<details>`, never a `group` an ancestor could also be.
+	const pointsOpen = (row: HTMLElement) => {
+		const chevron = chevronOf(row)
+		expect(chevron.getAttribute('class')).not.toMatch(/group-open/)
+		expect(chevron.classList).toContain('[details[open]>summary>&]:rotate-180')
+		return chevron.matches('details[open] > summary > *')
+	}
+
+	expect(pointsOpen(rows[0]!)).toBe(false)
+	rows[1]!.querySelector('details')!.open = true
+	expect(pointsOpen(rows[1]!)).toBe(true)
+	expect(pointsOpen(rows[0]!)).toBe(false)
 })
 
 test('a week opens its target edit in Endre sesongen, pre-filled for that week and track', async () => {

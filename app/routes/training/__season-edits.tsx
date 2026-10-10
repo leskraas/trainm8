@@ -89,7 +89,8 @@ type SeasonWeek = {
 	weekKey: string
 	phaseIndex: number
 	role: WeekRole
-	targets: TargetView[]
+	/** `overridden`: the athlete set this week's target themselves (ADR 0044 §5). */
+	targets: Array<TargetView & { overridden?: boolean }>
 }
 
 type SeasonPhase = {
@@ -138,6 +139,17 @@ function targetsLabel(targets: TargetView[]): string {
 }
 
 /**
+ * A text link into an edit is a line of text (20 px) and the only way into its
+ * edit, so it carries an invisible `after:` box 12 px above and below: 44 px of
+ * target with no change to the reading's rhythm (ADR 0028 §2). `my-2.5` is what keeps two of
+ * them stacked in a flex column (a phase card's pair) from reaching into each
+ * other's text: 24 px between lines is exactly the two extensions. On a link in
+ * running text the margin does nothing.
+ */
+const SEASON_EDIT_LINK_CLASS =
+	'relative my-2.5 w-fit text-sm underline touch-manipulation after:absolute after:inset-x-0 after:-inset-y-3'
+
+/**
  * A link from a read-only reading (Blocks, Weeks) to the edit that changes
  * what it shows, pre-filled: the page's own query kept, the edit and its
  * fields added, and the card scrolled to.
@@ -166,7 +178,7 @@ export function SeasonEditLink({
 	return (
 		<Link
 			to={{ search: `?${params.toString()}`, hash: ANCHOR }}
-			className={className ?? 'text-sm underline'}
+			className={className ?? SEASON_EDIT_LINK_CLASS}
 			aria-label={ariaLabel}
 			data-season-edit-link={edit}
 		>
@@ -288,6 +300,13 @@ function WeekTargetEdit({
 	})
 	const onlyTrack = tracks.length === 1 ? tracks[0]! : null
 	const chosen = weeks.find((week) => week.weekKey === form.value?.weekKey)
+	const chosenTrackId = onlyTrack?.trackId ?? form.value?.trackId
+	// The way back is offered only where there is something to go back from: a
+	// target the athlete set on this week and this track (audit B10). Elsewhere
+	// it would preview "nothing changes".
+	const handSet =
+		chosen?.targets.find((target) => target.trackId === chosenTrackId)
+			?.overridden === true
 	const hintId = 'season-edit-week-target-revert-hint'
 	return (
 		<EditShell
@@ -301,21 +320,23 @@ function WeekTargetEdit({
 			formErrors={form.errors}
 			formErrorId={form.errorId}
 			extraActions={
-				<>
-					<Button
-						type="submit"
-						name="revert"
-						value="on"
-						variant="ghost"
-						className="w-full"
-						aria-describedby={hintId}
-					>
-						{SEASON_EDIT_LABELS.revert}
-					</Button>
-					<p id={hintId} className="text-muted-foreground text-xs">
-						{SEASON_EDIT_LABELS.revertHint}
-					</p>
-				</>
+				handSet ? (
+					<>
+						<Button
+							type="submit"
+							name="revert"
+							value="on"
+							variant="ghost"
+							className="w-full"
+							aria-describedby={hintId}
+						>
+							{SEASON_EDIT_LABELS.revert}
+						</Button>
+						<p id={hintId} className="text-muted-foreground text-xs">
+							{SEASON_EDIT_LABELS.revertHint}
+						</p>
+					</>
+				) : null
 			}
 		>
 			<SelectField

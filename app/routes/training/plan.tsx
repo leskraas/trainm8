@@ -4044,7 +4044,7 @@ function WeeksReading({
 										{phase.name}
 									</p>
 								) : null}
-								<details className="group">
+								<details>
 									<summary className="hover:bg-muted/40 -mx-2 flex cursor-pointer list-none items-center gap-3 rounded-xl px-2 py-3 [&::-webkit-details-marker]:hidden">
 										{/* Wide enough for `12 Aug 2026` on one line: a date that wraps turns
 										    every row into two, which is exactly the density this reading exists
@@ -4072,7 +4072,7 @@ function WeeksReading({
 										<Icon
 											name="chevron-down"
 											size="sm"
-											className="text-muted-foreground shrink-0 transition-transform group-open:rotate-180"
+											className="text-muted-foreground motion-safe:duration-press shrink-0 motion-safe:transition-transform motion-safe:ease-out [details[open]>summary>&]:rotate-180"
 										/>
 									</summary>
 
