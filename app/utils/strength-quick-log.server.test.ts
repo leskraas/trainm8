@@ -534,8 +534,8 @@ test('a gym day an import linked is still logged: the import brought no sets', a
 
 test('a repeated block is logged in the runner, not as fewer sets than planned', async () => {
 	const userId = await createAthlete()
-	// Squats and planks, twice through: 10 sets planned, one set-log row per
-	// prescribed set — logging "as planned" from here would log 5.
+	// Squats and planks, twice through: 10 sets planned. The runner logs them
+	// round by round; this short log does not show rounds, so it sends them there.
 	const { sessionId } = await gymDay(userId, 0, { repeatCount: 2 })
 
 	const log = await readQuickLog(userId, sessionId, at)

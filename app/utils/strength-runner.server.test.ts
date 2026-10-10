@@ -382,6 +382,41 @@ async function logLiftThroughTheRunner(
 	}
 }
 
+test('a day shape that repeats its block is graded on every round, so five rounds of one set make a 5×5', async () => {
+	const userId = await createAthlete()
+	await createProfileAndGym(userId)
+	const { instanceId, sessionId } = await startRunAndOpenSession(userId, 60)
+	// The same squat 5×5, authored as a circuit: one set, five rounds.
+	const squatStep = await prisma.workoutStep.findFirstOrThrow({
+		where: {
+			exerciseId: SQUAT,
+			block: { workout: { sessions: { some: { id: sessionId } } } },
+		},
+		select: { id: true, blockId: true },
+	})
+	await prisma.exerciseSet.deleteMany({
+		where: { stepId: squatStep.id, orderIndex: { gt: 0 } },
+	})
+	await prisma.workoutBlock.update({
+		where: { id: squatStep.blockId },
+		data: { repeatCount: 5 },
+	})
+
+	await logLiftThroughTheRunner(userId, sessionId, SQUAT, [5, 5, 5, 5, 5])
+	const finished = await finishStrengthSession({ userId, sessionId })
+	if (!finished.ok) throw new Error('expected a finish')
+
+	// Five sets of five at 60 kg: made, not a miss counted off one round.
+	expect(
+		finished.outcomes.find((outcome) => outcome.exerciseId === SQUAT),
+	).toMatchObject({ kind: 'incremented', fromKg: 60, toKg: 62.5 })
+	const squat = await prisma.programLiftState.findFirstOrThrow({
+		where: { instanceId, exerciseId: SQUAT },
+		select: { currentWorkingWeightKg: true, stallCount: true },
+	})
+	expect(squat).toEqual({ currentWorkingWeightKg: 62.5, stallCount: 0 })
+})
+
 test('the first session of a run tells the athlete what to put on the bar, with no history to read it from', async () => {
 	const userId = await createAthlete()
 	await createProfileAndGym(userId)

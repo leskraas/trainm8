@@ -62,6 +62,33 @@ export function isWarmupRampIndex(orderIndex: number): boolean {
 }
 
 /**
+ * **Which authored set a logged row answers, in a block that is repeated.**
+ *
+ * A `5 ×` circuit is authored once — one `ExerciseSet` per lift — and performed
+ * five times, so the log needs a row per *round* and the authored row per *set*.
+ * The log's index runs on through the rounds: with `n` sets a round, round `r`
+ * (0-based) owns `r·n … r·n + n − 1`. That keeps `(sessionId, stepId,
+ * orderIndex)` unique without a round column, and it keeps every count that
+ * reads logged working sets — the finish gate, the program fold, the Summary
+ * Count — counting rounds with no change of its own. The rows are round-major,
+ * the order the circuit is lifted in.
+ *
+ * `rounds` is the block's effective pass count (`blockRepeatTotal`). A row past
+ * the last round answers nothing: it is a set the athlete added.
+ */
+export function prescribedSetForRow<Set extends { orderIndex: number }>(
+	sets: readonly Set[],
+	rounds: number,
+	orderIndex: number,
+): Set | null {
+	if (sets.length === 0) return null
+	if (orderIndex < 0 || orderIndex >= sets.length * Math.max(1, rounds))
+		return null
+	const ordered = [...sets].sort((a, b) => a.orderIndex - b.orderIndex)
+	return ordered[orderIndex % ordered.length] ?? null
+}
+
+/**
  * How the set ended. `completed` covers "did it", including doing fewer reps
  * than prescribed — the shortfall is visible in the numbers. `abandoned` is
  * racked it, form broke, tweaked something: not a rep count at all, and the one

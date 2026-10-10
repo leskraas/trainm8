@@ -323,8 +323,9 @@ type Plan = { quickLog: QuickLog; loads: Map<string, LoadValue> }
 /**
  * The runner's own view of the session, as the quick log reads it, with the
  * Load Value each lift's sets are logged at. A session with a repeated block is
- * not loggable here: the set log holds one row per prescribed set, not per
- * repeat, so logging it "as planned" would log less than the plan asks.
+ * not loggable here: the runner logs it round by round (one row per set per
+ * round, `prescribedSetForRow`), and this short log has not been taught to show
+ * rounds, so it sends the athlete there rather than guess.
  */
 async function planFor(
 	userId: string,
