@@ -240,6 +240,11 @@ export function volumeSessionOf(
 	const discipline = getSessionDiscipline(session)
 	const logged = session.setLogs.length
 	const intentZone = intentToZone(workout?.intent)
+	// A lifting session that names no sets (a stamped `Styrke`, a sentence) has
+	// no number in sets — it is unmeasured, never `0 sett`, or a week with two
+	// such sessions would read `planlagt 0 sett` beside `0 av 2 økter`.
+	const prescribedSets =
+		discipline === 'strength' && workout ? sumBlockSets(workout.blocks) : 0
 	return {
 		dayKey,
 		status,
@@ -255,7 +260,7 @@ export function volumeSessionOf(
 						session.plannedTssValue != null && session.plannedTssValue > 0
 							? session.plannedTssValue
 							: null,
-					sets: discipline === 'strength' ? sumBlockSets(workout.blocks) : null,
+					sets: prescribedSets > 0 ? prescribedSets : null,
 				}
 			: null,
 		recorded:
@@ -580,9 +585,11 @@ function trackWeek(
  * 0 — so a run whose import has not come cannot make a week "under", and an
  * unplanned-in-km run cannot make it "over".
  *
- * With no such pair, a closed week whose done sessions all have a number is
- * held against its whole target. Anything else is `ungraded` — a fraction of
- * the target would be a number the plan never set.
+ * A **closed** week is the exception, read first: once every done session has
+ * its number it is held against its whole Week Target, which is what the
+ * folded line names (`35 av 46 km · under`). Only when a done number is still
+ * missing does it fall back to the pairs. With no pair either, the week is
+ * `ungraded` — a fraction of the target would be a number the plan never set.
  */
 function grade({
 	through,
@@ -612,6 +619,23 @@ function grade({
 	}
 	const past = sessions.filter((s) => s.dayKey <= through)
 
+	// A closed week is held against what the plan asked of it — the whole Week
+	// Target — once every done session has its number (#505 story 31, S3): a
+	// folded week reads `35 av 46 km · under` with 46 the target, and its
+	// verdict must be about that 46, not about the sessions planned under it.
+	// A done session still waiting for its number would read as 0 against the
+	// whole target, so such a week falls through to the measured pairs below.
+	const doneAll = sessions.filter((s) => s.status === 'completed')
+	if (
+		closed &&
+		target != null &&
+		target > 0 &&
+		doneAll.every((s) => readDone(s) != null)
+	) {
+		const sum = doneAll.reduce((n, s) => n + (readDone(s) ?? 0), 0)
+		return graded(through, target, roundToCurrency(sum, currency), 'target')
+	}
+
 	let asked = 0
 	let did = 0
 	let pairs = 0
@@ -638,16 +662,6 @@ function grade({
 		)
 	}
 
-	const done = past.filter((s) => s.status === 'completed')
-	if (
-		closed &&
-		target != null &&
-		target > 0 &&
-		done.every((s) => readDone(s) != null)
-	) {
-		const sum = done.reduce((n, s) => n + (readDone(s) ?? 0), 0)
-		return graded(through, target, roundToCurrency(sum, currency), 'target')
-	}
 	return {
 		status: 'ungraded',
 		gradedThroughKey: through,
