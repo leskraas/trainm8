@@ -337,13 +337,28 @@ test('only the colour transition and the press-scale animate', async () => {
 	renderLog()
 
 	const first = await screen.findByLabelText('Log set 1 of Squat')
-	expect(first.className).toContain(
-		'[transition:background-color_120ms,border-color_120ms,color_120ms,transform_80ms]',
+	// The house press (`pressable`): colour and a 0.97 scale on the app's own
+	// `--ease-out` at `duration-press`, with the scale dropped under reduced
+	// motion. The circle's own `[transition:…]` ran the browser's default `ease`
+	// and kept moving under reduced motion (#502, ADR 0077).
+	expect(first).toHaveClass('pressable')
+	expect(first.className).not.toContain('[transition:')
+	expect(first.className).not.toContain('active:scale-')
+})
+
+test('the circles wrap into rows of at least 44px, so a repeated block never squeezes them', async () => {
+	renderLog()
+
+	const first = await screen.findByLabelText('Log set 1 of Squat')
+	// A `5 ×` circuit of three sets is fifteen circles. On one flex line they
+	// shrank under a thumb; an auto-fit grid of 44px-minimum columns wraps them
+	// and keeps every circle the same width.
+	const row = first.closest('[data-set-circles]')
+	expect(row).not.toBeNull()
+	expect(row).toHaveClass('grid')
+	expect(row!.className).toContain(
+		'grid-cols-[repeat(auto-fit,minmax(2.75rem,1fr))]',
 	)
-	// 0.97, not 0.94: the motion pass put every press-scale in the app inside
-	// the 0.95–0.98 band, because further than that reads as a flinch rather
-	// than as the circle answering a thumb (#502, ADR 0077).
-	expect(first.className).toContain('active:scale-[0.97]')
 })
 
 test('a circle stays tappable while the rest timer runs, because the timer never blocks a set', async () => {
