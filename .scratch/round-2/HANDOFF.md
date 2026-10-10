@@ -69,3 +69,7 @@ The work was paused because the owner's budget ran low. Everything needed to pic
     - design-system rows (Switch, toast)
     - lint, build, screenshots, tap/time measurements, Emil reviews
     - the dashboard test "creation survives the re-composition" needs a `/resources/week-sum` stub
+- **claude/sesong-plan-page** ebec462 (WIP)
+  - **Done:** only the start of step 1. There is a bannered Sesong section in labels.ts and new formatters (`formatNbWeeklyVolume`, `formatNbSignedPercent`). Nothing is wired in yet, so behaviour is unchanged and the commit is unverified.
+  - **Left:** wiring the words into `plan.tsx` and the editors, then steps 2–9 and ADR 0090.
+  - The replacement script that was not yet applied is in `.scratch/round-2/sesong-plan/` (`plan-e5.py` + `rep.py`). It still needs a few helpers before it compiles.
