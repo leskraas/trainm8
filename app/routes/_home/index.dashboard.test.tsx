@@ -969,7 +969,7 @@ test('a completed row reads two kinds of load and names its band', async () => {
 	const stream = await screen.findByTestId('timeline-stream')
 	// Line 1 — what you did. Line 2 — what it cost.
 	expect(
-		within(stream).getByText('9.2 km · 50 min · 5:26 /km'),
+		within(stream).getByText('9,2 km · 50 min · 5:26 /km'),
 	).toBeInTheDocument()
 	expect(within(stream).getByText('RPE 8')).toBeInTheDocument()
 	expect(within(stream).getByText('TSS 88 / 91 · I RUTE')).toBeInTheDocument()

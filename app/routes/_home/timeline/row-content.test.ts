@@ -216,7 +216,7 @@ describe('rule 1: line 1 is external load, per discipline', () => {
 			}),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('9.2 km · 50 min · 5:26 /km')
+		expect(content.externalLoad).toBe('9,2 km · 50 min · 5:26 /km')
 	})
 
 	test('a completed bike ride reads km/h rather than pace', () => {
@@ -233,7 +233,7 @@ describe('rule 1: line 1 is external load, per discipline', () => {
 			}),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('16 km · 40 min · 24.0 km/h')
+		expect(content.externalLoad).toBe('16 km · 40 min · 24,0 km/h')
 	})
 
 	test('a completed swim keeps metres and reads pace per 100 m', () => {
@@ -362,7 +362,7 @@ describe('rules 2 and 3: nothing is invented where the data does not exist', () 
 			PLANNED_WEEK,
 		)
 		expect(content.internalLoad).toBe('RPE 8')
-		expect(content.externalLoad).toBe('11.4 km · 62 min · 5:26 /km')
+		expect(content.externalLoad).toBe('11,4 km · 62 min · 5:26 /km')
 	})
 })
 
@@ -533,7 +533,7 @@ describe('rule 5: no band without both sides', () => {
 			}),
 			IMPORTED_WEEK,
 		)
-		expect(content.externalLoad).toBe('8.1 km · 45 min · 5:33 /km')
+		expect(content.externalLoad).toBe('8,1 km · 45 min · 5:33 /km')
 	})
 })
 
