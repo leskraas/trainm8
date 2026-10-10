@@ -145,6 +145,8 @@ export type WeekChangeCard = {
 	 * to the card, while any proposal can still be answered; else null.
 	 */
 	waitingLabel: string | null
+	/** How many proposals can still be answered — the top line's badge. */
+	waitingCount: number
 	review: WeekChangeReview
 	proposals: WeekChangeProposalView[]
 	ease: WeekChangeEase
@@ -190,6 +192,7 @@ export function buildWeekChangeCard({
 				? WEEK_CHANGE_LABELS.proposalsThisWeek
 				: WEEK_CHANGE_LABELS.proposalsNextWeek,
 		waitingLabel: waiting > 0 ? weekChangeWaitingLabel(waiting) : null,
+		waitingCount: waiting,
 		review: buildReview(closed, ledger),
 		proposals,
 		ease: buildEase(data, coming),

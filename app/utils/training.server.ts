@@ -200,6 +200,12 @@ export type ActivePlan = {
 	 * only when this is true.
 	 */
 	fillsWeeks: boolean
+	/**
+	 * The plan's philosophy (`outlineFamily`): the one it records, or the one its
+	 * rhythm reads as; null for neither. I dag's top line names the plan by it
+	 * (ADR 0086). Optional, so a hand-built plan in a test may leave it out.
+	 */
+	family?: PresetFamily | null
 }
 
 /**
@@ -251,6 +257,7 @@ export async function getActivePlan(
 			weekRole(specs, week),
 		),
 		fillsWeeks: outline.patterns.some((pattern) => pattern.days.length > 0),
+		family: outlineFamily(outline.family, specs.at(-1)?.rhythm ?? 'none'),
 	}
 }
 

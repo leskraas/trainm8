@@ -490,6 +490,47 @@ export const SESSION_OWNER_LABELS: Record<SessionOwner, string> = {
 }
 
 /**
+ * What the ownership glyph on a planned row means, said once behind it rather
+ * than under every row (#505 D6, ADR 0086). The athlete's own session is
+ * changed only with their yes (ADR 0080); the app's may be adjusted when the
+ * week changes.
+ */
+export const SESSION_OWNER_NOTES: Record<SessionOwner, string> = {
+	athlete:
+		'Du la inn eller endret denne økta. Appen endrer den bare hvis du sier ja.',
+	machine:
+		'Planen la inn denne økta. Appen kan justere den når uka endrer seg.',
+}
+
+/** The glyph's own name: what it is, on which session, and that it explains. */
+export function ownerGlyphName(owner: string, title: string): string {
+	return `${owner[0]!.toUpperCase()}${owner.slice(1)}: ${title}. Hva betyr det?`
+}
+
+/**
+ * A session's own volume, in its track's unit, at the row's right edge
+ * (#505 D6): `6,1 km`, `55 min`, `13 sett`. Hours are said in minutes on a
+ * single session — `0,9 t` is a week's number, not a run's.
+ */
+export function sessionVolumeLabel(
+	value: number,
+	currency: VolumeCurrency,
+): string {
+	switch (currency) {
+		case 'km':
+			// One decimal and a comma, as `formatNbVolumeFigure` writes km (labels.ts
+			// imports no values, so `format.ts` can import it).
+			return `${String(Math.round(value * 10) / 10).replace('.', ',')} km`
+		case 'hours':
+			return `${Math.round(value * 60)} min`
+		case 'sets':
+			return `${Math.round(value)} sett`
+		case 'tss':
+			return `${Math.round(value)} TSS`
+	}
+}
+
+/**
  * The three week numbers' words (#505 stories 20–26, 33, 34, 85): the Week
  * Target, the Planned Volume and the Actual Volume per Training Track. Norwegian,
  * as the #505 surfaces are (ADR 0081).
@@ -814,6 +855,18 @@ export const SEASON_STRIP_LABELS = {
 	todayUp: '↑ I dag',
 	todayDown: '↓ I dag',
 	noFigure: 'ingen tall',
+	/** A week the plan has not filled yet: its bar is the target, dashed. */
+	unfilled: 'bare mål',
+	/** The race week's flag, in the week's name. */
+	event: (name: string) => `⚑ ${name}`,
+	/**
+	 * The strip's window on a season too long for the width (S10): how many
+	 * weeks lie beyond each edge, and the buttons that step the window there.
+	 */
+	earlier: (weeks: number) => `${weeks} uker før`,
+	later: (weeks: number) => `${weeks} uker etter`,
+	earlierName: (weeks: number) => `Vis ${weeks} tidligere uker`,
+	laterName: (weeks: number) => `Vis ${weeks} senere uker`,
 } as const
 
 /** A sessions-only week in the strip, where no Training Track reads it. */
@@ -875,6 +928,33 @@ export const WEEK_CHANGE_LABELS = {
 /** The line on I dag that leads to the card: `Ukeskiftet: 3 forslag venter`. */
 export function weekChangeWaitingLabel(count: number): string {
 	return `Ukeskiftet: ${count} forslag venter`
+}
+
+/**
+ * I dag's top line (#505 owner decision 3, ADR 0086): the plan, its goal,
+ * "+ Ny", the Ukeskiftet badge and the I dag pill on one compact row.
+ */
+export const TOP_LINE_LABELS = {
+	region: 'Planen',
+	noPlan: 'Ingen plan',
+	/** The no-plan line's link, to Sesong. */
+	noPlanAction: 'Lag en i Sesong',
+	/** The Ukeskiftet badge: short on screen, whole in its name. */
+	weekChange: (count: number) => `${count} forslag`,
+	weekChangeName: (count: number) =>
+		`Ukeskiftet: ${count} forslag venter. Gå til forslagene`,
+} as const
+
+/**
+ * The goal countdown on the top line: `Halvmaraton om 12 uker`, counted in
+ * whole weeks the way an athlete counts them, and in days in the last week.
+ */
+export function eventCountdownLabel(name: string, days: number): string {
+	if (days <= 0) return `${name} i dag`
+	if (days === 1) return `${name} i morgen`
+	if (days < 7) return `${name} om ${days} dager`
+	const weeks = Math.round(days / 7)
+	return `${name} om ${weeks} ${weeks === 1 ? 'uke' : 'uker'}`
 }
 
 /** A round's peak week before → after its factor: `Toppuka: 4,5 → 5 t`. */
@@ -1313,6 +1393,8 @@ export function liftSchemeLabel(sets: number, reps: number | null): string {
 /** The empty day, the rest day and the row's own words. */
 export const DAY_ROW_LABELS = {
 	addWorkout: 'Legg inn en økt',
+	/** Today's row with nothing on it: it still says so (ADR 0086). */
+	nothingToday: 'Ingenting i dag',
 	addWorkoutOn: (day: string) => `Legg inn en økt ${day}`,
 	restDay: 'Hviledag',
 	restDayOn: (day: string) => `Hviledag — ${day}`,
@@ -1375,6 +1457,8 @@ export const HERO_LABELS = {
 		days === 1 ? '1 dag til løpsdagen' : `${days} dager til løpsdagen`,
 	weeksToRace: (weeks: number) =>
 		weeks === 1 ? '1 uke til løpsdagen' : `${weeks} uker til løpsdagen`,
+	/** A race with no name, on the top line's countdown. */
+	raceDay: 'Løpsdagen',
 	seasonPlan: 'Sesongplan',
 	nothingScheduled: 'Ingenting planlagt',
 	nothingScheduledNote: 'Det står ingen økt foran deg i kalenderen.',

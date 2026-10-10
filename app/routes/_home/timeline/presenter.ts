@@ -34,6 +34,7 @@ import {
 	localTimeUTC,
 	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
+import { planArc } from '#app/utils/dashboard.ts'
 import {
 	formatNbDateSpan,
 	formatNbDayDate,
@@ -54,6 +55,7 @@ import {
 	ANNET_ACTION_LABELS,
 	ANNET_TRACK_LABELS,
 	BEFORE_PLAN_LABEL,
+	eventCountdownLabel,
 	freeBandLabels,
 	HERO_LABELS,
 	liftSchemeLabel,
@@ -64,9 +66,13 @@ import {
 	nbDisciplineLabel,
 	nbPhaseName,
 	nbSessionNoun,
+	openEndedBlockLabel,
 	pastBandLabels,
+	PHILOSOPHY_LABELS,
 	planWeekLabel,
 	SESSION_OWNER_LABELS,
+	SESSION_OWNER_NOTES,
+	sessionVolumeLabel,
 	VERDICT_LABELS,
 	RELEASE_ACTION_LABELS,
 } from '#app/utils/labels.ts'
@@ -82,7 +88,10 @@ import {
 	horizonWeekKey,
 	lastClosedWeekKey,
 } from '#app/utils/load/week-change.ts'
-import { type WeekRole } from '#app/utils/plan-outline/derive.ts'
+import {
+	type VolumeCurrency,
+	type WeekRole,
+} from '#app/utils/plan-outline/derive.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import {
 	buildWeekVolumes,
@@ -189,6 +198,18 @@ export type TimelineSession = {
 	 * whose it was tells the athlete nothing and the row stays quiet.
 	 */
 	ownerLabel: string | null
+	/**
+	 * What the ownership glyph explains once, behind it (#505 D6): whose
+	 * session this is and what that means. Null wherever `ownerLabel` is.
+	 */
+	ownerNote: string | null
+	/**
+	 * The session's own volume in its track's unit — `6,1 km`, `55 min`,
+	 * `13 sett` — at the row's right edge (#505 D6). What was done on a done
+	 * session, what is asked on a planned one, nothing on a missed one; null
+	 * where the session has no number in that unit.
+	 */
+	volumeLabel: string | null
 	/**
 	 * The row's Annet action, or null where it would change nothing:
 	 * `Tell i Annet` takes a done session out of the track it counts in, and
@@ -312,6 +333,41 @@ export type TimelineBand = {
  */
 export type WeekShape = 'open' | 'folded' | 'collapsed'
 
+/**
+ * Which of the four phase colours (`phase-*` tokens, ADR 0085) a phase is
+ * drawn in: a preset's stored name maps to its kind, and a phase the athlete
+ * named themselves — `Blokk 4` — has no kind and is drawn neutral rather than
+ * guessed at.
+ */
+export type PhaseTone = 'base' | 'build' | 'peak' | 'taper'
+
+/** A plan week's phase: its display name, where in it the week sits, its colour. */
+type WeekPhase = {
+	name: string
+	weekInPhase: number
+	/** The phase's position in the outline — two phases may share a name. */
+	index: number
+	tone: PhaseTone | null
+}
+
+const PHASE_TONES: Record<string, PhaseTone> = {
+	base: 'base',
+	'big base': 'base',
+	grunntrening: 'base',
+	'stor base': 'base',
+	build: 'build',
+	oppbygging: 'build',
+	peak: 'peak',
+	spissing: 'peak',
+	taper: 'taper',
+	nedtrapping: 'taper',
+}
+
+/** A phase's colour from its stored (or Norwegian) name; null for its own name. */
+export function phaseToneOf(name: string): PhaseTone | null {
+	return PHASE_TONES[name.trim().toLowerCase()] ?? null
+}
+
 /** One training week, on both axes at once. */
 export type TimelineWeek = {
 	/** The week's Monday as `YYYY-MM-DD` — the Week Replan's own key (ADR 0025). */
@@ -353,6 +409,13 @@ export type TimelineWeek = {
 	relativeName: string
 	/** The plan phase the week sits in, by its own name; null outside a plan. */
 	phaseName: string | null
+	/**
+	 * The phase's colour (`phase-*`), or null outside a plan or for a named
+	 * phase. Optional only so a hand-built week in a test may leave it out.
+	 */
+	phaseTone?: PhaseTone | null
+	/** The phase's position in the outline, so the strip can draw its band. */
+	phaseIndex?: number | null
 	/** The week's role in its phase's rhythm — hard or easy; null outside a plan. */
 	role: WeekRole | null
 	/** `hard uke`, `lett uke`, `nedtrapping`. */
@@ -448,6 +511,26 @@ export type TimelineSeason = {
 	 */
 	leadTrackId: string | null
 	strip: TimelineStrip
+	/** What I dag's top line says about the plan (ADR 0086). */
+	topLine: TimelineTopLine
+}
+
+/**
+ * I dag's top line, about the plan (#505 owner decision 3, ADR 0086): which
+ * plan, and what it is counting towards.
+ */
+export type TimelineTopLine = {
+	/**
+	 * `Klassisk 3:1 · uke 9 av 10` — the plan's philosophy, or the current
+	 * phase's name for a plan that records none, and where in a plan toward a
+	 * race today falls. Null with no plan.
+	 */
+	planLabel: string | null
+	/**
+	 * `Halvmaraton om 12 uker` toward a race, `Blokk 3 av ∞` for an open-ended
+	 * plan (#505 story 9). Null with no plan, where the line says so instead.
+	 */
+	goalLabel: string | null
 }
 
 const DAYS_IN_WEEK = 7
@@ -604,8 +687,63 @@ export function buildTimelineSeason({
 		}),
 		horizonWeekKey: horizon,
 		leadTrackId,
-		strip: buildStrip(weeks, leadTrackId),
+		strip: buildStrip(weeks, leadTrackId, {
+			horizonWeekKey: horizon,
+			eventWeekKey: activePlan?.eventDate
+				? weekMonday(new Date(activePlan.eventDate), timezone)
+				: null,
+			eventName: activePlan?.eventName ?? null,
+		}),
+		topLine: buildTopLine(activePlan, now),
 	}
+}
+
+/**
+ * The plan half of the top line. The philosophy names the plan where it has
+ * one; otherwise the phase it is in now does, which is the same name the week
+ * header carries. The goal is the race and how far away it is, or the round
+ * of an open-ended plan — never an invented end date (ADR 0079).
+ */
+export function buildTopLine(
+	activePlan: ActivePlan | null,
+	now: Date,
+): TimelineTopLine {
+	if (!activePlan) return { planLabel: null, goalLabel: null }
+	const eventDate = activePlan.eventDate ? new Date(activePlan.eventDate) : null
+	const arc =
+		activePlan.phases.length > 0
+			? planArc(
+					activePlan.phases,
+					new Date(activePlan.planStart),
+					eventDate,
+					now,
+				)
+			: null
+	const name = activePlan.family
+		? PHILOSOPHY_LABELS[activePlan.family]
+		: arc
+			? nbPhaseName(arc.phase)
+			: null
+	// Toward a race the plan has a length to count in (`uke 9 av 10`); an
+	// open-ended plan's position is its block, which the goal half says.
+	const position =
+		eventDate && arc ? planWeekLabel(arc.weekInPlan, arc.totalWeeks) : null
+	const planLabel = [name, position].filter(Boolean).join(' · ') || null
+	const goalLabel = eventDate
+		? eventCountdownLabel(
+				activePlan.eventName ?? HERO_LABELS.raceDay,
+				Math.ceil(
+					(eventDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+				),
+			)
+		: activePlan.round != null
+			? capitalise(openEndedBlockLabel(activePlan.round))
+			: null
+	return { planLabel, goalLabel }
+}
+
+function capitalise(text: string): string {
+	return text ? `${text[0]!.toUpperCase()}${text.slice(1)}` : text
 }
 
 /**
@@ -701,14 +839,19 @@ function phaseLookup(
 	activePlan: ActivePlan | null,
 	now: Date,
 	timezone: string,
-): Map<string, { name: string; weekInPhase: number }> {
-	const lookup = new Map<string, { name: string; weekInPhase: number }>()
-	for (const band of buildPhaseBands(activePlan, now)) {
+): Map<string, WeekPhase> {
+	const lookup = new Map<string, WeekPhase>()
+	for (const [index, band] of buildPhaseBands(activePlan, now).entries()) {
 		let monday = weekMonday(band.start, timezone)
 		const endMonday = weekMonday(new Date(band.end.getTime() - 1), timezone)
 		let weekInPhase = 1
 		while (monday <= endMonday) {
-			lookup.set(monday, { name: nbPhaseName(band.name), weekInPhase })
+			lookup.set(monday, {
+				name: nbPhaseName(band.name),
+				weekInPhase,
+				index,
+				tone: phaseToneOf(band.name),
+			})
 			monday = addDays(monday, 7)
 			weekInPhase += 1
 		}
@@ -745,7 +888,7 @@ function buildWeek({
 	timezone: string
 	imported: boolean
 	planStart: boolean
-	phase: { name: string; weekInPhase: number } | null
+	phase: WeekPhase | null
 	role: WeekRole | null
 	planStartMonday: string | null
 	tracks: readonly PlanTrackTargets[]
@@ -775,6 +918,14 @@ function buildWeek({
 	// Which of these days the stream actually *shows* is the bands' business.
 	const byDay = bucketByDay(sessionRows, timezone)
 	const trackDisciplines = new Set<string>(tracks.map((t) => t.discipline))
+	// The unit a session's own volume is said in: its track's, where the plan
+	// has one for its sport (the first, as the week header reads it).
+	const trackCurrencies = new Map<string, VolumeCurrency>()
+	for (const track of tracks) {
+		if (!trackCurrencies.has(track.discipline)) {
+			trackCurrencies.set(track.discipline, track.currency)
+		}
+	}
 	const rows = weekDayKeys(monday)
 		.filter((key) => key >= reachesBackKey || byDay.has(key))
 		.map((key) =>
@@ -786,6 +937,7 @@ function buildWeek({
 				timezone,
 				sameMonth: isNow,
 				trackDisciplines,
+				trackCurrencies,
 				importFacts,
 			}),
 		)
@@ -886,6 +1038,8 @@ function buildWeek({
 			: null,
 		relativeName,
 		phaseName,
+		phaseTone: imported ? null : (phase?.tone ?? null),
+		phaseIndex: imported ? null : (phase?.index ?? null),
 		role: imported ? null : role,
 		roleLabel,
 		kindLabel: imported ? BEFORE_PLAN_LABEL : join(phaseName, kindRole) || null,
@@ -1031,6 +1185,7 @@ function buildDay({
 	timezone,
 	sameMonth,
 	trackDisciplines,
+	trackCurrencies,
 	importFacts,
 }: {
 	key: string
@@ -1042,6 +1197,7 @@ function buildDay({
 	sameMonth: boolean
 	/** The plan's tracks' sports: what a session can count in, or be taken out of. */
 	trackDisciplines: ReadonlySet<string>
+	trackCurrencies: ReadonlyMap<string, VolumeCurrency>
 	importFacts: ReadonlyMap<string, TimelineImportFacts>
 }): TimelineDay {
 	const isToday = key === todayKey
@@ -1065,7 +1221,9 @@ function buildDay({
 				row,
 				week,
 				isToday,
+				dayKey: key,
 				trackDisciplines,
+				trackCurrencies,
 				imports: importFacts.get(row.session.id) ?? NO_IMPORT_FACTS,
 				strengthLog: strengthLogOf(row, { timezone, todayKey }),
 			}),
@@ -1087,7 +1245,9 @@ function buildSession({
 	row,
 	week,
 	isToday,
+	dayKey,
 	trackDisciplines,
+	trackCurrencies,
 	imports,
 	strengthLog,
 }: {
@@ -1095,7 +1255,9 @@ function buildSession({
 	week: RowWeekContext
 	/** A property of the day, so every session on it agrees about it. */
 	isToday: boolean
+	dayKey: string
 	trackDisciplines: ReadonlySet<string>
+	trackCurrencies: ReadonlyMap<string, VolumeCurrency>
 	imports: TimelineImportFacts
 	strengthLog: TimelineStrengthLog | null
 }): TimelineSession {
@@ -1116,6 +1278,14 @@ function buildSession({
 		chips: content.chips,
 		owner,
 		ownerLabel: entry.status === 'planned' ? SESSION_OWNER_LABELS[owner] : null,
+		ownerNote: entry.status === 'planned' ? SESSION_OWNER_NOTES[owner] : null,
+		volumeLabel: sessionVolume(
+			session,
+			entry.status,
+			entry.discipline,
+			dayKey,
+			trackCurrencies,
+		),
 		annet: annetOf(
 			session.countsInNoTrack,
 			entry.status,
@@ -1132,6 +1302,35 @@ function buildSession({
 		...imports,
 		strengthLog,
 	}
+}
+
+/**
+ * A session's own volume, as its row's right edge says it (#505 D6): in its
+ * track's unit where the plan has a track for its sport, else in sets for a
+ * lift and in km — or minutes, where no distance is known — for anything
+ * else. Read through `volumeSessionOf`, the week header's own reading, so a
+ * row and its week cannot disagree about what the session is worth.
+ *
+ * A done session says what was **recorded**, never what was asked: a run done
+ * with no distance yet says nothing rather than claiming the plan's 10 km. A
+ * missed session says nothing — nothing was done.
+ */
+function sessionVolume(
+	session: LedgerSession,
+	status: LedgerStatus,
+	discipline: string,
+	dayKey: string,
+	currencies: ReadonlyMap<string, VolumeCurrency>,
+): string | null {
+	if (status === 'missed') return null
+	const read = volumeSessionOf(session, { dayKey, status })
+	const figures = status === 'completed' ? read.recorded : read.prescribed
+	if (!figures) return null
+	const currency =
+		currencies.get(discipline) ??
+		(discipline === 'strength' ? 'sets' : figures.km != null ? 'km' : 'hours')
+	const value = figures[currency]
+	return value != null && value > 0 ? sessionVolumeLabel(value, currency) : null
 }
 
 /**
@@ -1278,6 +1477,8 @@ export type TimelineHero = {
 	verdict: string
 	/** The single honest action, label and destination both from the presenter. */
 	cta: { label: string; to: string }
+	/** The session the action opens — today's row puts the action on its row. */
+	sessionId: string
 	/** What the collapsed header shows instead of the whole hero. */
 	collapsed: { title: string; summary: string }
 }
@@ -1343,6 +1544,7 @@ export function buildTimelineHero({
 		facts,
 		verdict: coachVerdict({ current, trust, sustained, nudge }),
 		cta: { label: NB_SESSION_CTA_LABELS[today.cta], to: today.ctaTo },
+		sessionId: today.id,
 		collapsed: {
 			// Collapsed, the row is the thing its button opens, so the session keeps
 			// the title there — with the day beside it, which is what stops the
@@ -1424,7 +1626,7 @@ function raceCountdown(activePlan: ActivePlan, now: Date): string | null {
  * other, and a Session Nudge's reason replaces the generic recommendation when
  * the coach actually did something to the next session (#157/#158/#187).
  */
-function coachVerdict({
+export function coachVerdict({
 	current,
 	trust,
 	sustained,

@@ -2456,6 +2456,185 @@ describe('the season strip (#505 stories 17–18, 26)', () => {
 	})
 })
 
+describe('the strip draws the plan as variant P does (#505 D5, ADR 0086)', () => {
+	const runTargets = [30, 33, 36, 27, 40, 44, 48, 36, 50, 54, 30, 20]
+	const runPlan = (overrides: Partial<ActivePlan> = {}) =>
+		plan({
+			tracks: [
+				{
+					trackId: 'track-run',
+					discipline: 'run',
+					currency: 'km',
+					targets: runTargets,
+					overridden: runTargets.map(() => false),
+					sessionTargets: null,
+				},
+			],
+			...overrides,
+		})
+
+	test('the phases are runs of weeks in the phase colours, named in Norwegian', () => {
+		const strip = season([on(0)], runPlan()).strip
+		expect(
+			strip.phases.map((p) => [p.name, p.tone, p.to - p.from + 1]),
+		).toEqual([
+			['Grunntrening', 'base', 4],
+			['Oppbygging', 'build', 6],
+			['Nedtrapping', 'taper', 2],
+		])
+	})
+
+	test('a phase the athlete named themselves is drawn neutral, not guessed at', () => {
+		const strip = season(
+			[on(0)],
+			runPlan({
+				phases: [
+					{ name: 'Blokk 4', weeks: 10 },
+					{ name: 'Taper', weeks: 2 },
+				],
+			}),
+		).strip
+		expect(strip.phases[0]).toMatchObject({ name: 'Blokk 4', tone: null })
+	})
+
+	test('past the Planning Horizon the bars are dashed, and the line stands where they start', () => {
+		const strip = season([on(0)], runPlan()).strip
+		const first = strip.horizonIndex!
+		expect(first).toBeGreaterThan(0)
+		expect(strip.weeks[first]!.unfilled).toBe(true)
+		expect(strip.weeks[first - 1]!.unfilled).toBe(false)
+		expect(strip.weeks[first]!.label).toContain('bare mål')
+	})
+
+	test('the race week carries the flag, and its name says which race', () => {
+		// Race day inside the plan's last week, so the week is in the season.
+		const strip = season(
+			[on(0)],
+			runPlan({ eventDate: new Date(NOW.getTime() + 6 * 7 * DAY) }),
+		).strip
+		const flagged = strip.weeks.filter((week) => week.event)
+		expect(flagged.map((week) => week.key)).toEqual([nextDay(THIS_MONDAY, 42)])
+		expect(flagged[0]!.label).toContain('⚑ Spring Half')
+	})
+
+	test('without a plan there are no phases, no horizon and no flag', () => {
+		const strip = season([on(0)]).strip
+		expect(strip.phases).toEqual([])
+		expect(strip.horizonIndex).toBeNull()
+		expect(strip.weeks.some((week) => week.event || week.unfilled)).toBe(false)
+	})
+})
+
+describe('a session row says its own volume in its track’s unit (#505 D6)', () => {
+	const kmRun = (km: number) =>
+		workout({
+			blocks: [
+				{
+					id: `block-${km}`,
+					name: 'Main',
+					orderIndex: 0,
+					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
+					steps: [step({ distanceM: km * 1000, durationSec: null })],
+				},
+			],
+		})
+	const runPlan = () =>
+		plan({
+			tracks: [
+				{
+					trackId: 'track-run',
+					discipline: 'run',
+					currency: 'km',
+					targets: Array<number>(12).fill(40),
+					overridden: Array<boolean>(12).fill(false),
+					sessionTargets: null,
+				},
+			],
+		})
+	const sessionOn = (result: ReturnType<typeof season>, id: string) =>
+		result.weeks
+			.flatMap((week) => week.rows)
+			.flatMap((day) => day.sessions)
+			.find((session) => session.id === id)!
+
+	test('a planned run says what it asks for, with a decimal comma', () => {
+		const result = season(
+			[
+				on(1, {
+					id: 'run',
+					status: 'scheduled',
+					recording: null,
+					workout: kmRun(6.1),
+				}),
+			],
+			runPlan(),
+		)
+		expect(sessionOn(result, 'run').volumeLabel).toBe('6,1 km')
+	})
+
+	test('a missed session says nothing: nothing was done', () => {
+		const result = season(
+			[
+				on(-2, {
+					id: 'missed',
+					status: 'scheduled',
+					recording: null,
+					workout: kmRun(8),
+				}),
+			],
+			runPlan(),
+		)
+		const missed = sessionOn(result, 'missed')
+		expect(missed.status).toBe('missed')
+		expect(missed.volumeLabel).toBeNull()
+	})
+
+	test('a planned session says whose it is once, behind the glyph', () => {
+		const result = season(
+			[on(1, { id: 'run', status: 'scheduled', recording: null })],
+			runPlan(),
+		)
+		const run = sessionOn(result, 'run')
+		expect(run.ownerLabel).not.toBeNull()
+		expect(run.ownerNote).toMatch(/Appen/)
+	})
+})
+
+describe('the top line names the plan and its goal (ADR 0086)', () => {
+	test('toward a race: the countdown in whole weeks, with the race’s name', () => {
+		const line = season([on(0)], plan()).topLine
+		expect(line.goalLabel).toBe('Spring Half om 8 uker')
+		// No philosophy recorded: the phase it is in names the plan, and where in
+		// the plan today falls.
+		expect(line.planLabel).toBe('Oppbygging · uke 5 av 12')
+	})
+
+	test('a recorded philosophy names the plan', () => {
+		expect(season([on(0)], plan({ family: 'classic' })).topLine.planLabel).toBe(
+			'Klassisk 3:1 · uke 5 av 12',
+		)
+	})
+
+	test('an open-ended plan counts its blocks, never an end date (#505 story 9)', () => {
+		const line = season(
+			[on(0)],
+			plan({ eventId: null, eventName: null, eventDate: null, round: 3 }),
+		).topLine
+		expect(line.goalLabel).toBe('Blokk 3 av ∞')
+		expect(line.planLabel).not.toMatch(/uke \d+ av/)
+	})
+
+	test('with no plan there is nothing to name', () => {
+		expect(season([on(0)]).topLine).toEqual({
+			planLabel: null,
+			goalLabel: null,
+		})
+	})
+})
+
 describe('a done session can be counted in Annet from its row (#505 story 33)', () => {
 	const runPlan = () =>
 		plan({
