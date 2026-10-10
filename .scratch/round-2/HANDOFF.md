@@ -111,3 +111,14 @@ The work was paused because the owner's budget ran low. Everything needed to pic
     - `coach.ts` English
     - English session-title fallbacks (owner decision)
   - **Shared open issue:** `index.dashboard.test.tsx` has 7 failures stuck on "Loading..." on several branches (sentence-reader reports the same). Investigate it once, on a quiet machine.
+- **claude/workout-detail** b744dab (WIP)
+  - **Done:**
+    - All words are in labels.ts.
+    - The view leads with the session's own numbers; the archetype contradiction is fixed.
+    - The block sheet is now a Drawer and the lift help a Collapsible. The token popover is off tw-animate, so the `tw-animate-css` import is removed (the package is still in package.json).
+    - Controls are 44px and the dimmed text meets AA.
+    - The telemetry card is lazy-loaded; it was 311 of the page's 597 elements.
+    - Typecheck passes.
+  - **Left:**
+    - Tests asserting the old English are not updated (route/unit, plus the e2e `cta-semantics`, `session-authoring` and `strength-screens`).
+    - Lint, build, the after-measurement, screenshots and the Emil reviews were not run. The before-numbers are in `.scratch/round-2/wd`.

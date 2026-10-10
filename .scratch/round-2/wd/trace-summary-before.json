@@ -1,0 +1,176 @@
+[
+ {
+  "run": 0,
+  "longTasks": [
+   183,
+   130,
+   129,
+   74
+  ],
+  "top": [
+   {
+    "ms": 183,
+    "FunctionCall": 11,
+    "EventDispatch": 12,
+    "urls": []
+   },
+   {
+    "ms": 130,
+    "urls": []
+   },
+   {
+    "ms": 129,
+    "EvaluateScript": 4,
+    "ParseHTML": 7,
+    "UpdateLayoutTree": 16,
+    "Layout": 95,
+    "urls": [
+     "cmv1yy4ff00bc7dovpcq05z38",
+     "cmv1yy4ff00bc7dovpcq05z38",
+     "cmv1yy4ff00bc7dovpcq05z38",
+     "cmv1yy4ff00bc7dovpcq05z38",
+     "cmv1yy4ff00bc7dovpcq05z38",
+     "cmv1yy4ff00bc7dovpcq05z38"
+    ]
+   }
+  ]
+ },
+ {
+  "run": 1,
+  "longTasks": [
+   251,
+   188,
+   152,
+   109,
+   103,
+   55,
+   53
+  ],
+  "top": [
+   {
+    "ms": 251,
+    "FunctionCall": 6,
+    "EventDispatch": 7,
+    "urls": []
+   },
+   {
+    "ms": 188,
+    "UpdateLayoutTree": 98,
+    "Layout": 60,
+    "Paint": 3,
+    "PrePaint": 2,
+    "urls": []
+   },
+   {
+    "ms": 152,
+    "EvaluateScript": 25,
+    "v8.compileModule": 9,
+    "ParseHTML": 149,
+    "urls": [
+     "cmv1yy4ff00bc7dovpcq05z38"
+    ]
+   }
+  ]
+ },
+ {
+  "run": 2,
+  "longTasks": [
+   247,
+   241,
+   175,
+   145,
+   133,
+   123,
+   117,
+   99
+  ],
+  "top": [
+   {
+    "ms": 247,
+    "UpdateLayoutTree": 57,
+    "Layout": 143,
+    "Paint": 15,
+    "PrePaint": 11,
+    "urls": []
+   },
+   {
+    "ms": 241,
+    "FunctionCall": 2,
+    "EventDispatch": 3,
+    "urls": []
+   },
+   {
+    "ms": 175,
+    "EvaluateScript": 35,
+    "v8.compileModule": 12,
+    "ParseHTML": 174,
+    "urls": [
+     "cmv1yy4ff00bc7dovpcq05z38"
+    ]
+   }
+  ]
+ },
+ {
+  "run": 3,
+  "longTasks": [
+   171,
+   125,
+   110,
+   59,
+   57
+  ],
+  "top": [
+   {
+    "ms": 171,
+    "urls": []
+   },
+   {
+    "ms": 125,
+    "RunMicrotasks": 124,
+    "urls": []
+   },
+   {
+    "ms": 110,
+    "UpdateLayoutTree": 54,
+    "Layout": 28,
+    "Paint": 5,
+    "PrePaint": 10,
+    "urls": []
+   }
+  ]
+ },
+ {
+  "run": 4,
+  "longTasks": [
+   866,
+   255,
+   195,
+   181,
+   171,
+   135,
+   111,
+   76,
+   71,
+   66
+  ],
+  "top": [
+   {
+    "ms": 866,
+    "FunctionCall": 3,
+    "EventDispatch": 6,
+    "urls": []
+   },
+   {
+    "ms": 255,
+    "UpdateLayoutTree": 249,
+    "urls": []
+   },
+   {
+    "ms": 195,
+    "UpdateLayoutTree": 185,
+    "HitTest": 4,
+    "urls": []
+   }
+  ]
+ }
+]

@@ -1,0 +1,35 @@
+{
+  "cookies": [
+    {
+      "name": "CH-prefers-color-scheme",
+      "value": "light",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1823188248.126492,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "CH-time-zone",
+      "value": "UTC",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1823188248.126607,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "en_session",
+      "value": "eyJzZXNzaW9uSWQiOiJjbXYybmhubGowMDA5N2RuOGExbWtmNDU5In0%3D.lVso9C4zHJmXBmkY96MIX20odfTvLOyrVgTtxCrKt2A",
+      "domain": "localhost",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}
