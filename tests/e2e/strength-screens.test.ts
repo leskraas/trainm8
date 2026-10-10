@@ -1113,14 +1113,15 @@ test('a gym day is logged som planlagt from I dag in one tap, and the week count
 	)
 	await expect(track).toContainText('Styrke')
 	await expect(track).toContainText('planlagt 3')
-	await expect(track).toContainText('gjort 0')
+	await expect(track).toContainText('0 / 12 sett')
+	await expect(track.getByRole('meter', { name: /gjort 0,/ })).toBeVisible()
 	await shot(page, 'quick-log-1-offered', log)
 
 	await log.getByRole('button', { name: 'Logg Styrke A som planlagt' }).click()
 
 	// The row is the confirmation: done, every set counted, the log gone.
 	await expect(log).toHaveCount(0)
-	await expect(track).toContainText('gjort 3')
+	await expect(track.getByRole('meter', { name: /gjort 3,/ })).toBeVisible()
 	await expect(
 		page.getByRole('link', { name: /Styrke A/ }).getByText(/3 \/ 3/),
 	).toBeVisible()
@@ -1172,8 +1173,10 @@ test('Endre logs the set that went differently, at the planned weight', async ({
 
 	await expect(log).toHaveCount(0)
 	await expect(
-		page.locator(`[data-timeline-week="${monday}"] [data-week-track]`),
-	).toContainText('gjort 2')
+		page
+			.locator(`[data-timeline-week="${monday}"] [data-week-track]`)
+			.getByRole('meter', { name: /gjort 2,/ }),
+	).toBeVisible()
 	const sets = await prisma.exerciseSetLog.findMany({
 		where: { sessionId: gym.id },
 		orderBy: { orderIndex: 'asc' },

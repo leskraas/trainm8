@@ -219,7 +219,13 @@ export function WeekStrip({
 	const barPx = width / Math.max(1, n)
 
 	return (
-		<div data-testid="week-strip" data-strip-windowed={windowed || undefined}>
+		<div
+			data-testid="week-strip"
+			data-strip-windowed={windowed || undefined}
+			// 8px of padding the strip takes back with a negative margin: room
+			// for the edge buttons' hit areas to reach 44px without overflowing.
+			className="-mx-2 px-2"
+		>
 			<div ref={rowRef} className="flex items-stretch gap-1">
 				{windowed ? (
 					<EdgeButton
@@ -367,7 +373,7 @@ function EdgeButton({
 					? SEASON_STRIP_LABELS.earlierName(weeks)
 					: SEASON_STRIP_LABELS.laterName(weeks)
 			}
-			className="text-muted-foreground pressable relative flex h-11 w-7 flex-none flex-col items-center justify-center rounded-lg text-[10px]/[1] font-semibold tabular-nums after:absolute after:-inset-x-1 after:inset-y-0 disabled:opacity-40"
+			className="text-muted-foreground pressable relative flex h-11 w-7 flex-none flex-col items-center justify-center rounded-lg text-[10px]/[1] font-semibold tabular-nums after:absolute after:-inset-x-2 after:inset-y-0 disabled:opacity-40"
 		>
 			<Icon
 				name="chevron-right"

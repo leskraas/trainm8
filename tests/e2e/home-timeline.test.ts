@@ -153,19 +153,6 @@ function todayPill(page: Page) {
 	return page.locator('[data-today-pill]')
 }
 
-/**
- * Open every folded week the stream has mounted (#505 story 31): a closed week
- * reads as one line until it is opened, and some of these checks are about the
- * rows inside one.
- */
-async function openFoldedWeeks(page: Page) {
-	const folds = page.locator('[data-timeline-fold][aria-expanded="false"]')
-	for (let tries = 0; tries < 20 && (await folds.count()) > 0; tries++) {
-		await folds.first().dispatchEvent('click')
-		await page.waitForTimeout(150)
-	}
-}
-
 async function seedSeason(userId: string) {
 	const now = new Date()
 	const day = 24 * 60 * 60 * 1000
@@ -436,7 +423,8 @@ test('opens parked on today before the first paint: no hero, no jump, and the li
 	await expect(page.getByTestId('hero-fold')).toHaveCount(0)
 	await expect(page.getByRole('heading', { level: 1 })).toHaveCount(0)
 	expect(state.clientHeight).toBeGreaterThan(500)
-	// The week header and day rows on the first screen, not one row.
+	// The week header and at least six whole day rows on the first screen
+	// (ADR 0086): the list is a calendar a phone reads a week of at a glance.
 	const rows = await page.getByTestId('timeline-stream').evaluate((el) => {
 		const box = el.getBoundingClientRect()
 		return [...el.querySelectorAll('[data-timeline-day]')].filter((row) => {
@@ -444,7 +432,7 @@ test('opens parked on today before the first paint: no hero, no jump, and the li
 			return r.height > 0 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1
 		}).length
 	})
-	expect(rows).toBeGreaterThanOrEqual(2)
+	expect(rows).toBeGreaterThanOrEqual(6)
 	// The pill points nowhere on first paint: today is right there.
 	await expect(todayPill(page)).toHaveAttribute('data-away', '0')
 	await expect(todayPill(page)).toHaveText('I dag')
@@ -1047,8 +1035,6 @@ for (const theme of ['light', 'dark'] as const) {
 		// The missed session's dot, on the row it belongs to. Centred rather than
 		// merely scrolled into view: the week header is sticky, and a mark under
 		// it is a mark that was never measured.
-		// Yesterday can sit in last week, which reads folded until it is opened.
-		await openFoldedWeeks(page)
 		const missedRow = page.locator('[data-status="missed"]').first()
 		await missedRow.evaluate((el) => el.scrollIntoView({ block: 'center' }))
 		await page.waitForTimeout(800)
@@ -1424,12 +1410,6 @@ async function renderedDays(page: Page) {
 					empty: !!node.querySelector('[data-timeline-empty]'),
 				}),
 			),
-			...[...el.querySelectorAll<HTMLElement>('[data-band-days]')].flatMap(
-				(node) =>
-					(node.dataset.bandDays ?? '')
-						.split(' ')
-						.map((key) => ({ key, empty: true })),
-			),
 		],
 		lastWeek:
 			[...el.querySelectorAll<HTMLElement>('[data-timeline-week]')]
@@ -1466,8 +1446,8 @@ for (const around of [true, false] as const) {
 		const { days, lastWeek } = await renderedDays(page)
 		const rendered = new Set(days.map((day) => day.key))
 		// Every date from today to the forward horizon — the far end of the last
-		// week the stream has mounted — has a row, or sits in a run of free days
-		// that opens into rows. A gap is a hole in the grid.
+		// week the stream has mounted — has a row of its own (ADR 0086: nothing
+		// folds). A gap is a hole in the grid.
 		const horizon = dayKey(lastWeek, 6)
 		expect(Date.parse(horizon)).toBeGreaterThan(Date.parse(today))
 		for (let key = today; key <= horizon; key = dayKey(key, 1)) {
@@ -1477,15 +1457,7 @@ for (const around of [true, false] as const) {
 		expect(days.find((day) => day.key === today)?.empty).toBe(true)
 
 		// Every empty row is a real control at the 44px floor — the actual button,
-		// not a hit area painted around something inert (ADR 0028 §2). Open the
-		// runs of free days first, so their cells are among them.
-		const closed = page.locator(
-			'[data-band-kind="free"] > button[aria-expanded="false"]',
-		)
-		for (let tries = 0; tries < 20 && (await closed.count()) > 0; tries++) {
-			await closed.first().dispatchEvent('click')
-			await page.waitForTimeout(100)
-		}
+		// not a hit area painted around something inert (ADR 0028 §2).
 		const cells = await page.getByTestId('timeline-stream').evaluate((el) =>
 			[...el.querySelectorAll('[data-timeline-empty]')].map((node) => ({
 				tag: node.tagName,
@@ -1866,7 +1838,11 @@ for (const theme of ['light', 'dark'] as const) {
 					box.x + Math.min(box.width / 2, 20),
 					box.y + box.height / 2,
 				)
-				return box.height > 0 && !!hit && node.contains(hit)
+				// The row's link carries a hit area over its title, so the hit may be
+				// the link itself.
+				return (
+					box.height > 0 && !!hit && (node.contains(hit) || hit.contains(node))
+				)
 			}),
 		)
 		expect(seen).toBeGreaterThanOrEqual(0)
@@ -1876,32 +1852,12 @@ for (const theme of ['light', 'dark'] as const) {
 }
 
 /**
- * Open last week's fold and hand back its key — the key of the band inside it
- * too, since a band is keyed by its first day and last week's run starts on
- * its Monday. Last week is closed, so it reads as one line above today until
- * it is opened (#505 story 31).
- */
-async function openLastWeek(page: Page) {
-	const fold = page
-		.getByTestId('timeline-stream')
-		.locator('[data-timeline-fold]')
-		.last()
-	const key = (await fold.getAttribute('data-timeline-fold'))!
-	const control = page.locator(`[data-timeline-fold="${key}"]`)
-	await control.click()
-	await expect(control).toHaveAttribute('aria-expanded', 'true')
-	await page.waitForTimeout(400)
-	return key
-}
-
-/**
  * A season with **one wholly empty week** behind today (#500).
  *
- * Last week is left blank on purpose and today's week is not, so the run behind
- * today is exactly seven days whatever weekday the suite runs on — the one
- * shape a band assertion can be written about without the calendar deciding how
- * long it is. Two weeks back carries sessions so the stream has real height,
- * and a couple forward so it has somewhere to grow into.
+ * Last week is left blank on purpose and today's week is not, so the week
+ * behind today is seven empty days whatever weekday the suite runs on. Two
+ * weeks back carries sessions so the stream has real height, and a couple
+ * forward so it has somewhere to grow into.
  */
 async function seedEmptyWeekBehind(userId: string) {
 	const day = 24 * 60 * 60 * 1000
@@ -1953,213 +1909,6 @@ async function seedEmptyWeekBehind(userId: string) {
 	await session(15, 'scheduled', null)
 	return { firstBlankDay: backToMonday }
 }
-
-/**
- * The band, the days it stands for, and where all of it sits in the scroller.
- *
- * Addressed by its own key rather than by "the first one in the DOM": reading
- * backwards mounts earlier weeks with bands of their own, and the band this
- * test is about has to stay the band this test is about.
- */
-async function bandState(page: Page, key?: string | null) {
-	return page.getByTestId('timeline-stream').evaluate((el, key) => {
-		const band = el.querySelector<HTMLElement>(
-			key ? `[data-timeline-band="${key}"]` : '[data-timeline-band]',
-		)
-		const control = band?.querySelector('button')
-		return {
-			key: band?.dataset.timelineBand ?? null,
-			expanded: control?.getAttribute('aria-expanded') ?? null,
-			name: control?.getAttribute('aria-label') ?? null,
-			text: control?.textContent ?? '',
-			height: band ? Math.round(band.getBoundingClientRect().height) : 0,
-			// The band's top, in the scroller's own box — what "the reader's
-			// position" means for everything above it.
-			inStream: band
-				? Math.round(
-						band.getBoundingClientRect().top - el.getBoundingClientRect().top,
-					)
-				: null,
-			scrollTop: Math.round(el.scrollTop),
-			days: [...el.querySelectorAll('[data-timeline-day]')].length,
-			bandDays: band
-				? [...band.querySelectorAll('[data-timeline-day]')].length
-				: 0,
-		}
-	}, key ?? null)
-}
-
-test('a run of empty days behind today is one band, and opening it does not move the reader', async ({
-	page,
-	navigate,
-	login,
-}) => {
-	test.setTimeout(120_000)
-	const user = await login()
-	await seedEmptyWeekBehind(user.id)
-
-	await navigate('/')
-	await expect(page.getByTestId('timeline-stream')).toBeVisible()
-	await page.waitForTimeout(2500)
-
-	const stream = page.getByTestId('timeline-stream')
-	// Seven blank days behind today, said once (ADR 0065 §3) — inside last
-	// week, which is folded above today until it is opened.
-	const weekKey = await openLastWeek(page)
-	const collapsed = await bandState(page, weekKey)
-	expect(collapsed.key).toBe(weekKey)
-	expect(collapsed.expanded).toBe('false')
-	expect(collapsed.name).toMatch(/^7 dager uten noe logget, /)
-	expect(collapsed.text).toContain('7 dager · ingenting logget')
-	expect(collapsed.bandDays).toBe(0)
-	// One row at the control floor, not seven blank ones.
-	expect(collapsed.height).toBeGreaterThanOrEqual(44)
-	expect(collapsed.height).toBeLessThan(88)
-
-	// Park the band in the middle of the screen — it sits above today, which is
-	// where the landing leaves the reader — and let the window settle, so the
-	// measurement is not sharing a tick with a week loading in.
-	const key = collapsed.key!
-	// The direct child: expanded, the band holds seven day buttons as well.
-	const control = stream.locator(`[data-timeline-band="${key}"] > button`)
-	// A single computed write into a smooth scroller lands somewhere else
-	// entirely, so park with `scroll-behavior` off and re-park until the position
-	// holds still — what follows measures a reader who has come to rest.
-	let parked = Number.NaN
-	for (let tries = 0; tries < 10; tries++) {
-		await stream.evaluate((el, key) => {
-			el.style.scrollBehavior = 'auto'
-			const band = el.querySelector(`[data-timeline-band="${key}"]`)!
-			el.scrollTop +=
-				band.getBoundingClientRect().top -
-				el.getBoundingClientRect().top -
-				el.clientHeight / 2
-		}, key)
-		await page.waitForTimeout(500)
-		const now = (await bandState(page, key)).inStream!
-		if (Math.abs(now - parked) <= 1) break
-		parked = now
-	}
-	await page.waitForTimeout(1000)
-
-	const before = await bandState(page, key)
-	expect(before.inStream).toBeGreaterThan(0)
-	expect(before.inStream).toBeLessThan(844)
-
-	await control.click()
-	await page.waitForTimeout(400)
-
-	const after = await bandState(page, key)
-	// The AC with teeth: the reading position did not move. The run grows
-	// downwards out of the row under the athlete's thumb, so the band's own top
-	// is where they left it and `scrollTop` was never written.
-	expect(after.scrollTop).toBe(before.scrollTop)
-	expect(after.inStream).toBe(before.inStream)
-	// And it did expand: seven day rows, inside the band, below the control.
-	expect(after.expanded).toBe('true')
-	expect(after.bandDays).toBe(7)
-	expect(after.height).toBeGreaterThan(before.height + 7 * 40)
-
-	// Every one of them takes the same add gesture a day forward of today takes.
-	const cells = await stream.evaluate(
-		(el, key) =>
-			[
-				...el.querySelectorAll(
-					`[data-timeline-band="${key}"] [data-timeline-empty]`,
-				),
-			].map((node) => ({
-				tag: node.tagName,
-				name: node.getAttribute('aria-label') ?? '',
-				height: node.getBoundingClientRect().height,
-			})),
-		key,
-	)
-	expect(cells).toHaveLength(7)
-	for (const cell of cells) {
-		expect(cell.tag).toBe('BUTTON')
-		expect(cell.name).toMatch(/^legg inn en økt /i)
-		expect(cell.height).toBeGreaterThanOrEqual(44)
-	}
-
-	// Closing it is the same promise in reverse.
-	await control.click()
-	await page.waitForTimeout(400)
-	const closed = await bandState(page, key)
-	expect(closed.expanded).toBe('false')
-	expect(closed.bandDays).toBe(0)
-	expect(closed.scrollTop).toBe(before.scrollTop)
-	expect(closed.inStream).toBe(before.inStream)
-
-	expect(
-		await page.evaluate(
-			() =>
-				document.documentElement.scrollWidth -
-				document.documentElement.clientWidth,
-		),
-	).toBeLessThanOrEqual(0)
-})
-
-test('a band whose top has gone up past the reading edge hands the height back', async ({
-	page,
-	navigate,
-	login,
-}) => {
-	// The other half of the promise, and the one the arithmetic exists for
-	// (`bandScrollTop`): with the band's own top above the reading edge, every
-	// pixel the athlete can see is *below* the insertion, so the position has to
-	// take the delta or the run walks them down the season (ADR 0065 §3).
-	test.setTimeout(120_000)
-	const user = await login()
-	await seedEmptyWeekBehind(user.id)
-
-	await navigate('/')
-	await expect(page.getByTestId('timeline-stream')).toBeVisible()
-	await page.waitForTimeout(2500)
-
-	const stream = page.getByTestId('timeline-stream')
-	const key = await openLastWeek(page)
-	// Mount the weeks ahead first, so there is stream enough below the band to
-	// park it above the top edge at all: the free days ahead fold into short
-	// rows (#505 story 30), and the window opens one week either side.
-	await readToTheEnd(page)
-	// Park the band's top 20px above the top edge, and let the window settle.
-	await stream.evaluate((el, key) => {
-		const band = el.querySelector(`[data-timeline-band="${key}"]`)!
-		el.scrollTop +=
-			band.getBoundingClientRect().top - el.getBoundingClientRect().top + 20
-	}, key)
-	await page.waitForTimeout(1500)
-
-	/** Where today's row — below the band — sits on screen, and the position. */
-	const reading = () =>
-		stream.evaluate((el) => ({
-			todayOnScreen: Math.round(
-				el.querySelector('[data-timeline-today]')!.getBoundingClientRect().top -
-					el.getBoundingClientRect().top,
-			),
-			scrollTop: Math.round(el.scrollTop),
-		}))
-
-	const before = await reading()
-	const bandBefore = await bandState(page, key)
-	expect(bandBefore.inStream).toBeLessThan(0)
-	// Dispatched rather than clicked: a real click would scroll the half-visible
-	// control into view first, which is the setup this test just built.
-	await stream
-		.locator(`[data-timeline-band="${key}"] > button`)
-		.dispatchEvent('click')
-	await page.waitForTimeout(400)
-
-	const after = await reading()
-	const bandAfter = await bandState(page, key)
-	expect(bandAfter.expanded).toBe('true')
-	// Today's row — everything the athlete can actually see — did not move.
-	expect(after.todayOnScreen).toBe(before.todayOnScreen)
-	// Which took exactly the height the run inserted, and no more.
-	expect(after.scrollTop - before.scrollTop).toBe(
-		bandAfter.height - bandBefore.height,
-	)
-})
 
 test('the near end states how far home reads, never how far the athlete has trained', async ({
 	page,
@@ -2441,7 +2190,7 @@ function ingredientsOf(declared: string[]): string[] {
 /** The one curve on the scale a deliberate animation is allowed to use. */
 const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
 
-test('the timeline animates its accordions and its press, and the frame declares nothing else', async ({
+test('the timeline animates its draft and its press, and the frame declares nothing else', async ({
 	page,
 	navigate,
 	login,
@@ -2455,28 +2204,21 @@ test('the timeline animates its accordions and its press, and the frame declares
 	await page.waitForTimeout(2500)
 
 	const stream = page.getByTestId('timeline-stream')
-	// Every accordion on screen at once, because a transition that is not
-	// mounted declares nothing and would pass this by not existing: last week's
-	// fold, the band inside it, and the draft.
-	const weekKey = await openLastWeek(page)
-	await stream
-		.locator(`[data-timeline-week="${weekKey}"] [data-timeline-band] > button`)
-		.first()
-		.click()
-	await page.waitForTimeout(400)
+	// The one accordion left on I dag, open, because a transition that is not
+	// mounted declares nothing and would pass this by not existing.
 	await stream.locator('[data-timeline-empty]').first().click()
 	await expect(stream.locator('[data-timeline-draft]')).toBeVisible()
 
 	// The whole frame, element by element (ADR 0086 updates the list): the
-	// accordions (the draft, the band's run of days, and a folded week's days:
-	// height + opacity, 200ms) and the system's press, `pressable` (ADR 0085:
-	// `scale(0.97)` with the colours on the same 160ms curve) on what the
-	// athlete taps — a row, a cell, a band, a fold, the ownership glyph and
-	// "+ Ny" (`data-base-ui-click-trigger`), today's "Se økta" link
-	// (`data-discover`) and the badge-and-pill buttons' `Button`s
-	// (`data-slot`). Every one on the scale's own curve: no `all`, no
-	// built-in easing, no keyframes. The strip and the list's scroll declare
-	// nothing, and the "I dag" pill changes look instantly.
+	// draft (height + opacity, 200ms) and the system's press, `pressable` (ADR
+	// 0085: `scale(0.97)` with the colours on the same 160ms curve) on what the
+	// athlete taps — a row, a cell, the ownership glyph and "+ Ny"
+	// (`data-base-ui-click-trigger`), today's "Se økta" link (`data-discover`)
+	// and the badge-and-pill buttons' `Button`s (`data-slot`). Every one on the
+	// scale's own curve: no `all`, no built-in easing, no keyframes. Nothing
+	// folds any more, so the band's and the folded week's accordions are gone
+	// from the list. The strip and the list's scroll declare nothing, and the
+	// "I dag" pill changes look instantly.
 	//
 	// Element by element, because a set of ingredients cannot fail on a new
 	// element reusing a curve that is already on the list — which is exactly the
@@ -2498,28 +2240,16 @@ test('the timeline animates its accordions and its press, and the frame declares
 		`[data-status] — border-color 0.16s ${EASE_OUT}`,
 		`[data-status] — color 0.16s ${EASE_OUT}`,
 		`[data-status] — transform 0.16s ${EASE_OUT}`,
-		`[data-timeline-band] button — background-color 0.16s ${EASE_OUT}`,
-		`[data-timeline-band] button — border-color 0.16s ${EASE_OUT}`,
-		`[data-timeline-band] button — color 0.16s ${EASE_OUT}`,
-		`[data-timeline-band] button — transform 0.16s ${EASE_OUT}`,
-		`[data-timeline-band] div — height 0.2s ${EASE_OUT}`,
-		`[data-timeline-band] div — opacity 0.2s ${EASE_OUT}`,
 		`[data-timeline-draft] — height 0.2s ${EASE_OUT}`,
 		`[data-timeline-draft] — opacity 0.2s ${EASE_OUT}`,
 		`[data-timeline-empty] — background-color 0.16s ${EASE_OUT}`,
 		`[data-timeline-empty] — border-color 0.16s ${EASE_OUT}`,
 		`[data-timeline-empty] — color 0.16s ${EASE_OUT}`,
 		`[data-timeline-empty] — transform 0.16s ${EASE_OUT}`,
-		`[data-timeline-fold-run] — height 0.2s ${EASE_OUT}`,
-		`[data-timeline-fold-run] — opacity 0.2s ${EASE_OUT}`,
-		`[data-timeline-fold] — background-color 0.16s ${EASE_OUT}`,
-		`[data-timeline-fold] — border-color 0.16s ${EASE_OUT}`,
-		`[data-timeline-fold] — color 0.16s ${EASE_OUT}`,
-		`[data-timeline-fold] — transform 0.16s ${EASE_OUT}`,
 	])
 
-	// And the press is where it was promised: rows, cells, the band control and
-	// the fold. Nothing in the strip declares anything.
+	// And the press is where it was promised: rows and cells. Nothing in the
+	// strip declares anything.
 	const pressed = await stream.evaluate((el) => {
 		const has = (node: Element | null) =>
 			node
@@ -2528,11 +2258,30 @@ test('the timeline animates its accordions and its press, and the frame declares
 		return {
 			row: has(el.querySelector('[data-status]')),
 			cell: has(el.querySelector('[data-timeline-empty]')),
-			band: has(el.querySelector('[data-timeline-band] > button')),
-			fold: has(el.querySelector('[data-timeline-fold]')),
 		}
 	})
-	expect(pressed).toEqual({ row: true, cell: true, band: true, fold: true })
+	expect(pressed).toEqual({ row: true, cell: true })
+
+	// The ownership popover grows from its glyph, not from the middle of the
+	// screen (Emil: origin-aware), and on the popup's own scale.
+	await page.keyboard.press('Escape')
+	await stream.locator('[data-owner-glyph]').first().click()
+	const popup = page.locator('[data-owner-popover]')
+	await expect(popup).toBeVisible()
+	const motion = await popup.evaluate((el) => {
+		const style = getComputedStyle(el)
+		return {
+			origin: style.transformOrigin,
+			property: style.transitionProperty,
+			easing: style.transitionTimingFunction,
+		}
+	})
+	expect(motion.property).toContain('transform')
+	expect(motion.property).toContain('opacity')
+	expect(motion.easing).toContain(EASE_OUT)
+	const box = (await popup.boundingBox())!
+	// Not the box's own centre: Base UI sets the origin to the trigger's side.
+	expect(motion.origin).not.toBe(`${box.width / 2}px ${box.height / 2}px`)
 })
 
 test.describe(() => {
@@ -2552,18 +2301,12 @@ test.describe(() => {
 		await page.waitForTimeout(2500)
 
 		const stream = page.getByTestId('timeline-stream')
-		const weekKey = await openLastWeek(page)
-		await stream
-			.locator(
-				`[data-timeline-week="${weekKey}"] [data-timeline-band] > button`,
-			)
-			.first()
-			.click()
-		await page.waitForTimeout(400)
+		await stream.locator('[data-timeline-empty]').first().click()
+		await expect(stream.locator('[data-timeline-draft]')).toBeVisible()
 
 		// Gentler, never zero: the press-scale is gone — it is the one ingredient
-		// that is only movement — and the accordions' height and opacity stay,
-		// because a reflow that jumps is the jarring change they exist to prevent.
+		// that is only movement — and the draft's height and opacity stay,
+		// because a reflow that jumps is the jarring change it exists to prevent.
 		const declared = ingredientsOf(await motionInFrame(page))
 		expect(declared).not.toContain(`transform 0.16s ${EASE_OUT}`)
 		expect(declared).toContain(`opacity 0.2s ${EASE_OUT}`)
@@ -2593,8 +2336,8 @@ test.describe(() => {
  * ── I dag: the week model (#505 S9) ─────────────────────────────────────────
  *
  * A plan that runs past the Planning Horizon, so the season has every shape a
- * week can take: folded behind today, open around it, collapsed ahead of the
- * horizon — with one of the athlete's own sessions far out in a collapsed week.
+ * week can take: past behind today, open around it, beyond the horizon ahead —
+ * with one of the athlete's own sessions out in a week past it.
  */
 
 /** This week's Monday, `YYYY-MM-DD` in UTC — the athlete timezone's default. */
@@ -2698,18 +2441,25 @@ test('a week header reads the Week Target, the Planned Volume and the Actual Vol
 	await expect(week.locator('[data-week-kind]')).toHaveText(
 		'Oppbygging · hard uke',
 	)
-	// Three numbers, in the track's own unit, on one line at 390px.
+	// Done against the target, what is planned, in the track's own unit — and
+	// a Meter that names all three (variant P's track line, ADR 0086).
 	const track = week.locator('[data-week-track]')
 	await expect(track).toContainText('Løping')
-	await expect(track).toContainText('mål 40')
+	await expect(track).toContainText('0 / 40 km')
 	await expect(track).toContainText('planlagt 10')
-	await expect(track).toContainText('gjort 0')
-	await expect(track).toContainText('km')
+	await expect(
+		track.getByRole('meter', {
+			name: 'Løping: gjort 0, mål 40, planlagt 10 km',
+		}),
+	).toBeVisible()
+	// The planned outline and the target's tick are drawn.
+	await expect(track.locator('[data-meter-planned]')).toHaveCount(1)
+	await expect(track.locator('[data-meter-target]')).toHaveCount(1)
 	// 10 km laid against 40 is more than 10 % off: the `≠` mark, named.
 	await expect(
 		track.getByRole('img', { name: 'planlagt er mer enn 10 % unna målet' }),
 	).toBeVisible()
-	const line = await track.locator('> div').first().boundingBox()
+	const line = await track.boundingBox()
 	expect(line!.x + line!.width).toBeLessThanOrEqual(390)
 	expect(
 		await page.evaluate(
@@ -2720,7 +2470,7 @@ test('a week header reads the Week Target, the Planned Volume and the Actual Vol
 	).toBeLessThanOrEqual(0)
 })
 
-test('a week past the Planning Horizon is one line, and still shows the athlete’s own session (#505 stories 27–28)', async ({
+test('a week past the Planning Horizon is a whole week under the horizon’s divider, and shows the athlete’s own session (#505 stories 27–28, ADR 0086)', async ({
 	page,
 	navigate,
 	login,
@@ -2742,23 +2492,33 @@ test('a week past the Planning Horizon is one line, and still shows the athlete�
 	await page.waitForTimeout(800)
 
 	const week = page.locator(`[data-timeline-week="${farWeek}"]`)
-	await expect(week).toHaveAttribute('data-week-shape', 'collapsed')
-	// One line: which week, its phase, its target, and that nothing fills it.
-	await expect(week.locator('[data-timeline-collapsed]')).toContainText(
-		/^Uke \d+ · Oppbygging · mål [\d.]+ km · ingen økter lagt inn ennå/,
+	await expect(week).toHaveAttribute('data-week-shape', 'beyond')
+	// The divider stands above it, once in the season.
+	await expect(week.getByRole('separator')).toHaveAccessibleName(
+		'Horisont: herfra bare mål, ingen økter ennå',
 	)
-	// The athlete's own session is there, in full, with its mark…
-	const mine = week.getByRole('link', { name: /langtur med gjengen/i })
-	await expect(mine).toBeVisible()
+	await expect(page.locator('[data-horizon-divider]')).toHaveCount(1)
+	// Its header: which week, its phase, its target, and that nothing fills it.
+	await expect(week.getByRole('heading', { level: 2 })).toContainText(
+		/^Uke \d+ · .+ · Oppbygging/,
+	)
+	await expect(week.locator('[data-week-track]')).toContainText(/mål [\d,]+ km/)
+	await expect(week.locator('[data-week-summary]')).toHaveText(
+		'ingen økter lagt inn ennå',
+	)
+	// All seven days are rows: the athlete's own session on its day, with its
+	// mark, and the other six empty cells to write in.
+	await expect(week.locator('[data-timeline-day]')).toHaveCount(7)
+	await expect(week.locator('[data-timeline-empty]')).toHaveCount(6)
+	await expect(
+		week.getByRole('link', { name: /langtur med gjengen/i }),
+	).toBeVisible()
 	await expect(
 		week.getByRole('button', { name: /^Din økt: Langtur med gjengen/ }),
 	).toBeVisible()
-	// …and it is the only day the collapsed week draws: no empty cells.
-	await expect(week.locator('[data-timeline-day]')).toHaveCount(1)
-	await expect(week.locator('[data-timeline-empty]')).toHaveCount(0)
 })
 
-test('a closed week folds to one line above today, and opens in place (#505 story 31)', async ({
+test('a closed week is drawn whole above today, muted, with its numbers and verdict (ADR 0086)', async ({
 	page,
 	navigate,
 	login,
@@ -2772,36 +2532,22 @@ test('a closed week folds to one line above today, and opens in place (#505 stor
 	await page.waitForTimeout(2500)
 
 	const lastWeek = dayKey(monday, -7)
-	const fold = page.locator(`[data-timeline-fold="${lastWeek}"]`)
-	await expect(fold).toHaveAttribute('aria-expanded', 'false')
-	// Nothing done against last week's 40 km.
-	await expect(fold).toContainText('Forrige uke')
-	await expect(fold).toContainText('0 av 40 km · under')
-	const height = (await fold.boundingBox())!.height
-	expect(height).toBeGreaterThanOrEqual(44)
-	expect(height).toBeLessThan(90)
-	// Read from the top of the stream, where the reader is last parked in a
-	// *later* week than the fold: the run must open below the line without the
-	// stream crediting it to that week and throwing the reader down (S9
-	// review).
-	await scrollStreamTo(page, (await streamState(page)).scrollTop + 900)
-	await page.waitForTimeout(600)
-	await scrollStreamTo(page, 0)
-	await page.waitForTimeout(600)
-	const lineAt = (await fold.boundingBox())!.y
-	await fold.click()
-	await expect(fold).toHaveAttribute('aria-expanded', 'true')
-	await page.waitForTimeout(600)
-	expect((await streamState(page)).scrollTop).toBe(0)
-	expect(Math.abs((await fold.boundingBox())!.y - lineAt)).toBeLessThanOrEqual(
-		2,
+	const week = page.locator(`[data-timeline-week="${lastWeek}"]`)
+	await expect(week).toHaveAttribute('data-week-shape', 'past')
+	// No fold, no tap to open: the header and all seven days are there.
+	await expect(page.locator('[data-timeline-fold]')).toHaveCount(0)
+	await expect(week.locator('[data-timeline-day]')).toHaveCount(7)
+	await week.evaluate((el) => el.scrollIntoView({ block: 'start' }))
+	await page.waitForTimeout(400)
+	await expect(week.getByRole('heading', { level: 2 })).toContainText(
+		'Forrige uke',
 	)
-	// The opened week's figures sit on the stream's own gutter, not flush left.
-	const figures = page
-		.locator(`[data-timeline-week="${lastWeek}"] [data-week-track]`)
-		.first()
-	expect((await figures.boundingBox())!.x).toBeGreaterThanOrEqual(16)
-	await expect(
-		page.locator(`[data-timeline-week="${lastWeek}"] [data-week-track]`),
-	).toContainText('mål 40')
+	// Nothing done against last week's 40 km, and the verdict in words.
+	const track = week.locator('[data-week-track]')
+	await expect(track).toContainText('0 / 40 km')
+	await expect(track.locator('[data-week-grade="under"]')).toHaveText('under')
+	// Its figures sit on the stream's own gutter, not flush left.
+	expect((await track.boundingBox())!.x).toBeGreaterThanOrEqual(16)
+	// A past free day is still a cell to write into (ADR 0065 §6).
+	await expect(week.locator('[data-timeline-empty]').first()).toHaveText(/fri/)
 })

@@ -161,12 +161,12 @@ export const WEEK_HEIGHTS = {
 	note: 15,
 	/** The planStart line and the horizon divider. */
 	banner: 44,
-	/** A day with nothing on it: the 44px floor and its hairline. */
-	emptyDay: 49,
+	/** A day with nothing on it: the gutter's two lines and its hairline. */
+	emptyDay: 46,
 	/** A day's first session on one line: the gutter sets the floor. */
-	session: 50,
+	session: 46,
 	/** Each further session under the same date. */
-	extraSession: 36,
+	extraSession: 44,
 	/** Each further line a long sentence wraps onto. */
 	wrap: 21,
 	/** A session's action line (`Se økta`, _Gjort_). */
