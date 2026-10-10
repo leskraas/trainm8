@@ -1,12 +1,18 @@
 /**
- * The measurement arithmetic behind the home timeline's two axes, kept pure so
- * the numbers that were hard to get right are testable without a scroll
- * container, a layout pass or a browser.
+ * The measurement arithmetic behind I dag's list and its season strip, kept
+ * pure so the numbers that were hard to get right are testable without a
+ * scroll container, a layout pass or a browser.
  *
- * Every function here takes plain numbers or a minimal `Box` — never a real
- * `Element` — so the hook that owns the DOM (`use-timeline-scroll.ts`) reads as
- * a sequence of "measure, decide, apply" and the deciding half is covered by
- * unit tests.
+ * Every function here takes plain numbers, a minimal `Box` or a set of keys —
+ * never a real `Element` — so the hook that owns the DOM
+ * (`use-timeline-scroll.ts`) reads as "observe, decide, apply" and the
+ * deciding half is covered by unit tests.
+ *
+ * What is **not** here any more, and why (ADR 0086): the hero's fold, the
+ * settle ladder and the load pad. The hero is gone; the landing is one write
+ * before first paint plus a `ResizeObserver` that stops at the reader's first
+ * input, so it has no timers to tune; and every week before today is mounted
+ * up front, so nothing grows above the reader and there is no edge to load at.
  */
 
 /** The one fact these helpers need from a DOM node: where its box starts. */
@@ -22,9 +28,9 @@ export type Box = { top: number }
 export const LANDING_GAP = 12
 
 /**
- * The offset used before anything can be measured — the server render, jsdom,
- * a week whose header is not in the DOM yet. The live landing is always the
- * measured header plus {@link LANDING_GAP} (`landingOffsetFor`).
+ * The offset used before anything can be measured — jsdom, a week whose
+ * header is not in the DOM yet. The live landing is always the measured header
+ * plus {@link LANDING_GAP} (`landingOffsetFor`).
  */
 export const LANDING_OFFSET = 96
 
@@ -43,54 +49,32 @@ export function landingOffsetFor(headerHeight: number): number {
 export const WEEK_JUMP_OFFSET = 2
 
 /**
- * How much of the fold the fade takes. The two halves of the collapse run at
- * different rates on purpose: the hero is transparent well before the box has
- * finished closing, so what the athlete watches is a band *leaving* rather than
- * legible text being squashed.
- */
-export const HERO_FADE_SHARE = 0.6
-
-/**
- * How far the hero drifts up while it folds, as a share of the fold. A parallax
- * lift rather than a squash — the band recedes instead of being crushed. It is
- * the only *movement* in the collapse, which is why it is the only part
- * `prefers-reduced-motion` drops (see `hero-lift` in `tailwind.css`); the fold
- * and the fade are not movement and carry the collapse on their own.
- */
-export const HERO_LIFT_SHARE = 0.5
-
-/**
  * A week header counts as "the week the stream is parked in" once it has passed
- * this line — a little below the top edge, so the active cell flips when the
+ * this line — a little below the top edge, so the active week flips when the
  * header reaches the reading position rather than the instant it appears.
  */
 export const ACTIVE_WEEK_LINE = 70
 
-/** Today's row is far enough above the viewport to offer a way back down. */
-export const PILL_ABOVE = -60
+/** Today's row may sit this far above the top edge before it counts as away. */
+export const AWAY_ABOVE = 60
 
-/** Distance from the bottom edge at which today's row counts as below the fold. */
-export const PILL_BELOW_INSET = 40
-
-/**
- * Re-apply the landing on this ladder of delays (ms). Rows keep laying out
- * after the first frame — profile bars resolve, a long title wraps — so one
- * measurement is not enough, and `requestAnimationFrame` is the wrong tool: the
- * ladder exists for *late layout*, not for missing frames.
- */
-export const SETTLE_LADDER = [0, 60, 160, 320, 700, 1200] as const
+/** …and this close to the bottom edge before it counts as away below. */
+export const AWAY_BELOW = 40
 
 /**
- * How long the landing holds the stream. Past this the athlete owns the scroll
- * position, loading is released, and a late layout pass may no longer yank the
- * reading position back to today.
+ * How many weeks ahead of today are mounted on open, and how many more each
+ * time the reader comes within {@link AHEAD_PAD} of the end. Every week
+ * *before* today is always mounted (ADR 0086): a closed week is one folded
+ * line, so the whole past is a few dozen short rows, and mounting it up front
+ * is what removes growth above the reader — and the scroll writes that paid
+ * for it — altogether. Growth below needs no compensation: nothing the reader
+ * can see moves when a week is appended under them.
  */
-export const SETTLE_WINDOW_MS = 1300
+export const AHEAD_INITIAL = 6
+export const AHEAD_STEP = 6
 
-/** Loading may not start until the landing has settled — see `SETTLE_WINDOW_MS`. */
-export const LOAD_PAD_MIN = 80
-export const LOAD_PAD_MAX = 320
-export const LOAD_PAD_VIEWPORT_SHARE = 0.5
+/** How close to the end of the mounted list the next weeks ahead are mounted. */
+export const AHEAD_PAD = 600
 
 /**
  * A node's offset inside its scroller, measured against the **scroller's own
@@ -106,16 +90,8 @@ export function offsetWithin(
 }
 
 /**
- * Where "parked on today" is. Re-measured live rather than remembered from
- * mount, so it survives weeks loading in above — which move today's row down
- * the stream without the athlete having scrolled at all.
- *
- * It is a fact about today's row and about nothing else — in particular it is
- * never clamped to the stream's scroll range. The hero's fold is measured from
- * here, and folding the hero hands the stream back the height the hero was
- * using, so a landing that knew about `clientHeight` would move every time the
- * fold moved and the fold would be measured from a point the fold itself had
- * shifted.
+ * Where "parked on today" is: today's row, less its week's header and the gap.
+ * Never negative — a short history parks the stream at its top.
  */
 export function landingPosition(
 	todayOffset: number,
@@ -124,174 +100,143 @@ export function landingPosition(
 	return Math.max(0, todayOffset - offset)
 }
 
-/** Everything the hero's collapse needs written to the DOM, in one shape. */
-export type HeroFold = {
-	/** 0 parked on today, 1 fully folded away. */
-	progress: number
-	/** The clip box's height, in px. */
-	heightPx: number
-	/** How much height the fold has taken, in px — what the lift is drawn from. */
-	foldPx: number
-	opacity: number
-	/** Folded far enough to be gone: the compact header row takes over here. */
-	collapsed: boolean
-}
+/**
+ * Room the landing keeps under today's row when it parks the whole week on
+ * screen, so the row is never the last thing on it.
+ */
+export const LANDING_ROOM = 120
 
 /**
- * The collapse, read straight off the scroll offset — **no duration, no
- * threshold, no curve**. Drifting away from the landing point in either
- * direction folds the hero by exactly the distance drifted, so half a drag
- * leaves it half folded and reversing reverses it from wherever it is.
- *
- * The travel is the hero's **own open height**, which is not an arbitrary
- * choice. The hero sits above the stream rather than inside it, so every pixel
- * the fold takes off the header is a pixel the stream's viewport gains: while
- * the hero is folding, content moves `1 + openHeight/travel` times as fast as
- * the thumb. A travel of exactly the open height makes that 2 — the smallest
- * number a full fold can be done in — and anything shorter buys a quicker fold
- * by multiplying the lurch it was supposed to remove.
- *
- * **Except where the stream runs out above the landing.** An athlete with a
- * few weeks of history has less than a hero's height of stream above today, so
- * the very top of the stream used to leave the hero part-folded *and already
- * faded* — a blank box the reader could not scroll away (#505 S9 review). Above
- * the landing the travel shortens to the room there is, so the top of the
- * stream is a full fold — but only once that room reaches the fade
- * ({@link HERO_FADE_SHARE}): with less, the top is a hero still visibly
- * folding, never an empty one, and a few pixels of room never snap it shut.
- *
- * `null` when the hero has not been measured yet: on the server, before layout,
- * and in jsdom. The caller writes nothing then and the hero renders at its
- * natural height, which is what "not collapsed" has to look like with no
- * numbers to go on.
+ * Where I dag opens (variant P, ADR 0086): **the top of today's week**, header
+ * and notes and the days before today, when all of that and today's row fit
+ * on screen with {@link LANDING_ROOM} to spare — the week reads as a week, and
+ * today is in it. When they do not, today's row under the week's sticky
+ * header ({@link landingPosition}), as before. All offsets are content
+ * coordinates inside the scroller.
  */
-export function heroFold({
-	scrollTop,
-	landing,
-	openHeight,
+export function landingTop({
+	weekOffset,
+	todayOffset,
+	todayHeight,
+	headerHeight,
+	clientHeight,
 }: {
-	scrollTop: number
-	landing: number
-	/** The hero's height with nothing folded away — the fold's whole travel. */
-	openHeight: number
-}): HeroFold | null {
-	if (!(openHeight > 0)) return null
-	const room = Math.max(0, landing)
-	const travel =
-		scrollTop < landing && room >= openHeight * HERO_FADE_SHARE
-			? Math.min(openHeight, room)
-			: openHeight
-	const progress = clamp01(Math.abs(scrollTop - landing) / travel)
-	return {
-		progress,
-		heightPx: openHeight * (1 - progress),
-		foldPx: openHeight * progress,
-		opacity: clamp01(1 - progress / HERO_FADE_SHARE),
-		collapsed: progress >= 1,
-	}
+	weekOffset: number
+	todayOffset: number
+	todayHeight: number
+	/** The week's sticky header. */
+	headerHeight: number
+	clientHeight: number
+}): number {
+	const fits =
+		clientHeight > 0 &&
+		todayOffset + todayHeight - weekOffset <= clientHeight - LANDING_ROOM
+	return fits
+		? Math.max(0, weekOffset)
+		: landingPosition(todayOffset, landingOffsetFor(headerHeight))
 }
 
-function clamp01(value: number): number {
-	return Math.min(1, Math.max(0, value))
+/** The next count of weeks ahead to mount, capped at what the season has. */
+export function nextAhead(after: number, maxAfter: number): number {
+	return Math.min(maxAfter, after + AHEAD_STEP)
 }
 
 /**
- * The distance from either edge at which the next week loads. A fixed pad is
- * wrong: this stream's viewport is a phone's, and a pad larger than the
- * viewport makes "near the end" true at every position — including the landing
- * one, which would walk the stream to the end of the plan on open.
+ * The `rootMargin` that shrinks a scroller to a one-pixel line at
+ * {@link ACTIVE_WEEK_LINE}: an `IntersectionObserver` with it reports exactly
+ * the week whose block crosses the reading line, and reports it only when that
+ * changes — the measurement `querySelectorAll` plus a rect per week used to
+ * make on every scroll event (#505 P3).
  */
-export function loadPad(clientHeight: number): number {
-	return Math.max(
-		LOAD_PAD_MIN,
-		Math.min(LOAD_PAD_MAX, clientHeight * LOAD_PAD_VIEWPORT_SHARE),
-	)
+export function activeLineMargin(clientHeight: number): string {
+	const below = Math.max(0, Math.round(clientHeight) - ACTIVE_WEEK_LINE - 1)
+	return `-${ACTIVE_WEEK_LINE}px 0px -${below}px 0px`
 }
 
-/** Which end of the stream the reader has reached, if either. */
-export type LoadEdge = 'earlier' | 'later' | null
+/** The `rootMargin` today's row is "in view" inside: a little slack each way. */
+export const AWAY_MARGIN = `${AWAY_ABOVE}px 0px -${AWAY_BELOW}px 0px`
 
-/**
- * Which week to load next, given where the reader is. The two tests are
- * mutually exclusive per pass: a stream shorter than two pads would otherwise
- * satisfy both and grow at both ends forever.
- */
-export function loadEdge(
-	view: { scrollTop: number; clientHeight: number; scrollHeight: number },
-	room: { earlier: boolean; later: boolean },
-): LoadEdge {
-	const pad = loadPad(view.clientHeight)
-	if (view.scrollTop < pad && room.earlier) return 'earlier'
-	if (
-		view.scrollTop + view.clientHeight > view.scrollHeight - pad &&
-		room.later
-	) {
-		return 'later'
-	}
-	return null
-}
-
-/** Where the pill points, or that it stays hidden: −1 above, 0 in view, +1 below. */
+/** Where today is from the reader: −1 above, 0 in view, +1 below. */
 export type AwayFromToday = -1 | 0 | 1
 
 /**
- * Whether today's row is off-screen and which way. `rel` is today's offset
- * relative to the current scroll position, so it is negative once the row has
- * gone up past the top edge.
+ * Today's row, read off one `IntersectionObserver` entry: in view, or off the
+ * top or the bottom of the (margined) root.
  */
-export function awayFromToday(
-	todayOffset: number,
-	scrollTop: number,
-	clientHeight: number,
-): AwayFromToday {
-	const rel = todayOffset - scrollTop
-	if (rel < PILL_ABOVE) return -1
-	if (rel > clientHeight - PILL_BELOW_INSET) return 1
-	return 0
+export function awayFromEntry(entry: {
+	isIntersecting: boolean
+	boundingClientRect: Box
+	rootBounds: Box | null
+}): AwayFromToday {
+	if (entry.isIntersecting) return 0
+	const rootTop = entry.rootBounds?.top ?? 0
+	return entry.boundingClientRect.top < rootTop ? -1 : 1
 }
 
 /**
- * The week the stream is parked in: the **last** week whose header has passed
- * the active line. Scanning to the last match rather than the first is what
- * makes a tall week keep the strip on itself all the way down.
+ * Where today is from the reader, from everything the observers know. Today's
+ * own row observer only reports when the row crosses the list's edge, so a
+ * single long jump — from below today to far above it — never crosses and
+ * never reports: the direction is then read off the weeks on screen, which do
+ * report. Inside today's own week the row's last report says which side.
  */
-export function activeWeekFrom(
-	weeks: Array<{ key: string; offset: number }>,
-	scrollTop: number,
+export function awayOf({
+	inView,
+	lastReport,
+	frame,
+	order,
+	todayKey,
+}: {
+	/** Today's row is on screen (its observer's last word). */
+	inView: boolean
+	/** The direction its observer last reported. */
+	lastReport: AwayFromToday
+	frame: { from: string; to: string } | null
+	order: readonly string[]
+	todayKey: string
+}): AwayFromToday {
+	if (inView) return 0
+	const today = order.indexOf(todayKey)
+	if (frame && today >= 0) {
+		if (order.indexOf(frame.from) > today) return -1
+		if (order.indexOf(frame.to) < today) return 1
+	}
+	return lastReport
+}
+
+/**
+ * The week the reader is parked in, from the weeks the reading line crosses:
+ * the last of them in season order (two only ever cross it for the instant one
+ * header hands over to the next), or the fallback when none does — the line is
+ * over the start cap, say.
+ */
+export function activeWeekOf(
+	crossing: ReadonlySet<string>,
+	order: readonly string[],
 	fallback: string,
 ): string {
-	let active = fallback
-	for (const week of weeks) {
-		if (week.offset - ACTIVE_WEEK_LINE <= scrollTop) active = week.key
-	}
-	return active
+	let active: string | null = null
+	for (const key of order) if (crossing.has(key)) active = key
+	return active ?? fallback
 }
 
 /**
- * The first and last week the stream is showing — the season strip's frame
- * (#505 story 17). The first is the week whose header is at or above the top
- * edge, the last the week whose header is above the bottom edge: the weeks a
- * reader would name if asked what is on their screen. Null with no week
- * mounted.
- *
- * It replaced centring a scrolled strip on the active cell: a strip that shows
- * the whole season at once has nothing to scroll, and shows *where* the reader
- * is by outlining it instead (ADR 0082).
+ * The first and last week the reader can see — the season strip's frame
+ * (#505 story 17) — from the set of weeks intersecting the scroller, in season
+ * order. Null when nothing is visible, and the caller keeps the frame it had.
  */
-export function weeksInView(
-	weeks: Array<{ key: string; offset: number }>,
-	scrollTop: number,
-	clientHeight: number,
+export function frameOf(
+	visible: ReadonlySet<string>,
+	order: readonly string[],
 ): { from: string; to: string } | null {
-	const first = weeks[0]
-	if (!first) return null
-	let from = first.key
-	let to = first.key
-	for (const week of weeks) {
-		if (week.offset <= scrollTop) from = week.key
-		if (week.offset < scrollTop + clientHeight) to = week.key
+	let from: string | null = null
+	let to: string | null = null
+	for (const key of order) {
+		if (!visible.has(key)) continue
+		from ??= key
+		to = key
 	}
-	return { from, to }
+	return from && to ? { from, to } : null
 }
 
 /**
@@ -300,17 +245,15 @@ export function weeksInView(
  * position, both read before the toggle; `delta` is the height the toggle added
  * (or, collapsing, removed).
  *
- * The one rule, and it is the whole of the AC: *what the reader can see does not
- * move*. Everything above the band is untouched by the toggle, so a band that
- * opens at or below the top edge needs no correction at all — the row they
- * tapped stays exactly where their thumb left it and the days grow downwards
- * from it. A band whose top has already gone up past the edge is the other case:
- * every pixel the reader is looking at is *below* the insertion, so the position
- * has to take the delta back or the run walks them down the season.
+ * The one rule: *what the reader can see does not move*. A band that opens at
+ * or below the top edge needs no correction at all — the days grow downwards
+ * from the row they tapped. A band whose top has already gone up past the edge
+ * is the other case: every pixel the reader is looking at is *below* the
+ * insertion, so the position takes the delta back.
  *
  * Null means "leave it alone", so the caller never writes a `scrollTop` it did
- * not need to — an assignment of the same number still cancels a smooth scroll
- * in flight.
+ * not need to. This is a write the reader asked for with a tap, never one made
+ * under a scrolling finger (ADR 0086).
  */
 export function bandScrollTop(
 	before: { offset: number; scrollTop: number },
@@ -322,15 +265,15 @@ export function bandScrollTop(
 }
 
 /**
- * The reading position after a week has loaded in above. `before` is a stable
- * week node's own offset and the scroll position, both recorded *before* the
- * state change; `nowAt` is that same node's offset after the render.
+ * The reading position after the **loader revalidated** and put height above
+ * the reader — a session written on a day they have already scrolled past.
+ * `before` is the reader's week's offset and the scroll position, read in the
+ * snapshot just before the new data commits; `nowAt` is that week's offset
+ * after it.
  *
- * The delta belongs to the marked node, never to total `scrollHeight`: a week
- * appended *below* in the same pass grows the scroll height too, and crediting
- * that as height inserted above walks the stream to the end of the plan a week
- * at a time. When nothing moved above the mark the delta is 0 and the position
- * is left exactly as the athlete left it.
+ * The delta belongs to the marked week, never to total `scrollHeight`: height
+ * appended *below* grows the scroll height too, and is not the reader's
+ * concern. Nothing moved above the mark → null, and nothing is written.
  */
 export function compensatedScrollTop(
 	before: { offset: number; scrollTop: number },
@@ -339,4 +282,44 @@ export function compensatedScrollTop(
 	const delta = nowAt - before.offset
 	if (delta === 0) return null
 	return before.scrollTop + delta
+}
+
+/**
+ * The landing script the server renders right after the stream (ADR 0086):
+ * {@link landingTop}, written out in plain ES5 and run by the browser as it
+ * parses, so the first paint is already parked on today rather than on the
+ * top of the season. Hydration then measures the same position and writes
+ * nothing.
+ *
+ * It sets the frame's measured height before it measures anything, exactly as
+ * the frame does once hydrated, so the two land on the same pixel.
+ *
+ * Written out rather than built from the functions' source, because a bundler
+ * may rename what a function's body refers to; `anchoring.test.ts` runs this
+ * against a fake layout and holds it to `landingTop` instead.
+ */
+export function landingScript(streamId: string): string {
+	return [
+		'(function(){',
+		`var s=document.getElementById(${JSON.stringify(streamId)});if(!s)return;`,
+		// The frame's height first, as `home-timeline.tsx` measures it once it
+		// hydrates (the viewport less the chrome above it and the tab bar): with
+		// the server's `100dvh` alone the list is taller than it will be, and a
+		// landing that asks whether the week fits would answer for the wrong box.
+		"var m=s.closest('main');if(m){var c=Math.round(m.getBoundingClientRect().top+window.scrollY);m.style.height='calc(100dvh - '+c+'px - var(--tab-bar-space))';}",
+		"var t=s.querySelector('[data-timeline-today]');if(!t)return;",
+		"var w=t.closest('[data-timeline-week]');if(!w)return;",
+		"var h=w.querySelector('[data-week-header]');",
+		'var base=s.getBoundingClientRect().top-s.scrollTop;',
+		'var r=t.getBoundingClientRect();',
+		'var week=w.getBoundingClientRect().top-base,today=r.top-base;',
+		'var hh=h?h.getBoundingClientRect().height:0;',
+		`var fits=s.clientHeight>0&&today+r.height-week<=s.clientHeight-${LANDING_ROOM};`,
+		`var off=hh>0?Math.ceil(hh)+${LANDING_GAP}:${LANDING_OFFSET};`,
+		// Instant: the list's `scroll-behavior: smooth` would animate the write.
+		"var b=s.style.scrollBehavior;s.style.scrollBehavior='auto';",
+		's.scrollTop=Math.round(fits?Math.max(0,week):Math.max(0,today-off));',
+		's.style.scrollBehavior=b;',
+		'})();',
+	].join('')
 }

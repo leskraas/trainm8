@@ -1,292 +1,307 @@
+/**
+ * @vitest-environment jsdom
+ *
+ * The arithmetic behind I dag's list and strip (ADR 0086): the landing, what
+ * the observers' reports mean, and the two tapped toggles' and the
+ * revalidation's position holds. The landing script the server renders is
+ * held to `landingTop` here, against a fake layout, so the copy that runs
+ * before hydration cannot drift from the one that runs after it.
+ */
 import { describe, expect, test } from 'vitest'
 import {
 	ACTIVE_WEEK_LINE,
-	activeWeekFrom,
-	awayFromToday,
+	activeLineMargin,
+	activeWeekOf,
+	AHEAD_INITIAL,
+	AHEAD_STEP,
+	awayFromEntry,
+	awayOf,
 	bandScrollTop,
 	compensatedScrollTop,
-	HERO_FADE_SHARE,
-	heroFold,
+	frameOf,
+	LANDING_GAP,
 	LANDING_OFFSET,
+	LANDING_ROOM,
+	landingOffsetFor,
 	landingPosition,
-	loadEdge,
-	loadPad,
-	LOAD_PAD_MAX,
-	LOAD_PAD_MIN,
+	landingScript,
+	landingTop,
+	nextAhead,
 	offsetWithin,
-	SETTLE_LADDER,
-	SETTLE_WINDOW_MS,
 	WEEK_JUMP_OFFSET,
-	weeksInView,
 } from './anchoring.ts'
 
-// A phone-sized stream: the viewport these thresholds have to hold for.
-const VIEWPORT = 620
+// A phone-sized list: the viewport these thresholds have to hold for.
+const VIEWPORT = 600
 
 describe('measuring against the scroller', () => {
 	test('an offset is measured against the scroller box, not the page', () => {
-		// The scroller sits 120px down the page and is scrolled 900px; a node whose
-		// box currently starts at 260px is therefore 1040px into the content.
 		expect(offsetWithin({ top: 120, scrollTop: 900 }, { top: 260 })).toBe(1040)
 	})
 
 	test('a node above the fold measures as a smaller offset, never a negative page number', () => {
-		// The node has scrolled off the top: its client rect is above the
-		// scroller's, and the arithmetic still puts it at its true content offset.
 		expect(offsetWithin({ top: 120, scrollTop: 900 }, { top: 20 })).toBe(800)
 	})
 })
 
 describe('landing on today', () => {
-	test("the landing parks today's row below the top edge, not flush against it", () => {
-		expect(landingPosition(1400)).toBe(1400 - LANDING_OFFSET)
-		expect(LANDING_OFFSET).toBe(96)
+	test("today parks below its week's measured header, plus a little air", () => {
+		expect(landingOffsetFor(80.4)).toBe(81 + LANDING_GAP)
+		expect(landingPosition(1400, landingOffsetFor(80))).toBe(1400 - 92)
 	})
 
-	test('a landing that would be negative clamps to the top of the stream', () => {
-		// Today's row inside the first 96px — the first week of a brand-new
-		// account — must not ask for a negative scroll position.
+	test('an unmeasured header falls back to the old constant', () => {
+		expect(landingOffsetFor(0)).toBe(LANDING_OFFSET)
+	})
+
+	test('a landing that would be negative clamps to the top of the list', () => {
 		expect(landingPosition(40)).toBe(0)
 	})
 
-	test('the settle ladder retries late layout and then stops', () => {
-		// Rows keep laying out after the first frame, so one measurement is not
-		// enough; the ladder ends well inside the window that releases the anchor.
-		expect([...SETTLE_LADDER]).toEqual([0, 60, 160, 320, 700, 1200])
-		expect(SETTLE_LADDER[SETTLE_LADDER.length - 1]).toBeLessThan(
-			SETTLE_WINDOW_MS,
-		)
+	test('a week that fits on screen up to today opens at its own top', () => {
+		// Header, notes and Monday to today: 360px, with today's row 120px tall,
+		// on a 600px list — the week reads as a week, and today is in it.
+		expect(
+			landingTop({
+				weekOffset: 2000,
+				todayOffset: 2240,
+				todayHeight: 120,
+				headerHeight: 80,
+				clientHeight: VIEWPORT,
+			}),
+		).toBe(2000)
+	})
+
+	test("a week too tall to show up to today parks today under the week's header", () => {
+		expect(
+			landingTop({
+				weekOffset: 2000,
+				todayOffset: 2500,
+				todayHeight: 200,
+				headerHeight: 80,
+				clientHeight: VIEWPORT,
+			}),
+		).toBe(2500 - landingOffsetFor(80))
+	})
+
+	test('the room under today is kept: a row that would end at the bottom edge does not fit', () => {
+		const at = (todayHeight: number) =>
+			landingTop({
+				weekOffset: 0,
+				todayOffset: 300,
+				todayHeight,
+				headerHeight: 80,
+				clientHeight: VIEWPORT,
+			})
+		expect(at(VIEWPORT - LANDING_ROOM - 300)).toBe(0)
+		expect(at(VIEWPORT - LANDING_ROOM - 300 + 1)).toBe(300 - 92)
+	})
+
+	test('with no height to measure (no layout yet) it never claims the week fits', () => {
+		expect(
+			landingTop({
+				weekOffset: 0,
+				todayOffset: 400,
+				todayHeight: 0,
+				headerHeight: 0,
+				clientHeight: 0,
+			}),
+		).toBe(400 - LANDING_OFFSET)
 	})
 
 	test('a week jumped to from the strip parks flush, minus a hair of slack', () => {
-		expect(WEEK_JUMP_OFFSET).toBeLessThan(LANDING_OFFSET)
 		expect(WEEK_JUMP_OFFSET).toBe(2)
 	})
 })
 
-describe('the landing the fold is measured from', () => {
-	test("it is a fact about today's row, and about nothing else", () => {
-		// Never clamped to the scroll range. Folding the hero hands the stream
-		// back the height the hero was using, so a landing that knew about
-		// `clientHeight` would move every time the fold moved — and the fold would
-		// be measured from a point the fold itself had shifted.
-		expect(landingPosition(1400)).toBe(1400 - LANDING_OFFSET)
-		expect(landingPosition(40)).toBe(0)
-	})
-})
-
-describe('the hero fold reads straight off the scroll offset', () => {
-	// The whole point: landing sits far down a bi-directional stream. An absolute
-	// `scrollTop` test would have the hero collapsed the moment the screen
-	// opened, and the athlete would never see today's session.
-	const landing = 1304
-	const open = 400
-	const fold = (scrollTop: number) =>
-		heroFold({ scrollTop, landing, openHeight: open })!
-
-	test('parked exactly on the landing point, the hero is whole', () => {
-		expect(fold(landing)).toMatchObject({
-			progress: 0,
-			heightPx: open,
-			foldPx: 0,
-			opacity: 1,
-			collapsed: false,
+describe('the landing script the server renders', () => {
+	/** A fake layout: every node's top is its content offset less the scroll. */
+	function layout({
+		weekOffset,
+		todayOffset,
+		todayHeight,
+		headerHeight,
+		clientHeight,
+	}: Parameters<typeof landingTop>[0]) {
+		document.body.innerHTML = `<div id="s"><div data-timeline-week><div data-week-header></div><div data-timeline-today></div></div></div>`
+		const stream = document.getElementById('s')!
+		const week = stream.querySelector('[data-timeline-week]')!
+		const header = stream.querySelector('[data-week-header]')!
+		const today = stream.querySelector('[data-timeline-today]')!
+		let top = 0
+		Object.defineProperty(stream, 'scrollTop', {
+			get: () => top,
+			set: (v: number) => (top = v),
 		})
-	})
-
-	test('an absolute scrollTop far from zero is still "at home"', () => {
-		expect(landing).toBeGreaterThan(open)
-		expect(fold(landing).progress).toBe(0)
-	})
-
-	test('dragging halfway leaves the hero halfway — 1:1, no threshold', () => {
-		expect(fold(landing + open / 2)).toMatchObject({
-			progress: 0.5,
-			heightPx: open / 2,
-			foldPx: open / 2,
-		})
-		// One pixel of scroll is one pixel of fold, all the way down.
-		expect(fold(landing + 1).heightPx).toBe(open - 1)
-		expect(fold(landing + 137).heightPx).toBe(open - 137)
-	})
-
-	test('reversing reverses from where it is, with nothing to jump over', () => {
-		// No hysteresis and no threshold: the same offset gives the same fold
-		// whichever way the thumb arrived at it.
-		const out = [0, 40, 120, 260, 400].map((d) => fold(landing + d).progress)
-		const back = [400, 260, 120, 40, 0].map((d) => fold(landing + d).progress)
-		expect(back).toEqual([...out].reverse())
-	})
-
-	test('drifting *up* folds it too — either direction, at the same rate', () => {
-		expect(fold(landing - open / 4).progress).toBe(0.25)
-		expect(fold(landing - open / 4)).toEqual(fold(landing + open / 4))
-	})
-
-	test('the fold stops at fully folded however far the stream runs on', () => {
-		expect(fold(landing + open)).toMatchObject({
-			progress: 1,
-			heightPx: 0,
-			collapsed: true,
-		})
-		expect(fold(landing + 8000)).toMatchObject({ progress: 1, heightPx: 0 })
-		expect(fold(0)).toMatchObject({ progress: 1, heightPx: 0 })
-	})
-
-	test('the compact header row waits until the hero is actually gone', () => {
-		// Anything short of gone still shows a slice of the hero, and two headings
-		// for one band is worse than a tall one.
-		expect(fold(landing + open - 1).collapsed).toBe(false)
-		expect(fold(landing + open).collapsed).toBe(true)
-	})
-
-	test('the fade finishes before the fold does', () => {
-		expect(fold(landing + open * HERO_FADE_SHARE).opacity).toBe(0)
-		expect(fold(landing + open * HERO_FADE_SHARE).heightPx).toBeGreaterThan(0)
-		expect(fold(landing + open * 0.3).opacity).toBeCloseTo(0.5, 10)
-	})
-
-	test("the travel is the hero's own height, so a taller hero folds slower", () => {
-		const tall = heroFold({
-			scrollTop: landing + 200,
-			landing,
-			openHeight: 800,
-		})
-		expect(tall!.progress).toBe(0.25)
-		expect(tall!.foldPx).toBe(200)
-	})
-
-	test('a short history above today still folds the hero whole at the top', () => {
-		// Fewer than a hero's height of stream above today: the top of the stream
-		// used to leave a part-folded, already-faded hero — a blank box.
-		const short = (scrollTop: number) =>
-			heroFold({ scrollTop, landing: 300, openHeight: open })!
-		expect(short(0)).toMatchObject({
-			progress: 1,
-			heightPx: 0,
-			collapsed: true,
-		})
-		expect(short(150).progress).toBe(0.5)
-		// Downward it is the hero's own height as ever.
-		expect(short(300 + 200).progress).toBe(0.5)
-		// Too little room to reach the fade: the top shows a hero still folding
-		// — never a blank one, and never one snapped shut by a few pixels.
-		const tiny = heroFold({ scrollTop: 0, landing: 100, openHeight: open })!
-		expect(tiny.progress).toBe(0.25)
-		expect(tiny.opacity).toBeGreaterThan(0)
-	})
-
-	test('an unmeasured hero folds nothing at all', () => {
-		// The server render, the first paint and jsdom: there is no height to fold
-		// and writing one would collapse a hero nobody has measured.
-		expect(heroFold({ scrollTop: 0, landing: 1304, openHeight: 0 })).toBeNull()
-		expect(heroFold({ scrollTop: 0, landing: 0, openHeight: -1 })).toBeNull()
-	})
-})
-
-describe('the bi-directional load pad', () => {
-	test('the pad scales with the viewport, because a fixed one is wrong', () => {
-		// A pad larger than the viewport makes "near the end" true at every
-		// position — including the landing one, which would walk the stream to the
-		// end of the plan on open.
-		expect(loadPad(VIEWPORT)).toBe(VIEWPORT / 2)
-		expect(loadPad(VIEWPORT)).toBeLessThan(VIEWPORT)
-	})
-
-	test('a tiny viewport still gets a usable pad', () => {
-		expect(loadPad(100)).toBe(LOAD_PAD_MIN)
-	})
-
-	test('a tall viewport is capped, so the pad never spans a whole week', () => {
-		expect(loadPad(2000)).toBe(LOAD_PAD_MAX)
-	})
-})
-
-describe('which edge loads next', () => {
-	const view = { clientHeight: VIEWPORT, scrollHeight: 4000 }
-	const room = { earlier: true, later: true }
-
-	test('reading past the top edge loads an earlier week', () => {
-		expect(loadEdge({ ...view, scrollTop: 10 }, room)).toBe('earlier')
-	})
-
-	test('reading past the bottom edge loads a later week', () => {
-		expect(loadEdge({ ...view, scrollTop: 4000 - VIEWPORT - 10 }, room)).toBe(
-			'later',
+		Object.defineProperty(stream, 'clientHeight', { get: () => clientHeight })
+		const rect = (y: () => number, height = 0) =>
+			(() => ({ top: y(), height })) as unknown as () => DOMRect
+		stream.getBoundingClientRect = rect(() => 50)
+		week.getBoundingClientRect = rect(() => 50 + weekOffset - top)
+		header.getBoundingClientRect = rect(
+			() => 50 + weekOffset - top,
+			headerHeight,
 		)
+		today.getBoundingClientRect = rect(
+			() => 50 + todayOffset - top,
+			todayHeight,
+		)
+		return stream
+	}
+
+	test.each([
+		{ weekOffset: 2000, todayOffset: 2240, todayHeight: 120 },
+		{ weekOffset: 2000, todayOffset: 2500, todayHeight: 200 },
+		{ weekOffset: 0, todayOffset: 40, todayHeight: 900 },
+	])('parks exactly where landingTop does (%o)', (geometry) => {
+		const input = { ...geometry, headerHeight: 80.5, clientHeight: VIEWPORT }
+		const stream = layout(input)
+		new Function(landingScript('s'))()
+		expect(stream.scrollTop).toBe(Math.round(landingTop(input)))
 	})
 
-	test('parked in the middle loads nothing', () => {
-		expect(loadEdge({ ...view, scrollTop: 1600 }, room)).toBeNull()
+	test('a page with no today row is left alone', () => {
+		document.body.innerHTML = '<div id="s"></div>'
+		expect(() => new Function(landingScript('s'))()).not.toThrow()
+		expect(() => new Function(landingScript('missing'))()).not.toThrow()
 	})
 
-	test('the two tests are mutually exclusive: a short stream picks one end only', () => {
-		// Both conditions are true here (the stream is barely taller than the
-		// viewport). Growing at both ends in one pass would double the window.
-		const short = { clientHeight: VIEWPORT, scrollHeight: VIEWPORT + 20 }
-		expect(loadEdge({ ...short, scrollTop: 0 }, room)).toBe('earlier')
-	})
-
-	test('no room earlier means the bottom test still gets its turn', () => {
-		const short = { clientHeight: VIEWPORT, scrollHeight: VIEWPORT + 20 }
-		expect(
-			loadEdge({ ...short, scrollTop: 0 }, { earlier: false, later: true }),
-		).toBe('later')
-	})
-
-	test('the start of the season loads nothing more, however far up you read', () => {
-		expect(
-			loadEdge({ ...view, scrollTop: 0 }, { earlier: false, later: true }),
-		).toBeNull()
-	})
-
-	test('the end of the season loads nothing more, however far down you read', () => {
-		expect(
-			loadEdge(
-				{ ...view, scrollTop: 4000 - VIEWPORT },
-				{ earlier: true, later: false },
-			),
-		).toBeNull()
+	test('the stream id is quoted, never spliced in raw', () => {
+		expect(landingScript('a"b')).toContain(JSON.stringify('a"b'))
 	})
 })
 
-describe('holding the reading position when a week loads above', () => {
-	test("the compensation is the marked week's own offset delta", () => {
-		// A week 820px tall arrived above the mark: the mark moved down by exactly
-		// that, so the scroll position moves down by exactly that.
+describe('what the observers report', () => {
+	const order = ['w1', 'w2', 'w3', 'w4']
+
+	test('the frame is the first and last visible week, in season order', () => {
+		expect(frameOf(new Set(['w3', 'w2']), order)).toEqual({
+			from: 'w2',
+			to: 'w3',
+		})
+		expect(frameOf(new Set(['w4']), order)).toEqual({ from: 'w4', to: 'w4' })
+	})
+
+	test('nothing visible is no frame at all, so the caller keeps its own', () => {
+		expect(frameOf(new Set(), order)).toBeNull()
+	})
+
+	test('the active week is the one the reading line crosses', () => {
+		expect(activeWeekOf(new Set(['w2']), order, 'w1')).toBe('w2')
+		// The instant one header hands over to the next, both cross: the later wins.
+		expect(activeWeekOf(new Set(['w2', 'w3']), order, 'w1')).toBe('w3')
+	})
+
+	test('with nothing on the line (over the start cap) the active week stays', () => {
+		expect(activeWeekOf(new Set(), order, 'w4')).toBe('w4')
+	})
+
+	test('the reading line is one pixel, at the active line, whatever the height', () => {
+		expect(activeLineMargin(VIEWPORT)).toBe(
+			`-${ACTIVE_WEEK_LINE}px 0px -${VIEWPORT - ACTIVE_WEEK_LINE - 1}px 0px`,
+		)
+		// A list shorter than the line never gets a negative margin.
+		expect(activeLineMargin(20)).toBe(`-${ACTIVE_WEEK_LINE}px 0px -0px 0px`)
+	})
+
+	test("today's row in view is 0; off the top is −1; below is +1", () => {
+		const root = { top: 100 }
+		expect(
+			awayFromEntry({
+				isIntersecting: true,
+				boundingClientRect: { top: 300 },
+				rootBounds: root,
+			}),
+		).toBe(0)
+		expect(
+			awayFromEntry({
+				isIntersecting: false,
+				boundingClientRect: { top: -400 },
+				rootBounds: root,
+			}),
+		).toBe(-1)
+		expect(
+			awayFromEntry({
+				isIntersecting: false,
+				boundingClientRect: { top: 1400 },
+				rootBounds: root,
+			}),
+		).toBe(1)
+	})
+})
+
+describe('which way today is, when its row never crossed an edge', () => {
+	const order = ['w1', 'w2', 'w3', 'w4', 'w5']
+	const base = { order, todayKey: 'w2', lastReport: 1 as const }
+
+	test('in view is in view, whatever else is known', () => {
+		expect(
+			awayOf({ ...base, inView: true, frame: { from: 'w4', to: 'w5' } }),
+		).toBe(0)
+	})
+
+	test('one long jump from below today to far past it points up', () => {
+		// The row reported "below" and has not reported since: it jumped over the
+		// viewport without crossing it. The weeks on screen say where it went.
+		expect(
+			awayOf({ ...base, inView: false, frame: { from: 'w4', to: 'w5' } }),
+		).toBe(-1)
+	})
+
+	test('weeks before today on screen point down', () => {
+		expect(
+			awayOf({
+				...base,
+				inView: false,
+				lastReport: -1,
+				frame: { from: 'w1', to: 'w1' },
+			}),
+		).toBe(1)
+	})
+
+	test('inside today’s own week the row’s last report decides', () => {
+		expect(
+			awayOf({ ...base, inView: false, frame: { from: 'w2', to: 'w2' } }),
+		).toBe(1)
+	})
+})
+
+describe('the weeks ahead', () => {
+	test('a handful mount up front, and more in steps, never past the season', () => {
+		expect(AHEAD_INITIAL).toBeGreaterThan(0)
+		expect(nextAhead(AHEAD_INITIAL, 100)).toBe(AHEAD_INITIAL + AHEAD_STEP)
+		expect(nextAhead(10, 12)).toBe(12)
+	})
+})
+
+describe('holding the reading position when the loader revalidates', () => {
+	test("the compensation is the reader's week's own offset delta", () => {
 		const before = { offset: 1200, scrollTop: 60 }
 		expect(compensatedScrollTop(before, 2020)).toBe(880)
 	})
 
-	test('nothing above the mark moved, so nothing is compensated', () => {
-		// This is the case a `scrollHeight` delta gets wrong: a week appended
-		// *below* in the same pass grows the scroll height without moving the mark,
-		// and crediting that as height inserted above walks the stream to the end
-		// of the plan a week at a time.
-		const before = { offset: 1200, scrollTop: 60 }
-		expect(compensatedScrollTop(before, 1200)).toBeNull()
+	test('nothing above the reader moved, so nothing is written', () => {
+		// Height appended *below* grows the scroll height without moving the
+		// reader's week, and is not the reader's concern.
+		expect(
+			compensatedScrollTop({ offset: 1200, scrollTop: 60 }, 1200),
+		).toBeNull()
 	})
 
-	test('a week removed above pulls the reading position back up', () => {
-		const before = { offset: 1200, scrollTop: 900 }
-		expect(compensatedScrollTop(before, 400)).toBe(100)
+	test('height removed above pulls the reading position back up', () => {
+		expect(compensatedScrollTop({ offset: 1200, scrollTop: 900 }, 400)).toBe(
+			100,
+		)
 	})
 })
 
-describe('holding the reading position when a past band opens', () => {
+describe('holding the reading position when a band or a folded week opens', () => {
 	test('a band below the reading edge moves nothing, however much it inserts', () => {
-		// The commonest case by far, because a band has to be tapped to open: the
-		// row is under the athlete's thumb, the days grow downwards out of it, and
-		// everything they can see above it is untouched.
 		expect(bandScrollTop({ offset: 900, scrollTop: 640 }, 352)).toBeNull()
-		// Flush against the edge counts as below it: the band's own top is the
-		// first thing they can see, and it stays the first thing they can see.
 		expect(bandScrollTop({ offset: 640, scrollTop: 640 }, 352)).toBeNull()
 	})
 
 	test('a band that has gone up past the edge hands the height back', () => {
-		// Every pixel the athlete is looking at is below the insertion, so the
-		// position takes the delta or the run walks them down the season.
 		expect(bandScrollTop({ offset: 600, scrollTop: 640 }, 352)).toBe(992)
 	})
 
@@ -295,91 +310,10 @@ describe('holding the reading position when a past band opens', () => {
 	})
 
 	test('a toggle that changed no height is left alone', () => {
-		// Null rather than the same number: assigning `scrollTop` cancels a smooth
-		// scroll in flight, so the caller should not write one it does not need.
 		expect(bandScrollTop({ offset: 600, scrollTop: 640 }, 0)).toBeNull()
 	})
 
 	test('the position never goes negative', () => {
 		expect(bandScrollTop({ offset: 0, scrollTop: 40 }, -352)).toBe(0)
-	})
-})
-
-describe('the active week', () => {
-	const weeks = [
-		{ key: '2030-01-07', offset: 0 },
-		{ key: '2030-01-14', offset: 900 },
-		{ key: '2030-01-21', offset: 1800 },
-	]
-
-	test('the last week whose header has passed the line wins', () => {
-		expect(activeWeekFrom(weeks, 1000, 'fallback')).toBe('2030-01-14')
-	})
-
-	test('a tall week keeps the strip on itself all the way down', () => {
-		expect(activeWeekFrom(weeks, 1700, 'fallback')).toBe('2030-01-14')
-		expect(activeWeekFrom(weeks, 1730, 'fallback')).toBe('2030-01-21')
-	})
-
-	test('the header flips at the active line, a little below the top edge', () => {
-		expect(activeWeekFrom(weeks, 900 - ACTIVE_WEEK_LINE - 1, 'x')).toBe(
-			'2030-01-07',
-		)
-		expect(activeWeekFrom(weeks, 900 - ACTIVE_WEEK_LINE, 'x')).toBe(
-			'2030-01-14',
-		)
-	})
-
-	test('above every header, the caller keeps whatever it had', () => {
-		expect(activeWeekFrom([{ key: 'a', offset: 500 }], 0, 'kept')).toBe('kept')
-	})
-
-	test('no weeks in the DOM changes nothing', () => {
-		expect(activeWeekFrom([], 4000, 'kept')).toBe('kept')
-	})
-})
-
-describe('the back-to-today pill', () => {
-	test('it is hidden while today is in view — including on first paint', () => {
-		// Landed: today's row sits 96px down the viewport, which is "in view".
-		expect(awayFromToday(1400, 1304, VIEWPORT)).toBe(0)
-	})
-
-	test('it points up once today has gone off the top', () => {
-		expect(awayFromToday(1400, 1500, VIEWPORT)).toBe(-1)
-	})
-
-	test('it points down once today is below the fold', () => {
-		expect(awayFromToday(1400, 500, VIEWPORT)).toBe(1)
-	})
-
-	test('a row just off the top edge is not yet "away"', () => {
-		// A little slack either side, so a nudge of the thumb does not flash a pill.
-		expect(awayFromToday(1400, 1450, VIEWPORT)).toBe(0)
-	})
-
-	test('a row at the very bottom edge is not yet "away" either', () => {
-		expect(awayFromToday(1400, 1400 - VIEWPORT + 50, VIEWPORT)).toBe(0)
-	})
-})
-
-describe('the weeks a reader can see, for the strip’s frame', () => {
-	const weeks = [
-		{ key: 'a', offset: 0 },
-		{ key: 'b', offset: 400 },
-		{ key: 'c', offset: 800 },
-		{ key: 'd', offset: 1200 },
-	]
-
-	test('from the week at the top edge to the week whose header shows at the bottom', () => {
-		expect(weeksInView(weeks, 450, 400)).toEqual({ from: 'b', to: 'c' })
-	})
-
-	test('one tall week filling the screen is a frame of one', () => {
-		expect(weeksInView(weeks, 410, 380)).toEqual({ from: 'b', to: 'b' })
-	})
-
-	test('nothing mounted is no frame at all', () => {
-		expect(weeksInView([], 0, 400)).toBeNull()
 	})
 })

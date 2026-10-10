@@ -1,109 +1,102 @@
 /**
- * The two axes, wired to a real scroller.
+ * I dag's list, wired to a real scroller — and kept out of the reader's way.
  *
- * This hook owns every measurement the home timeline makes and nothing else:
- * the arithmetic lives in `anchoring.ts`, so what is left here is "find the
- * node, measure it, decide, assign". Five behaviours share one scroll handler
- * because they share one measurement pass — folding the hero, growing the
- * window, tracking the active week, showing the pill, and holding the reading
- * position while a week loads in above.
+ * This hook owns every measurement the list makes; the arithmetic lives in
+ * `anchoring.ts`. It is built around one rule (ADR 0086): **the app never
+ * writes `scrollTop` under a scrolling reader.** A write while a finger is
+ * flinging the list cancels the fling's momentum on a phone, and every write
+ * the old module made — the settle ladder, the growth compensation — landed
+ * exactly then.
  *
- * **The fold is written, not animated (#498).** It is a scroll effect on the
- * screen the athlete opens most, so it has no duration and no threshold: every
- * pass turns the distance from the landing point into a height, an opacity and
- * a lift, and assigns them. Nothing here waits for a transition to finish,
- * which is why the jump paths below can measure the instant they have moved.
- *
- * The awkward parts that remain are awkward on purpose:
- *
- * - **Landing is a ladder, not an effect.** Rows keep laying out after the first
- *   frame, so the initial `scrollTop` assignment is re-applied on a ladder of
- *   timers and only released once the layout has stopped moving. That ladder is
- *   about *late layout*, not about motion, so the fold going scroll-driven
- *   leaves it exactly as load-bearing as it was.
- * - **Nothing loads until the landing has settled**, or growth races the anchor
- *   and the athlete opens on a random week.
- * - **Height inserted above the reader is compensated against a marked week's
- *   own offset**, never against total `scrollHeight`. The mark is the week the
- *   reader is parked in, re-measured after every render, so a week loading in at
- *   the top and a session arriving on a past day from a revalidated loader are
- *   the same event to it — and something appended *below* is not an event at
- *   all (#503).
- * - **Programmatic scrolling is re-measured explicitly**, because assigning
- *   `scrollTop` does not reliably emit a `scroll` event and the strip would be
- *   left pointing at the week the athlete just left — and the fold would be left
- *   showing the distance from a position nobody is at any more.
+ * - **The past is mounted up front.** Every week before today renders on the
+ *   first pass (a closed week is one folded line), so nothing ever grows
+ *   *above* the reader and there is nothing to compensate. Weeks ahead are
+ *   appended as the reader nears the end, which moves nothing they can see.
+ * - **The landing happens before first paint.** The server renders a small
+ *   script right after the list (`landingScript`), so the browser parks it on
+ *   today while parsing; hydration re-measures the same spot in a layout
+ *   effect and writes only if the two differ. Late layout (a font, a wrapped
+ *   title) is followed by a `ResizeObserver` that re-lands **until the reader's
+ *   first input** — `pointerdown`, `wheel`, `touchstart`, `keydown` — and never
+ *   after it. No timers.
+ * - **Where the reader is comes from `IntersectionObserver`s**, not from a
+ *   scroll handler: one for the weeks on screen (the strip's frame), one
+ *   one-pixel line for the week being read, one for today's row (the I dag
+ *   pill), one sentinel at the end for the weeks ahead. They report only when
+ *   something crosses, and state is set only when a value changes.
+ * - **Jumps are instant writes**, made because the reader tapped, and the
+ *   observers report the new position on their own.
+ * - **A revalidation that adds height above the reader** is the one case left
+ *   that writes on its own: {@link ReadingHold} measures the reader's week
+ *   just before the new data commits and hands the delta back in the same
+ *   frame — the write native scroll anchoring would make, and the stream
+ *   carries `overflow-anchor: none` so the two never both make it.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+	Component,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from 'react'
 import {
 	type AwayFromToday,
-	activeWeekFrom,
-	awayFromToday,
+	activeLineMargin,
+	activeWeekOf,
+	AHEAD_INITIAL,
+	AHEAD_PAD,
+	AWAY_MARGIN,
+	awayFromEntry,
+	awayOf,
 	compensatedScrollTop,
-	heroFold,
-	HERO_LIFT_SHARE,
-	landingOffsetFor,
-	landingPosition,
-	loadEdge,
+	frameOf,
+	landingTop,
+	nextAhead,
 	offsetWithin,
-	SETTLE_LADDER,
-	SETTLE_WINDOW_MS,
 	WEEK_JUMP_OFFSET,
-	weeksInView,
 } from './anchoring.ts'
 
-/** The DOM contract between this hook and the markup that renders the timeline. */
+/** The DOM contract between this hook and the markup that renders the list. */
 export const WEEK_ATTR = 'data-timeline-week'
 /** The scroller itself — how a row deep in the stream finds what it scrolls in. */
 export const STREAM_ATTR = 'data-timeline-stream'
-/**
- * Set on the scroller by a control that has **already held the reading position**
- * for the height it just inserted — the past band, which knows whether its run
- * opened above the reading edge or below it and is finer-grained about it than a
- * week-keyed mark can be (`bandScrollTop`).
- *
- * The compensation below reads it as "this render is paid for", skips its own
- * credit for one pass and clears it. Without it the band's own correction and
- * this one both apply and the run walks the reader down the season by exactly
- * the height it inserted (#503).
- */
-export const HELD_ATTR = 'data-timeline-held'
 export const TODAY_ATTR = 'data-timeline-today'
 /** A week's sticky header — what today's row must land clear of. */
 export const WEEK_HEADER_ATTR = 'data-week-header'
 export const CELL_ATTR = 'data-timeline-cell'
+/** The sentinel after the last mounted week: in reach, the next weeks mount. */
+export const AHEAD_SENTINEL_ATTR = 'data-timeline-ahead'
+
+/** The inputs that hand the scroll position to the reader for good. */
+const INPUTS = [
+	'pointerdown',
+	'wheel',
+	'touchstart',
+	'keydown',
+	// A click with no pointer behind it: a screen reader activating a control.
+	'click',
+] as const
 
 export type TimelineScroll = {
 	streamRef: (node: HTMLDivElement | null) => void
-	/**
-	 * The hero's clip box. The hook measures its open height and writes the fold
-	 * straight onto it, because a fold that re-rendered React on every scroll
-	 * frame would be the same cost the transition was removed for.
-	 */
-	heroRef: (node: HTMLDivElement | null) => void
-	/** One handler for every axis-driven state; see the module note. */
-	onStreamScroll: () => void
-	/**
-	 * True once the hero has folded all the way away — the point the compact
-	 * header row takes over and the band leaves the tab order. The *partial*
-	 * fold is not React state at all; it is the height on the node.
-	 */
-	collapsed: boolean
-	/** The week the stream is parked in — the strip's active cell. */
+	/** The week the stream is parked in — the strip's current week. */
 	activeWeekKey: string
 	/**
-	 * The first and last week the stream is showing — the edges of the strip's
-	 * frame (#505 story 17). Re-measured on the same pass as the active week,
-	 * and set only when an edge moves to another week.
+	 * The first and last week the reader can see — the edges of the strip's
+	 * frame (#505 story 17). Set only when an edge moves to another week.
 	 */
 	frame: { from: string; to: string }
-	/** −1 above the fold, 0 in view, +1 below; drives the back-to-today pill. */
+	/** −1 above, 0 in view, +1 below; drives the I dag pill. */
 	away: AwayFromToday
-	/** How many weeks either side of today are mounted. */
-	loaded: { before: number; after: number }
+	/** How many weeks after today are mounted. Every week before it always is. */
+	after: number
 	backToToday: () => void
-	/** Load the week if it is outside the window, then jump the stream to it. */
+	/** Mount the week if it is ahead of the window, then jump the stream to it. */
 	goToWeek: (key: string) => void
+	/** The reader's week as last reported — what {@link ReadingHold} marks. */
+	readerKey: () => string
 }
 
 export function useTimelineScroll({
@@ -111,75 +104,34 @@ export function useTimelineScroll({
 	todayIndex,
 }: {
 	weekKeys: string[]
-	/** Index of today's week in `weekKeys` — the window grows from here. */
+	/** Index of today's week in `weekKeys`. */
 	todayIndex: number
 }): TimelineScroll {
 	const homeKey = weekKeys[todayIndex] ?? weekKeys[0] ?? ''
-	const [before, setBefore] = useState(1)
-	const [after, setAfter] = useState(1)
-	const [collapsed, setCollapsed] = useState(false)
+	const maxAfter = Math.max(0, weekKeys.length - 1 - todayIndex)
+	const [after, setAfter] = useState(() => Math.min(maxAfter, AHEAD_INITIAL))
 	const [activeWeekKey, setActiveWeekKey] = useState(homeKey)
 	const [frame, setFrame] = useState({ from: homeKey, to: homeKey })
-	// A mirror of `frame`, so the scroll pass compares without setting state it
-	// already has — the reason `activeKeyRef` mirrors the active week.
-	const frameRef = useRef(frame)
 	const [away, setAway] = useState<AwayFromToday>(0)
-	// A mirror of `activeWeekKey` for the measuring path to read. A state updater
-	// must stay pure — React may run it more than once — and deciding whether to
-	// set state at all is the comparison, so it happens out here instead.
-	const activeKeyRef = useRef(homeKey)
 
 	const streamElRef = useRef<HTMLDivElement | null>(null)
-	const heroElRef = useRef<HTMLDivElement | null>(null)
-	/** The hero's height with nothing folded away — the fold's whole travel. */
-	const heroOpenRef = useRef(0)
-	// A mirror of `collapsed`, for the same reason `activeKeyRef` mirrors the
-	// active week: the fold runs on every scroll frame and must not set state it
-	// has already set.
-	const collapsedRef = useRef(false)
-	/** False while the initial landing still owns the scroll position. */
-	const landedRef = useRef(false)
-	/** The last measured landing position, for when today's row is not mounted. */
-	const landingRef = useRef(0)
-	/**
-	 * The week the reader is parked in, and where it sat in the content, as of
-	 * the last render — the baseline any height that appears *above* them is
-	 * credited against (#503).
-	 *
-	 * The reader's week rather than the first mounted one, which is what this
-	 * used to mark. Marking the first week answers only the question growth asks
-	 * ("a week arrived at the top"); a revalidated loader can put a session on a
-	 * day five weeks below the top and still above the eye, and the first week
-	 * does not move for it. The week under the eye moves for **everything**
-	 * inserted above it and for nothing inserted below, which is the whole of
-	 * what holding a reading position means.
-	 */
-	const markRef = useRef<{ key: string; offset: number } | null>(null)
-	/** A jump waiting for its week to reach the DOM. */
+	/** True until the reader's first input: the landing still owns the position. */
+	const holdingRef = useRef(true)
+	/** A jump waiting for its week to be mounted. */
 	const pendingJumpRef = useRef<string | null>(null)
-	/** One growth per pass; two in the same tick would double-count the window. */
-	const growingRef = useRef(false)
-
-	// Every timer this hook starts, so unmounting cannot leave one measuring a
-	// detached node — jsdom and React both complain, and rightly.
-	const timersRef = useRef(new Set<ReturnType<typeof setTimeout>>())
-	const later = useCallback((fn: () => void, ms: number) => {
-		const id = setTimeout(() => {
-			timersRef.current.delete(id)
-			fn()
-		}, ms)
-		timersRef.current.add(id)
-	}, [])
-	useEffect(
-		() => () => {
-			for (const id of timersRef.current) clearTimeout(id)
-			timersRef.current.clear()
-		},
-		[],
-	)
-
-	const maxBefore = todayIndex
-	const maxAfter = Math.max(0, weekKeys.length - 1 - todayIndex)
+	// Mirrors of state for the observer callbacks, which must compare before
+	// they set: a state updater has to stay pure, so the decision lives here.
+	const activeRef = useRef(homeKey)
+	const frameRef = useRef(frame)
+	const awayRef = useRef<AwayFromToday>(0)
+	const homeKeyRef = useRef(homeKey)
+	homeKeyRef.current = homeKey
+	const keysRef = useRef(weekKeys)
+	keysRef.current = weekKeys
+	const afterRef = useRef(after)
+	afterRef.current = after
+	const maxAfterRef = useRef(maxAfter)
+	maxAfterRef.current = maxAfter
 
 	// ——— measuring ————————————————————————————————————————————————————————
 
@@ -198,388 +150,364 @@ export function useTimelineScroll({
 		[],
 	)
 
-	/**
-	 * How far below the stream's top today parks: its week's sticky header,
-	 * measured, plus a little air (`landingOffsetFor`). Measured on every use,
-	 * because the header's height is the week's tracks and the hero's fold is
-	 * not, and a remembered number is the bug this replaced.
-	 */
-	const landingOffset = useCallback((el: HTMLElement) => {
-		const header = el
-			.querySelector(`[${TODAY_ATTR}]`)
-			?.closest(`[${WEEK_ATTR}]`)
-			?.querySelector(`[${WEEK_HEADER_ATTR}]`)
-		return landingOffsetFor(header?.getBoundingClientRect().height ?? 0)
-	}, [])
-
-	const todayOffset = useCallback(
+	/** Where the landing parks (`landingTop`), or null with nothing to aim at. */
+	const landingTarget = useCallback(
 		(el: HTMLElement) => {
-			const node = el.querySelector(`[${TODAY_ATTR}]`)
-			return node ? offsetOf(el, node) : null
+			const today = el.querySelector(`[${TODAY_ATTR}]`)
+			const week = today?.closest(`[${WEEK_ATTR}]`)
+			if (!today || !week) return null
+			const header = week.querySelector(`[${WEEK_HEADER_ATTR}]`)
+			return landingTop({
+				weekOffset: offsetOf(el, week),
+				todayOffset: offsetOf(el, today),
+				todayHeight: today.getBoundingClientRect().height,
+				headerHeight: header?.getBoundingClientRect().height ?? 0,
+				clientHeight: el.clientHeight,
+			})
 		},
 		[offsetOf],
 	)
 
-	/** Where "parked on today" is right now — the point the fold is measured from. */
-	const landing = useCallback(
-		(el: HTMLElement) => {
-			const offset = todayOffset(el)
-			return offset == null
-				? landingRef.current
-				: landingPosition(offset, landingOffset(el))
-		},
-		[landingOffset, todayOffset],
-	)
-
 	/**
-	 * The hero's open height. Read off the clip box's `scrollHeight`, which is
-	 * its *content*, not the height the fold has assigned to it — so the travel
-	 * survives being measured mid-fold. Zero before layout (the server render,
-	 * jsdom), which `heroFold` reads as "write nothing".
+	 * Assign a scroll position, instantly, and only if it differs — an
+	 * assignment of the same number still cancels a scroll in flight. The list
+	 * carries `scroll-behavior: smooth` for the reader's own keyboard scrolling,
+	 * so smooth is switched off around the write.
 	 */
-	const measureHero = useCallback(() => {
-		const hero = heroElRef.current
-		if (hero?.isConnected && hero.scrollHeight > 0) {
-			heroOpenRef.current = hero.scrollHeight
-		}
-		return heroOpenRef.current
+	const jumpTo = useCallback((el: HTMLElement, want: number) => {
+		const top = Math.max(0, Math.round(want))
+		if (Math.abs(el.scrollTop - top) < 1) return
+		const previous = el.style.scrollBehavior
+		el.style.scrollBehavior = 'auto'
+		el.scrollTop = top
+		el.style.scrollBehavior = previous
 	}, [])
 
-	/**
-	 * The fold itself: distance from the landing point, turned into a height, an
-	 * opacity and a lift, and written to the node. No transition, no threshold
-	 * and no React render — a partially folded hero is a number on an element,
-	 * and only "folded all the way away" is worth re-rendering the header for.
-	 */
-	const applyFold = useCallback(
-		(el: HTMLElement) => {
-			const hero = heroElRef.current
-			if (!hero?.isConnected) return
-			const fold = heroFold({
-				scrollTop: el.scrollTop,
-				landing: landing(el),
-				openHeight: measureHero(),
-			})
-			if (!fold) return
-			hero.style.height = `${fold.heightPx}px`
-			hero.style.opacity = `${fold.opacity}`
-			// The lift is a share of the fold, published as a length the stylesheet
-			// applies (`hero-lift` in `tailwind.css`) rather than a transform
-			// written from here — so `prefers-reduced-motion` can drop the movement
-			// without the hook having to know the athlete's preference.
-			hero.style.setProperty(
-				'--hero-lift',
-				`${fold.foldPx * HERO_LIFT_SHARE}px`,
-			)
-			if (fold.collapsed === collapsedRef.current) return
-			collapsedRef.current = fold.collapsed
-			setCollapsed(fold.collapsed)
-		},
-		[landing, measureHero],
-	)
-
-	/**
-	 * Assign a scroll position, **instantly**. The scrollers carry
-	 * `scroll-behavior: smooth` for the athlete's own keyboard scrolling; every
-	 * write this hook makes is a jump, so smooth is switched off around it.
-	 *
-	 * It used to write, read the property back, and only fall back to this if the
-	 * write had missed by more than 2px — restoring smooth on a timer afterwards.
-	 * The probe could not fail: a smooth scroll has not started moving by the
-	 * time the property is read, so *every* write took the fallback anyway. What
-	 * the probe bought was a timer between assigning a position and being able to
-	 * trust it, and that is the thing the jump paths below no longer want.
-	 */
-	const jumpTo = useCallback(
-		(el: HTMLElement, axis: 'x' | 'y', want: number) => {
-			const prop = axis === 'x' ? 'scrollLeft' : 'scrollTop'
-			const previous = el.style.scrollBehavior
-			el.style.scrollBehavior = 'auto'
-			el[prop] = Math.max(0, want)
-			// Restored in the same tick: the assignment above is synchronous and
-			// already done, so nothing is left for smooth to animate.
-			el.style.scrollBehavior = previous
-		},
-		[],
-	)
-
-	// ——— the scroll pass ——————————————————————————————————————————————————
-
-	/**
-	 * Recompute the active week and the pill from wherever the stream is now.
-	 * Split out from the scroll handler because a programmatic jump has to run it
-	 * by hand: assigning `scrollTop` does not reliably emit a `scroll` event.
-	 */
-	const resync = useCallback(() => {
+	/** Park on today — only while the landing still owns the position. */
+	const land = useCallback(() => {
+		if (!holdingRef.current) return
 		const el = scroller()
 		if (!el) return
-		const top = el.scrollTop
-		const weeks = [...el.querySelectorAll<HTMLElement>(`[${WEEK_ATTR}]`)].map(
-			(node) => ({
-				key: node.getAttribute(WEEK_ATTR) ?? '',
-				offset: offsetOf(el, node),
-			}),
-		)
-		const nextWeek = activeWeekFrom(weeks, top, activeKeyRef.current)
-		if (nextWeek !== activeKeyRef.current) {
-			activeKeyRef.current = nextWeek
-			setActiveWeekKey(nextWeek)
-		}
-		const inView = weeksInView(weeks, top, el.clientHeight)
-		if (
-			inView &&
-			(inView.from !== frameRef.current.from ||
-				inView.to !== frameRef.current.to)
-		) {
-			frameRef.current = inView
-			setFrame(inView)
-		}
-		const offset = todayOffset(el)
-		if (offset != null) setAway(awayFromToday(offset, top, el.clientHeight))
-	}, [offsetOf, scroller, todayOffset])
+		const want = landingTarget(el)
+		if (want != null) jumpTo(el, want)
+	}, [jumpTo, landingTarget, scroller])
 
-	const grow = useCallback(
-		(edge: 'earlier' | 'later') => {
-			const el = scroller()
-			if (!el || growingRef.current) return
-			growingRef.current = true
-			// Nothing to record: the mark the compensation credits against is
-			// written after every render, so the week the reader is in has already
-			// been measured at the offset it had before this growth.
-			if (edge === 'earlier') setBefore((n) => Math.min(maxBefore, n + 1))
-			else setAfter((n) => Math.min(maxAfter, n + 1))
-			later(() => {
-				growingRef.current = false
-			}, 0)
-		},
-		[later, maxAfter, maxBefore, scroller],
-	)
+	// ——— the reader takes over ————————————————————————————————————————————
 
-	const onStreamScroll = useCallback(() => {
-		const el = scroller()
-		if (!el) return
-		resync()
-		// No loading at all until the landing has settled: a week arriving mid-
-		// landing moves today's row while the ladder is still aiming at it.
-		if (landedRef.current) {
-			const edge = loadEdge(
-				{
-					scrollTop: el.scrollTop,
-					clientHeight: el.clientHeight,
-					scrollHeight: el.scrollHeight,
-				},
-				{ earlier: before < maxBefore, later: after < maxAfter },
-			)
-			if (edge) grow(edge)
-		}
-		// Last, because it is the only thing in the pass that *writes* to the
-		// layout. Everything above reads it, and a write in the middle would have
-		// the browser lay the page out twice for one scroll frame — which is the
-		// cost this fold exists to avoid paying.
-		applyFold(el)
-	}, [after, applyFold, before, grow, maxAfter, maxBefore, resync, scroller])
-
-	// ——— landing ——————————————————————————————————————————————————————————
-
-	/**
-	 * Put the stream on today. Not animated: the athlete should open *on* today
-	 * rather than watch the app scroll there.
-	 */
-	const settle = useCallback(() => {
-		if (landedRef.current) return
-		const el = scroller()
-		if (!el) return
-		const offset = todayOffset(el)
-		// Nothing to aim at yet: no anchor, or a stream that has not laid out far
-		// enough to be scrollable at all.
-		if (offset == null || el.scrollHeight <= el.clientHeight) return
-		const want = landingPosition(offset, landingOffset(el))
-		if (!want) return
-		jumpTo(el, 'y', want)
-		landingRef.current = want
-	}, [jumpTo, landingOffset, scroller, todayOffset])
-
-	/**
-	 * Hand the scroll position back to the athlete. On its own timer rather than
-	 * folded into the last rung of the ladder: the release has to happen even if
-	 * nothing renders again, and it *must* happen, because until it does every
-	 * scroll of theirs is undone by the next settle — the first scroll away from
-	 * today would snap straight back and the hero would never collapse.
-	 */
-	const release = useCallback(() => {
-		if (landedRef.current) return
-		landedRef.current = true
-		setAway(0)
-		activeKeyRef.current = homeKey
-		setActiveWeekKey(homeKey)
-		// Where the landing actually left the reader, for the strip's frame.
-		resync()
-	}, [homeKey, resync])
+	const releaseRef = useRef<() => void>(() => {})
 
 	const streamRef = useCallback(
 		(node: HTMLDivElement | null) => {
-			if (!node || streamElRef.current === node) return
+			if (streamElRef.current === node) return
+			releaseRef.current()
 			streamElRef.current = node
-			landedRef.current = false
-			for (const delay of SETTLE_LADDER) later(() => settle(), delay)
-			later(() => release(), SETTLE_WINDOW_MS)
+			if (!node) return
+			holdingRef.current = true
+			// Late layout — a web font arriving, a title wrapping, the strip
+			// measuring itself — moves today's row after the first paint. Followed
+			// by observing the list's content box, and only until the reader acts.
+			const content = node.firstElementChild
+			const resize =
+				typeof ResizeObserver === 'undefined' || !content
+					? null
+					: new ResizeObserver(() => land())
+			if (resize && content) resize.observe(content)
+			const release = () => {
+				holdingRef.current = false
+				resize?.disconnect()
+				for (const type of INPUTS) {
+					document.removeEventListener(type, release, { capture: true })
+				}
+				releaseRef.current = () => {}
+			}
+			// Anywhere on the page, not only on the list: a tap on the strip, the
+			// badge or "+ Ny" is the reader taking over just as much. Passive and
+			// capturing, so the reader's own scroll is never delayed by a listener
+			// that exists only to stop interfering with it.
+			for (const type of INPUTS) {
+				document.addEventListener(type, release, {
+					capture: true,
+					passive: true,
+				})
+			}
+			releaseRef.current = release
 		},
-		[later, release, settle],
+		[land],
 	)
+	useEffect(() => () => releaseRef.current(), [])
 
-	const heroRef = useCallback((node: HTMLDivElement | null) => {
-		heroElRef.current = node
-	}, [])
+	// ——— landing ——————————————————————————————————————————————————————————
+
+	// Before the first paint the client makes: the server's script has usually
+	// parked the list already, and this measures the same spot and writes
+	// nothing. Without it (no-JS-script cases, a client navigation) this is the
+	// landing.
+	useLayoutEffect(() => {
+		land()
+	}, [land])
+
+	// ——— where the reader is ———————————————————————————————————————————————
+
+	/** Set by the observer effect; re-run after every commit that mounts weeks. */
+	const attachRef = useRef<() => void>(() => {})
+
+	useEffect(() => {
+		const el = scroller()
+		if (!el || typeof IntersectionObserver === 'undefined') return
+		const order = () => keysRef.current
+		const visible = new Set<string>()
+		const crossing = new Set<string>()
+		const keyOf = (entry: IntersectionObserverEntry) =>
+			entry.target.getAttribute(WEEK_ATTR) ?? ''
+
+		const setActive = (key: string) => {
+			if (key === activeRef.current) return
+			activeRef.current = key
+			setActiveWeekKey(key)
+		}
+		const setFrameIfMoved = (next: { from: string; to: string } | null) => {
+			if (
+				!next ||
+				(next.from === frameRef.current.from && next.to === frameRef.current.to)
+			)
+				return
+			frameRef.current = next
+			setFrame(next)
+		}
+		const setAwayIfMoved = (next: AwayFromToday) => {
+			if (next === awayRef.current) return
+			awayRef.current = next
+			setAway(next)
+		}
+
+		const weeks = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					// Touching an edge is not being on screen: a week whose bottom is
+					// exactly the list's top intersects with zero height.
+					if (entry.isIntersecting && entry.intersectionRect.height > 0) {
+						visible.add(keyOf(entry))
+					} else visible.delete(keyOf(entry))
+				}
+				setFrameIfMoved(frameOf(visible, order()))
+				updateAway()
+			},
+			{ root: el },
+		)
+		let line: IntersectionObserver | null = null
+		const lineCallback = (entries: IntersectionObserverEntry[]) => {
+			for (const entry of entries) {
+				if (entry.isIntersecting) crossing.add(keyOf(entry))
+				else crossing.delete(keyOf(entry))
+			}
+			setActive(activeWeekOf(crossing, order(), activeRef.current))
+		}
+		// Today's row: in view or not, and which side its last report put it.
+		let todayInView = true
+		let lastReport: AwayFromToday = 0
+		const updateAway = () =>
+			setAwayIfMoved(
+				awayOf({
+					inView: todayInView,
+					lastReport,
+					frame: frameOf(visible, order()),
+					order: order(),
+					todayKey: homeKeyRef.current,
+				}),
+			)
+		const today = new IntersectionObserver(
+			(entries) => {
+				const entry = entries[entries.length - 1]
+				if (!entry) return
+				lastReport = awayFromEntry(entry)
+				todayInView = lastReport === 0
+				updateAway()
+			},
+			{ root: el, rootMargin: AWAY_MARGIN },
+		)
+		const ahead = new IntersectionObserver(
+			(entries) => {
+				if (!entries.some((entry) => entry.isIntersecting)) return
+				if (afterRef.current >= maxAfterRef.current) return
+				setAfter((n) => nextAhead(n, maxAfterRef.current))
+			},
+			{ root: el, rootMargin: `0px 0px ${AHEAD_PAD}px 0px` },
+		)
+
+		// What is observed now, so a commit that mounted nothing re-observes
+		// nothing: observers fire an initial report for every node they are
+		// handed, and a commit happens every time the active week changes.
+		let weekCount = -1
+		let todayNode: Element | null = null
+		let sentinelNode: Element | null = null
+		/** Attach the observers to whatever has mounted since the last commit. */
+		const attach = () => {
+			const nodes = el.querySelectorAll(`[${WEEK_ATTR}]`)
+			if (nodes.length !== weekCount) {
+				weekCount = nodes.length
+				for (const node of nodes) {
+					weeks.observe(node)
+					line?.observe(node)
+				}
+			}
+			const row = el.querySelector(`[${TODAY_ATTR}]`)
+			if (row !== todayNode) {
+				if (todayNode) today.unobserve(todayNode)
+				if (row) today.observe(row)
+				todayNode = row
+			}
+			const sentinel = el.querySelector(`[${AHEAD_SENTINEL_ATTR}]`)
+			if (sentinel !== sentinelNode) {
+				if (sentinelNode) ahead.unobserve(sentinelNode)
+				if (sentinel) ahead.observe(sentinel)
+				sentinelNode = sentinel
+			}
+		}
+		/** The line is a margin off the scroller's height, so a resize rebuilds it. */
+		const rebuildLine = () => {
+			line?.disconnect()
+			crossing.clear()
+			line = new IntersectionObserver(lineCallback, {
+				root: el,
+				rootMargin: activeLineMargin(el.clientHeight),
+			})
+			for (const node of el.querySelectorAll(`[${WEEK_ATTR}]`)) {
+				line.observe(node)
+			}
+		}
+		rebuildLine()
+		attach()
+		attachRef.current = attach
+		window.addEventListener('resize', rebuildLine)
+		return () => {
+			window.removeEventListener('resize', rebuildLine)
+			attachRef.current = () => {}
+			weeks.disconnect()
+			line?.disconnect()
+			today.disconnect()
+			ahead.disconnect()
+		}
+	}, [scroller])
 
 	// ——— jumping ——————————————————————————————————————————————————————————
 
 	const backToToday = useCallback(() => {
 		const el = scroller()
 		if (!el) return
-		landedRef.current = true
-		activeKeyRef.current = homeKey
-		setActiveWeekKey(homeKey)
-		setAway(0)
-		const offset = todayOffset(el)
-		if (offset != null) jumpTo(el, 'y', offset - landingOffset(el))
-		// Measured here rather than on a ladder of timers. The jump above is
-		// instant, so there is no smooth scroll to land mid-flight of, and the
-		// fold is a write rather than a transition — both are true of the position
-		// the moment the assignment returns. Assigning `scrollTop` does not
-		// reliably emit a `scroll` event, which is why this is by hand at all.
-		resync()
-		applyFold(el)
-	}, [applyFold, homeKey, jumpTo, landingOffset, resync, scroller, todayOffset])
+		const want = landingTarget(el)
+		if (want != null) jumpTo(el, want)
+	}, [jumpTo, landingTarget, scroller])
 
 	/**
-	 * Drain a queued jump once its week is mounted. A jump into an unloaded week
-	 * has to wait for the render that loads it, so the queue is drained from the
-	 * after-every-render effect — and once more, straight away, by `goToWeek`
-	 * itself, for the week that was already mounted and therefore renders nothing
-	 * new to be drained by.
+	 * Jump to a queued week once it is mounted. A week ahead of the window has
+	 * to wait for the commit that mounts it; that commit's layout effect drains
+	 * it, before paint, so the reader never sees the list at the old position
+	 * with the new week appended.
 	 */
 	const drainJump = useCallback(() => {
 		const key = pendingJumpRef.current
-		if (!key) return false
+		if (!key) return
 		const el = scroller()
-		const node = el?.querySelector<HTMLElement>(
-			`[${WEEK_ATTR}="${cssEscape(key)}"]`,
-		)
-		if (!el || !node) return false
+		const node = el?.querySelector(`[${WEEK_ATTR}="${cssEscape(key)}"]`)
+		if (!el || !node) return
 		pendingJumpRef.current = null
-		landedRef.current = true
-		jumpTo(el, 'y', offsetOf(el, node) - WEEK_JUMP_OFFSET)
-		resync()
-		applyFold(el)
-		// Reported, because a jump into an unloaded week mounts weeks above the
-		// mark on the way — and that height must not then be credited back as
-		// though it had arrived under a reader who was staying put.
-		return true
-	}, [applyFold, jumpTo, offsetOf, resync, scroller])
+		jumpTo(el, offsetOf(el, node) - WEEK_JUMP_OFFSET)
+	}, [jumpTo, offsetOf, scroller])
 
 	const goToWeek = useCallback(
 		(key: string) => {
 			const index = weekKeys.indexOf(key)
 			if (index < 0) return
-			if (index < todayIndex - before) setBefore(todayIndex - index)
-			if (index > todayIndex + after) setAfter(index - todayIndex)
-			activeKeyRef.current = key
-			setActiveWeekKey(key)
+			// A jump is the reader's own act: the landing has no more say.
+			releaseRef.current()
+			if (index > todayIndex + afterRef.current) setAfter(index - todayIndex)
 			pendingJumpRef.current = key
-			// A week already inside the window mounts nothing new, so there is no
-			// render for the effect below to drain the jump from.
 			drainJump()
 		},
-		[after, before, drainJump, todayIndex, weekKeys],
+		[drainJump, todayIndex, weekKeys],
 	)
 
-	// ——— after every render ————————————————————————————————————————————————
-
-	useEffect(() => {
-		const jumped = drainJump()
-		settle()
-		const el = scroller()
-		if (!el) return
-		// Credit against the node that was actually marked, not against whichever
-		// week the reader is in *now*. `resync()` moves the active week during the
-		// scroll handler — before this render — so comparing the mark's offset to
-		// the new week's would be comparing two different nodes, and the growth
-		// that same scroll triggered would go uncompensated. The old mark is a
-		// perfectly good reference: it is one render stale at most, and the height
-		// inserted above it is the number being credited either way.
-		const previous = markRef.current
-		const mark = previous
-			? el.querySelector<HTMLElement>(
-					`[${WEEK_ATTR}="${cssEscape(previous.key)}"]`,
-				)
-			: null
-		// A control that has already paid for its own insertion (see `HELD_ATTR`).
-		// Read and cleared whether or not anything else here fires, so the flag can
-		// never outlive the render it was set for.
-		const held = el.hasAttribute(HELD_ATTR)
-		if (held) el.removeAttribute(HELD_ATTR)
-		// The landing owns the position until it is released; a credit applied on
-		// top of it would fight the settle ladder for the same scroll position.
-		// A jump is excluded for the same reason from the other end: it *is* the
-		// new reading position, so there is no old one left to hold.
-		if (previous && mark && landedRef.current && !jumped && !held) {
-			const next = compensatedScrollTop(
-				{ offset: previous.offset, scrollTop: el.scrollTop },
-				offsetOf(el, mark),
-			)
-			// Through `jumpTo`, never a bare assignment. Held back into a *smooth*
-			// scroller, the compensation animates instead of landing — and the frames
-			// it animates through are scroll events of their own, each one re-running
-			// the pass that decided to grow. Two growths then compensate against each
-			// other's half-finished positions and the athlete's place is lost.
-			if (next != null) jumpTo(el, 'y', next)
-		}
-		// Re-mark on the week the reader is in now. An offset is measured against
-		// the scroller's own box plus its `scrollTop`, so it is a content
-		// coordinate: the write above moves the box and the scroll together and
-		// leaves the number alone.
-		const reader = el.querySelector<HTMLElement>(
-			`[${WEEK_ATTR}="${cssEscape(activeKeyRef.current)}"]`,
-		)
-		markRef.current = reader
-			? { key: activeKeyRef.current, offset: offsetOf(el, reader) }
-			: null
+	// After every commit: drain a jump, and observe whatever has just mounted.
+	useLayoutEffect(() => {
+		drainJump()
+		attachRef.current()
 	})
 
-	// Re-written after every render, last, so it reads the position the passes
-	// above have just settled on. A week loading in above moves today's row and
-	// the reading position by the same amount, so the fold this recomputes is
-	// unchanged — which is the point: growth compensation holds the *fold* still
-	// as well as the page, and it can only do that if the two are measured
-	// together.
-	useEffect(() => {
-		const el = scroller()
-		if (el) applyFold(el)
-	})
-
-	// A rotation changes the hero's height, and the fold's whole travel with it.
-	useEffect(() => {
-		const remeasure = () => {
-			const el = scroller()
-			if (!el) return
-			heroOpenRef.current = 0
-			applyFold(el)
-		}
-		window.addEventListener('resize', remeasure)
-		return () => window.removeEventListener('resize', remeasure)
-	}, [applyFold, scroller])
+	const readerKey = useCallback(() => activeRef.current, [])
 
 	return {
 		streamRef,
-		heroRef,
-		onStreamScroll,
-		collapsed,
 		activeWeekKey,
 		frame,
 		away,
-		loaded: { before, after },
+		after,
 		backToToday,
 		goToWeek,
+		readerKey,
+	}
+}
+
+/**
+ * Holds the reading position when the loader revalidates and puts height above
+ * the reader — the one write this list makes on its own (ADR 0086).
+ *
+ * A class for `getSnapshotBeforeUpdate`, which is the only hook React offers
+ * that runs **after** the render and **before** the DOM changes: the reader's
+ * week is measured there, against the old layout, and again in
+ * `componentDidUpdate`, against the new one, in the same frame. Nothing is
+ * measured on renders that did not bring new data (`revision` is the season's
+ * week list, so a scroll that moves the active week costs nothing here). A
+ * band or a folded week opening is not new data, and holds its own position
+ * (`bandScrollTop`), so the two never pay for the same height.
+ */
+export class ReadingHold extends Component<{
+	/** Changes when the data under the list does — the season's weeks. */
+	revision: unknown
+	stream: () => HTMLElement | null
+	readerKey: () => string
+	children: ReactNode
+}> {
+	getSnapshotBeforeUpdate(previous: { revision: unknown }) {
+		if (previous.revision === this.props.revision) return null
+		const el = this.props.stream()
+		if (!el?.isConnected) return null
+		const key = this.props.readerKey()
+		const node = el.querySelector(`[${WEEK_ATTR}="${cssEscape(key)}"]`)
+		if (!node) return null
+		return {
+			key,
+			offset:
+				node.getBoundingClientRect().top -
+				el.getBoundingClientRect().top +
+				el.scrollTop,
+			scrollTop: el.scrollTop,
+		}
+	}
+
+	componentDidUpdate(
+		_previous: unknown,
+		_state: unknown,
+		snapshot: { key: string; offset: number; scrollTop: number } | null,
+	) {
+		const el = this.props.stream()
+		if (!el || !snapshot) return
+		const node = el.querySelector(`[${WEEK_ATTR}="${cssEscape(snapshot.key)}"]`)
+		if (!node) return
+		const next = compensatedScrollTop(
+			snapshot,
+			node.getBoundingClientRect().top -
+				el.getBoundingClientRect().top +
+				el.scrollTop,
+		)
+		if (next == null || Math.abs(next - el.scrollTop) < 1) return
+		const previous = el.style.scrollBehavior
+		el.style.scrollBehavior = 'auto'
+		el.scrollTop = Math.max(0, Math.round(next))
+		el.style.scrollBehavior = previous
+	}
+
+	render() {
+		return this.props.children
 	}
 }
 
