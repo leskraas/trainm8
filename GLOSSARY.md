@@ -1470,7 +1470,9 @@ once per closed week (a fill that failed is retried until the next close). A
 week the plan already laid — even one whose sessions the athlete has since
 adopted — is not laid again, the athlete's own sessions in it are left as they
 are, and with no plan or no pattern nothing is filled. It limits the app only:
-the athlete may write sessions any distance ahead, and those are kept as theirs.
+the athlete may write sessions any distance ahead — the **Writing Line** takes
+any day from half a year back onward, with no last day — and those are kept as
+theirs.
 Distinct from the **14-Day Horizon**, which only decides what reads as upcoming.
 On home a plan week past it that nothing has laid reads as one line, a
 **Collapsed Week** (ADR 0082 §3), whose line says when the horizon reaches it:
@@ -1569,9 +1571,11 @@ session", "recording"
 **Writing Line**: The text input on I dag where the athlete writes a session as
 a short sentence — `10 km rolig`, `3x10 min terskel p 1 min` (#505 stories
 35–41). It lives in a tapped empty day's draft and behind "+ Ny" →
-`Skriv en økt` for any other day up to two years ahead (or the plan's end, where
-later), past the **Planning Horizon** too; a far week past the plan reads as one
-collapsed line showing only the sessions written into it. While the athlete
+`Skriv en økt` for any other day, any distance ahead (story 40) — past the
+**Planning Horizon**, past the plan's end and past the two years I dag reads; a
+far week past the plan reads as one collapsed line showing only the sessions
+written into it, and a session written past what I dag reads is still taken
+back from the toast. While the athlete
 types it shows what was understood (the **Token Sentence** rendered from the
 structure the reader produced), the **Planned Volume** before → after against
 the **Week Target** (`40 → 46 km, målet står på 52`; a session with no number in
@@ -1579,7 +1583,9 @@ the track's unit is `+1 uten km`, never a silent zero), and a suggestion for
 every word the reader did not know. It saves only a sentence it understood in
 full, as an `authored` session; the server reads the sentence again. Writing a
 session never moves the Week Target, and the toast after a write, a stamp or an
-undo says so (`Løping denne uka: 40 → 46 km. Ukemålet står på 52.`). Free-text
+undo says so (`Løping denne uka: 40 → 46 km. Ukemålet står på 52.`). Every write
+can be taken back on I dag (ADR 0076): from the draft the row opens with
+_Angre_, and from "+ Ny", whose day may be anywhere, the toast carries _Angre_. Free-text
 commands (`syk til onsdag`) are not part of it. _Avoid_: command line, quick
 add, search box, chat
 

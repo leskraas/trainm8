@@ -34,6 +34,7 @@ import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import { getStrengthSummaryCount } from '#app/utils/strength-log.server.ts'
 import {
 	isInWindow,
+	isWritableDay,
 	TIMELINE_TRAILING_DAYS,
 	timelineWindow,
 } from '#app/utils/timeline-window.ts'
@@ -214,19 +215,31 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 /**
- * Whether a posted day is one this athlete's I dag renders. Checked against a
- * **calendar**, not a shape — `2026-13-45` matches `YYYY-MM-DD` and the day
- * maths would roll it over rather than refuse it — and then against the window
- * the loader reads (`timeline-window.ts`), because a session written outside
- * it is invisible on the only surface that offers the way back (ADR 0076).
+ * Whether a posted day may be written on. Checked against a **calendar**, not
+ * a shape — `2026-13-45` matches `YYYY-MM-DD` and the day maths would roll it
+ * over rather than refuse it — and then against the window the loader reads
+ * (`timeline-window.ts`).
+ *
+ * Two readings of that window. A **stamp** comes from an empty cell, which
+ * only exists inside it, so it is held to it (`stamp`). A **sentence** may go
+ * any distance ahead (#505 story 40): it is held only to the window's first
+ * day, since its way back is the toast's Angre and not a row on screen (ADR
+ * 0076).
  */
-async function isWritableDay(
+async function isPostableDay(
 	userId: string,
 	date: unknown,
-	{ now, timezone }: { now: Date; timezone: string },
+	{
+		now,
+		timezone,
+		reach,
+	}: { now: Date; timezone: string; reach: 'stamp' | 'sentence' },
 ): Promise<boolean> {
 	if (typeof date !== 'string' || !isCalendarDay(date, timezone)) return false
-	return isInWindow(date, await readTimelineWindow(userId, { now, timezone }))
+	const window = await readTimelineWindow(userId, { now, timezone })
+	return reach === 'stamp'
+		? isInWindow(date, window)
+		: isWritableDay(date, window)
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -266,7 +279,7 @@ export async function action({ request }: Route.ActionArgs) {
 		const timezone = await getAthleteTimezone(userId)
 		invariantResponse(
 			typeof date === 'string' &&
-				(await isWritableDay(userId, date, { now, timezone })),
+				(await isPostableDay(userId, date, { now, timezone, reach: 'stamp' })),
 			'A day is required',
 			{ status: 400 },
 		)
@@ -315,7 +328,7 @@ export async function action({ request }: Route.ActionArgs) {
 		const now = new Date()
 		const timezone = await getAthleteTimezone(userId)
 		invariantResponse(
-			await isWritableDay(userId, date, { now, timezone }),
+			await isPostableDay(userId, date, { now, timezone, reach: 'sentence' }),
 			'A day is required',
 			{ status: 400 },
 		)

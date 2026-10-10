@@ -1622,7 +1622,8 @@ export const WRITING_LINE_LABELS = {
 	day: 'Dag',
 	close: 'Lukk',
 	failed: 'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
-	outsideWindow: 'Den dagen ligger utenfor det I dag viser.',
+	outsideWindow:
+		'Den dagen ligger for langt tilbake — I dag leser et halvt år bakover.',
 } as const
 
 /** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */

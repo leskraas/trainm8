@@ -313,19 +313,25 @@ export function DisciplineChips({
 
 /**
  * The creation menu's way in (#505 story 40): the same line, with the day as a
- * field — for a day the list does not offer as empty, months out included.
- * It sits under I dag's header row and closes once the write lands; the toast
- * says what it did to the week.
+ * field — for a day the list does not offer as empty, months or years out
+ * included. **Any distance ahead**: the day has a first day (half a year back,
+ * where I dag stops reading) and no last one, so a race can be placed past
+ * the season the list shows. It sits under I dag's header row and closes once
+ * the write lands; the toast says what it did to the week and carries Angre,
+ * since the row may be past anything on screen (`day-stamp-context.tsx`).
  */
 export function WritingPanel({
 	todayKey,
 	minDayKey,
-	maxDayKey,
 	onClose,
 }: {
 	todayKey: string
 	minDayKey: string
-	maxDayKey: string
+	/**
+	 * @deprecated No longer a limit (story 40): the line writes any distance
+	 * ahead. Accepted so the current caller keeps compiling; drop it there.
+	 */
+	maxDayKey?: string
 	onClose: () => void
 }) {
 	const stamp = useDayStamp()
@@ -336,12 +342,13 @@ export function WritingPanel({
 	const [text, setText] = useState('')
 	const [submittedFor, setSubmittedFor] = useState<string | null>(null)
 	const parsed = useParsedSentence(text, chosen)
-	const validDay = dayKey >= minDayKey && dayKey <= maxDayKey
+	const validDay = dayKey >= minDayKey
 	const pending = submittedFor != null && stamp.pendingDayKey === submittedFor
 	const failed = submittedFor != null && stamp.failedDayKey === submittedFor
 
 	// The write landed: nothing left for the panel to say. The toast carries the
-	// week sum, and the row arrives through the ledger like any other.
+	// week sum and Angre, and the row arrives through the ledger like any other
+	// where the list reads that far.
 	useEffect(() => {
 		if (submittedFor == null || pending || failed) return
 		onClose()
@@ -370,7 +377,6 @@ export function WritingPanel({
 						data-writing-day
 						value={dayKey}
 						min={minDayKey}
-						max={maxDayKey}
 						onChange={(event) => {
 							const next = event.currentTarget.value
 							if (next) setDayKey(next)

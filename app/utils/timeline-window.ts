@@ -1,13 +1,20 @@
 /**
- * The window of days I dag reads and lets the athlete write into (ADR 0082,
- * "As built (#505 S11)", and "As built (#505 gaps)").
+ * The window of days I dag reads (ADR 0082, "As built (#505 S11)", and "As
+ * built (#505 gaps)"), and the first day the athlete may write on.
  *
- * One window for both, so a session can only be written where it can be read
- * back and taken away again (ADR 0076). Behind today it is half a year; ahead
- * it is **two years, or the end of the active plan or its race, whichever is
- * later** — so a race or a group run can be placed months out, past the
- * Planning Horizon and past the plan (#505 story 40). The Planning Horizon
- * limits what the app lays, never what the athlete writes.
+ * Behind today it is half a year; ahead it is **two years, or the end of the
+ * active plan or its race, whichever is later**, so a race or a group run
+ * placed months out is read back on I dag, past the Planning Horizon and past
+ * the plan. The Planning Horizon limits what the app lays, never what the
+ * athlete writes.
+ *
+ * **Writing has no last day** (#505 story 40, "any distance ahead"): the
+ * writing line takes any day from the window's first one on
+ * (`isWritableDay`). A session written past what I dag reads is still taken
+ * back on I dag — its Angre is on the toast that says it landed (ADR 0076) —
+ * and it comes into the list once the window reaches it. Behind the window
+ * writing stops with reading: a day half a year back is history the list does
+ * not draw, and there is no way to undo what cannot be seen there.
  *
  * Reading two years ahead costs one indexed range query: the rows are only
  * what the athlete wrote there, and the presenter draws a far week as one
@@ -33,7 +40,10 @@ export const TIMELINE_TRAILING_DAYS = 182
  */
 export const TIMELINE_HORIZON_DAYS = 182
 
-/** How far forward the athlete may write, and the timeline reads, at the least. */
+/**
+ * How far forward the timeline reads, at the least: two years, or the plan's
+ * end where later. It bounds the read only — writing goes further.
+ */
 export const TIMELINE_WRITE_AHEAD_DAYS = 730
 
 /** The plan as the window reads it: where it starts, how long it runs, its race. */
@@ -87,7 +97,15 @@ export function timelineWindow({
 	}
 }
 
-/** Whether a day is inside the window. */
+/** Whether a day is inside the window — one I dag reads and draws. */
 export function isInWindow(dayKey: string, window: TimelineWindow): boolean {
 	return dayKey >= window.firstDayKey && dayKey <= window.lastDayKey
+}
+
+/**
+ * Whether the writing line may write on a day: any day from the window's
+ * first on, with no last day (#505 story 40).
+ */
+export function isWritableDay(dayKey: string, window: TimelineWindow): boolean {
+	return dayKey >= window.firstDayKey
 }

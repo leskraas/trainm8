@@ -13,8 +13,9 @@ import { createToastHeaders } from './toast.server.ts'
 import { getActivePlan } from './training.server.ts'
 
 /**
- * The days this athlete's I dag reads and takes writes on, for `now`: half a
- * year each way, or to the end of the active plan where that is later.
+ * The days this athlete's I dag reads, for `now`: half a year back, and two
+ * years ahead or to the end of the active plan where that is later. The
+ * writing line writes from its first day on, with no last (`isWritableDay`).
  */
 export async function readTimelineWindow(
 	userId: string,
