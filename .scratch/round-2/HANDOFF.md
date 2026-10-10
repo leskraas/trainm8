@@ -73,3 +73,14 @@ The work was paused because the owner's budget ran low. Everything needed to pic
   - **Done:** only the start of step 1. There is a bannered Sesong section in labels.ts and new formatters (`formatNbWeeklyVolume`, `formatNbSignedPercent`). Nothing is wired in yet, so behaviour is unchanged and the commit is unverified.
   - **Left:** wiring the words into `plan.tsx` and the editors, then steps 2–9 and ADR 0090.
   - The replacement script that was not yet applied is in `.scratch/round-2/sesong-plan/` (`plan-e5.py` + `rep.py`). It still needs a few helpers before it compiles.
+- **claude/sentence-reader** 041bb4e (WIP)
+  - **Done:**
+    - The line reads lifts (`Knebøy 5×5 @ 80 kg · Roing 3×8`, `82,5 kg × 5 · 5 · 5 · 4`, bodyweight, timed sets, rest), matched against the catalogue and `ExerciseAlias`. An unknown lift shows up to 3 nearest names to tap.
+    - The parser API only gains fields: optional `exercises`, discipline Styrke, `lifts`, `exerciseNames`, `exercisesNeeded`.
+    - ADR 0089 is claimed (amends 0027).
+    - Norwegian display words come from labels.ts.
+    - The 93 parser tests and the notation, stanza and label tests pass. Typecheck passes.
+  - **Left:**
+    - Editor route tests (token-editing, structural-chrome, intensity-popover, `sessions.$sessionId`, inline-edit) and plan route tests failed in a stopped parallel run. Some assert English token words like "rest"; others may be timeouts. Rerun them one at a time.
+    - 7 failures in `index.dashboard.test.tsx` also happen when that file runs alone. Not investigated.
+    - Build, e2e, screenshots and the Emil reviews were not done.
