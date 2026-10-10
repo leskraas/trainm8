@@ -7,6 +7,7 @@ import {
 } from '#app/routes/_auth/verify.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { sendEmail } from '#app/utils/email.server.ts'
+import { MEG_EMAIL_LABELS } from '#app/utils/labels.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { newEmailAddressSessionKey } from './change-email'
@@ -29,9 +30,7 @@ export async function handleVerification({
 		return data(
 			{
 				result: submission.reply({
-					formErrors: [
-						'You must submit the code on the same device that requested the email change.',
-					],
+					formErrors: [MEG_EMAIL_LABELS.sameDevice],
 				}),
 			},
 			{ status: 400 },
@@ -49,16 +48,16 @@ export async function handleVerification({
 
 	void sendEmail({
 		to: preUpdateUser.email,
-		subject: 'Epic Stack email changed',
+		subject: MEG_EMAIL_LABELS.noticeSubject,
 		react: <EmailChangeNoticeEmail userId={user.id} />,
 	})
 
 	return redirectWithToast(
 		'/settings/profile',
 		{
-			title: 'Email Changed',
+			title: MEG_EMAIL_LABELS.changedTitle,
 			type: 'success',
-			description: `Your email has been changed to ${user.email}`,
+			description: MEG_EMAIL_LABELS.changedBody(user.email),
 		},
 		{
 			headers: {
@@ -76,18 +75,18 @@ export function EmailChangeEmail({
 	otp: string
 }) {
 	return (
-		<E.Html lang="en" dir="ltr">
+		<E.Html lang="nb" dir="ltr">
 			<E.Container>
 				<h1>
-					<E.Text>Trainm8 Email Change</E.Text>
+					<E.Text>{MEG_EMAIL_LABELS.codeHeading}</E.Text>
 				</h1>
 				<p>
 					<E.Text>
-						Here's your verification code: <strong>{otp}</strong>
+						{MEG_EMAIL_LABELS.codeLine} <strong>{otp}</strong>
 					</E.Text>
 				</p>
 				<p>
-					<E.Text>Or click the link:</E.Text>
+					<E.Text>{MEG_EMAIL_LABELS.codeLink}</E.Text>
 				</p>
 				<E.Link href={verifyUrl}>{verifyUrl}</E.Link>
 			</E.Container>
@@ -97,26 +96,19 @@ export function EmailChangeEmail({
 
 function EmailChangeNoticeEmail({ userId }: { userId: string }) {
 	return (
-		<E.Html lang="en" dir="ltr">
+		<E.Html lang="nb" dir="ltr">
 			<E.Container>
 				<h1>
-					<E.Text>Your Trainm8 email has been changed</E.Text>
+					<E.Text>{MEG_EMAIL_LABELS.noticeHeading}</E.Text>
 				</h1>
 				<p>
-					<E.Text>
-						We're writing to let you know that your Trainm8 email has been
-						changed.
-					</E.Text>
+					<E.Text>{MEG_EMAIL_LABELS.noticeBody}</E.Text>
 				</p>
 				<p>
-					<E.Text>
-						If you changed your email address, then you can safely ignore this.
-						But if you did not change your email address, then please contact
-						support immediately.
-					</E.Text>
+					<E.Text>{MEG_EMAIL_LABELS.noticeIgnore}</E.Text>
 				</p>
 				<p>
-					<E.Text>Your Account ID: {userId}</E.Text>
+					<E.Text>{MEG_EMAIL_LABELS.noticeAccount(userId)}</E.Text>
 				</p>
 			</E.Container>
 		</E.Html>

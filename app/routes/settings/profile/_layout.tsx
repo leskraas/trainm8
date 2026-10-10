@@ -8,11 +8,11 @@ import {
 } from '#app/components/page-header.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { APP_TAB_LABELS } from '#app/utils/labels.ts'
+import { APP_TAB_LABELS, MEG_PAGE_TITLES } from '#app/utils/labels.ts'
 import { type Route } from './+types/_layout.tsx'
 
 export const handle: PageHeaderHandle & SEOHandle = {
-	pageHeader: 'Edit Profile',
+	pageHeader: MEG_PAGE_TITLES.profile,
 	getSitemapEntries: () => null,
 }
 

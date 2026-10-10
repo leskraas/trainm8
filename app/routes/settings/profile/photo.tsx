@@ -6,7 +6,6 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { useState } from 'react'
 import { data, redirect, Form, useNavigation } from 'react-router'
 import { z } from 'zod'
-import { ErrorList } from '#app/components/forms.tsx'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -14,16 +13,22 @@ import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	MEG_COMMON_LABELS,
+	MEG_PAGE_TITLES,
+	MEG_PHOTO_LABELS,
+} from '#app/utils/labels.ts'
+import {
 	cn,
 	getUserImgSrc,
 	useDoubleCheck,
 	useIsPending,
 } from '#app/utils/misc.tsx'
 import { uploadProfileImage } from '#app/utils/storage.server.ts'
+import { MegFormErrors } from '../__meg-ui.tsx'
 import { type Route } from './+types/photo.ts'
 
 export const handle: PageHeaderHandle & SEOHandle = {
-	pageHeader: 'Photo',
+	pageHeader: MEG_PAGE_TITLES.photo,
 	getSitemapEntries: () => null,
 }
 
@@ -37,11 +42,8 @@ const NewImageSchema = z.object({
 	intent: z.literal('submit'),
 	photoFile: z
 		.instanceof(File)
-		.refine((file) => file.size > 0, 'Image is required')
-		.refine(
-			(file) => file.size <= MAX_SIZE,
-			'Image size must be less than 3MB',
-		),
+		.refine((file) => file.size > 0, MEG_PHOTO_LABELS.required)
+		.refine((file) => file.size <= MAX_SIZE, MEG_PHOTO_LABELS.tooLarge),
 })
 
 const PhotoFormSchema = z.discriminatedUnion('intent', [
@@ -136,7 +138,7 @@ export default function PhotoRoute({
 			<Form
 				method="POST"
 				encType="multipart/form-data"
-				className="flex flex-col items-center justify-center gap-10"
+				className="flex flex-col items-center justify-center gap-8"
 				onReset={() => setNewImageSrc(null)}
 				{...getFormProps(form)}
 			>
@@ -147,11 +149,14 @@ export default function PhotoRoute({
 							? getUserImgSrc(loaderData.user.image?.objectKey)
 							: '')
 					}
-					className="size-52 rounded-full object-cover"
+					className="bg-muted size-40 rounded-full object-cover"
 					alt={loaderData.user?.name ?? loaderData.user?.username}
 				/>
-				<ErrorList errors={fields.photoFile.errors} id={fields.photoFile.id} />
-				<div className="flex gap-4">
+				<MegFormErrors
+					errors={fields.photoFile.errors}
+					id={fields.photoFile.errorId}
+				/>
+				<div className="flex flex-wrap justify-center gap-3">
 					{/*
 						We're doing some kinda odd things to make it so this works well
 						without JavaScript. Basically, we're using CSS to ensure the right
@@ -177,14 +182,13 @@ export default function PhotoRoute({
 					/>
 					<label
 						className={cn(
-							'cursor-pointer peer-valid:hidden peer-focus-within:ring-2 peer-focus-visible:ring-2',
-							buttonVariants({ variant: 'default', size: 'lg' }),
+							buttonVariants({ variant: 'default' }),
+							'cursor-pointer peer-valid:hidden peer-focus-visible:ring-3',
 						)}
 						htmlFor={fields.photoFile.id}
 					>
-						<Icon name="pencil-1" data-icon="inline-start">
-							Change
-						</Icon>
+						<Icon name="pencil-1" data-icon="inline-start" />
+						{MEG_PHOTO_LABELS.choose}
 					</label>
 					<StatusButton
 						name="intent"
@@ -199,16 +203,15 @@ export default function PhotoRoute({
 									: 'idle'
 						}
 					>
-						Save Photo
+						{MEG_PHOTO_LABELS.save}
 					</StatusButton>
 					<Button
-						variant="destructive"
+						variant="outline"
 						className="peer-invalid:hidden"
 						{...form.reset.getButtonProps()}
 					>
-						<Icon name="trash" data-icon="inline-start">
-							Reset
-						</Icon>
+						<Icon name="reset" data-icon="inline-start" />
+						{MEG_PHOTO_LABELS.reset}
 					</Button>
 					{loaderData.user.image ? (
 						<StatusButton
@@ -227,15 +230,14 @@ export default function PhotoRoute({
 										: 'idle'
 							}
 						>
-							<Icon name="trash" data-icon="inline-start">
-								{doubleCheckDeleteImage.doubleCheck
-									? 'Are you sure?'
-									: 'Delete'}
-							</Icon>
+							<Icon name="trash" data-icon="inline-start" />
+							{doubleCheckDeleteImage.doubleCheck
+								? MEG_COMMON_LABELS.areYouSure
+								: MEG_PHOTO_LABELS.delete}
 						</StatusButton>
 					) : null}
 				</div>
-				<ErrorList errors={form.errors} />
+				<MegFormErrors errors={form.errors} />
 			</Form>
 		</div>
 	)

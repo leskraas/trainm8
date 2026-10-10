@@ -25,7 +25,8 @@ import { z } from 'zod'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import { Input } from '#app/components/ui/input.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import {
 	Select,
@@ -37,8 +38,15 @@ import {
 import { localDate } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { formatDate } from '#app/utils/format.ts'
-import { formatKg } from '#app/utils/strength/program.constants.ts'
+import { formatNbDate } from '#app/utils/format.ts'
+import {
+	MEG_ANCHOR_PROTOCOL_LABELS,
+	MEG_COMMON_LABELS,
+	MEG_CONFIDENCE_LABELS,
+	MEG_LIFT_CONSTRUCT_LABELS,
+	MEG_LIFT_LABELS,
+	MEG_PAGE_TITLES,
+} from '#app/utils/labels.ts'
 import {
 	type StoredAnchor,
 	getAnchorContext,
@@ -46,15 +54,16 @@ import {
 	listExercisePrescriptions,
 	recordStatedAnchor,
 } from '#app/utils/strength-anchors.server.ts'
-import { type AnchorProtocol } from '#app/utils/strength-log.ts'
 import {
 	formatSetsSummary,
 	normalizeSetKind,
 } from '#app/utils/workout-notation.ts'
+import { nbKg } from '../__meg-text.ts'
+import { MegField, MegNote, MegResult, MegSection } from '../__meg-ui.tsx'
 import { type Route } from './+types/lifts.$exerciseId.ts'
 
 export const handle: PageHeaderHandle & SEOHandle = {
-	pageHeader: 'Your numbers for this lift',
+	pageHeader: MEG_PAGE_TITLES.lift,
 	getSitemapEntries: () => null,
 }
 
@@ -140,7 +149,7 @@ const AddAnchorSchema = z.object({
 		.transform((v) => (v == null || v.trim() === '' ? null : Number(v)))
 		.refine(
 			(v) => v == null || (Number.isInteger(v) && v >= 1),
-			'Reps must be a whole number.',
+			MEG_LIFT_LABELS.repsInvalid,
 		),
 	effectiveOn: z.string().optional(),
 })
@@ -154,7 +163,10 @@ export async function action({ request, params }: Route.ActionArgs) {
 	const formData = await request.formData()
 	const intent = String(formData.get('intent') ?? '')
 	if (intent !== 'add-anchor') {
-		return data<AddAnchorResult>({ ok: false, error: 'Unknown action.' }, 400)
+		return data<AddAnchorResult>(
+			{ ok: false, error: MEG_COMMON_LABELS.unknownAction },
+			400,
+		)
 	}
 
 	const parsed = AddAnchorSchema.safeParse(Object.fromEntries(formData))
@@ -166,7 +178,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 		return data<AddAnchorResult>(
 			{
 				ok: false,
-				error: FIELD_ERRORS[field] ?? 'That number did not make sense.',
+				error: FIELD_ERRORS[field] ?? MEG_LIFT_LABELS.numberInvalid,
 			},
 			400,
 		)
@@ -174,7 +186,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 	const input = parsed.data
 	if (input.construct === 'repMax' && input.reps == null) {
 		return data<AddAnchorResult>(
-			{ ok: false, error: 'A rep max needs the rep count it is at.' },
+			{ ok: false, error: MEG_LIFT_LABELS.repMaxNeedsReps },
 			400,
 		)
 	}
@@ -187,7 +199,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 		: new Date()
 	if (Number.isNaN(effectiveAt.getTime())) {
 		return data<AddAnchorResult>(
-			{ ok: false, error: 'That date is not a date.' },
+			{ ok: false, error: MEG_LIFT_LABELS.dateInvalid },
 			400,
 		)
 	}
@@ -208,47 +220,32 @@ export async function action({ request, params }: Route.ActionArgs) {
 	}
 	return {
 		ok: true as const,
-		message: 'Saved. Your prescriptions read against it from now on.',
+		message: MEG_LIFT_LABELS.saved,
 	}
 }
 
 const FIELD_ERRORS: Record<string, string> = {
-	valueKg: 'A weight has to be a positive number of kilos.',
-	reps: 'A rep count has to be a whole number, one or more.',
+	valueKg: MEG_LIFT_LABELS.weightInvalid,
+	reps: MEG_LIFT_LABELS.repsInvalid,
 }
 
 const ADD_ANCHOR_ERRORS = {
-	'no-profile':
-		'Your athlete profile is missing, so there is nothing to attach this to.',
-	'unknown-exercise': 'That lift no longer exists.',
-	invalid: 'A weight has to be a positive number of kilos.',
-	duplicate: 'You already saved a number for that lift at that moment.',
+	'no-profile': MEG_COMMON_LABELS.noProfile,
+	'unknown-exercise': MEG_COMMON_LABELS.liftGone,
+	invalid: MEG_LIFT_LABELS.weightInvalid,
+	duplicate: MEG_LIFT_LABELS.duplicate,
 } as const
 
-const PROTOCOL_LABELS: Record<AnchorProtocol, string> = {
-	tested: 'you tested it',
-	epley: 'Epley/Welday',
-	brzycki: 'Brzycki',
-	mayhew: 'Mayhew',
-	wathen: 'Wathen',
-	lombardi: 'Lombardi',
-	lander: 'Lander',
-	adams: 'Adams',
-	'rep-max-observed': 'you hit it for exactly those reps',
-	'athlete-stated': 'you typed it',
-	provider: 'from a connected account',
-}
-
-/** The anchor as a lifter would say it out loud. */
+/** The anchor as a lifter would say it out loud, kilos with a decimal comma. */
 export function anchorHeadline(anchor: StoredAnchor): string {
-	const kg = formatKg(anchor.valueKg)
+	const kg = nbKg(anchor.valueKg)
 	switch (anchor.construct) {
 		case 'oneRm':
-			return `${kg} kg 1RM`
+			return MEG_LIFT_LABELS.headlineOneRm(kg)
 		case 'estimatedOneRm':
-			return `${kg} kg estimated 1RM`
+			return MEG_LIFT_LABELS.headlineEstimated(kg)
 		case 'repMax':
-			return `${kg} kg ${anchor.reps ?? '?'}RM`
+			return MEG_LIFT_LABELS.headlineRepMax(kg, String(anchor.reps ?? '?'))
 	}
 }
 
@@ -258,38 +255,39 @@ export default function ExerciseAnchorsRoute({
 	const { exerciseName, anchors, prescriptions, timezone, exerciseId, today } =
 		loaderData
 	const current = anchors[0] ?? null
+	const L = MEG_LIFT_LABELS
+	const proposeLink = (
+		<Link
+			to={`/settings/training/lifts/${exerciseId}/propose`}
+			className="text-foreground text-callout -mx-2 flex min-h-11 items-center gap-2 rounded-2xl px-2 underline underline-offset-4"
+		>
+			<Icon name="bar-chart" size="sm" aria-hidden="true" />
+			{L.readFromSet}
+		</Link>
+	)
 
 	return (
 		<div className="flex flex-col gap-8">
-			<div>
-				<h2 className="text-lg font-semibold">{exerciseName}</h2>
-				<p className="text-body-sm text-muted-foreground mt-1">
-					{current
-						? `Percentages and rep-max references for this lift read against your ${anchorHeadline(current)}.`
-						: 'Nothing on file yet, so a percentage prescription for this lift shows as written and resolves to no kilos.'}
-				</p>
+			<div className="flex flex-col gap-1">
+				<h2 className="text-heading [overflow-wrap:anywhere]">
+					{exerciseName}
+				</h2>
+				<MegNote className="tabular-nums">
+					{current ? L.readsAgainst(anchorHeadline(current)) : L.nothingOnFile}
+				</MegNote>
 			</div>
 
 			<AddAnchorForm exerciseName={exerciseName} today={today} />
 
-			<section aria-labelledby="anchor-history">
-				<h3 id="anchor-history" className="mb-3 text-base font-semibold">
-					What you have on file
-				</h3>
+			<MegSection id="anchor-history" title={L.onFile}>
 				{anchors.length === 0 ? (
-					<p className="text-body-sm text-muted-foreground">
-						No anchors yet.{' '}
-						<Link
-							to={`/settings/training/lifts/${exerciseId}/propose`}
-							className="underline"
-						>
-							Read one from a set you already logged
-						</Link>
-						.
-					</p>
+					<div className="flex flex-col gap-1">
+						<MegNote>{L.noAnchors}</MegNote>
+						{proposeLink}
+					</div>
 				) : (
-					<>
-						<ul className="flex flex-col gap-2">
+					<div className="flex flex-col gap-3">
+						<ul className="flex flex-col gap-3">
 							{anchors.map((anchor, index) => (
 								<li key={anchor.id}>
 									<AnchorRow
@@ -304,56 +302,40 @@ export default function ExerciseAnchorsRoute({
 								</li>
 							))}
 						</ul>
-						<p className="text-muted-foreground text-body-xs mt-3">
-							Nothing here is overwritten: a newer number is a new line, and an
-							older session keeps reading against the number it was written
-							with.{' '}
-							<Link
-								to={`/settings/training/lifts/${exerciseId}/propose`}
-								className="underline"
-							>
-								Read one from a set you already logged
-							</Link>
-							.
-						</p>
-					</>
+						<MegNote>{L.appendOnly}</MegNote>
+						{proposeLink}
+					</div>
 				)}
-			</section>
+			</MegSection>
 
-			<section aria-labelledby="prescriptions">
-				<h3 id="prescriptions" className="mb-3 text-base font-semibold">
-					Where this lift is prescribed
-				</h3>
+			<MegSection id="prescriptions" title={L.prescribed}>
 				{prescriptions.length === 0 ? (
-					<p className="text-body-sm text-muted-foreground">
-						No session in your plan prescribes this lift yet.
-					</p>
+					<MegNote>{L.notPrescribed}</MegNote>
 				) : (
-					<ul className="flex flex-col gap-2">
+					<ul className="bg-card ring-foreground/5 dark:ring-foreground/10 divide-border/70 divide-y rounded-4xl px-4 shadow-xs ring-1">
 						{prescriptions.map((prescription) => (
-							<li
-								key={prescription.sessionId}
-								className="bg-background rounded-lg px-4 py-3"
-							>
-								<div className="flex flex-wrap items-baseline justify-between gap-x-3">
-									<Link
-										to={`/training/sessions/${prescription.sessionId}`}
-										className="text-body-sm font-medium underline"
-									>
-										{prescription.sessionTitle}
-									</Link>
-									<span className="text-muted-foreground text-body-xs">
-										{formatDate(prescription.scheduledAtISO, timezone)}
+							<li key={prescription.sessionId}>
+								<Link
+									to={`/training/sessions/${prescription.sessionId}`}
+									className="active:bg-muted/60 duration-press -mx-2 flex min-h-11 flex-col gap-0.5 rounded-2xl px-2 py-3 transition-colors ease-out"
+								>
+									<span className="flex items-baseline justify-between gap-3">
+										<span className="text-callout min-w-0 [overflow-wrap:anywhere]">
+											{prescription.sessionTitle}
+										</span>
+										<span className="text-footnote text-muted-foreground shrink-0 tabular-nums">
+											{formatNbDate(prescription.scheduledAtISO, timezone)}
+										</span>
 									</span>
-								</div>
-								<p className="text-body-sm mt-1 font-mono">
-									{prescription.summary ?? 'no sets authored'}
-								</p>
+									<span className="text-footnote text-muted-foreground tabular-nums">
+										{prescription.summary ?? L.noSets}
+									</span>
+								</Link>
 							</li>
 						))}
 					</ul>
 				)}
-			</section>
+			</MegSection>
 		</div>
 	)
 }
@@ -367,46 +349,52 @@ function AnchorRow({
 	timezone: string
 	superseded: boolean
 }) {
+	const L = MEG_LIFT_LABELS
+	const protocol = MEG_ANCHOR_PROTOCOL_LABELS[anchor.protocol]
 	return (
-		<div className="bg-background rounded-lg px-4 py-3">
-			<div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-				<span className="font-mono text-base">{anchorHeadline(anchor)}</span>
-				<span className="text-muted-foreground text-body-xs">
-					from {formatDate(anchor.effectiveAtISO, timezone)}
-				</span>
-			</div>
-			<div className="mt-1 flex flex-wrap items-center gap-2">
-				{/* A protocol names how the number was arrived at, and on a reading taken
-				    off a logged set that name is a promise the app can show the set. Once
-				    the set is gone the promise cannot be kept — the anchor stands (it was
-				    the athlete's own number the moment they accepted it, and
-				    `sourceSetLogId` is `SET NULL` for exactly that reason), but naming
-				    the equation as though it could be re-run would assert a derivation
-				    that no longer exists. So the row says what it can: the reading, and
-				    that its set is no longer on file. */}
-				<span className="text-muted-foreground text-body-xs">
-					{anchor.derivation.kind === 'source-gone'
-						? `${PROTOCOL_LABELS[anchor.protocol]} — read from a set that is no longer on file, so the derivation cannot be shown`
-						: PROTOCOL_LABELS[anchor.protocol]}
-				</span>
-				{/* A grade is shown only where there is one. An `athlete-stated` number
-				    carries none, and an empty badge would imply the app looked. */}
-				{anchor.confidence ? (
-					<Badge variant="secondary">{anchor.confidence} confidence</Badge>
-				) : (
-					<span className="text-muted-foreground text-body-xs">not graded</span>
-				)}
-				{superseded ? (
-					<span className="text-muted-foreground text-body-xs">superseded</span>
-				) : null}
-			</div>
-		</div>
+		<Card size="sm">
+			<CardContent className="flex flex-col gap-2">
+				<div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+					<span className="text-heading tabular-nums">
+						{anchorHeadline(anchor)}
+					</span>
+					<span className="text-footnote text-muted-foreground tabular-nums">
+						{L.from_(formatNbDate(anchor.effectiveAtISO, timezone))}
+					</span>
+				</div>
+				<div className="flex flex-wrap items-center gap-2">
+					{/* A protocol names how the number was arrived at, and on a reading
+					    taken off a logged set that name is a promise the app can show the
+					    set. Once the set is gone the promise cannot be kept — the anchor
+					    stands (it was the athlete's own number the moment they accepted
+					    it, and `sourceSetLogId` is `SET NULL` for exactly that reason),
+					    but naming the equation as though it could be re-run would assert
+					    a derivation that no longer exists. So the row says what it can:
+					    the reading, and that its set is no longer on file. */}
+					<span className="text-footnote text-muted-foreground">
+						{anchor.derivation.kind === 'source-gone'
+							? L.sourceGone(protocol)
+							: protocol}
+					</span>
+					{/* A grade is shown only where there is one. An `athlete-stated`
+					    number carries none, and an empty badge would imply the app
+					    looked. */}
+					{anchor.confidence ? (
+						<Badge variant="secondary">
+							{(MEG_CONFIDENCE_LABELS as Record<string, string>)[
+								anchor.confidence
+							] ?? anchor.confidence}
+						</Badge>
+					) : (
+						<span className="text-footnote text-muted-foreground">
+							{MEG_COMMON_LABELS.notGraded}
+						</span>
+					)}
+					{superseded ? <Badge variant="outline">{L.superseded}</Badge> : null}
+				</div>
+			</CardContent>
+		</Card>
 	)
-}
-
-const CONSTRUCT_LABELS: Record<'oneRm' | 'repMax', string> = {
-	oneRm: 'One-rep max',
-	repMax: 'Rep max',
 }
 
 function AddAnchorForm({
@@ -420,121 +408,125 @@ function AddAnchorForm({
 	const [construct, setConstruct] = useState<'oneRm' | 'repMax'>('oneRm')
 	const formRef = useRef<HTMLFormElement>(null)
 	const result = fetcher.data
+	const L = MEG_LIFT_LABELS
 
 	useEffect(() => {
 		if (result?.ok) formRef.current?.reset()
 	}, [result])
 
 	return (
-		/* **`noValidate`.** The browser's own refusal is a silent one: it blocks the
-		   submit and, for a programmatically submitted form, says nothing at all —
-		   the athlete taps *Save this number* and nothing happens. Everything else
-		   this form can refuse comes back from the action as a sentence in the alert
-		   below, so constraint failures take that same path. */
-		<fetcher.Form
-			method="POST"
-			noValidate
-			ref={formRef}
-			className="border-border/70 bg-muted/40 flex flex-col gap-3 rounded-2xl border p-4"
-			aria-label={`Add a number for ${exerciseName}`}
-		>
-			<input type="hidden" name="intent" value="add-anchor" />
-			<input type="hidden" name="construct" value={construct} />
-			<h3 className="text-base font-semibold">Enter a number yourself</h3>
+		<Card size="sm">
+			<CardContent>
+				{/* **`noValidate`.** The browser's own refusal is a silent one: it
+				    blocks the submit and, for a programmatically submitted form, says
+				    nothing at all — the athlete taps *Lagre tallet* and nothing
+				    happens. Everything else this form can refuse comes back from the
+				    action as a sentence in the alert below, so constraint failures
+				    take that same path. */}
+				<fetcher.Form
+					method="POST"
+					noValidate
+					ref={formRef}
+					className="flex flex-col gap-4"
+					aria-label={L.addFormName(exerciseName)}
+				>
+					<input type="hidden" name="intent" value="add-anchor" />
+					<input type="hidden" name="construct" value={construct} />
+					<h3 className="text-callout font-semibold">{L.addTitle}</h3>
 
-			<div className="flex flex-wrap gap-3">
-				<div className="flex flex-col gap-1">
-					<Label htmlFor="construct">What it is</Label>
-					<Select
-						value={construct}
-						onValueChange={(value) => setConstruct(value as 'oneRm' | 'repMax')}
-					>
-						<SelectTrigger id="construct" className="w-48">
-							{/* Base UI's `Select.Value` renders the *value* unless it is
-							    told how to read a label off it — so a bare `<SelectValue />`
-							    showed the athlete `oneRm`. The render function is the
-							    app's own convention (`SelectField` in `forms.tsx`). */}
-							<SelectValue>
-								{(value) => CONSTRUCT_LABELS[value as 'oneRm' | 'repMax']}
-							</SelectValue>
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="oneRm">{CONSTRUCT_LABELS.oneRm}</SelectItem>
-							<SelectItem value="repMax">{CONSTRUCT_LABELS.repMax}</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="construct" className="text-footnote font-medium">
+							{L.construct}
+						</Label>
+						<Select
+							items={[
+								{ value: 'oneRm', label: MEG_LIFT_CONSTRUCT_LABELS.oneRm },
+								{ value: 'repMax', label: MEG_LIFT_CONSTRUCT_LABELS.repMax },
+							]}
+							value={construct}
+							onValueChange={(value) =>
+								setConstruct(value as 'oneRm' | 'repMax')
+							}
+						>
+							<SelectTrigger id="construct" className="w-full md:text-base">
+								{/* Base UI's `Select.Value` renders the *value* unless it is
+								    told how to read a label off it — so a bare
+								    `<SelectValue />` showed the athlete `oneRm`. */}
+								<SelectValue>
+									{(value) =>
+										MEG_LIFT_CONSTRUCT_LABELS[value as 'oneRm' | 'repMax']
+									}
+								</SelectValue>
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="oneRm">
+									{MEG_LIFT_CONSTRUCT_LABELS.oneRm}
+								</SelectItem>
+								<SelectItem value="repMax">
+									{MEG_LIFT_CONSTRUCT_LABELS.repMax}
+								</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
 
-				<div className="flex flex-col gap-1">
-					<Label htmlFor="valueKg">kg</Label>
-					{/* **No step.** `step="0.5"` rejected 61.25 kg, on an athlete whose
-					    gym owns 1.25 kg plates — a precision the app has no standing to
-					    impose, since what can be loaded is a fact about a rack it may
-					    know nothing about. Loadability is stated where it is known (the
-					    plate line, the engine's rounding note), never enforced here as a
-					    false rule. */}
-					<Input
-						id="valueKg"
-						name="valueKg"
-						type="number"
-						inputMode="decimal"
-						step="any"
-						min="0"
-						className="w-24"
-						required
-					/>
-				</div>
-
-				{construct === 'repMax' ? (
-					<div className="flex flex-col gap-1">
-						<Label htmlFor="reps">at reps</Label>
-						<Input
-							id="reps"
-							name="reps"
-							type="number"
-							inputMode="numeric"
-							step="1"
-							min="1"
-							className="w-24"
-							required
+					<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+						{/* **No step.** `step="0.5"` rejected 61.25 kg, on an athlete whose
+						    gym owns 1.25 kg plates — a precision the app has no standing
+						    to impose, since what can be loaded is a fact about a rack it
+						    may know nothing about. Loadability is stated where it is known
+						    (the plate line, the engine's rounding note), never enforced
+						    here as a false rule. */}
+						<MegField
+							label={L.kg}
+							inputProps={{
+								id: 'valueKg',
+								name: 'valueKg',
+								type: 'number',
+								inputMode: 'decimal',
+								step: 'any',
+								min: '0',
+								required: true,
+								enterKeyHint: construct === 'repMax' ? 'next' : 'done',
+							}}
+						/>
+						{construct === 'repMax' ? (
+							<MegField
+								label={L.reps}
+								inputProps={{
+									id: 'reps',
+									name: 'reps',
+									type: 'number',
+									inputMode: 'numeric',
+									step: '1',
+									min: '1',
+									required: true,
+									enterKeyHint: 'done',
+								}}
+							/>
+						) : null}
+						<MegField
+							className="col-span-2 sm:col-span-1"
+							label={L.from}
+							inputProps={{
+								id: 'effectiveOn',
+								name: 'effectiveOn',
+								type: 'date',
+								defaultValue: today,
+							}}
 						/>
 					</div>
-				) : null}
 
-				<div className="flex flex-col gap-1">
-					<Label htmlFor="effectiveOn">From</Label>
-					<Input
-						id="effectiveOn"
-						name="effectiveOn"
-						type="date"
-						defaultValue={today}
-						className="w-44"
-					/>
-				</div>
-			</div>
+					<MegNote>
+						{construct === 'repMax' ? L.repMaxHint : L.statedHint}
+					</MegNote>
 
-			<p className="text-muted-foreground text-body-xs">
-				{construct === 'repMax'
-					? 'The heaviest load you can lift for exactly that many reps. It is never converted from another rep count — an 8RM read off a 5RM would be a ±10 % guess applied twice.'
-					: 'A number you typed is stored as yours and is not graded — the app does not grade a figure you stated about yourself.'}
-			</p>
+					<MegResult result={result} />
 
-			{result && !result.ok ? (
-				<p className="text-destructive text-body-sm" role="alert">
-					{result.error}
-				</p>
-			) : null}
-			{result?.ok ? (
-				<p className="text-body-sm" role="status">
-					{result.message}
-				</p>
-			) : null}
-
-			<div>
-				<Button type="submit" variant="outline" size="sm">
-					Save this number
-				</Button>
-			</div>
-		</fetcher.Form>
+					<Button type="submit" className="w-full sm:w-auto sm:self-start">
+						{L.save}
+					</Button>
+				</fetcher.Form>
+			</CardContent>
+		</Card>
 	)
 }
