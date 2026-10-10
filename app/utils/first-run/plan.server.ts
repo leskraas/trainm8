@@ -29,6 +29,7 @@ import { findActiveOutline } from '../training.server.ts'
 import {
 	draftFirstRunPlan,
 	FIRST_RUN_WEEKS,
+	peakOf,
 	type DraftGoal,
 	type FirstRunDraft,
 } from './draft.ts'
@@ -175,13 +176,15 @@ function existingPlanWhere(
  *    and its plan in **one transaction**, which first re-checks that the
  *    athlete still has no plan, so a double submit makes one plan and a
  *    malformed write leaves no Event behind — then the starter pattern on the
- *    chosen days.
- * 2. The track is anchored on the draft's first week, set so no week asks for
- *    more than the hours the athlete gave; those hours and the days become
- *    their **Weekly Capacity** and **Training Availability**, which the plan's
- *    fit checks read, so neither check fires on the plan just made.
+ *    draft's days (the chosen days, cut to what the hours fill and to six).
+ * 2. The track is anchored on the hours the athlete trains now (owner decision
+ *    15, round 2): the first week is those hours and the family climbs from
+ *    there. The chosen days become their **Training Availability** and the
+ *    plan's heaviest week their **Weekly Capacity**, which the plan's fit
+ *    checks read, so neither check fires on the plan just made.
  * 3. Its first two weeks laid through the horizon fill's own `fillPlanWeek`,
- *    as `generated` sessions.
+ *    as `generated` sessions — the week's hard sessions on the days the
+ *    preview showed them, each titled as it showed them.
  */
 export async function createFirstRunPlan(
 	userId: string,
@@ -210,7 +213,9 @@ export async function createFirstRunPlan(
 				family: plan.family,
 				round,
 				startWeekKey: plan.startWeekKey,
-				days: answers.days,
+				// The days the draft lays on: the chosen days, cut to what the
+				// hours fill and to six (`patternDaysFor`).
+				days: draft.patternDays,
 			},
 			now,
 		)
@@ -275,13 +280,23 @@ export async function createFirstRunPlan(
 		await createStarterWeekPattern(
 			userId,
 			{ outlineId },
-			{ trainableWeekdays: calendarDays },
+			{ trainableWeekdays: calendarWeekdaysOf(draft.patternDays) },
 		)
 	}
 
+	// The chosen days are the athlete's **Training Availability**, all of them,
+	// even where the plan lays fewer. The hours they gave are what they train
+	// now and where the plan starts (owner decision 15), not what they can give
+	// at most; the **Weekly Capacity** the hours fit check reads is the plan's
+	// own heaviest week, rounded up to the tenth the currency is written in, so
+	// the check does not fire on the plan just made.
+	const peak = peakOf(draft.targets) ?? answers.hours
 	await updateAthleteProfile(userId, {
 		trainableWeekdays: calendarDays,
-		weeklyCapacityHours: answers.hours,
+		weeklyCapacityHours: Math.max(
+			answers.hours,
+			Math.ceil(Math.round(peak * 1000) / 100) / 10,
+		),
 	})
 
 	let laid = 0

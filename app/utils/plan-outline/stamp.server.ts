@@ -48,12 +48,13 @@ import {
 	intentToZone,
 	type TrainingZone,
 } from '../session-profile.ts'
-import { deriveWorkoutTitle } from '../session-title.ts'
+import { stampedSessionTitle } from '../session-title.ts'
 import {
 	isCardioDiscipline,
 	IntensityTargetSchema,
 	type CardioDiscipline,
 	type Discipline,
+	type WorkoutIntent,
 	type WorkoutStructure,
 } from '../workout-schema.ts'
 import {
@@ -65,6 +66,7 @@ import {
 import { isOutlineResting } from './active-outline.server.ts'
 import { phaseIndexForWeek, totalWeeks, type VolumeCurrency } from './derive.ts'
 import { phaseSpecs, resolvedTracks } from './from-rows.ts'
+import { type QualityZone } from './quality-mix.ts'
 import {
 	mixDisagreements,
 	planStamp,
@@ -273,7 +275,8 @@ export async function stampWeekPattern(
 	const eventId = outline.event?.id ?? null
 	const timezone = await getAthleteTimezone(userId)
 	const trainingTime = await defaultTrainingTime(userId)
-	const weekCount = totalWeeks(phaseSpecs(outline))
+	const specs = phaseSpecs(outline)
+	const weekCount = totalWeeks(specs)
 	const tracks = stampTracks(outline)
 	const resolved = resolvedTracks(outline)
 
@@ -290,12 +293,22 @@ export async function stampWeekPattern(
 		) {
 			return refuse('week-outside-plan')
 		}
+		const phaseIndex = phaseIndexForWeek(specs, index)
 		weeks.push({
 			weekKey,
 			weekInPlan: index + 1,
 			targets: resolved.map((track) => ({
 				trackId: track.trackId,
 				value: track.targets[index]?.value ?? null,
+			})),
+			// The week's segment's **Quality Session Mix**, which the planner lays
+			// on the bare share days (round 2): a plan that says two hard sessions
+			// a week lays two.
+			mixes: resolved.map((track) => ({
+				trackId: track.trackId,
+				mix:
+					track.segments.find((segment) => segment.phaseIndex === phaseIndex)
+						?.mix ?? [],
 			})),
 		})
 	}
@@ -465,12 +478,18 @@ async function workoutForSession(
 	if (!structure) return null
 	const workout = await tx.workout.create({
 		data: {
-			title: deriveWorkoutTitle(structure),
+			// What the session is, in Norwegian (round 2): `Rolig økt · Løping`,
+			// `Langtur · Løping`, `Terskeløkt · Løping` — the words the first
+			// run's preview showed. Its duration is on every surface already.
+			title: stampedSessionTitle(session),
 			discipline: structure.discipline,
-			// The share day's honest intent: it is the week's volume, not a prescribed
-			// effort. Nothing here invents a zone — a pattern day carries none, and the
-			// mix-disagreement check reads the session's content (ADR 0044 §7).
-			intent: 'endurance',
+			// The share day's honest intent: the week's volume at an easy effort,
+			// or — where the planner laid the week's **Quality Session Mix** on
+			// it — the mix's zone (tempo, threshold, VO₂ max). A pattern day still
+			// carries no zone (ADR 0044 §7); the zone is the segment's, and the
+			// mix-disagreement check reads it back off this intent.
+			intent:
+				session.zone != null ? QUALITY_INTENTS[session.zone] : 'endurance',
 			ownerId: userId,
 			blocks: { create: buildBlocksCreate(structure.blocks) },
 		},
@@ -478,6 +497,16 @@ async function workoutForSession(
 	})
 	return workout.id
 }
+
+/**
+ * The Workout intent a quality day is laid with: the intent whose zone
+ * (`intentToZone`) is the mix's zone, so the mix check counts it as asked.
+ */
+const QUALITY_INTENTS = {
+	3: 'tempo',
+	4: 'threshold',
+	5: 'vo2max',
+} as const satisfies Record<QualityZone, WorkoutIntent>
 
 /**
  * A bare share of the week as a one-step prescription: a distance on a `km` track,
@@ -597,6 +626,9 @@ function stampDays(
 			orderInDay: day.orderInDay,
 			trackId: day.trackId,
 			workoutId: day.workout?.id ?? null,
+			// What the day's own Workout already is, so the mix does not ask a
+			// share day for a session a fixed one is.
+			zone: day.workout ? sessionZone(day.workout) : null,
 		}
 		if (day.kind === 'fixed') {
 			return [{ ...position, kind: 'fixed', volume: priced, shapeVolume: null }]
