@@ -811,8 +811,14 @@ describe('both ends of the season are stated', () => {
 
 	test('with no plan there is no race day and nothing unwritten', () => {
 		const result = season([on(0)])
+		expect(result.endCap.plan).toBe('none')
 		expect(result.endCap.unwrittenWeeks).toBe(0)
 		expect(result.endCap.eventDateLabel).toBeNull()
+		expect(result.endCap.planEndLabel).toBeNull()
+	})
+
+	test('a plan toward a race says so', () => {
+		expect(season([on(0)], plan()).endCap.plan).toBe('event')
 	})
 })
 
@@ -853,11 +859,24 @@ describe('an open-ended plan never invents a race day (ADR 0079)', () => {
 		round: 1,
 	})
 
-	test('the end cap names no race and counts no unwritten weeks to one', () => {
+	test('the end cap names no race, and is still a plan: its weeks are counted to the last round’s end (S1)', () => {
+		// Twelve plan weeks from four weeks back: the last round ends in the week
+		// of 8 Apr, seven weeks past this one, on Sunday 14 Apr.
 		const result = season([on(0)], openEnded)
-		expect(result.endCap).toMatchObject({
+		expect(result.endCap).toEqual({
+			plan: 'open-ended',
+			writtenThroughLabel: '20. feb',
 			eventName: null,
 			eventDateLabel: null,
+			unwrittenWeeks: 7,
+			planEndLabel: '14. apr',
+		})
+	})
+
+	test('an open-ended plan written to its last week has nothing left to write', () => {
+		const result = season([on(0), on(7 * 7)], openEnded)
+		expect(result.endCap).toMatchObject({
+			plan: 'open-ended',
 			unwrittenWeeks: 0,
 		})
 	})

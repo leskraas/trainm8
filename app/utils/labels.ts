@@ -1526,6 +1526,15 @@ export const CAP_LABELS = {
 	sketched: (weeks: number, event: string | null, date: string) =>
 		`Resten av sesongen er skissert, ikke skrevet — ${weeks === 1 ? '1 uke' : `${weeks} uker`} uten økter ennå, frem til ${event ?? 'løpsdagen'} ${date}.`,
 	whole: 'Det er hele planen. Ingenting er lagt inn etter dette.',
+	/**
+	 * An open-ended plan's end (ADR 0079): a plan with no end date, never "no
+	 * plan". Its last round is sketched past what is written, and the next
+	 * round is proposed in Ukeskiftet before this one ends.
+	 */
+	openEnded: (weeks: number, date: string) =>
+		weeks > 0
+			? `Resten av blokka er skissert, ikke skrevet — ${weeks === 1 ? '1 uke' : `${weeks} uker`} uten økter ennå, til og med ${date}. Planen har ingen sluttdato: neste blokk foreslås i Ukeskiftet før denne er ferdig.`
+			: `Det er hele blokka, til og med ${date}. Planen har ingen sluttdato: neste blokk foreslås i Ukeskiftet før denne er ferdig.`,
 	writeLast: (weeks: number) =>
 		weeks === 1 ? 'Skriv den siste uka' : `Skriv de siste ${weeks} ukene`,
 	seasonPlan: 'Sesongplan',

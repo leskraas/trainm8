@@ -34,9 +34,10 @@ import { DayStampProvider } from './day-stamp-context.tsx'
 import {
 	type TimelineBand,
 	type TimelineDay,
+	type TimelineEndCap,
 	type TimelineWeek,
 } from './presenter.ts'
-import { WeekBlock } from './stream.tsx'
+import { EndCap, WeekBlock } from './stream.tsx'
 
 function day(overrides: Partial<TimelineDay> = {}): TimelineDay {
 	return {
@@ -424,4 +425,88 @@ test('the draft closes without writing anything', async () => {
 	expect(
 		screen.getByRole('button', { name: /legg inn en økt/i }),
 	).toBeInTheDocument()
+})
+
+// ---------------------------------------------------------------------------
+// The far end (ADR 0079, #505 S9 review S1)
+// ---------------------------------------------------------------------------
+
+function renderEndCap(cap: Partial<TimelineEndCap>) {
+	const App = createRoutesStub([
+		{
+			path: '/',
+			Component: () => (
+				<EndCap
+					cap={{
+						plan: 'event',
+						writtenThroughLabel: '20. feb',
+						unwrittenWeeks: 0,
+						eventName: null,
+						eventDateLabel: null,
+						planEndLabel: null,
+						...cap,
+					}}
+				/>
+			),
+		},
+	])
+	render(<App initialEntries={['/']} />)
+}
+
+test('an open-ended plan is a plan at the far end, never "no season plan"', async () => {
+	renderEndCap({
+		plan: 'open-ended',
+		unwrittenWeeks: 3,
+		planEndLabel: '14. apr',
+	})
+	expect(
+		await screen.findByText(
+			'Resten av blokka er skissert, ikke skrevet — 3 uker uten økter ennå, til og med 14. apr. Planen har ingen sluttdato: neste blokk foreslås i Ukeskiftet før denne er ferdig.',
+		),
+	).toBeInTheDocument()
+	expect(screen.queryByText(/ingen sesongplan/)).not.toBeInTheDocument()
+	expect(
+		screen.queryByRole('link', { name: 'Planlegg en sesong' }),
+	).not.toBeInTheDocument()
+	expect(screen.getByRole('link', { name: 'Sesongplan' })).toHaveAttribute(
+		'href',
+		'/training/plan',
+	)
+	expect(
+		screen.getByRole('link', { name: 'Skriv de siste 3 ukene' }),
+	).toBeInTheDocument()
+})
+
+test('an open-ended plan written to its round’s end says the plan has no end date', async () => {
+	renderEndCap({
+		plan: 'open-ended',
+		unwrittenWeeks: 0,
+		planEndLabel: '14. apr',
+	})
+	expect(
+		await screen.findByText(/^Det er hele blokka, til og med 14\. apr\./),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('link', { name: /Skriv de siste/ }),
+	).not.toBeInTheDocument()
+})
+
+test('a plan toward a race counts its unwritten weeks to race day', async () => {
+	renderEndCap({
+		plan: 'event',
+		unwrittenWeeks: 1,
+		eventName: 'Birken',
+		eventDateLabel: '21. mar',
+	})
+	expect(
+		await screen.findByText(/frem til Birken 21\. mar/),
+	).toBeInTheDocument()
+})
+
+test('with no plan the far end offers to plan a season', async () => {
+	renderEndCap({ plan: 'none' })
+	expect(await screen.findByText(/ingen sesongplan ennå/)).toBeInTheDocument()
+	expect(
+		screen.getByRole('link', { name: 'Planlegg en sesong' }),
+	).toHaveAttribute('href', '/start')
 })

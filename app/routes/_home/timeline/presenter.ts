@@ -384,13 +384,28 @@ export type TimelineOtherTrack = OtherWeekVolume & {
 
 /** The far end of the season, stated rather than left as an empty scroll. */
 export type TimelineEndCap = {
-	/** `20 September` — the last day anything is written for. */
+	/**
+	 * What the season runs to: `none` — no plan, so the list is as long as
+	 * what was written; `event` — a plan toward a race; `open-ended` — a plan
+	 * with no race and no end (ADR 0079), which is a plan all the same and
+	 * never reads as "no plan".
+	 */
+	plan: 'none' | 'event' | 'open-ended'
+	/** `20. sep` — the last day anything is written for. */
 	writtenThroughLabel: string
-	/** Plan weeks past that with no sessions in them; 0 when the plan is written. */
+	/**
+	 * Plan weeks past that with no sessions in them — to race week, or to the
+	 * last week of an open-ended plan's last round; 0 when it is all written.
+	 */
 	unwrittenWeeks: number
 	eventName: string | null
-	/** `25 Oct` — race day, when there is a plan anchored to one. */
+	/** `25. okt` — race day, when there is a plan anchored to one. */
 	eventDateLabel: string | null
+	/**
+	 * `22. mar` — the Sunday an open-ended plan's last round ends on, where
+	 * the next round takes over; null for any other plan.
+	 */
+	planEndLabel: string | null
 }
 
 export type TimelineSeason = {
@@ -577,6 +592,7 @@ export function buildTimelineSeason({
 			activePlan,
 			timezone,
 			mondays,
+			planEndMonday,
 			lastWrittenMonday: [...byWeek.keys(), nowMonday].reduce((a, b) =>
 				a > b ? a : b,
 			),
@@ -1140,18 +1156,26 @@ function annetOf(
  * past it, and saying which is which is the whole point of the cap: an athlete
  * who scrolls into empty weeks should be told the weeks are unwritten, not left
  * wondering whether the app lost them.
+ *
+ * An **open-ended** plan (ADR 0079) is a plan: it has no race to count to, so
+ * its unwritten weeks are counted to the end of its last round — where the next
+ * round is proposed and appended — and the cap says the plan has no end rather
+ * than that there is no plan.
  */
 function buildEndCap({
 	ledger,
 	activePlan,
 	timezone,
 	mondays,
+	planEndMonday,
 	lastWrittenMonday,
 }: {
 	ledger: LedgerSession[]
 	activePlan: ActivePlan | null
 	timezone: string
 	mondays: string[]
+	/** The plan's last week (the last round's, for an open-ended plan). */
+	planEndMonday: string | null
 	/**
 	 * The last week anything is written in (or this week). The season itself
 	 * runs on to the plan's end, so its last Monday is no longer the last one
@@ -1164,21 +1188,32 @@ function buildEndCap({
 	const eventDate = activePlan?.eventDate
 		? new Date(activePlan.eventDate)
 		: null
-	// Whole weeks of the plan past the last one anything is written for. Counted
-	// from Mondays so a race mid-week counts its own week as unwritten.
-	const unwrittenWeeks = eventDate
-		? Math.max(
-				0,
-				Math.round(
-					(new Date(
-						`${weekMonday(eventDate, timezone)}T00:00:00.000Z`,
-					).getTime() -
-						new Date(`${lastWrittenMonday}T00:00:00.000Z`).getTime()) /
-						(7 * 24 * 60 * 60 * 1000),
-				),
-			)
-		: 0
+	const plan: TimelineEndCap['plan'] = !activePlan
+		? 'none'
+		: eventDate
+			? 'event'
+			: 'open-ended'
+	// The Monday of the last week the plan asks for: race week, or the
+	// open-ended plan's last round. Counted from Mondays so a race mid-week
+	// counts its own week as unwritten.
+	const endMonday = eventDate
+		? weekMonday(eventDate, timezone)
+		: plan === 'open-ended'
+			? planEndMonday
+			: null
+	const unwrittenWeeks =
+		endMonday != null
+			? Math.max(
+					0,
+					Math.round(
+						(new Date(`${endMonday}T00:00:00.000Z`).getTime() -
+							new Date(`${lastWrittenMonday}T00:00:00.000Z`).getTime()) /
+							(7 * 24 * 60 * 60 * 1000),
+					),
+				)
+			: 0
 	return {
+		plan,
 		writtenThroughLabel: last
 			? formatNbDayMonth(new Date(last.scheduledAt), timezone)
 			: formatNbDayMonth(
@@ -1188,6 +1223,14 @@ function buildEndCap({
 		unwrittenWeeks,
 		eventName: activePlan?.eventName ?? null,
 		eventDateLabel: eventDate ? formatNbDayMonth(eventDate, timezone) : null,
+		planEndLabel:
+			plan === 'open-ended' && planEndMonday != null
+				? formatNbDayMonth(
+						dayBoundsUTC(addDays(planEndMonday, DAYS_IN_WEEK - 1), timezone)
+							.start,
+						timezone,
+					)
+				: null,
 	}
 }
 

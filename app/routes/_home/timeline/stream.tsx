@@ -1245,6 +1245,10 @@ export function StartCap({
  * The far end. A plan that is sketched past its written weeks says so and
  * offers the next step; a plan written all the way through just points at
  * itself. Either way the athlete is told which of the two they are looking at.
+ *
+ * An open-ended plan (ADR 0079) is a plan like any other here: it has no race
+ * to name, so it says where its last round ends and that the next one is
+ * proposed before then — never "there is no season plan".
  */
 export function EndCap({ cap }: { cap: TimelineEndCap }) {
 	const unwritten = cap.unwrittenWeeks
@@ -1252,22 +1256,27 @@ export function EndCap({ cap }: { cap: TimelineEndCap }) {
 	// would be an empty promise. The honest next step is planning one. Events,
 	// the Catalogue and Programs used to be linked from here too, for want of
 	// anywhere else; they live in the Sesong and Bibliotek tabs now (ADR 0083).
-	const planned = cap.eventDateLabel != null
+	const planned = cap.plan !== 'none'
 	return (
-		<div className="border-hairline-week flex flex-col gap-2.5 border-t p-[18px]">
+		<div
+			data-end-cap={cap.plan}
+			className="border-hairline-week flex flex-col gap-2.5 border-t p-[18px]"
+		>
 			<span className="text-foreground text-[15px]/[1.2] font-semibold tracking-[-0.015em]">
 				{CAP_LABELS.writtenThrough(cap.writtenThroughLabel)}
 			</span>
 			<span className="text-muted-foreground text-[12.5px]/[1.5]">
-				{!planned
+				{cap.plan === 'none'
 					? CAP_LABELS.noPlan
-					: unwritten > 0
-						? CAP_LABELS.sketched(
-								unwritten,
-								cap.eventName,
-								cap.eventDateLabel ?? '',
-							)
-						: CAP_LABELS.whole}
+					: cap.plan === 'open-ended'
+						? CAP_LABELS.openEnded(unwritten, cap.planEndLabel ?? '')
+						: unwritten > 0
+							? CAP_LABELS.sketched(
+									unwritten,
+									cap.eventName,
+									cap.eventDateLabel ?? '',
+								)
+							: CAP_LABELS.whole}
 			</span>
 			<div className="flex flex-wrap gap-2">
 				{planned && unwritten > 0 ? (
