@@ -4,20 +4,23 @@
  *
  * Three things in one column, top to bottom:
  *
- * - **The top line** — the plan and what it counts toward (`Klassisk 3:1 ·
- *   Halvmaraton om 12 uker`, `Blokk 3 av ∞`, or `Ingen plan` with the way to
- *   Sesong), the Ukeskiftet badge while a proposal waits, "+ Ny", and the
- *   **I dag pill**, quiet while today is on screen and filled with the way back
- *   once it is not.
- * - **The season strip** — every week as a bar, the plan's phases under it,
- *   a frame over the weeks the list is showing (`week-strip.tsx`).
- * - **The list**, which gets every pixel left. Today's row carries what the
- *   hero used to: the session's action and the coach's one line.
+ * - **The top bar**, pinned, on the page's own tone with a soft shadow over
+ *   the list: one line with the plan and what it counts toward (`Klassisk
+ *   3:1 · Halvmaraton om 12 uker`, `Blokk 3 av ∞`, or `Ingen plan` with the
+ *   way to Sesong), the Ukeskiftet badge while a proposal waits (`1 forslag`,
+ *   a jump to the card — never a row of its own), a compact "+ Ny", and the
+ *   **I dag pill**, outlined while today is on screen and filled with the way
+ *   back once it is not.
+ * - **The season strip** under it — every week as a bar, the plan's phases
+ *   under it, a frame over the weeks the list is showing (`week-strip.tsx`).
+ * - **The list**, which gets every pixel left, and reads like a calendar:
+ *   every week whole, every day a row (`stream.tsx`). Today's row carries what
+ *   the hero used to: the session's action and the coach's one line.
  *
- * There is no hero, no collapsing header and nothing folds with the scroll:
- * the top is a fixed ~110px, and the list under it is a plain scroller. The
- * hero's Form and Rekorder panes live on the Meg tab now; its "Uka" pane was
- * already the week header.
+ * There is no hero, no collapsing header and nothing folds, with the scroll or
+ * otherwise: the top is a fixed ~115px, and the list under it is a plain
+ * scroller. The hero's Form and Rekorder panes live on the Meg tab now; its
+ * "Uka" pane was already the week header.
  *
  * The measuring lives in `use-timeline-scroll.ts` (which never writes under a
  * scrolling reader), the arithmetic in `anchoring.ts`, and what a row is
@@ -324,8 +327,8 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 					ref={streamRef}
 					id={streamId}
 					data-testid="timeline-stream"
-					// Named for the markup as well as for the tests: a past band deep
-					// in the stream finds the box it scrolls in through this.
+					// Named for the markup as well as for the tests: a row deep in the
+					// stream finds the box it scrolls in through this.
 					{...{ [STREAM_ATTR]: 'true' }}
 					// `overscroll-behavior: contain` so the end of the list never drags
 					// the page behind it (mobile baseline, #505 P7). The browser's own

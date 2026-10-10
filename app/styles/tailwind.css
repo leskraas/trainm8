@@ -685,13 +685,14 @@
 }
 
 /*
- * The home timeline's accordions (#502, ADR 0082 §6): an empty cell opening
- * into the editor, a band opening into its days, a folded week opening.
+ * The home timeline's one accordion (#502, ADR 0082 §6 as amended by 0086): an
+ * empty cell opening into the draft. Bands and folded weeks were the others;
+ * since ADR 0086 nothing on I dag folds.
  *
  * Same ingredients as `motion-collapse`, but the two pixel values it
- * interpolates between are written by `timeline/reflow.ts`, because those
- * accordions are not Base UI Collapsibles and CSS cannot measure. Not gated on
- * reduced motion, for `motion-collapse`'s reason.
+ * interpolates between are written by `timeline/reflow.ts`, because the draft
+ * is not a Base UI Collapsible and CSS cannot measure. Not gated on reduced
+ * motion, for `motion-collapse`'s reason.
  */
 @utility reflow {
 	transition:

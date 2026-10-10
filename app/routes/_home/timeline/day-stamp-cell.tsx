@@ -131,7 +131,9 @@ export function StampDraft({
 				<span className="text-muted-foreground text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
 					{dayLabel}
 				</span>
-				<span className="text-muted-foreground text-[12px]/[1.1]">{dateLabel}</span>
+				<span className="text-muted-foreground text-[12px]/[1.1]">
+					{dateLabel}
+				</span>
 			</span>
 			<div className="flex min-w-0 flex-col gap-2">
 				<p className="text-muted-foreground text-[11px]/[1.3]">
@@ -314,7 +316,9 @@ export function StampedSentence({
 				<span className="text-muted-foreground text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
 					{dayLabel}
 				</span>
-				<span className="text-muted-foreground text-[12px]/[1.1]">{dateLabel}</span>
+				<span className="text-muted-foreground text-[12px]/[1.1]">
+					{dateLabel}
+				</span>
 			</span>
 			<div className="flex min-w-0 flex-col gap-2.5">
 				<ScheduledWorkoutSentence

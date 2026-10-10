@@ -54,12 +54,10 @@ All in `app/styles/tailwind.css`. Light is `:root`, dark is `.dark` on `<html>`
 Every role is a Tailwind colour (`bg-status-under`, `text-track-run`,
 `bg-phase-build/20`).
 
-**Older app tokens, kept until their call sites migrate:** `ink-body`,
-`ink-facts`, `ink-dim`, `ink-dimmer`, `ink-dimmest` (the timeline's text ladder
-between `foreground` and `muted-foreground`), `hairline`, `hairline-week`,
-`hairline-edge`, `warning` (now `= status-under`), `--shadow-pill`, `zone-1…5`.
-The home rebuild should move to `foreground`/`muted-foreground`, `border` (or
-tone) and `status-under`, then delete what is left unused.
+**Older app tokens:** only `zone-1…5` remains, read by pages outside home. The
+timeline's own (`ink-*`, `hairline*`, `warning`, `--shadow-pill`) are gone: I
+dag uses `foreground`/`muted-foreground` (with opacity steps), `border` at low
+opacity for hairlines, tone for surfaces and `status-under` (ADR 0086).
 
 ### Radius
 
@@ -131,15 +129,15 @@ From Emil Kowalski's skills, enforced by the utilities in `tailwind.css`.
 | `duration-modal`    | 250 / 200                                                 | dialogs, sheets, backdrops                          |
 | `duration-drawer`   | 450 in; out = Base UI's `--drawer-swipe-strength` × 400ms | the bottom sheet                                    |
 
-| Utility                        | What it does                                                                                                                                                                                 |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pressable`                    | `scale(0.97)` on `:active`, 160ms ease-out; colours on the same curve; no scale on `aria-haspopup` triggers; reduced motion keeps the colours only.                                          |
-| `motion-popup`                 | `transform-origin: var(--transform-origin)`, from `scale(0.96)` + opacity via `data-starting-style`/`data-ending-style`; 200 in / 150 out; only a fade when a select opens over its trigger. |
-| `motion-tooltip`               | Same shape from `scale(0.97)`, 150 / 100; `data-instant` → no transition.                                                                                                                    |
-| `motion-modal`                 | Centred (modals have no trigger), from `scale(0.96)`, 250 / 200.                                                                                                                             |
-| `motion-backdrop`              | Opacity, in step with its modal; follows a drawer swipe.                                                                                                                                     |
-| `motion-collapse`              | Height (Base UI's `--collapsible-panel-height`) + opacity, 200 / 150. The one sanctioned layout animation.                                                                                   |
-| `press`, `reflow`, `hero-lift` | The home timeline's own (ADR 0077). `hero-lift` goes when the hero does.                                                                                                                     |
+| Utility           | What it does                                                                                                                                                                                 |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pressable`       | `scale(0.97)` on `:active`, 160ms ease-out; colours on the same curve; no scale on `aria-haspopup` triggers; reduced motion keeps the colours only.                                          |
+| `motion-popup`    | `transform-origin: var(--transform-origin)`, from `scale(0.96)` + opacity via `data-starting-style`/`data-ending-style`; 200 in / 150 out; only a fade when a select opens over its trigger. |
+| `motion-tooltip`  | Same shape from `scale(0.97)`, 150 / 100; `data-instant` → no transition.                                                                                                                    |
+| `motion-modal`    | Centred (modals have no trigger), from `scale(0.96)`, 250 / 200.                                                                                                                             |
+| `motion-backdrop` | Opacity, in step with its modal; follows a drawer swipe.                                                                                                                                     |
+| `motion-collapse` | Height (Base UI's `--collapsible-panel-height`) + opacity, 200 / 150. The one sanctioned layout animation.                                                                                   |
+| `reflow`          | The home timeline's draft opening in place (ADR 0077, 0086): height + opacity written by `timeline/reflow.ts`, on `motion-collapse`'s curve.                                                 |
 
 The rules: transitions, never keyframes, on anything that can be interrupted.
 Never `scale(0)`, never `ease-in`, never `transition-all`. Exit faster than

@@ -6,8 +6,8 @@
  * It lives where writing already lived on I dag: in the tapped empty day's
  * draft (ADR 0065 §5), beside the Discipline chips and the stamp it extends,
  * and behind the creation menu's "Skriv en økt" for a day the list does not
- * show as empty — a day that already has a session, or one in a collapsed week
- * past the Planning Horizon. Both post the same intent to home's own action.
+ * show as empty — a day that already has a session, or one far ahead of the
+ * weeks the list has mounted. Both post the same intent to home's own action.
  *
  * Three things under the input, and none of them is the typed text echoed back:
  * the session as the **Token Sentence** rendered from the structure the reader
@@ -164,7 +164,9 @@ export function WritingLine({
 				className="flex flex-col gap-1.5"
 			>
 				{!typed && emptyHint ? (
-					<p className="text-muted-foreground text-[11px]/[1.35]">{emptyHint}</p>
+					<p className="text-muted-foreground text-[11px]/[1.35]">
+						{emptyHint}
+					</p>
 				) : null}
 				{notation ? (
 					<div data-writing-understood className="flex flex-col gap-1">

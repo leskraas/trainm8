@@ -313,7 +313,8 @@ export function beyondWeekNote({
 
 /**
  * The week's sessions and load in the header's Norwegian — what a week with no
- * Training Track to be read in carries, and the hero's week pane. Three
+ * Training Track to be read in carries as its numbers, and every week's
+ * one-sentence summary under its tracks (ADR 0086). Three
  * readings, because a week in the past and a week still to come are not the
  * same question: history counts what was done, the future counts what is
  * asked for, and an imported week counts only sessions, since there was never

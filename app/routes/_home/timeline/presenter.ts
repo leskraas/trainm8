@@ -151,10 +151,9 @@ export type { TimelineStrengthLog } from './strength-log.ts'
  * Two things have to agree about it and neither of them is the query: the
  * **start cap** states this
  * bound instead of claiming the athlete's history starts there, and no day
- * behind it is built at all (ADR 0075 §2 and §3). A band saying
- * `9 dager · ingenting logget` over dates the query never asked about would be a
- * fabrication, and this is the line between "nothing was logged" and "nothing
- * was fetched".
+ * behind it is built at all (ADR 0075 §2 and §3). A `fri` row over a date the
+ * query never asked about would be a fabrication, and this is the line between
+ * "nothing was logged" and "nothing was fetched".
  */
 export { TIMELINE_TRAILING_DAYS }
 
@@ -439,8 +438,8 @@ export type TimelineSeason = {
 	 * Today, as `YYYY-MM-DD` in the athlete's own timezone — **the stream's
 	 * landing anchor**. It names a day rather than a session, so it is a fact
 	 * about the calendar instead of a fact about what happens to be scheduled,
-	 * and because today never folds into a band there is always a row carrying
-	 * it — on a rest day too. That is what lets the landing and the I dag pill
+	 * and because every day is a row there is always one carrying it — on a
+	 * rest day too. That is what lets the landing and the I dag pill
 	 * work with no fallback and no special case anywhere (ADR 0065 §1, ADR 0082
 	 * §4 and §6).
 	 */
@@ -515,7 +514,7 @@ export function buildTimelineSeason({
 	const todayKey = localDate(now, timezone)
 	const nowMonday = weekMonday(now, timezone)
 	// The earliest day this screen knows anything about. Behind it the query
-	// asked nothing, so nothing behind it is built and no band speaks for it.
+	// asked nothing, so nothing behind it is built and no row speaks for it.
 	const reachesBackKey = addDays(todayKey, -TIMELINE_TRAILING_DAYS)
 	// The ledger's own row builder decides what a row *is* (status, load, band,
 	// profile bars), so the stream and the Session Ledger can never disagree
@@ -878,7 +877,7 @@ function buildWeek({
 	// further: a day the query never asked about is not a day with nothing on it.
 	// A session older than that still gets its row — what the reach bounds is the
 	// claim that a day was empty, never a day the caller actually handed us.
-	// Which of these days the stream actually *shows* is the bands' business.
+	// The stream shows every one of them (ADR 0086).
 	const byDay = bucketByDay(sessionRows, timezone)
 	const trackDisciplines = new Set<string>(tracks.map((t) => t.discipline))
 	// The unit a session's own volume is said in: its track's, where the plan

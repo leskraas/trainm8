@@ -16,8 +16,8 @@
  * **Every write has a way back on I dag** (ADR 0076, ADR 0082 S11). A stamp or
  * a draft's sentence opens its row with Angre. A sentence from "+ Ny" →
  * "Skriv en økt" lands on a day that may be anywhere in the list — far ahead,
- * in a folded week, past what the stream has mounted — so its way back is the
- * toast instead: the week's sum, with Angre on it.
+ * past what the stream has mounted — so its way back is the toast instead:
+ * the week's sum, with Angre on it.
  */
 import {
 	createContext,

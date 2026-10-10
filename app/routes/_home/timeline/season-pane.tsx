@@ -82,7 +82,7 @@ export const SeasonPane = memo(function SeasonPane({
 	}, [load])
 
 	// The season the table reads is the plan's: history from before it has no
-	// target to stand beside, and the list already folds it above today.
+	// target to stand beside, and the list already shows it above today.
 	const rows = useMemo(() => weeks.filter((week) => !week.imported), [weeks])
 
 	return (
@@ -255,7 +255,9 @@ const SeasonRow = memo(function SeasonRow({
 					<td className="py-1.5 pr-3 text-right">
 						{track?.figures.done ?? '–'}
 					</td>
-					<td className="text-muted-foreground py-1.5">{track?.gradeLabel ?? ''}</td>
+					<td className="text-muted-foreground py-1.5">
+						{track?.gradeLabel ?? ''}
+					</td>
 				</>
 			) : (
 				<td className="text-muted-foreground py-1.5">{week.loadLine}</td>

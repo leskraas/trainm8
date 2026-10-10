@@ -78,7 +78,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// they live on the Workout Detail View, so the loader no longer fetches them.
 	// The ledger reaches as far ahead as the writing line may write — two
 	// years, or the plan's end where that is later (`timeline-window.ts`) — so
-	// a session written into a collapsed week months out is read back here.
+	// a session written into a week months out is read back here.
 	const requestedAt = new Date()
 	const activePlanRead = getActivePlan(userId)
 	const ledgerRead = Promise.all([
