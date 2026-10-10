@@ -16,8 +16,17 @@ import {
 	isStampableDiscipline,
 } from './day-stamp.ts'
 import { prisma } from './db.server.ts'
+import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import { type CardioDiscipline, type Discipline } from './workout-schema.ts'
-import { createWorkoutSession, deleteWorkoutSession } from './workout.server.ts'
+import {
+	copyWorkout,
+	createWorkoutSession,
+	deleteWorkoutSession,
+	markSessionDone,
+	setCountsInNoTrack,
+	workoutCopySelect,
+} from './workout.server.ts'
+import { type ComposerExtras } from './writing-line-schema.ts'
 
 export type DayStampResult =
 	| { ok: true; sessionId: string }
@@ -131,4 +140,101 @@ export async function writeSessionOnDay({
  */
 export async function undoDayStamp(userId: string, sessionId: string) {
 	return deleteWorkoutSession(userId, sessionId)
+}
+
+export type CopiedSessionResult =
+	| { ok: true; sessionId: string; discipline: string }
+	| { ok: false; reason: 'not-found' }
+
+/**
+ * **Kopier** (owner decision 1, round 2): one of the athlete's own sessions,
+ * copied onto another day. The one deep-copy seam (`copyWorkout`, ADR 0044
+ * §6) — a fresh Workout, so editing the copy never edits the day it came from
+ * — at the athlete's Default Training Time on the day, as every other write
+ * here. The athlete chose it, so it is `authored` and theirs from the start.
+ *
+ * Owner-scoped: another athlete's session, or one with no prescription (a
+ * recording-only session has nothing to copy), is not found.
+ */
+export async function copySessionToDay({
+	userId,
+	sessionId,
+	dateKey,
+	timezone,
+}: {
+	userId: string
+	sessionId: string
+	dateKey: string
+	timezone?: string
+}): Promise<CopiedSessionResult> {
+	const from = await prisma.workoutSession.findFirst({
+		where: { id: sessionId, userId, workoutId: { not: null } },
+		select: { workout: { select: workoutCopySelect } },
+	})
+	if (!from?.workout) return { ok: false, reason: 'not-found' }
+	const original = from.workout
+	const scheduledAt = await scheduledAtOn(userId, dateKey, timezone)
+	const created = await prisma.$transaction(async (tx) => {
+		const copy = await copyWorkout(tx, original, userId)
+		return tx.workoutSession.create({
+			data: {
+				userId,
+				workoutId: copy.id,
+				scheduledAt,
+				status: 'scheduled',
+				source: 'authored',
+			},
+			select: { id: true },
+		})
+	})
+	await recomputePlannedTssForSession(userId, created.id)
+	return { ok: true, sessionId: created.id, discipline: original.discipline }
+}
+
+/**
+ * What a composer write says beside its session, applied to the session it
+ * just wrote — the same calls the row's own controls make, so a session
+ * written into Annet, or written as done, is the same session as one moved
+ * there afterwards:
+ *
+ * - **Annet** (owner decision 4): `setCountsInNoTrack`, as _Tell i Annet_.
+ * - **Allerede gjort** (decision 5): `markSessionDone` with the week's reach
+ *   lifted — a session written as done on a past day is a log of what the
+ *   athlete did, however long ago (ADR 0088).
+ * - **A note**: the Workout's description, where the Workout Detail View
+ *   reads it.
+ *
+ * Returns whether the session ended up done: a done write on a sport no
+ * import brings numbers for (strength), or on a day that has not begun, is
+ * left planned rather than claimed.
+ */
+export async function finishComposerWrite(
+	userId: string,
+	sessionId: string,
+	{
+		extras,
+		now,
+		timezone,
+	}: { extras: ComposerExtras; now: Date; timezone: string },
+): Promise<{ done: boolean }> {
+	if (extras.notes) {
+		const session = await prisma.workoutSession.findFirst({
+			where: { id: sessionId, userId },
+			select: { workoutId: true },
+		})
+		if (session?.workoutId) {
+			await prisma.workout.update({
+				where: { id: session.workoutId },
+				data: { description: extras.notes },
+			})
+		}
+	}
+	if (extras.annet) await setCountsInNoTrack(userId, sessionId, true)
+	if (!extras.done) return { done: false }
+	const marked = await markSessionDone(userId, sessionId, {
+		now,
+		timezone,
+		reach: 'any-past-day',
+	})
+	return { done: marked.ok }
 }

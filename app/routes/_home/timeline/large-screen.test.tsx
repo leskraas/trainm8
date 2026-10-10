@@ -23,7 +23,7 @@ import {
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
 import { DayDetail } from './day-pane.tsx'
-import { DayStampProvider } from './day-stamp-context.tsx'
+import { ComposerProvider } from './composer-context.tsx'
 import { HomeTimeline, type HomeTimelineData } from './home-timeline.tsx'
 import { buildTimelineSeason, type TimelineSeason } from './presenter.ts'
 import { SeasonPane } from './season-pane.tsx'
@@ -334,7 +334,13 @@ describe('the season pane', () => {
 function renderDay(dayKey: string, ledger = LEDGER) {
 	const s = season(plan(), ledger)
 	inRouter(
-		<DayStampProvider prefill="run" thresholds={{}} ledger={ledger}>
+		<ComposerProvider
+			prefill="run"
+			thresholds={{}}
+			todayKey={s.todayKey}
+			minDayKey="2029-08-01"
+			container="pane"
+		>
 			<DayDetail
 				weeks={s.weeks}
 				dayKey={dayKey}
@@ -343,7 +349,7 @@ function renderDay(dayKey: string, ledger = LEDGER) {
 				today={null}
 				headingId="day"
 			/>
-		</DayStampProvider>,
+		</ComposerProvider>,
 	)
 }
 
@@ -375,12 +381,19 @@ describe('the day pane', () => {
 		expect(within(card).queryByRole('button', { name: /^Lås opp/ })).toBeNull()
 	})
 
-	test('a free day says so, and “Skriv økt her” opens the writing line on that day', async () => {
+	test('a free day says so, and the composer is there for that day (ADR 0088)', () => {
 		renderDay('2030-02-21')
 		expect(screen.getByText('Ingen økt · fri.')).toBeInTheDocument()
-		await userEvent.click(screen.getByRole('button', { name: 'Skriv økt her' }))
-		const panel = document.querySelector('[data-writing-panel]')!
-		expect(panel.querySelector('[data-writing-day]')).toHaveValue('2030-02-21')
+		// The same composer every "+" opens on a phone, inline: the day is the
+		// pane's, so it shows no day strip of its own.
+		const composer = document.querySelector('[data-composer="pane"]')!
+		expect(composer).toHaveAttribute('data-composer-day', '2030-02-21')
+		expect(composer.querySelector('[data-composer-date]')).toBeNull()
+		expect(
+			within(composer as HTMLElement).getByRole('button', {
+				name: 'Legg til 45 min Z2',
+			}),
+		).toBeInTheDocument()
 		// The week's zones close the pane, named by its ISO week.
 		expect(
 			screen.getByRole('heading', { name: 'Uke 8 i soner' }),
@@ -452,6 +465,22 @@ describe('picking a day in the list', () => {
 		within(dayRow('2030-02-21')).getByRole('button').focus()
 		await waitFor(() => expect(pane).toHaveAccessibleName('torsdag 21. feb'))
 
+		// The free day's "+" picks the day and hands its composer the line —
+		// one composer, beside the list; nothing opens in the row and no Drawer
+		// comes up over it (the double-open the audit found).
+		await userEvent.click(within(dayRow('2030-02-21')).getByRole('button'))
+		await waitFor(() =>
+			expect(
+				pane.querySelector('[data-composer-input]'),
+			).toHaveFocus(),
+		)
+		expect(pane.querySelector('[data-composer]')).toHaveAttribute(
+			'data-composer-day',
+			'2030-02-21',
+		)
+		expect(document.querySelectorAll('[data-composer]')).toHaveLength(1)
+		expect(screen.queryByRole('dialog')).toBeNull()
+
 		// The season pane sits left of the list, Norwegian, and the old chart
 		// is gone.
 		const seasonPane = screen.getByRole('complementary', { name: 'Sesongen' })
@@ -472,9 +501,17 @@ describe('picking a day in the list', () => {
 		// No third column: the day pane's card holds nothing.
 		expect(document.querySelector('[data-day-detail]')).toBeNull()
 
-		// The empty cell's own button opens its draft, not the sheet.
+		// The empty cell's "+" opens the day's sheet, with its composer in it.
 		await userEvent.click(within(dayRow('2030-02-21')).getByRole('button'))
-		expect(screen.queryByRole('dialog')).toBeNull()
+		const composing = await screen.findByRole('dialog')
+		expect(composing).toHaveAccessibleName('Dagen: torsdag 21. feb')
+		expect(
+			composing.querySelector('[data-composer="pane"]'),
+		).toHaveAttribute('data-composer-day', '2030-02-21')
+		await userEvent.click(
+			within(composing).getByRole('button', { name: 'Lukk' }),
+		)
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 
 		// The gutter opens the sheet on that day.
 		await userEvent.click(within(dayRow('2030-02-22')).getAllByText('22')[0]!)

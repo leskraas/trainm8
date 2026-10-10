@@ -1689,6 +1689,106 @@ export const WRITING_LINE_LABELS = {
 		'Den dagen ligger for langt tilbake — I dag leser et halvt år bakover.',
 } as const
 
+// ---------------------------------------------------------------------------
+// The session composer (round 2, owner decisions 1, 2, 4–7 and 11; ADR 0088):
+// one Drawer from every "+", the same content in the day pane on a large
+// screen, and one undo for every write.
+// ---------------------------------------------------------------------------
+
+/** The composer's four sources (Arket's FILL_SOURCES). */
+export type ComposerSourceKey = 'skriv' | 'bibliotek' | 'kopier' | 'appen'
+
+export const SESSION_COMPOSER_LABELS = {
+	/** The top line's one creation control (owner decision 6). */
+	newSession: 'Ny økt',
+	title: 'Ny økt',
+	/** `Ny økt tirsdag 13. okt` — the Drawer's name. */
+	titleOn: (day: string) => `Ny økt ${day}`,
+	day: 'Dag',
+	/** The day strip's own name, and its week buttons. */
+	days: 'Velg dag',
+	earlierWeek: 'Uka før',
+	laterWeek: 'Uka etter',
+	/** Any day further off than the strip's weeks (story 40). */
+	otherDay: 'Annen dag',
+	source: 'Start fra',
+	sources: {
+		skriv: 'Skriv',
+		bibliotek: 'Bibliotek',
+		kopier: 'Kopier',
+		appen: 'Appen',
+	} satisfies Record<ComposerSourceKey, string>,
+	/** The app's tab, shown and not yet working (owner decision 7). */
+	soon: 'kommer',
+	appenNote:
+		'La appen fylle dagen ut fra fasen og ukas mål. Det kommer i en senere versjon.',
+	sport: 'Idrett',
+	annet: 'Annet',
+	annetNote:
+		'Annet teller ikke i noe spor. Si idretten i linja: «25 min sykkel».',
+	annetNoDiscipline: 'Si hvilken idrett i linja: «25 min sykkel til jobb».',
+	strengthNote:
+		'Løftene skrives i linja når den kan lese dem. Til da: åpne hele editoren.',
+	add: 'Legg til',
+	/** The empty state: the stamp (ADR 0065 §5). */
+	addStamp: (sentence: string) => `Legg til ${sentence}`,
+	adding: 'Legger til…',
+	deeper: 'Gjør grundigere',
+	cancel: 'Avbryt',
+	close: 'Lukk',
+	failed: 'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
+	/** Owner decision 5: a past day's session written as done. */
+	done: 'Allerede gjort',
+	doneNote: 'Skrives som gjort, uten tall til en import kobler seg på.',
+	doneStrength:
+		'Styrke logges sett for sett, så den kan ikke skrives som gjort her.',
+	dayPast: 'Dagen er passert.',
+	blocks: 'Blokker og steg',
+	once: 'én gang',
+	times: (count: number) => `${count} ganger`,
+	addPart: 'Legg til en del',
+	notes: 'Notat',
+	notesPlaceholder: 'Med gjengen fra klubben, start ved bryggen',
+	fullEditor: 'Åpne hele editoren',
+	repeat: 'Gjentak',
+	rest: 'Pause i sekunder',
+	fewer: (what: string) => `Færre: ${what}`,
+	more: (what: string) => `Flere: ${what}`,
+	libraryEmpty: 'Ingen økter i biblioteket for denne idretten ennå.',
+	copyFrom: (week: string) => `Fra ${week.toLowerCase()}`,
+	copyEmpty: 'Ingen økter å kopiere den uka.',
+	copyEarlier: 'Uka før den',
+	loading: 'Henter…',
+	/** A pick from Bibliotek or Kopier, in the line as tokens. */
+	picked: {
+		bibliotek: 'Fra biblioteket — blir din når du endrer den',
+		kopier: 'Kopiert — blir din når du endrer den',
+	},
+	/** A pick the line cannot say, placed as it is. */
+	whole:
+		'Linja kan ikke si hele økta, så den legges inn som den er. Juster den i økta etterpå.',
+	clearPick: 'Fjern valget',
+	pick: (title: string) => `Bruk ${title}`,
+	/** Under a day's sessions: one more on the same day. */
+	addAnother: 'legg til en til',
+	addAnotherOn: (day: string) => `Legg til en økt til ${day}`,
+	undo: 'Angre',
+	undoFor: (title: string) => `Angre ${title}`,
+	undoing: 'Fjerner…',
+	/** The toast's floor, when the reply had no week sum to say. */
+	written: 'Økta er lagt inn.',
+	writtenDone: 'Økta er lagt inn som gjort.',
+	/** The session's details, in the same Drawer at full. */
+	detail: {
+		name: (title: string) => `Om økta ${title}`,
+		counts: 'Teller i',
+		inTrack: 'sporet sitt',
+		inAnnet: 'Annet',
+		open: 'Se økta',
+		openFor: (title: string) => `Se økta ${title}`,
+	},
+} as const
+
 /** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */
 export function nbDurationLabel(seconds: number): string {
 	const hours = Math.floor(seconds / 3600)

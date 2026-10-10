@@ -171,6 +171,8 @@ export const WEEK_HEIGHTS = {
 	wrap: 21,
 	/** A session's action line (`Se økta`, _Gjort_). */
 	actions: 44,
+	/** "legg til en til" under a day's sessions, from today on (ADR 0088). */
+	addAnother: 28,
 	/** Roughly how many characters a session's sentence sets on one line. */
 	charsPerLine: 30,
 } as const
@@ -183,6 +185,8 @@ export type WeekHeightInput = {
 	opensHorizon: boolean
 	rows: ReadonlyArray<{
 		sessions: ReadonlyArray<{ title: string; markDone?: unknown }>
+		/** The day ends in "legg til en til". */
+		addAnother?: boolean
 	}>
 }
 
@@ -211,6 +215,7 @@ export function weekHeightEstimate(week: WeekHeightInput): number {
 				(lines - 1) * h.wrap +
 				(session.markDone ? h.actions : 0)
 		})
+		if (day.addAnother) total += h.addAnother
 	}
 	return Math.round(total)
 }
