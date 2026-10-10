@@ -6,7 +6,7 @@ import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
 import { type StoredAnchor } from '#app/utils/strength-anchors.server.ts'
-import ExerciseAnchorsRoute from './lifts.$exerciseId.tsx'
+import ExerciseAnchorsRoute, { AddAnchorSchema } from './lifts.$exerciseId.tsx'
 
 // ── Your numbers for one lift ────────────────────────────────────────────────
 // The screen's contract: an anchor states its own provenance, the history is a
@@ -289,4 +289,31 @@ test('an anchor whose source set is on file names its equation without qualifica
 
 	expect(await screen.findByText('Epley/Welday')).toBeInTheDocument()
 	expect(screen.queryByText(/no longer on file/)).not.toBeInTheDocument()
+})
+
+test('the kg field is a text field with a decimal keypad, so a Norwegian comma reaches the action as typed', async () => {
+	const { submitted } = renderRoute()
+	const user = userEvent.setup()
+
+	const kg = await screen.findByLabelText(/^kg$/i)
+	// Never `type=number`: Chromium in an English locale made `62,5` into `625`.
+	expect(kg).toHaveAttribute('type', 'text')
+	expect(kg).toHaveAttribute('inputmode', 'decimal')
+	await user.type(kg, '62,5')
+	await user.click(screen.getByRole('button', { name: /Save this number/i }))
+
+	expect(submitted).toHaveBeenCalledWith(
+		expect.objectContaining({ valueKg: '62,5' }),
+	)
+})
+
+test('the action reads a comma as a decimal and refuses what is not one kilo', () => {
+	const parse = (valueKg: string) =>
+		AddAnchorSchema.safeParse({ construct: 'oneRm', valueKg })
+
+	expect(parse('62,5').data?.valueKg).toBe(62.5)
+	expect(parse('62.5').data?.valueKg).toBe(62.5)
+	for (const typed of ['', '0', '-5', '6,2,5']) {
+		expect({ typed, ok: parse(typed).success }).toEqual({ typed, ok: false })
+	}
 })

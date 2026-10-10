@@ -7,6 +7,7 @@ import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
 import { type ProgramOverview } from '#app/utils/strength-program.server.ts'
 import ProgramRunRoute, {
+	workingWeightKg,
 	workingWeightRefusal,
 } from './programs.run.$instanceId.tsx'
 
@@ -302,4 +303,30 @@ test('the bound refuses a typo and nothing a person could actually lift', async 
 	expect(workingWeightRefusal('1000.5')).toMatch(/1000 kg or less/)
 	expect(workingWeightRefusal('61.25')).toBeNull()
 	expect(workingWeightRefusal('300')).toBeNull()
+})
+
+test('a Norwegian decimal comma is a working weight, read as the kilo it says', async () => {
+	expect(workingWeightRefusal('62,5')).toBeNull()
+	expect(workingWeightRefusal('1000,5')).toMatch(/1000 kg or less/)
+	expect(workingWeightRefusal('6,2,5')).toMatch(/positive number of kilos/)
+	expect(workingWeightKg('62,5')).toBe(62.5)
+	expect(workingWeightKg('62.5')).toBe(62.5)
+
+	const { submitted } = renderOverview()
+	const user = userEvent.setup()
+	const squat = await screen.findByLabelText(
+		'Working weight for Back Squat in kg',
+	)
+	// A text field with a decimal keypad, so the locale cannot turn `62,5`
+	// into `625` on the way out.
+	expect(squat).toHaveAttribute('type', 'text')
+	expect(squat).toHaveAttribute('inputmode', 'decimal')
+	await user.clear(squat)
+	await user.type(squat, '62,5')
+	await user.click(screen.getByRole('button', { name: 'Save weight' }))
+
+	expect(submitted).toHaveBeenCalledWith(
+		expect.objectContaining({ weightKg: '62,5' }),
+	)
+	expect(screen.queryByRole('alert')).toBeNull()
 })

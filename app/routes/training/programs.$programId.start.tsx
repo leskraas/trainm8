@@ -21,6 +21,7 @@ import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { optionalKiloField } from '#app/utils/strength/kilo-input.ts'
 import { getProgram, startProgram } from '#app/utils/strength-program.server.ts'
 import { type Route } from './+types/programs.$programId.start.ts'
 import {
@@ -44,11 +45,24 @@ export async function loader({ request, params }: Route.LoaderArgs) {
  * authoring schema — that round trip silently drops `load`, `effortCap` and
  * `tempo`, and a starting weight is exactly the kind of number it would lose.
  */
-const StartProgramSchema = z.object({
+export const StartProgramSchema = z.object({
 	intent: z.literal('start-program'),
 	/** `weight::<exerciseId>::<equipment>` per lift, so the **pair** survives the
-	 * round trip and a barbell bench cannot seed a dumbbell bench. */
-	weights: z.record(z.string(), z.string()).optional(),
+	 * round trip and a barbell bench cannot seed a dumbbell bench.
+	 *
+	 * A blank lift is a lift not started — that is a choice, and it reads as
+	 * `null`. A *typed* number the app cannot use is not a choice, so it is refused
+	 * in words rather than dropped: silently discarding it would start the program
+	 * without the lift the athlete just answered for. `62,5` and `62.5` are the
+	 * same kilo (`kiloField`). */
+	weights: z
+		.record(
+			z.string(),
+			optionalKiloField(
+				'A starting weight has to be a positive number of kilos.',
+			),
+		)
+		.optional(),
 })
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -64,46 +78,33 @@ export async function action({ request, params }: Route.ActionArgs) {
 	}
 	const parsed = StartProgramSchema.safeParse({ intent: raw.intent, weights })
 	if (!parsed.success) {
-		return data(
-			{ ok: false as const, error: 'That form did not make sense.' },
-			400,
+		// The weight's own sentence where a weight was refused; the form-level one
+		// only where the post itself was malformed.
+		const weightIssue = parsed.error.issues.find(
+			(issue) => issue.path[0] === 'weights' && issue.code === 'custom',
 		)
-	}
-
-	// A blank lift is a lift not started — that is a choice. A *typed* number the
-	// app cannot use is not a choice, so it is said out loud rather than dropped:
-	// silently discarding it would start the program without the lift the athlete
-	// just answered for.
-	const startingWeights: Array<{
-		exerciseId: string
-		equipment: string | null
-		weightKg: number
-	}> = []
-	let refusedNumber = false
-	for (const [key, value] of Object.entries(weights)) {
-		const trimmed = value.trim()
-		if (trimmed === '') continue
-		const weightKg = Number(trimmed)
-		if (!Number.isFinite(weightKg) || weightKg <= 0) {
-			refusedNumber = true
-			continue
-		}
-		const [exerciseId = '', equipment = ''] = key.split('::')
-		startingWeights.push({
-			exerciseId,
-			equipment: equipment === '' ? null : equipment,
-			weightKg,
-		})
-	}
-	if (refusedNumber) {
 		return data(
 			{
 				ok: false as const,
-				error: 'A starting weight has to be a positive number of kilos.',
+				error: weightIssue?.message ?? 'That form did not make sense.',
 			},
 			400,
 		)
 	}
+
+	const startingWeights = Object.entries(parsed.data.weights ?? {}).flatMap(
+		([key, weightKg]) => {
+			if (weightKg == null) return []
+			const [exerciseId = '', equipment = ''] = key.split('::')
+			return [
+				{
+					exerciseId,
+					equipment: equipment === '' ? null : equipment,
+					weightKg,
+				},
+			]
+		},
+	)
 
 	const result = await startProgram({
 		userId,
@@ -207,24 +208,29 @@ export default function StartProgramRoute({
 							    here (`plan.new.$eventId.tsx`). */}
 							<div
 								data-slot="starting-weight-field"
-								className="border-border bg-card has-[:focus-visible]:border-primary has-[:focus-visible]:ring-primary/40 flex h-13 items-center gap-3 rounded-2xl border px-4 transition-[color,box-shadow] duration-200 has-[:focus-visible]:ring-2"
+								className="border-border bg-card has-[:focus-visible]:border-primary has-[:focus-visible]:ring-primary/40 duration-press flex h-13 items-center gap-3 rounded-2xl border px-4 transition-[color,box-shadow] ease-out has-[:focus-visible]:ring-2"
 							>
-								{/* **No step.** `step="0.5"` rejected 61.25 kg, on an athlete
-								    whose gym owns 1.25 kg plates — a precision the app has no
-								    standing to impose, since what can be loaded is a fact
-								    about a rack it may know nothing about. Loadability is
+								{/* **Text, with a decimal keypad — never `type="number"`.** A
+								    number input is read by the browser's locale: Chromium in
+								    English dropped the comma from a typed `62,5` and posted
+								    `625`, ten times the weight and no error anywhere. A text
+								    field posts what was typed, and the action reads `,` and
+								    `.` alike (`kiloField`) or refuses it in words.
+
+								    **No step and no min**, for the same reason: `step="0.5"`
+								    rejected 61.25 kg on a rack with 1.25 kg plates, and a
+								    browser constraint is a silent refusal. Loadability is
 								    stated where it is known (the plate line, the engine's
 								    rounding note), never enforced here as a false rule. */}
 								<Input
 									id={field}
 									name={field}
-									type="number"
+									type="text"
 									inputMode="decimal"
-									step="any"
-									min="0"
+									autoComplete="off"
 									defaultValue={lift.defaultStartKg ?? ''}
 									aria-describedby={`${field}-hint`}
-									className="text-body-md md:text-body-md h-full flex-1 rounded-none border-0 bg-transparent p-0 font-bold focus-visible:border-transparent focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+									className="text-body-md md:text-body-md h-full flex-1 rounded-none border-0 bg-transparent p-0 font-bold focus-visible:border-transparent focus-visible:ring-0"
 								/>
 								<span className="text-body-2xs text-muted-foreground shrink-0 font-semibold">
 									kg

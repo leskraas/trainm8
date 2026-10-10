@@ -38,6 +38,7 @@ import { localDate } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { formatDate } from '#app/utils/format.ts'
+import { kiloField } from '#app/utils/strength/kilo-input.ts'
 import { formatKg } from '#app/utils/strength/program.constants.ts'
 import {
 	type StoredAnchor,
@@ -131,9 +132,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
  * round trip drops `load`, `effortCap` and `tempo`, which is why nothing on the
  * strength side goes through it.
  */
-const AddAnchorSchema = z.object({
+export const AddAnchorSchema = z.object({
 	construct: z.enum(['oneRm', 'repMax']),
-	valueKg: z.coerce.number().finite().positive(),
+	// `62,5` and `62.5` are the same kilo; anything else is refused, and the
+	// field's own sentence below says so (`FIELD_ERRORS.valueKg`).
+	valueKg: kiloField('A weight has to be a positive number of kilos.'),
 	reps: z
 		.string()
 		.optional()
@@ -472,14 +475,17 @@ function AddAnchorForm({
 					    impose, since what can be loaded is a fact about a rack it may
 					    know nothing about. Loadability is stated where it is known (the
 					    plate line, the engine's rounding note), never enforced here as a
-					    false rule. */}
+					    false rule.
+
+					    **And text, with a decimal keypad — never `type="number"`**: a number
+					    input is read by the browser's locale, and Chromium in English made a
+					    typed `62,5` into `625`. The action reads `,` and `.` alike. */}
 					<Input
 						id="valueKg"
 						name="valueKg"
-						type="number"
+						type="text"
 						inputMode="decimal"
-						step="any"
-						min="0"
+						autoComplete="off"
 						className="w-24"
 						required
 					/>

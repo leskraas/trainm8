@@ -9,7 +9,9 @@ import {
 	STRONGLIFTS_EMPTY_BAR_START_KG,
 	STRONGLIFTS_PULL_START_KG,
 } from '#app/utils/strength/program.constants.ts'
-import StartProgramRoute from './programs.$programId.start.tsx'
+import StartProgramRoute, {
+	StartProgramSchema,
+} from './programs.$programId.start.tsx'
 
 // ── Start a program ──────────────────────────────────────────────────────────
 // One number per lift, and the screen has one job: get that number to the
@@ -106,13 +108,13 @@ test('every field is pre-filled with the program’s own published default', asy
 	renderRoute({ lifts: strongLiftsLifts() })
 
 	expect(await screen.findByLabelText(/Squat/)).toHaveValue(
-		STRONGLIFTS_EMPTY_BAR_START_KG,
+		String(STRONGLIFTS_EMPTY_BAR_START_KG),
 	)
 	expect(screen.getByLabelText(/Barbell Row/)).toHaveValue(
-		STRONGLIFTS_PULL_START_KG,
+		String(STRONGLIFTS_PULL_START_KG),
 	)
 	expect(screen.getByLabelText(/Deadlift/)).toHaveValue(
-		STRONGLIFTS_PULL_START_KG,
+		String(STRONGLIFTS_PULL_START_KG),
 	)
 })
 
@@ -157,7 +159,7 @@ test('a lift the program seeds by instruction is left empty and says so', async 
 		lifts: [lift({ defaultStartKg: null, startSeedRepMaxReps: 10 })],
 	})
 
-	expect(await screen.findByLabelText(/Back squat/)).toHaveValue(null)
+	expect(await screen.findByLabelText(/Back squat/)).toHaveValue('')
 	expect(
 		screen.getByText(
 			'StrongLifts 5×5 says: a weight you could lift for 10 reps.',
@@ -165,11 +167,53 @@ test('a lift the program seeds by instruction is left empty and says so', async 
 	).toBeInTheDocument()
 })
 
-test('the field takes a numeric keypad on a phone', async () => {
+test('the field takes a decimal keypad on a phone, as a text field the locale cannot rewrite', async () => {
 	renderRoute({ lifts: strongLiftsLifts() })
 
-	for (const field of await screen.findAllByRole('spinbutton')) {
+	// A text field, never `type=number`: Chromium in an English locale turned a
+	// typed `62,5` into `625`. `inputmode` still opens the decimal keypad.
+	expect(screen.queryAllByRole('spinbutton')).toHaveLength(0)
+	const fields = await screen.findAllByRole('textbox')
+	expect(fields).toHaveLength(3)
+	for (const field of fields) {
+		expect(field).toHaveAttribute('type', 'text')
 		expect(field).toHaveAttribute('inputmode', 'decimal')
+	}
+})
+
+test('a Norwegian decimal comma reaches the action exactly as typed', async () => {
+	const { submitted } = renderRoute()
+	const user = userEvent.setup()
+
+	await user.type(await screen.findByLabelText(/Back squat/), '62,5')
+	await user.click(screen.getByRole('button', { name: /Start StrongLifts/i }))
+
+	expect(submitted).toHaveBeenCalledWith(
+		expect.objectContaining({ 'weight::ex-squat::barbell': '62,5' }),
+	)
+})
+
+test('the action reads a comma as a decimal, leaves a blank lift unstarted, and refuses the rest in words', () => {
+	const parse = (weights: Record<string, string>) =>
+		StartProgramSchema.safeParse({ intent: 'start-program', weights })
+
+	const read = parse({
+		'ex-squat::barbell': '62,5',
+		'ex-bench::barbell': '61.25',
+		'ex-row::': '',
+	})
+	expect(read.success && read.data.weights).toEqual({
+		'ex-squat::barbell': 62.5,
+		'ex-bench::barbell': 61.25,
+		'ex-row::': null,
+	})
+
+	for (const typed of ['-5', '0', '6,2,5', 'abc']) {
+		const refused = parse({ 'ex-squat::barbell': typed })
+		expect({ typed, message: refused.error?.issues[0]?.message }).toEqual({
+			typed,
+			message: 'A starting weight has to be a positive number of kilos.',
+		})
 	}
 })
 

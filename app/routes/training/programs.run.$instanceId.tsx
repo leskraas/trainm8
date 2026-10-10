@@ -27,6 +27,7 @@ import {
 import { Input } from '#app/components/ui/input.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { LIBRARY_LABELS } from '#app/utils/labels.ts'
+import { parseKiloInput } from '#app/utils/strength/kilo-input.ts'
 import { formatKg } from '#app/utils/strength/program.constants.ts'
 import {
 	type ProgramOverview,
@@ -92,14 +93,23 @@ const MAX_WORKING_WEIGHT_KG = 1000
  * the form is unhappy.
  */
 export function workingWeightRefusal(typed: string): string | null {
-	const weightKg = Number(typed.trim())
-	if (!Number.isFinite(weightKg) || weightKg <= 0) {
+	const weightKg = parseKiloInput(typed)
+	if (weightKg == null || weightKg <= 0) {
 		return 'A working weight has to be a positive number of kilos.'
 	}
 	if (weightKg > MAX_WORKING_WEIGHT_KG) {
 		return `A working weight has to be ${MAX_WORKING_WEIGHT_KG} kg or less — above that it is a typo, not a lift.`
 	}
 	return null
+}
+
+/**
+ * The typed working weight as kilos — `62,5` and `62.5` alike (`parseKiloInput`).
+ * Read only after {@link workingWeightRefusal} has passed it, so a `null` here is
+ * a refused number that slipped past, never a weight to save.
+ */
+export function workingWeightKg(typed: string): number | null {
+	return workingWeightRefusal(typed) == null ? parseKiloInput(typed) : null
 }
 
 export type OverviewActionResult =
@@ -147,10 +157,17 @@ export async function action({ request, params }: Route.ActionArgs) {
 	}
 
 	const refusal = workingWeightRefusal(input.weightKg)
-	if (refusal) {
-		return data<OverviewActionResult>({ ok: false, error: refusal }, 400)
+	const weightKg = workingWeightKg(input.weightKg)
+	if (refusal || weightKg == null) {
+		return data<OverviewActionResult>(
+			{
+				ok: false,
+				error:
+					refusal ?? 'A working weight has to be a positive number of kilos.',
+			},
+			400,
+		)
 	}
-	const weightKg = Number(input.weightKg.trim())
 
 	const updated = await setWorkingWeight({
 		userId,
@@ -334,7 +351,12 @@ function WorkingWeightForm({
 				<input type="hidden" name="intent" value="set-working-weight" />
 				<input type="hidden" name="exerciseId" value={lift.exerciseId} />
 				<input type="hidden" name="equipment" value={lift.equipment ?? ''} />
-				{/* **No step.** `step="0.5"` rejected 61.25 kg in the browser, on an
+				{/* **Text, with a decimal keypad — never `type="number"`.** A number
+				    input is read by the browser's locale: Chromium in English dropped the
+				    comma from a typed `62,5` and posted `625`. A text field posts what was
+				    typed, and {@link workingWeightRefusal} reads `,` and `.` alike.
+
+				    **No step.** `step="0.5"` rejected 61.25 kg in the browser, on an
 				    athlete whose gym owns 1.25 kg plates — a precision constraint the app
 				    has no standing to impose, since what can be loaded is a fact about a
 				    rack it may know nothing about. Loadability is said where it is known
@@ -351,9 +373,9 @@ function WorkingWeightForm({
 				    workingWeightRefusal} answer under the field. */}
 				<Input
 					className="w-28"
-					type="number"
+					type="text"
 					inputMode="decimal"
-					step="any"
+					autoComplete="off"
 					name="weightKg"
 					aria-label={`Working weight for ${lift.name} in kg`}
 					aria-invalid={error ? true : undefined}
