@@ -611,8 +611,9 @@ export { OPEN_ENDED_ROUND_WEEKS }
  * the round is one block of that family, its rhythm, climb and mix
  * (`openEndedRound`) — the week it **starts**, and the **days** they can
  * train, which lay a starter **Week Pattern** on those days and no others.
- * Without a family the round is Klassisk's block with every rate unset, as
- * _Hold meg aktiv_ on the plan page has always made it.
+ * Without a family the round is Klassisk's block with every rate unset: a
+ * rhythm and no climb. _Hold meg aktiv_ on Sesong passes its family
+ * ({@link createKeepMeActivePlan}).
  */
 export async function createOpenEndedPlan(
 	athleteId: string,
@@ -679,6 +680,42 @@ export async function createOpenEndedPlan(
 		)
 	}
 	return created
+}
+
+/**
+ * The philosophy _Hold meg aktiv_ on Sesong's landing lays: **Klassisk 3:1**.
+ * Its form promises three weeks that build and one easy, and the plan's
+ * _Filosofi_ card then says the hard sessions grow, so the round is that
+ * family's block whole, its climb and its mix, not a rhythm with every rate
+ * unset (audit B2). The first run proposes a family from the athlete's answers
+ * (`chooseFamily`) and lets them switch; Sesong asks no such question, so it
+ * lays the family its words name, and _Bytt filosofi_ is the way to another.
+ */
+export const KEEP_ME_ACTIVE_FAMILY: PresetFamily = 'classic'
+
+/**
+ * _Hold meg aktiv_ from Sesong (ADR 0079, #505 story 1): an open-ended plan
+ * with one round of {@link KEEP_ME_ACTIVE_FAMILY}, opening on the **first week
+ * not yet begun** (`readFirstUnbegunWeekKey`) as the first run's plan does (on
+ * a Wednesday, next Monday), so no session is laid on a day already behind the
+ * athlete, where it would read as _ikke gjort_ (audit B3).
+ */
+export async function createKeepMeActivePlan(
+	athleteId: string,
+	input: { discipline: CardioDiscipline; weeklyHours: number },
+	now: Date = new Date(),
+): Promise<CreateOutlineResult> {
+	const timezone = await getAthleteTimezone(athleteId)
+	return createOpenEndedPlan(
+		athleteId,
+		{
+			discipline: input.discipline,
+			weeklyHours: input.weeklyHours,
+			family: KEEP_ME_ACTIVE_FAMILY,
+			startWeekKey: await readFirstUnbegunWeekKey(athleteId, now, timezone),
+		},
+		now,
+	)
 }
 
 // ── Authoring a second Training Track, and taking one away (#414) ────────────

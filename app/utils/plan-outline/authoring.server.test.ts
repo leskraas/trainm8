@@ -15,11 +15,13 @@ import {
 	applyPreset,
 	clearWeekVolumeOverride,
 	createFitnessGoalEvent,
+	createKeepMeActivePlan,
 	createOpenEndedPlan,
 	createPlanOutline,
 	createStarterWeekPattern,
 	deletePlanOutline,
 	fitPlanToEvent,
+	KEEP_ME_ACTIVE_FAMILY,
 	listPlanAnchorCandidates,
 	movePhase,
 	readOpenEndedPlanDefaults,
@@ -42,7 +44,12 @@ import {
 	setWeekVolumeOverride,
 } from './authoring.server.ts'
 import { DEFAULT_DELOAD_CUT, DEFAULT_DELOAD_WEEKS } from './derive.ts'
-import { presetFor, presetWeeks, type PeriodizationPreset } from './presets.ts'
+import {
+	openEndedRound,
+	presetFor,
+	presetWeeks,
+	type PeriodizationPreset,
+} from './presets.ts'
 
 const NOW = new Date('2030-01-09T12:00:00Z') // a Wednesday
 const START_WEEK_KEY = '2030-01-07' // its Monday
@@ -480,6 +487,40 @@ describe('an open-ended plan (ADR 0079)', () => {
 				NOW,
 			),
 		).toEqual({ ok: false, reason: 'open-ended-already-active' })
+	})
+
+	test('“Hold meg aktiv” from Sesong lays Klassisk 3:1 whole, from the first week not begun', async () => {
+		const athleteId = await createAthlete()
+
+		// NOW is a Wednesday: this week is begun, so the plan opens next Monday.
+		const created = await createKeepMeActivePlan(
+			athleteId,
+			{ discipline: 'run', weeklyHours: 5 },
+			NOW,
+		)
+		expect(created.ok).toBe(true)
+		expect(KEEP_ME_ACTIVE_FAMILY).toBe('classic')
+
+		const season = await getActiveSeason(athleteId, NOW)
+		expect(season?.startWeekKey).toBe('2030-01-14')
+		expect(season?.family).toBe('classic')
+		// The family's rhythm: three weeks that build, then one easy …
+		expect(season?.weeks.map((week) => week.role)).toEqual([
+			'loading',
+			'loading',
+			'loading',
+			'recovery',
+		])
+		// … that climb, not a flat line of the anchor …
+		const hours = season?.weeks.map((week) => week.targets[0]?.value ?? 0)
+		expect(hours?.[1]).toBeGreaterThan(hours?.[0] ?? Infinity)
+		expect(hours?.[2]).toBeGreaterThan(hours?.[1] ?? Infinity)
+		expect(hours?.[3]).toBeLessThan(hours?.[2] ?? 0)
+		// … with the family's hard sessions on the round.
+		expect(season?.tracks[0]?.segments[0]?.mix).toEqual(
+			openEndedRound('classic').mix,
+		)
+		expect(season?.tracks[0]?.segments[0]?.mix.length).toBeGreaterThan(0)
 	})
 
 	test('home and the plan page count the round in the athlete’s own week', async () => {

@@ -685,13 +685,27 @@ export function familyForRhythm(rhythm: Rhythm): 'classic' | 'masters' | null {
 
 /**
  * The family a plan follows: the one it records (`PlanOutline.family`), or —
- * for a plan that records none — the one its phase's rhythm reads as.
+ * for a plan that records none — the one its phases' rhythm reads as.
+ *
+ * Given one rhythm, that rhythm (a round of an open-ended plan, which the next
+ * round repeats). Given the plan's **phases in order**, the first that is not a
+ * taper and has a rhythm: a race plan ends in a Peak and a Taper with none
+ * (audit B4), so its last phase names no family while its base does. Null when
+ * no such phase exists — the plan truly follows none.
  */
 export function outlineFamily(
 	stored: string | null,
-	rhythm: Rhythm,
+	rhythm: Rhythm | ReadonlyArray<{ rhythm: Rhythm; tapers: boolean }>,
 ): PresetFamily | null {
-	return presetFamilyOf(stored) ?? familyForRhythm(rhythm)
+	const recorded = presetFamilyOf(stored)
+	if (recorded) return recorded
+	if (typeof rhythm === 'string') return familyForRhythm(rhythm)
+	for (const phase of rhythm) {
+		if (phase.tapers) continue
+		const family = familyForRhythm(phase.rhythm)
+		if (family) return family
+	}
+	return null
 }
 
 /** The family's whole season at its standard length, in order. */
