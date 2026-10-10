@@ -53,13 +53,18 @@ export async function withWeekSumToast<T>(
 		quietUnlessMoved?: boolean
 	},
 	write: () => Promise<T>,
-): Promise<{ result: T; headers: Headers | null }> {
+): Promise<{
+	result: T
+	headers: Headers | null
+	/** The toast's words, for a caller that shows the toast itself. */
+	description: string | null
+}> {
 	const weekKey = mondayOfDay(dayKey)
 	const before = await getWeekVolumes(userId, { weekKey, now })
 	const result = await write()
 	const after = await getWeekVolumes(userId, { weekKey, now })
 	if (quietUnlessMoved && !weekSumMoved(before, after, discipline)) {
-		return { result, headers: null }
+		return { result, headers: null, description: null }
 	}
 	const description = weekSumChangeLine({
 		before,
@@ -71,5 +76,6 @@ export async function withWeekSumToast<T>(
 	return {
 		result,
 		headers: await createToastHeaders({ description, type: 'success' }),
+		description,
 	}
 }

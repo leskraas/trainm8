@@ -277,6 +277,31 @@ test('without a plan the toast says there is no target', async () => {
 	)
 })
 
+test('from "+ Ny" the reply carries the week’s sum for the toast that holds Angre, and flashes none', async () => {
+	const user = await setUp()
+	const day = addDays(localDate(new Date(), 'UTC'), 7)
+	const reply = (await action({
+		...ARGS_BASE,
+		request: post(
+			[
+				['intent', 'write-session'],
+				['date', day],
+				['discipline', 'run'],
+				['sentence', '6 km rolig'],
+				['landing', 'toast'],
+			],
+			user.cookie,
+		),
+	})) as Reply & { data: { weekSumLine?: string | null } }
+
+	expect(reply.data.stampedSessionId).toEqual(expect.any(String))
+	expect(reply.data.weekSumLine).toMatch(
+		/^Løping neste uke: 0 → 6 km\. Ukemålet står på \d+\.$/,
+	)
+	// One toast, the client's: the server flashes nothing beside it.
+	expect(await toastOf(reply)).toBeNull()
+})
+
 test('taking a session back states the sum the other way', async () => {
 	const user = await setUp()
 	const day = addDays(localDate(new Date(), 'UTC'), 7)

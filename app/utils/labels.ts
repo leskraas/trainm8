@@ -1568,6 +1568,11 @@ export const DAY_STAMP_LABELS = {
 	cancel: 'Avbryt',
 	undo: 'Angre',
 	removing: 'Fjerner…',
+	/**
+	 * The toast after a write from "+ Ny" → "Skriv en økt", when the reply had
+	 * no week sum to say (it always has one today; this is the floor).
+	 */
+	written: 'Økta er lagt inn.',
 } as const
 
 /**

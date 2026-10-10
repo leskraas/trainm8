@@ -311,7 +311,7 @@ export async function action({ request }: Route.ActionArgs) {
 		invariantResponse(posted.success, 'A day and a sentence are required', {
 			status: 400,
 		})
-		const { date, sentence, discipline = null } = posted.data
+		const { date, sentence, discipline = null, landing } = posted.data
 		const now = new Date()
 		const timezone = await getAthleteTimezone(userId)
 		invariantResponse(
@@ -329,7 +329,11 @@ export async function action({ request }: Route.ActionArgs) {
 				status: 400,
 			},
 		)
-		const { result: written, headers } = await withWeekSumToast(
+		const {
+			result: written,
+			headers,
+			description,
+		} = await withWeekSumToast(
 			userId,
 			{
 				dayKey: date,
@@ -352,6 +356,15 @@ export async function action({ request }: Route.ActionArgs) {
 		invariantResponse(written.ok, 'The sentence could not be read', {
 			status: 400,
 		})
+		// From "+ Ny" the row may be anywhere in the list, so the way back is the
+		// toast: the client shows the week's sum itself, with Angre on it, and no
+		// second toast is flashed beside it (ADR 0082 S11, ADR 0076).
+		if (landing === 'toast') {
+			return data({
+				stampedSessionId: written.sessionId,
+				weekSumLine: description,
+			})
+		}
 		return data(
 			{ stampedSessionId: written.sessionId },
 			headers ? { headers } : undefined,
