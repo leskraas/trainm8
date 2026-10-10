@@ -1,31 +1,21 @@
 /**
  * @vitest-environment jsdom
  *
- * The home screen: one bi-directional timeline anchored on today.
+ * I dag: the top line, the season strip, and the list (ADR 0086).
  *
- * This file replaces the tabbed-dashboard suite that stood here. The Cockpit's
- * tabs, fitness curve and week filmstrip are no longer *on home* — the handoff
- * replaces the whole composition with a hero, a week strip and a stream — so
- * the tests that asserted home rendered them have gone with them; what is no
- * longer true, and so no longer asserted, is that *this route* shows them.
- * #499 finished the job — the components themselves are gone, and the
- * presenters that outlived them moved up to `_home/presenter.ts`, where their
- * own tests still stand.
+ * There is no hero any more. What it said about today — the session, its
+ * action, the coach's line — is said in today's row, and its Form and Rekorder
+ * panes moved to the Meg tab, where their own tests stand.
  *
- * What came back is the evidence rather than the composition (#496): the load
- * triad, the records, the week's adherence and the Week Replan line are panes
- * of the **Hero** now, built by the same presenters and asserted here as part
- * of what the screen says.
- *
- * What is tested here is the composition and what it says. The scroll behaviour
- * that defines the screen — the landing, the collapse threshold, the loading
- * window, the compensation — cannot be tested in jsdom, which reports every
- * `getBoundingClientRect()` as zero; that arithmetic lives in `anchoring.ts` and
- * is unit-tested there against real numbers. What jsdom *can* prove is the part
- * that must hold on first paint: the hero open, the pill absent, the strip
- * centred on this week, and the right week mounted.
+ * What is tested here is the composition and what it says. The scroll
+ * behaviour — the landing, the observers, the jumps — cannot be tested in
+ * jsdom, which has no layout; the arithmetic is in `anchoring.test.ts` and the
+ * wiring in `use-timeline-scroll.test.tsx`, and the real thing is driven in
+ * `tests/e2e/home-timeline.test.ts`. What jsdom *can* prove is what must hold
+ * on first paint: the pill at rest, the strip on this week, and every week
+ * before today mounted.
  */
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import {
 	createRoutesStub,
@@ -344,7 +334,7 @@ test('unauthenticated user sees marketing landing page', async () => {
 	await screen.findByText(/the epic stack/i)
 })
 
-// ── the hero: today's session ─────────────────────────────────────────────
+// ── today's row: what the hero used to say (ADR 0086) ─────────────────────
 
 const TODAY_SESSION = at(0, {
 	id: 'today',
@@ -367,74 +357,6 @@ const TODAY_SESSION = at(0, {
 		]),
 	},
 })
-
-test("the hero is today's session, with its kicker, title and numbers", async () => {
-	renderRoute(
-		dashboardLoader({
-			ledger: [TODAY_SESSION],
-			activePlan: activePlanFixture(),
-			thresholds: RUN_THRESHOLDS,
-		}),
-	)
-
-	await screen.findByRole('heading', { name: 'Threshold 4 × 8 min', level: 1 })
-	// The kicker: when, which discipline, and how far to race day.
-	expect(
-		screen.getByText(/i dag · løping · 8 uker til løpsdagen/i),
-	).toBeInTheDocument()
-	expect(screen.getByText('62 min')).toBeInTheDocument()
-	expect(screen.getByText('91 TSS')).toBeInTheDocument()
-})
-
-test('the hero is open on first paint — the athlete must see today', async () => {
-	// The collapse is measured from the landing position, not from zero, exactly
-	// so that opening the screen does not open it collapsed.
-	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
-
-	await screen.findByRole('heading', { name: 'Threshold 4 × 8 min', level: 1 })
-	// The collapsed header shows the title at 13px beside an Open button; the
-	// open hero shows the h1. Only one of the two is ever rendered.
-	expect(screen.queryByRole('link', { name: 'Åpne' })).not.toBeInTheDocument()
-})
-
-test('the hero CTA opens the session, with the label the presenter chose', async () => {
-	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
-
-	const cta = await screen.findByRole('link', { name: /se økta/i })
-	expect(cta).toHaveAttribute('href', `/training/sessions/${TODAY_SESSION.id}`)
-})
-
-test('the hero verdict never shows a Form number on a cold start', async () => {
-	renderRoute(
-		dashboardLoader({
-			ledger: [TODAY_SESSION],
-			current: { ctl: 30, atl: 28, tsb: 2 },
-			tsbTrust: { trustworthy: false, daysOfHistory: 9, requiredDays: 42 },
-		}),
-	)
-
-	await screen.findByText(/formen kan leses etter 42 dager — dag 9\/42\./i)
-	expect(screen.queryByText(/^Form \+/)).not.toBeInTheDocument()
-})
-
-test('the hero verdict states Form and its reading once trustworthy', async () => {
-	renderRoute(
-		dashboardLoader({
-			ledger: [TODAY_SESSION],
-			current: { ctl: 62, atl: 58, tsb: 4 },
-			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
-		}),
-	)
-
-	await screen.findByText(/^Form \+4, /)
-})
-
-// ââ the hero names the day it is showing (#493) âââââââââââââââââââââââââââ
-//
-// Three fixtures, one per shape of today: still to come, completed, and empty.
-// Friday's session is the same in all three, so the only thing that changes is
-// what today itself holds â which is exactly what the heading has to be honest
-// about.
 
 const FRIDAY_SESSION = at(2, {
 	id: 'friday',
@@ -469,24 +391,60 @@ const TODAY_DONE = at(0, {
 	},
 })
 
-test("today still to come: the kicker says today and the heading is today's session", async () => {
+/** Today's row in the list: the day carrying the landing anchor. */
+async function todayRow() {
+	const stream = await screen.findByTestId('timeline-stream')
+	return stream.querySelector<HTMLElement>('[data-timeline-today]')!
+}
+
+test('there is no hero: the list is all there is under the top line', async () => {
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	await screen.findByTestId('timeline-stream')
+	expect(screen.queryByTestId('hero-fold')).not.toBeInTheDocument()
+	expect(screen.queryByTestId('hero-pager')).not.toBeInTheDocument()
+	expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
+})
+
+test("today's row carries today's session, its action and the coach's line", async () => {
 	renderRoute(
 		dashboardLoader({
-			ledger: [TODAY_SESSION, FRIDAY_SESSION],
+			ledger: [TODAY_SESSION],
 			activePlan: activePlanFixture(),
+			thresholds: RUN_THRESHOLDS,
+			current: { ctl: 62, atl: 58, tsb: 4 },
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
 		}),
 	)
 
-	await screen.findByRole('heading', {
-		name: 'Threshold 4 × 8 min',
-		level: 1,
-	})
-	expect(screen.getByText(/^i dag · løping/i)).toBeInTheDocument()
-	// Nothing is demoted to a fact, because the headline is already today's.
-	expect(screen.queryByText(/neste ·/i)).not.toBeInTheDocument()
+	const row = await todayRow()
+	expect(
+		within(row).getByRole('link', { name: /threshold 4 × 8 min/i }),
+	).toHaveAttribute('href', `/training/sessions/${TODAY_SESSION.id}`)
+	expect(within(row).getByRole('link', { name: 'Se økta' })).toHaveAttribute(
+		'href',
+		`/training/sessions/${TODAY_SESSION.id}`,
+	)
+	expect(within(row).getByText(/^Form \+4, /)).toBeInTheDocument()
 })
 
-test('today empty: the heading says so and the next session is a fact, not the headline', async () => {
+test("the coach's line never shows a Form number on a cold start", async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			current: { ctl: 30, atl: 28, tsb: 2 },
+			tsbTrust: { trustworthy: false, daysOfHistory: 9, requiredDays: 42 },
+		}),
+	)
+
+	const row = await todayRow()
+	expect(
+		within(row).getByText(/formen kan leses etter 42 dager — dag 9\/42\./i),
+	).toBeInTheDocument()
+	expect(within(row).queryByText(/^Form \+/)).not.toBeInTheDocument()
+})
+
+test('today empty: the row says so, offers to write one, and lends Friday no action', async () => {
 	renderRoute(
 		dashboardLoader({
 			ledger: [FRIDAY_SESSION],
@@ -494,14 +452,18 @@ test('today empty: the heading says so and the next session is a fact, not the h
 		}),
 	)
 
-	await screen.findByRole('heading', { name: 'Ingenting i dag', level: 1 })
-	expect(screen.getByText('Neste · Intervals 6 × 3 min')).toBeInTheDocument()
-	// The kicker names Friday â the day the session is actually on.
-	expect(screen.getByText(/^fredag · løping/i)).toBeInTheDocument()
-	expect(screen.queryByText(/^i dag · /i)).not.toBeInTheDocument()
+	const row = await todayRow()
+	expect(row).toHaveTextContent('Ingenting i dag')
+	expect(
+		within(row).getByRole('button', { name: /legg inn en økt ons/i }),
+	).toBeInTheDocument()
+	// "Se økta" belongs to today's own session; Friday's is not today's.
+	expect(
+		screen.queryByRole('link', { name: 'Se økta' }),
+	).not.toBeInTheDocument()
 })
 
-test("today completed: the hero says today is done rather than headlining Friday as today's", async () => {
+test("today done: today's row is the done session, and Friday is not headlined as today's", async () => {
 	renderRoute(
 		dashboardLoader({
 			ledger: [TODAY_DONE, FRIDAY_SESSION],
@@ -509,305 +471,17 @@ test("today completed: the hero says today is done rather than headlining Friday
 		}),
 	)
 
-	await screen.findByRole('heading', { name: 'I dag er gjort', level: 1 })
-	expect(screen.getByText('Neste · Intervals 6 × 3 min')).toBeInTheDocument()
-	expect(screen.getByText(/^fredag · løping/i)).toBeInTheDocument()
+	const row = await todayRow()
+	expect(row).toHaveTextContent('Tempo 3 × 10 min')
+	expect(row).not.toHaveTextContent('Intervals 6 × 3 min')
 	expect(
-		screen.queryByRole('heading', {
-			name: 'Intervals 6 × 3 min',
-			level: 1,
-		}),
+		screen.queryByRole('link', { name: 'Se økta' }),
 	).not.toBeInTheDocument()
 })
 
-test('nothing scheduled says so, and offers to plan one', async () => {
-	renderRoute(dashboardLoader({ ledger: [at(-3, { status: 'completed' })] }))
+// ── the top line ──────────────────────────────────────────────────────────
 
-	await screen.findByRole('heading', { name: /ingenting planlagt/i, level: 1 })
-	expect(
-		screen.getByRole('link', { name: /planlegg en økt/i }),
-	).toHaveAttribute('href', '/training/sessions/new')
-})
-
-test('the hero offers the season plan, since the tab bar that would carry it is not built', async () => {
-	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
-
-	const links = await screen.findAllByRole('link', { name: /sesongplan/i })
-	expect(links[0]).toHaveAttribute('href', '/training/plan')
-})
-
-// ── the hero pages sideways (#496) ────────────────────────────────────────
-//
-// The rule the screen is explained by (ADR 0065 §8): the hero never moves in
-// time, and the strip and the stream always do. So these ask two things of the
-// pager — that all four facets of today are reachable, by dot and by key as
-// well as by thumb; and that reaching them moves nothing else on the screen.
-//
-// The gesture itself is arithmetic and lives in `hero-pager.test.ts`, where a
-// flick can be given a velocity. jsdom has no thumb.
-
-const PANE_FIXTURES = {
-	ledger: [TODAY_SESSION],
-	current: { ctl: 62, atl: 58, tsb: 4 },
-	tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
-	snapshots: [
-		{ date: '2029-11-04', ctl: 51 },
-		{ date: '2030-01-02', ctl: 62 },
-	],
-	weeklyAdherence: {
-		ratio: 0.94,
-		band: {
-			label: 'On target',
-			recommendation: 'matched the plan',
-			tone: 'on-target',
-		},
-		sessionCount: 4,
-		totalActual: 282,
-		totalPlanned: 300,
-	} as WeeklyAdherence,
-	strengthCount: { completed: 2, planned: 3 },
-	weekReplan: {
-		outcome: 'adjusted',
-		reason: 'Last week came in 62% of plan, so this week is 10% lighter.',
-	},
-	personalRecords: [
-		{
-			discipline: 'run' as const,
-			kind: 'farthest' as const,
-			value: 21_100,
-			sessionId: 'session-1',
-			achievedAt: new Date('2029-12-20T09:00:00'),
-			previousValue: 10_000,
-			delta: 11_100,
-		},
-	],
-}
-
-/** The pane on show: the one the pager has not marked `inert`. */
-function showingPane() {
-	const panes = screen
-		.getAllByRole('group')
-		.filter((node) => node.getAttribute('aria-roledescription') === 'slide')
-	const showing = panes.filter((pane) => !pane.hasAttribute('inert'))
-	// Exactly one, always: two would mean the fold and the pager disagree.
-	expect(showing).toHaveLength(1)
-	return showing[0]!
-}
-
-test('the hero is a pager of four panes, anchored on today', async () => {
-	renderRoute(dashboardLoader(PANE_FIXTURES))
-
-	const pager = await screen.findByRole('group', {
-		name: 'I dag, på fire måter',
-	})
-	expect(pager).toHaveAttribute('aria-roledescription', 'carousel')
-	const panes = within(pager)
-		.getAllByRole('group')
-		.map((pane) => pane.getAttribute('aria-label'))
-	expect(panes).toEqual([
-		'I dag, side 1 av 4',
-		'Form, side 2 av 4',
-		'Denne uka, side 3 av 4',
-		'Rekorder, side 4 av 4',
-	])
-	// It opens on today, whatever else it can be paged to.
-	expect(showingPane()).toHaveAttribute('aria-label', 'I dag, side 1 av 4')
-})
-
-test('the strip carries a name and a role of its own', async () => {
-	// Two swipeable bands, both announced: the strip navigates the season and the
-	// pager does not, and a screen reader has to be able to tell them apart.
-	renderRoute(dashboardLoader(PANE_FIXTURES))
-
-	// A toolbar with one tab stop: the season is a single stop in the tab
-	// order, and the arrow keys move along it.
-	const toolbar = await screen.findByRole('toolbar', {
-		name: 'Sesongen, uke for uke',
-	})
-	expect(screen.getByTestId('week-strip')).toContainElement(toolbar)
-	const tabbable = [...toolbar.querySelectorAll('button')].filter(
-		(cell) => cell.tabIndex === 0,
-	)
-	expect(tabbable).toHaveLength(1)
-})
-
-test('every pane is reachable without swiping — the dots are real buttons', async () => {
-	renderRoute(dashboardLoader(PANE_FIXTURES))
-
-	const dots = within(await screen.findByTestId('hero-pane-dots')).getAllByRole(
-		'button',
-	)
-	expect(dots.map((dot) => dot.getAttribute('aria-label'))).toEqual([
-		'I dag',
-		'Form',
-		'Denne uka',
-		'Rekorder',
-	])
-
-	for (const [index, name] of [
-		'Form',
-		'Denne uka',
-		'Rekorder',
-		'I dag',
-	].entries()) {
-		await userEvent.click(screen.getByRole('button', { name }))
-		expect(showingPane()).toHaveAttribute(
-			'aria-label',
-			`${name}, side ${[2, 3, 4, 1][index]} av 4`,
-		)
-		expect(screen.getByRole('button', { name })).toHaveAttribute(
-			'aria-current',
-			'true',
-		)
-	}
-})
-
-test('the pager is keyboard-operable, and the arrow keys page it', async () => {
-	renderRoute(dashboardLoader(PANE_FIXTURES))
-
-	const pager = await screen.findByRole('group', {
-		name: 'I dag, på fire måter',
-	})
-	pager.focus()
-	expect(pager).toHaveFocus()
-
-	await userEvent.keyboard('{ArrowRight}')
-	expect(showingPane()).toHaveAttribute('aria-label', 'Form, side 2 av 4')
-	await userEvent.keyboard('{End}')
-	expect(showingPane()).toHaveAttribute('aria-label', 'Rekorder, side 4 av 4')
-	await userEvent.keyboard('{ArrowLeft}')
-	expect(showingPane()).toHaveAttribute('aria-label', 'Denne uka, side 3 av 4')
-	await userEvent.keyboard('{Home}')
-	expect(showingPane()).toHaveAttribute('aria-label', 'I dag, side 1 av 4')
-	// The ends hold rather than wrapping: a pager that loops has no ends to count.
-	await userEvent.keyboard('{ArrowLeft}')
-	expect(showingPane()).toHaveAttribute('aria-label', 'I dag, side 1 av 4')
-})
-
-test('a pane change is announced', async () => {
-	renderRoute(dashboardLoader(PANE_FIXTURES))
-
-	const pager = await screen.findByRole('group', {
-		name: 'I dag, på fire måter',
-	})
-	const announcement = pager.parentElement!.querySelector('[aria-live]')!
-	expect(announcement).toHaveTextContent('I dag, side 1 av 4')
-
-	await userEvent.click(screen.getByRole('button', { name: 'Denne uka' }))
-	expect(announcement).toHaveTextContent('Denne uka, side 3 av 4')
-})
-
-test('paging the hero moves neither the strip nor the stream', async () => {
-	// The hero never moves in time. Paging it is not navigation, so the week the
-	// stream is parked in and the cell the strip marks are the same afterwards.
-	const ledger = [-14, -7, 0].map((days) =>
-		days === 0
-			? TODAY_SESSION
-			: at(days, { id: `s${days}`, status: 'completed', tssValue: 50 }),
-	)
-	renderRoute(dashboardLoader({ ...PANE_FIXTURES, ledger }))
-
-	const strip = await screen.findByTestId('week-strip')
-	const stream = screen.getByTestId('timeline-stream')
-	const axes = () => ({
-		activeCell: strip
-			.querySelector('[aria-current="true"]')
-			?.getAttribute('aria-label'),
-		scrollLeft: strip.scrollLeft,
-		scrollTop: stream.scrollTop,
-		weeks: stream.querySelectorAll('[data-timeline-week]').length,
-	})
-	const before = axes()
-
-	// `fireEvent` rather than `userEvent`, and nothing awaited in between: the
-	// landing settles on a ladder of timers (`anchoring.ts`), and a timer cannot
-	// fire while no macrotask is awaited. So anything that moved between these
-	// two readings moved because the hero was paged.
-	fireEvent.click(screen.getByRole('button', { name: 'Rekorder' }))
-	fireEvent.click(screen.getByRole('button', { name: 'Form' }))
-
-	expect(showingPane()).toHaveAttribute('aria-label', 'Form, side 2 av 4')
-	expect(axes()).toEqual(before)
-})
-
-// ── what the three re-homed panes say ─────────────────────────────────────
-
-test('the Form pane brings the load triad back, as legend triggers (#181)', async () => {
-	renderRoute(dashboardLoader(PANE_FIXTURES))
-
-	await userEvent.click(await screen.findByRole('button', { name: 'Form' }))
-	const pane = showingPane()
-	// The abbreviation is what is written; the accessible name is the full term.
-	for (const term of ['Kondisjon (CTL)', 'Tretthet (ATL)', 'Form (TSB)']) {
-		expect(within(pane).getByRole('button', { name: term })).toBeInTheDocument()
-	}
-	expect(within(pane).getByText('Kond')).toBeInTheDocument()
-	expect(pane).toHaveTextContent('62')
-	expect(pane).toHaveTextContent('58')
-	// And the trend the triad is one day of, off the snapshots already loaded.
-	expect(pane).toHaveTextContent('Kondisjon 51 → 62 siden 4. nov')
-})
-
-test('the Form pane refuses a Form number on a cold start, and says why', async () => {
-	renderRoute(
-		dashboardLoader({
-			...PANE_FIXTURES,
-			tsbTrust: { trustworthy: false, daysOfHistory: 12, requiredDays: 42 },
-		}),
-	)
-
-	await userEvent.click(await screen.findByRole('button', { name: 'Form' }))
-	const pane = showingPane()
-	expect(pane).toHaveTextContent('Bygger grunnlag — dag 12/42')
-	// Fitness and Fatigue are averages of what was logged and still read.
-	expect(pane).toHaveTextContent('62')
-	expect(pane).toHaveTextContent('—')
-})
-
-test('the This week pane brings back adherence, the strength count and the replan line', async () => {
-	renderRoute(
-		dashboardLoader({ ...PANE_FIXTURES, activePlan: activePlanFixture() }),
-	)
-
-	await userEvent.click(
-		await screen.findByRole('button', { name: 'Denne uka' }),
-	)
-	const pane = showingPane()
-	// Where the week sits in the plan, minus the clause its own heading carries.
-	expect(pane).toHaveTextContent('Oppbygging · hard uke')
-	expect(pane).toHaveTextContent(
-		'I rute · 94 % av planlagt utholdenhetsbelastning',
-	)
-	expect(pane).toHaveTextContent('2 av 3 styrkeøkter logget')
-	const replan = within(pane).getByTestId('hero-week-replan')
-	expect(replan).toHaveTextContent('Uka er justert')
-	// The stored English reason of an older outcome is said in the pane's own
-	// words rather than quoted (ADR 0081).
-	expect(replan).toHaveTextContent(
-		'Vi gjorde denne uka lettere etter uka som gikk.',
-	)
-})
-
-test('the Records pane brings the Proof Strip back', async () => {
-	renderRoute(dashboardLoader(PANE_FIXTURES))
-
-	await userEvent.click(await screen.findByRole('button', { name: 'Rekorder' }))
-	const pane = showingPane()
-	expect(pane).toHaveTextContent('Lengste løpetur')
-	expect(pane).toHaveTextContent('21.1 km')
-	expect(pane).toHaveTextContent('+11.1 km over forrige beste')
-})
-
-test('no qualifying record says so rather than showing a zero', async () => {
-	renderRoute(dashboardLoader({ ...PANE_FIXTURES, personalRecords: [] }))
-
-	await userEvent.click(await screen.findByRole('button', { name: 'Rekorder' }))
-	expect(showingPane()).toHaveTextContent('Ingen personlige rekorder ennå')
-})
-
-// ── the header ────────────────────────────────────────────────────────────
-
-test('the header names today and where in the plan today falls', async () => {
+test('the top line names the plan and counts down to the race', async () => {
 	renderRoute(
 		dashboardLoader({
 			ledger: [TODAY_SESSION],
@@ -815,13 +489,19 @@ test('the header names today and where in the plan today falls', async () => {
 		}),
 	)
 
-	await screen.findByText('ons 2. jan · uke 5 av 12')
+	const top = await screen.findByTestId('timeline-top')
+	expect(top).toHaveTextContent('Oppbygging · uke 5 av 12')
+	expect(top).toHaveTextContent('Spring Half Marathon om 8 uker')
 })
 
-test('with no plan the header says only the date it knows', async () => {
+test('with no plan the top line says so and leads to Sesong', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
-	await screen.findByText('ons 2. jan')
+	const top = await screen.findByTestId('timeline-top')
+	expect(top).toHaveTextContent('Ingen plan')
+	expect(
+		within(top).getByRole('link', { name: 'Lag en i Sesong' }),
+	).toHaveAttribute('href', '/training/plan')
 })
 
 // ── the week strip ────────────────────────────────────────────────────────
@@ -873,15 +553,15 @@ test('the strip marks the week the stream is parked in', async () => {
 	expect(strip.querySelector('[data-strip-frame]')).not.toBeNull()
 })
 
-test('the "I dag" pill is there and quiet while today is in view', async () => {
+test('the "I dag" pill is on the top line, and quiet while today is in view', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
-	const strip = await screen.findByTestId('week-strip')
-	const pill = within(strip).getByRole('button', { name: 'Gå til i dag' })
+	const top = await screen.findByTestId('timeline-top')
+	const pill = within(top).getByRole('button', { name: 'Gå til i dag' })
 	expect(pill).toHaveAttribute('data-away', '0')
 })
 
-test('tapping a strip cell outside the window loads that week into the stream', async () => {
+test('every week before today is mounted, and a strip tap opens a folded one', async () => {
 	const ledger = [-28, -21, -14, -7, 0].map((days) =>
 		at(days, {
 			id: `s${days}`,
@@ -901,7 +581,11 @@ test('tapping a strip cell outside the window loads that week into the stream', 
 	renderRoute(dashboardLoader({ ledger }))
 
 	const stream = await screen.findByTestId('timeline-stream')
-	// The initial window is one week either way, so the oldest week is not there.
+	// The whole past is mounted up front (ADR 0086), folded: the week is there,
+	// its sessions behind its one line.
+	expect(
+		stream.querySelectorAll('[data-week-shape="folded"]').length,
+	).toBeGreaterThanOrEqual(4)
 	expect(within(stream).queryByText('Session -28')).not.toBeInTheDocument()
 
 	const strip = screen.getByTestId('week-strip')
@@ -947,7 +631,8 @@ test("today's row carries the inline action and the chip that says where the day
 	const row = within(stream).getByRole('link', { name: /threshold 4 × 8 min/i })
 	expect(row).toHaveAttribute('href', `/training/sessions/${TODAY_SESSION.id}`)
 	expect(row).toHaveTextContent('I DAG · IKKE GJORT ENNÅ')
-	expect(row).toHaveTextContent('Åpne')
+	// The action sits beside the row's link, never inside it (ADR 0086).
+	expect(within(stream).getByRole('link', { name: 'Se økta' })).not.toBe(row)
 })
 
 test('a completed row reads two kinds of load and names its band', async () => {
@@ -1369,7 +1054,7 @@ test('the far end says how far the plan is written, and offers to write the rest
 test('the pill does not point anywhere on first paint — today is already in view', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
-	await screen.findByRole('heading', { name: 'Threshold 4 × 8 min', level: 1 })
+	await screen.findByTestId('timeline-stream')
 	expect(screen.getByRole('button', { name: 'Gå til i dag' })).toHaveAttribute(
 		'data-away',
 		'0',

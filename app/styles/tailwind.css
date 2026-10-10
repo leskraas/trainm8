@@ -48,10 +48,10 @@
  *
  * App roles are added only where shadcn has none, named in the same style
  * (a plain role name, `--color-*` in `@theme inline`): status, training
- * tracks, phases, and motion. A few older app tokens the home timeline still
- * reads (`ink-*`, `hairline*`, `warning`, `zone-*`, `--shadow-pill`) stay
- * until their call sites move to shadcn roles; each says so where it is
- * declared. `docs/design/design-system.md` is the full map; `/design` is the
+ * tracks, phases, and motion. One older app token stays because pages
+ * outside home still read it (`zone-*`); the home timeline's own (`ink-*`,
+ * `hairline*`, `warning`, `--shadow-pill`) went when home moved to the shadcn
+ * roles (ADR 0086). `docs/design/design-system.md` is the full map; `/design` is the
  * live sheet.
  *
  * The direction (#505, "luma"): rounder and calmer, the `base-luma` shadcn
@@ -131,7 +131,7 @@
 	 * session). Colour is never the only carrier; the word is always beside it.
 	 *
 	 *   --status-on      i rute       the primary green
-	 *   --status-under   under        amber (the timeline's `--warning`)
+	 *   --status-under   under        amber
 	 *   --status-over    over         blue-violet: more than asked, not alarming
 	 *   --status-missed  ikke gjort   red, quieter than `--destructive`
 	 */
@@ -159,36 +159,7 @@
 	--phase-peak: oklch(0.64 0.12 35);
 	--phase-taper: oklch(0.68 0.08 160);
 
-	/* ── Older app tokens, kept until their call sites migrate ─────────── */
-
-	/*
-	 * The home timeline's ink ladder: lightness steps between `foreground` and
-	 * `muted-foreground` that rank a row's lines. shadcn's two text roles
-	 * cannot express a step *between* two others; when home is rebuilt on the
-	 * system, collapse what it still needs onto `foreground` /
-	 * `muted-foreground` and delete the rest.
-	 */
-	--ink-body: oklch(0.3 0.008 214.4);
-	--ink-facts: oklch(0.4 0.012 214.4);
-	--ink-dim: oklch(0.48 0.014 214.4);
-	--ink-dimmer: oklch(0.56 0.014 214.4);
-	--ink-dimmest: oklch(0.62 0.014 214.4);
-
-	/*
-	 * Hairlines at three strengths (inside a week, between weeks, the edge of a
-	 * block). shadcn's role is `--border`; these exist because the timeline
-	 * draws more lines than the luma direction wants. Migrate to `border` /
-	 * `border-border/50` or, better, to tone.
-	 */
-	--hairline: oklch(0 0 0 / 7%);
-	--hairline-week: oklch(0 0 0 / 9%);
-	--hairline-edge: oklch(0 0 0 / 12%);
-
-	/* = `--status-under`; the timeline's name for it. */
-	--warning: var(--status-under);
-
-	/* The "I dag" pill's shadow (`week-strip.tsx`; read by the home e2e suite). */
-	--shadow-pill: 0 6px 20px oklch(0 0 0 / 0.16);
+	/* ── Older app token, still read outside home ─────────────────────── */
 
 	/* The Score direction's Z1–Z5 hues (workout-editor spec §2.5/§7). */
 	--zone-1: #5f9fe0;
@@ -249,21 +220,6 @@
 	--phase-build: oklch(0.66 0.09 80);
 	--phase-peak: oklch(0.62 0.11 35);
 	--phase-taper: oklch(0.62 0.08 160);
-
-	/* The ink ladder walks *up* from the page here — see `:root`. */
-	--ink-body: oklch(0.86 0.008 214.4);
-	--ink-facts: oklch(0.7 0.012 214.4);
-	--ink-dim: oklch(0.62 0.014 214.4);
-	--ink-dimmer: oklch(0.52 0.014 214.4);
-	--ink-dimmest: oklch(0.46 0.014 214.4);
-
-	--hairline: oklch(1 0 0 / 7%);
-	--hairline-week: oklch(1 0 0 / 9%);
-	--hairline-edge: oklch(1 0 0 / 12%);
-
-	--warning: var(--status-under);
-
-	--shadow-pill: 0 8px 24px oklch(0 0 0 / 0.45);
 }
 
 @theme inline {
@@ -327,15 +283,6 @@
 	--color-phase-peak: var(--phase-peak);
 	--color-phase-taper: var(--phase-taper);
 
-	--color-ink-body: var(--ink-body);
-	--color-ink-facts: var(--ink-facts);
-	--color-ink-dim: var(--ink-dim);
-	--color-ink-dimmer: var(--ink-dimmer);
-	--color-ink-dimmest: var(--ink-dimmest);
-	--color-hairline: var(--hairline);
-	--color-hairline-week: var(--hairline-week);
-	--color-hairline-edge: var(--hairline-edge);
-	--color-warning: var(--warning);
 	--color-zone-1: var(--zone-1);
 	--color-zone-2: var(--zone-2);
 	--color-zone-3: var(--zone-3);
@@ -583,26 +530,6 @@
 }
 
 /*
- * Press feedback for the home timeline's rows, cells, band and fold — the
- * transform alone (ADR 0077 §2).
- *
- * The same 160ms and the same 0.97 as `pressable`, minus the colour
- * transitions: a row has no hover fill to ease (#502 removed it), and the
- * timeline's motion audit (`tests/e2e/home-timeline.test.ts`) enumerates
- * every declared transition on that screen, so a row declares exactly one.
- * Reduced motion drops the transform and keeps the tap.
- */
-@utility press {
-	@media (prefers-reduced-motion: no-preference) {
-		transition: transform var(--transition-duration-press) var(--ease-out);
-
-		&:active {
-			transform: scale(0.97);
-		}
-	}
-}
-
-/*
  * Popovers, menus and selects: they scale out of their trigger.
  *
  * `--transform-origin` is Base UI's, set on the popup to the side of the
@@ -758,8 +685,8 @@
 }
 
 /*
- * The home timeline's two accordions (#502): an empty cell opening into the
- * editor, and the past band opening into its days.
+ * The home timeline's accordions (#502, ADR 0082 §6): an empty cell opening
+ * into the editor, a band opening into its days, a folded week opening.
  *
  * Same ingredients as `motion-collapse`, but the two pixel values it
  * interpolates between are written by `timeline/reflow.ts`, because those
@@ -770,22 +697,6 @@
 	transition:
 		height var(--transition-duration-collapse) var(--ease-out),
 		opacity var(--transition-duration-collapse) var(--ease-out);
-}
-
-/*
- * The hero's parallax lift while it folds (#498). The hero is being removed
- * (#505 owner decision 3); this goes with it when the last `hero-lift` class
- * does.
- *
- * `--hero-lift` is published by `use-timeline-scroll.ts` as a length, so the
- * preference is read here, in CSS, and the hook never has to ask. It is the
- * only movement in the fold, which is why it is the only part reduced motion
- * drops.
- */
-@utility hero-lift {
-	@media (prefers-reduced-motion: no-preference) {
-		transform: translateY(calc(var(--hero-lift, 0px) * -1));
-	}
 }
 
 @utility container {

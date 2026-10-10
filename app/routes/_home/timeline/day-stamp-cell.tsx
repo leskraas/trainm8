@@ -128,13 +128,13 @@ export function StampDraft({
 			className="bg-primary/4 reflow grid grid-cols-[46px_1fr] items-start gap-3 px-[18px] py-[10px]"
 		>
 			<span className="flex flex-col gap-0.5 pt-px">
-				<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
+				<span className="text-muted-foreground text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
 					{dayLabel}
 				</span>
-				<span className="text-ink-dimmer text-[12px]/[1.1]">{dateLabel}</span>
+				<span className="text-muted-foreground text-[12px]/[1.1]">{dateLabel}</span>
 			</span>
 			<div className="flex min-w-0 flex-col gap-2">
-				<p className="text-ink-dimmer text-[11px]/[1.3]">
+				<p className="text-muted-foreground text-[11px]/[1.3]">
 					{stamp.prefill ? DAY_STAMP_LABELS.prefilled : DAY_STAMP_LABELS.ask}
 				</p>
 				<DisciplineChips
@@ -191,20 +191,20 @@ export function StampDraft({
 					null}
 					<Link
 						to={fullEditorTo(dayKey, chosen)}
-						className="border-hairline-edge text-foreground hover:border-primary flex h-[34px] items-center rounded-[10px] border px-[13px] text-[12.5px]/[1] font-semibold"
+						className="border-border text-foreground hover:border-primary flex h-[34px] items-center rounded-[10px] border px-[13px] text-[12.5px]/[1] font-semibold"
 					>
 						{DAY_STAMP_LABELS.more}
 					</Link>
 					<button
 						type="button"
 						onClick={stamp.closeDraft}
-						className="text-ink-dim h-[34px] px-1 text-[12.5px]/[1] font-semibold"
+						className="text-muted-foreground h-[34px] px-1 text-[12.5px]/[1] font-semibold"
 					>
 						{DAY_STAMP_LABELS.cancel}
 					</button>
 				</div>
 				{chosen != null && !stampable ? (
-					<p className="text-ink-dimmer text-[11px]/[1.35]">
+					<p className="text-muted-foreground text-[11px]/[1.35]">
 						{DAY_STAMP_LABELS.liftsNote}
 					</p>
 				) : null}
@@ -311,10 +311,10 @@ export function StampedSentence({
 			className="bg-primary/4 grid grid-cols-[46px_1fr] items-start gap-3 px-[18px] py-[10px]"
 		>
 			<span className="flex flex-col gap-0.5 pt-px">
-				<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
+				<span className="text-muted-foreground text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
 					{dayLabel}
 				</span>
-				<span className="text-ink-dimmer text-[12px]/[1.1]">{dateLabel}</span>
+				<span className="text-muted-foreground text-[12px]/[1.1]">{dateLabel}</span>
 			</span>
 			<div className="flex min-w-0 flex-col gap-2.5">
 				<ScheduledWorkoutSentence
@@ -366,14 +366,14 @@ function StampedRowActions({
 				type="button"
 				onClick={onUndo}
 				disabled={undoing}
-				className="border-hairline-edge text-foreground hover:border-destructive hover:text-destructive flex h-[30px] items-center rounded-[9px] border px-[11px] text-[11.5px]/[1] font-semibold disabled:opacity-60"
+				className="border-border text-foreground hover:border-destructive hover:text-destructive flex h-[30px] items-center rounded-[9px] border px-[11px] text-[11.5px]/[1] font-semibold disabled:opacity-60"
 			>
 				{undoing ? DAY_STAMP_LABELS.removing : DAY_STAMP_LABELS.undo}
 			</button>
 			<Link
 				to={to}
 				prefetch="intent"
-				className="border-hairline-edge text-foreground hover:border-primary flex h-[30px] items-center rounded-[9px] border px-[11px] text-[11.5px]/[1] font-semibold"
+				className="border-border text-foreground hover:border-primary flex h-[30px] items-center rounded-[9px] border px-[11px] text-[11.5px]/[1] font-semibold"
 			>
 				{DAY_STAMP_LABELS.more}
 			</Link>

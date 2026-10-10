@@ -89,7 +89,7 @@ export const SeasonPane = memo(function SeasonPane({
 		<aside
 			data-season-pane
 			aria-labelledby="season-pane-heading"
-			className="border-hairline-edge flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto border-l px-8 py-6"
+			className="border-border flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto border-l px-8 py-6"
 		>
 			<h2
 				id="season-pane-heading"
@@ -154,7 +154,7 @@ const SeasonTable = memo(function SeasonTable({
 	return (
 		<table className="w-full border-collapse text-left text-[12.5px]/[1.3] tabular-nums">
 			<thead>
-				<tr className="text-ink-dimmer border-hairline-edge border-b text-[11px] uppercase">
+				<tr className="text-muted-foreground border-border border-b text-[11px] uppercase">
 					<th scope="col" className="py-2 pr-3 font-semibold">
 						{SEASON_PANE_LABELS.week}
 					</th>
@@ -217,7 +217,7 @@ const SeasonRow = memo(function SeasonRow({
 		<tr
 			data-season-row={week.key}
 			className={cn(
-				'border-hairline border-b',
+				'border-border/70 border-b',
 				inView && 'bg-primary/7',
 				week.isNow && 'text-primary font-semibold',
 			)}
@@ -234,7 +234,7 @@ const SeasonRow = memo(function SeasonRow({
 					{week.relativeName}
 				</button>
 			</td>
-			<td className="text-ink-dim py-1.5 pr-3">{week.kindLabel}</td>
+			<td className="text-muted-foreground py-1.5 pr-3">{week.kindLabel}</td>
 			{leadTrackId ? (
 				<>
 					<td className="py-1.5 pr-3 text-right">
@@ -246,7 +246,7 @@ const SeasonRow = memo(function SeasonRow({
 							<span
 								role="img"
 								aria-label={track.driftLabel}
-								className="text-warning ml-1"
+								className="text-status-under ml-1"
 							>
 								{DRIFT_MARK}
 							</span>
@@ -255,10 +255,10 @@ const SeasonRow = memo(function SeasonRow({
 					<td className="py-1.5 pr-3 text-right">
 						{track?.figures.done ?? '–'}
 					</td>
-					<td className="text-ink-dim py-1.5">{track?.gradeLabel ?? ''}</td>
+					<td className="text-muted-foreground py-1.5">{track?.gradeLabel ?? ''}</td>
 				</>
 			) : (
-				<td className="text-ink-dim py-1.5">{week.loadLine}</td>
+				<td className="text-muted-foreground py-1.5">{week.loadLine}</td>
 			)}
 		</tr>
 	)

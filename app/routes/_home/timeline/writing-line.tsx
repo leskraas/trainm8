@@ -156,7 +156,7 @@ export function WritingLine({
 				// 16px, never less: iOS zooms the page into any input whose text is
 				// smaller, and a list that jumps every time the athlete writes is the
 				// opposite of a notebook (#505 story 41).
-				className="border-hairline-edge bg-background focus-visible:border-primary h-11 w-full min-w-0 rounded-[10px] border px-3 text-[16px]/[1.2] outline-none"
+				className="border-border bg-background focus-visible:border-primary h-11 w-full min-w-0 rounded-[10px] border px-3 text-[16px]/[1.2] outline-none"
 			/>
 			<div
 				data-writing-preview
@@ -164,18 +164,18 @@ export function WritingLine({
 				className="flex flex-col gap-1.5"
 			>
 				{!typed && emptyHint ? (
-					<p className="text-ink-dimmer text-[11px]/[1.35]">{emptyHint}</p>
+					<p className="text-muted-foreground text-[11px]/[1.35]">{emptyHint}</p>
 				) : null}
 				{notation ? (
 					<div data-writing-understood className="flex flex-col gap-1">
-						<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
+						<span className="text-muted-foreground text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
 							{WRITING_LINE_LABELS.understood}
 						</span>
 						<ScoreStanza notation={notation} className="text-[13px]" />
 						{totals.length > 0 ? (
 							<p
 								data-writing-totals
-								className="text-ink-body text-[12px]/[1.35] tabular-nums"
+								className="text-foreground text-[12px]/[1.35] tabular-nums"
 							>
 								{WRITING_LINE_LABELS.totals(totals)}
 							</p>
@@ -196,7 +196,7 @@ export function WritingLine({
 						data-writing-unknown={word.text}
 						className="flex flex-wrap items-center gap-1.5"
 					>
-						<span className="text-ink-body text-[12px]/[1.35]">
+						<span className="text-foreground text-[12px]/[1.35]">
 							{WRITING_LINE_LABELS.unread[word.reason](word.text)}
 						</span>
 						{word.suggestions.length > 0 ? (
@@ -225,7 +225,7 @@ export function WritingLine({
 								))}
 							</span>
 						) : word.reason === 'unknown-word' ? (
-							<span className="text-ink-dimmer text-[11px]/[1.35]">
+							<span className="text-muted-foreground text-[11px]/[1.35]">
 								{WRITING_LINE_LABELS.noSuggestion}
 							</span>
 						) : null}
@@ -244,7 +244,7 @@ export function WritingLine({
 								<p
 									key={problem}
 									data-writing-problem={problem}
-									className="text-ink-body text-[12px]/[1.35]"
+									className="text-foreground text-[12px]/[1.35]"
 								>
 									{WRITING_LINE_LABELS.problems[problem]}
 								</p>
@@ -299,7 +299,7 @@ export function DisciplineChips({
 							CHIP,
 							active
 								? 'border-primary text-primary bg-primary/10'
-								: 'border-hairline-edge text-ink-dim',
+								: 'border-border text-muted-foreground',
 						)}
 					>
 						<DiscDot solid discipline={discipline} className="size-[6px]" />
@@ -327,11 +327,6 @@ export function WritingPanel({
 }: {
 	todayKey: string
 	minDayKey: string
-	/**
-	 * @deprecated No longer a limit (story 40): the line writes any distance
-	 * ahead. Accepted so the current caller keeps compiling; drop it there.
-	 */
-	maxDayKey?: string
 	onClose: () => void
 }) {
 	const stamp = useDayStamp()
@@ -364,13 +359,13 @@ export function WritingPanel({
 		<section
 			data-writing-panel
 			aria-label={WRITING_LINE_LABELS.open}
-			className="border-hairline-edge bg-primary/4 flex flex-col gap-2.5 border-t px-[18px] py-3"
+			className="border-border bg-primary/4 flex flex-col gap-2.5 border-t px-[18px] py-3"
 		>
 			<div className="flex items-center gap-3">
 				<h2 className="text-[13px]/[1.2] font-semibold">
 					{WRITING_LINE_LABELS.open}
 				</h2>
-				<label className="text-ink-dim ml-auto flex items-center gap-2 text-[11.5px]/[1] font-semibold">
+				<label className="text-muted-foreground ml-auto flex items-center gap-2 text-[11.5px]/[1] font-semibold">
 					{WRITING_LINE_LABELS.day}
 					<input
 						type="date"
@@ -381,7 +376,7 @@ export function WritingPanel({
 							const next = event.currentTarget.value
 							if (next) setDayKey(next)
 						}}
-						className="border-hairline-edge bg-background h-9 rounded-[9px] border px-2 text-[16px]/[1]"
+						className="border-border bg-background h-9 rounded-[9px] border px-2 text-[16px]/[1]"
 					/>
 				</label>
 			</div>
@@ -404,7 +399,7 @@ export function WritingPanel({
 					autoFocus
 				/>
 			) : (
-				<p className="text-ink-body text-[12px]/[1.35]">
+				<p className="text-foreground text-[12px]/[1.35]">
 					{WRITING_LINE_LABELS.outsideWindow}
 				</p>
 			)}
@@ -419,7 +414,7 @@ export function WritingPanel({
 				<button
 					type="button"
 					onClick={onClose}
-					className="text-ink-dim h-[34px] px-1 text-[12.5px]/[1] font-semibold"
+					className="text-muted-foreground h-[34px] px-1 text-[12.5px]/[1] font-semibold"
 				>
 					{WRITING_LINE_LABELS.close}
 				</button>
