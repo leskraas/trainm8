@@ -1067,6 +1067,42 @@ test('a session with no archetype says so, rather than claiming to be the first 
 	expect(screen.queryByText(/first of its kind/i)).not.toBeInTheDocument()
 })
 
+test('a read archetype is the same answer in the header and in "vs last time", never "no archetype" under a named one', async () => {
+	// The header said "Threshold" (read off the session) while the card under it
+	// said "This session has no archetype": the card asked only the stored column.
+	// One truth — the view the loader resolved — and the card states what it is
+	// and why that reading is not a comparison key (ADR 0055 §3: never stored).
+	const session = makeSession({
+		status: 'completed',
+		tssValue: 92,
+		recording: makeRecording(),
+	})
+	renderRoute(
+		sessionDetailLoader(session, {}, null, {
+			kind: 'read',
+			reading: {
+				kind: 'archetype',
+				archetype: 'threshold',
+				modifiers: [],
+				confidence: 'medium',
+				reasons: ['4 × 8 min at threshold intensity'],
+				caveat: null,
+			},
+		}),
+	)
+
+	await screen.findByText('vs last time')
+	expect(document.querySelector('[data-archetype="read"]')).toHaveTextContent(
+		'Threshold',
+	)
+	expect(screen.queryByText(/has no archetype/i)).not.toBeInTheDocument()
+	expect(
+		screen.getByText(
+			'Read as threshold from what you did, not stated on the plan — and only a stated archetype is matched against earlier sessions, so there is nothing to compare it against yet.',
+		),
+	).toBeInTheDocument()
+})
+
 test('scheduled session shows no "vs last time" card', async () => {
 	const session = makeSession({ status: 'scheduled', recording: null })
 	renderRoute(sessionDetailLoader(session, {}, null))
