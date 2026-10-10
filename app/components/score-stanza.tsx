@@ -307,10 +307,15 @@ function Token({ token }: { token: NotationToken }) {
 		case 'intensity':
 			return <IntensityChip token={token} />
 		case 'notes':
+			// **Whole, and wrapping** (#505 story 32: full text, never "…"). It was
+			// `max-w-[11ch] truncate` on phones, which left "“Steady aer…”" — a
+			// note is the athlete's own words and the one token with no other way to
+			// be read. `whitespace-normal` undoes the step unit's `nowrap` for this
+			// token only, and `overflow-wrap:anywhere` lets a pasted URL break too.
 			return (
 				<span
 					data-token-type="notes"
-					className="text-muted-foreground inline-block max-w-[22ch] truncate align-bottom italic max-sm:max-w-[11ch]"
+					className="text-muted-foreground min-w-0 [overflow-wrap:anywhere] whitespace-normal italic"
 				>
 					“{token.note}”
 				</span>
