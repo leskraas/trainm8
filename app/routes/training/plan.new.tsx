@@ -41,7 +41,7 @@ import {
 } from '#app/utils/labels.ts'
 import {
 	createFitnessGoalEvent,
-	createOpenEndedPlan,
+	createKeepMeActivePlan,
 	listPlanAnchorCandidates,
 	readOpenEndedPlanDefaults,
 } from '#app/utils/plan-outline/authoring.server.ts'
@@ -106,7 +106,9 @@ export async function action({ request }: Route.ActionArgs) {
 		if (submission.status !== 'success') {
 			return data({ result: submission.reply() }, { status: 400 })
 		}
-		const created = await createOpenEndedPlan(userId, {
+		// Klassisk 3:1 whole (climb and hard sessions), from the first week not
+		// yet begun: what this form and the plan's Filosofi card say it is.
+		const created = await createKeepMeActivePlan(userId, {
 			discipline: submission.value.discipline,
 			weeklyHours: submission.value.hours,
 		})

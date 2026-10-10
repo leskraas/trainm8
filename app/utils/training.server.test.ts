@@ -330,6 +330,8 @@ type EnduranceTrackFixture = {
 
 type OutlineFixture = {
 	startWeekKey?: string
+	/** The philosophy the plan records; omitted is none, as a hand-typed plan's. */
+	family?: string
 	phases?: Array<{
 		name: string
 		weeks: number
@@ -410,6 +412,7 @@ async function createEventForUser(
 			athleteId: userId,
 			eventId: event.id,
 			startWeekKey,
+			family: data.outline.family ?? null,
 			phases: {
 				create: (data.outline.phases ?? []).map((phase, orderIndex) => ({
 					orderIndex,
@@ -875,6 +878,62 @@ test('getActiveSeason lays the phases forward from the authored Plan Start Week'
 			fromWeekKey: '2030-02-04',
 		},
 	])
+})
+
+/** A race season the shapes lay: two 3:1 blocks, then a Peak and a Taper with no rhythm. */
+const RACE_PHASES = [
+	{ name: 'Base', weeks: 4, rhythm: '3:1' },
+	{ name: 'Build', weeks: 4, rhythm: '3:1' },
+	{ name: 'Peak', weeks: 2, rhythm: 'none' },
+	{ name: 'Taper', weeks: 1, rhythm: 'none', tapers: true },
+]
+
+test('a race plan that records no philosophy reads as its first phase that is not a taper', async () => {
+	// The Filosofi card read the last phase — a taper, no rhythm — and named
+	// nothing (audit B4). The base names Klassisk; Home reads the same.
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-19T09:00:00Z'),
+		outline: {
+			phases: RACE_PHASES,
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: null },
+		},
+	})
+
+	expect((await getActiveSeason(user.id, SEASON_NOW))?.family).toBe('classic')
+	expect((await getActivePlan(user.id, SEASON_NOW))?.family).toBe('classic')
+})
+
+test('a race plan follows the philosophy it records over the one its rhythm reads as', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-19T09:00:00Z'),
+		outline: {
+			family: 'polarized',
+			phases: RACE_PHASES,
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: null },
+		},
+	})
+
+	expect((await getActiveSeason(user.id, SEASON_NOW))?.family).toBe('polarized')
+	expect((await getActivePlan(user.id, SEASON_NOW))?.family).toBe('polarized')
+})
+
+test('a plan with no rhythm anywhere and none recorded follows no philosophy', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-02-19T09:00:00Z'),
+		outline: {
+			phases: [
+				{ name: 'Steady', weeks: 5, rhythm: 'none' },
+				{ name: 'Taper', weeks: 1, rhythm: 'none', tapers: true },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: null },
+		},
+	})
+
+	expect((await getActiveSeason(user.id, SEASON_NOW))?.family).toBeNull()
+	expect((await getActivePlan(user.id, SEASON_NOW))?.family).toBeNull()
 })
 
 test('getActiveSeason derives every week’s target in the track’s own currency', async () => {

@@ -100,7 +100,16 @@ export function PhilosophyCard({
 						{PHILOSOPHY_DESCRIPTIONS[family]}
 					</p>
 				</div>
-			) : null}
+			) : (
+				// Said, not left blank: a plan that follows none reads as such, and the
+				// switch below is how to pick one (audit B4).
+				<div data-no-philosophy>
+					<p className="text-sm font-medium">{PHILOSOPHY_SWITCH_LABELS.none}</p>
+					<p className="text-muted-foreground text-sm">
+						{PHILOSOPHY_SWITCH_LABELS.noneHint}
+					</p>
+				</div>
+			)}
 			<details
 				className="border-border/70 rounded-xl border px-4 py-2"
 				open={lastResult != null || preview != null}

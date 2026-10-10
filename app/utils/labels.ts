@@ -2171,6 +2171,10 @@ export function plainMixSentence(
 export const PHILOSOPHY_SWITCH_LABELS = {
 	title: 'Filosofi',
 	follows: 'Planen følger',
+	/** A plan that records no family and whose phases read as none (audit B4). */
+	none: 'Ingen filosofi valgt',
+	noneHint:
+		'Planen er ikke knyttet til en filosofi. Velg en under «Bytt filosofi» hvis du vil.',
 	open: 'Bytt filosofi',
 	choose: 'Velg en filosofi',
 	intro:
