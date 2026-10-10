@@ -47,4 +47,12 @@ gap (note it for `/domain-modeling`).
 If your output contradicts an existing ADR, surface it explicitly rather than
 silently overriding:
 
-> _Contradicts ADR-0007 (event-sourced orders), but worth reopening because…_
+> _Contradicts ADR-0001 (training app migration), but worth reopening because…_
+
+An ADR is a record of a decision, not a constraint on the next one. Where the
+evidence says a shipped decision is wrong, recommend the correct design and name
+the ADR that should be superseded; don't design around it. ADR 0047 set the
+precedent that a **research asset**, not only another ADR, can be the
+superseding document. Check `docs/research/README.md` before assuming a decision
+still stands: several ADRs already carry a **Revisit** note pointing at the
+finding that challenges them.
