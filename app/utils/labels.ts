@@ -1451,11 +1451,17 @@ export const DAY_ROW_LABELS = {
 		'Alt over denne linja er trening du hadde med deg — ingen plan å holde den opp mot.',
 } as const
 
-/** What a session row says on its two lines and its chips. */
+/**
+ * What a session row says on its two lines and its chips. Sentence case, in
+ * the muted footnote the row's facts are set in (#505 polish): the chips were
+ * capitals (`I DAG · IKKE GJORT ENNÅ`), which shouted in a list of quiet facts
+ * and, on today's row, repeated what its tint, its circled date and `Se økta`
+ * already say.
+ */
 export const ROW_LABELS = {
-	todayNotDone: 'I DAG · IKKE GJORT ENNÅ',
-	missed: 'IKKE GJORT',
-	unplanned: 'UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED',
+	todayNotDone: 'I dag · ikke gjort ennå',
+	missed: 'Ikke gjort',
+	unplanned: 'Utenfor planen · ingen plan å sammenligne med',
 	nothingRecorded: 'Ingenting registrert',
 	nothingLogged: 'Ingen sett logget',
 	planned: (what: string) => `${what} planlagt`,

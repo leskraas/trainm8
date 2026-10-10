@@ -455,7 +455,7 @@ describe('rule 5: no band without both sides', () => {
 		expect(content.chips).toEqual([
 			{
 				id: 'compliance',
-				label: 'UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED',
+				label: 'Utenfor planen · ingen plan å sammenligne med',
 				tone: 'muted',
 			},
 		])
@@ -477,7 +477,7 @@ describe('rule 5: no band without both sides', () => {
 		expect(content.chips).toEqual([
 			{
 				id: 'compliance',
-				label: 'UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED',
+				label: 'Utenfor planen · ingen plan å sammenligne med',
 				tone: 'muted',
 			},
 		])
@@ -555,7 +555,7 @@ describe('rule 6: a missed session invents nothing', () => {
 		expect(content.externalLoad).toBe('Ingenting registrert')
 		expect(content.internalLoad).toBeNull()
 		expect(content.chips).toEqual([
-			{ id: 'compliance', label: 'IKKE GJORT', tone: 'bad' },
+			{ id: 'compliance', label: 'Ikke gjort', tone: 'bad' },
 		])
 	})
 
@@ -565,7 +565,7 @@ describe('rule 6: a missed session invents nothing', () => {
 			THIS_WEEK,
 		)
 		expect(content.externalLoad).toBe('Ingenting registrert')
-		expect(content.chips[0]?.label).toBe('IKKE GJORT')
+		expect(content.chips[0]?.label).toBe('Ikke gjort')
 	})
 
 	test('a past session still marked scheduled is missed', () => {
@@ -578,7 +578,7 @@ describe('rule 6: a missed session invents nothing', () => {
 			THIS_WEEK,
 		)
 		expect(content.externalLoad).toBe('Ingenting registrert')
-		expect(content.chips[0]?.label).toBe('IKKE GJORT')
+		expect(content.chips[0]?.label).toBe('Ikke gjort')
 	})
 
 	test('a missed session in an imported week gets no chip', () => {
@@ -900,7 +900,7 @@ describe("today's row", () => {
 			{ isToday: true },
 		)
 		expect(content.chips).toEqual([
-			{ id: 'today', label: 'I DAG · IKKE GJORT ENNÅ', tone: 'primary' },
+			{ id: 'today', label: 'I dag · ikke gjort ennå', tone: 'primary' },
 		])
 		expect(content.externalLoad).toBe('62 min · 91 TSS planlagt')
 	})
@@ -920,7 +920,7 @@ describe("today's row", () => {
 			THIS_WEEK,
 			{ isToday: true },
 		)
-		expect(content.chips.map((c) => c.label)).toEqual(['IKKE GJORT'])
+		expect(content.chips.map((c) => c.label)).toEqual(['Ikke gjort'])
 	})
 
 	test('the today chip leads, then the band, then the Replan Note', () => {
@@ -1221,7 +1221,7 @@ describe('a lifting session states what it lifted', () => {
 		)
 		expect(content.externalLoad).toBe('Ingenting registrert')
 		expect(content.chips).toEqual([
-			{ id: 'compliance', label: 'IKKE GJORT', tone: 'bad' },
+			{ id: 'compliance', label: 'Ikke gjort', tone: 'bad' },
 		])
 	})
 

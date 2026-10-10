@@ -784,7 +784,7 @@ test('a comparable session names its basis and its band; an unplanned one refuse
 	await strip.locator('[data-timeline-cell]').first().click()
 	await page.waitForTimeout(1000)
 	await expect(
-		page.getByText('UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED').first(),
+		page.getByText('Utenfor planen · ingen plan å sammenligne med').first(),
 	).toBeVisible()
 	// Never a fabricated percentage.
 	await expect(page.getByTestId('timeline-stream')).not.toContainText('%')

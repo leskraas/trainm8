@@ -620,7 +620,7 @@ test("today's row carries the inline action and the chip that says where the day
 	const stream = await screen.findByTestId('timeline-stream')
 	const row = within(stream).getByRole('link', { name: /threshold 4 × 8 min/i })
 	expect(row).toHaveAttribute('href', `/training/sessions/${TODAY_SESSION.id}`)
-	expect(row).toHaveTextContent('I DAG · IKKE GJORT ENNÅ')
+	expect(row).toHaveTextContent('I dag · ikke gjort ennå')
 	// The action sits beside the row's link, never inside it (ADR 0086).
 	expect(within(stream).getByRole('link', { name: 'Se økta' })).not.toBe(row)
 })
@@ -668,7 +668,7 @@ test('an unplanned session says there is no plan to compare, never a percentage'
 
 	const stream = await screen.findByTestId('timeline-stream')
 	expect(
-		within(stream).getByText('UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED'),
+		within(stream).getByText('Utenfor planen · ingen plan å sammenligne med'),
 	).toBeInTheDocument()
 	expect(stream).not.toHaveTextContent(/%/)
 })
@@ -682,7 +682,7 @@ test('a missed session invents nothing', async () => {
 
 	const stream = await screen.findByTestId('timeline-stream')
 	expect(within(stream).getByText('Ingenting registrert')).toBeInTheDocument()
-	expect(within(stream).getByText('IKKE GJORT')).toBeInTheDocument()
+	expect(within(stream).getByText('Ikke gjort')).toBeInTheDocument()
 })
 
 test('a planned row is an instruction: line 1 ends in "planned", line 2 is the target', async () => {

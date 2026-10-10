@@ -138,9 +138,11 @@ export function WeekChangeCard({
 				>
 					{WEEK_CHANGE_LABELS.heading}
 				</h2>
-				<p className="text-foreground text-[13.5px]/[1.4] [text-wrap:pretty]">
-					{card.summary}
-				</p>
+				{card.summary ? (
+					<p className="text-foreground text-[13.5px]/[1.4] [text-wrap:pretty]">
+						{card.summary}
+					</p>
+				) : null}
 			</header>
 
 			<Review review={card.review} />

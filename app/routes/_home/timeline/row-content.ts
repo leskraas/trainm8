@@ -16,7 +16,7 @@
  *   target — the pace window and the HR ceiling — rather than an outcome. This
  *   applies to every planned week, not only the current one.
  * - **No band without both sides** (ADR 0008/0019). An unplanned session reads
- *   `UTENFOR PLANEN · INGEN PLAN Å SAMMENLIGNE MED`, never a fabricated percentage; an imported
+ *   `Utenfor planen · ingen plan å sammenligne med`, never a fabricated percentage; an imported
  *   session gets no chip at all, because the week header already says the week
  *   came from before the plan and repeating it on every row is noise.
  * - **A missed session invents nothing.** `Nothing recorded` and `MISSED`. No

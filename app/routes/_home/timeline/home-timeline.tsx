@@ -536,9 +536,13 @@ function TopLine({
 }) {
 	return (
 		<div className="flex min-h-11 items-center gap-2 py-1">
+			{/* From `lg` up the season pane's plan card already names the plan
+			    and its goal (ADR 0087), so the line keeps only its controls,
+			    pushed right by a spacer. */}
+			<span aria-hidden className="hidden flex-1 lg:block" />
 			<p
 				data-top-line-plan
-				className="text-footnote flex min-w-0 flex-1 items-center gap-1.5"
+				className="text-footnote flex min-w-0 flex-1 items-center gap-1.5 lg:hidden"
 			>
 				{line.goal || line.planLabel ? (
 					<>

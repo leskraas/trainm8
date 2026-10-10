@@ -131,8 +131,14 @@ export type WeekChangeEase = {
 
 export type WeekChangeCard = {
 	closedWeekKey: string
-	/** The Week Replan's own sentence. */
-	summary: string
+	/**
+	 * The Week Replan's own sentence, or null where the week holds: then the
+	 * week-level keep proposal says the same thing in Norwegian right under
+	 * it, and a week stored before the hold's sentence was Norwegian carried
+	 * `decideWeekReplan`'s English one (`Last week has no measurable Plan
+	 * Adherence…`), which the card no longer prints.
+	 */
+	summary: string | null
 	/** Some proposal still waits for an answer. */
 	open: boolean
 	/**
@@ -185,7 +191,11 @@ export function buildWeekChangeCard({
 	const waiting = proposals.filter((p) => p.state === 'answerable').length
 	return {
 		closedWeekKey: data.closedWeekKey,
-		summary: data.reason,
+		summary: data.proposals.some(
+			(proposal) => proposal.payload.kind === 'keep' && proposal.target == null,
+		)
+			? null
+			: data.reason,
 		open: data.open,
 		proposalsHeading:
 			data.comingWeekKey <= todayKey

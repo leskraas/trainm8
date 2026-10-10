@@ -2620,6 +2620,21 @@ describe('the Ukeskiftet card (#505 stories 4–6, 42–55)', () => {
 		).toBeNull()
 	})
 
+	test('a week that holds leads with its keep, not with a second (English) sentence', () => {
+		// The stored week-level reason is `decideWeekReplan`'s English hold; the
+		// keep proposal carries the same thing in Norwegian.
+		const holds = card([
+			proposal({
+				payload: { kind: 'keep' },
+				target: null,
+				reason: 'Forrige uke gikk som planlagt. Denne uka står som den er.',
+			}),
+		])
+		expect(holds.summary).toBeNull()
+		// A week with a change keeps its own sentence.
+		expect(card([proposal()]).summary).toBe('Forrige uke gikk som planlagt.')
+	})
+
 	test('an unanswered proposal asks, with what it proposes and why', () => {
 		const [view] = card([proposal()]).proposals
 		expect(view).toMatchObject({
