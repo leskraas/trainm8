@@ -26,11 +26,11 @@ const SHOTS = process.env.IMPORTS_SHOTS
 async function shot(page: Page, name: string, centre?: Locator) {
 	if (!SHOTS) return
 	// The stream scrolls inside its own box: bring the subject up to a third of
-	// the screen, where the folded hero no longer covers it.
+	// the screen, clear of the sticky week header.
 	if (centre) {
 		// After the landing has settled, or it pins today back to the top.
 		await page.waitForTimeout(1500)
-		// Twice: the first scroll folds the hero, which resizes the stream.
+		// Twice, in case late layout moved it after the first.
 		for (let pass = 0; pass < 2; pass++) {
 			await centre.evaluate((el) => {
 				const stream = el.closest('[data-testid="timeline-stream"]')!

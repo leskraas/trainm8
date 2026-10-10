@@ -69,7 +69,7 @@ test('Dashboard renders no unrounded floats even from raw TSS values', async ({
 	await page.waitForTimeout(2500)
 
 	// The home timeline is one stream, so the walk is a scroll rather than a set
-	// of tabs: scan the hero and the parked week, then both directions, because
+	// of tabs: scan the landing, then both directions, because
 	// a raw float can hide in a week the reader has not reached yet.
 	expect(await page.evaluate(() => document.body.innerText)).not.toMatch(
 		RAW_FLOAT,

@@ -1,12 +1,13 @@
 import { type Locator, type Page } from '@playwright/test'
 import sharp from 'sharp'
-import { HERO_FADE_SHARE } from '#app/routes/_home/timeline/anchoring.ts'
+import { landingTop } from '#app/routes/_home/timeline/anchoring.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { type Theme } from '#app/utils/theme.server.ts'
 import { expect, middayTimezone, test } from '#tests/playwright-utils.ts'
 
 /**
- * The home timeline: one bi-directional stream anchored on today.
+ * I dag: the top line, the season strip and the list, opened on today
+ * (ADR 0086). No hero; a list that never has its scroll taken from the reader.
  *
  * This spec replaces the tabbed-dashboard one (#184's Week / Trends / History
  * panels), which asserted a composition the handoff removed. What is worth
@@ -29,73 +30,100 @@ test.use({ viewport: { width: 390, height: 844 } })
 
 /** The scroller, and everything worth knowing about where it is parked. */
 async function streamState(page: Page) {
-	return page.getByTestId('timeline-stream').evaluate((el) => ({
-		scrollTop: Math.round(el.scrollTop),
-		scrollHeight: el.scrollHeight,
-		clientHeight: el.clientHeight,
-		weeks: el.querySelectorAll('[data-timeline-week]').length,
-		// Today's row, measured against the scroller's own box — never
-		// `offsetTop`, whose offsetParent is not the thing being scrolled.
-		todayOffset: (() => {
-			const node = el.querySelector('[data-timeline-today]')
-			if (!node) return null
-			return Math.round(
+	return page.getByTestId('timeline-stream').evaluate((el) => {
+		const offset = (node: Element) =>
+			Math.round(
 				node.getBoundingClientRect().top -
 					el.getBoundingClientRect().top +
 					el.scrollTop,
 			)
-		})(),
-		// How far below the top today parks: its week's sticky header, measured,
-		// plus the 12px of air the landing leaves (`LANDING_GAP`). Never a fixed
-		// number — the header grows with the week's tracks.
-		landingOffset: (() => {
-			const header = el
-				.querySelector('[data-timeline-today]')
-				?.closest('[data-timeline-week]')
-				?.querySelector('[data-week-header]')
-			return header ? Math.ceil(header.getBoundingClientRect().height) + 12 : 96
-		})(),
-	}))
+		const today = el.querySelector('[data-timeline-today]')
+		const week = today?.closest('[data-timeline-week]')
+		const header = week?.querySelector('[data-week-header]')
+		return {
+			scrollTop: Math.round(el.scrollTop),
+			scrollHeight: el.scrollHeight,
+			clientHeight: el.clientHeight,
+			weeks: el.querySelectorAll('[data-timeline-week]').length,
+			// Today's row, measured against the scroller's own box — never
+			// `offsetTop`, whose offsetParent is not the thing being scrolled.
+			todayOffset: today ? offset(today) : null,
+			todayHeight: today ? today.getBoundingClientRect().height : 0,
+			weekOffset: week ? offset(week) : null,
+			// The week's sticky header, measured: never a fixed number — it grows
+			// with the week's tracks.
+			headerHeight: header ? header.getBoundingClientRect().height : 0,
+		}
+	})
 }
 
-/** Where "parked on today" is right now, from the measured header. */
+/** Where "parked on today" is right now: the landing's own rule, measured. */
 async function landingOf(page: Page) {
 	const state = await streamState(page)
-	return Math.max(0, state.todayOffset! - state.landingOffset)
+	return Math.round(
+		landingTop({
+			weekOffset: state.weekOffset!,
+			todayOffset: state.todayOffset!,
+			todayHeight: state.todayHeight,
+			headerHeight: state.headerHeight,
+			clientHeight: state.clientHeight,
+		}),
+	)
 }
 
 /**
- * The hero's clip box, and the three numbers the fold writes to it (#498).
- *
- * The collapse is no longer a `max-height` transition: the height, the opacity
- * and the lift are written straight off the scroll offset, so the box has a
- * real height at every position rather than one of two class names. Rounded,
- * because a fold is a continuum and 199.5 is not a bug.
- */
-function heroFold(page: Page) {
-	return page.getByTestId('hero-fold').evaluate((el) => ({
-		height: Math.round(el.getBoundingClientRect().height),
-		opacity: Number(getComputedStyle(el).opacity),
-		lift: getComputedStyle(el.firstElementChild!).transform,
-	}))
-}
-
-/**
- * Scroll the stream the way a thumb does: **instantly**.
- *
- * The scroller carries `scroll-behavior: smooth`, which native gestures ignore
- * and an assigned `scrollTop` does not. Left smooth, an assignment here
- * animates through every position between — and since #498 the fold is read off
- * each one, so the assertion would be measuring a frame of an animation rather
- * than where the reader ended up.
+ * Scroll the stream the way a reader does: an input first (a wheel), then the
+ * position, **instantly**. The input matters (ADR 0086): until the reader's
+ * first input the landing still follows late layout, and a probe that only
+ * assigns `scrollTop` is not a reader. The scroller carries `scroll-behavior:
+ * smooth` for the keyboard, which native gestures ignore and an assignment
+ * does not, so it is switched off around the write.
  */
 async function scrollStreamTo(page: Page, top: number | 'end') {
 	await page.getByTestId('timeline-stream').evaluate((el, to) => {
+		el.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 1 }))
 		const previous = el.style.scrollBehavior
 		el.style.scrollBehavior = 'auto'
 		el.scrollTop = to === 'end' ? el.scrollHeight : to
 		el.style.scrollBehavior = previous
 	}, top)
+}
+
+/**
+ * Count the app's own `scrollTop` writes on the list from here on — the
+ * writes made by the page's bundled code, told apart from a test's
+ * `evaluate` by the stack, which for the app's names a served script URL.
+ */
+async function countAppWrites(page: Page) {
+	await page.evaluate(() => {
+		const w = window as unknown as { __appWrites?: number[] }
+		if (w.__appWrites) {
+			w.__appWrites.length = 0
+			return
+		}
+		w.__appWrites = []
+		const d = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!
+		Object.defineProperty(Element.prototype, 'scrollTop', {
+			configurable: true,
+			get() {
+				return d.get!.call(this)
+			},
+			set(value: number) {
+				if (
+					this instanceof Element &&
+					this.hasAttribute('data-timeline-stream') &&
+					/https?:\/\//.test(new Error().stack ?? '')
+				) {
+					w.__appWrites!.push(value)
+				}
+				d.set!.call(this, value)
+			},
+		})
+	})
+	return () =>
+		page.evaluate(
+			() => (window as unknown as { __appWrites: number[] }).__appWrites.length,
+		)
 }
 
 /**
@@ -136,54 +164,6 @@ async function openFoldedWeeks(page: Page) {
 		await folds.first().dispatchEvent('click')
 		await page.waitForTimeout(150)
 	}
-}
-
-/**
- * Park the stream a given distance from the landing position — measured
- * **now**, never remembered. A week loading in above moves today's row down the
- * stream without the athlete having scrolled, so a landing kept from before the
- * growth is a number about a stream that no longer exists.
- */
-async function driftFromLanding(page: Page, drift: number) {
-	await scrollStreamTo(page, (await landingOf(page)) + drift)
-}
-
-/** How far the stream really is from the landing, and how folded the hero is. */
-async function foldAtRest(page: Page) {
-	const state = await streamState(page)
-	const { height, opacity, lift } = await heroFold(page)
-	return {
-		drift: Math.abs(state.scrollTop - (await landingOf(page))),
-		height,
-		opacity,
-		lift,
-	}
-}
-
-/**
- * Is the hero in the tab order? (#487)
- *
- * The week strip is the hero's next-door neighbour in the DOM, so one
- * `Shift+Tab` off the strip steps backwards across exactly the boundary in
- * question and nothing else: with the hero open it lands on the hero's last
- * control, with the hero folded away it steps straight past into the header.
- * One keystroke rather than a walk from the top of the document, because
- * tabbing into the stream scrolls the stream, and scrolling the stream is what
- * opens and closes the thing being measured.
- */
-async function heroInTabOrder(page: Page) {
-	// From the strip's first stop, the "I dag" pill: the strip is the hero's
-	// next-door neighbour, and its pill is the first thing in it to tab to.
-	await page.locator('[data-today-pill]').focus()
-	await page.keyboard.press('Shift+Tab')
-	return page.evaluate(() => {
-		const hero = document.querySelector('[data-testid="hero-fold"]')
-		return (
-			!!hero &&
-			!!document.activeElement &&
-			hero.contains(document.activeElement)
-		)
-	})
 }
 
 async function seedSeason(userId: string) {
@@ -269,7 +249,7 @@ async function seedSeason(userId: string) {
 		plannedTssValue: 45,
 	})
 	await session({ days: -10, status: 'missed', plannedTssValue: 60 })
-	// This week: today's session — the landing anchor and the hero's subject —
+	// This week: today's session — the landing anchor and today's row's subject —
 	// and two more so there is room to read past it.
 	const today = await session({
 		days: 1 / 24,
@@ -394,7 +374,7 @@ async function seedShortLiftingSession(userId: string) {
 	})
 }
 
-test('opens parked on today, with the hero showing and no pill', async ({
+test('opens parked on today before the first paint: no hero, no jump, and the list gets the screen', async ({
 	page,
 	navigate,
 	login,
@@ -404,22 +384,38 @@ test('opens parked on today, with the hero showing and no pill', async ({
 	const user = await login()
 	await seedSeason(user.id)
 
+	// Where the list is when the document has been parsed — before the app has
+	// hydrated at all. The server's landing script (ADR 0086, #505 P6) has
+	// already parked it; the old screen showed the top of the season here and
+	// jumped to today a moment later.
+	await page.addInitScript(() => {
+		document.addEventListener('DOMContentLoaded', () => {
+			const el = document.querySelector('[data-timeline-stream]')
+			;(window as unknown as { __parsedAt: number | null }).__parsedAt = el
+				? Math.round(el.scrollTop)
+				: null
+		})
+	})
 	await navigate('/')
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
-	// Let the settle ladder finish (it holds the anchor for ~1.3s).
-	await page.waitForTimeout(2500)
+	await page.waitForTimeout(1500)
 
 	const state = await streamState(page)
-	// The stream is a bounded scroller, not the page: if this fails, the whole
-	// screen degrades to a plain document scroll and nothing else here works.
+	// The stream is a bounded scroller, not the page.
 	expect(state.scrollHeight).toBeGreaterThan(state.clientHeight)
-	// Parked on today: today's row, less the landing offset.
+	// Parked by the landing rule: the week's top when the week fits up to
+	// today, else today under the week's sticky header.
 	expect(state.todayOffset).not.toBeNull()
-	expect(state.scrollTop).toBe(
-		Math.max(0, state.todayOffset! - state.landingOffset),
+	expect(
+		Math.abs(state.scrollTop - (await landingOf(page))),
+	).toBeLessThanOrEqual(1)
+	const parsedAt = await page.evaluate(
+		() => (window as unknown as { __parsedAt: number | null }).__parsedAt,
 	)
-	// And today lands *below* its week's sticky header, never under it: the
-	// landing is measured off the header, so a taller header cannot hide today.
+	expect(parsedAt).not.toBeNull()
+	expect(parsedAt).toBeGreaterThan(0)
+	expect(Math.abs(parsedAt! - state.scrollTop)).toBeLessThanOrEqual(2)
+	// Today lands *below* its week's sticky header, never under it.
 	const clear = await page.getByTestId('timeline-stream').evaluate((el) => {
 		const today = el.querySelector('[data-timeline-today]')!
 		const header = today
@@ -430,18 +426,25 @@ test('opens parked on today, with the hero showing and no pill', async ({
 		)
 	})
 	expect(clear).toBeGreaterThanOrEqual(8)
-	// And the page itself does not scroll — the frame is the viewport.
+	// The page itself does not scroll — the frame is the viewport.
 	expect(
 		await page.evaluate(
 			() => document.documentElement.scrollHeight <= window.innerHeight + 1,
 		),
 	).toBe(true)
-
-	// The hero is open, because the collapse is measured from the landing
-	// position and not from zero.
-	await expect(
-		page.getByRole('heading', { name: 'Threshold Run', level: 1 }),
-	).toBeVisible()
+	// No hero, and the list gets what is left: well over half the phone.
+	await expect(page.getByTestId('hero-fold')).toHaveCount(0)
+	await expect(page.getByRole('heading', { level: 1 })).toHaveCount(0)
+	expect(state.clientHeight).toBeGreaterThan(500)
+	// The week header and day rows on the first screen, not one row.
+	const rows = await page.getByTestId('timeline-stream').evaluate((el) => {
+		const box = el.getBoundingClientRect()
+		return [...el.querySelectorAll('[data-timeline-day]')].filter((row) => {
+			const r = row.getBoundingClientRect()
+			return r.height > 0 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1
+		}).length
+	})
+	expect(rows).toBeGreaterThanOrEqual(2)
 	// The pill points nowhere on first paint: today is right there.
 	await expect(todayPill(page)).toHaveAttribute('data-away', '0')
 	await expect(todayPill(page)).toHaveText('I dag')
@@ -455,135 +458,76 @@ test('opens parked on today, with the hero showing and no pill', async ({
 	).toBeLessThanOrEqual(0)
 })
 
-test('the hero folds with the scroll, 1:1 and both ways, and comes back', async ({
+test('the reader’s own scroll is never taken back: no snap-back to today', async ({
 	page,
 	navigate,
 	login,
 }) => {
+	// #505 P1: the settle ladder re-applied the landing for 1.3s, so a reader
+	// who scrolled at 400ms was yanked back at 1.7s. The landing now follows late
+	// layout only until the reader's first input, and never after it.
 	test.setTimeout(120_000)
 	const user = await login()
 	await seedSeason(user.id)
 
 	await navigate('/')
-	await expect(page.getByTestId('timeline-stream')).toBeVisible()
-	await page.waitForTimeout(2500)
-
-	// The hero at rest, whole. Its own height is the fold's whole travel, so
-	// everything below is a claim about this number.
-	const open = (await heroFold(page)).height
-	expect(open).toBeGreaterThan(150)
-	// Not `toBe(1)`: the landing is a rounded pixel and the fold is not, so the
-	// hero at rest is a fraction of a pixel into its own travel.
-	expect((await heroFold(page)).opacity).toBeGreaterThan(0.99)
-	expect(await heroInTabOrder(page)).toBe(true)
-
-	// One pixel of fold per pixel of drift, at every drift — polled because a
-	// scroll event reaches the fold a frame after the position is assigned, not
-	// because anything is mid-flight. There is no transition left to be
-	// mid-flight of, which is what this test is about.
-	//
-	// Asserted against the drift *measured after the fact* rather than the one
-	// asked for: reading back up towards the top of the loaded window loads an
-	// earlier week, which moves today's row and the reading position together.
-	// The fold is the thing that must not notice.
-	const oneToOne = () =>
-		expect
-			.poll(async () => {
-				const at = await foldAtRest(page)
-				return at.height - Math.max(0, open - at.drift)
-			})
-			.toBeCloseTo(0, -1)
-
-	// Halfway down the travel leaves the hero halfway folded. A threshold could
-	// not produce this number: it had two.
-	await driftFromLanding(page, Math.round(open / 2))
-	await oneToOne()
-	expect((await foldAtRest(page)).height).toBeCloseTo(open / 2, -1)
-	// Part-folded is still reachable: "collapsed" is somewhere the fold arrives,
-	// not somewhere it passes through, so the band keeps its tab order until it
-	// is actually gone.
-	expect(await heroInTabOrder(page)).toBe(true)
-
-	// Reversing reverses from where it is, with nothing to jump over on the way.
-	await driftFromLanding(page, Math.round(open / 4))
-	await oneToOne()
-	expect((await foldAtRest(page)).height).toBeCloseTo(open * 0.75, -1)
-
-	// Forward, as far as the stream goes — a fixed offset could clamp to within
-	// the travel on a short season and prove nothing.
-	await readToTheEnd(page)
-	await expect.poll(async () => (await heroFold(page)).height).toBe(0)
-	expect((await foldAtRest(page)).drift).toBeGreaterThan(open)
-	// A folded hero is folded away from the keyboard too (#487): its links are
-	// zero-height and unreadable, so tabbing must not land in them.
-	expect(await heroInTabOrder(page)).toBe(false)
-	await expect(
-		page.getByRole('button', { name: 'Gå opp til i dag' }),
-	).toBeVisible()
-
-	// Back to the landing point: whole again, to the height it had — within
-	// the one pixel the landing itself is rounded to. The landing is a whole
-	// `scrollTop` and the fold is not (see the opacity check above), so the hero
-	// at rest sits a fraction of a pixel into its own travel, and which way that
-	// fraction rounds is the platform's, not the fold's (ADR 0078's sub-pixel
-	// consequence).
-	await driftFromLanding(page, 0)
+	const stream = page.getByTestId('timeline-stream')
+	await expect(stream).toBeVisible()
+	await page.waitForTimeout(300)
+	const landed = (await streamState(page)).scrollTop
+	const box = (await stream.boundingBox())!
+	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+	await page.mouse.wheel(0, 300)
 	await expect
-		.poll(async () => Math.abs((await heroFold(page)).height - open))
-		.toBeLessThanOrEqual(1)
-	expect(await heroInTabOrder(page)).toBe(true)
-	await expect(todayPill(page)).toHaveAttribute('data-away', '0')
-
-	// Backward — the other way, still continuous. Upward the travel is the
-	// room above the landing when that is shorter than the hero (`heroFold`,
-	// since the S9 review: a short history's top must be a full fold, not a
-	// half-folded blank band). How much room there is depends on the weekday —
-	// closed weeks fold above today — so the expected height reads the same
-	// rule rather than assuming the room is at least the hero.
-	const room = await landingOf(page)
-	const travel = room >= open * HERO_FADE_SHARE ? Math.min(open, room) : open
-	await driftFromLanding(page, -Math.round(open / 2))
-	await expect
-		.poll(async () => {
-			const at = await foldAtRest(page)
-			return at.height - open * Math.max(0, 1 - at.drift / travel)
-		})
-		.toBeCloseTo(0, -1)
+		.poll(async () => (await streamState(page)).scrollTop)
+		.toBeGreaterThan(landed + 100)
+	const scrolled = (await streamState(page)).scrollTop
+	await page.waitForTimeout(1600)
+	expect((await streamState(page)).scrollTop).toBe(scrolled)
 })
 
-test('the fold has no duration: reduced motion drops the movement and keeps the collapse', async ({
+test('the whole past is mounted on open, and scrolling up through it writes no scroll position', async ({
 	page,
 	navigate,
 	login,
 }) => {
-	// The Motion sheet's rule is gentler, never zero. The lift is the only
-	// *movement* in the collapse, so it is the only part that goes; the fold and
-	// the fade are not movement and still take the hero away.
+	// #505 P2: reading up used to mount one folded week per frame and write
+	// `scrollTop` to pay for each, which cancels a phone's fling. Every week
+	// before today is mounted from the start now, so there is nothing to grow
+	// and nothing to pay for.
 	test.setTimeout(120_000)
 	const user = await login()
 	await seedSeason(user.id)
-	await page.emulateMedia({ reducedMotion: 'reduce' })
 
 	await navigate('/')
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
-	await page.waitForTimeout(2500)
+	await page.waitForTimeout(1500)
 
-	const open = (await heroFold(page)).height
-	expect((await heroFold(page)).lift).toBe('none')
+	const weeks = (await streamState(page)).weeks
+	const firstWeek = await page
+		.getByTestId('week-strip')
+		.locator('[data-timeline-cell]')
+		.first()
+		.getAttribute('data-timeline-cell')
+	await expect(
+		page.locator(`[data-timeline-week="${firstWeek}"]`),
+	).toBeAttached()
 
-	await driftFromLanding(page, Math.round(open / 2))
-	await expect
-		.poll(async () => (await heroFold(page)).height)
-		.toBeCloseTo(open / 2, -1)
-	const half = await foldAtRest(page)
-	// Still folding, still fading — and not moving.
-	expect(half.height).toBeCloseTo(open - half.drift, -1)
-	expect(half.opacity).toBeLessThan(1)
-	expect(half.lift).toBe('none')
-
-	await readToTheEnd(page)
-	await expect.poll(async () => (await heroFold(page)).height).toBe(0)
-	expect((await heroFold(page)).lift).toBe('none')
+	const appWrites = await countAppWrites(page)
+	const start = (await streamState(page)).scrollTop
+	for (let top = start; top > 0; top -= 120) {
+		await scrollStreamTo(page, top)
+		await page.evaluate(
+			() => new Promise((r) => requestAnimationFrame(() => r(null))),
+		)
+	}
+	await scrollStreamTo(page, 0)
+	await page.waitForTimeout(500)
+	expect(await appWrites()).toBe(0)
+	expect((await streamState(page)).weeks).toBe(weeks)
+	expect((await streamState(page)).scrollTop).toBe(0)
+	// The near end says how far home reads.
+	await expect(page.getByText(/^I dag leser tilbake til/)).toBeVisible()
 })
 
 test('the pill appears with the direction back to today, and takes you there', async ({
@@ -599,15 +543,12 @@ test('the pill appears with the direction back to today, and takes you there', a
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
-	const stream = page.getByTestId('timeline-stream')
 	// Not pointing anywhere on first paint: today is right there.
 	await expect(todayPill(page)).toHaveAttribute('data-away', '0')
 
 	// Read forward until today's row has actually left the top of the viewport.
 	for (let pass = 0; pass < 12; pass++) {
-		await stream.evaluate((el) => {
-			el.scrollTop = el.scrollHeight
-		})
+		await scrollStreamTo(page, 'end')
 		await page.waitForTimeout(450)
 		const state = await streamState(page)
 		if (state.todayOffset! - state.scrollTop < -60) break
@@ -621,96 +562,14 @@ test('the pill appears with the direction back to today, and takes you there', a
 	await expect(pill).toBeVisible()
 	await expect(pill).toHaveAttribute('data-away', '-1')
 
-	// And it puts today's row back in view — which is the claim, and is not the
-	// same as putting `scrollTop` back to the number it opened on. Where today
-	// sits near the top of the loaded window, arriving back at the landing is
-	// itself inside the load zone, so earlier weeks pull in and the position is
-	// compensated downwards while the row stays visually put. The pixel legitimately
-	// moves; the row does not.
+	// And it puts the list back on the landing, at once: a jump, not a glide.
 	await pill.click()
+	expect((await streamState(page)).scrollTop).toBe(await landingOf(page))
 	await expect(todayPill(page)).toHaveAttribute('data-away', '0')
 	const back = await streamState(page)
 	const rel = back.todayOffset! - back.scrollTop
 	expect(rel).toBeGreaterThan(-60)
 	expect(rel).toBeLessThan(back.clientHeight - 40)
-	// And the hero is open again, because the stream is parked on today. A
-	// collapsed hero is a zero-height box, so this is a real check and not a
-	// restatement of the pill's absence.
-	await expect(
-		page.getByRole('heading', { name: 'Threshold Run', level: 1 }),
-	).toBeVisible()
-})
-
-test('reading backwards loads earlier weeks without the reading position jumping', async ({
-	page,
-	navigate,
-	login,
-}) => {
-	test.setTimeout(120_000)
-	const user = await login()
-	await seedSeason(user.id)
-
-	await navigate('/')
-	await expect(page.getByTestId('timeline-stream')).toBeVisible()
-	await page.waitForTimeout(2500)
-
-	const stream = page.getByTestId('timeline-stream')
-	// Fold the hero away before measuring. Folding it changes the scroller's own
-	// height, and this test is about the growth compensation alone.
-	await readToTheEnd(page)
-	await page.waitForTimeout(900)
-	const before = await streamState(page)
-
-	// One assignment into the top pad, with the reading position captured in the
-	// same tick — the position of a mounted week inside the scroller's own box.
-	// Smooth is off for the write: left on, the assignment *animates* down from
-	// the far end, and "the same tick" would capture a position the reader is
-	// nowhere near (#498).
-	const pre = await stream.evaluate((el) => {
-		const previous = el.style.scrollBehavior
-		el.style.scrollBehavior = 'auto'
-		el.scrollTop = 60
-		el.style.scrollBehavior = previous
-		const node = el.querySelectorAll('[data-timeline-week]')[1]!
-		return {
-			key: node.getAttribute('data-timeline-week'),
-			inStream: Math.round(
-				node.getBoundingClientRect().top - el.getBoundingClientRect().top,
-			),
-			scrollTop: Math.round(el.scrollTop),
-			weeks: el.querySelectorAll('[data-timeline-week]').length,
-		}
-	})
-	await page.waitForTimeout(1200)
-	const post = await stream.evaluate((el, key) => {
-		const node = el.querySelector(`[data-timeline-week="${key}"]`)!
-		return {
-			inStream: Math.round(
-				node.getBoundingClientRect().top - el.getBoundingClientRect().top,
-			),
-			scrollTop: Math.round(el.scrollTop),
-			weeks: el.querySelectorAll('[data-timeline-week]').length,
-		}
-	}, pre.key)
-
-	// A week arrived above.
-	expect(post.weeks).toBeGreaterThan(pre.weeks)
-	expect(before.weeks).toBeGreaterThan(0)
-	// And the marked week did not move on screen: the compensation is that
-	// week's own offset delta, never the delta of total scrollHeight.
-	//
-	// Within a pixel, and the pixel is the platform's rather than the screen's.
-	// A week is 371.27px tall, not 371px, so the delta the compensation credits
-	// is fractional — and `scrollTop` is not: a written position snaps to whole
-	// pixels, which leaves up to 1px of the credit unspent. It does **not**
-	// accumulate, because the mark is re-measured after the write and the next
-	// credit starts from wherever the scroller actually landed. Demanding an
-	// exact number here demands something no scroller can hold; what the athlete
-	// cares about is that the week they were reading is still under their eye.
-	expect(Math.abs(post.inStream - pre.inStream)).toBeLessThanOrEqual(1)
-	// Which means the scroll position moved by the height inserted, to the same
-	// pixel's worth of tolerance and for the same reason.
-	expect(post.scrollTop).toBeGreaterThan(pre.scrollTop)
 })
 
 test('reading forwards loads later weeks, and the far end states itself', async ({
@@ -726,17 +585,11 @@ test('reading forwards loads later weeks, and the far end states itself', async 
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
-	const stream = page.getByTestId('timeline-stream')
-	const start = await streamState(page)
-	for (let pass = 0; pass < 12; pass++) {
-		const before = await streamState(page)
-		await stream.evaluate((el) => {
-			el.scrollTop = el.scrollHeight
-		})
-		await page.waitForTimeout(450)
-		if ((await streamState(page)).weeks === before.weeks) break
-	}
-	expect((await streamState(page)).weeks).toBeGreaterThan(start.weeks)
+	// Weeks ahead mount below as the reader nears the end, which moves nothing
+	// they can see — so it needs no compensation, and makes no write.
+	const appWrites = await countAppWrites(page)
+	await readToTheEnd(page)
+	expect(await appWrites()).toBe(0)
 
 	// Both ends are stated rather than left as an empty scroll.
 	await expect(page.getByText(/alt er skrevet til og med/i)).toBeVisible()
@@ -759,7 +612,9 @@ test('tapping a week in the strip jumps the stream there, and the frame follows 
 	const cells = strip.locator('[data-timeline-cell]')
 	// The whole season is in the strip, all of it on screen at once: nothing to
 	// scroll sideways, so no week is ever cut off at an edge.
-	expect(await cells.count()).toBeGreaterThan((await streamState(page)).weeks)
+	expect(await cells.count()).toBeGreaterThanOrEqual(
+		(await streamState(page)).weeks,
+	)
 	expect(
 		await strip.evaluate((el) => el.scrollWidth - el.clientWidth),
 	).toBeLessThanOrEqual(0)
@@ -815,25 +670,46 @@ test('tapping a week in the strip jumps the stream there, and the frame follows 
 		.toBe((await onScreen()).join())
 	expect(await framed()).not.toContain(todayWeek)
 
-	// The oldest week is outside the loaded window; tapping it loads and jumps.
+	// Tapping the oldest week jumps there **at once** (ADR 0086): measured in
+	// the same task as the press, so a smooth glide, or a jump that waited for a
+	// later frame, would fail it.
 	const oldest = cells.first()
 	const key = await oldest.getAttribute('data-timeline-cell')
-	await oldest.click()
+	const cellBox = (await oldest.boundingBox())!
+	const jumped = await page.evaluate(
+		({ key, x, y }) => {
+			const bars = document.querySelector('[data-strip-bars]')!
+			bars.dispatchEvent(
+				new PointerEvent('pointerdown', {
+					bubbles: true,
+					clientX: x,
+					clientY: y,
+					button: 0,
+					pointerId: 1,
+				}),
+			)
+			bars.dispatchEvent(
+				new PointerEvent('pointerup', { bubbles: true, pointerId: 1 }),
+			)
+			const el = document.querySelector('[data-timeline-stream]')!
+			const week = el.querySelector(`[data-timeline-week="${key}"]`)!
+			return Math.round(
+				week.getBoundingClientRect().top - el.getBoundingClientRect().top,
+			)
+		},
+		{
+			key,
+			x: cellBox.x + cellBox.width / 2,
+			y: cellBox.y + cellBox.height / 2,
+		},
+	)
+	expect(Math.abs(jumped)).toBeLessThanOrEqual(4)
+	// It stays there: nothing re-lands the reader after a jump.
 	await page.waitForTimeout(1000)
 	await expect(strip.locator('[aria-current="true"]')).toHaveAttribute(
 		'data-timeline-cell',
 		key!,
 	)
-	// The stream is on that week: its block sits at the top of the scroller.
-	const jumped = await page
-		.getByTestId('timeline-stream')
-		.evaluate((el, key) => {
-			const week = el.querySelector(`[data-timeline-week="${key}"]`)!
-			return Math.round(
-				week.getBoundingClientRect().top - el.getBoundingClientRect().top,
-			)
-		}, key)
-	expect(Math.abs(jumped)).toBeLessThanOrEqual(4)
 	await expect.poll(framed).toContain(key)
 })
 
@@ -877,17 +753,6 @@ async function useTheme(page: Page, theme: Theme) {
 		.addCookies([
 			{ name: 'en_theme', value: theme, domain: 'localhost', path: '/' },
 		])
-}
-
-/**
- * The token minted for the back-to-today pill, in each theme's own terms. Its
- * geometry rather than its literal text: the build minifies `oklch(0 0 0 /
- * 0.16)` down to `oklch(0% 0 0/.16)`, so asserting the string as authored would
- * pass against the dev server and fail against the built app.
- */
-const PILL_SHADOW: Record<Theme, { offsets: string; alpha: string }> = {
-	light: { offsets: '6px 20px', alpha: '.16' },
-	dark: { offsets: '8px 24px', alpha: '.45' },
 }
 
 /**
@@ -951,10 +816,8 @@ const MARKS_APART = 20
 
 /** One element's pixels, composited over whatever is behind it. */
 async function pixelsOf(target: Locator) {
-	// Settle the box before reading it. The hero folds with the scroll (#498),
-	// so scrolling a row into view re-lays-out the page *under* it, and both
-	// scrollers are smooth — "scroll, wait a beat, screenshot" is no longer
-	// sound. A clip taken mid-motion lands on the neighbouring row's ink, or on
+	// Settle the box before reading it. The list's scroller is smooth for the
+	// keyboard, so "scroll, wait a beat, screenshot" is not sound. A clip taken mid-motion lands on the neighbouring row's ink, or on
 	// bare surface, and reports a contrast that belongs to neither. This waits
 	// for the element to come to rest and shoots it there; it never moves an
 	// element a caller has already placed, because a visible box needs no
@@ -1141,37 +1004,29 @@ for (const theme of ['light', 'dark'] as const) {
 		// right (#486).
 		expect(apart(planned.mark, empty.mark)).toBeGreaterThanOrEqual(MARKS_APART)
 
-		// And the pill wears this theme's shadow, off the one token minted for it.
-		// The token is defined for this theme…
-		const token = await page.evaluate(() =>
-			getComputedStyle(document.documentElement)
-				.getPropertyValue('--shadow-pill')
-				.trim(),
-		)
-		expect(token).toContain(PILL_SHADOW[theme].offsets)
-		expect(token).toContain(PILL_SHADOW[theme].alpha)
-		const stream = page.getByTestId('timeline-stream')
+		// And the pill, once today is away, is a filled control in this theme:
+		// its fill stands apart from the page behind it (#486's lesson, for the
+		// one control that changes look).
 		for (let pass = 0; pass < 12; pass++) {
-			await stream.evaluate((el) => {
-				el.scrollTop = el.scrollHeight
-			})
+			await scrollStreamTo(page, 'end')
 			await page.waitForTimeout(450)
 			const state = await streamState(page)
 			if (state.todayOffset! - state.scrollTop < -60) break
 		}
 		const pill = page.getByRole('button', { name: 'Gå opp til i dag' })
 		await expect(pill).toBeVisible()
-		// …and it is the token the pill is painting with, not a literal of its own.
-		const shadow = await pill.evaluate((el) => getComputedStyle(el).boxShadow)
-		expect(shadow).toContain(PILL_SHADOW[theme].offsets)
-		expect(shadow).not.toContain(
-			PILL_SHADOW[theme === 'light' ? 'dark' : 'light'].offsets,
+		const fill = await inkPaint(pill)
+		const page_ = await pixelAt(
+			page,
+			((await pill.boundingBox())!.x as number) - 8,
+			(await pill.boundingBox())!.y + 4,
 		)
+		expect(apart(fill.surface, page_)).toBeGreaterThanOrEqual(MARKS_APART)
 	})
 }
 
 /**
- * The hero names the day of the session it is showing (#493).
+ * Today's row says what today holds (#493, ADR 0086): the hero's old job.
  *
  * Three fixtures at 390x844, one per shape of today — still to come, completed,
  * and empty — with the same session waiting two days out in all three, so the
@@ -1179,28 +1034,11 @@ for (const theme of ['light', 'dark'] as const) {
  *
  * The times are absolute rather than relative: the athlete timezone defaults to
  * UTC, so today's own midnight is always in the past and today's last
- * millisecond is always in the future, whatever hour CI happens to run at. An
- * offset like "now + 1 hour" reads as tomorrow just after midnight, which is
- * exactly the kind of by-the-calendar failure #493 is about.
+ * millisecond is always in the future, whatever hour CI happens to run at.
  */
 type TodayShape = 'to-come' | 'completed' | 'empty'
 
-/** The weekday name the hero must use for a session two days out. */
-function weekdayTwoDaysOut(): string {
-	const day = 24 * 60 * 60 * 1000
-	const weekday = [
-		'søndag',
-		'mandag',
-		'tirsdag',
-		'onsdag',
-		'torsdag',
-		'fredag',
-		'lørdag',
-	][new Date(Date.now() + 2 * day).getUTCDay()]!
-	return weekday[0]!.toUpperCase() + weekday.slice(1)
-}
-
-async function seedHeroDay(userId: string, shape: TodayShape) {
+async function seedTodayShape(userId: string, shape: TodayShape) {
 	const todayKey = new Date().toISOString().slice(0, 10)
 	const day = 24 * 60 * 60 * 1000
 	const nextKey = new Date(Date.now() + 2 * day).toISOString().slice(0, 10)
@@ -1244,7 +1082,7 @@ async function seedHeroDay(userId: string, shape: TodayShape) {
 			},
 		})
 
-	// Two days out, in every fixture: the session the hero falls back to.
+	// Two days out, in every fixture.
 	const next = await workout('Interval Run')
 	await session({
 		workoutId: next.id,
@@ -1256,8 +1094,6 @@ async function seedHeroDay(userId: string, shape: TodayShape) {
 	const today = await workout('Tempo Run')
 	await session({
 		workoutId: today.id,
-		// Today's last millisecond when it is still to come; today's first when it
-		// is already logged.
 		scheduledAt: new Date(
 			shape === 'to-come'
 				? `${todayKey}T23:59:59.999Z`
@@ -1269,24 +1105,30 @@ async function seedHeroDay(userId: string, shape: TodayShape) {
 	})
 }
 
-test('today still to come: the kicker says today and the heading is that session', async ({
+const todayRow = (page: Page) =>
+	page.getByTestId('timeline-stream').locator('[data-timeline-today]')
+
+test('today still to come: today’s row is that session, with its action on it', async ({
 	page,
 	navigate,
 	login,
 }) => {
 	test.setTimeout(120_000)
 	const user = await login()
-	await seedHeroDay(user.id, 'to-come')
+	await seedTodayShape(user.id, 'to-come')
 
 	await navigate('/')
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 
-	await expect(
-		page.getByRole('heading', { name: 'Tempo Run', level: 1 }),
-	).toBeVisible()
-	await expect(page.getByText(/^i dag · løping/i)).toBeVisible()
-	// The headline is already today's, so there is nothing to demote to a fact.
-	await expect(page.getByText(/neste ·/i)).toHaveCount(0)
+	const row = todayRow(page)
+	await expect(row).toBeInViewport()
+	await expect(row.getByRole('link', { name: /Tempo Run/ })).toBeVisible()
+	const cta = row.getByRole('link', { name: 'Se økta' })
+	await expect(cta).toBeVisible()
+	// A real 44px-reachable control, on the row it opens.
+	expect((await cta.boundingBox())!.height).toBeGreaterThanOrEqual(32)
+	// The coach's one line, said once, in today's row.
+	await expect(row.locator('[data-today-verdict]')).toHaveCount(1)
 	expect(
 		await page.evaluate(
 			() =>
@@ -1296,49 +1138,42 @@ test('today still to come: the kicker says today and the heading is that session
 	).toBeLessThanOrEqual(0)
 })
 
-test("today completed: the hero says today is done, never headlining a later session as today's", async ({
+test('today completed: today’s row is the done session, and nothing later is headlined as today’s', async ({
 	page,
 	navigate,
 	login,
 }) => {
 	test.setTimeout(120_000)
 	const user = await login()
-	await seedHeroDay(user.id, 'completed')
+	await seedTodayShape(user.id, 'completed')
 
 	await navigate('/')
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 
-	await expect(
-		page.getByRole('heading', { name: 'I dag er gjort', level: 1 }),
-	).toBeVisible()
-	await expect(page.getByText('Neste · Interval Run')).toBeVisible()
-	// The kicker names the day that session is actually on.
-	await expect(
-		page.getByText(new RegExp(`^${weekdayTwoDaysOut()} · løping`, 'i')),
-	).toBeVisible()
-	await expect(page.getByText(/^i dag · løping/i)).toHaveCount(0)
+	const row = todayRow(page)
+	await expect(row.getByRole('link', { name: /Tempo Run/ })).toBeVisible()
+	await expect(row).not.toContainText('Interval Run')
+	await expect(page.getByRole('link', { name: 'Se økta' })).toHaveCount(0)
 })
 
-test('today empty: the hero says so and presents what is next as a fact', async ({
+test('today empty: today’s row says so, and is the cell that writes one', async ({
 	page,
 	navigate,
 	login,
 }) => {
 	test.setTimeout(120_000)
 	const user = await login()
-	await seedHeroDay(user.id, 'empty')
+	await seedTodayShape(user.id, 'empty')
 
 	await navigate('/')
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 
-	await expect(
-		page.getByRole('heading', { name: 'Ingenting i dag', level: 1 }),
-	).toBeVisible()
-	await expect(page.getByText('Neste · Interval Run')).toBeVisible()
-	await expect(
-		page.getByText(new RegExp(`^${weekdayTwoDaysOut()} · løping`, 'i')),
-	).toBeVisible()
-	await expect(page.getByText(/^i dag · løping/i)).toHaveCount(0)
+	const row = todayRow(page)
+	await expect(row).toContainText('Ingenting i dag')
+	await expect(row).not.toContainText('Interval Run')
+	await expect(page.getByRole('link', { name: 'Se økta' })).toHaveCount(0)
+	await row.locator('[data-timeline-empty]').click()
+	await expect(row.locator('[data-timeline-draft]')).toBeVisible()
 	expect(
 		await page.evaluate(
 			() =>
@@ -1349,77 +1184,12 @@ test('today empty: the hero says so and presents what is next as a fact', async 
 })
 
 /**
- * The two horizontal axes (#496, ADR 0065 §8).
- *
- * The hero pages and moves nothing else; the strip scrolls and takes the stream
- * with it. Two swipeable bands stacked on one 390px screen is exactly the
- * arrangement that reads fine in a mockup and falls apart under a thumb, and
- * none of it exists in jsdom: `touch-action` is a computed style nothing
- * simulates, a drag is a stream of timestamped pointer events, and "the pane
- * that was being headed for" is a claim about velocity.
- *
- * Both themes, because #486 is the ticket that found six marks drawn for the
- * theme the app does not open in, and a pane of numbers is six more.
+ * One vertical axis and one strip (ADR 0086). The hero's pager is gone, so
+ * the only sideways instrument is the strip, which shows the whole season and
+ * has nothing to scroll; a vertical drag anywhere on the list scrolls the list.
  */
-
-/** The Training Load history the Form pane reads: enough days to clear the gate. */
-async function seedLoadHistory(userId: string) {
-	const day = 24 * 60 * 60 * 1000
-	const days = 60
-	await prisma.loadSnapshot.createMany({
-		data: Array.from({ length: days }, (_, i) => {
-			const date = new Date(Date.now() - (days - 1 - i) * day)
-				.toISOString()
-				.slice(0, 10)
-			// A gentle build: CTL climbing 40 → 62, ATL just under it, so Form is a
-			// small positive number and every reading on the pane is a real one.
-			const ctl = 40 + (22 * i) / (days - 1)
-			const atl = ctl - 4
-			return {
-				athleteId: userId,
-				date,
-				tssTotal: 60,
-				tssByDiscipline: JSON.stringify({ run: 60 }),
-				ctl,
-				atl,
-				tsb: ctl - atl,
-				computedAt: new Date(),
-			}
-		}),
-	})
-}
-
-/** The middle of a band, as a point to start a gesture from. */
-async function centreOf(target: Locator) {
-	const box = (await target.boundingBox())!
-	return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
-}
-
-/**
- * A flick: a real pointer drag with real timestamps, so the browser and motion
- * see the velocity the projection is about. Short travel on purpose — the whole
- * claim is that where the finger *stopped* is not where the pane lands.
- */
-async function flick(page: Page, from: { x: number; y: number }, dx: number) {
-	await page.mouse.move(from.x, from.y)
-	await page.mouse.down()
-	for (let step = 1; step <= 6; step++) {
-		await page.mouse.move(from.x + (dx * step) / 6, from.y)
-	}
-	await page.mouse.up()
-	// The spring settles in 0.35s; give it that and a margin.
-	await page.waitForTimeout(600)
-}
-
-/** Which pane the hero is showing, by the one the pager has not made inert. */
-async function showingPane(page: Page) {
-	return page
-		.locator('[aria-roledescription="slide"]:not([inert])')
-		.getAttribute('aria-label')
-}
-
 for (const theme of ['light', 'dark'] as const) {
-	test(`a swipe in either band does only that band's job (${theme})`, async ({
+	test(`a sideways swipe over the strip moves nothing, and the list scrolls (${theme})`, async ({
 		page,
 		navigate,
 		login,
@@ -1427,94 +1197,38 @@ for (const theme of ['light', 'dark'] as const) {
 		test.setTimeout(120_000)
 		const user = await login()
 		await seedSeason(user.id)
-		await seedLoadHistory(user.id)
 		await useTheme(page, theme)
 
 		await navigate('/')
 		await expect(page.getByTestId('timeline-stream')).toBeVisible()
-		await page.waitForTimeout(2500)
+		await page.waitForTimeout(1500)
 
-		const pager = page.getByTestId('hero-pager')
 		const strip = page.getByTestId('week-strip')
-		// The pager hands a vertical component of a drag to the stream rather than
-		// eating it sideways.
-		expect(await pager.evaluate((el) => getComputedStyle(el).touchAction)).toBe(
-			'pan-x',
-		)
-		// The strip shows the whole season at once (#505), so it has nothing to
-		// scroll sideways and nothing for a swipe to steal.
 		expect(
 			await strip.evaluate((el) => el.scrollWidth - el.clientWidth),
 		).toBeLessThanOrEqual(0)
-		// The dots row is between them, belongs to neither, and swallows a stray
-		// thumb rather than handing it to whichever band is nearer.
-		const dots = page.getByTestId('hero-pane-dots')
-		await expect(dots).toBeInViewport()
-		expect(await dots.evaluate((el) => getComputedStyle(el).touchAction)).toBe(
-			'none',
-		)
-		// And the whole band fits: the hero folds away on scroll, so anything the
-		// header pushes off the screen is something the athlete never sees at all.
-		// The strip is the last thing in the header block, so its being in the
-		// viewport is the band as a whole fitting.
 		await expect(strip).toBeInViewport()
+		const before = await streamState(page)
+
+		const box = (await strip.boundingBox())!
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+		await page.mouse.wheel(240, 0)
+		await page.waitForTimeout(400)
+		expect((await streamState(page)).scrollTop).toBe(before.scrollTop)
+
+		// The list's overscroll is contained: its end never drags the page.
 		expect(
 			await page
-				.getByTestId('hero-fold')
-				.evaluate((el) => el.scrollHeight - el.clientHeight),
-		).toBeLessThanOrEqual(1)
+				.getByTestId('timeline-stream')
+				.evaluate((el) => getComputedStyle(el).overscrollBehaviorY),
+		).toBe('contain')
+		const list = (await page.getByTestId('timeline-stream').boundingBox())!
+		await page.mouse.move(list.x + list.width / 2, list.y + list.height / 2)
+		await page.mouse.wheel(0, 200)
+		await expect
+			.poll(async () => (await streamState(page)).scrollTop)
+			.toBeGreaterThan(before.scrollTop)
 
-		// ── the hero's band pages, and moves nothing else ──
-		const before = await streamState(page)
-		const stripLeft = await strip.evaluate((el) => el.scrollLeft)
-		expect(await showingPane(page)).toBe('I dag, side 1 av 4')
-
-		// 60px of travel on a 390px pane: nowhere near the halfway a
-		// release-position rule would need, and the flick lands on pane 2 anyway.
-		await flick(page, await centreOf(pager), -60)
-		expect(await showingPane(page)).toBe('Form, side 2 av 4')
-
-		const after = await streamState(page)
-		expect(after.scrollTop).toBe(before.scrollTop)
-		expect(after.weeks).toBe(before.weeks)
-		expect(await strip.evaluate((el) => el.scrollLeft)).toBe(stripLeft)
-
-		// The pane it paged to is the Training Load triad, off the snapshots the
-		// loader has been fetching all along.
-		const form = page.getByLabel('Form, side 2 av 4')
-		await expect(
-			form.getByRole('button', { name: 'Kondisjon (CTL)' }),
-		).toBeVisible()
-		await expect(
-			form.getByRole('button', { name: 'Tretthet (ATL)' }),
-		).toBeVisible()
-		await expect(form.getByRole('button', { name: 'Form (TSB)' })).toBeVisible()
-		await expect(form).toContainText('62')
-
-		// ── a sideways swipe over the strip moves nothing, the hero included ──
-		//
-		// A horizontal wheel is the gesture the platform maps a sideways swipe
-		// onto; over a strip with nothing to scroll it must leave both the strip
-		// and the pager where they were.
-		const stripCentre = await centreOf(strip)
-		await page.mouse.move(stripCentre.x, stripCentre.y)
-		await page.mouse.wheel(240, 0)
-		await page.waitForTimeout(600)
-		expect(await strip.evaluate((el) => el.scrollLeft)).toBe(stripLeft)
-		expect(await showingPane(page)).toBe('Form, side 2 av 4')
-
-		// ── every pane is reachable without a swipe at all ──
-		for (const [name, label] of [
-			['Denne uka', 'Denne uka, side 3 av 4'],
-			['Rekorder', 'Rekorder, side 4 av 4'],
-			['I dag', 'I dag, side 1 av 4'],
-		] as const) {
-			await page.getByRole('button', { name, exact: true }).click()
-			await page.waitForTimeout(500)
-			expect(await showingPane(page)).toBe(label)
-		}
-
-		// And none of it widened the screen.
 		expect(
 			await page.evaluate(
 				() =>
@@ -1746,40 +1460,30 @@ for (const around of [true, false] as const) {
 	})
 }
 
-test('with nothing on today the stream still lands on today, the hero still collapses from there, and the pill still comes back', async ({
+test('with nothing on today the stream still lands on today, and the pill still comes back', async ({
 	page,
 	navigate,
 	login,
 }) => {
-	// The rest-day dead end, all three of it. With no session on today the
-	// anchor used to be null: the stream opened on the top of last week, the
-	// hero measured its collapse from zero instead of from the landing, and the
-	// pill had no row to be above or below so it never rendered at all
-	// (ADR 0065 §1). A row on today dissolves all three.
+	// The rest-day dead end. With no session on today the anchor used to be
+	// null and the stream opened on the top of last week (ADR 0065 §1). A row on
+	// today dissolves it.
 	test.setTimeout(120_000)
 	const user = await login()
 	await seedRestDayToday(user.id, { around: true })
 
 	await navigate('/')
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
-	await page.waitForTimeout(2500)
+	await page.waitForTimeout(1500)
 
 	const stream = page.getByTestId('timeline-stream')
-	// Polled rather than sampled once: a scroll event reaches the fold a frame
-	// after the position is assigned, and the pill's jump moves the stream
-	// programmatically, without a scroll event of its own to synchronise against.
-	// The fold itself no longer has a duration to wait out (#498).
-	const height = async () => (await heroFold(page)).height
-	const heroOpen = () => expect.poll(height).toBeGreaterThan(0)
-	const heroFolded = () => expect.poll(height).toBe(0)
-
-	// 1 — parked on today, which is an empty cell.
+	// 1 — parked on today, which is an empty cell that says so.
 	const landed = await streamState(page)
 	expect(landed.scrollHeight).toBeGreaterThan(landed.clientHeight)
 	expect(landed.todayOffset).not.toBeNull()
-	expect(landed.scrollTop).toBe(
-		Math.max(0, landed.todayOffset! - landed.landingOffset),
-	)
+	expect(
+		Math.abs(landed.scrollTop - (await landingOf(page))),
+	).toBeLessThanOrEqual(1)
 	const anchorIsEmpty = await stream.evaluate(
 		(el) =>
 			!!el
@@ -1787,34 +1491,25 @@ test('with nothing on today the stream still lands on today, the hero still coll
 				?.querySelector('[data-timeline-empty]'),
 	)
 	expect(anchorIsEmpty).toBe(true)
-
-	// 2 — the hero is open on arrival, because the collapse is measured from the
-	// landing position and not from `scrollTop === 0`.
-	await heroOpen()
 	await expect(todayPill(page)).toHaveAttribute('data-away', '0')
 
-	// 3 — reading away from today folds it, and the pill appears pointing back.
+	// 2 — reading away from today, the pill points back.
 	for (let pass = 0; pass < 12; pass++) {
-		await stream.evaluate((el) => {
-			el.scrollTop = el.scrollHeight
-		})
+		await scrollStreamTo(page, 'end')
 		await page.waitForTimeout(450)
 		const state = await streamState(page)
 		if (state.todayOffset! - state.scrollTop < -60) break
 	}
-	await readToTheEnd(page)
-	await heroFolded()
 	const pill = page.getByRole('button', { name: 'Gå opp til i dag' })
 	await expect(pill).toBeVisible()
 
-	// 4 — and it works: today's row is back in view and the hero re-opens.
+	// 3 — and it works: today's row is back in view.
 	await pill.click()
 	await expect(todayPill(page)).toHaveAttribute('data-away', '0')
 	const back = await streamState(page)
 	const rel = back.todayOffset! - back.scrollTop
 	expect(rel).toBeGreaterThan(-60)
 	expect(rel).toBeLessThan(back.clientHeight - 40)
-	await heroOpen()
 })
 
 test('a day holding two sessions is one row under one gutter, between the cells around it', async ({
@@ -1952,13 +1647,41 @@ test('a planned row says whose it is, and its title is never cut short (#505)', 
 	await expect(mine).toBeVisible()
 	await expect(theApps).toBeVisible()
 
-	// The athlete's own session carries a small lock, named for what it means.
-	await expect(mine.getByRole('img', { name: 'din økt' })).toBeVisible()
-	await expect(mine).toHaveAccessibleName(/din økt/)
-	// The app's own carries a quieter mark of its own, named for what it means.
-	await expect(theApps.getByRole('img', { name: 'din økt' })).toHaveCount(0)
-	await expect(theApps.getByRole('img', { name: 'appens økt' })).toBeVisible()
-	await expect(theApps).toHaveAccessibleName(/appens økt/)
+	// Whose session it is, as a small glyph beside each row (#505 D6): a closed
+	// lock on the athlete's own, an open one on the app's — each a control named
+	// for what it is and that it explains.
+	const mineGlyph = row.getByRole('button', {
+		name: /^Din økt: Langtur med gjengen/,
+	})
+	const appsGlyph = row.getByRole('button', { name: /^Appens økt: Rolig tur/ })
+	await expect(mineGlyph).toBeVisible()
+	await expect(appsGlyph).toBeVisible()
+	// The explanation and "Lås opp" are said once, behind the glyph — never
+	// repeated under every row.
+	await expect(
+		page.getByText('Gi økta tilbake til appen', { exact: false }),
+	).toHaveCount(0)
+	await mineGlyph.click()
+	const popover = page.locator('[data-owner-popover="athlete"]')
+	await expect(popover).toBeVisible()
+	await expect(popover).toContainText('Appen endrer den bare hvis du sier ja')
+	await expect(
+		popover.getByRole('button', { name: /^Lås opp Langtur med gjengen/ }),
+	).toBeVisible()
+	// Inside the phone, whole.
+	const pbox = (await popover.boundingBox())!
+	expect(pbox.x).toBeGreaterThanOrEqual(0)
+	expect(pbox.x + pbox.width).toBeLessThanOrEqual(390)
+	await page.keyboard.press('Escape')
+	await expect(popover).toHaveCount(0)
+	await appsGlyph.click()
+	await expect(page.locator('[data-owner-popover="machine"]')).toContainText(
+		'Planen la inn denne økta',
+	)
+	await expect(
+		page.getByRole('button', { name: /^Lås opp Rolig tur/ }),
+	).toHaveCount(0)
+	await page.keyboard.press('Escape')
 
 	// The whole title, on as many lines as it takes: nothing overflows, nothing
 	// is clipped with an ellipsis, and the row grew to hold it.
@@ -1977,7 +1700,7 @@ test('a planned row says whose it is, and its title is never cut short (#505)', 
 	expect(box.lines).toBeGreaterThan(1)
 })
 
-test('the collapsed hero’s header wraps the session’s title, never cutting it (#505 story 32)', async ({
+test('today’s row wraps the session’s title, never cutting it (#505 story 32)', async ({
 	page,
 	navigate,
 	login,
@@ -1994,15 +1717,13 @@ test('the collapsed hero’s header wraps the session’s title, never cutting i
 
 	await navigate('/')
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
-	await page.waitForTimeout(2500)
 
-	// Read down until the hero has folded away: the header takes over, and
-	// names today's session whole, on as many lines as it takes.
-	await readToTheEnd(page)
-	await expect.poll(async () => (await heroFold(page)).height).toBe(0)
-	const collapsed = page.locator('[data-hero-collapsed-title]')
-	await expect(collapsed).toHaveText(longTitle)
-	const header = await collapsed.evaluate((el) => ({
+	const title = page
+		.locator('[data-timeline-today] [data-session-title]')
+		.filter({ hasText: longTitle })
+		.first()
+	await expect(title).toHaveText(longTitle)
+	const box = await title.evaluate((el) => ({
 		overflows: el.scrollWidth > el.clientWidth,
 		ellipsis: getComputedStyle(el).textOverflow === 'ellipsis',
 		lines: Math.round(
@@ -2010,9 +1731,9 @@ test('the collapsed hero’s header wraps the session’s title, never cutting i
 				parseFloat(getComputedStyle(el).lineHeight),
 		),
 	}))
-	expect(header.overflows).toBe(false)
-	expect(header.ellipsis).toBe(false)
-	expect(header.lines).toBeGreaterThan(1)
+	expect(box.overflows).toBe(false)
+	expect(box.ellipsis).toBe(false)
+	expect(box.lines).toBeGreaterThan(1)
 })
 
 /**
@@ -2070,9 +1791,9 @@ for (const theme of ['light', 'dark'] as const) {
 		expect(paint.contrast).toBeGreaterThan(MARK_MIN)
 		// And it must stay quieter than a row that carries content, or a week of
 		// blanks reads as a list of prompts rather than as a blank column.
-		// A title the reader can actually see: the week header is sticky and the
-		// hero folds with the scroll, so "centred" can still leave a title under
-		// one of them — measured, that is the header's paint, not the title's.
+		// A title the reader can actually see: the week header is sticky, so
+		// "centred" can still leave a title under it — measured, that is the
+		// header's paint, not the title's.
 		const titles = page.locator('[data-status] [data-session-title]')
 		await titles.last().evaluate((el) => el.scrollIntoView({ block: 'center' }))
 		await page.waitForTimeout(400)
@@ -2239,11 +1960,9 @@ test('a run of empty days behind today is one band, and opening it does not move
 	const key = collapsed.key!
 	// The direct child: expanded, the band holds seven day buttons as well.
 	const control = stream.locator(`[data-timeline-band="${key}"] > button`)
-	// The hero folds with the scroll (#498), so the park moves the stream out
-	// from under itself: the stream grows as the hero goes, and a single
-	// computed write into a smooth scroller lands somewhere else entirely. Park
-	// with `scroll-behavior` off and re-park until the position holds still —
-	// what follows measures a reader who has come to rest, not one still moving.
+	// A single computed write into a smooth scroller lands somewhere else
+	// entirely, so park with `scroll-behavior` off and re-park until the position
+	// holds still — what follows measures a reader who has come to rest.
 	let parked = Number.NaN
 	for (let tries = 0; tries < 10; tries++) {
 		await stream.evaluate((el, key) => {
@@ -2555,13 +2274,9 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
  * declares is collected and compared against the list, and a fifth one arriving
  * later fails here whatever it is attached to.
  *
- * **What this does not cover**, stated because the enumeration reads as if it
- * covered everything: it is a *declaration* audit, so it sees only what the
- * stylesheet says. The hero's pager settles its pane on a `motion/react` spring
- * (`hero-pager.ts`, mandated by #496), which writes `transform` frame by frame
- * from JavaScript and declares nothing — ADR 0077 §2 records it there instead,
- * as the fifth animation this test is blind to by construction. Nothing else
- * on this screen is JS-driven.
+ * **What this does not cover**: it is a *declaration* audit, so it sees only
+ * what the stylesheet says. Nothing on this screen animates from JavaScript
+ * since the hero's pager went (ADR 0086).
  *
  * The frame is also the boundary: the app's shared overlays (the create menu,
  * the token popover) portal to `document.body`, are not the timeline's markup,
@@ -2690,34 +2405,64 @@ test('the timeline animates its accordions and its press, and the frame declares
 	await stream.locator('[data-timeline-empty]').first().click()
 	await expect(stream.locator('[data-timeline-draft]')).toBeVisible()
 
-	// The whole list, element by element. The accordions (the draft, the band's
-	// run of days, and a folded week's days: height + opacity) and the press
-	// (transform, on the four things the athlete taps: a row, a cell, a band and
-	// a fold) — every one of them on the scale's own curve, and no `all`, no
-	// built-in easing, no keyframes. The "I dag" pill no longer animates: it
-	// never comes or goes, it changes look (ADR 0082).
+	// The whole frame, element by element (ADR 0086 updates the list): the
+	// accordions (the draft, the band's run of days, and a folded week's days:
+	// height + opacity, 200ms) and the system's press, `pressable` (ADR 0085:
+	// `scale(0.97)` with the colours on the same 160ms curve) on what the
+	// athlete taps — a row, a cell, a band, a fold, the ownership glyph and
+	// "+ Ny" (`data-base-ui-click-trigger`), today's "Se økta" link
+	// (`data-discover`) and the badge-and-pill buttons' `Button`s
+	// (`data-slot`). Every one on the scale's own curve: no `all`, no
+	// built-in easing, no keyframes. The strip and the list's scroll declare
+	// nothing, and the "I dag" pill changes look instantly.
 	//
 	// Element by element, because a set of ingredients cannot fail on a new
 	// element reusing a curve that is already on the list — which is exactly the
 	// shape of the row-enter fade #502 removed.
 	expect(await motionInFrame(page)).toEqual([
+		`[data-base-ui-click-trigger] — background-color 0.16s ${EASE_OUT}`,
+		`[data-base-ui-click-trigger] — border-color 0.16s ${EASE_OUT}`,
+		`[data-base-ui-click-trigger] — color 0.16s ${EASE_OUT}`,
+		`[data-base-ui-click-trigger] — transform 0.16s ${EASE_OUT}`,
+		`[data-discover] — background-color 0.16s ${EASE_OUT}`,
+		`[data-discover] — border-color 0.16s ${EASE_OUT}`,
+		`[data-discover] — color 0.16s ${EASE_OUT}`,
+		`[data-discover] — transform 0.16s ${EASE_OUT}`,
+		`[data-slot] — background-color 0.16s ${EASE_OUT}`,
+		`[data-slot] — border-color 0.16s ${EASE_OUT}`,
+		`[data-slot] — color 0.16s ${EASE_OUT}`,
+		`[data-slot] — transform 0.16s ${EASE_OUT}`,
+		`[data-status] — background-color 0.16s ${EASE_OUT}`,
+		`[data-status] — border-color 0.16s ${EASE_OUT}`,
+		`[data-status] — color 0.16s ${EASE_OUT}`,
 		`[data-status] — transform 0.16s ${EASE_OUT}`,
+		`[data-timeline-band] button — background-color 0.16s ${EASE_OUT}`,
+		`[data-timeline-band] button — border-color 0.16s ${EASE_OUT}`,
+		`[data-timeline-band] button — color 0.16s ${EASE_OUT}`,
 		`[data-timeline-band] button — transform 0.16s ${EASE_OUT}`,
 		`[data-timeline-band] div — height 0.2s ${EASE_OUT}`,
 		`[data-timeline-band] div — opacity 0.2s ${EASE_OUT}`,
 		`[data-timeline-draft] — height 0.2s ${EASE_OUT}`,
 		`[data-timeline-draft] — opacity 0.2s ${EASE_OUT}`,
+		`[data-timeline-empty] — background-color 0.16s ${EASE_OUT}`,
+		`[data-timeline-empty] — border-color 0.16s ${EASE_OUT}`,
+		`[data-timeline-empty] — color 0.16s ${EASE_OUT}`,
 		`[data-timeline-empty] — transform 0.16s ${EASE_OUT}`,
 		`[data-timeline-fold-run] — height 0.2s ${EASE_OUT}`,
 		`[data-timeline-fold-run] — opacity 0.2s ${EASE_OUT}`,
+		`[data-timeline-fold] — background-color 0.16s ${EASE_OUT}`,
+		`[data-timeline-fold] — border-color 0.16s ${EASE_OUT}`,
+		`[data-timeline-fold] — color 0.16s ${EASE_OUT}`,
 		`[data-timeline-fold] — transform 0.16s ${EASE_OUT}`,
 	])
 
 	// And the press is where it was promised: rows, cells, the band control and
-	// the fold.
+	// the fold. Nothing in the strip declares anything.
 	const pressed = await stream.evaluate((el) => {
 		const has = (node: Element | null) =>
-			node ? getComputedStyle(node).transitionProperty === 'transform' : false
+			node
+				? getComputedStyle(node).transitionProperty.includes('transform')
+				: false
 		return {
 			row: has(el.querySelector('[data-status]')),
 			cell: has(el.querySelector('[data-timeline-empty]')),
@@ -2764,15 +2509,10 @@ test.describe(() => {
 
 		const resting = await page.evaluate(() => {
 			const pill = document.querySelector<HTMLElement>('[data-today-pill]')
-			const lift = document.querySelector<HTMLElement>(
-				'[data-testid="hero-fold"] > *',
-			)
 			return {
 				// The pill changes look and never moves (ADR 0082), so there is no
 				// motion of its own for reduced motion to drop.
 				pillMotion: pill ? getComputedStyle(pill).transitionDuration : null,
-				// The hero's parallax is the only movement in the fold (#498).
-				heroLift: lift ? getComputedStyle(lift).transform : null,
 				// The stream does not glide: every write this screen makes is a
 				// jump, and the athlete's own scrolling is not smoothed either. (The
 				// strip no longer scrolls at all — ADR 0082 §5 — so it has no scroll
@@ -2782,7 +2522,6 @@ test.describe(() => {
 				).scrollBehavior,
 			}
 		})
-		expect(resting.heroLift).toBe('none')
 		expect(resting.stream).toBe('auto')
 		expect(resting.pillMotion).toBe('0s')
 	})
@@ -2932,8 +2671,8 @@ test('a week past the Planning Horizon is one line, and still shows the athlete�
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
-	// The far week is outside the window the stream opens on; the strip jumps
-	// there.
+	// The far week may be past the weeks mounted ahead; the strip jumps
+	// there, mounting it on the way.
 	await page
 		.getByTestId('week-strip')
 		.locator(`[data-timeline-cell="${farWeek}"]`)
@@ -2949,7 +2688,9 @@ test('a week past the Planning Horizon is one line, and still shows the athlete�
 	// The athlete's own session is there, in full, with its mark…
 	const mine = week.getByRole('link', { name: /langtur med gjengen/i })
 	await expect(mine).toBeVisible()
-	await expect(mine.getByRole('img', { name: 'din økt' })).toBeVisible()
+	await expect(
+		week.getByRole('button', { name: /^Din økt: Langtur med gjengen/ }),
+	).toBeVisible()
 	// …and it is the only day the collapsed week draws: no empty cells.
 	await expect(week.locator('[data-timeline-day]')).toHaveCount(1)
 	await expect(week.locator('[data-timeline-empty]')).toHaveCount(0)
@@ -2979,8 +2720,8 @@ test('a closed week folds to one line above today, and opens in place (#505 stor
 	expect(height).toBeLessThan(90)
 	// Read from the top of the stream, where the reader is last parked in a
 	// *later* week than the fold: the run must open below the line without the
-	// stream crediting it to that week and throwing the reader down — which
-	// also brought the hero half back open over an empty box (S9 review).
+	// stream crediting it to that week and throwing the reader down (S9
+	// review).
 	await scrollStreamTo(page, (await streamState(page)).scrollTop + 900)
 	await page.waitForTimeout(600)
 	await scrollStreamTo(page, 0)

@@ -321,9 +321,12 @@ test('Ukeskiftet: the week that went, Ok, Nei takk, fra nå av, −15 % and lås
 	expect(tssBefore).toBeGreaterThan(0)
 	await navigate('/')
 
-	// The line on top says what waits, and takes the athlete to it: the first
-	// question's Ok is on screen at 390×844.
-	await expect(page.getByText('Ukeskiftet: 4 forslag venter')).toBeVisible()
+	// The badge on the top line says what waits, and takes the athlete to it
+	// (ADR 0086): the first question's Ok is on screen at 390×844.
+	const badge = page.getByRole('button', {
+		name: 'Ukeskiftet: 4 forslag venter. Gå til forslagene',
+	})
+	await expect(badge).toHaveText('4 forslag')
 	await shot(page, '0-landing')
 	const card = page.getByRole('region', { name: 'Ukeskiftet' })
 	const proposal = (headline: string | RegExp) =>
@@ -331,7 +334,7 @@ test('Ukeskiftet: the week that went, Ok, Nei takk, fra nå av, −15 % and lås
 	const rolig = card.getByRole('article', { name: /^«Rolig tur»/ })
 	// The jump needs the page hydrated, and the landing done; retried until then.
 	await expect(async () => {
-		await page.getByRole('button', { name: 'Se forslagene' }).click()
+		await badge.click()
 		await expect(rolig.getByRole('button', { name: 'Ok' })).toBeInViewport({
 			timeout: 1000,
 		})
@@ -407,9 +410,12 @@ test('Ukeskiftet: the week that went, Ok, Nei takk, fra nå av, −15 % and lås
 	await navigate('/')
 	await expect(card.getByText(easedText!)).toBeAttached()
 	// One question is left; the jump lands on it once the page is live.
-	await expect(page.getByText('Ukeskiftet: 1 forslag venter')).toBeVisible()
+	const lastBadge = page.getByRole('button', {
+		name: 'Ukeskiftet: 1 forslag venter. Gå til forslagene',
+	})
+	await expect(lastBadge).toBeVisible()
 	await expect(async () => {
-		await page.getByRole('button', { name: 'Se forslagene' }).click()
+		await lastBadge.click()
 		await expect(
 			makeUp.getByRole('button', { name: 'Nei takk' }),
 		).toBeInViewport({ timeout: 1000 })
@@ -421,16 +427,23 @@ test('Ukeskiftet: the week that went, Ok, Nei takk, fra nå av, −15 % and lås
 		card.getByText('Alt er besvart.', { exact: false }),
 	).toBeVisible()
 	await expect(card.getByText(easedText!)).toBeVisible()
-	await expect(page.getByText(/forslag venter/)).toHaveCount(0)
+	await expect(
+		page.getByRole('button', { name: /forslag venter/ }),
+	).toHaveCount(0)
 	await shot(page, '4-settled')
 	await card.getByRole('button', { name: 'Lukk' }).click()
 	await expect(card).toHaveCount(0)
 
-	// Lås opp: the athlete's own session goes back to the app.
+	// Lås opp: the athlete's own session goes back to the app — behind the
+	// row's ownership glyph, said once rather than under every row (ADR 0086).
+	const glyph = page.getByRole('button', {
+		name: 'Din økt: Langtur med gjengen. Hva betyr det?',
+	})
+	await glyph.scrollIntoViewIfNeeded()
+	await glyph.click()
 	const release = page.getByRole('button', {
 		name: 'Lås opp Langtur med gjengen',
 	})
-	await release.scrollIntoViewIfNeeded()
 	await expect(release).toBeVisible()
 	if (SHOTS) await page.screenshot({ path: `${SHOTS}/5-release.png` })
 	await release.click()
@@ -445,8 +458,14 @@ test('Ukeskiftet: the week that went, Ok, Nei takk, fra nå av, −15 % and lås
 				).releasedAt,
 		)
 		.not.toBeNull()
-	// After the reload, no "lås opp" on it, and no card: nothing is left to answer.
+	// After the reload the session is the app's — its glyph says so — and there
+	// is no card: nothing is left to answer.
 	await navigate('/')
+	await expect(
+		page.getByRole('button', {
+			name: 'Appens økt: Langtur med gjengen. Hva betyr det?',
+		}),
+	).toBeAttached()
 	await expect(
 		page.getByRole('button', { name: 'Lås opp Langtur med gjengen' }),
 	).toHaveCount(0)

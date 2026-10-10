@@ -186,18 +186,17 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	// ---------------------------------------------------------------------
 
 	await navigate('/')
-	// Home now knows about the plan: the header says where in it today falls, the
-	// hero counts down to the race the season is for, the strip runs out to the
-	// plan's taper, and the line saying there is no plan is gone.
-	await expect(page.getByText(/uke \d+ av 21/i)).toBeVisible()
-	await expect(page.getByText(/\d+ uker til løpsdagen/)).toBeVisible()
+	// Home now knows about the plan: the top line says where in it today falls
+	// and counts down to the race the season is for (ADR 0086), the strip runs
+	// out to the plan's taper, and the line saying there is no plan is gone.
+	const top = page.getByTestId('timeline-top')
+	await expect(top.getByText(/uke \d+ av 21/i)).toBeVisible()
+	await expect(top.getByText(/ om \d+ uker$/)).toBeVisible()
 	await expect(page.getByText(/ingen (sesong)?plan ennå/i)).toHaveCount(0)
-	await expect(
-		page.getByRole('link', { name: 'Sesongplan' }).first(),
-	).toBeVisible()
+	await expect(top.getByText('Ingen plan')).toHaveCount(0)
 	await expect(
 		page.getByTestId('week-strip').getByRole('button').last(),
-	).toHaveAccessibleName(/Taper/)
+	).toHaveAccessibleName(/Nedtrapping/)
 
 	// The stamped sessions are ordinary sessions on the athlete's week, in the
 	// stream: the starter pattern's four days, its long day weighted double,
