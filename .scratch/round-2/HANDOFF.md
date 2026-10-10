@@ -122,3 +122,22 @@ The work was paused because the owner's budget ran low. Everything needed to pic
   - **Left:**
     - Tests asserting the old English are not updated (route/unit, plus the e2e `cta-semantics`, `session-authoring` and `strength-screens`).
     - Lint, build, the after-measurement, screenshots and the Emil reviews were not run. The before-numbers are in `.scratch/round-2/wd`.
+- **claude/strength-runner-fixes** 5f36ac2 (5 commits, complete, from origin/main)
+  - **Done, test-driven:**
+    - Repeat blocks: round r covers orderIndex r·n…r·n+n−1.
+    - Decimal comma via `strength/kilo-input.ts`.
+    - Notes wrap.
+    - One archetype source.
+    - The circle row is a 44px auto-fit grid.
+    - New e2e steps.
+  - **Left:**
+    - Run the e2e suite clean. The server died mid-run; the new specs never ran.
+    - Write the Emil tables.
+    - Decision 10 (the untapped-sets prompt) goes in Bibliotek PR C.
+  - **Risk:** the hidden `valueKg` on the propose page posts `formatKg`. Keep `formatKg` unchanged; cross-cutting already pins it.
+  - Roughly 67 jsdom failures in a loaded run, unverified. Likely timeouts; recheck on a quiet machine.
+
+## All agents stopped (2026-10-10 ~18:30). Nothing is running.
+Next session: follow "How to resume" above. Merge order suggestion: strength-runner-fixes → cross-cutting-polish →
+sentence-reader → workout-detail → composer → first-run-integrations → meg-pages → sesong-plan-page (WIP, mostly
+not started). Fix tests per branch as you merge; then the shared `index.dashboard.test.tsx` "Loading..." issue.
