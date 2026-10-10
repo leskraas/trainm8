@@ -1,6 +1,5 @@
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 import * as React from 'react'
-
 import { Icon } from '#app/components/ui/icon.tsx'
 import { cn } from '#app/utils/misc.tsx'
 
@@ -10,7 +9,7 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
 	return (
 		<SelectPrimitive.Group
 			data-slot="select-group"
-			className={cn('scroll-my-1.5 p-1', className)}
+			className={cn('scroll-my-1.5 p-1.5', className)}
 			{...props}
 		/>
 	)
@@ -26,6 +25,13 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
 	)
 }
 
+// shadcn `base-luma` select. Deviations (docs/design/design-system.md):
+// D2 a 44px trigger (`h-11`, CLI `h-9`) and 44px items on a coarse
+// pointer; D4 `motion-popup` replaces tw-animate's keyframes (out of the
+// trigger from scale 0.96, 200ms in / 150ms out; only a fade when the list
+// opens over the trigger); D5 the trigger's colour transition rides the app's
+// curve (#505 S8: it was `duration-200` on the built-in one); D10 16px on
+// phones (`text-base md:text-sm`) so iOS never zooms; D11 one indicator.
 function SelectTrigger({
 	className,
 	size = 'default',
@@ -39,26 +45,21 @@ function SelectTrigger({
 			data-slot="select-trigger"
 			data-size={size}
 			className={cn(
-				// Control font (ui-conventions §2.3): 16px on phones so iOS never
-				// zooms the focused control, 14px ≥ md. Height (§2.1, ADR 0028):
-				// the default trigger is a real 44px (`h-11`) target, so its base
-				// `after:` inset cancels to the visual edge; the `sm` size stays
-				// compact and keeps the extension to reach ~44px effective.
-				"bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 relative flex w-fit items-center justify-between gap-1.5 rounded-2xl border border-transparent px-3 py-2 text-base whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none after:absolute after:inset-x-0 after:-inset-y-1.5 focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 data-[size=default]:h-11 data-[size=default]:after:inset-y-0 data-[size=sm]:h-7 data-[size=sm]:after:-inset-y-2 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 md:text-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+				"bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 duration-press relative flex w-fit items-center justify-between gap-1.5 rounded-3xl border border-transparent px-3 py-2 text-base whitespace-nowrap transition-[color,box-shadow,background-color] ease-out outline-none after:absolute after:inset-x-0 after:-inset-y-1.5 focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 data-[size=default]:h-11 data-[size=default]:after:inset-y-0 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 md:text-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 				className,
 			)}
 			{...props}
 		>
 			{children}
-			{/* One indicator only (B6): Base UI's Select.Icon defaults its children
-			    to a '▼' glyph, which would render *beside* an icon passed via
-			    `render`. Passing the icon as children replaces that default. */}
+			{/* D11: the icon as children, not `render`. Base UI's Select.Icon
+			    defaults its children to a '▼' glyph, which `render` keeps — two
+			    indicators (B6, select.test.tsx). */}
 			<SelectPrimitive.Icon
 				aria-hidden="true"
 				className="pointer-events-none flex items-center"
 			>
 				<Icon
-					name="chevron-down"
+					name="selector"
 					className="text-muted-foreground pointer-events-none size-4"
 				/>
 			</SelectPrimitive.Icon>
@@ -94,7 +95,7 @@ function SelectContent({
 					data-slot="select-content"
 					data-align-trigger={alignItemWithTrigger}
 					className={cn(
-						'text-popover-foreground ring-foreground/5 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 dark:ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 bg-popover/70 **:data-[slot$=-item]:focus:bg-foreground/10 **:data-[slot$=-item]:data-highlighted:bg-foreground/10 **:data-[slot$=-separator]:bg-foreground/5 **:data-[slot$=-trigger]:focus:bg-foreground/10 **:data-[slot$=-trigger]:aria-expanded:bg-foreground/10! **:data-[variant=destructive]:focus:bg-foreground/10! **:data-[variant=destructive]:text-accent-foreground! **:data-[variant=destructive]:**:text-accent-foreground! relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) animate-none! overflow-x-hidden overflow-y-auto rounded-2xl shadow-lg ring-1 duration-100 before:pointer-events-none before:absolute before:inset-0 before:-z-1 before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150 data-[align-trigger=true]:animate-none',
+						'bg-popover text-popover-foreground ring-foreground/5 dark:ring-foreground/10 motion-popup relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 overflow-x-hidden overflow-y-auto rounded-3xl shadow-lg ring-1',
 						className,
 					)}
 					{...props}
@@ -115,7 +116,7 @@ function SelectLabel({
 	return (
 		<SelectPrimitive.GroupLabel
 			data-slot="select-label"
-			className={cn('text-muted-foreground px-2 py-1 text-xs', className)}
+			className={cn('text-muted-foreground px-3 py-2.5 text-xs', className)}
 			{...props}
 		/>
 	)
@@ -130,7 +131,7 @@ function SelectItem({
 		<SelectPrimitive.Item
 			data-slot="select-item"
 			className={cn(
-				"focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground relative flex min-h-7 w-full cursor-default items-center gap-2 rounded-xl py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+				"focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground relative flex min-h-11 w-full cursor-default items-center gap-2.5 rounded-2xl py-2 pr-8 pl-3 text-sm font-medium outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 pointer-fine:min-h-9 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
 				className,
 			)}
 			{...props}
@@ -143,7 +144,7 @@ function SelectItem({
 					<span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center" />
 				}
 			>
-				<Icon name="check" className="pointer-events-none" aria-hidden="true" />
+				<Icon name="check" aria-hidden="true" className="pointer-events-none" />
 			</SelectPrimitive.ItemIndicator>
 		</SelectPrimitive.Item>
 	)
@@ -156,7 +157,10 @@ function SelectSeparator({
 	return (
 		<SelectPrimitive.Separator
 			data-slot="select-separator"
-			className={cn('bg-border pointer-events-none -mx-1 my-1 h-px', className)}
+			className={cn(
+				'bg-border pointer-events-none -mx-1.5 my-1.5 h-px',
+				className,
+			)}
 			{...props}
 		/>
 	)

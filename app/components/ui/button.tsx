@@ -1,26 +1,25 @@
 import { Button as ButtonPrimitive } from '@base-ui/react/button'
 import { cva, type VariantProps } from 'class-variance-authority'
-
 import { cn } from '#app/utils/misc.tsx'
 
+// shadcn `base-luma` button. Local deviations, each listed in
+// `docs/design/design-system.md` §"Deviations from shadcn" (ADR 0085):
+//
+// - D1 press: `pressable` replaces `transition-all` and the 1px
+//   `active:translate-y-px` nudge — `scale(0.97)` at 160ms on the app's
+//   ease-out, colours on the same curve, the scale dropped under reduced
+//   motion. `transition-all` eased the focus ring and the border on a
+//   built-in curve.
+// - D2 touch: the default size is a real 44px (`h-11`, ADR 0028 §2.1); the
+//   compact sizes keep their look and reach ~44px through an invisible
+//   `after:` hit area. `touch-manipulation` so a `<Link
+//   className={buttonVariants()}>` taps without the double-tap wait too.
+// - D3 border colour per variant: the base says `border-transparent` and
+//   Tailwind emits `.border-border` *before* `.border-transparent`, so a
+//   `<Link>` spreading `buttonVariants({ variant: 'outline' })` (no
+//   tailwind-merge) rendered borderless. Each variant states its own.
 const buttonVariants = cva(
-	// Control heights (ui-conventions §2.1, ADR 0028): the default size is a real
-	// 44px (`h-11`) touch target — no hit-area extension needed (it cancels the
-	// base `after:` inset back to the visual edge). Smaller variants (xs/sm/lg)
-	// and icon buttons stay compact and reach ~44px via the invisible `after:`
-	// hit-area extension (the checkbox.tsx pattern); dense clusters trim insets
-	// (e.g. `after:-inset-x-0.5`) so extensions meet, not stack.
-	//
-	// The border *colour* is a per-variant class and deliberately not part of this
-	// base: Tailwind emits `.border-border` **before** `.border-transparent`, so a
-	// base `border-transparent` beats the `outline` variant's `border-border` on
-	// source order alone. `<Button>` never showed it because `cn()` runs
-	// tailwind-merge and drops the loser, but every call site that spreads
-	// `buttonVariants({ variant: 'outline' })` straight onto a `<Link>` does not —
-	// and those rendered as borderless plain text (the header plan slot: Season,
-	// Events, Catalogue, Programs). Each variant now states its own border colour,
-	// so there is no conflict left to resolve.
-	"group/button focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 relative inline-flex shrink-0 items-center justify-center rounded-2xl border bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none after:absolute after:inset-x-0 after:-inset-y-1.5 focus-visible:ring-3 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-3 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+	"group/button focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 pressable relative inline-flex shrink-0 touch-manipulation items-center justify-center rounded-4xl border bg-clip-padding text-sm font-medium whitespace-nowrap outline-none select-none after:absolute after:inset-x-0 after:-inset-y-1.5 focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-3 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 	{
 		variants: {
 			variant: {
@@ -37,16 +36,17 @@ const buttonVariants = cva(
 				link: 'text-primary border-transparent underline-offset-4 hover:underline',
 			},
 			size: {
+				// D2: h-11 (CLI: h-9); `after:inset-y-0` cancels the base hit area.
 				default:
 					'h-11 gap-1.5 px-3 after:inset-y-0 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5',
 				xs: "h-6 gap-1 px-2.5 text-xs after:-inset-y-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-3",
-				sm: 'h-7 gap-1 px-3 after:-inset-y-2 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2',
-				lg: 'h-9 gap-1.5 px-4 after:-inset-y-1 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3',
-				icon: 'size-8 after:-inset-1.5',
+				sm: 'h-8 gap-1 px-3 after:-inset-y-1.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2',
+				lg: 'h-10 gap-1.5 px-4 after:-inset-y-0.5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3',
+				icon: 'size-9 after:-inset-1',
 				'icon-xs':
 					"size-6 after:-inset-2.5 [&_svg:not([class*='size-'])]:size-3",
-				'icon-sm': 'size-7 after:-inset-2',
-				'icon-lg': 'size-9 after:-inset-1',
+				'icon-sm': 'size-8 after:-inset-1.5',
+				'icon-lg': 'size-10 after:-inset-0.5',
 			},
 		},
 		defaultVariants: {
@@ -71,6 +71,7 @@ function Button({
 	)
 }
 
+/** The repo's name for the variant props (D9: kept for its call sites). */
 type ButtonVariant = VariantProps<typeof buttonVariants>
 
 export { Button, buttonVariants, type ButtonVariant }
