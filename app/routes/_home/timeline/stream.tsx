@@ -47,6 +47,7 @@ import { ErrorList } from '#app/components/forms.tsx'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { Meter, MeterIndicator, MeterTrack } from '#app/components/ui/meter.tsx'
 import {
 	Popover,
 	PopoverContent,
@@ -64,6 +65,7 @@ import {
 	foldedWeekControlLabel,
 	ownerGlyphName,
 	RELEASE_ACTION_LABELS,
+	SESSION_DETAIL_LABELS,
 	WEEK_FIGURE_LABELS,
 } from '#app/utils/labels.ts'
 import {
@@ -75,7 +77,6 @@ import { SESSION_ANNET_ACTION } from '#app/utils/session-annet-schema.ts'
 import { bandScrollTop, offsetWithin } from './anchoring.ts'
 import { StampDraft, StampedSentence } from './day-stamp-cell.tsx'
 import { useDayStamp } from './day-stamp-context.tsx'
-import { DiscDot } from './disc-dot.tsx'
 import { ImportLinkAction, MarkDoneAction } from './import-actions.tsx'
 import {
 	type PhaseTone,
@@ -225,7 +226,10 @@ export const WeekBlock = memo(function WeekBlock({
 			) : folded ? (
 				<FoldedHeader week={week} open={open} onToggle={toggle} />
 			) : (
-				<WeekHeader week={week} />
+				<WeekHeader
+					week={week}
+					summary={(week.isNow ? today?.verdict : null) ?? week.loadLine}
+				/>
 			)}
 			{folded ? (
 				open ? (
@@ -260,16 +264,26 @@ function phaseEdge(week: TimelineWeek): string {
 }
 
 /**
- * The header a week reads under (#505 stories 19, 23): which week, its phase
- * and rhythm, and its numbers — per Training Track, the Week Target, the
- * Planned Volume and the Actual Volume side by side in the track's own unit.
+ * The header a week reads under (#505 stories 19, 23), drawn as variant P
+ * draws it: one line naming the week — `Denne uka · 5.–11. okt · Spissing ·
+ * hard uke` — with the phase's colour on its left edge; one line per Training
+ * Track with the track's name in its colour, `done / target unit`, the planned
+ * figure where it says something, and a meter (done filled, planned dashed,
+ * the target a tick); and one muted sentence about the week.
  *
- * Only the name and the numbers are **sticky** (ADR 0086): the notes under
+ * Only the name and the track lines are **sticky** (ADR 0086): the notes under
  * them — what was not measured, pace, the zone split, Annet — follow in the
- * flow and scroll away. A sticky header with every note in it stood a third
- * of a phone's list tall over every row of its week.
+ * flow and scroll away, so a header never stands a third of a phone tall over
+ * its own rows.
  */
-function WeekHeader({ week }: { week: TimelineWeek }) {
+function WeekHeader({
+	week,
+	summary,
+}: {
+	week: TimelineWeek
+	/** The week's one sentence: the coach's on this week, the tally otherwise. */
+	summary: string | null
+}) {
 	return (
 		<>
 			<div
@@ -281,6 +295,14 @@ function WeekHeader({ week }: { week: TimelineWeek }) {
 			>
 				<WeekTitle week={week} />
 				<WeekFigures week={week} part="numbers" />
+				{summary ? (
+					<p
+						data-week-summary
+						className="text-muted-foreground text-caption font-normal [text-wrap:pretty] italic"
+					>
+						{summary}
+					</p>
+				) : null}
 			</div>
 			<WeekFigures
 				week={week}
@@ -294,13 +316,13 @@ function WeekHeader({ week }: { week: TimelineWeek }) {
 	)
 }
 
-/** `DENNE UKA 5.–11. okt` … `Oppbygging · hard uke`. */
+/** `Denne uka · 5.–11. okt · Oppbygging · hard uke`, on one line. */
 function WeekTitle({ week }: { week: TimelineWeek }) {
 	return (
-		<div className="flex items-baseline justify-between gap-2.5">
-			<h2
+		<h2 className="text-footnote text-muted-foreground min-w-0">
+			<span
 				className={cn(
-					'text-overline flex min-w-0 items-baseline gap-2 uppercase',
+					'font-semibold',
 					week.isNow
 						? 'text-primary'
 						: week.imported
@@ -308,25 +330,11 @@ function WeekTitle({ week }: { week: TimelineWeek }) {
 							: 'text-foreground',
 				)}
 			>
-				<span>{week.relativeName}</span>{' '}
-				<span className="text-muted-foreground text-caption normal-case tabular-nums">
-					{week.rangeLabel}
-				</span>
-			</h2>
-			{week.kindLabel ? (
-				<span
-					data-week-kind
-					className={cn(
-						'text-caption flex-none text-right font-normal',
-						week.role === 'loading'
-							? 'text-foreground/80'
-							: 'text-muted-foreground',
-					)}
-				>
-					{week.kindLabel}
-				</span>
-			) : null}
-		</div>
+				{week.relativeName}
+			</span>
+			<span className="tabular-nums"> · {week.rangeLabel}</span>
+			{week.kindLabel ? <span data-week-kind> · {week.kindLabel}</span> : null}
+		</h2>
 	)
 }
 
@@ -368,7 +376,10 @@ function WeekFigures({
 				</span>
 			) : null}
 			{tracks.map((track) => (
-				<TrackLine key={track.trackId} track={track} part={part} />
+				<Fragment key={track.trackId}>
+					{part === 'notes' ? null : <TrackMeter track={track} />}
+					{part === 'numbers' ? null : <TrackLine track={track} part="notes" />}
+				</Fragment>
 			))}
 			{part !== 'numbers' && week.otherTrack ? (
 				<span data-week-annet className={NOTE}>
@@ -520,6 +531,154 @@ export function TrackLine({
 						.join(' · ')}
 				</span>
 			) : null}
+		</div>
+	)
+}
+
+/**
+ * A Training Track's colour, by its sport (`track-*`, ADR 0085): for marks —
+ * a track's name in a header, a session's rule, a meter's fill — never for a
+ * fill under text. Literal classes, for Tailwind.
+ */
+const TRACK_TEXT: Record<string, string> = {
+	run: 'text-track-run',
+	bike: 'text-track-bike',
+	swim: 'text-track-swim',
+	strength: 'text-track-strength',
+}
+const TRACK_BG: Record<string, string> = {
+	run: 'bg-track-run',
+	bike: 'bg-track-bike',
+	swim: 'bg-track-swim',
+	strength: 'bg-track-strength',
+}
+const TRACK_BORDER: Record<string, string> = {
+	run: 'border-track-run',
+	bike: 'border-track-bike',
+	swim: 'border-track-swim',
+	strength: 'border-track-strength',
+}
+
+/** The done figure's colour: the verdict's, only once there is one. */
+const GRADE_INK: Record<TimelineTrackWeek['grade']['status'], string> = {
+	'not-yet': 'text-foreground',
+	ungraded: 'text-foreground',
+	under: 'text-status-under',
+	on: 'text-status-on',
+	over: 'text-status-over',
+}
+
+/**
+ * One track's line in a week header, after variant P: the track's name in its
+ * colour, `11,6 / 36 km` (or `mål 52 km` before anything is done), what was
+ * planned where it says something, the `≠` mark and the verdict — and beside
+ * it a **Meter** (`components/ui/meter.tsx`): done filled in the track's
+ * colour, planned as a dashed outline, the target as a tick. The wave-1 rules
+ * hold: a side with sessions but no number says so in the number's place
+ * (`2 økter uten km`), never `0`, and the verdict is a word as well as a colour.
+ */
+function TrackMeter({ track }: { track: TimelineTrackWeek }) {
+	const { target, planned, actual } = track
+	const scale = Math.max(target ?? 0, planned ?? 0, actual ?? 0)
+	const share = (value: number | null) =>
+		value == null || scale <= 0 ? 0 : Math.min(100, (value / scale) * 100)
+	const done = track.figures.done ?? track.figureNotes.done
+	const plannedText = track.figures.planned ?? track.figureNotes.planned
+	return (
+		<div
+			data-week-track={track.trackId}
+			className="grid grid-cols-[auto_minmax(48px,1fr)] items-center gap-x-3"
+		>
+			<span className="text-caption flex flex-wrap items-baseline gap-x-1.5 font-normal tabular-nums">
+				<span className={cn('font-semibold', TRACK_TEXT[track.discipline])}>
+					{track.name}
+				</span>
+				{done != null ? (
+					<span>
+						<span
+							className={cn(
+								'font-semibold',
+								track.figures.done != null
+									? GRADE_INK[track.grade.status]
+									: 'text-muted-foreground',
+							)}
+						>
+							{done}
+						</span>
+						<span className="text-muted-foreground">
+							{' / '}
+							{track.figures.target ?? '–'} {track.unit}
+						</span>
+					</span>
+				) : (
+					<span>
+						<span className="text-muted-foreground">
+							{WEEK_FIGURE_LABELS.target}{' '}
+						</span>
+						<span className="font-semibold">{track.figures.target ?? '–'}</span>{' '}
+						<span className="text-muted-foreground">{track.unit}</span>
+					</span>
+				)}
+				{plannedText != null ? (
+					<span className="text-muted-foreground">
+						· {WEEK_FIGURE_LABELS.planned} {plannedText}
+					</span>
+				) : null}
+				{track.driftLabel ? (
+					<span
+						role="img"
+						aria-label={track.driftLabel}
+						title={track.driftLabel}
+						className="text-status-under font-bold"
+					>
+						{DRIFT_MARK}
+					</span>
+				) : null}
+				{track.gradeLabel ? (
+					<span
+						data-week-grade={track.grade.status}
+						className={cn('font-semibold', GRADE_INK[track.grade.status])}
+					>
+						{track.gradeLabel}
+					</span>
+				) : null}
+			</span>
+			<Meter
+				value={actual ?? 0}
+				max={scale > 0 ? scale : 1}
+				aria-label={`${track.name}: ${track.figures.done ?? '–'} / ${track.figures.target ?? '–'} ${track.unit}`}
+				className="block"
+			>
+				<MeterTrack className="relative h-2 overflow-visible bg-transparent">
+					{/* Planned: the outline the sessions add up to. */}
+					{planned != null && planned > 0 ? (
+						<span
+							data-meter-planned
+							className={cn(
+								'absolute inset-y-0 left-0 rounded-full border-[1.5px] border-dashed',
+								TRACK_BORDER[track.discipline] ?? 'border-muted-foreground',
+							)}
+							style={{ width: `${share(planned)}%` }}
+						/>
+					) : (
+						<span className="bg-muted absolute inset-0 rounded-full" />
+					)}
+					<MeterIndicator
+						className={cn(
+							'relative rounded-full',
+							TRACK_BG[track.discipline] ?? 'bg-muted-foreground',
+						)}
+					/>
+					{/* The target: a tick, where the week is asked to reach. */}
+					{target != null && target > 0 ? (
+						<span
+							data-meter-target
+							className="bg-foreground absolute -inset-y-[3px] w-0.5 -translate-x-1/2 rounded-full"
+							style={{ left: `${share(target)}%` }}
+						/>
+					) : null}
+				</MeterTrack>
+			</Meter>
 		</div>
 	)
 }
@@ -781,14 +940,6 @@ const CAP_LINK = cn(buttonVariants({ variant: 'outline' }), 'rounded-full')
 /** The caps' one primary action. */
 const CAP_PRIMARY = cn(buttonVariants(), 'rounded-full')
 
-/** The chip palette. See `RowChipTone` for why `warn` covers both band edges. */
-const CHIP_TONE: Record<RowChipTone, string> = {
-	primary: 'border-primary/40 text-primary',
-	warn: 'border-status-under/40 text-status-under',
-	bad: 'border-destructive/40 text-destructive',
-	muted: 'border-border text-muted-foreground',
-}
-
 /**
  * Today's row's tone (ADR 0086, after variant P): a tint of the green, quiet
  * enough that the row reads as *here* rather than as a warning.
@@ -803,13 +954,20 @@ const TODAY_TONE = 'bg-primary/6 dark:bg-primary/10'
 function DateGutter({
 	day,
 	show = true,
+	className,
 }: {
 	day: TimelineDay
 	show?: boolean
+	className?: string
 }) {
 	if (!show) return <span aria-hidden />
 	return (
-		<span className="flex flex-col items-center gap-0.5 pt-px text-center">
+		<span
+			className={cn(
+				'flex flex-col items-center gap-0.5 pt-px text-center',
+				className,
+			)}
+		>
 			<span className="text-overline text-muted-foreground uppercase">
 				{day.dayLabel}
 			</span>
@@ -839,8 +997,9 @@ function DateGutter({
  * target. Which days get one is the presenter's call, not this component's: it
  * renders the days it is handed.
  *
- * Today's day carries {@link TodayRowExtras} under its sessions: the coach's
- * line and the session's action, where the hero used to hold them.
+ * Today's day carries the session's action (`Se økta`, {@link
+ * TodayRowExtras}); the coach's line, the hero's other half, is this week's
+ * sentence in its header.
  */
 function DayRow({
 	day,
@@ -876,14 +1035,6 @@ function DayRow({
 					/>
 				))
 			)}
-			{today?.verdict ? (
-				<p
-					data-today-verdict
-					className="text-footnote text-foreground/80 -mt-1 pr-4 pb-3 pl-[74px] [text-wrap:pretty]"
-				>
-					{today.verdict}
-				</p>
-			) : null}
 		</div>
 	)
 }
@@ -932,7 +1083,7 @@ function EmptyDay({ day }: { day: TimelineDay }) {
 					? DAY_ROW_LABELS.restDayOn(`${day.dayLabel} ${day.dateLabel}`)
 					: DAY_ROW_LABELS.addWorkoutOn(`${day.dayLabel} ${day.dateLabel}`)
 			}
-			className="pressable grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 py-2 pr-4 pl-4 text-left"
+			className="pressable grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 py-1 pr-2 pl-4 text-left"
 		>
 			<DateGutter day={day} />
 			{day.restPrescribed ? (
@@ -944,21 +1095,25 @@ function EmptyDay({ day }: { day: TimelineDay }) {
 						{DAY_ROW_LABELS.restDayNote}
 					</span>
 				</span>
-			) : day.isToday ? (
-				<span className="flex min-w-0 items-center justify-between gap-2">
-					<span className="text-foreground text-callout">
-						{DAY_ROW_LABELS.nothingToday}
-					</span>
-					<span className="text-primary text-footnote flex flex-none items-center gap-1 font-semibold">
-						<Icon name="plus" size="xs" />
-						{DAY_ROW_LABELS.addWorkout}
-					</span>
-				</span>
 			) : (
-				/* No label where the plan has said nothing — just the affordance,
-				   quieter than any row that carries content. */
-				<span className="text-muted-foreground/70 text-footnote">
-					{DAY_ROW_LABELS.addWorkout}
+				/* Variant P's free day: `fri` in quiet italics and a plus at the
+				   right edge — the whole row is the control. Today says it holds
+				   nothing in words, since it is the row the athlete came to read. */
+				<span className="flex min-w-0 items-center justify-between gap-2">
+					<span
+						className={cn(
+							'text-footnote',
+							day.isToday ? 'text-foreground' : 'text-muted-foreground italic',
+						)}
+					>
+						{day.isToday ? DAY_ROW_LABELS.nothingToday : DAY_ROW_LABELS.free}
+					</span>
+					<span
+						aria-hidden
+						className="text-primary flex size-8 flex-none items-center justify-center"
+					>
+						<Icon name="plus" size="sm" />
+					</span>
 				</span>
 			)}
 		</button>
@@ -999,6 +1154,22 @@ function DaySession({
 	)
 }
 
+/**
+ * One session, as variant P draws it: one line under the day's gutter. A thin
+ * rule in the track's colour; the glyph saying whose session it is; the whole
+ * session sentence, wrapped and never cut (#505 story 32); and at the right
+ * its own volume in tabular figures (`6,1 km`), with a dot in the verdict's
+ * colour once it is done (#505 D6). A missed session is struck through and
+ * says `ikke gjort`.
+ *
+ * What the row used to spell out on lines of its own — load, the comparison,
+ * RPE, the shape bars, the chips — sits behind the glyph, with whose session
+ * it is and the row's quieter actions (_Lås opp_, _Tell i Annet_, _Angre
+ * kobling_). It also rides on the row's link as text for a screen reader, so
+ * nothing the row knows is hidden from anyone; it is only out of the sighted
+ * reader's way. What asks for an answer stays on the row: the import's
+ * question, _Gjort_, the quick strength log, and on today's row _Se økta_.
+ */
 function SessionRow({
 	session,
 	day,
@@ -1013,162 +1184,105 @@ function SessionRow({
 }) {
 	const missed = session.status === 'missed'
 	const done = session.status === 'completed'
+	const verdict = session.chips.find((chip) => chip.id === 'compliance')
+	const facts = [
+		session.externalLoad,
+		session.internalLoad,
+		session.doneNote,
+		session.extraLabel,
+		session.annet?.inAnnet ? ANNET_ACTION_LABELS.chip : null,
+		...session.chips.map((chip) => chip.label),
+	].filter((fact): fact is string => !!fact)
 	return (
 		<div data-session-row={session.id}>
-			<div className="flex items-start">
-				<Link
-					to={session.to}
-					prefetch="intent"
-					data-status={session.status}
-					className="pressable grid min-w-0 flex-1 grid-cols-[46px_1fr] items-start gap-3 py-3 pl-4"
-				>
-					<DateGutter day={day} show={showDate} />
-					<span className="flex min-w-0 flex-col gap-1.5">
-						{/* Top-aligned, because the title wraps: the dot and the figure
-						    sit on its first line, the way a printed plan reads. */}
-						<span className="flex items-start gap-2">
-							{/* Named, because the dot is the only thing on the row that says
-							    which discipline this was — a colour alone is not a label. A
-							    missed session's dot goes quiet: it never happened. */}
-							{missed ? (
-								<span
-									role="img"
-									aria-label={DAY_ROW_LABELS.missedMark(
-										session.disciplineLabel,
-									)}
-									title={DAY_ROW_LABELS.missedMark(session.disciplineLabel)}
-									className="bg-muted-foreground/60 mt-[7px] size-[6px] flex-none rounded-full"
-								/>
-							) : (
-								<span
-									role="img"
-									aria-label={session.disciplineLabel}
-									className="mt-[7px] flex"
-								>
-									<DiscDot
-										solid
-										discipline={session.discipline}
-										className="size-[6px] flex-none"
-									/>
-								</span>
+			<div className="grid grid-cols-[46px_1fr] gap-x-3 pr-4 pl-4">
+				<DateGutter day={day} show={showDate} className="py-2" />
+				<div className="flex min-w-0 items-stretch gap-1 py-1">
+					{/* The track's rule: the one mark naming the discipline, so it
+					    carries the name — a colour alone is not a label. */}
+					<span
+						role="img"
+						aria-label={
+							missed
+								? DAY_ROW_LABELS.missedMark(session.disciplineLabel)
+								: session.disciplineLabel
+						}
+						title={session.disciplineLabel}
+						className={cn(
+							'my-0.5 w-[3px] flex-none rounded-full',
+							missed
+								? 'bg-muted-foreground/50'
+								: (TRACK_BG[session.discipline] ?? 'bg-muted-foreground/60'),
+						)}
+					/>
+					<SessionGlyph session={session} facts={facts} />
+					<Link
+						to={session.to}
+						prefetch="intent"
+						data-status={session.status}
+						className="pressable flex min-h-10 min-w-0 flex-1 items-start gap-2 py-1.5"
+					>
+						<span
+							data-session-title
+							className={cn(
+								'text-footnote min-w-0 flex-1 [text-wrap:pretty] break-words',
+								missed
+									? 'text-muted-foreground line-through decoration-1'
+									: 'text-foreground',
+								day.isToday && !missed ? 'font-semibold' : null,
 							)}
-							{/* The whole title, wrapped, never cut with "…" (#505 story 32). */}
-							<span
-								data-session-title
-								className={cn(
-									'text-callout min-w-0 flex-1 font-semibold [text-wrap:pretty] break-words',
-									missed
-										? 'text-muted-foreground line-through decoration-1'
-										: 'text-foreground',
-								)}
-							>
-								{session.title}
-							</span>
-							{/* Its own volume in its track's unit, right-aligned in tabular
-							    figures so a week's column of them reads down (#505 D6). */}
-							{session.volumeLabel ? (
+						>
+							{session.title}
+						</span>
+						<span className="text-footnote flex flex-none items-center gap-1.5 pt-px text-right whitespace-nowrap tabular-nums">
+							{missed ? (
+								<span className="text-status-missed italic">
+									{SESSION_DETAIL_LABELS.missed}
+								</span>
+							) : session.volumeLabel ? (
 								<span
 									data-session-volume
-									className={cn(
-										'text-footnote flex-none pt-px text-right whitespace-nowrap tabular-nums',
-										done ? 'text-foreground' : 'text-muted-foreground',
-									)}
+									className={done ? 'text-foreground' : 'text-muted-foreground'}
 								>
 									{session.volumeLabel}
 								</span>
 							) : null}
-						</span>
-						{session.bars.length > 0 ? (
-							<span className="block w-[100px]">
-								<ProfileBars
-									bars={session.bars}
-									groups={session.groups}
-									scale="row"
+							{done ? (
+								<span
+									data-done-dot
+									role="img"
+									aria-label={verdict?.label ?? SESSION_DETAIL_LABELS.done}
+									className={cn(
+										'size-[7px] rounded-full',
+										verdict ? VERDICT_DOT[verdict.tone] : 'bg-status-on',
+									)}
 								/>
-							</span>
-						) : null}
-						{session.externalLoad ? (
-							<span className="text-muted-foreground text-footnote">
-								{session.externalLoad}
-							</span>
-						) : null}
-						{/* Lighter than the line above on purpose — see `row-content.ts`. */}
-						{session.internalLoad ? (
-							<span className="text-foreground/80 text-footnote [text-wrap:pretty]">
-								{session.internalLoad}
-							</span>
-						) : null}
-						{/* Done with no numbers: where they will come from (story 82). */}
-						{session.doneNote ? (
-							<span
-								data-done-note
-								className="text-muted-foreground text-footnote [text-wrap:pretty]"
-							>
-								{session.doneNote}
-							</span>
-						) : null}
-						{session.chips.length > 0 ||
-						session.annet?.inAnnet ||
-						session.extraLabel ? (
-							<span className="flex flex-wrap gap-1.5">
-								{/* Recorded with no plan behind it (#505 story 79). */}
-								{session.extraLabel ? (
-									<span data-extra-chip className={cn(CHIP, CHIP_TONE.muted)}>
-										{session.extraLabel}
-									</span>
-								) : null}
-								{/* Counted in nothing, by the athlete's own choice (story 33). */}
-								{session.annet?.inAnnet ? (
-									<span data-annet-chip className={cn(CHIP, CHIP_TONE.muted)}>
-										{ANNET_ACTION_LABELS.chip}
-									</span>
-								) : null}
-								{session.chips.map((chip) => (
-									<span
-										key={chip.id}
-										className={cn(
-											CHIP,
-											// A measurement is set in capitals; a stored note is prose
-											// somebody wrote, and shouting it back would be rude.
-											chip.id === 'replan'
-												? null
-												: 'font-semibold tracking-[0.06em]',
-											CHIP_TONE[chip.tone],
-										)}
-									>
-										{chip.label}
-									</span>
+							) : null}
+						</span>
+						{/* What the row knows, for a screen reader: the glyph shows it to
+						    everyone else. */}
+						{facts.length > 0 ? (
+							<span className="sr-only">
+								{facts.map((fact, index) => (
+									<Fragment key={`${index}-${fact}`}>
+										{' · '}
+										<span>{fact}</span>
+									</Fragment>
 								))}
 							</span>
 						) : null}
-					</span>
-				</Link>
-				{/* Whose session this is (#505 story 29, D6): a glyph, with what it
-				    means and the way to hand it back behind it — once, not under
-				    every row. A sibling of the link, never inside it. The column is
-				    reserved on every row so the volumes line up. */}
-				{session.ownerLabel && session.ownerNote ? (
-					<OwnerGlyph session={session} />
-				) : (
-					<span aria-hidden className="w-10 flex-none" />
-				)}
+					</Link>
+				</div>
 			</div>
-			{session.importLink ? (
+			{session.importLink?.kind === 'ask' ? (
 				<ImportLinkAction link={session.importLink} />
-			) : null}
-			{session.annet ? (
-				<AnnetAction
-					sessionId={session.id}
-					inAnnet={session.annet.inAnnet}
-					label={session.annet.actionLabel}
-				/>
 			) : null}
 			{/* The primary action and _Gjort_ share one line: both are about this
 			    session, and a row should not grow a line per offer. */}
 			{cta || session.markDone ? (
 				<div
 					data-session-actions
-					className="-mt-1 flex flex-wrap items-center gap-x-4 pr-4 pb-2 pl-[74px]"
+					className="flex flex-wrap items-center gap-x-4 pr-4 pb-2 pl-[86px]"
 				>
 					{cta ? (
 						<Link
@@ -1198,45 +1312,88 @@ function SessionRow({
 	)
 }
 
-/** A row's small chip: a fact or a verdict, quieter than the title. */
-const CHIP = 'text-caption rounded-full border px-2 py-px font-normal'
+/** The done dot's colour, off the comparison's tone. */
+const VERDICT_DOT: Record<RowChipTone, string> = {
+	primary: 'bg-status-on',
+	warn: 'bg-status-under',
+	bad: 'bg-status-missed',
+	muted: 'bg-muted-foreground',
+}
 
 /**
- * The ownership glyph (#505 story 29, D6): a closed lock on the athlete's own
- * session — the app may not change it without a yes (ADR 0080) — and an open
- * one on the app's. Tapping it says what that means, once, and on the
- * athlete's own session offers _Lås opp_, which hands it back
- * (`releaseSession`). A Popover: anchored to the glyph, origin-aware, and
- * small enough for a phone; the 40px column gives it a 44px target.
+ * The row's glyph (#505 story 29, D6), at the left of the sentence as in
+ * variant P: ✎ for a session the athlete wrote or changed — the app does not
+ * change it without a yes (ADR 0080) — and ◌ for the plan's own. Tapping it
+ * opens the row's details once, in a popover anchored to it: whose session it
+ * is and what that means, what the row knows (load, the comparison, the
+ * shape), and the quieter actions — _Lås opp_ on the athlete's planned
+ * session, _Tell i Annet_, _Angre kobling_. A sibling of the row's link,
+ * never inside it.
  */
-function OwnerGlyph({ session }: { session: TimelineSession }) {
+function SessionGlyph({
+	session,
+	facts,
+}: {
+	session: TimelineSession
+	facts: string[]
+}) {
 	const athlete = session.owner === 'athlete'
-	const label = session.ownerLabel ?? ''
+	const owner = session.ownerLabel
 	return (
 		<Popover>
 			<PopoverTrigger
 				data-owner-glyph={session.owner}
-				aria-label={ownerGlyphName(label, session.title)}
-				className={cn(
-					'pressable hover:bg-muted aria-expanded:bg-muted relative mt-1.5 mr-2 flex size-8 flex-none items-center justify-center rounded-full after:absolute after:-inset-1.5',
-					athlete ? 'text-muted-foreground' : 'text-muted-foreground/70',
-				)}
+				aria-label={
+					owner
+						? ownerGlyphName(owner, session.title)
+						: SESSION_DETAIL_LABELS.name(session.title)
+				}
+				className="pressable text-muted-foreground hover:bg-muted aria-expanded:bg-muted relative mt-1 flex size-7 flex-none items-center justify-center rounded-full after:absolute after:-inset-2"
 			>
-				<Icon name={athlete ? 'lock-closed' : 'lock-open-1'} size="xs" />
+				{athlete ? (
+					<Icon name="pencil-1" size="xs" />
+				) : (
+					<span
+						aria-hidden
+						className="border-muted-foreground/70 size-2.5 rounded-full border-[1.5px] border-dashed"
+					/>
+				)}
 			</PopoverTrigger>
 			<PopoverContent
-				align="end"
+				align="start"
 				data-owner-popover={session.owner}
 				className="w-72 gap-3"
 			>
 				<PopoverHeader>
 					<PopoverTitle className="text-callout font-semibold">
-						{`${label[0]?.toUpperCase() ?? ''}${label.slice(1)}`}
+						{session.title}
 					</PopoverTitle>
-					<PopoverDescription className="text-footnote">
-						{session.ownerNote}
-					</PopoverDescription>
+					{owner && session.ownerNote ? (
+						<PopoverDescription className="text-footnote">
+							<span className="text-foreground font-semibold">
+								{`${owner[0]?.toUpperCase() ?? ''}${owner.slice(1)}`}
+							</span>
+							{' · '}
+							{session.ownerNote}
+						</PopoverDescription>
+					) : null}
 				</PopoverHeader>
+				{session.bars.length > 0 ? (
+					<span className="block w-[120px]">
+						<ProfileBars
+							bars={session.bars}
+							groups={session.groups}
+							scale="row"
+						/>
+					</span>
+				) : null}
+				{facts.length > 0 ? (
+					<ul className="text-footnote text-muted-foreground flex flex-col gap-0.5">
+						{facts.map((fact, index) => (
+							<li key={`${index}-${fact}`}>{fact}</li>
+						))}
+					</ul>
+				) : null}
 				{session.release ? (
 					<ReleaseAction
 						sessionId={session.id}
@@ -1245,6 +1402,25 @@ function OwnerGlyph({ session }: { session: TimelineSession }) {
 						note={session.release.note}
 					/>
 				) : null}
+				{session.annet ? (
+					<AnnetAction
+						sessionId={session.id}
+						inAnnet={session.annet.inAnnet}
+						label={session.annet.actionLabel}
+					/>
+				) : null}
+				{session.importLink && session.importLink.kind !== 'ask' ? (
+					<ImportLinkAction link={session.importLink} inline />
+				) : null}
+				<Link
+					to={session.to}
+					className={cn(
+						buttonVariants({ variant: 'outline', size: 'sm' }),
+						'self-start rounded-full',
+					)}
+				>
+					{SESSION_DETAIL_LABELS.open}
+				</Link>
 			</PopoverContent>
 		</Popover>
 	)
@@ -1323,10 +1499,10 @@ function ReleaseAction({
 }
 
 /**
- * The row's one action besides opening it: count the session in Annet, or put
- * it back in its track (#505 story 33). A sibling of the row's link rather than
- * inside it — a control inside a link is two targets under one thumb — set on
- * the gutter's edge, quiet, under the row it belongs to.
+ * Count the session in Annet, or put it back in its track (#505 story 33) —
+ * behind the row's glyph, with the row's other quiet actions (ADR 0086), never
+ * inside the row's link: a control inside a link is two targets under one
+ * thumb.
  *
  * It posts to its own resource route, owner-scoped on the server
  * (`setCountsInNoTrack`), and the home loader revalidates after it, so the week
@@ -1347,11 +1523,7 @@ function AnnetAction({
 	const pending = fetcher.formData?.get('countsInNoTrack')
 	const willBeInAnnet = pending == null ? inAnnet : pending === 'true'
 	return (
-		<fetcher.Form
-			method="post"
-			action={SESSION_ANNET_ACTION}
-			className="-mt-2 flex pr-4 pl-[74px]"
-		>
+		<fetcher.Form method="post" action={SESSION_ANNET_ACTION} className="flex">
 			<input type="hidden" name="sessionId" value={sessionId} />
 			<input
 				type="hidden"

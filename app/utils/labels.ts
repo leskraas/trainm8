@@ -502,6 +502,16 @@ export const SESSION_OWNER_NOTES: Record<SessionOwner, string> = {
 		'Planen la inn denne økta. Appen kan justere den når uka endrer seg.',
 }
 
+/** What a session row's glyph opens (ADR 0086): the row's details, once. */
+export const SESSION_DETAIL_LABELS = {
+	open: 'Åpne økta',
+	/** The glyph's name on a session whose ownership no longer matters. */
+	name: (title: string) => `${title}: detaljer`,
+	/** The done dot's name where no verdict is known. */
+	done: 'gjort',
+	missed: 'ikke gjort',
+} as const
+
 /** The glyph's own name: what it is, on which session, and that it explains. */
 export function ownerGlyphName(owner: string, title: string): string {
 	return `${owner[0]!.toUpperCase()}${owner.slice(1)}: ${title}. Hva betyr det?`
@@ -950,11 +960,16 @@ export const TOP_LINE_LABELS = {
  * whole weeks the way an athlete counts them, and in days in the last week.
  */
 export function eventCountdownLabel(name: string, days: number): string {
-	if (days <= 0) return `${name} i dag`
-	if (days === 1) return `${name} i morgen`
-	if (days < 7) return `${name} om ${days} dager`
+	return `${name} ${eventCountdownWhen(days)}`
+}
+
+/** The countdown half alone — `om 12 uker` — which the top line never cuts. */
+export function eventCountdownWhen(days: number): string {
+	if (days <= 0) return 'i dag'
+	if (days === 1) return 'i morgen'
+	if (days < 7) return `om ${days} dager`
 	const weeks = Math.round(days / 7)
-	return `${name} om ${weeks} ${weeks === 1 ? 'uke' : 'uker'}`
+	return `om ${weeks} ${weeks === 1 ? 'uke' : 'uker'}`
 }
 
 /** A round's peak week before → after its factor: `Toppuka: 4,5 → 5 t`. */
@@ -1395,6 +1410,8 @@ export const DAY_ROW_LABELS = {
 	addWorkout: 'Legg inn en økt',
 	/** Today's row with nothing on it: it still says so (ADR 0086). */
 	nothingToday: 'Ingenting i dag',
+	/** A day with nothing on it, as variant P writes it: free to write into. */
+	free: 'fri',
 	addWorkoutOn: (day: string) => `Legg inn en økt ${day}`,
 	restDay: 'Hviledag',
 	restDayOn: (day: string) => `Hviledag — ${day}`,

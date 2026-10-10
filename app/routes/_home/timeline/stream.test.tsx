@@ -155,14 +155,14 @@ test('a day the plan prescribes recovery on says Rest day, and says what it mean
 	expect(cell).not.toHaveTextContent('Legg inn en økt')
 })
 
-test('every other empty day carries no label at all, only the affordance', () => {
-	// The app does not name a day it knows nothing about (ADR 0065 §4). This is
-	// the branch every empty day actually takes today.
+test('every other empty day reads only "fri", and is the control that writes one', () => {
+	// The app does not name a day it knows nothing about (ADR 0065 §4): `fri` is
+	// variant P's word for a day with nothing written in it, not a rest day.
 	renderWeek([day()])
 
 	const cell = screen.getByRole('button', { name: 'Legg inn en økt Fri 22' })
-	expect(cell).toHaveTextContent('Legg inn en økt')
-	expect(cell).not.toHaveTextContent(/rest/i)
+	expect(cell).toHaveTextContent('fri')
+	expect(cell).not.toHaveTextContent(/hviledag/i)
 })
 
 test('an empty cell is a real button at the control floor, not a clickable box', () => {

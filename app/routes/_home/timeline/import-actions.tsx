@@ -27,10 +27,23 @@ const ACTION_TEXT =
 	'text-muted-foreground text-caption flex min-h-11 flex-none items-center gap-1 underline decoration-dotted underline-offset-[3px]'
 
 /** The one import offer a row carries, by kind. */
-export function ImportLinkAction({ link }: { link: TimelineImportLink }) {
+export function ImportLinkAction({
+	link,
+	inline = false,
+}: {
+	link: TimelineImportLink
+	/** Inside the row's glyph popover (ADR 0086), not under the row. */
+	inline?: boolean
+}) {
 	if (link.kind === 'ask') return <ImportQuestion ask={link} />
 	return (
-		<div className="-mt-2 flex flex-wrap items-center gap-x-2 pr-4 pl-[74px]">
+		<div
+			className={
+				inline
+					? 'flex flex-wrap items-center gap-x-2'
+					: '-mt-2 flex flex-wrap items-center gap-x-2 pr-4 pl-[74px]'
+			}
+		>
 			<ImportLinkButton
 				intent={link.kind === 'undo' ? 'undo' : 'relink'}
 				importId={link.importId}

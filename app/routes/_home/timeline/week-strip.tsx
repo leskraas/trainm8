@@ -65,6 +65,9 @@ const PHASE_TINT: Record<PhaseTone, string> = {
 	taper: 'bg-phase-taper/14',
 }
 
+/** The two edge buttons and their gaps, taken from the bars once windowed. */
+const EDGES_PX = 2 * (28 + 4)
+
 /** Roughly how wide a phase name sets at the band's 10px. */
 const NAME_PX_PER_CHAR = 5.6
 
@@ -129,7 +132,13 @@ export function WeekStrip({
 	const shown =
 		scrubbing && window_
 			? window_
-			: stripWindow({ count, width, frame: frameIndices, current: window_ })
+			: stripWindow({
+					count,
+					width,
+					frame: frameIndices,
+					current: window_,
+					edges: EDGES_PX,
+				})
 	if (!window_ || window_.start !== shown.start || window_.end !== shown.end) {
 		// Remembered (React's "state from the previous render"), so the next
 		// frame change moves the window only as far as it must.

@@ -36,7 +36,8 @@ import {
 const VIEWPORT = 600
 const WEEK_HEIGHT = 900
 const HEADER = 60
-const TODAY_IN_WEEK = 400
+/** Deep enough into its week that the week does not fit above it. */
+const TODAY_IN_WEEK = 700
 const TODAY_HEIGHT = 120
 /** Before the first week: the start cap. */
 const TOP_PAD = 100

@@ -55,7 +55,7 @@ import {
 	ANNET_ACTION_LABELS,
 	ANNET_TRACK_LABELS,
 	BEFORE_PLAN_LABEL,
-	eventCountdownLabel,
+	eventCountdownWhen,
 	freeBandLabels,
 	HERO_LABELS,
 	liftSchemeLabel,
@@ -531,6 +531,12 @@ export type TimelineTopLine = {
 	 * plan (#505 story 9). Null with no plan, where the line says so instead.
 	 */
 	goalLabel: string | null
+	/**
+	 * The goal in its two halves, for a line that may cut the race's name but
+	 * never its countdown: `Halvmaraton` and `om 12 uker`; for an
+	 * open-ended plan no name and `Blokk 3 av ∞`.
+	 */
+	goal: { name: string | null; when: string } | null
 }
 
 const DAYS_IN_WEEK = 7
@@ -708,7 +714,7 @@ export function buildTopLine(
 	activePlan: ActivePlan | null,
 	now: Date,
 ): TimelineTopLine {
-	if (!activePlan) return { planLabel: null, goalLabel: null }
+	if (!activePlan) return { planLabel: null, goalLabel: null, goal: null }
 	const eventDate = activePlan.eventDate ? new Date(activePlan.eventDate) : null
 	const arc =
 		activePlan.phases.length > 0
@@ -729,17 +735,22 @@ export function buildTopLine(
 	const position =
 		eventDate && arc ? planWeekLabel(arc.weekInPlan, arc.totalWeeks) : null
 	const planLabel = [name, position].filter(Boolean).join(' · ') || null
-	const goalLabel = eventDate
-		? eventCountdownLabel(
-				activePlan.eventName ?? HERO_LABELS.raceDay,
-				Math.ceil(
-					(eventDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+	const goal = eventDate
+		? {
+				name: activePlan.eventName ?? HERO_LABELS.raceDay,
+				when: eventCountdownWhen(
+					Math.ceil(
+						(eventDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+					),
 				),
-			)
+			}
 		: activePlan.round != null
-			? capitalise(openEndedBlockLabel(activePlan.round))
+			? { name: null, when: capitalise(openEndedBlockLabel(activePlan.round)) }
 			: null
-	return { planLabel, goalLabel }
+	const goalLabel = goal
+		? [goal.name, goal.when].filter(Boolean).join(' ')
+		: null
+	return { planLabel, goalLabel, goal }
 }
 
 function capitalise(text: string): string {

@@ -233,10 +233,13 @@ export function stripWindow({
 	width,
 	frame,
 	current,
+	edges = 0,
 }: {
 	count: number
-	/** The bars' width in px; 0 before anything is measured. */
+	/** The strip's width in px; 0 before anything is measured. */
 	width: number
+	/** What the two edge buttons take from the bars once there is a window. */
+	edges?: number
 	/** The frame's first and last week index. */
 	frame: { from: number; to: number }
 	current: StripWindow | null
@@ -245,7 +248,7 @@ export function stripWindow({
 	if (count === 0 || width <= 0) return all
 	const fits = Math.max(1, Math.floor(width / MIN_BAR_PX))
 	if (count <= fits) return all
-	const span = fits
+	const span = Math.max(1, Math.floor((width - edges) / MIN_BAR_PX))
 	const clampStart = (start: number) =>
 		Math.min(Math.max(0, start), count - span)
 	if (current && current.end - current.start + 1 === span) {

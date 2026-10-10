@@ -102,9 +102,10 @@ export function landingPosition(
 
 /**
  * Room the landing keeps under today's row when it parks the whole week on
- * screen, so the row is never the last thing on it.
+ * screen: today's row whole, and a hair below it, so a week of one-line rows
+ * opens with all its days in view (variant P).
  */
-export const LANDING_ROOM = 120
+export const LANDING_ROOM = 24
 
 /**
  * Where I dag opens (variant P, ADR 0086): **the top of today's week**, header

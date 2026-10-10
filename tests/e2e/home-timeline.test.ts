@@ -713,6 +713,68 @@ test('tapping a week in the strip jumps the stream there, and the frame follows 
 	await expect.poll(framed).toContain(key)
 })
 
+test('a season too long for a phone shows a window around the reader, and the rest is one tap away (S10)', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	// Half a year behind and ten months ahead: ~70 weeks, which on 358px would
+	// be bars ~5px wide. The strip shows a window of bars wide enough to hit,
+	// placed on the reader, with the weeks beyond each edge counted.
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedSeason(user.id)
+	const far = await prisma.workoutSession.findFirstOrThrow({
+		where: { userId: user.id, status: 'scheduled' },
+		select: { workoutId: true },
+	})
+	for (const days of [-170, 300]) {
+		await prisma.workoutSession.create({
+			data: {
+				userId: user.id,
+				workoutId: far.workoutId,
+				scheduledAt: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
+				status: days < 0 ? 'completed' : 'scheduled',
+				tssValue: days < 0 ? 50 : null,
+				plannedTssValue: 60,
+				plannedTssConfidence: 'full',
+				source: 'authored',
+			},
+		})
+	}
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	await page.waitForTimeout(1500)
+
+	const strip = page.getByTestId('week-strip')
+	await expect(strip).toHaveAttribute('data-strip-windowed', 'true')
+	const bars = strip.locator('[data-timeline-cell]')
+	// Every bar shown is at least ~6px wide, and today's week is among them.
+	for (const bar of await bars.all()) {
+		expect((await bar.boundingBox())!.width).toBeGreaterThanOrEqual(5.5)
+	}
+	await expect(strip.locator('[data-now]')).toHaveCount(1)
+	// The edges say how many weeks lie beyond, and step there.
+	const later = strip.getByRole('button', { name: /^Vis \d+ senere uker$/ })
+	const earlier = strip.getByRole('button', {
+		name: /^Vis \d+ tidligere uker$/,
+	})
+	await expect(later).toBeEnabled()
+	const firstShown = await bars.first().getAttribute('data-timeline-cell')
+	await later.click()
+	// The list jumped forward, and the window followed it.
+	await expect
+		.poll(() => bars.first().getAttribute('data-timeline-cell'))
+		.not.toBe(firstShown)
+	// …and now there are weeks behind its left edge, one tap away too.
+	await expect(earlier).toBeEnabled()
+	// No overflow, whatever the window shows.
+	expect(
+		await strip.evaluate((el) => el.scrollWidth - el.clientWidth),
+	).toBeLessThanOrEqual(0)
+})
+
 test('a comparable session names its basis and its band; an unplanned one refuses to', async ({
 	page,
 	navigate,

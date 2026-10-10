@@ -2631,6 +2631,7 @@ describe('the top line names the plan and its goal (ADR 0086)', () => {
 		expect(season([on(0)]).topLine).toEqual({
 			planLabel: null,
 			goalLabel: null,
+			goal: null,
 		})
 	})
 })

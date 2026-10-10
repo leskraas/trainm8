@@ -425,7 +425,9 @@ test("today's row carries today's session, its action and the coach's line", asy
 		'href',
 		`/training/sessions/${TODAY_SESSION.id}`,
 	)
-	expect(within(row).getByText(/^Form \+4, /)).toBeInTheDocument()
+	// The coach's line is this week's sentence, in its header (ADR 0086).
+	const week = row.closest<HTMLElement>('[data-timeline-week]')!
+	expect(within(week).getByText(/^Form \+4, /)).toBeInTheDocument()
 })
 
 test("the coach's line never shows a Form number on a cold start", async () => {
@@ -437,11 +439,11 @@ test("the coach's line never shows a Form number on a cold start", async () => {
 		}),
 	)
 
-	const row = await todayRow()
+	const week = (await todayRow()).closest<HTMLElement>('[data-timeline-week]')!
 	expect(
-		within(row).getByText(/formen kan leses etter 42 dager — dag 9\/42\./i),
+		within(week).getByText(/formen kan leses etter 42 dager — dag 9\/42\./i),
 	).toBeInTheDocument()
-	expect(within(row).queryByText(/^Form \+/)).not.toBeInTheDocument()
+	expect(within(week).queryByText(/^Form \+/)).not.toBeInTheDocument()
 })
 
 test('today empty: the row says so, offers to write one, and lends Friday no action', async () => {
@@ -615,9 +617,10 @@ test('a week header carries its range, its phase and what happened in it', async
 	)
 
 	const header = await screen.findByRole('heading', {
-		name: 'Denne uka 31. des – 6. jan',
+		name: /^Denne uka\s*·\s*31\. des – 6\. jan/,
 		level: 2,
 	})
+	expect(header).toHaveTextContent(/^Denne uka · 31\. des – 6\. jan/)
 	const block = header.closest('[data-timeline-week]')!
 	expect(block).toHaveTextContent('Oppbygging · hard uke')
 	// No track to read the week in, so it carries its sessions and load.

@@ -191,7 +191,7 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	// out to the plan's taper, and the line saying there is no plan is gone.
 	const top = page.getByTestId('timeline-top')
 	await expect(top.getByText(/uke \d+ av 21/i)).toBeVisible()
-	await expect(top.getByText(/ om \d+ uker$/)).toBeVisible()
+	await expect(top.getByText(/^om \d+ uker$/)).toBeVisible()
 	await expect(page.getByText(/ingen (sesong)?plan ennå/i)).toHaveCount(0)
 	await expect(top.getByText('Ingen plan')).toHaveCount(0)
 	await expect(

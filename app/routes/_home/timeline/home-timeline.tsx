@@ -358,7 +358,9 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 
 				<header
 					data-testid="timeline-top"
-					className="bg-background flex flex-none flex-col gap-1 px-4 pb-2"
+					// Pinned above the list, and set apart from it by tone and a soft
+					// shadow rather than a rule (the luma direction, ADR 0085).
+					className="bg-background relative z-10 flex flex-none flex-col gap-0.5 px-4 pb-2 shadow-[0_1px_3px_oklch(0_0_0/0.06)]"
 				>
 					<TopLine
 						line={season.topLine}
@@ -464,9 +466,9 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 /**
  * The top line (variant P): the plan and its goal on the left, then the
  * Ukeskiftet badge while a proposal waits, "+ Ny" (icon only, named `Lag
- * ny`), and the I dag pill. One row of at least 48px: the plan's name gives
- * way (it truncates), the goal wraps to a second line rather than losing its
- * countdown, and the controls never shrink.
+ * ny`), and the I dag pill — one 44px line, as variant P's. The plan's name
+ * gives way first, then the race's name; the countdown and the controls never
+ * do.
  */
 function TopLine({
 	line,
@@ -482,41 +484,53 @@ function TopLine({
 	onWrite: () => void
 }) {
 	return (
-		<div className="flex min-h-12 items-center gap-2 py-1">
+		<div className="flex h-11 items-center gap-2">
 			<p
 				data-top-line-plan
-				className="flex min-w-0 flex-1 flex-col justify-center"
+				className="text-footnote flex min-w-0 flex-1 items-baseline gap-1.5 whitespace-nowrap"
 			>
-				{line.goalLabel || line.planLabel ? (
+				{line.goal || line.planLabel ? (
 					<>
+						{/* The plan's name gives way first; then the race's name; the
+						    countdown never does — it is the part an ellipsis would eat. */}
 						{line.planLabel ? (
-							<span className="text-muted-foreground text-caption truncate font-normal">
+							// On a phone the goal has the line: the plan's name, squeezed beside
+							// the badge, "+ Ny" and the pill, would read `S…`.
+							<span className="text-muted-foreground min-w-[3ch] shrink-[4] truncate max-sm:hidden">
 								{line.planLabel}
 							</span>
 						) : null}
-						{line.goalLabel ? (
-							// The goal wraps rather than being cut: `om 2 uker` is the
-							// part that matters, and it is the part an ellipsis eats.
+						{line.goal ? (
 							<span
 								data-top-line-goal
-								className="text-foreground text-footnote font-semibold [text-wrap:balance] tabular-nums"
+								className="text-foreground flex min-w-0 shrink items-baseline gap-1 font-semibold"
 							>
-								{line.goalLabel}
+								{line.goal.name ? (
+									<>
+										<span aria-hidden className="flex-none">
+											⚑
+										</span>
+										<span className="min-w-0 truncate">
+											{line.goal.name}
+										</span>{' '}
+									</>
+								) : null}
+								<span className="flex-none tabular-nums">{line.goal.when}</span>
 							</span>
 						) : null}
 					</>
 				) : (
-					<span className="text-footnote flex min-w-0 items-baseline gap-1.5">
+					<>
 						<span className="text-muted-foreground">
 							{TOP_LINE_LABELS.noPlan}
 						</span>
 						<Link
 							to="/training/plan"
-							className="text-primary truncate font-semibold underline-offset-4 hover:underline"
+							className="text-primary min-w-0 truncate font-semibold underline-offset-4 hover:underline"
 						>
 							{TOP_LINE_LABELS.noPlanAction}
 						</Link>
-					</span>
+					</>
 				)}
 			</p>
 			{weekChangeCount > 0 ? <WeekChangeBadge count={weekChangeCount} /> : null}
