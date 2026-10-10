@@ -84,3 +84,17 @@ The work was paused because the owner's budget ran low. Everything needed to pic
     - Editor route tests (token-editing, structural-chrome, intensity-popover, `sessions.$sessionId`, inline-edit) and plan route tests failed in a stopped parallel run. Some assert English token words like "rest"; others may be timeouts. Rerun them one at a time.
     - 7 failures in `index.dashboard.test.tsx` also happen when that file runs alone. Not investigated.
     - Build, e2e, screenshots and the Emil reviews were not done.
+- **claude/first-run-integrations** 3eaf22a (WIP)
+  - **E done (8798f5d):** 13px AA field errors, `ui/radio-group`, `RadioGroupField`/`ToggleGroupField`, no red ✕ on StatusButton. The onboarding e2e is updated but was not run.
+  - **B, generator only:**
+    - The stamp lays each philosophy's hard sessions.
+    - Norwegian titles ("Terskeløkt · Løping").
+    - "Timer i uka" is now the starting point (decision 15).
+    - No more 6-minute sessions at low hours, and one rest day kept when all seven days are chosen.
+    - This affects every plan, not just first run: re-laid weeks get hard sessions, and the heaviest week is stored as weekly capacity. Review it.
+  - **Broken:** 2 tests in `start/first-run.route.test.ts` fail because the step 4–5 screens still use the old wording and preview titles.
+  - **Not started:**
+    - A (first-run UI, CLS fix, delight) and C (integrations, upload, real "Last synced", hide Strava, share-target message)
+    - ADR + GLOSSARY for the stamp/hours change
+    - build, e2e, screenshots, Emil reviews
+    - the list of stored titles, and what PR D needs
