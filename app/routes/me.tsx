@@ -8,6 +8,14 @@
  * Imports have no page of their own (spec #505, Navigation): an intervals.icu
  * import lands on its day by itself, so what is left to offer is the
  * connection and the upload of a file from a watch.
+ *
+ * **Form and Rekorder** moved here from the home hero when the hero went (#505,
+ * the owner's decision of 2026-10-10): they were the only place either reading
+ * was shown. They sit between the profile card and the settings. Meg is the
+ * athlete's own page, and what their training has built is the part of it that
+ * changes and is worth opening the tab for; settings, connections and logging
+ * out are visited rarely, so they go below, out of the way (story 59). The
+ * profile card stays on top because it names whose page this is.
  */
 import { Img } from 'openimg/react'
 import { Form, Link } from 'react-router'
@@ -19,6 +27,7 @@ import {
 	connectionHubStatus,
 	getAccountConnection,
 } from '#app/utils/account-connection.server.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -27,8 +36,23 @@ import {
 	ME_LABELS,
 	providerLabel,
 } from '#app/utils/labels.ts'
+import {
+	getCurrentLoad,
+	getLoadSnapshots,
+	getTsbTrust,
+} from '#app/utils/load/snapshot.server.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
+import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import { type Route } from './+types/me.ts'
+import {
+	buildFormReading,
+	buildRecordLines,
+} from './__me-form-records-presenter.ts'
+import {
+	FormSection,
+	MeSectionHeading,
+	RecordsSection,
+} from './__me-form-records.tsx'
 
 export const meta: Route.MetaFunction = () => [
 	{ title: `${APP_TAB_LABELS.me} | Trainm8` },
@@ -36,7 +60,15 @@ export const meta: Route.MetaFunction = () => [
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const [user, connection] = await Promise.all([
+	const [
+		user,
+		connection,
+		currentLoad,
+		snapshots,
+		tsbTrust,
+		personalRecords,
+		timezone,
+	] = await Promise.all([
 		prisma.user.findUniqueOrThrow({
 			where: { id: userId },
 			select: {
@@ -46,10 +78,29 @@ export async function loader({ request }: Route.LoaderArgs) {
 			},
 		}),
 		getAccountConnection(userId, INTERVALSICU_PROVIDER),
+		// The four reads the home hero's Form and Records panes were built from,
+		// unchanged, so the numbers are the ones the hero showed: the latest Load
+		// Snapshot, 90 days of them for the trend, the cold-start gate, and the
+		// derived Personal Records.
+		getCurrentLoad(userId),
+		getLoadSnapshots(userId, 90),
+		getTsbTrust(userId),
+		getPersonalRecords(userId),
+		getAthleteTimezone(userId),
 	])
 	// The same reading the integrations page makes (`connectionHubStatus`).
 	const intervalsicu = connectionHubStatus(connection)
-	return { user, intervalsicu }
+	// Built here rather than in the component: the strings are the payload, and
+	// a record's `achievedAt` is then read in the athlete's zone once, on the
+	// server, instead of after a Date has been serialized.
+	const form = buildFormReading({
+		current: currentLoad,
+		trust: tsbTrust,
+		snapshots: snapshots.map((s) => ({ date: s.date, ctl: s.ctl })),
+		timezone,
+	})
+	const records = buildRecordLines(personalRecords, timezone)
+	return { user, intervalsicu, form, records }
 }
 
 function MeLink({
@@ -106,19 +157,14 @@ function MeSection({
 }) {
 	return (
 		<section aria-labelledby={id} className="mt-8">
-			<h2
-				id={id}
-				className="text-body-xs text-muted-foreground mb-1 font-semibold tracking-[0.12em] uppercase"
-			>
-				{title}
-			</h2>
+			<MeSectionHeading id={id}>{title}</MeSectionHeading>
 			<ul className="divide-border/70 divide-y">{children}</ul>
 		</section>
 	)
 }
 
 export default function MeRoute({ loaderData }: Route.ComponentProps) {
-	const { user, intervalsicu } = loaderData
+	const { user, intervalsicu, form, records } = loaderData
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader title={APP_TAB_LABELS.me} className="mb-6" />
@@ -153,6 +199,9 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 					aria-hidden="true"
 				/>
 			</Link>
+
+			<FormSection reading={form} />
+			<RecordsSection records={records} />
 
 			<MeSection id="me-settings" title={ME_LABELS.settings}>
 				<MeLink

@@ -138,6 +138,14 @@ test('every tab navigates and marks itself current on a phone', async ({
 	await expect(
 		page.getByRole('heading', { name: 'Meg', level: 1 }),
 	).toBeVisible()
+	// Form and Rekorder, handed over by the home hero (#505), above the account
+	// sections.
+	await expect(
+		page.getByRole('heading', { name: 'Form', level: 2 }),
+	).toBeVisible()
+	await expect(
+		page.getByRole('heading', { name: 'Rekorder', level: 2 }),
+	).toBeVisible()
 	await expect(
 		page.getByRole('link', { name: /trening og terskler/i }),
 	).toHaveAttribute('href', '/settings/training')

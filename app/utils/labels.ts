@@ -1533,7 +1533,7 @@ export const VERDICT_LABELS = {
 	heldStrength: 'neste økt er styrke, så den står som planlagt',
 } as const
 
-/** The Form pane's triad, as the hero names it (ADR 0008). */
+/** The Training Load triad, as Meg's Form section names it (ADR 0008). */
 export const NB_LOAD_LEGENDS = {
 	fitness: {
 		short: 'Kond',
@@ -2907,6 +2907,41 @@ export const ME_LABELS = {
 	upload: 'Last opp en aktivitetsfil',
 	uploadDetail: '.fit, .tcx eller .gpx fra en klokke eller en annen app',
 	logout: 'Logg ut',
+} as const
+
+/**
+ * Meg's Form section: the Training Load triad and how far it can be trusted
+ * (ADR 0008/0010). It came from the home hero's Form pane when the hero went
+ * (#505). Every "ikke målt" here is said with its reason (story 71).
+ */
+export const ME_FORM_LABELS = {
+	title: 'Form',
+	notMeasured: 'ikke målt',
+	noLoad:
+		'Ikke målt ennå: ingen treningsbelastning er regnet ut. Den kommer når du har logget økter.',
+	formColdStart: (day: number, required: number) =>
+		`Formen er ikke målt ennå: den trenger ${required} dager med belastning, og du har ${day}. Kondisjon og tretthet kan leses fra første dag.`,
+	baseline: 'Bygger grunnlag',
+	baselineValue: (day: number, required: number) => `dag ${day} av ${required}`,
+	trusted: (days: number) => `Bygger på ${days} dager med belastning`,
+	asOf: (date: string) => `regnet ut ${date}`,
+	fitnessTrend: (from: string, to: string, since: string) =>
+		`Kondisjon ${from} → ${to} siden ${since}`,
+} as const
+
+/**
+ * Meg's Rekorder section: Personal Records (ADR 0021), moved from the home
+ * hero's Records pane (#505). Records only come from trusted, recorded efforts,
+ * so the empty state says what will fill it rather than showing a zero.
+ */
+export const ME_RECORD_LABELS = {
+	title: 'Rekorder',
+	source: 'Fra økter med registrerte data fra klokke eller import',
+	none: 'Ingen personlige rekorder ennå. De kommer når du har logget økter med registrerte data.',
+	longest: (noun: string) => `Lengste ${noun}`,
+	overBest: (delta: string) => `${delta} over forrige beste`,
+	firstOnRecord: 'Første registrerte',
+	setOn: (date: string) => `satt ${date}`,
 } as const
 
 /** An Account Connection's state, as Meg reads it (`connection-hub-status.ts`). */
