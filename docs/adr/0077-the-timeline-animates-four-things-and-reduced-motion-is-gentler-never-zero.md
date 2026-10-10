@@ -1,6 +1,10 @@
 # The timeline animates four things, and reduced motion is gentler rather than zero
 
-Status: Accepted. **§4 is superseded by
+Status: Accepted. **§2–3 are amended by
+[ADR 0085](0085-the-design-system-is-shadcn-base-luma-on-base-ui-and-motion-follows-one-scale.md)
+§4**: the app's motion is no longer "four animations" and `height` is no longer
+confined to "two accordions"; the shared primitives animate through one set of
+motion utilities. **§4 is superseded by
 [ADR 0082](0082-i-dag-reads-like-a-printed-plan-and-the-season-strip-frames-the-reader.md)**
 (#505 S9): the back-to-today pill moved into the season strip as the _I dag_
 pill, which never comes or goes and changes look instantly, so its two

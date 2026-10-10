@@ -1,6 +1,5 @@
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import * as React from 'react'
-
 import { cn } from '#app/utils/misc.tsx'
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
@@ -11,6 +10,9 @@ function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
 	return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
 }
 
+// shadcn `base-luma` popover. Deviation D4 (docs/design/design-system.md):
+// `motion-popup` replaces tw-animate's keyframes — out of the trigger from
+// scale 0.96, 200ms in / 150ms out, interruptible.
 function PopoverContent({
 	className,
 	align = 'center',
@@ -35,7 +37,7 @@ function PopoverContent({
 				<PopoverPrimitive.Popup
 					data-slot="popover-content"
 					className={cn(
-						'bg-popover text-popover-foreground ring-foreground/5 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 dark:ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 z-50 flex w-72 origin-(--transform-origin) flex-col gap-4 rounded-3xl p-4 text-sm shadow-lg ring-1 outline-hidden duration-100',
+						'bg-popover text-popover-foreground ring-foreground/5 dark:ring-foreground/10 motion-popup z-50 flex w-72 flex-col gap-4 rounded-3xl p-4 text-sm shadow-lg ring-1 outline-hidden',
 						className,
 					)}
 					{...props}
