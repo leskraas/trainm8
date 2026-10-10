@@ -44,3 +44,28 @@ The work was paused because the owner's budget ran low. Everything needed to pic
 - Run at most 4–5 agents at once. With 8 the machine reached load 20–28, and the jsdom route tests time out.
 - Never use `pkill -f "node index.ts"`. Kill only your own PID.
 - Delete `.scratch/round-2/` (this branch) once round 2 has merged.
+
+## Agent stop reports
+- **claude/meg-pages** f898220 (WIP)
+  - **Done:** all 13 Meg sub-pages are in Norwegian on the design system (MEG_* labels, `__meg-ui.tsx`, `__meg-text.ts`); auth logic unchanged.
+  - **Left:**
+    - 3 unit tests fail (analyze.route, lifts.$exerciseId.route).
+    - The settings-profile, 2fa, passkey and mobile-overflow e2e tests still assert English.
+    - Lint, screenshots and the Emil tables were not done.
+    - Swap the local `nbKg` for `formatNbKg`.
+  - **Bug (auth code, reported only):** `/settings/profile/connections` returns 500 when the GitHub lookup gets non-JSON back (`utils/providers/github.server.ts:119`, happens with mocks).
+  - **Owner decision:** the gym page's list fields take "." as the decimal separator ("2,5" would split into two plates).
+- **claude/composer** 810fbf8 (WIP)
+  - **Done:**
+    - one composer: a Drawer on phones, the day pane / Sheet on large screens
+    - entry points: "+", "legg til en til", "Ny økt"
+    - sources Skriv, Bibliotek and Kopier (place-session and copy-session intents); Appen disabled
+    - Annet, "Allerede gjort", one undo path, session detail in the Drawer
+    - old draft, WritingPanel and reflow deleted; unit tests pass
+  - **Left:**
+    - ADR 0088 (amends 0076)
+    - e2e rewrites (writing-line, home-timeline motion audit, session-authoring, home-large-screen)
+    - Sesong "Nytt løp" / "Ny plan" links
+    - design-system rows (Switch, toast)
+    - lint, build, screenshots, tap/time measurements, Emil reviews
+    - the dashboard test "creation survives the re-composition" needs a `/resources/week-sum` stub
