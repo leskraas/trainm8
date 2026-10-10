@@ -166,6 +166,15 @@ app-wide. Verified on the built CSS: every `:hover` rule sits inside that query.
   trigger; an invisible `after:`/`before:` hit area for compact controls; menu,
   select and command items are 44px on a coarse pointer and the CLI's 36px with
   a mouse.
+- The top chrome (wordmark row) pads `env(safe-area-inset-top)`, and the tab
+  bar pads the bottom inset. Every tappable thing has a press: `pressable`, or
+  an instant `active:` tint where a transition would be wrong (the I dag
+  pill, the tabs).
+- Contrast is AA (4.5:1) for text in both themes. In light,
+  `muted-foreground` measures 5.5 on the card, 5.1 on the page and 4.7 on
+  `muted`. Do not dim it further with opacity: at /80 it is 3.6, and at /70
+  it is 3.0. `status-under` is L 0.55 in light (5.0 on the card). Track hues
+  are for marks only, never for text.
 - Needs a real phone to confirm: tap delay, sticky hover, the theme-colour
   status bar, the keyboard with `interactive-widget`, and the drawer's flick
   dismiss.

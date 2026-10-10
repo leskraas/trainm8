@@ -238,5 +238,31 @@ Three behaviours shipped in wave 1 (#505 S3, S2, S5) without an ADR:
   kept roughly true when a row's layout changes (`WEEK_HEIGHTS`).
 - The large-screen season pane is still the older English `SeasonChart` (#505
   D4); this ADR does not change it.
-- Digit grouping for large volume figures (`1270,3 km`) is not done; it would
-  change the shared `formatNbVolumeFigure`.
+- Digit grouping for large volume figures is done in the polish pass below.
+
+## Amended in the polish pass (same PR)
+
+- **Top line (§1):** the race's name is never cut. It wraps inside the
+  line's 44px and grows the bar only for a name longer than two lines. The
+  countdown is one unbreakable unit. Under 360px the badge shows the count
+  alone (`● 1`), and its name still says the whole sentence. From `lg` up,
+  the plan and goal are left to the season pane's plan card (ADR 0087).
+- **Strip (§5):** a phase is named whole or not at all, never abbreviated.
+  Today's phase (or the reader's, when today is outside the window) is always
+  named. Its name may run past a narrow band, and a neighbouring name it
+  covers gives way.
+- **Header (§3):** it keeps the title, one line per track and the summary.
+  In the flow, at most one quiet line per track stays in view: the `+n uten
+  km` counts with their side, and a part-logged strength week. The ungraded
+  reason, pace, easy share, zone split with `hensikt, ikke en måling`, and
+  Annet sit behind the summary line in a popover, and stay in place as
+  screen-reader text. A track's name is set in ink. The Meter carries the
+  hue, because the run, bike and swim hues are under 4.5:1 as caption text
+  on a light card.
+- **Load line:** `X av Y TSS` is used only when every session with done load
+  also had a Planned TSS. Otherwise the line names each side, as in `gjort
+  176 · planlagt 85 TSS`.
+- **Figures:** `formatNbVolumeFigure` groups thousands with a no-break space
+  (`1 270,3`).
+- Kilos still use a decimal point (`82.5 × 5,5,5,4`), because commas separate
+  the rep counts. This is an open owner decision.

@@ -2228,6 +2228,12 @@ test('the timeline animates its draft and its press, and the frame declares noth
 		`[data-base-ui-click-trigger] — border-color 0.16s ${EASE_OUT}`,
 		`[data-base-ui-click-trigger] — color 0.16s ${EASE_OUT}`,
 		`[data-base-ui-click-trigger] — transform 0.16s ${EASE_OUT}`,
+		// _Gjort_ inside its fetcher form (#505 polish: every control has a
+		// press, since the tap highlight is off).
+		`[data-discover] button — background-color 0.16s ${EASE_OUT}`,
+		`[data-discover] button — border-color 0.16s ${EASE_OUT}`,
+		`[data-discover] button — color 0.16s ${EASE_OUT}`,
+		`[data-discover] button — transform 0.16s ${EASE_OUT}`,
 		`[data-discover] — background-color 0.16s ${EASE_OUT}`,
 		`[data-discover] — border-color 0.16s ${EASE_OUT}`,
 		`[data-discover] — color 0.16s ${EASE_OUT}`,
