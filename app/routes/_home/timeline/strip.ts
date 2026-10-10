@@ -6,7 +6,7 @@
  * Derived from the same `TimelineWeek[]` the stream renders, so the strip and
  * the list cannot disagree about a week (ADR 0065, consequences).
  */
-import { formatLoad, formatVolumeFigure } from '#app/utils/format.ts'
+import { formatLoad, formatNbVolumeFigure } from '#app/utils/format.ts'
 import {
 	NB_VOLUME_UNITS,
 	SEASON_STRIP_LABELS,
@@ -64,7 +64,7 @@ export function buildStrip(
 			return {
 				value: track.stripValue,
 				done: track.actual,
-				figure: (n: number) => formatVolumeFigure(n, track.currency),
+				figure: (n: number) => formatNbVolumeFigure(n, track.currency),
 				unit: NB_VOLUME_UNITS[track.currency],
 			}
 		}

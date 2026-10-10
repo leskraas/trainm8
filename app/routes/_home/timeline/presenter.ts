@@ -59,6 +59,7 @@ import {
 	NB_SESSION_CTA_LABELS,
 	NB_WEEK_ROLE_LABELS,
 	nbDisciplineLabel,
+	nbPhaseName,
 	nbSessionNoun,
 	pastBandLabels,
 	planWeekLabel,
@@ -668,8 +669,12 @@ function seasonMondays({
 
 /**
  * Which phase each week of the plan sits in, and where in that phase it sits —
- * `Build 3` is the third week of the Build phase, counted by position and never
- * by name, because a season with two A-races runs Base twice (ADR 0044 §2).
+ * the third week of Oppbygging is counted by position and never by name,
+ * because a season with two A-races runs Base twice (ADR 0044 §2).
+ *
+ * The name is the display name (`nbPhaseName`): a preset's stored `Build`
+ * reads `Oppbygging` on I dag (ADR 0081), and a phase the athlete named
+ * themselves — `Blokk 4` — reads as they wrote it. The stored key is untouched.
  */
 function phaseLookup(
 	activePlan: ActivePlan | null,
@@ -682,7 +687,7 @@ function phaseLookup(
 		const endMonday = weekMonday(new Date(band.end.getTime() - 1), timezone)
 		let weekInPhase = 1
 		while (monday <= endMonday) {
-			lookup.set(monday, { name: band.name, weekInPhase })
+			lookup.set(monday, { name: nbPhaseName(band.name), weekInPhase })
 			monday = addDays(monday, 7)
 			weekInPhase += 1
 		}
@@ -830,6 +835,14 @@ function buildWeek({
 	const lead = trackWeeks.find((track) => track.trackId === leadTrackId) ?? null
 	const phaseName = imported ? null : (phase?.name ?? null)
 	const roleLabel = imported || role == null ? null : NB_WEEK_ROLE_LABELS[role]
+	// A taper phase's taper week would read `Nedtrapping · nedtrapping`: the
+	// role says nothing the phase's name has not, so it is said once.
+	const kindRole =
+		roleLabel != null &&
+		phaseName != null &&
+		roleLabel.toLowerCase() === phaseName.toLowerCase()
+			? null
+			: roleLabel
 
 	return {
 		key: monday,
@@ -854,9 +867,7 @@ function buildWeek({
 		phaseName,
 		role: imported ? null : role,
 		roleLabel,
-		kindLabel: imported
-			? BEFORE_PLAN_LABEL
-			: join(phaseName, roleLabel) || null,
+		kindLabel: imported ? BEFORE_PLAN_LABEL : join(phaseName, kindRole) || null,
 		shape,
 		foldLabel:
 			shape === 'folded'

@@ -404,7 +404,7 @@ describe('step 4: the plan, and why', () => {
 		expect(plan.phases.map((phase) => phase.split(' · ')[0])).toEqual([
 			'Grunntrening',
 			'Oppbygging',
-			'Topp',
+			'Spissing',
 			'Nedtrapping',
 		])
 

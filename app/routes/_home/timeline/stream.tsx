@@ -289,12 +289,28 @@ function WeekFigures({
 	)
 }
 
-/** A figure, or a quiet dash where the week has none to state. */
-function Figure({ label, value }: { label: string; value: string | null }) {
+/**
+ * A figure; or, where the side has sessions none of which has a number, what
+ * stands in its place (`2 økter uten km`); or a quiet dash where the week has
+ * nothing to state.
+ */
+function Figure({
+	label,
+	value,
+	note = null,
+}: {
+	label: string
+	value: string | null
+	note?: string | null
+}) {
 	return (
 		<span className="whitespace-nowrap">
 			<span className="text-ink-dimmer">{label}</span>{' '}
-			<span className="text-foreground font-semibold">{value ?? '–'}</span>
+			{value == null && note != null ? (
+				<span className="text-ink-dim">{note}</span>
+			) : (
+				<span className="text-foreground font-semibold">{value ?? '–'}</span>
+			)}
 		</span>
 	)
 }
@@ -341,9 +357,14 @@ export function TrackLine({
 					<Figure
 						label={WEEK_FIGURE_LABELS.planned}
 						value={track.figures.planned}
+						note={track.figureNotes.planned}
 					/>
 					<span className="text-ink-dimmest">·</span>
-					<Figure label={WEEK_FIGURE_LABELS.done} value={track.figures.done} />
+					<Figure
+						label={WEEK_FIGURE_LABELS.done}
+						value={track.figures.done}
+						note={track.figureNotes.done}
+					/>
 					<span className="text-ink-dim">{track.unit}</span>
 				</span>
 				{track.driftLabel ? (
@@ -371,6 +392,26 @@ export function TrackLine({
 			{extras.length > 0 ? (
 				<span className="text-ink-dimmer text-[11px]/[1.35]">
 					{extras.join(' · ')}
+				</span>
+			) : null}
+			{/* A skier's zone split, one side a line (story 21): what was done,
+			    then what the plan meant — never read as one measurement. */}
+			{track.zoneSplit?.done ? (
+				<span
+					data-zone-split="done"
+					className="text-ink-dimmer text-[11px]/[1.35]"
+				>
+					{track.zoneSplit.done}
+				</span>
+			) : null}
+			{track.zoneSplit?.planned ? (
+				<span
+					data-zone-split="planned"
+					className="text-ink-dimmer text-[11px]/[1.35]"
+				>
+					{[track.zoneSplit.planned, track.zoneIntentNote]
+						.filter(Boolean)
+						.join(' · ')}
 				</span>
 			) : null}
 		</div>

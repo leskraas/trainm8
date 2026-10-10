@@ -19,6 +19,8 @@ import {
 } from './week-change.ts'
 
 const DAY = 24 * 60 * 60 * 1000
+/** A Norwegian percent: the figure, a no-break space, the sign. */
+const PCT = '\u00a0%'
 // Wednesday 20 February 2030, at local noon. A midweek anchor is what makes the
 // Monday-first week bucketing worth testing: a Sunday or a Monday would hide an
 // off-by-one.
@@ -695,14 +697,16 @@ describe('weeks before the plan are imported history', () => {
 		// The plan began 4 weeks ago with a 4-week Base, so this week is Build's
 		// first — a hard week in its 3:1.
 		expect(result.weeks.find((week) => week.isNow)?.kindLabel).toBe(
-			'Build · hard uke',
+			'Oppbygging · hard uke',
 		)
 	})
 
 	test('the strip names a week the way its header does', () => {
 		const result = season([on(-35), on(0)], plan())
 		const now = result.strip.weeks.find((week) => week.isNow)!
-		expect(now.label).toMatch(/^Denne uka, 18\.–24\. feb, Build · hard uke, /)
+		expect(now.label).toMatch(
+			/^Denne uka, 18\.–24\. feb, Oppbygging · hard uke, /,
+		)
 		expect(result.strip.weeks[0]?.label).toContain('før planen')
 	})
 })
@@ -1387,8 +1391,10 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 			planned: 22,
 			actual: 10.4,
 		})
-		// The long run with no km is counted beside the sum, not as zero.
-		expect(run.plannedUnmeasuredLabel).toBe('+1 uten km')
+		// The long run with no km is counted beside the sum, not as zero — and
+		// says it is the planned side's count (story 34).
+		expect(run.plannedUnmeasuredLabel).toBe('planlagt +1 uten km')
+		expect(run.figureNotes.planned).toBeNull()
 		expect(run.pace?.actualSecPerKm).toBe(300)
 	})
 
@@ -1481,7 +1487,8 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 		expect(track).toMatchObject({
 			name: 'Sykling',
 			unit: 't',
-			figures: { target: '6', planned: '3.5', done: '1.5' },
+			// A decimal comma, as a Norwegian surface writes it.
+			figures: { target: '6', planned: '3,5', done: '1,5' },
 			// No distance in an hours track is never "uten km".
 			plannedUnmeasuredLabel: null,
 			paceLabel: null,
@@ -1491,7 +1498,14 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 		// Done: 4050 of 5400 s easy = 75 %. Planned: 3 t of 3,5 t easy = 86 %.
 		expect(track.zones?.done?.easyShare).toBe(0.75)
 		expect(track.zones?.planned?.easyShare).toBe(0.86)
-		expect(track.zoneLabel).toMatch(/^rolig 75\s?% · plan 86\s?%$/)
+		// An hours track carries the whole split, each side on its own, rather
+		// than the easy share alone (story 21: a skier reads hours and zones).
+		expect(track.zoneLabel).toBeNull()
+		expect(track.zoneSplit).toEqual({
+			done: `gjort Z2 75${PCT} · Z4 25${PCT}`,
+			// 10 800 s of Z2 and 1 800 s of Z4: 85,7 / 14,3, which add to 100.
+			planned: `plan Z2 86${PCT} · Z4 14${PCT}`,
+		})
 	})
 
 	test('a strength week logged through Monday, with Tuesday done but unlogged, says how far it is measured (story 85)', () => {
@@ -1558,9 +1572,12 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 			tssPlan,
 		).weeks.find((w) => w.key === THIS_MONDAY)!
 		expect(week.plannedTss).toBeNull()
+		// No sum to put the count beside: it stands in the figure's place.
 		expect(week.tracks[0]).toMatchObject({
 			planned: null,
-			plannedUnmeasuredLabel: '+1 uten TSS',
+			figures: { planned: null },
+			figureNotes: { planned: '1 økt uten TSS' },
+			plannedUnmeasuredLabel: null,
 		})
 	})
 
@@ -1576,6 +1593,364 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 // ---------------------------------------------------------------------------
 // I dag: the week model a printed plan reads like (#505 S9)
 // ---------------------------------------------------------------------------
+
+describe('a week header says one true thing per track (#505 S9 review)', () => {
+	const kmTargets = Array<number>(12).fill(46)
+	const kmPlan = (overrides: Partial<ActivePlan> = {}) =>
+		plan({
+			tracks: [
+				{
+					trackId: 'track-run',
+					discipline: 'run',
+					currency: 'km',
+					targets: kmTargets,
+					overridden: kmTargets.map(() => false),
+					sessionTargets: null,
+				},
+			],
+			...overrides,
+		})
+	/** A run prescribed by time at Z2: a planned session with no km in it. */
+	const timedRun = (id: string) =>
+		workout({
+			id,
+			blocks: [
+				{
+					id: `block-${id}`,
+					name: 'Main',
+					orderIndex: 0,
+					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
+					steps: [step({ id: `${id}-s`, intensity: 'Z2', durationSec: 3600 })],
+				},
+			],
+		})
+	const kmRun = (km: number) =>
+		workout({
+			blocks: [
+				{
+					id: `block-${km}`,
+					name: 'Main',
+					orderIndex: 0,
+					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
+					steps: [step({ distanceM: km * 1000, durationSec: null })],
+				},
+			],
+		})
+	const recorded = (id: string, km: number) => ({
+		id,
+		discipline: 'run',
+		durationSec: km * 300,
+		distanceM: km * 1000,
+		startedAt: NOW,
+		endedAt: NOW,
+		phaseBarsJson: null,
+		linkAnsweredAt: null,
+		unlinkedFromSessionId: null,
+	})
+	const thisWeek = (result: ReturnType<typeof season>) =>
+		result.weeks.find((week) => week.key === THIS_MONDAY)!
+
+	test('sessions planned with no km say so where the sum would be, never `planlagt –` beside a planned zone split', () => {
+		const run = thisWeek(
+			season(
+				[
+					on(1, {
+						id: 'thu',
+						status: 'scheduled',
+						recording: null,
+						workout: timedRun('thu'),
+					}),
+					on(3, {
+						id: 'sat',
+						status: 'scheduled',
+						recording: null,
+						workout: timedRun('sat'),
+					}),
+				],
+				kmPlan(),
+			),
+		).tracks[0]!
+		expect(run.planned).toBeNull()
+		expect(run.figures.planned).toBeNull()
+		// In the figure's place, not a dash — and not repeated beside it.
+		expect(run.figureNotes.planned).toBe('2 økter uten km')
+		expect(run.plannedUnmeasuredLabel).toBeNull()
+		// The plan's zones are still read, and still an intention.
+		expect(run.zoneLabel).toMatch(/plan 100/)
+		expect(run.zoneIntentNote).toBe('hensikt, ikke en måling')
+	})
+
+	test('a week with km done but no planned km to hold it against says the reference is missing, never "ikke målt"', () => {
+		const run = thisWeek(
+			season(
+				[
+					// Monday: "60 min rolig", run as 9.8 km.
+					on(-2, {
+						id: 'mon',
+						workout: timedRun('mon'),
+						recording: recorded('rec-mon', 9.8),
+					}),
+				],
+				kmPlan(),
+			),
+		).tracks[0]!
+		expect(run.grade.status).toBe('ungraded')
+		expect(run.figures.done).toBe('9,8')
+		expect(run.gradeNote).toBe(
+			'ikke vurdert · ingen planlagte km å holde det opp mot',
+		)
+		expect(run.gradeNote).not.toMatch(/ikke målt/)
+	})
+
+	test('done sessions still waiting for their numbers are "ikke målt", and say how many in the figure’s place', () => {
+		const run = thisWeek(
+			season(
+				[
+					on(-2, {
+						id: 'mon',
+						workout: kmRun(10),
+						recording: null,
+						tssValue: null,
+					}),
+				],
+				kmPlan(),
+			),
+		).tracks[0]!
+		expect(run.figures.done).toBeNull()
+		expect(run.figureNotes.done).toBe('1 økt uten km')
+		expect(run.gradeNote).toBe('ikke målt · ingen tall å holde opp mot')
+	})
+
+	test('lifting sessions with no sets in them are unmeasured, not `planlagt 0 sett` beside `0 av 2 økter`', () => {
+		const sets = Array<number>(12).fill(6)
+		const bareLift = (days: number) =>
+			on(days, {
+				id: `lift-${days}`,
+				status: 'scheduled',
+				recording: null,
+				plannedTssValue: null,
+				tssValue: null,
+				// A stamped `Styrke`: a strength Workout with no sets named.
+				workout: workout({
+					discipline: 'strength',
+					title: 'Styrke',
+					blocks: [
+						{
+							id: `block-lift-${days}`,
+							name: 'Main',
+							orderIndex: 0,
+							repeatCount: 1,
+							seriesRepeatCount: 1,
+							betweenSeriesRestSec: null,
+							sendOff: null,
+							steps: [
+								step({
+									kind: 'strength',
+									discipline: 'strength',
+									durationSec: 2700,
+								}),
+							],
+						},
+					],
+				}),
+			})
+		const lifting = thisWeek(
+			season(
+				[bareLift(1), bareLift(3)],
+				plan({
+					tracks: [
+						{
+							trackId: 'track-lift',
+							discipline: 'strength',
+							currency: 'sets',
+							targets: sets,
+							overridden: sets.map(() => false),
+							sessionTargets: Array<number>(12).fill(2),
+						},
+					],
+				}),
+			),
+		).tracks[0]!
+		expect(lifting).toMatchObject({
+			planned: null,
+			figures: { target: '6', planned: null },
+			figureNotes: { planned: '2 økter uten sett' },
+			sessionsLabel: '0 av 2 økter',
+		})
+	})
+
+	test('the planned and the done "+n uten km" each say which side they belong to (story 34)', () => {
+		const run = thisWeek(
+			season(
+				[
+					on(-2, {
+						id: 'mon',
+						workout: kmRun(10),
+						recording: recorded('rec-mon', 10),
+					}),
+					// Done, and its import has not come.
+					on(-1, {
+						id: 'tue',
+						workout: kmRun(8),
+						recording: null,
+						tssValue: null,
+					}),
+					on(1, {
+						id: 'thu',
+						status: 'scheduled',
+						recording: null,
+						workout: timedRun('thu'),
+					}),
+				],
+				kmPlan(),
+			),
+		).tracks[0]!
+		expect(run.figures).toMatchObject({ planned: '18', done: '10' })
+		expect(run.plannedUnmeasuredLabel).toBe('planlagt +1 uten km')
+		expect(run.actualUnmeasuredLabel).toBe('gjort +1 uten km')
+	})
+
+	test('a taper week names its phase once: `Nedtrapping`, never `Nedtrapping · nedtrapping`', () => {
+		// Plan weeks 10 and 11 are the Taper phase, at the taper role.
+		const result = season([on(0)], kmPlan())
+		const taper = result.weeks.find(
+			(week) => week.key === nextDay(THIS_MONDAY, 7 * 6),
+		)!
+		expect(taper.phaseName).toBe('Nedtrapping')
+		expect(taper.kindLabel).toBe('Nedtrapping')
+	})
+
+	test('every phase of a preset reads in Norwegian on I dag; a phase the athlete named reads as written', () => {
+		const result = season(
+			[on(0)],
+			kmPlan({
+				planStart: new Date(NOW.getTime() - 2 * 7 * DAY),
+				phases: [
+					{ name: 'Big base', weeks: 1 },
+					{ name: 'Base', weeks: 1 },
+					{ name: 'Build', weeks: 1 },
+					{ name: 'Peak', weeks: 1 },
+					{ name: 'Taper', weeks: 1 },
+					{ name: 'Blokk 4', weeks: 1 },
+				],
+			}),
+		)
+		expect(
+			[0, 1, 2, 3, 4, 5].map(
+				(week) =>
+					result.weeks.find(
+						(w) => w.key === nextDay(THIS_MONDAY, 7 * (week - 2)),
+					)!.phaseName,
+			),
+		).toEqual([
+			'Stor base',
+			'Grunntrening',
+			'Oppbygging',
+			'Spissing',
+			'Nedtrapping',
+			'Blokk 4',
+		])
+	})
+})
+
+describe('a folded week and its verdict agree (#505 story 31, S9 review S3)', () => {
+	// Target 46 every week, so a week planned at 36 is planned under it.
+	const targets = Array<number>(12).fill(46)
+	const runPlan = () =>
+		plan({
+			tracks: [
+				{
+					trackId: 'track-run',
+					discipline: 'run',
+					currency: 'km',
+					targets,
+					overridden: targets.map(() => false),
+					sessionTargets: null,
+				},
+			],
+		})
+	const ran = (days: number, km: number, plannedKm: number) =>
+		on(days, {
+			id: `run-${days}`,
+			workout: workout({
+				blocks: [
+					{
+						id: `block-${days}`,
+						name: 'Main',
+						orderIndex: 0,
+						repeatCount: 1,
+						seriesRepeatCount: 1,
+						betweenSeriesRestSec: null,
+						sendOff: null,
+						steps: [step({ distanceM: plannedKm * 1000, durationSec: null })],
+					},
+				],
+			}),
+			recording: {
+				id: `rec-${days}`,
+				discipline: 'run',
+				durationSec: km * 330,
+				distanceM: km * 1000,
+				startedAt: NOW,
+				endedAt: NOW,
+				phaseBarsJson: null,
+				linkAnsweredAt: null,
+				unlinkedFromSessionId: null,
+			},
+		})
+	const lastWeek = (result: ReturnType<typeof season>) =>
+		result.weeks.find((week) => week.key === LAST_MONDAY)!
+
+	test('with target ≠ planned, the line names the target and the verdict is graded against it', () => {
+		// 36 planned, 35 done: on the plan's sessions, under the week's 46.
+		const week = lastWeek(
+			season([ran(-9, 20, 18), ran(-8, 15, 18), on(0)], runPlan()),
+		)
+		expect(week.foldLabel).toBe('35 av 46 km · under')
+		// Opened, the week's own header says the same thing.
+		expect(week.tracks[0]).toMatchObject({
+			gradeLabel: 'under',
+			grade: { basis: 'target', reference: 46, actual: 35 },
+		})
+
+		// 42 done is over the plan's 36, and on the week's 46: `i rute`.
+		const over = lastWeek(
+			season([ran(-9, 22, 18), ran(-8, 20, 18), on(0)], runPlan()),
+		)
+		expect(over.foldLabel).toBe('42 av 46 km · i rute')
+	})
+
+	test('a closed week whose done number has not come states the figures without a verdict it cannot back', () => {
+		const pending = {
+			...ran(-8, 15, 18),
+			recording: null,
+			tssValue: null,
+		}
+		const week = lastWeek(season([ran(-9, 20, 18), pending, on(0)], runPlan()))
+		// Graded on the measured pair only (20 of 18), which is not the 46 the
+		// line names — so the line names no verdict.
+		expect(week.tracks[0]!.grade.basis).toBe('planned')
+		expect(week.foldLabel).toBe('20 av 46 km')
+	})
+
+	test('a figure with a decimal reads with a comma in the line, the strip and the collapsed line', () => {
+		// 47,5 planned against 46: the strip's bar is the larger, with a comma.
+		const result = season(
+			[ran(-9, 20.5, 23), ran(-8, 15, 24.5), on(0)],
+			runPlan(),
+		)
+		expect(lastWeek(result).foldLabel).toBe('35,5 av 46 km · under')
+		expect(
+			result.strip.weeks.find((week) => week.key === LAST_MONDAY)!.label,
+		).toMatch(/, 47,5 km$/)
+	})
+})
 
 describe('a week header says which week, what kind, and its numbers (#505 stories 19, 23)', () => {
 	// Plan weeks, Monday first: the plan began on 21 Jan (plan week 0), so this
@@ -1626,12 +2001,12 @@ describe('a week header says which week, what kind, and its numbers (#505 storie
 	test('a plan week names its phase and whether it is a hard or an easy week', () => {
 		const result = season([on(0)], runPlan())
 		expect(byKey(result, THIS_MONDAY)).toMatchObject({
-			phaseName: 'Build',
+			phaseName: 'Oppbygging',
 			role: 'loading',
 			roleLabel: 'hard uke',
 		})
 		expect(byKey(result, nextDay(THIS_MONDAY, 21))).toMatchObject({
-			phaseName: 'Build',
+			phaseName: 'Oppbygging',
 			role: 'recovery',
 			roleLabel: 'lett uke',
 		})
@@ -1680,7 +2055,7 @@ describe('a week header says which week, what kind, and its numbers (#505 storie
 		expect(week.tracks[0]).toMatchObject({
 			name: 'Løping',
 			unit: 'km',
-			figures: { target: '40', planned: '22', done: '10.4' },
+			figures: { target: '40', planned: '22', done: '10,4' },
 			// Graded through Tuesday only: Monday's 10 of 10 is on plan.
 			gradeLabel: 'i rute',
 			// 22 planned against a target of 40 is more than 10 % off.
@@ -1828,7 +2203,7 @@ describe('weeks past the Planning Horizon collapse, and keep the athlete’s own
 		const week = result.weeks.find((w) => w.key === PAST_HORIZON)!
 		expect(week.shape).toBe('collapsed')
 		expect(week.foldLabel).toBe(
-			'Uke 10 · Build · mål 58 km · fylles søndag kveld i uke 8',
+			'Uke 10 · Oppbygging · mål 58 km · fylles søndag kveld i uke 8',
 		)
 		expect(result.weeks.find((w) => w.key === HORIZON)!.shape).toBe('open')
 	})
@@ -1836,7 +2211,7 @@ describe('weeks past the Planning Horizon collapse, and keep the athlete’s own
 	test('a plan with nothing to fill from does not promise it will fill', () => {
 		const result = season([on(0)], runPlan({ fillsWeeks: false }))
 		expect(result.weeks.find((w) => w.key === PAST_HORIZON)!.foldLabel).toBe(
-			'Uke 10 · Build · mål 58 km · ingen økter lagt inn ennå',
+			'Uke 10 · Oppbygging · mål 58 km · ingen økter lagt inn ennå',
 		)
 	})
 
@@ -2517,8 +2892,8 @@ describe('the Ukeskiftet card (#505 stories 4–6, 42–55)', () => {
 		expect(review!.tracks[0]).toMatchObject({
 			name: 'Løping',
 			unit: 'km',
-			// Done is what was recorded: the run and the extra ride, 9.2 km each.
-			figures: { target: '30', done: '18.4' },
+			// Done is what was recorded: the run and the extra ride, 9,2 km each.
+			figures: { target: '30', done: '18,4' },
 		})
 		expect(review!.missed.map((s) => s.title)).toEqual(['Terskel'])
 		expect(review!.extras.map((s) => s.id)).toEqual(['extra'])

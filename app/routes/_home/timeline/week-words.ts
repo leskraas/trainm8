@@ -10,10 +10,10 @@
 import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import {
 	formatLoad,
+	formatNbPercent,
+	formatNbVolumeFigure,
 	formatPace,
-	formatPercent,
 	formatTss,
-	formatVolumeFigure,
 } from '#app/utils/format.ts'
 import {
 	averagePaceLabel,
@@ -30,22 +30,34 @@ import {
 	sessionCountLabel,
 	sessionsAgainstLabel,
 	sessionsDoneLabel,
+	sidedUnmeasuredLabel,
 	strengthPartialLabel,
-	unmeasuredCountLabel,
+	ungradedNoteLabel,
+	unmeasuredFigureLabel,
 	VOLUME_GRADE_LABELS,
 	WEEK_FIGURE_LABELS,
 	WEEK_LOAD_LABELS,
 	ZONE_INTENT_NOTE,
+	zoneSplitLabel,
 } from '#app/utils/labels.ts'
-import { type TrackWeekVolume } from '#app/utils/plan-outline/week-volumes.ts'
+import {
+	type TrackWeekVolume,
+	type ZoneSplit,
+} from '#app/utils/plan-outline/week-volumes.ts'
 
 /**
  * One track's week as the header reads it: the pure model's numbers and codes,
  * with the words put on.
  */
 export type TimelineTrackWeek = TrackWeekVolume & {
-	/** `+2 uten km`, or null when every planned session has a number. */
+	/**
+	 * `planlagt +2 uten km` — sessions with no number beside a planned sum that
+	 * exists, said with its side (#505 story 34). Null when every planned
+	 * session has a number, or when none has and the figure's place says so
+	 * (`figureNotes.planned`).
+	 */
 	plannedUnmeasuredLabel: string | null
+	/** `gjort +1 uten km`, by the same rule over the done sessions. */
 	actualUnmeasuredLabel: string | null
 	/** `til og med torsdag · resten ikke målt`, or null. */
 	partialLabel: string | null
@@ -57,18 +69,30 @@ export type TimelineTrackWeek = TrackWeekVolume & {
 	unit: string
 	/**
 	 * The three numbers, side by side (#505 story 23): `mål 46 · planlagt 44 ·
-	 * gjort 35`. A figure the week cannot state is null, never `0`.
+	 * gjort 35`, with a decimal comma (`10,4`). A figure the week cannot state
+	 * is null, never `0`.
 	 */
 	figures: {
 		target: string | null
 		planned: string | null
 		done: string | null
 	}
+	/**
+	 * What stands in a figure's place when the side has sessions but not one of
+	 * them has a number in the unit — `2 økter uten km` — so the header never
+	 * says `planlagt –` (nothing planned) over a week with sessions planned in
+	 * it. Null where the figure states a sum, or where there is nothing to say.
+	 */
+	figureNotes: {
+		planned: string | null
+		done: string | null
+	}
 	/** `under`, `i rute`, `over` — the verdict, once a day of the week is past. */
 	gradeLabel: string | null
 	/**
-	 * `ikke målt · ingen tall å holde opp mot` — why a week that could be graded
-	 * is not. Said quietly beside the numbers rather than as a verdict.
+	 * Why a week that could be graded is not, worded so it agrees with the done
+	 * figure beside it (`ungradedNoteLabel`). Said quietly beside the numbers
+	 * rather than as a verdict.
 	 */
 	gradeNote: string | null
 	/**
@@ -81,8 +105,18 @@ export type TimelineTrackWeek = TrackWeekVolume & {
 	sessionsLabel: string | null
 	/** `snitt 5:00 /km` on a km track with a pace to state. */
 	paceLabel: string | null
-	/** `rolig 78 % · plan 80 %` on an endurance track with a zone split. */
+	/**
+	 * `rolig 78 % · plan 80 %` — the easy share, on an endurance track read in
+	 * km or TSS. Null on an hours track, which carries the whole split instead.
+	 */
 	zoneLabel: string | null
+	/**
+	 * The whole zone split, on an hours track (#505 story 21 — a skier reads
+	 * hours and zones): `gjort Z2 75 % · Z4 25 %` and `plan Z2 86 % · Z4 14 %`,
+	 * the planned side always beside {@link zoneIntentNote}. Null elsewhere, or
+	 * where neither side has zoned time.
+	 */
+	zoneSplit: { done: string | null; planned: string | null } | null
 	/**
 	 * Whether the week has anything to say on this track: a target, something
 	 * planned or something done. A track with none of the three is a line of
@@ -116,14 +150,40 @@ export function leadTrack<T extends { currency: string }>(
 
 export { relativeWeekName } from '#app/utils/relative-week.ts'
 
-/** The words a track's week header carries, put on the model's codes. */
+/**
+ * The words a track's week header carries, put on the model's codes.
+ *
+ * Each track says one consistent thing (#505 S9 review, D7): a side whose
+ * sessions all lack a number says so in the figure's place rather than with a
+ * dash that reads as "nothing planned"; a side with a sum and some sessions
+ * without one says the count with its side named; and the ungraded note names
+ * what is missing — the measurement, or the plan's number to hold it against.
+ */
 export function wordTrackWeek(
 	track: TrackWeekVolume,
 	{ ahead, hasSessions }: { ahead: boolean; hasSessions: boolean },
 ): TimelineTrackWeek {
 	const figure = (value: number | null) =>
-		value == null ? null : formatVolumeFigure(value, track.currency)
+		value == null ? null : formatNbVolumeFigure(value, track.currency)
 	const status = track.grade.status
+	// A side's unmeasured count goes in the figure's place when there is no sum
+	// to put it beside, and beside the sum, its side named, when there is.
+	const inPlace = (sum: number | null, count: number) =>
+		sum == null && count > 0
+			? unmeasuredFigureLabel(count, track.currency)
+			: null
+	const beside = (
+		side: 'planned' | 'done',
+		sum: number | null,
+		count: number,
+	) =>
+		sum != null && count > 0
+			? sidedUnmeasuredLabel(side, count, track.currency)
+			: null
+	const zones = track.zones?.done || track.zones?.planned ? track.zones : null
+	// A skier reads hours and the zone split (story 21); a km or TSS track keeps
+	// the easy share, which says the same thing in a shorter line.
+	const wholeSplit = track.currency === 'hours'
 	return {
 		...track,
 		name: NB_DISCIPLINE_LABELS[track.discipline],
@@ -135,11 +195,18 @@ export function wordTrackWeek(
 			// than an empty place where the number will be.
 			done: ahead ? null : figure(track.actual),
 		},
+		figureNotes: {
+			planned: inPlace(track.planned, track.plannedUnmeasuredCount),
+			done: ahead ? null : inPlace(track.actual, track.actualUnmeasuredCount),
+		},
 		gradeLabel:
 			status === 'under' || status === 'on' || status === 'over'
 				? VOLUME_GRADE_LABELS[status]
 				: null,
-		gradeNote: status === 'ungraded' ? VOLUME_GRADE_LABELS.ungraded : null,
+		gradeNote:
+			status === 'ungraded'
+				? ungradedNoteLabel(track.currency, track.actual)
+				: null,
 		driftLabel:
 			hasSessions && track.driftMark === true ? DRIFT_MARK_LABEL : null,
 		sessionsLabel:
@@ -155,22 +222,31 @@ export function wordTrackWeek(
 				? averagePaceLabel(formatPace(track.pace.actualSecPerKm))
 				: null,
 		zoneLabel:
-			track.zones && (track.zones.done || track.zones.planned)
+			zones && !wholeSplit
 				? easyShareLabel(
-						track.zones.done ? formatPercent(track.zones.done.easyShare) : null,
-						track.zones.planned
-							? formatPercent(track.zones.planned.easyShare)
-							: null,
+						zones.done ? formatNbPercent(zones.done.easyShare) : null,
+						zones.planned ? formatNbPercent(zones.planned.easyShare) : null,
 					)
 				: null,
-		plannedUnmeasuredLabel:
-			track.plannedUnmeasuredCount > 0
-				? unmeasuredCountLabel(track.plannedUnmeasuredCount, track.currency)
+		zoneSplit:
+			zones && wholeSplit
+				? {
+						done: zones.done
+							? zoneSplitLabel('done', zoneShares(zones.done))
+							: null,
+						planned: zones.planned
+							? zoneSplitLabel('planned', zoneShares(zones.planned))
+							: null,
+					}
 				: null,
-		actualUnmeasuredLabel:
-			track.actualUnmeasuredCount > 0
-				? unmeasuredCountLabel(track.actualUnmeasuredCount, track.currency)
-				: null,
+		plannedUnmeasuredLabel: beside(
+			'planned',
+			track.planned,
+			track.plannedUnmeasuredCount,
+		),
+		actualUnmeasuredLabel: ahead
+			? null
+			: beside('done', track.actual, track.actualUnmeasuredCount),
 		partialLabel: track.partial
 			? strengthPartialLabel(track.partial.measuredThroughWeekday)
 			: null,
@@ -179,9 +255,37 @@ export function wordTrackWeek(
 	}
 }
 
-/** A figure worth holding done against: a `0` is no reference. */
-function reference(figure: string | null): string | null {
-	return figure == null || Number(figure) === 0 ? null : figure
+/**
+ * A zone split's shares in whole percent, zone 1 first, the zones with no time
+ * left out. Rounded by largest remainder, so the shares a reader adds up come
+ * to 100 rather than 99 or 101.
+ */
+export function zoneShares(
+	split: ZoneSplit,
+): Array<{ zone: number; share: string }> {
+	const total = split.secondsByZone.reduce((a, b) => a + b, 0)
+	if (total <= 0) return []
+	const exact = split.secondsByZone.map((seconds) => (seconds / total) * 100)
+	const whole = exact.map((value) => Math.floor(value))
+	let left = 100 - whole.reduce((a, b) => a + b, 0)
+	const byRemainder = exact
+		.map((value, index) => ({ index, remainder: value - whole[index]! }))
+		.sort((a, b) => b.remainder - a.remainder)
+	for (const { index } of byRemainder) {
+		if (left <= 0) break
+		whole[index] = whole[index]! + 1
+		left -= 1
+	}
+	return whole.flatMap((percent, index) =>
+		percent > 0
+			? [{ zone: index + 1, share: formatNbPercent(percent / 100) }]
+			: [],
+	)
+}
+
+/** A number worth holding done against: a `0` is no reference. */
+function reference(value: number | null): number | null {
+	return value == null || value === 0 ? null : value
 }
 
 /**
@@ -189,15 +293,28 @@ function reference(figure: string | null): string | null {
  * the lead track. What was done is held against the target, or the plan where
  * the week had no target; a week with neither above zero states only what was
  * done — never `x av 0 km`.
+ *
+ * The verdict is said only when it was graded against the figure the line
+ * names (#505 S9 review, S3): a closed week with a target is graded against
+ * that target (`week-volumes.ts`), so `35 av 46 km · under` means 35 against
+ * 46. Where the model had to fall back to the planned sessions — a done
+ * session whose number has not come — the line states the figures and no
+ * verdict, rather than pairing the target with a grade read against
+ * something else.
  */
 export function foldedTrackLine(lead: TimelineTrackWeek): string {
 	const status = lead.grade.status
+	const target = reference(lead.target)
+	const of = target ?? reference(lead.planned)
+	const basis = target != null ? 'target' : 'planned'
 	return foldedTrackLabel({
 		done: lead.figures.done,
-		of: reference(lead.figures.target) ?? reference(lead.figures.planned),
+		of: of == null ? null : formatNbVolumeFigure(of, lead.currency),
 		unit: lead.unit,
 		grade:
-			status === 'under' || status === 'on' || status === 'over'
+			of != null &&
+			lead.grade.basis === basis &&
+			(status === 'under' || status === 'on' || status === 'over')
 				? VOLUME_GRADE_LABELS[status]
 				: null,
 		why: lead.actualUnmeasured.map((u) => u.reason),
@@ -230,12 +347,12 @@ export function collapsedWeekLine({
 	/** Past any plan: nothing will fill it, only what the athlete writes. */
 	far?: boolean
 }): string {
-	const target = reference(lead?.figures.target ?? null)
+	const target = reference(lead?.target ?? null)
 	return [
 		relativeName,
 		phaseName,
 		target != null && lead
-			? `${WEEK_FIGURE_LABELS.target} ${target} ${lead.unit}`
+			? `${WEEK_FIGURE_LABELS.target} ${formatNbVolumeFigure(target, lead.currency)} ${lead.unit}`
 			: null,
 		far
 			? FAR_WEEK_LABEL

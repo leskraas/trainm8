@@ -522,6 +522,48 @@ export function unmeasuredCountLabel(
 	return `${sign}${count} uten ${NB_UNMEASURED_WORDS[currency]}`
 }
 
+/**
+ * `planlagt +2 uten km` / `gjort +1 uten km` — the same count as
+ * {@link unmeasuredCountLabel}, with the side it belongs to said first, so the
+ * planned and the done counts never read as one number twice (#505 story 34).
+ */
+export function sidedUnmeasuredLabel(
+	side: 'planned' | 'done',
+	count: number,
+	currency: VolumeCurrency,
+): string {
+	return `${WEEK_FIGURE_LABELS[side]} ${unmeasuredCountLabel(count, currency)}`
+}
+
+/**
+ * `2 økter uten km` — what stands where a sum would be when every session on
+ * that side has no number in the track's unit: a dash would read as "nothing
+ * planned" beside a zone split that says otherwise, and `0` would be a lie.
+ */
+export function unmeasuredFigureLabel(
+	count: number,
+	currency: VolumeCurrency,
+): string {
+	return `${count} ${count === 1 ? 'økt' : 'økter'} uten ${NB_UNMEASURED_WORDS[currency]}`
+}
+
+/**
+ * Why a week whose days are past carries no verdict (`ungraded`), said so it
+ * never contradicts the done figure beside it. Nothing done measured is the
+ * plain `ikke målt`; something done and measured means the **reference** is
+ * what is missing (`ikke vurdert · ingen planlagte km å holde det opp mot`);
+ * nothing done at all is simply not graded yet.
+ */
+export function ungradedNoteLabel(
+	currency: VolumeCurrency,
+	actual: number | null,
+): string {
+	if (actual == null) return VOLUME_GRADE_LABELS.ungraded
+	return actual > 0
+		? `ikke vurdert · ingen planlagte ${NB_UNMEASURED_WORDS[currency]} å holde det opp mot`
+		: 'ikke vurdert · ingen tall å holde opp mot'
+}
+
 /** Why one session has no number — every "ikke målt" gives a reason (story 71). */
 export const UNMEASURED_REASON_LABELS: Record<UnmeasuredReason, string> = {
 	'no-distance': 'ingen km i økta',
@@ -628,6 +670,21 @@ export function easyShareLabel(
 	return [done ? `rolig ${done}` : null, planned ? `plan ${planned}` : null]
 		.filter((part): part is string => part != null)
 		.join(' · ')
+}
+
+/**
+ * A week's zone split, one side of it (#505 story 21, the skier's header):
+ * `gjort Z2 75 % · Z4 25 %`, or `plan Z2 86 % · Z4 14 %` for what the plan
+ * prescribes — said beside {@link ZONE_INTENT_NOTE}, since a prescription is
+ * an intention and not a measurement. `parts` are already formatted.
+ */
+export function zoneSplitLabel(
+	side: 'done' | 'planned',
+	parts: ReadonlyArray<{ zone: number; share: string }>,
+): string {
+	return `${side === 'done' ? WEEK_FIGURE_LABELS.done : 'plan'} ${parts
+		.map((part) => `Z${part.zone} ${part.share}`)
+		.join(' · ')}`
 }
 
 /**
@@ -1621,14 +1678,16 @@ export const FINDING_ABSENCE_LABELS: Record<FindingAbsence, string> = {
 }
 
 /**
- * The shipped presets' phase names as the first run says them (stories 66
- * and 70). Display only: the stored names stay as the preset wrote them.
+ * The shipped presets' phase names as the first run and I dag say them
+ * (stories 19, 27, 66 and 70). Display only: the stored names stay as the
+ * preset wrote them, so a plan made before this map still reads in Norwegian
+ * and a phase the athlete named themselves reads as they wrote it.
  */
 export const PRESET_PHASE_NAME_LABELS: Record<string, string> = {
 	Base: 'Grunntrening',
 	'Big base': 'Stor base',
 	Build: 'Oppbygging',
-	Peak: 'Topp',
+	Peak: 'Spissing',
 	Taper: 'Nedtrapping',
 }
 

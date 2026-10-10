@@ -71,6 +71,15 @@ export function formatPercent(fraction: number): string {
 }
 
 /**
+ * A share as a Norwegian surface writes it (ADR 0081): whole percent with a
+ * no-break space before the sign — `42 %` — so the figure and its sign never
+ * part at a line end.
+ */
+export function formatNbPercent(fraction: number): string {
+	return `${Math.round(fraction * 100)} %`
+}
+
+/**
  * A signed whole-percent rate — a **Volume Ramp**, a **Block Boundary Step** or a
  * cut's depth: `+5%` / `−12%` / `+0%`. A real minus sign (−), matching
  * {@link formatSignedTsb}, because these sit in prose the athlete reads.

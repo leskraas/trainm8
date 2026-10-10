@@ -774,7 +774,7 @@ test('the This week pane brings back adherence, the strength count and the repla
 	)
 	const pane = showingPane()
 	// Where the week sits in the plan, minus the clause its own heading carries.
-	expect(pane).toHaveTextContent('Build · hard uke')
+	expect(pane).toHaveTextContent('Oppbygging · hard uke')
 	expect(pane).toHaveTextContent(
 		'I rute · 94 % av planlagt utholdenhetsbelastning',
 	)
@@ -935,7 +935,7 @@ test('a week header carries its range, its phase and what happened in it', async
 		level: 2,
 	})
 	const block = header.closest('[data-timeline-week]')!
-	expect(block).toHaveTextContent('Build · hard uke')
+	expect(block).toHaveTextContent('Oppbygging · hard uke')
 	// No track to read the week in, so it carries its sessions and load.
 	expect(block).toHaveTextContent('1 av 2 gjort · 48 av 141 TSS')
 })
