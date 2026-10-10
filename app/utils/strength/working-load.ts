@@ -6,8 +6,9 @@
  * Pure: no clock, no `prisma`. The runner's presenter re-exports the parts it
  * renders; the quick log's server reads them directly.
  */
+import { formatNbKg } from '../format.ts'
 import { type LogExercise, type LogRow } from '../strength-log.server.ts'
-import { type LoadValue, formatKg } from '../strength-log.ts'
+import { type LoadValue } from '../strength-log.ts'
 import { loadKindLabel } from './program-rules.ts'
 
 /** What a set counts in: reps, or seconds for a timed hold. */
@@ -71,7 +72,7 @@ export function buildWorkingLoad(exercise: LogExercise): WorkingLoad {
 					loadKind: 'bodyweightPlus',
 					loadNumber: postedNumber(added),
 					kg: added,
-					text: `bodyweight + ${formatKg(added)} kg`,
+					text: `bodyweight + ${formatNbKg(added)} kg`,
 				}
 			: {
 					kind: 'resolved',
@@ -146,7 +147,7 @@ export function buildWorkingLoad(exercise: LogExercise): WorkingLoad {
 		loadKind,
 		loadNumber: postedNumber(kg),
 		kg,
-		text: `${formatKg(kg)} kg`,
+		text: `${formatNbKg(kg)} kg`,
 	}
 }
 
@@ -255,7 +256,7 @@ export function buildLiftSubline(exercise: LogExercise): string | null {
 /**
  * A kilo as a **posted field**, not as a rendered one.
  *
- * `formatKg` is for reading; this is for the wire, so `82.5` posts as `82.5` and
+ * `formatNbKg` is for reading (`82,5`); this is for the wire, so `82.5` posts as `82.5` and
  * a percentage-derived `118.99999999999999` posts as `119` rather than as
  * seventeen digits the athlete never typed. Two decimals is the smallest plate
  * anybody owns, twice over.

@@ -232,7 +232,7 @@ test('the gap sentence quotes the quantity the athlete typed', () => {
 	// three of the eight kinds, and the sentence sits under the box the athlete just
 	// typed in — so a dip belt typed as `+31` on a 74 kg athlete read *"Your gym
 	// makes 105.25 kg, not 31 kg"* when the gym had in fact made 31.25 kg of belt,
-	// and 11 kg of assist read *"62.75 kg, not 11 kg"*.
+	// and 11 kg of assist read *"62,75 kg, not 11 kg"*.
 	const athlete = { bodyweightKg: 74 }
 	// The rack the two live sentences were observed on: a 1.25 kg pair is what puts
 	// the gap at a quarter kilo rather than a whole one.
@@ -254,7 +254,7 @@ test('the gap sentence quotes the quantity the athlete typed', () => {
 	})
 	expect(belt).toMatchObject({
 		kind: 'nearest',
-		note: 'Your gym makes 31.25 kg, not 31 kg.',
+		note: 'Your gym makes 31,25 kg, not 31 kg.',
 	})
 
 	const assist = buildPlateLine({
@@ -264,7 +264,7 @@ test('the gap sentence quotes the quantity the athlete typed', () => {
 	})
 	expect(assist).toMatchObject({
 		kind: 'nearest',
-		note: 'Your gym makes 11.25 kg, not 11 kg.',
+		note: 'Your gym makes 11,25 kg, not 11 kg.',
 	})
 
 	// A per-hand bell states the bell in the hand, never the pair.
@@ -333,7 +333,7 @@ test('an increment says which two numbers moved', () => {
 	]
 
 	expect(buildOutcomePanel(outcomes, names)[0]).toMatchObject({
-		headline: 'Back squat 100 kg → 102.5 kg',
+		headline: 'Back squat 100 kg → 102,5 kg',
 		isNotice: false,
 	})
 })
@@ -365,14 +365,14 @@ test('a lighter-than-prescribed session is a notice that names both weights, and
 			loggedKg: 20,
 			stallCount: 1,
 			reason:
-				'This session was logged at 20 kg, not the 62.5 kg 5×5 it prescribed.',
+				'This session was logged at 20 kg, not the 62,5 kg 5×5 it prescribed.',
 			appliedAtISO: '2026-08-14T09:00:00.000Z',
 		},
 	]
 
 	const item = buildOutcomePanel(outcomes, names)[0]!
 	expect(item.headline).toBe(
-		'Back squat stays at 62.5 kg — logged at 20 kg, prescribed 62.5 kg',
+		'Back squat stays at 62,5 kg — logged at 20 kg, prescribed 62,5 kg',
 	)
 	// A notice, like a Stall Cut: it tells, and it offers nothing.
 	expect(item.isNotice).toBe(true)
@@ -484,7 +484,7 @@ test('one weight is rendered the same way everywhere, and a 1.25 kg jump is neve
 	]
 
 	expect(buildOutcomePanel(outcomes, names)[0]?.headline).toBe(
-		'Back squat 20 kg → 21.25 kg',
+		'Back squat 20 kg → 21,25 kg',
 	)
 })
 
@@ -638,16 +638,16 @@ test('a sentence about where the lift now stands reads the lift state, never the
 	const headlines = items.map((item) => item.headline)
 	// `repeated` used to print the stamp here and `liftedLighter` the
 	// prescription — both under "stays at", about a lift standing somewhere else.
-	expect(headlines[1]).toBe('Back squat stays at 77.5 kg')
-	expect(headlines[4]).toBe('Back squat stays at 77.5 kg')
-	expect(headlines[5]).toContain('Back squat stays at 77.5 kg')
+	expect(headlines[1]).toBe('Back squat stays at 77,5 kg')
+	expect(headlines[4]).toBe('Back squat stays at 77,5 kg')
+	expect(headlines[5]).toContain('Back squat stays at 77,5 kg')
 	expect(headlines[6]).toBe(
-		'Back squat stays at 77.5 kg — logged at 50 kg, prescribed 60 kg',
+		'Back squat stays at 77,5 kg — logged at 50 kg, prescribed 60 kg',
 	)
-	expect(headlines[7]).toBe('Back squat unchanged at 77.5 kg')
+	expect(headlines[7]).toBe('Back squat unchanged at 77,5 kg')
 	// And the two that move say the number they moved to, which is the same thing
 	// read from the same place.
-	expect(headlines[0]).toBe('Back squat 60 kg → 62.5 kg')
+	expect(headlines[0]).toBe('Back squat 60 kg → 62,5 kg')
 	expect(headlines[2]).toBe('Back squat 60 kg → 54 kg')
 	// A training max is not the squat, so this one says which number moved and
 	// never claims the lift now stands there.
@@ -685,7 +685,7 @@ test('a session that logged kilos on some sets and none on others says how many,
 test('a session logged as a bodyweight load is not reported as no kilos, because a kilo was logged — of something else', () => {
 	// The fourth disguise, on the panel. Five bodyweight sets against a 25 kg
 	// barbell prescription: "no kilos were logged" would be false — 74 kg was
-	// logged — and "74 kg → 77.5 kg" is what the app actually published. The
+	// logged — and "74 kg → 77,5 kg" is what the app actually published. The
 	// headline names the kind, and it reads the verdict's own `unreadableReason`
 	// rather than deciding a second time in prose.
 	const outcomes: LiftOutcome[] = [
@@ -1070,7 +1070,7 @@ test('the weight a tap posts is the one the program resolved, in the load’s ow
 		kind: 'resolved',
 		loadKind: 'external',
 		loadNumber: '82.5',
-		text: '82.5 kg',
+		text: '82,5 kg',
 	})
 })
 
@@ -1210,7 +1210,7 @@ test('the sub-line is the scheme and the resolved weight, in that order', () => 
 				),
 			}),
 		),
-	).toBe('5×5 · 82.5 kg')
+	).toBe('5×5 · 82,5 kg')
 })
 
 test('sets that ask for different counts read as a count of sets, never as a scheme that is not one', () => {
@@ -1607,7 +1607,7 @@ function progress(overrides: Partial<LiftProgress> = {}): LiftProgress {
 test('a progressing lift says the weight in the run of made sessions behind it', () => {
 	expect(
 		buildResolutionSentence({ progress: progress(), resolution: null }),
-	).toBe('82.5 kg is your working weight after five made sessions.')
+	).toBe('82,5 kg is your working weight after five made sessions.')
 })
 
 test('a held lift says why it did not move, and the Stall Count outranks the run', () => {
@@ -1631,7 +1631,7 @@ test('one short session is not “one sessions in a row”', () => {
 			progress: progress({ madeInARow: 1 }),
 			resolution: null,
 		}),
-	).toBe('82.5 kg is your working weight after one made session.')
+	).toBe('82,5 kg is your working weight after one made session.')
 })
 
 test('a lift with no history on this run says so rather than claiming a run of none', () => {
@@ -1641,7 +1641,7 @@ test('a lift with no history on this run says so rather than claiming a run of n
 			resolution: null,
 		}),
 	).toBe(
-		'82.5 kg is your working weight. Nothing has been logged for this lift on this run yet.',
+		'82,5 kg is your working weight. Nothing has been logged for this lift on this run yet.',
 	)
 })
 
@@ -1693,7 +1693,7 @@ test('the panel is four lines: the resolution, the rack, the timer’s limit and
 	})
 
 	expect(panel).toMatchObject({
-		resolution: '82.5 kg is your working weight after five made sessions.',
+		resolution: '82,5 kg is your working weight after five made sessions.',
 		plates: 'Plates are solved against Bredvid Gym.',
 		timer: 'The rest timer survives a locked phone, but not a closed tab.',
 		history: { text: 'This lift over time', href: '/training/exercises/ex-1' },
@@ -1711,7 +1711,7 @@ test('a refused warm-up is folded into the resolution line, so the panel stays f
 	})
 
 	expect(panel.resolution).toBe(
-		'82.5 kg is your working weight after five made sessions. No warm-up ramp is published for this equipment, so none is generated.',
+		'82,5 kg is your working weight after five made sessions. No warm-up ramp is published for this equipment, so none is generated.',
 	)
 	// Where nothing can be said about the weight, the ramp's sentence stands on
 	// its own rather than being lost with it.
@@ -1819,7 +1819,7 @@ test('last time is the previous session’s working sets, with the weight quoted
 			row({ orderIndex: 1, ghost: ghost(80, 5) }),
 			row({ orderIndex: 2, ghost: ghost(80, 4) }),
 		]),
-	).toBe('Last time 80 × 5,5,4')
+	).toBe('Last time 80 kg × 5 · 5 · 4')
 })
 
 test('a ramp is not flattened onto one weight', () => {
@@ -1828,7 +1828,7 @@ test('a ramp is not flattened onto one weight', () => {
 			row({ ghost: ghost(80, 5) }),
 			row({ orderIndex: 1, ghost: ghost(85, 3) }),
 		]),
-	).toBe('Last time 80 × 5, 85 × 3')
+	).toBe('Last time 80 kg × 5, 85 kg × 3')
 })
 
 test('an extrapolated ghost is dropped, so a fifth set nobody did is not claimed', () => {
@@ -1837,7 +1837,7 @@ test('an extrapolated ghost is dropped, so a fifth set nobody did is not claimed
 			row({ ghost: ghost(80, 5) }),
 			row({ orderIndex: 1, ghost: { ...ghost(80, 5), extrapolated: true } }),
 		]),
-	).toBe('Last time 80 × 5')
+	).toBe('Last time 80 kg × 5')
 })
 
 test('a lift with no ghosts quotes no last time at all', () => {

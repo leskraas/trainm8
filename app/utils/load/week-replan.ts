@@ -18,12 +18,18 @@
  * **Tone-driven, never prose-parsed.** The decision reads the adherence band's
  * `tone` enum (plus the underlying ratio and TSB numbers), never any free-text
  * sentence. Reasons and Replan Notes are composed here by our own pure
- * functions. Nothing reads the clock or the DB: the caller pre-filters the
+ * functions, in Norwegian through `labels.ts` (ADR 0081: Ukeskiftet speaks
+ * Norwegian, and this reason is what it shows). Nothing reads the clock or the DB: the caller pre-filters the
  * adjustable summary (future, still-`scheduled`, quantified cardio), so no
  * time input is needed at all.
  */
 
 import { formatSignedTsb } from '#app/utils/format.ts'
+import {
+	WEEK_HOLD_REASON_LABELS,
+	WEEK_REPLAN_SOFTENED_LABELS,
+	type WeekHoldFacts,
+} from '#app/utils/labels.ts'
 import { type WeeklyAdherence } from './adherence.ts'
 import { type TsbTrust } from './trustworthiness.ts'
 
@@ -64,7 +70,7 @@ export type AdjustableSession = {
 /** The Replan Note destined for one adjusted session's `replanReason`. */
 export type ReplanNote = {
 	sessionId: string
-	/** Plain-language note, e.g. "Last week ran 32% over plan and Form was −12 — softened this session ~24%." */
+	/** Plain-language note, e.g. "Forrige uke ble 32 % tyngre enn planlagt, og formen var −12. Denne økta ble gjort ca. 24 % kortere." */
 	note: string
 }
 
@@ -101,9 +107,9 @@ export type WeekReplanDecision =
 	| { outcome: 'insufficient-data'; why: InsufficientDataWhy; reason: string }
 
 /**
- * Which branch held the week — an enum beside the English `reason`, so a second
- * composer (the Norwegian proposal reasons, `propose-week-change.ts`) words the
- * same judgment without parsing a sentence.
+ * Which branch held the week — an enum beside the `reason`, so a second
+ * composer (the proposal reasons, `propose-week-change.ts`) words the same
+ * judgment without parsing a sentence.
  */
 export const NO_CHANGE_WHYS = [
 	'under',
@@ -180,23 +186,46 @@ export function scaleStepQuantities(
 	}
 }
 
-/** "Last week ran 32% over plan" — the overshoot clause with the real ratio. */
-function overshootClause(ratio: number): string {
-	return `Last week ran ${Math.round((ratio - 1) * 100)}% over plan`
+/** `32 %` — a fraction as the reason sentences write it. */
+function percent(fraction: number): string {
+	return `${Math.round(fraction * 100)} %`
+}
+
+/**
+ * The facts a held week's sentence is worded from — the same
+ * `WEEK_HOLD_REASON_LABELS` the week's `keep` proposal reads, so the week's
+ * reason and its proposal can never word one judgment two ways.
+ */
+function holdFacts(
+	ratio: number,
+	tsb: number | null,
+	trust: TsbTrust,
+): WeekHoldFacts {
+	return {
+		over: percent(ratio - 1),
+		under: percent(1 - ratio),
+		tsb: tsb == null ? '' : formatSignedTsb(tsb),
+		requiredDays: trust.requiredDays,
+		daysOfHistory: trust.daysOfHistory,
+	}
 }
 
 /**
  * The softened sentence (PRD copy pattern) — one composer for both the
- * per-session Replan Note ("this session") and the week-level reason ("this
- * week's remaining sessions"), so the two can never drift apart.
+ * per-session Replan Note and the week-level reason, so the two can never
+ * drift apart.
  */
 function softenedSentence(
 	ratio: number,
 	tsb: number,
 	scale: number,
-	subject: string,
+	subject: 'session' | 'week',
 ): string {
-	return `${overshootClause(ratio)} and Form was ${formatSignedTsb(tsb)} — softened ${subject} ~${Math.round((1 - scale) * 100)}%.`
+	return WEEK_REPLAN_SOFTENED_LABELS[subject](
+		percent(ratio - 1),
+		formatSignedTsb(tsb),
+		percent(1 - scale),
+	)
 }
 
 /**
@@ -228,29 +257,26 @@ export function decideWeekReplan(input: {
 	adjustableSessions: AdjustableSession[]
 }): WeekReplanDecision {
 	const { adherence, tsb, trust, adjustableSessions } = input
+	const H = WEEK_HOLD_REASON_LABELS
 
 	if (!adherence) {
 		return {
 			outcome: 'insufficient-data',
 			why: 'no-adherence',
-			reason:
-				'Last week has no measurable Plan Adherence — no adjustment, not enough data.',
+			reason: H['no-adherence'](holdFacts(1, tsb, trust)),
 		}
 	}
+	const facts = holdFacts(adherence.ratio, tsb, trust)
 
 	if (adherence.band.tone === 'under') {
-		return {
-			outcome: 'no-change',
-			why: 'under',
-			reason: `Last week ran ${Math.round((1 - adherence.ratio) * 100)}% under plan — bank the planned work; this week stands as planned.`,
-		}
+		return { outcome: 'no-change', why: 'under', reason: H.under(facts) }
 	}
 
 	if (adherence.band.tone === 'on-target') {
 		return {
 			outcome: 'no-change',
 			why: 'on-target',
-			reason: 'Last week matched the plan — this week stands as planned.',
+			reason: H['on-target'](facts),
 		}
 	}
 
@@ -259,28 +285,24 @@ export function decideWeekReplan(input: {
 		return {
 			outcome: 'insufficient-data',
 			why: 'form-untrusted',
-			reason: `${overshootClause(adherence.ratio)}, but your Form reading is reliable after ${trust.requiredDays} days — day ${trust.daysOfHistory}/${trust.requiredDays} — no adjustment yet.`,
+			reason: H['form-untrusted'](facts),
 		}
 	}
 	if (tsb == null) {
 		return {
 			outcome: 'insufficient-data',
 			why: 'form-missing',
-			reason: `${overshootClause(adherence.ratio)}, but Form is unavailable — no adjustment without it.`,
+			reason: H['form-missing'](facts),
 		}
 	}
 	if (tsb > REPLAN_TSB_GATE) {
-		return {
-			outcome: 'no-change',
-			why: 'fresh',
-			reason: `${overshootClause(adherence.ratio)} but Form is ${formatSignedTsb(tsb)} — you're absorbing it, so this week stands as planned.`,
-		}
+		return { outcome: 'no-change', why: 'fresh', reason: H.fresh(facts) }
 	}
 	if (adjustableSessions.length === 0) {
 		return {
 			outcome: 'no-change',
 			why: 'nothing-adjustable',
-			reason: `${overshootClause(adherence.ratio)} and Form was ${formatSignedTsb(tsb)}, but nothing in the coming week can be softened — no change made.`,
+			reason: H['nothing-adjustable'](facts),
 		}
 	}
 
@@ -290,13 +312,8 @@ export function decideWeekReplan(input: {
 		scale,
 		notes: adjustableSessions.map((session) => ({
 			sessionId: session.id,
-			note: softenedSentence(adherence.ratio, tsb, scale, 'this session'),
+			note: softenedSentence(adherence.ratio, tsb, scale, 'session'),
 		})),
-		reason: softenedSentence(
-			adherence.ratio,
-			tsb,
-			scale,
-			"this week's remaining sessions",
-		),
+		reason: softenedSentence(adherence.ratio, tsb, scale, 'week'),
 	}
 }

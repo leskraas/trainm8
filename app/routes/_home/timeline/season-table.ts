@@ -32,6 +32,8 @@ export type SeasonTableColumn = {
 	id: string
 	/** `Løping`, `Styrke`, `TSS`. */
 	name: string
+	/** The track's sport (`run`), for the head's ink; null for `load`. */
+	discipline: string | null
 	/** `km`, `t`, `økter` (a sets track is read in sessions here), `TSS`. */
 	unit: string
 	/** Read in sessions: one-digit figures, so the column can be narrow. */
@@ -88,6 +90,7 @@ const LOAD_COLUMN: SeasonTableColumn = {
 	name: SEASON_PANE_LABELS.load,
 	unit: NB_VOLUME_UNITS.tss,
 	narrow: false,
+	discipline: null,
 }
 
 export function buildSeasonTable(
@@ -132,6 +135,7 @@ function trackColumns(
 			seen.set(track.trackId, {
 				id: track.trackId,
 				name: track.name,
+				discipline: track.discipline,
 				unit:
 					track.currency === 'sets' ? SEASON_PANE_LABELS.sessions : track.unit,
 				narrow: track.currency === 'sets',

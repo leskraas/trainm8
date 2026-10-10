@@ -20,7 +20,8 @@
  * here by our own pure functions.
  */
 
-import { formatSignedTsb, formatWeekday } from '#app/utils/format.ts'
+import { formatNbWeekday, formatSignedTsb } from '#app/utils/format.ts'
+import { SESSION_NUDGE_LABELS as L } from '#app/utils/labels.ts'
 import { expandWorkoutSteps } from '#app/utils/session-profile.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
 import {
@@ -39,7 +40,7 @@ import { type TsbTrust } from './trustworthiness.ts'
 export type NextPlannedSession = {
 	/** Discipline id, e.g. `run` / `bike` / `swim` / `strength`. */
 	discipline: string
-	/** How the reason names the session, e.g. `Tuesday` in "eased Tuesday's session". */
+	/** How the reason names the session, e.g. `tirsdag` in "økta tirsdag er gjort om til …". */
 	label: string
 	/** Planned duration in minutes; drives the eased 60-minute cap. `null` when unknown. */
 	durationMin: number | null
@@ -99,7 +100,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 export type RecentMiss = {
 	/** Discipline id of the missed session, e.g. `run` / `bike` / `swim`. */
 	discipline: string
-	/** How the reason names the miss, e.g. `Monday` in "You missed Monday's session". */
+	/** How the reason names the miss, e.g. `mandag` in "Økta mandag ble ikke gjort". */
 	label: string
 }
 
@@ -150,21 +151,20 @@ export function selectQualifyingMiss(
 	return {
 		discipline: getSessionDiscipline(mostRecent),
 		// Shared formatting layer (#172): weekday named in the Athlete Timezone.
-		label: formatWeekday(new Date(mostRecent.scheduledAt), timezone),
+		label: formatNbWeekday(new Date(mostRecent.scheduledAt), timezone),
 	}
 }
 
 /**
- * Compose the eased-cap duration label for the reason sentence. The canonical
- * eased session is capped at an hour, so a session at/over the cap reads as
- * "an hour"; a shorter session keeps its own (unchanged) duration in minutes.
+ * The eased-cap duration for the reason sentence. The canonical eased session is
+ * capped at an hour, so a session at/over the cap reads as "an hour"; a shorter
+ * session keeps its own (unchanged) duration in minutes.
  */
 function easedDurationPhrase(durationMin: number | null): string {
-	if (durationMin == null) return 'a Z2 endurance session'
-	const capped = Math.min(durationMin, EASED_CAP_MIN)
-	return capped >= EASED_CAP_MIN
-		? 'a Z2 endurance hour'
-		: `a ${capped}-minute Z2 endurance session`
+	return L.easedTo(
+		durationMin == null ? null : Math.min(durationMin, EASED_CAP_MIN),
+		EASED_CAP_MIN,
+	)
 }
 
 /** The signal clause naming why we backed off, with real numbers. */
@@ -174,17 +174,15 @@ function backOffSignalClause(
 	sustained: SustainedDeviation | null,
 ): string {
 	if (recommendation.source === 'adherence' && sustained) {
-		return `Over your plan ${sustained.weeks} weeks`
+		return L.overPlan(sustained.weeks)
 	}
 	// Form-derived fatigue (the acute "rest today" reading).
-	return tsb != null
-		? `Form is low (TSB ${formatSignedTsb(tsb)})`
-		: 'Form is low'
+	return L.formLow(tsb != null ? formatSignedTsb(tsb) : null)
 }
 
 /** The signal clause naming the miss, with the real session label. */
 function missSignalClause(miss: RecentMiss): string {
-	return `You missed ${miss.label}'s session`
+	return L.missed(miss.label)
 }
 
 /**
@@ -193,7 +191,7 @@ function missSignalClause(miss: RecentMiss): string {
  * says exactly what the core decided, never a prose-parsed variant.
  */
 export function missEasePendingReason(miss: RecentMiss): string {
-	return `${missSignalClause(miss)} — easing your next session.`
+	return L.easing(missSignalClause(miss))
 }
 
 /** The signal clause for a held session, with real numbers. */
@@ -203,13 +201,13 @@ function holdSignalClause(
 	sustained: SustainedDeviation | null,
 ): string {
 	if (recommendation.source === 'adherence' && sustained) {
-		return `Under your plan ${sustained.weeks} weeks`
+		return L.underPlan(sustained.weeks)
 	}
 	// Form-derived fresh / neutral.
-	const word = recommendation.tone === 'fresh' ? 'fresh' : 'neutral'
-	return tsb != null
-		? `Form is ${word} (TSB ${formatSignedTsb(tsb)})`
-		: `Form is ${word}`
+	return L.formReads(
+		recommendation.tone === 'fresh' ? 'fresh' : 'neutral',
+		tsb != null ? formatSignedTsb(tsb) : null,
+	)
 }
 
 /** The canonical eased target for a cardio next-session (ADR 0006/0019). */
@@ -264,16 +262,18 @@ export function decideSessionNudge(input: {
 		if (!CARDIO_DISCIPLINES.has(nextSession.discipline)) {
 			return {
 				outcome: 'held',
-				reason: `Next session is ${nextSession.discipline} — no Form-based ease yet.`,
+				reason: L.heldNoEase(nextSession.discipline),
 			}
 		}
 		const signal = backOffSignalClause(recommendation, tsb, sustained)
 		return {
 			outcome: 'eased',
 			target: easedTarget(nextSession),
-			reason: `${signal} — eased ${nextSession.label}'s session to ${easedDurationPhrase(
-				nextSession.durationMin,
-			)}.`,
+			reason: L.eased(
+				signal,
+				nextSession.label,
+				easedDurationPhrase(nextSession.durationMin),
+			),
 		}
 	}
 
@@ -281,22 +281,27 @@ export function decideSessionNudge(input: {
 		if (!CARDIO_DISCIPLINES.has(nextSession.discipline)) {
 			return {
 				outcome: 'held',
-				reason: `${missSignalClause(recentMiss)} — next session is ${nextSession.discipline}, no Form-based ease yet.`,
+				reason: L.heldAfterMissNoEase(
+					missSignalClause(recentMiss),
+					nextSession.discipline,
+				),
 			}
 		}
 		return {
 			outcome: 'eased',
 			target: easedTarget(nextSession),
-			reason: `${missSignalClause(recentMiss)} — eased ${nextSession.label}'s session to ${easedDurationPhrase(
-				nextSession.durationMin,
-			)} so you don't stack hard days after a gap.`,
+			reason: L.easedAfterMiss(
+				missSignalClause(recentMiss),
+				nextSession.label,
+				easedDurationPhrase(nextSession.durationMin),
+			),
 		}
 	}
 
 	if (!recommendation) {
 		return {
 			outcome: 'unavailable',
-			reason: `Your Form reading is reliable after ${trust.requiredDays} days — day ${trust.daysOfHistory}/${trust.requiredDays}.`,
+			reason: L.coldStart(trust.daysOfHistory, trust.requiredDays),
 		}
 	}
 
@@ -304,6 +309,6 @@ export function decideSessionNudge(input: {
 	const signal = holdSignalClause(recommendation, tsb, sustained)
 	return {
 		outcome: 'held',
-		reason: `${signal} — your next session stands.`,
+		reason: L.stands(signal),
 	}
 }

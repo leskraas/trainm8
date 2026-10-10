@@ -24,6 +24,7 @@ import { formatNbVolumeFigure } from '#app/utils/format.ts'
 import {
 	easePlannedLabel,
 	NB_VOLUME_UNITS,
+	nbStoredReplanReason,
 	RELATIVE_WEEK_LABELS,
 	quotedSession,
 	roundPeakLabel,
@@ -195,7 +196,8 @@ export function buildWeekChangeCard({
 			(proposal) => proposal.payload.kind === 'keep' && proposal.target == null,
 		)
 			? null
-			: data.reason,
+			: // A week decided before #505 round 2 stored its reason in English.
+				nbStoredReplanReason(data.reason),
 		open: data.open,
 		proposalsHeading:
 			data.comingWeekKey <= todayKey

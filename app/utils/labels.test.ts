@@ -23,6 +23,8 @@ import {
 	silencedLabel,
 	WEEK_CHANGE_LABELS,
 	WEEK_HOLD_REASON_LABELS,
+	WEEK_REPLAN_SOFTENED_LABELS,
+	nbStoredReplanReason,
 	RECOMPUTE_NOTICE_LABELS,
 	EVENT_DATE_LABELS,
 	PAGE_HEADER_LABELS,
@@ -539,3 +541,71 @@ test('Meg names every state of the intervals.icu connection in words (ADR 0083)'
 	expect(SEASON_EVENTS_LABELS.comingUp(0)).toBe('ingen kommende')
 	expect(SEASON_EVENTS_LABELS.comingUp(2)).toBe('2 kommende')
 })
+
+test('a Week Replan reason stored in English reads in the Norwegian the generator now writes', () => {
+	const cases: Array<[string, string]> = [
+		[
+			'Last week has no measurable Plan Adherence — no adjustment, not enough data.',
+			WEEK_HOLD_REASON_LABELS['no-adherence'](HOLD_FACTS),
+		],
+		[
+			'Last week ran 20% under plan — bank the planned work; this week stands as planned.',
+			WEEK_HOLD_REASON_LABELS.under({ ...HOLD_FACTS, under: '20 %' }),
+		],
+		[
+			'Last week matched the plan — this week stands as planned.',
+			WEEK_HOLD_REASON_LABELS['on-target'](HOLD_FACTS),
+		],
+		[
+			'Last week ran 32% over plan, but your Form reading is reliable after 42 days — day 9/42 — no adjustment yet.',
+			WEEK_HOLD_REASON_LABELS['form-untrusted']({
+				...HOLD_FACTS,
+				over: '32 %',
+				requiredDays: 42,
+				daysOfHistory: 9,
+			}),
+		],
+		[
+			'Last week ran 32% over plan, but Form is unavailable — no adjustment without it.',
+			WEEK_HOLD_REASON_LABELS['form-missing']({ ...HOLD_FACTS, over: '32 %' }),
+		],
+		[
+			"Last week ran 32% over plan but Form is +4 — you're absorbing it, so this week stands as planned.",
+			WEEK_HOLD_REASON_LABELS.fresh({ ...HOLD_FACTS, over: '32 %', tsb: '+4' }),
+		],
+		[
+			'Last week ran 32% over plan and Form was −12, but nothing in the coming week can be softened — no change made.',
+			WEEK_HOLD_REASON_LABELS['nothing-adjustable']({
+				...HOLD_FACTS,
+				over: '32 %',
+				tsb: '−12',
+			}),
+		],
+		[
+			'Last week ran 32% over plan and Form was −12 — softened this session ~24%.',
+			WEEK_REPLAN_SOFTENED_LABELS.session('32 %', '−12', '24 %'),
+		],
+		[
+			"Last week ran 32% over plan and Form was −12 — softened this week's remaining sessions ~24%.",
+			WEEK_REPLAN_SOFTENED_LABELS.week('32 %', '−12', '24 %'),
+		],
+	]
+	for (const [english, norwegian] of cases) {
+		expect(nbStoredReplanReason(english)).toBe(norwegian)
+		expect(nbStoredReplanReason(english)).not.toMatch(/Last week|Form /)
+	}
+	// Anything else — every reason written since — passes through untouched.
+	const current = WEEK_HOLD_REASON_LABELS['on-target'](HOLD_FACTS)
+	expect(nbStoredReplanReason(current)).toBe(current)
+	expect(nbStoredReplanReason('Du ba om en lettere uke.')).toBe(
+		'Du ba om en lettere uke.',
+	)
+})
+
+const HOLD_FACTS = {
+	over: '',
+	under: '',
+	tsb: '',
+	requiredDays: 0,
+	daysOfHistory: 0,
+}

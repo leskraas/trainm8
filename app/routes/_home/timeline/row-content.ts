@@ -56,17 +56,19 @@ import {
 	formatPace,
 	formatPaceClock,
 	formatPaceRange,
+	formatLiftWork,
+	formatNbKg,
 	formatSpeed,
 	formatTss,
 } from '#app/utils/format.ts'
 import {
 	NB_ADHERENCE_CHIP_LABELS,
 	NB_LOAD_WORDS,
+	nbStoredReplanReason,
 	ROW_LABELS,
 } from '#app/utils/labels.ts'
 import { type SessionRow } from '#app/utils/session-ledger-rows.ts'
 import {
-	formatKg,
 	type LoadValue,
 	parseStoredLoadValue,
 } from '#app/utils/strength-log.ts'
@@ -147,11 +149,18 @@ export function buildRowContent(
 	// to the band the chip slot usually carries — so it sits where the band would.
 	const sets = setsChip(session, entry)
 	if (sets) chips.push(sets)
-	// The Replan Note (ADR 0025) stays quiet and stays verbatim: it is the stored
-	// reason a session was softened, and paraphrasing it here would put a second
-	// version of the decision on the screen.
+	// The Replan Note (ADR 0025) stays quiet and stays the stored sentence: it is
+	// the reason a session was softened, and paraphrasing it here would put a
+	// second version of the decision on the screen. A note stored in English
+	// before #505 round 2 is the one exception — it is read in the Norwegian the
+	// generator now writes (`nbStoredReplanReason`, the same sentence, not a
+	// paraphrase).
 	if (entry.replanReason) {
-		chips.push({ id: 'replan', label: entry.replanReason, tone: 'muted' })
+		chips.push({
+			id: 'replan',
+			label: nbStoredReplanReason(entry.replanReason),
+			tone: 'muted',
+		})
 	}
 	return {
 		externalLoad: externalLoad(session, entry),
@@ -269,7 +278,7 @@ function liftClause(sets: LoggedWorkingSet[]): string | null {
 	const name = sets[0]!.exercise?.name
 	if (!name) return null
 	// Split on the weight, so a lift that moved up mid-session reads `Back Squat
-	// 80 × 5, 85 × 3` rather than naming one of its two weights for both.
+	// 80 kg × 5, 85 kg × 3` rather than naming one of its two weights for both.
 	const worked = consecutiveRuns(sets, loadText)
 		.map(workClause)
 		.filter((part): part is string => !!part)
@@ -279,18 +288,12 @@ function liftClause(sets: LoggedWorkingSet[]): string | null {
 }
 
 /**
- * `82.5 × 5` / `60 × 5,5,5,4` / `bodyweight × 8` — one weight and the reps done
- * at it. Either half may be missing, and the clause is what is left.
- *
- * The `×` stays on a count that lost its weight, because `Back Squat 5` could be
- * five kilos as easily as five reps and the multiplication sign is what settles
- * it.
+ * `82,5 kg × 5` / `60 kg × 5 · 5 · 5 · 4` / `kroppsvekt × 8` — one weight and
+ * the reps done at it, written by the one lift-line formatter
+ * ({@link formatLiftWork}) so I dag, the runner and a lift's history agree.
  */
 function workClause(sets: LoggedWorkingSet[]): string | null {
-	const load = loadText(sets[0]!)
-	const counts = countsText(sets)
-	if (counts) return load ? `${load} × ${counts}` : `× ${counts}`
-	return load
+	return formatLiftWork(loadText(sets[0]!), countsText(sets))
 }
 
 /**
@@ -299,34 +302,32 @@ function workClause(sets: LoggedWorkingSet[]): string | null {
  * and reads as a bar weight on a line like this one (ADR 0058 §4 as amended).
  * A row whose load will not parse states no weight at all rather than a guess.
  *
- * Plain kilos are written bare — `82.5`, with the `× 5` beside them supplying
- * the reading, which is how the design's line is written and how a lifter says
- * it. Every other kind carries its own words from {@link loadValueText}, so a
+ * Kilos carry their unit and a decimal comma — `82,5 kg` (owner decision,
+ * #505 round 2): the bare `82.5` the row used to write sat beside rep counts
+ * joined by commas, and a comma kilo needs the unit to stay a weight. Every
+ * other kind carries its own words from {@link nbLoadValueText}, so a
  * bodyweight dip and an assisted pull-up can never be read as bar weights.
- * `perSide` is the one kind restated here: `loadValueText` writes it `2 × 22.5
- * kg`, and a second `×` immediately after it would read as one multiplication
- * too many.
+ * `perSide` is the one kind restated here: the long form is `2 × 22,5 kg`, and
+ * a second `×` immediately after it would read as one multiplication too many.
  */
 function loadText(set: LoggedWorkingSet): string | null {
 	const load = parseStoredLoadValue(set.load)
 	if (!load) return null
-	if (load.kind === 'external') return formatKg(load.kg)
 	if (load.kind === 'perSide')
-		return `${formatKg(load.kg)} ${ROW_LABELS.perSide}`
+		return `${formatNbKg(load.kg)} kg ${ROW_LABELS.perSide}`
 	return nbLoadValueText(load)
 }
 
 /**
  * The counts, one per set, collapsed to a single figure when every set did the
- * same — `5` for five fives, `5,5,5,4` where the last one came up short, so a
- * shortfall is visible without arithmetic.
+ * same — `5` for five fives, `5 · 5 · 5 · 4` where the last one came up short,
+ * so a shortfall is visible without arithmetic.
  */
-function countsText(sets: LoggedWorkingSet[]): string | null {
+function countsText(sets: LoggedWorkingSet[]): string[] {
 	const counts = sets
 		.map(countText)
 		.filter((count): count is string => count != null)
-	if (counts.length === 0) return null
-	return new Set(counts).size === 1 ? counts[0]! : counts.join(',')
+	return new Set(counts).size === 1 ? [counts[0]!] : counts
 }
 
 /** One set's count. A unilateral set keeps both of its rep counts: 10 left and
@@ -680,15 +681,15 @@ function unplanned(session: LedgerSession): boolean {
 function nbLoadValueText(load: LoadValue): string {
 	switch (load.kind) {
 		case 'external':
-			return `${formatKg(load.kg)} kg`
+			return `${formatNbKg(load.kg)} kg`
 		case 'perSide':
-			return `${load.sides} × ${formatKg(load.kg)} kg`
+			return `${load.sides} × ${formatNbKg(load.kg)} kg`
 		case 'bodyweight':
 			return NB_LOAD_WORDS.bodyweight
 		case 'bodyweightPlus':
-			return `${NB_LOAD_WORDS.bodyweight} + ${formatKg(load.addedKg)} kg`
+			return `${NB_LOAD_WORDS.bodyweight} + ${formatNbKg(load.addedKg)} kg`
 		case 'assisted':
-			return `${NB_LOAD_WORDS.assisted} − ${formatKg(load.assistKg)} kg`
+			return `${NB_LOAD_WORDS.assisted} − ${formatNbKg(load.assistKg)} kg`
 		case 'stackLevel':
 			return load.label ?? NB_LOAD_WORDS.level(load.level)
 		case 'band':

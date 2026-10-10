@@ -15,14 +15,13 @@
  * missing kilo never interpolates from its neighbours.
  */
 import { type ChartDataTableModel } from '#app/components/chart/chart.tsx'
-import { formatDayMonth } from '#app/utils/format.ts'
+import { formatDayMonth, formatNbKg } from '#app/utils/format.ts'
 import {
 	type ExerciseSessionSummary,
 	type SessionLoadBasis,
 	lastTimeLabel,
 } from '#app/utils/strength/exercise-history.ts'
 import { type StallHistoryEntry } from '#app/utils/strength/program-engine.ts'
-import { formatKg } from '#app/utils/strength/program.constants.ts'
 import {
 	type StrengthRecord,
 	recordGainPhrase,
@@ -103,8 +102,8 @@ export type RecordCard = {
 
 function recordValueText(record: StrengthRecord): string {
 	return record.unit === 'level'
-		? `level ${formatKg(record.value)}`
-		: `${formatKg(record.value)} kg`
+		? `level ${formatNbKg(record.value)}`
+		: `${formatNbKg(record.value)} kg`
 }
 
 export function buildRecordCards(
@@ -322,7 +321,7 @@ export function buildChartBars(
 }
 
 function stallCutPhrase(cut: { fromKg: number; toKg: number }): string {
-	return `Stall Cut, ${formatKg(cut.fromKg)} kg → ${formatKg(cut.toKg)} kg`
+	return `Stall Cut, ${formatNbKg(cut.fromKg)} kg → ${formatNbKg(cut.toKg)} kg`
 }
 
 /**
@@ -431,8 +430,8 @@ export function buildLiftHeader(
 	if (!program) return null
 	const estimate = view.records.find((record) => record.kind === 'e1RM')
 	return {
-		workingWeight: `${formatKg(program.workingWeightKg)} kg`,
-		estOneRm: estimate ? `${formatKg(estimate.value)} kg` : null,
+		workingWeight: `${formatNbKg(program.workingWeightKg)} kg`,
+		estOneRm: estimate ? `${formatNbKg(estimate.value)} kg` : null,
 		estOneRmSource: estimate ? estimateSource(estimate, view.sessions) : null,
 	}
 }

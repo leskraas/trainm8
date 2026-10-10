@@ -115,6 +115,14 @@ const TRACK_BG: Record<string, string> = {
 	swim: 'bg-track-swim',
 	strength: 'bg-track-strength',
 }
+/** A track's name in its own colour: the `-ink` step, AA as text (ADR 0085,
+ * #505 round 2). The fills above are marks and stay the hue. */
+const TRACK_INK: Record<string, string> = {
+	run: 'text-track-run-ink',
+	bike: 'text-track-bike-ink',
+	swim: 'text-track-swim-ink',
+	strength: 'text-track-strength-ink',
+}
 /** The done figure's ink: the verdict's, so the table reads like the header. */
 const GRADE_INK: Record<VolumeGrade, string> = {
 	under: 'text-status-under',
@@ -345,7 +353,14 @@ function ColumnHead({ column }: { column: SeasonTableColumn }) {
 		>
 			{/* Name over unit: two tracks side by side in 300px would cut
 			    `Styrke økter` to `Styrke ø…` on one line. */}
-			<span className="block truncate">{column.name}</span>
+			<span
+				className={cn(
+					'block truncate',
+					column.discipline != null && TRACK_INK[column.discipline],
+				)}
+			>
+				{column.name}
+			</span>
 			<span className="text-muted-foreground/80 block truncate font-normal">
 				{column.unit}
 			</span>

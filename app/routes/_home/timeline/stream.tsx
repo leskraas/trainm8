@@ -642,7 +642,8 @@ export function TrackLine({
  * A Training Track's colour, by its sport (`track-*`, ADR 0085): for marks —
  * a session's rule, a meter's fill and outline — never for text (at caption
  * size most hues are under 4.5:1 on a light card) and never for a fill under
- * text. Literal classes, for Tailwind.
+ * text. Text that names a track takes {@link TRACK_INK}. Literal classes, for
+ * Tailwind.
  */
 const TRACK_BG: Record<string, string> = {
 	run: 'bg-track-run',
@@ -655,6 +656,14 @@ const TRACK_BORDER: Record<string, string> = {
 	bike: 'border-track-bike',
 	swim: 'border-track-swim',
 	strength: 'border-track-strength',
+}
+/** A track's name in its own colour: the `-ink` step of the hue, ≥ 5:1 on the
+ * card and the page in both themes (#505 round 2). */
+const TRACK_INK: Record<string, string> = {
+	run: 'text-track-run-ink',
+	bike: 'text-track-bike-ink',
+	swim: 'text-track-swim-ink',
+	strength: 'text-track-strength-ink',
 }
 
 /** The done figure's colour: the verdict's, only once there is one. */
@@ -717,10 +726,14 @@ function TrackMeter({
 			className="grid grid-cols-[minmax(0,auto)_minmax(72px,1fr)] items-center gap-x-3"
 		>
 			<span className="text-caption flex min-w-0 flex-wrap items-baseline gap-x-1.5 font-normal tabular-nums">
-				{/* The name in ink, not in the track's hue: at caption size the
-				    run, bike and swim hues are under 4.5:1 on a light card. The
-				    Meter beside it carries the colour. */}
-				<span className="text-foreground font-semibold break-words">
+				{/* The name in its track's ink — the hue's text step, AA at
+				    caption size — while the Meter beside it keeps the mark hue. */}
+				<span
+					className={cn(
+						'font-semibold break-words',
+						TRACK_INK[track.discipline] ?? 'text-foreground',
+					)}
+				>
 					{track.name}
 				</span>
 				{done != null ? (

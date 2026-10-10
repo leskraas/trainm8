@@ -79,7 +79,7 @@ test('a beaten record states the kilos it went up by, and the date it was set', 
 
 	expect(card?.headline).toBe('Heaviest ever')
 	expect(card?.value).toBe('100 kg')
-	expect(card?.gain).toBe('up 2.5 kg')
+	expect(card?.gain).toBe('up 2,5 kg')
 	expect(card?.achievedLabel).toBe('10 Aug')
 })
 
@@ -143,7 +143,7 @@ test("a weight the athlete's plates can make is stated as it was stored, not rou
 		TZ,
 	)
 
-	expect(card?.value).toBe('61.25 kg')
+	expect(card?.value).toBe('61,25 kg')
 	expect(card?.value).not.toContain('61.3')
 })
 
@@ -154,8 +154,8 @@ test('a delta agrees with the two weights it is derived from', () => {
 	)
 
 	// 61.25 − 40 = 21.25, and the card says all three of those numbers.
-	expect(card?.value).toBe('61.25 kg')
-	expect(card?.gain).toBe('up 21.25 kg')
+	expect(card?.value).toBe('61,25 kg')
+	expect(card?.gain).toBe('up 21,25 kg')
 })
 
 test('a first entry on a variant reads "first time!" rather than announcing a PR', () => {
@@ -187,7 +187,7 @@ test('a rep-max record names the rep count it is exactly at', () => {
 	)
 
 	expect(card?.headline).toBe('Best 5-rep set')
-	expect(card?.value).toBe('92.5 kg')
+	expect(card?.value).toBe('92,5 kg')
 })
 
 test('an estimated 1RM carries its equation and an observed record carries none', () => {
@@ -601,7 +601,7 @@ test('the note strip is generated from the marked bar, so the sentence and the b
 	)
 
 	expect(buildStallNotes(bars)).toEqual([
-		'Session 8 — Stall Cut, 80 kg → 72.5 kg',
+		'Session 8 — Stall Cut, 80 kg → 72,5 kg',
 	])
 })
 
@@ -628,7 +628,7 @@ test('a stall cut recorded against a session outside this variant marks nothing 
 test('the working weight is the header, with the estimated 1RM and the set it came from beside it', () => {
 	const header = buildLiftHeader(
 		view({
-			sessions: [session({ sessionId: 'sess-1', topSetText: '82.5 kg × 5' })],
+			sessions: [session({ sessionId: 'sess-1', topSetText: '82,5 kg × 5' })],
 			records: [
 				record({
 					kind: 'e1RM',
@@ -642,9 +642,9 @@ test('the working weight is the header, with the estimated 1RM and the set it ca
 		program({ workingWeightKg: 82.5 }),
 	)
 
-	expect(header?.workingWeight).toBe('82.5 kg')
+	expect(header?.workingWeight).toBe('82,5 kg')
 	expect(header?.estOneRm).toBe('96 kg')
-	expect(header?.estOneRmSource).toBe('from 82.5 kg × 5')
+	expect(header?.estOneRmSource).toBe('from 82,5 kg × 5')
 })
 
 test('a lift in no program has no working-weight header at all, rather than a zero', () => {
@@ -654,7 +654,7 @@ test('a lift in no program has no working-weight header at all, rather than a ze
 test('a working weight with no estimated 1RM still renders, and claims no estimate', () => {
 	const header = buildLiftHeader(view(), program())
 
-	expect(header?.workingWeight).toBe('82.5 kg')
+	expect(header?.workingWeight).toBe('82,5 kg')
 	expect(header?.estOneRm).toBeNull()
 	expect(header?.estOneRmSource).toBeNull()
 })
@@ -672,11 +672,11 @@ test('the estimated 1RM names the set it came from on its record row, and an obs
 			}),
 		],
 		TZ,
-		[session({ sessionId: 'sess-1', topSetText: '82.5 kg × 5' })],
+		[session({ sessionId: 'sess-1', topSetText: '82,5 kg × 5' })],
 	)
 
 	expect(cards[0]?.source).toBeNull()
-	expect(cards[1]?.source).toBe('from 82.5 kg × 5')
+	expect(cards[1]?.source).toBe('from 82,5 kg × 5')
 })
 
 test('the view model carries the chart, the notes and the header, and still no tonnage', () => {
@@ -690,8 +690,8 @@ test('the view model carries the chart, the notes and the header, and still no t
 	)
 
 	expect(model.chart).toHaveLength(9)
-	expect(model.stallNotes).toEqual(['Session 8 — Stall Cut, 80 kg → 72.5 kg'])
-	expect(model.header?.workingWeight).toBe('82.5 kg')
+	expect(model.stallNotes).toEqual(['Session 8 — Stall Cut, 80 kg → 72,5 kg'])
+	expect(model.header?.workingWeight).toBe('82,5 kg')
 	// The name and the table are one pair: the name is short because the table
 	// carries the detail, so a view model with one and not the other is a chart
 	// that either says too much or says nothing.
@@ -703,7 +703,7 @@ test('the view model carries the chart, the notes and the header, and still no t
 		'Session 8',
 		'8 Jul',
 		'87 kg × 5',
-		'Stall Cut, 80 kg → 72.5 kg',
+		'Stall Cut, 80 kg → 72,5 kg',
 	])
 	expect(JSON.stringify(model)).not.toMatch(/tonnage/i)
 })
@@ -783,7 +783,7 @@ test('the data table carries every session the chart drew, and names what each b
 	expect(table.columns).toEqual(['Session', 'Date', 'Top set', 'Marked'])
 	expect(table.rows).toEqual([
 		['Session 1', '1 Jul', '80 kg × 5', '—'],
-		['Session 2', '2 Jul', '81 kg × 5', 'Stall Cut, 85 kg → 77.5 kg'],
+		['Session 2', '2 Jul', '81 kg × 5', 'Stall Cut, 85 kg → 77,5 kg'],
 		['Session 3', '3 Jul', '82 kg × 5', 'Latest'],
 	])
 })

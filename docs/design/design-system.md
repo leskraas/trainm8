@@ -48,11 +48,32 @@ All in `app/styles/tailwind.css`. Light is `:root`, dark is `.dark` on `<html>`
 | Token                                                          | Meaning                                                                                                                                                                       |
 | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `status-on` · `status-under` · `status-over` · `status-missed` | i rute (the green) · under (amber) · over (blue-violet) · ikke gjort (red, quieter than `destructive`). Colour never carries the verdict alone; the word is always beside it. |
-| `track-run` · `track-bike` · `track-swim` · `track-strength`   | One hue per discipline. For marks (a dot, a bar, an edge), not fills or text.                                                                                                 |
+| `track-run` · `track-bike` · `track-swim` · `track-strength`   | One hue per discipline. For marks (a dot, a bar, an edge, a meter), not fills or text.                                                                                        |
+| `track-*-ink` (`track-run-ink` …)                              | The same hue dark enough (light) or light enough (dark) to be **text**: a track's name in its colour. AA on `card` and `background` in both themes; see the table below.      |
 | `phase-base` · `phase-build` · `phase-peak` · `phase-taper`    | Grunntrening · Oppbygging · Spissing · Nedtrapping. Lower chroma than the tracks; for bands and the strip's phase line.                                                       |
 
-Every role is a Tailwind colour (`bg-status-under`, `text-track-run`,
+Every role is a Tailwind colour (`bg-status-under`, `text-track-run-ink`,
 `bg-phase-build/20`).
+
+**Track ink contrast** (WCAG 2 relative luminance, OKLCH converted to sRGB; AA
+for text is 4.5:1). The marks are listed for comparison: in light mode three of
+the four fail as text, which is why text never takes the mark.
+
+| Token                   | Light value            | on `card` | on `background` | Dark value             | on `card` | on `background` |
+| ----------------------- | ---------------------- | --------- | --------------- | ---------------------- | --------- | --------------- |
+| `track-run-ink`         | `oklch(0.54 0.15 32)`  | 5.44      | 5.06            | `oklch(0.74 0.13 32)`  | 7.37      | 8.12            |
+| `track-bike-ink`        | `oklch(0.53 0.11 78)`  | 5.37      | 5.00            | `oklch(0.8 0.12 78)`   | 9.46      | 10.42           |
+| `track-swim-ink`        | `oklch(0.52 0.09 225)` | 5.37      | 5.00            | `oklch(0.76 0.09 225)` | 8.53      | 9.40            |
+| `track-strength-ink`    | `oklch(0.53 0.12 300)` | 5.55      | 5.17            | `oklch(0.74 0.1 300)`  | 7.52      | 8.28            |
+| `track-run` (mark)      | `oklch(0.63 0.16 32)`  | 3.76      | 3.50            | `oklch(0.7 0.14 32)`   | 6.32      | 6.96            |
+| `track-bike` (mark)     | `oklch(0.72 0.13 78)`  | 2.52      | 2.35            | `oklch(0.78 0.12 78)`  | 8.83      | 9.72            |
+| `track-swim` (mark)     | `oklch(0.62 0.1 225)`  | 3.54      | 3.30            | `oklch(0.72 0.09 225)` | 7.39      | 8.14            |
+| `track-strength` (mark) | `oklch(0.55 0.11 300)` | 5.07      | 4.72            | `oklch(0.7 0.1 300)`   | 6.48      | 7.14            |
+
+`card` is `oklch(1 0 0)` / `oklch(0.205 0.007 223.9)` and `background` is
+`oklch(0.975 0.003 197)` / `oklch(0.148 0.004 228.8)`. Track names in their
+colour use the ink: I dag's week header and the large-screen season table's
+column heads.
 
 **Older app tokens:** only `zone-1…5` remains, read by pages outside home. The
 timeline's own (`ink-*`, `hairline*`, `warning`, `--shadow-pill`) are gone: I
@@ -106,8 +127,13 @@ these steps.
 Override weight with `font-*` where needed; never override tracking. Use
 **`tabular-nums`** on every figure that shares a column or changes in place (km,
 minutes, percentages, week numbers). Decimals use the Norwegian comma
-(`formatNbVolumeFigure`). The Epic Stack's marketing scale (`text-h1…h6`,
-`text-body-*`, `text-button`) stays for the marketing and auth pages.
+(`formatNbVolumeFigure`), and so do kilos wherever a person reads a lift:
+`82,5 kg × 5 · 5 · 5 · 4` — `formatNbKg` for the weight and `formatLiftWork` for
+the line, rep counts joined by `·` (a comma beside a comma-decimal kilo would
+read as one more decimal). `formatKg` keeps the decimal point: it is the machine
+digits that forms post and the workout notation reads back. The Epic Stack's
+marketing scale (`text-h1…h6`, `text-body-*`, `text-button`) stays for the
+marketing and auth pages.
 
 `cn()` (`app/utils/misc.tsx`) has tailwind-merge taught these names and the
 duration tokens. Without that, `cn('text-muted-foreground', 'text-footnote')`
@@ -166,15 +192,15 @@ app-wide. Verified on the built CSS: every `:hover` rule sits inside that query.
   trigger; an invisible `after:`/`before:` hit area for compact controls; menu,
   select and command items are 44px on a coarse pointer and the CLI's 36px with
   a mouse.
-- The top chrome (wordmark row) pads `env(safe-area-inset-top)`, and the tab
-  bar pads the bottom inset. Every tappable thing has a press: `pressable`, or
-  an instant `active:` tint where a transition would be wrong (the I dag
-  pill, the tabs).
-- Contrast is AA (4.5:1) for text in both themes. In light,
-  `muted-foreground` measures 5.5 on the card, 5.1 on the page and 4.7 on
-  `muted`. Do not dim it further with opacity: at /80 it is 3.6, and at /70
-  it is 3.0. `status-under` is L 0.55 in light (5.0 on the card). Track hues
-  are for marks only, never for text.
+- The top chrome (wordmark row) pads `env(safe-area-inset-top)`, and the tab bar
+  pads the bottom inset. Every tappable thing has a press: `pressable`, or an
+  instant `active:` tint where a transition would be wrong (the I dag pill, the
+  tabs).
+- Contrast is AA (4.5:1) for text in both themes. In light, `muted-foreground`
+  measures 5.5 on the card, 5.1 on the page and 4.7 on `muted`. Do not dim it
+  further with opacity: at /80 it is 3.6, and at /70 it is 3.0. `status-under`
+  is L 0.55 in light (5.0 on the card). Track hues are for marks only, never for
+  text.
 - Needs a real phone to confirm: tap delay, sticky hover, the theme-colour
   status bar, the keyboard with `interactive-widget`, and the drawer's flick
   dismiss.

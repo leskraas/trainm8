@@ -119,7 +119,7 @@ test('the sentences are the shipped builder’s, and read where the lift now sta
 		'StrongLifts 5×5',
 	)[0]
 
-	expect(item?.headline).toBe('Bench Press stays at 77.5 kg')
+	expect(item?.headline).toBe('Bench Press stays at 77,5 kg')
 	expect(item?.reason).toBe('A set came up short, so the weight repeats.')
 })
 

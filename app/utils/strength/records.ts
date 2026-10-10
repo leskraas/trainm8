@@ -47,6 +47,7 @@
  * harmful if it discourages a deload. Neither is a reading about training, so
  * there is nothing here to import and no TODO promising one later.
  */
+import { formatKg, formatNbKg } from '../format.ts'
 import {
 	type EquipmentId,
 	type EstimatorName,
@@ -61,7 +62,6 @@ import {
 	type KiloLoadBasis,
 	kiloLoadBasis,
 } from './program-rules.ts'
-import { formatKg } from './program.constants.ts'
 
 // ——— What a record is derived from ———————————————————————————————————————
 
@@ -696,9 +696,9 @@ export function recordGainPhrase(record: StrengthRecord): string | null {
 		// "Heaviest ever 61.25 kg — up 21.25 kg" always reconciles with the 40 kg it
 		// beat. Rounding the delta on its own can leave a gain that does not
 		// subtract, which is the same class of defect as `61.3`.
-		return `up ${formatKg(shownDeltaKg(record.value, record.previousValue ?? 0))} kg`
+		return `up ${formatNbKg(shownDeltaKg(record.value, record.previousValue ?? 0))} kg`
 	}
-	return `up ${formatKg(record.delta)} ${record.delta === 1 ? 'level' : 'levels'}`
+	return `up ${formatNbKg(record.delta)} ${record.delta === 1 ? 'level' : 'levels'}`
 }
 
 /**
@@ -749,8 +749,8 @@ const BASIS_QUALIFIERS: Record<RecordLoadBasis, string | null> = {
  * applied.
  */
 function formatValue(record: StrengthRecord): string {
-	if (record.unit === 'level') return formatKg(record.value)
-	const kg = `${formatKg(record.value)} kg`
+	if (record.unit === 'level') return formatNbKg(record.value)
+	const kg = `${formatNbKg(record.value)} kg`
 	if (record.oneRmProtocol === 'tested')
 		return `${kg} (${TESTED_SINGLE_PHRASE})`
 	return record.estimator ? `${kg} (${record.estimator})` : kg

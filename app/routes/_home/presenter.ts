@@ -22,7 +22,8 @@ import { planArc } from '#app/utils/dashboard.ts'
 import {
 	formatDayMonth,
 	formatLoad,
-	formatWeekday,
+	formatNbKg,
+	formatNbWeekday,
 	roundLoad,
 } from '#app/utils/format.ts'
 import {
@@ -55,7 +56,6 @@ import {
 	deriveSessionProfile,
 	expandWorkoutSteps,
 } from '#app/utils/session-profile.ts'
-import { formatKg } from '#app/utils/strength-log.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -133,7 +133,7 @@ export type TodayLiftLine = {
 	 * scheme as numbers, worded by the surface that shows it (`5×5`, `3 sett`). */
 	setCount: number
 	reps: number | null
-	/** The resolved working weight, e.g. `82.5 kg`; null when the sets carry no
+	/** The resolved working weight, e.g. `82,5 kg`; null when the sets carry no
 	 * single weight (mixed, or no load prescribed at all). */
 	loadLabel: string | null
 }
@@ -206,7 +206,7 @@ export function buildTodayLiftLines(
 						name: step.exercise!.name,
 						setCount: sets.length,
 						reps: sameReps ? reps : null,
-						loadLabel: sameKg ? `${formatKg(kg)} kg` : null,
+						loadLabel: sameKg ? `${formatNbKg(kg)} kg` : null,
 					}
 				}),
 		)
@@ -322,7 +322,7 @@ export function buildSessionNudge(input: {
 		nextSession: today
 			? {
 					discipline: today.discipline,
-					label: formatWeekday(today.date, timezone),
+					label: formatNbWeekday(today.date, timezone),
 					durationMin: today.durationMin,
 				}
 			: null,

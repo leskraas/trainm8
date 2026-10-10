@@ -12,9 +12,9 @@
  * once the open animation has settled, so the initial anchoring never
  * animates in from the viewport origin.
  *
- * The shell is the spec's popover language: caret-anchored, 12 px radius,
- * layered shadow, 130 ms scale-in from the anchor (reduced-motion honored),
- * an uppercase mono cap label, max-width 324 px clamped to the viewport, and
+ * The shell is the spec's popover language: caret-anchored, the popup radius,
+ * layered shadow, the system's popup motion from the anchor (`motion-popup`;
+ * a fade alone under reduced motion), an uppercase mono cap label, max-width 324 px clamped to the viewport, and
  * flip-above when cramped (Base UI's default collision avoidance). It is
  * non-modal with trapped Tab (`modal="trap-focus"`): outside interactions
  * stay live so retargeting works, clicking non-interactive ground closes,
@@ -26,13 +26,18 @@ import { useRef, useState, type ReactNode } from 'react'
 import { cn } from '#app/utils/misc.tsx'
 
 /**
- * The popup shell treatment of the spec's popover language (§2.4): 12 px
- * radius, layered shadow, 130 ms scale-in, 324 px max width. Exported for
+ * The popup shell treatment of the spec's popover language (§2.4): the popup
+ * radius (`rounded-3xl`, ~13 px), layered shadow, 324 px max width, and the
+ * system's `motion-popup` (ADR 0085 §4): a **transition**, not tw-animate
+ * keyframes, so a close that interrupts the open reverses from where it is
+ * instead of restarting — from `scale(0.96)` at the trigger's
+ * `--transform-origin`, 200 ms in and 150 ms out on `--ease-out`, and a fade
+ * alone under reduced motion. Exported for
  * the editor's menu-summoned popovers (the ⠿ gutter editors, the ⋮ "Add…"
  * fallback), which speak the same language from their own roots.
  */
 export const TOKEN_POPUP_CLASS =
-	'bg-popover text-popover-foreground ring-foreground/10 motion-safe:data-open:animate-in motion-safe:data-open:fade-in-0 motion-safe:data-open:zoom-in-90 flex w-[19.5rem] max-w-[min(324px,calc(100vw-1rem))] origin-(--transform-origin) flex-col gap-3 rounded-xl p-3 shadow-[0_1px_2px_rgb(0_0_0/0.06),0_4px_12px_rgb(0_0_0/0.08),0_16px_40px_-12px_rgb(0_0_0/0.18)] ring-1 duration-[130ms] outline-none'
+	'bg-popover text-popover-foreground ring-foreground/10 motion-popup flex w-[19.5rem] max-w-[min(324px,calc(100vw-1rem))] flex-col gap-3 rounded-3xl p-3 shadow-[0_1px_2px_rgb(0_0_0/0.06),0_4px_12px_rgb(0_0_0/0.08),0_16px_40px_-12px_rgb(0_0_0/0.18)] ring-1 outline-none'
 
 /** One shared handle per editor instance — every trigger and the single
  * popover root connect through it. */

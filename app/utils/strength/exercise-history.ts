@@ -18,6 +18,7 @@
  * row is the runner's *"Fill from last time"* control, working from the log
  * itself, and an explicit tap.
  */
+import { formatLiftWork } from '../format.ts'
 import {
 	type EquipmentId,
 	type LoggedSet,
@@ -111,7 +112,7 @@ export type ExerciseSessionSummary = {
  * number — see the module note.
  */
 export type SetGhostReading = {
-	/** `100 kg × 5`, `level 7 × 12`, `bodyweight × 45 s`. */
+	/** `82,5 kg × 5`, `level 7 × 12`, `bodyweight × 45 s`. */
 	text: string
 	/** True when this row is beyond where the previous session ended. */
 	extrapolated: boolean
@@ -399,8 +400,9 @@ function setText(set: {
 	if (set.reps != null) {
 		const reps =
 			set.repsLeft != null ? `${set.reps} / ${set.repsLeft}` : `${set.reps}`
-		return `${load} × ${reps}`
+		return formatLiftWork(load, [reps])!
 	}
-	if (set.durationSec != null) return `${load} × ${set.durationSec} s`
+	if (set.durationSec != null)
+		return formatLiftWork(load, [`${set.durationSec} s`])!
 	return load
 }

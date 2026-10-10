@@ -1007,7 +1007,7 @@ describe('a lifting row reconciles with the week header it sits under', () => {
 		const lift = withLift.rows
 			.flatMap((day) => day.sessions)
 			.find((s) => s.discipline === 'strength')!
-		expect(lift.externalLoad).toBe('Back Squat 82.5 × 5')
+		expect(lift.externalLoad).toBe('Back Squat 82,5 kg × 5')
 	})
 })
 

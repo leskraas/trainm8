@@ -100,6 +100,19 @@ const COLOUR_GROUPS: Array<{ title: string; swatches: Swatch[] }> = [
 		],
 	},
 	{
+		title: 'Treningsspor, tekst (app)',
+		swatches: [
+			{ name: 'track-run-ink', token: 'track-run-ink', note: 'løping' },
+			{ name: 'track-bike-ink', token: 'track-bike-ink', note: 'sykling' },
+			{ name: 'track-swim-ink', token: 'track-swim-ink', note: 'svømming' },
+			{
+				name: 'track-strength-ink',
+				token: 'track-strength-ink',
+				note: 'styrke',
+			},
+		],
+	},
+	{
 		title: 'Faser (app)',
 		swatches: [
 			{ name: 'phase-base', token: 'phase-base', note: 'Grunntrening' },

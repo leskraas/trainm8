@@ -1262,7 +1262,7 @@ export const QUICK_LOG_LABELS = {
 		return `${head} Styrke ${week.name.toLowerCase()}: ${week.before} → ${week.after} sett gjort.`
 	},
 	/** The prescription's weight, in the load's own semantics (ADR 0056 §3);
-	 * `kg` is the kilo as `formatKg` writes it. */
+	 * `kg` is the kilo as `formatNbKg` writes it (`82,5`). */
 	load: (kind: WorkingLoadKind, kg: string | null) => {
 		switch (kind) {
 			case 'external':
@@ -2921,3 +2921,158 @@ export const CONNECTION_HUB_STATUS_LABELS: Record<ConnectionHubStatus, string> =
 function capitalize(value: string): string {
 	return value ? value[0]!.toUpperCase() + value.slice(1) : value
 }
+
+// ===========================================================================
+// Cross-cutting polish (#505 round 2): the Week Replan's and the Session
+// Nudge's own sentences, in Norwegian at their source (ADR 0081). One section
+// of its own so the area PRs that also add to this file merge cleanly.
+// ===========================================================================
+
+/**
+ * ADR 0025's applied softening — the `adjusted` decision's per-session Replan
+ * Note and its week-level reason. Past tense, because an `adjusted` row is one
+ * the applier already rescaled. `over` and `cut` as `25 %`, `tsb` as `−12`.
+ */
+export const WEEK_REPLAN_SOFTENED_LABELS = {
+	session: (over: string, tsb: string, cut: string) =>
+		`${overClause(over)}, og formen var ${tsb}. Denne økta ble gjort ca. ${cut} kortere.`,
+	week: (over: string, tsb: string, cut: string) =>
+		`${overClause(over)}, og formen var ${tsb}. Resten av ukas økter ble gjort ca. ${cut} kortere.`,
+} as const
+
+/**
+ * The Session Nudge's reason (`decideSessionNudge`), one sentence per branch.
+ * `weekday` is `tirsdag` (`formatNbWeekday`), `discipline` an id (`run`).
+ */
+export const SESSION_NUDGE_LABELS = {
+	/** Why the coach backs off: sustained over-plan, or low Form. */
+	overPlan: (weeks: number) => `Over planen ${weeks} uker på rad`,
+	formLow: (tsb: string | null) =>
+		tsb == null ? 'Formen er lav' : `Formen er lav (TSB ${tsb})`,
+	/** Why the next session stands: sustained under-plan, or Form fine. */
+	underPlan: (weeks: number) => `Under planen ${weeks} uker på rad`,
+	formReads: (tone: 'fresh' | 'neutral', tsb: string | null) =>
+		tsb == null
+			? `Formen er ${NB_READINESS_LABELS[tone]}`
+			: `Formen er ${NB_READINESS_LABELS[tone]} (TSB ${tsb})`,
+	missed: (weekday: string) => `Økta ${weekday} ble ikke gjort`,
+	/** What the eased session became; `minutes` null when its length is unknown. */
+	easedTo: (minutes: number | null, cap: number) =>
+		minutes == null
+			? 'en rolig økt i sone 2'
+			: minutes >= cap
+				? 'en rolig time i sone 2'
+				: `en rolig økt på ${minutes} min i sone 2`,
+	eased: (signal: string, weekday: string, to: string) =>
+		`${signal} – økta ${weekday} er gjort om til ${to}.`,
+	easedAfterMiss: (signal: string, weekday: string, to: string) =>
+		`${signal} – økta ${weekday} er gjort om til ${to}, så du ikke legger harde dager tett etter et opphold.`,
+	easing: (signal: string) => `${signal} – neste økt blir gjort lettere.`,
+	heldNoEase: (discipline: string) =>
+		`Neste økt er ${nbDisciplineLabel(discipline).toLowerCase()}, og den kan ikke lettes etter formen ennå.`,
+	heldAfterMissNoEase: (signal: string, discipline: string) =>
+		`${signal} – neste økt er ${nbDisciplineLabel(discipline).toLowerCase()}, og den kan ikke lettes etter formen ennå.`,
+	coldStart: (day: number, required: number) =>
+		`Formtallet er til å stole på etter ${required} dager (dag ${day} av ${required}).`,
+	stands: (signal: string) => `${signal} – neste økt står som planlagt.`,
+} as const
+
+/**
+ * A stored Week Replan sentence, in Norwegian. Rows written before #505 round 2
+ * hold `decideWeekReplan`'s English (the week's `WeekReplan.reason`, and ADR
+ * 0025's per-session `replanReason`); this rewrites each of that composer's
+ * eight known sentences — a closed set, from one file, with numbers in fixed
+ * places — into the sentence the generator now writes. Anything else (every
+ * row written since, all already Norwegian) passes through untouched, so it is
+ * safe on any stored reason. Display only: nothing is written back.
+ */
+export function nbStoredReplanReason(stored: string): string {
+	for (const [pattern, words] of LEGACY_REPLAN_REASONS) {
+		const match = pattern.exec(stored)
+		if (match) return words(match.slice(1))
+	}
+	return stored
+}
+
+/** The facts a sentence that names none of them is given. */
+const NO_FACTS: WeekHoldFacts = {
+	over: '',
+	under: '',
+	tsb: '',
+	requiredDays: 0,
+	daysOfHistory: 0,
+}
+
+/** `32%` → `32 %`: the English sentences wrote no space. */
+const pct = (digits: string | undefined) => `${digits ?? ''} %`
+
+const OVER = String.raw`Last week ran (\d+)% over plan`
+const TSB = String.raw`([+−-]?\d+)`
+
+const LEGACY_REPLAN_REASONS: ReadonlyArray<
+	readonly [RegExp, (groups: Array<string | undefined>) => string]
+> = [
+	[
+		/^Last week has no measurable Plan Adherence — no adjustment, not enough data\.$/,
+		() => WEEK_HOLD_REASON_LABELS['no-adherence'](NO_FACTS),
+	],
+	[
+		/^Last week ran (\d+)% under plan — bank the planned work; this week stands as planned\.$/,
+		([under]) =>
+			WEEK_HOLD_REASON_LABELS.under({ ...NO_FACTS, under: pct(under) }),
+	],
+	[
+		/^Last week matched the plan — this week stands as planned\.$/,
+		() => WEEK_HOLD_REASON_LABELS['on-target'](NO_FACTS),
+	],
+	[
+		new RegExp(
+			String.raw`^${OVER}, but your Form reading is reliable after (\d+) days — day (\d+)/\d+ — no adjustment yet\.$`,
+		),
+		([over, required, day]) =>
+			WEEK_HOLD_REASON_LABELS['form-untrusted']({
+				...NO_FACTS,
+				over: pct(over),
+				requiredDays: Number(required),
+				daysOfHistory: Number(day),
+			}),
+	],
+	[
+		new RegExp(
+			String.raw`^${OVER}, but Form is unavailable — no adjustment without it\.$`,
+		),
+		([over]) =>
+			WEEK_HOLD_REASON_LABELS['form-missing']({ ...NO_FACTS, over: pct(over) }),
+	],
+	[
+		new RegExp(
+			String.raw`^${OVER} but Form is ${TSB} — you're absorbing it, so this week stands as planned\.$`,
+		),
+		([over, tsb]) =>
+			WEEK_HOLD_REASON_LABELS.fresh({
+				...NO_FACTS,
+				over: pct(over),
+				tsb: tsb ?? '',
+			}),
+	],
+	[
+		new RegExp(
+			String.raw`^${OVER} and Form was ${TSB}, but nothing in the coming week can be softened — no change made\.$`,
+		),
+		([over, tsb]) =>
+			WEEK_HOLD_REASON_LABELS['nothing-adjustable']({
+				...NO_FACTS,
+				over: pct(over),
+				tsb: tsb ?? '',
+			}),
+	],
+	[
+		new RegExp(
+			String.raw`^${OVER} and Form was ${TSB} — softened (this session|this week's remaining sessions) ~(\d+)%\.$`,
+		),
+		([over, tsb, subject, cut]) =>
+			WEEK_REPLAN_SOFTENED_LABELS[
+				subject === 'this session' ? 'session' : 'week'
+			](pct(over), tsb ?? '', pct(cut)),
+	],
+]

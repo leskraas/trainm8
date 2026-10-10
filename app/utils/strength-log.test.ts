@@ -53,7 +53,7 @@ test('a stack level and a band have no honest kilo, and none is invented', () =>
 
 test('the load reads as a lifter would say it, per-hand meaning on its face', () => {
 	expect(loadValueText({ kind: 'external', kg: 100 })).toBe('100 kg')
-	expect(loadValueText({ kind: 'external', kg: 102.5 })).toBe('102.5 kg')
+	expect(loadValueText({ kind: 'external', kg: 102.5 })).toBe('102,5 kg')
 	expect(loadValueText({ kind: 'perSide', kg: 32, sides: 2 })).toBe('2 × 32 kg')
 	expect(loadValueText({ kind: 'bodyweightPlus', addedKg: 20 })).toBe(
 		'bodyweight + 20 kg',

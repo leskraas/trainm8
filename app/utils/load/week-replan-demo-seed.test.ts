@@ -79,7 +79,7 @@ test('the seeded no-planned-load athlete gets the explicit insufficient-data dec
 	// The honest decline, stored and demoable: no measurable adherence ⇒ the
 	// explicit "no adjustment — not enough data" outcome, never a tweak.
 	expect(replan?.outcome).toBe('insufficient-data')
-	expect(replan?.reason).toMatch(/no adjustment, not enough data/i)
+	expect(replan?.reason).toMatch(/vi har for lite å gå på/i)
 	expect(replan?.appliedScale).toBeNull()
 
 	// No session carries a note and no prescription changed.
