@@ -1272,18 +1272,84 @@ export const QUICK_LOG_REFUSAL_LABELS: Record<QuickLogRefusal, string> = {
 	'nothing-done': 'Ingen sett er merket som gjort. Skriv inn minst ett.',
 }
 
-/** The large-screen season pane beside the list (#505 story 60). */
+/**
+ * The large-screen season pane beside the list (#505 story 60, ADR 0087): the
+ * plan card, the season table and its compact curve, after Arket variant Q.
+ */
 export const SEASON_PANE_LABELS = {
 	heading: 'Sesongen',
+	/** The plan card's region name. */
+	plan: 'Planen',
+	/** The table's caption corner: what a cell holds. */
+	perWeek: 'Per uke',
+	cellKey: 'mål · gjort',
 	week: 'Uke',
-	phase: 'Fase',
-	grade: 'vurdering',
-	load: 'økter og belastning',
+	rhythm: 'Rytme',
+	/** A week with no plan behind it: a load column instead of tracks. */
+	load: 'TSS',
+	sessions: 'økter',
+	table: 'Sesongtabell',
 	jumpTo: (week: string) => `Gå til ${week}`,
-	noPlan: 'Ingen plan ennå, så sesongen er bare ukene du har skrevet.',
-	loadFailed:
-		'Sesongkurven kunne ikke lastes nå. Lista til venstre er den samme.',
+	/** The row of the table where the Planning Horizon stands. */
+	horizon: 'horisont · økter fylles hit, videre bare mål',
+	noPlan: 'Ingen plan ennå',
+	noPlanNote: 'Sesongen er bare ukene du har skrevet.',
+	noPlanAction: 'Lag en i Sesong',
+	/** A table cell's accessible name: `Løping: mål 46 km, gjort 35`. */
+	cellName: (track: string, target: string, done: string) =>
+		`${track}: mål ${target}, gjort ${done}`,
+	/** The curve: what it draws, said once for a screen reader. */
+	curveName: (track: string, unit: string) =>
+		`${track} (${unit}): ukemål som linje, gjort som søyler, i dag og horisont markert`,
+	curveCaption: (track: string) => `${track}, uke for uke`,
+	/** The curve's legend, in the order the marks are drawn. */
+	legendTarget: (track: string, unit: string) =>
+		`mål ${track.toLowerCase()} (${unit})`,
+	legendDone: 'gjort',
+	legendToday: 'i dag',
+	legendHorizon: 'horisont',
+	legendPhase: 'fargestripe = fase',
+	legendDrift: '≠ øktene avviker over 10 % fra målet',
 } as const
+
+/**
+ * The day beside the list on a large screen (#505 story 60, ADR 0087): the
+ * selected day's sessions, what they ask and who owns them, their actions,
+ * and the week's zones.
+ */
+export const DAY_PANE_LABELS = {
+	region: 'Dagen',
+	/** `torsdag 17. sep · i dag`. */
+	today: 'i dag',
+	track: 'Spor',
+	status: 'Status',
+	owner: 'Eier',
+	volume: 'Volum',
+	statusWord: {
+		planned: 'planlagt',
+		completed: 'gjort',
+		missed: 'ikke gjort',
+	},
+	open: 'Se økta',
+	edit: 'Rediger',
+	/** A Link's name, so two "Se økta" on one day are told apart. */
+	openFor: (title: string) => `Se økta ${title}`,
+	editFor: (title: string) => `Rediger ${title}`,
+	free: 'Ingen økt · fri.',
+	write: 'Skriv økt her',
+	zones: (week: string) => `${week} i soner`,
+	noZones: 'Ingen soner å vise for denne uka.',
+	close: 'Lukk',
+	/** The sheet's own heading, before the day's. */
+	sheet: 'Dagen',
+	/** How a keyboard reaches the day from a row (1024–1279, the sheet). */
+	keyHint: 'Trykk I på en dag i lista for å se den ved siden av.',
+} as const
+
+/** `torsdag 17. sep` — a day as the day pane names it. */
+export function dayPaneTitle(weekday: number, day: number, month: number) {
+	return `${NB_WEEKDAY_LABELS[weekday]} ${day}. ${NB_MONTHS_SHORT[month]}`
+}
 
 // ---------------------------------------------------------------------------
 // I dag, the whole surface (#505, ADR 0081 §1 and ADR 0082): the home list,

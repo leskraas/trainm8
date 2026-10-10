@@ -1288,8 +1288,9 @@ function SessionGlyph({
  *
  * Once it has taken, home revalidates and the row's lock opens — the mark is
  * the confirmation. While the post is in flight the action already says so.
+ * The large screen's day pane offers it too (ADR 0087).
  */
-function ReleaseAction({
+export function ReleaseAction({
 	sessionId,
 	title,
 	label,
