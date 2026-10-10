@@ -15,9 +15,12 @@
  *    written — the editor's own instrument, tokens and all — so every value is
  *    one the athlete taps and types over, with ± nudges, saving as they go.
  *
- * **Nothing is parsed.** ADR 0027 §1 decides *render, never parse*; this surface
- * inherits that rule rather than weakening it. What the tap produces is
- * structure, and the sentence is a pure rendering of it.
+ * **The stamp parses nothing; the writing line reads strictly.** What a bare
+ * tap produces is structure, and the sentence is a pure rendering of it (ADR
+ * 0027 §1). The draft also holds the **writing line** (#505 S11, ADR 0027's
+ * amendment): a typed sentence is read by a strict reader that saves exactly
+ * what was typed or nothing, the server reads it again, and what lands is
+ * structure rendered back as its Token Sentence — never the typed text.
  *
  * **The popover problem, and how it is answered.** The token popover is a 324px
  * instrument built for a full-width editor, and it arrives in a 44px row. Left

@@ -8,13 +8,16 @@
  * A row is a day and a day owns zero or more sessions (ADR 0065 §1), so the date
  * gutter is stated once per day and a morning run and an evening lift stack
  * under it. A day with nothing on it is a **cell**: the grid exists before the
- * content does, and forward of today every date has one — at the 44px control
- * floor, as a real button rather than a clickable box (ADR 0028 §2, ADR 0065 §7).
+ * content does, and every date is one in the model — at the 44px control floor,
+ * as a real button rather than a clickable box (ADR 0028 §2, ADR 0065 §7).
  *
- * Behind today the days are still there, but a **run** of empty ones renders as
- * one band — `7 days · nothing logged` — that expands in place (ADR 0065 §3).
- * A record that is 80% blank rows reads worse than one that is not, and the
- * band states the fact the blanks only imply.
+ * On screen, a **run** of two or more empty days renders as one band that
+ * opens in place: behind today `7 dager · ingenting logget` (ADR 0065 §3, ADR
+ * 0075), ahead of it `3 ledige dager` (ADR 0082 §4, #505 story 30). Today never
+ * folds. A record that is 80% blank rows reads worse than one that is not, a
+ * printed plan's week is its sessions, and the band states the fact the blanks
+ * only imply. A closed week folds to one line, and a week past the Planning
+ * Horizon collapses to one (ADR 0082 §2–3).
  *
  * Both ends of the season are **stated**. An infinite scroll that runs out of
  * content and stops is indistinguishable from one that broke, so the first week
@@ -550,14 +553,15 @@ function streamRows(week: TimelineWeek): StreamRow[] {
 }
 
 /**
- * A run of empty days behind today, as one row that opens into them (ADR 0065
- * §3, ADR 0075, #500).
+ * A run of empty days, as one row that opens into them: behind today the past
+ * band (ADR 0065 §3, ADR 0075, #500), ahead of it the free days (ADR 0082 §4).
+ * Its summary wraps rather than being cut with "…" (#505 story 32).
  *
  * A **disclosure**, and a real one (ADR 0075 §5): a button that owns
  * `aria-expanded`, states the count and the dates it stands for, and keeps
- * standing there once open so there is a way back. Expanded, the days below it are ordinary `DayRow`s —
- * they take the same add gesture a day forward of today takes, because they are
- * the same component rendering the same model.
+ * standing there once open so there is a way back. Expanded, the days below it
+ * are ordinary `DayRow`s — they take the same add gesture any empty day takes,
+ * because they are the same component rendering the same model.
  *
  * **Opening it does not move the reader.** The days are inserted *below* the
  * button, so everything above the band — every pixel the reader is actually
@@ -570,7 +574,8 @@ function streamRows(week: TimelineWeek): StreamRow[] {
  *
  * The run **grows in** rather than appearing (#502): seven rows arriving in one
  * frame is the jarring change the band exists to prevent, so it is one of the
- * two places the timeline animates `height`. That is also why the delta handed
+ * accordions the timeline animates `height` on — the draft, a band's run and a
+ * folded week's days (ADR 0082 §6). That is also why the delta handed
  * to `bandScrollTop` is read off the run's *content* and not off the band's
  * box — mid-transition the box is a number on its way somewhere, and the
  * position has to be compensated for where the run ends up.
@@ -645,7 +650,7 @@ function PastBand({ band, days }: { band: TimelineBand; days: TimelineDay[] }) {
 					</span>
 				</span>
 				<span className="flex min-w-0 items-center gap-2">
-					<span className="text-ink-dim min-w-0 flex-1 truncate text-[12.5px]/[1.25]">
+					<span className="text-ink-dim min-w-0 flex-1 text-[12.5px]/[1.25] text-pretty break-words">
 						{band.summaryLabel}
 					</span>
 					<Icon

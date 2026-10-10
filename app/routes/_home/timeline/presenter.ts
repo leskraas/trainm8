@@ -9,11 +9,14 @@
  * with the stream about what a week contains, and an overview that disagrees
  * with the thing it overviews is worse than no overview.
  *
- * A row is a day and a day owns zero or more sessions (ADR 0065 §1), and **from
- * today forward every day is a row** whether anything is on it or not: the grid
- * exists before the content does. Behind today the days are built too, back as
- * far as the query itself reaches, but a **run** of consecutive empty ones is
- * handed over as a band the stream collapses into a single row (ADR 0065 §3).
+ * A row is a day and a day owns zero or more sessions (ADR 0065 §1), and **every
+ * day is in the model** whether anything is on it or not: the grid exists
+ * before the content does. Behind today the days are built back as far as the
+ * query itself reaches. What the stream *draws* is less: a **run** of two or
+ * more empty days — behind today or ahead of it, never today — is handed over
+ * as a band the stream shows as one row (ADR 0065 §3, ADR 0082 §4), a closed
+ * week folds to one line, and a week past the Planning Horizon collapses to one
+ * (ADR 0082 §2–3).
  *
  * The strip renders the **whole season**; the stream renders a window around
  * today that grows as the athlete reads. That is why the week list here is
@@ -152,7 +155,7 @@ export type { TimelineStrengthLog } from './strength-log.ts'
  * **start cap** states this
  * bound instead of claiming the athlete's history starts there, and no day
  * behind it is built at all (ADR 0075 §2 and §3). A band saying
- * `9 days · nothing logged` over dates the query never asked about would be a
+ * `9 dager · ingenting logget` over dates the query never asked about would be a
  * fabrication, and this is the line between "nothing was logged" and "nothing
  * was fetched".
  */
@@ -224,9 +227,9 @@ export type TimelineSession = {
 export type TimelineDay = {
 	/** `YYYY-MM-DD` in the athlete's own timezone — the day's own identity. */
 	key: string
-	/** `WED` — the weekday, in the athlete's own timezone. */
+	/** `ons` — the weekday, in the athlete's own timezone. */
 	dayLabel: string
-	/** `19 Aug` for a past week, `19` inside the current one. */
+	/** `19. aug` for a past week, `19` inside the current one. */
 	dateLabel: string
 	isToday: boolean
 	/**
@@ -253,8 +256,9 @@ export type TimelineDay = {
 }
 
 /**
- * A run of consecutive empty days behind today, as **one row** — `4–10` ·
- * `7 days · nothing logged` — that expands in place into the days it covers.
+ * A run of consecutive empty days, as **one row** — `4–10` · `7 dager ·
+ * ingenting logget` behind today, `3 ledige dager` ahead of it — that expands
+ * in place into the days it covers.
  *
  * Two reasons it exists, and the second is the load-bearing one (ADR 0065 §3):
  * the band **states the fact the blank rows only imply**, and it keeps stream
@@ -282,11 +286,11 @@ export type TimelineBand = {
 	dayKeys: string[]
 	/** `4–10` — the day numbers, in the gutter every row aligns to. */
 	daysLabel: string
-	/** `Aug`, or `Jul–Aug` where the run crosses a month. */
+	/** `aug`, or `jul–aug` where the run crosses a month. */
 	monthLabel: string
 	/** `7 dager · ingenting logget`, `2 ledige dager` — what the blanks only imply. */
 	summaryLabel: string
-	/** `4–10 August` — the range as the control's own name says it. */
+	/** `4.–10. aug` — the range as the control's own name says it. */
 	rangeLabel: string
 	/** The control's accessible name: the count, the fact and the dates. */
 	controlLabel: string
@@ -326,7 +330,8 @@ export type TimelineWeek = {
 	isNow: boolean
 	/**
 	 * The week's days, earliest first — a row is a day, not a session. All seven
-	 * from today forward; behind today, every day the query reached.
+	 * from today forward; behind today, every day the query reached. Which of
+	 * them the stream draws is `bands`' and `shownDayKeys`' business.
 	 */
 	rows: TimelineDay[]
 	/**
@@ -353,14 +358,14 @@ export type TimelineWeek = {
 	/** `hard uke`, `lett uke`, `nedtrapping`. */
 	roleLabel: string | null
 	/**
-	 * What kind of week it is, in the header's corner: `Build · hard uke`, or
+	 * What kind of week it is, in the header's corner: `Oppbygging · hard uke`, or
 	 * `før planen` for history the athlete brought with them. Null with neither.
 	 */
 	kindLabel: string | null
 	shape: WeekShape
 	/**
 	 * The one line a folded or collapsed week reads as — `35 av 46 km · under`,
-	 * `Uke 41 · Build · mål 58 km · fylles når uke 39 er ferdig` — or null for an
+	 * `Uke 41 · Oppbygging · mål 58 km · fylles søndag kveld i uke 39` — or null for an
 	 * open week, whose header says it at length.
 	 */
 	foldLabel: string | null
@@ -417,19 +422,19 @@ export type TimelineSeason = {
 	 * Today, as `YYYY-MM-DD` in the athlete's own timezone — **the stream's
 	 * landing anchor**. It names a day rather than a session, so it is a fact
 	 * about the calendar instead of a fact about what happens to be scheduled,
-	 * and because every day from today forward is a row there is always a node
-	 * carrying it — on a rest day too. That is what lets the landing, the hero's
-	 * collapse threshold and the back-to-today pill work with no fallback and no
-	 * special case anywhere (ADR 0065 §1).
+	 * and because today never folds into a band there is always a row carrying
+	 * it — on a rest day too. That is what lets the landing and the I dag pill
+	 * work with no fallback and no special case anywhere (ADR 0065 §1, ADR 0082
+	 * §4 and §6).
 	 */
 	todayKey: string
-	/** `7 Jul` — the first day anything is logged for, inside the reach below. */
+	/** `7. jul` — the first day anything is logged for, inside the reach below. */
 	loggedFromLabel: string | null
-	/** `22 Feb` — the earliest day home's own query reaches. */
+	/** `22. feb` — the earliest day home's own query reaches. */
 	reachesBackToLabel: string
 	/** How many weeks of the athlete's history that reach is. */
 	reachWeeks: number
-	/** `Wed 19 Aug · week 3 of 12` — the header's one line of orientation. */
+	/** `ons 19. aug · uke 3 av 12` — the header's one line of orientation. */
 	headerLabel: string
 	endCap: TimelineEndCap
 	/**
@@ -617,8 +622,8 @@ function planRole(
 }
 
 /**
- * `Wed 19 Aug · week 3 of 12` — today's date, and where in the plan it falls.
- * The plan half is dropped rather than faked when there is no plan: "week 3 of
+ * `ons 19. aug · uke 3 av 12` — today's date, and where in the plan it falls.
+ * The plan half is dropped rather than faked when there is no plan: "uke 3 av
  * 12" with nothing to count against is a claim, not a label.
  */
 function headerLabel(
@@ -761,13 +766,13 @@ function buildWeek({
 	const week = { imported, isNow }
 
 	// The week's rows are its **days**, and a day owns its sessions (ADR 0065 §1).
-	// Every day from today forward earns a row whether anything is on it or not —
+	// Every day from today forward is built whether anything is on it or not —
 	// that is the grid, and it is what puts a node on today on a rest day. Behind
 	// today the days are built as well, back to the day the query reaches and no
 	// further: a day the query never asked about is not a day with nothing on it.
 	// A session older than that still gets its row — what the reach bounds is the
 	// claim that a day was empty, never a day the caller actually handed us.
-	// Which of those past days the stream actually *shows* is the bands' business.
+	// Which of these days the stream actually *shows* is the bands' business.
 	const byDay = bucketByDay(sessionRows, timezone)
 	const trackDisciplines = new Set<string>(tracks.map((t) => t.discipline))
 	const rows = weekDayKeys(monday)

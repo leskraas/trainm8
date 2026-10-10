@@ -2773,19 +2773,17 @@ test.describe(() => {
 				pillMotion: pill ? getComputedStyle(pill).transitionDuration : null,
 				// The hero's parallax is the only movement in the fold (#498).
 				heroLift: lift ? getComputedStyle(lift).transform : null,
-				// Neither scroller glides: every write this screen makes is a jump,
-				// and the athlete's own scrolling is not smoothed either.
+				// The stream does not glide: every write this screen makes is a
+				// jump, and the athlete's own scrolling is not smoothed either. (The
+				// strip no longer scrolls at all — ADR 0082 §5 — so it has no scroll
+				// behaviour worth asserting.)
 				stream: getComputedStyle(
 					document.querySelector('[data-timeline-stream]')!,
-				).scrollBehavior,
-				strip: getComputedStyle(
-					document.querySelector('[data-testid="week-strip"]')!,
 				).scrollBehavior,
 			}
 		})
 		expect(resting.heroLift).toBe('none')
 		expect(resting.stream).toBe('auto')
-		expect(resting.strip).toBe('auto')
 		expect(resting.pillMotion).toBe('0s')
 	})
 })
