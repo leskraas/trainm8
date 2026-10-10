@@ -1701,11 +1701,21 @@ in one instant jump. It changes look instantly and never comes or goes, so it
 carries no animation. UI word: _I dag_. _Avoid_: Scroll to top, jump button,
 FAB, today button
 
-**Season Pane**: What sits beside the **Home Timeline**'s column from `lg` up
-(#505 story 60, ADR 0082 §7): the plan page's **season chart** and a table of
-the plan's weeks — the lead track's three week numbers and the verdict — whose
-rows jump the **Stream**. Mounted and fetched only on a large screen. Not the
-full spreadsheet season, which is not built. _Avoid_: Sidebar, dashboard
+**Season Pane**: What sits left of the **Home Timeline**'s list from `lg` up
+(#505 story 60, ADR 0087, after ADR 0082 §7): a plan card (the plan, its goal
+and countdown or _blokk n av ∞_, the way back to today), a table of the plan's
+weeks — ISO week number, phase colour and rhythm, `mål · gjort` per Training
+Track, this week outlined, a dashed horizon row — whose rows jump the
+**Stream**, and a compact curve of the lead track. Read off the same season as
+the list; nothing is fetched. Mounted only on a large screen. Not the full
+spreadsheet season, which is not built. _Avoid_: Sidebar, dashboard
+
+**Day Pane**: The selected day, right of the **Home Timeline**'s list from `xl`
+up and in a Sheet from `lg` to `xl` (ADR 0087): its sessions with their figures,
+status and owner, their actions (_Se økta_, _Rediger_, _Lås opp_), _Skriv økt
+her_ and the week's zones. A click on a row's own surface picks the day; it
+never navigates. Today until another day is picked. _Avoid_: Inspector, detail
+view (that is the Workout Detail View)
 
 **Motion Scale**: The app's easing tokens — `--ease-out`
 (`cubic-bezier(0.23, 1, 0.32, 1)`), `--ease-in-out`

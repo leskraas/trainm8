@@ -325,14 +325,22 @@ export function DisciplineChips({
 export function WritingPanel({
 	todayKey,
 	minDayKey,
+	initialDayKey,
 	onClose,
 }: {
 	todayKey: string
 	minDayKey: string
+	/**
+	 * The day the line opens on: the day pane's "Skriv økt her" (ADR 0087)
+	 * names it; "+ Ny" leaves it to tomorrow.
+	 */
+	initialDayKey?: string
 	onClose: () => void
 }) {
 	const stamp = useDayStamp()
-	const [dayKey, setDayKey] = useState(() => addDays(todayKey, 1))
+	const [dayKey, setDayKey] = useState(
+		() => initialDayKey ?? addDays(todayKey, 1),
+	)
 	const [chosen, setChosen] = useState<Discipline | null>(
 		cardioChip(stamp.prefill),
 	)

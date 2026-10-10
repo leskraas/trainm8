@@ -19,7 +19,13 @@
  *
  * There is no hero, no collapsing header and nothing folds, with the scroll or
  * otherwise: the top is a fixed ~115px, and the list under it is a plain
- * scroller. The hero's Form and Rekorder panes live on the Meg tab now; its
+ * scroller.
+ *
+ * **On a large screen** (ADR 0087, Arket variant Q) the frame is three cards:
+ * the season — plan card, season table, compact curve (`season-pane.tsx`) —
+ * left of the list, and the selected day (`day-pane.tsx`) right of it from
+ * `xl`, in a Sheet from `lg` to `xl`. The strip steps aside for the table.
+ * A click on a row picks its day without navigating (`use-day-selection.ts`). The hero's Form and Rekorder panes live on the Meg tab now; its
  * "Uka" pane was already the week header.
  *
  * The measuring lives in `use-timeline-scroll.ts` (which never writes under a
@@ -31,7 +37,9 @@ import { Form, Link } from 'react-router'
 import { CreateMenu } from '#app/components/create-menu.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
+	DAY_PANE_LABELS,
 	RECOMPUTE_NOTICE_LABELS,
+	SEASON_PANE_LABELS,
 	SEASON_STRIP_LABELS,
 	TOP_LINE_LABELS,
 } from '#app/utils/labels.ts'
@@ -55,14 +63,16 @@ import {
 	type LoadRecomputeNotice,
 } from '../presenter.ts'
 import { type AwayFromToday, landingScript } from './anchoring.ts'
+import { DayDetail, DaySheet } from './day-pane.tsx'
 import { DayStampProvider } from './day-stamp-context.tsx'
 import {
 	buildTimelineSeason,
 	buildTodayRow,
 	type TimelineTopLine,
 } from './presenter.ts'
-import { SeasonPane, useLargeScreen } from './season-pane.tsx'
+import { SeasonPane, useLargeScreen, useWideScreen } from './season-pane.tsx'
 import { EndCap, StartCap, type TodayRowExtras, WeekBlock } from './stream.tsx'
+import { useDaySelection } from './use-day-selection.ts'
 import {
 	AHEAD_SENTINEL_ATTR,
 	ReadingHold,
@@ -235,7 +245,27 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		[scrollStreamRef],
 	)
 	const streamOf = useCallback(() => streamNode.current, [])
+	// The large screen (ADR 0087): the season pane from `lg`, and the day
+	// beside the list from `xl` — in a Sheet between the two. False on the
+	// server and on a phone, where none of it mounts.
 	const large = useLargeScreen()
+	const wide = useWideScreen()
+	const dayPaneRef = useRef<HTMLElement>(null)
+	const revealDay = useCallback(() => dayPaneRef.current?.focus(), [])
+	const days = useDaySelection({
+		stream: streamOf,
+		todayKey: season.todayKey,
+		mode: large ? (wide ? 'pane' : 'sheet') : 'off',
+		revision: visibleWeeks,
+		onReveal: revealDay,
+	})
+	const { select: selectDay } = days
+	const { backToToday } = scroll
+	const toToday = useCallback(() => {
+		selectDay(season.todayKey)
+		backToToday()
+	}, [backToToday, selectDay, season.todayKey])
+	const dayHeadingId = useId()
 
 	// The Ukeskiftet card, after this week's days (#505 story 42), and the badge on
 	// the top line that leads to it. Built once per change of what it reads, so
@@ -278,13 +308,42 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 					? undefined
 					: { height: `calc(100dvh - ${chrome}px - var(--tab-bar-space))` }
 			}
-			className="relative flex h-[calc(100dvh-var(--tab-bar-space))] min-h-0 overflow-hidden"
+			//
+			// From `lg` up the frame is a grid of cards on the page's tone (ADR
+			// 0087, Arket variant Q): the season, the list at a reading width, and
+			// from `xl` the selected day. Each card scrolls on its own and keeps
+			// its scroll to itself. The cards are drawn by CSS from the first byte,
+			// so the list does not move sideways when the panes fill in on the
+			// client.
+			className={cn(
+				'relative flex h-[calc(100dvh-var(--tab-bar-space))] min-h-0 overflow-hidden',
+				'lg:grid lg:grid-cols-[300px_minmax(0,760px)] lg:justify-center lg:gap-3 lg:p-3',
+				'xl:grid-cols-[300px_minmax(0,760px)_340px] 2xl:grid-cols-[320px_minmax(0,800px)_380px]',
+			)}
 		>
-			{/* The list: one column, the whole width on a phone and a readable
-			    column beside the season on a large screen (#505 story 60). */}
+			{/* The season, left of the list (#505 story 60). Its card is drawn at
+			    `lg` whatever runs; its content only once the screen is known to be
+			    large, so a phone never renders a table it would hide. */}
+			<aside
+				data-season-pane-column
+				aria-label={SEASON_PANE_LABELS.heading}
+				className={cn(LARGE_CARD, 'hidden p-4 lg:flex')}
+			>
+				{large ? (
+					<SeasonPane
+						season={season}
+						frame={scroll.frame}
+						onJump={goToWeek}
+						onToday={toToday}
+					/>
+				) : null}
+			</aside>
+
+			{/* The list: one column, the whole width on a phone; a card at a
+			    reading width between the season and the day on a large screen. */}
 			<div
 				data-timeline-column
-				className="relative flex min-h-0 min-w-0 flex-1 flex-col lg:max-w-[480px]"
+				className="lg:ring-foreground/5 relative flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-hidden lg:rounded-4xl lg:shadow-md lg:ring-1"
 			>
 				{/* Why a number the athlete had already read moved (ADR 0046 §2). It
 				    sits above everything because it is a one-shot explanation, not a
@@ -301,7 +360,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 						line={season.topLine}
 						weekChangeCount={weekChangeView?.waitingCount ?? 0}
 						away={scroll.away}
-						onToday={scroll.backToToday}
+						onToday={toToday}
 						onWrite={openWriting}
 					/>
 					{writing ? (
@@ -313,14 +372,18 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 					) : null}
 					{/*
 					 * The season strip (#505 stories 17–18, D5): every week, the
-					 * phases under it, the frame over the weeks in view.
+					 * phases under it, the frame over the weeks in view. From `lg`
+					 * the season pane's table and curve say the same beside the list
+					 * (ADR 0087), so the strip steps aside.
 					 */}
-					<WeekStrip
-						strip={season.strip}
-						activeWeekKey={scroll.activeWeekKey}
-						frame={scroll.frame}
-						onSelect={goToWeek}
-					/>
+					<div className="lg:hidden">
+						<WeekStrip
+							strip={season.strip}
+							activeWeekKey={scroll.activeWeekKey}
+							frame={scroll.frame}
+							onSelect={goToWeek}
+						/>
+					</div>
 				</header>
 
 				<div
@@ -337,8 +400,22 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 					// (`ReadingHold` stands in for it where there is none).
 					// `scroll-behavior: smooth` is for the reader's own keyboard
 					// scrolling only — every write the app makes is a jump.
-					className="bg-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain motion-safe:[scroll-behavior:smooth]"
+					//
+					// On a large screen a click on a day's row picks it for the day
+					// pane (`use-day-selection.ts`), and the picked row carries a
+					// green edge — drawn here, so the memoised rows never re-render
+					// for a pick.
+					className={cn(
+						'bg-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain motion-safe:[scroll-behavior:smooth]',
+						'lg:[&_[data-day-selected]]:shadow-[inset_3px_0_0_var(--color-primary)] lg:[&_[data-timeline-day]]:cursor-pointer',
+					)}
+					aria-describedby={large && !wide ? `${streamId}-keys` : undefined}
 				>
+					{large && !wide ? (
+						<p id={`${streamId}-keys`} className="sr-only">
+							{DAY_PANE_LABELS.keyHint}
+						</p>
+					) : null}
 					<ReadingHold
 						revision={season.weeks}
 						stream={streamOf}
@@ -385,17 +462,53 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 				/>
 			</div>
 
-			{large ? (
-				<SeasonPane
+			{/* The selected day, right of the list from `xl` (ADR 0087). Focusable
+			    so `I` on a row in the list can bring the reader here. */}
+			<aside
+				ref={dayPaneRef}
+				tabIndex={-1}
+				data-day-pane
+				aria-labelledby={large && wide ? dayHeadingId : undefined}
+				aria-label={large && wide ? undefined : DAY_PANE_LABELS.region}
+				className={cn(
+					LARGE_CARD,
+					'focus-visible:outline-ring hidden p-5 focus-visible:outline-2 xl:flex',
+				)}
+			>
+				{large && wide ? (
+					<DayDetail
+						weeks={season.weeks}
+						dayKey={days.selected}
+						todayKey={season.todayKey}
+						minWriteKey={writable.firstDayKey}
+						today={today}
+						headingId={dayHeadingId}
+					/>
+				) : null}
+			</aside>
+			{large && !wide ? (
+				<DaySheet
+					open={days.sheetOpen}
+					onOpenChange={days.setSheetOpen}
 					weeks={season.weeks}
-					leadTrackId={season.leadTrackId}
-					frame={scroll.frame}
-					onJump={goToWeek}
+					dayKey={days.selected}
+					todayKey={season.todayKey}
+					minWriteKey={writable.firstDayKey}
+					today={today}
+					headingId={dayHeadingId}
 				/>
 			) : null}
 		</main>
 	)
 }
+
+/**
+ * A pane's card on a large screen (ADR 0087): the luma card — rounded, on the
+ * card tone, a soft shadow and a hairline ring rather than a border — that
+ * scrolls on its own and keeps its overscroll to itself.
+ */
+const LARGE_CARD =
+	'bg-card min-h-0 flex-col overflow-y-auto overscroll-contain rounded-4xl shadow-md ring-1 ring-foreground/5'
 
 /**
  * The top line (variant P): the plan and its goal on the left, then the
