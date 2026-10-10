@@ -1,4 +1,11 @@
 /**
+ * **Going with the hero (#505).** The owner removed the hero from I dag on
+ * 2026-10-10. Form and Records now live on Meg
+ * (`app/routes/__me-form-records-presenter.ts`, with the Norwegian number
+ * formatting the hero never had); the week pane is folded into the list. This
+ * file, its test and `hero.tsx` stay only while `home-timeline.tsx` still
+ * renders `HeroPager`, and are deleted with that import.
+ *
  * The hero's other three panes: Form, this week, and records.
  *
  * The hero is anchored on today and pages sideways through facets of *now*
