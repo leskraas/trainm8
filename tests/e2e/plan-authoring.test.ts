@@ -189,6 +189,10 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	// Home now knows about the plan: the top line says where in it today falls
 	// and counts down to the race the season is for (ADR 0086), the strip runs
 	// out to the plan's taper, and the line saying there is no plan is gone.
+	// Both live in the list's own header below 1024px (the season pane carries
+	// them from there up, ADR 0087), and the plan's position needs the room a
+	// tablet gives it — a phone's line is the goal's alone.
+	await page.setViewportSize({ width: 768, height: 1024 })
 	const top = page.getByTestId('timeline-top')
 	await expect(top.getByText(/uke \d+ av 21/i)).toBeVisible()
 	await expect(top.getByText(/^om \d+ uker$/)).toBeVisible()
