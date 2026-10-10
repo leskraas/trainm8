@@ -11,7 +11,7 @@ import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
-import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
+import { buildTimelineSeason, buildTodayRow } from './presenter.ts'
 import {
 	buildWeekChangeCard,
 	easedLine,
@@ -898,27 +898,24 @@ const COLD: TsbTrust = {
 }
 const NO_NUDGE: SessionNudge = { outcome: 'none', reason: '' } as SessionNudge
 
-function hero({
+function todayRow({
 	ledger,
 	trust = TRUSTED,
 	current = { ctl: 60, atl: 56, tsb: 4 },
-	activePlan = plan(),
 	sustained = null,
 	nudge = NO_NUDGE,
 }: {
 	ledger: LedgerSession[]
 	trust?: TsbTrust
 	current?: { ctl: number; atl: number; tsb: number } | null
-	activePlan?: ActivePlan | null
 	sustained?: SustainedDeviation | null
 	nudge?: SessionNudge
 }) {
-	return buildTimelineHero({
+	return buildTodayRow({
 		ledger,
 		now: NOW,
 		timezone: 'UTC',
 		thresholds: {},
-		activePlan,
 		current,
 		trust,
 		sustained,
@@ -926,103 +923,15 @@ function hero({
 	})
 }
 
-describe("the hero is today's session and the verdict on it", () => {
+describe("today's row carries today's action and the coach's line (ADR 0086)", () => {
 	const planned = on(0, {
+		id: 'today',
 		status: 'scheduled',
 		scheduledAt: new Date('2030-02-20T18:00:00'),
 		tssValue: null,
 		plannedTssValue: 91,
 		workout: workout({ title: 'Threshold 4 × 8 min' }),
 	})
-
-	test('with nothing ahead there is no hero at all', () => {
-		expect(hero({ ledger: [on(-1)] })).toBeNull()
-	})
-
-	test('the kicker says when, which discipline, and how far to race day', () => {
-		expect(hero({ ledger: [planned] })?.kicker).toBe(
-			'I dag · Løping · 8 uker til løpsdagen',
-		)
-	})
-
-	test('the countdown drops to days inside the last week', () => {
-		const soon = plan({ eventDate: new Date(NOW.getTime() + 3 * DAY) })
-		expect(hero({ ledger: [planned], activePlan: soon })?.kicker).toBe(
-			'I dag · Løping · 3 dager til løpsdagen',
-		)
-	})
-
-	test('with no plan the kicker says only what it knows', () => {
-		expect(hero({ ledger: [planned], activePlan: null })?.kicker).toBe(
-			'I dag · Løping',
-		)
-	})
-
-	test('an open-ended plan has no countdown in the kicker', () => {
-		const openEnded = plan({
-			eventId: null,
-			eventName: null,
-			eventDate: null,
-			round: 1,
-		})
-		expect(hero({ ledger: [planned], activePlan: openEnded })?.kicker).toBe(
-			'I dag · Løping',
-		)
-	})
-
-	test('a session later this week is named by its weekday, not called today', () => {
-		const later = on(2, { status: 'scheduled', tssValue: null })
-		expect(hero({ ledger: [later] })?.kicker).toMatch(/^Fredag · Løping/)
-	})
-
-	test("tomorrow's session is called tomorrow", () => {
-		const later = on(1, { status: 'scheduled', tssValue: null })
-		expect(hero({ ledger: [later] })?.kicker).toMatch(/^I morgen · Løping/)
-	})
-
-	test('past the coming week a weekday would be ambiguous, so the date is used', () => {
-		const later = on(8, { status: 'scheduled', tssValue: null })
-		expect(hero({ ledger: [later] })?.kicker).toMatch(/^28\. feb · Løping/)
-	})
-
-	test('the facts are the ones that resolved', () => {
-		expect(hero({ ledger: [planned] })?.facts).toEqual(['50 min', '91 TSS'])
-	})
-
-	test('the verdict states Form, its reading, and what to do about it', () => {
-		const verdict = hero({ ledger: [planned] })?.verdict
-		expect(verdict).toMatch(/^Form \+4, /)
-		expect(verdict).toContain(' — ')
-	})
-
-	test('a cold start never shows a Form number', () => {
-		const verdict = hero({ ledger: [planned], trust: COLD })?.verdict
-		expect(verdict).toBe('Formen kan leses etter 42 dager — dag 9/42.')
-		expect(verdict).not.toMatch(/Form [+-]/)
-	})
-
-	test('no TSB at all is a cold start too, however long the history', () => {
-		const verdict = hero({ ledger: [planned], current: null })?.verdict
-		expect(verdict).not.toMatch(/Form [+-]/)
-	})
-
-	test("the collapsed header carries the title and the day's shape", () => {
-		expect(hero({ ledger: [planned] })?.collapsed).toEqual({
-			title: 'Threshold 4 × 8 min',
-			summary: 'I dag · 50 min · 91 TSS',
-		})
-	})
-
-	test('the CTA label and destination both come from the presenter', () => {
-		const cta = hero({ ledger: [planned] })?.cta
-		expect(cta?.to).toContain('/training/sessions/')
-		expect(cta?.label.length).toBeGreaterThan(0)
-	})
-})
-
-describe('the hero stays honest about today (#493)', () => {
-	// The three days the hero has to tell apart, each with the same session
-	// waiting on Friday so only today differs between them.
 	const friday = on(2, {
 		id: 'friday',
 		status: 'scheduled',
@@ -1030,77 +939,34 @@ describe('the hero stays honest about today (#493)', () => {
 		plannedTssValue: 55,
 		workout: workout({ title: 'Threshold 4 × 8 min' }),
 	})
-	const todayToCome = on(0, {
-		id: 'today',
-		status: 'scheduled',
-		scheduledAt: new Date('2030-02-20T18:00:00'),
-		tssValue: null,
-		plannedTssValue: 91,
-		workout: workout({ title: 'Tempo 3 × 10 min' }),
-	})
-	const todayCompleted = on(0, {
-		id: 'today',
-		status: 'completed',
-		scheduledAt: new Date('2030-02-20T06:00:00'),
-		tssValue: 88,
-		plannedTssValue: 91,
-		workout: workout({ title: 'Tempo 3 × 10 min' }),
+
+	test("the action opens today's own session, label and destination both from the presenter", () => {
+		const cta = todayRow({ ledger: [planned, friday] }).cta
+		expect(cta?.sessionId).toBe('today')
+		expect(cta?.to).toContain('/training/sessions/')
+		expect(cta?.label.length).toBeGreaterThan(0)
 	})
 
-	test('today still to come: the kicker says today and the heading is the session', () => {
-		const result = hero({ ledger: [todayToCome, friday] })
-		expect(result?.kicker).toMatch(/^I dag · Løping/)
-		expect(result?.title).toBe('Tempo 3 × 10 min')
-		expect(result?.next).toBeNull()
+	test('a next session on another day lends today no action (#493)', () => {
+		expect(todayRow({ ledger: [friday] }).cta).toBeNull()
+		expect(todayRow({ ledger: [on(-1)] }).cta).toBeNull()
 	})
 
-	test('today empty: the heading says so and Friday is a fact, not the headline', () => {
-		const result = hero({ ledger: [friday] })
-		expect(result?.title).toBe('Ingenting i dag')
-		expect(result?.next).toBe('Neste · Threshold 4 × 8 min')
-		expect(result?.kicker).not.toMatch(/Today/)
-		expect(result?.kicker).toMatch(/^Fredag · Løping/)
+	test('the verdict states Form, its reading, and what to do about it', () => {
+		const verdict = todayRow({ ledger: [planned] }).verdict
+		expect(verdict).toMatch(/^Form \+4, /)
+		expect(verdict).toContain(' — ')
 	})
 
-	test("today completed: the hero never headlines a future session as today's", () => {
-		const result = hero({ ledger: [todayCompleted, friday] })
-		expect(result?.title).toBe('I dag er gjort')
-		expect(result?.next).toBe('Neste · Threshold 4 × 8 min')
-		expect(result?.kicker).toMatch(/^Fredag · Løping/)
+	test('a cold start never shows a Form number', () => {
+		const verdict = todayRow({ ledger: [planned], trust: COLD }).verdict
+		expect(verdict).toBe('Formen kan leses etter 42 dager — dag 9/42.')
+		expect(verdict).not.toMatch(/Form [+-]/)
 	})
 
-	test('today missed says that, rather than claiming today was empty', () => {
-		const missed = on(0, {
-			id: 'today',
-			status: 'scheduled',
-			scheduledAt: new Date('2030-02-20T06:00:00'),
-			tssValue: null,
-			plannedTssValue: 91,
-		})
-		expect(hero({ ledger: [missed, friday] })?.title).toBe(
-			'Ingenting igjen i dag',
-		)
-	})
-
-	test('the collapsed summary names the day too, so it cannot imply today', () => {
-		expect(hero({ ledger: [friday] })?.collapsed.summary).toMatch(/^Fredag · /)
-	})
-
-	test('the hero and the stream row agree on which day the session is', () => {
-		const ledger = [todayCompleted, friday]
-		const result = hero({ ledger })
-		const days = season(ledger).weeks.flatMap((week) => week.rows)
-		// A stream row is a day rather than a session since #495, and `dayLabel`
-		// and `isToday` moved with it — so the row this is checked against is the
-		// day carrying the session, not the session itself.
-		const day = days.find((candidate) =>
-			candidate.sessions.some((session) => session.id === 'friday'),
-		)
-		// The kicker's first word is the row's own weekday, and neither of them
-		// calls it today.
-		expect(result?.kicker.split(' · ')[0]).toBe('Fredag')
-		expect(day?.dayLabel).toBe('fre')
-		expect(day?.isToday).toBe(false)
+	test('no TSB at all is a cold start too, however long the history', () => {
+		const verdict = todayRow({ ledger: [planned], current: null }).verdict
+		expect(verdict).not.toMatch(/Form [+-]/)
 	})
 })
 

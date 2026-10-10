@@ -32,7 +32,6 @@ import {
 	SEASON_STRIP_LABELS,
 	TOP_LINE_LABELS,
 } from '#app/utils/labels.ts'
-import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
@@ -40,13 +39,10 @@ import { type LoadTriad } from '#app/utils/load/types.ts'
 import { type WeekChangeData } from '#app/utils/load/week-change-card.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { useNonce } from '#app/utils/nonce-provider.ts'
-import { type PersonalRecord } from '#app/utils/personal-records.ts'
-import { type StrengthSummaryCount } from '#app/utils/strength-log.ts'
 import { timelineWindow } from '#app/utils/timeline-window.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
-	type WeekReplanSummary,
 } from '#app/utils/training.server.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
@@ -58,8 +54,8 @@ import {
 import { type AwayFromToday, landingScript } from './anchoring.ts'
 import { DayStampProvider } from './day-stamp-context.tsx'
 import {
-	buildTimelineHero,
 	buildTimelineSeason,
+	buildTodayRow,
 	type TimelineTopLine,
 } from './presenter.ts'
 import { SeasonPane, useLargeScreen } from './season-pane.tsx'
@@ -89,16 +85,6 @@ export type HomeTimelineData = {
 	nudge: SessionNudge
 	thresholds: DisciplineThresholdMap
 	loadRecomputeNotice: LoadRecomputeNotice | null
-	/*
-	 * The hero's other panes' data (#496). Nothing on I dag reads these any
-	 * more (ADR 0086): Form and Rekorder moved to the Meg tab, which reads its
-	 * own. The loader still ships them until that move lands; they are typed
-	 * here so the route's data still fits.
-	 */
-	snapshots: Array<{ date: string; ctl: number }>
-	weeklyAdherence: WeeklyAdherence | null
-	strengthCount: StrengthSummaryCount | null
-	weekReplan: WeekReplanSummary | null
 	/**
 	 * The Ukeskiftet card's proposals (#505 stories 42–55): the closed week's,
 	 * while one still waits for an answer; null otherwise.
@@ -109,7 +95,6 @@ export type HomeTimelineData = {
 	 * hand then says its numbers come from the import.
 	 */
 	importConnected?: boolean
-	personalRecords: PersonalRecord[]
 	/**
 	 * The Discipline a tapped empty cell prefills — the athlete's **most-trained**,
 	 * read from their own history, or null when there is none to read (ADR 0065
@@ -172,42 +157,20 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		[activePlan, importConnected, ledger, now, timezone],
 	)
 	// What the hero used to say about today, now said in today's row: the
-	// session's action — only when the session it names *is* today's (`next`
-	// is null then) — and the coach's one line.
-	const hero = useMemo(
+	// session's action — only on today's own session — and the coach's line.
+	const today = useMemo<TodayRowExtras>(
 		() =>
-			buildTimelineHero({
+			buildTodayRow({
 				ledger,
 				now,
 				timezone,
 				thresholds,
-				activePlan,
 				current,
 				trust: tsbTrust,
 				sustained,
 				nudge,
 			}),
-		[
-			activePlan,
-			current,
-			ledger,
-			nudge,
-			sustained,
-			thresholds,
-			tsbTrust,
-			now,
-			timezone,
-		],
-	)
-	const today = useMemo<TodayRowExtras>(
-		() => ({
-			cta:
-				hero && hero.next == null
-					? { ...hero.cta, sessionId: hero.sessionId }
-					: null,
-			verdict: hero?.verdict ?? null,
-		}),
-		[hero],
+		[current, ledger, nudge, sustained, thresholds, tsbTrust, now, timezone],
 	)
 
 	// How much chrome sits above the frame — see the `style` note on `<main>`.

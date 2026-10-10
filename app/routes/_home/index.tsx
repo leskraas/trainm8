@@ -22,16 +22,10 @@ import {
 	dismissLoadRecomputeNotice,
 	getLoadRecomputeNotice,
 } from '#app/utils/load/recompute-notice.server.ts'
-import {
-	getCurrentLoad,
-	getLoadSnapshots,
-	getTsbTrust,
-} from '#app/utils/load/snapshot.server.ts'
+import { getCurrentLoad, getTsbTrust } from '#app/utils/load/snapshot.server.ts'
 import { readWeekChange } from '#app/utils/load/week-change-card.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { readMostTrainedDiscipline } from '#app/utils/most-trained-discipline.server.ts'
-import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
-import { getStrengthSummaryCount } from '#app/utils/strength-log.server.ts'
 import {
 	isInWindow,
 	isWritableDay,
@@ -41,10 +35,8 @@ import {
 import {
 	getActivePlan,
 	getDisciplineThresholds,
-	getLatestWeekReplan,
 	getRecentWeeklyBuild,
 	getSessionLedger,
-	getWeeklyAdherence,
 } from '#app/utils/training.server.ts'
 import { DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { parseWorkoutSentence } from '#app/utils/workout-sentence.ts'
@@ -104,33 +96,22 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const [
 		ledger,
 		currentLoad,
-		snapshots,
 		tsbTrust,
 		activePlan,
-		weeklyAdherence,
 		weeklyBuild,
 		thresholds,
-		personalRecords,
-		weekReplan,
 		weekChange,
 		loadRecomputeNotice,
 		athleteProfile,
-		strengthCount,
 		stampDiscipline,
 		importConnections,
 	] = await Promise.all([
 		ledgerRead,
 		getCurrentLoad(userId),
-		getLoadSnapshots(userId, 90),
 		getTsbTrust(userId),
 		activePlanRead,
-		getWeeklyAdherence(userId),
 		getRecentWeeklyBuild(userId, BUILD_WEEKS),
 		getDisciplineThresholds(userId),
-		getPersonalRecords(userId),
-		// The stored Week Replan decision for the latest closed week (ADR 0025) —
-		// read-only; the recompute-path applier is the only writer.
-		getLatestWeekReplan(userId),
 		// The Ukeskiftet card (#505 stories 42–55): the closed week's proposals,
 		// only while one still waits for an answer — on every other day this is
 		// one indexed lookup that ships nothing.
@@ -143,10 +124,6 @@ export async function loader({ request }: Route.LoaderArgs) {
 			where: { userId },
 			select: { timezone: true },
 		}),
-		// ADR 0046 §4's Strength Summary Count — mandated there and unbuilt until
-		// `ExerciseSetLog` existed, because "completed" on a gym session used to
-		// mean only that somebody had typed an RPE (ADR 0056).
-		getStrengthSummaryCount(userId),
 		// The Discipline a tapped empty cell prefills (ADR 0065 §5) — read from
 		// the athlete's own history, and null where there is none, in which case
 		// the cell asks. One query, and the same reader the full authoring route
@@ -190,13 +167,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 		now,
 		ledger,
 		current,
-		// Only the two fields the Form pane's trend line reads (#499). Fatigue and
-		// Form are a *day's* numbers and come from `current`; shipping 90 days of
-		// them was payload for a chart that no longer exists.
-		snapshots: snapshots.map((s) => ({ date: s.date, ctl: s.ctl })),
 		tsbTrust,
 		activePlan,
-		weeklyAdherence,
 		// `weeklyBuild` itself is deliberately NOT returned: the trailing series
 		// fed the retired weekly-build chart, and what survives of it is the
 		// `sustained` streak computed just below. The query stays because that
@@ -204,11 +176,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 		thresholds,
 		sustained,
 		nudge,
-		personalRecords,
-		weekReplan,
 		weekChange,
 		loadRecomputeNotice,
-		strengthCount,
 		stampDiscipline,
 		importConnected: importConnections > 0,
 	}

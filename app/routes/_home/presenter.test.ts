@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
-import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -11,7 +10,6 @@ import {
 	buildLoadRecomputeLine,
 	buildPhaseBands,
 	buildPlanContext,
-	buildProofStrip,
 	buildSessionNudge,
 	buildTodayCard,
 	sessionCtaLabel,
@@ -521,60 +519,6 @@ describe('sessionCtaLabel', () => {
 		expect(sessionCtaLabel({ status: 'missed', hasSessionLog: false })).toBe(
 			'View session',
 		)
-	})
-})
-
-describe('buildProofStrip', () => {
-	function record(overrides: Partial<PersonalRecord> = {}): PersonalRecord {
-		return {
-			discipline: 'run',
-			kind: 'farthest',
-			value: 21_100,
-			sessionId: 'session-1',
-			achievedAt: new Date('2030-01-01T08:00:00Z'),
-			previousValue: 10_000,
-			delta: 11_100,
-			...overrides,
-		}
-	}
-
-	test('empty records ⇒ empty strip (the empty/Unavailable state)', () => {
-		expect(buildProofStrip([])).toEqual([])
-	})
-
-	test('labels and formats a run record in kilometres', () => {
-		expect(buildProofStrip([record()])[0]).toEqual({
-			discipline: 'run',
-			disciplineLabel: 'Løping',
-			label: 'Lengste løpetur',
-			value: '21.1 km',
-			delta: '+11.1 km',
-		})
-	})
-
-	test('names a bike record a ride, in kilometres', () => {
-		const proof = buildProofStrip([
-			record({ discipline: 'bike', value: 82_400, delta: 12_000 }),
-		])[0]!
-		expect(proof.label).toBe('Lengste sykkeltur')
-		expect(proof.value).toBe('82.4 km')
-		// Whole-kilometre gains drop the decimal — the shared distance formatter.
-		expect(proof.delta).toBe('+12 km')
-	})
-
-	test('formats swim records in metres with grouping', () => {
-		const proof = buildProofStrip([
-			record({ discipline: 'swim', value: 1_500, delta: 200 }),
-		])[0]!
-		expect(proof.label).toBe('Lengste svømmeøkt')
-		expect(proof.value).toBe('1,500 m')
-		expect(proof.delta).toBe('+200 m')
-	})
-
-	test('a first-ever record has no delta (never a fabricated +0)', () => {
-		expect(
-			buildProofStrip([record({ previousValue: null, delta: null })])[0]!.delta,
-		).toBeNull()
 	})
 })
 

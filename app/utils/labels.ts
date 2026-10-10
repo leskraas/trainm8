@@ -62,7 +62,7 @@ import type { AdherenceTone } from './load/adherence.ts'
 import type { RoundVerdict } from './load/propose-next-round.ts'
 import type { ReadinessTone } from './load/readiness.ts'
 import type { LoadRecomputeKind } from './load/recompute-notice.ts'
-import type { WeekHoldWhy, WeekReplanOutcome } from './load/week-replan.ts'
+import type { WeekHoldWhy } from './load/week-replan.ts'
 // The domain owns *which* currencies accumulate across Disciplines (ADR 0043 §5);
 // this module owns the sentence each accumulation is explained by.
 import type { AccumulatingCurrency } from './plan-outline/commensurability.ts'
@@ -949,6 +949,8 @@ export const TOP_LINE_LABELS = {
 	noPlan: 'Ingen plan',
 	/** The no-plan line's link, to Sesong. */
 	noPlanAction: 'Lag en i Sesong',
+	/** A race with no name, on the countdown. */
+	raceDay: 'Løpsdagen',
 	/** The Ukeskiftet badge: short on screen, whole in its name. */
 	weekChange: (count: number) => `${count} forslag`,
 	weekChangeName: (count: number) =>
@@ -1462,39 +1464,7 @@ export const NB_LOAD_WORDS = {
 	unloaded: 'uten vekt',
 } as const
 
-/** The hero: today's session, what today is, and the way in. */
-export const HERO_LABELS = {
-	today: 'I dag',
-	tomorrow: 'I morgen',
-	nextUp: (title: string) => `Neste · ${title}`,
-	todayDone: 'I dag er gjort',
-	nothingLeftToday: 'Ingenting igjen i dag',
-	nothingToday: 'Ingenting i dag',
-	daysToRace: (days: number) =>
-		days === 1 ? '1 dag til løpsdagen' : `${days} dager til løpsdagen`,
-	weeksToRace: (weeks: number) =>
-		weeks === 1 ? '1 uke til løpsdagen' : `${weeks} uker til løpsdagen`,
-	/** A race with no name, on the top line's countdown. */
-	raceDay: 'Løpsdagen',
-	seasonPlan: 'Sesongplan',
-	nothingScheduled: 'Ingenting planlagt',
-	nothingScheduledNote: 'Det står ingen økt foran deg i kalenderen.',
-	planASession: 'Planlegg en økt',
-	carousel: 'I dag, på fire måter',
-	pane: (name: string, index: number, count: number) =>
-		`${name}, side ${index} av ${count}`,
-	choosePane: 'Velg hva toppen viser',
-} as const
-
-/** The hero's four panes, by their codes. */
-export const HERO_PANE_LABELS = {
-	today: 'I dag',
-	form: 'Form',
-	week: 'Denne uka',
-	records: 'Rekorder',
-} as const
-
-/** The hero's one honest action (#179), in Norwegian. */
+/** Today's one honest action (#179), on today's row (ADR 0086). */
 export const NB_SESSION_CTA_LABELS: Record<
 	'View session' | 'Log session' | 'Log your sets',
 	string
@@ -1555,25 +1525,6 @@ export const NB_LOAD_LEGENDS = {
 	},
 } as const
 
-/** The hero's other three panes. */
-export const HERO_PANE_TEXT = {
-	baseline: (day: number, required: number) =>
-		`Bygger grunnlag — dag ${day}/${required}`,
-	fitnessTrend: (from: string, to: string, since: string) =>
-		`Kondisjon ${from} → ${to} siden ${since}`,
-	adherence: (band: string, percent: number) =>
-		`${band} · ${percent} % av planlagt utholdenhetsbelastning`,
-	adherenceUnavailable: 'Planlagt utholdenhetsbelastning kan ikke måles',
-	strength: (completed: number, planned: number) =>
-		`${completed} av ${planned} styrkeøkter logget`,
-	noStrength: 'Ingen styrkeøkter denne uka',
-	noRecords:
-		'Ingen personlige rekorder ennå — de kommer når du har logget registrerte økter.',
-	overBest: (delta: string) => `${delta} over forrige beste`,
-	firstOnRecord: 'Første registrerte',
-	longest: (discipline: string) => `Lengste ${discipline}`,
-} as const
-
 /** The record's sport, as the noun after `Lengste`. */
 export const NB_RECORD_NOUNS: Record<string, string> = {
 	run: 'løpetur',
@@ -1581,33 +1532,6 @@ export const NB_RECORD_NOUNS: Record<string, string> = {
 	swim: 'svømmeøkt',
 	strength: 'styrkeøkt',
 }
-
-/**
- * A closed week's Week Replan outcome on the hero (ADR 0025, ADR 0080). Only a
- * `proposed` outcome's reason is Norwegian prose; the older outcomes' stored
- * reasons are English sentences, so they are said in these words instead.
- */
-export const HOME_REPLAN_LABELS: Record<
-	WeekReplanOutcome,
-	{ outcome: string; reason: string | null }
-> = {
-	adjusted: {
-		outcome: 'Uka er justert',
-		reason: 'Vi gjorde denne uka lettere etter uka som gikk.',
-	},
-	proposed: { outcome: 'Endringer foreslått', reason: null },
-	'no-change': {
-		outcome: 'Ingen endring',
-		reason: 'Uka som gikk holdt planen, så denne står som den er.',
-	},
-	'insufficient-data': {
-		outcome: 'Ingen justering',
-		reason: 'Det var for lite å lese av uka som gikk til å endre noe.',
-	},
-}
-
-/** An outcome with no words of its own still names a decision. */
-export const HOME_REPLAN_FALLBACK = 'Ukeskiftet'
 
 /** The header's one line of orientation: `ons 7. okt · uke 9 av 10`. */
 export function planWeekLabel(week: number, total: number): string {

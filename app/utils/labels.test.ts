@@ -26,7 +26,6 @@ import {
 	RECOMPUTE_NOTICE_LABELS,
 	EVENT_DATE_LABELS,
 	PAGE_HEADER_LABELS,
-	HOME_REPLAN_LABELS,
 	DISCIPLINE_LABELS,
 	EVENT_KIND_LABELS,
 	EVENT_PRIORITY_LABELS,
@@ -76,11 +75,7 @@ import {
 	weekRiseSentence,
 } from './labels.ts'
 import { LOAD_RECOMPUTE_KINDS } from './load/recompute-notice.ts'
-import {
-	INSUFFICIENT_DATA_WHYS,
-	NO_CHANGE_WHYS,
-	WEEK_REPLAN_OUTCOMES,
-} from './load/week-replan.ts'
+import { INSUFFICIENT_DATA_WHYS, NO_CHANGE_WHYS } from './load/week-replan.ts'
 import { MAX_PLAN_WEEKS } from './plan-outline/authoring-schema.ts'
 import {
 	RHYTHMS,
@@ -195,13 +190,6 @@ test('every session owner has a label of its own', () => {
 	expect(new Set(Object.values(SESSION_OWNER_LABELS)).size).toBe(
 		SESSION_OWNERS.length,
 	)
-})
-
-test('every stored Week Replan outcome has a name on the hero, in Norwegian', () => {
-	for (const outcome of WEEK_REPLAN_OUTCOMES) {
-		expect(HOME_REPLAN_LABELS[outcome].outcome).toBeTruthy()
-	}
-	expect(HOME_REPLAN_LABELS.proposed.outcome).toBe('Endringer foreslått')
 })
 
 test('every branch that holds a week has its own reason, so "keep" always says why (#505 story 50)', () => {

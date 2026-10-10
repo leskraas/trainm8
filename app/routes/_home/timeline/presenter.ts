@@ -41,24 +41,18 @@ import {
 	formatNbDayMonth,
 	formatNbDayOfMonth,
 	formatNbMonthShort,
-	formatNbWeekday,
 	formatNbWeekdayShort,
 	formatSigned,
-	formatTss,
 	roundLoad,
 } from '#app/utils/format.ts'
-import {
-	type DisciplineThresholdMap,
-	targetText,
-} from '#app/utils/intensity-target.ts'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
 	ANNET_ACTION_LABELS,
 	ANNET_TRACK_LABELS,
 	BEFORE_PLAN_LABEL,
 	eventCountdownWhen,
 	freeBandLabels,
-	HERO_LABELS,
-	liftSchemeLabel,
+	TOP_LINE_LABELS,
 	NB_READINESS_ADVICE,
 	NB_READINESS_LABELS,
 	NB_SESSION_CTA_LABELS,
@@ -108,7 +102,6 @@ import {
 	sessionOwner,
 } from '#app/utils/session-ownership.ts'
 import {
-	deriveSessionProfile,
 	type ProfileBar,
 	type ProfileBarGroup,
 } from '#app/utils/session-profile.ts'
@@ -120,7 +113,7 @@ import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
-import { deriveLedgerStatus, type LedgerStatus } from '#app/utils/training.ts'
+import { type LedgerStatus } from '#app/utils/training.ts'
 import {
 	buildPhaseBands,
 	buildPlanContext,
@@ -737,7 +730,7 @@ export function buildTopLine(
 	const planLabel = [name, position].filter(Boolean).join(' · ') || null
 	const goal = eventDate
 		? {
-				name: activePlan.eventName ?? HERO_LABELS.raceDay,
+				name: activePlan.eventName ?? TOP_LINE_LABELS.raceDay,
 				when: eventCountdownWhen(
 					Math.ceil(
 						(eventDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
@@ -1450,56 +1443,33 @@ function buildEndCap({
 }
 
 // ---------------------------------------------------------------------------
-// The hero — today's session, and the one sentence that says whether to do it
+// Today's row — the session's action, and the one sentence about today
 // ---------------------------------------------------------------------------
 
 /**
- * The hero above the stream: what today asks for, and the coach's verdict on it.
+ * What today's row carries beyond its sessions (ADR 0086), now that there is
+ * no hero to carry it: the one honest action on today's own session (`Se
+ * økta`, `Logg økta`), and the coach's one line.
  *
- * It is the decision strip's content in the timeline's shape — the same
- * `buildTodayCard` session, the same reconciled coach voice, the same honestly
- * named CTA. Nothing new is computed about the session here; only how it reads.
- *
- * The hero is anchored on **today** and never moves off it: the strip and the
- * stream travel, this does not. `buildTodayCard` answers "what is the next
- * thing to do", which on a rest day — or once today's session is logged — is a
- * session days away. So two things are said rather than one: the kicker names
- * the day that session is *actually* on (`Today`, `Tomorrow`, `Friday`), and
- * the heading states today's own standing. A session that is not today's is
- * demoted from the headline to a fact, because a heading that reads `TODAY`
- * above Friday's intervals answers the screen's one question wrongly (#493).
+ * Built off `buildTodayCard`, as the hero was, so the action names the same
+ * session the Session Nudge and the old decision strip did. That card answers
+ * "what is the next thing to do", which on a rest day — or once today's
+ * session is logged — is a session days away; its action belongs on *that*
+ * session's row, not on today's, so the action is offered only when the
+ * session it opens is today's (#493's rule, kept).
  */
-export type TimelineHero = {
-	/** `Today · Run · 9 weeks to race day` — rendered as the kicker. */
-	kicker: string
-	/** Today's session, or — when today holds none — what today actually is. */
-	title: string
-	/**
-	 * `Next up · Threshold 4 × 8 min` — the session the rest of the hero
-	 * describes, when the heading is about today rather than about it. Null when
-	 * the hero is showing today's own session, which the heading already names.
-	 */
-	next: string | null
-	bars: ProfileBar[]
-	groups: ProfileBarGroup[]
-	/** `62 min`, `91 TSS`, `4:05–4:12 /km` — only the ones that resolved. */
-	facts: string[]
+export type TimelineTodayRow = {
+	/** Today's session's action; null when the next session is not today's. */
+	cta: { label: string; to: string; sessionId: string } | null
 	/** The one sentence: Form, its reading, and what to do about it. */
 	verdict: string
-	/** The single honest action, label and destination both from the presenter. */
-	cta: { label: string; to: string }
-	/** The session the action opens — today's row puts the action on its row. */
-	sessionId: string
-	/** What the collapsed header shows instead of the whole hero. */
-	collapsed: { title: string; summary: string }
 }
 
-export function buildTimelineHero({
+export function buildTodayRow({
 	ledger,
 	now = new Date(),
 	timezone = 'UTC',
 	thresholds = {},
-	activePlan = null,
 	current,
 	trust,
 	sustained = null,
@@ -1509,125 +1479,23 @@ export function buildTimelineHero({
 	now?: Date
 	timezone?: string
 	thresholds?: DisciplineThresholdMap
-	activePlan?: ActivePlan | null
 	current: LoadTriad | null
 	trust: TsbTrust
 	sustained?: SustainedDeviation | null
 	nudge?: SessionNudge
-}): TimelineHero | null {
+}): TimelineTodayRow {
 	const today = buildTodayCard(ledger, now, thresholds, timezone)
-	if (!today) return null
-	const profile = deriveSessionProfile(
-		ledger.find((session) => session.id === today.id)?.workout ?? null,
-	)
-	const target = targetText(today.target)
-	const facts = [
-		today.durationMin != null ? `${today.durationMin} min` : null,
-		today.plannedTss != null ? formatTss(today.plannedTss) : null,
-		target,
-		// A lifting session has no TSS and no pace; its lifts are its facts.
-		...(today.lifts ?? []).map((lift) => {
-			const scheme = liftSchemeLabel(lift.setCount, lift.reps)
-			return lift.loadLabel
-				? `${lift.name} ${scheme} · ${lift.loadLabel}`
-				: `${lift.name} ${scheme}`
-		}),
-	].filter((fact): fact is string => !!fact)
-	// The day the session is actually on — the kicker's first word, and the one
-	// the stream's own row for this session carries. Both read it off the same
-	// instant in the same Athlete Timezone, so they cannot disagree about which
-	// day it is.
-	const when = dayName(today.date, now, timezone)
-	const title = today.ownTitle ?? nbSessionNoun(today.discipline)
 	return {
-		kicker: join(
-			when,
-			nbDisciplineLabel(today.discipline),
-			activePlan ? raceCountdown(activePlan, now) : null,
-		),
-		// The headline belongs to today. Only when the session shown *is* today's
-		// does it get to be the title; otherwise today speaks for itself and the
-		// session drops to the line below.
-		title: today.isToday ? title : todayStanding(ledger, now, timezone),
-		next: today.isToday ? null : HERO_LABELS.nextUp(title),
-		bars: profile.bars,
-		groups: profile.groups,
-		facts,
+		cta:
+			today && today.isToday
+				? {
+						label: NB_SESSION_CTA_LABELS[today.cta],
+						to: today.ctaTo,
+						sessionId: today.id,
+					}
+				: null,
 		verdict: coachVerdict({ current, trust, sustained, nudge }),
-		cta: { label: NB_SESSION_CTA_LABELS[today.cta], to: today.ctaTo },
-		sessionId: today.id,
-		collapsed: {
-			// Collapsed, the row is the thing its button opens, so the session keeps
-			// the title there — with the day beside it, which is what stops the
-			// summary from implying today.
-			title,
-			summary: join(when, ...facts.slice(0, 2)),
-		},
 	}
-}
-
-/**
- * `Today`, `Tomorrow`, `Friday`, `22 Feb` — the day a session falls on, named
- * the way an athlete would name it. A weekday alone is unambiguous only inside
- * the next six days; past that it could be either of two Fridays, so the date
- * is the honest answer.
- */
-function dayName(date: Date, now: Date, timezone: string): string {
-	const todayKey = localDate(now, timezone)
-	const key = localDate(date, timezone)
-	if (key === todayKey) return HERO_LABELS.today
-	if (key === addDays(todayKey, 1)) return HERO_LABELS.tomorrow
-	if (key > todayKey && key <= addDays(todayKey, DAYS_IN_WEEK - 1)) {
-		const weekday = formatNbWeekday(date, timezone)
-		return weekday[0]!.toUpperCase() + weekday.slice(1)
-	}
-	return formatNbDayMonth(date, timezone)
-}
-
-/**
- * What today itself holds, as the heading states it when the session on show is
- * not today's. Read straight off the ledger through the ledger's own status
- * rule, so "done" here means exactly what a completed row means in the stream.
- *
- * There is deliberately no `still to come` case: a planned session today is the
- * earliest planned session there is, so `buildTodayCard` would have picked it
- * and the heading would be its title.
- */
-function todayStanding(
-	ledger: LedgerSession[],
-	now: Date,
-	timezone: string,
-): string {
-	const todayKey = localDate(now, timezone)
-	const statuses = ledger
-		.filter(
-			(session) =>
-				localDate(new Date(session.scheduledAt), timezone) === todayKey,
-		)
-		.map((session) =>
-			deriveLedgerStatus(
-				{ status: session.status, scheduledAt: new Date(session.scheduledAt) },
-				now,
-			),
-		)
-	if (statuses.includes('completed')) return HERO_LABELS.todayDone
-	if (statuses.length > 0) return HERO_LABELS.nothingLeftToday
-	return HERO_LABELS.nothingToday
-}
-
-/** `9 weeks to race day`, counted in whole weeks the way an athlete counts them. */
-function raceCountdown(activePlan: ActivePlan, now: Date): string | null {
-	// An open-ended plan has no race day (ADR 0079), so there is nothing to count.
-	if (!activePlan.eventDate) return null
-	const days = Math.ceil(
-		(new Date(activePlan.eventDate).getTime() - now.getTime()) /
-			(24 * 60 * 60 * 1000),
-	)
-	if (days <= 0) return null
-	if (days <= DAYS_IN_WEEK) {
-		return HERO_LABELS.daysToRace(days)
-	}
-	return HERO_LABELS.weeksToRace(Math.round(days / DAYS_IN_WEEK))
 }
 
 /**

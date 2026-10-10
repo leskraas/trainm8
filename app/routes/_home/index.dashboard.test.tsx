@@ -24,9 +24,7 @@ import {
 } from 'react-router'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
-import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
-import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -50,7 +48,6 @@ type TsbTrust = {
 	daysOfHistory: number
 	requiredDays: number
 }
-type LoadSnapshot = { date: string; ctl: number }
 
 function makeLedgerSession(
 	overrides: Partial<LedgerSession> = {},
@@ -177,20 +174,15 @@ function dashboardLoader(
 		now?: Date
 		ledger?: LedgerSession[]
 		current?: LoadTriad | null
-		snapshots?: LoadSnapshot[]
 		tsbTrust?: TsbTrust
 		activePlan?: ActivePlan | null
-		weeklyAdherence?: WeeklyAdherence | null
 		sustained?: SustainedDeviation | null
 		thresholds?: DisciplineThresholdMap
-		personalRecords?: PersonalRecord[]
-		weekReplan?: { outcome: string; reason: string } | null
 		loadRecomputeNotice?: {
 			kind: string
 			ctlBefore: number
 			ctlAfter: number
 		} | null
-		strengthCount?: { completed: number; planned: number } | null
 	} = {},
 ) {
 	// Exactly the loader's shape, field for field (`index.test.ts` guards the
@@ -201,18 +193,13 @@ function dashboardLoader(
 		now: opts.now ?? NOW,
 		ledger: opts.ledger ?? [],
 		current: opts.current ?? null,
-		snapshots: opts.snapshots ?? [],
 		tsbTrust:
 			opts.tsbTrust ??
 			({ trustworthy: false, daysOfHistory: 0, requiredDays: 42 } as TsbTrust),
 		activePlan: opts.activePlan ?? null,
-		weeklyAdherence: opts.weeklyAdherence ?? null,
 		sustained: opts.sustained ?? null,
 		thresholds: opts.thresholds ?? {},
-		personalRecords: opts.personalRecords ?? [],
-		weekReplan: opts.weekReplan ?? null,
 		loadRecomputeNotice: opts.loadRecomputeNotice ?? null,
-		strengthCount: opts.strengthCount ?? null,
 	})
 }
 

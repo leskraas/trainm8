@@ -8,22 +8,20 @@
 // zone (the week filmstrip, the recent-compare strip, the weekly-build chart,
 // the discipline mix and the Fitness Projection curve). What is left is what the
 // Home Timeline and the Session Nudge applier actually read: today's card and
-// its lift lines, the nudge, the plan context and phase bands, the Proof Strip,
-// and the Load Recompute Notice line. The file moved up a directory with them —
+// its lift lines, the nudge, the plan context and phase bands, and the Load
+// Recompute Notice line. (The Proof Strip went with the hero, ADR 0086:
+// Rekorder lives on Meg, built by `__me-form-records-presenter.ts`.) The file moved up a directory with them —
 // there is no Cockpit folder to live in any more.
 //
 // Every builder honours the Unavailable Metric principle (GLOSSARY.md, ADR 0008):
 // a value the model can't truthfully produce is surfaced as `null`, never a
-// fabricated number. Personal Records (the Proof Strip, #134) are real: derived
-// in `personal-records.ts`, formatted for display by `buildProofStrip` below.
+// fabricated number.
 
 import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
 import { planArc } from '#app/utils/dashboard.ts'
 import {
 	formatDayMonth,
-	formatDistance,
 	formatLoad,
-	formatMeters,
 	formatWeekday,
 	roundLoad,
 } from '#app/utils/format.ts'
@@ -33,9 +31,6 @@ import {
 	sessionMetricTarget,
 } from '#app/utils/intensity-target.ts'
 import {
-	HERO_PANE_TEXT,
-	NB_RECORD_NOUNS,
-	nbDisciplineLabel,
 	openEndedBlockLabel,
 	RECOMPUTE_NOTICE_LABELS,
 } from '#app/utils/labels.ts'
@@ -55,10 +50,6 @@ import {
 	selectQualifyingMiss,
 } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
-import {
-	type BenchmarkKind,
-	type PersonalRecord,
-} from '#app/utils/personal-records.ts'
 import {
 	type ProfileBar,
 	deriveSessionProfile,
@@ -543,52 +534,6 @@ export function buildPhaseBands(
 			// Compared by position, never by name: a season with two A-races runs
 			// Base twice, and matching on the name lights both up (ADR 0044 §2).
 			isCurrent: index === currentPhaseIndex,
-		}
-	})
-}
-
-// ---------------------------------------------------------------------------
-// Proof (Personal Records) — the derived best-efforts that show training is
-// working (#134). The detection lives in `personal-records.ts`; this builder
-// only turns each record into display strings (label, value, the gain over the
-// previous best), so the strip component stays dumb. Empty array ⇒ the strip
-// renders its empty/Unavailable state, never a fabricated zero.
-// ---------------------------------------------------------------------------
-export type ProofRecord = {
-	discipline: string
-	disciplineLabel: string
-	/** Chip eyebrow, e.g. "Longest run". */
-	label: string
-	/** Formatted record value, e.g. "21.1 km" or "1,500 m". */
-	value: string
-	/** Formatted gain over the previous best, e.g. "+11.1 km"; null when first. */
-	delta: string | null
-}
-
-/** The benchmark a record holds, as the Records pane names it (ADR 0081). */
-const BENCHMARK_LABEL: Record<BenchmarkKind, (discipline: string) => string> = {
-	farthest: (discipline) =>
-		HERO_PANE_TEXT.longest(NB_RECORD_NOUNS[discipline] ?? 'økt'),
-}
-
-// Swims read in metres (a swimmer thinks "1,500 m", not "1.5 km"); run and bike
-// reuse the shared distance formatter so the strip matches the kilometres shown
-// everywhere else in the app.
-function formatRecordDistance(discipline: string, meters: number): string {
-	return discipline === 'swim' ? formatMeters(meters) : formatDistance(meters)
-}
-
-export function buildProofStrip(records: PersonalRecord[]): ProofRecord[] {
-	return records.map((record) => {
-		return {
-			discipline: record.discipline,
-			disciplineLabel: nbDisciplineLabel(record.discipline),
-			label: BENCHMARK_LABEL[record.kind](record.discipline),
-			value: formatRecordDistance(record.discipline, record.value),
-			delta:
-				record.delta != null
-					? `+${formatRecordDistance(record.discipline, record.delta)}`
-					: null,
 		}
 	})
 }
