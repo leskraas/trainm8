@@ -3,7 +3,7 @@ import { type GetSrcArgs, defaultGetSrc } from 'openimg/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFormAction, useNavigation } from 'react-router'
 import { useSpinDelay } from 'spin-delay'
-import { twMerge } from 'tailwind-merge'
+import { extendTailwindMerge } from 'tailwind-merge'
 
 export function getUserImgSrc(objectKey?: string | null) {
 	return objectKey
@@ -52,6 +52,68 @@ export function getErrorMessage(error: unknown) {
 	console.error('Unable to get error message for error', error)
 	return 'Unknown Error'
 }
+
+/**
+ * tailwind-merge, taught the app's own type and motion tokens
+ * (`app/styles/tailwind.css`, ADR 0085).
+ *
+ * Out of the box it only knows Tailwind's default scales, so it reads an
+ * unknown `text-footnote` (or the older `text-body-sm`) as a text *colour*
+ * and silently drops the `text-muted-foreground` beside it, and it cannot
+ * tell that `duration-press` overrides `duration-200`. The shadcn roles need
+ * nothing here: they are colours, and colours already merge. Every name here
+ * must match a token in the stylesheet.
+ */
+const twMerge = extendTailwindMerge({
+	extend: {
+		theme: {
+			text: [
+				'display',
+				'title',
+				'heading',
+				'body',
+				'callout',
+				'footnote',
+				'caption',
+				'overline',
+				'mega',
+				'h1',
+				'h2',
+				'h3',
+				'h4',
+				'h5',
+				'h6',
+				'body-2xl',
+				'body-xl',
+				'body-lg',
+				'body-md',
+				'body-sm',
+				'body-xs',
+				'body-2xs',
+				'button',
+			],
+			ease: ['drawer'],
+		},
+		classGroups: {
+			duration: [
+				{
+					duration: [
+						'press',
+						'tooltip',
+						'tooltip-exit',
+						'dropdown',
+						'dropdown-exit',
+						'collapse',
+						'collapse-exit',
+						'modal',
+						'modal-exit',
+						'drawer',
+					],
+				},
+			],
+		},
+	},
+})
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs))

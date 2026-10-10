@@ -23,6 +23,7 @@ import { Toaster } from './components/ui/sonner.tsx'
 import { WordmarkRow } from './components/wordmark-row.tsx'
 import {
 	ThemeSwitch,
+	useOptimisticThemeMode,
 	useOptionalTheme,
 	useTheme,
 } from './routes/resources/theme-switch.tsx'
@@ -150,15 +151,27 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export const headers: Route.HeadersFunction = pipeHeaders
 
+/**
+ * The browser chrome's colour — the status bar on iOS, the address bar on
+ * Android — per theme. It matches the top of the page (the wordmark row sits on
+ * `--background`), not the brand green, so the chrome and the page read as one
+ * surface. Hex, because `theme-color` is not read through CSS variables; keep
+ * these in step with `--background` in `app/styles/tailwind.css`.
+ */
+const THEME_COLOR = { light: '#f5f7f7', dark: '#090b0c' } as const
+
 function Document({
 	children,
 	nonce,
 	theme = 'light',
+	themePreference = null,
 	env = {},
 }: {
 	children: React.ReactNode
 	nonce: string
 	theme?: Theme
+	/** The athlete's explicit choice; `null` follows the OS. */
+	themePreference?: Theme | null
 	env?: Record<string, string | undefined>
 }) {
 	const allowIndexing = ENV.ALLOW_INDEXING !== 'false'
@@ -168,10 +181,40 @@ function Document({
 				<ClientHintCheck nonce={nonce} />
 				<Meta />
 				<meta charSet="utf-8" />
+				{/*
+					`viewport-fit=cover` lets the page paint under the notch, and the
+					chrome pads itself back out with `env(safe-area-inset-*)`.
+					`interactive-widget=resizes-content` makes Android's keyboard shrink
+					the layout viewport the way iOS's does, so a bottom sheet with a
+					field in it — and `100dvh` — move up with the keyboard instead of
+					being covered by it. Zoom stays enabled (no `maximum-scale`); inputs
+					are 16px on touch instead (ADR 0085 §5).
+				*/}
 				<meta
 					name="viewport"
-					content="width=device-width,initial-scale=1,viewport-fit=cover"
+					content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content"
 				/>
+				{/*
+					Following the OS: one colour per scheme, and the browser picks.
+					An explicit choice: the one colour, because the page no longer
+					follows the OS and the chrome must not either.
+				*/}
+				{themePreference ? (
+					<meta name="theme-color" content={THEME_COLOR[themePreference]} />
+				) : (
+					<>
+						<meta
+							name="theme-color"
+							media="(prefers-color-scheme: light)"
+							content={THEME_COLOR.light}
+						/>
+						<meta
+							name="theme-color"
+							media="(prefers-color-scheme: dark)"
+							content={THEME_COLOR.dark}
+						/>
+					</>
+				)}
 				{allowIndexing ? null : (
 					<meta name="robots" content="noindex, nofollow" />
 				)}
@@ -208,8 +251,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
 	const data = useLoaderData<typeof loader | null>()
 	const nonce = useNonce()
 	const theme = useOptionalTheme()
+	const optimisticMode = useOptimisticThemeMode()
+	const themePreference =
+		optimisticMode === 'system'
+			? null
+			: (optimisticMode ?? data?.requestInfo.userPrefs.theme ?? null)
 	return (
-		<Document nonce={nonce} theme={theme} env={data?.ENV}>
+		<Document
+			nonce={nonce}
+			theme={theme}
+			themePreference={themePreference}
+			env={data?.ENV}
+		>
 			{children}
 		</Document>
 	)
@@ -280,7 +333,7 @@ function App() {
 function Logo() {
 	return (
 		<Link to="/" className="group grid leading-snug">
-			<span className="font-bold transition group-hover:translate-x-1">
+			<span className="duration-press font-bold transition-transform ease-out group-hover:translate-x-1 motion-reduce:group-hover:translate-x-0">
 				Trainm8
 			</span>
 		</Link>
