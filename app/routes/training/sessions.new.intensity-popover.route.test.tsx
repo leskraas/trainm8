@@ -85,16 +85,16 @@ function renderNewSession(profiles: unknown[] = []) {
 }
 
 // A new session is honestly empty (spec §11): seed one block + one cardio step
-// (a 10 min duration) through the empty-state "start from scratch ＋" kind
+// (a 10 min varighet) through the empty-state "start from scratch ＋" kind
 // chooser — the classic "+ Add Block" fieldset is gone. The seeded step carries
 // no intensity yet; the popover is reached through the duration token.
 async function addStructure(user: ReturnType<typeof userEvent.setup>) {
-	await screen.findByLabelText(/title/i) // wait for hydration
+	await screen.findByLabelText(/tittel/i) // wait for hydration
 	await user.click(
-		await screen.findByRole('button', { name: /start from scratch/i }),
+		await screen.findByRole('button', { name: /begynn med et tomt steg/i }),
 	)
-	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
-	await screen.findByRole('button', { name: /min duration/ })
+	await user.click(await screen.findByRole('menuitem', { name: /kondisjon/i }))
+	await screen.findByRole('button', { name: /min varighet/ })
 }
 
 const sentence = () =>
@@ -110,11 +110,11 @@ const popupEl = () =>
  * "＋ intensity" neighbour link in the duration token popover — the same popup
  * swaps to the zone chips + kind row. Returns the (still-open) popup. */
 async function openIntensityPopover(user: ReturnType<typeof userEvent.setup>) {
-	await user.click(await screen.findByRole('button', { name: /min duration/ }))
+	await user.click(await screen.findByRole('button', { name: /min varighet/ }))
 	await user.click(
-		await within(popupEl()!).findByRole('button', { name: '＋ intensity' }),
+		await within(popupEl()!).findByRole('button', { name: '＋ intensitet' }),
 	)
-	await within(popupEl()!).findByRole('group', { name: 'Zone' })
+	await within(popupEl()!).findByRole('group', { name: 'Sone' })
 	return popupEl()!
 }
 
@@ -136,8 +136,8 @@ async function switchDisciplineToBike(
 ) {
 	// Both the workout header and the step carry a Discipline select; the
 	// workout-level one renders first.
-	await user.click(screen.getAllByLabelText('Discipline')[0]!)
-	await user.click(await screen.findByRole('option', { name: 'Ride' }))
+	await user.click(screen.getAllByLabelText('Sport')[0]!)
+	await user.click(await screen.findByRole('option', { name: 'Sykling' }))
 }
 
 // ——— Zone first ——————————————————————————————————————————————————————————
@@ -155,7 +155,7 @@ test('the popover leads with the athlete’s own zone chips; one tap re-zones th
 
 	// The zone chips lead (§7.3), named by the athlete's recipe, the authored
 	// zone pressed.
-	const chips = within(popup).getByRole('group', { name: 'Zone' })
+	const chips = within(popup).getByRole('group', { name: 'Sone' })
 	const chipButtons = within(chips).getAllByRole('button')
 	expect(chipButtons.map((b) => b.textContent)).toEqual([
 		'Z1',
@@ -198,7 +198,7 @@ test('the kind row is ordered discipline-aware — run leads with pace, RPE last
 	// `lactate` joined the row with #449 and sits before RPE: it is a measured
 	// anchor like bpm, not a unit of the pace group, and RPE stays last by
 	// convention (§7.4).
-	expect(labels).toEqual(['pace', 'watts', 'heart rate', 'lactate', 'RPE'])
+	expect(labels).toEqual(['fart', 'watt', 'puls', 'laktat', 'RPE'])
 })
 
 test('a bike step leads the kind row with watts', async () => {
@@ -212,7 +212,7 @@ test('a bike step leads the kind row with watts', async () => {
 	const labels = Array.from(row.querySelectorAll('button')).map(
 		(b) => b.textContent,
 	)
-	expect(labels).toEqual(['watts', 'pace', 'heart rate', 'lactate', 'RPE'])
+	expect(labels).toEqual(['watt', 'fart', 'puls', 'laktat', 'RPE'])
 })
 
 // ——— Watts, W ⇄ %FTP ————————————————————————————————————————————————————
@@ -224,8 +224,8 @@ test('watts: authored W reads back in the chip with the zone-equivalent tint; W 
 	await switchDisciplineToBike(user)
 
 	const popup = await openIntensityPopover(user)
-	await user.click(within(popup).getByRole('button', { name: 'watts' }))
-	await user.type(await within(popup).findByLabelText('Min W'), '235')
+	await user.click(within(popup).getByRole('button', { name: 'watt' }))
+	await user.type(await within(popup).findByLabelText('Fra W'), '235')
 
 	// The chip shows the authored value in its own form; the tint is the
 	// zone-equivalent (235 / 250 FTP = 0.94 → Coggan Z4).
@@ -233,14 +233,14 @@ test('watts: authored W reads back in the chip with the zone-equivalent tint; W 
 		expect(chipEl().textContent).toBe('235 W')
 		expect(chipEl()).toHaveAttribute('data-zone-step', '4')
 	})
-	expect(popup).toHaveTextContent('≈ zone 4 for you')
+	expect(popup).toHaveTextContent('≈ sone 4 for deg')
 
 	// Toggle to %FTP: one field, mutually exclusive units, the value converted
 	// through the athlete's FTP — 235 W at FTP 250 is 94% FTP.
-	const toggle = within(popup).getByRole('group', { name: 'Power unit' })
+	const toggle = within(popup).getByRole('group', { name: 'Enhet for watt' })
 	await user.click(within(toggle).getByRole('button', { name: '%FTP' }))
-	expect(await within(popup).findByLabelText('Min %FTP')).toHaveValue('94')
-	expect(within(popup).queryByLabelText('Min W')).not.toBeInTheDocument()
+	expect(await within(popup).findByLabelText('Fra %FTP')).toHaveValue('94')
+	expect(within(popup).queryByLabelText('Fra W')).not.toBeInTheDocument()
 	await waitFor(() => {
 		expect(chipEl().textContent).toBe('94% FTP')
 		expect(chipEl()).toHaveAttribute('data-zone-step', '4')
@@ -248,7 +248,7 @@ test('watts: authored W reads back in the chip with the zone-equivalent tint; W 
 
 	// And back: 94% of 250 is 235 W again — the value survives the round trip.
 	await user.click(within(toggle).getByRole('button', { name: 'W' }))
-	expect(await within(popup).findByLabelText('Min W')).toHaveValue('235')
+	expect(await within(popup).findByLabelText('Fra W')).toHaveValue('235')
 })
 
 // ——— Heart rate, bpm ⇄ %LTHR ⇄ %maxHR ———————————————————————————————————
@@ -259,8 +259,8 @@ test('heart rate: bpm ⇄ %LTHR ⇄ %maxHR converts through the profile threshol
 	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
-	await user.click(within(popup).getByRole('button', { name: 'heart rate' }))
-	await user.type(await within(popup).findByLabelText('Min bpm'), '162')
+	await user.click(within(popup).getByRole('button', { name: 'puls' }))
+	await user.type(await within(popup).findByLabelText('Fra slag/min'), '162')
 
 	// 162 bpm at LTHR 168 = 96% → Friel run Z4.
 	await waitFor(() => {
@@ -268,15 +268,17 @@ test('heart rate: bpm ⇄ %LTHR ⇄ %maxHR converts through the profile threshol
 		expect(chipEl()).toHaveAttribute('data-zone-step', '4')
 	})
 
-	const toggle = within(popup).getByRole('group', { name: 'Heart rate unit' })
-	await user.click(within(toggle).getByRole('button', { name: '%LTHR' }))
-	expect(await within(popup).findByLabelText('Min %LTHR')).toHaveValue('96')
+	const toggle = within(popup).getByRole('group', { name: 'Enhet for puls' })
+	await user.click(within(toggle).getByRole('button', { name: '%terskelpuls' }))
+	expect(await within(popup).findByLabelText('Fra %terskelpuls')).toHaveValue(
+		'96',
+	)
 	await waitFor(() => expect(chipEl().textContent).toBe('96% LTHR'))
 
 	// %LTHR → %maxHR converts through both thresholds (96% of 168 ≈ 161 bpm ≈
 	// 85% of 190).
-	await user.click(within(toggle).getByRole('button', { name: '%maxHR' }))
-	expect(await within(popup).findByLabelText('Min %maxHR')).toHaveValue('85')
+	await user.click(within(toggle).getByRole('button', { name: '%makspuls' }))
+	expect(await within(popup).findByLabelText('Fra %makspuls')).toHaveValue('85')
 	await waitFor(() => expect(chipEl().textContent).toBe('85% max HR'))
 })
 
@@ -288,9 +290,9 @@ test('pace renders inside the chip and buckets against a pace-anchored recipe', 
 	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
-	await user.click(within(popup).getByRole('button', { name: 'pace' }))
+	await user.click(within(popup).getByRole('button', { name: 'fart' }))
 	// Typed in the keypad-friendly form — touch keypads have no ":" key (§9.2).
-	await user.type(await within(popup).findByLabelText('Min pace'), '4.40')
+	await user.type(await within(popup).findByLabelText('Fra fart'), '4.40')
 
 	// 4:40/km against T-pace 4:00 is ratio 1.17 → Daniels `E`, which declares
 	// Training Zone 2 (#449; before that the band's position read it as 1). On the
@@ -302,7 +304,7 @@ test('pace renders inside the chip and buckets against a pace-anchored recipe', 
 		expect(chipEl().textContent).toBe('4:40/km')
 		expect(chipEl()).toHaveAttribute('data-zone-step', '2')
 	})
-	expect(popup).toHaveTextContent('≈ zone 2 for you')
+	expect(popup).toHaveTextContent('≈ sone 2 for deg')
 })
 
 // ——— RPE ————————————————————————————————————————————————————————————————
@@ -314,7 +316,7 @@ test('RPE is authorable, tints by the convention table, and never degrades to un
 
 	const popup = await openIntensityPopover(user)
 	await user.click(within(popup).getByRole('button', { name: 'RPE' }))
-	await user.type(await within(popup).findByLabelText('Min RPE'), '7')
+	await user.type(await within(popup).findByLabelText('Fra RPE'), '7')
 
 	// RPE 7 → step 4 by the fixed convention (§7.4) — resolved even with no
 	// thresholds anywhere; the provenance line says so in athlete words.
@@ -323,13 +325,11 @@ test('RPE is authorable, tints by the convention table, and never degrades to un
 		expect(chipEl()).toHaveAttribute('data-zone-step', '4')
 		expect(chipEl()).not.toHaveAttribute('data-unresolved')
 	})
-	expect(popup).toHaveTextContent('RPE 7 ≈ zone 4 effort')
+	expect(popup).toHaveTextContent('RPE 7 ≈ innsats i sone 4')
 
 	// Every value is type-to-edit with ± nudges, never stepper-only (§2.4).
-	await user.click(
-		within(popup).getByRole('button', { name: 'Increase Min RPE' }),
-	)
-	expect(within(popup).getByLabelText('Min RPE')).toHaveValue('8')
+	await user.click(within(popup).getByRole('button', { name: 'Øk fra rpe' }))
+	expect(within(popup).getByLabelText('Fra RPE')).toHaveValue('8')
 	await waitFor(() => expect(chipEl().textContent).toBe('RPE 8'))
 })
 
@@ -341,8 +341,8 @@ test('an unresolvable metric target renders the dashed chip and the provenance l
 	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
-	await user.click(within(popup).getByRole('button', { name: 'watts' }))
-	await user.type(await within(popup).findByLabelText('Min W'), '235')
+	await user.click(within(popup).getByRole('button', { name: 'watt' }))
+	await user.type(await within(popup).findByLabelText('Fra W'), '235')
 
 	// The chip keeps the authored value but goes dashed — never an asterisk,
 	// never a fabricated zone (§7.2).
@@ -352,7 +352,7 @@ test('an unresolvable metric target renders the dashed chip and the provenance l
 		expect(chipEl()).not.toHaveAttribute('data-zone-step')
 	})
 	expect(popup).toHaveTextContent(
-		"can't be placed in a zone — no zone system chosen in settings",
+		'kan ikke plasseres i en sone — ingen sonesystem valgt i innstillingene',
 	)
 })
 
@@ -362,10 +362,12 @@ test('a half-typed target states its own state in the provenance line', async ()
 	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
-	await user.click(within(popup).getByRole('button', { name: 'heart rate' }))
+	await user.click(within(popup).getByRole('button', { name: 'puls' }))
 
 	// Kind picked, value not yet — the line still speaks (never blank chrome).
-	expect(popup).toHaveTextContent('not placed in a zone yet — finish the value')
+	expect(popup).toHaveTextContent(
+		'ikke plassert i en sone ennå — fyll inn verdien',
+	)
 })
 
 test('%LTHR ⇄ %maxHR with no thresholds clears rather than reinterpreting the number', async () => {
@@ -374,18 +376,20 @@ test('%LTHR ⇄ %maxHR with no thresholds clears rather than reinterpreting the 
 	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
-	await user.click(within(popup).getByRole('button', { name: 'heart rate' }))
-	const toggle = within(popup).getByRole('group', { name: 'Heart rate unit' })
-	await user.click(within(toggle).getByRole('button', { name: '%LTHR' }))
-	await user.type(await within(popup).findByLabelText('Min %LTHR'), '90')
+	await user.click(within(popup).getByRole('button', { name: 'puls' }))
+	const toggle = within(popup).getByRole('group', { name: 'Enhet for puls' })
+	await user.click(within(toggle).getByRole('button', { name: '%terskelpuls' }))
+	await user.type(await within(popup).findByLabelText('Fra %terskelpuls'), '90')
 	await waitFor(() => expect(chipEl().textContent).toBe('90% LTHR'))
 
 	// The two % units share one field; with nothing to convert through, the
 	// same number would silently restate a different physiological target —
 	// the field clears instead.
-	await user.click(within(toggle).getByRole('button', { name: '%maxHR' }))
-	expect(await within(popup).findByLabelText('Min %maxHR')).toHaveValue('')
-	expect(popup).toHaveTextContent('not placed in a zone yet — finish the value')
+	await user.click(within(toggle).getByRole('button', { name: '%makspuls' }))
+	expect(await within(popup).findByLabelText('Fra %makspuls')).toHaveValue('')
+	expect(popup).toHaveTextContent(
+		'ikke plassert i en sone ennå — fyll inn verdien',
+	)
 })
 
 // ——— The shared instrument ———————————————————————————————————————————————
@@ -397,13 +401,13 @@ test('the intensity chip retargets the open popover in place — same popup, swa
 	await seedZoneIntensity(user, 'Z2')
 
 	// Open on the duration token first.
-	await user.click(await screen.findByRole('button', { name: /min duration/ }))
+	await user.click(await screen.findByRole('button', { name: /min varighet/ }))
 	const popup = await waitFor(() => {
 		const el = document.querySelector('[data-slot="token-popover"]')
 		expect(el).not.toBeNull()
 		return el as HTMLElement
 	})
-	await within(popup).findByLabelText('Duration value')
+	await within(popup).findByLabelText('Verdi for varigheten')
 
 	// Activate the intensity chip while open: the SAME popup swaps to the
 	// intensity editor — zone chips, kind row, provenance — no close-and-reopen.
@@ -414,15 +418,15 @@ test('the intensity chip retargets the open popover in place — same popup, swa
 	)
 	await waitFor(() =>
 		expect(
-			within(popup).getByRole('group', { name: 'Zone' }),
+			within(popup).getByRole('group', { name: 'Sone' }),
 		).toBeInTheDocument(),
 	)
 	expect(document.querySelectorAll('[data-slot="token-popover"]')).toHaveLength(
 		1,
 	)
-	expect(popup).toHaveTextContent(/intensity/i)
+	expect(popup).toHaveTextContent(/intensitet/i)
 	expect(
-		within(popup).queryByLabelText('Duration value'),
+		within(popup).queryByLabelText('Verdi for varigheten'),
 	).not.toBeInTheDocument()
 })
 
@@ -432,11 +436,13 @@ test('committed intensity changes announce through the polite live region', asyn
 	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
-	const chips = within(popup).getByRole('group', { name: 'Zone' })
+	const chips = within(popup).getByRole('group', { name: 'Sone' })
 	await user.click(within(chips).getByRole('button', { name: 'Z3' }))
 
 	await waitFor(() =>
-		expect(screen.getByRole('status')).toHaveTextContent('Intensity set to Z3'),
+		expect(screen.getByRole('status')).toHaveTextContent(
+			'Intensiteten er satt til Z3',
+		),
 	)
 })
 
@@ -457,7 +463,7 @@ test('Remove intensity clears the target and the chip leaves the line', async ()
 		return el as HTMLElement
 	})
 	await user.click(
-		within(popup).getByRole('button', { name: 'Remove intensity' }),
+		within(popup).getByRole('button', { name: 'Fjern intensiteten' }),
 	)
 
 	await waitFor(() => {
@@ -476,15 +482,18 @@ test('a popover-authored target submits as the canonical Intensity Target JSON',
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession([RUN_HR_PROFILE])
 	await addStructure(user)
-	await user.type(screen.getByLabelText(/title/i), 'Tempo')
+	await user.type(screen.getByLabelText(/tittel/i), 'Tempo')
 
 	const popup = await openIntensityPopover(user)
-	await user.click(within(popup).getByRole('button', { name: 'heart rate' }))
-	await user.type(await within(popup).findByLabelText('Min bpm'), '150')
-	await user.type(within(popup).getByLabelText('Max bpm (optional)'), '160')
+	await user.click(within(popup).getByRole('button', { name: 'puls' }))
+	await user.type(await within(popup).findByLabelText('Fra slag/min'), '150')
+	await user.type(
+		within(popup).getByLabelText('Til slag/min (valgfritt)'),
+		'160',
+	)
 	await user.keyboard('{Escape}')
 
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0]
 	expect(JSON.parse(payload['blocks[0].steps[0].intensity'])).toEqual({
@@ -507,22 +516,24 @@ test('pace: /km ⇄ % T-pace converts through threshold pace, and the bounds swa
 	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
-	await user.click(within(popup).getByRole('button', { name: 'pace' }))
+	await user.click(within(popup).getByRole('button', { name: 'fart' }))
 	// `Min pace` is the *fast* bound — fewer seconds per km.
-	await user.type(within(popup).getByLabelText('Min pace'), '4:05')
+	await user.type(within(popup).getByLabelText('Fra fart'), '4:05')
 	await user.type(
-		within(popup).getByRole('textbox', { name: 'Max pace (optional)' }),
+		within(popup).getByRole('textbox', { name: 'Til fart (valgfritt)' }),
 		'4:12',
 	)
 	await waitFor(() => expect(chipEl().textContent).toBe('4:05–4:12/km'))
 
 	// The percentage is of threshold *speed*, so against a 4:00 threshold 4:12 is
 	// 95 % and 4:05 is 98 % — and the slower bound becomes the *lower* percentage.
-	await user.click(within(popup).getByRole('button', { name: '% T-pace' }))
+	await user.click(within(popup).getByRole('button', { name: '% terskelfart' }))
 	await waitFor(() => {
-		expect(within(popup).getByLabelText('Min % T-pace')).toHaveValue('95')
+		expect(within(popup).getByLabelText('Fra % terskelfart')).toHaveValue('95')
 		expect(
-			within(popup).getByRole('textbox', { name: 'Max % T-pace (optional)' }),
+			within(popup).getByRole('textbox', {
+				name: 'Til % terskelfart (valgfritt)',
+			}),
 		).toHaveValue('98')
 	})
 	await waitFor(() => expect(chipEl().textContent).toBe('95–98% T-pace'))
@@ -534,10 +545,10 @@ test('lactate is authored as itself, and the pace beside it is a derived ≈ fac
 	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
-	await user.click(within(popup).getByRole('button', { name: 'lactate' }))
-	await user.type(within(popup).getByLabelText('Min mmol/L'), '2.5')
+	await user.click(within(popup).getByRole('button', { name: 'laktat' }))
+	await user.type(within(popup).getByLabelText('Fra mmol/L'), '2.5')
 	await user.type(
-		within(popup).getByRole('textbox', { name: 'Max mmol/L (optional)' }),
+		within(popup).getByRole('textbox', { name: 'Til mmol/L (valgfritt)' }),
 		'3',
 	)
 
@@ -551,6 +562,6 @@ test('lactate is authored as itself, and the pace beside it is a derived ≈ fac
 	// There is deliberately no unit toggle: converting a pace draft into a
 	// lactate figure would invent a measurement nobody took.
 	expect(
-		within(popup).queryByRole('group', { name: 'Pace unit' }),
+		within(popup).queryByRole('group', { name: 'Enhet for fart' }),
 	).not.toBeInTheDocument()
 })

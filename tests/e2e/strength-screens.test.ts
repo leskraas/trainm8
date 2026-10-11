@@ -589,19 +589,19 @@ test('the runner opens on the weight the program resolved, with its ramp and its
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 
 	await expect(
-		page.getByRole('heading', { name: 'Run your workout', level: 1 }),
+		page.getByRole('heading', { name: 'Gjennomfør økta', level: 1 }),
 	).toBeVisible()
 	// Which session of the run this is — only a run can number a session.
-	await expect(page.getByText('Session 1')).toBeVisible()
+	await expect(page.getByText('Økt 1')).toBeVisible()
 
 	// The lift, and the weight the program decided, on the face of the card.
 	const squat = page.getByRole('heading', { name: 'Back Squat', level: 2 })
 	await expect(squat).toBeVisible()
-	await expect(page.getByText('5×5 · 82.5 kg')).toBeVisible()
+	await expect(page.getByText('5×5 · 82,5 kg')).toBeVisible()
 
 	// The generated ramp, and the working sets with what is left of them.
-	await expect(page.getByText('Warm-up').first()).toBeVisible()
-	await expect(page.getByText('Working sets').first()).toBeVisible()
+	await expect(page.getByText('Oppvarming').first()).toBeVisible()
+	await expect(page.getByText('Arbeidssett').first()).toBeVisible()
 	await expect(page.getByText('0 of 5 logged').first()).toBeVisible()
 	// Five circles, each showing its target rather than a bare number nobody
 	// asked for.
@@ -615,11 +615,9 @@ test('the runner opens on the weight the program resolved, with its ramp and its
 	await expect(page.locator('[data-plate-line]').first()).toBeVisible()
 
 	// And the one control that is not a set.
+	await expect(page.getByRole('button', { name: 'Fullfør økta' })).toBeVisible()
 	await expect(
-		page.getByRole('button', { name: 'Finish workout' }),
-	).toBeVisible()
-	await expect(
-		page.getByText('Every set was saved as you tapped it'),
+		page.getByText('Hvert sett ble lagret da du trykket'),
 	).toBeVisible()
 
 	await expectNoHorizontalOverflow(page)
@@ -777,13 +775,13 @@ test('a warm-up chip toggles from the keyboard and says which rung it is', async
 
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 	await waitForHydration(page, '[data-set-circle]')
-	await expect(page.getByText('Warm-up').first()).toBeVisible()
+	await expect(page.getByText('Oppvarming').first()).toBeVisible()
 
 	const chip = page.locator('[data-warmup-chip]').first()
 	await expect(chip).toHaveAttribute('aria-pressed', 'false')
 	// The rung carries its own weight and reps in its face — it is walked past,
 	// not looked up.
-	await expect(chip).toHaveText(/^\d+(\.\d+)? × \d+$/)
+	await expect(chip).toHaveText(/^\d+([.,]\d+)? × \d+$/)
 
 	await tabTo(page, chip)
 	await pressAndSettle(page, 'Space')
@@ -809,7 +807,7 @@ test('the help panel is one tap behind the lift name and accounts for the weight
 
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 	await waitForHydration(page, '[data-set-circle]')
-	const toggle = page.getByRole('button', { name: 'About Back Squat' })
+	const toggle = page.getByRole('button', { name: 'Om Back Squat' })
 	await expect(toggle).toBeVisible()
 
 	// **Collapsed by default** — this screen's rule is no prose on the logging
@@ -825,7 +823,7 @@ test('the help panel is one tap behind the lift name and accounts for the weight
 	// The four things it says, in the athlete's own numbers: where the weight
 	// came from, which rack the plate line is solved against, what the timer
 	// survives, and the way to this lift over time.
-	await expect(panel).toContainText('82.5 kg is your working weight')
+	await expect(panel).toContainText('82,5 kg is your working weight')
 	await expect(panel).toContainText('Iron Works')
 	await expect(panel).toContainText(
 		'The rest timer survives a locked phone, but not a closed tab.',
@@ -888,7 +886,7 @@ test('lift over time reads the working weight, the records and the history', asy
 	// What the athlete came for: what goes on the bar. The weight moved by the
 	// program's own increment across four made sessions — 82.5 → 92.5 kg.
 	await expect(page.getByText('Working weight')).toBeVisible()
-	await expect(page.getByText('92.5 kg', { exact: true })).toBeVisible()
+	await expect(page.getByText('92,5 kg', { exact: true })).toBeVisible()
 
 	// The rep-max record, read straight off the set rows and never stored.
 	await expect(page.getByRole('heading', { name: 'Records' })).toBeVisible()
@@ -1207,7 +1205,7 @@ async function seedCircuit(userId: string, setsPerRound = 1) {
 						orderIndex: 0,
 						repeatCount: 5,
 						steps: {
-							create: ['ex_bb_back_squat', 'ex_bb_bench_press'].map(
+							create: ['ex_bb_back_squat', 'ex_bb_bench'].map(
 								(exerciseId, orderIndex) => ({
 									orderIndex,
 									kind: 'strength',

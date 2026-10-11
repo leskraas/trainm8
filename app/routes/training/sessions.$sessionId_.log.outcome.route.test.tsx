@@ -162,7 +162,7 @@ async function finishWith(
 	])
 	render(<App initialEntries={['/training/sessions/sess-1/log']} />)
 	await userEvent.click(
-		await screen.findByRole('button', { name: 'Finish workout' }),
+		await screen.findByRole('button', { name: 'Fullfør økta' }),
 	)
 	return {
 		submitted,
@@ -333,7 +333,7 @@ test('back from the outcome panel returns to the runner', async () => {
 
 	expect(screen.queryByText('What you lift next time')).not.toBeInTheDocument()
 	expect(
-		screen.getByRole('button', { name: 'Finish workout' }),
+		screen.getByRole('button', { name: 'Fullfør økta' }),
 	).toBeInTheDocument()
 	expect(screen.getByLabelText('Log set 1 of Squat')).toBeInTheDocument()
 })

@@ -60,12 +60,12 @@ function renderNewSession(
  * authoring surface, so seed the first step through the empty-state's "start
  * from scratch ＋" kind chooser — a cardio step lands as its 10 min seed. */
 async function addFirstStep(user: ReturnType<typeof userEvent.setup>) {
-	await screen.findByLabelText(/title/i) // wait for hydration
+	await screen.findByLabelText(/tittel/i) // wait for hydration
 	await user.click(
-		await screen.findByRole('button', { name: /start from scratch/i }),
+		await screen.findByRole('button', { name: /begynn med et tomt steg/i }),
 	)
-	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
-	await screen.findByRole('button', { name: /min duration/ })
+	await user.click(await screen.findByRole('menuitem', { name: /kondisjon/i }))
+	await screen.findByRole('button', { name: /min varighet/ })
 }
 
 /** Retype the cardio step's duration token through its popover. */
@@ -73,8 +73,8 @@ async function setDuration(
 	user: ReturnType<typeof userEvent.setup>,
 	value: string,
 ) {
-	await user.click(await screen.findByRole('button', { name: /min duration/ }))
-	const input = await screen.findByLabelText('Duration value')
+	await user.click(await screen.findByRole('button', { name: /min varighet/ }))
+	const input = await screen.findByLabelText('Verdi for varigheten')
 	await user.clear(input)
 	await user.type(input, value)
 	await user.keyboard('{Escape}')
@@ -83,28 +83,28 @@ async function setDuration(
 /** Flip the seeded cardio step to strength through its ⋮ menu (§4). */
 async function makeStrength(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(
-		screen.getByRole('button', { name: 'Step 1 of 1 actions, block 1 of 1' }),
+		screen.getByRole('button', {
+			name: 'Handlinger for steg 1 av 1, blokk 1 av 1',
+		}),
 	)
 	await user.click(
-		await screen.findByRole('menuitem', { name: /make strength/i }),
+		await screen.findByRole('menuitem', { name: /gjør til styrke/i }),
 	)
 }
 
 test('a new session is honestly empty — the §11 composition, nothing fabricated', async () => {
 	renderNewSession()
 
-	await screen.findByLabelText(/title/i) // wait for hydration
+	await screen.findByLabelText(/tittel/i) // wait for hydration
 
 	// The empty composition: three archetype seeds and start-from-scratch.
+	expect(screen.getByRole('button', { name: /rolig økt/i })).toBeInTheDocument()
 	expect(
-		screen.getByRole('button', { name: /easy session/i }),
+		screen.getByRole('button', { name: /intervaller/i }),
 	).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: /intervals/i })).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: /styrkeøkt/i })).toBeInTheDocument()
 	expect(
-		screen.getByRole('button', { name: /strength session/i }),
-	).toBeInTheDocument()
-	expect(
-		screen.getByRole('button', { name: /start from scratch/i }),
+		screen.getByRole('button', { name: /begynn med et tomt steg/i }),
 	).toBeInTheDocument()
 
 	// Nothing fabricated: no implicit step, no stanza, no strip.
@@ -134,25 +134,23 @@ test('strength is authorable from the start — no "add structure" gate', async 
 		},
 	])
 
-	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Leg Day')
 	await addFirstStep(user)
 
 	// Pick the strength discipline directly; there is no gate to clear first.
-	await user.click(screen.getAllByLabelText('Discipline')[0]!)
+	await user.click(screen.getAllByLabelText('Sport')[0]!)
 	const listbox = await screen.findByRole('listbox')
-	await user.click(within(listbox).getByRole('option', { name: /strength/i }))
+	await user.click(within(listbox).getByRole('option', { name: /styrke/i }))
 
 	// The seeded step can become a strength step immediately, from its ⋮ menu.
 	await makeStrength(user)
 
 	// The strength exercise picker is the sentence's exercise token combobox —
 	// available right away, no "add structure" gate.
-	await user.click(
-		await screen.findByRole('button', { name: /select exercise/i }),
-	)
+	await user.click(await screen.findByRole('button', { name: /velg øvelse/i }))
 	await user.click(await screen.findByRole('option', { name: /back squat/i }))
 
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0] as Record<string, string>
@@ -165,11 +163,11 @@ test('a one-step submission posts structured blocks with the humane duration', a
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
 
-	await user.type(await screen.findByLabelText(/title/i), 'Easy Run')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Easy Run')
 	await addFirstStep(user)
 	await setDuration(user, '40 min')
 
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0] as Record<string, string>
@@ -185,13 +183,13 @@ test('submits the intent chosen via the Select', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
 
-	await user.type(await screen.findByLabelText(/title/i), 'Tempo Run')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Tempo Run')
 	await addFirstStep(user)
 
-	await user.click(screen.getByLabelText(/intent/i))
+	await user.click(screen.getByLabelText(/formål/i))
 	await user.click(await screen.findByRole('option', { name: 'Tempo' }))
 
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	expect(submitted.mock.calls[0]![0].intent).toBe('tempo')
@@ -201,17 +199,17 @@ test('submits the discipline chosen via the Select', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
 
-	await user.type(await screen.findByLabelText(/title/i), 'Open Water Swim')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Open Water Swim')
 	await addFirstStep(user)
 
 	// The workout-level Discipline is the top-level select; a step's own
 	// discipline override lives in its (closed) quantity popover, so this is the
 	// only "Discipline" on the page here.
-	await user.click(screen.getAllByLabelText('Discipline')[0]!)
+	await user.click(screen.getAllByLabelText('Sport')[0]!)
 	const listbox = await screen.findByRole('listbox')
-	await user.click(within(listbox).getByRole('option', { name: /swim/i }))
+	await user.click(within(listbox).getByRole('option', { name: /svømming/i }))
 
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	expect(submitted.mock.calls[0]![0].discipline).toBe('swim')
@@ -239,23 +237,21 @@ test('selecting an Exercise via the combobox submits its id (payload unchanged)'
 		},
 	])
 
-	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Leg Day')
 	await addFirstStep(user)
 
 	// Switch the step to Strength so the Exercise picker renders.
 	await makeStrength(user)
 
 	// Open the exercise token combobox and pick via type-ahead.
-	await user.click(
-		await screen.findByRole('button', { name: /select exercise/i }),
-	)
-	await user.type(await screen.findByLabelText('Search exercises'), 'back')
+	await user.click(await screen.findByRole('button', { name: /velg øvelse/i }))
+	await user.type(await screen.findByLabelText('Søk i øvelser'), 'back')
 	expect(
 		screen.queryByRole('option', { name: /bench press/i }),
 	).not.toBeInTheDocument()
 	await user.click(await screen.findByRole('option', { name: /back squat/i }))
 
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0] as Record<string, string>
@@ -286,15 +282,13 @@ test('the combobox groups the loader-provided recent exercises on top', async ()
 		['ex-bench'],
 	)
 
-	await screen.findByLabelText(/title/i)
+	await screen.findByLabelText(/tittel/i)
 	await addFirstStep(user)
 	await makeStrength(user)
 
-	await user.click(
-		await screen.findByRole('button', { name: /select exercise/i }),
-	)
+	await user.click(await screen.findByRole('button', { name: /velg øvelse/i }))
 
-	expect(await screen.findByText('Recent')).toBeInTheDocument()
+	expect(await screen.findByText('Nylig brukt')).toBeInTheDocument()
 	const optionNames = screen
 		.getAllByRole('option')
 		.map((option) => option.textContent ?? '')
@@ -311,15 +305,13 @@ test('with no history to derive one from, no discipline is preselected', async (
 	// route used to open on a hardcoded `run` for everybody, including swimmers.
 	renderNewSession([], [], null)
 
-	await screen.findByLabelText(/title/i)
-	expect(screen.getAllByLabelText('Discipline')[0]!).toHaveTextContent(
-		'Pick a discipline',
-	)
+	await screen.findByLabelText(/tittel/i)
+	expect(screen.getAllByLabelText('Sport')[0]!).toHaveTextContent('Velg sport')
 })
 
 test('the derived discipline is what the route opens on', async () => {
 	renderNewSession([], [], 'swim')
 
-	await screen.findByLabelText(/title/i)
-	expect(screen.getAllByLabelText('Discipline')[0]!).toHaveTextContent('Swim')
+	await screen.findByLabelText(/tittel/i)
+	expect(screen.getAllByLabelText('Sport')[0]!).toHaveTextContent('Svømming')
 })

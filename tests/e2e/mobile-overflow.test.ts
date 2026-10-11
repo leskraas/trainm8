@@ -125,7 +125,7 @@ test('an auto-saved activity does not overflow at 390px', async ({
 		sessionId: saved!.sessionId,
 	})
 	// The Recording panel's card title (a styled div, not a heading element).
-	await expect(page.getByText('Recording', { exact: true })).toBeVisible()
+	await expect(page.getByText('Opptak', { exact: true })).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 })
 

@@ -89,7 +89,7 @@ function renderCombobox(props: React.ComponentProps<typeof Harness> = {}) {
 
 async function openCombobox(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(screen.getByLabelText('Exercise'))
-	return await screen.findByLabelText('Search exercises')
+	return await screen.findByLabelText('Søk i øvelser')
 }
 
 function visibleOptionNames() {
@@ -123,7 +123,7 @@ test('muscle and equipment chips narrow results and compose with the query', asy
 
 	// Muscle chip: only quads exercises remain.
 	await user.click(
-		screen.getByRole('button', { name: 'Quads', pressed: false }),
+		screen.getByRole('button', { name: 'Forside lår', pressed: false }),
 	)
 	let names = visibleOptionNames().join(' ')
 	expect(names).toContain('Back Squat')
@@ -132,21 +132,19 @@ test('muscle and equipment chips narrow results and compose with the query', asy
 
 	// Equipment chip composes: quads + barbell leaves only the Back Squat.
 	await user.click(
-		screen.getByRole('button', { name: 'Barbell', pressed: false }),
+		screen.getByRole('button', { name: 'Stang', pressed: false }),
 	)
 	names = visibleOptionNames().join(' ')
 	expect(names).toContain('Back Squat')
 	expect(names).not.toContain('Bulgarian Split Squat')
 
 	// The text query composes with the active chips.
-	await user.type(screen.getByLabelText('Search exercises'), 'zzz')
+	await user.type(screen.getByLabelText('Søk i øvelser'), 'zzz')
 	expect(screen.queryByRole('option', { name: /back squat/i })).toBeNull()
 
 	// Toggling a chip off widens results again.
-	await user.clear(screen.getByLabelText('Search exercises'))
-	await user.click(
-		screen.getByRole('button', { name: 'Barbell', pressed: true }),
-	)
+	await user.clear(screen.getByLabelText('Søk i øvelser'))
+	await user.click(screen.getByRole('button', { name: 'Stang', pressed: true }))
 	names = visibleOptionNames().join(' ')
 	expect(names).toContain('Bulgarian Split Squat')
 })
@@ -157,8 +155,8 @@ test('recently used exercises are grouped on top', async () => {
 
 	await openCombobox(user)
 
-	expect(screen.getByText('Recent')).toBeInTheDocument()
-	expect(screen.getByText('All exercises')).toBeInTheDocument()
+	expect(screen.getByText('Nylig brukt')).toBeInTheDocument()
+	expect(screen.getByText('Alle øvelser')).toBeInTheDocument()
 
 	// The recent exercises come first, in recent order, before the rest.
 	const names = visibleOptionNames()
@@ -177,7 +175,7 @@ test('selecting an exercise binds its id and closes the popover', async () => {
 
 	expect(screen.getByTestId('selected-id')).toHaveTextContent('ex-bench')
 	await waitFor(() =>
-		expect(screen.queryByLabelText('Search exercises')).toBeNull(),
+		expect(screen.queryByLabelText('Søk i øvelser')).toBeNull(),
 	)
 	// The trigger now shows the selected exercise.
 	expect(screen.getByLabelText('Exercise')).toHaveTextContent('Bench Press')
@@ -190,15 +188,13 @@ test('inline create posts to the exercises action and selects the result', async
 	const input = await openCombobox(user)
 	await user.type(input, 'Nordic Curl')
 
-	await user.click(
-		screen.getByRole('option', { name: /create "nordic curl"/i }),
-	)
+	await user.click(screen.getByRole('option', { name: /lag «nordic curl»/i }))
 
 	// The inline flow asks for the required primary muscle instead of guessing.
 	expect(
-		await screen.findByText(/primary muscle for "nordic curl"/i),
+		await screen.findByText(/hovedmuskel for «nordic curl»/i),
 	).toBeInTheDocument()
-	await user.click(await screen.findByRole('option', { name: 'Hamstrings' }))
+	await user.click(await screen.findByRole('option', { name: 'Bakside lår' }))
 
 	await waitFor(() => expect(createAction).toHaveBeenCalledTimes(1))
 	expect(createAction.mock.calls[0]![0]).toEqual({
@@ -220,16 +216,16 @@ test('the create row only appears when there is no exact name match', async () =
 	const input = await openCombobox(user)
 
 	// No query → no create row.
-	expect(screen.queryByRole('option', { name: /create "/i })).toBeNull()
+	expect(screen.queryByRole('option', { name: /lag «/i })).toBeNull()
 
 	// Exact (case-insensitive) match → no create row.
 	await user.type(input, 'back squat')
-	expect(screen.queryByRole('option', { name: /create "/i })).toBeNull()
+	expect(screen.queryByRole('option', { name: /lag «/i })).toBeNull()
 
 	// Partial match → create row offered.
 	await user.clear(input)
 	await user.type(input, 'back sq')
 	expect(
-		screen.getByRole('option', { name: /create "back sq"/i }),
+		screen.getByRole('option', { name: /lag «back sq»/i }),
 	).toBeInTheDocument()
 })

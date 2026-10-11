@@ -61,12 +61,12 @@ function renderNewSession() {
 // authoring surface now, so seed the first step through the empty-state's
 // "start from scratch ＋" kind chooser — a cardio step lands as its 10 min seed.
 async function addStructure(user: ReturnType<typeof userEvent.setup>) {
-	await screen.findByLabelText(/title/i) // wait for hydration
+	await screen.findByLabelText(/tittel/i) // wait for hydration
 	await user.click(
-		await screen.findByRole('button', { name: /start from scratch/i }),
+		await screen.findByRole('button', { name: /begynn med et tomt steg/i }),
 	)
-	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
-	await screen.findByRole('button', { name: /min duration/ })
+	await user.click(await screen.findByRole('menuitem', { name: /kondisjon/i }))
+	await screen.findByRole('button', { name: /min varighet/ })
 }
 
 /** Retype the cardio step's duration token through its popover (replacing the
@@ -75,8 +75,8 @@ async function setDuration(
 	user: ReturnType<typeof userEvent.setup>,
 	value: string,
 ) {
-	await user.click(await screen.findByRole('button', { name: /min duration/ }))
-	const input = await screen.findByLabelText('Duration value')
+	await user.click(await screen.findByRole('button', { name: /min varighet/ }))
+	const input = await screen.findByLabelText('Verdi for varigheten')
 	await user.clear(input)
 	await user.type(input, value)
 	await user.keyboard('{Escape}')
@@ -88,19 +88,21 @@ const popup = () =>
 
 /** The single step's ⋮ mark. */
 const stepMark = () =>
-	screen.getByRole('button', { name: 'Step 1 of 1 actions, block 1 of 1' })
+	screen.getByRole('button', {
+		name: 'Handlinger for steg 1 av 1, blokk 1 av 1',
+	})
 
 /** Retune the seeded step's 10 min quantity down to the 6 min the token anchors
  * reference (a fresh cardio step lands at 10 min, not blank). */
 async function authorDuration(user: ReturnType<typeof userEvent.setup>) {
 	await setDuration(user, '6')
-	await screen.findByRole('button', { name: /^6 min duration/ })
+	await screen.findByRole('button', { name: /^6 min varighet/ })
 }
 
 /** Open the step's quantity popover from its duration token. */
 async function openQuantityPopover(
 	user: ReturnType<typeof userEvent.setup>,
-	name = /^6 min duration/,
+	name = /^6 min varighet/,
 ) {
 	await user.click(await screen.findByRole('button', { name }))
 	return waitFor(() => {
@@ -114,12 +116,12 @@ async function openQuantityPopover(
  * which opens on the quantity intro. */
 async function openAddFacetPopover(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(stepMark())
-	await user.click(await screen.findByRole('menuitem', { name: 'Add…' }))
+	await user.click(await screen.findByRole('menuitem', { name: 'Legg til …' }))
 	return waitFor(() => {
 		const el = document.querySelector(
 			'[data-slot="add-facet-popover"]',
 		) as HTMLElement
-		expect(el).toHaveTextContent('pick how to measure it')
+		expect(el).toHaveTextContent('velg hvordan det skal måles')
 		return el
 	})
 }
@@ -134,22 +136,23 @@ test('the quantity popover leads with a Duration ⇄ Distance switch that seeds 
 
 	await openQuantityPopover(user)
 	const toggle = () =>
-		within(popup()).getByRole('group', { name: 'Quantity kind' })
-	expect(
-		within(toggle()).getByRole('button', { name: 'Duration' }),
-	).toHaveAttribute('aria-pressed', 'true')
+		within(popup()).getByRole('group', { name: 'Mål steget i' })
+	expect(within(toggle()).getByRole('button', { name: 'Tid' })).toHaveAttribute(
+		'aria-pressed',
+		'true',
+	)
 
 	// Switch to distance: the duration clears, the distance seeds 1 km, and
 	// the token re-renders as the distance — the popover stays open on it.
-	await user.click(within(toggle()).getByRole('button', { name: 'Distance' }))
+	await user.click(within(toggle()).getByRole('button', { name: 'Distanse' }))
 	await waitFor(() => expect(stanza()).toHaveTextContent('1 km'))
 	expect(stanza()).not.toHaveTextContent('6 min')
 	expect(
-		screen.getByRole('button', { name: /^1 km distance/ }),
+		screen.getByRole('button', { name: /^1 km distanse/ }),
 	).toBeInTheDocument()
 
 	// Switch back: the authored 6 min round-trips, not the 10 min default.
-	await user.click(within(toggle()).getByRole('button', { name: 'Duration' }))
+	await user.click(within(toggle()).getByRole('button', { name: 'Tid' }))
 	await waitFor(() => expect(stanza()).toHaveTextContent('6 min'))
 	expect(stanza()).not.toHaveTextContent('10 min')
 	expect(stanza()).not.toHaveTextContent('km')
@@ -164,17 +167,17 @@ test('the quantity is removable from its popover, and reintroducible via "＋ ti
 	// Author a note through the duration popover's "＋ note" neighbour link, so
 	// the step carries a second anchor to survive removing the quantity.
 	await user.click(
-		await screen.findByRole('button', { name: /^6 min duration/ }),
+		await screen.findByRole('button', { name: /^6 min varighet/ }),
 	)
-	await user.click(await screen.findByRole('button', { name: '＋ note' }))
-	await user.type(await screen.findByLabelText('Note text'), 'strides')
+	await user.click(await screen.findByRole('button', { name: '＋ notat' }))
+	await user.type(await screen.findByLabelText('Notat'), 'strides')
 	await waitFor(() => expect(stanza()).toHaveTextContent('“strides”'))
 	await user.keyboard('{Escape}')
 
 	// Remove the authored 6 min from the quantity popover's quiet footer.
 	await openQuantityPopover(user)
 	await user.click(
-		screen.getByRole('button', { name: 'Remove time or distance' }),
+		screen.getByRole('button', { name: 'Fjern tid eller distanse' }),
 	)
 	await waitFor(() => expect(stanza()).not.toHaveTextContent('6 min'))
 
@@ -182,16 +185,16 @@ test('the quantity is removable from its popover, and reintroducible via "＋ ti
 	// "＋ time or distance" neighbour link, which swaps to the quantity
 	// editor's intro — nothing seeded until a measure is chosen. Choosing a
 	// measure seeds its default and the quantity token returns to the line.
-	await user.click(screen.getByRole('button', { name: /^note: strides/ }))
+	await user.click(screen.getByRole('button', { name: /^notat: strides/ }))
 	await user.click(
-		await screen.findByRole('button', { name: '＋ time or distance' }),
+		await screen.findByRole('button', { name: '＋ tid eller distanse' }),
 	)
 	const pop = await waitFor(() => {
 		const el = popup()
-		expect(el).toHaveTextContent('pick how to measure it')
+		expect(el).toHaveTextContent('velg hvordan det skal måles')
 		return el
 	})
-	await user.click(within(pop).getByRole('button', { name: 'Distance' }))
+	await user.click(within(pop).getByRole('button', { name: 'Distanse' }))
 	await waitFor(() => expect(stanza()).toHaveTextContent('1 km'))
 })
 
@@ -205,29 +208,29 @@ test('"＋ intensity" swaps the quantity popover to the intensity editor; remova
 
 	const pop = await openQuantityPopover(user)
 	// The intensity popover offers no removal before anything exists.
-	await user.click(within(pop).getByRole('button', { name: '＋ intensity' }))
+	await user.click(within(pop).getByRole('button', { name: '＋ intensitet' }))
 	await waitFor(() =>
-		expect(within(popup()).getByRole('group', { name: 'Zone' })).toBeVisible(),
+		expect(within(popup()).getByRole('group', { name: 'Sone' })).toBeVisible(),
 	)
 	expect(
-		within(popup()).queryByRole('button', { name: 'Remove intensity' }),
+		within(popup()).queryByRole('button', { name: 'Fjern intensiteten' }),
 	).not.toBeInTheDocument()
 
 	// Author a zone: the chip appears on the line.
 	// No Discipline Profile in this stub → the run default recipe's bands (#454).
 	await user.click(within(popup()).getByRole('button', { name: 'T' }))
 	expect(
-		await screen.findByRole('button', { name: /^T intensity/ }),
+		await screen.findByRole('button', { name: /^T intensitet/ }),
 	).toBeInTheDocument()
 
 	// Its own popover now carries the quiet Remove intensity footer.
-	await user.click(screen.getByRole('button', { name: /^T intensity/ }))
+	await user.click(screen.getByRole('button', { name: /^T intensitet/ }))
 	await user.click(
-		await screen.findByRole('button', { name: 'Remove intensity' }),
+		await screen.findByRole('button', { name: 'Fjern intensiteten' }),
 	)
 	await waitFor(() =>
 		expect(
-			screen.queryByRole('button', { name: /^T intensity/ }),
+			screen.queryByRole('button', { name: /^T intensitet/ }),
 		).not.toBeInTheDocument(),
 	)
 })
@@ -241,21 +244,21 @@ test('"＋ note" swaps to the note editor; "Remove note" lives in the note popov
 	await authorDuration(user)
 
 	const pop = await openQuantityPopover(user)
-	await user.click(within(pop).getByRole('button', { name: '＋ note' }))
-	const noteField = await screen.findByLabelText('Note text')
+	await user.click(within(pop).getByRole('button', { name: '＋ notat' }))
+	const noteField = await screen.findByLabelText('Notat')
 	await user.type(noteField, 'easy')
 	await waitFor(() => expect(stanza()).toHaveTextContent('“easy”'))
 	expect(
-		screen.getByRole('button', { name: /^note: easy/ }),
+		screen.getByRole('button', { name: /^notat: easy/ }),
 	).toBeInTheDocument()
 
 	// Close, reopen from the note token itself, and remove from its footer.
 	await user.keyboard('{Escape}')
-	await user.click(screen.getByRole('button', { name: /^note: easy/ }))
-	await user.click(await screen.findByRole('button', { name: 'Remove note' }))
+	await user.click(screen.getByRole('button', { name: /^notat: easy/ }))
+	await user.click(await screen.findByRole('button', { name: 'Fjern notatet' }))
 	await waitFor(() => expect(stanza()).not.toHaveTextContent('“easy”'))
 	expect(
-		screen.queryByRole('button', { name: /^note: easy/ }),
+		screen.queryByRole('button', { name: /^notat: easy/ }),
 	).not.toBeInTheDocument()
 })
 
@@ -267,21 +270,23 @@ test('the rest popover offers "＋ note" but never intensity or discipline', asy
 
 	// Make the step a rest step through its ⋮ Kind section.
 	await user.click(stepMark())
-	await user.click(await screen.findByRole('menuitem', { name: /make rest/i }))
-	await waitFor(() => expect(stanza()).toHaveTextContent('(6 min rest)'))
+	await user.click(
+		await screen.findByRole('menuitem', { name: /gjør til pause/i }),
+	)
+	await waitFor(() => expect(stanza()).toHaveTextContent('(6 min pause)'))
 
-	await user.click(screen.getByRole('button', { name: /^6 min rest/ }))
+	await user.click(screen.getByRole('button', { name: /^6 min pause/ }))
 	const pop = await waitFor(() => {
 		const el = popup()
 		expect(el).not.toBeNull()
 		return el
 	})
-	expect(within(pop).getByRole('button', { name: '＋ note' })).toBeVisible()
+	expect(within(pop).getByRole('button', { name: '＋ notat' })).toBeVisible()
 	expect(
-		within(pop).queryByRole('button', { name: '＋ intensity' }),
+		within(pop).queryByRole('button', { name: '＋ intensitet' }),
 	).not.toBeInTheDocument()
 	expect(
-		within(pop).queryByRole('combobox', { name: 'Step discipline' }),
+		within(pop).queryByRole('combobox', { name: 'Idrett for steget' }),
 	).not.toBeInTheDocument()
 })
 
@@ -290,40 +295,42 @@ test('the rest popover offers "＋ note" but never intensity or discipline', asy
 test('the discipline select overrides and clears; an override renders the quiet word token', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
-	await user.type(await screen.findByLabelText(/title/i), 'Mixed Day')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Mixed Day')
 	await addStructure(user)
 	await authorDuration(user)
 
 	// Override from the quantity popover's discipline select.
 	const pop = await openQuantityPopover(user)
 	await user.click(
-		within(pop).getByRole('combobox', { name: 'Step discipline' }),
+		within(pop).getByRole('combobox', { name: 'Idrett for steget' }),
 	)
-	await user.click(await screen.findByRole('option', { name: 'Ride' }))
+	await user.click(await screen.findByRole('option', { name: 'Sykling' }))
 	await waitFor(() =>
 		expect(
 			stanza().querySelector('[data-token-type="discipline"]'),
-		).toHaveTextContent('bike'),
+		).toHaveTextContent('sykling'),
 	)
 
 	// The word token leads the step, before the quantity.
-	expect(stanza().textContent!.indexOf('bike')).toBeLessThan(
+	expect(stanza().textContent!.indexOf('sykling')).toBeLessThan(
 		stanza().textContent!.indexOf('6 min'),
 	)
 
 	// The override rides the submission.
 	await user.keyboard('{Escape}')
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0] as Record<string, string>
 	expect(payload['blocks[0].steps[0].discipline']).toBe('bike')
 
 	// Tap the word token to edit; clearing back to inherit removes it.
-	await user.click(screen.getByRole('button', { name: /^bike discipline/ }))
+	await user.click(screen.getByRole('button', { name: /^sykling idrett/ }))
 	await user.click(
-		await screen.findByRole('combobox', { name: 'Step discipline' }),
+		await screen.findByRole('combobox', { name: 'Idrett for steget' }),
 	)
-	await user.click(await screen.findByRole('option', { name: /inherit · Run/ }))
+	await user.click(
+		await screen.findByRole('option', { name: /som økta · Løping/ }),
+	)
 	await waitFor(() =>
 		expect(
 			stanza().querySelector('[data-token-type="discipline"]'),
@@ -338,26 +345,26 @@ test('the sets popover carries the discipline select and the "＋ note" link for
 
 	await user.click(stepMark())
 	await user.click(
-		await screen.findByRole('menuitem', { name: /make strength/i }),
+		await screen.findByRole('menuitem', { name: /gjør til styrke/i }),
 	)
 	await waitFor(() => expect(stanza()).toHaveTextContent('1 × 5'))
 
-	await user.click(screen.getByRole('button', { name: /^sets: 1 × 5/ }))
+	await user.click(screen.getByRole('button', { name: /^sett: 1 × 5/ }))
 	const pop = await waitFor(() => {
 		const el = popup()
 		expect(el).not.toBeNull()
 		return el
 	})
 	expect(
-		within(pop).getByRole('combobox', { name: 'Step discipline' }),
+		within(pop).getByRole('combobox', { name: 'Idrett for steget' }),
 	).toBeVisible()
-	expect(within(pop).getByRole('button', { name: '＋ note' })).toBeVisible()
+	expect(within(pop).getByRole('button', { name: '＋ notat' })).toBeVisible()
 	// Strength steps have no cardio facets to introduce.
 	expect(
-		within(pop).queryByRole('button', { name: '＋ intensity' }),
+		within(pop).queryByRole('button', { name: '＋ intensitet' }),
 	).not.toBeInTheDocument()
 	expect(
-		within(pop).queryByRole('button', { name: '＋ time or distance' }),
+		within(pop).queryByRole('button', { name: '＋ tid eller distanse' }),
 	).not.toBeInTheDocument()
 })
 
@@ -373,29 +380,29 @@ test('a facet removed through the popover is absent from the submission — not 
 	// uncontrolled `getInputProps` default, which stays pinned to the seed.)
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
-	await user.type(await screen.findByLabelText(/title/i), 'Recovery')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Recovery')
 	await addStructure(user)
 
 	// Author a note through the seeded duration popover's "＋ note" link, so the
 	// step keeps a visible anchor after the quantity is removed.
 	await user.click(
-		await screen.findByRole('button', { name: /^10 min duration/ }),
+		await screen.findByRole('button', { name: /^10 min varighet/ }),
 	)
-	await user.click(await screen.findByRole('button', { name: '＋ note' }))
-	await user.type(await screen.findByLabelText('Note text'), 'shakeout')
+	await user.click(await screen.findByRole('button', { name: '＋ notat' }))
+	await user.type(await screen.findByLabelText('Notat'), 'shakeout')
 	await waitFor(() => expect(stanza()).toHaveTextContent('“shakeout”'))
 	await user.keyboard('{Escape}')
 
 	// Remove the 10 min quantity from its popover's quiet footer — the notation
 	// renders no quantity token afterwards.
-	await openQuantityPopover(user, /^10 min duration/)
+	await openQuantityPopover(user, /^10 min varighet/)
 	await user.click(
-		screen.getByRole('button', { name: 'Remove time or distance' }),
+		screen.getByRole('button', { name: 'Fjern tid eller distanse' }),
 	)
 	await waitFor(() => expect(stanza()).not.toHaveTextContent('10 min'))
 
 	// Submit: the removed facet must not ride a stale seeded value.
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0] as Record<string, string>
 	expect(payload['blocks[0].steps[0].duration'] ?? '').toBe('')
@@ -413,14 +420,14 @@ test('a fully emptied step grows the one ⋮ "Add…" row, absent in every norma
 	// A normal step's ⋮ menu has no Add… row.
 	await user.click(stepMark())
 	expect(
-		screen.queryByRole('menuitem', { name: 'Add…' }),
+		screen.queryByRole('menuitem', { name: 'Legg til …' }),
 	).not.toBeInTheDocument()
 	await user.keyboard('{Escape}')
 
 	// Empty the step completely: remove its only facet, the authored 6 min.
 	await openQuantityPopover(user)
 	await user.click(
-		screen.getByRole('button', { name: 'Remove time or distance' }),
+		screen.getByRole('button', { name: 'Fjern tid eller distanse' }),
 	)
 	await waitFor(() => expect(stanza()).not.toHaveTextContent('6 min'))
 
@@ -428,14 +435,14 @@ test('a fully emptied step grows the one ⋮ "Add…" row, absent in every norma
 	// ⋮-anchored popover opens on the quantity intro. Choosing a measure seeds
 	// the token back and the step is repaired.
 	const pop = await openAddFacetPopover(user)
-	await user.click(within(pop).getByRole('button', { name: 'Distance' }))
+	await user.click(within(pop).getByRole('button', { name: 'Distanse' }))
 	await waitFor(() => expect(stanza()).toHaveTextContent('1 km'))
 
 	// Repaired: the fallback row is gone again.
 	await user.keyboard('{Escape}')
 	await user.click(stepMark())
 	expect(
-		screen.queryByRole('menuitem', { name: 'Add…' }),
+		screen.queryByRole('menuitem', { name: 'Legg til …' }),
 	).not.toBeInTheDocument()
 })
 
@@ -450,15 +457,15 @@ test('reintroducing the quantity via Duration lands the seed, even when it equal
 	await addStructure(user)
 
 	// Empty the seeded step completely through the quantity popover footer.
-	await openQuantityPopover(user, /min duration/)
+	await openQuantityPopover(user, /min varighet/)
 	await user.click(
-		screen.getByRole('button', { name: 'Remove time or distance' }),
+		screen.getByRole('button', { name: 'Fjern tid eller distanse' }),
 	)
 	await waitFor(() => expect(stanza()).not.toHaveTextContent('min'))
 
 	// Reintroduce via the ⋮ "Add…" fallback, this time picking Duration.
 	const pop = await openAddFacetPopover(user)
-	await user.click(within(pop).getByRole('button', { name: 'Duration' }))
+	await user.click(within(pop).getByRole('button', { name: 'Tid' }))
 
 	// The 10 min seed lands on the line — not silently dropped as pristine.
 	await waitFor(() => expect(stanza()).toHaveTextContent('10 min'))
@@ -466,6 +473,6 @@ test('reintroducing the quantity via Duration lands the seed, even when it equal
 	// Closing the popover, the reintroduced quantity is a real duration token.
 	await user.keyboard('{Escape}')
 	expect(
-		await screen.findByRole('button', { name: /^10 min duration/ }),
+		await screen.findByRole('button', { name: /^10 min varighet/ }),
 	).toBeInTheDocument()
 })

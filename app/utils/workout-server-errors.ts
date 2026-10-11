@@ -23,6 +23,7 @@
  * a block's gutter before its steps, a step's tokens in notation order —
  * because the summary line lists them exactly as the card reads.
  */
+import { TOKEN_EDITOR_REPAIR_LABELS } from './labels.ts'
 import {
 	type TokenAddress,
 	type TokenField,
@@ -55,9 +56,9 @@ export type ServerErrorItem = {
 export type ServerErrorRecord = Record<string, string[] | null | undefined>
 
 /** The summary line's and the live region's shared count wording, so the
- * announcement can never drift from what the card shows. */
+ * announcement can never drift from what the card shows (`labels.ts`). */
 export function describeErrorCount(count: number): string {
-	return count === 1 ? '1 thing needs fixing' : `${count} things need fixing`
+	return TOKEN_EDITOR_REPAIR_LABELS.errorCount(count)
 }
 
 /** Domain-schema field names → the form/token field they alias (ADR 0023:

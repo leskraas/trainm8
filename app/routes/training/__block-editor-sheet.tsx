@@ -90,16 +90,18 @@ const WIDE_QUERY = '(min-width: 48rem)'
  * Whether the screen is `md` or wider, read from `matchMedia` and kept live,
  * so the swipe that dismisses the sheet follows the edge it is docked to.
  * The server and the first client render say "phone"; the sheet is never
- * open on either, so nothing can mismatch.
+ * open on either, so nothing can mismatch. Where `matchMedia` is missing (jsdom,
+ * an old embedded webview) the answer is "phone" too, rather than taking the
+ * whole detail page down with it — the same guard as `ui/sonner.tsx`.
  */
 function useWideScreen(): boolean {
 	return useSyncExternalStore(
 		(onChange) => {
-			const query = window.matchMedia(WIDE_QUERY)
-			query.addEventListener('change', onChange)
-			return () => query.removeEventListener('change', onChange)
+			const query = window.matchMedia?.(WIDE_QUERY)
+			query?.addEventListener('change', onChange)
+			return () => query?.removeEventListener('change', onChange)
 		},
-		() => window.matchMedia(WIDE_QUERY).matches,
+		() => window.matchMedia?.(WIDE_QUERY).matches ?? false,
 		() => false,
 	)
 }
@@ -268,7 +270,11 @@ function SheetBody({
 										{/* Inherits the shared 44px / 16px-phone control
 										    (§2.1/§2.3) — no local height or font override. */}
 										<SelectTrigger aria-label={L.stepKind(stepIndex + 1)}>
-											<SelectValue />
+											{/* Base UI shows the raw value (`cardio`) unless told
+											    how to say it. */}
+											<SelectValue>
+												{(value) => NB_STEP_KIND_LABELS[value as StepKind]}
+											</SelectValue>
 										</SelectTrigger>
 										<SelectContent>
 											{STEP_KINDS.map((stepKind) => (

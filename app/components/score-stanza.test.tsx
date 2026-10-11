@@ -43,7 +43,7 @@ test('one block per line: each block is a row with a gutter, no arrows between b
 	expect(lines[0]!.textContent).not.toContain('→')
 	// The work line reads: 6 min, chip, inline rest in parens.
 	expect(lines[1]).toHaveTextContent('6 min')
-	expect(lines[1]).toHaveTextContent('(1 min rest)')
+	expect(lines[1]).toHaveTextContent('(1 min pause)')
 })
 
 test('repeat renders only as the gutter badge — repeat parentheses leave the line', () => {
@@ -56,7 +56,7 @@ test('repeat renders only as the gutter badge — repeat parentheses leave the l
 	// No repeat group parens anywhere: the only parens are the rest step's.
 	const stanza = document.querySelector('[data-score-stanza]')!
 	expect(stanza.textContent!.match(/\(/g)).toHaveLength(1)
-	expect(stanza).toHaveTextContent('(1 min rest)')
+	expect(stanza).toHaveTextContent('(1 min pause)')
 })
 
 test('block names never render on the line (G2)', () => {
@@ -197,7 +197,7 @@ test('strength rest-between-sets folds in with a mid-dot — parens stay reserve
 	const stanza = document.querySelector('[data-score-stanza]')!
 	expect(stanza).toHaveTextContent('Back squat')
 	expect(stanza).toHaveTextContent('1 × 5 @ 80 kg')
-	expect(stanza).toHaveTextContent(/·\s*2 min 30 s rest/)
+	expect(stanza).toHaveTextContent(/·\s*2 min 30 s pause/)
 	expect(stanza.textContent).not.toContain('(')
 })
 
