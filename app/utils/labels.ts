@@ -3758,6 +3758,40 @@ export function zoneLabelWord(label: string): string {
 	const word = ZONE_LABEL_WORDS[trimmed.toLowerCase()] ?? trimmed
 	return capitalize(word)
 }
+// Round 2 · first run, stamped titles, integrations and upload
+// (branch claude/first-run-integrations). One block; other PRs add their own.
+// ---------------------------------------------------------------------------
+
+/** What a `StatusButton` says to a screen reader while it works, and when done. */
+export const STATUS_BUTTON_LABELS = {
+	pending: 'Arbeider',
+	success: 'Ferdig',
+} as const
+
+/**
+ * What a session the plan lays is called (`stampedSessionTitle`): its kind,
+ * then the sport — `Rolig økt · Løping`, `Terskeløkt · Sykling`. The first
+ * run's two-week preview reads the same words, so what it shows is what lands
+ * on I dag. Stored as the new Workout's title (the athlete can rename it);
+ * sessions laid before round 2 keep the duration title they were given.
+ */
+export const STAMPED_SESSION_LABELS = {
+	easy: 'Rolig økt',
+	long: 'Langtur',
+	/** A long swim is not a _tur_. */
+	longSwim: 'Lang økt',
+	zone: {
+		3: 'Tempoøkt',
+		4: 'Terskeløkt',
+		5: 'Intervalløkt',
+	},
+	/** The hard sessions of a week, as the first run's plan names them. */
+	zoneShort: {
+		3: 'tempo',
+		4: 'terskel',
+		5: 'intervaller',
+	},
+} as const
 
 // ---------------------------------------------------------------------------
 

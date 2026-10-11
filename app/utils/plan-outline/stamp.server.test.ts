@@ -1033,6 +1033,61 @@ test('a week that matches its mix says nothing at all', async () => {
 	)
 })
 
+// Round 2 (#505 story 68): the stamp lays the segment's mix on the bare
+// share days and names each new session for what it is, in Norwegian — not
+// "12 km" or "1 h 48 min". Only sessions laid from now on: a title already
+// stored is the athlete's data and is not rewritten.
+test('bare share days are laid as their kind of session — the mix hard, the heavy one long — and titled in Norwegian', async () => {
+	const plan = await setupPlan()
+	for (const [weekday, weight] of [
+		[1, 1],
+		[3, 1],
+		[6, 2],
+	] as const) {
+		await addDay(plan, {
+			kind: 'share',
+			trackId: plan.runTrackId,
+			weekday,
+			weight,
+		})
+	}
+	const mixed = await setQualitySessionMix(plan.athleteId, {
+		segmentId: (
+			await prisma.trainingTrackSegment.findFirstOrThrow({
+				where: { trackId: plan.runTrackId, kind: 'endurance' },
+				select: { id: true },
+			})
+		).id,
+		entries: [{ zone: 4, sessionsPerWeek: 1 }],
+	})
+	if (!mixed.ok) throw new Error(`mix setup failed: ${mixed.reason}`)
+
+	ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: false,
+		}),
+	)
+
+	const laid = await prisma.workoutSession.findMany({
+		where: { userId: plan.athleteId },
+		orderBy: { scheduledAt: 'asc' },
+		select: { workout: { select: { title: true, intent: true } } },
+	})
+	// Thursday is the ordinary day furthest from Sunday's long run (Tuesday is
+	// two days after it, on the week's wheel), so it carries the hard session.
+	expect(laid.map((session) => session.workout)).toEqual([
+		{ title: 'Rolig økt · Løping', intent: 'endurance' },
+		{ title: 'Terskeløkt · Løping', intent: 'threshold' },
+		{ title: 'Langtur · Løping', intent: 'endurance' },
+	])
+	// The week now holds what its mix asks for, so nothing is warned about.
+	expect(await readStampedMixWarnings(plan.athleteId, plan.outlineId)).toEqual(
+		[],
+	)
+})
+
 test('a pattern with no days has nothing to stamp', async () => {
 	const plan = await setupPlan()
 

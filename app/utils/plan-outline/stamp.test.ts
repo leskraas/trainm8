@@ -307,3 +307,108 @@ describe('mixDisagreements', () => {
 		expect(mixDisagreements([{ zone: 3, sessionsPerWeek: 0 }], [])).toEqual([])
 	})
 })
+
+// Round 2 (#505 stories 66–68, owner round 2): the stamp lays the week's
+// **Quality Session Mix** on its bare share days, so a plan whose philosophy
+// says "two hard sessions a week" gets two, and each session says what it is,
+// the long one included.
+describe('planStamp lays the mix', () => {
+	const HOURS: StampTrack = {
+		trackId: 'run',
+		discipline: 'run',
+		currency: 'hours',
+	}
+
+	function hoursWeek(
+		mix: Array<{ zone: 3 | 4 | 5; sessionsPerWeek: number }>,
+		value = 5,
+	): StampWeekInput {
+		return {
+			weekKey: '2030-01-14',
+			weekInPlan: 1,
+			targets: [{ trackId: 'run', value }],
+			mixes: [{ trackId: 'run', mix }],
+		}
+	}
+
+	test('the heavier share day is the long one, and the rest are ordinary', () => {
+		const [plan] = planStamp({
+			days: [share('tue', 1, 1), share('thu', 3, 1), share('sun', 6, 2)],
+			tracks: [HOURS],
+			weeks: [hoursWeek([])],
+		})
+		expect(plan!.sessions.map((s) => [s.weekday, s.role, s.zone])).toEqual([
+			[1, 'ordinary', null],
+			[3, 'ordinary', null],
+			[6, 'long', null],
+		])
+	})
+
+	test('days of equal weight have no long one', () => {
+		const [plan] = planStamp({
+			days: [share('tue', 1, 1), share('thu', 3, 1)],
+			tracks: [HOURS],
+			weeks: [hoursWeek([])],
+		})
+		expect(plan!.sessions.map((s) => s.role)).toEqual(['ordinary', 'ordinary'])
+	})
+
+	test('the mix lands on ordinary days, hardest first, spread away from the long day', () => {
+		const [plan] = planStamp({
+			days: [
+				share('tue', 1, 1),
+				share('thu', 3, 1),
+				share('sat', 5, 1),
+				share('sun', 6, 2),
+			],
+			tracks: [HOURS],
+			weeks: [
+				hoursWeek([
+					{ zone: 3, sessionsPerWeek: 1 },
+					{ zone: 4, sessionsPerWeek: 1 },
+				]),
+			],
+		})
+		// Saturday sits beside the long Sunday and stays easy; Tuesday and
+		// Thursday carry the week's two hard sessions, the harder one first.
+		expect(plan!.sessions.map((s) => [s.weekday, s.zone])).toEqual([
+			[1, 4],
+			[3, 3],
+			[5, null],
+			[6, null],
+		])
+		// The volume is untouched: a hard day takes its share as before.
+		expect(plan!.sessions.map((s) => s.volume)).toEqual([1, 1, 1, 2])
+	})
+
+	test('never the long day, and never more hard days than ordinary ones', () => {
+		const [plan] = planStamp({
+			days: [share('wed', 2, 1), share('sun', 6, 2)],
+			tracks: [HOURS],
+			weeks: [hoursWeek([{ zone: 4, sessionsPerWeek: 2 }])],
+		})
+		expect(plan!.sessions.map((s) => s.zone)).toEqual([4, null])
+	})
+
+	test('a fixed session already in the mix’s zone counts toward it', () => {
+		const [plan] = planStamp({
+			days: [
+				fixed('wed', 2, 1, { zone: 4 }),
+				share('fri', 4, 1),
+				share('sun', 6, 2),
+			],
+			tracks: [HOURS],
+			weeks: [hoursWeek([{ zone: 4, sessionsPerWeek: 1 }])],
+		})
+		expect(plan!.sessions.map((s) => s.zone)).toEqual([null, null, null])
+	})
+
+	test('a week given no mix lays every share day easy, as before', () => {
+		const [plan] = planStamp({
+			days: [share('tue', 1, 1), share('sun', 6, 2)],
+			tracks: [HOURS],
+			weeks: [week('2030-01-14', 1, [{ trackId: 'run', value: 3 }])],
+		})
+		expect(plan!.sessions.map((s) => s.zone)).toEqual([null, null])
+	})
+})

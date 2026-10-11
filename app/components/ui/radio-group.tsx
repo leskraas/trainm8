@@ -2,12 +2,11 @@ import { Radio as RadioPrimitive } from '@base-ui/react/radio'
 import { RadioGroup as RadioGroupPrimitive } from '@base-ui/react/radio-group'
 import { cn } from '#app/utils/misc.tsx'
 
-// shadcn `base-luma` radio group, as `npx shadcn@latest add radio-group`
-// generates it, with only the mechanical normalisations (N1 the repo's `cn`,
-// N3 formatting; docs/design/design-system.md). It has no icon and no
-// transition. The `after:` hit area is the CLI's own; a page that wants a 44px
-// target wraps each item in a label row (the Events form's choice tiles).
-
+// shadcn `base-luma` radio group (round 2, for the first run's choices).
+// Deviations (docs/design/design-system.md): N1 `cn` is the repo's; N3
+// formatting; D5 the fill and focus ring ride `duration-press ease-out`
+// rather than snapping, as the checkbox does. The `after:` hit area is the
+// CLI's own.
 function RadioGroup({ className, ...props }: RadioGroupPrimitive.Props) {
 	return (
 		<RadioGroupPrimitive
@@ -23,7 +22,7 @@ function RadioGroupItem({ className, ...props }: RadioPrimitive.Root.Props) {
 		<RadioPrimitive.Root
 			data-slot="radio-group-item"
 			className={cn(
-				'group/radio-group-item peer bg-input/90 focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:bg-primary data-checked:text-primary-foreground dark:data-checked:bg-primary relative flex aspect-square size-4 shrink-0 rounded-full border border-transparent outline-none group-has-[:focus-visible]/field-label:border-transparent group-has-[:focus-visible]/field-label:ring-0 after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3',
+				'group/radio-group-item peer bg-input/90 focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:bg-primary data-checked:text-primary-foreground dark:data-checked:bg-primary duration-press relative flex aspect-square size-4 shrink-0 rounded-full border border-transparent transition-[background-color,box-shadow] ease-out outline-none group-has-[:focus-visible]/field-label:border-transparent group-has-[:focus-visible]/field-label:ring-0 after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3',
 				className,
 			)}
 			{...props}

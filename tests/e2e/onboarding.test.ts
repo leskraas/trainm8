@@ -295,8 +295,10 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 	await usernameInput.fill('U$er_name') // $ is invalid char, see app/utils/user-validation.ts.
 	await createAccountButton.click()
 
-	await expect(createAccountButton.getByRole('status')).toBeVisible()
-	await expect(createAccountButton.getByText('error')).toBeAttached()
+	// Round 2 (audit D8): an error puts nothing in the button — no red ✕ in a
+	// green button — because the field below already says what is wrong.
+	await expect(createAccountButton.getByRole('status')).not.toBeAttached()
+	await expect(createAccountButton.getByText('error')).not.toBeAttached()
 	await expect(
 		page.getByText(
 			/username can only include letters, numbers, and underscores/i,

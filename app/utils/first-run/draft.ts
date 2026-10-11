@@ -14,7 +14,12 @@ import {
 	availabilityFitWarnings,
 	type AvailabilityFitWarning,
 } from '../plan-outline/availability-fit.ts'
-import { totalWeeks, weekRole, type WeekRole } from '../plan-outline/derive.ts'
+import {
+	phaseIndexForWeek,
+	totalWeeks,
+	weekRole,
+	type WeekRole,
+} from '../plan-outline/derive.ts'
 import { fitRunUp } from '../plan-outline/fit-proposal.ts'
 import {
 	phaseSpecs,
@@ -131,13 +136,20 @@ export type FirstRunDraft = {
 	phases: PresetPhase[]
 	rows: OutlineRows
 	/**
-	 * The first week's target in hours — the track's **Season Anchor**. Set so
-	 * the plan's heaviest week lands at or under the hours the athlete gave.
+	 * The first week's target in hours — the track's **Season Anchor**: the
+	 * hours the athlete trains now (owner decision 15, round 2). The family's
+	 * climb starts from it, so later weeks ask for more.
 	 */
 	anchor: number
 	/** Every plan week's target in hours, earliest first. */
 	targets: Array<number | null>
-	/** The starter pattern's days: the chosen days, the last one long. */
+	/**
+	 * The days the plan lays sessions on: the chosen days, cut to what the
+	 * hours can fill without a session under half an hour, and to six
+	 * ({@link patternDaysFor}). The chosen days stay the athlete's availability.
+	 */
+	patternDays: PatternWeekday[]
+	/** The starter pattern's days: the pattern days, the last one long. */
 	pattern: StarterDay[]
 	/** The plan's first two weeks, as the stamp lays them. */
 	weeks: DraftWeek[]
@@ -177,34 +189,89 @@ export function mixWithinDays(
 }
 
 /** The heaviest week's target, or null where no week is priced. */
-function peakOf(targets: ReadonlyArray<number | null>): number | null {
+export function peakOf(targets: ReadonlyArray<number | null>): number | null {
 	const priced = targets.filter((value): value is number => value != null)
 	return priced.length === 0 ? null : Math.max(...priced)
 }
 
-/** One step of the hours currency (ADR 0043): a tenth of an hour. */
-const HOURS_STEP = 0.1
+/**
+ * The shortest session the first run lays: half an hour. Below it a session
+ * is not training anyone would put on a calendar ("Langtur · 6 min" at 0,5 t
+ * spread over four days, round-2 break-ui).
+ */
+export const MIN_SESSION_HOURS = 0.5
 
 /**
- * The first week's hours that put the plan's heaviest week at or under the
- * athlete's weekly hours. The hours they gave are their **Weekly Capacity**,
- * and no week of the plan may ask for more (#505: "the plan honours the
- * chosen hours"). The derivation is multiplicative from the anchor (ADR 0040
- * §3), so the family's whole climb scales with it: the shape is kept, and
- * week 1 starts lower. Rounded down to the tenth the currency is authored in,
- * then stepped down until no week is over.
+ * The most days a week the first run lays sessions on: six. Seven chosen days
+ * still leave one to rest — the day after the long one — because a plan with
+ * no easy day at all is not one the app should propose (round-2 break-ui).
+ * The athlete can add the seventh in Sesong; their availability keeps all of
+ * the days they chose.
  */
-function cappedAnchor(
-	targetsAt: (anchor: number) => Array<number | null>,
-	capacity: number,
-): number {
-	const peak = peakOf(targetsAt(capacity))
-	if (peak == null || peak <= capacity) return capacity
-	let anchor = Math.floor(((capacity * capacity) / peak) * 10) / 10
-	while (anchor > HOURS_STEP && (peakOf(targetsAt(anchor)) ?? 0) > capacity) {
-		anchor = Math.round((anchor - HOURS_STEP) * 10) / 10
+export const MAX_SESSION_DAYS = 6
+
+/**
+ * How many sessions `hours` can be spread over with no session under
+ * {@link MIN_SESSION_HOURS}: the starter pattern weighs the long day double
+ * (`proposeStarterPattern`), so `n` days are `n + 1` shares, and the shortest
+ * is `hours / (n + 1)` — one day is the whole week.
+ */
+function sessionsFor(hours: number): number {
+	let count = 1
+	while (hours / (count + 2) >= MIN_SESSION_HOURS) count += 1
+	return count
+}
+
+/** Days apart on the week's wheel: Sunday and Monday are neighbours. */
+function weekdayGap(a: number, b: number): number {
+	const apart = Math.abs(a - b)
+	return Math.min(apart, 7 - apart)
+}
+
+/** The smallest gap between neighbouring days, round the week. */
+function tightestGap(days: readonly number[]): number {
+	if (days.length < 2) return 7
+	return Math.min(
+		...days.map((day, index) =>
+			weekdayGap(day, days[(index + 1) % days.length]!),
+		),
+	)
+}
+
+/**
+ * The days the plan lays sessions on: the chosen days, cut to what the hours
+ * can fill ({@link sessionsFor}) and to {@link MAX_SESSION_DAYS}. The last
+ * chosen day — the long one — always stays; the others go one at a time, each
+ * time the one whose going leaves the remaining days most evenly apart, the
+ * earliest on a tie (so seven days lose Monday, the day after Sunday's long
+ * run). Monday-first and sorted, as the days came in.
+ */
+export function patternDaysFor(
+	days: readonly PatternWeekday[],
+	hours: number,
+): PatternWeekday[] {
+	const sorted = [...new Set(days)].sort((a, b) => a - b)
+	const keep = Math.max(
+		1,
+		Math.min(sorted.length, MAX_SESSION_DAYS, sessionsFor(hours)),
+	)
+	const long = sorted.at(-1)
+	const kept = [...sorted]
+	while (kept.length > keep) {
+		let drop: PatternWeekday | null = null
+		let best = -1
+		for (const day of kept) {
+			if (day === long) continue
+			const gap = tightestGap(kept.filter((other) => other !== day))
+			if (gap > best) {
+				best = gap
+				drop = day
+			}
+		}
+		if (drop == null) break
+		kept.splice(kept.indexOf(drop), 1)
 	}
-	return Math.max(HOURS_STEP, anchor)
+	return kept
 }
 
 /**
@@ -223,24 +290,26 @@ export function draftFirstRunPlan({
 	goal: DraftGoal
 	startWeekKey: string
 	discipline: CardioDiscipline
-	/** The hours a week the athlete has: the cap no week may exceed. */
+	/**
+	 * The hours a week the athlete trains **now** (owner decision 15, round
+	 * 2): the plan's first week, and where the family's climb starts. It was
+	 * a ceiling once, which started a 4 t runner on 2,5 t.
+	 */
 	weeklyHours: number
 	/** Monday-first weekdays the athlete can train. */
 	days: readonly PatternWeekday[]
 }): FirstRunDraft | null {
 	const familyPhases = firstRunPhases(family, goal)
 	if (!familyPhases || days.length === 0) return null
+	const patternDays = patternDaysFor(days, weeklyHours)
+	// Hard sessions go on ordinary days, never the long one (`planStamp`), so
+	// the mix is cut to the pattern's days less the long day.
+	const hardDays = patternDays.length > 1 ? patternDays.length - 1 : 0
 	const phases = familyPhases.map((phase) => ({
 		...phase,
-		mix: mixWithinDays(phase.mix, days.length),
+		mix: mixWithinDays(phase.mix, hardDays),
 	}))
-	const targetsAt = (anchor: number) =>
-		(
-			resolvedTracks(
-				draftRows({ phases, startWeekKey, discipline, weeklyHours: anchor }),
-			)[0]?.targets ?? []
-		).map((target) => target.value)
-	const anchor = cappedAnchor(targetsAt, weeklyHours)
+	const anchor = weeklyHours
 	const rows = draftRows({
 		phases,
 		startWeekKey,
@@ -252,7 +321,7 @@ export function draftFirstRunPlan({
 	const targets = track.targets.map((target) => target.value)
 
 	const starter = proposeStarterPattern({
-		trainableWeekdays: calendarWeekdaysOf(days),
+		trainableWeekdays: calendarWeekdaysOf(patternDays),
 		tracks: [{ trackId: DRAFT_TRACK_ID, discipline, sessionsPerWeek: null }],
 	})
 	if (!starter) return null
@@ -283,6 +352,18 @@ export function draftFirstRunPlan({
 			weekKey: weekKeyAt(startWeekKey, index),
 			weekInPlan: index + 1,
 			targets: [{ trackId: DRAFT_TRACK_ID, value: targets[index] ?? null }],
+			// The week's segment's mix, read as the stamp reads it, so the hard
+			// sessions shown are the hard sessions laid.
+			mixes: [
+				{
+					trackId: DRAFT_TRACK_ID,
+					mix:
+						track.segments.find(
+							(segment) =>
+								segment.phaseIndex === phaseIndexForWeek(specs, index),
+						)?.mix ?? [],
+				},
+			],
 		})),
 	})
 
@@ -291,6 +372,7 @@ export function draftFirstRunPlan({
 		rows,
 		anchor,
 		targets,
+		patternDays,
 		pattern: starter.days,
 		weeks: planned.map((week, index) => ({
 			...week,
