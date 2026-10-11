@@ -297,11 +297,11 @@ import {
 	type EditableAnchorTrack,
 } from './__season-anchor-editor.tsx'
 import { SeasonChart } from './__season-chart.tsx'
-import { readSeasonPicture } from './__season-picture.server.ts'
-import { SeasonPicture } from './__season-picture.tsx'
 import { seasonEditAction } from './__season-edits.server.ts'
 import { SeasonEditLink, SeasonEditsCard } from './__season-edits.tsx'
 import { SEASON_EVENTS_SHOWN, SeasonEvents } from './__season-events.tsx'
+import { readSeasonPicture } from './__season-picture.server.ts'
+import { SeasonPicture } from './__season-picture.tsx'
 import {
 	StrengthBlocksSection,
 	StrengthSegmentFormSchema,
@@ -2253,12 +2253,14 @@ export default function PlanRoute({
 	}
 
 	return (
-		<main className="container mx-auto max-w-2xl py-6 md:py-8">
+		// One column to `lg`, then two (decision 13): wide enough for both
+		// columns to keep a phone's reading width rather than one long line.
+		<main className="container mx-auto max-w-2xl py-6 md:py-8 lg:max-w-6xl">
 			{/* Sesong is a tab's landing page (ADR 0083), so it carries no back
 			    affordance (ui-conventions §3.3): the tab bar is the way out. */}
 			<PageHeader title={APP_TAB_LABELS.season} className="mb-2" />
 
-			<div className="mb-6 space-y-3">
+			<div className="mb-6 space-y-3 lg:mx-auto lg:max-w-2xl">
 				{season.eventId != null && season.eventDate != null ? (
 					<PlanHero
 						eyebrow={SESONG_PAGE_LABELS.heroToward}
@@ -2347,15 +2349,26 @@ export default function PlanRoute({
 			    opened — then the edits and the philosophy that change it, the Events
 			    it is planned around, what it adds up to, and the two readings that
 			    author its rules. */}
-			<div className="space-y-6">
+			{/* From `lg`, two columns (round-2 decision 13, ADR 0090): the season —
+			    picture and table, what it comes to, the readings — on the left, and
+			    the edits, the philosophy and the Events on the right. Not the full
+			    spreadsheet (Arket N). One DOM order for both widths, so the phone's
+			    order and the keyboard's are the same: the right column is one
+			    element spanning every row, and the left items flow down the rows
+			    beside it. The last row is `1fr`, so a tall right column grows that
+			    row (the readings', which run longest) rather than opening gaps
+			    between the left column's cards. */}
+			<div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:grid-rows-[repeat(4,auto)_1fr] lg:items-start lg:space-y-0 lg:gap-x-6 lg:gap-y-6">
 				{seasonPicture ? (
-					<SeasonPicture
-						picture={seasonPicture}
-						firstUnbegunWeekKey={firstUnbegunWeekKey}
-					/>
+					<div className="lg:col-start-1">
+						<SeasonPicture
+							picture={seasonPicture}
+							firstUnbegunWeekKey={firstUnbegunWeekKey}
+						/>
+					</div>
 				) : null}
 
-				<div className="space-y-6">
+				<div className="space-y-6 lg:col-start-2 lg:row-span-full lg:row-start-1">
 					{/* The Sesong edits (#505 stories 72–77): a week's target, a phase's
 					    name and length, and the easy week — each behind a preview. A row
 					    of the season table opens the first of them on its week. */}
@@ -2410,6 +2423,7 @@ export default function PlanRoute({
 					titleId="season-summary"
 					title={SESONG_PAGE_LABELS.summaryTitle}
 					contentClassName="space-y-5"
+					className="lg:col-start-1"
 				>
 					{season.spanGroups.length > 0 ? (
 						<SeasonSpanHeadline
@@ -2442,21 +2456,25 @@ export default function PlanRoute({
 
 				{/* What is left to set up, above the two readings that do it — gone
 				    once nothing is outstanding: a way in, not a scoreboard. */}
-				<NextSteps
-					season={season}
-					weeksWithSessions={weeksWithSessions}
-					hrefFor={readingHref}
-				/>
+				<div className="lg:col-start-1">
+					<NextSteps
+						season={season}
+						weeksWithSessions={weeksWithSessions}
+						hrefFor={readingHref}
+					/>
+				</div>
 
 				{/* What the plan **cannot** tell you (#399 story 49, ADR 0047 §5): about
 				    the plan, not a control, so said once beside its figures — behind a
 				    closed line that names it, rather than three paragraphs in the way
 				    of the edits. */}
 				{season.unavailableReadings.length > 0 ? (
-					<UnavailableReadingsNotice readings={season.unavailableReadings} />
+					<div className="lg:col-start-1">
+						<UnavailableReadingsNotice readings={season.unavailableReadings} />
+					</div>
 				) : null}
 
-				<div className="space-y-6">
+				<div className="space-y-6 lg:col-start-1">
 					<SegmentedNav
 						label={SESONG_PAGE_LABELS.readings}
 						options={TABS.map((name) => ({
