@@ -1105,8 +1105,10 @@ test('a gym day is logged som planlagt from I dag in one tap, and the week count
 	await navigate('/')
 	const log = page.getByRole('region', { name: 'Logg Styrke A' })
 	await expect(log).toBeVisible()
-	// Pre-filled from the plan, in the athlete's words.
-	await expect(log.getByText('Back Squat')).toBeVisible()
+	// Pre-filled from the plan, in the athlete's words — Norwegian, not the
+	// database's English name (audit PR D).
+	await expect(log.getByText('Knebøy')).toBeVisible()
+	await expect(log.getByText('Back Squat')).toHaveCount(0)
 	await expect(log.getByText('· 3×5 · 60 kg')).toBeVisible()
 	const track = page.locator(
 		`[data-timeline-week="${monday}"] [data-week-track]`,
@@ -1125,7 +1127,10 @@ test('a gym day is logged som planlagt from I dag in one tap, and the week count
 	await expect(
 		page.getByRole('link', { name: /Styrke A/ }).getByText(/3 \/ 3/),
 	).toBeVisible()
-	await expect(page.getByText(/3 sett logget/)).toBeVisible()
+	const toast = page
+		.locator('[data-sonner-toast]')
+		.filter({ hasText: /3 sett logget/ })
+	await expect(toast).toBeVisible()
 	const sets = await prisma.exerciseSetLog.findMany({
 		where: { sessionId: gym.id },
 		select: { reps: true, effectiveKg: true },
@@ -1136,6 +1141,21 @@ test('a gym day is logged som planlagt from I dag in one tap, and the week count
 		{ reps: 5, effectiveKg: 60 },
 	])
 	await shot(page, 'quick-log-2-logged', track)
+
+	// A mistap is one tap back (ADR 0088): Angre in the toast takes exactly
+	// those sets out, the session is planned again and the log is offered.
+	await toast.getByRole('button', { name: 'Angre' }).click()
+	await expect(
+		page.getByText(/Loggen er angret — 3 sett tatt ut/),
+	).toBeVisible()
+	await expect(log).toBeVisible()
+	await expect(track.getByRole('meter', { name: /gjort 0,/ })).toBeVisible()
+	expect(
+		await prisma.exerciseSetLog.findMany({
+			where: { sessionId: gym.id },
+			select: { id: true },
+		}),
+	).toEqual([])
 	await expectNoHorizontalOverflow(page)
 	expect(errors).toEqual([])
 })
@@ -1154,18 +1174,18 @@ test('Endre logs the set that went differently, at the planned weight', async ({
 
 	await navigate('/')
 	const log = page.getByRole('region', { name: 'Logg Styrke A' })
-	await expect(log.getByText('Back Squat')).toBeVisible()
+	await expect(log.getByText('Knebøy')).toBeVisible()
 	await log.getByRole('button', { name: 'Endre' }).click()
 
 	// One field per set, pre-filled; no weight field — ADR 0064 §2, said here.
 	const third = log.getByRole('spinbutton', {
-		name: 'Sett 3 av Back Squat, reps',
+		name: 'Sett 3 av Knebøy, repetisjoner',
 	})
 	await expect(third).toHaveValue('5')
 	await expect(log.getByText(/Vekta står som planlagt/)).toBeVisible()
 	await expectEveryControlTappable(log)
 	await log
-		.getByRole('spinbutton', { name: 'Sett 2 av Back Squat, reps' })
+		.getByRole('spinbutton', { name: 'Sett 2 av Knebøy, repetisjoner' })
 		.fill('3')
 	await third.fill('')
 	await shot(page, 'quick-log-3-edit', log)

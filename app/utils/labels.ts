@@ -1199,6 +1199,14 @@ export const IMPORT_LINK_LABELS = {
 	relinkNote: (title: string) => `Tilbake til ${title}.`,
 	/** Said while the post is in flight, before the row moves. */
 	saving: 'Lagrer …',
+	/**
+	 * An ekstra's own name, for a recording nothing named (audit PR D):
+	 * `Løping · 57 min`, `Sykling · 12,4 km` — never `57 min 12 s run`.
+	 */
+	extraTitle: (sport: string, quantity: string | null) =>
+		quantity ? `${sport} · ${quantity}` : sport,
+	/** The ekstra's glyph: an import, not one of the app's sessions. */
+	glyph: (title: string) => `Importert økt ${title}`,
 } as const
 
 /** Why the server turned an import answer down, said to the athlete. */
@@ -1222,6 +1230,9 @@ export const MARK_DONE_LABELS = {
 	actionFor: (title: string) => `Merk ${title} som gjort`,
 	fromImport: 'Gjort · tallene kommer fra importen',
 	noImport: 'Gjort · uten tall, ingen import er koblet til',
+	/** The same, as the row's own small mark: the done dot already says Gjort. */
+	rowFromImport: 'tallene kommer fra importen',
+	rowNoImport: 'uten tall',
 	saving: 'Merket som gjort …',
 } as const
 
@@ -1236,6 +1247,50 @@ export const MARK_DONE_REFUSAL_LABELS: Record<MarkDoneRefusal, string> = {
 
 /** The `LoadValue` member a resolved working load is logged as. */
 type WorkingLoadKind = Extract<WorkingLoad, { kind: 'resolved' }>['loadKind']
+
+/**
+ * The Norwegian names of the lifts athletes log most, by the exercise
+ * database's own (English) name — for display on I dag's quick log (audit PR
+ * D), where `Back Squat` beside `Som planlagt` read as two languages. The
+ * same words the writing line reads (`workout-sentence.ts`, ADR 0089), the
+ * other way round. A name not here is shown as the database has it; owner
+ * decision 9's aliases in the database will take over from this list.
+ */
+const NB_EXERCISE_NAMES: Record<string, string> = {
+	'Back Squat': 'Knebøy',
+	'Front Squat': 'Frontknebøy',
+	'Goblet Squat': 'Gobletknebøy',
+	Deadlift: 'Markløft',
+	'Romanian Deadlift': 'Rumensk markløft',
+	'Bench Press': 'Benkpress',
+	'Incline Bench Press': 'Skrå benkpress',
+	'Overhead Press': 'Skulderpress',
+	'Barbell Row': 'Stangroing',
+	'Dumbbell Row': 'Hantelroing',
+	'Seated Cable Row': 'Sittende roing',
+	'Chin-up': 'Chins',
+	'Pull-up': 'Pull-ups',
+	'Push-up': 'Armhevinger',
+	Dip: 'Dips',
+	Plank: 'Planke',
+	'Side Plank': 'Sideplanke',
+	'Leg Press': 'Beinpress',
+	'Lat Pulldown': 'Nedtrekk',
+	'Hip Thrust': 'Hoftehev',
+	'Power Clean': 'Frivending',
+	'Lateral Raise': 'Sidehev',
+	'Bicep Curl': 'Bicepscurl',
+	Lunge: 'Utfall',
+	'Walking Lunge': 'Gående utfall',
+	'Bulgarian Split Squat': 'Bulgarsk utfall',
+	'Calf Raise': 'Tåhev',
+	'Step-up': 'Step-up',
+}
+
+/** A lift by its Norwegian name, or the database's where there is none. */
+export function nbExerciseName(name: string): string {
+	return NB_EXERCISE_NAMES[name] ?? name
+}
 
 /** The short log under a strength session's row. */
 export const QUICK_LOG_LABELS = {
@@ -1254,7 +1309,7 @@ export const QUICK_LOG_LABELS = {
 	weightNote: 'Vekta står som planlagt. En annen vekt kan ikke logges her.',
 	notDoneNote: 'Tomt eller 0 betyr at settet ikke ble gjort.',
 	setInput: (lift: string, position: number, unit: SetUnit) =>
-		`Sett ${position} av ${lift}, ${unit === 'reps' ? 'reps' : 'sekunder'}`,
+		`Sett ${position} av ${lift}, ${unit === 'reps' ? 'repetisjoner' : 'sekunder'}`,
 	notLoggable:
 		'Ett av løftene har ingen fast vekt eller antall, så økta logges sett for sett.',
 	runnerLink: 'Logg sett for sett',
@@ -1272,6 +1327,20 @@ export const QUICK_LOG_LABELS = {
 	) => {
 		const head = `${sets} sett logget.`
 		if (week == null) return head
+		return `${head} Styrke ${week.name.toLowerCase()}: ${week.before} → ${week.after} sett gjort.`
+	},
+	/** The log's toast's way back (ADR 0088). */
+	undo: 'Angre',
+	/** After _Angre_: the sets are out, and the session is planned again. */
+	undone: (
+		sets: number,
+		week: { name: string; before: number; after: number } | null,
+	) => {
+		const head =
+			sets === 0
+				? 'Loggen var allerede angret.'
+				: `Loggen er angret — ${sets} sett tatt ut.`
+		if (week == null || sets === 0) return head
 		return `${head} Styrke ${week.name.toLowerCase()}: ${week.before} → ${week.after} sett gjort.`
 	},
 	/** The prescription's weight, in the load's own semantics (ADR 0056 §3);
@@ -1753,7 +1822,8 @@ export const SESSION_COMPOSER_LABELS = {
 	/** The line names lifts and the exercise catalogue is still on its way. */
 	exercisesLoading: 'Henter øvelsene…',
 	/** An unknown lift with no name near it. */
-	noExercise: 'Skriv øvelsen slik den heter i Bibliotek, f.eks. Knebøy eller Markløft.',
+	noExercise:
+		'Skriv øvelsen slik den heter i Bibliotek, f.eks. Knebøy eller Markløft.',
 	/** `Til sammen 10 sett` — a session of lifts, counted as the week counts it. */
 	sets: (count: number) => `${count} sett`,
 	add: 'Legg til',
@@ -3532,18 +3602,20 @@ export const NB_THRESHOLD_FIELD_LABELS: Record<ThresholdField, string> = {
 }
 
 /** Why an accumulated Season Span may be added up at all (ADR 0043 §6). */
-export const NB_ACCUMULATED_SPAN_LABELS: Record<AccumulatingCurrency, string> = {
-	tss: 'Lagt sammen på tvers av utholdenhetssporene, fordi en TSS er den samme timen med terskelarbeid uansett hvilket spor den brukes i.',
-	hours:
-		'Lagt sammen på tvers av utholdenhetssporene som det uka koster i tid – aldri som hvor hard den er.',
-}
+export const NB_ACCUMULATED_SPAN_LABELS: Record<AccumulatingCurrency, string> =
+	{
+		tss: 'Lagt sammen på tvers av utholdenhetssporene, fordi en TSS er den samme timen med terskelarbeid uansett hvilket spor den brukes i.',
+		hours:
+			'Lagt sammen på tvers av utholdenhetssporene som det uka koster i tid – aldri som hvor hard den er.',
+	}
 
 /** Why a Block Boundary Step is not one the walk applies (ADR 0040 §5). */
 export const NB_BOUNDARY_STEP_OUT_OF_FORCE_LABELS: Record<
 	BoundaryStepOutOfForce,
 	string
 > = {
-	'season-opens': 'Sesongen starter her, så det er ingen blokkgrense å hoppe ved.',
+	'season-opens':
+		'Sesongen starter her, så det er ingen blokkgrense å hoppe ved.',
 	'no-anchor-yet':
 		'Ingen startnivå dekker denne blokka ennå, så starten kan ikke regnes ut – det er ikke noe nivå å hoppe fra.',
 	'anchor-opens-here':
@@ -3627,7 +3699,8 @@ export const SESONG_PAGE_LABELS = {
 	copyTitle: 'Kopier uke',
 	copyDetail: 'Tar med øktene i en uke slik du skrev dem, uten mønster.',
 	advancedChart: 'Sesongdiagram',
-	advancedChartDetail: 'Lag for fart, form, rytme og stigning, og regnestykket bak hver uke.',
+	advancedChartDetail:
+		'Lag for fart, form, rytme og stigning, og regnestykket bak hver uke.',
 	shapeTitle: 'Start fra en form',
 	shapeDetail:
 		'Ferdige former for sesongen, tegnet som belastningen de gir. En form erstatter blokkene dine.',
@@ -3741,8 +3814,7 @@ export const SESONG_SEGMENT_LABELS = {
 		track ? `Kvalitetsøkter for ${track.toLowerCase()}` : 'Kvalitetsøkter',
 	mixIntro:
 		'Økter i uka i hver kvalitetssone. Tomt eller 0 tar sonen ut – alle tre tomme er en blokk uten kvalitetsøkter, og det er en plan, ikke et hull. Dette tomme feltet er ikke det samme som stigningens tomme felt over: kvalitetsøkter har ingen vanlig praksis å falle tilbake på.',
-	mixField: (zone: number, name: string) =>
-		`Sone ${zone} ${name}, økter i uka`,
+	mixField: (zone: number, name: string) => `Sone ${zone} ${name}, økter i uka`,
 	emphasis: 'Vekt, utledet',
 	count: 'Kvalitetsøkter i uka, utledet',
 	derivedNote:
@@ -3908,7 +3980,8 @@ export const SESONG_LIFTING_LABELS = {
 	goalRequired: 'Velg hva blokka er til for',
 	sessionsRequired: 'Hvor mange styrkeøkter i uka?',
 	sessionsWhole: 'Antall økter er et helt tall',
-	summaryNone: 'Ingen styrkeblokk ennå – ukene mellom blokker er uker uten styrke.',
+	summaryNone:
+		'Ingen styrkeblokk ennå – ukene mellom blokker er uker uten styrke.',
 	summary: (blocks: number) =>
 		`${blocks === 1 ? '1 blokk' : `${blocks} blokker`}, hver datert og ikke knyttet til en fase.`,
 } as const
@@ -3968,7 +4041,8 @@ export const SESONG_PATTERN_LABELS = {
 	addDay: 'Legg til en dag',
 	weekday: 'Ukedag',
 	track: 'Spor',
-	trackNote: 'En svømmedag tar svømmevolum, så dagen sier hvilket spor den hører til.',
+	trackNote:
+		'En svømmedag tar svømmevolum, så dagen sier hvilket spor den hører til.',
 	kind: 'Hva slags dag',
 	fixedHint:
 		'Slik du skrev den og aldri skalert – de samme dragene i en stor uke og en liten.',
@@ -4016,7 +4090,8 @@ export const SESONG_PATTERN_LABELS = {
 		`${built}, med den siste dagen lang. Hver dag kan flyttes, vektes eller fjernes. Ukene fylles fra den når horisonten når dem.`,
 	nameRequired: 'Gi mønsteret et navn.',
 	whichDay: 'Hvilken ukedag?',
-	weightRequired: 'Hvor stor er dagen ved siden av de andre? f.eks. 1, eller 2,5',
+	weightRequired:
+		'Hvor stor er dagen ved siden av de andre? f.eks. 1, eller 2,5',
 } as const
 
 /** Kopier uke, under Uker (#415). */
@@ -4042,12 +4117,7 @@ export const SESONG_COPY_LABELS = {
 	orEmpty: 'Eller velg en tom uke i stedet.',
 	done: 'Uka er kopiert',
 	/** `4 økter fra uke 41 til uke 43, slik du skrev dem. …`. */
-	sentence: (
-		sessions: number,
-		from: number,
-		to: number,
-		replaced: number,
-	) =>
+	sentence: (sessions: number, from: number, to: number, replaced: number) =>
 		`${nbSessions(sessions)} fra uke ${from} til uke ${to}, slik du skrev dem. Endre den ene uka – den andre står.${replaced > 0 ? ` ${nbSessions(replaced)} ble erstattet.` : ''}`,
 	noPrescription:
 		'En økt uten en økt bak seg ble utelatt – det var ingenting å kopiere.',
@@ -4186,7 +4256,8 @@ export const SESONG_CHART_LABELS = {
 	readIn: 'Les i',
 	layers: 'Lag',
 	derived: 'utledet',
-	readInAuthored: (unit: string) => `Les i ${unit.toLowerCase()}, slik du skrev det`,
+	readInAuthored: (unit: string) =>
+		`Les i ${unit.toLowerCase()}, slik du skrev det`,
 	readInDerived: (unit: string) => `Les i ${unit.toLowerCase()}, utledet`,
 	layer: {
 		volume: 'Volum',
@@ -4249,7 +4320,12 @@ export const SESONG_CHART_LABELS = {
 	overflow:
 		'Kvalitetsøktene alene ber om mer enn ukas volum. Det rolige arbeidet går ned til null, og planen står slik du skrev den.',
 	whereFrom: 'Hvor tallet kommer fra',
-	substitution: (requested: number, recipe: string, band: string, declared: number) =>
+	substitution: (
+		requested: number,
+		recipe: string,
+		band: string,
+		declared: number,
+	) =>
 		`Sone ${requested} prises fra ${recipe} sone ${band}, den nærmeste sone ${declared} sonemodellen din har.`,
 	buckets: 'Uka delt opp i intensiteter',
 	bucketColumns: {

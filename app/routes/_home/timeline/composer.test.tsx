@@ -54,6 +54,7 @@ function session(overrides: Partial<TimelineSession> = {}): TimelineSession {
 		extraLabel: null,
 		importLink: null,
 		doneNote: null,
+		rowMark: null,
 		markDone: null,
 		...overrides,
 	}
@@ -582,6 +583,54 @@ test('a session row and its glyph open the same Drawer at full, as the session�
 	).toBeInTheDocument()
 	// No popover is stacked over the Drawer: the details are in it.
 	expect(document.querySelector('[data-owner-popover]')).toBeNull()
+})
+
+test('an import says what it is on the row itself: ekstra, or where a done session’s numbers will come from (audit PR D)', async () => {
+	renderComposer({
+		weeks: [
+			week([
+				day('2030-02-19', {
+					sessions: [
+						session({
+							id: 'ekstra-1',
+							title: 'Løping · 57 min',
+							status: 'completed',
+							owner: 'machine',
+							ownerLabel: null,
+							ownerNote: null,
+							extraLabel: 'ekstra',
+							rowMark: 'ekstra',
+						}),
+						session({
+							id: 'done-1',
+							title: '10 km rolig',
+							status: 'completed',
+							owner: 'machine',
+							ownerLabel: null,
+							ownerNote: null,
+							doneNote: 'Gjort · tallene kommer fra importen',
+							rowMark: 'tallene kommer fra importen',
+						}),
+					],
+				}),
+				day(TODAY),
+			]),
+		],
+	})
+	const ekstra = document.querySelector('[data-session-row="ekstra-1"]')!
+	expect(within(ekstra as HTMLElement).getByText('ekstra')).toBeVisible()
+	// Not the app's ◌: an import nobody planned has its own glyph.
+	const glyph = ekstra.querySelector('[data-owner-glyph]')
+	expect(glyph).toHaveAttribute('data-owner-glyph', 'import')
+	expect(glyph).toHaveAccessibleName('Importert økt Løping · 57 min')
+	const done = document.querySelector('[data-session-row="done-1"]')!
+	expect(
+		within(done as HTMLElement).getByText('tallene kommer fra importen'),
+	).toBeVisible()
+	expect(done.querySelector('[data-owner-glyph]')).toHaveAttribute(
+		'data-owner-glyph',
+		'machine',
+	)
 })
 
 test('Avbryt closes the composer and writes nothing', async () => {

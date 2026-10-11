@@ -3094,6 +3094,31 @@ describe('imports on the row: ekstra, hva var dette?, Angre kobling, Gjort (#505
 		expect(rowOf(result, 'linked').extraLabel).toBeNull()
 	})
 
+	test('an ekstra says so on the row itself, and is named in Norwegian rather than "57 min 12 s run" (audit PR D)', () => {
+		const result = season(
+			[
+				ekstra({
+					recording: recording('import-1', { durationSec: 3432 }),
+				}),
+				on(-3, {
+					id: 'distance-only',
+					source: 'recorded',
+					workout: null,
+					recording: recording('import-3', {
+						durationSec: 0,
+						distanceM: 12_400,
+						discipline: 'bike',
+					}),
+				}),
+			],
+			runPlan(),
+		)
+		const row = rowOf(result, 'ekstra')
+		expect(row.title).toBe('Løping · 57 min')
+		expect(row.rowMark).toBe('ekstra')
+		expect(rowOf(result, 'distance-only').title).toBe('Sykling · 12,4 km')
+	})
+
 	test('an ekstra that fits nothing that day is not asked about', () => {
 		const result = season([ekstra()], runPlan())
 		expect(rowOf(result, 'ekstra').importLink).toBeNull()
@@ -3256,6 +3281,12 @@ describe('imports on the row: ekstra, hva var dette?, Angre kobling, Gjort (#505
 		})
 		expect(rowOf(connected, 'done').doneNote).toBe(
 			'Gjort · tallene kommer fra importen',
+		)
+		// On the row itself, not only behind the glyph (audit PR D): the done
+		// dot already says Gjort, so the mark says the rest.
+		expect(rowOf(connected, 'done').rowMark).toBe('tallene kommer fra importen')
+		expect(rowOf(season([doneByHand], runPlan()), 'done').rowMark).toBe(
+			'uten tall',
 		)
 		// Without a connection nothing will bring them, and the row says so.
 		expect(rowOf(season([doneByHand], runPlan()), 'done').doneNote).toBe(
