@@ -518,6 +518,17 @@ test('a write whose load recompute rewrote another session reads as one no Angre
 	const tuesday = await planRun(userId)
 	const wednesday = await planRun(userId, { date: '2030-01-16' })
 	const since = new Date()
+	// What the set-up wrote stands well before the write, so a set-up row made
+	// in the same millisecond as `since` never reads as rewritten.
+	const before = new Date(since.getTime() - 60 * 60 * 1000)
+	await prisma.workoutSession.updateMany({
+		where: { userId },
+		data: { createdAt: before },
+	})
+	await prisma.workout.updateMany({
+		where: { sessions: { some: { userId } } },
+		data: { updatedAt: before },
+	})
 
 	// Nothing else moved: the written session itself never counts.
 	await prisma.workoutSession.update({
