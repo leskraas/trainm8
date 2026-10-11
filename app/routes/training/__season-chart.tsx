@@ -220,9 +220,12 @@ export function SeasonChart({
 	season,
 	contexts,
 	fitnessAnchor,
+	fitness: precomputed = null,
 	bare = false,
 }: {
 	season: SeasonChartSeason
+	/** The fitness layer, already replayed (the loader's); null computes it here. */
+	fitness?: FitnessLayer | null
 	/** The per-Discipline half of the **Volume Conversion**'s input (ADR 0045 §4). */
 	contexts: PlannedLoadContexts
 	/** The measured fitness the plan is replayed forward from; `null` declines. */
@@ -258,31 +261,16 @@ export function SeasonChart({
 	)
 
 	const showFitness = layers.includes('fitness')
+	// Replayed on the server when the loader hands it over (`fitness`), so the
+	// tap that turns the layer on draws a finished curve instead of running the
+	// Volume Conversion and the CTL replay on the phone's main thread (audit §7:
+	// 862 ms at 4× CPU). Computed here only for a caller that passes none.
 	const fitness = useMemo(
 		() =>
 			showFitness
-				? seasonFitnessLayer({
-						phases: season.phases,
-						tracks: season.tracks.map((t) => ({
-							discipline: t.discipline,
-							currency: t.currency,
-							segments: t.segments,
-							targets: season.weeks.map(
-								(week) =>
-									week.targets.find(
-										(target) => target.trackId === t.trackId,
-									) ?? {
-										value: null,
-										overridden: false,
-										derivedValue: null,
-									},
-							),
-						})),
-						contexts,
-						anchor: fitnessAnchor,
-					})
+				? (precomputed ?? seasonFitnessOf(season, contexts, fitnessAnchor))
 				: null,
-		[showFitness, season, contexts, fitnessAnchor],
+		[showFitness, precomputed, season, contexts, fitnessAnchor],
 	)
 
 	// One controller for the whole stack, so the two charts and the two panels are
@@ -344,6 +332,37 @@ export function SeasonChart({
 			{layers.includes('form') ? <FormRefusal /> : null}
 		</Frame>
 	)
+}
+
+/**
+ * The projected-fitness layer for a season: the plan's weekly load through the
+ * **Volume Conversion**, replayed through the CTL EWMA from the measured anchor
+ * (`seasonFitnessLayer`). Pure, so the loader can run it once on the server and
+ * hand the curve over — the same function the chart would otherwise run on tap.
+ */
+export function seasonFitnessOf(
+	season: Pick<SeasonChartSeason, 'phases' | 'tracks' | 'weeks'>,
+	contexts: PlannedLoadContexts,
+	anchor: FitnessAnchor | null,
+): FitnessLayer {
+	return seasonFitnessLayer({
+		phases: season.phases,
+		tracks: season.tracks.map((track) => ({
+			discipline: track.discipline,
+			currency: track.currency,
+			segments: track.segments,
+			targets: season.weeks.map(
+				(week) =>
+					week.targets.find((target) => target.trackId === track.trackId) ?? {
+						value: null,
+						overridden: false,
+						derivedValue: null,
+					},
+			),
+		})),
+		contexts,
+		anchor,
+	})
 }
 
 /**

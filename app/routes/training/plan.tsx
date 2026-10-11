@@ -296,7 +296,7 @@ import {
 	SeasonAnchorSection,
 	type EditableAnchorTrack,
 } from './__season-anchor-editor.tsx'
-import { SeasonChart } from './__season-chart.tsx'
+import { SeasonChart, seasonFitnessOf } from './__season-chart.tsx'
 import { seasonEditAction } from './__season-edits.server.ts'
 import { SeasonEditLink, SeasonEditsCard } from './__season-edits.tsx'
 import { SEASON_EVENTS_SHOWN, SeasonEvents } from './__season-events.tsx'
@@ -555,6 +555,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 		(event) => event.status === 'planned' && event.startDate >= now,
 	)
 
+	// The analytical chart's inputs, and the season with its weeks' Mondays.
+	const chartInputs = await readSeasonChartInputs(userId, season)
+	const datedSeason = withWeekStarts(season)
+
 	// The season picture (round-2 decision 12): I dag's curve and table, read
 	// for this plan as I dag reads the active one (`__season-picture.server.ts`).
 	const seasonPicture = await readSeasonPicture(
@@ -602,7 +606,16 @@ export async function loader({ request }: Route.LoaderArgs) {
 		 * The **season chart**'s two server-side inputs (#413), read the way every
 		 * surface that mounts the chart reads them (`season-chart.server.ts`).
 		 */
-		...(await readSeasonChartInputs(userId, season)),
+		...chartInputs,
+		/**
+		 * The chart's fitness layer, replayed here once rather than on the
+		 * phone's main thread the moment the athlete taps it (audit §7).
+		 */
+		seasonFitness: seasonFitnessOf(
+			datedSeason,
+			chartInputs.conversionContexts,
+			chartInputs.fitnessAnchor,
+		),
 		/**
 		 * What the add-track form proposes for the Disciplines this plan does not
 		 * measure yet. Read here because a proposal is a reading of the *athlete's*
@@ -614,7 +627,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			userId,
 			season.tracks.map((track) => track.discipline),
 		),
-		season: withWeekStarts(season),
+		season: datedSeason,
 	}
 }
 
@@ -2197,6 +2210,7 @@ export default function PlanRoute({
 		seasonEvents,
 		seasonPicture,
 		restingOpenEnded,
+		seasonFitness,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -2495,6 +2509,7 @@ export default function PlanRoute({
 							firstUnbegunWeekKey={firstUnbegunWeekKey}
 							conversionContexts={conversionContexts}
 							fitnessAnchor={fitnessAnchor}
+							seasonFitness={seasonFitness}
 						/>
 					) : (
 						<WeeksReading
@@ -3152,6 +3167,7 @@ function BlocksReading({
 	firstUnbegunWeekKey,
 	conversionContexts,
 	fitnessAnchor,
+	seasonFitness,
 }: {
 	season: SeasonData
 	/**
@@ -3162,6 +3178,8 @@ function BlocksReading({
 	/** The analytical chart's two inputs (#413), for its place under Avansert. */
 	conversionContexts: Route.ComponentProps['loaderData']['conversionContexts']
 	fitnessAnchor: Route.ComponentProps['loaderData']['fitnessAnchor']
+	/** The chart's fitness layer, replayed by the loader. */
+	seasonFitness: Route.ComponentProps['loaderData']['seasonFitness']
 	/** A refused *structural* edit, said once above the phases it was aimed at. */
 	error?: string
 	actionData: SegmentActionData
@@ -3373,6 +3391,7 @@ function BlocksReading({
 							season={season}
 							contexts={conversionContexts}
 							fitnessAnchor={fitnessAnchor}
+							fitness={seasonFitness}
 							bare
 						/>
 					</CollapsibleSection>
