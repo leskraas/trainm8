@@ -4,13 +4,15 @@
 import { render, screen, within } from '@testing-library/react'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
-import { COMMUNITY_NON_VOUCH } from '#app/utils/community.ts'
+import { NB_PROVENANCE_LABELS } from '#app/utils/labels.ts'
 import { type SeasonPreview } from '#app/utils/plan-generation/generate.server.ts'
 import { type SessionProvenance } from '#app/utils/plan-generation/provenance.ts'
 import {
 	type GeneratedSession,
 	type GeneratedWeek,
 } from '#app/utils/plan-generation/season.ts'
+import { PERIODIZATION_PRESETS } from '#app/utils/plan-outline/presets.ts'
+import { nbPresetName } from './__preset-gallery.tsx'
 import GenerateSeasonRoute from './plan.generate.$eventId.tsx'
 
 function week(overrides: Partial<GeneratedWeek> = {}): GeneratedWeek {
@@ -105,7 +107,11 @@ function renderScreen(season: Partial<SeasonPreview['season']> = {}) {
 			Component: (props: Record<string, unknown>) => (
 				<GenerateSeasonRoute {...(props as any)} />
 			),
-			loader: () => ({ preview: preview(season), refusal: null }),
+			loader: () => ({
+				preview: preview(season),
+				refusal: null,
+				nearestFit: true,
+			}),
 			action: async ({ request }) => {
 				approved(new URL(request.url).search)
 				return { refusal: null }
@@ -121,18 +127,18 @@ test('the season is already there — the screen opens on a plan, not a blank fo
 	renderScreen()
 	expect(
 		await screen.findByRole('heading', {
-			name: /your season, ready to review/i,
+			name: /sesongen din, klar til å se over/i,
 		}),
 	).toBeInTheDocument()
 	expect(screen.getByText('5 × 1 km @ T')).toBeInTheDocument()
-	expect(screen.getByText(/1 sessions across 1 weeks/i)).toBeInTheDocument()
+	expect(screen.getByText(/1 økt over 1 uke/i)).toBeInTheDocument()
 })
 
 test('nothing reaches the calendar until the athlete says so', async () => {
 	renderScreen()
 	expect(
 		await screen.findByRole('button', {
-			name: /add these 1 sessions to my calendar/i,
+			name: /legg denne økta i kalenderen/i,
 		}),
 	).toBeInTheDocument()
 })
@@ -140,10 +146,12 @@ test('nothing reaches the calendar until the athlete says so', async () => {
 test('a corpus session shows its Citation in the provenance slot', async () => {
 	renderScreen()
 	const slot = await screen.findByText(
-		/Source: Daniels — Daniels' Running Formula \(2013\)/,
+		/Kilde: Daniels — Daniels' Running Formula \(2013\)/,
 	)
 	expect(slot).toBeInTheDocument()
-	expect(screen.queryByText(COMMUNITY_NON_VOUCH)).not.toBeInTheDocument()
+	expect(
+		screen.queryByText(NB_PROVENANCE_LABELS.nonVouch),
+	).not.toBeInTheDocument()
 })
 
 test('the two uncited stock kinds say so, each in its own words', async () => {
@@ -159,11 +167,11 @@ test('the two uncited stock kinds say so, each in its own words', async () => {
 	})
 	expect(
 		await screen.findByText(
-			/Coaching convention — trainm8 claims no published/i,
+			/Vanlig trenerpraksis — trainm8 viser ikke til noen publisert/i,
 		),
 	).toBeInTheDocument()
 	expect(
-		screen.getByText(/Written by trainm8 — no published source/i),
+		screen.getByText(/Skrevet av trainm8 — ingen publisert kilde/i),
 	).toBeInTheDocument()
 })
 
@@ -185,11 +193,11 @@ test('a community session reads the slot without a Citation, and carries the non
 			}),
 		],
 	})
-	expect(await screen.findByText('Published by Jo Kraas')).toBeInTheDocument()
+	expect(await screen.findByText('Publisert av Jo Kraas')).toBeInTheDocument()
 	expect(
-		screen.getByText('Published by an athlete — trainm8 cannot state who.'),
+		screen.getByText('Publisert av en utøver — trainm8 kan ikke si hvem.'),
 	).toBeInTheDocument()
-	expect(screen.getAllByText(COMMUNITY_NON_VOUCH)).toHaveLength(2)
+	expect(screen.getAllByText(NB_PROVENANCE_LABELS.nonVouch)).toHaveLength(2)
 })
 
 test('the strength Unavailable is stated before the season, not hidden inside it', async () => {
@@ -197,11 +205,11 @@ test('the strength Unavailable is stated before the season, not hidden inside it
 		unavailable: [{ reading: 'strength-track', discipline: 'strength' }],
 	})
 	const notice = await screen.findByRole('region', {
-		name: /what this season does not include/i,
+		name: /dette er ikke med i sesongen/i,
 	})
-	expect(within(notice).getByText(/no strength track/i)).toBeInTheDocument()
+	expect(within(notice).getByText(/ingen spor for styrke/i)).toBeInTheDocument()
 	expect(
-		within(notice).getByText(/rather than invent them/i),
+		within(notice).getByText(/i stedet for å finne på dem/i),
 	).toBeInTheDocument()
 })
 
@@ -221,10 +229,12 @@ test('an empty day is named rather than backfilled', async () => {
 			},
 		],
 	})
+	expect(await screen.findByText(/1 treningsdag er tom/i)).toBeInTheDocument()
 	expect(
-		await screen.findByText(/1 training day is empty/i),
+		screen.getByText(
+			/ingenting å legge inn – terskel eller under terskel i grunntrening/i,
+		),
 	).toBeInTheDocument()
-	expect(screen.getByText(/nothing to place/i)).toBeInTheDocument()
 })
 
 test('a week with no Season Anchor reads “—” rather than a number nobody typed', async () => {
@@ -233,5 +243,34 @@ test('a week with no Season Anchor reads “—” rather than a number nobody t
 			week({ targets: [{ discipline: 'run', currency: 'km', value: null }] }),
 		],
 	})
-	expect(await screen.findByText(/Run —/)).toBeInTheDocument()
+	expect(await screen.findByText(/Løping —/)).toBeInTheDocument()
+})
+
+test('the one question and the pre-selected shape read in Norwegian, as Sesong names them', async () => {
+	renderScreen()
+	// The asked input: the loader's answer is the checked card.
+	expect(
+		await screen.findByRole('radio', {
+			name: 'Jeg trener jevnt og bygger videre',
+		}),
+	).toBeChecked()
+	// The shape by Sesong's name for it, never the preset's English `name`.
+	expect(
+		screen.getAllByText(nbPresetName('masters-2-1-short')).length,
+	).toBeGreaterThan(0)
+	const preset = PERIODIZATION_PRESETS.find(
+		({ key }) => key === 'masters-2-1-short',
+	)!
+	expect(screen.queryByText(preset.name)).not.toBeInTheDocument()
+	expect(
+		screen.queryByText(preset.provenance, { exact: false }),
+	).not.toBeInTheDocument()
+	// Pre-selected by fit, and the closed row says so.
+	expect(
+		screen.getByText(/valgt fordi den lander nærmest løpet/),
+	).toBeInTheDocument()
+	// An anchor no history proposed is the athlete's own, and says so.
+	expect(screen.getByText(/Ditt eget tall/)).toBeInTheDocument()
+	// The phase line reads the stored English name in Norwegian.
+	expect(screen.getByText(/Grunntrening 4 uker/)).toBeInTheDocument()
 })
