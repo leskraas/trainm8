@@ -1138,9 +1138,11 @@ function EmptyDay({ day, past }: { day: TimelineDay; past: boolean }) {
  * answer stays on the row: the import's question, _Gjort_, the quick
  * strength log, and on today's row _Se økta_.
  *
- * **The landing** (ADR 0088): the session the composer just wrote rises 4px
- * into place and fades in, is tinted, scrolled into view if it is near, and
- * carries its own _Angre_ for as long as the toast that announced it.
+ * **The landing** (ADR 0088): the session the composer just wrote — or the
+ * one this row just marked _Gjort_ or an import was just linked to (amended)
+ * — rises 4px into place and fades in, is tinted, scrolled into view if it is
+ * near, and carries its own _Angre_ for as long as the toast that announced
+ * it, when that write has a way back.
  */
 function SessionRow({
 	session,
@@ -1157,8 +1159,12 @@ function SessionRow({
 	cta?: TodayRowExtras['cta']
 }) {
 	const composer = useComposer()
-	const { landedSessionId, undoingSessionId } = useComposerLanding()
+	const { landedSessionId, landedUndoable, undoingSessionId } =
+		useComposerLanding()
 	const landed = landedSessionId === session.id
+	// A landed write with no way back (ADR 0088, amended) is still risen and
+	// tinted, but carries no _Angre_.
+	const undoable = landed && landedUndoable
 	const ref = useRef<HTMLDivElement>(null)
 	useEffect(() => {
 		// Optional-called: jsdom has no scroller.
@@ -1299,7 +1305,7 @@ function SessionRow({
 			{/* The primary action, _Gjort_ and a landing's _Angre_ share one line:
 			    all are about this session, and a row should not grow a line per
 			    offer. */}
-			{cta || session.markDone || landed ? (
+			{cta || session.markDone || undoable ? (
 				<div
 					data-session-actions
 					className={cn(
@@ -1307,7 +1313,7 @@ function SessionRow({
 						TITLE_INSET,
 					)}
 				>
-					{landed ? (
+					{undoable ? (
 						<Button
 							type="button"
 							variant="outline"
@@ -1338,6 +1344,7 @@ function SessionRow({
 					{session.markDone ? (
 						<MarkDoneAction
 							sessionId={session.id}
+							title={session.title}
 							label={session.markDone.actionLabel}
 							ariaLabel={session.markDone.label}
 						/>

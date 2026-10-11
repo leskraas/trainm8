@@ -300,7 +300,7 @@ describe('honesty branches', () => {
 describe('chip content and provenance stay in the authored form', () => {
 	test('chip text renders each kind compactly', () => {
 		expect(intensityChipText(zone('Z3'))).toBe('Z3')
-		expect(intensityChipText(zone('threshold'))).toBe('Threshold')
+		expect(intensityChipText(zone('threshold'))).toBe('Terskel')
 		expect(intensityChipText({ kind: 'rpe', min: 7 })).toBe('RPE 7')
 		expect(intensityChipText({ kind: 'power', minW: 235 })).toBe('235 W')
 		expect(intensityChipText({ kind: 'hrBpm', min: 162 })).toBe('162 bpm')
@@ -310,6 +310,24 @@ describe('chip content and provenance stay in the authored form', () => {
 		expect(
 			intensityChipText({ kind: 'powerPct', minPct: 95, maxPct: 105 }),
 		).toBe('95–105% FTP')
+	})
+
+	test('chip words are Norwegian; the stored target is not (ADR 0081)', () => {
+		expect(
+			intensityChipText({ kind: 'hrPct', ref: 'lthr', minPct: 85, maxPct: 90 }),
+		).toBe('85–90% terskelpuls')
+		expect(intensityChipText({ kind: 'hrPct', ref: 'max', minPct: 70 })).toBe(
+			'70% makspuls',
+		)
+		expect(intensityChipText({ kind: 'pacePct', minPct: 98 })).toBe(
+			'98% terskelfart',
+		)
+		expect(intensityChipText({ kind: 'racePace', event: 'hm' })).toBe(
+			'halvmaratonfart',
+		)
+		expect(
+			intensityChipText({ kind: 'racePace', event: 'marathon', minPct: 105 }),
+		).toBe('105% maraton')
 	})
 
 	test('provenance speaks human words for placed and unplaced targets', () => {

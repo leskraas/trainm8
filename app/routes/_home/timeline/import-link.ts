@@ -40,8 +40,11 @@ export type TimelineImportLink =
 			/** The group's heading, which also names it. */
 			question: string
 			note: string
-			/** "Det var <title>", one per planned session that fits. */
-			options: Array<{ sessionId: string; label: string }>
+			/**
+			 * "Det var <title>", one per planned session that fits; `title` is
+			 * what the link's toast quotes (ADR 0088).
+			 */
+			options: Array<{ sessionId: string; label: string; title: string }>
 			keepLabel: string
 			/** Null where Annet changes nothing: the sport has no track anyway. */
 			annetLabel: string | null
@@ -174,6 +177,7 @@ export function buildImportFacts(
 						options: candidates.map((candidate) => ({
 							sessionId: candidate.session.id,
 							label: IMPORT_LINK_LABELS.linkTo(candidate.entry.title ?? ''),
+							title: candidate.entry.title ?? '',
 						})),
 						keepLabel: IMPORT_LINK_LABELS.keep,
 						annetLabel: trackDisciplines.has(recording.discipline)

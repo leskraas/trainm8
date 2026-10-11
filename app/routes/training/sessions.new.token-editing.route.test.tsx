@@ -535,7 +535,7 @@ test('editing the intensity re-resolves the sentence zone chip and bpm facet liv
 	const editor = document.querySelector('[data-token-sentence-editor]')!
 	await waitFor(() => {
 		const el = editor.querySelector('[data-token-type="intensity"]')!
-		expect(el.textContent).toMatch(/95–99% LTHR/)
+		expect(el.textContent).toMatch(/95–99% terskelpuls/)
 		expect(el).toHaveAttribute('data-zone-step', '4')
 	})
 
@@ -546,7 +546,7 @@ test('editing the intensity re-resolves the sentence zone chip and bpm facet liv
 	await user.type(minPct, '80')
 	await waitFor(() => {
 		const el = editor.querySelector('[data-token-type="intensity"]')!
-		expect(el.textContent).toMatch(/80–99% LTHR/)
+		expect(el.textContent).toMatch(/80–99% terskelpuls/)
 		expect(el).toHaveAttribute('data-zone-step', '2')
 	})
 })

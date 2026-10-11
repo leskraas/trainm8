@@ -106,3 +106,45 @@ undone by §1.
 - Writes that still happen off I dag (Sesong's copy week and stamp pattern, the
   full editor) are not covered by this ADR; they owe the same toast and `Angre`
   in their own areas (audit slice 10).
+
+## Amended (round 2, 2026-10-11): _Gjort_ and a link answer are writes too
+
+Two writes on I dag's rows had no way back after this ADR shipped (round-2
+imports audit, item 9): _Gjort_ by hand (#505 story 82) and the answer to "hva
+var dette?" that links an import to a planned session (story 80). They now land
+by §1, through the same toast and the same landed-row _Angre_ as the composer's
+writes (`ComposerActions.land` in `composer-context.tsx`), with these
+differences:
+
+- **The undo restores rather than deletes.** Neither write created the session,
+  so §1's owner-scoped delete does not apply. Each write's reply carries a token
+  — the stamp it wrote (`markedDoneAt`, `linkAnsweredAt`) and, for _Gjort_, the
+  status and `markedDoneAt` that stood before — and _Angre_ posts it back to
+  that write's own route as an action intent (`/resources/session-done`
+  `intent=undo`, `/resources/import-link` `intent=undo-answer`). The undo takes
+  back only the write whose stamp is still there, so it stays idempotent (0076
+  §3): a second tap is a no-op, and one after something else has happened on top
+  is refused rather than trampling it (an import linked onto a session marked
+  done; a link undone with _Angre kobling_ in the meantime).
+- **_Angre_ on _Gjort_** puts back the status (`scheduled` or `missed`) and
+  `markedDoneAt`, clears the TSS the mark's recompute priced, and recomputes.
+- **_Angre_ on a link** puts the planned session back to its `statusBeforeLink`
+  without the Recording, stands the import on an _ekstra_ shell again as
+  auto-save does (`promoteToNewSession`, detection included), and clears
+  `linkAnsweredAt`, so "hva var dette?" is asked again — as before the tap.
+  Unlike _Angre kobling_ it remembers no `unlinkedFromSessionId`: the athlete
+  took an answer back, not gave one. The shell is a new row; the link had
+  deleted the old one.
+- **No _Angre_ where the write folded something an undo cannot unwind.** The
+  write's toast and tint still land, without the button, when
+  - the load recompute the write set off rewrote another of the athlete's
+    sessions (the Session Nudge eased the next one, the week change laid or
+    changed one — `recomputeRewroteSince`), or
+  - the link deleted an _ekstra_ that was more than a bare shell (adopted, in
+    Annet, holding a note, sets or an Event result, or no longer on the import's
+    start), or the import had been answered before. This is the quick log's rule
+    for program sessions, whose fold moves the run on: _Gjort_ is never offered
+    on strength, so it never folds a program run.
+- _Angre kobling_ and _Koble igjen_ are unchanged: each is the other's way back.
+  The question's other two answers, _En ekstra økt_ and Annet, still land
+  without _Angre_; they are not in this amendment.
