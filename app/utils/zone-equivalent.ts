@@ -28,13 +28,17 @@
  */
 import { formatPaceClock, formatPaceRange } from './format.ts'
 import { POWER_REF_LABELS } from './intensity-target.ts'
-import { nbUnavailableReason, ZONE_PROVENANCE_LABELS as P } from './labels.ts'
+import {
+	INTENSITY_DISPLAY_WORDS,
+	nbUnavailableReason,
+	ZONE_PROVENANCE_LABELS as P,
+	zoneLabelWord,
+} from './labels.ts'
 import { intensityTargetToZone, type TrainingZone } from './session-profile.ts'
 import { powerPctRef, type IntensityTarget } from './workout-schema.ts'
 import {
 	formatMmol,
 	getRecipe,
-	raceAnchorLabel,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 	type ZoneRecipe,
@@ -284,10 +288,10 @@ export function zoneEquivalent(
  */
 export function intensityChipText(target: IntensityTarget): string {
 	switch (target.kind) {
-		case 'zoneLabel': {
-			const trimmed = target.label.trim()
-			return trimmed ? trimmed[0]!.toUpperCase() + trimmed.slice(1) : trimmed
-		}
+		// The stored word in Norwegian (`threshold` → `Terskel`), as the
+		// notation's own chip reads it; a code (`Z3`) passes through.
+		case 'zoneLabel':
+			return zoneLabelWord(target.label)
 		case 'rpe':
 			return target.max != null
 				? `RPE ${target.min}–${target.max}`
@@ -309,15 +313,20 @@ export function intensityChipText(target: IntensityTarget): string {
 		}
 		case 'pacePct':
 			return target.maxPct != null
-				? `${target.minPct}–${target.maxPct}% T-pace`
-				: `${target.minPct}% T-pace`
+				? `${target.minPct}–${target.maxPct}% ${INTENSITY_DISPLAY_WORDS.thresholdPace}`
+				: `${target.minPct}% ${INTENSITY_DISPLAY_WORDS.thresholdPace}`
 		// The chip carries the *authored* value, so a lactate step's chip is the
 		// mmol figure — the derived pace lives in the facet beside it, never here.
 		case 'lactate':
 			return formatMmol(target.minMmol, target.maxMmol)
 		case 'racePace': {
-			const name = raceAnchorLabel(target.event)
-			if (target.minPct == null) return `${name} pace`
+			if (target.minPct == null) {
+				return (
+					INTENSITY_DISPLAY_WORDS.racePace[target.event] ??
+					`${target.event} pace`
+				)
+			}
+			const name = INTENSITY_DISPLAY_WORDS.race[target.event] ?? target.event
 			return target.maxPct != null
 				? `${target.minPct}–${target.maxPct}% ${name}`
 				: `${target.minPct}% ${name}`
@@ -327,7 +336,8 @@ export function intensityChipText(target: IntensityTarget): string {
 				? `${target.min}–${target.max} bpm`
 				: `${target.min} bpm`
 		case 'hrPct': {
-			const ref = target.ref === 'max' ? 'max HR' : 'LTHR'
+			const ref =
+				INTENSITY_DISPLAY_WORDS.hrRef[target.ref === 'max' ? 'max' : 'lthr']
 			return target.maxPct != null
 				? `${target.minPct}–${target.maxPct}% ${ref}`
 				: `${target.minPct}% ${ref}`

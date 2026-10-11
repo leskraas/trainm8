@@ -568,7 +568,7 @@ test('missing thresholds degrade the structure lines honestly, with a pointer to
 	).toBeInTheDocument()
 	expect(screen.queryByText(/\/km/)).not.toBeInTheDocument()
 	// The chip degrades to the captioned Training Zone, never a made-up pace.
-	expect(screen.getByText(/Mål E — easy\/endurance/)).toBeInTheDocument()
+	expect(screen.getByText(/Mål E — rolig\/utholdenhet/)).toBeInTheDocument()
 	// The honest degradation names the missing threshold and points at settings.
 	expect(
 		screen.getByText(/terskelfart mangler i innstillingene/i),

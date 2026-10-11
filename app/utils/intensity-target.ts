@@ -13,6 +13,11 @@
 
 import { formatPaceClock, formatPaceRange } from './format.ts'
 import {
+	INTENSITY_DISPLAY_WORDS,
+	nbZoneCaption,
+	zoneLabelWord,
+} from './labels.ts'
+import {
 	blockRepeatTotal,
 	IntensityTargetSchema,
 	powerPctRef,
@@ -21,7 +26,6 @@ import {
 import { DANIELS_PACE_5, getRecipe } from './zones/index.ts'
 import {
 	formatMmol,
-	raceAnchorLabel,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 	type ResolvedIntensity,
@@ -47,7 +51,7 @@ export type DisplayTarget =
 	/**
 	 * The Training Zone itself — the honest display for a zone-authored step no
 	 * threshold resolves. `caption` spells out a cryptic code in plain words
-	 * ("E" → "easy/endurance") so it is never shown as a bare letter (#180).
+	 * ("E" → "rolig/utholdenhet") so it is never shown as a bare letter (#180).
 	 */
 	| { kind: 'zone'; text: string; caption?: string }
 	/** Required threshold absent — surfaced as Unavailable, never fabricated. */
@@ -82,11 +86,6 @@ function range(min: number, max: number | null | undefined, unit: string) {
 	return max != null ? `${min}–${max} ${unit}` : `${min} ${unit}`
 }
 
-function capitalize(label: string): string {
-	const trimmed = label.trim()
-	return trimmed ? trimmed[0]!.toUpperCase() + trimmed.slice(1) : trimmed
-}
-
 /**
  * Pace zone bands resolve in the recipe anchor's own unit: seconds per 100 m
  * for a CSS-anchored recipe, seconds per km otherwise — so a swim range is
@@ -107,7 +106,7 @@ const DANIELS_LETTER_CAPTIONS: Record<string, string> = Object.fromEntries(
 )
 
 /**
- * The plain-words meaning of a zone code ("E" → "easy/endurance"), from the
+ * The plain-words meaning of a zone code ("E" → "rolig/utholdenhet"), from the
  * athlete's own recipe first, then the unambiguous Daniels letters. Null when
  * the label is already a word (nothing to spell out) or genuinely unknown.
  */
@@ -116,8 +115,11 @@ function zoneCaption(
 	profile: DisciplineProfileForResolver,
 ): string | null {
 	const recipe = profile.zoneSystem ? getRecipe(profile.zoneSystem) : undefined
-	const described = recipe?.zones.find((z) => z.label === label)?.description
-	return described ?? DANIELS_LETTER_CAPTIONS[label] ?? null
+	const described =
+		recipe?.zones.find((z) => z.label === label)?.description ??
+		DANIELS_LETTER_CAPTIONS[label]
+	// The recipe's own words are English; the athlete reads them in Norwegian.
+	return described != null ? nbZoneCaption(described) : null
 }
 
 /**
@@ -142,13 +144,16 @@ function boundedRange(
 	return `≤ ${fmt(max!)} ${unit}`
 }
 
-/** The authored form of a `racePace` target: `5k pace`, `105 % marathon pace`. */
+/** The authored form of a `racePace` target, in Norwegian on display:
+ * `5 km-fart`, `105% maratonfart`. The stored anchor (`5k`, `marathon`) is
+ * unchanged. */
 function racePaceLabel(target: {
-	event: Parameters<typeof raceAnchorLabel>[0]
+	event: string
 	minPct?: number
 	maxPct?: number
 }): string {
-	const name = `${raceAnchorLabel(target.event)} pace`
+	const name =
+		INTENSITY_DISPLAY_WORDS.racePace[target.event] ?? `${target.event} pace`
 	if (target.minPct == null) return name
 	return target.maxPct != null
 		? `${target.minPct}–${target.maxPct}% ${name}`
@@ -318,7 +323,9 @@ export function formatIntensityTarget(
 			const caption = zoneCaption(target.label, profile)
 			return {
 				kind: 'zone',
-				text: capitalize(target.label),
+				// A stored English word (`threshold`) reads as `Terskel`; a code
+				// (`E`, `Z2`) passes through.
+				text: zoneLabelWord(target.label),
 				...(caption ? { caption } : {}),
 			}
 		}
@@ -334,7 +341,7 @@ export function formatIntensityTarget(
  * so they carry no second `resolved` range.
  */
 export type StepTargetDisplay = {
-	/** The authored target, captioned: "E — easy/endurance", "95–105% FTP". */
+	/** The authored target, captioned: "E — rolig/utholdenhet", "95–105% FTP". */
 	label: string
 	/** The concrete resolved range: "5:10–6:58 /km", "238–263 W". */
 	resolved: string | null
@@ -398,7 +405,7 @@ export function describeStepTarget(
 				label: pctLabel(
 					target.minPct,
 					target.maxPct,
-					target.ref === 'max' ? 'max HR' : 'LTHR',
+					INTENSITY_DISPLAY_WORDS.hrRef[target.ref === 'max' ? 'max' : 'lthr'],
 				),
 				resolved: resolvedRangeText(resolved, 'km')?.text ?? null,
 				missingThreshold: missingThresholdReason(resolved),
@@ -421,7 +428,11 @@ export function describeStepTarget(
 		case 'pacePct': {
 			const resolved = resolveIntensity(target, profile)
 			return {
-				label: pctLabel(target.minPct, target.maxPct, 'T-pace'),
+				label: pctLabel(
+					target.minPct,
+					target.maxPct,
+					INTENSITY_DISPLAY_WORDS.thresholdPace,
+				),
 				resolved:
 					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
 				missingThreshold: missingThresholdReason(resolved),
@@ -454,8 +465,8 @@ export function describeStepTarget(
 			const resolved = resolveIntensity(target, profile)
 			return {
 				label: caption
-					? `${capitalize(target.label)} — ${caption}`
-					: capitalize(target.label),
+					? `${zoneLabelWord(target.label)} — ${caption}`
+					: zoneLabelWord(target.label),
 				resolved:
 					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
 				missingThreshold: missingThresholdReason(resolved),

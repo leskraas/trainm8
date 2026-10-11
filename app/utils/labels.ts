@@ -6117,6 +6117,134 @@ export function nbUnavailableReason(reason: string): string {
 	}
 	return reason
 }
+// ===========================================================================
+// Shared strings (#505 round 2, r2-shared-strings): the workout schemas'
+// validation messages and the shared intensity utils' chip and caption words,
+// in Norwegian (ADR 0081). The editor, I dag and settings all read these. Only
+// what is shown changes: a stored zone label, a recipe's own `description`, a
+// race anchor key and a `pacePct`/`hrPct` target keep their stored form, and
+// nothing here is read back by a parser.
+// ===========================================================================
+
+/**
+ * The messages `WorkoutStructureSchema` / `WorkoutAuthoringSchema` (and the
+ * editor's form schema, `workout-authoring.ts`) answer with. They reach the
+ * athlete verbatim — the editor's summary line, a field's error, a 400 from
+ * the server — so they are sentences, never a field name.
+ */
+export const WORKOUT_SCHEMA_MESSAGES = {
+	tempo: 'Tempo skrives eksentrisk-pause-konsentrisk, for eksempel «3-0-3»',
+	weightXorPct: 'Et sett kan ha kilo eller prosent av 1RM, ikke begge',
+	loadOnce: 'Et sett oppgir belastningen bare én gang',
+	repsPositive: 'Repetisjonene må være et helt tall over null',
+	durationPositive: 'Tiden må være et helt antall sekunder over null',
+	discipline: 'Velg en sport',
+	durationXorDistance: 'Et steg kan ha tid eller distanse, ikke begge',
+	oneQuantity: 'Et steg oppgir én mengde: tid, distanse eller høydemeter',
+	cadenceOrder: 'Kadensen må gå fra lav til høy',
+	exercise: 'Velg en øvelse',
+	setsMin: 'Legg til minst ett sett',
+	restOnce: 'En pause oppgir formen sin bare én gang',
+	repeatMin: 'Antall ganger må være minst 1',
+	seriesMin: 'Antall serier må være minst 1',
+	blockStepsMin: 'En blokk må ha minst ett steg',
+	betweenSeriesRest: 'Pause mellom serier krever mer enn én serie',
+	sendOffOrRest: 'En blokk har enten avgangstid eller pauser, aldri begge',
+	blocksMin: 'En økt må ha minst én blokk',
+	titleRequired: 'Gi økta en tittel',
+	titleMax: 'Tittelen kan ha høyst 120 tegn',
+	intent: 'Velg et formål',
+	scheduledAt: 'Velg en gyldig dato og et klokkeslett',
+	/** The zero-step save's one summary line (workout-editor spec §11.6). */
+	noSteps: 'Legg til minst ett steg for å lagre økta',
+	// The editor's form schema (`workout-authoring.ts`) only.
+	dateRequired: 'Velg en dato',
+	timeRequired: 'Velg et klokkeslett',
+	durationHint: 'Skriv en tid som «40 min» eller «1 t 30 min»',
+	distanceHint: 'Skriv en distanse som «8 km»',
+	stepDistanceHint: 'Skriv en distanse som «400 m» eller «1,2 km»',
+	intensityHint: 'Fyll ut intensiteten eller fjern den',
+	strengthNeedsExercises:
+		'En styrkeøkt trenger øvelser — legg dem til i strukturen',
+	durationOrDistance:
+		'Skriv en tid (f.eks. «40 min») eller en distanse (f.eks. «8 km»)',
+	durationXorDistanceSimple: 'Skriv enten en tid eller en distanse, ikke begge',
+	// Zod's own generic fallbacks, re-worded for the summary line.
+	invalid: 'Dette kan ikke lagres slik det står',
+	required: 'Dette må fylles ut',
+} as const
+
+/**
+ * The shared intensity utils' words (`intensity-target.ts`'s structure-line
+ * label and zone caption, `zone-equivalent.ts`'s tinted chip): the reference a
+ * percentage is of, a race pace, and the plain-words caption a zone code
+ * carries (`E — rolig/utholdenhet`). FTP, MAP, CP and RPE are the athletes'
+ * own words and stay; the stored target is unchanged.
+ */
+export const INTENSITY_DISPLAY_WORDS = {
+	/** `hrPct` by its reference: `85–90% terskelpuls`, `70% makspuls`. */
+	hrRef: { max: 'makspuls', lthr: 'terskelpuls' },
+	/** `pacePct`: `98% terskelfart`. */
+	thresholdPace: 'terskelfart',
+	/** A race anchor as a distance: `105% maraton`. */
+	race: {
+		'1500m': '1500 m',
+		'3k': '3 km',
+		'5k': '5 km',
+		'10k': '10 km',
+		hm: 'halvmaraton',
+		marathon: 'maraton',
+	} as Record<string, string>,
+	/** A race anchor as a pace: `5 km-fart`, `maratonfart`. */
+	racePace: {
+		'1500m': '1500 m-fart',
+		'3k': '3 km-fart',
+		'5k': '5 km-fart',
+		'10k': '10 km-fart',
+		hm: 'halvmaratonfart',
+		marathon: 'maratonfart',
+	} as Record<string, string>,
+} as const
+
+/**
+ * A zone recipe's English `description` (`zones/recipes.ts`), keyed as
+ * written, in the words the athlete reads beside the code. An unknown one
+ * passes through, so a recipe added later still shows its own words.
+ */
+const ZONE_CAPTION_WORDS: Record<string, string> = {
+	'active recovery': 'aktiv restitusjon',
+	recovery: 'restitusjon',
+	endurance: 'utholdenhet',
+	'aerobic endurance': 'aerob utholdenhet',
+	'easy/endurance': 'rolig/utholdenhet',
+	easy: 'rolig',
+	'easy aerobic': 'rolig aerob',
+	moderate: 'moderat',
+	tempo: 'tempo',
+	'marathon pace': 'maratonfart',
+	'sub-threshold': 'under terskel',
+	'sub-threshold (lactate-guided)': 'under terskel (laktatstyrt)',
+	threshold: 'terskel',
+	'threshold (CSS)': 'terskel (CSS)',
+	'above threshold': 'over terskel',
+	'CSS and faster': 'CSS og raskere',
+	'VO₂ max': 'VO₂maks',
+	'interval (VO₂ max)': 'intervall (VO₂maks)',
+	'repetition (speed)': 'repetisjon (fart)',
+	'anaerobic capacity': 'anaerob kapasitet',
+	'neuromuscular power': 'nevromuskulær kraft',
+	'very easy': 'svært lett',
+	'fairly easy': 'ganske lett',
+	'comfortably hard': 'behagelig hardt',
+	hard: 'hardt',
+	'very hard': 'svært hardt',
+}
+
+/** `rolig/utholdenhet` for the Daniels `easy/endurance`; unknown passes through. */
+export function nbZoneCaption(description: string): string {
+	return ZONE_CAPTION_WORDS[description] ?? description
+}
+
 
 // ===========================================================================
 // Bibliotek and the strength surfaces (#505 round 2, PR B + C; ADR 0081). The
