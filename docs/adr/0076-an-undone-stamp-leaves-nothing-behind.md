@@ -1,5 +1,12 @@
 # An undone stamp leaves nothing behind, and the way back rides the open row
 
+> **Amended by
+> [ADR 0088](./0088-every-write-on-i-dag-is-undone-from-its-toast-and-from-its-landed-row.md)
+> (round 2, owner decision 2):** the composer no longer opens the row in place,
+> so every write on I dag is undone from a toast _and_ from its landed row, both
+> for ten seconds. §1 and the rejected toast below are superseded; §2 and §3
+> stand.
+
 Status: Accepted
 
 **Settles the `Undo` open question of
