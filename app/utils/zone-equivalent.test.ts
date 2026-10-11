@@ -188,7 +188,7 @@ describe('%-of-threshold targets bucket as ratios against a matching recipe', ()
 			noMax,
 		)
 		expect(result.step).toBeNull()
-		expect(result.reason).toBe('Max HR missing in settings')
+		expect(result.reason).toBe('makspuls mangler i innstillingene')
 	})
 })
 
@@ -273,7 +273,7 @@ describe('honesty branches', () => {
 		const result = zoneEquivalent({ kind: 'power', minW: 200 }, emptyProfile)
 		expect(result).toEqual({
 			step: null,
-			reason: 'no zone system chosen in settings',
+			reason: 'ingen sonesystem valgt i innstillingene',
 		})
 	})
 
@@ -281,7 +281,7 @@ describe('honesty branches', () => {
 		const noFtp = { ...bikePower, ftp: null }
 		expect(zoneEquivalent({ kind: 'power', minW: 200 }, noFtp)).toEqual({
 			step: null,
-			reason: 'FTP missing in settings',
+			reason: 'FTP mangler i innstillingene',
 		})
 	})
 
@@ -289,7 +289,7 @@ describe('honesty branches', () => {
 		// Watts against an HR-anchored recipe.
 		const result = zoneEquivalent({ kind: 'power', minW: 200 }, runHr)
 		expect(result.step).toBeNull()
-		expect(result.reason).toContain('heart-rate-based')
+		expect(result.reason).toContain('for puls')
 	})
 
 	test('never fabricates: no profile at all → unresolvable for metric kinds', () => {
@@ -315,7 +315,7 @@ describe('chip content and provenance stay in the authored form', () => {
 	test('provenance speaks human words for placed and unplaced targets', () => {
 		const placed = zoneEquivalent({ kind: 'rpe', min: 7 }, null)
 		expect(zoneEquivalentProvenance({ kind: 'rpe', min: 7 }, placed)).toBe(
-			'RPE 7 ≈ zone 4 effort',
+			'RPE 7 ≈ innsats i sone 4',
 		)
 
 		const unplaced = zoneEquivalent(
@@ -328,6 +328,6 @@ describe('chip content and provenance stay in the authored form', () => {
 		)
 		expect(
 			zoneEquivalentProvenance({ kind: 'power', minW: 200 }, unplaced),
-		).toBe("can't be placed in a zone — FTP missing in settings")
+		).toBe('kan ikke plasseres i en sone — FTP mangler i innstillingene')
 	})
 })

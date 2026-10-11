@@ -18,6 +18,7 @@
  * announces the rejection in human words.
  */
 import { useEffect, useRef } from 'react'
+import { TOKEN_EDITOR_REPAIR_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	type TokenAddress,
@@ -172,7 +173,7 @@ export function ValidationSummaryLine({
 		<div
 			data-validation-summary
 			role="group"
-			aria-label="Fix before saving"
+			aria-label={TOKEN_EDITOR_REPAIR_LABELS.summary}
 			// Focusable so the editor can land here when nothing anchors a
 			// rejection — §11.6's zero-step floor.
 			tabIndex={-1}
@@ -193,7 +194,9 @@ export function ValidationSummaryLine({
 							<button
 								type="button"
 								onClick={() => onActivate(item)}
-								className="text-destructive cursor-pointer text-left underline-offset-2 hover:underline focus-visible:underline"
+								// A real 44px row (ADR 0028): `after:` hit areas would overlap
+								// their neighbours in a list this tight and steal the tap.
+								className="text-destructive inline-flex min-h-11 cursor-pointer items-center text-left underline-offset-2 hover:underline focus-visible:underline"
 							>
 								{item.message}
 							</button>

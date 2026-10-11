@@ -91,10 +91,10 @@ const summary = () =>
 
 const seed = (name: RegExp) => screen.getByRole('button', { name })
 const scratch = () =>
-	screen.getByRole('button', { name: /or start from scratch/i })
+	screen.getByRole('button', { name: /begynn med et tomt steg/i })
 
 async function hydrated() {
-	await screen.findByLabelText(/title/i)
+	await screen.findByLabelText(/tittel/i)
 	await waitFor(() => expect(emptyState()).not.toBeNull())
 }
 
@@ -108,20 +108,22 @@ test('zero steps renders the honest composition: three ghost seeds + scratch, no
 	// ghost-notation line (§11.3, §11.7).
 	const composition = emptyState()!
 	expect(
-		within(composition).getByRole('button', { name: /easy session/i }),
-	).toHaveTextContent('45 min @ easy')
+		within(composition).getByRole('button', { name: /rolig økt/i }),
+	).toHaveTextContent('45 min @ Rolig')
 	const intervals = within(composition).getByRole('button', {
-		name: /intervals/i,
+		name: /intervaller/i,
 	})
 	expect(intervals).toHaveTextContent('15 min')
 	expect(intervals).toHaveTextContent('4×')
-	expect(intervals).toHaveTextContent('4 min @ threshold ( 2 min rest )')
+	expect(intervals).toHaveTextContent('4 min @ Terskel ( 2 min pause )')
 	expect(intervals).toHaveTextContent('10 min')
 	expect(
-		within(composition).getByRole('button', { name: /strength session/i }),
-	).toHaveTextContent('exercise 3 × 8 → exercise 3 × 5')
+		within(composition).getByRole('button', { name: /styrkeøkt/i }),
+	).toHaveTextContent('øvelse 3 × 8 → øvelse 3 × 5')
 	expect(
-		within(composition).getByRole('button', { name: /start from scratch/i }),
+		within(composition).getByRole('button', {
+			name: /begynn med et tomt steg/i,
+		}),
 	).toBeInTheDocument()
 
 	// No stanza chrome anchored to nothing (B11), and the strip region is
@@ -140,11 +142,11 @@ test('the seeds and the scratch affordance are native tab stops in order (§9.3)
 	renderNewSession()
 	await hydrated()
 
-	seed(/easy session/i).focus()
+	seed(/rolig økt/i).focus()
 	await user.tab()
-	expect(seed(/intervals/i)).toHaveFocus()
+	expect(seed(/intervaller/i)).toHaveFocus()
 	await user.tab()
-	expect(seed(/strength session/i)).toHaveFocus()
+	expect(seed(/styrkeøkt/i)).toHaveFocus()
 	await user.tab()
 	expect(scratch()).toHaveFocus()
 })
@@ -156,17 +158,19 @@ test('the Easy seed materializes one block: 45 min with the easy zone chip', asy
 	renderNewSession()
 	await hydrated()
 
-	await user.click(seed(/easy session/i))
+	await user.click(seed(/rolig økt/i))
 
 	await waitFor(() => expect(stanza()).not.toBeNull())
 	expect(emptyState()).toBeNull()
 	expect(
-		screen.getByRole('button', { name: /^45 min duration, step 1 of 1/ }),
+		screen.getByRole('button', { name: /^45 min varighet, steg 1 av 1/ }),
 	).toBeInTheDocument()
 	const chip = document.querySelector('[data-token-type="intensity"]')
-	expect(chip).toHaveTextContent('Easy')
+	expect(chip).toHaveTextContent('Rolig')
 	await waitFor(() =>
-		expect(screen.getByRole('status')).toHaveTextContent('Easy session added'),
+		expect(screen.getByRole('status')).toHaveTextContent(
+			'Rolig økt er lagt inn',
+		),
 	)
 })
 
@@ -175,26 +179,26 @@ test('the Intervals seed materializes warm-up · 4× work/rest · cool-down', as
 	renderNewSession()
 	await hydrated()
 
-	await user.click(seed(/intervals/i))
+	await user.click(seed(/intervaller/i))
 
 	await waitFor(() => expect(stanza()).not.toBeNull())
 	expect(document.querySelectorAll('[data-stanza-line]')).toHaveLength(3)
 	// The middle block's repeat renders as the gutter badge.
 	expect(
-		screen.getByRole('button', { name: /^repeated 4 times, block 2 of 3/ }),
+		screen.getByRole('button', { name: /^gjentas 4 ganger, blokk 2 av 3/ }),
 	).toBeInTheDocument()
 	expect(
 		screen.getByRole('button', {
-			name: /^4 min duration, step 1 of 2, block 2 of 3/,
+			name: /^4 min varighet, steg 1 av 2, blokk 2 av 3/,
 		}),
 	).toBeInTheDocument()
 	expect(
 		document.querySelector('[data-token-type="intensity"]'),
-	).toHaveTextContent('Threshold')
+	).toHaveTextContent('Terskel')
 	// The rest step reads as the parenthesized rest notation.
 	expect(
 		screen.getByRole('button', {
-			name: /^2 min rest, step 2 of 2, block 2 of 3/,
+			name: /^2 min pause, steg 2 av 2, blokk 2 av 3/,
 		}),
 	).toBeInTheDocument()
 })
@@ -204,14 +208,14 @@ test('the Strength seed flips the header discipline and lands two set-notation s
 	const { posted } = renderNewSession()
 	await hydrated()
 
-	await user.click(seed(/strength session/i))
+	await user.click(seed(/styrkeøkt/i))
 
 	await waitFor(() => expect(stanza()).not.toBeNull())
 	expect(
-		screen.getByRole('button', { name: /^sets: 3 × 8, step 1 of 2/ }),
+		screen.getByRole('button', { name: /^sett: 3 × 8, steg 1 av 2/ }),
 	).toBeInTheDocument()
 	expect(
-		screen.getByRole('button', { name: /^sets: 3 × 5, step 2 of 2/ }),
+		screen.getByRole('button', { name: /^sett: 3 × 5, steg 2 av 2/ }),
 	).toBeInTheDocument()
 
 	// The header discipline flipped to strength (§11.3) — asserted on the
@@ -223,8 +227,8 @@ test('the Strength seed flips the header discipline and lands two set-notation s
 	).toBe('strength')
 
 	// …and the flip survives to the posted payload alongside both steps.
-	await user.type(screen.getByLabelText(/title/i), 'Gym Day')
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.type(screen.getByLabelText(/tittel/i), 'Gym Day')
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 	await waitFor(() => expect(posted).toHaveBeenCalledTimes(1))
 	const payload = posted.mock.calls[0]![0] as Record<string, string>
 	expect(payload.discipline).toBe('strength')
@@ -246,16 +250,16 @@ test('"or start from scratch ＋" opens the kind chooser; the chosen kind materi
 	const menu = await screen.findByRole('menu')
 	const items = within(menu).getAllByRole('menuitem')
 	expect(items.map((item) => item.textContent)).toEqual([
-		'Cardiostarts as 10 min',
-		'Strengthstarts as an exercise, 1 × 5',
-		'Reststarts as 1 min of recovery',
+		'Kondisjonstarter som 10 min',
+		'Styrkestarter som en øvelse, 1 × 5',
+		'Pausestarter som 1 min hvile',
 	])
 
-	await user.click(within(menu).getByRole('menuitem', { name: /rest/i }))
+	await user.click(within(menu).getByRole('menuitem', { name: /pause/i }))
 	await waitFor(() => expect(stanza()).not.toBeNull())
 	expect(emptyState()).toBeNull()
 	expect(
-		screen.getByRole('button', { name: /^1 min rest, step 1 of 1/ }),
+		screen.getByRole('button', { name: /^1 min pause, steg 1 av 1/ }),
 	).toBeInTheDocument()
 })
 
@@ -266,18 +270,20 @@ test('emptying the session out brings the identical composition back (§11.5)', 
 	renderNewSession()
 	await hydrated()
 
-	await user.click(seed(/easy session/i))
+	await user.click(seed(/rolig økt/i))
 	await waitFor(() => expect(stanza()).not.toBeNull())
 
 	// Remove the only step through its ⋮ menu — no last-step guard.
 	await user.click(
-		screen.getByRole('button', { name: 'Step 1 of 1 actions, block 1 of 1' }),
+		screen.getByRole('button', {
+			name: 'Handlinger for steg 1 av 1, blokk 1 av 1',
+		}),
 	)
-	await user.click(await screen.findByRole('menuitem', { name: 'Remove' }))
+	await user.click(await screen.findByRole('menuitem', { name: 'Fjern' }))
 
 	await waitFor(() => expect(emptyState()).not.toBeNull())
 	expect(stanza()).toBeNull()
-	expect(seed(/easy session/i)).toBeInTheDocument()
+	expect(seed(/rolig økt/i)).toBeInTheDocument()
 	expect(scratch()).toBeInTheDocument()
 })
 
@@ -288,9 +294,9 @@ test('saving with zero steps posts, lands the summary-line floor with focus + an
 	renderNewSession()
 	await hydrated()
 
-	await user.type(screen.getByLabelText(/title/i), 'Empty Day')
+	await user.type(screen.getByLabelText(/tittel/i), 'Empty Day')
 	// No disabled save button (§11.6): the save posts and the server answers.
-	const save = screen.getByRole('button', { name: /create session/i })
+	const save = screen.getByRole('button', { name: /lag økta/i })
 	expect(save).toBeEnabled()
 	await user.click(save)
 
@@ -298,7 +304,7 @@ test('saving with zero steps posts, lands the summary-line floor with focus + an
 	// button — and the summary itself takes focus.
 	await waitFor(() => expect(summary()).not.toBeNull())
 	const line = summary()!
-	expect(line).toHaveTextContent('1 thing needs fixing')
+	expect(line).toHaveTextContent('1 ting må rettes')
 	const item = within(line).getByText(
 		'Add at least one step to save this session',
 	)
@@ -306,13 +312,13 @@ test('saving with zero steps posts, lands the summary-line floor with focus + an
 	await waitFor(() => expect(line).toHaveFocus())
 	await waitFor(() =>
 		expect(screen.getByRole('status')).toHaveTextContent(
-			/1 thing needs fixing — Add at least one step to save this session/,
+			/1 ting må rettes — Add at least one step to save this session/,
 		),
 	)
 
 	// Edit-to-clear (§10.4): the summary clears the moment the first step
 	// materializes.
-	await user.click(seed(/easy session/i))
+	await user.click(seed(/rolig økt/i))
 	await waitFor(() => expect(summary()).toBeNull())
 	expect(stanza()).not.toBeNull()
 })

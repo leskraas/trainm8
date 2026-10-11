@@ -155,16 +155,16 @@ describe('switchStepKind — seeds', () => {
 describe('previewKindSwitch — the ⇄ rows tell the truth (§4.1)', () => {
 	test('states what carries and what a fresh strength switch starts as', () => {
 		const step = cardioStep({ duration: '6 min', notes: 'strides' })
-		expect(previewKindSwitch(step, 'rest')).toBe('keeps 6 min, note')
+		expect(previewKindSwitch(step, 'rest')).toBe('beholder 6 min, notat')
 		expect(previewKindSwitch(step, 'strength')).toBe(
-			'starts as an exercise, 1 × 5 — keeps note — sets aside 6 min',
+			'starter som en øvelse, 1 × 5 — beholder notat — legger til side 6 min',
 		)
 	})
 
 	test('states what is set aside for the step’s real values', () => {
 		const step = cardioStep({ distance: '2 km', intensity: 'threshold' })
 		expect(previewKindSwitch(step, 'rest')).toBe(
-			'starts as 1 min of recovery — sets aside 2 km · Threshold',
+			'starter som 1 min hvile — legger til side 2 km · Terskel',
 		)
 	})
 
@@ -174,7 +174,7 @@ describe('previewKindSwitch — the ⇄ rows tell the truth (§4.1)', () => {
 			'strength',
 		)
 		expect(previewKindSwitch(strength, 'cardio')).toBe(
-			'brings back 5 min · Threshold',
+			'henter tilbake 5 min · Terskel',
 		)
 	})
 
@@ -190,12 +190,12 @@ describe('previewKindSwitch — the ⇄ rows tell the truth (§4.1)', () => {
 			previewKindSwitch(rest, 'strength', {
 				exerciseNames: { 'ex-1': 'Deadlift' },
 			}),
-		).toBe('brings back Deadlift 1 × 8 @ 60 kg')
+		).toBe('henter tilbake Deadlift 1 × 8 @ 60 kg')
 	})
 
 	test('an empty step has nothing to carry', () => {
 		expect(previewKindSwitch(cardioStep({ duration: '' }), 'rest')).toBe(
-			'starts as 1 min of recovery',
+			'starter som 1 min hvile',
 		)
 	})
 })

@@ -14,6 +14,7 @@ import {
 	parseDistance,
 	parseDuration,
 } from '#app/utils/format.ts'
+import { TOKEN_EDITOR_CONTROL_LABELS as C } from '#app/utils/labels.ts'
 
 // Conform metadata is typed loosely here, matching the editor modules: only
 // names/keys/values are read, so the generics add noise without safety.
@@ -40,10 +41,6 @@ export function useFieldControl(meta: FieldMeta) {
 		formId: meta.formId,
 		initialValue: typeof meta.value === 'string' ? meta.value : undefined,
 	})
-}
-
-export function capitalize(text: string): string {
-	return text ? text[0]!.toUpperCase() + text.slice(1) : text
 }
 
 // ——— Stepper value codecs ———————————————————————————————————————————————
@@ -179,7 +176,7 @@ export function TypeToEditStepper({
 
 	function commit(next: number) {
 		onChange(config.serialize(next))
-		announce(`${capitalize(label)} set to ${config.display(next)}`)
+		announce(C.valueSet(label, config.display(next)))
 	}
 
 	function nudge(next: number) {
@@ -213,7 +210,7 @@ export function TypeToEditStepper({
 			<Button
 				type="button"
 				variant="outline"
-				aria-label={`Decrease ${label}`}
+				aria-label={C.decrease(label)}
 				disabled={fieldValue == null || fieldValue <= config.min}
 				onClick={decrease}
 				className="size-11 shrink-0 rounded-lg text-lg"
@@ -223,7 +220,7 @@ export function TypeToEditStepper({
 			<input
 				type="text"
 				inputMode={config.inputMode}
-				aria-label={`${capitalize(label)} value`}
+				aria-label={C.value(label)}
 				value={text}
 				onChange={(event) => handleTyped(event.target.value)}
 				className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-3 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
@@ -231,7 +228,7 @@ export function TypeToEditStepper({
 			<Button
 				type="button"
 				variant="outline"
-				aria-label={`Increase ${label}`}
+				aria-label={C.increase(label)}
 				disabled={
 					config.max != null && fieldValue != null && fieldValue >= config.max
 				}

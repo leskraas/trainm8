@@ -21,22 +21,20 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
+import {
+	NB_STEP_KIND_LABELS,
+	TOKEN_EDITOR_EMPTY_LABELS as E,
+	TOKEN_SENTENCE_WORDS as W,
+	zoneLabelWord,
+} from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { emptySet, emptyStep } from '#app/utils/workout-authoring.ts'
 import { type DraftBlockValue } from '#app/utils/workout-notation.ts'
-import {
-	STEP_KIND_LABELS,
-	STEP_KINDS,
-	type StepKind,
-} from '#app/utils/workout-schema.ts'
+import { STEP_KINDS, type StepKind } from '#app/utils/workout-schema.ts'
 
 /** The seed hint each kind-chooser row carries (§4.1) — shared by the line's
  * ＋ chooser, the ⠿ Add-step submenu, and the scratch chooser here. */
-export const STEP_KIND_HINTS: Record<StepKind, string> = {
-	cardio: 'starts as 10 min',
-	strength: 'starts as an exercise, 1 × 5',
-	rest: 'starts as 1 min of recovery',
-}
+export const STEP_KIND_HINTS: Record<StepKind, string> = E.hints
 
 /**
  * The three-row kind chooser's rows (§4.1, G5): Cardio · Strength · Rest,
@@ -52,7 +50,7 @@ export function KindChooserItems({
 			{STEP_KINDS.map((kind) => (
 				<DropdownMenuItem key={kind} onClick={() => onChoose(kind)}>
 					<span className="flex flex-col">
-						<span className="font-medium">{STEP_KIND_LABELS[kind]}</span>
+						<span className="font-medium">{NB_STEP_KIND_LABELS[kind]}</span>
 						<span className="text-muted-foreground text-xs">
 							{STEP_KIND_HINTS[kind]}
 						</span>
@@ -106,8 +104,8 @@ export type ArchetypeSeed = {
 export const ARCHETYPE_SEEDS: ArchetypeSeed[] = [
 	{
 		id: 'easy',
-		name: 'Easy session',
-		lines: [{ text: '45 min @ easy' }],
+		name: E.easy,
+		lines: [{ text: `45 min @ ${zoneLabelWord('easy')}` }],
 		blocks: () => [
 			{
 				name: '',
@@ -118,14 +116,17 @@ export const ARCHETYPE_SEEDS: ArchetypeSeed[] = [
 	},
 	{
 		id: 'intervals',
-		name: 'Intervals',
+		name: E.intervals,
 		lines: [
 			{ text: '15 min' },
-			{ badge: '4×', text: '4 min @ threshold ( 2 min rest )' },
+			{
+				badge: '4×',
+				text: `4 min @ ${zoneLabelWord('threshold')} ( ${W.restFor('2 min')} )`,
+			},
 			{ text: '10 min' },
 		],
 		blocks: () => [
-			{ name: 'Warm-up', repeatCount: '1', steps: [cardioStep('15 min')] },
+			{ name: E.warmUp, repeatCount: '1', steps: [cardioStep('15 min')] },
 			{
 				name: '',
 				repeatCount: '4',
@@ -134,14 +135,14 @@ export const ARCHETYPE_SEEDS: ArchetypeSeed[] = [
 					{ ...emptyStep(), kind: 'rest', duration: '2 min' },
 				],
 			},
-			{ name: 'Cool-down', repeatCount: '1', steps: [cardioStep('10 min')] },
+			{ name: E.coolDown, repeatCount: '1', steps: [cardioStep('10 min')] },
 		],
 	},
 	{
 		id: 'strength',
-		name: 'Strength session',
+		name: E.strength,
 		discipline: 'strength',
-		lines: [{ text: 'exercise 3 × 8 → exercise 3 × 5' }],
+		lines: [{ text: `${W.exercise} 3 × 8 → ${W.exercise} 3 × 5` }],
 		blocks: () => [
 			{
 				name: '',
@@ -158,7 +159,7 @@ export const ARCHETYPE_SEEDS: ArchetypeSeed[] = [
 // ——— The composition —————————————————————————————————————————————————————
 
 const SCRATCH_TRIGGER_CLASS =
-	'text-muted-foreground hover:bg-accent hover:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring cursor-pointer rounded-md px-2 py-1.5 text-sm outline-none focus-visible:ring-2'
+	'text-muted-foreground hover:bg-accent hover:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring inline-flex min-h-11 cursor-pointer items-center rounded-2xl px-2 text-sm outline-none focus-visible:ring-2'
 
 /**
  * The zero-step composition (§11.2): three seed buttons — native tab stops
@@ -181,7 +182,7 @@ export function WorkoutEmptyState({
 					type="button"
 					data-seed={seed.id}
 					onClick={() => onSeed(seed)}
-					className="hover:bg-accent/40 focus-visible:ring-ring group flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left outline-none focus-visible:ring-2"
+					className="hover:bg-accent/40 focus-visible:ring-ring group flex min-h-11 w-full cursor-pointer flex-col items-start gap-0.5 rounded-2xl px-2 py-1.5 text-left outline-none focus-visible:ring-2"
 				>
 					<span className="text-muted-foreground group-hover:text-foreground text-xs font-medium">
 						{seed.name}
@@ -196,7 +197,7 @@ export function WorkoutEmptyState({
 					data-start-from-scratch
 					className={cn(SCRATCH_TRIGGER_CLASS, 'mt-1')}
 				>
-					or start from scratch ＋
+					{E.fromScratch}
 				</DropdownMenuTrigger>
 				<DropdownMenuContent className="w-auto min-w-44">
 					<KindChooserItems onChoose={onStartFromScratch} />

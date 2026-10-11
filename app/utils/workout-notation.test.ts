@@ -1133,9 +1133,7 @@ describe('draftToNotationInput — draft form values', () => {
 				steps: [{ kind: 'cardio', duration: '30 min', intensity: 'endurance' }],
 			},
 		])
-		expect(notationSentence(deriveWorkoutNotation(input))).toBe(
-			'30 min Rolig',
-		)
+		expect(notationSentence(deriveWorkoutNotation(input))).toBe('30 min Rolig')
 	})
 
 	test('strength drafts resolve exercise names through the lookup and skip incomplete set rows', () => {
@@ -1380,10 +1378,10 @@ describe('discipline override token', () => {
 		const tokens = notation.blocks[0]!.steps[0]!.tokens
 		expect(tokens[0]!.token).toMatchObject({
 			type: 'discipline',
-			text: 'bike',
+			text: 'sykling',
 			address: { blockIndex: 0, stepIndex: 0, field: 'discipline' },
 		})
-		expect(notationSentence(notation)).toBe('bike 30 min')
+		expect(notationSentence(notation)).toBe('sykling 30 min')
 	})
 
 	test('a draft discipline equal to the workout discipline reads as inherited — no token', () => {
@@ -1437,7 +1435,7 @@ describe('discipline override token', () => {
 				},
 			]),
 		}
-		expect(sentenceFor(workout)).toBe('bike 30 min → 10 min')
+		expect(sentenceFor(workout)).toBe('sykling 30 min → 10 min')
 	})
 })
 
@@ -1460,7 +1458,9 @@ test('a vertical quantity is drawn — the step is not unbounded', () => {
 			},
 		],
 	})
-	expect(notationSentence(notation)).toBe('5 × 200 hm @ RPE 7 · Z4 (jogg tilbake)')
+	expect(notationSentence(notation)).toBe(
+		'5 × 200 hm @ RPE 7 · Z4 (jogg tilbake)',
+	)
 })
 
 test('every Rest Spec form says what ends it, and never a number it lacks', () => {
