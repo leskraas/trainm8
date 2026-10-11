@@ -98,16 +98,18 @@ export async function runIntervalsIcuReconciliation(
 	// Advance the watermark forward-only: the 48h overlap reaches back before
 	// `lastSyncedAt`, so a sweep that only finds older activities must not pull
 	// it backward. No activities at all leaves it untouched.
+	// The sweep is a sync too: it records when it checked (`lastCheckedAt`,
+	// the hub's "Sist synkronisert"), whatever it found.
 	const current = connection.lastSyncedAt
-	if (
-		latestActivityAt != null &&
-		(current == null || latestActivityAt > current)
-	) {
-		await prisma.accountConnection.update({
-			where: { id: connection.id },
-			data: { lastSyncedAt: latestActivityAt },
-		})
-	}
+	const advances =
+		latestActivityAt != null && (current == null || latestActivityAt > current)
+	await prisma.accountConnection.update({
+		where: { id: connection.id },
+		data: {
+			lastCheckedAt: now,
+			...(advances ? { lastSyncedAt: latestActivityAt } : {}),
+		},
+	})
 
 	return { ok: true, created, skipped }
 }

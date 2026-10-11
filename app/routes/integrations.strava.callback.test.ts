@@ -70,7 +70,7 @@ test('happy path: persists an active Strava Account Connection', async () => {
 
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
-		expect.objectContaining({ title: 'Connected to Strava', type: 'success' }),
+		expect.objectContaining({ title: 'Koblet til Strava', type: 'success' }),
 	)
 
 	const connection = await prisma.accountConnection.findUnique({
@@ -111,7 +111,7 @@ test('rejects a state mismatch (CSRF) without creating a connection', async () =
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
-			title: 'Strava connection failed',
+			title: 'Kunne ikke koble til Strava',
 			type: 'error',
 		}),
 	)
@@ -135,7 +135,7 @@ test('rejects a connection missing activity read scope without creating one', as
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
-			title: 'Strava connection failed',
+			title: 'Kunne ikke koble til Strava',
 			type: 'error',
 		}),
 	)
@@ -161,7 +161,7 @@ test('handles a non-200 from the Strava token exchange', async () => {
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
-			title: 'Strava connection failed',
+			title: 'Kunne ikke koble til Strava',
 			type: 'error',
 		}),
 	)

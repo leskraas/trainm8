@@ -19,7 +19,6 @@ import {
 	MEG_VALIDATION_LABELS,
 	MEG_ZOD_ISSUE_LABELS,
 } from '#app/utils/labels.ts'
-import { formatKg } from '#app/utils/strength/program.constants.ts'
 
 /** The errors to show at a field, in Norwegian, blanks dropped. */
 export function nbErrors(
@@ -35,15 +34,6 @@ export function nbDecimal(value: number, fractionDigits?: number): string {
 	const text =
 		fractionDigits == null ? String(value) : value.toFixed(fractionDigits)
 	return text.replace('.', ',')
-}
-
-/**
- * Kilos with a decimal comma, at the precision the number was stored at
- * (`61,25`, never `61,3`). Display only: anything posted back keeps
- * `formatKg`'s point, because the server parses it.
- */
-export function nbKg(kg: number): string {
-	return formatKg(kg).replace('.', ',')
 }
 
 /** An effort's length: `30 s`, `20 min`. */

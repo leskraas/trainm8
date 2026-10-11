@@ -1,6 +1,10 @@
 import { redirect } from 'react-router'
 import { syncIntervalsIcuActivities } from '#app/integrations/intervalsicu/sync.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import {
+	INTEGRATION_TOAST_LABELS,
+	INTEGRATIONS_LABELS,
+} from '#app/utils/labels.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type Route } from './+types/integrations.intervalsicu.sync.ts'
 
@@ -20,6 +24,8 @@ function syncRedirectTarget(request: Request): string {
 	)
 }
 
+const T = INTEGRATION_TOAST_LABELS
+
 /** Manual "Sync now" is a state-changing POST from the Integration Hub. */
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
@@ -29,25 +35,21 @@ export async function action({ request }: Route.ActionArgs) {
 	if (!result.ok) {
 		const description =
 			result.reason === 'revoked'
-				? 'Intervals.icu rejected the stored API key — paste a new one on the Integrations page to resume imports.'
+				? T.intervalsicuRevoked
 				: result.reason === 'unavailable'
-					? 'Intervals.icu could not be reached — nothing was imported. Try again in a few minutes.'
-					: 'Connect your Intervals.icu account before syncing.'
+					? T.intervalsicuUnavailable
+					: T.connectFirstNamed(INTEGRATIONS_LABELS.intervalsicu.name)
 		return redirectWithToast(redirectTo, {
-			title: 'Sync failed',
+			title: T.syncFailed,
 			description,
 			type: 'error',
 		})
 	}
 
 	const description =
-		result.created === 0
-			? 'No new activities to import.'
-			: `Imported ${result.created} new ${
-					result.created === 1 ? 'activity' : 'activities'
-				}.`
+		result.created === 0 ? T.nothingNew : T.imported(result.created)
 	return redirectWithToast(redirectTo, {
-		title: 'Synced with Intervals.icu',
+		title: T.syncedWith(INTEGRATIONS_LABELS.intervalsicu.name),
 		description,
 		type: 'success',
 	})

@@ -1,9 +1,10 @@
 import { getFormProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { data, Form, Link, redirect } from 'react-router'
+import { data, Form, redirect } from 'react-router'
 import { ErrorList } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
+import { MAX_SESSION_DAYS } from '#app/utils/first-run/draft.ts'
 import {
 	answersSearch,
 	FirstRunCreateSchema,
@@ -19,13 +20,13 @@ import { formatNbDayMonth } from '#app/utils/format.ts'
 import {
 	FIRST_RUN_LABELS,
 	FIRST_RUN_REFUSAL_LABELS,
-	NB_DISCIPLINE_LABELS,
 	NB_WEEKDAY_LABELS,
 	nbDurationLabel,
 	nbHoursLabel,
 	nbWeekdayList,
 } from '#app/utils/labels.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
+import { stampedSessionTitle } from '#app/utils/session-title.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type Route } from './+types/uker.ts'
 import { FirstRunFrame, SECONDARY_ACTION } from './__first-run-frame.tsx'
@@ -63,14 +64,21 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const read = await readFirstRunPlan(userId, answers)
 	if (!read.ok) throw redirect(`/start/sporsmal?${answersSearch(answers)}`)
 	const { draft } = read.plan
-	const sport = NB_DISCIPLINE_LABELS[answers.discipline]
-	const longDay = draft.pattern.find((day) => day.role === 'long')
+	const chosen = new Set(answers.days).size
+	const used = draft.patternDays.length
 
 	return {
 		intro: L.intro(
-			nbWeekdayList(answers.days),
+			nbWeekdayList(draft.patternDays),
 			nbHoursLabel(draft.weeks[0]?.target ?? answers.hours),
 		),
+		// Fewer days than chosen: said, with the reason (`patternDaysFor`).
+		daysNote:
+			used >= chosen
+				? null
+				: chosen > MAX_SESSION_DAYS && used === MAX_SESSION_DAYS
+					? L.restDay(chosen, used)
+					: L.fewerDays(chosen, used),
 		weeks: draft.weeks.map((week) => ({
 			weekKey: week.weekKey,
 			heading: L.weekHeading(
@@ -84,13 +92,19 @@ export async function loader({ request }: Route.LoaderArgs) {
 			sessions: week.sessions.map((session) => ({
 				key: `${session.dayId}-${session.weekKey}`,
 				day: `${NB_WEEKDAY_LABELS[session.weekday]} ${dayLabel(addDays(week.weekKey, session.weekday))}`,
-				title: `${session.weekday === longDay?.weekday ? L.long : L.easy} · ${sport}`,
+				// The title the stamp will store (`stampedSessionTitle`), so the
+				// session on I dag is called what it was called here.
+				title: stampedSessionTitle({
+					discipline: answers.discipline,
+					role: session.role,
+					zone: session.zone,
+				}),
+				hard: session.zone != null,
 				duration: nbDurationLabel(
 					Math.round(((session.volume ?? 0) * 3600) / 60) * 60,
 				),
 			})),
 		})),
-		capNote: FIRST_RUN_LABELS.plan.withinHours(nbHoursLabel(answers.hours)),
 		planLink: `/start/plan?${answersSearch(answers)}`,
 	}
 }
@@ -141,7 +155,17 @@ export default function WeeksStep({
 	})
 
 	return (
-		<FirstRunFrame step={5} title={L.title} intro={loaderData.intro}>
+		<FirstRunFrame
+			step={5}
+			title={L.title}
+			intro={loaderData.intro}
+			back={{ to: loaderData.planLink, label: FIRST_RUN_LABELS.backTo.uker }}
+		>
+			{loaderData.daysNote ? (
+				<p className="text-footnote text-muted-foreground" data-days-note>
+					{loaderData.daysNote}
+				</p>
+			) : null}
 			{loaderData.weeks.map((week) => (
 				<section
 					key={week.weekKey}
@@ -151,34 +175,46 @@ export default function WeeksStep({
 				>
 					<h2
 						id={`first-run-week-${week.weekKey}`}
-						className="text-base font-semibold"
+						className="text-heading tabular-nums"
 					>
 						{week.heading}
 					</h2>
-					<ul className="divide-border divide-y">
+					<ul className="bg-card divide-border/60 divide-y rounded-4xl px-4 shadow-xs">
 						{week.sessions.map((session) => (
 							<li
 								key={session.key}
-								className="flex items-baseline justify-between gap-3 py-2.5"
+								className="flex items-center justify-between gap-3 py-3"
 							>
-								<span>
-									<span className="text-muted-foreground block text-[13px] first-letter:uppercase">
+								<span className="min-w-0">
+									<span className="text-footnote text-muted-foreground block first-letter:uppercase">
 										{session.day}
 									</span>
-									<span className="block text-[15px] font-medium">
-										{session.title}
+									<span className="text-callout flex items-center gap-2">
+										{session.hard ? (
+											<span
+												aria-hidden
+												className="bg-primary size-2 shrink-0 rounded-full"
+											/>
+										) : null}
+										<span className="min-w-0">
+											{session.title}
+											{session.hard ? (
+												<span className="sr-only"> ({L.hard})</span>
+											) : null}
+										</span>
 									</span>
 								</span>
-								<span className="text-[15px] tabular-nums">
+								<span className="text-callout shrink-0 font-normal tabular-nums">
 									{session.duration}
 								</span>
 							</li>
 						))}
 					</ul>
-					<p className="text-muted-foreground text-[13px]">{week.total}</p>
+					<p className="text-footnote text-muted-foreground tabular-nums">
+						{week.total}
+					</p>
 				</section>
 			))}
-			<p className="text-muted-foreground text-sm">{loaderData.capNote}</p>
 
 			<Form method="POST" className="space-y-3" {...getFormProps(form)}>
 				<ErrorList errors={form.errors} id={form.errorId} />
@@ -186,7 +222,7 @@ export default function WeeksStep({
 					type="submit"
 					name="intent"
 					value="create"
-					className="min-h-11 w-full text-[15px]"
+					className="text-callout w-full"
 					status={isPending ? 'pending' : 'idle'}
 					disabled={isPending}
 				>
@@ -201,16 +237,10 @@ export default function WeeksStep({
 				>
 					{L.selfSetUp}
 				</button>
-				<p className="text-muted-foreground text-center text-[13px]">
+				<p className="text-footnote text-muted-foreground text-center">
 					{L.selfSetUpHelp}
 				</p>
 			</Form>
-			<Link
-				to={loaderData.planLink}
-				className="text-muted-foreground block text-center text-sm underline"
-			>
-				{L.back}
-			</Link>
 		</FirstRunFrame>
 	)
 }

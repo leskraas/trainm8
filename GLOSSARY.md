@@ -1597,16 +1597,19 @@ lifting; every _ikke målt_ says why, and _Noe er feil_ sets the pre-fill right)
 → three questions, pre-filled (what they train toward, a race or _Hold meg
 aktiv_; hours a week; which days) → the plan with _Vi valgte X fordi …_ in plain
 words and a switch to any of the five philosophies → the first two weeks, day by
-day → I dag. The days and hours become the athlete's **Training Availability**
-and **Weekly Capacity**; the plan is one endurance **Training Track** in hours
-whose heaviest week is at or under the hours given (the first week starts lower,
-so the family's climb fits), its hard sessions cut to fit the chosen days, a
-starter **Week Pattern** on those days and no others, and its first two weeks
-laid as `generated` sessions. What the screens show and what is made come from
-the same draft, so the plan is the one shown. _Jeg vil heller sette opp sesongen
-selv_ makes the same plan and opens it in Sesong; there is no empty-season
-start. The answers travel in the URL until the plan is made. _Avoid_: onboarding
-(the account sign-up), wizard, setup
+day → I dag. The hours are what the athlete trains **now** and the plan's first
+week: the family climbs from them (ADR 0091; they were a ceiling once, which
+started a 4 t runner on 2,5 t). The days become the athlete's **Training
+Availability**, all of them, and the plan's heaviest week their **Weekly
+Capacity**. The plan is one endurance **Training Track** in hours, its hard
+sessions cut to fit the days, a starter **Week Pattern** on the chosen days cut
+to what the hours fill with no session under half an hour and to six (one rest
+day), and its first two weeks laid as `generated` sessions, each titled as step
+5 showed it (`Terskeløkt · Løping`). What the screens show and what is made come
+from the same draft, so the plan is the one shown. _Jeg vil heller sette opp
+sesongen selv_ makes the same plan and opens it in Sesong; there is no
+empty-season start. The answers travel in the URL until the plan is made.
+_Avoid_: onboarding (the account sign-up), wizard, setup
 
 **Hero** (retired): The **Home Timeline**'s former top band — four paged panes
 of _now_ (Today, Form, This week, Records) that folded as the Stream scrolled
@@ -2483,11 +2486,14 @@ from a proposal the athlete asks for**: a starter week lays one share day per
 day of their **Training Availability** with the last one weighted double as the
 long day, plus a day per session on a strength track that authors a **Strength
 Frequency**. It proposes days and never intensity — which day is a quality
-session is the **Quality Session Mix**'s to say — and where availability was
-never set it falls back to a four-day week and says so rather than implying it
-read anything (ADR 0048 §4). _Avoid_: Week template (reserved for the future
-**Plan Template**), microcycle (as a UI/code term — recognized synonym only),
-pattern instance.
+session is the **Quality Session Mix**'s to say, and the stamp says it: each
+week it lays its segment's mix on the ordinary bare **share** days, never the
+long day, as far apart as the week allows, keeping each day's share (ADR 0091);
+the day itself still carries no zone, the new Workout's intent does — and where
+availability was never set it falls back to a four-day week and says so rather
+than implying it read anything (ADR 0048 §4). _Avoid_: Week template (reserved
+for the future **Plan Template**), microcycle (as a UI/code term — recognized
+synonym only), pattern instance.
 
 **Pattern Preview**: What each day of a **Week Pattern** resolves to against one
 chosen **Training Week**, read before anything is stamped — "Tuesday 6.7 km,
@@ -2636,8 +2642,11 @@ injury needs to say so. Endurance hours only; a strength track has sessions per
 week but no per-session duration to price them with (ADR 0046 §3, ADR 0047 §5).
 Unset reads as unavailable, never as passing. Distinct from a **Season Anchor**
 in `hours` currency, which is what the athlete _plans_ to train rather than what
-they have room for. _Avoid_: Weekly hours (ambiguous with the anchor), time
-budget, availability hours, training load ceiling.
+they have room for. The **First Run** is the one writer that does not ask for it
+directly: its hours question asks what the athlete trains now (the anchor), so
+it stores the accepted plan's heaviest week as the capacity (ADR 0091). _Avoid_:
+Weekly hours (ambiguous with the anchor), time budget, availability hours,
+training load ceiling.
 
 ### Charts and visualization
 

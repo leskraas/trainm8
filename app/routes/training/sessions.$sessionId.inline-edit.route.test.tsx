@@ -20,6 +20,7 @@ import { parseDuration } from '#app/utils/format.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
 import { buildBlocksInput, FormSchema } from '#app/utils/workout-authoring.ts'
 import { AUTOSAVE_DEBOUNCE_MS } from './__workout-detail-editor.tsx'
+import { buildSessionSummary } from './__workout-detail-summary.ts'
 import SessionDetailRoute from './sessions.$sessionId.tsx'
 
 // Autosave posts land after the debounce plus a fetch round-trip and a
@@ -148,6 +149,15 @@ function setup(
 				thresholds: {},
 				lastSimilar: null,
 				loggedSetsByStep: options.loggedSetsByStep ?? {},
+				// The header's own figures (Arket M), as the loader builds them.
+				summary: buildSessionSummary({
+					discipline: store.session.workout?.discipline ?? '',
+					status: store.session.status,
+					currency: null,
+					workout: store.session.workout,
+					recording: store.session.recording,
+					loggedSets: 0,
+				}),
 			}),
 			action: async ({ request }: { request: Request }) => {
 				const formData = await request.formData()
@@ -200,13 +210,13 @@ function setup(
 
 async function bumpDuration(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(
-		await screen.findByRole('button', { name: /^30 min duration/ }),
+		await screen.findByRole('button', { name: /^30 min varighet/ }),
 	)
 	await user.click(
-		await screen.findByRole('button', { name: /increase duration/i }),
+		await screen.findByRole('button', { name: /øk varigheten/i }),
 	)
 	await user.keyboard('{Escape}')
-	await screen.findByRole('button', { name: /^35 min duration/ })
+	await screen.findByRole('button', { name: /^35 min varighet/ })
 }
 
 test('a scheduled session edits a token inline and autosaves the whole prescription through the detail action', async () => {
@@ -245,7 +255,7 @@ test('a scheduled session edits a token inline and autosaves the whole prescript
 	})
 	// The prescription re-renders with the edit — no navigation to the edit page.
 	expect(
-		screen.getByRole('button', { name: /^35 min duration/ }),
+		screen.getByRole('button', { name: /^35 min varighet/ }),
 	).toBeInTheDocument()
 	// One committed edit is exactly one post: the save's own revalidation must
 	// not look like a fresh change and re-post itself (silence is the norm).
@@ -375,19 +385,19 @@ test('the sets popover shows a load it cannot express as authored, and an edit b
 	// The sentence itself already reads the authored loads — the range included.
 	await user.click(
 		await screen.findByRole('button', {
-			name: /^sets: 8 @ 8RM \/ 8 @ 85–90% 1RM \/ 8 @ bodyweight \+ 20 kg/,
+			name: /^sett: 8 @ 8RM \/ 8 @ 85–90% 1RM \/ 8 @ kroppsvekt \+ 20 kg/,
 		}),
 	)
 
 	// No kg/%1RM inputs for these rows: the pair cannot say `8RM`, a percentage
 	// range or a weighted bodyweight set, so the popover states them instead of
 	// offering a control that would silently convert them.
-	const reps = await screen.findByLabelText('Set 1 reps')
+	const reps = await screen.findByLabelText('Repetisjoner i sett 1')
 	expect(
 		[...document.querySelectorAll('[data-slot="authored-load"]')].map(
 			(node) => node.textContent,
 		),
-	).toEqual(['8RM', '85–90% 1RM', 'bodyweight + 20 kg'])
+	).toEqual(['8RM', '85–90% 1RM', 'kroppsvekt + 20 kg'])
 	expect(screen.queryByLabelText('Set 1 kg')).not.toBeInTheDocument()
 	expect(screen.queryByLabelText('Set 1 %1RM')).not.toBeInTheDocument()
 
@@ -457,7 +467,7 @@ test('a failed autosave surfaces the server error inline without losing the draf
 	expect(document.querySelectorAll('[data-validation-summary]')).toHaveLength(1)
 	// …and the athlete's in-progress edit is preserved, not reverted.
 	expect(
-		screen.getByRole('button', { name: /^35 min duration/ }),
+		screen.getByRole('button', { name: /^35 min varighet/ }),
 	).toBeInTheDocument()
 })
 
@@ -478,18 +488,18 @@ test('a fast autosave is silent — the "saving…" indicator only appears when 
 		await waitFor(() => expect(captured.payload).not.toBeNull(), {
 			timeout: SAVE_TIMEOUT,
 		})
-		expect(screen.queryByText(/saving…/i)).not.toBeInTheDocument()
+		expect(screen.queryByText(/lagrer …/i)).not.toBeInTheDocument()
 
 		// Once it hangs past the threshold, the quiet delayed indicator appears.
 		expect(
-			await screen.findByText(/saving…/i, {}, { timeout: SAVE_TIMEOUT }),
+			await screen.findByText(/lagrer …/i, {}, { timeout: SAVE_TIMEOUT }),
 		).toBeInTheDocument()
 	} finally {
 		// Releasing the save clears the indicator — silence is the resting state.
 		gate.resolve()
 	}
 	await waitFor(() =>
-		expect(screen.queryByText(/saving…/i)).not.toBeInTheDocument(),
+		expect(screen.queryByText(/lagrer …/i)).not.toBeInTheDocument(),
 	)
 }, 15000)
 
@@ -544,14 +554,14 @@ test('changing what exercise a step is says what will happen to the sets already
 
 	// Said before anything is attempted: the count, the lift, what stays editable,
 	// and the way out. Not a lock on the card and not a dialog after the fact.
-	const notice = await screen.findByText(/5 sets are logged against Dip/)
-	expect(notice).toHaveTextContent(/which exercise this is stays fixed/)
-	expect(notice).toHaveTextContent(/delete those sets first/)
+	const notice = await screen.findByText(/5 sett er logget på Dip/)
+	expect(notice).toHaveTextContent(/hvilken øvelse dette er ligger fast/)
+	expect(notice).toHaveTextContent(/slett de settene først/)
 })
 
 test('a scheduled session with nothing logged says nothing about logged sets', async () => {
 	setup(scheduledStrength())
 	await screen.findByText('Push day')
 	// A warning nobody needs is chrome.
-	expect(screen.queryByText(/sets are logged against/)).not.toBeInTheDocument()
+	expect(screen.queryByText(/sett er logget på/)).not.toBeInTheDocument()
 })

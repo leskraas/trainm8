@@ -71,11 +71,13 @@ const REJECTION: Record<string, string[]> = {
 }
 
 const durationToken = () =>
-	screen.getByRole('button', { name: /^6 min duration/ })
+	screen.getByRole('button', { name: /^6 min varighet/ })
 const stepMark = () =>
-	screen.getByRole('button', { name: 'Step 1 of 1 actions, block 1 of 1' })
+	screen.getByRole('button', {
+		name: 'Handlinger for steg 1 av 1, blokk 1 av 1',
+	})
 const blockGrip = () =>
-	screen.getByRole('button', { name: 'Block 1 of 1 actions' })
+	screen.getByRole('button', { name: 'Handlinger for blokk 1 av 1' })
 const summary = () =>
 	document.querySelector('[data-validation-summary]') as HTMLElement | null
 const popup = () =>
@@ -85,12 +87,12 @@ const popup = () =>
 // authoring surface now, so seed the first step through the empty-state's
 // "start from scratch ＋" kind chooser — a cardio step lands as its 10 min seed.
 async function addStructure(user: ReturnType<typeof userEvent.setup>) {
-	await screen.findByLabelText(/title/i) // wait for hydration
+	await screen.findByLabelText(/tittel/i) // wait for hydration
 	await user.click(
-		await screen.findByRole('button', { name: /start from scratch/i }),
+		await screen.findByRole('button', { name: /begynn med et tomt steg/i }),
 	)
-	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
-	await screen.findByRole('button', { name: /min duration/ })
+	await user.click(await screen.findByRole('menuitem', { name: /kondisjon/i }))
+	await screen.findByRole('button', { name: /min varighet/ })
 }
 
 /** Retype the cardio step's duration token through its popover (replacing the
@@ -99,8 +101,8 @@ async function setDuration(
 	user: ReturnType<typeof userEvent.setup>,
 	value: string,
 ) {
-	await user.click(await screen.findByRole('button', { name: /min duration/ }))
-	const input = await screen.findByLabelText('Duration value')
+	await user.click(await screen.findByRole('button', { name: /min varighet/ }))
+	const input = await screen.findByLabelText('Verdi for varigheten')
 	await user.clear(input)
 	await user.type(input, value)
 	await user.keyboard('{Escape}')
@@ -110,12 +112,12 @@ async function setDuration(
  * stubbed rejection. */
 async function submitAndReject(user: ReturnType<typeof userEvent.setup>) {
 	await addStructure(user)
-	await user.type(screen.getByLabelText(/title/i), 'Tempo Day')
+	await user.type(screen.getByLabelText(/tittel/i), 'Tempo Day')
 	// The scratch seed lands at 10 min; retune it to the 6 min the token
 	// anchors reference.
 	await setDuration(user, '6')
-	await screen.findByRole('button', { name: /^6 min duration/ })
-	await user.click(screen.getByRole('button', { name: 'Create Session' }))
+	await screen.findByRole('button', { name: /^6 min varighet/ })
+	await user.click(screen.getByRole('button', { name: 'Lag økta' }))
 	await waitFor(() => expect(summary()).not.toBeNull())
 }
 
@@ -128,7 +130,7 @@ test('the 400 paints every anchor level, lists the summary in document order, mo
 	// header first, then the block gutter, the step's tokens, absent facets,
 	// and the unmappable floor item last.
 	const line = summary()!
-	expect(line).toHaveTextContent('5 things need fixing')
+	expect(line).toHaveTextContent('5 ting må rettes')
 	const items = within(line)
 		.getAllByRole('listitem')
 		.map((item) => item.textContent)
@@ -155,13 +157,13 @@ test('the 400 paints every anchor level, lists the summary in document order, mo
 
 	// Focus lands on the first anchored item — the session-level error's
 	// header field (the schedule date input).
-	const dateInput = screen.getByLabelText(/date/i)
+	const dateInput = screen.getByLabelText(/^dato/i)
 	await waitFor(() => expect(dateInput).toHaveFocus())
 
 	// The polite live region announces the rejection in human words.
 	await waitFor(() =>
 		expect(screen.getByRole('status')).toHaveTextContent(
-			/5 things need fixing — Sessions can’t be scheduled in the past/,
+			/5 ting må rettes — Sessions can’t be scheduled in the past/,
 		),
 	)
 })
@@ -183,7 +185,7 @@ test('the offending token’s popover leads with the message; a summary item ret
 	// "＋ intensity" neighbour link is highlighted (§10.2).
 	expect(popup()).toHaveTextContent('Pick an intensity for tempo work')
 	const highlighted = popup().querySelector('[data-error-highlight]')
-	expect(highlighted).toHaveTextContent('＋ intensity')
+	expect(highlighted).toHaveTextContent('＋ intensitet')
 })
 
 test('the block gutter menu leads with the block’s message', async () => {
@@ -200,41 +202,37 @@ test('a marking clears locally the moment its value changes — no re-run of ser
 	const user = userEvent.setup()
 	renderNewSession(REJECTION)
 	await submitAndReject(user)
-	expect(summary()).toHaveTextContent('5 things need fixing')
+	expect(summary()).toHaveTextContent('5 ting må rettes')
 
 	// Edit the duration behind the token anchor (through the token's own
 	// popover, which binds the same Conform field the marking watches).
 	await setDuration(user, '8')
 
-	await waitFor(() =>
-		expect(summary()).toHaveTextContent('4 things need fixing'),
-	)
+	await waitFor(() => expect(summary()).toHaveTextContent('4 ting må rettes'))
 	expect(
 		within(summary()!).queryByText('Too long for this plan'),
 	).not.toBeInTheDocument()
 	// The token itself is clean again.
 	expect(
-		screen.getByRole('button', { name: /^8 min duration/ }),
+		screen.getByRole('button', { name: /^8 min varighet/ }),
 	).not.toHaveAttribute('data-server-error')
 
 	// Clearing is one-way: typing the rejected value back does not repaint —
 	// that would be the client re-judging server rules. The next submit
 	// returns the full truth.
 	await setDuration(user, '6')
-	await screen.findByRole('button', { name: /^6 min duration/ })
-	expect(summary()).toHaveTextContent('4 things need fixing')
+	await screen.findByRole('button', { name: /^6 min varighet/ })
+	expect(summary()).toHaveTextContent('4 ting må rettes')
 	expect(
-		screen.getByRole('button', { name: /^6 min duration/ }),
+		screen.getByRole('button', { name: /^6 min varighet/ }),
 	).not.toHaveAttribute('data-server-error')
 
 	// Introducing the absent intensity clears the step-anchored marking too.
-	await user.click(screen.getByRole('button', { name: /^6 min duration/ }))
-	await user.click(await screen.findByRole('button', { name: '＋ intensity' }))
+	await user.click(screen.getByRole('button', { name: /^6 min varighet/ }))
+	await user.click(await screen.findByRole('button', { name: '＋ intensitet' }))
 	// No Discipline Profile in this stub → the run default recipe's bands (#454).
 	await user.click(await within(popup()).findByRole('button', { name: /^T$/ }))
-	await waitFor(() =>
-		expect(summary()).toHaveTextContent('3 things need fixing'),
-	)
+	await waitFor(() => expect(summary()).toHaveTextContent('3 ting må rettes'))
 	// The popover keeps the rest of the card inert while open — close it
 	// before reading the ⋮ mark's paint.
 	await user.keyboard('{Escape}')
@@ -251,7 +249,7 @@ test('the whole summary disappears when everything anchored is repaired', async 
 		'blocks.0.steps.0.durationSec': ['Too long for this plan'],
 	})
 	await submitAndReject(user)
-	expect(summary()).toHaveTextContent('1 thing needs fixing')
+	expect(summary()).toHaveTextContent('1 ting må rettes')
 
 	await setDuration(user, '8')
 	await waitFor(() => expect(summary()).toBeNull())

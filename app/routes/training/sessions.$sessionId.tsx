@@ -106,6 +106,8 @@ import {
 	nbDurationLabel,
 	nbSessionNoun,
 	nbSessionStatusLabel,
+	nbStoredReplanReason,
+	nbUnavailableReason,
 	providerLabel,
 	sessionVolumeLabel,
 } from '#app/utils/labels.ts'
@@ -476,11 +478,9 @@ export async function action({ request, params }: Route.ActionArgs) {
 		// cardio session right here, never on a page open (#186).
 		const result = await markSessionMissed(userId, params.sessionId)
 		invariantResponse(result, L.errors.notFound, { status: 404 })
-		invariantResponse(
-			result.marked,
-			L.errors.onlyPlannedMissed,
-			{ status: 400 },
-		)
+		invariantResponse(result.marked, L.errors.onlyPlannedMissed, {
+			status: 400,
+		})
 		return redirect(`/training/sessions/${params.sessionId}`)
 	}
 
@@ -520,10 +520,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 			return redirect(`/training/sessions/${moved.sessionId}`)
 		} catch (error) {
 			if (!(error instanceof ImportLinkNotFoundError)) throw error
-			return data(
-				{ error: L.wrongSession.moveFailed },
-				{ status: 400 },
-			)
+			return data({ error: L.wrongSession.moveFailed }, { status: 400 })
 		}
 	}
 
@@ -762,7 +759,9 @@ function SessionActions({
 				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>{L.deleteDialog.title}</AlertDialogTitle>
-						<AlertDialogDescription>{L.deleteDialog.body}</AlertDialogDescription>
+						<AlertDialogDescription>
+							{L.deleteDialog.body}
+						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<Form method="POST">
 						<input type="hidden" name="intent" value="delete" />
@@ -927,8 +926,7 @@ export default function SessionDetailRoute({
 										{session.workout.description}
 									</p>
 								) : null}
-								{isUnadoptedDetected(session) ||
-								archetype?.kind === 'read' ? (
+								{isUnadoptedDetected(session) || archetype?.kind === 'read' ? (
 									<div className="flex flex-wrap gap-1.5">
 										{isUnadoptedDetected(session) ? (
 											<Badge variant="secondary" data-detected-badge>
@@ -1189,9 +1187,7 @@ function ArchetypeToken({ view }: { view: SessionArchetypeView }) {
 			<PopoverContent className="max-w-[min(20rem,calc(100vw-2rem))]">
 				<PopoverHeader>
 					<PopoverTitle className="text-callout">
-						{view.kind === 'read'
-							? L.archetype.read
-							: L.archetype.unreadTitle}
+						{view.kind === 'read' ? L.archetype.read : L.archetype.unreadTitle}
 					</PopoverTitle>
 				</PopoverHeader>
 				<ul className="text-footnote text-muted-foreground list-disc space-y-1 pl-4">
@@ -1321,11 +1317,14 @@ function WorkoutPrescription({
 		<CardContent>
 			{/* The Replan Note (ADR 0025): the stored reason a Week Replan
 			    softened this prescription, shown with the prescription so the
-			    "why" travels with the session. Rendered verbatim from the row;
-			    null (never softened, or cleared by a rewrite) renders nothing. */}
+			    "why" travels with the session. Rows written before round 2 hold
+			    the generator's English and are read in Norwegian here, as I dag's
+			    row reads them (`nbStoredReplanReason`; display only). Null
+			    (never softened, or cleared by a rewrite) renders nothing. */}
 			{replanReason ? (
 				<p className="text-footnote text-foreground bg-status-under/10 mb-4 rounded-2xl px-3 py-2.5">
-					<span className="font-semibold">{L.replanNote}</span> {replanReason}
+					<span className="font-semibold">{L.replanNote}</span>{' '}
+					{nbStoredReplanReason(replanReason)}
 				</p>
 			) : null}
 			{editable ? (
@@ -1349,10 +1348,11 @@ function WorkoutPrescription({
 			<ShapeStrip segments={shapeSegments} className="mt-4" />
 			{unresolved.length > 0 ? (
 				<p className="text-footnote text-muted-foreground bg-muted mt-4 rounded-2xl px-3 py-2.5">
-					{L.unresolved.lead} — {unresolved.join('; ')}. {L.unresolved.before}{' '}
+					{L.unresolved.lead} — {unresolved.map(nbUnavailableReason).join('; ')}
+					. {L.unresolved.before}{' '}
 					<Link
 						to="/settings/training"
-						className="text-foreground relative underline underline-offset-2 after:absolute after:-inset-y-3 after:inset-x-0"
+						className="text-foreground relative underline underline-offset-2 after:absolute after:inset-x-0 after:-inset-y-3"
 					>
 						{L.unresolved.link}
 					</Link>{' '}
@@ -1543,7 +1543,10 @@ function StructureAdherenceRow({
 						)}
 					>
 						<span
-							className={cn('size-1.5 rounded-full', STRUCTURE_TONE[verdict].dot)}
+							className={cn(
+								'size-1.5 rounded-full',
+								STRUCTURE_TONE[verdict].dot,
+							)}
 						/>
 						{detail.label}
 					</span>
@@ -1787,7 +1790,8 @@ function VsLastSessionSummary({
 				<CardTitle className="text-heading">{V.title}</CardTitle>
 				<CardDescription className="text-footnote">
 					{V.lead(
-						kind ?? nbSessionNoun(session.workout?.discipline ?? '').toLowerCase(),
+						kind ??
+							nbSessionNoun(session.workout?.discipline ?? '').toLowerCase(),
 						formatNbDayMonth(comparison.previousDate, timeZone),
 					)}
 				</CardDescription>
@@ -2147,7 +2151,9 @@ function SessionLogForm({
 												input.value === String(value) ? '' : String(value)
 											input.value = newValue
 											input.dispatchEvent(new Event('input', { bubbles: true }))
-											input.dispatchEvent(new Event('change', { bubbles: true }))
+											input.dispatchEvent(
+												new Event('change', { bubbles: true }),
+											)
 										}
 									}}
 									aria-pressed={pressed}

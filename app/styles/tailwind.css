@@ -848,3 +848,45 @@
 		font-size: max(1rem, 16px);
 	}
 }
+
+/* ==========================================================================
+ * Round 2 · first run (branch claude/r2-firstrun-meg-finish). One section;
+ * other PRs add their own below rather than editing this one.
+ * ========================================================================== */
+
+/*
+ * "Dette fant vi": the findings arrive (round-2 audit, PR A).
+ *
+ * The one moment of delight in the first run, which Emil's frequency table
+ * allows only because the athlete sees it once: the four rows of what the app
+ * read from their history rise 6px into place and fade in, 40ms apart, 200ms
+ * each on the strong ease-out — under 300ms for the whole group of four. It
+ * plays when the values first paint (at load, or when the import finishes and
+ * each value replaces its "Hentes …"), from `@starting-style`, so it is a
+ * transition: nothing waits on it, a tap during it lands, and a value that
+ * changes again retargets instead of restarting. `transform` and `opacity`
+ * only, so it shifts no layout (the screen's CLS was 0.132 from the swap).
+ * Reduced motion keeps the fade and drops the rise. `--reveal-index` is set
+ * on the element itself, never on a parent (no recalc of siblings).
+ */
+@utility motion-reveal {
+	transition:
+		opacity 200ms var(--ease-out),
+		transform 200ms var(--ease-out);
+	transition-delay: calc(var(--reveal-index, 0) * 40ms);
+
+	@starting-style {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		transition: opacity 200ms var(--ease-out);
+		transition-delay: calc(var(--reveal-index, 0) * 40ms);
+
+		@starting-style {
+			opacity: 0;
+			transform: none;
+		}
+	}
+}

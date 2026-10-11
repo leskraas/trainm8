@@ -26,6 +26,7 @@ import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { formatNbKg } from '#app/utils/format.ts'
 import {
 	MEG_GYM_LABELS,
 	MEG_PAGE_TITLES,
@@ -39,7 +40,6 @@ import {
 	calculatePlates,
 	type PlateSolution,
 } from '#app/utils/strength/plates.ts'
-import { nbKg } from '../__meg-text.ts'
 import { MegField, MegNote, MegResult } from '../__meg-ui.tsx'
 import { type Route } from './+types/gym.ts'
 
@@ -169,14 +169,14 @@ function nbPlateLine(solution: PlateSolution): string {
 	if (solution.outcome === 'unavailable') return '—'
 	if (solution.platesPerSide.length === 0) {
 		return solution.perSideKg > 0
-			? nbKg(solution.perSideKg)
+			? formatNbKg(solution.perSideKg)
 			: MEG_GYM_LABELS.emptyBar
 	}
 	return solution.platesPerSide
 		.flatMap((plate) =>
 			Array.from({ length: plate.count }, () => plate.weightKg),
 		)
-		.map(nbKg)
+		.map(formatNbKg)
 		.join(' · ')
 }
 
@@ -302,7 +302,9 @@ export default function GymRoute({ loaderData }: Route.ComponentProps) {
 								// elsewhere in this module's callers. `achievedKg` is null only for
 								// `bodyweight`, which this probe never is.
 								L.exampleNearest(
-									example.achievedKg == null ? '—' : nbKg(example.achievedKg),
+									example.achievedKg == null
+										? '—'
+										: formatNbKg(example.achievedKg),
 									nbPlateLine(example),
 								)}
 				</MegNote>

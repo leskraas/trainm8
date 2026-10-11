@@ -1899,6 +1899,11 @@ model AccountConnection {
   status              String    @default("active") // 'active' | 'expired' | 'revoked' | 'error'
   connectedAt         DateTime  @default(now())
   lastSyncedAt        DateTime? // high-water mark for manual sync / reconciliation
+  /// When the app last asked the provider for new activities and got an answer
+  /// (Sync now, the daily sweep, the end of the backfill): what the hub shows
+  /// as "Sist synkronisert". `lastSyncedAt` is the newest activity's start
+  /// time, a watermark, and can be days old after a sync that found nothing.
+  lastCheckedAt       DateTime?
   backfillCompletedAt DateTime? // set once the Backfill Window job completes
 
   createdAt DateTime @default(now())

@@ -67,7 +67,7 @@ test('settings/profile does not overflow at 390px', async ({
 	await login()
 	await navigate('/settings/profile')
 	await expect(
-		page.getByRole('heading', { name: /edit profile/i }),
+		page.getByRole('heading', { name: 'Profil', level: 1 }),
 	).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 })
@@ -124,8 +124,9 @@ test('an auto-saved activity does not overflow at 390px', async ({
 	await navigate('/training/sessions/:sessionId', {
 		sessionId: saved!.sessionId,
 	})
-	// The Recording panel's card title (a styled div, not a heading element).
-	await expect(page.getByText('Recording', { exact: true })).toBeVisible()
+	// The Recording panel's card title, Norwegian since round 2 (a styled div,
+	// not a heading element).
+	await expect(page.getByText('Opptak', { exact: true })).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 })
 

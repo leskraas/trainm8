@@ -105,7 +105,7 @@ test('the page leads with what the lift did last time and the records read out o
 	expect(await screen.findByText('Last time: 3 days ago')).toBeInTheDocument()
 	expect(screen.getByText('Heaviest ever')).toBeInTheDocument()
 	expect(screen.getByText('100 kg')).toBeInTheDocument()
-	expect(screen.getByText('up 2.5 kg')).toBeInTheDocument()
+	expect(screen.getByText('up 2,5 kg')).toBeInTheDocument()
 })
 
 test('an assisted lift shows the reason it has no record, not an empty strip', async () => {
@@ -258,7 +258,7 @@ test("the working weight is the screen's headline, with the estimated 1RM and th
 	)
 
 	expect(await screen.findByText('Working weight')).toBeInTheDocument()
-	expect(screen.getByText('82.5 kg')).toBeInTheDocument()
+	expect(screen.getByText('82,5 kg')).toBeInTheDocument()
 	expect(screen.getAllByText('96 kg').length).toBeGreaterThan(0)
 	expect(screen.getAllByText(/from 82 kg × 5/).length).toBeGreaterThan(0)
 })
@@ -275,7 +275,7 @@ test('the session the program cut on is marked on the chart and named by a note 
 	)
 
 	expect(
-		await screen.findByText('Session 8 — Stall Cut, 80 kg → 72.5 kg'),
+		await screen.findByText('Session 8 — Stall Cut, 80 kg → 72,5 kg'),
 	).toBeInTheDocument()
 	// The chart says the same thing to a reader who cannot see the bar — a
 	// concise name over a full data table, not one recited sentence (ADR 0030
@@ -292,7 +292,7 @@ test('the session the program cut on is marked on the chart and named by a note 
 		within(table).getByRole('rowheader', { name: 'Session 8' }),
 	).toBeInTheDocument()
 	expect(
-		within(table).getByRole('cell', { name: 'Stall Cut, 80 kg → 72.5 kg' }),
+		within(table).getByRole('cell', { name: 'Stall Cut, 80 kg → 72,5 kg' }),
 	).toBeInTheDocument()
 })
 

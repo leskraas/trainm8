@@ -38,10 +38,7 @@ import {
 import { localDate } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { formatDate } from '#app/utils/format.ts'
-import { kiloField } from '#app/utils/strength/kilo-input.ts'
-import { formatKg } from '#app/utils/strength/program.constants.ts'
-import { formatNbDate } from '#app/utils/format.ts'
+import { formatNbDate, formatNbKg } from '#app/utils/format.ts'
 import {
 	MEG_ANCHOR_PROTOCOL_LABELS,
 	MEG_COMMON_LABELS,
@@ -50,6 +47,7 @@ import {
 	MEG_LIFT_LABELS,
 	MEG_PAGE_TITLES,
 } from '#app/utils/labels.ts'
+import { kiloField } from '#app/utils/strength/kilo-input.ts'
 import {
 	type StoredAnchor,
 	getAnchorContext,
@@ -61,7 +59,6 @@ import {
 	formatSetsSummary,
 	normalizeSetKind,
 } from '#app/utils/workout-notation.ts'
-import { nbKg } from '../__meg-text.ts'
 import { MegField, MegNote, MegResult, MegSection } from '../__meg-ui.tsx'
 import { type Route } from './+types/lifts.$exerciseId.ts'
 
@@ -243,7 +240,7 @@ const ADD_ANCHOR_ERRORS = {
 
 /** The anchor as a lifter would say it out loud, kilos with a decimal comma. */
 export function anchorHeadline(anchor: StoredAnchor): string {
-	const kg = nbKg(anchor.valueKg)
+	const kg = formatNbKg(anchor.valueKg)
 	switch (anchor.construct) {
 		case 'oneRm':
 			return MEG_LIFT_LABELS.headlineOneRm(kg)

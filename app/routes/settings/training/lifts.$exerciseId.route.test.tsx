@@ -298,7 +298,7 @@ test('the kg field is a text field with a decimal keypad, so a Norwegian comma r
 	expect(kg).toHaveAttribute('type', 'text')
 	expect(kg).toHaveAttribute('inputmode', 'decimal')
 	await user.type(kg, '62,5')
-	await user.click(screen.getByRole('button', { name: /Save this number/i }))
+	await user.click(screen.getByRole('button', { name: /Lagre tallet/i }))
 
 	expect(submitted).toHaveBeenCalledWith(
 		expect.objectContaining({ valueKg: '62,5' }),

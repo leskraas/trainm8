@@ -46,24 +46,23 @@ function gpxFile() {
 test('the file input accepts many files across the supported formats', () => {
 	renderUpload()
 
-	const fileInput = screen.getByLabelText<HTMLInputElement>(/activity file/i)
+	const fileInput = screen.getByLabelText<HTMLInputElement>(/aktivitetsfiler/i)
 	expect(fileInput.multiple).toBe(true)
 	expect(fileInput.accept).toBe('.fit,.fit.gz,.tcx,.gpx,.zip,.gz')
 	// Accepted formats are stated and the Strava-export guidance is linked.
 	expect(
-		screen.getByText(/\.fit, \.fit\.gz, \.tcx, \.gpx, \.zip, \.gz/i),
+		screen.getByText(/\.fit, \.fit\.gz, \.tcx, \.gpx, \.zip eller \.gz/i),
 	).toBeInTheDocument()
-	expect(screen.getByRole('link', { name: /strava export/i })).toHaveAttribute(
-		'href',
-		expect.stringContaining('support.strava.com'),
-	)
+	expect(
+		screen.getByRole('link', { name: /strava om eksporten/i }),
+	).toHaveAttribute('href', expect.stringContaining('support.strava.com'))
 })
 
 test('submits with no discipline override by default (auto-detect)', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderUpload()
 
-	const fileInput = screen.getByLabelText(/activity file/i)
+	const fileInput = screen.getByLabelText(/aktivitetsfiler/i)
 	await user.upload(fileInput, gpxFile())
 	// jsdom doesn't satisfy a `required` file input from a programmatic upload,
 	// so dispatch submit directly to exercise what the form sends to the action.
@@ -82,11 +81,11 @@ test('submits the chosen discipline as the override', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderUpload()
 
-	const fileInput = screen.getByLabelText(/activity file/i)
+	const fileInput = screen.getByLabelText(/aktivitetsfiler/i)
 	await user.upload(fileInput, gpxFile())
 
-	await user.click(screen.getByLabelText(/discipline/i))
-	await user.click(await screen.findByRole('option', { name: /run/i }))
+	await user.click(screen.getByLabelText(/idrett/i))
+	await user.click(await screen.findByRole('option', { name: /løping/i }))
 
 	fireEvent.submit(fileInput.closest('form')!)
 

@@ -4,6 +4,7 @@ import {
 	isStravaOAuthConfigured,
 } from '#app/integrations/strava/oauth.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { INTEGRATION_TOAST_LABELS } from '#app/utils/labels.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type Route } from './+types/integrations.strava.connect.ts'
 
@@ -13,8 +14,8 @@ export async function action({ request }: Route.ActionArgs) {
 
 	if (!isStravaOAuthConfigured()) {
 		return redirectWithToast('/settings/integrations', {
-			title: 'Strava unavailable',
-			description: 'Strava is not configured on this server.',
+			title: INTEGRATION_TOAST_LABELS.stravaUnavailable,
+			description: INTEGRATION_TOAST_LABELS.stravaNotConfigured,
 			type: 'error',
 		})
 	}

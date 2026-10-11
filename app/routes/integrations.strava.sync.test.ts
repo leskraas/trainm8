@@ -56,7 +56,7 @@ test('syncs a connected athlete and reports success', async () => {
 
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
-		expect.objectContaining({ title: 'Synced with Strava', type: 'success' }),
+		expect.objectContaining({ title: 'Synkronisert med Strava', type: 'success' }),
 	)
 	const imports = await prisma.activityImport.findMany({
 		where: { athleteId: session.userId },
@@ -89,9 +89,9 @@ test('surfaces a reconnect toast when Strava 403s on activities (missing scope)'
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
-			title: 'Sync failed',
+			title: 'Synkroniseringen feilet',
 			type: 'error',
-			description: expect.stringContaining('activity access'),
+			description: expect.stringContaining('økttilgang'),
 		}),
 	)
 })
@@ -131,7 +131,7 @@ test('surfaces an app-inactive toast (not a reconnect prompt) on that 403', asyn
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
-			title: 'Sync failed',
+			title: 'Synkroniseringen feilet',
 			type: 'error',
 			description: expect.stringContaining('inactive'),
 		}),
@@ -148,7 +148,7 @@ test('reports an error when the athlete is not connected', async () => {
 
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
-		expect.objectContaining({ title: 'Sync failed', type: 'error' }),
+		expect.objectContaining({ title: 'Synkroniseringen feilet', type: 'error' }),
 	)
 })
 

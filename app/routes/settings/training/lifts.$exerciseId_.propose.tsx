@@ -45,7 +45,7 @@ import {
 import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { formatNbDate } from '#app/utils/format.ts'
+import { formatNbDate, formatNbKg } from '#app/utils/format.ts'
 import {
 	MEG_COMMON_LABELS,
 	MEG_CONFIDENCE_LABELS,
@@ -69,7 +69,7 @@ import {
 	proposeExerciseOneRm,
 } from '#app/utils/strength-anchors.server.ts'
 import { ESTIMATOR_NAMES, type EstimatorName } from '#app/utils/strength-log.ts'
-import { nbDecimal, nbKg } from '../__meg-text.ts'
+import { nbDecimal } from '../__meg-text.ts'
 import { MegNote, MegResult } from '../__meg-ui.tsx'
 import { type Route } from './+types/lifts.$exerciseId_.propose.ts'
 
@@ -174,7 +174,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 	}
 	return {
 		ok: true as const,
-		message: MEG_PROPOSE_LABELS.saved(nbKg(result.valueKg)),
+		message: MEG_PROPOSE_LABELS.saved(formatNbKg(result.valueKg)),
 	}
 }
 
@@ -259,7 +259,7 @@ function Reading({
 						{tested ? L.tested : L.estimated}
 					</span>
 					<span className="text-title tabular-nums">
-						{nbKg(reading.valueKg)}{' '}
+						{formatNbKg(reading.valueKg)}{' '}
 						<span className="text-footnote text-muted-foreground font-normal">
 							kg
 						</span>
@@ -270,8 +270,8 @@ function Reading({
 				    no equation here has. */}
 				<MegNote className="tabular-nums">
 					{L.band(
-						nbKg(reading.band.lowKg),
-						nbKg(reading.band.highKg),
+						formatNbKg(reading.band.lowKg),
+						formatNbKg(reading.band.highKg),
 						nbDecimal(reading.band.sdPct),
 					)}
 				</MegNote>
@@ -312,7 +312,7 @@ function Reading({
 								<Fact
 									term={L.setUsed}
 									detail={L.setUsedDetail(
-										nbKg(source.loadKg),
+										formatNbKg(source.loadKg),
 										source.reps,
 										formatNbDate(source.performedAtISO, timezone),
 										source.toFailure
