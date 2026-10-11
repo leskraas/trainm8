@@ -1,19 +1,27 @@
 /**
  * @vitest-environment jsdom
  *
- * The disclosure chevron says the state of **its own** `<details>`, never an
- * ancestor's. Sesong nests disclosures (a phase card holding its forms,
- * _Avansert_ holding its sections), and a chevron keyed to a shared `group`
- * pointed "open" on a closed section the moment anything around it opened
- * (audit B5).
+ * A section's chevron says the state of **its own** section, never an
+ * ancestor's. Sesong nests sections (a phase card holding its forms, _Avansert_
+ * holding its sections), and a chevron keyed to a shared `group` pointed "open"
+ * on a closed section the moment anything around it opened (audit B5).
+ *
+ * Two kinds are checked: the native `<details>` `Disclosure` (kept for the
+ * creation flow and the catalogue), whose chevron reads its own `[open]`, and
+ * Sesong's collapsibles (`CollapsibleSection`, `DisclosureCard`, round 2), whose
+ * chevron reads its own trigger's `data-panel-open`.
  *
  * jsdom applies no Tailwind, so the chevron's rotate variant is read off its
  * class and resolved to the selector Tailwind compiles it to; `matches` then
  * answers exactly what the browser would.
  */
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { expect, test } from 'vitest'
-import { Disclosure, DisclosureCard } from './__plan-chrome.tsx'
+import {
+	CollapsibleSection,
+	Disclosure,
+	DisclosureCard,
+} from './__plan-chrome.tsx'
 
 /** The selector a `<variant>:rotate-180` class rotates under. */
 function selectorFor(variant: string): string {
@@ -36,27 +44,35 @@ function pointsOpen(chevron: Element): boolean {
 	return chevron.matches(selectorFor(variants[0]!))
 }
 
-function chevronOf(summaryText: string): Element {
-	const summary = screen.getByText(summaryText).closest('summary')
-	const chevron = summary?.querySelector(':scope > svg')
-	if (!chevron) throw new Error(`No chevron on ${summaryText}`)
+/** The row a section's name sits on: a `<summary>` or a collapsible trigger. */
+function rowOf(text: string): HTMLElement {
+	const row = screen
+		.getByText(text)
+		.closest<HTMLElement>('summary, [data-slot="collapsible-trigger"]')
+	if (!row) throw new Error(`No row for ${text}`)
+	return row
+}
+
+function chevronOf(text: string): Element {
+	const chevron = rowOf(text).querySelector(':scope > svg')
+	if (!chevron) throw new Error(`No chevron on ${text}`)
 	return chevron
 }
 
 test('a closed section inside an open card points closed', () => {
 	render(
-		<DisclosureCard summary="Peak" defaultOpen>
-			<Disclosure summary="Endre fasen">
+		<DisclosureCard summary="Spissing" defaultOpen>
+			<CollapsibleSection summary="Endre fasen">
 				<p>Skjema</p>
-			</Disclosure>
+			</CollapsibleSection>
 		</DisclosureCard>,
 	)
 
-	expect(pointsOpen(chevronOf('Peak'))).toBe(true)
+	expect(pointsOpen(chevronOf('Spissing'))).toBe(true)
 	expect(pointsOpen(chevronOf('Endre fasen'))).toBe(false)
 })
 
-test('a closed section inside an open section points closed', () => {
+test('a closed native section inside an open one points closed', () => {
 	render(
 		<Disclosure summary="Avansert" defaultOpen>
 			<Disclosure summary="Løftblokker">
@@ -71,28 +87,37 @@ test('a closed section inside an open section points closed', () => {
 
 test('opening the inner section turns its chevron, and closing the outer leaves it alone', () => {
 	render(
-		<DisclosureCard summary="Base" defaultOpen>
-			<Disclosure summary="Endre fasen">
+		<DisclosureCard summary="Grunntrening" defaultOpen>
+			<CollapsibleSection summary="Endre fasen">
 				<p>Skjema</p>
-			</Disclosure>
+			</CollapsibleSection>
 		</DisclosureCard>,
 	)
-	const outer = screen.getByText('Base').closest('details')!
-	const inner = screen.getByText('Endre fasen').closest('details')!
 
-	inner.open = true
+	fireEvent.click(rowOf('Endre fasen'))
 	expect(pointsOpen(chevronOf('Endre fasen'))).toBe(true)
 
-	outer.open = false
-	expect(pointsOpen(chevronOf('Base'))).toBe(false)
-	expect(pointsOpen(chevronOf('Endre fasen'))).toBe(true)
+	fireEvent.click(rowOf('Grunntrening'))
+	expect(pointsOpen(chevronOf('Grunntrening'))).toBe(false)
+})
+
+test('a closed section renders nothing of its body until it opens', () => {
+	render(
+		<CollapsibleSection summary="Avansert">
+			<p>Skjemaet</p>
+		</CollapsibleSection>,
+	)
+	expect(screen.queryByText('Skjemaet')).toBeNull()
+
+	fireEvent.click(rowOf('Avansert'))
+	expect(screen.getByText('Skjemaet')).toBeTruthy()
 })
 
 test('the chevron turns on transform alone, and not under reduced motion', () => {
 	render(
-		<Disclosure summary="Avansert">
+		<CollapsibleSection summary="Avansert">
 			<p>Innhold</p>
-		</Disclosure>,
+		</CollapsibleSection>,
 	)
 	const classes = [...chevronOf('Avansert').classList]
 

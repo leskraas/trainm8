@@ -64,8 +64,17 @@ function renderCard({
 	render(<App initialEntries={['/training/plan']} />)
 }
 
+/** Open the card's _Navn, lengde og lett uke_ section, where the links live. */
+async function openEditSection() {
+	const user = userEvent.setup()
+	await user.click(
+		await screen.findByRole('button', { name: /^Navn, lengde og lett uke/ }),
+	)
+}
+
 test('an existing phase is edited in Endre sesongen, pre-filled, and not on the card', async () => {
 	renderCard()
+	await openEditSection()
 
 	const link = await screen.findByRole('link', {
 		name: 'Endre navn eller lengde på en fase',
@@ -77,20 +86,18 @@ test('an existing phase is edited in Endre sesongen, pre-filled, and not on the 
 		screen.getByRole('link', { name: 'Velg hvilken uke som er lett' }),
 	).toBeInTheDocument()
 	// Nothing on the card writes a name, a length or a rhythm any more.
-	expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull()
-	expect(screen.queryByRole('button', { name: 'Save weeks' })).toBeNull()
-	expect(screen.queryByRole('button', { name: 'Save rhythm' })).toBeNull()
+	expect(screen.queryByRole('button', { name: 'Gi nytt navn' })).toBeNull()
+	expect(screen.queryByRole('button', { name: /^Lagre/ })).toBeNull()
 })
 
 test('the recovery preview still reads the phase, with every week a taper', async () => {
 	renderCard({ spec: phase({ tapers: true }) })
+	await openEditSection()
 
-	const marks = await screen.findByRole('group', { name: 'Week roles' })
-	expect(within(marks).getAllByText(/: Taper$/)).toHaveLength(4)
+	const marks = await screen.findByRole('group', { name: 'Ukenes rytme' })
+	expect(within(marks).getAllByText(/: nedtrapping$/)).toHaveLength(4)
 	expect(
-		screen.getByText(
-			/steps down toward your event, so it holds no recovery week/,
-		),
+		screen.getByText(/trapper ned mot løpet, så den har ingen lett uke/),
 	).toBeInTheDocument()
 })
 
@@ -118,14 +125,14 @@ test('the new-phase form follows the same rule, and still posts a rhythm', async
 	render(<App initialEntries={['/training/plan']} />)
 
 	await user.click(
-		await screen.findByRole('checkbox', { name: 'This phase tapers' }),
+		await screen.findByRole('checkbox', { name: 'Fasen trapper ned' }),
 	)
 	expect(
-		screen.queryByRole('combobox', { name: 'Loading rhythm' }),
+		screen.queryByRole('combobox', { name: 'Rytme' }),
 	).not.toBeInTheDocument()
 
-	await user.type(screen.getByLabelText('Name'), 'Race week')
-	await user.click(screen.getByRole('button', { name: 'Add phase' }))
+	await user.type(screen.getByLabelText('Navn'), 'Race week')
+	await user.click(screen.getByRole('button', { name: 'Legg til fase' }))
 
 	expect(Object.fromEntries(posted)).toMatchObject({
 		intent: 'add-phase',
