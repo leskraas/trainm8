@@ -67,7 +67,11 @@ import {
 	type ChartGeom,
 	type ChartInspect,
 } from '#app/components/chart/chart.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+import {
+	SegmentedControl,
+	ToggleGroup,
+	ToggleGroupItem,
+} from '#app/components/ui/toggle-group.tsx'
 import { isoWeekNumber, weekMonday } from '#app/utils/athlete-calendar.ts'
 import {
 	formatLoad,
@@ -285,14 +289,6 @@ export function SeasonChart({
 
 	if (!model || !track || model.weeks.length === 0) return null
 
-	function toggleLayer(layer: SeasonChartLayer) {
-		setLayers((current) =>
-			current.includes(layer)
-				? current.filter((name) => name !== layer)
-				: [...current, layer],
-		)
-	}
-
 	return (
 		// The chart is the surface's **primary object** (#366), so it is drawn as one
 		// self-contained card rather than as a heading with loose controls under it —
@@ -325,7 +321,7 @@ export function SeasonChart({
 					inspect.clear()
 				}}
 				onCurrency={setCurrency}
-				onLayer={toggleLayer}
+				onLayers={setLayers}
 			/>
 
 			<VolumePanel
@@ -381,7 +377,7 @@ function Controls({
 	layers,
 	onTrack,
 	onCurrency,
-	onLayer,
+	onLayers,
 }: {
 	season: SeasonChartSeason
 	trackId: string
@@ -390,108 +386,106 @@ function Controls({
 	layers: readonly SeasonChartLayer[]
 	onTrack: (id: string) => void
 	onCurrency: (currency: VolumeCurrency) => void
-	onLayer: (layer: SeasonChartLayer) => void
+	onLayers: (layers: SeasonChartLayer[]) => void
 }) {
 	const currencies = readableCurrencies(authoredCurrency)
 	return (
 		<div className="space-y-2">
+			{/* One of a few readings of the same chart: the `SegmentedControl`, which
+			    keeps exactly one pressed (ADR 0085). */}
 			{season.tracks.length > 1 ? (
-				<Toggles label={SESONG_CHART_LABELS.track}>
-					{season.tracks.map((track) => (
-						<Toggle
-							key={track.trackId}
-							pressed={track.trackId === trackId}
-							onClick={() => onTrack(track.trackId)}
-						>
-							{nbTrackName(track.discipline)}
-						</Toggle>
-					))}
-				</Toggles>
+				<ControlRow label={SESONG_CHART_LABELS.track}>
+					<SegmentedControl
+						value={trackId}
+						onValueChange={onTrack}
+						aria-label={SESONG_CHART_LABELS.track}
+						className="flex-wrap"
+					>
+						{season.tracks.map((track) => (
+							<ToggleGroupItem key={track.trackId} value={track.trackId}>
+								{nbTrackName(track.discipline)}
+							</ToggleGroupItem>
+						))}
+					</SegmentedControl>
+				</ControlRow>
 			) : null}
 
 			{currencies.length > 1 ? (
-				<Toggles label={SESONG_CHART_LABELS.readIn}>
-					{currencies.map((option) => (
-						<Toggle
-							key={option}
-							pressed={option === currency}
-							onClick={() => onCurrency(option)}
-							label={
-								option === authoredCurrency
-									? SESONG_CHART_LABELS.readInAuthored(
-											NB_VOLUME_CURRENCY_LABELS[option],
-										)
-									: SESONG_CHART_LABELS.readInDerived(
-											NB_VOLUME_CURRENCY_LABELS[option],
-										)
-							}
-						>
-							{NB_WEEKLY_UNITS[option]}
-							{option === authoredCurrency ? null : (
-								<span className="text-muted-foreground">
-									{' '}
-									{SESONG_CHART_LABELS.derived}
-								</span>
-							)}
-						</Toggle>
-					))}
-				</Toggles>
+				<ControlRow label={SESONG_CHART_LABELS.readIn}>
+					<SegmentedControl
+						value={currency}
+						onValueChange={onCurrency}
+						aria-label={SESONG_CHART_LABELS.readIn}
+						className="flex-wrap"
+					>
+						{currencies.map((option) => (
+							<ToggleGroupItem
+								key={option}
+								value={option}
+								// The visible chip is a unit; the name says what reading it is.
+								aria-label={
+									option === authoredCurrency
+										? SESONG_CHART_LABELS.readInAuthored(
+												NB_VOLUME_CURRENCY_LABELS[option],
+											)
+										: SESONG_CHART_LABELS.readInDerived(
+												NB_VOLUME_CURRENCY_LABELS[option],
+											)
+								}
+							>
+								{NB_WEEKLY_UNITS[option]}
+								{option === authoredCurrency ? null : (
+									<span className="text-muted-foreground font-normal">
+										{SESONG_CHART_LABELS.derived}
+									</span>
+								)}
+							</ToggleGroupItem>
+						))}
+					</SegmentedControl>
+				</ControlRow>
 			) : null}
 
-			<Toggles label={SESONG_CHART_LABELS.layers}>
-				{SEASON_CHART_LAYERS.map((layer) => (
-					<Toggle
-						key={layer}
-						pressed={layers.includes(layer)}
-						onClick={() => onLayer(layer)}
-					>
-						{LAYER_LABELS[layer]}
-					</Toggle>
-				))}
-			</Toggles>
+			{/* Layers are a filter — any of them, or none — so an outlined
+			    `ToggleGroup` with several pressed, not a segmented one. */}
+			<ControlRow label={SESONG_CHART_LABELS.layers}>
+				<ToggleGroup
+					multiple
+					variant="outline"
+					value={[...layers]}
+					onValueChange={(next) => onLayers(next as SeasonChartLayer[])}
+					aria-label={SESONG_CHART_LABELS.layers}
+					className="flex-wrap"
+				>
+					{SEASON_CHART_LAYERS.map((layer) => (
+						<ToggleGroupItem key={layer} value={layer} className="rounded-full">
+							{LAYER_LABELS[layer]}
+						</ToggleGroupItem>
+					))}
+				</ToggleGroup>
+			</ControlRow>
 		</div>
 	)
 }
 
 /**
- * A labelled row of toggles. Wraps rather than scrolling: six short chips fit two
- * rows at 390 px, and a scrolling strip hides the layers off-screen behind an
+ * A labelled row of controls. Wraps rather than scrolling: six short chips fit
+ * two rows at 390 px, and a scrolling strip hides the layers off-screen behind an
  * affordance the athlete has to discover (ADR 0028).
  */
-function Toggles({ label, children }: { label: string; children: ReactNode }) {
-	return (
-		<div className="flex flex-wrap items-center gap-2">
-			<span className="text-muted-foreground w-16 shrink-0 text-xs">
-				{label}
-			</span>
-			<div className="flex flex-wrap gap-2">{children}</div>
-		</div>
-	)
-}
-
-function Toggle({
-	pressed,
-	onClick,
-	children,
+function ControlRow({
 	label,
+	children,
 }: {
-	pressed: boolean
-	onClick: () => void
+	label: string
 	children: ReactNode
-	/** An accessible name where the visible chip is a unit rather than a phrase. */
-	label?: string
 }) {
 	return (
-		<Button
-			type="button"
-			size="sm"
-			variant={pressed ? 'default' : 'outline'}
-			aria-pressed={pressed}
-			aria-label={label}
-			onClick={onClick}
-		>
+		<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+			<span className="text-caption text-muted-foreground w-14 shrink-0">
+				{label}
+			</span>
 			{children}
-		</Button>
+		</div>
 	)
 }
 

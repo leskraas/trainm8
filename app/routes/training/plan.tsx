@@ -67,6 +67,11 @@ import {
 } from '#app/components/ui/alert.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
@@ -273,7 +278,7 @@ import {
 	type PhilosophyPreviewView,
 } from './__philosophy-switch.tsx'
 import {
-	Disclosure,
+	CollapsibleSection,
 	PhaseSpark,
 	PillLink,
 	PlanCard,
@@ -3055,7 +3060,7 @@ function UnavailableReadingsNotice({
 }) {
 	return (
 		<section aria-labelledby="unavailable-readings" className="space-y-2">
-			<h2 id="unavailable-readings" className="text-lg font-semibold">
+			<h2 id="unavailable-readings" className="text-heading">
 				{SESONG_PAGE_LABELS.cannotTellTitle}
 			</h2>
 			<ul className="text-muted-foreground space-y-2 text-sm">
@@ -3272,7 +3277,7 @@ function BlocksReading({
 			    says so before it opens. Inside, each is exactly the surface that
 			    shipped. */}
 			<div className="border-border/70 border-b">
-				<Disclosure
+				<CollapsibleSection
 					summary={SEASON_ADVANCED_LABELS.title}
 					detail={SEASON_ADVANCED_LABELS.note}
 				>
@@ -3302,27 +3307,30 @@ function BlocksReading({
 							<p className="text-muted-foreground text-sm">
 								{PRESET_GALLERY_LABELS.begun}
 							</p>
+							{/* A line of text and the only way there, so it carries an
+							    invisible box to 44px (ADR 0028 §2) without moving the
+							    reading's rhythm. */}
 							<a
 								href="#philosophy"
-								className="text-sm font-medium underline underline-offset-4"
+								className="text-footnote relative inline-flex min-h-11 touch-manipulation items-center font-semibold underline underline-offset-4"
 							>
 								{PRESET_GALLERY_LABELS.switchLink}
 							</a>
 						</div>
 					) : (
-						<Disclosure
+						<CollapsibleSection
 							summary={SESONG_PAGE_LABELS.shapeTitle}
 							detail={SESONG_PAGE_LABELS.shapeDetail}
 						>
 							<PresetGallery outlineId={season.outlineId} />
-						</Disclosure>
+						</CollapsibleSection>
 					)}
 
 					{/* The anchor is the level the ramps above multiply, and re-anchoring
 					    is a statement about the *season*, not about a phase: it takes
 					    effect from a week the athlete picks and floats free of where the
 					    blocks fall (ADR 0040 §5). */}
-					<Disclosure
+					<CollapsibleSection
 						summary={SESONG_PAGE_LABELS.anchorsTitle}
 						detail={anchorSummary(anchorTracks)}
 					>
@@ -3332,13 +3340,13 @@ function BlocksReading({
 							timezone={season.timezone}
 							actionData={actionData}
 						/>
-					</Disclosure>
+					</CollapsibleSection>
 
 					{/* The lifting blocks sit *beside* the phase list rather than inside
 					    it, because a dated block has no phase card to belong to (ADR 0047
 					    §6) — it is laid out along the plan's own weeks instead. */}
 					{strengthTracks.length > 0 ? (
-						<Disclosure
+						<CollapsibleSection
 							summary={SESONG_PAGE_LABELS.liftingTitle}
 							detail={strengthSummary(strengthTracks)}
 						>
@@ -3348,18 +3356,18 @@ function BlocksReading({
 								timezone={season.timezone}
 								actionData={actionData}
 							/>
-						</Disclosure>
+						</CollapsibleSection>
 					) : null}
 
-					<Disclosure
+					<CollapsibleSection
 						summary={SESONG_PAGE_LABELS.addPhaseTitle}
 						detail={SESONG_PAGE_LABELS.addPhaseDetail}
 					>
 						<AddPhaseForm outlineId={season.outlineId} phases={season.phases} />
-					</Disclosure>
-				</Disclosure>
+					</CollapsibleSection>
+				</CollapsibleSection>
 
-				<Disclosure
+				<CollapsibleSection
 					summary={SESONG_PAGE_LABELS.deleteTitle}
 					detail={
 						season.eventId
@@ -3371,7 +3379,7 @@ function BlocksReading({
 						outlineId={season.outlineId}
 						eventName={season.eventName}
 					/>
-				</Disclosure>
+				</CollapsibleSection>
 			</div>
 		</div>
 	)
@@ -3992,7 +4000,7 @@ function WeekTargetsReading({
 				>
 					{/* Named only where there is a second track to tell it apart from. */}
 					{tracks > 1 ? (
-						<span className="text-muted-foreground text-xs">
+						<span className="text-muted-foreground text-caption">
 							{nbTrackName(target.discipline)}
 						</span>
 					) : null}
@@ -4128,27 +4136,27 @@ function WeeksReading({
 						return (
 							<li key={week.weekKey}>
 								{opensBlock && phase ? (
-									<p className="text-muted-foreground pt-3 pb-1 text-xs font-semibold tracking-wide uppercase">
+									<p className="text-muted-foreground text-overline pt-3 pb-1 uppercase">
 										{nbPhaseName(phase.name)}
 									</p>
 								) : null}
-								<details>
-									<summary className="hover:bg-muted/40 -mx-2 flex cursor-pointer list-none items-center gap-3 rounded-xl px-2 py-3 [&::-webkit-details-marker]:hidden">
+								<Collapsible>
+									<CollapsibleTrigger className="hover:bg-muted/50 active:bg-muted motion-safe:duration-press -mx-2 flex min-h-11 w-[calc(100%+1rem)] touch-manipulation items-center gap-3 rounded-2xl px-2 py-3 text-left motion-safe:transition-colors motion-safe:ease-out">
 										{/* Wide enough for `12 Aug 2026` on one line: a date that wraps turns
 										    every row into two, which is exactly the density this reading exists
 										    for. */}
 										<span className="w-[5.5rem] shrink-0">
-											<span className="block text-sm font-medium tabular-nums">
+											<span className="text-callout block font-semibold tabular-nums">
 												Uke {weekNumberOf(week)}
 											</span>
-											<span className="text-muted-foreground block text-xs tabular-nums">
+											<span className="text-muted-foreground text-caption block tabular-nums">
 												{formatNbDayMonth(week.startsAt, season.timezone)}
 											</span>
 										</span>
 										{/* The role drops off at 390 px rather than squeezing the figures: a
 										    week's target is what the athlete scans for, and the rhythm is legible
 										    from the chart above. */}
-										<span className="text-muted-foreground hidden w-20 shrink-0 text-xs sm:block">
+										<span className="text-muted-foreground text-caption hidden w-20 shrink-0 sm:block">
 											{NB_WEEK_ROLE_LABELS[week.role]}
 										</span>
 										<span className="min-w-0 flex-1">
@@ -4160,25 +4168,27 @@ function WeeksReading({
 										<Icon
 											name="chevron-down"
 											size="sm"
-											className="text-muted-foreground motion-safe:duration-press shrink-0 motion-safe:transition-transform motion-safe:ease-out [details[open]>summary>&]:rotate-180"
+											className="text-muted-foreground motion-safe:duration-press shrink-0 motion-safe:transition-transform motion-safe:ease-out [[data-panel-open]>&]:rotate-180"
 										/>
-									</summary>
+									</CollapsibleTrigger>
 
 									{/* What each track's week reads, and the way to change it. The
 									    Weeks reading edits nothing itself: every week target is
 									    changed in _Endre sesongen_, behind a preview (#505 story 75),
 									    and this link opens it on this week and this track. */}
-									<div className="space-y-3 pt-1 pb-4 pl-2">
-										{week.targets.map((target) => (
-											<WeekTargetLine
-												key={target.trackId}
-												week={week}
-												target={target}
-												editable={week.weekKey >= firstUnbegunWeekKey}
-											/>
-										))}
-									</div>
-								</details>
+									<CollapsibleContent>
+										<div className="space-y-3 pt-1 pb-4 pl-2">
+											{week.targets.map((target) => (
+												<WeekTargetLine
+													key={target.trackId}
+													week={week}
+													target={target}
+													editable={week.weekKey >= firstUnbegunWeekKey}
+												/>
+											))}
+										</div>
+									</CollapsibleContent>
+								</Collapsible>
 							</li>
 						)
 					})}
@@ -4236,7 +4246,7 @@ function WeeksReading({
 				{/* The pattern, read against one of the weeks above. It is handed the
 				    week's *derived* targets — the same rows the list just rendered — so a
 				    preview and the week it claims to be about cannot disagree. */}
-				<Disclosure
+				<CollapsibleSection
 					summary={SESONG_PAGE_LABELS.patternTitle}
 					detail={patternSummary(season.patterns)}
 					defaultOpen={season.patterns.length === 0}
@@ -4251,7 +4261,7 @@ function WeeksReading({
 						workouts={workouts}
 						seasonQuery={seasonQuery}
 					/>
-				</Disclosure>
+				</CollapsibleSection>
 
 				{/* The stamp sits under the pattern it writes, because reading the pattern
 				    against a week is what an athlete does immediately before deciding which
@@ -4261,7 +4271,7 @@ function WeeksReading({
 				    It opens on its own whenever a stamp came back asking a question: a
 				    confirmation the athlete has to answer cannot be behind a closed
 				    section, or the answer is invisible and the stamp looks lost. */}
-				<Disclosure
+				<CollapsibleSection
 					summary="Put it on your calendar"
 					detail="Copies the pattern into the weeks you choose as ordinary sessions. Editing one week never touches its siblings."
 					defaultOpen={pendingStamp !== null}
@@ -4273,14 +4283,14 @@ function WeeksReading({
 						pending={pendingStamp}
 						mixNotices={mixWarnings}
 					/>
-				</Disclosure>
+				</CollapsibleSection>
 
 				{/* The other way to fill a week, last because it is the one that needs a
 				    week already filled in. ADR 0044 §6 called it out as the action a Week
 				    Pattern was never the free alternative to, and the two read better
 				    together than apart: a pattern absorbs the week's derived volume, a copy
 				    carries the week as authored. */}
-				<Disclosure
+				<CollapsibleSection
 					summary={SESONG_PAGE_LABELS.copyTitle}
 					detail={SESONG_PAGE_LABELS.copyDetail}
 					defaultOpen={pendingCopy !== null}
@@ -4291,7 +4301,7 @@ function WeeksReading({
 						timezone={season.timezone}
 						pending={pendingCopy}
 					/>
-				</Disclosure>
+				</CollapsibleSection>
 			</div>
 		</div>
 	)

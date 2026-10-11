@@ -353,6 +353,8 @@ export type ChoiceOption = {
 	value: string
 	label: React.ReactNode
 	description?: React.ReactNode
+	/** Not offered now (it is the current choice, say), but still read. */
+	disabled?: boolean
 }
 
 /**
@@ -413,6 +415,7 @@ export function RadioGroupField({
 							<RadioGroupItem
 								id={`${id}-${option.value}`}
 								value={option.value}
+								disabled={option.disabled}
 								className="mt-0.5"
 							/>
 							<FieldContent>

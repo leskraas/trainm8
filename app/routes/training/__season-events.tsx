@@ -77,14 +77,18 @@ export function SeasonEvents({
 							<Link
 								to={`/training/events/${event.id}`}
 								prefetch="intent"
-								className="flex min-h-11 items-center gap-3 py-2 hover:underline"
+								// A row press tints at once; a scale on a full-width row reads
+								// as the page flinching (design system, mobile baseline).
+								className="hover:bg-muted/50 active:bg-muted motion-safe:duration-press -mx-2 flex min-h-11 touch-manipulation items-center gap-3 rounded-2xl px-2 py-2 motion-safe:transition-colors motion-safe:ease-out"
 							>
-								<span className="bg-primary text-primary-foreground flex size-6 flex-none items-center justify-center rounded-full text-xs font-bold">
+								<span className="bg-primary text-primary-foreground text-caption flex size-6 flex-none items-center justify-center rounded-full font-bold">
 									{event.priority ?? '·'}
 								</span>
 								<span className="min-w-0 flex-1">
-									<span className="block font-medium">{event.name}</span>
-									<span className="text-muted-foreground block text-xs">
+									<span className="text-callout block font-semibold [overflow-wrap:anywhere]">
+										{event.name}
+									</span>
+									<span className="text-muted-foreground text-caption block">
 										{event.kind
 											? `${NB_EVENT_KIND_LABELS[event.kind]} · `
 											: null}
@@ -96,7 +100,7 @@ export function SeasonEvents({
 					))}
 				</ul>
 			) : (
-				<p className="text-muted-foreground text-sm">
+				<p className="text-muted-foreground text-footnote">
 					{SEASON_EVENTS_LABELS.none}
 				</p>
 			)}

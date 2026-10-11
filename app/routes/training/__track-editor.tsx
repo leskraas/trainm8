@@ -73,7 +73,7 @@ import {
 	type TrackProposal,
 } from '#app/utils/plan-outline/proposal.ts'
 import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
-import { Disclosure } from './__plan-chrome.tsx'
+import { CollapsibleSection } from './__plan-chrome.tsx'
 
 /**
  * One track as this module reads it — its Discipline, its locked currency and the
@@ -232,7 +232,7 @@ export function TrackRoster({
 			    lock were the tallest thing on the plan's summary card — a setup form
 			    sitting permanently on top of the plan it sets up. */}
 			{untracked.length > 0 ? (
-				<Disclosure
+				<CollapsibleSection
 					summary={SESONG_TRACK_LABELS.add}
 					detail={SESONG_TRACK_LABELS.addDetail(
 						untracked.map(nbTrackName).join(' · '),
@@ -243,7 +243,7 @@ export function TrackRoster({
 						untracked={untracked}
 						proposals={proposals}
 					/>
-				</Disclosure>
+				</CollapsibleSection>
 			) : null}
 		</div>
 	)

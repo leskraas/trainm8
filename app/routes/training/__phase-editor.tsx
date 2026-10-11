@@ -60,7 +60,7 @@ import {
 	type PhaseSpec,
 	type Rhythm,
 } from '#app/utils/plan-outline/derive.ts'
-import { Disclosure, DisclosureCard } from './__plan-chrome.tsx'
+import { CollapsibleSection, DisclosureCard } from './__plan-chrome.tsx'
 import { SeasonEditLink } from './__season-edits.tsx'
 
 /**
@@ -174,7 +174,7 @@ export function PhaseCard({
 			{/* The Sesong edits first: name, length, rhythm and the easy week are
 			    changed in _Endre sesongen_, behind a preview of the weeks they move
 			    (#505 story 75), so this card shows the rhythm and links there. */}
-			<Disclosure
+			<CollapsibleSection
 				summary={SESONG_PHASE_LABELS.editTitle}
 				detail={SESONG_PHASE_LABELS.editDetail}
 			>
@@ -192,13 +192,13 @@ export function PhaseCard({
 						</SeasonEditLink>
 					) : null}
 				</div>
-			</Disclosure>
+			</CollapsibleSection>
 
 			{/* Everything else about the block — how it climbs, its quality
 			    sessions, where it sits — is outside the Sesong edits of #505 v1
 			    (ADR 0084 §1): it applies directly, with no preview, so it waits
 			    behind _Avansert_ and says so. */}
-			<Disclosure
+			<CollapsibleSection
 				summary={SEASON_ADVANCED_LABELS.title}
 				detail={SEASON_ADVANCED_LABELS.phaseNote}
 			>
@@ -244,7 +244,7 @@ export function PhaseCard({
 						</Button>
 					</Form>
 				</div>
-			</Disclosure>
+			</CollapsibleSection>
 		</DisclosureCard>
 	)
 }
@@ -375,8 +375,8 @@ function RecoveryPreview({ phase }: { phase: PhaseSpec }) {
 						key={index}
 						className={
 							role === 'loading'
-								? 'bg-muted text-muted-foreground rounded-md px-2 py-1 text-xs tabular-nums'
-								: 'bg-primary/15 text-primary rounded-md px-2 py-1 text-xs font-medium tabular-nums'
+								? 'bg-muted text-muted-foreground text-caption rounded-full px-2 py-1 tabular-nums'
+								: 'bg-primary/15 text-primary text-caption rounded-full px-2 py-1 font-semibold tabular-nums'
 						}
 					>
 						<span className="sr-only">

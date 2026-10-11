@@ -26,6 +26,7 @@ import {
 	type SubmissionResult,
 } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { useEffect, useState } from 'react'
 import { Form, Link, useLocation, useSearchParams } from 'react-router'
 import { type z } from 'zod'
 import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
@@ -37,6 +38,7 @@ import {
 	NB_RHYTHM_CHOICE_LABELS,
 	NB_VOLUME_UNITS,
 	NB_WEEK_ROLE_LABELS,
+	nbPhaseName,
 	nbWeeks,
 	SEASON_EDIT_LABELS,
 } from '#app/utils/labels.ts'
@@ -63,6 +65,7 @@ import {
 	type SeasonEditPreview,
 } from '#app/utils/plan-outline/season-edit.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
+import { CollapsibleSection } from './__plan-chrome.tsx'
 
 /** The preview as the page shows it: the diff, worded, and its digest. */
 export type SeasonEditPreviewView = Pick<
@@ -233,7 +236,7 @@ export function SeasonEditsCard({
 
 	return (
 		<div className="space-y-3" data-season-edits>
-			<p className="text-muted-foreground text-sm">
+			<p className="text-muted-foreground text-footnote">
 				{SEASON_EDIT_LABELS.intro}
 			</p>
 			{tracks.length > 0 && open.length > 0 ? (
@@ -332,7 +335,7 @@ function WeekTargetEdit({
 						>
 							{SEASON_EDIT_LABELS.revert}
 						</Button>
-						<p id={hintId} className="text-muted-foreground text-xs">
+						<p id={hintId} className="text-muted-foreground text-caption">
 							{SEASON_EDIT_LABELS.revertHint}
 						</p>
 					</>
@@ -432,10 +435,10 @@ function PhaseEdit({
 				}}
 				items={phases.map((phase) => ({
 					value: phase.id,
-					label: `${phase.name} · ${nbWeeks(phase.weeks)} · fra ${formatNbDayMonth(dayOf(phase.fromWeekKey), 'UTC')}`,
+					label: `${nbPhaseName(phase.name)} · ${nbWeeks(phase.weeks)} · fra ${formatNbDayMonth(dayOf(phase.fromWeekKey), 'UTC')}`,
 				}))}
 			/>
-			<p className="text-muted-foreground text-xs">
+			<p className="text-muted-foreground text-caption">
 				{SEASON_EDIT_LABELS.phaseHint}
 			</p>
 			<Field
@@ -537,10 +540,11 @@ function EasyWeekEdit({
 			/>
 			{chosen ? (
 				<p className="text-muted-foreground text-sm" data-season-edit-current>
-					{weekLabel(chosen.weekKey)} · {phases[chosen.phaseIndex]?.name}
+					{weekLabel(chosen.weekKey)} ·{' '}
+					{nbPhaseName(phases[chosen.phaseIndex]?.name ?? '')}
 				</p>
 			) : null}
-			<p className="text-muted-foreground text-xs">
+			<p className="text-muted-foreground text-caption">
 				{SEASON_EDIT_LABELS.easyWeekHint}
 			</p>
 		</EditShell>
@@ -614,46 +618,54 @@ function EditShell({
 		preview != null && previewStillShown(formValue, preview.edit)
 			? preview
 			: null
+	// Opened by a link from a reading or by the action's answer, and the
+	// athlete's to close after that: an answer — a preview, a refusal — cannot
+	// sit behind a closed row, or the edit looks lost.
+	const answered = reply != null || open
+	const [isOpen, setOpen] = useState(answered)
+	useEffect(() => {
+		if (answered) setOpen(true)
+	}, [answered, reply])
 	return (
-		<details
-			className="border-border/70 rounded-xl border px-4 py-2"
-			open={reply != null || open}
-			data-season-edit={kind}
-		>
-			<summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">
-				{summary}
-			</summary>
-			<Form
-				method="POST"
-				className="space-y-4 pt-2 pb-2"
-				aria-label={summary}
-				{...formProps}
-				aria-describedby={formErrors ? formErrorId : undefined}
+		<div data-season-edit={kind}>
+			<CollapsibleSection
+				summary={summary}
+				open={isOpen}
+				onOpenChange={setOpen}
+				contentClassName="pt-2"
 			>
-				<input type="hidden" name="intent" value="preview-season-edit" />
-				<input type="hidden" name="edit" value={kind} />
-				<input type="hidden" name="outlineId" value={outlineId} />
-				{children}
-				{formErrors ? (
-					<div role="alert">
-						<ErrorList id={formErrorId} errors={formErrors} />
-					</div>
+				<Form
+					method="POST"
+					className="space-y-4 pt-2 pb-2"
+					aria-label={summary}
+					{...formProps}
+					aria-describedby={formErrors ? formErrorId : undefined}
+				>
+					<input type="hidden" name="intent" value="preview-season-edit" />
+					<input type="hidden" name="edit" value={kind} />
+					<input type="hidden" name="outlineId" value={outlineId} />
+					{children}
+					{formErrors ? (
+						<div role="alert">
+							<ErrorList id={formErrorId} errors={formErrors} />
+						</div>
+					) : null}
+					<Button type="submit" variant="outline" className="w-full">
+						{SEASON_EDIT_LABELS.showPreview}
+					</Button>
+					{extraActions}
+				</Form>
+				{shown ? (
+					<SeasonEditPreviewPanel
+						key={shown.digest}
+						kind={kind}
+						outlineId={outlineId}
+						preview={shown}
+						lastResult={reply?.confirmResult}
+					/>
 				) : null}
-				<Button type="submit" variant="outline" className="w-full">
-					{SEASON_EDIT_LABELS.showPreview}
-				</Button>
-				{extraActions}
-			</Form>
-			{shown ? (
-				<SeasonEditPreviewPanel
-					key={shown.digest}
-					kind={kind}
-					outlineId={outlineId}
-					preview={shown}
-					lastResult={reply?.confirmResult}
-				/>
-			) : null}
-		</details>
+			</CollapsibleSection>
+		</div>
 	)
 }
 
@@ -715,20 +727,20 @@ function SeasonEditPreviewPanel({
 			className="border-border/70 space-y-4 border-t pt-4 pb-2"
 			data-season-edit-preview
 		>
-			<h3 id={titleId} className="text-sm font-semibold">
+			<h3 id={titleId} className="text-callout font-semibold">
 				{SEASON_EDIT_LABELS.preview}
 			</h3>
-			<p id={messageId} className="text-sm" data-season-edit-message>
+			<p id={messageId} className="text-footnote" data-season-edit-message>
 				{preview.message}
 			</p>
 			<RiseWarningNotice warnings={preview.warnings} />
 			{preview.weeks.length > 0 ? (
-				<table className="w-full text-left text-sm tabular-nums">
-					<caption className="text-muted-foreground pb-1 text-left text-xs">
+				<table className="text-footnote w-full text-left tabular-nums">
+					<caption className="text-muted-foreground text-caption pb-1 text-left">
 						{SEASON_EDIT_LABELS.weeks}
 					</caption>
 					<thead>
-						<tr className="text-muted-foreground text-xs">
+						<tr className="text-muted-foreground text-caption">
 							<th scope="col" className="py-1 pr-2 font-medium">
 								{SEASON_EDIT_LABELS.weekColumn}
 							</th>
@@ -755,7 +767,7 @@ function SeasonEditPreviewPanel({
 					</tbody>
 				</table>
 			) : null}
-			<p className="text-muted-foreground text-xs">
+			<p className="text-muted-foreground text-caption">
 				{SEASON_EDIT_LABELS.aroundYours}
 			</p>
 			<Form
@@ -787,7 +799,7 @@ function SeasonEditPreviewPanel({
 /** One side of one week: its phase, its role and each track's target. */
 function weekCell(week: WeekView | null): string {
 	if (!week) return SEASON_EDIT_LABELS.ended
-	return `${week.phaseName} · ${targetsLabel(week.targets)} · ${NB_WEEK_ROLE_LABELS[week.role]}`
+	return `${nbPhaseName(week.phaseName)} · ${targetsLabel(week.targets)} · ${NB_WEEK_ROLE_LABELS[week.role]}`
 }
 
 /**
@@ -800,16 +812,20 @@ export function RiseWarningNotice({ warnings }: { warnings: string[] }) {
 	return (
 		<div
 			role="status"
-			className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
+			// The design system's `status-under` (amber), as a tint and a hairline:
+			// the word "Raskt opp" carries the warning, the colour only marks it.
+			className="bg-status-under/10 ring-status-under/35 text-footnote rounded-3xl px-3.5 py-2.5 ring-1"
 			data-season-edit-warning
 		>
-			<p className="font-medium">{SEASON_EDIT_LABELS.warningTitle}</p>
-			<ul className="mt-1 space-y-1">
+			<p className="text-status-under font-semibold">
+				{SEASON_EDIT_LABELS.warningTitle}
+			</p>
+			<ul className="mt-1 space-y-1 tabular-nums">
 				{warnings.map((warning) => (
 					<li key={warning}>{warning}</li>
 				))}
 			</ul>
-			<p className="text-muted-foreground mt-1 text-xs">
+			<p className="text-muted-foreground text-caption mt-1">
 				{SEASON_EDIT_LABELS.warningNote}
 			</p>
 		</div>
