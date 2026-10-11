@@ -1187,8 +1187,8 @@ function SessionRow({
 				// The landing: rises 4px and fades in as it mounts (`@starting-style`,
 				// 200ms ease-out); reduced motion keeps the fade. The tint leaves on
 				// the colour curve when the toast does.
-				'duration-collapse ease-out [transition-property:opacity,translate,background-color]',
-				'starting:opacity-0 starting:translate-y-1 motion-reduce:starting:translate-y-0',
+				'duration-collapse [transition-property:opacity,translate,background-color] ease-out',
+				'starting:translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0',
 				landed && 'bg-primary/6',
 			)}
 		>
@@ -1462,7 +1462,6 @@ export function ReleaseAction({
 		</fetcher.Form>
 	)
 }
-
 
 /**
  * The near end. It names the date rather than saying "no more results", because

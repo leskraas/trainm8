@@ -36,8 +36,8 @@ import {
 	DrawerTitle,
 } from '#app/components/ui/drawer.tsx'
 import { SESSION_COMPOSER_LABELS } from '#app/utils/labels.ts'
-import { type CompactLayout, SessionComposer } from './composer.tsx'
 import { type ComposerTarget, useComposerStatus } from './composer-context.tsx'
+import { type CompactLayout, SessionComposer } from './composer.tsx'
 import { dayTitle, findSession } from './day-lookup.ts'
 import { type TimelineWeek } from './presenter.ts'
 import { SessionDetail } from './session-detail.tsx'
@@ -158,9 +158,7 @@ export function ComposerDrawer({
 							<SessionDetail
 								session={found.session}
 								cta={
-									today?.cta?.sessionId === found.session.id
-										? today.cta
-										: null
+									today?.cta?.sessionId === found.session.id ? today.cta : null
 								}
 							/>
 						) : null}
@@ -170,4 +168,3 @@ export function ComposerDrawer({
 		</Drawer>
 	)
 }
-

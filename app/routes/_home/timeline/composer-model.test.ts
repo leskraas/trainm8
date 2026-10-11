@@ -11,6 +11,7 @@ import {
 	composerReducer,
 	type ComposerState,
 	initialComposerState,
+	needsExercises,
 	nudgeBlock,
 	planShape,
 	readLine,
@@ -20,7 +21,11 @@ const TODAY = '2030-02-20'
 
 function state(overrides: Partial<ComposerState> = {}): ComposerState {
 	return {
-		...initialComposerState({ dayKey: '2030-02-22', todayKey: TODAY, prefill: 'run' }),
+		...initialComposerState({
+			dayKey: '2030-02-22',
+			todayKey: TODAY,
+			prefill: 'run',
+		}),
 		...overrides,
 	}
 }
@@ -104,9 +109,70 @@ describe('a typed line', () => {
 	})
 
 	test('a note from the full part travels with the write', () => {
-		expect(post(state({ text: '45 min rolig', notes: '  Med klubben ' }))).toMatchObject(
-			{ notes: 'Med klubben' },
-		)
+		expect(
+			post(state({ text: '45 min rolig', notes: '  Med klubben ' })),
+		).toMatchObject({ notes: 'Med klubben' })
+	})
+})
+
+describe('Styrke: lifts on the line (ADR 0089)', () => {
+	const EXERCISES = [
+		{ id: 'squat', name: 'Back Squat' },
+		{ id: 'bench', name: 'Bench Press' },
+	]
+	const LIFTS = 'Knebøy 5×5 @ 80 kg · Benkpress 5×5 @ 60 kg'
+
+	test('the line is read against the catalogue, and writes under the Styrke chip', () => {
+		const s = state({ sport: 'strength', text: LIFTS })
+		const parsed = readLine(s.text, s.sport, EXERCISES)
+		expect(parsed.lifts.map((lift) => lift.name)).toEqual([
+			'Back Squat',
+			'Bench Press',
+		])
+		const plan = composerPlan(s, parsed)
+		expect(plan.kind).toBe('sentence')
+		expect(composerPost(s, plan, { todayKey: TODAY })).toEqual({
+			intent: 'write-session',
+			date: '2030-02-22',
+			discipline: 'strength',
+			sentence: LIFTS,
+			landing: 'toast',
+		})
+		// The week sum counts what was read: ten sets.
+		expect(planShape(plan)?.discipline).toBe('strength')
+	})
+
+	test('before the catalogue arrives a lift waits — it is neither saved nor a typo', () => {
+		const s = state({ sport: 'strength', text: LIFTS })
+		const parsed = readLine(s.text, s.sport, null)
+		expect(parsed.exercisesNeeded).toBe(true)
+		expect(parsed.unknown).toEqual([])
+		expect(composerPlan(s, parsed)).toEqual({
+			kind: 'none',
+			reason: 'exercises',
+		})
+	})
+
+	test('an unknown lift offers the nearest names and writes nothing', () => {
+		const s = state({ sport: 'strength', text: 'Knebøj 5×5 @ 80 kg' })
+		const parsed = readLine(s.text, s.sport, EXERCISES)
+		expect(parsed.unknown[0]).toMatchObject({
+			reason: 'unknown-exercise',
+			suggestions: expect.arrayContaining(['Knebøy']),
+		})
+		expect(composerPlan(s, parsed)).toEqual({ kind: 'none', reason: 'unread' })
+	})
+
+	test('whether the composer needs the catalogue: Styrke, or a line that names a lift', () => {
+		expect(
+			needsExercises(state({ sport: 'strength' }), readLine('', 'strength')),
+		).toBe(true)
+		expect(
+			needsExercises(state({ sport: 'run' }), readLine('10 km rolig', 'run')),
+		).toBe(false)
+		expect(
+			needsExercises(state({ sport: 'run' }), readLine('Knebøy 5×5', 'run')),
+		).toBe(true)
 	})
 })
 
@@ -118,16 +184,18 @@ describe('Allerede gjort (owner decision 5)', () => {
 			prefill: 'run',
 		})
 		expect(past.done).toBe(true)
-		expect(post({ ...past, text: '10 km rolig' })).toMatchObject({ done: 'true' })
-		expect(post({ ...past, text: '10 km rolig', done: false })).not.toHaveProperty(
-			'done',
-		)
+		expect(post({ ...past, text: '10 km rolig' })).toMatchObject({
+			done: 'true',
+		})
+		expect(
+			post({ ...past, text: '10 km rolig', done: false }),
+		).not.toHaveProperty('done')
 	})
 
 	test('today and ahead never write done, whatever the switch held', () => {
-		expect(post(state({ dayKey: TODAY, done: true, text: '45 min' }))).not.toHaveProperty(
-			'done',
-		)
+		expect(
+			post(state({ dayKey: TODAY, done: true, text: '45 min' })),
+		).not.toHaveProperty('done')
 	})
 
 	test('moving the day across today resets the switch; between past days it keeps the choice', () => {
@@ -138,8 +206,11 @@ describe('Allerede gjort (owner decision 5)', () => {
 		})
 		const off = composerReducer(past, { type: 'done', done: false })
 		expect(
-			composerReducer(off, { type: 'day', dayKey: '2030-02-11', todayKey: TODAY })
-				.done,
+			composerReducer(off, {
+				type: 'day',
+				dayKey: '2030-02-11',
+				todayKey: TODAY,
+			}).done,
 		).toBe(false)
 		const ahead = composerReducer(off, {
 			type: 'day',
@@ -148,8 +219,11 @@ describe('Allerede gjort (owner decision 5)', () => {
 		})
 		expect(ahead.done).toBe(false)
 		expect(
-			composerReducer(ahead, { type: 'day', dayKey: '2030-02-12', todayKey: TODAY })
-				.done,
+			composerReducer(ahead, {
+				type: 'day',
+				dayKey: '2030-02-12',
+				todayKey: TODAY,
+			}).done,
 		).toBe(true)
 	})
 })
@@ -175,7 +249,10 @@ describe('Bibliotek and Kopier', () => {
 			type: 'pick',
 			pick: { source: 'kopier', item: item({ id: 'session-9' }) },
 		})
-		expect(post(picked)).toMatchObject({ intent: 'copy-session', sessionId: 'session-9' })
+		expect(post(picked)).toMatchObject({
+			intent: 'copy-session',
+			sessionId: 'session-9',
+		})
 		const changed = composerReducer(picked, {
 			type: 'text',
 			text: '8x1000 m terskel p 90 s',
@@ -189,10 +266,16 @@ describe('Bibliotek and Kopier', () => {
 	test('a pick the line cannot say is written whole while the line is left empty', () => {
 		const whole = composerReducer(state(), {
 			type: 'pick',
-			pick: { source: 'kopier', item: item({ id: 'session-3', sentence: null }) },
+			pick: {
+				source: 'kopier',
+				item: item({ id: 'session-3', sentence: null }),
+			},
 		})
 		expect(whole.text).toBe('')
-		expect(post(whole)).toMatchObject({ intent: 'copy-session', sessionId: 'session-3' })
+		expect(post(whole)).toMatchObject({
+			intent: 'copy-session',
+			sessionId: 'session-3',
+		})
 		expect(planShape(composerPlan(whole, readLine('', 'run')))).toBe(
 			whole.pick?.item.summed,
 		)
@@ -211,8 +294,6 @@ describe('Gjør grundigere: steppers write back into the line', () => {
 		expect(nudgeBlock(structure, 0, { restSec: 120 })).toBe(
 			'6x1000 m terskel p 2 min',
 		)
-		expect(nudgeBlock(structure, 0, { restSec: null })).toBe(
-			'6x1000 m terskel',
-		)
+		expect(nudgeBlock(structure, 0, { restSec: null })).toBe('6x1000 m terskel')
 	})
 })

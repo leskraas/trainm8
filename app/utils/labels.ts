@@ -1747,8 +1747,15 @@ export const SESSION_COMPOSER_LABELS = {
 	annetNote:
 		'Annet teller ikke i noe spor. Si idretten i linja: «25 min sykkel».',
 	annetNoDiscipline: 'Si hvilken idrett i linja: «25 min sykkel til jobb».',
+	/** The Styrke chip on an empty line: lifts are named, never stamped (ADR 0089). */
 	strengthNote:
-		'Løftene skrives i linja når den kan lese dem. Til da: åpne hele editoren.',
+		'Skriv løftene i linja — øvelse, sett × reps og vekt. Skill dem med «·».',
+	/** The line names lifts and the exercise catalogue is still on its way. */
+	exercisesLoading: 'Henter øvelsene…',
+	/** An unknown lift with no name near it. */
+	noExercise: 'Skriv øvelsen slik den heter i Bibliotek, f.eks. Knebøy eller Markløft.',
+	/** `Til sammen 10 sett` — a session of lifts, counted as the week counts it. */
+	sets: (count: number) => `${count} sett`,
 	add: 'Legg til',
 	/** The empty state: the stamp (ADR 0065 §5). */
 	addStamp: (sentence: string) => `Legg til ${sentence}`,

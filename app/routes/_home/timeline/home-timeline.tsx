@@ -323,214 +323,214 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 			container={container}
 			onReveal={revealForComposer}
 		>
-		<main
-			ref={frameRef}
-			// The landing script sets this same height before hydration, so the
-			// first paint is measured in the box it will keep.
-			suppressHydrationWarning
-			// The list can only scroll inside a box with a **definite** height, and
-			// `app/root.tsx` gives its layout `min-h-screen` — a minimum — so the
-			// frame states its own: the viewport, less the chrome above it and the
-			// phone's tab bar below it (`--tab-bar-space`, ADR 0083; 0 from `md`
-			// up). `100dvh` is the server-rendered answer, right to within the
-			// wordmark row; the measured value takes that row out.
-			style={
-				chrome == null
-					? undefined
-					: { height: `calc(100dvh - ${chrome}px - var(--tab-bar-space))` }
-			}
-			//
-			// From `lg` up the frame is a grid of cards on the page's tone (ADR
-			// 0087, Arket variant Q): the season, the list at a reading width, and
-			// from `xl` the selected day. Each card scrolls on its own and keeps
-			// its scroll to itself. The cards are drawn by CSS from the first byte,
-			// so the list does not move sideways when the panes fill in on the
-			// client.
-			className={cn(
-				'relative flex h-[calc(100dvh-var(--tab-bar-space))] min-h-0 overflow-hidden',
-				'lg:grid lg:grid-cols-[300px_minmax(0,760px)] lg:justify-center lg:gap-3 lg:p-3',
-				'xl:grid-cols-[300px_minmax(0,760px)_340px] 2xl:grid-cols-[320px_minmax(0,800px)_380px]',
-			)}
-		>
-			{/* The season, left of the list (#505 story 60). Its card is drawn at
-			    `lg` whatever runs; its content only once the screen is known to be
-			    large, so a phone never renders a table it would hide. */}
-			<aside
-				data-season-pane-column
-				aria-label={SEASON_PANE_LABELS.heading}
-				className={cn(LARGE_CARD, 'hidden p-4 lg:flex')}
-			>
-				{large ? (
-					<SeasonPane
-						season={season}
-						frame={scroll.frame}
-						onJump={goToWeek}
-						onToday={toToday}
-					/>
-				) : null}
-			</aside>
-
-			{/* The list: one column, the whole width on a phone; a card at a
-			    reading width between the season and the day on a large screen. */}
-			<div
-				data-timeline-column
-				className="lg:ring-foreground/5 relative flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-hidden lg:rounded-4xl lg:shadow-md lg:ring-1"
-			>
-				{/* Why a number the athlete had already read moved (ADR 0046 §2). It
-				    sits above everything because it is a one-shot explanation, not a
-				    panel. */}
-				{notice ? <LoadRecomputeNoticeBar line={notice} /> : null}
-
-				<header
-					data-testid="timeline-top"
-					// Pinned above the list, and set apart from it by tone and a soft
-					// shadow rather than a rule (the luma direction, ADR 0085).
-					className="bg-background relative z-10 flex flex-none flex-col gap-0.5 px-4 pb-2 shadow-[0_1px_3px_oklch(0_0_0/0.06)]"
-				>
-					<TopLine
-						line={season.topLine}
-						weekChangeCount={weekChangeView?.waitingCount ?? 0}
-						away={scroll.away}
-						onToday={toToday}
-						todayKey={season.todayKey}
-					/>
-					{/*
-					 * The season strip (#505 stories 17–18, D5): every week, the
-					 * phases under it, the frame over the weeks in view. From `lg`
-					 * the season pane's table and curve say the same beside the list
-					 * (ADR 0087), so the strip steps aside.
-					 */}
-					<div className="lg:hidden">
-						<WeekStrip
-							strip={season.strip}
-							activeWeekKey={scroll.activeWeekKey}
-							frame={scroll.frame}
-							onSelect={goToWeek}
-						/>
-					</div>
-				</header>
-
-				<div
-					ref={streamRef}
-					id={streamId}
-					data-testid="timeline-stream"
-					// Named for the markup as well as for the tests: a row deep in the
-					// stream finds the box it scrolls in through this.
-					{...{ [STREAM_ATTR]: 'true' }}
-					// `overscroll-behavior: contain` so the end of the list never drags
-					// the page behind it (mobile baseline, #505 P7). The browser's own
-					// scroll anchoring is left on: it is what absorbs a week above the
-					// reader turning out taller than its `content-visibility` estimate
-					// (`ReadingHold` stands in for it where there is none).
-					// `scroll-behavior: smooth` is for the reader's own keyboard
-					// scrolling only — every write the app makes is a jump.
-					//
-					// On a large screen a click on a day's row picks it for the day
-					// pane (`use-day-selection.ts`), and the picked row carries a
-					// green edge — drawn here, so the memoised rows never re-render
-					// for a pick.
-					className={cn(
-						'bg-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain motion-safe:[scroll-behavior:smooth]',
-						'lg:[&_[data-day-selected]]:shadow-[inset_3px_0_0_var(--color-primary)] lg:[&_[data-timeline-day]]:cursor-pointer',
-					)}
-					aria-describedby={large && !wide ? `${streamId}-keys` : undefined}
-				>
-					{large && !wide ? (
-						<p id={`${streamId}-keys`} className="sr-only">
-							{DAY_PANE_LABELS.keyHint}
-						</p>
-					) : null}
-					<ReadingHold
-						revision={season.weeks}
-						stream={streamOf}
-						readerKey={readerKey}
-					>
-						{/* One box for the list's content: what the landing's
-						    `ResizeObserver` watches for late layout. */}
-						<div data-timeline-content>
-							<StartCap
-								loggedFromLabel={season.loggedFromLabel}
-								reachesBackToLabel={season.reachesBackToLabel}
-								reachWeeks={season.reachWeeks}
-							/>
-							{visibleWeeks.map((week) => (
-								<WeekBlock
-									key={week.key}
-									week={week}
-									anchorDayKey={season.todayKey}
-									afterDays={week.isNow ? weekChangeCard : null}
-									today={week.isNow ? today : null}
-								/>
-							))}
-							{to === season.weeks.length - 1 ? (
-								<EndCap cap={season.endCap} />
-							) : (
-								// In reach, the next weeks ahead mount below — which moves
-								// nothing the reader can see.
-								<div aria-hidden {...{ [AHEAD_SENTINEL_ATTR]: '' }} />
-							)}
-						</div>
-					</ReadingHold>
-				</div>
-				{/*
-				 * Park the list on today **before the first paint** (ADR 0086, #505
-				 * P6): the browser runs this as it parses, right after the list, so
-				 * the server-rendered page opens on today instead of on the start
-				 * of the season and jumping once the app hydrates. The hook's layout
-				 * effect then measures the same position and writes nothing.
-				 */}
-				<script
-					nonce={nonce}
-					suppressHydrationWarning
-					dangerouslySetInnerHTML={{ __html: landingScript(streamId) }}
-				/>
-			</div>
-
-			{/* The selected day, right of the list from `xl` (ADR 0087). Focusable
-			    so `I` on a row in the list can bring the reader here. */}
-			<aside
-				ref={dayPaneRef}
-				tabIndex={-1}
-				data-day-pane
-				aria-labelledby={large && wide ? dayHeadingId : undefined}
-				aria-label={large && wide ? undefined : DAY_PANE_LABELS.region}
+			<main
+				ref={frameRef}
+				// The landing script sets this same height before hydration, so the
+				// first paint is measured in the box it will keep.
+				suppressHydrationWarning
+				// The list can only scroll inside a box with a **definite** height, and
+				// `app/root.tsx` gives its layout `min-h-screen` — a minimum — so the
+				// frame states its own: the viewport, less the chrome above it and the
+				// phone's tab bar below it (`--tab-bar-space`, ADR 0083; 0 from `md`
+				// up). `100dvh` is the server-rendered answer, right to within the
+				// wordmark row; the measured value takes that row out.
+				style={
+					chrome == null
+						? undefined
+						: { height: `calc(100dvh - ${chrome}px - var(--tab-bar-space))` }
+				}
+				//
+				// From `lg` up the frame is a grid of cards on the page's tone (ADR
+				// 0087, Arket variant Q): the season, the list at a reading width, and
+				// from `xl` the selected day. Each card scrolls on its own and keeps
+				// its scroll to itself. The cards are drawn by CSS from the first byte,
+				// so the list does not move sideways when the panes fill in on the
+				// client.
 				className={cn(
-					LARGE_CARD,
-					'focus-visible:outline-ring hidden p-5 focus-visible:outline-2 xl:flex',
+					'relative flex h-[calc(100dvh-var(--tab-bar-space))] min-h-0 overflow-hidden',
+					'lg:grid lg:grid-cols-[300px_minmax(0,760px)] lg:justify-center lg:gap-3 lg:p-3',
+					'xl:grid-cols-[300px_minmax(0,760px)_340px] 2xl:grid-cols-[320px_minmax(0,800px)_380px]',
 				)}
 			>
-				{large && wide ? (
-					<DayDetail
+				{/* The season, left of the list (#505 story 60). Its card is drawn at
+			    `lg` whatever runs; its content only once the screen is known to be
+			    large, so a phone never renders a table it would hide. */}
+				<aside
+					data-season-pane-column
+					aria-label={SEASON_PANE_LABELS.heading}
+					className={cn(LARGE_CARD, 'hidden p-4 lg:flex')}
+				>
+					{large ? (
+						<SeasonPane
+							season={season}
+							frame={scroll.frame}
+							onJump={goToWeek}
+							onToday={toToday}
+						/>
+					) : null}
+				</aside>
+
+				{/* The list: one column, the whole width on a phone; a card at a
+			    reading width between the season and the day on a large screen. */}
+				<div
+					data-timeline-column
+					className="lg:ring-foreground/5 relative flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-hidden lg:rounded-4xl lg:shadow-md lg:ring-1"
+				>
+					{/* Why a number the athlete had already read moved (ADR 0046 §2). It
+				    sits above everything because it is a one-shot explanation, not a
+				    panel. */}
+					{notice ? <LoadRecomputeNoticeBar line={notice} /> : null}
+
+					<header
+						data-testid="timeline-top"
+						// Pinned above the list, and set apart from it by tone and a soft
+						// shadow rather than a rule (the luma direction, ADR 0085).
+						className="bg-background relative z-10 flex flex-none flex-col gap-0.5 px-4 pb-2 shadow-[0_1px_3px_oklch(0_0_0/0.06)]"
+					>
+						<TopLine
+							line={season.topLine}
+							weekChangeCount={weekChangeView?.waitingCount ?? 0}
+							away={scroll.away}
+							onToday={toToday}
+							todayKey={season.todayKey}
+						/>
+						{/*
+						 * The season strip (#505 stories 17–18, D5): every week, the
+						 * phases under it, the frame over the weeks in view. From `lg`
+						 * the season pane's table and curve say the same beside the list
+						 * (ADR 0087), so the strip steps aside.
+						 */}
+						<div className="lg:hidden">
+							<WeekStrip
+								strip={season.strip}
+								activeWeekKey={scroll.activeWeekKey}
+								frame={scroll.frame}
+								onSelect={goToWeek}
+							/>
+						</div>
+					</header>
+
+					<div
+						ref={streamRef}
+						id={streamId}
+						data-testid="timeline-stream"
+						// Named for the markup as well as for the tests: a row deep in the
+						// stream finds the box it scrolls in through this.
+						{...{ [STREAM_ATTR]: 'true' }}
+						// `overscroll-behavior: contain` so the end of the list never drags
+						// the page behind it (mobile baseline, #505 P7). The browser's own
+						// scroll anchoring is left on: it is what absorbs a week above the
+						// reader turning out taller than its `content-visibility` estimate
+						// (`ReadingHold` stands in for it where there is none).
+						// `scroll-behavior: smooth` is for the reader's own keyboard
+						// scrolling only — every write the app makes is a jump.
+						//
+						// On a large screen a click on a day's row picks it for the day
+						// pane (`use-day-selection.ts`), and the picked row carries a
+						// green edge — drawn here, so the memoised rows never re-render
+						// for a pick.
+						className={cn(
+							'bg-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain motion-safe:[scroll-behavior:smooth]',
+							'lg:[&_[data-day-selected]]:shadow-[inset_3px_0_0_var(--color-primary)] lg:[&_[data-timeline-day]]:cursor-pointer',
+						)}
+						aria-describedby={large && !wide ? `${streamId}-keys` : undefined}
+					>
+						{large && !wide ? (
+							<p id={`${streamId}-keys`} className="sr-only">
+								{DAY_PANE_LABELS.keyHint}
+							</p>
+						) : null}
+						<ReadingHold
+							revision={season.weeks}
+							stream={streamOf}
+							readerKey={readerKey}
+						>
+							{/* One box for the list's content: what the landing's
+						    `ResizeObserver` watches for late layout. */}
+							<div data-timeline-content>
+								<StartCap
+									loggedFromLabel={season.loggedFromLabel}
+									reachesBackToLabel={season.reachesBackToLabel}
+									reachWeeks={season.reachWeeks}
+								/>
+								{visibleWeeks.map((week) => (
+									<WeekBlock
+										key={week.key}
+										week={week}
+										anchorDayKey={season.todayKey}
+										afterDays={week.isNow ? weekChangeCard : null}
+										today={week.isNow ? today : null}
+									/>
+								))}
+								{to === season.weeks.length - 1 ? (
+									<EndCap cap={season.endCap} />
+								) : (
+									// In reach, the next weeks ahead mount below — which moves
+									// nothing the reader can see.
+									<div aria-hidden {...{ [AHEAD_SENTINEL_ATTR]: '' }} />
+								)}
+							</div>
+						</ReadingHold>
+					</div>
+					{/*
+					 * Park the list on today **before the first paint** (ADR 0086, #505
+					 * P6): the browser runs this as it parses, right after the list, so
+					 * the server-rendered page opens on today instead of on the start
+					 * of the season and jumping once the app hydrates. The hook's layout
+					 * effect then measures the same position and writes nothing.
+					 */}
+					<script
+						nonce={nonce}
+						suppressHydrationWarning
+						dangerouslySetInnerHTML={{ __html: landingScript(streamId) }}
+					/>
+				</div>
+
+				{/* The selected day, right of the list from `xl` (ADR 0087). Focusable
+			    so `I` on a row in the list can bring the reader here. */}
+				<aside
+					ref={dayPaneRef}
+					tabIndex={-1}
+					data-day-pane
+					aria-labelledby={large && wide ? dayHeadingId : undefined}
+					aria-label={large && wide ? undefined : DAY_PANE_LABELS.region}
+					className={cn(
+						LARGE_CARD,
+						'focus-visible:outline-ring hidden p-5 focus-visible:outline-2 xl:flex',
+					)}
+				>
+					{large && wide ? (
+						<DayDetail
+							weeks={season.weeks}
+							dayKey={days.selected}
+							todayKey={season.todayKey}
+							minWriteKey={writable.firstDayKey}
+							today={today}
+							headingId={dayHeadingId}
+							composeRequest={composeRequest}
+						/>
+					) : null}
+				</aside>
+				{large && !wide ? (
+					<DaySheet
+						open={days.sheetOpen}
+						onOpenChange={(open) => {
+							days.setSheetOpen(open)
+							if (!open) setSheetComposing(false)
+						}}
+						composing={sheetComposing}
 						weeks={season.weeks}
 						dayKey={days.selected}
 						todayKey={season.todayKey}
 						minWriteKey={writable.firstDayKey}
 						today={today}
 						headingId={dayHeadingId}
-						composeRequest={composeRequest}
 					/>
 				) : null}
-			</aside>
-			{large && !wide ? (
-				<DaySheet
-					open={days.sheetOpen}
-					onOpenChange={(open) => {
-						days.setSheetOpen(open)
-						if (!open) setSheetComposing(false)
-					}}
-					composing={sheetComposing}
-					weeks={season.weeks}
-					dayKey={days.selected}
-					todayKey={season.todayKey}
-					minWriteKey={writable.firstDayKey}
-					today={today}
-					headingId={dayHeadingId}
-				/>
-			) : null}
-			{container === 'drawer' ? (
-				<ComposerDrawer weeks={season.weeks} today={today} />
-			) : null}
-		</main>
+				{container === 'drawer' ? (
+					<ComposerDrawer weeks={season.weeks} today={today} />
+				) : null}
+			</main>
 		</ComposerProvider>
 	)
 }

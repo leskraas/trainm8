@@ -54,7 +54,10 @@ export function SessionDetail({
 	const facts = sessionFacts(session)
 	const planned = session.status === 'planned'
 	return (
-		<div data-session-detail={session.id} className="flex min-w-0 flex-col gap-2.5">
+		<div
+			data-session-detail={session.id}
+			className="flex min-w-0 flex-col gap-2.5"
+		>
 			<dl className="text-footnote grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5">
 				<dt className="text-muted-foreground">{DAY_PANE_LABELS.track}</dt>
 				<dd>{session.disciplineLabel}</dd>
