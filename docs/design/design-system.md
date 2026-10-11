@@ -155,15 +155,16 @@ From Emil Kowalski's skills, enforced by the utilities in `tailwind.css`.
 | `duration-modal`    | 250 / 200                                                 | dialogs, sheets, backdrops                          |
 | `duration-drawer`   | 450 in; out = Base UI's `--drawer-swipe-strength` × 400ms | the bottom sheet                                    |
 
-| Utility           | What it does                                                                                                                                                                                 |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pressable`       | `scale(0.97)` on `:active`, 160ms ease-out; colours on the same curve; no scale on `aria-haspopup` triggers; reduced motion keeps the colours only.                                          |
-| `motion-popup`    | `transform-origin: var(--transform-origin)`, from `scale(0.96)` + opacity via `data-starting-style`/`data-ending-style`; 200 in / 150 out; only a fade when a select opens over its trigger. |
-| `motion-tooltip`  | Same shape from `scale(0.97)`, 150 / 100; `data-instant` → no transition.                                                                                                                    |
-| `motion-modal`    | Centred (modals have no trigger), from `scale(0.96)`, 250 / 200.                                                                                                                             |
-| `motion-backdrop` | Opacity, in step with its modal; follows a drawer swipe.                                                                                                                                     |
-| `motion-collapse` | Height (Base UI's `--collapsible-panel-height`) + opacity, 200 / 150. The one sanctioned layout animation.                                                                                   |
-| `reflow`          | The home timeline's draft opening in place (ADR 0077, 0086): height + opacity written by `timeline/reflow.ts`, on `motion-collapse`'s curve.                                                 |
+| Utility           | What it does                                                                                                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pressable`       | `scale(0.97)` on `:active`, 160ms ease-out; colours on the same curve; no scale on `aria-haspopup` triggers; reduced motion keeps the colours only.                                                                       |
+| `motion-popup`    | `transform-origin: var(--transform-origin)`, from `scale(0.96)` + opacity via `data-starting-style`/`data-ending-style`; 200 in / 150 out; only a fade when a select opens over its trigger.                              |
+| `motion-tooltip`  | Same shape from `scale(0.97)`, 150 / 100; `data-instant` → no transition.                                                                                                                                                 |
+| `motion-modal`    | Centred (modals have no trigger), from `scale(0.96)`, 250 / 200.                                                                                                                                                          |
+| `motion-backdrop` | Opacity, in step with its modal; follows a drawer swipe.                                                                                                                                                                  |
+| `motion-collapse` | Height (Base UI's `--collapsible-panel-height`) + opacity, 200 / 150. The one sanctioned layout animation.                                                                                                                |
+| `reflow`          | The home timeline's draft opening in place (ADR 0077, 0086): height + opacity written by `timeline/reflow.ts`, on `motion-collapse`'s curve.                                                                              |
+| `motion-reveal`   | The first run's one moment of delight ("Dette fant vi", seen once): rise 6px + fade from `@starting-style`, 200ms ease-out, `--reveal-index` × 40ms stagger; reduced motion keeps the fade. Not for anything seen weekly. |
 
 The rules: transitions, never keyframes, on anything that can be interrupted.
 Never `scale(0)`, never `ease-in`, never `transition-all`. Exit faster than
