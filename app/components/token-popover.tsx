@@ -12,10 +12,15 @@
  * once the open animation has settled, so the initial anchoring never
  * animates in from the viewport origin.
  *
- * The shell is the spec's popover language: caret-anchored, the popup radius,
- * layered shadow, the system's popup motion from the anchor (`motion-popup`;
- * a fade alone under reduced motion), an uppercase mono cap label, max-width 324 px clamped to the viewport, and
- * flip-above when cramped (Base UI's default collision avoidance). It is
+ * The shell is the spec's popover language on the app's popup recipe (ADR
+ * 0085 §4, #505 round 2): caret-anchored, the luma popup radius and shadow,
+ * `motion-popup` — out of the anchor from `scale(0.96)` plus opacity, 200ms in
+ * and 150ms out on `--ease-out`, the scale dropped under reduced motion — an
+ * uppercase cap label on the type scale's overline step, max-width 324 px
+ * clamped to the viewport, and flip-above when cramped (Base UI's default
+ * collision avoidance). It used to scale in from 90 % on tw-animate keyframes
+ * for 130ms: a keyframe restarts from zero when a retarget interrupts it, and
+ * `zoom-in-90` is a bigger jump than anything else in the app makes. It is
  * non-modal with trapped Tab (`modal="trap-focus"`): outside interactions
  * stay live so retargeting works, clicking non-interactive ground closes,
  * and Esc closes returning focus to the anchor token (Base UI's default
@@ -23,21 +28,18 @@
  */
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import { useRef, useState, type ReactNode } from 'react'
+import { BLOCK_SHEET_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 
 /**
- * The popup shell treatment of the spec's popover language (§2.4): the popup
- * radius (`rounded-3xl`, ~13 px), layered shadow, 324 px max width, and the
- * system's `motion-popup` (ADR 0085 §4): a **transition**, not tw-animate
- * keyframes, so a close that interrupts the open reverses from where it is
- * instead of restarting — from `scale(0.96)` at the trigger's
- * `--transform-origin`, 200 ms in and 150 ms out on `--ease-out`, and a fade
- * alone under reduced motion. Exported for
- * the editor's menu-summoned popovers (the ⠿ gutter editors, the ⋮ "Add…"
- * fallback), which speak the same language from their own roots.
+ * The popup shell treatment of the spec's popover language (§2.4) on the
+ * app's popup recipe: `motion-popup`, the luma popup radius (`rounded-3xl`)
+ * and elevation (`shadow-lg`), 324 px max width. Exported for the editor's
+ * menu-summoned popovers (the ⠿ gutter editors, the ⋮ "Add…" fallback),
+ * which speak the same language from their own roots.
  */
 export const TOKEN_POPUP_CLASS =
-	'bg-popover text-popover-foreground ring-foreground/10 motion-popup flex w-[19.5rem] max-w-[min(324px,calc(100vw-1rem))] flex-col gap-3 rounded-3xl p-3 shadow-[0_1px_2px_rgb(0_0_0/0.06),0_4px_12px_rgb(0_0_0/0.08),0_16px_40px_-12px_rgb(0_0_0/0.18)] ring-1 outline-none'
+	'bg-popover text-popover-foreground ring-foreground/10 motion-popup flex w-[19.5rem] max-w-[min(324px,calc(100vw-1rem))] flex-col gap-3 rounded-3xl p-3 shadow-lg ring-1 outline-none'
 
 /** One shared handle per editor instance — every trigger and the single
  * popover root connect through it. */
@@ -85,7 +87,7 @@ export function TokenPopoverTrigger<Payload>({
 			payload={payload}
 			data-token-trigger
 			className={cn(
-				'focus-visible:ring-ring hover:bg-muted data-popup-open:bg-muted -mx-1 -my-1 cursor-pointer rounded-sm px-1 py-1 outline-none focus-visible:ring-2',
+				'focus-visible:ring-ring hover:bg-muted data-popup-open:bg-muted -mx-1 -my-1 cursor-pointer rounded-lg px-1 py-1 outline-none focus-visible:ring-2',
 				className,
 			)}
 			{...props}
@@ -120,7 +122,10 @@ export function TokenPopover<Payload>({
 }: TokenPopoverProps<Payload>) {
 	// The glide transition must not apply while the popover is first
 	// positioned (the transform would animate in from the viewport origin), so
-	// it switches on only after the open animation completes.
+	// it switches on only after the open animation completes. The glide is
+	// something already on screen moving to a new place, so it rides the
+	// app's `ease-in-out` (Emil's strong in-out, `tailwind.css`) at the
+	// dropdown's 200ms — a retarget is a popup arriving somewhere else.
 	const [settled, setSettled] = useState(false)
 	const popupRef = useRef<HTMLDivElement>(null)
 	return (
@@ -140,7 +145,7 @@ export function TokenPopover<Payload>({
 						className={cn(
 							'isolate z-50',
 							settled &&
-								'motion-safe:transition-[transform] motion-safe:duration-[180ms] motion-safe:ease-in-out',
+								'motion-safe:duration-dropdown motion-safe:transition-[transform] motion-safe:ease-in-out',
 						)}
 					>
 						<PopoverPrimitive.Popup
@@ -161,7 +166,7 @@ export function TokenPopover<Payload>({
 								<>
 									<div
 										data-slot="token-popover-label"
-										className="text-muted-foreground font-mono text-[11px] font-semibold tracking-[0.08em] uppercase"
+										className="text-overline text-muted-foreground uppercase"
 									>
 										{label(payload)}
 									</div>
@@ -174,7 +179,7 @@ export function TokenPopover<Payload>({
 							    screen readers can escape the trap; Esc and ground clicks
 							    serve everyone else. */}
 							<PopoverPrimitive.Close className="sr-only">
-								Close
+								{BLOCK_SHEET_LABELS.close}
 							</PopoverPrimitive.Close>
 						</PopoverPrimitive.Popup>
 					</PopoverPrimitive.Positioner>
@@ -200,6 +205,11 @@ function TokenPopoverBody<Payload>({
  * The caret (§2.4): an SVG arrow that flips with the popup side and tracks
  * the anchor during the retargeting glide (its offset transitions alongside
  * the positioner's transform).
+ *
+ * `left` is a layout property and the one animated here on purpose: Base UI
+ * places the arrow with an inline `left`, so there is no transform to move
+ * instead, and the box it lays out is a 20 × 8 px SVG. Snapping it while the
+ * popup glides would point the caret at the old token for 200ms.
  */
 function TokenPopoverArrow({ settled }: { settled: boolean }) {
 	return (
@@ -207,7 +217,7 @@ function TokenPopoverArrow({ settled }: { settled: boolean }) {
 			className={cn(
 				'data-[side=bottom]:top-[-8px] data-[side=top]:bottom-[-8px] data-[side=top]:rotate-180',
 				settled &&
-					'motion-safe:transition-[left] motion-safe:duration-[180ms] motion-safe:ease-in-out',
+					'motion-safe:duration-dropdown motion-safe:transition-[left] motion-safe:ease-in-out',
 			)}
 		>
 			<svg width="20" height="8" viewBox="0 0 20 8" fill="none" aria-hidden>

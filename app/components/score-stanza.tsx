@@ -1,5 +1,4 @@
 import { Fragment, type HTMLAttributes, type ReactNode } from 'react'
-import { TOKEN_SENTENCE_WORDS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type TrainingZone } from '#app/utils/session-profile.ts'
 import {
@@ -59,7 +58,9 @@ export type ScoreStanzaProps = {
  * gutter carrying the block's grip mark and repeat badge like bar numbers,
  * hairline rules between blocks. Values are weight-and-ink typography with
  * tabular numerals; the intensity chip is the line's only chip-shaped
- * element (§7.2); notes are italic, quoted, ellipsized. Repeat parentheses
+ * element (§7.2); notes are italic and quoted, and wrap rather than being cut
+ * with "…" (#505 story 32: the full text, never a half-read sentence; they
+ * were cut at 11 characters on a phone). Repeat parentheses
  * never render — `( … rest )` stays reserved for rest steps — and block
  * names never render on the line (G2).
  */
@@ -132,7 +133,7 @@ function StanzaLine({
 					<Wrapped token={block.repeat} renderToken={renderToken}>
 						<span
 							data-token-type="repeat"
-							className="bg-muted text-muted-foreground rounded-sm px-1.5 py-0.5 font-mono text-xs font-bold tabular-nums"
+							className="bg-muted text-muted-foreground rounded-lg px-1.5 py-0.5 text-xs font-bold tabular-nums"
 						>
 							{block.repeat.count}
 							{NOTATION_SEPARATORS.repeat}
@@ -146,7 +147,7 @@ function StanzaLine({
 					(renderToken ? (
 						<span
 							aria-hidden
-							className="text-muted-foreground/50 select-none"
+							className="text-muted-foreground select-none"
 							data-stanza-grip
 						>
 							⠿
@@ -157,7 +158,7 @@ function StanzaLine({
 				{steps.map((step, index) => (
 					<Fragment key={step.stepIndex}>
 						{index > 0 && step.kind !== 'rest' ? (
-							<span aria-hidden className="text-muted-foreground/60">
+							<span aria-hidden className="text-muted-foreground">
 								{NOTATION_SEPARATORS.step}
 							</span>
 						) : null}
@@ -178,6 +179,8 @@ function StanzaLine({
  * One step as an unbreakable unit (§2.2, B2): the step's tokens never orphan
  * a mark onto its own line — under 640 px the unit may wrap, but only at
  * token boundaries (each token keeps `whitespace-nowrap` on its own text).
+ * A note is the one token that wraps inside itself, so the unit is held to
+ * the line's width (`max-w-full`) and the note may shrink into it.
  */
 function StepUnit({
 	step,
@@ -193,7 +196,7 @@ function StepUnit({
 		<span
 			data-stanza-step
 			data-step-kind={step.kind}
-			className="inline-flex items-baseline gap-x-1 whitespace-nowrap max-sm:flex-wrap max-sm:whitespace-normal"
+			className="inline-flex max-w-full items-baseline gap-x-1 whitespace-nowrap max-sm:flex-wrap max-sm:whitespace-normal"
 		>
 			{chrome}
 			{parenthesized ? <Paren>(</Paren> : null}
@@ -210,7 +213,7 @@ function StepUnit({
 				return token.type === 'rest' &&
 					token.address.field === 'restBetweenSetsSec' ? (
 					<span key={index} className="inline-flex items-baseline gap-x-1">
-						<span aria-hidden className="text-muted-foreground/60">
+						<span aria-hidden className="text-muted-foreground">
 							{NOTATION_SEPARATORS.facet}
 						</span>
 						{wrapped}
@@ -226,7 +229,7 @@ function StepUnit({
 
 function Paren({ children }: { children: ReactNode }) {
 	return (
-		<span aria-hidden className="text-muted-foreground/60">
+		<span aria-hidden className="text-muted-foreground">
 			{children}
 		</span>
 	)
@@ -295,11 +298,11 @@ function IntensityChip({
 	)
 }
 
-/** A rest token split into its value and word inks: `1 min` weighs, `pause` recedes. */
+/** A rest token split into its value and word inks: `1 min` weighs, `rest` recedes. */
 function restParts(text: string): { value: string | null; word: string } {
-	const word = TOKEN_SENTENCE_WORDS.rest
-	return text.endsWith(` ${word}`)
-		? { value: text.slice(0, -word.length - 1), word }
+	const match = /^(.*)\s+rest$/.exec(text)
+	return match
+		? { value: match[1]!, word: 'rest' }
 		: { value: null, word: text }
 }
 
@@ -308,15 +311,10 @@ function Token({ token }: { token: NotationToken }) {
 		case 'intensity':
 			return <IntensityChip token={token} />
 		case 'notes':
-			// **Whole, and wrapping** (#505 story 32: full text, never "…"). It was
-			// `max-w-[11ch] truncate` on phones, which left "“Steady aer…”" — a
-			// note is the athlete's own words and the one token with no other way to
-			// be read. `whitespace-normal` undoes the step unit's `nowrap` for this
-			// token only, and `overflow-wrap:anywhere` lets a pasted URL break too.
 			return (
 				<span
 					data-token-type="notes"
-					className="text-muted-foreground min-w-0 [overflow-wrap:anywhere] whitespace-normal italic"
+					className="text-muted-foreground min-w-0 whitespace-normal italic [overflow-wrap:anywhere]"
 				>
 					“{token.note}”
 				</span>

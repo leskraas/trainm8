@@ -1,14 +1,15 @@
 @import 'tailwindcss';
 /*
- * `tw-animate-css` stays for the three overlays outside `components/ui` that
- * still enter on its keyframes (`token-popover.tsx`, the block-editor sheet,
- * the lift-help panel). Nothing in `components/ui` uses it any more: the
+ * No `tw-animate-css`: nothing enters on its keyframes any more. The
  * primitives animate on Base UI's `data-starting-style` / `data-ending-style`
- * through the motion utilities below (ADR 0085 §4). Each import appears once —
- * the shadcn CLI had appended three copies of each, plus an Inter face nothing
+ * through the motion utilities below (ADR 0085 §4), and the last three users
+ * outside `components/ui` — the token popover, the block-editor sheet and the
+ * lift-help panel — moved onto `motion-popup`, the Drawer and the Collapsible
+ * (#505 round 2). A `shadcn add` re-adds the import; take it out again
+ * (design-system.md, "Updating from the CLI"). Each import appears once — the
+ * shadcn CLI had appended three copies of each, plus an Inter face nothing
  * rendered.
  */
-@import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/public-sans';
 

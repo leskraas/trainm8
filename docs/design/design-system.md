@@ -289,4 +289,6 @@ npm uninstall cn                    # N1: the registry re-adds it
 ```
 
 Then reapply N1–N3 and the component's rows above (they are commented in place),
-run `npx vitest run app/components`, and check it on `/design`.
+run `npx vitest run app/components`, and check it on `/design`. If the CLI
+re-adds `@import 'tw-animate-css'` to `tailwind.css`, take it out again: nothing
+animates on its keyframes since #505 round 2.

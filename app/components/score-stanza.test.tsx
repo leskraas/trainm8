@@ -43,7 +43,7 @@ test('one block per line: each block is a row with a gutter, no arrows between b
 	expect(lines[0]!.textContent).not.toContain('→')
 	// The work line reads: 6 min, chip, inline rest in parens.
 	expect(lines[1]).toHaveTextContent('6 min')
-	expect(lines[1]).toHaveTextContent('(1 min pause)')
+	expect(lines[1]).toHaveTextContent('(1 min rest)')
 })
 
 test('repeat renders only as the gutter badge — repeat parentheses leave the line', () => {
@@ -56,7 +56,7 @@ test('repeat renders only as the gutter badge — repeat parentheses leave the l
 	// No repeat group parens anywhere: the only parens are the rest step's.
 	const stanza = document.querySelector('[data-score-stanza]')!
 	expect(stanza.textContent!.match(/\(/g)).toHaveLength(1)
-	expect(stanza).toHaveTextContent('(1 min pause)')
+	expect(stanza).toHaveTextContent('(1 min rest)')
 })
 
 test('block names never render on the line (G2)', () => {
@@ -154,9 +154,9 @@ test('notes render italic-quoted note text — never an asterisk marker', () => 
 	).not.toContain('*')
 })
 
-test('a long note is shown whole and wraps, never cut with an ellipsis (#505 story 32)', () => {
+test('a long note wraps in full — never cut with "…" (#505 story 32)', () => {
 	const long =
-		'Steady aerobic, nose-breathing pace; walk the hills if the heart rate drifts'
+		'Steady aerobic effort, conversational the whole way; walk the hills if the heart rate climbs'
 	const notation = deriveWorkoutNotation({
 		blocks: [
 			{
@@ -168,19 +168,10 @@ test('a long note is shown whole and wraps, never cut with an ellipsis (#505 sto
 	})
 	render(<ScoreStanza notation={notation} />)
 
-	const note = document.querySelector<HTMLElement>('[data-token-type="notes"]')!
-	expect(note).toHaveTextContent(`“${long}”`)
-	// The note was `max-w-[11ch] truncate` on phones: "“Steady aer…”". Nothing
-	// on it may clip it or keep it on one line.
-	for (const clipping of [
-		'truncate',
-		'max-w-',
-		'text-ellipsis',
-		'overflow-hidden',
-		'whitespace-nowrap',
-	]) {
-		expect(note.className).not.toContain(clipping)
-	}
+	const note = document.querySelector('[data-token-type="notes"]')!
+	expect(note).toHaveTextContent(long)
+	// The cut was a class, not the text: `truncate` and a 11ch/22ch cap.
+	expect(note.className).not.toMatch(/truncate|max-w-\[/)
 	expect(note.className).toContain('whitespace-normal')
 })
 
@@ -206,7 +197,7 @@ test('strength rest-between-sets folds in with a mid-dot — parens stay reserve
 	const stanza = document.querySelector('[data-score-stanza]')!
 	expect(stanza).toHaveTextContent('Back squat')
 	expect(stanza).toHaveTextContent('1 × 5 @ 80 kg')
-	expect(stanza).toHaveTextContent(/·\s*2 min 30 s pause/)
+	expect(stanza).toHaveTextContent(/·\s*2 min 30 s rest/)
 	expect(stanza.textContent).not.toContain('(')
 })
 

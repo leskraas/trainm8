@@ -11,11 +11,27 @@
  * submission path is untouched; structure edits dispatch through the same
  * atomic `restructure` update. Closing returns focus to the block's ⠿ grip —
  * the mark that summoned it.
+ *
+ * **The container is the app's Drawer** (ADR 0085 §6; #505 round 2). It was a
+ * Base UI Dialog re-docked by breakpoint and animated with tw-animate
+ * keyframes on a 150ms built-in curve: no swipe to dismiss, and an
+ * interrupted close restarted from zero. Base UI's Drawer owns the gesture —
+ * a flick dismisses it, the pointer is captured, the exit scales with the
+ * swipe — on `--ease-drawer`. It comes up from the bottom on a phone and in
+ * from the right from `md`, where the sheet used to dock; the direction is
+ * the swipe that dismisses it.
  */
-import { Dialog } from '@base-ui/react/dialog'
 import { useInputControl } from '@conform-to/react'
-import { OverlayHeader } from '#app/components/overlay-header.tsx'
+import { useSyncExternalStore } from 'react'
 import { Button } from '#app/components/ui/button.tsx'
+import {
+	Drawer,
+	DrawerClose,
+	DrawerContent,
+	DrawerDescription,
+	DrawerTitle,
+} from '#app/components/ui/drawer.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import {
@@ -25,16 +41,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '#app/components/ui/select.tsx'
+import { BLOCK_SHEET_LABELS, NB_STEP_KIND_LABELS } from '#app/utils/labels.ts'
 import {
 	tokenText,
 	type BlockNotation,
 	type DraftBlockValue,
 } from '#app/utils/workout-notation.ts'
-import {
-	STEP_KIND_LABELS,
-	STEP_KINDS,
-	type StepKind,
-} from '#app/utils/workout-schema.ts'
+import { STEP_KINDS, type StepKind } from '#app/utils/workout-schema.ts'
 import { PopoverErrorLead } from './__validation-summary.tsx'
 
 // Conform metadata is typed loosely here, matching the sibling form modules.
@@ -68,6 +81,29 @@ export type BlockEditorSheetProps = {
 	finalFocus: () => HTMLElement | null
 }
 
+const L = BLOCK_SHEET_LABELS
+
+/** `md` and up: the sheet docks on the right, as it did before the Drawer. */
+const WIDE_QUERY = '(min-width: 48rem)'
+
+/**
+ * Whether the screen is `md` or wider, read from `matchMedia` and kept live,
+ * so the swipe that dismisses the sheet follows the edge it is docked to.
+ * The server and the first client render say "phone"; the sheet is never
+ * open on either, so nothing can mismatch.
+ */
+function useWideScreen(): boolean {
+	return useSyncExternalStore(
+		(onChange) => {
+			const query = window.matchMedia(WIDE_QUERY)
+			query.addEventListener('change', onChange)
+			return () => query.removeEventListener('change', onChange)
+		},
+		() => window.matchMedia(WIDE_QUERY).matches,
+		() => false,
+	)
+}
+
 export function BlockEditorSheet({
 	blockIndex,
 	onClose,
@@ -83,45 +119,40 @@ export function BlockEditorSheet({
 	finalFocus,
 }: BlockEditorSheetProps) {
 	const open = blockIndex != null && blockField != null
+	const wide = useWideScreen()
 	return (
-		<Dialog.Root open={open} onOpenChange={(next) => (next ? null : onClose())}>
-			<Dialog.Portal>
-				<Dialog.Backdrop className="data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 fixed inset-0 z-50 bg-black/40" />
-				<Dialog.Popup
-					data-block-editor-sheet
-					finalFocus={() => finalFocus()}
-					// A single Base UI Dialog re-docked by breakpoint (§ #285 / #321):
-					// a bottom drawer on phones (bottom edge, rounded top, capped at
-					// 85dvh so the steps list scrolls inside it, slides up), flipping
-					// to the tall right-side sheet at `md` (slides in from the right).
-					className="bg-background border-border data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-4 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-4 md:data-open:slide-in-from-bottom-0 md:data-open:motion-safe:slide-in-from-right-4 md:data-closed:slide-out-to-bottom-0 md:data-closed:slide-out-to-right-4 fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] w-full flex-col gap-4 overflow-y-auto rounded-t-2xl border-t p-6 pr-[max(1.5rem,env(safe-area-inset-right))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] pl-[max(1.5rem,env(safe-area-inset-left))] shadow-xl duration-150 outline-none md:inset-x-auto md:inset-y-0 md:right-0 md:max-h-none md:max-w-md md:rounded-t-none md:border-t-0 md:border-l"
-				>
-					{open ? (
-						<>
-							{/* Bottom-drawer grabber (phones only): signals the summoned
-							    surface; dismissal stays the OverlayHeader ✕ (§3.2). */}
-							<div
-								aria-hidden
-								className="bg-border mx-auto -mb-2 h-1.5 w-10 shrink-0 rounded-full md:hidden"
-							/>
-							<SheetBody
-								blockIndex={blockIndex}
-								onClose={onClose}
-								blockField={blockField}
-								blockNotation={blockNotation}
-								restructure={restructure}
-								onMoveStep={onMoveStep}
-								onDuplicateStep={onDuplicateStep}
-								onAddStep={onAddStep}
-								onSwitchKind={onSwitchKind}
-								announce={announce}
-								errorsFor={errorsFor}
-							/>
-						</>
-					) : null}
-				</Dialog.Popup>
-			</Dialog.Portal>
-		</Dialog.Root>
+		<Drawer
+			open={open}
+			onOpenChange={(next) => (next ? null : onClose())}
+			swipeDirection={wide ? 'right' : 'down'}
+			showSwipeHandle={!wide}
+		>
+			<DrawerContent
+				data-block-editor-sheet
+				finalFocus={() => finalFocus()}
+				className="md:[--drawer-content-width:28rem]"
+			>
+				{open ? (
+					// The scrolling region the Drawer asks for: its own scroll, so a
+					// long block scrolls inside the sheet and never drags the page.
+					<div className="flex flex-col gap-4 overflow-y-auto overscroll-contain px-5 pt-2 pb-5 md:pt-5">
+						<SheetBody
+							blockIndex={blockIndex}
+							onClose={onClose}
+							blockField={blockField}
+							blockNotation={blockNotation}
+							restructure={restructure}
+							onMoveStep={onMoveStep}
+							onDuplicateStep={onDuplicateStep}
+							onAddStep={onAddStep}
+							onSwitchKind={onSwitchKind}
+							announce={announce}
+							errorsFor={errorsFor}
+						/>
+					</div>
+				) : null}
+			</DrawerContent>
+		</Drawer>
 	)
 }
 
@@ -155,10 +186,31 @@ function SheetBody({
 
 	return (
 		<>
-			<OverlayHeader
-				title={`Block ${blockIndex + 1}`}
-				description="The block's full structure. Changes mirror into the notation."
-			/>
+			{/* The summoned surface's header (#282): the title, what it is, and a
+			    close button — the swipe is the gesture, this is the control. */}
+			<div className="flex items-start justify-between gap-4">
+				<div className="min-w-0">
+					<DrawerTitle className="text-heading">
+						{L.title(blockIndex + 1)}
+					</DrawerTitle>
+					<DrawerDescription className="text-footnote">
+						{L.description}
+					</DrawerDescription>
+				</div>
+				<DrawerClose
+					render={
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							aria-label={L.close}
+							className="-mt-1 -mr-1 shrink-0"
+						/>
+					}
+				>
+					<Icon name="cross-1" />
+				</DrawerClose>
+			</div>
 
 			{/* The §10.5 error mirror: the block's own server errors, inline. */}
 			<PopoverErrorLead messages={errorsFor?.(null) ?? []} />
@@ -166,24 +218,24 @@ function SheetBody({
 			<div className="grid grid-cols-2 gap-3">
 				<SheetField
 					meta={blockFields.name}
-					label="Block name"
-					placeholder="e.g. Warm-up"
+					label={L.name}
+					placeholder={L.namePlaceholder}
 					onCommit={(value) =>
-						announce(value.trim() ? 'Block name updated' : 'Block name cleared')
+						announce(value.trim() ? L.nameUpdated : L.nameCleared)
 					}
 				/>
 				<SheetField
 					meta={blockFields.repeatCount}
-					label="Repeat count"
+					label={L.repeat}
 					type="number"
 					min={1}
-					onCommit={(value) => announce(`Repeat count set to ${value}`)}
+					onCommit={(value) => announce(L.repeatSet(value))}
 				/>
 			</div>
 
 			<div className="space-y-2">
-				<p className="text-body-2xs text-muted-foreground font-semibold tracking-wide uppercase">
-					Steps
+				<p className="text-overline text-muted-foreground uppercase">
+					{L.steps}
 				</p>
 				{stepList.map((stepField: FieldMeta, stepIndex: number) => {
 					const kind = (stepField.getFieldset().kind.value ||
@@ -195,12 +247,12 @@ function SheetBody({
 					return (
 						<div
 							key={stepField.key}
-							className="border-border/70 flex flex-wrap items-center gap-2 rounded-md border p-2"
+							className="bg-muted/60 flex flex-wrap items-center gap-2 rounded-3xl p-3"
 						>
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center gap-2">
-									<p className="text-body-2xs text-muted-foreground font-medium">
-										Step {stepIndex + 1}
+									<p className="text-caption text-muted-foreground">
+										{L.step(stepIndex + 1)}
 									</p>
 									{/* The Kind select routes through the same §4.2
 									    reconciliation as the ⋮ menu, so both surfaces
@@ -215,31 +267,36 @@ function SheetBody({
 									>
 										{/* Inherits the shared 44px / 16px-phone control
 										    (§2.1/§2.3) — no local height or font override. */}
-										<SelectTrigger aria-label={`Step ${stepIndex + 1} kind`}>
+										<SelectTrigger aria-label={L.stepKind(stepIndex + 1)}>
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
 											{STEP_KINDS.map((stepKind) => (
 												<SelectItem key={stepKind} value={stepKind}>
-													{STEP_KIND_LABELS[stepKind]}
+													{NB_STEP_KIND_LABELS[stepKind]}
 												</SelectItem>
 											))}
 										</SelectContent>
 									</Select>
 								</div>
-								<p className="truncate text-sm">{summary || '—'}</p>
+								{/* The step's notation in full: a summary cut with "…" is
+								    the half-read sentence story 32 rules out. */}
+								<p className="text-callout mt-1 font-normal [overflow-wrap:anywhere]">
+									{summary || '—'}
+								</p>
 								{/* The step's mirrored server errors (§10.5). */}
 								<PopoverErrorLead messages={errorsFor?.(stepIndex) ?? []} />
 							</div>
-							{/* Adjacent hit-area extensions trimmed to half the 4px gap
-							    (§2.2) so neighbouring targets meet instead of stacking. */}
-							<div className="flex gap-1">
+							{/* 36px icons whose `after:` hit areas (4px a side) reach 44 and
+							    meet across the 8px gap (§2.2, ADR 0028): neighbouring
+							    targets touch instead of stacking. They were 24px drawn and
+							    28px wide to a thumb. */}
+							<div className="flex gap-2">
 								<Button
 									type="button"
 									variant="ghost"
-									size="icon-xs"
-									className="after:-inset-x-0.5"
-									aria-label={`Move step ${stepIndex + 1} earlier`}
+									size="icon"
+									aria-label={L.moveEarlier(stepIndex + 1)}
 									disabled={stepIndex === 0}
 									onClick={() =>
 										onMoveStep(blockIndex, stepIndex, stepIndex - 1)
@@ -250,9 +307,8 @@ function SheetBody({
 								<Button
 									type="button"
 									variant="ghost"
-									size="icon-xs"
-									className="after:-inset-x-0.5"
-									aria-label={`Move step ${stepIndex + 1} later`}
+									size="icon"
+									aria-label={L.moveLater(stepIndex + 1)}
 									disabled={stepIndex === stepList.length - 1}
 									onClick={() =>
 										onMoveStep(blockIndex, stepIndex, stepIndex + 1)
@@ -263,9 +319,8 @@ function SheetBody({
 								<Button
 									type="button"
 									variant="ghost"
-									size="icon-xs"
-									className="after:-inset-x-0.5"
-									aria-label={`Duplicate step ${stepIndex + 1}`}
+									size="icon"
+									aria-label={L.duplicate(stepIndex + 1)}
 									onClick={() => onDuplicateStep(blockIndex, stepIndex)}
 								>
 									⧉
@@ -273,9 +328,8 @@ function SheetBody({
 								<Button
 									type="button"
 									variant="ghost"
-									size="icon-xs"
-									className="after:-inset-x-0.5"
-									aria-label={`Remove step ${stepIndex + 1}`}
+									size="icon"
+									aria-label={L.remove(stepIndex + 1)}
 									// Deliberately NOT the ⋮ menu's removeStep: that one
 									// collapses a single-step block, which would delete the
 									// block this sheet is open on — here the last step is
@@ -285,7 +339,7 @@ function SheetBody({
 										restructure((blocks) => {
 											blocks[blockIndex]?.steps?.splice(stepIndex, 1)
 										})
-										announce('Step removed')
+										announce(L.stepRemoved)
 									}}
 								>
 									✕
@@ -295,16 +349,18 @@ function SheetBody({
 					)
 				})}
 				<div className="flex flex-wrap items-center gap-1">
-					<span className="text-muted-foreground text-sm">＋ Add step:</span>
+					<span className="text-footnote text-muted-foreground">
+						{L.addStep}
+					</span>
 					{STEP_KINDS.map((kind) => (
 						<Button
 							key={kind}
 							type="button"
 							variant="outline"
-							size="xs"
+							size="sm"
 							onClick={() => onAddStep(blockIndex, kind)}
 						>
-							{STEP_KIND_LABELS[kind]}
+							{NB_STEP_KIND_LABELS[kind]}
 						</Button>
 					))}
 				</div>
@@ -312,11 +368,10 @@ function SheetBody({
 
 			{/* Dismissal lives in the header's close button (#282); the footer
 			    keeps only the block-level destructive action. */}
-			<div className="border-border mt-auto flex items-center border-t pt-4">
+			<div className="mt-auto flex items-center pt-2">
 				<Button
 					type="button"
 					variant="destructive"
-					size="sm"
 					// No last-block guard: deleting the only block lands on §11's
 					// empty composition, same as the ⠿ menu's Delete.
 					onClick={() => {
@@ -324,10 +379,10 @@ function SheetBody({
 						restructure((blocks) => {
 							blocks.splice(blockIndex, 1)
 						})
-						announce('Block deleted')
+						announce(L.blockDeleted)
 					}}
 				>
-					Delete block
+					{L.deleteBlock}
 				</Button>
 			</div>
 		</>
