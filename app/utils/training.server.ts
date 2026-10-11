@@ -223,8 +223,38 @@ export async function getActivePlan(
 ): Promise<ActivePlan | null> {
 	const found = await findActiveOutline(userId, now)
 	if (!found) return null
-	const { event, outline } = found
+	return activePlanOf(userId, found, now)
+}
 
+/**
+ * One plan by its Outline, read exactly as {@link getActivePlan} reads the
+ * active one — for Sesong, whose page may show a plan that is not the active
+ * one (`?event=`, `?outline=`, a resting open-ended plan) and draws its season
+ * picture with I dag's table and curve (round 2, ADR 0090). Null for an
+ * Outline that is not the athlete's or has no phases.
+ */
+export async function getPlanForOutline(
+	userId: string,
+	outlineId: string,
+	now: Date = new Date(),
+): Promise<ActivePlan | null> {
+	const outline = await prisma.planOutline.findFirst({
+		where: { id: outlineId, athleteId: userId },
+		select: activeOutlineSelect,
+	})
+	if (!outline || outline.phases.length === 0) return null
+	return activePlanOf(userId, { event: outline.event, outline }, now)
+}
+
+/** An Outline found for a plan, read into the plan home and Sesong draw. */
+async function activePlanOf(
+	userId: string,
+	{
+		event,
+		outline,
+	}: NonNullable<Awaited<ReturnType<typeof findActiveOutline>>>,
+	now: Date,
+): Promise<ActivePlan> {
 	const timezone = await getAthleteTimezone(userId)
 	const specs = phaseSpecs(outline)
 	const tracks = resolvedTracks(outline)

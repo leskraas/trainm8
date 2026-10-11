@@ -76,6 +76,7 @@ import { Icon } from '#app/components/ui/icon.tsx'
 import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import { getEventsForUser } from '#app/utils/event.server.ts'
 import {
 	formatNbDate,
@@ -296,6 +297,8 @@ import {
 	type EditableAnchorTrack,
 } from './__season-anchor-editor.tsx'
 import { SeasonChart } from './__season-chart.tsx'
+import { readSeasonPicture } from './__season-picture.server.ts'
+import { SeasonPicture } from './__season-picture.tsx'
 import { seasonEditAction } from './__season-edits.server.ts'
 import { SeasonEditLink, SeasonEditsCard } from './__season-edits.tsx'
 import { SEASON_EVENTS_SHOWN, SeasonEvents } from './__season-events.tsx'
@@ -552,6 +555,29 @@ export async function loader({ request }: Route.LoaderArgs) {
 		(event) => event.status === 'planned' && event.startDate >= now,
 	)
 
+	// The season picture (round-2 decision 12): I dag's curve and table, read
+	// for this plan as I dag reads the active one (`__season-picture.server.ts`).
+	const seasonPicture = await readSeasonPicture(
+		userId,
+		season.outlineId,
+		season.timezone,
+		now,
+	)
+
+	// An open-ended plan resting behind this race plan (ADR 0079): the page
+	// links back to it, which only `?outline=` reached before (audit B12).
+	const restingOpenEnded =
+		season.eventId == null
+			? null
+			: await prisma.planOutline.findFirst({
+					where: {
+						athleteId: userId,
+						eventId: null,
+						phases: { some: {} },
+					},
+					select: { id: true },
+				})
+
 	return {
 		seasonQuery,
 		attachableEvents,
@@ -561,6 +587,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 			events: upcomingEvents.slice(0, SEASON_EVENTS_SHOWN),
 			upcomingCount: upcomingEvents.length,
 		},
+		seasonPicture,
+		restingOpenEnded: restingOpenEnded
+			? { outlineId: restingOpenEnded.id }
+			: null,
 		tab: tabFrom(request),
 		week: chosenWeekKey(request, season.weeks),
 		workouts,
@@ -2165,6 +2195,8 @@ export default function PlanRoute({
 		strengthOffer,
 		firstUnbegunWeekKey,
 		seasonEvents,
+		seasonPicture,
+		restingOpenEnded,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -2226,13 +2258,7 @@ export default function PlanRoute({
 			    affordance (ui-conventions §3.3): the tab bar is the way out. */}
 			<PageHeader title={APP_TAB_LABELS.season} className="mb-2" />
 
-			{/* The surface's own order, and it is variant F's (#366, spec #399): what
-			    you are building toward, the shape of the season, what the season adds
-			    up to, and only then the two readings that edit it. Each of the first
-			    three is a self-contained block with air around it rather than another
-			    paragraph in one column — "one thing at a time" is a layout claim
-			    before it is a copy one. */}
-			<div className="mb-8 space-y-6">
+			<div className="mb-6 space-y-3">
 				{season.eventId != null && season.eventDate != null ? (
 					<PlanHero
 						eyebrow={SESONG_PAGE_LABELS.heroToward}
@@ -2288,31 +2314,93 @@ export default function PlanRoute({
 					// until that race has passed (ADR 0079).
 					<p
 						data-plan-resting
-						className="text-muted-foreground text-center text-sm"
+						className="text-footnote text-muted-foreground text-center"
 					>
 						{SESONG_PAGE_LABELS.resting}{' '}
-						<Link to="/training/plan" className="underline">
+						<Link
+							to="/training/plan"
+							className="text-foreground relative inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+						>
 							{SESONG_PAGE_LABELS.restingLink}
 						</Link>
 					</p>
+				) : restingOpenEnded ? (
+					// The way back to the athlete's open-ended plan while it rests behind
+					// this one (audit B12): otherwise only `?outline=` reached it.
+					<p
+						data-plan-resting-elsewhere
+						className="text-footnote text-muted-foreground text-center"
+					>
+						{SESONG_PAGE_LABELS.restingElsewhere}{' '}
+						<Link
+							to={`/training/plan?outline=${restingOpenEnded.outlineId}`}
+							className="text-foreground relative inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+						>
+							{SESONG_PAGE_LABELS.restingElsewhereLink}
+						</Link>
+					</p>
+				) : null}
+			</div>
+
+			{/* The surface's order (round-2 decisions 12 and 13, ADR 0090): the season
+			    as a picture first — I dag's curve and table, where a week is read and
+			    opened — then the edits and the philosophy that change it, the Events
+			    it is planned around, what it adds up to, and the two readings that
+			    author its rules. */}
+			<div className="space-y-6">
+				{seasonPicture ? (
+					<SeasonPicture
+						picture={seasonPicture}
+						firstUnbegunWeekKey={firstUnbegunWeekKey}
+					/>
 				) : null}
 
-				{/* The Events the season is planned around and the way to plan
-				    another, right under the one it builds toward (spec #505 story 57). */}
-				<SeasonEvents
-					events={seasonEvents.events}
-					upcomingCount={seasonEvents.upcomingCount}
-				/>
+				<div className="space-y-6">
+					{/* The Sesong edits (#505 stories 72–77): a week's target, a phase's
+					    name and length, and the easy week — each behind a preview. A row
+					    of the season table opens the first of them on its week. */}
+					<PlanCard
+						titleId="season-edits"
+						title={SEASON_EDIT_LABELS.title}
+						contentClassName="space-y-3"
+						className="scroll-mt-4"
+					>
+						<SeasonEditsCard
+							outlineId={season.outlineId}
+							weeks={season.weeks}
+							phases={season.phases}
+							tracks={season.tracks}
+							firstUnbegunWeekKey={firstUnbegunWeekKey}
+							reply={seasonEdit}
+						/>
+					</PlanCard>
 
-				{/* The season chart is the surface's **primary object**, above the two
-				    readings rather than beside one of them (#413, variant F): the shape is
-				    what the athlete recognises, and Blocks and Weeks are how they edit and
-				    audit it. It stays mounted across both tabs for the same reason. */}
-				<SeasonChart
-					season={season}
-					contexts={conversionContexts}
-					fitnessAnchor={fitnessAnchor}
-				/>
+					{/* The philosophy the plan follows, and the way to another one behind
+					    a preview (#505 stories 10–14). Its own card: it is a choice about
+					    the whole season, not a figure of it. */}
+					<PlanCard
+						titleId="philosophy"
+						title={PHILOSOPHY_SWITCH_LABELS.title}
+						contentClassName="space-y-3"
+						className="scroll-mt-4"
+					>
+						<PhilosophyCard
+							key={philosophy?.preview?.digest ?? 'none'}
+							outlineId={season.outlineId}
+							family={season.family}
+							preview={philosophy?.preview ?? null}
+							lastResult={philosophy?.result}
+							confirmResult={philosophy?.confirmResult}
+						/>
+					</PlanCard>
+
+					{/* The Events the season is planned around, and the ways to plan
+					    another race or another plan (spec #505 story 57, decision 6). */}
+					<SeasonEvents
+						events={seasonEvents.events}
+						upcomingCount={seasonEvents.upcomingCount}
+					/>
+				</div>
 
 				{/* What the plan comes to, as figures rather than as a paragraph. The
 				    **Season Span** is the headline #399 asks for, and it keeps its own
@@ -2329,19 +2417,13 @@ export default function PlanRoute({
 							weeks={season.weeks}
 						/>
 					) : null}
-					{/* Where the season lands against the Event, and — where it misses — the
-					    edit that would close the gap, named in full before it is offered.
-					    The proposal is derived here from the phases and the fit already on
-					    the page, and recomputed server-side when it is applied, so a stale
-					    reading can never land an edit the athlete was not shown. */}
-					{/* No Event, nothing to fit to: an open-ended plan says nothing here
-					    rather than measuring itself against a race it does not have. */}
+					{/* Where the season lands against the Event. No Event, nothing to fit
+					    to: an open-ended plan says nothing here rather than measuring
+					    itself against a race it does not have. */}
 					{season.fit ? (
-						<div className="border-border/70 space-y-3 border-t pt-4">
-							<p className="text-muted-foreground text-sm">
-								{fitSentence(season.fit)}
-							</p>
-						</div>
+						<p className="border-border/60 text-footnote text-muted-foreground border-t pt-4">
+							{fitSentence(season.fit)}
+						</p>
 					) : null}
 					{strengthOffer ? (
 						<StrengthTrackOfferCard
@@ -2358,102 +2440,58 @@ export default function PlanRoute({
 					/>
 				</PlanCard>
 
-				{/* The philosophy the plan follows, and the way to another one behind a
-				    preview (#505 stories 10–14). Its own card: it is a choice about the
-				    whole season, not a figure of it. */}
-				<PlanCard
-					titleId="philosophy"
-					title={PHILOSOPHY_SWITCH_LABELS.title}
-					contentClassName="space-y-3"
-				>
-					<PhilosophyCard
-						key={philosophy?.preview?.digest ?? 'none'}
-						outlineId={season.outlineId}
-						family={season.family}
-						preview={philosophy?.preview ?? null}
-						lastResult={philosophy?.result}
-						confirmResult={philosophy?.confirmResult}
-					/>
-				</PlanCard>
-
-				{/* The Sesong edits (#505 stories 72–77): a week's target, a phase's
-				    name and length, and the easy week — each behind a preview. */}
-				<PlanCard
-					titleId="season-edits"
-					title={SEASON_EDIT_LABELS.title}
-					contentClassName="space-y-3"
-				>
-					<SeasonEditsCard
-						outlineId={season.outlineId}
-						weeks={season.weeks}
-						phases={season.phases}
-						tracks={season.tracks}
-						firstUnbegunWeekKey={firstUnbegunWeekKey}
-						reply={seasonEdit}
-					/>
-				</PlanCard>
-
-				{/* What the plan **cannot** tell you, beside what it comes to and on both
-				    readings (#399 story 49).
-
-				    It lived inside the Weeks reading, under the week grid — which is
-				    where an athlete *auditing* their season meets it, and nowhere near
-				    the lifter authoring the very block that causes it. A lifter shaping a
-				    strength block is on Blocks, and they were never shown that lifting
-				    carries no TSS and no hours at all until they went looking on the
-				    other tab. Lifted here rather than repeated inside the lifting section
-				    because these three sentences are about **the plan**, not about a
-				    control: they belong with the season's own figures, said once, where
-				    switching reading cannot take them away. */}
-				{season.unavailableReadings.length > 0 ? (
-					<UnavailableReadingsNotice readings={season.unavailableReadings} />
-				) : null}
-			</div>
-
-			{/* What is left to do, above the two readings that do it. A plan authored
-			    from a shape arrives with its blocks and its climb already in place, so
-			    what remains is the half an athlete planning for the first time does not
-			    know is a half: a typical week, and putting it on the calendar. Each line
-			    links to the reading that does it, and the whole thing disappears once
-			    nothing is outstanding — it is a way in, not a scoreboard. */}
-			<div className="mb-6">
+				{/* What is left to set up, above the two readings that do it — gone
+				    once nothing is outstanding: a way in, not a scoreboard. */}
 				<NextSteps
 					season={season}
 					weeksWithSessions={weeksWithSessions}
 					hrefFor={readingHref}
 				/>
-			</div>
 
-			<div className="mb-6">
-				<SegmentedNav
-					label={SESONG_PAGE_LABELS.readings}
-					options={TABS.map((name) => ({ key: name, label: TAB_LABELS[name] }))}
-					current={tab}
-					hrefFor={readingHref}
-				/>
-			</div>
+				{/* What the plan **cannot** tell you (#399 story 49, ADR 0047 §5): about
+				    the plan, not a control, so said once beside its figures — behind a
+				    closed line that names it, rather than three paragraphs in the way
+				    of the edits. */}
+				{season.unavailableReadings.length > 0 ? (
+					<UnavailableReadingsNotice readings={season.unavailableReadings} />
+				) : null}
 
-			{tab === 'blocks' ? (
-				<BlocksReading
-					season={season}
-					error={error}
-					actionData={actionData}
-					strengthTracks={strengthTracks}
-					anchorTracks={anchorTracks}
-					firstUnbegunWeekKey={firstUnbegunWeekKey}
-				/>
-			) : (
-				<WeeksReading
-					season={season}
-					error={error}
-					chosenWeek={previewWeek}
-					workouts={workouts}
-					seasonQuery={seasonQuery}
-					pendingCopy={pendingCopy}
-					mixWarnings={mixWarnings}
-					firstUnbegunWeekKey={firstUnbegunWeekKey}
-				/>
-			)}
+				<div className="space-y-6">
+					<SegmentedNav
+						label={SESONG_PAGE_LABELS.readings}
+						options={TABS.map((name) => ({
+							key: name,
+							label: TAB_LABELS[name],
+						}))}
+						current={tab}
+						hrefFor={readingHref}
+					/>
+
+					{tab === 'blocks' ? (
+						<BlocksReading
+							season={season}
+							error={error}
+							actionData={actionData}
+							strengthTracks={strengthTracks}
+							anchorTracks={anchorTracks}
+							firstUnbegunWeekKey={firstUnbegunWeekKey}
+							conversionContexts={conversionContexts}
+							fitnessAnchor={fitnessAnchor}
+						/>
+					) : (
+						<WeeksReading
+							season={season}
+							error={error}
+							chosenWeek={previewWeek}
+							workouts={workouts}
+							seasonQuery={seasonQuery}
+							pendingCopy={pendingCopy}
+							mixWarnings={mixWarnings}
+							firstUnbegunWeekKey={firstUnbegunWeekKey}
+						/>
+					)}
+				</div>
+			</div>
 		</main>
 	)
 }
@@ -3094,6 +3132,8 @@ function BlocksReading({
 	strengthTracks,
 	anchorTracks,
 	firstUnbegunWeekKey,
+	conversionContexts,
+	fitnessAnchor,
 }: {
 	season: SeasonData
 	/**
@@ -3101,6 +3141,9 @@ function BlocksReading({
 	 * and a shape would rewrite weeks lived (#505 story 14).
 	 */
 	firstUnbegunWeekKey: string
+	/** The analytical chart's two inputs (#413), for its place under Avansert. */
+	conversionContexts: Route.ComponentProps['loaderData']['conversionContexts']
+	fitnessAnchor: Route.ComponentProps['loaderData']['fitnessAnchor']
 	/** A refused *structural* edit, said once above the phases it was aimed at. */
 	error?: string
 	actionData: SegmentActionData
@@ -3297,6 +3340,24 @@ function BlocksReading({
 							proposal={proposeFit(season.phases, season.fit)}
 						/>
 					) : null}
+
+					{/* The analytical season chart (#413) — layers, read-in, the
+					    derivation behind each week — under Avansert since round 2
+					    (decision 12): the season picture at the top is what the
+					    athlete reads first, and this is the instrument behind it.
+					    Mounted only once opened, so its replay costs nothing until
+					    asked for. */}
+					<CollapsibleSection
+						summary={SESONG_PAGE_LABELS.advancedChart}
+						detail={SESONG_PAGE_LABELS.advancedChartDetail}
+					>
+						<SeasonChart
+							season={season}
+							contexts={conversionContexts}
+							fitnessAnchor={fitnessAnchor}
+							bare
+						/>
+					</CollapsibleSection>
 
 					{/* A shape replaces every phase, so it is offered only while no week
 					    of the plan has begun. After that the way to another method is

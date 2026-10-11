@@ -220,12 +220,15 @@ export function SeasonChart({
 	season,
 	contexts,
 	fitnessAnchor,
+	bare = false,
 }: {
 	season: SeasonChartSeason
 	/** The per-Discipline half of the **Volume Conversion**'s input (ADR 0045 §4). */
 	contexts: PlannedLoadContexts
 	/** The measured fitness the plan is replayed forward from; `null` declines. */
 	fitnessAnchor: FitnessAnchor | null
+	/** Inside a section that already names it: no card of its own. */
+	bare?: boolean
 }) {
 	const [layers, setLayers] = useState<readonly SeasonChartLayer[]>(
 		DEFAULT_SEASON_CHART_LAYERS,
@@ -295,15 +298,13 @@ export function SeasonChart({
 		// §1.6's third case, an interactive widget. The aside says what the picture is
 		// of, which the layered chart needs said out loud: the axis shows one track in
 		// one currency and nothing here is ever a total across them (ADR 0043 §5).
-		<PlanCard
-			titleId="season-chart-heading"
-			title={SESONG_CHART_LABELS.title}
+		<Frame
+			bare={bare}
 			aside={SESONG_CHART_LABELS.aside(
 				model.weeks.length,
 				nbTrackName(track.discipline),
 				NB_WEEKLY_UNITS[currency],
 			)}
-			contentClassName="space-y-3"
 		>
 			<Controls
 				season={season}
@@ -341,6 +342,43 @@ export function SeasonChart({
 			) : null}
 
 			{layers.includes('form') ? <FormRefusal /> : null}
+		</Frame>
+	)
+}
+
+/**
+ * The chart's frame: its own card where it stands alone, or — inside a section
+ * that already names it (Sesong's _Avansert_) — only the line that says what the
+ * picture is of, since a card titled again inside a titled section would name
+ * one thing twice.
+ */
+function Frame({
+	bare,
+	aside,
+	children,
+}: {
+	bare: boolean
+	aside: ReactNode
+	children: ReactNode
+}) {
+	if (bare) {
+		return (
+			<div className="space-y-3" data-season-chart>
+				<p className="text-footnote text-muted-foreground tabular-nums">
+					{aside}
+				</p>
+				{children}
+			</div>
+		)
+	}
+	return (
+		<PlanCard
+			titleId="season-chart-heading"
+			title={SESONG_CHART_LABELS.title}
+			aside={aside}
+			contentClassName="space-y-3"
+		>
+			{children}
 		</PlanCard>
 	)
 }

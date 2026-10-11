@@ -280,14 +280,26 @@ const PlanCard = memo(function PlanCard({
 	)
 })
 
-const SeasonTableView = memo(function SeasonTableView({
+/**
+ * Exported for Sesong, whose season picture is this table and the curve below
+ * (round 2, ADR 0090): one table, one curve, two surfaces. Sesong's row opens
+ * that week's edit instead of jumping a list, so the row's name and which rows
+ * act are the caller's (`rowLabel`, `rowActs`); I dag passes neither.
+ */
+export const SeasonTableView = memo(function SeasonTableView({
 	table,
 	frame,
 	onJump,
+	rowLabel = SEASON_PANE_LABELS.jumpTo,
+	rowActs,
 }: {
 	table: ReturnType<typeof buildSeasonTable>
 	frame: { from: string; to: string }
 	onJump: (key: string) => void
+	/** The row button's accessible name, from the row's own (`Uke 38, …`). */
+	rowLabel?: (name: string) => string
+	/** Whether a row acts at all; every row does when omitted. */
+	rowActs?: (key: string) => boolean
 }) {
 	const { columns, rows } = table
 	return (
@@ -336,7 +348,8 @@ const SeasonTableView = memo(function SeasonTableView({
 							row={row}
 							span={columns.length + 2}
 							inView={row.key >= frame.from && row.key <= frame.to}
-							onJump={onJump}
+							onJump={rowActs && !rowActs(row.key) ? null : onJump}
+							rowLabel={rowLabel}
 						/>
 					))}
 				</tbody>
@@ -378,11 +391,14 @@ const SeasonRow = memo(function SeasonRow({
 	span,
 	inView,
 	onJump,
+	rowLabel,
 }: {
 	row: SeasonTableRow
 	span: number
 	inView: boolean
-	onJump: (key: string) => void
+	/** Null for a row that does not act (a week Sesong cannot edit). */
+	onJump: ((key: string) => void) | null
+	rowLabel: (name: string) => string
 }) {
 	return (
 		<>
@@ -400,10 +416,10 @@ const SeasonRow = memo(function SeasonRow({
 				data-season-row={row.key}
 				data-in-view={inView || undefined}
 				aria-current={row.isNow ? 'date' : undefined}
-				onClick={() => onJump(row.key)}
+				onClick={onJump ? () => onJump(row.key) : undefined}
 				className={cn(
-					'border-border/60 h-7 cursor-pointer border-b',
-					'hover:bg-muted',
+					'border-border/60 h-7 border-b',
+					onJump && 'hover:bg-muted cursor-pointer',
 					row.easy && 'bg-muted/50',
 					inView && 'bg-primary/10 hover:bg-primary/15',
 					row.isNow &&
@@ -411,18 +427,24 @@ const SeasonRow = memo(function SeasonRow({
 				)}
 			>
 				<th scope="row" className="px-1 font-semibold">
-					<button
-						type="button"
-						onClick={(event) => {
-							// The row's own click jumps; one jump per press.
-							event.stopPropagation()
-							onJump(row.key)
-						}}
-						aria-label={SEASON_PANE_LABELS.jumpTo(row.name)}
-						className="pressable focus-visible:outline-ring w-full rounded-sm text-left tabular-nums focus-visible:outline-2"
-					>
-						{row.weekNumber}
-					</button>
+					{onJump ? (
+						<button
+							type="button"
+							onClick={(event) => {
+								// The row's own click jumps; one jump per press.
+								event.stopPropagation()
+								onJump(row.key)
+							}}
+							aria-label={rowLabel(row.name)}
+							className="pressable focus-visible:outline-ring w-full rounded-sm text-left tabular-nums focus-visible:outline-2"
+						>
+							{row.weekNumber}
+						</button>
+					) : (
+						<span className="tabular-nums" aria-label={row.name}>
+							{row.weekNumber}
+						</span>
+					)}
 				</th>
 				<td className="truncate px-1">
 					<span
@@ -486,7 +508,8 @@ const CURVE_HEIGHT = 92
  * under the bars and the race's flag over its week. A static chart on the
  * primitive — every value it draws is in its data table.
  */
-const SeasonCurveView = memo(function SeasonCurveView({
+/** Exported for Sesong's season picture, as the table is. */
+export const SeasonCurveView = memo(function SeasonCurveView({
 	curve,
 }: {
 	curve: SeasonCurveModel
