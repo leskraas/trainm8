@@ -121,6 +121,10 @@ export function SessionDetail({
 					<Link
 						to={cta.to}
 						data-day-cta
+						// Named for its session: beside today's row on a large screen,
+						// two links both called only "Se økta" would be one name for two
+						// controls.
+						aria-label={`${cta.label} ${session.title}`}
 						className={cn(buttonVariants({ size: 'sm' }), 'rounded-full px-4')}
 					>
 						{cta.label}

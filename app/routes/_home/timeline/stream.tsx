@@ -101,7 +101,7 @@ import {
 	type TimelineWeek,
 } from './presenter.ts'
 import { type RowChipTone } from './row-content.ts'
-import { TITLE_INSET } from './row-inset.ts'
+import { TITLE_INSET, TITLE_INSET_BOX } from './row-inset.ts'
 import { StrengthLogPanel } from './strength-log-panel.tsx'
 import {
 	TODAY_ATTR,
@@ -1025,8 +1025,11 @@ function AddAnother({ day }: { day: TimelineDay }) {
 				`${day.dayLabel} ${day.dateLabel}`,
 			)}
 			className={cn(
-				'pressable text-footnote text-muted-foreground relative -mt-1 flex h-8 w-full items-center justify-between gap-2 pr-2 pb-1 text-left italic after:absolute after:inset-x-0 after:-inset-y-1.5',
-				TITLE_INSET,
+				// Starts at the session's words, not at the row's edge: its hit
+				// area must never reach over the day's date in the gutter, which is
+				// a control of its own on a large screen (picks the day).
+				'pressable text-footnote text-muted-foreground relative -mt-1 flex h-8 items-center justify-between gap-2 pr-2 pb-1 text-left italic after:absolute after:inset-x-0 after:-inset-y-1.5',
+				TITLE_INSET_BOX,
 			)}
 		>
 			{SESSION_COMPOSER_LABELS.addAnother}

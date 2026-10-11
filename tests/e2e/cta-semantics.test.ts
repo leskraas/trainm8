@@ -47,7 +47,9 @@ test('today-session CTA says "View session" and opens the Workout Detail View', 
 	// The CTA is honest about Session Status: a scheduled session is viewed. On
 	// I dag, today's row's action is a plain link to the detail view, so
 	// it carries the link role rather than base-ui Button's role="button".
-	const cta = page.getByRole('link', { name: 'Se økta' })
+	// Exact: on a large screen the day pane repeats today's action, named for
+	// its session (`Se økta Threshold Run`).
+	const cta = page.getByRole('link', { name: 'Se økta', exact: true })
 	await expect(cta).toBeVisible()
 	// It never promises recording — that affordance does not exist in-app.
 	await expect(page.getByText('Start session')).not.toBeVisible()

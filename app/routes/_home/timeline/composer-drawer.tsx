@@ -11,7 +11,7 @@
  * is enough to dismiss or to snap (it reads the release velocity), past the
  * top it resists, and it can be grabbed mid-flight. It travels on
  * `--ease-drawer`; reduced motion keeps the fade and drops the slide
- * (`drawer.tsx`).
+ * (`drawer.tsx`), snaps included (below).
  *
  * **The compact snap never moves on a keystroke.** It is measured while the
  * Drawer rises and then held; only a tap that changes what the compact part
@@ -120,6 +120,9 @@ export function ComposerDrawer({
 				<DrawerContent
 					data-composer-drawer={shown?.mode ?? 'compose'}
 					aria-labelledby={titleId}
+					// Reduced motion: the sheet fades and never travels — not on
+					// opening (`drawer.tsx`), and not when a snap moves it either.
+					className="motion-reduce:[transition-property:opacity]"
 				>
 					<DrawerHeader className="px-4 pt-1 pb-2 text-left">
 						<DrawerTitle id={titleId} className="text-heading">
