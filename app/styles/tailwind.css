@@ -695,7 +695,8 @@
  *
  * Not gated on reduced motion: height and opacity have no movement *of the
  * panel* to drop, and the reflow is what stops the content below from jumping
- * (ADR 0077 §5's answer for the timeline's accordions).
+ * (ADR 0077 §5). Nothing on I dag opens in place any more (ADR 0088: the
+ * composer is a Drawer), so this is the one height animation left.
  */
 @utility motion-collapse {
 	overflow: hidden;
@@ -712,22 +713,6 @@
 	&[data-ending-style] {
 		transition-duration: var(--transition-duration-collapse-exit);
 	}
-}
-
-/*
- * The home timeline's one accordion (#502, ADR 0082 §6 as amended by 0086): an
- * empty cell opening into the draft. Bands and folded weeks were the others;
- * since ADR 0086 nothing on I dag folds.
- *
- * Same ingredients as `motion-collapse`, but the two pixel values it
- * interpolates between are written by `timeline/reflow.ts`, because the draft
- * is not a Base UI Collapsible and CSS cannot measure. Not gated on reduced
- * motion, for `motion-collapse`'s reason.
- */
-@utility reflow {
-	transition:
-		height var(--transition-duration-collapse) var(--ease-out),
-		opacity var(--transition-duration-collapse) var(--ease-out);
 }
 
 @utility container {

@@ -1044,12 +1044,19 @@ test('the pill does not point anywhere on first paint — today is already in vi
 
 // ── the destinations home still has to carry ──────────────────────────────
 
-test('creation survives the re-composition: "+ New" is in the header', async () => {
+test('creation survives the re-composition: “Ny økt” is on the top line', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
-	// #178's single creation menu. Losing it would leave an athlete with no way
-	// to author a session from the screen they open the app on.
-	await screen.findByRole('button', { name: /lag ny/i })
+	// I dag's one creation control (owner decision 6, ADR 0088): it opens the
+	// composer on today. Losing it would leave an athlete with no way to author
+	// a session from the screen they open the app on.
+	const top = await screen.findByTestId('timeline-top')
+	await userEvent.click(within(top).getByRole('button', { name: 'Ny økt' }))
+	const composer = await screen.findByRole('dialog', { name: 'Ny økt' })
+	expect(composer.querySelector('[data-composer]')).toHaveAttribute(
+		'data-composer-day',
+		'2030-01-02',
+	)
 })
 
 test('an athlete with no plan is offered the first run at the far end', async () => {

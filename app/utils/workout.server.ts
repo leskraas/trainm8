@@ -490,7 +490,23 @@ export type MarkSessionDoneResult =
 export async function markSessionDone(
 	userId: string,
 	sessionId: string,
-	{ now = new Date(), timezone }: { now?: Date; timezone: string },
+	{
+		now = new Date(),
+		timezone,
+		reach = 'week',
+	}: {
+		now?: Date
+		timezone: string
+		/**
+		 * `week` (the row's _Gjort_): at most {@link MARK_DONE_REACH_DAYS} back.
+		 * `any-past-day`: the composer's _Allerede gjort_ (owner decision 5,
+		 * ADR 0088) — a session written as done on a past day is the athlete
+		 * logging what they did, however long ago, so the week's reach does not
+		 * apply. Every other rule (open, no Recording, a sport an import brings
+		 * numbers for, a day that has begun) still does.
+		 */
+		reach?: 'week' | 'any-past-day'
+	},
 ): Promise<MarkSessionDoneResult> {
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
@@ -511,7 +527,13 @@ export async function markSessionDone(
 			workoutDiscipline: session.workout?.discipline ?? null,
 			dayKey: localDate(session.scheduledAt, timezone),
 		},
-		{ todayKey, reachFromKey: addDays(todayKey, -MARK_DONE_REACH_DAYS) },
+		{
+			todayKey,
+			reachFromKey:
+				reach === 'any-past-day'
+					? '0000-01-01'
+					: addDays(todayKey, -MARK_DONE_REACH_DAYS),
+		},
 	)
 	if (!markable) return { ok: false, reason: 'not-markable' }
 

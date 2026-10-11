@@ -11,11 +11,18 @@ import { isCalendarDay, localDate } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import {
+	placeCatalogueSession,
+	readRetrievableEntry,
+} from '#app/utils/catalogue.server.ts'
+import {
+	copySessionToDay,
+	finishComposerWrite,
 	stampSessionOnDay,
 	undoDayStamp,
 	writeSessionOnDay,
 } from '#app/utils/day-stamp.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { WEEK_SUM_LABELS } from '#app/utils/labels.ts'
 import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
 import { SUSTAINED_WEEKS, sustainedAdherence } from '#app/utils/load/coach.ts'
 import {
@@ -40,7 +47,13 @@ import {
 } from '#app/utils/training.server.ts'
 import { DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { parseWorkoutSentence } from '#app/utils/workout-sentence.ts'
-import { WriteSessionSchema } from '#app/utils/writing-line-schema.ts'
+import {
+	type ComposerExtras,
+	ComposerExtrasSchema,
+	CopySessionSchema,
+	PlaceSessionSchema,
+	WriteSessionSchema,
+} from '#app/utils/writing-line-schema.ts'
 import {
 	readSentenceExercises,
 	readTimelineWindow,
@@ -212,6 +225,69 @@ async function isPostableDay(
 		: isWritableDay(date, window)
 }
 
+/**
+ * Every composer write, landed the same way (ADR 0088): the write, what it
+ * says beside its session (Annet, _Allerede gjort_, a note —
+ * `finishComposerWrite`), and the week's sum before → after read on both sides
+ * of it (#505 story 39).
+ *
+ * `reply('toast')` is the composer's: the week's sum rides on the reply for
+ * the client's toast, which carries Angre, and nothing is flashed beside it.
+ * `reply('row')` is the older landing, which flashes the sum.
+ */
+async function landComposerWrite(
+	userId: string,
+	{
+		date,
+		discipline,
+		extras,
+		now,
+		timezone,
+		write,
+	}: {
+		date: string
+		discipline: string
+		extras: ComposerExtras
+		now: Date
+		timezone: string
+		write: () => Promise<{ ok: true; sessionId: string } | { ok: false }>
+	},
+) {
+	let done = false
+	const { result, headers, description } = await withWeekSumToast(
+		userId,
+		{ dayKey: date, discipline, change: 'added', timezone, now },
+		async () => {
+			const written = await write()
+			if (written.ok) {
+				;({ done } = await finishComposerWrite(userId, written.sessionId, {
+					extras,
+					now,
+					timezone,
+				}))
+			}
+			return written
+		},
+	)
+	// A session written into Annet moves no track's sum, and saying `0 → 0 km`
+	// would read as the write having failed.
+	const weekSumLine = extras.annet
+		? WEEK_SUM_LABELS.annetChange('added')
+		: description
+	if (!result.ok) return { ok: false as const }
+	const sessionId = result.sessionId
+	return {
+		ok: true as const,
+		reply: (landing: 'row' | 'toast') =>
+			landing === 'toast'
+				? data({ stampedSessionId: sessionId, weekSumLine, done })
+				: data(
+						{ stampedSessionId: sessionId },
+						headers ? { headers } : undefined,
+					),
+	}
+}
+
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
@@ -232,24 +308,34 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 
 	/**
-	 * **The Day Stamp** (ADR 0065 §5): a tapped empty cell commits a real
-	 * session on that date without leaving the timeline. The date is the day the
-	 * athlete tapped and the discipline is the one the chip was showing when they
-	 * tapped — both travel with the post, because neither may be decided here.
+	 * **The Day Stamp** (ADR 0065 §5): the composer's empty state —
+	 * `Legg til 45 min Z2` — commits a real session on that date. The date is
+	 * the day the composer is on and the discipline is the chip — both travel
+	 * with the post, because neither may be decided here.
 	 *
-	 * A past day takes this identically: what it writes is a **Workout Session**,
-	 * a prescription carrying a date in the past. Nothing on this path records
-	 * what was *done* — executed cardio still arrives only by Activity Import
-	 * (ADR 0049), so `GOAL.md`'s no-in-app-recorder non-goal is untouched.
+	 * A past day takes this identically: what it writes is a **Workout
+	 * Session**, a prescription carrying a date in the past. It is a record of
+	 * what was done only when the athlete says so with _Allerede gjort_
+	 * (`done`, ADR 0088); executed cardio still arrives by Activity Import.
+	 *
+	 * From the composer (`landing: toast`) the day may be any distance ahead,
+	 * as a sentence's may: its way back is the toast's and the row's Angre, not
+	 * a row that only exists inside the window (ADR 0088 amends ADR 0076).
 	 */
 	if (intent === 'stamp-day') {
 		const date = formData.get('date')
 		const discipline = formData.get('discipline')
+		const landing = formData.get('landing') === 'toast' ? 'toast' : 'row'
+		const extras = ComposerExtrasSchema.parse(Object.fromEntries(formData))
 		const now = new Date()
 		const timezone = await getAthleteTimezone(userId)
 		invariantResponse(
 			typeof date === 'string' &&
-				(await isPostableDay(userId, date, { now, timezone, reach: 'stamp' })),
+				(await isPostableDay(userId, date, {
+					now,
+					timezone,
+					reach: landing === 'toast' ? 'sentence' : 'stamp',
+				})),
 			'A day is required',
 			{ status: 400 },
 		)
@@ -259,27 +345,27 @@ export async function action({ request }: Route.ActionArgs) {
 			'A discipline is required',
 			{ status: 400 },
 		)
-		const { result: stamped, headers } = await withWeekSumToast(
-			userId,
-			{ dayKey: date, discipline, change: 'added', timezone, now },
-			() =>
+		const landed = await landComposerWrite(userId, {
+			date,
+			discipline,
+			extras,
+			now,
+			timezone,
+			write: () =>
 				stampSessionOnDay({
 					userId,
 					dateKey: date,
 					discipline: discipline as (typeof DISCIPLINES)[number],
 					timezone,
 				}),
-		)
+		})
 		// A discipline the line cannot say (strength needs a lift named) never
-		// reaches here — the cell sends those to the full route instead — so a
-		// refusal is a malformed post rather than a state to render.
-		invariantResponse(stamped.ok, 'That discipline needs the full editor', {
+		// reaches here — the composer offers no stamp for it — so a refusal is a
+		// malformed post rather than a state to render.
+		invariantResponse(landed.ok, 'That discipline needs the full editor', {
 			status: 400,
 		})
-		return data(
-			{ stampedSessionId: stamped.sessionId },
-			headers ? { headers } : undefined,
-		)
+		return landed.reply(landing)
 	}
 
 	/**
@@ -294,7 +380,13 @@ export async function action({ request }: Route.ActionArgs) {
 		invariantResponse(posted.success, 'A day and a sentence are required', {
 			status: 400,
 		})
-		const { date, sentence, discipline = null, landing } = posted.data
+		const {
+			date,
+			sentence,
+			discipline = null,
+			landing,
+			...extras
+		} = posted.data
 		const now = new Date()
 		const timezone = await getAthleteTimezone(userId)
 		invariantResponse(
@@ -315,22 +407,15 @@ export async function action({ request }: Route.ActionArgs) {
 				status: 400,
 			},
 		)
-		const {
-			result: written,
-			headers,
-			description,
-		} = await withWeekSumToast(
-			userId,
-			{
-				dayKey: date,
-				// The toast's sport is the one the reader settled on, which a word
-				// in the sentence may have changed from the chip.
-				discipline: read.structure.discipline,
-				change: 'added',
-				timezone,
-				now,
-			},
-			() =>
+		const landed = await landComposerWrite(userId, {
+			date,
+			// The toast's sport is the one the reader settled on, which a word
+			// in the sentence may have changed from the chip.
+			discipline: read.structure.discipline,
+			extras,
+			now,
+			timezone,
+			write: () =>
 				writeSessionOnDay({
 					userId,
 					dateKey: date,
@@ -339,23 +424,90 @@ export async function action({ request }: Route.ActionArgs) {
 					timezone,
 					exercises,
 				}),
-		)
-		invariantResponse(written.ok, 'The sentence could not be read', {
+		})
+		invariantResponse(landed.ok, 'The sentence could not be read', {
 			status: 400,
 		})
-		// From "+ Ny" the row may be anywhere in the list, so the way back is the
-		// toast: the client shows the week's sum itself, with Angre on it, and no
-		// second toast is flashed beside it (ADR 0082 S11, ADR 0076).
-		if (landing === 'toast') {
-			return data({
-				stampedSessionId: written.sessionId,
-				weekSumLine: description,
-			})
-		}
-		return data(
-			{ stampedSessionId: written.sessionId },
-			headers ? { headers } : undefined,
+		return landed.reply(landing ?? 'row')
+	}
+
+	/**
+	 * **Bibliotek** (owner decisions 1 and 11): a Catalogue session put on the
+	 * composer's day, through the Catalogue's own placement — a fresh copy with
+	 * its lineage back to the row (`placeCatalogueSession`, #470), never a
+	 * second way to copy. Read through the same visibility guard as the list,
+	 * so a row the athlete can no longer see places nothing.
+	 */
+	if (intent === 'place-session') {
+		const posted = PlaceSessionSchema.safeParse(Object.fromEntries(formData))
+		invariantResponse(posted.success, 'A day and a session are required', {
+			status: 400,
+		})
+		const { date, workoutId, ...extras } = posted.data
+		const now = new Date()
+		const timezone = await getAthleteTimezone(userId)
+		invariantResponse(
+			await isPostableDay(userId, date, { now, timezone, reach: 'sentence' }),
+			'A day is required',
+			{ status: 400 },
 		)
+		const entry = await readRetrievableEntry(userId, workoutId)
+		invariantResponse(entry, 'That session is no longer in the Catalogue', {
+			status: 404,
+		})
+		const landed = await landComposerWrite(userId, {
+			date,
+			discipline: entry.workout.discipline,
+			extras,
+			now,
+			timezone,
+			write: () =>
+				placeCatalogueSession({ athleteId: userId, workoutId, date }),
+		})
+		invariantResponse(landed.ok, 'That session could not be placed', {
+			status: 400,
+		})
+		return landed.reply('toast')
+	}
+
+	/**
+	 * **Kopier** (owner decision 1): another of the athlete's sessions copied
+	 * onto the composer's day — a fresh Workout through the one deep-copy seam
+	 * (`copySessionToDay` → `copyWorkout`), owner-scoped.
+	 */
+	if (intent === 'copy-session') {
+		const posted = CopySessionSchema.safeParse(Object.fromEntries(formData))
+		invariantResponse(posted.success, 'A day and a session are required', {
+			status: 400,
+		})
+		const { date, sessionId, ...extras } = posted.data
+		const now = new Date()
+		const timezone = await getAthleteTimezone(userId)
+		invariantResponse(
+			await isPostableDay(userId, date, { now, timezone, reach: 'sentence' }),
+			'A day is required',
+			{ status: 400 },
+		)
+		const from = await prisma.workoutSession.findFirst({
+			where: { id: sessionId, userId },
+			select: { workout: { select: { discipline: true } } },
+		})
+		invariantResponse(from?.workout, 'That session has nothing to copy', {
+			status: 404,
+		})
+		const landed = await landComposerWrite(userId, {
+			date,
+			discipline: from.workout.discipline,
+			extras,
+			now,
+			timezone,
+			write: () =>
+				copySessionToDay({ userId, sessionId, dateKey: date, timezone }),
+		})
+		invariantResponse(landed.ok, 'That session has nothing to copy', {
+			status: 404,
+		})
+		return landed.reply('toast')
 	}
 
 	/**

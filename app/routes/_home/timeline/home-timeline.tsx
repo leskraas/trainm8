@@ -8,8 +8,8 @@
  *   the list: one line with the plan and what it counts toward (`Klassisk
  *   3:1 · Halvmaraton om 12 uker`, `Blokk 3 av ∞`, or `Ingen plan` with the
  *   way to Sesong), the Ukeskiftet badge while a proposal waits (`1 forslag`,
- *   a jump to the card — never a row of its own), a compact "+ Ny", and the
- *   **I dag pill**, outlined while today is on screen and filled with the way
+ *   a jump to the card — never a row of its own), _Ny økt_ (the composer on
+ *   today, ADR 0088), and the **I dag pill**, outlined while today is on screen and filled with the way
  *   back once it is not.
  * - **The season strip** under it — every week as a bar, the plan's phases
  *   under it, a frame over the weeks the list is showing (`week-strip.tsx`).
@@ -25,8 +25,14 @@
  * the season — plan card, season table, compact curve (`season-pane.tsx`) —
  * left of the list, and the selected day (`day-pane.tsx`) right of it from
  * `xl`, in a Sheet from `lg` to `xl`. The strip steps aside for the table.
- * A click on a row picks its day without navigating (`use-day-selection.ts`). The hero's Form and Rekorder panes live on the Meg tab now; its
- * "Uka" pane was already the week header.
+ * A click on a row picks its day without navigating (`use-day-selection.ts`).
+ * The hero's Form and Rekorder panes live on the Meg tab now; its "Uka" pane
+ * was already the week header.
+ *
+ * **Writing** (ADR 0088): every "+" — a free day's, "legg til en til", _Ny
+ * økt_ — opens one composer. On a phone it is a Drawer (`composer-drawer.tsx`);
+ * from `lg` it is the picked day's own: the Sheet, or the day pane from `xl`.
+ * Which, is decided once, here, by the screen.
  *
  * The measuring lives in `use-timeline-scroll.ts` (which never writes under a
  * scrolling reader), the arithmetic in `anchoring.ts`, and what a row is
@@ -34,7 +40,7 @@
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Form, Link } from 'react-router'
-import { CreateMenu } from '#app/components/create-menu.tsx'
+import { NewSessionButton } from '#app/components/create-menu.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
 	DAY_PANE_LABELS,
@@ -63,8 +69,14 @@ import {
 	type LoadRecomputeNotice,
 } from '../presenter.ts'
 import { type AwayFromToday, landingScript } from './anchoring.ts'
+import {
+	type ComposerContainer,
+	type ComposerTarget,
+	ComposerProvider,
+	useComposer,
+} from './composer-context.tsx'
+import { ComposerDrawer } from './composer-drawer.tsx'
 import { DayDetail, DaySheet } from './day-pane.tsx'
-import { DayStampProvider } from './day-stamp-context.tsx'
 import {
 	buildTimelineSeason,
 	buildTodayRow,
@@ -86,7 +98,6 @@ import {
 } from './week-change-card.tsx'
 import { buildWeekChangeCard } from './week-change.ts'
 import { WeekStrip } from './week-strip.tsx'
-import { WritingPanel } from './writing-line.tsx'
 
 export type HomeTimelineData = {
 	now?: Date | string
@@ -118,21 +129,13 @@ export type HomeTimelineData = {
 
 /**
  * Every cell in the stream is a write target (ADR 0065 §5), so the whole screen
- * sits inside the Day Stamp's provider — a wrapper rather than a hook in the
- * body below, so that what a row asks ("is this day mine to open?") never has to
- * be threaded through `WeekBlock` and `DayRow` as a prop neither has an opinion
- * about.
+ * sits inside the composer's provider (`composer-context.tsx`) — context rather
+ * than a prop, so that what a row asks ("open the composer on my day") never
+ * has to be threaded through `WeekBlock` and `DayRow` as a prop neither has an
+ * opinion about.
  */
 export function HomeTimeline({ data }: { data: HomeTimelineData }) {
-	return (
-		<DayStampProvider
-			prefill={data.stampDiscipline}
-			thresholds={data.thresholds}
-			ledger={data.ledger}
-		>
-			<TimelineFrame data={data} />
-		</DayStampProvider>
-	)
+	return <TimelineFrame data={data} />
 }
 
 function TimelineFrame({ data }: { data: HomeTimelineData }) {
@@ -223,17 +226,12 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 	)
 	const notice = buildLoadRecomputeLine(loadRecomputeNotice)
 
-	// The creation menu's writing line (#505 story 40): open under the top line
-	// until the write lands or the athlete closes it.
-	const [writing, setWriting] = useState(false)
-	// The first day the line may write on: the loader's own window. It writes
-	// any distance ahead (story 40), so there is no last day.
+	// The first day the composer may write on: the loader's own window. It
+	// writes any distance ahead (story 40), so there is no last day.
 	const writable = useMemo(
 		() => timelineWindow({ now, timezone, plan: activePlan }),
 		[activePlan, now, timezone],
 	)
-	const openWriting = useCallback(() => setWriting(true), [])
-	const closeWriting = useCallback(() => setWriting(false), [])
 
 	const streamNode = useRef<HTMLDivElement | null>(null)
 	const { streamRef: scrollStreamRef, goToWeek, readerKey } = scroll
@@ -259,8 +257,33 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		revision: visibleWeeks,
 		onReveal: revealDay,
 	})
-	const { select: selectDay } = days
+	const { select: selectDay, setSheetOpen } = days
 	const { backToToday } = scroll
+	// The composer's container, by the screen (ADR 0088): a Drawer on a phone,
+	// the picked day's Sheet between `lg` and `xl`, the day pane from `xl`.
+	const container: ComposerContainer = large
+		? wide
+			? 'pane'
+			: 'sheet'
+		: 'drawer'
+	// A "+" on a large screen: pick the day, then bring its composer to hand —
+	// the line takes focus in the pane, or once the Sheet has arrived.
+	const [composeRequest, setComposeRequest] = useState(0)
+	const [sheetComposing, setSheetComposing] = useState(false)
+	const revealForComposer = useCallback(
+		(dayKey: string, why: ComposerTarget['mode']) => {
+			selectDay(dayKey)
+			if (!large) return
+			if (!wide) {
+				setSheetComposing(why === 'compose')
+				setSheetOpen(true)
+				return
+			}
+			if (why === 'compose') setComposeRequest((n) => n + 1)
+			else revealDay()
+		},
+		[large, revealDay, selectDay, setSheetOpen, wide],
+	)
 	const toToday = useCallback(() => {
 		selectDay(season.todayKey)
 		backToToday()
@@ -292,6 +315,14 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 	const nonce = useNonce()
 
 	return (
+		<ComposerProvider
+			prefill={data.stampDiscipline}
+			thresholds={thresholds}
+			todayKey={season.todayKey}
+			minDayKey={writable.firstDayKey}
+			container={container}
+			onReveal={revealForComposer}
+		>
 		<main
 			ref={frameRef}
 			// The landing script sets this same height before hydration, so the
@@ -361,15 +392,8 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 						weekChangeCount={weekChangeView?.waitingCount ?? 0}
 						away={scroll.away}
 						onToday={toToday}
-						onWrite={openWriting}
+						todayKey={season.todayKey}
 					/>
-					{writing ? (
-						<WritingPanel
-							todayKey={season.todayKey}
-							minDayKey={writable.firstDayKey}
-							onClose={closeWriting}
-						/>
-					) : null}
 					{/*
 					 * The season strip (#505 stories 17–18, D5): every week, the
 					 * phases under it, the frame over the weeks in view. From `lg`
@@ -483,13 +507,18 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 						minWriteKey={writable.firstDayKey}
 						today={today}
 						headingId={dayHeadingId}
+						composeRequest={composeRequest}
 					/>
 				) : null}
 			</aside>
 			{large && !wide ? (
 				<DaySheet
 					open={days.sheetOpen}
-					onOpenChange={days.setSheetOpen}
+					onOpenChange={(open) => {
+						days.setSheetOpen(open)
+						if (!open) setSheetComposing(false)
+					}}
+					composing={sheetComposing}
 					weeks={season.weeks}
 					dayKey={days.selected}
 					todayKey={season.todayKey}
@@ -498,7 +527,11 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 					headingId={dayHeadingId}
 				/>
 			) : null}
+			{container === 'drawer' ? (
+				<ComposerDrawer weeks={season.weeks} today={today} />
+			) : null}
 		</main>
+		</ComposerProvider>
 	)
 }
 
@@ -512,8 +545,10 @@ const LARGE_CARD =
 
 /**
  * The top line (variant P): the plan and its goal on the left, then the
- * Ukeskiftet badge while a proposal waits, "+ Ny" (icon only, named `Lag
- * ny`), and the I dag pill — a 44px line, as variant P's. On a phone the
+ * Ukeskiftet badge while a proposal waits, _Ny økt_ (owner decision 6: the
+ * one creation control on I dag, opening the composer on today — a race and
+ * a plan are made in Sesong), and the I dag pill — a 44px line, as variant
+ * P's. On a phone the
  * plan's name gives way to the goal; the goal itself is **never cut** (#505
  * story 32): a race's name that does not fit beside the controls wraps to a
  * second line inside the same 44px (13/18 type, two lines are 36px), and only
@@ -526,14 +561,15 @@ function TopLine({
 	weekChangeCount,
 	away,
 	onToday,
-	onWrite,
+	todayKey,
 }: {
 	line: TimelineTopLine
 	weekChangeCount: number
 	away: AwayFromToday
 	onToday: () => void
-	onWrite: () => void
+	todayKey: string
 }) {
+	const composer = useComposer()
 	return (
 		<div className="flex min-h-11 items-center gap-2 py-1">
 			{/* From `lg` up the season pane's plan card already names the plan
@@ -594,7 +630,7 @@ function TopLine({
 				)}
 			</p>
 			{weekChangeCount > 0 ? <WeekChangeBadge count={weekChangeCount} /> : null}
-			<CreateMenu onWrite={onWrite} compact />
+			<NewSessionButton onClick={() => composer.openComposer(todayKey)} />
 			{/*
 			 * The "I dag" pill (#505, idea I): always there, quiet while today is
 			 * on screen, and filled — with the way back in its arrow — once the
