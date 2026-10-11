@@ -752,13 +752,26 @@ _Cost:_ fast major-version churn and an abstraction over Anthropic features.
 Prompt caching (`cacheControl`) and Anthropic server tools are supported. Newer
 betas, such as the `inline-tools` tool changes, may lag (_inference_).
 
-_Residency (added 2026-10-11):_ Anthropic's first-party API offers only US or
-`global` inference, and Anthropic is not on the DPF list. So the later
-recommendation puts the in-app agent on Claude in Bedrock `eu-north-1`
-([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) §3.4–3.5, §5). There
-a Bedrock provider takes the place of `@ai-sdk/anthropic`; which provider
-package fits was not checked here. Bedrock also lacks structured outputs, Batch
-and the MCP connector, so the registry's zod schemas validate every tool input
+_Residency (added 2026-10-11; packages verified the same day):_ Anthropic's
+first-party API offers only US or `global` inference, and Anthropic is not on
+the DPF list. So the later recommendation puts the in-app agent on Claude in
+Bedrock `eu-north-1` ([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md)
+§3.4–3.5, §5). There **`@ai-sdk/amazon-bedrock`** takes the place of
+`@ai-sdk/anthropic`: 5.0.113 is npm `latest` for AI SDK 7 (the 4.x line is
+tagged `ai-v6`). Use its `@ai-sdk/amazon-bedrock/anthropic` entry
+(`createBedrockAnthropic`), which sends Anthropic's own request body through
+Bedrock's InvokeModel on `bedrock-runtime` and reuses `@ai-sdk/anthropic`; the
+root `bedrock` provider uses the Converse API, and `/mantle` serves only
+OpenAI-compatible models
+([provider docs](https://ai-sdk.dev/providers/ai-sdk-providers/amazon-bedrock)).
+For Sonnet 5.5 and Haiku 5.5, AWS lists the EU only through the `eu.anthropic.…`
+geo profile on `bedrock-runtime`, not in-region, and no structured outputs on
+either endpoint
+([model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html)).
+That includes strict tool use: AWS counts `strict: true` as structured outputs
+([AWS](https://docs.aws.amazon.com/bedrock/latest/userguide/structured-output.html)),
+and the provider ignores it with a warning. Plain tool use works. With no Batch
+or MCP connector either, the registry's zod schemas validate every tool input
 and every model-written proposal server-side.
 
 **Fallback: `@anthropic-ai/sdk` directly.** It is already a dependency; bump the
@@ -771,8 +784,14 @@ to Claude betas. You then own the stream protocol, the client state and the
 approval resume logic. Both paths can consume the same registry, but
 `betaZodTool` only takes zod 4 schemas: `zod/v4` today, or plain `zod` after an
 upgrade. With zod 3 schemas, use `betaTool` and a JSON Schema converter. On
-Bedrock, [`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) calls the
-leftover `@anthropic-ai/sdk` the wrong client.
+Bedrock the fallback is **`@anthropic-ai/bedrock-sdk`** (0.34.4, 2026-10-08),
+Anthropic's Bedrock client. It wraps `@anthropic-ai/sdk` (`>=0.115.1 <1`) and
+exports `AnthropicBedrock` (InvokeModel on `bedrock-runtime`, the EU route for
+the 5.5 models) and `AnthropicBedrockMantle` (the Messages API on
+`bedrock-mantle`). `@anthropic-ai/sdk` 0.133.0 has no Bedrock class of its own:
+its plain client reaches Bedrock only with a `baseURL` and a Bedrock bearer
+token, and SigV4 signing needs the Bedrock package
+([Claude in Amazon Bedrock](https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock)).
 
 **Chat UI: start with `useChat` + trainm8's own components.** The design system
 (ADR 0085) and the Emil Kowalski craft rules suggest owning the markup. Screen

@@ -317,22 +317,22 @@ so it holds them too (inference).
 
 ### 4.4 The MCP note's §3 checklist
 
-| Requirement (MCP note §3.1–3.3)                              | Better Auth 1.7.7                                                    | Work left                                                                                                                              |
-| ------------------------------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| PRM (RFC 9728) and the 401 `resource_metadata` challenge     | **Yes**: `mcp()` serves PRM; `requireMcpAuth` sends the challenge    | With Better Auth at `/api/auth`, root `/.well-known/*` routes must forward to `auth.handler` (inference)                               |
-| AS metadata (RFC 8414); `issuer` equals the fetch URL        | **Yes**                                                              | Check the issuer string end to end                                                                                                     |
-| PKCE S256                                                    | **Yes**, S256 only                                                   | —                                                                                                                                      |
-| `resource` (RFC 8707) → `aud`                                | **Yes**                                                              | Claude's canonical-URL rule (lowercase host, no trailing slash) is **unverified** against Better Auth                                  |
-| CIMD, DCR fallback                                           | **Yes**: `cimd()`; DCR opt-in                                        | Enable both DCR flags too, because Claude falls back to DCR (MCP note §3.2)                                                            |
-| `iss` in the authorization response (RFC 9207)               | **Yes**                                                              | —                                                                                                                                      |
-| Short-lived tokens; rotating refresh                         | **Yes**: 1 h JWT; rotation with family revocation; 30 s retry window | JWTs cannot be revoked; shorten `accessTokenExpiresIn` if needed                                                                       |
-| 403 `insufficient_scope`                                     | **Yes**: `requiredScopes`                                            | Per-tool step-up lives in the MCP handler                                                                                              |
-| Consent page on the existing login                           | **Partial**: redirects to your `consentPage` / `loginPage`           | **Needs a Better Auth session**, hence Phase 1 first                                                                                   |
-| SSRF defence for CIMD fetches                                | **Yes**: `@better-auth/cimd/node`                                    | —                                                                                                                                      |
-| Revocation, "connected assistants" page                      | Revocation **yes** (RFC 7009)                                        | Build the page over `oauthConsent` and refresh tokens                                                                                  |
-| Per-subject rate limit, audit log, Strava gate, undo handles | No                                                                   | App work, unchanged (MCP note §6)                                                                                                      |
-| PRM `scopes_supported` without `offline_access`              | Not verified                                                         | Test the PRM output                                                                                                                    |
-| Dual-era MCP transport (MCP note §2.2)                       | Docs advise `legacy: "reject"`                                       | **Conflict.** Token checks look protocol-agnostic, so keep the SDK's `legacy: 'stateless'` and test with a 2025-era client (inference) |
+| Requirement (MCP note §3.1–3.3)                                  | Better Auth 1.7.7                                                    | Work left                                                                                                                              |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| PRM (RFC 9728) and the 401 `resource_metadata` challenge         | **Yes**: `mcp()` serves PRM; `requireMcpAuth` sends the challenge    | With Better Auth at `/api/auth`, root `/.well-known/*` routes must forward to `auth.handler` (inference)                               |
+| AS metadata (RFC 8414); `issuer` equals the fetch URL            | **Yes**                                                              | Check the issuer string end to end                                                                                                     |
+| PKCE S256                                                        | **Yes**, S256 only                                                   | —                                                                                                                                      |
+| `resource` (RFC 8707) → `aud`                                    | **Yes**                                                              | Claude's canonical-URL rule (lowercase host, no trailing slash) is **unverified** against Better Auth                                  |
+| CIMD, DCR fallback                                               | **Yes**: `cimd()`; DCR opt-in                                        | Enable both DCR flags too, because Claude falls back to DCR (MCP note §3.2)                                                            |
+| `iss` in the authorization response (RFC 9207)                   | **Yes**                                                              | —                                                                                                                                      |
+| Short-lived tokens; rotating refresh                             | **Yes**: 1 h JWT; rotation with family revocation; 30 s retry window | JWTs cannot be revoked; shorten `accessTokenExpiresIn` if needed                                                                       |
+| 403 `insufficient_scope`                                         | **Yes**: `requiredScopes`                                            | Per-tool step-up lives in the MCP handler                                                                                              |
+| Consent page on the existing login                               | **Partial**: redirects to your `consentPage` / `loginPage`           | **Needs a Better Auth session**, hence Phase 1 first                                                                                   |
+| SSRF defence for CIMD fetches                                    | **Yes**: `@better-auth/cimd/node`                                    | —                                                                                                                                      |
+| Revocation, "connected assistants" page                          | Revocation **yes** (RFC 7009)                                        | Build the page over `oauthConsent` and refresh tokens                                                                                  |
+| Per-subject rate limit, audit log, provenance gate, undo handles | No                                                                   | App work, unchanged (MCP note §6)                                                                                                      |
+| PRM `scopes_supported` without `offline_access`                  | Not verified                                                         | Test the PRM output                                                                                                                    |
+| Dual-era MCP transport (MCP note §2.2)                           | Docs advise `legacy: "reject"`                                       | **Conflict.** Token checks look protocol-agnostic, so keep the SDK's `legacy: 'stateless'` and test with a 2025-era client (inference) |
 
 ### 4.5 Migrating existing users
 
@@ -378,6 +378,15 @@ transaction (`strength-quick-log.server.ts:198-205`).
   a Norwegian network before choosing.
 - **Residency.** Frankfurt, Amsterdam and Stockholm are in the EU. London (Neon
   `aws-eu-west-2`, Fly `lhr`) is not, so it does not meet "EU Postgres".
+- **The in-app agent's Bedrock region.** Co-location with Bedrock `eu-north-1`
+  holds only if the app stays in `arn` (plain SQLite or option C), while
+  residency holds either way: Bedrock's `eu-central-1` (Frankfurt) serves Sonnet
+  5.5 and Haiku 5.5 through the same EU geo profile, which AWS lists as their
+  only EU route from Stockholm too
+  ([model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html);
+  [`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) §3.4, §5; the
+  owner's decisions in
+  [`agent-strategy.md`](agent-strategy.md#risks-open-questions-and-the-owners-decisions)).
 - **Moving is cheapest at the cutover.** Off LiteFS the app holds no database
   volume, so the region change rides on the Phase 3 deploy (inference).
 - **The trigger decides.** Preview DBs and cheap history point to Neon. HA

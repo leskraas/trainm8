@@ -24,12 +24,14 @@ sequencing in [`stack-migration.md`](stack-migration.md).
 > SDK 7, the Anthropic SDK, CopilotKit, assistant-ui, the registry sketch and
 > the zod plan (cited **BB §n**).
 > [`mcp-server-for-trainm8.md`](mcp-server-for-trainm8.md) covers MCP
-> 2026-07-28, OAuth and Strava's API Policy (cited **MCP note**), and
+> 2026-07-28, OAuth and the provenance gate (cited **MCP note**), and
 > [`agent-layer-trainm8-surface.md`](agent-layer-trainm8-surface.md) inventories
 > trainm8's write paths and safety rails. Not repeated here: the agent-loop
-> libraries, the MCP protocol, the Strava gate. Every option below still needs
-> the Strava provenance filter in its action layer; none supplies one
-> ([MCP note §6.1](mcp-server-for-trainm8.md)).
+> libraries, the MCP protocol, the provenance gate. Every option below still
+> needs that gate in its action layer, keyed on each value's origin platform
+> (proposed ADRs 0096, 0098), with Strava's terms only if Strava returns; none
+> supplies one
+> ([MCP note §6.1](mcp-server-for-trainm8.md#61-the-strava-gate-a-new-reason-for-an-unavailable-metric)).
 
 ---
 
@@ -87,15 +89,15 @@ sequencing in [`stack-migration.md`](stack-migration.md).
 
 ## 0. What the foundation must carry
 
-| Need                                                                                                                 | Source                                         |
-| -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| One `defineAction` registry feeding React Router actions, AI SDK tools and MCP tools                                 | [BB §9.1](agent-layer-building-blocks.md)      |
-| An OAuth 2.1 authorization server for MCP: PRM, CIMD + DCR, PKCE, RFC 8707                                           | [MCP note, TL;DR](mcp-server-for-trainm8.md)   |
-| The agent proposes; the athlete's yes stays in trainm8 (ADR 0080); writes carry undo (ADR 0088), server-held for MCP | [MCP note §6.2–6.4](mcp-server-for-trainm8.md) |
-| Strava-derived values leave model-facing surfaces as Unavailable Metrics                                             | [MCP note §6.1](mcp-server-for-trainm8.md)     |
-| EU residency: production runs in Stockholm today                                                                     | TM `fly.toml:2` (`primary_region = "arn"`)     |
-| Today: React Router `^7.13.0`, Express 5, Prisma 6 on SQLite/LiteFS, own auth (TOTP, WebAuthn), zod 3                | TM `package.json:52,62,65,70,89,98,109,122`    |
-| 56 Prisma models; activity streams are downsampled JSON-in-`String` columns                                          | TM `prisma/schema.prisma:1683–1694`            |
+| Need                                                                                                                                                                            | Source                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| One `defineAction` registry feeding React Router actions, AI SDK tools and MCP tools                                                                                            | [BB §9.1](agent-layer-building-blocks.md)                                                                                                                          |
+| An OAuth 2.1 authorization server for MCP: PRM, CIMD + DCR, PKCE, RFC 8707                                                                                                      | [MCP note, TL;DR](mcp-server-for-trainm8.md)                                                                                                                       |
+| The agent proposes; the athlete's yes stays in trainm8 (ADR 0080); writes carry undo (ADR 0088), server-held for MCP                                                            | [MCP note §6.2–6.4](mcp-server-for-trainm8.md)                                                                                                                     |
+| Values whose origin platform's terms forbid the surface (Garmin before approval, Polar without opt-in; Strava if it returns) leave model-facing surfaces as Unavailable Metrics | [MCP note §6.1](mcp-server-for-trainm8.md#61-the-strava-gate-a-new-reason-for-an-unavailable-metric), [WS §6](watch-data-sources.md#6-ai-and-mcp-terms-per-source) |
+| EU residency: production runs in Stockholm today                                                                                                                                | TM `fly.toml:2` (`primary_region = "arn"`)                                                                                                                         |
+| Today: React Router `^7.13.0`, Express 5, Prisma 6 on SQLite/LiteFS, own auth (TOTP, WebAuthn), zod 3                                                                           | TM `package.json:52,62,65,70,89,98,109,122`                                                                                                                        |
+| 56 Prisma models; activity streams are downsampled JSON-in-`String` columns                                                                                                     | TM `prisma/schema.prisma:1683–1694`                                                                                                                                |
 
 ---
 
@@ -449,8 +451,9 @@ already moved to 8A's layers, which makes the switch small.
      library give a first-party, MCP-2026-07-28-aware server, and only Better
      Auth does it without changing runtime.
    - **(b) trainm8's differentiators are app-level in every option** (§7.2):
-     proposals gated by the athlete's yes, undo tokens and the Strava gate. A
-     platform buys only live sync, and trainm8 has a seam for that.
+     proposals gated by the athlete's yes, undo tokens and the per-origin
+     provenance gate. A platform buys only live sync, and trainm8 has a seam for
+     that.
    - **(c) Convergence** with agent-native's stack hedges towards 8D.
    - **(d) EU residency**: Stockholm on Supabase, or Frankfurt/Amsterdam on Neon
      or Fly MPG with the app moved (§8A.1).
