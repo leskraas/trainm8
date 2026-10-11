@@ -4679,6 +4679,9 @@ export const STAMPED_SESSION_LABELS = {
 		4: 'terskel',
 		5: 'intervaller',
 	},
+} as const
+
+// ---------------------------------------------------------------------------
 // Meg's sub-pages (round 2): profile, sign-in and security, training settings
 // ---------------------------------------------------------------------------
 

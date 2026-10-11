@@ -122,7 +122,7 @@ async function stockSession() {
 test('every composer write lands by toast: the id and the week’s sum on the reply, nothing flashed', async () => {
 	const user = await setUp()
 	const day = addDays(today(), 2)
-	for (const entries of [
+	const writes: Array<Record<string, string>> = [
 		{ intent: 'stamp-day', date: day, discipline: 'run', landing: 'toast' },
 		{
 			intent: 'write-session',
@@ -131,7 +131,8 @@ test('every composer write lands by toast: the id and the week’s sum on the re
 			sentence: '45 min rolig',
 			landing: 'toast',
 		},
-	]) {
+	]
+	for (const entries of writes) {
 		const reply = (await post(user.cookie, entries)) as Reply
 		expect(reply.data.stampedSessionId).toEqual(expect.any(String))
 		expect(reply.data.weekSumLine).toEqual(expect.any(String))
