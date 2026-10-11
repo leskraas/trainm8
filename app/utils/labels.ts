@@ -1886,6 +1886,16 @@ export const SESSION_COMPOSER_LABELS = {
 	},
 } as const
 
+/**
+ * Where "+ Ny"'s other two ways in went (owner decision 6): I dag's top line
+ * creates sessions only, and a race or a plan is started from Sesong.
+ */
+export const SESONG_ENTRY_LABELS = {
+	newEvent: 'Nytt løp',
+	newPlan: 'Ny plan',
+	group: 'Start noe nytt',
+} as const
+
 /** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */
 export function nbDurationLabel(seconds: number): string {
 	const hours = Math.floor(seconds / 3600)
