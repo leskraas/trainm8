@@ -6535,6 +6535,16 @@ export const STRENGTH_RUNNER_LABELS = {
 	},
 } as const
 
+/** Why a lift's circles cannot be tapped — the runner's sub-line. */
+export const WORKING_LOAD_LABELS = {
+	noSets: 'løftet har ingen sett å logge',
+	noLoad:
+		'ingen vekt er foreskrevet for løftet, og et trykk kan ikke finne på en',
+	noKilos: 'forskriften blir ikke til kilo, så det er ingenting å trykke',
+	notTappable: (load: string) => `${load} kan ikke logges med et trykk`,
+	thisLoad: 'denne belastningen',
+} as const
+
 /** The outcome panel: what you lift next time (`__outcome-panel*`). */
 export const OUTCOME_LABELS = {
 	heading: 'Hva du løfter neste gang',

@@ -1142,7 +1142,7 @@ test('a bodyweight lift posts bodyweight, and one with a belt posts what goes on
 	).toMatchObject({
 		loadKind: 'bodyweight',
 		loadNumber: '',
-		text: 'bodyweight',
+		text: 'kroppsvekt',
 	})
 
 	expect(
@@ -1154,7 +1154,7 @@ test('a bodyweight lift posts bodyweight, and one with a belt posts what goes on
 	).toMatchObject({
 		loadKind: 'bodyweightPlus',
 		loadNumber: '15',
-		text: 'bodyweight + 15 kg',
+		text: 'kroppsvekt + 15 kg',
 	})
 })
 
@@ -1168,7 +1168,7 @@ test('a lift whose load is a machine level cannot be tapped, and the card says s
 
 	expect(load).toEqual({
 		kind: 'absent',
-		text: 'a machine stack level cannot be logged by tapping',
+		text: 'et maskinnivå kan ikke logges med et trykk',
 		fix: null,
 	})
 })
@@ -1180,7 +1180,7 @@ test('a lift with no load prescribed at all says so, rather than tapping a kilo 
 		),
 	).toEqual({
 		kind: 'absent',
-		text: 'no load is prescribed for this lift, and a tap cannot invent one',
+		text: 'ingen vekt er foreskrevet for løftet, og et trykk kan ikke finne på en',
 		fix: null,
 	})
 })
@@ -1193,7 +1193,7 @@ test('a lift the corpus states is unloaded is loggable, because its kind carries
 				rows: [row({ prescribedLoad: null, resolvedLoad: null })],
 			}),
 		),
-	).toMatchObject({ loadKind: 'unloaded', loadNumber: '', text: 'no load' })
+	).toMatchObject({ loadKind: 'unloaded', loadNumber: '', text: 'uten vekt' })
 })
 
 // ——— The sub-line ————————————————————————————————————————————————————————
