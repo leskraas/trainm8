@@ -47,10 +47,13 @@ export async function action({ request }: Route.ActionArgs) {
 
 	const formData = await parseFormData(request, async (field) => {
 		if (field.fieldName === 'file') {
-			artifacts.push({
-				fileName: field.name ?? 'upload',
-				bytes: await field.bytes(),
-			})
+			const bytes = await field.bytes()
+			// An empty file input still posts one part, with no filename and no
+			// bytes (the parser names such a part `file-upload`): that is "no
+			// file", not a file of an unknown type.
+			const unnamed = !field.name || field.name === 'file-upload'
+			if (unnamed && bytes.byteLength === 0) return
+			artifacts.push({ fileName: field.name ?? 'upload', bytes })
 		}
 	})
 

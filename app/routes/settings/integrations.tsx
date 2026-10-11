@@ -136,11 +136,14 @@ export default function IntegrationsRoute({
 
 	// The directory is display metadata only (ADR 0014/0026): grouping and each
 	// card's actions are decided here, per provider, against its own routes.
+	// intervals.icu first: it is the one source to connect (#505).
 	const availableEntries = PROVIDER_DIRECTORY.filter(
 		(p) =>
 			p.availability !== 'coming-soon' &&
 			p.id !== 'strava' &&
 			!(p.id === 'intervalsicu' && intervalsIcuConnected),
+	).sort(
+		(a, b) => Number(b.id === 'intervalsicu') - Number(a.id === 'intervalsicu'),
 	)
 	const comingSoonEntries = PROVIDER_DIRECTORY.filter(
 		(p) => p.availability === 'coming-soon',

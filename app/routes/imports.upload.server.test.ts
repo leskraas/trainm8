@@ -931,3 +931,15 @@ test('a batch upload attributes days in the Athlete Timezone too', async () => {
 	})
 	expect(imported.promotedSessionId).toBe(planned.id)
 })
+
+test('submitting with no file chosen asks for one, in Norwegian', async () => {
+	const { cookieHeader } = await setupAthlete()
+	// What a browser sends for an empty file input: one part, no name, no bytes.
+	const response = await uploadFiles(cookieHeader, [
+		new File([], '', { type: 'application/octet-stream' }),
+	])
+
+	const { error, status } = errorResult(response)
+	expect(status).toBe(400)
+	expect(error).toBe('Velg minst én fil.')
+})
