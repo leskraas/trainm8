@@ -264,3 +264,28 @@ export function buildLiftSubline(exercise: LogExercise): string | null {
 export function postedNumber(kg: number): string {
 	return String(Number(kg.toFixed(2)))
 }
+
+/**
+ * **How many working sets are still untapped** (owner decision 10): prescribed,
+ * tappable, and not logged. Finish asks about these before folding, so an
+ * untapped set never silently counts as made or as missed.
+ *
+ * A lift with no resolved weight is skipped: its circles cannot be tapped (the
+ * sub-line says why), so there is nothing the athlete could have logged.
+ * `isLogged` is the caller's own record — the server's set logs, or the
+ * runner's map of taps — so both sides count by one rule.
+ */
+export function untappedWorkingSets(
+	exercises: readonly LogExercise[],
+	isLogged: (exercise: LogExercise, row: LogRow) => boolean,
+): number {
+	let untapped = 0
+	for (const exercise of exercises) {
+		if (buildWorkingLoad(exercise).kind !== 'resolved') continue
+		for (const row of exercise.rows) {
+			const target = row.prescribedReps ?? row.prescribedDurationSec
+			if (target != null && !isLogged(exercise, row)) untapped += 1
+		}
+	}
+	return untapped
+}

@@ -6318,3 +6318,203 @@ export const EXERCISE_SEARCH_LABELS = {
 	/** Beside a row found by another of its names: `«knebøy»`. */
 	alias: (alias: string) => `«${alias}»`,
 } as const
+
+/** Starting weights (`programs.$programId.start`). Kilos arrive as `82,5`. */
+export const PROGRAM_START_LABELS = {
+	metaTitle: (program: string) => `Start ${program} | Trainm8`,
+	back: 'Tilbake til programmene',
+	heading: 'Startvekter',
+	intro:
+		'Ett tall per løft. Etter dette bestemmer programmet vekta ut fra det du logger.',
+	unit: 'kg',
+	submit: (program: string) => `Start ${program}`,
+	hints: {
+		emptyBar: (program: string, kg: string) =>
+			`${program} starter her på ${kg} kg — den tomme stanga.`,
+		pullRange: (low: string, high: string) =>
+			`Den nedre enden av det publiserte spennet på ${low}–${high} kg.`,
+		published: (program: string, kg: string) =>
+			`${program} oppgir ${kg} kg her. Skriv over hvis du vet bedre.`,
+		repMax: (program: string, reps: number) =>
+			`${program} sier: en vekt du kunne løftet ${reps} ganger.`,
+		none: (program: string) =>
+			`${program} oppgir ingen startvekt for dette løftet. La feltet stå tomt, så startes det ikke.`,
+	},
+	errors: {
+		weight: 'En startvekt må være et positivt antall kilo.',
+		form: 'Skjemaet ga ikke mening.',
+		gone: 'Det programmet finnes ikke lenger.',
+		atLeastOne: 'Gi minst ett løft en startvekt.',
+	},
+} as const
+
+/** The program overview (`programs.run.$instanceId`). */
+export const PROGRAM_RUN_LABELS = {
+	metaFallback: 'Program',
+	running: 'I gang. Neste vekt kommer fra forrige logg, ikke fra kalenderen.',
+	notRunning: (status: string) =>
+		status === 'ended'
+			? 'Programmet er avsluttet.'
+			: 'Programmet står på pause.',
+	today: (dayId: string | null) => (dayId ? `I dag: Økt ${dayId}` : 'I dag'),
+	noWeightYet: 'ingen vekt ennå',
+	stamped:
+		'Dette er vektene som står på økta du har åpen, og det er dem settene spør etter.',
+	stampedLogged:
+		'Siden sett allerede er logget på den, gjelder en endret arbeidsvekt under fra neste økt.',
+	stampedOpen:
+		'Ingenting er logget på den ennå, så en endret arbeidsvekt under settes på økta neste gang du åpner den.',
+	next: (dayId: string) => `Neste etter i dag: Økt ${dayId}.`,
+	openToday: 'Åpne dagens økt',
+	yourWeights: 'Vektene dine',
+	/** Plain words for the Stall Count (the audit's "jargon in English"). */
+	shortInARow: (n: number) =>
+		n === 1 ? '1 økt til kort' : `${n} økter på rad til kort`,
+	weightFor: (lift: string) => `Arbeidsvekt for ${lift} i kg`,
+	saveWeight: 'Lagre vekt',
+	stop: 'Avslutt programmet',
+	stopNote: 'Settene du har logget i programmet blir liggende.',
+	stopped:
+		'Programmet er avsluttet. Alle settene du logget i det blir liggende.',
+	weightSaved: 'Arbeidsvekta er lagret.',
+	stallNotice: (program: string) =>
+		`Du kom til kort på dette løftet mange nok økter på rad til at ${program} sier: ta vekta ned og bygg den opp igjen.`,
+	errors: {
+		nonsense: 'Det ga ikke mening.',
+		gone: 'Programmet finnes ikke lenger.',
+		liftGone: 'Det løftet finnes ikke lenger.',
+		positive: 'En arbeidsvekt må være et positivt antall kilo.',
+		tooHigh: (max: number) =>
+			`En arbeidsvekt må være ${max} kg eller mindre — over det er det en skrivefeil, ikke et løft.`,
+	},
+} as const
+
+/** The three **Stall Responses**, as the athlete reads them. */
+export const NB_STALL_RESPONSE_LABELS: Record<string, string> = {
+	stallCut: 'Vekta kuttes',
+	weightRollback: 'Tilbake i vekt',
+	anchorReEstimate: 'Ny 1RM-beregning',
+}
+
+/** The runner presenter's sentences (`__runner-presenter.ts`). */
+export const STRENGTH_RUNNER_LABELS = {
+	reps: (n: number) => `${n} reps`,
+	seconds: (n: number) => `${n} s`,
+	bodyweight: 'kroppsvekt',
+	bodyweightPlus: (kg: string) => `kroppsvekt + ${kg} kg`,
+	/** A warm-up chip's bodyweight, in the chip's width. */
+	bodyweightShort: 'kv',
+	rackGap: (made: string, asked: string) =>
+		`Gymmet ditt får til ${made} kg, ikke ${asked} kg.`,
+	logSet: (position: number, lift: string) =>
+		`Logg sett ${position} av ${lift}`,
+	loggedSet: (position: number, lift: string) =>
+		`Logget sett ${position} av ${lift}`,
+	counter: (done: number, total: number) => `${done} av ${total} logget`,
+	warmup: (on: boolean, position: number, lift: string, label: string) =>
+		`${on ? 'Logget' : 'Logg'} oppvarming ${position} av ${lift}, ${label}`,
+	restOver: 'over pausen',
+	restReasons: {
+		'made-the-target': 'pause',
+		'missed-the-target': 'lengre pause etter et sett til kort',
+		'between-warmup-sets': 'ingen pause mellom oppvarmingssett',
+		'before-the-last-warmup-set': 'pause før siste oppvarmingssett',
+	},
+	held: (kg: string, count: number, spelled: string) =>
+		count === 1
+			? `${kg} kg står: en økt kom til kort.`
+			: `${kg} kg står: ${spelled} økter på rad kom til kort.`,
+	working: (kg: string, count: number, spelled: string) =>
+		count === 1
+			? `${kg} kg er arbeidsvekta di etter én fullført økt.`
+			: `${kg} kg er arbeidsvekta di etter ${spelled} fullførte økter.`,
+	workingFresh: (kg: string) =>
+		`${kg} kg er arbeidsvekta di. Ingenting er logget for dette løftet i programmet ennå.`,
+	numberWords: [
+		'null',
+		'én',
+		'to',
+		'tre',
+		'fire',
+		'fem',
+		'seks',
+		'sju',
+		'åtte',
+		'ni',
+		'ti',
+		'elleve',
+		'tolv',
+	],
+	plates: (gym: string, variant: string | null) =>
+		`Skivene regnes ut fra ${gym}${variant ? ` for ${variant}` : ''}.`,
+	timerLimit: 'Pausetimeren tåler en låst telefon, men ikke en lukket fane.',
+	history: 'Dette løftet over tid',
+	lastTime: (work: string) => `Sist ${work}`,
+} as const
+
+/** The outcome panel: what you lift next time (`__outcome-panel*`). */
+export const OUTCOME_LABELS = {
+	heading: 'Hva du løfter neste gang',
+	notInProgram:
+		'Økta er fullført. Den hører ikke til et program, så ingenting rykket fram.',
+	seeOverTime: (lift: string) => `Se ${lift} over tid`,
+	backToToday: 'Tilbake til I dag',
+	backToSets: 'Tilbake til settene',
+	headline: {
+		moved: (lift: string, from: string, to: string) =>
+			`${lift} ${from} kg → ${to} kg`,
+		movedTrainingMax: (lift: string, from: string, to: string) =>
+			`${lift} treningsmaks ${from} kg → ${to} kg`,
+		stays: (lift: string, kg: string) => `${lift} står på ${kg} kg`,
+		unchanged: (lift: string, kg: string) => `${lift} uendret på ${kg} kg`,
+		unreadable: (lift: string, kg: string, sets: string, prescribed: string) =>
+			`${lift} står på ${kg} kg — ${sets}, så de ${prescribed} kg som var foreskrevet kunne ikke sjekkes`,
+		lighter: (lift: string, kg: string, logged: string, prescribed: string) =>
+			`${lift} står på ${kg} kg — logget på ${logged} kg, foreskrevet ${prescribed} kg`,
+	},
+	unreadableSets: (all: boolean, count: number, of: number) =>
+		all
+			? 'ingen av settene ble logget med en kilo som kan sjekkes'
+			: `${count} av de ${of} settene ble logget uten en kilo som kan sjekkes`,
+	reason: {
+		incremented: (delta: string) =>
+			`Alle arbeidssettene ble gjort, så vekta går opp ${delta} kg.`,
+		repeated: 'Vekta står til neste økt.',
+		repeatedShort: 'Økta kom til kort, så vekta står til neste økt.',
+		stalled:
+			'Løftet kom til kort for mange økter på rad, så programmet tar vekta ned og bygger den opp igjen.',
+		stalledTrainingMax:
+			'Løftet kom til kort for mange økter på rad, så programmet senker treningsmaksen og bygger den opp igjen.',
+		unavailable:
+			'Programmet skulle ha justert vekta, men manglet det det trengte for å gjøre det. Ingenting ble endret.',
+		unreadable:
+			'Logg settene som kilo på stanga, så kan neste økt leses. Ingenting ble endret.',
+		lighter:
+			'Settene ble løftet lettere enn foreskrevet. Det teller verken som fullført eller som til kort, så vekta står.',
+		skipped:
+			'Ingen arbeidssett ble logget for dette løftet, så ingenting endret seg.',
+	},
+	unreadableLabel: 'Kunne ikke leses',
+	lighterLabel: 'Lettere enn foreskrevet',
+	cutProvenance: (pct: string, program: string | null) =>
+		`Kuttet på ${pct} % er ${program ? `${program} sin` : 'programmets'} egen publiserte konvensjon. Ingen studier støtter det.`,
+} as const
+
+/** The rest bar (`__rest-bar.tsx`). */
+export const REST_BAR_LABELS = {
+	region: 'Pausetimer',
+	dismiss: 'Lukk pausetimeren',
+} as const
+
+/**
+ * Owner decision 10: Finish with sets still untapped asks first, so an untapped
+ * set never silently counts as made or as missed.
+ */
+export const FINISH_UNTAPPED_LABELS = {
+	question: (count: number) =>
+		`${count} sett er ikke logget: marker som ikke gjort, eller fortsett?`,
+	markNotDone: 'Marker som ikke gjort',
+	keepGoing: 'Fortsett',
+	refused: (count: number) =>
+		`${count} sett er ikke logget. Logg dem, eller marker dem som ikke gjort.`,
+} as const

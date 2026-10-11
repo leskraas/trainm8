@@ -40,13 +40,17 @@ import { Link, data, useFetcher } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
-import { Button, buttonVariants } from '#app/components/ui/button.tsx'
+import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
 import { Collapsible } from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { RUNNER_LABELS, WORKOUT_DETAIL_LABELS } from '#app/utils/labels.ts'
+import {
+	FINISH_UNTAPPED_LABELS,
+	RUNNER_LABELS,
+	WORKOUT_DETAIL_LABELS,
+} from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	type LogExercise,
@@ -67,8 +71,8 @@ import {
 	LiftPlateRow,
 } from './__lift-help-panel.tsx'
 import { buildOutcomePanelView } from './__outcome-panel-presenter.ts'
-import { OutcomePanel } from './__outcome-panel.tsx'
 import { RestBar, type RestState } from './__rest-bar.tsx'
+import { RunnerFinish } from './__runner-finish.tsx'
 import {
 	type LiftProgress,
 	type RestAction,
@@ -264,7 +268,19 @@ export async function action({ request, params }: Route.ActionArgs) {
 		const finished = await finishStrengthSession({
 			userId,
 			sessionId: params.sessionId,
+			// The athlete's answer to "N sett er ikke logget" (owner decision 10).
+			untapped:
+				formData.get('untapped') === 'not-done' ? 'not-done' : undefined,
 		})
+		if (!finished.ok && finished.reason === 'untapped-sets') {
+			return data(
+				{
+					error: FINISH_UNTAPPED_LABELS.refused(finished.untapped),
+					untapped: finished.untapped,
+				},
+				400,
+			)
+		}
 		if (!finished.ok) {
 			return data(
 				{
@@ -453,7 +469,14 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
 					</div>
 				)}
 
-				{view.exercises.length > 0 ? <FinishSession view={view} /> : null}
+				{view.exercises.length > 0 ? (
+					<RunnerFinish
+						exercises={view.exercises}
+						logged={logged}
+						status={view.status}
+						onFinished={() => setRest(null)}
+					/>
+				) : null}
 			</div>
 
 			{/* Pinned to the foot of the scroll area, whose bottom padding above
@@ -1041,73 +1064,6 @@ function WarmupChipButton({
 		>
 			{chip.label}
 		</button>
-	)
-}
-
-/**
- * **Finish the workout, and hear what you lift next time.**
- *
- * The one control on this screen that is not a set. Explicitly *not* a "save
- * workout" button — every set is already persisted the moment it is tapped, and
- * the caption says so — and explicitly not an inference either: it writes
- * `status: 'completed'` because the athlete said the session was over, and it
- * folds the log into the running program server-side, where the pure engine
- * re-reads `ExerciseSetLog` rather than trusting anything this form posted.
- *
- * **Refused, in words, on a session with no logged working set** (ADR 0060 §6),
- * and refused by the server rather than by this button: the sets are the truth,
- * and a second copy of the rule up here could disagree with them.
- */
-function FinishSession({ view }: { view: Route.ComponentProps['loaderData'] }) {
-	const fetcher = useFetcher<typeof action>()
-	const finished =
-		fetcher.data && 'finished' in fetcher.data ? fetcher.data.finished : null
-	const error =
-		fetcher.data && 'error' in fetcher.data ? fetcher.data.error : null
-	const [dismissed, setDismissed] = useState(false)
-
-	// **Back from the panel returns to the runner**, not to the cockpit (#476's
-	// navigation rule). Nothing is undone by it: the fold has happened, every set
-	// is still the record of the day, and the athlete is simply back among them.
-	if (finished && !dismissed) {
-		return (
-			<OutcomePanel
-				items={finished.outcomes}
-				exercises={view.exercises}
-				onBack={() => setDismissed(true)}
-			/>
-		)
-	}
-
-	// Already recorded: no button. Tapping Finish twice is safe — the fold is
-	// idempotent on `ProgramSessionApplication` — but a live-looking control over
-	// a session that is already done is the surface telling the athlete nothing
-	// happened yet, which is untrue. The statement lives at the top of the screen
-	// (`AlreadyRecorded`).
-	if (view.status === 'completed') return null
-
-	return (
-		<div className="mt-6">
-			<Button
-				type="button"
-				className="h-13 w-full"
-				disabled={fetcher.state !== 'idle'}
-				onClick={() =>
-					void fetcher.submit({ intent: 'finish-session' }, { method: 'POST' })
-				}
-			>
-				{L.finish}
-			</Button>
-			{error ? (
-				<p className="text-destructive text-footnote mt-2" role="alert">
-					{error}
-				</p>
-			) : null}
-			{/* The one thing an athlete worried about losing work needs to read. */}
-			<p className="text-footnote text-muted-foreground mt-2 text-center">
-				{L.finishNote}
-			</p>
-		</div>
 	)
 }
 
