@@ -84,7 +84,8 @@ after a plan write). The mix notices that lived in the stamp section move onto
 the Uker reading. _Det som gjenstår_ asks for a climb and a typical week and,
 with both there, gives way to one line: _n av m uker har økter i kalenderen.
 Resten fylles når horisonten når dem._ The `stamp-week-pattern` action stays and
-answers in Norwegian; its component is no longer mounted.
+answers in Norwegian; its component is no longer mounted. (Both since removed;
+see Consequences.)
 
 ### 4. One numbering, one language, the design system
 
@@ -138,9 +139,15 @@ long tasks while loading ~1050 → ~520 ms, the longest ~320 → ~200 ms, HTML 3
 - `getPlanForOutline` (`training.server.ts`) reads any of the athlete's plans as
   `getActivePlan` reads the active one; the two share `activePlanOf`.
 - `__stamp-pattern.tsx` and its jsdom test are unmounted dead code until the
-  owner decides to delete them.
+  owner decides to delete them. _Amended in the same round (r2-plan-new):_ they
+  are deleted, and so is the plan route's `stamp-week-pattern` action, its test
+  and `SESONG_STAMP_LABELS`, since nothing posted to it any more. The horizon
+  fill and the open-ended round still stamp through `stampWeekPattern`.
 - The creation flow keeps the English anchor sentence and the English shape
   table until that page is translated (`nbAnchorSentence`, `LoadProfile`'s `nb`
-  are Sesong's).
+  are Sesong's). _Amended (r2-plan-new):_ the creation flow is Norwegian and on
+  the same primitives; the English `anchorSentence`, `rhythmSentence` and
+  `LoadProfile`'s English branch are gone, and the native `Disclosure` is no
+  longer used by it (only the catalogue imports it).
 - A resting plan's picture shows a horizon the active plan fills; the resting
   plan's weeks fill only once it is active again (ADR 0079).

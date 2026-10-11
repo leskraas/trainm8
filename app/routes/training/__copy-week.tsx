@@ -1,8 +1,8 @@
 /**
  * **Copying a week** onto another week (#415, ADR 0044 §6).
  *
- * The other way to fill a week, sitting under the stamp so the athlete reads the two
- * offers together. Split out of `plan.tsx` the way `__stamp-pattern.tsx` is — the
+ * The athlete's own way to fill a week, now that the weeks fill themselves from
+ * the typical week (decision 14). Split out of `plan.tsx` like the other editors — the
  * route owns the loader, the action and the wording of every refusal; this module
  * owns the controls.
  *

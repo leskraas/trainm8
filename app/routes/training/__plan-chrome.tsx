@@ -37,7 +37,7 @@
  *   `SegmentedControl`'s.
  *
  * `Disclosure`, the native `<details>` section, stays for the surfaces that still
- * import it from here (the creation flow and the catalogue) until they move.
+ * import it from here (the catalogue) until it moves.
  */
 import { type ReactNode } from 'react'
 import { Link } from 'react-router'
@@ -276,7 +276,7 @@ export function CollapsibleSection({
 
 /**
  * The native `<details>` section, kept for the surfaces outside Sesong that
- * still import it (the creation flow, the catalogue). Sesong itself uses
+ * still import it (the catalogue). Sesong itself uses
  * {@link CollapsibleSection}.
  */
 export function Disclosure({

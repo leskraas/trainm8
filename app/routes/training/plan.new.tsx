@@ -22,12 +22,6 @@ import { ErrorList, Field } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { formatNbDate } from '#app/utils/format.ts'
 import {
@@ -39,6 +33,7 @@ import {
 	OPEN_ENDED_PLAN_LABEL,
 	PLAN_NEW_LABELS,
 } from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
 import {
 	createFitnessGoalEvent,
 	createKeepMeActivePlan,
@@ -53,6 +48,8 @@ import {
 	type CardioDiscipline,
 } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.new.ts'
+import { PillLink, PlanCard } from './__plan-chrome.tsx'
+import { SportChoice } from './__plan-new-parts.tsx'
 
 export const meta: Route.MetaFunction = () => [
 	{ title: `${APP_TAB_LABELS.season} | Trainm8` },
@@ -178,153 +175,167 @@ export default function NewPlanRoute({
 			{/* Sesong's own landing while there is no plan (ADR 0083): a tab's
 			    landing page, so no back affordance — the tab bar is the way out. */}
 			<PageHeader title={APP_TAB_LABELS.season} className="mb-2" />
-			<p className="mb-1 text-base font-semibold">{PLAN_NEW_LABELS.heading}</p>
-			<p className="text-muted-foreground mb-6 text-sm">
-				{PLAN_NEW_LABELS.intro}
-			</p>
-
-			<section aria-labelledby="your-events" className="mb-8 space-y-4">
-				{/* The full Events list is reached from here as it is from the plan. */}
-				<div className="flex items-baseline justify-between gap-3">
-					<h2 id="your-events" className="text-lg font-semibold">
-						{PLAN_NEW_LABELS.yourEvents}
-					</h2>
-					<Link
-						to="/training/events"
-						className="text-muted-foreground text-sm underline"
-					>
-						{PLAN_NEW_LABELS.allEvents}
-					</Link>
-				</div>
-				{candidates.length === 0 ? (
-					<p className="text-muted-foreground text-sm">
-						{PLAN_NEW_LABELS.noEventsBefore}
-						<Link to="/training/events/new" className="underline">
-							{PLAN_NEW_LABELS.addEvent}
-						</Link>
-						.
-					</p>
-				) : null}
-				{plannable.map((candidate) => (
-					<Card key={candidate.id}>
-						<CardHeader className="gap-1">
-							<CardTitle className="flex flex-wrap items-center gap-2 text-base">
-								{candidate.name}
-								<Badge variant="secondary">
-									{NB_EVENT_KIND_LABELS[candidate.kind]}
-								</Badge>
-							</CardTitle>
-							<p className="text-muted-foreground text-sm">
-								{formatNbDate(candidate.startDate, 'UTC')}
-								{candidate.disciplines.length > 0
-									? ` · ${candidate.disciplines
-											.map((discipline) => nbDisciplineLabel(discipline))
-											.join(', ')}`
-									: null}
-							</p>
-						</CardHeader>
-						<CardContent>
-							<Link
-								to={`/training/plan/new/${candidate.id}`}
-								className={buttonVariants({ size: 'sm' })}
-							>
-								{PLAN_NEW_LABELS.planForEvent}
-							</Link>
-						</CardContent>
-					</Card>
-				))}
-				{alreadyPlanned.map((candidate) => (
-					<Card key={candidate.id} className="opacity-80">
-						<CardHeader className="gap-1">
-							<CardTitle className="text-base">{candidate.name}</CardTitle>
-							<p className="text-muted-foreground text-sm">
-								{formatNbDate(candidate.startDate, 'UTC')} ·{' '}
-								{PLAN_NEW_LABELS.alreadyPlanned}
-							</p>
-						</CardHeader>
-						<CardContent>
-							<Link
-								to={`/training/plan?event=${candidate.id}`}
-								className={buttonVariants({ variant: 'outline', size: 'sm' })}
-							>
-								{PLAN_NEW_LABELS.openItsPlan}
-							</Link>
-						</CardContent>
-					</Card>
-				))}
-			</section>
-
-			<OpenEndedSection
-				{...openEnded}
-				roundWeeks={roundWeeks}
-				lastResult={
-					actionData?.result?.initialValue?.intent === 'open-ended'
-						? actionData.result
-						: undefined
-				}
-			/>
-
-			<section aria-labelledby="set-a-goal" className="space-y-4">
-				<h2 id="set-a-goal" className="text-lg font-semibold">
-					{PLAN_NEW_LABELS.setAGoal}
-				</h2>
-				<p className="text-muted-foreground text-sm">
-					{PLAN_NEW_LABELS.setAGoalIntro}
+			{/* Page prose sits on the page, not in a card (ui-conventions §1.6). */}
+			<div className="mb-6 space-y-1">
+				<h2 className="text-heading">{PLAN_NEW_LABELS.heading}</h2>
+				<p className="text-footnote text-muted-foreground">
+					{PLAN_NEW_LABELS.intro}
 				</p>
-				<Form method="POST" {...getFormProps(form)}>
+			</div>
+
+			{/* Three ways in, each a card on Sesong's own chrome (ADR 0090 §4): the
+			    athlete's Events, a plan with no end, and a dated goal. */}
+			<div className="space-y-6">
+				<PlanCard
+					titleId="your-events"
+					title={PLAN_NEW_LABELS.yourEvents}
+					// The full Events list is reached from here as it is from the plan.
+					aside={
+						<Link
+							to="/training/events"
+							className="text-foreground relative inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+						>
+							{PLAN_NEW_LABELS.allEvents}
+						</Link>
+					}
+				>
+					{candidates.length === 0 ? (
+						<p className="text-footnote text-muted-foreground">
+							{PLAN_NEW_LABELS.noEventsBefore}
+							<Link
+								to="/training/events/new"
+								className="text-foreground font-semibold underline underline-offset-4"
+							>
+								{PLAN_NEW_LABELS.addEvent}
+							</Link>
+							.
+						</p>
+					) : (
+						<ul className="divide-border/60 divide-y">
+							{plannable.map((candidate) => (
+								<EventRow
+									key={candidate.id}
+									name={candidate.name}
+									badge={NB_EVENT_KIND_LABELS[candidate.kind]}
+									meta={`${formatNbDate(candidate.startDate, 'UTC')}${
+										candidate.disciplines.length > 0
+											? ` · ${candidate.disciplines
+													.map((discipline) => nbDisciplineLabel(discipline))
+													.join(', ')}`
+											: ''
+									}`}
+									action={
+										<Link
+											to={`/training/plan/new/${candidate.id}`}
+											className={cn(
+												buttonVariants({ size: 'sm' }),
+												'rounded-full px-4',
+											)}
+										>
+											{PLAN_NEW_LABELS.planForEvent}
+										</Link>
+									}
+								/>
+							))}
+							{alreadyPlanned.map((candidate) => (
+								<EventRow
+									key={candidate.id}
+									name={candidate.name}
+									meta={`${formatNbDate(candidate.startDate, 'UTC')} · ${PLAN_NEW_LABELS.alreadyPlanned}`}
+									action={
+										<PillLink to={`/training/plan?event=${candidate.id}`}>
+											{PLAN_NEW_LABELS.openItsPlan}
+										</PillLink>
+									}
+								/>
+							))}
+						</ul>
+					)}
+				</PlanCard>
+
+				<OpenEndedSection
+					{...openEnded}
+					roundWeeks={roundWeeks}
+					lastResult={
+						actionData?.result?.initialValue?.intent === 'open-ended'
+							? actionData.result
+							: undefined
+					}
+				/>
+
+				<PlanCard titleId="set-a-goal" title={PLAN_NEW_LABELS.setAGoal}>
 					<div className="space-y-4">
-						<Field
-							labelProps={{ children: PLAN_NEW_LABELS.goal }}
-							inputProps={{
-								...getInputProps(fields.name, { type: 'text' }),
-								placeholder: PLAN_NEW_LABELS.goalPlaceholder,
-							}}
-							errors={fields.name.errors as string[] | undefined}
-						/>
-						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+						<p className="text-footnote text-muted-foreground">
+							{PLAN_NEW_LABELS.setAGoalIntro}
+						</p>
+						<Form method="POST" {...getFormProps(form)} className="space-y-4">
 							<Field
+								labelProps={{ children: PLAN_NEW_LABELS.goal }}
+								inputProps={{
+									...getInputProps(fields.name, { type: 'text' }),
+									placeholder: PLAN_NEW_LABELS.goalPlaceholder,
+								}}
+								errors={fields.name.errors as string[] | undefined}
+							/>
+							<Field
+								className="sm:max-w-xs"
 								labelProps={{ children: PLAN_NEW_LABELS.date }}
 								inputProps={{
 									...getInputProps(fields.startDate, { type: 'date' }),
 								}}
 								errors={fields.startDate.errors as string[] | undefined}
 							/>
-							<fieldset className="space-y-1.5">
-								<legend className="text-sm font-medium">
-									{PLAN_NEW_LABELS.discipline}
-								</legend>
-								<div className="flex flex-wrap gap-x-4">
-									{DISCIPLINES.map((discipline) => (
-										<label
-											key={discipline}
-											className="flex min-h-11 cursor-pointer items-center gap-2"
-										>
-											<input
-												type="radio"
-												name={fields.discipline.name}
-												value={discipline}
-												defaultChecked={discipline === 'run'}
-												className="size-4"
-											/>
-											<span className="text-sm">
-												{NB_DISCIPLINE_LABELS[discipline]}
-											</span>
-										</label>
-									))}
-								</div>
-								<ErrorList
-									errors={fields.discipline.errors as string[] | undefined}
-								/>
-							</fieldset>
-						</div>
-						<ErrorList errors={form.errors as string[] | undefined} />
-						<Button type="submit" className="w-full sm:w-auto">
-							{PLAN_NEW_LABELS.create}
-						</Button>
+							<SportChoice
+								name={fields.discipline.name}
+								legend={PLAN_NEW_LABELS.discipline}
+								defaultValue="run"
+								options={DISCIPLINES.map((discipline) => ({
+									value: discipline,
+									label: NB_DISCIPLINE_LABELS[discipline],
+								}))}
+								errors={fields.discipline.errors as string[] | undefined}
+							/>
+							<ErrorList errors={form.errors as string[] | undefined} />
+							<Button type="submit" className="w-full sm:w-auto">
+								{PLAN_NEW_LABELS.create}
+							</Button>
+						</Form>
 					</div>
-				</Form>
-			</section>
+				</PlanCard>
+			</div>
 		</main>
+	)
+}
+
+/**
+ * One Event on the list: its name and kind, when it is, and the one thing to do
+ * with it. A row in the card, not a card of its own — cards inside a card are
+ * the nesting the luma direction separates by tone instead.
+ */
+function EventRow({
+	name,
+	badge,
+	meta,
+	action,
+}: {
+	name: string
+	badge?: string
+	meta: string
+	action: React.ReactNode
+}) {
+	return (
+		<li className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center">
+			<div className="min-w-0 flex-1 space-y-0.5">
+				<p className="text-callout flex flex-wrap items-center gap-2 font-semibold [overflow-wrap:anywhere]">
+					{name}
+					{badge ? <Badge variant="secondary">{badge}</Badge> : null}
+				</p>
+				<p className="text-footnote text-muted-foreground tabular-nums">
+					{meta}
+				</p>
+			</div>
+			<div className="shrink-0">{action}</div>
+		</li>
 	)
 }
 
@@ -361,75 +372,63 @@ function OpenEndedSection({
 	const prefill = hoursByDiscipline[discipline]
 
 	return (
-		<section aria-labelledby="open-ended" className="mb-8 space-y-4">
-			<h2 id="open-ended" className="text-lg font-semibold">
-				{OPEN_ENDED_PLAN_LABEL}
-			</h2>
-			<p className="text-muted-foreground text-sm">{O.intro(roundWeeks)}</p>
-			{outlineId ? (
-				<p className="text-sm">
-					{O.alreadyActive}{' '}
-					<Link
-						to={`/training/plan?outline=${outlineId}`}
-						className="underline"
-					>
-						{O.openPlan}
-					</Link>
+		<PlanCard titleId="open-ended" title={OPEN_ENDED_PLAN_LABEL}>
+			<div className="space-y-4">
+				<p className="text-footnote text-muted-foreground">
+					{O.intro(roundWeeks)}
 				</p>
-			) : (
-				<Form method="POST" {...getFormProps(form)}>
-					<input type="hidden" name="intent" value="open-ended" />
-					<div className="space-y-4">
-						<fieldset className="space-y-1.5">
-							<legend className="text-sm font-medium">{O.discipline}</legend>
-							<div className="flex flex-wrap gap-x-4">
-								{CARDIO_DISCIPLINES.map((option) => (
-									<label
-										key={option}
-										className="flex min-h-11 cursor-pointer items-center gap-2"
-									>
-										<input
-											type="radio"
-											name={fields.discipline.name}
-											value={option}
-											checked={option === discipline}
-											onChange={() => setDiscipline(option)}
-											className="size-4"
-										/>
-										<span className="text-sm">
-											{NB_DISCIPLINE_LABELS[option]}
-										</span>
-									</label>
-								))}
-							</div>
-							<ErrorList
-								errors={fields.discipline.errors as string[] | undefined}
-							/>
-						</fieldset>
-						<Field
-							// Keyed on the Discipline so its own pre-fill lands when it changes.
-							key={discipline}
-							labelProps={{ children: O.hours }}
-							inputProps={{
-								...getInputProps(fields.hours, { type: 'number' }),
-								step: '0.5',
-								min: '0.5',
-								inputMode: 'decimal',
-								defaultValue: prefill ?? '',
-							}}
-							errors={fields.hours.errors as string[] | undefined}
+				{outlineId ? (
+					<p className="text-footnote">
+						{O.alreadyActive}{' '}
+						<Link
+							to={`/training/plan?outline=${outlineId}`}
+							className="text-foreground relative inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+						>
+							{O.openPlan}
+						</Link>
+					</p>
+				) : (
+					<Form method="POST" {...getFormProps(form)} className="space-y-4">
+						<input type="hidden" name="intent" value="open-ended" />
+						<SportChoice
+							name={fields.discipline.name}
+							legend={O.discipline}
+							value={discipline}
+							onValueChange={(next) => setDiscipline(next as CardioDiscipline)}
+							options={CARDIO_DISCIPLINES.map((option) => ({
+								value: option,
+								label: NB_DISCIPLINE_LABELS[option],
+							}))}
+							errors={fields.discipline.errors as string[] | undefined}
 						/>
-						<p className="text-muted-foreground -mt-2 text-sm">
-							{prefill != null ? O.hoursFromHistory : O.hoursUnmeasured}
-						</p>
+						<div className="space-y-1.5">
+							<Field
+								// Keyed on the Discipline so its own pre-fill lands when it
+								// changes.
+								key={discipline}
+								className="sm:max-w-xs"
+								labelProps={{ children: O.hours }}
+								inputProps={{
+									...getInputProps(fields.hours, { type: 'number' }),
+									step: '0.5',
+									min: '0.5',
+									inputMode: 'decimal',
+									defaultValue: prefill ?? '',
+								}}
+								errors={fields.hours.errors as string[] | undefined}
+							/>
+							<p className="text-footnote text-muted-foreground">
+								{prefill != null ? O.hoursFromHistory : O.hoursUnmeasured}
+							</p>
+						</div>
 						<ErrorList errors={form.errors as string[] | undefined} />
 						<Button type="submit" className="w-full sm:w-auto">
 							{O.create}
 						</Button>
-					</div>
-				</Form>
-			)}
-		</section>
+					</Form>
+				)}
+			</div>
+		</PlanCard>
 	)
 }
 

@@ -46,22 +46,15 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
-import {
-	formatNbPercent,
-	formatNbSignedPercent,
-	formatPercent,
-	formatSignedPercent,
-} from '#app/utils/format.ts'
+import { formatNbPercent, formatNbSignedPercent } from '#app/utils/format.ts'
 import {
 	NB_RHYTHM_CHOICE_LABELS,
 	NB_WEEK_ROLE_CELL_LABELS,
 	nbPhaseName,
 	PHILOSOPHY_DESCRIPTIONS,
 	PHILOSOPHY_LABELS,
-	RHYTHM_LABELS,
 	SESONG_PAGE_LABELS,
 	SESONG_SHAPE_LABELS,
-	WEEK_ROLE_LABELS,
 } from '#app/utils/labels.ts'
 import {
 	DEFAULT_RECOVERY_CUT,
@@ -95,11 +88,24 @@ function presetLength(key: PresetKey): 'short' | 'standard' | 'long' {
 /**
  * A shape by the name the Filosofi card gives its family, and its length:
  * `Klassisk 3:1`, `Klassisk 3:1, lang innkjøring` — one name for one method on
- * Sesong (audit B7). The stored English `preset.name` stays the creation
- * flow's until that page speaks Norwegian.
+ * Sesong and in the creation flow (audit B7). `preset.name` and
+ * `preset.provenance` are the domain's English and are never shown.
  */
 export function nbPresetName(key: PresetKey): string {
 	return `${PHILOSOPHY_LABELS[familyOfPreset(key)]}${SESONG_SHAPE_LABELS.lengthSuffix[presetLength(key)]}`
+}
+
+/**
+ * The line under a shape's name: what its family is, or — for a short or long
+ * variant — that it is the same season over fewer or more weeks. Shared by the
+ * gallery and the creation flow's shape step, so a shape describes itself the
+ * same way wherever it is picked.
+ */
+export function nbPresetNote(key: PresetKey): string {
+	return (
+		SESONG_SHAPE_LABELS.lengthNote[presetLength(key)] ??
+		PHILOSOPHY_DESCRIPTIONS[familyOfPreset(key)]
+	)
 }
 
 /**
@@ -233,9 +239,7 @@ function PresetCard({
 }) {
 	const weeks = presetWeeks(preset)
 	const name = nbPresetName(preset.key)
-	const note =
-		SESONG_SHAPE_LABELS.lengthNote[presetLength(preset.key)] ??
-		PHILOSOPHY_DESCRIPTIONS[familyOfPreset(preset.key)]
+	const note = nbPresetNote(preset.key)
 
 	return (
 		<Card className="h-full" size="sm">
@@ -249,7 +253,6 @@ function PresetCard({
 					profile={profile}
 					ceiling={ceiling}
 					slots={slots}
-					nb
 				/>
 
 				<div className="text-footnote space-y-2">
@@ -268,7 +271,7 @@ function PresetCard({
 					    cuts are identical across every shape and are stated once, at
 					    the top of the gallery — a convention named as a convention, per
 					    `RAMP_GUARD_MAX` and ADR 0044 §4. */}
-					<p className="text-muted-foreground">{nbRhythmSentence(preset)}</p>
+					<p className="text-muted-foreground">{rhythmSentence(preset)}</p>
 				</div>
 
 				<Form method="POST" className="space-y-2">
@@ -306,29 +309,10 @@ export function rhythmSentence(preset: PeriodizationPreset): string {
 	]
 	const rhythm =
 		rhythms.length === 1
-			? `Loads ${RHYTHM_LABELS[rhythms[0]!]}.`
-			: 'The rhythm changes from block to block.'
-
-	// Named where it exists, because an authored drop is intent and the picture
-	// shows it as a fall the athlete would otherwise read as a mistake (ADR 0040 §4).
-	const step = preset.phases.find((phase) => phase.boundaryStep != null)
-	if (!step?.boundaryStep) return rhythm
-	return `${rhythm} Volume steps ${formatSignedPercent(step.boundaryStep)} entering ${step.name}, deliberately, as the quality goes up.`
-}
-
-/** {@link rhythmSentence} in Sesong's Norwegian, for the gallery under Avansert. */
-function nbRhythmSentence(preset: PeriodizationPreset): string {
-	const rhythms = [
-		...new Set(
-			preset.phases
-				.map((phase) => phase.rhythm)
-				.filter((rhythm) => rhythm !== 'none'),
-		),
-	]
-	const rhythm =
-		rhythms.length === 1
 			? SESONG_SHAPE_LABELS.loads(NB_RHYTHM_CHOICE_LABELS[rhythms[0]!])
 			: SESONG_SHAPE_LABELS.rhythmChanges
+	// Named where it exists, because an authored drop is intent and the picture
+	// shows it as a fall the athlete would otherwise read as a mistake (ADR 0040 §4).
 	const step = preset.phases.find((phase) => phase.boundaryStep != null)
 	if (!step?.boundaryStep) return rhythm
 	return `${rhythm}${SESONG_SHAPE_LABELS.step(
@@ -374,17 +358,11 @@ export function LoadProfile({
 	profile,
 	ceiling,
 	slots,
-	nb = false,
 }: {
 	preset: PeriodizationPreset
 	profile: number[]
 	ceiling: number
 	slots: number
-	/**
-	 * Speak Sesong's Norwegian (the gallery under Avansert); the creation flow
-	 * still reads the English until that page is translated.
-	 */
-	nb?: boolean
 }) {
 	const phases = presetPhaseSpecs(preset)
 	const width = slots * SLOT
@@ -408,18 +386,17 @@ export function LoadProfile({
 				preserveAspectRatio="none"
 				className="h-14 w-full"
 				role="img"
-				aria-label={
-					nb
-						? SESONG_SHAPE_LABELS.summary(
-								nbPresetName(preset.key),
-								profile.length,
-								formatNbPercent(peak.value / PRESET_PROFILE_ANCHOR),
-								peak.week,
-								countRole(phases, profile, 'recovery'),
-								countRole(phases, profile, 'taper'),
-							)
-						: profileSummary(preset, profile, peak)
-				}
+				// The one-line summary: the length, the climb and where the season
+				// recovers. It says what the picture does, which is what an
+				// alternative text is for — the per-week figures are the table's job.
+				aria-label={SESONG_SHAPE_LABELS.summary(
+					nbPresetName(preset.key),
+					profile.length,
+					formatNbPercent(peak.value / PRESET_PROFILE_ANCHOR),
+					peak.week,
+					countRole(phases, profile, 'recovery'),
+					countRole(phases, profile, 'taper'),
+				)}
 			>
 				{profile.map((value, index) => {
 					const role = weekRole(phases, index)
@@ -449,34 +426,21 @@ export function LoadProfile({
 					)
 				})}
 			</svg>
-			{nb ? (
-				<ChartDataTable
-					caption={SESONG_SHAPE_LABELS.tableCaption(nbPresetName(preset.key))}
-					columns={[
-						SESONG_SHAPE_LABELS.columns.week,
-						SESONG_SHAPE_LABELS.columns.block,
-						SESONG_SHAPE_LABELS.columns.role,
-						SESONG_SHAPE_LABELS.columns.load,
-					]}
-					rows={profile.map((value, index) => [
-						SESONG_SHAPE_LABELS.week(index + 1),
-						nbPhaseName(blockName(preset, phases, index)),
-						NB_WEEK_ROLE_CELL_LABELS[weekRole(phases, index)],
-						formatNbPercent(value / PRESET_PROFILE_ANCHOR),
-					])}
-				/>
-			) : (
-				<ChartDataTable
-					caption={`${preset.name}: the load profile it lays down, each week as a percentage of your opening week`}
-					columns={['Week', 'Block', 'Role', 'Load']}
-					rows={profile.map((value, index) => [
-						`Week ${index + 1}`,
-						blockName(preset, phases, index),
-						WEEK_ROLE_LABELS[weekRole(phases, index)],
-						share(value),
-					])}
-				/>
-			)}
+			<ChartDataTable
+				caption={SESONG_SHAPE_LABELS.tableCaption(nbPresetName(preset.key))}
+				columns={[
+					SESONG_SHAPE_LABELS.columns.week,
+					SESONG_SHAPE_LABELS.columns.block,
+					SESONG_SHAPE_LABELS.columns.role,
+					SESONG_SHAPE_LABELS.columns.load,
+				]}
+				rows={profile.map((value, index) => [
+					SESONG_SHAPE_LABELS.week(index + 1),
+					nbPhaseName(blockName(preset, phases, index)),
+					NB_WEEK_ROLE_CELL_LABELS[weekRole(phases, index)],
+					formatNbPercent(value / PRESET_PROFILE_ANCHOR),
+				])}
+			/>
 		</figure>
 	)
 }
@@ -490,11 +454,6 @@ function countRole(
 	return profile.filter((_, index) => weekRole(phases, index) === role).length
 }
 
-/** A week's load as a share of the opening week — the profile's only unit. */
-function share(value: number): string {
-	return formatPercent(value / PRESET_PROFILE_ANCHOR)
-}
-
 /** The block a week sits in. Takes the specs the caller already derived, rather
  * than re-deriving them once per row of the table. */
 function blockName(
@@ -504,31 +463,4 @@ function blockName(
 ): string {
 	const phaseIndex = phaseIndexForWeek(phases, weekIndex)
 	return phaseIndex == null ? '—' : preset.phases[phaseIndex]!.name
-}
-
-/**
- * The one-line summary the `role="img"` strip carries: the length, the climb and
- * where the season recovers. It says the same thing the picture does, which is
- * what an alternative text is for — the per-week figures are the table's job.
- */
-function profileSummary(
-	preset: PeriodizationPreset,
-	profile: number[],
-	peak: { value: number; week: number },
-): string {
-	const roles = presetPhaseSpecs(preset)
-	const count = (role: WeekRole) =>
-		profile.filter((_, index) => weekRole(roles, index) === role).length
-	const recovery = count('recovery')
-	const taper = count('taper')
-	// Phrased so no clause needs an article in front of a number — "a 21-week" and
-	// "an 18-week" would both have to be produced from the same template.
-	return [
-		`${preset.name}: a load profile ${profile.length} weeks long.`,
-		' It opens at the volume you start from',
-		` and peaks at ${share(peak.value)} of it in week ${peak.week}.`,
-		` ${recovery === 1 ? '1 recovery week' : `${recovery} recovery weeks`} along the way,`,
-		` then it tapers over the last ${taper === 1 ? 'week' : `${taper} weeks`}.`,
-		' Every week is in the table that follows.',
-	].join('')
 }

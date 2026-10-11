@@ -134,7 +134,6 @@ import {
 	SESONG_PHASE_LABELS,
 	SESONG_REFUSAL_LABELS,
 	SESONG_SEGMENT_LABELS,
-	SESONG_STAMP_LABELS,
 	SESONG_TRACK_LABELS,
 	STRENGTH_OFFER_LABELS,
 	switchedPhilosophySentence,
@@ -250,15 +249,8 @@ import {
 } from '#app/utils/plan-outline/season-chart.server.ts'
 import {
 	readStampedMixWarnings,
-	stampWeekPattern,
 	type StampedMixWarning,
-	type StampReport,
-	type StampRefusal,
 } from '#app/utils/plan-outline/stamp.server.ts'
-import {
-	WeekPatternStampSchema,
-	type StampSkipReason,
-} from '#app/utils/plan-outline/stamp.ts'
 import { type StarterProposal } from '#app/utils/plan-outline/starter-pattern.ts'
 import { addProposedStrengthTrack } from '#app/utils/plan-outline/strength-offer.server.ts'
 import { type UnavailableReading } from '#app/utils/plan-outline/unavailable-readings.ts'
@@ -1113,17 +1105,11 @@ export async function action({ request }: Route.ActionArgs) {
 				await removeWeekPatternDay(userId, { dayId: dayId.data }),
 			)
 		}
-		// ── Stamping a pattern into the calendar (#412) ───────────────────────
-		// The one action on this route that writes **Workout Sessions** rather than
-		// the Outline, and the only one whose refusal can be a *question*: a week
-		// that already holds sessions comes back asking, and the second submit is
-		// this one plus a yes (ADR 0044 §6).
-		case 'stamp-week-pattern':
-			return stampPattern(userId, request, formData)
 		// ── Copying a week onto another week (#415) ───────────────────────────
-		// The other write that leaves Workout Sessions behind, and the same shape of
-		// question: a target week that already holds sessions comes back asking, and
-		// the second submit is this one plus a yes (ADR 0044 §6).
+		// The one write on this route that leaves Workout Sessions behind, and the
+		// one whose refusal can be a question: a target week that already holds
+		// sessions comes back asking, and the second submit is this one plus a yes
+		// (ADR 0044 §6).
 		case 'copy-week':
 			return copyWeekOnto(userId, request, formData)
 		// ── Re-anchoring a track mid-season (#407) ────────────────────────────
@@ -1721,113 +1707,9 @@ async function authorSeasonAnchor(
 }
 
 /**
- * Stamp a **Week Pattern** into the weeks the athlete ticked (#412).
- *
- * The only write on this route that leaves **Workout Sessions** behind rather than
- * Outline rows, and the only one whose refusal can be a *question*. A week that
- * already holds sessions comes back as `weeks-already-filled` carrying the counts:
- * that is not an error and is deliberately **not** worded as one — nothing was
- * written, and the surface renders the counts with a confirm button that replays
- * this exact submission plus `replace`.
- *
- * A success redirects rather than falling through to the loader, for the reason
- * applying a preset does: something happened that the page cannot say by itself.
- * The athlete's calendar just changed, and the one thing they need told in words is
- * that those sessions are now ordinary sessions with nothing linked back.
- */
-async function stampPattern(
-	userId: string,
-	request: Request,
-	formData: FormData,
-) {
-	const submitted = WeekPatternStampSchema.safeParse({
-		patternId: formData.get('patternId'),
-		weekKeys: formData.getAll('weekKeys').map(String),
-		replace: checked(formData, 'replace'),
-	})
-	if (!submitted.success) return refuse(firstIssue(submitted.error))
-
-	const stamped = await stampWeekPattern(userId, submitted.data)
-	if (!stamped.ok) {
-		if (stamped.reason !== 'weeks-already-filled') {
-			return refuse(stampRefusalMessage(stamped.reason))
-		}
-		// No `error` key: this is a question, not a refusal to word at the top of the
-		// reading. The panel that renders it is the answer.
-		return data(
-			{
-				stamp: {
-					patternId: submitted.data.patternId,
-					weekKeys: submitted.data.weekKeys,
-					conflicts: stamped.conflicts,
-				},
-			},
-			{ status: 400 },
-		)
-	}
-
-	const url = new URL(request.url)
-	return redirectWithToast(`${url.pathname}${url.search}`, {
-		type: 'success',
-		title: SESONG_STAMP_LABELS.done,
-		description: stampSentence(stamped.report),
-	})
-}
-
-/**
- * What a stamp did, in one sentence — counts first, then the two things the athlete
- * has to know: the sessions are theirs to edit, and anything the stamp could not
- * write is named rather than left as a silent gap.
- */
-function stampSentence(report: StampReport): string {
-	return `${SESONG_STAMP_LABELS.sentence(
-		report.sessions,
-		report.weeks,
-		report.replaced,
-	)}${skippedSentence(report.skipped)}`
-}
-
-/**
- * The days that produced no session, named by reason — an Unavailable Metric with
- * its cause, never a silent omission (ADR 0008).
- */
-function skippedSentence(skipped: StampReport['skipped']): string {
-	const reasons = new Set(skipped.map((skip) => skip.reason))
-	const clauses = [...reasons].map((reason) => STAMP_SKIP_COPY[reason])
-	return clauses.length === 0 ? '' : ` ${clauses.join(' ')}`
-}
-
-const STAMP_SKIP_COPY: Record<StampSkipReason, string> = {
-	'no-prescription': SESONG_STAMP_LABELS.skipNoPrescription,
-	'volume-unavailable': SESONG_STAMP_LABELS.skipVolumeUnavailable,
-	'no-volume-left': SESONG_STAMP_LABELS.skipNoVolumeLeft,
-	'not-prescribable': SESONG_STAMP_LABELS.skipNotPrescribable,
-}
-
-function stampRefusalMessage(
-	reason: Exclude<StampRefusal, 'weeks-already-filled'>,
-): string {
-	switch (reason) {
-		case 'plan-resting':
-			return PLAN_RESTING
-		case 'pattern-gone':
-			return PATTERN_GONE
-		case 'pattern-empty':
-			return SESONG_STAMP_LABELS.patternEmpty
-		case 'week-outside-plan':
-			return WEEK_OUTSIDE_PLAN
-		case 'nothing-to-stamp':
-			// Not an absence and not a bug: every day of the pattern hit one of the
-			// four reasons above, so the honest answer names that rather than
-			// reporting a stamp of nothing as a success.
-			return SESONG_STAMP_LABELS.nothingToStamp
-	}
-}
-
-/**
  * Copy one week of this plan onto another week of it (#415).
  *
- * The stamp's sibling, and deliberately the same shape: a target week that already
+ * The shape the retired stamp had (decision 14): a target week that already
  * holds sessions comes back as a question carrying the counts rather than as an
  * error, and a success redirects because the calendar changed in a way the page
  * cannot state by itself.

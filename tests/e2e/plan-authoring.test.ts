@@ -1,4 +1,3 @@
-import { type Locator, type Page } from '@playwright/test'
 import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
 
 /**
@@ -19,18 +18,6 @@ import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
  * `/training/plan` at 390×844 with a seeded plan rather than re-driving the
  * whole authoring flow twice.
  */
-
-/**
- * One of the creation flow's `<details>` sections, by the line on its summary
- * row. (Sesong's sections are collapsibles, reached by their button.)
- *
- * A `<summary>` carries no ARIA role, so there is no role query for it — and a
- * section's own `sr-only` heading repeats the summary's words inside it, which is
- * what rules out matching on text alone.
- */
-function section(scope: Page | Locator, name: string) {
-	return scope.locator('summary').filter({ hasText: name })
-}
 
 test('athlete plans a season from a goal, and its weeks fill from the typical week', async ({
 	page,
@@ -82,34 +69,37 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 		/\/training\/plan\/new\/[a-z0-9]+\?created=goal$/i,
 	)
 	await expect(
-		page.getByRole('heading', { name: 'Lay out your season' }),
+		page.getByRole('heading', { name: 'Legg opp sesongen' }),
 	).toBeVisible()
 	// The Event it just wrote, named — the athlete sees what was created, not
 	// only its effect.
 	await expect(page.getByText(goalName).first()).toBeVisible()
-	await expect(page.getByText('Goal created')).toBeVisible()
+	await expect(page.getByText('Mål laget')).toBeVisible()
 
 	// A shape carries the blocks, the ramps and the mixes with it. The 21-week
 	// pyramidal one is *not* the default here, so checking it is an authored
 	// choice and its "Big base" block is the proof it landed. The gallery leads
 	// with the shapes nearest the Event, so a longer one is behind the other
 	// lengths.
-	await section(page, 'more lengths').click()
-	await page
-		.getByRole('radio', { name: /^Big base \/ pyramidal A long aerobic base/ })
-		.check()
+	// The other lengths open on a collapsible, which answers once React has it.
+	const more = page.getByRole('button', { name: /lengder til/i })
+	await untilHydrated(more)
+	await more.click()
+	await page.getByRole('radio', { name: 'Stor base', exact: true }).check()
 
 	// This athlete has trained nothing, so there is no history to read a unit
 	// from and the currency is honestly theirs to pick (ADR 0043 §2).
 	// The select is drawn by the client and opens nothing until React has it,
 	// which on a cold dev server can be after the page shows.
-	const unit = page.getByRole('combobox', { name: /what do you plan/i })
+	const unit = page.getByRole('combobox', {
+		name: /hvilken enhet planlegger du/i,
+	})
 	await untilHydrated(unit)
 	await unit.click()
-	await page.getByRole('option', { name: 'Kilometres per week' }).click()
-	await page.getByLabel(/where you are starting from/i).fill('40')
+	await page.getByRole('option', { name: 'Kilometer i uka' }).click()
+	await page.getByLabel(/startvolum per uke/i).fill('40')
 
-	await page.getByRole('button', { name: 'Create plan' }).click()
+	await page.getByRole('button', { name: 'Lag planen' }).click()
 
 	// ---------------------------------------------------------------------
 	// Sesong, opened on the season just authored (ADR 0090)

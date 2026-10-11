@@ -53,12 +53,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '#app/components/ui/select.tsx'
-import {
-	formatNbVolumeTotal,
-	formatNbWeeklyVolume,
-	formatVolumeTotal,
-	formatWeeklyVolume,
-} from '#app/utils/format.ts'
+import { formatNbVolumeTotal, formatNbWeeklyVolume } from '#app/utils/format.ts'
 import {
 	NB_VOLUME_CURRENCY_LABELS,
 	NB_WEEKLY_UNITS,
@@ -98,30 +93,10 @@ export type RosterTrack = {
  * second one are one act happening twice (ADR 0043 §2), and two hand-written
  * derivation sentences would drift into two vocabularies for one arithmetic.
  * The numbers travel as a value object and this is where they are worded, so the
- * display layer stays the one that formats them (ADR 0023, ADR 0040 §6).
- */
-export function anchorSentence(prefill: AnchorPrefill | undefined): string {
-	if (!prefill) {
-		return `Nothing in your last ${ANCHOR_WINDOW_WEEKS} weeks to read this from — type the weekly volume you are starting at.`
-	}
-	const { derivation } = prefill
-	const average = derivation.total / derivation.windowWeeks
-	// Named only where it is not the whole window: "you trained 2 of them" is what
-	// tells an athlete who trained twice in four weeks why the number reads low.
-	const trained =
-		derivation.weeksTrained === derivation.windowWeeks
-			? ''
-			: ` — you trained ${derivation.weeksTrained} of them`
-	return `Your last ${derivation.windowWeeks} weeks averaged ${formatWeeklyVolume(
-		average,
-		derivation.currency,
-	)} (${formatVolumeTotal(derivation.total, derivation.currency)} in total)${trained}.`
-}
-
-/**
- * {@link anchorSentence} in Sesong's Norwegian (ADR 0081, round 2): the same
- * reading of the same numbers, for the plan page's second track. The English
- * one stays for the creation flow until that page speaks Norwegian too.
+ * display layer stays the one that formats them (ADR 0023, ADR 0040 §6). In
+ * Norwegian on both since round 2 (ADR 0081): "du trente 2 av dem" is named only
+ * where it is not the whole window, because it is what tells an athlete who
+ * trained twice in four weeks why the number reads low.
  */
 export function nbAnchorSentence(prefill: AnchorPrefill | undefined): string {
 	if (!prefill) return SESONG_TRACK_LABELS.anchorNone(ANCHOR_WINDOW_WEEKS)

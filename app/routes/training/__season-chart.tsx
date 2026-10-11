@@ -89,6 +89,7 @@ import {
 	NB_VOLUME_CURRENCY_LABELS,
 	NB_WEEK_ROLE_CELL_LABELS,
 	NB_WEEKLY_UNITS,
+	nbConventionCitation,
 	nbPhaseName,
 	nbTrackName,
 	SESONG_CHART_LABELS,
@@ -1382,7 +1383,9 @@ function sourceText(source: DerivationSource): string {
 		case 'convention':
 			return SESONG_CHART_LABELS.sourceConvention(
 				NB_CONVERSION_CONVENTION_LABELS[source.convention],
-				source.citation,
+				// The citation is the domain's English source data; it is worded
+				// here, for display only (`labels.ts`).
+				nbConventionCitation(source.citation),
 			)
 		case 'threshold':
 			return SESONG_CHART_LABELS.sourceThreshold(
