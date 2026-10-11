@@ -76,7 +76,7 @@ is "the open row, not a clock": a mistap is still on screen ten seconds later.
 Below `md` (where the tab bar is, ADR 0083) the toaster is `bottom-center`,
 offset above the tab bar: it leaves downward, the way the composer's Drawer just
 did, and `Angre` is in the thumb's reach rather than over the top line. From
-`md` up, where the caller asked. (Local deviation D14 in
+`md` up, where the caller asked. (Local deviation D15 in
 `docs/design/design-system.md`.)
 
 ### 4. The detail is where a session is deleted
