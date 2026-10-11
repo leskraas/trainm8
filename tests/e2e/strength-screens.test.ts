@@ -1187,3 +1187,238 @@ test('Endre logs the set that went differently, at the planned weight', async ({
 		{ orderIndex: 1, reps: 3, effectiveKg: 60 },
 	])
 })
+
+// ——— Correctness: rounds, kilos typed with a comma, notes ————————————————————
+
+/** A `5 ×` circuit — one authored set per lift, five rounds — scheduled today.
+ * The seed's "Strength Circuit" has this shape; the runner used to show one
+ * circle per lift, so four rounds of five could not be logged at all. */
+async function seedCircuit(userId: string, setsPerRound = 1) {
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Circuit',
+			discipline: 'strength',
+			intent: 'strength',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 5,
+						steps: {
+							create: ['ex_bb_back_squat', 'ex_bb_bench_press'].map(
+								(exerciseId, orderIndex) => ({
+									orderIndex,
+									kind: 'strength',
+									exerciseId,
+									sets: {
+										create: Array.from({ length: setsPerRound }, (_, i) => ({
+											orderIndex: i,
+											kind: 'reps',
+											reps: 8,
+											load: JSON.stringify({ kind: 'absolute', kg: 40 }),
+											weightKg: 40,
+										})),
+									},
+								}),
+							),
+						},
+					},
+				],
+			},
+		},
+	})
+	return prisma.workoutSession.create({
+		select: { id: true },
+		data: { userId, scheduledAt: new Date(), workoutId: workout.id },
+	})
+}
+
+test('a repeated circuit is one circle per round, and round 2 logs as its own set', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedAthlete(user.id)
+	const session = await seedCircuit(user.id)
+
+	await page.goto(`/training/sessions/${session.id}/log`)
+	await waitForHydration(page, '[data-set-circle]')
+
+	// Five rounds, five circles per lift.
+	const squatCircles = page.getByRole('button', {
+		name: /^Log set \d of Back Squat$/,
+	})
+	await expect(squatCircles).toHaveCount(5)
+	await expect(
+		page.getByRole('button', { name: /^Log set \d of Bench Press$/ }),
+	).toHaveCount(5)
+
+	// Round 2 of the squat.
+	const roundTwo = page.getByRole('button', { name: 'Log set 2 of Back Squat' })
+	await tabTo(page, roundTwo)
+	await pressAndSettle(page, 'Enter')
+	await expect(
+		page.getByRole('button', { name: 'Logged set 2 of Back Squat' }),
+	).toHaveText('8')
+	await expect(page.getByText('1 of 5 logged').first()).toBeVisible()
+
+	// It is stored as round 2 — its own row, answering the one authored set — and
+	// it survives a reload.
+	const stored = await prisma.exerciseSetLog.findMany({
+		where: { sessionId: session.id },
+		select: { orderIndex: true, reps: true, exerciseSetId: true },
+	})
+	expect(stored).toEqual([
+		{ orderIndex: 1, reps: 8, exerciseSetId: expect.any(String) },
+	])
+	await page.reload()
+	await expect(
+		page.getByRole('button', { name: 'Logged set 2 of Back Squat' }),
+	).toBeVisible()
+	await expectNoHorizontalOverflow(page)
+})
+
+test('fifteen circles — three sets, five rounds — wrap into rows a thumb can still hit', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedAthlete(user.id)
+	const session = await seedCircuit(user.id, 3)
+
+	await page.goto(`/training/sessions/${session.id}/log`)
+	const circles = page.getByRole('button', {
+		name: /^Log set \d+ of Back Squat$/,
+	})
+	await expect(circles).toHaveCount(15)
+	for (const box of await circles.evaluateAll((els) =>
+		els.map((el) => el.getBoundingClientRect().width),
+	)) {
+		expect(box).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET)
+	}
+	await expect(page.getByText('0 of 15 logged').first()).toBeVisible()
+	await expectNoHorizontalOverflow(page)
+})
+
+test('a starting weight typed with a decimal comma starts at that weight, not ten times it', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	const program = await strongLifts()
+	await page.goto(`/training/programs/${program.id}/start`)
+	await waitForHydration(page, 'input[name^="weight::"]')
+
+	// Typed key by key, the way a Norwegian keyboard sends it. On the old
+	// `type=number` field Chromium posted `625`.
+	const squat = page.getByLabel(/Back Squat/)
+	await squat.clear()
+	await squat.pressSequentially('62,5')
+	await expect(squat).toHaveValue('62,5')
+	await page.getByRole('button', { name: 'Start StrongLifts 5×5' }).click()
+
+	await expect(page).toHaveURL(/\/training\/programs\/run\//)
+	const lift = await prisma.programLiftState.findFirstOrThrow({
+		where: {
+			exerciseId: 'ex_bb_back_squat',
+			instance: { userId: user.id },
+		},
+		select: { currentWorkingWeightKg: true },
+	})
+	expect(lift.currentWorkingWeightKg).toBe(62.5)
+
+	// The overview's own weight field reads the comma the same way.
+	await waitForHydration(page, 'input[name="weightKg"]')
+	const field = page.getByLabel('Working weight for Back Squat in kg')
+	await field.clear()
+	await field.pressSequentially('67,5')
+	await page
+		.locator('form')
+		.filter({ has: field })
+		.getByRole('button', { name: 'Save weight' })
+		.click()
+	await expect(page.getByText('Working weight set.')).toBeVisible()
+	await expect
+		.poll(async () => {
+			const updated = await prisma.programLiftState.findFirstOrThrow({
+				where: {
+					exerciseId: 'ex_bb_back_squat',
+					instance: { userId: user.id },
+				},
+				select: { currentWorkingWeightKg: true },
+			})
+			return updated.currentWorkingWeightKg
+		})
+		.toBe(67.5)
+	await expectNoHorizontalOverflow(page)
+})
+
+test('a session note is shown whole on a phone and wraps, never cut with "…"', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	const note =
+		'Steady aerobic, nose-breathing pace; walk the hills if the heart rate drifts'
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Long note run',
+			discipline: 'run',
+			intent: 'endurance',
+			ownerId: user.id,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						steps: {
+							create: [
+								{
+									orderIndex: 0,
+									kind: 'cardio',
+									durationSec: 2400,
+									notes: note,
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	// Completed, so the detail view renders the read-only stanza.
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: user.id,
+			scheduledAt: new Date(),
+			status: 'completed',
+			workoutId: workout.id,
+		},
+	})
+
+	await page.goto(`/training/sessions/${session.id}`)
+	const token = page.locator('[data-score-stanza] [data-token-type="notes"]')
+	await expect(token).toHaveText(`“${note}”`)
+	const box = await token.evaluate((el) => {
+		const style = getComputedStyle(el)
+		return {
+			clipped: el.scrollWidth > el.clientWidth + 1,
+			ellipsis: style.textOverflow === 'ellipsis',
+			lines: Math.round(
+				el.getBoundingClientRect().height / parseFloat(style.lineHeight),
+			),
+		}
+	})
+	// Not clipped, no ellipsis, and at 390px a note this long takes more than one
+	// line — which is what "wraps" looks like.
+	expect(box).toMatchObject({ clipped: false, ellipsis: false })
+	expect(box.lines).toBeGreaterThan(1)
+	await expectNoHorizontalOverflow(page)
+})

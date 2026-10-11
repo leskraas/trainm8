@@ -1510,6 +1510,10 @@ function VsLastSessionSummary({
 		archetype?.kind === 'stated'
 			? SESSION_ARCHETYPE_LABELS[archetype.archetype].toLowerCase()
 			: null
+	// The header's own word for a reading (`archetypeWord`), so the card names
+	// the archetype the header shows rather than denying there is one.
+	const readArchetype =
+		archetype?.kind === 'read' ? archetypeWord(archetype).toLowerCase() : null
 	const kind = [statedArchetype, session.workout?.discipline]
 		.filter(Boolean)
 		.join(' ')
@@ -1519,13 +1523,20 @@ function VsLastSessionSummary({
 			<Card className="mt-6">
 				<CardHeader>
 					<CardTitle className="text-h5">vs last time</CardTitle>
-					{/* Two different absences, and conflating them was the old copy's
-					    defect: "the first of its kind" claimed a lookup happened when a
-					    session with no archetype has no key to look up by. */}
+					{/* Three answers, all read off the **same** view the header's
+					    archetype token reads, so the two cannot disagree. "The first of
+					    its kind" claims a lookup happened, so it is only for a stated
+					    archetype — the stored column is the comparison key. A *read*
+					    one is named as the header names it and is not a key (ADR 0055
+					    §3: a reading is never stored); saying "no archetype" under a
+					    header that says "Threshold" was the contradiction. Only a
+					    refusal, or nothing at all, is "no archetype". */}
 					<CardDescription>
 						{statedArchetype
 							? `No earlier ${kind} session to compare against yet — this is the first of its kind.`
-							: 'This session has no archetype, so there is nothing to compare it against.'}
+							: readArchetype
+								? `Read as ${readArchetype} from what you did, not stated on the plan — and only a stated archetype is matched against earlier sessions, so there is nothing to compare it against yet.`
+								: 'This session has no archetype, so there is nothing to compare it against.'}
 					</CardDescription>
 				</CardHeader>
 			</Card>

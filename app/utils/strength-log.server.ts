@@ -50,6 +50,7 @@ import {
 	ghostsForRows,
 	isWarmupRampIndex,
 	parseStoredLoadValue,
+	prescribedSetForRow,
 	readStoredSetLoad,
 	statesWhatWasPerformed,
 	strengthSummaryCount,
@@ -59,7 +60,11 @@ import {
 	recordsSetBy,
 	toEquipmentId,
 } from './strength-records.server.ts'
-import { type LoadTarget, LoadTargetSchema } from './workout-schema.ts'
+import {
+	type LoadTarget,
+	LoadTargetSchema,
+	blockRepeatTotal,
+} from './workout-schema.ts'
 
 function parseLoadTarget(raw: string | null): LoadTarget | null {
 	if (!raw) return null
@@ -271,6 +276,10 @@ export async function getStrengthLogView(
 						orderBy: { orderIndex: 'asc' },
 						select: {
 							orderIndex: true,
+							// The block's repeat levels: a `5 ×` circuit is five rounds of
+							// every set in it, and each round is logged on its own row.
+							repeatCount: true,
+							seriesRepeatCount: true,
 							steps: {
 								orderBy: { orderIndex: 'asc' },
 								where: { kind: 'strength' },
@@ -326,7 +335,9 @@ export async function getStrengthLogView(
 		select: { weightKg: true },
 	})
 
-	const steps = (session.workout?.blocks ?? []).flatMap((b) => b.steps)
+	const steps = (session.workout?.blocks ?? []).flatMap((block) =>
+		block.steps.map((step) => ({ ...step, rounds: blockRepeatTotal(block) })),
+	)
 	const logs = await prisma.exerciseSetLog.findMany({
 		where: { sessionId },
 		orderBy: { orderIndex: 'asc' },
@@ -358,10 +369,12 @@ export async function getStrengthLogView(
 		// by a thousand empty sets.
 		const stepLogs = allStepLogs.filter((l) => !isWarmupRampIndex(l.orderIndex))
 		const rampLogs = allStepLogs.filter((l) => isWarmupRampIndex(l.orderIndex))
-		// The grid shows one row per prescribed set, plus any set the athlete added
-		// beyond the prescription. Never fewer rows than there is data for.
+		// The grid shows one row per prescribed set **per round** — a `5 ×` circuit
+		// is five rows of its one authored set (`prescribedSetForRow`) — plus any
+		// set the athlete added beyond the prescription. Never fewer rows than
+		// there is data for.
 		const rowCount = Math.max(
-			step.sets.length,
+			step.sets.length * step.rounds,
 			...stepLogs.map((l) => l.orderIndex + 1),
 			// A strength Step with no authored sets is still loggable — the athlete
 			// went to the gym and the prescription was vague. One row to start.
@@ -398,7 +411,7 @@ export async function getStrengthLogView(
 
 		const rows: LogRow[] = []
 		for (let index = 0; index < rowCount; index++) {
-			const prescribed = step.sets.find((s) => s.orderIndex === index) ?? null
+			const prescribed = prescribedSetForRow(step.sets, step.rounds, index)
 			const logged = stepLogs.find((l) => l.orderIndex === index) ?? null
 			const prescribedLoad = prescribed
 				? (parseLoadTarget(prescribed.load) ??
@@ -774,6 +787,7 @@ export async function saveLoggedSet(
 			exerciseId: true,
 			exercise: { select: { id: true, equipment: true } },
 			sets: { select: { id: true, orderIndex: true } },
+			block: { select: { repeatCount: true, seriesRepeatCount: true } },
 		},
 	})
 	if (!step) return { ok: false, reason: 'not-found' }
@@ -821,8 +835,14 @@ export async function saveLoggedSet(
 		input,
 		recorded,
 		statedBodyweightKg: profile?.weightKg ?? null,
+		// The authored set this row answers — in a later round of a repeated
+		// block, the same one the first round answered.
 		exerciseSetId:
-			step.sets.find((s) => s.orderIndex === input.orderIndex)?.id ?? null,
+			prescribedSetForRow(
+				step.sets,
+				blockRepeatTotal(step.block),
+				input.orderIndex,
+			)?.id ?? null,
 		exerciseId: step.exerciseId,
 		// The other half of the progression key, both halves of it. Resolved here
 		// rather than posted, for the same reason `exerciseSetId` is.

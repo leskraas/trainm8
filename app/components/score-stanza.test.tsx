@@ -154,6 +154,36 @@ test('notes render italic-quoted note text — never an asterisk marker', () => 
 	).not.toContain('*')
 })
 
+test('a long note is shown whole and wraps, never cut with an ellipsis (#505 story 32)', () => {
+	const long =
+		'Steady aerobic, nose-breathing pace; walk the hills if the heart rate drifts'
+	const notation = deriveWorkoutNotation({
+		blocks: [
+			{
+				name: null,
+				repeatCount: 1,
+				steps: [{ kind: 'cardio', distanceM: 2000, notes: long }],
+			},
+		],
+	})
+	render(<ScoreStanza notation={notation} />)
+
+	const note = document.querySelector<HTMLElement>('[data-token-type="notes"]')!
+	expect(note).toHaveTextContent(`“${long}”`)
+	// The note was `max-w-[11ch] truncate` on phones: "“Steady aer…”". Nothing
+	// on it may clip it or keep it on one line.
+	for (const clipping of [
+		'truncate',
+		'max-w-',
+		'text-ellipsis',
+		'overflow-hidden',
+		'whitespace-nowrap',
+	]) {
+		expect(note.className).not.toContain(clipping)
+	}
+	expect(note.className).toContain('whitespace-normal')
+})
+
 test('strength rest-between-sets folds in with a mid-dot — parens stay reserved for rest steps', () => {
 	const notation = deriveWorkoutNotation({
 		blocks: [

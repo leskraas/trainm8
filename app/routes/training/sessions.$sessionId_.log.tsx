@@ -647,7 +647,16 @@ function LiftCard({
 						{buildLoggedCounter(circles)}
 					</p>
 				</div>
-				<div className="mt-2 flex items-stretch gap-2.5">
+				{/* **Equal-width circles that wrap.** A repeated block is a circle per
+				    set per round — a `5 ×` circuit of three sets is fifteen — and on
+				    one flex line they shrank under a thumb. Auto-fit columns of at
+				    least 44px keep every circle the same width, fill the row when
+				    there are few (five across at 390px, as before) and wrap into rows
+				    when there are many. */}
+				<div
+					data-set-circles
+					className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(2.75rem,1fr))] gap-2.5"
+				>
 					{circles.map((circle) => (
 						<SetCircleButton
 							key={circle.key}
@@ -926,12 +935,14 @@ function SetCircleButton({
 			// **60px tall, for a reason**: it is pressed with a shaking hand, twenty
 			// seconds after a heavy set (#476's user story 26).
 			className={cn(
-				'focus-visible:ring-ring text-body-md flex h-15 flex-1 items-center justify-center rounded-2xl border-2 bg-transparent font-bold outline-none focus-visible:ring-2',
-				// The only two animations on this screen: the 120ms colour change and
-				// the 80ms press-scale. The scale is 0.97, inside the 0.95–0.98 band
-				// the motion pass set (#502) — 0.94 read as a flinch rather than as
-				// the circle answering the tap.
-				'[transition:background-color_120ms,border-color_120ms,color_120ms,transform_80ms] active:scale-[0.97]',
+				'focus-visible:ring-ring text-body-md flex h-15 min-w-11 items-center justify-center rounded-2xl border-2 bg-transparent font-bold tabular-nums outline-none focus-visible:ring-2',
+				// The only two animations on this screen, and they are the house press
+				// (`pressable`): the colour change and a 0.97 press-scale on the app's
+				// `--ease-out` at `duration-press`, the scale dropped under reduced
+				// motion. 0.97 is inside the 0.95–0.98 band the motion pass set (#502)
+				// — 0.94 read as a flinch. The circle's own `[transition:…]` used the
+				// browser's weak default `ease` and kept scaling under reduced motion.
+				'pressable',
 				CIRCLE_STATE_CLASS[circle.state],
 				circle.tappable ? '' : 'opacity-50',
 			)}
