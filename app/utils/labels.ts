@@ -3762,6 +3762,48 @@ export const SESONG_SEGMENT_LABELS = {
 	gone: 'Den blokka er ikke lenger en del av planen.',
 } as const
 
+/**
+ * What is left to set up on a new plan, above the readings — two steps since
+ * the weeks fill themselves (round-2 decision 14, ADR 0090): a climb, and a
+ * typical week to fill them from. Gone once both are there.
+ */
+export const SESONG_NEXT_LABELS = {
+	title: 'Det som gjenstår',
+	left: (count: number) =>
+		count === 1 ? '1 ting igjen' : `${count} ting igjen`,
+	climbTitle: 'Gi ukene en stigning',
+	climbDetail:
+		'Hver uke er like stor som den første nå. Start fra en form, eller sett en stigning på en blokk.',
+	climbAction: 'Sett en stigning',
+	patternTitle: 'Si hvordan den typiske uka di ser ut',
+	patternDetail:
+		'Hvilke dager du trener, og hvilken som er den lange. Ukene fylles fra den av seg selv, opp til horisonten.',
+	patternAction: 'Lag uka',
+} as const
+
+/**
+ * The stamp's words. Stamping is no longer a step on Sesong — the horizon
+ * fills the weeks (decision 14) — but the action still answers a stamp posted
+ * to it, in the page's language.
+ */
+export const SESONG_STAMP_LABELS = {
+	done: 'Lagt inn i kalenderen',
+	sentence: (sessions: number, weeks: number, replaced: number) =>
+		`${nbSessions(sessions)} over ${nbWeeks(weeks)}. Endre hvilken som helst av dem – ingenting er knyttet til mønsteret.${replaced > 0 ? ` ${replaced} ble erstattet.` : ''}`,
+	skipNoPrescription:
+		'En fast dag der økta er borte ble utelatt – velg en økt for den.',
+	skipVolumeUnavailable:
+		'En andelsdag ble utelatt der uka ikke har noe utregnet mål for sporet sitt.',
+	skipNoVolumeLeft:
+		'En andelsdag ble utelatt der de faste øktene allerede bruker hele uka. De står slik du skrev dem.',
+	skipNotPrescribable:
+		'En andelsdag ble utelatt fordi enheten til sporet ikke er noe en økt kan foreskrive – gi dagen en form, så legges den inn.',
+	patternEmpty:
+		'Det mønsteret har ingen dager ennå, så det er ingenting å legge inn.',
+	nothingToStamp:
+		'Ingen av dagene i mønsteret kunne legges inn i de ukene. Ingenting ble endret.',
+} as const
+
 /** What the plan page's phase fields say when a box is left empty. */
 export const SESONG_PHASE_FIELD_LABELS = {
 	weeks: 'Hvor mange uker varer fasen?',

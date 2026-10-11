@@ -74,10 +74,10 @@ import {
 } from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { getEventsForUser } from '#app/utils/event.server.ts'
 import {
-	formatDate,
 	formatNbDate,
 	formatNbDayMonth,
 	formatNbEmphasisLabel,
@@ -113,6 +113,7 @@ import {
 	SESONG_ANCHOR_LABELS,
 	SESONG_COPY_LABELS,
 	SESONG_LIFTING_LABELS,
+	SESONG_NEXT_LABELS,
 	SESONG_NOTICE_LABELS,
 	SESONG_PAGE_LABELS,
 	SESONG_PATTERN_LABELS,
@@ -120,11 +121,13 @@ import {
 	SESONG_PHASE_LABELS,
 	SESONG_REFUSAL_LABELS,
 	SESONG_SEGMENT_LABELS,
+	SESONG_STAMP_LABELS,
 	SESONG_TRACK_LABELS,
 	STRENGTH_OFFER_LABELS,
 	switchedPhilosophySentence,
 	type BoundaryStepOutOfForce,
 } from '#app/utils/labels.ts'
+import { fillPlanWeeksToHorizon } from '#app/utils/load/horizon-fill.server.ts'
 import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
 import { AttachEventFormSchema } from '#app/utils/plan-outline/attach-event-schema.ts'
 import {
@@ -235,6 +238,7 @@ import {
 import {
 	readStampedMixWarnings,
 	stampWeekPattern,
+	type StampedMixWarning,
 	type StampReport,
 	type StampRefusal,
 } from '#app/utils/plan-outline/stamp.server.ts'
@@ -295,7 +299,6 @@ import { SeasonChart } from './__season-chart.tsx'
 import { seasonEditAction } from './__season-edits.server.ts'
 import { SeasonEditLink, SeasonEditsCard } from './__season-edits.tsx'
 import { SEASON_EVENTS_SHOWN, SeasonEvents } from './__season-events.tsx'
-import { StampSection, type PendingStamp } from './__stamp-pattern.tsx'
 import {
 	StrengthBlocksSection,
 	StrengthSegmentFormSchema,
@@ -956,6 +959,9 @@ export async function action({ request }: Route.ActionArgs) {
 					started.reason === 'outline-gone' ? OUTLINE_GONE : NO_STARTER_WEEK,
 				)
 			}
+			// The weeks fill themselves from the typical week (decision 14): the
+			// ones up to the horizon are laid now rather than at the next close.
+			await fillToHorizon(userId)
 			// A toast for `apply-preset`'s reason: a week the athlete did not type
 			// just appeared, and they are owed where it came from in words — the
 			// availability it read, or the convention it fell back to — before they
@@ -1008,27 +1014,33 @@ export async function action({ request }: Route.ActionArgs) {
 				// athlete asked for, and it would carry a weight nobody typed.
 				if (!workoutId.success) return refuse(WORKOUT_MISSING)
 				return reportPattern(
-					await addWeekPatternDay(userId, {
-						kind: 'fixed',
-						patternId: patternId.data,
-						trackId: trackId.data,
-						weekday: weekday.data,
-						workoutId: workoutId.data,
-					}),
+					await fillAfterDay(
+						userId,
+						await addWeekPatternDay(userId, {
+							kind: 'fixed',
+							patternId: patternId.data,
+							trackId: trackId.data,
+							weekday: weekday.data,
+							workoutId: workoutId.data,
+						}),
+					),
 				)
 			}
 			const weight = ShareWeightField.safeParse(formData.get('weight'))
 			const shape = ShapeField.safeParse(formData.get('workoutId'))
 			if (!weight.success) return refuse(firstIssue(weight.error))
 			return reportPattern(
-				await addWeekPatternDay(userId, {
-					kind: 'share',
-					patternId: patternId.data,
-					trackId: trackId.data,
-					weekday: weekday.data,
-					weight: weight.data,
-					workoutId: shape.success ? shape.data : null,
-				}),
+				await fillAfterDay(
+					userId,
+					await addWeekPatternDay(userId, {
+						kind: 'share',
+						patternId: patternId.data,
+						trackId: trackId.data,
+						weekday: weekday.data,
+						weight: weight.data,
+						workoutId: shape.success ? shape.data : null,
+					}),
+				),
 			)
 		}
 		case 'move-week-pattern-day': {
@@ -1388,6 +1400,33 @@ function weekSpan(startWeekKey: string, from: number, to: number): string {
 	)
 }
 
+/**
+ * Lay the active plan's weeks up to the Planning Horizon that it has not laid
+ * yet — what a typical week that just gained its days owes the athlete now that
+ * stamping is not their step (round-2 decision 14, ADR 0090). The fill never
+ * lays a week the plan already laid, nor a week already begun, and lays only
+ * the active plan (a resting one waits). Contained like every relay after a
+ * plan write (ADR 0079 S6): the pattern is saved either way, and the week
+ * change lays the horizon from the next close on.
+ */
+async function fillToHorizon(userId: string): Promise<void> {
+	try {
+		const timezone = await getAthleteTimezone(userId)
+		await fillPlanWeeksToHorizon(userId, timezone, new Date())
+	} catch (error) {
+		console.error('Sesong: filling the weeks to the horizon failed', error)
+	}
+}
+
+/** {@link fillToHorizon} after a pattern day lands, passing its result on. */
+async function fillAfterDay<Result extends { ok: boolean }>(
+	userId: string,
+	result: Result,
+): Promise<Result> {
+	if (result.ok) await fillToHorizon(userId)
+	return result
+}
+
 /** A refusal the athlete reads, at the top of the reading that produced it. */
 function refuse(error: string) {
 	return data({ error }, { status: 400 })
@@ -1675,7 +1714,7 @@ async function stampPattern(
 	const url = new URL(request.url)
 	return redirectWithToast(`${url.pathname}${url.search}`, {
 		type: 'success',
-		title: 'On your calendar',
+		title: SESONG_STAMP_LABELS.done,
 		description: stampSentence(stamped.report),
 	})
 }
@@ -1686,20 +1725,16 @@ async function stampPattern(
  * write is named rather than left as a silent gap.
  */
 function stampSentence(report: StampReport): string {
-	const sessions = `${report.sessions} ${report.sessions === 1 ? 'session' : 'sessions'}`
-	const weeks = `${report.weeks} ${report.weeks === 1 ? 'week' : 'weeks'}`
-	const replaced =
-		report.replaced > 0 ? ` ${report.replaced} were replaced.` : ''
-	const skipped = skippedSentence(report.skipped)
-	return `${sessions} across ${weeks}. Edit any of them — nothing stays linked to the pattern.${replaced}${skipped}`
+	return `${SESONG_STAMP_LABELS.sentence(
+		report.sessions,
+		report.weeks,
+		report.replaced,
+	)}${skippedSentence(report.skipped)}`
 }
 
 /**
- * The days that produced no session, named by reason.
- *
- * Each reason is an **Unavailable Metric with its cause**, never a silent omission
- * and never a fabricated session: the athlete is told which day the app could not
- * write and why, so they can fix it or leave it (ADR 0008).
+ * The days that produced no session, named by reason — an Unavailable Metric with
+ * its cause, never a silent omission (ADR 0008).
  */
 function skippedSentence(skipped: StampReport['skipped']): string {
 	const reasons = new Set(skipped.map((skip) => skip.reason))
@@ -1708,14 +1743,10 @@ function skippedSentence(skipped: StampReport['skipped']): string {
 }
 
 const STAMP_SKIP_COPY: Record<StampSkipReason, string> = {
-	'no-prescription':
-		'A fixed day whose workout is gone was left out — pick a session for it.',
-	'volume-unavailable':
-		'A share day was left out where the week has no derived target for its track.',
-	'no-volume-left':
-		'A share day was left out where your fixed sessions already spend the week. Those stay exactly as you wrote them.',
-	'not-prescribable':
-		'A share day was left out because its track’s unit is not something a session can prescribe — give the day a shape and it will stamp.',
+	'no-prescription': SESONG_STAMP_LABELS.skipNoPrescription,
+	'volume-unavailable': SESONG_STAMP_LABELS.skipVolumeUnavailable,
+	'no-volume-left': SESONG_STAMP_LABELS.skipNoVolumeLeft,
+	'not-prescribable': SESONG_STAMP_LABELS.skipNotPrescribable,
 }
 
 function stampRefusalMessage(
@@ -1727,14 +1758,14 @@ function stampRefusalMessage(
 		case 'pattern-gone':
 			return PATTERN_GONE
 		case 'pattern-empty':
-			return 'That pattern has no days in it yet, so there is nothing to stamp.'
+			return SESONG_STAMP_LABELS.patternEmpty
 		case 'week-outside-plan':
 			return WEEK_OUTSIDE_PLAN
 		case 'nothing-to-stamp':
 			// Not an absence and not a bug: every day of the pattern hit one of the
 			// four reasons above, so the honest answer names that rather than
 			// reporting a stamp of nothing as a success.
-			return 'None of this pattern’s days could be written into those weeks. Nothing was changed.'
+			return SESONG_STAMP_LABELS.nothingToStamp
 	}
 }
 
@@ -2162,10 +2193,6 @@ export default function PlanRoute({
 		actionData && 'strengthOffer' in actionData
 			? actionData.strengthOffer.result
 			: undefined
-	// A stamp the service came back asking about. Not an `error`: nothing was
-	// written and there is a question on the page rather than a refusal above it.
-	const pendingStamp: PendingStamp | null =
-		actionData && 'stamp' in actionData ? actionData.stamp : null
 	// The same, for a week copy aimed at a week that already holds sessions (#415).
 	const pendingCopy: PendingCopy | null =
 		actionData && 'copy' in actionData ? actionData.copy : null
@@ -2422,7 +2449,6 @@ export default function PlanRoute({
 					chosenWeek={previewWeek}
 					workouts={workouts}
 					seasonQuery={seasonQuery}
-					pendingStamp={pendingStamp}
 					pendingCopy={pendingCopy}
 					mixWarnings={mixWarnings}
 					firstUnbegunWeekKey={firstUnbegunWeekKey}
@@ -2435,39 +2461,26 @@ export default function PlanRoute({
 type SeasonData = Route.ComponentProps['loaderData']['season']
 
 /**
- * What is left to do, and where to do it.
+ * What is left to set up, and where to do it.
  *
  * **Why a planning surface has a to-do list on it at all.** Every control this
- * page owns is discoverable *if you know a season has these parts*. An athlete who
- * has planned before knows; one who has not authored a season starts with blocks
- * and no idea that the plan is not finished — that a week pattern exists, that
- * nothing reaches their calendar until they put it there. The page said all of
- * that, spread over two readings and five closed sections, and said none of it as
- * a *sequence*. This is the sequence, and nothing more: it computes no new figure
- * and owns no control, it only names the next act and links to the reading that
+ * page owns is discoverable *if you know a season has these parts*. An athlete
+ * who has not authored a season starts with blocks and no idea that a typical
+ * week exists. This is the sequence, and nothing more: it computes no new figure
+ * and owns no control, it names the next act and links to the reading that
  * performs it.
  *
- * **It disappears.** Once every step is behind them the athlete gets one quiet
- * line saying how much of the season is on the calendar, and no checklist. A list
- * of ticks is a scoreboard, and this surface already has a chart for telling the
- * athlete how their season looks.
- *
- * Three steps, and each is a thing the plan is genuinely missing rather than a
- * setting nobody set:
+ * **Two steps, since the weeks fill themselves** (round-2 decision 14, ADR
+ * 0090). Stamping is no longer the athlete's: the week change lays each week as
+ * the Planning Horizon reaches it (ADR 0080 §1), and a new typical week lays the
+ * weeks up to the horizon at once. So what a plan can still be missing is:
  *
  *   1. **A climb.** A plan whose segments carry no **Volume Ramp** has every week
- *      the size of its first. That is a valid plan — the ramp is a choice and the
- *      app never stores a convention as though it had been authored (ADR 0044 §4)
- *      — but it is almost never the one an athlete meant, and it is invisible on a
- *      season chart if you do not already know what to look for.
- *   2. **A typical week.** The **Week Pattern** is what turns weekly targets into
- *      days.
- *   3. **The calendar.** Stamping is what makes any of it real.
+ *      the size of its first — valid (ADR 0044 §4), but almost never meant.
+ *   2. **A typical week.** The **Week Pattern** the horizon fills the weeks from.
  *
- * The order is the order they happen in, and each step reads the plan rather than
- * a stored flag: an athlete who authors a pattern by hand, or stamps one week from
- * a copy, sees the step close because the thing is *done*, not because a wizard
- * was walked through.
+ * **It disappears.** With both there, the athlete reads one quiet line saying
+ * how much of the season is on the calendar and that the rest fills itself.
  */
 function NextSteps({
 	season,
@@ -2489,41 +2502,25 @@ function NextSteps({
 		{
 			key: 'climb',
 			done: climbs,
-			title: 'Give your weeks a climb',
-			detail:
-				'Every week is the size of your first right now. Start from a shape, or set a ramp on a block.',
+			title: SESONG_NEXT_LABELS.climbTitle,
+			detail: SESONG_NEXT_LABELS.climbDetail,
 			href: hrefFor('blocks'),
-			action: 'Set a climb',
+			action: SESONG_NEXT_LABELS.climbAction,
 		},
 		{
 			key: 'pattern',
-			done: season.patterns.length > 0,
-			title: 'Say what your typical week looks like',
-			detail:
-				'Which days you train on, and which of them is the long one. Your week’s volume divides itself between them.',
+			done: season.patterns.some((pattern) => pattern.days.length > 0),
+			title: SESONG_NEXT_LABELS.patternTitle,
+			detail: SESONG_NEXT_LABELS.patternDetail,
 			href: hrefFor('weeks'),
-			action: 'Set it up',
-		},
-		{
-			key: 'calendar',
-			done: weeksWithSessions > 0,
-			title: 'Put your weeks on the calendar',
-			detail:
-				'Nothing is scheduled until you stamp it. Sessions land as ordinary sessions you can edit one by one.',
-			href: hrefFor('weeks'),
-			action: 'Stamp your weeks',
+			action: SESONG_NEXT_LABELS.patternAction,
 		},
 	].filter((step) => !step.done)
 
 	if (steps.length === 0) {
 		return (
-			<p className="text-muted-foreground text-sm">
-				Your plan is set up —{' '}
-				<span className="text-foreground font-medium">
-					{weeksWithSessions} of {totalWeeks}
-				</span>{' '}
-				{totalWeeks === 1 ? 'week has' : 'weeks have'} sessions on your
-				calendar.
+			<p className="text-footnote text-muted-foreground" data-plan-filled>
+				{SESONG_PAGE_LABELS.fillFilled(weeksWithSessions, totalWeeks)}
 			</p>
 		)
 	}
@@ -2531,9 +2528,9 @@ function NextSteps({
 	return (
 		<PlanCard
 			titleId="next-steps"
-			title="What’s next"
-			aside={steps.length === 1 ? '1 step left' : `${steps.length} steps left`}
-			contentClassName="divide-border/70 divide-y"
+			title={SESONG_NEXT_LABELS.title}
+			aside={SESONG_NEXT_LABELS.left(steps.length)}
+			contentClassName="divide-border/60 divide-y"
 		>
 			{steps.map((step) => (
 				<div
@@ -2541,11 +2538,13 @@ function NextSteps({
 					// Stacked on a phone and side by side from `sm`: a pill pinned beside
 					// three lines of wrapping prose reads as though it belonged to the
 					// first line of it (ADR 0028 §1.5's rule for a phone's single column).
-					className="flex flex-col items-start gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-baseline sm:gap-3"
+					className="flex flex-col items-start gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-3"
 				>
 					<span className="min-w-0 flex-1">
-						<span className="block text-sm font-medium">{step.title}</span>
-						<span className="text-muted-foreground block text-sm">
+						<span className="text-callout block font-semibold">
+							{step.title}
+						</span>
+						<span className="text-footnote text-muted-foreground block">
 							{step.detail}
 						</span>
 					</span>
@@ -3058,16 +3057,23 @@ function UnavailableReadingsNotice({
 }: {
 	readings: UnavailableReading[]
 }) {
+	// Behind a closed line since round 2 (#505 Look): three paragraphs of honesty
+	// in the middle of the page pushed the edits below the fold. The line says
+	// what is inside before it opens, so nothing is withheld unannounced — this
+	// is a statement about the plan, not a warning about an edit.
 	return (
-		<section aria-labelledby="unavailable-readings" className="space-y-2">
-			<h2 id="unavailable-readings" className="text-heading">
-				{SESONG_PAGE_LABELS.cannotTellTitle}
-			</h2>
-			<ul className="text-muted-foreground space-y-2 text-sm">
-				{readings.map((reading) => (
-					<li key={reading}>{NB_UNAVAILABLE_READING_LABELS[reading]}</li>
-				))}
-			</ul>
+		<section aria-label={SESONG_PAGE_LABELS.cannotTellTitle}>
+			<CollapsibleSection
+				summary={SESONG_PAGE_LABELS.cannotTellTitle}
+				detail={SESONG_PAGE_LABELS.cannotTellDetail}
+				className="border-b"
+			>
+				<ul className="text-footnote text-muted-foreground space-y-2">
+					{readings.map((reading) => (
+						<li key={reading}>{NB_UNAVAILABLE_READING_LABELS[reading]}</li>
+					))}
+				</ul>
+			</CollapsibleSection>
 		</section>
 	)
 }
@@ -4064,7 +4070,6 @@ function WeeksReading({
 	chosenWeek,
 	workouts,
 	seasonQuery,
-	pendingStamp,
 	pendingCopy,
 	mixWarnings,
 	firstUnbegunWeekKey,
@@ -4076,8 +4081,6 @@ function WeeksReading({
 	chosenWeek: SeasonData['weeks'][number] | null
 	workouts: Route.ComponentProps['loaderData']['workouts']
 	seasonQuery: SeasonQuery
-	/** A stamp waiting on the athlete's yes, with what it would replace. */
-	pendingStamp: PendingStamp | null
 	/** A week copy waiting on the athlete's yes, with what it would replace. */
 	pendingCopy: PendingCopy | null
 	mixWarnings: Route.ComponentProps['loaderData']['mixWarnings']
@@ -4223,26 +4226,27 @@ function WeeksReading({
 				</div>
 			</PlanCard>
 
-			{/* Filling the weeks is the reading's second act, and three sections deep:
-			    author a pattern, stamp it, or copy a week you already like. Each was
-			    open at all times under the week list, so the audit an athlete came for
-			    was the short part of a long page. Closed, they read as the three things
-			    you can *do* to the weeks above.
+			{/* Where the weeks the plan has laid disagree with the mix their block
+			    authors — a reading of the sessions, said under the weeks it is about.
+			    It used to live in the stamp's section, which is gone (decision 14). */}
+			{mixWarnings.length > 0 ? (
+				<MixNotices notices={mixWarnings} startWeekKey={season.startWeekKey} />
+			) : null}
 
-			    That last sentence was the intent and never the rendering: closed, they
-			    read as three anonymous rows at the foot of a long list, and an athlete
-			    who has just scrolled a season does not know a stamp is down here. The
-			    heading is the cheap half of the fix — it says the ladder is a set of
-			    actions before the athlete has to open one to find out. */}
-			<div className="space-y-2">
-				<h2 className="text-lg font-semibold">Fill the weeks</h2>
-				<p className="text-muted-foreground text-sm">
-					Author the week you usually train and stamp it across the season, or
-					copy a week you already liked. Both write ordinary sessions you can
-					edit afterwards.
+			{/* Filling the weeks is the reading's second act. The weeks fill
+			    themselves from the typical week as the horizon reaches them (round-2
+			    decision 14, ADR 0090), so what is left to *do* is the typical week
+			    itself and copying a week the athlete liked. The heading says the
+			    ladder is a set of actions before one is opened. */}
+			<div className="space-y-1">
+				<h2 className="text-heading">{SESONG_PAGE_LABELS.fillTitle}</h2>
+				<p className="text-footnote text-muted-foreground">
+					{season.patterns.some((pattern) => pattern.days.length > 0)
+						? SESONG_PAGE_LABELS.fillIntro
+						: SESONG_PAGE_LABELS.fillWaiting}
 				</p>
 			</div>
-			<div className="border-border/70 border-b">
+			<div className="border-border/60 border-b">
 				{/* The pattern, read against one of the weeks above. It is handed the
 				    week's *derived* targets — the same rows the list just rendered — so a
 				    preview and the week it claims to be about cannot disagree. */}
@@ -4263,34 +4267,12 @@ function WeeksReading({
 					/>
 				</CollapsibleSection>
 
-				{/* The stamp sits under the pattern it writes, because reading the pattern
-				    against a week is what an athlete does immediately before deciding which
-				    weeks to put it in. It is handed the plan's own weeks, so nothing here
-				    can offer a week the plan does not have.
-
-				    It opens on its own whenever a stamp came back asking a question: a
-				    confirmation the athlete has to answer cannot be behind a closed
-				    section, or the answer is invisible and the stamp looks lost. */}
+				{/* The other way to fill a week: a week the athlete liked, carried as
+				    authored (ADR 0044 §6). It opens on its own whenever a copy came back
+				    asking a question — re-keyed, because a confirmation the athlete has
+				    to answer cannot sit behind a closed row. */}
 				<CollapsibleSection
-					summary="Put it on your calendar"
-					detail="Copies the pattern into the weeks you choose as ordinary sessions. Editing one week never touches its siblings."
-					defaultOpen={pendingStamp !== null}
-				>
-					<StampSection
-						patterns={season.patterns}
-						weeks={season.weeks}
-						timezone={season.timezone}
-						pending={pendingStamp}
-						mixNotices={mixWarnings}
-					/>
-				</CollapsibleSection>
-
-				{/* The other way to fill a week, last because it is the one that needs a
-				    week already filled in. ADR 0044 §6 called it out as the action a Week
-				    Pattern was never the free alternative to, and the two read better
-				    together than apart: a pattern absorbs the week's derived volume, a copy
-				    carries the week as authored. */}
-				<CollapsibleSection
+					key={pendingCopy ? 'pending' : 'quiet'}
 					summary={SESONG_PAGE_LABELS.copyTitle}
 					detail={SESONG_PAGE_LABELS.copyDetail}
 					defaultOpen={pendingCopy !== null}
@@ -4304,6 +4286,58 @@ function WeeksReading({
 				</CollapsibleSection>
 			</div>
 		</div>
+	)
+}
+
+/**
+ * Where a week the plan laid disagrees with the **Quality Session Mix** its block
+ * authors (ADR 0042 §9). Advisory, in the shape the ramp guard and the
+ * availability notice take: it names the two figures and stops. Nothing here
+ * suggests a fix, because there is nothing to fix — the mix says what the block
+ * is for and the week says what the plan now is, and both are the athlete's.
+ */
+function MixNotices({
+	notices,
+	startWeekKey,
+}: {
+	notices: StampedMixWarning[]
+	startWeekKey: string
+}) {
+	return (
+		<section
+			aria-labelledby="mix-notices"
+			className="bg-muted/50 space-y-2 rounded-3xl px-4 py-3"
+			data-mix-notices
+		>
+			<h2 id="mix-notices" className="text-callout font-semibold">
+				{SESONG_PAGE_LABELS.mixNoticesTitle}
+			</h2>
+			<ul className="text-footnote space-y-1.5">
+				{notices.map((notice) => (
+					<li key={`${notice.weekKey}-${notice.discipline}`}>
+						<span className="font-semibold tabular-nums">
+							Uke {isoWeekOfPlanWeek(startWeekKey, notice.weekInPlan)}
+						</span>
+						<span className="text-muted-foreground">
+							{' '}
+							· {nbTrackName(notice.discipline).toLowerCase()} ·{' '}
+							{notice.disagreements
+								.map((disagreement) =>
+									SESONG_PAGE_LABELS.mixDisagreement(
+										NB_QUALITY_ZONE_LABELS[disagreement.zone],
+										disagreement.authored,
+										disagreement.stamped,
+									),
+								)
+								.join('; ')}
+						</span>
+					</li>
+				))}
+			</ul>
+			<p className="text-caption text-muted-foreground">
+				{SESONG_PAGE_LABELS.mixNoticesNote}
+			</p>
+		</section>
 	)
 }
 
