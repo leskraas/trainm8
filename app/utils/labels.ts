@@ -1248,50 +1248,6 @@ export const MARK_DONE_REFUSAL_LABELS: Record<MarkDoneRefusal, string> = {
 /** The `LoadValue` member a resolved working load is logged as. */
 type WorkingLoadKind = Extract<WorkingLoad, { kind: 'resolved' }>['loadKind']
 
-/**
- * The Norwegian names of the lifts athletes log most, by the exercise
- * database's own (English) name — for display on I dag's quick log (audit PR
- * D), where `Back Squat` beside `Som planlagt` read as two languages. The
- * same words the writing line reads (`workout-sentence.ts`, ADR 0089), the
- * other way round. A name not here is shown as the database has it; owner
- * decision 9's aliases in the database will take over from this list.
- */
-const NB_EXERCISE_NAMES: Record<string, string> = {
-	'Back Squat': 'Knebøy',
-	'Front Squat': 'Frontknebøy',
-	'Goblet Squat': 'Gobletknebøy',
-	Deadlift: 'Markløft',
-	'Romanian Deadlift': 'Rumensk markløft',
-	'Bench Press': 'Benkpress',
-	'Incline Bench Press': 'Skrå benkpress',
-	'Overhead Press': 'Skulderpress',
-	'Barbell Row': 'Stangroing',
-	'Dumbbell Row': 'Hantelroing',
-	'Seated Cable Row': 'Sittende roing',
-	'Chin-up': 'Chins',
-	'Pull-up': 'Pull-ups',
-	'Push-up': 'Armhevinger',
-	Dip: 'Dips',
-	Plank: 'Planke',
-	'Side Plank': 'Sideplanke',
-	'Leg Press': 'Beinpress',
-	'Lat Pulldown': 'Nedtrekk',
-	'Hip Thrust': 'Hoftehev',
-	'Power Clean': 'Frivending',
-	'Lateral Raise': 'Sidehev',
-	'Bicep Curl': 'Bicepscurl',
-	Lunge: 'Utfall',
-	'Walking Lunge': 'Gående utfall',
-	'Bulgarian Split Squat': 'Bulgarsk utfall',
-	'Calf Raise': 'Tåhev',
-	'Step-up': 'Step-up',
-}
-
-/** A lift by its Norwegian name, or the database's where there is none. */
-export function nbExerciseName(name: string): string {
-	return NB_EXERCISE_NAMES[name] ?? name
-}
-
 /** The short log under a strength session's row. */
 export const QUICK_LOG_LABELS = {
 	heading: 'Logg økta',
@@ -5865,200 +5821,6 @@ const LEGACY_REPLAN_REASONS: ReadonlyArray<
 ]
 
 // ===========================================================================
-
-/** The Catalogue's phases, as Sesong names them (`nbPhaseName`). */
-export const NB_CATALOGUE_PHASE_LABELS: Record<CataloguePhase, string> = {
-	base: 'Grunntrening',
-	build: 'Oppbygging',
-	peak: 'Spissing',
-	taper: 'Nedtrapping',
-	'race-week': 'Konkurranseuke',
-}
-
-/** The goal events a Catalogue Entry may be scoped to — a distance only. */
-export const NB_CATALOGUE_GOAL_EVENT_LABELS: Record<
-	CatalogueGoalEvent,
-	string
-> = {
-	'1500m': '1500 m',
-	'3k': '3 km',
-	'5k': '5 km',
-	'10k': '10 km',
-	hm: 'Halvmaraton',
-	marathon: 'Maraton',
-	trail: 'Terreng',
-	ultra: 'Ultra',
-}
-
-/** The three level floors. "og opp" is the card's word, not the label's. */
-export const NB_CATALOGUE_LEVEL_LABELS: Record<CatalogueLevel, string> = {
-	beginner: 'Nybegynner',
-	intermediate: 'Viderekommen',
-	advanced: 'Erfaren',
-}
-
-/** Who wrote a row. `stock` is the app's own name: that is the badge's claim. */
-export const NB_CATALOGUE_TIER_LABELS: Record<CatalogueTier, string> = {
-	stock: 'trainm8',
-	community: 'Fellesskapet',
-	mine: 'Dine',
-}
-
-/** The Catalogue page (`/training/catalogue`). */
-export const CATALOGUE_LABELS = {
-	metaTitle: 'Katalog | Trainm8',
-	title: 'Katalog',
-	intro:
-		'Ferdige økter du kan ta inn i uka: trainm8 sine, andre utøveres og dine egne.',
-	sessionsHeading: 'Økter',
-	searchLabel: 'Søk i katalogen',
-	searchPlaceholder: 'Søk etter økt',
-	searchButton: 'Søk',
-	filters: 'Filter',
-	allSessions: 'Alle økter',
-	facets: {
-		discipline: 'Idrett',
-		anyDiscipline: 'Alle idretter',
-		archetype: 'Type økt',
-		anyArchetype: 'Alle typer',
-		phase: 'Fase',
-		anyPhase: 'Alle faser',
-		goalEvent: 'Målløp',
-		anyGoalEvent: 'Alle løp',
-		level: 'Passer for',
-		anyLevel: 'Alle nivåer',
-		tier: 'Skrevet av',
-		anyTier: 'Alle',
-	},
-	savedOnly: 'Bare økter jeg har lagret',
-	apply: 'Bruk filter',
-	clear: 'Nullstill',
-	/** The active-filter summary's words for the facets that are not a label. */
-	suits: (level: string) => `Passer for ${level.toLowerCase()}`,
-	savedFilter: 'Lagret',
-	query: (q: string) => `«${q}»`,
-	/** `152 økter`, `12 økter passer filtrene · viser 12`. */
-	resultLine: (total: number, filtered: boolean, shown: number) =>
-		`${total === 1 ? '1 økt' : `${total} økter`}${filtered ? ' passer filtrene' : ''}${shown < total ? ` · viser ${shown}` : ''}`,
-	noneMatch: (filters: string) => `Ingen økter passer ${filters}.`,
-	empty: 'Katalogen er tom ennå.',
-	showMore: 'Vis flere',
-	levelAndUp: (level: string) => `${level} og opp`,
-	place: 'Legg i kalenderen',
-	save: 'Lagre',
-	saved: 'Lagret',
-	report: 'Rapporter',
-	adaptedFrom: (citation: string) =>
-		`Bygd på ${citation}. Den kilden hører til økta denne ble kopiert fra, ikke til denne.`,
-	yourSessions: 'Dine økter',
-	publishIntro:
-		'Publiserer du en økt, kan alle utøvere ta den, under et navn du velger. trainm8 går ikke gjennom og står ikke inne for det du publiserer.',
-	noOwn: 'Du har ikke skrevet en økt ennå.',
-	publishState: {
-		published: 'I katalogen',
-		withdrawn: 'Trukket tilbake av deg',
-		'taken-down': 'Fjernet av en moderator',
-		unpublished: 'Ikke publisert',
-	},
-	manage: 'Administrer',
-	publish: 'Publiser',
-} as const
-
-/**
- * The provenance slot in Norwegian (`provenance.ts` keeps its English for the
- * surfaces that still speak it). One sentence per kind and the same asymmetry:
- * only a community row carries the non-vouch.
- */
-export const NB_PROVENANCE_LABELS = {
-	source: (citation: string) => `Kilde: ${citation}`,
-	convention:
-		'Vanlig trenerpraksis — trainm8 viser ikke til noen publisert kilde for denne økta.',
-	handWritten: 'Skrevet av trainm8 — ingen publisert kilde, og ingen hevdet.',
-	publishedBy: (name: string) => `Publisert av ${name}`,
-	unnamedPublisher: 'Publisert av en utøver — trainm8 kan ikke si hvem.',
-	unsourced: 'Ingen kilde kunne leses for denne økta.',
-	nonVouch:
-		'Publisert av en utøver. trainm8 har ikke gått gjennom eller stilt seg bak denne økta.',
-} as const
-
-/** The strength programs page (`/training/programs`). */
-export const PROGRAMS_LABELS = {
-	metaTitle: 'Styrkeprogrammer | Trainm8',
-	intro:
-		'Hvert program går ut fra vekta du løftet sist — aldri ut fra kalenderen.',
-	empty:
-		'Ingen programmer er lagt inn ennå, så det er ingenting å starte her — ikke noe du har gjort. Du kan fortsatt',
-	emptyCatalogue: 'ta en økt fra katalogen',
-	emptyOr: 'eller',
-	emptyWrite: 'skrive en selv',
-	running: 'I gang',
-	openRun: 'Åpne dagens økt',
-	manageRun: 'Rett en vekt eller avslutt programmet',
-	start: (name: string) => `Start ${name}`,
-	source: 'Kilde',
-	unattributed: 'Uten opphav',
-	/** `2 dagsoppsett · Økt A / Økt B`. */
-	shape: (dayIds: readonly string[]) =>
-		`${dayIds.length === 1 ? '1 dagsoppsett' : `${dayIds.length} dagsoppsett`} · ${dayIds.map((day) => `Økt ${day}`).join(' / ')}`,
-} as const
-
-/**
- * A program's own rules in the card's width: the increment and the **Stall
- * Response**. Kilos and percentages arrive already written (`formatNbKg`).
- */
-export const PROGRAM_RULE_LABELS = {
-	firstStall: 'ved første stopp',
-	afterStalls: (n: number) => `etter ${n} stopp`,
-	stallCut: (pct: string, after: string) => `−${pct} % ${after}`,
-	rollback: (sessions: number, after: string) =>
-		`${sessions === 1 ? '1 økt' : `${sessions} økter`} tilbake ${after}`,
-	reEstimate: (estimator: string, after: string) =>
-		`ny 1RM-beregning (${estimator}) ${after}`,
-	absolute: (kg: string) => `+${kg} kg`,
-	pctOfLastTopSet: (pct: string) => `+${pct} % av siste toppsett`,
-	byAmrapReps: (table: string) => `etter repsene i siste sett (${table})`,
-	amrapRow: (minReps: number, kg: string) => `${minReps}+ → +${kg} kg`,
-	multipliedOnAmrap: (kg: string, reps: number) =>
-		`+${kg} kg, dobbelt ved ${reps}+ reps`,
-	/** Arket M's lift table: what the next made session adds. */
-	next: (increment: string) => `neste: ${increment}`,
-} as const
-
-/**
- * Each seeded program's provenance note in Norwegian, keyed `key:variantId`.
- * Display only: the stored note stays the record, and a program not listed
- * here shows its note as stored.
- */
-export const NB_PROGRAM_PROVENANCE_NOTES: Record<string, string> = {
-	'stronglifts-5x5:basic':
-		'Økningene og kuttet på −10 % etter tre økter som kom til kort er StrongLifts’ egne publiserte standarder. Prosenten er programkonvensjon, uten studier bak. Stigen 5×5 → 3×5 → 1×5 er ikke StrongLifts’ regel og er ikke bygd inn.',
-	'starting-strength:phase-1':
-		'Nullstillingen kutter vekta og gjør økningen mindre. Hvor mange bom som går før en nullstilling er ikke publisert; familiens tre brukes.',
-	'greyskull-lp:base':
-		'GreySkulls primærkilde er en betalt e-bok. Den doble økningen ved 10+ reps og kuttet på ca. 10 % er rekonstruert fra sekundærkilder.',
-}
-
-/** Putting one Catalogue session on the calendar (`catalogue.place`). */
-export const CATALOGUE_PLACE_LABELS = {
-	metaTitle: 'Legg i kalenderen | Trainm8',
-	title: 'Legg i kalenderen',
-	whichDay: 'Hvilken dag?',
-	defaultTime: 'Den legges på ditt vanlige treningstidspunkt.',
-	submit: 'Legg i kalenderen',
-	cancel: 'Avbryt',
-	ownCopy: 'Du får din egen kopi. Endrer du den, endres ikke katalogens.',
-	errors: {
-		badDate: 'Velg en dag.',
-		gone: 'Den økta er ikke i katalogen lenger.',
-	},
-} as const
-
-/** Bibliotek's exercise list, beside `EXERCISE_LIST_LABELS`. */
-export const EXERCISE_SEARCH_LABELS = {
-	/** Beside a row found by another of its names: `«knebøy»`. */
-	alias: (alias: string) => `«${alias}»`,
-} as const
-=======
 // Token Sentence editor chrome (#505 round 2, r2-editor-finish): the ⠿/⋮
 // menus, the value popovers' controls, the sets popover, the empty state and
 // the validation summary, in Norwegian (ADR 0081). The sentence's own glue
@@ -6355,10 +6117,204 @@ export function nbUnavailableReason(reason: string): string {
 	return reason
 }
 
+// ===========================================================================
 // Bibliotek and the strength surfaces (#505 round 2, PR B + C; ADR 0081). The
 // pages Bibliotek opens — the Catalogue, the strength programs, the exercise
 // list — and the strength surfaces behind them: starting weights, the program
 // overview, the runner's presenter sentences, the rest bar, the outcome panel
 // and the lift chart. One section of its own so the area PRs that also add to
 // this file merge cleanly. Words only: kilos arrive written by `formatNbKg`.
-// ====================================================================
+// ===========================================================================
+
+/** The Catalogue's phases, as Sesong names them (`nbPhaseName`). */
+export const NB_CATALOGUE_PHASE_LABELS: Record<CataloguePhase, string> = {
+	base: 'Grunntrening',
+	build: 'Oppbygging',
+	peak: 'Spissing',
+	taper: 'Nedtrapping',
+	'race-week': 'Konkurranseuke',
+}
+
+/** The goal events a Catalogue Entry may be scoped to — a distance only. */
+export const NB_CATALOGUE_GOAL_EVENT_LABELS: Record<
+	CatalogueGoalEvent,
+	string
+> = {
+	'1500m': '1500 m',
+	'3k': '3 km',
+	'5k': '5 km',
+	'10k': '10 km',
+	hm: 'Halvmaraton',
+	marathon: 'Maraton',
+	trail: 'Terreng',
+	ultra: 'Ultra',
+}
+
+/** The three level floors. "og opp" is the card's word, not the label's. */
+export const NB_CATALOGUE_LEVEL_LABELS: Record<CatalogueLevel, string> = {
+	beginner: 'Nybegynner',
+	intermediate: 'Viderekommen',
+	advanced: 'Erfaren',
+}
+
+/** Who wrote a row. `stock` is the app's own name: that is the badge's claim. */
+export const NB_CATALOGUE_TIER_LABELS: Record<CatalogueTier, string> = {
+	stock: 'trainm8',
+	community: 'Fellesskapet',
+	mine: 'Dine',
+}
+
+/** The Catalogue page (`/training/catalogue`). */
+export const CATALOGUE_LABELS = {
+	metaTitle: 'Katalog | Trainm8',
+	title: 'Katalog',
+	intro:
+		'Ferdige økter du kan ta inn i uka: trainm8 sine, andre utøveres og dine egne.',
+	sessionsHeading: 'Økter',
+	searchLabel: 'Søk i katalogen',
+	searchPlaceholder: 'Søk etter økt',
+	searchButton: 'Søk',
+	filters: 'Filter',
+	allSessions: 'Alle økter',
+	facets: {
+		discipline: 'Idrett',
+		anyDiscipline: 'Alle idretter',
+		archetype: 'Type økt',
+		anyArchetype: 'Alle typer',
+		phase: 'Fase',
+		anyPhase: 'Alle faser',
+		goalEvent: 'Målløp',
+		anyGoalEvent: 'Alle løp',
+		level: 'Passer for',
+		anyLevel: 'Alle nivåer',
+		tier: 'Skrevet av',
+		anyTier: 'Alle',
+	},
+	savedOnly: 'Bare økter jeg har lagret',
+	apply: 'Bruk filter',
+	clear: 'Nullstill',
+	/** The active-filter summary's words for the facets that are not a label. */
+	suits: (level: string) => `Passer for ${level.toLowerCase()}`,
+	savedFilter: 'Lagret',
+	query: (q: string) => `«${q}»`,
+	/** `152 økter`, `12 økter passer filtrene · viser 12`. */
+	resultLine: (total: number, filtered: boolean, shown: number) =>
+		`${total === 1 ? '1 økt' : `${total} økter`}${filtered ? ' passer filtrene' : ''}${shown < total ? ` · viser ${shown}` : ''}`,
+	noneMatch: (filters: string) => `Ingen økter passer ${filters}.`,
+	empty: 'Katalogen er tom ennå.',
+	showMore: 'Vis flere',
+	levelAndUp: (level: string) => `${level} og opp`,
+	place: 'Legg i kalenderen',
+	save: 'Lagre',
+	saved: 'Lagret',
+	report: 'Rapporter',
+	adaptedFrom: (citation: string) =>
+		`Bygd på ${citation}. Den kilden hører til økta denne ble kopiert fra, ikke til denne.`,
+	yourSessions: 'Dine økter',
+	publishIntro:
+		'Publiserer du en økt, kan alle utøvere ta den, under et navn du velger. trainm8 går ikke gjennom og står ikke inne for det du publiserer.',
+	noOwn: 'Du har ikke skrevet en økt ennå.',
+	publishState: {
+		published: 'I katalogen',
+		withdrawn: 'Trukket tilbake av deg',
+		'taken-down': 'Fjernet av en moderator',
+		unpublished: 'Ikke publisert',
+	},
+	manage: 'Administrer',
+	publish: 'Publiser',
+} as const
+
+/**
+ * The provenance slot in Norwegian (`provenance.ts` keeps its English for the
+ * surfaces that still speak it). One sentence per kind and the same asymmetry:
+ * only a community row carries the non-vouch.
+ */
+export const NB_PROVENANCE_LABELS = {
+	source: (citation: string) => `Kilde: ${citation}`,
+	convention:
+		'Vanlig trenerpraksis — trainm8 viser ikke til noen publisert kilde for denne økta.',
+	handWritten: 'Skrevet av trainm8 — ingen publisert kilde, og ingen hevdet.',
+	publishedBy: (name: string) => `Publisert av ${name}`,
+	unnamedPublisher: 'Publisert av en utøver — trainm8 kan ikke si hvem.',
+	unsourced: 'Ingen kilde kunne leses for denne økta.',
+	nonVouch:
+		'Publisert av en utøver. trainm8 har ikke gått gjennom eller stilt seg bak denne økta.',
+} as const
+
+/** The strength programs page (`/training/programs`). */
+export const PROGRAMS_LABELS = {
+	metaTitle: 'Styrkeprogrammer | Trainm8',
+	intro:
+		'Hvert program går ut fra vekta du løftet sist — aldri ut fra kalenderen.',
+	empty:
+		'Ingen programmer er lagt inn ennå, så det er ingenting å starte her — ikke noe du har gjort. Du kan fortsatt',
+	emptyCatalogue: 'ta en økt fra katalogen',
+	emptyOr: 'eller',
+	emptyWrite: 'skrive en selv',
+	running: 'I gang',
+	openRun: 'Åpne dagens økt',
+	manageRun: 'Rett en vekt eller avslutt programmet',
+	start: (name: string) => `Start ${name}`,
+	source: 'Kilde',
+	unattributed: 'Uten opphav',
+	/** `2 dagsoppsett · Økt A / Økt B`. */
+	shape: (dayIds: readonly string[]) =>
+		`${dayIds.length === 1 ? '1 dagsoppsett' : `${dayIds.length} dagsoppsett`} · ${dayIds.map((day) => `Økt ${day}`).join(' / ')}`,
+} as const
+
+/**
+ * A program's own rules in the card's width: the increment and the **Stall
+ * Response**. Kilos and percentages arrive already written (`formatNbKg`).
+ */
+export const PROGRAM_RULE_LABELS = {
+	firstStall: 'ved første stopp',
+	afterStalls: (n: number) => `etter ${n} stopp`,
+	stallCut: (pct: string, after: string) => `−${pct} % ${after}`,
+	rollback: (sessions: number, after: string) =>
+		`${sessions === 1 ? '1 økt' : `${sessions} økter`} tilbake ${after}`,
+	reEstimate: (estimator: string, after: string) =>
+		`ny 1RM-beregning (${estimator}) ${after}`,
+	absolute: (kg: string) => `+${kg} kg`,
+	pctOfLastTopSet: (pct: string) => `+${pct} % av siste toppsett`,
+	byAmrapReps: (table: string) => `etter repsene i siste sett (${table})`,
+	amrapRow: (minReps: number, kg: string) => `${minReps}+ → +${kg} kg`,
+	multipliedOnAmrap: (kg: string, reps: number) =>
+		`+${kg} kg, dobbelt ved ${reps}+ reps`,
+	/** Arket M's lift table: what the next made session adds. */
+	next: (increment: string) => `neste: ${increment}`,
+} as const
+
+/**
+ * Each seeded program's provenance note in Norwegian, keyed `key:variantId`.
+ * Display only: the stored note stays the record, and a program not listed
+ * here shows its note as stored.
+ */
+export const NB_PROGRAM_PROVENANCE_NOTES: Record<string, string> = {
+	'stronglifts-5x5:basic':
+		'Økningene og kuttet på −10 % etter tre økter som kom til kort er StrongLifts’ egne publiserte standarder. Prosenten er programkonvensjon, uten studier bak. Stigen 5×5 → 3×5 → 1×5 er ikke StrongLifts’ regel og er ikke bygd inn.',
+	'starting-strength:phase-1':
+		'Nullstillingen kutter vekta og gjør økningen mindre. Hvor mange bom som går før en nullstilling er ikke publisert; familiens tre brukes.',
+	'greyskull-lp:base':
+		'GreySkulls primærkilde er en betalt e-bok. Den doble økningen ved 10+ reps og kuttet på ca. 10 % er rekonstruert fra sekundærkilder.',
+}
+
+/** Putting one Catalogue session on the calendar (`catalogue.place`). */
+export const CATALOGUE_PLACE_LABELS = {
+	metaTitle: 'Legg i kalenderen | Trainm8',
+	title: 'Legg i kalenderen',
+	whichDay: 'Hvilken dag?',
+	defaultTime: 'Den legges på ditt vanlige treningstidspunkt.',
+	submit: 'Legg i kalenderen',
+	cancel: 'Avbryt',
+	ownCopy: 'Du får din egen kopi. Endrer du den, endres ikke katalogens.',
+	errors: {
+		badDate: 'Velg en dag.',
+		gone: 'Den økta er ikke i katalogen lenger.',
+	},
+} as const
+
+/** Bibliotek's exercise list, beside `EXERCISE_LIST_LABELS`. */
+export const EXERCISE_SEARCH_LABELS = {
+	/** Beside a row found by another of its names: `«knebøy»`. */
+	alias: (alias: string) => `«${alias}»`,
+} as const

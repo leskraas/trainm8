@@ -43,12 +43,12 @@ export const NB_EXERCISE_ALIASES: Readonly<Record<string, readonly string[]>> =
 		ex_bb_bench: ['benkpress', 'benk'],
 		ex_db_bench: ['manualbenk', 'benkpress med manualer'],
 		ex_bb_incline_bench: ['skrå benkpress', 'skråbenk'],
-		ex_bb_ohp: ['militærpress', 'skulderpress', 'stående press'],
+		ex_bb_ohp: ['skulderpress', 'militærpress', 'stående press'],
 		ex_fedb_dumbbell_shoulder_press: ['skulderpress med manualer'],
 		ex_bw_pushup: ['armhevinger', 'armheving'],
 		ex_fedb_triceps_pushdown: ['tricepspress i kabel'],
 		// ── Trekk ─────────────────────────────────────────────────────────────
-		ex_bb_row: ['roing', 'stangroing'],
+		ex_bb_row: ['stangroing', 'roing'],
 		ex_db_row: ['hantelroing', 'manualroing'],
 		ex_mc_seated_row: ['sittende roing', 'kabelroing'],
 		ex_mc_lat_pulldown: ['nedtrekk'],
@@ -66,3 +66,19 @@ export const NB_EXERCISE_ALIASES: Readonly<Record<string, readonly string[]>> =
 
 /** The locale every alias above is stored under. */
 export const NB_ALIAS_LOCALE = 'nb'
+
+/**
+ * **A lift by its Norwegian name** on the strength surfaces — the program
+ * cards, the overview, the runner, the outcome and I dag's quick log — so
+ * `Knebøy 5×5` never sits beside `Som planlagt` as `Back Squat`. The first
+ * word of a lift's entry above is its name; the rest are what search and the
+ * writing line also answer to. A lift with no Norwegian word (an athlete's own,
+ * most of the snapshot corpus) keeps the database's name.
+ */
+export function liftDisplayName(
+	exerciseId: string | null | undefined,
+	name: string,
+): string {
+	const word = exerciseId ? NB_EXERCISE_ALIASES[exerciseId]?.[0] : undefined
+	return word ? word[0]!.toLocaleUpperCase('nb') + word.slice(1) : name
+}

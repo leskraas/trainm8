@@ -74,11 +74,12 @@
  */
 import { Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
-import { sessionOwner } from './session-ownership.ts'
+import { liftDisplayName } from './exercise-aliases-nb.ts'
 import {
 	getExercisePlateContext,
 	getGymProfile,
 } from './plate-inventory.server.ts'
+import { sessionOwner } from './session-ownership.ts'
 import { repLoadBasis, repLoadBasisText } from './strength/anchors.constants.ts'
 import {
 	estimateOneRm,
@@ -365,7 +366,7 @@ function toSummary(
 	const names = new Map(
 		row.liftRules.map((rule) => [
 			rule.exerciseId,
-			rule.exercise?.name ?? 'Lift',
+			liftDisplayName(rule.exerciseId, rule.exercise?.name ?? 'Løft'),
 		]),
 	)
 	return {
@@ -384,7 +385,7 @@ function toSummary(
 		lifts: definition.liftRules.map((rule) => ({
 			exerciseId: rule.exerciseId,
 			equipment: rule.equipment,
-			name: names.get(rule.exerciseId) ?? 'Lift',
+			name: names.get(rule.exerciseId) ?? 'Løft',
 			dayIds: rule.dayIds,
 			setCount: rule.setCount,
 			repsPerSet: rule.repsPerSet,
@@ -968,12 +969,15 @@ export async function getProgramOverview(
 	const names = new Map(
 		instance.liftStates.map((row) => [
 			row.exerciseId,
-			row.exercise?.name ?? 'Lift',
+			liftDisplayName(row.exerciseId, row.exercise?.name ?? 'Løft'),
 		]),
 	)
 	for (const rule of programRow.liftRules) {
 		if (!names.has(rule.exerciseId)) {
-			names.set(rule.exerciseId, rule.exercise?.name ?? 'Lift')
+			names.set(
+				rule.exerciseId,
+				liftDisplayName(rule.exerciseId, rule.exercise?.name ?? 'Løft'),
+			)
 		}
 	}
 
@@ -999,7 +1003,7 @@ export async function getProgramOverview(
 			return {
 				exerciseId: lift.exerciseId,
 				equipment: lift.equipment,
-				name: names.get(lift.exerciseId) ?? 'Lift',
+				name: names.get(lift.exerciseId) ?? 'Løft',
 				currentWorkingWeightKg: lift.currentWorkingWeightKg,
 				stallCount: lift.stallCount,
 				incrementText: incrementText(lift.currentIncrement),
@@ -1315,7 +1319,7 @@ export async function openNextProgramSession(input: {
 	const names = new Map(
 		programRow.liftRules.map((rule) => [
 			rule.exerciseId,
-			rule.exercise?.name ?? 'Lift',
+			liftDisplayName(rule.exerciseId, rule.exercise?.name ?? 'Løft'),
 		]),
 	)
 	return {
@@ -1862,7 +1866,7 @@ export async function prepareProgramFold(input: {
 		names: Object.fromEntries(
 			programRow.liftRules.map((rule) => [
 				rule.exerciseId,
-				rule.exercise?.name ?? 'Lift',
+				liftDisplayName(rule.exerciseId, rule.exercise?.name ?? 'Løft'),
 			]),
 		),
 		movementPatterns,
