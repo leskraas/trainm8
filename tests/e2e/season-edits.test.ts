@@ -32,15 +32,20 @@ test('a new week target shows a preview with the 10 % warning, and the message s
 	// The Weeks reading edits nothing itself: the plan's third week (a hard
 	// week after a hard week, never begun whatever day this runs) links to
 	// _Endre sesongen_, pre-filled for that week.
+	// Rows read ISO weeks (`Uke 41`), so the plan's third week is the list's
+	// third row, whichever calendar week that is.
 	await page
-		.getByRole('navigation', { name: 'Season views' })
-		.getByRole('link', { name: 'Weeks' })
+		.getByRole('navigation', { name: 'Visning' })
+		.getByRole('link', { name: 'Uker' })
 		.click()
-	await page
-		.getByRole('list', { name: 'Training weeks' })
-		.getByText('Week 3', { exact: true })
-		.click()
-	const link = page.getByRole('link', { name: 'Endre ukemålet: week 3 Run' })
+	const third = page
+		.getByRole('list', { name: 'Treningsuker' })
+		.getByRole('listitem')
+		.nth(2)
+	await third.getByRole('button', { name: /^Uke \d+/ }).click()
+	const link = third.getByRole('link', {
+		name: /^Endre ukemålet: uke \d+ løping$/,
+	})
 	const weekKey = /weekKey=([\d-]+)/.exec(
 		(await link.getAttribute('href')) ?? '',
 	)?.[1]

@@ -9,8 +9,8 @@ import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
  * The journey is the one the spec's stories are written as, in order: say what
  * you are building toward, pick a **periodization preset**, say what you are
  * starting from (the first **Season Anchor**), give a block its **Quality
- * Session Mix**, say what a typical week looks like (the **Week Pattern**), and
- * stamp it — which is the only step that puts anything on the calendar. It ends
+ * Session Mix**, and say what a typical week looks like (the **Week Pattern**),
+ * from which the weeks up to the horizon fill themselves (decision 14). It ends
  * on the Dashboard, because a plan the home surface does not know about is a
  * plan the athlete never got.
  *
@@ -21,8 +21,8 @@ import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
  */
 
 /**
- * One of the surface's `<details>` sections, by the line on its summary row —
- * scoped, because a phase card carries sections of its own.
+ * One of the creation flow's `<details>` sections, by the line on its summary
+ * row. (Sesong's sections are collapsibles, reached by their button.)
  *
  * A `<summary>` carries no ARIA role, so there is no role query for it — and a
  * section's own `sr-only` heading repeats the summary's words inside it, which is
@@ -32,7 +32,7 @@ function section(scope: Page | Locator, name: string) {
 	return scope.locator('summary').filter({ hasText: name })
 }
 
-test('athlete plans a season from a goal and stamps a week onto the calendar', async ({
+test('athlete plans a season from a goal, and its weeks fill from the typical week', async ({
 	page,
 	navigate,
 	login,
@@ -112,29 +112,31 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	await page.getByRole('button', { name: 'Create plan' }).click()
 
 	// ---------------------------------------------------------------------
-	// The planning surface, opened on the season just authored
+	// Sesong, opened on the season just authored (ADR 0090)
 	// ---------------------------------------------------------------------
 
 	await expect(page).toHaveURL(/\/training\/plan\?event=[a-z0-9]+$/i)
 	await expect(page.getByRole('heading', { name: goalName })).toBeVisible()
-	// The chart is the surface's primary object (#366), and its aside says what
-	// the picture is of: one track, in the unit it was authored in.
-	await expect(page.getByRole('heading', { name: 'Your season' })).toBeVisible()
-	await expect(page.getByText('21 weeks · Run in km/wk')).toBeVisible()
+	// The season picture leads: I dag's curve and table, in ISO weeks, the
+	// lead track in its own unit.
+	const picture = page.getByRole('region', { name: 'Sesongen', exact: true })
+	await expect(picture).toBeVisible()
+	await expect(
+		picture.getByRole('table', { name: 'Sesongtabell' }),
+	).toContainText('Løping')
 	// The picked shape's blocks, the philosophy it is a length of, and the
 	// anchor typed a moment ago read back in the track's own currency.
-	await expect(page.getByRole('list', { name: 'Phases' })).toContainText(
-		'Big base',
+	await expect(page.getByRole('list', { name: 'Faser' })).toContainText(
+		'Stor base',
 	)
 	await expect(
 		page.getByRole('region', { name: 'Filosofi' }).getByText('Planen følger'),
 	).toContainText('Stor base')
-	await expect(
-		page.getByRole('list', { name: 'Training tracks' }),
-	).toContainText(/Run\s*· authored in km\/wk · starts at 40\.0 km\/wk/)
-	// A plan from a shape already climbs, so what is left is the half a
-	// first-time planner does not know is a half: a typical week, and the calendar.
-	await expect(page.getByText('2 steps left')).toBeVisible()
+	await expect(page.getByRole('list', { name: 'Treningsspor' })).toContainText(
+		/Løping\s*·\si\skm\/uke\s·\sstarter\spå\s40\skm\/uke/,
+	)
+	// A plan from a shape already climbs, so what is left is the typical week.
+	await expect(page.getByText('1 ting igjen')).toBeVisible()
 
 	// ---------------------------------------------------------------------
 	// Story 6: the Quality Session Mix on a block
@@ -143,43 +145,46 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	// The current block's card opens by default; the others are closed. Inside it
 	// the controls sit behind their own line, so the reading is what an opened
 	// block says first and the eleven controls are one tap further in.
-	const currentBlock = page.getByRole('article').filter({ hasText: 'Big base' })
-	await expect(currentBlock.getByText('Current')).toBeVisible()
-	await expect(currentBlock).toContainText('with 1 quality session a week')
-	await section(currentBlock, 'Avansert').click()
-	await currentBlock.getByLabel('Zone 4 threshold, sessions a week').fill('2')
-	await currentBlock.getByRole('button', { name: /save quality mix/i }).click()
+	const currentBlock = page
+		.getByRole('article')
+		.filter({ hasText: 'Stor base' })
+	await expect(currentBlock.getByText('Nå', { exact: true })).toBeVisible()
+	await expect(currentBlock).toContainText('med 1 kvalitetsøkt i uka')
+	await currentBlock.getByRole('button', { name: /^Avansert/ }).click()
+	await currentBlock.getByLabel('Sone 4 terskel, økter i uka').fill('2')
+	await currentBlock
+		.getByRole('button', { name: /lagre kvalitetsøkter/i })
+		.click()
 
 	// Both readings are derived off the saved mix and nothing else (ADR 0042 §5):
 	// the emphasis label and the count follow the boxes, and neither is typed.
-	await expect(currentBlock).toContainText('1× tempo + 2× threshold')
-	await expect(currentBlock).toContainText('3 quality sessions a week')
+	await expect(currentBlock).toContainText('1× tempo + 2× terskel')
+	await expect(currentBlock).toContainText('3 kvalitetsøkter i uka')
 
 	// ---------------------------------------------------------------------
-	// Story 8–9: a typical week, and putting it on the calendar
+	// Story 8–9: a typical week — and the weeks fill themselves from it
 	// ---------------------------------------------------------------------
 
 	await page
-		.getByRole('navigation', { name: 'Season views' })
-		.getByRole('link', { name: 'Weeks' })
+		.getByRole('navigation', { name: 'Visning' })
+		.getByRole('link', { name: 'Uker' })
 		.click()
 	await expect(page).toHaveURL(/[?&]tab=weeks/)
 
 	// With no pattern the section opens on its offer, and the starter week is
 	// built from what the app already knows — every day of it a share, so it is
 	// honest at 40 km and at 90 (ADR 0044 §7).
-	await page.getByRole('button', { name: /build me a typical week/i }).click()
-	await expect(section(page, 'Your typical week')).toContainText('Typical week')
+	await page.getByRole('button', { name: /lag en typisk uke for meg/i }).click()
+	await expect(
+		page.getByRole('button', { name: /^Den typiske uka di/ }),
+	).toContainText('Typical week')
 
-	// Nothing is scheduled until it is stamped, and stamping is the athlete's
-	// choice of weeks — none is preselected for them.
-	await section(page, 'Put it on your calendar').click()
-	await page.getByRole('checkbox', { name: /^Week 1 / }).check()
-	await page.getByRole('button', { name: 'Stamp these weeks' }).click()
-
-	// Every step behind them, so the checklist gives way to the one quiet line.
-	await expect(page.getByText('Your plan is set up')).toBeVisible()
-	await expect(page.getByText('1 of 21')).toBeVisible()
+	// Stamping is no longer the athlete's step (decision 14): the typical week
+	// lays the weeks up to the Planning Horizon at once, and the checklist gives
+	// way to one quiet line saying how much of the season is on the calendar.
+	await expect(page.locator('[data-plan-filled]')).toContainText(
+		/[1-9]\d* av 21 uker har økter i kalenderen/,
+	)
 
 	// ---------------------------------------------------------------------
 	// The payoff: real sessions, and a home surface that knows about the plan
@@ -202,10 +207,26 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 		page.getByTestId('week-strip').getByRole('button').last(),
 	).toHaveAccessibleName(/Nedtrapping/)
 
-	// The stamped sessions are ordinary sessions on the athlete's week, in the
-	// stream: the starter pattern's four days, its long day weighted double,
-	// against week one's derived 40 km.
+	// The laid sessions are ordinary sessions on the athlete's week, in the
+	// stream: the starter pattern's four days, its long day weighted double.
+	// Which week that is depends on the weekday the test runs — the fill starts
+	// at the first week not yet begun (ADR 0079 S14), whose target has climbed
+	// from 40 km on any day but a Monday — so the shape is asserted, not the
+	// figures. Bare sessions are titled by what they are (ADR 0091 §2:
+	// `Langtur · Løping`, `Terskeløkt · Løping`), and the distance is the row's.
 	const stream = page.getByTestId('timeline-stream')
-	await expect(stream).toContainText('16 km')
-	await expect(stream).toContainText('8 km')
+	await expect(stream).toContainText('Langtur · Løping')
+	const text = (await stream.textContent()) ?? ''
+	const figure = (raw: string) => Number(raw.replace(',', '.'))
+	const long = /Langtur · Løping\s*([\d,]+)\s*km/.exec(text)?.[1]
+	const others = [
+		...text.matchAll(
+			/(?:Rolig økt|Tempoøkt|Terskeløkt|Intervalløkt) · Løping\s*([\d,]+)\s*km/g,
+		),
+	].map((match) => figure(match[1]!))
+	expect(long).toBeTruthy()
+	expect(others).toHaveLength(3)
+	for (const other of others) {
+		expect(figure(long!)).toBeCloseTo(other * 2, 1)
+	}
 })

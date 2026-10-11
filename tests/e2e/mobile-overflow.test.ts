@@ -157,10 +157,18 @@ test('the season plan does not overflow at 390px', async ({
 	})
 	expect(created.ok, 'the plan fixture failed to author').toBe(true)
 
-	// Blocks is the default reading: the chart, the toggles above it and the phase
-	// cards under it.
+	// Blokker is the default reading, under the season picture (I dag's curve
+	// and table, ADR 0090) and the phase cards under it.
 	await navigate('/training/plan')
-	await expect(page.getByRole('heading', { name: 'Your season' })).toBeVisible()
+	await expect(
+		page.getByRole('heading', { name: 'Sesongen', exact: true }),
+	).toBeVisible()
+	await expectNoHorizontalOverflow(page)
+	// The analytical chart, under Avansert, with its toggles: the widest
+	// controls on the page.
+	await page.getByRole('button', { name: /^Avansert Disse endringene/ }).click()
+	await page.getByRole('button', { name: /^Sesongdiagram/ }).click()
+	await expect(page.locator('[data-season-chart]')).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 
 	// Weeks is the other half of the same route and a different layout — the
@@ -168,7 +176,7 @@ test('the season plan does not overflow at 390px', async ({
 	// gets the gate too rather than riding on the Blocks pass.
 	await page.goto('/training/plan?tab=weeks')
 	await expect(
-		page.getByRole('heading', { name: 'Week by week' }),
+		page.getByRole('heading', { name: 'Uke for uke' }),
 	).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 })
