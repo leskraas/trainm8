@@ -44,6 +44,7 @@ import {
 	type DisciplineThresholdMap,
 } from './intensity-target.ts'
 import {
+	nbDisciplineLabel,
 	REST_ACT_WORDS,
 	TOKEN_SENTENCE_WORDS as WORDS,
 	zoneLabelWord,
@@ -1059,7 +1060,9 @@ function buildStep(
 		tokens.push(
 			plain({
 				type: 'discipline',
-				text: step.disciplineOverride.trim(),
+				// The sport in the athlete's words (`sykling`), not its stored
+				// id — display only; the field keeps `bike` (ADR 0089).
+				text: nbDisciplineLabel(step.disciplineOverride.trim()).toLowerCase(),
 				address: at('discipline'),
 			}),
 		)

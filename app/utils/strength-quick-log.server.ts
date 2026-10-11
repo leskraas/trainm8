@@ -80,8 +80,29 @@ export type QuickLogResult =
 			/** The week's done sets in the strength track, before and after; null
 			 * without a strength track, or when nothing was written. */
 			week: { weekKey: string; before: number; after: number } | null
+			/** The set logs this call wrote — what _Angre_ may take back, and only
+			 * these (ADR 0088). Empty when nothing was written. */
+			setLogIds: string[]
+			/**
+			 * Whether _Angre_ is offered: the log only finished the session. A
+			 * program session's log also moved its run on (the fold), which a
+			 * toast does not take back — the runner owns that.
+			 */
+			undoable: boolean
 	  }
 	| { ok: false; reason: QuickLogRefusal }
+
+/** What _Angre_ on a quick log did. */
+export type QuickLogUndoResult =
+	| {
+			ok: true
+			/** Set logs taken back; 0 when they were already gone. */
+			removedSets: number
+			/** The week's done sets, before and after the undo; null without a
+			 * strength track, or when nothing was removed. */
+			week: { weekKey: string; before: number; after: number } | null
+	  }
+	| { ok: false; reason: 'session-not-found' | 'not-undoable' }
 
 /** Thrown inside the transaction to roll the log back with its reason. */
 class QuickLogRefused extends Error {
@@ -161,6 +182,7 @@ export async function logStrengthSession(
 	})
 
 	let finished: Awaited<ReturnType<typeof finishIn>>
+	const setLogIds: string[] = []
 	try {
 		finished = await prisma.$transaction(
 			async (tx) => {
@@ -180,6 +202,7 @@ export async function logStrengthSession(
 					// The plan was read from the same rows a moment ago, so a refusal
 					// here is the session changing under the log.
 					if (!saved) throw new QuickLogRefused('not-loggable')
+					setLogIds.push(saved)
 				}
 				return finishIn(tx, prepared)
 			},
@@ -211,6 +234,70 @@ export async function logStrengthSession(
 		alreadyLogged: false,
 		finished,
 		week: before != null && after != null ? { weekKey, before, after } : null,
+		setLogIds,
+		undoable: prepared.fold == null,
+	}
+}
+
+/**
+ * _Angre_ after a quick log (ADR 0088): take back exactly the set logs that
+ * log wrote, owner-scoped, and — once no working set is left — put the
+ * session back to planned, as it stood before the tap. The quick log is then
+ * offered on the row again.
+ *
+ * Only ids the log returned are taken, and only from this athlete's session:
+ * a set logged in the runner is never in the list, so it is never removed. A
+ * program session's log is refused: its fold moved the run on, which this
+ * does not unwind. A second _Angre_ finds nothing and removes nothing.
+ */
+export async function undoQuickLog(
+	userId: string,
+	sessionId: string,
+	setLogIds: readonly string[],
+	{ now = new Date(), timezone }: { now?: Date; timezone: string },
+): Promise<QuickLogUndoResult> {
+	const session = await prisma.workoutSession.findFirst({
+		where: { id: sessionId, userId },
+		select: {
+			scheduledAt: true,
+			_count: { select: { programApplications: true } },
+		},
+	})
+	if (!session) return { ok: false, reason: 'session-not-found' }
+	if (session._count.programApplications > 0) {
+		return { ok: false, reason: 'not-undoable' }
+	}
+	const weekKey = mondayOfDay(localDate(session.scheduledAt, timezone))
+	const before = await getWeekTrackActual(userId, {
+		weekKey,
+		discipline: 'strength',
+		now,
+	})
+	const removedSets = await prisma.$transaction(async (tx) => {
+		const removed = await tx.exerciseSetLog.deleteMany({
+			where: { id: { in: [...setLogIds] }, sessionId },
+		})
+		const left = await tx.exerciseSetLog.count({
+			where: { sessionId, role: 'working', outcome: 'completed' },
+		})
+		if (removed.count > 0 && left === 0) {
+			await tx.workoutSession.updateMany({
+				where: { id: sessionId, userId, status: 'completed' },
+				data: { status: 'scheduled' },
+			})
+		}
+		return removed.count
+	})
+	if (removedSets === 0) return { ok: true, removedSets, week: null }
+	const after = await getWeekTrackActual(userId, {
+		weekKey,
+		discipline: 'strength',
+		now,
+	})
+	return {
+		ok: true,
+		removedSets,
+		week: before != null && after != null ? { weekKey, before, after } : null,
 	}
 }
 
@@ -225,17 +312,20 @@ function alreadyLoggedOr(sessionId: string, status: string): QuickLogResult {
 				alreadyLogged: true,
 				finished: null,
 				week: null,
+				setLogIds: [],
+				undoable: false,
 			}
 		: { ok: false, reason: 'not-loggable' }
 }
 
+/** One set, saved inside the log's transaction; its log's id, or null. */
 async function saveIn(
 	tx: Prisma.TransactionClient,
 	userId: string,
 	sessionId: string,
 	set: { stepId: string; orderIndex: number; unit: SetUnit; count: number },
 	load: LoadValue,
-): Promise<boolean> {
+): Promise<string | null> {
 	const saved = await saveLoggedSet(
 		{
 			athleteId: userId,
@@ -254,7 +344,7 @@ async function saveIn(
 		},
 		{ db: tx, detectRecords: false },
 	)
-	return saved.ok
+	return saved.ok ? saved.id : null
 }
 
 /**

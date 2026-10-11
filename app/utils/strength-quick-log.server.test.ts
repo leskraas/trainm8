@@ -19,6 +19,7 @@ import {
 import {
 	logStrengthSession,
 	readQuickLog,
+	undoQuickLog,
 } from './strength-quick-log.server.ts'
 
 /**
@@ -258,6 +259,53 @@ test('som planlagt writes every planned set exactly once, at the planned weight,
 	expect(await readQuickLog(userId, sessionId, at)).toBeNull()
 })
 
+test('Som planlagt can be taken back: Angre removes exactly the sets it wrote, and the session is planned again (ADR 0088)', async () => {
+	const userId = await createAthlete()
+	const { sessionId } = await gymDay(userId, -1)
+
+	const logged = await logStrengthSession(userId, sessionId, asPlanned, at)
+	invariant(logged.ok, 'the log went in')
+	expect(logged.undoable).toBe(true)
+	expect(logged.setLogIds).toHaveLength(5)
+
+	// Another athlete's Angre finds nothing, and takes nothing.
+	const stranger = await createAthlete()
+	expect(await undoQuickLog(stranger, sessionId, logged.setLogIds, at)).toEqual(
+		{ ok: false, reason: 'session-not-found' },
+	)
+	expect(await setsOf(sessionId)).toHaveLength(5)
+
+	const undone = await undoQuickLog(userId, sessionId, logged.setLogIds, at)
+	expect(undone).toMatchObject({ ok: true, removedSets: 5 })
+	expect(await setsOf(sessionId)).toEqual([])
+	expect(await statusOf(sessionId)).toBe('scheduled')
+	// The row offers the quick log again.
+	expect(await readQuickLog(userId, sessionId, at)).not.toBeNull()
+
+	// A second Angre has nothing left to take, and says so without harm.
+	expect(
+		await undoQuickLog(userId, sessionId, logged.setLogIds, at),
+	).toMatchObject({ ok: true, removedSets: 0 })
+})
+
+test('Angre never takes a set it did not write', async () => {
+	const userId = await createAthlete()
+	const { sessionId, squatStep } = await gymDay(userId, -1)
+	const logged = await logStrengthSession(userId, sessionId, asPlanned, at)
+	invariant(logged.ok, 'the log went in')
+	// Only the squats' ids: the planks stay, and so does the session's done.
+	const squats = (
+		await prisma.exerciseSetLog.findMany({
+			where: { sessionId, stepId: squatStep },
+			select: { id: true },
+		})
+	).map((set) => set.id)
+	const undone = await undoQuickLog(userId, sessionId, squats, at)
+	expect(undone).toMatchObject({ ok: true, removedSets: 3 })
+	expect(await setsOf(sessionId)).toHaveLength(2)
+	expect(await statusOf(sessionId)).toBe('completed')
+})
+
 test('a double tap logs once: the second finds the session done and writes nothing', async () => {
 	const userId = await createAthlete()
 	const { sessionId } = await gymDay(userId)
@@ -274,6 +322,9 @@ test('a double tap logs once: the second finds the session done and writes nothi
 		alreadyLogged: true,
 		finished: null,
 		week: null,
+		// It wrote nothing, so it has nothing to take back.
+		setLogIds: [],
+		undoable: false,
 	})
 	expect(await setsOf(sessionId)).toEqual(before)
 })
@@ -484,6 +535,9 @@ test('a program session logged as planned folds into the run once, however often
 	})
 
 	expect(first.ok && first.finished?.programName).toBeTruthy()
+	// Folded into the run, the log moved the program on: it is not taken back
+	// from a toast (the runner owns that), so no Angre is offered.
+	expect(first.ok && first.undoable).toBe(false)
 	expect(
 		await prisma.programSessionApplication.count({
 			where: { instanceId: started.instanceId },

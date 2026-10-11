@@ -88,6 +88,7 @@ import {
 	ATTACH_EVENT_REFUSAL_LABELS,
 	attachedEventSentence,
 	APP_TAB_LABELS,
+	SESONG_ENTRY_LABELS,
 	BOUNDARY_STEP_OUT_OF_FORCE_LABELS,
 	DISCIPLINE_LABELS,
 	OPEN_ENDED_PLAN_LABEL,
@@ -2149,7 +2150,24 @@ export default function PlanRoute({
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			{/* Sesong is a tab's landing page (ADR 0083), so it carries no back
 			    affordance (ui-conventions §3.3): the tab bar is the way out. */}
-			<PageHeader title={APP_TAB_LABELS.season} className="mb-2" />
+			<PageHeader
+				title={APP_TAB_LABELS.season}
+				className="mb-2"
+				// Owner decision 6: "+ Ny" on I dag makes sessions only; a race and a
+				// plan are started here.
+				actions={
+					<nav aria-label={SESONG_ENTRY_LABELS.group} className="flex gap-2">
+						<PillLink to="/training/events/new" className="px-3">
+							<Icon name="plus" size="sm" />
+							{SESONG_ENTRY_LABELS.newEvent}
+						</PillLink>
+						<PillLink to="/training/plan/new" className="px-3">
+							<Icon name="plus" size="sm" />
+							{SESONG_ENTRY_LABELS.newPlan}
+						</PillLink>
+					</nav>
+				}
+			/>
 
 			{/* The surface's own order, and it is variant F's (#366, spec #399): what
 			    you are building toward, the shape of the season, what the season adds

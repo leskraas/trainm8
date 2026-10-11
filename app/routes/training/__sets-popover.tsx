@@ -37,11 +37,15 @@ import {
 	SelectValue,
 } from '#app/components/ui/select.tsx'
 import { formatDuration, parseDuration } from '#app/utils/format.ts'
+import {
+	NB_SET_KIND_LABELS,
+	TOKEN_EDITOR_CONTROL_LABELS as C,
+	TOKEN_EDITOR_SETS_LABELS as S,
+} from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	normalizeSetKind,
 	resizeUniformSets,
-	SET_KIND_LABELS,
 	setsAreUniform,
 	switchUniformSetKind,
 	uniformSetTemplate,
@@ -215,7 +219,7 @@ function UniformSetsControls({
 		mutate((sets) => {
 			sets.splice(0, sets.length, ...switchUniformSetKind(sets, kind))
 		})
-		announce(`Sets are now ${SET_KIND_LABELS[kind].toLowerCase()}`)
+		announce(S.setsKind(NB_SET_KIND_LABELS[kind]))
 	}
 
 	return (
@@ -223,7 +227,7 @@ function UniformSetsControls({
 			{/* The notation mirror: count × quantity — one gesture per value. */}
 			<div className="flex items-center gap-1.5">
 				<TypeToEditStepper
-					label="sets"
+					label={C.stepper.sets}
 					config={COUNT_STEPPER}
 					rawValue={String(count)}
 					announce={announce}
@@ -236,7 +240,7 @@ function UniformSetsControls({
 				{template.kind === 'reps' ? (
 					<TypeToEditStepper
 						key="reps"
-						label="reps"
+						label={C.stepper.reps}
 						config={REPS_STEPPER}
 						rawValue={template.reps}
 						announce={announce}
@@ -246,7 +250,7 @@ function UniformSetsControls({
 				) : template.kind === 'timed' ? (
 					<TypeToEditStepper
 						key="timed"
-						label="time per set"
+						label={C.stepper.timePerSet}
 						config={TIMED_STEPPER}
 						rawValue={template.durationSec}
 						announce={announce}
@@ -261,20 +265,22 @@ function UniformSetsControls({
 			</div>
 
 			<div className="flex items-center gap-2">
-				<span className="text-muted-foreground text-xs">of</span>
+				<span className="text-muted-foreground text-xs">{S.of}</span>
 				<Select
 					value={template.kind}
 					onValueChange={(kind) =>
 						switchKind(normalizeSetKind(kind ?? undefined))
 					}
 				>
-					<SelectTrigger aria-label="Set kind" className="flex-1">
-						<SelectValue />
+					<SelectTrigger aria-label={S.setKind} className="flex-1">
+						<SelectValue>
+							{(value) => NB_SET_KIND_LABELS[normalizeSetKind(String(value))]}
+						</SelectValue>
 					</SelectTrigger>
 					<SelectContent>
 						{EXERCISE_SET_KINDS.map((kind) => (
 							<SelectItem key={kind} value={kind}>
-								{SET_KIND_LABELS[normalizeSetKind(kind)]}
+								{NB_SET_KIND_LABELS[normalizeSetKind(kind)]}
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -292,7 +298,7 @@ function UniformSetsControls({
 				onClick={onVary}
 				className={cn(QUIET_TEXT_BUTTON_CLASS, 'self-start')}
 			>
-				Vary sets individually ▸
+				{S.vary}
 			</button>
 		</div>
 	)
@@ -367,7 +373,7 @@ function UniformLoadField({
 					{authoredLoadLabel(authored!)}
 				</span>
 				<span className="text-muted-foreground text-xs">
-					kept as authored — this load has no editor yet
+					{S.keptAsAuthored}
 				</span>
 			</div>
 		)
@@ -390,11 +396,7 @@ function UniformLoadField({
 				set.pct1RM = unit === 'pct' ? raw : ''
 			}
 		})
-		announce(
-			raw
-				? `Load set to ${raw}${unit === 'kg' ? ' kg' : '% 1RM'}`
-				: 'Load removed',
-		)
+		announce(raw ? S.loadSet(raw, unit) : S.loadRemoved)
 	}
 
 	function handleTyped(nextText: string) {
@@ -419,7 +421,7 @@ function UniformLoadField({
 			<Button
 				type="button"
 				variant="outline"
-				aria-label="Decrease load"
+				aria-label={S.decreaseLoad}
 				disabled={parsed == null || parsed <= nudges.step}
 				onClick={() =>
 					parsed != null && nudgeTo(Math.max(nudges.step, parsed - nudges.step))
@@ -431,7 +433,7 @@ function UniformLoadField({
 			<input
 				type="text"
 				inputMode="decimal"
-				aria-label={unit === 'kg' ? 'Load kg' : 'Load %1RM'}
+				aria-label={unit === 'kg' ? S.loadKg : S.loadPct}
 				placeholder="—"
 				value={text}
 				onChange={(event) => handleTyped(event.target.value)}
@@ -440,7 +442,7 @@ function UniformLoadField({
 			<Button
 				type="button"
 				variant="outline"
-				aria-label="Increase load"
+				aria-label={S.increaseLoad}
 				disabled={nudges.max != null && parsed != null && parsed >= nudges.max}
 				onClick={() =>
 					nudgeTo(
@@ -456,7 +458,7 @@ function UniformLoadField({
 				+
 			</Button>
 			<UnitToggle
-				label="Load unit"
+				label={S.loadUnit}
 				options={[
 					{ id: 'kg', label: 'kg' },
 					{ id: 'pct', label: '%1RM' },
@@ -497,7 +499,7 @@ function VariedSetsGrid({
 					onClick={onCollapse}
 					className={cn(QUIET_TEXT_BUTTON_CLASS, 'self-start')}
 				>
-					◂ Collapse to uniform
+					{S.collapse}
 				</button>
 			) : null}
 			<div className="flex max-h-72 flex-col gap-2 overflow-y-auto">
@@ -512,7 +514,7 @@ function VariedSetsGrid({
 								if (!source) return
 								sets.splice(index + 1, 0, { ...source })
 							})
-							announce(`Set ${index + 1} duplicated`)
+							announce(S.setDuplicated(index + 1))
 						}}
 						onRemove={
 							setList.length > 1
@@ -520,7 +522,7 @@ function VariedSetsGrid({
 										mutate((sets) => {
 											sets.splice(index, 1)
 										})
-										announce(`Set ${index + 1} removed`)
+										announce(S.setRemoved(index + 1))
 									}
 								: undefined
 						}
@@ -537,10 +539,10 @@ function VariedSetsGrid({
 						const last = sets[sets.length - 1]
 						sets.push(last ? { ...last } : { kind: 'reps', reps: '5' })
 					})
-					announce('Set added')
+					announce(S.setAdded)
 				}}
 			>
-				＋ add set
+				{S.addSet}
 			</Button>
 		</div>
 	)
@@ -606,17 +608,19 @@ function SetGridRow({
 				</span>
 				<Select value={setKind} onValueChange={(value) => kind.change(value)}>
 					<SelectTrigger
-						aria-label={`Set ${index + 1} kind`}
+						aria-label={S.setKindOf(index + 1)}
 						className="flex-1"
 						onFocus={() => kind.focus()}
 						onBlur={() => kind.blur()}
 					>
-						<SelectValue />
+						<SelectValue>
+							{(value) => NB_SET_KIND_LABELS[normalizeSetKind(String(value))]}
+						</SelectValue>
 					</SelectTrigger>
 					<SelectContent>
 						{EXERCISE_SET_KINDS.map((k) => (
 							<SelectItem key={k} value={k}>
-								{SET_KIND_LABELS[normalizeSetKind(k)]}
+								{NB_SET_KIND_LABELS[normalizeSetKind(k)]}
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -624,8 +628,8 @@ function SetGridRow({
 				<Button
 					type="button"
 					variant="ghost"
-					aria-label={`Duplicate set ${index + 1}`}
-					title="Duplicate"
+					aria-label={S.duplicateSet(index + 1)}
+					title={S.duplicateTitle}
 					onClick={onDuplicate}
 					className="size-11 shrink-0"
 				>
@@ -634,8 +638,8 @@ function SetGridRow({
 				<Button
 					type="button"
 					variant="ghost"
-					aria-label={`Remove set ${index + 1}`}
-					title="Remove"
+					aria-label={S.removeSet(index + 1)}
+					title={S.removeTitle}
 					disabled={onRemove == null}
 					onClick={onRemove}
 					className="text-destructive size-11 shrink-0 disabled:opacity-30"
@@ -649,8 +653,8 @@ function SetGridRow({
 						type="number"
 						min={1}
 						inputMode="numeric"
-						aria-label={`Set ${index + 1} reps`}
-						placeholder="reps"
+						aria-label={S.repsOf(index + 1)}
+						placeholder={S.repsPlaceholder}
 						value={num(reps)}
 						onChange={(event) => reps.change(event.target.value)}
 						className={cn(inputClass, 'flex-1')}
@@ -660,8 +664,8 @@ function SetGridRow({
 						type="number"
 						min={1}
 						inputMode="numeric"
-						aria-label={`Set ${index + 1} seconds`}
-						placeholder="secs"
+						aria-label={S.secondsOf(index + 1)}
+						placeholder={S.secondsPlaceholder}
 						value={num(durationSec)}
 						onChange={(event) => durationSec.change(event.target.value)}
 						className={cn(inputClass, 'flex-1')}
@@ -682,7 +686,7 @@ function SetGridRow({
 							step={0.5}
 							inputMode="decimal"
 							placeholder="kg"
-							aria-label={`Set ${index + 1} kg`}
+							aria-label={S.kgOf(index + 1)}
 							value={num(weightKg)}
 							onChange={(event) => changeWeight(event.target.value)}
 							className={cn(inputClass, 'flex-1')}
@@ -693,7 +697,7 @@ function SetGridRow({
 							max={200}
 							inputMode="numeric"
 							placeholder="%1RM"
-							aria-label={`Set ${index + 1} %1RM`}
+							aria-label={S.pctOf(index + 1)}
 							value={num(pct1RM)}
 							onChange={(event) => changePct(event.target.value)}
 							className={cn(inputClass, 'flex-1')}
@@ -740,15 +744,13 @@ function RestBetweenSetsFooter({
 		>
 			{isSet ? (
 				<div className="flex flex-col gap-1">
-					<span className="text-muted-foreground text-xs">
-						rest between sets
-					</span>
+					<span className="text-muted-foreground text-xs">{S.restBetween}</span>
 					<div className="flex items-center gap-1.5">
 						<TypeToEditStepper
 							// The line's `· … rest` token and this footer edit the same
 							// field with the same codec, so they always agree.
 							key={rawValue === '' ? 'empty' : 'set'}
-							label="rest between sets"
+							label={C.stepper.restBetweenSets}
 							config={STEPPERS.restSeconds}
 							rawValue={rawValue}
 							announce={announce}
@@ -758,11 +760,11 @@ function RestBetweenSetsFooter({
 						<Button
 							type="button"
 							variant="ghost"
-							aria-label="Remove rest between sets"
-							title="Remove rest"
+							aria-label={S.removeRest}
+							title={S.removeRestTitle}
 							onClick={() => {
 								control.change('')
-								announce('Rest between sets removed')
+								announce(S.restRemoved)
 							}}
 							className="text-destructive size-11 shrink-0"
 						>
@@ -776,14 +778,14 @@ function RestBetweenSetsFooter({
 					onClick={() => {
 						control.change(String(STEPPERS.restSeconds.start))
 						announce(
-							`Rest between sets set to ${STEPPERS.restSeconds.display(
-								STEPPERS.restSeconds.start,
-							)}`,
+							S.restSet(
+								STEPPERS.restSeconds.display(STEPPERS.restSeconds.start),
+							),
 						)
 					}}
 					className={QUIET_TEXT_BUTTON_CLASS}
 				>
-					＋ rest between sets
+					{S.addRest}
 				</button>
 			)}
 		</div>

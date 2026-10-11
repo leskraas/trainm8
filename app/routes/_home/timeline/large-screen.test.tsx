@@ -22,8 +22,8 @@ import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
-import { DayDetail } from './day-pane.tsx'
 import { ComposerProvider } from './composer-context.tsx'
+import { DayDetail } from './day-pane.tsx'
 import { HomeTimeline, type HomeTimelineData } from './home-timeline.tsx'
 import { buildTimelineSeason, type TimelineSeason } from './presenter.ts'
 import { SeasonPane } from './season-pane.tsx'
@@ -475,9 +475,7 @@ describe('picking a day in the list', () => {
 		// comes up over it (the double-open the audit found).
 		await userEvent.click(within(dayRow('2030-02-21')).getByRole('button'))
 		await waitFor(() =>
-			expect(
-				pane.querySelector('[data-composer-input]'),
-			).toHaveFocus(),
+			expect(pane.querySelector('[data-composer-input]')).toHaveFocus(),
 		)
 		expect(pane.querySelector('[data-composer]')).toHaveAttribute(
 			'data-composer-day',
@@ -510,9 +508,10 @@ describe('picking a day in the list', () => {
 		await userEvent.click(within(dayRow('2030-02-21')).getByRole('button'))
 		const composing = await screen.findByRole('dialog')
 		expect(composing).toHaveAccessibleName('Dagen: torsdag 21. feb')
-		expect(
-			composing.querySelector('[data-composer="pane"]'),
-		).toHaveAttribute('data-composer-day', '2030-02-21')
+		expect(composing.querySelector('[data-composer="pane"]')).toHaveAttribute(
+			'data-composer-day',
+			'2030-02-21',
+		)
 		await userEvent.click(
 			within(composing).getByRole('button', { name: 'Lukk' }),
 		)

@@ -267,7 +267,6 @@ test('the first week past the horizon stands under the divider, its days empty r
 	).toBeInTheDocument()
 })
 
-
 // ---------------------------------------------------------------------------
 // The far end (ADR 0079, #505 S9 review S1)
 // ---------------------------------------------------------------------------

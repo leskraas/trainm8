@@ -166,6 +166,8 @@ function renderRoute(loadContexts: Record<string, ResolveContext>) {
 		relinkTargets: [],
 		archetype: null,
 		loggedSetCount: 0,
+		// The header's own figures (Arket M), built server-side by the loader.
+		summary: [],
 	})
 	const App = createRoutesStub([
 		{
@@ -204,8 +206,8 @@ test('a scheduled session whose lift has no anchor renders the authored percenta
 
 	await screen.findByText('Maximal strength A — squat')
 	expect(
-		await screen.findByText(/85% 1RM · no 1RM on file/),
+		await screen.findByText(/85% 1RM · ingen 1RM registrert/),
 	).toBeInTheDocument()
 	// The absence is the whole point: a kilo here would be invented.
-	expect(screen.queryByText(/\d+(\.\d+)? kg/)).not.toBeInTheDocument()
+	expect(screen.queryByText(/\d+([.,]\d+)? kg/)).not.toBeInTheDocument()
 })

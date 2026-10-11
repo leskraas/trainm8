@@ -218,6 +218,20 @@ function renderRoute(
 		<IndexRoute {...(props as any)} />
 	)
 	const App = createRoutesStub([
+		// The composer reads its week and its lifts from resource routes once it
+		// opens; with no plan here, the week has no tracks and the line names
+		// nothing — what matters to these tests is that it opens at all.
+		{
+			path: '/resources/week-sum',
+			loader: ({ request }) => ({
+				day: new URL(request.url).searchParams.get('day'),
+				week: null,
+			}),
+		},
+		{
+			path: '/resources/sentence-exercises',
+			loader: () => ({ exercises: [] }),
+		},
 		{
 			path: '/',
 			Component: RouteComponent,

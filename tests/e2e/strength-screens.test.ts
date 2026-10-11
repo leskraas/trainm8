@@ -589,19 +589,19 @@ test('the runner opens on the weight the program resolved, with its ramp and its
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 
 	await expect(
-		page.getByRole('heading', { name: 'Run your workout', level: 1 }),
+		page.getByRole('heading', { name: 'Gjennomfør økta', level: 1 }),
 	).toBeVisible()
 	// Which session of the run this is — only a run can number a session.
-	await expect(page.getByText('Session 1')).toBeVisible()
+	await expect(page.getByText('Økt 1')).toBeVisible()
 
 	// The lift, and the weight the program decided, on the face of the card.
 	const squat = page.getByRole('heading', { name: 'Back Squat', level: 2 })
 	await expect(squat).toBeVisible()
-	await expect(page.getByText('5×5 · 82.5 kg')).toBeVisible()
+	await expect(page.getByText('5×5 · 82,5 kg')).toBeVisible()
 
 	// The generated ramp, and the working sets with what is left of them.
-	await expect(page.getByText('Warm-up').first()).toBeVisible()
-	await expect(page.getByText('Working sets').first()).toBeVisible()
+	await expect(page.getByText('Oppvarming').first()).toBeVisible()
+	await expect(page.getByText('Arbeidssett').first()).toBeVisible()
 	await expect(page.getByText('0 of 5 logged').first()).toBeVisible()
 	// Five circles, each showing its target rather than a bare number nobody
 	// asked for.
@@ -615,11 +615,9 @@ test('the runner opens on the weight the program resolved, with its ramp and its
 	await expect(page.locator('[data-plate-line]').first()).toBeVisible()
 
 	// And the one control that is not a set.
+	await expect(page.getByRole('button', { name: 'Fullfør økta' })).toBeVisible()
 	await expect(
-		page.getByRole('button', { name: 'Finish workout' }),
-	).toBeVisible()
-	await expect(
-		page.getByText('Every set was saved as you tapped it'),
+		page.getByText('Hvert sett ble lagret da du trykket'),
 	).toBeVisible()
 
 	await expectNoHorizontalOverflow(page)
@@ -777,13 +775,13 @@ test('a warm-up chip toggles from the keyboard and says which rung it is', async
 
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 	await waitForHydration(page, '[data-set-circle]')
-	await expect(page.getByText('Warm-up').first()).toBeVisible()
+	await expect(page.getByText('Oppvarming').first()).toBeVisible()
 
 	const chip = page.locator('[data-warmup-chip]').first()
 	await expect(chip).toHaveAttribute('aria-pressed', 'false')
 	// The rung carries its own weight and reps in its face — it is walked past,
 	// not looked up.
-	await expect(chip).toHaveText(/^\d+(\.\d+)? × \d+$/)
+	await expect(chip).toHaveText(/^\d+([.,]\d+)? × \d+$/)
 
 	await tabTo(page, chip)
 	await pressAndSettle(page, 'Space')
@@ -809,7 +807,7 @@ test('the help panel is one tap behind the lift name and accounts for the weight
 
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 	await waitForHydration(page, '[data-set-circle]')
-	const toggle = page.getByRole('button', { name: 'About Back Squat' })
+	const toggle = page.getByRole('button', { name: 'Om Back Squat' })
 	await expect(toggle).toBeVisible()
 
 	// **Collapsed by default** — this screen's rule is no prose on the logging
@@ -825,7 +823,7 @@ test('the help panel is one tap behind the lift name and accounts for the weight
 	// The four things it says, in the athlete's own numbers: where the weight
 	// came from, which rack the plate line is solved against, what the timer
 	// survives, and the way to this lift over time.
-	await expect(panel).toContainText('82.5 kg is your working weight')
+	await expect(panel).toContainText('82,5 kg is your working weight')
 	await expect(panel).toContainText('Iron Works')
 	await expect(panel).toContainText(
 		'The rest timer survives a locked phone, but not a closed tab.',
@@ -888,7 +886,7 @@ test('lift over time reads the working weight, the records and the history', asy
 	// What the athlete came for: what goes on the bar. The weight moved by the
 	// program's own increment across four made sessions — 82.5 → 92.5 kg.
 	await expect(page.getByText('Working weight')).toBeVisible()
-	await expect(page.getByText('92.5 kg', { exact: true })).toBeVisible()
+	await expect(page.getByText('92,5 kg', { exact: true })).toBeVisible()
 
 	// The rep-max record, read straight off the set rows and never stored.
 	await expect(page.getByRole('heading', { name: 'Records' })).toBeVisible()
@@ -1105,8 +1103,10 @@ test('a gym day is logged som planlagt from I dag in one tap, and the week count
 	await navigate('/')
 	const log = page.getByRole('region', { name: 'Logg Styrke A' })
 	await expect(log).toBeVisible()
-	// Pre-filled from the plan, in the athlete's words.
-	await expect(log.getByText('Back Squat')).toBeVisible()
+	// Pre-filled from the plan, in the athlete's words — Norwegian, not the
+	// database's English name (audit PR D).
+	await expect(log.getByText('Knebøy')).toBeVisible()
+	await expect(log.getByText('Back Squat')).toHaveCount(0)
 	await expect(log.getByText('· 3×5 · 60 kg')).toBeVisible()
 	const track = page.locator(
 		`[data-timeline-week="${monday}"] [data-week-track]`,
@@ -1125,7 +1125,10 @@ test('a gym day is logged som planlagt from I dag in one tap, and the week count
 	await expect(
 		page.getByRole('link', { name: /Styrke A/ }).getByText(/3 \/ 3/),
 	).toBeVisible()
-	await expect(page.getByText(/3 sett logget/)).toBeVisible()
+	const toast = page
+		.locator('[data-sonner-toast]')
+		.filter({ hasText: /3 sett logget/ })
+	await expect(toast).toBeVisible()
 	const sets = await prisma.exerciseSetLog.findMany({
 		where: { sessionId: gym.id },
 		select: { reps: true, effectiveKg: true },
@@ -1136,6 +1139,21 @@ test('a gym day is logged som planlagt from I dag in one tap, and the week count
 		{ reps: 5, effectiveKg: 60 },
 	])
 	await shot(page, 'quick-log-2-logged', track)
+
+	// A mistap is one tap back (ADR 0088): Angre in the toast takes exactly
+	// those sets out, the session is planned again and the log is offered.
+	await toast.getByRole('button', { name: 'Angre' }).click()
+	await expect(
+		page.getByText(/Loggen er angret — 3 sett tatt ut/),
+	).toBeVisible()
+	await expect(log).toBeVisible()
+	await expect(track.getByRole('meter', { name: /gjort 0,/ })).toBeVisible()
+	expect(
+		await prisma.exerciseSetLog.findMany({
+			where: { sessionId: gym.id },
+			select: { id: true },
+		}),
+	).toEqual([])
 	await expectNoHorizontalOverflow(page)
 	expect(errors).toEqual([])
 })
@@ -1154,18 +1172,18 @@ test('Endre logs the set that went differently, at the planned weight', async ({
 
 	await navigate('/')
 	const log = page.getByRole('region', { name: 'Logg Styrke A' })
-	await expect(log.getByText('Back Squat')).toBeVisible()
+	await expect(log.getByText('Knebøy')).toBeVisible()
 	await log.getByRole('button', { name: 'Endre' }).click()
 
 	// One field per set, pre-filled; no weight field — ADR 0064 §2, said here.
 	const third = log.getByRole('spinbutton', {
-		name: 'Sett 3 av Back Squat, reps',
+		name: 'Sett 3 av Knebøy, repetisjoner',
 	})
 	await expect(third).toHaveValue('5')
 	await expect(log.getByText(/Vekta står som planlagt/)).toBeVisible()
 	await expectEveryControlTappable(log)
 	await log
-		.getByRole('spinbutton', { name: 'Sett 2 av Back Squat, reps' })
+		.getByRole('spinbutton', { name: 'Sett 2 av Knebøy, repetisjoner' })
 		.fill('3')
 	await third.fill('')
 	await shot(page, 'quick-log-3-edit', log)
@@ -1207,7 +1225,7 @@ async function seedCircuit(userId: string, setsPerRound = 1) {
 						orderIndex: 0,
 						repeatCount: 5,
 						steps: {
-							create: ['ex_bb_back_squat', 'ex_bb_bench_press'].map(
+							create: ['ex_bb_back_squat', 'ex_bb_bench'].map(
 								(exerciseId, orderIndex) => ({
 									orderIndex,
 									kind: 'strength',

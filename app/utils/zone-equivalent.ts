@@ -28,6 +28,7 @@
  */
 import { formatPaceClock, formatPaceRange } from './format.ts'
 import { POWER_REF_LABELS } from './intensity-target.ts'
+import { nbUnavailableReason, ZONE_PROVENANCE_LABELS as P } from './labels.ts'
 import { intensityTargetToZone, type TrainingZone } from './session-profile.ts'
 import { powerPctRef, type IntensityTarget } from './workout-schema.ts'
 import {
@@ -139,31 +140,15 @@ function recipeFor(
 	return profile?.zoneSystem ? getRecipe(profile.zoneSystem) : undefined
 }
 
-const ANCHOR_NAMES: Record<string, string> = {
-	ftp: 'FTP',
-	runPower: 'run power',
-	lthr: 'LTHR',
-	maxHr: 'max HR',
-	thresholdPace: 'threshold pace',
-	css: 'CSS',
-}
+const ANCHOR_NAMES = P.anchors
 
-const ANCHOR_CHANNEL_WORDS: Record<string, string> = {
-	ftp: 'power-based',
-	runPower: 'power-based',
-	lthr: 'heart-rate-based',
-	maxHr: 'heart-rate-based',
-	thresholdPace: 'pace-based',
-	css: 'pace-based',
-}
+const ANCHOR_CHANNEL_WORDS = P.channels
 
-/** "FTP is not configured" → "FTP missing in settings" (human words, B5). */
+/** "FTP is not configured" → "FTP mangler i innstillingene" (human words,
+ * B5), lower-cased when it is a sentence nobody has worded yet. */
 function missingWords(unavailable: string): string {
-	const missing = /^(.+) is not configured$/.exec(unavailable)
-	if (missing) return `${missing[1]} missing in settings`
-	if (unavailable.startsWith('No zone system'))
-		return 'no zone system chosen in settings'
-	return unavailable.toLowerCase()
+	const words = nbUnavailableReason(unavailable)
+	return words === unavailable ? unavailable.toLowerCase() : words
 }
 
 const unresolvable = (reason: string): ZoneEquivalent => ({
@@ -193,11 +178,11 @@ export function zoneEquivalent(
 		const heuristic = intensityTargetToZone(target)
 		return heuristic != null
 			? { step: heuristic, reason: null }
-			: unresolvable(`"${target.label}" isn't a zone in your zone system`)
+			: unresolvable(P.notAZone(target.label))
 	}
 
-	if (!recipe) return unresolvable('no zone system chosen in settings')
-	if (!profile) return unresolvable('no thresholds in settings')
+	if (!recipe) return unresolvable(P.noZoneSystem)
+	if (!profile) return unresolvable(P.noThresholds)
 
 	// A % target whose reference IS the recipe anchor is already the ratio the
 	// bands are written in — bucket directly, no threshold needed.
@@ -221,7 +206,7 @@ export function zoneEquivalent(
 	if (target.kind === 'lactate') {
 		const band = lactateBand(recipe, target.minMmol, target.maxMmol)
 		if (band >= 0) return { step: bandStep(recipe, band), reason: null }
-		return unresolvable(`${recipe.name} publishes no lactate for that reading`)
+		return unresolvable(P.noLactate(recipe.name))
 	}
 	if (
 		target.kind === 'hrPct' &&
@@ -256,7 +241,7 @@ export function zoneEquivalent(
 								: null
 	if (anchorValue == null) {
 		return unresolvable(
-			`${ANCHOR_NAMES[recipe.anchor] ?? recipe.anchor} missing in settings`,
+			P.missingInSettings(ANCHOR_NAMES[recipe.anchor] ?? recipe.anchor),
 		)
 	}
 
@@ -282,7 +267,7 @@ export function zoneEquivalent(
 	}
 	if (channelValue == null) {
 		return unresolvable(
-			`this target doesn't map onto your ${ANCHOR_CHANNEL_WORDS[recipe.anchor]} zones`,
+			P.noMap(ANCHOR_CHANNEL_WORDS[recipe.anchor] ?? recipe.anchor),
 		)
 	}
 
@@ -362,20 +347,16 @@ export function zoneEquivalentProvenance(
 	equivalent: ZoneEquivalent,
 	resolvedRange?: string | null,
 ): string {
-	if (equivalent.step == null) {
-		return `can't be placed in a zone — ${equivalent.reason}`
-	}
+	if (equivalent.step == null) return P.cantPlace(equivalent.reason)
 	if (target.kind === 'rpe') {
-		return `${intensityChipText(target)} ≈ zone ${equivalent.step} effort`
+		return P.rpe(intensityChipText(target), equivalent.step)
 	}
 	if (target.kind === 'zoneLabel') {
 		return resolvedRange
-			? `${intensityChipText(target)} resolves to ${resolvedRange} from your profile`
-			: `zone ${equivalent.step} for you`
+			? P.zoneResolves(intensityChipText(target), resolvedRange)
+			: P.zoneForYou(equivalent.step)
 	}
-	return resolvedRange
-		? `≈ zone ${equivalent.step} for you — ${resolvedRange} from your profile`
-		: `≈ zone ${equivalent.step} for you`
+	return P.approx(equivalent.step, resolvedRange)
 }
 
 /**

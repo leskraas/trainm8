@@ -46,7 +46,7 @@ import { Collapsible } from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { RUNNER_LABELS } from '#app/utils/labels.ts'
+import { RUNNER_LABELS, WORKOUT_DETAIL_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	type LogExercise,
@@ -101,7 +101,8 @@ export const meta: Route.MetaFunction = ({ data: loaderData }) => [
 export async function loader({ request, params }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	const view = await getStrengthLogView(userId, params.sessionId)
-	if (!view) throw new Response('Not found', { status: 404 })
+	if (!view)
+		throw new Response(WORKOUT_DETAIL_LABELS.errors.notFound, { status: 404 })
 	// A program session prescribes the athlete's own **copy** of the day shape,
 	// because that is where the resolved load lives — so the run is reached one hop
 	// up `copiedFromId`, which the view's own direct lookup cannot see.
@@ -197,7 +198,7 @@ const optionalNumber = z
 	.string()
 	.optional()
 	.transform((v) => (v == null || v.trim() === '' ? null : Number(v)))
-	.refine((v) => v == null || Number.isFinite(v), 'Not a number')
+	.refine((v) => v == null || Number.isFinite(v), L.errors.nonsense)
 
 const LogSetSchema = z.object({
 	stepId: z.string().min(1),
@@ -301,8 +302,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 	}
 
 	const parsed = LogSetSchema.safeParse(Object.fromEntries(formData))
-	if (!parsed.success)
-		return data({ error: L.errors.nonsense }, 400)
+	if (!parsed.success) return data({ error: L.errors.nonsense }, 400)
 	const input = parsed.data
 
 	const load = toLoadValue(input.loadKind, input.loadNumber, input.loadLabel)
@@ -504,7 +504,7 @@ function RunnerHeader({ view }: { view: Route.ComponentProps['loaderData'] }) {
 				{/* The workout's name in full: a program's eyebrow cut to
 				    "STRONGLIFTS 5×5 · W…" at 320px hid which workout it was
 				    (story 32). It wraps instead. */}
-				<p className="text-overline text-primary uppercase [overflow-wrap:anywhere]">
+				<p className="text-overline text-primary [overflow-wrap:anywhere] uppercase">
 					{view.sessionTitle}
 				</p>
 				<h1 className="text-title">{L.heading}</h1>
@@ -647,7 +647,16 @@ function LiftCard({
 						{buildLoggedCounter(circles)}
 					</p>
 				</div>
-				<div className="mt-2 flex items-stretch gap-2.5">
+				{/* **Equal-width circles that wrap.** A repeated block is a circle per
+				    set per round — a `5 ×` circuit of three sets is fifteen — and on
+				    one flex line they shrank under a thumb. Auto-fit columns of at
+				    least 44px keep every circle the same width, fill the row when
+				    there are few (five across at 390px, as before) and wrap into rows
+				    when there are many. */}
+				<div
+					data-set-circles
+					className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(2.75rem,1fr))] gap-2.5"
+				>
 					{circles.map((circle) => (
 						<SetCircleButton
 							key={circle.key}
@@ -1119,10 +1128,7 @@ function AlreadyRecorded({
 	view: Route.ComponentProps['loaderData']
 }) {
 	return (
-		<div
-			role="status"
-			className="bg-muted/60 mb-4 rounded-3xl px-4 py-3"
-		>
+		<div role="status" className="bg-muted/60 mb-4 rounded-3xl px-4 py-3">
 			<p className="text-callout">{L.alreadyRecorded}</p>
 			<p className="text-footnote text-muted-foreground mt-1">
 				{L.alreadyRecordedNote}

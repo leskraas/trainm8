@@ -21,7 +21,12 @@ import {
 	describeStepTarget,
 	parseAuthoredIntensity,
 } from '#app/utils/intensity-target.ts'
-import { getDisciplineLabel } from '#app/utils/training.ts'
+import {
+	nbDisciplineLabel,
+	TOKEN_EDITOR_REPAIR_LABELS as R,
+	TOKEN_SENTENCE_WORDS,
+	zoneLabelWord,
+} from '#app/utils/labels.ts'
 import { emptySet } from '#app/utils/workout-authoring.ts'
 import {
 	draftSetsSummary,
@@ -241,10 +246,6 @@ export function extractStashes(
  * itself so the preview can never drift from what actually lands. */
 const STRENGTH_SEED_SUMMARY = draftSetsSummary([emptySet()]) ?? '1 × 5'
 
-function capitalize(text: string): string {
-	return text ? text[0]!.toUpperCase() + text.slice(1) : text
-}
-
 export type KindSwitchPreviewOptions = {
 	/** id → name for the exercise catalog, so a stashed strength step reads
 	 * as its exercise name. */
@@ -260,7 +261,7 @@ function summarizeValues(
 	if (kind === 'strength') {
 		const name =
 			(values.exerciseId && options.exerciseNames?.[values.exerciseId]) ||
-			'exercise'
+			TOKEN_SENTENCE_WORDS.exercise
 		const sets = draftSetsSummary(values.sets)
 		return sets ? `${name} ${sets}` : name
 	}
@@ -271,16 +272,16 @@ function summarizeValues(
 	if (target) {
 		bits.push(
 			target.kind === 'zoneLabel'
-				? capitalize(target.label)
+				? zoneLabelWord(target.label)
 				: describeStepTarget(target).label,
 		)
 	}
 	if (!isBlank(values.discipline)) {
 		// The athlete's word for the discipline, never the stored identifier
 		// (GLOSSARY.md's copy rule).
-		bits.push(getDisciplineLabel(values.discipline!.trim()))
+		bits.push(nbDisciplineLabel(values.discipline!.trim()))
 	}
-	return bits.join(' · ') || 'its values'
+	return bits.join(' · ') || R.itsValues
 }
 
 /**
@@ -296,22 +297,18 @@ export function previewKindSwitch(
 	const plan = planKindSwitch(step, to)
 	const parts: string[] = []
 	if (plan.restored) {
-		parts.push(`brings back ${summarizeValues(to, plan.restored, options)}`)
+		parts.push(R.bringsBack(summarizeValues(to, plan.restored, options)))
 	} else if (to === 'strength') {
-		parts.push(`starts as an exercise, ${STRENGTH_SEED_SUMMARY}`)
+		parts.push(R.startsAsExercise(STRENGTH_SEED_SUMMARY))
 	} else if (!isBlank(plan.seeded.duration)) {
-		parts.push(
-			`starts as ${plan.seeded.duration}${to === 'rest' ? ' of recovery' : ''}`,
-		)
+		parts.push(R.startsAs(plan.seeded.duration!, to === 'rest'))
 	}
 	const keeps: string[] = []
 	if (plan.carriedDuration != null) keeps.push(plan.carriedDuration)
-	if (!isBlank(step.notes)) keeps.push('note')
-	if (keeps.length > 0) parts.push(`keeps ${keeps.join(', ')}`)
+	if (!isBlank(step.notes)) keeps.push(R.note)
+	if (keeps.length > 0) parts.push(R.keeps(keeps.join(', ')))
 	if (plan.setAside) {
-		parts.push(
-			`sets aside ${summarizeValues(plan.from, plan.setAside, options)}`,
-		)
+		parts.push(R.setsAside(summarizeValues(plan.from, plan.setAside, options)))
 	}
-	return parts.join(' — ') || 'nothing to carry'
+	return parts.join(' — ') || R.nothingToCarry
 }

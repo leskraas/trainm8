@@ -97,10 +97,27 @@ export const StrengthLogEditSchema = z.object({
 	sets: z.array(EditedSet).min(1),
 })
 
-/** Both forms, as the resource route parses a post. */
+/**
+ * _Angre_ from the log's toast (ADR 0088): the set logs that log wrote, as
+ * its reply named them — comma-separated, since the toast posts one field.
+ */
+export const StrengthLogUndoSchema = z.object({
+	intent: z.literal('undo'),
+	sessionId: SessionId,
+	setLogIds: z.preprocess(
+		(value) =>
+			typeof value === 'string'
+				? value.split(',').filter((id) => id.length > 0)
+				: value,
+		z.array(z.string().min(1)).min(1).max(200),
+	),
+})
+
+/** Every post, as the resource route parses it. */
 export const StrengthLogActionSchema = z.discriminatedUnion('intent', [
 	StrengthLogAsPlannedSchema,
 	StrengthLogEditSchema,
+	StrengthLogUndoSchema,
 ])
 
 /** `?sessionId=` on the quick log's read. */

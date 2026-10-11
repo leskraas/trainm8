@@ -178,15 +178,14 @@ test('the header carries the workout eyebrow, the title, the session badge and a
 
 	expect(await screen.findByText('Workout A')).toBeInTheDocument()
 	expect(
-		screen.getByRole('heading', { name: 'Run your workout' }),
+		screen.getByRole('heading', { name: 'Gjennomfør økta' }),
 	).toBeInTheDocument()
-	expect(screen.getByRole('link', { name: 'Back to today' })).toHaveAttribute(
-		'href',
-		'/',
-	)
+	expect(
+		screen.getByRole('link', { name: 'Tilbake til I dag' }),
+	).toHaveAttribute('href', '/')
 	// **The badge is the session's place in the run**, not the program's name —
 	// the handoff's `Session 14` (#480).
-	expect(screen.getByText('Session 14')).toBeInTheDocument()
+	expect(screen.getByText('Økt 14')).toBeInTheDocument()
 	expect(screen.queryByText('StrongLifts 5×5')).not.toBeInTheDocument()
 })
 
@@ -194,7 +193,7 @@ test('a session that belongs to no run carries no badge, because nothing can num
 	renderLog()
 
 	expect(await screen.findByText('Workout A')).toBeInTheDocument()
-	expect(screen.queryByText(/^Session /)).not.toBeInTheDocument()
+	expect(screen.queryByText(/^Økt \d/)).not.toBeInTheDocument()
 })
 
 test('a working set is one circle showing its target reps, sized for a shaking hand', async () => {
@@ -409,7 +408,7 @@ test('a rejected save that says nothing still tells the athlete the set did not 
 
 	await userEvent.click(await screen.findByLabelText('Log set 1 of Squat'))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(/did not save/i)
+	expect(await screen.findByRole('alert')).toHaveTextContent(/ble ikke lagret/i)
 })
 
 // ——— The weight the program resolved, and its absences ————————————————————
@@ -675,8 +674,8 @@ test('where no ramp can be generated the section is absent, not empty', async ()
 
 	// The working sets are there, so the card rendered — and there is no empty
 	// WARM-UP heading above them.
-	expect(await screen.findByText('Working sets')).toBeInTheDocument()
-	expect(screen.queryByText('Warm-up')).not.toBeInTheDocument()
+	expect(await screen.findByText('Arbeidssett')).toBeInTheDocument()
+	expect(screen.queryByText('Oppvarming')).not.toBeInTheDocument()
 	expect(document.querySelector('[data-warmup-chip]')).toBeNull()
 })
 
@@ -708,7 +707,7 @@ test('finishing the session is an explicit act, and says what you lift next time
 	)
 
 	await userEvent.click(
-		await screen.findByRole('button', { name: 'Finish workout' }),
+		await screen.findByRole('button', { name: 'Fullfør økta' }),
 	)
 
 	expect(await screen.findByText('What you lift next time')).toBeInTheDocument()
@@ -722,7 +721,7 @@ test('finishing a warm-up-only session is refused in words', async () => {
 	)
 
 	await userEvent.click(
-		await screen.findByRole('button', { name: 'Finish workout' }),
+		await screen.findByRole('button', { name: 'Fullfør økta' }),
 	)
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -735,7 +734,7 @@ test('the caption says the sets are already saved and that Finish only marks the
 
 	expect(
 		await screen.findByText(
-			'Every set was saved as you tapped it. This only marks the day.',
+			'Hvert sett ble lagret da du trykket. Dette markerer bare dagen.',
 		),
 	).toBeInTheDocument()
 })
@@ -767,7 +766,7 @@ test('a Stall Cut renders as a notice with a reason, and offers nothing', async 
 	)
 
 	await userEvent.click(
-		await screen.findByRole('button', { name: 'Finish workout' }),
+		await screen.findByRole('button', { name: 'Fullfør økta' }),
 	)
 
 	const notice = await waitFor(() => {
@@ -788,9 +787,9 @@ test('a Stall Cut renders as a notice with a reason, and offers nothing', async 
 test('a session that is already recorded says so above the cards and offers no second finish', async () => {
 	renderLog({ status: 'completed' })
 
-	expect(await screen.findByText('Already recorded.')).toBeInTheDocument()
+	expect(await screen.findByText('Allerede registrert.')).toBeInTheDocument()
 	expect(
-		screen.queryByRole('button', { name: 'Finish workout' }),
+		screen.queryByRole('button', { name: 'Fullfør økta' }),
 	).not.toBeInTheDocument()
 	// The circles stay tappable: a set logged after the fact is still the truth.
 	expect(screen.getByLabelText('Log set 1 of Squat')).toBeEnabled()
@@ -800,10 +799,10 @@ test('a session with no lifts says that instead of drawing an empty grid', async
 	renderLog({ exercises: [] })
 
 	expect(
-		await screen.findByText('This session has no lifts to log.'),
+		await screen.findByText('Økta har ingen løft å logge.'),
 	).toBeInTheDocument()
 	expect(
-		screen.queryByRole('button', { name: 'Finish workout' }),
+		screen.queryByRole('button', { name: 'Fullfør økta' }),
 	).not.toBeInTheDocument()
 })
 
@@ -812,7 +811,7 @@ test('a session with no lifts says that instead of drawing an empty grid', async
 test("a lift's history is one tap behind its name, so a session logged outside a program still leads there", async () => {
 	renderLog()
 
-	await userEvent.click(await screen.findByLabelText('About Squat'))
+	await userEvent.click(await screen.findByLabelText('Om Squat'))
 
 	expect(
 		await screen.findByRole('link', { name: 'This lift over time' }),
@@ -822,7 +821,7 @@ test("a lift's history is one tap behind its name, so a session logged outside a
 test('a step naming no catalogued exercise offers no history link, because there is none to open', async () => {
 	renderLog({ exercises: [exercise({ exerciseId: null })] })
 
-	await userEvent.click(await screen.findByLabelText('About Squat'))
+	await userEvent.click(await screen.findByLabelText('Om Squat'))
 
 	expect(
 		screen.queryByRole('link', { name: 'This lift over time' }),
@@ -832,10 +831,10 @@ test('a step naming no catalogued exercise offers no history link, because there
 test('with no gym on file the notes link to the place the athlete describes one', async () => {
 	renderLog()
 
-	await userEvent.click(await screen.findByLabelText('About Squat'))
+	await userEvent.click(await screen.findByLabelText('Om Squat'))
 
 	expect(
-		await screen.findByRole('link', { name: 'Tell us what your gym has' }),
+		await screen.findByRole('link', { name: 'Beskriv gymmet ditt' }),
 	).toHaveAttribute('href', '/settings/training/gym')
 })
 
@@ -1066,7 +1065,7 @@ test('a short set restarts the rest at the longer duration, and the bar states t
 test('the help panel is collapsed by default and opens from the control beside the name', async () => {
 	renderLog()
 
-	const toggle = await screen.findByLabelText('About Squat')
+	const toggle = await screen.findByLabelText('Om Squat')
 	// 36px drawn, 44px to a thumb through the `after:` inset.
 	expect(toggle).toHaveClass('size-9')
 	expect(toggle).toHaveAttribute('aria-expanded', 'false')
@@ -1114,7 +1113,7 @@ test('open, the panel says how the weight resolved, which rack, what the timer s
 		],
 	)
 
-	await userEvent.click(await screen.findByLabelText('About Squat'))
+	await userEvent.click(await screen.findByLabelText('Om Squat'))
 	const panel = document.querySelector('[data-lift-help-panel]')!
 
 	// The weight in the athlete's own numbers, not the algorithm's.
@@ -1143,7 +1142,7 @@ test('a held lift says two sessions came up short, so a weight that did not move
 		},
 	])
 
-	await userEvent.click(await screen.findByLabelText('About Squat'))
+	await userEvent.click(await screen.findByLabelText('Om Squat'))
 
 	expect(
 		await screen.findByText(
@@ -1199,7 +1198,7 @@ test('with no gym described there is no plate line, and the offer to describe on
 
 	await waitFor(async () =>
 		expect(
-			await screen.findByRole('link', { name: 'Tell us what your gym has' }),
+			await screen.findByRole('link', { name: 'Beskriv gymmet ditt' }),
 		).toHaveAttribute('href', '/settings/training/gym'),
 	)
 	// **Not a default rack, not an assumed bar** (ADR 0060 §2).
