@@ -5,8 +5,7 @@ import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
-import { COMMUNITY_NON_VOUCH } from '#app/utils/community.ts'
-import { CONVENTION_SLOT_LINE } from '#app/utils/plan-generation/provenance.ts'
+import { NB_PROVENANCE_LABELS } from '#app/utils/labels.ts'
 import PlaceRoute from './catalogue.place.$workoutId.tsx'
 
 function renderPlace(
@@ -53,22 +52,22 @@ function renderPlace(
 test('the screen asks one question and defaults to today in the athlete’s own zone', async () => {
 	renderPlace()
 
-	const date = await screen.findByLabelText(/which day/i)
+	const date = await screen.findByLabelText(/hvilken dag/i)
 	expect(date).toHaveValue('2026-08-13')
 	// The default states that it is a default, in a phrase rather than a paragraph.
 	expect(
-		screen.getByText(/scheduled at your default training time/i),
+		screen.getByText(/ditt vanlige treningstidspunkt/i),
 	).toBeInTheDocument()
 })
 
 test('placing sends the day the athlete picked', async () => {
 	const { submitted } = renderPlace()
 
-	const date = await screen.findByLabelText(/which day/i)
+	const date = await screen.findByLabelText(/hvilken dag/i)
 	await userEvent.clear(date)
 	await userEvent.type(date, '2026-09-01')
 	await userEvent.click(
-		screen.getByRole('button', { name: /add to my calendar/i }),
+		screen.getByRole('button', { name: /legg i kalenderen/i }),
 	)
 
 	expect(submitted).toHaveBeenCalledWith({ date: '2026-09-01' })
@@ -77,9 +76,13 @@ test('placing sends the day the athlete picked', async () => {
 test('the row shows what it can source — including an uncited Stock Workout (#474)', async () => {
 	renderPlace({ sourcing: { kind: 'convention' } })
 
-	expect(await screen.findByText(CONVENTION_SLOT_LINE)).toBeInTheDocument()
+	expect(
+		await screen.findByText(NB_PROVENANCE_LABELS.convention),
+	).toBeInTheDocument()
 	// trainm8 wrote or transcribed this one, so it is not disclaimed.
-	expect(screen.queryByText(COMMUNITY_NON_VOUCH)).not.toBeInTheDocument()
+	expect(
+		screen.queryByText(NB_PROVENANCE_LABELS.nonVouch),
+	).not.toBeInTheDocument()
 })
 
 test('a community row carries its non-vouch to the moment of placing it', async () => {
@@ -94,8 +97,8 @@ test('a community row carries its non-vouch to the moment of placing it', async 
 		},
 	})
 
-	expect(await screen.findByText(/Published by Jo Kraas/)).toBeInTheDocument()
-	expect(screen.getByText(COMMUNITY_NON_VOUCH)).toBeInTheDocument()
+	expect(await screen.findByText(/Publisert av Jo Kraas/)).toBeInTheDocument()
+	expect(screen.getByText(NB_PROVENANCE_LABELS.nonVouch)).toBeInTheDocument()
 })
 
 test('back and cancel return to the list the athlete filtered', async () => {
@@ -104,7 +107,7 @@ test('back and cancel return to the list the athlete filtered', async () => {
 	expect(
 		await screen.findByRole('link', { name: /tilbake til katalog/i }),
 	).toHaveAttribute('href', '/training/catalogue?archetype=threshold')
-	expect(screen.getByRole('link', { name: /cancel/i })).toHaveAttribute(
+	expect(screen.getByRole('link', { name: /avbryt/i })).toHaveAttribute(
 		'href',
 		'/training/catalogue?archetype=threshold',
 	)
@@ -114,6 +117,6 @@ test('the athlete is told the copy is theirs, in one line', async () => {
 	renderPlace()
 
 	expect(
-		await screen.findByText(/Editing it never changes the Catalogue's\./),
+		await screen.findByText(/Endrer du den, endres ikke katalogens\./),
 	).toBeInTheDocument()
 })

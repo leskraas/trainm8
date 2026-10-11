@@ -3,6 +3,7 @@ import path from 'node:path'
 import { expect, test } from 'vitest'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { prisma } from './db.server.ts'
+import { NB_EXERCISE_ALIASES } from './exercise-aliases-nb.ts'
 import { FREE_EXERCISE_DB_ROWS } from './exercise-corpus.free-exercise-db.ts'
 import {
 	AUTHORED_LIFTS,
@@ -180,6 +181,29 @@ test('seeding writes the corpus, its variants and its aliases, and re-seeding du
 	expect(await prisma.exercise.count()).toBe(afterFirst.exercises)
 	expect(await prisma.exerciseVariant.count()).toBe(afterFirst.variants)
 	expect(await prisma.exerciseAlias.count()).toBe(afterFirst.aliases)
+})
+
+test('seeding writes the Norwegian names as movement aliases in `nb`, and re-seeding duplicates none (owner decision 9)', async () => {
+	const first = await seedExercises(prisma, EXERCISE_CORPUS)
+	const knebøy = await prisma.exerciseAlias.findMany({
+		where: { text: 'knebøy' },
+		select: { exerciseId: true, locale: true, variantId: true },
+	})
+	expect(knebøy).toEqual([
+		{ exerciseId: 'ex_bb_back_squat', locale: 'nb', variantId: null },
+	])
+	const nb = await prisma.exerciseAlias.count({ where: { locale: 'nb' } })
+	expect(nb).toBe(
+		Object.values(NB_EXERCISE_ALIASES).reduce(
+			(n, words) => n + words.length,
+			0,
+		),
+	)
+	// The returned count is every alias written, English and Norwegian alike.
+	expect(first.aliases).toBe(await prisma.exerciseAlias.count())
+
+	await seedExercises(prisma, EXERCISE_CORPUS)
+	expect(await prisma.exerciseAlias.count({ where: { locale: 'nb' } })).toBe(nb)
 })
 
 test('the seed lands on the default variant the migration backfilled rather than beside it', async () => {

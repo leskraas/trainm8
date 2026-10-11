@@ -12,10 +12,12 @@
  * card used to render at one size in one grey, which is the same as saying
  * nothing: five lift rows, a provenance note and a citation all read as one
  * paragraph, and the athlete had to parse the card to find the thing they came
- * for. So the body is three tiers now — the lift rows, then what the program
- * does to the weight over weeks, then the footnote — and the citation, the one
- * line here nobody reads in the gym, sits behind a disclosure. Nothing was
- * dropped; the card just says which part is loudest.
+ * for. So the body is three tiers — the lift rows, then what the program does
+ * to the weight over weeks, then the footnote — and the citation, the one line
+ * here nobody reads in the gym, sits behind a disclosure. Nothing was dropped;
+ * the card just says which part is loudest. The quieter tiers are a step down
+ * in size, never in contrast: `muted-foreground` is already the floor that
+ * passes AA, and the `/70` this page used was 3:1.
  */
 import { Form, Link } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -29,8 +31,18 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import {
+	APP_TAB_LABELS,
+	LIBRARY_LABELS,
+	PROGRAMS_LABELS as L,
+} from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	type ProgramLiftSummary,
@@ -43,13 +55,12 @@ import {
 	liftKey,
 	liftRules,
 	liftScheme,
+	programProvenanceNote,
 	runningInstanceIds,
 	shapeText,
 } from './__programs-list-presenter.ts'
 
-export const meta: Route.MetaFunction = () => [
-	{ title: 'Strength programs | Trainm8' },
-]
+export const meta: Route.MetaFunction = () => [{ title: L.metaTitle }]
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -66,32 +77,31 @@ export default function ProgramsRoute({ loaderData }: Route.ComponentProps) {
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
-			{/* Back to Home, not `/training`: `/training` is a URL namespace and
-			    Home is the training hub, so the back link names where the athlete
-			    actually came from. (`/training` itself redirects here — see
-			    `training/index.tsx` — so the guessed prefix is not a 404 either.) */}
+			{/* Back to Bibliotek, the tab this page lives under (ADR 0083 §4).
+			    (`/training` itself redirects here — see `training/index.tsx` — so
+			    the guessed prefix is not a 404 either.) */}
 			<PageHeader
-				title="Strength programs"
-				back={{ to: '/library', label: 'Bibliotek' }}
+				title={LIBRARY_LABELS.programs}
+				back={{ to: '/library', label: APP_TAB_LABELS.library }}
 				className="mb-2"
 			/>
-			<p className="text-body-2xs text-muted-foreground mb-6 leading-relaxed">
-				Each one runs on the last weight you lifted — never on the calendar.
-			</p>
+			<p className="text-footnote text-muted-foreground mb-6">{L.intro}</p>
 
 			{programs.length === 0 ? (
 				/* An honest dead end rather than a blank screen: this is a database
 				   state, not something the athlete did, and the sentence says so and
 				   then points at the way to train that is still open. */
-				<p className="text-body-sm text-muted-foreground">
-					No programs are published in this database yet, so there is nothing to
-					start here — nothing you did. You can still{' '}
-					<Link to="/training/catalogue" className="underline">
-						take a session from the Catalogue
+				<p className="text-footnote text-muted-foreground">
+					{L.empty}{' '}
+					<Link to="/training/catalogue" className="text-foreground underline">
+						{L.emptyCatalogue}
 					</Link>{' '}
-					or{' '}
-					<Link to="/training/sessions/new" className="underline">
-						write one yourself
+					{L.emptyOr}{' '}
+					<Link
+						to="/training/sessions/new"
+						className="text-foreground underline"
+					>
+						{L.emptyWrite}
 					</Link>
 					.
 				</p>
@@ -125,22 +135,20 @@ function ProgramCard({
 	return (
 		<Card className="gap-3.5">
 			{/* `CardAction` and not a flex row: `CardHeader` is a grid, and it grows
-			    its second column only for a child in that slot. A `flex-row` here
-			    styled nothing — the badge dropped to its own line under the shape,
-			    which is not where the approved capture puts it. */}
+			    its second column only for a child in that slot. */}
 			<CardHeader className="gap-4">
 				<div className="min-w-0">
-					<CardTitle className="text-lg leading-tight font-bold">
+					<CardTitle className="text-heading [overflow-wrap:anywhere]">
 						{program.name}
 					</CardTitle>
-					<p className="text-body-2xs text-muted-foreground mt-1">
+					<p className="text-footnote text-muted-foreground mt-1">
 						{shapeText(program.dayIds)}
 					</p>
 				</div>
 				{runningInstanceId ? (
 					<CardAction>
-						<Badge className="bg-muted text-primary text-button h-6 shrink-0 rounded-2xl px-2.5">
-							Running
+						<Badge variant="secondary" className="shrink-0">
+							{L.running}
 						</Badge>
 					</CardAction>
 				) : null}
@@ -156,12 +164,12 @@ function ProgramCard({
 				</ul>
 
 				<ProvenanceFootnote
-					note={program.provenanceNote}
+					note={programProvenanceNote(program)}
 					citation={program.citation}
 				/>
 
 				{runningInstanceId ? (
-					<div className="space-y-3">
+					<div className="space-y-1">
 						{/* The primary action opens *today's session*, not a summary of
 						    it: the athlete is standing in the gym. It posts the overview's
 						    own `open-session` intent, so the session is resolved and
@@ -172,17 +180,17 @@ function ProgramCard({
 							action={`/training/programs/run/${runningInstanceId}`}
 						>
 							<input type="hidden" name="intent" value="open-session" />
-							<Button type="submit" className="h-12 w-full rounded-2xl">
-								Open your run
+							<Button type="submit" className="w-full rounded-full">
+								{L.openRun}
 							</Button>
 						</Form>
 						{/* The overview keeps the two things nothing else offers, so it
 						    stays one tap away rather than disappearing behind the runner. */}
 						<Link
 							to={`/training/programs/run/${runningInstanceId}`}
-							className="text-body-2xs text-muted-foreground block text-center underline underline-offset-4"
+							className="text-footnote text-muted-foreground flex min-h-11 items-center justify-center underline underline-offset-4"
 						>
-							Correct a weight or end this program
+							{L.manageRun}
 						</Link>
 					</div>
 				) : (
@@ -190,10 +198,10 @@ function ProgramCard({
 						to={`/training/programs/${program.id}/start`}
 						className={cn(
 							buttonVariants({ variant: 'outline' }),
-							'h-12 w-full rounded-2xl',
+							'w-full rounded-full',
 						)}
 					>
-						Start {program.name}
+						{L.start(program.name)}
 					</Link>
 				)}
 			</CardContent>
@@ -204,22 +212,22 @@ function ProgramCard({
 /**
  * One lift, at two weights, because it answers two questions.
  *
- * `Back Squat 5×5` is tonight, so it is the largest text in the card body and
- * the name carries the only bold. `+2.5 kg · −10 % after 3 stalls` is week six,
- * so it is a step smaller and dimmer, and it sits to the right where a phone
- * has room and wraps under the name where it does not.
- *
- * Before this the whole row was one size and one colour, which is what made a
- * five-lift card read as a paragraph.
+ * `Back Squat 5×5` is tonight, so it is the larger text in the card body and
+ * the name carries the weight. `+2,5 kg · −10 % etter 3 stopp` is week six, so
+ * it is a step smaller, and it sits to the right where a phone has room and
+ * wraps under the name where it does not. Both are AA: the step down is size,
+ * not a dimmer grey.
  */
 function LiftRow({ lift }: { lift: ProgramLiftSummary }) {
 	return (
 		<li className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-			<span className="text-body-xs leading-snug">
-				<span className="text-foreground font-bold">{lift.name}</span>{' '}
-				<span className="text-muted-foreground">{liftScheme(lift)}</span>
+			<span className="text-callout">
+				<span className="text-foreground">{lift.name}</span>{' '}
+				<span className="text-muted-foreground tabular-nums">
+					{liftScheme(lift)}
+				</span>
 			</span>
-			<span className="text-body-2xs text-muted-foreground/70 leading-snug">
+			<span className="text-footnote text-muted-foreground tabular-nums">
 				{liftRules(lift)}
 			</span>
 		</li>
@@ -232,14 +240,11 @@ function LiftRow({ lift }: { lift: ProgramLiftSummary }) {
  * published and which are program convention with nothing behind them, so the
  * note itself stays on the face of the card and is never a tap away.
  *
- * It is, however, a footnote: below a hairline, a step down in colour from the
+ * It is, however, a footnote: below a hairline, a step down in size from the
  * lift rows it qualifies. The **citation** goes one step further and sits behind
- * a disclosure, because it is the one line here nobody reads in the gym — it is
- * checked once, by somebody deciding whether to trust the card at all.
- *
- * `<details>` and not React state, the convention `__plan-chrome.tsx` sets: it
- * opens with no JavaScript, survives the browser's own find-in-page, and leaves
- * its content in the accessibility tree.
+ * the shared `Collapsible` (`motion-collapse`), because it is the one line here
+ * nobody reads in the gym — it is checked once, by somebody deciding whether to
+ * trust the card at all. Its trigger is a 44px row, not a 20px word.
  */
 function ProvenanceFootnote({
 	note,
@@ -250,35 +255,29 @@ function ProvenanceFootnote({
 }) {
 	if (!note && !citation.work) return null
 	return (
-		<div className="border-border space-y-2 border-t pt-3.5">
+		<div className="border-border/60 space-y-1 border-t pt-3.5">
 			{note ? (
-				<p className="text-body-2xs text-muted-foreground/70 leading-relaxed">
-					{note}
-				</p>
+				<p className="text-footnote text-muted-foreground">{note}</p>
 			) : null}
 			{citation.work ? (
-				<details className="group">
-					<summary
-						className={cn(
-							'text-body-2xs text-muted-foreground/70 flex cursor-pointer list-none items-center gap-1',
-							'hover:text-muted-foreground w-fit py-1 transition-colors',
-							// Ours is the chevron below; Safari draws a second triangle
-							// unless its own marker is killed by name.
-							'[&::-webkit-details-marker]:hidden',
-						)}
-					>
-						Source
+				<Collapsible>
+					<CollapsibleTrigger className="text-footnote text-muted-foreground group flex min-h-11 items-center gap-1">
+						{L.source}
 						<Icon
 							name="chevron-right"
-							className="size-3 transition-transform group-open:rotate-90"
+							className="duration-collapse size-3 transition-transform ease-out group-data-panel-open:rotate-90 motion-reduce:transition-none"
 						/>
-					</summary>
-					<p className="text-body-2xs text-muted-foreground/70 leading-relaxed">
-						{citation.author ?? 'Unattributed'} — {citation.work}
-						{citation.year ? `, ${citation.year}` : ''}
-						{citation.locator ? ` (${citation.locator})` : ''}
-					</p>
-				</details>
+					</CollapsibleTrigger>
+					{/* `hiddenUntilFound`: closed, the citation is still in the page, so
+					    the browser's find-in-page reaches it and opens the panel. */}
+					<CollapsibleContent hiddenUntilFound>
+						<p className="text-footnote text-muted-foreground pb-1">
+							{citation.author ?? L.unattributed} — {citation.work}
+							{citation.year ? `, ${citation.year}` : ''}
+							{citation.locator ? ` (${citation.locator})` : ''}
+						</p>
+					</CollapsibleContent>
+				</Collapsible>
 			) : null}
 		</div>
 	)
