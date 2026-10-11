@@ -175,9 +175,7 @@ test('the season plan does not overflow at 390px', async ({
 	// dense per-week reading the surface exists to be audited through — so it
 	// gets the gate too rather than riding on the Blocks pass.
 	await page.goto('/training/plan?tab=weeks')
-	await expect(
-		page.getByRole('heading', { name: 'Uke for uke' }),
-	).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Uke for uke' })).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 })
 

@@ -242,7 +242,7 @@ test('another athlete’s pattern reads as gone and writes nothing', async () =>
 	)) as { data: { error: string } }
 
 	expect(refused.data.error).toBe(
-		'That week pattern is no longer part of this plan.',
+		'Det ukemønsteret er ikke lenger en del av planen.',
 	)
 	expect(await sessionCount(mine.userId)).toBe(0)
 	expect(await sessionCount(theirs.userId)).toBe(0)
