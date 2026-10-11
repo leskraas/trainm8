@@ -4,16 +4,19 @@
  */
 import { z } from 'zod'
 import { DayKeySchema } from './calendar-key-schema.ts'
-import { CARDIO_DISCIPLINES } from './workout-schema.ts'
+import { DISCIPLINES } from './workout-schema.ts'
 import { MAX_SENTENCE_LENGTH } from './workout-sentence.ts'
 
 export const WriteSessionSchema = z.object({
 	intent: z.literal('write-session'),
 	date: DayKeySchema,
-	/** The chip; empty when none is chosen and the sentence names its sport. */
+	/**
+	 * The chip; empty when none is chosen and the sentence names its sport.
+	 * Styrke included: a sentence of lifts is read under it (ADR 0089).
+	 */
 	discipline: z.preprocess(
 		(value) => (value === '' ? undefined : value),
-		z.enum(CARDIO_DISCIPLINES).optional(),
+		z.enum(DISCIPLINES).optional(),
 	),
 	sentence: z.string().trim().min(1).max(MAX_SENTENCE_LENGTH),
 	/**

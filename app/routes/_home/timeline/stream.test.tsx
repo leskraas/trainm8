@@ -104,6 +104,11 @@ function renderWeek(
 ) {
 	const App = createRoutesStub([
 		{
+			// The writing line names lifts against the exercise catalogue (ADR 0089).
+			path: '/resources/sentence-exercises',
+			loader: () => ({ exercises: [] }),
+		},
+		{
 			// The writing line reads the day's week as it opens; an empty plan
 			// keeps the line's own preview out of these tests.
 			path: '/resources/week-sum',
@@ -332,25 +337,25 @@ test('the draft carries the More escape, and it names the day it was opened on',
 	)
 })
 
-test('strength takes the full route rather than stamping a session with no lift', async () => {
+test('strength offers the line for lifts, and the full route while it is empty', async () => {
 	// A strength step is required to name a lift, and no lift can be read off a
-	// tap on a Thursday — so the line says so and hands over, which is what the
-	// More escape is for.
+	// tap on a Thursday — so nothing is stamped. The line reads lifts (ADR 0089),
+	// so it is offered with a lift for its example, and the full route stays
+	// one tap away while it is empty.
 	const user = userEvent.setup()
 	renderWeek([day({ key: '2030-02-23' })], { prefill: 'strength' })
 
 	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
 
 	expect(screen.queryByRole('button', { name: /^Legg til / })).toBeNull()
+	expect(screen.getByRole('textbox', { name: 'Skriv økta' })).toHaveAttribute(
+		'placeholder',
+		expect.stringMatching(/Knebøy 5×5 @ 80 kg/),
+	)
 	expect(screen.getByRole('link', { name: 'Navngi løftene' })).toHaveAttribute(
 		'href',
 		'/training/sessions/new?date=2030-02-23&discipline=strength',
 	)
-	expect(
-		screen.getByText(
-			'En styrkeøkt sier hvilke løft — mer enn linja har plass til.',
-		),
-	).toBeInTheDocument()
 })
 
 test('a stamp that writes nothing gives the row back, and says so', async () => {

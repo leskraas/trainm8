@@ -68,7 +68,11 @@ import {
 } from '#app/components/ui/select.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
-import { getDisciplineLabel } from '#app/utils/labels.ts'
+import {
+	getDisciplineLabel,
+	TOKEN_EDITOR_TITLES,
+	TOKEN_SENTENCE_WORDS,
+} from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	attachStashes,
@@ -419,7 +423,7 @@ function tokenAccessibleName(
 			case 'sets':
 				// The compact set notation is the value; the mid-edit placeholder
 				// token renders the bare word.
-				return token.text === 'sets'
+				return token.text === TOKEN_SENTENCE_WORDS.sets
 					? 'sets, not set yet'
 					: `sets: ${token.text}`
 			case 'discipline':
@@ -1587,14 +1591,14 @@ export function TokenSentenceEditor({
 						type="button"
 						variant="ghost"
 						size="xs"
-						aria-label="Add block"
+						aria-label={TOKEN_SENTENCE_WORDS.addBlockAction}
 						onClick={() =>
 							restructure((blocks) => {
 								blocks.push(sentenceBlockOfKind('cardio'))
 							})
 						}
 					>
-						+ block
+						{TOKEN_SENTENCE_WORDS.addBlock}
 					</Button>
 				</div>
 			) : null}
@@ -1602,7 +1606,7 @@ export function TokenSentenceEditor({
 				handle={popoverHandle}
 				// The cap label follows the facet actually shown, which a §6.1
 				// neighbour link may have swapped away from the anchor's own.
-				label={(payload) => EDITOR_LABELS[activeFor(payload).kind]}
+				label={(payload) => TOKEN_EDITOR_TITLES[activeFor(payload).kind]}
 				onOpenChange={(open) => {
 					if (!open) setFacetSwap(null)
 				}}
@@ -1719,7 +1723,7 @@ export function TokenSentenceEditor({
 							{addFacet != null ? (
 								<>
 									<div className="text-muted-foreground font-mono text-[11px] font-semibold tracking-[0.08em] uppercase">
-										{EDITOR_LABELS[addFacet.kind]}
+										{TOKEN_EDITOR_TITLES[addFacet.kind]}
 									</div>
 									<PopoverErrorLead
 										messages={[

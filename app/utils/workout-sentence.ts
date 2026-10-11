@@ -37,7 +37,10 @@ import { type NotationInput, type NotationStep } from './workout-notation.ts'
 import {
 	blockRepeatTotal,
 	type CardioDiscipline,
+	type Discipline,
 	type IntensityTarget,
+	isCardioDiscipline,
+	type LoadTarget,
 	type WorkoutIntent,
 	type WorkoutStructure,
 	WorkoutStructureSchema,
@@ -65,6 +68,9 @@ export const UNREAD_REASONS = [
 	'ambiguous-time',
 	'ambiguous-number',
 	'stray',
+	// A lift's name the exercise database does not hold (ADR 0089). Its
+	// suggestions are the nearest names it does hold.
+	'unknown-exercise',
 ] as const
 export type UnreadReason = (typeof UNREAD_REASONS)[number]
 
@@ -89,6 +95,12 @@ export const SENTENCE_PROBLEMS = [
 	'distance-rest',
 	'out-of-range',
 	'no-discipline',
+	// A lift's problems (ADR 0089): named with no sets, sets with no name, an
+	// `@` or a `kg` with no load after it, and two loads on one set.
+	'no-sets',
+	'no-exercise',
+	'dangling-load',
+	'two-loads',
 ] as const
 export type SentenceProblem = (typeof SENTENCE_PROBLEMS)[number]
 
@@ -97,8 +109,9 @@ export type ParsedSentence = {
 	structure: WorkoutStructure | null
 	/** The Workout Intent the hardest step's zone reads as. */
 	intent: WorkoutIntent | null
-	discipline: CardioDiscipline | null
-	/** The sentence named its discipline itself (`sykkel`), over the chip. */
+	/** `strength` when the sentence names lifts (ADR 0089), else a cardio sport. */
+	discipline: Discipline | null
+	/** The sentence named its discipline itself (`sykkel`, or a lift), over the chip. */
 	disciplineFromText: boolean
 	unknown: UnknownWord[]
 	problems: SentenceProblem[]
@@ -108,7 +121,34 @@ export type ParsedSentence = {
 	 * when every step states one. Null otherwise — never a partial sum.
 	 */
 	totals: { distanceM: number | null; durationSec: number | null }
+	/**
+	 * The lifts the reader settled on, one per strength step, in order: the
+	 * exercise, its name as the database gives it, and the words the athlete
+	 * typed for it (ADR 0089). Empty for a run, a ride or a swim.
+	 */
+	lifts: SentenceLift[]
+	/** `exerciseId → name` for the lifts above — what the echo names them by. */
+	exerciseNames: Record<string, string>
+	/**
+	 * The sentence names a lift but no exercise database was handed in, so no
+	 * name could be read yet. Nothing is reported unknown on that account: the
+	 * line waits for the database rather than flashing every lift as a typo.
+	 */
+	exercisesNeeded: boolean
 }
+
+/**
+ * One exercise the reader may name: the database's row, and the other names
+ * it answers to — the Norwegian aliases the exercise database carries
+ * (owner decision 9). `getExerciseCatalog` is the source on the server.
+ */
+export type SentenceExercise = {
+	id: string
+	name: string
+	aliases?: readonly string[]
+}
+
+export type SentenceLift = { exerciseId: string; name: string; typed: string }
 
 // ——— Vocabulary ————————————————————————————————————————————————————————
 
@@ -174,6 +214,41 @@ const GLUE_WORDS = new Set(['i', 'på', 'med', 'og', 'à', 'a', 'fart', 'drag'])
 /** Words that end one part and start the next. */
 const JOIN_WORDS = new Set(['så', 'deretter'])
 
+/**
+ * The words of a lift's sets (ADR 0089): `3 sett à 8 reps`, `@ kroppsvekt`.
+ * `sett` counts the sets the way `×` does; the rest say nothing the structure
+ * stores, or name the one load that has no number.
+ */
+const SET_WORDS = new Set(['sett'])
+const LIFT_GLUE_WORDS = new Set([
+	'à',
+	'a',
+	'med',
+	'av',
+	'reps',
+	'rep',
+	'repetisjoner',
+	'repetisjon',
+])
+const BODYWEIGHT_WORDS = new Set([
+	'kroppsvekt',
+	'egenvekt',
+	'kv',
+	'bodyweight',
+	'bw',
+])
+const LIFT_KNOWN_WORDS = [
+	'kg',
+	'sett',
+	'reps',
+	'repetisjoner',
+	'kroppsvekt',
+	'egenvekt',
+	...REST_WORDS,
+	'min',
+	'sek',
+]
+
 /** Every word the reader knows — what a misspelling is held against. */
 const KNOWN_WORDS = [
 	...Object.keys(ZONE_WORDS),
@@ -200,7 +275,7 @@ type Token = SentenceWord &
 
 /** One token at the cursor: the alternatives in priority order. */
 const TOKEN =
-	/(\d{1,2}:[0-5]\d:[0-5]\d)|(\d{1,3}:[0-5]\d)|(\d+(?:[.,]\d+)?)|([zi][1-5](?![\p{L}\d]))|(\p{L}+)|([×*+,→@/–-])/iuy
+	/(\d{1,2}:[0-5]\d:[0-5]\d)|(\d{1,3}:[0-5]\d)|(\d+(?:[.,]\d+)?)|([zi][1-5](?![\p{L}\d]))|(\p{L}+)|([×*+,→@/–\-·%])/iuy
 
 /**
  * Every character becomes a token — whitespace aside — so nothing the athlete
@@ -258,10 +333,35 @@ function tokenize(text: string): Token[] {
 	return tokens
 }
 
-/** A `+`, `,`, `→` or `så`: where one part of the sentence ends. */
-function isJoin(token: Token): boolean {
-	if (token.kind === 'symbol') return /^[+,→]$/.test(token.text)
+/**
+ * A `+`, `,`, `→`, `·` or `så`: where one part of the sentence ends.
+ *
+ * `·` is the one that can also mean something else. Between two lifts it is a
+ * join (`Benkpress 5×5 · Roing 3×8`), and between two rep counts it is the
+ * owner's separator for sets of one lift (`82,5 kg × 5 · 5 · 5 · 4`, round 2).
+ * It separates reps when a number stands on both sides of it and the number
+ * after it is not itself the start of a set count or a quantity (`· 3×8`,
+ * `· 10 km`), which would make it a new part.
+ */
+function isJoin(tokens: Token[], at: number): boolean {
+	const token = tokens[at]!
+	if (token.kind === 'symbol') {
+		if (token.text === '·') return !isRepSeparator(tokens, at)
+		return /^[+,→]$/.test(token.text)
+	}
 	return token.kind === 'word' && JOIN_WORDS.has(token.lower)
+}
+
+function isRepSeparator(tokens: Token[], at: number): boolean {
+	const before = tokens[at - 1]
+	const after = tokens[at + 1]
+	if (before?.kind !== 'number' || after?.kind !== 'number') return false
+	const following = tokens[at + 2]
+	return !(
+		isCountMark(following) ||
+		unitOf(following) != null ||
+		isLoadUnit(following)
+	)
 }
 
 // ——— Parts ——————————————————————————————————————————————————————————————
@@ -289,6 +389,24 @@ const isWord = (token: Token | undefined, words: Set<string>) =>
 
 function unitOf(token: Token | undefined): Unit | null {
 	return token?.kind === 'word' ? (UNIT_WORDS[token.lower] ?? null) : null
+}
+
+/** `×`, `*`, `x` or `ganger` after a number: a repeat, or a lift's set count. */
+function isCountMark(token: Token | undefined): boolean {
+	return (
+		token?.text === '×' ||
+		token?.text === '*' ||
+		isWord(token, REPEAT_WORDS) ||
+		isWord(token, SET_WORDS)
+	)
+}
+
+/** `kg` or `%` after a number: a lift's load. */
+function isLoadUnit(token: Token | undefined): boolean {
+	return (
+		(token?.kind === 'word' && token.lower === 'kg') ||
+		(token?.kind === 'symbol' && token.text === '%')
+	)
 }
 
 /** `1:30` written out both ways it can be read. */
@@ -577,6 +695,621 @@ function toQuantity(value: number, unit: Unit): Quantity | null {
 		: null
 }
 
+// ——— Lifts (ADR 0089) ——————————————————————————————————————————————————
+
+/** Sanity bounds for a lift: past these a number is a typo, not a set. */
+const MAX_SETS = 20
+const MAX_REPS = 100
+const MAX_KG = 500
+const MAX_LIFTS = 20
+/** Past this a typed name is not a misspelling of any lift; only containment is tried. */
+const MAX_SUGGESTED_NAME = 40
+
+/**
+ * The reader's own words for the lifts Norwegian athletes write most, each
+ * onto the exercise database's name for it. Content, not chrome (ADR 0027 A3
+ * as amended): `knebøy` is what the athlete types, and it is not a translation
+ * of "Back Squat" so much as the word for it. The database's own aliases
+ * (owner decision 9) are read beside these through {@link SentenceExercise};
+ * a word here whose lift the database does not hold names nothing.
+ */
+const LIFT_WORDS: Record<string, string> = {
+	knebøy: 'Back Squat',
+	frontknebøy: 'Front Squat',
+	'front knebøy': 'Front Squat',
+	gobletknebøy: 'Goblet Squat',
+	markløft: 'Deadlift',
+	'rumensk markløft': 'Romanian Deadlift',
+	benkpress: 'Bench Press',
+	benk: 'Bench Press',
+	'skrå benkpress': 'Incline Bench Press',
+	skråbenk: 'Incline Bench Press',
+	militærpress: 'Overhead Press',
+	skulderpress: 'Overhead Press',
+	roing: 'Barbell Row',
+	stangroing: 'Barbell Row',
+	hantelroing: 'Dumbbell Row',
+	kabelroing: 'Seated Cable Row',
+	'sittende roing': 'Seated Cable Row',
+	chins: 'Chin-up',
+	armhevinger: 'Push-up',
+	armheving: 'Push-up',
+	dips: 'Dip',
+	planke: 'Plank',
+	beinpress: 'Leg Press',
+	benpress: 'Leg Press',
+	nedtrekk: 'Lat Pulldown',
+	hoftehev: 'Hip Thrust',
+	frivending: 'Power Clean',
+	sidehev: 'Lateral Raise',
+	bicepscurl: 'Bicep Curl',
+}
+
+/** A name with case, spaces and punctuation set aside: `Pull-ups` → `pullups`. */
+function nameKey(name: string): string {
+	return name
+		.normalize('NFC')
+		.toLowerCase()
+		.replace(/[^\p{L}\p{N}]+/gu, '')
+}
+
+const LIFT_WORD_KEYS = new Set(Object.keys(LIFT_WORDS).map(nameKey))
+
+/** One name an exercise answers to, as typed and as keyed. */
+type NameLabel = { key: string; text: string; exercise: SentenceExercise }
+type ExerciseIndex = {
+	byKey: Map<string, SentenceExercise>
+	labels: NameLabel[]
+}
+
+const indexCache = new WeakMap<readonly SentenceExercise[], ExerciseIndex>()
+
+/**
+ * Every name the database's exercises answer to, keyed. Built once per list:
+ * the line reads on every keystroke and the list is the same each time. Where
+ * two rows answer to one key the first wins, so the caller's order decides.
+ */
+function exerciseIndex(exercises: readonly SentenceExercise[]): ExerciseIndex {
+	const cached = indexCache.get(exercises)
+	if (cached) return cached
+	const byKey = new Map<string, SentenceExercise>()
+	const labels: NameLabel[] = []
+	const add = (text: string, exercise: SentenceExercise) => {
+		const key = nameKey(text)
+		if (!key) return
+		if (!byKey.has(key)) byKey.set(key, exercise)
+		labels.push({ key, text, exercise })
+	}
+	for (const exercise of exercises) {
+		add(exercise.name, exercise)
+		for (const alias of exercise.aliases ?? []) add(alias, exercise)
+	}
+	const byName = new Map<string, SentenceExercise>()
+	for (const exercise of exercises) {
+		const key = nameKey(exercise.name)
+		if (!byName.has(key)) byName.set(key, exercise)
+	}
+	for (const [word, name] of Object.entries(LIFT_WORDS)) {
+		const exercise = byName.get(nameKey(name))
+		if (exercise) add(capitalizeWord(word), exercise)
+	}
+	const index = { byKey, labels }
+	indexCache.set(exercises, index)
+	return index
+}
+
+function capitalizeWord(word: string): string {
+	return word ? word[0]!.toUpperCase() + word.slice(1) : word
+}
+
+/** The exercise a typed name is, or null. `Pull-ups` finds `Pull-up`. */
+function resolveExercise(
+	name: string,
+	index: ExerciseIndex,
+): SentenceExercise | null {
+	const key = nameKey(name)
+	if (!key) return null
+	const exact = index.byKey.get(key)
+	if (exact) return exact
+	// A plural `s` (`pullups`, `dips`) and nothing cleverer: a near name is a
+	// suggestion to tap, never a guess saved.
+	return key.endsWith('s') ? (index.byKey.get(key.slice(0, -1)) ?? null) : null
+}
+
+/**
+ * The nearest names to one the database does not hold — at most three, one
+ * per exercise: names that begin with what was typed (`Bench` → `Bench
+ * Press`), then names that contain it, then names within a few edits
+ * (`Knebøj` → `Knebøy`), then a known name inside a long one. A name with no
+ * near neighbour gets none rather than a wild one.
+ */
+function suggestExercises(name: string, index: ExerciseIndex): string[] {
+	const key = nameKey(name)
+	if (key.length < 2) return []
+	const begins: NameLabel[] = []
+	const contains: NameLabel[] = []
+	const near: Array<NameLabel & { distance: number }> = []
+	const inside: NameLabel[] = []
+	const reach = key.length <= 4 ? 1 : key.length <= 8 ? 2 : 3
+	for (const label of index.labels) {
+		if (key.length >= 3 && label.key.startsWith(key)) begins.push(label)
+		else if (key.length >= 4 && label.key.includes(key)) contains.push(label)
+		else if (
+			key.length <= MAX_SUGGESTED_NAME &&
+			Math.abs(label.key.length - key.length) <= reach
+		) {
+			const distance = editDistance(key, label.key)
+			if (distance <= reach) near.push({ ...label, distance })
+		} else if (label.key.length >= 5 && key.includes(label.key)) {
+			inside.push(label)
+		}
+	}
+	const byLength = (a: NameLabel, b: NameLabel) => a.key.length - b.key.length
+	const ranked = [
+		...begins.sort(byLength),
+		...contains.sort(byLength),
+		...near.sort((a, b) => a.distance - b.distance || byLength(a, b)),
+		...inside.sort((a, b) => b.key.length - a.key.length),
+	]
+	const seen = new Set<string>()
+	const out: string[] = []
+	for (const label of ranked) {
+		if (seen.has(label.exercise.id)) continue
+		seen.add(label.exercise.id)
+		out.push(label.text)
+		if (out.length === 3) break
+	}
+	return out
+}
+
+/** A word of the running grammar, so a part beginning with one is not a lift's name. */
+function isCardioWord(token: Token): boolean {
+	if (token.kind !== 'word') return false
+	const word = token.lower
+	return (
+		/^[zi][1-5]$/.test(word) ||
+		word in ZONE_WORDS ||
+		word in DISCIPLINE_WORDS ||
+		word in UNIT_WORDS ||
+		REST_WORDS.has(word) ||
+		REPEAT_WORDS.has(word) ||
+		GLUE_WORDS.has(word) ||
+		JOIN_WORDS.has(word)
+	)
+}
+
+/** The tokens before a part's first number or `@`: a lift's name, if it is one. */
+function leadingName(tokens: Token[]): Token[] {
+	const end = tokens.findIndex(
+		(token) =>
+			token.kind === 'number' ||
+			token.kind === 'clock' ||
+			token.kind === 'clock3' ||
+			token.text === '@',
+	)
+	return end === -1 ? tokens : tokens.slice(0, end)
+}
+
+/**
+ * Whether a part says something only a lift says: a load (`80 kg`, `80 %`,
+ * `kroppsvekt`), a set count (`3 sett`), or sets × reps with no unit after the
+ * reps — `5×5`, where `3x10 min` is a run's repeat.
+ */
+function hasLiftMark(tokens: Token[]): boolean {
+	return tokens.some((token, i) => {
+		if (isLoadUnit(token) || isWord(token, BODYWEIGHT_WORDS)) return true
+		if (isWord(token, SET_WORDS)) return true
+		if (
+			token.kind === 'number' &&
+			isCountMark(tokens[i + 1]) &&
+			tokens[i + 2]?.kind === 'number'
+		) {
+			return unitOf(tokens[i + 3]) == null
+		}
+		return false
+	})
+}
+
+type LiftSet =
+	| { kind: 'reps'; reps: number }
+	| { kind: 'timed'; durationSec: number }
+type SetGroup = { sets: LiftSet[]; load: LoadTarget | null }
+
+type LiftPart = {
+	kind: 'lift'
+	/** The name as typed, by its place; null carries on the lift before it. */
+	name: SentenceWord | null
+	groups: SetGroup[]
+	restSec: number | null
+}
+
+type NumberToken = Token & { kind: 'number' }
+
+/**
+ * One lift: its name, then its sets in any of the forms a coach writes them —
+ * `5×5 @ 80 kg`, `5x5 80kg`, `3 sett à 8`, `5/5/5/4 @ 80 kg`,
+ * `82,5 kg × 5 · 5 · 5 · 4`, `5 @ 80 kg / 3 @ 90 kg` — and an optional rest
+ * between sets (`p 3 min`, `3 min pause`). Every token is read by a rule or
+ * reported, exactly as in a running part.
+ */
+function readLiftPart(
+	tokens: Token[],
+	nameTokens: Token[],
+	text: string,
+	context: PartContext,
+): LiftPart {
+	const unread = (
+		token: Token,
+		reason: UnreadReason,
+		suggestions: string[] = [],
+	) =>
+		context.unknown.push({
+			start: token.start,
+			end: token.end,
+			text: token.text,
+			reason,
+			suggestions,
+		})
+
+	let name: SentenceWord | null = null
+	if (nameTokens.length > 0) {
+		const start = nameTokens[0]!.start
+		const end = nameTokens.at(-1)!.end
+		name = { start, end, text: text.slice(start, end) }
+	}
+
+	const groups: SetGroup[] = []
+	let restSec: number | null = null
+	let restWordAt: number | null = null
+	/** A load read before any sets (`80 kg 5×5`), waiting for them. */
+	let pendingLoad: LoadTarget | null = null
+
+	const giveLoad = (load: LoadTarget) => {
+		const last = groups.at(-1)
+		if (last && last.load == null) last.load = load
+		else if (last || pendingLoad) context.problems.add('two-loads')
+		else pendingLoad = load
+	}
+	const addGroup = (sets: LiftSet[], load: LoadTarget | null = null) => {
+		groups.push({ sets, load: load ?? pendingLoad })
+		pendingLoad = null
+	}
+	const count = (token: NumberToken, max: number): number | null => {
+		if (
+			!Number.isInteger(token.value) ||
+			token.value < 1 ||
+			token.value > max
+		) {
+			context.problems.add('out-of-range')
+			return null
+		}
+		return token.value
+	}
+	/** `80 kg` or `80 %` with the number at `at`: the load, or null past any bound. */
+	const loadAt = (at: number): LoadTarget | null => {
+		const number = tokens[at] as NumberToken
+		const percent = tokens[at + 1]!.text === '%'
+		if (number.value <= 0 || number.value > (percent ? 200 : MAX_KG)) {
+			context.problems.add('out-of-range')
+			return null
+		}
+		return percent
+			? { kind: 'pct1RM', minPct: number.value }
+			: { kind: 'absolute', kg: number.value }
+	}
+	/** Rep counts from `at`, joined by `/` or `·`: the sets, and where they end. */
+	const repList = (at: number): { sets: LiftSet[]; next: number } => {
+		const sets: LiftSet[] = []
+		let i = at
+		while (tokens[i]?.kind === 'number') {
+			const reps = count(tokens[i] as NumberToken, MAX_REPS)
+			if (reps != null) sets.push({ kind: 'reps', reps })
+			i++
+			while (isWord(tokens[i], LIFT_GLUE_WORDS)) i++
+			const joined =
+				(tokens[i]?.text === '/' || tokens[i]?.text === '·') &&
+				tokens[i + 1]?.kind === 'number' &&
+				!isLoadUnit(tokens[i + 2])
+			if (!joined) break
+			i++
+		}
+		return { sets, next: i }
+	}
+	/** A time in seconds from a number and its unit, or null past a rest's bound. */
+	const timeOf = (number: NumberToken, unit: Unit): number | null => {
+		const value = toQuantity(number.value, unit)
+		if (
+			!value ||
+			!('durationSec' in value) ||
+			value.durationSec > MAX_REST_SEC
+		) {
+			context.problems.add('out-of-range')
+			return null
+		}
+		return value.durationSec
+	}
+	const isTime = (unit: Unit | null): unit is Unit =>
+		unit != null && TIME_RANK[unit] != null
+
+	for (let i = nameTokens.length; i < tokens.length; i++) {
+		const token = tokens[i]!
+		const next = tokens[i + 1]
+
+		if (token.kind === 'stray') {
+			unread(token, 'stray')
+			continue
+		}
+
+		if (token.kind === 'clock' || token.kind === 'clock3') {
+			unread(
+				token,
+				'ambiguous-time',
+				token.kind === 'clock' ? clockReadings(token.first, token.second) : [],
+			)
+			continue
+		}
+
+		if (token.kind === 'number') {
+			if (/^\d+[.,]\d{3}$/.test(token.text)) {
+				unread(token, 'ambiguous-number', numberReadings(token.text))
+				if (isLoadUnit(next) || unitOf(next)) i++
+				continue
+			}
+			const unit = unitOf(next)
+			// `p 3 min` and `3 min pause`: the rest between sets.
+			if (
+				isTime(unit) &&
+				(restWordAt != null || isWord(tokens[i + 2], REST_WORDS))
+			) {
+				const seconds = timeOf(token, unit)
+				if (seconds != null) {
+					if (restSec != null) context.problems.add('two-quantities')
+					else restSec = seconds
+				}
+				i += restWordAt != null ? 1 : 2
+				restWordAt = null
+				continue
+			}
+			if (isCountMark(next)) {
+				// `5×5`, `3 sett à 8`, `3×45 s`: sets × reps, or sets × a time.
+				const sets = count(token, MAX_SETS)
+				let at = i + 2
+				while (isWord(tokens[at], LIFT_GLUE_WORDS)) at++
+				const each = tokens[at]
+				if (each?.kind !== 'number' || isLoadUnit(tokens[at + 1])) {
+					context.problems.add('no-sets')
+					i = at - 1
+					continue
+				}
+				const eachUnit = unitOf(tokens[at + 1])
+				if (isTime(eachUnit)) {
+					const seconds = timeOf(each, eachUnit)
+					if (sets != null && seconds != null) {
+						addGroup(
+							Array.from({ length: sets }, () => ({
+								kind: 'timed' as const,
+								durationSec: seconds,
+							})),
+						)
+					}
+					i = at + 1
+					continue
+				}
+				if (eachUnit) {
+					// `3×5 km` is a run's repeat, not a lift's sets.
+					unread(tokens[at + 1]!, 'unknown-word')
+					i = at + 1
+					continue
+				}
+				const reps = count(each, MAX_REPS)
+				if (sets != null && reps != null) {
+					addGroup(
+						Array.from({ length: sets }, () => ({
+							kind: 'reps' as const,
+							reps,
+						})),
+					)
+				}
+				i = at
+				while (isWord(tokens[i + 1], LIFT_GLUE_WORDS)) i++
+				continue
+			}
+			if (isLoadUnit(next)) {
+				const load = loadAt(i)
+				i++
+				if (isCountMark(tokens[i + 1])) {
+					// `82,5 kg × 5 · 5 · 5 · 4`: the load, then a set per rep count.
+					const { sets, next: after } = repList(i + 2)
+					if (sets.length === 0) context.problems.add('no-sets')
+					else if (load) addGroup(sets, load)
+					i = after - 1
+					continue
+				}
+				if (load) giveLoad(load)
+				continue
+			}
+			if (unit) {
+				// A distance or a lone time among a lift's sets.
+				unread(next!, 'unknown-word')
+				i++
+				continue
+			}
+			// `5/5/5/4`, or the `5` of `5 @ 80 kg / 3 @ 90 kg`.
+			const { sets, next: after } = repList(i)
+			if (sets.length > 0) addGroup(sets)
+			i = after - 1
+			continue
+		}
+
+		if (token.kind === 'symbol') {
+			if (token.text === '@') {
+				// Read with what follows it: a number in kg or %, or kroppsvekt.
+				if (next?.kind === 'number' && isLoadUnit(tokens[i + 2])) continue
+				if (isWord(next, BODYWEIGHT_WORDS)) continue
+				if (next?.kind === 'number' && unitOf(tokens[i + 2]) == null) {
+					unread(next, 'no-unit', [`${next.text} kg`, `${next.text} %`])
+					i++
+					continue
+				}
+				context.problems.add('dangling-load')
+				continue
+			}
+			// `/` between two sets: `5 @ 80 kg / 3 @ 90 kg`.
+			if (token.text === '/' && groups.length > 0 && next?.kind === 'number')
+				continue
+			unread(token, 'stray')
+			continue
+		}
+
+		const word = token.lower
+		if (word === 'kg') {
+			// A `kg` with no number before it.
+			context.problems.add('dangling-load')
+			continue
+		}
+		if (BODYWEIGHT_WORDS.has(word)) {
+			giveLoad({ kind: 'bodyweight' })
+			continue
+		}
+		if (REST_WORDS.has(word)) {
+			if (restWordAt != null || restSec != null) unread(token, 'unknown-word')
+			else restWordAt = i
+			continue
+		}
+		if (LIFT_GLUE_WORDS.has(word) || SET_WORDS.has(word)) continue
+		unread(token, 'unknown-word', suggestLiftWords(word))
+	}
+
+	if (restWordAt != null) context.problems.add('dangling-rest')
+	// A part that is only a rest carries on the lift before it with no sets.
+	const restOnly = name == null && restSec != null
+	if (pendingLoad || (groups.length === 0 && !restOnly))
+		context.problems.add('no-sets')
+	return { kind: 'lift', name, groups, restSec }
+}
+
+/** Lift vocabulary near a word the reader did not know among a lift's sets. */
+function suggestLiftWords(word: string): string[] {
+	const lower = word.toLowerCase()
+	if (lower.length < 3 || lower.length > MAX_SUGGESTED_WORD) return []
+	const reach = lower.length <= 4 ? 1 : 2
+	return LIFT_KNOWN_WORDS.filter((known) => {
+		const distance = editDistance(lower, known)
+		return distance > 0 && distance <= reach
+	}).slice(0, 3)
+}
+
+/**
+ * The reps that name a lift session's purpose, the way the hardest zone names
+ * a run's: the heaviest work (fewest reps) decides — 5s beside 10s is a
+ * strength day. Timed sets alone are endurance work.
+ */
+function liftIntent(sets: LiftSet[]): WorkoutIntent {
+	const reps = sets.flatMap((set) => (set.kind === 'reps' ? [set.reps] : []))
+	if (reps.length === 0) return 'strength-endurance'
+	const fewest = Math.min(...reps)
+	if (fewest <= 5) return 'strength-max'
+	if (fewest <= 12) return 'strength-hypertrophy'
+	return 'strength-endurance'
+}
+
+type ReadLift = {
+	exercise: SentenceExercise
+	typed: string
+	sets: LiftSet[]
+	loads: Array<LoadTarget | null>
+	restSec: number | null
+}
+
+/**
+ * The lift parts in order, a nameless part folded into the lift before it, and
+ * each name resolved — or reported with its nearest names. Null where a lift
+ * cannot be written yet.
+ */
+function readLifts(
+	parts: LiftPart[],
+	index: ExerciseIndex | null,
+	context: PartContext,
+): { lifts: ReadLift[]; needed: boolean } {
+	const lifts: ReadLift[] = []
+	let needed = false
+	let current: ReadLift | null = null
+	let unresolved = false
+	for (const part of parts) {
+		const sets = part.groups.flatMap((group) => group.sets)
+		const loads = part.groups.flatMap((group) =>
+			group.sets.map(() => group.load),
+		)
+		if (part.name == null) {
+			if (current == null && !unresolved) {
+				context.problems.add('no-exercise')
+				continue
+			}
+			if (current) {
+				current.sets.push(...sets)
+				current.loads.push(...loads)
+				if (part.restSec != null) {
+					if (current.restSec != null) context.problems.add('two-quantities')
+					else current.restSec = part.restSec
+				}
+			}
+			continue
+		}
+		current = null
+		unresolved = true
+		if (!index) {
+			needed = true
+			continue
+		}
+		const exercise = resolveExercise(part.name.text, index)
+		if (!exercise) {
+			context.unknown.push({
+				...part.name,
+				reason: 'unknown-exercise',
+				suggestions: suggestExercises(part.name.text, index),
+			})
+			continue
+		}
+		unresolved = false
+		current = {
+			exercise,
+			typed: part.name.text,
+			sets,
+			loads,
+			restSec: part.restSec,
+		}
+		lifts.push(current)
+	}
+	if (lifts.length > MAX_LIFTS) context.problems.add('out-of-range')
+	if (lifts.some((lift) => lift.sets.length > MAX_SETS))
+		context.problems.add('out-of-range')
+	return { lifts, needed }
+}
+
+/** The lifts as the strength editor writes them: one block, a step per lift. */
+function liftBlocks(lifts: ReadLift[]): Block[] {
+	return [
+		{
+			repeatCount: 1,
+			steps: lifts.map(
+				(lift): Step => ({
+					kind: 'strength',
+					exerciseId: lift.exercise.id,
+					sets: lift.sets.map((set, orderIndex) => {
+						const load = lift.loads[orderIndex]
+						return {
+							...set,
+							orderIndex,
+							...(load ? { load } : {}),
+						}
+					}),
+					...(lift.restSec != null ? { restBetweenSetsSec: lift.restSec } : {}),
+				}),
+			),
+		},
+	]
+}
+
 // ——— Structure ——————————————————————————————————————————————————————————
 
 type Block = WorkoutStructure['blocks'][number]
@@ -665,11 +1398,23 @@ function totalsOf(blocks: Block[]): ParsedSentence['totals'] {
 
 /**
  * Read a typed sentence. `discipline` is the chip the athlete has chosen; a
- * discipline word in the sentence itself (`sykkel`) wins over it.
+ * discipline word in the sentence itself (`sykkel`) wins over it, and so does
+ * a lift (ADR 0089): `Knebøy 5×5 @ 80 kg` is a strength session whatever the
+ * chip says.
+ *
+ * `exercises` is the exercise database the lifts are named against — the
+ * athlete's catalogue, aliases included. Omitted, no lift is read
+ * (`exercisesNeeded`), and a running sentence reads exactly as it always did.
  */
 export function parseWorkoutSentence(
 	text: string,
-	{ discipline }: { discipline: CardioDiscipline | null },
+	{
+		discipline,
+		exercises,
+	}: {
+		discipline: Discipline | null
+		exercises?: readonly SentenceExercise[]
+	},
 ): ParsedSentence {
 	const context: PartContext = {
 		unknown: [],
@@ -684,29 +1429,54 @@ export function parseWorkoutSentence(
 		unknown: [],
 		problems: [problem],
 		totals: { distanceM: null, durationSec: null },
+		lifts: [],
+		exerciseNames: {},
+		exercisesNeeded: false,
 	})
 	if (text.trim() === '') return nothing('empty')
 	if (text.length > MAX_SENTENCE_LENGTH) return nothing('too-long')
 
+	const tokens = tokenize(text)
 	const groups: Token[][] = [[]]
-	for (const token of tokenize(text)) {
-		if (isJoin(token)) groups.push([])
+	tokens.forEach((token, at) => {
+		if (isJoin(tokens, at)) groups.push([])
 		else groups.at(-1)!.push(token)
-	}
+	})
 	// `5 km + + 5 km` and a trailing `+`: a join with nothing on one side.
 	if (groups.some((group) => group.length === 0)) {
 		context.problems.add('empty-part')
 	}
-	const parts = groups
-		.filter((group) => group.length > 0)
-		.map((group) => readPart(group, context))
-		.filter((part): part is Part => part != null)
+
+	const index = exercises ? exerciseIndex(exercises) : null
+	const parts: Part[] = []
+	const liftParts: LiftPart[] = []
+	for (const group of groups) {
+		if (group.length === 0) continue
+		const lift = liftReading(group, {
+			index,
+			chipIsStrength: discipline === 'strength',
+			afterLift: liftParts.length > 0,
+		})
+		if (lift) {
+			liftParts.push(readLiftPart(group, lift.nameTokens, text, context))
+			continue
+		}
+		const part = readPart(group, context)
+		if (part) parts.push(part)
+	}
+
+	if (liftParts.length > 0)
+		return liftSentence(liftParts, parts, index, context)
+
 	if (!parts.some((part) => part.kind === 'work')) {
 		context.problems.add('no-quantity')
 	}
 
 	const named = context.discipline.value
-	const resolved = named ?? discipline
+	// The Styrke chip names no sport a run can be: a running sentence under it
+	// says which sport it is, or it has none.
+	const chip = discipline && isCardioDiscipline(discipline) ? discipline : null
+	const resolved = named ?? chip
 	if (resolved == null) context.problems.add('no-discipline')
 
 	const problems = SENTENCE_PROBLEMS.filter((p) => context.problems.has(p))
@@ -723,12 +1493,107 @@ export function parseWorkoutSentence(
 	return {
 		structure,
 		intent: structure ? intentOf(blocks) : null,
-		discipline: resolved,
+		discipline: resolved ?? discipline,
 		disciplineFromText: named != null,
 		unknown: context.unknown,
 		problems,
 		totals: totalsOf(blocks),
+		lifts: [],
+		exerciseNames: {},
+		exercisesNeeded: false,
 	}
+}
+
+/** A sentence with a lift in it: a strength session, or nothing (ADR 0089). */
+function liftSentence(
+	liftParts: LiftPart[],
+	runningParts: Part[],
+	index: ExerciseIndex | null,
+	context: PartContext,
+): ParsedSentence {
+	// A sentence is one session of one sport: lifts and a run are two.
+	if (runningParts.length > 0 || context.discipline.value != null) {
+		context.problems.add('two-disciplines')
+	}
+	const { lifts, needed } = readLifts(liftParts, index, context)
+	const problems = SENTENCE_PROBLEMS.filter((p) => context.problems.has(p))
+	const sure =
+		!needed &&
+		lifts.length > 0 &&
+		context.unknown.length === 0 &&
+		problems.length === 0
+	const candidate = sure
+		? { discipline: 'strength' as const, blocks: liftBlocks(lifts) }
+		: null
+	// The same last word as a run's: the shared schema.
+	const structure =
+		candidate && WorkoutStructureSchema.safeParse(candidate).success
+			? candidate
+			: null
+	return {
+		structure,
+		intent: structure ? liftIntent(lifts.flatMap((lift) => lift.sets)) : null,
+		discipline: 'strength',
+		disciplineFromText: true,
+		unknown: context.unknown,
+		problems,
+		totals: { distanceM: null, durationSec: null },
+		lifts: lifts.map((lift) => ({
+			exerciseId: lift.exercise.id,
+			name: lift.exercise.name,
+			typed: lift.typed,
+		})),
+		exerciseNames: Object.fromEntries(
+			lifts.map((lift) => [lift.exercise.id, lift.exercise.name]),
+		),
+		exercisesNeeded: needed,
+	}
+}
+
+/**
+ * Whether a part is a lift, and which of its tokens name it (ADR 0089). A part
+ * is a lift when it begins with a name the running grammar does not know and
+ * says something only a lift says (`5×5`, `80 kg`, `3 sett`), when its name is
+ * a lift the reader knows, or under the Styrke chip. A part with no name is a
+ * lift's further sets after a lift (`Knebøy 3×5 @ 80 kg + 2×3 @ 90 kg`), or a
+ * lift that forgot its name when it states a load.
+ *
+ * Everything else reads as a run, so `10 km roilg` still suggests `rolig`.
+ */
+function liftReading(
+	group: Token[],
+	{
+		index,
+		chipIsStrength,
+		afterLift,
+	}: {
+		index: ExerciseIndex | null
+		chipIsStrength: boolean
+		afterLift: boolean
+	},
+): { nameTokens: Token[] } | null {
+	// `Knebøy 5×5, p 3 min`: a rest on its own after a lift is that lift's
+	// rest between sets, as a rest part after a repeat joins the repeat.
+	const restOnly =
+		isWord(group[0], REST_WORDS) ||
+		(group[0]?.kind === 'number' && group.some((t) => isWord(t, REST_WORDS)))
+	if (afterLift && restOnly && !hasLiftMark(group)) return { nameTokens: [] }
+	const nameTokens = leadingName(group)
+	const marked = hasLiftMark(group)
+	if (nameTokens.length === 0) {
+		if (!marked) return null
+		const loaded = group.some(
+			(token) => isLoadUnit(token) || isWord(token, BODYWEIGHT_WORDS),
+		)
+		return afterLift || chipIsStrength || loaded ? { nameTokens } : null
+	}
+	const first = nameTokens[0]!
+	if (first.kind !== 'word' || isCardioWord(first)) return null
+	const name = nameTokens.map((token) => token.text).join(' ')
+	const known =
+		LIFT_WORD_KEYS.has(nameKey(name)) ||
+		(index != null && resolveExercise(name, index) != null)
+	return marked || known || chipIsStrength ? { nameTokens } : null
 }
 
 // ——— Suggestions ————————————————————————————————————————————————————————
@@ -801,25 +1666,42 @@ export function replaceWord(
  */
 export function sentenceNotationInput(
 	structure: WorkoutStructure,
+	/** The lifts' names (`ParsedSentence.exerciseNames`), for a lift session. */
+	{ exerciseNames = {} }: { exerciseNames?: Record<string, string> } = {},
 ): NotationInput {
 	return {
 		blocks: structure.blocks.map((block) => ({
 			repeatCount: block.repeatCount,
-			steps: block.steps.flatMap((step): NotationStep[] =>
-				step.kind === 'rest'
-					? [{ kind: 'rest', durationSec: step.durationSec ?? null }]
-					: step.kind === 'cardio'
-						? [
-								{
-									kind: 'cardio',
-									discipline: step.discipline,
-									intensity: step.intensity ?? null,
-									durationSec: step.durationSec ?? null,
-									distanceM: step.distanceM ?? null,
-								},
-							]
-						: [],
-			),
+			steps: block.steps.flatMap((step): NotationStep[] => {
+				if (step.kind === 'rest') {
+					return [{ kind: 'rest', durationSec: step.durationSec ?? null }]
+				}
+				if (step.kind === 'cardio') {
+					return [
+						{
+							kind: 'cardio',
+							discipline: step.discipline,
+							intensity: step.intensity ?? null,
+							durationSec: step.durationSec ?? null,
+							distanceM: step.distanceM ?? null,
+						},
+					]
+				}
+				return [
+					{
+						kind: 'strength',
+						exerciseId: step.exerciseId,
+						exerciseName: exerciseNames[step.exerciseId] ?? null,
+						sets: step.sets.map((set) => ({
+							kind: set.kind,
+							reps: 'reps' in set ? set.reps : null,
+							durationSec: 'durationSec' in set ? set.durationSec : null,
+							load: set.load ?? null,
+						})),
+						restBetweenSetsSec: step.restBetweenSetsSec ?? null,
+					},
+				]
+			}),
 		})),
 	}
 }

@@ -42,6 +42,7 @@ import { DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { parseWorkoutSentence } from '#app/utils/workout-sentence.ts'
 import { WriteSessionSchema } from '#app/utils/writing-line-schema.ts'
 import {
+	readSentenceExercises,
 	readTimelineWindow,
 	withWeekSumToast,
 } from '#app/utils/writing-line.server.ts'
@@ -303,7 +304,10 @@ export async function action({ request }: Route.ActionArgs) {
 		)
 		// Refused before anything is read or written: a sentence the reader is
 		// unsure of is a malformed post, since the line never offers to save one.
-		const read = parseWorkoutSentence(sentence, { discipline })
+		// Lifts are named against the athlete's own catalogue, read here and
+		// never taken from the client (ADR 0089).
+		const exercises = await readSentenceExercises(userId)
+		const read = parseWorkoutSentence(sentence, { discipline, exercises })
 		invariantResponse(
 			read.structure != null,
 			'The sentence could not be read',
@@ -333,6 +337,7 @@ export async function action({ request }: Route.ActionArgs) {
 					discipline,
 					sentence,
 					timezone,
+					exercises,
 				}),
 		)
 		invariantResponse(written.ok, 'The sentence could not be read', {

@@ -351,7 +351,7 @@ test('sentence affordances add, reorder, and remove steps and blocks via Conform
 	).toBeInTheDocument()
 
 	// Add a whole block from the sentence, then delete it from its ⠿ menu.
-	await user.click(screen.getByRole('button', { name: 'Add block' }))
+	await user.click(screen.getByRole('button', { name: 'Legg til blokk' }))
 	await user.click(
 		await screen.findByRole('button', { name: 'Block 2 of 2 actions' }),
 	)

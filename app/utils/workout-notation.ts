@@ -25,6 +25,10 @@
  *   parser could target this token model, but none ships.
  * - **House format** is the fixed en-GB display layer (ADR 0023): all
  *   quantities render through the shared `format` module.
+ * - **Norwegian words** (owner decision 8, ADR 0089): the sentence's glue —
+ *   `pause`, `kroppsvekt`, `på 1:40`, a stored `easy` read as `Rolig` — comes
+ *   from `labels.ts` (`TOKEN_SENTENCE_WORDS`), on display only. What is stored
+ *   is structure, never these words, so nothing stored changes with them.
  */
 
 import { type z } from 'zod'
@@ -39,6 +43,11 @@ import {
 	parseAuthoredIntensity,
 	type DisciplineThresholdMap,
 } from './intensity-target.ts'
+import {
+	REST_ACT_WORDS,
+	TOKEN_SENTENCE_WORDS as WORDS,
+	zoneLabelWord,
+} from './labels.ts'
 import {
 	intensityTargetToZone,
 	type TrainingZone,
@@ -60,7 +69,6 @@ import {
 	type ExerciseSetKind,
 	type IntensityTarget,
 	type LoadTarget,
-	type RestAct,
 	type RestSpec,
 	type SendOff,
 } from './workout-schema.ts'
@@ -837,12 +845,12 @@ function authoredLoadText(load: LoadTarget): string {
 		case 'bodyweight':
 			// Signed on purpose: assisted work carries a negative added load, so
 			// `−20 kg` is a real prescription and not a malformed one.
-			if (load.addedKg == null || load.addedKg === 0) return 'bodyweight'
+			if (load.addedKg == null || load.addedKg === 0) return WORDS.bodyweight
 			return load.addedKg > 0
-				? `bodyweight + ${load.addedKg} kg`
-				: `bodyweight − ${Math.abs(load.addedKg)} kg`
+				? WORDS.bodyweightPlus(String(load.addedKg))
+				: WORDS.bodyweightMinus(String(Math.abs(load.addedKg)))
 		case 'pctBodyweight':
-			return `${load.pct}% bodyweight`
+			return WORDS.pctBodyweight(load.pct)
 		case 'velocity':
 			return load.maxMs == null
 				? `${load.minMs} m/s`
@@ -877,15 +885,13 @@ function resolutionSuffix(
 	}
 	switch (resolution.reason) {
 		case 'no-anchor':
-			return load.kind === 'repMax'
-				? `no ${load.reps}RM on file`
-				: 'no 1RM on file'
+			return load.kind === 'repMax' ? WORDS.noRepMax(load.reps) : WORDS.no1RM
 		case 'no-bodyweight':
-			return 'no bodyweight on file'
+			return WORDS.noBodyweight
 		case 'not-resolvable':
 			// The assistance-heavier-than-the-athlete case: a stated impossibility,
 			// never a negative kilo.
-			return 'not a load'
+			return WORDS.notALoad
 	}
 }
 
@@ -926,11 +932,6 @@ export function formatSetsSummary(
 
 // ——— Structure → token model ————————————————————————————————————————————
 
-function capitalize(label: string): string {
-	const trimmed = label.trim()
-	return trimmed ? trimmed[0]!.toUpperCase() + trimmed.slice(1) : trimmed
-}
-
 function plain(token: NotationToken): PositionedToken {
 	return { separator: null, parenthesized: false, token }
 }
@@ -943,11 +944,12 @@ function intensityToken(
 ): PositionedToken {
 	const profile = discipline ? thresholds[discipline] : undefined
 	const display = describeStepTarget(target, profile)
-	// The dense notation shows a zone label as the bare capitalized label
-	// (`Threshold`, `Z4`) — the spelled-out caption stays a detail-view
-	// concern. Metric targets keep the resolver's concrete label.
+	// The dense notation shows a zone label as the bare capitalized label, in
+	// Norwegian (`Terskel` for a stored `threshold`, `Z4` as it stands) — the
+	// spelled-out caption stays a detail-view concern. Metric targets keep the
+	// resolver's concrete label.
 	const text =
-		target.kind === 'zoneLabel' ? capitalize(target.label) : display.label
+		target.kind === 'zoneLabel' ? zoneLabelWord(target.label) : display.label
 	return {
 		// A metric value reads `@ 4:40 /km`; a zone label reads as prose
 		// (`45 min Easy`), so it joins with a plain space.
@@ -958,7 +960,10 @@ function intensityToken(
 			text,
 			targetKind: target.kind,
 			chip: {
-				text: intensityChipText(target),
+				text:
+					target.kind === 'zoneLabel'
+						? zoneLabelWord(target.label)
+						: intensityChipText(target),
 				step: zoneEquivalent(target, profile).step,
 			},
 			facets: {
@@ -988,9 +993,10 @@ function notesToken(
 /**
  * A rest step's words, in whichever of the four forms it was authored (ADR
  * 0007). Only a `time` rest states a duration; the others say what ends the
- * recovery instead of pretending to a number they do not have — `jog back`,
- * `200 m jog`, `until HR < 120`. Before these were drawn every non-`time` rest
- * rendered as the bare word `rest`, which threw the prescription away.
+ * recovery instead of pretending to a number they do not have — `jogg
+ * tilbake`, `200 m rolig`, `til puls < 120 bpm`. Before these were drawn every
+ * non-`time` rest rendered as the bare word for a rest, which threw the
+ * prescription away. The words are Norwegian on display (ADR 0089).
  */
 function restText(step: NotationStep): string {
 	const spec =
@@ -998,16 +1004,16 @@ function restText(step: NotationStep): string {
 		(step.durationSec != null
 			? ({ kind: 'time', durationSec: step.durationSec } as const)
 			: null)
-	if (!spec) return 'rest'
+	if (!spec) return WORDS.rest
 	switch (spec.kind) {
 		case 'time':
-			return `${formatDuration(spec.durationSec)} rest`
+			return WORDS.restFor(formatDuration(spec.durationSec))
 		case 'distance':
-			return `${formatDistance(spec.distanceM)} recovery`
+			return WORDS.recoveryOver(formatDistance(spec.distanceM))
 		case 'toHr':
-			return `until HR < ${spec.belowBpm} bpm`
+			return WORDS.untilHeartRate(spec.belowBpm)
 		case 'toHrPct':
-			return `until HR < ${spec.belowPct}% max`
+			return WORDS.untilHeartRatePct(spec.belowPct)
 		case 'sendOff':
 			return sendOffText(spec)
 		case 'act':
@@ -1015,16 +1021,8 @@ function restText(step: NotationStep): string {
 	}
 }
 
-/** The plain words for a **Rest Spec** that is an act rather than a clock. */
-const REST_ACT_WORDS: Record<RestAct, string> = {
-	jogBack: 'jog back',
-	walkDown: 'walk down',
-	rideDown: 'ride down',
-	swimDown: 'swim down',
-}
-
 /**
- * A **Send-Off**: `on CSS + 10 s`, or `on 1:40`. The anchored form is what a
+ * A **Send-Off**: `på CSS + 10 s`, or `på 1:40`. The anchored form is what a
  * shared Catalogue ships, because an absolute cycle time is not portable — the
  * same `1:40` is a moderate set for one swimmer and impossible for another.
  */
@@ -1032,12 +1030,12 @@ function sendOffText(
 	sendOff: SendOff | Extract<RestSpec, { kind: 'sendOff' }>,
 ): string {
 	if (sendOff.kind === 'absolute') {
-		return `on ${formatDuration(sendOff.intervalSec)}`
+		return WORDS.sendOff(formatDuration(sendOff.intervalSec))
 	}
 	const allowance = sendOff.allowanceSecPer100m
-	if (allowance === 0) return 'on CSS'
+	if (allowance === 0) return WORDS.sendOff('CSS')
 	const sign = allowance > 0 ? '+' : '−'
-	return `on CSS ${sign} ${Math.abs(allowance)} s`
+	return WORDS.sendOff(`CSS ${sign} ${Math.abs(allowance)} s`)
 }
 
 function buildStep(
@@ -1081,7 +1079,7 @@ function buildStep(
 		tokens.push(
 			plain({
 				type: 'exercise',
-				text: step.exerciseName?.trim() || 'exercise',
+				text: step.exerciseName?.trim() || WORDS.exercise,
 				address: at('exerciseId'),
 			}),
 		)
@@ -1099,7 +1097,11 @@ function buildStep(
 			step.exerciseId ? loadContexts[step.exerciseId] : undefined,
 		)
 		tokens.push(
-			plain({ type: 'sets', text: summary ?? 'sets', address: at('sets') }),
+			plain({
+				type: 'sets',
+				text: summary ?? WORDS.sets,
+				address: at('sets'),
+			}),
 		)
 		if (step.restBetweenSetsSec != null) {
 			// Rest-between-sets folds into the set notation with the facet mid-dot
@@ -1110,7 +1112,7 @@ function buildStep(
 				parenthesized: false,
 				token: {
 					type: 'rest',
-					text: `${formatDuration(step.restBetweenSetsSec)} rest`,
+					text: WORDS.restFor(formatDuration(step.restBetweenSetsSec)),
 					address: at('restBetweenSetsSec'),
 				},
 			})
@@ -1140,7 +1142,7 @@ function buildStep(
 			tokens.push(
 				plain({
 					type: 'quantity',
-					text: `${step.verticalM} vm`,
+					text: WORDS.vertical(step.verticalM),
 					address: at('vertical'),
 				}),
 			)

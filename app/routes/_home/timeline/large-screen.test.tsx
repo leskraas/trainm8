@@ -197,6 +197,11 @@ function season(
 function inRouter(node: React.ReactNode) {
 	const App = createRoutesStub([
 		{
+			// The writing line names lifts against the exercise catalogue (ADR 0089).
+			path: '/resources/sentence-exercises',
+			loader: () => ({ exercises: [] }),
+		},
+		{
 			// The writing line reads the day's week as it opens; an empty plan
 			// keeps its own preview out of these tests.
 			path: '/resources/week-sum',

@@ -201,3 +201,121 @@ test('the creation menu writes a day months out, past the Planning Horizon and t
 	expect(written.source).toBe('authored')
 	expect(written.workout?.title).toBe('21 km langtur')
 })
+
+test('a session of lifts on the line: an unknown lift offers the nearest, the echo is Norwegian, and the save writes the strength editor’s structure', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const errors: string[] = []
+	page.on('pageerror', (error) => {
+		if (!/websocket/i.test(error.message)) errors.push(error.message)
+	})
+	const user = await login()
+	await seedRunner(user.id)
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	const day = todayKey()
+	const midday = new Date(`${day}T12:00:00Z`)
+	const dayName = `${formatNbWeekdayShort(midday, TZ)} ${formatNbDayOfMonth(midday, TZ)}`
+	const cell = page.getByRole('button', {
+		name: new RegExp(`^Legg inn en økt ${dayName}`),
+	})
+	const draft = page.getByRole('group', {
+		name: new RegExp(`^Ny økt ${dayName}`),
+	})
+	await cell.scrollIntoViewIfNeeded()
+	await untilHydrated(cell)
+	await cell.click()
+	await expect(draft).toBeVisible()
+
+	// Styrke offers the line, with a lift for its example (ADR 0089).
+	await draft.getByRole('radio', { name: 'Styrke' }).click()
+	const input = draft.getByRole('textbox', { name: 'Skriv økta' })
+	await expect(input).toHaveAttribute('placeholder', /Knebøy 5×5 @ 80 kg/)
+
+	// A lift the database does not hold is said where it stands, with the
+	// nearest names it does — never dropped, and nothing saves while it stands.
+	await input.fill('Knebøj 5×5 @ 82,5 kg p 3 min · Roing 3×8')
+	await expect(draft.getByText('Finner ikke øvelsen «Knebøj»')).toBeVisible()
+	await expect(
+		draft.getByRole('button', {
+			name: 'Legg til «Knebøj 5×5 @ 82,5 kg p 3 min · Roing 3×8»',
+		}),
+	).toBeDisabled()
+	await shot(page, '6-lift-suggestion')
+	await draft
+		.getByRole('button', { name: 'Bytt «Knebøj» med «Knebøy»' })
+		.click()
+	await expect(input).toHaveValue('Knebøy 5×5 @ 82,5 kg p 3 min · Roing 3×8')
+
+	// What was understood: the lifts by their database names, their sets, and
+	// the rest between sets in Norwegian.
+	await expect(draft.getByText('Forstått')).toBeVisible()
+	await expect(draft.getByText('Back Squat', { exact: true })).toBeVisible()
+	await expect(draft.getByText('Barbell Row', { exact: true })).toBeVisible()
+	await expect(draft.getByText('3 × 8', { exact: true })).toBeVisible()
+	await expect(draft.getByText('pause', { exact: true })).toBeVisible()
+	await expect(draft.getByText('rest', { exact: true })).toHaveCount(0)
+	await shot(page, '7-lift-understood')
+
+	await draft
+		.getByRole('button', {
+			name: 'Legg til «Knebøy 5×5 @ 82,5 kg p 3 min · Roing 3×8»',
+		})
+		.click()
+	await expect(page.getByRole('button', { name: 'Ferdig' })).toBeVisible()
+	await shot(page, '8-lift-saved')
+
+	const written = await prisma.workoutSession.findFirstOrThrow({
+		where: { userId: user.id },
+		select: {
+			source: true,
+			workout: {
+				select: {
+					title: true,
+					discipline: true,
+					blocks: {
+						select: {
+							steps: {
+								orderBy: { orderIndex: 'asc' },
+								select: {
+									restBetweenSetsSec: true,
+									exercise: { select: { name: true } },
+									sets: {
+										orderBy: { orderIndex: 'asc' },
+										select: { reps: true, load: true },
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	expect(written.source).toBe('authored')
+	expect(written.workout?.discipline).toBe('strength')
+	expect(written.workout?.title).toBe(
+		'Knebøy 5×5 @ 82,5 kg p 3 min · Roing 3×8',
+	)
+	const steps = written.workout!.blocks[0]!.steps
+	expect(steps.map((step) => step.exercise?.name)).toEqual([
+		'Back Squat',
+		'Barbell Row',
+	])
+	expect(steps[0]!.restBetweenSetsSec).toBe(180)
+	expect(steps[0]!.sets.map((set) => set.reps)).toEqual([5, 5, 5, 5, 5])
+	expect(JSON.parse(steps[0]!.sets[0]!.load!)).toEqual({
+		kind: 'absolute',
+		kg: 82.5,
+	})
+	expect(steps[1]!.sets.map((set) => [set.reps, set.load])).toEqual([
+		[8, null],
+		[8, null],
+		[8, null],
+	])
+	expect(errors).toEqual([])
+})
