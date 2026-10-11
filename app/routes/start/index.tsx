@@ -88,7 +88,7 @@ export default function ConnectStep({
 		<FirstRunFrame step={1} title={L.title} intro={L.intro}>
 			{loaderData.connected ? (
 				<div className="space-y-4">
-					<p className="text-[15px] font-medium">{L.connected}</p>
+					<p className="text-callout">{L.connected}</p>
 					<Link to="/start/funn" className={PRIMARY_ACTION}>
 						{L.next}
 					</Link>
@@ -101,15 +101,19 @@ export default function ConnectStep({
 							inputProps={{
 								...getInputProps(fields.apiKey, { type: 'password' }),
 								autoComplete: 'off',
-								className: 'text-base',
+								// A pasted key is taken as it is: no capital, no "fix".
+								autoCapitalize: 'none',
+								autoCorrect: 'off',
+								spellCheck: false,
+								enterKeyHint: 'go',
 							}}
 							errors={fields.apiKey.errors}
 						/>
-						<p className="text-muted-foreground text-[13px]">{L.keyHelp}</p>
+						<p className="text-footnote text-muted-foreground">{L.keyHelp}</p>
 						<ErrorList errors={form.errors} id={form.errorId} />
 						<StatusButton
 							type="submit"
-							className="w-full"
+							className="text-callout w-full"
 							status={isPending ? 'pending' : (form.status ?? 'idle')}
 							disabled={isPending}
 						>
@@ -120,7 +124,10 @@ export default function ConnectStep({
 						aria-labelledby="first-run-skip"
 						className="border-border space-y-3 border-t pt-6"
 					>
-						<p id="first-run-skip" className="text-muted-foreground text-sm">
+						<p
+							id="first-run-skip"
+							className="text-footnote text-muted-foreground"
+						>
 							{L.skipConsequence}
 						</p>
 						<Link to="/start/funn" className={SECONDARY_ACTION}>

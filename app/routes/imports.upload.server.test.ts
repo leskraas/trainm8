@@ -299,7 +299,7 @@ test('re-uploading the same .fit file reports a duplicate', async () => {
 
 	const { error, status } = errorResult(response)
 	expect(status).toBe(400)
-	expect(error).toMatch(/already been imported/i)
+	expect(error).toMatch(/allerede importert/i)
 	const count = await prisma.activityImport.count({
 		where: { athleteId: userId },
 	})
@@ -412,7 +412,7 @@ test('re-uploading the same .tcx file reports a duplicate', async () => {
 
 	const { error, status } = errorResult(response)
 	expect(status).toBe(400)
-	expect(error).toMatch(/already been imported/i)
+	expect(error).toMatch(/allerede importert/i)
 	expect(
 		await prisma.activityImport.count({ where: { athleteId: userId } }),
 	).toBe(1)
@@ -687,7 +687,7 @@ test('an unsupported file type returns a clear message', async () => {
 
 	const { error, status } = errorResult(response)
 	expect(status).toBe(400)
-	expect(error).toMatch(/unsupported/i)
+	expect(error).toMatch(/støttes ikke/i)
 	expect(error).toMatch(/\.tcx/i)
 })
 

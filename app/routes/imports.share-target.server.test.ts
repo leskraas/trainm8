@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
+import { getToast } from '#app/utils/toast.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
@@ -106,6 +107,60 @@ test('sharing the same file twice dedupes by content hash', async () => {
 		where: { athleteId: userId },
 	})
 	expect(count).toBe(1)
+})
+
+/** The toast a redirect carries, read back as the next page would read it. */
+async function toastOf(result: unknown) {
+	if (!(result instanceof Response)) throw new Error('Expected a Response')
+	const cookie = result.headers.get('set-cookie')?.split(';')[0] ?? ''
+	const { toast } = await getToast(
+		new Request(BASE_URL, { headers: { cookie } }),
+	)
+	return toast
+}
+
+test('a shared file that lands says so in Norwegian on I dag', async () => {
+	const { cookieHeader } = await setupAthlete()
+
+	const result = await shareFiles(cookieHeader, [gpxFile()])
+
+	expectRedirect(result, '/')
+	expect(await toastOf(result)).toMatchObject({
+		title: '1 økt importert',
+		type: 'success',
+	})
+})
+
+test('a shared file that cannot be read says what failed instead of dropping it', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	const broken = new File(['not a gpx at all'], 'broken.gpx', {
+		type: 'application/gpx+xml',
+	})
+
+	const result = await shareFiles(cookieHeader, [broken])
+
+	expectRedirect(result, '/')
+	expect(await toastOf(result)).toMatchObject({
+		title: 'Ingen økter ble importert',
+		description: '1 fil kunne ikke leses: broken.gpx (Ikke en gyldig GPX-fil)',
+		type: 'error',
+	})
+	expect(
+		await prisma.activityImport.count({ where: { athleteId: userId } }),
+	).toBe(0)
+})
+
+test('sharing a file twice says it was there already', async () => {
+	const { cookieHeader } = await setupAthlete()
+
+	await shareFiles(cookieHeader, [fitFile('run-with-hr.fit')])
+	const result = await shareFiles(cookieHeader, [fitFile('run-with-hr.fit')])
+
+	expect(await toastOf(result)).toMatchObject({
+		title: 'Ingen økter ble importert',
+		description: '1 fantes fra før.',
+		type: 'message',
+	})
 })
 
 test('sharing no files redirects to the upload page instead of erroring', async () => {

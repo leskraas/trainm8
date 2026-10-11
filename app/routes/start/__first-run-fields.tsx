@@ -1,13 +1,22 @@
-import { ErrorList } from '#app/components/forms.tsx'
-import { NB_DISCIPLINE_LABELS, NB_WEEKDAY_LABELS } from '#app/utils/labels.ts'
+import { RadioGroupField, ToggleGroupField } from '#app/components/forms.tsx'
+import {
+	FIRST_RUN_LABELS,
+	NB_DISCIPLINE_LABELS,
+	NB_WEEKDAY_LABELS,
+} from '#app/utils/labels.ts'
 import { CARDIO_DISCIPLINES } from '#app/utils/workout-schema.ts'
 
 /** What a field needs from conform's metadata: its name and its errors. */
 type FieldMeta = { name: string; errorId: string; errors?: string[] }
 
+/** A legend that reads as one of the three questions, not a field label. */
+export const QUESTION_LEGEND = 'text-heading'
+
 /**
- * The weekday checkboxes the first run asks its days with — Monday first, the
- * Training Week's own order, and the Week Pattern's (0 = mandag).
+ * The days the first run asks for, as a row of seven pills (Arket J3) —
+ * Monday first, the Training Week's own order and the Week Pattern's
+ * (0 = mandag). Each pill says `ma`…`sø` and is read out by its full name;
+ * the pressed ones post as `days`, as the checkboxes they replace did.
  */
 export function DaysField({
 	meta,
@@ -24,40 +33,24 @@ export function DaysField({
 	asQuestion?: boolean
 }) {
 	return (
-		<fieldset className="space-y-2" aria-describedby={meta.errorId}>
-			<legend
-				className={
-					asQuestion ? 'text-base font-semibold' : 'text-sm font-medium'
-				}
-			>
-				{legend}
-			</legend>
-			{note ? (
-				<p className="text-muted-foreground text-[13px]">{note}</p>
-			) : null}
-			<div className="grid grid-cols-2 gap-x-4 sm:grid-cols-4">
-				{NB_WEEKDAY_LABELS.map((label, weekday) => (
-					<label
-						key={label}
-						className="flex min-h-11 cursor-pointer items-center gap-2"
-					>
-						<input
-							type="checkbox"
-							name={meta.name}
-							value={weekday}
-							defaultChecked={defaultDays.includes(weekday)}
-							className="size-5"
-						/>
-						<span className="text-[15px] capitalize">{label}</span>
-					</label>
-				))}
-			</div>
-			<ErrorList id={meta.errorId} errors={meta.errors} />
-		</fieldset>
+		<ToggleGroupField
+			name={meta.name}
+			legend={legend}
+			legendClassName={asQuestion ? QUESTION_LEGEND : 'text-callout'}
+			note={note}
+			options={NB_WEEKDAY_LABELS.map((label, weekday) => ({
+				value: String(weekday),
+				label: FIRST_RUN_LABELS.dayShort[weekday]!,
+				ariaLabel: label,
+			}))}
+			defaultValue={defaultDays.map(String)}
+			errorId={meta.errorId}
+			errors={meta.errors}
+		/>
 	)
 }
 
-/** Which endurance sport the plan is for, as radios. */
+/** Which endurance sport the plan is for, as choice cards. */
 export function DisciplineField({
 	meta,
 	legend,
@@ -68,28 +61,17 @@ export function DisciplineField({
 	defaultDiscipline: string
 }) {
 	return (
-		<fieldset className="space-y-1.5" aria-describedby={meta.errorId}>
-			<legend className="text-sm font-medium">{legend}</legend>
-			<div className="flex flex-wrap gap-x-4">
-				{CARDIO_DISCIPLINES.map((discipline) => (
-					<label
-						key={discipline}
-						className="flex min-h-11 cursor-pointer items-center gap-2"
-					>
-						<input
-							type="radio"
-							name={meta.name}
-							value={discipline}
-							defaultChecked={discipline === defaultDiscipline}
-							className="size-5"
-						/>
-						<span className="text-[15px]">
-							{NB_DISCIPLINE_LABELS[discipline]}
-						</span>
-					</label>
-				))}
-			</div>
-			<ErrorList id={meta.errorId} errors={meta.errors} />
-		</fieldset>
+		<RadioGroupField
+			name={meta.name}
+			legend={legend}
+			legendClassName="text-callout"
+			options={CARDIO_DISCIPLINES.map((discipline) => ({
+				value: discipline,
+				label: NB_DISCIPLINE_LABELS[discipline],
+			}))}
+			defaultValue={defaultDiscipline}
+			errorId={meta.errorId}
+			errors={meta.errors}
+		/>
 	)
 }

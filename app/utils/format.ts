@@ -1005,3 +1005,32 @@ export function formatNbRepRange(reps: RepRange): string {
 		? `${reps.minReps} rep`
 		: `${reps.minReps}–${reps.maxReps} rep`
 }
+
+// ---------------------------------------------------------------------------
+// Round 2 · first run and integrations (branch claude/r2-firstrun-meg-finish)
+// ---------------------------------------------------------------------------
+
+const NB_CLOCK_FORMATTERS = new Map<string, Intl.DateTimeFormat>()
+
+/**
+ * `ons 7. okt kl. 17.00` — a moment the athlete reads back, like when the app
+ * last synced. The clock is 24-hour with a full stop (Norwegian practice);
+ * the weekday and month words come from `labels.ts`, as `formatNbDayDate`'s.
+ */
+export function formatNbDayDateTime(
+	instant: DateInput,
+	timeZone: string,
+): string {
+	let formatter = NB_CLOCK_FORMATTERS.get(timeZone)
+	if (!formatter) {
+		formatter = new Intl.DateTimeFormat('en-GB', {
+			timeZone,
+			hour: '2-digit',
+			minute: '2-digit',
+			hourCycle: 'h23',
+		})
+		NB_CLOCK_FORMATTERS.set(timeZone, formatter)
+	}
+	const clock = formatter.format(new Date(instant)).replace(':', '.')
+	return `${formatNbDayDate(instant, timeZone)} kl. ${clock}`
+}

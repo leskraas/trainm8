@@ -461,3 +461,14 @@ test('formatLiftWork writes one weight and its rep counts the one way', () => {
 	expect(formatLiftWork('kroppsvekt', [])).toBe('kroppsvekt')
 	expect(formatLiftWork(null, [])).toBeNull()
 })
+
+test('formatNbDayDateTime reads a moment back in Norwegian, in the athlete timezone', async () => {
+	const { formatNbDayDateTime } = await import('./format.ts')
+	// 15:00 UTC is 17:00 in Oslo in May (CEST).
+	expect(formatNbDayDateTime('2026-05-23T15:00:00Z', 'Europe/Oslo')).toBe(
+		'lør 23. mai kl. 17.00',
+	)
+	expect(formatNbDayDateTime('2026-01-05T07:05:00Z', 'UTC')).toBe(
+		'man 5. jan kl. 07.05',
+	)
+})

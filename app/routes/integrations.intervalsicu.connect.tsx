@@ -4,28 +4,23 @@ import {
 	type LinkIntervalsIcuRefusal,
 } from '#app/integrations/intervalsicu/link.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import {
+	INTEGRATION_TOAST_LABELS,
+	INTEGRATIONS_LABELS,
+} from '#app/utils/labels.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type Route } from './+types/integrations.intervalsicu.connect.ts'
+
+const T = INTEGRATION_TOAST_LABELS
 
 /** Each refusal as the hub card says it, with the status it is answered with. */
 const REFUSALS: Record<
 	LinkIntervalsIcuRefusal,
 	{ error: string; status: number }
 > = {
-	'empty-key': {
-		error: 'Paste your Intervals.icu API key to connect.',
-		status: 400,
-	},
-	'key-rejected': {
-		error:
-			'Intervals.icu rejected this API key. Note that generating a new key invalidates old ones — copy the current key from Intervals.icu → Settings → Developer Settings.',
-		status: 400,
-	},
-	unreachable: {
-		error:
-			'Could not reach Intervals.icu to verify the key. Please try again in a moment.',
-		status: 502,
-	},
+	'empty-key': { error: T.emptyKey, status: 400 },
+	'key-rejected': { error: T.keyRejected, status: 400 },
+	unreachable: { error: T.unreachable, status: 502 },
 }
 
 /**
@@ -51,8 +46,8 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 
 	return redirectWithToast('/settings/integrations', {
-		title: 'Connected to Intervals.icu',
-		description: 'Your Intervals.icu account is now linked to Trainm8.',
+		title: T.connected(INTEGRATIONS_LABELS.intervalsicu.name),
+		description: T.connectedBody(INTEGRATIONS_LABELS.intervalsicu.name),
 		type: 'success',
 	})
 }

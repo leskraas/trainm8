@@ -5,6 +5,10 @@ import { syncStravaActivities } from '#app/integrations/strava/sync.server.ts'
 import { STRAVA_PROVIDER } from '#app/integrations/strava/types.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import {
+	INTEGRATION_TOAST_LABELS,
+	INTEGRATIONS_LABELS,
+} from '#app/utils/labels.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type Route } from './+types/integrations.sync.ts'
 
@@ -16,15 +20,21 @@ import { type Route } from './+types/integrations.sync.ts'
  * revoked mid-sync) is reported alongside the ones that succeeded.
  */
 
+const T = INTEGRATION_TOAST_LABELS
+
 const PROVIDER_SYNCS: Array<{
 	provider: string
 	label: string
 	run: (athleteId: string) => Promise<{ ok: boolean; created?: number }>
 }> = [
-	{ provider: STRAVA_PROVIDER, label: 'Strava', run: syncStravaActivities },
+	{
+		provider: STRAVA_PROVIDER,
+		label: INTEGRATIONS_LABELS.strava.name,
+		run: syncStravaActivities,
+	},
 	{
 		provider: INTERVALSICU_PROVIDER,
-		label: 'Intervals.icu',
+		label: INTEGRATIONS_LABELS.intervalsicu.name,
 		run: syncIntervalsIcuActivities,
 	},
 ]
@@ -41,8 +51,8 @@ export async function action({ request }: Route.ActionArgs) {
 
 	if (syncs.length === 0) {
 		return redirectWithToast('/settings/integrations', {
-			title: 'Sync failed',
-			description: 'Connect a source before syncing.',
+			title: T.syncFailed,
+			description: T.connectFirst,
 			type: 'error',
 		})
 	}
@@ -60,23 +70,20 @@ export async function action({ request }: Route.ActionArgs) {
 
 	if (failed.length === syncs.length) {
 		return redirectWithToast('/settings/integrations', {
-			title: 'Sync failed',
-			description: `Could not sync ${failed.join(' and ')} — check the Integrations page.`,
+			title: T.syncFailed,
+			description: T.couldNotSync(T.and(failed)),
 			type: 'error',
 		})
 	}
 
 	// Auto-save (ADR 0049) already filed each one as a Workout Session, so the
 	// toast says where they went rather than pointing at a queue to work through.
-	const importedLine =
-		created === 0
-			? 'No new activities to import.'
-			: `Saved ${created} new ${created === 1 ? 'activity' : 'activities'} to your training log.`
+	const importedLine = created === 0 ? T.nothingNew : T.saved(created)
 	return redirectWithToast('/settings/integrations', {
-		title: 'Synced',
+		title: T.synced,
 		description:
 			failed.length > 0
-				? `${importedLine} ${failed.join(' and ')} could not sync — check the Integrations page.`
+				? `${importedLine} ${T.couldNotSync(T.and(failed))}`
 				: importedLine,
 		type: failed.length > 0 ? 'error' : 'success',
 	})

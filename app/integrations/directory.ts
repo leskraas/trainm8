@@ -7,7 +7,11 @@
  * provider's own routes; provider behavior stays in its folder. The directory
  * is just how the hub composes per-provider cards without a registry pattern
  * leaking into behavior.
+ *
+ * The words (name, tagline) are Norwegian and live in `labels.ts` (ADR 0081).
  */
+
+import { PROVIDER_DIRECTORY_LABELS } from '#app/utils/labels.ts'
 
 export type ProviderDirectoryEntry = {
 	id: 'strava' | 'intervalsicu' | 'file-upload' | 'garmin' | 'suunto'
@@ -34,8 +38,7 @@ export type ProviderDirectoryEntry = {
 export const PROVIDER_DIRECTORY: readonly ProviderDirectoryEntry[] = [
 	{
 		id: 'strava',
-		name: 'Strava',
-		tagline: 'Activities import automatically after every workout.',
+		...PROVIDER_DIRECTORY_LABELS['strava'],
 		authKind: 'oauth',
 		availability: 'live',
 		connectRoute: '/integrations/strava/connect',
@@ -44,8 +47,7 @@ export const PROVIDER_DIRECTORY: readonly ProviderDirectoryEntry[] = [
 	},
 	{
 		id: 'file-upload',
-		name: 'File upload',
-		tagline: 'FIT, TCX, or GPX files. Always available.',
+		...PROVIDER_DIRECTORY_LABELS['file-upload'],
 		authKind: 'none',
 		availability: 'live',
 		connectRoute: '/imports/upload',
@@ -55,9 +57,7 @@ export const PROVIDER_DIRECTORY: readonly ProviderDirectoryEntry[] = [
 	},
 	{
 		id: 'intervalsicu',
-		name: 'Intervals.icu',
-		tagline:
-			'Free import with your personal API key — carries Garmin and Suunto data too. Checked daily, with manual sync for the latest; near-realtime webhooks are planned once trainm8 registers an OAuth app.',
+		...PROVIDER_DIRECTORY_LABELS['intervalsicu'],
 		authKind: 'api-key',
 		availability: 'live',
 		connectRoute: '/integrations/intervalsicu/connect',
@@ -66,9 +66,7 @@ export const PROVIDER_DIRECTORY: readonly ProviderDirectoryEntry[] = [
 	},
 	{
 		id: 'garmin',
-		name: 'Garmin Connect',
-		tagline:
-			"Garmin's API requires acceptance into their partner program. Meanwhile, Intervals.icu already carries your Garmin data.",
+		...PROVIDER_DIRECTORY_LABELS['garmin'],
 		authKind: 'oauth',
 		availability: 'coming-soon',
 		connectRoute: null,
@@ -77,9 +75,7 @@ export const PROVIDER_DIRECTORY: readonly ProviderDirectoryEntry[] = [
 	},
 	{
 		id: 'suunto',
-		name: 'Suunto',
-		tagline:
-			"Suunto's API is partner-gated too. Intervals.icu carries Suunto data today.",
+		...PROVIDER_DIRECTORY_LABELS['suunto'],
 		authKind: 'oauth',
 		availability: 'coming-soon',
 		connectRoute: null,

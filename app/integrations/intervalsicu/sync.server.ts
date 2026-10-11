@@ -115,16 +115,22 @@ export async function syncIntervalsIcuActivities(
 	// reconcile sweep give it. Stamping the sync's own wall-clock time here
 	// would place the watermark after any activity that started earlier but
 	// uploaded later, hiding it from every future window.
-	if (
+	//
+	// What the athlete reads as "Sist synkronisert" is the other time: when this
+	// pass got its answer, `now`, stamped on every successful pass — one that
+	// found nothing included (round-2 audit: the page named the newest
+	// activity's day, which after an empty sync was days old).
+	const advances =
 		latestActivityAt != null &&
 		(connection.lastSyncedAt == null ||
 			latestActivityAt > connection.lastSyncedAt)
-	) {
-		await prisma.accountConnection.update({
-			where: { id: connection.id },
-			data: { lastSyncedAt: latestActivityAt },
-		})
-	}
+	await prisma.accountConnection.update({
+		where: { id: connection.id },
+		data: {
+			lastCheckedAt: now,
+			...(advances ? { lastSyncedAt: latestActivityAt } : {}),
+		},
+	})
 
 	return { ok: true, created, skipped }
 }
