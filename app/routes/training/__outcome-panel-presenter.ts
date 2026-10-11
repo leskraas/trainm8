@@ -20,11 +20,11 @@
  *
  * Pure: no clock, no random source, no `prisma`.
  */
+import { OUTCOME_LABELS } from '#app/utils/labels.ts'
 import {
 	type PlateInventory,
 	type PlateOptions,
 } from '#app/utils/strength/plates.ts'
-import { OUTCOME_LABELS } from '#app/utils/labels.ts'
 import { type LiftOutcome } from '#app/utils/strength/program-engine.ts'
 import {
 	type OutcomeItem,

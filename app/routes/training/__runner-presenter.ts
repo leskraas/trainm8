@@ -11,6 +11,13 @@
  *
  * Pure: no clock, no random source, no `prisma`.
  */
+import { formatLiftWork, formatNbKg } from '#app/utils/format.ts'
+import {
+	NB_STALL_RESPONSE_LABELS,
+	OUTCOME_LABELS as O,
+	PROGRAM_RUN_LABELS,
+	STRENGTH_RUNNER_LABELS as S,
+} from '#app/utils/labels.ts'
 import {
 	type LoadResolution,
 	loadResolutionText,
@@ -24,8 +31,6 @@ import {
 	plateOptionsForKind,
 } from '#app/utils/strength/plates.ts'
 import { type LiftOutcome } from '#app/utils/strength/program-engine.ts'
-import { loadKindLabel } from '#app/utils/strength/program-rules.ts'
-import { formatLiftWork, formatNbKg } from '#app/utils/format.ts'
 import {
 	type StrengthRecord,
 	strengthRecordLabel,
@@ -51,12 +56,6 @@ import {
 	type SetRole,
 	isMissedSet,
 } from '#app/utils/strength-log.ts'
-import {
-	NB_STALL_RESPONSE_LABELS,
-	OUTCOME_LABELS as O,
-	PROGRAM_RUN_LABELS,
-	STRENGTH_RUNNER_LABELS as S,
-} from '#app/utils/labels.ts'
 import { loadTargetText } from '#app/utils/workout-notation.ts'
 
 // The weight a tap posts and the lift's sub-line live in `app/utils`, shared
