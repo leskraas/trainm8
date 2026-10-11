@@ -127,7 +127,7 @@ describe('formatIntensityTarget', () => {
 				{ kind: 'zoneLabel', label: 'threshold' },
 				profile(),
 			),
-		).toEqual({ kind: 'zone', text: 'Threshold' })
+		).toEqual({ kind: 'zone', text: 'Terskel' })
 		expect(
 			formatIntensityTarget({ kind: 'zoneLabel', label: 'Z2' }, profile()),
 		).toEqual({ kind: 'zone', text: 'Z2' })
@@ -189,13 +189,13 @@ describe('formatIntensityTarget', () => {
 					thresholdPaceSecPerKm: null,
 				}),
 			),
-		).toEqual({ kind: 'zone', text: 'E', caption: 'easy/endurance' })
+		).toEqual({ kind: 'zone', text: 'E', caption: 'rolig/utholdenhet' })
 	})
 
 	test('a bare Daniels letter is captioned even without a configured zone system', () => {
 		expect(
 			formatIntensityTarget({ kind: 'zoneLabel', label: 'E' }, profile()),
-		).toEqual({ kind: 'zone', text: 'E', caption: 'easy/endurance' })
+		).toEqual({ kind: 'zone', text: 'E', caption: 'rolig/utholdenhet' })
 	})
 })
 
@@ -235,7 +235,7 @@ describe('describeStepTarget', () => {
 				profile(),
 			),
 		).toEqual({
-			label: '95–99% LTHR',
+			label: '95–99% terskelpuls',
 			resolved: '160–166 bpm',
 			missingThreshold: null,
 			approximate: false,
@@ -249,7 +249,7 @@ describe('describeStepTarget', () => {
 				profile({ maxHr: null }),
 			),
 		).toEqual({
-			label: '80%+ max HR',
+			label: '80%+ makspuls',
 			resolved: null,
 			missingThreshold: 'Max HR is not configured',
 			approximate: false,
@@ -264,7 +264,7 @@ describe('describeStepTarget', () => {
 				profile({ zoneSystem: 'daniels-pace-5' }),
 			),
 		).toEqual({
-			label: 'E — easy/endurance',
+			label: 'E — rolig/utholdenhet',
 			resolved: '4:36–5:14 /km',
 			missingThreshold: null,
 			approximate: false,
@@ -281,7 +281,7 @@ describe('describeStepTarget', () => {
 				}),
 			),
 		).toEqual({
-			label: 'E — easy/endurance',
+			label: 'E — rolig/utholdenhet',
 			resolved: null,
 			missingThreshold: 'threshold pace is not configured',
 			approximate: false,
@@ -295,7 +295,7 @@ describe('describeStepTarget', () => {
 				profile({ zoneSystem: 'css-3' }),
 			),
 		).toEqual({
-			label: 'Z2 — aerobic endurance',
+			label: 'Z2 — aerob utholdenhet',
 			resolved: '1:35–1:59 /100m',
 			missingThreshold: null,
 			approximate: false,
@@ -306,7 +306,7 @@ describe('describeStepTarget', () => {
 		expect(
 			describeStepTarget({ kind: 'zoneLabel', label: 'E' }, profile()),
 		).toEqual({
-			label: 'E — easy/endurance',
+			label: 'E — rolig/utholdenhet',
 			resolved: null,
 			missingThreshold: null,
 			approximate: false,
@@ -528,7 +528,7 @@ describe('sessionMetricTarget', () => {
 		}
 		expect(sessionMetricTarget(workout, runThresholds)).toEqual({
 			kind: 'zone',
-			text: 'Threshold',
+			text: 'Terskel',
 		})
 	})
 
@@ -718,14 +718,14 @@ describe('the anchors the corpus needs', () => {
 				{ kind: 'racePace', event: 'marathon', minPct: 105 },
 				profile(),
 			),
-		).toEqual({ kind: 'metric', metric: 'pace', text: '105% marathon pace' })
+		).toEqual({ kind: 'metric', metric: 'pace', text: '105% maratonfart' })
 		// With a result it gains the facet, hedged.
 		expect(
 			formatIntensityTarget(
 				{ kind: 'racePace', event: '10k' },
 				profile({ raceAnchorPaces: { '10k': 249 } }),
 			),
-		).toEqual({ kind: 'metric', metric: 'pace', text: '10k pace ≈ 4:09 /km' })
+		).toEqual({ kind: 'metric', metric: 'pace', text: '10 km-fart ≈ 4:09 /km' })
 	})
 
 	test('a pace percentage is exact arithmetic, so it carries no ≈', () => {
@@ -734,7 +734,7 @@ describe('the anchors the corpus needs', () => {
 			profile({ zoneSystem: 'daniels-pace-5' }),
 		)
 		expect(display).toEqual({
-			label: '95–98% T-pace',
+			label: '95–98% terskelfart',
 			resolved: '4:05–4:13 /km',
 			missingThreshold: null,
 			approximate: false,

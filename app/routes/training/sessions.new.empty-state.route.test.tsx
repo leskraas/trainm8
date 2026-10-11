@@ -306,13 +306,13 @@ test('saving with zero steps posts, lands the summary-line floor with focus + an
 	const line = summary()!
 	expect(line).toHaveTextContent('1 ting må rettes')
 	const item = within(line).getByText(
-		'Add at least one step to save this session',
+		'Legg til minst ett steg for å lagre økta',
 	)
 	expect(item.tagName).toBe('SPAN')
 	await waitFor(() => expect(line).toHaveFocus())
 	await waitFor(() =>
 		expect(screen.getByRole('status')).toHaveTextContent(
-			/1 ting må rettes — Add at least one step to save this session/,
+			/1 ting må rettes — Legg til minst ett steg for å lagre økta/,
 		),
 	)
 

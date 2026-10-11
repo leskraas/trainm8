@@ -196,7 +196,7 @@ describe('mapServerErrors — anchors', () => {
 	})
 
 	test("the whole-array 'blocks' rule is §11.6's anchor-less floor", () => {
-		// "Add at least one step…" has no block to anchor on and no header
+		// "Legg til minst ett steg…" has no block to anchor on and no header
 		// control that renders it — the summary line is its guaranteed home.
 		expect(mapOne('blocks').anchor).toEqual({ level: 'floor' })
 	})
@@ -222,9 +222,9 @@ describe('mapServerErrors — messages and order', () => {
 
 	test('generic Zod fallbacks re-word into human language', () => {
 		expect(mapOne('blocks.0.steps.1.kind', ['Invalid input']).message).toBe(
-			'This can’t be saved as written',
+			'Dette kan ikke lagres slik det står',
 		)
-		expect(mapOne('title', ['Required']).message).toBe('This is required')
+		expect(mapOne('title', ['Required']).message).toBe('Dette må fylles ut')
 	})
 
 	test('null entries and empty message lists are skipped', () => {

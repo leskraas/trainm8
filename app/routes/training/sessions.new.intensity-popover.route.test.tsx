@@ -273,13 +273,13 @@ test('heart rate: bpm ⇄ %LTHR ⇄ %maxHR converts through the profile threshol
 	expect(await within(popup).findByLabelText('Fra %terskelpuls')).toHaveValue(
 		'96',
 	)
-	await waitFor(() => expect(chipEl().textContent).toBe('96% LTHR'))
+	await waitFor(() => expect(chipEl().textContent).toBe('96% terskelpuls'))
 
 	// %LTHR → %maxHR converts through both thresholds (96% of 168 ≈ 161 bpm ≈
 	// 85% of 190).
 	await user.click(within(toggle).getByRole('button', { name: '%makspuls' }))
 	expect(await within(popup).findByLabelText('Fra %makspuls')).toHaveValue('85')
-	await waitFor(() => expect(chipEl().textContent).toBe('85% max HR'))
+	await waitFor(() => expect(chipEl().textContent).toBe('85% makspuls'))
 })
 
 // ——— Pace ————————————————————————————————————————————————————————————————
@@ -380,7 +380,7 @@ test('%LTHR ⇄ %maxHR with no thresholds clears rather than reinterpreting the 
 	const toggle = within(popup).getByRole('group', { name: 'Enhet for puls' })
 	await user.click(within(toggle).getByRole('button', { name: '%terskelpuls' }))
 	await user.type(await within(popup).findByLabelText('Fra %terskelpuls'), '90')
-	await waitFor(() => expect(chipEl().textContent).toBe('90% LTHR'))
+	await waitFor(() => expect(chipEl().textContent).toBe('90% terskelpuls'))
 
 	// The two % units share one field; with nothing to convert through, the
 	// same number would silently restate a different physiological target —
@@ -536,7 +536,7 @@ test('pace: /km ⇄ % T-pace converts through threshold pace, and the bounds swa
 			}),
 		).toHaveValue('98')
 	})
-	await waitFor(() => expect(chipEl().textContent).toBe('95–98% T-pace'))
+	await waitFor(() => expect(chipEl().textContent).toBe('95–98% terskelfart'))
 })
 
 test('lactate is authored as itself, and the pace beside it is a derived ≈ facet', async () => {

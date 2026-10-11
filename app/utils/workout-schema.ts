@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { WORKOUT_SCHEMA_MESSAGES } from './labels.ts'
 
 // The display labels for these enums live in `app/utils/labels.ts` (#281), the
 // single enum→label seam; re-exported here so existing importers are unchanged.
@@ -290,10 +291,7 @@ const ExerciseSetBaseFields = {
 	// Eccentric-pause-concentric, e.g. "3-0-3"; "X" means maximal intent.
 	tempo: z
 		.string()
-		.regex(
-			/^[0-9X]+-[0-9X]+-[0-9X]+$/,
-			'Tempo reads as eccentric-pause-concentric, e.g. "3-0-3"',
-		)
+		.regex(/^[0-9X]+-[0-9X]+-[0-9X]+$/, WORKOUT_SCHEMA_MESSAGES.tempo)
 		.optional(),
 }
 
@@ -310,11 +308,11 @@ const loadXorLegacy = (s: LoadFields) =>
 function withLoadRules<T extends z.ZodTypeAny>(schema: T) {
 	return schema
 		.refine(weightXorPct, {
-			message: 'A set cannot have both weightKg and pct1RM',
+			message: WORKOUT_SCHEMA_MESSAGES.weightXorPct,
 			path: ['weightKg'],
 		})
 		.refine(loadXorLegacy, {
-			message: 'A set states its load once — use `load`, not weightKg/pct1RM',
+			message: WORKOUT_SCHEMA_MESSAGES.loadOnce,
 			path: ['load'],
 		})
 }
@@ -323,7 +321,7 @@ export const RepsSetSchema = withLoadRules(
 	z.object({
 		...ExerciseSetBaseFields,
 		kind: z.literal('reps'),
-		reps: z.number().int().positive('Reps must be a positive integer'),
+		reps: z.number().int().positive(WORKOUT_SCHEMA_MESSAGES.repsPositive),
 	}),
 )
 
@@ -334,7 +332,7 @@ export const TimedSetSchema = withLoadRules(
 		durationSec: z
 			.number()
 			.int()
-			.positive('Duration must be a positive integer'),
+			.positive(WORKOUT_SCHEMA_MESSAGES.durationPositive),
 	}),
 )
 
@@ -397,7 +395,7 @@ export const CardioStepSchema = z
 	.object({
 		kind: z.literal('cardio'),
 		discipline: z.enum(CARDIO_DISCIPLINES, {
-			errorMap: () => ({ message: 'Please select a discipline' }),
+			errorMap: () => ({ message: WORKOUT_SCHEMA_MESSAGES.discipline }),
 		}),
 		intensity: IntensityTargetSchema.optional(),
 		durationSec: z.number().int().positive().optional(),
@@ -408,7 +406,7 @@ export const CardioStepSchema = z
 		notes: z.string().max(240).optional(),
 	})
 	.refine((step) => !(step.durationSec != null && step.distanceM != null), {
-		message: 'A step cannot have both duration and distance',
+		message: WORKOUT_SCHEMA_MESSAGES.durationXorDistance,
 		path: ['durationSec'],
 	})
 	.refine(
@@ -416,12 +414,12 @@ export const CardioStepSchema = z
 			step.verticalM == null ||
 			(step.durationSec == null && step.distanceM == null),
 		{
-			message: 'A step states one quantity: duration, distance, or vertical',
+			message: WORKOUT_SCHEMA_MESSAGES.oneQuantity,
 			path: ['verticalM'],
 		},
 	)
 	.refine(cadenceOrdered, {
-		message: 'Cadence range must run low to high',
+		message: WORKOUT_SCHEMA_MESSAGES.cadenceOrder,
 		path: ['cadenceRpmMax'],
 	})
 
@@ -430,8 +428,8 @@ export const StrengthStepSchema = z.object({
 	// A per-step discipline override (spec §6.1, G6) — absent means the step
 	// inherits the workout's discipline.
 	discipline: z.enum(CARDIO_DISCIPLINES).optional(),
-	exerciseId: z.string().min(1, 'Exercise is required'),
-	sets: z.array(ExerciseSetSchema).min(1, 'At least one set is required'),
+	exerciseId: z.string().min(1, WORKOUT_SCHEMA_MESSAGES.exercise),
+	sets: z.array(ExerciseSetSchema).min(1, WORKOUT_SCHEMA_MESSAGES.setsMin),
 	restBetweenSetsSec: z.number().int().positive().optional(),
 	notes: z.string().max(240).optional(),
 })
@@ -510,7 +508,7 @@ export const RestStepSchema = z
 		notes: z.string().max(240).optional(),
 	})
 	.refine((step) => !(step.durationSec != null && step.rest != null), {
-		message: 'A rest states its form once — use `rest`, not durationSec',
+		message: WORKOUT_SCHEMA_MESSAGES.restOnce,
 		path: ['rest'],
 	})
 
@@ -564,7 +562,7 @@ const BlockSchema = z
 		repeatCount: z
 			.number()
 			.int()
-			.min(1, 'Repeat count must be at least 1')
+			.min(1, WORKOUT_SCHEMA_MESSAGES.repeatMin)
 			.default(1),
 		// The second repeat level (ADR 0007). `3 × (13 × 30/15)` is
 		// `seriesRepeatCount: 3` over `repeatCount: 13` — the best-studied cycling
@@ -575,19 +573,19 @@ const BlockSchema = z
 		seriesRepeatCount: z
 			.number()
 			.int()
-			.min(1, 'Series count must be at least 1')
+			.min(1, WORKOUT_SCHEMA_MESSAGES.seriesMin)
 			.optional(),
 		betweenSeriesRestSec: z.number().int().positive().optional(),
 		sendOff: SendOffSchema.optional(),
 		steps: z
 			.array(WorkoutStepSchema)
-			.min(1, 'A block must have at least one step'),
+			.min(1, WORKOUT_SCHEMA_MESSAGES.blockStepsMin),
 	})
 	.refine(
 		(block) =>
 			block.betweenSeriesRestSec == null || (block.seriesRepeatCount ?? 1) > 1,
 		{
-			message: 'A rest between series needs more than one series',
+			message: WORKOUT_SCHEMA_MESSAGES.betweenSeriesRest,
 			path: ['betweenSeriesRestSec'],
 		},
 	)
@@ -598,7 +596,7 @@ const BlockSchema = z
 			block.sendOff == null ||
 			!block.steps.some((step) => step.kind === 'rest'),
 		{
-			message: 'A block has either a send-off or rest steps, never both',
+			message: WORKOUT_SCHEMA_MESSAGES.sendOffOrRest,
 			path: ['sendOff'],
 		},
 	)
@@ -628,13 +626,13 @@ export function blockRepeatTotal(block: {
 // it below, so authoring keeps the identical shape it always had.
 export const WorkoutStructureSchema = z.object({
 	discipline: z.enum(DISCIPLINES, {
-		errorMap: () => ({ message: 'Please select a discipline' }),
+		errorMap: () => ({ message: WORKOUT_SCHEMA_MESSAGES.discipline }),
 	}),
 	// The structural core is envelope-free, so it carries no authoring-editor
 	// copy — just the structural rule that a workout has at least one block. The
 	// authoring schema below re-declares `blocks` to restore the editor's
 	// zero-step save message (workout-editor spec §11.6).
-	blocks: z.array(BlockSchema).min(1, 'A workout must have at least one block'),
+	blocks: z.array(BlockSchema).min(1, WORKOUT_SCHEMA_MESSAGES.blocksMin),
 })
 
 export type WorkoutStructure = z.infer<typeof WorkoutStructureSchema>
@@ -642,20 +640,18 @@ export type WorkoutStructure = z.infer<typeof WorkoutStructureSchema>
 export const WorkoutAuthoringSchema = WorkoutStructureSchema.extend({
 	title: z
 		.string()
-		.min(1, 'Title is required')
-		.max(120, 'Title must be 120 characters or fewer'),
+		.min(1, WORKOUT_SCHEMA_MESSAGES.titleRequired)
+		.max(120, WORKOUT_SCHEMA_MESSAGES.titleMax),
 	intent: z.enum(WORKOUT_INTENTS, {
-		errorMap: () => ({ message: 'Please select a workout intent' }),
+		errorMap: () => ({ message: WORKOUT_SCHEMA_MESSAGES.intent }),
 	}),
 	scheduledAt: z.coerce.date({
-		errorMap: () => ({ message: 'A valid date and time is required' }),
+		errorMap: () => ({ message: WORKOUT_SCHEMA_MESSAGES.scheduledAt }),
 	}),
 	// In the editor's human words (workout-editor spec §11.6): this is the
 	// zero-step save's one summary-line message, kept identical to before the
 	// WorkoutStructureSchema extraction.
-	blocks: z
-		.array(BlockSchema)
-		.min(1, 'Add at least one step to save this session'),
+	blocks: z.array(BlockSchema).min(1, WORKOUT_SCHEMA_MESSAGES.noSteps),
 })
 
 export type WorkoutAuthoringInput = z.infer<typeof WorkoutAuthoringSchema>
