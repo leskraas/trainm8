@@ -22,8 +22,11 @@
 
 import {
 	NB_MONTHS_SHORT,
+	NB_QUALITY_ZONE_LABELS,
+	NB_VOLUME_UNITS,
 	NB_WEEKDAY_LABELS,
 	NB_WEEKDAYS_SHORT,
+	NB_WEEKLY_UNITS,
 	QUALITY_ZONE_LABELS,
 	VOLUME_CURRENCY_UNITS,
 	VOLUME_UNITS,
@@ -929,4 +932,76 @@ export function formatDerivationValue(
 		case 'ratio':
 			return value.toFixed(2)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Sesong: the plan page's figures in Norwegian (ADR 0081, ADR 0090) — the
+// decimal comma, `km/uke`, and a no-break space before a unit or a percent.
+// ---------------------------------------------------------------------------
+
+/** A weekly figure in its track's currency: `55 km/uke`, `5,8 t/uke`. */
+export function formatNbWeeklyVolume(
+	value: number,
+	currency: VolumeCurrency,
+): string {
+	return `${formatNbVolumeFigure(value, currency)} ${NB_WEEKLY_UNITS[currency]}`
+}
+
+/** A total over several weeks: `232 km`, `23,2 t`, `96 sett`. */
+export function formatNbVolumeTotal(
+	value: number,
+	currency: VolumeCurrency,
+): string {
+	return `${formatNbVolumeFigure(value, currency)} ${NB_VOLUME_UNITS[currency]}`
+}
+
+/** A signed whole-percent rate: `+5 %`, `−12 %`, `+0 %`. */
+export function formatNbSignedPercent(fraction: number): string {
+	return formatSignedPercent(fraction).replace('%', ' %')
+}
+
+/** A share of a whole: `42 %`, the sign held to its figure. */
+export function formatNbShare(fraction: number): string {
+	return `${Math.round(fraction * 100)} %`
+}
+
+/** A Quality Session Mix as its emphasis: `2× terskel + 1× VO₂maks`. */
+export function formatNbEmphasisLabel(terms: readonly EmphasisTerm[]): string {
+	if (terms.length === 0) return 'Ingen kvalitetsøkter'
+	return terms
+		.map(
+			(term) => `${term.sessionsPerWeek}× ${NB_QUALITY_ZONE_LABELS[term.zone]}`,
+		)
+		.join(' + ')
+}
+
+/** A derivation chain's number, Norwegian: `37,5 km`, `1,2 t`, `IF 0,873`. */
+export function formatNbDerivationValue(
+	unit: DerivationUnit,
+	value: number,
+): string {
+	return formatDerivationValue(unit, value)
+		.replace(/(\d)\.(\d)/g, '$1,$2')
+		.replace(/ h$/, ' t')
+		.replace(/TSS\/h$/, 'TSS/t')
+		.replace(/km\/h$/, 'km/t')
+}
+
+/** A derived `%1RM` band: `80–100 % 1RM`. */
+export function formatNbPct1RMBand(band: Pct1RMBand): string {
+	return `${band.minPct1RM}–${band.maxPct1RM} % 1RM`
+}
+
+/** Authored `%1RM` loads, as written: `62,5 %, 65 % 1RM`. */
+export function formatNbPct1RMs(percents: readonly number[]): string {
+	return `${percents
+		.map((pct) => `${String(pct).replace('.', ',')} %`)
+		.join(', ')} 1RM`
+}
+
+/** A derived rep range: `1–6 rep`, or `6 rep`. */
+export function formatNbRepRange(reps: RepRange): string {
+	return reps.minReps === reps.maxReps
+		? `${reps.minReps} rep`
+		: `${reps.minReps}–${reps.maxReps} rep`
 }
