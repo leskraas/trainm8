@@ -13,7 +13,7 @@
  * is everything that is expensive either way (ADR 0029): the figure and its
  * geometry, the Unavailable marker, and the visually-hidden data table.
  *
- * A session with **no honest kilo draws no bar** and carries an explicit `n/a`
+ * A session with **no honest kilo draws no bar** and carries an explicit `ingen` (the n/a of ADR 0030)
  * at its slot (ADR 0030 rule 1): never a zero bar, and never a gap that reads
  * like a mis-tap.
  */
@@ -142,7 +142,7 @@ function Bars({ bars, geom }: { bars: ChartBar[]; geom: ChartGeom }) {
 	)
 }
 
-/** The tick labels and the `n/a` markers, as crisp HTML over the geometry. */
+/** The tick labels and the `ingen` (n/a) markers, as crisp HTML over the geometry. */
 function Overlay({ bars, geom }: { bars: ChartBar[]; geom: ChartGeom }) {
 	const { slotCenter, baselineY, leftPct, topPct } = geom
 	return (
@@ -159,10 +159,16 @@ function Overlay({ bars, geom }: { bars: ChartBar[]; geom: ChartGeom }) {
 								{bar.tickLabel}
 							</span>
 						) : null}
-						{bar.heightFraction == null ? (
+						{unavailableRunStart(bars, i) ? (
 							<span
-								className="text-muted-foreground text-caption absolute -translate-x-1/2 -translate-y-full"
-								style={{ left, top: topPct(baselineY - 6) }}
+								className="text-muted-foreground text-caption absolute -translate-x-1/2 -translate-y-full whitespace-nowrap"
+								style={{
+									left: leftPct(
+										(slotCenter(i) + slotCenter(unavailableRunEnd(bars, i))) /
+											2,
+									),
+									top: topPct(baselineY - 6),
+								}}
 							>
 								{LIFT_CHART_LABELS.unavailable}
 							</span>
@@ -172,6 +178,26 @@ function Overlay({ bars, geom }: { bars: ChartBar[]; geom: ChartGeom }) {
 			})}
 		</>
 	)
+}
+
+/**
+ * Neighbouring slots with no bar share **one** word, centred over the run: each
+ * keeps its own stub at the baseline, so every empty slot is still marked, and
+ * two `ingen` side by side at a phone's slot width ran into each other
+ * (`ingeningen`, break-ui: 13 sessions at 390px). The data table still names
+ * every slot.
+ */
+function unavailableRunStart(bars: ChartBar[], i: number): boolean {
+	return (
+		bars[i]?.heightFraction == null &&
+		(i === 0 || bars[i - 1]?.heightFraction != null)
+	)
+}
+
+function unavailableRunEnd(bars: ChartBar[], start: number): number {
+	let end = start
+	while (end + 1 < bars.length && bars[end + 1]?.heightFraction == null) end++
+	return end
 }
 
 /**

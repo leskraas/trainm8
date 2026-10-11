@@ -9,6 +9,7 @@
  */
 import { render } from '@testing-library/react'
 import { expect, test } from 'vitest'
+import { LIFT_CHART_LABELS } from '#app/utils/labels.ts'
 import { type ChartBar } from './__exercise-history-presenter.ts'
 import { LiftChart } from './__lift-chart.tsx'
 
@@ -20,7 +21,7 @@ function bar(overrides: Partial<ChartBar> = {}): ChartBar {
 		latest: false,
 		stallCut: null,
 		tickLabel: null,
-		dateLabel: '1 Jul',
+		dateLabel: '1. jul',
 		text: '80 kg × 5',
 		...overrides,
 	}
@@ -30,16 +31,11 @@ function draw(bars: ChartBar[]) {
 	const { container } = render(
 		<LiftChart
 			bars={bars}
-			label="Back squat: top set across 3 sessions, oldest first."
+			label="Back squat: toppsett over 3 økter, eldste først."
 			table={{
-				caption: 'Back squat, top set by session, oldest first',
-				columns: ['Session', 'Date', 'Top set', 'Marked'],
-				rows: bars.map((b) => [
-					`Session ${b.ordinal}`,
-					b.dateLabel,
-					b.text,
-					'—',
-				]),
+				caption: 'Back squat, toppsett per økt, eldste først',
+				columns: ['Økt', 'Dato', 'Toppsett', 'Merket'],
+				rows: bars.map((b) => [`Økt ${b.ordinal}`, b.dateLabel, b.text, '—']),
 			}}
 		/>,
 	)
@@ -120,4 +116,21 @@ test('bars stand in slot order, so the oldest session is leftmost', () => {
 	].map((rect) => Number(rect.getAttribute('x')))
 
 	expect(xs).toEqual([...xs].sort((a, b) => a - b))
+})
+
+test('neighbouring slots with no bar share one word, so two markers never run into each other', () => {
+	const container = draw([
+		bar({ sessionId: 'a', ordinal: 1 }),
+		bar({ sessionId: 'b', ordinal: 2, heightFraction: null }),
+		bar({ sessionId: 'c', ordinal: 3, heightFraction: null }),
+		bar({ sessionId: 'd', ordinal: 4 }),
+		bar({ sessionId: 'e', ordinal: 5, heightFraction: null }),
+	])
+	const words = [...container.querySelectorAll('span')].filter(
+		(span) => span.textContent === LIFT_CHART_LABELS.unavailable,
+	)
+	// One for the run of two, one for the slot on its own.
+	expect(words).toHaveLength(2)
+	// And every real value is still a bar.
+	expect(container.querySelectorAll('rect[data-lift-bar]')).toHaveLength(2)
 })

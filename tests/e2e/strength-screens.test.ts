@@ -874,28 +874,28 @@ test('lift over time reads the working weight, the records and the history', asy
 
 	// What the athlete came for: what goes on the bar. The weight moved by the
 	// program's own increment across four made sessions — 82.5 → 92.5 kg.
-	await expect(page.getByText('Working weight')).toBeVisible()
+	await expect(page.getByText('Arbeidsvekt')).toBeVisible()
 	await expect(page.getByText('92,5 kg', { exact: true })).toBeVisible()
 
 	// The rep-max record, read straight off the set rows and never stored.
-	await expect(page.getByRole('heading', { name: 'Records' })).toBeVisible()
-	await expect(page.getByText('Best 5-rep set')).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Rekorder' })).toBeVisible()
+	await expect(page.getByText('Beste sett på 5 reps')).toBeVisible()
 	await expect(page.getByText('90 kg', { exact: true }).first()).toBeVisible()
 
 	// **And no estimated 1RM, with the reason on the screen.** This is ADR 0064
 	// §2's cost in the flesh rather than a gap in the fixture: the runner posts
 	// neither `toFailure` nor `rir`, so nothing logged through it can license an
 	// estimate, and the app says so instead of borrowing a curve.
-	await expect(page.getByText('Est. 1RM')).toHaveCount(0)
+	await expect(page.getByText('Anslått 1RM', { exact: true })).toHaveCount(0)
 	await expect(
 		page.getByText(
-			/No estimated 1RM: None of your sets here says how close to failure it was/,
+			/Ingen anslått 1RM: Ingen av settene sier hvor nær utmattelse de var/,
 		),
 	).toBeVisible()
 
 	// And never the handoff's third record row: ADR 0058 §3 declines session
 	// tonnage and ADR 0063 records that the design does not override it.
-	await expect(page.getByRole('main')).not.toContainText(/tonnage/i)
+	await expect(page.getByRole('main')).not.toContainText(/tonnage|tonnasje/i)
 
 	// The chart is static and takes one `role="img"` name. ADR 0066 (#490) moved
 	// it onto the Chart Primitive and shortened the name, because the equivalent
@@ -903,13 +903,13 @@ test('lift over time reads the working weight, the records and the history', asy
 	// bars' oldest-first — but a visually-hidden table of its own.
 	await expect(
 		page.getByRole('img', {
-			name: /Back Squat: top set across 4 sessions, oldest first/,
+			name: /Back Squat: toppsett over 4 økter, eldste først/,
 		}),
 	).toBeVisible()
 	await expect(
-		page.getByRole('heading', { name: 'Every session on this lift' }),
+		page.getByRole('heading', { name: 'Hver økt med dette løftet' }),
 	).toBeVisible()
-	await expect(page.getByText(/5 working sets/).first()).toBeVisible()
+	await expect(page.getByText(/5 arbeidssett/).first()).toBeVisible()
 
 	await expectNoHorizontalOverflow(page)
 })
@@ -926,14 +926,14 @@ test('a lift with no working sets says so rather than drawing an empty frame', a
 
 	await expect(
 		page.getByText(
-			'No working sets logged on this lift yet, so there is nothing to read.',
+			'Ingen arbeidssett er logget på dette løftet ennå, så det er ingenting å lese.',
 		),
 	).toBeVisible()
 	// No program has priced this lift, so there is no working weight — and a
 	// `0 kg` header would claim one (ADR 0063 §2).
-	await expect(page.getByText('Working weight')).toHaveCount(0)
+	await expect(page.getByText('Arbeidsvekt')).toHaveCount(0)
 	await expect(
-		page.getByText('Log a working set and this page fills in.'),
+		page.getByText('Logg et arbeidssett, så fylles siden ut.'),
 	).toBeVisible()
 
 	await expectNoHorizontalOverflow(page)
@@ -950,15 +950,16 @@ test('every control on lift over time is 44px to a thumb', async ({
 	await runSessions(user.id, run.instanceId, 2)
 
 	await page.goto('/training/exercises/ex_bb_back_squat')
-	await expect(page.getByRole('heading', { name: 'Records' })).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Rekorder' })).toBeVisible()
 
 	// The controls an athlete can actually reach here: the header's back arrow
 	// and the link to this lift's anchors. **The variant tabs are not among
 	// them** — they render only for a lift with two logged realizations, which a
-	// barbell-only program never produces — and they are `px-3 py-1` pills with
-	// no `after:` extension, so they are a latent violation this measurement
-	// cannot reach. Naming them here rather than fabricating a second variant to
-	// catch them: the fixture would be a lift nobody logged.
+	// barbell-only program never produces. They are 32px pills that reach 44px
+	// through an `after:` extension (r2-records), the button primitive's shape,
+	// but this measurement cannot reach them. Naming them here rather than
+	// fabricating a second variant to catch them: the fixture would be a lift
+	// nobody logged.
 	await expectEveryControlTappable(page.getByRole('main'))
 })
 
