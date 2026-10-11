@@ -166,8 +166,8 @@ test('one card per lift, with the lift name and its resolved scheme and weight',
 		screen.getByRole('heading', { name: 'Bench Press' }),
 	).toBeInTheDocument()
 	// The one line under the name, and the only place the resolved weight is
-	// stated: `5×5 · 82.5 kg`.
-	expect(screen.getAllByText('5×5 · 82.5 kg')).toHaveLength(2)
+	// stated: `5×5 · 82,5 kg`.
+	expect(screen.getAllByText('5×5 · 82,5 kg')).toHaveLength(2)
 })
 
 test('the header carries the workout eyebrow, the title, the session badge and a back arrow to the cockpit', async () => {
@@ -1119,7 +1119,7 @@ test('open, the panel says how the weight resolved, which rack, what the timer s
 
 	// The weight in the athlete's own numbers, not the algorithm's.
 	expect(panel).toHaveTextContent(
-		'82.5 kg is your working weight after five made sessions.',
+		'82,5 kg is your working weight after five made sessions.',
 	)
 	expect(panel).toHaveTextContent('Plates are solved against Bredvid Gym.')
 	expect(panel).toHaveTextContent(
@@ -1183,10 +1183,11 @@ test('the plate line is monospace under the sets, and last time sits beside it',
 	})
 	expect(line).toHaveClass('font-mono')
 	// **Last time is a statement, not a control.** The handoff's capture reads
-	// `Last time 80 × 5,5,5,5,5` — the kilo bare, because the unit is already in
+	// `Last time 80 kg × 5 · 5 · 5 · 5 · 5` — every lift line's one form (#505
+	// round 2: decimal-comma kilos carry their unit), though the unit is also in
 	// the sub-line one row up — and names nothing a tap opens, so nothing does.
 	const lastTime = document.querySelector('[data-last-time]')!
-	expect(lastTime).toHaveTextContent('Last time 80 × 5,5,5,5,5')
+	expect(lastTime).toHaveTextContent('Last time 80 kg × 5 · 5 · 5 · 5 · 5')
 	expect(lastTime.tagName).toBe('P')
 	expect(
 		screen.queryByRole('button', { name: /^Last time/ }),

@@ -25,7 +25,7 @@ import {
 } from '#app/utils/strength/plates.ts'
 import { type LiftOutcome } from '#app/utils/strength/program-engine.ts'
 import { loadKindLabel } from '#app/utils/strength/program-rules.ts'
-import { formatKg } from '#app/utils/strength/program.constants.ts'
+import { formatLiftWork, formatNbKg } from '#app/utils/format.ts'
 import {
 	type StrengthRecord,
 	strengthRecordLabel,
@@ -96,7 +96,7 @@ export function buildTargetText(row: LogRow): string | null {
 	if (rung && rung.effectiveKg > rung.targetKg) {
 		parts.push(
 			rung.targetKg > 0
-				? `bodyweight + ${formatKg(rung.targetKg)} kg`
+				? `bodyweight + ${formatNbKg(rung.targetKg)} kg`
 				: 'bodyweight',
 		)
 	} else if (row.prescribedLoad && !zeroAbsolute) {
@@ -176,7 +176,7 @@ export function buildPlateLine(input: {
 		return {
 			kind: 'nearest',
 			text,
-			note: `Your gym makes ${formatKg(solution.achievedKg)} kg, not ${formatKg(kg)} kg.`,
+			note: `Your gym makes ${formatNbKg(solution.achievedKg)} kg, not ${formatNbKg(kg)} kg.`,
 		}
 	}
 	return { kind: 'plates', text, perSideKg: solution.perSideKg }
@@ -321,7 +321,7 @@ export function buildOutcomePanel(
 				return {
 					key,
 					liftName,
-					headline: `${liftName} ${formatKg(outcome.fromKg)} kg → ${formatKg(outcome.toKg)} kg`,
+					headline: `${liftName} ${formatNbKg(outcome.fromKg)} kg → ${formatNbKg(outcome.toKg)} kg`,
 					reason: outcome.reason,
 					isNotice: false,
 					label: null,
@@ -335,7 +335,7 @@ export function buildOutcomePanel(
 					// the weight *this session* was stamped at, and printing it here is
 					// how the panel announced "Back Squat stays at 60 kg" about a lift the
 					// fold had left standing at 77.5.
-					headline: `${liftName} stays at ${formatKg(outcome.standsAtKg)} kg`,
+					headline: `${liftName} stays at ${formatNbKg(outcome.standsAtKg)} kg`,
 					reason: outcome.reason,
 					isNotice: false,
 					label:
@@ -350,7 +350,7 @@ export function buildOutcomePanel(
 					// max would be a lie.
 					headline: `${liftName} ${
 						outcome.moved === 'trainingMax' ? 'training max ' : ''
-					}${formatKg(outcome.fromKg)} kg → ${formatKg(outcome.toKg)} kg`,
+					}${formatNbKg(outcome.fromKg)} kg → ${formatNbKg(outcome.toKg)} kg`,
 					reason: outcome.reason,
 					isNotice: true,
 					label: STALL_RESPONSE_LABELS[outcome.response] ?? outcome.response,
@@ -361,7 +361,7 @@ export function buildOutcomePanel(
 					liftName,
 					// Nothing was changed, which is the whole content of this outcome, so
 					// the weight named is the one the lift stands at.
-					headline: `${liftName} stays at ${formatKg(outcome.standsAtKg)} kg`,
+					headline: `${liftName} stays at ${formatNbKg(outcome.standsAtKg)} kg`,
 					reason: outcome.reason,
 					isNotice: true,
 					label: STALL_RESPONSE_LABELS[outcome.response] ?? outcome.response,
@@ -381,7 +381,7 @@ export function buildOutcomePanel(
 					// either — a kilo was logged, of the athlete rather than the bar. Saying
 					// "no kilos" there is how the athlete came to read a caveat that
 					// contradicted the number above it.
-					headline: `${liftName} stays at ${formatKg(outcome.standsAtKg)} kg — ${unreadableSetsPhrase(outcome)}, so the ${formatKg(outcome.prescribedKg)} kg prescribed could not be checked`,
+					headline: `${liftName} stays at ${formatNbKg(outcome.standsAtKg)} kg — ${unreadableSetsPhrase(outcome)}, so the ${formatNbKg(outcome.prescribedKg)} kg prescribed could not be checked`,
 					reason: outcome.reason,
 					isNotice: true,
 					label: 'Could not be read',
@@ -399,7 +399,7 @@ export function buildOutcomePanel(
 					// asked for (the stamp). The headline used to print the *prescription*
 					// after the words "stays at" — "Back Squat stays at 120 kg" about a
 					// lift standing at 60.
-					headline: `${liftName} stays at ${formatKg(outcome.standsAtKg)} kg — logged at ${formatKg(outcome.loggedKg)} kg, prescribed ${formatKg(outcome.prescribedKg)} kg`,
+					headline: `${liftName} stays at ${formatNbKg(outcome.standsAtKg)} kg — logged at ${formatNbKg(outcome.loggedKg)} kg, prescribed ${formatNbKg(outcome.prescribedKg)} kg`,
 					reason: outcome.reason,
 					isNotice: true,
 					label: 'Lighter than prescribed',
@@ -408,7 +408,7 @@ export function buildOutcomePanel(
 				return {
 					key,
 					liftName,
-					headline: `${liftName} unchanged at ${formatKg(outcome.standsAtKg)} kg`,
+					headline: `${liftName} unchanged at ${formatNbKg(outcome.standsAtKg)} kg`,
 					reason: outcome.reason,
 					isNotice: false,
 					label: null,
@@ -678,10 +678,10 @@ export function buildWarmupChips(input: {
 		const count = row.prescribedReps ?? row.prescribedDurationSec
 		const weightLabel = derivedFromBodyweight
 			? addsWeight
-				? `bw + ${formatKg(rung.targetKg)}`
+				? `bw + ${formatNbKg(rung.targetKg)}`
 				: 'bw'
 			: rung != null
-				? formatKg(rung.targetKg)
+				? formatNbKg(rung.targetKg)
 				: '—'
 		const label = count == null ? weightLabel : `${weightLabel} × ${count}`
 		const on = key in input.logged
@@ -922,7 +922,7 @@ export function buildResolutionSentence(input: {
 }): string | null {
 	const progress = input.progress
 	if (progress) {
-		const kg = formatKg(progress.workingWeightKg)
+		const kg = formatNbKg(progress.workingWeightKg)
 		if (progress.stallCount > 0) {
 			return progress.stallCount === 1
 				? `${kg} kg is held: a session came up short.`
@@ -1091,21 +1091,18 @@ export function buildLiftPlateAnnotation(input: {
 }
 
 /**
- * The weight in a `Last time` line, and it is **the bare number on a barbell
- * lift** — `Last time 80 × 5,5,5,5,5`, the handoff's own capture, not
- * `80 kg × …`. The unit is already on the card, one line up, in the sub-line
- * under the lift's name; repeating it here spends width this line does not have
- * on a fact the athlete just read.
- *
- * Every other load keeps `loadValueText`'s words, because a bare `20` for a
- * bodyweight-plus set or a machine level would not be a weight at all.
+ * The weight in a `Last time` line, in `loadValueText`'s words — `82,5 kg`,
+ * `bodyweight + 20 kg`. It used to be the bare number on a barbell lift (`80 ×
+ * 5,5,5,5,5`); with kilos written with a decimal comma (#505 round 2) a bare
+ * `82,5` beside rep counts needs its unit to stay a weight, and every lift line
+ * now writes the one form {@link formatLiftWork} writes.
  */
 function lastTimeLoad(load: LoadValue): string {
-	return load.kind === 'external' ? formatKg(load.kg) : loadValueText(load)
+	return loadValueText(load)
 }
 
 /**
- * `Last time 80 × 5,5,5,5,5` — the previous session's working sets, beside
+ * `Last time 80 kg × 5 · 5 · 5 · 5 · 5` — the previous session's working sets, beside
  * today's (#476's user story 25).
  *
  * Read off the **Set Ghost**, which is already matched onto this session's rows
@@ -1115,7 +1112,7 @@ function lastTimeLoad(load: LoadValue): string {
  *   five borrows the fourth set's ghost onto the fifth row, and printing it here
  *   would claim a fifth set the athlete never did.
  * - **the weight is quoted once where it was one weight**, and per set where it
- *   was not: a ramp of 80/85/90 is not *"90 × 5,5,5"*.
+ *   was not: a ramp of 80/85/90 is not *"90 kg × 5 · 5 · 5"*.
  *
  * `null` where last time cannot be quoted at all, which is the honest answer on
  * a lift's first session.
@@ -1137,6 +1134,9 @@ export function buildLastTime(rows: readonly LogRow[]): string | null {
 	if (sets.length === 0) return null
 	const oneWeight = sets.every((set) => set.load === sets[0]!.load)
 	return oneWeight
-		? `Last time ${sets[0]!.load} × ${sets.map((set) => set.count).join(',')}`
-		: `Last time ${sets.map((set) => `${set.load} × ${set.count}`).join(', ')}`
+		? `Last time ${formatLiftWork(
+				sets[0]!.load,
+				sets.map((set) => set.count),
+			)}`
+		: `Last time ${sets.map((set) => formatLiftWork(set.load, [set.count])).join(', ')}`
 }

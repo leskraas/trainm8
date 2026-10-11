@@ -756,7 +756,7 @@ test('an imported week says so once, in its header, and its rows carry no chip',
 
 test('a Replan Note rides as a quiet chip, verbatim (ADR 0025)', async () => {
 	const note =
-		'Last week ran 32% over plan and Form was −12 — softened this session ~24%.'
+		'Forrige uke ble 32 % tyngre enn planlagt, og formen var −12. Denne økta ble gjort ca. 24 % kortere.'
 	renderRoute(
 		dashboardLoader({
 			ledger: [at(2, { id: 'eased', plannedTssValue: 34, replanReason: note })],
@@ -765,6 +765,29 @@ test('a Replan Note rides as a quiet chip, verbatim (ADR 0025)', async () => {
 
 	const stream = await screen.findByTestId('timeline-stream')
 	expect(within(stream).getByText(note)).toBeInTheDocument()
+})
+
+test('a Replan Note stored in English before #505 round 2 reads in Norwegian', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [
+				at(2, {
+					id: 'eased',
+					plannedTssValue: 34,
+					replanReason:
+						'Last week ran 32% over plan and Form was −12 — softened this session ~24%.',
+				}),
+			],
+		}),
+	)
+
+	const stream = await screen.findByTestId('timeline-stream')
+	expect(
+		within(stream).getByText(
+			'Forrige uke ble 32 % tyngre enn planlagt, og formen var −12. Denne økta ble gjort ca. 24 % kortere.',
+		),
+	).toBeInTheDocument()
+	expect(stream).not.toHaveTextContent(/Last week/)
 })
 
 test('rows inside a week are chronological, whatever order they arrive in', async () => {

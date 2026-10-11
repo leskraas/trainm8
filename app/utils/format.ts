@@ -668,12 +668,78 @@ export function formatNbVolumeFigure(
 	value: number,
 	currency: VolumeCurrency,
 ): string {
-	const [whole = '', fraction] = formatVolumeFigure(value, currency).split('.')
+	return nbDigits(formatVolumeFigure(value, currency))
+}
+
+/**
+ * House digits (`1270.3`, `-82.5`) rewritten the Norwegian way: a decimal
+ * comma, and thousands grouped by a no-break space. The digits themselves —
+ * how many decimals, whether a whole number stays whole — are the caller's.
+ */
+function nbDigits(digits: string): string {
+	const [whole = '', fraction] = digits.split('.')
 	const sign = whole.startsWith('-') ? '-' : ''
 	const grouped = whole
 		.slice(sign.length)
 		.replace(/\B(?=(\d{3})+(?!\d))/g, NO_BREAK_SPACE)
 	return `${sign}${grouped}${fraction != null ? `,${fraction}` : ''}`
+}
+
+// ---------------------------------------------------------------------------
+// Kilos and the work done with them
+// ---------------------------------------------------------------------------
+
+/**
+ * The house rule for a stored kilo, as **digits**: integers bare, otherwise up
+ * to two decimals with trailing zeros trimmed. Two, not one, because 1.25 kg
+ * plate pairs are real and the plate solver works in them — rendering 61.25 kg
+ * as `61.3` states a weight the athlete did not lift and contradicts the plate
+ * line.
+ *
+ * These are machine digits with a decimal **point**: hidden form values, number
+ * comparisons and `Number(formatKg(x))` all read them back. What a person reads
+ * is {@link formatNbKg}. `strength-log.ts` re-exports this as the lowest layer
+ * that owns a kilo, so every surface keeps importing it from there.
+ */
+export function formatKg(kg: number): string {
+	return Number.isInteger(kg) ? String(kg) : String(Number(kg.toFixed(2)))
+}
+
+/**
+ * A kilo **as a person reads it** (owner decision, #505 round 2): the same
+ * digits as {@link formatKg} with a decimal comma and grouped thousands —
+ * `82,5`, `61,25`, `1 020`. Bare, so the caller says `kg` once, after it.
+ *
+ * Display only. Nothing parses this back; the wire keeps {@link formatKg}.
+ */
+export function formatNbKg(kg: number): string {
+	return nbDigits(formatKg(kg))
+}
+
+/** Between the rep counts of one weight's sets: `5 · 5 · 5 · 4`. A comma would
+ * read as the decimal mark of the kilo beside it once kilos write `82,5`. */
+export const REP_COUNT_SEPARATOR = ' · '
+
+/**
+ * One weight and the work done at it, the one way every lift line writes it —
+ * `82,5 kg × 5 · 5 · 5 · 4`, `kroppsvekt × 8`, `× 5` where the weight was lost.
+ * `load` is already words (from {@link formatNbKg} plus a unit, or a load
+ * kind's own phrase); `counts` are one per set, already words too (`5`, `10/8`,
+ * `45 s`). Either half may be missing, and the clause is what is left; `null`
+ * where both are.
+ *
+ * The `×` stays on a count that lost its weight, because `Back Squat 5` could
+ * be five kilos as easily as five reps and the multiplication sign is what
+ * settles it. Whether five equal counts collapse to one is the caller's call:
+ * I dag's row does, the runner's `Last time` does not.
+ */
+export function formatLiftWork(
+	load: string | null,
+	counts: readonly string[],
+): string | null {
+	const reps = counts.length > 0 ? counts.join(REP_COUNT_SEPARATOR) : null
+	if (reps) return load ? `${load} × ${reps}` : `× ${reps}`
+	return load
 }
 
 // ---------------------------------------------------------------------------

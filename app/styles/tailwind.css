@@ -147,12 +147,24 @@
 
 	/*
 	 * Training tracks, one hue per discipline. Marks, not fills — a dot, a bar,
-	 * an edge; text that names a track stays `foreground`.
+	 * an edge. Most of them are under 4.5:1 on the card, so text that names a
+	 * track in its colour uses the `-ink` step below, never the mark.
 	 */
 	--track-run: oklch(0.63 0.16 32);
 	--track-bike: oklch(0.72 0.13 78);
 	--track-swim: oklch(0.62 0.1 225);
 	--track-strength: oklch(0.55 0.11 300);
+
+	/*
+	 * Track ink: the same hue, dark enough to be *text* (#505 round 2). Each is
+	 * ≥ 5.0:1 on `--background` and ≥ 5.1:1 on `--card` (WCAG AA is 4.5); the
+	 * numbers are in docs/design/design-system.md. Bike drops furthest — amber
+	 * at text contrast is bronze — because the mark is 2.5:1.
+	 */
+	--track-run-ink: oklch(0.54 0.15 32);
+	--track-bike-ink: oklch(0.53 0.11 78);
+	--track-swim-ink: oklch(0.52 0.09 225);
+	--track-strength-ink: oklch(0.53 0.12 300);
 
 	/*
 	 * Phases: Grunntrening · Oppbygging · Spissing · Nedtrapping. The ground a
@@ -221,6 +233,14 @@
 	--track-swim: oklch(0.72 0.09 225);
 	--track-strength: oklch(0.7 0.1 300);
 
+	/* The marks already pass on dark ground; the ink is a step lighter still,
+	 * so a caption-sized track name reads as crisply as `foreground` beside it
+	 * (≥ 7.3:1 on the card, ≥ 8.1:1 on the page). */
+	--track-run-ink: oklch(0.74 0.13 32);
+	--track-bike-ink: oklch(0.8 0.12 78);
+	--track-swim-ink: oklch(0.76 0.09 225);
+	--track-strength-ink: oklch(0.74 0.1 300);
+
 	--phase-base: oklch(0.6 0.06 240);
 	--phase-build: oklch(0.66 0.09 80);
 	--phase-peak: oklch(0.62 0.11 35);
@@ -283,6 +303,10 @@
 	--color-track-bike: var(--track-bike);
 	--color-track-swim: var(--track-swim);
 	--color-track-strength: var(--track-strength);
+	--color-track-run-ink: var(--track-run-ink);
+	--color-track-bike-ink: var(--track-bike-ink);
+	--color-track-swim-ink: var(--track-swim-ink);
+	--color-track-strength-ink: var(--track-strength-ink);
 	--color-phase-base: var(--phase-base);
 	--color-phase-build: var(--phase-build);
 	--color-phase-peak: var(--phase-peak);

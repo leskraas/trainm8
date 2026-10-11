@@ -286,7 +286,7 @@ describe('rule 1: line 1 is external load, per discipline', () => {
 			}),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('Back Squat 82.5 × 5')
+		expect(content.externalLoad).toBe('Back Squat 82,5 kg × 5')
 		expect(content.externalLoad).not.toMatch(/min/)
 	})
 })
@@ -1024,7 +1024,7 @@ describe('a lifting session states what it lifted', () => {
 			PLANNED_WEEK,
 		)
 		expect(content.externalLoad).toBe(
-			'Back Squat 82.5 × 5 · Overhead Press 45 × 5 · Deadlift 105 × 5',
+			'Back Squat 82,5 kg × 5 · Overhead Press 45 kg × 5 · Deadlift 105 kg × 5',
 		)
 	})
 
@@ -1041,7 +1041,7 @@ describe('a lifting session states what it lifted', () => {
 			}),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('Bench Press 60 × 5,5,5,4')
+		expect(content.externalLoad).toBe('Bench Press 60 kg × 5 · 5 · 5 · 4')
 	})
 
 	test('a lift that moved up mid-session names both weights, not one of them', () => {
@@ -1057,7 +1057,7 @@ describe('a lifting session states what it lifted', () => {
 			}),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('Back Squat 80 × 5, 85 × 3')
+		expect(content.externalLoad).toBe('Back Squat 80 kg × 5, 85 kg × 3')
 	})
 
 	test('a lift returned to later keeps one clause, carrying both weights', () => {
@@ -1081,7 +1081,7 @@ describe('a lifting session states what it lifted', () => {
 			PLANNED_WEEK,
 		)
 		expect(content.externalLoad).toBe(
-			'Back Squat 82.5 × 5, 60 × 8 · Overhead Press 60 × 5',
+			'Back Squat 82,5 kg × 5, 60 kg × 8 · Overhead Press 60 kg × 5',
 		)
 	})
 
@@ -1101,7 +1101,7 @@ describe('a lifting session states what it lifted', () => {
 			PLANNED_WEEK,
 		)
 		expect(content.externalLoad).toBe(
-			'Back Squat 82.5 × 5 · Overhead Press 45 × 5',
+			'Back Squat 82,5 kg × 5 · Overhead Press 45 kg × 5',
 		)
 	})
 
@@ -1191,7 +1191,7 @@ describe('a lifting session states what it lifted', () => {
 		)
 		// `SETT 3 / 0` is not a fraction. Line 1 carries the lifts on its own.
 		expect(content.chips).toEqual([])
-		expect(content.externalLoad).toBe('Back Squat 82.5 × 5')
+		expect(content.externalLoad).toBe('Back Squat 82,5 kg × 5')
 	})
 
 	test('the chip rides only a completed row — a planned one has lifted nothing', () => {
@@ -1250,9 +1250,9 @@ describe('a load that is not bar kilos is never rendered as bar kilos', () => {
 		[{ kind: 'stackLevel', level: 7 }, 'Pull-up nivå 7 × 5'],
 		[{ kind: 'band', band: 'green' }, 'Pull-up green strikk × 5'],
 		[{ kind: 'unloaded' }, 'Pull-up uten vekt × 5'],
-		// `loadValueText` writes this `2 × 22.5 kg`; a second `×` right after it
+		// `loadValueText` writes this `2 × 22,5 kg`; a second `×` right after it
 		// would read as one multiplication too many.
-		[{ kind: 'perSide', sides: 2, kg: 22.5 }, 'Pull-up 22.5 per side × 5'],
+		[{ kind: 'perSide', sides: 2, kg: 22.5 }, 'Pull-up 22,5 kg per side × 5'],
 	])('%o reads as its own basis', (load, expected) => {
 		const content = buildRowContent(
 			liftingRow({
@@ -1308,7 +1308,7 @@ describe('a load that is not bar kilos is never rendered as bar kilos', () => {
 			}),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('Row 22 × 8/10')
+		expect(content.externalLoad).toBe('Row 22 kg × 8/10')
 		expect(content.externalLoad).not.toMatch(/× 9/)
 	})
 
@@ -1317,7 +1317,7 @@ describe('a load that is not bar kilos is never rendered as bar kilos', () => {
 			liftingRow({ prescribed: 2, logs: [setLog({ reps: null })] }),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('Back Squat 82.5')
+		expect(content.externalLoad).toBe('Back Squat 82,5 kg')
 	})
 
 	test('a set whose Step named no exercise is counted but not named', () => {
@@ -1332,7 +1332,7 @@ describe('a load that is not bar kilos is never rendered as bar kilos', () => {
 			}),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('Back Squat 82.5 × 5')
+		expect(content.externalLoad).toBe('Back Squat 82,5 kg × 5')
 		expect(content.chips).toEqual([
 			{ id: 'sets', label: 'SETT 3 / 3', tone: 'primary' },
 		])

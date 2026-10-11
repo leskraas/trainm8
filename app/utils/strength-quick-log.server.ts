@@ -37,7 +37,8 @@ import {
 	workingLoadValue,
 } from './strength/working-load.ts'
 import { getStrengthLogView, saveLoggedSet } from './strength-log.server.ts'
-import { type LoadValue, formatKg } from './strength-log.ts'
+import { formatNbKg } from './format.ts'
+import { type LoadValue } from './strength-log.ts'
 import { openNextProgramSession } from './strength-program.server.ts'
 import {
 	type QuickLog,
@@ -349,7 +350,7 @@ async function planFor(
 				working.kind === 'resolved'
 					? QUICK_LOG_LABELS.load(
 							working.loadKind,
-							working.kg == null ? null : formatKg(working.kg),
+							working.kg == null ? null : formatNbKg(working.kg),
 						)
 					: null,
 			loggable:

@@ -22,6 +22,7 @@
  * so it is `outcome: 'abandoned'` and every aggregate excludes it.
  */
 import { z } from 'zod'
+import { formatKg, formatNbKg } from './format.ts'
 
 // ——— The set's role in the exercise ——————————————————————————————————————
 
@@ -359,17 +360,17 @@ function kilosAgree(stored: number | null, explained: number | null): boolean {
 export function loadValueText(load: LoadValue): string {
 	switch (load.kind) {
 		case 'external':
-			return `${formatKg(load.kg)} kg`
+			return `${formatNbKg(load.kg)} kg`
 		case 'perSide':
 			// Written the way a lifter says it, so the per-hand meaning is on the
 			// face of the value rather than in a tooltip.
-			return `${load.sides} × ${formatKg(load.kg)} kg`
+			return `${load.sides} × ${formatNbKg(load.kg)} kg`
 		case 'bodyweight':
 			return 'bodyweight'
 		case 'bodyweightPlus':
-			return `bodyweight + ${formatKg(load.addedKg)} kg`
+			return `bodyweight + ${formatNbKg(load.addedKg)} kg`
 		case 'assisted':
-			return `assisted − ${formatKg(load.assistKg)} kg`
+			return `assisted − ${formatNbKg(load.assistKg)} kg`
 		case 'stackLevel':
 			return load.label ?? `level ${load.level}`
 		case 'band':
@@ -380,16 +381,12 @@ export function loadValueText(load: LoadValue): string {
 }
 
 /**
- * The house rule for rendering a stored kilo: integers bare, otherwise up to two
- * decimals with trailing zeros trimmed. Two, not one, because 1.25 kg plate
- * pairs are real and the plate solver works in them — rendering 61.25 kg as
- * `61.3` states a weight the athlete did not lift and contradicts the plate
- * line. This module is the lowest layer that owns a kilo, so it owns the rule;
- * every other surface imports it rather than keeping its own copy.
+ * The house rule for a stored kilo's digits, re-exported from `format.ts` (where
+ * it sits beside {@link formatNbKg}, the same digits as a person reads them).
+ * This module is the lowest strength layer that owns a kilo, so surfaces keep
+ * importing it from here rather than keeping their own copy.
  */
-export function formatKg(kg: number): string {
-	return Number.isInteger(kg) ? String(kg) : String(Number(kg.toFixed(2)))
-}
+export { formatKg }
 
 // ——— A logged set ————————————————————————————————————————————————————————
 

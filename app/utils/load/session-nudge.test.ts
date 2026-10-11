@@ -41,7 +41,7 @@ function adherenceCoach(tone: 'under' | 'over'): CoachRecommendation {
 function cardioSession(
 	overrides: Partial<NextPlannedSession> = {},
 ): NextPlannedSession {
-	return { discipline: 'run', label: 'Tuesday', durationMin: 90, ...overrides }
+	return { discipline: 'run', label: 'tirsdag', durationMin: 90, ...overrides }
 }
 
 // ── outcome: eased (back-off on a cardio session) ───────────────────────────
@@ -52,7 +52,7 @@ test('fatigued Form eases the next cardio session', () => {
 		trust: trust(),
 		tsb: -18,
 		sustained: null,
-		nextSession: cardioSession({ discipline: 'run', label: 'Tuesday' }),
+		nextSession: cardioSession({ discipline: 'run', label: 'tirsdag' }),
 	})
 	expect(nudge.outcome).toBe('eased')
 	if (nudge.outcome !== 'eased') throw new Error('unreachable')
@@ -64,7 +64,7 @@ test('fatigued Form eases the next cardio session', () => {
 	})
 	// Names signal AND action with real numbers (PRD example).
 	expect(nudge.reason).toBe(
-		"Form is low (TSB −18) — eased Tuesday's session to a Z2 endurance hour.",
+		'Formen er lav (TSB −18) – økta tirsdag er gjort om til en rolig time i sone 2.',
 	)
 })
 
@@ -74,13 +74,13 @@ test('sustained over eases the next cardio session', () => {
 		trust: trust(),
 		tsb: 4,
 		sustained: { tone: 'over', weeks: 3 },
-		nextSession: cardioSession({ discipline: 'bike', label: 'Wednesday' }),
+		nextSession: cardioSession({ discipline: 'bike', label: 'onsdag' }),
 	})
 	expect(nudge.outcome).toBe('eased')
 	if (nudge.outcome !== 'eased') throw new Error('unreachable')
 	expect(nudge.target.discipline).toBe('bike')
 	expect(nudge.reason).toBe(
-		"Over your plan 3 weeks — eased Wednesday's session to a Z2 endurance hour.",
+		'Over planen 3 uker på rad – økta onsdag er gjort om til en rolig time i sone 2.',
 	)
 })
 
@@ -92,12 +92,12 @@ test('sustained over eases even during cold-start (adherence is independent of T
 		trust: trust({ trustworthy: false, daysOfHistory: 12 }),
 		tsb: null,
 		sustained: { tone: 'over', weeks: 2 },
-		nextSession: cardioSession({ discipline: 'run', label: 'Friday' }),
+		nextSession: cardioSession({ discipline: 'run', label: 'fredag' }),
 	})
 	expect(nudge.outcome).toBe('eased')
 	if (nudge.outcome !== 'eased') throw new Error('unreachable')
 	expect(nudge.reason).toBe(
-		"Over your plan 2 weeks — eased Friday's session to a Z2 endurance hour.",
+		'Over planen 2 uker på rad – økta fredag er gjort om til en rolig time i sone 2.',
 	)
 })
 
@@ -112,7 +112,7 @@ test('the eased duration is capped at an hour', () => {
 	})
 	if (nudge.outcome !== 'eased') throw new Error('expected eased')
 	expect(nudge.target.durationMin).toBe(60)
-	expect(nudge.reason).toMatch(/a Z2 endurance hour/)
+	expect(nudge.reason).toMatch(/en rolig time i sone 2/)
 })
 
 test('a shorter session keeps its own duration (below the cap)', () => {
@@ -121,12 +121,12 @@ test('a shorter session keeps its own duration (below the cap)', () => {
 		trust: trust(),
 		tsb: -20,
 		sustained: null,
-		nextSession: cardioSession({ durationMin: 40, label: 'Monday' }),
+		nextSession: cardioSession({ durationMin: 40, label: 'mandag' }),
 	})
 	if (nudge.outcome !== 'eased') throw new Error('expected eased')
 	expect(nudge.target.durationMin).toBe(40)
 	expect(nudge.reason).toBe(
-		"Form is low (TSB −20) — eased Monday's session to a 40-minute Z2 endurance session.",
+		'Formen er lav (TSB −20) – økta mandag er gjort om til en rolig økt på 40 min i sone 2.',
 	)
 })
 
@@ -143,7 +143,7 @@ test('fresh Form holds the next session (never eases on a fresh signal)', () => 
 	expect(nudge.outcome).toBe('held')
 	if (nudge.outcome !== 'held') throw new Error('unreachable')
 	expect(nudge.reason).toBe(
-		'Form is fresh (TSB +6) — your next session stands.',
+		'Formen er uthvilt (TSB +6) – neste økt står som planlagt.',
 	)
 })
 
@@ -158,7 +158,7 @@ test('neutral Form holds the next session', () => {
 	expect(nudge.outcome).toBe('held')
 	if (nudge.outcome !== 'held') throw new Error('unreachable')
 	expect(nudge.reason).toBe(
-		'Form is neutral (TSB +1) — your next session stands.',
+		'Formen er i balanse (TSB +1) – neste økt står som planlagt.',
 	)
 })
 
@@ -173,7 +173,7 @@ test('sustained under holds the next session (a nudge never reduces load when un
 	expect(nudge.outcome).toBe('held')
 	if (nudge.outcome !== 'held') throw new Error('unreachable')
 	expect(nudge.reason).toBe(
-		'Under your plan 2 weeks — your next session stands.',
+		'Under planen 2 uker på rad – neste økt står som planlagt.',
 	)
 })
 
@@ -185,12 +185,12 @@ test('a strength next session is held with an honest reason even on a back-off s
 		trust: trust(),
 		tsb: -18,
 		sustained: null,
-		nextSession: cardioSession({ discipline: 'strength', label: 'Tuesday' }),
+		nextSession: cardioSession({ discipline: 'strength', label: 'tirsdag' }),
 	})
 	expect(nudge.outcome).toBe('held')
 	if (nudge.outcome !== 'held') throw new Error('unreachable')
 	expect(nudge.reason).toBe(
-		'Next session is strength — no Form-based ease yet.',
+		'Neste økt er styrke, og den kan ikke lettes etter formen ennå.',
 	)
 })
 
@@ -204,7 +204,7 @@ test('a strength next session holds under sustained over too (no fabricated zone
 	})
 	if (nudge.outcome !== 'held') throw new Error('expected held')
 	expect(nudge.reason).toBe(
-		'Next session is strength — no Form-based ease yet.',
+		'Neste økt er styrke, og den kan ikke lettes etter formen ennå.',
 	)
 })
 
@@ -222,7 +222,7 @@ test('cold-start with no reconciled call is unavailable with the day-N/42 phrasi
 	expect(nudge.outcome).toBe('unavailable')
 	if (nudge.outcome !== 'unavailable') throw new Error('unreachable')
 	expect(nudge.reason).toBe(
-		'Your Form reading is reliable after 42 days — day 12/42.',
+		'Formtallet er til å stole på etter 42 dager (dag 12 av 42).',
 	)
 })
 
@@ -353,7 +353,7 @@ function ledgerSession(overrides: Partial<LedgerSession> = {}): LedgerSession {
 test('a key miss inside the lookback window qualifies, summarized by weekday and discipline', () => {
 	expect(selectQualifyingMiss([ledgerSession()], NOW)).toEqual({
 		discipline: 'run',
-		label: 'Monday',
+		label: 'mandag',
 	})
 })
 
@@ -399,7 +399,7 @@ test('a stored skipped key session qualifies like a silently missed one', () => 
 			],
 			NOW,
 		),
-	).toEqual({ discipline: 'run', label: 'Tuesday' })
+	).toEqual({ discipline: 'run', label: 'tirsdag' })
 })
 
 test('a missed strength session never qualifies (no cardio zone model to call it key)', () => {
@@ -427,13 +427,13 @@ test('with several qualifying misses only the most recent is selected (misses ne
 		],
 		NOW,
 	)
-	expect(miss).toEqual({ discipline: 'bike', label: 'Tuesday' })
+	expect(miss).toEqual({ discipline: 'bike', label: 'tirsdag' })
 })
 
 // ── the miss branch (a recent key miss as the fourth signal, #185) ───────────
 
 function recentMiss(overrides: Partial<RecentMiss> = {}): RecentMiss {
-	return { discipline: 'run', label: 'Monday', ...overrides }
+	return { discipline: 'run', label: 'mandag', ...overrides }
 }
 
 test('a recent key miss eases the next cardio session with the miss-driven reason', () => {
@@ -443,7 +443,7 @@ test('a recent key miss eases the next cardio session with the miss-driven reaso
 		tsb: 1,
 		sustained: null,
 		recentMiss: recentMiss(),
-		nextSession: cardioSession({ discipline: 'run', label: 'Tuesday' }),
+		nextSession: cardioSession({ discipline: 'run', label: 'tirsdag' }),
 	})
 	expect(nudge.outcome).toBe('eased')
 	if (nudge.outcome !== 'eased') throw new Error('unreachable')
@@ -454,7 +454,7 @@ test('a recent key miss eases the next cardio session with the miss-driven reaso
 		durationMin: 60,
 	})
 	expect(nudge.reason).toBe(
-		"You missed Monday's session — eased Tuesday's session to a Z2 endurance hour so you don't stack hard days after a gap.",
+		'Økta mandag ble ikke gjort – økta tirsdag er gjort om til en rolig time i sone 2, så du ikke legger harde dager tett etter et opphold.',
 	)
 })
 
@@ -465,12 +465,12 @@ test('a recent key miss overrides the fresh hold (the gap outranks feeling fresh
 		tsb: 6,
 		sustained: null,
 		recentMiss: recentMiss(),
-		nextSession: cardioSession({ label: 'Tuesday' }),
+		nextSession: cardioSession({ label: 'tirsdag' }),
 	})
 	expect(nudge.outcome).toBe('eased')
 	if (nudge.outcome !== 'eased') throw new Error('unreachable')
 	expect(nudge.reason).toBe(
-		"You missed Monday's session — eased Tuesday's session to a Z2 endurance hour so you don't stack hard days after a gap.",
+		'Økta mandag ble ikke gjort – økta tirsdag er gjort om til en rolig time i sone 2, så du ikke legger harde dager tett etter et opphold.',
 	)
 })
 
@@ -481,12 +481,12 @@ test('a miss-eased session below the cap keeps its own duration in the reason', 
 		tsb: 1,
 		sustained: null,
 		recentMiss: recentMiss(),
-		nextSession: cardioSession({ durationMin: 40, label: 'Tuesday' }),
+		nextSession: cardioSession({ durationMin: 40, label: 'tirsdag' }),
 	})
 	if (nudge.outcome !== 'eased') throw new Error('expected eased')
 	expect(nudge.target.durationMin).toBe(40)
 	expect(nudge.reason).toBe(
-		"You missed Monday's session — eased Tuesday's session to a 40-minute Z2 endurance session so you don't stack hard days after a gap.",
+		'Økta mandag ble ikke gjort – økta tirsdag er gjort om til en rolig økt på 40 min i sone 2, så du ikke legger harde dager tett etter et opphold.',
 	)
 })
 
@@ -497,12 +497,12 @@ test('a recent key miss with a strength next session is held with the honest str
 		tsb: 1,
 		sustained: null,
 		recentMiss: recentMiss(),
-		nextSession: cardioSession({ discipline: 'strength', label: 'Tuesday' }),
+		nextSession: cardioSession({ discipline: 'strength', label: 'tirsdag' }),
 	})
 	expect(nudge.outcome).toBe('held')
 	if (nudge.outcome !== 'held') throw new Error('unreachable')
 	expect(nudge.reason).toBe(
-		"You missed Monday's session — next session is strength, no Form-based ease yet.",
+		'Økta mandag ble ikke gjort – neste økt er styrke, og den kan ikke lettes etter formen ennå.',
 	)
 })
 
@@ -515,12 +515,12 @@ test('a recent key miss still eases during cold-start (ledger-derived, not Form-
 		tsb: null,
 		sustained: null,
 		recentMiss: recentMiss(),
-		nextSession: cardioSession({ label: 'Friday' }),
+		nextSession: cardioSession({ label: 'fredag' }),
 	})
 	expect(nudge.outcome).toBe('eased')
 	if (nudge.outcome !== 'eased') throw new Error('unreachable')
 	expect(nudge.reason).toBe(
-		"You missed Monday's session — eased Friday's session to a Z2 endurance hour so you don't stack hard days after a gap.",
+		'Økta mandag ble ikke gjort – økta fredag er gjort om til en rolig time i sone 2, så du ikke legger harde dager tett etter et opphold.',
 	)
 })
 
@@ -531,12 +531,12 @@ test('a fatigued back-off subsumes a co-occurring miss (never double-counted)', 
 		tsb: -18,
 		sustained: null,
 		recentMiss: recentMiss(),
-		nextSession: cardioSession({ discipline: 'run', label: 'Tuesday' }),
+		nextSession: cardioSession({ discipline: 'run', label: 'tirsdag' }),
 	})
 	expect(nudge.outcome).toBe('eased')
 	if (nudge.outcome !== 'eased') throw new Error('unreachable')
 	expect(nudge.reason).toBe(
-		"Form is low (TSB −18) — eased Tuesday's session to a Z2 endurance hour.",
+		'Formen er lav (TSB −18) – økta tirsdag er gjort om til en rolig time i sone 2.',
 	)
 })
 
@@ -547,12 +547,12 @@ test('a sustained-over back-off subsumes a co-occurring miss too', () => {
 		tsb: 4,
 		sustained: { tone: 'over', weeks: 3 },
 		recentMiss: recentMiss(),
-		nextSession: cardioSession({ discipline: 'bike', label: 'Wednesday' }),
+		nextSession: cardioSession({ discipline: 'bike', label: 'onsdag' }),
 	})
 	expect(nudge.outcome).toBe('eased')
 	if (nudge.outcome !== 'eased') throw new Error('unreachable')
 	expect(nudge.reason).toBe(
-		"Over your plan 3 weeks — eased Wednesday's session to a Z2 endurance hour.",
+		'Over planen 3 uker på rad – økta onsdag er gjort om til en rolig time i sone 2.',
 	)
 })
 
@@ -563,11 +563,11 @@ test('a recent key miss eases even under a sustained-under call (the gap is the 
 		tsb: 6,
 		sustained: { tone: 'under', weeks: 2 },
 		recentMiss: recentMiss(),
-		nextSession: cardioSession({ label: 'Tuesday' }),
+		nextSession: cardioSession({ label: 'tirsdag' }),
 	})
 	expect(nudge.outcome).toBe('eased')
 	if (nudge.outcome !== 'eased') throw new Error('unreachable')
-	expect(nudge.reason).toMatch(/^You missed Monday's session/)
+	expect(nudge.reason).toMatch(/^Økta mandag ble ikke gjort/)
 })
 
 test('no qualifying miss leaves every existing outcome unchanged', () => {
@@ -581,7 +581,9 @@ test('no qualifying miss leaves every existing outcome unchanged', () => {
 	})
 	expect(held.outcome).toBe('held')
 	if (held.outcome !== 'held') throw new Error('unreachable')
-	expect(held.reason).toBe('Form is fresh (TSB +6) — your next session stands.')
+	expect(held.reason).toBe(
+		'Formen er uthvilt (TSB +6) – neste økt står som planlagt.',
+	)
 
 	const cold = decideSessionNudge({
 		recommendation: null,
@@ -594,7 +596,7 @@ test('no qualifying miss leaves every existing outcome unchanged', () => {
 	expect(cold.outcome).toBe('unavailable')
 	if (cold.outcome !== 'unavailable') throw new Error('unreachable')
 	expect(cold.reason).toBe(
-		'Your Form reading is reliable after 42 days — day 12/42.',
+		'Formtallet er til å stole på etter 42 dager (dag 12 av 42).',
 	)
 })
 
@@ -612,6 +614,6 @@ test('none still wins over a miss when there is no session to touch', () => {
 
 test("the pending-ease held reason is composed by the core for slice 3's honesty guard", () => {
 	expect(missEasePendingReason(recentMiss())).toBe(
-		"You missed Monday's session — easing your next session.",
+		'Økta mandag ble ikke gjort – neste økt blir gjort lettere.',
 	)
 })

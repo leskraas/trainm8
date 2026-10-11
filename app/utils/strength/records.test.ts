@@ -615,7 +615,7 @@ test('inside the debut window a record that beat an earlier session says best so
 	const heaviest = find(records, 'heaviestLoad')!
 	expect(heaviest.debut).toBe(true)
 	expect(strengthRecordLabel(heaviest)).toBe(
-		'Heaviest ever: 22.5 kg — best so far',
+		'Heaviest ever: 22,5 kg — best so far',
 	)
 })
 
@@ -682,10 +682,10 @@ test('a record reads as one phrase, and an uncomparable one says so in it', () =
 		barbell(110, { sessionId: 'd', performedAt: day(21), reps: 5 }),
 	])
 	expect(strengthRecordLabel(find(kg, 'repMax', 5)!)).toBe(
-		'Best 5-rep set: 110 kg — up 2.5 kg',
+		'Best 5-rep set: 110 kg — up 2,5 kg',
 	)
 	expect(strengthRecordLabel(find(kg, 'heaviestLoad')!)).toBe(
-		'Heaviest ever: 110 kg — up 2.5 kg',
+		'Heaviest ever: 110 kg — up 2,5 kg',
 	)
 
 	const stack = deriveStrengthRecords([
@@ -717,7 +717,7 @@ test('an estimated 1RM names its equation in the reading, because the number is 
 	// one house rule (`formatKg`) — and 119.58 minus the 116.67 it beat is exactly
 	// the 2.91 the gain claims.
 	expect(strengthRecordLabel(find(records, 'e1RM')!)).toBe(
-		'Best estimated 1RM: 119.58 kg (brzycki) — up 2.91 kg',
+		'Best estimated 1RM: 119,58 kg (brzycki) — up 2,91 kg',
 	)
 })
 
@@ -725,7 +725,7 @@ test('a tested single is not labelled with an equation that was not applied', ()
 	// A one-rep set *is* the measurement: `one-rm.ts` names running an equation over
 	// it as forbidden — Epley would report 103.3 kg from a 100 kg single — and the
 	// server model duly passes a single through untouched. The record then named the
-	// injected model anyway, so the strip printed "61.25 kg (epley)" about a kilo
+	// injected model anyway, so the strip printed "61,25 kg (epley)" about a kilo
 	// Epley never saw: an equation credited with a lift.
 	const passesSinglesThrough: OneRepMaxEstimator = ({ weightKg, reps }) =>
 		reps === 1
@@ -741,7 +741,7 @@ test('a tested single is not labelled with an equation that was not applied', ()
 	// No equation was applied, so there is no equation to name.
 	expect(e1rm.estimator).toBeNull()
 	expect(strengthRecordLabel(e1rm)).toBe(
-		'Best tested 1RM: 61.25 kg (the load lifted) — first time!',
+		'Best tested 1RM: 61,25 kg (the load lifted) — first time!',
 	)
 
 	// And the equation is still named where one was actually applied: the label
@@ -755,22 +755,22 @@ test('a tested single is not labelled with an equation that was not applied', ()
 	)
 	const estimated = find(fromFive, 'e1RM')!
 	expect(estimated.oneRmProtocol).toBe('epley')
-	expect(strengthRecordLabel(estimated)).toContain('116.67 kg (epley)')
+	expect(strengthRecordLabel(estimated)).toContain('116,67 kg (epley)')
 	expect(strengthRecordLabel(estimated)).toContain('Best estimated 1RM')
 })
 
 test("a weight the athlete's plates can make is stated as it was stored, not rounded to one decimal", () => {
 	// 61.25 kg is a bar the app's own plate solver loads and prints as
-	// `61.25 kg` — 1.25 kg pairs are real. One decimal restated the same stored
-	// number as `61.3 kg`, so one weight read two ways on one screen.
+	// `61,25 kg` — 1.25 kg pairs are real. One decimal restated the same stored
+	// number as `61,3 kg`, so one weight read two ways on one screen.
 	const records = deriveStrengthRecords([
 		barbell(40, { sessionId: 'a', performedAt: day(0), reps: 5 }),
 		barbell(61.25, { sessionId: 'b', performedAt: day(7), reps: 5 }),
 	])
 	const heaviest = strengthRecordLabel(find(records, 'heaviestLoad')!)
-	expect(heaviest).toContain('61.25 kg')
+	expect(heaviest).toContain('61,25 kg')
 	expect(heaviest).not.toContain('61.3')
-	expect(strengthRecordLabel(find(records, 'repMax', 5)!)).toContain('61.25 kg')
+	expect(strengthRecordLabel(find(records, 'repMax', 5)!)).toContain('61,25 kg')
 })
 
 test('a delta agrees with the two weights it is derived from', () => {
@@ -789,8 +789,8 @@ test('a delta agrees with the two weights it is derived from', () => {
 	)
 	const record = find(records, 'e1RM')!
 	const label = strengthRecordLabel(record)
-	const shown = numberIn(label, /1RM: ([\d.]+) kg/)
-	const gain = numberIn(label, /up ([\d.]+) kg/)
+	const shown = numberIn(label, /1RM: ([\d,]+) kg/)
+	const gain = numberIn(label, /up ([\d,]+) kg/)
 	expect(shown - gain).toBeCloseTo(Number(formatKg(record.previousValue!)), 5)
 
 	// And the plain case closes exactly, in whole 1.25 kg steps.
@@ -801,7 +801,7 @@ test('a delta agrees with the two weights it is derived from', () => {
 		barbell(61.25, { sessionId: 'd', performedAt: day(21), reps: 5 }),
 	])
 	expect(strengthRecordLabel(find(plates, 'heaviestLoad')!)).toBe(
-		'Heaviest ever: 61.25 kg — up 21.25 kg',
+		'Heaviest ever: 61,25 kg — up 21,25 kg',
 	)
 })
 
@@ -809,7 +809,8 @@ test('a delta agrees with the two weights it is derived from', () => {
 function numberIn(label: string, pattern: RegExp): number {
 	const found = label.match(pattern)?.[1]
 	expect(found).toBeDefined()
-	return Number(found)
+	// The label is written for a person, with a decimal comma.
+	return Number(found!.replace(',', '.'))
 }
 
 // ——— What this module refuses to compute ————————————————————————————————
