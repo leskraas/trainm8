@@ -6287,3 +6287,38 @@ const ZONE_CAPTION_WORDS: Record<string, string> = {
 export function nbZoneCaption(description: string): string {
 	return ZONE_CAPTION_WORDS[description] ?? description
 }
+
+// ===========================================================================
+// Angre on Gjort and on a link answer (#505 round 2, r2-angre-rest; ADR 0088
+// as amended): the toasts those two writes land with, the undo's own toast,
+// and why an undo was turned down. One section of its own so the area PRs
+// that also add to this file merge cleanly. The button itself says `Angre`
+// (`SESSION_COMPOSER_LABELS.undo`), as every other write's does.
+// ===========================================================================
+
+export const ANGRE_REST_LABELS = {
+	/** _Gjort_'s toast; the session's title is quoted under it. */
+	markedDone: 'Merket som gjort.',
+	/** A link answer's toast; the planned session's title is quoted under it. */
+	linked: 'Importen er koblet til økta.',
+	/** _Angre_ on _Gjort_ took it back. */
+	markDoneUndone: (title: string | null) =>
+		title
+			? `Gjort er angret. «${title}» står som før.`
+			: 'Gjort er angret. Økta står som før.',
+	/** _Angre_ on a link took it back: the import is asked about again. */
+	linkUndone: (title: string | null) =>
+		title
+			? `Koblingen til «${title}» er angret. Importen er en ekstra økt igjen, og vi spør hva den var.`
+			: 'Koblingen er angret. Importen er en ekstra økt igjen, og vi spør hva den var.',
+	/** Why an undo was turned down, said to the athlete. */
+	refused: {
+		'session-not-found': 'Fant ikke økta. Den kan være slettet.',
+		'import-not-found': 'Fant ikke importen. Den kan være slettet.',
+		'not-undoable':
+			'Det kan ikke angres lenger: noe annet har skjedd med økta siden.',
+	} satisfies Record<
+		'session-not-found' | 'import-not-found' | 'not-undoable',
+		string
+	>,
+} as const

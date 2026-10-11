@@ -20,6 +20,16 @@
  * as long as the toast stays. Both call the same {@link
  * ComposerActions.undo}: the owner-scoped delete ADR 0076 decided on.
  *
+ * **The same landing for the row's own writes** (ADR 0088, amended): _Gjort_
+ * and a "hva var dette?" link are not the composer's, but they land through
+ * the same toast, tinted row and _Angre_ — and their undo posts the token
+ * their write's reply carried to that write's own route instead of deleting
+ * anything. A write whose reply carried no token lands without _Angre_.
+ * The row's button posts on a keyed fetcher and hands that key here
+ * ({@link ComposerActions.watch}); the reply is read here, not in the
+ * button, because a revalidation already in flight can bring the written
+ * state — and take the button away — before the button's own reply arrives.
+ *
  * Three contexts rather than one, because hundreds of memoised rows read
  * this: the actions never change; the landing changes once per write and is
  * read only by session rows; the open state is read only by the composer.
@@ -60,6 +70,37 @@ export type ComposerActions = {
 	/** Post a write; `title` is what the toast quotes. */
 	submit: (post: Record<string, string>, meta: { title: string }) => void
 	undo: (sessionId: string) => void
+	/**
+	 * Land a write the row made itself (_Gjort_, a link answer) once its
+	 * reply is in: called as the post leaves, with the post's fetcher key.
+	 */
+	watch: (watch: LandingWatch) => void
+}
+
+/**
+ * A row's post to land: the key of the fetcher it went out on, and how its
+ * reply reads as a landing (null for a refusal, which the row says itself).
+ */
+export type LandingWatch = {
+	fetcherKey: string
+	toWrite: (reply: unknown) => LandedWrite | null
+}
+
+/**
+ * How a landed write is taken back: the form its _Angre_ posts, and where.
+ * No `action` posts to home's own route (the composer's `undo-stamp`).
+ */
+export type UndoPost = { action?: string; post: Record<string, string> }
+
+/** A write that landed on a row, for its toast and its row's _Angre_. */
+export type LandedWrite = {
+	sessionId: string
+	/** The toast's line: what changed. */
+	line: string
+	/** Quoted under the line. */
+	title?: string
+	/** The way back, or null when the write may not be taken back. */
+	undo: UndoPost | null
 }
 
 export type ComposerStatus = {
@@ -75,6 +116,8 @@ export type ComposerStatus = {
 export type ComposerLanding = {
 	/** The row that just landed: risen, highlighted, carrying _Angre_. */
 	landedSessionId: string | null
+	/** Whether that row's write can be taken back, so it carries _Angre_. */
+	landedUndoable: boolean
 	undoingSessionId: string | null
 }
 
@@ -82,6 +125,7 @@ const ActionsContext = createContext<ComposerActions | null>(null)
 const StatusContext = createContext<ComposerStatus | null>(null)
 const LandingContext = createContext<ComposerLanding>({
 	landedSessionId: null,
+	landedUndoable: false,
 	undoingSessionId: null,
 })
 
@@ -110,6 +154,43 @@ export function useComposerStatus(): ComposerStatus {
 
 export function useComposerLanding(): ComposerLanding {
 	return useContext(LandingContext)
+}
+
+/**
+ * The landing for a write made outside the composer, or null outside a
+ * provider (a details view rendered on its own): such a write then lands as
+ * it always did, on the revalidated row alone.
+ */
+export function useLandingWatch(): ComposerActions['watch'] | null {
+	return useContext(ActionsContext)?.watch ?? null
+}
+
+/**
+ * Reads one watched post's reply off its keyed fetcher, which lives as long
+ * as this does — after the row that posted it has gone — and lands it once.
+ * A reply already there when the watch began (a refusal before a retry) is
+ * not this post's.
+ */
+function WatchedLanding({
+	watch,
+	land,
+	done,
+}: {
+	watch: LandingWatch
+	land: (write: LandedWrite) => void
+	done: (fetcherKey: string) => void
+}) {
+	const fetcher = useFetcher({ key: watch.fetcherKey })
+	const before = useRef(fetcher.data)
+	const reply = fetcher.data
+	useEffect(() => {
+		if (reply === undefined || reply === before.current) return
+		before.current = reply
+		const write = watch.toWrite(reply)
+		if (write) land(write)
+		done(watch.fetcherKey)
+	}, [done, land, reply, watch])
+	return null
 }
 
 type WriteReply = {
@@ -141,6 +222,23 @@ export function ComposerProvider({
 }) {
 	const [target, setTarget] = useState<ComposerTarget | null>(null)
 	const [landedSessionId, setLanded] = useState<string | null>(null)
+	const [landedUndoable, setLandedUndoable] = useState(false)
+	// Each landed write's way back, by session: written as it lands, read by
+	// the toast's and the row's _Angre_. A ref, because the rows never need to
+	// re-render for it.
+	const undoPostsRef = useRef(new Map<string, UndoPost | null>())
+	const [watches, setWatches] = useState<LandingWatch[]>([])
+	const watch = useCallback((next: LandingWatch) => {
+		setWatches((current) => [
+			...current.filter((one) => one.fetcherKey !== next.fetcherKey),
+			next,
+		])
+	}, [])
+	const unwatch = useCallback((fetcherKey: string) => {
+		setWatches((current) =>
+			current.filter((one) => one.fetcherKey !== fetcherKey),
+		)
+	}, [])
 	const [undoingSessionId, setUndoing] = useState<string | null>(null)
 	const [failed, setFailed] = useState(false)
 	const [landedCount, setLandedCount] = useState(0)
@@ -160,12 +258,47 @@ export function ComposerProvider({
 
 	const undo = useCallback(
 		(sessionId: string) => {
+			// Only a write that landed here has a way back, and only the one it
+			// landed with: never a guess (a row's _Gjort_ is not a stamp to
+			// delete). A second tap posts the same token, which the server reads
+			// as nothing left to take back.
+			const way = undoPostsRef.current.get(sessionId)
+			if (!way) return
 			setUndoing(sessionId)
 			setLanded((current) => (current === sessionId ? null : current))
 			toast.dismiss(`write-${sessionId}`)
-			void submitUndo({ intent: 'undo-stamp', sessionId }, { method: 'POST' })
+			// A session the composer wrote is deleted (`undo-stamp`, ADR 0076);
+			// a row's own write posts its token to its own route.
+			const { action, post } = way
+			void submitUndo(
+				post,
+				action ? { method: 'POST', action } : { method: 'POST' },
+			)
 		},
 		[submitUndo],
+	)
+
+	// **One landing** for every write: the toast that says what changed and
+	// carries _Angre_ when there is a way back, and the row's highlight.
+	const announce = useCallback(
+		({ sessionId, line, title, undo: way }: LandedWrite) => {
+			undoPostsRef.current.set(sessionId, way)
+			setLanded(sessionId)
+			setLandedUndoable(way !== null)
+			toast.success(line, {
+				id: `write-${sessionId}`,
+				description: title ? `«${title}»` : undefined,
+				duration: LANDED_MS,
+				action:
+					way === null
+						? undefined
+						: {
+								label: SESSION_COMPOSER_LABELS.undo,
+								onClick: () => undo(sessionId),
+							},
+			})
+		},
+		[undo],
 	)
 
 	// **The landing.** The written session's id comes back on the action's own
@@ -183,23 +316,18 @@ export function ComposerProvider({
 		toastedRef.current = stampedSessionId
 		setFailed(false)
 		setTarget(null)
-		setLanded(stampedSessionId)
 		setLandedCount((count) => count + 1)
-		const line =
-			reply?.weekSumLine ??
-			(reply?.done
-				? SESSION_COMPOSER_LABELS.writtenDone
-				: SESSION_COMPOSER_LABELS.written)
-		toast.success(line, {
-			id: `write-${stampedSessionId}`,
-			description: titleRef.current ? `«${titleRef.current}»` : undefined,
-			duration: LANDED_MS,
-			action: {
-				label: SESSION_COMPOSER_LABELS.undo,
-				onClick: () => undo(stampedSessionId),
-			},
+		announce({
+			sessionId: stampedSessionId,
+			line:
+				reply?.weekSumLine ??
+				(reply?.done
+					? SESSION_COMPOSER_LABELS.writtenDone
+					: SESSION_COMPOSER_LABELS.written),
+			title: titleRef.current || undefined,
+			undo: { post: { intent: 'undo-stamp', sessionId: stampedSessionId } },
 		})
-	}, [reply, stampedSessionId, undo])
+	}, [announce, reply, stampedSessionId])
 
 	// The highlight leaves with the toast.
 	useEffect(() => {
@@ -259,8 +387,18 @@ export function ComposerProvider({
 				void submitWrite(post, { method: 'POST' })
 			},
 			undo,
+			watch,
 		}),
-		[container, minDayKey, prefill, submitWrite, thresholds, todayKey, undo],
+		[
+			container,
+			minDayKey,
+			prefill,
+			submitWrite,
+			thresholds,
+			todayKey,
+			undo,
+			watch,
+		],
 	)
 
 	const status = useMemo<ComposerStatus>(
@@ -275,8 +413,8 @@ export function ComposerProvider({
 	)
 
 	const landing = useMemo<ComposerLanding>(
-		() => ({ landedSessionId, undoingSessionId }),
-		[landedSessionId, undoingSessionId],
+		() => ({ landedSessionId, landedUndoable, undoingSessionId }),
+		[landedSessionId, landedUndoable, undoingSessionId],
 	)
 
 	return (
@@ -284,6 +422,14 @@ export function ComposerProvider({
 			<StatusContext.Provider value={status}>
 				<LandingContext.Provider value={landing}>
 					{children}
+					{watches.map((one) => (
+						<WatchedLanding
+							key={one.fetcherKey}
+							watch={one}
+							land={announce}
+							done={unwatch}
+						/>
+					))}
 				</LandingContext.Provider>
 			</StatusContext.Provider>
 		</ActionsContext.Provider>
