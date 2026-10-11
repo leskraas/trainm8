@@ -21,6 +21,17 @@ framework's source at commit `1284000325bfd1f9f79c75eb4ea143d36fce6017`
 > **how agent-native itself uses MCP** (§2.9) and treats "trainm8 as an MCP
 > server" as an option (§6, §7). It deliberately has no MCP primer and no
 > trainm8 tool list.
+>
+> **Later research.** [`agent-native-open-stack.md`](agent-native-open-stack.md)
+> re-asks adopt, fork or build now that the stack is open, and prices the forks.
+> [`agent-platforms.md`](agent-platforms.md) compares other foundations.
+> [`stack-migration.md`](stack-migration.md) sequences Better Auth, MCP OAuth,
+> Postgres and Drizzle. [`watch-data-sources.md`](watch-data-sources.md) and
+> [`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) cover watch
+> data and each vendor's AI and MCP terms.
+> [`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) covers privacy,
+> regulation and cost. [`agent-strategy.md`](agent-strategy.md) pulls the notes
+> into one strategy.
 
 ### How claims are cited
 
@@ -40,6 +51,30 @@ framework's source at commit `1284000325bfd1f9f79c75eb4ea143d36fce6017`
 
 ## TL;DR
 
+> **Update 2026-10-11 (later research).** The owner has opened the stack:
+> trainm8 will move to Better Auth, Postgres (Neon or another EU host) and
+> Drizzle. The stack conflicts this note leaned on (§5.2, §7) no longer decide
+> the question. The verdict (don't adopt, don't fork) holds for the reasons that
+> remain:
+>
+> - agent-native strips the session cookie from every SSR request, which forces
+>   client-side fetching;
+> - its server runtime is the Nitro 3 beta;
+> - it ships about 6–7 app-facing breaks a month;
+> - its ownership model is a team tool's;
+> - adopting it (A) would take about 6–10 months;
+> - a fork would own about 887 k lines.
+>
+> The recommendation becomes **C+ with E**: our own layer on agent-native's
+> stack minus the framework, MCP server first
+> ([`agent-native-open-stack.md`](agent-native-open-stack.md),
+> [`stack-migration.md`](stack-migration.md)). Strava is no longer used, so each
+> origin platform's terms bind, and the Strava analysis here applies only if
+> Strava returns ([`watch-data-sources.md`](watch-data-sources.md),
+> [`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md),
+> [`ai-product-privacy-cost.md`](ai-product-privacy-cost.md)). Proposed ADRs are
+> now numbered 0092–0098 (§7.2).
+
 - **agent-native is a full-stack TypeScript app framework, not a library.** Its
   core idea is one `defineAction()` per capability. The same action becomes an
   agent tool, a typed React hook, an HTTP endpoint, a CLI command, an MCP tool
@@ -52,7 +87,10 @@ framework's source at commit `1284000325bfd1f9f79c75eb4ea143d36fce6017`
   layers are Drizzle, Nitro 3 (beta), React Router **8**, zod 4, Better Auth,
   and TanStack Query over a public, CDN-cached SSR shell. trainm8 is
   SQLite/LiteFS, Prisma, Express, React Router 7, zod 3, its own auth, and
-  loaders that read the session.
+  loaders that read the session. (That is against today's stack. The owner has
+  since opened it. The conflicts that remain are the session-free SSR shell, the
+  Nitro 3 beta, team-tool tenancy and the Radix chat UI; see
+  [`agent-native-open-stack.md`](agent-native-open-stack.md) §2.)
 - **It is young and moves very fast.** The first commit was 2026-03-12. It has
   had **1,014 stable npm releases in seven months** and publishes a nightly
   build every three hours. It is pre-1.0 and calls itself alpha, aiming for
@@ -86,16 +124,19 @@ framework's source at commit `1284000325bfd1f9f79c75eb4ea143d36fce6017`
   0080 §6). Its ownership gate (`session-ownership.ts`) is the rule every
   machine write must pass. Writes are preview-first, and undo is built in (ADR
   0088). No LLM runs in the request path today.
-- **Recommendation: (C) build a small agent-native layer in trainm8, with
-  "trainm8 as an MCP server" as its first external surface.** Do not adopt the
-  framework, and do not embed it. Strava's API Policy limits both the MCP server
-  and any in-app agent to non-Strava data (§7). The first vertical slice is the
-  **Ukeskiftet / Week Replan** proposals: read them, and answer them, built in
-  the registry behind the existing route. The agent's answers go through ADR
-  0080's own "needs the athlete's yes" gate, and the athlete gives that yes on
-  the Ukeskiftet card. In front of a model, proposals computed from
-  Strava-derived load are a grey zone, so the I dag composer is the cleaner
-  slice to expose first (§7.2). §7 has the phased plan.
+- **Recommendation: (C+ with E) build our own agent-native layer in trainm8, on
+  agent-native's stack minus the framework, with "trainm8 as an MCP server" as
+  its first external surface.** Do not adopt the framework, do not embed it, and
+  do not fork it. Each origin platform's terms decide what the MCP server and
+  any in-app agent may show a model, and Strava's would again if it returned
+  (§7). The first vertical slice is the **Ukeskiftet / Week Replan** proposals:
+  read them, and answer them, built in the registry behind the existing route.
+  The agent's answers go through ADR 0080's own "needs the athlete's yes" gate,
+  and the athlete gives that yes on the Ukeskiftet card. In front of a model,
+  proposal reasons that read TSB carry their origin platform's terms (Garmin's
+  attribution, for example), and the provenance to apply them does not exist
+  yet. So the I dag composer is still the cleaner slice to expose first (§7.2).
+  §7 has the phased plan.
 
 ---
 
@@ -650,21 +691,21 @@ or health domain.
 
 ## 4. Maturity and risk
 
-| Dimension             | Finding                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| License               | MIT. The README says "MIT" (`AN README.md:285–287`). There is **no root `LICENSE` file** at this commit; the license is declared in each package's `license` field (npm: `MIT`) and in `packages/vscode-extension/LICENSE.md` ("Copyright (c) Builder.io"). The pricing FAQ: "We could change it for future versions. We cannot revoke it on code you already have" ([pricing](https://www.agent-native.com/pricing/))                                                                                                                                 |
-| Age                   | 7 months (first commit 2026-03-12, git; npm `time.created` 2026-03-12)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Stage                 | "Agent-Native packages are pre-1.0 … Alpha and beta are release stages, not service-level commitments. The current targets are beta by mid-October 2026 and 1.0 by the end of 2026. These dates are goals only." (`AN versioning-and-stability.mdx:8–10,56–58`)                                                                                                                                                                                                                                                                                        |
-| Release cadence       | A nightly every three hours when source changed. Scheduled stable patch releases Monday to Thursday (`:14–23`). npm lists **1,811** versions of `@agent-native/core`: 1,014 stable and 740 nightlies. `0.100.0` came out 2026-07-14, `0.200.0` on 2026-10-02, `0.206.0` on 2026-10-09                                                                                                                                                                                                                                                                  |
-| Version accidents     | `1.0.0` was published 2026-08-28 and deprecated: "Published in error … a stray major-type changeset promoted 0.176.1 to 1.0.0" (npm). The core `CHANGELOG.md` still opens with a `## 1.0.0` section above `0.206.0`                                                                                                                                                                                                                                                                                                                                    |
-| Breaking changes      | Allowed in minor releases before 1.0 (`AN versioning-and-stability.mdx:27–31`). The migration manifest records **107 moved import paths (about 1,800 re-homed symbols) and 11 removed exports since 0.110.0** (`AN packages/core/migration-manifest.json`). Examples: non-Postgres databases removed (git `cc2a915a`, 2026-09-04); UI moved from Core to Toolkit (0.198.0); AgentKit protocol v2 "intentionally rejects v1-only" clients; `createProductionAgentHandler` now requires `assertAiSetupReady` (0.206.0) (`AN packages/core/CHANGELOG.md`) |
-| Size                  | ~588 k lines of non-test TS/TSX in `packages/core/src`. The core tarball unpacks to 32.5 MB (npm)                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Bus factor            | 87 authors, but 54 % of commits come from one person, who wrote 69 % of the last 30 days' commits. Very large machine-assembled commits are routine ("chore: publish branch work in … (1081 files)", git `cc2a915a`), so most of the code is probably agent-written (inference)                                                                                                                                                                                                                                                                        |
-| Builder.io coupling   | **Optional, but the default path.** The getting-started flow offers "Use Builder.io to use free credits" first (`AN getting-started.mdx:69`). `builder` is the first registered engine (`AN builtin.ts:70–89`). "In the cloud, Builder.io hosts the identical loop as a managed frame" (`AN key-concepts.mdx:93`). A managed Postgres is planned (`AN server-database.mdx:121`). The Builder Code starter is a patch layer over Chat (`AN AGENTS.md:371–376`). Nothing I read **requires** a Builder account                                           |
-| Business model        | "The framework is MIT licensed. We make money if you choose our backend. That's the whole business model." and "Do I have to use Builder's backend? No." ([pricing](https://www.agent-native.com/pricing/)). The hosted apps run under separate Hosted Services Terms that "do not govern the framework source code, forks … or self-hosted versions" ([terms](https://www.agent-native.com/terms/))                                                                                                                                                   |
-| Telemetry             | **CLI:** install-funnel events go to `analytics.agent-native.com/track` with an embedded public key, plus a hard-coded Sentry DSN for crashes. Opt out with `DO_NOT_TRACK=1` or `AGENT_NATIVE_TELEMETRY_DISABLED=1` (`AN packages/core/src/cli/telemetry.ts:1–31,63–70`; `cli/sentry-telemetry.ts:61`; `AN observability.mdx:616`). **Browser:** the framework's own events are sent only when an analytics public key is configured (`AN packages/core/src/client/analytics.ts:2318–2335`). The server never hard-codes a DSN                         |
-| LLM provider coupling | Low: nine engine families, BYO key, local Ollama (§2.5). Every AI feature assumes **some** LLM is configured. A turn without a provider is refused before dispatch (`AN packages/core/CHANGELOG.md`, 0.206.0 `assertAiSetupReady`)                                                                                                                                                                                                                                                                                                                     |
-| Cost model            | Framework $0. "AI tokens are not free. Your agent runs on your API key … If you're already on a Claude or ChatGPT subscription, you're already paid up." Hosting is your own. Builder's all-in-one backend costs money ([pricing](https://www.agent-native.com/pricing/))                                                                                                                                                                                                                                                                              |
+| Dimension             | Finding                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| License               | MIT. The README says "MIT" (`AN README.md:285–287`). There is **no root `LICENSE` file** at this commit; the license is declared in each package's `license` field (npm: `MIT`) and in `packages/vscode-extension/LICENSE.md` ("Copyright (c) Builder.io"). The pricing FAQ: "We could change it for future versions. We cannot revoke it on code you already have" ([pricing](https://www.agent-native.com/pricing/))                                                                                                                                                                                                                                                                                |
+| Age                   | 7 months (first commit 2026-03-12, git; npm `time.created` 2026-03-12)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Stage                 | "Agent-Native packages are pre-1.0 … Alpha and beta are release stages, not service-level commitments. The current targets are beta by mid-October 2026 and 1.0 by the end of 2026. These dates are goals only." (`AN versioning-and-stability.mdx:8–10,56–58`)                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Release cadence       | A nightly every three hours when source changed. Scheduled stable patch releases Monday to Thursday (`:14–23`). npm lists **1,811** versions of `@agent-native/core`: 1,014 stable and 740 nightlies. `0.100.0` came out 2026-07-14, `0.200.0` on 2026-10-02, `0.206.0` on 2026-10-09. Stable releases have since thinned (34 in September, 10 in October to 10/11) while commits rose, with about 6–7 app-facing breaks a month ([`agent-native-open-stack.md`](agent-native-open-stack.md) §3, §6)                                                                                                                                                                                                  |
+| Version accidents     | `1.0.0` was published 2026-08-28 and deprecated: "Published in error … a stray major-type changeset promoted 0.176.1 to 1.0.0" (npm). The core `CHANGELOG.md` still opens with a `## 1.0.0` section above `0.206.0`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Breaking changes      | Allowed in minor releases before 1.0 (`AN versioning-and-stability.mdx:27–31`). The migration manifest records **107 moved import paths (about 1,800 re-homed symbols) and 11 removed exports since 0.110.0** (`AN packages/core/migration-manifest.json`; a later re-count reads 1,973 moved symbols and 65 removed symbols in 5 modules, [`agent-native-open-stack.md`](agent-native-open-stack.md) §3). Examples: non-Postgres databases removed (git `cc2a915a`, 2026-09-04); UI moved from Core to Toolkit (0.198.0); AgentKit protocol v2 "intentionally rejects v1-only" clients; `createProductionAgentHandler` now requires `assertAiSetupReady` (0.206.0) (`AN packages/core/CHANGELOG.md`) |
+| Size                  | ~588 k lines of non-test TS/TSX in `packages/core/src`. The core tarball unpacks to 32.5 MB (npm)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Bus factor            | 87 authors, but 54 % of commits come from one person, who wrote 69 % of the last 30 days' commits. Very large machine-assembled commits are routine ("chore: publish branch work in … (1081 files)", git `cc2a915a`), so most of the code is probably agent-written (inference)                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Builder.io coupling   | **Optional, but the default path.** The getting-started flow offers "Use Builder.io to use free credits" first (`AN getting-started.mdx:69`). `builder` is the first registered engine (`AN builtin.ts:70–89`). "In the cloud, Builder.io hosts the identical loop as a managed frame" (`AN key-concepts.mdx:93`). A managed Postgres is planned (`AN server-database.mdx:121`). The Builder Code starter is a patch layer over Chat (`AN AGENTS.md:371–376`). Nothing I read **requires** a Builder account                                                                                                                                                                                          |
+| Business model        | "The framework is MIT licensed. We make money if you choose our backend. That's the whole business model." and "Do I have to use Builder's backend? No." ([pricing](https://www.agent-native.com/pricing/)). The hosted apps run under separate Hosted Services Terms that "do not govern the framework source code, forks … or self-hosted versions" ([terms](https://www.agent-native.com/terms/))                                                                                                                                                                                                                                                                                                  |
+| Telemetry             | **CLI:** install-funnel events go to `analytics.agent-native.com/track` with an embedded public key, plus a hard-coded Sentry DSN for crashes. Opt out with `DO_NOT_TRACK=1` or `AGENT_NATIVE_TELEMETRY_DISABLED=1` (`AN packages/core/src/cli/telemetry.ts:1–31,63–70`; `cli/sentry-telemetry.ts:61`; `AN observability.mdx:616`). **Browser:** the framework's own events are sent only when an analytics public key is configured (`AN packages/core/src/client/analytics.ts:2318–2335`). The server never hard-codes a DSN                                                                                                                                                                        |
+| LLM provider coupling | Low: nine engine families, BYO key, local Ollama (§2.5). Every AI feature assumes **some** LLM is configured. A turn without a provider is refused before dispatch (`AN packages/core/CHANGELOG.md`, 0.206.0 `assertAiSetupReady`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Cost model            | Framework $0. "AI tokens are not free. Your agent runs on your API key … If you're already on a Claude or ChatGPT subscription, you're already paid up." Hosting is your own. Builder's all-in-one backend costs money ([pricing](https://www.agent-native.com/pricing/))                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ---
 
@@ -722,6 +763,13 @@ or health domain.
 
 ### 5.2 Stack overlap and conflict
 
+> **Superseded in part (2026-10-11).** The owner has since opened the stack, so
+> the database, ORM, auth, validation, router and deploy rows below are planned
+> moves, not conflicts ([`stack-migration.md`](stack-migration.md)). The rows
+> that still decide are the session-free SSR shell (enforced in code), the Nitro
+> 3 beta server and the UI kit
+> ([`agent-native-open-stack.md`](agent-native-open-stack.md) §2).
+
 | Layer              | agent-native 0.206.0                                               | trainm8                                                                          | Verdict                                                                                                                                                             |
 | ------------------ | ------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Database           | PostgreSQL only (PGlite local), git `cc2a915a`                     | SQLite on LiteFS (`TM prisma/schema.prisma:10`, `package.json:98`; decision 003) | **Hard conflict.** "Using SQLite is an _enormous_ simplification" (`TM docs/decisions/003-sqlite.md:61–65`); "Limit Services" (`TM docs/guiding-principles.md:6–8`) |
@@ -747,9 +795,13 @@ Three shapes are possible. None of them is a drop-in.
    Express to Nitro, React Router 7 to 8, zod 3 to 4, loaders to TanStack Query
    behind a session-free SSR shell, and its own auth to Better Auth or a custom
    `getSession`. Its 70 route actions would be rewritten as `actions/*.ts`. It
-   would take on a release train that ships about five stable versions a day and
+   would take on a release train that averaged about five stable versions a day
+   (fewer since September, but with about 6–7 app-facing breaks a month) and
    records 107 moved import paths (about 1,800 symbols) since 0.110. (inference)
    That is a rewrite, not an adoption, and it gives up decision 003 and LiteFS.
+   With the stack open,
+   [`agent-native-open-stack.md`](agent-native-open-stack.md) §5 re-prices this
+   at about 6–10 months, most of it the move to client-side data.
 2. **Embed it as a sidecar** (`createAgentNativeEmbeddedPlugin` and
    `<AgentNativeEmbedded>`). The plugin is a **Nitro plugin**
    (`AN embedded.ts:221–231`). It uses "the configured `DATABASE_URL` to manage
@@ -860,7 +912,8 @@ domain guard for this. Its closest rule is the "absent vs unreadable" one
 ### 5.5 trainm8 as an MCP server
 
 This is the cheapest way to make trainm8 agent-operable in running cost (not in
-build effort: its OAuth work alone is L, §6), and it fits trainm8's stance:
+build effort: its OAuth work is L on today's auth, or about 1–2 weeks after a
+3–5 week move to Better Auth, §6), and it fits trainm8's stance:
 
 - The athlete's own Claude or ChatGPT subscription pays for the tokens. That is
   the same argument agent-native's pricing page makes, and it means no key and
@@ -885,8 +938,9 @@ agent, other apps, or public exposure, and trainm8 has none of these.
 The limit to keep in mind (inference): trainm8 does not control the host's
 prose. A host model can still restate a number wrongly. Mitigations are explicit
 `unavailable` fields, MCP Apps UI that renders trainm8's own numbers, and links
-back to the app. A harder limit is legal, not technical: Strava's API Policy
-keeps Strava-derived data off this surface entirely (§7). The protocol, OAuth
+back to the app. A harder limit is legal, not technical: each origin platform's
+terms decide what may cross this surface, and Strava's API Policy would keep
+Strava-derived data off it entirely if Strava returned (§7). The protocol, OAuth
 and host details are in
 [`mcp-server-for-trainm8.md`](mcp-server-for-trainm8.md).
 
@@ -896,36 +950,86 @@ and host details are in
 
 Effort is a T-shirt size for one developer working with agents. It is
 **inference**, based on the counts above. E's follows the MCP note's own phase
-estimates (§9 there), whose OAuth work alone is L.
+estimates (§9 there), whose OAuth work alone is L on today's auth. C+ re-bases
+it on [`stack-migration.md`](stack-migration.md) §7, where MCP OAuth takes about
+1–2 weeks after a 3–5 week Better Auth move.
 
-| Option                                                                                                                                                  | Effort        | Risk       | What we gain                                                                                                                                                                 | What we lose                                                                                                                                                                                                                                                                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A. Adopt agent-native as the app framework**                                                                                                          | XL            | Very high  | Chat UI, MCP server with OAuth, A2A, skills and memory in SQL, approvals, audit log, evals, automations, a parity discipline. All of it maintained by someone else           | SQLite, LiteFS and decision 003; Prisma; the loader/session SSR model; React Router 7; Base UI chrome; much of the ADR body that depends on them. trainm8 would be tied to an alpha framework that ships ~5 stable versions a day and breaks APIs in minors, with one dominant author |
-| **B. Embed or use parts as a library** (sidecar plugin, or AgentKit only)                                                                               | L             | High       | In-app chat and an MCP server without writing them; AgentKit's chat protocol                                                                                                 | A second runtime (Nitro) and a second database (Postgres) next to Express and SQLite, which contradicts "Limit Services". Two auth systems bridged. An imported Radix chat UI. An upgrade tax on every release. AgentKit alone gives a chat protocol and none of the hard parts       |
-| **C. Build a small agent-native layer in trainm8**: an operation registry, screen context, the agent as `ProposalAuthor`, undo tokens, an honesty guard | S–M per phase | Low–medium | Principles that fit trainm8's existing seams (ADR 0053, 0080, 0088). No new services. Reuses the zod schemas and result unions already there. Every step can ship on its own | We write and own what agent-native gives free: tool-schema derivation, an approval handshake, an eventual chat UI and loop. A chat UI is real work if we ever want one                                                                                                                |
-| **D. Do nothing**                                                                                                                                       | 0             | Low now    | No LLM cost, no risk of fabricated numbers, focus stays on the North-star                                                                                                    | No agent can operate trainm8. The "AI later" seams stay unused. Route actions remain the only API, and the intents scattered across route files make a later agent layer harder                                                                                                       |
-| **E. trainm8 as an MCP server** (built on C's registry, no in-app agent at first)                                                                       | L             | Medium     | Claude and ChatGPT users can operate trainm8 now, paid by their own subscription. No model key in trainm8. It tests the operation registry against a real outside caller     | OAuth and connector work, ~4–8 weeks with the reads and writes (MCP note §9). Only non-Strava data may cross (§7). No control over the host's prose. Undo UX happens outside trainm8; the athlete's yes comes back to its own card                                                    |
+| Option                                                                                                                                                                                                        | Effort                                                                                                                                  | Risk       | What we gain                                                                                                                                                                 | What we lose                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A. Adopt agent-native as the app framework**                                                                                                                                                                | XL (about 6–10 months, [open-stack note](agent-native-open-stack.md) §5)                                                                | Very high  | Chat UI, MCP server with OAuth, A2A, skills and memory in SQL, approvals, audit log, evals, automations, a parity discipline. All of it maintained by someone else           | The loader/session SSR model: the session cookie is stripped from every SSR request, so every logged-in page fetches client-side. A Nitro 3 beta runtime; about 6–7 app-facing breaks a month; a team-tool ownership model; Base UI chrome; much of the ADR body that depends on them. (SQLite, LiteFS, Prisma and React Router 7 were losses too, until the owner opened the stack.) trainm8 would be tied to an alpha framework that breaks APIs in minors, with one dominant author |
+| **B. Embed or use parts as a library** (sidecar plugin, or AgentKit only)                                                                                                                                     | L                                                                                                                                       | High       | In-app chat and an MCP server without writing them; AgentKit's chat protocol                                                                                                 | A second runtime (Nitro) and, until trainm8 is on Postgres, a second database next to Express and SQLite, which contradicts "Limit Services". Two auth systems bridged. An imported Radix chat UI. An upgrade tax on every release. AgentKit alone gives a chat protocol and none of the hard parts. With Postgres it collapses into a companion app ([open-stack note](agent-native-open-stack.md) §8)                                                                                |
+| **C. Build a small agent-native layer in trainm8**: an operation registry, screen context, the agent as `ProposalAuthor`, undo tokens, an honesty guard                                                       | S–M per phase                                                                                                                           | Low–medium | Principles that fit trainm8's existing seams (ADR 0053, 0080, 0088). No new services. Reuses the zod schemas and result unions already there. Every step can ship on its own | We write and own what agent-native gives free: tool-schema derivation, an approval handshake, an eventual chat UI and loop. A chat UI is real work if we ever want one                                                                                                                                                                                                                                                                                                                 |
+| **C+. C on agent-native's stack minus the framework** (recommended, with E): Better Auth first (with `@better-auth/mcp` + `@better-auth/cimd` for MCP OAuth), Postgres on a trigger, Drizzle after its 1.0 GA | Better Auth about 3–5 weeks, then MCP OAuth about 1–2 weeks; Postgres and Drizzle later ([`stack-migration.md`](stack-migration.md) §7) | Low–medium | C's gains, plus maintained auth and a bought MCP authorization server. The stack converges on agent-native's, so adopting it at 1.0 stays possible                           | C's costs, plus Better Auth's breaking minors and one forced sign-in (2FA users re-enrol). Postgres on Neon or Fly MPG moves the app out of `arn` ([`stack-migration.md`](stack-migration.md) §5.1, §8)                                                                                                                                                                                                                                                                                |
+| **D. Do nothing**                                                                                                                                                                                             | 0                                                                                                                                       | Low now    | No LLM cost, no risk of fabricated numbers, focus stays on the North-star                                                                                                    | No agent can operate trainm8. The "AI later" seams stay unused. Route actions remain the only API, and the intents scattered across route files make a later agent layer harder                                                                                                                                                                                                                                                                                                        |
+| **E. trainm8 as an MCP server** (built on C's registry, no in-app agent at first)                                                                                                                             | L on today's auth; about 1–2 weeks of MCP OAuth after Better Auth (C+)                                                                  | Medium     | Claude and ChatGPT users can operate trainm8 now, paid by their own subscription. No model key in trainm8. It tests the operation registry against a real outside caller     | OAuth and connector work: ~4–8 weeks with the reads and writes on today's auth (MCP note §9); with Better Auth first, MCP OAuth with Claude lands at about weeks 4–7 from today ([`stack-migration.md`](stack-migration.md) §1.3). Each origin platform's terms decide what may cross (§7). No control over the host's prose. Undo UX happens outside trainm8; the athlete's yes comes back to its own card                                                                            |
 
-**Strava's terms bound every option that puts a model near the data.** A, B, C's
-agent and E may expose or feed a model only non-Strava data (Strava API Policy
-§5.16(b), §5.3; §7 below). Even D is bound by Policy §6.2's seven-day cache,
-which applies to trainm8 today (MCP note §6.1).
+**Recommended: C+ with E** (§7). A′ (a fresh scaffold with the domain ported)
+and the forks F1–F3 are priced in the verdict table of
+[`agent-native-open-stack.md`](agent-native-open-stack.md#verdict-table): a hard
+fork would own about 887 k lines, and only small leaf modules are worth
+transplanting.
+
+**Origin-platform terms bound every option that puts a model near the data**
+(§7): Garmin's written approval and attribution, Polar's explicit permission,
+and, for any health data, GDPR's explicit consent and a DPIA. If Strava returns,
+A, B, C's agent and E may expose or feed a model only non-Strava data (Strava
+API Policy §5.16(b), §5.3). Even D is bound by Policy §6.2's seven-day cache for
+the Strava rows still stored (MCP note §6.1).
 
 ---
 
 ## 7. Recommendation
 
-**Build our own (C), and make the MCP server (E) its first external surface. Do
-not adopt or embed agent-native.** Two facts settle it. agent-native removed
-SQLite a month ago and requires Postgres, Nitro and React Router 8, so even its
-lightest embedding adds a second runtime and a second database to a stack built
-on "Limit Services". And everything that makes its principles valuable already
-has a trainm8-shaped home: the `ProposalAuthor` and `SeasonGenerator` seams, the
-ownership gate, preview-first approval and token-guarded undo. A small registry
-connects them to an agent.
+**Build our own layer (C+), on agent-native's stack minus the framework, and
+make the MCP server (E) its first external surface. Do not adopt, embed or fork
+agent-native.** This note first rested the verdict on stack conflicts: Postgres,
+Nitro and React Router 8 against SQLite, Express and React Router 7. Those are
+gone, because the owner will move to Better Auth, Postgres and Drizzle in that
+order: Better Auth on today's Prisma + SQLite, then MCP OAuth through
+`@better-auth/mcp` + `@better-auth/cimd` + `jwt()`, then Postgres when a trigger
+fires, then Drizzle after its 1.0 GA
+([`stack-migration.md`](stack-migration.md)). What still settles it
+([`agent-native-open-stack.md`](agent-native-open-stack.md)):
 
-**Strava's terms decide what C and E may show a model.** The MCP note verified
-Strava's API Policy (effective 2026-06-01;
+- agent-native strips the session cookie from every SSR request, so every
+  logged-in page would fetch client-side;
+- its server runtime is the Nitro 3 beta;
+- it ships about 6–7 app-facing breaks a month;
+- its ownership model is a team tool's;
+- adopting it (A) would take about 6–10 months;
+- a fork would own about 887 k lines.
+
+And everything that makes its principles valuable already has a trainm8-shaped
+home: the `ProposalAuthor` and `SeasonGenerator` seams, the ownership gate,
+preview-first approval and token-guarded undo. A small registry connects them to
+an agent.
+
+**Origin-platform terms decide what C+ and E may show a model.** trainm8 no
+longer uses Strava. Data comes straight from the watch vendors, with
+Intervals.icu as a temporary bridge, and each one's terms bind
+([`watch-data-sources.md`](watch-data-sources.md) §6; the per-vendor summary is
+in
+[`mcp-server-for-trainm8.md` §6.1](mcp-server-for-trainm8.md#61-the-strava-gate-a-new-reason-for-an-unavailable-metric)):
+
+- **Garmin:** a direct integration needs written §5.2(o) approval naming the MCP
+  clients, and its brand guidelines require attribution on AI output, preserved
+  downstream, for Garmin data from any route, Intervals.icu included. Its
+  program has been closed to new applicants since 2026-03-25, and Intervals.icu,
+  trainm8's only Garmin source, expects to block Garmin data soon.
+- **Polar** needs the athlete's explicit permission.
+- **Health data:** training data is Art. 9 health data, so an agent needs
+  explicit consent and a DPIA
+  ([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) §3).
+
+Proposed ADR 0096 records the origin platform behind every value, and the
+registry applies that platform's terms (proposed ADR 0098). A value the terms
+forbid goes out as an Unavailable Metric with a `source-terms` reason.
+
+**If Strava returns, its terms are stricter still.** They also bind today for
+Strava-sourced rows still stored, for Strava data still arriving through a
+connection made before Strava was hidden, and for stubs arriving through
+Intervals.icu ([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md)
+§6.2–6.3). The MCP note verified Strava's API Policy (effective 2026-06-01;
 [`mcp-server-for-trainm8.md` §6.1](mcp-server-for-trainm8.md#61-the-strava-gate-a-new-reason-for-an-unavailable-metric)).
 §5.16(b) forbids operating any MCP server that exposes Strava Data. §5.3 forbids
 Strava Data, or anything derived from it, in the operation of any AI
@@ -937,8 +1041,8 @@ integration would need Garmin's written approval first, its §5.2(o)). Every
 Strava-derived value goes out as an Unavailable Metric with a `source-terms`
 reason. For Strava data itself, the legitimate path is Strava's own MCP, which a
 Strava subscriber can connect to the same assistant beside trainm8's (Policy
-§3.5). The verdict stands; the constraint narrows what the first slice can show
-a model (§7.2, Phase 1).
+§3.5). The verdict stands either way; the terms narrow what the first slice can
+show a model (§7.2, Phase 1).
 
 ### 7.1 What to borrow
 
@@ -971,8 +1075,9 @@ is the newest in `docs/adr/`).**
    tools and MCP."_ It defines `defineAction` in `app/actions/`, its kinds, the
    failure contract (`{ ok: false, reason }` becomes a tool error with a
    `labels.ts` message), JSON-native input beside the Conform form schema, and
-   the `Reading` union with its `source-terms` reason and Strava gate. The MCP
-   note's §8.4 is its fuller outline.
+   the `Reading` union with its `source-terms` reason and provenance gate, which
+   keys on each value's origin platform (0096) and applies that platform's terms
+   (0098). The MCP note's §8.4 is its fuller outline.
 2. **0093**, _"An agent is a proposal author and a generator's caller, never a
    session writer; its 'Ok' is not the athlete's yes."_ It **amends ADR 0080 §3
    and §6** by naming the agent author and the `needs-athlete-yes` result. It
@@ -982,8 +1087,17 @@ is the newest in `docs/adr/`).**
    handles wherever a model sees them). The MCP note's §8.4 items 5–6 are the
    same amendments.
 
-The MCP authorization server (**0094**) and an in-app agent (**0095**) are the
-MCP note's to propose (§3.3 and §8.4 there).
+The later ADRs, numbered the same way across the research notes:
+
+- **0094**: Better Auth owns login and is the MCP authorization server, with
+  node-oidc-provider as the fallback (MCP note §3.3, §8.4;
+  [`stack-migration.md`](stack-migration.md)).
+- **0095**: the in-app agent, on Bedrock `eu-north-1`, behind a paid tier, after
+  a DPIA ([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) §5).
+- **0096**: activity provenance and cross-provider identity
+  ([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md)).
+- **0097**: workout export (same note).
+- **0098**: source terms per origin platform (same note).
 
 **Phase 1: the first vertical slice, Ukeskiftet (read and answer).**
 
@@ -1000,17 +1114,25 @@ Why this slice:
 - Answers are the riskiest writes ADR 0080 regulates. Getting the agent's gate
   right here sets the pattern for the rest.
 
-**Strava caveat.** Week Replan proposals are computed from Weekly Plan Adherence
-and TSB (`decideWeekReplan`, `TM app/utils/load/week-replan.ts:250`), and the
-reason prints the TSB. For an athlete who imports from Strava those inputs are
-Strava-derived. Building the slice behind its own route is untouched by that,
-because no model sees it. In front of a model it is the grey zone of the MCP
-note's §6.1 ("generated using Strava Data"; treat as no): reasons and inputs go
-out as `source-terms`, and whether the proposals themselves may go out is a
-question for Strava. Until that is settled, the cleanest slice to put in front
-of a model is athlete-authored plan data, the I dag composer, which the surface
-inventory ranks cleanest
-([`agent-layer-trainm8-surface.md`](agent-layer-trainm8-surface.md) §7).
+**Origin-platform caveat** (revised 2026-10-11; this was a Strava caveat). Week
+Replan proposals are computed from Weekly Plan Adherence and TSB
+(`decideWeekReplan`, `TM app/utils/load/week-replan.ts:250`), and the reason
+prints the TSB. Building the slice behind its own route is untouched by that,
+because no model sees it.
+
+In front of a model, those inputs carry their origin platform's terms. For
+Garmin-sourced load, Garmin's attribution goes on the output ("Insights derived
+in part from Garmin device-sourced data"), and a direct Garmin integration also
+needs written §5.2(o) approval. Polar-sourced load needs explicit permission.
+For athletes whose data is not from Strava, that is no longer a grey zone. The
+MCP note's §6.1 analysis ("generated using Strava Data"; treat as no) applies
+only if Strava returns, or to Strava-sourced rows still stored.
+
+Applying origin-platform terms needs the origin platform on every value
+(proposed ADR 0096), and that does not exist yet. Until it does, the cleanest
+slice to put in front of a model is still athlete-authored plan data, the I dag
+composer ([`agent-layer-trainm8-surface.md`](agent-layer-trainm8-surface.md) §7,
+re-ranked there).
 
 Operations in the slice:
 
@@ -1039,14 +1161,17 @@ Tests:
 
 **Phase 2: MCP (E), which is the MCP note's Phases 0–2.** Read-only on a dev
 token, then OAuth and the Claude connector, then proposals and the composer's
-writes with undo handles: about 4–8 weeks in that note's estimates (§9 there),
-most of it the authorization server. Expose the Phase 1 operations, using the
-auth and transport the sibling doc recommends, behind the Strava gate (§7):
-`get-week-change` as a tool, the answering operations app-only (the MCP note's
-`answer_proposal`, §7 there), so the model never answers. The athlete answers on
-the Ukeskiftet card or in that widget, not through an in-call approval round
-trip (§5.4c). Write results carry a deep link to I dag. Read-only scope first.
-The wider tool surface is designed in
+writes with undo handles: about 4–8 weeks in that note's original estimates (§9
+there), most of it the authorization server. With Better Auth first, the
+authorization server takes about 1–2 weeks after a 3–5 week login move, and MCP
+OAuth with Claude lands at about weeks 4–7 from today
+([`stack-migration.md`](stack-migration.md) §1.3, §7). Expose the Phase 1
+operations, using the auth and transport the sibling doc recommends, behind the
+provenance gate (§7): `get-week-change` as a tool, the answering operations
+app-only (the MCP note's `answer_proposal`, §7 there), so the model never
+answers. The athlete answers on the Ukeskiftet card or in that widget, not
+through an in-call approval round trip (§5.4c). Write results carry a deep link
+to I dag. Read-only scope first. The wider tool surface is designed in
 [`mcp-server-for-trainm8.md`](mcp-server-for-trainm8.md), not here.
 
 **Phase 3: more operations, then undo.** The composer's `write-session`, _Gjort_
@@ -1057,14 +1182,15 @@ an `undo-*` operation. Then add `view-screen` (§5.4b) for whenever an in-app
 chat exists.
 
 **Phase 4 (only if wanted): an LLM `ProposalAuthor`, proposed ADR 0095 (the MCP
-note's Phase 3).** Its facts (adherence, TSB) are Strava-derived for an athlete
-who imports from Strava, and Policy §5.3 forbids feeding them to a model, so for
-that athlete it would see only `source-terms` (§7). It needs an async
-`ProposalAuthor` (the widening ADR 0053 §1 foresaw). Its output is validated by
-the existing proposal union. Reasons are rendered from `labels.ts` templates
-filled from the payload. Evals check its honesty. Whether trainm8 should hold a
-model key at all, or leave all reasoning to the athlete's MCP host, is the
-owner's call (see Open questions).
+note's Phase 3).** Its facts (adherence, TSB) carry their origin platform's
+terms (§7), and any Strava-derived fact would reach it only as `source-terms`.
+Later research puts it on Bedrock `eu-north-1`, behind a paid tier, after a DPIA
+([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) §5). It needs an
+async `ProposalAuthor` (the widening ADR 0053 §1 foresaw). Its output is
+validated by the existing proposal union. Reasons are rendered from `labels.ts`
+templates filled from the payload. Evals check its honesty. Whether trainm8
+should hold a model key at all, or leave all reasoning to the athlete's MCP
+host, is the owner's call (see Open questions).
 
 ---
 
@@ -1101,15 +1227,15 @@ owner's call (see Open questions).
 
 Each ADR below was read before being cited.
 
-| ADR                                                                                    | What it decided                                                                                                     | What the evidence says                                                                                                                                                                                                                                                                                                                                                              | Verdict                                 |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| **0016** AI plan generation: native, typed, Event-anchored, preview-first (superseded) | Typed output, preview → approve → persist; §8 a hosted Claude provider (not in force)                               | Preview-first and typed output are what agent-native also arrives at: approvals before side effects, schemas as contracts (§2.3, §2.5). §8 is not in force; if a provider ever returns, it need not mean "trainm8 holds a key": with BYO-key engines and MCP hosts, the provider can be the athlete's (§5.5). Whether trainm8 holds a key at all is the owner's call (§7.2 Phase 4) | **Confirm** (§5); §8 stays not in force |
-| **0053** Season generation is deterministic behind the seam                            | A pure `SeasonGenerator`; a model arrives later as a second implementation; nothing reaches the calendar unapproved | Purity and preview are confirmed. agent-native suggests another place for a model: as a **caller** of a deterministic operation (the agent picks inputs, the rules generate), not only as a replacement implementation. That keeps §2's purity and regenerate-on-approve, and §8's preview-first rule, intact                                                                       | **Amend** (§1)                          |
-| **0080** Week Replan proposes, and the athlete's sessions need a yes                   | Proposals; silence applies only machine, load-reducing changes; §6 "AI later writes the same proposals"             | Confirmed as the right landing place for agent writes. It needs one extension that agent-native's `needsApproval` makes concrete: when an agent or MCP caller answers, that is **not** the athlete's yes. The athlete answers on the Ukeskiftet card; content-addressed, single-use approval (§2.5, §2.9.1) waits on host support (§5.4c)                                           | **Confirm** (and extend §3, §6)         |
-| **0088** Every write on I dag is undone from its toast and its landed row              | Toast + landed row carry _Angre_ for 10 s; undo is an owner-scoped delete or a token-guarded restore                | The rule is right and its mechanism is UI-only. Agent and MCP writes have no toast and no visible row. The undo token must be part of the write's **result**, with an `undo-*` operation, so every surface can offer the way back (behind an opaque handle wherever a model sees it, §5.4c)                                                                                         | **Amend**                               |
-| **0081** The planning redesign speaks Norwegian and `labels.ts` owns every word        | Every athlete-facing word comes from `labels.ts`                                                                    | Holds for an operation layer: refusals and reasons come from `labels.ts`. It becomes a live question the day an LLM authors a proposal `reason` (Open question 4)                                                                                                                                                                                                                   | **Confirm** (with a pending question)   |
-| **Decision 003** SQLite                                                                | SQLite on LiteFS as a deliberate simplification                                                                     | agent-native keeps all state in SQL because it assumes stateless serverless hosts (`AN key-concepts.mdx:444,485`). The docs I read do not say why that SQL must be Postgres. Nothing in the _principles_ needs Postgres (inference). The conflict is with the framework, not with the idea                                                                                          | **Confirm**                             |
-| **0085** The design system is shadcn base-luma on Base UI                              | Base UI primitives, one motion scale                                                                                | agent-native's chat and toolkit UI is Radix-based (`AN packages/toolkit/package.json`). Importing it would split the design system. One more reason against B                                                                                                                                                                                                                       | **Confirm**                             |
+| ADR                                                                                    | What it decided                                                                                                     | What the evidence says                                                                                                                                                                                                                                                                                                                                                                                                 | Verdict                                                                                                                                                               |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0016** AI plan generation: native, typed, Event-anchored, preview-first (superseded) | Typed output, preview → approve → persist; §8 a hosted Claude provider (not in force)                               | Preview-first and typed output are what agent-native also arrives at: approvals before side effects, schemas as contracts (§2.3, §2.5). §8 is not in force; if a provider ever returns, it need not mean "trainm8 holds a key": with BYO-key engines and MCP hosts, the provider can be the athlete's (§5.5). Whether trainm8 holds a key at all is the owner's call (§7.2 Phase 4)                                    | **Confirm** (§5); §8 stays not in force. An in-app provider is proposed ADR 0095's: Bedrock `eu-north-1` ([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md)) |
+| **0053** Season generation is deterministic behind the seam                            | A pure `SeasonGenerator`; a model arrives later as a second implementation; nothing reaches the calendar unapproved | Purity and preview are confirmed. agent-native suggests another place for a model: as a **caller** of a deterministic operation (the agent picks inputs, the rules generate), not only as a replacement implementation. That keeps §2's purity and regenerate-on-approve, and §8's preview-first rule, intact                                                                                                          | **Amend** (§1), in proposed ADR 0093                                                                                                                                  |
+| **0080** Week Replan proposes, and the athlete's sessions need a yes                   | Proposals; silence applies only machine, load-reducing changes; §6 "AI later writes the same proposals"             | Confirmed as the right landing place for agent writes. It needs one extension that agent-native's `needsApproval` makes concrete: when an agent or MCP caller answers, that is **not** the athlete's yes. The athlete answers on the Ukeskiftet card; content-addressed, single-use approval (§2.5, §2.9.1) waits on host support (§5.4c)                                                                              | **Confirm** (and extend §3, §6 in proposed ADR 0093)                                                                                                                  |
+| **0088** Every write on I dag is undone from its toast and its landed row              | Toast + landed row carry _Angre_ for 10 s; undo is an owner-scoped delete or a token-guarded restore                | The rule is right and its mechanism is UI-only. Agent and MCP writes have no toast and no visible row. The undo token must be part of the write's **result**, with an `undo-*` operation, so every surface can offer the way back (behind an opaque handle wherever a model sees it, §5.4c)                                                                                                                            | **Amend** (in proposed ADR 0093)                                                                                                                                      |
+| **0081** The planning redesign speaks Norwegian and `labels.ts` owns every word        | Every athlete-facing word comes from `labels.ts`                                                                    | Holds for an operation layer: refusals and reasons come from `labels.ts`. It becomes a live question the day an LLM authors a proposal `reason` (Open question 4)                                                                                                                                                                                                                                                      | **Confirm** (with a pending question)                                                                                                                                 |
+| **Decision 003** SQLite                                                                | SQLite on LiteFS as a deliberate simplification                                                                     | agent-native keeps all state in SQL because it assumes stateless serverless hosts (`AN key-concepts.mdx:444,485`). The docs I read do not say why that SQL must be Postgres. Nothing in the _principles_ needs Postgres (inference). The conflict is with the framework, not with the idea The owner has since opened the stack: Postgres comes when a trigger fires ([`stack-migration.md`](stack-migration.md) §1.2) | **Confirm** until a trigger fires; then superseded by Postgres ([`stack-migration.md`](stack-migration.md))                                                           |
+| **0085** The design system is shadcn base-luma on Base UI                              | Base UI primitives, one motion scale                                                                                | agent-native's chat and toolkit UI is Radix-based (`AN packages/toolkit/package.json`). Importing it would split the design system. One more reason against B                                                                                                                                                                                                                                                          | **Confirm**                                                                                                                                                           |
 
 ---
 

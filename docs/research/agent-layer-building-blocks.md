@@ -24,6 +24,17 @@ each piece.
 > [`agent-layer-trainm8-surface.md`](agent-layer-trainm8-surface.md) inventories
 > the repo side: the write paths, read paths and safety rails these blocks would
 > wrap.
+>
+> **Later research.** [`agent-native-open-stack.md`](agent-native-open-stack.md)
+> re-asks adopt, fork or build with the stack open.
+> [`agent-platforms.md`](agent-platforms.md) compares other foundations.
+> [`stack-migration.md`](stack-migration.md) sequences Better Auth, MCP OAuth,
+> Postgres and Drizzle. [`watch-data-sources.md`](watch-data-sources.md) and
+> [`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) cover watch
+> data, each vendor's AI and MCP terms, and import provenance.
+> [`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) covers privacy,
+> regulation, model residency and cost. [`agent-strategy.md`](agent-strategy.md)
+> pulls the notes into one strategy.
 
 **Method.** Some doc pages came back through a summarising fetcher, so excerpts
 marked _condensed_ are trimmed; their identifiers and shapes match the source.
@@ -639,11 +650,31 @@ actions for I dag's writes (ADR 0088; see
 
 ## 9. Recommended minimal stack for a trainm8-owned agent layer
 
+> **Update 2026-10-11 (later research).**
+>
+> - The provenance filter in §9.1 is now per origin platform, not Strava-only.
+>   trainm8 no longer uses Strava, and each watch vendor's terms bind
+>   ([`watch-data-sources.md` §6](watch-data-sources.md#6-ai-and-mcp-terms-per-source)).
+>   The origin platform is a new provenance column
+>   ([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) §3).
+> - The in-app agent (proposed ADR 0095) goes on Bedrock `eu-north-1`, which
+>   lacks structured outputs
+>   ([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) §3.4, §5).
+> - MCP OAuth comes from Better Auth's `mcp` + `cimd` plugins
+>   ([`stack-migration.md`](stack-migration.md) §4.3).
+>
+> The library choices are otherwise unchanged:
+> [`agent-native-open-stack.md`](agent-native-open-stack.md) and
+> [`agent-platforms.md`](agent-platforms.md) keep AI SDK 7 and MCP SDK v2 in the
+> target stack.
+
 **Assumption.** trainm8 will expose an MCP server, so everything hangs off **one
 action registry**: `defineAction` in `app/actions/`, proposed ADR 0092 (MCP note
 §8). **Order:** the MCP server is the first surface; the in-app agent loop in
 §9.2 is the last, optional phase (proposed ADR 0095;
-[`agent-native.md`](agent-native.md) §7.2).
+[`agent-native.md`](agent-native.md) §7.2). Later research puts that agent on
+Bedrock `eu-north-1` behind a paid tier, after a DPIA
+([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) §5).
 
 ### 9.1 The registry, owned by trainm8 with no framework
 
@@ -665,14 +696,29 @@ export const logWorkout = defineAction({
 - `run(ctx, input)` does authz and writes an audit row,
   `{source, actionName, input, inverse}`, which powers "visible and undoable"
   (_design_).
-- **A data-provenance filter.** Every action's output carries the source of each
-  value, and the registry filters what a model-facing adapter (in-app agent or
-  MCP, not the UI) returns: a Strava-derived value goes out as an Unavailable
-  Metric with reason `source-terms`. Strava's API Policy forbids exposing Strava
-  Data through any MCP server (§5.16(b)) and using it, or anything derived from
-  it, in any AI Application, context windows included (§5.3)
+- **A data-provenance filter, per origin platform** (revised 2026-10-11; it was
+  Strava-only). Every action's output carries the origin platform, and the
+  device where known, of each value. The registry applies that platform's terms
+  to what a model-facing adapter (in-app agent or MCP, not the UI) returns
+  ([`watch-data-sources.md` §6](watch-data-sources.md#6-ai-and-mcp-terms-per-source);
+  proposed ADR 0098):
+  - Garmin-sourced or Garmin-derived values carry Garmin's attribution, and from
+    a direct Garmin integration they reach an MCP client only after Garmin's
+    written §5.2(o) approval.
+  - Polar values need the athlete's explicit permission.
+  - A value whose terms forbid the surface goes out as an Unavailable Metric
+    with reason `source-terms`.
+
+  If Strava returns, or for Strava-sourced rows still stored, every
+  Strava-derived value is `source-terms`. Strava's API Policy forbids exposing
+  Strava Data through any MCP server (§5.16(b)) and using it, or anything
+  derived from it, in any AI Application, context windows included (§5.3)
   ([`mcp-server-for-trainm8.md` §6.1](mcp-server-for-trainm8.md#61-the-strava-gate-a-new-reason-for-an-unavailable-metric)).
-  The source is already stored as `ActivityImport.externalProvider`.
+  `ActivityImport.externalProvider` stores only the transport (for example
+  `intervalsicu`), not the origin platform. The origin platform, device and FIT
+  key are new provenance columns, backfilled from `rawJson`
+  ([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) §3; proposed
+  ADR 0096).
 
 **Adapters, each a few lines:**
 
@@ -706,6 +752,15 @@ _Cost:_ fast major-version churn and an abstraction over Anthropic features.
 Prompt caching (`cacheControl`) and Anthropic server tools are supported. Newer
 betas, such as the `inline-tools` tool changes, may lag (_inference_).
 
+_Residency (added 2026-10-11):_ Anthropic's first-party API offers only US or
+`global` inference, and Anthropic is not on the DPF list. So the later
+recommendation puts the in-app agent on Claude in Bedrock `eu-north-1`
+([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) §3.4–3.5, §5). There
+a Bedrock provider takes the place of `@ai-sdk/anthropic`; which provider
+package fits was not checked here. Bedrock also lacks structured outputs, Batch
+and the MCP connector, so the registry's zod schemas validate every tool input
+and every model-written proposal server-side.
+
 **Fallback: `@anthropic-ai/sdk` directly.** It is already a dependency; bump the
 pin from `^0.102.0` to the current 0.133.x for `deferToolCall` and mid-run tool
 changes (§1). Write a manual loop, which the docs recommend for
@@ -715,7 +770,9 @@ _When to choose it:_ if you want zero new runtime dependencies or day-one access
 to Claude betas. You then own the stream protocol, the client state and the
 approval resume logic. Both paths can consume the same registry, but
 `betaZodTool` only takes zod 4 schemas: `zod/v4` today, or plain `zod` after an
-upgrade. With zod 3 schemas, use `betaTool` and a JSON Schema converter.
+upgrade. With zod 3 schemas, use `betaTool` and a JSON Schema converter. On
+Bedrock, [`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) calls the
+leftover `@anthropic-ai/sdk` the wrong client.
 
 **Chat UI: start with `useChat` + trainm8's own components.** The design system
 (ADR 0085) and the Emil Kowalski craft rules suggest owning the markup. Screen
@@ -730,9 +787,11 @@ screen". Treat its pre-1.0 and `unstable_` APIs as churn risk.
 
 **External agents: an MCP server** from the same registry. See
 [`mcp-server-for-trainm8.md`](mcp-server-for-trainm8.md) for transport and
-OAuth. Don't point the in-app agent at that server through Anthropic's MCP
-connector: it is beta and tools-only, has no approval step and is not
-ZDR-eligible (MCP note §8.2).
+OAuth. OAuth now comes from Better Auth's `@better-auth/mcp` +
+`@better-auth/cimd` ([`stack-migration.md`](stack-migration.md) §4.3). Don't
+point the in-app agent at that server through Anthropic's MCP connector: it is
+beta and tools-only, has no approval step and is not ZDR-eligible (MCP note
+§8.2).
 
 **Not recommended now:**
 
@@ -826,9 +885,9 @@ API (`from 'zod'`). The pieces disagree about that:
 
 ## ADRs this research challenges
 
-| ADR                                                                            | What it decided                                                                                                                                                        | What the sources say                                                                                                                                                                                                                                                                                                           | Verdict                                                                                                                                                                                                                                                                                      |
-| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **0016** AI plan generation                                                    | §8: a hosted Claude model via the Anthropic SDK with forced tool use, a key and model latency in the request path. Superseded by 0044; 0053 marks §8 not in force      | The recommended agent stack reaches Claude through `@ai-sdk/anthropic`, not the `@anthropic-ai/sdk` that §8 named and that `package.json` still pins at an unused, stale `^0.102.0`. A chat agent also wants things §8 never covered: multi-turn tool loops, approvals and streaming UI                                        | **Confirm** the supersession. Don't revive §8 for the agent; record the agent's provider and runtime in a new ADR (proposed 0095)                                                                                                                                                            |
-| **0053** Season generation is deterministic behind the seam                    | The `SeasonGenerator` seam is synchronous (§1) and pure (§2); approval regenerates rather than trusting a posted payload; nothing unapproved reaches the calendar (§8) | Every model client surveyed is asynchronous, as §1 foresaw. Structured outputs can force a model to emit the payload's shape, but a model is not deterministic, so §2's approve-by-regenerating cannot hold for a model generator. The AI SDK's stateless approval round trip fits §8 well                                     | **Amend** when a model implementation lands: widen §1 to a Promise, and bind approval to the stored preview (for example ADR 0084's digest) rather than regenerating                                                                                                                         |
-| **0080** Week Replan proposes, and the athlete's own sessions need a yes       | §6: "AI later writes the same proposals on the same surface"; only the author changes                                                                                  | Strict tool use and `output_config.format` can make a model emit `ProposalPayloadSchema`-shaped proposals, but numeric and length constraints are not enforced on the wire, so the server must still parse every model proposal with the domain schema. That schema is zod 3, so `zodOutputFormat` cannot take it as is (§9.3) | **Amend** §6: a model author is asynchronous, must be re-validated server-side, needs a zod 4 (or JSON Schema) twin of the payload union, and its proposals should record their author                                                                                                       |
-| **0088** Every write on I dag is undone from its toast and from its landed row | One undo per write, shown for 10 s, through an owner-scoped delete or a compare-and-set token                                                                          | No library surveyed offers undo of application data; all of them give a place to render a tool's result (AI SDK tool parts, CopilotKit `render`, assistant-ui tool UIs). That tool part is the natural "landed row" for an agent's write                                                                                       | **Amend**: extend §1's rule to agent writes. The tool result says what changed and carries _Angre_ with the same token, held behind an opaque server-side handle because it passes through a model (MCP note §6.4), and the ADR should state the bound for an undo offered in a conversation |
+| ADR                                                                            | What it decided                                                                                                                                                        | What the sources say                                                                                                                                                                                                                                                                                                           | Verdict                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0016** AI plan generation                                                    | §8: a hosted Claude model via the Anthropic SDK with forced tool use, a key and model latency in the request path. Superseded by 0044; 0053 marks §8 not in force      | The recommended agent stack reaches Claude through `@ai-sdk/anthropic`, not the `@anthropic-ai/sdk` that §8 named and that `package.json` still pins at an unused, stale `^0.102.0`. A chat agent also wants things §8 never covered: multi-turn tool loops, approvals and streaming UI                                        | **Confirm** the supersession. Don't revive §8 for the agent; record the agent's provider and runtime in a new ADR (proposed 0095). Later research names Bedrock `eu-north-1` behind a paid tier, after a DPIA, so the provider is Bedrock's rather than `@ai-sdk/anthropic` ([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md)) |
+| **0053** Season generation is deterministic behind the seam                    | The `SeasonGenerator` seam is synchronous (§1) and pure (§2); approval regenerates rather than trusting a posted payload; nothing unapproved reaches the calendar (§8) | Every model client surveyed is asynchronous, as §1 foresaw. Structured outputs can force a model to emit the payload's shape, but a model is not deterministic, so §2's approve-by-regenerating cannot hold for a model generator. The AI SDK's stateless approval round trip fits §8 well                                     | **Amend** when a model implementation lands: widen §1 to a Promise, and bind approval to the stored preview (for example ADR 0084's digest) rather than regenerating                                                                                                                                                                     |
+| **0080** Week Replan proposes, and the athlete's own sessions need a yes       | §6: "AI later writes the same proposals on the same surface"; only the author changes                                                                                  | Strict tool use and `output_config.format` can make a model emit `ProposalPayloadSchema`-shaped proposals, but numeric and length constraints are not enforced on the wire, so the server must still parse every model proposal with the domain schema. That schema is zod 3, so `zodOutputFormat` cannot take it as is (§9.3) | **Amend** §6: a model author is asynchronous, must be re-validated server-side, needs a zod 4 (or JSON Schema) twin of the payload union, and its proposals should record their author (proposed ADR 0093). On Bedrock, the planned host, there are no structured outputs at all, so server-side parsing is the only guard               |
+| **0088** Every write on I dag is undone from its toast and from its landed row | One undo per write, shown for 10 s, through an owner-scoped delete or a compare-and-set token                                                                          | No library surveyed offers undo of application data; all of them give a place to render a tool's result (AI SDK tool parts, CopilotKit `render`, assistant-ui tool UIs). That tool part is the natural "landed row" for an agent's write                                                                                       | **Amend** (in proposed ADR 0093): extend §1's rule to agent writes. The tool result says what changed and carries _Angre_ with the same token, held behind an opaque server-side handle because it passes through a model (MCP note §6.4), and the ADR should state the bound for an undo offered in a conversation                      |

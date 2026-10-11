@@ -72,31 +72,42 @@ challenges** table (Confirm / Amend / Supersede).
 
 ## The agent layer
 
-Four more documents, outside the endurance-science corpus, answer one question:
-should trainm8 adopt Builder.io's **agent-native** framework, or build its own
-agent layer on the same principles?
+Eleven more documents, outside the endurance-science corpus, answer the owner's
+questions about an agent layer: adopt Builder.io's **agent-native**, fork it, or
+build our own on its principles; which stack, in what order; MCP; and training
+data straight from the watch. [agent-strategy.md](agent-strategy.md) is the
+decision; the other ten back it.
 
 | Document                                                         | Covers                                                                                                                                                                                                                    |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [agent-strategy.md](agent-strategy.md)                           | **The capstone.** The answer in one screen, a decision map per axis, the phased path with effort and gates, what to fix and whom to write to this week, the ADR roadmap 0092–0099, and the owner's open decisions         |
 | [agent-native.md](agent-native.md)                               | The framework read from source — one `defineAction` per capability, served to UI, agent, MCP and A2A — its Postgres / Nitro 3 / React Router 8 stack and release churn, fit with trainm8, options A–E and the phased plan |
+| [agent-native-open-stack.md](agent-native-open-stack.md)         | The same question once Postgres, Drizzle and Better Auth are accepted: the SSR rule enforced in code, churn, full adoption priced at 6–10 months, forks and MIT transplants priced, and the C+ verdict                    |
+| [agent-platforms.md](agent-platforms.md)                         | Convex, the Cloudflare Agents SDK, Mastra, Supabase and sync engines against the agent-native principles; candidate stacks, where an EU Postgres can live, and SSE over `NOTIFY`                                          |
+| [stack-migration.md](stack-migration.md)                         | Better Auth → MCP OAuth (`@better-auth/mcp` + `cimd`) → Postgres on a trigger → Drizzle after its 1.0 GA: repo inventory, user migration, region, phases and a risk register                                              |
 | [mcp-server-for-trainm8.md](mcp-server-for-trainm8.md)           | MCP spec 2026-07-28, remote MCP with OAuth 2.1, the Claude and ChatGPT connectors, MCP Apps, a proposed tool surface and registry (ADR 0092), and what Strava's API Policy allows                                         |
 | [agent-layer-trainm8-surface.md](agent-layer-trainm8-surface.md) | The repo side: 70 action modules rated by seam, the read paths, the safety rails an agent must reuse (proposals, digests, undo, ownership), and the first-slice candidates                                                |
 | [agent-layer-building-blocks.md](agent-layer-building-blocks.md) | Anthropic SDK tool runner, Claude Agent SDK, MCP SDK v2, Vercel AI SDK 7, CopilotKit, assistant-ui, A2A; the recommended minimal stack and what the zod 3 pin means for each                                              |
+| [watch-data-sources.md](watch-data-sources.md)                   | Garmin, Suunto, Polar, COROS, Wahoo, aggregators and the phone stores: access, data, write-back, each source's AI and MCP terms, the build order and vendor outreach                                                      |
+| [watch-data-trainm8-ingest.md](watch-data-trainm8-ingest.md)     | Today's integrations, the FIT-first path, cross-provider identity and dedupe, leaving Intervals.icu without losing a Recording, workout export, and defects that apply today                                              |
+| [ai-product-privacy-cost.md](ai-product-privacy-cost.md)         | The AI-coaching landscape and its MCP servers, twelve ranked agent jobs, GDPR Art. 9, the DPIA and the AI Act in Norway, EU residency for inference, and the cost per athlete                                             |
 
 ### Synthesis
 
-- **Verdict:** build our own small layer, MCP server first: one `defineAction`
-  registry in `app/actions/` (ADR 0092). Don't adopt or embed agent-native.
-- **Binding finding: Strava's API Policy.** §5.16(b) bars MCP servers exposing
-  Strava Data; §5.3 bars it and its derivatives from any AI context window;
-  §5.10: consent doesn't cure. Such values leave as an **Unavailable Metric**
-  (`source-terms`).
-- **Urgent, and not about AI:** §6.2's seven-day cache already binds the shipped
-  Strava import, whose `rawJson` has no time limit.
-- **Zod:** registry schemas in `'zod/v4'` now; zod ≥ 4.2 before MCP ships.
-- **Plan:** 0 · ADRs 0092–0093 → 1 · registry on Ukeskiftet, no model → 2 · MCP,
-  ~4–8 weeks, the composer before Week Replan → 3 · more operations → 4 ·
-  optional in-app agent (ADR 0095).
+- **Verdict:** build our own small layer on agent-native's principles and its
+  stack minus the framework. Don't adopt or fork it; revisit at its 1.0.
+- **Order:** Better Auth on Prisma + SQLite → MCP OAuth via `@better-auth/mcp` +
+  `cimd` → Postgres on a trigger → Drizzle after 1.0 GA.
+- **MCP first** on one `defineAction` registry (ADR 0092); the model proposes,
+  the athlete's yes stays in trainm8 (0093); an in-app agent last, on Bedrock
+  `eu-north-1` (0095).
+- **Binding constraints:** Garmin's closed program and §5.2(o) approval;
+  per-vendor consent and attribution; GDPR Art. 9 and EU residency. Strava is
+  unused, so its terms bind only if it returns or its rows remain.
+- **Watch data:** FIT first, origin platform on every import (0096, 0098); Polar
+  → COROS → Suunto → Garmin; Intervals.icu is a bridge losing Garmin.
+- **Fix now, not about AI:** Garmin attribution, the privacy page, the export,
+  encrypted provider credentials, the dedupe key, the Strava stubs.
 
 ## The portability problem
 

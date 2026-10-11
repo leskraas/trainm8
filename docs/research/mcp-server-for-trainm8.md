@@ -15,14 +15,46 @@ Research note · **2026-10-11** · written from primary sources.
 [`agent-layer-trainm8-surface.md`](agent-layer-trainm8-surface.md) (the repo's
 write paths, read paths and safety rails) and
 [`agent-layer-building-blocks.md`](agent-layer-building-blocks.md) (the agent
-libraries, the recommended stack and the zod plan). Repo claims cite `file:line`
-as read on 2026-10-11. One non-MCP source decides the scope — **Strava's API
-Policy** (effective 2026-06-01, §6.1). Not legal advice. Unverifiable claims are
-marked _unverified_ and listed in §10.4.
+libraries, the recommended stack and the zod plan). Later research:
+[`agent-native-open-stack.md`](agent-native-open-stack.md) (adopt, fork or build
+with the stack open), [`agent-platforms.md`](agent-platforms.md) (other
+foundations), [`stack-migration.md`](stack-migration.md) (Better Auth, MCP
+OAuth, Postgres, Drizzle), [`watch-data-sources.md`](watch-data-sources.md) and
+[`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) (watch data and
+each vendor's AI and MCP terms),
+[`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) (privacy, regulation,
+cost) and [`agent-strategy.md`](agent-strategy.md) (the notes as one strategy).
+Repo claims cite `file:line` as read on 2026-10-11. Non-MCP sources decide the
+scope: each origin platform's terms
+([`watch-data-sources.md`](watch-data-sources.md) §6) and, if Strava returns,
+**Strava's API Policy** (effective 2026-06-01, §6.1). Not legal advice.
+Unverifiable claims are marked _unverified_ and listed in §10.4.
 
 ---
 
 ## TL;DR
+
+> **Update 2026-10-11 (later research).** Three things changed.
+>
+> - **Auth.** Better Auth will own the login. `@better-auth/mcp` +
+>   `@better-auth/cimd` + `jwt()` become the authorization server, about 1–2
+>   weeks after a 3–5 week login move, and node-oidc-provider is the fallback
+>   (§3.3, §9; [`stack-migration.md`](stack-migration.md)). One conflict is
+>   open: Better Auth's docs advise `legacy: "reject"`, while §2.2 requires
+>   serving both protocol eras.
+> - **Terms.** trainm8 no longer uses Strava. Data comes from the watch vendors,
+>   with Intervals.icu as a temporary bridge, so each origin platform's terms
+>   bind, and §6.1's Strava gate applies only if Strava returns
+>   ([`watch-data-sources.md` §6](watch-data-sources.md#6-ai-and-mcp-terms-per-source),
+>   [`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md)).
+> - **Privacy.** Training data is Art. 9 health data (explicit consent, a DPIA),
+>   and Phase 3's in-app agent goes on Bedrock `eu-north-1`
+>   ([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md)).
+>
+> Proposed ADRs are realigned as 0092–0098 (§8.4).
+> [`agent-native-open-stack.md`](agent-native-open-stack.md) and
+> [`agent-platforms.md`](agent-platforms.md) settle the foundation: our own
+> layer on agent-native's stack minus the framework, with this server first.
 
 1. **The protocol changed shape on 2026-07-28.** It is stateless: no
    `initialize`, no `Mcp-Session-Id`, version and capabilities in every
@@ -37,17 +69,29 @@ marked _unverified_ and listed in §10.4.
    ([Claude](https://claude.com/docs/connectors/building)). The v2 TypeScript
    SDK's `createMcpHandler` serves 2025-era clients statelessly **by default**
    ([legacy clients](https://ts.sdk.modelcontextprotocol.io/v2/serving/legacy-clients.html)).
-3. **Strava's API Policy is the binding constraint, not MCP.** Strava's §5.16(b)
-   forbids operating "any MCP Server … that exposes … Strava Data, or any subset
-   thereof". §5.3 forbids "ingestion into a context window" of Strava Data **and
-   of data derived from it**
+   Better Auth's MCP docs advise `legacy: "reject"` instead; that conflict is
+   open (§2.2).
+3. **The data's origin platform is the binding constraint, not MCP.** trainm8 no
+   longer uses Strava. Data comes from the watch vendors, with Intervals.icu as
+   a temporary bridge, and each vendor's terms bind
+   ([`watch-data-sources.md` §6](watch-data-sources.md#6-ai-and-mcp-terms-per-source)):
+   - for a direct Garmin integration, §5.2(o) needs written approval naming the
+     MCP clients, and Garmin's brand guidelines put attribution on AI output
+     from any route;
+   - Polar needs explicit member permission.
+
+   A value whose terms forbid the surface crosses the MCP boundary as an
+   **Unavailable Metric** with a `source-terms` reason (§6.1). **If Strava
+   returns**, or for Strava-sourced rows still stored, its terms are stricter.
+   Strava's §5.16(b) forbids operating "any MCP Server … that exposes … Strava
+   Data, or any subset thereof". §5.3 forbids "ingestion into a context window"
+   of Strava Data **and of data derived from it**
    ([Strava API Policy](https://www.strava.com/legal/api_policy)). Every actual
-   that came through the Strava API, and every number or proposal computed from
-   one (a Week Replan reason quotes the TSB), must cross the MCP boundary as an
-   **Unavailable Metric** with a `source-terms` reason. Files the athlete
-   uploads, Strava bulk exports included, and Intervals.icu imports are not
-   "Strava Data" as the API Agreement defines it (§6.1). That is the building
-   principle doing exactly its job.
+   from the Strava API, and everything computed from one, would cross as
+   `source-terms`. Files the athlete uploads, Strava bulk exports included, and
+   Intervals.icu imports are not "Strava Data" as the API Agreement defines it
+   (§6.1). That is the building principle doing exactly its job.
+
 4. **Hosting is easy, because v2 serves Fetch requests.** `createMcpHandler()`
    returns `{ fetch(request, { authInfo }) }`
    ([web-standard](https://ts.sdk.modelcontextprotocol.io/v2/serving/web-standard.html)).
@@ -60,6 +104,9 @@ marked _unverified_ and listed in §10.4.
    `resource`-bound audiences (RFC 8707), rotating refresh tokens. The SDK
    "never issues" tokens and recommends a dedicated identity provider
    ([SDK authorization](https://ts.sdk.modelcontextprotocol.io/v2/serving/authorization.html)).
+   Once the login moves to Better Auth (about 3–5 weeks), `@better-auth/mcp` +
+   `@better-auth/cimd` + `jwt()` cover almost all of this in about 1–2 weeks.
+   node-oidc-provider is the fallback (§3.3).
 6. **ADR 0080 §6 already describes the write path.** It says: "AI later writes
    the same proposals on the same surface … Only the author of step 1 changes."
    The storage already accepts a proposal with `weekReplanId = null`, and
@@ -214,6 +261,14 @@ a fresh instance with no sessions and answers legacy GET or DELETE with `405`.
 `legacy: 'reject'` makes the endpoint modern-only
 ([legacy clients](https://ts.sdk.modelcontextprotocol.io/v2/serving/legacy-clients.html)).
 
+**Open conflict (2026-10-11).** Better Auth's MCP plugin docs say "Configure
+servers with `legacy: "reject"`", accepting only 2026-07-28
+([mcp](https://www.better-auth.com/docs/plugins/mcp)). That contradicts this
+section. [`stack-migration.md`](stack-migration.md) §4.4 reads its token checks
+as protocol-agnostic and keeps `legacy: 'stateless'` (inference there). A test
+of `requireMcpAuth` with a 2025-era client should settle it, and proposed ADR
+0094 records the choice (§3.3).
+
 ### 2.3 SDK choice, and a Zod mismatch to resolve first
 
 **v2 is the stable line.** `main` is v2 and implements 2026-07-28. v1.x
@@ -313,6 +368,11 @@ export async function action({ request }: Route.ActionArgs) {
 export const loader = () => new Response(null, { status: 405 })
 ```
 
+With Better Auth as the authorization server (§3.3), `requireMcpAuth` from
+`@better-auth/mcp` takes the place of `verifyMcpBearer`. It answers 401 with an
+RFC 9728 challenge, or 403 `insufficient_scope` naming every missing scope
+([`stack-migration.md`](stack-migration.md) §4.3).
+
 Four repo facts change the plan:
 
 1. **The rate limiter keys on IP.** `server/index.ts:99-156` puts every non-GET
@@ -325,10 +385,14 @@ Four repo facts change the plan:
 3. **LiteFS runs on a static lease, one node, always primary**
    (`other/litefs.yml`). Statelessness costs nothing today. If the app is ever
    scaled out, every MCP call is a POST, reads included; how the LiteFS proxy
-   routes POSTs to the primary was not re-verified for this note.
+   routes POSTs to the primary was not re-verified for this note. (A second
+   machine is one of the triggers that moves trainm8 to Postgres and drops
+   LiteFS: [`stack-migration.md`](stack-migration.md) §1.2.)
 4. **The `/.well-known/…` discovery documents (§3) need routes.** The repo
    already serves dotted paths through escaped route files
-   (`app/routes/_seo/robots[.]txt.ts`).
+   (`app/routes/_seo/robots[.]txt.ts`). With Better Auth mounted at `/api/auth`,
+   root `/.well-known/*` routes forward to `auth.handler`
+   ([`stack-migration.md`](stack-migration.md) §4.4, inference there).
 
 ---
 
@@ -404,23 +468,47 @@ and outbound provider tokens): OAuth clients, consent grants, authorization
 codes, hashed access and refresh tokens with their rotation family.
 **Settings:** a "connected assistants" page that lists grants and revokes them.
 
-**Three ways to get an authorization server:**
+Under option D below, the Better Auth plugins serve these endpoints and own the
+OAuth tables: `oauthClient`, `oauthAccessToken`, `oauthRefreshToken`,
+`oauthConsent` and `oauthClientAssertion`. trainm8 still builds the consent page
+(on a Better Auth session) and the connected-assistants page
+([`stack-migration.md`](stack-migration.md) §4.3–4.4).
 
-| Option                                                                     | For                                                                                                                                                                                                                                                                                                         | Against                                                                                                                                                                                                    |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A. In-app AS on a certified library** such as `panva/node-oidc-provider` | It reuses trainm8's login and sessions, so there is one user identity. The library lists RFC 7591, 7636, 8414, **8707**, **9207** and 9068, with CIMD as experimental ([README](https://github.com/panva/node-oidc-provider)). MIT-licensed and actively released (`oidc-provider` 9.12.2, 2026-09-05, npm) | trainm8 then operates an AS: key rotation, token storage and a consent UI. CIMD support is experimental (Draft 02). It is built on Koa, but the README documents mounting it into an existing Express app. |
-| **B. Hosted identity provider** (the SDK's recommendation)                 | "Use a dedicated identity provider for new servers" ([SDK authorization](https://ts.sdk.modelcontextprotocol.io/v2/serving/authorization.html))                                                                                                                                                             | trainm8's users live in its own `User` table. The provider must federate to trainm8's login, or users get a second account. It is a new vendor in the auth path.                                           |
-| **C. v1 `mcpAuthRouter` / `ProxyOAuthServerProvider`**                     | Already in npm                                                                                                                                                                                                                                                                                              | "frozen in `@modelcontextprotocol/server-legacy/auth`" (same page). Do not build on it.                                                                                                                    |
+**Ways to get an authorization server** (D was added on 2026-10-11):
 
-**Recommendation: option A.** The consent page is just another Epic Stack route
-behind `requireUserId`. The library carries the RFC surface. Decide in an ADR
-(proposed **0094**, §8.4).
+| Option                                                                                                            | For                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Against                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **A. In-app AS on a certified library** such as `panva/node-oidc-provider`                                        | It reuses trainm8's login and sessions, so there is one user identity. The library lists RFC 7591, 7636, 8414, **8707**, **9207** and 9068, with CIMD as experimental ([README](https://github.com/panva/node-oidc-provider)). MIT-licensed and actively released (`oidc-provider` 9.12.2, 2026-09-05, npm)                                                                                                                                                                                         | trainm8 then operates an AS: key rotation, token storage and a consent UI. CIMD support is experimental (Draft 02). It is built on Koa, but the README documents mounting it into an existing Express app.                                                   |
+| **B. Hosted identity provider** (the SDK's recommendation)                                                        | "Use a dedicated identity provider for new servers" ([SDK authorization](https://ts.sdk.modelcontextprotocol.io/v2/serving/authorization.html))                                                                                                                                                                                                                                                                                                                                                     | trainm8's users live in its own `User` table. The provider must federate to trainm8's login, or users get a second account. It is a new vendor in the auth path.                                                                                             |
+| **C. v1 `mcpAuthRouter` / `ProxyOAuthServerProvider`**                                                            | Already in npm                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | "frozen in `@modelcontextprotocol/server-legacy/auth`" (same page). Do not build on it.                                                                                                                                                                      |
+| **D. Better Auth as the AS**: `@better-auth/mcp` + `@better-auth/cimd` + `jwt()`, once Better Auth owns the login | `mcp()` "is the OAuth provider". It covers PRM, AS metadata, S256-only PKCE, `resource` → `aud`, RFC 9207 `iss`, rotating refresh tokens with family revocation, CIMD behind an SSRF-hardened fetcher (`metadataProfile: "mcp-2026-07-28"`) and `insufficient_scope`; DCR is opt-in ([mcp](https://www.better-auth.com/docs/plugins/mcp), [cimd](https://www.better-auth.com/docs/plugins/cimd); [`stack-migration.md`](stack-migration.md) §4.3–4.4). The same move retires trainm8's bespoke auth | Needs Better Auth to own the login session first (about 3–5 weeks; 2FA users re-enrol and everyone signs in once). A young 1.7 API with breaking minors. Its docs advise `legacy: "reject"`, against §2.2. Claude's canonical `aud` is unverified against it |
+
+**Recommendation (revised 2026-10-11): option D first, option A as the
+fallback.** This note first recommended A. The later
+[`stack-migration.md`](stack-migration.md) moves the login to Better Auth
+anyway, on today's Prisma + SQLite (about 3–5 weeks). After that, D takes about
+1–2 weeks:
+
+- `jwt()` + `mcp({ resource: "https://<host>/mcp" })` + `cimd()`;
+- both DCR flags, because Claude falls back to DCR (§3.2);
+- the consent and connected-assistants pages;
+- root `.well-known` forwarding;
+- `requireMcpAuth` around the v2 handler (§2.5).
+
+`mcp()` is itself the OAuth provider and cannot be combined with a separate
+`oauthProvider()`. Fall back to **A** if the Better Auth move slips, or if
+`@better-auth/mcp` fails against Claude's client. Under A the consent page is
+just another Epic Stack route behind `requireUserId`, and the library carries
+the RFC surface (L, about 2–4 weeks). **Open conflict:** Better Auth's docs
+advise `legacy: "reject"`, while this note requires serving both eras (§2.2).
+Decide in an ADR (proposed **0094**: Better Auth owns login and is the MCP
+authorization server, with node-oidc-provider as the fallback; §8.4).
 
 ### 3.4 Scopes and per-user isolation
 
 | Scope              | Grants                                                                                    | Exposed tools (§7)                                                   |
 | ------------------ | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `training:read`    | Reads of the athlete's plan, sessions and load, through the Strava gate (§6.1)            | All `get_*` / `list_*`, plus `preview_season`                        |
+| `training:read`    | Reads of the athlete's plan, sessions and load, through the provenance gate (§6.1)        | All `get_*` / `list_*`, plus `preview_season`                        |
 | `training:propose` | Creating **pending** Week Replan Proposals. They never apply without the athlete          | `propose_week_change`                                                |
 | `training:log`     | Recording the athlete's own acts: write a session, mark it _Gjort_, log sets, plus `undo` | `write_session`, `mark_session_done`, `log_strength_session`, `undo` |
 
@@ -555,6 +643,41 @@ it.
 
 ### 6.1 The Strava gate: a new reason for an Unavailable Metric
 
+> **Applies if Strava returns (2026-10-11).** trainm8 no longer uses Strava.
+> Data comes from the watch vendors, with Intervals.icu as a temporary bridge.
+> This section still binds if Strava comes back. It also binds today for
+> Strava-sourced rows still stored (Strava is wired but hidden, and §6.2's cache
+> limit applies to them), for Strava data still arriving through a connection
+> made before Strava was hidden, and for Strava stubs arriving through
+> Intervals.icu ([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md)
+> §6.2–6.3).
+>
+> The terms that bind now are per origin platform. Each vendor's MCP, in-app
+> LLM, attribution and consent terms are in
+> [`watch-data-sources.md` §6](watch-data-sources.md#6-ai-and-mcp-terms-per-source).
+> In short:
+>
+> - **Garmin:** the program has been closed to new applicants since 2026-03-25,
+>   and new portal terms arrived on 2026-10-09. Intervals.icu expects to block
+>   Garmin API data soon. For a direct integration, §5.2(o) needs written
+>   approval naming the MCP clients. The brand guidelines require attribution on
+>   AI output, preserved downstream, whatever the route.
+> - **Polar:** explicit member permission before data reaches external sources.
+> - **Wahoo:** storage and competitor clauses; legal review first.
+> - **COROS and Suunto** run their own MCP servers, and COROS invites AI
+>   coaching apps.
+> - **Apple HealthKit:** guideline 5.1.2(i), explicit permission naming the AI.
+> - **The athlete's own FIT upload:** not governed by vendor developer terms.
+>
+> For any of them, training data is Art. 9 health data, which means explicit
+> consent and a DPIA ([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md)
+> §3). The mechanism below carries over unchanged: provenance per value, and
+> `source-terms` when the terms forbid the surface. It keys on the origin
+> platform (proposed ADRs 0096 and 0098) rather than on Strava alone. Week
+> Replan reasons that quote the TSB are no longer a Strava grey zone for
+> athletes whose data is not from Strava. They carry the origin platform's terms
+> instead, such as Garmin's attribution.
+
 **What the terms say, verbatim.** Read on 2026-10-11: the
 [API Policy](https://www.strava.com/legal/api_policy) and the
 [API Agreement](https://www.strava.com/legal/api), both "Effective Date: June 1,
@@ -628,19 +751,19 @@ document. "AI Application" appears only in Policy §3.5, §5.3 and §5.10.
 
 **What Strava's terms permit** (a reading, not legal advice):
 
-| Case                                                                                                                          | Permitted?                                    | Why                                                                                                                                                                                                                              |
-| ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| An MCP tool returns what came from the Strava API: duration, HR, power, streams, activity name                                | **No**                                        | §5.16(b): "Strava Data, or any subset thereof"                                                                                                                                                                                   |
-| An MCP tool returns what trainm8 computed from Strava-sourced data: TSS, CTL/ATL/TSB, adherence, detection                    | **No**                                        | §5.16(b) names only Strava Data and its subsets, but §5.3 adds "data derived from … Strava Data, in any form" and "ingestion into a context window", and every MCP client is an AI Application                                   |
-| The same, with the athlete's explicit consent                                                                                 | **No**                                        | §5.10: "even if a user … consents"; §5.3 has no consent exception                                                                                                                                                                |
-| An in-app agent: trainm8 sends Strava-derived data to an LLM it calls itself                                                  | **No**                                        | §5.3 "operation of any AI Application"; §5.10 names "AI Application providers"                                                                                                                                                   |
-| Plan data the athlete wrote, or trainm8 placed from stock rows, with no actual as an input                                    | Yes                                           | Not Strava Data; nothing derived                                                                                                                                                                                                 |
-| Plan data the rules computed from Strava-sourced actuals (Week Replan proposals and reasons, the First Run's starting volume) | Unclear; treat as no                          | §5.3 "generated using Strava Data"                                                                                                                                                                                               |
-| A file the athlete uploads (FIT/GPX), including one from their own Strava bulk export                                         | Not restricted by Strava's API terms          | Strava Data is defined by API origin (§2.3(i)); §6.6 protects the user's export. Untested against Strava's intent; an upload that duplicates a Strava API import is still that import                                            |
-| The athlete connects Strava's own MCP to Claude beside trainm8's                                                              | Yes, for Strava subscribers, for personal use | §3.5. trainm8 itself may not use the Strava MCP ("commercial or third-party access")                                                                                                                                             |
-| Deterministic trainm8: import, compute, show the athlete their own data                                                       | Yes, within §6.2, §6.4 and §5.5               | The AI and MCP clauses do not apply. §6.2's seven-day cache does, and §5.4's "combine" sentence, read literally, reaches further than its analytics heading                                                                      |
-| Intervals.icu imports                                                                                                         | Yes                                           | Its [API Terms](https://forum.intervals.icu/t/intervals-icu-api-terms-and-conditions/114087) (effective 2025-10-23) have no AI or MCP clause; §1.1 asks for Garmin attribution. Its API returns no Strava-sourced activities     |
-| Garmin, if integrated directly (planned)                                                                                      | Ask Garmin first                              | The public Garmin Connect Developer Program Agreement has no AI ban, but §5.2(o) forbids an API that provides "End User Data to third-party … platforms, services, or products that have not been approved by Garmin in writing" |
+| Case                                                                                                                          | Permitted?                                    | Why                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An MCP tool returns what came from the Strava API: duration, HR, power, streams, activity name                                | **No**                                        | §5.16(b): "Strava Data, or any subset thereof"                                                                                                                                                                                                                                                                          |
+| An MCP tool returns what trainm8 computed from Strava-sourced data: TSS, CTL/ATL/TSB, adherence, detection                    | **No**                                        | §5.16(b) names only Strava Data and its subsets, but §5.3 adds "data derived from … Strava Data, in any form" and "ingestion into a context window", and every MCP client is an AI Application                                                                                                                          |
+| The same, with the athlete's explicit consent                                                                                 | **No**                                        | §5.10: "even if a user … consents"; §5.3 has no consent exception                                                                                                                                                                                                                                                       |
+| An in-app agent: trainm8 sends Strava-derived data to an LLM it calls itself                                                  | **No**                                        | §5.3 "operation of any AI Application"; §5.10 names "AI Application providers"                                                                                                                                                                                                                                          |
+| Plan data the athlete wrote, or trainm8 placed from stock rows, with no actual as an input                                    | Yes                                           | Not Strava Data; nothing derived                                                                                                                                                                                                                                                                                        |
+| Plan data the rules computed from Strava-sourced actuals (Week Replan proposals and reasons, the First Run's starting volume) | Unclear; treat as no                          | §5.3 "generated using Strava Data"                                                                                                                                                                                                                                                                                      |
+| A file the athlete uploads (FIT/GPX), including one from their own Strava bulk export                                         | Not restricted by Strava's API terms          | Strava Data is defined by API origin (§2.3(i)); §6.6 protects the user's export. Untested against Strava's intent; an upload that duplicates a Strava API import is still that import                                                                                                                                   |
+| The athlete connects Strava's own MCP to Claude beside trainm8's                                                              | Yes, for Strava subscribers, for personal use | §3.5. trainm8 itself may not use the Strava MCP ("commercial or third-party access")                                                                                                                                                                                                                                    |
+| Deterministic trainm8: import, compute, show the athlete their own data                                                       | Yes, within §6.2, §6.4 and §5.5               | The AI and MCP clauses do not apply. §6.2's seven-day cache does, and §5.4's "combine" sentence, read literally, reaches further than its analytics heading                                                                                                                                                             |
+| Intervals.icu imports                                                                                                         | Yes                                           | Its [API Terms](https://forum.intervals.icu/t/intervals-icu-api-terms-and-conditions/114087) (effective 2025-10-23) have no AI or MCP clause; §1.1 asks for Garmin attribution. Its API returns Strava-sourced activities only as data-less stubs ([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) §6.2) |
+| Garmin, if integrated directly (planned)                                                                                      | Ask Garmin first                              | The public Garmin Connect Developer Program Agreement has no AI ban, but §5.2(o) forbids an API that provides "End User Data to third-party … platforms, services, or products that have not been approved by Garmin in writing"                                                                                        |
 
 **Verdict.** For an MCP server and for an in-app agent, the constraint binds on
 every Strava-sourced byte and everything computed from one. For a deterministic
@@ -651,17 +774,21 @@ computed from it, may reach any model, whether through MCP or through a future
 in-app agent.
 
 **What this means per reading.** The provenance is already in the schema:
-`ActivityImport.externalProvider` (`prisma/schema.prisma:1625`).
+`ActivityImport.externalProvider` (`prisma/schema.prisma:1625`). That column
+records the transport, which for Strava is also the origin. Gating per origin
+platform (Garmin data arriving through Intervals.icu, for example) needs the
+`originPlatform`, device and FIT-key columns of proposed ADR 0096
+([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) §3).
 
-| Reading                                                                                                                                                                                                                                                                                                                                                   | Strava-derived when                                                                                                                                                                              | Over MCP                                                                                                                         |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| Plan side the athlete wrote or trainm8 placed from stock rows: sessions as prescribed, Planned TSS, events                                                                                                                                                                                                                                                | Never                                                                                                                                                                                            | Available                                                                                                                        |
-| Plan side the rules computed from actuals: Week Replan proposals and their reasons (`decideWeekReplan` reads Weekly Plan Adherence and TSB, `app/utils/load/week-replan.ts:250`, and the reason prints the TSB); the First Run's anchors and Weekly Capacity (`readAnchorContext` sums completed sessions, `app/utils/plan-outline/history.server.ts:59`) | When a Strava-derived actual was an input                                                                                                                                                        | Proposal reasons and inputs Unavailable. Whether a season shaped by such inputs stays "derived" is a question for Strava (§10.1) |
-| A session's actual: duration, distance, HR, power, TSS, stream, detection, Structure Adherence                                                                                                                                                                                                                                                            | Its Recording's import has `externalProvider = 'strava'`                                                                                                                                         | **Unavailable**, reason `source-terms`                                                                                           |
-| CTL, ATL and TSB; Weekly Plan Adherence                                                                                                                                                                                                                                                                                                                   | Any Strava-derived TSS in the window. Note that CTL is an EWMA, so the window is in practice ~3τ ≈ 126 days ([load model](training-load-and-fitness-model.md))                                   | Unavailable while a Strava-derived input is in the window. A Strava-free recompute is possible, but it is not built              |
-| Strength set logs, _Gjort_ by hand, file uploads, RPE and the Session Log                                                                                                                                                                                                                                                                                 | Never (athlete-entered or file-sourced)                                                                                                                                                          | Available                                                                                                                        |
-| Intervals.icu imports                                                                                                                                                                                                                                                                                                                                     | Never: Intervals.icu's API does not supply Strava-sourced activities ("Intervals.icu cannot supply Strava activities via the API", its developer, [forum](https://forum.intervals.icu/t/113828)) | Available, with Garmin attribution where the data is Garmin-sourced (Intervals.icu API Terms §1.1)                               |
-| A direct Garmin integration (planned)                                                                                                                                                                                                                                                                                                                     | Never                                                                                                                                                                                            | Hold until Garmin approves (Garmin agreement §5.2(o), table above)                                                               |
+| Reading                                                                                                                                                                                                                                                                                                                                                   | Strava-derived when                                                                                                                                                                                                                                                                             | Over MCP                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Plan side the athlete wrote or trainm8 placed from stock rows: sessions as prescribed, Planned TSS, events                                                                                                                                                                                                                                                | Never                                                                                                                                                                                                                                                                                           | Available                                                                                                                        |
+| Plan side the rules computed from actuals: Week Replan proposals and their reasons (`decideWeekReplan` reads Weekly Plan Adherence and TSB, `app/utils/load/week-replan.ts:250`, and the reason prints the TSB); the First Run's anchors and Weekly Capacity (`readAnchorContext` sums completed sessions, `app/utils/plan-outline/history.server.ts:59`) | When a Strava-derived actual was an input                                                                                                                                                                                                                                                       | Proposal reasons and inputs Unavailable. Whether a season shaped by such inputs stays "derived" is a question for Strava (§10.1) |
+| A session's actual: duration, distance, HR, power, TSS, stream, detection, Structure Adherence                                                                                                                                                                                                                                                            | Its Recording's import has `externalProvider = 'strava'`                                                                                                                                                                                                                                        | **Unavailable**, reason `source-terms`                                                                                           |
+| CTL, ATL and TSB; Weekly Plan Adherence                                                                                                                                                                                                                                                                                                                   | Any Strava-derived TSS in the window. Note that CTL is an EWMA, so the window is in practice ~3τ ≈ 126 days ([load model](training-load-and-fitness-model.md))                                                                                                                                  | Unavailable while a Strava-derived input is in the window. A Strava-free recompute is possible, but it is not built              |
+| Strength set logs, _Gjort_ by hand, file uploads, RPE and the Session Log                                                                                                                                                                                                                                                                                 | Never (athlete-entered or file-sourced)                                                                                                                                                                                                                                                         | Available                                                                                                                        |
+| Intervals.icu imports                                                                                                                                                                                                                                                                                                                                     | Never: Intervals.icu's API does not supply Strava-sourced activities ("Intervals.icu cannot supply Strava activities via the API", its developer, [forum](https://forum.intervals.icu/t/113828)), only stubs with no data ([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) §6.2) | Available, with Garmin attribution where the data is Garmin-sourced (Intervals.icu API Terms §1.1)                               |
+| A direct Garmin integration (planned)                                                                                                                                                                                                                                                                                                                     | Never                                                                                                                                                                                                                                                                                           | Hold until Garmin approves (Garmin agreement §5.2(o), table above)                                                               |
 
 **This is the building principle working, not a workaround.** "Strava's terms
 don't let trainm8 send this to an assistant" is a truthful reason for an absent
@@ -677,7 +804,10 @@ number, in the same family as "no threshold set".
 > computed TSS is arguably outside it; but §5.5 bars derived data from any
 > "Persistent Index", a term the documents never define. This concerns the
 > Strava integration that ships today, not MCP: it needs its own decision
-> whether or not anything in this note is built.
+> whether or not anything in this note is built. Strava is now hidden from new
+> athletes but still wired. Whether to delete it or keep it and fix the cache is
+> the open decision in
+> [`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) §6.3.
 
 ### 6.2 ADR 0080: the model is a proposal author, never the yes
 
@@ -840,7 +970,7 @@ trainm8's free-text sources, by trust:
 | Source                                                                                                                                                                            | Author                                   | Rule                                                                                                                                                               |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Shared Workouts**: `Workout.title`/`description` from the community tier (ADR 0052)                                                                                             | **Another athlete**                      | Never returned by default tools. If the Catalogue is ever exposed: stock rows only, titles length-capped, descriptions omitted. This is the only cross-user vector |
-| `ActivityImport.rawJson`, which includes the Strava activity `name` (`app/integrations/strava/types.ts:54`) and upload `fileName` (`app/utils/activity-file-ingest.server.ts:95`) | Provider or file                         | **Never** exposed. It is also Strava Data (§6.1)                                                                                                                   |
+| `ActivityImport.rawJson`, which includes the Strava activity `name` (`app/integrations/strava/types.ts:54`) and upload `fileName` (`app/utils/activity-file-ingest.server.ts:95`) | Provider or file                         | **Never** exposed. For a Strava import it is also Strava Data (§6.1)                                                                                               |
 | `SessionLog.content`, `Event` names, own workout titles, athlete-created exercises                                                                                                | The athlete                              | Returned in a dedicated `athleteText` field, length-capped, never concatenated into instructions                                                                   |
 | Assistant-written proposal `reason`s (§6.2)                                                                                                                                       | A model                                  | Stored with its author, and shown as assistant text when read back                                                                                                 |
 | Seeded exercise names, Stock Workout citations                                                                                                                                    | Third-party corpora, reviewed into seeds | Low risk                                                                                                                                                           |
@@ -861,7 +991,8 @@ same section). Apply it in three places:
   `propose_week_change` is capped per week.
 - **Charge the OAuth endpoints too.** Add `/oauth/` to the `strongPaths` list
   (`server/index.ts:131-141`) so its POSTs get the existing `strongestRateLimit`
-  (10 per minute).
+  (10 per minute). Under Better Auth (§3.3) the OAuth endpoints live under
+  `/api/auth` instead.
 
 ### 6.9 Audit log
 
@@ -890,7 +1021,7 @@ connected-assistants settings page (§3.3) can show the last 30 days.
 | ---------------------- | ---- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `get_today`            | R    | readOnly                              | The home loader's composition (`app/routes/_home/index.tsx:86-198`): `getSessionLedger` (`training.server.ts:1560`), `getCurrentLoad` / `getTsbTrust` (`load/snapshot.server.ts:440/393`), `readWeekChange` (`load/week-change-card.server.ts:68`), the nudge `buildSessionNudge` (**in a route module**: `app/routes/_home/presenter.ts:288`)                                     | None                                                                          |
 | `list_sessions`        | R    | readOnly                              | `getLedgerWeek` / `getSessionLedger` (`training.server.ts:1585/1560`). Paginated: Claude caps results at ~150k characters                                                                                                                                                                                                                                                          | None                                                                          |
-| `get_session`          | R    | readOnly                              | `getSessionByIdForUser` (`training.server.ts:1833`), through the Strava gate                                                                                                                                                                                                                                                                                                       | None                                                                          |
+| `get_session`          | R    | readOnly                              | `getSessionByIdForUser` (`training.server.ts:1833`), through the provenance gate (§6.1)                                                                                                                                                                                                                                                                                            | None                                                                          |
 | `get_session_vs_plan`  | R    | readOnly                              | `buildReviewComparison` (`session-review.ts:43`), `structureAdherence` / `describeStructureAdherence` (`structure-adherence.ts:238/292`), `buildVsLastComparison` (`session-comparison.ts:45`) and `getLastSimilarSession` (`training.server.ts:1974`). The two middle ones run in the **route component today** (`training/sessions.$sessionId.tsx:1492,1735`) and must be lifted | None                                                                          |
 | `get_training_load`    | R    | readOnly                              | `getLoadSnapshots` (`load/snapshot.server.ts:343`), `getWeeklyAdherence` (`training.server.ts:1608`), `getRecentWeeklyBuild` (`:1683`), `projectFitnessToRace` (`load/fitness-projection.ts:61`)                                                                                                                                                                                   | None                                                                          |
 | `get_season`           | R    | readOnly                              | `getActivePlan` / `getActiveSeason` (`training.server.ts:220/785`), `getWeekVolumes` (`plan-outline/week-volumes.server.ts:22`)                                                                                                                                                                                                                                                    | None                                                                          |
@@ -909,7 +1040,8 @@ connected-assistants settings page (§3.3) can show the last 30 days.
 `approveSeason`; threshold writes (`setDisciplineThresholds`,
 `app/utils/athlete.server.ts:157`); account connections; Catalogue publishing;
 answering _hva var dette?_ (`answerImportQuestion`,
-`app/utils/import-link.server.ts:149`), which waits on the Strava gate.
+`app/utils/import-link.server.ts:149`), which waits on the provenance gate
+(§6.1).
 
 **Resources:**
 
@@ -982,7 +1114,7 @@ type Action<I, O> = {
 2. **The MCP server.** One loop: for each action the token's scopes allow, call
    `registerTool(name, { title, description, inputSchema, outputSchema, annotations }, …)`.
    Return `structuredContent` plus its JSON text. Pass the output through the
-   Strava gate (§6.1) and the injection rules (§6.7).
+   provenance gate (§6.1) and the injection rules (§6.7).
 3. **An in-app agent.** The same registry becomes Claude tool definitions,
    **executed in-process**. The Anthropic SDK's tool runner and its
    `mcpTools(tools, mcpClient)` helpers convert MCP tools for it
@@ -994,8 +1126,14 @@ type Action<I, O> = {
    is chosen in
    [`agent-layer-building-blocks.md`](agent-layer-building-blocks.md) §9.2: the
    Vercel AI SDK 7 with `@ai-sdk/anthropic`, or this SDK's manual loop as the
-   fallback. Its tool results pass the same Strava gate as MCP's, because an
-   in-app model is an AI Application too (§6.1).
+   fallback. Its tool results pass the same provenance gate as MCP's, because
+   the origin platforms' terms cover an in-app model too: Garmin §5.2(q), and
+   Polar's separate opt-in ([`watch-data-sources.md`](watch-data-sources.md)
+   §6), plus Strava's §5.3 if Strava returns (§6.1). Later research puts this
+   agent on Bedrock `eu-north-1` behind a paid tier, after a DPIA (proposed ADR
+   0095; [`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) §3.4, §5).
+   Bedrock has no structured outputs, Batch or MCP connector, so the registry's
+   schemas validate every tool input server-side.
 
    **Not the Messages API connector.** It would make Anthropic call trainm8's
    public `/mcp` with a token trainm8 mints for itself. It has no approval step
@@ -1008,8 +1146,8 @@ file, plus an index.
 
 **Not in `app/integrations/`.** ADR 0014 is about _outbound_ providers that
 produce `ActivityImportInput`. MCP is an _inbound_ protocol surface. The MCP
-adapter itself goes in `app/mcp/`: the factory, the bearer gate, the Strava gate
-and the audit writer.
+adapter itself goes in `app/mcp/`: the factory, the bearer gate, the provenance
+gate and the audit writer.
 
 **The registry forces three lifts out of route modules:**
 
@@ -1031,8 +1169,12 @@ the MCP server and the agent are its three readers"_. Proposed **0092**.
    - a `write` covers only the athlete's own acts and returns an undo handle.
 3. **Readings.** One `Reading`/`UnavailableReason` vocabulary for every number
    (§6.5), including `source-terms`.
-4. **Provenance gate.** Strava-derived data never leaves through a model-facing
-   reader (§6.1).
+4. **Provenance gate.** A model-facing reader applies each value's origin
+   platform terms. It adds attribution where the terms require it, holds a value
+   that lacks consent or approval, and returns `source-terms` when the terms
+   forbid the surface. The origin platform comes from proposed ADR 0096 and the
+   per-platform terms from proposed ADR 0098. Strava-derived data, if any
+   remains, never leaves (§6.1).
 5. **Proposal author.** An `author` column on proposals; silence never applies
    an `assistant` proposal (amends 0080).
 6. **Undo handles.** Opaque, server-held, user-bound, with a stated lifetime
@@ -1040,31 +1182,55 @@ the MCP server and the agent are its three readers"_. Proposed **0092**.
 7. **Language.** Data keys and enums are English. Norwegian labels stay in
    `labels.ts` (ADR 0081). An assistant's prose is stored with its author.
 
-**Numbering across the sibling notes.** 0091 is the newest ADR in `docs/adr/`.
-Items 5 and 6 amend ADRs 0080 and 0088, so they go in a companion **0093**, _"an
-agent is a proposal author, never the athlete's yes"_, which
-[`agent-native.md`](agent-native.md) §7.2 also proposes. The authorization
-server (§3.3) is **0094**, and Phase 3's in-app agent is **0095**.
+**Numbering across the sibling notes** (aligned on 2026-10-11 with the later
+research). 0091 is the newest ADR in `docs/adr/`.
+
+- **0092** is this one: the action registry (`defineAction` in `app/actions/`),
+  the provenance and `source-terms` gate, and `Reading` (items 1–4 and 7).
+- **0093**, _"an agent is a proposal author, never the athlete's yes"_, takes
+  items 5 and 6, which amend ADRs 0080 and 0088.
+  [`agent-native.md`](agent-native.md) §7.2 also proposes it.
+- **0094**: Better Auth owns login and is the MCP authorization server, with
+  node-oidc-provider as the fallback (§3.3). It also records the `legacy` choice
+  (§2.2).
+- **0095**: Phase 3's in-app agent, on Bedrock `eu-north-1`, behind a paid tier,
+  after a DPIA ([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) §5).
+- **0096** (activity provenance and cross-provider identity), **0097** (workout
+  export) and **0098** (source terms per origin platform) come from
+  [`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md). Item 4 keys on
+  0096 and applies 0098.
+
+There is no separate ADR for the MCP server itself. Its adapter (`app/mcp/`,
+§8.3) is 0092's MCP reader, and its authorization and transport choices belong
+to 0094.
 
 ---
 
 ## 9. Phased plan
 
-Effort figures are estimates for one developer familiar with the repo.
+Effort figures are estimates for one developer familiar with the repo. Phase 1
+is re-based on [`stack-migration.md`](stack-migration.md) §7 (2026-10-11).
 
 These are the MCP track's phases. In the overall plan
 ([`agent-native.md`](agent-native.md) §7.2) they follow ADRs 0092–0093 and the
 registry's first slice (its Phases 0–1) and together make up its Phase 2; this
-note's Phase 3 is its Phase 4. For an athlete who imports from Strava, Phase 0's
-actual-side reads (`get_session_vs_plan`, `get_training_load`) come back mostly
-`source-terms`; the plan-side reads are what works for everyone (§6.1).
+note's Phase 3 is its Phase 4. In the stack plan, Phase 0 runs in parallel with
+the move to Better Auth (`stack-migration.md` Phase 1, M–L, about 3–5 weeks).
+Phase 1 follows that move, and MCP OAuth with Claude lands at about weeks 4–7
+from today (`stack-migration.md` §1.3).
 
-| Phase                                             | Scope                                                                                                            | Deliverables                                                                                                                                                                                                                                                                                                                                             | Effort           | Main risk                                                                                           |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------- |
-| **0. Read-only, dev token**                       | Six reads: `get_today`, `list_sessions`, `get_session`, `get_session_vs_plan`, `get_training_load`, `get_season` | `app/actions/` for those six; `app/mcp/` factory on v2 `createMcpHandler` at `/mcp`; a static per-user dev bearer token (development only), tested from MCP Inspector and Claude Code; the **Strava gate** and the `Reading` union; Host/Origin guards                                                                                                   | S–M (~1–2 weeks) | On zod 3.25's `zod/v4` fallback until zod ≥ 4.2 (§2.3); the size of the Strava gate on load metrics |
-| **1. OAuth + Claude custom connector, read-only** | The same reads, from claude.ai, Desktop and mobile                                                               | In-app AS (option A): PRM, AS metadata, CIMD **and** DCR, PKCE S256, `resource` audience, rotating refresh, consent page on `requireUserId`, revocation, connected-assistants settings page; rate limit per subject; `McpAuditEvent`; `get_week_change`, `list_events`, `get_lift_history`, `preview_season`; the vocabulary resource; the three prompts | L (~2–4 weeks)   | OAuth correctness against Claude's stricter client (§3.2); the 10 s endpoint budget                 |
-| **2. Proposal writes and logs with undo**         | `propose_week_change`, `write_session`, `mark_session_done`, `log_strength_session`, `undo`                      | The ADR 0080 amendment (`author`, assistant reason provenance); the `UndoHandle` model; step-up scopes; per-scope budgets; I dag shows assistant proposals as assistant-written                                                                                                                                                                          | M (~1–2 weeks)   | Proposal UX: a proposal created in chat must be findable and answerable in trainm8                  |
-| **3. In-app agent; optional widget**              | The registry as in-process Claude tools; the `ui://trainm8/forslag.html` card with app-only `answer_proposal`    | ADR 0095, revisiting 0016/0053 (a model now enters the request path: key, latency, cost, data processing); host-token styling; text and deep-link fallback                                                                                                                                                                                               | L (~2–4 weeks)   | Turns "no runtime model calls" off; app-only tool listing semantics (§5.2)                          |
+Phase 0's actual-side reads (`get_session_vs_plan`, `get_training_load`) carry
+their origin platform's terms (§6.1). Garmin-derived values need attribution
+and, until 0096's provenance exists, cannot be told apart from other
+Intervals.icu data. Only Strava-sourced rows still stored come back as
+`source-terms`. The plan-side reads are what works for everyone.
+
+| Phase                                             | Scope                                                                                                            | Deliverables                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Effort                                                                                                     | Main risk                                                                                                                                                  |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0. Read-only, dev token**                       | Six reads: `get_today`, `list_sessions`, `get_session`, `get_session_vs_plan`, `get_training_load`, `get_season` | `app/actions/` for those six; `app/mcp/` factory on v2 `createMcpHandler` at `/mcp`; a static per-user dev bearer token (development only), tested from MCP Inspector and Claude Code; the **provenance gate** and the `Reading` union; Host/Origin guards                                                                                                                                                                                                                                        | S–M (~1–2 weeks)                                                                                           | On zod 3.25's `zod/v4` fallback until zod ≥ 4.2 (§2.3); the provenance gate on load metrics (origin platform per value, ADR 0096)                          |
+| **1. OAuth + Claude custom connector, read-only** | The same reads, from claude.ai, Desktop and mobile                                                               | `@better-auth/mcp` + `@better-auth/cimd` + `jwt()` (option D; the fallback is option A, node-oidc-provider, with its consent page on `requireUserId`): PRM, AS metadata, CIMD **and** DCR, PKCE S256, `resource` audience, rotating refresh, consent page on the Better Auth session, revocation, connected-assistants settings page; rate limit per subject; `McpAuditEvent`; `get_week_change`, `list_events`, `get_lift_history`, `preview_season`; the vocabulary resource; the three prompts | S–M (~1–2 weeks) after the Better Auth move (`stack-migration.md` Phase 2); L (~2–4 weeks) on the fallback | OAuth correctness against Claude's stricter client (§3.2); the 10 s endpoint budget; dual-era transport against `legacy: "reject"` (§2.2); canonical `aud` |
+| **2. Proposal writes and logs with undo**         | `propose_week_change`, `write_session`, `mark_session_done`, `log_strength_session`, `undo`                      | The ADR 0080 amendment (`author`, assistant reason provenance); the `UndoHandle` model; step-up scopes; per-scope budgets; I dag shows assistant proposals as assistant-written                                                                                                                                                                                                                                                                                                                   | M (~1–2 weeks)                                                                                             | Proposal UX: a proposal created in chat must be findable and answerable in trainm8                                                                         |
+| **3. In-app agent; optional widget**              | The registry as in-process Claude tools; the `ui://trainm8/forslag.html` card with app-only `answer_proposal`    | ADR 0095, revisiting 0016/0053 (a model now enters the request path: key, latency, cost, data processing), on Bedrock `eu-north-1` behind a paid tier, after a DPIA ([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) §5); host-token styling; text and deep-link fallback                                                                                                                                                                                                              | L (~2–4 weeks)                                                                                             | Turns "no runtime model calls" off; app-only tool listing semantics (§5.2)                                                                                 |
 
 ---
 
@@ -1072,23 +1238,38 @@ actual-side reads (`get_session_vs_plan`, `get_training_load`) come back mostly
 
 ### 10.1 Legal and terms
 
-- **Strava** (§6.1). The conservative reading removes most actual-side numbers
-  for Strava users, which is the heart of "how did my intervals compare?". The
-  owner should read Policy §3.5, §5.3, §5.4, §5.5, §5.10, §5.16 and §6.2 and
-  decide. Asking Strava is also an option, in particular whether a plan shaped
-  by Strava-derived load stays "derived" under §5.3.
+- **Strava, if it returns** (§6.1). The conservative reading removes most
+  actual-side numbers for Strava users, which is the heart of "how did my
+  intervals compare?". The owner should read Policy §3.5, §5.3, §5.4, §5.5,
+  §5.10, §5.16 and §6.2 and decide. Asking Strava is also an option, in
+  particular whether a plan shaped by Strava-derived load stays "derived" under
+  §5.3.
 - **Strava §6.2's seven-day cache** against `rawJson` kept indefinitely is a
-  separate question, raised in §6.1. It binds trainm8 with or without MCP.
+  separate question, raised in §6.1. It binds trainm8 with or without MCP, for
+  the Strava rows still stored
+  ([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) §6.3).
 - **Intervals.icu** API Terms (effective 2025-10-23) have no AI or MCP clause
-  and ask only for Garmin attribution. **Garmin's** public developer agreement
-  has no AI ban, but §5.2(o) needs Garmin's written approval before End User
-  Data reaches a third-party platform. Its China edition (2026-03) adds §15.10:
-  an "AI Transparency Statement" and explicit consent before AI processing. The
-  agreement a licensee actually signs sits behind Garmin's portal and was not
-  read.
+  and ask only for Garmin attribution, which trainm8 does not show today
+  ([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) §6.1). Its
+  Garmin supply may stop: after new Garmin portal terms appeared on 2026-10-09,
+  Intervals.icu expects to block Garmin API data soon. **Garmin's** program has
+  been closed to new applicants since 2026-03-25. Its public developer agreement
+  has no AI ban, but §5.2(o) needs Garmin's written approval, naming the MCP
+  clients, before End User Data reaches a third-party platform. Its brand
+  guidelines require attribution on AI output, preserved downstream. Its China
+  edition (2026-03) adds §15.10: an "AI Transparency Statement" and explicit
+  consent before AI processing. The agreement a licensee actually signs sits
+  behind Garmin's portal and was not read. Every vendor's terms are in
+  [`watch-data-sources.md` §6](watch-data-sources.md#6-ai-and-mcp-terms-per-source).
 - **Data protection.** Training data, including heart rate, would flow to
   Anthropic or OpenAI at the athlete's request. trainm8's privacy policy and any
-  GDPR assessment of health-adjacent data are not covered here.
+  GDPR assessment of health-adjacent data are not covered here. They are covered
+  in [`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) §3:
+  - treat the training record as Art. 9 health data, which needs explicit
+    consent and a DPIA;
+  - Anthropic's first-party API offers only US or `global` inference, and
+    Anthropic is not on the DPF list;
+  - Bedrock `eu-north-1` is the EU option.
 
 ### 10.2 Product
 
@@ -1106,6 +1287,8 @@ actual-side reads (`get_session_vs_plan`, `get_training_load`) come back mostly
   (SEP-2549).
 - **DCR churn.** Claude "registers a new client on every fresh connection" under
   DCR. CIMD support in the AS avoids it.
+- **`legacy: "reject"` against both eras.** Better Auth's MCP docs advise
+  rejecting legacy clients, and §2.2 requires serving them (§3.3).
 
 ### 10.4 Claims this note could not verify
 
@@ -1235,6 +1418,10 @@ actual-side reads (`get_session_vs_plan`, `get_training_load`) come back mostly
   and its
   [China edition](https://www8.garmin.com/en-US/GARMINCONNECTDEVELOPERPROGRAMAGREEMENT/GARMINCONNECTDEVELOPERPROGRAMAGREEMENT_EN.pdf)
   · [panva/node-oidc-provider](https://github.com/panva/node-oidc-provider)
+- **Better Auth** (added 2026-10-11, read in
+  [`stack-migration.md`](stack-migration.md) §4.3–4.4):
+  [mcp](https://www.better-auth.com/docs/plugins/mcp) ·
+  [cimd](https://www.better-auth.com/docs/plugins/cimd)
 - **Repo:** `GOAL.md`, `GLOSSARY.md`; ADRs 0014, 0016, 0053, 0076, 0080, 0081,
   0085, 0088; `server/index.ts`, `other/litefs.yml`, `prisma/schema.prisma`; the
   `app/utils/…` and `app/routes/…` files cited inline.
@@ -1243,16 +1430,17 @@ actual-side reads (`get_session_vs_plan`, `get_training_load`) come back mostly
 
 ## ADRs this research challenges
 
-| ADR                                                                          | What it decided                                                                                                                            | What the evidence says                                                                                                                                                                                                                                                                                                     | Verdict                          |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| **0080** Week Replan proposes; the athlete's sessions need a yes             | Proposals with reasons. Silence applies only to the machine's sessions when load keeps or drops. "AI later writes the same proposals" (§6) | The MCP write path is §6 exactly, and the store already accepts `weekReplanId = null`. It needs an `author` column, a rule that silence never applies an assistant proposal (`applyDueProposals` with no ids would do it today), labelled assistant prose in `reason`, and an answer surface for ad-hoc mid-week proposals | **Amend**                        |
-| **0088** Every write on I dag is undone from its toast and its landed row    | A ten-second _Angre_ from the toast and the row; restore tokens posted back by the client                                                  | MCP has no toast. The undo must be an opaque, server-held, user-bound handle with a lifetime stated in the tool description, and it must never be a client-carried token. The refusal rules (`not-undoable`, `recomputeRewroteSince`) carry over unchanged                                                                 | **Amend**                        |
-| **0076** An undone stamp leaves nothing behind                               | §2: undo is a real owner-scoped delete. §3: it is idempotent                                                                               | Maps onto `undo` with `destructiveHint: true, idempotentHint: true`. No change                                                                                                                                                                                                                                             | **Confirm**                      |
-| **0053** Season generation is deterministic behind the seam                  | Preview writes nothing; approval regenerates server-side; generation places stock rows only                                                | `preview_season` is safely read-only, and an MCP approve must post answers, never a payload. §4's stock-only rule should also bound assistant `add` proposals. MCP adds no model to the request path                                                                                                                       | **Confirm**                      |
-| **0016** AI plan generation (superseded, as amended by 0053)                 | A model enters only behind the seam; "no key and no model latency" today                                                                   | Phases 0–2 keep it true, because the model is the athlete's. Phase 3's in-app agent reopens it and must be its own ADR (0095)                                                                                                                                                                                              | **Confirm** (Phase 3 reopens it) |
-| **0008** / GOAL.md building principle: the Unavailable Metric                | Never fabricate; degrade to an honest gap                                                                                                  | It becomes the MCP output contract: a `Reading` union in every `outputSchema`. It gains a new reason, `source-terms`, for Strava-derived data (§6.1). Today four separate vocabularies express "unavailable" and need unifying                                                                                             | **Confirm** (extend)             |
-| **0014** Integrations live in per-provider folders                           | Outbound providers map to `ActivityImportInput`                                                                                            | MCP is an inbound protocol surface, not a provider. It belongs in `app/mcp/` over `app/actions/`, not in `app/integrations/`                                                                                                                                                                                               | **Confirm** (scope note)         |
-| **0081** The planning redesign speaks Norwegian; `labels.ts` owns every word | Every shown word comes from `labels.ts`, in Norwegian                                                                                      | Model-facing output needs stable English enums plus optional labels, and assistant-written prose is not `labels.ts`-owned. The ADR should say which words a model may write and how they are marked                                                                                                                        | **Amend** (scope)                |
-| **0085** The design system is shadcn base-luma on Base UI                    | One design system and one motion scale                                                                                                     | Inside an MCP App, Claude requires host style variables and "never hardcode colors". A widget is outside the design system by construction                                                                                                                                                                                 | **Amend** (scope)                |
-| **0028** Mobile-first UI standard                                            | 390×844 first                                                                                                                              | Claude mobile renders MCP Apps in a native WebView with 44 pt targets, safe areas and capped inline height. Same standard, someone else's chrome                                                                                                                                                                           | **Confirm**                      |
-| **GOAL.md** non-goal: no coach- or team-managed workflows                    | trainm8 is for the Self-Coaching Athlete                                                                                                   | Per-athlete OAuth with no delete scope and no "share" scope keeps MCP from becoming a coach backdoor. An assistant acting for the athlete is the athlete's tool                                                                                                                                                            | **Confirm**                      |
+| ADR                                                                          | What it decided                                                                                                                            | What the evidence says                                                                                                                                                                                                                                                                                                                                              | Verdict                                                           |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| **0080** Week Replan proposes; the athlete's sessions need a yes             | Proposals with reasons. Silence applies only to the machine's sessions when load keeps or drops. "AI later writes the same proposals" (§6) | The MCP write path is §6 exactly, and the store already accepts `weekReplanId = null`. It needs an `author` column, a rule that silence never applies an assistant proposal (`applyDueProposals` with no ids would do it today), labelled assistant prose in `reason`, and an answer surface for ad-hoc mid-week proposals                                          | **Amend** (in proposed ADR 0093)                                  |
+| **0088** Every write on I dag is undone from its toast and its landed row    | A ten-second _Angre_ from the toast and the row; restore tokens posted back by the client                                                  | MCP has no toast. The undo must be an opaque, server-held, user-bound handle with a lifetime stated in the tool description, and it must never be a client-carried token. The refusal rules (`not-undoable`, `recomputeRewroteSince`) carry over unchanged                                                                                                          | **Amend** (in proposed ADR 0093)                                  |
+| **0076** An undone stamp leaves nothing behind                               | §2: undo is a real owner-scoped delete. §3: it is idempotent                                                                               | Maps onto `undo` with `destructiveHint: true, idempotentHint: true`. No change                                                                                                                                                                                                                                                                                      | **Confirm**                                                       |
+| **0053** Season generation is deterministic behind the seam                  | Preview writes nothing; approval regenerates server-side; generation places stock rows only                                                | `preview_season` is safely read-only, and an MCP approve must post answers, never a payload. §4's stock-only rule should also bound assistant `add` proposals. MCP adds no model to the request path                                                                                                                                                                | **Confirm**                                                       |
+| **0016** AI plan generation (superseded, as amended by 0053)                 | A model enters only behind the seam; "no key and no model latency" today                                                                   | Phases 0–2 keep it true, because the model is the athlete's. Phase 3's in-app agent reopens it and must be its own ADR (0095: Bedrock `eu-north-1`, a paid tier, after a DPIA; [`ai-product-privacy-cost.md`](ai-product-privacy-cost.md))                                                                                                                          | **Confirm** (Phase 3 reopens it)                                  |
+| **0008** / GOAL.md building principle: the Unavailable Metric                | Never fabricate; degrade to an honest gap                                                                                                  | It becomes the MCP output contract: a `Reading` union in every `outputSchema`. It gains a new reason, `source-terms`, for data whose origin platform's terms forbid the surface: Garmin data before §5.2(o) approval, and Strava-derived data if Strava returns (§6.1; proposed ADR 0098). Today four separate vocabularies express "unavailable" and need unifying | **Confirm** (extend)                                              |
+| **0014** Integrations live in per-provider folders                           | Outbound providers map to `ActivityImportInput`                                                                                            | MCP is an inbound protocol surface, not a provider. It belongs in `app/mcp/` over `app/actions/`, not in `app/integrations/`                                                                                                                                                                                                                                        | **Confirm** (scope note)                                          |
+| **0081** The planning redesign speaks Norwegian; `labels.ts` owns every word | Every shown word comes from `labels.ts`, in Norwegian                                                                                      | Model-facing output needs stable English enums plus optional labels, and assistant-written prose is not `labels.ts`-owned. The ADR should say which words a model may write and how they are marked                                                                                                                                                                 | **Amend** (scope)                                                 |
+| **0085** The design system is shadcn base-luma on Base UI                    | One design system and one motion scale                                                                                                     | Inside an MCP App, Claude requires host style variables and "never hardcode colors". A widget is outside the design system by construction                                                                                                                                                                                                                          | **Amend** (scope)                                                 |
+| **0028** Mobile-first UI standard                                            | 390×844 first                                                                                                                              | Claude mobile renders MCP Apps in a native WebView with 44 pt targets, safe areas and capped inline height. Same standard, someone else's chrome                                                                                                                                                                                                                    | **Confirm**                                                       |
+| **GOAL.md** non-goal: no coach- or team-managed workflows                    | trainm8 is for the Self-Coaching Athlete                                                                                                   | Per-athlete OAuth with no delete scope and no "share" scope keeps MCP from becoming a coach backdoor. An assistant acting for the athlete is the athlete's tool                                                                                                                                                                                                     | **Confirm**                                                       |
+| **Decisions 029, 039, 014** Epic Stack auth: own login code, passkeys, TOTP  | trainm8 runs its own login, passkeys and TOTP                                                                                              | §3.3 now makes Better Auth the login and the MCP authorization server (proposed ADR 0094), so the bespoke auth is replaced rather than extended with node-oidc-provider ([`stack-migration.md`](stack-migration.md) §4, §8)                                                                                                                                         | **Supersede** when the Better Auth phase ships (added 2026-10-11) |

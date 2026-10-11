@@ -20,6 +20,17 @@ agent writes the athlete can see and take back.
 > [`agent-layer-building-blocks.md`](agent-layer-building-blocks.md) surveys the
 > libraries an agent layer could be built from. This note is the repo side that
 > all three lean on.
+>
+> **Later research.** [`agent-native-open-stack.md`](agent-native-open-stack.md)
+> re-asks adopt, fork or build with the stack open.
+> [`agent-platforms.md`](agent-platforms.md) compares other foundations.
+> [`stack-migration.md`](stack-migration.md) sequences Better Auth, MCP OAuth,
+> Postgres and Drizzle. [`watch-data-sources.md`](watch-data-sources.md) and
+> [`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) cover watch
+> data, each vendor's AI and MCP terms, and import provenance.
+> [`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) covers privacy,
+> regulation and cost. [`agent-strategy.md`](agent-strategy.md) pulls the notes
+> into one strategy.
 
 **How citations read.**
 
@@ -453,6 +464,25 @@ treats an agent as a first-class _user_ of the running app.
 
 ## 7. Readiness verdict
 
+> **Update 2026-10-11 (later research).** trainm8 no longer uses Strava. Data
+> comes from the watch vendors, with Intervals.icu as a temporary bridge
+> ([`watch-data-sources.md`](watch-data-sources.md)). The first-slice ranking at
+> the end of this section is redone with each origin platform's terms in place
+> of Strava's grey zone. The provenance it needs is a new column, not
+> `externalProvider`
+> ([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) §3). Token
+> auth, push and the in-app agent are now planned elsewhere:
+>
+> - Better Auth with `@better-auth/mcp` + `@better-auth/cimd`
+>   ([`stack-migration.md`](stack-migration.md));
+> - SSE over Postgres `NOTIFY` ([`agent-platforms.md`](agent-platforms.md)
+>   §8A.2);
+> - Bedrock `eu-north-1` after a DPIA
+>   ([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md)).
+>
+> The foundation verdict is in
+> [`agent-native-open-stack.md`](agent-native-open-stack.md).
+
 **Already agent-friendly**
 
 - **Owner-scoped services with typed results.** Most writes are an owner-scoped
@@ -503,7 +533,10 @@ treats an agent as a first-class _user_ of the running app.
   `WeekReplanProposal` and the undo tokens have no "who did this" field, and
   there is no audit log. Before any agent write ships, decide whether an agent
   acting on the athlete's say-so is the athlete (`authored`) or the machine
-  (silence rules apply).
+  (silence rules apply). Proposed ADR 0093 adds an `author` to proposals. Data
+  provenance (origin platform, device) is a separate gap, which proposed ADR
+  0096 fills ([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md)
+  §3).
 - **No screen context.** I dag's selected day is client `useState` plus a DOM
   attribute (`_home/timeline/use-day-selection.ts:53`). Sesong is URL state
   (good). There is no serialisable "what is on screen" object. Presenters
@@ -511,7 +544,13 @@ treats an agent as a first-class _user_ of the running app.
 - **Non-browser access and push are missing.** Auth is cookie-only (no token for
   an external/MCP agent), rate limits are per IP rather than per user or tool,
   and the SSE push covers imports only. A shared registry should feed both an
-  in-app agent and a future MCP server through the same auth and limits.
+  in-app agent and a future MCP server through the same auth and limits. Later
+  research plans both missing pieces. Token auth comes from Better Auth's
+  `@better-auth/mcp` (proposed ADR 0094;
+  [`stack-migration.md`](stack-migration.md)). Push comes from the same SSE
+  stream fed by Postgres `NOTIFY` once Postgres arrives; it needs a direct
+  connection, because Neon's pooler does not support `LISTEN`/`NOTIFY`
+  ([`agent-platforms.md`](agent-platforms.md) §8A.2).
 - **Leftover config.** The generation seam is synchronous by ADR, and the unused
   `@anthropic-ai/sdk` dependency and env vars are leftovers, not a foundation.
 
@@ -551,8 +590,51 @@ Runner-up: the import answer "hva var dette?" (`ImportLinkActionSchema`, with an
 undo token). It is Pillar 1's plan↔actual coupling, and a strong candidate for
 an agent that suggests the link while the athlete taps Ok.
 
-**Under Strava's API Policy the order changes.** Nothing Strava-sourced, and
-nothing computed from it, may reach an MCP client or a model (§5.16(b), §5.3;
+**Under origin-platform terms, the order for a model-facing first slice
+(re-ranked 2026-10-11).** trainm8's actuals now come from FIT uploads and
+Intervals.icu, and later from the watch vendors directly. Each value carries its
+origin platform's terms
+([`watch-data-sources.md` §6](watch-data-sources.md#6-ai-and-mcp-terms-per-source)):
+
+- Garmin wants attribution on AI output, preserved downstream. That is owed
+  today through Intervals.icu's §1.1.
+- A direct Garmin integration also needs written §5.2(o) approval naming the MCP
+  clients.
+- Polar needs explicit permission.
+- The athlete's own FIT upload carries no vendor terms.
+
+In front of a model, any of it is also Art. 9 health data, which needs explicit
+consent and a DPIA ([`ai-product-privacy-cost.md`](ai-product-privacy-cost.md)
+§3).
+
+1. **Candidate 2, the I dag composer, stays first.** It acts on plan data the
+   athlete authors, so no origin platform's terms apply. The one catch is
+   unchanged: the week sum's Actual Volume (`getWeekVolumes`) passes the gate
+   like any actual, with Garmin's attribution where it is Garmin-derived.
+2. **Candidate 1, Week Replan, moves up from the grey zone.** Its inputs (Weekly
+   Plan Adherence and TSB, `load/week-replan.ts:250`) and the TSB in its reason
+   are allowed for every source trainm8 offers today. Garmin-derived load must
+   carry Garmin's attribution ("Insights derived in part from Garmin
+   device-sourced data"), and Polar-derived load, once Polar is integrated, the
+   athlete's permission. The slice waits on provenance: nothing yet tells
+   Garmin-sourced Intervals.icu activities from the others (proposed ADR 0096).
+   It is still the North-star slice, and it can ship first behind its own route,
+   where no model sees it.
+3. **Candidate 3, Sesong edits, is unchanged.** It is clean where the athlete
+   authored the plan. Where the First Run seeded the plan from imported history
+   (`readAnchorContext`, `plan-outline/history.server.ts:59`), the seeded
+   numbers carry their origin platform's terms.
+4. **The runner-up, "hva var dette?", is back in** for non-Strava imports, with
+   attribution on Garmin-sourced ones. Its structured fields can cross, but the
+   provider's raw text (`rawJson`, activity names) stays out under the MCP
+   note's injection rules (§6.7 there).
+
+**If Strava returns, the order changes further.** The original analysis below
+still holds for that case, and for Strava-sourced rows already stored or still
+arriving through a connection made before Strava was hidden
+([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) §6.3). Nothing
+Strava-sourced, and nothing computed from it, may reach an MCP client or a model
+(§5.16(b), §5.3;
 [`mcp-server-for-trainm8.md` §6.1](mcp-server-for-trainm8.md#61-the-strava-gate-a-new-reason-for-an-unavailable-metric)).
 
 - **Candidate 1 is the grey zone.** `decideWeekReplan` reads Weekly Plan
@@ -570,14 +652,20 @@ nothing computed from it, may reach an MCP client or a model (§5.16(b), §5.3;
 - **The runner-up is out for Strava imports.** "Hva var dette?" is a question
   about an Activity Import, which is Strava Data.
 
-The gate needs provenance on every value it returns. The source is already
-stored as `ActivityImport.externalProvider` (`prisma/schema.prisma:1625`).
+The gate needs provenance on every value it returns.
+`ActivityImport.externalProvider` (`prisma/schema.prisma:1625`) stores only the
+transport (`strava`, `intervalsicu`, `manual`). That is enough to recognise
+Strava data, but not Garmin data arriving through Intervals.icu. Gating by
+origin platform needs the `originPlatform`, device and FIT-key columns of
+proposed ADR 0096, backfilled from `rawJson`
+([`watch-data-trainm8-ingest.md`](watch-data-trainm8-ingest.md) §3), with the
+per-platform terms in proposed ADR 0098.
 
 ## ADRs this research challenges
 
-| ADR                                                                       | What it decided                                                                                                                                                               | What the repo shows                                                                                                                                                                                                                                                                                                                                                                                                                          | Verdict                                                                                                                                                                                                                               |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **0016** AI plan generation                                               | A hosted Claude model via the Anthropic SDK (§8), preview → approve → persist. Superseded by ADR 0044; revived by ADR 0053 with §8 marked not in force                        | Nothing calls a model. The leftovers still cite 0016 as if it were live: the unused `@anthropic-ai/sdk ^0.102.0`, `ANTHROPIC_API_KEY`/`CLAUDE_CODE_OAUTH_TOKEN` in `env.server.ts` and `.env.example`, and a comment pointing at the deleted `anthropic-client.ts`. An in-app agent is a different consumer (multi-turn, tools, approvals) and should get its own ADR (proposed 0095) rather than revive §8                                  | **Confirm** the supersession; §8 stays not in force, and the stale env comments are the thing to fix                                                                                                                                  |
-| **0053** Season generation is deterministic behind the seam               | `SeasonGenerator` is synchronous (§1) and pure (§2); approval **regenerates** server-side rather than trusting a posted payload; nothing unapproved reaches the calendar (§8) | The seam is a clean slot for a model author, and §1 already names the Promise widening. But §2's regenerate-on-approve only works because the generator is deterministic. A model author is not, so approving by regenerating would land a season the athlete was never shown. The fix is to bind approval to the previewed payload, for example with ADR 0084's digest, which 0053's considered options rejected for the deterministic case | **Amend** when a model implementation is added: §1 widens to a Promise, and §2's approval rule must bind to the stored preview rather than regenerate                                                                                 |
-| **0080** Week Replan proposes, the athlete's sessions need a yes          | §6: "AI later writes the same proposals on the same surface … Only the author of step 1 changes"                                                                              | Holds structurally: `ProposalAuthor` is injectable (`load/week-change.server.ts:82`), silence never adds load, and the card renders any payload of the union. But "only the author changes" understates it. `ProposalAuthor` is synchronous, and `WeekReplanProposal` has no column saying who wrote it, so a model's proposal and a rule's are indistinguishable after the fact                                                             | **Amend** §6: an async author type and an authorship column are part of "AI later", and the owner should decide whether silence may apply a model-written proposal (the MCP note proposes never, in ADR 0093)                         |
-| **0088** Every write on I dag is undone from its toast and its landed row | One undo per write, for 10 s, through an owner-scoped delete or a compare-and-set token                                                                                       | The mechanism is exactly what an agent needs, and the server has no clock: the 10 s is UI-only, so an agent could offer the same undo later. But the ADR is scoped to the composer, Sesong writes still owe their undo, and nothing records that a write was the agent's                                                                                                                                                                     | **Amend**: extend §1's rule to agent writes (the agent's reply says what changed and carries _Angre_ with the same token (behind an opaque handle where a model sees it)), and decide the bound for an undo offered in a conversation |
+| ADR                                                                       | What it decided                                                                                                                                                               | What the repo shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Verdict                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **0016** AI plan generation                                               | A hosted Claude model via the Anthropic SDK (§8), preview → approve → persist. Superseded by ADR 0044; revived by ADR 0053 with §8 marked not in force                        | Nothing calls a model. The leftovers still cite 0016 as if it were live: the unused `@anthropic-ai/sdk ^0.102.0`, `ANTHROPIC_API_KEY`/`CLAUDE_CODE_OAUTH_TOKEN` in `env.server.ts` and `.env.example`, and a comment pointing at the deleted `anthropic-client.ts`. An in-app agent is a different consumer (multi-turn, tools, approvals) and should get its own ADR (proposed 0095, which later research puts on Bedrock `eu-north-1` behind a paid tier, after a DPIA: [`ai-product-privacy-cost.md`](ai-product-privacy-cost.md)) rather than revive §8 | **Confirm** the supersession; §8 stays not in force, and the stale env comments are the thing to fix                                                                                                                                                         |
+| **0053** Season generation is deterministic behind the seam               | `SeasonGenerator` is synchronous (§1) and pure (§2); approval **regenerates** server-side rather than trusting a posted payload; nothing unapproved reaches the calendar (§8) | The seam is a clean slot for a model author, and §1 already names the Promise widening. But §2's regenerate-on-approve only works because the generator is deterministic. A model author is not, so approving by regenerating would land a season the athlete was never shown. The fix is to bind approval to the previewed payload, for example with ADR 0084's digest, which 0053's considered options rejected for the deterministic case                                                                                                                | **Amend** when a model implementation is added: §1 widens to a Promise, and §2's approval rule must bind to the stored preview rather than regenerate                                                                                                        |
+| **0080** Week Replan proposes, the athlete's sessions need a yes          | §6: "AI later writes the same proposals on the same surface … Only the author of step 1 changes"                                                                              | Holds structurally: `ProposalAuthor` is injectable (`load/week-change.server.ts:82`), silence never adds load, and the card renders any payload of the union. But "only the author changes" understates it. `ProposalAuthor` is synchronous, and `WeekReplanProposal` has no column saying who wrote it, so a model's proposal and a rule's are indistinguishable after the fact                                                                                                                                                                            | **Amend** §6: an async author type and an authorship column are part of "AI later", and the owner should decide whether silence may apply a model-written proposal (the MCP note proposes never, in ADR 0093)                                                |
+| **0088** Every write on I dag is undone from its toast and its landed row | One undo per write, for 10 s, through an owner-scoped delete or a compare-and-set token                                                                                       | The mechanism is exactly what an agent needs, and the server has no clock: the 10 s is UI-only, so an agent could offer the same undo later. But the ADR is scoped to the composer, Sesong writes still owe their undo, and nothing records that a write was the agent's                                                                                                                                                                                                                                                                                    | **Amend** (in proposed ADR 0093): extend §1's rule to agent writes (the agent's reply says what changed and carries _Angre_ with the same token (behind an opaque handle where a model sees it)), and decide the bound for an undo offered in a conversation |
