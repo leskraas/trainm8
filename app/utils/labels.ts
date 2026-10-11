@@ -6302,6 +6302,89 @@ export const CATALOGUE_PLACE_LABELS = {
 	},
 } as const
 
+/** Publishing one's own session to the Catalogue (`catalogue.publish`). */
+export const CATALOGUE_PUBLISH_LABELS = {
+	metaTitle: 'Publiser i katalogen | Trainm8',
+	title: 'Publiser i katalogen',
+	whereFrom: 'Hvor denne kommer fra',
+	forkedFrom: (citation: string) =>
+		`Du kopierte denne fra en økt trainm8 har med, med kilde ${citation}.`,
+	sourceStays:
+		'Den kilden blir hos originalen. Økta du publiserer viser den som «bygd på» og aldri som sin egen — en økt en utøver publiserer kan aldri ha en kilde.',
+	removed: 'Fjernet fra katalogen',
+	removedOn: (date: string) => `En moderator fjernet økta ${date}.`,
+	reason: (reason: string) => `Grunn: ${reason}`,
+	removedNote:
+		'Selve økta er urørt og fortsatt din — den er ute av katalogen, ikke ute av treningshistorikken din. Den kan ikke publiseres igjen.',
+	inCatalogue: 'I katalogen',
+	publishedAs: (name: string, date: string) =>
+		`Publisert som ${name} ${date}. Alle kan rapportere den; en moderator kan fjerne den.`,
+	withdraw: 'Trekk tilbake fra katalogen',
+	backToCatalogue: 'Tilbake til katalogen',
+	nameLabel: 'Publiser under navnet',
+	kindLabel: 'Hva slags økt er det?',
+	pickOne: 'Velg én',
+	levelLabel: 'Laveste nivå den passer for (valgfritt)',
+	anyLevel: 'Alle nivåer',
+	beforeYouPublish: 'Før du publiserer',
+	everyAthlete:
+		'Alle utøvere kan lese den, og alle kan rapportere den. En moderator som gir en rapport medhold, fjerner den fra katalogen for godt — økta er fortsatt din, men den kan ikke publiseres igjen.',
+	update: 'Oppdater',
+	publish: 'Publiser',
+	cancel: 'Avbryt',
+	errors: {
+		name: 'Velg navnet økta publiseres under',
+		kind: 'Si hva slags økt dette er',
+		takenDown:
+			'En moderator fjernet denne økta fra katalogen. Den kan ikke publiseres igjen.',
+		notYours: 'Dette er ikke din økt å publisere.',
+		stock: 'trainm8 har med denne økta, så den er allerede i katalogen.',
+		gone: 'Den økta finnes ikke lenger.',
+	},
+} as const
+
+/** The report reasons, as the athlete picks them (keys stored as-is). */
+export const NB_REPORT_REASON_LABELS: Record<string, string> = {
+	unsafe: 'Utrygg å trene',
+	miscited: 'Viser til en kilde den ikke har',
+	spam: 'Spam, eller ikke en treningsøkt',
+	abusive: 'Krenkende eller støtende',
+	other: 'Noe annet',
+}
+
+export const NB_REPORT_REASON_HINTS: Record<string, string> = {
+	unsafe: 'Den som fulgte forskriften, kunne blitt skadet.',
+	miscited: 'Den nevner en trener, bok eller studie den ikke kommer fra.',
+	spam: 'Reklame, eller en økt som ikke er en økt.',
+	abusive: 'Tittelen, beskrivelsen eller notatene er krenkende.',
+	other: 'Si hva som er galt — denne trenger en beskrivelse.',
+}
+
+/** Reporting a community session (`catalogue.report`). */
+export const CATALOGUE_REPORT_LABELS = {
+	metaTitle: 'Rapporter en økt | Trainm8',
+	title: 'Rapporter denne økta',
+	already:
+		'Du har allerede rapportert denne økta. Den er skjult i katalogen din, og en moderator har den.',
+	backToCatalogue: 'Tilbake til katalogen',
+	whatIsWrong: 'Hva er galt med den?',
+	detail: 'Noe mer en moderator bør vite?',
+	whatReportingDoes: 'Hva en rapport gjør',
+	hides:
+		'Den skjuler økta i katalogen din med en gang, og sender den til en moderator.',
+	notForOthers:
+		'Den fjerner den ikke for noen andre — det avgjør en moderator, så ingen utøver kan ta ned en annens økt.',
+	send: 'Send rapport',
+	cancel: 'Avbryt',
+	errors: {
+		reason: 'Velg hva som er galt med den',
+		detail: 'Si hva som er galt — «noe annet» trenger en beskrivelse',
+		yourOwn: 'Dette er din egen økt — trekk den tilbake i stedet.',
+		notPublic: 'Den økta er ikke i katalogen.',
+		gone: 'Den økta finnes ikke lenger.',
+	},
+} as const
+
 /** Bibliotek's exercise list, beside `EXERCISE_LIST_LABELS`. */
 export const EXERCISE_SEARCH_LABELS = {
 	/** Beside a row found by another of its names: `«knebøy»`. */

@@ -44,20 +44,22 @@ import {
 	resolveSharedProvenance,
 	unpublishWorkout,
 } from '#app/utils/community.server.ts'
+import { publishBlockedReason, readPublishState } from '#app/utils/community.ts'
+import { formatNbDate } from '#app/utils/format.ts'
 import {
-	COMMUNITY_NON_VOUCH,
-	publishBlockedReason,
-	readPublishState,
-} from '#app/utils/community.ts'
-import { formatDate } from '#app/utils/format.ts'
-import { SESSION_ARCHETYPE_LABELS, LIBRARY_LABELS } from '#app/utils/labels.ts'
-import { getDisciplineLabel } from '#app/utils/training.ts'
+	CATALOGUE_PUBLISH_LABELS as L,
+	LIBRARY_LABELS,
+	NB_CATALOGUE_LEVEL_LABELS,
+	NB_PROVENANCE_LABELS,
+	NB_SESSION_ARCHETYPE_LABELS,
+	nbDisciplineLabel,
+} from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Route } from './+types/catalogue.publish.$workoutId.ts'
+import { catalogueBlurb } from './__catalogue-card.ts'
 
-export const meta: Route.MetaFunction = () => [
-	{ title: 'Publish to the Catalogue | Trainm8' },
-]
+export const meta: Route.MetaFunction = () => [{ title: L.metaTitle }]
 
 /**
  * The publish form. `archetype` is required because the Catalogue is a
@@ -66,13 +68,9 @@ export const meta: Route.MetaFunction = () => [
  * level-scoped, which is a positive statement rather than a blank (ADR 0051 §3).
  */
 const PublishSchema = z.object({
-	displayName: z
-		.string()
-		.trim()
-		.min(1, 'Choose the name this is published under')
-		.max(60),
+	displayName: z.string().trim().min(1, L.errors.name).max(60),
 	archetype: z.enum(SESSION_ARCHETYPES, {
-		errorMap: () => ({ message: 'Say what kind of session this is' }),
+		errorMap: () => ({ message: L.errors.kind }),
 	}),
 	level: z.enum(CATALOGUE_LEVELS).optional(),
 })
@@ -132,12 +130,12 @@ export async function action({ request, params }: Route.ActionArgs) {
 		// particular has to reach the author: it is the only permanent state here.
 		const message =
 			result.reason === 'taken-down'
-				? 'A moderator removed this session from the Catalogue. It cannot be published again.'
+				? L.errors.takenDown
 				: result.reason === 'not-yours'
-					? 'This is not your session to publish.'
+					? L.errors.notYours
 					: result.reason === 'not-athlete-authored'
-						? 'trainm8 ships this session, so it is already in the Catalogue.'
-						: 'That session no longer exists.'
+						? L.errors.stock
+						: L.errors.gone
 		return data(
 			{ result: submission.reply({ formErrors: [message] }) },
 			{ status: 400 },
@@ -180,24 +178,24 @@ export default function PublishRoute({
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
-				title="Publish to the Catalogue"
+				title={L.title}
 				back={{ to: '/training/catalogue', label: LIBRARY_LABELS.catalogue }}
 				className="mb-6"
 			/>
 
 			<Card className="mb-6">
 				<CardHeader>
-					<CardTitle className="text-base font-bold tracking-tight">
+					<CardTitle className="text-callout [overflow-wrap:anywhere]">
 						{workout.title}
 					</CardTitle>
-					<p className="text-body-xs text-muted-foreground">
-						{getDisciplineLabel(workout.discipline)}
+					<p className="text-footnote text-muted-foreground">
+						{nbDisciplineLabel(workout.discipline)}
 					</p>
 				</CardHeader>
-				{workout.description ? (
+				{catalogueBlurb(workout.description) ? (
 					<CardContent>
-						<p className="text-body-sm text-muted-foreground">
-							{workout.description}
+						<p className="text-footnote text-muted-foreground">
+							{catalogueBlurb(workout.description)}
 						</p>
 					</CardContent>
 				) : null}
@@ -206,40 +204,24 @@ export default function PublishRoute({
 			{provenance.adaptedFrom ? (
 				<Card className="mb-6">
 					<CardHeader>
-						<CardTitle className="text-h6">Where this came from</CardTitle>
+						<CardTitle className="text-heading">{L.whereFrom}</CardTitle>
 					</CardHeader>
-					<CardContent className="text-body-sm text-muted-foreground space-y-1">
-						<p>
-							You forked this from a session trainm8 ships, cited to{' '}
-							{formatCitation(provenance.adaptedFrom)}.
-						</p>
-						<p>
-							That source stays with the original. Your published session shows
-							it as <em>adapted from</em> and never as its own — a session an
-							athlete publishes can never carry a citation.
-						</p>
+					<CardContent className="text-footnote text-muted-foreground space-y-1">
+						<p>{L.forkedFrom(formatCitation(provenance.adaptedFrom))}</p>
+						<p>{L.sourceStays}</p>
 					</CardContent>
 				</Card>
 			) : null}
 
 			{state.kind === 'taken-down' ? (
-				<Card className="border-destructive mb-6" data-takedown-notice>
+				<Card className="ring-destructive/40 mb-6" data-takedown-notice>
 					<CardHeader>
-						<CardTitle className="text-h6">
-							Removed from the Catalogue
-						</CardTitle>
+						<CardTitle className="text-heading">{L.removed}</CardTitle>
 					</CardHeader>
-					<CardContent className="text-body-sm space-y-1">
-						<p>
-							A moderator removed this session on{' '}
-							{formatDate(state.at, timeZone)}.
-						</p>
-						<p className="text-muted-foreground">Reason: {state.reason}</p>
-						<p className="text-muted-foreground">
-							The session itself is untouched and still yours — it is out of the
-							Catalogue, not out of your training history. It cannot be
-							published again.
-						</p>
+					<CardContent className="text-footnote space-y-1">
+						<p>{L.removedOn(formatNbDate(state.at, timeZone))}</p>
+						<p className="text-muted-foreground">{L.reason(state.reason)}</p>
+						<p className="text-muted-foreground">{L.removedNote}</p>
 					</CardContent>
 				</Card>
 			) : null}
@@ -247,21 +229,24 @@ export default function PublishRoute({
 			{state.kind === 'published' ? (
 				<Card className="mb-6">
 					<CardHeader>
-						<CardTitle className="text-h6">In the Catalogue</CardTitle>
+						<CardTitle className="text-heading">{L.inCatalogue}</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-3">
-						<p className="text-body-sm text-muted-foreground">
-							Published as{' '}
-							<span className="font-medium">
-								{state.attribution.displayName}
-							</span>{' '}
-							on {formatDate(state.attribution.publishedAt, timeZone)}. Anybody
-							can report it; a moderator can remove it.
+						<p className="text-footnote text-muted-foreground">
+							{L.publishedAs(
+								state.attribution.displayName,
+								formatNbDate(state.attribution.publishedAt, timeZone),
+							)}
 						</p>
 						<Form method="POST">
 							<input type="hidden" name="intent" value="withdraw" />
-							<Button type="submit" variant="outline" size="sm">
-								Withdraw from the Catalogue
+							<Button
+								type="submit"
+								variant="outline"
+								size="sm"
+								className="rounded-full"
+							>
+								{L.withdraw}
 							</Button>
 						</Form>
 					</CardContent>
@@ -269,15 +254,15 @@ export default function PublishRoute({
 			) : null}
 
 			{blocked ? (
-				<p className="text-muted-foreground text-sm">
+				<p className="text-footnote">
 					<Link to="/training/catalogue" className="underline">
-						Back to the Catalogue
+						{L.backToCatalogue}
 					</Link>
 				</p>
 			) : (
 				<Form method="POST" {...getFormProps(form)} className="space-y-4">
 					<Field
-						labelProps={{ children: 'Publish under the name' }}
+						labelProps={{ children: L.nameLabel }}
 						inputProps={{
 							...getInputProps(fields.displayName, { type: 'text' }),
 							autoComplete: 'off',
@@ -286,47 +271,45 @@ export default function PublishRoute({
 					/>
 					<SelectField
 						meta={fields.archetype}
-						labelProps={{ children: 'What kind of session is it?' }}
-						placeholder="Pick one"
+						labelProps={{ children: L.kindLabel }}
+						placeholder={L.pickOne}
 						items={SESSION_ARCHETYPES.map((archetype) => ({
 							value: archetype,
-							label: SESSION_ARCHETYPE_LABELS[archetype],
+							label: NB_SESSION_ARCHETYPE_LABELS[archetype],
 						}))}
 						errors={fields.archetype.errors}
 					/>
 					<SelectField
 						meta={fields.level}
-						labelProps={{ children: 'Lowest level it suits (optional)' }}
-						placeholder="Any level"
+						labelProps={{ children: L.levelLabel }}
+						placeholder={L.anyLevel}
 						items={CATALOGUE_LEVELS.map((level) => ({
 							value: level,
-							label: level[0]!.toUpperCase() + level.slice(1),
+							label: NB_CATALOGUE_LEVEL_LABELS[level],
 						}))}
 						errors={fields.level.errors}
 					/>
 
-					<div className="text-body-sm text-muted-foreground space-y-2 rounded-xl border p-4">
-						<p className="font-medium">Before you publish</p>
-						<p data-non-vouch>{COMMUNITY_NON_VOUCH}</p>
-						<p>
-							Every athlete can read it and every athlete can report it. A
-							moderator who upholds a report removes it from the Catalogue
-							permanently — your session stays yours, but it cannot be published
-							again.
-						</p>
+					<div className="bg-muted text-footnote text-muted-foreground space-y-2 rounded-3xl p-4">
+						<p className="text-callout text-foreground">{L.beforeYouPublish}</p>
+						<p data-non-vouch>{NB_PROVENANCE_LABELS.nonVouch}</p>
+						<p>{L.everyAthlete}</p>
 					</div>
 
 					<ErrorList id={form.errorId} errors={form.errors} />
 
 					<div className="flex flex-wrap gap-2">
-						<Button type="submit">
-							{state.kind === 'published' ? 'Update' : 'Publish'}
+						<Button type="submit" className="rounded-full">
+							{state.kind === 'published' ? L.update : L.publish}
 						</Button>
 						<Link
 							to="/training/catalogue"
-							className={buttonVariants({ variant: 'ghost' })}
+							className={cn(
+								buttonVariants({ variant: 'ghost' }),
+								'rounded-full',
+							)}
 						>
-							Cancel
+							{L.cancel}
 						</Link>
 					</div>
 				</Form>

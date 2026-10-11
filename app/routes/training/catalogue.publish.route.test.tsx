@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
-import { COMMUNITY_NON_VOUCH } from '#app/utils/community.ts'
+import { NB_PROVENANCE_LABELS } from '#app/utils/labels.ts'
 import PublishRoute from './catalogue.publish.$workoutId.tsx'
 
 const NO_PROVENANCE = {
@@ -51,16 +51,18 @@ function renderPublish(overrides: Record<string, unknown> = {}) {
 test('the author is shown the non-vouch and what a report can do, before publishing', async () => {
 	renderPublish()
 
-	expect(await screen.findByText(COMMUNITY_NON_VOUCH)).toBeInTheDocument()
 	expect(
-		screen.getByText(/removes it from the Catalogue permanently/i),
+		await screen.findByText(NB_PROVENANCE_LABELS.nonVouch),
+	).toBeInTheDocument()
+	expect(
+		screen.getByText(/fjerner den fra katalogen for godt/i),
 	).toBeInTheDocument()
 })
 
 test('the published name is a field with a default, never a silent disclosure', async () => {
 	renderPublish()
 
-	const name = await screen.findByLabelText(/publish under the name/i)
+	const name = await screen.findByLabelText(/publiser under navnet/i)
 	expect(name).toHaveValue('Jo Kraas')
 })
 
@@ -68,7 +70,7 @@ test('publishing sends the name and the retrieval metadata', async () => {
 	const { submitted } = renderPublish({ currentArchetype: 'threshold' })
 
 	await userEvent.click(
-		await screen.findByRole('button', { name: /^publish$/i }),
+		await screen.findByRole('button', { name: /^publiser$/i }),
 	)
 
 	expect(submitted).toHaveBeenCalledWith(
@@ -93,8 +95,8 @@ test('a fork of a cited session is told the source stays with the original', asy
 		},
 	})
 
-	expect(await screen.findByText(/Where this came from/i)).toBeInTheDocument()
-	expect(screen.getByText(/can never carry a citation/i)).toBeInTheDocument()
+	expect(await screen.findByText(/Hvor denne kommer fra/i)).toBeInTheDocument()
+	expect(screen.getByText(/kan aldri ha en kilde/i)).toBeInTheDocument()
 })
 
 test('a published session offers withdrawal, which is the author’s own takedown', async () => {
@@ -109,7 +111,7 @@ test('a published session offers withdrawal, which is the author’s own takedow
 	})
 
 	await userEvent.click(
-		await screen.findByRole('button', { name: /withdraw from the catalogue/i }),
+		await screen.findByRole('button', { name: /trekk tilbake fra katalogen/i }),
 	)
 	expect(submitted).toHaveBeenCalledWith({ intent: 'withdraw' })
 })
@@ -127,13 +129,11 @@ test('a taken-down session says why, says it is permanent, and offers no publish
 		},
 	})
 
-	expect(
-		await screen.findByText(/Removed from the Catalogue/i),
-	).toBeInTheDocument()
-	expect(screen.getByText(/Reason: Unsafe to train/)).toBeInTheDocument()
+	expect(await screen.findByText(/Fjernet fra katalogen/i)).toBeInTheDocument()
+	expect(screen.getByText(/Grunn: Unsafe to train/)).toBeInTheDocument()
 	// The session itself is untouched — a takedown removes it from the corpus, not
 	// from the athlete's training history.
-	expect(screen.getByText(/still yours/i)).toBeInTheDocument()
+	expect(screen.getByText(/fortsatt din/i)).toBeInTheDocument()
 	expect(
 		screen.queryByRole('button', { name: /publish/i }),
 	).not.toBeInTheDocument()
