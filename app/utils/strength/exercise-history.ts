@@ -18,14 +18,15 @@
  * row is the runner's *"Fill from last time"* control, working from the log
  * itself, and an explicit tap.
  */
-import { formatLiftWork } from '../format.ts'
+import { formatLiftWork, formatNbKg } from '../format.ts'
+import { EXERCISE_PAGE_LABELS, STRENGTH_RUNNER_LABELS } from '../labels.ts'
 import {
 	type EquipmentId,
+	type LoadValue,
 	type LoggedSet,
 	type SetGhost,
 	countsTowardWork,
 	ghostsForRows,
-	loadValueText,
 } from '../strength-log.ts'
 import { type KiloLoadBasis, kiloLoadBasis } from './program-rules.ts'
 
@@ -320,16 +321,16 @@ export function lastTimeLabel(
 	last: ExerciseSessionSummary | null,
 	now: Date,
 ): string {
-	if (!last) return 'First time on this lift'
+	const L = EXERCISE_PAGE_LABELS.lastTime
+	if (!last) return L.first
 	const days = Math.max(
 		0,
 		Math.floor((now.getTime() - last.performedAt.getTime()) / DAY_MS),
 	)
-	if (days === 0) return 'Last time: today'
-	if (days === 1) return 'Last time: yesterday'
-	if (days < 14) return `Last time: ${days} days ago`
-	const weeks = Math.floor(days / 7)
-	return `Last time: ${weeks} weeks ago`
+	if (days === 0) return L.today
+	if (days === 1) return L.yesterday
+	if (days < 14) return L.days(days)
+	return L.weeks(Math.floor(days / 7))
 }
 
 // ——— The ghost ——————————————————————————————————————————————————————————
@@ -396,7 +397,7 @@ function setText(set: {
 	repsLeft?: number | null
 	durationSec: number | null
 }): string {
-	const load = loadValueText(set.load)
+	const load = nbLoadText(set.load)
 	if (set.reps != null) {
 		const reps =
 			set.repsLeft != null ? `${set.reps} / ${set.repsLeft}` : `${set.reps}`
@@ -405,4 +406,33 @@ function setText(set: {
 	if (set.durationSec != null)
 		return formatLiftWork(load, [`${set.durationSec} s`])!
 	return load
+}
+
+/**
+ * A logged Load Value in a lift line, in the athlete's Norwegian — `82,5 kg`,
+ * `kroppsvekt + 20 kg`, `nivå 6`. The runner's own words for the same kinds
+ * (`STRENGTH_RUNNER_LABELS.load`), so the lift page and the runner's `Sist`
+ * line write one set one way. `loadValueText` keeps the English for the
+ * surfaces that have not moved (ADR 0081 §4).
+ */
+function nbLoadText(load: LoadValue): string {
+	const W = STRENGTH_RUNNER_LABELS.load
+	switch (load.kind) {
+		case 'external':
+			return W.external(formatNbKg(load.kg))
+		case 'perSide':
+			return W.perSide(load.sides, formatNbKg(load.kg))
+		case 'bodyweight':
+			return W.bodyweight
+		case 'bodyweightPlus':
+			return W.bodyweightPlus(formatNbKg(load.addedKg))
+		case 'assisted':
+			return W.assisted(formatNbKg(load.assistKg))
+		case 'stackLevel':
+			return load.label ?? W.level(load.level)
+		case 'band':
+			return W.band(load.band)
+		case 'unloaded':
+			return W.unloaded
+	}
 }

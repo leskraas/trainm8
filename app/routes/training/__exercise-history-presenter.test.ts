@@ -77,10 +77,10 @@ function view(
 test('a beaten record states the kilos it went up by, and the date it was set', () => {
 	const [card] = buildRecordCards([record()], TZ)
 
-	expect(card?.headline).toBe('Heaviest ever')
+	expect(card?.headline).toBe('Tyngste noensinne')
 	expect(card?.value).toBe('100 kg')
-	expect(card?.gain).toBe('up 2,5 kg')
-	expect(card?.achievedLabel).toBe('10 Aug')
+	expect(card?.gain).toBe('opp 2,5 kg')
+	expect(card?.achievedLabel).toBe('10. aug')
 })
 
 test('a bodyweight-derived record is headlined as one, so no card can read as a weight on the bar', () => {
@@ -96,17 +96,17 @@ test('a bodyweight-derived record is headlined as one, so no card can read as a 
 				delta: null,
 				crossExerciseComparable: false,
 				unavailableNote:
-					'Includes your bodyweight — this progresses against other bodyweight sets only.',
+					'Med kroppsvekten din — dette måles bare mot andre sett med kroppsvekt.',
 			}),
 		],
 		TZ,
 	)
 
-	expect(card?.headline).toBe('Heaviest bodyweight set')
+	expect(card?.headline).toBe('Tyngste sett med kroppsvekt')
 	expect(card?.value).toBe('104 kg')
-	expect(card?.gain).toBe('first time!')
+	expect(card?.gain).toBe('første gang')
 	expect(card?.comparable).toBe(false)
-	expect(card?.note).toMatch(/Includes your bodyweight/)
+	expect(card?.note).toMatch(/Med kroppsvekten din/)
 })
 
 test('two records on one lift with different bases get different keys, so neither replaces the other', () => {
@@ -126,12 +126,12 @@ test('an assisted lift with no record carries the refusal onto the surface, so t
 		view({
 			records: [],
 			recordsRefused:
-				'An assisted set takes no record: the number is your bodyweight minus the assistance, so it grows as the work shrinks.',
+				'Et assistert sett gir ingen rekord: tallet er kroppsvekten din minus hjelpen, så det stiger når arbeidet blir lettere.',
 		}),
 	)
 
 	expect(model.records).toEqual([])
-	expect(model.recordsRefused).toMatch(/grows as the work shrinks/)
+	expect(model.recordsRefused).toMatch(/stiger når arbeidet blir lettere/)
 })
 
 test("a weight the athlete's plates can make is stated as it was stored, not rounded to one decimal", () => {
@@ -155,7 +155,7 @@ test('a delta agrees with the two weights it is derived from', () => {
 
 	// 61.25 − 40 = 21.25, and the card says all three of those numbers.
 	expect(card?.value).toBe('61,25 kg')
-	expect(card?.gain).toBe('up 21,25 kg')
+	expect(card?.gain).toBe('opp 21,25 kg')
 })
 
 test('a first entry on a variant reads "first time!" rather than announcing a PR', () => {
@@ -164,7 +164,7 @@ test('a first entry on a variant reads "first time!" rather than announcing a PR
 		TZ,
 	)
 
-	expect(card?.gain).toBe('first time!')
+	expect(card?.gain).toBe('første gang')
 	expect(card?.gain).not.toMatch(/PR/i)
 })
 
@@ -176,7 +176,7 @@ test('a second session inside the debut window does not claim a first time above
 		TZ,
 	)
 
-	expect(card?.gain).toBe('best so far')
+	expect(card?.gain).toBe('best hittil')
 	expect(card?.gain).not.toMatch(/first time/i)
 })
 
@@ -186,7 +186,7 @@ test('a rep-max record names the rep count it is exactly at', () => {
 		TZ,
 	)
 
-	expect(card?.headline).toBe('Best 5-rep set')
+	expect(card?.headline).toBe('Beste sett på 5 reps')
 	expect(card?.value).toBe('92,5 kg')
 })
 
@@ -199,7 +199,7 @@ test('an estimated 1RM carries its equation and an observed record carries none'
 		TZ,
 	)
 
-	expect(cards[0]?.estimator).toBe('epley')
+	expect(cards[0]?.estimator).toBe('Epley/Welday')
 	expect(cards[1]?.estimator).toBeNull()
 })
 
@@ -219,9 +219,9 @@ test('a machine-stack record reads in levels and is never printed as kilos', () 
 		TZ,
 	)
 
-	expect(card?.value).toBe('level 7')
+	expect(card?.value).toBe('nivå 7')
 	expect(card?.value).not.toMatch(/kg/)
-	expect(card?.gain).toBe('up 1 level')
+	expect(card?.gain).toBe('opp 1 nivå')
 	expect(card?.comparable).toBe(false)
 	expect(card?.note).toBe(NO_KILOS_NOTE)
 })
@@ -250,7 +250,7 @@ test('a session with no honest kilo keeps its place in the history and gets no b
 			session({
 				sessionId: 'stack',
 				topSetKg: null,
-				topSetText: 'level 7 × 12',
+				topSetText: 'nivå 7 × 12',
 				loadBasis: 'stackLevel',
 				comparable: false,
 			}),
@@ -262,7 +262,7 @@ test('a session with no honest kilo keeps its place in the history and gets no b
 	expect(points[0]?.kg).toBeNull()
 	// Not a zero-length bar, which would read as "you lifted nothing".
 	expect(points[0]?.barFraction).toBeNull()
-	expect(points[0]?.text).toBe('level 7 × 12')
+	expect(points[0]?.text).toBe('nivå 7 × 12')
 })
 
 test('the bar is scaled to the range in view, so 100 kg to 105 kg is not a flat line', () => {
@@ -303,7 +303,7 @@ test('a bodyweight-derived session does not stretch the axis of a curve made of 
 				sessionId: 'belt',
 				performedAt: new Date('2026-08-07T17:00:00Z'),
 				topSetKg: 104,
-				topSetText: 'bodyweight + 30 kg × 5',
+				topSetText: 'kroppsvekt + 30 kg × 5',
 				loadBasis: 'bodyweightDerived',
 				comparable: false,
 			}),
@@ -321,7 +321,7 @@ test('a bodyweight-derived session does not stretch the axis of a curve made of 
 	expect(points[0]?.barFraction).toBeLessThan(1)
 	// The belt session keeps its place and its text, and is drawn as neither a bar
 	// nor a zero: it happened, and it is not on this axis.
-	expect(points[1]?.text).toBe('bodyweight + 30 kg × 5')
+	expect(points[1]?.text).toBe('kroppsvekt + 30 kg × 5')
 	expect(points[1]?.barFraction).toBeNull()
 	expect(points[1]?.comparable).toBe(false)
 })
@@ -355,13 +355,13 @@ test('the variant switcher offers "All variants" only when more than one exists'
 		'dumbbell',
 	)
 
-	expect(single.map((tab) => tab.label)).toEqual(['Barbell'])
+	expect(single.map((tab) => tab.label)).toEqual(['Stang'])
 	expect(both.map((tab) => tab.label)).toEqual([
-		'All variants',
-		'Barbell',
-		'Dumbbell',
+		'Alle varianter',
+		'Stang',
+		'Manualer',
 	])
-	expect(both.find((tab) => tab.current)?.label).toBe('Dumbbell')
+	expect(both.find((tab) => tab.current)?.label).toBe('Manualer')
 })
 
 test('the kilo-less phrase is said exactly once, on the record that carries it', () => {
@@ -370,7 +370,7 @@ test('the kilo-less phrase is said exactly once, on the record that carries it',
 			sessions: [
 				session({
 					topSetKg: null,
-					topSetText: 'level 7 × 12',
+					topSetText: 'nivå 7 × 12',
 					loadBasis: 'stackLevel',
 					comparable: false,
 				}),
@@ -398,7 +398,7 @@ test('a band-only history still says it progresses against itself, even with no 
 			sessions: [
 				session({
 					topSetKg: null,
-					topSetText: 'red band × 15',
+					topSetText: 'strikk red × 15',
 					loadBasis: 'unreadable',
 					comparable: false,
 				}),
@@ -437,7 +437,7 @@ test('the equation is named on the screen only when an estimate was produced', (
 	)
 	const without = buildExerciseHistoryViewModel(view())
 
-	expect(withEstimate.estimatorNote).toMatch(/epley/)
+	expect(withEstimate.estimatorNote).toMatch(/Epley\/Welday-likningen/)
 	expect(without.estimatorNote).toBeNull()
 })
 
@@ -448,19 +448,17 @@ test('a missing estimated 1RM says why it is missing, and says nothing when ther
 	const refused = buildExerciseHistoryViewModel(
 		view({
 			records: [record()],
-			oneRmUnavailable:
-				'None of your sets here says how close to failure it was.',
+			oneRmUnavailable: 'Ingen av settene sier hvor nær utmattelse de var.',
 		}),
 	)
 	const estimated = buildExerciseHistoryViewModel(
 		view({
 			records: [record({ kind: 'e1RM', estimator: 'epley' })],
-			oneRmUnavailable:
-				'None of your sets here says how close to failure it was.',
+			oneRmUnavailable: 'Ingen av settene sier hvor nær utmattelse de var.',
 		}),
 	)
 
-	expect(refused.oneRmUnavailable).toMatch(/how close to failure/)
+	expect(refused.oneRmUnavailable).toMatch(/hvor nær utmattelse/)
 	expect(estimated.oneRmUnavailable).toBeNull()
 })
 
@@ -471,14 +469,14 @@ test('a lift with no logged work is empty rather than a chart of nothing', () =>
 
 	expect(model.empty).toBe(true)
 	expect(model.points).toEqual([])
-	expect(model.lastTime).toBe('First time on this lift')
+	expect(model.lastTime).toBe('Første gang på dette løftet')
 	expect(model.variantTabs).toEqual([])
 })
 
 test('the screen says when the lift was last done, and what the top set was', () => {
 	const model = buildExerciseHistoryViewModel(view())
 
-	expect(model.lastTime).toBe('Last time: 3 days ago')
+	expect(model.lastTime).toBe('Sist: for 3 dager siden')
 	expect(model.lastTimeText).toBe('100 kg × 5')
 })
 
@@ -542,16 +540,16 @@ test('every third session carries a tick label and the rest carry none', () => {
 	const bars = buildChartBars(buildHistoryPoints(history(10), TZ), null)
 
 	expect(bars.map((bar) => bar.tickLabel)).toEqual([
-		'S1',
+		'1',
 		null,
 		null,
-		'S4',
+		'4',
 		null,
 		null,
-		'S7',
+		'7',
 		null,
 		null,
-		'S10',
+		'10',
 	])
 })
 
@@ -562,7 +560,7 @@ test('the chart draws the presenter bar fractions it already produced, and no ba
 			sessionId: 'b',
 			performedAt: new Date('2026-07-03T17:00:00Z'),
 			topSetKg: null,
-			topSetText: 'level 7 × 12',
+			topSetText: 'nivå 7 × 12',
 			loadBasis: 'stackLevel',
 			comparable: false,
 		}),
@@ -601,7 +599,7 @@ test('the note strip is generated from the marked bar, so the sentence and the b
 	)
 
 	expect(buildStallNotes(bars)).toEqual([
-		'Session 8 — Stall Cut, 80 kg → 72,5 kg',
+		'Økt 8 — vekta kuttet, 80 kg → 72,5 kg',
 	])
 })
 
@@ -644,7 +642,7 @@ test('the working weight is the header, with the estimated 1RM and the set it ca
 
 	expect(header?.workingWeight).toBe('82,5 kg')
 	expect(header?.estOneRm).toBe('96 kg')
-	expect(header?.estOneRmSource).toBe('from 82,5 kg × 5')
+	expect(header?.estOneRmSource).toBe('fra 82,5 kg × 5')
 })
 
 test('a lift in no program has no working-weight header at all, rather than a zero', () => {
@@ -676,7 +674,7 @@ test('the estimated 1RM names the set it came from on its record row, and an obs
 	)
 
 	expect(cards[0]?.source).toBeNull()
-	expect(cards[1]?.source).toBe('from 82,5 kg × 5')
+	expect(cards[1]?.source).toBe('fra 82,5 kg × 5')
 })
 
 test('the view model carries the chart, the notes and the header, and still no tonnage', () => {
@@ -690,20 +688,20 @@ test('the view model carries the chart, the notes and the header, and still no t
 	)
 
 	expect(model.chart).toHaveLength(9)
-	expect(model.stallNotes).toEqual(['Session 8 — Stall Cut, 80 kg → 72,5 kg'])
+	expect(model.stallNotes).toEqual(['Økt 8 — vekta kuttet, 80 kg → 72,5 kg'])
 	expect(model.header?.workingWeight).toBe('82,5 kg')
 	// The name and the table are one pair: the name is short because the table
 	// carries the detail, so a view model with one and not the other is a chart
 	// that either says too much or says nothing.
 	expect(model.chartLabel).toBe(
-		'Back squat: top set across 9 sessions, oldest first, with 1 Stall Cut marked.',
+		'Back squat: toppsett over 9 økter, eldste først, med 1 vektkutt merket.',
 	)
 	expect(model.chartTable?.rows).toHaveLength(9)
 	expect(model.chartTable?.rows[7]).toEqual([
-		'Session 8',
-		'8 Jul',
+		'Økt 8',
+		'8. jul',
 		'87 kg × 5',
-		'Stall Cut, 80 kg → 72,5 kg',
+		'vekta kuttet, 80 kg → 72,5 kg',
 	])
 	expect(JSON.stringify(model)).not.toMatch(/tonnage/i)
 })
@@ -722,7 +720,7 @@ test('the chart names itself, and names every bar it marked, for a reader who ca
 	// marking exists; *which* session was cut is the data table's job, and
 	// reading nine sessions aloud before the first value is not a name.
 	expect(buildChartLabel('Back squat', bars)).toBe(
-		'Back squat: top set across 9 sessions, oldest first, with 1 Stall Cut marked.',
+		'Back squat: toppsett over 9 økter, eldste først, med 1 vektkutt merket.',
 	)
 	expect(buildChartLabel('Back squat', [])).toBeNull()
 })
@@ -731,7 +729,7 @@ test('the accessible name stays one clause whether the program cut nothing or cu
 	const points = buildHistoryPoints(history(9), TZ)
 
 	expect(buildChartLabel('Back squat', buildChartBars(points, null))).toBe(
-		'Back squat: top set across 9 sessions, oldest first.',
+		'Back squat: toppsett over 9 økter, eldste først.',
 	)
 	expect(
 		buildChartLabel(
@@ -757,14 +755,14 @@ test('the accessible name stays one clause whether the program cut nothing or cu
 			),
 		),
 	).toBe(
-		'Back squat: top set across 9 sessions, oldest first, with 2 Stall Cuts marked.',
+		'Back squat: toppsett over 9 økter, eldste først, med 2 vektkutt merket.',
 	)
 	expect(
 		buildChartLabel(
 			'Back squat',
 			buildChartBars(buildHistoryPoints(history(1), TZ), null),
 		),
-	).toBe('Back squat: top set across 1 session, oldest first.')
+	).toBe('Back squat: toppsett over 1 økt, eldste først.')
 })
 
 test('the data table carries every session the chart drew, and names what each bar is marked as', () => {
@@ -779,17 +777,17 @@ test('the data table carries every session the chart drew, and names what each b
 
 	const table = buildChartTable('Back squat', bars)
 
-	expect(table.caption).toBe('Back squat, top set by session, oldest first')
-	expect(table.columns).toEqual(['Session', 'Date', 'Top set', 'Marked'])
+	expect(table.caption).toBe('Back squat, toppsett per økt, eldste først')
+	expect(table.columns).toEqual(['Økt', 'Dato', 'Toppsett', 'Merket'])
 	expect(table.rows).toEqual([
-		['Session 1', '1 Jul', '80 kg × 5', '—'],
-		['Session 2', '2 Jul', '81 kg × 5', 'Stall Cut, 85 kg → 77,5 kg'],
-		['Session 3', '3 Jul', '82 kg × 5', 'Latest'],
+		['Økt 1', '1. jul', '80 kg × 5', '—'],
+		['Økt 2', '2. jul', '81 kg × 5', 'vekta kuttet, 85 kg → 77,5 kg'],
+		['Økt 3', '3. jul', '82 kg × 5', 'Siste'],
 	])
 })
 
 test('a session the chart could draw no bar for says so in the table, rather than reading as a silent gap', () => {
-	// ADR 0030 rule 1's other half: the picture gets an `n/a` tick, and the
+	// ADR 0030 rule 1's other half: the picture gets an `ingen` (n/a) marker, and the
 	// accessible equivalent gets the same statement in words — with the reading
 	// itself, which is more than the tick can say.
 	const bars = buildChartBars(
@@ -803,7 +801,7 @@ test('a session the chart could draw no bar for says so in the table, rather tha
 					sessionId: 'b',
 					performedAt: new Date('2026-07-03T17:00:00Z'),
 					topSetKg: null,
-					topSetText: 'level 7 × 12',
+					topSetText: 'nivå 7 × 12',
 					loadBasis: 'stackLevel',
 					comparable: false,
 				}),
@@ -814,12 +812,12 @@ test('a session the chart could draw no bar for says so in the table, rather tha
 	)
 
 	expect(buildChartTable('Lat pulldown', bars).rows).toEqual([
-		['Session 1', '1 Jul', '100 kg × 5', '—'],
+		['Økt 1', '1. jul', '100 kg × 5', '—'],
 		[
-			'Session 2',
-			'3 Jul',
-			'level 7 × 12',
-			'No bar — no comparable kilo; Latest',
+			'Økt 2',
+			'3. jul',
+			'nivå 7 × 12',
+			'Ingen søyle — ingen sammenlignbar kilo; Siste',
 		],
 	])
 })

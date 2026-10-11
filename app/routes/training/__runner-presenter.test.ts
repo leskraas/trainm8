@@ -778,8 +778,8 @@ test('each reading the set took gets its own line, with the gain on the number',
 
 	expect(banner).toEqual({
 		lines: [
-			'Heaviest ever: 120 kg — up 10 kg',
-			'Best 5-rep set: 120 kg — up 10 kg',
+			'Tyngste noensinne: 120 kg — opp 10 kg',
+			'Beste sett på 5 reps: 120 kg — opp 10 kg',
 		],
 		debut: false,
 	})
@@ -798,14 +798,14 @@ test('the banner never announces a bodyweight-derived kilo as a heaviest ever', 
 			delta: 10,
 			crossExerciseComparable: false,
 			unavailableNote:
-				'Includes your bodyweight — this progresses against other bodyweight sets only.',
+				'Med kroppsvekten din — dette måles bare mot andre sett med kroppsvekt.',
 		}),
 	])
 
 	expect(banner?.lines[0]).toBe(
-		'Heaviest bodyweight set: 104 kg — up 10 kg · Includes your bodyweight — this progresses against other bodyweight sets only.',
+		'Tyngste sett med kroppsvekt: 104 kg — opp 10 kg · Med kroppsvekten din — dette måles bare mot andre sett med kroppsvekt.',
 	)
-	expect(banner?.lines[0]).not.toContain('Heaviest ever')
+	expect(banner?.lines[0]).not.toContain('Tyngste noensinne')
 })
 
 test('an estimated 1RM names the equation, because an estimate is a model and not a lift', () => {
@@ -813,7 +813,7 @@ test('an estimated 1RM names the equation, because an estimate is a model and no
 		strengthRecord({ kind: 'e1RM', estimator: 'epley' }),
 	])
 
-	expect(banner?.lines[0]).toContain('epley')
+	expect(banner?.lines[0]).toContain('Epley/Welday')
 })
 
 test('a debut says one thing and says first time, so day one does not fire four records', () => {
@@ -840,7 +840,7 @@ test('a debut says one thing and says first time, so day one does not fire four 
 	])
 
 	expect(banner?.debut).toBe(true)
-	expect(banner?.lines).toEqual(['Heaviest ever: 120 kg — first time!'])
+	expect(banner?.lines).toEqual(['Tyngste noensinne: 120 kg — første gang'])
 })
 
 test('a stack level reads in levels and says in one phrase that it cannot be compared', () => {
@@ -852,12 +852,12 @@ test('a stack level reads in levels and says in one phrase that it cannot be com
 			previousValue: 6,
 			delta: 1,
 			crossExerciseComparable: false,
-			unavailableNote: 'No kilos — this progresses against itself only.',
+			unavailableNote: 'Uten kilo — dette måles bare mot seg selv.',
 		}),
 	])
 
 	expect(banner?.lines).toEqual([
-		'Best level: 7 — up 1 level · No kilos — this progresses against itself only.',
+		'Beste nivå: 7 — opp 1 nivå · Uten kilo — dette måles bare mot seg selv.',
 	])
 	expect(banner?.lines[0]).not.toMatch(/kg/)
 })

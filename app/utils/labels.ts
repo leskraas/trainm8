@@ -118,7 +118,11 @@ import type {
 	SetUnit,
 	WorkingLoad,
 } from './strength/working-load.ts'
-import type { AnchorProtocol, EstimatorName } from './strength-log.ts'
+import type {
+	AnchorProtocol,
+	EquipmentId,
+	EstimatorName,
+} from './strength-log.ts'
 import type { QuickLogRefusal } from './strength-quick-log.ts'
 import type {
 	Discipline,
@@ -6983,10 +6987,10 @@ export const OUTCOME_LABELS = {
 
 /** The lift-over-time chart (`__lift-chart.tsx`). */
 export const LIFT_CHART_LABELS = {
-	/** Over a session whose load could not be read as a kilo. */
-	// Kept as `n/a` until the lift page's own test (exercises.$exerciseId, the
-	// editor PR) moves with it; the word is the chart's.
-	unavailable: 'n/a',
+	/** Over a session whose load could not be read as a kilo: no bar, and this
+	 * word where it would stand (ADR 0030 rule 1). The data table says it in
+	 * full (`EXERCISE_PAGE_LABELS.chart.noBar`). */
+	unavailable: 'ingen',
 } as const
 
 /** The rest bar (`__rest-bar.tsx`). */
@@ -7006,4 +7010,129 @@ export const FINISH_UNTAPPED_LABELS = {
 	keepGoing: 'Fortsett',
 	refused: (count: number) =>
 		`${count} sett er ikke logget. Logg dem, eller marker dem som ikke gjort.`,
+} as const
+
+// ===========================================================================
+// Strength records and the lift page (#505 round 2, r2-records; ADR 0081).
+// What a strength record calls itself (`strength/records.ts`), read in the
+// runner's PR banner and on the lift page, and the lift page's own words
+// (`exercises.$exerciseId`, its presenter and its chart). One section of its
+// own so the area PRs that also add to this file merge cleanly. Words only:
+// kilos arrive written by `formatNbKg`, and nothing stored is a word from here.
+// ===========================================================================
+
+/** A strength record's headline, gain and caveat (`strength/records.ts`). */
+export const STRENGTH_RECORD_LABELS = {
+	/** The bar's heaviest working set — what an athlete means by "my squat". */
+	heaviest: 'Tyngste noensinne',
+	/** Any other load basis names itself in the headline: `Tyngste sett per hånd`. */
+	heaviestQualified: (qualifier: string) => `Tyngste sett ${qualifier}`,
+	/** A rep-max record: the best load at *exactly* this many reps. */
+	repMax: (reps: number, qualifier: string | null) =>
+		`Beste sett på ${reps} ${reps === 1 ? 'rep' : 'reps'}${qualifier ? ` ${qualifier}` : ''}`,
+	estimatedOneRm: 'Beste anslåtte 1RM',
+	/** A single: no equation touched it, so it is not an estimate. */
+	testedOneRm: 'Beste testede 1RM',
+	level: 'Beste nivå',
+	/** The load basis inside a headline. The bar takes none. */
+	qualifiers: {
+		perHand: 'per hånd',
+		bodyweightDerived: 'med kroppsvekt',
+	},
+	/** Nothing came before this reading. */
+	firstTime: 'første gang',
+	/** Inside the debut window: the best of every qualifying set, said quietly. */
+	bestSoFar: 'best hittil',
+	upKg: (kg: string) => `opp ${kg} kg`,
+	upLevels: (levels: string, count: number) =>
+		`opp ${levels} ${count === 1 ? 'nivå' : 'nivåer'}`,
+	/** A tested 1RM's number is the load on the bar (`one-rm.ts`'s `tested`). */
+	testedSingle: 'vekten som ble løftet',
+	notes: {
+		noKilos: 'Uten kilo — dette måles bare mot seg selv.',
+		perHand: 'Kilo per hånd — dette måles bare mot andre sett per hånd.',
+		bodyweightDerived:
+			'Med kroppsvekten din — dette måles bare mot andre sett med kroppsvekt.',
+		assisted:
+			'Et assistert sett gir ingen rekord: tallet er kroppsvekten din minus hjelpen, så det stiger når arbeidet blir lettere.',
+	},
+} as const
+
+/**
+ * A variant tab on the lift page — one per equipment, each its own history.
+ * Complete over `EQUIPMENT_IDS`; the picker's chips (`nbEquipmentLabel`) use the
+ * same words where the two overlap.
+ */
+export const NB_EQUIPMENT_VARIANT_LABELS: Record<EquipmentId, string> = {
+	barbell: 'Stang',
+	dumbbell: 'Manualer',
+	kettlebell: 'Kettlebell',
+	machine: 'Maskin',
+	cable: 'Kabel',
+	'smith-machine': 'Smithmaskin',
+	'trap-bar': 'Trap bar',
+	'ez-bar': 'EZ-stang',
+	bodyweight: 'Kroppsvekt',
+	'assisted-machine': 'Assistert maskin',
+	band: 'Strikk',
+	'medicine-ball': 'Medisinball',
+	sled: 'Slede',
+	suspension: 'Slynge',
+	other: 'Annet',
+}
+
+/** The lift page (`/training/exercises/:id`): this lift over time. */
+export const EXERCISE_PAGE_LABELS = {
+	metaTitle: (exercise: string) => `${exercise} | Trainm8`,
+	metaFallback: 'Øvelse | Trainm8',
+	workingWeight: 'Arbeidsvekt',
+	estOneRm: 'Anslått 1RM',
+	/** The set an estimate was read off: `fra 82,5 kg × 5`. */
+	from: (set: string) => `fra ${set}`,
+	topSet: (set: string) => `Toppsett: ${set}`,
+	fillsIn: 'Logg et arbeidssett, så fylles siden ut.',
+	yourNumbers: 'Tallene dine for dette løftet',
+	variants: 'Varianter',
+	allVariants: 'Alle varianter',
+	empty:
+		'Ingen arbeidssett er logget på dette løftet ennå, så det er ingenting å lese.',
+	records: 'Rekorder',
+	noRecords: 'Ingenting her kan leses som en rekord ennå.',
+	noOneRm: (reason: string) => `Ingen anslått 1RM: ${reason}`,
+	/** Beside an estimate: `Epley/Welday-likningen`. */
+	equation: (name: string) => `${name}-likningen`,
+	estimatorNote: (name: string) =>
+		`Anslått 1RM bruker ${name}-likningen. Et anslag er en modell, ikke et løft.`,
+	level: (level: string) => `nivå ${level}`,
+	history: 'Hver økt med dette løftet',
+	/** `sett` is its own plural. */
+	workingSets: (count: number) => `${count} arbeidssett`,
+	notFound: 'Vi fant ikke den øvelsen.',
+	lastTime: {
+		first: 'Første gang på dette løftet',
+		today: 'Sist: i dag',
+		yesterday: 'Sist: i går',
+		days: (days: number) => `Sist: for ${days} dager siden`,
+		weeks: (weeks: number) =>
+			`Sist: for ${weeks} ${weeks === 1 ? 'uke' : 'uker'} siden`,
+	},
+	/** The chart's words: its name, its data table and the notes under it. */
+	chart: {
+		label: (exercise: string, sessions: number, cuts: number) =>
+			`${exercise}: toppsett over ${sessions} ${sessions === 1 ? 'økt' : 'økter'}, eldste først${
+				cuts === 0 ? '' : `, med ${cuts} vektkutt merket`
+			}.`,
+		caption: (exercise: string) =>
+			`${exercise}, toppsett per økt, eldste først`,
+		columns: ['Økt', 'Dato', 'Toppsett', 'Merket'],
+		session: (ordinal: number) => `Økt ${ordinal}`,
+		/** Under every third bar: which session it is. */
+		tick: (ordinal: number) => `${ordinal}`,
+		noBar: 'Ingen søyle — ingen sammenlignbar kilo',
+		latest: 'Siste',
+		unmarked: '—',
+		stallCut: (from: string, to: string) =>
+			`vekta kuttet, ${from} kg → ${to} kg`,
+		stallNote: (ordinal: number, cut: string) => `Økt ${ordinal} — ${cut}`,
+	},
 } as const

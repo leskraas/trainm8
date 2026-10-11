@@ -26,6 +26,7 @@
 import { type Prisma } from '@prisma/client'
 import { getAthleteTimezone } from './athlete.server.ts'
 import { prisma } from './db.server.ts'
+import { MEG_ONE_RM_REFUSAL_LABELS } from './labels.ts'
 import {
 	DEFAULT_ESTIMATOR,
 	MAX_ESTIMATOR_REPS,
@@ -42,9 +43,9 @@ import {
 } from './strength/exercise-history.ts'
 import {
 	type EstimatorSet,
+	type OneRmRefusal,
 	applyEstimator,
 	estimateOneRm,
-	oneRmRefusalText,
 } from './strength/one-rm.ts'
 import {
 	type OneRepMaxModel,
@@ -180,7 +181,7 @@ function oneRmUnavailableNote(
 	if (worked.length === 0) return null
 	// Work happened and none of it is a load lifted for a counted number of reps.
 	// That is a statement about the sets, not their absence.
-	if (estimatorSets.length === 0) return oneRmRefusalText('sets-not-readable')
+	if (estimatorSets.length === 0) return nbOneRmRefusal('sets-not-readable')
 	const reading = estimateOneRm({
 		now,
 		sets: estimatorSets,
@@ -192,7 +193,16 @@ function oneRmUnavailableNote(
 	// which the strip states itself.
 	return reading.refusal === 'no-sets-logged'
 		? null
-		: oneRmRefusalText(reading.refusal)
+		: nbOneRmRefusal(reading.refusal)
+}
+
+/**
+ * The estimator's refusal in the words the propose surface already says it in
+ * (`MEG_ONE_RM_REFUSAL_LABELS`), so the lift page and Meg's *Det settene dine
+ * sier* refuse the same set with the same sentence — now in Norwegian on both.
+ */
+function nbOneRmRefusal(refusal: OneRmRefusal): string {
+	return MEG_ONE_RM_REFUSAL_LABELS[refusal](MAX_ESTIMATOR_REPS)
 }
 
 /**

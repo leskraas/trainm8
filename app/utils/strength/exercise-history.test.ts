@@ -171,10 +171,10 @@ test('the Set Ghost still matches positionally when a session mixes load kinds',
 	)
 	expect(readings.map((r) => r?.text)).toEqual([
 		'60 kg × 8',
-		'red band × 15',
-		'bodyweight + 30 kg × 5',
+		'strikk red × 15',
+		'kroppsvekt + 30 kg × 5',
 		// Rule 3 still holds over a mixed session: the fourth row borrows the third.
-		'bodyweight + 30 kg × 5',
+		'kroppsvekt + 30 kg × 5',
 	])
 	expect(readings.map((r) => r?.extrapolated)).toEqual([
 		false,
@@ -286,8 +286,8 @@ test('a ghost states what a load meant, and never collapses two sides into one n
 	)
 	expect(readings.map((r) => r?.text)).toEqual([
 		'2 × 32 kg × 10 / 8',
-		'level 7 × 12',
-		'bodyweight × 45 s',
+		'nivå 7 × 12',
+		'kroppsvekt × 45 s',
 	])
 })
 
@@ -377,8 +377,8 @@ test('a session logged only in stack levels still has its own curve, and says it
 		{ exerciseId: 'lat-pulldown', equipment: 'machine', now: day(5) },
 	)
 	expect(history.map((s) => s.topSetText)).toEqual([
-		'level 7 × 10',
-		'level 6 × 10',
+		'nivå 7 × 10',
+		'nivå 6 × 10',
 	])
 	expect(history.every((s) => s.topSetKg === null)).toBe(true)
 	expect(history.every((s) => s.comparable === false)).toBe(true)
@@ -453,7 +453,7 @@ test('a session whose every set is unorderable still happened, and its last work
 	)
 	expect(history).toHaveLength(1)
 	expect(history[0]?.workingSetCount).toBe(2)
-	expect(history[0]?.topSetText).toBe('assisted − 15 kg × 6')
+	expect(history[0]?.topSetText).toBe('assistert − 15 kg × 6')
 	expect(history[0]?.topSetKg).toBeNull()
 	expect(history[0]?.loadBasis).toBe('unreadable')
 	expect(history[0]?.comparable).toBe(false)
@@ -475,13 +475,13 @@ test('last time reads in plain time, from the now it is given', () => {
 		...squat,
 		now: day(3),
 	})
-	expect(lastTimeLabel(last, day(3))).toBe('Last time: 3 days ago')
-	expect(lastTimeLabel(last, day(1))).toBe('Last time: yesterday')
-	expect(lastTimeLabel(last, day(0))).toBe('Last time: today')
-	expect(lastTimeLabel(last, day(21))).toBe('Last time: 3 weeks ago')
+	expect(lastTimeLabel(last, day(3))).toBe('Sist: for 3 dager siden')
+	expect(lastTimeLabel(last, day(1))).toBe('Sist: i går')
+	expect(lastTimeLabel(last, day(0))).toBe('Sist: i dag')
+	expect(lastTimeLabel(last, day(21))).toBe('Sist: for 3 uker siden')
 })
 
 test('a lift with no history says so, rather than showing an empty last time', () => {
 	expect(lastTimeYouDidThis([], { ...squat, now: day(3) })).toBeNull()
-	expect(lastTimeLabel(null, day(3))).toBe('First time on this lift')
+	expect(lastTimeLabel(null, day(3))).toBe('Første gang på dette løftet')
 })
