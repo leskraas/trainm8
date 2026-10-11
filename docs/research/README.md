@@ -70,6 +70,34 @@ challenges** table (Confirm / Amend / Supersede).
 > row said _"~30 sessions"_ and the document header _"32"_; §3.A–§3.H table
 > **36**.
 
+## The agent layer
+
+Four more documents, outside the endurance-science corpus, answer one question:
+should trainm8 adopt Builder.io's **agent-native** framework, or build its own
+agent layer on the same principles?
+
+| Document                                                         | Covers                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [agent-native.md](agent-native.md)                               | The framework read from source — one `defineAction` per capability, served to UI, agent, MCP and A2A — its Postgres / Nitro 3 / React Router 8 stack and release churn, fit with trainm8, options A–E and the phased plan |
+| [mcp-server-for-trainm8.md](mcp-server-for-trainm8.md)           | MCP spec 2026-07-28, remote MCP with OAuth 2.1, the Claude and ChatGPT connectors, MCP Apps, a proposed tool surface and registry (ADR 0092), and what Strava's API Policy allows                                         |
+| [agent-layer-trainm8-surface.md](agent-layer-trainm8-surface.md) | The repo side: 70 action modules rated by seam, the read paths, the safety rails an agent must reuse (proposals, digests, undo, ownership), and the first-slice candidates                                                |
+| [agent-layer-building-blocks.md](agent-layer-building-blocks.md) | Anthropic SDK tool runner, Claude Agent SDK, MCP SDK v2, Vercel AI SDK 7, CopilotKit, assistant-ui, A2A; the recommended minimal stack and what the zod 3 pin means for each                                              |
+
+### Synthesis
+
+- **Verdict:** build our own small layer, MCP server first: one `defineAction`
+  registry in `app/actions/` (ADR 0092). Don't adopt or embed agent-native.
+- **Binding finding: Strava's API Policy.** §5.16(b) bars MCP servers exposing
+  Strava Data; §5.3 bars it and its derivatives from any AI context window;
+  §5.10: consent doesn't cure. Such values leave as an **Unavailable Metric**
+  (`source-terms`).
+- **Urgent, and not about AI:** §6.2's seven-day cache already binds the shipped
+  Strava import, whose `rawJson` has no time limit.
+- **Zod:** registry schemas in `'zod/v4'` now; zod ≥ 4.2 before MCP ships.
+- **Plan:** 0 · ADRs 0092–0093 → 1 · registry on Ukeskiftet, no model → 2 · MCP,
+  ~4–8 weeks, the composer before Week Replan → 3 · more operations → 4 ·
+  optional in-app agent (ADR 0095).
+
 ## The portability problem
 
 The sport libraries share one requirement: a prescription must mean the same
