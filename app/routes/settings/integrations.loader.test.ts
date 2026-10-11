@@ -59,7 +59,9 @@ test('reports a connected Strava with its last-sync time', async () => {
 	const { strava } = await runLoader(session)
 
 	expect(strava.status).toBe('connected')
-	expect(strava.lastSyncedAt).toBe(lastSyncedAt.toISOString())
+	// Strava's own sync stamps wall-clock time in `lastSyncedAt`: the page
+	// reads it where no check is recorded.
+	expect(strava.lastCheckedAt).toBe(lastSyncedAt.toISOString())
 })
 
 test('reports "backfilling" while the initial Backfill Window is running', async () => {
@@ -97,7 +99,7 @@ test('reports "disconnected" when the athlete has no Strava connection', async (
 	const { strava } = await runLoader(session)
 
 	expect(strava.status).toBe('disconnected')
-	expect(strava.lastSyncedAt).toBeNull()
+	expect(strava.lastCheckedAt).toBeNull()
 })
 
 function intervalsIcuConnectionData(userId: string) {
@@ -123,22 +125,25 @@ test('reports "backfilling" while the Intervals.icu Backfill Window is running (
 	expect(intervalsicu.status).toBe('backfilling')
 })
 
-test('settles to connected + last-sync once the Intervals.icu backfill completes', async () => {
+test('settles to connected + when it last checked once the Intervals.icu backfill completes', async () => {
 	const session = await setupUser()
 	const lastSyncedAt = new Date('2026-07-06T18:04:00.000Z')
+	const lastCheckedAt = new Date('2026-07-08T09:30:00.000Z')
 	await prisma.accountConnection.create({
 		data: {
 			...intervalsIcuConnectionData(session.userId),
 			connectedAt: new Date('2026-07-01T00:00:00.000Z'),
 			backfillCompletedAt: new Date('2026-07-01T00:05:00.000Z'),
 			lastSyncedAt,
+			lastCheckedAt,
 		},
 	})
 
 	const { intervalsicu } = await runLoader(session)
 
 	expect(intervalsicu.status).toBe('connected')
-	expect(intervalsicu.lastSyncedAt).toBe(lastSyncedAt.toISOString())
+	// When the app last asked, not the newest activity's start (the watermark).
+	expect(intervalsicu.lastCheckedAt).toBe(lastCheckedAt.toISOString())
 })
 
 test('flags dual-source honesty when and only when both providers are active (#205)', async () => {

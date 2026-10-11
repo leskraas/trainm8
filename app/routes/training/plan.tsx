@@ -1,6 +1,16 @@
 /**
- * The manual planning surface: the season the athlete authored, where they reshape
- * it, and where they author the progression into it.
+ * Sesong (`/training/plan`): the season the athlete authored, where they reshape
+ * it, and where they author the progression into it — in Norwegian, on the design
+ * system, since round 2 (ADR 0090).
+ *
+ * **The page leads with the season picture** (decision 12): I dag's curve and
+ * season table for this plan (`__season-picture.tsx`), where a row opens that
+ * week's target in _Endre sesongen_. Then the edits, the philosophy and the
+ * Events (the right column from `lg`, decision 13), what the season comes to,
+ * and the two readings below. **The weeks fill themselves** (decision 14): the
+ * week change lays them as the horizon reaches them, and a typical week that
+ * gains days lays the weeks up to the horizon at once — stamping is no longer the
+ * athlete's step. The analytical season chart lives under Blokker's _Avansert_.
  *
  * Two readings of one object (spec #399 story 67) — **Blocks** shapes the season
  * and **Weeks** audits it — selected by a `?tab=` search param rather than nested
@@ -18,10 +28,11 @@
  * a week it asks for in zones 3, 4 and 5. The mix is authored here, and the segment's
  * **Intensity Emphasis** label and its **Quality Session Count** are *read off* that
  * mix rather than typed anywhere (ADR 0042 §4–§5).
- * Above all of it sits the **preset gallery** (#405, `__preset-gallery.tsx`): three
- * periodization shapes, each picked from an illustration of the load profile it lays
- * down. Applying one **copies it in** — it replaces the phase structure, says so
- * before the tap and again in the toast after it, and leaves nothing linked back.
+ * Under _Avansert_ sits the **preset gallery** (#405, `__preset-gallery.tsx`): the
+ * periodization shapes, each picked from an illustration of the load profile it
+ * lays down, offered only before the plan has begun. Applying one **copies it in**
+ * — it replaces the phase structure, says so before the tap and again in the toast
+ * after it, and leaves nothing linked back.
  *
  * Every number here is **derived** on read from the **Season Anchor** and the
  * phases (ADR 0040 §1) — nothing on this page is stored per week, so every target
@@ -67,29 +78,44 @@ import {
 } from '#app/components/ui/alert.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import { getEventsForUser } from '#app/utils/event.server.ts'
 import {
-	formatDate,
-	formatEmphasisLabel,
-	formatPct1RMBand,
-	formatPct1RMs,
+	formatNbDate,
+	formatNbDayMonth,
+	formatNbEmphasisLabel,
+	formatNbPct1RMBand,
+	formatNbPct1RMs,
+	formatNbSignedPercent,
+	formatNbVolumeTotal,
+	formatNbWeeklyVolume,
 	formatRateField,
-	formatSessionCounts,
-	formatSignedPercent,
-	formatVolumeTotal,
-	formatWeeklyVolume,
-	formatWeekSpan,
 } from '#app/utils/format.ts'
 import {
-	ACCUMULATED_SPAN_LABELS,
 	ATTACH_EVENT_LABELS,
 	ATTACH_EVENT_REFUSAL_LABELS,
 	attachedEventSentence,
 	APP_TAB_LABELS,
-	BOUNDARY_STEP_OUT_OF_FORCE_LABELS,
-	DISCIPLINE_LABELS,
+	isoWeekSpanLabel,
+	NB_ACCUMULATED_SPAN_LABELS,
+	NB_BOUNDARY_STEP_OUT_OF_FORCE_LABELS,
+	NB_QUALITY_ZONE_LABELS,
+	NB_STRENGTH_GOAL_SENTENCE_LABELS,
+	NB_UNAVAILABLE_READING_LABELS,
+	NB_WEEK_ROLE_LABELS,
+	NB_WEEKLY_UNITS,
+	nbPhaseName,
+	nbTrackName,
+	SESONG_ENTRY_LABELS,
 	OPEN_ENDED_PLAN_LABEL,
 	openEndedBlockLabel,
 	PHILOSOPHY_SWITCH_LABELS,
@@ -97,15 +123,23 @@ import {
 	PHILOSOPHY_SWITCH_REFUSAL_LABELS,
 	SEASON_ADVANCED_LABELS,
 	SEASON_EDIT_LABELS,
+	SESONG_ANCHOR_LABELS,
+	SESONG_COPY_LABELS,
+	SESONG_LIFTING_LABELS,
+	SESONG_NEXT_LABELS,
+	SESONG_NOTICE_LABELS,
+	SESONG_PAGE_LABELS,
+	SESONG_PATTERN_LABELS,
+	SESONG_PHASE_FIELD_LABELS,
+	SESONG_PHASE_LABELS,
+	SESONG_REFUSAL_LABELS,
+	SESONG_SEGMENT_LABELS,
+	SESONG_TRACK_LABELS,
 	STRENGTH_OFFER_LABELS,
 	switchedPhilosophySentence,
-	QUALITY_ZONE_LABELS,
-	STRENGTH_GOAL_SENTENCE_LABELS,
-	UNAVAILABLE_READING_LABELS,
-	VOLUME_CURRENCY_UNITS,
-	WEEK_ROLE_LABELS,
 	type BoundaryStepOutOfForce,
 } from '#app/utils/labels.ts'
+import { fillPlanWeeksToHorizon } from '#app/utils/load/horizon-fill.server.ts'
 import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
 import { AttachEventFormSchema } from '#app/utils/plan-outline/attach-event-schema.ts'
 import {
@@ -215,14 +249,8 @@ import {
 } from '#app/utils/plan-outline/season-chart.server.ts'
 import {
 	readStampedMixWarnings,
-	stampWeekPattern,
-	type StampReport,
-	type StampRefusal,
+	type StampedMixWarning,
 } from '#app/utils/plan-outline/stamp.server.ts'
-import {
-	WeekPatternStampSchema,
-	type StampSkipReason,
-} from '#app/utils/plan-outline/stamp.ts'
 import { type StarterProposal } from '#app/utils/plan-outline/starter-pattern.ts'
 import { addProposedStrengthTrack } from '#app/utils/plan-outline/strength-offer.server.ts'
 import { type UnavailableReading } from '#app/utils/plan-outline/unavailable-readings.ts'
@@ -259,7 +287,7 @@ import {
 	type PhilosophyPreviewView,
 } from './__philosophy-switch.tsx'
 import {
-	Disclosure,
+	CollapsibleSection,
 	PhaseSpark,
 	PillLink,
 	PlanCard,
@@ -272,11 +300,12 @@ import {
 	SeasonAnchorSection,
 	type EditableAnchorTrack,
 } from './__season-anchor-editor.tsx'
-import { SeasonChart } from './__season-chart.tsx'
+import { SeasonChart, seasonFitnessOf } from './__season-chart.tsx'
 import { seasonEditAction } from './__season-edits.server.ts'
 import { SeasonEditLink, SeasonEditsCard } from './__season-edits.tsx'
 import { SEASON_EVENTS_SHOWN, SeasonEvents } from './__season-events.tsx'
-import { StampSection, type PendingStamp } from './__stamp-pattern.tsx'
+import { readSeasonPicture } from './__season-picture.server.ts'
+import { SeasonPicture } from './__season-picture.tsx'
 import {
 	StrengthBlocksSection,
 	StrengthSegmentFormSchema,
@@ -288,17 +317,18 @@ import {
 	WeekPatternSection,
 } from './__week-pattern-editor.tsx'
 
-export const meta: Route.MetaFunction = () => [{ title: 'Plan | Trainm8' }]
+export const meta: Route.MetaFunction = () => [
+	{ title: SESONG_PAGE_LABELS.metaTitle },
+]
 
 const TABS = ['blocks', 'weeks'] as const
 type Tab = (typeof TABS)[number]
 
-/**
- * The two readings' own names. Not a domain enum — **Block** is a UI word only
- * (GLOSSARY.md, Plan Outline phase) and these label a view, so they live beside
- * the view rather than in `labels.ts`.
- */
-const TAB_LABELS: Record<Tab, string> = { blocks: 'Blocks', weeks: 'Weeks' }
+/** The two readings' own names, in the page's Norwegian (`labels.ts`). */
+const TAB_LABELS: Record<Tab, string> = {
+	blocks: SESONG_PAGE_LABELS.blocks,
+	weeks: SESONG_PAGE_LABELS.weeks,
+}
 
 function tabFrom(request: Request): Tab {
 	const raw = new URL(request.url).searchParams.get('tab')
@@ -341,7 +371,7 @@ const RatePercentSchema = z
 		if (!Number.isFinite(percent)) {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
-				message: 'Type a percentage, or leave it blank',
+				message: SESONG_SEGMENT_LABELS.typeRate,
 			})
 			return z.NEVER
 		}
@@ -403,14 +433,16 @@ const MixCountSchema = z
 		if (!Number.isInteger(count)) {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
-				message: 'A whole number of sessions, or blank for none',
+				message: SESONG_SEGMENT_LABELS.wholeSessions,
 			})
 			return z.NEVER
 		}
 		if (count < 0 || count > MAX_QUALITY_SESSIONS_PER_WEEK) {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
-				message: `Between 0 and ${MAX_QUALITY_SESSIONS_PER_WEEK} sessions a week`,
+				message: SESONG_SEGMENT_LABELS.sessionRange(
+					MAX_QUALITY_SESSIONS_PER_WEEK,
+				),
 			})
 			return z.NEVER
 		}
@@ -527,6 +559,33 @@ export async function loader({ request }: Route.LoaderArgs) {
 		(event) => event.status === 'planned' && event.startDate >= now,
 	)
 
+	// The analytical chart's inputs, and the season with its weeks' Mondays.
+	const chartInputs = await readSeasonChartInputs(userId, season)
+	const datedSeason = withWeekStarts(season)
+
+	// The season picture (round-2 decision 12): I dag's curve and table, read
+	// for this plan as I dag reads the active one (`__season-picture.server.ts`).
+	const seasonPicture = await readSeasonPicture(
+		userId,
+		season.outlineId,
+		season.timezone,
+		now,
+	)
+
+	// An open-ended plan resting behind this race plan (ADR 0079): the page
+	// links back to it, which only `?outline=` reached before (audit B12).
+	const restingOpenEnded =
+		season.eventId == null
+			? null
+			: await prisma.planOutline.findFirst({
+					where: {
+						athleteId: userId,
+						eventId: null,
+						phases: { some: {} },
+					},
+					select: { id: true },
+				})
+
 	return {
 		seasonQuery,
 		attachableEvents,
@@ -536,6 +595,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 			events: upcomingEvents.slice(0, SEASON_EVENTS_SHOWN),
 			upcomingCount: upcomingEvents.length,
 		},
+		seasonPicture,
+		restingOpenEnded: restingOpenEnded
+			? { outlineId: restingOpenEnded.id }
+			: null,
 		tab: tabFrom(request),
 		week: chosenWeekKey(request, season.weeks),
 		workouts,
@@ -547,7 +610,16 @@ export async function loader({ request }: Route.LoaderArgs) {
 		 * The **season chart**'s two server-side inputs (#413), read the way every
 		 * surface that mounts the chart reads them (`season-chart.server.ts`).
 		 */
-		...(await readSeasonChartInputs(userId, season)),
+		...chartInputs,
+		/**
+		 * The chart's fitness layer, replayed here once rather than on the
+		 * phone's main thread the moment the athlete taps it (audit §7).
+		 */
+		seasonFitness: seasonFitnessOf(
+			datedSeason,
+			chartInputs.conversionContexts,
+			chartInputs.fitnessAnchor,
+		),
 		/**
 		 * What the add-track form proposes for the Disciplines this plan does not
 		 * measure yet. Read here because a proposal is a reading of the *athlete's*
@@ -559,7 +631,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			userId,
 			season.tracks.map((track) => track.discipline),
 		),
-		season: withWeekStarts(season),
+		season: datedSeason,
 	}
 }
 
@@ -716,7 +788,9 @@ function isBlank(value: unknown): boolean {
 const WeeksField = z.preprocess(
 	(value) => (isBlank(value) ? undefined : value),
 	z.coerce
-		.number({ errorMap: () => ({ message: 'How many weeks is this phase?' }) })
+		.number({
+			errorMap: () => ({ message: SESONG_PHASE_FIELD_LABELS.weeks }),
+		})
 		// The bounds and their wording are the authoring schema's, piped rather than
 		// restated, so a rule cannot move on one side of the form only.
 		.pipe(PhaseWeeksSchema),
@@ -730,7 +804,7 @@ const AtIndexField = z.coerce.number().int().min(0)
  * (ADR 0044 §4, the rule `authoring-schema.ts` states).
  */
 const RhythmField = z.enum(RHYTHMS, {
-	errorMap: () => ({ message: 'Pick how this phase recovers' }),
+	errorMap: () => ({ message: SESONG_PHASE_FIELD_LABELS.rhythm }),
 })
 const IdField = z.string().min(1)
 
@@ -744,18 +818,18 @@ const IdField = z.string().min(1)
  * form's picker is built from, so the rule has one home.
  */
 const DisciplineField = z.enum(DISCIPLINES, {
-	errorMap: () => ({ message: 'Pick which discipline this track measures' }),
+	errorMap: () => ({ message: SESONG_TRACK_LABELS.disciplineRequired }),
 })
 const CurrencyField = z.enum(VOLUME_CURRENCIES, {
-	errorMap: () => ({ message: 'Pick the unit you plan this track in' }),
+	errorMap: () => ({ message: SESONG_TRACK_LABELS.unitRequired }),
 })
 const AnchorValueField = z.preprocess(
 	(value) => (isBlank(value) ? undefined : value),
 	z.coerce
 		.number({
-			errorMap: () => ({ message: 'A starting volume is required' }),
+			errorMap: () => ({ message: SESONG_TRACK_LABELS.anchorRequired }),
 		})
-		.positive('Your starting volume is more than zero'),
+		.positive(SESONG_TRACK_LABELS.anchorPositive),
 )
 
 /**
@@ -776,7 +850,9 @@ const PatternNameField = z.preprocess(
 const WeekdayField = z.preprocess(
 	(value) => (isBlank(value) ? undefined : value),
 	z.coerce
-		.number({ errorMap: () => ({ message: 'Which day of the week?' }) })
+		.number({
+			errorMap: () => ({ message: SESONG_PATTERN_LABELS.whichDay }),
+		})
 		.pipe(PatternWeekdaySchema),
 )
 
@@ -785,7 +861,7 @@ const ShareWeightField = z.preprocess(
 	z.coerce
 		.number({
 			errorMap: () => ({
-				message: 'How big is this day next to the others? e.g. 1, or 2.5',
+				message: SESONG_PATTERN_LABELS.weightRequired,
 			}),
 		})
 		.pipe(ShareWeightSchema),
@@ -930,6 +1006,9 @@ export async function action({ request }: Route.ActionArgs) {
 					started.reason === 'outline-gone' ? OUTLINE_GONE : NO_STARTER_WEEK,
 				)
 			}
+			// The weeks fill themselves from the typical week (decision 14): the
+			// ones up to the horizon are laid now rather than at the next close.
+			await fillToHorizon(userId)
 			// A toast for `apply-preset`'s reason: a week the athlete did not type
 			// just appeared, and they are owed where it came from in words — the
 			// availability it read, or the convention it fell back to — before they
@@ -937,7 +1016,7 @@ export async function action({ request }: Route.ActionArgs) {
 			const url = new URL(request.url)
 			return redirectWithToast(`${url.pathname}${url.search}`, {
 				type: 'success',
-				title: 'A week to start from',
+				title: SESONG_PATTERN_LABELS.starterToast,
 				description: starterSentence(started.proposal),
 			})
 		}
@@ -982,27 +1061,33 @@ export async function action({ request }: Route.ActionArgs) {
 				// athlete asked for, and it would carry a weight nobody typed.
 				if (!workoutId.success) return refuse(WORKOUT_MISSING)
 				return reportPattern(
-					await addWeekPatternDay(userId, {
-						kind: 'fixed',
-						patternId: patternId.data,
-						trackId: trackId.data,
-						weekday: weekday.data,
-						workoutId: workoutId.data,
-					}),
+					await fillAfterDay(
+						userId,
+						await addWeekPatternDay(userId, {
+							kind: 'fixed',
+							patternId: patternId.data,
+							trackId: trackId.data,
+							weekday: weekday.data,
+							workoutId: workoutId.data,
+						}),
+					),
 				)
 			}
 			const weight = ShareWeightField.safeParse(formData.get('weight'))
 			const shape = ShapeField.safeParse(formData.get('workoutId'))
 			if (!weight.success) return refuse(firstIssue(weight.error))
 			return reportPattern(
-				await addWeekPatternDay(userId, {
-					kind: 'share',
-					patternId: patternId.data,
-					trackId: trackId.data,
-					weekday: weekday.data,
-					weight: weight.data,
-					workoutId: shape.success ? shape.data : null,
-				}),
+				await fillAfterDay(
+					userId,
+					await addWeekPatternDay(userId, {
+						kind: 'share',
+						patternId: patternId.data,
+						trackId: trackId.data,
+						weekday: weekday.data,
+						weight: weight.data,
+						workoutId: shape.success ? shape.data : null,
+					}),
+				),
 			)
 		}
 		case 'move-week-pattern-day': {
@@ -1020,17 +1105,11 @@ export async function action({ request }: Route.ActionArgs) {
 				await removeWeekPatternDay(userId, { dayId: dayId.data }),
 			)
 		}
-		// ── Stamping a pattern into the calendar (#412) ───────────────────────
-		// The one action on this route that writes **Workout Sessions** rather than
-		// the Outline, and the only one whose refusal can be a *question*: a week
-		// that already holds sessions comes back asking, and the second submit is
-		// this one plus a yes (ADR 0044 §6).
-		case 'stamp-week-pattern':
-			return stampPattern(userId, request, formData)
 		// ── Copying a week onto another week (#415) ───────────────────────────
-		// The other write that leaves Workout Sessions behind, and the same shape of
-		// question: a target week that already holds sessions comes back asking, and
-		// the second submit is this one plus a yes (ADR 0044 §6).
+		// The one write on this route that leaves Workout Sessions behind, and the
+		// one whose refusal can be a question: a target week that already holds
+		// sessions comes back asking, and the second submit is this one plus a yes
+		// (ADR 0044 §6).
 		case 'copy-week':
 			return copyWeekOnto(userId, request, formData)
 		// ── Re-anchoring a track mid-season (#407) ────────────────────────────
@@ -1099,9 +1178,8 @@ export async function action({ request }: Route.ActionArgs) {
 			const url = new URL(request.url)
 			return redirectWithToast(`${url.pathname}${url.search}`, {
 				type: 'success',
-				title: 'Copied into your plan',
-				description:
-					'It’s yours now — edit anything. Nothing stays linked to the shape you picked.',
+				title: SESONG_REFUSAL_LABELS.presetDone,
+				description: SESONG_REFUSAL_LABELS.presetDoneDetail,
 			})
 		}
 		case 'fit-to-event': {
@@ -1118,8 +1196,8 @@ export async function action({ request }: Route.ActionArgs) {
 			const url = new URL(request.url)
 			return redirectWithToast(`${url.pathname}${url.search}`, {
 				type: 'success',
-				title: 'Your plan lands on your event',
-				description: `${fitProposalSentence(fitted.proposal)} Resize any block back if that is not what you wanted.`,
+				title: SESONG_REFUSAL_LABELS.fitDone,
+				description: `${fitProposalSentence(fitted.proposal)}${SESONG_REFUSAL_LABELS.fitTail}`,
 			})
 		}
 		case 'attach-event': {
@@ -1223,7 +1301,7 @@ export async function action({ request }: Route.ActionArgs) {
 				title: PHILOSOPHY_SWITCH_LABELS.done,
 				description: switchedPhilosophySentence(
 					family,
-					formatDate(new Date(`${switched.fromWeekKey}T12:00:00Z`), 'UTC'),
+					formatNbDate(new Date(`${switched.fromWeekKey}T12:00:00Z`), 'UTC'),
 				),
 			})
 		}
@@ -1278,19 +1356,19 @@ export async function action({ request }: Route.ActionArgs) {
 			// Plan card is where the absence reads honestly.
 			return redirectWithToast('/', {
 				type: 'success',
-				title: 'Plan deleted',
-				description: 'Your event and your trained sessions are untouched.',
+				title: SESONG_REFUSAL_LABELS.deleted,
+				description: SESONG_REFUSAL_LABELS.deletedDetail,
 			})
 		}
 	}
 
-	return refuse('That is not something this page can do.')
+	return refuse(SESONG_REFUSAL_LABELS.unknown)
 }
 
-const PHASE_GONE = 'That phase is no longer part of this plan.'
-const OUTLINE_GONE = 'That plan is not available to edit.'
-const POSITION_UNREADABLE = 'Choose where the new phase goes.'
-const SHAPE_UNKNOWN = 'That is not a shape this app ships. Nothing was changed.'
+const PHASE_GONE = SESONG_REFUSAL_LABELS.phaseGone
+const OUTLINE_GONE = SESONG_REFUSAL_LABELS.outlineGone
+const POSITION_UNREADABLE = SESONG_REFUSAL_LABELS.position
+const SHAPE_UNKNOWN = SESONG_REFUSAL_LABELS.shapeUnknown
 /**
  * Each way a fit can be declined, worded. The surface renders no control in any
  * of these states, so every one of them is a posted intent rather than a tap —
@@ -1302,51 +1380,93 @@ function fitRefusalMessage(reason: FitToEventRefusal): string {
 		case 'outline-not-found':
 			return OUTLINE_GONE
 		case 'no-event':
-			return 'This plan has no event, so there is nothing to fit it to.'
+			return SESONG_REFUSAL_LABELS.noEvent
 		case 'already-fits':
-			return 'Your plan already ends on your event’s week.'
+			return SESONG_REFUSAL_LABELS.alreadyFits
 		case 'cannot-fit':
-			return 'Your blocks cannot be resized to reach your event without one of them disappearing. Shorten or remove a block yourself.'
+			return SESONG_REFUSAL_LABELS.cannotFit
 	}
 }
-/**
- * An open-ended plan resting behind a plan toward a race (ADR 0079). Said in
- * the #505 surface's Norwegian, like the plan's own hero (ADR 0081).
- */
-const PLAN_RESTING =
-	'Planen hviler mens planen mot løpet ditt er i gang, så ingen uker legges for den nå.'
-const PATTERN_GONE = 'That week pattern is no longer part of this plan.'
+/** An open-ended plan resting behind a plan toward a race (ADR 0079). */
+const PLAN_RESTING = SESONG_REFUSAL_LABELS.planResting
+const PATTERN_GONE = SESONG_REFUSAL_LABELS.patternGone
 /**
  * The one state a starter week declines in: an athlete whose availability says
  * they train on no days at all. Taken at their word rather than overruled — the
  * empty list is a statement they made, and a plan with no tracks cannot reach this
  * surface.
  */
-const NO_STARTER_WEEK =
-	'Your training days say you train on no days, so there is no week to build. Set your training days in your athlete profile, or name a pattern and add the days yourself.'
-const DAY_GONE = 'That day is no longer part of this pattern.'
+const NO_STARTER_WEEK = SESONG_REFUSAL_LABELS.noStarterWeek
+const DAY_GONE = SESONG_REFUSAL_LABELS.dayGone
 /**
  * One sentence for a track that is gone, shared by a pattern day, a hand-set week
  * and a lifting block — the same absence, so it must not be worded three times and
  * drift.
  */
-const TRACK_GONE = 'That training track is no longer part of this plan.'
-const WEEK_OUTSIDE_PLAN = 'That week is not in your plan.'
+const TRACK_GONE = SESONG_REFUSAL_LABELS.trackGone
+const WEEK_OUTSIDE_PLAN = SESONG_REFUSAL_LABELS.weekOutside
 /**
  * One sentence for a week the plan does not hold, shared by a lifting block's
  * opening and a **Season Anchor** segment's — the same fact about the same span, so
  * it must not be worded twice and drift. It names both ways out, because a week
  * outside the plan has two: pick another, or make the plan reach it.
  */
-const WEEK_NOT_ONE_OF_THE_PLANS =
-	'That week is not one of your plan’s weeks. Pick a week between your first and your last, or add weeks to your plan first.'
-const ANCHOR_GONE = 'That anchor is no longer part of this plan.'
-const TRACK_MISSING = 'Choose which training track this day draws from.'
-const WORKOUT_MISSING =
-	'A fixed day prescribes a workout, so choose the session it stamps.'
-const DAY_KIND_UNKNOWN =
-	'A day is either a fixed session or a share of the week. Nothing was added.'
-const BLOCK_GONE = 'That lifting block is no longer part of this plan.'
+const WEEK_NOT_ONE_OF_THE_PLANS = SESONG_REFUSAL_LABELS.weekNotInPlan
+const ANCHOR_GONE = SESONG_REFUSAL_LABELS.anchorGone
+const TRACK_MISSING = SESONG_REFUSAL_LABELS.trackMissing
+const WORKOUT_MISSING = SESONG_REFUSAL_LABELS.workoutMissing
+const DAY_KIND_UNKNOWN = SESONG_REFUSAL_LABELS.dayKindUnknown
+const BLOCK_GONE = SESONG_REFUSAL_LABELS.blockGone
+
+/**
+ * A plan week's number as every Sesong surface prints it: the ISO week, `Uke
+ * 41`, the number I dag, the Sesong edits and a calendar use — never the
+ * plan's own count from 1, which named one week two ways on one page (audit
+ * B6, round 2).
+ */
+function weekNumberOf(week: { weekKey: string }): number {
+	return isoWeekNumber(week.weekKey)
+}
+
+/** The ISO week of the plan's `weekInPlan`-th week (1-based). */
+function isoWeekOfPlanWeek(startWeekKey: string, weekInPlan: number): number {
+	return isoWeekNumber(addDays(startWeekKey, 7 * (weekInPlan - 1)))
+}
+
+/** `Uke 41–44`, or `Uke 41`: a run of plan weeks, by their ISO numbers. */
+function weekSpan(startWeekKey: string, from: number, to: number): string {
+	return isoWeekSpanLabel(
+		isoWeekOfPlanWeek(startWeekKey, from),
+		isoWeekOfPlanWeek(startWeekKey, to),
+	)
+}
+
+/**
+ * Lay the active plan's weeks up to the Planning Horizon that it has not laid
+ * yet — what a typical week that just gained its days owes the athlete now that
+ * stamping is not their step (round-2 decision 14, ADR 0090). The fill never
+ * lays a week the plan already laid, nor a week already begun, and lays only
+ * the active plan (a resting one waits). Contained like every relay after a
+ * plan write (ADR 0079 S6): the pattern is saved either way, and the week
+ * change lays the horizon from the next close on.
+ */
+async function fillToHorizon(userId: string): Promise<void> {
+	try {
+		const timezone = await getAthleteTimezone(userId)
+		await fillPlanWeeksToHorizon(userId, timezone, new Date())
+	} catch (error) {
+		console.error('Sesong: filling the weeks to the horizon failed', error)
+	}
+}
+
+/** {@link fillToHorizon} after a pattern day lands, passing its result on. */
+async function fillAfterDay<Result extends { ok: boolean }>(
+	userId: string,
+	result: Result,
+): Promise<Result> {
+	if (result.ok) await fillToHorizon(userId)
+	return result
+}
 
 /** A refusal the athlete reads, at the top of the reading that produced it. */
 function refuse(error: string) {
@@ -1401,14 +1521,14 @@ function trackRefusalMessage(
 			// The rule, not the constraint: one track per discipline is what the
 			// athlete needs to hear, and the second track they were about to author is
 			// the one they already have (ADR 0043 §1).
-			return 'Your plan already measures that discipline. One training track each, so edit the one you have.'
+			return SESONG_REFUSAL_LABELS.alreadyTracked
 		case 'last-track':
-			return 'A plan measures at least one discipline. Delete the plan itself if you want none.'
+			return SESONG_REFUSAL_LABELS.lastTrack
 	}
 }
 
 function firstIssue(error: z.ZodError): string {
-	return error.issues[0]?.message ?? 'That is not a value this phase can take.'
+	return error.issues[0]?.message ?? SESONG_REFUSAL_LABELS.badValue
 }
 
 /**
@@ -1430,13 +1550,13 @@ function refusalMessage(reason: PhaseEditRefusal): string {
 		case 'phase-not-found':
 			return PHASE_GONE
 		case 'plan-too-long':
-			return 'That would run your plan past two years. Shorten a phase first.'
+			return SESONG_REFUSAL_LABELS.planTooLong
 		case 'last-phase':
-			return 'A plan keeps at least one phase. Delete the plan itself if that is what you want.'
+			return SESONG_REFUSAL_LABELS.lastPhase
 		case 'at-the-edge':
 			// Either end, since one message serves both directions: naming "start" for a
 			// Move later would be the wrong word half the time.
-			return 'That phase is already at that end of your season.'
+			return SESONG_REFUSAL_LABELS.phaseAtEdge
 	}
 }
 
@@ -1467,18 +1587,18 @@ function patternRefusalMessage(reason: WeekPatternEditRefusal): string {
 		case 'workout-gone':
 			// The Workout, not the day: the day is fine and still there, and what the
 			// athlete has to do is pick a session that still exists.
-			return 'That workout is no longer one of yours. Pick another session for this day.'
+			return SESONG_REFUSAL_LABELS.workoutGone
 		case 'workout-discipline-mismatch':
 			// Not an absence: the session exists and is theirs, and it belongs to another
 			// discipline. Said as the domain rule rather than as a validation failure,
 			// because the rule is the reason (ADR 0041, ADR 0043 §5) — a day's volume comes
 			// out of its own track, so a ride cannot spend a run week.
-			return 'That session is a different discipline from this day’s track, and a day draws its volume from its own track. Pick a session on that track.'
+			return SESONG_REFUSAL_LABELS.workoutMismatch
 		case 'at-the-edge':
 			// One message for patterns and for days, in both directions: a pattern
 			// moves through the plan's list and a day moves within its own weekday, and
 			// naming either end would be the wrong word half the time.
-			return 'That is already at that end of its order.'
+			return SESONG_REFUSAL_LABELS.atEdge
 	}
 }
 
@@ -1521,7 +1641,7 @@ function anchorRefusalMessage(reason: SeasonAnchorRefusal): string {
 			// Not a permission and not a bug: removing the first segment would leave
 			// every week before the next one with nothing to derive from. Said as what
 			// the athlete can do instead, since both alternatives are on the same card.
-			return 'Your season keeps its first anchor — every week up to your next re-anchor is derived from it. Change its value instead, or remove a later re-anchor.'
+			return SESONG_REFUSAL_LABELS.earliestAnchor
 	}
 }
 
@@ -1587,121 +1707,9 @@ async function authorSeasonAnchor(
 }
 
 /**
- * Stamp a **Week Pattern** into the weeks the athlete ticked (#412).
- *
- * The only write on this route that leaves **Workout Sessions** behind rather than
- * Outline rows, and the only one whose refusal can be a *question*. A week that
- * already holds sessions comes back as `weeks-already-filled` carrying the counts:
- * that is not an error and is deliberately **not** worded as one — nothing was
- * written, and the surface renders the counts with a confirm button that replays
- * this exact submission plus `replace`.
- *
- * A success redirects rather than falling through to the loader, for the reason
- * applying a preset does: something happened that the page cannot say by itself.
- * The athlete's calendar just changed, and the one thing they need told in words is
- * that those sessions are now ordinary sessions with nothing linked back.
- */
-async function stampPattern(
-	userId: string,
-	request: Request,
-	formData: FormData,
-) {
-	const submitted = WeekPatternStampSchema.safeParse({
-		patternId: formData.get('patternId'),
-		weekKeys: formData.getAll('weekKeys').map(String),
-		replace: checked(formData, 'replace'),
-	})
-	if (!submitted.success) return refuse(firstIssue(submitted.error))
-
-	const stamped = await stampWeekPattern(userId, submitted.data)
-	if (!stamped.ok) {
-		if (stamped.reason !== 'weeks-already-filled') {
-			return refuse(stampRefusalMessage(stamped.reason))
-		}
-		// No `error` key: this is a question, not a refusal to word at the top of the
-		// reading. The panel that renders it is the answer.
-		return data(
-			{
-				stamp: {
-					patternId: submitted.data.patternId,
-					weekKeys: submitted.data.weekKeys,
-					conflicts: stamped.conflicts,
-				},
-			},
-			{ status: 400 },
-		)
-	}
-
-	const url = new URL(request.url)
-	return redirectWithToast(`${url.pathname}${url.search}`, {
-		type: 'success',
-		title: 'On your calendar',
-		description: stampSentence(stamped.report),
-	})
-}
-
-/**
- * What a stamp did, in one sentence — counts first, then the two things the athlete
- * has to know: the sessions are theirs to edit, and anything the stamp could not
- * write is named rather than left as a silent gap.
- */
-function stampSentence(report: StampReport): string {
-	const sessions = `${report.sessions} ${report.sessions === 1 ? 'session' : 'sessions'}`
-	const weeks = `${report.weeks} ${report.weeks === 1 ? 'week' : 'weeks'}`
-	const replaced =
-		report.replaced > 0 ? ` ${report.replaced} were replaced.` : ''
-	const skipped = skippedSentence(report.skipped)
-	return `${sessions} across ${weeks}. Edit any of them — nothing stays linked to the pattern.${replaced}${skipped}`
-}
-
-/**
- * The days that produced no session, named by reason.
- *
- * Each reason is an **Unavailable Metric with its cause**, never a silent omission
- * and never a fabricated session: the athlete is told which day the app could not
- * write and why, so they can fix it or leave it (ADR 0008).
- */
-function skippedSentence(skipped: StampReport['skipped']): string {
-	const reasons = new Set(skipped.map((skip) => skip.reason))
-	const clauses = [...reasons].map((reason) => STAMP_SKIP_COPY[reason])
-	return clauses.length === 0 ? '' : ` ${clauses.join(' ')}`
-}
-
-const STAMP_SKIP_COPY: Record<StampSkipReason, string> = {
-	'no-prescription':
-		'A fixed day whose workout is gone was left out — pick a session for it.',
-	'volume-unavailable':
-		'A share day was left out where the week has no derived target for its track.',
-	'no-volume-left':
-		'A share day was left out where your fixed sessions already spend the week. Those stay exactly as you wrote them.',
-	'not-prescribable':
-		'A share day was left out because its track’s unit is not something a session can prescribe — give the day a shape and it will stamp.',
-}
-
-function stampRefusalMessage(
-	reason: Exclude<StampRefusal, 'weeks-already-filled'>,
-): string {
-	switch (reason) {
-		case 'plan-resting':
-			return PLAN_RESTING
-		case 'pattern-gone':
-			return PATTERN_GONE
-		case 'pattern-empty':
-			return 'That pattern has no days in it yet, so there is nothing to stamp.'
-		case 'week-outside-plan':
-			return WEEK_OUTSIDE_PLAN
-		case 'nothing-to-stamp':
-			// Not an absence and not a bug: every day of the pattern hit one of the
-			// four reasons above, so the honest answer names that rather than
-			// reporting a stamp of nothing as a success.
-			return 'None of this pattern’s days could be written into those weeks. Nothing was changed.'
-	}
-}
-
-/**
  * Copy one week of this plan onto another week of it (#415).
  *
- * The stamp's sibling, and deliberately the same shape: a target week that already
+ * The shape the retired stamp had (decision 14): a target week that already
  * holds sessions comes back as a question carrying the counts rather than as an
  * error, and a success redirects because the calendar changed in a way the page
  * cannot state by itself.
@@ -1746,8 +1754,12 @@ async function copyWeekOnto(
 	const url = new URL(request.url)
 	return redirectWithToast(`${url.pathname}${url.search}`, {
 		type: 'success',
-		title: 'Week copied',
-		description: copySentence(copied.report),
+		title: SESONG_COPY_LABELS.done,
+		description: copySentence(
+			copied.report,
+			submitted.data.sourceWeekKey,
+			submitted.data.targetWeekKey,
+		),
 	})
 }
 
@@ -1756,14 +1768,19 @@ async function copyWeekOnto(
  * to know: the weeks are independent, and the copy was not scaled to the week it
  * landed on.
  */
-function copySentence(report: CopyWeekReport): string {
-	const sessions = `${report.sessions} ${report.sessions === 1 ? 'session' : 'sessions'}`
-	const replaced =
-		report.replaced > 0
-			? ` ${report.replaced} ${report.replaced === 1 ? 'session was' : 'sessions were'} replaced.`
-			: ''
+function copySentence(
+	report: CopyWeekReport,
+	sourceWeekKey: string,
+	targetWeekKey: string,
+): string {
 	const skipped = copySkippedSentence(report.skipped)
-	return `${sessions} from week ${report.sourceWeekInPlan} onto week ${report.targetWeekInPlan}, exactly as you wrote them. Edit either week — the other does not move.${replaced}${skipped}`
+	// The ISO weeks, as every Sesong surface numbers them (audit B6).
+	return `${SESONG_COPY_LABELS.sentence(
+		report.sessions,
+		isoWeekNumber(sourceWeekKey),
+		isoWeekNumber(targetWeekKey),
+		report.replaced,
+	)}${skipped}`
 }
 
 /**
@@ -1777,8 +1794,7 @@ function copySkippedSentence(skipped: CopyWeekReport['skipped']): string {
 }
 
 const COPY_SKIP_COPY: Record<CopySkipReason, string> = {
-	'no-prescription':
-		'A session with no workout behind it was left out — there was nothing to copy.',
+	'no-prescription': SESONG_COPY_LABELS.noPrescription,
 }
 
 function copyRefusalMessage(
@@ -1792,13 +1808,13 @@ function copyRefusalMessage(
 		case 'week-outside-plan':
 			return WEEK_OUTSIDE_PLAN
 		case 'same-week':
-			return 'That is the same week twice. Pick a different week to copy it onto.'
+			return SESONG_REFUSAL_LABELS.sameWeek
 		case 'source-week-empty':
-			return 'That week has no sessions in it, so there is nothing to copy. Pick a week you have already filled in.'
+			return SESONG_REFUSAL_LABELS.sourceEmpty
 		case 'nothing-to-copy':
 			// The week holds sessions, but every one of them is a recording with no
 			// prescription behind it. Named rather than reported as a copy of nothing.
-			return 'That week only holds recorded activities, which carry no workout to copy. Nothing was changed.'
+			return SESONG_REFUSAL_LABELS.nothingToCopy
 	}
 }
 
@@ -1854,7 +1870,7 @@ async function authorSegmentRates(userId: string, formData: FormData) {
 				intent: 'set-segment-rates' as const,
 				segmentId: submission.value.segmentId,
 				result: submission.reply({
-					formErrors: ['That block is no longer part of your plan.'],
+					formErrors: [SESONG_SEGMENT_LABELS.gone],
 				}),
 			},
 			{ status: 400 },
@@ -1930,7 +1946,7 @@ async function authorQualityMix(userId: string, formData: FormData) {
 				intent: 'set-quality-mix' as const,
 				segmentId: submission.value.segmentId,
 				result: submission.reply({
-					formErrors: ['That block is no longer part of your plan.'],
+					formErrors: [SESONG_SEGMENT_LABELS.gone],
 				}),
 			},
 			{ status: 400 },
@@ -1975,17 +1991,17 @@ function strengthRefusalMessage(reason: StrengthSegmentRefusal): string {
 			// Not an absence: the track is theirs and it is an endurance one. Said as
 			// the domain rule, because the rule is the reason — an endurance track's
 			// segments span its phases 1:1 and are authored on the phase cards above.
-			return 'Lifting blocks belong to a strength track, and that one is an endurance track. Nothing was changed.'
+			return SESONG_REFUSAL_LABELS.notStrengthTrack
 		case 'segment-not-found':
 			return BLOCK_GONE
 		case 'start-week-outside-the-plan':
 			return WEEK_NOT_ONE_OF_THE_PLANS
 		case 'segment-runs-past-the-plan':
-			return 'That block would run past the last week of your plan. Make it shorter, open it earlier, or add weeks to your plan.'
+			return SESONG_REFUSAL_LABELS.segmentPastPlan
 		case 'week-already-opens-a-segment':
-			return 'Another lifting block already opens that week. Open this one on a different week.'
+			return SESONG_REFUSAL_LABELS.weekOpensSegment
 		case 'segments-overlap':
-			return 'That block would overlap another lifting block. Blocks sit one after another, and the weeks between two of them are no lifting.'
+			return SESONG_REFUSAL_LABELS.segmentsOverlap
 	}
 }
 
@@ -2086,6 +2102,9 @@ export default function PlanRoute({
 		strengthOffer,
 		firstUnbegunWeekKey,
 		seasonEvents,
+		seasonPicture,
+		restingOpenEnded,
+		seasonFitness,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -2114,10 +2133,6 @@ export default function PlanRoute({
 		actionData && 'strengthOffer' in actionData
 			? actionData.strengthOffer.result
 			: undefined
-	// A stamp the service came back asking about. Not an `error`: nothing was
-	// written and there is a question on the page rather than a refusal above it.
-	const pendingStamp: PendingStamp | null =
-		actionData && 'stamp' in actionData ? actionData.stamp : null
 	// The same, for a week copy aimed at a week that already holds sessions (#415).
 	const pendingCopy: PendingCopy | null =
 		actionData && 'copy' in actionData ? actionData.copy : null
@@ -2146,21 +2161,34 @@ export default function PlanRoute({
 	}
 
 	return (
-		<main className="container mx-auto max-w-2xl py-6 md:py-8">
+		// One column to `lg`, then two (decision 13): wide enough for both
+		// columns to keep a phone's reading width rather than one long line.
+		<main className="container mx-auto max-w-2xl py-6 md:py-8 lg:max-w-6xl">
 			{/* Sesong is a tab's landing page (ADR 0083), so it carries no back
 			    affordance (ui-conventions §3.3): the tab bar is the way out. */}
-			<PageHeader title={APP_TAB_LABELS.season} className="mb-2" />
+			<PageHeader
+				title={APP_TAB_LABELS.season}
+				className="mb-2"
+				// Owner decision 6: "+ Ny" on I dag makes sessions only; a race and a
+				// plan are started here.
+				actions={
+					<nav aria-label={SESONG_ENTRY_LABELS.group} className="flex gap-2">
+						<PillLink to="/training/events/new" className="px-3">
+							<Icon name="plus" size="sm" />
+							{SESONG_ENTRY_LABELS.newEvent}
+						</PillLink>
+						<PillLink to="/training/plan/new" className="px-3">
+							<Icon name="plus" size="sm" />
+							{SESONG_ENTRY_LABELS.newPlan}
+						</PillLink>
+					</nav>
+				}
+			/>
 
-			{/* The surface's own order, and it is variant F's (#366, spec #399): what
-			    you are building toward, the shape of the season, what the season adds
-			    up to, and only then the two readings that edit it. Each of the first
-			    three is a self-contained block with air around it rather than another
-			    paragraph in one column — "one thing at a time" is a layout claim
-			    before it is a copy one. */}
-			<div className="mb-8 space-y-6">
+			<div className="mb-6 space-y-3 lg:mx-auto lg:max-w-2xl">
 				{season.eventId != null && season.eventDate != null ? (
 					<PlanHero
-						eyebrow="You’re building toward"
+						eyebrow={SESONG_PAGE_LABELS.heroToward}
 						title={
 							<Link
 								to={`/training/events/${season.eventId}`}
@@ -2170,18 +2198,18 @@ export default function PlanRoute({
 							</Link>
 						}
 						meta={
-							<>
-								{/* The Event's date is a calendar day anchor, formatted in UTC like
-								    every other Event date in the app (ADR 0023). */}
-								{formatDate(season.eventDate, 'UTC')} ·{' '}
-								{totalWeeks === 1 ? '1 week' : `${totalWeeks} weeks`} from{' '}
-								{formatDate(season.phases[0]!.startsAt, timezone)}
-							</>
+							// The Event's date is a calendar day anchor, formatted in UTC
+							// like every other Event date in the app (ADR 0023).
+							SESONG_PAGE_LABELS.heroMeta(
+								formatNbDate(season.eventDate, 'UTC'),
+								totalWeeks,
+								formatNbDate(season.phases[0]!.startsAt, timezone),
+							)
 						}
 						action={
 							<PillLink to={`/training/events/${season.eventId}`}>
 								<Icon name="calendar" size="sm" />
-								Change what you’re building toward
+								{SESONG_PAGE_LABELS.heroChange}
 							</PillLink>
 						}
 					/>
@@ -2196,12 +2224,9 @@ export default function PlanRoute({
 								{openEndedBlockLabel(season.round ?? 1)}
 							</span>
 						}
-						meta={
-							<>
-								Ingen løp og ingen sluttdato · fra{' '}
-								{formatDate(season.phases[0]!.startsAt, timezone)}
-							</>
-						}
+						meta={SESONG_PAGE_LABELS.openEndedMeta(
+							formatNbDate(season.phases[0]!.startsAt, timezone),
+						)}
 						action={
 							<AttachEventOffer
 								outlineId={season.outlineId}
@@ -2216,32 +2241,104 @@ export default function PlanRoute({
 					// until that race has passed (ADR 0079).
 					<p
 						data-plan-resting
-						className="text-muted-foreground text-center text-sm"
+						className="text-footnote text-muted-foreground text-center"
 					>
-						Planen hviler mens planen mot løpet ditt er i gang. Den tar over
-						igjen når løpet er over.{' '}
-						<Link to="/training/plan" className="underline">
-							Åpne løpsplanen
+						{SESONG_PAGE_LABELS.resting}{' '}
+						<Link
+							to="/training/plan"
+							className="text-foreground relative inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+						>
+							{SESONG_PAGE_LABELS.restingLink}
+						</Link>
+					</p>
+				) : restingOpenEnded ? (
+					// The way back to the athlete's open-ended plan while it rests behind
+					// this one (audit B12): otherwise only `?outline=` reached it.
+					<p
+						data-plan-resting-elsewhere
+						className="text-footnote text-muted-foreground text-center"
+					>
+						{SESONG_PAGE_LABELS.restingElsewhere}{' '}
+						<Link
+							to={`/training/plan?outline=${restingOpenEnded.outlineId}`}
+							className="text-foreground relative inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+						>
+							{SESONG_PAGE_LABELS.restingElsewhereLink}
 						</Link>
 					</p>
 				) : null}
+			</div>
 
-				{/* The Events the season is planned around and the way to plan
-				    another, right under the one it builds toward (spec #505 story 57). */}
-				<SeasonEvents
-					events={seasonEvents.events}
-					upcomingCount={seasonEvents.upcomingCount}
-				/>
+			{/* The surface's order (round-2 decisions 12 and 13, ADR 0090): the season
+			    as a picture first — I dag's curve and table, where a week is read and
+			    opened — then the edits and the philosophy that change it, the Events
+			    it is planned around, what it adds up to, and the two readings that
+			    author its rules. */}
+			{/* From `lg`, two columns (round-2 decision 13, ADR 0090): the season —
+			    picture and table, what it comes to, the readings — on the left, and
+			    the edits, the philosophy and the Events on the right. Not the full
+			    spreadsheet (Arket N). One DOM order for both widths, so the phone's
+			    order and the keyboard's are the same: the right column is one
+			    element spanning every row, and the left items flow down the rows
+			    beside it. The last row is `1fr`, so a tall right column grows that
+			    row (the readings', which run longest) rather than opening gaps
+			    between the left column's cards. */}
+			<div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:grid-rows-[repeat(4,auto)_1fr] lg:items-start lg:space-y-0 lg:gap-x-6 lg:gap-y-6">
+				{seasonPicture ? (
+					<div className="lg:col-start-1">
+						<SeasonPicture
+							picture={seasonPicture}
+							firstUnbegunWeekKey={firstUnbegunWeekKey}
+						/>
+					</div>
+				) : null}
 
-				{/* The season chart is the surface's **primary object**, above the two
-				    readings rather than beside one of them (#413, variant F): the shape is
-				    what the athlete recognises, and Blocks and Weeks are how they edit and
-				    audit it. It stays mounted across both tabs for the same reason. */}
-				<SeasonChart
-					season={season}
-					contexts={conversionContexts}
-					fitnessAnchor={fitnessAnchor}
-				/>
+				<div className="space-y-6 lg:col-start-2 lg:row-span-full lg:row-start-1">
+					{/* The Sesong edits (#505 stories 72–77): a week's target, a phase's
+					    name and length, and the easy week — each behind a preview. A row
+					    of the season table opens the first of them on its week. */}
+					<PlanCard
+						titleId="season-edits"
+						title={SEASON_EDIT_LABELS.title}
+						contentClassName="space-y-3"
+						className="scroll-mt-4"
+					>
+						<SeasonEditsCard
+							outlineId={season.outlineId}
+							weeks={season.weeks}
+							phases={season.phases}
+							tracks={season.tracks}
+							firstUnbegunWeekKey={firstUnbegunWeekKey}
+							reply={seasonEdit}
+						/>
+					</PlanCard>
+
+					{/* The philosophy the plan follows, and the way to another one behind
+					    a preview (#505 stories 10–14). Its own card: it is a choice about
+					    the whole season, not a figure of it. */}
+					<PlanCard
+						titleId="philosophy"
+						title={PHILOSOPHY_SWITCH_LABELS.title}
+						contentClassName="space-y-3"
+						className="scroll-mt-4"
+					>
+						<PhilosophyCard
+							key={philosophy?.preview?.digest ?? 'none'}
+							outlineId={season.outlineId}
+							family={season.family}
+							preview={philosophy?.preview ?? null}
+							lastResult={philosophy?.result}
+							confirmResult={philosophy?.confirmResult}
+						/>
+					</PlanCard>
+
+					{/* The Events the season is planned around, and the ways to plan
+					    another race or another plan (spec #505 story 57, decision 6). */}
+					<SeasonEvents
+						events={seasonEvents.events}
+						upcomingCount={seasonEvents.upcomingCount}
+					/>
+				</div>
 
 				{/* What the plan comes to, as figures rather than as a paragraph. The
 				    **Season Span** is the headline #399 asks for, and it keeps its own
@@ -2249,8 +2346,9 @@ export default function PlanRoute({
 				    decides nothing about which of them may be added to which. */}
 				<PlanCard
 					titleId="season-summary"
-					title="What this plan comes to"
+					title={SESONG_PAGE_LABELS.summaryTitle}
 					contentClassName="space-y-5"
+					className="lg:col-start-1"
 				>
 					{season.spanGroups.length > 0 ? (
 						<SeasonSpanHeadline
@@ -2258,19 +2356,13 @@ export default function PlanRoute({
 							weeks={season.weeks}
 						/>
 					) : null}
-					{/* Where the season lands against the Event, and — where it misses — the
-					    edit that would close the gap, named in full before it is offered.
-					    The proposal is derived here from the phases and the fit already on
-					    the page, and recomputed server-side when it is applied, so a stale
-					    reading can never land an edit the athlete was not shown. */}
-					{/* No Event, nothing to fit to: an open-ended plan says nothing here
-					    rather than measuring itself against a race it does not have. */}
+					{/* Where the season lands against the Event. No Event, nothing to fit
+					    to: an open-ended plan says nothing here rather than measuring
+					    itself against a race it does not have. */}
 					{season.fit ? (
-						<div className="border-border/70 space-y-3 border-t pt-4">
-							<p className="text-muted-foreground text-sm">
-								{fitSentence(season.fit)}
-							</p>
-						</div>
+						<p className="border-border/60 text-footnote text-muted-foreground border-t pt-4">
+							{fitSentence(season.fit)}
+						</p>
 					) : null}
 					{strengthOffer ? (
 						<StrengthTrackOfferCard
@@ -2287,103 +2379,63 @@ export default function PlanRoute({
 					/>
 				</PlanCard>
 
-				{/* The philosophy the plan follows, and the way to another one behind a
-				    preview (#505 stories 10–14). Its own card: it is a choice about the
-				    whole season, not a figure of it. */}
-				<PlanCard
-					titleId="philosophy"
-					title={PHILOSOPHY_SWITCH_LABELS.title}
-					contentClassName="space-y-3"
-				>
-					<PhilosophyCard
-						key={philosophy?.preview?.digest ?? 'none'}
-						outlineId={season.outlineId}
-						family={season.family}
-						preview={philosophy?.preview ?? null}
-						lastResult={philosophy?.result}
-						confirmResult={philosophy?.confirmResult}
+				{/* What is left to set up, above the two readings that do it — gone
+				    once nothing is outstanding: a way in, not a scoreboard. */}
+				<div className="lg:col-start-1">
+					<NextSteps
+						season={season}
+						weeksWithSessions={weeksWithSessions}
+						hrefFor={readingHref}
 					/>
-				</PlanCard>
+				</div>
 
-				{/* The Sesong edits (#505 stories 72–77): a week's target, a phase's
-				    name and length, and the easy week — each behind a preview. */}
-				<PlanCard
-					titleId="season-edits"
-					title={SEASON_EDIT_LABELS.title}
-					contentClassName="space-y-3"
-				>
-					<SeasonEditsCard
-						outlineId={season.outlineId}
-						weeks={season.weeks}
-						phases={season.phases}
-						tracks={season.tracks}
-						firstUnbegunWeekKey={firstUnbegunWeekKey}
-						reply={seasonEdit}
-					/>
-				</PlanCard>
-
-				{/* What the plan **cannot** tell you, beside what it comes to and on both
-				    readings (#399 story 49).
-
-				    It lived inside the Weeks reading, under the week grid — which is
-				    where an athlete *auditing* their season meets it, and nowhere near
-				    the lifter authoring the very block that causes it. A lifter shaping a
-				    strength block is on Blocks, and they were never shown that lifting
-				    carries no TSS and no hours at all until they went looking on the
-				    other tab. Lifted here rather than repeated inside the lifting section
-				    because these three sentences are about **the plan**, not about a
-				    control: they belong with the season's own figures, said once, where
-				    switching reading cannot take them away. */}
+				{/* What the plan **cannot** tell you (#399 story 49, ADR 0047 §5): about
+				    the plan, not a control, so said once beside its figures — behind a
+				    closed line that names it, rather than three paragraphs in the way
+				    of the edits. */}
 				{season.unavailableReadings.length > 0 ? (
-					<UnavailableReadingsNotice readings={season.unavailableReadings} />
+					<div className="lg:col-start-1">
+						<UnavailableReadingsNotice readings={season.unavailableReadings} />
+					</div>
 				) : null}
-			</div>
 
-			{/* What is left to do, above the two readings that do it. A plan authored
-			    from a shape arrives with its blocks and its climb already in place, so
-			    what remains is the half an athlete planning for the first time does not
-			    know is a half: a typical week, and putting it on the calendar. Each line
-			    links to the reading that does it, and the whole thing disappears once
-			    nothing is outstanding — it is a way in, not a scoreboard. */}
-			<div className="mb-6">
-				<NextSteps
-					season={season}
-					weeksWithSessions={weeksWithSessions}
-					hrefFor={readingHref}
-				/>
-			</div>
+				<div className="space-y-6 lg:col-start-1">
+					<SegmentedNav
+						label={SESONG_PAGE_LABELS.readings}
+						options={TABS.map((name) => ({
+							key: name,
+							label: TAB_LABELS[name],
+						}))}
+						current={tab}
+						hrefFor={readingHref}
+					/>
 
-			<div className="mb-6">
-				<SegmentedNav
-					label="Season views"
-					options={TABS.map((name) => ({ key: name, label: TAB_LABELS[name] }))}
-					current={tab}
-					hrefFor={readingHref}
-				/>
+					{tab === 'blocks' ? (
+						<BlocksReading
+							season={season}
+							error={error}
+							actionData={actionData}
+							strengthTracks={strengthTracks}
+							anchorTracks={anchorTracks}
+							firstUnbegunWeekKey={firstUnbegunWeekKey}
+							conversionContexts={conversionContexts}
+							fitnessAnchor={fitnessAnchor}
+							seasonFitness={seasonFitness}
+						/>
+					) : (
+						<WeeksReading
+							season={season}
+							error={error}
+							chosenWeek={previewWeek}
+							workouts={workouts}
+							seasonQuery={seasonQuery}
+							pendingCopy={pendingCopy}
+							mixWarnings={mixWarnings}
+							firstUnbegunWeekKey={firstUnbegunWeekKey}
+						/>
+					)}
+				</div>
 			</div>
-
-			{tab === 'blocks' ? (
-				<BlocksReading
-					season={season}
-					error={error}
-					actionData={actionData}
-					strengthTracks={strengthTracks}
-					anchorTracks={anchorTracks}
-					firstUnbegunWeekKey={firstUnbegunWeekKey}
-				/>
-			) : (
-				<WeeksReading
-					season={season}
-					error={error}
-					chosenWeek={previewWeek}
-					workouts={workouts}
-					seasonQuery={seasonQuery}
-					pendingStamp={pendingStamp}
-					pendingCopy={pendingCopy}
-					mixWarnings={mixWarnings}
-					firstUnbegunWeekKey={firstUnbegunWeekKey}
-				/>
-			)}
 		</main>
 	)
 }
@@ -2391,39 +2443,26 @@ export default function PlanRoute({
 type SeasonData = Route.ComponentProps['loaderData']['season']
 
 /**
- * What is left to do, and where to do it.
+ * What is left to set up, and where to do it.
  *
  * **Why a planning surface has a to-do list on it at all.** Every control this
- * page owns is discoverable *if you know a season has these parts*. An athlete who
- * has planned before knows; one who has not authored a season starts with blocks
- * and no idea that the plan is not finished — that a week pattern exists, that
- * nothing reaches their calendar until they put it there. The page said all of
- * that, spread over two readings and five closed sections, and said none of it as
- * a *sequence*. This is the sequence, and nothing more: it computes no new figure
- * and owns no control, it only names the next act and links to the reading that
+ * page owns is discoverable *if you know a season has these parts*. An athlete
+ * who has not authored a season starts with blocks and no idea that a typical
+ * week exists. This is the sequence, and nothing more: it computes no new figure
+ * and owns no control, it names the next act and links to the reading that
  * performs it.
  *
- * **It disappears.** Once every step is behind them the athlete gets one quiet
- * line saying how much of the season is on the calendar, and no checklist. A list
- * of ticks is a scoreboard, and this surface already has a chart for telling the
- * athlete how their season looks.
- *
- * Three steps, and each is a thing the plan is genuinely missing rather than a
- * setting nobody set:
+ * **Two steps, since the weeks fill themselves** (round-2 decision 14, ADR
+ * 0090). Stamping is no longer the athlete's: the week change lays each week as
+ * the Planning Horizon reaches it (ADR 0080 §1), and a new typical week lays the
+ * weeks up to the horizon at once. So what a plan can still be missing is:
  *
  *   1. **A climb.** A plan whose segments carry no **Volume Ramp** has every week
- *      the size of its first. That is a valid plan — the ramp is a choice and the
- *      app never stores a convention as though it had been authored (ADR 0044 §4)
- *      — but it is almost never the one an athlete meant, and it is invisible on a
- *      season chart if you do not already know what to look for.
- *   2. **A typical week.** The **Week Pattern** is what turns weekly targets into
- *      days.
- *   3. **The calendar.** Stamping is what makes any of it real.
+ *      the size of its first — valid (ADR 0044 §4), but almost never meant.
+ *   2. **A typical week.** The **Week Pattern** the horizon fills the weeks from.
  *
- * The order is the order they happen in, and each step reads the plan rather than
- * a stored flag: an athlete who authors a pattern by hand, or stamps one week from
- * a copy, sees the step close because the thing is *done*, not because a wizard
- * was walked through.
+ * **It disappears.** With both there, the athlete reads one quiet line saying
+ * how much of the season is on the calendar and that the rest fills itself.
  */
 function NextSteps({
 	season,
@@ -2445,41 +2484,25 @@ function NextSteps({
 		{
 			key: 'climb',
 			done: climbs,
-			title: 'Give your weeks a climb',
-			detail:
-				'Every week is the size of your first right now. Start from a shape, or set a ramp on a block.',
+			title: SESONG_NEXT_LABELS.climbTitle,
+			detail: SESONG_NEXT_LABELS.climbDetail,
 			href: hrefFor('blocks'),
-			action: 'Set a climb',
+			action: SESONG_NEXT_LABELS.climbAction,
 		},
 		{
 			key: 'pattern',
-			done: season.patterns.length > 0,
-			title: 'Say what your typical week looks like',
-			detail:
-				'Which days you train on, and which of them is the long one. Your week’s volume divides itself between them.',
+			done: season.patterns.some((pattern) => pattern.days.length > 0),
+			title: SESONG_NEXT_LABELS.patternTitle,
+			detail: SESONG_NEXT_LABELS.patternDetail,
 			href: hrefFor('weeks'),
-			action: 'Set it up',
-		},
-		{
-			key: 'calendar',
-			done: weeksWithSessions > 0,
-			title: 'Put your weeks on the calendar',
-			detail:
-				'Nothing is scheduled until you stamp it. Sessions land as ordinary sessions you can edit one by one.',
-			href: hrefFor('weeks'),
-			action: 'Stamp your weeks',
+			action: SESONG_NEXT_LABELS.patternAction,
 		},
 	].filter((step) => !step.done)
 
 	if (steps.length === 0) {
 		return (
-			<p className="text-muted-foreground text-sm">
-				Your plan is set up —{' '}
-				<span className="text-foreground font-medium">
-					{weeksWithSessions} of {totalWeeks}
-				</span>{' '}
-				{totalWeeks === 1 ? 'week has' : 'weeks have'} sessions on your
-				calendar.
+			<p className="text-footnote text-muted-foreground" data-plan-filled>
+				{SESONG_PAGE_LABELS.fillFilled(weeksWithSessions, totalWeeks)}
 			</p>
 		)
 	}
@@ -2487,9 +2510,9 @@ function NextSteps({
 	return (
 		<PlanCard
 			titleId="next-steps"
-			title="What’s next"
-			aside={steps.length === 1 ? '1 step left' : `${steps.length} steps left`}
-			contentClassName="divide-border/70 divide-y"
+			title={SESONG_NEXT_LABELS.title}
+			aside={SESONG_NEXT_LABELS.left(steps.length)}
+			contentClassName="divide-border/60 divide-y"
 		>
 			{steps.map((step) => (
 				<div
@@ -2497,11 +2520,13 @@ function NextSteps({
 					// Stacked on a phone and side by side from `sm`: a pill pinned beside
 					// three lines of wrapping prose reads as though it belonged to the
 					// first line of it (ADR 0028 §1.5's rule for a phone's single column).
-					className="flex flex-col items-start gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-baseline sm:gap-3"
+					className="flex flex-col items-start gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-3"
 				>
 					<span className="min-w-0 flex-1">
-						<span className="block text-sm font-medium">{step.title}</span>
-						<span className="text-muted-foreground block text-sm">
+						<span className="text-callout block font-semibold">
+							{step.title}
+						</span>
+						<span className="text-footnote text-muted-foreground block">
 							{step.detail}
 						</span>
 					</span>
@@ -2573,14 +2598,16 @@ function SeasonSpanHeadline({
 						{named ? (
 							<p className="flex flex-wrap items-center gap-2 text-sm font-medium">
 								<span>
-									{group.disciplines
-										.map((discipline) => DISCIPLINE_LABELS[discipline])
-										.join(' · ')}
+									{SESONG_PAGE_LABELS.spanTracks(
+										group.disciplines.map(nbTrackName),
+									)}
 								</span>
 								{group.marker === 'derived' ? (
 									// The marker is binary and shown on the figure it qualifies,
 									// never as a footnote (ADR 0045 §9).
-									<Badge variant="secondary">Derived</Badge>
+									<Badge variant="secondary">
+										{SESONG_PAGE_LABELS.derived}
+									</Badge>
 								) : null}
 							</p>
 						) : null}
@@ -2589,21 +2616,23 @@ function SeasonSpanHeadline({
 						    mid-arrow in a half-width column — which reads as two numbers rather
 						    than as one span. */}
 						<p className="text-xl font-semibold tracking-tight text-balance tabular-nums">
-							{formatWeeklyVolume(group.span.anchor, group.currency)} →{' '}
-							{formatWeeklyVolume(group.span.peak, group.currency)}
+							{formatNbWeeklyVolume(group.span.anchor, group.currency)} →{' '}
+							{formatNbWeeklyVolume(group.span.peak, group.currency)}
 						</p>
 						<p className="text-muted-foreground text-sm">
 							{group.marker === 'derived' &&
 							accumulatesAcrossDisciplines(group.currency)
-								? `${ACCUMULATED_SPAN_LABELS[group.currency]} `
+								? `${NB_ACCUMULATED_SPAN_LABELS[group.currency]} `
 								: null}
-							Where you start to your peak loading week
-							{peakWeek ? `, week ${peakWeek.weekInPlan}` : null} · read from
-							your {several ? 'anchors' : 'anchor'} and your ramps, never added
-							up from sessions
+							{SESONG_PAGE_LABELS.spanNote(
+								peakWeek ? weekNumberOf(peakWeek) : null,
+								several,
+							)}
 							{group.total == null
 								? null
-								: ` · ${formatVolumeTotal(group.total, group.currency)} across the season`}
+								: SESONG_PAGE_LABELS.spanTotal(
+										formatNbVolumeTotal(group.total, group.currency),
+									)}
 						</p>
 					</li>
 				)
@@ -2671,7 +2700,7 @@ function DismissibleNotice({
 			// Visually hidden, because the space closing up *is* the sighted reading of
 			// a dismissal.
 			<p ref={closed} tabIndex={-1} className="sr-only">
-				The {name} is dismissed. It comes back if what it says changes.
+				{SESONG_NOTICE_LABELS.dismissed(name)}
 			</p>
 		)
 	}
@@ -2687,7 +2716,7 @@ function DismissibleNotice({
 					type="button"
 					variant="ghost"
 					size="icon"
-					aria-label={`Dismiss the ${name}`}
+					aria-label={SESONG_NOTICE_LABELS.dismiss(name)}
 					// ~44px effective touch target on a 32px control (#280), the idiom
 					// `OverlayHeader`'s close button uses.
 					className="relative shrink-0 after:absolute after:-inset-1.5"
@@ -2745,15 +2774,22 @@ function RampGuardNotice({
 						`${warning.discipline}:${warning.phaseIndex}:${warning.subject}:${warning.authored}`,
 				)
 				.join('|')}
-			name="ramp note"
+			name={SESONG_NOTICE_LABELS.rampName}
 		>
 			<ul className="space-y-1">
 				{warnings.map((warning, position) => {
-					const phase = phases[warning.phaseIndex]?.name ?? 'A block'
+					const stored = phases[warning.phaseIndex]?.name
+					const phase = stored
+						? nbPhaseName(stored)
+						: SESONG_NOTICE_LABELS.aBlock
 					const rate =
 						warning.subject === 'ramp'
-							? `ramps ${formatSignedPercent(warning.authored)} a loading week`
-							: `steps ${formatSignedPercent(warning.authored)} at its opening`
+							? SESONG_NOTICE_LABELS.rampRate(
+									formatNbSignedPercent(warning.authored),
+								)
+							: SESONG_NOTICE_LABELS.stepRate(
+									formatNbSignedPercent(warning.authored),
+								)
 					return (
 						// The position disambiguates: two tracks can warn about the same
 						// phase and the same subject, once each.
@@ -2761,9 +2797,9 @@ function RampGuardNotice({
 							{warning.lifting ? (
 								<>
 									<span className="font-medium">
-										{DISCIPLINE_LABELS[warning.discipline]}
+										{nbTrackName(warning.discipline)}
 									</span>{' '}
-									{rate}, in the block opening in {phase}.
+									{SESONG_NOTICE_LABELS.rampLifting('', rate, phase).trim()}
 								</>
 							) : (
 								<>
@@ -2775,14 +2811,8 @@ function RampGuardNotice({
 				})}
 			</ul>
 			<p>
-				The convention is {formatSignedPercent(RAMP_GUARD_MAX)} — per loading
-				week for a ramp, and in one go for a step at an opening. Bigger than
-				that is unusual rather than unsafe: no volume rule has been shown to
-				prevent injury, so this is a note and not a limit. Your numbers are
-				saved exactly as you authored them.
-				{anyStrength
-					? ' A lifting block is dated rather than tied to a phase, so the phase named beside one is only where its opening week falls.'
-					: null}
+				{SESONG_NOTICE_LABELS.rampNote(formatNbSignedPercent(RAMP_GUARD_MAX))}
+				{anyStrength ? SESONG_NOTICE_LABELS.rampLiftingNote : null}
 			</p>
 		</DismissibleNotice>
 	)
@@ -2830,7 +2860,10 @@ function AvailabilityFitNotice({
 	warnings,
 	hoursWarnings,
 	weeklyCapacityHours,
+	startWeekKey,
 }: {
+	/** The plan's first week, so a week in the plan reads as its ISO number. */
+	startWeekKey: string
 	warnings: SeasonAvailabilityWarning[]
 	hoursWarnings: SeasonHoursFitWarning[]
 	/** `null` when the athlete has never authored one — unavailable, not passing. */
@@ -2851,58 +2884,73 @@ function AvailabilityFitNotice({
 						`${warning.fromWeekInPlan}-${warning.toWeekInPlan}:${warning.peakHours}/${warning.weeklyCapacityHours}h`,
 				),
 			].join('|')}
-			name="training availability note"
+			name={SESONG_NOTICE_LABELS.availabilityName}
 		>
 			<ul className="space-y-1">
 				{warnings.map((warning, position) => {
 					const single = warning.fromWeekInPlan === warning.toWeekInPlan
+					const span = weekSpan(
+						startWeekKey,
+						warning.fromWeekInPlan,
+						warning.toWeekInPlan,
+					)
+					const [lead, ...rest] = SESONG_NOTICE_LABELS.daysAsk(
+						span,
+						single,
+						SESONG_NOTICE_LABELS.sessionCounts(
+							warning.qualitySessions,
+							warning.strengthSessions,
+						),
+						warning.trainableWeekdays,
+					).split(span)
 					return (
 						<li key={`days-${warning.fromWeekInPlan}-${position}`}>
-							<span className="font-medium">
-								{formatWeekSpan(warning.fromWeekInPlan, warning.toWeekInPlan)}
-							</span>{' '}
-							{single ? 'asks' : 'ask'} for {formatSessionCounts(warning)} a
-							week, and you have {warning.trainableWeekdays} trainable{' '}
-							{warning.trainableWeekdays === 1 ? 'weekday' : 'weekdays'}.
+							{lead}
+							<span className="font-medium">{span}</span>
+							{rest.join(span)}
 						</li>
 					)
 				})}
 				{hoursWarnings.map((warning, position) => {
 					const single = warning.fromWeekInPlan === warning.toWeekInPlan
+					const span = weekSpan(
+						startWeekKey,
+						warning.fromWeekInPlan,
+						warning.toWeekInPlan,
+					)
+					// "opptil" for a span and never for a single week: the figure is
+					// the run's worst week, so claiming it of every week in the run
+					// would be a number nothing derived.
+					const [lead, ...rest] = SESONG_NOTICE_LABELS.hoursAsk(
+						span,
+						single,
+						formatNbWeeklyVolume(warning.peakHours, 'hours'),
+						formatNbWeeklyVolume(warning.weeklyCapacityHours, 'hours'),
+					).split(span)
 					return (
 						<li key={`hours-${warning.fromWeekInPlan}-${position}`}>
-							<span className="font-medium">
-								{formatWeekSpan(warning.fromWeekInPlan, warning.toWeekInPlan)}
-							</span>{' '}
-							{/* "up to" for a span and never for a single week: the figure is
-							    the run's worst week, so claiming it of every week in the run
-							    would be a number nothing derived. */}
-							{single ? 'asks' : 'ask'} for {single ? '' : 'up to '}
-							{formatWeeklyVolume(warning.peakHours, 'hours')} of endurance
-							training, and your weekly capacity is{' '}
-							{formatWeeklyVolume(warning.weeklyCapacityHours, 'hours')}.
+							{lead}
+							<span className="font-medium">{span}</span>
+							{rest.join(span)}
 						</li>
 					)
 				})}
 			</ul>
 			<p>
 				{warnings.length > 0 && hoursWarnings.length > 0
-					? 'Those are two separate comparisons — sessions against the weekdays you train, and hours against the capacity you set — and a week can miss one without missing the other. '
+					? SESONG_NOTICE_LABELS.bothChecks
 					: warnings.length > 0
-						? 'That is days against days: sessions against the weekdays you train. '
-						: 'That is hours against hours: the hours your endurance weeks work out to, against the capacity you set. '}
-				It may be exactly what you meant: two sessions can share a day, and both
-				numbers are settings rather than facts about your week. Your plan is
-				saved exactly as you authored it.
+						? SESONG_NOTICE_LABELS.daysCheck
+						: SESONG_NOTICE_LABELS.hoursCheck}
+				{SESONG_NOTICE_LABELS.fitNote}
 			</p>
 			{hoursWarnings.length === 0 && weeklyCapacityHours == null ? (
 				<p>
-					Hours are the second comparison, and your{' '}
+					{SESONG_NOTICE_LABELS.noCapacity}{' '}
 					<Link className="underline" to="/settings/profile">
-						athlete profile
+						{SESONG_NOTICE_LABELS.noCapacityLink}
 					</Link>{' '}
-					carries no weekly capacity yet — so nothing here has been checked
-					against your hours.
+					{SESONG_NOTICE_LABELS.noCapacityEnd}
 				</p>
 			) : null}
 		</DismissibleNotice>
@@ -2925,7 +2973,10 @@ function AvailabilityFitNotice({
 function BandFitNotice({
 	warnings,
 	timezone,
+	startWeekKey,
 }: {
+	/** The plan's first week, so a week in the plan reads as its ISO number. */
+	startWeekKey: string
 	warnings: SeasonBandWarning[]
 	timezone: string
 }) {
@@ -2943,7 +2994,7 @@ function BandFitNotice({
 						`${warning.sessionId}:${warning.weekInPlan}:${warning.goal}:${warning.band.minPct1RM}-${warning.band.maxPct1RM}:${warning.outsidePct1RMs.join(',')}`,
 				)
 				.join('|')}
-			name="load band note"
+			name={SESONG_NOTICE_LABELS.bandName}
 		>
 			<ul className="space-y-1">
 				{warnings.map((warning) => (
@@ -2952,22 +3003,18 @@ function BandFitNotice({
 							to={`/training/sessions/${warning.sessionId}`}
 							className="font-medium hover:underline"
 						>
-							Week {warning.weekInPlan},{' '}
-							{formatDate(warning.scheduledAt, timezone)}
+							{weekSpan(startWeekKey, warning.weekInPlan, warning.weekInPlan)},{' '}
+							{formatNbDayMonth(warning.scheduledAt, timezone)}
 						</Link>{' '}
-						is authored at {formatPct1RMs(warning.outsidePct1RMs)}, outside the{' '}
-						{formatPct1RMBand(warning.band)} that{' '}
-						{STRENGTH_GOAL_SENTENCE_LABELS[warning.goal]} works in.
+						{SESONG_NOTICE_LABELS.bandLine(
+							formatNbPct1RMs(warning.outsidePct1RMs),
+							formatNbPct1RMBand(warning.band),
+							NB_STRENGTH_GOAL_SENTENCE_LABELS[warning.goal],
+						)}
 					</li>
 				))}
 			</ul>
-			<p>
-				That band is <strong>derived</strong> from the Strength Goal you
-				authored on the block, never typed beside it — change the goal and the
-				band moves with it, or leave the session as it is. This is a note and
-				not a limit: your blocks and your sessions are saved exactly as you
-				authored them.
-			</p>
+			<p>{SESONG_NOTICE_LABELS.bandNote}</p>
 		</DismissibleNotice>
 	)
 }
@@ -2992,16 +3039,23 @@ function UnavailableReadingsNotice({
 }: {
 	readings: UnavailableReading[]
 }) {
+	// Behind a closed line since round 2 (#505 Look): three paragraphs of honesty
+	// in the middle of the page pushed the edits below the fold. The line says
+	// what is inside before it opens, so nothing is withheld unannounced — this
+	// is a statement about the plan, not a warning about an edit.
 	return (
-		<section aria-labelledby="unavailable-readings" className="space-y-2">
-			<h2 id="unavailable-readings" className="text-lg font-semibold">
-				What this plan cannot tell you
-			</h2>
-			<ul className="text-muted-foreground space-y-2 text-sm">
-				{readings.map((reading) => (
-					<li key={reading}>{UNAVAILABLE_READING_LABELS[reading]}</li>
-				))}
-			</ul>
+		<section aria-label={SESONG_PAGE_LABELS.cannotTellTitle}>
+			<CollapsibleSection
+				summary={SESONG_PAGE_LABELS.cannotTellTitle}
+				detail={SESONG_PAGE_LABELS.cannotTellDetail}
+				className="border-b"
+			>
+				<ul className="text-footnote text-muted-foreground space-y-2">
+					{readings.map((reading) => (
+						<li key={reading}>{NB_UNAVAILABLE_READING_LABELS[reading]}</li>
+					))}
+				</ul>
+			</CollapsibleSection>
 		</section>
 	)
 }
@@ -3022,6 +3076,9 @@ function BlocksReading({
 	strengthTracks,
 	anchorTracks,
 	firstUnbegunWeekKey,
+	conversionContexts,
+	fitnessAnchor,
+	seasonFitness,
 }: {
 	season: SeasonData
 	/**
@@ -3029,6 +3086,11 @@ function BlocksReading({
 	 * and a shape would rewrite weeks lived (#505 story 14).
 	 */
 	firstUnbegunWeekKey: string
+	/** The analytical chart's two inputs (#413), for its place under Avansert. */
+	conversionContexts: Route.ComponentProps['loaderData']['conversionContexts']
+	fitnessAnchor: Route.ComponentProps['loaderData']['fitnessAnchor']
+	/** The chart's fitness layer, replayed by the loader. */
+	seasonFitness: Route.ComponentProps['loaderData']['seasonFitness']
 	/** A refused *structural* edit, said once above the phases it was aimed at. */
 	error?: string
 	actionData: SegmentActionData
@@ -3102,16 +3164,18 @@ function BlocksReading({
 					warnings={availability}
 					hoursWarnings={hoursFit}
 					weeklyCapacityHours={season.weeklyCapacityHours}
+					startWeekKey={season.startWeekKey}
 				/>
 			) : null}
 			{season.bandWarnings.length > 0 ? (
 				<BandFitNotice
 					warnings={season.bandWarnings}
 					timezone={season.timezone}
+					startWeekKey={season.startWeekKey}
 				/>
 			) : null}
 
-			<ol aria-label="Phases" className="space-y-3">
+			<ol aria-label={SESONG_PAGE_LABELS.phasesList} className="space-y-3">
 				{season.phases.map((phase, position) => {
 					// This phase's weeks, in plan order, as the track that prices them
 					// reads them. Roles come from the week rather than from the rhythm, so
@@ -3138,7 +3202,11 @@ function BlocksReading({
 								spark={
 									sparkTrack && phaseWeeks.length > 0 ? (
 										<PhaseSpark
-											label={`${phase.name}: ${phaseWeeks.length === 1 ? 'one week' : `${phaseWeeks.length} weeks`} of ${DISCIPLINE_LABELS[sparkTrack.discipline]} volume`}
+											label={SESONG_PHASE_LABELS.sparkLabel(
+												nbPhaseName(phase.name),
+												phaseWeeks.length,
+												nbTrackName(sparkTrack.discipline),
+											)}
 											values={phaseWeeks.map(
 												(week) =>
 													week.targets.find(
@@ -3161,7 +3229,7 @@ function BlocksReading({
 									// one runner reads one form, unlabelled.
 									const trackLabel =
 										enduranceTracks.length > 1
-											? DISCIPLINE_LABELS[track.discipline]
+											? nbTrackName(track.discipline)
 											: null
 									return segment ? (
 										// The two authored axes of one segment, as two saves: volume
@@ -3205,7 +3273,7 @@ function BlocksReading({
 			    says so before it opens. Inside, each is exactly the surface that
 			    shipped. */}
 			<div className="border-border/70 border-b">
-				<Disclosure
+				<CollapsibleSection
 					summary={SEASON_ADVANCED_LABELS.title}
 					detail={SEASON_ADVANCED_LABELS.note}
 				>
@@ -3220,6 +3288,25 @@ function BlocksReading({
 						/>
 					) : null}
 
+					{/* The analytical season chart (#413) — layers, read-in, the
+					    derivation behind each week — under Avansert since round 2
+					    (decision 12): the season picture at the top is what the
+					    athlete reads first, and this is the instrument behind it.
+					    Mounted only once opened, so its replay costs nothing until
+					    asked for. */}
+					<CollapsibleSection
+						summary={SESONG_PAGE_LABELS.advancedChart}
+						detail={SESONG_PAGE_LABELS.advancedChartDetail}
+					>
+						<SeasonChart
+							season={season}
+							contexts={conversionContexts}
+							fitnessAnchor={fitnessAnchor}
+							fitness={seasonFitness}
+							bare
+						/>
+					</CollapsibleSection>
+
 					{/* A shape replaces every phase, so it is offered only while no week
 					    of the plan has begun. After that the way to another method is
 					    _Bytt filosofi_, which keeps the weeks lived and the athlete's
@@ -3229,32 +3316,37 @@ function BlocksReading({
 							className="border-border/70 space-y-1 border-t py-3"
 							data-preset-gallery-begun
 						>
-							<p className="text-sm font-medium">Start from a shape</p>
+							<p className="text-sm font-medium">
+								{SESONG_PAGE_LABELS.shapeTitle}
+							</p>
 							<p className="text-muted-foreground text-sm">
 								{PRESET_GALLERY_LABELS.begun}
 							</p>
+							{/* A line of text and the only way there, so it carries an
+							    invisible box to 44px (ADR 0028 §2) without moving the
+							    reading's rhythm. */}
 							<a
 								href="#philosophy"
-								className="text-sm font-medium underline underline-offset-4"
+								className="text-footnote relative inline-flex min-h-11 touch-manipulation items-center font-semibold underline underline-offset-4"
 							>
 								{PRESET_GALLERY_LABELS.switchLink}
 							</a>
 						</div>
 					) : (
-						<Disclosure
-							summary="Start from a shape"
-							detail="Three built-in periodization shapes, each drawn as the load profile it lays down. Applying one replaces your blocks."
+						<CollapsibleSection
+							summary={SESONG_PAGE_LABELS.shapeTitle}
+							detail={SESONG_PAGE_LABELS.shapeDetail}
 						>
 							<PresetGallery outlineId={season.outlineId} />
-						</Disclosure>
+						</CollapsibleSection>
 					)}
 
 					{/* The anchor is the level the ramps above multiply, and re-anchoring
 					    is a statement about the *season*, not about a phase: it takes
 					    effect from a week the athlete picks and floats free of where the
 					    blocks fall (ADR 0040 §5). */}
-					<Disclosure
-						summary="Season anchors"
+					<CollapsibleSection
+						summary={SESONG_PAGE_LABELS.anchorsTitle}
 						detail={anchorSummary(anchorTracks)}
 					>
 						<SeasonAnchorSection
@@ -3263,14 +3355,14 @@ function BlocksReading({
 							timezone={season.timezone}
 							actionData={actionData}
 						/>
-					</Disclosure>
+					</CollapsibleSection>
 
 					{/* The lifting blocks sit *beside* the phase list rather than inside
 					    it, because a dated block has no phase card to belong to (ADR 0047
 					    §6) — it is laid out along the plan's own weeks instead. */}
 					{strengthTracks.length > 0 ? (
-						<Disclosure
-							summary="Lifting blocks"
+						<CollapsibleSection
+							summary={SESONG_PAGE_LABELS.liftingTitle}
 							detail={strengthSummary(strengthTracks)}
 						>
 							<StrengthBlocksSection
@@ -3279,30 +3371,30 @@ function BlocksReading({
 								timezone={season.timezone}
 								actionData={actionData}
 							/>
-						</Disclosure>
+						</CollapsibleSection>
 					) : null}
 
-					<Disclosure
-						summary="Add a phase"
-						detail="A new phase at a position you choose. Your plan’s start week never moves."
+					<CollapsibleSection
+						summary={SESONG_PAGE_LABELS.addPhaseTitle}
+						detail={SESONG_PAGE_LABELS.addPhaseDetail}
 					>
 						<AddPhaseForm outlineId={season.outlineId} phases={season.phases} />
-					</Disclosure>
-				</Disclosure>
+					</CollapsibleSection>
+				</CollapsibleSection>
 
-				<Disclosure
-					summary="Delete this plan"
+				<CollapsibleSection
+					summary={SESONG_PAGE_LABELS.deleteTitle}
 					detail={
 						season.eventId
-							? 'Your event and the sessions you have already trained stay.'
-							: 'The sessions you have already trained stay.'
+							? SESONG_PAGE_LABELS.deleteDetailEvent
+							: SESONG_PAGE_LABELS.deleteDetail
 					}
 				>
 					<DeletePlanSection
 						outlineId={season.outlineId}
 						eventName={season.eventName}
 					/>
-				</Disclosure>
+				</CollapsibleSection>
 			</div>
 		</div>
 	)
@@ -3320,9 +3412,9 @@ function starterSentence(proposal: StarterProposal): string {
 	const days = new Set(proposal.days.map((day) => day.weekday)).size
 	const built =
 		proposal.source === 'availability'
-			? `Built from the ${days === 1 ? 'day' : `${days} days`} you say you can train on`
-			: 'A four-day week as a starting point — you have not set your training days, so nothing was read from them'
-	return `${built}, with the last day long. Every day is yours to move, re-weight or remove.`
+			? SESONG_PATTERN_LABELS.starterFromProfile(days)
+			: SESONG_PATTERN_LABELS.starterFromDefault
+	return SESONG_PATTERN_LABELS.starterTail(built)
 }
 
 /**
@@ -3351,22 +3443,26 @@ function phaseReading(
 			(candidate) => candidate.phaseIndex === phaseIndex,
 		)
 		if (!segment) return []
-		const subject =
-			tracks.length > 1 ? DISCIPLINE_LABELS[track.discipline] : 'It'
+		const subject = SESONG_SEGMENT_LABELS.readingSubject(
+			tracks.length > 1 ? nbTrackName(track.discipline) : null,
+		)
 		const climb =
 			segment.ramp == null
-				? 'does not climb — every week is the size of the one before'
-				: `climbs ${formatSignedPercent(segment.ramp)} a loading week`
+				? SESONG_SEGMENT_LABELS.readingFlat
+				: SESONG_SEGMENT_LABELS.readingClimb(
+						formatNbSignedPercent(segment.ramp),
+					)
 		const step =
 			segment.boundaryStep == null
 				? ''
-				: `, opening ${formatSignedPercent(segment.boundaryStep)} against the block before`
-		const count = qualitySessionCount(segment.mix)
-		const quality =
-			count === 0
-				? 'no quality sessions'
-				: `${count === 1 ? '1 quality session' : `${count} quality sessions`} a week — ${formatEmphasisLabel(emphasisTerms(segment.mix))}`
-		return [`${subject} ${climb}${step}, with ${quality}.`]
+				: SESONG_SEGMENT_LABELS.readingStep(
+						formatNbSignedPercent(segment.boundaryStep),
+					)
+		const quality = SESONG_SEGMENT_LABELS.readingQuality(
+			qualitySessionCount(segment.mix),
+			formatNbEmphasisLabel(emphasisTerms(segment.mix)),
+		)
+		return [`${subject} ${climb}${step}, ${quality}.`]
 	})
 	return sentences.length === 0 ? null : sentences.join(' ')
 }
@@ -3381,19 +3477,18 @@ function phaseReading(
  * the roster and the week grid follow and the reason no total appears here.
  */
 function anchorSummary(tracks: EditableAnchorTrack[]): string {
-	if (tracks.length === 0) return 'No track to anchor yet.'
+	if (tracks.length === 0) return SESONG_ANCHOR_LABELS.summaryNone
 	return tracks
 		.map((track) => {
 			const first = track.anchors[0]
 			const opening = first
-				? formatWeeklyVolume(first.value, track.currency)
-				: 'not set'
-			const again = track.anchors.length - 1
-			return `${DISCIPLINE_LABELS[track.discipline]} from ${opening}${
-				again > 0
-					? `, re-anchored ${again === 1 ? 'once' : `${again} times`}`
-					: ''
-			}`
+				? formatNbWeeklyVolume(first.value, track.currency)
+				: SESONG_ANCHOR_LABELS.summaryNotSet
+			return SESONG_ANCHOR_LABELS.summary(
+				nbTrackName(track.discipline),
+				opening,
+				track.anchors.length - 1,
+			)
 		})
 		.join(' · ')
 }
@@ -3404,10 +3499,8 @@ function strengthSummary(tracks: EditableStrengthTrack[]): string {
 		(count, track) => count + track.segments.length,
 		0,
 	)
-	if (blocks === 0) {
-		return 'No lifting block yet — the weeks between blocks are weeks you do not lift.'
-	}
-	return `${blocks === 1 ? '1 block' : `${blocks} blocks`}, each dated rather than tied to a phase.`
+	if (blocks === 0) return SESONG_LIFTING_LABELS.summaryNone
+	return SESONG_LIFTING_LABELS.summary(blocks)
 }
 
 /** One field of the progression form, and the Conform metadata behind it. */
@@ -3595,28 +3688,34 @@ function SegmentProgressionForm({
 			<input type="hidden" name="intent" value="set-segment-rates" />
 			<input type="hidden" name="segmentId" value={segment.segmentId} />
 			{trackLabel ? (
-				<p className="text-sm font-medium">{trackLabel} progression</p>
+				<p className="text-sm font-medium">
+					{SESONG_SEGMENT_LABELS.progression(trackLabel)}
+				</p>
 			) : null}
 
 			<div className="grid gap-4 sm:grid-cols-2">
 				<RateField
 					meta={fields.ramp}
-					label="Volume ramp, % a loading week"
+					label={SESONG_SEGMENT_LABELS.ramp}
 					meaning={
 						segment.ramp == null
-							? 'Blank — volume holds level through this block.'
-							: `${formatSignedPercent(segment.ramp)} on every loading week. Recovery weeks and tapers do not step.`
+							? SESONG_SEGMENT_LABELS.rampBlank
+							: SESONG_SEGMENT_LABELS.rampSet(
+									formatNbSignedPercent(segment.ramp),
+								)
 					}
 				/>
 
 				{boundaryStep.inForce ? (
 					<RateField
 						meta={fields.boundaryStep}
-						label="Boundary step at this block’s opening, %"
+						label={SESONG_SEGMENT_LABELS.step}
 						meaning={
 							segment.boundaryStep == null
-								? 'Blank — this block opens continuous with the week before it.'
-								: `${formatSignedPercent(segment.boundaryStep)} once, at the opening. A deliberate drop into an intensity block belongs here rather than in the ramp.`
+								? SESONG_SEGMENT_LABELS.stepBlank
+								: SESONG_SEGMENT_LABELS.stepSet(
+										formatNbSignedPercent(segment.boundaryStep),
+									)
 						}
 					/>
 				) : (
@@ -3633,7 +3732,7 @@ function SegmentProgressionForm({
 							fraction={segment.boundaryStep}
 						/>
 						<p className="text-muted-foreground self-end text-sm">
-							{BOUNDARY_STEP_OUT_OF_FORCE_LABELS[boundaryStep.reason]}
+							{NB_BOUNDARY_STEP_OUT_OF_FORCE_LABELS[boundaryStep.reason]}
 						</p>
 					</>
 				)}
@@ -3641,12 +3740,16 @@ function SegmentProgressionForm({
 				{hasRecoveryWeeks ? (
 					<RateField
 						meta={fields.recoveryCut}
-						label="Recovery week cut, %"
+						label={SESONG_SEGMENT_LABELS.recoveryCut}
 						nonNegative
 						meaning={
 							segment.recoveryCut == null
-								? `Blank — follows the documented convention, ${formatSignedPercent(-DEFAULT_RECOVERY_CUT)} off your last loading week. Leave it blank and it moves if the convention does.`
-								: `Yours: ${formatSignedPercent(-segment.recoveryCut)} off your last loading week.`
+								? SESONG_SEGMENT_LABELS.recoveryBlank(
+										formatNbSignedPercent(-DEFAULT_RECOVERY_CUT),
+									)
+								: SESONG_SEGMENT_LABELS.recoverySet(
+										formatNbSignedPercent(-segment.recoveryCut),
+									)
 						}
 					/>
 				) : (
@@ -3659,13 +3762,17 @@ function SegmentProgressionForm({
 				{phase.tapers ? (
 					<RateField
 						meta={fields.taperCut}
-						label="Taper cut by the event, %"
+						label={SESONG_SEGMENT_LABELS.taperCut}
 						nonNegative
 						meaning={`${
 							segment.taperCut == null
-								? `Blank — follows the documented convention, ${formatSignedPercent(-DEFAULT_TAPER_CUT)} by your event. Leave it blank and it moves if the convention does.`
-								: `Yours: ${formatSignedPercent(-segment.taperCut)} by your event.`
-						} The taper descends across the block rather than dropping in its last week.`}
+								? SESONG_SEGMENT_LABELS.taperBlank(
+										formatNbSignedPercent(-DEFAULT_TAPER_CUT),
+									)
+								: SESONG_SEGMENT_LABELS.taperSet(
+										formatNbSignedPercent(-segment.taperCut),
+									)
+						}${SESONG_SEGMENT_LABELS.taperNote}`}
 					/>
 				) : (
 					<CarriedRate meta={fields.taperCut} fraction={segment.taperCut} />
@@ -3677,7 +3784,7 @@ function SegmentProgressionForm({
 			{/* Full-width on phones, inline from `sm` (ui-conventions §1.8), and no
 			    `size` override: a route file does not set control heights (§2.1). */}
 			<Button type="submit" variant="outline" className="w-full sm:w-auto">
-				Save {trackLabel ? `${trackLabel} ` : ''}progression
+				{SESONG_SEGMENT_LABELS.saveProgression(trackLabel)}
 			</Button>
 		</Form>
 	)
@@ -3749,7 +3856,7 @@ function SegmentMixForm({
 	// because `segment.mix` is the only input, and it must stay that way: sourcing the
 	// label from sessions where they exist would make a segment's name change character
 	// with how far into the season it sits (ADR 0042 §9).
-	const emphasis = formatEmphasisLabel(emphasisTerms(segment.mix))
+	const emphasis = formatNbEmphasisLabel(emphasisTerms(segment.mix))
 	const count = qualitySessionCount(segment.mix)
 
 	return (
@@ -3757,14 +3864,10 @@ function SegmentMixForm({
 			<input type="hidden" name="intent" value="set-quality-mix" />
 			<input type="hidden" name="segmentId" value={segment.segmentId} />
 			<p className="text-sm font-medium">
-				{trackLabel ? `${trackLabel} quality ` : 'Quality '}session mix
+				{SESONG_SEGMENT_LABELS.mix(trackLabel)}
 			</p>
 			<p className="text-muted-foreground text-sm">
-				Sessions a week in each quality zone. <strong>Blank or 0</strong> leaves
-				a zone out of the mix — all three blank is a block with no quality
-				sessions, which is a plan and not a gap. This blank is not the
-				ramp&rsquo;s blank above: there is no convention for a mix to fall back
-				on.
+				{SESONG_SEGMENT_LABELS.mixIntro}
 			</p>
 
 			{/* One field per quality zone, generated from `QUALITY_ZONES` — so zones 3–5
@@ -3782,7 +3885,10 @@ function SegmentMixForm({
 								// "Zone 4 threshold" — the zone number carries the ordering and the
 								// shared label carries the word, so this route spells neither
 								// itself (ADR 0023).
-								children: `Zone ${zone} ${QUALITY_ZONE_LABELS[zone]}, sessions a week`,
+								children: SESONG_SEGMENT_LABELS.mixField(
+									zone,
+									NB_QUALITY_ZONE_LABELS[zone],
+								),
 							}}
 							inputProps={{
 								...getInputProps(meta, { type: 'number' }),
@@ -3804,28 +3910,26 @@ function SegmentMixForm({
 			    from. */}
 			<dl className="text-sm">
 				<div className="flex flex-wrap gap-x-2">
-					<dt className="text-muted-foreground">Intensity emphasis, derived</dt>
+					<dt className="text-muted-foreground">
+						{SESONG_SEGMENT_LABELS.emphasis}
+					</dt>
 					<dd className="font-medium">{emphasis}</dd>
 				</div>
 				<div className="flex flex-wrap gap-x-2">
 					<dt className="text-muted-foreground">
-						Quality sessions a week, derived
+						{SESONG_SEGMENT_LABELS.count}
 					</dt>
 					<dd className="font-medium tabular-nums">{count}</dd>
 				</div>
 			</dl>
 			<p className="text-muted-foreground text-sm">
-				Both are read off the mix you saved, which is why there is nothing to
-				type here: a block is named for the work it holds, so the name follows
-				the mix rather than the other way round. It keeps reading the mix once
-				the weeks fill with real sessions, so this block does not change
-				character as the season goes on.
+				{SESONG_SEGMENT_LABELS.derivedNote}
 			</p>
 
 			<ErrorList errors={form.errors as string[] | undefined} />
 
 			<Button type="submit" variant="outline" className="w-full sm:w-auto">
-				Save {trackLabel ? `${trackLabel} ` : ''}quality mix
+				{SESONG_SEGMENT_LABELS.saveMix(trackLabel)}
 			</Button>
 		</Form>
 	)
@@ -3852,24 +3956,26 @@ function WeekTargetLine({
 	target: WeekTargetData
 	editable: boolean
 }) {
-	const discipline = DISCIPLINE_LABELS[target.discipline]
+	const discipline = nbTrackName(target.discipline)
 	return (
 		<div className="space-y-1">
 			<p className="text-sm font-medium">
-				{discipline}, {VOLUME_CURRENCY_UNITS[target.currency]}
+				{discipline}, {NB_WEEKLY_UNITS[target.currency]}
 			</p>
 			{target.overridden ? (
 				<p className="text-muted-foreground text-sm">
 					{target.derivedValue == null
-						? 'Hand-set. The rule has no number for this week.'
-						: `Hand-set. The rule gives ${formatWeeklyVolume(target.derivedValue, target.currency)}.`}
+						? SESONG_PAGE_LABELS.handSetNoRule
+						: SESONG_PAGE_LABELS.handSetRule(
+								formatNbWeeklyVolume(target.derivedValue, target.currency),
+							)}
 				</p>
 			) : null}
 			{editable ? (
 				<SeasonEditLink
 					edit="week-target"
 					fields={{ weekKey: week.weekKey, trackId: target.trackId }}
-					aria-label={`${SEASON_EDIT_LABELS.weekTargetOpen}: week ${week.weekInPlan} ${discipline}`}
+					aria-label={`${SEASON_EDIT_LABELS.weekTargetOpen}: uke ${weekNumberOf(week)} ${discipline.toLowerCase()}`}
 				>
 					{SEASON_EDIT_LABELS.weekTargetOpen}
 				</SeasonEditLink>
@@ -3909,12 +4015,14 @@ function WeekTargetsReading({
 				>
 					{/* Named only where there is a second track to tell it apart from. */}
 					{tracks > 1 ? (
-						<span className="text-muted-foreground text-xs">
-							{DISCIPLINE_LABELS[target.discipline]}
+						<span className="text-muted-foreground text-caption">
+							{nbTrackName(target.discipline)}
 						</span>
 					) : null}
 					{target.value == null ? (
-						<span className="text-muted-foreground">Unavailable</span>
+						<span className="text-muted-foreground">
+							{SESONG_PAGE_LABELS.unavailable}
+						</span>
 					) : target.strengthRole === 'gap' && !target.overridden ? (
 						// A gap week on a strength track is the athlete's own "no lifting
 						// these weeks", so the rule's `0` reads as that sentence and never as
@@ -3922,23 +4030,25 @@ function WeekTargetsReading({
 						// than something the app failed to work out. Read off the target
 						// rather than worked out here, so this row and the figure on it come
 						// from one derivation (ADR 0047 §6).
-						<span>No lifting</span>
+						<span>{SESONG_PAGE_LABELS.noLifting}</span>
 					) : (
 						<>
 							<span className="font-medium">
-								{formatWeeklyVolume(target.value, target.currency)}
+								{formatNbWeeklyVolume(target.value, target.currency)}
 							</span>
 							{/* The block's own tail, named on the row where the cut shows up.
 							    Beside the week's `WeekRole` rather than instead of it: a week
 							    can carry one of each, and they are roles in two different
 							    things (ADR 0047 §6). */}
 							{target.strengthRole === 'deload' ? (
-								<span className="text-muted-foreground">· Deload</span>
+								<span className="text-muted-foreground">
+									· {SESONG_PAGE_LABELS.deload}
+								</span>
 							) : null}
 						</>
 					)}
 					{target.overridden ? (
-						<Badge variant="secondary">Hand-set</Badge>
+						<Badge variant="secondary">{SESONG_PAGE_LABELS.handSet}</Badge>
 					) : null}
 				</span>
 			))}
@@ -3969,7 +4079,6 @@ function WeeksReading({
 	chosenWeek,
 	workouts,
 	seasonQuery,
-	pendingStamp,
 	pendingCopy,
 	mixWarnings,
 	firstUnbegunWeekKey,
@@ -3981,8 +4090,6 @@ function WeeksReading({
 	chosenWeek: SeasonData['weeks'][number] | null
 	workouts: Route.ComponentProps['loaderData']['workouts']
 	seasonQuery: SeasonQuery
-	/** A stamp waiting on the athlete's yes, with what it would replace. */
-	pendingStamp: PendingStamp | null
 	/** A week copy waiting on the athlete's yes, with what it would replace. */
 	pendingCopy: PendingCopy | null
 	mixWarnings: Route.ComponentProps['loaderData']['mixWarnings']
@@ -4023,12 +4130,13 @@ function WeeksReading({
 			<PlanCard
 				titleId="week-grid"
 				contentClassName="space-y-3"
-				title="Week by week"
-				aside={
-					season.weeks.length === 1 ? '1 week' : `${season.weeks.length} weeks`
-				}
+				title={SESONG_PAGE_LABELS.weekByWeek}
+				aside={SESONG_PAGE_LABELS.weekCount(season.weeks.length)}
 			>
-				<ul aria-label="Training weeks" className="divide-border/70 divide-y">
+				<ul
+					aria-label={SESONG_PAGE_LABELS.weeksList}
+					className="divide-border/70 divide-y"
+				>
 					{season.weeks.map((week, position) => {
 						// The block's name once, over its own run of weeks, rather than on
 						// every row: it is the same word for four rows running, and repeating
@@ -4040,28 +4148,28 @@ function WeeksReading({
 						return (
 							<li key={week.weekKey}>
 								{opensBlock && phase ? (
-									<p className="text-muted-foreground pt-3 pb-1 text-xs font-semibold tracking-wide uppercase">
-										{phase.name}
+									<p className="text-muted-foreground text-overline pt-3 pb-1 uppercase">
+										{nbPhaseName(phase.name)}
 									</p>
 								) : null}
-								<details className="group">
-									<summary className="hover:bg-muted/40 -mx-2 flex cursor-pointer list-none items-center gap-3 rounded-xl px-2 py-3 [&::-webkit-details-marker]:hidden">
+								<Collapsible>
+									<CollapsibleTrigger className="hover:bg-muted/50 active:bg-muted motion-safe:duration-press -mx-2 flex min-h-11 w-[calc(100%+1rem)] touch-manipulation items-center gap-3 rounded-2xl px-2 py-3 text-left motion-safe:transition-colors motion-safe:ease-out">
 										{/* Wide enough for `12 Aug 2026` on one line: a date that wraps turns
 										    every row into two, which is exactly the density this reading exists
 										    for. */}
 										<span className="w-[5.5rem] shrink-0">
-											<span className="block text-sm font-medium">
-												Week {week.weekInPlan}
+											<span className="text-callout block font-semibold tabular-nums">
+												Uke {weekNumberOf(week)}
 											</span>
-											<span className="text-muted-foreground block text-xs tabular-nums">
-												{formatDate(week.startsAt, season.timezone)}
+											<span className="text-muted-foreground text-caption block tabular-nums">
+												{formatNbDayMonth(week.startsAt, season.timezone)}
 											</span>
 										</span>
 										{/* The role drops off at 390 px rather than squeezing the figures: a
 										    week's target is what the athlete scans for, and the rhythm is legible
 										    from the chart above. */}
-										<span className="text-muted-foreground hidden w-20 shrink-0 text-xs sm:block">
-											{WEEK_ROLE_LABELS[week.role]}
+										<span className="text-muted-foreground text-caption hidden w-20 shrink-0 sm:block">
+											{NB_WEEK_ROLE_LABELS[week.role]}
 										</span>
 										<span className="min-w-0 flex-1">
 											<WeekTargetsReading
@@ -4072,25 +4180,27 @@ function WeeksReading({
 										<Icon
 											name="chevron-down"
 											size="sm"
-											className="text-muted-foreground shrink-0 transition-transform group-open:rotate-180"
+											className="text-muted-foreground motion-safe:duration-press shrink-0 motion-safe:transition-transform motion-safe:ease-out [[data-panel-open]>&]:rotate-180"
 										/>
-									</summary>
+									</CollapsibleTrigger>
 
 									{/* What each track's week reads, and the way to change it. The
 									    Weeks reading edits nothing itself: every week target is
 									    changed in _Endre sesongen_, behind a preview (#505 story 75),
 									    and this link opens it on this week and this track. */}
-									<div className="space-y-3 pt-1 pb-4 pl-2">
-										{week.targets.map((target) => (
-											<WeekTargetLine
-												key={target.trackId}
-												week={week}
-												target={target}
-												editable={week.weekKey >= firstUnbegunWeekKey}
-											/>
-										))}
-									</div>
-								</details>
+									<CollapsibleContent>
+										<div className="space-y-3 pt-1 pb-4 pl-2">
+											{week.targets.map((target) => (
+												<WeekTargetLine
+													key={target.trackId}
+													week={week}
+													target={target}
+													editable={week.weekKey >= firstUnbegunWeekKey}
+												/>
+											))}
+										</div>
+									</CollapsibleContent>
+								</Collapsible>
 							</li>
 						)
 					})}
@@ -4105,12 +4215,7 @@ function WeeksReading({
 				    likely to doubt — `0` — is spelled out beside it. */}
 				<div className="border-border/70 space-y-3 border-t pt-4">
 					<p className="text-muted-foreground text-sm">
-						Open a week to change its target in <em>Endre sesongen</em>, where
-						you see the change before it applies. A hand-set target is that
-						week&rsquo;s final number — no recovery or taper cut on top — and it
-						changes that week only: the rest of your season still follows your
-						anchor and your ramps. <strong>0</strong> is a week without
-						training, which is a plan and not a gap.
+						{SESONG_PAGE_LABELS.weeksFootnote}
 					</p>
 					{/* Since ADR 0047 §1 **both** walks price their weeks — a strength track
 					    derives its target from the same anchor and ramp an endurance one does
@@ -4119,47 +4224,43 @@ function WeeksReading({
 					    were not derived yet, is false and gone with it. */}
 					{unpricedTracks.map((track) => (
 						<p key={track.discipline} className="text-muted-foreground text-sm">
-							{DISCIPLINE_LABELS[track.discipline]} weeks read Unavailable — no
-							Season Anchor covers this plan yet.
+							{SESONG_PAGE_LABELS.unpricedTrack(nbTrackName(track.discipline))}
 						</p>
 					))}
 					{anyDeload ? (
 						<p className="text-muted-foreground text-sm">
-							<strong>Deload</strong> is a lifting block&rsquo;s own tail: it
-							comes from the weeks you gave that block, and your phases&rsquo;
-							rhythm does not reach it. So it can land on a different week from
-							a recovery week in your plan — that is what a dated block is for,
-							not the two disagreeing.
+							{SESONG_PAGE_LABELS.deloadFootnote}
 						</p>
 					) : null}
 				</div>
 			</PlanCard>
 
-			{/* Filling the weeks is the reading's second act, and three sections deep:
-			    author a pattern, stamp it, or copy a week you already like. Each was
-			    open at all times under the week list, so the audit an athlete came for
-			    was the short part of a long page. Closed, they read as the three things
-			    you can *do* to the weeks above.
+			{/* Where the weeks the plan has laid disagree with the mix their block
+			    authors — a reading of the sessions, said under the weeks it is about.
+			    It used to live in the stamp's section, which is gone (decision 14). */}
+			{mixWarnings.length > 0 ? (
+				<MixNotices notices={mixWarnings} startWeekKey={season.startWeekKey} />
+			) : null}
 
-			    That last sentence was the intent and never the rendering: closed, they
-			    read as three anonymous rows at the foot of a long list, and an athlete
-			    who has just scrolled a season does not know a stamp is down here. The
-			    heading is the cheap half of the fix — it says the ladder is a set of
-			    actions before the athlete has to open one to find out. */}
-			<div className="space-y-2">
-				<h2 className="text-lg font-semibold">Fill the weeks</h2>
-				<p className="text-muted-foreground text-sm">
-					Author the week you usually train and stamp it across the season, or
-					copy a week you already liked. Both write ordinary sessions you can
-					edit afterwards.
+			{/* Filling the weeks is the reading's second act. The weeks fill
+			    themselves from the typical week as the horizon reaches them (round-2
+			    decision 14, ADR 0090), so what is left to *do* is the typical week
+			    itself and copying a week the athlete liked. The heading says the
+			    ladder is a set of actions before one is opened. */}
+			<div className="space-y-1">
+				<h2 className="text-heading">{SESONG_PAGE_LABELS.fillTitle}</h2>
+				<p className="text-footnote text-muted-foreground">
+					{season.patterns.some((pattern) => pattern.days.length > 0)
+						? SESONG_PAGE_LABELS.fillIntro
+						: SESONG_PAGE_LABELS.fillWaiting}
 				</p>
 			</div>
-			<div className="border-border/70 border-b">
+			<div className="border-border/60 border-b">
 				{/* The pattern, read against one of the weeks above. It is handed the
 				    week's *derived* targets — the same rows the list just rendered — so a
 				    preview and the week it claims to be about cannot disagree. */}
-				<Disclosure
-					summary="Your typical week"
+				<CollapsibleSection
+					summary={SESONG_PAGE_LABELS.patternTitle}
 					detail={patternSummary(season.patterns)}
 					defaultOpen={season.patterns.length === 0}
 				>
@@ -4173,38 +4274,16 @@ function WeeksReading({
 						workouts={workouts}
 						seasonQuery={seasonQuery}
 					/>
-				</Disclosure>
+				</CollapsibleSection>
 
-				{/* The stamp sits under the pattern it writes, because reading the pattern
-				    against a week is what an athlete does immediately before deciding which
-				    weeks to put it in. It is handed the plan's own weeks, so nothing here
-				    can offer a week the plan does not have.
-
-				    It opens on its own whenever a stamp came back asking a question: a
-				    confirmation the athlete has to answer cannot be behind a closed
-				    section, or the answer is invisible and the stamp looks lost. */}
-				<Disclosure
-					summary="Put it on your calendar"
-					detail="Copies the pattern into the weeks you choose as ordinary sessions. Editing one week never touches its siblings."
-					defaultOpen={pendingStamp !== null}
-				>
-					<StampSection
-						patterns={season.patterns}
-						weeks={season.weeks}
-						timezone={season.timezone}
-						pending={pendingStamp}
-						mixNotices={mixWarnings}
-					/>
-				</Disclosure>
-
-				{/* The other way to fill a week, last because it is the one that needs a
-				    week already filled in. ADR 0044 §6 called it out as the action a Week
-				    Pattern was never the free alternative to, and the two read better
-				    together than apart: a pattern absorbs the week's derived volume, a copy
-				    carries the week as authored. */}
-				<Disclosure
-					summary="Copy a week you liked"
-					detail="Carries a week’s sessions as you authored them, without a pattern."
+				{/* The other way to fill a week: a week the athlete liked, carried as
+				    authored (ADR 0044 §6). It opens on its own whenever a copy came back
+				    asking a question — re-keyed, because a confirmation the athlete has
+				    to answer cannot sit behind a closed row. */}
+				<CollapsibleSection
+					key={pendingCopy ? 'pending' : 'quiet'}
+					summary={SESONG_PAGE_LABELS.copyTitle}
+					detail={SESONG_PAGE_LABELS.copyDetail}
 					defaultOpen={pendingCopy !== null}
 				>
 					<CopyWeekSection
@@ -4213,9 +4292,61 @@ function WeeksReading({
 						timezone={season.timezone}
 						pending={pendingCopy}
 					/>
-				</Disclosure>
+				</CollapsibleSection>
 			</div>
 		</div>
+	)
+}
+
+/**
+ * Where a week the plan laid disagrees with the **Quality Session Mix** its block
+ * authors (ADR 0042 §9). Advisory, in the shape the ramp guard and the
+ * availability notice take: it names the two figures and stops. Nothing here
+ * suggests a fix, because there is nothing to fix — the mix says what the block
+ * is for and the week says what the plan now is, and both are the athlete's.
+ */
+function MixNotices({
+	notices,
+	startWeekKey,
+}: {
+	notices: StampedMixWarning[]
+	startWeekKey: string
+}) {
+	return (
+		<section
+			aria-labelledby="mix-notices"
+			className="bg-muted/50 space-y-2 rounded-3xl px-4 py-3"
+			data-mix-notices
+		>
+			<h2 id="mix-notices" className="text-callout font-semibold">
+				{SESONG_PAGE_LABELS.mixNoticesTitle}
+			</h2>
+			<ul className="text-footnote space-y-1.5">
+				{notices.map((notice) => (
+					<li key={`${notice.weekKey}-${notice.discipline}`}>
+						<span className="font-semibold tabular-nums">
+							Uke {isoWeekOfPlanWeek(startWeekKey, notice.weekInPlan)}
+						</span>
+						<span className="text-muted-foreground">
+							{' '}
+							· {nbTrackName(notice.discipline).toLowerCase()} ·{' '}
+							{notice.disagreements
+								.map((disagreement) =>
+									SESONG_PAGE_LABELS.mixDisagreement(
+										NB_QUALITY_ZONE_LABELS[disagreement.zone],
+										disagreement.authored,
+										disagreement.stamped,
+									),
+								)
+								.join('; ')}
+						</span>
+					</li>
+				))}
+			</ul>
+			<p className="text-caption text-muted-foreground">
+				{SESONG_PAGE_LABELS.mixNoticesNote}
+			</p>
+		</section>
 	)
 }
 
@@ -4230,7 +4361,7 @@ function patternSummary(patterns: SeasonData['patterns']): string {
 		// Deliberately not the section's own empty state, which says "No pattern yet"
 		// inside: a summary that repeats the sentence it is hiding says it twice the
 		// moment the section opens.
-		return 'Author the week you usually train, then stamp it across the season.'
+		return SESONG_PAGE_LABELS.patternEmpty
 	}
 	return patterns.map((pattern) => pattern.name).join(' · ')
 }
@@ -4241,14 +4372,10 @@ function patternSummary(patterns: SeasonData['patterns']): string {
  * §3, spec #399 story 4).
  */
 function fitSentence(fit: NonNullable<SeasonData['fit']>): string {
-	const weeks = fit.kind === 'ends-on-event-week' ? 0 : fit.weeks
-	const plural = weeks === 1 ? 'week' : 'weeks'
-	if (fit.kind === 'ends-on-event-week') {
-		return 'Your plan ends on your event’s week.'
-	}
+	if (fit.kind === 'ends-on-event-week') return SESONG_PAGE_LABELS.fitEnds
 	return fit.kind === 'ends-before'
-		? `Your plan ends ${weeks} ${plural} before your event’s week.`
-		: `Your plan runs ${weeks} ${plural} past your event’s week.`
+		? SESONG_PAGE_LABELS.fitBefore(fit.weeks)
+		: SESONG_PAGE_LABELS.fitPast(fit.weeks)
 }
 
 /**
@@ -4274,7 +4401,6 @@ function FitToEventOffer({
 	proposal: FitProposal | null
 }) {
 	if (!proposal) return null
-	const verb = proposal.delta > 0 ? 'Add' : 'Take off'
 	const weeks = Math.abs(proposal.delta)
 	return (
 		<Form method="POST" className="space-y-2">
@@ -4284,8 +4410,9 @@ function FitToEventOffer({
 				{fitProposalSentence(proposal)}
 			</p>
 			<Button type="submit" variant="outline" size="sm">
-				{verb} {weeks === 1 ? '1 week' : `${weeks} weeks`} so it lands on your
-				event
+				{proposal.delta > 0
+					? SESONG_REFUSAL_LABELS.fitAdd(weeks)
+					: SESONG_REFUSAL_LABELS.fitRemove(weeks)}
 			</Button>
 		</Form>
 	)
@@ -4298,11 +4425,17 @@ function FitToEventOffer({
  */
 function fitProposalSentence(proposal: FitProposal): string {
 	const changes = proposal.changes
-		.map((change) => `${change.name} ${change.from} → ${change.to} weeks`)
+		.map((change) =>
+			SESONG_REFUSAL_LABELS.fitChange(
+				nbPhaseName(change.name),
+				change.from,
+				change.to,
+			),
+		)
 		.join(', ')
 	return proposal.delta > 0
-		? `Lengthens your base to reach it: ${changes}.`
-		: `Takes the weeks off your base first, then forward through your season: ${changes}. Your taper is untouched.`
+		? SESONG_REFUSAL_LABELS.fitLengthens(changes)
+		: SESONG_REFUSAL_LABELS.fitShortens(changes)
 }
 
 export { GeneralErrorBoundary as ErrorBoundary }

@@ -455,7 +455,7 @@ test('own blocks with none typed is refused, on the field that decides it', asyn
 	// Addressed to the choice, so the athlete can answer it by picking a shape
 	// rather than by hunting for a rule about phases.
 	expect(result.data.result.error?.structure?.join(' ')).toMatch(
-		/start from a shape/i,
+		/start fra en form/i,
 	)
 	expect(await prisma.planOutline.count({ where: { eventId } })).toBe(0)
 })

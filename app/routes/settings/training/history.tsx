@@ -2,37 +2,39 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { getThresholdHistory } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { formatDate, formatPaceClock } from '#app/utils/format.ts'
-import { useAthleteTimezone } from '#app/utils/user.ts'
+import { formatNbDate, formatPaceClock } from '#app/utils/format.ts'
 import {
-	DISCIPLINE_LABELS,
-	type Discipline,
-} from '#app/utils/workout-schema.ts'
+	MEG_CONFIDENCE_LABELS,
+	MEG_HISTORY_CONSTRUCT_LABELS,
+	MEG_HISTORY_LABELS,
+	MEG_PAGE_TITLES,
+	MEG_THRESHOLD_KIND_LABELS,
+	MEG_THRESHOLD_PROTOCOL_LABELS,
+	MEG_UNIT_SUFFIX,
+	nbDisciplineLabel,
+} from '#app/utils/labels.ts'
+import { useAthleteTimezone } from '#app/utils/user.ts'
+import { nbDecimal } from '../__meg-text.ts'
+import { MegNote, MegRows, MegSection } from '../__meg-ui.tsx'
 import { type Route } from './+types/history.ts'
 
+/**
+ * **Terskelhistorikk** — every threshold change, newest first, each saying how
+ * the number got here. Norwegian and on the design system since round 2.
+ */
 export const handle: PageHeaderHandle & SEOHandle = {
-	pageHeader: 'Threshold History',
+	pageHeader: MEG_PAGE_TITLES.history,
 	getSitemapEntries: () => null,
 }
 
-const KIND_LABELS: Record<string, string> = {
-	maxHr: 'Max HR',
-	lthr: 'LTHR',
-	ftp: 'FTP',
-	runPower: 'Run power',
-	thresholdPace: 'Threshold Pace',
-	css: 'CSS',
-	weight: 'Weight',
-}
-
 const KIND_UNITS: Record<string, string> = {
-	maxHr: 'bpm',
-	lthr: 'bpm',
-	ftp: 'W',
-	runPower: 'W',
-	thresholdPace: '/km',
-	css: '/100m',
-	weight: 'kg',
+	maxHr: MEG_UNIT_SUFFIX.bpm,
+	lthr: MEG_UNIT_SUFFIX.bpm,
+	ftp: MEG_UNIT_SUFFIX.watt,
+	runPower: MEG_UNIT_SUFFIX.watt,
+	thresholdPace: MEG_UNIT_SUFFIX.perKm,
+	css: MEG_UNIT_SUFFIX.per100m,
+	weight: MEG_UNIT_SUFFIX.kg,
 }
 
 /**
@@ -40,38 +42,22 @@ const KIND_UNITS: Record<string, string> = {
  *
  * `protocol` is the axis that actually varies (ADR 0005 as amended): an FTP from
  * a 20-minute test and an FTP from a curve fit are different numbers, and the
- * old `source` column could not tell them apart.
+ * old `source` column could not tell them apart. `observed` reads shorter here
+ * than on the readings page: a history line has no room for the sentence.
  */
-const PROTOCOL_LABELS: Record<string, string> = {
-	manual: 'you typed it',
-	tt60: '60-minute test',
-	ftp20: '20-minute test',
-	ramp: 'ramp test',
-	'cp-fit': 'fitted to your best efforts',
-	'race-equivalence': 'from a race result',
-	observed: 'observed',
-	tanaka: 'estimated from your age',
-	provider: 'from a connected account',
-}
-
-/**
- * The construct, shown **only where it differs from the column it landed in**.
- *
- * The one live case is a **critical power** filed under `ftp`: the two are
- * different quantities (CP 256 ± 50 W vs FTP 249 ± 44 W, limits of agreement −19
- * to +33 W), and the whole reason the column exists is so this row can say which
- * it is instead of the history quietly claiming an FTP nobody tested for.
- */
-const CONSTRUCT_LABELS: Record<string, string> = {
-	cp: 'critical power',
-	criticalSpeed: 'critical speed',
+function protocolLabel(protocol: string | null): string | null {
+	if (protocol == null) return MEG_THRESHOLD_PROTOCOL_LABELS.manual
+	if (protocol === 'observed') return MEG_HISTORY_LABELS.observed
+	return (
+		(MEG_THRESHOLD_PROTOCOL_LABELS as Record<string, string>)[protocol] ?? null
+	)
 }
 
 /**
  * A threshold event value in display form. Paces render as the `mm:ss` clock
- * athletes read (`4:05` + `/km`), matching the Training Settings form and
- * `formatPace`/`formatSwimPace`; everything else stays the raw number with its
- * unit. Exported for tests.
+ * athletes read (`4:05` + `/km`), matching the training settings form;
+ * everything else is the number with its unit, with a decimal comma where it
+ * has decimals. Exported for tests.
  */
 export function thresholdValueDisplay(
 	kind: string,
@@ -80,7 +66,7 @@ export function thresholdValueDisplay(
 	if (kind === 'thresholdPace' || kind === 'css') {
 		return { value: formatPaceClock(valueNumeric), unit: KIND_UNITS[kind] }
 	}
-	return { value: String(valueNumeric), unit: KIND_UNITS[kind] }
+	return { value: nbDecimal(valueNumeric), unit: KIND_UNITS[kind] }
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -103,68 +89,71 @@ export default function ThresholdHistoryPage({
 
 	return (
 		<div className="flex flex-col gap-8">
-			<p className="text-body-md text-muted-foreground">
-				Every threshold change, newest first.
-			</p>
+			<p className="text-body">{MEG_HISTORY_LABELS.intro}</p>
 
-			{events.length === 0 && (
-				<p className="text-muted-foreground text-body-sm">
-					No threshold changes recorded yet.
-				</p>
-			)}
+			{events.length === 0 && <MegNote>{MEG_HISTORY_LABELS.none}</MegNote>}
 
 			{Object.entries(grouped).map(([discipline, disciplineEvents]) => (
-				<section key={discipline}>
-					<h2 className="mb-3 text-lg font-semibold">
-						{DISCIPLINE_LABELS[discipline as Discipline] ?? discipline}
-					</h2>
-					<div className="flex flex-col gap-2">
+				<MegSection
+					key={discipline}
+					id={`history-${discipline}`}
+					title={nbDisciplineLabel(discipline)}
+				>
+					<MegRows>
 						{disciplineEvents.map((event) => {
 							const display = thresholdValueDisplay(
 								event.kind,
 								event.valueNumeric,
 							)
+							const how = protocolLabel(event.protocol) ?? event.source
+							// Construct first, and only where it disagrees with the
+							// column it landed in — silence here would let a critical
+							// power read as an FTP nobody tested for. A grade only where
+							// the app derived the number: a figure the athlete stated
+							// about themselves is not graded.
+							const facts = [
+								event.construct
+									? MEG_HISTORY_CONSTRUCT_LABELS[event.construct]
+									: null,
+								how,
+								event.confidence
+									? ((MEG_CONFIDENCE_LABELS as Record<string, string>)[
+											event.confidence
+										] ?? event.confidence)
+									: null,
+							].filter(Boolean)
 							return (
-								<div
+								<li
 									key={event.id}
-									className="bg-background flex items-center justify-between rounded-lg px-4 py-3 text-sm"
+									className="flex min-h-11 items-start justify-between gap-3 py-3"
 								>
-									<div className="flex items-center gap-3">
-										<span className="text-muted-foreground w-32 font-medium">
-											{KIND_LABELS[event.kind] ?? event.kind}
-										</span>
-										<span className="font-mono">
+									<div className="min-w-0">
+										<p className="text-callout">
+											{MEG_THRESHOLD_KIND_LABELS[event.kind] ?? event.kind}
+										</p>
+										<p className="text-footnote text-muted-foreground">
+											{facts.join(' · ')}
+										</p>
+									</div>
+									<div className="shrink-0 text-right">
+										<p className="text-callout tabular-nums">
 											{display.value}{' '}
-											<span className="text-muted-foreground text-xs">
+											<span className="text-footnote text-muted-foreground">
 												{display.unit}
 											</span>
-										</span>
-									</div>
-									<div className="text-muted-foreground flex items-center gap-3 text-xs">
-										{/* Construct first, and only where it disagrees with the
-										    column it landed in — silence here would let a critical
-										    power read as an FTP nobody tested for. */}
-										{event.construct &&
-										CONSTRUCT_LABELS[event.construct] != null ? (
-											<span>{CONSTRUCT_LABELS[event.construct]}</span>
-										) : null}
-										<span>
-											{PROTOCOL_LABELS[event.protocol ?? 'manual'] ??
-												event.protocol ??
-												event.source}
-										</span>
-										{/* A grade only where the app derived the number: a figure
-										    the athlete stated about themselves is not graded. */}
-										{event.confidence ? <span>{event.confidence}</span> : null}
-										<time dateTime={event.effectiveAt.toISOString()}>
-											{formatDate(event.effectiveAt, timeZone)}
+										</p>
+										<time
+											dateTime={event.effectiveAt.toISOString()}
+											className="text-footnote text-muted-foreground tabular-nums"
+										>
+											{formatNbDate(event.effectiveAt, timeZone)}
 										</time>
 									</div>
-								</div>
+								</li>
 							)
 						})}
-					</div>
-				</section>
+					</MegRows>
+				</MegSection>
 			))}
 		</div>
 	)

@@ -18,7 +18,7 @@ import {
 import { getClosedWeekAdherence } from './load/week-replan.server.ts'
 import { createPlanOutline } from './plan-outline/authoring.server.ts'
 import { getWeekVolumes } from './plan-outline/week-volumes.server.ts'
-import { markSessionDone } from './workout.server.ts'
+import { markSessionDone, recomputeRewroteSince } from './workout.server.ts'
 
 // Imports on I dag (#505 stories 78–82), at the server seam: an activity
 // lands, auto-save links it or stands it up as _ekstra_, and the athlete's
@@ -216,7 +216,7 @@ test('hva var dette? — linking it to one of two planned runs takes that one an
 		THURSDAY,
 	)
 
-	expect(answered).toEqual({ ok: true, sessionId: evening.id })
+	expect(answered).toMatchObject({ ok: true, sessionId: evening.id })
 	expect(await statusOf(evening.id)).toEqual({
 		status: 'completed',
 		recordingId: saved.importId,
@@ -243,10 +243,10 @@ test('hva var dette? — keeping it as ekstra moves nothing; Annet takes it out 
 
 	expect(
 		await answerImportQuestion(userId, kept.importId, { kind: 'keep' }),
-	).toEqual({ ok: true, sessionId: kept.sessionId })
+	).toEqual({ ok: true, sessionId: kept.sessionId, undo: null })
 	expect(
 		await answerImportQuestion(userId, commute.importId, { kind: 'annet' }),
-	).toEqual({ ok: true, sessionId: commute.sessionId })
+	).toEqual({ ok: true, sessionId: commute.sessionId, undo: null })
 
 	const after = await runWeek(userId)
 	expect(after.run.actual).toBe(5)
@@ -266,7 +266,7 @@ test('Gjort by hand: the import links onto it later, and undoing that link keeps
 
 	expect(
 		await markSessionDone(userId, plan.id, { now: THURSDAY, timezone: OSLO }),
-	).toEqual({ ok: true })
+	).toMatchObject({ ok: true })
 	// Done, but no numbers yet: counted apart as done without km, never as 0.
 	expect((await runWeek(userId)).run).toMatchObject({
 		actual: null,
@@ -467,7 +467,9 @@ test('linking away from an adopted ekstra keeps it done', async () => {
 		THURSDAY,
 	)
 
-	expect(answered).toEqual({ ok: true, sessionId: plan.id })
+	// The ekstra stays, the athlete's own: an undo could not stand it up as
+	// a bare shell again, so the link offers no Angre (ADR 0088, amended).
+	expect(answered).toEqual({ ok: true, sessionId: plan.id, undo: null })
 	expect(await statusOf(ekstraId)).toEqual({
 		status: 'completed',
 		recordingId: null,
@@ -509,4 +511,44 @@ test('a link answer must name a session the import fits', async () => {
 		status: 'scheduled',
 		recordingId: null,
 	})
+})
+
+test('a write whose load recompute rewrote another session reads as one no Angre unwinds', async () => {
+	const userId = await setUp()
+	const tuesday = await planRun(userId)
+	const wednesday = await planRun(userId, { date: '2030-01-16' })
+	const since = new Date()
+	// What the set-up wrote stands well before the write, so a set-up row made
+	// in the same millisecond as `since` never reads as rewritten.
+	const before = new Date(since.getTime() - 60 * 60 * 1000)
+	await prisma.workoutSession.updateMany({
+		where: { userId },
+		data: { createdAt: before },
+	})
+	await prisma.workout.updateMany({
+		where: { sessions: { some: { userId } } },
+		data: { updatedAt: before },
+	})
+
+	// Nothing else moved: the written session itself never counts.
+	await prisma.workoutSession.update({
+		where: { id: tuesday.id },
+		data: { status: 'completed', tssValue: 40 },
+	})
+	expect(await recomputeRewroteSince(userId, since, [tuesday.id])).toBe(false)
+
+	// The Session Nudge eases the next session: its Workout is rewritten.
+	const eased = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: wednesday.id },
+		select: { workoutId: true },
+	})
+	await prisma.workout.update({
+		where: { id: eased.workoutId! },
+		data: { intent: 'recovery' },
+	})
+	expect(await recomputeRewroteSince(userId, since, [tuesday.id])).toBe(true)
+	// Another athlete's rewrites are not this athlete's.
+	expect(await recomputeRewroteSince(await createAthlete(), since, [])).toBe(
+		false,
+	)
 })

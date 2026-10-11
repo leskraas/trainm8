@@ -285,7 +285,7 @@ test('copying an empty week is refused with a plain sentence', async () => {
 
 	expect(refused.init.status).toBe(400)
 	expect(refused.data.error).toBe(
-		'That week has no sessions in it, so there is nothing to copy. Pick a week you have already filled in.',
+		'Den uka har ingen økter, så det er ingenting å kopiere. Velg en uke du allerede har fylt.',
 	)
 	expect(await sessionCount(athlete.userId)).toBe(0)
 })
@@ -305,7 +305,7 @@ test('copying a week onto itself is refused rather than run', async () => {
 	)) as { data: { error: string } }
 
 	expect(refused.data.error).toBe(
-		'That is the same week twice. Pick a different week to copy it onto.',
+		'Det er samme uke to ganger. Velg en annen uke å kopiere til.',
 	)
 	expect(await sessionCount(athlete.userId)).toBe(1)
 })
@@ -330,7 +330,7 @@ test('another athlete’s plan reads as gone and writes nothing', async () => {
 		),
 	)) as { data: { error: string } }
 
-	expect(refused.data.error).toBe('That plan is not available to edit.')
+	expect(refused.data.error).toBe('Den planen kan ikke endres.')
 	expect(await sessionCount(mine.userId)).toBe(0)
 	expect(await sessionCount(theirs.userId)).toBe(1)
 })

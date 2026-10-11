@@ -26,18 +26,22 @@ import {
 	readRetrievableEntry,
 } from '#app/utils/catalogue.server.ts'
 import { catalogueTier, type SessionArchetype } from '#app/utils/catalogue.ts'
-import { SESSION_ARCHETYPE_LABELS, LIBRARY_LABELS } from '#app/utils/labels.ts'
 import {
-	provenanceNonVouch,
-	provenanceSentence,
-	readSessionProvenance,
-} from '#app/utils/plan-generation/provenance.ts'
-import { getDisciplineLabel } from '#app/utils/training.ts'
+	CATALOGUE_PLACE_LABELS as L,
+	LIBRARY_LABELS,
+	NB_SESSION_ARCHETYPE_LABELS,
+	nbDisciplineLabel,
+} from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
+import { readSessionProvenance } from '#app/utils/plan-generation/provenance.ts'
 import { type Route } from './+types/catalogue.place.$workoutId.ts'
+import {
+	catalogueBlurb,
+	nbProvenanceNonVouch,
+	nbProvenanceSentence,
+} from './__catalogue-card.ts'
 
-export const meta: Route.MetaFunction = () => [
-	{ title: 'Add to my calendar | Trainm8' },
-]
+export const meta: Route.MetaFunction = () => [{ title: L.metaTitle }]
 
 export async function loader({ request, params }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -49,7 +53,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	return {
 		workoutId: entry.workout.id,
 		title: entry.workout.title,
-		description: entry.workout.description,
+		description: catalogueBlurb(entry.workout.description),
 		discipline: entry.workout.discipline,
 		archetype: entry.archetype,
 		tier: catalogueTier(entry.workout, userId),
@@ -81,10 +85,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 	if (!result.ok) {
 		return data(
 			{
-				error:
-					result.reason === 'bad-date'
-						? 'Pick a day.'
-						: 'That session is no longer in the Catalogue.',
+				error: result.reason === 'bad-date' ? L.errors.badDate : L.errors.gone,
 			},
 			{ status: 400 },
 		)
@@ -98,7 +99,7 @@ export default function PlaceRoute({
 	actionData,
 }: Route.ComponentProps) {
 	const row = loaderData
-	const nonVouch = provenanceNonVouch(row.sourcing)
+	const nonVouch = nbProvenanceNonVouch(row.sourcing)
 	// The list the athlete came from, filters and page intact: the card's link
 	// carried them here, so back and cancel hand them straight back.
 	const [searchParams] = useSearchParams()
@@ -108,37 +109,37 @@ export default function PlaceRoute({
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
-				title="Add to my calendar"
+				title={L.title}
 				back={{ to: back, label: LIBRARY_LABELS.catalogue }}
 				className="mb-6"
 			/>
 
 			<div className="mb-6 space-y-1">
-				<h2 className="text-base font-bold tracking-tight">{row.title}</h2>
-				<p className="text-body-xs text-muted-foreground">
-					{getDisciplineLabel(row.discipline)} ·{' '}
-					{SESSION_ARCHETYPE_LABELS[row.archetype as SessionArchetype] ??
+				<h2 className="text-callout [overflow-wrap:anywhere]">{row.title}</h2>
+				<p className="text-footnote text-muted-foreground">
+					{nbDisciplineLabel(row.discipline)} ·{' '}
+					{NB_SESSION_ARCHETYPE_LABELS[row.archetype as SessionArchetype] ??
 						row.archetype}
 				</p>
 				{row.description ? (
-					<p className="text-body-sm text-muted-foreground">
+					<p className="text-footnote text-muted-foreground">
 						{row.description}
 					</p>
 				) : null}
-				<p className="text-body-xs text-muted-foreground">
-					{provenanceSentence(row.sourcing)}
+				<p className="text-footnote text-muted-foreground">
+					{nbProvenanceSentence(row.sourcing)}
 				</p>
 				{nonVouch ? (
-					<p className="text-body-xs text-muted-foreground" data-non-vouch>
+					<p className="text-footnote text-muted-foreground" data-non-vouch>
 						{nonVouch}
 					</p>
 				) : null}
 			</div>
 
 			<Form method="POST" className="space-y-4">
-				<div className="space-y-1">
-					<label htmlFor="place-date" className="text-body-sm font-medium">
-						Which day?
+				<div className="space-y-1.5">
+					<label htmlFor="place-date" className="text-callout">
+						{L.whichDay}
 					</label>
 					<Input
 						id="place-date"
@@ -148,28 +149,29 @@ export default function PlaceRoute({
 						required
 					/>
 					{/* The default states that it is a default, in a phrase. */}
-					<p className="text-body-xs text-muted-foreground">
-						Scheduled at your default training time.
-					</p>
+					<p className="text-footnote text-muted-foreground">{L.defaultTime}</p>
 				</div>
 
 				{actionData?.error ? (
-					<p className="text-destructive text-body-sm" role="alert">
+					<p className="text-foreground-destructive text-footnote" role="alert">
 						{actionData.error}
 					</p>
 				) : null}
 
 				<div className="flex flex-wrap gap-2">
-					<Button type="submit">Add to my calendar</Button>
-					<Link to={back} className={buttonVariants({ variant: 'ghost' })}>
-						Cancel
+					<Button type="submit" className="rounded-full">
+						{L.submit}
+					</Button>
+					<Link
+						to={back}
+						className={cn(buttonVariants({ variant: 'ghost' }), 'rounded-full')}
+					>
+						{L.cancel}
 					</Link>
 				</div>
 			</Form>
 
-			<p className="text-body-xs text-muted-foreground mt-6">
-				You get your own copy. Editing it never changes the Catalogue's.
-			</p>
+			<p className="text-footnote text-muted-foreground mt-6">{L.ownCopy}</p>
 		</main>
 	)
 }

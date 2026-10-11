@@ -63,8 +63,11 @@ import type { RoundVerdict } from './load/propose-next-round.ts'
 import type { ReadinessTone } from './load/readiness.ts'
 import type { LoadRecomputeKind } from './load/recompute-notice.ts'
 import type { WeekHoldWhy } from './load/week-replan.ts'
+import type { GenerationRefusal } from './plan-generation/generate.server.ts'
+import type { GenerationIntent } from './plan-generation/season.ts'
 // The domain owns *which* currencies accumulate across Disciplines (ADR 0043 §5);
 // this module owns the sentence each accumulation is explained by.
+import type { CreateOutlineRefusal } from './plan-outline/authoring.server.ts'
 import type { AccumulatingCurrency } from './plan-outline/commensurability.ts'
 import type {
 	Rhythm,
@@ -102,20 +105,37 @@ import type {
 } from './plan-outline/week-volumes.ts'
 // The domain owns *who* a session belongs to (ADR 0080); this module owns the
 // words the athlete reads for each owner.
+import type {
+	EstimateConfidence,
+	EstimateRefusal,
+	ThresholdConstruct,
+	ThresholdProtocol,
+} from './profile-analysis/types.ts'
 import type { SessionOwner } from './session-ownership.ts'
+import type { RepLoadBasis } from './strength/anchors.constants.ts'
+import type { OneRmRefusal } from './strength/one-rm.ts'
+import type { PlateRefusal } from './strength/plates.ts'
 import type {
 	LiftScheme,
 	SetUnit,
 	WorkingLoad,
 } from './strength/working-load.ts'
+import type {
+	AnchorProtocol,
+	EquipmentId,
+	EstimatorName,
+} from './strength-log.ts'
 import type { QuickLogRefusal } from './strength-quick-log.ts'
 import type {
 	Discipline,
 	IntensityTarget,
+	RestAct,
 	StepKind,
 	WorkoutIntent,
 } from './workout-schema.ts'
 import type { SentenceProblem, UnreadReason } from './workout-sentence.ts'
+// Meg's sub-pages (round 2).
+import type { ZoneAnchor } from './zones/types.ts'
 /* eslint-enable import/consistent-type-specifier-style */
 
 // ---------------------------------------------------------------------------
@@ -180,15 +200,16 @@ export const CATALOGUE_PHASE_LABELS: Record<CataloguePhase, string> = {
 /**
  * The eight goal events a Catalogue Entry may be scoped to. The **Discipline**
  * comes from the Workout, so these name a distance only — `10k`, never `10k run`.
+ * In Norwegian (#505 round 2, ADR 0081), display only: the keys are stored.
  */
 export const CATALOGUE_GOAL_EVENT_LABELS: Record<CatalogueGoalEvent, string> = {
 	'1500m': '1500 m',
 	'3k': '3 km',
 	'5k': '5 km',
 	'10k': '10 km',
-	hm: 'Half marathon',
-	marathon: 'Marathon',
-	trail: 'Trail',
+	hm: 'Halvmaraton',
+	marathon: 'Maraton',
+	trail: 'Terreng',
 	ultra: 'Ultra',
 }
 
@@ -1186,6 +1207,14 @@ export const IMPORT_LINK_LABELS = {
 	relinkNote: (title: string) => `Tilbake til ${title}.`,
 	/** Said while the post is in flight, before the row moves. */
 	saving: 'Lagrer …',
+	/**
+	 * An ekstra's own name, for a recording nothing named (audit PR D):
+	 * `Løping · 57 min`, `Sykling · 12,4 km` — never `57 min 12 s run`.
+	 */
+	extraTitle: (sport: string, quantity: string | null) =>
+		quantity ? `${sport} · ${quantity}` : sport,
+	/** The ekstra's glyph: an import, not one of the app's sessions. */
+	glyph: (title: string) => `Importert økt ${title}`,
 } as const
 
 /** Why the server turned an import answer down, said to the athlete. */
@@ -1209,6 +1238,9 @@ export const MARK_DONE_LABELS = {
 	actionFor: (title: string) => `Merk ${title} som gjort`,
 	fromImport: 'Gjort · tallene kommer fra importen',
 	noImport: 'Gjort · uten tall, ingen import er koblet til',
+	/** The same, as the row's own small mark: the done dot already says Gjort. */
+	rowFromImport: 'tallene kommer fra importen',
+	rowNoImport: 'uten tall',
 	saving: 'Merket som gjort …',
 } as const
 
@@ -1241,7 +1273,7 @@ export const QUICK_LOG_LABELS = {
 	weightNote: 'Vekta står som planlagt. En annen vekt kan ikke logges her.',
 	notDoneNote: 'Tomt eller 0 betyr at settet ikke ble gjort.',
 	setInput: (lift: string, position: number, unit: SetUnit) =>
-		`Sett ${position} av ${lift}, ${unit === 'reps' ? 'reps' : 'sekunder'}`,
+		`Sett ${position} av ${lift}, ${unit === 'reps' ? 'repetisjoner' : 'sekunder'}`,
 	notLoggable:
 		'Ett av løftene har ingen fast vekt eller antall, så økta logges sett for sett.',
 	runnerLink: 'Logg sett for sett',
@@ -1261,8 +1293,22 @@ export const QUICK_LOG_LABELS = {
 		if (week == null) return head
 		return `${head} Styrke ${week.name.toLowerCase()}: ${week.before} → ${week.after} sett gjort.`
 	},
+	/** The log's toast's way back (ADR 0088). */
+	undo: 'Angre',
+	/** After _Angre_: the sets are out, and the session is planned again. */
+	undone: (
+		sets: number,
+		week: { name: string; before: number; after: number } | null,
+	) => {
+		const head =
+			sets === 0
+				? 'Loggen var allerede angret.'
+				: `Loggen er angret — ${sets} sett tatt ut.`
+		if (week == null || sets === 0) return head
+		return `${head} Styrke ${week.name.toLowerCase()}: ${week.before} → ${week.after} sett gjort.`
+	},
 	/** The prescription's weight, in the load's own semantics (ADR 0056 §3);
-	 * `kg` is the kilo as `formatKg` writes it. */
+	 * `kg` is the kilo as `formatNbKg` writes it (`82,5`). */
 	load: (kind: WorkingLoadKind, kg: string | null) => {
 		switch (kind) {
 			case 'external':
@@ -1645,6 +1691,8 @@ export const DAY_STAMP_LABELS = {
 export const WRITING_LINE_LABELS = {
 	input: 'Skriv økta',
 	placeholder: 'f.eks. 10 km rolig eller 3x10 min terskel p 1 min',
+	/** The empty line under the Styrke chip (ADR 0089). */
+	placeholderLifts: 'f.eks. Knebøy 5×5 @ 80 kg · Benkpress 5×5 @ 60 kg',
 	hint: 'Eller la linja stå tom og legg til 45 min Z2.',
 	understood: 'Forstått',
 	/** `Til sammen 10 km`, `Til sammen 5 km og 7 min 30 s`. */
@@ -1657,6 +1705,7 @@ export const WRITING_LINE_LABELS = {
 		'ambiguous-number': (word: string) =>
 			`«${word}» kan være tusen eller desimaler`,
 		stray: (word: string) => `Tegnet «${word}» hører ikke hjemme her`,
+		'unknown-exercise': (word: string) => `Finner ikke øvelsen «${word}»`,
 	} satisfies Record<UnreadReason, (word: string) => string>,
 	noSuggestion: 'Prøv et ord som rolig, terskel eller pause.',
 	suggestionsFor: (word: string) => `Forslag for «${word}»`,
@@ -1677,6 +1726,10 @@ export const WRITING_LINE_LABELS = {
 		'distance-rest': 'En pause skrives som tid her, f.eks. p 1 min.',
 		'out-of-range': 'Et av tallene er utenfor det en økt kan være.',
 		'no-discipline': 'Velg idrett over, eller skriv den: løp, sykkel, svøm.',
+		'no-sets': 'Skriv sett og repetisjoner etter løftet: Knebøy 5×5.',
+		'no-exercise': 'Skriv hvilket løft settene er: Knebøy 5×5 @ 80 kg.',
+		'dangling-load': 'Vekten mangler tall: @ 80 kg.',
+		'two-loads': 'Et sett har én vekt — skriv neste vekt som egne sett.',
 	} satisfies Record<SentenceProblem, string>,
 	add: (sentence: string) => `Legg til «${sentence}»`,
 	addEmpty: 'Legg til',
@@ -1687,6 +1740,124 @@ export const WRITING_LINE_LABELS = {
 	failed: 'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
 	outsideWindow:
 		'Den dagen ligger for langt tilbake — I dag leser et halvt år bakover.',
+} as const
+
+// ---------------------------------------------------------------------------
+// The session composer (round 2, owner decisions 1, 2, 4–7 and 11; ADR 0088):
+// one Drawer from every "+", the same content in the day pane on a large
+// screen, and one undo for every write.
+// ---------------------------------------------------------------------------
+
+/** The composer's four sources (Arket's FILL_SOURCES). */
+export type ComposerSourceKey = 'skriv' | 'bibliotek' | 'kopier' | 'appen'
+
+export const SESSION_COMPOSER_LABELS = {
+	/** The top line's one creation control (owner decision 6). */
+	newSession: 'Ny økt',
+	title: 'Ny økt',
+	/** `Ny økt tirsdag 13. okt` — the Drawer's name. */
+	titleOn: (day: string) => `Ny økt ${day}`,
+	day: 'Dag',
+	/** The day strip's own name, and its week buttons. */
+	days: 'Velg dag',
+	earlierWeek: 'Uka før',
+	laterWeek: 'Uka etter',
+	/** Any day further off than the strip's weeks (story 40). */
+	otherDay: 'Annen dag',
+	source: 'Start fra',
+	sources: {
+		skriv: 'Skriv',
+		bibliotek: 'Bibliotek',
+		kopier: 'Kopier',
+		appen: 'Appen',
+	} satisfies Record<ComposerSourceKey, string>,
+	/** The app's tab, shown and not yet working (owner decision 7). */
+	soon: 'kommer',
+	appenNote:
+		'La appen fylle dagen ut fra fasen og ukas mål. Det kommer i en senere versjon.',
+	sport: 'Idrett',
+	annet: 'Annet',
+	annetNote:
+		'Annet teller ikke i noe spor. Si idretten i linja: «25 min sykkel».',
+	annetNoDiscipline: 'Si hvilken idrett i linja: «25 min sykkel til jobb».',
+	/** The Styrke chip on an empty line: lifts are named, never stamped (ADR 0089). */
+	strengthNote:
+		'Skriv løftene i linja — øvelse, sett × reps og vekt. Skill dem med «·».',
+	/** The line names lifts and the exercise catalogue is still on its way. */
+	exercisesLoading: 'Henter øvelsene…',
+	/** An unknown lift with no name near it. */
+	noExercise:
+		'Skriv øvelsen slik den heter i Bibliotek, f.eks. Knebøy eller Markløft.',
+	/** `Til sammen 10 sett` — a session of lifts, counted as the week counts it. */
+	sets: (count: number) => `${count} sett`,
+	add: 'Legg til',
+	/** The empty state: the stamp (ADR 0065 §5). */
+	addStamp: (sentence: string) => `Legg til ${sentence}`,
+	adding: 'Legger til…',
+	deeper: 'Gjør grundigere',
+	cancel: 'Avbryt',
+	close: 'Lukk',
+	failed: 'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
+	/** Owner decision 5: a past day's session written as done. */
+	done: 'Allerede gjort',
+	doneNote: 'Skrives som gjort, uten tall til en import kobler seg på.',
+	doneStrength:
+		'Styrke logges sett for sett, så den kan ikke skrives som gjort her.',
+	dayPast: 'Dagen er passert.',
+	blocks: 'Blokker og steg',
+	once: 'én gang',
+	times: (count: number) => `${count} ganger`,
+	addPart: 'Legg til en del',
+	notes: 'Notat',
+	notesPlaceholder: 'Med gjengen fra klubben, start ved bryggen',
+	fullEditor: 'Åpne hele editoren',
+	repeat: 'Gjentak',
+	rest: 'Pause i sekunder',
+	fewer: (what: string) => `Færre: ${what}`,
+	more: (what: string) => `Flere: ${what}`,
+	libraryEmpty: 'Ingen økter i biblioteket for denne idretten ennå.',
+	copyFrom: (week: string) => `Fra ${week.toLowerCase()}`,
+	copyEmpty: 'Ingen økter å kopiere den uka.',
+	copyEarlier: 'Uka før den',
+	loading: 'Henter…',
+	/** A pick from Bibliotek or Kopier, in the line as tokens. */
+	picked: {
+		bibliotek: 'Fra biblioteket — blir din når du endrer den',
+		kopier: 'Kopiert — blir din når du endrer den',
+	},
+	/** A pick the line cannot say, placed as it is. */
+	whole:
+		'Linja kan ikke si hele økta, så den legges inn som den er. Juster den i økta etterpå.',
+	clearPick: 'Fjern valget',
+	pick: (title: string) => `Bruk ${title}`,
+	/** Under a day's sessions: one more on the same day. */
+	addAnother: 'legg til en til',
+	addAnotherOn: (day: string) => `Legg til en økt til ${day}`,
+	undo: 'Angre',
+	undoFor: (title: string) => `Angre ${title}`,
+	undoing: 'Fjerner…',
+	/** The toast's floor, when the reply had no week sum to say. */
+	written: 'Økta er lagt inn.',
+	writtenDone: 'Økta er lagt inn som gjort.',
+	/** The session's details, in the same Drawer at full. */
+	detail: {
+		name: (title: string) => `Om økta ${title}`,
+		counts: 'Teller i',
+		inTrack: 'sporet sitt',
+		inAnnet: 'Annet',
+		open: 'Se økta',
+		openFor: (title: string) => `Se økta ${title}`,
+	},
+} as const
+
+/**
+ * Where "+ Ny"'s other two ways in went (owner decision 6): I dag's top line
+ * creates sessions only, and a race or a plan is started from Sesong.
+ */
+export const SESONG_ENTRY_LABELS = {
+	newEvent: 'Nytt løp',
+	newPlan: 'Ny plan',
+	group: 'Start noe nytt',
 } as const
 
 /** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */
@@ -1822,6 +1993,21 @@ export const FIRST_RUN_LABELS = {
 	stepOf: (step: number, of: number) => `Steg ${step} av ${of}`,
 	/** The page title of the first run's first step. */
 	start: 'Kom i gang',
+	/**
+	 * The back arrow above each step's heading, read out as where it goes:
+	 * the step before, by its own heading.
+	 */
+	backTo: {
+		funn: 'Tilbake til intervals.icu',
+		sporsmal: 'Tilbake til Dette fant vi',
+		plan: 'Tilbake til spørsmålene',
+		uker: 'Tilbake til planen',
+	},
+	/**
+	 * The days as the first run's day pills say them, Monday first (the
+	 * Training Week's order); each pill is read out by its full name.
+	 */
+	dayShort: ['ma', 'ti', 'on', 'to', 'fr', 'lø', 'sø'],
 	/** What a question left unanswered says. */
 	messages: {
 		daysRequired: 'Velg minst én dag',
@@ -1852,6 +2038,10 @@ export const FIRST_RUN_LABELS = {
 		intro: 'Fra de siste fire ukene dine.',
 		importing:
 			'Historikken hentes fra intervals.icu. Siden oppdaterer seg selv når den er hentet.',
+		/** Where the import message stood, once the history is in. */
+		imported: 'Historikken er hentet.',
+		/** A finding's place while the history is still arriving: one line. */
+		pending: 'Hentes …',
 		discipline: 'Mest trent',
 		volume: 'Timer i uka',
 		days: 'Vanlige treningsdager',
@@ -1878,8 +2068,13 @@ export const FIRST_RUN_LABELS = {
 		eventName: 'Hva heter det?',
 		eventDate: 'Dato',
 		hours: 'Timer i uka',
+		/**
+		 * What the hours are (owner decision 15, round 2): what the athlete
+		 * trains now, where the plan starts — not a ceiling.
+		 */
+		hoursMeaning: 'Det du trener nå. Planen starter der og bygger seg opp.',
 		hoursFromHistory: (arithmetic: string) => `Fra historikken: ${arithmetic}`,
-		hoursUnmeasured: (reason: string) => `${reason}. Skriv det du har tid til.`,
+		hoursUnmeasured: (reason: string) => `${reason}. Skriv det du trener nå.`,
 		days: 'Hvilke dager kan du trene?',
 		daysFromHistory: 'Dagene du pleier å trene.',
 		daysDefault:
@@ -1897,12 +2092,29 @@ export const FIRST_RUN_LABELS = {
 		towardEvent: (name: string, weeks: number) => `${weeks} uker mot ${name}.`,
 		phase: (name: string, weeks: number) =>
 			`${name} · ${weeks} ${weeks === 1 ? 'uke' : 'uker'}`,
-		firstWeek: (hours: string) => `Første uke: ${hours}`,
+		/**
+		 * The plan's rhythm: `3:1` is three weeks that build, then one easy.
+		 * Two families can share a hard session and differ here (Masters 2:1).
+		 */
+		rhythm: (building: number, easy: number) =>
+			`${building} ${building === 1 ? 'uke' : 'uker'} som bygger, så ${easy} lett${easy === 1 ? '' : 'e'}`,
+		/** The first week is what the athlete trains now (owner decision 15). */
+		firstWeek: (hours: string) => `Første uke: ${hours} – det du trener nå`,
 		peakWeek: (hours: string) => `Tyngste uke: ${hours}`,
-		withinHours: (hours: string) =>
-			`Ingen uke går over ${hours} – timene du sa du har.`,
-		startsLower:
-			'Første uke starter lavere, så planen har rom til å bygge seg opp.',
+		/**
+		 * The week's hard sessions as the stamp lays them (`planStamp`), so the
+		 * philosophies read apart: `1 tempoøkt`, `1 terskeløkt og 1 tempoøkt`.
+		 */
+		hardSessions: (sessions: string) => `Harde økter: ${sessions} i uka`,
+		hardSession: (count: number, kind: string) =>
+			`${count} ${kind.toLowerCase()}${count === 1 ? '' : 'er'}`,
+		/** A plan whose first weeks are all easy, and when the hard ones come. */
+		hardLater: (weeks: number, phase: string) =>
+			`Ingen harde økter de første ${weeks} ${weeks === 1 ? 'uka' : 'ukene'} – de kommer i ${phase}.`,
+		noHardSessions: 'Ingen harde økter – bare rolig trening.',
+		/** The picture of the plan's weeks, for a screen reader. */
+		curveLabel: (weeks: number) =>
+			`Ukene i planen, ${weeks} stolper: høyden er timene den uka.`,
 		strength: (perWeek: number) =>
 			`Du løfter ${nbNumber(perWeek)} ${perWeek === 1 ? 'gang' : 'ganger'} i uka. Styrken legger du til i Sesong når planen er laget – der foreslår vi et styrkespor fra historikken din.`,
 		startsOn: (date: string) => `Planen starter ${date}.`,
@@ -1919,8 +2131,16 @@ export const FIRST_RUN_LABELS = {
 			`Uke ${weekNumber} · fra ${from}`,
 		weekTotal: (planned: string, target: string) =>
 			`${planned} planlagt · målet er ${target}`,
-		long: 'Langtur',
-		easy: 'Rolig økt',
+		/**
+		 * Why the plan lays on fewer days than were chosen (`patternDaysFor`).
+		 * The chosen days stay the athlete's availability.
+		 */
+		restDay: (chosen: number, used: number) =>
+			`Du valgte ${chosen} dager. Planen bruker ${used}, så du har minst én hviledag.`,
+		fewerDays: (chosen: number, used: number) =>
+			`Du valgte ${chosen} dager. Planen bruker ${used}, så ingen økt blir kortere enn en halvtime.`,
+		/** A hard session's mark beside its title, for a screen reader. */
+		hard: 'hard økt',
 		create: 'Start planen',
 		selfSetUp: 'Jeg vil heller sette opp sesongen selv',
 		selfSetUpHelp: 'Du får den samme planen i Sesong, og kan endre alt i den.',
@@ -2171,6 +2391,10 @@ export function plainMixSentence(
 export const PHILOSOPHY_SWITCH_LABELS = {
 	title: 'Filosofi',
 	follows: 'Planen følger',
+	/** A plan that records no family and whose phases read as none (audit B4). */
+	none: 'Ingen filosofi valgt',
+	noneHint:
+		'Planen er ikke knyttet til en filosofi. Velg en under «Bytt filosofi» hvis du vil.',
 	open: 'Bytt filosofi',
 	choose: 'Velg en filosofi',
 	intro:
@@ -2733,6 +2957,500 @@ export const STRUCTURE_MODE_LABELS = {
 } as const satisfies Record<'simple' | 'structured', string>
 
 // ---------------------------------------------------------------------------
+// The Workout Detail View, the full editor and the runner's own chrome
+// (#505 round 2, ADR 0081). One section for the pages "Se økta" opens:
+// `/training/sessions/$id` (read and inline edit), `/training/sessions/new`,
+// the block sheet, the exercise picker, the intensity popover and the strength
+// runner's route. The parser's glue words and the token editor's own words are
+// not here: they belong to the sentence (ADR 0027), not to these pages.
+// ---------------------------------------------------------------------------
+
+/**
+ * The sixteen **Session Archetypes** in Norwegian, as the detail view's
+ * metadata line and its comparison card name them. The English
+ * {@link SESSION_ARCHETYPE_LABELS} stays for the surfaces that still speak it
+ * (the Catalogue, plan generation) until they move.
+ */
+export const NB_SESSION_ARCHETYPE_LABELS: Record<SessionArchetype, string> = {
+	recovery: 'Restitusjon',
+	easy: 'Rolig',
+	long: 'Langtur',
+	steady: 'Jevn',
+	tempo: 'Tempo',
+	threshold: 'Terskel',
+	'sub-threshold': 'Under terskel',
+	'vo2max-long': 'VO₂maks (lange drag)',
+	'vo2max-short': 'VO₂maks (korte drag)',
+	anaerobic: 'Anaerob',
+	neuromuscular: 'Nevromuskulær',
+	fartlek: 'Fartlek',
+	'race-simulation': 'Konkurransesimulering',
+	test: 'Test',
+	brick: 'Kombiøkt',
+	technique: 'Teknikk',
+}
+
+/** A Workout's intent in Norwegian: the new-session picker and the fallback
+ * token in the detail view's metadata line. */
+export const NB_INTENT_LABELS: Record<WorkoutIntent, string> = {
+	recovery: 'Restitusjon',
+	endurance: 'Utholdenhet',
+	tempo: 'Tempo',
+	threshold: 'Terskel',
+	vo2max: 'VO₂maks',
+	anaerobic: 'Anaerob',
+	neuromuscular: 'Nevromuskulær',
+	race: 'Konkurranse',
+	test: 'Test',
+	technique: 'Teknikk',
+	'strength-max': 'Styrke — maks',
+	'strength-hypertrophy': 'Styrke — muskelvekst',
+	'strength-power': 'Styrke — eksplosiv',
+	'strength-endurance': 'Styrke — utholdenhet',
+	mobility: 'Bevegelighet',
+}
+
+/** A step's kind, as the block sheet's kind picker and add row name it. */
+export const NB_STEP_KIND_LABELS: Record<StepKind, string> = {
+	cardio: 'Kondisjon',
+	strength: 'Styrke',
+	rest: 'Pause',
+}
+
+/**
+ * A session's stored status, as the detail view's badge says it. The words
+ * I dag already uses for a done and a missed session (`gjort`, `ikke gjort`),
+ * so the badge and the row the athlete came from agree. An unknown status is
+ * capitalized rather than shown raw.
+ */
+export function nbSessionStatusLabel(status: string): string {
+	return (
+		(
+			{
+				scheduled: 'Planlagt',
+				completed: 'Gjort',
+				missed: 'Ikke gjort',
+				skipped: 'Hoppet over',
+			} as Record<string, string>
+		)[status] ?? capitalize(status)
+	)
+}
+
+/** How sure Structure Detection or an archetype reading is, in one word. */
+export function nbConfidenceLabel(grade: string): string {
+	return (
+		({ high: 'høy', medium: 'middels', low: 'lav' } as Record<string, string>)[
+			grade
+		] ?? grade
+	)
+}
+
+/** A primary muscle, as the exercise picker's chips and rows name it. */
+export function nbMuscleLabel(muscle: string): string {
+	return (
+		(
+			{
+				chest: 'Bryst',
+				back: 'Rygg',
+				shoulders: 'Skuldre',
+				biceps: 'Biceps',
+				triceps: 'Triceps',
+				forearms: 'Underarmer',
+				abs: 'Mage',
+				obliques: 'Skrå magemuskler',
+				'lower-back': 'Korsrygg',
+				glutes: 'Sete',
+				quads: 'Forside lår',
+				hamstrings: 'Bakside lår',
+				calves: 'Legger',
+				'hip-flexors': 'Hoftebøyere',
+				'full-body': 'Hele kroppen',
+			} as Record<string, string>
+		)[muscle] ?? capitalize(muscle.replace('-', ' '))
+	)
+}
+
+/** A piece of equipment, as the exercise picker's filter chips name it. */
+export function nbEquipmentLabel(equipment: string): string {
+	return (
+		(
+			{
+				barbell: 'Stang',
+				dumbbell: 'Manualer',
+				bodyweight: 'Kroppsvekt',
+				other: 'Annet',
+				cable: 'Kabel',
+				machine: 'Maskin',
+				kettlebell: 'Kettlebell',
+				'medicine-ball': 'Medisinball',
+				band: 'Strikk',
+				'ez-bar': 'EZ-stang',
+			} as Record<string, string>
+		)[equipment] ?? capitalize(equipment.replace('-', ' '))
+	)
+}
+
+/** The Workout Detail View's own words (`/training/sessions/$id`). */
+export const WORKOUT_DETAIL_LABELS = {
+	pageTitle: 'Økt',
+	metaTitle: (title: string) => `${title} | Økt | Trainm8`,
+	metaFallback: 'Økt | Trainm8',
+	untitled: 'Økt uten navn',
+	actions: {
+		logSets: 'Logg settene',
+		setsLogged: 'Sett logget',
+		markMissed: 'Marker som ikke gjort',
+		more: 'Mer',
+		delete: 'Slett økta',
+	},
+	deleteDialog: {
+		title: 'Slette økta?',
+		body: 'Økta forsvinner fra treningshistorikken, med det som var planlagt og notatet du har skrevet. Det kan ikke angres.',
+		keep: 'Behold økta',
+		confirm: 'Slett økta',
+	},
+	/** The header's figures, in the sport's own unit first (Arket M). */
+	summaryName: 'Økta i tall',
+	detected: 'funnet',
+	detectedWith: (confidence: string) => `funnet · ${confidence}`,
+	readWith: (confidence: string) => `lest · ${confidence}`,
+	recorded: 'Registrert',
+	target: (text: string) => `Mål ${text}`,
+	archetype: {
+		/** The absence itself, short enough for the metadata line (#437). */
+		unread: 'Ingen økttype',
+		read: 'Lest av økta',
+		unreadTitle: 'For lite til å si hva slags økt',
+	},
+	noStructure:
+		'Ingen struktur funnet: opptaket var jevn innsats, så ingen intervaller ble lagt inn.',
+	redetect: {
+		detectedNote:
+			'Funnet automatisk i opptaket. Let på nytt når du har oppdatert tersklene, eller hvis strukturen ser feil ut.',
+		recordedNote:
+			'Let etter struktur i opptaket på nytt — nyttig rett etter at du har satt en terskel.',
+		action: 'Let på nytt',
+	},
+	replanNote: 'Justert:',
+	unresolved: {
+		lead: 'Noen mål vises uten konkrete tall',
+		before: 'Legg inn tersklene dine i',
+		link: 'treningsinnstillingene',
+		after: 'for å se nøyaktig fart, puls eller watt.',
+	},
+	plannedVsActual: {
+		title: 'Plan mot gjennomført',
+		fallback: 'Det registrerte, holdt opp mot det som var planlagt.',
+		load: 'Belastning (TSS)',
+		duration: 'Tid',
+		distance: 'Distanse',
+		planned: (value: string) => `planlagt ${value}`,
+	},
+	/** The TSS band's recommendation, after its `I rute` / `Under` / `Over`. */
+	adherenceNote: {
+		under: 'lettere enn planlagt',
+		'on-target': 'som planlagt',
+		over: 'hardere enn planlagt',
+	} satisfies Record<AdherenceTone, string>,
+	structure: {
+		title: 'Struktur',
+		'as-prescribed': {
+			label: 'Som planlagt',
+			description: 'fulgte den planlagte strukturen',
+		},
+		diverged: {
+			label: 'Avvek',
+			description: 'gikk ut over den planlagte strukturen',
+		},
+		'not-verifiable': {
+			label: 'Kan ikke bekreftes',
+			description: 'strukturen kan ikke leses sikkert fra opptaket',
+		},
+	},
+	vsLast: {
+		title: 'Mot forrige gang',
+		/** `terskeløkt i sykling` — the kind the lookup used. */
+		kind: (archetype: string, sport: string) =>
+			`${archetype.toLowerCase()}økt i ${sport.toLowerCase()}`,
+		firstOfKind: (kind: string) =>
+			`Ingen tidligere ${kind} å sammenligne med ennå — dette er den første.`,
+		noArchetype:
+			'Økta har ingen økttype, så det er ingenting å sammenligne med.',
+		/**
+		 * The header says what the session reads as; this card used to answer
+		 * "no archetype" beside it. A reading is not the stored type the lookup
+		 * keys on, and saying so is what makes the two agree (ADR 0055 §6).
+		 */
+		readOnly: (word: string) =>
+			`Økta leses som ${word.toLowerCase()}, men forrige gang slås opp på en økttype som er lagret på økta, og den har ingen.`,
+		lead: (kind: string, date: string) =>
+			`Denne økta mot forrige ${kind}, ${date}.`,
+		load: 'Belastning (TSS)',
+		duration: 'Tid',
+		lastTime: (value: string) => `forrige gang ${value}`,
+	},
+	telemetry: {
+		title: 'Data fra opptaket',
+		description:
+			'Innsatsen gjennom økta, med de planlagte målene og formen lagt over.',
+		unavailableTitle: 'Ingen data over tid',
+		unavailableBody:
+			'Opptaket har ingen watt- eller pulsmålinger gjennom økta, så det er ingenting å tegne mot planen. Grafen kommer når opptaket har slike data.',
+		loading: 'Henter grafen …',
+		power: 'Watt',
+		heartRate: 'Puls',
+		pace: 'Fart',
+		plannedTarget: 'Planlagt mål',
+		paused: 'Pause',
+		start: '0:00 · start',
+		total: (clock: string) => `${clock} · totalt`,
+		plannedShape: 'Planlagt form',
+		inspectHint:
+			'Dra over grafen for å lese hver kanal — trykk og dra på mobil, hold pekeren over på PC.',
+		plannedRange: (min: number, max: number, unit: string) =>
+			`Planlagt ${min}–${max} ${unit}`,
+		missing: 'mangler',
+		tableCaption:
+			'Data fra opptaket, et utvalg gjennom økta, fra start til slutt.',
+		time: 'Tid',
+		plannedColumn: (unit: string) => `Planlagt ${unit}`,
+		ariaLabel: (channels: string, withBands: boolean) =>
+			`${channels} over tid${withBands ? ', mot de planlagte målene' : ''}. Dra over grafen for å lese hver kanal når som helst.`,
+		ariaFallback: 'Data fra opptaket over tid.',
+		srOver: (duration: string) => `Data fra opptaket over ${duration}.`,
+		srPower: (lo: number, hi: number) => ` Watt fra ${lo} til ${hi} W.`,
+		srHeartRate: (lo: number, hi: number) =>
+			` Puls fra ${lo} til ${hi} slag/min.`,
+		srPace: (lo: string, hi: string) => ` Fart fra ${lo} til ${hi}.`,
+		srPauses: (count: number) =>
+			` ${count} ${count === 1 ? 'pause' : 'pauser'} vist som hull.`,
+		srTargets: (channel: 'power' | 'heartrate', labels: string, unit: string) =>
+			` Planlagt ${channel === 'power' ? 'watt' : 'puls'}: ${labels} ${unit}.`,
+		bpm: 'slag/min',
+	},
+	recording: {
+		title: 'Opptak',
+		zones: 'Intensitet etter pulssone',
+		distance: 'Distanse',
+		movingTime: 'Tid i bevegelse',
+		avgPace: 'Snittfart',
+		maxSpeed: 'Toppfart',
+		avgHr: 'Snittpuls',
+		maxHr: 'Makspuls',
+		avgPower: 'Snittwatt',
+		normPower: 'Normalisert watt',
+		maxPower: 'Makswatt',
+		avgCadence: 'Snittkadens',
+		elevation: 'Stigning',
+		work: 'Arbeid',
+		load: 'Belastning (TSS)',
+		/** Pedal revolutions (bike) or steps (run) per minute. */
+		cadenceUnit: (discipline: string) =>
+			discipline === 'bike' ? 'o/min' : 'steg/min',
+	},
+	wrongSession: {
+		title: 'Feil økt?',
+		moveTo: 'Flytt opptaket til',
+		move: 'Flytt opptaket',
+		detach: 'Ta det ut av planen',
+		detachNote:
+			'Aktiviteten får en egen økt, og denne planlagte økta står igjen uten opptak.',
+		moveFailed: 'Fikk ikke flyttet opptaket til den økta.',
+	},
+	log: {
+		title: 'Notat',
+		writeLegend: 'Hvordan gikk det?',
+		updateLegend: 'Endre notatet',
+		label: 'Notat',
+		placeholder: 'Hvordan gikk økta?',
+		rpe: 'Opplevd anstrengelse (RPE)',
+		rpeGroup: 'Velg RPE fra 1 til 10',
+		rpeValue: (rpe: number) => `RPE ${rpe} av 10`,
+		save: 'Lagre notatet',
+		update: 'Lagre endringen',
+		required: 'Skriv noen ord om økta',
+		rpeWhole: 'RPE må være et helt tall',
+		rpeRange: 'RPE må være mellom 1 og 10',
+	},
+	errors: {
+		notFound: 'Fant ikke økta.',
+		missingId: 'Økta mangler id.',
+		onlyPlannedMissed: 'Bare en planlagt økt kan markeres som ikke gjort.',
+		noRecording: 'Økta har ikke noe opptak.',
+		notAttached: 'Opptaket er ikke koblet til en plan.',
+		targetRequired: 'Velg økta opptaket skal flyttes til.',
+		cannotRedetect: 'Denne økta kan ikke leses på nytt.',
+		badDateTime: 'Dato og klokkeslett henger ikke sammen.',
+	},
+} as const
+
+/** The inline editor's own status words on the detail view. */
+export const WORKOUT_DETAIL_EDITOR_LABELS = {
+	saving: 'Lagrer …',
+	thisExercise: 'denne øvelsen',
+	/**
+	 * Said before the athlete changes anything (ADR 0056): an exercise slot
+	 * with logged sets is fixed, and its numbers are not.
+	 */
+	loggedSetsFixed: (count: number, name: string) =>
+		`${count} sett er logget på ${name}, så hvilken øvelse dette er ligger fast — tallene kan du fortsatt endre. Skal det være et annet løft, slett de settene først.`,
+} as const
+
+/** The block sheet (workout-editor spec §3). */
+export const BLOCK_SHEET_LABELS = {
+	title: (blockNumber: number) => `Blokk ${blockNumber}`,
+	description:
+		'Hele blokka på ett sted. Endringer vises i setningen med en gang.',
+	close: 'Lukk',
+	name: 'Navn på blokka',
+	namePlaceholder: 'f.eks. Oppvarming',
+	nameUpdated: 'Navnet på blokka er endret',
+	nameCleared: 'Navnet på blokka er fjernet',
+	repeat: 'Antall ganger',
+	repeatSet: (value: string) => `Blokka gjentas ${value} ganger`,
+	steps: 'Steg',
+	step: (stepNumber: number) => `Steg ${stepNumber}`,
+	stepKind: (stepNumber: number) => `Type for steg ${stepNumber}`,
+	moveEarlier: (stepNumber: number) => `Flytt steg ${stepNumber} opp`,
+	moveLater: (stepNumber: number) => `Flytt steg ${stepNumber} ned`,
+	duplicate: (stepNumber: number) => `Lag en kopi av steg ${stepNumber}`,
+	remove: (stepNumber: number) => `Fjern steg ${stepNumber}`,
+	stepRemoved: 'Steget er fjernet',
+	addStep: 'Legg til steg:',
+	deleteBlock: 'Slett blokka',
+	blockDeleted: 'Blokka er slettet',
+} as const
+
+/** The exercise picker (ADR 0027 §8). Exercise names stay as the corpus
+ * writes them: they are content, not chrome. */
+export const EXERCISE_PICKER_LABELS = {
+	placeholder: 'Velg øvelse …',
+	search: 'Søk i øvelser',
+	searchPlaceholder: 'Søk i øvelser …',
+	empty: 'Ingen øvelser funnet.',
+	filters: 'Filtrer øvelsene',
+	recent: 'Nylig brukt',
+	all: 'Alle øvelser',
+	create: (name: string) => `Lag «${name}» …`,
+	muscleFor: (name: string) => `Hovedmuskel for «${name}»`,
+	muscleSearch: 'Søk i muskelgrupper',
+	muscleSearchPlaceholder: 'Søk i muskelgrupper …',
+	muscleEmpty: 'Ingen muskelgrupper funnet.',
+	back: 'Tilbake til søket',
+	saving: 'Lagrer …',
+} as const
+
+/** The intensity popover's chrome (workout-editor spec §7.3). */
+export const INTENSITY_POPOVER_LABELS = {
+	orSet: 'eller sett:',
+	zone: 'Sone',
+	kinds: {
+		pace: 'fart',
+		watts: 'watt',
+		heartRate: 'puls',
+		lactate: 'laktat',
+		rpe: 'RPE',
+	},
+	from: (unit: string) => `Fra ${unit}`,
+	to: (unit: string) => `Til ${unit} (valgfritt)`,
+	paceUnit: 'Enhet for fart',
+	powerUnit: 'Enhet for watt',
+	heartRateUnit: 'Enhet for puls',
+	thresholdPace: '% terskelfart',
+	pace: 'fart',
+	bpm: 'slag/min',
+	lthr: '%terskelpuls',
+	maxHr: '%makspuls',
+	decrease: (label: string) => `Senk ${label.toLowerCase()}`,
+	increase: (label: string) => `Øk ${label.toLowerCase()}`,
+	notPlaced: 'ikke plassert i en sone ennå — fyll inn verdien',
+	none: 'ingen intensitet satt',
+	remove: 'Fjern intensiteten',
+	announce: (text: string) => `Intensiteten er satt til ${text}`,
+} as const
+
+/** The full editor page (`/training/sessions/new`), the no-JS and deep-link
+ * way in; the composer's full snap is the quick one (#505 round 2). */
+export const NEW_SESSION_LABELS = {
+	metaTitle: 'Ny økt | Trainm8',
+	title: 'Ny økt',
+	name: 'Tittel',
+	namePlaceholder: 'f.eks. Tempoløp tirsdag',
+	sport: 'Sport',
+	sportPlaceholder: 'Velg sport',
+	intent: 'Formål',
+	date: 'Dato',
+	time: 'Klokkeslett',
+	create: 'Lag økta',
+} as const
+
+/** The strength runner route's own chrome (ADR 0060, 0064). The presenter's
+ * sentences (`__runner-presenter.ts`) are the strength surfaces' to word. */
+export const RUNNER_LABELS = {
+	metaTitle: (title: string) => `Logg · ${title} | Trainm8`,
+	metaFallback: 'Økt',
+	back: 'Tilbake til I dag',
+	heading: 'Gjennomfør økta',
+	sessionNumber: (n: number) => `Økt ${n}`,
+	noLifts: 'Økta har ingen løft å logge.',
+	warmup: 'Oppvarming',
+	workingSets: 'Arbeidssett',
+	unexplainedFailure: 'Settet ble ikke lagret — trykk på det igjen.',
+	finish: 'Fullfør økta',
+	finishNote: 'Hvert sett ble lagret da du trykket. Dette markerer bare dagen.',
+	alreadyRecorded: 'Allerede registrert.',
+	alreadyRecordedNote:
+		'Du har fullført økta. Settene er det som gjelder, og trykker du på ett under, endres det — men ingenting her venter på å bli lagret.',
+	nextFromProgram: (program: string) =>
+		`Hva ${program} sier du løfter neste gang`,
+	helpToggle: (lift: string) => `Om ${lift}`,
+	describeGym: 'Beskriv gymmet ditt',
+	describeGymAfter: 'så får hver vekt et skiveoppsett.',
+	loadKinds: {
+		external: 'Vekt (kg)',
+		bodyweight: 'Kroppsvekt',
+		bodyweightPlus: 'Kroppsvekt + kg',
+		assisted: 'Assistert (kg avlastning)',
+		stackLevel: 'Maskinnivå',
+		band: 'Strikk',
+		unloaded: 'Uten vekt',
+	},
+	loadWords: {
+		external: 'kilo',
+		perSide: 'kilo per hånd',
+		bodyweight: 'kroppsvekt',
+		bodyweightPlus: 'kroppsvekt pluss kilo',
+		assisted: 'assisterte kilo',
+		stackLevel: 'et maskinnivå',
+		band: 'en strikk',
+		unloaded: 'ingen vekt',
+	},
+	errors: {
+		nothingLogged:
+			'Logg et arbeidssett først — det er ingenting å fullføre ennå.',
+		gone: 'Økta finnes ikke lenger.',
+		notFound: 'Fant ikke settet.',
+		nonsense: 'Settet ga ikke mening.',
+		needsNumber: (kind: string) => `${kind} trenger et tall.`,
+		kindLocked: (word: string) =>
+			`Settet er registrert med ${word}. Det kan ikke logges på nytt som noe annet herfra.`,
+		notALift: 'Det steget er ikke et løft.',
+		noCount: 'Settet har ingen telling.',
+	},
+} as const
+
+/**
+ * Kilos the Norwegian way, for display (#505 round 2: `82,5 kg`): a decimal
+ * comma and a whole number left whole. **Display only** — `formatKg` keeps its
+ * `82.5`, because the parser reads that back. A local stand-in until the
+ * cross-cutting `formatNbKg` lands in `format.ts`; then this one goes.
+ */
+export function nbKgLabel(kg: number): string {
+	const rounded = Math.round(kg * 100) / 100
+	return `${String(rounded).replace('.', ',')} kg`
+}
+
+// ---------------------------------------------------------------------------
 // Integration providers
 // ---------------------------------------------------------------------------
 
@@ -2798,6 +3516,1095 @@ export const NB_EVENT_KIND_LABELS: Record<EventKind, string> = {
 	'time-trial': 'Testløp',
 	'fitness-goal': 'Datomål',
 }
+
+// ---------------------------------------------------------------------------
+// Sesong: the plan page (`/training/plan`) in Norwegian (ADR 0081, round 2,
+// ADR 0090). The hero, the season picture, the readings, the chart under
+// Avansert, every editor on the page and every refusal its action words. The
+// English maps above stay for the surfaces that still read them (plan
+// creation, the catalogue); this page reads only what is below and the #505
+// words already above (PHILOSOPHY_*, SEASON_EDIT_*, SEASON_EVENTS_*).
+// ---------------------------------------------------------------------------
+
+/** A weekly figure's unit on Sesong: `55 km/uke`, `5,8 t/uke`, `18 sett/uke`. */
+export const NB_WEEKLY_UNITS: Record<VolumeCurrency, string> = {
+	km: 'km/uke',
+	hours: 't/uke',
+	tss: 'TSS/uke',
+	sets: 'sett/uke',
+}
+
+/** The unit a track is planned in, spelled out for a picker. */
+export const NB_VOLUME_CURRENCY_LABELS: Record<VolumeCurrency, string> = {
+	km: 'Kilometer i uka',
+	hours: 'Timer i uka',
+	tss: 'TSS i uka',
+	sets: 'Arbeidssett i uka',
+}
+
+/** A quality session's zone, mid-sentence: `2× terskel + 1× VO₂maks`. */
+export const NB_QUALITY_ZONE_LABELS: Record<QualityZone, string> = {
+	3: 'tempo',
+	4: 'terskel',
+	5: 'VO₂maks',
+}
+
+/** What a lifting block is for (ADR 0047 §3). */
+export const NB_STRENGTH_GOAL_LABELS: Record<StrengthGoal, string> = {
+	hypertrophy: 'Muskelvekst',
+	'maximal-strength': 'Maksimal styrke',
+	power: 'Eksplosivitet',
+}
+
+/** The same goals mid-sentence: `… som maksimal styrke trener i`. */
+export const NB_STRENGTH_GOAL_SENTENCE_LABELS: Record<StrengthGoal, string> = {
+	hypertrophy: 'muskelvekst',
+	'maximal-strength': 'maksimal styrke',
+	power: 'eksplosivitet',
+}
+
+/** A Week Pattern day's kind (ADR 0044 §7). */
+export const NB_PATTERN_DAY_KIND_LABELS: Record<PatternDayKind, string> = {
+	fixed: 'Fast økt',
+	share: 'Andel av uka',
+}
+
+/** A Week Pattern weekday, Monday-first, capitalised as a row starts it. */
+export const NB_PATTERN_WEEKDAY_LABELS = Object.fromEntries(
+	NB_WEEKDAY_LABELS.map((name, weekday) => [
+		weekday,
+		name[0]!.toUpperCase() + name.slice(1),
+	]),
+) as Record<PatternWeekday, string>
+
+/** A Training Track's name on Sesong: the sport, in Norwegian. */
+export function nbTrackName(discipline: Discipline): string {
+	return NB_DISCIPLINE_LABELS[discipline]
+}
+
+/**
+ * What a strength plan cannot state (ADR 0047 §5), one sentence each with its
+ * reason, as `UNAVAILABLE_READING_LABELS` says it in English.
+ */
+export const NB_UNAVAILABLE_READING_LABELS: Record<UnavailableReading, string> =
+	{
+		'hours-calendar-cost':
+			'Hva uka koster i timer kan ikke regnes ut. En styrkeblokk sier hvor mange økter den ber om i uka, men ingenting her lagrer hvor lang en økt er, og styrkeøktene du har registrert er for få og for avhengige av klokka til å lese et snitt fra.',
+		'combined-cross-track-load':
+			'Én samlet belastning for begge sporene kan ikke regnes ut. Styrketrening har ingen TSS, så et samlet tall ville vært en delsum som ser ut som hele uka.',
+		'strength-ctl':
+			'Formkurven leser bare utholdenhetstreningen din. Styrken er holdt utenfor med vilje: å prise en styrkeøkt som timer × en antatt intensitet er en omregning appen ikke gjør, så hvordan de to slags trøtthet virker sammen er ikke modellert.',
+	}
+
+/** Why a track feeds no load, finishing "… fordi …" (ADR 0045 §6). */
+export const NB_NO_CONTRIBUTION_LABELS: Record<NoContributionReason, string> = {
+	'sets-has-no-reading':
+		'arbeidssett har ingen belastning, og regnes aldri om til en',
+	'not-an-endurance-discipline':
+		'styrketrening har ingen belastning, og regnes aldri om til en',
+	'no-zone-recipe': 'ingen sonemodell er satt for den sporten',
+	'no-intensity-source': 'sonemodellen gir ingen intensitet å lese',
+	'no-heart-rate-anchor':
+		'sonene leses av makspuls, og verken makspuls eller terskelpuls er lagret',
+	'no-threshold-pace': 'ingen terskelfart er lagret for den sporten',
+	'no-critical-swim-speed': 'ingen kritisk svømmefart er lagret',
+	'no-ride-history': 'ingen registrerte sykkeløkter å lese en fart fra',
+	'no-season-anchor': 'sporet har ikke noe startnivå',
+}
+
+/** The conventions the Volume Conversion stacks, as conventions (ADR 0040 §13). */
+export const NB_CONVERSION_CONVENTION_LABELS: Record<ConventionId, string> = {
+	'minutes-in-zone-per-session': 'minutter i sonen per kvalitetsøkt',
+	'easy-pace-ratio': 'forholdet mellom rolig fart og terskelfart',
+}
+
+/** The stored thresholds the conversion reads, as the athlete's own. */
+export const NB_THRESHOLD_FIELD_LABELS: Record<ThresholdField, string> = {
+	thresholdPaceSecPerKm: 'terskelfarten du har lagret',
+	cssSecPer100m: 'den kritiske svømmefarten du har lagret',
+}
+
+/** Why an accumulated Season Span may be added up at all (ADR 0043 §6). */
+export const NB_ACCUMULATED_SPAN_LABELS: Record<AccumulatingCurrency, string> =
+	{
+		tss: 'Lagt sammen på tvers av utholdenhetssporene, fordi en TSS er den samme timen med terskelarbeid uansett hvilket spor den brukes i.',
+		hours:
+			'Lagt sammen på tvers av utholdenhetssporene som det uka koster i tid – aldri som hvor hard den er.',
+	}
+
+/** Why a Block Boundary Step is not one the walk applies (ADR 0040 §5). */
+export const NB_BOUNDARY_STEP_OUT_OF_FORCE_LABELS: Record<
+	BoundaryStepOutOfForce,
+	string
+> = {
+	'season-opens':
+		'Sesongen starter her, så det er ingen blokkgrense å hoppe ved.',
+	'no-anchor-yet':
+		'Ingen startnivå dekker denne blokka ennå, så starten kan ikke regnes ut – det er ikke noe nivå å hoppe fra.',
+	'anchor-opens-here':
+		'Startnivået ditt gjelder fra uka denne blokka starter, så blokka starter på det tallet – det er ikke noe å hoppe fra.',
+}
+
+/** A week's role in its rhythm, capitalised for a table cell. */
+export const NB_WEEK_ROLE_CELL_LABELS: Record<WeekRole, string> = {
+	loading: 'Hard uke',
+	recovery: 'Lett uke',
+	taper: 'Nedtrapping',
+}
+
+/** `Uke 33–36`, or `Uke 33` — a span of ISO weeks. */
+export function isoWeekSpanLabel(from: number, to: number): string {
+	return from === to ? `Uke ${from}` : `Uke ${from}–${to}`
+}
+
+/** `1 økt`, `3 økter`. */
+export function nbSessions(count: number): string {
+	return count === 1 ? '1 økt' : `${count} økter`
+}
+
+/** `1 dag`, `4 dager`. */
+export function nbDays(count: number): string {
+	return count === 1 ? '1 dag' : `${count} dager`
+}
+
+/** The page itself: its title, hero, picture, readings and summary card. */
+export const SESONG_PAGE_LABELS = {
+	metaTitle: 'Sesong | Trainm8',
+	heroToward: 'Du bygger mot',
+	heroChange: 'Endre løpet',
+	/** `24. okt 2026 · 10 uker fra 10. aug 2026`. */
+	heroMeta: (eventDate: string, weeks: number, from: string) =>
+		`${eventDate} · ${nbWeeks(weeks)} fra ${from}`,
+	/** An open-ended plan's hero: no race, no end, and it carries on. */
+	openEndedMeta: (from: string) =>
+		`Ingen løp og ingen sluttdato · fra ${from} · fortsetter`,
+	resting:
+		'Planen hviler mens planen mot løpet ditt er i gang. Den tar over igjen når løpet er over.',
+	restingLink: 'Åpne løpsplanen',
+	restingElsewhere: 'Hold meg aktiv-planen din hviler mens denne går.',
+	restingElsewhereLink: 'Åpne den',
+	pictureTitle: 'Sesongen',
+	pictureHint: 'Trykk på en uke for å endre ukemålet.',
+	pictureBegunHint: 'Uker som har begynt, er historikk.',
+	/** Under the last row of an open-ended plan: it does not stop there. */
+	continues: 'fortsetter',
+	continuesNote: 'Neste blokk legges til når denne er ferdig.',
+	pendingRound: 'Neste blokk venter på svar',
+	pendingRoundNote: (name: string) =>
+		`${name} er foreslått i Ukeskiftet. Svar der, så legges blokka inn.`,
+	pendingRoundLink: 'Til Ukeskiftet',
+	readings: 'Visning',
+	blocks: 'Blokker',
+	weeks: 'Uker',
+	summaryTitle: 'Hva planen består av',
+	derived: 'Utledet',
+	/** `Løping · Styrke`. */
+	spanTracks: (names: string[]) => names.join(' · '),
+	spanNote: (peakWeek: number | null, several: boolean) =>
+		`Fra der du starter til den tyngste harde uka${peakWeek == null ? '' : `, uke ${peakWeek}`} · regnet ut fra ${several ? 'startnivåene' : 'startnivået'} og stigningen, aldri lagt sammen fra økter`,
+	spanTotal: (total: string) => ` · ${total} over hele sesongen`,
+	fitEnds: 'Planen slutter i uka for løpet.',
+	fitBefore: (weeks: number) =>
+		`Planen slutter ${nbWeeks(weeks)} før uka for løpet.`,
+	fitPast: (weeks: number) =>
+		`Planen går ${nbWeeks(weeks)} forbi uka for løpet.`,
+	cannotTellTitle: 'Hva planen ikke kan si',
+	cannotTellDetail: 'Tall som mangler, og hvorfor.',
+	fillTitle: 'Fyll ukene',
+	fillIntro:
+		'Ukene fylles av seg selv fra den typiske uka di, en uke av gangen etter hvert som horisonten når dem. Kopier en uke du likte hvis du vil ha den igjen.',
+	fillWaiting:
+		'Ukene fylles fra den typiske uka di. Lag den, så legges øktene inn opp til horisonten.',
+	fillFilled: (weeks: number, total: number) =>
+		`${weeks} av ${nbWeeks(total)} har økter i kalenderen. Resten fylles når horisonten når dem.`,
+	patternTitle: 'Den typiske uka di',
+	patternEmpty: 'Lag uka du vanligvis trener, så fylles ukene fra den.',
+	copyTitle: 'Kopier uke',
+	copyDetail: 'Tar med øktene i en uke slik du skrev dem, uten mønster.',
+	advancedChart: 'Sesongdiagram',
+	advancedChartDetail:
+		'Lag for fart, form, rytme og stigning, og regnestykket bak hver uke.',
+	shapeTitle: 'Start fra en form',
+	shapeDetail:
+		'Ferdige former for sesongen, tegnet som belastningen de gir. En form erstatter blokkene dine.',
+	anchorsTitle: 'Startnivå',
+	liftingTitle: 'Styrkeblokker',
+	addPhaseTitle: 'Legg til en fase',
+	addPhaseDetail:
+		'En ny fase der du vil ha den. Uka planen starter i flytter seg aldri.',
+	deleteTitle: 'Slett planen',
+	deleteDetailEvent: 'Løpet og øktene du har trent blir stående.',
+	deleteDetail: 'Øktene du har trent blir stående.',
+	phasesList: 'Faser',
+	weeksList: 'Treningsuker',
+	weekByWeek: 'Uke for uke',
+	weekCount: (count: number) => nbWeeks(count),
+	unavailable: 'Utilgjengelig',
+	noLifting: 'Ingen styrke',
+	deload: 'Avlastning',
+	handSet: 'Satt selv',
+	handSetNoRule: 'Satt selv. Regelen har ikke noe tall for denne uka.',
+	handSetRule: (figure: string) => `Satt selv. Regelen gir ${figure}.`,
+	weeksFootnote:
+		'Åpne en uke for å endre ukemålet i Endre sesongen, der du ser endringen før den gjelder. Et ukemål du setter selv er ukas endelige tall – uten lett uke eller nedtrapping oppå – og gjelder bare den uka: resten av sesongen følger startnivået og stigningen. 0 er en uke uten trening, og det er en plan, ikke et hull.',
+	unpricedTrack: (track: string) =>
+		`${track}: ukene kan ikke regnes ut – ingen startnivå dekker planen ennå.`,
+	deloadFootnote:
+		'Avlastning er slutten på en styrkeblokk. Den kommer fra ukene du ga blokka, og rytmen i fasene når den ikke. Den kan derfor lande en annen uke enn en lett uke i planen – det er det en datert blokk er til for.',
+	mixNoticesTitle: 'Uker som avviker fra kvalitetsøktene',
+	/** `Uke 42 · løping · planen ber om 2 terskeløkter, uka har 1`. */
+	mixDisagreement: (zone: string, authored: number, stamped: number) =>
+		`planen ber om ${authored} ${zone}${authored === 1 ? 'økt' : 'økter'}, uka har ${stamped}`,
+	mixNoticesNote:
+		'Kvalitetsøktene sier hva blokka er til for; øktene er hva uka faktisk inneholder. Å bytte en hard økt mot en rolig i en sliten uke er en plan, ikke en feil – ingenting her er endret.',
+} as const
+
+/** The ramp guard, the availability check and the load band (ADR 0040 §12–13). */
+export const SESONG_NOTICE_LABELS = {
+	dismiss: (name: string) => `Lukk ${name}`,
+	dismissed: (name: string) =>
+		`${name[0]!.toUpperCase()}${name.slice(1)} er lukket. Den kommer tilbake hvis det den sier endrer seg.`,
+	rampName: 'merknaden om stigning',
+	availabilityName: 'merknaden om treningsdager',
+	bandName: 'merknaden om belastning',
+	aBlock: 'En blokk',
+	rampRate: (rate: string) => `stiger ${rate} per harde uke`,
+	stepRate: (rate: string) => `hopper ${rate} ved starten`,
+	rampLifting: (track: string, rate: string, phase: string) =>
+		`${track} ${rate}, i blokka som starter i ${phase}.`,
+	rampPhase: (phase: string, rate: string) => `${phase} ${rate}.`,
+	rampNote: (rate: string) =>
+		`Vanlig praksis er ${rate} – per harde uke for stigning, og på én gang for et hopp ved start. Mer enn det er uvanlig, ikke farlig: ingen volumregel er vist å forebygge skader, så dette er en merknad og ikke en grense. Tallene dine er lagret slik du skrev dem.`,
+	rampLiftingNote:
+		' En styrkeblokk er datert og ikke knyttet til en fase, så fasen som nevnes ved en slik blokk er bare der den første uka faller.',
+	daysAsk: (span: string, single: boolean, sessions: string, days: number) =>
+		`${span} ${single ? 'ber' : 'ber'} om ${sessions} i uka, og du kan trene ${nbDays(days)} i uka.`,
+	hoursAsk: (span: string, single: boolean, peak: string, capacity: string) =>
+		`${span} ber om ${single ? '' : 'opptil '}${peak} utholdenhetstrening, og kapasiteten din er ${capacity}.`,
+	bothChecks:
+		'Det er to ulike sammenligninger – økter mot dagene du trener, og timer mot kapasiteten du har satt – og en uke kan bomme på den ene uten den andre. ',
+	daysCheck: 'Det er dager mot dager: økter mot dagene du trener. ',
+	hoursCheck:
+		'Det er timer mot timer: timene utholdenhetsukene blir til, mot kapasiteten du har satt. ',
+	fitNote:
+		'Det kan være akkurat det du mente: to økter kan dele en dag, og begge tallene er innstillinger, ikke fakta om uka di. Planen er lagret slik du skrev den.',
+	noCapacity: 'Timer er den andre sammenligningen, og',
+	noCapacityLink: 'utøverprofilen',
+	noCapacityEnd:
+		'din har ingen ukentlig kapasitet ennå – så ingenting her er sjekket mot timene dine.',
+	/** `3 kvalitetsøkter og 2 styrkeøkter`. */
+	sessionCounts: (quality: number, lifting: number) =>
+		[
+			quality > 0
+				? `${quality} ${quality === 1 ? 'kvalitetsøkt' : 'kvalitetsøkter'}`
+				: null,
+			lifting > 0
+				? `${lifting} ${lifting === 1 ? 'styrkeøkt' : 'styrkeøkter'}`
+				: null,
+		]
+			.filter((half): half is string => half != null)
+			.join(' og '),
+	bandLine: (pct: string, band: string, goal: string) =>
+		`er lagt inn med ${pct}, utenfor ${band} som ${goal} trener i.`,
+	bandNote:
+		'Det spennet er utledet fra styrkemålet du satte på blokka, aldri skrevet ved siden av – endre målet, så flytter spennet seg, eller la økta være som den er. Dette er en merknad og ikke en grense: blokkene og øktene dine er lagret slik du skrev dem.',
+} as const
+
+/** A block's progression and quality mix, under Avansert on its card. */
+export const SESONG_SEGMENT_LABELS = {
+	progression: (track: string | null) =>
+		track ? `Stigning for ${track.toLowerCase()}` : 'Stigning',
+	ramp: 'Stigning, % per harde uke',
+	rampBlank: 'Tomt – volumet holder seg flatt gjennom blokka.',
+	rampSet: (rate: string) =>
+		`${rate} hver harde uke. Lette uker og nedtrapping stiger ikke.`,
+	step: 'Hopp ved starten av blokka, %',
+	stepBlank: 'Tomt – blokka starter der uka før slapp.',
+	stepSet: (rate: string) =>
+		`${rate} én gang, ved starten. Et bevisst fall inn i en intensitetsblokk hører hjemme her, ikke i stigningen.`,
+	recoveryCut: 'Kutt i lett uke, %',
+	recoveryBlank: (rate: string) =>
+		`Tomt – følger vanlig praksis, ${rate} fra siste harde uke. La det stå tomt, så følger det med om praksisen endres.`,
+	recoverySet: (rate: string) => `Ditt: ${rate} fra siste harde uke.`,
+	taperCut: 'Kutt i nedtrappingen mot løpet, %',
+	taperBlank: (rate: string) =>
+		`Tomt – følger vanlig praksis, ${rate} mot løpet. La det stå tomt, så følger det med om praksisen endres.`,
+	taperSet: (rate: string) => `Ditt: ${rate} mot løpet.`,
+	taperNote: ' Nedtrappingen går gradvis over blokka, ikke alt i siste uke.',
+	saveProgression: (track: string | null) =>
+		track ? `Lagre stigning for ${track.toLowerCase()}` : 'Lagre stigning',
+	mix: (track: string | null) =>
+		track ? `Kvalitetsøkter for ${track.toLowerCase()}` : 'Kvalitetsøkter',
+	mixIntro:
+		'Økter i uka i hver kvalitetssone. Tomt eller 0 tar sonen ut – alle tre tomme er en blokk uten kvalitetsøkter, og det er en plan, ikke et hull. Dette tomme feltet er ikke det samme som stigningens tomme felt over: kvalitetsøkter har ingen vanlig praksis å falle tilbake på.',
+	mixField: (zone: number, name: string) => `Sone ${zone} ${name}, økter i uka`,
+	emphasis: 'Vekt, utledet',
+	count: 'Kvalitetsøkter i uka, utledet',
+	derivedNote:
+		'Begge leses av kvalitetsøktene du lagret, så det er ingenting å skrive her: en blokk får navn etter arbeidet den inneholder. Det fortsetter å lese planen når ukene fylles med ekte økter, så blokka skifter ikke karakter utover sesongen.',
+	saveMix: (track: string | null) =>
+		track
+			? `Lagre kvalitetsøkter for ${track.toLowerCase()}`
+			: 'Lagre kvalitetsøkter',
+	noQuality: 'Ingen kvalitetsøkter',
+	/** `Løping stiger +5 % per harde uke, med 2 kvalitetsøkter i uka – 1× tempo + 1× terskel.` */
+	readingSubject: (track: string | null) => track ?? 'Den',
+	readingFlat: 'stiger ikke – hver uke er like stor som uka før',
+	readingClimb: (rate: string) => `stiger ${rate} per harde uke`,
+	readingStep: (rate: string) => `, og starter ${rate} mot blokka før`,
+	readingQuality: (count: number, mix: string) =>
+		count === 0
+			? 'uten kvalitetsøkter'
+			: `med ${count} ${count === 1 ? 'kvalitetsøkt' : 'kvalitetsøkter'} i uka – ${mix}`,
+	typeRate: 'Skriv en prosent, eller la feltet stå tomt',
+	wholeSessions: 'Et helt antall økter, eller tomt for ingen',
+	sessionRange: (max: number) => `Mellom 0 og ${max} økter i uka`,
+	gone: 'Den blokka er ikke lenger en del av planen.',
+} as const
+
+/**
+ * What is left to set up on a new plan, above the readings — two steps since
+ * the weeks fill themselves (round-2 decision 14, ADR 0090): a climb, and a
+ * typical week to fill them from. Gone once both are there.
+ */
+export const SESONG_NEXT_LABELS = {
+	title: 'Det som gjenstår',
+	left: (count: number) =>
+		count === 1 ? '1 ting igjen' : `${count} ting igjen`,
+	climbTitle: 'Gi ukene en stigning',
+	climbDetail:
+		'Hver uke er like stor som den første nå. Start fra en form, eller sett en stigning på en blokk.',
+	climbAction: 'Sett en stigning',
+	patternTitle: 'Si hvordan den typiske uka di ser ut',
+	patternDetail:
+		'Hvilke dager du trener, og hvilken som er den lange. Ukene fylles fra den av seg selv, opp til horisonten.',
+	patternAction: 'Lag uka',
+} as const
+
+/** What the plan page's phase fields say when a box is left empty. */
+export const SESONG_PHASE_FIELD_LABELS = {
+	weeks: 'Hvor mange uker varer fasen?',
+	rhythm: 'Velg hvordan fasen har lette uker',
+} as const
+
+/** The phase cards on Blokker, and adding and deleting (#402). */
+export const SESONG_PHASE_LABELS = {
+	current: 'Nå',
+	tapers: 'Trapper ned',
+	/** `Uke 33–36 · 3:1 · fra 10. aug`. */
+	detail: (span: string, rhythm: string, from: string) =>
+		`${span} · ${rhythm} · fra ${from}`,
+	editTitle: 'Navn, lengde og lett uke',
+	editDetail: 'Hvilke uker som er lette, og hvor du endrer det.',
+	weekRoles: 'Ukenes rytme',
+	weekRole: (week: number, role: string) => `Uke ${week}: ${role}`,
+	tapersAll:
+		'Hver uke i denne fasen trapper ned mot løpet, så den har ingen lett uke.',
+	noRecovery: 'Ingen lette uker i denne fasen.',
+	recoveryWeeks: (weeks: number[]) =>
+		`Lette uker: ${weeks.map((week) => `uke ${week}`).join(', ')} i fasen. Hvor mye de kutter, bestemmer sporet, ikke fasen.`,
+	moveEarlier: 'Flytt tidligere',
+	moveLater: 'Flytt senere',
+	remove: 'Fjern',
+	rhythm: 'Rytme',
+	taperRhythm:
+		'Alle ukene i en fase som trapper ned er nedtrappingsuker, så det er ingen rytme å velge.',
+	thisTapers: 'Fasen trapper ned',
+	addTitle: 'Legg til en fase',
+	name: 'Navn',
+	namePlaceholder: 'f.eks. Off-season',
+	weeks: 'Uker',
+	where: 'Hvor den skal ligge',
+	atStart: 'Først',
+	after: (name: string) => `Etter ${name}`,
+	growsForward:
+		'Planen vokser framover – en ny fase flytter aldri uka planen starter i.',
+	add: 'Legg til fase',
+	deleteIntro: (eventName: string | null) =>
+		`Fjerner sesongen du har laget. ${eventName ? `${eventName} blir stående i kalenderen, og hver` : 'Hver'} økt du allerede har trent blir stående som den er.`,
+	delete: 'Slett planen',
+	deleteConfirm: 'Slette planen?',
+	deleteBody: (eventName: string | null) =>
+		`Dette fjerner fasene, sporene og startnivåene dine. ${eventName ? `Det rører ikke ${eventName} eller noen økt du har trent – løpet blir stående i kalenderen.` : 'Det rører ingen økt du har trent.'} Det kan ikke angres.`,
+	keep: 'Behold planen',
+	sparkLabel: (phase: string, weeks: number, track: string) =>
+		`${phase}: ${nbWeeks(weeks)} med ${track.toLowerCase()}`,
+} as const
+
+/** Season Anchors under Avansert (#407, ADR 0040 §5). */
+export const SESONG_ANCHOR_LABELS = {
+	intro:
+		'Startnivået er ukevolumet sesongen regnes ut fra. Det er en liste med daterte nivåer, ikke ett tall: når sesongen ikke går som planlagt kan du si «fra denne uka starter jeg herfra», og ukene du allerede har levd blir stående som de var.',
+	freshStart:
+		'Et nytt startnivå er en ny start, ikke en rabatt. Stigningen starter på nytt fra uka du velger, så ukene etter stiger fra det nye tallet i stedet for å fortsette fra det gamle. Uker du har satt selv forblir satt selv, og kan fortsatt tilbakestilles.',
+	list: (track: string) => `Startnivå for ${track.toLowerCase()}`,
+	unit: (unit: string) =>
+		`Startnivået er i ${unit} – enheten sporet har hele livet. Et nytt startnivå endrer tallet, aldri enheten; å måle sporet i noe annet er et nytt spor, ikke en endring.`,
+	unpricedOpening: (span: string) =>
+		`${span} i planen kan ikke regnes ut: ingen startnivå dekker dem, og appen finner ikke på et tall for en uke den ikke kan regne ut.`,
+	outside: 'Utenfor ukene i planen',
+	from: (week: number) => `Fra uke ${week}`,
+	opening: 'Sesongstart',
+	reAnchored: 'Nytt startnivå',
+	outsideNote:
+		'Dette startnivået gjelder fra en uke planen ikke dekker lenger – det er datert, så en kortere sesong lar det ligge der det var. Fjern det, eller legg til uker i planen.',
+	value: (unit: string) => `Ukevolum, ${unit}`,
+	save: 'Lagre',
+	keepsFirst:
+		'Sesongen beholder dette: hver uke fram til neste nye startnivå regnes ut fra det. Endre tallet her i stedet for å fjerne det.',
+	remove: 'Fjern dette startnivået',
+	allTaken:
+		'Hver uke i planen har allerede et startnivå, så det er ingen uke igjen å starte på nytt fra.',
+	reAnchorTitle: 'Nytt startnivå fra en uke',
+	fromWeek: 'Fra uke',
+	pickWeek: 'Velg en uke',
+	startingFrom: (unit: string) => `Starter på, ${unit}`,
+	restarts:
+		'Stigningen starter på nytt her: uka du velger er dette tallet, og de harde ukene etter stiger fra det. Alt før er urørt.',
+	reAnchor: 'Sett nytt startnivå',
+	valueRequired: 'Hvor mye i uka starter du fra?',
+	valueNumber: 'Skriv et ukevolum, f.eks. 45',
+	weekRequired: 'Hvilken uke gjelder startnivået fra?',
+	summaryNone: 'Ingen spor å gi et startnivå ennå.',
+	summaryNotSet: 'ikke satt',
+	/** `Løping fra 40 km/uke, nytt startnivå 2 ganger`. */
+	summary: (track: string, opening: string, again: number) =>
+		`${track} fra ${opening}${again > 0 ? `, nytt startnivå ${again === 1 ? 'én gang' : `${again} ganger`}` : ''}`,
+} as const
+
+/** Lifting blocks under Avansert (#409, ADR 0047). */
+export const SESONG_LIFTING_LABELS = {
+	intro:
+		'En styrkeblokk er datert: den starter en uke du velger og varer så lenge du sier, så den kan starte og slutte inne i en fase. Ukene mellom to blokker er uten styrke – noe du har sagt, ikke et hull i planen.',
+	unit: (unit: string) =>
+		`Sporet planlegges i ${unit} – ukas arbeidssett til sammen, for hele kroppen, ikke per muskelgruppe eller øvelse. Det finnes ikke noe publisert tall å holde det opp mot, så tallet å planlegge fra er ditt eget: startnivået kommer fra settene du allerede logger, og stigningen er hvor fort du øker.`,
+	list: 'Styrkeblokker',
+	none: 'Ingen styrkeblokker ennå, så hver uke i planen er uten styrke. Legg til en når du vet hvilke uker du er på treningssenteret.',
+	outside: 'Utenfor ukene i planen',
+	outsideNote:
+		'Denne blokka starter en uke planen ikke dekker lenger – den er datert, så en kortere sesong lar den ligge der den var. Velg en uke under for å hente den inn igjen.',
+	/** `4 uker · 2× i uka`. */
+	cardNote: (weeks: number, sessions: number) =>
+		`${nbWeeks(weeks)} · ${sessions}× i uka`,
+	remove: 'Fjern blokka',
+	save: 'Lagre blokka',
+	addTitle: 'Legg til en styrkeblokk',
+	add: 'Legg til blokk',
+	opensOn: 'Starter',
+	pickWeek: 'Velg en uke',
+	weeks: 'Uker',
+	goal: 'Hva blokka er til for',
+	pickGoal: 'Velg et mål',
+	sessions: 'Økter i uka',
+	ramp: 'Stigning, % per harde uke',
+	rampBlank: 'Tomt – settene holder seg flatt gjennom blokka.',
+	rampSet: (rate: string) =>
+		`${rate} hver harde uke. Avlastningsuker stiger ikke.`,
+	step: 'Hopp ved starten av blokka, %',
+	stepBlank: 'Tomt – blokka starter der uka før slapp.',
+	stepSet: (rate: string) =>
+		`${rate} én gang, ved starten. Et bevisst fall inn i en tyngre blokk hører hjemme her, ikke i stigningen.`,
+	deloadCut: 'Kutt i avlastning, %',
+	deloadCutBlank: (rate: string) =>
+		`Tomt – følger vanlig praksis, ${rate} hver avlastningsuke. La det stå tomt, så følger det med om praksisen endres.`,
+	deloadCutSet: (rate: string) =>
+		`Ditt: ${rate} hver avlastningsuke, flatt og ikke fallende.`,
+	deloadWeeks: 'Avlastningsuker til slutt',
+	deloadWeeksBlank: (weeks: string) =>
+		`Tomt – følger vanlig praksis, ${weeks} til slutt i blokka. La det stå tomt, så følger det med om praksisen endres.`,
+	deloadWeeksNone:
+		'Ditt: ingen avlastning – blokka går til siste uke med fullt volum.',
+	deloadWeeksSet: (weeks: string) =>
+		`Ditt: de siste ${weeks} av blokka er avlastning, med kuttet ved siden av.`,
+	band: 'Belastning, utledet',
+	reps: 'Repetisjoner, utledet',
+	derivedNote:
+		'Begge kommer fra målet du valgte over, og det er ingenting å skrive: endre målet, så flytter spennet seg. Hvor mye styrke er et annet spørsmål og leses ikke av målet – det er startnivået og stigningen, så planen har aldri to kilder for ett tall.',
+	typeRate: 'Skriv en prosent, eller la feltet stå tomt',
+	wholeDeload: 'Et helt antall uker, eller tomt for vanlig praksis',
+	weekRequired: 'Velg uka blokka starter',
+	weeksRequired: 'Hvor mange uker varer blokka?',
+	weeksWhole: 'En blokk varer i hele uker',
+	goalRequired: 'Velg hva blokka er til for',
+	sessionsRequired: 'Hvor mange styrkeøkter i uka?',
+	sessionsWhole: 'Antall økter er et helt tall',
+	summaryNone:
+		'Ingen styrkeblokk ennå – ukene mellom blokker er uker uten styrke.',
+	summary: (blocks: number) =>
+		`${blocks === 1 ? '1 blokk' : `${blocks} blokker`}, hver datert og ikke knyttet til en fase.`,
+} as const
+
+/** The Week Pattern, under Uker (#410, ADR 0044 §7). */
+export const SESONG_PATTERN_LABELS = {
+	intro:
+		'Beskriv uka du faktisk trener én gang, i stedet for å legge inn hver uke for hånd. En dag er enten en fast økt – slik du skrev den, de samme dragene i en stor uke og en liten – eller en andel av det som er igjen, etter vekt. Et mønster lagrer ingen distanser og ingen timer: hver ukes volum regnes ut, så det samme mønsteret blir ulikt i uke 1 og uke 8.',
+	previewIntro:
+		'Under ser du hva hver dag blir mot én ukes utregnede mål. Ukene i kalenderen fylles fra mønsteret når horisonten når dem.',
+	readAgainst: 'Les mot',
+	readWeek: 'Les denne uka',
+	list: 'Ukemønstre',
+	/** `4 dager · lest mot uke 41`. */
+	cardNote: (days: number, week: number | null) =>
+		`${nbDays(days)} · lest mot ${week == null ? 'ingen uke' : `uke ${week}`}`,
+	name: 'Navn',
+	rename: 'Gi nytt navn',
+	noDays: 'Ingen dager ennå. Legg til øktene du trener i en vanlig uke.',
+	days: (name: string) => `Dager i ${name}`,
+	unknownTrack: 'Ukjent spor',
+	workoutRemoved: 'Økta er fjernet',
+	fixedNote: 'slik du skrev den, aldri skalert',
+	share: (weight: number, share: string | null) =>
+		`Andel, vekt ${String(weight).replace('.', ',')}${share == null ? '' : ` · ${share} av det som er igjen`}`,
+	shapedOn: (title: string) => ` · formet etter ${title}`,
+	remove: (weekday: string, position: number | null) =>
+		`Fjern ${weekday}${position == null ? '' : ` nr. ${position}`}`,
+	earlierInDay: 'Tidligere på dagen',
+	laterInDay: 'Senere på dagen',
+	moveEarlier: 'Flytt tidligere',
+	moveLater: 'Flytt senere',
+	fixedGone:
+		'Økta denne dagen la inn er borte, så det er ikke noe volum å lese.',
+	fixedUnread: (unit: string) =>
+		`Økta kan ikke leses i ${unit}, så den har ikke noe volum å legge inn her.`,
+	noTarget: (track: string) =>
+		`Uka har ikke noe utregnet mål for ${track.toLowerCase()}, så det er ingenting for denne andelen å ta en del av.`,
+	unknownRemainder: (unit: string) =>
+		`En fast økt i mønsteret kan ikke leses i ${unit}, så det som er igjen å dele er ukjent – og en andel av en ukjent rest ville vært et oppdiktet tall.`,
+	totalsTitle: (track: string, week: number | null) =>
+		`${track}${week == null ? '' : ` · uke ${week}`}`,
+	weekTarget: 'Ukemål',
+	fixedTotal: 'Lagt inn av faste dager',
+	leftTotal: 'Igjen til andelsdagene',
+	unallocated: 'Tatt av ingen dag',
+	noShareDay: (track: string) =>
+		`Mønsteret har ingen andelsdag for ${track.toLowerCase()}, så ingenting tar resten av uka. Legg til en, eller la det være – et mønster trenger ikke bruke hele uka.`,
+	fixedExceeds: (track: string, fixed: string, target: string) =>
+		`De faste øktene for ${track.toLowerCase()} legger inn ${fixed}, og ukemålet er ${target}. De står slik du skrev dem – drag er foreskrevet, så ingenting her korter ned en økt du har skrevet.`,
+	fixedExceedsShares:
+		' Det er ingenting igjen til andelsdagene denne uka, som tallene over sier.',
+	fixedExceedsNoShares:
+		' Uka er rett og slett mindre enn øktene du har lagt inn.',
+	unreadFixed: (days: number, unit: string) =>
+		`${days === 1 ? 'Én fast dag' : `${days} faste dager`} kan ikke leses i ${unit}, så uka kan ikke deles: det andelsdagene skulle dele er ukjent, og en andel av en ukjent rest ville vært et tall appen fant på. De faste øktene er ikke berørt.`,
+	addDay: 'Legg til en dag',
+	weekday: 'Ukedag',
+	track: 'Spor',
+	trackNote:
+		'En svømmedag tar svømmevolum, så dagen sier hvilket spor den hører til.',
+	kind: 'Hva slags dag',
+	fixedHint:
+		'Slik du skrev den og aldri skalert – de samme dragene i en stor uke og en liten.',
+	shareHint:
+		'En relativ vekt, fordelt over uka – dagen tar sin del av det de faste øktene lar være igjen.',
+	weight: 'Relativ vekt',
+	noWorkouts: 'En fast dag legger inn en økt, og du har ingen ennå',
+	noTrackWorkouts: (track: string) =>
+		`En fast dag legger inn en økt fra dagens eget spor, og du har ingen økt i ${track.toLowerCase()} ennå`,
+	authorSession: 'skriv en økt',
+	authorSessionLead: '– appen lager en økt sammen med en treningsøkt, så',
+	authorSessionTail:
+		'så tilbys den her. Til da kan en dag fortsatt ta en andel av uka.',
+	workout: 'Økt',
+	shape: 'Form (valgfri)',
+	noShape: 'Ingen form – bare volum',
+	fixedWorkoutHint:
+		'Lagt inn slik du skrev den. Volumet leses av økta selv, så det er det samme hver uke.',
+	shapeHint:
+		'En form skaleres til andelen dagen tar. La den være for volum uten struktur.',
+	addDayButton: 'Legg til dag',
+	noTracks:
+		'Planen har ikke noe spor ennå, og en dag i mønsteret tar volumet sitt fra et spor.',
+	addPattern: 'Legg til et ukemønster',
+	patternPlaceholder: 'f.eks. Vanlig uke',
+	addPatternButton: 'Legg til mønster',
+	none: 'Ingen typisk uke ennå.',
+	starterProfile: (days: number) =>
+		`Lag en fra ${days === 1 ? 'dagen' : `de ${days} dagene`} du sier du kan trene – én økt hver, den siste lang. Flytt, vekt eller fjern dager etterpå.`,
+	starterDefault:
+		'Lag en fra en uke med fire dager som utgangspunkt – én økt hver dag, den siste lang. Flytt, vekt eller fjern dager etterpå, og sett treningsdagene i utøverprofilen for å lese dem derfra i stedet.',
+	starter: 'Lag en typisk uke for meg',
+	orOwn: 'Eller gi din egen et navn under og legg til dagene selv.',
+	delete: 'Slett mønsteret',
+	deleteConfirm: (name: string) => `Slette ${name}?`,
+	deleteBody: (name: string, days: number) =>
+		`Dette fjerner ${name}${days === 0 ? ', som ikke har noen dager ennå' : days === 1 ? ' og den ene dagen' : ` og de ${days} dagene`}. Blokkene, sporene og hver økt du har trent blir stående som de er – økter som allerede er lagt inn i kalenderen blir også stående. Det kan ikke angres.`,
+	keep: 'Behold mønsteret',
+	starterToast: 'En uke å starte fra',
+	starterFromProfile: (days: number) =>
+		`Laget fra ${days === 1 ? 'dagen' : `de ${days} dagene`} du sier du kan trene på`,
+	starterFromDefault:
+		'En uke med fire dager som utgangspunkt – du har ikke satt treningsdagene dine, så ingenting ble lest derfra',
+	starterTail: (built: string) =>
+		`${built}, med den siste dagen lang. Hver dag kan flyttes, vektes eller fjernes. Ukene fylles fra den når horisonten når dem.`,
+	nameRequired: 'Gi mønsteret et navn.',
+	whichDay: 'Hvilken ukedag?',
+	weightRequired:
+		'Hvor stor er dagen ved siden av de andre? f.eks. 1, eller 2,5',
+} as const
+
+/** Kopier uke, under Uker (#415). */
+export const SESONG_COPY_LABELS = {
+	intro:
+		'Hver økt i uka du velger kopieres til de samme dagene i den andre uka, på samme tid. Hver kopi får sin egen økt, så de to ukene er adskilt fra første stund – endre den ene, så står den andre.',
+	asWritten:
+		'En uke kopieres slik du skrev den. Den strekkes ikke for å møte målet i uka den havner i – ber den uka om mer, viser lista det slik den viser enhver uke du har satt selv.',
+	oneWeek: 'Planen har én uke, så det er ingen annen uke å kopiere til.',
+	source: 'Kopier denne uka',
+	target: 'Til denne uka',
+	copy: 'Kopier uka',
+	week: (week: number) => `Uke ${week}`,
+	weekOption: (week: number, date: string) => `Uke ${week} · ${date}`,
+	filled: (week: number) => `Uke ${week} har allerede økter`,
+	nothingWritten: 'Ingenting er skrevet ennå.',
+	noneReplaced: 'Ingenting i den uka blir erstattet.',
+	replacing: (count: number, source: string | null) =>
+		`${nbSessions(count)[0]!.toUpperCase()}${nbSessions(count).slice(1)} blir slettet og skrevet på nytt fra ${source ?? 'uka du valgte'}. Endringer du har gjort i dem forsvinner, og det kan ikke angres.`,
+	keeping: (count: number) =>
+		` ${nbSessions(count)[0]!.toUpperCase()}${nbSessions(count).slice(1)} blir stående som de er – du har allerede trent eller logget dem, så en kopi rører dem aldri.`,
+	replace: 'Erstatt og kopier',
+	orEmpty: 'Eller velg en tom uke i stedet.',
+	done: 'Uka er kopiert',
+	/** `4 økter fra uke 41 til uke 43, slik du skrev dem. …`. */
+	sentence: (sessions: number, from: number, to: number, replaced: number) =>
+		`${nbSessions(sessions)} fra uke ${from} til uke ${to}, slik du skrev dem. Endre den ene uka – den andre står.${replaced > 0 ? ` ${nbSessions(replaced)} ble erstattet.` : ''}`,
+	noPrescription:
+		'En økt uten en økt bak seg ble utelatt – det var ingenting å kopiere.',
+} as const
+
+/** The roster of Training Tracks on the summary card (#414). */
+export const SESONG_TRACK_LABELS = {
+	list: 'Treningsspor',
+	/** `· i km/uke · starter på 40 km/uke`. */
+	line: (unit: string, start: string | null) =>
+		`· i ${unit}${start == null ? '' : ` · starter på ${start}`}`,
+	reAnchored: (times: number, latest: string) =>
+		` · nytt startnivå ${times === 1 ? 'én gang' : `${times} ganger`}, sist til ${latest}`,
+	add: 'Legg til et spor',
+	addDetail: (names: string) => `${names} – hver i en enhet den beholder.`,
+	remove: 'Fjern',
+	removeName: (track: string) => `Fjern sporet ${track.toLowerCase()}`,
+	removeConfirm: (track: string) => `Fjerne sporet ${track.toLowerCase()}?`,
+	removeBody: (track: string) =>
+		`Dette fjerner startnivået, stigningen og uker du har satt selv på sporet, og alle dager i mønsteret som tok volum fra det. Fasene står som de er, og det gjør hver økt du har trent. Du kan lage et spor for ${track.toLowerCase()} igjen etterpå – det starter på nytt, og du velger enheten igjen.`,
+	keep: 'Behold sporet',
+	removeButton: 'Fjern sporet',
+	discipline: 'Sport',
+	plannedIn: 'Planlegges i',
+	ownUnit: '· styrkens egen enhet, ikke et valg',
+	unit: 'Enhet',
+	pickUnit: 'Velg enheten du planlegger i',
+	proposed: 'Foreslått fra din egen historikk. ',
+	noHistoryUnit: (weeks: number) =>
+		`Ingenting i de siste ${weeks} ukene å lese en enhet fra, så du velger selv. `,
+	unitFixed:
+		'Enheten ligger fast når sporet finnes – å endre den ville skrevet om enheten i uker du har trent, så det er et nytt spor og ikke en endring.',
+	startingVolume: (unit: string | null) =>
+		unit ? `Startvolum (${unit})` : 'Startvolum',
+	anchorNone: (weeks: number) =>
+		`Ingenting i de siste ${weeks} ukene å lese dette fra – skriv ukevolumet du starter på.`,
+	anchorAverage: (
+		weeks: number,
+		average: string,
+		total: string,
+		trained: number,
+	) =>
+		`De siste ${weeks} ukene var snittet ${average} (${total} til sammen)${trained === weeks ? '' : ` – du trente ${trained} av dem`}.`,
+	anchorTail:
+		' Startvolumet gjelder fra planens første uke, og fasene du allerede har er fasene sporet måles over.',
+	addButton: 'Legg til spor',
+	disciplineRequired: 'Velg hvilken sport sporet måler',
+	unitRequired: 'Velg enheten du planlegger sporet i',
+	anchorRequired: 'Et startvolum må fylles inn',
+	anchorPositive: 'Startvolumet er mer enn null',
+} as const
+
+/** Every refusal the plan page's action says, as the athlete reads it. */
+export const SESONG_REFUSAL_LABELS = {
+	unknown: 'Det kan ikke denne siden gjøre.',
+	phaseGone: 'Den fasen er ikke lenger en del av planen.',
+	outlineGone: 'Den planen kan ikke endres.',
+	position: 'Velg hvor den nye fasen skal ligge.',
+	shapeUnknown: 'Den formen finnes ikke i appen. Ingenting ble endret.',
+	noEvent: 'Planen har ikke noe løp, så det er ingenting å tilpasse den til.',
+	alreadyFits: 'Planen slutter allerede i uka for løpet.',
+	cannotFit:
+		'Blokkene kan ikke endres til å nå løpet uten at én av dem forsvinner. Kort ned eller fjern en blokk selv.',
+	planResting:
+		'Planen hviler mens planen mot løpet ditt er i gang, så ingen uker legges for den nå.',
+	patternGone: 'Det ukemønsteret er ikke lenger en del av planen.',
+	noStarterWeek:
+		'Treningsdagene dine sier at du trener ingen dager, så det er ingen uke å lage. Sett treningsdagene i utøverprofilen, eller gi et mønster navn og legg til dagene selv.',
+	dayGone: 'Den dagen er ikke lenger en del av mønsteret.',
+	trackGone: 'Det sporet er ikke lenger en del av planen.',
+	weekOutside: 'Den uka er ikke i planen.',
+	weekNotInPlan:
+		'Den uka er ikke en av ukene i planen. Velg en uke mellom den første og den siste, eller legg til uker i planen først.',
+	anchorGone: 'Det startnivået er ikke lenger en del av planen.',
+	trackMissing: 'Velg hvilket spor dagen tar fra.',
+	workoutMissing: 'En fast dag legger inn en økt, så velg hvilken.',
+	dayKindUnknown:
+		'En dag er enten en fast økt eller en andel av uka. Ingenting ble lagt til.',
+	blockGone: 'Den styrkeblokka er ikke lenger en del av planen.',
+	alreadyTracked:
+		'Planen måler allerede den sporten. Ett spor per sport, så endre det du har.',
+	lastTrack:
+		'En plan måler minst én sport. Slett selve planen hvis du ikke vil ha noen.',
+	badValue: 'Det er ikke en verdi denne fasen kan ha.',
+	planTooLong: 'Da ville planen gått over to år. Kort ned en fase først.',
+	lastPhase:
+		'En plan har minst én fase. Slett selve planen hvis det er det du vil.',
+	phaseAtEdge: 'Den fasen er allerede ytterst i den enden av sesongen.',
+	workoutGone:
+		'Den økta er ikke lenger din. Velg en annen økt for denne dagen.',
+	workoutMismatch:
+		'Den økta er en annen sport enn sporet til dagen, og en dag tar volumet fra sitt eget spor. Velg en økt på det sporet.',
+	atEdge: 'Den er allerede ytterst i den enden av rekkefølgen.',
+	earliestAnchor:
+		'Sesongen beholder det første startnivået – hver uke fram til neste nye startnivå regnes ut fra det. Endre tallet i stedet, eller fjern et senere startnivå.',
+	sameWeek: 'Det er samme uke to ganger. Velg en annen uke å kopiere til.',
+	sourceEmpty:
+		'Den uka har ingen økter, så det er ingenting å kopiere. Velg en uke du allerede har fylt.',
+	nothingToCopy:
+		'Den uka har bare registrerte aktiviteter, og de har ingen økt å kopiere. Ingenting ble endret.',
+	notStrengthTrack:
+		'Styrkeblokker hører til et styrkespor, og det sporet er et utholdenhetsspor. Ingenting ble endret.',
+	segmentPastPlan:
+		'Blokka ville gått forbi den siste uka i planen. Kort den ned, start den tidligere, eller legg til uker i planen.',
+	weekOpensSegment:
+		'En annen styrkeblokk starter allerede den uka. Start denne en annen uke.',
+	segmentsOverlap:
+		'Blokka ville overlappet en annen styrkeblokk. Blokker ligger etter hverandre, og ukene mellom to av dem er uten styrke.',
+	presetDone: 'Kopiert inn i planen',
+	presetDoneDetail:
+		'Den er din nå – endre hva du vil. Ingenting er knyttet til formen du valgte.',
+	fitDone: 'Planen lander på løpet',
+	fitTail: ' Endre lengden på en blokk tilbake hvis det ikke var det du ville.',
+	deleted: 'Planen er slettet',
+	deletedDetail: 'Løpet og øktene du har trent er urørt.',
+	fitAdd: (weeks: number) =>
+		`Legg til ${nbWeeks(weeks)} så den lander på løpet`,
+	fitRemove: (weeks: number) =>
+		`Ta bort ${nbWeeks(weeks)} så den lander på løpet`,
+	/** `Grunntrening 4 → 6 uker, Oppbygging 4 → 3 uker`. */
+	fitChange: (name: string, from: number, to: number) =>
+		`${name} ${from} → ${nbWeeks(to)}`,
+	fitLengthens: (changes: string) =>
+		`Forlenger grunntreningen for å nå løpet: ${changes}.`,
+	fitShortens: (changes: string) =>
+		`Tar ukene fra grunntreningen først, så framover gjennom sesongen: ${changes}. Nedtrappingen er urørt.`,
+} as const
+
+/** The analytical season chart, under Avansert (#413). */
+export const SESONG_CHART_LABELS = {
+	title: 'Sesongdiagram',
+	/** `10 uker · Løping i km/uke`. */
+	aside: (weeks: number, track: string, unit: string) =>
+		`${nbWeeks(weeks)} · ${track} i ${unit}`,
+	track: 'Spor',
+	readIn: 'Les i',
+	layers: 'Lag',
+	derived: 'utledet',
+	readInAuthored: (unit: string) =>
+		`Les i ${unit.toLowerCase()}, slik du skrev det`,
+	readInDerived: (unit: string) => `Les i ${unit.toLowerCase()}, utledet`,
+	layer: {
+		volume: 'Volum',
+		fitness: 'Form',
+		rhythm: 'Rytme',
+		ramp: 'Stigning',
+		emphasis: 'Vekt',
+		form: 'Overskudd',
+	},
+	tableCaption: (track: string, unit: string, authoredIn: string | null) =>
+		`Volum for ${track.toLowerCase()} per treningsuke, i ${unit}${authoredIn ? `, en utledet lesning av et spor skrevet i ${authoredIn}` : ''}. Gå over diagrammet for å lese utregningen for en uke i panelet under.`,
+	columns: {
+		week: 'Uke',
+		starts: 'Starter',
+		block: 'Blokk',
+		role: 'Rolle',
+		change: 'Endring',
+		emphasis: 'Vekt',
+	},
+	noChange: 'Ingen endring å lese',
+	ariaVolume: (track: string, unit: string) =>
+		`Volum for ${track.toLowerCase()} gjennom sesongen, i ${unit}. Bruk piltastene for å lese en uke.`,
+	event: 'Løp',
+	na: 'mangler',
+	fitnessUnavailable: (reason: string) =>
+		`Formkurven kan ikke regnes ut – ${reason}.`,
+	fitnessAria:
+		'Beregnet form (CTL) gjennom sesongen, regnet fram fra planen din. Bruk piltastene for å lese en uke.',
+	fitnessCaption: (eventName: string | null) =>
+		`Beregnet form (CTL) på slutten av hver treningsuke, regnet fram fra ${eventName ? `planen mot ${eventName}` : 'planen din'}.`,
+	fitnessColumn: 'Beregnet form (CTL)',
+	fitnessHint: 'Trykk på en uke for å lese formen planen gir den.',
+	fitnessWeek: (week: number, ctl: string) =>
+		`Uke ${week} · beregnet form ${ctl}`,
+	gapNoAnchor:
+		'det er ingen registrert belastning å regne planen fram fra ennå',
+	gapBaseline: (day: number, of: number) =>
+		`formgrunnlaget bygges fortsatt, dag ${day} av ${of}`,
+	gapUnpriced: 'planen har ingen uke en belastning kan leses fra',
+	basisFrom: (from: string) =>
+		`Regnet fram fra formen du hadde inn i den første uka, gjennom planens egne uker – ${from}.`,
+	basisConventions: (conventions: string) =>
+		`Priset gjennom din egen sonemodell, ${conventions}.`,
+	basisOneNumber: 'Planen er ett tall i uka, så bare formen regnes fram.',
+	basisTrack: (track: string, unit: string) => `${track} i ${unit}`,
+	inspectHint:
+		'Trykk på en uke for å lese den – tallene, og hvor et utledet tall kommer fra.',
+	eventWeek: ' · uka for løpet',
+	handSetWeek: ' · du satte denne uka selv',
+	roleWeek: (role: string) => role,
+	stepNone: 'Ingen endring å lese mot uka før.',
+	stepOn: (rate: string) => `${rate} mot uka før.`,
+	rampConvention: 'Stigning: vanlig praksis.',
+	rampAuthored: (rate: string) => `Stigning satt til ${rate}.`,
+	noQuality: 'Ingen kvalitetsøkter denne uka.',
+	opening: 'Sesongstart',
+	reAnchored: 'Nytt startnivå',
+	blockOpens: (track: string) =>
+		`En blokk med ${track.toLowerCase()} starter denne uka`,
+	overflow:
+		'Kvalitetsøktene alene ber om mer enn ukas volum. Det rolige arbeidet går ned til null, og planen står slik du skrev den.',
+	whereFrom: 'Hvor tallet kommer fra',
+	substitution: (
+		requested: number,
+		recipe: string,
+		band: string,
+		declared: number,
+	) =>
+		`Sone ${requested} prises fra ${recipe} sone ${band}, den nærmeste sone ${declared} sonemodellen din har.`,
+	buckets: 'Uka delt opp i intensiteter',
+	bucketColumns: {
+		bucket: 'Del',
+		hours: 'Timer',
+		distance: 'Distanse',
+		load: 'Belastning',
+		intensity: 'Intensitet',
+	},
+	easy: 'Rolig',
+	steps: {
+		authored: 'Du skrev',
+		'quality-hours': 'Kvalitetstid i sonen',
+		'quality-km': 'Kvalitetsdistanse',
+		'quality-tss': 'Kvalitetsbelastning',
+		'easy-hours': 'Rolig tid',
+		'easy-km': 'Rolig distanse',
+		'easy-tss': 'Rolig belastning',
+		'easy-pace-ratio': 'Forhold rolig fart',
+		'speed:easy': 'Rolig fart',
+		'speed:quality': 'Kvalitetsfart',
+		'if:easy': 'Rolig intensitet',
+		'tss-per-hour:easy': 'Rolig belastning per time',
+		'total-km': 'Uka, i km',
+		'total-hours': 'Uka, i timer',
+		'total-tss': 'Uka, i TSS',
+	} as Record<string, string>,
+	zoneSteps: {
+		'quality-hours': (zone: string) => `Tid i ${zone}`,
+		'quality-km': (zone: string) => `Distanse i ${zone}`,
+		'quality-tss': (zone: string) => `Belastning fra ${zone}`,
+		if: (zone: string) => `Intensitet i ${zone}`,
+		'tss-per-hour': (zone: string) => `Belastning per time i ${zone}`,
+	} as Record<string, (zone: string) => string>,
+	sourceConvention: (convention: string, citation: string) =>
+		`fra ${convention} – vanlig praksis, ${citation}`,
+	sourceThreshold: (field: string) => `fra ${field}`,
+	sourceRecipe: (recipe: string, band: string, description: string | null) =>
+		`fra sonemodellen ${recipe}, sone ${band}${description ? ` (${description})` : ''}`,
+	sourceRides: (rides: number, weeks: number) =>
+		`fra ${rides} registrerte sykkeløkter i de ${weeks} ukene før planen`,
+	sourceArithmetic: 'regnet ut fra tallene under',
+	unavailable: (reason: string) => `Utilgjengelig – ${reason}`,
+	formTitle: 'Overskudd tegnes ikke her',
+	formBody:
+		'Planen sier hvor mye en uke inneholder, ikke hvilke dager, så en framregning må spre hver uke jevnt. Formen tåler det – den leser seks uker om gangen – men trøtthet leser de siste sju dagene, og overskudd er form minus trøtthet. Spredt flatt ville begge vært former av gjennomsnittet og ikke av treningen din, så dette laget tegner ingenting i stedet for en kurve planen ikke kan bære. Det ekte overskuddet ditt står på I dag, fra det du faktisk gjorde.',
+	authoredMarker: 'skrevet',
+	derivedMarker: 'utledet',
+} as const
+
+/**
+ * The shapes under Avansert (_Start fra en form_, #405), named the way the
+ * Filosofi card names a philosophy: `Klassisk 3:1`, `Klassisk 3:1, lang
+ * innkjøring` — one name for one method on one page (audit B7).
+ */
+export const SESONG_SHAPE_LABELS = {
+	lengthSuffix: {
+		short: ', kort innkjøring',
+		standard: '',
+		long: ', lang innkjøring',
+	},
+	lengthNote: {
+		short: 'Den samme sesongen over færre uker.',
+		standard: null,
+		long: 'Den samme sesongen over flere uker.',
+	},
+	list: 'Sesongformer',
+	weeks: (weeks: number) => nbWeeks(weeks),
+	replaces: 'Erstatter blokkene du har nå.',
+	apply: (name: string) => `Bruk ${name}`,
+	copied:
+		'Hver form kopieres inn i planen din. Å bruke en erstatter blokkene du har nå – og det som lander er vanlige blokker du kan gi nytt navn, endre lengden på og flytte. Ingenting er knyttet til formen du valgte.',
+	notSize:
+		'En form sier hvordan sesongen bygges, aldri hvor store ukene er. Startuka, treningssporene og volumet du starter på står som før.',
+	fixedLength:
+		'Hver form har en fast lengde, så en kortere eller lengre innkjøring gjør at planen slutter før eller etter løpet i stedet for å strekke en blokk. Linja over blokkene sier hvilken – og tilbyr å tette gapet. Uker tas fra grunntreningen først, så framover gjennom sesongen, og nedtrappingen kortes aldri ned. Hver form finnes i tre lengder, så de fleste innkjøringer har en som passer.',
+	climb: (rate: string) =>
+		`Alle stiger etter vanlig praksis, rundt ${rate} per harde uke. Det er der trenerpraksis ligger, ikke en sikkerhetsgrense: ingen volumregel er vist å forebygge skader, så det er et utgangspunkt og ikke en regel.`,
+	cuts: (recovery: string, taper: string) =>
+		`Lette uker og nedtrapping følger vanlig praksis også – ${recovery} fra siste harde uke og ${taper} mot løpet. Ingen form velger dem, så de flytter seg hvis praksisen gjør det. Sett dine egne på en blokk etterpå.`,
+	rhythms:
+		'Rytmene er også vanlig praksis. Ingen studie har vist at tre harde uker og en lett slår to og en, eller å ta en lett uke når du trenger den – så velg rytmen som passer livet ditt. Du kan endre den på hver blokk.',
+	loads: (rhythm: string) => `Rytme ${rhythm}.`,
+	rhythmChanges: 'Rytmen skifter fra blokk til blokk.',
+	step: (rate: string, phase: string) =>
+		` Volumet går ${rate} inn i ${phase}, med vilje, når kvaliteten øker.`,
+	tableCaption: (name: string) =>
+		`${name}: belastningen formen gir, hver uke som andel av første uke`,
+	columns: { week: 'Uke', block: 'Blokk', role: 'Rolle', load: 'Belastning' },
+	week: (week: number) => `Uke ${week}`,
+	summary: (
+		name: string,
+		weeks: number,
+		peak: string,
+		peakWeek: number,
+		recovery: number,
+		taper: number,
+	) =>
+		`${name}: en belastning over ${nbWeeks(weeks)}. Den starter på volumet du starter fra og topper på ${peak} av det i uke ${peakWeek}. ${recovery === 1 ? '1 lett uke' : `${recovery} lette uker`} underveis, så trapper den ned over ${taper === 1 ? 'den siste uka' : `de siste ${taper} ukene`}. Hver uke står i tabellen som følger.`,
+} as const
+
+// ---------------------------------------------------------------------------
+// Events pages (`/training/events`, new, detail, edit) in Norwegian (ADR 0081,
+// round 2): the list, the form, the detail and its dialogs. The English
+// `EVENT_*_LABELS` above stay for any caller still on them.
+// ---------------------------------------------------------------------------
+
+/** An Event's status, said on the Events pages. */
+export const NB_EVENT_STATUS_LABELS: Record<EventStatus, string> = {
+	planned: 'Planlagt',
+	completed: 'Gjennomført',
+	cancelled: 'Avlyst',
+}
+
+/**
+ * What an Event's priority means, beside its letter on the form. The letter
+ * itself is the badge (`A`), as on Sesong's Events card.
+ */
+export const NB_EVENT_PRIORITY_LABELS: Record<EventPriority, string> = {
+	A: 'Hovedmål',
+	B: 'Viktig',
+	C: 'Underveis',
+}
+
+/** The form's target kinds, keyed as {@link TARGET_KIND_LABELS}; `''` is none. */
+export const NB_TARGET_KIND_LABELS: Record<
+	keyof typeof TARGET_KIND_LABELS,
+	string
+> = {
+	'': 'Ingen mål',
+	finish: 'Fullføre',
+	time: 'Tid',
+	pace: 'Fart',
+	distance: 'Distanse',
+	placement: 'Plassering',
+	qualitative: 'Med egne ord',
+}
+
+export const EVENTS_LABELS = {
+	// The list.
+	title: 'Løp',
+	metaTitle: 'Løp | Trainm8',
+	backToSeason: 'Sesong',
+	newEvent: 'Nytt løp',
+	upcoming: 'Kommende',
+	past: 'Tidligere og avlyste',
+	emptyTitle: 'Ingen løp ennå',
+	emptyBody:
+		'Løp, testløp og datomål samles her, og sesongen planlegges mot dem.',
+	emptyAction: 'Legg inn et løp',
+	priority: (letter: string) => `Prioritet ${letter}`,
+
+	// The form (new and edit).
+	newTitle: 'Nytt løp',
+	newMetaTitle: 'Nytt løp | Trainm8',
+	editTitle: 'Endre løpet',
+	editMetaTitle: (name: string) => `Endre ${name} | Trainm8`,
+	name: 'Navn',
+	namePlaceholder: 'f.eks. Trondheim Maraton',
+	kind: 'Type',
+	priorityLegend: 'Prioritet',
+	startDate: 'Dato',
+	endDate: 'Siste dag',
+	endDateHint: 'Bare for løp over flere dager.',
+	optional: 'valgfritt',
+	disciplines: 'Idrett',
+	location: 'Sted',
+	locationPlaceholder: 'f.eks. Trondheim',
+	target: 'Mål',
+	targetTime: 'Måltid',
+	targetTimeHint: 'Timer, minutter og sekunder, f.eks. 3:30:00 eller 42.30.',
+	targetPace: 'Fart',
+	targetPaceHint: 'Minutter og sekunder per km, f.eks. 4:15.',
+	targetDistance: 'Distanse',
+	targetDistanceHint: 'I km, f.eks. 42,2.',
+	targetPlacement: 'Plassering',
+	targetPlacementHint: 'f.eks. 3 for pallen.',
+	targetDescription: 'Målet med egne ord',
+	targetDescriptionPlaceholder: 'f.eks. Sterk hele veien',
+	notes: 'Notater',
+	notesPlaceholder: 'Det du vil huske om løpet',
+	create: 'Lag løpet',
+	save: 'Lagre endringene',
+
+	// The form's errors, each said at its field.
+	nameRequired: 'Skriv hva løpet heter',
+	nameTooLong: (max: number) => `Navnet kan ha høyst ${max} tegn`,
+	kindRequired: 'Velg hva slags løp det er',
+	priorityRequired: 'Velg en prioritet',
+	startDateRequired: 'Skriv en gyldig dato',
+	endDateInvalid: 'Skriv en gyldig dato, eller la feltet stå tomt',
+	endDateBeforeStart: 'Siste dag kan ikke være før første dag',
+	disciplineRequired: 'Velg minst én idrett',
+	locationTooLong: (max: number) => `Stedet kan ha høyst ${max} tegn`,
+	notesTooLong: (max: number) => `Notatene kan ha høyst ${max} tegn`,
+	targetTimeInvalid: 'Skriv tiden som 3:30:00 eller 42:30',
+	targetPaceInvalid: 'Skriv farten som 4:15',
+	targetDistanceInvalid: 'Skriv distansen i km, f.eks. 42,2',
+	targetPlacementInvalid: 'Skriv en plassering, 1 eller høyere',
+	targetDescriptionRequired: 'Skriv hva målet er',
+	formInvalid: 'Noe i skjemaet stemmer ikke. Se feltene over.',
+
+	// The detail.
+	edit: 'Endre',
+	cancel: 'Avlys',
+	delete: 'Slett',
+	keep: 'Behold løpet',
+	cancelTitle: 'Avlyse løpet?',
+	cancelBody:
+		'Løpet blir stående i listen som avlyst, så planhistorikken din er intakt. Vil du fjerne det helt, bruk Slett i stedet.',
+	cancelConfirm: 'Avlys løpet',
+	deleteTitle: 'Slette løpet?',
+	deleteBody: (planned: boolean) =>
+		planned
+			? 'Løpet blir fjernet for godt. Vil du beholde det i listen som avlyst, bruk Avlys i stedet. Dette kan ikke angres.'
+			: 'Løpet blir fjernet for godt. Dette kan ikke angres.',
+	deleteConfirm: 'Slett løpet',
+	targetHeading: 'Mål',
+	targetTop: (position: number) =>
+		position === 1 ? 'Vinne' : `Topp ${position}`,
+	result: 'Resultat',
+	linkedSession: 'Økta som er resultatet',
+	viewSession: 'Se økta',
+	unlink: 'Fjern koblingen',
+	setResult: 'Velg resultat',
+	noCandidates: 'Ingen økter i løpets idrett på løpsdagen ennå.',
+	candidatesOn: (date: string) => `Økter ${date} i løpets idrett:`,
+	setAsResult: 'Bruk som resultat',
+	untitledSession: 'Økt uten navn',
+	notFound: 'Fant ikke løpet',
+} as const
 
 /**
  * Plan creation's first step (`/training/plan/new`), which is Sesong's own
@@ -2916,8 +4723,2531 @@ export const CONNECTION_HUB_STATUS_LABELS: Record<ConnectionHubStatus, string> =
 	}
 
 // ---------------------------------------------------------------------------
+// Token Sentence words (owner decision 8, round 2; ADR 0089)
+// ---------------------------------------------------------------------------
+
+/**
+ * The **Token Sentence**'s own words in Norwegian, wherever it is drawn: the
+ * echo under the writing line, a session's row, the Workout Detail View and
+ * its editor. They replace ADR 0027 A3's English glue (`rest`, `+ block`,
+ * `repeat count`) on display only — nothing stored is a word from here: a rest
+ * is a `RestSpec`, a zone is its stored label, and the writing line's grammar
+ * (`p 90 s`, `pause`) is read in `workout-sentence.ts`, not here.
+ */
+export const TOKEN_SENTENCE_WORDS = {
+	/** A rest with nothing more said, and the word after a rest's time. */
+	rest: 'pause',
+	/** `1 min 30 s pause`. */
+	restFor: (duration: string) => `${duration} pause`,
+	/** A recovery by distance: `200 m rolig`. */
+	recoveryOver: (distance: string) => `${distance} rolig`,
+	/** A recovery that ends at a heart rate: `til puls < 120 bpm`. */
+	untilHeartRate: (bpm: number) => `til puls < ${bpm} bpm`,
+	untilHeartRatePct: (pct: number) => `til puls < ${pct} % av maks`,
+	/** A send-off: the set leaves on a clock, `på 1:40`, `på CSS + 10 s`. */
+	sendOff: (clock: string) => `på ${clock}`,
+	/** Metres of climb: `200 hm`. */
+	vertical: (metres: number) => `${metres} hm`,
+	/** The placeholders a step shows before its exercise or sets are chosen. */
+	exercise: 'øvelse',
+	sets: 'sett',
+	/** A load with no number. */
+	bodyweight: 'kroppsvekt',
+	bodyweightPlus: (kg: string) => `kroppsvekt + ${kg} kg`,
+	bodyweightMinus: (kg: string) => `kroppsvekt − ${kg} kg`,
+	pctBodyweight: (pct: number) => `${pct}% kroppsvekt`,
+	/** The absence beside a load that needs an anchor this athlete lacks. */
+	noRepMax: (reps: number) => `ingen ${reps}RM registrert`,
+	no1RM: 'ingen 1RM registrert',
+	noBodyweight: 'ingen kroppsvekt registrert',
+	notALoad: 'ingen belastning',
+	/** The editor's last line: one more block. */
+	addBlock: '+ blokk',
+	addBlockAction: 'Legg til blokk',
+} as const
+
+/** A rest that is an act, not a clock (ADR 0007). */
+export const REST_ACT_WORDS: Record<RestAct, string> = {
+	jogBack: 'jogg tilbake',
+	walkDown: 'gå ned',
+	rideDown: 'sykle ned',
+	swimDown: 'svøm rolig',
+}
+
+/**
+ * The title over a token's popover in the editor — `ganger`, not `REPEAT
+ * COUNT`. Keyed by the editor's own kinds of popover.
+ */
+export const TOKEN_EDITOR_TITLES = {
+	duration: 'mengde',
+	distance: 'mengde',
+	repeat: 'ganger',
+	rest: 'pause',
+	restSeconds: 'pause',
+	notes: 'notat',
+	intensity: 'intensitet',
+	sets: 'sett',
+	discipline: 'idrett',
+} as const
+
+/**
+ * A stored zone label read in Norwegian. The English words the archetype
+ * seeds, the stamp's older rows and the Catalogue store (`easy`, `threshold`)
+ * read as the words the athletes train in; a zone code (`Z2`, `I4`, `T`) and a
+ * Norwegian word are already what the athlete reads, and pass through. The
+ * stored label never changes.
+ */
+const ZONE_LABEL_WORDS: Record<string, string> = {
+	recovery: 'restitusjon',
+	easy: 'rolig',
+	endurance: 'rolig',
+	aerobic: 'rolig',
+	steady: 'moderat',
+	moderate: 'moderat',
+	tempo: 'tempo',
+	threshold: 'terskel',
+	'sub-threshold': 'under terskel',
+	subthreshold: 'under terskel',
+	interval: 'intervall',
+	intervals: 'intervall',
+	vo2max: 'hardt',
+	'vo2 max': 'hardt',
+	'vo₂ max': 'hardt',
+	hard: 'hardt',
+	max: 'maks',
+	maximal: 'maks',
+	'warm-up': 'oppvarming',
+	warmup: 'oppvarming',
+	'cool-down': 'nedjogg',
+	cooldown: 'nedjogg',
+}
+
+/** `Rolig` for a stored `easy`; `Z2` for `Z2`. Capitalised, as the chip draws it. */
+export function zoneLabelWord(label: string): string {
+	const trimmed = label.trim()
+	const word = ZONE_LABEL_WORDS[trimmed.toLowerCase()] ?? trimmed
+	return capitalize(word)
+}
+// Round 2 · first run, stamped titles, integrations and upload
+// (branch claude/first-run-integrations). One block; other PRs add their own.
+// ---------------------------------------------------------------------------
+
+/** What a `StatusButton` says to a screen reader while it works, and when done. */
+export const STATUS_BUTTON_LABELS = {
+	pending: 'Arbeider',
+	success: 'Ferdig',
+} as const
+
+/**
+ * What a session the plan lays is called (`stampedSessionTitle`): its kind,
+ * then the sport — `Rolig økt · Løping`, `Terskeløkt · Sykling`. The first
+ * run's two-week preview reads the same words, so what it shows is what lands
+ * on I dag. Stored as the new Workout's title (the athlete can rename it);
+ * sessions laid before round 2 keep the duration title they were given.
+ */
+export const STAMPED_SESSION_LABELS = {
+	easy: 'Rolig økt',
+	long: 'Langtur',
+	/** A long swim is not a _tur_. */
+	longSwim: 'Lang økt',
+	zone: {
+		3: 'Tempoøkt',
+		4: 'Terskeløkt',
+		5: 'Intervalløkt',
+	},
+	/** The hard sessions of a week, as the first run's plan names them. */
+	zoneShort: {
+		3: 'tempo',
+		4: 'terskel',
+		5: 'intervaller',
+	},
+} as const
+
+/**
+ * The integrations page (`/settings/integrations`, #505 story 59, ADR 0081):
+ * where the athlete's sessions come from. intervals.icu is the one source to
+ * connect (#505: Strava is out of scope, so it is never offered; a Strava
+ * connection made before keeps its card, to sync or disconnect).
+ */
+export const INTEGRATIONS_LABELS = {
+	title: 'Integrasjoner',
+	intro:
+		'Her kommer øktene dine fra. En tilkoblet kilde importerer øktene av seg selv.',
+	connected: 'Tilkoblet',
+	available: 'Tilgjengelig',
+	comingSoon: 'Kommer',
+	badge: {
+		revoked: 'Må kobles til på nytt',
+		backfilling: 'Henter historikk',
+		connected: 'Tilkoblet',
+		comingSoon: 'Kommer',
+	},
+	/** `Sist synkronisert 23. mai kl. 17.00` — when the app last asked. */
+	lastChecked: 'Sist synkronisert',
+	syncNow: 'Synkroniser nå',
+	syncing: 'Synkroniserer …',
+	reconnect: 'Koble til på nytt',
+	disconnect: 'Koble fra',
+	keepConnected: 'Behold tilkoblingen',
+	cancel: 'Avbryt',
+	upload: 'Last opp økter',
+	connectSoon: 'Kobling kommer snart',
+	/** The confirm and the toast after it, for either provider. */
+	disconnectTitle: (name: string) => `Koble fra ${name}?`,
+	disconnectBody: (name: string) =>
+		`Øktene du har importert fra ${name}, blir i treningshistorikken din. Å koble fra stopper bare nye fra å komme. Du kan koble til igjen når som helst.`,
+	disconnectConfirm: (name: string) => `Koble fra ${name}`,
+	disconnected: (name: string) => `Koblet fra ${name}`,
+	disconnectedBody: 'Øktene du har importert, blir i treningshistorikken din.',
+	dualSource:
+		'Både Strava og intervals.icu er koblet til. En økt som når begge, kan komme hit to ganger – én fra hver. Begge lagres; slett den du ikke vil beholde.',
+	intervalsicu: {
+		name: 'intervals.icu',
+		revoked:
+			'intervals.icu godtok ikke den lagrede nøkkelen. Lim inn en ny for å fortsette importen.',
+		backfilling:
+			'Henter treningshistorikken din fra intervals.icu … Det skjer i bakgrunnen.',
+		daily:
+			'Synkroniseres av seg selv én gang i døgnet. Trykk Synkroniser nå for det nyeste.',
+		connect: 'Koble til intervals.icu',
+		keyHelp:
+			'Kopier den personlige API-nøkkelen din fra intervals.icu under Settings → Developer Settings, og lim den inn her. Lager du en ny nøkkel der, slutter de gamle å virke.',
+		keyLabel: 'API-nøkkel',
+		submit: 'Koble til',
+		submitting: 'Kobler til …',
+	},
+	strava: {
+		name: 'Strava',
+		revoked:
+			'Strava trakk tilbake tilkoblingen. Koble til på nytt for å fortsette importen.',
+		backfilling:
+			'Henter 42 dager med historikk fra Strava … Det skjer i bakgrunnen.',
+		connected: 'Nye økter kommer av seg selv.',
+	},
+} as const
+
+/** The provider directory's display words (`app/integrations/directory.ts`). */
+export const PROVIDER_DIRECTORY_LABELS = {
+	strava: {
+		name: 'Strava',
+		tagline: 'Øktene importeres av seg selv etter hver trening.',
+	},
+	'file-upload': {
+		name: 'Filopplasting',
+		tagline: 'FIT-, TCX- eller GPX-filer. Alltid tilgjengelig.',
+	},
+	intervalsicu: {
+		name: 'intervals.icu',
+		tagline:
+			'Gratis import med din personlige API-nøkkel – tar med data fra Garmin og Suunto også. Sjekkes daglig, og du kan synkronisere selv for det nyeste.',
+	},
+	garmin: {
+		name: 'Garmin Connect',
+		tagline:
+			'Garmins API krever opptak i partnerprogrammet deres. Til da har intervals.icu allerede Garmin-dataene dine.',
+	},
+	suunto: {
+		name: 'Suunto',
+		tagline:
+			'Suuntos API er også bare for partnere. intervals.icu har Suunto-dataene dine i dag.',
+	},
+} as const
+
+/**
+ * What a connect or sync says in its toast, or at the key field. The refusals
+ * mirror the first run's (`FIRST_RUN_LABELS.connect`).
+ */
+export const INTEGRATION_TOAST_LABELS = {
+	emptyKey: 'Lim inn API-nøkkelen fra intervals.icu for å koble til.',
+	keyRejected:
+		'intervals.icu godtok ikke nøkkelen. Lager du en ny nøkkel, slutter den gamle å virke – kopier den som gjelder nå fra Settings → Developer Settings.',
+	unreachable:
+		'Vi fikk ikke kontakt med intervals.icu for å sjekke nøkkelen. Prøv igjen om litt.',
+	connected: (name: string) => `Koblet til ${name}`,
+	connectedBody: (name: string) => `${name}-kontoen din er nå koblet til.`,
+	connectFailed: (name: string) => `Kunne ikke koble til ${name}`,
+	syncFailed: 'Synkroniseringen feilet',
+	synced: 'Synkronisert',
+	syncedWith: (name: string) => `Synkronisert med ${name}`,
+	nothingNew: 'Ingen nye økter å importere.',
+	imported: (count: number) =>
+		`${count} ${count === 1 ? 'ny økt' : 'nye økter'} importert.`,
+	saved: (count: number) =>
+		`${count} ${count === 1 ? 'ny økt' : 'nye økter'} lagt i treningsloggen.`,
+	connectFirst: 'Koble til en kilde før du synkroniserer.',
+	connectFirstNamed: (name: string) =>
+		`Koble til ${name} før du synkroniserer.`,
+	couldNotSync: (names: string) =>
+		`Kunne ikke synkronisere ${names}. Se Integrasjoner.`,
+	intervalsicuRevoked:
+		'intervals.icu godtok ikke den lagrede nøkkelen. Lim inn en ny under Integrasjoner for å fortsette importen.',
+	intervalsicuUnavailable:
+		'Vi fikk ikke kontakt med intervals.icu, så ingenting ble importert. Prøv igjen om noen minutter.',
+	stravaRevoked:
+		'Strava trakk tilbake tilgangen. Koble til på nytt under Integrasjoner.',
+	stravaAppInactive:
+		'Strava har slått av appen (status: inactive). Det er på Stravas side – å koble til på nytt hjelper ikke.',
+	stravaScope:
+		'Trainm8 har ikke lov til å lese Strava-øktene dine. Koble til på nytt, og la avkrysningen for økttilgang stå på.',
+	stravaUnavailable: 'Strava er ikke tilgjengelig',
+	/** The Strava OAuth callback's refusals (a reconnect of an old link). */
+	stravaDenied: 'Du sa nei til tilgangen hos Strava.',
+	stravaState: 'Sikkerhetssjekken feilet. Prøv å koble til på nytt.',
+	stravaNoCode: 'Strava sendte ingen godkjenningskode.',
+	stravaNeedsScope:
+		'Trainm8 trenger lov til å se øktene dine. Koble til på nytt, og la avkrysningen for økttilgang stå på.',
+	stravaCouldNotConnect: 'Kunne ikke koble til Strava-kontoen din. Prøv igjen.',
+	stravaNotConfigured: 'Strava er ikke satt opp på denne serveren.',
+	/** "Strava og intervals.icu" */
+	and: (names: readonly string[]) =>
+		names.length > 1
+			? `${names.slice(0, -1).join(', ')} og ${names.at(-1)}`
+			: (names[0] ?? ''),
+} as const
+
+/**
+ * The upload page (`/imports/upload`) and the share sheet's receiver
+ * (`/imports/share-target`), ADR 0049: every file is saved as it lands.
+ */
+export const UPLOAD_LABELS = {
+	title: 'Last opp økter',
+	intro:
+		'Én fil eller mange – eller en hel ZIP, også Strava-eksporten din. Hver økt havner på sin dag i treningsloggen.',
+	files: 'Aktivitetsfiler',
+	filesHint: '.fit, .fit.gz, .tcx, .gpx, .zip eller .gz',
+	choose: 'Velg filer',
+	chosen: (count: number, first: string) =>
+		count === 1 ? first : `${count} filer valgt`,
+	none: 'Ingen filer valgt',
+	drop: 'Eller slipp filene her.',
+	stravaExport: 'Slik ber du Strava om eksporten din',
+	discipline: 'Idrett',
+	disciplineHint: 'Bare for én fil. Ellers leser vi idretten fra fila.',
+	autoDetect: 'Les fra fila',
+	submit: 'Last opp',
+	submitting: 'Laster opp …',
+	noFile: 'Velg minst én fil.',
+	duplicate: 'Denne økta er allerede importert.',
+	/** `3 importert · 1 fantes fra før · 2 feilet` */
+	summary: (imported: number, duplicates: number, failed: number) =>
+		`${imported} importert · ${duplicates} fantes fra før · ${failed} feilet`,
+	seeThem: 'Se dem i treningsloggen',
+	/** The share sheet's answer, as a toast on I dag. */
+	shareImported: (count: number) =>
+		`${count} ${count === 1 ? 'økt' : 'økter'} importert`,
+	shareNothing: 'Ingen økter ble importert',
+	shareDuplicates: (count: number) => `${count} fantes fra før.`,
+	shareFailed: (count: number, reasons: string) =>
+		`${count} ${count === 1 ? 'fil' : 'filer'} kunne ikke leses: ${reasons}`,
+} as const
+
+/**
+ * A file the ingest could not read, said in Norwegian. The parsers throw
+ * English (`Not a valid GPX file`) that other code matches on, so the words
+ * are mapped where they are shown; anything unknown reads as the fallback.
+ */
+const UPLOAD_FAILURE_LABELS: Record<string, string> = {
+	'Not a valid FIT file': 'Ikke en gyldig FIT-fil',
+	'FIT file is corrupt (failed integrity check)': 'FIT-fila er skadet',
+	'FIT file contains no activity session': 'FIT-fila har ingen økt',
+	'FIT session has no start time':
+		'Økta i FIT-fila har ikke noe starttidspunkt',
+	'FIT session has no duration': 'Økta i FIT-fila har ingen varighet',
+	'Not a valid GPX file': 'Ikke en gyldig GPX-fil',
+	'GPX file contains no track points': 'GPX-fila har ingen sporpunkter',
+	'Not a valid TCX file (no activity found)':
+		'Ikke en gyldig TCX-fil (fant ingen økt)',
+	'TCX activity has no start time':
+		'Økta i TCX-fila har ikke noe starttidspunkt',
+	'TCX activity has no duration': 'Økta i TCX-fila har ingen varighet',
+	'Unsupported file type. Accepted: .fit, .fit.gz, .tcx, .gpx, .zip, .gz.':
+		'Filtypen støttes ikke. Bruk .fit, .fit.gz, .tcx, .gpx, .zip eller .gz.',
+	'Could not read the archive.': 'Kunne ikke lese ZIP-fila.',
+}
+
+export function uploadFailureLabel(reason: string): string {
+	return UPLOAD_FAILURE_LABELS[reason] ?? 'Fila kunne ikke leses.'
+}
+
+// ---------------------------------------------------------------------------
+// Meg's sub-pages (round 2): profile, sign-in and security, training settings
+// ---------------------------------------------------------------------------
+
+/**
+ * The pages behind Meg (spec #505 story 59, ADR 0081): the profile and its
+ * sign-in and security pages, and "Trening og terskler" with its readings, gym
+ * and lift numbers. One section so a page's every word is found in one place;
+ * each export is named for the page it serves. The integrations and upload
+ * pages are not here (they belong to the first-run/integrations work).
+ *
+ * Plurals are spelt per count (`1 annen økt`, `2 andre økter`), and every
+ * figure arrives already formatted the Norwegian way (decimal comma) from the
+ * page, so these functions only place words around it.
+ */
+
+/** Page titles (the page header and `<title>`), so the two never disagree. */
+export const MEG_PAGE_TITLES = {
+	profile: 'Profil',
+	photo: 'Profilbilde',
+	changeEmail: 'Bytt e-post',
+	password: 'Passord',
+	createPassword: 'Lag et passord',
+	twoFactor: 'Totrinnsbekreftelse',
+	twoFactorVerify: 'Slå på totrinnsbekreftelse',
+	twoFactorDisable: 'Slå av totrinnsbekreftelse',
+	connections: 'Innloggingskoblinger',
+	passkeys: 'Passnøkler',
+	training: 'Trening og terskler',
+	analyze: 'Det historikken din sier',
+	history: 'Terskelhistorikk',
+	gym: 'Treningsstudioet ditt',
+	lift: 'Tallene dine for løftet',
+	propose: 'Det settene dine sier',
+} as const
+
+/** Words every Meg page shares. */
+export const MEG_COMMON_LABELS = {
+	cancel: 'Avbryt',
+	save: 'Lagre',
+	areYouSure: 'Er du sikker? Trykk igjen',
+	unavailable: 'Ikke tilgjengelig',
+	notGraded: 'ikke vurdert',
+	unknownAction: 'Ukjent handling.',
+	noProfile:
+		'Utøverprofilen din mangler, så det er ingenting å knytte dette til.',
+	liftGone: 'Det løftet finnes ikke lenger.',
+} as const
+
+/** The profile page (`/settings/profile`). */
+export const MEG_PROFILE_LABELS = {
+	changePhoto: 'Bytt profilbilde',
+	account: 'Konto',
+	username: 'Brukernavn',
+	name: 'Navn',
+	saveAccount: 'Lagre kontoen',
+	usernameTaken: 'Det brukernavnet er tatt.',
+	athlete: 'Utøverprofil',
+	timezone: 'Tidssone',
+	weekStartsOn: 'Uka starter',
+	units: 'Enheter',
+	birthdate: 'Fødselsdato',
+	weightKg: 'Vekt (kg)',
+	trainableDays: 'Dager du kan trene',
+	defaultTrainingTime: 'Vanlig treningstid',
+	weeklyCapacity: 'Timer i uka du har til trening',
+	capacityAuthored:
+		'Ditt tall, lagret. Ingenting leser treningen din på nytt for å endre det: historikken sier hva du gjorde, dette sier hva du har plass til.',
+	capacityNoHistory:
+		'Ingenting i treningen din den siste tiden å lese dette fra, så her spør vi: hvor mange timer i uka har du?',
+	/** `avg` and `total` arrive formatted (`4,5`, `18`). */
+	capacityDerived: (
+		windowWeeks: number,
+		weeksTrained: number,
+		avg: string,
+		total: string,
+	) =>
+		`De siste ${windowWeeks} ukene trente du i snitt ${avg} t utholdenhet i uka (${total} t totalt)${
+			weeksTrained === windowWeeks
+				? ''
+				: `, i ${weeksTrained} av ${windowWeeks} uker`
+		}.`,
+	capacityChange: ' Endre det hvis det ikke stemmer med uka di.',
+	saveAthlete: 'Lagre utøverprofilen',
+	saved: 'Lagret.',
+	security: 'Innlogging og sikkerhet',
+	email: 'E-post',
+	password: 'Passord',
+	passwordSet: 'Bytt passordet ditt',
+	passwordMissing: 'Du har ikke passord ennå. Lag et.',
+	twoFactor: 'Totrinnsbekreftelse',
+	twoFactorOn: 'På',
+	twoFactorOff: 'Av',
+	passkeys: 'Passnøkler',
+	passkeysDetail: 'Logg inn med fingeravtrykk, ansikt eller sikkerhetsnøkkel',
+	connections: 'Innloggingskoblinger',
+	connectionsDetail: 'Logg inn med GitHub',
+	training: 'Trening',
+	trainingSettings: 'Trening og terskler',
+	trainingSettingsDetail: 'Terskler, soner, treningsstudio og løft',
+	integrations: 'Koblinger og aktivitetskilder',
+	integrationsDetail: 'intervals.icu og filopplasting',
+	data: 'Dataene dine',
+	download: 'Last ned dataene dine',
+	downloadDetail: 'Alt vi har lagret om deg, som én JSON-fil',
+	otherSessions: (count: number) =>
+		count === 1 ? 'Logg ut av 1 annen økt' : `Logg ut av ${count} andre økter`,
+	onlySession: 'Dette er den eneste innloggingen din.',
+	signedOut: 'Logget ut av de andre øktene.',
+	logout: 'Logg ut',
+	deleteData: 'Slett alle dataene dine',
+	deleteDataDetail:
+		'Kontoen, treningen og alt annet slettes for godt. Det kan ikke angres.',
+	deletedTitle: 'Dataene er slettet',
+	deletedBody: 'Alle dataene dine er slettet.',
+} as const
+
+/**
+ * Weekday names for the profile's pickers, indexed 0 = søndag … 6 = lørdag
+ * (the profile's own numbering, ADR 0005). Capitalised: they stand alone on a
+ * button or in a menu, not mid-sentence.
+ */
+export const MEG_WEEKDAY_LABELS = [
+	'Søndag',
+	'Mandag',
+	'Tirsdag',
+	'Onsdag',
+	'Torsdag',
+	'Fredag',
+	'Lørdag',
+] as const
+
+/** The trainable-day chips, same indexing, three letters. */
+export const MEG_WEEKDAY_SHORT_LABELS = [
+	'Søn',
+	'Man',
+	'Tir',
+	'Ons',
+	'Tor',
+	'Fre',
+	'Lør',
+] as const
+
+export const MEG_UNIT_LABELS = {
+	metric: 'Metrisk (km, kg)',
+	imperial: 'Britisk (mi, lb)',
+} as const satisfies Record<'metric' | 'imperial', string>
+
+/** Profile photo. */
+export const MEG_PHOTO_LABELS = {
+	choose: 'Velg bilde',
+	save: 'Lagre bildet',
+	reset: 'Angre',
+	delete: 'Fjern bildet',
+	required: 'Velg et bilde først.',
+	tooLarge: 'Bildet må være mindre enn 3 MB.',
+} as const
+
+/** Change e-mail, and the two e-mails it sends. */
+export const MEG_EMAIL_LABELS = {
+	intro:
+		'Du får en e-post med en kode på den nye adressen. Bytte skjer først når du har skrevet inn koden.',
+	notice: (oldEmail: string) =>
+		`Vi sender også et varsel til den gamle adressen, ${oldEmail}.`,
+	newEmail: 'Ny e-postadresse',
+	send: 'Send kode',
+	inUse: 'Den e-postadressen er allerede i bruk.',
+	sameDevice: 'Skriv inn koden på samme enhet som du ba om byttet fra.',
+	changedTitle: 'E-posten er byttet',
+	changedBody: (email: string) => `E-postadressen din er nå ${email}.`,
+	codeSubject: 'Trainm8: kode for å bytte e-post',
+	codeHeading: 'Bytte av e-post i Trainm8',
+	codeLine: 'Her er koden din:',
+	codeLink: 'Eller trykk på lenken:',
+	noticeSubject: 'Trainm8: e-postadressen din er byttet',
+	noticeHeading: 'E-postadressen din i Trainm8 er byttet',
+	noticeBody:
+		'Vi skriver for å si fra at e-postadressen på kontoen din i Trainm8 er byttet.',
+	noticeIgnore:
+		'Hvis det var deg, kan du se bort fra denne e-posten. Hvis det ikke var deg, ta kontakt med oss med en gang.',
+	noticeAccount: (userId: string) => `Konto-ID: ${userId}`,
+} as const
+
+/** Change or create a password. */
+export const MEG_PASSWORD_LABELS = {
+	current: 'Nåværende passord',
+	next: 'Nytt passord',
+	confirm: 'Gjenta det nye passordet',
+	change: 'Bytt passord',
+	create: 'Lag passord',
+	createIntro:
+		'Du logger inn med en kobling i dag. Med et passord kan du også logge inn med brukernavn.',
+	incorrect: 'Feil passord.',
+	tooCommon: 'Det passordet er for vanlig. Velg et annet.',
+	mustMatch: 'Passordene må være like.',
+	changedTitle: 'Passordet er byttet',
+	changedBody: 'Du bruker det nye passordet neste gang du logger inn.',
+} as const
+
+/** Two-factor authentication: status, set-up and turning it off. */
+export const MEG_TWO_FACTOR_LABELS = {
+	on: 'Totrinnsbekreftelse er på.',
+	off: 'Totrinnsbekreftelse er av.',
+	explain:
+		'Med totrinnsbekreftelse skriver du også inn en kode fra en autentiseringsapp, for eksempel 1Password, når du logger inn eller gjør noe viktig.',
+	enable: 'Slå på totrinnsbekreftelse',
+	disable: 'Slå av totrinnsbekreftelse',
+	disableWarning:
+		'Vi anbefaler ikke å slå den av: da holder passordet alene for å komme inn på kontoen din.',
+	disabledTitle: 'Totrinnsbekreftelse er av',
+	disabledBody: 'Du logger inn med passord alene fra nå av.',
+	scan: 'Skann QR-koden med autentiseringsappen din.',
+	qrAlt: 'QR-kode for autentiseringsappen',
+	manual:
+		'Får du ikke skannet koden? Legg til kontoen i appen med denne adressen:',
+	uriLabel: 'Engangspassord-URI',
+	enterCode:
+		'Skriv inn koden appen viser. Når totrinnsbekreftelse er på, trenger du en kode fra appen hver gang du logger inn. Mister du appen, mister du tilgangen til kontoen.',
+	code: 'Kode',
+	verify: 'Bekreft',
+	invalidCode: 'Koden stemmer ikke. Prøv den nyeste koden fra appen.',
+	codeLength: 'Koden har seks tegn.',
+	enabledTitle: 'Totrinnsbekreftelse er på',
+	enabledBody: 'Du trenger en kode fra appen neste gang du logger inn.',
+} as const
+
+/** Sign-in connections (GitHub). The activity sources live on integrations. */
+export const MEG_CONNECTIONS_LABELS = {
+	intro:
+		'Kontoer du kan logge inn med. Klokker og treningsapper kobler du til under ',
+	integrationsLink: 'koblinger og aktivitetskilder',
+	none: 'Du har ingen innloggingskoblinger ennå.',
+	connectedOn: (date: string) => `koblet til ${date}`,
+	connect: (provider: string) => `Koble til ${provider}`,
+	disconnect: (name: string) => `Koble fra ${name}`,
+	lastOne:
+		'Du kan ikke fjerne den siste koblingen før du har laget et passord.',
+	deletedTitle: 'Koblet fra',
+	deletedBody: 'Koblingen er fjernet.',
+} as const
+
+/** Passkeys. */
+export const MEG_PASSKEY_LABELS = {
+	intro:
+		'En passnøkkel lar deg logge inn uten passord, med fingeravtrykk, ansikt eller en sikkerhetsnøkkel.',
+	register: 'Legg til en passnøkkel',
+	none: 'Ingen passnøkler ennå.',
+	failed: 'Kunne ikke lage passnøkkelen. Prøv igjen.',
+	device: 'Denne enheten',
+	securityKey: 'Sikkerhetsnøkkel',
+	registered: (date: string) => `Lagt til ${date}`,
+	delete: 'Fjern',
+	listName: 'Passnøkler',
+} as const
+
+/** "Trening og terskler" (`/settings/training`). */
+export const MEG_TRAINING_LABELS = {
+	intro: 'Tersklene dine per idrett. Belastning og soner regnes ut fra dem.',
+	recipeIntro:
+		'Hver idrett starter på en soneoppskrift vi valgte. Den bestemmer bare hvilken skala tallene dine leses på. En terskel er et tall om deg, så den fyller vi aldri inn selv: uten den står målene som sonenavn, ikke som et tall ingen har målt.',
+	readHistory: 'Les tersklene fra historikken min',
+	readHistoryDetail: 'Forslag fra øktene du har importert',
+	history: 'Terskelhistorikk',
+	historyDetail: 'Hver endring, nyeste først',
+	gym: 'Treningsstudioet ditt',
+	gymDetail: 'Stenger, skiver og manualer',
+	maxHr: 'Makspuls (slag/min)',
+	lthr: 'Terskelpuls (slag/min)',
+	ftp: 'FTP (W)',
+	runPower: 'Kritisk løpswatt (W)',
+	thresholdPace: 'Terskelfart (mm:ss per km)',
+	css: 'CSS (mm:ss per 100 m)',
+	save: (discipline: string) => `Lagre ${discipline.toLowerCase()}`,
+	saved: 'Lagret.',
+	recipe: 'Soneoppskrift',
+	recipeDefault: 'Valgt for deg',
+	recipeChosen: 'Ditt valg',
+	recipeDefaultLine: (discipline: string) =>
+		`Vi valgte denne for ${discipline.toLowerCase()} fordi du ikke har valgt en sonemodell. Den bestemmer skalaen tallene dine leses på, og finner ikke på noen av dem.`,
+	recipeChosenLine: 'Du valgte denne.',
+	anchorSet: (anchor: string, reading: string) =>
+		`Leses mot ${anchor}, ${reading}. Bytter du oppskrift, leses alle øktene du har logget på nytt, ikke bare de som kommer.`,
+	anchorMissing: (anchor: string) =>
+		`Leses mot ${anchor}, som du ikke har lagt inn. Derfor står målene i denne idretten som sonenavn, ikke som et tall ingen har målt.`,
+	paceFormat: (example: string) =>
+		`Skriv farten som mm:ss, for eksempel ${example}.`,
+	paceRange: (min: string, max: string, unit: string) =>
+		`Farten må være mellom ${min} og ${max} ${unit}.`,
+	recipeWrongDiscipline: (discipline: string) =>
+		`Den soneoppskriften hører ikke til ${discipline.toLowerCase()}.`,
+} as const
+
+/** Display names for the built-in Zone Recipes, keyed by recipe id. */
+export const MEG_ZONE_RECIPE_LABELS: Record<string, string> = {
+	'coggan-power-7': 'Coggan watt, 7 soner',
+	'friel-hr-5-bike': 'Friel puls, 5 soner',
+	'friel-hr-5-run': 'Friel puls, 5 soner',
+	'daniels-pace-5': 'Daniels fart, 5 soner',
+	'norwegian-threshold-run': 'Norsk terskelfart, 6 soner',
+	'stryd-run-power-5': 'Stryd løpswatt, 5 soner',
+	'css-3': 'CSS, 3 soner',
+	'css-5': 'CSS, 5 soner',
+	'olt-hr-5-run': 'Olympiatoppen puls, 5 soner',
+	'olt-hr-5-bike': 'Olympiatoppen puls, 5 soner',
+}
+
+/** The threshold a recipe is read against, mid-sentence ("leses mot …"). */
+export const MEG_ZONE_ANCHOR_LABELS: Record<ZoneAnchor, string> = {
+	ftp: 'FTP-en din',
+	runPower: 'løpswatten din',
+	lthr: 'terskelpulsen din',
+	maxHr: 'makspulsen din',
+	thresholdPace: 'terskelfarten din',
+	css: 'CSS-en din',
+	rpe: 'opplevd anstrengelse',
+}
+
+/** Units as the training pages print them. */
+export const MEG_UNIT_SUFFIX = {
+	bpm: 'slag/min',
+	watt: 'W',
+	perKm: '/km',
+	per100m: '/100 m',
+	kg: 'kg',
+} as const
+
+/** "Det historikken din sier" (`/settings/training/analyze`). */
+export const MEG_ANALYZE_LABELS = {
+	intro: (count: number, days: number) =>
+		`Lest fra ${count} ${count === 1 ? 'aktivitet' : 'aktiviteter'} de siste ${days} dagene. Ingenting lagres før du godtar det.`,
+	unknown: 'Ukjent forslag.',
+	gone: 'Det forslaget finnes ikke lenger.',
+	noActivities:
+		'Ingen importerte aktiviteter ennå, så det er ingenting å lese.',
+	connect: 'Koble til en konto',
+	saved: (value: string) => `Du har ${value} lagret.`,
+	how: 'Slik kom vi fram til det',
+	use: 'Bruk dette',
+	replace: 'Erstatt det jeg har',
+	accepted: 'Lagret som ditt tall.',
+	footer: 'Tall du godtar, kan du endre etterpå under ',
+	footerLink: 'Trening og terskler',
+	footerEnd: '. De endrer seg aldri av seg selv.',
+	readFrom: 'Lest fra',
+	readFromDetail: (used: number, total: number) =>
+		`${used} av ${total} aktiviteter`,
+	effortsUsed: 'Innsatser brukt',
+	tooCoarse: 'For grovt lagret',
+	tooCoarseDetail: (durations: string) =>
+		`${durations}. Aktivitetene dine er lagret med lav oppløsning, så korte innsatser blir jevnet ut i stedet for målt.`,
+	fit: 'Tilpasning',
+	companionDetail: (value: string) =>
+		`${value}. Lest med, men ikke foreslått: de korte innsatsene den bygger på, ble avvist over.`,
+	note: 'Merk',
+	tanakaNote:
+		'En aldersformel beskriver en befolkning, ikke deg. Den får lav sikkerhet uansett hvor mye du trener, og en målt makspuls slår den alltid.',
+	seconds: (s: number) => `${s} s`,
+	minutes: (m: number) => `${m} min`,
+} as const
+
+export const MEG_CONSTRUCT_LABELS: Record<ThresholdConstruct, string> = {
+	maxHr: 'Makspuls',
+	lthr: 'Terskelpuls',
+	ftp: 'FTP',
+	cp: 'Kritisk watt',
+	thresholdPace: 'Terskelfart',
+	criticalSpeed: 'Kritisk fart',
+	css: 'Kritisk svømmefart',
+	runPower: 'Løpswatt ved terskel',
+}
+
+/** The caveat that sits on the number, where the column says something else. */
+export const MEG_CONSTRUCT_CAVEATS: Partial<
+	Record<ThresholdConstruct, string>
+> = {
+	cp: 'En kritisk watt, vanligvis litt over FTP.',
+	criticalSpeed: 'En kritisk fart, vanligvis litt raskere enn terskelfart.',
+}
+
+/** How a threshold got here (ADR 0005 as amended). */
+export const MEG_THRESHOLD_PROTOCOL_LABELS: Record<ThresholdProtocol, string> =
+	{
+		manual: 'du skrev det inn',
+		tt60: '60-minutterstest',
+		ftp20: '20-minutterstest',
+		ramp: 'rampetest',
+		'cp-fit': 'tilpasset dine beste innsatser',
+		'race-equivalence': 'fra et løpsresultat',
+		observed: 'det høyeste du er registrert med',
+		tanaka: 'anslått ut fra alderen din',
+		provider: 'fra en tilkoblet konto',
+	}
+
+/** One sentence per refusal. Visible, never behind a disclosure. */
+export const MEG_ESTIMATE_REFUSAL_LABELS: Record<EstimateRefusal, string> = {
+	'no-birthdate': 'Legg inn fødselsdatoen din i profilen, så kan vi anslå den.',
+	'no-data': 'Ingenting de siste 90 dagene hadde dataene som trengs.',
+	resolution:
+		'Aktivitetene dine er lagret med for lav oppløsning til å lese korte innsatser.',
+	'insufficient-efforts':
+		'For få harde innsatser av ulik lengde til å tilpasse en kurve.',
+	'insufficient-spread':
+		'De harde innsatsene dine er omtrent like lange, så en kurve ville vært gjetning.',
+	'implausible-fit': 'Tilpasningen ble fysiologisk urimelig.',
+	unbuilt: 'Dette kan vi ikke lese fra dataene dine ennå.',
+}
+
+/** A grade, said as a badge ("høy sikkerhet"). */
+export const MEG_CONFIDENCE_LABELS: Record<EstimateConfidence, string> = {
+	high: 'høy sikkerhet',
+	medium: 'middels sikkerhet',
+	low: 'lav sikkerhet',
+}
+
+/** Terskelhistorikk (`/settings/training/history`). */
+export const MEG_HISTORY_LABELS = {
+	intro: 'Hver endring av en terskel, nyeste først.',
+	none: 'Ingen terskelendringer ennå.',
+	observed: 'observert',
+} as const
+
+/** A threshold event's kind, as the history lists it. */
+export const MEG_THRESHOLD_KIND_LABELS: Record<string, string> = {
+	maxHr: 'Makspuls',
+	lthr: 'Terskelpuls',
+	ftp: 'FTP',
+	runPower: 'Løpswatt',
+	thresholdPace: 'Terskelfart',
+	css: 'CSS',
+	weight: 'Vekt',
+}
+
+/** The construct, only where it differs from the column it landed in. */
+export const MEG_HISTORY_CONSTRUCT_LABELS: Record<string, string> = {
+	cp: 'kritisk watt',
+	criticalSpeed: 'kritisk fart',
+}
+
+/** Treningsstudioet ditt (`/settings/training/gym`). */
+export const MEG_GYM_LABELS = {
+	intro:
+		'Det studioet ditt har, så vektfeltet kan si hva som skal på stanga. Antallet er par: to 20-skiver per side er 2.',
+	name: 'Navn på studioet',
+	defaultName: 'Studioet mitt',
+	bars: 'Stenger, i kg',
+	barsHint: 'Den første er stanga et løft regner med.',
+	plates: 'Skiver, i kg',
+	plateCounts: 'Par av hver',
+	dumbbells: 'Faste manualer, i kg',
+	dumbbellsHint:
+		'La feltet stå tomt hvis du ikke vil si det. Et tomt felt er ikke et tomt stativ.',
+	listHint:
+		'Skill tallene med komma, og skriv desimaler med punktum: 2.5, 1.25.',
+	save: 'Lagre studioet',
+	invalid: 'Det ga ikke mening.',
+	notNumbers: 'Hver vekt og hvert antall må være et tall.',
+	countMismatch: 'Gi et antall for hver skive, eller la antallene stå tomme.',
+	noProfile:
+		'Utøverprofilen din mangler, så det er ikke noe studio å knytte dette til.',
+	saved: 'Lagret. Hver vekt sier nå hva som skal på stanga.',
+	exampleExact: (line: string) =>
+		`100 kg på dette studioet er ${line} per side.`,
+	exampleNearest: (kg: string, line: string) =>
+		`Dette studioet kan ikke lage 100 kg. Nærmest er ${kg} kg, ${line} per side.`,
+	emptyBar: 'tom stang',
+} as const
+
+/** Why the rack cannot make a load (`calculatePlates`' refusals). */
+export const MEG_PLATE_REFUSAL_LABELS: Record<PlateRefusal, string> = {
+	'stack-level-is-an-ordinal':
+		'Et nivå i vektstabelen har ingen kilo. Det går fram mot seg selv.',
+	'band-is-a-force-curve':
+		'En strikk har ingen kilo. Kraften endrer seg gjennom bevegelsen.',
+	'unloaded-has-no-external-load': 'Denne øvelsen har ingen ytre belastning.',
+	'no-bodyweight-on-file':
+		'Ingen kroppsvekt er lagret, så denne belastningen har ingenting å regnes ut fra.',
+	'assist-exceeds-bodyweight':
+		'Det er mer hjelp enn kroppsvekten, og det kan ikke være en belastning.',
+	'no-dumbbell-rack-stated':
+		'Studioet har ikke sagt hvilke manualer det har, så det er ingen manual å velge.',
+	'dumbbell-rack-is-empty': 'Manualstativet på studioet er oppgitt som tomt.',
+}
+
+/** Tallene dine for løftet (`/settings/training/lifts/:id`). */
+export const MEG_LIFT_LABELS = {
+	readsAgainst: (headline: string) =>
+		`Prosenter og repmaks for dette løftet leses mot ${headline}.`,
+	nothingOnFile:
+		'Ingenting lagret ennå, så en prosentforskrift for dette løftet vises som skrevet og blir ikke til kilo.',
+	addTitle: 'Skriv inn et tall selv',
+	addFormName: (exercise: string) => `Legg inn et tall for ${exercise}`,
+	construct: 'Hva det er',
+	kg: 'kg',
+	reps: 'ved reps',
+	from: 'Fra',
+	repMaxHint:
+		'Den tyngste vekten du klarer akkurat så mange reps med. Den regnes aldri om fra et annet antall reps: en 8RM lest fra en 5RM ville vært et gjett på ±10 % gjort to ganger.',
+	statedHint:
+		'Et tall du skriver inn, lagres som ditt og blir ikke vurdert. Appen vurderer ikke et tall du har oppgitt om deg selv.',
+	save: 'Lagre tallet',
+	saved: 'Lagret. Forskriftene dine leses mot det fra nå av.',
+	onFile: 'Det du har lagret',
+	noAnchors: 'Ingen tall ennå.',
+	readFromSet: 'Les et tall fra et sett du har logget',
+	appendOnly:
+		'Ingenting her blir overskrevet: et nyere tall blir en ny linje, og en eldre økt leses fortsatt mot tallet den ble skrevet med.',
+	prescribed: 'Der løftet står i planen',
+	notPrescribed: 'Ingen økt i planen din har dette løftet ennå.',
+	noSets: 'ingen sett skrevet',
+	from_: (date: string) => `fra ${date}`,
+	sourceGone: (protocol: string) =>
+		`${protocol}. Lest fra et sett som ikke finnes lenger, så utregningen kan ikke vises.`,
+	superseded: 'erstattet',
+	numberInvalid: 'Det tallet ga ikke mening.',
+	weightInvalid: 'En vekt må være et positivt antall kilo.',
+	repsInvalid: 'Antall reps må være et helt tall, 1 eller mer.',
+	repMaxNeedsReps: 'En repmaks trenger antall reps den gjelder.',
+	dateInvalid: 'Den datoen er ikke en dato.',
+	duplicate: 'Du har allerede lagret et tall for løftet på det tidspunktet.',
+	headlineOneRm: (kg: string) => `${kg} kg 1RM`,
+	headlineEstimated: (kg: string) => `${kg} kg anslått 1RM`,
+	headlineRepMax: (kg: string, reps: string) => `${kg} kg ${reps}RM`,
+} as const
+
+export const MEG_LIFT_CONSTRUCT_LABELS: Record<'oneRm' | 'repMax', string> = {
+	oneRm: 'Maks på én rep (1RM)',
+	repMax: 'Repmaks',
+}
+
+/** How a lift's number was arrived at. Equation names stay as published. */
+export const MEG_ANCHOR_PROTOCOL_LABELS: Record<AnchorProtocol, string> = {
+	tested: 'du testet det',
+	epley: 'Epley/Welday',
+	brzycki: 'Brzycki',
+	mayhew: 'Mayhew',
+	wathen: 'Wathen',
+	lombardi: 'Lombardi',
+	lander: 'Lander',
+	adams: 'Adams',
+	'rep-max-observed': 'du klarte akkurat så mange reps',
+	'athlete-stated': 'du skrev det inn',
+	provider: 'fra en tilkoblet konto',
+}
+
+/** Det settene dine sier (`/settings/training/lifts/:id/propose`). */
+export const MEG_PROPOSE_LABELS = {
+	intro:
+		'Lest fra settene du allerede har logget for dette løftet. Ingenting lagres før du godtar det.',
+	tested: 'Testet 1RM',
+	estimated: 'Anslått 1RM',
+	band: (low: string, high: string, sd: string) =>
+		`Et sted mellom ${low} og ${high} kg, ±${sd} %. Det er likningens egen spredning blant dem den ble tilpasset.`,
+	stale:
+		'lest fra et gammelt sett. Merket, ikke justert, fordi ingen kan vite hvilken vei en utestet løfter har gått.',
+	how: 'Slik kom vi fram til det',
+	setsRead: 'Sett lest',
+	setUsed: 'Sett brukt',
+	setUsedDetail: (kg: string, reps: number, date: string, effort: string) =>
+		`${kg} kg × ${reps} ${date}${effort}`,
+	toFailure: ', til utmattelse',
+	inReserve: (rir: number) => `, ${rir} i reserve`,
+	equation: 'Likning',
+	testedEquation:
+		'vekten som ble løftet. En singel til utmattelse er selve målingen, så ingen likning brukes.',
+	bias: 'Kjent skjevhet',
+	biasDetail: (pct: string) =>
+		`${pct} % i snitt. Oppgitt, ikke rettet for, fordi en befolkningsrettelse er en påstand om deg som ingen har målt.`,
+	rirNote:
+		'Reps i reserve blir i snitt oppgitt for lavt, og det trekker anslaget ned. Vist, aldri rettet.',
+	note: 'Merk',
+	use: 'Bruk dette',
+	replace: 'Erstatt det jeg har',
+	noThanks: 'Nei takk',
+	footer: 'Tall du godtar, ser og erstatter du under ',
+	footerLink: 'tallene for løftet',
+	footerEnd: '. De endrer seg aldri av seg selv.',
+	equationPicker: 'Likning',
+	equationIntro:
+		'Les med en annen likning. Ingen av dem er bedre enn de andre: de er ulike publiserte tilpasninger til ulike utvalg, og ± ved hver er dens egen spredning. Bytter du, leses settene på nytt, og ingenting lagres.',
+	meanBias: (pct: string) => `, gjennomsnittlig skjevhet ${pct} %`,
+	applied: ', brukes nå',
+	invalid: 'Det forslaget ga ikke mening.',
+	refused: 'Det er ikke noe forslag å godta lenger.',
+	staleError:
+		'Settene dine er endret siden dette ble lest. Last siden på nytt og se igjen.',
+	duplicate: 'Du lagret det tallet for et øyeblikk siden.',
+	saved: (kg: string) =>
+		`Lagret som din 1RM på ${kg} kg. Den er din nå, og ingenting leser historikken din på nytt for å flytte den.`,
+} as const
+
+/** Why no 1RM can be read off the sets (`oneRmRefusal`). */
+export const MEG_ONE_RM_REFUSAL_LABELS: Record<
+	OneRmRefusal,
+	(maxReps: number) => string
+> = {
+	'no-sets-logged': () =>
+		'Ingen lesbare arbeidssett for dette løftet, så det er ingenting å anslå fra. Logg et arbeidssett med oppgitt vekt og et talt antall reps.',
+	'sets-not-readable': () =>
+		'Settene dine på dette løftet oppgir en varighet, eller en vekt uten ærlige kilo, så ingen av dem er en vekt løftet et talt antall ganger. Arbeidet er gjort, men det kan ikke leses som en 1RM. Logg et sett med reps på en oppgitt vekt.',
+	'reps-out-of-range': (maxReps) =>
+		`Det beste settet ditt her har over ${maxReps} reps, der disse likningene slutter å være anslag. Logg et sett på ${maxReps} reps eller færre.`,
+	'effort-unknown': () =>
+		'Ingen av settene sier hvor nær utmattelse de var, og i løfting kan ikke tallene fortelle det. Merk et sett som til utmattelse, eller skriv reps i reserve.',
+	'exercise-unmapped': () =>
+		'Denne øvelsen har ingen validert sammenheng mellom reps og vekt, så et anslag ville lånt et annet løfts kurve. Legg inn en repmaks i stedet.',
+	'load-not-on-the-bar': () =>
+		'Settene her er ikke logget som vekt på stanga: de tar med kroppsvekt, trekker fra hjelp, teller én hånd eller er ikke en vekt. En 1RM er en stangvekt, så ingen av dem kan leses som en. Logg et sett som ytre belastning, eller legg inn en repmaks.',
+	'load-kind-unstated': () =>
+		'Ingenting på settene sier hva slags belastning som ble løftet, så stangvekt og kroppsvekt kan ikke skilles. Logg et sett med belastningstypen, så kan dette anslås.',
+}
+
+/** Said in place when the equation was not fitted to this movement. */
+export const MEG_REP_LOAD_BASIS_LABELS: Record<RepLoadBasis, string | null> = {
+	fitted: null,
+	unmapped: null,
+	'measured-biased':
+		'Disse likningene er testet på markløft, og alle undervurderte det (LeSuer 1997), så tallet er trolig for lavt. Skjevheten er oppgitt, ikke rettet for, og sikkerheten er satt ett trinn ned.',
+	transferred:
+		'Ingen likning er tilpasset denne øvelsen. Denne låner kurven fra benkpress og knebøy den ble laget på (Nuzzo 2024 har tabeller bare for benkpress og beinpress). Den brukes på det svakere grunnlaget, sagt rett ut, med sikkerheten ett trinn ned.',
+}
+
+/** The equations as a reader can check them, Norwegian words and commas. */
+export const MEG_ESTIMATOR_EQUATION_LABELS: Record<EstimatorName, string> = {
+	epley: 'vekt × (1 + reps / 30)',
+	brzycki: 'vekt / (1,0278 − 0,0278 × reps)',
+	lander: 'vekt / (1,013 − 0,0267123 × reps)',
+	adams: 'vekt / (1 − 0,02 × reps)',
+	mayhew: 'vekt / (0,522 + 0,419 × e^(−0,055 × reps))',
+	wathen: 'vekt / (0,488 + 0,538 × e^(−0,075 × reps))',
+	lombardi: 'reps^0,10 × vekt',
+}
+
+/**
+ * The shared validation messages (`user-validation.ts`, Zod's defaults), said
+ * in Norwegian at the field on Meg's pages. Keyed by the English message the
+ * shared schema produces, because the auth pages still read that English: the
+ * rule stays in one place, and only the words differ.
+ */
+export const MEG_VALIDATION_LABELS: Record<string, string> = {
+	'Username is required': 'Skriv et brukernavn.',
+	'Username is too short': 'Brukernavnet er for kort (minst 3 tegn).',
+	'Username is too long': 'Brukernavnet er for langt (høyst 20 tegn).',
+	'Username can only include letters, numbers, and underscores':
+		'Brukernavnet kan bare ha bokstaver, tall og understrek.',
+	'Password is required': 'Skriv et passord.',
+	'Password is too short': 'Passordet er for kort (minst 6 tegn).',
+	'Password is too long': 'Passordet er for langt.',
+	'Name is required': 'Skriv et navn.',
+	'Name is too short': 'Navnet er for kort (minst 3 tegn).',
+	'Name is too long': 'Navnet er for langt (høyst 40 tegn).',
+	'Email is required': 'Skriv en e-postadresse.',
+	'Email is invalid': 'Det ser ikke ut som en e-postadresse.',
+	'Email is too short': 'E-postadressen er for kort.',
+	'Email is too long': 'E-postadressen er for lang.',
+	'The passwords must match': 'Passordene må være like.',
+	'Use a 24-hour HH:MM time': 'Skriv klokkeslettet som TT:MM.',
+	'Unknown zone recipe': 'Ukjent soneoppskrift.',
+}
+
+/** Zod's own default messages, by issue kind, for the fields Meg checks. */
+export const MEG_ZOD_ISSUE_LABELS = {
+	required: 'Fyll inn feltet.',
+	notANumber: 'Skriv et tall.',
+	notAWholeNumber: 'Skriv et helt tall.',
+	tooSmall: (min: string) => `Tallet må være minst ${min}.`,
+	mustBePositive: 'Tallet må være større enn 0.',
+	tooBig: (max: string) => `Tallet kan være høyst ${max}.`,
+	tooShort: (min: string) => `Minst ${min} tegn.`,
+	tooLong: (max: string) => `Høyst ${max} tegn.`,
+	invalidDate: 'Skriv en gyldig dato.',
+	invalid: 'Sjekk feltet.',
+} as const
+
+// ---------------------------------------------------------------------------
 
 /** Capitalize the first character; the fallback for open-ended enum sets. */
 function capitalize(value: string): string {
 	return value ? value[0]!.toUpperCase() + value.slice(1) : value
 }
+
+// ===========================================================================
+// Cross-cutting polish (#505 round 2): the Week Replan's and the Session
+// Nudge's own sentences, in Norwegian at their source (ADR 0081). One section
+// of its own so the area PRs that also add to this file merge cleanly.
+// ===========================================================================
+
+/**
+ * ADR 0025's applied softening — the `adjusted` decision's per-session Replan
+ * Note and its week-level reason. Past tense, because an `adjusted` row is one
+ * the applier already rescaled. `over` and `cut` as `25 %`, `tsb` as `−12`.
+ */
+export const WEEK_REPLAN_SOFTENED_LABELS = {
+	session: (over: string, tsb: string, cut: string) =>
+		`${overClause(over)}, og formen var ${tsb}. Denne økta ble gjort ca. ${cut} kortere.`,
+	week: (over: string, tsb: string, cut: string) =>
+		`${overClause(over)}, og formen var ${tsb}. Resten av ukas økter ble gjort ca. ${cut} kortere.`,
+} as const
+
+/**
+ * The Session Nudge's reason (`decideSessionNudge`), one sentence per branch.
+ * `weekday` is `tirsdag` (`formatNbWeekday`), `discipline` an id (`run`).
+ */
+export const SESSION_NUDGE_LABELS = {
+	/** Why the coach backs off: sustained over-plan, or low Form. */
+	overPlan: (weeks: number) => `Over planen ${weeks} uker på rad`,
+	formLow: (tsb: string | null) =>
+		tsb == null ? 'Formen er lav' : `Formen er lav (TSB ${tsb})`,
+	/** Why the next session stands: sustained under-plan, or Form fine. */
+	underPlan: (weeks: number) => `Under planen ${weeks} uker på rad`,
+	formReads: (tone: 'fresh' | 'neutral', tsb: string | null) =>
+		tsb == null
+			? `Formen er ${NB_READINESS_LABELS[tone]}`
+			: `Formen er ${NB_READINESS_LABELS[tone]} (TSB ${tsb})`,
+	missed: (weekday: string) => `Økta ${weekday} ble ikke gjort`,
+	/** What the eased session became; `minutes` null when its length is unknown. */
+	easedTo: (minutes: number | null, cap: number) =>
+		minutes == null
+			? 'en rolig økt i sone 2'
+			: minutes >= cap
+				? 'en rolig time i sone 2'
+				: `en rolig økt på ${minutes} min i sone 2`,
+	eased: (signal: string, weekday: string, to: string) =>
+		`${signal} – økta ${weekday} er gjort om til ${to}.`,
+	easedAfterMiss: (signal: string, weekday: string, to: string) =>
+		`${signal} – økta ${weekday} er gjort om til ${to}, så du ikke legger harde dager tett etter et opphold.`,
+	easing: (signal: string) => `${signal} – neste økt blir gjort lettere.`,
+	heldNoEase: (discipline: string) =>
+		`Neste økt er ${nbDisciplineLabel(discipline).toLowerCase()}, og den kan ikke lettes etter formen ennå.`,
+	heldAfterMissNoEase: (signal: string, discipline: string) =>
+		`${signal} – neste økt er ${nbDisciplineLabel(discipline).toLowerCase()}, og den kan ikke lettes etter formen ennå.`,
+	coldStart: (day: number, required: number) =>
+		`Formtallet er til å stole på etter ${required} dager (dag ${day} av ${required}).`,
+	stands: (signal: string) => `${signal} – neste økt står som planlagt.`,
+} as const
+
+/**
+ * A stored Week Replan sentence, in Norwegian. Rows written before #505 round 2
+ * hold `decideWeekReplan`'s English (the week's `WeekReplan.reason`, and ADR
+ * 0025's per-session `replanReason`); this rewrites each of that composer's
+ * eight known sentences — a closed set, from one file, with numbers in fixed
+ * places — into the sentence the generator now writes. Anything else (every
+ * row written since, all already Norwegian) passes through untouched, so it is
+ * safe on any stored reason. Display only: nothing is written back.
+ */
+export function nbStoredReplanReason(stored: string): string {
+	for (const [pattern, words] of LEGACY_REPLAN_REASONS) {
+		const match = pattern.exec(stored)
+		if (match) return words(match.slice(1))
+	}
+	return stored
+}
+
+/** The facts a sentence that names none of them is given. */
+const NO_FACTS: WeekHoldFacts = {
+	over: '',
+	under: '',
+	tsb: '',
+	requiredDays: 0,
+	daysOfHistory: 0,
+}
+
+/** `32%` → `32 %`: the English sentences wrote no space. */
+const pct = (digits: string | undefined) => `${digits ?? ''} %`
+
+const OVER = String.raw`Last week ran (\d+)% over plan`
+const TSB = String.raw`([+−-]?\d+)`
+
+const LEGACY_REPLAN_REASONS: ReadonlyArray<
+	readonly [RegExp, (groups: Array<string | undefined>) => string]
+> = [
+	[
+		/^Last week has no measurable Plan Adherence — no adjustment, not enough data\.$/,
+		() => WEEK_HOLD_REASON_LABELS['no-adherence'](NO_FACTS),
+	],
+	[
+		/^Last week ran (\d+)% under plan — bank the planned work; this week stands as planned\.$/,
+		([under]) =>
+			WEEK_HOLD_REASON_LABELS.under({ ...NO_FACTS, under: pct(under) }),
+	],
+	[
+		/^Last week matched the plan — this week stands as planned\.$/,
+		() => WEEK_HOLD_REASON_LABELS['on-target'](NO_FACTS),
+	],
+	[
+		new RegExp(
+			String.raw`^${OVER}, but your Form reading is reliable after (\d+) days — day (\d+)/\d+ — no adjustment yet\.$`,
+		),
+		([over, required, day]) =>
+			WEEK_HOLD_REASON_LABELS['form-untrusted']({
+				...NO_FACTS,
+				over: pct(over),
+				requiredDays: Number(required),
+				daysOfHistory: Number(day),
+			}),
+	],
+	[
+		new RegExp(
+			String.raw`^${OVER}, but Form is unavailable — no adjustment without it\.$`,
+		),
+		([over]) =>
+			WEEK_HOLD_REASON_LABELS['form-missing']({ ...NO_FACTS, over: pct(over) }),
+	],
+	[
+		new RegExp(
+			String.raw`^${OVER} but Form is ${TSB} — you're absorbing it, so this week stands as planned\.$`,
+		),
+		([over, tsb]) =>
+			WEEK_HOLD_REASON_LABELS.fresh({
+				...NO_FACTS,
+				over: pct(over),
+				tsb: tsb ?? '',
+			}),
+	],
+	[
+		new RegExp(
+			String.raw`^${OVER} and Form was ${TSB}, but nothing in the coming week can be softened — no change made\.$`,
+		),
+		([over, tsb]) =>
+			WEEK_HOLD_REASON_LABELS['nothing-adjustable']({
+				...NO_FACTS,
+				over: pct(over),
+				tsb: tsb ?? '',
+			}),
+	],
+	[
+		new RegExp(
+			String.raw`^${OVER} and Form was ${TSB} — softened (this session|this week's remaining sessions) ~(\d+)%\.$`,
+		),
+		([over, tsb, subject, cut]) =>
+			WEEK_REPLAN_SOFTENED_LABELS[
+				subject === 'this session' ? 'session' : 'week'
+			](pct(over), tsb ?? '', pct(cut)),
+	],
+]
+
+// ===========================================================================
+// Token Sentence editor chrome (#505 round 2, r2-editor-finish): the ⠿/⋮
+// menus, the value popovers' controls, the sets popover, the empty state and
+// the validation summary, in Norwegian (ADR 0081). The sentence's own glue
+// words are `TOKEN_SENTENCE_WORDS` and the popover titles
+// `TOKEN_EDITOR_TITLES` (ADR 0089); this is everything around them. Nothing
+// here is stored: the seeds' zone labels (`easy`, `threshold`) stay the keys
+// the archetypes write, and a step kind is still `cardio | strength | rest`.
+// ===========================================================================
+
+/** A set's kind, as the sets popover's kind select names it. */
+export const NB_SET_KIND_LABELS: Record<
+	'reps' | 'timed' | 'amrap' | 'toRir' | 'velocityLoss',
+	string
+> = {
+	reps: 'Repetisjoner',
+	timed: 'På tid',
+	amrap: 'AMRAP',
+	toRir: 'Til RIR',
+	velocityLoss: 'Fartstap',
+}
+
+/**
+ * What a step or a block can be told to do from its ⠿/⋮ menu, and what the
+ * live region says once it is done. `kind` is a `NB_STEP_KIND_LABELS` word.
+ */
+export const TOKEN_EDITOR_MENU_LABELS = {
+	blockActions: (block: number, blocks: number) =>
+		`Handlinger for blokk ${block} av ${blocks}`,
+	blockGripTitle: 'Handlinger for blokka — dra for å flytte den',
+	blockName: 'Navn …',
+	blockRepeat: 'Gjenta …',
+	addStep: 'Legg til steg',
+	addBlockAfter: 'Legg til blokk etter',
+	openBlockSheet: 'Åpne blokka …',
+	deleteBlock: 'Slett blokka',
+	stepActions: (step: number, steps: number, block: number, blocks: number) =>
+		`Handlinger for steg ${step} av ${steps}, blokk ${block} av ${blocks}`,
+	addFacet: 'Legg til …',
+	moveEarlier: 'Flytt opp',
+	moveLater: 'Flytt ned',
+	duplicate: 'Lag en kopi',
+	kind: 'Type',
+	makeKind: (kind: string) => `⇄ Gjør til ${kind.toLowerCase()}`,
+	remove: 'Fjern',
+	addStepTo: (block: number) => `Legg til steg i blokk ${block}`,
+	/** The live region, one sentence per change. */
+	announce: {
+		stepMoved: (earlier: boolean) =>
+			earlier ? 'Steget er flyttet opp' : 'Steget er flyttet ned',
+		stepDuplicated: 'Steget er kopiert',
+		stepRemoved: (withBlock: boolean) =>
+			withBlock ? 'Steget er fjernet sammen med blokka' : 'Steget er fjernet',
+		stepKind: (kind: string) => `Steget er nå ${kind.toLowerCase()}`,
+		stepAdded: (kind: string) => `Nytt steg: ${kind.toLowerCase()}`,
+		blockMoved: (earlier: boolean) =>
+			earlier ? 'Blokka er flyttet opp' : 'Blokka er flyttet ned',
+		blockAdded: 'Blokka er lagt til',
+		seedAdded: (name: string) => `${name} er lagt inn`,
+	},
+} as const
+
+/** The gutter popover's titles and the block-name editor (`TOKEN_EDITOR_TITLES`'
+ * style: a lower-case word over the control). */
+export const TOKEN_EDITOR_GUTTER_LABELS = {
+	nameTitle: 'navn på blokka',
+	repeatTitle: 'ganger',
+	clearName: 'Fjern navnet',
+	close: 'Lukk',
+} as const
+
+/**
+ * The value popovers' controls: the type-to-edit stepper (`label` is one of
+ * `stepper`'s words), the notes and quantity editors, the per-step sport
+ * select and the "＋ …" row of what a step is missing.
+ */
+export const TOKEN_EDITOR_CONTROL_LABELS = {
+	/** The noun each stepper adjusts, in the sentence `Senk {noun}`. */
+	stepper: {
+		quantity: 'mengden',
+		duration: 'varigheten',
+		distance: 'distansen',
+		repeat: 'antall ganger',
+		rest: 'pausen',
+		notes: 'notatet',
+		intensity: 'intensiteten',
+		sets: 'antall sett',
+		discipline: 'idretten',
+		reps: 'repetisjonene',
+		timePerSet: 'tiden per sett',
+		restBetweenSets: 'pausen mellom settene',
+	},
+	decrease: (noun: string) => `Senk ${noun}`,
+	increase: (noun: string) => `Øk ${noun}`,
+	value: (noun: string) => `Verdi for ${noun}`,
+	valueSet: (noun: string, value: string) =>
+		`${capitalize(noun)} er satt til ${value}`,
+	note: 'Notat',
+	noteUpdated: 'Notatet er endret',
+	noteRemoved: 'Notatet er fjernet',
+	removeNote: 'Fjern notatet',
+	intensityRemoved: 'Intensiteten er fjernet',
+	quantityKind: 'Mål steget i',
+	duration: 'Tid',
+	distance: 'Distanse',
+	quantityIs: (unit: 'duration' | 'distance', value: string) =>
+		`Steget måles nå i ${unit === 'duration' ? 'tid' : 'distanse'} — ${value}`,
+	noQuantity: 'Steget har ingen lengde ennå — velg hvordan det skal måles.',
+	removeQuantity: 'Fjern tid eller distanse',
+	quantityRemoved: 'Tid eller distanse er fjernet',
+	discipline: 'idrett',
+	stepDiscipline: 'Idrett for steget',
+	inheritDiscipline: (sport: string) => `som økta · ${sport}`,
+	disciplineSet: (sport: string) =>
+		`Idretten er satt til ${sport.toLowerCase()} — sonene leses mot de tersklene`,
+	disciplineInherits: 'Idretten følger økta',
+	addQuantity: '＋ tid eller distanse',
+	addIntensity: '＋ intensitet',
+	addNote: '＋ notat',
+} as const
+
+/** The sets popover (ADR 0027 §5.2): the uniform row, the per-set grid and the
+ * rest-between-sets footer. `n` is the set's number from 1. */
+export const TOKEN_EDITOR_SETS_LABELS = {
+	setKind: 'Type sett',
+	of: 'av',
+	vary: 'Ulike sett ▸',
+	collapse: '◂ Like sett',
+	setsKind: (kind: string) => `Settene er nå ${kind.toLowerCase()}`,
+	keptAsAuthored:
+		'beholdt som skrevet — denne belastningen kan ikke endres her ennå',
+	decreaseLoad: 'Senk belastningen',
+	increaseLoad: 'Øk belastningen',
+	loadKg: 'Belastning i kg',
+	loadPct: 'Belastning i %1RM',
+	loadUnit: 'Enhet for belastning',
+	loadSet: (value: string, unit: 'kg' | 'pct') =>
+		`Belastningen er satt til ${value}${unit === 'kg' ? ' kg' : ' % 1RM'}`,
+	loadRemoved: 'Belastningen er fjernet',
+	setKindOf: (n: number) => `Type for sett ${n}`,
+	duplicateSet: (n: number) => `Lag en kopi av sett ${n}`,
+	duplicateTitle: 'Kopier',
+	removeSet: (n: number) => `Fjern sett ${n}`,
+	removeTitle: 'Fjern',
+	repsOf: (n: number) => `Repetisjoner i sett ${n}`,
+	repsPlaceholder: 'rep',
+	secondsOf: (n: number) => `Sekunder i sett ${n}`,
+	secondsPlaceholder: 'sek',
+	kgOf: (n: number) => `Kg i sett ${n}`,
+	pctOf: (n: number) => `%1RM i sett ${n}`,
+	setDuplicated: (n: number) => `Sett ${n} er kopiert`,
+	setRemoved: (n: number) => `Sett ${n} er fjernet`,
+	setAdded: 'Et sett er lagt til',
+	addSet: '＋ legg til sett',
+	restBetween: 'pause mellom settene',
+	removeRest: 'Fjern pausen mellom settene',
+	removeRestTitle: 'Fjern pausen',
+	restRemoved: 'Pausen mellom settene er fjernet',
+	restSet: (value: string) => `Pausen mellom settene er satt til ${value}`,
+	addRest: '＋ pause mellom settene',
+} as const
+
+/**
+ * The zero-step editor (§11.2–11.3): three seeds that teach the notation, and
+ * the kind chooser. The ghost lines are drawn in the sentence's own Norwegian
+ * words; the seeds still write the stored zone keys (`easy`, `threshold`).
+ */
+export const TOKEN_EDITOR_EMPTY_LABELS = {
+	hints: {
+		cardio: 'starter som 10 min',
+		strength: 'starter som en øvelse, 1 × 5',
+		rest: 'starter som 1 min hvile',
+	},
+	easy: 'Rolig økt',
+	intervals: 'Intervaller',
+	strength: 'Styrkeøkt',
+	warmUp: 'Oppvarming',
+	coolDown: 'Nedkjøling',
+	fromScratch: 'eller begynn med et tomt steg ＋',
+} as const
+
+/**
+ * The validation summary (§10) and the ⇄ rows' previews (§4.1). A preview
+ * reads *brings back … / keeps … / sets aside …*, joined with ` — `.
+ */
+export const TOKEN_EDITOR_REPAIR_LABELS = {
+	summary: 'Rett opp før du lagrer',
+	errorCount: (count: number) =>
+		count === 1 ? '1 ting må rettes' : `${count} ting må rettes`,
+	bringsBack: (values: string) => `henter tilbake ${values}`,
+	startsAsExercise: (sets: string) => `starter som en øvelse, ${sets}`,
+	startsAs: (duration: string, rest: boolean) =>
+		rest ? `starter som ${duration} hvile` : `starter som ${duration}`,
+	keeps: (values: string) => `beholder ${values}`,
+	note: 'notat',
+	setsAside: (values: string) => `legger til side ${values}`,
+	nothingToCarry: 'ingenting å ta med',
+	itsValues: 'verdiene',
+} as const
+
+/**
+ * A token's accessible name (§9): what it says, then where it sits —
+ * `6 min varighet, steg 1 av 2, blokk 1 av 3`. The visible token is the
+ * notation; this is its spoken form.
+ */
+export const TOKEN_EDITOR_TOKEN_NAMES = {
+	inBlock: (block: number, blocks: number) => `blokk ${block} av ${blocks}`,
+	inStep: (step: number, steps: number, block: number, blocks: number) =>
+		`steg ${step} av ${steps}, blokk ${block} av ${blocks}`,
+	duration: (text: string) => `${text} varighet`,
+	distance: (text: string) => `${text} distanse`,
+	repeat: (count: string | number) => `gjentas ${count} ganger`,
+	restBetweenSets: (text: string) => `${text} mellom settene`,
+	note: (note: string) => `notat: ${note}`,
+	intensity: (chip: string) => `${chip} intensitet`,
+	intensityUnset: 'intensitet, ikke satt ennå',
+	sets: (text: string) => `sett: ${text}`,
+	setsUnset: 'sett, ikke satt ennå',
+	discipline: (text: string) => `${text} idrett`,
+} as const
+
+/**
+ * The intensity popover's provenance line (§7.3, B5): where a target's zone
+ * placement comes from, or why it has none — `Z2 er 143–150 bpm etter
+ * profilen din`, `≈ sone 3 for deg`. The chip's own text is the notation's.
+ */
+export const ZONE_PROVENANCE_LABELS = {
+	cantPlace: (reason: string) => `kan ikke plasseres i en sone — ${reason}`,
+	rpe: (chip: string, zone: number) => `${chip} ≈ innsats i sone ${zone}`,
+	zoneResolves: (chip: string, range: string) =>
+		`${chip} er ${range} etter profilen din`,
+	zoneForYou: (zone: number) => `sone ${zone} for deg`,
+	approx: (zone: number, range?: string | null) =>
+		range
+			? `≈ sone ${zone} for deg — ${range} etter profilen din`
+			: `≈ sone ${zone} for deg`,
+	notAZone: (label: string) => `«${label}» er ikke en sone i sonesystemet ditt`,
+	noZoneSystem: 'ingen sonesystem valgt i innstillingene',
+	noThresholds: 'ingen terskler i innstillingene',
+	missingInSettings: (name: string) => `${name} mangler i innstillingene`,
+	noLactate: (recipe: string) =>
+		`${recipe} oppgir ingen laktat for den verdien`,
+	noMap: (channel: string) =>
+		`målet lar seg ikke plassere i sonene dine for ${channel}`,
+	/** A recipe's anchor threshold, by name. */
+	anchors: {
+		ftp: 'FTP',
+		runPower: 'løpewatt',
+		lthr: 'terskelpuls',
+		maxHr: 'makspuls',
+		thresholdPace: 'terskelfart',
+		css: 'CSS',
+	} as Record<string, string>,
+	/** A threshold the resolver names as missing (`Max HR is not
+	 * configured`), keyed lower-case; an unknown name passes through. */
+	thresholds: {
+		ftp: 'FTP',
+		map: 'MAP',
+		'max hr': 'makspuls',
+		lthr: 'terskelpuls',
+		'threshold pace': 'terskelfart',
+		'critical power': 'kritisk watt',
+		'run power': 'løpewatt',
+		css: 'CSS',
+	} as Record<string, string>,
+	/** The channel a recipe's zones are read in. */
+	channels: {
+		ftp: 'watt',
+		runPower: 'watt',
+		lthr: 'puls',
+		maxHr: 'puls',
+		thresholdPace: 'fart',
+		css: 'fart',
+	} as Record<string, string>,
+} as const
+
+/**
+ * The resolver's reason a target has no concrete numbers, in Norwegian:
+ * `threshold pace is not configured` → `terskelfart mangler i
+ * innstillingene`. The resolver (`intensity-target.ts`) speaks English for its
+ * callers and tests; this reads its two known shapes on display and passes
+ * anything else through unchanged.
+ */
+export function nbUnavailableReason(reason: string): string {
+	const missing = /^(.+) is not configured$/.exec(reason)
+	if (missing) {
+		const name = missing[1]!
+		return ZONE_PROVENANCE_LABELS.missingInSettings(
+			ZONE_PROVENANCE_LABELS.thresholds[name.toLowerCase()] ?? name,
+		)
+	}
+	if (reason.startsWith('No zone system')) {
+		return ZONE_PROVENANCE_LABELS.noZoneSystem
+	}
+	return reason
+}
+// ===========================================================================
+// Shared strings (#505 round 2, r2-shared-strings): the workout schemas'
+// validation messages and the shared intensity utils' chip and caption words,
+// in Norwegian (ADR 0081). The editor, I dag and settings all read these. Only
+// what is shown changes: a stored zone label, a recipe's own `description`, a
+// race anchor key and a `pacePct`/`hrPct` target keep their stored form, and
+// nothing here is read back by a parser.
+// ===========================================================================
+
+/**
+ * The messages `WorkoutStructureSchema` / `WorkoutAuthoringSchema` (and the
+ * editor's form schema, `workout-authoring.ts`) answer with. They reach the
+ * athlete verbatim — the editor's summary line, a field's error, a 400 from
+ * the server — so they are sentences, never a field name.
+ */
+export const WORKOUT_SCHEMA_MESSAGES = {
+	tempo: 'Tempo skrives eksentrisk-pause-konsentrisk, for eksempel «3-0-3»',
+	weightXorPct: 'Et sett kan ha kilo eller prosent av 1RM, ikke begge',
+	loadOnce: 'Et sett oppgir belastningen bare én gang',
+	repsPositive: 'Repetisjonene må være et helt tall over null',
+	durationPositive: 'Tiden må være et helt antall sekunder over null',
+	discipline: 'Velg en sport',
+	durationXorDistance: 'Et steg kan ha tid eller distanse, ikke begge',
+	oneQuantity: 'Et steg oppgir én mengde: tid, distanse eller høydemeter',
+	cadenceOrder: 'Kadensen må gå fra lav til høy',
+	exercise: 'Velg en øvelse',
+	setsMin: 'Legg til minst ett sett',
+	restOnce: 'En pause oppgir formen sin bare én gang',
+	repeatMin: 'Antall ganger må være minst 1',
+	seriesMin: 'Antall serier må være minst 1',
+	blockStepsMin: 'En blokk må ha minst ett steg',
+	betweenSeriesRest: 'Pause mellom serier krever mer enn én serie',
+	sendOffOrRest: 'En blokk har enten avgangstid eller pauser, aldri begge',
+	blocksMin: 'En økt må ha minst én blokk',
+	titleRequired: 'Gi økta en tittel',
+	titleMax: 'Tittelen kan ha høyst 120 tegn',
+	intent: 'Velg et formål',
+	scheduledAt: 'Velg en gyldig dato og et klokkeslett',
+	/** The zero-step save's one summary line (workout-editor spec §11.6). */
+	noSteps: 'Legg til minst ett steg for å lagre økta',
+	// The editor's form schema (`workout-authoring.ts`) only.
+	dateRequired: 'Velg en dato',
+	timeRequired: 'Velg et klokkeslett',
+	durationHint: 'Skriv en tid som «40 min» eller «1 t 30 min»',
+	distanceHint: 'Skriv en distanse som «8 km»',
+	stepDistanceHint: 'Skriv en distanse som «400 m» eller «1,2 km»',
+	intensityHint: 'Fyll ut intensiteten eller fjern den',
+	strengthNeedsExercises:
+		'En styrkeøkt trenger øvelser — legg dem til i strukturen',
+	durationOrDistance:
+		'Skriv en tid (f.eks. «40 min») eller en distanse (f.eks. «8 km»)',
+	durationXorDistanceSimple: 'Skriv enten en tid eller en distanse, ikke begge',
+	// Zod's own generic fallbacks, re-worded for the summary line.
+	invalid: 'Dette kan ikke lagres slik det står',
+	required: 'Dette må fylles ut',
+} as const
+
+/**
+ * The shared intensity utils' words (`intensity-target.ts`'s structure-line
+ * label and zone caption, `zone-equivalent.ts`'s tinted chip): the reference a
+ * percentage is of, a race pace, and the plain-words caption a zone code
+ * carries (`E — rolig/utholdenhet`). FTP, MAP, CP and RPE are the athletes'
+ * own words and stay; the stored target is unchanged.
+ */
+export const INTENSITY_DISPLAY_WORDS = {
+	/** `hrPct` by its reference: `85–90% terskelpuls`, `70% makspuls`. */
+	hrRef: { max: 'makspuls', lthr: 'terskelpuls' },
+	/** `pacePct`: `98% terskelfart`. */
+	thresholdPace: 'terskelfart',
+	/** A race anchor as a distance: `105% maraton`. */
+	race: {
+		'1500m': '1500 m',
+		'3k': '3 km',
+		'5k': '5 km',
+		'10k': '10 km',
+		hm: 'halvmaraton',
+		marathon: 'maraton',
+	} as Record<string, string>,
+	/** A race anchor as a pace: `5 km-fart`, `maratonfart`. */
+	racePace: {
+		'1500m': '1500 m-fart',
+		'3k': '3 km-fart',
+		'5k': '5 km-fart',
+		'10k': '10 km-fart',
+		hm: 'halvmaratonfart',
+		marathon: 'maratonfart',
+	} as Record<string, string>,
+} as const
+
+/**
+ * A zone recipe's English `description` (`zones/recipes.ts`), keyed as
+ * written, in the words the athlete reads beside the code. An unknown one
+ * passes through, so a recipe added later still shows its own words.
+ */
+const ZONE_CAPTION_WORDS: Record<string, string> = {
+	'active recovery': 'aktiv restitusjon',
+	recovery: 'restitusjon',
+	endurance: 'utholdenhet',
+	'aerobic endurance': 'aerob utholdenhet',
+	'easy/endurance': 'rolig/utholdenhet',
+	easy: 'rolig',
+	'easy aerobic': 'rolig aerob',
+	moderate: 'moderat',
+	tempo: 'tempo',
+	'marathon pace': 'maratonfart',
+	'sub-threshold': 'under terskel',
+	'sub-threshold (lactate-guided)': 'under terskel (laktatstyrt)',
+	threshold: 'terskel',
+	'threshold (CSS)': 'terskel (CSS)',
+	'above threshold': 'over terskel',
+	'CSS and faster': 'CSS og raskere',
+	'VO₂ max': 'VO₂maks',
+	'interval (VO₂ max)': 'intervall (VO₂maks)',
+	'repetition (speed)': 'repetisjon (fart)',
+	'anaerobic capacity': 'anaerob kapasitet',
+	'neuromuscular power': 'nevromuskulær kraft',
+	'very easy': 'svært lett',
+	'fairly easy': 'ganske lett',
+	'comfortably hard': 'behagelig hardt',
+	hard: 'hardt',
+	'very hard': 'svært hardt',
+}
+
+/** `rolig/utholdenhet` for the Daniels `easy/endurance`; unknown passes through. */
+export function nbZoneCaption(description: string): string {
+	return ZONE_CAPTION_WORDS[description] ?? description
+}
+
+// ===========================================================================
+// Angre on Gjort and on a link answer (#505 round 2, r2-angre-rest; ADR 0088
+// as amended): the toasts those two writes land with, the undo's own toast,
+// and why an undo was turned down. One section of its own so the area PRs
+// that also add to this file merge cleanly. The button itself says `Angre`
+// (`SESSION_COMPOSER_LABELS.undo`), as every other write's does.
+// ===========================================================================
+
+export const ANGRE_REST_LABELS = {
+	/** _Gjort_'s toast; the session's title is quoted under it. */
+	markedDone: 'Merket som gjort.',
+	/** A link answer's toast; the planned session's title is quoted under it. */
+	linked: 'Importen er koblet til økta.',
+	/** _Angre_ on _Gjort_ took it back. */
+	markDoneUndone: (title: string | null) =>
+		title
+			? `Gjort er angret. «${title}» står som før.`
+			: 'Gjort er angret. Økta står som før.',
+	/** _Angre_ on a link took it back: the import is asked about again. */
+	linkUndone: (title: string | null) =>
+		title
+			? `Koblingen til «${title}» er angret. Importen er en ekstra økt igjen, og vi spør hva den var.`
+			: 'Koblingen er angret. Importen er en ekstra økt igjen, og vi spør hva den var.',
+	/** Why an undo was turned down, said to the athlete. */
+	refused: {
+		'session-not-found': 'Fant ikke økta. Den kan være slettet.',
+		'import-not-found': 'Fant ikke importen. Den kan være slettet.',
+		'not-undoable':
+			'Det kan ikke angres lenger: noe annet har skjedd med økta siden.',
+	} satisfies Record<
+		'session-not-found' | 'import-not-found' | 'not-undoable',
+		string
+	>,
+} as const
+
+// ===========================================================================
+// Plan creation (#505 round 2, r2-plan-new; ADR 0081, ADR 0090): the shape
+// step (`/training/plan/new/$eventId`) — its shapes, tracks and start week —
+// the words a convention's English citation is shown in, and the domain
+// schema's messages as the athlete reads them. One section of its own so the
+// area PRs that also add to this file merge cleanly. The goal step's words are
+// `PLAN_NEW_LABELS` and `OPEN_ENDED_FORM_LABELS` above; a shape's name and
+// note are Sesong's (`SESONG_SHAPE_LABELS`, `PHILOSOPHY_*`), so one method has
+// one name on both surfaces (audit B7).
+// ===========================================================================
+
+/** `a`, `a og b`, `a, b og c`. */
+function nbJoin(items: readonly string[]): string {
+	if (items.length <= 1) return items.join('')
+	return `${items.slice(0, -1).join(', ')} og ${items.at(-1)}`
+}
+
+export const PLAN_SHAPE_STEP_LABELS = {
+	metaTitle: 'Legg opp sesongen | Trainm8',
+	title: 'Legg opp sesongen',
+	goalCreated: 'Mål laget',
+	goalCreatedNote: 'lagt i kalenderen som et datomål',
+
+	generateTitle: 'Eller la trainm8 bygge den',
+	generateBody:
+		'En hel sesong med ekte økter, hentet fra katalogen og merket med hvor de kommer fra. Ingenting havner i kalenderen før du godkjenner det, og alt kan endres etterpå.',
+	generateAction: 'Bygg sesongen for meg',
+
+	noDiscipline:
+		'Løpet har ingen idrett, så det er ikke noe å lage et treningsspor fra.',
+	noDisciplineLink: 'Legg til en på løpet',
+	noDisciplineTail: 'og kom tilbake.',
+
+	shapeTitle: 'Hvordan skal sesongen bygges?',
+	shapeIntro:
+		'Velg en form, så følger blokkene, stigningen og kvalitetsøktene med. Alt kan endres etterpå. Hver tegning er laget av formens egne tall, så den viser hva du får.',
+	moreLengths: (count: number) => `${count} lengder til`,
+	moreLengthsDetail:
+		'De samme formene, lengre og kortere. De lander lenger fra løpet.',
+	ownTitle: 'Jeg legger opp blokkene selv',
+	ownDetail:
+		'En fase sier når og hvorfor, aldri hvor mye. Fasene ligger etter hverandre fra startuka.',
+	phaseName: (index: number) => `Navn på fase ${index}`,
+	phaseNamePlaceholder: 'f.eks. Grunntrening',
+	phaseWeeks: 'Uker',
+	ownNote:
+		'Hver fjerde uke er en lett uke etter vanlig praksis, og ingenting stiger før du sier det på en blokk.',
+	fixedLength:
+		'En form har fast lengde, så den strekkes aldri for å nå løpet. Uansett hvilken du velger, sier planen hvor den slutter, og du bestemmer om du vil legge til uker.',
+
+	/** Where a shape of this length ends, after `18 uker ·`. */
+	landsOnEvent: 'slutter i uka for løpet',
+	endsBefore: (weeks: number) => `slutter ${nbWeeks(weeks)} før løpet`,
+	runsPast: (weeks: number) => `går ${nbWeeks(weeks)} forbi løpet`,
+	/** `Grunntrening med 7 uker` — one block the fitting rule would touch. */
+	fitChange: (phase: string, weeks: number) => `${phase} med ${nbWeeks(weeks)}`,
+	/** What the fitting rule would do: `å tilpasse den korter ned …`. */
+	fitWould: (lengthens: boolean, changes: readonly string[]) =>
+		`å tilpasse den ${lengthens ? 'forlenger' : 'korter ned'} ${nbJoin(changes)}`,
+	fitTooLong: 'for lang til å tilpasses uten å fjerne en blokk',
+
+	/** Said once above the tracks of a multi-sport Event. */
+	multiTrack: (sports: readonly string[]) =>
+		`Løpet ditt har ${nbJoin(sports)}, så sesongen får et spor for hver – over de samme blokkene, med toppen samtidig. Hvert spor beholder sin egen enhet.`,
+	trackTitle: (sport: string) => `Hvor store er ukene i ${sport}?`,
+	unitLabel: (sport: string) => `Hvilken enhet planlegger du ${sport} i?`,
+	plannedIn: (sport: string) => `Sporet for ${sport} planlegges i`,
+	anchorLabel: (sport: string) => `Startvolum per uke i ${sport}`,
+
+	startTitle: 'Hvilken uke starter planen?',
+	startIntro:
+		'Blokkene legges framover herfra. Ingenting telles bakover fra løpet, så en blokk du legger til senere flytter aldri starten.',
+	startLabel: 'Startuke for planen',
+	/** `Uke 2 · 7. jan 2030 · denne uka`. */
+	weekOption: (isoWeek: number, date: string, current: boolean) =>
+		`Uke ${isoWeek} · ${date}${current ? ' · denne uka' : ''}`,
+
+	create: 'Lag planen',
+
+	// The form's own messages, each said at its field.
+	structureRequired: 'Velg en form, eller legg opp blokkene selv',
+	ownEmpty: 'Gi minst én blokk et navn, eller start fra en form',
+	unitRequired: 'Velg enheten du planlegger i',
+	anchorRequired: 'Et startvolum må fylles inn',
+	anchorPositive: 'Startvolumet er mer enn null',
+	tracksRequired: 'En plan har minst ett treningsspor',
+
+	/** Why the plan could not be made, as the athlete reads it. */
+	refusals: {
+		'event-not-found': 'Det løpet kan ikke planlegges mot.',
+		'event-past':
+			'Det løpet har allerede vært, så det kan ikke være mål for en ny plan.',
+		'event-cancelled':
+			'Det løpet er avlyst, så det kan ikke være mål for en plan.',
+		'event-already-planned': 'Det løpet har allerede en plan.',
+		'open-ended-already-active':
+			'Du har allerede en plan uten slutt. Åpne den fra Sesong.',
+	} satisfies Record<CreateOutlineRefusal, string>,
+} as const
+
+/**
+ * The domain schema's messages (`authoring-schema.ts`, English: the domain
+ * carries no copy of its own, ADR 0023) as the creation flow shows them. Keyed
+ * by the English text, so the schema and its tests stay as they are; a message
+ * not listed passes through rather than vanishing.
+ */
+const NB_AUTHORING_MESSAGES: Record<string, string> = {
+	'A week key is a YYYY-MM-DD date': 'Velg en uke fra listen',
+	'A Training Week starts on a Monday': 'En treningsuke starter på en mandag',
+	'Name the phase': 'Gi fasen et navn',
+	'A phase runs in whole weeks': 'En fase varer i hele uker',
+	'A phase runs at least one week': 'En fase varer minst én uke',
+	'A phase runs at most 52 weeks': 'En fase varer høyst 52 uker',
+	'A plan has at least one phase': 'En plan har minst én fase',
+	'Your starting volume is more than zero': 'Startvolumet er mer enn null',
+	'That unit is not one this discipline authors':
+		'Den enheten kan ikke brukes for den idretten',
+	'A plan has at least one Training Track':
+		'En plan har minst ett treningsspor',
+	'One Training Track per discipline': 'Ett treningsspor per idrett',
+	'A plan runs at most 104 weeks': 'En plan varer høyst 104 uker',
+}
+
+/** {@link NB_AUTHORING_MESSAGES}, one message at a time. */
+export function nbAuthoringMessage(message: string): string {
+	return NB_AUTHORING_MESSAGES[message] ?? message
+}
+
+/**
+ * Where a Volume Conversion convention's figure was read (the `*_CITATION`
+ * constants in `volume-conversion.ts`, English source data), as the season
+ * chart's derivation panel shows it. Display only: the source strings stay as
+ * they are, so this is keyed by them, and a citation not listed passes through
+ * in its own words.
+ */
+const NB_CONVENTION_CITATIONS: Record<string, string> = {
+	"Daniels' published VDOT table, whose T ÷ E speed ratio holds at 0.825–0.838 across VDOT 40–60":
+		'Daniels’ publiserte VDOT-tabell, der farten på T delt på farten på E ligger på 0,825–0,838 for VDOT 40–60',
+	'CSS + 6 s per 100 m, which is 0.926–0.948 across CSS 1:15–1:50':
+		'CSS + 6 s per 100 m, som gir 0,926–0,948 for CSS 1:15–1:50',
+	'TrainingPeaks: a threshold workout totals 30–60 min at LT excluding recoveries; VO₂ max work in 2–5 min efforts':
+		'TrainingPeaks: en terskeløkt har til sammen 30–60 min på terskel uten pausene, og VO₂maks-arbeid gjøres i drag på 2–5 min',
+}
+
+/** {@link NB_CONVENTION_CITATIONS}, one citation at a time. */
+export function nbConventionCitation(citation: string): string {
+	return NB_CONVENTION_CITATIONS[citation] ?? citation
+}
+
+// ===========================================================================
+// Bibliotek and the strength surfaces (#505 round 2, PR B + C; ADR 0081). The
+// pages Bibliotek opens — the Catalogue, the strength programs, the exercise
+// list — and the strength surfaces behind them: starting weights, the program
+// overview, the runner's presenter sentences, the rest bar, the outcome panel
+// and the lift chart. One section of its own so the area PRs that also add to
+// this file merge cleanly. Words only: kilos arrive written by `formatNbKg`.
+// ===========================================================================
+
+/** The Catalogue's phases, as Sesong names them (`nbPhaseName`). */
+export const NB_CATALOGUE_PHASE_LABELS: Record<CataloguePhase, string> = {
+	base: 'Grunntrening',
+	build: 'Oppbygging',
+	peak: 'Spissing',
+	taper: 'Nedtrapping',
+	'race-week': 'Konkurranseuke',
+}
+
+/** The goal events, as the Catalogue names them: one Norwegian list. */
+export const NB_CATALOGUE_GOAL_EVENT_LABELS = CATALOGUE_GOAL_EVENT_LABELS
+
+/** The three level floors. "og opp" is the card's word, not the label's. */
+export const NB_CATALOGUE_LEVEL_LABELS: Record<CatalogueLevel, string> = {
+	beginner: 'Nybegynner',
+	intermediate: 'Viderekommen',
+	advanced: 'Erfaren',
+}
+
+/** Who wrote a row. `stock` is the app's own name: that is the badge's claim. */
+export const NB_CATALOGUE_TIER_LABELS: Record<CatalogueTier, string> = {
+	stock: 'trainm8',
+	community: 'Fellesskapet',
+	mine: 'Dine',
+}
+
+/** The Catalogue page (`/training/catalogue`). */
+export const CATALOGUE_LABELS = {
+	metaTitle: 'Katalog | Trainm8',
+	title: 'Katalog',
+	intro:
+		'Ferdige økter du kan ta inn i uka: trainm8 sine, andre utøveres og dine egne.',
+	sessionsHeading: 'Økter',
+	searchLabel: 'Søk i katalogen',
+	searchPlaceholder: 'Søk etter økt',
+	searchButton: 'Søk',
+	filters: 'Filter',
+	allSessions: 'Alle økter',
+	facets: {
+		discipline: 'Idrett',
+		anyDiscipline: 'Alle idretter',
+		archetype: 'Type økt',
+		anyArchetype: 'Alle typer',
+		phase: 'Fase',
+		anyPhase: 'Alle faser',
+		goalEvent: 'Målløp',
+		anyGoalEvent: 'Alle løp',
+		level: 'Passer for',
+		anyLevel: 'Alle nivåer',
+		tier: 'Skrevet av',
+		anyTier: 'Alle',
+	},
+	savedOnly: 'Bare økter jeg har lagret',
+	apply: 'Bruk filter',
+	clear: 'Nullstill',
+	/** The active-filter summary's words for the facets that are not a label. */
+	suits: (level: string) => `Passer for ${level.toLowerCase()}`,
+	savedFilter: 'Lagret',
+	query: (q: string) => `«${q}»`,
+	/** `152 økter`, `12 økter passer filtrene · viser 12`. */
+	resultLine: (total: number, filtered: boolean, shown: number) =>
+		`${total === 1 ? '1 økt' : `${total} økter`}${filtered ? ' passer filtrene' : ''}${shown < total ? ` · viser ${shown}` : ''}`,
+	noneMatch: (filters: string) => `Ingen økter passer ${filters}.`,
+	empty: 'Katalogen er tom ennå.',
+	showMore: 'Vis flere',
+	levelAndUp: (level: string) => `${level} og opp`,
+	place: 'Legg i kalenderen',
+	save: 'Lagre',
+	saved: 'Lagret',
+	report: 'Rapporter',
+	adaptedFrom: (citation: string) =>
+		`Bygd på ${citation}. Den kilden hører til økta denne ble kopiert fra, ikke til denne.`,
+	yourSessions: 'Dine økter',
+	publishIntro:
+		'Publiserer du en økt, kan alle utøvere ta den, under et navn du velger. trainm8 går ikke gjennom og står ikke inne for det du publiserer.',
+	noOwn: 'Du har ikke skrevet en økt ennå.',
+	publishState: {
+		published: 'I katalogen',
+		withdrawn: 'Trukket tilbake av deg',
+		'taken-down': 'Fjernet av en moderator',
+		unpublished: 'Ikke publisert',
+	},
+	manage: 'Administrer',
+	publish: 'Publiser',
+} as const
+
+/**
+ * The provenance slot in Norwegian (`provenance.ts` keeps its English for the
+ * surfaces that still speak it). One sentence per kind and the same asymmetry:
+ * only a community row carries the non-vouch.
+ */
+export const NB_PROVENANCE_LABELS = {
+	source: (citation: string) => `Kilde: ${citation}`,
+	convention:
+		'Vanlig trenerpraksis — trainm8 viser ikke til noen publisert kilde for denne økta.',
+	handWritten: 'Skrevet av trainm8 — ingen publisert kilde, og ingen hevdet.',
+	publishedBy: (name: string) => `Publisert av ${name}`,
+	unnamedPublisher: 'Publisert av en utøver — trainm8 kan ikke si hvem.',
+	unsourced: 'Ingen kilde kunne leses for denne økta.',
+	nonVouch:
+		'Publisert av en utøver. trainm8 har ikke gått gjennom eller stilt seg bak denne økta.',
+} as const
+
+/** The strength programs page (`/training/programs`). */
+export const PROGRAMS_LABELS = {
+	metaTitle: 'Styrkeprogrammer | Trainm8',
+	intro:
+		'Hvert program går ut fra vekta du løftet sist — aldri ut fra kalenderen.',
+	empty:
+		'Ingen programmer er lagt inn ennå, så det er ingenting å starte her — ikke noe du har gjort. Du kan fortsatt',
+	emptyCatalogue: 'ta en økt fra katalogen',
+	emptyOr: 'eller',
+	emptyWrite: 'skrive en selv',
+	running: 'I gang',
+	openRun: 'Åpne dagens økt',
+	manageRun: 'Rett en vekt eller avslutt programmet',
+	start: (name: string) => `Start ${name}`,
+	source: 'Kilde',
+	unattributed: 'Uten opphav',
+	/** `2 dagsoppsett · Økt A / Økt B`. */
+	shape: (dayIds: readonly string[]) =>
+		`${dayIds.length === 1 ? '1 dagsoppsett' : `${dayIds.length} dagsoppsett`} · ${dayIds.map((day) => `Økt ${day}`).join(' / ')}`,
+} as const
+
+/**
+ * A program's own rules in the card's width: the increment and the **Stall
+ * Response**. Kilos and percentages arrive already written (`formatNbKg`).
+ */
+export const PROGRAM_RULE_LABELS = {
+	firstStall: 'ved første stopp',
+	afterStalls: (n: number) => `etter ${n} stopp`,
+	stallCut: (pct: string, after: string) => `−${pct} % ${after}`,
+	rollback: (sessions: number, after: string) =>
+		`${sessions === 1 ? '1 økt' : `${sessions} økter`} tilbake ${after}`,
+	reEstimate: (estimator: string, after: string) =>
+		`ny 1RM-beregning (${estimator}) ${after}`,
+	absolute: (kg: string) => `+${kg} kg`,
+	pctOfLastTopSet: (pct: string) => `+${pct} % av siste toppsett`,
+	byAmrapReps: (table: string) => `etter repsene i siste sett (${table})`,
+	amrapRow: (minReps: number, kg: string) => `${minReps}+ → +${kg} kg`,
+	multipliedOnAmrap: (kg: string, reps: number) =>
+		`+${kg} kg, dobbelt ved ${reps}+ reps`,
+	/** Arket M's lift table: what the next made session adds. */
+	next: (increment: string) => `neste: ${increment}`,
+} as const
+
+/**
+ * Each seeded program's provenance note in Norwegian, keyed `key:variantId`.
+ * Display only: the stored note stays the record, and a program not listed
+ * here shows its note as stored.
+ */
+export const NB_PROGRAM_PROVENANCE_NOTES: Record<string, string> = {
+	'stronglifts-5x5:basic':
+		'Økningene og kuttet på −10 % etter tre økter som kom til kort er StrongLifts’ egne publiserte standarder. Prosenten er programkonvensjon, uten studier bak. Stigen 5×5 → 3×5 → 1×5 er ikke StrongLifts’ regel og er ikke bygd inn.',
+	'starting-strength:phase-1':
+		'Nullstillingen kutter vekta og gjør økningen mindre. Hvor mange bom som går før en nullstilling er ikke publisert; familiens tre brukes.',
+	'greyskull-lp:base':
+		'GreySkulls primærkilde er en betalt e-bok. Den doble økningen ved 10+ reps og kuttet på ca. 10 % er rekonstruert fra sekundærkilder.',
+}
+
+/** Putting one Catalogue session on the calendar (`catalogue.place`). */
+export const CATALOGUE_PLACE_LABELS = {
+	metaTitle: 'Legg i kalenderen | Trainm8',
+	title: 'Legg i kalenderen',
+	whichDay: 'Hvilken dag?',
+	defaultTime: 'Den legges på ditt vanlige treningstidspunkt.',
+	submit: 'Legg i kalenderen',
+	cancel: 'Avbryt',
+	ownCopy: 'Du får din egen kopi. Endrer du den, endres ikke katalogens.',
+	errors: {
+		badDate: 'Velg en dag.',
+		gone: 'Den økta er ikke i katalogen lenger.',
+	},
+} as const
+
+/** Publishing one's own session to the Catalogue (`catalogue.publish`). */
+export const CATALOGUE_PUBLISH_LABELS = {
+	metaTitle: 'Publiser i katalogen | Trainm8',
+	title: 'Publiser i katalogen',
+	whereFrom: 'Hvor denne kommer fra',
+	forkedFrom: (citation: string) =>
+		`Du kopierte denne fra en økt trainm8 har med, med kilde ${citation}.`,
+	sourceStays:
+		'Den kilden blir hos originalen. Økta du publiserer viser den som «bygd på» og aldri som sin egen — en økt en utøver publiserer kan aldri ha en kilde.',
+	removed: 'Fjernet fra katalogen',
+	removedOn: (date: string) => `En moderator fjernet økta ${date}.`,
+	reason: (reason: string) => `Grunn: ${reason}`,
+	removedNote:
+		'Selve økta er urørt og fortsatt din — den er ute av katalogen, ikke ute av treningshistorikken din. Den kan ikke publiseres igjen.',
+	inCatalogue: 'I katalogen',
+	publishedAs: (name: string, date: string) =>
+		`Publisert som ${name} ${date}. Alle kan rapportere den; en moderator kan fjerne den.`,
+	withdraw: 'Trekk tilbake fra katalogen',
+	backToCatalogue: 'Tilbake til katalogen',
+	nameLabel: 'Publiser under navnet',
+	kindLabel: 'Hva slags økt er det?',
+	pickOne: 'Velg én',
+	levelLabel: 'Laveste nivå den passer for (valgfritt)',
+	anyLevel: 'Alle nivåer',
+	beforeYouPublish: 'Før du publiserer',
+	everyAthlete:
+		'Alle utøvere kan lese den, og alle kan rapportere den. En moderator som gir en rapport medhold, fjerner den fra katalogen for godt — økta er fortsatt din, men den kan ikke publiseres igjen.',
+	update: 'Oppdater',
+	publish: 'Publiser',
+	cancel: 'Avbryt',
+	errors: {
+		name: 'Velg navnet økta publiseres under',
+		kind: 'Si hva slags økt dette er',
+		takenDown:
+			'En moderator fjernet denne økta fra katalogen. Den kan ikke publiseres igjen.',
+		notYours: 'Dette er ikke din økt å publisere.',
+		stock: 'trainm8 har med denne økta, så den er allerede i katalogen.',
+		gone: 'Den økta finnes ikke lenger.',
+	},
+} as const
+
+/** The report reasons, as the athlete picks them (keys stored as-is). */
+export const NB_REPORT_REASON_LABELS: Record<string, string> = {
+	unsafe: 'Utrygg å trene',
+	miscited: 'Viser til en kilde den ikke har',
+	spam: 'Spam, eller ikke en treningsøkt',
+	abusive: 'Krenkende eller støtende',
+	other: 'Noe annet',
+}
+
+export const NB_REPORT_REASON_HINTS: Record<string, string> = {
+	unsafe: 'Den som fulgte forskriften, kunne blitt skadet.',
+	miscited: 'Den nevner en trener, bok eller studie den ikke kommer fra.',
+	spam: 'Reklame, eller en økt som ikke er en økt.',
+	abusive: 'Tittelen, beskrivelsen eller notatene er krenkende.',
+	other: 'Si hva som er galt — denne trenger en beskrivelse.',
+}
+
+/** Reporting a community session (`catalogue.report`). */
+export const CATALOGUE_REPORT_LABELS = {
+	metaTitle: 'Rapporter en økt | Trainm8',
+	title: 'Rapporter denne økta',
+	already:
+		'Du har allerede rapportert denne økta. Den er skjult i katalogen din, og en moderator har den.',
+	backToCatalogue: 'Tilbake til katalogen',
+	whatIsWrong: 'Hva er galt med den?',
+	detail: 'Noe mer en moderator bør vite?',
+	whatReportingDoes: 'Hva en rapport gjør',
+	hides:
+		'Den skjuler økta i katalogen din med en gang, og sender den til en moderator.',
+	notForOthers:
+		'Den fjerner den ikke for noen andre — det avgjør en moderator, så ingen utøver kan ta ned en annens økt.',
+	send: 'Send rapport',
+	cancel: 'Avbryt',
+	errors: {
+		reason: 'Velg hva som er galt med den',
+		detail: 'Si hva som er galt — «noe annet» trenger en beskrivelse',
+		yourOwn: 'Dette er din egen økt — trekk den tilbake i stedet.',
+		notPublic: 'Den økta er ikke i katalogen.',
+		gone: 'Den økta finnes ikke lenger.',
+	},
+} as const
+
+/** Bibliotek's exercise list, beside `EXERCISE_LIST_LABELS`. */
+export const EXERCISE_SEARCH_LABELS = {
+	/** Beside a row found by another of its names: `«knebøy»`. */
+	alias: (alias: string) => `«${alias}»`,
+} as const
+
+/** Starting weights (`programs.$programId.start`). Kilos arrive as `82,5`. */
+export const PROGRAM_START_LABELS = {
+	metaTitle: (program: string) => `Start ${program} | Trainm8`,
+	back: 'Tilbake til programmene',
+	heading: 'Startvekter',
+	intro:
+		'Ett tall per løft. Etter dette bestemmer programmet vekta ut fra det du logger.',
+	unit: 'kg',
+	submit: (program: string) => `Start ${program}`,
+	hints: {
+		emptyBar: (program: string, kg: string) =>
+			`${program} starter her på ${kg} kg — den tomme stanga.`,
+		pullRange: (low: string, high: string) =>
+			`Den nedre enden av det publiserte spennet på ${low}–${high} kg.`,
+		published: (program: string, kg: string) =>
+			`${program} oppgir ${kg} kg her. Skriv over hvis du vet bedre.`,
+		repMax: (program: string, reps: number) =>
+			`${program} sier: en vekt du kunne løftet ${reps} ganger.`,
+		none: (program: string) =>
+			`${program} oppgir ingen startvekt for dette løftet. La feltet stå tomt, så startes det ikke.`,
+	},
+	errors: {
+		weight: 'En startvekt må være et positivt antall kilo.',
+		form: 'Skjemaet ga ikke mening.',
+		gone: 'Det programmet finnes ikke lenger.',
+		atLeastOne: 'Gi minst ett løft en startvekt.',
+	},
+} as const
+
+/** The program overview (`programs.run.$instanceId`). */
+export const PROGRAM_RUN_LABELS = {
+	metaFallback: 'Program',
+	running: 'I gang. Neste vekt kommer fra forrige logg, ikke fra kalenderen.',
+	notRunning: (status: string) =>
+		status === 'ended'
+			? 'Programmet er avsluttet.'
+			: 'Programmet står på pause.',
+	today: (dayId: string | null) => (dayId ? `I dag: Økt ${dayId}` : 'I dag'),
+	noWeightYet: 'ingen vekt ennå',
+	stamped:
+		'Dette er vektene som står på økta du har åpen, og det er dem settene spør etter.',
+	stampedLogged:
+		'Siden sett allerede er logget på den, gjelder en endret arbeidsvekt under fra neste økt.',
+	stampedOpen:
+		'Ingenting er logget på den ennå, så en endret arbeidsvekt under settes på økta neste gang du åpner den.',
+	next: (dayId: string) => `Neste etter i dag: Økt ${dayId}.`,
+	openToday: 'Åpne dagens økt',
+	yourWeights: 'Vektene dine',
+	/** Plain words for the Stall Count (the audit's "jargon in English"). */
+	shortInARow: (n: number) =>
+		n === 1 ? '1 økt til kort' : `${n} økter på rad til kort`,
+	weightFor: (lift: string) => `Arbeidsvekt for ${lift} i kg`,
+	saveWeight: 'Lagre vekt',
+	stop: 'Avslutt programmet',
+	stopNote: 'Settene du har logget i programmet blir liggende.',
+	stopped:
+		'Programmet er avsluttet. Alle settene du logget i det blir liggende.',
+	weightSaved: 'Arbeidsvekta er lagret.',
+	stallNotice: (program: string) =>
+		`Du kom til kort på dette løftet mange nok økter på rad til at ${program} sier: ta vekta ned og bygg den opp igjen.`,
+	errors: {
+		nonsense: 'Det ga ikke mening.',
+		gone: 'Programmet finnes ikke lenger.',
+		liftGone: 'Det løftet finnes ikke lenger.',
+		positive: 'En arbeidsvekt må være et positivt antall kilo.',
+		tooHigh: (max: number) =>
+			`En arbeidsvekt må være ${max} kg eller mindre — over det er det en skrivefeil, ikke et løft.`,
+	},
+} as const
+
+/** The three **Stall Responses**, as the athlete reads them. */
+export const NB_STALL_RESPONSE_LABELS: Record<string, string> = {
+	stallCut: 'Vekta kuttes',
+	weightRollback: 'Tilbake i vekt',
+	anchorReEstimate: 'Ny 1RM-beregning',
+}
+
+/** The runner presenter's sentences (`__runner-presenter.ts`). */
+export const STRENGTH_RUNNER_LABELS = {
+	reps: (n: number) => `${n} reps`,
+	seconds: (n: number) => `${n} s`,
+	bodyweight: 'kroppsvekt',
+	bodyweightPlus: (kg: string) => `kroppsvekt + ${kg} kg`,
+	/** A warm-up chip's bodyweight, in the chip's width. */
+	bodyweightShort: 'kv',
+	rackGap: (made: string, asked: string) =>
+		`Gymmet ditt får til ${made} kg, ikke ${asked} kg.`,
+	logSet: (position: number, lift: string) =>
+		`Logg sett ${position} av ${lift}`,
+	loggedSet: (position: number, lift: string) =>
+		`Logget sett ${position} av ${lift}`,
+	counter: (done: number, total: number) => `${done} av ${total} logget`,
+	warmup: (on: boolean, position: number, lift: string, label: string) =>
+		`${on ? 'Logget' : 'Logg'} oppvarming ${position} av ${lift}, ${label}`,
+	restOver: 'over pausen',
+	restReasons: {
+		'made-the-target': 'pause',
+		'missed-the-target': 'lengre pause etter et sett til kort',
+		'between-warmup-sets': 'ingen pause mellom oppvarmingssett',
+		'before-the-last-warmup-set': 'pause før siste oppvarmingssett',
+	},
+	held: (kg: string, count: number, spelled: string) =>
+		count === 1
+			? `${kg} kg står: en økt kom til kort.`
+			: `${kg} kg står: ${spelled} økter på rad kom til kort.`,
+	working: (kg: string, count: number, spelled: string) =>
+		count === 1
+			? `${kg} kg er arbeidsvekta di etter én fullført økt.`
+			: `${kg} kg er arbeidsvekta di etter ${spelled} fullførte økter.`,
+	workingFresh: (kg: string) =>
+		`${kg} kg er arbeidsvekta di. Ingenting er logget for dette løftet i programmet ennå.`,
+	numberWords: [
+		'null',
+		'én',
+		'to',
+		'tre',
+		'fire',
+		'fem',
+		'seks',
+		'sju',
+		'åtte',
+		'ni',
+		'ti',
+		'elleve',
+		'tolv',
+	],
+	plates: (gym: string, variant: string | null) =>
+		`Skivene regnes ut fra ${gym}${variant ? ` for ${variant}` : ''}.`,
+	timerLimit: 'Pausetimeren tåler en låst telefon, men ikke en lukket fane.',
+	history: 'Dette løftet over tid',
+	lastTime: (work: string) => `Sist ${work}`,
+	/** A logged Load Value in a lift line (`loadValueText`'s Norwegian twin). */
+	load: {
+		external: (kg: string) => `${kg} kg`,
+		perSide: (sides: number, kg: string) => `${sides} × ${kg} kg`,
+		bodyweight: 'kroppsvekt',
+		bodyweightPlus: (kg: string) => `kroppsvekt + ${kg} kg`,
+		assisted: (kg: string) => `assistert − ${kg} kg`,
+		level: (level: number) => `nivå ${level}`,
+		band: (band: string) => `strikk ${band}`,
+		unloaded: 'uten vekt',
+	},
+} as const
+
+/** Why a lift's circles cannot be tapped — the runner's sub-line. */
+export const WORKING_LOAD_LABELS = {
+	noSets: 'løftet har ingen sett å logge',
+	noLoad:
+		'ingen vekt er foreskrevet for løftet, og et trykk kan ikke finne på en',
+	noKilos: 'forskriften blir ikke til kilo, så det er ingenting å trykke',
+	notTappable: (load: string) => `${load} kan ikke logges med et trykk`,
+	thisLoad: 'denne belastningen',
+} as const
+
+/** The outcome panel: what you lift next time (`__outcome-panel*`). */
+export const OUTCOME_LABELS = {
+	heading: 'Hva du løfter neste gang',
+	notInProgram:
+		'Økta er fullført. Den hører ikke til et program, så ingenting rykket fram.',
+	seeOverTime: (lift: string) => `Se ${lift} over tid`,
+	backToToday: 'Tilbake til I dag',
+	backToSets: 'Tilbake til settene',
+	headline: {
+		moved: (lift: string, from: string, to: string) =>
+			`${lift} ${from} kg → ${to} kg`,
+		movedTrainingMax: (lift: string, from: string, to: string) =>
+			`${lift} treningsmaks ${from} kg → ${to} kg`,
+		stays: (lift: string, kg: string) => `${lift} står på ${kg} kg`,
+		unchanged: (lift: string, kg: string) => `${lift} uendret på ${kg} kg`,
+		unreadable: (lift: string, kg: string, sets: string, prescribed: string) =>
+			`${lift} står på ${kg} kg — ${sets}, så de ${prescribed} kg som var foreskrevet kunne ikke sjekkes`,
+		lighter: (lift: string, kg: string, logged: string, prescribed: string) =>
+			`${lift} står på ${kg} kg — logget på ${logged} kg, foreskrevet ${prescribed} kg`,
+	},
+	unreadableSets: (all: boolean, count: number, of: number) =>
+		all
+			? 'ingen av settene ble logget med en kilo som kan sjekkes'
+			: `${count} av de ${of} settene ble logget uten en kilo som kan sjekkes`,
+	reason: {
+		incremented: (delta: string) =>
+			`Alle arbeidssettene ble gjort, så vekta går opp ${delta} kg.`,
+		repeated: 'Vekta står til neste økt.',
+		repeatedShort: 'Økta kom til kort, så vekta står til neste økt.',
+		stalled:
+			'Løftet kom til kort for mange økter på rad, så programmet tar vekta ned og bygger den opp igjen.',
+		stalledTrainingMax:
+			'Løftet kom til kort for mange økter på rad, så programmet senker treningsmaksen og bygger den opp igjen.',
+		unavailable:
+			'Programmet skulle ha justert vekta, men manglet det det trengte for å gjøre det. Ingenting ble endret.',
+		unreadable:
+			'Logg settene som kilo på stanga, så kan neste økt leses. Ingenting ble endret.',
+		lighter:
+			'Settene ble løftet lettere enn foreskrevet. Det teller verken som fullført eller som til kort, så vekta står.',
+		skipped:
+			'Ingen arbeidssett ble logget for dette løftet, så ingenting endret seg.',
+	},
+	unreadableLabel: 'Kunne ikke leses',
+	lighterLabel: 'Lettere enn foreskrevet',
+	cutProvenance: (pct: string, program: string | null) =>
+		`Kuttet på ${pct} % er ${program ? `${program} sin` : 'programmets'} egen publiserte konvensjon. Ingen studier støtter det.`,
+} as const
+
+/** The lift-over-time chart (`__lift-chart.tsx`). */
+export const LIFT_CHART_LABELS = {
+	/** Over a session whose load could not be read as a kilo: no bar, and this
+	 * word where it would stand (ADR 0030 rule 1). The data table says it in
+	 * full (`EXERCISE_PAGE_LABELS.chart.noBar`). */
+	unavailable: 'ingen',
+} as const
+
+/** The rest bar (`__rest-bar.tsx`). */
+export const REST_BAR_LABELS = {
+	region: 'Pausetimer',
+	dismiss: 'Lukk pausetimeren',
+} as const
+
+/**
+ * Owner decision 10: Finish with sets still untapped asks first, so an untapped
+ * set never silently counts as made or as missed.
+ */
+export const FINISH_UNTAPPED_LABELS = {
+	question: (count: number) =>
+		`${count} sett er ikke logget: marker som ikke gjort, eller fortsett?`,
+	markNotDone: 'Marker som ikke gjort',
+	keepGoing: 'Fortsett',
+	refused: (count: number) =>
+		`${count} sett er ikke logget. Logg dem, eller marker dem som ikke gjort.`,
+} as const
+
+// ===========================================================================
+// Strength records and the lift page (#505 round 2, r2-records; ADR 0081).
+// What a strength record calls itself (`strength/records.ts`), read in the
+// runner's PR banner and on the lift page, and the lift page's own words
+// (`exercises.$exerciseId`, its presenter and its chart). One section of its
+// own so the area PRs that also add to this file merge cleanly. Words only:
+// kilos arrive written by `formatNbKg`, and nothing stored is a word from here.
+// ===========================================================================
+
+/** A strength record's headline, gain and caveat (`strength/records.ts`). */
+export const STRENGTH_RECORD_LABELS = {
+	/** The bar's heaviest working set — what an athlete means by "my squat". */
+	heaviest: 'Tyngste noensinne',
+	/** Any other load basis names itself in the headline: `Tyngste sett per hånd`. */
+	heaviestQualified: (qualifier: string) => `Tyngste sett ${qualifier}`,
+	/** A rep-max record: the best load at *exactly* this many reps. */
+	repMax: (reps: number, qualifier: string | null) =>
+		`Beste sett på ${reps} ${reps === 1 ? 'rep' : 'reps'}${qualifier ? ` ${qualifier}` : ''}`,
+	estimatedOneRm: 'Beste anslåtte 1RM',
+	/** A single: no equation touched it, so it is not an estimate. */
+	testedOneRm: 'Beste testede 1RM',
+	level: 'Beste nivå',
+	/** The load basis inside a headline. The bar takes none. */
+	qualifiers: {
+		perHand: 'per hånd',
+		bodyweightDerived: 'med kroppsvekt',
+	},
+	/** Nothing came before this reading. */
+	firstTime: 'første gang',
+	/** Inside the debut window: the best of every qualifying set, said quietly. */
+	bestSoFar: 'best hittil',
+	upKg: (kg: string) => `opp ${kg} kg`,
+	upLevels: (levels: string, count: number) =>
+		`opp ${levels} ${count === 1 ? 'nivå' : 'nivåer'}`,
+	/** A tested 1RM's number is the load on the bar (`one-rm.ts`'s `tested`). */
+	testedSingle: 'vekten som ble løftet',
+	notes: {
+		noKilos: 'Uten kilo — dette måles bare mot seg selv.',
+		perHand: 'Kilo per hånd — dette måles bare mot andre sett per hånd.',
+		bodyweightDerived:
+			'Med kroppsvekten din — dette måles bare mot andre sett med kroppsvekt.',
+		assisted:
+			'Et assistert sett gir ingen rekord: tallet er kroppsvekten din minus hjelpen, så det stiger når arbeidet blir lettere.',
+	},
+} as const
+
+/**
+ * A variant tab on the lift page — one per equipment, each its own history.
+ * Complete over `EQUIPMENT_IDS`; the picker's chips (`nbEquipmentLabel`) use the
+ * same words where the two overlap.
+ */
+export const NB_EQUIPMENT_VARIANT_LABELS: Record<EquipmentId, string> = {
+	barbell: 'Stang',
+	dumbbell: 'Manualer',
+	kettlebell: 'Kettlebell',
+	machine: 'Maskin',
+	cable: 'Kabel',
+	'smith-machine': 'Smithmaskin',
+	'trap-bar': 'Trap bar',
+	'ez-bar': 'EZ-stang',
+	bodyweight: 'Kroppsvekt',
+	'assisted-machine': 'Assistert maskin',
+	band: 'Strikk',
+	'medicine-ball': 'Medisinball',
+	sled: 'Slede',
+	suspension: 'Slynge',
+	other: 'Annet',
+}
+
+/** The lift page (`/training/exercises/:id`): this lift over time. */
+export const EXERCISE_PAGE_LABELS = {
+	metaTitle: (exercise: string) => `${exercise} | Trainm8`,
+	metaFallback: 'Øvelse | Trainm8',
+	workingWeight: 'Arbeidsvekt',
+	estOneRm: 'Anslått 1RM',
+	/** The set an estimate was read off: `fra 82,5 kg × 5`. */
+	from: (set: string) => `fra ${set}`,
+	topSet: (set: string) => `Toppsett: ${set}`,
+	fillsIn: 'Logg et arbeidssett, så fylles siden ut.',
+	yourNumbers: 'Tallene dine for dette løftet',
+	variants: 'Varianter',
+	allVariants: 'Alle varianter',
+	empty:
+		'Ingen arbeidssett er logget på dette løftet ennå, så det er ingenting å lese.',
+	records: 'Rekorder',
+	noRecords: 'Ingenting her kan leses som en rekord ennå.',
+	noOneRm: (reason: string) => `Ingen anslått 1RM: ${reason}`,
+	/** Beside an estimate: `Epley/Welday-likningen`. */
+	equation: (name: string) => `${name}-likningen`,
+	estimatorNote: (name: string) =>
+		`Anslått 1RM bruker ${name}-likningen. Et anslag er en modell, ikke et løft.`,
+	level: (level: string) => `nivå ${level}`,
+	history: 'Hver økt med dette løftet',
+	/** `sett` is its own plural. */
+	workingSets: (count: number) => `${count} arbeidssett`,
+	notFound: 'Vi fant ikke den øvelsen.',
+	lastTime: {
+		first: 'Første gang på dette løftet',
+		today: 'Sist: i dag',
+		yesterday: 'Sist: i går',
+		days: (days: number) => `Sist: for ${days} dager siden`,
+		weeks: (weeks: number) =>
+			`Sist: for ${weeks} ${weeks === 1 ? 'uke' : 'uker'} siden`,
+	},
+	/** The chart's words: its name, its data table and the notes under it. */
+	chart: {
+		label: (exercise: string, sessions: number, cuts: number) =>
+			`${exercise}: toppsett over ${sessions} ${sessions === 1 ? 'økt' : 'økter'}, eldste først${
+				cuts === 0 ? '' : `, med ${cuts} vektkutt merket`
+			}.`,
+		caption: (exercise: string) =>
+			`${exercise}, toppsett per økt, eldste først`,
+		columns: ['Økt', 'Dato', 'Toppsett', 'Merket'],
+		session: (ordinal: number) => `Økt ${ordinal}`,
+		/** Under every third bar: which session it is. */
+		tick: (ordinal: number) => `${ordinal}`,
+		noBar: 'Ingen søyle — ingen sammenlignbar kilo',
+		latest: 'Siste',
+		unmarked: '—',
+		stallCut: (from: string, to: string) =>
+			`vekta kuttet, ${from} kg → ${to} kg`,
+		stallNote: (ordinal: number, cut: string) => `Økt ${ordinal} — ${cut}`,
+	},
+} as const
+
+// ===========================================================================
+// The generated season (#505 round 2, r2-plan-generate; ADR 0081, ADR 0085):
+// `/training/plan/generate/$eventId`, reached from the shape step's «Bygg
+// sesongen for meg». The one question it asks, the season it previews week by
+// week, what the season leaves out, and the approval. One section of its own
+// so the area PRs that also add to this file merge cleanly. A shape's name and
+// note are Sesong's (`nbPresetName`, `nbPresetNote`); where a shape lands
+// against the Event, and the refusals the plan service shares with the shape
+// step, are `PLAN_SHAPE_STEP_LABELS`'s — one fact, one wording on both steps.
+// ===========================================================================
+
+/** `a`, `a eller b`, `a, b eller c`. */
+function nbOr(items: readonly string[]): string {
+	if (items.length <= 1) return items.join('')
+	return `${items.slice(0, -1).join(', ')} eller ${items.at(-1)}`
+}
+
+/** `1 økt`, `12 økter`. */
+function nbSessionCount(count: number): string {
+	return count === 1 ? '1 økt' : `${count} økter`
+}
+
+export const PLAN_GENERATE_LABELS = {
+	metaTitle: 'Sesongen din | Trainm8',
+	title: 'Sesongen din, klar til å se over',
+	/** The title when there is no season to show, only a reason. */
+	refusedTitle: 'Sesongen din',
+	/** Back to the shape step: the way in that authors the season by hand. */
+	layOutMyself: 'Legg den opp selv',
+
+	/** `48 økter over 18 uker`, beside the Event's date and where it lands. */
+	summary: (sessions: number, weeks: number) =>
+		`${nbSessionCount(sessions)} over ${nbWeeks(weeks)}`,
+	intro:
+		'Hver økt er hentet fra katalogen og viser hvor den kommer fra. Ingenting havner i kalenderen før du legger det inn.',
+
+	youTitle: 'Hvor står du nå?',
+	youIntro:
+		'Det eneste treningshistorikken din ikke kan fortelle. Svaret avgjør hvor høyt opp på katalogens doseringsstige øktene hentes – en oppgitt praksis, ikke en vurdering av deg.',
+	/** Three situations, worded as the athlete would say them. */
+	intents: {
+		'first-season': 'Dette er min første strukturerte sesong',
+		'returning-from-injury':
+			'Jeg er på vei tilbake etter skade eller et langt opphold',
+		'deliberately-building': 'Jeg trener jevnt og bygger videre',
+	} satisfies Record<GenerationIntent, string>,
+
+	shapeTitle: 'Formen på sesongen',
+	/** Under the chosen shape's name on the closed row: its length, and why it. */
+	shapeDetail: (weeks: number) =>
+		`${nbWeeks(weeks)} · valgt fordi den lander nærmest løpet`,
+	/** The same row once the athlete has picked a shape themselves. */
+	shapeDetailOwn: (weeks: number) => `${nbWeeks(weeks)} · valgt av deg`,
+	/** A shape on offer: `18 uker · Samme sesong over færre uker.` */
+	shapeOption: (weeks: number, note: string) => `${nbWeeks(weeks)} · ${note}`,
+	shapeNote:
+		'Et utgangspunkt, aldri en anbefaling – en form som passer kalenderen, er ikke dermed den rette sesongen for deg.',
+
+	anchorTitle: 'Hvor starter ukene?',
+	/** `Startvolum per uke i løping (km)`. */
+	anchorLabel: (sport: string, unit: string) =>
+		`Startvolum per uke i ${sport} (${unit})`,
+	anchorFromHistory: 'Fylt inn fra din egen trening. Endre det gjerne.',
+	/** Under a figure the athlete typed: every week is sized from it. */
+	anchorOwn: 'Ditt eget tall. Hver uke i sesongen regnes ut fra det.',
+	anchorNone:
+		'Ingenting i treningen din de siste ukene å lese dette fra, så det er ditt å oppgi. Til du gjør det, står det «—» i hver uke.',
+	rebuild: 'Bygg sesongen på nytt',
+
+	seasonTitle: 'Sesongen',
+	/** `Grunntrening 4 uker`, in the line of phases. */
+	phase: (name: string, weeks: number) => `${name} ${nbWeeks(weeks)}`,
+	/** A week by its ISO number, as every week on Sesong is named. */
+	week: (isoWeek: number) => `Uke ${isoWeek}`,
+	/** `uke 3 av 18` — where the week sits in this season. */
+	weekOf: (index: number, total: number) => `uke ${index} av ${total}`,
+	raceWeek: 'Løpsuke',
+	zone: (zone: number) => `sone ${zone}`,
+	/** The weeks behind one tap: `14 uker til`. */
+	remaining: (count: number) =>
+		count === 1 ? 'Én uke til' : `${count} uker til`,
+	remainingDetail: 'Den samme sesongen, uke for uke, helt fram til løpet.',
+
+	absencesTitle: 'Dette er ikke med i sesongen',
+	/** `Ingen spor for styrke.` */
+	noTrack: (sport: string) => `Ingen spor for ${sport}.`,
+	noTrackBody:
+		'Ingen av sesongformene har en styrkeblokk, og en styrkeblokk trenger et mål, en lengde og et antall økter i uka som ingenting her kan lese. I stedet for å finne på dem lar sesongen den være ute – legg til en selv på planen når sesongen er lagt inn.',
+	emptyDays: (count: number) =>
+		count === 1 ? '1 treningsdag er tom.' : `${count} treningsdager er tomme.`,
+	emptyDaysBody:
+		'Katalogen har ingen økt som passer det de dagene ba om, og ingenting er satt inn i stedet. De er merket i ukene under.',
+	/** `Ingenting å legge inn – terskel eller under terskel i grunntrening …`. */
+	nothingToPlace: (archetypes: readonly string[], phase: string) =>
+		`Ingenting å legge inn – ${nbOr(archetypes)} i ${phase} finnes ikke i katalogen for denne idretten.`,
+
+	approve: (count: number) =>
+		count === 1
+			? 'Legg denne økta i kalenderen'
+			: `Legg disse ${count} øktene i kalenderen`,
+	approveNote:
+		'Alt havner der som vanlige økter du kan endre – og hver av dem peker tilbake til katalogøkta den kom fra.',
+
+	/** Why the season could not be built or added, as the athlete reads it. */
+	refusals: {
+		...PLAN_SHAPE_STEP_LABELS.refusals,
+		'no-cardio-discipline':
+			'Løpet har ingen løping, sykling eller svømming, så det er ikke noe utholdenhetsspor å bygge en sesong på.',
+		'anchor-missing':
+			'Oppgi hvor hver idrett starter før du legger sesongen i kalenderen – et spor uten startvolum har ingen størrelse, og ingenting her finner på en.',
+	} satisfies Record<GenerationRefusal, string>,
+} as const

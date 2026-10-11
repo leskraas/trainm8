@@ -362,12 +362,22 @@ describe('step 4: the plan, and why', () => {
 		expect(plan).toMatchObject({
 			family: 'classic',
 			switched: false,
-			// The 4,5 t are the cap: the round climbs to them from 4 t.
-			firstWeek: 'Første uke: 4 t',
-			capNote:
-				'Ingen uke går over 4,5 t – timene du sa du har. Første uke starter lavere, så planen har rom til å bygge seg opp.',
+			// The 4,5 t are what the athlete trains now (owner decision 15): the
+			// round starts there and climbs.
+			firstWeek: 'Første uke: 4,5 t – det du trener nå',
+			peakWeek: 'Tyngste uke: 5 t',
+			rhythm: '3 uker som bygger, så 1 lett',
+			hardSessions: 'Harde økter: 1 tempoøkt i uka',
 		})
 		expect(plan.reason).toMatch(/^Vi valgte Klassisk 3:1 fordi /)
+		// One bar a week of the round, the easy fourth lighter.
+		expect(plan.curve.map((week) => week.role)).toEqual([
+			'loading',
+			'loading',
+			'loading',
+			'recovery',
+		])
+		expect(plan.curve[2]!.share).toBe(1)
 
 		const response = await settle(() =>
 			planAction({
@@ -386,11 +396,27 @@ describe('step 4: the plan, and why', () => {
 			request: get(`/start/plan?${ACTIVE}&family=polarized`, cookie),
 			...ARGS,
 		})
+		// The switch shows: Polarisert's hard session is intervals, Terskelfokus
+		// lays threshold and tempo, Masters climbs two weeks and eases one.
 		expect(switched).toMatchObject({
 			family: 'polarized',
 			familyLabel: 'Polarisert 80/20',
 			switched: true,
+			hardSessions: 'Harde økter: 1 intervalløkt i uka',
 		})
+		const threshold = await planLoader({
+			request: get(`/start/plan?${ACTIVE}&family=threshold`, cookie),
+			...ARGS,
+		})
+		expect(threshold.hardSessions).toBe(
+			'Harde økter: 1 terskeløkt og 1 tempoøkt i uka',
+		)
+		const masters = await planLoader({
+			request: get(`/start/plan?${ACTIVE}&family=masters`, cookie),
+			...ARGS,
+		})
+		expect(masters.rhythm).toBe('2 uker som bygger, så 1 lett')
+		expect(masters.curve).toHaveLength(3)
 	})
 
 	test('a race plan names its phases in Norwegian, and a tampered date goes back', async () => {
@@ -451,14 +477,26 @@ describe('step 5: the first two weeks, and the way out', () => {
 				'lørdag',
 			])
 		}
-		// Under the 4,5 t cap the round opens at 4 t: one share each, the long
-		// Saturday two.
-		expect(weeks.weeks[0]!.total).toBe('4 t planlagt · målet er 4 t')
+		// The round opens at the 4,5 t the athlete trains now: one share each,
+		// the long Saturday two; Klassisk's tempo session on the Tuesday, as far
+		// from the long day as the week allows.
+		expect(weeks.weeks[0]!.total).toBe('4,5 t planlagt · målet er 4,5 t')
 		expect(weeks.weeks[0]!.sessions.map((s) => s.duration)).toEqual([
-			'1 t',
-			'1 t',
-			'2 t',
+			'1 t 6 min',
+			'1 t 6 min',
+			'2 t 18 min',
 		])
+		expect(weeks.weeks[0]!.sessions.map((s) => s.title)).toEqual([
+			'Tempoøkt · Løping',
+			'Rolig økt · Løping',
+			'Langtur · Løping',
+		])
+		expect(weeks.weeks[0]!.sessions.map((s) => s.hard)).toEqual([
+			true,
+			false,
+			false,
+		])
+		expect(weeks.daysNote).toBeNull()
 
 		const response = await settle(() =>
 			weeksAction({
@@ -472,6 +510,15 @@ describe('step 5: the first two weeks, and the way out', () => {
 			select: { scheduledAt: true },
 		})
 		expect(sessions).toHaveLength(6)
+		// What I dag shows is what step 5 showed.
+		const titles = await prisma.workoutSession.findMany({
+			where: { userId },
+			orderBy: { scheduledAt: 'asc' },
+			select: { workout: { select: { title: true } } },
+		})
+		expect(titles.slice(0, 3).map((s) => s.workout?.title)).toEqual(
+			weeks.weeks[0]!.sessions.map((s) => s.title),
+		)
 		expect(
 			new Set(
 				sessions.map((s) =>
@@ -479,6 +526,35 @@ describe('step 5: the first two weeks, and the way out', () => {
 				),
 			),
 		).toEqual(new Set([1, 3, 5]))
+	})
+
+	test('says so where the plan lays on fewer days than were chosen', async () => {
+		const { cookie } = await setUp()
+
+		// Seven days keep one to rest.
+		const everyDay = await weeksLoader({
+			request: get(
+				'/start/uker?discipline=run&hours=8&days=0,1,2,3,4,5,6&goal=active',
+				cookie,
+			),
+			...ARGS,
+		})
+		expect(everyDay.daysNote).toBe(
+			'Du valgte 7 dager. Planen bruker 6, så du har minst én hviledag.',
+		)
+		expect(everyDay.weeks[0]!.sessions).toHaveLength(6)
+
+		// Two hours over four days would be half-hour scraps.
+		const fewHours = await weeksLoader({
+			request: get(
+				'/start/uker?discipline=run&hours=2&days=0,2,4,6&goal=active',
+				cookie,
+			),
+			...ARGS,
+		})
+		expect(fewHours.daysNote).toMatch(
+			/^Du valgte 4 dager\. Planen bruker \d, så ingen økt blir kortere enn en halvtime\.$/,
+		)
 	})
 
 	test('Jeg vil heller sette opp sesongen selv makes the same plan and opens it in Sesong', async () => {

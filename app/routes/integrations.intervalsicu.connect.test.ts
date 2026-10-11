@@ -68,7 +68,7 @@ test('valid key creates an active Intervals.icu Account Connection and enqueues 
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
-			title: 'Connected to Intervals.icu',
+			title: 'Koblet til intervals.icu',
 			type: 'success',
 		}),
 	)
@@ -101,10 +101,10 @@ test('rejected key returns an inline error and stores nothing', async () => {
 		result && typeof result === 'object' && 'data' in result,
 		'expected an inline form error, not a redirect',
 	)
-	expect(result.data.error).toMatch(/Intervals\.icu rejected/i)
+	expect(result.data.error).toMatch(/intervals\.icu godtok ikke/i)
 	// Regenerating a key at Intervals.icu invalidates the old one — the error
 	// must say so, since a stale key is the most likely cause.
-	expect(result.data.error).toMatch(/new key|regenerat/i)
+	expect(result.data.error).toMatch(/ny nøkkel/i)
 
 	expect(await findConnection(session.userId)).toBeNull()
 	expect(
@@ -146,7 +146,7 @@ test('an Intervals.icu outage fails inline as a temporary problem, storing nothi
 		'expected an inline form error, not a redirect',
 	)
 	// Not the athlete's fault: must not blame the key.
-	expect(result.data.error).not.toMatch(/rejected/i)
+	expect(result.data.error).not.toMatch(/godtok ikke/i)
 	expect(await findConnection(session.userId)).toBeNull()
 })
 

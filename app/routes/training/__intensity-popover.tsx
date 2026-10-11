@@ -29,6 +29,7 @@ import { ZONE_CHIP_TINT } from '#app/components/score-stanza.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { formatPaceClock } from '#app/utils/format.ts'
 import { POWER_REF_LABELS } from '#app/utils/intensity-target.ts'
+import { INTENSITY_POPOVER_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type TrainingZone } from '#app/utils/session-profile.ts'
 import {
@@ -57,13 +58,9 @@ import {
  * the group). */
 type KindGroup = 'pace' | 'watts' | 'heartRate' | 'lactate' | 'rpe'
 
-const KIND_GROUP_LABELS: Record<KindGroup, string> = {
-	pace: 'pace',
-	watts: 'watts',
-	heartRate: 'heart rate',
-	lactate: 'lactate',
-	rpe: 'RPE',
-}
+const L = INTENSITY_POPOVER_LABELS
+
+const KIND_GROUP_LABELS: Record<KindGroup, string> = L.kinds
 
 function kindGroupOf(kind: IntensityDraft['kind']): KindGroup | null {
 	switch (kind) {
@@ -166,7 +163,7 @@ export function IntensityPopoverEditor({
 		const next = { ...draft, ...fields }
 		updateDraft(next)
 		const target = draftTarget(next)
-		if (target) announce?.(`Intensity set to ${intensityChipText(target)}`)
+		if (target) announce?.(L.announce(intensityChipText(target)))
 	}
 
 	// The athlete's own recipe names the zone chips; without one, the step's
@@ -227,11 +224,11 @@ export function IntensityPopoverEditor({
 				className="text-muted-foreground flex flex-wrap items-center gap-x-1"
 				data-slot="intensity-kind-row"
 			>
-				<span className="text-body-2xs">or set:</span>
+				<span className="text-caption">{L.orSet}</span>
 				{kindRowOrder(effectiveDiscipline).map((group, index) => (
 					<span key={group} className="inline-flex items-center">
 						{index > 0 ? (
-							<span aria-hidden className="text-muted-foreground/50 px-0.5">
+							<span aria-hidden className="text-muted-foreground px-0.5">
 								·
 							</span>
 						) : null}
@@ -240,7 +237,7 @@ export function IntensityPopoverEditor({
 							aria-pressed={group === activeGroup}
 							onClick={() => selectGroup(group)}
 							className={cn(
-								'hover:text-foreground focus-visible:ring-ring min-h-11 cursor-pointer rounded-sm px-1 text-sm outline-none focus-visible:ring-2',
+								'hover:text-foreground focus-visible:ring-ring pressable min-h-11 cursor-pointer rounded-lg px-1.5 text-sm outline-none focus-visible:ring-2',
 								group === activeGroup && 'text-foreground font-medium',
 							)}
 						>
@@ -254,8 +251,8 @@ export function IntensityPopoverEditor({
 				<PaceFields draft={draft} profile={profile} update={update} />
 			) : activeGroup === 'lactate' ? (
 				<RangeFields
-					minLabel="Min mmol/L"
-					maxLabel="Max mmol/L (optional)"
+					minLabel={L.from('mmol/L')}
+					maxLabel={L.to('mmol/L')}
 					minValue={draft.lactateMin}
 					maxValue={draft.lactateMax}
 					onMin={(lactateMin) => update({ lactateMin })}
@@ -279,8 +276,8 @@ export function IntensityPopoverEditor({
 				<HeartRateFields draft={draft} profile={profile} update={update} />
 			) : activeGroup === 'rpe' ? (
 				<RangeFields
-					minLabel="Min RPE"
-					maxLabel="Max RPE (optional)"
+					minLabel={L.from('RPE')}
+					maxLabel={L.to('RPE')}
 					minValue={draft.rpeMin}
 					maxValue={draft.rpeMax}
 					onMin={(rpeMin) => update({ rpeMin })}
@@ -291,7 +288,7 @@ export function IntensityPopoverEditor({
 
 			<p
 				data-slot="intensity-provenance"
-				className="text-muted-foreground border-border/60 border-t pt-2 text-xs"
+				className="text-footnote text-muted-foreground border-border/60 border-t pt-2"
 			>
 				{target
 					? zoneEquivalentProvenance(
@@ -300,14 +297,14 @@ export function IntensityPopoverEditor({
 							resolvedRangeText(target, profile),
 						)
 					: draft.kind
-						? 'not placed in a zone yet — finish the value'
-						: 'no intensity set'}
+						? L.notPlaced
+						: L.none}
 			</p>
 
 			{onRemove ? (
 				<div className="flex justify-center">
-					<Button type="button" variant="ghost" size="xs" onClick={onRemove}>
-						Remove intensity
+					<Button type="button" variant="ghost" size="sm" onClick={onRemove}>
+						{L.remove}
 					</Button>
 				</div>
 			) : null}
@@ -330,7 +327,7 @@ function ZoneChips({
 		<div
 			className="flex flex-wrap gap-1.5"
 			role="group"
-			aria-label="Zone"
+			aria-label={L.zone}
 			data-slot="intensity-zone-chips"
 		>
 			{labels.map((label, index) => {
@@ -342,12 +339,13 @@ function ZoneChips({
 						aria-pressed={active}
 						onClick={() => onSelect(label)}
 						className={cn(
-							'min-h-11 min-w-11 flex-1 cursor-pointer rounded-md px-2 text-sm font-semibold outline-none [font-variant-caps:small-caps]',
+							'pressable min-h-11 min-w-11 flex-1 cursor-pointer rounded-2xl px-2 text-sm font-semibold outline-none [font-variant-caps:small-caps]',
 							ZONE_CHIP_TINT[chipStep(index)],
 							'focus-visible:ring-ring text-foreground focus-visible:ring-2',
-							active
-								? 'ring-foreground/60 ring-2'
-								: 'opacity-70 hover:opacity-100',
+							// The pressed chip carries a ring; the others keep full ink.
+							// They were dimmed to 70 % — 3:1 text, under AA (#505
+							// round 2) — and a dimmed label reads as disabled.
+							active && 'ring-foreground/60 ring-2',
 						)}
 					>
 						{label}
@@ -406,18 +404,18 @@ function PaceFields({
 	return (
 		<div className="flex flex-col gap-2">
 			<UnitToggle
-				label="Pace unit"
+				label={L.paceUnit}
 				options={[
 					{ id: 'clock', label: '/km' },
-					{ id: 'pct', label: '% T-pace' },
+					{ id: 'pct', label: L.thresholdPace },
 				]}
 				active={unit}
 				onSelect={(id) => toggleTo(id as 'clock' | 'pct')}
 			/>
 			{unit === 'clock' ? (
 				<RangeFields
-					minLabel="Min pace"
-					maxLabel="Max pace (optional)"
+					minLabel={L.from(L.pace)}
+					maxLabel={L.to(L.pace)}
 					minValue={draft.paceMin}
 					maxValue={draft.paceMax}
 					onMin={(paceMin) => update({ paceMin })}
@@ -427,8 +425,8 @@ function PaceFields({
 				/>
 			) : (
 				<RangeFields
-					minLabel="Min % T-pace"
-					maxLabel="Max % T-pace (optional)"
+					minLabel={L.from(L.thresholdPace)}
+					maxLabel={L.to(L.thresholdPace)}
 					minValue={draft.pacePctMin}
 					maxValue={draft.pacePctMax}
 					onMin={(pacePctMin) => update({ pacePctMin })}
@@ -495,7 +493,7 @@ function PowerFields({
 	return (
 		<div className="flex flex-col gap-2">
 			<UnitToggle
-				label="Power unit"
+				label={L.powerUnit}
 				options={[
 					{ id: 'w', label: 'W' },
 					{ id: 'pct', label: `%${pctRef}` },
@@ -505,8 +503,8 @@ function PowerFields({
 			/>
 			{unit === 'w' ? (
 				<RangeFields
-					minLabel="Min W"
-					maxLabel="Max W (optional)"
+					minLabel={L.from('W')}
+					maxLabel={L.to('W')}
 					minValue={draft.powerMin}
 					maxValue={draft.powerMax}
 					onMin={(powerMin) => update({ powerMin })}
@@ -515,8 +513,8 @@ function PowerFields({
 				/>
 			) : (
 				<RangeFields
-					minLabel={`Min %${pctRef}`}
-					maxLabel={`Max %${pctRef} (optional)`}
+					minLabel={L.from(`%${pctRef}`)}
+					maxLabel={L.to(`%${pctRef}`)}
 					minValue={draft.powerPctMin}
 					maxValue={draft.powerPctMax}
 					onMin={(powerPctMin) => update({ powerPctMin })}
@@ -590,19 +588,19 @@ function HeartRateFields({
 	return (
 		<div className="flex flex-col gap-2">
 			<UnitToggle
-				label="Heart rate unit"
+				label={L.heartRateUnit}
 				options={[
-					{ id: 'bpm', label: 'bpm' },
-					{ id: 'lthr', label: '%LTHR' },
-					{ id: 'maxHr', label: '%maxHR' },
+					{ id: 'bpm', label: L.bpm },
+					{ id: 'lthr', label: L.lthr },
+					{ id: 'maxHr', label: L.maxHr },
 				]}
 				active={unit}
 				onSelect={(id) => toggleTo(id as HrUnit)}
 			/>
 			{unit === 'bpm' ? (
 				<RangeFields
-					minLabel="Min bpm"
-					maxLabel="Max bpm (optional)"
+					minLabel={L.from(L.bpm)}
+					maxLabel={L.to(L.bpm)}
 					minValue={draft.hrBpmMin}
 					maxValue={draft.hrBpmMax}
 					onMin={(hrBpmMin) => update({ hrBpmMin })}
@@ -611,10 +609,8 @@ function HeartRateFields({
 				/>
 			) : (
 				<RangeFields
-					minLabel={unit === 'maxHr' ? 'Min %maxHR' : 'Min %LTHR'}
-					maxLabel={
-						unit === 'maxHr' ? 'Max %maxHR (optional)' : 'Max %LTHR (optional)'
-					}
+					minLabel={L.from(unit === 'maxHr' ? L.maxHr : L.lthr)}
+					maxLabel={L.to(unit === 'maxHr' ? L.maxHr : L.lthr)}
 					minValue={draft.hrPctMin}
 					maxValue={draft.hrPctMax}
 					onMin={(hrPctMin) => update({ hrPctMin })}
@@ -643,7 +639,9 @@ export function UnitToggle({
 		<div
 			role="group"
 			aria-label={label}
-			className="border-input bg-muted/40 inline-flex w-fit rounded-lg border p-0.5"
+			// The segmented rail's look (`SegmentedControl`, ADR 0085): a muted
+			// well with the pressed unit raised on it, every segment 44px tall.
+			className="bg-muted inline-flex w-fit flex-wrap rounded-full p-0.5"
 		>
 			{options.map((option) => (
 				<button
@@ -652,7 +650,7 @@ export function UnitToggle({
 					aria-pressed={option.id === active}
 					onClick={() => onSelect(option.id)}
 					className={cn(
-						'focus-visible:ring-ring min-h-10 cursor-pointer rounded-md px-2.5 text-sm outline-none focus-visible:ring-2',
+						'focus-visible:ring-ring pressable min-h-11 cursor-pointer rounded-full px-3 text-sm outline-none focus-visible:ring-2',
 						option.id === active
 							? 'bg-background text-foreground font-medium shadow-sm'
 							: 'text-muted-foreground hover:text-foreground',
@@ -771,17 +769,17 @@ function NudgeField({
 
 	return (
 		<div className="space-y-1">
-			<label htmlFor={id} className="text-muted-foreground text-xs">
+			<label htmlFor={id} className="text-caption text-muted-foreground">
 				{label}
 			</label>
 			<div className="flex items-center gap-1">
 				<Button
 					type="button"
 					variant="outline"
-					aria-label={`Decrease ${label}`}
+					aria-label={L.decrease(label)}
 					disabled={parsed == null || parsed <= nudge.min}
 					onClick={decrease}
-					className="size-11 shrink-0 rounded-lg text-lg"
+					className="size-11 shrink-0 rounded-3xl text-lg"
 				>
 					−
 				</Button>
@@ -792,15 +790,15 @@ function NudgeField({
 					placeholder={placeholder ?? '—'}
 					value={value}
 					onChange={(event) => onChange(event.target.value)}
-					className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-1 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
+					className="bg-input/50 focus-visible:ring-ring/30 duration-press h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-1 text-center text-base font-medium tabular-nums transition-[box-shadow] ease-out outline-none focus-visible:ring-3"
 				/>
 				<Button
 					type="button"
 					variant="outline"
-					aria-label={`Increase ${label}`}
+					aria-label={L.increase(label)}
 					disabled={nudge.max != null && parsed != null && parsed >= nudge.max}
 					onClick={increase}
-					className="size-11 shrink-0 rounded-lg text-lg"
+					className="size-11 shrink-0 rounded-3xl text-lg"
 				>
 					+
 				</Button>

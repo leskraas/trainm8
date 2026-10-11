@@ -22,21 +22,26 @@
  * (#474) — and a **Shared Workout** shows an **Attribution** and an explicit
  * non-vouch in the same slot, in deliberately different words.
  *
+ * **A card leads with the session** (#505 round 2, Arket M): its Token
+ * Sentence, then its minutes or km and the level it suits, then the prose, then
+ * the provenance as one footnote (`__catalogue-card.ts`). The card's actions are
+ * all quiet — outline and ghost — so no list of 24 green buttons competes with
+ * the page's one primary, the filter's *Bruk filter*.
+ *
  * What is *not* here, on purpose: no save count, no adoption badge, no author
  * profile to tap through to. `GOAL.md`'s permanent no is on the vanity layer, and
  * "847 saves 🔥" is that layer arriving through the back door (ADR 0051 §6).
+ *
+ * The rows' titles and prose are corpus **content** and stay as the corpus
+ * wrote them (ADR 0027 A3); every word around them is Norwegian (ADR 0081).
  */
+import { type Prisma } from '@prisma/client'
 import { Form, Link, redirect, useSearchParams } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from '#app/components/ui/card.tsx'
+import { Checkbox } from '#app/components/ui/checkbox.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import {
@@ -76,34 +81,62 @@ import {
 	resolveSharedProvenance,
 } from '#app/utils/community.server.ts'
 import { readPublishState, type PublishState } from '#app/utils/community.ts'
-import { formatDate } from '#app/utils/format.ts'
+import { prisma } from '#app/utils/db.server.ts'
+import { formatNbDate } from '#app/utils/format.ts'
 import {
-	CATALOGUE_GOAL_EVENT_LABELS,
-	CATALOGUE_LEVEL_LABELS,
-	CATALOGUE_PHASE_LABELS,
-	CATALOGUE_TIER_LABELS,
-	DISCIPLINE_LABELS,
-	SESSION_ARCHETYPE_LABELS,
+	APP_TAB_LABELS,
+	CATALOGUE_LABELS,
+	NB_CATALOGUE_GOAL_EVENT_LABELS,
+	NB_CATALOGUE_LEVEL_LABELS,
+	NB_CATALOGUE_PHASE_LABELS,
+	NB_CATALOGUE_TIER_LABELS,
+	NB_DISCIPLINE_LABELS,
+	NB_SESSION_ARCHETYPE_LABELS,
+	nbDisciplineLabel,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
-import {
-	provenanceNonVouch,
-	provenanceSentence,
-	readSessionProvenance,
-	type SessionProvenance,
-} from '#app/utils/plan-generation/provenance.ts'
-import { getDisciplineLabel } from '#app/utils/training.ts'
+import { readSessionProvenance } from '#app/utils/plan-generation/provenance.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
+import { workoutCopySelect } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/catalogue.ts'
+import {
+	buildCatalogueCard,
+	catalogueBlurb,
+	nbProvenanceNonVouch,
+	nbProvenanceSentence,
+} from './__catalogue-card.ts'
 import { Disclosure } from './__plan-chrome.tsx'
 
 export const meta: Route.MetaFunction = () => [
-	{ title: 'The Catalogue | Trainm8' },
+	{ title: CATALOGUE_LABELS.metaTitle },
 ]
 
-/** How many rows a first page shows, and how many each "Show more" adds. */
+/** How many rows a first page shows, and how many each "Vis flere" adds. */
 const PAGE_SIZE = 24
+
+/**
+ * What a card reads off a row's Workout: the tree the Token Sentence and the
+ * figures are built from — the copy select's, plus a lift's name, which a
+ * strength row's sentence says.
+ */
+const cardWorkoutSelect = {
+	id: true,
+	discipline: true,
+	blocks: {
+		...workoutCopySelect.blocks,
+		select: {
+			...workoutCopySelect.blocks.select,
+			steps: {
+				...workoutCopySelect.blocks.select.steps,
+				select: {
+					...workoutCopySelect.blocks.select.steps.select,
+					exercise: { select: { name: true } },
+				},
+			},
+		},
+	},
+} satisfies Prisma.WorkoutSelect
 
 /**
  * The facets, read off the URL and validated against their own vocabularies.
@@ -141,17 +174,19 @@ type Filters = ReturnType<typeof readFilters>
 /** The active facets, named the way the controls name them. */
 function activeFilterLabels(filters: Filters): string[] {
 	const labels: string[] = []
-	if (filters.discipline) labels.push(DISCIPLINE_LABELS[filters.discipline])
+	if (filters.discipline) labels.push(NB_DISCIPLINE_LABELS[filters.discipline])
 	if (filters.archetype)
-		labels.push(SESSION_ARCHETYPE_LABELS[filters.archetype])
-	if (filters.phase) labels.push(CATALOGUE_PHASE_LABELS[filters.phase])
+		labels.push(NB_SESSION_ARCHETYPE_LABELS[filters.archetype])
+	if (filters.phase) labels.push(NB_CATALOGUE_PHASE_LABELS[filters.phase])
 	if (filters.goalEvent)
-		labels.push(CATALOGUE_GOAL_EVENT_LABELS[filters.goalEvent])
+		labels.push(NB_CATALOGUE_GOAL_EVENT_LABELS[filters.goalEvent])
 	if (filters.level)
-		labels.push(`Suits ${CATALOGUE_LEVEL_LABELS[filters.level].toLowerCase()}`)
-	if (filters.tier) labels.push(CATALOGUE_TIER_LABELS[filters.tier])
-	if (filters.saved) labels.push('Saved')
-	if (filters.q) labels.push(`“${filters.q}”`)
+		labels.push(
+			CATALOGUE_LABELS.suits(NB_CATALOGUE_LEVEL_LABELS[filters.level]),
+		)
+	if (filters.tier) labels.push(NB_CATALOGUE_TIER_LABELS[filters.tier])
+	if (filters.saved) labels.push(CATALOGUE_LABELS.savedFilter)
+	if (filters.q) labels.push(CATALOGUE_LABELS.query(filters.q))
 	return labels
 }
 
@@ -180,6 +215,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		entries.length,
 	)
 	const page = entries.slice(0, shownCount)
+	const pageIds = page.map((entry) => entry.workout.id)
 
 	const community = page.filter(
 		(entry) => catalogueTier(entry.workout, userId) === 'community',
@@ -198,23 +234,26 @@ export async function loader({ request }: Route.LoaderArgs) {
 			),
 		),
 	)
-	const saved = await catalogueSavedIds(
-		userId,
-		page.map((entry) => entry.workout.id),
+	const saved = await catalogueSavedIds(userId, pageIds)
+	// The sessions themselves, for the cards' sentences and figures: one read
+	// for the page, never for the corpus.
+	const trees = new Map(
+		(
+			await prisma.workout.findMany({
+				where: { id: { in: pageIds } },
+				select: cardWorkoutSelect,
+			})
+		).map((workout) => [workout.id, workout]),
 	)
 
-	const rows = page.map((entry) => ({
-		workoutId: entry.workout.id,
-		title: entry.workout.title,
-		description: entry.workout.description,
-		discipline: entry.workout.discipline,
-		archetype: entry.archetype,
-		level: entry.level,
-		tier: catalogueTier(entry.workout, userId),
+	const rows = page.map((entry) => {
+		const level = entry.level
+			? (NB_CATALOGUE_LEVEL_LABELS[entry.level as CatalogueLevel] ?? null)
+			: null
 		// One reading for all three tiers (#474). An uncited **Stock Workout** is
 		// about a third of the corpus — a Convention Row or a Hand-Written Row —
 		// and each owes the athlete its own sentence, not an empty slot.
-		sourcing: readSessionProvenance({
+		const sourcing = readSessionProvenance({
 			authorship: entry.workout.authorship,
 			description: entry.workout.description,
 			citationAuthor: entry.citationAuthor,
@@ -222,10 +261,33 @@ export async function loader({ request }: Route.LoaderArgs) {
 			citationYear: entry.citationYear,
 			citationLocator: entry.citationLocator,
 			attribution: attributions.get(entry.workout.id),
-		}),
-		adaptedFrom: adapted.get(entry.workout.id) ?? null,
-		saved: saved.has(entry.workout.id),
-	}))
+		})
+		const adaptedFrom = adapted.get(entry.workout.id) ?? null
+		return {
+			workoutId: entry.workout.id,
+			title: entry.workout.title,
+			blurb: catalogueBlurb(entry.workout.description),
+			discipline: entry.workout.discipline,
+			archetype: entry.archetype,
+			tier: catalogueTier(entry.workout, userId),
+			card: buildCatalogueCard({
+				workout: trees.get(entry.workout.id) ?? null,
+				level,
+			}),
+			provenance: {
+				sentence: nbProvenanceSentence(sourcing),
+				publishedAt:
+					sourcing.kind === 'community'
+						? (sourcing.attribution?.publishedAt ?? null)
+						: null,
+				nonVouch: nbProvenanceNonVouch(sourcing),
+				adaptedFrom: adaptedFrom
+					? CATALOGUE_LABELS.adaptedFrom(formatCitation(adaptedFrom))
+					: null,
+			},
+			saved: saved.has(entry.workout.id),
+		}
+	})
 
 	const own = await listOwnPublishableWorkouts(userId)
 
@@ -272,128 +334,121 @@ type CatalogueRow = Awaited<ReturnType<typeof loader>>['rows'][number]
 function TierBadge({ tier }: { tier: CatalogueTier }) {
 	return (
 		<Badge
-			variant={tier === 'stock' ? 'default' : 'secondary'}
+			variant={tier === 'stock' ? 'secondary' : 'outline'}
 			data-tier={tier}
 			className="shrink-0"
 		>
-			{CATALOGUE_TIER_LABELS[tier]}
+			{NB_CATALOGUE_TIER_LABELS[tier]}
 		</Badge>
 	)
 }
 
 /**
- * The provenance slot. One position, one sentence per kind — and the community
- * one is the only one that says trainm8 is not standing behind it.
- *
- * Every sentence comes from `provenance.ts`, which is also what a generated
- * session's slot reads, so the two surfaces cannot word the same fact
- * differently.
+ * The provenance footnote. One position, one sentence per kind — and the
+ * community one is the only one that says trainm8 is not standing behind it.
+ * Every sentence comes from `__catalogue-card.ts`, so the slot and a placed
+ * session's cannot word the same fact differently.
  */
 function ProvenanceSlot({
-	sourcing,
-	adaptedFrom,
+	provenance,
 }: {
-	sourcing: SessionProvenance
-	adaptedFrom: CatalogueRow['adaptedFrom']
+	provenance: CatalogueRow['provenance']
 }) {
 	const timeZone = useAthleteTimezone()
-	const nonVouch = provenanceNonVouch(sourcing)
-	const publishedAt =
-		sourcing.kind === 'community' ? sourcing.attribution?.publishedAt : null
-
 	return (
-		<div className="text-body-xs text-muted-foreground mt-2 space-y-1">
+		<div className="text-footnote text-muted-foreground border-border/60 mt-3 space-y-1 border-t pt-3">
 			<p>
-				{provenanceSentence(sourcing)}
-				{publishedAt ? ` · ${formatDate(publishedAt, timeZone)}` : null}
+				{provenance.sentence}
+				{provenance.publishedAt
+					? ` · ${formatNbDate(provenance.publishedAt, timeZone)}`
+					: null}
 			</p>
 			{/* The non-vouch, in the slot a Citation would occupy. It is trainm8's
 			    statement about itself, identical on every community row, which is why
 			    it is a constant and not a column. */}
-			{nonVouch ? <p data-non-vouch>{nonVouch}</p> : null}
-			{adaptedFrom ? (
-				<p>
-					Adapted from {formatCitation(adaptedFrom)} — that source belongs to
-					the session this was forked from, not to this one.
-				</p>
-			) : null}
+			{provenance.nonVouch ? <p data-non-vouch>{provenance.nonVouch}</p> : null}
+			{provenance.adaptedFrom ? <p>{provenance.adaptedFrom}</p> : null}
 		</div>
 	)
 }
 
 function EntryCard({ row, search }: { row: CatalogueRow; search: string }) {
 	return (
-		<Card>
-			<CardHeader className="flex flex-wrap items-start justify-between gap-2">
-				<div className="min-w-0 space-y-1">
-					<CardTitle className="text-base font-bold tracking-tight">
-						{row.title}
-					</CardTitle>
-					<p className="text-body-xs text-muted-foreground flex flex-wrap items-baseline gap-x-1.5">
-						<span className="font-medium">
-							{getDisciplineLabel(row.discipline)}
-						</span>
-						<span aria-hidden>·</span>
-						<span className="font-medium">
-							{SESSION_ARCHETYPE_LABELS[row.archetype as SessionArchetype] ??
-								row.archetype}
-						</span>
-						{row.level ? (
-							<>
-								<span aria-hidden>·</span>
-								<span className="font-medium">
-									{CATALOGUE_LEVEL_LABELS[row.level as CatalogueLevel] ??
-										row.level}{' '}
-									and up
-								</span>
-							</>
-						) : null}
+		<article className="bg-card rounded-4xl p-4 shadow-xs md:p-5">
+			{/* The badge has a fixed slot at the title's right, so it never wraps
+			    under a long title on one card and sits beside it on the next. */}
+			<div className="flex items-start justify-between gap-3">
+				<div className="min-w-0">
+					<h3 className="text-callout [overflow-wrap:anywhere]">{row.title}</h3>
+					<p className="text-footnote text-muted-foreground mt-0.5">
+						{nbDisciplineLabel(row.discipline)}
+						<span aria-hidden> · </span>
+						{NB_SESSION_ARCHETYPE_LABELS[row.archetype as SessionArchetype] ??
+							row.archetype}
 					</p>
 				</div>
 				<TierBadge tier={row.tier} />
-			</CardHeader>
-			<CardContent>
-				{row.description ? (
-					<p className="text-body-sm text-muted-foreground">
-						{row.description}
-					</p>
-				) : null}
-				<ProvenanceSlot sourcing={row.sourcing} adaptedFrom={row.adaptedFrom} />
-				<div className="mt-3 flex flex-wrap gap-2">
-					<Link
-						to={`/training/catalogue/place/${row.workoutId}${search}`}
-						className={buttonVariants({ variant: 'default', size: 'sm' })}
+			</div>
+
+			{/* The session first (Arket M): what it is, then how long or how far. */}
+			{row.card.sentence ? (
+				<p className="text-body mt-3 font-medium [overflow-wrap:anywhere]">
+					{row.card.sentence}
+				</p>
+			) : null}
+			{row.card.figures.length > 0 ? (
+				<p className="text-footnote text-muted-foreground mt-1 tabular-nums">
+					{row.card.figures.join(' · ')}
+				</p>
+			) : null}
+
+			{row.blurb ? (
+				<p className="text-footnote text-muted-foreground mt-3">{row.blurb}</p>
+			) : null}
+
+			<ProvenanceSlot provenance={row.provenance} />
+
+			<div className="mt-3 flex flex-wrap gap-2">
+				<Link
+					to={`/training/catalogue/place/${row.workoutId}${search}`}
+					className={cn(
+						buttonVariants({ variant: 'outline', size: 'sm' }),
+						'rounded-full',
+					)}
+				>
+					<Icon name="calendar" size="sm" aria-hidden />
+					{CATALOGUE_LABELS.place}
+				</Link>
+				{/* Save is a POST and not a link: it writes. The count behind it is a
+				    ranking input and is never rendered (ADR 0051 §6). */}
+				<Form method="POST" replace>
+					<input type="hidden" name="workoutId" value={row.workoutId} />
+					<Button
+						type="submit"
+						name="intent"
+						value={row.saved ? 'unsave' : 'save'}
+						variant="ghost"
+						size="sm"
+						className="rounded-full"
+						aria-pressed={row.saved}
 					>
-						<Icon name="calendar" size="sm" aria-hidden />
-						Add to my calendar
+						<Icon name={row.saved ? 'check' : 'plus'} size="sm" aria-hidden />
+						{row.saved ? CATALOGUE_LABELS.saved : CATALOGUE_LABELS.save}
+					</Button>
+				</Form>
+				{row.tier === 'community' ? (
+					<Link
+						to={`/training/catalogue/report/${row.workoutId}`}
+						className={cn(
+							buttonVariants({ variant: 'ghost', size: 'sm' }),
+							'rounded-full',
+						)}
+					>
+						{CATALOGUE_LABELS.report}
 					</Link>
-					{/* Save is a POST and not a link: it writes. The count behind it is a
-					    ranking input and is never rendered (ADR 0051 §6). */}
-					<Form method="POST" replace>
-						<input type="hidden" name="workoutId" value={row.workoutId} />
-						<Button
-							type="submit"
-							name="intent"
-							value={row.saved ? 'unsave' : 'save'}
-							variant="outline"
-							size="sm"
-							aria-pressed={row.saved}
-						>
-							{row.saved ? <Icon name="check" size="sm" aria-hidden /> : null}
-							{row.saved ? 'Saved' : 'Save'}
-						</Button>
-					</Form>
-					{row.tier === 'community' ? (
-						<Link
-							to={`/training/catalogue/report/${row.workoutId}`}
-							className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-						>
-							Report
-						</Link>
-					) : null}
-				</div>
-			</CardContent>
-		</Card>
+				) : null}
+			</div>
+		</article>
 	)
 }
 
@@ -403,7 +458,7 @@ function EntryCard({ row, search }: { row: CatalogueRow; search: string }) {
  * native `<select>`: only the primitive gives a 44px trigger with 16px phone
  * type and labels drawn from `labels.ts`).
  *
- * The unfiltered choice is a **row** ("Any phase") and not a blank: a facet
+ * The unfiltered choice is a **row** ("Alle faser") and not a blank: a facet
  * panel is read at a glance, and an empty row says nothing about what it does.
  */
 function Facet({
@@ -422,11 +477,11 @@ function Facet({
 	const id = `facet-${name}`
 	const items = [{ value: '', label: anyLabel }, ...options]
 	return (
-		<div className="space-y-1">
-			<label htmlFor={id} className="text-body-xs text-muted-foreground">
+		<div className="space-y-1.5">
+			<label htmlFor={id} className="text-footnote text-muted-foreground">
 				{label}
 			</label>
-			<Select name={name} defaultValue={value ?? ''}>
+			<Select name={name} defaultValue={value ?? ''} items={items}>
 				<SelectTrigger id={id} className="w-full">
 					<SelectValue>
 						{(selected) =>
@@ -448,6 +503,7 @@ function Facet({
 
 function FilterPanel({ filters }: { filters: Filters }) {
 	const active = activeFilterLabels(filters)
+	const F = CATALOGUE_LABELS.facets
 
 	return (
 		<Form method="GET" className="mb-4 space-y-3">
@@ -456,105 +512,107 @@ function FilterPanel({ filters }: { filters: Filters }) {
 					type="search"
 					name="q"
 					defaultValue={filters.q ?? ''}
-					aria-label="Search the Catalogue"
-					placeholder="Search sessions"
+					aria-label={CATALOGUE_LABELS.searchLabel}
+					placeholder={CATALOGUE_LABELS.searchPlaceholder}
+					enterKeyHint="search"
 				/>
-				<Button type="submit" variant="outline" className="h-11 shrink-0">
+				<Button
+					type="submit"
+					variant="outline"
+					className="shrink-0 rounded-full"
+				>
 					<Icon name="magnifying-glass" size="sm" aria-hidden />
-					Search
+					{CATALOGUE_LABELS.searchButton}
 				</Button>
 			</div>
 
 			<Disclosure
-				summary="Filters"
-				detail={active.length ? active.join(' · ') : 'All sessions'}
+				summary={CATALOGUE_LABELS.filters}
+				detail={
+					active.length ? active.join(' · ') : CATALOGUE_LABELS.allSessions
+				}
 				defaultOpen={active.length > 0}
 			>
 				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 					<Facet
 						name="discipline"
-						label="Discipline"
-						anyLabel="Any discipline"
+						label={F.discipline}
+						anyLabel={F.anyDiscipline}
 						value={filters.discipline}
 						options={DISCIPLINES.map((d) => ({
 							value: d,
-							label: DISCIPLINE_LABELS[d],
+							label: NB_DISCIPLINE_LABELS[d],
 						}))}
 					/>
 					<Facet
 						name="archetype"
-						label="Kind of session"
-						anyLabel="Any kind"
+						label={F.archetype}
+						anyLabel={F.anyArchetype}
 						value={filters.archetype}
 						options={SESSION_ARCHETYPES.map((a) => ({
 							value: a,
-							label: SESSION_ARCHETYPE_LABELS[a],
+							label: NB_SESSION_ARCHETYPE_LABELS[a],
 						}))}
 					/>
 					<Facet
 						name="phase"
-						label="Phase"
-						anyLabel="Any phase"
+						label={F.phase}
+						anyLabel={F.anyPhase}
 						value={filters.phase}
 						options={CATALOGUE_PHASES.map((p) => ({
 							value: p,
-							label: CATALOGUE_PHASE_LABELS[p],
+							label: NB_CATALOGUE_PHASE_LABELS[p],
 						}))}
 					/>
 					<Facet
 						name="goalEvent"
-						label="Goal event"
-						anyLabel="Any event"
+						label={F.goalEvent}
+						anyLabel={F.anyGoalEvent}
 						value={filters.goalEvent}
 						options={CATALOGUE_GOAL_EVENTS.map((g) => ({
 							value: g,
-							label: CATALOGUE_GOAL_EVENT_LABELS[g],
+							label: NB_CATALOGUE_GOAL_EVENT_LABELS[g],
 						}))}
 					/>
 					<Facet
 						name="level"
-						label="Suits"
-						anyLabel="Any level"
+						label={F.level}
+						anyLabel={F.anyLevel}
 						value={filters.level}
 						options={CATALOGUE_LEVELS.map((l) => ({
 							value: l,
-							label: CATALOGUE_LEVEL_LABELS[l],
+							label: NB_CATALOGUE_LEVEL_LABELS[l],
 						}))}
 					/>
 					<Facet
 						name="tier"
-						label="Written by"
-						anyLabel="Anyone"
+						label={F.tier}
+						anyLabel={F.anyTier}
 						value={filters.tier}
 						options={CATALOGUE_TIERS.map((t) => ({
 							value: t,
-							label: CATALOGUE_TIER_LABELS[t],
+							label: NB_CATALOGUE_TIER_LABELS[t],
 						}))}
 					/>
 				</div>
 
 				{/* Saved is a facet, never a tier: an athlete's list is mostly sessions
-				    they did not write (ADR 0051 §4). */}
-				<label className="flex min-h-11 items-center gap-2 text-base md:text-sm">
-					<input
-						type="checkbox"
-						name="saved"
-						value="1"
-						defaultChecked={filters.saved}
-						className="size-4"
-					/>
-					In my list
+				    they did not write (ADR 0051 §4). The whole row is the label, so
+				    the 16px box has a 44px target. */}
+				<label className="text-body flex min-h-11 items-center gap-3">
+					<Checkbox name="saved" value="1" defaultChecked={filters.saved} />
+					{CATALOGUE_LABELS.savedOnly}
 				</label>
 
 				<div className="flex flex-wrap gap-2">
-					<Button type="submit" size="sm">
-						Apply
+					<Button type="submit" className="rounded-full">
+						{CATALOGUE_LABELS.apply}
 					</Button>
 					<Link
 						to="/training/catalogue"
-						className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+						className={cn(buttonVariants({ variant: 'ghost' }), 'rounded-full')}
 					>
-						Clear all
+						{CATALOGUE_LABELS.clear}
 					</Link>
 				</div>
 			</Disclosure>
@@ -567,7 +625,7 @@ export default function CatalogueRoute({ loaderData }: Route.ComponentProps) {
 	const [searchParams] = useSearchParams()
 	const active = activeFilterLabels(filters)
 
-	// "Show more" keeps every facet and widens the cap by one page.
+	// "Vis flere" keeps every facet and widens the cap by one page.
 	const moreParams = new URLSearchParams(searchParams)
 	moreParams.set('count', String(nextCount))
 	const search = searchParams.toString()
@@ -575,39 +633,43 @@ export default function CatalogueRoute({ loaderData }: Route.ComponentProps) {
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
-				title="The Catalogue"
-				back={{ to: '/library', label: 'Bibliotek' }}
+				title={CATALOGUE_LABELS.title}
+				back={{ to: '/library', label: APP_TAB_LABELS.library }}
 				className="mb-2"
 			/>
-			<p className="text-muted-foreground mb-4 text-sm">
-				Sessions to retrieve from — trainm8's, other athletes', and your own.
+			<p className="text-footnote text-muted-foreground mb-4">
+				{CATALOGUE_LABELS.intro}
 			</p>
 
 			<section aria-labelledby="corpus" className="mb-8">
 				<h2 id="corpus" className="sr-only">
-					Sessions
+					{CATALOGUE_LABELS.sessionsHeading}
 				</h2>
 				<FilterPanel filters={filters} />
 
-				<p className="text-muted-foreground mb-3 text-sm" data-result-count>
-					{total === 1 ? '1 session' : `${total} sessions`}
-					{active.length ? ' match your filters' : null}
-					{rows.length < total ? ` · showing ${rows.length}` : null}
+				<p
+					className="text-footnote text-muted-foreground mb-3 tabular-nums"
+					data-result-count
+				>
+					{CATALOGUE_LABELS.resultLine(total, active.length > 0, rows.length)}
 				</p>
 
 				{rows.length === 0 ? (
 					<div className="space-y-2">
-						<p className="text-muted-foreground text-sm">
+						<p className="text-footnote text-muted-foreground">
 							{active.length
-								? `Nothing matches ${active.join(' · ')}.`
-								: 'Nothing in the Catalogue yet.'}
+								? CATALOGUE_LABELS.noneMatch(active.join(' · '))
+								: CATALOGUE_LABELS.empty}
 						</p>
 						{active.length ? (
 							<Link
 								to="/training/catalogue"
-								className={buttonVariants({ variant: 'outline', size: 'sm' })}
+								className={cn(
+									buttonVariants({ variant: 'outline', size: 'sm' }),
+									'rounded-full',
+								)}
 							>
-								Clear all
+								{CATALOGUE_LABELS.clear}
 							</Link>
 						) : null}
 					</div>
@@ -629,28 +691,27 @@ export default function CatalogueRoute({ loaderData }: Route.ComponentProps) {
 						preventScrollReset
 						className={cn(
 							buttonVariants({ variant: 'outline' }),
-							'mt-3 w-full',
+							'mt-3 w-full rounded-full',
 						)}
 					>
-						Show more
+						{CATALOGUE_LABELS.showMore}
 					</Link>
 				) : null}
 			</section>
 
 			<section aria-labelledby="your-sessions" className="space-y-2">
-				<h2 id="your-sessions" className="text-h6">
-					Your sessions
+				<h2 id="your-sessions" className="text-heading">
+					{CATALOGUE_LABELS.yourSessions}
 				</h2>
-				<p className="text-muted-foreground text-sm">
-					Publishing offers a session to every athlete, under a name you choose.
-					trainm8 does not review or endorse what you publish.
+				<p className="text-footnote text-muted-foreground">
+					{CATALOGUE_LABELS.publishIntro}
 				</p>
 				{own.length === 0 ? (
-					<p className="text-muted-foreground text-sm">
-						You have not written a session yet.
+					<p className="text-footnote text-muted-foreground">
+						{CATALOGUE_LABELS.noOwn}
 					</p>
 				) : (
-					<ul className="mt-2">
+					<ul className="bg-card divide-border/60 mt-2 divide-y rounded-4xl px-4 shadow-xs">
 						{own.map((workout) => (
 							<OwnRow key={workout.id} workout={workout} />
 						))}
@@ -672,28 +733,25 @@ function OwnRow({
 	}
 }) {
 	const state = workout.state
-	const status =
-		state.kind === 'published'
-			? 'In the Catalogue'
-			: state.kind === 'withdrawn'
-				? 'Withdrawn by you'
-				: state.kind === 'taken-down'
-					? 'Removed by a moderator'
-					: 'Not published'
-
 	return (
-		<li className="flex flex-wrap items-center justify-between gap-2 border-b py-3 last:border-b-0">
+		<li className="flex items-center justify-between gap-3 py-3">
 			<div className="min-w-0">
-				<p className="text-body-sm font-medium">{workout.title}</p>
-				<p className="text-body-xs text-muted-foreground">
-					{getDisciplineLabel(workout.discipline)} · {status}
+				<p className="text-callout [overflow-wrap:anywhere]">{workout.title}</p>
+				<p className="text-footnote text-muted-foreground">
+					{nbDisciplineLabel(workout.discipline)} ·{' '}
+					{CATALOGUE_LABELS.publishState[state.kind]}
 				</p>
 			</div>
 			<Link
 				to={`/training/catalogue/publish/${workout.id}`}
-				className={buttonVariants({ variant: 'outline', size: 'sm' })}
+				className={cn(
+					buttonVariants({ variant: 'outline', size: 'sm' }),
+					'shrink-0 rounded-full',
+				)}
 			>
-				{state.kind === 'published' ? 'Manage' : 'Publish'}
+				{state.kind === 'published'
+					? CATALOGUE_LABELS.manage
+					: CATALOGUE_LABELS.publish}
 			</Link>
 		</li>
 	)

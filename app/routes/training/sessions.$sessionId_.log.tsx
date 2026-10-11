@@ -40,11 +40,17 @@ import { Link, data, useFetcher } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
-import { Button, buttonVariants } from '#app/components/ui/button.tsx'
+import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
+import { Collapsible } from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import {
+	FINISH_UNTAPPED_LABELS,
+	RUNNER_LABELS,
+	WORKOUT_DETAIL_LABELS,
+} from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	type LogExercise,
@@ -65,8 +71,8 @@ import {
 	LiftPlateRow,
 } from './__lift-help-panel.tsx'
 import { buildOutcomePanelView } from './__outcome-panel-presenter.ts'
-import { OutcomePanel } from './__outcome-panel.tsx'
 import { RestBar, type RestState } from './__rest-bar.tsx'
+import { RunnerFinish } from './__runner-finish.tsx'
 import {
 	type LiftProgress,
 	type RestAction,
@@ -90,14 +96,17 @@ import {
 	restForWarmupTap,
 } from './__runner-presenter.ts'
 
+const L = RUNNER_LABELS
+
 export const meta: Route.MetaFunction = ({ data: loaderData }) => [
-	{ title: `Log · ${loaderData?.sessionTitle ?? 'Session'} | Trainm8` },
+	{ title: L.metaTitle(loaderData?.sessionTitle ?? L.metaFallback) },
 ]
 
 export async function loader({ request, params }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	const view = await getStrengthLogView(userId, params.sessionId)
-	if (!view) throw new Response('Not found', { status: 404 })
+	if (!view)
+		throw new Response(WORKOUT_DETAIL_LABELS.errors.notFound, { status: 404 })
 	// A program session prescribes the athlete's own **copy** of the day shape,
 	// because that is where the resolved load lives — so the run is reached one hop
 	// up `copiedFromId`, which the view's own direct lookup cannot see.
@@ -180,37 +189,20 @@ const LOAD_KINDS = [
 ] as const
 type LoadKind = (typeof LOAD_KINDS)[number]
 
-const LOAD_KIND_LABELS: Record<LoadKind, string> = {
-	external: 'Weight (kg)',
-	bodyweight: 'Bodyweight',
-	bodyweightPlus: 'Bodyweight + kg',
-	assisted: 'Assisted (kg off)',
-	stackLevel: 'Machine level',
-	band: 'Band',
-	unloaded: 'No load',
-}
+const LOAD_KIND_LABELS: Record<LoadKind, string> = L.loadKinds
 
 /**
  * What a stored row was loaded with, in a phrase that fits mid-sentence. All
  * eight members of the union and not just the seven the action takes: the words
  * are for describing a row that already exists, and `perSide` rows exist.
  */
-const LOAD_VALUE_KIND_WORDS: Record<LoadValue['kind'], string> = {
-	external: 'kilos',
-	perSide: 'kilos per hand',
-	bodyweight: 'bodyweight',
-	bodyweightPlus: 'bodyweight plus kilos',
-	assisted: 'assisted kilos',
-	stackLevel: 'a machine level',
-	band: 'a band',
-	unloaded: 'no load',
-}
+const LOAD_VALUE_KIND_WORDS: Record<LoadValue['kind'], string> = L.loadWords
 
 const optionalNumber = z
 	.string()
 	.optional()
 	.transform((v) => (v == null || v.trim() === '' ? null : Number(v)))
-	.refine((v) => v == null || Number.isFinite(v), 'Not a number')
+	.refine((v) => v == null || Number.isFinite(v), L.errors.nonsense)
 
 const LogSetSchema = z.object({
 	stepId: z.string().min(1),
@@ -276,14 +268,26 @@ export async function action({ request, params }: Route.ActionArgs) {
 		const finished = await finishStrengthSession({
 			userId,
 			sessionId: params.sessionId,
+			// The athlete's answer to "N sett er ikke logget" (owner decision 10).
+			untapped:
+				formData.get('untapped') === 'not-done' ? 'not-done' : undefined,
 		})
+		if (!finished.ok && finished.reason === 'untapped-sets') {
+			return data(
+				{
+					error: FINISH_UNTAPPED_LABELS.refused(finished.untapped),
+					untapped: finished.untapped,
+				},
+				400,
+			)
+		}
 		if (!finished.ok) {
 			return data(
 				{
 					error:
 						finished.reason === 'nothing-logged'
-							? 'Log a working set first — there is nothing to finish yet.'
-							: 'That session is gone.',
+							? L.errors.nothingLogged
+							: L.errors.gone,
 				},
 				400,
 			)
@@ -308,18 +312,19 @@ export async function action({ request, params }: Route.ActionArgs) {
 			String(formData.get('stepId') ?? ''),
 			Number(formData.get('orderIndex') ?? -1),
 		)
-		return cleared ? { ok: true as const } : data({ error: 'Not found' }, 404)
+		return cleared
+			? { ok: true as const }
+			: data({ error: L.errors.notFound }, 404)
 	}
 
 	const parsed = LogSetSchema.safeParse(Object.fromEntries(formData))
-	if (!parsed.success)
-		return data({ error: 'That set did not make sense.' }, 400)
+	if (!parsed.success) return data({ error: L.errors.nonsense }, 400)
 	const input = parsed.data
 
 	const load = toLoadValue(input.loadKind, input.loadNumber, input.loadLabel)
 	if (!load) {
 		return data(
-			{ error: `${LOAD_KIND_LABELS[input.loadKind]} needs a number.` },
+			{ error: L.errors.needsNumber(LOAD_KIND_LABELS[input.loadKind]) },
 			400,
 		)
 	}
@@ -347,7 +352,9 @@ export async function action({ request, params }: Route.ActionArgs) {
 			// guard caught, and a generic "did not save" would leave them retapping.
 			return data(
 				{
-					error: `That set is recorded as ${LOAD_VALUE_KIND_WORDS[result.recordedKind]}. It cannot be re-logged as something else from here.`,
+					error: L.errors.kindLocked(
+						LOAD_VALUE_KIND_WORDS[result.recordedKind],
+					),
 				},
 				400,
 			)
@@ -356,10 +363,10 @@ export async function action({ request, params }: Route.ActionArgs) {
 			{
 				error:
 					result.reason === 'not-strength'
-						? 'That step is not a lift.'
+						? L.errors.notALift
 						: result.reason === 'no-count'
-							? 'That set recorded no count.'
-							: 'That session is gone.',
+							? L.errors.noCount
+							: L.errors.gone,
 			},
 			400,
 		)
@@ -446,9 +453,7 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
 				{view.status === 'completed' ? <AlreadyRecorded view={view} /> : null}
 
 				{view.exercises.length === 0 ? (
-					<p className="text-body-2xs text-muted-foreground">
-						This session has no lifts to log.
-					</p>
+					<p className="text-footnote text-muted-foreground">{L.noLifts}</p>
 				) : (
 					<div className="flex flex-col gap-4">
 						{view.exercises.map((exercise) => (
@@ -464,7 +469,14 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
 					</div>
 				)}
 
-				{view.exercises.length > 0 ? <FinishSession view={view} /> : null}
+				{view.exercises.length > 0 ? (
+					<RunnerFinish
+						exercises={view.exercises}
+						logged={logged}
+						status={view.status}
+						onFinished={() => setRest(null)}
+					/>
+				) : null}
 			</div>
 
 			{/* Pinned to the foot of the scroll area, whose bottom padding above
@@ -502,7 +514,7 @@ function RunnerHeader({ view }: { view: Route.ComponentProps['loaderData'] }) {
 		<header className="container mx-auto flex max-w-2xl items-start gap-2 py-4">
 			<Link
 				to="/"
-				aria-label="Back to today"
+				aria-label={L.back}
 				className={cn(
 					buttonVariants({ variant: 'ghost', size: 'icon' }),
 					// ~44px effective touch target on a 32px control (ADR 0028).
@@ -512,10 +524,13 @@ function RunnerHeader({ view }: { view: Route.ComponentProps['loaderData'] }) {
 				<Icon name="arrow-left" size="md" />
 			</Link>
 			<div className="min-w-0 flex-1">
-				<p className="text-button text-primary truncate tracking-widest uppercase">
+				{/* The workout's name in full: a program's eyebrow cut to
+				    "STRONGLIFTS 5×5 · W…" at 320px hid which workout it was
+				    (story 32). It wraps instead. */}
+				<p className="text-overline text-primary [overflow-wrap:anywhere] uppercase">
 					{view.sessionTitle}
 				</p>
-				<h1 className="text-h6 truncate">Run your workout</h1>
+				<h1 className="text-title">{L.heading}</h1>
 			</div>
 			{/* `Session 14` — which session of the run this is ({@link
 			    runSessionNumber}). A session that belongs to no run has no number,
@@ -524,9 +539,9 @@ function RunnerHeader({ view }: { view: Route.ComponentProps['loaderData'] }) {
 			{view.sessionNumber != null ? (
 				<Badge
 					variant="secondary"
-					className="bg-muted text-muted-foreground h-6 shrink-0 rounded-2xl"
+					className="bg-muted text-muted-foreground shrink-0 tabular-nums"
 				>
-					Session {view.sessionNumber}
+					{L.sessionNumber(view.sessionNumber)}
 				</Badge>
 			) : null}
 		</header>
@@ -561,7 +576,9 @@ function LiftCard({
 	 * is printed. Every set control on the card logs through this. */
 	const handlers: SetLogHandlers = { ...runner, onFailure: setFailure }
 	/** **Collapsed by default**, because the screen has to stay quiet: the account
-	 * of every number on this card exists and costs one tap to ask for. */
+	 * of every number on this card exists and costs one tap to ask for. The
+	 * `Collapsible` below owns the state; the toggle and the panel are its
+	 * trigger and its panel. */
 	const [helpOpen, setHelpOpen] = useState(false)
 	const load = buildWorkingLoad(exercise)
 	const subline = buildLiftSubline(exercise)
@@ -596,33 +613,39 @@ function LiftCard({
 			className="gap-3.5 px-4.5 py-4.5"
 			aria-labelledby={`lift-${exercise.stepId}`}
 		>
-			<div className="flex items-start gap-2">
-				<div className="min-w-0 flex-1">
-					<h2 id={`lift-${exercise.stepId}`} className="text-h6 truncate">
-						{exercise.name}
-					</h2>
-					{subline ? (
-						<p className="text-body-2xs text-muted-foreground mt-0.5">
-							{subline}
-						</p>
-					) : null}
+			<Collapsible
+				open={helpOpen}
+				onOpenChange={setHelpOpen}
+				className="flex flex-col gap-3.5"
+			>
+				<div className="flex items-start gap-2">
+					<div className="min-w-0 flex-1">
+						{/* The lift's name wraps rather than truncating: two lifts
+						    whose names differ at the end must not read the same. */}
+						<h2
+							id={`lift-${exercise.stepId}`}
+							className="text-heading [overflow-wrap:anywhere]"
+						>
+							{exercise.name}
+						</h2>
+						{subline ? (
+							<p className="text-footnote text-muted-foreground mt-0.5">
+								{subline}
+							</p>
+						) : null}
+					</div>
+					{/* Every explanation this lift owes, one tap behind its name — never
+					    a paragraph beside a control (#434's defect). */}
+					<LiftHelpToggle liftName={exercise.name} />
 				</div>
-				{/* Every explanation this lift owes, one tap behind its name — never a
-				    paragraph beside a control (#434's defect). */}
-				<LiftHelpToggle
-					liftName={exercise.name}
-					panelId={panelId}
-					open={helpOpen}
-					onToggle={() => setHelpOpen((open) => !open)}
-				/>
-			</div>
 
-			{helpOpen ? <LiftHelpPanel panelId={panelId} lines={help} /> : null}
+				<LiftHelpPanel panelId={panelId} lines={help} />
+			</Collapsible>
 
 			{chips.length > 0 ? (
 				<div>
-					<p className="text-button text-muted-foreground tracking-widest uppercase">
-						Warm-up
+					<p className="text-overline text-muted-foreground uppercase">
+						{L.warmup}
 					</p>
 					<div className="mt-2 flex flex-wrap gap-2">
 						{chips.map((chip) => (
@@ -639,15 +662,24 @@ function LiftCard({
 
 			<div>
 				<div className="flex items-baseline justify-between gap-2">
-					<p className="text-button text-muted-foreground tracking-widest uppercase">
-						Working sets
+					<p className="text-overline text-muted-foreground uppercase">
+						{L.workingSets}
 					</p>
 					{/* What is left, without counting circles. */}
-					<p className="text-body-2xs text-muted-foreground">
+					<p className="text-footnote text-muted-foreground tabular-nums">
 						{buildLoggedCounter(circles)}
 					</p>
 				</div>
-				<div className="mt-2 flex items-stretch gap-2.5">
+				{/* **Equal-width circles that wrap.** A repeated block is a circle per
+				    set per round — a `5 ×` circuit of three sets is fifteen — and on
+				    one flex line they shrank under a thumb. Auto-fit columns of at
+				    least 44px keep every circle the same width, fill the row when
+				    there are few (five across at 390px, as before) and wrap into rows
+				    when there are many. */}
+				<div
+					data-set-circles
+					className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(2.75rem,1fr))] gap-2.5"
+				>
 					{circles.map((circle) => (
 						<SetCircleButton
 							key={circle.key}
@@ -665,7 +697,7 @@ function LiftCard({
 				    sentence beside the circles said the same thing twice, three lines
 				    apart, on the one screen with the least attention available. */}
 				{load.kind === 'absent' && load.fix ? (
-					<p className="text-body-2xs text-muted-foreground mt-2">{load.fix}</p>
+					<p className="text-footnote text-muted-foreground mt-2">{load.fix}</p>
 				) : null}
 				{/* Under the sets: the plate line, and last time on the right. Both
 				    are the presenter's strings — including the sentence a rack that
@@ -673,7 +705,7 @@ function LiftCard({
 				    gym is described. */}
 				<LiftPlateRow annotation={plateAnnotation} lastTime={lastTime} />
 				{failure ? (
-					<p className="text-destructive text-body-2xs mt-2" role="alert">
+					<p className="text-destructive text-footnote mt-2" role="alert">
 						{failure}
 					</p>
 				) : null}
@@ -703,7 +735,7 @@ function messageOf(answer: unknown): string | null {
 }
 
 /** What a failure says when the server did not say anything a card can print. */
-const UNEXPLAINED_FAILURE = 'That set did not save — tap it again.'
+const UNEXPLAINED_FAILURE = L.unexplainedFailure
 
 /**
  * **What the runner owes every set control**, as one parameter.
@@ -926,12 +958,15 @@ function SetCircleButton({
 			// **60px tall, for a reason**: it is pressed with a shaking hand, twenty
 			// seconds after a heavy set (#476's user story 26).
 			className={cn(
-				'focus-visible:ring-ring text-body-md flex h-15 flex-1 items-center justify-center rounded-2xl border-2 bg-transparent font-bold outline-none focus-visible:ring-2',
-				// The only two animations on this screen: the 120ms colour change and
-				// the 80ms press-scale. The scale is 0.97, inside the 0.95–0.98 band
-				// the motion pass set (#502) — 0.94 read as a flinch rather than as
-				// the circle answering the tap.
-				'[transition:background-color_120ms,border-color_120ms,color_120ms,transform_80ms] active:scale-[0.97]',
+				'focus-visible:ring-ring text-heading flex h-15 min-w-11 flex-1 items-center justify-center rounded-3xl border-2 bg-transparent font-bold tabular-nums outline-none focus-visible:ring-2',
+				// The only two animations on this screen besides the help panel:
+				// the colour change and the press. Both are the app's `pressable`
+				// (#505 round 2): scale 0.97 on `:active`, 160ms on `--ease-out`,
+				// colours on the same curve, the scale dropped under reduced
+				// motion. It was a hand-written `[transition:…120ms…80ms]` on the
+				// browser's default `ease` — the one curve on the screen that was
+				// not the app's. 0.94 (ADR 0064) read as a flinch (#502).
+				'pressable',
 				CIRCLE_STATE_CLASS[circle.state],
 				circle.tappable ? '' : 'opacity-50',
 			)}
@@ -1012,11 +1047,11 @@ function WarmupChipButton({
 			aria-pressed={chip.on}
 			aria-label={chip.ariaLabel}
 			className={cn(
-				// The handoff's chip: radius 14px (`rounded-xl` against this repo's
-				// 10px `--radius`), padding `8px 11px`, and **44px minimum** — the same
-				// hit target as every other control on this screen, on an element that
+				// The handoff's chip: radius ~13px (`rounded-3xl`, the luma step for
+				// controls), padding `8px 11px`, and **44px minimum** — the same hit
+				// target as every other control on this screen, on an element that
 				// only needs 28px to hold its text.
-				'text-body-2xs focus-visible:ring-ring flex min-h-11 items-center justify-center rounded-xl border px-2.75 py-2 font-semibold whitespace-nowrap outline-none focus-visible:ring-2',
+				'text-footnote focus-visible:ring-ring pressable flex min-h-11 items-center justify-center rounded-3xl border px-2.75 py-2 font-semibold whitespace-nowrap tabular-nums outline-none focus-visible:ring-2',
 				chip.on
 					? // Ticked: filled to the same 10% the border was, a brighter
 						// hairline, and full foreground text.
@@ -1029,73 +1064,6 @@ function WarmupChipButton({
 		>
 			{chip.label}
 		</button>
-	)
-}
-
-/**
- * **Finish the workout, and hear what you lift next time.**
- *
- * The one control on this screen that is not a set. Explicitly *not* a "save
- * workout" button — every set is already persisted the moment it is tapped, and
- * the caption says so — and explicitly not an inference either: it writes
- * `status: 'completed'` because the athlete said the session was over, and it
- * folds the log into the running program server-side, where the pure engine
- * re-reads `ExerciseSetLog` rather than trusting anything this form posted.
- *
- * **Refused, in words, on a session with no logged working set** (ADR 0060 §6),
- * and refused by the server rather than by this button: the sets are the truth,
- * and a second copy of the rule up here could disagree with them.
- */
-function FinishSession({ view }: { view: Route.ComponentProps['loaderData'] }) {
-	const fetcher = useFetcher<typeof action>()
-	const finished =
-		fetcher.data && 'finished' in fetcher.data ? fetcher.data.finished : null
-	const error =
-		fetcher.data && 'error' in fetcher.data ? fetcher.data.error : null
-	const [dismissed, setDismissed] = useState(false)
-
-	// **Back from the panel returns to the runner**, not to the cockpit (#476's
-	// navigation rule). Nothing is undone by it: the fold has happened, every set
-	// is still the record of the day, and the athlete is simply back among them.
-	if (finished && !dismissed) {
-		return (
-			<OutcomePanel
-				items={finished.outcomes}
-				exercises={view.exercises}
-				onBack={() => setDismissed(true)}
-			/>
-		)
-	}
-
-	// Already recorded: no button. Tapping Finish twice is safe — the fold is
-	// idempotent on `ProgramSessionApplication` — but a live-looking control over
-	// a session that is already done is the surface telling the athlete nothing
-	// happened yet, which is untrue. The statement lives at the top of the screen
-	// (`AlreadyRecorded`).
-	if (view.status === 'completed') return null
-
-	return (
-		<div className="mt-6">
-			<Button
-				type="button"
-				className="h-13 w-full"
-				disabled={fetcher.state !== 'idle'}
-				onClick={() =>
-					void fetcher.submit({ intent: 'finish-session' }, { method: 'POST' })
-				}
-			>
-				Finish workout
-			</Button>
-			{error ? (
-				<p className="text-destructive text-body-2xs mt-2" role="alert">
-					{error}
-				</p>
-			) : null}
-			{/* The one thing an athlete worried about losing work needs to read. */}
-			<p className="text-body-2xs text-muted-foreground mt-2 text-center">
-				Every set was saved as you tapped it. This only marks the day.
-			</p>
-		</div>
 	)
 }
 
@@ -1116,21 +1084,17 @@ function AlreadyRecorded({
 	view: Route.ComponentProps['loaderData']
 }) {
 	return (
-		<div
-			role="status"
-			className="border-border bg-muted/40 mb-4 rounded-2xl border p-3"
-		>
-			<p className="text-body-2xs font-medium">Already recorded.</p>
-			<p className="text-body-2xs text-muted-foreground mt-1">
-				You finished this workout. Your sets are the record, and tapping one
-				below still changes it — but nothing here is waiting to be filed.
+		<div role="status" className="bg-muted/60 mb-4 rounded-3xl px-4 py-3">
+			<p className="text-callout">{L.alreadyRecorded}</p>
+			<p className="text-footnote text-muted-foreground mt-1">
+				{L.alreadyRecordedNote}
 			</p>
 			{view.program ? (
 				<Link
 					to={`/training/programs/run/${view.program.instanceId}`}
-					className="text-body-2xs mt-2 inline-flex min-h-11 items-center underline"
+					className="text-footnote text-foreground mt-1 inline-flex min-h-11 items-center underline underline-offset-2"
 				>
-					What {view.program.name} says you lift next
+					{L.nextFromProgram(view.program.name)}
 				</Link>
 			) : null}
 		</div>

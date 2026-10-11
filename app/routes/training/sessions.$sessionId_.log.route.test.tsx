@@ -31,6 +31,18 @@ import { REST_TICK_MS } from './__rest-bar.tsx'
 import { type LiftProgress } from './__runner-presenter.ts'
 import SetLogRoute from './sessions.$sessionId_.log.tsx'
 
+/**
+ * Finish with sets still untapped asks first (owner decision 10). Tests about
+ * what Finish leads to answer "marker som ikke gjort"; the question itself is
+ * tested on its own below.
+ */
+async function answerUntapped() {
+	const markNotDone = await screen
+		.findByRole('button', { name: 'Marker som ikke gjort' }, { timeout: 500 })
+		.catch(() => null)
+	if (markNotDone) await userEvent.click(markNotDone)
+}
+
 type LogRow = StrengthLogView['exercises'][0]['rows'][0]
 type LogExercise = StrengthLogView['exercises'][0]
 
@@ -135,7 +147,9 @@ function rungs(): LogRow[] {
 
 /** The chip for rung `n` of the default lift, ticked or not. */
 function chip(n: number) {
-	return screen.getByLabelText(new RegExp(`^Log(ged)? warm-up ${n} of Squat,`))
+	return screen.getByLabelText(
+		new RegExp(`^Logg(et)? oppvarming ${n} av Squat,`),
+	)
 }
 
 function chipLabels() {
@@ -146,7 +160,7 @@ function chipLabels() {
 
 /** The circle for set `n` of the default lift. */
 function circle(n: number) {
-	return screen.getByLabelText(new RegExp(`^Logg?ed? set ${n} of Squat$`))
+	return screen.getByLabelText(new RegExp(`^Logg(et)? sett ${n} av Squat$`))
 }
 
 // ——— The card ——————————————————————————————————————————————————————————————
@@ -166,8 +180,8 @@ test('one card per lift, with the lift name and its resolved scheme and weight',
 		screen.getByRole('heading', { name: 'Bench Press' }),
 	).toBeInTheDocument()
 	// The one line under the name, and the only place the resolved weight is
-	// stated: `5×5 · 82.5 kg`.
-	expect(screen.getAllByText('5×5 · 82.5 kg')).toHaveLength(2)
+	// stated: `5×5 · 82,5 kg`.
+	expect(screen.getAllByText('5×5 · 82,5 kg')).toHaveLength(2)
 })
 
 test('the header carries the workout eyebrow, the title, the session badge and a back arrow to the cockpit', async () => {
@@ -178,15 +192,14 @@ test('the header carries the workout eyebrow, the title, the session badge and a
 
 	expect(await screen.findByText('Workout A')).toBeInTheDocument()
 	expect(
-		screen.getByRole('heading', { name: 'Run your workout' }),
+		screen.getByRole('heading', { name: 'Gjennomfør økta' }),
 	).toBeInTheDocument()
-	expect(screen.getByRole('link', { name: 'Back to today' })).toHaveAttribute(
-		'href',
-		'/',
-	)
+	expect(
+		screen.getByRole('link', { name: 'Tilbake til I dag' }),
+	).toHaveAttribute('href', '/')
 	// **The badge is the session's place in the run**, not the program's name —
 	// the handoff's `Session 14` (#480).
-	expect(screen.getByText('Session 14')).toBeInTheDocument()
+	expect(screen.getByText('Økt 14')).toBeInTheDocument()
 	expect(screen.queryByText('StrongLifts 5×5')).not.toBeInTheDocument()
 })
 
@@ -194,14 +207,14 @@ test('a session that belongs to no run carries no badge, because nothing can num
 	renderLog()
 
 	expect(await screen.findByText('Workout A')).toBeInTheDocument()
-	expect(screen.queryByText(/^Session /)).not.toBeInTheDocument()
+	expect(screen.queryByText(/^Økt \d/)).not.toBeInTheDocument()
 })
 
 test('a working set is one circle showing its target reps, sized for a shaking hand', async () => {
 	renderLog()
 
-	const first = await screen.findByLabelText('Log set 1 of Squat')
-	expect(screen.getAllByLabelText(/^Log set \d of Squat$/)).toHaveLength(5)
+	const first = await screen.findByLabelText('Logg sett 1 av Squat')
+	expect(screen.getAllByLabelText(/^Logg sett \d av Squat$/)).toHaveLength(5)
 	expect(first).toHaveTextContent('5')
 	// 60px tall — the handoff's `h-15`, and the reason it is a circle and not a row.
 	expect(first).toHaveClass('h-15')
@@ -215,7 +228,7 @@ test('a working set is one circle showing its target reps, sized for a shaking h
 test('the first tap logs the full target and posts it through the existing log-set path', async () => {
 	const { submitted } = renderLog()
 
-	await userEvent.click(await screen.findByLabelText('Log set 1 of Squat'))
+	await userEvent.click(await screen.findByLabelText('Logg sett 1 av Squat'))
 
 	// Typed fields, and nothing parsed: the load kind and the weight the program
 	// resolved, plus the count under the name of the quantity it is.
@@ -232,7 +245,7 @@ test('the first tap logs the full target and posts it through the existing log-s
 	)
 	// And it reads as made, immediately — before the round trip.
 	await waitFor(() =>
-		expect(screen.getByLabelText('Logged set 1 of Squat')).toHaveAttribute(
+		expect(screen.getByLabelText('Logget sett 1 av Squat')).toHaveAttribute(
 			'data-state',
 			'made',
 		),
@@ -242,7 +255,7 @@ test('the first tap logs the full target and posts it through the existing log-s
 test('each further tap counts the reps down, and a set under target reads as destructive with the count achieved', async () => {
 	const { submitted } = renderLog()
 
-	const first = await screen.findByLabelText('Log set 1 of Squat')
+	const first = await screen.findByLabelText('Logg sett 1 av Squat')
 	await userEvent.click(first)
 	await userEvent.click(circle(1))
 
@@ -263,7 +276,7 @@ test('each further tap counts the reps down, and a set under target reads as des
 test('a tap past zero clears the set, through the existing clear-set path', async () => {
 	const { submitted } = renderLog()
 
-	await userEvent.click(await screen.findByLabelText('Log set 1 of Squat'))
+	await userEvent.click(await screen.findByLabelText('Logg sett 1 av Squat'))
 	for (const _ of [5, 4, 3, 2, 1]) await userEvent.click(circle(1))
 
 	expect(circle(1)).toHaveTextContent('0')
@@ -275,7 +288,7 @@ test('a tap past zero clears the set, through the existing clear-set path', asyn
 		orderIndex: '0',
 	})
 	// Back to asking, showing the target again.
-	const cleared = await screen.findByLabelText('Log set 1 of Squat')
+	const cleared = await screen.findByLabelText('Logg sett 1 av Squat')
 	expect(cleared).toHaveAttribute('data-state', 'untouched')
 	expect(cleared).toHaveTextContent('5')
 })
@@ -307,54 +320,71 @@ test('a set already logged reopens as logged, so a reload does not lose the sess
 		],
 	})
 
-	const logged = await screen.findByLabelText('Logged set 1 of Squat')
+	const logged = await screen.findByLabelText('Logget sett 1 av Squat')
 	expect(logged).toHaveAttribute('data-state', 'short')
 	expect(logged).toHaveTextContent('3')
-	expect(screen.getByText('1 of 2 logged')).toBeInTheDocument()
+	expect(screen.getByText('1 av 2 logget')).toBeInTheDocument()
 })
 
 test('the counter reflects the working sets logged, so nobody counts circles', async () => {
 	renderLog()
 
-	expect(await screen.findByText('0 of 5 logged')).toBeInTheDocument()
-	await userEvent.click(screen.getByLabelText('Log set 1 of Squat'))
-	await userEvent.click(screen.getByLabelText('Log set 2 of Squat'))
+	expect(await screen.findByText('0 av 5 logget')).toBeInTheDocument()
+	await userEvent.click(screen.getByLabelText('Logg sett 1 av Squat'))
+	await userEvent.click(screen.getByLabelText('Logg sett 2 av Squat'))
 
-	expect(await screen.findByText('2 of 5 logged')).toBeInTheDocument()
+	expect(await screen.findByText('2 av 5 logget')).toBeInTheDocument()
 })
 
 test('the circles announce themselves, so the grid is operable without sight', async () => {
 	renderLog()
 
-	expect(await screen.findByLabelText('Log set 3 of Squat')).toBeInTheDocument()
-	await userEvent.click(screen.getByLabelText('Log set 3 of Squat'))
 	expect(
-		await screen.findByLabelText('Logged set 3 of Squat'),
+		await screen.findByLabelText('Logg sett 3 av Squat'),
+	).toBeInTheDocument()
+	await userEvent.click(screen.getByLabelText('Logg sett 3 av Squat'))
+	expect(
+		await screen.findByLabelText('Logget sett 3 av Squat'),
 	).toBeInTheDocument()
 })
 
 test('only the colour transition and the press-scale animate', async () => {
 	renderLog()
 
-	const first = await screen.findByLabelText('Log set 1 of Squat')
-	expect(first.className).toContain(
-		'[transition:background-color_120ms,border-color_120ms,color_120ms,transform_80ms]',
+	const first = await screen.findByLabelText('Logg sett 1 av Squat')
+	// The house press (`pressable`): colour and a 0.97 scale on the app's own
+	// `--ease-out` at `duration-press`, with the scale dropped under reduced
+	// motion. The circle's own `[transition:…]` ran the browser's default `ease`
+	// and kept moving under reduced motion (#502, ADR 0077).
+	expect(first).toHaveClass('pressable')
+	expect(first.className).not.toContain('[transition:')
+	expect(first.className).not.toContain('active:scale-')
+})
+
+test('the circles wrap into rows of at least 44px, so a repeated block never squeezes them', async () => {
+	renderLog()
+
+	const first = await screen.findByLabelText('Logg sett 1 av Squat')
+	// A `5 ×` circuit of three sets is fifteen circles. On one flex line they
+	// shrank under a thumb; an auto-fit grid of 44px-minimum columns wraps them
+	// and keeps every circle the same width.
+	const row = first.closest('[data-set-circles]')
+	expect(row).not.toBeNull()
+	expect(row).toHaveClass('grid')
+	expect(row!.className).toContain(
+		'grid-cols-[repeat(auto-fit,minmax(2.75rem,1fr))]',
 	)
-	// 0.97, not 0.94: the motion pass put every press-scale in the app inside
-	// the 0.95–0.98 band, because further than that reads as a flinch rather
-	// than as the circle answering a thumb (#502, ADR 0077).
-	expect(first.className).toContain('active:scale-[0.97]')
 })
 
 test('a circle stays tappable while the rest timer runs, because the timer never blocks a set', async () => {
 	const { submitted } = renderLog()
 
-	await userEvent.click(await screen.findByLabelText('Log set 1 of Squat'))
+	await userEvent.click(await screen.findByLabelText('Logg sett 1 av Squat'))
 	// The bar is up…
 	expect(await screen.findByText('3:00')).toBeInTheDocument()
 	// …and the next set still goes in.
-	await userEvent.click(screen.getByLabelText('Log set 2 of Squat'))
-	expect(screen.getByLabelText('Logged set 2 of Squat')).toBeEnabled()
+	await userEvent.click(screen.getByLabelText('Logg sett 2 av Squat'))
+	expect(screen.getByLabelText('Logget sett 2 av Squat')).toBeEnabled()
 	expect(submitted).toHaveBeenLastCalledWith(
 		expect.objectContaining({ orderIndex: '1', reps: '5' }),
 	)
@@ -363,7 +393,7 @@ test('a circle stays tappable while the rest timer runs, because the timer never
 test('a made set gets the made-set rest and a short one the longer rest, and the bar says why', async () => {
 	renderLog()
 
-	await userEvent.click(await screen.findByLabelText('Log set 1 of Squat'))
+	await userEvent.click(await screen.findByLabelText('Logg sett 1 av Squat'))
 	expect(
 		await screen.findByText(`${REST_AFTER_MADE_SET_SEC / 60}:00`),
 	).toBeInTheDocument()
@@ -372,18 +402,20 @@ test('a made set gets the made-set rest and a short one the longer rest, and the
 	expect(
 		await screen.findByText(`${REST_AFTER_MISSED_SET_SEC / 60}:00`),
 	).toBeInTheDocument()
-	expect(screen.getByText('longer rest after a missed set')).toBeInTheDocument()
+	expect(
+		screen.getByText('lengre pause etter et sett til kort'),
+	).toBeInTheDocument()
 })
 
 test('a set the server refused puts the circle back and says so, because a set that looks logged and is not is gone', async () => {
 	renderLog({}, { error: 'That session is gone.' })
 
-	await userEvent.click(await screen.findByLabelText('Log set 1 of Squat'))
+	await userEvent.click(await screen.findByLabelText('Logg sett 1 av Squat'))
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'That session is gone.',
 	)
-	expect(screen.getByLabelText('Log set 1 of Squat')).toHaveAttribute(
+	expect(screen.getByLabelText('Logg sett 1 av Squat')).toHaveAttribute(
 		'data-state',
 		'untouched',
 	)
@@ -392,9 +424,9 @@ test('a set the server refused puts the circle back and says so, because a set t
 test('a rejected save that says nothing still tells the athlete the set did not save', async () => {
 	renderLog({}, { nonsense: true })
 
-	await userEvent.click(await screen.findByLabelText('Log set 1 of Squat'))
+	await userEvent.click(await screen.findByLabelText('Logg sett 1 av Squat'))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(/did not save/i)
+	expect(await screen.findByRole('alert')).toHaveTextContent(/ble ikke lagret/i)
 })
 
 // ——— The weight the program resolved, and its absences ————————————————————
@@ -422,7 +454,7 @@ test('an unresolved percentage is stated as an absence with its fix, and there i
 	expect(
 		await screen.findByText(/no 1RM on file for this lift/),
 	).toBeInTheDocument()
-	expect(screen.getByLabelText('Log set 1 of Squat')).toBeDisabled()
+	expect(screen.getByLabelText('Logg sett 1 av Squat')).toBeDisabled()
 	// Never a number nobody has, and never a zero.
 	expect(screen.queryByText(/0 kg/)).not.toBeInTheDocument()
 })
@@ -439,7 +471,7 @@ test('a bodyweight lift posts bodyweight and invents no kilo', async () => {
 		],
 	})
 
-	await userEvent.click(await screen.findByLabelText('Log set 1 of Squat'))
+	await userEvent.click(await screen.findByLabelText('Logg sett 1 av Squat'))
 
 	expect(submitted).toHaveBeenCalledWith(
 		expect.objectContaining({
@@ -466,7 +498,7 @@ test('a timed hold logs its seconds and does not count down', async () => {
 		],
 	})
 
-	await userEvent.click(await screen.findByLabelText('Log set 1 of Squat'))
+	await userEvent.click(await screen.findByLabelText('Logg sett 1 av Squat'))
 	expect(submitted).toHaveBeenCalledWith(
 		expect.objectContaining({ loadKind: 'unloaded', durationSec: '45' }),
 	)
@@ -544,7 +576,7 @@ test('a warm-up rung is a chip that toggles, and logs as a warm-up', async () =>
 		],
 	})
 
-	const chip = await screen.findByLabelText(/^Log warm-up 1 of Squat/)
+	const chip = await screen.findByLabelText(/^Logg oppvarming 1 av Squat/)
 	expect(chip).toHaveTextContent('20 × 5')
 	await userEvent.click(chip)
 
@@ -559,7 +591,7 @@ test('a warm-up rung is a chip that toggles, and logs as a warm-up', async () =>
 		}),
 	)
 	// And a rung is not a working set: the counter is untouched.
-	expect(screen.getByText('0 of 5 logged')).toBeInTheDocument()
+	expect(screen.getByText('0 av 5 logget')).toBeInTheDocument()
 })
 
 test('the ramp wraps as chips that toggle independently, and a tick survives a re-render', async () => {
@@ -612,7 +644,7 @@ test('ticking the last rung starts the pause before working weight, and the bar 
 		`${REST_BEFORE_LAST_WARMUP_SEC / 60}:00`,
 	)
 	expect(
-		screen.getByText('rest before your last warm-up set'),
+		screen.getByText('pause før siste oppvarmingssett'),
 	).toBeInTheDocument()
 })
 
@@ -660,8 +692,8 @@ test('where no ramp can be generated the section is absent, not empty', async ()
 
 	// The working sets are there, so the card rendered — and there is no empty
 	// WARM-UP heading above them.
-	expect(await screen.findByText('Working sets')).toBeInTheDocument()
-	expect(screen.queryByText('Warm-up')).not.toBeInTheDocument()
+	expect(await screen.findByText('Arbeidssett')).toBeInTheDocument()
+	expect(screen.queryByText('Oppvarming')).not.toBeInTheDocument()
 	expect(document.querySelector('[data-warmup-chip]')).toBeNull()
 })
 
@@ -693,10 +725,13 @@ test('finishing the session is an explicit act, and says what you lift next time
 	)
 
 	await userEvent.click(
-		await screen.findByRole('button', { name: 'Finish workout' }),
+		await screen.findByRole('button', { name: 'Fullfør økta' }),
 	)
+	await answerUntapped()
 
-	expect(await screen.findByText('What you lift next time')).toBeInTheDocument()
+	expect(
+		await screen.findByText('Hva du løfter neste gang'),
+	).toBeInTheDocument()
 	expect(screen.getByText('Squat 82.5 kg → 85 kg')).toBeInTheDocument()
 })
 
@@ -707,8 +742,9 @@ test('finishing a warm-up-only session is refused in words', async () => {
 	)
 
 	await userEvent.click(
-		await screen.findByRole('button', { name: 'Finish workout' }),
+		await screen.findByRole('button', { name: 'Fullfør økta' }),
 	)
+	await answerUntapped()
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'Log a working set first — there is nothing to finish yet.',
@@ -720,7 +756,7 @@ test('the caption says the sets are already saved and that Finish only marks the
 
 	expect(
 		await screen.findByText(
-			'Every set was saved as you tapped it. This only marks the day.',
+			'Hvert sett ble lagret da du trykket. Dette markerer bare dagen.',
 		),
 	).toBeInTheDocument()
 })
@@ -739,11 +775,11 @@ test('a Stall Cut renders as a notice with a reason, and offers nothing', async 
 						headline: 'Squat 60 kg → 54 kg',
 						reason: 'You missed this lift three sessions in a row.',
 						isNotice: true,
-						label: 'Stall Cut',
+						label: 'Vekta kuttes',
 						tone: 'cut',
 						movedToKg: 54,
 						provenance:
-							'The 10 % cut is StrongLifts 5×5’s own published convention. No trial supports it.',
+							'Kuttet på 10 % er StrongLifts 5×5 sin egen publiserte konvensjon. Ingen studier støtter det.',
 					},
 				],
 				programName: 'StrongLifts 5×5',
@@ -752,13 +788,14 @@ test('a Stall Cut renders as a notice with a reason, and offers nothing', async 
 	)
 
 	await userEvent.click(
-		await screen.findByRole('button', { name: 'Finish workout' }),
+		await screen.findByRole('button', { name: 'Fullfør økta' }),
 	)
+	await answerUntapped()
 
 	const notice = await waitFor(() => {
 		const found = screen
 			.getAllByRole('status')
-			.find((el) => el.textContent?.includes('Stall Cut'))
+			.find((el) => el.textContent?.includes('Vekta kuttes'))
 		expect(found).toBeDefined()
 		return found!
 	})
@@ -773,22 +810,22 @@ test('a Stall Cut renders as a notice with a reason, and offers nothing', async 
 test('a session that is already recorded says so above the cards and offers no second finish', async () => {
 	renderLog({ status: 'completed' })
 
-	expect(await screen.findByText('Already recorded.')).toBeInTheDocument()
+	expect(await screen.findByText('Allerede registrert.')).toBeInTheDocument()
 	expect(
-		screen.queryByRole('button', { name: 'Finish workout' }),
+		screen.queryByRole('button', { name: 'Fullfør økta' }),
 	).not.toBeInTheDocument()
 	// The circles stay tappable: a set logged after the fact is still the truth.
-	expect(screen.getByLabelText('Log set 1 of Squat')).toBeEnabled()
+	expect(screen.getByLabelText('Logg sett 1 av Squat')).toBeEnabled()
 })
 
 test('a session with no lifts says that instead of drawing an empty grid', async () => {
 	renderLog({ exercises: [] })
 
 	expect(
-		await screen.findByText('This session has no lifts to log.'),
+		await screen.findByText('Økta har ingen løft å logge.'),
 	).toBeInTheDocument()
 	expect(
-		screen.queryByRole('button', { name: 'Finish workout' }),
+		screen.queryByRole('button', { name: 'Fullfør økta' }),
 	).not.toBeInTheDocument()
 })
 
@@ -797,30 +834,30 @@ test('a session with no lifts says that instead of drawing an empty grid', async
 test("a lift's history is one tap behind its name, so a session logged outside a program still leads there", async () => {
 	renderLog()
 
-	await userEvent.click(await screen.findByLabelText('About Squat'))
+	await userEvent.click(await screen.findByLabelText('Om Squat'))
 
 	expect(
-		await screen.findByRole('link', { name: 'This lift over time' }),
+		await screen.findByRole('link', { name: 'Dette løftet over tid' }),
 	).toHaveAttribute('href', '/training/exercises/ex-1')
 })
 
 test('a step naming no catalogued exercise offers no history link, because there is none to open', async () => {
 	renderLog({ exercises: [exercise({ exerciseId: null })] })
 
-	await userEvent.click(await screen.findByLabelText('About Squat'))
+	await userEvent.click(await screen.findByLabelText('Om Squat'))
 
 	expect(
-		screen.queryByRole('link', { name: 'This lift over time' }),
+		screen.queryByRole('link', { name: 'Dette løftet over tid' }),
 	).not.toBeInTheDocument()
 })
 
 test('with no gym on file the notes link to the place the athlete describes one', async () => {
 	renderLog()
 
-	await userEvent.click(await screen.findByLabelText('About Squat'))
+	await userEvent.click(await screen.findByLabelText('Om Squat'))
 
 	expect(
-		await screen.findByRole('link', { name: 'Tell us what your gym has' }),
+		await screen.findByRole('link', { name: 'Beskriv gymmet ditt' }),
 	).toHaveAttribute('href', '/settings/training/gym')
 })
 
@@ -881,7 +918,7 @@ test('the rest bar counts down from the made-set rest, on a deadline anchored to
 	renderLog()
 	await settle()
 
-	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await tap(screen.getByLabelText('Logg sett 1 av Squat'))
 	await settle()
 
 	expect(restClock()).toHaveTextContent('3:00')
@@ -894,7 +931,7 @@ test('a phone locked mid-rest comes back to the clock, not to the ticks the inte
 	renderLog()
 	await settle()
 
-	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await tap(screen.getByLabelText('Logg sett 1 av Squat'))
 	await settle()
 	// Two and a half minutes pass with the tab suspended: one tick, not three
 	// hundred. A decremented counter would read 2:59 here.
@@ -906,7 +943,7 @@ test('past zero the bar keeps counting into +m:ss in destructive rather than sto
 	renderLog()
 	await settle()
 
-	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await tap(screen.getByLabelText('Logg sett 1 av Squat'))
 	await settle()
 
 	const clock = await clockAt(
@@ -914,7 +951,7 @@ test('past zero the bar keeps counting into +m:ss in destructive rather than sto
 	)
 	expect(clock).toHaveTextContent('+0:14')
 	expect(clock.className).toContain('text-destructive')
-	expect(screen.getByText('over your rest')).toBeInTheDocument()
+	expect(screen.getByText('over pausen')).toBeInTheDocument()
 })
 
 test('the time renders in tabular numerals at a fixed minimum width, so the bar does not jitter', async () => {
@@ -922,7 +959,7 @@ test('the time renders in tabular numerals at a fixed minimum width, so the bar 
 	renderLog()
 	await settle()
 
-	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await tap(screen.getByLabelText('Logg sett 1 av Squat'))
 	await settle()
 
 	expect(restClock().className).toContain('tabular-nums')
@@ -934,7 +971,7 @@ test('±15 s moves the deadline in one tap', async () => {
 	renderLog()
 	await settle()
 
-	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await tap(screen.getByLabelText('Logg sett 1 av Squat'))
 	await settle()
 
 	await tap(screen.getByRole('button', { name: `−${REST_ADJUST_STEP_SEC}s` }))
@@ -951,15 +988,15 @@ test('✕ dismisses the bar', async () => {
 	renderLog()
 	await settle()
 
-	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await tap(screen.getByLabelText('Logg sett 1 av Squat'))
 	await settle()
 	expect(restClock()).toBeInTheDocument()
 
-	await tap(screen.getByRole('button', { name: 'Dismiss the rest timer' }))
+	await tap(screen.getByRole('button', { name: 'Lukk pausetimeren' }))
 	expect(screen.queryByTestId('rest-clock')).not.toBeInTheDocument()
 	// The set it was resting from is still logged: dismissing a timer is not
 	// unlogging a set.
-	expect(screen.getByLabelText('Logged set 1 of Squat')).toBeInTheDocument()
+	expect(screen.getByLabelText('Logget sett 1 av Squat')).toBeInTheDocument()
 })
 
 test('clearing a set cancels the rest, because the set it was resting from is gone', async () => {
@@ -971,17 +1008,17 @@ test('clearing a set cancels the rest, because the set it was resting from is go
 	})
 	await settle()
 
-	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await tap(screen.getByLabelText('Logg sett 1 av Squat'))
 	await settle()
 	expect(restClock()).toBeInTheDocument()
 
 	// One rep prescribed: the second tap is the tap past zero, which clears.
-	await tap(screen.getByLabelText('Logged set 1 of Squat'))
+	await tap(screen.getByLabelText('Logget sett 1 av Squat'))
 	await settle()
-	await tap(screen.getByLabelText('Logged set 1 of Squat'))
+	await tap(screen.getByLabelText('Logget sett 1 av Squat'))
 	await settle()
 
-	expect(screen.getByLabelText('Log set 1 of Squat')).toBeInTheDocument()
+	expect(screen.getByLabelText('Logg sett 1 av Squat')).toBeInTheDocument()
 	expect(screen.queryByTestId('rest-clock')).not.toBeInTheDocument()
 })
 
@@ -990,10 +1027,10 @@ test('the bar covers no set circle: it is outside the cards, and the scroll area
 	renderLog()
 	await settle()
 
-	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await tap(screen.getByLabelText('Logg sett 1 av Squat'))
 	await settle()
 
-	const bar = screen.getByLabelText('Rest timer')
+	const bar = screen.getByLabelText('Pausetimer')
 	// No circle lives inside the bar, and the bar lives outside the scroll area
 	// it is pinned to the foot of.
 	expect(bar.querySelector('[data-set-circle]')).toBeNull()
@@ -1009,7 +1046,7 @@ test('every set circle stays enabled and tappable while the timer runs — the r
 	const { submitted } = renderLog()
 	await settle()
 
-	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await tap(screen.getByLabelText('Logg sett 1 av Squat'))
 	await settle()
 	expect(restClock()).toHaveTextContent('3:00')
 
@@ -1023,7 +1060,7 @@ test('every set circle stays enabled and tappable while the timer runs — the r
 		vi.setSystemTime(TAPPED_AT + 20_000)
 		await vi.advanceTimersByTimeAsync(REST_TICK_MS)
 	})
-	await tap(screen.getByLabelText('Log set 2 of Squat'))
+	await tap(screen.getByLabelText('Logg sett 2 av Squat'))
 	await settle()
 	expect(submitted).toHaveBeenLastCalledWith(
 		expect.objectContaining({ orderIndex: '1', reps: '5' }),
@@ -1037,13 +1074,15 @@ test('a short set restarts the rest at the longer duration, and the bar states t
 	renderLog()
 	await settle()
 
-	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await tap(screen.getByLabelText('Logg sett 1 av Squat'))
 	await settle()
-	await tap(screen.getByLabelText('Logged set 1 of Squat'))
+	await tap(screen.getByLabelText('Logget sett 1 av Squat'))
 	await settle()
 
 	expect(restClock()).toHaveTextContent(`${REST_AFTER_MISSED_SET_SEC / 60}:00`)
-	expect(screen.getByText('longer rest after a missed set')).toBeInTheDocument()
+	expect(
+		screen.getByText('lengre pause etter et sett til kort'),
+	).toBeInTheDocument()
 })
 
 // ——— The help panel, the plate line and last time (#484) —————————————————
@@ -1051,7 +1090,7 @@ test('a short set restarts the rest at the longer duration, and the bar states t
 test('the help panel is collapsed by default and opens from the control beside the name', async () => {
 	renderLog()
 
-	const toggle = await screen.findByLabelText('About Squat')
+	const toggle = await screen.findByLabelText('Om Squat')
 	// 36px drawn, 44px to a thumb through the `after:` inset.
 	expect(toggle).toHaveClass('size-9')
 	expect(toggle).toHaveAttribute('aria-expanded', 'false')
@@ -1062,7 +1101,7 @@ test('the help panel is collapsed by default and opens from the control beside t
 	).not.toBeInTheDocument()
 	expect(
 		screen.queryByText(
-			'The rest timer survives a locked phone, but not a closed tab.',
+			'Pausetimeren tåler en låst telefon, men ikke en lukket fane.',
 		),
 	).not.toBeInTheDocument()
 
@@ -1099,20 +1138,20 @@ test('open, the panel says how the weight resolved, which rack, what the timer s
 		],
 	)
 
-	await userEvent.click(await screen.findByLabelText('About Squat'))
+	await userEvent.click(await screen.findByLabelText('Om Squat'))
 	const panel = document.querySelector('[data-lift-help-panel]')!
 
 	// The weight in the athlete's own numbers, not the algorithm's.
 	expect(panel).toHaveTextContent(
-		'82.5 kg is your working weight after five made sessions.',
+		'82,5 kg er arbeidsvekta di etter fem fullførte økter.',
 	)
-	expect(panel).toHaveTextContent('Plates are solved against Bredvid Gym.')
+	expect(panel).toHaveTextContent('Skivene regnes ut fra Bredvid Gym.')
 	expect(panel).toHaveTextContent(
-		'The rest timer survives a locked phone, but not a closed tab.',
+		'Pausetimeren tåler en låst telefon, men ikke en lukket fane.',
 	)
 	expect(
 		within(panel as HTMLElement).getByRole('link', {
-			name: 'This lift over time',
+			name: 'Dette løftet over tid',
 		}),
 	).toHaveAttribute('href', '/training/exercises/ex-1')
 })
@@ -1128,12 +1167,10 @@ test('a held lift says two sessions came up short, so a weight that did not move
 		},
 	])
 
-	await userEvent.click(await screen.findByLabelText('About Squat'))
+	await userEvent.click(await screen.findByLabelText('Om Squat'))
 
 	expect(
-		await screen.findByText(
-			'60 kg is held: two sessions in a row came up short.',
-		),
+		await screen.findByText('60 kg står: to økter på rad kom til kort.'),
 	).toBeInTheDocument()
 })
 
@@ -1168,10 +1205,11 @@ test('the plate line is monospace under the sets, and last time sits beside it',
 	})
 	expect(line).toHaveClass('font-mono')
 	// **Last time is a statement, not a control.** The handoff's capture reads
-	// `Last time 80 × 5,5,5,5,5` — the kilo bare, because the unit is already in
+	// `Last time 80 kg × 5 · 5 · 5 · 5 · 5` — every lift line's one form (#505
+	// round 2: decimal-comma kilos carry their unit), though the unit is also in
 	// the sub-line one row up — and names nothing a tap opens, so nothing does.
 	const lastTime = document.querySelector('[data-last-time]')!
-	expect(lastTime).toHaveTextContent('Last time 80 × 5,5,5,5,5')
+	expect(lastTime).toHaveTextContent('Sist 80 kg × 5 · 5 · 5 · 5 · 5')
 	expect(lastTime.tagName).toBe('P')
 	expect(
 		screen.queryByRole('button', { name: /^Last time/ }),
@@ -1183,10 +1221,44 @@ test('with no gym described there is no plate line, and the offer to describe on
 
 	await waitFor(async () =>
 		expect(
-			await screen.findByRole('link', { name: 'Tell us what your gym has' }),
+			await screen.findByRole('link', { name: 'Beskriv gymmet ditt' }),
 		).toHaveAttribute('href', '/settings/training/gym'),
 	)
 	// **Not a default rack, not an assumed bar** (ADR 0060 §2).
 	expect(document.querySelector('[data-plate-line]')).not.toBeInTheDocument()
 	expect(document.querySelector('[data-plate-offer]')).toBeInTheDocument()
+})
+
+test('Finish with untapped sets asks first, and neither answer counts them silently (owner decision 10)', async () => {
+	const { submitted } = renderLog()
+
+	await userEvent.click(
+		await screen.findByRole('button', { name: 'Fullfør økta' }),
+	)
+
+	// Nothing is posted until the athlete answers.
+	const question = await screen.findByRole('alertdialog')
+	expect(question).toHaveTextContent(
+		/^\d+ sett er ikke logget: marker som ikke gjort, eller fortsett\?/,
+	)
+	expect(submitted).not.toHaveBeenCalled()
+
+	// "Fortsett" goes back to the sets, with Finish where it was.
+	await userEvent.click(screen.getByRole('button', { name: 'Fortsett' }))
+	expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+	expect(submitted).not.toHaveBeenCalled()
+
+	// "Marker som ikke gjort" posts the answer with the finish.
+	await userEvent.click(screen.getByRole('button', { name: 'Fullfør økta' }))
+	await userEvent.click(
+		await screen.findByRole('button', { name: 'Marker som ikke gjort' }),
+	)
+	await waitFor(() =>
+		expect(submitted).toHaveBeenCalledWith(
+			expect.objectContaining({
+				intent: 'finish-session',
+				untapped: 'not-done',
+			}),
+		),
+	)
 })

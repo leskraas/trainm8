@@ -5,14 +5,15 @@ import { z } from 'zod'
 import { PasskeyItem } from '#app/components/passkey-item.tsx'
 import { Alert, AlertDescription } from '#app/components/ui/alert.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { MEG_PAGE_TITLES, MEG_PASSKEY_LABELS } from '#app/utils/labels.ts'
+import { MegNote, MegRows } from '../__meg-ui.tsx'
 import { type Route } from './+types/passkeys.ts'
 
 export const handle = {
-	pageHeader: 'Passkeys',
+	pageHeader: MEG_PAGE_TITLES.passkeys,
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -121,20 +122,20 @@ export default function Passkeys({ loaderData }: Route.ComponentProps) {
 			void revalidator.revalidate()
 		} catch (err) {
 			console.error('Failed to create passkey:', err)
-			setError('Failed to create passkey. Please try again.')
+			setError(MEG_PASSKEY_LABELS.failed)
 		}
 	}
 
+	const L = MEG_PASSKEY_LABELS
 	return (
-		<div className="flex flex-col gap-6">
-			<div className="flex justify-end gap-4">
-				<form action={handlePasskeyRegistration}>
-					<Button type="submit" variant="secondary">
-						<Icon name="plus" data-icon="inline-start" />
-						Register new passkey
-					</Button>
-				</form>
-			</div>
+		<div className="mx-auto flex max-w-md flex-col gap-6">
+			<MegNote>{L.intro}</MegNote>
+			<form action={handlePasskeyRegistration}>
+				<Button type="submit" className="w-full sm:w-auto">
+					<Icon name="plus" data-icon="inline-start" />
+					{L.register}
+				</Button>
+			</form>
 
 			{error ? (
 				<Alert variant="destructive">
@@ -143,17 +144,13 @@ export default function Passkeys({ loaderData }: Route.ComponentProps) {
 			) : null}
 
 			{loaderData.passkeys.length ? (
-				<ul className="flex flex-col gap-4" title="passkeys">
+				<MegRows label={L.listName}>
 					{loaderData.passkeys.map((passkey) => (
 						<PasskeyItem key={passkey.id} passkey={passkey} />
 					))}
-				</ul>
+				</MegRows>
 			) : (
-				<Card>
-					<CardContent className="text-muted-foreground text-center">
-						No passkeys registered yet
-					</CardContent>
-				</Card>
+				<p className="text-body text-muted-foreground">{L.none}</p>
 			)}
 		</div>
 	)

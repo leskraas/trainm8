@@ -3,6 +3,8 @@ import { addDays, weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { parseTrainableWeekdays } from '#app/utils/athlete-schema.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createOpenEndedPlan } from '#app/utils/plan-outline/authoring.server.ts'
+import { readStampedMixWarnings } from '#app/utils/plan-outline/stamp.server.ts'
+import { stampedSessionTitle } from '#app/utils/session-title.ts'
 import { getActivePlan, getActiveSeason } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { readFirstRunFindings } from './findings.server.ts'
@@ -131,10 +133,12 @@ test('an open-ended first plan lays its first two weeks on the chosen days only,
 		true,
 	)
 
-	// No week asks for more than the 4,5 t given: the round's climb is kept,
-	// so the first week starts lower. Each laid week adds up to its target.
-	expect(Math.max(...targets.map((t) => t ?? 0))).toBeLessThanOrEqual(4.5)
-	expect(targets[0]).toBe(4)
+	// Owner decision 15 (round 2): the 4,5 t given are what the athlete trains
+	// now, so the first week is 4,5 t and the round climbs from there. (It was
+	// a ceiling, and the first week started at 4 t.) Each laid week adds up to
+	// its target.
+	expect(targets[0]).toBe(4.5)
+	expect(Math.max(...targets.map((t) => t ?? 0))).toBeGreaterThan(4.5)
 	for (const [index, weekKey] of [START, addDays(START, 7)].entries()) {
 		const week = sessions.filter(inWeek(weekKey))
 		expect(week).toHaveLength(3)
@@ -195,7 +199,7 @@ test('the plan made is the plan shown: same family, same days, same minutes', as
 	expect(laidMinutes).toEqual(shownMinutes)
 })
 
-test('the days and hours become the athlete’s availability and weekly capacity', async () => {
+test('the days become the athlete’s availability, and the plan’s heaviest week its weekly capacity', async () => {
 	const athleteId = await createAthlete()
 	await createFirstRunPlan(athleteId, answers(), NOW)
 
@@ -205,7 +209,76 @@ test('the days and hours become the athlete’s availability and weekly capacity
 	})
 	// Sunday-first on the profile: tirsdag 2, torsdag 4, lørdag 6.
 	expect(parseTrainableWeekdays(profile.trainableWeekdays)).toEqual([2, 4, 6])
-	expect(profile.weeklyCapacityHours).toBe(4.5)
+	// The hours given are where the plan starts, not what the athlete can
+	// give at most: capacity is the plan's heaviest week, so the hours fit
+	// check does not fire on the plan just made.
+	const plan = await getActivePlan(athleteId, NOW)
+	const peak = Math.max(...plan!.tracks[0]!.targets.map((t) => t ?? 0))
+	expect(profile.weeklyCapacityHours).toBeCloseTo(peak, 1)
+	expect(profile.weeklyCapacityHours).toBeGreaterThanOrEqual(peak)
+})
+
+// Round 2: the philosophy chosen shows on I dag. Terskelfokus is "two hard
+// sessions a week", and the plan it makes lays them — titled for what they
+// are, in Norwegian, as step 5 previewed them.
+test('Terskelfokus lays its two hard sessions in each of the first two weeks, titled as the preview showed', async () => {
+	const athleteId = await createAthlete()
+	const chosen = answers({ family: 'threshold', days: [1, 3, 5, 6], hours: 5 })
+	const shown = await readFirstRunPlan(athleteId, chosen, NOW)
+	if (!shown.ok) throw new Error(shown.reason)
+	const created = await createFirstRunPlan(athleteId, chosen, NOW)
+	if (!created.ok) throw new Error(created.reason)
+
+	const laid = await prisma.workoutSession.findMany({
+		where: { userId: athleteId },
+		orderBy: { scheduledAt: 'asc' },
+		select: {
+			scheduledAt: true,
+			workout: { select: { title: true, intent: true } },
+		},
+	})
+	for (const weekKey of [START, addDays(START, 7)]) {
+		const week = laid.filter(
+			(session) =>
+				session.scheduledAt.toISOString().slice(0, 10) >= weekKey &&
+				session.scheduledAt.toISOString().slice(0, 10) <= addDays(weekKey, 6),
+		)
+		expect(week.map((session) => session.workout)).toEqual([
+			{ title: 'Terskeløkt · Løping', intent: 'threshold' },
+			{ title: 'Tempoøkt · Løping', intent: 'tempo' },
+			{ title: 'Rolig økt · Løping', intent: 'endurance' },
+			{ title: 'Langtur · Løping', intent: 'endurance' },
+		])
+	}
+	// What step 5 showed is what landed.
+	expect(
+		shown.plan.draft.weeks.flatMap((week) =>
+			week.sessions.map((session) => stampedSessionTitle(session)),
+		),
+	).toEqual(laid.map((session) => session.workout?.title))
+	// And the season has nothing to warn about: the week holds its mix.
+	expect(await readStampedMixWarnings(athleteId, created.outlineId)).toEqual([])
+})
+
+// break-ui (round 2): all seven days left no rest day.
+test('seven chosen days lay six, and keep all seven as the athlete’s availability', async () => {
+	const athleteId = await createAthlete()
+	await createFirstRunPlan(
+		athleteId,
+		answers({ days: [0, 1, 2, 3, 4, 5, 6], hours: 8 }),
+		NOW,
+	)
+	const sessions = await laidSessions(athleteId)
+	expect(new Set(sessions.map((s) => s.weekday))).toEqual(
+		new Set([1, 2, 3, 4, 5, 6]),
+	)
+	const profile = await prisma.athleteProfile.findUniqueOrThrow({
+		where: { userId: athleteId },
+		select: { trainableWeekdays: true },
+	})
+	expect(new Set(parseTrainableWeekdays(profile.trainableWeekdays))).toEqual(
+		new Set([0, 1, 2, 3, 4, 5, 6]),
+	)
 })
 
 test('a dated goal gets an Event and the family’s season fitted to it, laid on the chosen days', async () => {
@@ -250,7 +323,8 @@ test('a dated goal gets an Event and the family’s season fitted to it, laid on
 		targets[0]!,
 		1,
 	)
-	expect(Math.max(...targets.map((t) => t ?? 0))).toBeLessThanOrEqual(6)
+	// The season starts at the 6 t the athlete trains now.
+	expect(targets[0]).toBe(6)
 })
 
 /** The plan's weeks as Sesong reads them, and both of its fit checks. */
@@ -269,7 +343,7 @@ test.each([
 	['a race 51 weeks out', 51],
 	['no race', null],
 ] as const)(
-	'a 5 h athlete with %s never gets a week over 5 h, and no fit check fires',
+	'a 5 h athlete with %s starts at 5 h, and no fit check fires',
 	async (_, weeks) => {
 		for (const family of ['classic', 'big-base', 'polarized'] as const) {
 			const athleteId = await createAthlete()
@@ -295,9 +369,8 @@ test.each([
 
 			const season = await readSeason(athleteId)
 			if (weeks != null) expect(season.targets).toHaveLength(weeks)
-			expect(Math.max(...season.targets)).toBeLessThanOrEqual(5)
-			// The heaviest week is the hours given, near enough: not a timid plan.
-			expect(Math.max(...season.targets)).toBeGreaterThan(4.5)
+			// The first week is the hours given (owner decision 15).
+			expect(season.targets[0]).toBe(5)
 			expect(season.hoursWarnings).toEqual([])
 			expect(season.availabilityWarnings).toEqual([])
 		}

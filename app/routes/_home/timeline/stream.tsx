@@ -23,9 +23,11 @@
  * A session is one line (#505 D6): a thin rule in its track's colour, a small
  * glyph saying whose session it is, the whole session sentence — wrapped,
  * never cut — and its own volume at the right in tabular figures (`6,1 km`),
- * with a dot in the verdict's colour once it is done. The glyph opens a
- * popover with what the row knows and its quieter actions (_Lås opp_, _Tell i
- * Annet_, _Angre kobling_), said once rather than under every row.
+ * with a dot in the verdict's colour once it is done. The row and its glyph
+ * open the session's details in the composer's container — the Drawer at
+ * full on a phone, the day pane on a large screen (ADR 0088) — with what the
+ * row knows and its quieter actions (_Lås opp_, _Tell i Annet_, _Angre
+ * kobling_), said once rather than under every row.
  *
  * **Today's row is emphasised** by tone, not by a loud colour: a tint, its
  * date circled, and what the hero used to carry — `Se økta` beside _Gjort_,
@@ -45,23 +47,23 @@
  * than seen (ADR 0086). `WeekBlock` and `DayRow` are memoised and carry no
  * effects.
  *
- * Motion (ADR 0077 as amended by 0085 and 0086): the press (`pressable`) on
- * every control, the popover's origin-aware entry, and the 200ms reflow when a
- * draft opens. Nothing moves with the scroll.
+ * Motion (ADR 0077 as amended by 0085, 0086 and 0088): the press
+ * (`pressable`) on every control, the week details' origin-aware popover, and
+ * a written session's landing — the row rises 4px into place and fades in
+ * (200ms ease-out, `@starting-style`; reduced motion keeps the fade). Nothing
+ * moves with the scroll.
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
-import { Fragment, memo, type ReactNode } from 'react'
+import { Fragment, memo, type ReactNode, useEffect, useRef } from 'react'
 import { Link, useFetcher } from 'react-router'
 import { ErrorList } from '#app/components/forms.tsx'
-import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Meter, MeterIndicator, MeterTrack } from '#app/components/ui/meter.tsx'
 import {
 	Popover,
 	PopoverContent,
-	PopoverDescription,
 	PopoverHeader,
 	PopoverTitle,
 	PopoverTrigger,
@@ -73,8 +75,10 @@ import {
 	DAY_ROW_LABELS,
 	DRIFT_MARK,
 	HORIZON_LABELS,
+	IMPORT_LINK_LABELS,
 	ownerGlyphName,
 	RELEASE_ACTION_LABELS,
+	SESSION_COMPOSER_LABELS,
 	SESSION_DETAIL_LABELS,
 	sessionCountLabel,
 	WEEK_DETAIL_LABELS,
@@ -85,10 +89,8 @@ import {
 	SessionReleaseSchema,
 } from '#app/utils/load/week-change-schema.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { SESSION_ANNET_ACTION } from '#app/utils/session-annet-schema.ts'
 import { weekHeightEstimate } from './anchoring.ts'
-import { StampDraft, StampedSentence } from './day-stamp-cell.tsx'
-import { useDayStamp } from './day-stamp-context.tsx'
+import { useComposer, useComposerLanding } from './composer-context.tsx'
 import { ImportLinkAction, MarkDoneAction } from './import-actions.tsx'
 import {
 	type PhaseTone,
@@ -99,6 +101,7 @@ import {
 	type TimelineWeek,
 } from './presenter.ts'
 import { type RowChipTone } from './row-content.ts'
+import { TITLE_INSET, TITLE_INSET_BOX } from './row-inset.ts'
 import { StrengthLogPanel } from './strength-log-panel.tsx'
 import {
 	TODAY_ATTR,
@@ -178,6 +181,10 @@ export const WeekBlock = memo(function WeekBlock({
 						// rest is behind the summary's disclosure.
 						noteCount: trackEssentials(track).length > 0 ? 1 : 0,
 					})),
+					rows: week.rows.map((day) => ({
+						sessions: day.sessions,
+						addAnother: offersAnother(day, anchorDayKey),
+					})),
 				})}px`,
 			}}
 		>
@@ -199,6 +206,7 @@ export const WeekBlock = memo(function WeekBlock({
 					day={day}
 					past={week.shape === 'past'}
 					isAnchor={day.key === anchorDayKey}
+					addAnother={offersAnother(day, anchorDayKey)}
 					today={day.key === anchorDayKey ? today : null}
 				/>
 			))}
@@ -642,7 +650,8 @@ export function TrackLine({
  * A Training Track's colour, by its sport (`track-*`, ADR 0085): for marks —
  * a session's rule, a meter's fill and outline — never for text (at caption
  * size most hues are under 4.5:1 on a light card) and never for a fill under
- * text. Literal classes, for Tailwind.
+ * text. Text that names a track takes {@link TRACK_INK}. Literal classes, for
+ * Tailwind.
  */
 const TRACK_BG: Record<string, string> = {
 	run: 'bg-track-run',
@@ -655,6 +664,14 @@ const TRACK_BORDER: Record<string, string> = {
 	bike: 'border-track-bike',
 	swim: 'border-track-swim',
 	strength: 'border-track-strength',
+}
+/** A track's name in its own colour: the `-ink` step of the hue, ≥ 5:1 on the
+ * card and the page in both themes (#505 round 2). */
+const TRACK_INK: Record<string, string> = {
+	run: 'text-track-run-ink',
+	bike: 'text-track-bike-ink',
+	swim: 'text-track-swim-ink',
+	strength: 'text-track-strength-ink',
 }
 
 /** The done figure's colour: the verdict's, only once there is one. */
@@ -717,10 +734,14 @@ function TrackMeter({
 			className="grid grid-cols-[minmax(0,auto)_minmax(72px,1fr)] items-center gap-x-3"
 		>
 			<span className="text-caption flex min-w-0 flex-wrap items-baseline gap-x-1.5 font-normal tabular-nums">
-				{/* The name in ink, not in the track's hue: at caption size the
-				    run, bike and swim hues are under 4.5:1 on a light card. The
-				    Meter beside it carries the colour. */}
-				<span className="text-foreground font-semibold break-words">
+				{/* The name in its track's ink — the hue's text step, AA at
+				    caption size — while the Meter beside it keeps the mark hue. */}
+				<span
+					className={cn(
+						'font-semibold break-words',
+						TRACK_INK[track.discipline] ?? 'text-foreground',
+					)}
+				>
 					{track.name}
 				</span>
 				{done != null ? (
@@ -858,13 +879,6 @@ const DAY_GRID =
 	'grid grid-cols-[42px_minmax(0,1fr)] items-start gap-x-2.5 pl-4'
 
 /**
- * Where a session's sentence starts — the gutter (16 + 42 + 10), the track's
- * rule (3 + 6) and the glyph (20 + 6) — so what hangs under a session (its
- * actions, today's coach line) lines up with its words.
- */
-const TITLE_INSET = 'pl-[103px]'
-
-/**
  * The date gutter every row of a day aligns to (ADR 0065 §7): the weekday in
  * small capitals over the date. Today's date is circled — the one mark that
  * says "you are here" without colouring the row loud — and a past day's date
@@ -917,25 +931,30 @@ function DateGutter({
  *
  * A day with no sessions is an **empty cell** rather than nothing at all, which
  * is what makes today addressable on a rest day and every date a write target
- * (ADR 0065 §6 lets the past be written into too).
+ * (ADR 0065 §6 lets the past be written into too). A day with sessions, from
+ * today on, ends in **legg til en til** — one more on the same day, through
+ * the same composer (ADR 0088).
  *
  * Today's day carries the session's action (`Se økta`, {@link
  * TodayRowExtras}) on its session, and the coach's line under it all — the
  * hero's today pane, in one row.
  *
- * Memoised: a day's props are its model, two flags and today's extras, all
+ * Memoised: a day's props are its model, three flags and today's extras, all
  * stable across the scroll-driven renders of the frame.
  */
 const DayRow = memo(function DayRow({
 	day,
 	past,
 	isAnchor,
+	addAnother,
 	today = null,
 }: {
 	day: TimelineDay
 	/** In a week before this one: the row is the record, muted. */
 	past: boolean
 	isAnchor: boolean
+	/** Whether the day ends in "legg til en til" ({@link offersAnother}). */
+	addAnother: boolean
 	today?: TodayRowExtras | null
 }) {
 	return (
@@ -952,7 +971,7 @@ const DayRow = memo(function DayRow({
 				<EmptyDay day={day} past={past} />
 			) : (
 				day.sessions.map((session, index) => (
-					<DaySession
+					<SessionRow
 						key={session.id}
 						session={session}
 						day={day}
@@ -964,6 +983,7 @@ const DayRow = memo(function DayRow({
 					/>
 				))
 			)}
+			{addAnother ? <AddAnother day={day} /> : null}
 			{today?.verdict ? (
 				<p
 					data-today-verdict
@@ -978,6 +998,50 @@ const DayRow = memo(function DayRow({
 		</div>
 	)
 })
+
+/**
+ * Whether a day ends in "legg til en til": a day with sessions, from today
+ * on. A day gone by is written into through its empty cell or _Ny økt_; a
+ * line under every past day would make the calendar a form.
+ */
+function offersAnother(day: TimelineDay, todayKey: string): boolean {
+	return day.sessions.length > 0 && day.key >= todayKey
+}
+
+/**
+ * One more session on a day that has one (#505 audit §7, ADR 0088): a quiet
+ * line under the day's sessions that opens the same composer on the same
+ * day. A real button with a 44px hit area on a 32px line, so a day with
+ * sessions costs the calendar as little height as it can.
+ */
+function AddAnother({ day }: { day: TimelineDay }) {
+	const composer = useComposer()
+	return (
+		<button
+			type="button"
+			data-timeline-add-another={day.key}
+			onClick={() => composer.openComposer(day.key)}
+			aria-label={SESSION_COMPOSER_LABELS.addAnotherOn(
+				`${day.dayLabel} ${day.dateLabel}`,
+			)}
+			className={cn(
+				// Starts at the session's words, not at the row's edge: its hit
+				// area must never reach over the day's date in the gutter, which is
+				// a control of its own on a large screen (picks the day).
+				'pressable text-footnote text-muted-foreground relative -mt-1 flex h-8 items-center justify-between gap-2 pr-2 pb-1 text-left italic after:absolute after:inset-x-0 after:-inset-y-1.5',
+				TITLE_INSET_BOX,
+			)}
+		>
+			{SESSION_COMPOSER_LABELS.addAnother}
+			<span
+				aria-hidden
+				className="text-primary flex size-8 flex-none items-center justify-center not-italic"
+			>
+				<Icon name="plus" size="sm" />
+			</span>
+		</button>
+	)
+}
 
 /**
  * A day with nothing on it — the cell the grid is made of, after variant P:
@@ -997,28 +1061,18 @@ const DayRow = memo(function DayRow({
  * writing into the past is allowed (ADR 0065 §6) but is not what the row is
  * for.
  *
- * Pressing it opens the **draft** in place (#501) — see `day-stamp-cell.tsx`.
+ * Pressing it opens the **composer** on the day (ADR 0088): the Drawer on a
+ * phone, the day's own pane or Sheet on a large screen. Nothing opens in the
+ * row itself any more, so a large screen never shows two composers for one
+ * day.
  */
 function EmptyDay({ day, past }: { day: TimelineDay; past: boolean }) {
-	const stamp = useDayStamp()
-
-	// The tapped cell opens **in place**, as layout rather than as a floating
-	// panel: it is the row that grew, and the days below it moved down.
-	if (stamp.draftDayKey === day.key) {
-		return (
-			<StampDraft
-				dayKey={day.key}
-				dayLabel={day.dayLabel}
-				dateLabel={day.dateLabel}
-			/>
-		)
-	}
-
+	const composer = useComposer()
 	return (
 		<button
 			type="button"
 			data-timeline-empty={day.key}
-			onClick={() => stamp.openDraft(day.key)}
+			onClick={() => composer.openComposer(day.key)}
 			// One of up to hundreds of identical-looking cells, so the name says
 			// which day it is. Sighted readers get that from the gutter beside it.
 			aria-label={
@@ -1068,62 +1122,27 @@ function EmptyDay({ day, past }: { day: TimelineDay; past: boolean }) {
 }
 
 /**
- * One session under its day — either the row it reads as, or, for the session
- * the athlete has just stamped into this cell, the **editable Token Sentence**
- * it was written as (ADR 0065 §5).
- */
-function DaySession({
-	session,
-	day,
-	past,
-	showDate,
-	cta = null,
-}: {
-	session: TimelineSession
-	day: TimelineDay
-	past: boolean
-	showDate: boolean
-	cta?: TodayRowExtras['cta']
-}) {
-	const stamp = useDayStamp()
-	const ledger = stamp.openSessionId === session.id ? stamp.openSession : null
-
-	if (ledger) {
-		return (
-			<StampedSentence
-				session={ledger}
-				dayLabel={showDate ? day.dayLabel : ''}
-				dateLabel={showDate ? day.dateLabel : ''}
-				thresholds={stamp.thresholds}
-			/>
-		)
-	}
-	return (
-		<SessionRow
-			session={session}
-			day={day}
-			past={past}
-			showDate={showDate}
-			cta={cta}
-		/>
-	)
-}
-
-/**
  * One session, as variant P draws it: one line under the day's gutter. A thin
  * rule in the track's colour; the glyph saying whose session it is; the whole
  * session sentence, wrapped and never cut (#505 story 32); and at the right
  * its own volume in tabular figures (`6,1 km`), with a dot in the verdict's
- * colour once it is done (#505 D6). A missed session is struck through and
- * says `ikke gjort`.
+ * colour once it is done. A missed session is struck through and says
+ * `ikke gjort`.
  *
  * What the row used to spell out on lines of its own — load, the comparison,
- * RPE, the shape bars, the chips — sits behind the glyph, with whose session
- * it is and the row's quieter actions (_Lås opp_, _Tell i Annet_, _Angre
- * kobling_). It also rides on the row's link as text for a screen reader, so
- * nothing the row knows is hidden from anyone; it is only out of the sighted
- * reader's way. What asks for an answer stays on the row: the import's
- * question, _Gjort_, the quick strength log, and on today's row _Se økta_.
+ * RPE, the shape bars, the chips — is in the session's **details**, which the
+ * row and its glyph open in the composer's container (ADR 0088): on a phone
+ * the same Drawer, at full. The row's link keeps its address, so a new tab or
+ * a large screen still reaches the Workout Detail View. What the row knows
+ * also rides on the link as text for a screen reader. What asks for an
+ * answer stays on the row: the import's question, _Gjort_, the quick
+ * strength log, and on today's row _Se økta_.
+ *
+ * **The landing** (ADR 0088): the session the composer just wrote — or the
+ * one this row just marked _Gjort_ or an import was just linked to (amended)
+ * — rises 4px into place and fades in, is tinted, scrolled into view if it is
+ * near, and carries its own _Angre_ for as long as the toast that announced
+ * it, when that write has a way back.
  */
 function SessionRow({
 	session,
@@ -1139,19 +1158,45 @@ function SessionRow({
 	/** Today's action (`Se økta`), on the session it opens (ADR 0086). */
 	cta?: TodayRowExtras['cta']
 }) {
+	const composer = useComposer()
+	const { landedSessionId, landedUndoable, undoingSessionId } =
+		useComposerLanding()
+	const landed = landedSessionId === session.id
+	// A landed write with no way back (ADR 0088, amended) is still risen and
+	// tinted, but carries no _Angre_.
+	const undoable = landed && landedUndoable
+	const ref = useRef<HTMLDivElement>(null)
+	useEffect(() => {
+		// Optional-called: jsdom has no scroller.
+		if (landed) ref.current?.scrollIntoView?.({ block: 'nearest' })
+	}, [landed])
 	const missed = session.status === 'missed'
 	const done = session.status === 'completed'
 	const verdict = session.chips.find((chip) => chip.id === 'compliance')
 	const facts = [
 		session.externalLoad,
 		session.internalLoad,
+		// The row's mark is said in the link's own text; the note's whole
+		// sentence still goes to a screen reader where it says more.
 		session.doneNote,
-		session.extraLabel,
 		session.annet?.inAnnet ? ANNET_ACTION_LABELS.chip : null,
 		...session.chips.map((chip) => chip.label),
 	].filter((fact): fact is string => !!fact)
+	const openDetail = () => composer.openDetail(session.id, day.key)
 	return (
-		<div data-session-row={session.id}>
+		<div
+			ref={ref}
+			data-session-row={session.id}
+			data-landed={landed ? '' : undefined}
+			className={cn(
+				// The landing: rises 4px and fades in as it mounts (`@starting-style`,
+				// 200ms ease-out); reduced motion keeps the fade. The tint leaves on
+				// the colour curve when the toast does.
+				'duration-collapse [transition-property:opacity,translate,background-color] ease-out',
+				'starting:translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0',
+				landed && 'bg-primary/6',
+			)}
+		>
 			<div className={cn(DAY_GRID, 'pr-4')}>
 				<DateGutter day={day} past={past} show={showDate} />
 				<div className="flex min-w-0 items-stretch gap-1.5 py-1.5">
@@ -1172,11 +1217,19 @@ function SessionRow({
 								: (TRACK_BG[session.discipline] ?? 'bg-muted-foreground/60'),
 						)}
 					/>
-					<SessionGlyph session={session} facts={facts} />
+					<SessionGlyph session={session} onOpen={openDetail} />
 					<Link
 						to={session.to}
 						prefetch="intent"
 						data-status={session.status}
+						onClick={(event) => {
+							// On a phone the details open in the same Drawer as the
+							// composer, at full; a modified click still opens the page.
+							if (composer.container !== 'drawer') return
+							if (event.metaKey || event.ctrlKey || event.shiftKey) return
+							event.preventDefault()
+							openDetail()
+						}}
 						className="pressable relative flex min-h-8 min-w-0 flex-1 items-start gap-2 py-1 after:absolute after:inset-x-0 after:-inset-y-1.5"
 					>
 						<span
@@ -1192,6 +1245,19 @@ function SessionRow({
 							)}
 						>
 							{session.title}
+							{session.rowMark ? (
+								<>
+									{' '}
+									{/* The import's one word on the row (audit PR D): what
+									    the athlete should see without asking the glyph. */}
+									<span
+										data-row-mark
+										className="text-caption text-muted-foreground bg-muted ml-0.5 inline-block rounded-full px-1.5 py-px align-[0.1em] font-medium whitespace-nowrap no-underline"
+									>
+										{session.rowMark}
+									</span>
+								</>
+							) : null}
 						</span>{' '}
 						<span className="text-footnote flex flex-none items-center gap-1.5 pt-0.5 text-right whitespace-nowrap tabular-nums">
 							{missed ? (
@@ -1218,8 +1284,8 @@ function SessionRow({
 								/>
 							) : null}
 						</span>
-						{/* What the row knows, for a screen reader: the glyph shows it to
-						    everyone else. */}
+						{/* What the row knows, for a screen reader: the details show it
+						    to everyone else. */}
 						{facts.length > 0 ? (
 							<span className="sr-only">
 								{facts.map((fact, index) => (
@@ -1236,9 +1302,10 @@ function SessionRow({
 			{session.importLink?.kind === 'ask' ? (
 				<ImportLinkAction link={session.importLink} />
 			) : null}
-			{/* The primary action and _Gjort_ share one line: both are about this
-			    session, and a row should not grow a line per offer. */}
-			{cta || session.markDone ? (
+			{/* The primary action, _Gjort_ and a landing's _Angre_ share one line:
+			    all are about this session, and a row should not grow a line per
+			    offer. */}
+			{cta || session.markDone || undoable ? (
 				<div
 					data-session-actions
 					className={cn(
@@ -1246,6 +1313,22 @@ function SessionRow({
 						TITLE_INSET,
 					)}
 				>
+					{undoable ? (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							data-landed-undo={session.id}
+							disabled={undoingSessionId === session.id}
+							aria-label={SESSION_COMPOSER_LABELS.undoFor(session.title)}
+							onClick={() => composer.undo(session.id)}
+							className="rounded-full"
+						>
+							{undoingSessionId === session.id
+								? SESSION_COMPOSER_LABELS.undoing
+								: SESSION_COMPOSER_LABELS.undo}
+						</Button>
+					) : null}
 					{cta ? (
 						<Link
 							to={cta.to}
@@ -1261,6 +1344,7 @@ function SessionRow({
 					{session.markDone ? (
 						<MarkDoneAction
 							sessionId={session.id}
+							title={session.title}
 							label={session.markDone.actionLabel}
 							ariaLabel={session.markDone.label}
 						/>
@@ -1286,115 +1370,58 @@ const VERDICT_DOT: Record<RowChipTone, string> = {
  * The row's glyph (#505 story 29, D6), at the left of the sentence as in
  * variant P: ✎ for a session the athlete wrote or changed — the app does not
  * change it without a yes (ADR 0080) — and ◌ for the plan's own. Tapping it
- * opens the row's details once, in a popover anchored to it: whose session it
- * is and what that means, what the row knows (load, the comparison, the
- * shape), and the quieter actions — _Lås opp_ on the athlete's planned
- * session, _Tell i Annet_, _Angre kobling_. A sibling of the row's link,
- * never inside it.
+ * opens the session's details in the composer's container (ADR 0088): the
+ * Drawer at full on a phone, the day pane or its Sheet on a large screen —
+ * the popover it used to open would have been a second place for the same
+ * details. A sibling of the row's link, never inside it.
  */
 function SessionGlyph({
 	session,
-	facts,
+	onOpen,
 }: {
 	session: TimelineSession
-	facts: string[]
+	onOpen: () => void
 }) {
 	const athlete = session.owner === 'athlete'
+	// An ekstra exists only because an activity was recorded: no plan stood
+	// behind it, so the app's ◌ would claim a session it never laid (audit PR
+	// D). It wears the import's mark instead.
+	const imported = session.extraLabel != null
 	const owner = session.ownerLabel
 	return (
-		<Popover>
-			<PopoverTrigger
-				data-owner-glyph={session.owner}
-				aria-label={
-					owner
+		<button
+			type="button"
+			data-owner-glyph={imported ? 'import' : session.owner}
+			onClick={onOpen}
+			aria-label={
+				imported
+					? IMPORT_LINK_LABELS.glyph(session.title)
+					: owner
 						? ownerGlyphName(owner, session.title)
 						: SESSION_DETAIL_LABELS.name(session.title)
-				}
-				// 20px wide on screen, 44px under a thumb (the `after:` hit area),
-				// and above the row's link where the two meet.
-				className="pressable text-muted-foreground hover:bg-muted aria-expanded:bg-muted relative z-1 flex h-7 w-5 flex-none items-center justify-center rounded-full after:absolute after:-inset-x-3 after:-inset-y-2"
-			>
-				{athlete ? (
-					<Icon name="pencil-1" size="xs" />
-				) : (
-					<span
-						aria-hidden
-						className="border-muted-foreground size-2.5 rounded-full border-[1.5px] border-dashed"
-					/>
-				)}
-			</PopoverTrigger>
-			<PopoverContent
-				align="start"
-				data-owner-popover={session.owner}
-				className="w-72 gap-3"
-			>
-				<PopoverHeader>
-					<PopoverTitle className="text-callout font-semibold">
-						{session.title}
-					</PopoverTitle>
-					{owner && session.ownerNote ? (
-						<PopoverDescription className="text-footnote">
-							<span className="text-foreground font-semibold">
-								{`${owner[0]?.toUpperCase() ?? ''}${owner.slice(1)}`}
-							</span>
-							{' · '}
-							{session.ownerNote}
-						</PopoverDescription>
-					) : null}
-				</PopoverHeader>
-				{session.bars.length > 0 ? (
-					<span className="block w-[120px]">
-						<ProfileBars
-							bars={session.bars}
-							groups={session.groups}
-							scale="row"
-						/>
-					</span>
-				) : null}
-				{facts.length > 0 ? (
-					<ul className="text-footnote text-muted-foreground flex flex-col gap-0.5">
-						{facts.map((fact, index) => (
-							<li key={`${index}-${fact}`}>{fact}</li>
-						))}
-					</ul>
-				) : null}
-				{session.release ? (
-					<ReleaseAction
-						sessionId={session.id}
-						title={session.title}
-						label={session.release.actionLabel}
-						note={session.release.note}
-					/>
-				) : null}
-				{session.annet ? (
-					<AnnetAction
-						sessionId={session.id}
-						inAnnet={session.annet.inAnnet}
-						label={session.annet.actionLabel}
-					/>
-				) : null}
-				{session.importLink && session.importLink.kind !== 'ask' ? (
-					<ImportLinkAction link={session.importLink} inline />
-				) : null}
-				<Link
-					to={session.to}
-					className={cn(
-						buttonVariants({ variant: 'outline', size: 'sm' }),
-						'self-start rounded-full',
-					)}
-				>
-					{SESSION_DETAIL_LABELS.open}
-				</Link>
-			</PopoverContent>
-		</Popover>
+			}
+			// 20px wide on screen, 44px under a thumb (the `after:` hit area),
+			// and above the row's link where the two meet.
+			className="pressable text-muted-foreground hover:bg-muted relative z-1 flex h-7 w-5 flex-none items-center justify-center rounded-full after:absolute after:-inset-x-3 after:-inset-y-2"
+		>
+			{imported ? (
+				<Icon name="download" size="xs" />
+			) : athlete ? (
+				<Icon name="pencil-1" size="xs" />
+			) : (
+				<span
+					aria-hidden
+					className="border-muted-foreground size-2.5 rounded-full border-[1.5px] border-dashed"
+				/>
+			)}
+		</button>
 	)
 }
-
 /**
  * "Lås opp" (#505 story 55): hand one of the athlete's own planned sessions
  * back to the app, so the Week Replan may adjust it again (`releaseSession`).
- * Behind the ownership glyph, with the one sentence that says what the tap
- * gives away.
+ * In the session's details (ADR 0088), with the one sentence that says what
+ * the tap gives away.
  *
  * Once it has taken, home revalidates and the row's lock opens — the mark is
  * the confirmation. While the post is in flight the action already says so.
@@ -1459,56 +1486,6 @@ export function ReleaseAction({
 				</>
 			)}
 			<ErrorList id={form.errorId} errors={form.errors} />
-		</fetcher.Form>
-	)
-}
-
-/**
- * Count the session in Annet, or put it back in its track (#505 story 33) —
- * behind the row's glyph, with the row's other quiet actions (ADR 0086), never
- * inside the row's link: a control inside a link is two targets under one
- * thumb.
- *
- * It posts to its own resource route, owner-scoped on the server
- * (`setCountsInNoTrack`), and the home loader revalidates after it, so the week
- * header's numbers move with the tap. While the post is in flight the button
- * already says what it will say after, so a second tap is not needed to see
- * that the first one took.
- */
-function AnnetAction({
-	sessionId,
-	inAnnet,
-	label,
-}: {
-	sessionId: string
-	inAnnet: boolean
-	label: string
-}) {
-	const fetcher = useFetcher()
-	const pending = fetcher.formData?.get('countsInNoTrack')
-	const willBeInAnnet = pending == null ? inAnnet : pending === 'true'
-	return (
-		<fetcher.Form method="post" action={SESSION_ANNET_ACTION} className="flex">
-			<input type="hidden" name="sessionId" value={sessionId} />
-			<input
-				type="hidden"
-				name="countsInNoTrack"
-				value={String(!willBeInAnnet)}
-			/>
-			<button
-				type="submit"
-				data-annet-action={sessionId}
-				// The 44px floor is the control's (ADR 0028 §2); the words are as
-				// quiet as the row's own facts, so the action never outranks the
-				// session it belongs to.
-				className="text-muted-foreground text-caption pressable flex min-h-11 items-center underline decoration-dotted underline-offset-[3px]"
-			>
-				{pending == null
-					? label
-					: willBeInAnnet
-						? ANNET_ACTION_LABELS.toTrack
-						: ANNET_ACTION_LABELS.toAnnet}
-			</button>
 		</fetcher.Form>
 	)
 }

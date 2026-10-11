@@ -1,9 +1,15 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { useEffect } from 'react'
+import { type CSSProperties, useEffect, useState } from 'react'
 import { data, Form, Link, redirect, useRevalidator } from 'react-router'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '#app/components/ui/collapsible.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { readFirstRunFindings } from '#app/utils/first-run/findings.server.ts'
 import { FindingCorrectionSchema } from '#app/utils/first-run/first-run-schema.ts'
 import {
@@ -18,9 +24,15 @@ import {
 	NB_DISCIPLINE_LABELS,
 	nbWeekdayList,
 } from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
 import { type Route } from './+types/funn.ts'
 import { DaysField, DisciplineField } from './__first-run-fields.tsx'
-import { FirstRunFrame, PRIMARY_ACTION } from './__first-run-frame.tsx'
+import {
+	DISCLOSURE_CHEVRON,
+	DISCLOSURE_TRIGGER,
+	FirstRunFrame,
+	PRIMARY_ACTION,
+} from './__first-run-frame.tsx'
 
 /**
  * The first run, step 2 (#505 stories 62, 63 and 71): "Dette fant vi" — what
@@ -77,11 +89,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 	}
 }
 
-/** A finding as one row's words: its value, or why it has none (story 71). */
+/**
+ * A finding as one row's words: its value, or why it has none (story 71) —
+ * or, while the import has yet to bring it, that it is coming (`pending`).
+ */
 function word<T>(finding: Finding<T>, value: (found: T) => string) {
 	return finding.measured
-		? { value: value(finding.value), absence: null }
-		: { value: null, absence: FINDING_ABSENCE_LABELS[finding.reason] }
+		? { value: value(finding.value), absence: null, pending: false }
+		: {
+				value: null,
+				absence: FINDING_ABSENCE_LABELS[finding.reason],
+				pending: finding.reason === 'importing',
+			}
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -114,6 +133,9 @@ export default function FindingsStep({
 		}, IMPORT_POLL_MS)
 		return () => window.clearInterval(timer)
 	}, [importing, revalidator])
+	// Whether the screen opened while the history was still arriving: then the
+	// import's line keeps its place once the history is in (CLS, below).
+	const [openedImporting] = useState(importing)
 
 	const [form, fields] = useForm({
 		id: 'first-run-correct',
@@ -126,25 +148,69 @@ export default function FindingsStep({
 	})
 
 	return (
-		<FirstRunFrame step={2} title={L.title} intro={L.intro}>
-			{importing ? (
-				<p role="status" className="bg-muted rounded-xl p-3 text-sm">
-					{L.importing}
-				</p>
-			) : null}
-			<dl className="divide-border divide-y">
-				{rows.map((row) => (
+		<FirstRunFrame
+			step={2}
+			title={L.title}
+			back={{ to: '/start', label: FIRST_RUN_LABELS.backTo.funn }}
+			intro={
+				openedImporting ? (
+					// The import's line and the line that replaces it share one grid
+					// cell, so the cell is as tall as the taller of the two from the
+					// first paint and nothing below moves when the history lands (the
+					// banner's going was most of the measured CLS 0.132).
+					<div role="status" className="grid">
+						<p
+							className={cn(
+								'[grid-area:1/1]',
+								importing ? 'invisible' : undefined,
+							)}
+						>
+							{L.intro} {L.imported}
+						</p>
+						<p
+							className={cn(
+								'[grid-area:1/1]',
+								importing ? undefined : 'invisible',
+							)}
+						>
+							{L.importing}
+						</p>
+					</div>
+				) : (
+					L.intro
+				)
+			}
+		>
+			<dl className="bg-card divide-border/60 divide-y rounded-4xl px-4 shadow-xs">
+				{rows.map((row, index) => (
 					<div
 						key={row.key}
 						className="space-y-0.5 py-3"
 						data-finding={row.key}
 					>
-						<dt className="text-muted-foreground text-[13px] font-medium">
-							{row.label}
-						</dt>
-						<dd className="text-[15px]">
-							{row.value ?? (
-								<span className="text-muted-foreground">{row.absence}</span>
+						<dt className="text-footnote text-muted-foreground">{row.label}</dt>
+						<dd className="text-callout">
+							{row.pending ? (
+								// One line in the place of the value, so the row is the height
+								// it will be when the value comes (the reason a row has no
+								// number can be two lines; "Hentes …" never is).
+								<span className="text-muted-foreground font-normal">
+									{L.pending}
+								</span>
+							) : (
+								<span
+									// Keyed by the words, so a value arriving is a new element
+									// and `motion-reveal` plays for it once.
+									key={row.value ?? row.absence}
+									className="motion-reveal block"
+									style={{ '--reveal-index': index } as CSSProperties}
+								>
+									{row.value ?? (
+										<span className="text-muted-foreground font-normal">
+											{row.absence}
+										</span>
+									)}
+								</span>
 							)}
 						</dd>
 					</div>
@@ -153,43 +219,56 @@ export default function FindingsStep({
 			<Link to="/start/sporsmal" className={PRIMARY_ACTION}>
 				{L.correct}
 			</Link>
-			<details
-				className="border-border rounded-xl border p-4"
-				open={actionData?.result.status === 'error' ? true : undefined}
+			<Collapsible
+				defaultOpen={actionData?.result.status === 'error'}
+				className="bg-card rounded-4xl shadow-xs"
 			>
-				<summary className="min-h-11 cursor-pointer content-center text-[15px] font-medium">
+				<CollapsibleTrigger className={DISCLOSURE_TRIGGER}>
 					{L.wrong}
-				</summary>
-				<Form method="POST" className="mt-3 space-y-4" {...getFormProps(form)}>
-					<p className="text-muted-foreground text-sm">{L.wrongIntro}</p>
-					<DisciplineField
-						meta={fields.discipline}
-						legend={L.discipline}
-						defaultDiscipline={prefill.discipline}
-					/>
-					<Field
-						labelProps={{ children: L.volume }}
-						inputProps={{
-							...getInputProps(fields.hours, { type: 'number' }),
-							step: '0.5',
-							min: '0.5',
-							inputMode: 'decimal',
-							defaultValue: prefill.hours ?? '',
-							className: 'text-base',
-						}}
-						errors={fields.hours.errors}
-					/>
-					<DaysField
-						meta={fields.days}
-						legend={L.days}
-						defaultDays={prefill.days}
-					/>
-					<ErrorList errors={form.errors} id={form.errorId} />
-					<Button type="submit" className="min-h-11 w-full">
-						{L.saveCorrection}
-					</Button>
-				</Form>
-			</details>
+					<Icon name="chevron-down" size="md" className={DISCLOSURE_CHEVRON} />
+				</CollapsibleTrigger>
+				<CollapsibleContent>
+					<Form
+						method="POST"
+						className="space-y-6 px-4 pt-1 pb-4"
+						{...getFormProps(form)}
+					>
+						<p className="text-footnote text-muted-foreground">
+							{L.wrongIntro}
+						</p>
+						<DisciplineField
+							meta={fields.discipline}
+							legend={L.discipline}
+							defaultDiscipline={prefill.discipline}
+						/>
+						<Field
+							labelProps={{ children: L.volume, className: 'text-callout' }}
+							inputProps={{
+								...getInputProps(fields.hours, { type: 'number' }),
+								step: '0.5',
+								min: '0.5',
+								inputMode: 'decimal',
+								enterKeyHint: 'next',
+								defaultValue: prefill.hours ?? '',
+							}}
+							errors={fields.hours.errors}
+						/>
+						<DaysField
+							meta={fields.days}
+							legend={L.days}
+							defaultDays={prefill.days}
+						/>
+						<ErrorList errors={form.errors} id={form.errorId} />
+						<Button
+							type="submit"
+							variant="secondary"
+							className="text-callout w-full"
+						>
+							{L.saveCorrection}
+						</Button>
+					</Form>
+				</CollapsibleContent>
+			</Collapsible>
 		</FirstRunFrame>
 	)
 }

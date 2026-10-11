@@ -1,5 +1,12 @@
 # Text-first workout authoring: the Token Sentence over the structured form
 
+> **Amended by
+> [ADR 0089](./0089-the-writing-line-reads-lifts-and-the-token-sentence-speaks-norwegian.md)
+> (round 2, owner decisions 3 and 8):** the writing line's reader reads lifts
+> (`Knebøy 5×5 @ 80 kg`) into the strength editor's structure, and the
+> notation's glue words and zone labels are Norwegian on display — A3's English
+> glue no longer holds; nothing stored changes.
+
 > **Amended (#449), on A2 and A3.** A3's en-GB rule is right for glue words and
 > wrong for names — _langtur_, _terskeløkt_, _bakkedrag_ and the I1–I5 ladder
 > are content, not translations. A2's decision stands and its wording is

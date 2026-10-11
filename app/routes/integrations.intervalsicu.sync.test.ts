@@ -66,7 +66,7 @@ test('syncs a connected athlete on demand and reports success', async () => {
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
-			title: 'Synced with Intervals.icu',
+			title: 'Synkronisert med intervals.icu',
 			type: 'success',
 		}),
 	)
@@ -100,9 +100,9 @@ test('a rejected key flips the connection to revoked and asks for a new key', as
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
-			title: 'Sync failed',
+			title: 'Synkroniseringen feilet',
 			type: 'error',
-			description: expect.stringContaining('paste a new one'),
+			description: expect.stringContaining('Lim inn en ny'),
 		}),
 	)
 	const after = await prisma.accountConnection.findUnique({
@@ -129,9 +129,9 @@ test('an Intervals.icu outage toasts a retryable failure instead of crashing the
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
-			title: 'Sync failed',
+			title: 'Synkroniseringen feilet',
 			type: 'error',
-			description: expect.stringContaining('could not be reached'),
+			description: expect.stringContaining('fikk ikke kontakt'),
 		}),
 	)
 	// The key is fine — the connection must not be flipped to revoked.
@@ -151,9 +151,9 @@ test('asks the athlete to connect first when there is no connection', async () =
 
 	await expect(response).toSendToast(
 		expect.objectContaining({
-			title: 'Sync failed',
+			title: 'Synkroniseringen feilet',
 			type: 'error',
-			description: expect.stringContaining('Connect your Intervals.icu'),
+			description: expect.stringContaining('Koble til intervals.icu'),
 		}),
 	)
 })

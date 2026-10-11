@@ -2,10 +2,13 @@ import { parseFormData } from '@mjackson/form-data-parser'
 import { redirect } from 'react-router'
 import {
 	ingestUploadedFiles,
+	type BatchImportSummary,
 	type UploadedArtifact,
 } from '#app/utils/activity-file-ingest.server.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { UPLOAD_LABELS, uploadFailureLabel } from '#app/utils/labels.ts'
+import { redirectWithToast, type ToastInput } from '#app/utils/toast.server.ts'
 import { type Route } from './+types/imports.share-target.ts'
 
 /**
@@ -15,8 +18,10 @@ import { type Route } from './+types/imports.share-target.ts'
  * normal upload, so auto-save, content-hash dedupe, telemetry enrichment, and
  * the Live Imports Stream behave identically. The browser then navigates to the
  * redirect target — home, where the shared activity is already on The Tape
- * (ADR 0049).
+ * (ADR 0049) — with a toast that says what came of the share.
  */
+
+const L = UPLOAD_LABELS
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 
@@ -37,12 +42,36 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 
 	// Day attribution happens in the Athlete Timezone (#173), matching the
-	// upload route. Batch failures/duplicates are absorbed silently — the share
-	// sheet offers no UI to report them, and The Tape shows what landed.
+	// upload route.
 	const timezone = await getAthleteTimezone(userId)
-	await ingestUploadedFiles(userId, artifacts, { timezone })
+	const summary = await ingestUploadedFiles(userId, artifacts, { timezone })
 
-	return redirect('/', { status: 303 })
+	// The share sheet has no page of its own, so I dag says what came of it in
+	// a toast — what landed, what was there already, and what could not be
+	// read and why (round-2 audit: a bad file used to vanish without a word).
+	return redirectWithToast('/', shareToast(summary), { status: 303 })
+}
+
+/** The share's outcome in one toast, in Norwegian (ADR 0081). */
+function shareToast(summary: BatchImportSummary): ToastInput {
+	const failed = summary.failed.length
+	const lines = [
+		summary.duplicates > 0 ? L.shareDuplicates(summary.duplicates) : null,
+		failed > 0
+			? L.shareFailed(
+					failed,
+					summary.failed
+						.map((f) => `${f.fileName} (${uploadFailureLabel(f.reason)})`)
+						.join(', '),
+				)
+			: null,
+	].filter(Boolean)
+	return {
+		title:
+			summary.imported > 0 ? L.shareImported(summary.imported) : L.shareNothing,
+		description: lines.join(' '),
+		type: failed > 0 ? 'error' : summary.imported > 0 ? 'success' : 'message',
+	}
 }
 
 // A GET (e.g. someone opening the share-target URL directly) has nothing to

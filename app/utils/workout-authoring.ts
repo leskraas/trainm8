@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { parseDistance, parseDuration } from '#app/utils/format.ts'
 import { parseAuthoredIntensity } from '#app/utils/intensity-target.ts'
+import { WORKOUT_SCHEMA_MESSAGES } from '#app/utils/labels.ts'
 import {
 	CARDIO_DISCIPLINES,
 	DISCIPLINES,
@@ -64,27 +65,27 @@ export const FormStepSchema = z.object({
 export const FormBlockSchema = z.object({
 	name: z.string().optional(),
 	repeatCount: z.string().optional(),
-	steps: z.array(FormStepSchema).min(1, 'A block must have at least one step'),
+	steps: z.array(FormStepSchema).min(1, WORKOUT_SCHEMA_MESSAGES.blockStepsMin),
 })
 
-const DURATION_HINT = 'Enter a duration like "40 min" or "1 h 30 min"'
-const DISTANCE_HINT = 'Enter a distance like "8 km"'
-const STEP_DISTANCE_HINT = 'Enter a distance like "400 m" or "1.2 km"'
-export const INTENSITY_HINT = 'Complete the intensity target or clear it'
+const DURATION_HINT = WORKOUT_SCHEMA_MESSAGES.durationHint
+const DISTANCE_HINT = WORKOUT_SCHEMA_MESSAGES.distanceHint
+const STEP_DISTANCE_HINT = WORKOUT_SCHEMA_MESSAGES.stepDistanceHint
+export const INTENSITY_HINT = WORKOUT_SCHEMA_MESSAGES.intensityHint
 
 export const FormSchema = z
 	.object({
-		title: z.string().min(1, 'Title is required').max(120),
+		title: z.string().min(1, WORKOUT_SCHEMA_MESSAGES.titleRequired).max(120),
 		// In the same words the authoring schema uses. The field can now open
 		// **unset** — an athlete with no history is asked rather than assigned a
 		// discipline (ADR 0065 §5) — so its empty state is a message somebody
 		// reads, not a raw enum complaint.
 		discipline: z.enum(DISCIPLINES, {
-			errorMap: () => ({ message: 'Please select a discipline' }),
+			errorMap: () => ({ message: WORKOUT_SCHEMA_MESSAGES.discipline }),
 		}),
 		intent: z.enum(WORKOUT_INTENTS),
-		scheduledAtDate: z.string().min(1, 'Date is required'),
-		scheduledAtTime: z.string().min(1, 'Time is required'),
+		scheduledAtDate: z.string().min(1, WORKOUT_SCHEMA_MESSAGES.dateRequired),
+		scheduledAtTime: z.string().min(1, WORKOUT_SCHEMA_MESSAGES.timeRequired),
 		// Legacy compatibility only (ADR 0027 §6): the simple/structured toggle
 		// was removed from the UI, which now always submits `structured` blocks
 		// (a new session starts as a one-step sentence). The `simple` shape — one
@@ -101,7 +102,7 @@ export const FormSchema = z
 			// Zero blocks deliberately passes this first pass (workout-editor
 			// spec §11.6): saving an empty session is allowed and posts, and the
 			// server's second-pass `WorkoutAuthoringSchema` answers the 400 with
-			// the one summary-line message ("Add at least one step…") — a
+			// the one summary-line message ("Legg til minst ett steg…") — a
 			// client-side rule here would swallow the submit instead.
 			value.blocks?.forEach((block, blockIndex) => {
 				block.steps.forEach((step, stepIndex) => {
@@ -133,7 +134,7 @@ export const FormSchema = z
 						ctx.addIssue({
 							code: z.ZodIssueCode.custom,
 							path: path('duration'),
-							message: 'A step cannot have both duration and distance',
+							message: WORKOUT_SCHEMA_MESSAGES.durationXorDistance,
 						})
 					}
 					// An authored intensity must be a parseable Intensity Target
@@ -160,8 +161,7 @@ export const FormSchema = z
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
 				path: ['discipline'],
-				message:
-					'Strength sessions need exercises — use "Add structure" to pick them',
+				message: WORKOUT_SCHEMA_MESSAGES.strengthNeedsExercises,
 			})
 		}
 		const duration = value.duration?.trim() ?? ''
@@ -170,7 +170,7 @@ export const FormSchema = z
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
 				path: ['duration'],
-				message: 'Enter a duration (e.g. "40 min") or a distance (e.g. "8 km")',
+				message: WORKOUT_SCHEMA_MESSAGES.durationOrDistance,
 			})
 			return
 		}
@@ -178,7 +178,7 @@ export const FormSchema = z
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
 				path: ['duration'],
-				message: 'Enter either a duration or a distance, not both',
+				message: WORKOUT_SCHEMA_MESSAGES.durationXorDistanceSimple,
 			})
 			return
 		}

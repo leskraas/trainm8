@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest'
-import { deriveRecordingTitle, deriveWorkoutTitle } from './session-title.ts'
+import {
+	deriveRecordingTitle,
+	deriveWorkoutTitle,
+	stampedSessionTitle,
+} from './session-title.ts'
 import {
 	type IntensityTarget,
 	type WorkoutStructure,
@@ -220,4 +224,19 @@ test('a recording with neither duration nor distance degrades to the discipline 
 			distanceM: null,
 		}),
 	).toBe('Swim')
+})
+
+// Round 2 (#505 story 68): a session the plan lays is named for what it is,
+// in Norwegian, and the same words the first run's preview showed — never
+// its duration ("54 min", "1 h 48 min"), which every surface shows anyway.
+test.each([
+	[{ discipline: 'run', role: 'ordinary', zone: null }, 'Rolig økt · Løping'],
+	[{ discipline: 'run', role: 'long', zone: null }, 'Langtur · Løping'],
+	[{ discipline: 'bike', role: 'long', zone: null }, 'Langtur · Sykling'],
+	[{ discipline: 'swim', role: 'long', zone: null }, 'Lang økt · Svømming'],
+	[{ discipline: 'run', role: 'ordinary', zone: 3 }, 'Tempoøkt · Løping'],
+	[{ discipline: 'bike', role: 'ordinary', zone: 4 }, 'Terskeløkt · Sykling'],
+	[{ discipline: 'run', role: 'ordinary', zone: 5 }, 'Intervalløkt · Løping'],
+] as const)('a laid session reads %o as %s', (session, title) => {
+	expect(stampedSessionTitle(session)).toBe(title)
 })

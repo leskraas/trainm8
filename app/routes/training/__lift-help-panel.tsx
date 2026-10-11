@@ -17,11 +17,20 @@
  * is tested without a browser. This file draws strings.
  *
  * The panel's expand is the **only** animation on this screen besides the
- * circles' own colour change and press-scale.
+ * circles' own colour change and press-scale. It is the app's `Collapsible`
+ * (#505 round 2): height and opacity on `motion-collapse`, 200ms in and 150ms
+ * out on `--ease-out`, interruptible because it is a transition, and gentler
+ * under reduced motion. It was a tw-animate keyframe — `slide-in-from-top`
+ * on a 150ms built-in curve — that restarted from zero when tapped twice and
+ * let the circles below jump.
  */
 import { Link } from 'react-router'
+import {
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { cn } from '#app/utils/misc.tsx'
+import { RUNNER_LABELS } from '#app/utils/labels.ts'
 import {
 	type HelpPanelLines,
 	type PlateAnnotation,
@@ -32,43 +41,29 @@ import {
  * `after:` inset the rest of this screen uses (ADR 0028), because it is pressed
  * with a shaking hand twenty seconds after a heavy set.
  *
- * `aria-expanded` and `aria-controls` rather than a popover: the panel is part of
- * the card and reads in document order, so a screen reader meets the explanation
- * where the weight is.
+ * A `Collapsible` trigger rather than a popover: it carries `aria-expanded` and
+ * `aria-controls` itself, and the panel is part of the card and reads in
+ * document order, so a screen reader meets the explanation where the weight
+ * is. It must sit inside the card's `Collapsible` root (the route's
+ * `LiftCard`), which owns whether it is open.
  */
-export function LiftHelpToggle({
-	liftName,
-	panelId,
-	open,
-	onToggle,
-}: {
-	liftName: string
-	panelId: string
-	open: boolean
-	onToggle: () => void
-}) {
+export function LiftHelpToggle({ liftName }: { liftName: string }) {
 	return (
-		<button
-			type="button"
-			onClick={onToggle}
-			aria-label={`About ${liftName}`}
-			aria-expanded={open}
-			aria-controls={panelId}
-			className={cn(
-				'text-muted-foreground focus-visible:ring-ring border-foreground/15 relative flex size-9 shrink-0 items-center justify-center rounded-xl border outline-none after:absolute after:-inset-1 focus-visible:ring-2',
-				open && 'bg-foreground/10 text-foreground',
-			)}
+		<CollapsibleTrigger
+			aria-label={RUNNER_LABELS.helpToggle(liftName)}
+			className="text-muted-foreground focus-visible:ring-ring border-foreground/15 data-panel-open:bg-muted data-panel-open:text-foreground pressable relative flex size-9 shrink-0 items-center justify-center rounded-3xl border outline-none after:absolute after:-inset-1 focus-visible:ring-2"
 		>
 			<Icon name="question-mark-circled" size="md" />
-		</button>
+		</CollapsibleTrigger>
 	)
 }
 
 /**
  * The panel itself — four lines in the handoff's copy, in the handoff's order.
  *
- * Rendered only while open, which is what makes *"collapsed by default"* an
- * absence rather than a hidden paragraph a screen reader still reads out.
+ * Mounted only while open (Base UI unmounts a closed panel once its exit has
+ * played), which is what makes *"collapsed by default"* an absence rather than
+ * a hidden paragraph a screen reader still reads out.
  */
 export function LiftHelpPanel({
 	panelId,
@@ -78,28 +73,29 @@ export function LiftHelpPanel({
 	lines: HelpPanelLines
 }) {
 	return (
-		<div
-			id={panelId}
-			data-lift-help-panel
-			className="bg-muted text-muted-foreground text-body-2xs animate-in fade-in-0 slide-in-from-top-1 flex flex-col gap-2 rounded-2xl p-3.5 leading-relaxed duration-150"
-		>
-			{/* The weight, in the athlete's own numbers rather than in the
+		<CollapsibleContent id={panelId} data-lift-help-panel>
+			<div className="bg-muted text-muted-foreground text-footnote flex flex-col gap-2 rounded-3xl p-3.5">
+				{/* The weight, in the athlete's own numbers rather than in the
 			    algorithm's — *"82.5 kg is your working weight after five made
 			    sessions"* / *"60 kg is held: two sessions in a row came up short"*.
 			    A weight that stopped moving and says nothing reads as a bug. Where
 			    the ramp refused, its sentence is folded into this line rather than
 			    given a fifth of its own: the panel says four things (#484). */}
-			{lines.resolution ? <p>{lines.resolution}</p> : null}
-			<p>{lines.plates}</p>
-			<p>{lines.timer}</p>
-			{lines.history ? (
-				<p>
-					<Link to={lines.history.href} className="underline">
-						{lines.history.text}
-					</Link>
-				</p>
-			) : null}
-		</div>
+				{lines.resolution ? <p>{lines.resolution}</p> : null}
+				{lines.plates ? <p>{lines.plates}</p> : null}
+				<p>{lines.timer}</p>
+				{lines.history ? (
+					<p>
+						<Link
+							to={lines.history.href}
+							className="text-foreground inline-flex min-h-11 items-center underline underline-offset-2"
+						>
+							{lines.history.text}
+						</Link>
+					</p>
+				) : null}
+			</div>
+		</CollapsibleContent>
 	)
 }
 
@@ -129,24 +125,24 @@ export function LiftPlateRow({
 		<div className="mt-2 flex items-baseline justify-between gap-2.5">
 			{annotation?.kind === 'plates' ? (
 				<p
-					className="text-body-2xs text-muted-foreground truncate font-mono"
+					className="text-footnote text-muted-foreground truncate font-mono"
 					data-plate-line
 				>
 					{annotation.text}
 				</p>
 			) : annotation?.kind === 'refusal' ? (
-				<p className="text-body-2xs text-muted-foreground" data-plate-line>
+				<p className="text-footnote text-muted-foreground" data-plate-line>
 					{annotation.text}
 				</p>
 			) : annotation?.kind === 'no-gym' ? (
-				<p className="text-body-2xs text-muted-foreground" data-plate-offer>
+				<p className="text-footnote text-muted-foreground" data-plate-offer>
 					<Link
 						to="/settings/training/gym"
-						className="inline-flex min-h-11 items-center underline"
+						className="text-foreground inline-flex min-h-11 items-center underline underline-offset-2"
 					>
-						Tell us what your gym has
+						{RUNNER_LABELS.describeGym}
 					</Link>{' '}
-					and every weight gets a plate line.
+					{RUNNER_LABELS.describeGymAfter}
 				</p>
 			) : (
 				<span />
@@ -173,7 +169,7 @@ export function LiftPlateRow({
 function LastTime({ text }: { text: string }) {
 	return (
 		<p
-			className="text-body-2xs text-muted-foreground shrink-0 underline decoration-dotted"
+			className="text-footnote text-muted-foreground shrink-0 tabular-nums underline decoration-dotted"
 			data-last-time
 		>
 			{text}

@@ -68,7 +68,17 @@ import {
 } from '#app/components/ui/select.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
-import { getDisciplineLabel } from '#app/utils/labels.ts'
+import {
+	BLOCK_SHEET_LABELS,
+	nbDisciplineLabel,
+	NB_STEP_KIND_LABELS,
+	TOKEN_EDITOR_CONTROL_LABELS,
+	TOKEN_EDITOR_GUTTER_LABELS,
+	TOKEN_EDITOR_MENU_LABELS,
+	TOKEN_EDITOR_TITLES,
+	TOKEN_EDITOR_TOKEN_NAMES,
+	TOKEN_SENTENCE_WORDS,
+} from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	attachStashes,
@@ -95,7 +105,6 @@ import {
 } from '#app/utils/workout-notation.ts'
 import {
 	CARDIO_DISCIPLINES,
-	STEP_KIND_LABELS,
 	STEP_KINDS,
 	type StepKind,
 } from '#app/utils/workout-schema.ts'
@@ -317,18 +326,23 @@ function editorKindFor(token: NotationToken): EditorKind | null {
 	}
 }
 
+const M = TOKEN_EDITOR_MENU_LABELS
+const G = TOKEN_EDITOR_GUTTER_LABELS
+const C = TOKEN_EDITOR_CONTROL_LABELS
+
+/** The noun a popover's stepper adjusts — `Senk pausen`, `Verdi for pausen`. */
 const EDITOR_LABELS: Record<EditorKind, string> = {
 	// The cardio quantity popover covers both measures behind its
-	// Duration ⇄ Distance switch (§6.1, G8), so it caps as the domain word.
-	duration: 'quantity',
-	distance: 'quantity',
-	repeat: 'repeat count',
-	rest: 'rest',
-	restSeconds: 'rest',
-	notes: 'note',
-	intensity: 'intensity',
-	sets: 'sets',
-	discipline: 'discipline',
+	// Tid ⇄ Distanse switch (§6.1, G8), so it names the domain word.
+	duration: C.stepper.quantity,
+	distance: C.stepper.quantity,
+	repeat: C.stepper.repeat,
+	rest: C.stepper.rest,
+	restSeconds: C.stepper.rest,
+	notes: C.stepper.notes,
+	intensity: C.stepper.intensity,
+	sets: C.stepper.sets,
+	discipline: C.stepper.discipline,
 }
 
 // ——— The retargeting popover's payload ——————————————————————————————————
@@ -392,38 +406,39 @@ function tokenAccessibleName(
 	const { blockIndex, stepIndex } = token.address
 	const blockCount = notation.blocks.length
 	const stepCount = notation.blocks[blockIndex]?.steps.length ?? 1
+	const N = TOKEN_EDITOR_TOKEN_NAMES
 	const position =
 		stepIndex == null
-			? `block ${blockIndex + 1} of ${blockCount}`
-			: `step ${stepIndex + 1} of ${stepCount}, block ${blockIndex + 1} of ${blockCount}`
+			? N.inBlock(blockIndex + 1, blockCount)
+			: N.inStep(stepIndex + 1, stepCount, blockIndex + 1, blockCount)
 	const subject = (() => {
 		switch (kind) {
 			case 'duration':
-				return `${token.text} duration`
+				return N.duration(token.text)
 			case 'distance':
-				return `${token.text} distance`
+				return N.distance(token.text)
 			case 'repeat':
-				return `repeated ${token.type === 'repeat' ? token.count : token.text} times`
+				return N.repeat(token.type === 'repeat' ? token.count : token.text)
 			case 'rest':
 				return token.text
 			case 'restSeconds':
-				return `${token.text} between sets`
+				return N.restBetweenSets(token.text)
 			case 'notes':
-				return `note: ${token.type === 'notes' ? token.note : token.text}`
+				return N.note(token.type === 'notes' ? token.note : token.text)
 			case 'intensity':
 				// The chip's content is the authored value in its own form (§7.2);
 				// the mid-edit draft placeholder has no chip yet.
 				return token.type === 'intensity' && token.chip
-					? `${token.chip.text} intensity`
-					: 'intensity, not set yet'
+					? N.intensity(token.chip.text)
+					: N.intensityUnset
 			case 'sets':
 				// The compact set notation is the value; the mid-edit placeholder
 				// token renders the bare word.
-				return token.text === 'sets'
-					? 'sets, not set yet'
-					: `sets: ${token.text}`
+				return token.text === TOKEN_SENTENCE_WORDS.sets
+					? N.setsUnset
+					: N.sets(token.text)
 			case 'discipline':
-				return `${token.text} discipline`
+				return N.discipline(token.text)
 		}
 	})()
 	return `${subject}, ${position}`
@@ -866,7 +881,7 @@ export function TokenSentenceEditor({
 			if (!steps) return
 			steps.splice(to, 0, ...steps.splice(from, 1))
 		})
-		announce(to < from ? 'Step moved earlier' : 'Step moved later')
+		announce(M.announce.stepMoved(to < from))
 	}
 
 	function duplicateStep(blockIndex: number, stepIndex: number) {
@@ -881,7 +896,7 @@ export function TokenSentenceEditor({
 				JSON.parse(JSON.stringify(source)) as DraftStepValue,
 			)
 		})
-		announce('Step duplicated')
+		announce(M.announce.stepDuplicated)
 	}
 
 	// Removing a block's only step removes the block itself (§3, G4): the ⋮
@@ -895,7 +910,7 @@ export function TokenSentenceEditor({
 			if (steps.length > 1) steps.splice(stepIndex, 1)
 			else blocks.splice(blockIndex, 1)
 		})
-		announce(removesBlock ? 'Step removed with its block' : 'Step removed')
+		announce(M.announce.stepRemoved(removesBlock))
 	}
 
 	// Kind switches route through the §4.2 reconciliation — one model for the
@@ -909,7 +924,7 @@ export function TokenSentenceEditor({
 			if (!steps || !step) return
 			steps[stepIndex] = switchStepKind(step, to)
 		})
-		announce(`Step is now ${STEP_KIND_LABELS[to].toLowerCase()}`)
+		announce(M.announce.stepKind(NB_STEP_KIND_LABELS[to]))
 	}
 
 	function addStepOfKind(blockIndex: number, kind: StepKind) {
@@ -918,7 +933,7 @@ export function TokenSentenceEditor({
 			if (!block) return
 			block.steps = [...(block.steps ?? []), sentenceStepOfKind(kind)]
 		})
-		announce(`${STEP_KIND_LABELS[kind]} step added`)
+		announce(M.announce.stepAdded(NB_STEP_KIND_LABELS[kind]))
 	}
 
 	function moveBlock(from: number, to: number) {
@@ -926,14 +941,14 @@ export function TokenSentenceEditor({
 		restructure((blocks) => {
 			blocks.splice(to, 0, ...blocks.splice(from, 1))
 		})
-		announce(to < from ? 'Block moved earlier' : 'Block moved later')
+		announce(M.announce.blockMoved(to < from))
 	}
 
 	function addBlockAfter(blockIndex: number) {
 		restructure((blocks) => {
 			blocks.splice(blockIndex + 1, 0, sentenceBlockOfKind('cardio'))
 		})
-		announce('Block added')
+		announce(M.announce.blockAdded)
 	}
 
 	// ——— The §11 empty state: seeds and the scratch chooser ———————————————
@@ -944,7 +959,7 @@ export function TokenSentenceEditor({
 		restructure((blocks) => {
 			blocks.push(sentenceBlockOfKind(kind))
 		})
-		announce(`${STEP_KIND_LABELS[kind]} step added`)
+		announce(M.announce.stepAdded(NB_STEP_KIND_LABELS[kind]))
 	}
 
 	/** Materialize an archetype seed (§11.3): the seed's blocks become the
@@ -961,14 +976,14 @@ export function TokenSentenceEditor({
 					}
 				: undefined,
 		)
-		announce(`${seed.name} added`)
+		announce(M.announce.seedAdded(seed.name))
 	}
 
 	function removeBlock(blockIndex: number) {
 		restructure((blocks) => {
 			blocks.splice(blockIndex, 1)
 		})
-		announce('Block deleted')
+		announce(BLOCK_SHEET_LABELS.blockDeleted)
 	}
 
 	// Set add/duplicate/remove/reorder mutate the draft's set array through the
@@ -1328,8 +1343,8 @@ export function TokenSentenceEditor({
 								if (element) gripRefs.current.set(blockIndex, element)
 								else gripRefs.current.delete(blockIndex)
 							}}
-							aria-label={`Block ${blockIndex + 1} of ${blockCount} actions`}
-							title="Block actions — drag to reorder"
+							aria-label={M.blockActions(blockIndex + 1, blockCount)}
+							title={M.blockGripTitle}
 							data-stanza-grip
 							data-server-error={
 								serverMarkings.blockError(blockIndex) != null || undefined
@@ -1372,29 +1387,29 @@ export function TokenSentenceEditor({
 							<DropdownMenuItem
 								onClick={() => openGutterEditor('name', blockIndex)}
 							>
-								Name…
+								{M.blockName}
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => openGutterEditor('repeat', blockIndex)}
 							>
-								Repeat…
+								{M.blockRepeat}
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
 								disabled={blockIndex === 0}
 								onClick={() => moveBlock(blockIndex, blockIndex - 1)}
 							>
-								Move earlier
+								{M.moveEarlier}
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								disabled={blockIndex === blockCount - 1}
 								onClick={() => moveBlock(blockIndex, blockIndex + 1)}
 							>
-								Move later
+								{M.moveLater}
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							<DropdownMenuSub>
-								<DropdownMenuSubTrigger>Add step</DropdownMenuSubTrigger>
+								<DropdownMenuSubTrigger>{M.addStep}</DropdownMenuSubTrigger>
 								<DropdownMenuSubContent className="w-auto min-w-44">
 									<KindChooserItems
 										onChoose={(kind) => addStepOfKind(blockIndex, kind)}
@@ -1402,18 +1417,18 @@ export function TokenSentenceEditor({
 								</DropdownMenuSubContent>
 							</DropdownMenuSub>
 							<DropdownMenuItem onClick={() => addBlockAfter(blockIndex)}>
-								Add block after
+								{M.addBlockAfter}
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem onClick={() => setSheetBlockIndex(blockIndex)}>
-								Open block editor…
+								{M.openBlockSheet}
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
 								variant="destructive"
 								onClick={() => removeBlock(blockIndex)}
 							>
-								Delete block
+								{M.deleteBlock}
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
@@ -1441,7 +1456,12 @@ export function TokenSentenceEditor({
 									if (element) stepMenuRefs.current.set(key, element)
 									else stepMenuRefs.current.delete(key)
 								}}
-								aria-label={`Step ${stepIndex + 1} of ${stepCount} actions, block ${blockIndex + 1} of ${blockCount}`}
+								aria-label={M.stepActions(
+									stepIndex + 1,
+									stepCount,
+									blockIndex + 1,
+									blockCount,
+								)}
 								data-step-menu
 								data-server-error={stepError != null || undefined}
 								className={cn(
@@ -1467,7 +1487,7 @@ export function TokenSentenceEditor({
 										<DropdownMenuItem
 											onClick={() => openAddFacet(blockIndex, stepIndex)}
 										>
-											Add…
+											{M.addFacet}
 										</DropdownMenuItem>
 										<DropdownMenuSeparator />
 									</>
@@ -1476,29 +1496,29 @@ export function TokenSentenceEditor({
 									disabled={stepIndex === 0}
 									onClick={() => moveStep(blockIndex, stepIndex, stepIndex - 1)}
 								>
-									Move earlier
+									{M.moveEarlier}
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									disabled={stepIndex === stepCount - 1}
 									onClick={() => moveStep(blockIndex, stepIndex, stepIndex + 1)}
 								>
-									Move later
+									{M.moveLater}
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									onClick={() => duplicateStep(blockIndex, stepIndex)}
 								>
-									Duplicate
+									{M.duplicate}
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								{/* The Kind section (§4.1): the current kind checked and
 								    inert, the other two as ⇄ switch rows, each previewing
 								    its consequences for the step's actual values. */}
 								<DropdownMenuGroup>
-									<DropdownMenuLabel>Kind</DropdownMenuLabel>
+									<DropdownMenuLabel>{M.kind}</DropdownMenuLabel>
 									{STEP_KINDS.map((kind) =>
 										kind === currentKind ? (
 											<DropdownMenuItem key={kind} disabled>
-												✓ {STEP_KIND_LABELS[kind]}
+												✓ {NB_STEP_KIND_LABELS[kind]}
 											</DropdownMenuItem>
 										) : (
 											<DropdownMenuItem
@@ -1508,9 +1528,7 @@ export function TokenSentenceEditor({
 												}
 											>
 												<span className="flex max-w-64 flex-col">
-													<span>
-														⇄ Make {STEP_KIND_LABELS[kind].toLowerCase()}
-													</span>
+													<span>{M.makeKind(NB_STEP_KIND_LABELS[kind])}</span>
 													{draftStep ? (
 														<span className="text-muted-foreground text-xs text-wrap">
 															{previewKindSwitch(draftStep, kind, {
@@ -1528,7 +1546,7 @@ export function TokenSentenceEditor({
 									variant="destructive"
 									onClick={() => removeStep(blockIndex, stepIndex)}
 								>
-									Remove
+									{M.remove}
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>
@@ -1537,7 +1555,7 @@ export function TokenSentenceEditor({
 				lineExtras={(blockIndex) => (
 					<DropdownMenu>
 						<DropdownMenuTrigger
-							aria-label={`Add step to block ${blockIndex + 1}`}
+							aria-label={M.addStepTo(blockIndex + 1)}
 							data-add-step
 							className={CHROME_MARK_CLASS}
 						>
@@ -1551,8 +1569,11 @@ export function TokenSentenceEditor({
 					</DropdownMenu>
 				)}
 				lineProps={(blockIndex) => ({
+					// The line a ⠿ menu or a drag is about tints on the app's press
+					// curve (ADR 0077) — it was `transition-colors` on Tailwind's
+					// default 150ms curve.
 					className: cn(
-						'transition-colors',
+						'duration-press transition-colors ease-out',
 						(menuBlockIndex === blockIndex || dropTargetIndex === blockIndex) &&
 							'bg-accent/40',
 					),
@@ -1587,14 +1608,14 @@ export function TokenSentenceEditor({
 						type="button"
 						variant="ghost"
 						size="xs"
-						aria-label="Add block"
+						aria-label={TOKEN_SENTENCE_WORDS.addBlockAction}
 						onClick={() =>
 							restructure((blocks) => {
 								blocks.push(sentenceBlockOfKind('cardio'))
 							})
 						}
 					>
-						+ block
+						{TOKEN_SENTENCE_WORDS.addBlock}
 					</Button>
 				</div>
 			) : null}
@@ -1602,7 +1623,7 @@ export function TokenSentenceEditor({
 				handle={popoverHandle}
 				// The cap label follows the facet actually shown, which a §6.1
 				// neighbour link may have swapped away from the anchor's own.
-				label={(payload) => EDITOR_LABELS[activeFor(payload).kind]}
+				label={(payload) => TOKEN_EDITOR_TITLES[activeFor(payload).kind]}
 				onOpenChange={(open) => {
 					if (!open) setFacetSwap(null)
 				}}
@@ -1655,7 +1676,7 @@ export function TokenSentenceEditor({
 							{gutterEditor != null ? (
 								<>
 									<div className="text-muted-foreground font-mono text-[11px] font-semibold tracking-[0.08em] uppercase">
-										{gutterEditor.type === 'name' ? 'block name' : 'repeat'}
+										{gutterEditor.type === 'name' ? G.nameTitle : G.repeatTitle}
 									</div>
 									<PopoverErrorLead
 										messages={[
@@ -1684,7 +1705,7 @@ export function TokenSentenceEditor({
 								</>
 							) : null}
 							<PopoverPrimitive.Close className="sr-only">
-								Close
+								{G.close}
 							</PopoverPrimitive.Close>
 						</PopoverPrimitive.Popup>
 					</PopoverPrimitive.Positioner>
@@ -1719,7 +1740,7 @@ export function TokenSentenceEditor({
 							{addFacet != null ? (
 								<>
 									<div className="text-muted-foreground font-mono text-[11px] font-semibold tracking-[0.08em] uppercase">
-										{EDITOR_LABELS[addFacet.kind]}
+										{TOKEN_EDITOR_TITLES[addFacet.kind]}
 									</div>
 									<PopoverErrorLead
 										messages={[
@@ -1744,7 +1765,7 @@ export function TokenSentenceEditor({
 								</>
 							) : null}
 							<PopoverPrimitive.Close className="sr-only">
-								Close
+								{G.close}
 							</PopoverPrimitive.Close>
 						</PopoverPrimitive.Popup>
 					</PopoverPrimitive.Positioner>
@@ -1813,9 +1834,9 @@ function BlockNameEditor({
 		<div className="flex flex-col gap-2">
 			<input
 				type="text"
-				aria-label="Block name"
+				aria-label={BLOCK_SHEET_LABELS.name}
 				defaultValue={rawValue}
-				placeholder="e.g. Warm-up"
+				placeholder={BLOCK_SHEET_LABELS.namePlaceholder}
 				maxLength={60}
 				// 16 px text so mobile browsers never zoom the field (§9.2).
 				className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-lg border px-3 text-base outline-none focus-visible:ring-2"
@@ -1823,8 +1844,8 @@ function BlockNameEditor({
 					control.change(event.target.value)
 					announce(
 						event.target.value.trim()
-							? 'Block name updated'
-							: 'Block name cleared',
+							? BLOCK_SHEET_LABELS.nameUpdated
+							: BLOCK_SHEET_LABELS.nameCleared,
 					)
 				}}
 				onFocus={() => control.focus()}
@@ -1837,11 +1858,11 @@ function BlockNameEditor({
 					size="xs"
 					onClick={() => {
 						control.change('')
-						announce('Block name cleared')
+						announce(BLOCK_SHEET_LABELS.nameCleared)
 						onClear()
 					}}
 				>
-					Clear name
+					{G.clearName}
 				</Button>
 			) : null}
 		</div>
@@ -1861,7 +1882,7 @@ function GutterRepeatEditor({
 	const rawValue = typeof meta.value === 'string' ? meta.value : ''
 	return (
 		<TypeToEditStepper
-			label="repeat count"
+			label={C.stepper.repeat}
 			config={STEPPERS.repeat}
 			rawValue={rawValue}
 			announce={announce}
@@ -2080,7 +2101,7 @@ function ActiveTokenEditor({
 							? () =>
 									closeThen(() => {
 										control.change('')
-										announce('Intensity removed')
+										announce(C.intensityRemoved)
 									})
 							: undefined
 					}
@@ -2092,14 +2113,14 @@ function ActiveTokenEditor({
 					    behind would clobber fast typing. This editor remounts per
 					    token (keyed by address), so `defaultValue` is always current. */}
 					<Textarea
-						aria-label="Note text"
+						aria-label={C.note}
 						rows={3}
 						defaultValue={rawValue}
 						// 16 px text so mobile browsers never zoom the field (§9.2).
 						className="text-base"
 						onChange={(event) => {
 							control.change(event.target.value)
-							announce('Note updated')
+							announce(C.noteUpdated)
 						}}
 						onFocus={() => control.focus()}
 						onBlur={() => control.blur()}
@@ -2113,11 +2134,11 @@ function ActiveTokenEditor({
 								onClick={() =>
 									closeThen(() => {
 										control.change('')
-										announce('Note removed')
+										announce(C.noteRemoved)
 									})
 								}
 							>
-								Remove note
+								{C.removeNote}
 							</Button>
 						</div>
 					) : null}
@@ -2205,18 +2226,16 @@ function QuantityEditor({
 			distanceControl.change(value)
 			durationControl.change('')
 		}
-		announce(
-			`Quantity is now a ${next === 'duration' ? 'duration' : 'distance'} — ${value}`,
-		)
+		announce(C.quantityIs(next, value))
 	}
 
 	return (
 		<div className="flex flex-col gap-2" data-slot="quantity-editor">
 			<UnitToggle
-				label="Quantity kind"
+				label={C.quantityKind}
 				options={[
-					{ id: 'duration', label: 'Duration' },
-					{ id: 'distance', label: 'Distance' },
+					{ id: 'duration', label: C.duration },
+					{ id: 'distance', label: C.distance },
 				]}
 				active={unit ?? ''}
 				onSelect={(id) => switchTo(id as QuantityUnit)}
@@ -2226,7 +2245,7 @@ function QuantityEditor({
 					// Remount per measure: the stepper's typed text seeds from the
 					// field once, and the switch swaps which field that is.
 					key={unit}
-					label={unit}
+					label={C.stepper[unit]}
 					config={STEPPERS[unit]}
 					rawValue={unit === 'duration' ? durationValue : distanceValue}
 					announce={announce}
@@ -2237,9 +2256,7 @@ function QuantityEditor({
 					}
 				/>
 			) : (
-				<p className="text-muted-foreground text-xs">
-					This step has no length yet — pick how to measure it.
-				</p>
+				<p className="text-muted-foreground text-xs">{C.noQuantity}</p>
 			)}
 			{unit != null ? (
 				<div className="flex justify-center">
@@ -2251,11 +2268,11 @@ function QuantityEditor({
 							closeThen(() => {
 								durationControl.change('')
 								distanceControl.change('')
-								announce('Time or distance removed')
+								announce(C.quantityRemoved)
 							})
 						}
 					>
-						Remove time or distance
+						{C.removeQuantity}
 					</Button>
 				</div>
 			) : null}
@@ -2306,8 +2323,8 @@ function StepDisciplineSelect({
 			control.change(next)
 			announce(
 				isOverride
-					? `Discipline set to ${next} — zones resolve against ${next} thresholds`
-					: 'Discipline inherits from the workout',
+					? C.disciplineSet(nbDisciplineLabel(next))
+					: C.disciplineInherits,
 			)
 		}
 		if (closeOnClear && !isOverride) closeOnClear(commit)
@@ -2319,24 +2336,24 @@ function StepDisciplineSelect({
 			data-slot="step-discipline"
 			className="flex items-center gap-2 self-start"
 		>
-			<span className="text-muted-foreground text-xs">discipline</span>
+			<span className="text-muted-foreground text-xs">{C.discipline}</span>
 			<Select value={selected} onValueChange={(value) => select(value)}>
-				<SelectTrigger aria-label="Step discipline" size="sm">
+				<SelectTrigger aria-label={C.stepDiscipline} size="sm">
 					<SelectValue>
 						{(value) =>
 							value === DISCIPLINE_INHERIT
-								? `inherit · ${getDisciplineLabel(workoutDiscipline)}`
-								: getDisciplineLabel(String(value))
+								? C.inheritDiscipline(nbDisciplineLabel(workoutDiscipline))
+								: nbDisciplineLabel(String(value))
 						}
 					</SelectValue>
 				</SelectTrigger>
 				<SelectContent>
 					<SelectItem value={DISCIPLINE_INHERIT}>
-						inherit · {getDisciplineLabel(workoutDiscipline)}
+						{C.inheritDiscipline(nbDisciplineLabel(workoutDiscipline))}
 					</SelectItem>
 					{CARDIO_DISCIPLINES.map((discipline) => (
 						<SelectItem key={discipline} value={discipline}>
-							{getDisciplineLabel(discipline)}
+							{nbDisciplineLabel(discipline)}
 						</SelectItem>
 					))}
 				</SelectContent>
@@ -2383,7 +2400,7 @@ function FacetNeighbourRow({
 	const links: Array<{ label: string; errored: boolean } & FacetTarget> = []
 	if (stepKind === 'cardio' && exclude !== 'quantity' && !hasQuantity) {
 		links.push({
-			label: '＋ time or distance',
+			label: C.addQuantity,
 			kind: 'duration',
 			field: 'duration',
 			errored: errorFacet === 'duration' || errorFacet === 'distance',
@@ -2391,7 +2408,7 @@ function FacetNeighbourRow({
 	}
 	if (stepKind === 'cardio' && exclude !== 'intensity' && !hasIntensity) {
 		links.push({
-			label: '＋ intensity',
+			label: C.addIntensity,
 			kind: 'intensity',
 			field: 'intensity',
 			errored: errorFacet === 'intensity',
@@ -2399,7 +2416,7 @@ function FacetNeighbourRow({
 	}
 	if (exclude !== 'notes' && !hasNote) {
 		links.push({
-			label: '＋ note',
+			label: C.addNote,
 			kind: 'notes',
 			field: 'notes',
 			errored: errorFacet === 'notes',

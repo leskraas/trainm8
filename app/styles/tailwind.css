@@ -1,14 +1,15 @@
 @import 'tailwindcss';
 /*
- * `tw-animate-css` stays for the three overlays outside `components/ui` that
- * still enter on its keyframes (`token-popover.tsx`, the block-editor sheet,
- * the lift-help panel). Nothing in `components/ui` uses it any more: the
+ * No `tw-animate-css`: nothing enters on its keyframes any more. The
  * primitives animate on Base UI's `data-starting-style` / `data-ending-style`
- * through the motion utilities below (ADR 0085 §4). Each import appears once —
- * the shadcn CLI had appended three copies of each, plus an Inter face nothing
+ * through the motion utilities below (ADR 0085 §4), and the last three users
+ * outside `components/ui` — the token popover, the block-editor sheet and the
+ * lift-help panel — moved onto `motion-popup`, the Drawer and the Collapsible
+ * (#505 round 2). A `shadcn add` re-adds the import; take it out again
+ * (design-system.md, "Updating from the CLI"). Each import appears once — the
+ * shadcn CLI had appended three copies of each, plus an Inter face nothing
  * rendered.
  */
-@import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/public-sans';
 
@@ -147,12 +148,24 @@
 
 	/*
 	 * Training tracks, one hue per discipline. Marks, not fills — a dot, a bar,
-	 * an edge; text that names a track stays `foreground`.
+	 * an edge. Most of them are under 4.5:1 on the card, so text that names a
+	 * track in its colour uses the `-ink` step below, never the mark.
 	 */
 	--track-run: oklch(0.63 0.16 32);
 	--track-bike: oklch(0.72 0.13 78);
 	--track-swim: oklch(0.62 0.1 225);
 	--track-strength: oklch(0.55 0.11 300);
+
+	/*
+	 * Track ink: the same hue, dark enough to be *text* (#505 round 2). Each is
+	 * ≥ 5.0:1 on `--background` and ≥ 5.1:1 on `--card` (WCAG AA is 4.5); the
+	 * numbers are in docs/design/design-system.md. Bike drops furthest — amber
+	 * at text contrast is bronze — because the mark is 2.5:1.
+	 */
+	--track-run-ink: oklch(0.54 0.15 32);
+	--track-bike-ink: oklch(0.53 0.11 78);
+	--track-swim-ink: oklch(0.52 0.09 225);
+	--track-strength-ink: oklch(0.53 0.12 300);
 
 	/*
 	 * Phases: Grunntrening · Oppbygging · Spissing · Nedtrapping. The ground a
@@ -221,6 +234,14 @@
 	--track-swim: oklch(0.72 0.09 225);
 	--track-strength: oklch(0.7 0.1 300);
 
+	/* The marks already pass on dark ground; the ink is a step lighter still,
+	 * so a caption-sized track name reads as crisply as `foreground` beside it
+	 * (≥ 7.3:1 on the card, ≥ 8.1:1 on the page). */
+	--track-run-ink: oklch(0.74 0.13 32);
+	--track-bike-ink: oklch(0.8 0.12 78);
+	--track-swim-ink: oklch(0.76 0.09 225);
+	--track-strength-ink: oklch(0.74 0.1 300);
+
 	--phase-base: oklch(0.6 0.06 240);
 	--phase-build: oklch(0.66 0.09 80);
 	--phase-peak: oklch(0.62 0.11 35);
@@ -283,6 +304,10 @@
 	--color-track-bike: var(--track-bike);
 	--color-track-swim: var(--track-swim);
 	--color-track-strength: var(--track-strength);
+	--color-track-run-ink: var(--track-run-ink);
+	--color-track-bike-ink: var(--track-bike-ink);
+	--color-track-swim-ink: var(--track-swim-ink);
+	--color-track-strength-ink: var(--track-strength-ink);
 	--color-phase-base: var(--phase-base);
 	--color-phase-build: var(--phase-build);
 	--color-phase-peak: var(--phase-peak);
@@ -670,7 +695,8 @@
  *
  * Not gated on reduced motion: height and opacity have no movement *of the
  * panel* to drop, and the reflow is what stops the content below from jumping
- * (ADR 0077 §5's answer for the timeline's accordions).
+ * (ADR 0077 §5). Nothing on I dag opens in place any more (ADR 0088: the
+ * composer is a Drawer), so this is the one height animation left.
  */
 @utility motion-collapse {
 	overflow: hidden;
@@ -687,22 +713,6 @@
 	&[data-ending-style] {
 		transition-duration: var(--transition-duration-collapse-exit);
 	}
-}
-
-/*
- * The home timeline's one accordion (#502, ADR 0082 §6 as amended by 0086): an
- * empty cell opening into the draft. Bands and folded weeks were the others;
- * since ADR 0086 nothing on I dag folds.
- *
- * Same ingredients as `motion-collapse`, but the two pixel values it
- * interpolates between are written by `timeline/reflow.ts`, because the draft
- * is not a Base UI Collapsible and CSS cannot measure. Not gated on reduced
- * motion, for `motion-collapse`'s reason.
- */
-@utility reflow {
-	transition:
-		height var(--transition-duration-collapse) var(--ease-out),
-		opacity var(--transition-duration-collapse) var(--ease-out);
 }
 
 @utility container {
@@ -836,5 +846,47 @@
 	textarea,
 	select {
 		font-size: max(1rem, 16px);
+	}
+}
+
+/* ==========================================================================
+ * Round 2 · first run (branch claude/r2-firstrun-meg-finish). One section;
+ * other PRs add their own below rather than editing this one.
+ * ========================================================================== */
+
+/*
+ * "Dette fant vi": the findings arrive (round-2 audit, PR A).
+ *
+ * The one moment of delight in the first run, which Emil's frequency table
+ * allows only because the athlete sees it once: the four rows of what the app
+ * read from their history rise 6px into place and fade in, 40ms apart, 200ms
+ * each on the strong ease-out — under 300ms for the whole group of four. It
+ * plays when the values first paint (at load, or when the import finishes and
+ * each value replaces its "Hentes …"), from `@starting-style`, so it is a
+ * transition: nothing waits on it, a tap during it lands, and a value that
+ * changes again retargets instead of restarting. `transform` and `opacity`
+ * only, so it shifts no layout (the screen's CLS was 0.132 from the swap).
+ * Reduced motion keeps the fade and drops the rise. `--reveal-index` is set
+ * on the element itself, never on a parent (no recalc of siblings).
+ */
+@utility motion-reveal {
+	transition:
+		opacity 200ms var(--ease-out),
+		transform 200ms var(--ease-out);
+	transition-delay: calc(var(--reveal-index, 0) * 40ms);
+
+	@starting-style {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		transition: opacity 200ms var(--ease-out);
+		transition-delay: calc(var(--reveal-index, 0) * 40ms);
+
+		@starting-style {
+			opacity: 0;
+			transform: none;
+		}
 	}
 }

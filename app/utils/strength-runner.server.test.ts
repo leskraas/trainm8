@@ -99,7 +99,11 @@ test('finishing is an explicit act that marks the session completed', async () =
 	// nothing infers the athlete's day is over.
 	expect(before.status).toBe('scheduled')
 
-	const finished = await finishStrengthSession({ userId, sessionId })
+	const finished = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
 
 	expect(finished.ok).toBe(true)
 	const after = await prisma.workoutSession.findUniqueOrThrow({
@@ -109,11 +113,76 @@ test('finishing is an explicit act that marks the session completed', async () =
 	expect(after.status).toBe('completed')
 })
 
+// ——— Untapped sets are asked about, never assumed (owner decision 10) ———————
+
+test('finishing with untapped sets is refused until the athlete answers, and nothing is folded', async () => {
+	const userId = await createAthlete()
+	const { instanceId, sessionId } = await startRunAndOpenSession(userId)
+	await logLift(sessionId, SQUAT, 60, [5, 5, 5])
+
+	const asked = await finishStrengthSession({ userId, sessionId })
+
+	// Two of the squat's five sets were never tapped, and nor were the bench's
+	// and the row's ten, which StrongLifts priced at its published defaults:
+	// neither made nor missed yet.
+	expect(asked).toEqual({ ok: false, reason: 'untapped-sets', untapped: 12 })
+	const session = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: sessionId },
+		select: { status: true },
+	})
+	expect(session.status).toBe('scheduled')
+	const squat = await prisma.programLiftState.findFirstOrThrow({
+		where: { instanceId, exerciseId: SQUAT },
+		select: { currentWorkingWeightKg: true, stallCount: true },
+	})
+	expect(squat).toEqual({ currentWorkingWeightKg: 60, stallCount: 0 })
+})
+
+test('“marker som ikke gjort” finishes, and the untapped sets are read as not done', async () => {
+	const userId = await createAthlete()
+	const { instanceId, sessionId } = await startRunAndOpenSession(userId)
+	await logLift(sessionId, SQUAT, 60, [5, 5, 5])
+
+	const finished = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
+	if (!finished.ok) throw new Error('expected a finish')
+
+	expect(finished.untappedMarkedNotDone).toBe(12)
+	// The athlete said so: the session came up short, so the weight holds.
+	expect(
+		finished.outcomes.find((outcome) => outcome.exerciseId === SQUAT)?.kind,
+	).toBe('repeated')
+	const squat = await prisma.programLiftState.findFirstOrThrow({
+		where: { instanceId, exerciseId: SQUAT },
+		select: { currentWorkingWeightKg: true, stallCount: true },
+	})
+	expect(squat).toEqual({ currentWorkingWeightKg: 60, stallCount: 1 })
+})
+
+test('a session with every set tapped is never asked', async () => {
+	const userId = await createAthlete()
+	const { sessionId } = await startRunAndOpenSession(userId)
+	await logLift(sessionId, SQUAT, 60, [5, 5, 5, 5, 4])
+	await logLift(sessionId, PROGRAM_LIFT_EXERCISE_IDS.benchPress, 20, [5, 5, 5, 5, 5])
+	await logLift(sessionId, PROGRAM_LIFT_EXERCISE_IDS.barbellRow, 30, [5, 5, 5, 5, 5])
+
+	const finished = await finishStrengthSession({ userId, sessionId })
+	if (!finished.ok) throw new Error('expected a finish')
+	expect(finished.untappedMarkedNotDone).toBe(0)
+})
+
 test('a session with nothing logged cannot be finished, so the column cannot disagree with the sets', async () => {
 	const userId = await createAthlete()
 	const { sessionId } = await startRunAndOpenSession(userId)
 
-	const refused = await finishStrengthSession({ userId, sessionId })
+	const refused = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
 
 	expect(refused).toEqual({ ok: false, reason: 'nothing-logged' })
 	const session = await prisma.workoutSession.findUniqueOrThrow({
@@ -128,7 +197,9 @@ test('a warm-up alone is not a finished session, because no aggregate counts one
 	const { sessionId } = await startRunAndOpenSession(userId)
 	await logLift(sessionId, SQUAT, 20, [5, 5], 'warmup', 1000)
 
-	expect(await finishStrengthSession({ userId, sessionId })).toEqual({
+	expect(
+		await finishStrengthSession({ userId, sessionId, untapped: 'not-done' }),
+	).toEqual({
 		ok: false,
 		reason: 'nothing-logged',
 	})
@@ -139,7 +210,11 @@ test('finishing folds the log into the program, so the next session’s weight m
 	const { instanceId, sessionId } = await startRunAndOpenSession(userId)
 	await logLift(sessionId, SQUAT, 60, [5, 5, 5, 5, 5])
 
-	const finished = await finishStrengthSession({ userId, sessionId })
+	const finished = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
 	if (!finished.ok) throw new Error('expected a finish')
 
 	expect(finished.programName).toBe('StrongLifts 5×5')
@@ -185,7 +260,11 @@ test('a session that belongs to no running program finishes and advances nothing
 		select: { id: true },
 	})
 
-	const finished = await finishStrengthSession({ userId, sessionId })
+	const finished = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
 	if (!finished.ok) throw new Error('expected a finish')
 
 	expect(finished.outcomes).toEqual([])
@@ -221,7 +300,8 @@ async function missUntilTheStall(userId: string) {
 		sessionId = opened.sessionId
 		// Every session but the last is finished here; the last one is the one the
 		// test finishes, twice.
-		if (session < 2) await finishStrengthSession({ userId, sessionId })
+		if (session < 2)
+			await finishStrengthSession({ userId, sessionId, untapped: 'not-done' })
 	}
 	return { instanceId: started.instanceId, sessionId }
 }
@@ -230,8 +310,8 @@ test('finishing a session twice advances the program once', async () => {
 	const userId = await createAthlete()
 	const { instanceId, sessionId } = await missUntilTheStall(userId)
 
-	await finishStrengthSession({ userId, sessionId })
-	await finishStrengthSession({ userId, sessionId })
+	await finishStrengthSession({ userId, sessionId, untapped: 'not-done' })
+	await finishStrengthSession({ userId, sessionId, untapped: 'not-done' })
 
 	const squat = await prisma.programLiftState.findFirstOrThrow({
 		where: { instanceId, exerciseId: SQUAT },
@@ -255,7 +335,7 @@ test('a session put back to scheduled and finished again still advances the prog
 	const userId = await createAthlete()
 	const { instanceId, sessionId } = await missUntilTheStall(userId)
 
-	await finishStrengthSession({ userId, sessionId })
+	await finishStrengthSession({ userId, sessionId, untapped: 'not-done' })
 	// Whatever moves this column — a re-open, a repair, another surface — it is not
 	// what decides whether the log has been folded in, so moving it cannot let the
 	// same session cut the weight a second time.
@@ -264,7 +344,11 @@ test('a session put back to scheduled and finished again still advances the prog
 		data: { status: 'scheduled' },
 		select: { id: true },
 	})
-	const second = await finishStrengthSession({ userId, sessionId })
+	const second = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
 	if (!second.ok) throw new Error('expected a finish')
 
 	expect(second.alreadyFinished).toBe(true)
@@ -285,8 +369,16 @@ test('a second finish returns the first finish’s outcomes rather than an error
 	const userId = await createAthlete()
 	const { sessionId } = await missUntilTheStall(userId)
 
-	const first = await finishStrengthSession({ userId, sessionId })
-	const second = await finishStrengthSession({ userId, sessionId })
+	const first = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
+	const second = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
 	if (!first.ok || !second.ok) throw new Error('expected two finishes')
 
 	// Not an error, and it says which of the two it was.
@@ -382,6 +474,45 @@ async function logLiftThroughTheRunner(
 	}
 }
 
+test('a day shape that repeats its block is graded on every round, so five rounds of one set make a 5×5', async () => {
+	const userId = await createAthlete()
+	await createProfileAndGym(userId)
+	const { instanceId, sessionId } = await startRunAndOpenSession(userId, 60)
+	// The same squat 5×5, authored as a circuit: one set, five rounds.
+	const squatStep = await prisma.workoutStep.findFirstOrThrow({
+		where: {
+			exerciseId: SQUAT,
+			block: { workout: { sessions: { some: { id: sessionId } } } },
+		},
+		select: { id: true, blockId: true },
+	})
+	await prisma.exerciseSet.deleteMany({
+		where: { stepId: squatStep.id, orderIndex: { gt: 0 } },
+	})
+	await prisma.workoutBlock.update({
+		where: { id: squatStep.blockId },
+		data: { repeatCount: 5 },
+	})
+
+	await logLiftThroughTheRunner(userId, sessionId, SQUAT, [5, 5, 5, 5, 5])
+	const finished = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
+	if (!finished.ok) throw new Error('expected a finish')
+
+	// Five sets of five at 60 kg: made, not a miss counted off one round.
+	expect(
+		finished.outcomes.find((outcome) => outcome.exerciseId === SQUAT),
+	).toMatchObject({ kind: 'incremented', fromKg: 60, toKg: 62.5 })
+	const squat = await prisma.programLiftState.findFirstOrThrow({
+		where: { instanceId, exerciseId: SQUAT },
+		select: { currentWorkingWeightKg: true, stallCount: true },
+	})
+	expect(squat).toEqual({ currentWorkingWeightKg: 62.5, stallCount: 0 })
+})
+
 test('the first session of a run tells the athlete what to put on the bar, with no history to read it from', async () => {
 	const userId = await createAthlete()
 	await createProfileAndGym(userId)
@@ -427,7 +558,11 @@ test('sets logged through the runner’s own save path move the working weight, 
 		expect(log.variant!.equipment).toBe(BARBELL)
 	}
 
-	const finished = await finishStrengthSession({ userId, sessionId })
+	const finished = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
 	if (!finished.ok) throw new Error('expected a finish')
 
 	// Twenty-five of twenty-five: the squat goes up, and nothing is "skipped".
@@ -504,7 +639,11 @@ test('a logged set records which realization it was, so changing a variant later
 	// And the program still folds them in, because the barbell rule and the barbell
 	// stamp still meet. Reading the variant here is what made the fold return
 	// `skipped` and left the working weight where it was.
-	const finished = await finishStrengthSession({ userId, sessionId })
+	const finished = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
 	if (!finished.ok) throw new Error('expected a finish')
 	expect(
 		finished.outcomes.find((outcome) => outcome.exerciseId === SQUAT),
@@ -534,7 +673,11 @@ test('a rule that states no equipment still folds in a set that names one, becau
 	})
 
 	await logLiftThroughTheRunner(userId, sessionId, SQUAT, [5, 5, 5, 5, 5])
-	const finished = await finishStrengthSession({ userId, sessionId })
+	const finished = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
 	if (!finished.ok) throw new Error('expected a finish')
 
 	// The set says `barbell`; the rule says nothing and therefore contradicts
@@ -572,7 +715,11 @@ test('a set logged on another realization of the lift does not move a barbell ru
 		data: { variantId: smith.id, equipment: 'smith-machine' },
 	})
 
-	const finished = await finishStrengthSession({ userId, sessionId })
+	const finished = await finishStrengthSession({
+		userId,
+		sessionId,
+		untapped: 'not-done',
+	})
 	if (!finished.ok) throw new Error('expected a finish')
 
 	expect(

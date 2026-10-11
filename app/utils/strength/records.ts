@@ -47,6 +47,11 @@
  * harmful if it discourages a deload. Neither is a reading about training, so
  * there is nothing here to import and no TODO promising one later.
  */
+import { formatKg, formatNbKg } from '../format.ts'
+import {
+	MEG_ANCHOR_PROTOCOL_LABELS,
+	STRENGTH_RECORD_LABELS as L,
+} from '../labels.ts'
 import {
 	type EquipmentId,
 	type EstimatorName,
@@ -61,7 +66,6 @@ import {
 	type KiloLoadBasis,
 	kiloLoadBasis,
 } from './program-rules.ts'
-import { formatKg } from './program.constants.ts'
 
 // ——— What a record is derived from ———————————————————————————————————————
 
@@ -327,11 +331,10 @@ export type StrengthRecord = {
  */
 export const DEBUT_PRIOR_SESSIONS = 3
 
-const NO_KILOS_NOTE = 'No kilos — this progresses against itself only.'
+const NO_KILOS_NOTE = L.notes.noKilos
 
 /** The assist's refusal, as {@link assistedRecordRefusal} says it. */
-export const ASSIST_INVERTED_NOTE =
-	'An assisted set takes no record: the number is your bodyweight minus the assistance, so it grows as the work shrinks.'
+export const ASSIST_INVERTED_NOTE = L.notes.assisted
 
 /**
  * **The one phrase each partition carries**, or none for the bar.
@@ -343,9 +346,8 @@ export const ASSIST_INVERTED_NOTE =
  */
 const BASIS_NOTES: Record<RecordLoadBasis, string | null> = {
 	bar: null,
-	perHand: 'Per-hand kilos — this progresses against other per-hand sets only.',
-	bodyweightDerived:
-		'Includes your bodyweight — this progresses against other bodyweight sets only.',
+	perHand: L.notes.perHand,
+	bodyweightDerived: L.notes.bodyweightDerived,
 	stackLevel: NO_KILOS_NOTE,
 }
 
@@ -674,31 +676,33 @@ export function strengthRecordLabel(record: StrengthRecord): string {
  * debut window becomes words, so the runner's banner and the history strip
  * cannot phrase the same record two ways.
  *
- * *"first time!"* is licensed by {@link StrengthRecord.previousValue} being null
+ * *"første gang"* (once *"first time!"*) is licensed by {@link StrengthRecord.previousValue} being null
  * and by nothing else: it is the statement *"nothing came before this reading"*,
  * which is exactly what a null previous best means. It is **not** licensed by
  * `debut`, and that was the defect — a 22.5 kg set inside the debut window read
  * "first time!" directly above a visible 20 kg session, contradicting what the
  * athlete could see on the same page.
  *
- * Inside the window a beaten reading reads *"best so far"*: true (it is the best
+ * Inside the window a beaten reading reads *"best hittil"*: true (it is the best
  * of every qualifying set), and deliberately quieter than the gain phrase, which
  * is what {@link DEBUT_PRIOR_SESSIONS} exists for. Day one on a dumbbell bench
  * still does not fire four PRs; it just no longer claims a first time it can see
  * is not one.
  */
 export function recordGainPhrase(record: StrengthRecord): string | null {
-	if (record.previousValue == null) return 'first time!'
-	if (record.debut) return 'best so far'
+	if (record.previousValue == null) return L.firstTime
+	if (record.debut) return L.bestSoFar
 	if (record.delta == null || record.delta <= 0) return null
 	if (record.unit === 'kg') {
 		// Stated as *the difference between the two numbers as they are shown*, so
-		// "Heaviest ever 61.25 kg — up 21.25 kg" always reconciles with the 40 kg it
+		// "Tyngste noensinne: 61,25 kg — opp 21,25 kg" always reconciles with the 40 kg it
 		// beat. Rounding the delta on its own can leave a gain that does not
 		// subtract, which is the same class of defect as `61.3`.
-		return `up ${formatKg(shownDeltaKg(record.value, record.previousValue ?? 0))} kg`
+		return L.upKg(
+			formatNbKg(shownDeltaKg(record.value, record.previousValue ?? 0)),
+		)
 	}
-	return `up ${formatKg(record.delta)} ${record.delta === 1 ? 'level' : 'levels'}`
+	return L.upLevels(formatNbKg(record.delta), record.delta)
 }
 
 /**
@@ -708,27 +712,26 @@ export function recordGainPhrase(record: StrengthRecord): string | null {
  *
  * The basis is **in the words**, not only in the footnote. *"Heaviest ever:
  * 104 kg"* with a caveat underneath is still the sentence that was wrong: the
- * athlete reads the headline and the number. *"Heaviest bodyweight set: 104 kg"*
- * cannot be misread as a bar.
+ * athlete reads the headline and the number. *"Tyngste sett med kroppsvekt:
+ * 104 kg"* cannot be misread as a bar. The words are `STRENGTH_RECORD_LABELS`'
+ * (ADR 0081); nothing stored is one of them.
  */
 export function strengthRecordHeadline(record: StrengthRecord): string {
 	const qualifier = BASIS_QUALIFIERS[record.loadBasis]
 	switch (record.kind) {
 		case 'heaviestLoad':
-			return qualifier ? `Heaviest ${qualifier} set` : 'Heaviest ever'
+			return qualifier ? L.heaviestQualified(qualifier) : L.heaviest
 		case 'repMax':
-			return qualifier
-				? `Best ${record.reps}-rep ${qualifier} set`
-				: `Best ${record.reps}-rep set`
+			return L.repMax(record.reps ?? 0, qualifier)
 		case 'e1RM':
 			// Bar-only by construction — see `basisRecords`. And *estimated* is a claim
 			// about how the number was got, so a tested single does not make it: it is a
 			// lift, and the headline says which of the two the athlete is reading.
 			return record.oneRmProtocol === 'tested'
-				? 'Best tested 1RM'
-				: 'Best estimated 1RM'
+				? L.testedOneRm
+				: L.estimatedOneRm
 		case 'stackLevel':
-			return 'Best level'
+			return L.level
 	}
 }
 
@@ -737,8 +740,8 @@ export function strengthRecordHeadline(record: StrengthRecord): string {
  * case read like the exception. */
 const BASIS_QUALIFIERS: Record<RecordLoadBasis, string | null> = {
 	bar: null,
-	perHand: 'per-hand',
-	bodyweightDerived: 'bodyweight',
+	perHand: L.qualifiers.perHand,
+	bodyweightDerived: L.qualifiers.bodyweightDerived,
 	stackLevel: null,
 }
 
@@ -749,17 +752,21 @@ const BASIS_QUALIFIERS: Record<RecordLoadBasis, string | null> = {
  * applied.
  */
 function formatValue(record: StrengthRecord): string {
-	if (record.unit === 'level') return formatKg(record.value)
-	const kg = `${formatKg(record.value)} kg`
+	if (record.unit === 'level') return formatNbKg(record.value)
+	const kg = `${formatNbKg(record.value)} kg`
 	if (record.oneRmProtocol === 'tested')
 		return `${kg} (${TESTED_SINGLE_PHRASE})`
-	return record.estimator ? `${kg} (${record.estimator})` : kg
+	// The equation by its published name (`Epley/Welday`), the same one Meg's
+	// lift numbers print, rather than the identifier it is stored under.
+	return record.estimator
+		? `${kg} (${MEG_ANCHOR_PROTOCOL_LABELS[record.estimator]})`
+		: kg
 }
 
 /** What a `tested` 1RM is, in three words. `one-rm.ts`'s `equationText` says the
  * long version — *"the load lifted — a single to failure is the measurement, so no
  * equation is applied"* — and this is the short one, on the number itself. */
-export const TESTED_SINGLE_PHRASE = 'the load lifted'
+export const TESTED_SINGLE_PHRASE = L.testedSingle
 
 /** The gain the two shown weights actually differ by. Both sides go through
  * {@link formatKg} first, so a delta can never disagree with the pair it was

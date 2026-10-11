@@ -341,7 +341,7 @@ test('the plate line reads heaviest first, as the athlete loads it', () => {
 	// Of the compositions that make 41.25 a side with three plates, the one that
 	// starts heaviest is the one a lifter actually loads.
 	const solved = calculatePlates(102.5, commercialGym)
-	expect(plateLineText(solved)).toBe('25 · 15 · 1.25')
+	expect(plateLineText(solved)).toBe('25 · 15 · 1,25')
 })
 
 test('the plate line for an empty bar says empty bar rather than an empty string', () => {

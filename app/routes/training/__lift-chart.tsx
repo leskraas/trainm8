@@ -13,7 +13,7 @@
  * is everything that is expensive either way (ADR 0029): the figure and its
  * geometry, the Unavailable marker, and the visually-hidden data table.
  *
- * A session with **no honest kilo draws no bar** and carries an explicit `n/a`
+ * A session with **no honest kilo draws no bar** and carries an explicit `ingen` (the n/a of ADR 0030)
  * at its slot (ADR 0030 rule 1): never a zero bar, and never a gap that reads
  * like a mis-tap.
  */
@@ -23,6 +23,7 @@ import {
 	type ChartDataTableModel,
 	type ChartGeom,
 } from '#app/components/chart/chart.tsx'
+import { LIFT_CHART_LABELS } from '#app/utils/labels.ts'
 import { type ChartBar } from './__exercise-history-presenter.ts'
 
 /**
@@ -36,8 +37,15 @@ const BAR_GAP = 13.6
 /** Below this the gap gives way, so a long history thins rather than vanishes. */
 const MIN_BAR_W_FRAC = 0.35
 
+/**
+ * The widest a bar may be, in viewBox units (~44px on a phone). With one or two
+ * sessions the slot is the whole chart, and an uncapped bar filled it: a
+ * 700-unit slab that read as a block, not as one session (break-ui: 1 item).
+ */
+const MAX_BAR_W = 96
+
 const barWidth = (slotW: number) =>
-	Math.max(slotW * MIN_BAR_W_FRAC, slotW - BAR_GAP)
+	Math.min(MAX_BAR_W, Math.max(slotW * MIN_BAR_W_FRAC, slotW - BAR_GAP))
 
 /**
  * The viewBox and the rendered box. The plot lands at ~134 px tall at 390×844,
@@ -134,7 +142,7 @@ function Bars({ bars, geom }: { bars: ChartBar[]; geom: ChartGeom }) {
 	)
 }
 
-/** The tick labels and the `n/a` markers, as crisp HTML over the geometry. */
+/** The tick labels and the `ingen` (n/a) markers, as crisp HTML over the geometry. */
 function Overlay({ bars, geom }: { bars: ChartBar[]; geom: ChartGeom }) {
 	const { slotCenter, baselineY, leftPct, topPct } = geom
 	return (
@@ -145,18 +153,24 @@ function Overlay({ bars, geom }: { bars: ChartBar[]; geom: ChartGeom }) {
 					<div key={bar.sessionId}>
 						{bar.tickLabel ? (
 							<span
-								className="text-muted-foreground text-body-2xs absolute -translate-x-1/2 font-semibold"
+								className="text-muted-foreground text-caption absolute -translate-x-1/2 tabular-nums"
 								style={{ left, top: topPct(baselineY + 6) }}
 							>
 								{bar.tickLabel}
 							</span>
 						) : null}
-						{bar.heightFraction == null ? (
+						{unavailableRunStart(bars, i) ? (
 							<span
-								className="text-muted-foreground text-body-2xs absolute -translate-x-1/2 -translate-y-full"
-								style={{ left, top: topPct(baselineY - 6) }}
+								className="text-muted-foreground text-caption absolute -translate-x-1/2 -translate-y-full whitespace-nowrap"
+								style={{
+									left: leftPct(
+										(slotCenter(i) + slotCenter(unavailableRunEnd(bars, i))) /
+											2,
+									),
+									top: topPct(baselineY - 6),
+								}}
 							>
-								n/a
+								{LIFT_CHART_LABELS.unavailable}
 							</span>
 						) : null}
 					</div>
@@ -164,6 +178,26 @@ function Overlay({ bars, geom }: { bars: ChartBar[]; geom: ChartGeom }) {
 			})}
 		</>
 	)
+}
+
+/**
+ * Neighbouring slots with no bar share **one** word, centred over the run: each
+ * keeps its own stub at the baseline, so every empty slot is still marked, and
+ * two `ingen` side by side at a phone's slot width ran into each other
+ * (`ingeningen`, break-ui: 13 sessions at 390px). The data table still names
+ * every slot.
+ */
+function unavailableRunStart(bars: ChartBar[], i: number): boolean {
+	return (
+		bars[i]?.heightFraction == null &&
+		(i === 0 || bars[i - 1]?.heightFraction != null)
+	)
+}
+
+function unavailableRunEnd(bars: ChartBar[], start: number): number {
+	let end = start
+	while (end + 1 < bars.length && bars[end + 1]?.heightFraction == null) end++
+	return end
 }
 
 /**

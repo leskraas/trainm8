@@ -6,10 +6,12 @@ import userEvent from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
 import { type SessionArchetypeView } from '#app/utils/archetype-classification/index.ts'
+import { nbStoredReplanReason } from '#app/utils/labels.ts'
 import {
 	type SessionDetail,
 	type SimilarSession,
 } from '#app/utils/training.server.ts'
+import { buildSessionSummary } from './__workout-detail-summary.ts'
 import SessionDetailRoute from './sessions.$sessionId.tsx'
 
 type Recording = NonNullable<SessionDetail['recording']>
@@ -132,6 +134,21 @@ function sessionDetailLoader(
 		relinkTargets: [],
 		// The **Session Archetype** view the real loader resolves (ADR 0055).
 		archetype,
+		summary: summaryOf(session),
+	})
+}
+
+/** The header's own figures (Arket M), built from the session exactly as the
+ * real loader builds them — no plan track, so the sport's default unit. */
+function summaryOf(session: SessionDetail, loggedSets = 0) {
+	return buildSessionSummary({
+		discipline:
+			session.workout?.discipline ?? session.recording?.discipline ?? '',
+		status: session.status,
+		currency: null,
+		workout: session.workout,
+		recording: session.recording,
+		loggedSets,
 	})
 }
 
@@ -190,7 +207,7 @@ test('the Workout Shape strip renders for a completed session whose recording ha
 	const session = makeSession({ recording: makeRecording({ stream: null }) })
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Telemetry not available')
+	await screen.findByText('Ingen data over tid')
 	expect(document.querySelector('[data-shape-strip]')).toBeInTheDocument()
 })
 
@@ -234,7 +251,7 @@ test('displays session log when one exists', async () => {
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	const display = await screen.findByText('RPE: 7/10')
+	const display = await screen.findByText('RPE 7 av 10')
 	expect(display).toBeInTheDocument()
 	expect(
 		screen.getByText('Felt strong and controlled', { selector: 'p' }),
@@ -254,19 +271,19 @@ test('displays session log without RPE', async () => {
 	renderRoute(sessionDetailLoader(session))
 
 	await screen.findByText('Easy recovery session', { selector: 'p' })
-	expect(screen.queryByText(/RPE:/)).not.toBeInTheDocument()
+	expect(screen.queryByText(/RPE \d+ av 10/)).not.toBeInTheDocument()
 })
 
 test('renders session log form with textarea and RPE selector', async () => {
 	const session = makeSession()
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByPlaceholderText('How did the session go?')
+	await screen.findByPlaceholderText('Hvordan gikk økta?')
 	expect(
-		screen.getByRole('group', { name: /rpe selector/i }),
+		screen.getByRole('group', { name: /opplevd anstrengelse/i }),
 	).toBeInTheDocument()
 	expect(
-		screen.getByRole('button', { name: 'Save Session Log' }),
+		screen.getByRole('button', { name: 'Lagre notatet' }),
 	).toBeInTheDocument()
 })
 
@@ -274,7 +291,7 @@ test('RPE selector shows all 10 values', async () => {
 	const session = makeSession()
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByPlaceholderText('How did the session go?')
+	await screen.findByPlaceholderText('Hvordan gikk økta?')
 	for (let i = 1; i <= 10; i++) {
 		expect(screen.getByRole('button', { name: String(i) })).toBeInTheDocument()
 	}
@@ -289,18 +306,18 @@ test('completed session with a recording leads with the planned-vs-actual summar
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Planned vs actual')
+	await screen.findByText('Plan mot gjennomført')
 	// Adherence Band verdict, surfaced as text (not chart-only); the band label
 	// appears in both the verdict line and the chip.
-	expect(screen.getByText(/matched the plan/i)).toBeInTheDocument()
-	expect(screen.getAllByText('On target').length).toBeGreaterThan(0)
+	expect(screen.getByText(/— som planlagt/i)).toBeInTheDocument()
+	expect(screen.getAllByText('I rute').length).toBeGreaterThan(0)
 	// Actual vs planned TSS exposed as text ("planned 88" is unique to the summary).
-	expect(screen.getByText('planned 88')).toBeInTheDocument()
+	expect(screen.getByText('planlagt 88')).toBeInTheDocument()
 	// The telemetry overlay slot is reserved with an honest Unavailable Metric.
-	expect(screen.getByText('Telemetry not available')).toBeInTheDocument()
+	expect(screen.getByText('Ingen data over tid')).toBeInTheDocument()
 	// The Recording aggregate metric grid is retained below ("Avg HR" lives only
 	// in that grid).
-	expect(screen.getByText('Avg HR')).toBeInTheDocument()
+	expect(screen.getByText('Snittpuls')).toBeInTheDocument()
 })
 
 /** A bike session whose work step carries a resolved power Intensity Target, so
@@ -399,15 +416,15 @@ test('completed session with a telemetry stream renders the overlay, not the una
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Telemetry overlay')
+	await screen.findByText(/Data fra opptaket over/)
 	// The honest placeholder is gone once a real stream exists.
-	expect(screen.queryByText('Telemetry not available')).not.toBeInTheDocument()
+	expect(screen.queryByText('Ingen data over tid')).not.toBeInTheDocument()
 	// The overlay is not chart-only: a non-visual summary states the pause…
-	expect(screen.getByText(/paused stretch shown as gaps/i)).toBeInTheDocument()
+	expect(screen.getByText(/pause vist som hull/i)).toBeInTheDocument()
 	// …and the planned power target, surfaced as text.
-	expect(screen.getByText(/Planned power target 238–263 W/)).toBeInTheDocument()
+	expect(screen.getByText(/Planlagt watt: 238–263 W/)).toBeInTheDocument()
 	// The planned Workout Shape rail rides beneath the chart.
-	expect(screen.getByText('Planned Workout Shape')).toBeInTheDocument()
+	expect(screen.getByText('Planlagt form')).toBeInTheDocument()
 })
 
 test('recording-only session with a stream renders the overlay without planned target bands', async () => {
@@ -427,11 +444,11 @@ test('recording-only session with a stream renders the overlay without planned t
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Telemetry overlay')
-	expect(screen.queryByText('Telemetry not available')).not.toBeInTheDocument()
+	await screen.findByText(/Data fra opptaket over/)
+	expect(screen.queryByText('Ingen data over tid')).not.toBeInTheDocument()
 	// No plan → no target bands and no shape rail, but the lines still plot.
-	expect(screen.queryByText(/Planned power target/)).not.toBeInTheDocument()
-	expect(screen.queryByText('Planned Workout Shape')).not.toBeInTheDocument()
+	expect(screen.queryByText(/Planlagt watt:/)).not.toBeInTheDocument()
+	expect(screen.queryByText('Planlagt form')).not.toBeInTheDocument()
 })
 
 test('shows the planned TSS as unavailable rather than a fabricated band', async () => {
@@ -443,11 +460,11 @@ test('shows the planned TSS as unavailable rather than a fabricated band', async
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Planned vs actual')
+	await screen.findByText('Plan mot gjennomført')
 	// Planned TSS and planned distance are both unavailable → honest "planned —".
-	expect(screen.getAllByText('planned —').length).toBeGreaterThan(0)
+	expect(screen.getAllByText('planlagt —').length).toBeGreaterThan(0)
 	// No band without both sides of the comparison.
-	expect(screen.queryByText('On target')).not.toBeInTheDocument()
+	expect(screen.queryByText('I rute')).not.toBeInTheDocument()
 })
 
 test('scheduled session shows the prescription only — no comparison, no telemetry slot', async () => {
@@ -455,8 +472,8 @@ test('scheduled session shows the prescription only — no comparison, no teleme
 	renderRoute(sessionDetailLoader(session))
 
 	await screen.findByText('Tempo Run')
-	expect(screen.queryByText('Planned vs actual')).not.toBeInTheDocument()
-	expect(screen.queryByText('Telemetry not available')).not.toBeInTheDocument()
+	expect(screen.queryByText('Plan mot gjennomført')).not.toBeInTheDocument()
+	expect(screen.queryByText('Ingen data over tid')).not.toBeInTheDocument()
 })
 
 test('a scheduled session has no second edit entry point — the detail view IS the editor (§1, B9)', async () => {
@@ -494,7 +511,7 @@ test('shows the headline Intensity Target resolved against the athlete threshold
 	)
 
 	// 95–105% of FTP 250 → 238–263 W, shown as the session's headline target.
-	await screen.findByText(/Target 238–263 W/)
+	await screen.findByText(/Mål 238–263 W/)
 })
 
 const danielsRunProfile = {
@@ -525,10 +542,10 @@ test('a planned session resolves zone-label structure lines to concrete ranges a
 	expect(token).toHaveAttribute('data-zone-step', '2')
 	// The headline target agrees — the concrete pace, not a bare letter:
 	// daniels-pace-5 "E" = 1.15–1.31 × threshold pace 240 → 4:36–5:14 /km (#447).
-	expect(screen.getByText(/Target 4:36–5:14 \/km/)).toBeInTheDocument()
+	expect(screen.getByText(/Mål 4:36–5:14 \/km/)).toBeInTheDocument()
 	// Everything resolved → no Training Settings nudge.
 	expect(
-		screen.queryByRole('link', { name: /training settings/i }),
+		screen.queryByRole('link', { name: /treningsinnstillingene/i }),
 	).not.toBeInTheDocument()
 })
 
@@ -551,12 +568,14 @@ test('missing thresholds degrade the structure lines honestly, with a pointer to
 	).toBeInTheDocument()
 	expect(screen.queryByText(/\/km/)).not.toBeInTheDocument()
 	// The chip degrades to the captioned Training Zone, never a made-up pace.
-	expect(screen.getByText(/Target E — easy\/endurance/)).toBeInTheDocument()
+	expect(screen.getByText(/Mål E — rolig\/utholdenhet/)).toBeInTheDocument()
 	// The honest degradation names the missing threshold and points at settings.
 	expect(
-		screen.getByText(/threshold pace is not configured/i),
+		screen.getByText(/terskelfart mangler i innstillingene/i),
 	).toBeInTheDocument()
-	const settingsLink = screen.getByRole('link', { name: /training settings/i })
+	const settingsLink = screen.getByRole('link', {
+		name: /treningsinnstillingene/i,
+	})
 	expect(settingsLink).toHaveAttribute('href', '/settings/training')
 })
 
@@ -714,11 +733,11 @@ test('a matched planned session whose detection corroborates the plan reads "As 
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Planned vs actual')
+	await screen.findByText('Plan mot gjennomført')
 	const slot = document.querySelector('[data-structure-adherence]')!
 	expect(slot).toBeInTheDocument()
 	expect(slot).toHaveAttribute('data-structure-verdict', 'as-prescribed')
-	expect(slot).toHaveTextContent('As prescribed')
+	expect(slot).toHaveTextContent('Som planlagt')
 })
 
 test('a matched planned session with surplus detected structure reads "Diverged"', async () => {
@@ -736,10 +755,10 @@ test('a matched planned session with surplus detected structure reads "Diverged"
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Planned vs actual')
+	await screen.findByText('Plan mot gjennomført')
 	const slot = document.querySelector('[data-structure-adherence]')!
 	expect(slot).toHaveAttribute('data-structure-verdict', 'diverged')
-	expect(slot).toHaveTextContent('Diverged')
+	expect(slot).toHaveTextContent('Avvek')
 })
 
 test('a matched structured plan with no gate-clearing detection reads the honest "not confidently verifiable" state', async () => {
@@ -754,10 +773,10 @@ test('a matched structured plan with no gate-clearing detection reads the honest
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Planned vs actual')
+	await screen.findByText('Plan mot gjennomført')
 	const slot = document.querySelector('[data-structure-adherence]')!
 	expect(slot).toHaveAttribute('data-structure-verdict', 'not-verifiable')
-	expect(slot).toHaveTextContent(/not confidently verifiable/i)
+	expect(slot).toHaveTextContent(/kan ikke leses sikkert fra opptaket/i)
 })
 
 test('a detected (recording-only) session shows no Structure Adherence slot — it has no prescription to verify', async () => {
@@ -794,7 +813,7 @@ test('the structure card renders the prescription as one Token Sentence, repeat 
 	const lines = stanza.querySelectorAll('[data-stanza-line]')
 	expect(lines).toHaveLength(2)
 	expect(lines[1]).toHaveTextContent('6 min')
-	expect(lines[1]).toHaveTextContent('(1 min rest)')
+	expect(lines[1]).toHaveTextContent('(1 min pause)')
 	// Repeat renders only as the gutter badge; block names never render.
 	expect(
 		stanza.querySelector('[data-stanza-gutter] [data-token-type="repeat"]'),
@@ -811,7 +830,7 @@ test('the structure card renders the prescription as one Token Sentence, repeat 
 		'intensity',
 	)
 	// The old per-step structure list is gone.
-	expect(screen.queryByText(/^Block \d/)).not.toBeInTheDocument()
+	expect(screen.queryByText(/^Blokk \d/)).not.toBeInTheDocument()
 })
 
 test('the structure card renders a strength step as exercise + set notation with the rest facet (#229)', async () => {
@@ -877,7 +896,7 @@ test('the structure card renders a strength step as exercise + set notation with
 	// parenthesized form stays reserved for rest steps (spec §5.1).
 	const stanza = document.querySelector('[data-score-stanza]')!
 	expect(stanza).toHaveTextContent(
-		/Back squat\s*5 × 5 @ 80 kg\s*·\s*2 min 30 s rest/,
+		/Back squat\s*5 × 5 @ 80 kg\s*·\s*2 min 30 s pause/,
 	)
 	expect(stanza.textContent).not.toContain('(')
 	expect(screen.getByText('Back squat')).toHaveAttribute(
@@ -918,7 +937,7 @@ test('a missed session renders the Token Sentence inert too (#223)', async () =>
 	await screen.findByText('Interval Run')
 	const stanza = document.querySelector('[data-score-stanza]')!
 	expect(stanza).toHaveTextContent('6 min')
-	expect(stanza).toHaveTextContent('(1 min rest)')
+	expect(stanza).toHaveTextContent('(1 min pause)')
 	expect(
 		stanza.querySelectorAll('button, a, input, [role="button"], [tabindex]'),
 	).toHaveLength(0)
@@ -933,7 +952,7 @@ test('omits the headline target when no threshold resolves it — never fabricat
 	renderRoute(sessionDetailLoader(session, {}))
 
 	await screen.findByText('Tempo Run')
-	expect(screen.queryByText(/Target /)).not.toBeInTheDocument()
+	expect(screen.queryByText(/Mål /)).not.toBeInTheDocument()
 })
 
 test('recording-only session shows the recording without a plan comparison', async () => {
@@ -946,12 +965,12 @@ test('recording-only session shows the recording without a plan comparison', asy
 	renderRoute(sessionDetailLoader(session))
 
 	// The telemetry slot still renders its honest Unavailable Metric.
-	await screen.findByText('Telemetry not available')
+	await screen.findByText('Ingen data over tid')
 	// No plan to compare against, and no prescription to show.
-	expect(screen.queryByText('Planned vs actual')).not.toBeInTheDocument()
+	expect(screen.queryByText('Plan mot gjennomført')).not.toBeInTheDocument()
 	expect(document.querySelector('[data-score-stanza]')).not.toBeInTheDocument()
 	// The recording metric grid still renders.
-	expect(screen.getByText('Avg HR')).toBeInTheDocument()
+	expect(screen.getByText('Snittpuls')).toBeInTheDocument()
 })
 
 test('a detected session shows the "detected · (confidence)" badge and a "Detected" metadata label', async () => {
@@ -970,11 +989,11 @@ test('a detected session shows the "detected · (confidence)" badge and a "Detec
 	await screen.findByText('Tempo Run')
 	const badge = document.querySelector('[data-detected-badge]')!
 	expect(badge).toBeInTheDocument()
-	expect(badge).toHaveTextContent('detected')
-	expect(badge).toHaveTextContent('high')
+	expect(badge).toHaveTextContent('funnet')
+	expect(badge).toHaveTextContent('høy')
 	// The metadata line reads "Detected", never a fabricated intent label.
 	const metadata = document.querySelector('[data-session-metadata]')!
-	expect(metadata).toHaveTextContent('Detected')
+	expect(metadata).toHaveTextContent('funnet')
 	// The detected structure still renders as the Token Sentence, like any workout.
 	expect(document.querySelector('[data-score-stanza]')).toBeInTheDocument()
 })
@@ -988,7 +1007,7 @@ test('a recording-only run session shows the honest "no structure detected" stat
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText(/No structure detected/i)
+	await screen.findByText(/Ingen struktur funnet/i)
 	// Honest Unavailable Metric, never a fabricated structure or a detected badge.
 	expect(document.querySelector('[data-score-stanza]')).not.toBeInTheDocument()
 	expect(
@@ -996,7 +1015,7 @@ test('a recording-only run session shows the honest "no structure detected" stat
 	).not.toBeInTheDocument()
 })
 
-test('a structureless recording is titled from its duration and discipline, not a flat "Recording"', async () => {
+test('a structureless recording is titled as its sport\'s session, with its duration in the figures, not a flat "Recording"', async () => {
 	const session = makeSession({
 		status: 'completed',
 		source: 'recorded',
@@ -1009,8 +1028,13 @@ test('a structureless recording is titled from its duration and discipline, not 
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	// 1860 s → "31 min run" as the session heading, not the flat "Recording".
-	await screen.findByText('31 min run')
+	// The heading is the sport's session noun, as I dag's row names a recording
+	// with no workout (`Løpeøkt`) — never the flat "Recording". The duration
+	// (1860 s) moved out of the title into the header's own figures (Arket M).
+	await screen.findByText('Løpeøkt')
+	expect(document.querySelector('[data-session-summary]')).toHaveTextContent(
+		'31 min',
+	)
 })
 
 test('completed session shows a "vs last time" delta against the last similar session', async () => {
@@ -1025,9 +1049,9 @@ test('completed session shows a "vs last time" delta against the last similar se
 	})
 	renderRoute(sessionDetailLoader(session, {}, lastSimilar))
 
-	await screen.findByText('vs last time')
+	await screen.findByText('Mot forrige gang')
 	// Truthful deltas surfaced as text: +12 TSS and +2 min versus last time.
-	expect(screen.getByText('last time 80')).toBeInTheDocument()
+	expect(screen.getByText('forrige gang 80')).toBeInTheDocument()
 	expect(screen.getByText('(+12)')).toBeInTheDocument()
 	expect(screen.getByText('(+2 min)')).toBeInTheDocument()
 })
@@ -1045,10 +1069,10 @@ test('the first session of its kind shows an Unavailable "vs last time" state, n
 		}),
 	)
 
-	await screen.findByText('vs last time')
-	expect(screen.getByText(/first of its kind/i)).toBeInTheDocument()
+	await screen.findByText('Mot forrige gang')
+	expect(screen.getByText(/dette er den første/i)).toBeInTheDocument()
 	// No per-metric "last time …" line — the first of its kind isn't faked.
-	expect(screen.queryByText(/^last time/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/^forrige gang/i)).not.toBeInTheDocument()
 })
 
 test('a session with no archetype says so, rather than claiming to be the first of its kind', async () => {
@@ -1062,9 +1086,45 @@ test('a session with no archetype says so, rather than claiming to be the first 
 	})
 	renderRoute(sessionDetailLoader(session, {}, null, null))
 
-	await screen.findByText('vs last time')
-	expect(screen.getByText(/has no archetype/i)).toBeInTheDocument()
-	expect(screen.queryByText(/first of its kind/i)).not.toBeInTheDocument()
+	await screen.findByText('Mot forrige gang')
+	expect(screen.getByText(/har ingen økttype/i)).toBeInTheDocument()
+	expect(screen.queryByText(/dette er den første/i)).not.toBeInTheDocument()
+})
+
+test('a read archetype is the same answer in the header and in "vs last time", never "no archetype" under a named one', async () => {
+	// The header said "Threshold" (read off the session) while the card under it
+	// said "This session has no archetype": the card asked only the stored column.
+	// One truth — the view the loader resolved — and the card states what it is
+	// and why that reading is not a comparison key (ADR 0055 §3: never stored).
+	const session = makeSession({
+		status: 'completed',
+		tssValue: 92,
+		recording: makeRecording(),
+	})
+	renderRoute(
+		sessionDetailLoader(session, {}, null, {
+			kind: 'read',
+			reading: {
+				kind: 'archetype',
+				archetype: 'threshold',
+				modifiers: [],
+				confidence: 'medium',
+				reasons: ['4 × 8 min at threshold intensity'],
+				caveat: null,
+			},
+		}),
+	)
+
+	await screen.findByText('Mot forrige gang')
+	expect(document.querySelector('[data-archetype="read"]')).toHaveTextContent(
+		'Terskel',
+	)
+	expect(screen.queryByText(/har ingen økttype/i)).not.toBeInTheDocument()
+	expect(
+		screen.getByText(
+			'Økta leses som terskel, men forrige gang slås opp på en økttype som er lagret på økta, og den har ingen.',
+		),
+	).toBeInTheDocument()
 })
 
 test('scheduled session shows no "vs last time" card', async () => {
@@ -1072,7 +1132,7 @@ test('scheduled session shows no "vs last time" card', async () => {
 	renderRoute(sessionDetailLoader(session, {}, null))
 
 	await screen.findByText('Tempo Run')
-	expect(screen.queryByText('vs last time')).not.toBeInTheDocument()
+	expect(screen.queryByText('Mot forrige gang')).not.toBeInTheDocument()
 })
 
 test('a softened session shows its Replan Note with the prescription (ADR 0025)', async () => {
@@ -1085,13 +1145,16 @@ test('a softened session shows its Replan Note with the prescription (ADR 0025)'
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	// The note renders on the session card with the stanza — the stored reason
-	// verbatim, so the "why" travels with the prescription it explains.
+	// The note renders on the session card with the stanza, so the "why"
+	// travels with the prescription it explains. A row written before round 2
+	// holds the generator's English; it reads as the Norwegian sentence the
+	// generator writes now (display only — nothing is written back).
 	await screen.findByText('Tempo Run')
-	expect(screen.getByText('Replan note:')).toBeInTheDocument()
-	expect(
-		screen.getByText(new RegExp('softened this session')),
-	).toHaveTextContent(note)
+	const label = screen.getByText('Justert:')
+	const replanNote = label.parentElement!
+	expect(replanNote).toHaveTextContent(`Justert: ${nbStoredReplanReason(note)}`)
+	expect(replanNote).toHaveTextContent(/24 % kortere/)
+	expect(replanNote).not.toHaveTextContent(/Last week|softened/)
 })
 
 test('a session without a Replan Note shows no replan slot at all', async () => {
@@ -1103,7 +1166,7 @@ test('a session without a Replan Note shows no replan slot at all', async () => 
 	renderRoute(sessionDetailLoader(session))
 
 	await screen.findByText('Tempo Run')
-	expect(screen.queryByText(/replan note/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/justert:/i)).not.toBeInTheDocument()
 })
 
 test('shows update button when session log exists', async () => {
@@ -1118,9 +1181,9 @@ test('shows update button when session log exists', async () => {
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('RPE: 5/10')
+	await screen.findByText('RPE 5 av 10')
 	expect(
-		screen.getByRole('button', { name: 'Update Session Log' }),
+		screen.getByRole('button', { name: 'Lagre endringen' }),
 	).toBeInTheDocument()
 })
 
@@ -1139,7 +1202,7 @@ test('a stated archetype reads as flat text, with nothing to tap', async () => {
 
 	await screen.findByText('Tempo Run')
 	const token = document.querySelector('[data-archetype="stated"]')!
-	expect(token).toHaveTextContent('Threshold')
+	expect(token).toHaveTextContent('Terskel')
 	expect(token.tagName).toBe('SPAN')
 	expect(
 		document.querySelector('[data-archetype-badge]'),
@@ -1167,9 +1230,9 @@ test('a read archetype names the session and marks that it was read, with the co
 		}),
 	)
 
-	await screen.findByText('Threshold')
+	await screen.findByText('Terskel')
 	expect(document.querySelector('[data-archetype-badge]')).toHaveTextContent(
-		'read · medium',
+		'lest · middels',
 	)
 })
 
@@ -1193,7 +1256,7 @@ test('the reasoning behind a read archetype waits behind a tap', async () => {
 		}),
 	)
 
-	const token = await screen.findByRole('button', { name: /sub-threshold/i })
+	const token = await screen.findByRole('button', { name: /under terskel/i })
 	// Asserted nowhere until asked for.
 	expect(screen.queryByText(/short floats/i)).not.toBeInTheDocument()
 
@@ -1219,7 +1282,7 @@ test('a refusal keeps the absence visible and never defers it behind the tap', a
 		}),
 	)
 
-	await screen.findByText('No archetype')
+	await screen.findByText('Ingen økttype')
 	expect(
 		document.querySelector('[data-archetype="unread"]'),
 	).toBeInTheDocument()
@@ -1245,7 +1308,7 @@ test('a refusal explains itself behind the tap', async () => {
 	)
 
 	await userEvent.click(
-		await screen.findByRole('button', { name: /no archetype/i }),
+		await screen.findByRole('button', { name: /ingen økttype/i }),
 	)
 
 	expect(
@@ -1261,7 +1324,7 @@ test('with nothing to say about the archetype, the old intent token still render
 
 	await screen.findByText('Tempo Run')
 	expect(document.querySelector('[data-archetype]')).not.toBeInTheDocument()
-	expect(screen.getByText('Threshold')).toBeInTheDocument()
+	expect(screen.getByText('Terskel')).toBeInTheDocument()
 })
 
 /** A completed strength session prescribing one lift at a percentage of 1RM, so
@@ -1325,6 +1388,7 @@ function strengthLoader(loadContexts: Record<string, unknown>) {
 		lastSimilar: null,
 		relinkTargets: [],
 		archetype: null,
+		summary: summaryOf(makeStrengthSession()),
 	})
 }
 
@@ -1366,6 +1430,6 @@ test('the session screen states a missing anchor rather than inventing a kilo', 
 	)
 
 	const sets = await screen.findByText(/85% 1RM/)
-	expect(sets).toHaveTextContent('85% 1RM · no 1RM on file')
+	expect(sets).toHaveTextContent('85% 1RM · ingen 1RM registrert')
 	expect(sets).not.toHaveTextContent(/\d+ kg/)
 })

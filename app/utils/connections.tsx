@@ -23,10 +23,14 @@ export function ProviderConnectionForm({
 	redirectTo,
 	type,
 	providerName,
+	label: buttonLabel,
 }: {
 	redirectTo?: string | null
 	type: 'Connect' | 'Login' | 'Signup'
 	providerName: ProviderName
+	/** The button's words, where the page speaks another language than
+	 * `"{type} with {provider}"` (Meg's connections page, ADR 0081). */
+	label?: string
 }) {
 	const label = providerLabels[providerName]
 	const formAction = `/auth/${providerName}`
@@ -47,9 +51,7 @@ export function ProviderConnectionForm({
 			>
 				<span className="inline-flex items-center gap-1.5">
 					{providerIcons[providerName]}
-					<span>
-						{type} with {label}
-					</span>
+					<span>{buttonLabel ?? `${type} with ${label}`}</span>
 				</span>
 			</StatusButton>
 		</Form>

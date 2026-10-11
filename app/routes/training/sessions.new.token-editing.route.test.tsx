@@ -52,19 +52,21 @@ function renderNewSession() {
 // authoring surface now, so seed the first step through the empty-state's
 // "start from scratch ＋" kind chooser — a cardio step lands as its 10 min seed.
 async function addStructure(user: ReturnType<typeof userEvent.setup>) {
-	await screen.findByLabelText(/title/i) // wait for hydration
+	await screen.findByLabelText(/tittel/i) // wait for hydration
 	await user.click(
-		await screen.findByRole('button', { name: /start from scratch/i }),
+		await screen.findByRole('button', { name: /begynn med et tomt steg/i }),
 	)
-	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
-	await screen.findByRole('button', { name: /min duration/ })
+	await user.click(await screen.findByRole('menuitem', { name: /kondisjon/i }))
+	await screen.findByRole('button', { name: /min varighet/ })
 }
 
 const stanza = () => document.querySelector('[data-score-stanza]')!
 
 /** The single step's ⋮ mark. */
 const stepMark = () =>
-	screen.getByRole('button', { name: 'Step 1 of 1 actions, block 1 of 1' })
+	screen.getByRole('button', {
+		name: 'Handlinger for steg 1 av 1, blokk 1 av 1',
+	})
 
 /** Retype the cardio step's duration token through its popover (replacing the
  * classic Duration field these tests seeded through). */
@@ -72,8 +74,8 @@ async function setDuration(
 	user: ReturnType<typeof userEvent.setup>,
 	value: string,
 ) {
-	await user.click(await screen.findByRole('button', { name: /min duration/ }))
-	const input = await screen.findByLabelText('Duration value')
+	await user.click(await screen.findByRole('button', { name: /min varighet/ }))
+	const input = await screen.findByLabelText('Verdi for varigheten')
 	await user.clear(input)
 	await user.type(input, value)
 	await user.keyboard('{Escape}')
@@ -81,9 +83,9 @@ async function setDuration(
 
 /** Add a note via the "＋ note" neighbour link in the duration popover. */
 async function addNote(user: ReturnType<typeof userEvent.setup>, text: string) {
-	await user.click(await screen.findByRole('button', { name: /min duration/ }))
-	await user.click(await screen.findByRole('button', { name: '＋ note' }))
-	await user.type(await screen.findByLabelText('Note text'), text)
+	await user.click(await screen.findByRole('button', { name: /min varighet/ }))
+	await user.click(await screen.findByRole('button', { name: '＋ notat' }))
+	await user.type(await screen.findByLabelText('Notat'), text)
 	await user.keyboard('{Escape}')
 }
 
@@ -93,9 +95,9 @@ async function useDistance(
 	user: ReturnType<typeof userEvent.setup>,
 	value: string,
 ) {
-	await user.click(await screen.findByRole('button', { name: /min duration/ }))
-	await user.click(await screen.findByRole('button', { name: 'Distance' }))
-	const input = await screen.findByLabelText('Distance value')
+	await user.click(await screen.findByRole('button', { name: /min varighet/ }))
+	await user.click(await screen.findByRole('button', { name: 'Distanse' }))
+	const input = await screen.findByLabelText('Verdi for distansen')
 	await user.clear(input)
 	await user.type(input, value)
 	await user.keyboard('{Escape}')
@@ -107,9 +109,11 @@ async function setRepeat(
 	user: ReturnType<typeof userEvent.setup>,
 	count: number,
 ) {
-	await user.click(screen.getByRole('button', { name: 'Block 1 of 1 actions' }))
-	await user.click(await screen.findByRole('menuitem', { name: /repeat/i }))
-	const input = await screen.findByLabelText('Repeat count value')
+	await user.click(
+		screen.getByRole('button', { name: 'Handlinger for blokk 1 av 1' }),
+	)
+	await user.click(await screen.findByRole('menuitem', { name: /gjenta/i }))
+	const input = await screen.findByLabelText('Verdi for antall ganger')
 	await user.clear(input)
 	await user.type(input, String(count))
 	await user.keyboard('{Escape}')
@@ -121,9 +125,9 @@ async function makeStrengthStep(user: ReturnType<typeof userEvent.setup>) {
 	await addStructure(user)
 	await user.click(stepMark())
 	await user.click(
-		await screen.findByRole('menuitem', { name: /make strength/i }),
+		await screen.findByRole('menuitem', { name: /gjør til styrke/i }),
 	)
-	await screen.findByRole('button', { name: /^sets: 1 × 5/ })
+	await screen.findByRole('button', { name: /^sett: 1 × 5/ })
 }
 
 test('the duration token opens a popover stepper that writes through to the sentence', async () => {
@@ -133,16 +137,16 @@ test('the duration token opens a popover stepper that writes through to the sent
 	await setDuration(user, '6 min')
 
 	const trigger = await screen.findByRole('button', {
-		name: /^6 min duration/,
+		name: /^6 min varighet/,
 	})
 	await user.click(trigger)
 	await user.click(
-		await screen.findByRole('button', { name: /increase duration/i }),
+		await screen.findByRole('button', { name: /øk varigheten/i }),
 	)
 
 	// The token re-derives live from the stepper (6 min + one nudge → 7 min).
 	expect(
-		await screen.findByRole('button', { name: /^7 min duration/ }),
+		await screen.findByRole('button', { name: /^7 min varighet/ }),
 	).toBeInTheDocument()
 })
 
@@ -153,15 +157,15 @@ test('focus returns to the token trigger when the popover closes', async () => {
 	await setDuration(user, '6 min')
 
 	await user.click(
-		await screen.findByRole('button', { name: /^6 min duration/ }),
+		await screen.findByRole('button', { name: /^6 min varighet/ }),
 	)
-	await screen.findByRole('button', { name: /increase duration/i })
+	await screen.findByRole('button', { name: /øk varigheten/i })
 
 	await user.keyboard('{Escape}')
 
 	await waitFor(() =>
 		expect(
-			screen.getByRole('button', { name: /^6 min duration/ }),
+			screen.getByRole('button', { name: /^6 min varighet/ }),
 		).toHaveFocus(),
 	)
 })
@@ -173,14 +177,12 @@ test('the distance token opens a popover stepper bound to the distance value', a
 	await useDistance(user, '1 km')
 
 	await user.click(
-		await screen.findByRole('button', { name: /^1 km distance/ }),
+		await screen.findByRole('button', { name: /^1 km distanse/ }),
 	)
-	await user.click(
-		await screen.findByRole('button', { name: /increase distance/i }),
-	)
+	await user.click(await screen.findByRole('button', { name: /øk distansen/i }))
 
 	expect(
-		await screen.findByRole('button', { name: /^1\.5 km distance/ }),
+		await screen.findByRole('button', { name: /^1\.5 km distanse/ }),
 	).toBeInTheDocument()
 })
 
@@ -193,21 +195,21 @@ test('the repeat-count token opens a popover stepper bound to the block repeat',
 	await setRepeat(user, 4)
 
 	await user.click(
-		await screen.findByRole('button', { name: /^repeated 4 times/ }),
+		await screen.findByRole('button', { name: /^gjentas 4 ganger/ }),
 	)
 	await user.click(
-		await screen.findByRole('button', { name: /increase repeat count/i }),
+		await screen.findByRole('button', { name: /øk antall ganger/i }),
 	)
 
 	expect(
-		await screen.findByRole('button', { name: /^repeated 5 times/ }),
+		await screen.findByRole('button', { name: /^gjentas 5 ganger/ }),
 	).toBeInTheDocument()
 })
 
 test('the editor renders the live Workout Shape strip, expanding repeats with no bracket rail', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
-	await screen.findByLabelText(/title/i)
+	await screen.findByLabelText(/tittel/i)
 
 	// Honest-empty (§8.1): with zero steps the sentence states nothing, so the
 	// preview region is entirely absent (never an intent-fallback bar — B7's
@@ -245,7 +247,7 @@ test('the editor renders the live Workout Shape strip, expanding repeats with no
 test('the strip appears only with the first paintable step', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
-	await screen.findByLabelText(/title/i)
+	await screen.findByLabelText(/tittel/i)
 
 	// Honest-empty: zero steps state nothing, so the preview region is entirely
 	// absent (never an empty frame, never an intent-fallback bar).
@@ -273,16 +275,16 @@ test('a rest step token sets its duration through the popover stepper', async ()
 	// switch always seeds at least the 1 min floor — so this drives the seeded
 	// rest's duration through the same popover stepper, keeping §8.1's spirit.
 	await user.click(stepMark())
-	await user.click(await screen.findByRole('menuitem', { name: /make rest/i }))
-	await waitFor(() => expect(stanza()).toHaveTextContent('(10 min rest)'))
-
-	await user.click(await screen.findByRole('button', { name: /^10 min rest/ }))
 	await user.click(
-		await screen.findByRole('button', { name: /increase rest/i }),
+		await screen.findByRole('menuitem', { name: /gjør til pause/i }),
 	)
+	await waitFor(() => expect(stanza()).toHaveTextContent('(10 min pause)'))
+
+	await user.click(await screen.findByRole('button', { name: /^10 min pause/ }))
+	await user.click(await screen.findByRole('button', { name: /øk pausen/i }))
 
 	expect(
-		await screen.findByRole('button', { name: /^10 min 30 s rest/ }),
+		await screen.findByRole('button', { name: /^10 min 30 s pause/ }),
 	).toBeInTheDocument()
 })
 
@@ -294,9 +296,9 @@ test('the note token opens a popover textarea writing through to the note facet'
 	await addNote(user, 'strides')
 
 	await user.click(
-		await screen.findByRole('button', { name: /^note: strides/ }),
+		await screen.findByRole('button', { name: /^notat: strides/ }),
 	)
-	const noteText = await screen.findByLabelText('Note text')
+	const noteText = await screen.findByLabelText('Notat')
 	expect(noteText).toHaveValue('strides')
 	await user.type(noteText, ' after')
 
@@ -312,55 +314,59 @@ test('sentence affordances add, reorder, and remove steps and blocks via Conform
 
 	// Add a step from the ＋ kind chooser — a kind is always chosen (§4.1), and
 	// the cardio seed arrives visible, with its 10 min default.
-	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
-	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
+	await user.click(
+		screen.getByRole('button', { name: 'Legg til steg i blokk 1' }),
+	)
+	await user.click(await screen.findByRole('menuitem', { name: /kondisjon/i }))
 	expect(
 		await screen.findByRole('button', {
-			name: '10 min duration, step 2 of 2, block 1 of 1',
+			name: '10 min varighet, steg 2 av 2, blokk 1 av 1',
 		}),
 	).toBeInTheDocument()
 
 	// Reorder from the new step's ⋮ menu: move it earlier — position rides the
 	// tokens' accessible names (§9.4), so the order is visible there.
 	await user.click(
-		screen.getByRole('button', { name: 'Step 2 of 2 actions, block 1 of 1' }),
+		screen.getByRole('button', {
+			name: 'Handlinger for steg 2 av 2, blokk 1 av 1',
+		}),
 	)
-	await user.click(
-		await screen.findByRole('menuitem', { name: 'Move earlier' }),
-	)
+	await user.click(await screen.findByRole('menuitem', { name: 'Flytt opp' }))
 	expect(
 		await screen.findByRole('button', {
-			name: '10 min duration, step 1 of 2, block 1 of 1',
+			name: '10 min varighet, steg 1 av 2, blokk 1 av 1',
 		}),
 	).toBeInTheDocument()
 	expect(
 		screen.getByRole('button', {
-			name: '6 min duration, step 2 of 2, block 1 of 1',
+			name: '6 min varighet, steg 2 av 2, blokk 1 av 1',
 		}),
 	).toBeInTheDocument()
 
 	// Remove the now-first (10 min) step again from its ⋮ menu.
 	await user.click(
-		screen.getByRole('button', { name: 'Step 1 of 2 actions, block 1 of 1' }),
+		screen.getByRole('button', {
+			name: 'Handlinger for steg 1 av 2, blokk 1 av 1',
+		}),
 	)
-	await user.click(await screen.findByRole('menuitem', { name: 'Remove' }))
+	await user.click(await screen.findByRole('menuitem', { name: 'Fjern' }))
 	expect(
 		await screen.findByRole('button', {
-			name: '6 min duration, step 1 of 1, block 1 of 1',
+			name: '6 min varighet, steg 1 av 1, blokk 1 av 1',
 		}),
 	).toBeInTheDocument()
 
 	// Add a whole block from the sentence, then delete it from its ⠿ menu.
-	await user.click(screen.getByRole('button', { name: 'Add block' }))
+	await user.click(screen.getByRole('button', { name: 'Legg til blokk' }))
 	await user.click(
-		await screen.findByRole('button', { name: 'Block 2 of 2 actions' }),
+		await screen.findByRole('button', { name: 'Handlinger for blokk 2 av 2' }),
 	)
 	await user.click(
-		await screen.findByRole('menuitem', { name: 'Delete block' }),
+		await screen.findByRole('menuitem', { name: 'Slett blokka' }),
 	)
 	await waitFor(() =>
 		expect(
-			screen.queryByRole('button', { name: /^Block 2 of/ }),
+			screen.queryByRole('button', { name: /^Handlinger for blokk 2 av/ }),
 		).not.toBeInTheDocument(),
 	)
 })
@@ -372,28 +378,30 @@ test('two authoring paths — the ± stepper and typing — submit the same form
 	// popover stepper, add a step from the sentence, bump the new one the same
 	// way.
 	const flowA = renderNewSession()
-	await user.type(await screen.findByLabelText(/title/i), 'Intervals')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Intervals')
 	await addStructure(user)
 
 	await user.click(
-		await screen.findByRole('button', { name: /^10 min duration/ }),
+		await screen.findByRole('button', { name: /^10 min varighet/ }),
 	)
 	await user.click(
-		await screen.findByRole('button', { name: /increase duration/i }),
+		await screen.findByRole('button', { name: /øk varigheten/i }),
 	)
 	await user.keyboard('{Escape}')
 
-	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
-	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
 	await user.click(
-		await screen.findByRole('button', { name: /^10 min duration/ }),
+		screen.getByRole('button', { name: 'Legg til steg i blokk 1' }),
+	)
+	await user.click(await screen.findByRole('menuitem', { name: /kondisjon/i }))
+	await user.click(
+		await screen.findByRole('button', { name: /^10 min varighet/ }),
 	)
 	await user.click(
-		await screen.findByRole('button', { name: /increase duration/i }),
+		await screen.findByRole('button', { name: /øk varigheten/i }),
 	)
 	await user.keyboard('{Escape}')
 
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 	await waitFor(() => expect(flowA.submitted).toHaveBeenCalledTimes(1))
 	const stepperPayload = flowA.submitted.mock.calls[0]![0]
 	flowA.view.unmount()
@@ -401,28 +409,30 @@ test('two authoring paths — the ± stepper and typing — submit the same form
 	// Flow B — the equivalent type-to-edit edits: the same two values reached by
 	// typing into the popover input instead of nudging.
 	const flowB = renderNewSession()
-	await user.type(await screen.findByLabelText(/title/i), 'Intervals')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Intervals')
 	await addStructure(user)
 
 	await user.click(
-		await screen.findByRole('button', { name: /^10 min duration/ }),
+		await screen.findByRole('button', { name: /^10 min varighet/ }),
 	)
-	const inputA = await screen.findByLabelText('Duration value')
+	const inputA = await screen.findByLabelText('Verdi for varigheten')
 	await user.clear(inputA)
 	await user.type(inputA, '11 min')
 	await user.keyboard('{Escape}')
 
-	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
-	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
 	await user.click(
-		await screen.findByRole('button', { name: /^10 min duration/ }),
+		screen.getByRole('button', { name: 'Legg til steg i blokk 1' }),
 	)
-	const inputB = await screen.findByLabelText('Duration value')
+	await user.click(await screen.findByRole('menuitem', { name: /kondisjon/i }))
+	await user.click(
+		await screen.findByRole('button', { name: /^10 min varighet/ }),
+	)
+	const inputB = await screen.findByLabelText('Verdi for varigheten')
 	await user.clear(inputB)
 	await user.type(inputB, '11 min')
 	await user.keyboard('{Escape}')
 
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 	await waitFor(() => expect(flowB.submitted).toHaveBeenCalledTimes(1))
 	const typedPayload = flowB.submitted.mock.calls[0]![0]
 
@@ -438,9 +448,9 @@ test('intensity tokens are editable via the popover in this slice', async () => 
 	// Author a zone-label intensity through the "＋ intensity" neighbour link in
 	// the duration popover (the shared intensity editor leads with zone chips).
 	await user.click(
-		await screen.findByRole('button', { name: /^6 min duration/ }),
+		await screen.findByRole('button', { name: /^6 min varighet/ }),
 	)
-	await user.click(await screen.findByRole('button', { name: '＋ intensity' }))
+	await user.click(await screen.findByRole('button', { name: '＋ intensitet' }))
 	// This stub passes no Discipline Profile, so the editor falls back to the run
 	// discipline's default Zone Recipe — `daniels-pace-5`, whose bands are named
 	// E/M/T/I/R rather than Z1…Z5 (#454).
@@ -508,13 +518,16 @@ test('editing the intensity re-resolves the sentence zone chip and bpm facet liv
 	// from the duration popover's "＋ intensity" neighbour: the quiet kind row's
 	// "heart rate" entry swaps in the HR fields, then %LTHR.
 	await user.click(
-		await screen.findByRole('button', { name: /^6 min duration/ }),
+		await screen.findByRole('button', { name: /^6 min varighet/ }),
 	)
-	await user.click(await screen.findByRole('button', { name: '＋ intensity' }))
-	await user.click(await screen.findByRole('button', { name: 'heart rate' }))
-	await user.click(await screen.findByRole('button', { name: '%LTHR' }))
-	await user.type(await screen.findByLabelText('Min %LTHR'), '95')
-	await user.type(await screen.findByLabelText('Max %LTHR (optional)'), '99')
+	await user.click(await screen.findByRole('button', { name: '＋ intensitet' }))
+	await user.click(await screen.findByRole('button', { name: 'puls' }))
+	await user.click(await screen.findByRole('button', { name: '%terskelpuls' }))
+	await user.type(await screen.findByLabelText('Fra %terskelpuls'), '95')
+	await user.type(
+		await screen.findByLabelText('Til %terskelpuls (valgfritt)'),
+		'99',
+	)
 
 	// The stanza's intensity chip carries the authored value as content and its
 	// zone-equivalent step as the tint — computed live from the profile, not
@@ -522,18 +535,18 @@ test('editing the intensity re-resolves the sentence zone chip and bpm facet liv
 	const editor = document.querySelector('[data-token-sentence-editor]')!
 	await waitFor(() => {
 		const el = editor.querySelector('[data-token-type="intensity"]')!
-		expect(el.textContent).toMatch(/95–99% LTHR/)
+		expect(el.textContent).toMatch(/95–99% terskelpuls/)
 		expect(el).toHaveAttribute('data-zone-step', '4')
 	})
 
 	// Change the percentage: the zone-equivalent tint re-resolves without a
 	// submit — 80–99% LTHR's midpoint lands in friel Z2.
-	const minPct = screen.getByLabelText('Min %LTHR')
+	const minPct = screen.getByLabelText('Fra %terskelpuls')
 	await user.clear(minPct)
 	await user.type(minPct, '80')
 	await waitFor(() => {
 		const el = editor.querySelector('[data-token-type="intensity"]')!
-		expect(el.textContent).toMatch(/80–99% LTHR/)
+		expect(el.textContent).toMatch(/80–99% terskelpuls/)
 		expect(el).toHaveAttribute('data-zone-step', '2')
 	})
 })
@@ -543,29 +556,29 @@ test('editing the intensity re-resolves the sentence zone chip and bpm facet liv
 test('the uniform mirror edits sets × reps @ load; the payload matches the classic set-row fields', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
-	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Leg Day')
 	await makeStrengthStep(user)
 
 	// The strength step reads as compact set notation; the seeded set is
 	// `1 × 5`, uniform, so the popover opens on the three-control mirror.
-	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
+	await user.click(await screen.findByRole('button', { name: /^sett: 1 × 5/ }))
 
 	// One gesture per value: count, reps, load — all whole-list edits keep the
 	// popover open (the sets token's address never moves).
-	await user.click(screen.getByRole('button', { name: 'Increase sets' }))
-	await user.click(screen.getByRole('button', { name: 'Increase sets' }))
-	const reps = screen.getByLabelText('Reps value')
+	await user.click(screen.getByRole('button', { name: 'Øk antall sett' }))
+	await user.click(screen.getByRole('button', { name: 'Øk antall sett' }))
+	const reps = screen.getByLabelText('Verdi for repetisjonene')
 	await user.clear(reps)
 	await user.type(reps, '6')
-	await user.type(screen.getByLabelText('Load kg'), '80')
+	await user.type(screen.getByLabelText('Belastning i kg'), '80')
 
 	// The token re-derives live from the uniform edits.
 	expect(
-		await screen.findByRole('button', { name: /^sets: 3 × 6 @ 80 kg/ }),
+		await screen.findByRole('button', { name: /^sett: 3 × 6 @ 80 kg/ }),
 	).toBeInTheDocument()
 
 	await user.keyboard('{Escape}')
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0]
 
@@ -586,36 +599,40 @@ test('the uniform mirror edits sets × reps @ load; the payload matches the clas
 test('the kind select swaps the middle control between reps, timed, and AMRAP', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
-	await user.type(await screen.findByLabelText(/title/i), 'Plank Day')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Plank Day')
 	await makeStrengthStep(user)
 
-	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
+	await user.click(await screen.findByRole('button', { name: /^sett: 1 × 5/ }))
 
 	// Reps lead; switching to Timed swaps the middle control to a duration,
 	// seeded at 30 s.
-	await user.click(screen.getByLabelText('Set kind'))
-	await user.click(await screen.findByRole('option', { name: 'Timed' }))
-	const time = await screen.findByLabelText('Time per set value')
+	await user.click(screen.getByLabelText('Type sett'))
+	await user.click(await screen.findByRole('option', { name: 'På tid' }))
+	const time = await screen.findByLabelText('Verdi for tiden per sett')
 	expect(time).toHaveValue('30 s')
 	await user.clear(time)
 	await user.type(time, '45 s')
 
 	// AMRAP needs no quantity — the middle control gives way entirely.
-	await user.click(screen.getByLabelText('Set kind'))
+	await user.click(screen.getByLabelText('Type sett'))
 	await user.click(await screen.findByRole('option', { name: 'AMRAP' }))
-	expect(screen.queryByLabelText('Time per set value')).not.toBeInTheDocument()
 	expect(
-		await screen.findByRole('button', { name: /^sets: 1 × AMRAP/ }),
+		screen.queryByLabelText('Verdi for tiden per sett'),
+	).not.toBeInTheDocument()
+	expect(
+		await screen.findByRole('button', { name: /^sett: 1 × AMRAP/ }),
 	).toBeInTheDocument()
 
 	// And back to Timed: the authored 45 s survived the round-trip (§4.2's
 	// carry principle, per set).
-	await user.click(screen.getByLabelText('Set kind'))
-	await user.click(await screen.findByRole('option', { name: 'Timed' }))
-	expect(await screen.findByLabelText('Time per set value')).toHaveValue('45 s')
+	await user.click(screen.getByLabelText('Type sett'))
+	await user.click(await screen.findByRole('option', { name: 'På tid' }))
+	expect(await screen.findByLabelText('Verdi for tiden per sett')).toHaveValue(
+		'45 s',
+	)
 
 	await user.keyboard('{Escape}')
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0]
 	expect(payload['blocks[0].steps[0].sets[0].kind']).toBe('timed')
@@ -625,28 +642,28 @@ test('the kind select swaps the middle control between reps, timed, and AMRAP', 
 test('load is one field with a kg ⇄ %1RM toggle — mutually exclusive on commit', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
-	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Leg Day')
 	await makeStrengthStep(user)
 
-	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
+	await user.click(await screen.findByRole('button', { name: /^sett: 1 × 5/ }))
 
-	await user.type(screen.getByLabelText('Load kg'), '80')
+	await user.type(screen.getByLabelText('Belastning i kg'), '80')
 	expect(
-		await screen.findByRole('button', { name: /^sets: 1 × 5 @ 80 kg/ }),
+		await screen.findByRole('button', { name: /^sett: 1 × 5 @ 80 kg/ }),
 	).toBeInTheDocument()
 
 	// Toggling shows the other unit's own (empty) value — nothing is silently
 	// reinterpreted; committing a %1RM clears the kg on every set.
 	await user.click(screen.getByRole('button', { name: '%1RM' }))
-	const pct = screen.getByLabelText('Load %1RM')
+	const pct = screen.getByLabelText('Belastning i %1RM')
 	expect(pct).toHaveValue('')
 	await user.type(pct, '75')
 	expect(
-		await screen.findByRole('button', { name: /^sets: 1 × 5 @ 75% 1RM/ }),
+		await screen.findByRole('button', { name: /^sett: 1 × 5 @ 75% 1RM/ }),
 	).toBeInTheDocument()
 
 	await user.keyboard('{Escape}')
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0]
 	expect(payload['blocks[0].steps[0].sets[0].weightKg']).toBe('')
@@ -656,13 +673,13 @@ test('load is one field with a kg ⇄ %1RM toggle — mutually exclusive on comm
 test('the load field states the authored Load Target union, which is the form the save reads', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
-	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Leg Day')
 	await makeStrengthStep(user)
 
-	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
-	await user.type(screen.getByLabelText('Load kg'), '80')
+	await user.click(await screen.findByRole('button', { name: /^sett: 1 × 5/ }))
+	await user.type(screen.getByLabelText('Belastning i kg'), '80')
 	await user.keyboard('{Escape}')
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 
 	// The union, not only its legacy projection: `load` is what the save keeps,
@@ -671,11 +688,11 @@ test('the load field states the authored Load Target union, which is the form th
 		JSON.stringify({ kind: 'absolute', kg: 80 }),
 	)
 
-	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
+	await user.click(await screen.findByRole('button', { name: /^sett: 1 × 5/ }))
 	await user.click(screen.getByRole('button', { name: '%1RM' }))
-	await user.type(screen.getByLabelText('Load %1RM'), '75')
+	await user.type(screen.getByLabelText('Belastning i %1RM'), '75')
 	await user.keyboard('{Escape}')
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(2))
 	expect(submitted.mock.calls[1]![0]['blocks[0].steps[0].sets[0].load']).toBe(
 		JSON.stringify({ kind: 'pct1RM', minPct: 75 }),
@@ -685,34 +702,32 @@ test('the load field states the authored Load Target union, which is the form th
 test('vary-individually round-trips: diverge hides the collapse affordance until sets are equal again', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
-	await user.type(await screen.findByLabelText(/title/i), 'Waves')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Waves')
 	await makeStrengthStep(user)
 
-	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
-	await user.click(screen.getByRole('button', { name: 'Increase sets' }))
+	await user.click(await screen.findByRole('button', { name: /^sett: 1 × 5/ }))
+	await user.click(screen.getByRole('button', { name: 'Øk antall sett' }))
 
 	// Expand to the per-set grid; the sets are equal, so the collapse
 	// affordance is offered.
-	await user.click(
-		screen.getByRole('button', { name: 'Vary sets individually ▸' }),
-	)
+	await user.click(screen.getByRole('button', { name: 'Ulike sett ▸' }))
 	expect(
-		await screen.findByRole('button', { name: '◂ Collapse to uniform' }),
+		await screen.findByRole('button', { name: '◂ Like sett' }),
 	).toBeInTheDocument()
 
 	// Diverge: the collapse affordance disappears — the uniform editor never
 	// destroys authored variation.
-	const secondReps = await screen.findByLabelText('Set 2 reps')
+	const secondReps = await screen.findByLabelText('Repetisjoner i sett 2')
 	await user.clear(secondReps)
 	await user.type(secondReps, '3')
 	await waitFor(() =>
 		expect(
-			screen.queryByRole('button', { name: '◂ Collapse to uniform' }),
+			screen.queryByRole('button', { name: '◂ Like sett' }),
 		).not.toBeInTheDocument(),
 	)
 	expect(
 		await screen.findByRole('button', {
-			name: /^sets: 5 @ .* \/ 3|^sets: 5 \/ 3/,
+			name: /^sett: 5 @ .* \/ 3|^sett: 5 \/ 3/,
 		}),
 	).toBeInTheDocument()
 
@@ -720,46 +735,50 @@ test('vary-individually round-trips: diverge hides the collapse affordance until
 	// three-control mirror (a view switch, not a rewrite).
 	await user.clear(secondReps)
 	await user.type(secondReps, '5')
-	await user.click(
-		await screen.findByRole('button', { name: '◂ Collapse to uniform' }),
+	await user.click(await screen.findByRole('button', { name: '◂ Like sett' }))
+	expect(await screen.findByLabelText('Verdi for repetisjonene')).toHaveValue(
+		'5',
 	)
-	expect(await screen.findByLabelText('Reps value')).toHaveValue('5')
-	expect(screen.getByLabelText('Sets value')).toHaveValue('2')
+	expect(screen.getByLabelText('Verdi for antall sett')).toHaveValue('2')
 })
 
 test('mixed sets open directly expanded, and per-set edits keep the popover open', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
-	await user.type(await screen.findByLabelText(/title/i), 'Pyramid')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Pyramid')
 	await makeStrengthStep(user)
 
 	// Author a mixed list: expand, add a set, diverge, close.
-	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
-	await user.click(
-		screen.getByRole('button', { name: 'Vary sets individually ▸' }),
-	)
-	await user.click(screen.getByRole('button', { name: '＋ add set' }))
-	const secondReps = await screen.findByLabelText('Set 2 reps')
+	await user.click(await screen.findByRole('button', { name: /^sett: 1 × 5/ }))
+	await user.click(screen.getByRole('button', { name: 'Ulike sett ▸' }))
+	await user.click(screen.getByRole('button', { name: '＋ legg til sett' }))
+	const secondReps = await screen.findByLabelText('Repetisjoner i sett 2')
 	await user.clear(secondReps)
 	await user.type(secondReps, '3')
-	await user.type(screen.getByLabelText('Set 2 kg'), '90')
+	await user.type(screen.getByLabelText('Kg i sett 2'), '90')
 	await user.keyboard('{Escape}')
 
 	// Reopening lands directly on the per-set grid — never a uniform view that
 	// would misstate the variation.
-	await user.click(await screen.findByRole('button', { name: /^sets: 5 \/ 3/ }))
-	expect(await screen.findByLabelText('Set 1 reps')).toBeInTheDocument()
-	expect(screen.queryByLabelText('Reps value')).not.toBeInTheDocument()
+	await user.click(await screen.findByRole('button', { name: /^sett: 5 \/ 3/ }))
 	expect(
-		screen.queryByRole('button', { name: '◂ Collapse to uniform' }),
+		await screen.findByLabelText('Repetisjoner i sett 1'),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByLabelText('Verdi for repetisjonene'),
+	).not.toBeInTheDocument()
+	expect(
+		screen.queryByRole('button', { name: '◂ Like sett' }),
 	).not.toBeInTheDocument()
 
 	// Duplicate keeps the popover open and appends the copy after its source.
-	await user.click(screen.getByRole('button', { name: 'Duplicate set 2' }))
-	expect(await screen.findByLabelText('Set 3 reps')).toHaveValue(3)
+	await user.click(
+		screen.getByRole('button', { name: 'Lag en kopi av sett 2' }),
+	)
+	expect(await screen.findByLabelText('Repetisjoner i sett 3')).toHaveValue(3)
 
 	await user.keyboard('{Escape}')
-	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await user.click(screen.getByRole('button', { name: /lag økta/i }))
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0]
 	expect(payload['blocks[0].steps[0].sets[0].reps']).toBe('5')
@@ -772,38 +791,40 @@ test('mixed sets open directly expanded, and per-set edits keep the popover open
 test('rest-between-sets is addable and removable from the popover footer and reads as the mid-dot facet', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
-	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Leg Day')
 	await makeStrengthStep(user)
 
 	// Absent → the footer offers introduction (G10).
-	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
-	await user.click(screen.getByRole('button', { name: '＋ rest between sets' }))
-	expect(await screen.findByLabelText('Rest between sets value')).toHaveValue(
-		'1 min',
+	await user.click(await screen.findByRole('button', { name: /^sett: 1 × 5/ }))
+	await user.click(
+		screen.getByRole('button', { name: '＋ pause mellom settene' }),
 	)
+	expect(
+		await screen.findByLabelText('Verdi for pausen mellom settene'),
+	).toHaveValue('1 min')
 
 	// On the line it folds into the set notation with the mid-dot — never the
 	// parenthesized form, which stays reserved for rest steps (§5.1).
 	await user.keyboard('{Escape}')
 	expect(
-		await screen.findByRole('button', { name: /^1 min rest between sets/ }),
+		await screen.findByRole('button', { name: /^1 min pause mellom settene/ }),
 	).toBeInTheDocument()
 	const editor = document.querySelector('[data-token-sentence-editor]')!
-	expect(editor.textContent).toMatch(/·\s*1 min rest/)
-	expect(editor.textContent).not.toMatch(/\(\s*1 min rest/)
+	expect(editor.textContent).toMatch(/·\s*1 min pause/)
+	expect(editor.textContent).not.toMatch(/\(\s*1 min pause/)
 
 	// Present → the footer offers removal.
-	await user.click(screen.getByRole('button', { name: /^sets: 1 × 5/ }))
+	await user.click(screen.getByRole('button', { name: /^sett: 1 × 5/ }))
 	await user.click(
-		screen.getByRole('button', { name: 'Remove rest between sets' }),
+		screen.getByRole('button', { name: 'Fjern pausen mellom settene' }),
 	)
 	expect(
-		await screen.findByRole('button', { name: '＋ rest between sets' }),
+		await screen.findByRole('button', { name: '＋ pause mellom settene' }),
 	).toBeInTheDocument()
 	await user.keyboard('{Escape}')
 	await waitFor(() =>
 		expect(
-			screen.queryByRole('button', { name: /rest between sets, step/ }),
+			screen.queryByRole('button', { name: /pause mellom settene, steg/ }),
 		).not.toBeInTheDocument(),
 	)
 })
@@ -811,15 +832,19 @@ test('rest-between-sets is addable and removable from the popover footer and rea
 test('rest-between-sets renders as the sentence rest facet and is editable there', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
-	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await user.type(await screen.findByLabelText(/tittel/i), 'Leg Day')
 	await makeStrengthStep(user)
 
 	// Give the step a rest through the sets popover footer, then set its value
 	// via that popover's own type-to-edit input (the classic fieldset spinbutton
 	// is gone).
-	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
-	await user.click(screen.getByRole('button', { name: '＋ rest between sets' }))
-	const restValue = await screen.findByLabelText('Rest between sets value')
+	await user.click(await screen.findByRole('button', { name: /^sett: 1 × 5/ }))
+	await user.click(
+		screen.getByRole('button', { name: '＋ pause mellom settene' }),
+	)
+	const restValue = await screen.findByLabelText(
+		'Verdi for pausen mellom settene',
+	)
 	await user.clear(restValue)
 	await user.type(restValue, '1 min 30 s')
 	await user.keyboard('{Escape}')
@@ -827,17 +852,15 @@ test('rest-between-sets renders as the sentence rest facet and is editable there
 	// The facet reads in the sentence and opens its own popover stepper.
 	await user.click(
 		await screen.findByRole('button', {
-			name: /^1 min 30 s rest between sets/,
+			name: /^1 min 30 s pause mellom settene/,
 		}),
 	)
-	await user.click(
-		await screen.findByRole('button', { name: /increase rest/i }),
-	)
+	await user.click(await screen.findByRole('button', { name: /øk pausen/i }))
 
 	// The facet re-derives live from its stepper (1 min 30 s + one nudge).
 	expect(
 		await screen.findByRole('button', {
-			name: /^1 min 45 s rest between sets/,
+			name: /^1 min 45 s pause mellom settene/,
 		}),
 	).toBeInTheDocument()
 })
@@ -853,14 +876,16 @@ test('activating another token retargets the open popover in place — same popu
 
 	// Open on the duration token: the popover leads with the type-to-edit value.
 	await user.click(
-		await screen.findByRole('button', { name: /^6 min duration/ }),
+		await screen.findByRole('button', { name: /^6 min varighet/ }),
 	)
 	const popup = await waitFor(() => {
 		const el = document.querySelector('[data-slot="token-popover"]')
 		expect(el).not.toBeNull()
 		return el as HTMLElement
 	})
-	expect(within(popup).getByLabelText('Duration value')).toHaveValue('6 min')
+	expect(within(popup).getByLabelText('Verdi for varigheten')).toHaveValue(
+		'6 min',
+	)
 
 	// Activate the note token while open: the SAME popup element retargets —
 	// content swaps in place, never close-and-reopen.
@@ -872,16 +897,16 @@ test('activating another token retargets the open popover in place — same popu
 			'button[data-token-editor="notes"]',
 		)!,
 	)
-	await within(popup).findByLabelText('Note text')
+	await within(popup).findByLabelText('Notat')
 	expect(document.querySelectorAll('[data-slot="token-popover"]')).toHaveLength(
 		1,
 	)
 	expect(document.querySelector('[data-slot="token-popover"]')).toBe(popup)
 	expect(
-		within(popup).queryByLabelText('Duration value'),
+		within(popup).queryByLabelText('Verdi for varigheten'),
 	).not.toBeInTheDocument()
 	// The cap label follows the active token.
-	expect(popup).toHaveTextContent(/note/i)
+	expect(popup).toHaveTextContent(/notat/i)
 })
 
 test('every value is type-to-edit: typing into the popover input writes through; unparseable text never does', async () => {
@@ -891,10 +916,10 @@ test('every value is type-to-edit: typing into the popover input writes through;
 	await setDuration(user, '6 min')
 
 	await user.click(
-		await screen.findByRole('button', { name: /^6 min duration/ }),
+		await screen.findByRole('button', { name: /^6 min varighet/ }),
 	)
 
-	const input = await screen.findByLabelText('Duration value')
+	const input = await screen.findByLabelText('Verdi for varigheten')
 	await user.clear(input)
 	await user.type(input, '8 min')
 	// The sentence's quantity token re-derives from the parsed input.
@@ -907,7 +932,7 @@ test('every value is type-to-edit: typing into the popover input writes through;
 	expect(input).toHaveValue('banana')
 	expect(stanza()).toHaveTextContent('8 min')
 	// The popover's anchor input is still mounted mid-edit.
-	expect(screen.getByLabelText('Duration value')).toBeInTheDocument()
+	expect(screen.getByLabelText('Verdi for varigheten')).toBeInTheDocument()
 })
 
 test('committed changes announce through the polite live region in human words', async () => {
@@ -917,15 +942,15 @@ test('committed changes announce through the polite live region in human words',
 	await setDuration(user, '6 min')
 
 	await user.click(
-		await screen.findByRole('button', { name: /^6 min duration/ }),
+		await screen.findByRole('button', { name: /^6 min varighet/ }),
 	)
 	await user.click(
-		await screen.findByRole('button', { name: /increase duration/i }),
+		await screen.findByRole('button', { name: /øk varigheten/i }),
 	)
 
 	await waitFor(() =>
 		expect(screen.getByRole('status')).toHaveTextContent(
-			'Duration set to 7 min',
+			'Varigheten er satt til 7 min',
 		),
 	)
 })
@@ -936,18 +961,20 @@ test('token buttons are native tab stops carrying value + facet + position names
 	await addStructure(user)
 	await setDuration(user, '6 min')
 
-	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
-	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
+	await user.click(
+		screen.getByRole('button', { name: 'Legg til steg i blokk 1' }),
+	)
+	await user.click(await screen.findByRole('menuitem', { name: /kondisjon/i }))
 
 	// Position rides the accessible name (§9.4) and follows notation order.
 	expect(
 		await screen.findByRole('button', {
-			name: '6 min duration, step 1 of 2, block 1 of 1',
+			name: '6 min varighet, steg 1 av 2, blokk 1 av 1',
 		}),
 	).toBeInTheDocument()
 	expect(
 		screen.getByRole('button', {
-			name: '10 min duration, step 2 of 2, block 1 of 1',
+			name: '10 min varighet, steg 2 av 2, blokk 1 av 1',
 		}),
 	).toBeInTheDocument()
 })
@@ -959,9 +986,9 @@ test('clicking non-interactive ground closes the popover', async () => {
 	await setDuration(user, '6 min')
 
 	await user.click(
-		await screen.findByRole('button', { name: /^6 min duration/ }),
+		await screen.findByRole('button', { name: /^6 min varighet/ }),
 	)
-	await screen.findByLabelText('Duration value')
+	await screen.findByLabelText('Verdi for varigheten')
 
 	await user.click(document.body)
 	await waitFor(() =>

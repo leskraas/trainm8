@@ -450,7 +450,7 @@ describe('buildTodayCard', () => {
 		expect(card.cta).toBe('Log your sets')
 		expect(card.title).toBe('Workout A')
 		expect(card.lifts).toEqual([
-			{ name: 'Squat', setCount: 5, reps: 5, loadLabel: '82.5 kg' },
+			{ name: 'Squat', setCount: 5, reps: 5, loadLabel: '82,5 kg' },
 			{ name: 'Bench Press', setCount: 2, reps: 5, loadLabel: '60 kg' },
 		])
 	})
@@ -553,7 +553,7 @@ describe('buildSessionNudge', () => {
 		if (nudge.outcome !== 'eased') throw new Error('expected eased')
 		expect(nudge.target.discipline).toBe('run')
 		expect(nudge.reason).toBe(
-			"Form is low (TSB −18) — eased Saturday's session to a Z2 endurance hour.",
+			'Formen er lav (TSB −18) – økta lørdag er gjort om til en rolig time i sone 2.',
 		)
 	})
 
@@ -574,7 +574,7 @@ describe('buildSessionNudge', () => {
 		expect(nudge.outcome).toBe('held')
 		if (nudge.outcome !== 'held') throw new Error('expected held')
 		expect(nudge.reason).toBe(
-			'Form is fresh (TSB +6) — your next session stands.',
+			'Formen er uthvilt (TSB +6) – neste økt står som planlagt.',
 		)
 	})
 
@@ -594,7 +594,7 @@ describe('buildSessionNudge', () => {
 		expect(nudge.outcome).toBe('unavailable')
 		if (nudge.outcome !== 'unavailable') throw new Error('expected unavailable')
 		expect(nudge.reason).toBe(
-			'Your Form reading is reliable after 42 days — day 12/42.',
+			'Formtallet er til å stole på etter 42 dager (dag 12 av 42).',
 		)
 	})
 
@@ -666,7 +666,7 @@ describe('buildSessionNudge', () => {
 		expect(nudge.outcome).toBe('eased')
 		if (nudge.outcome !== 'eased') throw new Error('expected eased')
 		expect(nudge.reason).toBe(
-			"You missed Monday's session — easing your next session.",
+			'Økta mandag ble ikke gjort – neste økt blir gjort lettere.',
 		)
 	})
 
@@ -689,7 +689,7 @@ describe('buildSessionNudge', () => {
 		expect(nudge.outcome).toBe('eased')
 		if (nudge.outcome !== 'eased') throw new Error('expected eased')
 		expect(nudge.reason).toBe(
-			"You missed Monday's session — eased Saturday's session to a Z2 endurance hour so you don't stack hard days after a gap.",
+			'Økta mandag ble ikke gjort – økta lørdag er gjort om til en rolig time i sone 2, så du ikke legger harde dager tett etter et opphold.',
 		)
 	})
 
@@ -720,7 +720,7 @@ describe('buildSessionNudge', () => {
 		expect(nudge.outcome).toBe('held')
 		if (nudge.outcome !== 'held') throw new Error('expected held')
 		expect(nudge.reason).toBe(
-			"You missed Monday's session — next session is strength, no Form-based ease yet.",
+			'Økta mandag ble ikke gjort – neste økt er styrke, og den kan ikke lettes etter formen ennå.',
 		)
 	})
 
@@ -743,7 +743,7 @@ describe('buildSessionNudge', () => {
 		expect(nudge.outcome).toBe('eased')
 		if (nudge.outcome !== 'eased') throw new Error('expected eased')
 		expect(nudge.reason).toBe(
-			"Form is low (TSB −18) — eased Saturday's session to a Z2 endurance hour.",
+			'Formen er lav (TSB −18) – økta lørdag er gjort om til en rolig time i sone 2.',
 		)
 	})
 })

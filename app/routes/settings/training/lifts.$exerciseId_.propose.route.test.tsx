@@ -103,11 +103,11 @@ test("a weight the athlete's plates can make is stated as it was stored, not rou
 		}),
 	)
 
-	expect(await screen.findByText('61.25')).toBeInTheDocument()
+	expect(await screen.findByText('61,25')).toBeInTheDocument()
 	expect(
-		screen.getByText(/Somewhere between 55.25 and 67.25 kg/),
+		screen.getByText(/Et sted mellom 55,25 og 67,25 kg/),
 	).toBeInTheDocument()
-	expect(screen.queryByText(/61\.3/)).not.toBeInTheDocument()
+	expect(screen.queryByText(/61[.,]3/)).not.toBeInTheDocument()
 })
 
 test('a proposal screen writes nothing on load', async () => {
@@ -115,9 +115,9 @@ test('a proposal screen writes nothing on load', async () => {
 
 	// The number is on screen and nothing has been submitted: derived-then-
 	// authored, so a reading becomes the athlete's number only when they say so.
-	expect(await screen.findByText('116.7')).toBeInTheDocument()
+	expect(await screen.findByText('116,7')).toBeInTheDocument()
 	expect(
-		screen.getByText(/Nothing is saved until you accept it/i),
+		screen.getByText(/Ingenting lagres før du godtar det/i),
 	).toBeInTheDocument()
 	expect(acted).not.toHaveBeenCalled()
 })
@@ -126,31 +126,35 @@ test('the band travels with the number, so the point estimate never stands alone
 	renderRoute()
 
 	expect(
-		await screen.findByText(/Somewhere between 104.8 and 128.6 kg/i),
+		await screen.findByText(/Et sted mellom 104,8 og 128,6 kg/i),
 	).toBeInTheDocument()
 	expect(
-		screen.getByText(/±10.2 %, which is this equation's own spread/i),
+		screen.getByText(/±10,2 %. Det er likningens egen spredning/i),
 	).toBeInTheDocument()
 })
 
 test('the derivation waits behind a tap and names the equation it applied', async () => {
 	renderRoute()
+	const user = userEvent.setup()
 
-	const summary = await screen.findByText('How we got this')
-	const details = summary.closest('details')
+	const trigger = await screen.findByRole('button', {
+		name: /Slik kom vi fram til det/i,
+	})
 	// Closed by default: the reasoning is available, not asserted.
-	expect(details).not.toBeNull()
-	expect(details).not.toHaveAttribute('open')
-	expect(screen.getByText('load × (1 + reps / 30)')).toBeInTheDocument()
-	expect(screen.getByText(/100 kg × 5 on/)).toBeInTheDocument()
+	expect(trigger).toHaveAttribute('aria-expanded', 'false')
+	await user.click(trigger)
+	expect(await screen.findByText('vekt × (1 + reps / 30)')).toBeInTheDocument()
+	expect(screen.getByText(/100 kg × 5 /)).toBeInTheDocument()
 })
 
 test('accepting posts the value that was shown, for the server to re-derive', async () => {
 	const { acted } = renderRoute()
 	const user = userEvent.setup()
 
-	await user.click(await screen.findByRole('button', { name: 'Use this' }))
+	await user.click(await screen.findByRole('button', { name: 'Bruk dette' }))
 
+	// The posted number keeps the point the server parses, though the screen
+	// reads 116,7.
 	expect(acted).toHaveBeenCalledWith(
 		expect.objectContaining({ intent: 'accept-estimate', valueKg: '116.7' }),
 	)
@@ -173,15 +177,13 @@ test('a refusal is stated in place and offers nothing to accept', async () => {
 		}),
 	)
 
-	expect(await screen.findByText('Unavailable')).toBeInTheDocument()
+	expect(await screen.findByText('Ikke tilgjengelig')).toBeInTheDocument()
 	expect(
-		screen.getByText(
-			/None of your sets here says how close to failure it was/i,
-		),
+		screen.getByText(/Ingen av settene sier hvor nær utmattelse de var/i),
 	).toBeInTheDocument()
 	// An absence is not a low grade, and it has no accept control.
-	expect(screen.queryByRole('button', { name: /Use this/i })).toBeNull()
-	expect(screen.queryByText(/confidence/i)).toBeNull()
+	expect(screen.queryByRole('button', { name: /Bruk dette/i })).toBeNull()
+	expect(screen.queryByText(/sikkerhet/i)).toBeNull()
 })
 
 test('a set above the ten-rep gate refuses rather than grading itself low', async () => {
@@ -202,9 +204,9 @@ test('a set above the ten-rep gate refuses rather than grading itself low', asyn
 	)
 
 	expect(
-		await screen.findByText(/above 10 reps, where these equations stop being/i),
+		await screen.findByText(/over 10 reps, der disse likningene slutter/i),
 	).toBeInTheDocument()
-	expect(screen.queryByText(/low confidence/i)).toBeNull()
+	expect(screen.queryByText(/lav sikkerhet/i)).toBeNull()
 })
 
 test('a tested single is presented as a measurement rather than an estimate', async () => {
@@ -235,8 +237,8 @@ test('a tested single is presented as a measurement rather than an estimate', as
 		}),
 	)
 
-	expect(await screen.findByText('Tested 1RM')).toBeInTheDocument()
-	expect(screen.getByText('high confidence')).toBeInTheDocument()
+	expect(await screen.findByText('Testet 1RM')).toBeInTheDocument()
+	expect(screen.getByText('høy sikkerhet')).toBeInTheDocument()
 	expect(screen.getByText('140')).toBeInTheDocument()
 })
 
@@ -246,13 +248,13 @@ test('every implemented equation is offered, each with its own error band', asyn
 	// Seven published equations are implemented and storable; a screen that
 	// reaches only the default makes the other six dead code.
 	for (const [name, band] of [
-		['Epley', '±10.2 %'],
-		['Brzycki', '±10.5 %'],
-		['Mayhew', '±9.4 %'],
-		['Wathen', '±10.6 %'],
-		['Lombardi', '±9.2 %'],
-		['Lander', '±10.5 %'],
-		['Adams', '±9.1 %'],
+		['Epley', '±10,2 %'],
+		['Brzycki', '±10,5 %'],
+		['Mayhew', '±9,4 %'],
+		['Wathen', '±10,6 %'],
+		['Lombardi', '±9,2 %'],
+		['Lander', '±10,5 %'],
+		['Adams', '±9,1 %'],
 	] as const) {
 		const link = await screen.findByRole('link', {
 			name: new RegExp(`^${name}`),
@@ -265,9 +267,9 @@ test('no equation is presented as the better one', async () => {
 	renderRoute()
 
 	expect(
-		await screen.findByText(/None of these is the better one/i),
+		await screen.findByText(/Ingen av dem er bedre enn de andre/i),
 	).toBeInTheDocument()
-	expect(screen.queryByText(/recommended|most accurate|best/i)).toBeNull()
+	expect(screen.queryByText(/anbefalt|mest nøyaktig|beste/i)).toBeNull()
 })
 
 test('choosing another equation re-reads the sets and writes nothing', async () => {
@@ -293,7 +295,7 @@ test('accepting posts the equation that was applied, for the server to re-run', 
 	)
 	const user = userEvent.setup()
 
-	await user.click(await screen.findByRole('button', { name: 'Use this' }))
+	await user.click(await screen.findByRole('button', { name: 'Bruk dette' }))
 
 	expect(acted).toHaveBeenCalledWith(
 		expect.objectContaining({ estimator: 'mayhew', valueKg: '119' }),
@@ -308,13 +310,11 @@ test('an estimate resting on a weaker basis says so beside the number', async ()
 				repLoadBasis: 'measured-biased',
 			},
 		),
-		'These equations were tested on the deadlift and every one of them underestimated it (LeSuer 1997), so this number most likely reads low.',
+		'Disse likningene er testet på markløft, og alle undervurderte det (LeSuer 1997), så tallet er trolig for lavt.',
 	)
 
-	expect(
-		await screen.findByText(/every one of them underestimated it/i),
-	).toBeInTheDocument()
-	expect(screen.getByText('low confidence')).toBeInTheDocument()
+	expect(await screen.findByText(/alle undervurderte det/i)).toBeInTheDocument()
+	expect(screen.getByText('lav sikkerhet')).toBeInTheDocument()
 })
 
 test('a tested single is offered no equation to choose, because none was applied', async () => {
@@ -345,6 +345,6 @@ test('a tested single is offered no equation to choose, because none was applied
 		}),
 	)
 
-	expect(await screen.findByText('Tested 1RM')).toBeInTheDocument()
+	expect(await screen.findByText('Testet 1RM')).toBeInTheDocument()
 	expect(screen.queryByRole('link', { name: /^Mayhew/ })).toBeNull()
 })

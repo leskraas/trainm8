@@ -1,15 +1,40 @@
 'use client'
 
 import { useTheme } from 'next-themes'
+import { useSyncExternalStore } from 'react'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 import { Icon } from '#app/components/ui/icon.tsx'
 
-const Toaster = ({ ...props }: ToasterProps) => {
+/** A phone's layout: the bottom tab bar is there (ADR 0083), below `md`. */
+const PHONE = '(width < 48rem)'
+
+function usePhone(): boolean {
+	return useSyncExternalStore(
+		(onChange) => {
+			const list = window.matchMedia?.(PHONE)
+			list?.addEventListener('change', onChange)
+			return () => list?.removeEventListener('change', onChange)
+		},
+		() => window.matchMedia?.(PHONE).matches ?? false,
+		() => false,
+	)
+}
+
+// Local deviation (docs/design/design-system.md D15, ADR 0088): on a phone
+// the toasts sit at the bottom, just above the tab bar — in the thumb's reach
+// for _Angre_, and leaving downwards the way the composer's Drawer just did —
+// instead of over I dag's top line. From `md` up, where the caller asked.
+const Toaster = ({ position, ...props }: ToasterProps) => {
 	const { theme = 'system' } = useTheme()
+	const phone = usePhone()
+	const above = 'calc(var(--tab-bar-space) + 12px)'
 
 	return (
 		<Sonner
 			theme={theme as ToasterProps['theme']}
+			position={phone ? 'bottom-center' : position}
+			offset={phone ? { bottom: above } : undefined}
+			mobileOffset={phone ? { bottom: above, left: 12, right: 12 } : undefined}
 			className="toaster group"
 			icons={{
 				success: (

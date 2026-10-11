@@ -113,7 +113,7 @@ test('one action syncs every active connection', async () => {
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
-			title: 'Synced',
+			title: 'Synkronisert',
 			type: 'success',
 			description: expect.stringContaining('2'),
 		}),
@@ -148,7 +148,7 @@ test('skips non-active connections rather than failing the whole action', async 
 	})
 
 	await expect(response).toSendToast(
-		expect.objectContaining({ title: 'Synced', type: 'success' }),
+		expect.objectContaining({ title: 'Synkronisert', type: 'success' }),
 	)
 	expect(stravaFetched).toBe(false)
 })
@@ -164,9 +164,9 @@ test('asks the athlete to connect a source when nothing is active', async () => 
 	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
-			title: 'Sync failed',
+			title: 'Synkroniseringen feilet',
 			type: 'error',
-			description: expect.stringContaining('Connect a source'),
+			description: expect.stringContaining('Koble til en kilde'),
 		}),
 	)
 })

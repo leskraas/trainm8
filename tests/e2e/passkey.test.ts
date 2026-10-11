@@ -44,12 +44,12 @@ test('Users can register and use passkeys', async ({
 	const passkeyRegisteredPromise = new Promise<void>((resolve) => {
 		client.once('WebAuthn.credentialAdded', () => resolve())
 	})
-	await page.getByRole('button', { name: /register new passkey/i }).click()
+	await page.getByRole('button', { name: /legg til en passnøkkel/i }).click()
 	await passkeyRegisteredPromise
 
 	// Verify the passkey appears in the UI
-	await expect(page.getByRole('list', { name: /passkeys/i })).toBeVisible()
-	await expect(page.getByText(/registered .* ago/i)).toBeVisible()
+	await expect(page.getByRole('list', { name: /passnøkler/i })).toBeVisible()
+	await expect(page.getByText(/^lagt til /i)).toBeVisible()
 
 	const afterRegistrationCredentials = await client.send(
 		'WebAuthn.getCredentials',
@@ -63,7 +63,7 @@ test('Users can register and use passkeys', async ({
 	// Logout — with the avatar dropdown gone (#178), logout lives on the
 	// Settings profile page itself.
 	await navigate('/settings/profile')
-	await page.getByRole('button', { name: /^log out$/i }).click()
+	await page.getByRole('button', { name: /^logg ut$/i }).click()
 	await expect(page).toHaveURL(`/`)
 
 	// Try logging in with passkey
@@ -103,10 +103,10 @@ test('Users can register and use passkeys', async ({
 
 	// Go to passkeys page and delete the passkey
 	await navigate('/settings/profile/passkeys')
-	await page.getByRole('button', { name: /delete/i }).click()
+	await page.getByRole('button', { name: /fjern/i }).click()
 
 	// Verify the passkey is no longer listed on the page
-	await expect(page.getByText(/no passkeys registered/i)).toBeVisible()
+	await expect(page.getByText(/ingen passnøkler ennå/i)).toBeVisible()
 
 	// But verify it still exists in the authenticator
 	const afterDeletionCredentials = await client.send(
@@ -117,7 +117,7 @@ test('Users can register and use passkeys', async ({
 
 	// Logout again to test deleted passkey
 	await navigate('/settings/profile')
-	await page.getByRole('button', { name: /^log out$/i }).click()
+	await page.getByRole('button', { name: /^logg ut$/i }).click()
 	await expect(page).toHaveURL(`/`)
 
 	// Try logging in with the deleted passkey
@@ -158,10 +158,10 @@ test('Failed passkey verification shows error', async ({
 		enabled: true,
 	})
 
-	await page.getByRole('button', { name: /register new passkey/i }).click()
+	await page.getByRole('button', { name: /legg til en passnøkkel/i }).click()
 
 	// Wait for error message
-	await expect(page.getByText(/failed to create passkey/i)).toBeVisible()
+	await expect(page.getByText(/kunne ikke lage passnøkkelen/i)).toBeVisible()
 
 	// Verify no passkey was registered
 	const credentials = await client.send('WebAuthn.getCredentials', {

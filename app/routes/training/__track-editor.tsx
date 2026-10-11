@@ -53,11 +53,12 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '#app/components/ui/select.tsx'
-import { formatVolumeTotal, formatWeeklyVolume } from '#app/utils/format.ts'
+import { formatNbVolumeTotal, formatNbWeeklyVolume } from '#app/utils/format.ts'
 import {
-	DISCIPLINE_LABELS,
-	VOLUME_CURRENCY_LABELS,
-	VOLUME_CURRENCY_UNITS,
+	NB_VOLUME_CURRENCY_LABELS,
+	NB_WEEKLY_UNITS,
+	nbTrackName,
+	SESONG_TRACK_LABELS,
 } from '#app/utils/labels.ts'
 import { type VolumeCurrency } from '#app/utils/plan-outline/derive.ts'
 import {
@@ -67,7 +68,7 @@ import {
 	type TrackProposal,
 } from '#app/utils/plan-outline/proposal.ts'
 import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
-import { Disclosure } from './__plan-chrome.tsx'
+import { CollapsibleSection } from './__plan-chrome.tsx'
 
 /**
  * One track as this module reads it — its Discipline, its locked currency and the
@@ -92,24 +93,23 @@ export type RosterTrack = {
  * second one are one act happening twice (ADR 0043 §2), and two hand-written
  * derivation sentences would drift into two vocabularies for one arithmetic.
  * The numbers travel as a value object and this is where they are worded, so the
- * display layer stays the one that formats them (ADR 0023, ADR 0040 §6).
+ * display layer stays the one that formats them (ADR 0023, ADR 0040 §6). In
+ * Norwegian on both since round 2 (ADR 0081): "du trente 2 av dem" is named only
+ * where it is not the whole window, because it is what tells an athlete who
+ * trained twice in four weeks why the number reads low.
  */
-export function anchorSentence(prefill: AnchorPrefill | undefined): string {
-	if (!prefill) {
-		return `Nothing in your last ${ANCHOR_WINDOW_WEEKS} weeks to read this from — type the weekly volume you are starting at.`
-	}
+export function nbAnchorSentence(prefill: AnchorPrefill | undefined): string {
+	if (!prefill) return SESONG_TRACK_LABELS.anchorNone(ANCHOR_WINDOW_WEEKS)
 	const { derivation } = prefill
-	const average = derivation.total / derivation.windowWeeks
-	// Named only where it is not the whole window: "you trained 2 of them" is what
-	// tells an athlete who trained twice in four weeks why the number reads low.
-	const trained =
-		derivation.weeksTrained === derivation.windowWeeks
-			? ''
-			: ` — you trained ${derivation.weeksTrained} of them`
-	return `Your last ${derivation.windowWeeks} weeks averaged ${formatWeeklyVolume(
-		average,
-		derivation.currency,
-	)} (${formatVolumeTotal(derivation.total, derivation.currency)} in total)${trained}.`
+	return SESONG_TRACK_LABELS.anchorAverage(
+		derivation.windowWeeks,
+		formatNbWeeklyVolume(
+			derivation.total / derivation.windowWeeks,
+			derivation.currency,
+		),
+		formatNbVolumeTotal(derivation.total, derivation.currency),
+		derivation.weeksTrained,
+	)
 }
 
 /**
@@ -144,40 +144,55 @@ export function TrackRoster({
 	return (
 		<div className="space-y-2">
 			{error ? (
-				<p role="alert" className="text-destructive text-sm">
+				<p role="alert" className="text-destructive text-footnote">
 					{error}
 				</p>
 			) : null}
 			{/* Named on the list rather than on a heading: the roster is a line of the
 			    plan's summary, not a section of it, and a visible heading over three
 			    words of text would be chrome at 390 px. */}
-			<ul aria-label="Training tracks" className="space-y-1">
+			<ul aria-label={SESONG_TRACK_LABELS.list} className="space-y-1">
 				{tracks.map((track) => (
 					<li
 						key={track.trackId}
 						className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
 					>
-						<span className="font-medium">
-							{DISCIPLINE_LABELS[track.discipline]}
-						</span>
-						<span className="text-muted-foreground">
-							· authored in {VOLUME_CURRENCY_UNITS[track.currency]}
-							{track.anchors[0]
-								? ` · starts at ${formatWeeklyVolume(track.anchors[0].value, track.currency)}`
-								: null}
-							{/* Whether the athlete has re-anchored is part of what their season
+						{/* One run of text, not two flex items: as items, the detail wrapped
+						    whole onto its own line at 390 px and opened it with an orphaned
+						    `·` (audit B9). The no-break space holds the name to its
+						    separator, so the line can only break after it. */}
+						<span className="min-w-0 flex-1">
+							<span className="font-medium">
+								{nbTrackName(track.discipline)}
+							</span>
+							<span className="text-muted-foreground">
+								{'\u00a0'}
+								{SESONG_TRACK_LABELS.line(
+									NB_WEEKLY_UNITS[track.currency],
+									track.anchors[0]
+										? formatNbWeeklyVolume(
+												track.anchors[0].value,
+												track.currency,
+											)
+										: null,
+								)}
+								{/* Whether the athlete has re-anchored is part of what their season
 							    *is*, so it is stated here and not only down in the anchor
 							    section: a **Season Anchor** is an ordered list, and a line that
 							    named only its first value would describe a plan that stopped
 							    being the whole truth the moment they re-anchored (ADR 0040 §5).
 							    The list itself, with the weeks and the controls, is on the
 							    Blocks reading. */}
-							{track.anchors.length > 1
-								? ` · re-anchored ${track.anchors.length - 1 === 1 ? 'once' : `${track.anchors.length - 1} times`}, most recently to ${formatWeeklyVolume(
-										track.anchors[track.anchors.length - 1]!.value,
-										track.currency,
-									)}`
-								: null}
+								{track.anchors.length > 1
+									? SESONG_TRACK_LABELS.reAnchored(
+											track.anchors.length - 1,
+											formatNbWeeklyVolume(
+												track.anchors[track.anchors.length - 1]!.value,
+												track.currency,
+											),
+										)
+									: null}
+							</span>
 						</span>
 						{/* Only where there is another track to fall back on. A plan with no
 						    track measures nothing, so the honest action for an athlete who
@@ -192,16 +207,18 @@ export function TrackRoster({
 			    lock were the tallest thing on the plan's summary card — a setup form
 			    sitting permanently on top of the plan it sets up. */}
 			{untracked.length > 0 ? (
-				<Disclosure
-					summary="Add a training track"
-					detail={`${untracked.map((discipline) => DISCIPLINE_LABELS[discipline]).join(' · ')} — each in a unit it keeps for life.`}
+				<CollapsibleSection
+					summary={SESONG_TRACK_LABELS.add}
+					detail={SESONG_TRACK_LABELS.addDetail(
+						untracked.map(nbTrackName).join(' · '),
+					)}
 				>
 					<AddTrackForm
 						outlineId={outlineId}
 						untracked={untracked}
 						proposals={proposals}
 					/>
-				</Disclosure>
+				</CollapsibleSection>
 			) : null}
 		</div>
 	)
@@ -217,7 +234,7 @@ export function TrackRoster({
  * says, so an athlete removing a track does not fear losing their season's shape.
  */
 function RemoveTrackButton({ track }: { track: RosterTrack }) {
-	const label = DISCIPLINE_LABELS[track.discipline]
+	const label = nbTrackName(track.discipline)
 	return (
 		<AlertDialog>
 			<AlertDialogTrigger
@@ -228,30 +245,30 @@ function RemoveTrackButton({ track }: { track: RosterTrack }) {
 					<Button
 						variant="ghost"
 						size="sm"
-						aria-label={`Remove the ${label} track`}
+						aria-label={SESONG_TRACK_LABELS.removeName(label)}
 					>
-						Remove
+						{SESONG_TRACK_LABELS.remove}
 					</Button>
 				}
 			/>
 			<AlertDialogPopup>
 				<AlertDialogHeader>
-					<AlertDialogTitle>Remove the {label} track?</AlertDialogTitle>
+					<AlertDialogTitle>
+						{SESONG_TRACK_LABELS.removeConfirm(label)}
+					</AlertDialogTitle>
 					<AlertDialogDescription>
-						This removes its starting volume, its progression and any week you
-						hand-set on it, and any pattern day that drew from it. Your phases
-						stay exactly as they are, and so does every session you have already
-						trained. You can author a {label.toLowerCase()} track again
-						afterwards — it starts fresh, and you pick its unit again.
+						{SESONG_TRACK_LABELS.removeBody(label)}
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 				<Form method="POST">
 					<input type="hidden" name="intent" value="remove-track" />
 					<input type="hidden" name="trackId" value={track.trackId} />
 					<AlertDialogFooter>
-						<AlertDialogCancel type="button">Keep track</AlertDialogCancel>
+						<AlertDialogCancel type="button">
+							{SESONG_TRACK_LABELS.keep}
+						</AlertDialogCancel>
 						<AlertDialogAction type="submit" variant="destructive">
-							Remove track
+							{SESONG_TRACK_LABELS.removeButton}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</Form>
@@ -323,12 +340,14 @@ function AddTrackForm({
 		<Form method="POST" className="space-y-4 pt-2">
 			{/* The visible name is the disclosure summary that opens this form; the
 			    heading stays for assistive technology rather than printing it twice. */}
-			<h3 className="sr-only">Add a training track</h3>
+			<h3 className="sr-only">{SESONG_TRACK_LABELS.add}</h3>
 			<input type="hidden" name="intent" value="add-track" />
 			<input type="hidden" name="outlineId" value={outlineId} />
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div className="space-y-2">
-					<Label htmlFor="new-track-discipline">Discipline</Label>
+					<Label htmlFor="new-track-discipline">
+						{SESONG_TRACK_LABELS.discipline}
+					</Label>
 					<Select
 						value={discipline}
 						onValueChange={(value) => {
@@ -339,13 +358,13 @@ function AddTrackForm({
 					>
 						<SelectTrigger id="new-track-discipline" className="w-full">
 							<SelectValue>
-								{(value) => DISCIPLINE_LABELS[value as Discipline]}
+								{(value) => nbTrackName(value as Discipline)}
 							</SelectValue>
 						</SelectTrigger>
 						<SelectContent>
 							{untracked.map((option) => (
 								<SelectItem key={option} value={option}>
-									{DISCIPLINE_LABELS[option]}
+									{nbTrackName(option)}
 								</SelectItem>
 							))}
 						</SelectContent>
@@ -358,36 +377,38 @@ function AddTrackForm({
 						// treatment the creation flow gives a strength track.
 						<>
 							<input type="hidden" name="currency" value={soleCurrency} />
-							<p className="text-sm">
-								Planned in{' '}
+							<p className="text-footnote">
+								{SESONG_TRACK_LABELS.plannedIn}{' '}
 								<span className="font-medium">
-									{VOLUME_CURRENCY_LABELS[soleCurrency].toLowerCase()}
+									{NB_VOLUME_CURRENCY_LABELS[soleCurrency].toLowerCase()}
 								</span>{' '}
 								<span className="text-muted-foreground">
-									· strength&rsquo;s own unit, not a choice
+									{SESONG_TRACK_LABELS.ownUnit}
 								</span>
 							</p>
 						</>
 					) : (
 						<>
-							<Label htmlFor="new-track-currency">Unit</Label>
+							<Label htmlFor="new-track-currency">
+								{SESONG_TRACK_LABELS.unit}
+							</Label>
 							<Select
 								value={chosen}
 								onValueChange={(value) => setCurrency(value as VolumeCurrency)}
 							>
 								<SelectTrigger id="new-track-currency" className="w-full">
-									<SelectValue placeholder="Pick the unit you plan in">
+									<SelectValue placeholder={SESONG_TRACK_LABELS.pickUnit}>
 										{(value) =>
 											value
-												? VOLUME_CURRENCY_LABELS[value as VolumeCurrency]
-												: 'Pick the unit you plan in'
+												? NB_VOLUME_CURRENCY_LABELS[value as VolumeCurrency]
+												: SESONG_TRACK_LABELS.pickUnit
 										}
 									</SelectValue>
 								</SelectTrigger>
 								<SelectContent>
 									{options.map((option) => (
 										<SelectItem key={option} value={option}>
-											{VOLUME_CURRENCY_LABELS[option]}
+											{NB_VOLUME_CURRENCY_LABELS[option]}
 										</SelectItem>
 									))}
 								</SelectContent>
@@ -397,18 +418,13 @@ function AddTrackForm({
 					)}
 				</div>
 			</div>
-			<p className="text-muted-foreground text-sm">
-				{soleCurrency ? null : proposal?.currency ? (
-					<>Proposed from your own history. </>
-				) : (
-					<>
-						Nothing in your last {ANCHOR_WINDOW_WEEKS} weeks to read a unit
-						from, so this one is yours to choose.{' '}
-					</>
-				)}
-				The unit is fixed once the track exists — changing it would rewrite the
-				unit of weeks you have already trained, so it is a new track rather than
-				an edit.
+			<p className="text-muted-foreground text-footnote">
+				{soleCurrency
+					? null
+					: proposal?.currency
+						? SESONG_TRACK_LABELS.proposed
+						: SESONG_TRACK_LABELS.noHistoryUnit(ANCHOR_WINDOW_WEEKS)}
+				{SESONG_TRACK_LABELS.unitFixed}
 			</p>
 			{/* Re-keyed on the Discipline *and* the currency so switching either brings
 			    the pre-fill that belongs to it: anchor value, Discipline and Volume
@@ -422,9 +438,9 @@ function AddTrackForm({
 			<Field
 				key={`${discipline}:${chosen || 'unset'}`}
 				labelProps={{
-					children: chosen
-						? `Starting volume (${VOLUME_CURRENCY_UNITS[chosen]})`
-						: 'Starting volume',
+					children: SESONG_TRACK_LABELS.startingVolume(
+						chosen ? NB_WEEKLY_UNITS[chosen] : null,
+					),
 				}}
 				inputProps={{
 					id: 'new-track-anchor',
@@ -437,13 +453,12 @@ function AddTrackForm({
 					defaultValue: prefill?.value ?? '',
 				}}
 			/>
-			<p className="text-muted-foreground text-sm">
-				{anchorSentence(prefill)} Your starting volume takes effect from your
-				plan’s first week, and the phases you already have are the phases this
-				track is measured over.
+			<p className="text-muted-foreground text-footnote">
+				{nbAnchorSentence(prefill)}
+				{SESONG_TRACK_LABELS.anchorTail}
 			</p>
 			<Button type="submit" size="sm">
-				Add track
+				{SESONG_TRACK_LABELS.addButton}
 			</Button>
 		</Form>
 	)

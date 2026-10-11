@@ -1,3 +1,13 @@
+/**
+ * The profile behind Meg (spec #505 story 59): the account, the athlete
+ * profile, sign-in and security, the training settings and the athlete's own
+ * data. Norwegian and on the design system since round 2 (ADR 0081/0085); the
+ * loader and actions are unchanged — only words and look moved.
+ *
+ * Grouped the way the hub groups: two forms on cards, then lists of rows. One
+ * filled button per form; the actions on the athlete's data are quiet rows,
+ * and the destructive one turns red only as its confirmation.
+ */
 import {
 	getFormProps,
 	getInputProps,
@@ -10,10 +20,9 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Img } from 'openimg/react'
 import { data, Form, Link, useFetcher } from 'react-router'
 import { z } from 'zod'
-import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { buttonVariants } from '#app/components/ui/button.tsx'
-import { Icon, type IconName } from '#app/components/ui/icon.tsx'
-import { Separator } from '#app/components/ui/separator.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	AthleteProfileUpdateSchema,
@@ -26,16 +35,32 @@ import {
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
-	formatWeeklyCapacityDerivation,
+	formatNbVolumeFigure,
 	formatWeeklyVolumeField,
 } from '#app/utils/format.ts'
-import { UNIT_LABELS, WEEKDAY_LABELS } from '#app/utils/labels.ts'
+import {
+	MEG_COMMON_LABELS,
+	MEG_PROFILE_LABELS,
+	MEG_UNIT_LABELS,
+	MEG_WEEKDAY_LABELS,
+	MEG_WEEKDAY_SHORT_LABELS,
+} from '#app/utils/labels.ts'
 import { cn, getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx'
 import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
 import { weeklyCapacityFor } from '#app/utils/plan-outline/proposal.ts'
 import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { NameSchema, UsernameSchema } from '#app/utils/user-validation.ts'
+import { megZodErrorMap } from '../__meg-text.ts'
+import {
+	MegButtonRow,
+	MegField,
+	MegFormErrors,
+	MegRow,
+	MegRows,
+	MegSection,
+	MegSelectField,
+} from '../__meg-ui.tsx'
 import { type Route } from './+types/index.ts'
 import { twoFAVerificationType } from './two-factor/_layout.tsx'
 
@@ -49,16 +74,9 @@ const ProfileFormSchema = z.object({
 })
 
 // Training Availability weekday chips, ordered from Monday per ADR 0005's
-// week-starts-on-Monday default. Values are the 0=Sun…6=Sat weekday numbers.
-const WEEKDAY_OPTIONS = [
-	{ value: 1, label: 'Mon' },
-	{ value: 2, label: 'Tue' },
-	{ value: 3, label: 'Wed' },
-	{ value: 4, label: 'Thu' },
-	{ value: 5, label: 'Fri' },
-	{ value: 6, label: 'Sat' },
-	{ value: 0, label: 'Sun' },
-] as const
+// week-starts-on-Monday default. Values are the 0=Sun…6=Sat weekday numbers,
+// which also index the Norwegian names.
+const WEEKDAY_OPTIONS = [1, 2, 3, 4, 5, 6, 0] as const
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -156,112 +174,136 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function EditUserProfile({ loaderData }: Route.ComponentProps) {
+	const { user, isTwoFactorEnabled, hasPassword } = loaderData
+	const L = MEG_PROFILE_LABELS
 	return (
-		<div className="space-y-8">
+		<div className="flex flex-col gap-8">
+			{/* The photo, with its change button on its corner — inside the photo's
+			    own box, so it can never drift beside the next field (it did). */}
 			<div className="flex justify-center">
-				<div className="relative size-52">
+				<div className="relative size-28">
 					<Img
-						src={getUserImgSrc(loaderData.user.image?.objectKey)}
-						alt={loaderData.user.name ?? loaderData.user.username}
-						className="h-full w-full rounded-full object-cover"
-						width={832}
-						height={832}
+						src={getUserImgSrc(user.image?.objectKey)}
+						alt={user.name ?? user.username}
+						className="bg-muted size-full rounded-full object-cover"
+						width={448}
+						height={448}
 						isAboveFold
 					/>
-
 					<Link
 						className={cn(
-							'absolute top-3 -right-3 flex size-10 items-center justify-center rounded-full p-0',
 							buttonVariants({ variant: 'outline', size: 'icon' }),
+							'bg-card dark:bg-card absolute -right-1 -bottom-1 size-11 rounded-full shadow-sm',
 						)}
 						preventScrollReset
 						to="photo"
-						title="Change profile photo"
-						aria-label="Change profile photo"
+						aria-label={L.changePhoto}
 					>
-						<Icon name="camera" className="size-4" />
+						<Icon name="camera" size="sm" />
 					</Link>
 				</div>
 			</div>
-			<UpdateProfile loaderData={loaderData} />
 
-			<Separator />
-			<UpdateAthleteProfile loaderData={loaderData} />
+			<MegSection id="profile-account" title={L.account}>
+				<Card size="sm">
+					<CardContent>
+						<UpdateProfile loaderData={loaderData} />
+					</CardContent>
+				</Card>
+			</MegSection>
 
-			<Separator />
-			{/* Account-action links: each row is a ~44px tap target (§2.2). */}
-			<div className="flex flex-col">
-				<AccountLink to="change-email" icon="envelope-closed">
-					Change email from {loaderData.user.email}
-				</AccountLink>
-				<AccountLink
-					to="two-factor"
-					icon={loaderData.isTwoFactorEnabled ? 'lock-closed' : 'lock-open-1'}
-				>
-					{loaderData.isTwoFactorEnabled ? '2FA is enabled' : 'Enable 2FA'}
-				</AccountLink>
-				<AccountLink
-					to={loaderData.hasPassword ? 'password' : 'password/create'}
-					icon="dots-horizontal"
-				>
-					{loaderData.hasPassword ? 'Change Password' : 'Create a Password'}
-				</AccountLink>
-				<AccountLink to="/settings/training" icon="settings">
-					Training settings &amp; thresholds
-				</AccountLink>
-				<AccountLink to="connections" icon="link-2">
-					Manage connections
-				</AccountLink>
-				<AccountLink to="/settings/integrations" icon="download">
-					Integrations &amp; activity sources
-				</AccountLink>
-				<AccountLink to="passkeys" icon="passkey">
-					Manage passkeys
-				</AccountLink>
-				<Link
-					reloadDocument
-					download="my-trainm8-data.json"
-					to="/resources/download-user-data"
-					className="flex min-h-11 items-center"
-				>
-					<Icon name="download">Download your data</Icon>
-				</Link>
-				<SignOutOfSessions loaderData={loaderData} />
-				{/*
-					With the pill nav's avatar dropdown gone (#178) the avatar links
-					straight here, so logout lives on the Settings surface itself.
-				*/}
-				<Form action="/logout" method="POST">
-					<button type="submit" className="flex min-h-11 items-center">
-						<Icon name="exit">Log out</Icon>
-					</button>
-				</Form>
-				<DeleteData />
-			</div>
+			<MegSection id="profile-athlete" title={L.athlete}>
+				<Card size="sm">
+					<CardContent>
+						<UpdateAthleteProfile loaderData={loaderData} />
+					</CardContent>
+				</Card>
+			</MegSection>
+
+			<MegSection id="profile-security" title={L.security}>
+				<MegRows>
+					<MegRow
+						to="change-email"
+						icon="envelope-closed"
+						title={L.email}
+						detail={user.email}
+					/>
+					<MegRow
+						to={hasPassword ? 'password' : 'password/create'}
+						icon="lock-closed"
+						title={L.password}
+						detail={hasPassword ? L.passwordSet : L.passwordMissing}
+					/>
+					<MegRow
+						to="two-factor"
+						icon={isTwoFactorEnabled ? 'lock-closed' : 'lock-open-1'}
+						title={L.twoFactor}
+						detail={isTwoFactorEnabled ? L.twoFactorOn : L.twoFactorOff}
+					/>
+					<MegRow
+						to="passkeys"
+						icon="passkey"
+						title={L.passkeys}
+						detail={L.passkeysDetail}
+					/>
+					<MegRow
+						to="connections"
+						icon="link-2"
+						title={L.connections}
+						detail={L.connectionsDetail}
+					/>
+				</MegRows>
+			</MegSection>
+
+			<MegSection id="profile-training" title={L.training}>
+				<MegRows>
+					<MegRow
+						to="/settings/training"
+						icon="settings"
+						title={L.trainingSettings}
+						detail={L.trainingSettingsDetail}
+					/>
+					{/* A link, not a copy: the activity sources and the upload are the
+					    integrations page's to show. */}
+					<MegRow
+						to="/settings/integrations"
+						icon="download"
+						title={L.integrations}
+						detail={L.integrationsDetail}
+					/>
+				</MegRows>
+			</MegSection>
+
+			<MegSection id="profile-data" title={L.data}>
+				<MegRows>
+					<MegRow
+						reloadDocument
+						download="my-trainm8-data.json"
+						to="/resources/download-user-data"
+						icon="download"
+						title={L.download}
+						detail={L.downloadDetail}
+						trailing={<span aria-hidden="true" />}
+					/>
+					<SignOutOfSessions loaderData={loaderData} />
+					{/* With the pill nav's avatar dropdown gone (#178), logout lives
+					    on the profile as well as on Meg. */}
+					<li>
+						<Form action="/logout" method="POST">
+							<MegButtonRow type="submit" icon="exit" title={L.logout} />
+						</Form>
+					</li>
+					<DeleteData />
+				</MegRows>
+			</MegSection>
 		</div>
-	)
-}
-
-/** An account-action row link with a ~44px tap target (§2.2). */
-function AccountLink({
-	to,
-	icon,
-	children,
-}: {
-	to: string
-	icon: IconName
-	children: React.ReactNode
-}) {
-	return (
-		<Link to={to} className="flex min-h-11 items-center">
-			<Icon name={icon}>{children}</Icon>
-		</Link>
 	)
 }
 
 async function profileUpdateAction({ userId, formData }: ProfileActionArgs) {
 	const submission = await parseWithZod(formData, {
 		async: true,
+		errorMap: megZodErrorMap,
 		schema: ProfileFormSchema.superRefine(async ({ username }, ctx) => {
 			const existingUsername = await prisma.user.findUnique({
 				where: { username },
@@ -271,7 +313,7 @@ async function profileUpdateAction({ userId, formData }: ProfileActionArgs) {
 				ctx.addIssue({
 					path: ['username'],
 					code: z.ZodIssueCode.custom,
-					message: 'A user already exists with this username',
+					message: MEG_PROFILE_LABELS.usernameTaken,
 				})
 			}
 		}),
@@ -305,6 +347,7 @@ async function athleteProfileUpdateAction({
 }: ProfileActionArgs) {
 	const submission = parseWithZod(formData, {
 		schema: AthleteProfileUpdateSchema,
+		errorMap: megZodErrorMap,
 	})
 	if (submission.status !== 'success') {
 		return data(
@@ -324,13 +367,17 @@ function UpdateAthleteProfile({
 	const fetcher = useFetcher<typeof athleteProfileUpdateAction>()
 	const { athleteProfile, capacityPrefill } = loaderData
 	const savedWeekdays = parseTrainableWeekdays(athleteProfile.trainableWeekdays)
+	const L = MEG_PROFILE_LABELS
 
 	const [form, fields] = useForm({
 		id: 'edit-athlete-profile',
 		constraint: getZodConstraint(AthleteProfileUpdateSchema),
 		lastResult: fetcher.data?.result,
 		onValidate({ formData }) {
-			return parseWithZod(formData, { schema: AthleteProfileUpdateSchema })
+			return parseWithZod(formData, {
+				schema: AthleteProfileUpdateSchema,
+				errorMap: megZodErrorMap,
+			})
 		},
 		defaultValue: {
 			timezone: athleteProfile.timezone,
@@ -356,153 +403,180 @@ function UpdateAthleteProfile({
 		},
 	})
 
+	const capacityNote =
+		athleteProfile.weeklyCapacityHours != null
+			? L.capacityAuthored
+			: capacityDerivationSentence(capacityPrefill?.derivation ?? null) +
+				(capacityPrefill ? L.capacityChange : '')
+
 	return (
 		<fetcher.Form method="POST" {...getFormProps(form)}>
-			<h2 className="mb-4 text-lg font-semibold">Athlete Profile</h2>
 			{/* gap-x only + per-field pb-4: a space-y/gap-y wrapper around conform
 			    fields silently breaks the form's second submit after a validation
 			    error under client-side nav (map #277 Notes / auth #290). */}
 			<div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
-				<Field
+				<MegField
 					className="pb-4"
-					labelProps={{ htmlFor: fields.timezone.id, children: 'Timezone' }}
-					inputProps={getInputProps(fields.timezone, { type: 'text' })}
+					label={L.timezone}
+					inputProps={{
+						...getInputProps(fields.timezone, { type: 'text' }),
+						autoComplete: 'off',
+						autoCapitalize: 'none',
+						autoCorrect: 'off',
+						spellCheck: false,
+						enterKeyHint: 'next',
+					}}
 					errors={fields.timezone.errors}
 				/>
-				<SelectField
+				<MegSelectField
 					className="pb-4"
 					meta={fields.weekStartsOn as unknown as FieldMetadata<string>}
-					labelProps={{
-						children: 'Week starts on',
-						className: 'text-sm font-medium',
-					}}
+					label={L.weekStartsOn}
 					items={[
-						{ value: '1', label: WEEKDAY_LABELS[1] },
-						{ value: '0', label: WEEKDAY_LABELS[0] },
-						{ value: '6', label: WEEKDAY_LABELS[6] },
+						{ value: '1', label: MEG_WEEKDAY_LABELS[1] },
+						{ value: '0', label: MEG_WEEKDAY_LABELS[0] },
+						{ value: '6', label: MEG_WEEKDAY_LABELS[6] },
 					]}
 					errors={fields.weekStartsOn.errors}
 				/>
-				<SelectField
+				<MegSelectField
 					className="pb-4"
 					meta={fields.preferredUnits}
-					labelProps={{ children: 'Units', className: 'text-sm font-medium' }}
+					label={L.units}
 					items={[
-						{ value: 'metric', label: UNIT_LABELS.metric },
-						{ value: 'imperial', label: UNIT_LABELS.imperial },
+						{ value: 'metric', label: MEG_UNIT_LABELS.metric },
+						{ value: 'imperial', label: MEG_UNIT_LABELS.imperial },
 					]}
 					errors={fields.preferredUnits.errors}
 				/>
-				<Field
+				<MegField
 					className="pb-4"
-					labelProps={{ htmlFor: fields.birthdate.id, children: 'Birthdate' }}
-					inputProps={getInputProps(fields.birthdate, { type: 'date' })}
+					label={L.birthdate}
+					inputProps={{
+						...getInputProps(fields.birthdate, { type: 'date' }),
+						autoComplete: 'bday',
+					}}
 					errors={fields.birthdate.errors}
 				/>
-				<Field
+				<MegField
 					className="pb-4"
-					labelProps={{ htmlFor: fields.weightKg.id, children: 'Weight (kg)' }}
-					inputProps={getInputProps(fields.weightKg, { type: 'number' })}
+					label={L.weightKg}
+					inputProps={{
+						...getInputProps(fields.weightKg, { type: 'number' }),
+						// Any precision: 72.5 kg is a weight, and the browser's default
+						// step of 1 would refuse it without a word.
+						step: 'any',
+						inputMode: 'decimal',
+						enterKeyHint: 'next',
+					}}
 					errors={fields.weightKg.errors}
 				/>
 			</div>
 
-			<fieldset className="border-border mt-2 border-t pt-6">
-				<legend className="text-body-sm sr-only">Training availability</legend>
-				<div>
-					<div className="flex flex-col gap-2 pb-4">
-						<span className="text-sm font-medium">Trainable days</span>
-						{/* Sentinel keeps the field present so unchecking every day clears it */}
-						<input
-							type="hidden"
-							name={fields.trainableWeekdays.name}
-							value=""
-						/>
-						<div className="flex flex-wrap gap-3">
-							{WEEKDAY_OPTIONS.map((day) => {
-								const id = `${fields.trainableWeekdays.id}-${day.value}`
-								return (
-									<label
-										key={day.value}
-										htmlFor={id}
-										className="border-input has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm select-none"
-									>
-										<input
-											type="checkbox"
-											id={id}
-											name={fields.trainableWeekdays.name}
-											value={day.value}
-											defaultChecked={savedWeekdays.includes(day.value)}
-											className="sr-only"
-										/>
-										{day.label}
-									</label>
-								)
-							})}
-						</div>
-						<ErrorList
-							errors={fields.trainableWeekdays.errors}
-							id={fields.trainableWeekdays.errorId}
-						/>
-					</div>
-					<Field
-						className="pb-4"
-						labelProps={{
-							htmlFor: fields.defaultTrainingTime.id,
-							children: 'Default training time',
-						}}
-						inputProps={getInputProps(fields.defaultTrainingTime, {
-							type: 'time',
-						})}
-						errors={fields.defaultTrainingTime.errors}
-					/>
-					{/* The **Weekly Capacity** (ADR 0050): hours a week, never hours a day —
-					    splitting it evenly across the trainable days would assert that a
-					    Tuesday and a Saturday hold the same amount of training, which is
-					    exactly what they do not. How the hours distribute across the week is
-					    the **Week Pattern**'s to say. */}
-					<Field
-						className="pb-1"
-						labelProps={{
-							htmlFor: fields.weeklyCapacityHours.id,
-							children: 'Hours a week you have for training',
-						}}
-						inputProps={{
-							...getInputProps(fields.weeklyCapacityHours, { type: 'number' }),
-							step: 'any',
-							min: 0,
-							inputMode: 'decimal',
-						}}
-						errors={fields.weeklyCapacityHours.errors}
-					/>
-					<p className="text-muted-foreground pb-4 text-sm">
-						{athleteProfile.weeklyCapacityHours != null
-							? 'Yours, saved. Nothing re-reads your training to change it — history says what you did, this says what you have room for.'
-							: formatWeeklyCapacityDerivation(
-									capacityPrefill?.derivation ?? null,
-								)}
-						{capacityPrefill ? ' Change it if that is not your week.' : null}
-					</p>
+			<fieldset className="flex flex-col gap-2 pb-4">
+				<legend className="text-footnote mb-1.5 font-medium">
+					{L.trainableDays}
+				</legend>
+				{/* Sentinel keeps the field present so unchecking every day clears it */}
+				<input type="hidden" name={fields.trainableWeekdays.name} value="" />
+				<div className="flex flex-wrap gap-2">
+					{WEEKDAY_OPTIONS.map((value) => {
+						const id = `${fields.trainableWeekdays.id}-${value}`
+						return (
+							// A chip per day: a real checkbox under a 44px pill, so the
+							// form posts without JavaScript, and the focus ring follows
+							// the hidden box.
+							<label
+								key={value}
+								htmlFor={id}
+								className="border-border bg-background text-callout has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground has-[:focus-visible]:ring-ring/50 pressable flex h-11 min-w-12 cursor-pointer items-center justify-center rounded-full border px-3 select-none has-[:focus-visible]:ring-3 dark:bg-transparent"
+							>
+								<input
+									type="checkbox"
+									id={id}
+									name={fields.trainableWeekdays.name}
+									value={value}
+									defaultChecked={savedWeekdays.includes(value)}
+									className="sr-only"
+								/>
+								{MEG_WEEKDAY_SHORT_LABELS[value]}
+							</label>
+						)
+					})}
 				</div>
+				<MegFormErrors
+					id={fields.trainableWeekdays.errorId}
+					errors={fields.trainableWeekdays.errors}
+				/>
 			</fieldset>
 
-			<ErrorList errors={form.errors} id={form.errorId} />
+			<div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+				<MegField
+					className="pb-4"
+					label={L.defaultTrainingTime}
+					inputProps={getInputProps(fields.defaultTrainingTime, {
+						type: 'time',
+					})}
+					errors={fields.defaultTrainingTime.errors}
+				/>
+				{/* The **Weekly Capacity** (ADR 0050): hours a week, never hours a day —
+				    splitting it evenly across the trainable days would assert that a
+				    Tuesday and a Saturday hold the same amount of training, which is
+				    exactly what they do not. How the hours distribute across the week is
+				    the **Week Pattern**'s to say. */}
+				<MegField
+					className="pb-4 sm:col-span-2"
+					label={L.weeklyCapacity}
+					inputProps={{
+						...getInputProps(fields.weeklyCapacityHours, { type: 'number' }),
+						step: 'any',
+						min: 0,
+						inputMode: 'decimal',
+						enterKeyHint: 'done',
+					}}
+					errors={fields.weeklyCapacityHours.errors}
+					hint={capacityNote}
+				/>
+			</div>
+
+			<MegFormErrors id={form.errorId} errors={form.errors} />
 
 			<div className="pt-2">
 				<StatusButton
 					className="w-full sm:w-auto"
 					type="submit"
-					size="default"
 					name="intent"
 					value={athleteProfileUpdateActionIntent}
 					status={
 						fetcher.state !== 'idle' ? 'pending' : (form.status ?? 'idle')
 					}
 				>
-					Save athlete profile
+					{L.saveAthlete}
 				</StatusButton>
 			</div>
 		</fetcher.Form>
+	)
+}
+
+/**
+ * Where a pre-filled Weekly Capacity came from, in Norwegian — or that it came
+ * from nowhere, in which case the sentence asks (ADR 0050 §2). The Norwegian
+ * twin of `formatWeeklyCapacityDerivation`, with decimal commas.
+ */
+function capacityDerivationSentence(
+	derivation: {
+		windowWeeks: number
+		weeksTrained: number
+		total: number
+	} | null,
+): string {
+	if (!derivation) return MEG_PROFILE_LABELS.capacityNoHistory
+	const { windowWeeks, weeksTrained, total } = derivation
+	return MEG_PROFILE_LABELS.capacityDerived(
+		windowWeeks,
+		weeksTrained,
+		formatNbVolumeFigure(total / windowWeeks, 'hours'),
+		formatNbVolumeFigure(total, 'hours'),
 	)
 }
 
@@ -512,13 +586,17 @@ function UpdateProfile({
 	loaderData: Route.ComponentProps['loaderData']
 }) {
 	const fetcher = useFetcher<typeof profileUpdateAction>()
+	const L = MEG_PROFILE_LABELS
 
 	const [form, fields] = useForm({
 		id: 'edit-profile',
 		constraint: getZodConstraint(ProfileFormSchema),
 		lastResult: fetcher.data?.result,
 		onValidate({ formData }) {
-			return parseWithZod(formData, { schema: ProfileFormSchema })
+			return parseWithZod(formData, {
+				schema: ProfileFormSchema,
+				errorMap: megZodErrorMap,
+			})
 		},
 		defaultValue: {
 			username: loaderData.user.username,
@@ -531,37 +609,44 @@ function UpdateProfile({
 			{/* Single column on phones (§1.5); gap-x only + per-field pb-4 keeps the
 			    conform second-submit fix (see athlete form above). */}
 			<div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
-				<Field
+				<MegField
 					className="pb-4"
-					labelProps={{
-						htmlFor: fields.username.id,
-						children: 'Username',
+					label={L.username}
+					inputProps={{
+						...getInputProps(fields.username, { type: 'text' }),
+						autoComplete: 'username',
+						autoCapitalize: 'none',
+						autoCorrect: 'off',
+						spellCheck: false,
+						enterKeyHint: 'next',
 					}}
-					inputProps={getInputProps(fields.username, { type: 'text' })}
 					errors={fields.username.errors}
 				/>
-				<Field
+				<MegField
 					className="pb-4"
-					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
-					inputProps={getInputProps(fields.name, { type: 'text' })}
+					label={L.name}
+					inputProps={{
+						...getInputProps(fields.name, { type: 'text' }),
+						autoComplete: 'name',
+						enterKeyHint: 'done',
+					}}
 					errors={fields.name.errors}
 				/>
 			</div>
 
-			<ErrorList errors={form.errors} id={form.errorId} />
+			<MegFormErrors id={form.errorId} errors={form.errors} />
 
 			<div className="pt-2">
 				<StatusButton
 					className="w-full sm:w-auto"
 					type="submit"
-					size="default"
 					name="intent"
 					value={profileUpdateActionIntent}
 					status={
 						fetcher.state !== 'idle' ? 'pending' : (form.status ?? 'idle')
 					}
 				>
-					Save changes
+					{L.saveAccount}
 				</StatusButton>
 			</div>
 		</fetcher.Form>
@@ -592,37 +677,45 @@ function SignOutOfSessions({
 	loaderData: Route.ComponentProps['loaderData']
 }) {
 	const dc = useDoubleCheck()
+	const L = MEG_PROFILE_LABELS
 
 	const fetcher = useFetcher<typeof signOutOfSessionsAction>()
 	const otherSessionsCount = loaderData.user._count.sessions - 1
+	if (fetcher.data?.status === 'success') {
+		return (
+			<li className="text-footnote text-muted-foreground flex min-h-11 items-center gap-3 py-3">
+				<Icon name="check" size="md" aria-hidden="true" />
+				<span role="status">{L.signedOut}</span>
+			</li>
+		)
+	}
 	return (
-		<div>
-			{otherSessionsCount ? (
+		<li>
+			{otherSessionsCount > 0 ? (
 				<fetcher.Form method="POST">
-					<StatusButton
+					<MegButtonRow
 						{...dc.getButtonProps({
 							type: 'submit',
 							name: 'intent',
 							value: signOutOfSessionsActionIntent,
 						})}
-						variant={dc.doubleCheck ? 'destructive' : 'default'}
-						status={
-							fetcher.state !== 'idle'
-								? 'pending'
-								: (fetcher.data?.status ?? 'idle')
+						disabled={fetcher.state !== 'idle'}
+						icon="avatar"
+						tone={dc.doubleCheck ? 'destructive' : undefined}
+						title={
+							dc.doubleCheck
+								? MEG_COMMON_LABELS.areYouSure
+								: L.otherSessions(otherSessionsCount)
 						}
-					>
-						<Icon name="avatar">
-							{dc.doubleCheck
-								? `Are you sure?`
-								: `Sign out of ${otherSessionsCount} other sessions`}
-						</Icon>
-					</StatusButton>
+					/>
 				</fetcher.Form>
 			) : (
-				<Icon name="avatar">This is your only session</Icon>
+				<p className="text-footnote text-muted-foreground flex min-h-11 items-center gap-3 py-3">
+					<Icon name="avatar" size="md" aria-hidden="true" />
+					{L.onlySession}
+				</p>
 			)}
-		</div>
+		</li>
 	)
 }
 
@@ -630,32 +723,32 @@ async function deleteDataAction({ userId }: ProfileActionArgs) {
 	await prisma.user.delete({ where: { id: userId } })
 	return redirectWithToast('/', {
 		type: 'success',
-		title: 'Data Deleted',
-		description: 'All of your data has been deleted',
+		title: MEG_PROFILE_LABELS.deletedTitle,
+		description: MEG_PROFILE_LABELS.deletedBody,
 	})
 }
 
 function DeleteData() {
 	const dc = useDoubleCheck()
+	const L = MEG_PROFILE_LABELS
 
 	const fetcher = useFetcher<typeof deleteDataAction>()
 	return (
-		<div>
+		<li>
 			<fetcher.Form method="POST">
-				<StatusButton
+				<MegButtonRow
 					{...dc.getButtonProps({
 						type: 'submit',
 						name: 'intent',
 						value: deleteDataActionIntent,
 					})}
-					variant={dc.doubleCheck ? 'destructive' : 'default'}
-					status={fetcher.state !== 'idle' ? 'pending' : 'idle'}
-				>
-					<Icon name="trash">
-						{dc.doubleCheck ? `Are you sure?` : `Delete all your data`}
-					</Icon>
-				</StatusButton>
+					disabled={fetcher.state !== 'idle'}
+					icon="trash"
+					tone="destructive"
+					title={dc.doubleCheck ? MEG_COMMON_LABELS.areYouSure : L.deleteData}
+					detail={L.deleteDataDetail}
+				/>
 			</fetcher.Form>
-		</div>
+		</li>
 	)
 }

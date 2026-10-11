@@ -161,7 +161,7 @@ describe('notationSentence — persisted structure', () => {
 		])
 
 		expect(sentenceFor(workout)).toBe(
-			'2 km warm-up → 4 × 6 min @ 4:40 /km (1 min rest) → cool-down',
+			'2 km warm-up → 4 × 6 min @ 4:40 /km (1 min pause) → cool-down',
 		)
 	})
 
@@ -179,7 +179,7 @@ describe('notationSentence — persisted structure', () => {
 			},
 		])
 
-		expect(sentenceFor(workout)).toBe('45 min Easy')
+		expect(sentenceFor(workout)).toBe('45 min Rolig')
 	})
 
 	test('a repeated block with two inline steps gets group parens', () => {
@@ -202,7 +202,7 @@ describe('notationSentence — persisted structure', () => {
 			},
 		])
 
-		expect(sentenceFor(workout)).toBe('3 × (3 min Threshold → 1 min Easy)')
+		expect(sentenceFor(workout)).toBe('3 × (3 min Terskel → 1 min Rolig)')
 	})
 
 	test('a repeated block whose only extra step is an inline rest needs no group parens', () => {
@@ -217,7 +217,7 @@ describe('notationSentence — persisted structure', () => {
 			},
 		])
 
-		expect(sentenceFor(workout)).toBe('4 × 6 min (1 min rest)')
+		expect(sentenceFor(workout)).toBe('4 × 6 min (1 min pause)')
 	})
 
 	test('an unquantified rest step still reads as rest', () => {
@@ -231,7 +231,7 @@ describe('notationSentence — persisted structure', () => {
 			},
 		])
 
-		expect(sentenceFor(workout)).toBe('10 min (rest)')
+		expect(sentenceFor(workout)).toBe('10 min (pause)')
 	})
 
 	test('step notes render as a marker attached to the step, carrying the note text', () => {
@@ -373,7 +373,7 @@ describe('intensity facets', () => {
 		])
 
 		// No thresholds at all: the token is just the capitalized label.
-		expect(sentenceFor(workout)).toBe('20 min Threshold')
+		expect(sentenceFor(workout)).toBe('20 min Terskel')
 		const notation = deriveWorkoutNotation(workoutToNotationInput(workout))
 		expect(intensityTokenAt(notation, 0, 0).facets).toEqual({
 			zone: 4, // the normalized chip is still truthful (label-derived)
@@ -481,7 +481,7 @@ describe('intensity facets', () => {
 			},
 		])
 
-		expect(sentenceFor(workout)).toBe('30 min Endurance')
+		expect(sentenceFor(workout)).toBe('30 min Rolig')
 		const notation = deriveWorkoutNotation(workoutToNotationInput(workout))
 		expect(intensityTokenAt(notation, 0, 0).facets.zone).toBe(2)
 	})
@@ -549,7 +549,7 @@ describe('strength steps', () => {
 			[0, 1, 2, 3, 4].map((i) => repsSet(i, 5, 80)),
 			{ restBetweenSetsSec: 120 },
 		)
-		expect(sentenceFor(workout)).toBe('Squat 5 × 5 @ 80 kg · 2 min rest')
+		expect(sentenceFor(workout)).toBe('Squat 5 × 5 @ 80 kg · 2 min pause')
 	})
 
 	test('mixed sets list each set', () => {
@@ -588,7 +588,7 @@ describe('strength steps', () => {
 		// was written for, and the one this defect erased.
 		expect(one({ kind: 'repMax', reps: 10 })).toBe('1 × 5 @ 10RM')
 		expect(one({ kind: 'pctBodyweight', pct: 40 })).toBe(
-			'1 × 5 @ 40% bodyweight',
+			'1 × 5 @ 40% kroppsvekt',
 		)
 		expect(one({ kind: 'velocity', minMs: 0.8 })).toBe('1 × 5 @ 0.8 m/s')
 		expect(one({ kind: 'velocity', minMs: 0.5, maxMs: 0.75 })).toBe(
@@ -600,15 +600,15 @@ describe('strength steps', () => {
 		const one = (load: NotationSet['load']) =>
 			formatSetsSummary([{ kind: 'reps', reps: 5, load }])
 
-		expect(one({ kind: 'bodyweight' })).toBe('1 × 5 @ bodyweight')
-		expect(one({ kind: 'bodyweight', addedKg: 0 })).toBe('1 × 5 @ bodyweight')
+		expect(one({ kind: 'bodyweight' })).toBe('1 × 5 @ kroppsvekt')
+		expect(one({ kind: 'bodyweight', addedKg: 0 })).toBe('1 × 5 @ kroppsvekt')
 		expect(one({ kind: 'bodyweight', addedKg: 20 })).toBe(
-			'1 × 5 @ bodyweight + 20 kg',
+			'1 × 5 @ kroppsvekt + 20 kg',
 		)
 		// An assisted machine carries a negative added load. Rendering it as
 		// `+ −20 kg`, or dropping the sign, would both misstate the prescription.
 		expect(one({ kind: 'bodyweight', addedKg: -20 })).toBe(
-			'1 × 5 @ bodyweight − 20 kg',
+			'1 × 5 @ kroppsvekt − 20 kg',
 		)
 	})
 
@@ -670,7 +670,7 @@ describe('strength steps', () => {
 			[{ kind: 'reps', reps: 5, load: { kind: 'pct1RM', minPct: 85 } }],
 			ctx([]),
 		)
-		expect(summary).toBe('1 × 5 @ 85% 1RM · no 1RM on file')
+		expect(summary).toBe('1 × 5 @ 85% 1RM · ingen 1RM registrert')
 		expect(summary).not.toMatch(/kg/)
 	})
 
@@ -692,7 +692,7 @@ describe('strength steps', () => {
 			[{ kind: 'reps', reps: 4, pct1RM: 85 }],
 			ctx([]),
 		)
-		expect(absent).toBe('1 × 4 @ 85% 1RM · no 1RM on file')
+		expect(absent).toBe('1 × 4 @ 85% 1RM · ingen 1RM registrert')
 		expect(absent).not.toMatch(/kg/)
 		// The no-context render — the Catalogue's, for nobody in particular — is
 		// unchanged: the authored form, alone.
@@ -740,7 +740,7 @@ describe('strength steps', () => {
 			[{ kind: 'reps', reps: 8, load: { kind: 'repMax', reps: 8 } }],
 			ctx([anchor({ construct: 'repMax', valueKg: 100, reps: 5 })]),
 		)
-		expect(summary).toBe('1 × 8 @ 8RM · no 8RM on file')
+		expect(summary).toBe('1 × 8 @ 8RM · ingen 8RM registrert')
 	})
 
 	test('a rep max at exactly those reps resolves, because it is a lookup and not a conversion', () => {
@@ -758,13 +758,13 @@ describe('strength steps', () => {
 				[{ kind: 'reps', reps: 5, load: { kind: 'bodyweight', addedKg: 20 } }],
 				ctx([], 80),
 			),
-		).toBe('1 × 5 @ bodyweight + 20 kg · 100 kg')
+		).toBe('1 × 5 @ kroppsvekt + 20 kg · 100 kg')
 		expect(
 			formatSetsSummary(
 				[{ kind: 'reps', reps: 5, load: { kind: 'pctBodyweight', pct: 40 } }],
 				ctx([], null),
 			),
-		).toBe('1 × 5 @ 40% bodyweight · no bodyweight on file')
+		).toBe('1 × 5 @ 40% kroppsvekt · ingen kroppsvekt registrert')
 	})
 
 	test('an absolute load and a bar velocity gain nothing from an athlete’s anchors', () => {
@@ -836,7 +836,7 @@ describe('strength steps', () => {
 				],
 			},
 		])
-		expect(sentenceFor(workout)).toBe('exercise 1 × 5 @ 80 kg')
+		expect(sentenceFor(workout)).toBe('øvelse 1 × 5 @ 80 kg')
 	})
 })
 
@@ -912,7 +912,7 @@ describe('deriveWorkoutNotation — this athlete’s anchors', () => {
 		const sentence = sentenceWith(liftWorkout('squat', 'Squat'), {
 			squat: ctx([]),
 		})
-		expect(sentence).toBe('Squat 1 × 5 @ 85% 1RM · no 1RM on file')
+		expect(sentence).toBe('Squat 1 × 5 @ 85% 1RM · ingen 1RM registrert')
 		expect(sentence).not.toMatch(/\d+ kg/)
 	})
 
@@ -953,7 +953,7 @@ describe('deriveWorkoutNotation — this athlete’s anchors', () => {
 			sentenceWith(workout, {
 				bench: ctx([anchor({ construct: 'repMax', valueKg: 100, reps: 5 })]),
 			}),
-		).toBe('Bench press 1 × 8 @ 8RM · no 8RM on file')
+		).toBe('Bench press 1 × 8 @ 8RM · ingen 8RM registrert')
 	})
 
 	test('the day the prescription is read for decides which anchor resolves it', () => {
@@ -1105,7 +1105,7 @@ describe('draftToNotationInput — draft form values', () => {
 		])
 
 		expect(notationSentence(deriveWorkoutNotation(input))).toBe(
-			'2 km warm-up → 4 × 6 min @ 4:40 /km (1 min rest) → cool-down',
+			'2 km warm-up → 4 × 6 min @ 4:40 /km (1 min pause) → cool-down',
 		)
 	})
 
@@ -1123,7 +1123,7 @@ describe('draftToNotationInput — draft form values', () => {
 			},
 		])
 
-		expect(notationSentence(deriveWorkoutNotation(input))).toBe('4 × Easy')
+		expect(notationSentence(deriveWorkoutNotation(input))).toBe('4 × Rolig')
 	})
 
 	test('a legacy plain-string zone label in a draft field still renders', () => {
@@ -1133,9 +1133,7 @@ describe('draftToNotationInput — draft form values', () => {
 				steps: [{ kind: 'cardio', duration: '30 min', intensity: 'endurance' }],
 			},
 		])
-		expect(notationSentence(deriveWorkoutNotation(input))).toBe(
-			'30 min Endurance',
-		)
+		expect(notationSentence(deriveWorkoutNotation(input))).toBe('30 min Rolig')
 	})
 
 	test('strength drafts resolve exercise names through the lookup and skip incomplete set rows', () => {
@@ -1160,13 +1158,13 @@ describe('draftToNotationInput — draft form values', () => {
 			exerciseNames: { ex1: 'Squat' },
 		})
 		expect(notationSentence(deriveWorkoutNotation(input))).toBe(
-			'Squat 2 × 5 @ 80 kg · 2 min rest',
+			'Squat 2 × 5 @ 80 kg · 2 min pause',
 		)
 
 		// An id with no lookup entry falls back to the honest placeholder.
 		const unnamed = draftToNotationInput(blocks)
 		expect(notationSentence(deriveWorkoutNotation(unnamed))).toBe(
-			'exercise 2 × 5 @ 80 kg · 2 min rest',
+			'øvelse 2 × 5 @ 80 kg · 2 min pause',
 		)
 	})
 
@@ -1186,7 +1184,7 @@ describe('draftToNotationInput — draft form values', () => {
 			input,
 		).blocks[0]!.steps[0]!.tokens.filter((t) => t.token.type === 'sets')
 		expect(setsTokens).toHaveLength(1)
-		expect(setsTokens[0]!.token.text).toBe('sets')
+		expect(setsTokens[0]!.token.text).toBe('sett')
 		expect(setsTokens[0]!.token.address).toEqual({
 			blockIndex: 0,
 			stepIndex: 0,
@@ -1257,7 +1255,7 @@ describe('token model invariants', () => {
 			'95–105% FTP · Z4 (238–263 W)',
 		)
 		expect(stepSentence(notation.blocks[0]!.steps[1]!)).toBe(
-			'(1 min 30 s rest)',
+			'(1 min 30 s pause)',
 		)
 	})
 
@@ -1380,10 +1378,10 @@ describe('discipline override token', () => {
 		const tokens = notation.blocks[0]!.steps[0]!.tokens
 		expect(tokens[0]!.token).toMatchObject({
 			type: 'discipline',
-			text: 'bike',
+			text: 'sykling',
 			address: { blockIndex: 0, stepIndex: 0, field: 'discipline' },
 		})
-		expect(notationSentence(notation)).toBe('bike 30 min')
+		expect(notationSentence(notation)).toBe('sykling 30 min')
 	})
 
 	test('a draft discipline equal to the workout discipline reads as inherited — no token', () => {
@@ -1413,7 +1411,7 @@ describe('discipline override token', () => {
 				{ workoutDiscipline: 'run' },
 			),
 		)
-		expect(notationSentence(notation)).toBe('(1 min rest)')
+		expect(notationSentence(notation)).toBe('(1 min pause)')
 	})
 
 	test('a persisted step overriding the workout discipline renders the word token', () => {
@@ -1437,7 +1435,7 @@ describe('discipline override token', () => {
 				},
 			]),
 		}
-		expect(sentenceFor(workout)).toBe('bike 30 min → 10 min')
+		expect(sentenceFor(workout)).toBe('sykling 30 min → 10 min')
 	})
 })
 
@@ -1460,7 +1458,9 @@ test('a vertical quantity is drawn — the step is not unbounded', () => {
 			},
 		],
 	})
-	expect(notationSentence(notation)).toBe('5 × 200 vm @ RPE 7 · Z4 (jog back)')
+	expect(notationSentence(notation)).toBe(
+		'5 × 200 hm @ RPE 7 · Z4 (jogg tilbake)',
+	)
 })
 
 test('every Rest Spec form says what ends it, and never a number it lacks', () => {
@@ -1478,11 +1478,11 @@ test('every Rest Spec form says what ends it, and never a number it lacks', () =
 		return notationSentence(notation)
 	})
 	expect(texts).toEqual([
-		'(1 min 30 s rest)',
-		'(200 m recovery)',
-		'(until HR < 120 bpm)',
-		'(until HR < 65% max)',
-		'(walk down)',
+		'(1 min 30 s pause)',
+		'(200 m rolig)',
+		'(til puls < 120 bpm)',
+		'(til puls < 65 % av maks)',
+		'(gå ned)',
 	])
 })
 
@@ -1503,7 +1503,7 @@ test('an anchored send-off is drawn, because it is all the block says about rest
 			},
 		],
 	})
-	expect(notationSentence(notation)).toBe('10 × 100 m Z4 (on CSS + 10 s)')
+	expect(notationSentence(notation)).toBe('10 × 100 m Z4 (på CSS + 10 s)')
 })
 
 test('a send-off that asks the swimmer to beat their own CSS reads as a minus', () => {
@@ -1516,5 +1516,5 @@ test('a send-off that asks the swimmer to beat their own CSS reads as a minus', 
 			},
 		],
 	})
-	expect(notationSentence(notation)).toBe('4 × 50 m (on CSS − 2 s)')
+	expect(notationSentence(notation)).toBe('4 × 50 m (på CSS − 2 s)')
 })

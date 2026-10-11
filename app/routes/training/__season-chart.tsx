@@ -67,25 +67,32 @@ import {
 	type ChartGeom,
 	type ChartInspect,
 } from '#app/components/chart/chart.tsx'
-import { Button } from '#app/components/ui/button.tsx'
-import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import {
-	formatDate,
-	formatDerivationValue,
-	formatEmphasisLabel,
+	SegmentedControl,
+	ToggleGroup,
+	ToggleGroupItem,
+} from '#app/components/ui/toggle-group.tsx'
+import { isoWeekNumber, weekMonday } from '#app/utils/athlete-calendar.ts'
+import {
 	formatLoad,
-	formatSignedPercent,
-	formatWeeklyVolume,
+	formatNbDayMonth,
+	formatNbDerivationValue,
+	formatNbEmphasisLabel,
+	formatNbSignedPercent,
+	formatNbWeeklyVolume,
 } from '#app/utils/format.ts'
 import {
-	CONVERSION_CONVENTION_LABELS,
-	DISCIPLINE_LABELS,
-	NO_CONTRIBUTION_LABELS,
-	THRESHOLD_FIELD_LABELS,
-	VOLUME_CURRENCY_LABELS,
-	VOLUME_CURRENCY_UNITS,
-	WEEK_ROLE_LABELS,
-	QUALITY_ZONE_LABELS,
+	NB_CONVERSION_CONVENTION_LABELS,
+	NB_NO_CONTRIBUTION_LABELS,
+	NB_QUALITY_ZONE_LABELS,
+	NB_THRESHOLD_FIELD_LABELS,
+	NB_VOLUME_CURRENCY_LABELS,
+	NB_WEEK_ROLE_CELL_LABELS,
+	NB_WEEKLY_UNITS,
+	nbConventionCitation,
+	nbPhaseName,
+	nbTrackName,
+	SESONG_CHART_LABELS,
 } from '#app/utils/labels.ts'
 import {
 	type Rhythm,
@@ -164,18 +171,16 @@ export type SeasonChartSeason = {
 	}>
 }
 
+/** The layers' own names, in the page's Norwegian (`labels.ts`). */
+const LAYER_LABELS: Record<SeasonChartLayer, string> = SESONG_CHART_LABELS.layer
+
 /**
- * The layers' own names. Not a domain enum — they label a *view*, exactly as the
- * Blocks/Weeks tab labels do, so they live beside the view rather than in
- * `labels.ts` (`plan.tsx`'s `TAB_LABELS` sets the precedent).
+ * A plan week's number on the chart: the ISO week (`41`), the number the season
+ * table, the Sesong edits and I dag all print — never the plan's own count from
+ * 1, which named one week two ways on one page (audit B6).
  */
-const LAYER_LABELS: Record<SeasonChartLayer, string> = {
-	volume: 'Volume',
-	fitness: 'Fitness',
-	rhythm: 'Rhythm',
-	ramp: 'Ramp',
-	emphasis: 'Emphasis',
-	form: 'Form',
+function weekNumber(week: { weekKey: string }): number {
+	return isoWeekNumber(week.weekKey)
 }
 
 // ── geometry ──────────────────────────────────────────────────────────────────
@@ -216,12 +221,18 @@ export function SeasonChart({
 	season,
 	contexts,
 	fitnessAnchor,
+	fitness: precomputed = null,
+	bare = false,
 }: {
 	season: SeasonChartSeason
+	/** The fitness layer, already replayed (the loader's); null computes it here. */
+	fitness?: FitnessLayer | null
 	/** The per-Discipline half of the **Volume Conversion**'s input (ADR 0045 §4). */
 	contexts: PlannedLoadContexts
 	/** The measured fitness the plan is replayed forward from; `null` declines. */
 	fitnessAnchor: FitnessAnchor | null
+	/** Inside a section that already names it: no card of its own. */
+	bare?: boolean
 }) {
 	const [layers, setLayers] = useState<readonly SeasonChartLayer[]>(
 		DEFAULT_SEASON_CHART_LAYERS,
@@ -251,31 +262,16 @@ export function SeasonChart({
 	)
 
 	const showFitness = layers.includes('fitness')
+	// Replayed on the server when the loader hands it over (`fitness`), so the
+	// tap that turns the layer on draws a finished curve instead of running the
+	// Volume Conversion and the CTL replay on the phone's main thread (audit §7:
+	// 862 ms at 4× CPU). Computed here only for a caller that passes none.
 	const fitness = useMemo(
 		() =>
 			showFitness
-				? seasonFitnessLayer({
-						phases: season.phases,
-						tracks: season.tracks.map((t) => ({
-							discipline: t.discipline,
-							currency: t.currency,
-							segments: t.segments,
-							targets: season.weeks.map(
-								(week) =>
-									week.targets.find(
-										(target) => target.trackId === t.trackId,
-									) ?? {
-										value: null,
-										overridden: false,
-										derivedValue: null,
-									},
-							),
-						})),
-						contexts,
-						anchor: fitnessAnchor,
-					})
+				? (precomputed ?? seasonFitnessOf(season, contexts, fitnessAnchor))
 				: null,
-		[showFitness, season, contexts, fitnessAnchor],
+		[showFitness, precomputed, season, contexts, fitnessAnchor],
 	)
 
 	// One controller for the whole stack, so the two charts and the two panels are
@@ -285,31 +281,19 @@ export function SeasonChart({
 
 	if (!model || !track || model.weeks.length === 0) return null
 
-	function toggleLayer(layer: SeasonChartLayer) {
-		setLayers((current) =>
-			current.includes(layer)
-				? current.filter((name) => name !== layer)
-				: [...current, layer],
-		)
-	}
-
 	return (
 		// The chart is the surface's **primary object** (#366), so it is drawn as one
 		// self-contained card rather than as a heading with loose controls under it —
 		// §1.6's third case, an interactive widget. The aside says what the picture is
 		// of, which the layered chart needs said out loud: the axis shows one track in
 		// one currency and nothing here is ever a total across them (ADR 0043 §5).
-		<PlanCard
-			titleId="season-chart-heading"
-			title="Your season"
-			aside={
-				<>
-					{model.weeks.length === 1 ? '1 week' : `${model.weeks.length} weeks`}{' '}
-					· {DISCIPLINE_LABELS[track.discipline]} in{' '}
-					{VOLUME_CURRENCY_UNITS[currency]}
-				</>
-			}
-			contentClassName="space-y-3"
+		<Frame
+			bare={bare}
+			aside={SESONG_CHART_LABELS.aside(
+				model.weeks.length,
+				nbTrackName(track.discipline),
+				NB_WEEKLY_UNITS[currency],
+			)}
 		>
 			<Controls
 				season={season}
@@ -327,7 +311,7 @@ export function SeasonChart({
 					inspect.clear()
 				}}
 				onCurrency={setCurrency}
-				onLayer={toggleLayer}
+				onLayers={setLayers}
 			/>
 
 			<VolumePanel
@@ -347,6 +331,74 @@ export function SeasonChart({
 			) : null}
 
 			{layers.includes('form') ? <FormRefusal /> : null}
+		</Frame>
+	)
+}
+
+/**
+ * The projected-fitness layer for a season: the plan's weekly load through the
+ * **Volume Conversion**, replayed through the CTL EWMA from the measured anchor
+ * (`seasonFitnessLayer`). Pure, so the loader can run it once on the server and
+ * hand the curve over — the same function the chart would otherwise run on tap.
+ */
+export function seasonFitnessOf(
+	season: Pick<SeasonChartSeason, 'phases' | 'tracks' | 'weeks'>,
+	contexts: PlannedLoadContexts,
+	anchor: FitnessAnchor | null,
+): FitnessLayer {
+	return seasonFitnessLayer({
+		phases: season.phases,
+		tracks: season.tracks.map((track) => ({
+			discipline: track.discipline,
+			currency: track.currency,
+			segments: track.segments,
+			targets: season.weeks.map(
+				(week) =>
+					week.targets.find((target) => target.trackId === track.trackId) ?? {
+						value: null,
+						overridden: false,
+						derivedValue: null,
+					},
+			),
+		})),
+		contexts,
+		anchor,
+	})
+}
+
+/**
+ * The chart's frame: its own card where it stands alone, or — inside a section
+ * that already names it (Sesong's _Avansert_) — only the line that says what the
+ * picture is of, since a card titled again inside a titled section would name
+ * one thing twice.
+ */
+function Frame({
+	bare,
+	aside,
+	children,
+}: {
+	bare: boolean
+	aside: ReactNode
+	children: ReactNode
+}) {
+	if (bare) {
+		return (
+			<div className="space-y-3" data-season-chart>
+				<p className="text-footnote text-muted-foreground tabular-nums">
+					{aside}
+				</p>
+				{children}
+			</div>
+		)
+	}
+	return (
+		<PlanCard
+			titleId="season-chart-heading"
+			title={SESONG_CHART_LABELS.title}
+			aside={aside}
+			contentClassName="space-y-3"
+		>
+			{children}
 		</PlanCard>
 	)
 }
@@ -383,7 +435,7 @@ function Controls({
 	layers,
 	onTrack,
 	onCurrency,
-	onLayer,
+	onLayers,
 }: {
 	season: SeasonChartSeason
 	trackId: string
@@ -392,101 +444,106 @@ function Controls({
 	layers: readonly SeasonChartLayer[]
 	onTrack: (id: string) => void
 	onCurrency: (currency: VolumeCurrency) => void
-	onLayer: (layer: SeasonChartLayer) => void
+	onLayers: (layers: SeasonChartLayer[]) => void
 }) {
 	const currencies = readableCurrencies(authoredCurrency)
 	return (
 		<div className="space-y-2">
+			{/* One of a few readings of the same chart: the `SegmentedControl`, which
+			    keeps exactly one pressed (ADR 0085). */}
 			{season.tracks.length > 1 ? (
-				<Toggles label="Track">
-					{season.tracks.map((track) => (
-						<Toggle
-							key={track.trackId}
-							pressed={track.trackId === trackId}
-							onClick={() => onTrack(track.trackId)}
-						>
-							{DISCIPLINE_LABELS[track.discipline]}
-						</Toggle>
-					))}
-				</Toggles>
+				<ControlRow label={SESONG_CHART_LABELS.track}>
+					<SegmentedControl
+						value={trackId}
+						onValueChange={onTrack}
+						aria-label={SESONG_CHART_LABELS.track}
+						className="flex-wrap"
+					>
+						{season.tracks.map((track) => (
+							<ToggleGroupItem key={track.trackId} value={track.trackId}>
+								{nbTrackName(track.discipline)}
+							</ToggleGroupItem>
+						))}
+					</SegmentedControl>
+				</ControlRow>
 			) : null}
 
 			{currencies.length > 1 ? (
-				<Toggles label="Read in">
-					{currencies.map((option) => (
-						<Toggle
-							key={option}
-							pressed={option === currency}
-							onClick={() => onCurrency(option)}
-							label={
-								option === authoredCurrency
-									? `Read in ${VOLUME_CURRENCY_LABELS[option]}, as authored`
-									: `Read in ${VOLUME_CURRENCY_LABELS[option]}, derived`
-							}
-						>
-							{VOLUME_CURRENCY_UNITS[option]}
-							{option === authoredCurrency ? null : (
-								<span className="text-xs opacity-70"> derived</span>
-							)}
-						</Toggle>
-					))}
-				</Toggles>
+				<ControlRow label={SESONG_CHART_LABELS.readIn}>
+					<SegmentedControl
+						value={currency}
+						onValueChange={onCurrency}
+						aria-label={SESONG_CHART_LABELS.readIn}
+						className="flex-wrap"
+					>
+						{currencies.map((option) => (
+							<ToggleGroupItem
+								key={option}
+								value={option}
+								// The visible chip is a unit; the name says what reading it is.
+								aria-label={
+									option === authoredCurrency
+										? SESONG_CHART_LABELS.readInAuthored(
+												NB_VOLUME_CURRENCY_LABELS[option],
+											)
+										: SESONG_CHART_LABELS.readInDerived(
+												NB_VOLUME_CURRENCY_LABELS[option],
+											)
+								}
+							>
+								{NB_WEEKLY_UNITS[option]}
+								{option === authoredCurrency ? null : (
+									<span className="text-muted-foreground font-normal">
+										{SESONG_CHART_LABELS.derived}
+									</span>
+								)}
+							</ToggleGroupItem>
+						))}
+					</SegmentedControl>
+				</ControlRow>
 			) : null}
 
-			<Toggles label="Layers">
-				{SEASON_CHART_LAYERS.map((layer) => (
-					<Toggle
-						key={layer}
-						pressed={layers.includes(layer)}
-						onClick={() => onLayer(layer)}
-					>
-						{LAYER_LABELS[layer]}
-					</Toggle>
-				))}
-			</Toggles>
+			{/* Layers are a filter — any of them, or none — so an outlined
+			    `ToggleGroup` with several pressed, not a segmented one. */}
+			<ControlRow label={SESONG_CHART_LABELS.layers}>
+				<ToggleGroup
+					multiple
+					variant="outline"
+					value={[...layers]}
+					onValueChange={(next) => onLayers(next as SeasonChartLayer[])}
+					aria-label={SESONG_CHART_LABELS.layers}
+					className="flex-wrap"
+				>
+					{SEASON_CHART_LAYERS.map((layer) => (
+						<ToggleGroupItem key={layer} value={layer} className="rounded-full">
+							{LAYER_LABELS[layer]}
+						</ToggleGroupItem>
+					))}
+				</ToggleGroup>
+			</ControlRow>
 		</div>
 	)
 }
 
 /**
- * A labelled row of toggles. Wraps rather than scrolling: six short chips fit two
- * rows at 390 px, and a scrolling strip hides the layers off-screen behind an
+ * A labelled row of controls. Wraps rather than scrolling: six short chips fit
+ * two rows at 390 px, and a scrolling strip hides the layers off-screen behind an
  * affordance the athlete has to discover (ADR 0028).
  */
-function Toggles({ label, children }: { label: string; children: ReactNode }) {
-	return (
-		<div className="flex flex-wrap items-center gap-2">
-			<span className="text-muted-foreground w-16 shrink-0 text-xs">
-				{label}
-			</span>
-			<div className="flex flex-wrap gap-2">{children}</div>
-		</div>
-	)
-}
-
-function Toggle({
-	pressed,
-	onClick,
-	children,
+function ControlRow({
 	label,
+	children,
 }: {
-	pressed: boolean
-	onClick: () => void
+	label: string
 	children: ReactNode
-	/** An accessible name where the visible chip is a unit rather than a phrase. */
-	label?: string
 }) {
 	return (
-		<Button
-			type="button"
-			size="sm"
-			variant={pressed ? 'default' : 'outline'}
-			aria-pressed={pressed}
-			aria-label={label}
-			onClick={onClick}
-		>
+		<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+			<span className="text-caption text-muted-foreground w-14 shrink-0">
+				{label}
+			</span>
 			{children}
-		</Button>
+		</div>
 	)
 }
 
@@ -507,33 +564,39 @@ function VolumePanel({
 }) {
 	const { axis, weeks, peak } = model
 	const yMax = niceLinearTicks(peak).at(-1)!
-	const unit = VOLUME_CURRENCY_UNITS[axis.currency]
+	const unit = NB_WEEKLY_UNITS[axis.currency]
+	const trackName = nbTrackName(axis.discipline)
 
 	const dataTable: ChartDataTableModel = {
-		caption: `${DISCIPLINE_LABELS[axis.discipline]} volume by Training Week, in ${unit}${
-			axis.derived
-				? `, a derived reading of a track authored in ${VOLUME_CURRENCY_UNITS[axis.authoredCurrency]}`
-				: ''
-		}. Move across the chart to read a week's derivation in the panel below it.`,
-		columns: [
-			'Week',
-			'Starts',
-			'Block',
-			'Week role',
+		caption: SESONG_CHART_LABELS.tableCaption(
+			trackName,
 			unit,
-			'Change',
-			'Emphasis',
+			axis.derived ? NB_WEEKLY_UNITS[axis.authoredCurrency] : null,
+		),
+		columns: [
+			SESONG_CHART_LABELS.columns.week,
+			SESONG_CHART_LABELS.columns.starts,
+			SESONG_CHART_LABELS.columns.block,
+			SESONG_CHART_LABELS.columns.role,
+			unit,
+			SESONG_CHART_LABELS.columns.change,
+			SESONG_CHART_LABELS.columns.emphasis,
 		],
 		rows: weeks.map((week) => [
-			String(week.weekInPlan),
-			formatDate(season.weeks[week.weekInPlan - 1]!.startsAt, season.timezone),
-			week.phaseName,
-			WEEK_ROLE_LABELS[week.role],
+			String(weekNumber(week)),
+			formatNbDayMonth(
+				season.weeks[week.weekInPlan - 1]!.startsAt,
+				season.timezone,
+			),
+			nbPhaseName(week.phaseName),
+			NB_WEEK_ROLE_CELL_LABELS[week.role],
 			readingText(week.volume, axis.currency),
 			// Spelled out rather than dashed: a screen reader reads "—" as "dash",
 			// and the first week of a plan has no previous week rather than an
 			// unknown change.
-			week.step == null ? 'No change to read' : formatSignedPercent(week.step),
+			week.step == null
+				? SESONG_CHART_LABELS.noChange
+				: formatNbSignedPercent(week.step),
 			emphasisText(week),
 		]),
 	}
@@ -545,7 +608,7 @@ function VolumePanel({
 			yMax={yMax}
 			padding={CHART_PADDING}
 			plotHeightClass="h-64"
-			ariaLabel={`${DISCIPLINE_LABELS[axis.discipline]} volume across the season, in ${unit}. Use the arrow keys to read a week.`}
+			ariaLabel={SESONG_CHART_LABELS.ariaVolume(trackName, unit)}
 			dataTable={dataTable}
 			renderMarks={(geom) => (
 				<VolumeMarks
@@ -764,10 +827,10 @@ function VolumeOverlay({
 	return (
 		<>
 			<span
-				className="text-muted-foreground absolute left-1 text-[10px] tabular-nums"
+				className="text-muted-foreground text-caption absolute left-1 tabular-nums"
 				style={{ top: topPct(AXIS_CAPTION_TOP) }}
 			>
-				{yMax} {VOLUME_CURRENCY_UNITS[axis.currency]}
+				{yMax} {NB_WEEKLY_UNITS[axis.currency]}
 			</span>
 
 			{/* Block names along the top, centred over their weeks — above the axis
@@ -776,10 +839,10 @@ function VolumeOverlay({
 				week.phaseStart ? (
 					<span
 						key={`name-${week.weekKey}`}
-						className="text-muted-foreground absolute text-[10px] font-medium tracking-wide uppercase"
+						className="text-muted-foreground text-overline absolute uppercase"
 						style={{ left: leftPct(slotCenter(i) - slotW / 2), top: topPct(2) }}
 					>
-						{week.phaseName}
+						{nbPhaseName(week.phaseName)}
 					</span>
 				) : null,
 			)}
@@ -789,10 +852,10 @@ function VolumeOverlay({
 				week.volume.available ? null : (
 					<span
 						key={`na-${week.weekKey}`}
-						className="text-muted-foreground absolute -translate-x-1/2 -translate-y-full text-[10px]"
+						className="text-muted-foreground text-caption absolute -translate-x-1/2 -translate-y-full"
 						style={{ left: leftPct(slotCenter(i)), top: topPct(baselineY - 6) }}
 					>
-						n/a
+						{SESONG_CHART_LABELS.na}
 					</span>
 				),
 			)}
@@ -834,13 +897,13 @@ function VolumeOverlay({
 				i % numberEvery === 0 ? (
 					<span
 						key={`num-${week.weekKey}`}
-						className="text-muted-foreground absolute -translate-x-1/2 text-[10px]"
+						className="text-muted-foreground text-caption absolute -translate-x-1/2 tabular-nums"
 						style={{
 							left: leftPct(slotCenter(i)),
 							top: topPct(baselineY + 34),
 						}}
 					>
-						{week.weekInPlan}
+						{weekNumber(week)}
 					</span>
 				) : null,
 			)}
@@ -850,13 +913,13 @@ function VolumeOverlay({
 				week.eventWeek ? (
 					<span
 						key={`flag-${week.weekKey}`}
-						className="bg-foreground text-background absolute -translate-x-1/2 rounded-full px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap"
+						className="bg-foreground text-background text-caption absolute -translate-x-1/2 rounded-full px-1.5 py-0.5 font-semibold whitespace-nowrap"
 						style={{
 							left: leftPct(slotCenter(i)),
 							top: topPct(padding.top + 2),
 						}}
 					>
-						Event
+						{SESONG_CHART_LABELS.event}
 					</span>
 				) : null,
 			)}
@@ -882,10 +945,12 @@ function FitnessPanel({
 	if (fitness.status === 'unavailable') {
 		return (
 			<p
-				className="text-muted-foreground text-sm"
+				className="text-muted-foreground text-footnote"
 				data-testid="fitness-unavailable"
 			>
-				Projected fitness is Unavailable — {fitnessGapSentence(fitness.gap)}.
+				{SESONG_CHART_LABELS.fitnessUnavailable(
+					fitnessGapSentence(fitness.gap),
+				)}
 			</p>
 		)
 	}
@@ -901,12 +966,15 @@ function FitnessPanel({
 				yMax={yMax}
 				padding={{ top: 14, right: 8, bottom: 20, left: 8 }}
 				plotHeightClass="h-32"
-				ariaLabel="Projected fitness (CTL) across the season, replayed from your plan. Use the arrow keys to read a week."
+				ariaLabel={SESONG_CHART_LABELS.fitnessAria}
 				dataTable={{
-					caption: `Projected fitness (CTL) at the end of each Training Week, replayed from ${season.eventName ? `${season.eventName}'s plan` : 'your plan'}.`,
-					columns: ['Week', 'Projected fitness (CTL)'],
+					caption: SESONG_CHART_LABELS.fitnessCaption(season.eventName),
+					columns: [
+						SESONG_CHART_LABELS.columns.week,
+						SESONG_CHART_LABELS.fitnessColumn,
+					],
 					rows: model.weeks.map((week, i) => [
-						String(week.weekInPlan),
+						String(weekNumber(week)),
 						formatLoad(ctl[i]!),
 					]),
 				}}
@@ -915,7 +983,7 @@ function FitnessPanel({
 				)}
 				renderOverlay={(geom) => (
 					<span
-						className="text-muted-foreground absolute left-1 text-[10px]"
+						className="text-muted-foreground text-caption absolute left-1 tabular-nums"
 						style={{ top: geom.topPct(2) }}
 					>
 						{yMax} CTL
@@ -924,21 +992,21 @@ function FitnessPanel({
 				renderInspect={(index) =>
 					index == null ? (
 						<span className="text-muted-foreground">
-							Tap a week to read the fitness your plan projects for it.
+							{SESONG_CHART_LABELS.fitnessHint}
 						</span>
 					) : (
 						<span>
-							<span className="font-medium">
-								Week {model.weeks[index]!.weekInPlan}
-							</span>{' '}
-							· projected fitness {formatLoad(ctl[index]!)}
+							{SESONG_CHART_LABELS.fitnessWeek(
+								weekNumber(model.weeks[index]!),
+								formatLoad(ctl[index]!),
+							)}
 						</span>
 					)
 				}
 			/>
 			{/* One derivation statement for the whole curve, never a note per point
 			    (ADR 0045 §10). */}
-			<p className="text-muted-foreground text-[11px]">
+			<p className="text-muted-foreground text-caption">
 				{projectionBasisSentence(fitness)}
 			</p>
 		</div>
@@ -998,14 +1066,17 @@ function fitnessGapSentence(
 ): string {
 	switch (gap.kind) {
 		case 'no-anchor':
-			return 'there is no recorded training load to replay your plan forward from yet'
+			return SESONG_CHART_LABELS.gapNoAnchor
 		case 'building-baseline':
-			return `your fitness baseline is still building, on day ${gap.daysOfHistory} of ${gap.requiredDays}`
+			return SESONG_CHART_LABELS.gapBaseline(
+				gap.daysOfHistory,
+				gap.requiredDays,
+			)
 		case 'unpriced': {
 			const blocked = gap.basis.tracks.find((track) => !track.contributes)
 			return blocked
-				? `${DISCIPLINE_LABELS[blocked.discipline]}: ${NO_CONTRIBUTION_LABELS[blocked.reason]}`
-				: 'this plan authors no week a load can be read from'
+				? `${nbTrackName(blocked.discipline)}: ${NB_NO_CONTRIBUTION_LABELS[blocked.reason]}`
+				: SESONG_CHART_LABELS.gapUnpriced
 		}
 	}
 }
@@ -1016,18 +1087,20 @@ function projectionBasisSentence(
 ): string {
 	const contributing = fitness.basis.tracks.filter((track) => track.contributes)
 	const from = contributing
-		.map(
-			(track) =>
-				`${DISCIPLINE_LABELS[track.discipline]} in ${VOLUME_CURRENCY_UNITS[track.currency]}`,
+		.map((track) =>
+			SESONG_CHART_LABELS.basisTrack(
+				nbTrackName(track.discipline),
+				NB_WEEKLY_UNITS[track.currency],
+			),
 		)
 		.join(', ')
 	const conventions = fitness.basis.conventions
-		.map((id) => CONVERSION_CONVENTION_LABELS[id])
-		.join(' and ')
+		.map((id) => NB_CONVERSION_CONVENTION_LABELS[id])
+		.join(' og ')
 	return [
-		`Replayed from the fitness you carried into week 1, through your plan's own weeks — ${from}.`,
-		conventions ? `Priced through your own zone recipe, ${conventions}.` : null,
-		'Your plan is one number a week, so only fitness is projected.',
+		SESONG_CHART_LABELS.basisFrom(from),
+		conventions ? SESONG_CHART_LABELS.basisConventions(conventions) : null,
+		SESONG_CHART_LABELS.basisOneNumber,
 	]
 		.filter((part): part is string => part != null)
 		.join(' ')
@@ -1051,8 +1124,7 @@ function InspectReading({
 	if (!week) {
 		return (
 			<span className="text-muted-foreground">
-				Tap a week to read it — its values, and where a derived number came
-				from.
+				{SESONG_CHART_LABELS.inspectHint}
 			</span>
 		)
 	}
@@ -1062,88 +1134,90 @@ function InspectReading({
 	return (
 		<div className="space-y-2">
 			<p>
-				<span className="font-medium">Week {week.weekInPlan}</span>{' '}
+				<span className="font-medium">Uke {weekNumber(week)}</span>{' '}
 				<span className="text-muted-foreground">
-					· {formatDate(startsAt, season.timezone)} · {week.phaseName}
-					{week.eventWeek ? ' · your event’s week' : ''}
+					· {formatNbDayMonth(startsAt, season.timezone)} ·{' '}
+					{nbPhaseName(week.phaseName)}
+					{week.eventWeek ? SESONG_CHART_LABELS.eventWeek : ''}
 				</span>
 			</p>
 
 			{layers.includes('volume') ? (
 				<p>
-					{DISCIPLINE_LABELS[axis.discipline]}{' '}
+					{nbTrackName(axis.discipline)}{' '}
 					<span className="font-medium">
 						{readingText(week.volume, axis.currency)}
 					</span>
 					{week.volume.available ? (
-						<span className="text-muted-foreground text-xs">
+						<span className="text-muted-foreground text-caption">
 							{' '}
-							· {week.volume.marker}
-							{week.overridden ? ' · you hand-set this week' : ''}
+							·{' '}
+							{week.volume.marker === 'derived'
+								? SESONG_CHART_LABELS.derivedMarker
+								: SESONG_CHART_LABELS.authoredMarker}
+							{week.overridden ? SESONG_CHART_LABELS.handSetWeek : ''}
 						</span>
 					) : null}
 				</p>
 			) : null}
 
 			{layers.includes('rhythm') ? (
-				<p className="text-muted-foreground text-xs">
-					{WEEK_ROLE_LABELS[week.role]} week
+				<p className="text-muted-foreground text-caption">
+					{NB_WEEK_ROLE_CELL_LABELS[week.role]}
 				</p>
 			) : null}
 
 			{layers.includes('ramp') ? (
-				<p className="text-xs">
+				<p className="text-caption">
 					{week.step == null
-						? 'No change to read against the week before.'
-						: `${formatSignedPercent(week.step)} on the week before.`}{' '}
+						? SESONG_CHART_LABELS.stepNone
+						: SESONG_CHART_LABELS.stepOn(formatNbSignedPercent(week.step))}{' '}
 					<span className="text-muted-foreground">
 						{week.authoredRamp == null
-							? 'Ramp: the documented convention.'
-							: `Ramp authored at ${formatSignedPercent(week.authoredRamp)}.`}
+							? SESONG_CHART_LABELS.rampConvention
+							: SESONG_CHART_LABELS.rampAuthored(
+									formatNbSignedPercent(week.authoredRamp),
+								)}
 					</span>
 				</p>
 			) : null}
 
 			{layers.includes('emphasis') ? (
-				<p className="text-xs">
+				<p className="text-caption">
 					{week.emphasis.length === 0
-						? 'No quality sessions this week.'
+						? SESONG_CHART_LABELS.noQuality
 						: week.emphasis
 								.map(
 									(reading) =>
-										`${DISCIPLINE_LABELS[reading.discipline]}: ${formatEmphasisLabel(reading.terms)}`,
+										`${nbTrackName(reading.discipline)}: ${formatNbEmphasisLabel(reading.terms)}`,
 								)
 								.join(' · ')}
 				</p>
 			) : null}
 
 			{week.anchors.length > 0 ? (
-				<p className="text-muted-foreground text-xs">
+				<p className="text-muted-foreground text-caption">
 					{week.anchors
 						.map(
 							(anchor) =>
-								`${anchor.reAnchor ? 'Re-anchored' : 'Season Anchor'}: ${DISCIPLINE_LABELS[anchor.discipline]} ${formatWeeklyVolume(anchor.value, anchor.currency)}`,
+								`${anchor.reAnchor ? SESONG_CHART_LABELS.reAnchored : SESONG_CHART_LABELS.opening}: ${nbTrackName(anchor.discipline)} ${formatNbWeeklyVolume(anchor.value, anchor.currency)}`,
 						)
 						.join(' · ')}
 				</p>
 			) : null}
 
 			{week.segmentStarts.length > 0 ? (
-				<p className="text-muted-foreground text-xs">
+				<p className="text-muted-foreground text-caption">
 					{week.segmentStarts
-						.map(
-							(start) =>
-								`A ${DISCIPLINE_LABELS[start.discipline].toLowerCase()} block opens this week`,
+						.map((start) =>
+							SESONG_CHART_LABELS.blockOpens(nbTrackName(start.discipline)),
 						)
 						.join(' · ')}
 				</p>
 			) : null}
 
 			{week.overflow.length > 0 ? (
-				<p className="text-xs">
-					Your mix alone asks for more than this week&rsquo;s volume. The easy
-					work floors at nothing and the plan is left exactly as you wrote it.
-				</p>
+				<p className="text-caption">{SESONG_CHART_LABELS.overflow}</p>
 			) : null}
 
 			{layers.includes('volume') ? (
@@ -1178,15 +1252,15 @@ function Derivation({
 
 	return (
 		<div className="space-y-1">
-			<p className="text-muted-foreground text-xs font-medium">
-				Where this number comes from
+			<p className="text-muted-foreground text-caption font-medium">
+				{SESONG_CHART_LABELS.whereFrom}
 			</p>
-			<dl className="space-y-0.5 text-xs">
+			<dl className="text-caption space-y-0.5">
 				{rows.map((step) => (
 					<div key={step.id} className="flex flex-wrap gap-x-2">
 						<dt className="text-muted-foreground">{stepName(step)}</dt>
 						<dd className="font-medium">
-							{formatDerivationValue(step.unit, step.value)}
+							{formatNbDerivationValue(step.unit, step.value)}
 						</dd>
 						<dd className="text-muted-foreground">{sourceText(step.source)}</dd>
 					</div>
@@ -1194,10 +1268,16 @@ function Derivation({
 			</dl>
 			{week.buckets.length > 0 ? <Buckets buckets={week.buckets} /> : null}
 			{week.derivation.substitutions.map((substitution) => (
-				<p key={substitution.band} className="text-muted-foreground text-xs">
-					Zone {substitution.requested} is priced off {substitution.recipeId}{' '}
-					band {substitution.band}, the nearest zone {substitution.declaredZone}{' '}
-					your zone system declares.
+				<p
+					key={substitution.band}
+					className="text-muted-foreground text-caption"
+				>
+					{SESONG_CHART_LABELS.substitution(
+						substitution.requested,
+						substitution.recipeId,
+						substitution.band,
+						substitution.declaredZone,
+					)}
 				</p>
 			))}
 		</div>
@@ -1213,26 +1293,24 @@ function Derivation({
 function Buckets({ buckets }: { buckets: VolumeBucket[] }) {
 	return (
 		<div className="overflow-x-auto">
-			<table className="w-full min-w-[22rem] text-left text-xs">
-				<caption className="sr-only">
-					This week decomposed into intensity buckets
-				</caption>
+			<table className="text-caption w-full min-w-[22rem] text-left tabular-nums">
+				<caption className="sr-only">{SESONG_CHART_LABELS.buckets}</caption>
 				<thead className="text-muted-foreground">
 					<tr>
 						<th scope="col" className="font-normal">
-							Bucket
+							{SESONG_CHART_LABELS.bucketColumns.bucket}
 						</th>
 						<th scope="col" className="font-normal">
-							Hours
+							{SESONG_CHART_LABELS.bucketColumns.hours}
 						</th>
 						<th scope="col" className="font-normal">
-							Distance
+							{SESONG_CHART_LABELS.bucketColumns.distance}
 						</th>
 						<th scope="col" className="font-normal">
-							Load
+							{SESONG_CHART_LABELS.bucketColumns.load}
 						</th>
 						<th scope="col" className="font-normal">
-							Intensity
+							{SESONG_CHART_LABELS.bucketColumns.intensity}
 						</th>
 					</tr>
 				</thead>
@@ -1241,22 +1319,22 @@ function Buckets({ buckets }: { buckets: VolumeBucket[] }) {
 						<tr key={`${bucket.kind}-${bucket.zone}`}>
 							<th scope="row" className="pr-2 font-normal">
 								{bucket.kind === 'easy'
-									? 'Easy'
-									: `${bucket.sessionsPerWeek}× ${QUALITY_ZONE_LABELS[bucket.zone as 3 | 4 | 5]}`}
+									? SESONG_CHART_LABELS.easy
+									: `${bucket.sessionsPerWeek}× ${NB_QUALITY_ZONE_LABELS[bucket.zone as 3 | 4 | 5]}`}
 							</th>
 							<td className="pr-2">
-								{formatDerivationValue('hours', bucket.hours)}
+								{formatNbDerivationValue('hours', bucket.hours)}
 							</td>
 							<td className="pr-2">
 								{bucket.km == null
 									? '—'
-									: formatDerivationValue('km', bucket.km)}
+									: formatNbDerivationValue('km', bucket.km)}
 							</td>
 							<td className="pr-2">
-								{formatDerivationValue('tss', bucket.tss)}
+								{formatNbDerivationValue('tss', bucket.tss)}
 							</td>
 							<td>
-								{formatDerivationValue('if', bucket.intensityFactor)} ·{' '}
+								{formatNbDerivationValue('if', bucket.intensityFactor)} ·{' '}
 								{bucket.band}
 							</td>
 						</tr>
@@ -1271,31 +1349,15 @@ function Buckets({ buckets }: { buckets: VolumeBucket[] }) {
 // Wording the derivation's codes (ADR 0023 — the domain carries no copy)
 // ---------------------------------------------------------------------------
 
-const STEP_NAMES: Record<string, string> = {
-	authored: 'You authored',
-	'quality-hours': 'Quality time in zone',
-	'quality-km': 'Quality distance',
-	'quality-tss': 'Quality load',
-	'easy-hours': 'Easy time',
-	'easy-km': 'Easy distance',
-	'easy-tss': 'Easy load',
-	'easy-pace-ratio': 'Easy-pace ratio',
-	'speed:easy': 'Easy speed',
-	'speed:quality': 'Quality speed',
-	'if:easy': 'Easy intensity',
-	'tss-per-hour:easy': 'Easy load per hour',
-	'total-km': 'The week, in km',
-	'total-hours': 'The week, in hours',
-	'total-tss': 'The week, in TSS',
-}
+const STEP_NAMES: Record<string, string> = SESONG_CHART_LABELS.steps
 
-const ZONE_STEP_NAMES: Record<string, (zone: 3 | 4 | 5) => string> = {
-	'quality-hours': (zone) => `Time in ${QUALITY_ZONE_LABELS[zone]}`,
-	'quality-km': (zone) => `Distance at ${QUALITY_ZONE_LABELS[zone]}`,
-	'quality-tss': (zone) => `Load from ${QUALITY_ZONE_LABELS[zone]}`,
-	if: (zone) => `${QUALITY_ZONE_LABELS[zone]} intensity`,
-	'tss-per-hour': (zone) => `${QUALITY_ZONE_LABELS[zone]} load per hour`,
-}
+const ZONE_STEP_NAMES: Record<string, (zone: 3 | 4 | 5) => string> =
+	Object.fromEntries(
+		Object.entries(SESONG_CHART_LABELS.zoneSteps).map(([id, template]) => [
+			id,
+			(zone: 3 | 4 | 5) => template(NB_QUALITY_ZONE_LABELS[zone]),
+		]),
+	)
 
 /**
  * A chain row's name. Zone-suffixed ids are worded from their zone rather than
@@ -1319,17 +1381,26 @@ function sourceText(source: DerivationSource): string {
 		case 'authored':
 			return ''
 		case 'convention':
-			return `from ${CONVERSION_CONVENTION_LABELS[source.convention]} — a convention, ${source.citation}`
+			return SESONG_CHART_LABELS.sourceConvention(
+				NB_CONVERSION_CONVENTION_LABELS[source.convention],
+				// The citation is the domain's English source data; it is worded
+				// here, for display only (`labels.ts`).
+				nbConventionCitation(source.citation),
+			)
 		case 'threshold':
-			return `from ${THRESHOLD_FIELD_LABELS[source.field]}`
+			return SESONG_CHART_LABELS.sourceThreshold(
+				NB_THRESHOLD_FIELD_LABELS[source.field],
+			)
 		case 'recipe-band':
-			return `from your ${source.recipeId} zone system, band ${source.band}${
-				source.bandDescription ? ` (${source.bandDescription})` : ''
-			}`
+			return SESONG_CHART_LABELS.sourceRecipe(
+				source.recipeId,
+				source.band,
+				source.bandDescription ?? null,
+			)
 		case 'ride-window':
-			return `from your ${source.rides} recorded rides in the ${source.weeks} weeks before your plan`
+			return SESONG_CHART_LABELS.sourceRides(source.rides, source.weeks)
 		case 'arithmetic':
-			return 'worked out from the numbers below'
+			return SESONG_CHART_LABELS.sourceArithmetic
 	}
 }
 
@@ -1339,15 +1410,15 @@ function readingText(
 	currency: VolumeCurrency,
 ): string {
 	return reading.available
-		? formatWeeklyVolume(reading.value, currency)
-		: `Unavailable — ${NO_CONTRIBUTION_LABELS[reading.reason]}`
+		? formatNbWeeklyVolume(reading.value, currency)
+		: SESONG_CHART_LABELS.unavailable(NB_NO_CONTRIBUTION_LABELS[reading.reason])
 }
 
 function emphasisText(week: SeasonChartWeek): string {
 	return week.emphasis.length === 0
-		? formatEmphasisLabel([])
+		? formatNbEmphasisLabel([])
 		: week.emphasis
-				.map((reading) => formatEmphasisLabel(reading.terms))
+				.map((reading) => formatNbEmphasisLabel(reading.terms))
 				.join(' · ')
 }
 
@@ -1367,19 +1438,13 @@ function emphasisText(week: SeasonChartWeek): string {
 function FormRefusal() {
 	return (
 		<div
-			className="border-border text-muted-foreground rounded-xl border p-3 text-sm"
+			className="bg-muted/60 text-muted-foreground text-footnote rounded-3xl p-3"
 			data-testid="form-layer-refusal"
 		>
-			<p className="text-foreground font-medium">Form does not draw here</p>
-			<p className="mt-1">
-				Your plan says how much a week holds and not which days hold it, so a
-				replay has to spread each week evenly. Fitness survives that — it reads
-				six weeks at a time — but Fatigue reads the last seven days, and Form is
-				Fitness minus Fatigue. Spread flat, both would be shapes of the
-				averaging rather than of your training, so this layer draws nothing
-				rather than a curve your plan cannot support. Your real Form is on your
-				home screen, from what you actually did.
+			<p className="text-foreground font-medium">
+				{SESONG_CHART_LABELS.formTitle}
 			</p>
+			<p className="mt-1">{SESONG_CHART_LABELS.formBody}</p>
 		</div>
 	)
 }

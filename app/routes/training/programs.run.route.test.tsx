@@ -7,6 +7,7 @@ import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
 import { type ProgramOverview } from '#app/utils/strength-program.server.ts'
 import ProgramRunRoute, {
+	workingWeightKg,
 	workingWeightRefusal,
 } from './programs.run.$instanceId.tsx'
 
@@ -62,6 +63,7 @@ function overview(changes: Partial<ProgramOverview> = {}): ProgramOverview {
 				currentWorkingWeightKg: 90,
 				stallCount: 0,
 				incrementText: '+2.5 kg',
+				increment: { kind: 'absolute', deltaKg: 2.5 },
 				lastStall: { fromKg: 100, toKg: 90, response: 'stallCut' },
 			},
 		],
@@ -100,11 +102,11 @@ test('a Stall Cut renders as a notice with its reason, and offers nothing', asyn
 	renderOverview()
 
 	const notice = await screen.findByRole('status')
-	expect(notice).toHaveTextContent('Stall Cut: Back Squat 100 kg → 90 kg.')
+	expect(notice).toHaveTextContent('Vekta kuttes: Back Squat 100 kg → 90 kg.')
 	// The reason, in the athlete's own numbers, and the provenance of the rule
 	// that produced it — a 10 % drop with no trial behind it says so.
-	expect(notice).toHaveTextContent(/missed reps on this lift/i)
-	expect(notice).toHaveTextContent(/no trial/i)
+	expect(notice).toHaveTextContent(/kom til kort på dette løftet/i)
+	expect(notice).toHaveTextContent(/uten studier bak/i)
 	// It is a notice and not a prompt: nothing inside it to press or decide.
 	expect(within(notice).queryByRole('button')).toBeNull()
 	expect(within(notice).queryByRole('link')).toBeNull()
@@ -121,24 +123,48 @@ test('a lift that has never stalled shows no notice at all', async () => {
 				currentWorkingWeightKg: 90,
 				stallCount: 0,
 				incrementText: '+2.5 kg',
+				increment: { kind: 'absolute', deltaKg: 2.5 },
 				lastStall: null,
 			},
 		],
 	})
 
-	expect(await screen.findByText(/Today: Workout A/)).toBeInTheDocument()
+	expect(await screen.findByText(/I dag: Økt A/)).toBeInTheDocument()
 	expect(screen.queryByRole('status')).toBeNull()
 })
 
 test('the overview answers what to lift today and what is next, with the load resolved', async () => {
 	renderOverview()
 
-	expect(await screen.findByText(/Today: Workout A/)).toBeInTheDocument()
+	expect(await screen.findByText(/I dag: Økt A/)).toBeInTheDocument()
 	const todayLine = screen
 		.getAllByRole('listitem')
 		.map((item) => item.textContent?.replace(/\s+/g, ' ').trim())
-	expect(todayLine).toContain('Back Squat 5×5 @ 90 kg')
-	expect(screen.getByText('Next after today: Workout B.')).toBeInTheDocument()
+	expect(todayLine).toContain('Back Squat 5×5 · 90 kg')
+	expect(screen.getByText('Neste etter i dag: Økt B.')).toBeInTheDocument()
+})
+
+test('each lift says its working weight and what the next made session adds, with a decimal comma (Arket M)', async () => {
+	renderOverview({
+		lifts: [
+			{
+				exerciseId: 'ex-squat',
+				equipment: null,
+				name: 'Knebøy',
+				currentWorkingWeightKg: 82.5,
+				stallCount: 0,
+				incrementText: '+2.5 kg',
+				increment: { kind: 'absolute', deltaKg: 2.5 },
+				lastStall: null,
+			},
+		],
+	})
+
+	expect(await screen.findByText('82,5 kg')).toBeInTheDocument()
+	expect(screen.getByText('neste: +2,5 kg')).toBeInTheDocument()
+	expect(screen.getByLabelText('Arbeidsvekt for Knebøy i kg')).toHaveValue(
+		'82,5',
+	)
 })
 
 test('a Stall Count is shown only where it is non-zero, because a lift on zero has nothing to say', async () => {
@@ -151,6 +177,7 @@ test('a Stall Count is shown only where it is non-zero, because a lift on zero h
 				currentWorkingWeightKg: 90,
 				stallCount: 2,
 				incrementText: '+2.5 kg',
+				increment: { kind: 'absolute', deltaKg: 2.5 },
 				lastStall: null,
 			},
 			{
@@ -160,12 +187,13 @@ test('a Stall Count is shown only where it is non-zero, because a lift on zero h
 				currentWorkingWeightKg: 60,
 				stallCount: 0,
 				incrementText: '+2.5 kg',
+				increment: { kind: 'absolute', deltaKg: 2.5 },
 				lastStall: null,
 			},
 		],
 	})
 
-	expect(await screen.findByText(/Stall Count 2/)).toBeInTheDocument()
+	expect(await screen.findByText(/2 økter på rad til kort/)).toBeInTheDocument()
 	expect(screen.queryByText(/Stall Count 0/)).toBeNull()
 })
 
@@ -181,7 +209,7 @@ test('the working-weight control is labelled with a verb, so "Set" cannot be rea
 	const { submitted } = renderOverview()
 	const user = userEvent.setup()
 
-	const save = await screen.findByRole('button', { name: 'Save weight' })
+	const save = await screen.findByRole('button', { name: 'Lagre vekt' })
 	expect(screen.queryByRole('button', { name: 'Set' })).toBeNull()
 
 	await user.click(save)
@@ -208,6 +236,7 @@ test('a refused working weight says what is wrong next to the input', async () =
 				currentWorkingWeightKg: 90,
 				stallCount: 0,
 				incrementText: '+2.5 kg',
+				increment: { kind: 'absolute', deltaKg: 2.5 },
 				lastStall: null,
 			},
 			{
@@ -217,26 +246,25 @@ test('a refused working weight says what is wrong next to the input', async () =
 				currentWorkingWeightKg: 60,
 				stallCount: 0,
 				incrementText: '+2.5 kg',
+				increment: { kind: 'absolute', deltaKg: 2.5 },
 				lastStall: null,
 			},
 		],
 	})
 	const user = userEvent.setup()
 
-	const bench = await screen.findByLabelText(
-		'Working weight for Bench Press in kg',
-	)
+	const bench = await screen.findByLabelText('Arbeidsvekt for Bench Press i kg')
 	await user.clear(bench)
 	await user.type(bench, '0')
 	await user.click(
-		within(bench.closest('form')!).getByRole('button', { name: 'Save weight' }),
+		within(bench.closest('form')!).getByRole('button', { name: 'Lagre vekt' }),
 	)
 
 	expect(submitted).toHaveBeenCalled()
 	// The sentence says what the field takes …
 	const alert = await screen.findByRole('alert')
 	expect(alert).toHaveTextContent(
-		'A working weight has to be a positive number of kilos.',
+		'En arbeidsvekt må være et positivt antall kilo.',
 	)
 	// … it is tied to the input that caused it …
 	expect(bench).toHaveAttribute('aria-describedby', alert.id)
@@ -253,21 +281,19 @@ test('a negative working weight says what is wrong rather than doing nothing', a
 	const { submitted } = renderOverview()
 	const user = userEvent.setup()
 
-	const squat = await screen.findByLabelText(
-		'Working weight for Back Squat in kg',
-	)
+	const squat = await screen.findByLabelText('Arbeidsvekt for Back Squat i kg')
 	await user.clear(squat)
 	await user.type(squat, '-5')
 	// Nothing in the client stops it: the refusal is the server's to say, in words.
 	expect((squat as HTMLInputElement).checkValidity()).toBe(true)
-	await user.click(screen.getByRole('button', { name: 'Save weight' }))
+	await user.click(screen.getByRole('button', { name: 'Lagre vekt' }))
 
 	expect(submitted).toHaveBeenCalledWith(
 		expect.objectContaining({ weightKg: '-5' }),
 	)
 	const alert = await screen.findByRole('alert')
 	expect(alert).toHaveTextContent(
-		'A working weight has to be a positive number of kilos.',
+		'En arbeidsvekt må være et positivt antall kilo.',
 	)
 	expect(squat).toHaveAttribute('aria-describedby', alert.id)
 	expect(squat).toHaveAttribute('aria-invalid', 'true')
@@ -280,26 +306,48 @@ test('a working weight past the sanity bound is refused as the typo it is, and n
 	renderOverview()
 	const user = userEvent.setup()
 
-	const squat = await screen.findByLabelText(
-		'Working weight for Back Squat in kg',
-	)
+	const squat = await screen.findByLabelText('Arbeidsvekt for Back Squat i kg')
 	await user.clear(squat)
 	await user.type(squat, '999999')
-	await user.click(screen.getByRole('button', { name: 'Save weight' }))
+	await user.click(screen.getByRole('button', { name: 'Lagre vekt' }))
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'A working weight has to be 1000 kg or less — above that it is a typo, not a lift.',
+		'En arbeidsvekt må være 1000 kg eller mindre — over det er det en skrivefeil, ikke et løft.',
 	)
 })
 
 test('the bound refuses a typo and nothing a person could actually lift', async () => {
 	// Both directions of the bound, stated once: it is generous on purpose, because
 	// an app that guessed at a ceiling would refuse somebody's real number.
-	expect(workingWeightRefusal('0')).toMatch(/positive number of kilos/)
-	expect(workingWeightRefusal('-5')).toMatch(/positive number of kilos/)
-	expect(workingWeightRefusal('abc')).toMatch(/positive number of kilos/)
-	expect(workingWeightRefusal('999999')).toMatch(/1000 kg or less/)
-	expect(workingWeightRefusal('1000.5')).toMatch(/1000 kg or less/)
+	expect(workingWeightRefusal('0')).toMatch(/positivt antall kilo/)
+	expect(workingWeightRefusal('-5')).toMatch(/positivt antall kilo/)
+	expect(workingWeightRefusal('abc')).toMatch(/positivt antall kilo/)
+	expect(workingWeightRefusal('999999')).toMatch(/1000 kg eller mindre/)
+	expect(workingWeightRefusal('1000.5')).toMatch(/1000 kg eller mindre/)
 	expect(workingWeightRefusal('61.25')).toBeNull()
 	expect(workingWeightRefusal('300')).toBeNull()
+})
+
+test('a Norwegian decimal comma is a working weight, read as the kilo it says', async () => {
+	expect(workingWeightRefusal('62,5')).toBeNull()
+	expect(workingWeightRefusal('1000,5')).toMatch(/1000 kg eller mindre/)
+	expect(workingWeightRefusal('6,2,5')).toMatch(/positivt antall kilo/)
+	expect(workingWeightKg('62,5')).toBe(62.5)
+	expect(workingWeightKg('62.5')).toBe(62.5)
+
+	const { submitted } = renderOverview()
+	const user = userEvent.setup()
+	const squat = await screen.findByLabelText('Arbeidsvekt for Back Squat i kg')
+	// A text field with a decimal keypad, so the locale cannot turn `62,5`
+	// into `625` on the way out.
+	expect(squat).toHaveAttribute('type', 'text')
+	expect(squat).toHaveAttribute('inputmode', 'decimal')
+	await user.clear(squat)
+	await user.type(squat, '62,5')
+	await user.click(screen.getByRole('button', { name: 'Lagre vekt' }))
+
+	expect(submitted).toHaveBeenCalledWith(
+		expect.objectContaining({ weightKg: '62,5' }),
+	)
+	expect(screen.queryByRole('alert')).toBeNull()
 })

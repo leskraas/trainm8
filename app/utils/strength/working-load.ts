@@ -6,9 +6,14 @@
  * Pure: no clock, no `prisma`. The runner's presenter re-exports the parts it
  * renders; the quick log's server reads them directly.
  */
+import { formatNbKg } from '../format.ts'
+import {
+	RUNNER_LABELS,
+	STRENGTH_RUNNER_LABELS as S,
+	WORKING_LOAD_LABELS as W,
+} from '../labels.ts'
 import { type LogExercise, type LogRow } from '../strength-log.server.ts'
-import { type LoadValue, formatKg } from '../strength-log.ts'
-import { loadKindLabel } from './program-rules.ts'
+import { type LoadValue } from '../strength-log.ts'
 
 /** What a set counts in: reps, or seconds for a timed hold. */
 export type SetUnit = 'reps' | 'seconds'
@@ -51,7 +56,7 @@ export function buildWorkingLoad(exercise: LogExercise): WorkingLoad {
 		) ?? exercise.rows[0]
 	const semantics = exercise.loadSemanticsKind
 	if (!row) {
-		return { kind: 'absent', text: 'this lift has no sets to log', fix: null }
+		return { kind: 'absent', text: W.noSets, fix: null }
 	}
 	const prescribed = row.prescribedLoad
 	const resolution = row.resolvedLoad
@@ -71,14 +76,14 @@ export function buildWorkingLoad(exercise: LogExercise): WorkingLoad {
 					loadKind: 'bodyweightPlus',
 					loadNumber: postedNumber(added),
 					kg: added,
-					text: `bodyweight + ${formatKg(added)} kg`,
+					text: S.bodyweightPlus(formatNbKg(added)),
 				}
 			: {
 					kind: 'resolved',
 					loadKind: 'bodyweight',
 					loadNumber: '',
 					kg: null,
-					text: 'bodyweight',
+					text: S.bodyweight,
 				}
 	}
 
@@ -91,7 +96,7 @@ export function buildWorkingLoad(exercise: LogExercise): WorkingLoad {
 				loadKind: 'bodyweight',
 				loadNumber: '',
 				kg: null,
-				text: 'bodyweight',
+				text: S.bodyweight,
 			}
 		}
 		if (semantics === 'unloaded') {
@@ -100,12 +105,12 @@ export function buildWorkingLoad(exercise: LogExercise): WorkingLoad {
 				loadKind: 'unloaded',
 				loadNumber: '',
 				kg: null,
-				text: 'no load',
+				text: S.load.unloaded,
 			}
 		}
 		return {
 			kind: 'absent',
-			text: 'no load is prescribed for this lift, and a tap cannot invent one',
+			text: W.noLoad,
 			fix: null,
 		}
 	}
@@ -119,7 +124,7 @@ export function buildWorkingLoad(exercise: LogExercise): WorkingLoad {
 	if (kg == null) {
 		return {
 			kind: 'absent',
-			text: 'this prescription does not resolve to kilos, so there is nothing to tap',
+			text: W.noKilos,
 			fix: null,
 		}
 	}
@@ -137,7 +142,10 @@ export function buildWorkingLoad(exercise: LogExercise): WorkingLoad {
 	if (loadKind == null) {
 		return {
 			kind: 'absent',
-			text: `${loadKindLabel(semantics) ?? 'this load'} cannot be logged by tapping`,
+			text: W.notTappable(
+				(RUNNER_LABELS.loadWords as Record<string, string>)[semantics ?? ''] ??
+					W.thisLoad,
+			),
 			fix: null,
 		}
 	}
@@ -146,7 +154,7 @@ export function buildWorkingLoad(exercise: LogExercise): WorkingLoad {
 		loadKind,
 		loadNumber: postedNumber(kg),
 		kg,
-		text: `${formatKg(kg)} kg`,
+		text: `${formatNbKg(kg)} kg`,
 	}
 }
 
@@ -255,11 +263,36 @@ export function buildLiftSubline(exercise: LogExercise): string | null {
 /**
  * A kilo as a **posted field**, not as a rendered one.
  *
- * `formatKg` is for reading; this is for the wire, so `82.5` posts as `82.5` and
+ * `formatNbKg` is for reading (`82,5`); this is for the wire, so `82.5` posts as `82.5` and
  * a percentage-derived `118.99999999999999` posts as `119` rather than as
  * seventeen digits the athlete never typed. Two decimals is the smallest plate
  * anybody owns, twice over.
  */
 export function postedNumber(kg: number): string {
 	return String(Number(kg.toFixed(2)))
+}
+
+/**
+ * **How many working sets are still untapped** (owner decision 10): prescribed,
+ * tappable, and not logged. Finish asks about these before folding, so an
+ * untapped set never silently counts as made or as missed.
+ *
+ * A lift with no resolved weight is skipped: its circles cannot be tapped (the
+ * sub-line says why), so there is nothing the athlete could have logged.
+ * `isLogged` is the caller's own record — the server's set logs, or the
+ * runner's map of taps — so both sides count by one rule.
+ */
+export function untappedWorkingSets(
+	exercises: readonly LogExercise[],
+	isLogged: (exercise: LogExercise, row: LogRow) => boolean,
+): number {
+	let untapped = 0
+	for (const exercise of exercises) {
+		if (buildWorkingLoad(exercise).kind !== 'resolved') continue
+		for (const row of exercise.rows) {
+			const target = row.prescribedReps ?? row.prescribedDurationSec
+			if (target != null && !isLogged(exercise, row)) untapped += 1
+		}
+	}
+	return untapped
 }

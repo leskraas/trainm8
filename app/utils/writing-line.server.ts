@@ -4,6 +4,7 @@
  * that says what a change did to its week.
  */
 import { mondayOfDay, weekMonday } from './athlete-calendar.ts'
+import { prisma } from './db.server.ts'
 import { weekSumChangeLine } from './plan-outline/week-sum-words.ts'
 import { weekSumMoved } from './plan-outline/week-sum.ts'
 import { getWeekVolumes } from './plan-outline/week-volumes.server.ts'
@@ -11,6 +12,7 @@ import { relativeWeekName } from './relative-week.ts'
 import { timelineWindow, type TimelineWindow } from './timeline-window.ts'
 import { createToastHeaders } from './toast.server.ts'
 import { getActivePlan } from './training.server.ts'
+import { type SentenceExercise } from './workout-sentence.ts'
 
 /**
  * The days this athlete's I dag reads, for `now`: half a year back, and two
@@ -23,6 +25,40 @@ export async function readTimelineWindow(
 ): Promise<TimelineWindow> {
 	const plan = await getActivePlan(userId, now)
 	return timelineWindow({ now, timezone, plan })
+}
+
+/**
+ * The exercises a lift on the writing line may name (ADR 0089): the catalogue
+ * the strength editor's combobox picks from — trainm8's rows and this
+ * athlete's own, by the same asserted-authorship rule as
+ * `getExerciseCatalog` — with every **Exercise Alias** that names the movement
+ * (`OHP`, `squat`, and the Norwegian names of owner decision 9 as they land).
+ * An alias that names one variant (`DB bench`) is left out: a strength step
+ * names an exercise, and reading the variant's alias as its movement would
+ * write a barbell bench for a dumbbell one.
+ *
+ * Read by the reader on both sides, the client's preview and the server's
+ * second read. Only what the reader needs travels: ids, names and aliases.
+ */
+export async function readSentenceExercises(
+	userId: string,
+): Promise<SentenceExercise[]> {
+	const rows = await prisma.exercise.findMany({
+		where: {
+			OR: [{ authorship: 'system' }, { createdByAthleteId: userId }],
+		},
+		select: {
+			id: true,
+			name: true,
+			aliases: { where: { variantId: null }, select: { text: true } },
+		},
+		orderBy: [{ name: 'asc' }],
+	})
+	return rows.map(({ id, name, aliases }) =>
+		aliases.length > 0
+			? { id, name, aliases: aliases.map((alias) => alias.text) }
+			: { id, name },
+	)
 }
 
 /**

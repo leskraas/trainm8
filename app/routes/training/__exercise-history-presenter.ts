@@ -15,14 +15,19 @@
  * missing kilo never interpolates from its neighbours.
  */
 import { type ChartDataTableModel } from '#app/components/chart/chart.tsx'
-import { formatDayMonth } from '#app/utils/format.ts'
+import { formatNbDayMonth, formatNbKg } from '#app/utils/format.ts'
+import {
+	EXERCISE_PAGE_LABELS,
+	MEG_ANCHOR_PROTOCOL_LABELS,
+	NB_EQUIPMENT_VARIANT_LABELS,
+	STRENGTH_RECORD_LABELS,
+} from '#app/utils/labels.ts'
 import {
 	type ExerciseSessionSummary,
 	type SessionLoadBasis,
 	lastTimeLabel,
 } from '#app/utils/strength/exercise-history.ts'
 import { type StallHistoryEntry } from '#app/utils/strength/program-engine.ts'
-import { formatKg } from '#app/utils/strength/program.constants.ts'
 import {
 	type StrengthRecord,
 	recordGainPhrase,
@@ -44,25 +49,12 @@ import {
  * this surface on a record's `unavailableNote`, and this constant covers the case
  * where there is history but no record yet.
  */
-export const NO_KILOS_NOTE = 'No kilos — this progresses against itself only.'
+export const NO_KILOS_NOTE = STRENGTH_RECORD_LABELS.notes.noKilos
 
-export const EQUIPMENT_LABELS: Record<EquipmentId, string> = {
-	barbell: 'Barbell',
-	dumbbell: 'Dumbbell',
-	kettlebell: 'Kettlebell',
-	machine: 'Machine',
-	cable: 'Cable',
-	'smith-machine': 'Smith machine',
-	'trap-bar': 'Trap bar',
-	'ez-bar': 'EZ bar',
-	bodyweight: 'Bodyweight',
-	'assisted-machine': 'Assisted machine',
-	band: 'Band',
-	'medicine-ball': 'Medicine ball',
-	sled: 'Sled',
-	suspension: 'Suspension',
-	other: 'Other',
-}
+/** The variant tabs' words — `labels.ts`' own map, re-exported under the name
+ * this module has always offered. */
+export const EQUIPMENT_LABELS: Record<EquipmentId, string> =
+	NB_EQUIPMENT_VARIANT_LABELS
 
 // ---------------------------------------------------------------------------
 // The records strip
@@ -75,22 +67,24 @@ export const EQUIPMENT_LABELS: Record<EquipmentId, string> = {
  */
 export type RecordCard = {
 	key: string
-	/** "Heaviest ever", "Best 5-rep set", "Heaviest bodyweight set", "Best level"
-	 * — the load basis is named **in** the headline, never only in the note. */
+	/** "Tyngste noensinne", "Beste sett på 5 reps", "Tyngste sett med
+	 * kroppsvekt", "Beste nivå" — the load basis is named **in** the headline,
+	 * never only in the note. */
 	headline: string
-	/** "100 kg" or "level 7" — the unit is never dropped. */
+	/** "100 kg" or "nivå 7" — the unit is never dropped. */
 	value: string
-	/** The equation, on an estimate only. Null on an observed record. */
+	/** The equation by its published name (`Epley/Welday`), on an estimate only.
+	 * Null on an observed record. */
 	estimator: string | null
 	achievedLabel: string
-	/** "first time!" where nothing came before, "best so far" inside the debut
-	 * window, "up 2.5 kg" on a beaten record, else null. */
+	/** "første gang" where nothing came before, "best hittil" inside the debut
+	 * window, "opp 2,5 kg" on a beaten record, else null. */
 	gain: string | null
 	/** The kilo-less phrase, or null. */
 	note: string | null
 	comparable: boolean
 	/**
-	 * **The set an estimate came from**, as `from 82.5 kg × 5`, so the estimate is
+	 * **The set an estimate came from**, as `fra 82,5 kg × 5`, so the estimate is
 	 * not a floating claim (#481). Null on an observed record, which is the set.
 	 *
 	 * It is the top set of the session the record was taken in, read off the
@@ -103,8 +97,8 @@ export type RecordCard = {
 
 function recordValueText(record: StrengthRecord): string {
 	return record.unit === 'level'
-		? `level ${formatKg(record.value)}`
-		: `${formatKg(record.value)} kg`
+		? EXERCISE_PAGE_LABELS.level(formatNbKg(record.value))
+		: `${formatNbKg(record.value)} kg`
 }
 
 export function buildRecordCards(
@@ -125,10 +119,12 @@ export function buildRecordCards(
 		// over a bodyweight-derived kilo on this page alone.
 		headline: strengthRecordHeadline(record),
 		value: recordValueText(record),
-		estimator: record.estimator,
-		achievedLabel: formatDayMonth(record.achievedAt, timezone),
+		estimator: record.estimator
+			? MEG_ANCHOR_PROTOCOL_LABELS[record.estimator]
+			: null,
+		achievedLabel: formatNbDayMonth(record.achievedAt, timezone),
 		// The phrase is `recordGainPhrase`'s and is not restated here: a record
-		// that reads "first time!" on the runner's banner must read the same on
+		// that reads "første gang" on the runner's banner must read the same on
 		// this page, and this page is where last time's session is visible.
 		gain: recordGainPhrase(record),
 		note: record.unavailableNote,
@@ -138,7 +134,7 @@ export function buildRecordCards(
 }
 
 /**
- * `from 82.5 kg × 5` for an estimated 1RM, or null.
+ * `fra 82,5 kg × 5` for an estimated 1RM, or null.
  *
  * Only an `e1RM` takes one: an observed record *is* the set, and repeating it
  * beside itself would read as two different numbers.
@@ -149,7 +145,7 @@ function estimateSource(
 ): string | null {
 	if (record.kind !== 'e1RM') return null
 	const session = sessions.find((s) => s.sessionId === record.sessionId)
-	return session ? `from ${session.topSetText}` : null
+	return session ? EXERCISE_PAGE_LABELS.from(session.topSetText) : null
 }
 
 // ---------------------------------------------------------------------------
@@ -221,7 +217,7 @@ export function buildHistoryPoints(
 		.sort((a, b) => a.performedAt.getTime() - b.performedAt.getTime())
 		.map((session) => ({
 			sessionId: session.sessionId,
-			dateLabel: formatDayMonth(session.performedAt, timezone),
+			dateLabel: formatNbDayMonth(session.performedAt, timezone),
 			kg: session.topSetKg,
 			text: session.topSetText,
 			workingSetCount: session.workingSetCount,
@@ -271,7 +267,7 @@ const TICK_EVERY = 3
  */
 export type ChartBar = {
 	sessionId: string
-	/** 1-based position in this history — the `8` in `Session 8`. */
+	/** 1-based position in this history — the `8` in `Økt 8`. */
 	ordinal: number
 	/** 0–1 of the plot height, or **null** where the session has no honest kilo:
 	 * a kilo-less session draws no bar rather than a bar of length zero. */
@@ -281,9 +277,9 @@ export type ChartBar = {
 	latest: boolean
 	/** The Stall Cut that fired on this session, or null. */
 	stallCut: { fromKg: number; toKg: number } | null
-	/** `S7`, on every third session; null on the rest. */
+	/** `7`, on every third session; null on the rest. */
 	tickLabel: string | null
-	/** `9 Jul` — the session's date, for the data table's row. */
+	/** `9. jul` — the session's date, for the data table's row. */
 	dateLabel: string
 	/** `88 kg × 5` — what the top set was, in the session's own words. */
 	text: string
@@ -314,7 +310,10 @@ export function buildChartBars(
 			heightFraction: point.barFraction,
 			latest: index === points.length - 1,
 			stallCut,
-			tickLabel: ordinal % TICK_EVERY === 1 ? `S${ordinal}` : null,
+			tickLabel:
+				ordinal % TICK_EVERY === 1
+					? EXERCISE_PAGE_LABELS.chart.tick(ordinal)
+					: null,
 			dateLabel: point.dateLabel,
 			text: point.text,
 		}
@@ -322,11 +321,14 @@ export function buildChartBars(
 }
 
 function stallCutPhrase(cut: { fromKg: number; toKg: number }): string {
-	return `Stall Cut, ${formatKg(cut.fromKg)} kg → ${formatKg(cut.toKg)} kg`
+	return EXERCISE_PAGE_LABELS.chart.stallCut(
+		formatNbKg(cut.fromKg),
+		formatNbKg(cut.toKg),
+	)
 }
 
 /**
- * The note strips under the chart — `Session 8 — Stall Cut, 80 kg → 72.5 kg`.
+ * The note strips under the chart — `Økt 8 — vekta kuttet, 80 kg → 72,5 kg`.
  *
  * Generated **from the bars themselves**, so the strip names a bar that is
  * actually marked and carries the same two weights. Empty where nothing was cut,
@@ -335,7 +337,12 @@ function stallCutPhrase(cut: { fromKg: number; toKg: number }): string {
 export function buildStallNotes(bars: ChartBar[]): string[] {
 	return bars.flatMap((bar) =>
 		bar.stallCut
-			? [`Session ${bar.ordinal} — ${stallCutPhrase(bar.stallCut)}`]
+			? [
+					EXERCISE_PAGE_LABELS.chart.stallNote(
+						bar.ordinal,
+						stallCutPhrase(bar.stallCut),
+					),
+				]
 			: [],
 	)
 }
@@ -347,17 +354,17 @@ export function buildStallNotes(bars: ChartBar[]): string[] {
  * are drawn. The `Marked` column names what the bar's tone is saying, and names
  * it in the tone's own precedence — a Stall Cut over the latest bar — so the
  * table and the picture cannot tell two different stories. A slot with no bar
- * says so there too, carrying the reading the `n/a` tick has no room for.
+ * says so there too, carrying the reading the `ingen` marker has no room for.
  */
 export function buildChartTable(
 	title: string,
 	bars: ChartBar[],
 ): ChartDataTableModel {
 	return {
-		caption: `${title}, top set by session, oldest first`,
-		columns: ['Session', 'Date', 'Top set', 'Marked'],
+		caption: EXERCISE_PAGE_LABELS.chart.caption(title),
+		columns: [...EXERCISE_PAGE_LABELS.chart.columns],
 		rows: bars.map((bar) => [
-			`Session ${bar.ordinal}`,
+			EXERCISE_PAGE_LABELS.chart.session(bar.ordinal),
 			bar.dateLabel,
 			bar.text,
 			chartMarkText(bar),
@@ -373,11 +380,13 @@ export function buildChartTable(
  */
 function chartMarkText(bar: ChartBar): string {
 	const marks = [
-		bar.heightFraction == null ? 'No bar — no comparable kilo' : null,
+		bar.heightFraction == null ? EXERCISE_PAGE_LABELS.chart.noBar : null,
 		bar.stallCut ? stallCutPhrase(bar.stallCut) : null,
-		bar.latest ? 'Latest' : null,
+		bar.latest ? EXERCISE_PAGE_LABELS.chart.latest : null,
 	].filter((mark): mark is string => mark != null)
-	return marks.length > 0 ? marks.join('; ') : '—'
+	return marks.length > 0
+		? marks.join('; ')
+		: EXERCISE_PAGE_LABELS.chart.unmarked
 }
 
 /**
@@ -396,13 +405,8 @@ export function buildChartLabel(
 	bars: ChartBar[],
 ): string | null {
 	if (bars.length === 0) return null
-	const sessions = `${bars.length} ${bars.length === 1 ? 'session' : 'sessions'}`
 	const cuts = bars.filter((bar) => bar.stallCut != null).length
-	const marked =
-		cuts === 0
-			? ''
-			: `, with ${cuts} Stall ${cuts === 1 ? 'Cut' : 'Cuts'} marked`
-	return `${title}: top set across ${sessions}, oldest first${marked}.`
+	return EXERCISE_PAGE_LABELS.chart.label(title, bars.length, cuts)
 }
 
 /**
@@ -415,11 +419,11 @@ export function buildChartLabel(
  * that. The records strip below still reports everything that was read.
  */
 export type LiftHeader = {
-	/** `82.5 kg` — the largest number on the screen. */
+	/** `82,5 kg` — the largest number on the screen. */
 	workingWeight: string
 	/** `96 kg`, or null where no estimate was produced. */
 	estOneRm: string | null
-	/** `from 82.5 kg × 5`, or null — the estimate never floats free when the set
+	/** `fra 82,5 kg × 5`, or null — the estimate never floats free when the set
 	 * behind it is in view. */
 	estOneRmSource: string | null
 }
@@ -431,8 +435,8 @@ export function buildLiftHeader(
 	if (!program) return null
 	const estimate = view.records.find((record) => record.kind === 'e1RM')
 	return {
-		workingWeight: `${formatKg(program.workingWeightKg)} kg`,
-		estOneRm: estimate ? `${formatKg(estimate.value)} kg` : null,
+		workingWeight: `${formatNbKg(program.workingWeightKg)} kg`,
+		estOneRm: estimate ? `${formatNbKg(estimate.value)} kg` : null,
 		estOneRmSource: estimate ? estimateSource(estimate, view.sessions) : null,
 	}
 }
@@ -469,7 +473,7 @@ export function buildVariantTabs(
 	return [
 		{
 			equipment: null,
-			label: 'All variants',
+			label: EXERCISE_PAGE_LABELS.allVariants,
 			sessionCount: null,
 			current: current == null,
 		},
@@ -479,7 +483,7 @@ export function buildVariantTabs(
 
 export type ExerciseHistoryViewModel = {
 	title: string
-	/** "Last time: 4 days ago", or "First time on this lift". */
+	/** "Sist: for 4 dager siden", or "Første gang på dette løftet". */
 	lastTime: string
 	/** What the top set was last time, as text. Null on a first time. */
 	lastTimeText: string | null
@@ -556,7 +560,9 @@ export function buildExerciseHistoryViewModel(
 			? null
 			: view.oneRmUnavailable,
 		estimatorNote: records.some((record) => record.estimator)
-			? `Estimated 1RM uses the ${view.estimator} equation. An estimate is a model, not a lift.`
+			? EXERCISE_PAGE_LABELS.estimatorNote(
+					MEG_ANCHOR_PROTOCOL_LABELS[view.estimator],
+				)
 			: null,
 		empty: points.length === 0,
 		chart,

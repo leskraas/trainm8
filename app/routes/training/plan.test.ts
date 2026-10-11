@@ -605,7 +605,7 @@ test('a second track for a discipline the plan already measures is refused, in w
 
 	expect(refusal(result)).toEqual({
 		error:
-			'Your plan already measures that discipline. One training track each, so edit the one you have.',
+			'Planen måler allerede den sporten. Ett spor per sport, så endre det du har.',
 		status: 400,
 	})
 })
@@ -624,7 +624,7 @@ test('a starting volume of zero is refused rather than flattening the season', a
 
 	// The derivation is multiplicative, so an anchor of 0 makes every week 0 for the
 	// plan's whole life (ADR 0040 §3).
-	expect(refusal(result).error).toBe('Your starting volume is more than zero')
+	expect(refusal(result).error).toBe('Startvolumet er mer enn null')
 	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(1)
 })
 
@@ -693,7 +693,7 @@ test('the last track cannot be removed, and the refusal names the plan instead',
 
 	expect(refusal(result)).toEqual({
 		error:
-			'A plan measures at least one discipline. Delete the plan itself if you want none.',
+			'En plan måler minst én sport. Slett selve planen hvis du ikke vil ha noen.',
 		status: 400,
 	})
 	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(1)
@@ -721,9 +721,9 @@ test('another athlete cannot add or remove a track on this plan', async () => {
 	})
 
 	// Absent rather than forbidden: a stranger learns nothing about this season.
-	expect(refusal(added).error).toBe('That plan is not available to edit.')
+	expect(refusal(added).error).toBe('Den planen kan ikke endres.')
 	expect(refusal(removed).error).toBe(
-		'That training track is no longer part of this plan.',
+		'Det sporet er ikke lenger en del av planen.',
 	)
 	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(1)
 })
@@ -901,8 +901,8 @@ test('applying a shape lays its blocks down and says the plan is now the athlete
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			type: 'success',
-			title: 'Copied into your plan',
-			description: expect.stringContaining('Nothing stays linked'),
+			title: 'Kopiert inn i planen',
+			description: expect.stringContaining('Ingenting er knyttet'),
 		}),
 	)
 	// The preset's own phases replaced the one the plan was created with — its
@@ -1014,8 +1014,8 @@ test('a shape that overruns the event can be fitted to it in one tap', async () 
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			type: 'success',
-			title: 'Your plan lands on your event',
-			description: expect.stringContaining('weeks'),
+			title: 'Planen lander på løpet',
+			description: expect.stringContaining('uke'),
 		}),
 	)
 
@@ -1044,7 +1044,7 @@ test('a plan already landing on its event is offered no fit, and refuses one', a
 
 	expect(refusal(response)).toEqual({
 		status: 400,
-		error: expect.stringContaining('already ends on your event'),
+		error: expect.stringContaining('slutter allerede i uka for løpet'),
 	})
 	expect(await phasesOf(eventId)).toEqual(fitted)
 })
@@ -1080,7 +1080,7 @@ test('another athlete’s plan cannot be reshaped', async () => {
 
 	// A plan that is not the caller's reads as absent rather than as forbidden.
 	expect(refusal(response)).toEqual({
-		error: 'That plan is not available to edit.',
+		error: 'Den planen kan ikke endres.',
 		status: 400,
 	})
 	expect(await phasesOf(eventId)).toHaveLength(1)
@@ -1421,7 +1421,7 @@ test('a pattern moves through the order, and the ends refuse', async () => {
 	// One message for either end and either direction, since naming "start" would be
 	// the wrong word half the time.
 	expect(refusal(atTheEdge)).toEqual({
-		error: 'That is already at that end of its order.',
+		error: 'Den er allerede ytterst i den enden av rekkefølgen.',
 		status: 400,
 	})
 })
@@ -1513,7 +1513,7 @@ test('two sessions on one weekday are reordered, and the day’s ends refuse', a
 		(await patternsOf(outlineId))[0]!.days.map((day) => day.weight),
 	).toEqual([2, 1])
 	expect(refusal(atTheEdge).error).toBe(
-		'That is already at that end of its order.',
+		'Den er allerede ytterst i den enden av rekkefølgen.',
 	)
 })
 
@@ -1592,7 +1592,7 @@ test('a stale pattern is worded, not thrown', async () => {
 	// The state the athlete can act on, as a sentence — a page rendered before a
 	// sibling tab deleted the row is an ordinary thing to happen.
 	expect(refusal(renamed)).toEqual({
-		error: 'That week pattern is no longer part of this plan.',
+		error: 'Det ukemønsteret er ikke lenger en del av planen.',
 		status: 400,
 	})
 })
@@ -1611,7 +1611,7 @@ test('a fixed day with no workout named is refused rather than stored as a share
 	})
 
 	expect(refusal(response)).toEqual({
-		error: 'A fixed day prescribes a workout, so choose the session it stamps.',
+		error: 'En fast dag legger inn en økt, så velg hvilken.',
 		status: 400,
 	})
 	expect((await patternsOf(outlineId))[0]!.days).toEqual([])
@@ -1634,7 +1634,7 @@ test('another athlete’s workout cannot be prescribed on a day', async () => {
 	})
 
 	// A row that is not the caller's reads as absent rather than as forbidden.
-	expect(refusal(response).error).toMatch(/no longer one of yours/)
+	expect(refusal(response).error).toMatch(/ikke lenger din/)
 	expect((await patternsOf(outlineId))[0]!.days).toEqual([])
 })
 
@@ -1670,7 +1670,7 @@ test('a workout of another discipline is refused on a day of this track', async 
 	})
 
 	const expected =
-		'That session is a different discipline from this day’s track, and a day draws its volume from its own track. Pick a session on that track.'
+		'Den økta er en annen sport enn sporet til dagen, og en dag tar volumet fra sitt eget spor. Velg en økt på det sporet.'
 	expect(refusal(prescribed)).toEqual({ error: expected, status: 400 })
 	expect(refusal(shaped)).toEqual({ error: expected, status: 400 })
 	// The UI filters the picker to the track's own discipline; nothing was written
@@ -1690,7 +1690,7 @@ test('another athlete cannot author a pattern on this plan', async () => {
 	})
 
 	expect(refusal(response)).toEqual({
-		error: 'That plan is not available to edit.',
+		error: 'Den planen kan ikke endres.',
 		status: 400,
 	})
 	expect(await patternsOf(outlineId)).toEqual([])
@@ -2069,7 +2069,7 @@ test('a block that opens outside the plan is refused, with the way out named', a
 	)
 
 	expect(blockFormErrors(result)).toEqual([
-		'That week is not one of your plan’s weeks. Pick a week between your first and your last, or add weeks to your plan first.',
+		'Den uka er ikke en av ukene i planen. Velg en uke mellom den første og den siste, eller legg til uker i planen først.',
 	])
 	expect(await blocksOf(trackId)).toEqual([])
 })
@@ -2090,7 +2090,7 @@ test('a block running past the plan’s last week is refused, not truncated', as
 	)
 
 	expect(blockFormErrors(result)).toEqual([
-		'That block would run past the last week of your plan. Make it shorter, open it earlier, or add weeks to your plan.',
+		'Blokka ville gått forbi den siste uka i planen. Kort den ned, start den tidligere, eller legg til uker i planen.',
 	])
 	expect(await blocksOf(trackId)).toEqual([])
 })
@@ -2131,10 +2131,10 @@ test('two blocks cannot open on the same week, and cannot overlap either', async
 	// The same opening week is the sharper statement about the same collision, and
 	// the one the athlete recognises.
 	expect(blockFormErrors(sameWeek)).toEqual([
-		'Another lifting block already opens that week. Open this one on a different week.',
+		'En annen styrkeblokk starter allerede den uka. Start denne en annen uke.',
 	])
 	expect(blockFormErrors(overlapping)).toEqual([
-		'That block would overlap another lifting block. Blocks sit one after another, and the weeks between two of them are no lifting.',
+		'Blokka ville overlappet en annen styrkeblokk. Blokker ligger etter hverandre, og ukene mellom to av dem er uten styrke.',
 	])
 	expect(await blocksOf(trackId)).toHaveLength(1)
 })
@@ -2154,7 +2154,7 @@ test('an endurance track cannot carry a lifting block, and says why', async () =
 	)
 
 	expect(blockFormErrors(result)).toEqual([
-		'Lifting blocks belong to a strength track, and that one is an endurance track. Nothing was changed.',
+		'Styrkeblokker hører til et styrkespor, og det sporet er et utholdenhetsspor. Ingenting ble endret.',
 	])
 })
 
@@ -2200,13 +2200,13 @@ test('another athlete’s track and a gone block both read as absent', async () 
 
 	// A row that is not the caller's reads as absent rather than as forbidden.
 	expect(blockFormErrors(stranger)).toEqual([
-		'That training track is no longer part of this plan.',
+		'Det sporet er ikke lenger en del av planen.',
 	])
 	expect(blockFormErrors(stale)).toEqual([
-		'That lifting block is no longer part of this plan.',
+		'Den styrkeblokka er ikke lenger en del av planen.',
 	])
 	expect(refusal(removedTwice)).toEqual({
-		error: 'That lifting block is no longer part of this plan.',
+		error: 'Den styrkeblokka er ikke lenger en del av planen.',
 		status: 400,
 	})
 	expect(await blocksOf(trackId)).toEqual([])
@@ -2231,10 +2231,10 @@ test('a blank required field reads as a sentence on its own field', async () => 
 	// `Number('')` is 0, which would come back as a bound the athlete broke rather
 	// than as the box they never filled in.
 	expect(blockFieldErrors(result, 'weeks')).toEqual([
-		'How many weeks does this block run?',
+		'Hvor mange uker varer blokka?',
 	])
 	expect(blockFieldErrors(result, 'sessionsPerWeek')).toEqual([
-		'How many lifting sessions a week?',
+		'Hvor mange styrkeøkter i uka?',
 	])
 	expect(await blocksOf(trackId)).toEqual([])
 })
@@ -2500,7 +2500,7 @@ test('the earliest anchor stays, and the refusal names what to do instead', asyn
 
 	expect(refusal(result)).toEqual({
 		error:
-			'Your season keeps its first anchor — every week up to your next re-anchor is derived from it. Change its value instead, or remove a later re-anchor.',
+			'Sesongen beholder det første startnivået – hver uke fram til neste nye startnivå regnes ut fra det. Endre tallet i stedet, eller fjern et senere startnivå.',
 		status: 400,
 	})
 	expect(await storedAnchors(trackId)).toHaveLength(1)
@@ -2519,7 +2519,7 @@ test('an anchor keyed outside the plan reads as a sentence on the form', async (
 	})
 
 	expect(blockFormErrors(result)).toEqual([
-		'That week is not one of your plan’s weeks. Pick a week between your first and your last, or add weeks to your plan first.',
+		'Den uka er ikke en av ukene i planen. Velg en uke mellom den første og den siste, eller legg til uker i planen først.',
 	])
 	expect(await storedAnchors(trackId)).toHaveLength(1)
 })
@@ -2535,7 +2535,7 @@ test('a blank anchor is a sentence on its own field, and never a zero', async ()
 		value: '',
 	})
 	expect(blockFieldErrors(blank, 'value')).toEqual([
-		'How much a week are you starting from?',
+		'Hvor mye i uka starter du fra?',
 	])
 
 	// And zero itself: the derivation is multiplicative, so an anchor of 0 would

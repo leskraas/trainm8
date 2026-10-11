@@ -63,17 +63,20 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '#app/components/ui/select.tsx'
+import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import {
-	formatPercent,
-	formatVolumeTotal,
-	formatWeeklyVolume,
+	formatNbPercent,
+	formatNbVolumeTotal,
+	formatNbWeeklyVolume,
 } from '#app/utils/format.ts'
 import {
-	DISCIPLINE_LABELS,
-	getDisciplineLabel,
-	PATTERN_DAY_KIND_LABELS,
-	PATTERN_WEEKDAY_LABELS,
-	VOLUME_UNITS,
+	NB_PATTERN_DAY_KIND_LABELS,
+	NB_PATTERN_WEEKDAY_LABELS,
+	NB_VOLUME_UNITS,
+	nbDisciplineLabel,
+	nbTrackName,
+	SESONG_PAGE_LABELS,
+	SESONG_PATTERN_LABELS,
 } from '#app/utils/labels.ts'
 import { type VolumeCurrency } from '#app/utils/plan-outline/derive.ts'
 import {
@@ -131,20 +134,19 @@ export type PickableWorkout = { id: string; title: string; discipline: string }
 export type SeasonQuery = { name: 'event' | 'outline'; value: string } | null
 
 /**
- * The two directions, worded — a UI direction rather than a domain enum, so it
- * lives beside the control (the rule `MOVE_LABELS` follows in `__phase-editor`).
- * The day pair says *in the day*, because a day moves within its own weekday:
- * ordering two sessions on one Tuesday is what `orderInDay` is for, and the
- * weekday itself is not what these buttons change.
+ * The two directions, worded (`labels.ts`). The day pair says *in the day*,
+ * because a day moves within its own weekday: ordering two sessions on one
+ * Tuesday is what `orderInDay` is for, and the weekday itself is not what these
+ * buttons change.
  */
 const PATTERN_MOVE_LABELS = {
-	earlier: 'Move earlier',
-	later: 'Move later',
+	earlier: SESONG_PATTERN_LABELS.moveEarlier,
+	later: SESONG_PATTERN_LABELS.moveLater,
 } as const satisfies Record<'earlier' | 'later', string>
 
 const DAY_MOVE_LABELS = {
-	earlier: 'Earlier in the day',
-	later: 'Later in the day',
+	earlier: SESONG_PATTERN_LABELS.earlierInDay,
+	later: SESONG_PATTERN_LABELS.laterInDay,
 } as const satisfies Record<'earlier' | 'later', string>
 
 /**
@@ -185,21 +187,13 @@ export function WeekPatternSection({
 			    this heading is the accessible name only — dropping it would leave the
 			    region unnamed, and showing it would print the name twice. */}
 			<h2 id="week-patterns" className="sr-only">
-				Your typical week
+				{SESONG_PAGE_LABELS.patternTitle}
 			</h2>
-			<p className="text-muted-foreground text-sm">
-				Describe the week you actually train once, instead of scheduling every
-				week by hand. A day is either a <strong>fixed session</strong> —
-				prescribed as you authored it, the same intervals in a big week and a
-				small one — or a <strong>share</strong> of what is left, by relative
-				weight. A pattern stores no distances and no hours: each week&rsquo;s
-				volume is derived, so the same pattern comes out differently in week 1
-				and week 8.
+			<p className="text-muted-foreground text-footnote">
+				{SESONG_PATTERN_LABELS.intro}
 			</p>
-			<p className="text-muted-foreground text-sm">
-				Below is what each day comes out as against one week&rsquo;s real
-				derived target. Reading it schedules nothing — nothing is written to
-				your calendar here.
+			<p className="text-muted-foreground text-footnote">
+				{SESONG_PATTERN_LABELS.previewIntro}
 			</p>
 
 			<WeekChooser weeks={weeks} week={week} seasonQuery={seasonQuery} />
@@ -210,7 +204,7 @@ export function WeekPatternSection({
 					trainableWeekdays={trainableWeekdays}
 				/>
 			) : (
-				<ol aria-label="Week patterns" className="space-y-3">
+				<ol aria-label={SESONG_PATTERN_LABELS.list} className="space-y-3">
 					{patterns.map((pattern, position) => (
 						// Keyed by the pattern's own id: position orders them and identity
 						// edits them, so an index key would carry a card's local state onto
@@ -266,7 +260,9 @@ function WeekChooser({
 			) : null}
 			<input type="hidden" name="tab" value="weeks" />
 			<div className="flex-1 space-y-2">
-				<Label htmlFor="preview-week">Read against</Label>
+				<Label htmlFor="preview-week">
+					{SESONG_PATTERN_LABELS.readAgainst}
+				</Label>
 				<Select
 					value={chosen}
 					onValueChange={(value) => setChosen(String(value ?? ''))}
@@ -291,14 +287,15 @@ function WeekChooser({
 				<input type="hidden" name="week" value={chosen} />
 			</div>
 			<Button type="submit" variant="outline" className="w-full sm:w-auto">
-				Read this week
+				{SESONG_PATTERN_LABELS.readWeek}
 			</Button>
 		</Form>
 	)
 }
 
+/** `Uke 41` — the ISO week, as every Sesong surface numbers it. */
 function weekLabel(week: PreviewWeek | null): string {
-	return week ? `Week ${week.weekInPlan}` : 'Week'
+	return week ? `Uke ${isoWeekNumber(week.weekKey)}` : 'Uke'
 }
 
 /**
@@ -341,10 +338,14 @@ function PatternCard({
 	return (
 		<Card>
 			<CardHeader className="gap-1">
-				<CardTitle className="text-base">{pattern.name}</CardTitle>
-				<p className="text-muted-foreground text-sm">
-					{pattern.days.length === 1 ? '1 day' : `${pattern.days.length} days`}{' '}
-					· read against {week ? `week ${week.weekInPlan}` : 'no week'}
+				<CardTitle className="text-callout font-semibold">
+					{pattern.name}
+				</CardTitle>
+				<p className="text-muted-foreground text-footnote">
+					{SESONG_PATTERN_LABELS.cardNote(
+						pattern.days.length,
+						week ? isoWeekNumber(week.weekKey) : null,
+					)}
 				</p>
 			</CardHeader>
 			<CardContent className="space-y-4">
@@ -359,7 +360,7 @@ function PatternCard({
 					<Field
 						key={pattern.name}
 						className="flex-1"
-						labelProps={{ children: 'Name' }}
+						labelProps={{ children: SESONG_PATTERN_LABELS.name }}
 						inputProps={{
 							id: `pattern-name-${pattern.id}`,
 							name: 'name',
@@ -370,17 +371,15 @@ function PatternCard({
 						}}
 					/>
 					<Button type="submit" variant="outline" className="w-full sm:w-auto">
-						Rename
+						{SESONG_PATTERN_LABELS.rename}
 					</Button>
 				</Form>
 
 				{pattern.days.length === 0 ? (
-					<p className="text-sm">
-						No days yet. Add the sessions you train in a normal week.
-					</p>
+					<p className="text-footnote">{SESONG_PATTERN_LABELS.noDays}</p>
 				) : (
 					<ol
-						aria-label={`${pattern.name} days`}
+						aria-label={SESONG_PATTERN_LABELS.days(pattern.name)}
 						className="divide-border divide-y"
 					>
 						{pattern.days.map((day) => {
@@ -458,31 +457,36 @@ function PatternDayRow({
 			<div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
 				<div className="text-sm">
 					<span className="font-medium">
-						{PATTERN_WEEKDAY_LABELS[day.weekday]}
+						{NB_PATTERN_WEEKDAY_LABELS[day.weekday]}
 					</span>{' '}
 					<span className="text-muted-foreground">
-						· {track ? DISCIPLINE_LABELS[track.discipline] : 'Unknown track'} ·{' '}
+						·{' '}
+						{track
+							? nbTrackName(track.discipline)
+							: SESONG_PATTERN_LABELS.unknownTrack}{' '}
+						·{' '}
 						{day.kind === 'fixed'
-							? `${day.workout?.title ?? 'Workout removed'} · prescribed as authored, never scaled`
-							: `Share, weight ${day.weight}${
+							? `${day.workout?.title ?? SESONG_PATTERN_LABELS.workoutRemoved} · ${SESONG_PATTERN_LABELS.fixedNote}`
+							: SESONG_PATTERN_LABELS.share(
+									day.weight,
 									reading?.share == null
-										? ''
-										: ` · ${formatPercent(reading.share)} of what is left`
-								}`}
+										? null
+										: formatNbPercent(reading.share),
+								)}
 						{day.kind === 'share' && day.workout
-							? ` · shaped on ${day.workout.title}`
+							? SESONG_PATTERN_LABELS.shapedOn(day.workout.title)
 							: null}
 					</span>
 				</div>
 				<p className="text-sm font-medium tabular-nums">
 					{reading == null || reading.value == null || track == null ? (
 						<span className="text-muted-foreground font-normal">
-							Unavailable
+							{SESONG_PAGE_LABELS.unavailable}
 						</span>
 					) : (
 						// A day's volume, not a weekly rate: this is one session's share of
-						// the week, so it carries the bare unit rather than `/wk`.
-						formatVolumeTotal(reading.value, track.currency)
+						// the week, so it carries the bare unit rather than `/uke`.
+						formatNbVolumeTotal(reading.value, track.currency)
 					)}
 				</p>
 			</div>
@@ -515,8 +519,10 @@ function PatternDayRow({
 						size="sm"
 						className="w-full sm:w-auto"
 					>
-						Remove {PATTERN_WEEKDAY_LABELS[day.weekday]}
-						{siblings.length > 1 ? ` #${position + 1}` : ''}
+						{SESONG_PATTERN_LABELS.remove(
+							NB_PATTERN_WEEKDAY_LABELS[day.weekday].toLowerCase(),
+							siblings.length > 1 ? position + 1 : null,
+						)}
 					</Button>
 				</Form>
 			</div>
@@ -589,16 +595,16 @@ function dayUnavailableReason(
 	track: PatternTrackOption,
 	trackReading: PatternTrackReading | null,
 ): string {
-	const unit = VOLUME_UNITS[track.currency]
+	const unit = NB_VOLUME_UNITS[track.currency]
 	if (day.kind === 'fixed') {
 		return day.workout == null
-			? 'The workout this day prescribed is gone, so there is nothing to read a volume off.'
-			: `This session cannot be read in ${unit}, so it has no volume to prescribe here.`
+			? SESONG_PATTERN_LABELS.fixedGone
+			: SESONG_PATTERN_LABELS.fixedUnread(unit)
 	}
 	if (trackReading?.target == null) {
-		return `Week has no derived ${DISCIPLINE_LABELS[track.discipline].toLowerCase()} target, so there is nothing for this share to take a part of.`
+		return SESONG_PATTERN_LABELS.noTarget(nbTrackName(track.discipline))
 	}
-	return `A prescribed session in this pattern cannot be read in ${unit}, so what is left to divide is not known — and a share of an unknown remainder would be a made-up number.`
+	return SESONG_PATTERN_LABELS.unknownRemainder(unit)
 }
 
 /**
@@ -619,49 +625,49 @@ function TrackTotals({
 	week: PreviewWeek | null
 }) {
 	if (!track) return null
-	const label = DISCIPLINE_LABELS[track.discipline]
+	const label = nbTrackName(track.discipline)
 
 	return (
 		<div className="space-y-2">
-			<p className="text-sm font-medium">
-				{label}
-				{week ? ` · week ${week.weekInPlan}` : null}
+			<p className="text-footnote font-medium">
+				{SESONG_PATTERN_LABELS.totalsTitle(
+					label,
+					week ? isoWeekNumber(week.weekKey) : null,
+				)}
 			</p>
-			<dl className="text-sm">
-				<Total label="Week target">
+			<dl className="text-footnote">
+				<Total label={SESONG_PATTERN_LABELS.weekTarget}>
 					{reading.target == null ? (
 						<Unavailable />
 					) : (
 						// The one weekly *rate* on this reading — the derived target the whole
 						// pattern divides. Everything under it is a part of that week.
-						formatWeeklyVolume(reading.target, reading.currency)
+						formatNbWeeklyVolume(reading.target, reading.currency)
 					)}
 				</Total>
-				<Total label="Prescribed by fixed days">
+				<Total label={SESONG_PATTERN_LABELS.fixedTotal}>
 					{reading.fixed == null ? (
 						<Unavailable />
 					) : (
-						formatVolumeTotal(reading.fixed, reading.currency)
+						formatNbVolumeTotal(reading.fixed, reading.currency)
 					)}
 				</Total>
-				<Total label="Left for the share days">
+				<Total label={SESONG_PATTERN_LABELS.leftTotal}>
 					{reading.remainder == null ? (
 						<Unavailable />
 					) : (
-						formatVolumeTotal(reading.remainder, reading.currency)
+						formatNbVolumeTotal(reading.remainder, reading.currency)
 					)}
 				</Total>
 				{reading.unallocated != null && reading.unallocated > 0 ? (
-					<Total label="Taken by no day">
-						{formatVolumeTotal(reading.unallocated, reading.currency)}
+					<Total label={SESONG_PATTERN_LABELS.unallocated}>
+						{formatNbVolumeTotal(reading.unallocated, reading.currency)}
 					</Total>
 				) : null}
 			</dl>
 			{reading.unallocated != null && reading.unallocated > 0 ? (
-				<p className="text-muted-foreground text-sm">
-					This pattern has no {label.toLowerCase()} share day, so nothing
-					absorbs the rest of the week. Add one, or leave it — a pattern does
-					not have to spend the whole week.
+				<p className="text-muted-foreground text-footnote">
+					{SESONG_PATTERN_LABELS.noShareDay(label)}
 				</p>
 			) : null}
 			{reading.warnings.map((warning) => (
@@ -689,7 +695,11 @@ function Total({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function Unavailable() {
-	return <span className="text-muted-foreground font-normal">Unavailable</span>
+	return (
+		<span className="text-muted-foreground font-normal">
+			{SESONG_PAGE_LABELS.unavailable}
+		</span>
+	)
 }
 
 /**
@@ -720,27 +730,24 @@ function PatternWarningNotice({
 }) {
 	if (warning.kind === 'fixed-exceeds-target') {
 		return (
-			<p className="text-sm">
-				Your fixed {label.toLowerCase()} sessions prescribe{' '}
-				{formatVolumeTotal(warning.fixed, currency)} and this week&rsquo;s
-				target is {formatWeeklyVolume(warning.target, currency)}. They stay
-				exactly as you authored them — intervals are prescribed, so nothing here
-				shortens a session you wrote.
+			<p className="text-footnote">
+				{SESONG_PATTERN_LABELS.fixedExceeds(
+					label,
+					formatNbVolumeTotal(warning.fixed, currency),
+					formatNbWeeklyVolume(warning.target, currency),
+				)}
 				{hasShareDays
-					? ' There is nothing left for the share days this week, which is what the figures above say.'
-					: ' This week is simply smaller than the sessions you prescribed for it.'}
+					? SESONG_PATTERN_LABELS.fixedExceedsShares
+					: SESONG_PATTERN_LABELS.fixedExceedsNoShares}
 			</p>
 		)
 	}
 	return (
-		<p className="text-sm">
-			{warning.days === 1
-				? 'One fixed day cannot'
-				: `${warning.days} fixed days cannot`}{' '}
-			be read in {VOLUME_UNITS[currency]}, so this week cannot be divided: what
-			the share days would split is not known, and a share of an unknown
-			remainder would be a number the app made up. The fixed sessions themselves
-			are unaffected.
+		<p className="text-footnote">
+			{SESONG_PATTERN_LABELS.unreadFixed(
+				warning.days,
+				NB_VOLUME_UNITS[currency],
+			)}
 		</p>
 	)
 }
@@ -826,27 +833,30 @@ function AddPatternDayForm({
 
 	if (tracks.length === 0) {
 		return (
-			<p className="text-muted-foreground text-sm">
-				This plan has no training track yet, and a pattern day draws its volume
-				from one.
+			<p className="text-muted-foreground text-footnote">
+				{SESONG_PATTERN_LABELS.noTracks}
 			</p>
 		)
 	}
 
 	return (
 		<Form method="POST" className="space-y-4">
-			<p className="text-sm font-medium">Add a day</p>
+			<p className="text-footnote font-medium">
+				{SESONG_PATTERN_LABELS.addDay}
+			</p>
 			<input type="hidden" name="intent" value="add-week-pattern-day" />
 			<input type="hidden" name="patternId" value={pattern.id} />
 
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div className="space-y-2">
-					<Label htmlFor={`weekday-${suffix}`}>Weekday</Label>
+					<Label htmlFor={`weekday-${suffix}`}>
+						{SESONG_PATTERN_LABELS.weekday}
+					</Label>
 					<Select value={weekday} onValueChange={(v) => setWeekday(String(v))}>
 						<SelectTrigger id={`weekday-${suffix}`} className="w-full">
 							<SelectValue>
 								{(value) =>
-									PATTERN_WEEKDAY_LABELS[
+									NB_PATTERN_WEEKDAY_LABELS[
 										Number(
 											value ?? weekday,
 										) as (typeof PATTERN_WEEKDAYS)[number]
@@ -860,7 +870,7 @@ function AddPatternDayForm({
 							    The labels are derived across that mapping, never retyped. */}
 							{PATTERN_WEEKDAYS.map((option) => (
 								<SelectItem key={option} value={String(option)}>
-									{PATTERN_WEEKDAY_LABELS[option]}
+									{NB_PATTERN_WEEKDAY_LABELS[option]}
 								</SelectItem>
 							))}
 						</SelectContent>
@@ -869,7 +879,9 @@ function AddPatternDayForm({
 				</div>
 
 				<div className="space-y-2">
-					<Label htmlFor={`track-${suffix}`}>Training track</Label>
+					<Label htmlFor={`track-${suffix}`}>
+						{SESONG_PATTERN_LABELS.track}
+					</Label>
 					<Select value={trackId} onValueChange={(v) => chooseTrack(String(v))}>
 						<SelectTrigger id={`track-${suffix}`} className="w-full">
 							<SelectValue>
@@ -887,15 +899,14 @@ function AddPatternDayForm({
 						</SelectContent>
 					</Select>
 					<input type="hidden" name="trackId" value={trackId} />
-					<p className="text-muted-foreground text-sm">
-						A swim day draws swim volume, so the day says which track it belongs
-						to.
+					<p className="text-muted-foreground text-footnote">
+						{SESONG_PATTERN_LABELS.trackNote}
 					</p>
 				</div>
 			</div>
 
 			<div className="space-y-2">
-				<Label htmlFor={`kind-${suffix}`}>What kind of day</Label>
+				<Label htmlFor={`kind-${suffix}`}>{SESONG_PATTERN_LABELS.kind}</Label>
 				<Select
 					value={kind}
 					onValueChange={(value) => chooseKind(value as PatternDayKind)}
@@ -903,14 +914,14 @@ function AddPatternDayForm({
 					<SelectTrigger id={`kind-${suffix}`} className="w-full">
 						<SelectValue>
 							{(value) =>
-								PATTERN_DAY_KIND_LABELS[(value as PatternDayKind) ?? kind]
+								NB_PATTERN_DAY_KIND_LABELS[(value as PatternDayKind) ?? kind]
 							}
 						</SelectValue>
 					</SelectTrigger>
 					<SelectContent>
 						{offeredKinds.map((option) => (
 							<SelectItem key={option} value={option}>
-								{PATTERN_DAY_KIND_LABELS[option]}
+								{NB_PATTERN_DAY_KIND_LABELS[option]}
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -918,17 +929,17 @@ function AddPatternDayForm({
 				{/* The label names the kind and this says the rule it carries. The rule is
 				    the whole of the choice, so it is stated in full here rather than inside
 				    a 316 px trigger that would clip it at the reference viewport (§2.5). */}
-				<p className="text-muted-foreground text-sm">
+				<p className="text-muted-foreground text-footnote">
 					{kind === 'fixed'
-						? 'Prescribed as you authored it and never scaled — the same intervals in a big week and a small one.'
-						: 'A relative weight, normalised across the week — this day absorbs its part of whatever the fixed sessions leave.'}
+						? SESONG_PATTERN_LABELS.fixedHint
+						: SESONG_PATTERN_LABELS.shareHint}
 				</p>
 				<input type="hidden" name="kind" value={kind} />
 			</div>
 
 			{kind === 'share' ? (
 				<Field
-					labelProps={{ children: 'Relative weight' }}
+					labelProps={{ children: SESONG_PATTERN_LABELS.weight }}
 					inputProps={{
 						id: `weight-${suffix}`,
 						name: 'weight',
@@ -947,23 +958,24 @@ function AddPatternDayForm({
 			) : null}
 
 			{pickable.length === 0 ? (
-				<p className="text-muted-foreground text-sm">
+				<p className="text-muted-foreground text-footnote">
 					{workouts.length === 0
-						? 'A fixed day prescribes a workout, and you have none yet'
-						: `A fixed day prescribes a workout from the day’s own track, and you have no ${getDisciplineLabel(
-								trackDiscipline(tracks, trackId),
-							).toLowerCase()} workout yet`}{' '}
-					— this app authors a workout together with a session, so{' '}
+						? SESONG_PATTERN_LABELS.noWorkouts
+						: SESONG_PATTERN_LABELS.noTrackWorkouts(
+								nbDisciplineLabel(trackDiscipline(tracks, trackId)),
+							)}{' '}
+					{SESONG_PATTERN_LABELS.authorSessionLead}{' '}
 					<Link to="/training/sessions/new" className="underline">
-						author a session
+						{SESONG_PATTERN_LABELS.authorSession}
 					</Link>{' '}
-					and it will be offered here. Until then a day can still take a share
-					of the week.
+					{SESONG_PATTERN_LABELS.authorSessionTail}
 				</p>
 			) : (
 				<div className="space-y-2">
 					<Label htmlFor={`workout-${suffix}`}>
-						{kind === 'fixed' ? 'Workout' : 'Shape (optional)'}
+						{kind === 'fixed'
+							? SESONG_PATTERN_LABELS.workout
+							: SESONG_PATTERN_LABELS.shape}
 					</Label>
 					<Select
 						value={workoutId}
@@ -979,7 +991,9 @@ function AddPatternDayForm({
 							    the empty option is a real choice rather than a missing value —
 							    the same empty-string option the event form's target uses. */}
 							{kind === 'share' ? (
-								<SelectItem value="">No shape — volume only</SelectItem>
+								<SelectItem value="">
+									{SESONG_PATTERN_LABELS.noShape}
+								</SelectItem>
 							) : null}
 							{/* This track's own discipline only: a bike session on a run-track
 							    day would count bike duration as run volume, which is the
@@ -992,16 +1006,16 @@ function AddPatternDayForm({
 						</SelectContent>
 					</Select>
 					<input type="hidden" name="workoutId" value={workoutId} />
-					<p className="text-muted-foreground text-sm">
+					<p className="text-muted-foreground text-footnote">
 						{kind === 'fixed'
-							? 'Stamped as you authored it. Its volume is read off the session itself, so it is the same in every week.'
-							: 'A shape is scaled to the share this day takes. Leave it out for volume with no structure.'}
+							? SESONG_PATTERN_LABELS.fixedWorkoutHint
+							: SESONG_PATTERN_LABELS.shapeHint}
 					</p>
 				</div>
 			)}
 
 			<Button type="submit" variant="outline" className="w-full sm:w-auto">
-				Add day
+				{SESONG_PATTERN_LABELS.addDayButton}
 			</Button>
 		</Form>
 	)
@@ -1009,7 +1023,7 @@ function AddPatternDayForm({
 
 function trackLabel(tracks: PatternTrackOption[], trackId: string): string {
 	const track = tracks.find((entry) => entry.trackId === trackId)
-	return track ? DISCIPLINE_LABELS[track.discipline] : 'Training track'
+	return track ? nbTrackName(track.discipline) : SESONG_PATTERN_LABELS.track
 }
 
 /** A track's Discipline, for the copy that names what a day may prescribe. */
@@ -1023,16 +1037,15 @@ function trackDiscipline(
 /**
  * One Workout as the picker names it: its title and its discipline.
  *
- * `getDisciplineLabel` and not `DISCIPLINE_LABELS`, so a bike session reads as a
- * **Ride** — this names an actual session being prescribed, which is the *activity*
- * register (§4.1 of the UI conventions), while the track picker above it configures a
- * training domain and stays on the sport register. It also capitalizes anything
- * unknown, so no raw enum can reach the trigger as a fallback.
+ * `nbDisciplineLabel`, the Norwegian activity register: this names an actual
+ * session being prescribed (§4.1 of the UI conventions), while the track picker
+ * above it configures a training domain and stays on the sport register. It also
+ * capitalizes anything unknown, so no raw enum can reach the trigger.
  */
 function workoutLabel(workouts: PickableWorkout[], workoutId: string): string {
 	const workout = workouts.find((entry) => entry.id === workoutId)
-	if (!workout) return 'No shape — volume only'
-	return `${workout.title} · ${getDisciplineLabel(workout.discipline)}`
+	if (!workout) return SESONG_PATTERN_LABELS.noShape
+	return `${workout.title} · ${nbDisciplineLabel(workout.discipline)}`
 }
 
 /** Name a new pattern. Its position is the service's; nothing here submits one. */
@@ -1046,7 +1059,9 @@ function AddPatternForm({
 }) {
 	return (
 		<Form method="POST" className="space-y-4">
-			<p className="text-sm font-medium">Add a week pattern</p>
+			<p className="text-footnote font-medium">
+				{SESONG_PATTERN_LABELS.addPattern}
+			</p>
 			<input type="hidden" name="intent" value="add-week-pattern" />
 			<input type="hidden" name="outlineId" value={outlineId} />
 			{/* Re-keyed on the number of patterns, so an add that lands clears the box —
@@ -1055,18 +1070,18 @@ function AddPatternForm({
 			    box would quietly author a second pattern of the same name. */}
 			<Field
 				key={patternCount}
-				labelProps={{ children: 'Name' }}
+				labelProps={{ children: SESONG_PATTERN_LABELS.name }}
 				inputProps={{
 					id: 'new-pattern-name',
 					name: 'name',
 					type: 'text',
-					placeholder: 'e.g. Weekday base week',
+					placeholder: SESONG_PATTERN_LABELS.patternPlaceholder,
 					maxLength: 60,
 					required: true,
 				}}
 			/>
 			<Button type="submit" className="w-full sm:w-auto">
-				Add pattern
+				{SESONG_PATTERN_LABELS.addPatternButton}
 			</Button>
 		</Form>
 	)
@@ -1099,17 +1114,17 @@ function StarterPatternOffer({
 		<Form method="POST" className="space-y-3">
 			<input type="hidden" name="intent" value="start-week-pattern" />
 			<input type="hidden" name="outlineId" value={outlineId} />
-			<p className="text-sm">No pattern yet.</p>
-			<p className="text-muted-foreground text-sm">
+			<p className="text-footnote">{SESONG_PATTERN_LABELS.none}</p>
+			<p className="text-muted-foreground text-footnote">
 				{trainableWeekdays == null
-					? 'Build one from a four-day week as a starting point — a session on each day, the last one long. Move, re-weight or remove any day afterwards, and set your training days in your athlete profile to have them read from there instead.'
-					: `Build one from the ${trainableWeekdays === 1 ? 'day' : `${trainableWeekdays} days`} you say you can train on — a session on each, the last one long. Move, re-weight or remove any day afterwards.`}
+					? SESONG_PATTERN_LABELS.starterDefault
+					: SESONG_PATTERN_LABELS.starterProfile(trainableWeekdays)}
 			</p>
 			<Button type="submit" variant="outline" className="w-full sm:w-auto">
-				Build me a typical week
+				{SESONG_PATTERN_LABELS.starter}
 			</Button>
-			<p className="text-muted-foreground text-sm">
-				Or name your own below and add the days yourself.
+			<p className="text-muted-foreground text-footnote">
+				{SESONG_PATTERN_LABELS.orOwn}
 			</p>
 		</Form>
 	)
@@ -1127,35 +1142,34 @@ function DeletePatternDialog({ pattern }: { pattern: EditablePattern }) {
 			<AlertDialogTrigger
 				render={
 					<Button variant="ghost" size="sm" className="w-full sm:w-auto">
-						Delete pattern
+						{SESONG_PATTERN_LABELS.delete}
 					</Button>
 				}
 			/>
 			<AlertDialogPopup>
 				<AlertDialogHeader>
-					<AlertDialogTitle>Delete {pattern.name}?</AlertDialogTitle>
+					<AlertDialogTitle>
+						{SESONG_PATTERN_LABELS.deleteConfirm(pattern.name)}
+					</AlertDialogTitle>
 					<AlertDialogDescription>
 						{/* Three cases, because "and its 0 days" is not a sentence: a named
 						    pattern the athlete has not filled in yet is an ordinary state,
 						    and it reads as one. */}
-						This removes {pattern.name}
-						{pattern.days.length === 0
-							? ', which has no days in it yet'
-							: pattern.days.length === 1
-								? ' and its one day'
-								: ` and its ${pattern.days.length} days`}
-						. Your blocks, your training tracks and every session you have
-						already trained stay exactly as they are — nothing on your calendar
-						came from this pattern. This cannot be undone.
+						{SESONG_PATTERN_LABELS.deleteBody(
+							pattern.name,
+							pattern.days.length,
+						)}
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 				<Form method="POST">
 					<input type="hidden" name="intent" value="remove-week-pattern" />
 					<input type="hidden" name="patternId" value={pattern.id} />
 					<AlertDialogFooter>
-						<AlertDialogCancel type="button">Keep pattern</AlertDialogCancel>
+						<AlertDialogCancel type="button">
+							{SESONG_PATTERN_LABELS.keep}
+						</AlertDialogCancel>
 						<AlertDialogAction type="submit" variant="destructive">
-							Delete pattern
+							{SESONG_PATTERN_LABELS.delete}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</Form>

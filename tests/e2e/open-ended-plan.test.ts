@@ -98,8 +98,12 @@ test('Legg til et løp turns an open-ended plan into a plan toward the race, wit
 	).toBeVisible()
 	await expect(page.getByText('blokk 1 av ∞')).toHaveCount(0)
 	// The round lived so far stays; the run-up to the race follows it.
-	for (const phase of ['Blokk 1', 'Build', 'Peak', 'Taper']) {
-		await expect(page.getByText(phase, { exact: true }).first()).toBeVisible()
+	for (const phase of ['Blokk 1', 'Oppbygging', 'Spissing', 'Nedtrapping']) {
+		// Each phase is a card whose trigger opens on its name (the taper's
+		// carries a `Trapper ned` badge beside it).
+		await expect(
+			page.getByRole('button', { name: new RegExp(`^${phase} `) }),
+		).toBeVisible()
 	}
 	expect(errors).toEqual([])
 })

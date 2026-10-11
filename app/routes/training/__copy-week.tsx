@@ -1,8 +1,8 @@
 /**
  * **Copying a week** onto another week (#415, ADR 0044 §6).
  *
- * The other way to fill a week, sitting under the stamp so the athlete reads the two
- * offers together. Split out of `plan.tsx` the way `__stamp-pattern.tsx` is — the
+ * The athlete's own way to fill a week, now that the weeks fill themselves from
+ * the typical week (decision 14). Split out of `plan.tsx` like the other editors — the
  * route owns the loader, the action and the wording of every refusal; this module
  * owns the controls.
  *
@@ -42,7 +42,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '#app/components/ui/select.tsx'
-import { formatDate } from '#app/utils/format.ts'
+import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
+import { formatNbDayMonth } from '#app/utils/format.ts'
+import { SESONG_COPY_LABELS } from '#app/utils/labels.ts'
 import { type CopyWeekConflict } from '#app/utils/plan-outline/copy-week.server.ts'
 
 /** One week of the plan, as the two choosers list it. */
@@ -82,25 +84,17 @@ export function CopyWeekSection({
 			    this heading is the accessible name only — dropping it would leave the
 			    region unnamed, and showing it would print the name twice. */}
 			<h2 id="copy-week" className="sr-only">
-				Copy a week you liked
+				{SESONG_COPY_LABELS.copy}
 			</h2>
-			<p className="text-muted-foreground text-sm">
-				Every session in the week you pick is duplicated onto the other
-				week&rsquo;s matching days, at the same times. Each copy gets its{' '}
-				<strong>own workout</strong>, so the two weeks are separate from the
-				moment they exist — edit one and the other does not move.
+			<p className="text-muted-foreground text-footnote">
+				{SESONG_COPY_LABELS.intro}
 			</p>
-			<p className="text-muted-foreground text-sm">
-				A week is copied <strong>exactly as you wrote it</strong>. It is not
-				stretched to meet the target week&rsquo;s figure above — if that week
-				asks for more, the list will show it the way it shows any week you set
-				by hand.
+			<p className="text-muted-foreground text-footnote">
+				{SESONG_COPY_LABELS.asWritten}
 			</p>
 
 			{weeks.length < 2 ? (
-				<p className="text-sm">
-					Your plan has one week, so there is no other week to copy it onto.
-				</p>
+				<p className="text-footnote">{SESONG_COPY_LABELS.oneWeek}</p>
 			) : pending ? (
 				<ConfirmReplace
 					pending={pending}
@@ -137,7 +131,7 @@ function CopyForm({
 			    at 390 px and would clip (UI conventions §2.5). */}
 			<WeekChooser
 				id="copy-week-source"
-				label="Copy this week"
+				label={SESONG_COPY_LABELS.source}
 				name="sourceWeekKey"
 				value={sourceWeekKey}
 				onChange={setSourceWeekKey}
@@ -146,7 +140,7 @@ function CopyForm({
 			/>
 			<WeekChooser
 				id="copy-week-target"
-				label="Onto this week"
+				label={SESONG_COPY_LABELS.target}
 				name="targetWeekKey"
 				value={targetWeekKey}
 				onChange={setTargetWeekKey}
@@ -155,7 +149,7 @@ function CopyForm({
 			/>
 
 			<Button type="submit" className="w-full sm:w-auto">
-				Copy the week
+				{SESONG_COPY_LABELS.copy}
 			</Button>
 		</Form>
 	)
@@ -194,7 +188,9 @@ function WeekChooser({
 							const week = weeks.find(
 								(entry) => entry.weekKey === String(chosen ?? ''),
 							)
-							return week ? weekLabel(week, timezone) : 'Week'
+							return week
+								? weekLabel(week, timezone)
+								: SESONG_COPY_LABELS.target
 						}}
 					</SelectValue>
 				</SelectTrigger>
@@ -239,25 +235,30 @@ function ConfirmReplace({
 	return (
 		<Card>
 			<CardHeader className="gap-1">
-				<CardTitle className="text-base">
-					Week {pending.conflict.weekInPlan} already has sessions
+				<CardTitle className="text-callout font-semibold">
+					{SESONG_COPY_LABELS.filled(isoWeekNumber(pending.targetWeekKey))}
 				</CardTitle>
-				<p className="text-muted-foreground text-sm">
-					Nothing has been written yet.
+				<p className="text-muted-foreground text-footnote">
+					{SESONG_COPY_LABELS.nothingWritten}
 				</p>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				<p className="text-sm">
+				<p className="text-footnote">
 					{replacing === 0
-						? 'Nothing in that week would be replaced.'
-						: `${capitalise(sessionCount(replacing))} would be deleted and written again from ${source ? `week ${source.weekInPlan}` : 'the week you picked'}. Any edits you made to them go with them, and that cannot be undone.`}
-					{keeping > 0
-						? ` ${capitalise(sessionCount(keeping))} stay exactly as they are — you have already trained or logged them, so copying never touches them.`
-						: ''}
+						? SESONG_COPY_LABELS.noneReplaced
+						: SESONG_COPY_LABELS.replacing(
+								replacing,
+								source
+									? SESONG_COPY_LABELS.week(
+											isoWeekNumber(source.weekKey),
+										).toLowerCase()
+									: null,
+							)}
+					{keeping > 0 ? SESONG_COPY_LABELS.keeping(keeping) : ''}
 				</p>
 				{target ? (
-					<p className="text-muted-foreground text-sm">
-						Week {target.weekInPlan} · {formatDate(target.startsAt, timezone)}
+					<p className="text-muted-foreground text-footnote">
+						{weekLabel(target, timezone)}
 					</p>
 				) : null}
 
@@ -281,25 +282,21 @@ function ConfirmReplace({
 						variant="destructive"
 						className="w-full sm:w-auto"
 					>
-						Replace and copy
+						{SESONG_COPY_LABELS.replace}
 					</Button>
 				</Form>
-				<p className="text-muted-foreground text-sm">
-					Or pick an empty week instead.
+				<p className="text-muted-foreground text-footnote">
+					{SESONG_COPY_LABELS.orEmpty}
 				</p>
 			</CardContent>
 		</Card>
 	)
 }
 
+/** `Uke 41 · 12. okt` — the ISO week, as every Sesong surface numbers it. */
 function weekLabel(week: CopyableWeek, timezone: string): string {
-	return `Week ${week.weekInPlan} · ${formatDate(week.startsAt, timezone)}`
-}
-
-function sessionCount(count: number): string {
-	return `${count} ${count === 1 ? 'session' : 'sessions'}`
-}
-
-function capitalise(text: string): string {
-	return text ? text[0]!.toUpperCase() + text.slice(1) : text
+	return SESONG_COPY_LABELS.weekOption(
+		isoWeekNumber(week.weekKey),
+		formatNbDayMonth(week.startsAt, timezone),
+	)
 }

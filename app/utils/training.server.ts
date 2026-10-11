@@ -202,7 +202,7 @@ export type ActivePlan = {
 	fillsWeeks: boolean
 	/**
 	 * The plan's philosophy (`outlineFamily`): the one it records, or the one its
-	 * rhythm reads as; null for neither. I dag's top line names the plan by it
+	 * first non-taper phase's rhythm reads as; null for neither. I dag's top line names the plan by it
 	 * (ADR 0086). Optional, so a hand-built plan in a test may leave it out.
 	 */
 	family?: PresetFamily | null
@@ -223,8 +223,38 @@ export async function getActivePlan(
 ): Promise<ActivePlan | null> {
 	const found = await findActiveOutline(userId, now)
 	if (!found) return null
-	const { event, outline } = found
+	return activePlanOf(userId, found, now)
+}
 
+/**
+ * One plan by its Outline, read exactly as {@link getActivePlan} reads the
+ * active one — for Sesong, whose page may show a plan that is not the active
+ * one (`?event=`, `?outline=`, a resting open-ended plan) and draws its season
+ * picture with I dag's table and curve (round 2, ADR 0090). Null for an
+ * Outline that is not the athlete's or has no phases.
+ */
+export async function getPlanForOutline(
+	userId: string,
+	outlineId: string,
+	now: Date = new Date(),
+): Promise<ActivePlan | null> {
+	const outline = await prisma.planOutline.findFirst({
+		where: { id: outlineId, athleteId: userId },
+		select: activeOutlineSelect,
+	})
+	if (!outline || outline.phases.length === 0) return null
+	return activePlanOf(userId, { event: outline.event, outline }, now)
+}
+
+/** An Outline found for a plan, read into the plan home and Sesong draw. */
+async function activePlanOf(
+	userId: string,
+	{
+		event,
+		outline,
+	}: NonNullable<Awaited<ReturnType<typeof findActiveOutline>>>,
+	now: Date,
+): Promise<ActivePlan> {
 	const timezone = await getAthleteTimezone(userId)
 	const specs = phaseSpecs(outline)
 	const tracks = resolvedTracks(outline)
@@ -257,7 +287,7 @@ export async function getActivePlan(
 			weekRole(specs, week),
 		),
 		fillsWeeks: outline.patterns.some((pattern) => pattern.days.length > 0),
-		family: outlineFamily(outline.family, specs.at(-1)?.rhythm ?? 'none'),
+		family: outlineFamily(outline.family, specs),
 	}
 }
 
@@ -744,8 +774,10 @@ export type AuthoredSeason = {
 	resting: boolean
 	/**
 	 * The philosophy the plan follows (#505 story 10): the family it records,
-	 * or for a plan that records none the one its last phase's rhythm reads as
-	 * (`outlineFamily`). Null for a plan that reads as none.
+	 * or for a plan that records none the one its first phase with a rhythm,
+	 * taper aside, reads as (`outlineFamily`): a race plan's last phase is a
+	 * taper with none. Null for a plan that reads as none, which the
+	 * _Filosofi_ card names as such.
 	 */
 	family: PresetFamily | null
 }
@@ -972,7 +1004,7 @@ async function toSeason(
 			{ eventId: event?.id ?? null },
 			now,
 		),
-		family: outlineFamily(outline.family, specs.at(-1)?.rhythm ?? 'none'),
+		family: outlineFamily(outline.family, specs),
 	}
 }
 

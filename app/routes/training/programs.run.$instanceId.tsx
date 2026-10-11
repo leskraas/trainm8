@@ -26,8 +26,14 @@ import {
 } from '#app/components/ui/card.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { LIBRARY_LABELS } from '#app/utils/labels.ts'
-import { formatKg } from '#app/utils/strength/program.constants.ts'
+import { formatNbKg } from '#app/utils/format.ts'
+import {
+	LIBRARY_LABELS,
+	NB_STALL_RESPONSE_LABELS,
+	PROGRAM_RULE_LABELS,
+	PROGRAM_RUN_LABELS as L,
+} from '#app/utils/labels.ts'
+import { parseKiloInput } from '#app/utils/strength/kilo-input.ts'
 import {
 	type ProgramOverview,
 	endProgram,
@@ -36,9 +42,13 @@ import {
 	setWorkingWeight,
 } from '#app/utils/strength-program.server.ts'
 import { type Route } from './+types/programs.run.$instanceId.ts'
+import {
+	incrementText,
+	programProvenanceNote,
+} from './__programs-list-presenter.ts'
 
 export const meta: Route.MetaFunction = ({ data: loaderData }) => [
-	{ title: `${loaderData?.program.name ?? 'Program'} | Trainm8` },
+	{ title: `${loaderData?.program.name ?? L.metaFallback} | Trainm8` },
 ]
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -92,14 +102,23 @@ const MAX_WORKING_WEIGHT_KG = 1000
  * the form is unhappy.
  */
 export function workingWeightRefusal(typed: string): string | null {
-	const weightKg = Number(typed.trim())
-	if (!Number.isFinite(weightKg) || weightKg <= 0) {
-		return 'A working weight has to be a positive number of kilos.'
+	const weightKg = parseKiloInput(typed)
+	if (weightKg == null || weightKg <= 0) {
+		return L.errors.positive
 	}
 	if (weightKg > MAX_WORKING_WEIGHT_KG) {
-		return `A working weight has to be ${MAX_WORKING_WEIGHT_KG} kg or less — above that it is a typo, not a lift.`
+		return L.errors.tooHigh(MAX_WORKING_WEIGHT_KG)
 	}
 	return null
+}
+
+/**
+ * The typed working weight as kilos — `62,5` and `62.5` alike (`parseKiloInput`).
+ * Read only after {@link workingWeightRefusal} has passed it, so a `null` here is
+ * a refused number that slipped past, never a weight to save.
+ */
+export function workingWeightKg(typed: string): number | null {
+	return workingWeightRefusal(typed) == null ? parseKiloInput(typed) : null
 }
 
 export type OverviewActionResult =
@@ -112,7 +131,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 	const parsed = OverviewSchema.safeParse(Object.fromEntries(formData))
 	if (!parsed.success) {
 		return data<OverviewActionResult>(
-			{ ok: false, error: 'That did not make sense.' },
+			{ ok: false, error: L.errors.nonsense },
 			400,
 		)
 	}
@@ -125,7 +144,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 		})
 		if (!opened) {
 			return data<OverviewActionResult>(
-				{ ok: false, error: 'That program run is gone.' },
+				{ ok: false, error: L.errors.gone },
 				404,
 			)
 		}
@@ -136,21 +155,27 @@ export async function action({ request, params }: Route.ActionArgs) {
 		const ended = await endProgram(userId, params.instanceId)
 		if (!ended) {
 			return data<OverviewActionResult>(
-				{ ok: false, error: 'That program run is gone.' },
+				{ ok: false, error: L.errors.gone },
 				404,
 			)
 		}
 		return data<OverviewActionResult>({
 			ok: true,
-			message: 'The program is stopped. Every set you logged under it stays.',
+			message: L.stopped,
 		})
 	}
 
 	const refusal = workingWeightRefusal(input.weightKg)
-	if (refusal) {
-		return data<OverviewActionResult>({ ok: false, error: refusal }, 400)
+	const weightKg = workingWeightKg(input.weightKg)
+	if (refusal || weightKg == null) {
+		return data<OverviewActionResult>(
+			{
+				ok: false,
+				error: refusal ?? L.errors.positive,
+			},
+			400,
+		)
 	}
-	const weightKg = Number(input.weightKg.trim())
 
 	const updated = await setWorkingWeight({
 		userId,
@@ -160,25 +185,18 @@ export async function action({ request, params }: Route.ActionArgs) {
 		weightKg,
 	})
 	return updated
-		? data<OverviewActionResult>({ ok: true, message: 'Working weight set.' })
-		: data<OverviewActionResult>(
-				{ ok: false, error: 'That lift is gone.' },
-				404,
-			)
+		? data<OverviewActionResult>({ ok: true, message: L.weightSaved })
+		: data<OverviewActionResult>({ ok: false, error: L.errors.liftGone }, 404)
 }
 
 /** The three **Stall Responses**, in the athlete's words. */
-const STALL_RESPONSE_LABELS: Record<string, string> = {
-	stallCut: 'Stall Cut',
-	weightRollback: 'Weight Rollback',
-	anchorReEstimate: 'Anchor Re-estimate',
-}
+const STALL_RESPONSE_LABELS = NB_STALL_RESPONSE_LABELS
 
 /** **One weight, rendered the same way everywhere** — the shared house rule,
  * imported rather than restated. This screen used to say `20.3 kg` about a
  * prescription the grid one tap away called `20.25 kg`. */
 function kg(value: number): string {
-	return `${formatKg(value)} kg`
+	return `${formatNbKg(value)} kg`
 }
 
 export default function ProgramRunRoute({ loaderData }: Route.ComponentProps) {
@@ -192,38 +210,37 @@ export default function ProgramRunRoute({ loaderData }: Route.ComponentProps) {
 				back={{ to: '/training/programs', label: LIBRARY_LABELS.programs }}
 				className="mb-2"
 			/>
-			<p className="text-body-sm text-muted-foreground mb-6">
+			<p className="text-footnote text-muted-foreground mb-6">
 				{overview.status === 'active'
-					? 'Running. The next weight comes from your last log, not the calendar.'
-					: `This run is ${overview.status}.`}
+					? L.running
+					: L.notRunning(overview.status)}
 			</p>
 
 			<StallNotices overview={overview} />
 
 			<Card className="mb-6">
 				<CardHeader>
-					<CardTitle>
-						{overview.today.dayId
-							? `Today: Workout ${overview.today.dayId}`
-							: 'Today'}
+					<CardTitle className="text-heading">
+						{L.today(overview.today.dayId)}
 					</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-3">
-					<ul className="text-body-sm space-y-1">
+					<ul className="space-y-1">
 						{overview.today.lifts.map((lift) => {
 							const first = lift.sets[0]
-							const name = overview.liftNames[lift.exerciseId] ?? 'Lift'
+							const name = overview.liftNames[lift.exerciseId] ?? 'Løft'
 							return (
-								<li key={`${lift.exerciseId}-${lift.equipment ?? ''}`}>
-									<span className="font-medium">{name}</span> {lift.sets.length}
-									×{first?.reps ?? 0}{' '}
-									{first?.weight.kind === 'resolved' ? (
-										<>@ {kg(first.weight.kg)}</>
-									) : (
-										<span className="text-muted-foreground">
-											— no weight yet ({first?.weight.basis})
-										</span>
-									)}
+								<li
+									key={`${lift.exerciseId}-${lift.equipment ?? ''}`}
+									className="text-callout"
+								>
+									{name}{' '}
+									<span className="text-muted-foreground tabular-nums">
+										{lift.sets.length}×{first?.reps ?? 0}
+										{first?.weight.kind === 'resolved'
+											? ` · ${kg(first.weight.kg)}`
+											: ` · ${L.noWeightYet}`}
+									</span>
 								</li>
 							)
 						})}
@@ -232,26 +249,27 @@ export default function ProgramRunRoute({ loaderData }: Route.ComponentProps) {
 						/* **Which number this is, said out loud.** A session that is being
 						   logged is frozen at the weights it was stamped with — moving them
 						   under sets already logged would be the worse failure — so this
-						   line quotes the stamp and *Your weights* below quotes the live
+						   line quotes the stamp and *Vektene dine* below quotes the live
 						   working weight. Two different numbers with two different meanings,
 						   and neither posing as the other. */
-						<p className="text-body-xs text-muted-foreground">
-							These are the weights stamped on the session you have open, which
-							is what its grid is asking for.{' '}
+						<p className="text-footnote text-muted-foreground">
+							{L.stamped}{' '}
 							{overview.openSessionHasLoggedSets
-								? 'Because sets are already logged against it, changing a working weight below takes effect on the next session.'
-								: 'Nothing is logged against it yet, so changing a working weight below re-stamps it the next time you open it.'}
+								? L.stampedLogged
+								: L.stampedOpen}
 						</p>
 					) : null}
 					{overview.nextDayId ? (
-						<p className="text-body-xs text-muted-foreground">
-							Next after today: Workout {overview.nextDayId}.
+						<p className="text-footnote text-muted-foreground">
+							{L.next(overview.nextDayId)}
 						</p>
 					) : null}
 					{overview.status === 'active' ? (
 						<fetcher.Form method="post">
 							<input type="hidden" name="intent" value="open-session" />
-							<Button type="submit">Open today’s session</Button>
+							<Button type="submit" className="rounded-full">
+								{L.openToday}
+							</Button>
 						</fetcher.Form>
 					) : null}
 				</CardContent>
@@ -259,9 +277,9 @@ export default function ProgramRunRoute({ loaderData }: Route.ComponentProps) {
 
 			<Card className="mb-6">
 				<CardHeader>
-					<CardTitle>Your weights</CardTitle>
+					<CardTitle className="text-heading">{L.yourWeights}</CardTitle>
 				</CardHeader>
-				<CardContent className="space-y-4">
+				<CardContent className="divide-border/60 divide-y">
 					{overview.lifts.map((lift) => (
 						<WorkingWeightForm
 							key={`${lift.exerciseId}::${lift.equipment ?? ''}`}
@@ -274,11 +292,11 @@ export default function ProgramRunRoute({ loaderData }: Route.ComponentProps) {
 			{overview.status === 'active' ? (
 				<fetcher.Form method="post">
 					<input type="hidden" name="intent" value="end-program" />
-					<Button type="submit" variant="outline">
-						Stop this program
+					<Button type="submit" variant="outline" className="rounded-full">
+						{L.stop}
 					</Button>
-					<p className="text-body-xs text-muted-foreground mt-1">
-						Stopping keeps every set you logged under it.
+					<p className="text-footnote text-muted-foreground mt-1">
+						{L.stopNote}
 					</p>
 				</fetcher.Form>
 			) : null}
@@ -310,31 +328,37 @@ function WorkingWeightForm({
 		answer && 'ok' in answer && answer.ok ? (answer.message ?? null) : null
 
 	return (
-		<div className="space-y-1">
-			<p className="text-body-sm">
+		<div className="space-y-2 py-3 first:pt-0 last:pb-0">
+			{/* Arket M's lift row: the lift, its working weight, and what the next
+			    made session adds — `neste: +2,5 kg` — in Public Sans tabular
+			    figures, never monospace. */}
+			<p className="text-callout flex flex-wrap items-baseline gap-x-2">
 				{/* The lift's own name is the way into its history and records — this
 				    screen says what you lift *next*, and "is this lift actually moving"
 				    is the question it provokes. Without it that screen had no entry
 				    point at all. */}
 				<Link
 					to={`/training/exercises/${lift.exerciseId}`}
-					className="font-medium underline"
+					className="underline underline-offset-2"
 				>
 					{lift.name}
-				</Link>{' '}
-				{kg(lift.currentWorkingWeightKg)} · {lift.incrementText}
-				{lift.stallCount > 0 ? (
-					<span className="text-muted-foreground">
-						{' '}
-						· Stall Count {lift.stallCount}
-					</span>
-				) : null}
+				</Link>
+				<span className="tabular-nums">{kg(lift.currentWorkingWeightKg)}</span>
+				<span className="text-footnote text-muted-foreground tabular-nums">
+					{PROGRAM_RULE_LABELS.next(incrementText(lift.increment))}
+					{lift.stallCount > 0 ? ` · ${L.shortInARow(lift.stallCount)}` : null}
+				</span>
 			</p>
 			<fetcher.Form method="post" className="flex items-center gap-2">
 				<input type="hidden" name="intent" value="set-working-weight" />
 				<input type="hidden" name="exerciseId" value={lift.exerciseId} />
 				<input type="hidden" name="equipment" value={lift.equipment ?? ''} />
-				{/* **No step.** `step="0.5"` rejected 61.25 kg in the browser, on an
+				{/* **Text, with a decimal keypad — never `type="number"`.** A number
+				    input is read by the browser's locale: Chromium in English dropped the
+				    comma from a typed `62,5` and posted `625`. A text field posts what was
+				    typed, and {@link workingWeightRefusal} reads `,` and `.` alike.
+
+				    **No step.** `step="0.5"` rejected 61.25 kg in the browser, on an
 				    athlete whose gym owns 1.25 kg plates — a precision constraint the app
 				    has no standing to impose, since what can be loaded is a fact about a
 				    rack it may know nothing about. Loadability is said where it is known
@@ -350,36 +374,36 @@ function WorkingWeightForm({
 				    takes the same visible path — post, and let {@link
 				    workingWeightRefusal} answer under the field. */}
 				<Input
-					className="w-28"
-					type="number"
+					className="w-28 tabular-nums"
+					type="text"
 					inputMode="decimal"
-					step="any"
+					autoComplete="off"
 					name="weightKg"
-					aria-label={`Working weight for ${lift.name} in kg`}
+					aria-label={L.weightFor(lift.name)}
 					aria-invalid={error ? true : undefined}
 					aria-describedby={
 						error ? `weight-error-${lift.exerciseId}` : undefined
 					}
-					defaultValue={lift.currentWorkingWeightKg}
+					defaultValue={formatNbKg(lift.currentWorkingWeightKg)}
 				/>
 				{/* Never "Set": beside a weight field, in a lifting app, "Set" reads as
 				    the noun — the thing you do five of. The verb has to say what it does
 				    to the number. */}
-				<Button type="submit" variant="secondary" size="sm">
-					Save weight
+				<Button type="submit" variant="secondary" className="rounded-full">
+					{L.saveWeight}
 				</Button>
 			</fetcher.Form>
 			{error ? (
 				<p
 					id={`weight-error-${lift.exerciseId}`}
-					className="text-destructive text-body-xs"
+					className="text-foreground-destructive text-footnote"
 					role="alert"
 				>
 					{error}
 				</p>
 			) : null}
 			{saved ? (
-				<p className="text-body-xs text-muted-foreground" role="status">
+				<p className="text-footnote text-muted-foreground" role="status">
 					{saved}
 				</p>
 			) : null}
@@ -405,19 +429,17 @@ function StallNotices({ overview }: { overview: ProgramOverview }) {
 					<div
 						key={`${lift.exerciseId}-${lift.equipment ?? ''}`}
 						role="status"
-						className="border-border bg-muted/40 rounded-md border p-3"
+						className="bg-muted rounded-3xl p-4"
 					>
-						<p className="text-body-sm">
-							<span className="font-medium">
-								{label}: {lift.name} {kg(stall.fromKg)} → {kg(stall.toKg)}.
-							</span>{' '}
-							You missed reps on this lift often enough in a row that{' '}
-							{overview.program.name} says to take the weight back down and
-							build it again.
+						<p className="text-callout tabular-nums">
+							{label}: {lift.name} {kg(stall.fromKg)} → {kg(stall.toKg)}.
 						</p>
-						{overview.program.provenanceNote ? (
-							<p className="text-body-xs text-muted-foreground mt-1">
-								{overview.program.provenanceNote}
+						<p className="text-footnote text-muted-foreground mt-1">
+							{L.stallNotice(overview.program.name)}
+						</p>
+						{programProvenanceNote(overview.program) ? (
+							<p className="text-footnote text-muted-foreground mt-1">
+								{programProvenanceNote(overview.program)}
 							</p>
 						) : null}
 					</div>

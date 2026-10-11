@@ -24,6 +24,10 @@
  * because the summary line lists them exactly as the card reads.
  */
 import {
+	TOKEN_EDITOR_REPAIR_LABELS,
+	WORKOUT_SCHEMA_MESSAGES,
+} from './labels.ts'
+import {
 	type TokenAddress,
 	type TokenField,
 	type WorkoutNotation,
@@ -55,9 +59,9 @@ export type ServerErrorItem = {
 export type ServerErrorRecord = Record<string, string[] | null | undefined>
 
 /** The summary line's and the live region's shared count wording, so the
- * announcement can never drift from what the card shows. */
+ * announcement can never drift from what the card shows (`labels.ts`). */
 export function describeErrorCount(count: number): string {
-	return count === 1 ? '1 thing needs fixing' : `${count} things need fixing`
+	return TOKEN_EDITOR_REPAIR_LABELS.errorCount(count)
 }
 
 /** Domain-schema field names → the form/token field they alias (ADR 0023:
@@ -100,8 +104,8 @@ function parseIndex(segment: string | undefined): number | null {
  * a parser. Schema-authored messages pass through untouched. */
 function humanize(message: string): string {
 	const trimmed = message.trim()
-	if (/^invalid input$/i.test(trimmed)) return 'This can’t be saved as written'
-	if (/^required$/i.test(trimmed)) return 'This is required'
+	if (/^invalid input$/i.test(trimmed)) return WORKOUT_SCHEMA_MESSAGES.invalid
+	if (/^required$/i.test(trimmed)) return WORKOUT_SCHEMA_MESSAGES.required
 	return trimmed
 }
 
@@ -116,7 +120,7 @@ function anchorFor(
 			? { level: 'session', field: head }
 			: { level: 'floor' }
 	}
-	// The whole-array rule ("Add at least one step…") is §11.6's zero-step
+	// The whole-array rule ("Legg til minst ett steg…") is §11.6's zero-step
 	// floor: no block anchors it and no header field renders it — the summary
 	// line is the guaranteed home, and the editor moves focus there.
 	if (rest.length === 0) return { level: 'floor' }

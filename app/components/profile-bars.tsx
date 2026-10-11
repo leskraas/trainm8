@@ -6,12 +6,18 @@ import {
 } from '#app/utils/session-profile.ts'
 import { NOTATION_SEPARATORS } from '#app/utils/workout-notation.ts'
 
+/**
+ * The zone hues are the app's `zone-1…5` tokens (#505 round 2), the same five
+ * the Workout Shape strip and the sentence's intensity chip paint with. The
+ * bars had their own Tailwind palette ramp (sky → rose), so a planned zone 2
+ * was one green in the strip and another here, on the same card.
+ */
 const ZONE_COLOR: Record<TrainingZone, string> = {
-	1: 'bg-sky-400 dark:bg-sky-500',
-	2: 'bg-emerald-400 dark:bg-emerald-500',
-	3: 'bg-amber-400 dark:bg-amber-500',
-	4: 'bg-orange-500',
-	5: 'bg-rose-500 dark:bg-rose-600',
+	1: 'bg-zone-1',
+	2: 'bg-zone-2',
+	3: 'bg-zone-3',
+	4: 'bg-zone-4',
+	5: 'bg-zone-5',
 }
 
 const ZONE_HEIGHT: Record<TrainingZone, string> = {
@@ -62,7 +68,7 @@ export function ProfileBars({
 	scale?: ProfileBarsScale
 }) {
 	if (bars.length === 0) {
-		return <span className="text-muted-foreground/60 text-xs">—</span>
+		return <span className="text-muted-foreground text-xs">—</span>
 	}
 	const hasDuration = bars.some((b) => b.durationSec > 0)
 	const heights = scale === 'row' ? ZONE_HEIGHT_ROW : ZONE_HEIGHT
@@ -174,7 +180,7 @@ function RepeatBracketTrack({
 						style={{ flexGrow: segment.grow }}
 						className="flex min-w-0 flex-col items-center"
 					>
-						<span className="text-muted-foreground/80 text-[9px] leading-none font-medium">
+						<span className="text-muted-foreground text-[9px] leading-none font-medium tabular-nums">
 							{`${NOTATION_SEPARATORS.repeat} ${segment.repeatCount}`}
 						</span>
 						<span className="border-muted-foreground/40 h-1 w-full rounded-t-[2px] border-x border-t" />

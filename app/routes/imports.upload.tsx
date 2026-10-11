@@ -4,8 +4,7 @@ import { data, Form, Link, redirect, useActionData } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
-import { Button } from '#app/components/ui/button.tsx'
-import { Input } from '#app/components/ui/input.tsx'
+import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
 	Select,
 	SelectContent,
@@ -20,13 +19,20 @@ import {
 } from '#app/utils/activity-file-ingest.server.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { APP_TAB_LABELS } from '#app/utils/labels.ts'
-import { getDisciplineLabel } from '#app/utils/training.ts'
+import {
+	APP_TAB_LABELS,
+	NB_DISCIPLINE_LABELS,
+	UPLOAD_LABELS,
+	uploadFailureLabel,
+} from '#app/utils/labels.ts'
+import { cn, useIsPending } from '#app/utils/misc.tsx'
 import { DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/imports.upload.ts'
 
+const L = UPLOAD_LABELS
+
 export const meta: Route.MetaFunction = () => [
-	{ title: 'Upload Activity | Trainm8' },
+	{ title: `${L.title} | Trainm8` },
 ]
 
 const DisciplineOverrideSchema = z.object({
@@ -41,10 +47,13 @@ export async function action({ request }: Route.ActionArgs) {
 
 	const formData = await parseFormData(request, async (field) => {
 		if (field.fieldName === 'file') {
-			artifacts.push({
-				fileName: field.name ?? 'upload',
-				bytes: await field.bytes(),
-			})
+			const bytes = await field.bytes()
+			// An empty file input still posts one part, with no filename and no
+			// bytes (the parser names such a part `file-upload`): that is "no
+			// file", not a file of an unknown type.
+			const unnamed = !field.name || field.name === 'file-upload'
+			if (unnamed && bytes.byteLength === 0) return
+			artifacts.push({ fileName: field.name ?? 'upload', bytes })
 		}
 	})
 
@@ -57,7 +66,7 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 
 	if (artifacts.length === 0) {
-		return data({ error: 'No file uploaded.' }, { status: 400 })
+		return data({ error: L.noFile }, { status: 400 })
 	}
 
 	// Day attribution happens in the Athlete Timezone (#173): the Athlete
@@ -89,13 +98,15 @@ export async function action({ request }: Route.ActionArgs) {
 				result.sessionId ? `/training/sessions/${result.sessionId}` : '/',
 			)
 		case 'duplicate':
-			return data(
-				{ error: 'This activity has already been imported.' },
-				{ status: 400 },
-			)
+			return data({ error: L.duplicate }, { status: 400 })
 		case 'unsupported':
 		case 'failed':
-			return data({ error: result.message }, { status: 400 })
+			// The parsers speak English other code matches on; the page says
+			// it in Norwegian.
+			return data(
+				{ error: uploadFailureLabel(result.message) },
+				{ status: 400 },
+			)
 	}
 }
 
@@ -109,58 +120,79 @@ function BatchSummary({
 	}
 }) {
 	return (
-		<div className="mb-4 space-y-2 text-sm" data-testid="batch-summary">
-			<p>
-				<span className="font-medium">{summary.imported} imported</span>
-				{' · '}
-				{summary.duplicates} duplicate{summary.duplicates === 1 ? '' : 's'}
-				{' · '}
-				{summary.failed.length} failed
+		<div
+			role="status"
+			className="bg-card mb-6 space-y-2 rounded-4xl p-4 shadow-xs"
+			data-testid="batch-summary"
+		>
+			<p className="text-callout tabular-nums">
+				{L.summary(summary.imported, summary.duplicates, summary.failed.length)}
 			</p>
 			{summary.failed.length > 0 ? (
-				<ul className="text-destructive list-inside list-disc">
+				<ul className="text-footnote text-foreground-destructive space-y-1">
 					{summary.failed.map((f) => (
-						<li key={f.fileName}>
-							{f.fileName}: {f.reason}
+						<li key={f.fileName} className="break-words">
+							{f.fileName}: {uploadFailureLabel(f.reason)}
 						</li>
 					))}
 				</ul>
 			) : null}
 			{summary.imported > 0 ? (
-				<p>
-					<Link to="/" className="underline">
-						See them on your training log
-					</Link>
-				</p>
+				<Link to="/" className={cn(buttonVariants({ variant: 'outline' }))}>
+					{L.seeThem}
+				</Link>
 			) : null}
 		</div>
 	)
 }
 
+/** The discipline choices, the closed trigger showing a word, not a value. */
+const DISCIPLINE_ITEMS = [
+	{ value: '', label: L.autoDetect },
+	...DISCIPLINES.map((discipline) => ({
+		value: discipline,
+		label: NB_DISCIPLINE_LABELS[discipline],
+	})),
+]
+
 export default function ImportsUploadRoute() {
 	const actionData = useActionData<typeof action>()
 	const fileInputRef = useRef<HTMLInputElement>(null)
 	const [dragActive, setDragActive] = useState(false)
+	const [chosen, setChosen] = useState<string[]>([])
+	const isPending = useIsPending()
+
+	function readChosen() {
+		setChosen(
+			Array.from(fileInputRef.current?.files ?? [], (file) => file.name),
+		)
+	}
 
 	return (
 		<main className="container mx-auto max-w-md py-6 md:py-8">
 			<PageHeader
-				title="Upload Activity"
+				title={L.title}
 				back={{ to: '/me', label: APP_TAB_LABELS.me }}
 			/>
+			<p className="text-body text-muted-foreground mt-4">{L.intro}</p>
 
 			{/* Form sits directly on the page background — no card wrap (§1.6). */}
 			<div className="mt-6">
 				{actionData && 'error' in actionData && actionData.error ? (
-					<p className="text-destructive mb-4 text-sm">{actionData.error}</p>
+					<p
+						role="alert"
+						className="text-footnote text-foreground-destructive mb-4"
+					>
+						{actionData.error}
+					</p>
 				) : null}
 				{actionData && 'summary' in actionData ? (
 					<BatchSummary summary={actionData.summary} />
 				) : null}
-				<Form method="POST" encType="multipart/form-data" className="space-y-4">
+				<Form method="POST" encType="multipart/form-data" className="space-y-6">
 					<div className="space-y-2">
-						<label htmlFor="file" className="text-sm font-medium">
-							Activity files (.fit, .fit.gz, .tcx, .gpx, .zip, .gz)
+						<label htmlFor="file" className="text-callout block">
+							{L.files}
 						</label>
 						<div
 							data-testid="dropzone"
@@ -174,58 +206,93 @@ export default function ImportsUploadRoute() {
 								setDragActive(false)
 								if (fileInputRef.current && e.dataTransfer.files.length) {
 									fileInputRef.current.files = e.dataTransfer.files
+									readChosen()
 								}
 							}}
-							className={`rounded-md border border-dashed p-4 ${
-								dragActive ? 'border-primary bg-muted' : 'border-input'
-							}`}
+							className={cn(
+								'bg-card duration-press space-y-3 rounded-3xl border-2 border-dashed p-4 transition-colors ease-out',
+								dragActive ? 'border-primary bg-primary/5' : 'border-border',
+							)}
 						>
-							<Input
+							{/*
+							 * The native input stays (it is what posts, and what a drop
+							 * fills), visually hidden; the system's button opens it, so the
+							 * page never shows the browser's own English "Choose Files".
+							 */}
+							<input
 								ref={fileInputRef}
 								id="file"
 								name="file"
 								type="file"
 								multiple
 								accept=".fit,.fit.gz,.tcx,.gpx,.zip,.gz"
-								required
-								className="w-full"
+								onChange={readChosen}
+								className="peer sr-only"
 							/>
-							<p className="text-muted-foreground mt-2 text-xs">
-								Drop one or many files here — or a whole ZIP, including your
-								Strava bulk-export archive.{' '}
+							<div className="flex flex-wrap items-center gap-3">
+								<label
+									htmlFor="file"
+									className={cn(
+										buttonVariants({ variant: 'secondary' }),
+										'peer-focus-visible:ring-ring/30 cursor-pointer peer-focus-visible:ring-3',
+									)}
+								>
+									{L.choose}
+								</label>
+								<span
+									className="text-footnote text-muted-foreground min-w-0 break-words"
+									aria-live="polite"
+								>
+									{chosen.length > 0
+										? L.chosen(chosen.length, chosen[0]!)
+										: L.none}
+								</span>
+							</div>
+							<p className="text-footnote text-muted-foreground">
+								{L.filesHint}. {L.drop}{' '}
 								<a
 									href="https://support.strava.com/hc/en-us/articles/216918437-Exporting-your-Data-and-Bulk-Export"
 									target="_blank"
 									rel="noreferrer"
 									className="hover:text-foreground relative underline after:absolute after:-inset-x-1 after:-inset-y-3"
 								>
-									How to request your Strava export
+									{L.stravaExport}
 								</a>
 							</p>
 						</div>
 					</div>
 
 					<div className="space-y-2">
-						<label htmlFor="disciplineOverride" className="text-sm font-medium">
-							Discipline (override auto-detection, single file only)
+						<label htmlFor="disciplineOverride" className="text-callout block">
+							{L.discipline}
 						</label>
-						<Select name="disciplineOverride" defaultValue="">
+						<Select
+							name="disciplineOverride"
+							defaultValue=""
+							items={DISCIPLINE_ITEMS}
+						>
 							<SelectTrigger id="disciplineOverride" className="w-full">
-								<SelectValue placeholder="Auto-detect" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="">Auto-detect</SelectItem>
-								{DISCIPLINES.map((d) => (
-									<SelectItem key={d} value={d}>
-										{getDisciplineLabel(d)}
+								{DISCIPLINE_ITEMS.map((item) => (
+									<SelectItem key={item.value} value={item.value}>
+										{item.label}
 									</SelectItem>
 								))}
 							</SelectContent>
 						</Select>
+						<p className="text-footnote text-muted-foreground">
+							{L.disciplineHint}
+						</p>
 					</div>
 
-					<Button type="submit" className="w-full">
-						Upload
+					<Button
+						type="submit"
+						className="text-callout w-full"
+						disabled={isPending}
+					>
+						{isPending ? L.submitting : L.submit}
 					</Button>
 				</Form>
 			</div>

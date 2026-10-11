@@ -2,7 +2,12 @@ import { type Prisma } from '@prisma/client'
 import { addDays, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
 import { canMarkDone, MARK_DONE_REACH_DAYS } from './import-fit.ts'
-import { type MarkDoneRefusal } from './import-link-schema.ts'
+import {
+	type AngreRefusal,
+	MARK_DONE_FROM,
+	type MarkDoneRefusal,
+	type SessionDoneUndo,
+} from './import-link-schema.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import { triggerRecomputeForSession } from './session-log.server.ts'
 import { deriveWorkoutTitle } from './session-title.ts'
@@ -472,9 +477,59 @@ export async function markSessionMissed(userId: string, sessionId: string) {
 	return { marked: true as const }
 }
 
+/**
+ * What _Angre_ on a _Gjort_ posts back (ADR 0088, amended): the stamp this
+ * mark wrote, and the status and stamp the session had before it.
+ */
+export type MarkDoneUndoToken = Omit<
+	SessionDoneUndo,
+	'intent' | 'markedDoneAt'
+> & {
+	markedDoneAt: string | null
+}
+
 export type MarkSessionDoneResult =
-	| { ok: true }
+	| {
+			ok: true
+			/**
+			 * How to take this mark back, or null when it may not be: the load
+			 * recompute the mark set off rewrote another session (the Session
+			 * Nudge eased the next one, the week change laid or changed one), and
+			 * an undo of the mark would not unwind that.
+			 */
+			undo: MarkDoneUndoToken | null
+	  }
 	| { ok: false; reason: MarkDoneRefusal }
+
+/**
+ * Whether a load recompute begun at `since` rewrote any of the athlete's
+ * sessions but `except`: a Workout the Session Nudge eased or a Week Replan
+ * changed, or a session the week change laid. Those are folded in by the
+ * recompute, not by the write that set it off, and no _Angre_ on that write
+ * unwinds them — so a write that caused one offers no _Angre_ (ADR 0088,
+ * amended). The TSS the recompute writes on every done session does not
+ * count: it is priced again from what stands, on the undo's own recompute.
+ *
+ * Reads the real clock's `since`, never an injected `now`: `updatedAt` and
+ * `createdAt` are stamped by the database client with the real one.
+ */
+export async function recomputeRewroteSince(
+	userId: string,
+	since: Date,
+	except: readonly string[],
+): Promise<boolean> {
+	const rewritten = await prisma.workoutSession.count({
+		where: {
+			userId,
+			id: { notIn: [...except] },
+			OR: [
+				{ createdAt: { gte: since } },
+				{ workout: { updatedAt: { gte: since } } },
+			],
+		},
+	})
+	return rewritten > 0
+}
 
 /**
  * _Gjort_ (#505 story 82): the athlete says a session is done, by hand, before
@@ -486,11 +541,32 @@ export type MarkSessionDoneResult =
  *
  * An import that lands later links onto it like onto any planned session
  * (`autoSaveImport`: it holds no Recording), and the week's numbers follow.
+ *
+ * The reply carries its _Angre_ (ADR 0088, amended): the stamp written and
+ * what stood before, for `undoMarkSessionDone` — or null when the recompute
+ * this mark set off rewrote another session (`recomputeRewroteSince`).
+ * _Gjort_ is never offered on strength, so a mark never folds a program run.
  */
 export async function markSessionDone(
 	userId: string,
 	sessionId: string,
-	{ now = new Date(), timezone }: { now?: Date; timezone: string },
+	{
+		now = new Date(),
+		timezone,
+		reach = 'week',
+	}: {
+		now?: Date
+		timezone: string
+		/**
+		 * `week` (the row's _Gjort_): at most {@link MARK_DONE_REACH_DAYS} back.
+		 * `any-past-day`: the composer's _Allerede gjort_ (owner decision 5,
+		 * ADR 0088) — a session written as done on a past day is the athlete
+		 * logging what they did, however long ago, so the week's reach does not
+		 * apply. Every other rule (open, no Recording, a sport an import brings
+		 * numbers for, a day that has begun) still does.
+		 */
+		reach?: 'week' | 'any-past-day'
+	},
 ): Promise<MarkSessionDoneResult> {
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
@@ -499,6 +575,7 @@ export async function markSessionDone(
 			status: true,
 			recordingId: true,
 			scheduledAt: true,
+			markedDoneAt: true,
 			workout: { select: { discipline: true } },
 		},
 	})
@@ -511,16 +588,107 @@ export async function markSessionDone(
 			workoutDiscipline: session.workout?.discipline ?? null,
 			dayKey: localDate(session.scheduledAt, timezone),
 		},
-		{ todayKey, reachFromKey: addDays(todayKey, -MARK_DONE_REACH_DAYS) },
+		{
+			todayKey,
+			reachFromKey:
+				reach === 'any-past-day'
+					? '0000-01-01'
+					: addDays(todayKey, -MARK_DONE_REACH_DAYS),
+		},
 	)
 	if (!markable) return { ok: false, reason: 'not-markable' }
 
+	const since = new Date()
 	await prisma.workoutSession.update({
 		where: { id: session.id },
 		data: { status: 'completed', markedDoneAt: now },
 	})
 	await triggerRecomputeForSession(session.id)
-	return { ok: true }
+	// `canMarkDone` let only these two through; narrowed here for the token.
+	const from = MARK_DONE_FROM.find((status) => status === session.status)
+	const undoable =
+		from != null && !(await recomputeRewroteSince(userId, since, [session.id]))
+	return {
+		ok: true,
+		undo: undoable
+			? {
+					sessionId: session.id,
+					markedAt: now.toISOString(),
+					status: from,
+					markedDoneAt: session.markedDoneAt?.toISOString() ?? null,
+				}
+			: null,
+	}
+}
+
+export type UndoMarkDoneResult =
+	| {
+			ok: true
+			/** False when there was nothing left to take back: a second tap. */
+			undone: boolean
+			/** The session's title and sport, for the undo's own toast. */
+			title: string | null
+	  }
+	| { ok: false; reason: AngreRefusal }
+
+/**
+ * _Angre_ on _Gjort_ (ADR 0088, amended): put the session back exactly as it
+ * stood before that mark — its status and `markedDoneAt` — and price the load
+ * again from there. Only the mark the token names is taken back (its
+ * `markedAt` stamp must still be on the session), so a stale or forged token
+ * moves nothing.
+ *
+ * Refused (`not-undoable`) once something else has happened on top of the
+ * mark: an import linked onto it (it holds a Recording now, and _Angre
+ * kobling_ is that write's way back). A second _Angre_ finds the mark gone and
+ * is a no-op. Owner-scoped: another athlete's session is not found.
+ */
+export async function undoMarkSessionDone(
+	userId: string,
+	token: MarkDoneUndoToken,
+): Promise<UndoMarkDoneResult> {
+	const session = await prisma.workoutSession.findFirst({
+		where: { id: token.sessionId, userId },
+		select: {
+			id: true,
+			status: true,
+			recordingId: true,
+			markedDoneAt: true,
+			workout: { select: { title: true } },
+		},
+	})
+	if (!session) return { ok: false, reason: 'session-not-found' }
+	const title = session.workout?.title ?? null
+	const markedAt = new Date(token.markedAt)
+	if (session.markedDoneAt?.getTime() !== markedAt.getTime()) {
+		return { ok: true, undone: false, title }
+	}
+	if (session.status !== 'completed' || session.recordingId != null) {
+		return { ok: false, reason: 'not-undoable' }
+	}
+	// Compare-and-set on the stamp, so two taps race to one undo.
+	const restored = await prisma.workoutSession.updateMany({
+		where: {
+			id: session.id,
+			userId,
+			status: 'completed',
+			recordingId: null,
+			markedDoneAt: markedAt,
+		},
+		data: {
+			status: token.status,
+			markedDoneAt: token.markedDoneAt ? new Date(token.markedDoneAt) : null,
+			// The mark's recompute priced it as done (an RPE, or nothing); an
+			// open session carries no TSS, and the recompute only prices done
+			// ones, so it is cleared here as `releaseRecording` clears it.
+			tssValue: null,
+			tssFormula: null,
+			tssConfidence: null,
+		},
+	})
+	if (restored.count === 0) return { ok: true, undone: false, title }
+	await triggerRecomputeForSession(session.id)
+	return { ok: true, undone: true, title }
 }
 
 export type CountsInNoTrackResult =

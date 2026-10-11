@@ -37,6 +37,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { REST_BAR_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	REST_ADJUST_STEP_SEC,
@@ -93,7 +94,7 @@ export function RestBar({
 			// It rides on top of the phone's tab bar (ADR 0083), never under it.
 			role="status"
 			aria-live="off"
-			aria-label="Rest timer"
+			aria-label={REST_BAR_LABELS.region}
 			data-rest-bar=""
 			data-past={clock.past ? '' : undefined}
 			className="bg-card fixed inset-x-0 bottom-(--tab-bar-space) z-20 border-t px-3.5 py-2.5"
@@ -112,7 +113,7 @@ export function RestBar({
 				<span
 					data-testid="rest-clock"
 					className={cn(
-						'text-body-md min-w-14 font-bold tabular-nums',
+						'text-heading min-w-14 tabular-nums',
 						clock.past ? 'text-destructive' : 'text-primary',
 					)}
 				>
@@ -120,14 +121,14 @@ export function RestBar({
 				</span>
 				{/* The reason, in a phrase — a five-minute timer nobody can account for
 				    reads as a bug. */}
-				<span className="text-body-2xs text-muted-foreground flex-1 truncate">
+				<span className="text-footnote text-muted-foreground min-w-0 flex-1 leading-tight">
 					{clock.label}
 				</span>
 				<Button
 					type="button"
 					variant="outline"
 					size="lg"
-					className="text-body-2xs h-10 min-w-11 px-2"
+					className="h-11 min-w-11 rounded-full px-2 tabular-nums"
 					onClick={() => onAdjust(-REST_ADJUST_STEP_SEC)}
 				>
 					−{REST_ADJUST_STEP_SEC}s
@@ -136,7 +137,7 @@ export function RestBar({
 					type="button"
 					variant="outline"
 					size="lg"
-					className="text-body-2xs h-10 min-w-11 px-2"
+					className="h-11 min-w-11 rounded-full px-2 tabular-nums"
 					onClick={() => onAdjust(REST_ADJUST_STEP_SEC)}
 				>
 					+{REST_ADJUST_STEP_SEC}s
@@ -145,8 +146,8 @@ export function RestBar({
 					type="button"
 					variant="ghost"
 					size="icon-lg"
-					className="size-10"
-					aria-label="Dismiss the rest timer"
+					className="size-11"
+					aria-label={REST_BAR_LABELS.dismiss}
 					onClick={onDismiss}
 				>
 					<Icon name="cross-1" size="md" />

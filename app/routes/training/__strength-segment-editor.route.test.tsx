@@ -84,7 +84,7 @@ function renderSection(tracks: EditableStrengthTrack[]) {
 
 async function blockCards() {
 	return within(
-		await screen.findByRole('list', { name: 'Lifting blocks' }),
+		await screen.findByRole('list', { name: 'Styrkeblokker' }),
 	).getAllByRole('listitem')
 }
 
@@ -94,11 +94,11 @@ test('a block the anchor opens in offers no boundary step, and says why', async 
 
 	const [card] = await blockCards()
 	expect(
-		within(card!).queryByLabelText(/Boundary step/),
+		within(card!).queryByLabelText(/Hopp ved starten av blokka/),
 	).not.toBeInTheDocument()
 	expect(
 		within(card!).getByText(
-			/Your anchor takes effect on the week this block opens/,
+			/Startnivået ditt gjelder fra uka denne blokka starter/,
 		),
 	).toBeInTheDocument()
 })
@@ -119,9 +119,9 @@ test('a block opening after the anchor authors its step as usual', async () => {
 	])
 
 	const [, second] = await blockCards()
-	expect(within(second!).getByLabelText(/Boundary step/)).toHaveValue(-20)
+	expect(within(second!).getByLabelText(/Hopp ved starten av blokka/)).toHaveValue(-20)
 	expect(
-		within(second!).getByText(/−20% once, at the opening/),
+		within(second!).getByText(/−20 % én gang, ved starten/),
 	).toBeInTheDocument()
 })
 
@@ -149,9 +149,9 @@ test('a re-anchor onto a later block’s opening takes that block’s step away'
 	// The re-anchor lands on the second block's opening, and on that block only:
 	// the third still crosses a boundary the anchor did not restart at.
 	expect(
-		within(second!).queryByLabelText(/Boundary step/),
+		within(second!).queryByLabelText(/Hopp ved starten av blokka/),
 	).not.toBeInTheDocument()
-	expect(within(third!).getByLabelText(/Boundary step/)).toBeInTheDocument()
+	expect(within(third!).getByLabelText(/Hopp ved starten av blokka/)).toBeInTheDocument()
 })
 
 test('a step with no field still travels, so saving cannot clear it', async () => {
@@ -180,7 +180,7 @@ test('a step with no field still travels, so saving cannot clear it', async () =
 	render(<App initialEntries={['/training/plan']} />)
 
 	await userEvent.click(
-		await screen.findByRole('button', { name: 'Save block' }),
+		await screen.findByRole('button', { name: 'Lagre blokka' }),
 	)
 
 	// `StrengthSegmentSetSchema` rewrites every column, and a missing box reads as
@@ -192,7 +192,7 @@ test('a step with no field still travels, so saving cannot clear it', async () =
 test('the add form offers the step: a block with no window yet cannot be judged', async () => {
 	renderSection([track({ anchors: [{ fromWeekIndex: 0 }], segments: [] })])
 
-	expect(await screen.findByLabelText(/Boundary step/)).toBeInTheDocument()
+	expect(await screen.findByLabelText(/Hopp ved starten av blokka/)).toBeInTheDocument()
 })
 
 test('a track with no anchor yet offers no step: there is no level to step from', async () => {
@@ -202,16 +202,16 @@ test('a track with no anchor yet offers no step: there is no level to step from'
 
 	const [card] = await blockCards()
 	expect(
-		within(card!).queryByLabelText(/Boundary step/),
+		within(card!).queryByLabelText(/Hopp ved starten av blokka/),
 	).not.toBeInTheDocument()
 	// And the *reason* is this block's own, not the re-anchor sentence: the week grid
 	// beside it prices these weeks Unavailable, so telling the athlete their anchor
 	// takes effect on the opening week would name an anchor that does not exist.
 	expect(
-		within(card!).getByText(/No Season Anchor covers this block yet/),
+		within(card!).getByText(/Ingen startnivå dekker denne blokka ennå/),
 	).toBeInTheDocument()
 	expect(
-		within(card!).queryByText(/Your anchor takes effect/),
+		within(card!).queryByText(/Startnivået ditt gjelder/),
 	).not.toBeInTheDocument()
 })
 
@@ -223,17 +223,17 @@ test('a block the anchor has not reached yet reads Unavailable, not re-anchored'
 
 	const [card] = await blockCards()
 	expect(
-		within(card!).queryByLabelText(/Boundary step/),
+		within(card!).queryByLabelText(/Hopp ved starten av blokka/),
 	).not.toBeInTheDocument()
 	const reason = within(card!).getByText(
-		/No Season Anchor covers this block yet/,
+		/Ingen startnivå dekker denne blokka ennå/,
 	)
 	// Says which reading it is about and what would change it, rather than only that
 	// something is missing (Unavailable Metric: the reason is the point).
-	expect(reason).toHaveTextContent(/its opening reads Unavailable/)
-	expect(reason).toHaveTextContent(/no level for a step to move/)
+	expect(reason).toHaveTextContent(/starten kan ikke regnes ut/)
+	expect(reason).toHaveTextContent(/ikke noe nivå å hoppe fra/)
 	expect(
-		within(card!).queryByText(/Your anchor takes effect/),
+		within(card!).queryByText(/Startnivået ditt gjelder/),
 	).not.toBeInTheDocument()
 })
 
@@ -246,8 +246,8 @@ test('a block outside the plan’s weeks keeps the field live, and says it is ou
 	])
 
 	const [card] = await blockCards()
-	expect(card).toHaveTextContent('Outside your plan’s weeks')
+	expect(card).toHaveTextContent('Utenfor ukene i planen')
 	// The derivation prices this block nowhere at all, so there is no "the step is
 	// dead" to state — the card already says what is wrong and how to fix it.
-	expect(within(card!).getByLabelText(/Boundary step/)).toBeInTheDocument()
+	expect(within(card!).getByLabelText(/Hopp ved starten av blokka/)).toBeInTheDocument()
 })

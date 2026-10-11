@@ -102,17 +102,17 @@ const held = item({
 	key: 'ex-2::',
 	liftName: 'Bench Press',
 	exerciseId: 'ex-2',
-	headline: 'Bench Press stays at 60 kg',
+	headline: 'Bench Press står på 60 kg',
 	reason: 'A set came up short, so the weight repeats.',
 	tone: 'held',
-	label: 'Stall Count 1',
+	label: '1 økt til kort',
 })
 
 const notLogged = item({
 	key: 'ex-3::',
 	liftName: 'Barbell Row',
 	exerciseId: 'ex-3',
-	headline: 'Barbell Row unchanged at 55 kg',
+	headline: 'Barbell Row uendret på 55 kg',
 	reason: 'Nothing was logged for this lift, so the program did not read it.',
 	tone: 'notLogged',
 })
@@ -125,11 +125,11 @@ const stallCut = item({
 	reason:
 		'You came up short on this lift three sessions in a row, so the program takes the weight down 10 % and you build it again.',
 	isNotice: true,
-	label: 'Stall Cut',
+	label: 'Vekta kuttes',
 	tone: 'cut',
 	movedToKg: 54,
 	provenance:
-		'The 10 % cut is StrongLifts 5×5’s own published convention. No trial supports it.',
+		'Kuttet på 10 % er StrongLifts 5×5 sin egen publiserte konvensjon. Ingen studier støtter det.',
 })
 
 /** Finish the session and hand the panel these outcomes. */
@@ -162,12 +162,18 @@ async function finishWith(
 	])
 	render(<App initialEntries={['/training/sessions/sess-1/log']} />)
 	await userEvent.click(
-		await screen.findByRole('button', { name: 'Finish workout' }),
+		await screen.findByRole('button', { name: 'Fullfør økta' }),
 	)
+	// Sets still untapped: Finish asks first (owner decision 10), and these
+	// tests are about the panel, so they answer "marker som ikke gjort".
+	const markNotDone = screen.queryByRole('button', {
+		name: 'Marker som ikke gjort',
+	})
+	if (markNotDone) await userEvent.click(markNotDone)
 	return {
 		submitted,
 		panel: await screen.findByRole('region', {
-			name: 'What you lift next time',
+			name: 'Hva du løfter neste gang',
 		}),
 	}
 }
@@ -182,13 +188,13 @@ test('all four outcomes render with their own words', async () => {
 		within(panel).getByText('All 5 sets of 5 reps. StrongLifts adds 2.5 kg.'),
 	).toBeInTheDocument()
 	expect(
-		within(panel).getByText('Bench Press stays at 60 kg'),
+		within(panel).getByText('Bench Press står på 60 kg'),
 	).toBeInTheDocument()
 	expect(
 		within(panel).getByText('A set came up short, so the weight repeats.'),
 	).toBeInTheDocument()
 	expect(
-		within(panel).getByText('Barbell Row unchanged at 55 kg'),
+		within(panel).getByText('Barbell Row uendret på 55 kg'),
 	).toBeInTheDocument()
 	expect(
 		within(panel).getByText(
@@ -226,7 +232,7 @@ test('a Stall Cut is a status region and offers nothing', async () => {
 
 	const notice = within(panel)
 		.getAllByRole('status')
-		.find((el) => el.textContent?.includes('Stall Cut'))!
+		.find((el) => el.textContent?.includes('Vekta kuttes'))!
 	expect(notice).toHaveTextContent('Bench Press 60 kg → 54 kg')
 
 	// No undo, no dismiss, no "keep the weight anyway".
@@ -247,7 +253,7 @@ test('the Stall Cut carries its provenance above a hairline', async () => {
 	const { panel } = await finishWith([stallCut])
 
 	const provenance = within(panel).getByText(
-		'The 10 % cut is StrongLifts 5×5’s own published convention. No trial supports it.',
+		'Kuttet på 10 % er StrongLifts 5×5 sin egen publiserte konvensjon. Ingen studier støtter det.',
 	)
 	expect(provenance.className).toMatch(/border-t/)
 })
@@ -278,7 +284,7 @@ test('where the gym cannot make the cut weight, the panel says which weight it c
 	})
 
 	expect(
-		within(panel).getByText(/Your gym makes 55 kg, not 54 kg\./),
+		within(panel).getByText(/Gymmet ditt får til 55 kg, ikke 54 kg\./),
 	).toBeInTheDocument()
 })
 
@@ -302,7 +308,9 @@ test('a rack that can make the cut weight is not talked about', async () => {
 		},
 	)
 
-	expect(within(panel).queryByText(/Your gym makes/)).not.toBeInTheDocument()
+	expect(
+		within(panel).queryByText(/Gymmet ditt får til/),
+	).not.toBeInTheDocument()
 })
 
 // ——— Where the panel leads ————————————————————————————————————————————————
@@ -311,10 +319,10 @@ test('an outline link reaches the lift over time and a primary button returns to
 	const { panel } = await finishWith([progressed, held])
 
 	expect(
-		within(panel).getByRole('link', { name: 'See Squat over time' }),
+		within(panel).getByRole('link', { name: 'Se Squat over tid' }),
 	).toHaveAttribute('href', '/training/exercises/ex-1')
 	expect(
-		within(panel).getByRole('link', { name: 'Back to today' }),
+		within(panel).getByRole('link', { name: 'Tilbake til I dag' }),
 	).toHaveAttribute('href', '/')
 })
 
@@ -328,14 +336,14 @@ test('back from the outcome panel returns to the runner', async () => {
 	const { panel } = await finishWith([progressed])
 
 	await userEvent.click(
-		within(panel).getByRole('button', { name: 'Back to your sets' }),
+		within(panel).getByRole('button', { name: 'Tilbake til settene' }),
 	)
 
-	expect(screen.queryByText('What you lift next time')).not.toBeInTheDocument()
+	expect(screen.queryByText('Hva du løfter neste gang')).not.toBeInTheDocument()
 	expect(
-		screen.getByRole('button', { name: 'Finish workout' }),
+		screen.getByRole('button', { name: 'Fullfør økta' }),
 	).toBeInTheDocument()
-	expect(screen.getByLabelText('Log set 1 of Squat')).toBeInTheDocument()
+	expect(screen.getByLabelText('Logg sett 1 av Squat')).toBeInTheDocument()
 })
 
 test('a session that advanced no program says so rather than drawing an empty panel', async () => {
@@ -343,7 +351,7 @@ test('a session that advanced no program says so rather than drawing an empty pa
 
 	expect(
 		within(panel).getByText(
-			'Session finished. This one is not part of a running program, so nothing advanced.',
+			'Økta er fullført. Den hører ikke til et program, så ingenting rykket fram.',
 		),
 	).toBeInTheDocument()
 })

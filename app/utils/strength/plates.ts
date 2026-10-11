@@ -33,7 +33,8 @@
  * than restated.
  */
 import { z } from 'zod'
-import { formatKg, type LoadValueKind } from '../strength-log.ts'
+import { formatNbKg } from '../format.ts'
+import { type LoadValueKind } from '../strength-log.ts'
 import {
 	BARBELL_MULTIPLIER,
 	DEFAULT_BAR_KG,
@@ -403,22 +404,20 @@ export function roundToLoadable(
 }
 
 /**
- * The plate line as the phone shows it — `20 · 20 · 10 · 2.5` under the weight
+ * The plate line as the phone shows it — `20 · 20 · 10 · 2,5` under the weight
  * input, muted, updating as you type. A passive annotation, never a screen, and
  * never a sentence.
  */
 export function plateLineText(solution: PlateSolution): string {
 	if (solution.outcome === 'unavailable') return '—'
 	if (solution.platesPerSide.length === 0) {
-		return solution.perSideKg > 0
-			? `${formatKg(solution.perSideKg)}`
-			: 'empty bar'
+		return solution.perSideKg > 0 ? formatNbKg(solution.perSideKg) : 'empty bar'
 	}
 	return solution.platesPerSide
 		.flatMap((plate) =>
 			Array.from({ length: plate.count }, () => plate.weightKg),
 		)
-		.map(formatKg)
+		.map(formatNbKg)
 		.join(' · ')
 }
 

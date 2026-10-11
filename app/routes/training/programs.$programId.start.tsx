@@ -20,7 +20,10 @@ import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { formatNbKg } from '#app/utils/format.ts'
+import { PROGRAM_START_LABELS as L } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { optionalKiloField } from '#app/utils/strength/kilo-input.ts'
 import { getProgram, startProgram } from '#app/utils/strength-program.server.ts'
 import { type Route } from './+types/programs.$programId.start.ts'
 import {
@@ -29,7 +32,7 @@ import {
 } from './__starting-weights-presenter.ts'
 
 export const meta: Route.MetaFunction = ({ data: loaderData }) => [
-	{ title: `Start ${loaderData?.program.name ?? 'a program'} | Trainm8` },
+	{ title: L.metaTitle(loaderData?.program.name ?? 'Program') },
 ]
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -44,11 +47,17 @@ export async function loader({ request, params }: Route.LoaderArgs) {
  * authoring schema — that round trip silently drops `load`, `effortCap` and
  * `tempo`, and a starting weight is exactly the kind of number it would lose.
  */
-const StartProgramSchema = z.object({
+export const StartProgramSchema = z.object({
 	intent: z.literal('start-program'),
 	/** `weight::<exerciseId>::<equipment>` per lift, so the **pair** survives the
-	 * round trip and a barbell bench cannot seed a dumbbell bench. */
-	weights: z.record(z.string(), z.string()).optional(),
+	 * round trip and a barbell bench cannot seed a dumbbell bench.
+	 *
+	 * A blank lift is a lift not started — that is a choice, and it reads as
+	 * `null`. A *typed* number the app cannot use is not a choice, so it is refused
+	 * in words rather than dropped: silently discarding it would start the program
+	 * without the lift the athlete just answered for. `62,5` and `62.5` are the
+	 * same kilo (`kiloField`). */
+	weights: z.record(z.string(), optionalKiloField(L.errors.weight)).optional(),
 })
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -64,46 +73,33 @@ export async function action({ request, params }: Route.ActionArgs) {
 	}
 	const parsed = StartProgramSchema.safeParse({ intent: raw.intent, weights })
 	if (!parsed.success) {
-		return data(
-			{ ok: false as const, error: 'That form did not make sense.' },
-			400,
+		// The weight's own sentence where a weight was refused; the form-level one
+		// only where the post itself was malformed.
+		const weightIssue = parsed.error.issues.find(
+			(issue) => issue.path[0] === 'weights' && issue.code === 'custom',
 		)
-	}
-
-	// A blank lift is a lift not started — that is a choice. A *typed* number the
-	// app cannot use is not a choice, so it is said out loud rather than dropped:
-	// silently discarding it would start the program without the lift the athlete
-	// just answered for.
-	const startingWeights: Array<{
-		exerciseId: string
-		equipment: string | null
-		weightKg: number
-	}> = []
-	let refusedNumber = false
-	for (const [key, value] of Object.entries(weights)) {
-		const trimmed = value.trim()
-		if (trimmed === '') continue
-		const weightKg = Number(trimmed)
-		if (!Number.isFinite(weightKg) || weightKg <= 0) {
-			refusedNumber = true
-			continue
-		}
-		const [exerciseId = '', equipment = ''] = key.split('::')
-		startingWeights.push({
-			exerciseId,
-			equipment: equipment === '' ? null : equipment,
-			weightKg,
-		})
-	}
-	if (refusedNumber) {
 		return data(
 			{
 				ok: false as const,
-				error: 'A starting weight has to be a positive number of kilos.',
+				error: weightIssue?.message ?? L.errors.form,
 			},
 			400,
 		)
 	}
+
+	const startingWeights = Object.entries(parsed.data.weights ?? {}).flatMap(
+		([key, weightKg]) => {
+			if (weightKg == null) return []
+			const [exerciseId = '', equipment = ''] = key.split('::')
+			return [
+				{
+					exerciseId,
+					equipment: equipment === '' ? null : equipment,
+					weightKg,
+				},
+			]
+		},
+	)
 
 	const result = await startProgram({
 		userId,
@@ -117,8 +113,8 @@ export async function action({ request, params }: Route.ActionArgs) {
 				ok: false as const,
 				error:
 					result.reason === 'no-such-program'
-						? 'That program is gone.'
-						: 'Give at least one lift a starting weight.',
+						? L.errors.gone
+						: L.errors.atLeastOne,
 			},
 			400,
 		)
@@ -144,25 +140,22 @@ export default function StartProgramRoute({
 			<header className="mb-4 flex items-center gap-2">
 				<Link
 					to="/training/programs"
-					aria-label="Back to programs"
+					aria-label={L.back}
 					className={cn(
 						buttonVariants({ variant: 'ghost', size: 'icon' }),
-						'relative -ml-2 shrink-0 after:absolute after:-inset-1.5',
+						'-ml-2 shrink-0',
 					)}
 				>
 					<Icon name="arrow-left" size="md" />
 				</Link>
 				<div className="min-w-0 flex-1">
-					<p className="text-body-2xs text-primary font-bold tracking-widest uppercase">
+					<p className="text-overline text-primary [overflow-wrap:anywhere] uppercase">
 						{program.name}
 					</p>
-					<h1 className="text-body-md truncate font-bold">Starting weights</h1>
+					<h1 className="text-title">{L.heading}</h1>
 				</div>
 			</header>
-			<p className="text-body-xs text-muted-foreground mb-6 leading-relaxed">
-				One number per lift. After this the program decides the weight from what
-				you log.
-			</p>
+			<p className="text-footnote text-muted-foreground mb-6">{L.intro}</p>
 
 			{/* **`noValidate`.** The browser's own refusal is a silent one: it blocks
 			    the submit and, for a programmatically submitted form, says nothing at
@@ -180,13 +173,15 @@ export default function StartProgramRoute({
 							    stranded beside it as decoration a screen reader skips. */}
 							<Label
 								htmlFor={field}
-								className="text-body-xs flex items-baseline justify-between gap-2 font-semibold"
+								className="text-callout flex items-baseline justify-between gap-2"
 							>
-								<span className="min-w-0 truncate">{lift.name}</span>{' '}
+								<span className="min-w-0 [overflow-wrap:anywhere]">
+									{lift.name}
+								</span>{' '}
 								{/* A real space between the two, whitespace-only and so not a
 								    flex item: it keeps the accessible name reading "Squat 5×5"
 								    rather than "Squat5×5". */}
-								<span className="text-body-2xs text-muted-foreground shrink-0 font-normal">
+								<span className="text-footnote text-muted-foreground shrink-0 font-normal tabular-nums">
 									{schemeLabel(lift)}
 								</span>
 							</Label>
@@ -207,27 +202,38 @@ export default function StartProgramRoute({
 							    here (`plan.new.$eventId.tsx`). */}
 							<div
 								data-slot="starting-weight-field"
-								className="border-border bg-card has-[:focus-visible]:border-primary has-[:focus-visible]:ring-primary/40 flex h-13 items-center gap-3 rounded-2xl border px-4 transition-[color,box-shadow] duration-200 has-[:focus-visible]:ring-2"
+								className="border-border bg-card has-[:focus-visible]:border-primary has-[:focus-visible]:ring-primary/40 duration-press flex h-12 items-center gap-3 rounded-3xl border px-4 transition-[border-color,box-shadow] ease-out has-[:focus-visible]:ring-2"
 							>
-								{/* **No step.** `step="0.5"` rejected 61.25 kg, on an athlete
-								    whose gym owns 1.25 kg plates — a precision the app has no
-								    standing to impose, since what can be loaded is a fact
-								    about a rack it may know nothing about. Loadability is
+								{/* **Text, with a decimal keypad — never `type="number"`.** A
+								    number input is read by the browser's locale: Chromium in
+								    English dropped the comma from a typed `62,5` and posted
+								    `625`, ten times the weight and no error anywhere. A text
+								    field posts what was typed, and the action reads `,` and
+								    `.` alike (`kiloField`) or refuses it in words.
+
+								    **No step and no min**, for the same reason: `step="0.5"`
+								    rejected 61.25 kg on a rack with 1.25 kg plates, and a
+								    browser constraint is a silent refusal. Loadability is
 								    stated where it is known (the plate line, the engine's
 								    rounding note), never enforced here as a false rule. */}
 								<Input
 									id={field}
 									name={field}
-									type="number"
+									type="text"
 									inputMode="decimal"
-									step="any"
-									min="0"
-									defaultValue={lift.defaultStartKg ?? ''}
+									autoComplete="off"
+									// Shown the way a Norwegian reads it (`62,5`); the action
+									// reads `,` and `.` alike.
+									defaultValue={
+										lift.defaultStartKg == null
+											? ''
+											: formatNbKg(lift.defaultStartKg)
+									}
 									aria-describedby={`${field}-hint`}
-									className="text-body-md md:text-body-md h-full flex-1 rounded-none border-0 bg-transparent p-0 font-bold focus-visible:border-transparent focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+									className="text-heading h-full flex-1 rounded-none border-0 bg-transparent p-0 tabular-nums focus-visible:border-transparent focus-visible:ring-0"
 								/>
-								<span className="text-body-2xs text-muted-foreground shrink-0 font-semibold">
-									kg
+								<span className="text-footnote text-muted-foreground shrink-0">
+									{L.unit}
 								</span>
 							</div>
 							{/* Every number the program produced says where it came from —
@@ -235,7 +241,7 @@ export default function StartProgramRoute({
 							    the presenter's, and the kilo in it is the constants'. */}
 							<p
 								id={`${field}-hint`}
-								className="text-body-2xs text-muted-foreground/85 leading-relaxed"
+								className="text-footnote text-muted-foreground"
 							>
 								{startingWeightHint({
 									programKey: program.key,
@@ -248,13 +254,13 @@ export default function StartProgramRoute({
 				})}
 
 				{error ? (
-					<p role="alert" className="text-body-xs text-destructive">
+					<p role="alert" className="text-footnote text-foreground-destructive">
 						{error}
 					</p>
 				) : null}
 
-				<Button type="submit" className="text-body-xs h-13 w-full font-bold">
-					Start {program.name}
+				<Button type="submit" className="h-12 w-full rounded-full">
+					{L.submit(program.name)}
 				</Button>
 			</fetcher.Form>
 		</main>

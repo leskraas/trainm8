@@ -57,26 +57,39 @@ import {
 	type FieldMetadata,
 } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { useState } from 'react'
 import { data, Form, Link, redirect } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
-import { Button, buttonVariants } from '#app/components/ui/button.tsx'
+import { Button } from '#app/components/ui/button.tsx'
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '#app/components/ui/collapsible.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
+import { RadioGroup } from '#app/components/ui/radio-group.tsx'
 import {
 	addDays,
 	dayBoundsUTC,
+	isoWeekNumber,
 	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { formatDate } from '#app/utils/format.ts'
+import { formatNbDate } from '#app/utils/format.ts'
 import {
-	DISCIPLINE_LABELS,
-	VOLUME_CURRENCY_LABELS,
 	APP_TAB_LABELS,
+	NB_DISCIPLINE_LABELS,
+	NB_VOLUME_CURRENCY_LABELS,
+	nbAuthoringMessage,
+	nbPhaseName,
+	nbWeeks,
+	PLAN_SHAPE_STEP_LABELS,
+	SESONG_TRACK_LABELS,
 } from '#app/utils/labels.ts'
-import { cn } from '#app/utils/misc.tsx'
 import {
 	PlanOutlineCreateSchema,
 	WeekKeySchema,
@@ -92,10 +105,7 @@ import {
 	type VolumeCurrency,
 } from '#app/utils/plan-outline/derive.ts'
 import { eventFit, type EventFit } from '#app/utils/plan-outline/event-fit.ts'
-import {
-	fitRuleSummary,
-	proposeFit,
-} from '#app/utils/plan-outline/fit-proposal.ts'
+import { proposeFit } from '#app/utils/plan-outline/fit-proposal.ts'
 import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
 import {
 	PRESET_KEYS,
@@ -110,17 +120,20 @@ import {
 } from '#app/utils/plan-outline/proposal.ts'
 import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.new.$eventId.ts'
-import { Disclosure } from './__plan-chrome.tsx'
+import { PillLink, PlanCard } from './__plan-chrome.tsx'
+import { ChoiceCard } from './__plan-new-parts.tsx'
 import {
 	LoadProfile,
+	nbPresetName,
+	nbPresetNote,
 	presetProfiles,
 	rhythmSentence,
 } from './__preset-gallery.tsx'
-import { anchorSentence } from './__track-editor.tsx'
+import { nbAnchorSentence } from './__track-editor.tsx'
 
-export const meta: Route.MetaFunction = () => [
-	{ title: 'Lay out your season | Trainm8' },
-]
+const L = PLAN_SHAPE_STEP_LABELS
+
+export const meta: Route.MetaFunction = () => [{ title: L.metaTitle }]
 
 /** How many Mondays either side of this week the start-week picker offers. */
 const WEEKS_BACK = 4
@@ -161,11 +174,11 @@ type StructureOption = (typeof STRUCTURE_OPTIONS)[number]
 const TrackFieldSchema = z.object({
 	discipline: z.enum(DISCIPLINES),
 	currency: z.enum(VOLUME_CURRENCIES, {
-		errorMap: () => ({ message: 'Pick the unit you plan in' }),
+		errorMap: () => ({ message: L.unitRequired }),
 	}),
 	anchorValue: z.coerce
-		.number({ errorMap: () => ({ message: 'A starting volume is required' }) })
-		.positive('Your starting volume is more than zero'),
+		.number({ errorMap: () => ({ message: L.anchorRequired }) })
+		.positive(L.anchorPositive),
 })
 
 /**
@@ -182,15 +195,14 @@ type TrackFieldValue = {
 
 const PlanFormSchema = z.object({
 	structure: z.enum(STRUCTURE_OPTIONS, {
-		errorMap: () => ({ message: 'Pick a shape, or lay out your own blocks' }),
+		errorMap: () => ({ message: L.structureRequired }),
 	}),
 	// The shared `WeekKeySchema`, not a looser string: the Monday rule then reports
 	// as a *field* error on this form, and a tampered body is refused by the same
-	// rule the service applies rather than by a second, weaker one.
+	// rule the service applies rather than by a second, weaker one. Its English
+	// message is worded at the field (`nbAuthoringMessage`).
 	startWeekKey: WeekKeySchema,
-	tracks: z
-		.array(TrackFieldSchema)
-		.min(1, 'A plan has at least one Training Track'),
+	tracks: z.array(TrackFieldSchema).min(1, L.tracksRequired),
 })
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -272,9 +284,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 		return data(
 			{
 				result: submission.reply({
-					fieldErrors: {
-						structure: ['Name at least one block, or start from a shape'],
-					},
+					fieldErrors: { structure: [L.ownEmpty] },
 				}),
 			},
 			{ status: 400 },
@@ -326,18 +336,19 @@ export async function action({ request, params }: Route.ActionArgs) {
  * into a catch-all the athlete cannot act on.
  */
 function refusalMessage(reason: CreateOutlineRefusal): string {
-	switch (reason) {
-		case 'event-not-found':
-			return 'That event is not available to plan against.'
-		case 'event-past':
-			return 'That event has already happened, so it cannot anchor a new plan.'
-		case 'event-cancelled':
-			return 'That event is cancelled, so it cannot anchor a plan.'
-		case 'event-already-planned':
-			return 'That event already has a plan.'
-		case 'open-ended-already-active':
-			return 'You already have a plan with no end. Open it from your plan page.'
-	}
+	return L.refusals[reason]
+}
+
+/** A list of form errors, the domain's English ones worded for the athlete. */
+function worded(errors: unknown): string[] | undefined {
+	return Array.isArray(errors)
+		? errors.map((error) => nbAuthoringMessage(String(error)))
+		: undefined
+}
+
+/** A sport mid-sentence: `løping`, `sykling`. */
+function sportWord(discipline: Discipline): string {
+	return NB_DISCIPLINE_LABELS[discipline].toLowerCase()
 }
 
 export default function NewPlanStructureRoute({
@@ -406,265 +417,287 @@ export default function NewPlanStructureRoute({
 		shouldRevalidate: 'onBlur',
 	})
 
+	// The choice is the radio group's own state: the group posts it as
+	// `structure`, and it decides whether the athlete's own rows are open.
+	const [structure, setStructure] = useState<StructureOption>(bestFitKey)
+	// The other lengths open on their own when the chosen shape is one of them,
+	// so a reply that comes back with it checked never hides the answer.
+	const [moreOpen, setMoreOpen] = useState(() =>
+		rest.some(({ preset }) => preset.key === bestFitKey),
+	)
+
 	const trackFields = fields.tracks.getFieldList()
 	// Read live: a shape's fit is a claim about *this* season, and moving the start
 	// week moves every one of them.
 	const startWeekKey = fields.startWeekKey.value ?? currentWeekKey
-	const chosenStructure = (fields.structure.value ??
-		bestFitKey) as StructureOption
+
+	const shapeCard = ({
+		preset,
+		profile,
+	}: {
+		preset: PeriodizationPreset
+		profile: number[]
+	}) => (
+		<li key={preset.key}>
+			<ShapeOption
+				preset={preset}
+				profile={profile}
+				ceiling={ceiling}
+				slots={longest}
+				startWeekKey={startWeekKey}
+				eventWeekKey={eventWeekKey}
+			/>
+		</li>
+	)
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
-				title="Lay out your season"
+				title={L.title}
 				back={{ to: '/training/plan/new', label: APP_TAB_LABELS.season }}
 				className="mb-4"
 			/>
 
 			{/* Page prose sits on the page background, not in a card (§1.6). */}
-			<div className="mb-8 space-y-1">
-				<p className="flex flex-wrap items-center gap-2 font-medium">
+			<div className="mb-6 space-y-1">
+				<p className="text-heading flex flex-wrap items-center gap-2 [overflow-wrap:anywhere]">
 					{event.name}
-					{createdGoal ? <Badge variant="secondary">Goal created</Badge> : null}
+					{createdGoal ? (
+						<Badge variant="secondary">{L.goalCreated}</Badge>
+					) : null}
 				</p>
-				<p className="text-muted-foreground text-sm">
-					{formatDate(event.startDate, 'UTC')}
-					{createdGoal ? ' · added to your calendar as a fitness goal' : null}
+				<p className="text-footnote text-muted-foreground tabular-nums">
+					{formatNbDate(event.startDate, 'UTC')}
+					{createdGoal ? ` · ${L.goalCreatedNote}` : null}
 				</p>
 			</div>
 
 			{/* The way in that does not ask the athlete to author a periodization
 			    model (#456). It sits above the form rather than replacing it: the
-			    authoring ladder stays whole and stops being the *only* way in, which is
-			    the half of #439 this ticket can honestly land. */}
-			<div className="border-border/70 bg-card mb-8 space-y-2 rounded-3xl border p-4 shadow-xs">
-				<p className="text-base font-medium">Or let trainm8 build it</p>
-				<p className="text-muted-foreground text-sm">
-					A whole season with real sessions in it, each retrieved from the
-					Catalogue and showing where it came from. Nothing reaches your
-					calendar until you approve it, and everything lands editable.
-				</p>
-				<Link
-					to={`/training/plan/generate/${event.id}`}
-					className={buttonVariants({ variant: 'secondary' })}
-				>
-					Generate my season
-				</Link>
-			</div>
+			    authoring ladder stays whole and stops being the *only* way in. A
+			    quiet section with a pill, not a card, so the shapes stay the
+			    page's first card. */}
+			<section
+				aria-labelledby="generate-season"
+				className="border-border/60 mb-6 space-y-2 border-b pb-6"
+			>
+				<h2 id="generate-season" className="text-callout font-semibold">
+					{L.generateTitle}
+				</h2>
+				<p className="text-footnote text-muted-foreground">{L.generateBody}</p>
+				<PillLink to={`/training/plan/generate/${event.id}`}>
+					{L.generateAction}
+				</PillLink>
+			</section>
 
 			{proposals.length === 0 ? (
-				<p className="text-sm">
-					This event names no discipline, so there is nothing to build a
-					training track from.{' '}
-					<Link to={`/training/events/${event.id}/edit`} className="underline">
-						Add one to the event
+				<p className="text-footnote">
+					{L.noDiscipline}{' '}
+					<Link
+						to={`/training/events/${event.id}/edit`}
+						className="text-foreground relative inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+					>
+						{L.noDisciplineLink}
 					</Link>{' '}
-					and come back.
+					{L.noDisciplineTail}
 				</p>
 			) : (
-				<Form method="POST" {...getFormProps(form)}>
-					<div className="space-y-8">
-						{/* The shape leads. Everything under it is size, and a size means
-						    nothing until there is a season to size (ADR 0043 §1). */}
-						<fieldset className="space-y-4">
-							<legend className="text-lg font-semibold">
-								How should your season be built?
-							</legend>
-							<p className="text-muted-foreground text-sm">
-								Pick a shape and its blocks, its climb and its quality sessions
-								all land with it — yours to change afterwards. Each picture is
-								drawn from the shape&rsquo;s own numbers, so it shows what
-								applying it produces.
+				<Form method="POST" {...getFormProps(form)} className="space-y-6">
+					{/* The shape leads. Everything under it is size, and a size means
+					    nothing until there is a season to size (ADR 0043 §1). */}
+					<PlanCard titleId="season-shape" title={L.shapeTitle}>
+						<div className="space-y-4">
+							<p className="text-footnote text-muted-foreground">
+								{L.shapeIntro}
 							</p>
 
-							<ul className="space-y-3">
-								{nearest.map(({ preset, profile }) => (
-									<li key={preset.key}>
-										<ShapeOption
-											preset={preset}
-											profile={profile}
-											ceiling={ceiling}
-											slots={longest}
-											name={fields.structure.name}
-											checked={chosenStructure === preset.key}
-											startWeekKey={startWeekKey}
-											eventWeekKey={eventWeekKey}
+							<RadioGroup
+								name={fields.structure.name}
+								value={structure}
+								onValueChange={(next) =>
+									setStructure(String(next) as StructureOption)
+								}
+								aria-labelledby="season-shape"
+								aria-invalid={fields.structure.errors ? true : undefined}
+								className="gap-3"
+							>
+								<ul className="space-y-3">
+									{nearest.map(shapeCard)}
+
+									{/* The rest, one tap away. Fifteen illustrated options is a
+									    very long page at 390 px and the last four fifths of it
+									    are the shapes that land furthest from this Event — the
+									    page-height defect ADR 0048's evidence recorded, arriving
+									    from the other side. Nothing is removed and nothing is
+									    unreachable: the panel stays mounted while closed
+									    (`keepMounted`), so every radio is in the same group and
+									    posts the same field. What is hidden is only *other
+									    lengths of the same shapes* — a variant differs from its
+									    family in length alone — so the closed state cannot
+									    conceal a season the athlete has not already seen the
+									    shape of. */}
+									{rest.length > 0 ? (
+										<li>
+											<Collapsible open={moreOpen} onOpenChange={setMoreOpen}>
+												<CollapsibleTrigger className="hover:bg-muted/50 active:bg-muted motion-safe:duration-press -mx-2 flex min-h-11 w-[calc(100%+1rem)] touch-manipulation items-center gap-3 rounded-2xl px-2 py-2.5 text-left motion-safe:transition-colors motion-safe:ease-out">
+													<span className="min-w-0 flex-1">
+														<span className="text-callout block">
+															{L.moreLengths(rest.length)}
+														</span>
+														<span className="text-footnote text-muted-foreground block">
+															{L.moreLengthsDetail}
+														</span>
+													</span>
+													<Icon
+														name="chevron-down"
+														size="sm"
+														className="text-muted-foreground motion-safe:duration-press shrink-0 motion-safe:transition-transform motion-safe:ease-out [[data-panel-open]>&]:rotate-180"
+													/>
+												</CollapsibleTrigger>
+												<CollapsibleContent keepMounted>
+													<ul className="space-y-3 pt-2">
+														{rest.map(shapeCard)}
+													</ul>
+												</CollapsibleContent>
+											</Collapsible>
+										</li>
+									) : null}
+
+									{/* The escape hatch, as the last option rather than as a
+									    link out: an athlete who knows what they want types it
+									    here and submits the same form. The rows stay mounted
+									    whichever option is checked — the action reads them only
+									    for `own`, so a shape cannot pick up a stray row, and a
+									    mis-tap does not lose what was typed — but they open only
+									    while this option is chosen. Six blank rows are 700 px of
+									    empty form on a phone, and an athlete picking a shape
+									    should never scroll past them. */}
+									<li className="space-y-3">
+										<ChoiceCard
+											value="own"
+											title={L.ownTitle}
+											detail={L.ownDetail}
 										/>
+										<Collapsible open={structure === 'own'}>
+											<CollapsibleContent keepMounted>
+												<OwnBlocks />
+											</CollapsibleContent>
+										</Collapsible>
 									</li>
-								))}
+								</ul>
+							</RadioGroup>
+							<ErrorList errors={worded(fields.structure.errors)} />
 
-								{/* The rest, one tap away. Nine illustrated options is ~3,600 px
-								    at 390 px and the last two thirds of it are the shapes that
-								    land furthest from this Event — the same page-height defect
-								    ADR 0048's evidence recorded, arriving from the other side.
-								    Nothing is removed and nothing is unreachable: `<details>`
-								    keeps every radio in the DOM and in the same group, so the
-								    form works closed, before hydration and under find-in-page.
-								    What is hidden is only *other lengths of the same shapes* —
-								    a variant differs from its family in length alone — so the
-								    closed state cannot conceal a season the athlete has not
-								    already seen the shape of. */}
-								{rest.length > 0 ? (
-									<li>
-										<Disclosure
-											summary={`${rest.length} more lengths`}
-											detail="The same shapes, longer and shorter — they land further from your event."
-										>
-											<ul className="space-y-3">
-												{rest.map(({ preset, profile }) => (
-													<li key={preset.key}>
-														<ShapeOption
-															preset={preset}
-															profile={profile}
-															ceiling={ceiling}
-															slots={longest}
-															name={fields.structure.name}
-															checked={chosenStructure === preset.key}
-															startWeekKey={startWeekKey}
-															eventWeekKey={eventWeekKey}
-														/>
-													</li>
-												))}
-											</ul>
-										</Disclosure>
-									</li>
-								) : null}
-
-								{/* The escape hatch, as the fourth option rather than as a link
-								    out: an athlete who knows what they want types it here and
-								    submits the same form. The rows stay in the DOM whichever
-								    option is checked — the action reads them only for `own`, so
-								    a shape cannot pick up a stray row, and a mis-tap does not
-								    lose what was typed — but they are *shown* only while this
-								    option is, by CSS on the checked state rather than by React
-								    state, so the choice still works before hydration. Six blank
-								    rows are 700 px of empty form on a phone, and an athlete
-								    picking a shape should never scroll past them. */}
-								<li>
-									<ShapeChoice
-										name={fields.structure.name}
-										value="own"
-										defaultChecked={chosenStructure === 'own'}
-										title="I’ll lay out my own blocks"
-										detail="A phase says when and why, never how much. They sit end to end from your start week."
-										revealWhenChecked
-									>
-										<ul className="space-y-2">
-											{Array.from({ length: PHASE_ROWS }, (_, index) => (
-												<li key={index} className="flex items-start gap-2">
-													<Field
-														className="flex-1"
-														labelProps={{
-															children: `Phase ${index + 1} name`,
-															className: index === 0 ? undefined : 'sr-only',
-														}}
-														inputProps={{
-															id: `phaseName-${index}`,
-															name: 'phaseName',
-															type: 'text',
-															placeholder:
-																index === 0 ? 'e.g. Base' : undefined,
-														}}
-													/>
-													<Field
-														className="w-24"
-														labelProps={{
-															children: 'Weeks',
-															className: index === 0 ? undefined : 'sr-only',
-														}}
-														inputProps={{
-															id: `phaseWeeks-${index}`,
-															name: 'phaseWeeks',
-															type: 'number',
-															min: 1,
-															inputMode: 'numeric',
-														}}
-													/>
-												</li>
-											))}
-										</ul>
-										<p className="text-muted-foreground text-sm">
-											Every 4th week is a recovery week by the documented
-											convention, and nothing climbs until you say so on a
-											block.
-										</p>
-									</ShapeChoice>
-								</li>
-							</ul>
-							<ErrorList
-								errors={fields.structure.errors as string[] | undefined}
-							/>
-
-							<p className="text-muted-foreground text-sm">
-								A shape is a fixed length, so it is never stretched to reach
-								your event. Whichever you pick, your plan says where it ends and
-								you decide whether to add weeks.
+							<p className="text-footnote text-muted-foreground">
+								{L.fixedLength}
 							</p>
-						</fieldset>
+						</div>
+					</PlanCard>
 
-						{/* Said once, above the sections it explains: the athlete is about to
-						    answer the same two questions three times, and the reason they are
-						    not authoring three plans is that the blocks above are shared
-						    (ADR 0043 §1). Silent for a single-discipline event, where there is
-						    nothing to explain. */}
-						{proposals.length > 1 ? (
-							<p className="text-muted-foreground text-sm">
-								Your event names{' '}
-								{proposals
-									.map((proposal) =>
-										DISCIPLINE_LABELS[proposal.discipline].toLowerCase(),
-									)
-									.join(', ')}
-								, so your season gets a track for each — over the same blocks,
-								peaking together. Each keeps its own unit for life.
+					{/* Said once, above the sections it explains: the athlete is about
+					    to answer the same two questions three times, and the reason
+					    they are not authoring three plans is that the blocks above are
+					    shared (ADR 0043 §1). Silent for a single-discipline event,
+					    where there is nothing to explain. */}
+					{proposals.length > 1 ? (
+						<p className="text-footnote text-muted-foreground">
+							{L.multiTrack(
+								proposals.map((proposal) => sportWord(proposal.discipline)),
+							)}
+						</p>
+					) : null}
+
+					{trackFields.map((trackField, index) => (
+						<TrackSection
+							key={trackField.key}
+							field={trackField}
+							proposal={proposals[index]!}
+						/>
+					))}
+					<ErrorList errors={worded(fields.tracks.errors)} />
+
+					<PlanCard titleId="start-week" title={L.startTitle}>
+						<div className="space-y-4">
+							<p className="text-footnote text-muted-foreground">
+								{L.startIntro}
 							</p>
-						) : null}
-
-						{trackFields.map((trackField, index) => (
-							<TrackSection
-								key={trackField.key}
-								field={trackField}
-								proposal={proposals[index]!}
-							/>
-						))}
-						<ErrorList errors={fields.tracks.errors as string[] | undefined} />
-
-						<section aria-labelledby="start-week" className="space-y-4">
-							<h2 id="start-week" className="text-lg font-semibold">
-								Which week does your plan start?
-							</h2>
-							<p className="text-muted-foreground text-sm">
-								Your blocks lay forward from here. Nothing counts back from your
-								event, so adding a block later never moves your start.
-							</p>
-							{/* Every option is a Monday in the Athlete Timezone, which is how
-							    the week is stored (ADR 0044 §3) — so an invalid Plan Start Week
-							    is unrepresentable rather than validated against. */}
+							{/* Every option is a Monday in the Athlete Timezone, which is
+							    how the week is stored (ADR 0044 §3) — so an invalid Plan
+							    Start Week is unrepresentable rather than validated against.
+							    Named by its ISO week, as every week on Sesong is
+							    (ADR 0090 §4). */}
 							<SelectField
 								meta={fields.startWeekKey}
-								labelProps={{
-									children: 'Plan start week',
-									className: 'sr-only',
-								}}
+								labelProps={{ children: L.startLabel, className: 'sr-only' }}
 								items={weekOptions.map((option) => ({
 									value: option.weekKey,
-									label: `${formatDate(option.startsAt, timezone)}${
-										option.isCurrent ? ' · this week' : ''
-									}`,
+									label: L.weekOption(
+										isoWeekNumber(option.weekKey),
+										formatNbDate(option.startsAt, timezone),
+										option.isCurrent,
+									),
 								}))}
-								errors={fields.startWeekKey.errors as string[] | undefined}
+								triggerClassName="tabular-nums"
+								errors={worded(fields.startWeekKey.errors)}
 							/>
-						</section>
+						</div>
+					</PlanCard>
 
-						<ErrorList errors={form.errors as string[] | undefined} />
+					<ErrorList errors={worded(form.errors)} />
 
-						<Button type="submit" className="w-full sm:w-auto">
-							Create plan
-						</Button>
-					</div>
+					<Button type="submit" className="w-full sm:w-auto">
+						{L.create}
+					</Button>
 				</Form>
 			)}
 		</main>
+	)
+}
+
+/**
+ * The athlete's own blocks: six name-and-weeks rows. Blank rows are ignored, so
+ * three phases and six are the same form. A phase carries a name and a week
+ * count and nothing else (ADR 0041).
+ */
+function OwnBlocks() {
+	return (
+		<div className="space-y-3 pt-1">
+			<ul className="space-y-2">
+				{Array.from({ length: PHASE_ROWS }, (_, index) => (
+					<li key={index} className="flex items-start gap-2">
+						<Field
+							className="min-w-0 flex-1"
+							labelProps={{
+								children: L.phaseName(index + 1),
+								className: index === 0 ? undefined : 'sr-only',
+							}}
+							inputProps={{
+								id: `phaseName-${index}`,
+								name: 'phaseName',
+								type: 'text',
+								placeholder: index === 0 ? L.phaseNamePlaceholder : undefined,
+							}}
+						/>
+						<Field
+							className="w-24 shrink-0"
+							labelProps={{
+								children: L.phaseWeeks,
+								className: index === 0 ? undefined : 'sr-only',
+							}}
+							inputProps={{
+								id: `phaseWeeks-${index}`,
+								name: 'phaseWeeks',
+								type: 'number',
+								min: 1,
+								inputMode: 'numeric',
+								className: 'tabular-nums',
+							}}
+						/>
+					</li>
+				))}
+			</ul>
+			<p className="text-footnote text-muted-foreground">{L.ownNote}</p>
+		</div>
 	)
 }
 
@@ -692,7 +725,7 @@ function TrackSection({
 }) {
 	const fields = field.getFieldset()
 	const { discipline } = proposal
-	const label = DISCIPLINE_LABELS[discipline].toLowerCase()
+	const sport = sportWord(discipline)
 
 	// Strength authors `sets` and is offered nothing else (ADR 0043 §2), so its
 	// currency is stated rather than picked — a one-option select would be the dead
@@ -707,95 +740,85 @@ function TrackSection({
 	const prefill = currency ? proposal.anchors[currency] : undefined
 
 	return (
-		<section aria-labelledby={`your-${discipline}-track`} className="space-y-4">
-			<h2 id={`your-${discipline}-track`} className="text-lg font-semibold">
-				How big are your {label} weeks?
-			</h2>
-
-			{soleCurrency ? (
-				// Strength is offered `sets` and no choice at all (ADR 0043 §2), so
-				// there is no field here to make dead — the unit is stated.
-				<>
-					<input
-						type="hidden"
-						name={fields.currency.name}
-						value={soleCurrency}
-					/>
-					<p className="text-sm">
-						Your {label} track is planned in{' '}
-						<span className="font-medium">
-							{VOLUME_CURRENCY_LABELS[soleCurrency].toLowerCase()}
-						</span>{' '}
-						<span className="text-muted-foreground">
-							· strength&rsquo;s own unit, not a choice
-						</span>
-					</p>
-				</>
-			) : (
-				<SelectField
-					meta={fields.currency}
-					labelProps={{ children: `What do you plan your ${label} in?` }}
-					placeholder="Pick the unit you plan in"
-					items={proposal.offered.map((option) => ({
-						value: option,
-						label: VOLUME_CURRENCY_LABELS[option],
-					}))}
-					errors={fields.currency.errors as string[] | undefined}
-				/>
-			)}
-			{/* The Event named the Discipline; the athlete never typed it, so it rides
-			    along hidden and the action reads a whole track off one row. */}
-			<input type="hidden" name={fields.discipline.name} value={discipline} />
-			<p className="text-muted-foreground text-sm">
-				{/* Nothing was read for a sole-currency track and nothing was chosen:
-				    `sets` is a fact about the Discipline (ADR 0043 §2), so neither "we
-				    proposed this" nor "you pick" is a true sentence about it. The add
-				    form on the plan page drops the clause for the same reason, and one
-				    unit must not be explained two ways on two surfaces. */}
-				{soleCurrency ? null : proposal.currency ? (
-					<>Proposed from your own history. </>
-				) : (
+		<PlanCard titleId={`your-${discipline}-track`} title={L.trackTitle(sport)}>
+			<div className="space-y-4">
+				{soleCurrency ? (
+					// Strength is offered `sets` and no choice at all (ADR 0043 §2), so
+					// there is no field here to make dead — the unit is stated.
 					<>
-						Nothing in your last {ANCHOR_WINDOW_WEEKS} weeks to read a unit
-						from, so this one is yours to choose.{' '}
+						<input
+							type="hidden"
+							name={fields.currency.name}
+							value={soleCurrency}
+						/>
+						<p className="text-footnote">
+							{L.plannedIn(sport)}{' '}
+							<span className="font-semibold">
+								{NB_VOLUME_CURRENCY_LABELS[soleCurrency].toLowerCase()}
+							</span>{' '}
+							<span className="text-muted-foreground">
+								{SESONG_TRACK_LABELS.ownUnit}
+							</span>
+						</p>
 					</>
+				) : (
+					<SelectField
+						meta={fields.currency}
+						labelProps={{ children: L.unitLabel(sport) }}
+						placeholder={SESONG_TRACK_LABELS.pickUnit}
+						items={proposal.offered.map((option) => ({
+							value: option,
+							label: NB_VOLUME_CURRENCY_LABELS[option],
+						}))}
+						errors={worded(fields.currency.errors)}
+					/>
 				)}
-				This is locked once the track exists — changing units would rewrite the
-				unit of every week you have already trained.
-			</p>
+				{/* The Event named the Discipline; the athlete never typed it, so it
+				    rides along hidden and the action reads a whole track off one row. */}
+				<input type="hidden" name={fields.discipline.name} value={discipline} />
+				<p className="text-footnote text-muted-foreground">
+					{/* Nothing was read for a sole-currency track and nothing was
+					    chosen: `sets` is a fact about the Discipline (ADR 0043 §2), so
+					    neither "we proposed this" nor "you pick" is a true sentence
+					    about it. The add form on the plan page drops the clause for the
+					    same reason, and one unit must not be explained two ways on two
+					    surfaces. */}
+					{soleCurrency
+						? null
+						: proposal.currency
+							? SESONG_TRACK_LABELS.proposed
+							: SESONG_TRACK_LABELS.noHistoryUnit(ANCHOR_WINDOW_WEEKS)}
+					{SESONG_TRACK_LABELS.unitFixed}
+				</p>
 
-			{/* The anchor is re-keyed on the currency so switching units brings that
-			    unit's own pre-fill and derivation: anchor value and Volume Currency are
-			    one act (ADR 0043 §2), and a distance figure relabelled as hours would be
-			    a number nobody authored. */}
-			<Field
-				key={currency ?? 'unset'}
-				labelProps={{
-					children: `Where you are starting from, per ${label} week`,
-				}}
-				inputProps={{
-					...getInputProps(fields.anchorValue, { type: 'number' }),
-					defaultValue: prefill?.value ?? '',
-					step: 'any',
-					min: 0,
-					inputMode: 'decimal',
-				}}
-				errors={fields.anchorValue.errors as string[] | undefined}
-			/>
-			<p className="text-muted-foreground text-sm">{anchorSentence(prefill)}</p>
-		</section>
+				{/* The anchor is re-keyed on the currency so switching units brings that
+				    unit's own pre-fill and derivation: anchor value and Volume Currency
+				    are one act (ADR 0043 §2), and a distance figure relabelled as hours
+				    would be a number nobody authored. */}
+				<div className="space-y-1.5">
+					<Field
+						key={currency ?? 'unset'}
+						className="sm:max-w-xs"
+						labelProps={{ children: L.anchorLabel(sport) }}
+						inputProps={{
+							...getInputProps(fields.anchorValue, { type: 'number' }),
+							defaultValue: prefill?.value ?? '',
+							step: 'any',
+							min: 0,
+							inputMode: 'decimal',
+							className: 'tabular-nums',
+						}}
+						errors={worded(fields.anchorValue.errors)}
+					/>
+					<p className="text-footnote text-muted-foreground">
+						{nbAnchorSentence(prefill)}
+					</p>
+				</div>
+			</div>
+		</PlanCard>
 	)
 }
 
-/**
- * One answer to "how should your season be built": a radio the whole card
- * belongs to.
- *
- * A `<label>` wrapping the control and its contents, so the tap target is the
- * card and not a 16px dot beside it (ADR 0028 §2.2), and so the choice works
- * before hydration. The checked state is drawn with a ring rather than colour
- * alone — the radio itself stays visible and is what a screen reader reads.
- */
 /**
  * One shape as a choice: its picture, where it lands against this Event, and what
  * the fitting rule would cost if it were applied.
@@ -803,15 +826,15 @@ function TrackSection({
  * A component rather than an inlined block because the step renders the same card
  * in two places — the three that lead and the rest behind the disclosure — and a
  * shape that described itself differently depending on which side of a fold it
- * fell on would be a different shape.
+ * fell on would be a different shape. Named and described as the gallery under
+ * Sesong's _Avansert_ names it (`nbPresetName`, `nbPresetNote`), so one method
+ * has one name before and after the plan exists (audit B7).
  */
 function ShapeOption({
 	preset,
 	profile,
 	ceiling,
 	slots,
-	name,
-	checked,
 	startWeekKey,
 	eventWeekKey,
 }: {
@@ -819,18 +842,15 @@ function ShapeOption({
 	profile: number[]
 	ceiling: number
 	slots: number
-	name: string
-	checked: boolean
 	startWeekKey: string
 	eventWeekKey: string
 }) {
+	const weeks = presetWeeks(preset)
 	return (
-		<ShapeChoice
-			name={name}
+		<ChoiceCard
 			value={preset.key}
-			defaultChecked={checked}
-			title={preset.name}
-			detail={preset.provenance}
+			title={nbPresetName(preset.key)}
+			detail={nbPresetNote(preset.key)}
 		>
 			<LoadProfile
 				preset={preset}
@@ -838,75 +858,20 @@ function ShapeOption({
 				ceiling={ceiling}
 				slots={slots}
 			/>
-			<p className="text-sm">
-				<span className="font-medium tabular-nums">
-					{presetWeeks(preset)} weeks
-				</span>{' '}
-				<span className="text-muted-foreground">
-					·{' '}
-					{landingSentence(
-						preset,
-						eventFit(startWeekKey, presetWeeks(preset), eventWeekKey),
-					)}
-				</span>
-			</p>
-			<p className="text-muted-foreground text-sm">{rhythmSentence(preset)}</p>
-		</ShapeChoice>
-	)
-}
-
-function ShapeChoice({
-	name,
-	value,
-	defaultChecked,
-	title,
-	detail,
-	revealWhenChecked = false,
-	children,
-}: {
-	name: string
-	value: string
-	defaultChecked: boolean
-	title: string
-	detail: string
-	/**
-	 * Show the body only while this option is checked. For the one option whose
-	 * body is a *form* rather than an illustration: the fields stay submitted
-	 * either way, so this hides a control the athlete is not using rather than
-	 * gating one they are.
-	 */
-	revealWhenChecked?: boolean
-	children: React.ReactNode
-}) {
-	return (
-		<label
-			className={cn(
-				'group border-border/70 bg-card block cursor-pointer rounded-3xl border p-4 shadow-xs transition-colors',
-				'has-[:checked]:border-primary has-[:checked]:ring-primary/40 has-[:checked]:ring-2',
-			)}
-		>
-			<span className="flex items-start gap-3">
-				<input
-					type="radio"
-					name={name}
-					value={value}
-					defaultChecked={defaultChecked}
-					className="mt-1 size-4 shrink-0"
-				/>
-				<span className="min-w-0 flex-1">
-					<span className="block text-base font-medium">{title}</span>
-					<span className="text-muted-foreground block text-sm">{detail}</span>
-				</span>
-			</span>
-			<div
-				className={cn(
-					'mt-4 space-y-3',
-					revealWhenChecked && 'hidden group-has-[:checked]:block',
-				)}
-			>
-				{children}
+			<div className="text-footnote space-y-1">
+				<p>
+					<span className="font-semibold tabular-nums">{nbWeeks(weeks)}</span>{' '}
+					<span className="text-muted-foreground">
+						·{' '}
+						{landingSentence(
+							preset,
+							eventFit(startWeekKey, weeks, eventWeekKey),
+						)}
+					</span>
+				</p>
+				<p className="text-muted-foreground">{rhythmSentence(preset)}</p>
 			</div>
-		</label>
+		</ChoiceCard>
 	)
 }
 
@@ -915,28 +880,28 @@ function ShapeChoice({
  * follows its week count.
  *
  * The same three readings `eventFit` produces and the plan page prints, worded to
- * sit after "18 weeks ·" rather than as a sentence of its own — one vocabulary for
+ * sit after "18 uker ·" rather than as a sentence of its own — one vocabulary for
  * one fact, so an athlete meets the same words before and after they create.
  */
 function fitSentence(fit: EventFit): string {
-	if (fit.kind === 'ends-on-event-week') return 'ends on your event’s week'
-	const plural = fit.weeks === 1 ? 'week' : 'weeks'
+	if (fit.kind === 'ends-on-event-week') return L.landsOnEvent
 	return fit.kind === 'ends-before'
-		? `ends ${fit.weeks} ${plural} before your event`
-		: `runs ${fit.weeks} ${plural} past your event`
+		? L.endsBefore(fit.weeks)
+		: L.runsPast(fit.weeks)
 }
 
 /**
  * Where this shape lands against the Event **and**, where it misses, what the
- * documented fitting rule would do about it — `runs 3 weeks past your event ·
- * fitting it shortens Base by 3 weeks`.
+ * documented fitting rule would do about it — `går 3 uker forbi løpet · å
+ * tilpasse den korter ned Grunntrening med 3 uker`.
  *
- * The second clause is the point of stating a rule at all. Nine shapes cover the
+ * The second clause is the point of stating a rule at all. The shapes cover the
  * common run-ins, so most of the time it is absent; where it appears, the athlete
  * is choosing between shapes *knowing which block each one would cost them*, which
  * is the difference between a fitting rule and a surprise. Nothing here applies
  * anything — the shape still lands at its own length (ADR 0048 §1) and fitting
- * stays the athlete's tap on the plan page (§3).
+ * stays the athlete's tap on the plan page (§3). Every block the proposal touches
+ * is named, as `fitRuleSummary` names it in the domain's English.
  *
  * Where no proposal exists the shape simply cannot be fitted without deleting a
  * block, and that is said rather than left blank: an absence the athlete would
@@ -946,9 +911,11 @@ function landingSentence(preset: PeriodizationPreset, fit: EventFit): string {
 	const landing = fitSentence(fit)
 	if (fit.kind === 'ends-on-event-week') return landing
 	const proposal = proposeFit(preset.phases, fit)
-	return proposal
-		? `${landing} · fitting it ${fitRuleSummary(proposal)}`
-		: `${landing} · too long to fit without dropping a block`
+	if (!proposal) return `${landing} · ${L.fitTooLong}`
+	const changes = proposal.changes.map((change) =>
+		L.fitChange(nbPhaseName(change.name), Math.abs(change.to - change.from)),
+	)
+	return `${landing} · ${L.fitWould(proposal.delta > 0, changes)}`
 }
 
 /**

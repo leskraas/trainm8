@@ -3,9 +3,28 @@ import { data, Form, Link } from 'react-router'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '#app/components/ui/collapsible.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { setDisciplineThresholds } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { formatPaceClock } from '#app/utils/format.ts'
+import {
+	MEG_ANALYZE_LABELS,
+	MEG_COMMON_LABELS,
+	MEG_CONFIDENCE_LABELS,
+	MEG_CONSTRUCT_CAVEATS,
+	MEG_CONSTRUCT_LABELS,
+	MEG_ESTIMATE_REFUSAL_LABELS,
+	MEG_PAGE_TITLES,
+	MEG_THRESHOLD_PROTOCOL_LABELS,
+	MEG_UNIT_SUFFIX,
+	NB_DISCIPLINE_LABELS,
+} from '#app/utils/labels.ts'
 import {
 	acceptancePlan,
 	analyseProfile,
@@ -14,21 +33,20 @@ import {
 } from '#app/utils/profile-analysis/analyze.server.ts'
 import {
 	type EstimateConfidence,
-	type EstimateRefusal,
 	type ThresholdConstruct,
 	THRESHOLD_CONSTRUCTS,
 	type ThresholdEstimate,
-	type ThresholdProtocol,
 } from '#app/utils/profile-analysis/types.ts'
 import {
 	CARDIO_DISCIPLINES,
 	type CardioDiscipline,
-	DISCIPLINE_LABELS,
 } from '#app/utils/workout-schema.ts'
+import { nbDecimal, nbSeconds } from '../__meg-text.ts'
+import { MegNote, MegSection } from '../__meg-ui.tsx'
 import { type Route } from './+types/analyze.ts'
 
 /**
- * **What your history says** — the first surface that reads an athlete's own
+ * **Det historikken din sier** — the first surface that reads an athlete's own
  * imported training and tells them something about themselves.
  *
  * Every row is a **proposal**. Nothing on this screen writes a threshold until
@@ -40,10 +58,11 @@ import { type Route } from './+types/analyze.ts'
  * The copy budget is deliberate. Each row is one line and one caveat; the
  * derivation waits behind a tap (#437's rule — a source may wait behind a tap,
  * an absence may not). A refusal is never hidden, because that is the absence.
+ * Norwegian and on cards since round 2 (ADR 0081/0085); the action is unchanged.
  */
 
 export const handle: PageHeaderHandle & SEOHandle = {
-	pageHeader: 'What your history says',
+	pageHeader: MEG_PAGE_TITLES.analyze,
 	getSitemapEntries: () => null,
 }
 
@@ -59,7 +78,7 @@ export async function action({ request }: Route.ActionArgs) {
 	const construct = String(formData.get('construct') ?? '')
 
 	if (!isCardio(discipline) || !isConstruct(construct)) {
-		return data({ error: 'Unknown estimate.' as const }, { status: 400 })
+		return data({ error: MEG_ANALYZE_LABELS.unknown }, { status: 400 })
 	}
 
 	// Re-run the analysis server-side rather than trusting the value the browser
@@ -70,10 +89,7 @@ export async function action({ request }: Route.ActionArgs) {
 	const analysis = await analyseProfile(userId)
 	const estimate = findEstimate(analysis, discipline, construct)
 	if (!estimate) {
-		return data(
-			{ error: 'That reading is no longer available.' as const },
-			{ status: 409 },
-		)
+		return data({ error: MEG_ANALYZE_LABELS.gone }, { status: 409 })
 	}
 
 	const plan = acceptancePlan(estimate)
@@ -98,58 +114,6 @@ function isConstruct(value: string): value is ThresholdConstruct {
 	return (THRESHOLD_CONSTRUCTS as readonly string[]).includes(value)
 }
 
-const CONSTRUCT_LABELS: Record<ThresholdConstruct, string> = {
-	maxHr: 'Max heart rate',
-	lthr: 'Threshold heart rate',
-	ftp: 'FTP',
-	cp: 'Critical power',
-	thresholdPace: 'Threshold pace',
-	criticalSpeed: 'Critical speed',
-	css: 'Critical swim speed',
-	runPower: 'Running power threshold',
-}
-
-/**
- * The caveat that **sits on the number**, in a phrase.
- *
- * `cp` and `criticalSpeed` are the two that earn one: neither is the thing the
- * column it lands in is named after, and the head-to-head gap is wide enough
- * (CP 256 ± 50 W vs FTP 249 ± 44 W, limits of agreement −19 to +33 W) that
- * silence would be a claim. The full argument is in the derivation, not here.
- */
-const CONSTRUCT_CAVEATS: Partial<Record<ThresholdConstruct, string>> = {
-	cp: 'A critical power — usually a little above FTP.',
-	criticalSpeed:
-		'A critical speed — usually a little quicker than threshold pace.',
-}
-
-const PROTOCOL_LABELS: Record<ThresholdProtocol, string> = {
-	manual: 'you typed it',
-	tt60: '60-minute test',
-	ftp20: '20-minute test',
-	ramp: 'ramp test',
-	'cp-fit': 'fitted to your best efforts',
-	'race-equivalence': 'from a race result',
-	observed: 'the hardest you have been recorded going',
-	tanaka: 'estimated from your age',
-	provider: 'from a connected account',
-}
-
-/** One short sentence per refusal. Visible, never behind a disclosure. */
-const REFUSAL_LINES: Record<EstimateRefusal, string> = {
-	'no-birthdate':
-		'Add your date of birth in your profile and we can estimate it.',
-	'no-data': 'Nothing in the last 90 days carried the data this needs.',
-	resolution:
-		'Your activities are stored at too coarse a resolution to read short efforts from.',
-	'insufficient-efforts':
-		'Not enough hard efforts of different lengths to fit a curve to.',
-	'insufficient-spread':
-		'Your hard efforts are all about the same length, so a curve would be guesswork.',
-	'implausible-fit': 'The fit came out outside anything physiological.',
-	unbuilt: 'Not something we can read from your data yet.',
-}
-
 const CONFIDENCE_VARIANT: Record<
 	EstimateConfidence,
 	'default' | 'secondary' | 'outline'
@@ -157,19 +121,20 @@ const CONFIDENCE_VARIANT: Record<
 
 /** A value in the unit its construct implies. */
 function displayValue(construct: ThresholdConstruct, value: number) {
+	const U = MEG_UNIT_SUFFIX
 	switch (construct) {
 		case 'maxHr':
 		case 'lthr':
-			return { value: String(value), unit: 'bpm' }
+			return { value: String(value), unit: U.bpm }
 		case 'ftp':
 		case 'cp':
 		case 'runPower':
-			return { value: String(value), unit: 'W' }
+			return { value: String(value), unit: U.watt }
 		case 'thresholdPace':
 		case 'criticalSpeed':
-			return { value: formatPaceClock(value), unit: '/km' }
+			return { value: formatPaceClock(value), unit: U.perKm }
 		case 'css':
-			return { value: formatPaceClock(value), unit: '/100m' }
+			return { value: formatPaceClock(value), unit: U.per100m }
 	}
 }
 
@@ -178,33 +143,32 @@ export default function AnalyzeProfileRoute({
 	actionData,
 }: Route.ComponentProps) {
 	const { analysis } = loaderData
+	const L = MEG_ANALYZE_LABELS
 
 	return (
 		<div className="flex flex-col gap-8">
-			<p className="text-body-md text-muted-foreground">
-				Read from {analysis.activitiesRead}{' '}
-				{analysis.activitiesRead === 1 ? 'activity' : 'activities'} in the last{' '}
-				{analysis.windowDays} days. Nothing is saved until you accept it.
+			<p className="text-body">
+				{L.intro(analysis.activitiesRead, analysis.windowDays)}
 			</p>
 
 			{actionData?.error ? (
-				<p className="text-destructive text-sm" role="alert">
+				<p className="text-footnote text-destructive" role="alert">
 					{actionData.error}
 				</p>
 			) : null}
 
 			{analysis.activitiesRead === 0 ? (
-				<div className="border-border/70 bg-muted/40 space-y-3 rounded-2xl border p-4">
-					<p className="text-body-sm">
-						No imported activities yet, so there is nothing to read.
-					</p>
-					<Link
-						to="/settings/integrations"
-						className={buttonVariants({ variant: 'outline', size: 'sm' })}
-					>
-						Connect an account
-					</Link>
-				</div>
+				<Card size="sm">
+					<CardContent className="flex flex-col items-start gap-3">
+						<p className="text-body">{L.noActivities}</p>
+						<Link
+							to="/settings/integrations"
+							className={buttonVariants({ variant: 'outline' })}
+						>
+							{L.connect}
+						</Link>
+					</CardContent>
+				</Card>
 			) : null}
 
 			{CARDIO_DISCIPLINES.map((discipline) => (
@@ -215,13 +179,16 @@ export default function AnalyzeProfileRoute({
 				/>
 			))}
 
-			<p className="text-muted-foreground text-body-xs">
-				Accepted readings are yours to edit afterwards on{' '}
-				<Link to="/settings/training" className="underline">
-					Training Settings
+			<MegNote>
+				{L.footer}
+				<Link
+					to="/settings/training"
+					className="text-foreground underline underline-offset-4"
+				>
+					{L.footerLink}
 				</Link>
-				, and they never change on their own.
-			</p>
+				{L.footerEnd}
+			</MegNote>
 		</div>
 	)
 }
@@ -239,18 +206,34 @@ function DisciplineSection({
 	if (rows.length === 0) return null
 
 	return (
-		<section aria-labelledby={`reading-${discipline}`}>
-			<h2 id={`reading-${discipline}`} className="mb-3 text-lg font-semibold">
-				{DISCIPLINE_LABELS[discipline]}
-			</h2>
-			<ul className="flex flex-col gap-2">
+		<MegSection
+			id={`reading-${discipline}`}
+			title={NB_DISCIPLINE_LABELS[discipline]}
+		>
+			<ul className="flex flex-col gap-3">
 				{rows.map((estimate) => (
 					<li key={`${estimate.discipline}-${estimate.construct}`}>
 						<EstimateRow estimate={estimate} analysis={analysis} />
 					</li>
 				))}
 			</ul>
-		</section>
+		</MegSection>
+	)
+}
+
+/** The row's name and figure on one line; the figure never truncates. */
+function RowHead({
+	label,
+	figure,
+}: {
+	label: string
+	figure: React.ReactNode
+}) {
+	return (
+		<div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+			<span className="text-callout min-w-0 font-semibold">{label}</span>
+			<span className="shrink-0">{figure}</span>
+		</div>
 	)
 }
 
@@ -261,75 +244,90 @@ function EstimateRow({
 	estimate: ThresholdEstimate
 	analysis: ProfileAnalysis
 }) {
-	const label = CONSTRUCT_LABELS[estimate.construct]
+	const L = MEG_ANALYZE_LABELS
+	const label = MEG_CONSTRUCT_LABELS[estimate.construct]
 
 	if (estimate.kind === 'refusal') {
 		// An **Unavailable Metric**: stated in place, never omitted and never
 		// deferred behind a tap (#437). The reason is one sentence.
 		return (
-			<div className="bg-background rounded-lg px-4 py-3">
-				<div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-					<span className="text-body-sm font-medium">{label}</span>
-					<span className="text-muted-foreground text-body-sm">
-						Unavailable
-					</span>
-				</div>
-				<p className="text-muted-foreground text-body-xs mt-1">
-					{REFUSAL_LINES[estimate.refusal]}
-				</p>
-			</div>
+			<Card size="sm">
+				<CardContent className="flex flex-col gap-1">
+					<RowHead
+						label={label}
+						figure={
+							<span className="text-footnote text-muted-foreground">
+								{MEG_COMMON_LABELS.unavailable}
+							</span>
+						}
+					/>
+					<MegNote>{MEG_ESTIMATE_REFUSAL_LABELS[estimate.refusal]}</MegNote>
+				</CardContent>
+			</Card>
 		)
 	}
 
 	const display = displayValue(estimate.construct, estimate.value)
-	const caveat = CONSTRUCT_CAVEATS[estimate.construct]
+	const caveat = MEG_CONSTRUCT_CAVEATS[estimate.construct]
 	const stored = analysis.stored[estimate.discipline]
 	const current = storedValueFor(stored, estimate.construct)
 
 	return (
-		<div className="bg-background rounded-lg px-4 py-3">
-			<div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-				<span className="text-body-sm font-medium">{label}</span>
-				<span className="font-mono text-base">
-					{display.value}{' '}
-					<span className="text-muted-foreground text-xs">{display.unit}</span>
-				</span>
-			</div>
+		<Card size="sm">
+			<CardContent className="flex flex-col gap-2">
+				<RowHead
+					label={label}
+					figure={
+						<span className="text-heading tabular-nums">
+							{display.value}{' '}
+							<span className="text-footnote text-muted-foreground font-normal">
+								{display.unit}
+							</span>
+						</span>
+					}
+				/>
 
-			<div className="mt-1 flex flex-wrap items-center gap-2">
-				<Badge variant={CONFIDENCE_VARIANT[estimate.confidence]}>
-					{estimate.confidence} confidence
-				</Badge>
-				<span className="text-muted-foreground text-body-xs">
-					{PROTOCOL_LABELS[estimate.protocol]}
-				</span>
-			</div>
+				<div className="flex flex-wrap items-center gap-2">
+					<Badge variant={CONFIDENCE_VARIANT[estimate.confidence]}>
+						{MEG_CONFIDENCE_LABELS[estimate.confidence]}
+					</Badge>
+					<span className="text-footnote text-muted-foreground">
+						{MEG_THRESHOLD_PROTOCOL_LABELS[estimate.protocol]}
+					</span>
+				</div>
 
-			{caveat ? (
-				<p className="text-muted-foreground text-body-xs mt-1">{caveat}</p>
-			) : null}
+				{caveat ? <MegNote>{caveat}</MegNote> : null}
 
-			{current != null ? (
-				<p className="text-muted-foreground text-body-xs mt-1">
-					You have {formatStored(estimate.construct, current)} saved.
-				</p>
-			) : null}
+				{current != null ? (
+					<MegNote className="tabular-nums">
+						{L.saved(formatStored(estimate.construct, current))}
+					</MegNote>
+				) : null}
 
-			<details className="mt-2">
-				<summary className="text-body-xs text-muted-foreground cursor-pointer">
-					How we got this
-				</summary>
-				<Derivation estimate={estimate} />
-			</details>
+				<Collapsible>
+					<CollapsibleTrigger className="text-footnote text-muted-foreground group/how -ml-1 flex min-h-11 items-center gap-1 rounded-2xl px-1">
+						<Icon
+							name="chevron-right"
+							size="sm"
+							className="duration-collapse transition-transform ease-out group-data-[panel-open]/how:rotate-90 motion-reduce:transition-none"
+							aria-hidden="true"
+						/>
+						{L.how}
+					</CollapsibleTrigger>
+					<CollapsibleContent>
+						<Derivation estimate={estimate} />
+					</CollapsibleContent>
+				</Collapsible>
 
-			<Form method="POST" className="mt-3">
-				<input type="hidden" name="discipline" value={estimate.discipline} />
-				<input type="hidden" name="construct" value={estimate.construct} />
-				<Button type="submit" variant="outline" size="sm">
-					{current == null ? 'Use this' : 'Replace what I have'}
-				</Button>
-			</Form>
-		</div>
+				<Form method="POST">
+					<input type="hidden" name="discipline" value={estimate.discipline} />
+					<input type="hidden" name="construct" value={estimate.construct} />
+					<Button type="submit" variant="outline" className="w-full sm:w-auto">
+						{current == null ? L.use : L.replace}
+					</Button>
+				</Form>
+			</CardContent>
+		</Card>
 	)
 }
 
@@ -339,39 +337,39 @@ function Derivation({
 }: {
 	estimate: Extract<ThresholdEstimate, { kind: 'estimate' }>
 }) {
+	const L = MEG_ANALYZE_LABELS
 	const { basis } = estimate
 	return (
-		<dl className="text-body-xs text-muted-foreground mt-2 space-y-1">
+		<dl className="text-footnote text-muted-foreground space-y-1 pt-1 pb-2">
 			<Fact
-				term="Read from"
-				detail={`${basis.contributingCount} of ${basis.activityCount} activities`}
+				term={L.readFrom}
+				detail={L.readFromDetail(basis.contributingCount, basis.activityCount)}
 			/>
 			{basis.durationsUsedSec.length > 0 ? (
 				<Fact
-					term="Efforts used"
-					detail={basis.durationsUsedSec.map(minutes).join(', ')}
+					term={L.effortsUsed}
+					detail={basis.durationsUsedSec.map(nbSeconds).join(', ')}
 				/>
 			) : null}
 			{basis.durationsRefusedSec.length > 0 ? (
 				<Fact
-					term="Too coarse to read"
-					detail={`${basis.durationsRefusedSec.map(minutes).join(', ')} — your activities are stored downsampled, so short efforts are averaged away rather than measured`}
+					term={L.tooCoarse}
+					detail={L.tooCoarseDetail(
+						basis.durationsRefusedSec.map(nbSeconds).join(', '),
+					)}
 				/>
 			) : null}
 			{basis.rSquared != null ? (
-				<Fact term="Fit" detail={`r² ${basis.rSquared.toFixed(2)}`} />
+				<Fact term={L.fit} detail={`r² ${nbDecimal(basis.rSquared, 2)}`} />
 			) : null}
 			{estimate.companion ? (
 				<Fact
 					term={estimate.companion.label}
-					detail={`${estimate.companion.value} — read alongside, not offered: the short efforts it depends on were refused above`}
+					detail={L.companionDetail(String(estimate.companion.value))}
 				/>
 			) : null}
 			{estimate.protocol === 'tanaka' ? (
-				<Fact
-					term="Note"
-					detail="An age formula describes a population, not you. It stays low confidence however much you train, and a measured maximum always beats it."
-				/>
+				<Fact term={L.note} detail={L.tanakaNote} />
 			) : null}
 		</dl>
 	)
@@ -381,13 +379,9 @@ function Fact({ term, detail }: { term: string; detail: string }) {
 	return (
 		<div className="flex flex-wrap gap-x-2">
 			<dt className="font-medium">{term}:</dt>
-			<dd className="min-w-0 flex-1">{detail}</dd>
+			<dd className="min-w-0 flex-1 tabular-nums">{detail}</dd>
 		</div>
 	)
-}
-
-function minutes(seconds: number): string {
-	return seconds < 60 ? `${seconds}s` : `${Math.round(seconds / 60)}min`
 }
 
 function storedValueFor(

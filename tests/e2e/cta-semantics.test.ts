@@ -47,7 +47,11 @@ test('today-session CTA says "View session" and opens the Workout Detail View', 
 	// The CTA is honest about Session Status: a scheduled session is viewed. On
 	// I dag, today's row's action is a plain link to the detail view, so
 	// it carries the link role rather than base-ui Button's role="button".
-	const cta = page.getByRole('link', { name: 'Se økta' })
+	// Scoped to the calendar and exact: at 1280 the day pane beside it repeats
+	// today's action, named for its session (`Se økta Threshold Run`).
+	const cta = page
+		.getByTestId('timeline-stream')
+		.getByRole('link', { name: 'Se økta', exact: true })
 	await expect(cta).toBeVisible()
 	// It never promises recording — that affordance does not exist in-app.
 	await expect(page.getByText('Start session')).not.toBeVisible()
@@ -55,11 +59,12 @@ test('today-session CTA says "View session" and opens the Workout Detail View', 
 	await cta.click()
 	await page.waitForURL(`/training/sessions/${session.id}`)
 	// Anchor on a detail-only affordance first: the URL flips before the new
-	// tree commits, so home elements can linger for a frame.
+	// tree commits, so home elements can linger for a frame. Deleting lives in
+	// the detail view's "Mer" menu now (#505 round 2).
 	await expect(
-		page.getByRole('button', { name: 'Delete session' }),
+		page.getByRole('button', { name: 'Mer', exact: true }),
 	).toBeVisible()
-	await expect(page.getByText('Scheduled', { exact: true })).toBeVisible()
+	await expect(page.getByText('Planlagt', { exact: true })).toBeVisible()
 	await expect(page.getByText('Threshold Run')).toBeVisible()
 })
 
@@ -88,26 +93,26 @@ test('deleting an Event requires confirmation with copy that distinguishes it fr
 	// Retried because a click that lands before React hydrates is a no-op.
 	const dialog = page.getByRole('alertdialog')
 	await expect(async () => {
-		await page.getByRole('button', { name: 'Delete', exact: true }).click()
+		await page.getByRole('button', { name: 'Slett', exact: true }).click()
 		await expect(dialog).toBeVisible({ timeout: 1000 })
 	}).toPass()
-	await expect(dialog.getByText('Delete this event?')).toBeVisible()
-	// The copy explains the Cancel-vs-Delete distinction.
-	await expect(dialog.getByText(/cancelled status/)).toBeVisible()
-	await expect(dialog.getByText(/cannot be undone/)).toBeVisible()
+	await expect(dialog.getByText('Slette løpet?')).toBeVisible()
+	// The copy explains the Cancel-vs-Delete distinction (Avlys vs Slett).
+	await expect(dialog.getByText(/som avlyst/)).toBeVisible()
+	await expect(dialog.getByText(/kan ikke angres/)).toBeVisible()
 
 	// Backing out keeps the event.
-	await dialog.getByRole('button', { name: 'Keep event' }).click()
+	await dialog.getByRole('button', { name: 'Behold løpet' }).click()
 	await expect(dialog).not.toBeVisible()
 	expect(
 		await prisma.event.findUnique({ where: { id: event.id } }),
 	).not.toBeNull()
 
 	// Confirming actually deletes and returns to the events list.
-	await page.getByRole('button', { name: 'Delete', exact: true }).click()
+	await page.getByRole('button', { name: 'Slett', exact: true }).click()
 	await page
 		.getByRole('alertdialog')
-		.getByRole('button', { name: 'Delete event' })
+		.getByRole('button', { name: 'Slett løpet' })
 		.click()
 	await page.waitForURL('/training/events')
 	expect(await prisma.event.findUnique({ where: { id: event.id } })).toBeNull()

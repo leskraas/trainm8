@@ -6,8 +6,10 @@
  * and that an empty corpus is a dead end said out loud rather than a blank page.
  */
 import { render, screen } from '@testing-library/react'
+import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
+import { NB_PROGRAM_PROVENANCE_NOTES } from '#app/utils/labels.ts'
 import { strongLifts5x5Basic } from '#app/utils/strength/program.constants.ts'
 import { type ProgramSummary } from '#app/utils/strength-program.server.ts'
 import ProgramsRoute from './programs.tsx'
@@ -115,7 +117,7 @@ test('a program already running is never offered the start form again', async ()
 	})
 
 	expect(
-		await screen.findByRole('button', { name: /open your run/i }),
+		await screen.findByRole('button', { name: /åpne dagens økt/i }),
 	).toBeInTheDocument()
 	expect(screen.queryByRole('link', { name: /^start /i })).toBeNull()
 })
@@ -124,15 +126,16 @@ test('with no programs published the screen says so is nobody’s fault and poin
 	renderPrograms({ programs: [] })
 
 	expect(
-		await screen.findByText(/no programs are published in this database yet/i),
+		await screen.findByText(/ingen programmer er lagt inn ennå/i),
 	).toBeInTheDocument()
-	expect(screen.getByRole('link', { name: /catalogue/i })).toHaveAttribute(
+	expect(screen.getByRole('link', { name: /katalogen/i })).toHaveAttribute(
 		'href',
 		'/training/catalogue',
 	)
-	expect(
-		screen.getByRole('link', { name: /write one yourself/i }),
-	).toHaveAttribute('href', '/training/sessions/new')
+	expect(screen.getByRole('link', { name: /skrive en selv/i })).toHaveAttribute(
+		'href',
+		'/training/sessions/new',
+	)
 })
 
 test('the back link leaves for Bibliotek, the tab programs live under (ADR 0083)', async () => {
@@ -155,7 +158,7 @@ test('a card says what the program is: its day shapes and one row per lift, in t
 	renderPrograms()
 
 	expect(
-		await screen.findByText('2 day shapes · Workout A / Workout B'),
+		await screen.findByText('2 dagsoppsett · Økt A / Økt B'),
 	).toBeInTheDocument()
 	// Whole rows, read the way the card reads them: name, scheme, then the rules
 	// that move the weight. Asserted on the row so a lift cannot lose a part and
@@ -167,8 +170,8 @@ test('a card says what the program is: its day shapes and one row per lift, in t
 	// asserted, in order.
 	const squeezed = (text: string) => text.replace(/\s+/g, '')
 	for (const row of [
-		'Back Squat 5×5 +2.5 kg · −10 % after 3 stalls',
-		'Deadlift 1×5 +5 kg · −10 % after 3 stalls',
+		'Back Squat 5×5 +2,5 kg · −10 % etter 3 stopp',
+		'Deadlift 1×5 +5 kg · −10 % etter 3 stopp',
 	]) {
 		expect(
 			screen.getByText(
@@ -184,11 +187,11 @@ test('the scheme and the rules that move it are separate elements, so the row ca
 	renderPrograms()
 
 	// The point of the split. `Back Squat 5×5` is tonight and is the loudest
-	// thing in the card body; `+2.5 kg · −10 % after 3 stalls` is week six and is
+	// thing in the card body; `+2,5 kg · −10 % etter 3 stopp` is week six and is
 	// a step quieter. One run-on string cannot be styled in two tiers, so the
 	// separation is asserted here rather than left to the stylesheet.
 	const scheme = await screen.findByText('5×5')
-	const rules = screen.getByText('+2.5 kg · −10 % after 3 stalls')
+	const rules = screen.getByText('+2,5 kg · −10 % etter 3 stopp')
 	expect(scheme).not.toBe(rules)
 	expect(scheme.closest('li')).toBe(rules.closest('li'))
 })
@@ -196,13 +199,13 @@ test('the scheme and the rules that move it are separate elements, so the row ca
 test('the provenance note is on the card, because twelve weeks of a rule is a thing to consent to', async () => {
 	renderPrograms()
 
-	// The **shipped** sentence — not a fixture written here, which would let the
-	// real copy drift to anything at all while this test stayed green. The first
-	// two sentences are the design handoff §1 verbatim; the third is this repo's
-	// own, and `program-rules.test.ts` holds it there.
+	// The **shipped** note, said in Norwegian on the card (ADR 0081): the stored
+	// English stays the record, and `program-rules.test.ts` holds it there. The
+	// card reads the Norwegian by the program's key, so it is asserted here
+	// against the table rather than a fixture that could drift on its own.
 	expect(
 		await screen.findByText(
-			'Increments and the three-session −10 % Stall Cut are StrongLifts’ own published defaults. The percentage is program convention, supported by no trial. The 5×5 → 3×5 → 1×5 ladder is not StrongLifts’ rule and is not implemented.',
+			NB_PROGRAM_PROVENANCE_NOTES['stronglifts-5x5:basic']!,
 		),
 	).toBeInTheDocument()
 	expect(strongLifts.provenanceNote).toBe(
@@ -213,22 +216,22 @@ test('the provenance note is on the card, because twelve weeks of a rule is a th
 test('the citation is on the card behind a disclosure: reachable in one tap, and not competing with the lifts', async () => {
 	renderPrograms()
 
-	// Quiet, not gone. `<details>` keeps the citation in the DOM and in the
-	// accessibility tree, so "reachable" is a fact about the markup and not a
-	// promise about a click handler.
+	// Quiet, not gone. The panel is `hiddenUntilFound`, so the citation is in
+	// the DOM while closed (find-in-page reaches it), and one tap opens it.
+	const trigger = await screen.findByRole('button', { name: 'Kilde' })
+	expect(trigger).toHaveAttribute('aria-expanded', 'false')
 	expect(
-		await screen.findByText('Mehdi Hadim — stronglifts.com'),
+		screen.getByText('Mehdi Hadim — stronglifts.com', { exact: false }),
 	).toBeInTheDocument()
-	expect(screen.getByText('Source').closest('summary')).not.toBeNull()
-	expect(screen.getByText('Source').closest('details')).toContainElement(
-		screen.getByText('Mehdi Hadim — stronglifts.com'),
-	)
+	await userEvent.click(trigger)
+	expect(trigger).toHaveAttribute('aria-expanded', 'true')
+	expect(screen.getByText(/Mehdi Hadim — stronglifts\.com/)).toBeVisible()
 })
 
 test('a running program is badged, so an athlete can tell their program from the others', async () => {
 	renderPrograms({ instances: [runningInstance] })
 
-	const badge = await screen.findByText('Running')
+	const badge = await screen.findByText('I gang')
 	expect(badge).toBeInTheDocument()
 	// Beside the program name, which is where the approved capture puts it — and
 	// pinned because `CardHeader` is a **grid**: a `flex-row` on it styles
@@ -240,13 +243,13 @@ test('a running program is badged, so an athlete can tell their program from the
 test('a program that is not running is not badged', async () => {
 	renderPrograms()
 
-	expect(screen.queryByText('Running')).toBeNull()
+	expect(screen.queryByText('I gang')).toBeNull()
 })
 
 test('the primary button on a running program opens today’s session directly, through the open-session intent', async () => {
 	renderPrograms({ instances: [runningInstance] })
 
-	const button = await screen.findByRole('button', { name: /open your run/i })
+	const button = await screen.findByRole('button', { name: /åpne dagens økt/i })
 	const form = button.closest('form')
 	expect(form).not.toBeNull()
 	expect(form).toHaveAttribute('method', 'post')
@@ -262,7 +265,7 @@ test('a running card keeps a secondary link to the overview, where a working wei
 
 	expect(
 		await screen.findByRole('link', {
-			name: /correct a weight or end this program/i,
+			name: /rett en vekt eller avslutt programmet/i,
 		}),
 	).toHaveAttribute('href', '/training/programs/run/inst-1')
 })

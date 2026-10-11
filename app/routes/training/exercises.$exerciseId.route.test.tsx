@@ -102,10 +102,10 @@ function run(count: number): ExerciseHistoryView['sessions'] {
 test('the page leads with what the lift did last time and the records read out of it', async () => {
 	renderHistory()
 
-	expect(await screen.findByText('Last time: 3 days ago')).toBeInTheDocument()
-	expect(screen.getByText('Heaviest ever')).toBeInTheDocument()
+	expect(await screen.findByText('Sist: for 3 dager siden')).toBeInTheDocument()
+	expect(screen.getByText('Tyngste noensinne')).toBeInTheDocument()
 	expect(screen.getByText('100 kg')).toBeInTheDocument()
-	expect(screen.getByText('up 2.5 kg')).toBeInTheDocument()
+	expect(screen.getByText('opp 2,5 kg')).toBeInTheDocument()
 })
 
 test('an assisted lift shows the reason it has no record, not an empty strip', async () => {
@@ -115,13 +115,13 @@ test('an assisted lift shows the reason it has no record, not an empty strip', a
 		variants: [{ equipment: 'assisted-machine', sessionCount: 4 }],
 		records: [],
 		recordsRefused:
-			'An assisted set takes no record: the number is your bodyweight minus the assistance, so it grows as the work shrinks.',
+			'Et assistert sett gir ingen rekord: tallet er kroppsvekten din minus hjelpen, så det stiger når arbeidet blir lettere.',
 	})
 
 	expect(
-		await screen.findByText(/grows as the work shrinks/),
+		await screen.findByText(/stiger når arbeidet blir lettere/),
 	).toBeInTheDocument()
-	expect(screen.queryByText('Heaviest ever')).not.toBeInTheDocument()
+	expect(screen.queryByText('Tyngste noensinne')).not.toBeInTheDocument()
 })
 
 test('a lift with no honest kilo says it progresses against itself only, and no kilo appears anywhere', async () => {
@@ -135,7 +135,7 @@ test('a lift with no honest kilo says it progresses against itself only, and no 
 				performedAt: new Date('2026-08-10T17:00:00Z'),
 				workingSetCount: 3,
 				topSetKg: null,
-				topSetText: 'level 7 × 12',
+				topSetText: 'nivå 7 × 12',
 				loadBasis: 'stackLevel',
 				comparable: false,
 			},
@@ -145,7 +145,7 @@ test('a lift with no honest kilo says it progresses against itself only, and no 
 			performedAt: new Date('2026-08-10T17:00:00Z'),
 			workingSetCount: 3,
 			topSetKg: null,
-			topSetText: 'level 7 × 12',
+			topSetText: 'nivå 7 × 12',
 			loadBasis: 'stackLevel',
 			comparable: false,
 		},
@@ -163,7 +163,7 @@ test('a lift with no honest kilo says it progresses against itself only, and no 
 				previousValue: 6,
 				delta: 1,
 				crossExerciseComparable: false,
-				unavailableNote: 'No kilos — this progresses against itself only.',
+				unavailableNote: 'Uten kilo — dette måles bare mot seg selv.',
 				debut: false,
 				estimator: null,
 			},
@@ -171,9 +171,9 @@ test('a lift with no honest kilo says it progresses against itself only, and no 
 	})
 
 	expect(
-		await screen.findByText('No kilos — this progresses against itself only.'),
+		await screen.findByText('Uten kilo — dette måles bare mot seg selv.'),
 	).toBeInTheDocument()
-	expect(screen.getByText('level 7')).toBeInTheDocument()
+	expect(screen.getByText('nivå 7')).toBeInTheDocument()
 	// The chart is never kept continuous by inventing a kilo for an ordinal.
 	expect(screen.queryByText(/kg/)).not.toBeInTheDocument()
 })
@@ -184,13 +184,15 @@ test('a missing estimated 1RM is stated on the page, never a row that quietly di
 	// absent rather than dropping the row.
 	renderHistory({
 		oneRmUnavailable:
-			'None of your sets here says how close to failure it was, and in lifting there is no way to tell from the numbers. Mark a set as taken to failure, or record its reps in reserve.',
+			'Ingen av settene sier hvor nær utmattelse de var, og i løfting kan ikke tallene fortelle det. Merk et sett som til utmattelse, eller skriv reps i reserve.',
 	})
 
 	expect(
-		await screen.findByText(/None of your sets here says how close to failure/),
+		await screen.findByText(
+			/Ingen anslått 1RM: Ingen av settene sier hvor nær utmattelse/,
+		),
 	).toBeInTheDocument()
-	expect(screen.queryByText(/Best estimated 1RM/)).not.toBeInTheDocument()
+	expect(screen.queryByText(/Beste anslåtte 1RM/)).not.toBeInTheDocument()
 })
 
 test('a lift with nothing logged says so instead of drawing an empty chart', async () => {
@@ -198,26 +200,26 @@ test('a lift with nothing logged says so instead of drawing an empty chart', asy
 
 	expect(
 		await screen.findByText(
-			'No working sets logged on this lift yet, so there is nothing to read.',
+			'Ingen arbeidssett er logget på dette løftet ennå, så det er ingenting å lese.',
 		),
 	).toBeInTheDocument()
-	expect(screen.queryByText('Records')).not.toBeInTheDocument()
+	expect(screen.queryByText('Rekorder')).not.toBeInTheDocument()
 })
 
 test('the surface offers neither a session tonnage nor a logging streak', async () => {
 	renderHistory()
 
-	await screen.findByText('Heaviest ever')
+	await screen.findByText('Tyngste noensinne')
 	// Declined, not deferred (ADR 0056), so not even a placeholder.
-	expect(screen.queryByText(/tonnage/i)).not.toBeInTheDocument()
-	expect(screen.queryByText(/streak/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/tonnage|tonnasje/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/streak|på rad/i)).not.toBeInTheDocument()
 })
 
 test("the page links on to this lift's anchors, which are otherwise unreachable", async () => {
 	renderHistory()
 
 	expect(
-		await screen.findByRole('link', { name: /your numbers for this lift/i }),
+		await screen.findByRole('link', { name: /tallene dine for dette løftet/i }),
 	).toHaveAttribute('href', '/settings/training/lifts/ex-1')
 })
 
@@ -225,7 +227,7 @@ test('a lift with no logged set still offers its anchors, because stating a numb
 	renderHistory({ sessions: [], lastTime: null, records: [] })
 
 	expect(
-		await screen.findByRole('link', { name: /your numbers for this lift/i }),
+		await screen.findByRole('link', { name: /tallene dine for dette løftet/i }),
 	).toHaveAttribute('href', '/settings/training/lifts/ex-1')
 })
 
@@ -257,10 +259,10 @@ test("the working weight is the screen's headline, with the estimated 1RM and th
 		{ workingWeightKg: 82.5, stallCuts: [] },
 	)
 
-	expect(await screen.findByText('Working weight')).toBeInTheDocument()
-	expect(screen.getByText('82.5 kg')).toBeInTheDocument()
+	expect(await screen.findByText('Arbeidsvekt')).toBeInTheDocument()
+	expect(screen.getByText('82,5 kg')).toBeInTheDocument()
 	expect(screen.getAllByText('96 kg').length).toBeGreaterThan(0)
-	expect(screen.getAllByText(/from 82 kg × 5/).length).toBeGreaterThan(0)
+	expect(screen.getAllByText(/fra 82 kg × 5/).length).toBeGreaterThan(0)
 })
 
 test('the session the program cut on is marked on the chart and named by a note strip that carries both weights', async () => {
@@ -275,24 +277,24 @@ test('the session the program cut on is marked on the chart and named by a note 
 	)
 
 	expect(
-		await screen.findByText('Session 8 — Stall Cut, 80 kg → 72.5 kg'),
+		await screen.findByText('Økt 8 — vekta kuttet, 80 kg → 72,5 kg'),
 	).toBeInTheDocument()
 	// The chart says the same thing to a reader who cannot see the bar — a
 	// concise name over a full data table, not one recited sentence (ADR 0030
 	// rule 2).
 	expect(
 		screen.getByRole('img', {
-			name: 'Back squat: top set across 9 sessions, oldest first, with 1 Stall Cut marked.',
+			name: 'Back squat: toppsett over 9 økter, eldste først, med 1 vektkutt merket.',
 		}),
 	).toBeInTheDocument()
 	const table = screen.getByRole('table', {
-		name: 'Back squat, top set by session, oldest first',
+		name: 'Back squat, toppsett per økt, eldste først',
 	})
 	expect(
-		within(table).getByRole('rowheader', { name: 'Session 8' }),
+		within(table).getByRole('rowheader', { name: 'Økt 8' }),
 	).toBeInTheDocument()
 	expect(
-		within(table).getByRole('cell', { name: 'Stall Cut, 80 kg → 72.5 kg' }),
+		within(table).getByRole('cell', { name: 'vekta kuttet, 80 kg → 72,5 kg' }),
 	).toBeInTheDocument()
 })
 
@@ -306,21 +308,21 @@ test('a session with no comparable kilo draws no bar, and says so at its slot an
 				performedAt: new Date(Date.UTC(2026, 6, 3, 17)),
 				workingSetCount: 3,
 				topSetKg: null,
-				topSetText: 'level 7 × 12',
+				topSetText: 'nivå 7 × 12',
 				loadBasis: 'stackLevel' as const,
 				comparable: false,
 			},
 		],
 	})
 
-	await screen.findByText('Records')
-	expect(screen.getByText('n/a')).toBeInTheDocument()
+	await screen.findByText('Rekorder')
+	expect(screen.getByText('ingen', { exact: true })).toBeInTheDocument()
 	const table = screen.getByRole('table', {
-		name: 'Back squat, top set by session, oldest first',
+		name: 'Back squat, toppsett per økt, eldste først',
 	})
 	expect(
 		within(table).getByRole('cell', {
-			name: 'No bar — no comparable kilo; Latest',
+			name: 'Ingen søyle — ingen sammenlignbar kilo; Siste',
 		}),
 	).toBeInTheDocument()
 	// Two real sessions, two bars — the kilo-less one is not among them.
@@ -330,19 +332,22 @@ test('a session with no comparable kilo draws no bar, and says so at its slot an
 test('every third session on the chart carries its tick, and the ones between carry none', async () => {
 	renderHistory({ sessions: run(9) }, { workingWeightKg: 82.5, stallCuts: [] })
 
-	expect(await screen.findByText('S1')).toBeInTheDocument()
-	expect(screen.getByText('S4')).toBeInTheDocument()
-	expect(screen.getByText('S7')).toBeInTheDocument()
-	expect(screen.queryByText('S2')).not.toBeInTheDocument()
-	expect(screen.queryByText('S8')).not.toBeInTheDocument()
+	// The ticks are the session's number under its bar, so they are read inside
+	// the plot: a bare `4` elsewhere on the page is not a tick.
+	const plot = (await screen.findByRole('img')).parentElement!
+	expect(within(plot).getByText('1', { exact: true })).toBeInTheDocument()
+	expect(within(plot).getByText('4', { exact: true })).toBeInTheDocument()
+	expect(within(plot).getByText('7', { exact: true })).toBeInTheDocument()
+	expect(within(plot).queryByText('2', { exact: true })).not.toBeInTheDocument()
+	expect(within(plot).queryByText('8', { exact: true })).not.toBeInTheDocument()
 })
 
 test('a lift in no program shows no working weight, no marking and no note strip — the absence is the answer', async () => {
 	renderHistory({ sessions: run(9) }, null)
 
-	await screen.findByText('Records')
-	expect(screen.queryByText('Working weight')).not.toBeInTheDocument()
-	expect(screen.queryByText(/Stall Cut/)).not.toBeInTheDocument()
+	await screen.findByText('Rekorder')
+	expect(screen.queryByText('Arbeidsvekt')).not.toBeInTheDocument()
+	expect(screen.queryByText(/vekta kuttet/)).not.toBeInTheDocument()
 })
 
 test('the records list carries the rep max and the estimated 1RM, and never a session tonnage', async () => {
@@ -390,10 +395,10 @@ test('the records list carries the rep max and the estimated 1RM, and never a se
 		{ workingWeightKg: 82.5, stallCuts: [] },
 	)
 
-	expect(await screen.findByText('Best 5-rep set')).toBeInTheDocument()
-	expect(screen.getByText('Best estimated 1RM')).toBeInTheDocument()
+	expect(await screen.findByText('Beste sett på 5 reps')).toBeInTheDocument()
+	expect(screen.getByText('Beste anslåtte 1RM')).toBeInTheDocument()
 	// ADR 0058 §3 declines tonnage; the handoff's third row is not built.
-	expect(screen.queryByText(/tonnage/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/tonnage|tonnasje/i)).not.toBeInTheDocument()
 })
 
 test('the per-equipment variant tabs keep working beside the chart', async () => {
@@ -405,9 +410,9 @@ test('the per-equipment variant tabs keep working beside the chart', async () =>
 	})
 
 	expect(
-		await screen.findByRole('link', { name: /All variants/ }),
+		await screen.findByRole('link', { name: /Alle varianter/ }),
 	).toHaveAttribute('href', '/training/exercises/ex-1')
-	expect(screen.getByRole('link', { name: /Dumbbell/ })).toHaveAttribute(
+	expect(screen.getByRole('link', { name: /Manualer/ })).toHaveAttribute(
 		'href',
 		'/training/exercises/ex-1?equipment=dumbbell',
 	)

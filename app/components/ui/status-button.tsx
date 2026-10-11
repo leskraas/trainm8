@@ -1,4 +1,5 @@
 import { useSpinDelay } from 'spin-delay'
+import { STATUS_BUTTON_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { Button, type ButtonVariant } from './button.tsx'
 import { Icon } from './icon.tsx'
@@ -9,6 +10,13 @@ import {
 	TooltipTrigger,
 } from './tooltip.tsx'
 
+/**
+ * A submit button that says it is working. Round 2 (audit D8): an error puts
+ * **nothing** in the button — the error is already said at the field it is
+ * about (`ErrorList`), and a red ✕ inside a green button was noise that read
+ * as "Koble til error" to a screen reader. The spinner and the check keep
+ * their place, titled in Norwegian (`STATUS_BUTTON_LABELS`).
+ */
 export const StatusButton = ({
 	message,
 	status,
@@ -33,7 +41,11 @@ export const StatusButton = ({
 				role="status"
 				className="inline-flex size-6 items-center justify-center"
 			>
-				<Icon name="update" className="animate-spin" title="loading" />
+				<Icon
+					name="update"
+					className="animate-spin"
+					title={STATUS_BUTTON_LABELS.pending}
+				/>
 			</div>
 		) : null,
 		success: (
@@ -41,28 +53,17 @@ export const StatusButton = ({
 				role="status"
 				className="inline-flex size-6 items-center justify-center"
 			>
-				<Icon name="check" title="success" />
+				<Icon name="check" title={STATUS_BUTTON_LABELS.success} />
 			</div>
 		),
-		error: (
-			<div
-				role="status"
-				className="bg-destructive inline-flex size-6 items-center justify-center rounded-full"
-			>
-				<Icon
-					name="cross-1"
-					className="text-destructive-foreground"
-					title="error"
-				/>
-			</div>
-		),
+		error: null,
 		idle: null,
 	}[status]
 
 	return (
 		<Button className={cn('flex justify-center gap-4', className)} {...props}>
 			<div>{children}</div>
-			{message ? (
+			{message && companion ? (
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger>{companion}</TooltipTrigger>

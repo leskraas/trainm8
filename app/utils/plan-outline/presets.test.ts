@@ -523,4 +523,38 @@ describe('every family can drive an open-ended plan (ADR 0079 §5)', () => {
 		expect(presetFamilyOf('big-base')).toBe('big-base')
 		expect(presetFamilyOf(null)).toBeNull()
 	})
+
+	test('a race plan that records no family reads as its first phase that is not a taper', () => {
+		// Base, Build, Peak, Taper: the last phase has no rhythm, the first does.
+		const classic = presetFor('classic-linear').phases
+		const masters = presetFor('masters-2-1').phases
+		expect(classic.at(-1)?.rhythm).toBe('none')
+		expect(outlineFamily(null, classic)).toBe('classic')
+		expect(outlineFamily(null, masters)).toBe('masters')
+		// The stored family still wins.
+		expect(outlineFamily('polarized', classic)).toBe('polarized')
+		// A hand-typed prep with no rhythm is passed over for the block that has one.
+		expect(
+			outlineFamily(null, [
+				{ rhythm: 'none', tapers: false },
+				{ rhythm: '2:1', tapers: false },
+				{ rhythm: 'none', tapers: true },
+			]),
+		).toBe('masters')
+		// A taper is never what a plan reads as, whatever rhythm it was given.
+		expect(
+			outlineFamily(null, [
+				{ rhythm: 'none', tapers: false },
+				{ rhythm: '3:1', tapers: true },
+			]),
+		).toBeNull()
+		// Truly none: no phase has a rhythm, or there are no phases.
+		expect(
+			outlineFamily(null, [
+				{ rhythm: 'none', tapers: false },
+				{ rhythm: 'none', tapers: true },
+			]),
+		).toBeNull()
+		expect(outlineFamily(null, [])).toBeNull()
+	})
 })

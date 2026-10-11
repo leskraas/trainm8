@@ -14,11 +14,12 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { Form } from 'react-router'
-import { ErrorList, Field } from '#app/components/forms.tsx'
+import { ErrorList, Field, RadioGroupField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import { formatDate } from '#app/utils/format.ts'
+import { formatNbDate } from '#app/utils/format.ts'
 import { ATTACH_EVENT_LABELS } from '#app/utils/labels.ts'
 import { AttachEventFormSchema } from '#app/utils/plan-outline/attach-event-schema.ts'
+import { CollapsibleSection } from './__plan-chrome.tsx'
 
 export type AttachableEvent = { id: string; name: string; startDate: Date }
 
@@ -43,13 +44,15 @@ export function AttachEventOffer({
 	const eventErrorId = `${fields.eventId.id}-error`
 
 	return (
-		<details
-			className="border-border/70 w-full rounded-xl border px-4 py-2 text-left"
-			open={lastResult != null}
+		<CollapsibleSection
+			// Opened by an answer (a refusal under what was typed), keyed so a
+			// second answer opens it again.
+			key={lastResult ? 'answered' : 'quiet'}
+			summary={ATTACH_EVENT_LABELS.open}
+			defaultOpen={lastResult != null}
+			className="w-full text-left"
+			contentClassName="pt-2"
 		>
-			<summary className="flex min-h-11 cursor-pointer items-center justify-center text-sm font-medium">
-				{ATTACH_EVENT_LABELS.open}
-			</summary>
 			<Form
 				method="POST"
 				className="space-y-4 pt-2 pb-2"
@@ -58,42 +61,32 @@ export function AttachEventOffer({
 			>
 				<input type="hidden" name="intent" value="attach-event" />
 				<input type="hidden" name="outlineId" value={outlineId} />
-				<p className="text-muted-foreground text-sm">
+				<p className="text-muted-foreground text-footnote">
 					{ATTACH_EVENT_LABELS.intro}
 				</p>
 				{events.length > 0 ? (
-					<fieldset
-						className="space-y-1"
-						aria-describedby={fields.eventId.errors ? eventErrorId : undefined}
-					>
-						<legend className="text-sm font-medium">
-							{ATTACH_EVENT_LABELS.choose}
-						</legend>
-						{events.map((event) => (
-							<label
-								key={event.id}
-								className="flex min-h-11 cursor-pointer items-center gap-2"
-							>
-								<input
-									{...getInputProps(fields.eventId, {
-										type: 'radio',
-										value: event.id,
-									})}
-									className="size-4"
-								/>
-								<span className="text-sm">
-									{event.name} · {formatDate(event.startDate, 'UTC')}
-								</span>
-							</label>
-						))}
-						<ErrorList
-							id={eventErrorId}
-							errors={fields.eventId.errors as string[] | undefined}
-						/>
-					</fieldset>
+					// `ui/radio-group` choice cards: Base UI's radio posts under the
+					// field's name as a native one would, never in browser blue.
+					<RadioGroupField
+						name={fields.eventId.name}
+						legend={ATTACH_EVENT_LABELS.choose}
+						legendClassName="text-callout font-semibold"
+						defaultValue={
+							typeof fields.eventId.initialValue === 'string'
+								? fields.eventId.initialValue
+								: undefined
+						}
+						options={events.map((event) => ({
+							value: event.id,
+							label: event.name,
+							description: formatNbDate(event.startDate, 'UTC'),
+						}))}
+						errorId={eventErrorId}
+						errors={fields.eventId.errors as string[] | undefined}
+					/>
 				) : null}
 				<fieldset className="space-y-3">
-					<legend className="text-sm font-medium">
+					<legend className="text-callout font-semibold">
 						{events.length > 0
 							? ATTACH_EVENT_LABELS.orNew
 							: ATTACH_EVENT_LABELS.newRace}
@@ -125,6 +118,6 @@ export function AttachEventOffer({
 					{ATTACH_EVENT_LABELS.submit}
 				</Button>
 			</Form>
-		</details>
+		</CollapsibleSection>
 	)
 }

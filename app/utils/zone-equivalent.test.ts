@@ -188,7 +188,7 @@ describe('%-of-threshold targets bucket as ratios against a matching recipe', ()
 			noMax,
 		)
 		expect(result.step).toBeNull()
-		expect(result.reason).toBe('Max HR missing in settings')
+		expect(result.reason).toBe('makspuls mangler i innstillingene')
 	})
 })
 
@@ -273,7 +273,7 @@ describe('honesty branches', () => {
 		const result = zoneEquivalent({ kind: 'power', minW: 200 }, emptyProfile)
 		expect(result).toEqual({
 			step: null,
-			reason: 'no zone system chosen in settings',
+			reason: 'ingen sonesystem valgt i innstillingene',
 		})
 	})
 
@@ -281,7 +281,7 @@ describe('honesty branches', () => {
 		const noFtp = { ...bikePower, ftp: null }
 		expect(zoneEquivalent({ kind: 'power', minW: 200 }, noFtp)).toEqual({
 			step: null,
-			reason: 'FTP missing in settings',
+			reason: 'FTP mangler i innstillingene',
 		})
 	})
 
@@ -289,7 +289,7 @@ describe('honesty branches', () => {
 		// Watts against an HR-anchored recipe.
 		const result = zoneEquivalent({ kind: 'power', minW: 200 }, runHr)
 		expect(result.step).toBeNull()
-		expect(result.reason).toContain('heart-rate-based')
+		expect(result.reason).toContain('for puls')
 	})
 
 	test('never fabricates: no profile at all → unresolvable for metric kinds', () => {
@@ -300,7 +300,7 @@ describe('honesty branches', () => {
 describe('chip content and provenance stay in the authored form', () => {
 	test('chip text renders each kind compactly', () => {
 		expect(intensityChipText(zone('Z3'))).toBe('Z3')
-		expect(intensityChipText(zone('threshold'))).toBe('Threshold')
+		expect(intensityChipText(zone('threshold'))).toBe('Terskel')
 		expect(intensityChipText({ kind: 'rpe', min: 7 })).toBe('RPE 7')
 		expect(intensityChipText({ kind: 'power', minW: 235 })).toBe('235 W')
 		expect(intensityChipText({ kind: 'hrBpm', min: 162 })).toBe('162 bpm')
@@ -312,10 +312,28 @@ describe('chip content and provenance stay in the authored form', () => {
 		).toBe('95–105% FTP')
 	})
 
+	test('chip words are Norwegian; the stored target is not (ADR 0081)', () => {
+		expect(
+			intensityChipText({ kind: 'hrPct', ref: 'lthr', minPct: 85, maxPct: 90 }),
+		).toBe('85–90% terskelpuls')
+		expect(intensityChipText({ kind: 'hrPct', ref: 'max', minPct: 70 })).toBe(
+			'70% makspuls',
+		)
+		expect(intensityChipText({ kind: 'pacePct', minPct: 98 })).toBe(
+			'98% terskelfart',
+		)
+		expect(intensityChipText({ kind: 'racePace', event: 'hm' })).toBe(
+			'halvmaratonfart',
+		)
+		expect(
+			intensityChipText({ kind: 'racePace', event: 'marathon', minPct: 105 }),
+		).toBe('105% maraton')
+	})
+
 	test('provenance speaks human words for placed and unplaced targets', () => {
 		const placed = zoneEquivalent({ kind: 'rpe', min: 7 }, null)
 		expect(zoneEquivalentProvenance({ kind: 'rpe', min: 7 }, placed)).toBe(
-			'RPE 7 ≈ zone 4 effort',
+			'RPE 7 ≈ innsats i sone 4',
 		)
 
 		const unplaced = zoneEquivalent(
@@ -328,6 +346,6 @@ describe('chip content and provenance stay in the authored form', () => {
 		)
 		expect(
 			zoneEquivalentProvenance({ kind: 'power', minW: 200 }, unplaced),
-		).toBe("can't be placed in a zone — FTP missing in settings")
+		).toBe('kan ikke plasseres i en sone — FTP mangler i innstillingene')
 	})
 })

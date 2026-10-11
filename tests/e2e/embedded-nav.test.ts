@@ -67,7 +67,7 @@ test('walks Sesong → Events → back → Meg → profile with no plan', async 
 
 	// Event → back to the Events list → back up to Sesong, which is still plan
 	// creation for this athlete.
-	await page.getByRole('link', { name: /tilbake til events/i }).click()
+	await page.getByRole('link', { name: /^tilbake til løp$/i }).click()
 	await expect(page).toHaveURL('/training/events')
 	await page.getByRole('link', { name: /tilbake til sesong/i }).click()
 	await expect(page).toHaveURL('/training/plan/new')

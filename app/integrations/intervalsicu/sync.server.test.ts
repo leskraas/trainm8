@@ -146,6 +146,25 @@ test('the fetch window is rendered as wall-clock time in the athlete profile tim
 	expect(oldest).toBe('2026-05-17T02:00:00')
 })
 
+test('a sync that finds nothing new still records when it checked, and leaves the watermark', async () => {
+	// The integrations page says "Sist synkronisert" from `lastCheckedAt`: the
+	// wall-clock time of the last answered sync. The watermark keeps its own
+	// meaning (the newest activity's start time) and does not move.
+	const lastSyncedAt = new Date('2026-05-19T00:00:00.000Z')
+	const { user, connection } = await setupConnection({ lastSyncedAt })
+	server.use(http.get(ACTIVITIES_URL, () => HttpResponse.json([])))
+	const now = new Date('2026-05-23T17:00:00.000Z')
+
+	const result = await syncIntervalsIcuActivities(user.id, { now })
+
+	expect(result).toEqual({ ok: true, created: 0, skipped: 0 })
+	const after = await prisma.accountConnection.findUnique({
+		where: { id: connection.id },
+	})
+	expect(after!.lastCheckedAt).toEqual(now)
+	expect(after!.lastSyncedAt).toEqual(lastSyncedAt)
+})
+
 test('an Intervals.icu outage reports unavailable and leaves the connection untouched', async () => {
 	consoleError.mockImplementation(() => {})
 	const lastSyncedAt = new Date('2026-05-19T00:00:00.000Z')
@@ -165,6 +184,8 @@ test('an Intervals.icu outage reports unavailable and leaves the connection unto
 	// sync re-covers the same window.
 	expect(after!.status).toBe('active')
 	expect(after!.lastSyncedAt).toEqual(lastSyncedAt)
+	// A sync that got no answer is not a check: the page keeps the last one.
+	expect(after!.lastCheckedAt).toBeNull()
 })
 
 test('re-runs are idempotent: duplicates are skipped, not re-imported', async () => {

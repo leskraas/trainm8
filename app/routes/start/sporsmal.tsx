@@ -2,7 +2,7 @@ import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { useState } from 'react'
 import { data, Form, redirect } from 'react-router'
-import { ErrorList, Field } from '#app/components/forms.tsx'
+import { ErrorList, Field, RadioGroupField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { readFirstRunFindings } from '#app/utils/first-run/findings.server.ts'
 import {
@@ -26,7 +26,7 @@ import {
 	NB_DISCIPLINE_LABELS,
 } from '#app/utils/labels.ts'
 import { type Route } from './+types/sporsmal.ts'
-import { DaysField } from './__first-run-fields.tsx'
+import { DaysField, QUESTION_LEGEND } from './__first-run-fields.tsx'
 import { FirstRunFrame } from './__first-run-frame.tsx'
 
 /**
@@ -136,91 +136,82 @@ export default function QuestionsStep({
 	})
 
 	return (
-		<FirstRunFrame step={3} title={L.title} intro={L.intro}>
+		<FirstRunFrame
+			step={3}
+			title={L.title}
+			intro={L.intro}
+			back={{ to: '/start/funn', label: FIRST_RUN_LABELS.backTo.sporsmal }}
+		>
 			<Form method="POST" className="space-y-8" {...getFormProps(form)}>
 				<input
 					type="hidden"
 					name={fields.discipline.name}
 					value={loaderData.discipline}
 				/>
-				<p className="text-[15px]">
+				<p className="text-body">
 					<span className="text-muted-foreground">{L.discipline}: </span>
 					<span className="font-medium">{loaderData.disciplineLabel}</span>
 				</p>
 
-				<fieldset className="space-y-2" aria-describedby={fields.goal.errorId}>
-					<legend className="text-base font-semibold">{L.goal}</legend>
-					<label className="flex min-h-11 cursor-pointer items-start gap-3 pt-2">
-						<input
-							type="radio"
-							name={fields.goal.name}
-							value="active"
-							checked={goal === 'active'}
-							onChange={() => setGoal('active')}
-							className="mt-0.5 size-5"
-						/>
-						<span>
-							<span className="block text-[15px] font-medium">
-								{L.goalActive}
-							</span>
-							<span className="text-muted-foreground block text-[13px]">
-								{L.goalActiveHelp}
-							</span>
-						</span>
-					</label>
-					<label className="flex min-h-11 cursor-pointer items-center gap-3">
-						<input
-							type="radio"
-							name={fields.goal.name}
-							value="event"
-							checked={goal === 'event'}
-							onChange={() => setGoal('event')}
-							className="size-5"
-						/>
-						<span className="text-[15px] font-medium">{L.goalEvent}</span>
-					</label>
+				<RadioGroupField
+					name={fields.goal.name}
+					legend={L.goal}
+					legendClassName={QUESTION_LEGEND}
+					value={goal}
+					onValueChange={(next) =>
+						setGoal(next === 'event' ? 'event' : 'active')
+					}
+					options={[
+						{
+							value: 'active',
+							label: L.goalActive,
+							description: L.goalActiveHelp,
+						},
+						{ value: 'event', label: L.goalEvent },
+					]}
+					errorId={fields.goal.errorId}
+					errors={fields.goal.errors}
+				>
 					{goal === 'event' ? (
-						<div className="space-y-3 pl-8">
+						<div className="space-y-4">
 							<Field
 								labelProps={{ children: L.eventName }}
 								inputProps={{
 									...getInputProps(fields.eventName, { type: 'text' }),
-									className: 'text-base',
+									autoCapitalize: 'words',
+									enterKeyHint: 'next',
 								}}
 								errors={fields.eventName.errors}
 							/>
 							<Field
 								labelProps={{ children: L.eventDate }}
-								inputProps={{
-									...getInputProps(fields.eventDate, { type: 'date' }),
-									className: 'text-base',
-								}}
+								inputProps={getInputProps(fields.eventDate, { type: 'date' })}
 								errors={fields.eventDate.errors}
 							/>
 						</div>
 					) : null}
-					<ErrorList id={fields.goal.errorId} errors={fields.goal.errors} />
-				</fieldset>
+				</RadioGroupField>
 
 				<div className="space-y-1.5">
 					<Field
-						labelProps={{
-							children: L.hours,
-							className: 'text-base font-semibold',
-						}}
+						labelProps={{ children: L.hours, className: QUESTION_LEGEND }}
 						inputProps={{
 							...getInputProps(fields.hours, { type: 'number' }),
 							step: '0.5',
 							min: '0.5',
 							inputMode: 'decimal',
+							enterKeyHint: 'done',
 							defaultValue: loaderData.hours ?? '',
-							className: 'text-base',
+							className: 'tabular-nums',
 						}}
 						errors={fields.hours.errors}
 					/>
+					<p className="text-footnote text-muted-foreground" data-hours-meaning>
+						{L.hoursMeaning}
+					</p>
 					{loaderData.hoursNote ? (
 						<p
-							className="text-muted-foreground text-[13px]"
+							className="text-footnote text-muted-foreground"
 							data-hours-arithmetic
 						>
 							{loaderData.hoursNote}
@@ -237,7 +228,7 @@ export default function QuestionsStep({
 				/>
 
 				<ErrorList errors={form.errors} id={form.errorId} />
-				<Button type="submit" className="min-h-11 w-full text-[15px]">
+				<Button type="submit" className="text-callout w-full">
 					{L.next}
 				</Button>
 			</Form>

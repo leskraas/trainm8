@@ -11,17 +11,20 @@
  * switches, and the server recomputes the very preview it showed rather than
  * trusting it back from the form.
  */
-import { getFormProps, getInputProps, useForm } from '@conform-to/react'
+import { getFormProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { useEffect, useState } from 'react'
 import { Form } from 'react-router'
-import { ErrorList } from '#app/components/forms.tsx'
+import { ErrorList, RadioGroupField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import {
-	formatDate,
-	formatDayMonth,
-	formatVolumeTotal,
+	formatNbDate,
+	formatNbDayMonth,
+	formatNbVolumeTotal,
 } from '#app/utils/format.ts'
 import {
+	nbPhaseName,
 	nbWeeks,
 	PHILOSOPHY_DESCRIPTIONS,
 	PHILOSOPHY_LABELS,
@@ -49,6 +52,7 @@ import {
 } from '#app/utils/plan-outline/presets.ts'
 import { type StrengthTrackOffer } from '#app/utils/plan-outline/proposal.ts'
 import { seasonEditWarningMessage } from '#app/utils/plan-outline/season-edit-words.ts'
+import { CollapsibleSection } from './__plan-chrome.tsx'
 import { RiseWarningNotice } from './__season-edits.tsx'
 
 /** The preview as the page shows it: the diff and its digest, not the rows. */
@@ -87,27 +91,46 @@ export function PhilosophyCard({
 	})
 	const familyErrorId = `${fields.family.id}-error`
 	const formErrorId = form.errorId
+	// Opened by an answer — a preview to read, a refusal — and the athlete's to
+	// close after that.
+	const answered = lastResult != null || preview != null
+	const [open, setOpen] = useState(answered)
+	useEffect(() => {
+		if (answered) setOpen(true)
+	}, [answered, preview, lastResult])
 
 	return (
 		<div className="space-y-3" data-philosophy>
 			{family ? (
 				<div>
-					<p className="text-sm">
+					<p className="text-callout">
 						{PHILOSOPHY_SWITCH_LABELS.follows}{' '}
-						<strong data-current-philosophy>{PHILOSOPHY_LABELS[family]}</strong>
+						<strong data-current-philosophy className="font-semibold">
+							{PHILOSOPHY_LABELS[family]}
+						</strong>
 					</p>
-					<p className="text-muted-foreground text-sm">
+					<p className="text-muted-foreground text-footnote">
 						{PHILOSOPHY_DESCRIPTIONS[family]}
 					</p>
 				</div>
-			) : null}
-			<details
-				className="border-border/70 rounded-xl border px-4 py-2"
-				open={lastResult != null || preview != null}
+			) : (
+				// Said, not left blank: a plan that follows none reads as such, and the
+				// switch below is how to pick one (audit B4).
+				<div data-no-philosophy>
+					<p className="text-callout font-semibold">
+						{PHILOSOPHY_SWITCH_LABELS.none}
+					</p>
+					<p className="text-muted-foreground text-footnote">
+						{PHILOSOPHY_SWITCH_LABELS.noneHint}
+					</p>
+				</div>
+			)}
+			<CollapsibleSection
+				summary={PHILOSOPHY_SWITCH_LABELS.open}
+				open={open}
+				onOpenChange={setOpen}
+				contentClassName="pt-2"
 			>
-				<summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">
-					{PHILOSOPHY_SWITCH_LABELS.open}
-				</summary>
 				<Form
 					method="POST"
 					className="space-y-4 pt-2 pb-2"
@@ -117,53 +140,30 @@ export function PhilosophyCard({
 				>
 					<input type="hidden" name="intent" value="preview-philosophy" />
 					<input type="hidden" name="outlineId" value={outlineId} />
-					<p className="text-muted-foreground text-sm">
+					<p className="text-muted-foreground text-footnote">
 						{PHILOSOPHY_SWITCH_LABELS.intro}
 					</p>
-					<fieldset
-						className="space-y-2"
-						aria-invalid={fields.family.errors ? true : undefined}
-						aria-describedby={fields.family.errors ? familyErrorId : undefined}
-					>
-						<legend className="text-sm font-medium">
-							{PHILOSOPHY_SWITCH_LABELS.choose}
-						</legend>
-						{PRESET_FAMILIES.map((option) => {
-							const descriptionId = `philosophy-${option}-description`
-							return (
-								<label
-									key={option}
-									className="flex min-h-11 cursor-pointer items-start gap-3 py-1"
-								>
-									<input
-										{...getInputProps(fields.family, {
-											type: 'radio',
-											value: option,
-										})}
-										id={`${fields.family.id}-${option}`}
-										aria-describedby={descriptionId}
-										disabled={option === family}
-										className="mt-1 size-4"
-									/>
-									<span>
-										<span className="block text-sm font-medium">
-											{PHILOSOPHY_LABELS[option]}
-										</span>
-										<span
-											id={descriptionId}
-											className="text-muted-foreground block text-sm"
-										>
-											{PHILOSOPHY_DESCRIPTIONS[option]}
-										</span>
-									</span>
-								</label>
-							)
-						})}
-						<ErrorList
-							id={familyErrorId}
-							errors={fields.family.errors as string[] | undefined}
-						/>
-					</fieldset>
+					{/* `ui/radio-group` choice cards (round 2): the radio is Base UI's, so
+					    the family posts under its name as a native radio would, and it is
+					    never Chromium's blue one. Each card carries the plain sentence the
+					    choice is made on (ADR 0079 S7, a deliberate exception to "one
+					    select per enum"). The current philosophy is shown and not
+					    offered. */}
+					<RadioGroupField
+						key={preview?.to ?? 'none'}
+						name={fields.family.name}
+						legend={PHILOSOPHY_SWITCH_LABELS.choose}
+						legendClassName="text-callout font-semibold"
+						defaultValue={preview?.to}
+						options={PRESET_FAMILIES.map((option) => ({
+							value: option,
+							label: PHILOSOPHY_LABELS[option],
+							description: PHILOSOPHY_DESCRIPTIONS[option],
+							disabled: option === family,
+						}))}
+						errorId={familyErrorId}
+						errors={fields.family.errors as string[] | undefined}
+					/>
 					{form.errors ? (
 						<div role="alert">
 							<ErrorList
@@ -183,7 +183,7 @@ export function PhilosophyCard({
 						lastResult={confirmResult}
 					/>
 				) : null}
-			</details>
+			</CollapsibleSection>
 		</div>
 	)
 }
@@ -212,14 +212,14 @@ function PhilosophyPreview({
 			className="border-border/70 space-y-4 border-t pt-4 pb-2"
 			data-philosophy-preview
 		>
-			<h3 id="philosophy-preview-title" className="text-sm font-semibold">
+			<h3 id="philosophy-preview-title" className="text-callout font-semibold">
 				{PHILOSOPHY_SWITCH_LABELS.preview}
 			</h3>
-			<p className="text-sm">
+			<p className="text-footnote">
 				{philosophyPreviewSentence(
 					preview.from,
 					preview.to,
-					formatDate(dayOf(preview.fromWeekKey), 'UTC'),
+					formatNbDate(dayOf(preview.fromWeekKey), 'UTC'),
 				)}
 			</p>
 			<RiseWarningNotice
@@ -235,12 +235,12 @@ function PhilosophyPreview({
 					phases={preview.phases.after}
 				/>
 			</div>
-			<table className="w-full text-left text-sm tabular-nums">
-				<caption className="text-muted-foreground pb-1 text-left text-xs">
+			<table className="text-footnote w-full text-left tabular-nums">
+				<caption className="text-muted-foreground text-caption pb-1 text-left">
 					{PHILOSOPHY_SWITCH_LABELS.weeks}
 				</caption>
 				<thead>
-					<tr className="text-muted-foreground text-xs">
+					<tr className="text-muted-foreground text-caption">
 						<th scope="col" className="py-1 font-medium">
 							{PHILOSOPHY_SWITCH_LABELS.weekColumn}
 						</th>
@@ -256,7 +256,12 @@ function PhilosophyPreview({
 					{preview.weeks.map((week) => (
 						<tr key={week.weekKey} className="border-border/50 border-t">
 							<th scope="row" className="py-1 pr-2 font-normal">
-								{formatDayMonth(dayOf(week.weekKey), 'UTC')}
+								{/* The ISO week, as every Sesong surface numbers it, with its
+								    Monday beside it. */}
+								<span className="block">Uke {isoWeekNumber(week.weekKey)}</span>
+								<span className="text-muted-foreground text-caption block">
+									{formatNbDayMonth(dayOf(week.weekKey), 'UTC')}
+								</span>
 							</th>
 							<td className="py-1 pr-2">{weekCell(week.before)}</td>
 							<td className="py-1" data-after>
@@ -266,7 +271,7 @@ function PhilosophyPreview({
 					))}
 				</tbody>
 			</table>
-			<p className="text-muted-foreground text-xs">
+			<p className="text-muted-foreground text-caption">
 				{PHILOSOPHY_SWITCH_LABELS.aroundYours}
 			</p>
 			<Form
@@ -298,11 +303,13 @@ function PhilosophyPreview({
 function PhaseList({ title, phases }: { title: string; phases: PhaseView[] }) {
 	return (
 		<div>
-			<h4 className="text-muted-foreground text-xs font-medium">{title}</h4>
-			<ul className="mt-1 space-y-1 text-sm">
+			<h4 className="text-muted-foreground text-caption font-medium">
+				{title}
+			</h4>
+			<ul className="text-footnote mt-1 space-y-1">
 				{phases.map((phase) => (
 					<li key={`${phase.name}-${phase.fromWeekKey}`}>
-						<span className="font-medium">{phase.name}</span> ·{' '}
+						<span className="font-medium">{nbPhaseName(phase.name)}</span> ·{' '}
 						{nbWeeks(phase.weeks)} · {plainMixSentence(phase.mix)}
 					</li>
 				))}
@@ -318,7 +325,7 @@ function weekCell(week: WeekView | null): string {
 		.map((target) =>
 			target.value == null
 				? '–'
-				: formatVolumeTotal(target.value, target.currency),
+				: formatNbVolumeTotal(target.value, target.currency),
 		)
 		.join(' · ')
 	return `${targets} · ${NB_WEEK_ROLE_LABELS[week.role]}`
@@ -348,17 +355,17 @@ export function StrengthTrackOfferCard({
 	return (
 		<Form
 			method="POST"
-			className="border-border/70 space-y-2 rounded-xl border px-4 py-3"
+			className="bg-muted/50 space-y-2 rounded-3xl px-4 py-3"
 			data-strength-offer
 			{...getFormProps(form)}
 			aria-describedby={form.errors ? form.errorId : undefined}
 		>
 			<input type="hidden" name="intent" value="add-strength-track" />
 			<input type="hidden" name="outlineId" value={outlineId} />
-			<p className="text-sm font-medium">
+			<p className="text-callout font-semibold">
 				{strengthOfferSentence(offer.sessionsPerWeek)}
 			</p>
-			<p className="text-muted-foreground text-sm">
+			<p className="text-muted-foreground text-footnote">
 				{strengthOfferDetail(
 					offer.anchor.value,
 					offer.anchor.derivation.windowWeeks,

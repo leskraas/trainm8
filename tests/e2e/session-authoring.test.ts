@@ -1,10 +1,13 @@
 import { type Page } from '@playwright/test'
-import { expect, test } from '#tests/playwright-utils.ts'
+import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
 
 /**
  * Session authoring end-to-end (#176, ADR 0027 R5; workout-editor spec §0): the
- * new-session form is the Token Sentence editor — the sole authoring surface now
- * that the nested-fieldset form is deleted (§12). A new session opens on the
+ * full editor is the Token Sentence editor — the sole deep authoring surface
+ * now that the nested-fieldset form is deleted (§12). From I dag it is reached
+ * through the session composer (owner decision 1, ADR 0088): _Ny økt_, then
+ * _Gjør grundigere_, then _Åpne hele editoren_ — the composer's way to what
+ * no line says. A new session opens on the
  * honest-empty composition; picking the "Easy session" seed materializes a
  * one-step stanza whose values are tappable tokens. A 40-minute easy run
  * authored by nudging the duration token lands on home's timeline. The same flow
@@ -19,15 +22,20 @@ async function createEasyRun({
 }) {
 	await navigate('/')
 
-	// Creation goes through the "+ Ny" menu (#178). The first interaction after
-	// page load can race client hydration, so retry until the menu opens.
-	const newSessionItem = page.getByRole('menuitem', { name: /ny økt/i })
-	await expect(async () => {
-		await page.getByRole('button', { name: /lag ny/i }).click()
-		await expect(newSessionItem).toBeVisible({ timeout: 2000 })
-	}).toPass()
-	await newSessionItem.click()
-	await expect(page).toHaveURL('/training/sessions/new')
+	// Creation starts at the top line's one control (owner decision 6), which
+	// opens the composer on today — a Drawer on a phone, the day pane on a
+	// large screen. The sport chosen there travels to the full editor.
+	const create = page
+		.getByTestId('timeline-top')
+		.getByRole('button', { name: 'Ny økt' })
+	await untilHydrated(create)
+	await create.click()
+	const composer = page.locator('[data-composer]').filter({ visible: true })
+	await expect(composer).toBeVisible()
+	await composer.getByRole('button', { name: 'Løping' }).click()
+	await composer.getByRole('button', { name: 'Gjør grundigere' }).click()
+	await composer.getByRole('link', { name: 'Åpne hele editoren' }).click()
+	await expect(page).toHaveURL(/\/training\/sessions\/new\?.*discipline=run/)
 
 	// The Token Sentence editor is the sole authoring surface now (§0). A new
 	// session is honestly empty (spec §11, #260): it opens on the empty
@@ -36,27 +44,21 @@ async function createEasyRun({
 	// materialize the real one-cardio-step stanza (`45 min @ easy`).
 	await expect(page.locator('[data-token-sentence-editor]')).toBeVisible()
 	await page.locator('[data-seed="easy"]').click()
-	const durationToken = page.getByRole('button', { name: /min duration/ })
+	const durationToken = page.getByRole('button', { name: /min varighet/ })
 	await expect(durationToken).toBeVisible()
 
 	// The seed lands as a 45-min easy run; the whole flow from here is: title,
-	// discipline, tap the duration token and nudge it to 40 min through its
-	// popover, submit.
-	await page.getByLabel(/title/i).fill('Easy Run')
-
-	// The route no longer opens on a hardcoded `run` (#501, ADR 0065 §5): the
-	// Discipline is derived from the athlete's own history and this athlete —
-	// freshly created, nothing logged — has none, so they are **asked**. Picking
-	// it is now part of authoring a session from nothing.
-	await page.getByLabel('Discipline').first().click()
-	await page.getByRole('option', { name: 'Run', exact: true }).first().click()
+	// tap the duration token and nudge it to 40 min through its popover,
+	// submit. The sport arrived with the link from the composer (#501, ADR
+	// 0065 §5: never a hardcoded `run`), so it is not asked again.
+	await page.getByLabel('Tittel').fill('Easy Run')
 	await durationToken.click()
-	await page.getByLabel('Duration value').fill('40 min')
+	await page.locator('[data-slot="token-popover"] input').first().fill('40 min')
 	await page.keyboard.press('Escape')
 	await expect(
-		page.getByRole('button', { name: /40 min duration/ }),
+		page.getByRole('button', { name: /40 min varighet/ }),
 	).toBeVisible()
-	await page.getByRole('button', { name: /create session/i }).click()
+	await page.getByRole('button', { name: 'Lag økta' }).click()
 
 	// Persisted as a real Workout Session and shown on its detail view.
 	await expect(page).toHaveURL(/\/training\/sessions\/[a-z0-9]+$/i)

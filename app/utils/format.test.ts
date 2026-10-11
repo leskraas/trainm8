@@ -1,6 +1,9 @@
 import { expect, test } from 'vitest'
 import {
+	formatKg,
+	formatLiftWork,
 	formatNbDate,
+	formatNbKg,
 	formatNbVolumeFigure,
 	formatClockDuration,
 	formatDate,
@@ -427,4 +430,45 @@ test('formatNbVolumeFigure writes a decimal comma and groups thousands with a no
 	expect(formatNbVolumeFigure(1270.3, 'km')).toBe('1\u00a0270,3')
 	expect(formatNbVolumeFigure(1234567, 'tss')).toBe('1\u00a0234\u00a0567')
 	expect(formatNbVolumeFigure(12.25, 'hours')).toMatch(/^12,[23]$/)
+})
+
+test('formatKg keeps the machine digits the notation and the forms read back', () => {
+	// The workout notation, hidden form values and `Number(formatKg(x))` parse
+	// this; a decimal comma here would read 82,5 back as 82 or NaN.
+	for (const kg of [82.5, 61.25, 100, 1.25, 0.5, 1020]) {
+		expect(formatKg(kg)).not.toContain(',')
+		expect(Number(formatKg(kg))).toBe(kg)
+	}
+	expect(formatKg(61.25)).toBe('61.25')
+	expect(formatKg(29.166666)).toBe('29.17')
+})
+
+test('formatNbKg writes the same kilo with a decimal comma and grouped thousands', () => {
+	expect(formatNbKg(82.5)).toBe('82,5')
+	expect(formatNbKg(61.25)).toBe('61,25')
+	expect(formatNbKg(100)).toBe('100')
+	expect(formatNbKg(1020)).toBe('1 020')
+	expect(formatNbKg(29.166666)).toBe('29,17')
+})
+
+test('formatLiftWork writes one weight and its rep counts the one way', () => {
+	expect(formatLiftWork('82,5 kg', ['5', '5', '5', '4'])).toBe(
+		'82,5 kg × 5 · 5 · 5 · 4',
+	)
+	expect(formatLiftWork('82,5 kg', ['5'])).toBe('82,5 kg × 5')
+	// A count that lost its weight keeps its ×; a weight with no count stands.
+	expect(formatLiftWork(null, ['5', '4'])).toBe('× 5 · 4')
+	expect(formatLiftWork('kroppsvekt', [])).toBe('kroppsvekt')
+	expect(formatLiftWork(null, [])).toBeNull()
+})
+
+test('formatNbDayDateTime reads a moment back in Norwegian, in the athlete timezone', async () => {
+	const { formatNbDayDateTime } = await import('./format.ts')
+	// 15:00 UTC is 17:00 in Oslo in May (CEST).
+	expect(formatNbDayDateTime('2026-05-23T15:00:00Z', 'Europe/Oslo')).toBe(
+		'lør 23. mai kl. 17.00',
+	)
+	expect(formatNbDayDateTime('2026-01-05T07:05:00Z', 'UTC')).toBe(
+		'man 5. jan kl. 07.05',
+	)
 })

@@ -5,11 +5,12 @@ import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
-import { COMMUNITY_NON_VOUCH } from '#app/utils/community.ts'
+import { CATALOGUE_LABELS, NB_PROVENANCE_LABELS } from '#app/utils/labels.ts'
+import { type SessionProvenance } from '#app/utils/plan-generation/provenance.ts'
 import {
-	CONVENTION_SLOT_LINE,
-	HAND_WRITTEN_SLOT_LINE,
-} from '#app/utils/plan-generation/provenance.ts'
+	nbProvenanceNonVouch,
+	nbProvenanceSentence,
+} from './__catalogue-card.ts'
 import CatalogueRoute from './catalogue.tsx'
 
 const NO_FILTERS = {
@@ -23,25 +24,42 @@ const NO_FILTERS = {
 	q: undefined,
 }
 
+/** The loader's provenance slot for a reading, by the same functions it uses. */
+function slot(sourcing: SessionProvenance, adaptedFrom: string | null = null) {
+	return {
+		sentence: nbProvenanceSentence(sourcing),
+		publishedAt:
+			sourcing.kind === 'community'
+				? (sourcing.attribution?.publishedAt ?? null)
+				: null,
+		nonVouch: nbProvenanceNonVouch(sourcing),
+		adaptedFrom,
+	}
+}
+
+const DANIELS: SessionProvenance = {
+	kind: 'corpus',
+	citation: {
+		author: 'Daniels',
+		work: "Daniels' Running Formula",
+		year: 2013,
+		locator: null,
+	},
+}
+
 function stockRow(overrides: Record<string, unknown> = {}) {
 	return {
 		workoutId: 'stock-1',
 		title: '4 × 6 min @ T',
-		description: 'Threshold repeats',
+		blurb: 'Threshold repeats',
 		discipline: 'run',
 		archetype: 'threshold',
-		level: null,
 		tier: 'stock',
-		sourcing: {
-			kind: 'corpus',
-			citation: {
-				author: 'Daniels',
-				work: "Daniels' Running Formula",
-				year: 2013,
-				locator: null,
-			},
+		card: {
+			sentence: '4 × 6 min terskel (1 min pause)',
+			figures: ['28 min', 'Viderekommen og opp'],
 		},
-		adaptedFrom: null,
+		provenance: slot(DANIELS),
 		saved: false,
 		...overrides,
 	}
@@ -51,19 +69,18 @@ function communityRow(overrides: Record<string, unknown> = {}) {
 	return {
 		workoutId: 'community-1',
 		title: 'My double threshold day',
-		description: 'Two sessions, one day',
+		blurb: 'Two sessions, one day',
 		discipline: 'run',
 		archetype: 'sub-threshold',
-		level: 'advanced',
 		tier: 'community',
-		sourcing: {
+		card: { sentence: null, figures: [] },
+		provenance: slot({
 			kind: 'community',
 			attribution: {
 				displayName: 'Jo Kraas',
 				publishedAt: new Date('2026-08-01T10:00:00Z'),
 			},
-		},
-		adaptedFrom: null,
+		}),
 		saved: false,
 		...overrides,
 	}
@@ -110,51 +127,81 @@ function renderCatalogue({
 	return { submitted }
 }
 
+test('a card leads with the session — its sentence, then minutes and level — before the prose (Arket M)', async () => {
+	renderCatalogue({ rows: [stockRow()] })
+
+	const sentence = await screen.findByText('4 × 6 min terskel (1 min pause)')
+	const figures = screen.getByText('28 min · Viderekommen og opp')
+	const prose = screen.getByText('Threshold repeats')
+	expect(
+		sentence.compareDocumentPosition(figures) &
+			Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+	expect(
+		figures.compareDocumentPosition(prose) & Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+	// The discipline and the archetype in Norwegian.
+	expect(
+		screen.getByText((_, el) => el?.textContent === 'Løping · Terskel'),
+	).toBeInTheDocument()
+})
+
 test('a Stock Workout shows its Citation and never the non-vouch', async () => {
 	renderCatalogue({ rows: [stockRow()] })
 
 	expect(
-		await screen.findByText(/Daniels — Daniels' Running Formula \(2013\)/),
+		await screen.findByText(
+			/Kilde: Daniels — Daniels' Running Formula \(2013\)/,
+		),
 	).toBeInTheDocument()
-	expect(screen.queryByText(COMMUNITY_NON_VOUCH)).not.toBeInTheDocument()
+	expect(
+		screen.queryByText(NB_PROVENANCE_LABELS.nonVouch),
+	).not.toBeInTheDocument()
 	// A stock row is not reportable: report-and-takedown is about what athletes
 	// publish, and a cited corpus row is retired instead (ADR 0051 §3).
 	expect(
-		screen.queryByRole('link', { name: /^report$/i }),
+		screen.queryByRole('link', { name: CATALOGUE_LABELS.report }),
 	).not.toBeInTheDocument()
 })
 
 test('an uncited Stock Workout says which uncited kind it is, never an empty slot (#474)', async () => {
 	renderCatalogue({
 		rows: [
-			stockRow({ workoutId: 'convention-1', sourcing: { kind: 'convention' } }),
+			stockRow({
+				workoutId: 'convention-1',
+				provenance: slot({ kind: 'convention' }),
+			}),
 			stockRow({
 				workoutId: 'hand-written-1',
-				sourcing: { kind: 'hand-written' },
+				provenance: slot({ kind: 'hand-written' }),
 			}),
 		],
 	})
 
-	// About a third of the corpus is uncited by construction, and the two kinds
-	// owe the athlete different sentences.
-	expect(await screen.findByText(CONVENTION_SLOT_LINE)).toBeInTheDocument()
-	expect(screen.getByText(HAND_WRITTEN_SLOT_LINE)).toBeInTheDocument()
+	expect(
+		await screen.findByText(NB_PROVENANCE_LABELS.convention),
+	).toBeInTheDocument()
+	expect(screen.getByText(NB_PROVENANCE_LABELS.handWritten)).toBeInTheDocument()
 	// Neither is disclaimed: trainm8 wrote or transcribed both.
-	expect(screen.queryByText(COMMUNITY_NON_VOUCH)).not.toBeInTheDocument()
+	expect(
+		screen.queryByText(NB_PROVENANCE_LABELS.nonVouch),
+	).not.toBeInTheDocument()
 })
 
 test('a Shared Workout shows an Attribution and an explicit non-vouch, never a citation', async () => {
 	renderCatalogue({ rows: [communityRow()] })
 
-	expect(await screen.findByText(/Published by Jo Kraas/)).toBeInTheDocument()
-	expect(screen.getByText(COMMUNITY_NON_VOUCH)).toBeInTheDocument()
-	expect(screen.queryByText(/Source:/)).not.toBeInTheDocument()
+	expect(await screen.findByText(/Publisert av Jo Kraas/)).toBeInTheDocument()
+	expect(screen.getByText(NB_PROVENANCE_LABELS.nonVouch)).toBeInTheDocument()
+	expect(screen.queryByText(/Kilde:/)).not.toBeInTheDocument()
 })
 
 test('a community row can be reported and a moderator is what a report reaches', async () => {
 	renderCatalogue({ rows: [communityRow()] })
 
-	const report = await screen.findByRole('link', { name: /^report$/i })
+	const report = await screen.findByRole('link', {
+		name: CATALOGUE_LABELS.report,
+	})
 	expect(report).toHaveAttribute(
 		'href',
 		'/training/catalogue/report/community-1',
@@ -165,30 +212,29 @@ test('a fork of a cited session says the source belongs to what it was forked fr
 	renderCatalogue({
 		rows: [
 			communityRow({
-				adaptedFrom: {
-					author: 'Daniels',
-					work: "Daniels' Running Formula",
-					year: 2013,
-					locator: null,
-				},
+				provenance: slot(
+					{ kind: 'community', attribution: null },
+					CATALOGUE_LABELS.adaptedFrom(
+						"Daniels — Daniels' Running Formula (2013)",
+					),
+				),
 			}),
 		],
 	})
 
-	const adapted = await screen.findByText(/Adapted from/)
-	expect(adapted).toHaveTextContent(/not to this one/)
+	const adapted = await screen.findByText(/Bygd på/)
+	expect(adapted).toHaveTextContent(/ikke til denne/)
 })
 
 test('the tiers are labelled, and no adoption count is anywhere on the page', async () => {
 	renderCatalogue({ rows: [stockRow(), communityRow()] })
 
-	const badges = await screen.findAllByText(/^(trainm8|Community)$/)
+	const badges = await screen.findAllByText(/^(trainm8|Fellesskapet)$/)
 	expect(badges.map((badge) => badge.textContent)).toContain('trainm8')
-	expect(badges.map((badge) => badge.textContent)).toContain('Community')
+	expect(badges.map((badge) => badge.textContent)).toContain('Fellesskapet')
 	// `GOAL.md`'s permanent no on the vanity layer: the save count is a ranking
 	// input and never a badge (ADR 0051 §6).
-	expect(screen.queryByText(/saves/i)).not.toBeInTheDocument()
-	expect(screen.queryByText(/\badopted\b/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/lagringer|saves/i)).not.toBeInTheDocument()
 })
 
 test('the athlete’s own sessions offer a publish route, and a taken-down one says so', async () => {
@@ -219,10 +265,10 @@ test('the athlete’s own sessions offer a publish route, and a taken-down one s
 	})
 
 	const list = await screen.findByRole('list')
-	expect(within(list).getByText(/Not published/)).toBeInTheDocument()
-	expect(within(list).getByText(/Removed by a moderator/)).toBeInTheDocument()
+	expect(within(list).getByText(/Ikke publisert/)).toBeInTheDocument()
+	expect(within(list).getByText(/Fjernet av en moderator/)).toBeInTheDocument()
 	expect(
-		within(list).getAllByRole('link', { name: /publish/i })[0],
+		within(list).getAllByRole('link', { name: /publiser/i })[0],
 	).toHaveAttribute('href', '/training/catalogue/publish/mine-1')
 })
 
@@ -233,16 +279,23 @@ test('the athlete’s own sessions offer a publish route, and a taken-down one s
 test('the facets are a GET form, so a filtered Catalogue is a link', async () => {
 	renderCatalogue({ rows: [stockRow()] })
 
-	const search = await screen.findByLabelText(/search the catalogue/i)
+	const search = await screen.findByLabelText(CATALOGUE_LABELS.searchLabel)
 	expect(search.closest('form')).toHaveAttribute('method', 'get')
 	// All seven facet controls, drawn from the corpus's own vocabularies.
-	expect(screen.getByLabelText('Discipline')).toBeInTheDocument()
-	expect(screen.getByLabelText('Kind of session')).toBeInTheDocument()
-	expect(screen.getByLabelText('Phase')).toBeInTheDocument()
-	expect(screen.getByLabelText('Goal event')).toBeInTheDocument()
-	expect(screen.getByLabelText('Suits')).toBeInTheDocument()
-	expect(screen.getByLabelText('Written by')).toBeInTheDocument()
-	expect(screen.getByLabelText(/in my list/i)).toBeInTheDocument()
+	const F = CATALOGUE_LABELS.facets
+	for (const label of [
+		F.discipline,
+		F.archetype,
+		F.phase,
+		F.goalEvent,
+		F.level,
+		F.tier,
+	]) {
+		expect(screen.getByLabelText(label)).toBeInTheDocument()
+	}
+	expect(
+		screen.getByRole('checkbox', { name: CATALOGUE_LABELS.savedOnly }),
+	).toBeInTheDocument()
 })
 
 test('the active facets come back prefilled from the URL', async () => {
@@ -260,12 +313,18 @@ test('the active facets come back prefilled from the URL', async () => {
 	})
 
 	// The trigger reads out its `labels.ts` label, never the raw enum value.
-	expect(await screen.findByLabelText('Kind of session')).toHaveTextContent(
-		'Threshold',
+	expect(
+		await screen.findByLabelText(CATALOGUE_LABELS.facets.archetype),
+	).toHaveTextContent('Terskel')
+	expect(
+		screen.getByLabelText(CATALOGUE_LABELS.facets.phase),
+	).toHaveTextContent('Oppbygging')
+	expect(
+		screen.getByRole('checkbox', { name: CATALOGUE_LABELS.savedOnly }),
+	).toBeChecked()
+	expect(screen.getByLabelText(CATALOGUE_LABELS.searchLabel)).toHaveValue(
+		'cruise',
 	)
-	expect(screen.getByLabelText('Phase')).toHaveTextContent('Build')
-	expect(screen.getByLabelText(/in my list/i)).toBeChecked()
-	expect(screen.getByLabelText(/search the catalogue/i)).toHaveValue('cruise')
 
 	// And each facet actually carries its value into the GET submission, which is
 	// what makes a filtered Catalogue a link.
@@ -282,12 +341,12 @@ test('the count says how many matched and how many are on screen', async () => {
 		hasMore: true,
 	})
 
-	const count = await screen.findByText(/61 sessions match your filters/)
-	expect(count).toHaveTextContent(/showing 2/)
-	expect(screen.getByRole('link', { name: /show more/i })).toHaveAttribute(
-		'href',
-		expect.stringContaining('count=48'),
-	)
+	expect(
+		await screen.findByText('61 økter passer filtrene · viser 2'),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('link', { name: CATALOGUE_LABELS.showMore }),
+	).toHaveAttribute('href', expect.stringContaining('count=48'))
 })
 
 test('an empty result names the filters that emptied it and offers a way out', async () => {
@@ -298,10 +357,12 @@ test('an empty result names the filters that emptied it and offers a way out', a
 	})
 
 	expect(
-		await screen.findByText(/Nothing matches Threshold · Base · Saved\./),
+		await screen.findByText(
+			'Ingen økter passer Terskel · Grunntrening · Lagret.',
+		),
 	).toBeInTheDocument()
 	expect(
-		screen.getAllByRole('link', { name: /clear all/i })[0],
+		screen.getAllByRole('link', { name: CATALOGUE_LABELS.clear })[0],
 	).toHaveAttribute('href', '/training/catalogue')
 })
 
@@ -312,7 +373,9 @@ test('an empty result names the filters that emptied it and offers a way out', a
 test('saving posts the workout and never renders a number', async () => {
 	const { submitted } = renderCatalogue({ rows: [stockRow()] })
 
-	await userEvent.click(await screen.findByRole('button', { name: 'Save' }))
+	await userEvent.click(
+		await screen.findByRole('button', { name: CATALOGUE_LABELS.save }),
+	)
 
 	expect(submitted).toHaveBeenCalledWith({
 		intent: 'save',
@@ -325,7 +388,9 @@ test('a saved row says so and unsaving is the same control', async () => {
 		rows: [stockRow({ saved: true })],
 	})
 
-	const button = await screen.findByRole('button', { name: 'Saved' })
+	const button = await screen.findByRole('button', {
+		name: CATALOGUE_LABELS.saved,
+	})
 	expect(button).toHaveAttribute('aria-pressed', 'true')
 
 	await userEvent.click(button)
@@ -339,7 +404,7 @@ test('every row can be placed on the calendar, community rows included', async (
 	renderCatalogue({ rows: [stockRow(), communityRow()] })
 
 	const links = await screen.findAllByRole('link', {
-		name: /add to my calendar/i,
+		name: CATALOGUE_LABELS.place,
 	})
 	expect(links[0]).toHaveAttribute('href', '/training/catalogue/place/stock-1')
 	// The athlete chose it, so a community row is placeable (ADR 0053 §4).
@@ -357,7 +422,7 @@ test('the place link carries the filters, so cancelling comes back to the same l
 	})
 
 	expect(
-		await screen.findByRole('link', { name: /add to my calendar/i }),
+		await screen.findByRole('link', { name: CATALOGUE_LABELS.place }),
 	).toHaveAttribute(
 		'href',
 		'/training/catalogue/place/stock-1?archetype=threshold',

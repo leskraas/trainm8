@@ -155,6 +155,8 @@ export async function runIntervalsIcuBackfill(
 		where: { id: connection.id },
 		data: {
 			lastSyncedAt: latestActivityAt ?? connection.lastSyncedAt,
+			// The backfill's answer is the first check the hub can name.
+			lastCheckedAt: now,
 			backfillCompletedAt: now,
 		},
 	})

@@ -5,7 +5,8 @@ import { prisma } from '#app/utils/db.server.ts'
 import { readEmail } from '#tests/mocks/utils.ts'
 import { expect, test, createUser, waitFor } from '#tests/playwright-utils.ts'
 
-const CODE_REGEX = /Here's your verification code: (?<code>[\d\w]+)/
+// The change-email code mail is Norwegian (MEG_EMAIL_LABELS.codeLine).
+const CODE_REGEX = /Her er koden din: (?<code>[\d\w]+)/
 
 test('Users can update their basic info', async ({ page, navigate, login }) => {
 	await login()
@@ -13,12 +14,12 @@ test('Users can update their basic info', async ({ page, navigate, login }) => {
 
 	const newUserData = createUser()
 
-	await page.getByRole('textbox', { name: /^name/i }).fill(newUserData.name)
+	await page.getByRole('textbox', { name: /^navn/i }).fill(newUserData.name)
 	await page
-		.getByRole('textbox', { name: /^username/i })
+		.getByRole('textbox', { name: /^brukernavn/i })
 		.fill(newUserData.username)
 
-	await page.getByRole('button', { name: /^save changes/i }).click()
+	await page.getByRole('button', { name: /^lagre kontoen/i }).click()
 })
 
 test('Users can update their password', async ({ page, navigate, login }) => {
@@ -27,17 +28,17 @@ test('Users can update their password', async ({ page, navigate, login }) => {
 	const user = await login({ password: oldPassword })
 	await navigate('/settings/profile')
 
-	await page.getByRole('link', { name: /change password/i }).click()
+	await page.getByRole('link', { name: /^passord/i }).click()
 
 	await page
-		.getByRole('textbox', { name: /^current password/i })
+		.getByRole('textbox', { name: /^nåværende passord/i })
 		.fill(oldPassword)
-	await page.getByRole('textbox', { name: /^new password/i }).fill(newPassword)
+	await page.getByRole('textbox', { name: /^nytt passord/i }).fill(newPassword)
 	await page
-		.getByRole('textbox', { name: /^confirm new password/i })
+		.getByRole('textbox', { name: /^gjenta det nye passordet/i })
 		.fill(newPassword)
 
-	await page.getByRole('button', { name: /^change password/i }).click()
+	await page.getByRole('button', { name: /^bytt passord/i }).click()
 
 	await expect(page).toHaveURL(`/settings/profile`)
 
@@ -65,7 +66,7 @@ test('Users can update their profile photo', async ({
 		.getByRole('img', { name: user.name ?? user.username })
 		.getAttribute('src')
 
-	await page.getByRole('link', { name: /change profile photo/i }).click()
+	await page.getByRole('link', { name: /bytt profilbilde/i }).click()
 
 	await expect(page).toHaveURL(`/settings/profile/photo`)
 
@@ -73,7 +74,7 @@ test('Users can update their profile photo', async ({
 		.locator('input[type="file"][name="photoFile"]')
 		.setInputFiles('./tests/fixtures/images/user/kody.png')
 
-	await page.getByRole('button', { name: /save/i }).click()
+	await page.getByRole('button', { name: /lagre bildet/i }).click()
 
 	await expect(
 		page,
@@ -99,9 +100,11 @@ test('Users can change their email address', async ({
 	const newEmailAddress = faker.internet.email().toLowerCase()
 	expect(preUpdateUser.email).not.toEqual(newEmailAddress)
 	await navigate('/settings/profile')
-	await page.getByRole('link', { name: /change email/i }).click()
-	await page.getByRole('textbox', { name: /new email/i }).fill(newEmailAddress)
-	await page.getByRole('button', { name: /send confirmation/i }).click()
+	await page.getByRole('link', { name: /^e-post/i }).click()
+	await page
+		.getByRole('textbox', { name: /ny e-postadresse/i })
+		.fill(newEmailAddress)
+	await page.getByRole('button', { name: /send kode/i }).click()
 	await expect(page).toHaveURL(/\/verify/)
 	const email = await waitFor(() => readEmail(newEmailAddress), {
 		errorMessage: 'Confirmation email was not sent',
@@ -112,7 +115,7 @@ test('Users can change their email address', async ({
 	invariant(code, 'Onboarding code not found')
 	await page.getByRole('textbox', { name: /code/i }).fill(code)
 	await page.getByRole('button', { name: /submit/i }).click()
-	await expect(page.getByText(/email changed/i)).toBeVisible()
+	await expect(page.getByText(/e-posten er byttet/i)).toBeVisible()
 
 	const updatedUser = await prisma.user.findUnique({
 		where: { id: preUpdateUser.id },
@@ -123,5 +126,5 @@ test('Users can change their email address', async ({
 	const noticeEmail = await waitFor(() => readEmail(preUpdateUser.email), {
 		errorMessage: 'Notice email was not sent',
 	})
-	expect(noticeEmail.subject).toContain('changed')
+	expect(noticeEmail.subject).toContain('byttet')
 })

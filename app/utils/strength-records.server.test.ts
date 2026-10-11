@@ -422,7 +422,7 @@ test('an estimated 1RM is produced from a set inside the equation’s rep range 
 		'heaviestLoad',
 	)
 	// And the missing row says why it is missing, in the estimator's own words.
-	expect(refused?.oneRmUnavailable).toMatch(/above 10 reps/)
+	expect(refused?.oneRmUnavailable).toMatch(/over 10 reps/)
 	expect(withEstimate?.oneRmUnavailable).toBeNull()
 })
 
@@ -452,7 +452,7 @@ test('a set that never said how close to failure it was sets no estimated 1RM, a
 
 	expect(view?.records.map((record) => record.kind)).not.toContain('e1RM')
 	expect(view?.oneRmUnavailable).toBe(
-		'None of your sets here says how close to failure it was, and in lifting there is no way to tell from the numbers. Mark a set as taken to failure, or record its reps in reserve.',
+		'Ingen av settene sier hvor nær utmattelse de var, og i løfting kan ikke tallene fortelle det. Merk et sett som til utmattelse, eller skriv reps i reserve.',
 	)
 	// The observed readings are untouched: 20 kg was lifted whatever the effort was.
 	expect(view?.records.map((record) => record.kind)).toContain('heaviestLoad')
@@ -532,7 +532,7 @@ test('a movement with no validated reps-to-load relationship gets no estimated 1
 
 	expect(view?.records.map((record) => record.kind)).not.toContain('e1RM')
 	expect(view?.oneRmUnavailable).toMatch(
-		/no validated reps-to-load relationship/,
+		/ingen validert sammenheng mellom reps og vekt/,
 	)
 })
 
@@ -695,7 +695,9 @@ test('the banner and the history strip read one derivation, so they cannot disag
 	expect(page?.sessions).toHaveLength(1)
 	expect(later.find((r) => r.kind === 'heaviestLoad')?.value).toBe(109)
 	expect(page?.records.find((r) => r.kind === 'heaviestLoad')?.value).toBe(109)
-	expect(later.map(strengthRecordHeadline)).toContain('Heaviest bodyweight set')
+	expect(later.map(strengthRecordHeadline)).toContain(
+		'Tyngste sett med kroppsvekt',
+	)
 })
 
 test('a lift whose sets cannot be read says so, rather than saying it has no sets', async () => {
@@ -727,12 +729,12 @@ test('a lift whose sets cannot be read says so, rather than saying it has no set
 
 	// The session is history and says what it was; there is simply no record in it.
 	expect(view?.sessions).toHaveLength(1)
-	expect(view?.sessions[0]?.topSetText).toBe('bodyweight × 45 s')
+	expect(view?.sessions[0]?.topSetText).toBe('kroppsvekt × 45 s')
 	expect(view?.records).toEqual([])
 
 	// The reason names the sets rather than denying them.
-	expect(view?.oneRmUnavailable).not.toMatch(/no sets logged/i)
-	expect(view?.oneRmUnavailable).toMatch(/cannot be read as a 1RM/i)
+	expect(view?.oneRmUnavailable).not.toMatch(/ingen lesbare arbeidssett/i)
+	expect(view?.oneRmUnavailable).toMatch(/kan ikke leses som en 1RM/i)
 })
 
 test('a lift with nothing on it at all still states the absence once, and not as a reason', async () => {
@@ -985,7 +987,7 @@ test('a machine stack progresses against itself, in levels, and says it cannot b
 		previousValue: 6,
 		crossExerciseComparable: false,
 	})
-	expect(records[0]?.unavailableNote).toMatch(/progresses against itself/)
+	expect(records[0]?.unavailableNote).toMatch(/måles bare mot seg selv/)
 })
 
 test('a bodyweight-derived record reads the kilo baked at log time, so a bodyweight change cannot rewrite it', async () => {
@@ -1093,7 +1095,7 @@ test('a dip-belt bench never takes the barbell bench press record, however heavy
 	expect(records.every((r) => r.previousValue === null)).toBe(true)
 	expect(records.every((r) => r.delta === null)).toBe(true)
 	expect(records.every((r) => r.crossExerciseComparable === false)).toBe(true)
-	expect(records.map(strengthRecordHeadline)).not.toContain('Heaviest ever')
+	expect(records.map(strengthRecordHeadline)).not.toContain('Tyngste noensinne')
 	// And the bar's own records are untouched by it: 30 kg is still the heaviest
 	// weight this athlete has put on a bench.
 	const view = await getExerciseHistoryView(user.id, exercise.id, { now: NOW })
@@ -1131,7 +1133,7 @@ test('an assisted set takes no record, and the strip says why rather than going 
 	// The session is still history — the set happened — and the absence of a record
 	// is a sentence rather than an empty box.
 	expect(view?.sessions).toHaveLength(1)
-	expect(view?.recordsRefused).toMatch(/grows as the work shrinks/)
+	expect(view?.recordsRefused).toMatch(/stiger når arbeidet blir lettere/)
 })
 
 test('a legacy row with no variant still reads the exercise’s own equipment', async () => {

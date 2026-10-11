@@ -1,3 +1,8 @@
+/**
+ * One Event: what it is, when, the target, the notes and — once it has been
+ * run — the session that is its result. In Norwegian (ADR 0081) on the design
+ * system's card, type steps and buttons (ADR 0085).
+ */
 import { invariantResponse } from '@epic-web/invariant'
 import { Form, Link, redirect } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -6,30 +11,23 @@ import {
 	AlertDialog,
 	AlertDialogAction,
 	AlertDialogCancel,
+	AlertDialogContent,
 	AlertDialogDescription,
 	AlertDialogFooter,
 	AlertDialogHeader,
-	AlertDialogPopup,
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from '#app/components/ui/alert-dialog.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '#app/components/ui/card.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
+import { Separator } from '#app/components/ui/separator.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
-	EVENT_KIND_LABELS,
-	EVENT_STATUS_LABELS,
 	eventStatusVariant,
-	type EventKind,
+	isEventKind,
 	type EventStatus,
-	type EventTarget,
 	parseEventDisciplines,
 	parseEventTarget,
 } from '#app/utils/event-schema.ts'
@@ -43,32 +41,37 @@ import {
 	type CandidateSession,
 	type EventRecord,
 } from '#app/utils/event.server.ts'
+import { formatNbDate, formatTime } from '#app/utils/format.ts'
 import {
-	formatClockDuration,
-	formatDate,
-	formatDateLong,
-	formatDistance,
-	formatPace,
-	formatTime,
-} from '#app/utils/format.ts'
-import { getDisciplineLabel } from '#app/utils/training.ts'
+	EVENTS_LABELS,
+	NB_DISCIPLINE_LABELS,
+	NB_EVENT_KIND_LABELS,
+	NB_EVENT_STATUS_LABELS,
+	nbDisciplineLabel,
+} from '#app/utils/labels.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Route } from './+types/events.$eventId.ts'
+import { PriorityDisc } from './__event-parts.tsx'
+import {
+	eventDayLongText,
+	eventDaysText,
+	targetText,
+} from './__event-target.ts'
+
+const L = EVENTS_LABELS
 
 export const meta: Route.MetaFunction = ({ data }) => [
 	{
-		title: data?.event
-			? `${data.event.name} | Event | Trainm8`
-			: 'Event | Trainm8',
+		title: data?.event ? `${data.event.name} | Trainm8` : L.metaTitle,
 	},
 ]
 
 export async function loader({ request, params }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	invariantResponse(params.eventId, 'Event id is required', { status: 400 })
+	invariantResponse(params.eventId, L.notFound, { status: 400 })
 
 	const event = await getEventById(userId, params.eventId)
-	invariantResponse(event, 'Event not found', { status: 404 })
+	invariantResponse(event, L.notFound, { status: 404 })
 
 	const candidates = await getCandidateSessionsForEvent(userId, params.eventId)
 
@@ -77,20 +80,20 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 export async function action({ request, params }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
-	invariantResponse(params.eventId, 'Event id is required', { status: 400 })
+	invariantResponse(params.eventId, L.notFound, { status: 400 })
 
 	const formData = await request.formData()
 	const intent = formData.get('intent')
 
 	if (intent === 'delete') {
 		const deleted = await deleteEvent(userId, params.eventId)
-		invariantResponse(deleted, 'Event not found', { status: 404 })
+		invariantResponse(deleted, L.notFound, { status: 404 })
 		throw redirect('/training/events')
 	}
 
 	if (intent === 'cancel') {
 		const cancelled = await cancelEvent(userId, params.eventId)
-		invariantResponse(cancelled, 'Event not found', { status: 404 })
+		invariantResponse(cancelled, L.notFound, { status: 404 })
 		throw redirect(`/training/events/${params.eventId}`)
 	}
 
@@ -98,66 +101,28 @@ export async function action({ request, params }: Route.ActionArgs) {
 		const sessionId = formData.get('sessionId') as string
 		invariantResponse(sessionId, 'Session id is required', { status: 400 })
 		const updated = await setEventResult(userId, params.eventId, sessionId)
-		invariantResponse(updated, 'Event not found', { status: 404 })
+		invariantResponse(updated, L.notFound, { status: 404 })
 		throw redirect(`/training/events/${params.eventId}`)
 	}
 
 	if (intent === 'unlink-result') {
 		const updated = await unlinkEventResult(userId, params.eventId)
-		invariantResponse(updated, 'Event not found', { status: 404 })
+		invariantResponse(updated, L.notFound, { status: 404 })
 		throw redirect(`/training/events/${params.eventId}`)
 	}
 
 	invariantResponse(false, 'Unknown intent', { status: 400 })
 }
 
-function formatTargetLabel(target: EventTarget): string {
-	switch (target.kind) {
-		case 'time':
-			return formatClockDuration(target.seconds)
-		case 'pace':
-			return formatPace(target.secPerKm)
-		case 'distance':
-			return formatDistance(target.meters)
-		case 'placement':
-			return `Top ${target.position}`
-		case 'finish':
-			return 'Finish'
-		case 'qualitative':
-			return target.description
-	}
-}
-
-function targetKindPrefix(kind: EventTarget['kind']): string {
-	switch (kind) {
-		case 'time':
-			return 'Time: '
-		case 'pace':
-			return 'Pace: '
-		case 'distance':
-			return 'Distance: '
-		case 'placement':
-			return 'Placement: '
-		default:
-			return ''
-	}
-}
-
-function TargetDisplay({ target }: { target: EventTarget }) {
+function SectionHeading({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="bg-muted rounded-lg p-3">
-			<p className="text-body-2xs text-muted-foreground font-semibold tracking-wide uppercase">
-				Target
-			</p>
-			<p className="text-body-sm font-medium capitalize">
-				{targetKindPrefix(target.kind)}
-				<span className="font-bold">{formatTargetLabel(target)}</span>
-			</p>
-		</div>
+		<h2 className="text-overline text-muted-foreground mb-2 uppercase">
+			{children}
+		</h2>
 	)
 }
 
-function ResultLinkingSection({
+function ResultSection({
 	event,
 	candidates,
 }: {
@@ -169,74 +134,71 @@ function ResultLinkingSection({
 
 	if (event.resultSessionId) {
 		return (
-			<div className="space-y-3">
-				<h3 className="text-body-sm font-semibold">Result</h3>
-				<div className="bg-muted flex items-center justify-between rounded-lg p-3">
-					<div>
-						<p className="text-body-xs text-muted-foreground">Linked session</p>
+			<section>
+				<SectionHeading>{L.result}</SectionHeading>
+				<div className="bg-muted/60 flex flex-wrap items-center justify-between gap-3 rounded-3xl p-3">
+					<div className="min-w-0">
+						<p className="text-muted-foreground text-footnote">
+							{L.linkedSession}
+						</p>
 						<Link
 							to={`/training/sessions/${event.resultSessionId}`}
-							className="text-body-sm font-medium underline-offset-2 hover:underline"
+							className="text-callout text-primary inline-flex min-h-11 items-center font-medium underline-offset-4 hover:underline"
 						>
-							View session
+							{L.viewSession}
 						</Link>
 					</div>
 					<Form method="POST">
 						<input type="hidden" name="intent" value="unlink-result" />
-						<Button type="submit" variant="outline" size="sm">
-							Unlink result
+						<Button type="submit" variant="outline">
+							{L.unlink}
 						</Button>
 					</Form>
 				</div>
-			</div>
+			</section>
 		)
 	}
 
 	return (
-		<div className="space-y-3">
-			<h3 className="text-body-sm font-semibold">Set result</h3>
+		<section>
+			<SectionHeading>{L.setResult}</SectionHeading>
 			{candidates.length === 0 ? (
-				<p className="text-muted-foreground text-body-sm">
-					No matching sessions found on the event date(s) for the event's
-					disciplines.
-				</p>
+				<p className="text-muted-foreground text-footnote">{L.noCandidates}</p>
 			) : (
 				<div className="space-y-2">
-					<p className="text-muted-foreground text-body-xs">
-						{/* Event dates are day-anchored (stored as UTC midnight), so they
-						    format in UTC — never shifted by a viewer offset (#172). */}
-						Sessions on {formatDate(event.startDate, 'UTC')} that match this
-						event's disciplines:
+					<p className="text-muted-foreground text-footnote">
+						{L.candidatesOn(formatNbDate(event.startDate, 'UTC'))}
 					</p>
-					{candidates.map((s) => (
-						<Form
-							key={s.id}
-							method="POST"
-							className="flex items-center justify-between rounded-lg border p-3"
-						>
-							<input type="hidden" name="intent" value="set-result" />
-							<input type="hidden" name="sessionId" value={s.id} />
-							<div>
-								<p className="text-body-sm font-medium">{s.workout?.title}</p>
-								<p className="text-muted-foreground text-body-xs capitalize">
-									{s.workout
-										? getDisciplineLabel(
-												s.workout.discipline as Parameters<
-													typeof getDisciplineLabel
-												>[0],
-											)
-										: null}{' '}
-									· {formatTime(s.scheduledAt, timeZone)}
-								</p>
-							</div>
-							<Button type="submit" variant="outline" size="sm">
-								Set as result
-							</Button>
-						</Form>
-					))}
+					<ul className="space-y-2">
+						{candidates.map((s) => (
+							<li key={s.id}>
+								<Form
+									method="POST"
+									className="bg-muted/60 flex flex-wrap items-center justify-between gap-3 rounded-3xl p-3"
+								>
+									<input type="hidden" name="intent" value="set-result" />
+									<input type="hidden" name="sessionId" value={s.id} />
+									<div className="min-w-0 [overflow-wrap:anywhere]">
+										<p className="text-callout font-medium">
+											{s.workout?.title || L.untitledSession}
+										</p>
+										<p className="text-muted-foreground text-footnote tabular-nums">
+											{s.workout
+												? `${nbDisciplineLabel(s.workout.discipline)} · `
+												: null}
+											{formatTime(s.scheduledAt, timeZone)}
+										</p>
+									</div>
+									<Button type="submit" variant="outline">
+										{L.setAsResult}
+									</Button>
+								</Form>
+							</li>
+						))}
+					</ul>
 				</div>
 			)}
-		</div>
+		</section>
 	)
 }
 
@@ -244,64 +206,55 @@ function CancelEventDialog() {
 	return (
 		<AlertDialog>
 			<AlertDialogTrigger
-				render={
-					<Button variant="outline" size="sm">
-						Cancel event
-					</Button>
-				}
+				render={<Button variant="outline">{L.cancel}</Button>}
 			/>
-			<AlertDialogPopup>
+			<AlertDialogContent>
 				<AlertDialogHeader>
-					<AlertDialogTitle>Cancel this event?</AlertDialogTitle>
-					<AlertDialogDescription>
-						The event stays in your list with a cancelled status, so your
-						planning history stays intact. To remove the event entirely, use
-						Delete instead.
-					</AlertDialogDescription>
+					<AlertDialogTitle>{L.cancelTitle}</AlertDialogTitle>
+					<AlertDialogDescription>{L.cancelBody}</AlertDialogDescription>
 				</AlertDialogHeader>
 				<Form method="POST">
 					<input type="hidden" name="intent" value="cancel" />
 					<AlertDialogFooter>
-						<AlertDialogCancel type="button">Keep event</AlertDialogCancel>
-						<AlertDialogAction type="submit">Cancel event</AlertDialogAction>
+						<AlertDialogCancel type="button">{L.keep}</AlertDialogCancel>
+						<AlertDialogAction type="submit">
+							{L.cancelConfirm}
+						</AlertDialogAction>
 					</AlertDialogFooter>
 				</Form>
-			</AlertDialogPopup>
+			</AlertDialogContent>
 		</AlertDialog>
 	)
 }
 
-function DeleteEventDialog({ eventStatus }: { eventStatus: EventStatus }) {
+function DeleteEventDialog({ eventStatus }: { eventStatus: string }) {
 	return (
 		<AlertDialog>
 			<AlertDialogTrigger
 				render={
-					<Button variant="destructive" size="sm">
-						Delete
+					<Button variant="destructive">
+						<Icon name="trash" size="sm" aria-hidden="true" />
+						{L.delete}
 					</Button>
 				}
 			/>
-			<AlertDialogPopup>
+			<AlertDialogContent>
 				<AlertDialogHeader>
-					<AlertDialogTitle>Delete this event?</AlertDialogTitle>
+					<AlertDialogTitle>{L.deleteTitle}</AlertDialogTitle>
 					<AlertDialogDescription>
-						This permanently removes the event
-						{eventStatus === 'planned'
-							? ' — to keep it in your list with a cancelled status, use Cancel event instead'
-							: ''}
-						. This cannot be undone.
+						{L.deleteBody(eventStatus === 'planned')}
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 				<Form method="POST">
 					<input type="hidden" name="intent" value="delete" />
 					<AlertDialogFooter>
-						<AlertDialogCancel type="button">Keep event</AlertDialogCancel>
+						<AlertDialogCancel type="button">{L.keep}</AlertDialogCancel>
 						<AlertDialogAction type="submit" variant="destructive">
-							Delete event
+							{L.deleteConfirm}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</Form>
-			</AlertDialogPopup>
+			</AlertDialogContent>
 		</AlertDialog>
 	)
 }
@@ -310,93 +263,100 @@ export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 	const { event, candidates } = loaderData
 	const disciplines = parseEventDisciplines(event.disciplines)
 	const target = parseEventTarget(event.target)
-
-	// Event dates are day-anchored (stored as UTC midnight): format in UTC so
-	// the named day can never shift with a viewer offset, and the shared layer
-	// guarantees server and client render identical markup (#172).
-	const startLabel = formatDateLong(event.startDate, 'UTC')
-	const endLabel = event.endDate
-		? ` – ${formatDateLong(event.endDate, 'UTC')}`
-		: ''
+	const kind = isEventKind(event.kind) ? NB_EVENT_KIND_LABELS[event.kind] : null
+	// Event dates are day-anchored (stored as UTC midnight), so they are read
+	// in UTC: the named day never shifts with a viewer, and server and client
+	// render the same markup (#172).
+	const days = event.endDate
+		? eventDaysText(event.startDate, event.endDate)
+		: eventDayLongText(event.startDate)
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
-				title="Event"
-				back={{ to: '/training/events', label: 'Events' }}
+				title={kind ?? L.title}
+				back={{ to: '/training/events', label: L.title }}
 				className="mb-6"
 			/>
+
+			<Card>
+				<CardContent className="flex flex-col gap-6">
+					<header className="flex items-start gap-3">
+						<PriorityDisc
+							priority={event.priority}
+							className="text-callout mt-0.5 size-8"
+						/>
+						{/* The name wraps in full, however long: this is the one place
+						    it is read whole. The status sits under it, not beside it,
+						    so a 120-character name keeps the card's width. */}
+						<div className="min-w-0 flex-1 space-y-1.5 [overflow-wrap:anywhere]">
+							<h2 className="text-title">{event.name}</h2>
+							<p className="text-muted-foreground text-footnote tabular-nums">
+								{days}
+								{event.location ? ` · ${event.location}` : ''}
+							</p>
+							<Badge variant={eventStatusVariant(event.status as EventStatus)}>
+								{NB_EVENT_STATUS_LABELS[event.status as EventStatus] ??
+									event.status}
+							</Badge>
+						</div>
+					</header>
+
+					{disciplines.length > 0 ? (
+						<ul className="flex flex-wrap gap-1.5">
+							{disciplines.map((d) => (
+								<li key={d}>
+									<Badge variant="secondary">{NB_DISCIPLINE_LABELS[d]}</Badge>
+								</li>
+							))}
+						</ul>
+					) : null}
+
+					{target ? (
+						<section>
+							<SectionHeading>{L.targetHeading}</SectionHeading>
+							<p className="text-heading [overflow-wrap:anywhere] tabular-nums">
+								{targetText(target)}
+							</p>
+						</section>
+					) : null}
+
+					{event.notes ? (
+						<p className="text-body [overflow-wrap:anywhere] whitespace-pre-wrap">
+							{event.notes}
+						</p>
+					) : null}
+
+					{event.status !== 'cancelled' ? (
+						<>
+							<Separator />
+							<ResultSection event={event} candidates={candidates} />
+						</>
+					) : null}
+				</CardContent>
+			</Card>
 
 			{/* Cancel vs Delete are different promises (#179): Cancel keeps the
 			    Event with a cancelled status, Delete destroys it. Each dialog
 			    spells out what its action does — and names the other — so the
 			    two side-by-side buttons can't be mistaken for each other. The row
 			    wraps (never one non-wrapping line) so it can't overflow 390px. */}
-			<div className="mb-6 flex flex-wrap gap-2">
+			<div className="mt-6 flex flex-wrap gap-2">
 				{event.status === 'planned' ? (
 					<>
 						<Link
 							to={`/training/events/${event.id}/edit`}
 							prefetch="intent"
-							className={buttonVariants({ variant: 'outline', size: 'sm' })}
+							className={buttonVariants({ variant: 'outline' })}
 						>
-							Edit
+							<Icon name="pencil-1" size="sm" aria-hidden="true" />
+							{L.edit}
 						</Link>
 						<CancelEventDialog />
 					</>
 				) : null}
-				<DeleteEventDialog eventStatus={event.status as EventStatus} />
+				<DeleteEventDialog eventStatus={event.status} />
 			</div>
-
-			<Card>
-				<CardHeader>
-					<div className="flex items-start justify-between gap-3">
-						<div className="space-y-1">
-							<div className="flex items-center gap-2">
-								<span className="bg-primary text-primary-foreground flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold">
-									{event.priority}
-								</span>
-								<CardTitle>{event.name}</CardTitle>
-							</div>
-							<CardDescription>
-								{EVENT_KIND_LABELS[event.kind as EventKind]}
-								{event.location ? ` · ${event.location}` : ''}
-							</CardDescription>
-							<p className="text-body-sm text-muted-foreground">
-								{startLabel}
-								{endLabel}
-							</p>
-						</div>
-						<Badge variant={eventStatusVariant(event.status as EventStatus)}>
-							{EVENT_STATUS_LABELS[event.status as EventStatus]}
-						</Badge>
-					</div>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					{disciplines.length > 0 ? (
-						<div className="flex flex-wrap gap-1">
-							{disciplines.map((d) => (
-								<span
-									key={d}
-									className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs"
-								>
-									{getDisciplineLabel(d)}
-								</span>
-							))}
-						</div>
-					) : null}
-
-					{target ? <TargetDisplay target={target} /> : null}
-
-					{event.notes ? (
-						<p className="text-body-sm whitespace-pre-wrap">{event.notes}</p>
-					) : null}
-
-					<hr className="border-border/70" />
-
-					<ResultLinkingSection event={event} candidates={candidates} />
-				</CardContent>
-			</Card>
 		</main>
 	)
 }

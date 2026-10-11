@@ -57,6 +57,18 @@ async function seedRunningHistory(userId: string) {
 	}
 }
 
+/**
+ * A day pill (round 2: the days are a row of toggles, not checkboxes): press
+ * or release it so it ends `pressed`.
+ */
+async function setDay(page: Page, day: string, pressed: boolean) {
+	const pill = page.getByRole('button', { name: day, exact: true })
+	if ((await pill.getAttribute('aria-pressed')) !== String(pressed)) {
+		await pill.click()
+	}
+	await expect(pill).toHaveAttribute('aria-pressed', String(pressed))
+}
+
 /** The weekdays (Monday-first) of the sessions the plan laid. */
 async function laidWeekdays(userId: string) {
 	const sessions = await prisma.workoutSession.findMany({
@@ -116,12 +128,11 @@ test('a new athlete goes from intervals.icu to I dag with a plan on the days and
 	await expect(
 		main.getByText('Fra historikken: 43 km/uke à 5:35 ≈ 4 t'),
 	).toBeVisible()
-	await expect(page.getByRole('checkbox', { name: 'tirsdag' })).toBeChecked()
-	await expect(page.getByRole('checkbox', { name: 'lørdag' })).toBeChecked()
-	await expect(
-		page.getByRole('checkbox', { name: 'torsdag' }),
-	).not.toBeChecked()
-	await page.getByRole('checkbox', { name: 'torsdag' }).check()
+	const day = (name: string) => page.getByRole('button', { name, exact: true })
+	await expect(day('tirsdag')).toHaveAttribute('aria-pressed', 'true')
+	await expect(day('lørdag')).toHaveAttribute('aria-pressed', 'true')
+	await expect(day('torsdag')).toHaveAttribute('aria-pressed', 'false')
+	await setDay(page, 'torsdag', true)
 	await page.getByLabel('Timer i uka').fill('4.5')
 	await shot(page, '3-questions')
 	await page.getByRole('button', { name: 'Vis planen' }).click()
@@ -129,18 +140,22 @@ test('a new athlete goes from intervals.icu to I dag with a plan on the days and
 	// Step 4: the plan, why it was chosen, and a switch.
 	await expect(page).toHaveURL(/\/start\/plan\?/)
 	await expect(main.getByText(/^Vi valgte Klassisk 3:1 fordi /)).toBeVisible()
-	// The 4,5 t are the cap: the round climbs to them from a lower first week.
-	await expect(main.getByText('Første uke: 4 t')).toBeVisible()
+	// The 4,5 t are what the athlete trains now: the plan starts there.
 	await expect(
-		main.getByText(/^Ingen uke går over 4,5 t – timene du sa du har\./),
+		main.getByText('Første uke: 4,5 t – det du trener nå'),
 	).toBeVisible()
+	await expect(main.getByText('Harde økter: 1 tempoøkt i uka')).toBeVisible()
 	await shot(page, '4-plan')
-	await main.getByText('Bytt filosofi').first().click()
+	await main.getByRole('button', { name: 'Bytt filosofi' }).click()
 	await page.getByRole('radio', { name: /Polarisert 80\/20/ }).check()
 	await page.getByRole('button', { name: 'Bruk denne' }).click()
 	await expect(main.getByText('Du valgte Polarisert 80/20.')).toBeVisible()
 	await expect(
 		main.getByText(/^Vårt forslag: Vi valgte Klassisk 3:1/),
+	).toBeVisible()
+	// The switch shows in the plan itself, not only in its name.
+	await expect(
+		main.getByText('Harde økter: 1 intervalløkt i uka'),
 	).toBeVisible()
 	await page.getByRole('link', { name: 'Se de to første ukene' }).click()
 
@@ -157,6 +172,9 @@ test('a new athlete goes from intervals.icu to I dag with a plan on the days and
 	await expect(
 		weeks.first().getByText(/^\d+(,\d)? t planlagt · målet er \d+(,\d)? t$/),
 	).toBeVisible()
+	// Polarisert's hard session, named as I dag will name it.
+	await expect(weeks.first().getByText('Intervalløkt · Løping')).toBeVisible()
+	await expect(weeks.first().getByText('Langtur · Løping')).toBeVisible()
 	await shot(page, '5-weeks')
 	await page.getByRole('button', { name: 'Start planen' }).click()
 
@@ -198,7 +216,7 @@ test('Jeg vil heller sette opp sesongen selv opens the same plan, filled in, in 
 	).toHaveCount(4)
 
 	// Noe er feil: the athlete says it themselves.
-	await main.getByText('Noe er feil').first().click()
+	await main.getByRole('button', { name: 'Noe er feil' }).click()
 	await page.getByRole('radio', { name: 'Sykling' }).check()
 	await page.getByLabel('Timer i uka').fill('6')
 	// The convention's days are ticked; the athlete's are Mon, Wed, Fri, Sun.
@@ -211,7 +229,7 @@ test('Jeg vil heller sette opp sesongen selv opens the same plan, filled in, in 
 		['lørdag', false],
 		['søndag', true],
 	] as const) {
-		await page.getByRole('checkbox', { name: day }).setChecked(checked)
+		await setDay(page, day, checked)
 	}
 	await shot(page, 'b2-correct')
 	await page.getByRole('button', { name: 'Bruk dette' }).click()

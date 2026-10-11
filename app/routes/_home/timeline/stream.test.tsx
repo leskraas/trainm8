@@ -8,7 +8,8 @@
  * `index.dashboard.test.tsx` drives the whole screen through the loader, which
  * is where the grid as a whole is asserted. This file exists for the things
  * that cannot be reached that way: `Rest day`, a week's shape handed in
- * directly, and what a tapped cell says **before** it writes anything.
+ * directly, and which composer a tapped cell opens. What the composer says
+ * and writes is `composer.test.tsx`'s.
  *
  * `restPrescribed` has **no producer** (ADR 0065 §4 and its consequences).
  * Nothing in the model prescribes recovery per day — `PlanOutlinePhase.rhythm`
@@ -17,14 +18,8 @@
  * either source is exactly what the ADR forbids. The branch is therefore driven
  * from the row model directly, so that whoever teaches the Plan Outline to say
  * "this day is recovery" finds the row already drawn and tested.
- *
- * The draft is the other one. Which Discipline it opens on is a fact about the
- * athlete's history that the row model does not carry, and "an athlete with no
- * history is asked" is a state no fixture can reach through the loader without
- * emptying the whole screen — so the prefill is handed to the provider directly
- * and the four states are driven from there.
  */
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
@@ -33,7 +28,8 @@ import {
 	type VolumeSession,
 } from '#app/utils/plan-outline/week-volumes.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
-import { DayStampProvider } from './day-stamp-context.tsx'
+import { ComposerProvider } from './composer-context.tsx'
+import { ComposerDrawer } from './composer-drawer.tsx'
 import {
 	type TimelineDay,
 	type TimelineEndCap,
@@ -98,7 +94,7 @@ function renderWeek(
 		weekOverrides?: Partial<TimelineWeek>
 		anchorDayKey?: string
 		prefill?: Discipline | null
-		/** Home's own action, as the draft's fetcher posts to it. */
+		/** Home's own action, as the composer's fetcher posts to it. */
 		action?: () => unknown
 	} = {},
 ) {
@@ -118,16 +114,23 @@ function renderWeek(
 		{
 			path: '/',
 			action,
-			Component: () => (
+			Component: () => {
+				const shown = week(rows, { shape, ...weekOverrides })
 				// Every cell in the stream is a write target, so the stream only
-				// renders inside the provider — see `day-stamp-context.tsx`.
-				<DayStampProvider prefill={prefill} thresholds={{}} ledger={[]}>
-					<WeekBlock
-						week={week(rows, { shape, ...weekOverrides })}
-						anchorDayKey={anchorDayKey}
-					/>
-				</DayStampProvider>
-			),
+				// renders inside the provider — see `composer-context.tsx`.
+				return (
+					<ComposerProvider
+						prefill={prefill}
+						thresholds={{}}
+						todayKey={anchorDayKey}
+						minDayKey="2029-08-01"
+						container="drawer"
+					>
+						<WeekBlock week={shown} anchorDayKey={anchorDayKey} />
+						<ComposerDrawer weeks={[shown]} today={null} />
+					</ComposerProvider>
+				)
+			},
 		},
 	])
 	render(<App initialEntries={['/']} />)
@@ -228,9 +231,15 @@ test('a past free day is quieter, and can still be written into (ADR 0065 §6)',
 		'text-primary',
 	)
 	await user.click(cell)
+	// The composer opens on that day, and offers to write it as done.
+	const composer = await screen.findByRole('dialog')
+	expect(composer.querySelector('[data-composer-day]')).toHaveAttribute(
+		'data-composer-day',
+		'2030-02-11',
+	)
 	expect(
-		await screen.findByRole('radio', { name: /løping/i }),
-	).toBeInTheDocument()
+		within(composer).getByRole('switch', { name: 'Allerede gjort' }),
+	).toBeChecked()
 })
 
 test('the first week past the horizon stands under the divider, its days empty rows to write in', () => {
@@ -255,171 +264,6 @@ test('the first week past the horizon stands under the divider, its days empty r
 	expect(screen.getByText('fylles søndag kveld i uke 9')).toBeInTheDocument()
 	expect(
 		screen.getByRole('button', { name: 'Legg inn en økt Tue 12. mar' }),
-	).toBeInTheDocument()
-})
-
-// ——— The draft: what a tapped cell says before anything is written ————————
-
-test('tapping an empty cell opens the draft on the athlete’s most-trained discipline', async () => {
-	// Derived, and shown **before** it commits (ADR 0065 §5). Nothing has been
-	// written at this point: the chip is what the stamp would be stamped for.
-	const user = userEvent.setup()
-	renderWeek([day({ dayLabel: 'Sat', dateLabel: '23 Feb' })], {
-		prefill: 'bike',
-	})
-
-	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
-
-	// The sport, named the way the full authoring route's own Discipline select
-	// names it — the chip and the select are the same choice.
-	expect(screen.getByRole('radio', { name: 'Sykling' })).toBeChecked()
-	expect(
-		screen.getByText('Det du trener mest — trykk på en annen for å bytte.'),
-	).toBeInTheDocument()
-	// The sentence the stamp is about to write, in the notation's own words.
-	expect(
-		screen.getByRole('button', { name: 'Legg til 45 min Z2' }),
-	).toBeInTheDocument()
-})
-
-test('the prefilled discipline is one tap to change', async () => {
-	const user = userEvent.setup()
-	renderWeek([day()], { prefill: 'bike' })
-
-	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
-	await user.click(screen.getByRole('radio', { name: 'Svømming' }))
-
-	expect(screen.getByRole('radio', { name: 'Svømming' })).toBeChecked()
-	expect(screen.getByRole('radio', { name: 'Sykling' })).not.toBeChecked()
-})
-
-test('an athlete with no history is asked, never assigned a discipline', async () => {
-	// A default that is a guess dressed as a derivation is the failure mode this
-	// repo keeps naming, so with nothing to read the cell asks the question and
-	// offers no confirm until it has an answer (ADR 0065 §5).
-	const user = userEvent.setup()
-	renderWeek([day()], { prefill: null })
-
-	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
-
-	for (const name of ['Løping', 'Sykling', 'Svømming', 'Styrke']) {
-		expect(screen.getByRole('radio', { name })).not.toBeChecked()
-	}
-	expect(
-		screen.getByText('Ingenting å lese det av ennå, så: hvilken?'),
-	).toBeInTheDocument()
-	// And nothing to confirm: there is no session to offer until they answer.
-	expect(screen.queryByRole('button', { name: /^Legg til / })).toBeNull()
-	expect(screen.queryByRole('link', { name: /navngi løftene/i })).toBeNull()
-})
-
-test('the draft carries the More escape, and it names the day it was opened on', async () => {
-	const user = userEvent.setup()
-	renderWeek(
-		[day({ key: '2030-02-23', dayLabel: 'Sat', dateLabel: '23 Feb' })],
-		{
-			prefill: 'run',
-		},
-	)
-
-	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
-
-	// The full route now accepts both — the day the athlete tapped, and the chip
-	// they were looking at when they tapped it.
-	expect(screen.getByRole('link', { name: 'Mer' })).toHaveAttribute(
-		'href',
-		'/training/sessions/new?date=2030-02-23&discipline=run',
-	)
-})
-
-test('strength takes the full route rather than stamping a session with no lift', async () => {
-	// A strength step is required to name a lift, and no lift can be read off a
-	// tap on a Thursday — so the line says so and hands over, which is what the
-	// More escape is for.
-	const user = userEvent.setup()
-	renderWeek([day({ key: '2030-02-23' })], { prefill: 'strength' })
-
-	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
-
-	expect(screen.queryByRole('button', { name: /^Legg til / })).toBeNull()
-	expect(screen.getByRole('link', { name: 'Navngi løftene' })).toHaveAttribute(
-		'href',
-		'/training/sessions/new?date=2030-02-23&discipline=strength',
-	)
-	expect(
-		screen.getByText(
-			'En styrkeøkt sier hvilke løft — mer enn linja har plass til.',
-		),
-	).toBeInTheDocument()
-})
-
-test('a stamp that writes nothing gives the row back, and says so', async () => {
-	// #501 AC 8: a mistake is recoverable. Any ending other than "here is the
-	// session I wrote" — a dropped connection, a refusal, a 500 out of
-	// `createWorkoutSession` — returns the fetcher to idle carrying no id, and
-	// the draft used to sit `disabled` on `Adding…` forever with Cancel as the
-	// only exit and nothing on the row saying why.
-	const user = userEvent.setup()
-	renderWeek([day()], { prefill: 'run', action: () => ({ oops: true }) })
-
-	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
-	await user.click(screen.getByRole('button', { name: 'Legg til 45 min Z2' }))
-
-	// The button is offering the stamp again rather than reporting one in
-	// flight, and the row states what happened to the last one.
-	const retry = await screen.findByRole('button', {
-		name: 'Legg til 45 min Z2',
-	})
-	expect(retry).toBeEnabled()
-	expect(
-		screen.getByText(
-			'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
-		),
-	).toBeInTheDocument()
-	// And the draft is still the athlete's own draft: the chip they chose is
-	// where they left it, so retrying is one tap and not a re-answered question.
-	expect(screen.getByRole('radio', { name: 'Løping' })).toBeChecked()
-})
-
-test('retrying a failed stamp clears the last failure off the row', async () => {
-	const user = userEvent.setup()
-	let attempts = 0
-	renderWeek([day()], {
-		prefill: 'run',
-		action: () => {
-			attempts += 1
-			return attempts > 1 ? { stampedSessionId: 'session-1' } : { oops: true }
-		},
-	})
-
-	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
-	await user.click(screen.getByRole('button', { name: 'Legg til 45 min Z2' }))
-	await screen.findByText(
-		'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
-	)
-	await user.click(screen.getByRole('button', { name: 'Legg til 45 min Z2' }))
-
-	// The draft is gone: the second post wrote a session, and the row moves on to
-	// the sentence for it (which needs the ledger to carry it — see the provider).
-	await waitFor(() => {
-		expect(
-			screen.queryByText(
-				'Det ble ikke lagret. Ingenting ble skrevet — prøv igjen.',
-			),
-		).toBeNull()
-	})
-	expect(attempts).toBe(2)
-})
-
-test('the draft closes without writing anything', async () => {
-	const user = userEvent.setup()
-	renderWeek([day()], { prefill: 'run' })
-
-	await user.click(screen.getByRole('button', { name: /legg inn en økt/i }))
-	await user.click(screen.getByRole('button', { name: 'Avbryt' }))
-
-	expect(
-		screen.getByRole('button', { name: /legg inn en økt/i }),
 	).toBeInTheDocument()
 })
 

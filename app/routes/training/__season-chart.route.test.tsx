@@ -126,7 +126,9 @@ function layer(name: string) {
  * itself, which is what the keyboard model hangs off (ADR 0030 rule 2).
  */
 function focusChart() {
-	screen.getByRole('img', { name: /volume across the season/ }).focus()
+	screen
+		.getByRole('img', { name: /^Volum for løping gjennom sesongen/ })
+		.focus()
 }
 
 // ── the layers ────────────────────────────────────────────────────────────────
@@ -137,28 +139,28 @@ describe('the layers', () => {
 		renderChart()
 
 		for (const name of [
-			'Volume',
-			'Fitness',
-			'Rhythm',
-			'Ramp',
-			'Emphasis',
+			'Volum',
 			'Form',
+			'Rytme',
+			'Stigning',
+			'Vekt',
+			'Overskudd',
 		]) {
 			expect(layer(name)).toBeInTheDocument()
 		}
 		// Volume alone by default: one thing at a time on a shape already known.
-		expect(layer('Volume')).toHaveAttribute('aria-pressed', 'true')
-		expect(layer('Rhythm')).toHaveAttribute('aria-pressed', 'false')
+		expect(layer('Volum')).toHaveAttribute('aria-pressed', 'true')
+		expect(layer('Rytme')).toHaveAttribute('aria-pressed', 'false')
 
-		await user.click(layer('Rhythm'))
-		expect(layer('Rhythm')).toHaveAttribute('aria-pressed', 'true')
+		await user.click(layer('Rytme'))
+		expect(layer('Rytme')).toHaveAttribute('aria-pressed', 'true')
 		// Turning one on leaves the others exactly as they were.
-		expect(layer('Volume')).toHaveAttribute('aria-pressed', 'true')
-		expect(layer('Ramp')).toHaveAttribute('aria-pressed', 'false')
+		expect(layer('Volum')).toHaveAttribute('aria-pressed', 'true')
+		expect(layer('Stigning')).toHaveAttribute('aria-pressed', 'false')
 
-		await user.click(layer('Volume'))
-		expect(layer('Volume')).toHaveAttribute('aria-pressed', 'false')
-		expect(layer('Rhythm')).toHaveAttribute('aria-pressed', 'true')
+		await user.click(layer('Volum'))
+		expect(layer('Volum')).toHaveAttribute('aria-pressed', 'false')
+		expect(layer('Rytme')).toHaveAttribute('aria-pressed', 'true')
 	})
 
 	test('the Form layer draws nothing and says why, in plain words', async () => {
@@ -168,12 +170,12 @@ describe('the layers', () => {
 		expect(screen.queryByTestId('form-layer-refusal')).not.toBeInTheDocument()
 		const figuresBefore = screen.getAllByRole('figure').length
 
-		await user.click(layer('Form'))
+		await user.click(layer('Overskudd'))
 
 		const refusal = screen.getByTestId('form-layer-refusal')
-		expect(refusal).toHaveTextContent(/Form does not draw here/)
-		expect(refusal).toHaveTextContent(/spread each week evenly/)
-		expect(refusal).toHaveTextContent(/Fitness minus Fatigue/)
+		expect(refusal).toHaveTextContent(/Overskudd tegnes ikke her/)
+		expect(refusal).toHaveTextContent(/spre hver uke jevnt/)
+		expect(refusal).toHaveTextContent(/overskudd er form minus trøtthet/)
 		// Offered, refuses, and adds no chart: the refusal is the whole layer.
 		expect(screen.getAllByRole('figure')).toHaveLength(figuresBefore)
 	})
@@ -183,40 +185,42 @@ describe('the layers', () => {
 		renderChart()
 
 		expect(screen.getAllByRole('figure')).toHaveLength(1)
-		await user.click(layer('Fitness'))
+		await user.click(layer('Form'))
 
 		const figures = screen.getAllByRole('figure')
 		expect(figures).toHaveLength(2)
 		// Two axes, two charts (ADR 0043 §7) — the second one reads CTL and the
 		// first still reads the track's own kilometres.
 		expect(
-			within(figures[1]!).getByRole('img', { name: /Projected fitness/ }),
+			within(figures[1]!).getByRole('img', {
+				name: /^Beregnet form \(CTL\) gjennom sesongen/,
+			}),
 		).toBeInTheDocument()
 		expect(
-			within(figures[0]!).getByRole('img', { name: /Run volume/ }),
+			within(figures[0]!).getByRole('img', { name: /^Volum for løping/ }),
 		).toBeInTheDocument()
 	})
 
 	test('the projected curve carries one derivation statement for the whole line', async () => {
 		const user = userEvent.setup()
 		renderChart()
-		await user.click(layer('Fitness'))
+		await user.click(layer('Form'))
 
 		expect(
-			screen.getByText(/Replayed from the fitness you carried into week 1/),
+			screen.getByText(/Regnet fram fra formen du hadde inn i den første uka/),
 		).toBeInTheDocument()
 		expect(
-			screen.getByText(/Your plan is one number a week, so only fitness/),
+			screen.getByText(/Planen er ett tall i uka, så bare formen/),
 		).toBeInTheDocument()
 	})
 
 	test('the Fitness layer declines with a reason when a week cannot be priced', async () => {
 		const user = userEvent.setup()
 		renderChart(season(), NO_PROFILE)
-		await user.click(layer('Fitness'))
+		await user.click(layer('Form'))
 
 		expect(screen.getByTestId('fitness-unavailable')).toHaveTextContent(
-			/Projected fitness is Unavailable — Run: no zone system is set/,
+			/Formkurven kan ikke regnes ut – Løping: ingen sonemodell er satt/,
 		)
 		expect(screen.getAllByRole('figure')).toHaveLength(1)
 	})
@@ -231,21 +235,21 @@ describe('the value axis', () => {
 
 		// Nothing here is navigation: no links, no tablist — the readings' tabs stay
 		// the surface's and a unit never joins them (ADR 0043 §8).
-		const controls = screen.getByText('Read in').parentElement!
+		const controls = screen.getByText('Les i').parentElement!
 		expect(within(controls).queryByRole('link')).not.toBeInTheDocument()
 		expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
 
 		const authored = screen.getByRole('button', {
-			name: /Read in Kilometres per week, as authored/,
+			name: /Les i kilometer i uka, slik du skrev det/,
 		})
 		expect(authored).toHaveAttribute('aria-pressed', 'true')
 
 		await user.click(
-			screen.getByRole('button', { name: /Read in TSS per week, derived/ }),
+			screen.getByRole('button', { name: /Les i tss i uka, utledet/ }),
 		)
 		expect(
 			screen.getByRole('img', {
-				name: /Run volume across the season, in TSS\/wk/,
+				name: /Volum for løping gjennom sesongen, i TSS\/uke/,
 			}),
 		).toBeInTheDocument()
 	})
@@ -281,7 +285,7 @@ describe('the value axis', () => {
 
 		// `sets` converts in no direction (ADR 0041), so the control is absent
 		// rather than present and refusing every option it offers.
-		expect(screen.queryByText('Read in')).not.toBeInTheDocument()
+		expect(screen.queryByText('Les i')).not.toBeInTheDocument()
 	})
 })
 
@@ -294,7 +298,7 @@ describe('the inspect panel', () => {
 
 		const figure = screen.getAllByRole('figure')[0]!
 		const panel = volumePanel()
-		expect(panel).toHaveTextContent(/Tap a week to read it/)
+		expect(panel).toHaveTextContent(/Trykk på en uke for å lese den/)
 		// The panel is a child of the figure, after the plot — a fixed region below
 		// the chart, which is what ADR 0030 rule 3 requires instead of a tooltip.
 		expect(figure).toContainElement(panel)
@@ -304,9 +308,9 @@ describe('the inspect panel', () => {
 		focusChart()
 		await user.keyboard('{Home}')
 
-		expect(volumePanel()).toHaveTextContent('Week 1')
-		expect(volumePanel()).toHaveTextContent('50.0 km/wk')
-		expect(volumePanel()).toHaveTextContent('authored')
+		expect(volumePanel()).toHaveTextContent('Uke 2')
+		expect(volumePanel()).toHaveTextContent('50 km/uke')
+		expect(volumePanel()).toHaveTextContent('skrevet')
 	})
 
 	test('the keyboard walks the weeks and the panel follows', async () => {
@@ -315,46 +319,46 @@ describe('the inspect panel', () => {
 
 		focusChart()
 		await user.keyboard('{Home}')
-		expect(volumePanel()).toHaveTextContent('Week 1')
+		expect(volumePanel()).toHaveTextContent('Uke 2')
 
 		await user.keyboard('{ArrowRight}')
-		expect(volumePanel()).toHaveTextContent('Week 2')
-		expect(volumePanel()).toHaveTextContent('52.5 km/wk')
+		expect(volumePanel()).toHaveTextContent('Uke 3')
+		expect(volumePanel()).toHaveTextContent('52,5 km/uke')
 
 		await user.keyboard('{End}')
-		expect(volumePanel()).toHaveTextContent('Week 4')
-		expect(volumePanel()).toHaveTextContent('your event’s week')
+		expect(volumePanel()).toHaveTextContent('Uke 5')
+		expect(volumePanel()).toHaveTextContent('uka for løpet')
 
 		await user.keyboard('{Escape}')
-		expect(volumePanel()).toHaveTextContent(/Tap a week to read it/)
+		expect(volumePanel()).toHaveTextContent(/Trykk på en uke for å lese den/)
 	})
 
 	test('a derived week shows the chain and the buckets it was priced from', async () => {
 		const user = userEvent.setup()
 		renderChart()
 		await user.click(
-			screen.getByRole('button', { name: /Read in TSS per week, derived/ }),
+			screen.getByRole('button', { name: /Les i tss i uka, utledet/ }),
 		)
 		focusChart()
 		await user.keyboard('{Home}')
 
 		const panel = volumePanel()
-		expect(panel).toHaveTextContent('derived')
-		expect(panel).toHaveTextContent('Where this number comes from')
+		expect(panel).toHaveTextContent('utledet')
+		expect(panel).toHaveTextContent('Hvor tallet kommer fra')
 		// Every non-authored number names its source (ADR 0045 §10) — the
 		// convention that sized the quality bucket, and the athlete's own recipe.
-		expect(panel).toHaveTextContent(/minutes in zone per quality session/)
-		expect(panel).toHaveTextContent(/a convention/)
-		expect(panel).toHaveTextContent(/olt-hr-5-run zone system/)
+		expect(panel).toHaveTextContent(/minutter i sonen per kvalitetsøkt/)
+		expect(panel).toHaveTextContent(/vanlig praksis/)
+		expect(panel).toHaveTextContent(/sonemodellen olt-hr-5-run/)
 		// The decomposition, five buckets deep, in its own scrolling container.
 		const buckets = within(panel).getByRole('table', {
-			name: /decomposed into intensity buckets/,
+			name: /Uka delt opp i intensiteter/,
 		})
 		expect(
-			within(buckets).getByRole('rowheader', { name: /2× threshold/ }),
+			within(buckets).getByRole('rowheader', { name: /2× terskel/ }),
 		).toBeInTheDocument()
 		expect(
-			within(buckets).getByRole('rowheader', { name: 'Easy' }),
+			within(buckets).getByRole('rowheader', { name: 'Rolig' }),
 		).toBeInTheDocument()
 		expect(buckets.parentElement).toHaveClass('overflow-x-auto')
 	})
@@ -365,7 +369,7 @@ describe('the inspect panel', () => {
 		focusChart()
 		await user.keyboard('{Home}')
 
-		expect(volumePanel()).not.toHaveTextContent('Where this number comes from')
+		expect(volumePanel()).not.toHaveTextContent('Hvor tallet kommer fra')
 	})
 
 	test('an Unavailable week inspects to a stated reason, never to nothing', async () => {
@@ -382,50 +386,50 @@ describe('the inspect panel', () => {
 		focusChart()
 		await user.keyboard('{Home}')
 		expect(volumePanel()).toHaveTextContent(
-			'Unavailable — no Season Anchor is in force on that track',
+			'Utilgjengelig – sporet har ikke noe startnivå',
 		)
 		// And the slot is marked, so it is distinguishable from a true zero at a
 		// glance rather than only on inspection (ADR 0030 rule 1).
-		expect(screen.getAllByText('n/a').length).toBeGreaterThan(0)
+		expect(screen.getAllByText('mangler').length).toBeGreaterThan(0)
 	})
 
 	test('a closed conversion gate names the athlete’s own missing datum', async () => {
 		const user = userEvent.setup()
 		renderChart(season(), NO_PROFILE)
 		await user.click(
-			screen.getByRole('button', { name: /Read in TSS per week, derived/ }),
+			screen.getByRole('button', { name: /Les i tss i uka, utledet/ }),
 		)
 		focusChart()
 		await user.keyboard('{Home}')
 
 		expect(volumePanel()).toHaveTextContent(
-			'Unavailable — no zone system is set for that discipline',
+			'Utilgjengelig – ingen sonemodell er satt for den sporten',
 		)
 	})
 
 	test('a layer turned off leaves the reading as well as the picture', async () => {
 		const user = userEvent.setup()
 		renderChart()
-		await user.click(layer('Rhythm'))
+		await user.click(layer('Rytme'))
 		focusChart()
 		await user.keyboard('{Home}')
 		await user.keyboard('{ArrowRight}{ArrowRight}')
 
-		expect(volumePanel()).toHaveTextContent('Recovery week')
-		await user.click(layer('Rhythm'))
-		expect(volumePanel()).not.toHaveTextContent('Recovery week')
+		expect(volumePanel()).toHaveTextContent('Lett uke')
+		await user.click(layer('Rytme'))
+		expect(volumePanel()).not.toHaveTextContent('Lett uke')
 	})
 
 	test('the ramp reads the step taken beside the rate authored for it', async () => {
 		const user = userEvent.setup()
 		renderChart()
-		await user.click(layer('Ramp'))
+		await user.click(layer('Stigning'))
 		focusChart()
 		await user.keyboard('{Home}')
 		await user.keyboard('{ArrowRight}')
 
-		expect(volumePanel()).toHaveTextContent('+5% on the week before.')
-		expect(volumePanel()).toHaveTextContent('Ramp authored at +5%.')
+		expect(volumePanel()).toHaveTextContent('+5 % mot uka før.')
+		expect(volumePanel()).toHaveTextContent('Stigning satt til +5 %.')
 	})
 
 	test('the time axis names its own marks — a block opening and a re-anchor', async () => {
@@ -463,8 +467,10 @@ describe('the inspect panel', () => {
 		await user.keyboard('{Home}')
 		await user.keyboard('{ArrowRight}')
 
-		expect(volumePanel()).toHaveTextContent('Re-anchored: Run 48.0 km/wk')
-		expect(volumePanel()).toHaveTextContent('A strength block opens this week')
+		expect(volumePanel()).toHaveTextContent('Nytt startnivå: Løping 48 km/uke')
+		expect(volumePanel()).toHaveTextContent(
+			'En blokk med styrke starter denne uka',
+		)
 		// And both are drawn on the time axis, not only said in the panel — the
 		// plan's opening anchor is not one of them (ADR 0040 §5).
 		expect(screen.getAllByTestId('re-anchor-mark')).toHaveLength(1)
@@ -477,19 +483,19 @@ test('every value the panel can show is reachable in the hidden data table', () 
 	renderChart()
 
 	const table = screen.getByRole('table', {
-		name: /Run volume by Training Week/,
+		name: /Volum for løping per treningsuke/,
 	})
 	const rows = within(table).getAllByRole('row')
 	// A header row plus one per Training Week.
 	expect(rows).toHaveLength(5)
 
 	const week3 = within(table)
-		.getByRole('rowheader', { name: '3' })
+		.getByRole('rowheader', { name: '4' })
 		.closest('tr')!
-	expect(week3).toHaveTextContent('Base')
-	expect(week3).toHaveTextContent('Recovery')
-	expect(week3).toHaveTextContent('36.8 km/wk')
-	expect(week3).toHaveTextContent('2× threshold')
+	expect(week3).toHaveTextContent('Grunntrening')
+	expect(week3).toHaveTextContent('Lett uke')
+	expect(week3).toHaveTextContent('36,8 km/uke')
+	expect(week3).toHaveTextContent('2× terskel')
 
 	// The wrapper carries `sr-only`, never the table itself: a table ignores a
 	// 1px width and would push the document past 390px.
@@ -501,12 +507,12 @@ test('the accessible table states a derived reading is derived, in its caption',
 	const user = userEvent.setup()
 	renderChart()
 	await user.click(
-		screen.getByRole('button', { name: /Read in TSS per week, derived/ }),
+		screen.getByRole('button', { name: /Les i tss i uka, utledet/ }),
 	)
 
 	expect(
 		screen.getByRole('table', {
-			name: /a derived reading of a track authored in km\/wk/,
+			name: /en utledet lesning av et spor skrevet i km\/uke/,
 		}),
 	).toBeInTheDocument()
 })

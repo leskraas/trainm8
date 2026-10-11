@@ -218,6 +218,20 @@ function renderRoute(
 		<IndexRoute {...(props as any)} />
 	)
 	const App = createRoutesStub([
+		// The composer reads its week and its lifts from resource routes once it
+		// opens; with no plan here, the week has no tracks and the line names
+		// nothing — what matters to these tests is that it opens at all.
+		{
+			path: '/resources/week-sum',
+			loader: ({ request }) => ({
+				day: new URL(request.url).searchParams.get('day'),
+				week: null,
+			}),
+		},
+		{
+			path: '/resources/sentence-exercises',
+			loader: () => ({ exercises: [] }),
+		},
 		{
 			path: '/',
 			Component: RouteComponent,
@@ -756,7 +770,7 @@ test('an imported week says so once, in its header, and its rows carry no chip',
 
 test('a Replan Note rides as a quiet chip, verbatim (ADR 0025)', async () => {
 	const note =
-		'Last week ran 32% over plan and Form was −12 — softened this session ~24%.'
+		'Forrige uke ble 32 % tyngre enn planlagt, og formen var −12. Denne økta ble gjort ca. 24 % kortere.'
 	renderRoute(
 		dashboardLoader({
 			ledger: [at(2, { id: 'eased', plannedTssValue: 34, replanReason: note })],
@@ -765,6 +779,29 @@ test('a Replan Note rides as a quiet chip, verbatim (ADR 0025)', async () => {
 
 	const stream = await screen.findByTestId('timeline-stream')
 	expect(within(stream).getByText(note)).toBeInTheDocument()
+})
+
+test('a Replan Note stored in English before #505 round 2 reads in Norwegian', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [
+				at(2, {
+					id: 'eased',
+					plannedTssValue: 34,
+					replanReason:
+						'Last week ran 32% over plan and Form was −12 — softened this session ~24%.',
+				}),
+			],
+		}),
+	)
+
+	const stream = await screen.findByTestId('timeline-stream')
+	expect(
+		within(stream).getByText(
+			'Forrige uke ble 32 % tyngre enn planlagt, og formen var −12. Denne økta ble gjort ca. 24 % kortere.',
+		),
+	).toBeInTheDocument()
+	expect(stream).not.toHaveTextContent(/Last week/)
 })
 
 test('rows inside a week are chronological, whatever order they arrive in', async () => {
@@ -1021,12 +1058,19 @@ test('the pill does not point anywhere on first paint — today is already in vi
 
 // ── the destinations home still has to carry ──────────────────────────────
 
-test('creation survives the re-composition: "+ New" is in the header', async () => {
+test('creation survives the re-composition: “Ny økt” is on the top line', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
-	// #178's single creation menu. Losing it would leave an athlete with no way
-	// to author a session from the screen they open the app on.
-	await screen.findByRole('button', { name: /lag ny/i })
+	// I dag's one creation control (owner decision 6, ADR 0088): it opens the
+	// composer on today. Losing it would leave an athlete with no way to author
+	// a session from the screen they open the app on.
+	const top = await screen.findByTestId('timeline-top')
+	await userEvent.click(within(top).getByRole('button', { name: 'Ny økt' }))
+	const composer = await screen.findByRole('dialog', { name: 'Ny økt' })
+	expect(composer.querySelector('[data-composer]')).toHaveAttribute(
+		'data-composer-day',
+		'2030-01-02',
+	)
 })
 
 test('an athlete with no plan is offered the first run at the far end', async () => {

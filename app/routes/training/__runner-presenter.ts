@@ -11,6 +11,13 @@
  *
  * Pure: no clock, no random source, no `prisma`.
  */
+import { formatLiftWork, formatNbKg } from '#app/utils/format.ts'
+import {
+	NB_STALL_RESPONSE_LABELS,
+	OUTCOME_LABELS as O,
+	PROGRAM_RUN_LABELS,
+	STRENGTH_RUNNER_LABELS as S,
+} from '#app/utils/labels.ts'
 import {
 	type LoadResolution,
 	loadResolutionText,
@@ -24,8 +31,6 @@ import {
 	plateOptionsForKind,
 } from '#app/utils/strength/plates.ts'
 import { type LiftOutcome } from '#app/utils/strength/program-engine.ts'
-import { loadKindLabel } from '#app/utils/strength/program-rules.ts'
-import { formatKg } from '#app/utils/strength/program.constants.ts'
 import {
 	type StrengthRecord,
 	strengthRecordLabel,
@@ -34,7 +39,6 @@ import {
 	type RestPrescription,
 	type RestReason,
 	restAfterSet,
-	restReasonText,
 } from '#app/utils/strength/rest.ts'
 import {
 	type WorkingLoad,
@@ -51,7 +55,6 @@ import {
 	type LoadValue,
 	type SetRole,
 	isMissedSet,
-	loadValueText,
 } from '#app/utils/strength-log.ts'
 import { loadTargetText } from '#app/utils/workout-notation.ts'
 
@@ -74,9 +77,9 @@ export type { WorkingLoad }
  */
 export function buildTargetText(row: LogRow): string | null {
 	const parts: string[] = []
-	if (row.prescribedReps != null) parts.push(`${row.prescribedReps} reps`)
+	if (row.prescribedReps != null) parts.push(S.reps(row.prescribedReps))
 	if (row.prescribedDurationSec != null)
-		parts.push(`${row.prescribedDurationSec} s`)
+		parts.push(S.seconds(row.prescribedDurationSec))
 	// **A rung of a bodyweight-derived ramp names its base.** `effectiveKg` above
 	// `targetKg` is what says this ramp resolves against the athlete, and the rung is
 	// then described the way every other bodyweight-plus load on this surface is:
@@ -96,8 +99,8 @@ export function buildTargetText(row: LogRow): string | null {
 	if (rung && rung.effectiveKg > rung.targetKg) {
 		parts.push(
 			rung.targetKg > 0
-				? `bodyweight + ${formatKg(rung.targetKg)} kg`
-				: 'bodyweight',
+				? S.bodyweightPlus(formatNbKg(rung.targetKg))
+				: S.bodyweight,
 		)
 	} else if (row.prescribedLoad && !zeroAbsolute) {
 		// The guard stays for the zero no rung explains: a `0 kg` target is never a
@@ -176,7 +179,7 @@ export function buildPlateLine(input: {
 		return {
 			kind: 'nearest',
 			text,
-			note: `Your gym makes ${formatKg(solution.achievedKg)} kg, not ${formatKg(kg)} kg.`,
+			note: S.rackGap(formatNbKg(solution.achievedKg), formatNbKg(kg)),
 		}
 	}
 	return { kind: 'plates', text, perSideKg: solution.perSideKg }
@@ -230,11 +233,7 @@ export function buildRecordBanner(
 
 /** The three **Stall Responses**, in the athlete's words. `deload` is ADR 0047's
  * planned week and is deliberately not one of them. */
-const STALL_RESPONSE_LABELS: Record<string, string> = {
-	stallCut: 'Stall Cut',
-	weightRollback: 'Weight Rollback',
-	anchorReEstimate: 'Anchor Re-estimate',
-}
+const STALL_RESPONSE_LABELS = NB_STALL_RESPONSE_LABELS
 
 /**
  * One lift's outcome as the panel shows it.
@@ -268,29 +267,13 @@ export type OutcomeItem = {
 function unreadableSetsPhrase(
 	outcome: Extract<LiftOutcome, { kind: 'unverifiable' }>,
 ): string {
-	const all = outcome.unreadableSetCount >= outcome.gradedSetCount
-	const label = loadKindLabel(outcome.loggedLoadKind)
-	// **A contradicted kilo is its own sentence, and it is checked first.** The set
-	// *was* logged as a weight on the bar — the kind says `external` — so every
-	// branch below would print the true kind and, with it, the false claim that the
-	// number can be read: *"every set was logged as a weight on the bar"* about the
-	// rows whose kilo this engine just refused to believe. What the headline has to
-	// name is the disagreement, because that is the only thing the athlete can fix.
-	// The engine's own `reason` has said this correctly since the contradiction got
-	// its own reason; only the headline was still reading the kind.
-	if (outcome.unreadableReason === 'kiloContradictsLoad') {
-		return all
-			? 'every set recorded a kilo that does not follow from the load beside it'
-			: `${outcome.unreadableSetCount} of the ${outcome.gradedSetCount} sets recorded a kilo that does not follow from the load beside it`
-	}
-	if (outcome.unreadableReason === 'noKiloLogged' || label == null) {
-		return all
-			? 'no kilos were logged'
-			: `${outcome.unreadableSetCount} of the ${outcome.gradedSetCount} sets logged no kilos`
-	}
-	return all
-		? `every set was logged as ${label}`
-		: `${outcome.unreadableSetCount} of the ${outcome.gradedSetCount} sets were logged as ${label}`
+	// One phrase for every unreadable reason: the engine's verdict decided that
+	// nothing moves, and the reason under the headline says what to log instead.
+	return O.unreadableSets(
+		outcome.unreadableSetCount >= outcome.gradedSetCount,
+		outcome.unreadableSetCount,
+		outcome.gradedSetCount,
+	)
 }
 
 /**
@@ -314,15 +297,21 @@ export function buildOutcomePanel(
 	liftNames: Record<string, string>,
 ): OutcomeItem[] {
 	return outcomes.map((outcome) => {
-		const liftName = liftNames[outcome.exerciseId] ?? 'Lift'
+		const liftName = liftNames[outcome.exerciseId] ?? 'Løft'
 		const key = `${outcome.exerciseId}::${outcome.equipment ?? ''}`
 		switch (outcome.kind) {
 			case 'incremented':
 				return {
 					key,
 					liftName,
-					headline: `${liftName} ${formatKg(outcome.fromKg)} kg → ${formatKg(outcome.toKg)} kg`,
-					reason: outcome.reason,
+					headline: O.headline.moved(
+						liftName,
+						formatNbKg(outcome.fromKg),
+						formatNbKg(outcome.toKg),
+					),
+					reason: O.reason.incremented(
+						formatNbKg(outcome.toKg - outcome.fromKg),
+					),
 					isNotice: false,
 					label: null,
 				}
@@ -335,11 +324,14 @@ export function buildOutcomePanel(
 					// the weight *this session* was stamped at, and printing it here is
 					// how the panel announced "Back Squat stays at 60 kg" about a lift the
 					// fold had left standing at 77.5.
-					headline: `${liftName} stays at ${formatKg(outcome.standsAtKg)} kg`,
-					reason: outcome.reason,
+					headline: O.headline.stays(liftName, formatNbKg(outcome.standsAtKg)),
+					reason:
+						outcome.stallCount > 0 ? O.reason.repeatedShort : O.reason.repeated,
 					isNotice: false,
 					label:
-						outcome.stallCount > 0 ? `Stall Count ${outcome.stallCount}` : null,
+						outcome.stallCount > 0
+							? PROGRAM_RUN_LABELS.shortInARow(outcome.stallCount)
+							: null,
 				}
 			case 'stalled':
 				return {
@@ -348,10 +340,17 @@ export function buildOutcomePanel(
 					// Which number moved is stated, because the percentage families move
 					// the training max and saying "your squat dropped" about a training
 					// max would be a lie.
-					headline: `${liftName} ${
-						outcome.moved === 'trainingMax' ? 'training max ' : ''
-					}${formatKg(outcome.fromKg)} kg → ${formatKg(outcome.toKg)} kg`,
-					reason: outcome.reason,
+					headline: (outcome.moved === 'trainingMax'
+						? O.headline.movedTrainingMax
+						: O.headline.moved)(
+						liftName,
+						formatNbKg(outcome.fromKg),
+						formatNbKg(outcome.toKg),
+					),
+					reason:
+						outcome.moved === 'trainingMax'
+							? O.reason.stalledTrainingMax
+							: O.reason.stalled,
 					isNotice: true,
 					label: STALL_RESPONSE_LABELS[outcome.response] ?? outcome.response,
 				}
@@ -361,8 +360,8 @@ export function buildOutcomePanel(
 					liftName,
 					// Nothing was changed, which is the whole content of this outcome, so
 					// the weight named is the one the lift stands at.
-					headline: `${liftName} stays at ${formatKg(outcome.standsAtKg)} kg`,
-					reason: outcome.reason,
+					headline: O.headline.stays(liftName, formatNbKg(outcome.standsAtKg)),
+					reason: O.reason.unavailable,
 					isNotice: true,
 					label: STALL_RESPONSE_LABELS[outcome.response] ?? outcome.response,
 				}
@@ -381,10 +380,15 @@ export function buildOutcomePanel(
 					// either — a kilo was logged, of the athlete rather than the bar. Saying
 					// "no kilos" there is how the athlete came to read a caveat that
 					// contradicted the number above it.
-					headline: `${liftName} stays at ${formatKg(outcome.standsAtKg)} kg — ${unreadableSetsPhrase(outcome)}, so the ${formatKg(outcome.prescribedKg)} kg prescribed could not be checked`,
-					reason: outcome.reason,
+					headline: O.headline.unreadable(
+						liftName,
+						formatNbKg(outcome.standsAtKg),
+						unreadableSetsPhrase(outcome),
+						formatNbKg(outcome.prescribedKg),
+					),
+					reason: O.reason.unreadable,
 					isNotice: true,
-					label: 'Could not be read',
+					label: O.unreadableLabel,
 				}
 			case 'liftedLighter':
 				// **A notice, and it names both weights.** Neither credited as the
@@ -399,17 +403,25 @@ export function buildOutcomePanel(
 					// asked for (the stamp). The headline used to print the *prescription*
 					// after the words "stays at" — "Back Squat stays at 120 kg" about a
 					// lift standing at 60.
-					headline: `${liftName} stays at ${formatKg(outcome.standsAtKg)} kg — logged at ${formatKg(outcome.loggedKg)} kg, prescribed ${formatKg(outcome.prescribedKg)} kg`,
-					reason: outcome.reason,
+					headline: O.headline.lighter(
+						liftName,
+						formatNbKg(outcome.standsAtKg),
+						formatNbKg(outcome.loggedKg),
+						formatNbKg(outcome.prescribedKg),
+					),
+					reason: O.reason.lighter,
 					isNotice: true,
-					label: 'Lighter than prescribed',
+					label: O.lighterLabel,
 				}
 			case 'skipped':
 				return {
 					key,
 					liftName,
-					headline: `${liftName} unchanged at ${formatKg(outcome.standsAtKg)} kg`,
-					reason: outcome.reason,
+					headline: O.headline.unchanged(
+						liftName,
+						formatNbKg(outcome.standsAtKg),
+					),
+					reason: O.reason.skipped,
 					isNotice: false,
 					label: null,
 				}
@@ -542,7 +554,10 @@ export function buildSetCircles(input: {
 			// there would be a target nobody set.
 			display:
 				logged != null ? String(logged) : target != null ? String(target) : '—',
-			ariaLabel: `${logged == null ? 'Log' : 'Logged'} set ${position} of ${input.liftName}`,
+			ariaLabel:
+				logged == null
+					? S.logSet(position, input.liftName)
+					: S.loggedSet(position, input.liftName),
 			target,
 			logged,
 			quantity: timed ? 'durationSec' : 'reps',
@@ -583,7 +598,7 @@ export function nextSetReps(
  */
 export function buildLoggedCounter(circles: readonly SetCircle[]): string {
 	const done = circles.filter((circle) => circle.logged != null).length
-	return `${done} of ${circles.length} logged`
+	return S.counter(done, circles.length)
 }
 
 /**
@@ -678,10 +693,10 @@ export function buildWarmupChips(input: {
 		const count = row.prescribedReps ?? row.prescribedDurationSec
 		const weightLabel = derivedFromBodyweight
 			? addsWeight
-				? `bw + ${formatKg(rung.targetKg)}`
-				: 'bw'
+				? `${S.bodyweightShort} + ${formatNbKg(rung.targetKg)}`
+				: S.bodyweightShort
 			: rung != null
-				? formatKg(rung.targetKg)
+				? formatNbKg(rung.targetKg)
 				: '—'
 		const label = count == null ? weightLabel : `${weightLabel} × ${count}`
 		const on = key in input.logged
@@ -690,7 +705,7 @@ export function buildWarmupChips(input: {
 			orderIndex: row.orderIndex,
 			label,
 			on,
-			ariaLabel: `${on ? 'Logged' : 'Log'} warm-up ${index + 1} of ${input.liftName}, ${label}`,
+			ariaLabel: S.warmup(on, index + 1, input.liftName, label),
 			isLast: row.orderIndex === lastOrderIndex,
 			loadKind,
 			loadNumber:
@@ -842,7 +857,7 @@ export function buildRestClock(input: {
 		past,
 		// Once the deadline has gone by, the reason is no longer the news: what the
 		// athlete is looking at is how far over they are.
-		label: past ? 'over your rest' : restReasonText(input.reason),
+		label: past ? S.restOver : S.restReasons[input.reason],
 	}
 }
 
@@ -922,18 +937,14 @@ export function buildResolutionSentence(input: {
 }): string | null {
 	const progress = input.progress
 	if (progress) {
-		const kg = formatKg(progress.workingWeightKg)
+		const kg = formatNbKg(progress.workingWeightKg)
 		if (progress.stallCount > 0) {
-			return progress.stallCount === 1
-				? `${kg} kg is held: a session came up short.`
-				: `${kg} kg is held: ${spelled(progress.stallCount)} sessions in a row came up short.`
+			return S.held(kg, progress.stallCount, spelled(progress.stallCount))
 		}
 		if (progress.madeInARow > 0) {
-			return progress.madeInARow === 1
-				? `${kg} kg is your working weight after one made session.`
-				: `${kg} kg is your working weight after ${spelled(progress.madeInARow)} made sessions.`
+			return S.working(kg, progress.madeInARow, spelled(progress.madeInARow))
 		}
-		return `${kg} kg is your working weight. Nothing has been logged for this lift on this run yet.`
+		return S.workingFresh(kg)
 	}
 	const detail = input.resolution
 	if (!detail) return null
@@ -946,21 +957,7 @@ export function buildResolutionSentence(input: {
  * a readout. Above twelve the word is longer than the number is informative, so
  * the digits come back.
  */
-const NUMBER_WORDS = [
-	'zero',
-	'one',
-	'two',
-	'three',
-	'four',
-	'five',
-	'six',
-	'seven',
-	'eight',
-	'nine',
-	'ten',
-	'eleven',
-	'twelve',
-] as const
+const NUMBER_WORDS: readonly string[] = S.numberWords
 
 function spelled(count: number): string {
 	return NUMBER_WORDS[count] ?? String(count)
@@ -985,7 +982,9 @@ export type HelpPanelLines = {
 	 * either.
 	 */
 	resolution: string | null
-	plates: string
+	/** Null with no gym on file: the offer to describe one sits under the
+	 * sets, and saying the absence twice per lift was #434's defect again. */
+	plates: string | null
 	timer: string
 	/** This lift over time, where the step names an exercise the app knows. */
 	history: { text: string; href: string } | null
@@ -997,8 +996,7 @@ export type HelpPanelLines = {
  * notification, which is not built. So the panel says what the timer does and
  * does not survive.
  */
-export const REST_TIMER_LIMIT_SENTENCE =
-	'The rest timer survives a locked phone, but not a closed tab.'
+export const REST_TIMER_LIMIT_SENTENCE = S.timerLimit
 
 export function buildHelpPanel(input: {
 	exercise: LogExercise
@@ -1019,17 +1017,13 @@ export function buildHelpPanel(input: {
 		// line of its own — see {@link HelpPanelLines.resolution}.
 		resolution:
 			[resolved, exercise.warmupUnavailable].filter(Boolean).join(' ') || null,
-		plates: gym
-			? `Plates are solved against ${gym.gymName}${
-					gym.variantName ? ` for ${gym.variantName}` : ''
-				}.`
-			: 'No gym is described, so no plates are solved.',
+		plates: gym ? S.plates(gym.gymName, gym.variantName ?? null) : null,
 		timer: REST_TIMER_LIMIT_SENTENCE,
 		history:
 			exercise.exerciseId == null
 				? null
 				: {
-						text: 'This lift over time',
+						text: S.history,
 						href: `/training/exercises/${exercise.exerciseId}`,
 					},
 	}
@@ -1091,21 +1085,35 @@ export function buildLiftPlateAnnotation(input: {
 }
 
 /**
- * The weight in a `Last time` line, and it is **the bare number on a barbell
- * lift** — `Last time 80 × 5,5,5,5,5`, the handoff's own capture, not
- * `80 kg × …`. The unit is already on the card, one line up, in the sub-line
- * under the lift's name; repeating it here spends width this line does not have
- * on a fact the athlete just read.
- *
- * Every other load keeps `loadValueText`'s words, because a bare `20` for a
- * bodyweight-plus set or a machine level would not be a weight at all.
+ * The weight in a `Last time` line, in `loadValueText`'s words — `82,5 kg`,
+ * `bodyweight + 20 kg`. It used to be the bare number on a barbell lift (`80 ×
+ * 5,5,5,5,5`); with kilos written with a decimal comma (#505 round 2) a bare
+ * `82,5` beside rep counts needs its unit to stay a weight, and every lift line
+ * now writes the one form {@link formatLiftWork} writes.
  */
 function lastTimeLoad(load: LoadValue): string {
-	return load.kind === 'external' ? formatKg(load.kg) : loadValueText(load)
+	switch (load.kind) {
+		case 'external':
+			return S.load.external(formatNbKg(load.kg))
+		case 'perSide':
+			return S.load.perSide(load.sides, formatNbKg(load.kg))
+		case 'bodyweight':
+			return S.load.bodyweight
+		case 'bodyweightPlus':
+			return S.load.bodyweightPlus(formatNbKg(load.addedKg))
+		case 'assisted':
+			return S.load.assisted(formatNbKg(load.assistKg))
+		case 'stackLevel':
+			return load.label ?? S.load.level(load.level)
+		case 'band':
+			return S.load.band(load.band)
+		case 'unloaded':
+			return S.load.unloaded
+	}
 }
 
 /**
- * `Last time 80 × 5,5,5,5,5` — the previous session's working sets, beside
+ * `Last time 80 kg × 5 · 5 · 5 · 5 · 5` — the previous session's working sets, beside
  * today's (#476's user story 25).
  *
  * Read off the **Set Ghost**, which is already matched onto this session's rows
@@ -1115,7 +1123,7 @@ function lastTimeLoad(load: LoadValue): string {
  *   five borrows the fourth set's ghost onto the fifth row, and printing it here
  *   would claim a fifth set the athlete never did.
  * - **the weight is quoted once where it was one weight**, and per set where it
- *   was not: a ramp of 80/85/90 is not *"90 × 5,5,5"*.
+ *   was not: a ramp of 80/85/90 is not *"90 kg × 5 · 5 · 5"*.
  *
  * `null` where last time cannot be quoted at all, which is the honest answer on
  * a lift's first session.
@@ -1130,13 +1138,20 @@ export function buildLastTime(rows: readonly LogRow[]): string | null {
 				ghost!.reps != null
 					? String(ghost!.reps)
 					: ghost!.durationSec != null
-						? `${ghost!.durationSec} s`
+						? S.seconds(ghost!.durationSec)
 						: null,
 		}))
 		.filter((set): set is { load: string; count: string } => set.count != null)
 	if (sets.length === 0) return null
 	const oneWeight = sets.every((set) => set.load === sets[0]!.load)
 	return oneWeight
-		? `Last time ${sets[0]!.load} × ${sets.map((set) => set.count).join(',')}`
-		: `Last time ${sets.map((set) => `${set.load} × ${set.count}`).join(', ')}`
+		? S.lastTime(
+				formatLiftWork(
+					sets[0]!.load,
+					sets.map((set) => set.count),
+				)!,
+			)
+		: S.lastTime(
+				sets.map((set) => formatLiftWork(set.load, [set.count])).join(', '),
+			)
 }

@@ -145,11 +145,11 @@ test('the Plan Start Week is authored, defaulting to this week’s Monday', asyn
 	// Every option is a Monday, because that is how the week is stored — an invalid
 	// start week is not something the athlete can submit.
 	const select = await screen.findByRole('combobox', {
-		name: /plan start week/i,
+		name: /startuke for planen/i,
 	})
-	expect(select).toHaveTextContent('7 Jan 2030 · this week')
+	expect(select).toHaveTextContent('Uke 2 · 7. jan 2030 · denne uka')
 	expect(
-		screen.getByText(/nothing counts back from your event/i),
+		screen.getByText(/ingenting telles bakover fra løpet/i),
 	).toBeInTheDocument()
 })
 
@@ -158,13 +158,15 @@ test('the proposed currency is preselected and named as a proposal', async () =>
 
 	expect(
 		await screen.findByRole('combobox', {
-			name: /what do you plan your run in/i,
+			name: /hvilken enhet planlegger du løping i/i,
 		}),
-	).toHaveTextContent('Kilometres per week')
+	).toHaveTextContent('Kilometer i uka')
 	expect(
-		screen.getByText(/proposed from your own history/i),
+		screen.getByText(/foreslått fra din egen historikk/i),
 	).toBeInTheDocument()
-	expect(screen.getByText(/locked once the track exists/i)).toBeInTheDocument()
+	expect(
+		screen.getByText(/enheten ligger fast når sporet finnes/i),
+	).toBeInTheDocument()
 })
 
 test('switching to the offered hours brings the hours figure, not the km one', async () => {
@@ -175,20 +177,18 @@ test('switching to the offered hours brings the hours figure, not the km one', a
 
 	await user.click(
 		await screen.findByRole('combobox', {
-			name: /what do you plan your run in/i,
+			name: /hvilken enhet planlegger du løping i/i,
 		}),
 	)
-	await user.click(
-		await screen.findByRole('option', { name: 'Hours per week' }),
-	)
+	await user.click(await screen.findByRole('option', { name: 'Timer i uka' }))
 
 	await waitFor(() =>
-		expect(screen.getByLabelText(/where you are starting from/i)).toHaveValue(
+		expect(screen.getByLabelText(/startvolum per uke i løping/i)).toHaveValue(
 			4.8,
 		),
 	)
 	expect(
-		screen.getByText(/averaged 4\.8 h\/wk \(19\.2 h in total\)/i),
+		screen.getByText(/snittet 4,8 t\/uke \(19,2 t til sammen\)/i),
 	).toBeInTheDocument()
 })
 
@@ -196,11 +196,11 @@ test('the anchor is pre-filled with its derivation shown, and stays editable', a
 	const user = userEvent.setup()
 	renderStep()
 
-	const anchor = await screen.findByLabelText(/where you are starting from/i)
+	const anchor = await screen.findByLabelText(/startvolum per uke i løping/i)
 	expect(anchor).toHaveValue(50)
 	expect(
 		screen.getByText(
-			/your last 4 weeks averaged 50\.0 km\/wk \(200\.0 km in total\)/i,
+			/de siste 4 ukene var snittet 50 km\/uke \(200 km til sammen\)/i,
 		),
 	).toBeInTheDocument()
 
@@ -234,7 +234,7 @@ test('a partly-trained window says how many weeks it read', async () => {
 		}),
 	)
 
-	expect(await screen.findByText(/you trained 2 of them/i)).toBeInTheDocument()
+	expect(await screen.findByText(/du trente 2 av dem/i)).toBeInTheDocument()
 })
 
 test('with no history the currency is the athlete’s to pick and the anchor is empty', async () => {
@@ -253,17 +253,19 @@ test('with no history the currency is the athlete’s to pick and the anchor is 
 
 	expect(
 		await screen.findByText(
-			/nothing in your last 4 weeks to read a unit from, so this one is yours to choose/i,
+			/ingenting i de siste 4 ukene å lese en enhet fra, så du velger selv/i,
 		),
 	).toBeInTheDocument()
 	expect(
-		screen.getByRole('combobox', { name: /what do you plan your run in/i }),
-	).toHaveTextContent(/pick the unit/i)
-	expect(screen.getByLabelText(/where you are starting from/i)).toHaveValue(
+		screen.getByRole('combobox', {
+			name: /hvilken enhet planlegger du løping i/i,
+		}),
+	).toHaveTextContent(/velg enheten du planlegger i/i)
+	expect(screen.getByLabelText(/startvolum per uke i løping/i)).toHaveValue(
 		null,
 	)
 	expect(
-		screen.getByText(/nothing in your last 4 weeks to read this from/i),
+		screen.getByText(/ingenting i de siste 4 ukene å lese dette fra/i),
 	).toBeInTheDocument()
 })
 
@@ -284,10 +286,10 @@ test('strength is offered sets and nothing else', async () => {
 	// Not a choice at all (ADR 0043 §2), so there is no control to leave dead: the
 	// unit is stated and submitted.
 	expect(
-		await screen.findByText(/strength’s own unit, not a choice/i),
+		await screen.findByText(/styrkens egen enhet, ikke et valg/i),
 	).toBeInTheDocument()
 	expect(
-		screen.queryByRole('combobox', { name: /what do you plan/i }),
+		screen.queryByRole('combobox', { name: /hvilken enhet planlegger du/i }),
 	).not.toBeInTheDocument()
 	// And nothing claims the unit was read from anywhere: `sets` is a fact about the
 	// Discipline rather than a reading of the athlete's own weeks, so neither "we
@@ -295,11 +297,13 @@ test('strength is offered sets and nothing else', async () => {
 	// it. The plan page's add form drops the same clause, and one unit must not be
 	// explained two ways on two surfaces.
 	expect(
-		screen.queryByText(/proposed from your own history/i),
+		screen.queryByText(/foreslått fra din egen historikk/i),
 	).not.toBeInTheDocument()
-	expect(screen.queryByText(/to read a unit from/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/å lese en enhet fra/i)).not.toBeInTheDocument()
 	// What *is* true of it still reads.
-	expect(screen.getByText(/locked once the track exists/i)).toBeInTheDocument()
+	expect(
+		screen.getByText(/enheten ligger fast når sporet finnes/i),
+	).toBeInTheDocument()
 })
 
 test('a multi-discipline event authors a track each over one phase timeline', async () => {
@@ -365,28 +369,28 @@ test('a multi-discipline event authors a track each over one phase timeline', as
 	// One question per discipline, each in that discipline's own unit — the three
 	// share the blocks above them and nothing else (ADR 0043 §1).
 	for (const heading of [
-		/how big are your swim weeks/i,
-		/how big are your bike weeks/i,
-		/how big are your run weeks/i,
+		/hvor store er ukene i svømming/i,
+		/hvor store er ukene i sykling/i,
+		/hvor store er ukene i løping/i,
 	]) {
 		expect(
 			await screen.findByRole('heading', { name: heading }),
 		).toBeInTheDocument()
 	}
-	expect(screen.getByLabelText(/per swim week/i)).toHaveValue(6)
-	expect(screen.getByLabelText(/per run week/i)).toHaveValue(40)
+	expect(screen.getByLabelText(/per uke i svømming/i)).toHaveValue(6)
+	expect(screen.getByLabelText(/per uke i løping/i)).toHaveValue(40)
 	// The bike track has no history behind it, so its anchor is empty and its unit
 	// unpicked — one track proposing nothing does not cost the other two theirs.
-	expect(screen.getByLabelText(/per bike week/i)).toHaveValue(null)
+	expect(screen.getByLabelText(/per uke i sykling/i)).toHaveValue(null)
 
 	await user.click(
-		screen.getByRole('combobox', { name: /what do you plan your bike in/i }),
+		screen.getByRole('combobox', {
+			name: /hvilken enhet planlegger du sykling i/i,
+		}),
 	)
-	await user.click(
-		await screen.findByRole('option', { name: 'Hours per week' }),
-	)
-	await user.type(screen.getByLabelText(/per bike week/i), '5')
-	await user.click(screen.getByRole('button', { name: /create plan/i }))
+	await user.click(await screen.findByRole('option', { name: 'Timer i uka' }))
+	await user.type(screen.getByLabelText(/per uke i sykling/i), '5')
+	await user.click(screen.getByRole('button', { name: /lag planen/i }))
 
 	// All three travel in one submission, so one plan comes back rather than three.
 	expect(submitted.mock.calls[0]![0].fields).toMatchObject({
@@ -409,14 +413,14 @@ test('the athlete names their phases with a week count each, and submits the pla
 	// The escape hatch is a choice beside the shapes, so taking it is one tap and
 	// the rows are already there to type into.
 	await user.click(
-		await screen.findByRole('radio', { name: /lay out my own blocks/i }),
+		await screen.findByRole('radio', { name: /jeg legger opp blokkene selv/i }),
 	)
-	await user.type(await screen.findByLabelText('Phase 1 name'), 'Base')
-	const weekCounts = screen.getAllByLabelText('Weeks')
+	await user.type(await screen.findByLabelText('Navn på fase 1'), 'Base')
+	const weekCounts = screen.getAllByLabelText('Uker')
 	await user.type(weekCounts[0]!, '8')
-	await user.type(screen.getByLabelText('Phase 2 name'), 'Build')
+	await user.type(screen.getByLabelText('Navn på fase 2'), 'Build')
 	await user.type(weekCounts[1]!, '4')
-	await user.click(screen.getByRole('button', { name: /create plan/i }))
+	await user.click(screen.getByRole('button', { name: /lag planen/i }))
 
 	expect(submitted).toHaveBeenCalledTimes(1)
 	const call = submitted.mock.calls[0]![0]
@@ -439,14 +443,38 @@ test('the athlete names their phases with a week count each, and submits the pla
  * By value rather than by accessible name: fifteen shapes ship and ten of them are
  * another one's name plus a length, so a name regex matches three cards at once.
  * The value is also exactly what the form submits, which is what the test is about.
+ *
+ * The radio is `ui/radio-group`'s (Base UI): a `role="radio"` element with the
+ * native input it posts through beside it, so the value is read off that input.
+ * The other lengths sit in a closed panel that stays mounted, so every radio is
+ * in the group whether or not it is shown — hence `hidden: true`.
  */
+function radioValue(radio: HTMLElement): string | null {
+	return radio.nextElementSibling?.getAttribute('value') ?? null
+}
+
+/** Every shape radio, in DOM order — the visible controls, not their inputs. */
+async function allShapeRadios() {
+	const radios = await screen.findAllByRole('radio', { hidden: true })
+	return radios.filter((radio) => radio.tagName !== 'INPUT')
+}
+
 async function shapeRadio(value: string) {
-	const radios = await screen.findAllByRole('radio')
-	const match = radios.find(
-		(radio) => (radio as HTMLInputElement).value === value,
-	)
+	const radios = await allShapeRadios()
+	const match = radios.find((radio) => radioValue(radio) === value)
 	expect(match, `no shape radio for ${value}`).toBeDefined()
 	return match!
+}
+
+/** Open the other lengths when the radio a test taps sits behind them. */
+async function reveal(
+	user: ReturnType<typeof userEvent.setup>,
+	radio: HTMLElement,
+) {
+	if (radio.closest('[hidden]')) {
+		await user.click(screen.getByRole('button', { name: /lengder til/i }))
+	}
+	return radio
 }
 
 test('the season opens with shapes to pick from, not with an empty structure', async () => {
@@ -477,7 +505,8 @@ test('the season opens with shapes to pick from, not with an empty structure', a
 	// And the picture is drawn from the shape's own numbers, week by week.
 	expect(
 		await screen.findByRole('img', {
-			name: /classic 3:1 linear: a load profile 18 weeks long/i,
+			name: /^Klassisk 3:1: en belastning over 18 uker/,
+			hidden: true,
 		}),
 	).toBeInTheDocument()
 })
@@ -489,12 +518,8 @@ test('each shape says where it would land against this event', async () => {
 	// past the event, and it is said before the athlete picks rather than after.
 	// Three shapes run 18 weeks — Klassisk, polarized and threshold focus share
 	// Klassisk's lengths — and each says so on its own card.
-	expect(
-		await screen.findAllByText(/runs 9 weeks past your event/i),
-	).toHaveLength(3)
-	expect(
-		screen.getByText(/never stretched to reach your event/i),
-	).toBeInTheDocument()
+	expect(await screen.findAllByText(/går 9 uker forbi løpet/i)).toHaveLength(3)
+	expect(screen.getByText(/strekkes aldri for å nå løpet/i)).toBeInTheDocument()
 })
 
 test('a shape that misses says what the fitting rule would cost, before it is picked', async () => {
@@ -505,13 +530,13 @@ test('a shape that misses says what the fitting rule would cost, before it is pi
 	// which blocks it costs them *while choosing*, not after tapping fit.
 	expect(
 		await screen.findAllByText(
-			/runs 9 weeks past your event · fitting it shortens Base by 7 weeks and Build by 2 weeks/i,
+			/går 9 uker forbi løpet · å tilpasse den korter ned Grunntrening med 7 uker og Oppbygging med 2 uker/i,
 		),
 	).toHaveLength(3)
 	// The 11-week masters shape overruns by two, which its base pays on its own.
 	expect(
 		screen.getByText(
-			/runs 2 weeks past your event · fitting it shortens Base by 2 weeks/i,
+			/går 2 uker forbi løpet · å tilpasse den korter ned Grunntrening med 2 uker/i,
 		),
 	).toBeInTheDocument()
 })
@@ -523,13 +548,11 @@ test('the shape that lands closest to the event is the one already picked, and i
 
 	expect(await shapeRadio('classic-linear')).toBeChecked()
 	// Klassisk and the two families at its lengths all land on it.
-	expect(screen.getAllByText(/ends on your event’s week/i)).toHaveLength(3)
+	expect(screen.getAllByText(/slutter i uka for løpet/i)).toHaveLength(3)
 	// Nine cards is a long scroll at 390 px, so the nearest-landing shape is first
 	// rather than buried in the shipped order. Order is not a label: no card is
 	// marked recommended (ADR 0048 §2).
-	const shapes = (await screen.findAllByRole('radio')).map(
-		(radio) => (radio as HTMLInputElement).value,
-	)
+	const shapes = (await allShapeRadios()).map(radioValue)
 	expect(shapes[0]).toBe('classic-linear')
 	expect(shapes.at(-1)).toBe('own')
 })
@@ -538,8 +561,8 @@ test('picking a shape submits the shape and no phase rows', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderStep()
 
-	await user.click(await shapeRadio('big-base'))
-	await user.click(screen.getByRole('button', { name: /create plan/i }))
+	await user.click(await reveal(user, await shapeRadio('big-base')))
+	await user.click(screen.getByRole('button', { name: /lag planen/i }))
 
 	const call = submitted.mock.calls[0]![0]
 	expect(call.fields).toMatchObject({
@@ -555,17 +578,17 @@ test('picking a shape submits the shape and no phase rows', async () => {
 test('a goal just created is named as created, so nothing was written invisibly', async () => {
 	renderStep(loaderData({ createdGoal: true }))
 
-	expect(await screen.findByText(/goal created/i)).toBeInTheDocument()
+	expect(await screen.findByText(/mål laget/i)).toBeInTheDocument()
 	expect(
-		screen.getByText(/added to your calendar as a fitness goal/i),
+		screen.getByText(/lagt i kalenderen som et datomål/i),
 	).toBeInTheDocument()
 })
 
 test('an Event naming no discipline says so rather than guessing a track', async () => {
 	renderStep(loaderData({ proposals: [] }))
 
-	expect(await screen.findByText(/names no discipline/i)).toBeInTheDocument()
+	expect(await screen.findByText(/løpet har ingen idrett/i)).toBeInTheDocument()
 	expect(
-		screen.queryByRole('button', { name: /create plan/i }),
+		screen.queryByRole('button', { name: /lag planen/i }),
 	).not.toBeInTheDocument()
 })

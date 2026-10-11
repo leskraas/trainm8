@@ -53,17 +53,17 @@ test('an over week with fatigued Form adjusts by the inverse overshoot', () => {
 	expect(decision.scale).toBeCloseTo(1 / 1.32, 10)
 	// Names signal AND action with real numbers (PRD copy pattern).
 	expect(decision.reason).toBe(
-		"Last week ran 32% over plan and Form was −12 — softened this week's remaining sessions ~24%.",
+		'Forrige uke ble 32 % tyngre enn planlagt, og formen var −12. Resten av ukas økter ble gjort ca. 24 % kortere.',
 	)
 	// Every adjustable session gets its own Replan Note, same honest copy.
 	expect(decision.notes).toEqual([
 		{
 			sessionId: 'a',
-			note: 'Last week ran 32% over plan and Form was −12 — softened this session ~24%.',
+			note: 'Forrige uke ble 32 % tyngre enn planlagt, og formen var −12. Denne økta ble gjort ca. 24 % kortere.',
 		},
 		{
 			sessionId: 'b',
-			note: 'Last week ran 32% over plan and Form was −12 — softened this session ~24%.',
+			note: 'Forrige uke ble 32 % tyngre enn planlagt, og formen var −12. Denne økta ble gjort ca. 24 % kortere.',
 		},
 	])
 })
@@ -79,7 +79,7 @@ test('a huge overshoot is floored at the minimum scale (never cut more than 30%)
 	if (decision.outcome !== 'adjusted') throw new Error('expected adjusted')
 	expect(decision.scale).toBe(REPLAN_MIN_SCALE)
 	expect(decision.reason).toBe(
-		"Last week ran 60% over plan and Form was −20 — softened this week's remaining sessions ~30%.",
+		'Forrige uke ble 60 % tyngre enn planlagt, og formen var −20. Resten av ukas økter ble gjort ca. 30 % kortere.',
 	)
 })
 
@@ -106,7 +106,7 @@ test('an over week with fresh Form (TSB above the gate) holds — the body is ab
 	expect(decision.outcome).toBe('no-change')
 	if (decision.outcome !== 'no-change') throw new Error('unreachable')
 	expect(decision.reason).toBe(
-		"Last week ran 32% over plan but Form is +5 — you're absorbing it, so this week stands as planned.",
+		'Forrige uke ble 32 % tyngre enn planlagt, men formen er +5 – du tåler det. Denne uka står som planlagt.',
 	)
 })
 
@@ -120,7 +120,7 @@ test('an under week holds with the bank-the-planned-work reason (never inflate l
 	expect(decision.outcome).toBe('no-change')
 	if (decision.outcome !== 'no-change') throw new Error('unreachable')
 	expect(decision.reason).toBe(
-		'Last week ran 20% under plan — bank the planned work; this week stands as planned.',
+		'Forrige uke ble 20 % lettere enn planlagt. Vi legger ikke på noe ekstra – denne uka står som planlagt.',
 	)
 })
 
@@ -133,7 +133,7 @@ test('an under week holds even during cold-start (adherence is independent of TS
 	})
 	expect(decision.outcome).toBe('no-change')
 	if (decision.outcome !== 'no-change') throw new Error('unreachable')
-	expect(decision.reason).toMatch(/bank the planned work/)
+	expect(decision.reason).toMatch(/Vi legger ikke på noe ekstra/)
 })
 
 test('an on-target week holds — the app looked and chose to hold', () => {
@@ -146,7 +146,7 @@ test('an on-target week holds — the app looked and chose to hold', () => {
 	expect(decision.outcome).toBe('no-change')
 	if (decision.outcome !== 'no-change') throw new Error('unreachable')
 	expect(decision.reason).toBe(
-		'Last week matched the plan — this week stands as planned.',
+		'Forrige uke gikk som planlagt. Denne uka står som den er.',
 	)
 })
 
@@ -160,7 +160,7 @@ test('nothing adjustable in the target week declines explicitly, never claims a 
 	expect(decision.outcome).toBe('no-change')
 	if (decision.outcome !== 'no-change') throw new Error('unreachable')
 	expect(decision.reason).toBe(
-		'Last week ran 32% over plan and Form was −12, but nothing in the coming week can be softened — no change made.',
+		'Forrige uke ble 32 % tyngre enn planlagt og formen er −12, men det er ingen økter igjen denne uka som kan gjøres lettere. Vi endrer ingenting.',
 	)
 })
 
@@ -176,7 +176,7 @@ test('a week with no measurable adherence is insufficient-data, not a fabricated
 	expect(decision.outcome).toBe('insufficient-data')
 	if (decision.outcome !== 'insufficient-data') throw new Error('unreachable')
 	expect(decision.reason).toBe(
-		'Last week has no measurable Plan Adherence — no adjustment, not enough data.',
+		'Forrige uke hadde ingen planlagt belastning å måle mot, så vi har for lite å gå på. Denne uka står som planlagt.',
 	)
 })
 
@@ -190,7 +190,7 @@ test('an over week with untrustworthy TSB is insufficient-data with the day-N/42
 	expect(decision.outcome).toBe('insufficient-data')
 	if (decision.outcome !== 'insufficient-data') throw new Error('unreachable')
 	expect(decision.reason).toBe(
-		'Last week ran 32% over plan, but your Form reading is reliable after 42 days — day 12/42 — no adjustment yet.',
+		'Forrige uke ble 32 % tyngre enn planlagt, men formtallet er først til å stole på etter 42 dager (dag 12 av 42). Vi endrer ingenting ennå.',
 	)
 })
 
@@ -204,7 +204,7 @@ test('an over week with no TSB at all is insufficient-data (no Form to corrobora
 	expect(decision.outcome).toBe('insufficient-data')
 	if (decision.outcome !== 'insufficient-data') throw new Error('unreachable')
 	expect(decision.reason).toBe(
-		'Last week ran 32% over plan, but Form is unavailable — no adjustment without it.',
+		'Forrige uke ble 32 % tyngre enn planlagt, men vi har ikke noe formtall. Uten det endrer vi ingenting.',
 	)
 })
 

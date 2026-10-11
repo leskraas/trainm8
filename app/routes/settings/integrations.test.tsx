@@ -10,17 +10,17 @@ import IntegrationsRoute from './integrations.tsx'
 type StravaHub = {
 	configured: boolean
 	status: 'disconnected' | 'connected' | 'backfilling' | 'revoked'
-	lastSyncedAt: string | null
+	lastCheckedAt: string | null
 }
 
 type IntervalsIcuHub = {
 	status: 'disconnected' | 'connected' | 'backfilling' | 'revoked'
-	lastSyncedAt: string | null
+	lastCheckedAt: string | null
 }
 
 const intervalsIcuDisconnected: IntervalsIcuHub = {
 	status: 'disconnected',
-	lastSyncedAt: null,
+	lastCheckedAt: null,
 }
 
 function renderHub(
@@ -91,7 +91,7 @@ function renderHub(
 const connected: StravaHub = {
 	configured: true,
 	status: 'connected',
-	lastSyncedAt: '2026-07-07T06:12:00.000Z',
+	lastCheckedAt: '2026-07-07T06:12:00.000Z',
 }
 
 test('connected Strava card shows plain-language state, last sync, and all three actions', async () => {
@@ -99,12 +99,18 @@ test('connected Strava card shows plain-language state, last sync, and all three
 
 	const cards = await screen.findByText('Strava')
 	const card = cards.closest('[data-provider="strava"]')!
-	expect(within(card as HTMLElement).getByText(/connected/i)).toBeVisible()
-	expect(within(card as HTMLElement).getByText(/last synced/i)).toBeVisible()
-	expect(screen.getByRole('button', { name: /sync now/i })).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: /reconnect/i })).toBeInTheDocument()
+	expect(within(card as HTMLElement).getByText(/^tilkoblet$/i)).toBeVisible()
 	expect(
-		screen.getByRole('button', { name: /^disconnect$/i }),
+		within(card as HTMLElement).getByText(/sist synkronisert/i),
+	).toBeVisible()
+	expect(
+		screen.getByRole('button', { name: /synkroniser nå/i }),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('button', { name: /koble til på nytt/i }),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('button', { name: /^koble fra$/i }),
 	).toBeInTheDocument()
 })
 
@@ -112,7 +118,9 @@ test('"Sync now" POSTs to the existing Strava sync route', async () => {
 	const user = userEvent.setup()
 	const { synced } = renderHub(connected)
 
-	await user.click(await screen.findByRole('button', { name: /sync now/i }))
+	await user.click(
+		await screen.findByRole('button', { name: /synkroniser nå/i }),
+	)
 
 	await waitFor(() => expect(synced).toHaveBeenCalledTimes(1))
 	expect(synced.mock.calls[0]![0].method).toBe('POST')
@@ -125,9 +133,9 @@ test('"Sync now" POSTs to the existing Strava sync route', async () => {
 test('backfilling state shows "importing history" and hides manual sync', async () => {
 	renderHub({ ...connected, status: 'backfilling' })
 
-	expect(await screen.findByText('Importing history')).toBeInTheDocument()
+	expect(await screen.findByText('Henter historikk')).toBeInTheDocument()
 	expect(
-		screen.queryByRole('button', { name: /sync now/i }),
+		screen.queryByRole('button', { name: /synkroniser nå/i }),
 	).not.toBeInTheDocument()
 })
 
@@ -135,8 +143,8 @@ test('revoked state says "needs re-authorization" with a working Reconnect', asy
 	const user = userEvent.setup()
 	const { reconnected } = renderHub({ ...connected, status: 'revoked' })
 
-	expect(await screen.findByText(/needs re-authorization/i)).toBeInTheDocument()
-	await user.click(screen.getByRole('button', { name: /reconnect/i }))
+	expect(await screen.findByText(/må kobles til på nytt/i)).toBeInTheDocument()
+	await user.click(screen.getByRole('button', { name: /koble til på nytt/i }))
 	await waitFor(() => expect(reconnected).toHaveBeenCalledTimes(1))
 	expect(reconnected.mock.calls[0]![0].method).toBe('POST')
 })
@@ -145,44 +153,55 @@ test('disconnect asks for confirmation, then posts the disconnect intent', async
 	const user = userEvent.setup()
 	const { disconnected } = renderHub(connected)
 
-	await user.click(await screen.findByRole('button', { name: /^disconnect$/i }))
+	await user.click(await screen.findByRole('button', { name: /^koble fra$/i }))
 	await user.click(
-		await screen.findByRole('button', { name: /disconnect strava/i }),
+		await screen.findByRole('button', { name: /koble fra strava/i }),
 	)
 
 	await waitFor(() => expect(disconnected).toHaveBeenCalledTimes(1))
 	expect(disconnected.mock.calls[0]![0].intent).toBe('disconnect-strava')
 })
 
-test('disconnected Strava is listed as available with a Connect action', async () => {
-	const user = userEvent.setup()
-	const { reconnected } = renderHub({
-		configured: true,
-		status: 'disconnected',
-		lastSyncedAt: null,
+test('a disconnected Strava is never offered (#505: intervals.icu only)', async () => {
+	renderHub({ configured: true, status: 'disconnected', lastCheckedAt: null })
+
+	await screen.findByText('Filopplasting')
+	expect(screen.queryByText('Strava')).not.toBeInTheDocument()
+	expect(
+		screen.queryByRole('button', { name: /strava/i }),
+	).not.toBeInTheDocument()
+})
+
+test('a connected intervals.icu says when it last synced, in Norwegian', async () => {
+	renderHub(connected, {
+		status: 'connected',
+		lastCheckedAt: '2026-05-23T15:00:00.000Z',
 	})
 
-	const connectButton = await screen.findByRole('button', {
-		name: /connect strava/i,
-	})
-	expect(
-		screen.queryByRole('button', { name: /sync now/i }),
-	).not.toBeInTheDocument()
-	await user.click(connectButton)
-	await waitFor(() => expect(reconnected).toHaveBeenCalledTimes(1))
+	const card = (await screen.findByText('intervals.icu')).closest(
+		'[data-provider="intervalsicu"]',
+	)! as HTMLElement
+	// No profile in the stub: the athlete timezone falls back to UTC.
+	expect(within(card).getByText(/sist synkronisert/i)).toHaveTextContent(
+		'Sist synkronisert lør 23. mai kl. 15.00',
+	)
+	expect(within(card).getByRole('time')).toHaveAttribute(
+		'datetime',
+		'2026-05-23T15:00:00.000Z',
+	)
 })
 
 test('Strava card is omitted entirely when OAuth is not configured', async () => {
-	renderHub({ configured: false, status: 'disconnected', lastSyncedAt: null })
+	renderHub({ configured: false, status: 'disconnected', lastCheckedAt: null })
 
-	await screen.findByText('File upload')
+	await screen.findByText('Filopplasting')
 	expect(screen.queryByText('Strava')).not.toBeInTheDocument()
 })
 
 test('file upload is always available and links to the existing upload flow', async () => {
 	renderHub(connected)
 
-	const link = await screen.findByRole('link', { name: /upload activity/i })
+	const link = await screen.findByRole('link', { name: /last opp økter/i })
 	expect(link).toHaveAttribute('href', '/imports/upload')
 })
 
@@ -190,18 +209,18 @@ test('Intervals.icu connect reveals key instructions and posts the pasted key', 
 	const user = userEvent.setup()
 	const { keyConnected } = renderHub(connected)
 
-	const card = (await screen.findByText('Intervals.icu')).closest(
+	const card = (await screen.findByText('intervals.icu')).closest(
 		'[data-provider="intervalsicu"]',
 	)! as HTMLElement
 	await user.click(
-		within(card).getByRole('button', { name: /connect intervals\.icu/i }),
+		within(card).getByRole('button', { name: /koble til intervals\.icu/i }),
 	)
 
 	// Short in-context instructions: where the key lives at Intervals.icu.
 	expect(within(card).getByText(/developer settings/i)).toBeVisible()
-	const input = within(card).getByLabelText(/api key/i)
+	const input = within(card).getByLabelText(/api-nøkkel/i)
 	await user.type(input, 'my-personal-key')
-	await user.click(within(card).getByRole('button', { name: /^connect$/i }))
+	await user.click(within(card).getByRole('button', { name: /^koble til$/i }))
 
 	await waitFor(() => expect(keyConnected).toHaveBeenCalledTimes(1))
 	expect(keyConnected.mock.calls[0]![0]).toEqual({
@@ -219,14 +238,14 @@ test('a rejected Intervals.icu key shows the inline error from the connect actio
 		},
 	})
 
-	const card = (await screen.findByText('Intervals.icu')).closest(
+	const card = (await screen.findByText('intervals.icu')).closest(
 		'[data-provider="intervalsicu"]',
 	)! as HTMLElement
 	await user.click(
-		within(card).getByRole('button', { name: /connect intervals\.icu/i }),
+		within(card).getByRole('button', { name: /koble til intervals\.icu/i }),
 	)
-	await user.type(within(card).getByLabelText(/api key/i), 'stale-key')
-	await user.click(within(card).getByRole('button', { name: /^connect$/i }))
+	await user.type(within(card).getByLabelText(/api-nøkkel/i), 'stale-key')
+	await user.click(within(card).getByRole('button', { name: /^koble til$/i }))
 
 	expect(
 		await within(card).findByText(/intervals\.icu rejected this api key/i),
@@ -237,37 +256,35 @@ test('a connected Intervals.icu card shows connected state and a confirmed disco
 	const user = userEvent.setup()
 	const { disconnected } = renderHub(connected, {
 		status: 'connected',
-		lastSyncedAt: '2026-07-07T06:12:00.000Z',
+		lastCheckedAt: '2026-07-07T06:12:00.000Z',
 	})
 
-	const card = (await screen.findByText('Intervals.icu')).closest(
+	const card = (await screen.findByText('intervals.icu')).closest(
 		'[data-provider="intervalsicu"]',
 	)! as HTMLElement
-	expect(within(card).getByText(/^connected$/i)).toBeVisible()
-	expect(within(card).getByText(/last synced/i)).toBeVisible()
+	expect(within(card).getByText(/^tilkoblet$/i)).toBeVisible()
+	expect(within(card).getByText(/sist synkronisert/i)).toBeVisible()
 
-	await user.click(within(card).getByRole('button', { name: /^disconnect$/i }))
+	await user.click(within(card).getByRole('button', { name: /^koble fra$/i }))
 	await user.click(
-		await screen.findByRole('button', { name: /disconnect intervals\.icu/i }),
+		await screen.findByRole('button', { name: /koble fra intervals\.icu/i }),
 	)
 	await waitFor(() => expect(disconnected).toHaveBeenCalledTimes(1))
 	expect(disconnected.mock.calls[0]![0].intent).toBe('disconnect-intervalsicu')
 })
 
 test('a backfilling Intervals.icu card shows the importing-history state (#204)', async () => {
-	renderHub(connected, { status: 'backfilling', lastSyncedAt: null })
+	renderHub(connected, { status: 'backfilling', lastCheckedAt: null })
 
-	const card = (await screen.findByText('Intervals.icu')).closest(
+	const card = (await screen.findByText('intervals.icu')).closest(
 		'[data-provider="intervalsicu"]',
 	)! as HTMLElement
-	expect(within(card).getByText(/importing history/i)).toBeVisible()
-	expect(
-		within(card).getByText(/importing your training history/i),
-	).toBeVisible()
+	expect(within(card).getByText(/henter historikk/i)).toBeVisible()
+	expect(within(card).getByText(/henter treningshistorikken/i)).toBeVisible()
 	// No connect form while history is importing; disconnect stays available.
-	expect(within(card).queryByLabelText(/api key/i)).not.toBeInTheDocument()
+	expect(within(card).queryByLabelText(/api-nøkkel/i)).not.toBeInTheDocument()
 	expect(
-		within(card).getByRole('button', { name: /^disconnect$/i }),
+		within(card).getByRole('button', { name: /^koble fra$/i }),
 	).toBeVisible()
 })
 
@@ -275,17 +292,19 @@ test('a revoked Intervals.icu connection asks for a new key to reconnect', async
 	const user = userEvent.setup()
 	const { keyConnected } = renderHub(connected, {
 		status: 'revoked',
-		lastSyncedAt: null,
+		lastCheckedAt: null,
 	})
 
-	const card = (await screen.findByText('Intervals.icu')).closest(
+	const card = (await screen.findByText('intervals.icu')).closest(
 		'[data-provider="intervalsicu"]',
 	)! as HTMLElement
-	expect(within(card).getByText(/needs re-authorization/i)).toBeVisible()
+	expect(within(card).getByText(/må kobles til på nytt/i)).toBeVisible()
 
-	await user.click(within(card).getByRole('button', { name: /reconnect/i }))
-	await user.type(within(card).getByLabelText(/api key/i), 'fresh-key')
-	await user.click(within(card).getByRole('button', { name: /^connect$/i }))
+	await user.click(
+		within(card).getByRole('button', { name: /koble til på nytt/i }),
+	)
+	await user.type(within(card).getByLabelText(/api-nøkkel/i), 'fresh-key')
+	await user.click(within(card).getByRole('button', { name: /^koble til$/i }))
 
 	await waitFor(() => expect(keyConnected).toHaveBeenCalledTimes(1))
 	expect(keyConnected.mock.calls[0]![0].apiKey).toBe('fresh-key')
@@ -297,26 +316,28 @@ test('Garmin and Suunto are coming soon, naming the partner-program gate; no Pol
 	expect(await screen.findByText('Garmin Connect')).toBeInTheDocument()
 	expect(screen.getByText('Suunto')).toBeInTheDocument()
 	expect(screen.getAllByText(/partner/i).length).toBeGreaterThanOrEqual(2)
-	expect(screen.getAllByText(/coming soon/i).length).toBeGreaterThanOrEqual(2)
+	expect(screen.getAllByText(/^kommer$/i).length).toBeGreaterThanOrEqual(2)
 	expect(screen.queryByText(/polar/i)).not.toBeInTheDocument()
 })
 
 const intervalsIcuConnected: IntervalsIcuHub = {
 	status: 'connected',
-	lastSyncedAt: '2026-07-07T06:12:00.000Z',
+	lastCheckedAt: '2026-07-07T06:12:00.000Z',
 }
 
 test('connected Intervals.icu card offers "Sync now" and states syncing is daily (#205)', async () => {
 	const user = userEvent.setup()
 	const { icuSynced } = renderHub(connected, intervalsIcuConnected)
 
-	const card = (await screen.findByText('Intervals.icu')).closest(
+	const card = (await screen.findByText('intervals.icu')).closest(
 		'[data-provider="intervalsicu"]',
 	)! as HTMLElement
 	// Honest trigger model: no webhook, so the card says syncing is daily.
-	expect(within(card).getByText(/once a day/i)).toBeVisible()
+	expect(within(card).getByText(/én gang i døgnet/i)).toBeVisible()
 
-	await user.click(within(card).getByRole('button', { name: /sync now/i }))
+	await user.click(
+		within(card).getByRole('button', { name: /synkroniser nå/i }),
+	)
 	await waitFor(() => expect(icuSynced).toHaveBeenCalledTimes(1))
 	expect(icuSynced.mock.calls[0]![0].method).toBe('POST')
 	// The hub asks the sync action to land the athlete back on the hub.
@@ -328,12 +349,12 @@ test('connected Intervals.icu card offers "Sync now" and states syncing is daily
 test('the dual-source duplicate warning renders when both providers are active (#205)', async () => {
 	renderHub(connected, intervalsIcuConnected, { dualSourceActive: true })
 
-	expect(await screen.findByText(/can arrive here twice/i)).toBeVisible()
+	expect(await screen.findByText(/kan komme hit to ganger/i)).toBeVisible()
 })
 
 test('no dual-source warning when only one provider is active (#205)', async () => {
 	renderHub(connected, intervalsIcuDisconnected)
 
-	await screen.findByText('Intervals.icu')
-	expect(screen.queryByText(/can arrive here twice/i)).not.toBeInTheDocument()
+	await screen.findByText('intervals.icu')
+	expect(screen.queryByText(/kan komme hit to ganger/i)).not.toBeInTheDocument()
 })

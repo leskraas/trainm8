@@ -19,7 +19,12 @@
  */
 
 import { formatDistance, formatDuration } from './format.ts'
-import { getDisciplineLabel } from './labels.ts'
+import {
+	getDisciplineLabel,
+	NB_DISCIPLINE_LABELS,
+	STAMPED_SESSION_LABELS,
+} from './labels.ts'
+import { type QualityZone } from './plan-outline/quality-mix.ts'
 import { intensityTargetToZone } from './session-profile.ts'
 import {
 	type IntensityTarget,
@@ -141,4 +146,40 @@ export function deriveRecordingTitle(recording: {
 				? formatDistance(recording.distanceM)
 				: null
 	return quantity ? `${quantity} ${noun.toLowerCase()}` : noun
+}
+
+/**
+ * The Norwegian title of a session the plan lays from a bare share of the
+ * week (round 2, #505 story 68): what kind of session it is, then the sport —
+ * `Rolig økt · Løping`, `Langtur · Løping`, `Terskeløkt · Sykling`.
+ *
+ * A separate path from {@link deriveWorkoutTitle} on purpose: that one names
+ * a *structure* from its quantities (`1 h 48 min`) through `getDisciplineLabel`,
+ * whose English words other stored titles depend on, and a bare share has no
+ * structure worth naming — its duration is on every surface already. This one
+ * names the session from the plan's own facts: the long day (`role`) and the
+ * quality zone the stamp gave it from the week's mix (`zone`). The first run's
+ * preview calls it too, so what step 5 shows is what lands on I dag.
+ */
+export function stampedSessionTitle({
+	discipline,
+	role,
+	zone,
+}: {
+	discipline: string
+	role: 'long' | 'ordinary'
+	zone: QualityZone | null
+}): string {
+	const kind =
+		zone != null
+			? STAMPED_SESSION_LABELS.zone[zone]
+			: role === 'long'
+				? discipline === 'swim'
+					? STAMPED_SESSION_LABELS.longSwim
+					: STAMPED_SESSION_LABELS.long
+				: STAMPED_SESSION_LABELS.easy
+	const sport = (NB_DISCIPLINE_LABELS as Record<string, string | undefined>)[
+		discipline
+	]
+	return sport ? `${kind} · ${sport}` : kind
 }

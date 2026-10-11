@@ -1033,6 +1033,177 @@ test('a logged ramp rung lives in its own index band and does not grow the grid'
 	expect(step.warmupRows[0]!.logged?.role).toBe('warmup')
 })
 
+/**
+ * A circuit: one block of `repeatCount × seriesRepeatCount` rounds over two
+ * lifts, each prescribed as `setsPerRound × 5 @ 60 kg`. The seed's "Strength
+ * Circuit" is the `5 ×` one-set case.
+ */
+async function createCircuitSession(
+	userId: string,
+	exerciseIds: [string, string],
+	{
+		repeatCount,
+		seriesRepeatCount = 1,
+		setsPerRound = 1,
+	}: { repeatCount: number; seriesRepeatCount?: number; setsPerRound?: number },
+) {
+	const workout = await prisma.workout.create({
+		select: {
+			id: true,
+			blocks: {
+				select: {
+					steps: {
+						orderBy: { orderIndex: 'asc' },
+						select: {
+							id: true,
+							sets: { orderBy: { orderIndex: 'asc' }, select: { id: true } },
+						},
+					},
+				},
+			},
+		},
+		data: {
+			title: 'Circuit',
+			discipline: 'strength',
+			intent: 'strength',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount,
+						seriesRepeatCount,
+						steps: {
+							create: exerciseIds.map((exerciseId, stepIndex) => ({
+								orderIndex: stepIndex,
+								kind: 'strength',
+								exerciseId,
+								sets: {
+									create: Array.from({ length: setsPerRound }, (_, i) => ({
+										orderIndex: i,
+										kind: 'reps',
+										reps: 5,
+										load: JSON.stringify({ kind: 'absolute', kg: 60 }),
+									})),
+								},
+							})),
+						},
+					},
+				],
+			},
+		},
+	})
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId,
+			scheduledAt: new Date('2026-08-13T17:00:00Z'),
+			workoutId: workout.id,
+		},
+	})
+	return { sessionId: session.id, steps: workout.blocks[0]!.steps }
+}
+
+test('a repeated block is one row per set per round, so every round can be logged', async () => {
+	const user = await createAthlete()
+	const squat = await createExercise('Back squat')
+	const pushUp = await createExercise('Push-up')
+	const { sessionId, steps } = await createCircuitSession(
+		user.id,
+		[squat.id, pushUp.id],
+		{ repeatCount: 5 },
+	)
+
+	const view = await getStrengthLogView(user.id, sessionId)
+
+	// Five rounds of one set each: five circles per lift, not one.
+	for (const exercise of view!.exercises) {
+		expect(exercise.rows.map((row) => row.orderIndex)).toEqual([0, 1, 2, 3, 4])
+		// Every round asks for what the one authored set asks for.
+		for (const row of exercise.rows) {
+			expect(row.prescribedReps).toBe(5)
+			expect(row.prescribedLoad).toEqual({ kind: 'absolute', kg: 60 })
+		}
+	}
+	// Each round's row answers the same authored set.
+	expect(
+		new Set(view!.exercises[0]!.rows.map((row) => row.exerciseSetId)),
+	).toEqual(new Set([steps[0]!.sets[0]!.id]))
+})
+
+test('both repeat levels multiply, and the rows run round by round', async () => {
+	const user = await createAthlete()
+	const squat = await createExercise('Back squat')
+	const pushUp = await createExercise('Push-up')
+	const { sessionId, steps } = await createCircuitSession(
+		user.id,
+		[squat.id, pushUp.id],
+		{ repeatCount: 2, seriesRepeatCount: 2, setsPerRound: 2 },
+	)
+
+	const view = await getStrengthLogView(user.id, sessionId)
+	const rows = view!.exercises[0]!.rows
+	const [first, second] = steps[0]!.sets
+
+	// 2 × 2 rounds of two sets: eight rows, the authored pair repeating.
+	expect(rows.map((row) => row.exerciseSetId)).toEqual([
+		first!.id,
+		second!.id,
+		first!.id,
+		second!.id,
+		first!.id,
+		second!.id,
+		first!.id,
+		second!.id,
+	])
+})
+
+test('a set logged in a later round is saved against the set it answers, and reads back in its own row', async () => {
+	const user = await createAthlete()
+	const squat = await createExercise('Back squat')
+	const pushUp = await createExercise('Push-up')
+	const { sessionId, steps } = await createCircuitSession(
+		user.id,
+		[squat.id, pushUp.id],
+		{ repeatCount: 5 },
+	)
+	const stepId = steps[0]!.id
+
+	// Round 1 and round 3.
+	for (const [orderIndex, reps] of [
+		[0, 5],
+		[2, 4],
+	] as const) {
+		const saved = await saveLoggedSet({
+			...workingSet,
+			athleteId: user.id,
+			sessionId,
+			stepId,
+			orderIndex,
+			load: { kind: 'external', kg: 60 },
+			reps,
+		})
+		expect(saved.ok).toBe(true)
+	}
+
+	const stored = await prisma.exerciseSetLog.findMany({
+		where: { sessionId },
+		orderBy: { orderIndex: 'asc' },
+		select: { orderIndex: true, exerciseSetId: true },
+	})
+	// Two rows — `(sessionId, stepId, orderIndex)` is unique per round, because
+	// the index runs on through the rounds — and both answer the one authored set.
+	expect(stored).toEqual([
+		{ orderIndex: 0, exerciseSetId: steps[0]!.sets[0]!.id },
+		{ orderIndex: 2, exerciseSetId: steps[0]!.sets[0]!.id },
+	])
+
+	const view = await getStrengthLogView(user.id, sessionId)
+	expect(
+		view!.exercises[0]!.rows.map((row) => row.logged?.reps ?? null),
+	).toEqual([5, null, 4, null, null])
+})
+
 test('an unresolved percentage reaches the runner as an absence and never as a kilo', async () => {
 	const user = await createAthlete()
 	const exercise = await createExercise('Back squat')

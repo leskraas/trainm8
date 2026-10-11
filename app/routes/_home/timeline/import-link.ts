@@ -40,8 +40,11 @@ export type TimelineImportLink =
 			/** The group's heading, which also names it. */
 			question: string
 			note: string
-			/** "Det var <title>", one per planned session that fits. */
-			options: Array<{ sessionId: string; label: string }>
+			/**
+			 * "Det var <title>", one per planned session that fits; `title` is
+			 * what the link's toast quotes (ADR 0088).
+			 */
+			options: Array<{ sessionId: string; label: string; title: string }>
 			keepLabel: string
 			/** Null where Annet changes nothing: the sport has no track anyway. */
 			annetLabel: string | null
@@ -67,6 +70,13 @@ export type TimelineImportFacts = {
 	importLink: TimelineImportLink | null
 	/** A done session with no numbers says where they will come from. */
 	doneNote: string | null
+	/**
+	 * The one small mark the row carries itself (audit PR D, #505 stories 79
+	 * and 82: the athlete should *see* it, not find it behind the glyph):
+	 * `ekstra`, or for a done session with no numbers `tallene kommer fra
+	 * importen` / `uten tall`. The details say the whole of it.
+	 */
+	rowMark: string | null
 	/** _Gjort_ by hand, where `canMarkDone` allows it; else null. */
 	markDone: { actionLabel: string; label: string } | null
 }
@@ -167,6 +177,7 @@ export function buildImportFacts(
 						options: candidates.map((candidate) => ({
 							sessionId: candidate.session.id,
 							label: IMPORT_LINK_LABELS.linkTo(candidate.entry.title ?? ''),
+							title: candidate.entry.title ?? '',
 						})),
 						keepLabel: IMPORT_LINK_LABELS.keep,
 						annetLabel: trackDisciplines.has(recording.discipline)
@@ -203,6 +214,13 @@ export function buildImportFacts(
 					? MARK_DONE_LABELS.fromImport
 					: MARK_DONE_LABELS.noImport
 				: null,
+			rowMark: ekstra
+				? IMPORT_LINK_LABELS.extra
+				: noNumbers
+					? importConnected
+						? MARK_DONE_LABELS.rowFromImport
+						: MARK_DONE_LABELS.rowNoImport
+					: null,
 			markDone: markable
 				? {
 						actionLabel: MARK_DONE_LABELS.action,
@@ -219,5 +237,6 @@ export const NO_IMPORT_FACTS: TimelineImportFacts = {
 	extraLabel: null,
 	importLink: null,
 	doneNote: null,
+	rowMark: null,
 	markDone: null,
 }

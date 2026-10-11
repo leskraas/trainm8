@@ -40,6 +40,7 @@ import { type TrainingZone } from '../session-profile.ts'
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import { type VolumeCurrency } from './derive.ts'
 import {
+	isQualityZone,
 	QUALITY_ZONES,
 	type QualitySessionMixEntry,
 	type QualityZone,
@@ -105,6 +106,13 @@ export type StampDay = PatternDaySpec & {
 	workoutId: string | null
 	/** A share day's shape, priced in the track's currency; `null` = unpriceable. */
 	shapeVolume: number | null
+	/**
+	 * The zone the day's own Workout prescribes (its hardest), where it has one
+	 * — read off the content, as `readStampedMixWarnings` reads it. A fixed
+	 * threshold session already *is* one of the week's quality sessions, so the
+	 * mix asks the share days for one fewer. Absent or `null` for a bare share.
+	 */
+	zone?: TrainingZone | null
 }
 
 /** A Training Track the pattern draws from, in its own Volume Currency. */
@@ -120,6 +128,15 @@ export type StampWeekInput = {
 	weekInPlan: number
 	/** `null` is an Unavailable Metric — no anchor in force, or an unpriceable rule. */
 	targets: ReadonlyArray<{ trackId: string; value: number | null }>
+	/**
+	 * Each endurance track's **Quality Session Mix** for this week's segment —
+	 * what the week's hard sessions are. A track with none (or a week passed
+	 * without `mixes`) lays every bare share day easy, as stamps always did.
+	 */
+	mixes?: ReadonlyArray<{
+		trackId: string
+		mix: readonly QualitySessionMixEntry[]
+	}>
 }
 
 /**
@@ -155,6 +172,18 @@ export type StampSession = {
 	 * must say that rather than render a `0` that reads as an easy session.
 	 */
 	carriesTss: boolean
+	/**
+	 * `long` where this is a share day weighted heavier than another share day
+	 * of its track (the starter pattern's long day, ADR 0044 §7); `ordinary`
+	 * otherwise. Structural, so the title can say _Langtur_.
+	 */
+	role: 'long' | 'ordinary'
+	/**
+	 * The quality zone the stamp gave this **bare share day** from the week's
+	 * mix (3 tempo, 4 threshold, 5 VO₂ max), or `null` for an easy day — and
+	 * always `null` on a fixed day or a shape, whose Workout says what it is.
+	 */
+	zone: QualityZone | null
 }
 
 /** A day that produced no session this week, and why. */
@@ -254,8 +283,21 @@ export function planStamp({
 					// prescription: the honest statement is about what kind of training
 					// this is, and it holds before a single row has been written.
 					carriesTss: isCardioDiscipline(track.discipline),
+					role: 'ordinary',
+					zone: null,
 				})
 			}
+		}
+
+		for (const track of tracks) {
+			const own = sessions.filter(
+				(session) => session.trackId === track.trackId,
+			)
+			markLongDays(own, dayById)
+			if (!isCardioDiscipline(track.discipline)) continue
+			const mix =
+				week.mixes?.find((entry) => entry.trackId === track.trackId)?.mix ?? []
+			layMix(own, mix, dayById)
 		}
 
 		return {
@@ -271,6 +313,121 @@ export function planStamp({
 			tracks: readings,
 		}
 	})
+}
+
+/**
+ * The long day of a track's week: every share session whose day weighs the
+ * most, where that is more than some other share day weighs. One weight for
+ * all (or a single share day) has no long day — a week of equal days has no
+ * _Langtur_ to name.
+ */
+function markLongDays(
+	sessions: StampSession[],
+	dayById: ReadonlyMap<string, StampDay>,
+) {
+	const weights = sessions.flatMap((session) => {
+		const day = dayById.get(session.dayId)
+		return day?.kind === 'share' ? [{ session, weight: day.weight }] : []
+	})
+	if (weights.length < 2) return
+	const heaviest = Math.max(...weights.map((entry) => entry.weight))
+	const lightest = Math.min(...weights.map((entry) => entry.weight))
+	if (heaviest <= lightest) return
+	for (const entry of weights) {
+		if (entry.weight === heaviest) entry.session.role = 'long'
+	}
+}
+
+/** Days apart on the week's wheel: Sunday and Monday are neighbours. */
+function weekdayGap(a: number, b: number): number {
+	const apart = Math.abs(a - b)
+	return Math.min(apart, 7 - apart)
+}
+
+/**
+ * Lay the week's **Quality Session Mix** on a track's bare share days.
+ *
+ * - **What is asked:** the mix, less every fixed or shaped session already in
+ *   one of its zones — a fixed threshold session *is* the week's threshold
+ *   session, so a share day is not made a second one.
+ * - **Where:** ordinary bare share days only, never the long day, and never
+ *   more hard days than there are ordinary ones (the rest of the mix is left
+ *   to `mixDisagreements` to say, softly, as before). Picked one at a time,
+ *   each as far as the week allows from the long day, the fixed quality days
+ *   and the days already picked, the earlier day on a tie: hard days apart,
+ *   with easy days between them.
+ * - **Which zone:** hardest first, in the week's order — the earliest hard day
+ *   carries the hardest session, and the week eases toward the long day.
+ *
+ * Nothing moves: a hard day keeps the share it had, so the week still adds up
+ * to its target. Deterministic, so a re-lay lands where the stamp did.
+ */
+function layMix(
+	sessions: StampSession[],
+	mix: readonly QualitySessionMixEntry[],
+	dayById: ReadonlyMap<string, StampDay>,
+) {
+	const asked = new Map<QualityZone, number>()
+	for (const entry of mix) {
+		if (entry.sessionsPerWeek > 0) {
+			asked.set(
+				entry.zone,
+				(asked.get(entry.zone) ?? 0) + entry.sessionsPerWeek,
+			)
+		}
+	}
+	const anchors: number[] = []
+	for (const session of sessions) {
+		const day = dayById.get(session.dayId)
+		if (session.role === 'long') anchors.push(session.weekday)
+		const zone = day?.zone
+		if (zone == null || (day?.kind === 'share' && day.workoutId == null))
+			continue
+		if (!isQualityZone(zone)) continue
+		const left = asked.get(zone) ?? 0
+		if (left > 0) asked.set(zone, left - 1)
+		anchors.push(session.weekday)
+	}
+	const zones = [...asked]
+		.flatMap(([zone, count]) => Array.from({ length: count }, () => zone))
+		.sort((a, b) => b - a)
+	if (zones.length === 0) return
+
+	const candidates = sessions
+		.filter((session) => {
+			const day = dayById.get(session.dayId)
+			return (
+				session.role === 'ordinary' &&
+				day?.kind === 'share' &&
+				day.workoutId == null
+			)
+		})
+		// In the week's order, so a tie goes to the earlier day.
+		.sort((a, b) => a.weekday - b.weekday || a.orderInDay - b.orderInDay)
+	const picked: StampSession[] = []
+	while (picked.length < zones.length && picked.length < candidates.length) {
+		const taken = [...anchors, ...picked.map((session) => session.weekday)]
+		let best: StampSession | null = null
+		let bestGap = -1
+		for (const candidate of candidates) {
+			if (picked.includes(candidate)) continue
+			const gap =
+				taken.length === 0
+					? 7
+					: Math.min(...taken.map((day) => weekdayGap(day, candidate.weekday)))
+			if (gap > bestGap) {
+				best = candidate
+				bestGap = gap
+			}
+		}
+		if (!best) break
+		picked.push(best)
+	}
+	picked
+		.sort((a, b) => a.weekday - b.weekday || a.orderInDay - b.orderInDay)
+		.forEach((session, index) => {
+			session.zone = zones[index] ?? null
+		})
 }
 
 /** Why this day writes nothing this week, or `null` when it writes a session. */

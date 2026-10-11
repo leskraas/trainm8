@@ -38,13 +38,21 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '#app/components/ui/select.tsx'
-import { formatDate } from '#app/utils/format.ts'
 import {
-	RHYTHM_LABELS,
-	RHYTHM_SUMMARY_LABELS,
+	addDays,
+	isoWeekNumber,
+	localDate,
+} from '#app/utils/athlete-calendar.ts'
+import { formatNbDayMonth } from '#app/utils/format.ts'
+import {
+	isoWeekSpanLabel,
+	NB_RHYTHM_CHOICE_LABELS,
+	NB_RHYTHM_LABELS,
+	NB_WEEK_ROLE_LABELS,
+	nbPhaseName,
 	SEASON_ADVANCED_LABELS,
 	SEASON_EDIT_LABELS,
-	WEEK_ROLE_LABELS,
+	SESONG_PHASE_LABELS,
 } from '#app/utils/labels.ts'
 import {
 	phaseWeekRoles,
@@ -52,7 +60,7 @@ import {
 	type PhaseSpec,
 	type Rhythm,
 } from '#app/utils/plan-outline/derive.ts'
-import { Disclosure, DisclosureCard } from './__plan-chrome.tsx'
+import { CollapsibleSection, DisclosureCard } from './__plan-chrome.tsx'
 import { SeasonEditLink } from './__season-edits.tsx'
 
 /**
@@ -70,16 +78,24 @@ export type EditablePhase = PhaseSpec & {
 	startsAt: Date
 }
 
-/**
- * The two directions a phase moves, worded. A UI direction rather than a domain
- * enum — it labels a nudge through a sequence, not a value anything stores — so it
- * lives beside the control rather than in `labels.ts` (the rule `TAB_LABELS`
- * follows).
- */
+/** The two directions a phase moves, worded (`labels.ts`, ADR 0081). */
 const MOVE_LABELS = {
-	earlier: 'Move earlier',
-	later: 'Move later',
+	earlier: SESONG_PHASE_LABELS.moveEarlier,
+	later: SESONG_PHASE_LABELS.moveLater,
 } as const satisfies Record<'earlier' | 'later', string>
+
+/**
+ * A phase's weeks as a calendar numbers them: `Uke 33–36`, the ISO weeks the
+ * Sesong edits, the season table and I dag print (audit B6), read off the
+ * Monday it opens on in the athlete's own timezone.
+ */
+function phaseWeekSpan(phase: EditablePhase, timezone: string): string {
+	const opens = localDate(phase.startsAt, timezone)
+	return isoWeekSpanLabel(
+		isoWeekNumber(opens),
+		isoWeekNumber(addDays(opens, 7 * (phase.weeks - 1))),
+	)
+}
 
 /**
  * One phase, read, with its progression edited in place and its name, length
@@ -131,22 +147,20 @@ export function PhaseCard({
 		<DisclosureCard
 			defaultOpen={isCurrent}
 			accent={isCurrent}
-			summary={phase.name}
+			summary={nbPhaseName(phase.name)}
 			badges={
 				<>
-					{isCurrent ? <Badge>Current</Badge> : null}
-					{phase.tapers ? <Badge variant="secondary">Tapers</Badge> : null}
+					{isCurrent ? <Badge>{SESONG_PHASE_LABELS.current}</Badge> : null}
+					{phase.tapers ? (
+						<Badge variant="secondary">{SESONG_PHASE_LABELS.tapers}</Badge>
+					) : null}
 				</>
 			}
-			detail={
-				<>
-					{phase.fromWeekInPlan === phase.toWeekInPlan
-						? `Week ${phase.fromWeekInPlan}`
-						: `Weeks ${phase.fromWeekInPlan}–${phase.toWeekInPlan}`}{' '}
-					· {RHYTHM_SUMMARY_LABELS[phase.rhythm]} · from{' '}
-					{formatDate(phase.startsAt, timezone)}
-				</>
-			}
+			detail={SESONG_PHASE_LABELS.detail(
+				phaseWeekSpan(phase, timezone),
+				NB_RHYTHM_LABELS[phase.rhythm],
+				formatNbDayMonth(phase.startsAt, timezone),
+			)}
 			aside={spark}
 			contentClassName="space-y-1 pt-2"
 		>
@@ -160,12 +174,12 @@ export function PhaseCard({
 			{/* The Sesong edits first: name, length, rhythm and the easy week are
 			    changed in _Endre sesongen_, behind a preview of the weeks they move
 			    (#505 story 75), so this card shows the rhythm and links there. */}
-			<Disclosure
-				summary="Rename or resize this block"
-				detail="Which weeks recover, and where to change it."
+			<CollapsibleSection
+				summary={SESONG_PHASE_LABELS.editTitle}
+				detail={SESONG_PHASE_LABELS.editDetail}
 			>
 				{phase.tapers ? null : (
-					<p className="text-sm">{RHYTHM_LABELS[phase.rhythm]}</p>
+					<p className="text-sm">{NB_RHYTHM_CHOICE_LABELS[phase.rhythm]}</p>
 				)}
 				<RecoveryPreview phase={phase} />
 				<div className="flex flex-col gap-1">
@@ -178,13 +192,13 @@ export function PhaseCard({
 						</SeasonEditLink>
 					) : null}
 				</div>
-			</Disclosure>
+			</CollapsibleSection>
 
 			{/* Everything else about the block — how it climbs, its quality
 			    sessions, where it sits — is outside the Sesong edits of #505 v1
 			    (ADR 0084 §1): it applies directly, with no preview, so it waits
 			    behind _Avansert_ and says so. */}
-			<Disclosure
+			<CollapsibleSection
 				summary={SEASON_ADVANCED_LABELS.title}
 				detail={SEASON_ADVANCED_LABELS.phaseNote}
 			>
@@ -226,11 +240,11 @@ export function PhaseCard({
 							// says so, for a page rendered before a sibling was removed.
 							disabled={phaseCount === 1}
 						>
-							Remove
+							{SESONG_PHASE_LABELS.remove}
 						</Button>
 					</Form>
 				</div>
-			</Disclosure>
+			</CollapsibleSection>
 		</DisclosureCard>
 	)
 }
@@ -274,12 +288,11 @@ function RhythmFields({
 					// ever looks at the rhythm. Said out loud rather than left as a choice
 					// that changes no week (ADR 0044 §8).
 					<p className="text-muted-foreground text-sm">
-						A tapering phase&rsquo;s weeks are all taper weeks, so there is no
-						loading rhythm to set.
+						{SESONG_PHASE_LABELS.taperRhythm}
 					</p>
 				) : (
 					<>
-						<Label htmlFor={rhythmId}>Loading rhythm</Label>
+						<Label htmlFor={rhythmId}>{SESONG_PHASE_LABELS.rhythm}</Label>
 						{/* The shared Base UI `Select` (ui-conventions §2.4) driven by local
 						    state rather than by `SelectField`, which binds to a Conform field:
 						    the recovery-week preview below reads this value as it changes, and
@@ -293,13 +306,15 @@ function RhythmFields({
 						>
 							<SelectTrigger id={rhythmId} className="w-full">
 								<SelectValue>
-									{(value) => RHYTHM_LABELS[(value as Rhythm) ?? rhythm]}
+									{(value) =>
+										NB_RHYTHM_CHOICE_LABELS[(value as Rhythm) ?? rhythm]
+									}
 								</SelectValue>
 							</SelectTrigger>
 							<SelectContent>
 								{RHYTHMS.map((option) => (
 									<SelectItem key={option} value={option}>
-										{RHYTHM_LABELS[option]}
+										{NB_RHYTHM_CHOICE_LABELS[option]}
 									</SelectItem>
 								))}
 							</SelectContent>
@@ -318,7 +333,7 @@ function RhythmFields({
 					checked={tapers}
 					onCheckedChange={(state) => onTapersChange(Boolean(state.valueOf()))}
 				/>
-				<Label htmlFor={tapersId}>This phase tapers</Label>
+				<Label htmlFor={tapersId}>{SESONG_PHASE_LABELS.thisTapers}</Label>
 				{tapers ? <input type="hidden" name="tapers" value="on" /> : null}
 			</div>
 		</div>
@@ -352,7 +367,7 @@ function RecoveryPreview({ phase }: { phase: PhaseSpec }) {
 			    have to fit at 390px. */}
 			<div
 				role="group"
-				aria-label="Week roles"
+				aria-label={SESONG_PHASE_LABELS.weekRoles}
 				className="flex flex-wrap gap-1"
 			>
 				{roles.map((role, index) => (
@@ -360,25 +375,26 @@ function RecoveryPreview({ phase }: { phase: PhaseSpec }) {
 						key={index}
 						className={
 							role === 'loading'
-								? 'bg-muted text-muted-foreground rounded-md px-2 py-1 text-xs tabular-nums'
-								: 'bg-primary/15 text-primary rounded-md px-2 py-1 text-xs font-medium tabular-nums'
+								? 'bg-muted text-muted-foreground text-caption rounded-full px-2 py-1 tabular-nums'
+								: 'bg-primary/15 text-primary text-caption rounded-full px-2 py-1 font-semibold tabular-nums'
 						}
 					>
-						<span className="sr-only">{`Week ${index + 1}: ${WEEK_ROLE_LABELS[role]}`}</span>
+						<span className="sr-only">
+							{SESONG_PHASE_LABELS.weekRole(
+								index + 1,
+								NB_WEEK_ROLE_LABELS[role],
+							)}
+						</span>
 						<span aria-hidden="true">{index + 1}</span>
 					</span>
 				))}
 			</div>
 			<p className="text-muted-foreground text-sm">
 				{phase.tapers
-					? 'Every week of this phase steps down toward your event, so it holds no recovery week.'
+					? SESONG_PHASE_LABELS.tapersAll
 					: recoveryWeeks.length === 0
-						? 'No recovery weeks in this phase.'
-						: `Recovery weeks: ${recoveryWeeks
-								.map((week) => `week ${week}`)
-								.join(
-									', ',
-								)} of this phase. How deeply they cut is the track's, not the phase's.`}
+						? SESONG_PHASE_LABELS.noRecovery
+						: SESONG_PHASE_LABELS.recoveryWeeks(recoveryWeeks)}
 			</p>
 		</div>
 	)
@@ -404,10 +420,10 @@ export function AddPhaseForm({
 	const [tapers, setTapers] = useState(false)
 	const [atIndex, setAtIndex] = useState(String(phases.length))
 	const positions = [
-		{ value: '0', label: 'At the start' },
+		{ value: '0', label: SESONG_PHASE_LABELS.atStart },
 		...phases.map((phase, index) => ({
 			value: String(index + 1),
-			label: `After ${phase.name}`,
+			label: SESONG_PHASE_LABELS.after(nbPhaseName(phase.name)),
 		})),
 	]
 
@@ -415,23 +431,23 @@ export function AddPhaseForm({
 		<Form method="POST" className="space-y-4">
 			{/* The visible name is the disclosure summary above; this keeps the form
 			    named for assistive technology without printing it twice. */}
-			<h2 className="sr-only">Add a phase</h2>
+			<h2 className="sr-only">{SESONG_PHASE_LABELS.addTitle}</h2>
 			<input type="hidden" name="intent" value="add-phase" />
 			<input type="hidden" name="outlineId" value={outlineId} />
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<Field
-					labelProps={{ children: 'Name' }}
+					labelProps={{ children: SESONG_PHASE_LABELS.name }}
 					inputProps={{
 						id: 'new-phase-name',
 						name: 'name',
 						type: 'text',
-						placeholder: 'e.g. Off-season',
+						placeholder: SESONG_PHASE_LABELS.namePlaceholder,
 						maxLength: 60,
 						required: true,
 					}}
 				/>
 				<Field
-					labelProps={{ children: 'Weeks' }}
+					labelProps={{ children: SESONG_PHASE_LABELS.weeks }}
 					inputProps={{
 						id: 'new-phase-weeks',
 						name: 'weeks',
@@ -447,7 +463,7 @@ export function AddPhaseForm({
 				/>
 			</div>
 			<div className="space-y-2">
-				<Label htmlFor="new-phase-position">Where it goes</Label>
+				<Label htmlFor="new-phase-position">{SESONG_PHASE_LABELS.where}</Label>
 				<Select
 					value={atIndex}
 					onValueChange={(value) => setAtIndex(String(value))}
@@ -469,8 +485,7 @@ export function AddPhaseForm({
 				</Select>
 				<input type="hidden" name="atIndex" value={atIndex} />
 				<p className="text-muted-foreground text-sm">
-					Your plan grows forward — adding a phase never moves the week your
-					plan starts on.
+					{SESONG_PHASE_LABELS.growsForward}
 				</p>
 			</div>
 			<RhythmFields
@@ -482,7 +497,7 @@ export function AddPhaseForm({
 			/>
 			<RecoveryPreview phase={{ weeks: Number(weeks), rhythm, tapers }} />
 			<Button type="submit" className="w-full sm:w-auto">
-				Add phase
+				{SESONG_PHASE_LABELS.add}
 			</Button>
 		</Form>
 	)
@@ -511,40 +526,37 @@ export function DeletePlanSection({
 			    this heading is the accessible name only — dropping it would leave the
 			    region unnamed, and showing it would print the name twice. */}
 			<h2 id="delete-plan" className="sr-only">
-				Delete this plan
+				{SESONG_PHASE_LABELS.delete}
 			</h2>
 			<p className="text-muted-foreground text-sm">
-				Removes the season you authored.{' '}
-				{eventName ? `${eventName} stays on your calendar, and every` : 'Every'}{' '}
-				session you have already trained stays exactly as it is.
+				{SESONG_PHASE_LABELS.deleteIntro(eventName)}
 			</p>
 			<AlertDialog>
 				<AlertDialogTrigger
 					render={
 						<Button variant="destructive" size="sm">
-							Delete plan
+							{SESONG_PHASE_LABELS.delete}
 						</Button>
 					}
 				/>
 				<AlertDialogPopup>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Delete this plan?</AlertDialogTitle>
+						<AlertDialogTitle>
+							{SESONG_PHASE_LABELS.deleteConfirm}
+						</AlertDialogTitle>
 						<AlertDialogDescription>
-							This removes your phases, your training tracks and your starting
-							volumes.{' '}
-							{eventName
-								? `It does not touch ${eventName} or any session you have already trained — your event stays on your calendar as a marker.`
-								: 'It does not touch any session you have already trained.'}{' '}
-							This cannot be undone.
+							{SESONG_PHASE_LABELS.deleteBody(eventName)}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<Form method="POST">
 						<input type="hidden" name="intent" value="delete-plan" />
 						<input type="hidden" name="outlineId" value={outlineId} />
 						<AlertDialogFooter>
-							<AlertDialogCancel type="button">Keep plan</AlertDialogCancel>
+							<AlertDialogCancel type="button">
+								{SESONG_PHASE_LABELS.keep}
+							</AlertDialogCancel>
 							<AlertDialogAction type="submit" variant="destructive">
-								Delete plan
+								{SESONG_PHASE_LABELS.delete}
 							</AlertDialogAction>
 						</AlertDialogFooter>
 					</Form>

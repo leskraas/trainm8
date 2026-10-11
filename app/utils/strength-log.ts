@@ -22,6 +22,7 @@
  * so it is `outcome: 'abandoned'` and every aggregate excludes it.
  */
 import { z } from 'zod'
+import { formatKg, formatNbKg } from './format.ts'
 
 // ——— The set's role in the exercise ——————————————————————————————————————
 
@@ -59,6 +60,33 @@ export const WARMUP_ORDER_INDEX_BASE = 1000
  * mark a *prescribed* row as a warm-up and that row keeps its place in the grid. */
 export function isWarmupRampIndex(orderIndex: number): boolean {
 	return orderIndex >= WARMUP_ORDER_INDEX_BASE
+}
+
+/**
+ * **Which authored set a logged row answers, in a block that is repeated.**
+ *
+ * A `5 ×` circuit is authored once — one `ExerciseSet` per lift — and performed
+ * five times, so the log needs a row per *round* and the authored row per *set*.
+ * The log's index runs on through the rounds: with `n` sets a round, round `r`
+ * (0-based) owns `r·n … r·n + n − 1`. That keeps `(sessionId, stepId,
+ * orderIndex)` unique without a round column, and it keeps every count that
+ * reads logged working sets — the finish gate, the program fold, the Summary
+ * Count — counting rounds with no change of its own. The rows are round-major,
+ * the order the circuit is lifted in.
+ *
+ * `rounds` is the block's effective pass count (`blockRepeatTotal`). A row past
+ * the last round answers nothing: it is a set the athlete added.
+ */
+export function prescribedSetForRow<Set extends { orderIndex: number }>(
+	sets: readonly Set[],
+	rounds: number,
+	orderIndex: number,
+): Set | null {
+	if (sets.length === 0) return null
+	if (orderIndex < 0 || orderIndex >= sets.length * Math.max(1, rounds))
+		return null
+	const ordered = [...sets].sort((a, b) => a.orderIndex - b.orderIndex)
+	return ordered[orderIndex % ordered.length] ?? null
 }
 
 /**
@@ -332,17 +360,17 @@ function kilosAgree(stored: number | null, explained: number | null): boolean {
 export function loadValueText(load: LoadValue): string {
 	switch (load.kind) {
 		case 'external':
-			return `${formatKg(load.kg)} kg`
+			return `${formatNbKg(load.kg)} kg`
 		case 'perSide':
 			// Written the way a lifter says it, so the per-hand meaning is on the
 			// face of the value rather than in a tooltip.
-			return `${load.sides} × ${formatKg(load.kg)} kg`
+			return `${load.sides} × ${formatNbKg(load.kg)} kg`
 		case 'bodyweight':
 			return 'bodyweight'
 		case 'bodyweightPlus':
-			return `bodyweight + ${formatKg(load.addedKg)} kg`
+			return `bodyweight + ${formatNbKg(load.addedKg)} kg`
 		case 'assisted':
-			return `assisted − ${formatKg(load.assistKg)} kg`
+			return `assisted − ${formatNbKg(load.assistKg)} kg`
 		case 'stackLevel':
 			return load.label ?? `level ${load.level}`
 		case 'band':
@@ -353,16 +381,12 @@ export function loadValueText(load: LoadValue): string {
 }
 
 /**
- * The house rule for rendering a stored kilo: integers bare, otherwise up to two
- * decimals with trailing zeros trimmed. Two, not one, because 1.25 kg plate
- * pairs are real and the plate solver works in them — rendering 61.25 kg as
- * `61.3` states a weight the athlete did not lift and contradicts the plate
- * line. This module is the lowest layer that owns a kilo, so it owns the rule;
- * every other surface imports it rather than keeping its own copy.
+ * The house rule for a stored kilo's digits, re-exported from `format.ts` (where
+ * it sits beside {@link formatNbKg}, the same digits as a person reads them).
+ * This module is the lowest strength layer that owns a kilo, so surfaces keep
+ * importing it from here rather than keeping their own copy.
  */
-export function formatKg(kg: number): string {
-	return Number.isInteger(kg) ? String(kg) : String(Number(kg.toFixed(2)))
-}
+export { formatKg }
 
 // ——— A logged set ————————————————————————————————————————————————————————
 
