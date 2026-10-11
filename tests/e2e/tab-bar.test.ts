@@ -244,8 +244,9 @@ test('Bibliotek lists every exercise, searchable, for an athlete with no lifts y
 
 	// A Norwegian name finds the lift it names (owner decision 9), first.
 	await page.goto('/library/exercises?q=knebøy')
-	await expect(page.getByRole('listitem').first()).toContainText('Back Squat')
-	await expect(page.getByRole('listitem').first()).toContainText('«knebøy»')
+	const firstHit = page.getByRole('main').getByRole('listitem').first()
+	await expect(firstHit).toContainText('Back Squat')
+	await expect(firstHit).toContainText('«knebøy»')
 })
 
 test('the first run carries no tab bar', async ({ page, navigate, login }) => {

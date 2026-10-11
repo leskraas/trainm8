@@ -37,10 +37,10 @@ import { expect, test } from '#tests/playwright-utils.ts'
  * the card, `2 of 5 logged`, the rest bar's clock — rather than from test ids,
  * because a test id can stay green while the screen says nothing.
  *
- * **Two of these fail against the product, and are marked `test.fail()` rather
- * than softened** — the programs list has controls under 44px, and the runner's
- * tap cycle cannot reach zero, which is the rung ADR 0064 §1 clears a set
- * through. Each says which defect it is standing on. A softened assertion is a
+ * **One of these fails against the product, and is marked `test.fail()` rather
+ * than softened** — the runner's tap cycle cannot reach zero, which is the rung
+ * ADR 0064 §1 clears a set through. It says which defect it is standing on. (The
+ * programs list's controls under 44px were the other; round 2 fixed them.) A softened assertion is a
  * guard that stopped guarding; `test.fail()` keeps running the measurement,
  * keeps the suite green on a defect that is somebody else's ticket, and goes
  * red the day it is fixed, which is when somebody wants to hear about it.
@@ -419,17 +419,17 @@ test('the programs list states each program in its own numbers, and holds 390px'
 	// The screen's primary state, read the way the athlete reads it: the title,
 	// and a card per published program saying what it actually is.
 	await expect(
-		page.getByRole('heading', { name: 'Strength programs' }),
+		page.getByRole('heading', { name: 'Styrkeprogrammer' }),
 	).toBeVisible()
 	await expect(
-		page.getByText('Each one runs on the last weight you lifted'),
+		page.getByText('Hvert program går ut fra vekta du løftet sist'),
 	).toBeVisible()
 	// A real card, with the two things it exists to state: the lift's scheme
 	// tonight, and what the program does to the weight over weeks.
 	await expect(page.getByText('StrongLifts 5×5', { exact: true })).toBeVisible()
-	await expect(page.getByText('Back Squat').first()).toBeVisible()
+	await expect(page.getByText('Knebøy').first()).toBeVisible()
 	await expect(page.getByText('5×5').first()).toBeVisible()
-	await expect(page.getByText(/after 3 stalls/).first()).toBeVisible()
+	await expect(page.getByText(/etter 3 stopp/).first()).toBeVisible()
 	// The one action a program that is not running offers.
 	await expect(
 		page.getByRole('link', { name: 'Start StrongLifts 5×5' }),
@@ -450,9 +450,9 @@ test('a running program says so, and offers the run rather than the start', asyn
 
 	await navigate('/training/programs')
 
-	await expect(page.getByText('Running', { exact: true })).toBeVisible()
+	await expect(page.getByText('I gang', { exact: true })).toBeVisible()
 	await expect(
-		page.getByRole('button', { name: 'Open your run' }),
+		page.getByRole('button', { name: 'Åpne dagens økt' }),
 	).toBeVisible()
 	// And the start link for that program is gone — two ways to begin the same
 	// program is the surface offering to start something already running.
@@ -463,37 +463,30 @@ test('a running program says so, and offers the run rather than the start', asyn
 	await expectNoHorizontalOverflow(page)
 })
 
-test.fail(
-	'every control on the programs list is 44px to a thumb',
-	async ({ page, navigate, login }) => {
-		test.setTimeout(120_000)
-		const user = await login()
-		await seedAthlete(user.id)
-		// With a run going, so the card's *other* control — the overview link — is
-		// on the screen being measured rather than one state away from it.
-		await startRun(user.id, await strongLifts())
-		await navigate('/training/programs')
-		await expect(
-			page.getByRole('heading', { name: 'Strength programs' }),
-		).toBeVisible()
-		await expect(
-			page.getByRole('button', { name: 'Open your run' }),
-		).toBeVisible()
+test('every control on the programs list is 44px to a thumb', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedAthlete(user.id)
+	// With a run going, so the card's *other* control — the overview link — is
+	// on the screen being measured rather than one state away from it.
+	await startRun(user.id, await strongLifts())
+	await navigate('/training/programs')
+	await expect(
+		page.getByRole('heading', { name: 'Styrkeprogrammer' }),
+	).toBeVisible()
+	await expect(
+		page.getByRole('button', { name: 'Åpne dagens økt' }),
+	).toBeVisible()
 
-		// **This one fails against the product, and is marked rather than
-		// softened.** Two controls on this screen are below the standard, and
-		// neither carries the `after:` extension ADR 0028 pillar 2 keeps for
-		// exactly the controls that cannot be 44px tall:
-		//
-		// - the `Source` disclosure `<summary>` on every program card — 60×28;
-		// - `Correct a weight or end this program`, the bare underlined link under
-		//   a running program.
-		//
-		// Fixing them is not this ticket's business (#489 adds the coverage); the
-		// day they are fixed this test goes red and says so.
-		await expectEveryControlTappable(page.getByRole('main'))
-	},
-)
+	// Both controls this test used to stand on as defects are 44px since
+	// round 2: the `Kilde` disclosure trigger and the overview link under a
+	// running program.
+	await expectEveryControlTappable(page.getByRole('main'))
+})
 
 // ——— Starting weights ————————————————————————————————————————————————————
 
@@ -507,23 +500,21 @@ test('starting weights asks one number per lift, pre-filled and accounted for', 
 
 	await page.goto(`/training/programs/${program.id}/start`)
 
-	await expect(
-		page.getByRole('heading', { name: 'Starting weights' }),
-	).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Startvekter' })).toBeVisible()
 	// The program name as an eyebrow over the screen's own title, so the athlete
 	// can see *which* program they are committing to. (It is uppercased in CSS,
 	// so the text itself is the program's own name.)
 	await expect(page.getByText('StrongLifts 5×5', { exact: true })).toBeVisible()
 	await expect(
-		page.getByText('One number per lift. After this the program decides'),
+		page.getByText('Ett tall per løft. Etter dette bestemmer programmet'),
 	).toBeVisible()
 
 	// One field per lift, carrying the program's own published default and the
 	// sentence saying where that number came from.
-	const squat = page.getByLabel(/Back Squat/)
+	const squat = page.getByLabel(/Knebøy/)
 	await expect(squat).toHaveValue('20')
 	await expect(
-		page.getByText(/publishes 20 kg here — the empty bar/).first(),
+		page.getByText(/starter her på 20 kg — den tomme stanga/).first(),
 	).toBeVisible()
 	// The unit is the field's, never the athlete's to type.
 	await expect(page.getByText('kg').first()).toBeVisible()
@@ -542,20 +533,18 @@ test('starting weights refuses a number it cannot use, in words, on the screen',
 	await login()
 	const program = await strongLifts()
 	await page.goto(`/training/programs/${program.id}/start`)
-	await expect(
-		page.getByRole('heading', { name: 'Starting weights' }),
-	).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Startvekter' })).toBeVisible()
 	// The refusal comes back through a fetcher, so it is a sentence only once
 	// the form is React's.
 	await waitForHydration(page, 'input[name^="weight::"]')
 
 	// `noValidate` is on the form for exactly this: the refusal has to be a
 	// sentence on the screen, never a swallowed submit.
-	await page.getByLabel(/Back Squat/).fill('-5')
+	await page.getByLabel(/Knebøy/).fill('-5')
 	await page.getByRole('button', { name: 'Start StrongLifts 5×5' }).click()
 
 	await expect(page.getByRole('alert')).toHaveText(
-		'A starting weight has to be a positive number of kilos.',
+		'En startvekt må være et positivt antall kilo.',
 	)
 	await expectNoHorizontalOverflow(page)
 })
@@ -568,9 +557,7 @@ test('every control on starting weights is 44px to a thumb', async ({
 	await login()
 	const program = await strongLifts()
 	await page.goto(`/training/programs/${program.id}/start`)
-	await expect(
-		page.getByRole('heading', { name: 'Starting weights' }),
-	).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Startvekter' })).toBeVisible()
 
 	await expectEveryControlTappable(page.getByRole('main'))
 })
@@ -595,7 +582,7 @@ test('the runner opens on the weight the program resolved, with its ramp and its
 	await expect(page.getByText('Økt 1')).toBeVisible()
 
 	// The lift, and the weight the program decided, on the face of the card.
-	const squat = page.getByRole('heading', { name: 'Back Squat', level: 2 })
+	const squat = page.getByRole('heading', { name: 'Knebøy', level: 2 })
 	await expect(squat).toBeVisible()
 	await expect(page.getByText('5×5 · 82,5 kg')).toBeVisible()
 
@@ -606,7 +593,7 @@ test('the runner opens on the weight the program resolved, with its ramp and its
 	// Five circles, each showing its target rather than a bare number nobody
 	// asked for.
 	const circles = page.getByRole('button', {
-		name: /^Log set \d of Back Squat$/,
+		name: /^Logg sett \d+ av Knebøy$/,
 	})
 	await expect(circles).toHaveCount(5)
 	await expect(circles.first()).toHaveText('5')
@@ -634,7 +621,7 @@ test('a set circle logs and counts the reps down — from the keyboard', async (
 
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 	await waitForHydration(page, '[data-set-circle]')
-	const first = page.getByRole('button', { name: 'Logg sett 1 av Back Squat' })
+	const first = page.getByRole('button', { name: 'Logg sett 1 av Knebøy' })
 	await expect(first).toBeVisible()
 
 	// **Reachable**: tabbing from the top of the document arrives on the circle.
@@ -645,7 +632,7 @@ test('a set circle logs and counts the reps down — from the keyboard', async (
 	// athlete's own words rather than in a data attribute.
 	await pressAndSettle(page, 'Enter')
 	const logged = page.getByRole('button', {
-		name: 'Logget sett 1 av Back Squat',
+		name: 'Logget sett 1 av Knebøy',
 	})
 	await expect(logged).toBeVisible()
 	await expect(logged).toHaveText('5')
@@ -681,7 +668,7 @@ test.fail(
 		await page.goto(`/training/sessions/${run.sessionId}/log`)
 		await waitForHydration(page, '[data-set-circle]')
 		const first = page.getByRole('button', {
-			name: 'Logg sett 1 av Back Squat',
+			name: 'Logg sett 1 av Knebøy',
 		})
 		await expect(first).toBeVisible()
 		await tabTo(page, first)
@@ -734,7 +721,7 @@ test('the rest bar starts on a logged set, adjusts and dismisses from the keyboa
 
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 	await waitForHydration(page, '[data-set-circle]')
-	const first = page.getByRole('button', { name: 'Logg sett 1 av Back Squat' })
+	const first = page.getByRole('button', { name: 'Logg sett 1 av Knebøy' })
 	await expect(first).toBeVisible()
 	await first.click()
 
@@ -742,14 +729,14 @@ test('the rest bar starts on a logged set, adjusts and dismisses from the keyboa
 	// and it says *why* it is this long.
 	const bar = page.getByRole('status', { name: 'Pausetimer' })
 	await expect(bar).toBeVisible()
-	await expect(bar.getByText('rest', { exact: true })).toBeVisible()
+	await expect(bar.getByText('pause', { exact: true })).toBeVisible()
 	const clock = page.getByTestId('rest-clock')
 	await expect(clock).toHaveText(/^[0-9]:[0-9]{2}$/)
 
 	// **It never blocks the next set.** Every circle is still enabled while it
 	// runs, which is the whole reason it is a bar and not a screen.
 	await expect(
-		page.getByRole('button', { name: 'Logg sett 2 av Back Squat' }),
+		page.getByRole('button', { name: 'Logg sett 2 av Knebøy' }),
 	).toBeEnabled()
 
 	// −15s moves the deadline, from the keyboard.
@@ -788,7 +775,7 @@ test('a warm-up chip toggles from the keyboard and says which rung it is', async
 	await tabTo(page, chip)
 	await pressAndSettle(page, 'Space')
 	await expect(chip).toHaveAttribute('aria-pressed', 'true')
-	await expect(chip).toHaveAccessibleName(/^Logged warm-up 1 of Back Squat/)
+	await expect(chip).toHaveAccessibleName(/^Logget oppvarming 1 av Knebøy/)
 
 	// A rung is not a working set: ticking one changes nothing about `n of m`.
 	await expect(page.getByText('0 av 5 logget').first()).toBeVisible()
@@ -809,7 +796,7 @@ test('the help panel is one tap behind the lift name and accounts for the weight
 
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 	await waitForHydration(page, '[data-set-circle]')
-	const toggle = page.getByRole('button', { name: 'Om Back Squat' })
+	const toggle = page.getByRole('button', { name: 'Om Knebøy' })
 	await expect(toggle).toBeVisible()
 
 	// **Collapsed by default** — this screen's rule is no prose on the logging
@@ -825,10 +812,10 @@ test('the help panel is one tap behind the lift name and accounts for the weight
 	// The four things it says, in the athlete's own numbers: where the weight
 	// came from, which rack the plate line is solved against, what the timer
 	// survives, and the way to this lift over time.
-	await expect(panel).toContainText('82,5 kg is your working weight')
+	await expect(panel).toContainText('82,5 kg er arbeidsvekta di')
 	await expect(panel).toContainText('Iron Works')
 	await expect(panel).toContainText(
-		'The rest timer survives a locked phone, but not a closed tab.',
+		'Pausetimeren tåler en låst telefon, men ikke en lukket fane.',
 	)
 	await expect(panel.getByRole('link')).toHaveAttribute(
 		'href',
@@ -850,11 +837,11 @@ test('every control on the runner is 44px to a thumb, rest bar included', async 
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 	await waitForHydration(page, '[data-set-circle]')
 	await expect(
-		page.getByRole('button', { name: 'Logg sett 1 av Back Squat' }),
+		page.getByRole('button', { name: 'Logg sett 1 av Knebøy' }),
 	).toBeVisible()
 	// The rest bar only exists once a set has been logged, and it is part of
 	// this screen — so it is measured on the same pass rather than exempted.
-	await page.getByRole('button', { name: 'Logg sett 1 av Back Squat' }).click()
+	await page.getByRole('button', { name: 'Logg sett 1 av Knebøy' }).click()
 	await expect(page.getByRole('status', { name: 'Pausetimer' })).toBeVisible()
 
 	// Every control on the busiest strength surface, including the three that
@@ -1269,21 +1256,21 @@ test('a repeated circuit is one circle per round, and round 2 logs as its own se
 
 	// Five rounds, five circles per lift.
 	const squatCircles = page.getByRole('button', {
-		name: /^Log set \d of Back Squat$/,
+		name: /^Logg sett \d+ av Knebøy$/,
 	})
 	await expect(squatCircles).toHaveCount(5)
 	await expect(
-		page.getByRole('button', { name: /^Log set \d of Bench Press$/ }),
+		page.getByRole('button', { name: /^Logg sett \d av Benkpress$/ }),
 	).toHaveCount(5)
 
 	// Round 2 of the squat.
 	const roundTwo = page.getByRole('button', {
-		name: 'Logg sett 2 av Back Squat',
+		name: 'Logg sett 2 av Knebøy',
 	})
 	await tabTo(page, roundTwo)
 	await pressAndSettle(page, 'Enter')
 	await expect(
-		page.getByRole('button', { name: 'Logget sett 2 av Back Squat' }),
+		page.getByRole('button', { name: 'Logget sett 2 av Knebøy' }),
 	).toHaveText('8')
 	await expect(page.getByText('1 av 5 logget').first()).toBeVisible()
 
@@ -1298,7 +1285,7 @@ test('a repeated circuit is one circle per round, and round 2 logs as its own se
 	])
 	await page.reload()
 	await expect(
-		page.getByRole('button', { name: 'Logget sett 2 av Back Squat' }),
+		page.getByRole('button', { name: 'Logget sett 2 av Knebøy' }),
 	).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 })
@@ -1314,7 +1301,7 @@ test('fifteen circles — three sets, five rounds — wrap into rows a thumb can
 
 	await page.goto(`/training/sessions/${session.id}/log`)
 	const circles = page.getByRole('button', {
-		name: /^Log set \d+ of Back Squat$/,
+		name: /^Logg sett \d+ av Knebøy$/,
 	})
 	await expect(circles).toHaveCount(15)
 	for (const box of await circles.evaluateAll((els) =>
@@ -1338,7 +1325,7 @@ test('a starting weight typed with a decimal comma starts at that weight, not te
 
 	// Typed key by key, the way a Norwegian keyboard sends it. On the old
 	// `type=number` field Chromium posted `625`.
-	const squat = page.getByLabel(/Back Squat/)
+	const squat = page.getByLabel(/Knebøy/)
 	await squat.clear()
 	await squat.pressSequentially('62,5')
 	await expect(squat).toHaveValue('62,5')
@@ -1356,15 +1343,15 @@ test('a starting weight typed with a decimal comma starts at that weight, not te
 
 	// The overview's own weight field reads the comma the same way.
 	await waitForHydration(page, 'input[name="weightKg"]')
-	const field = page.getByLabel('Working weight for Back Squat in kg')
+	const field = page.getByLabel('Arbeidsvekt for Knebøy i kg')
 	await field.clear()
 	await field.pressSequentially('67,5')
 	await page
 		.locator('form')
 		.filter({ has: field })
-		.getByRole('button', { name: 'Save weight' })
+		.getByRole('button', { name: 'Lagre vekt' })
 		.click()
-	await expect(page.getByText('Working weight set.')).toBeVisible()
+	await expect(page.getByText('Arbeidsvekta er lagret.')).toBeVisible()
 	await expect
 		.poll(async () => {
 			const updated = await prisma.programLiftState.findFirstOrThrow({
