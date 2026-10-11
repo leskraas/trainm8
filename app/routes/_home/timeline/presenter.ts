@@ -39,6 +39,7 @@ import {
 	formatNbDayDate,
 	formatNbDayMonth,
 	formatNbDayOfMonth,
+	formatNbVolumeFigure,
 	formatNbWeekdayShort,
 	formatSigned,
 	roundLoad,
@@ -49,6 +50,8 @@ import {
 	ANNET_TRACK_LABELS,
 	BEFORE_PLAN_LABEL,
 	eventCountdownWhen,
+	IMPORT_LINK_LABELS,
+	nbDurationLabel,
 	TOP_LINE_LABELS,
 	NB_READINESS_ADVICE,
 	NB_READINESS_LABELS,
@@ -1150,7 +1153,10 @@ function buildSession({
 		to: `/training/sessions/${session.id}`,
 		discipline: entry.discipline,
 		disciplineLabel: nbDisciplineLabel(entry.discipline),
-		title: entry.title ?? nbSessionNoun(entry.discipline),
+		title:
+			(imports.extraLabel ? ekstraTitle(session) : null) ??
+			entry.title ??
+			nbSessionNoun(entry.discipline),
 		status: entry.status,
 		bars: row.bars,
 		groups: row.groups,
@@ -1183,6 +1189,32 @@ function buildSession({
 		...imports,
 		strengthLog,
 	}
+}
+
+/**
+ * An ekstra's name, when nothing named it (audit PR D): the ledger names a
+ * structureless recording in English (`57 min 12 s run`, `deriveRecordingTitle`,
+ * which the Workout Detail View shares), so I dag names its own rows the
+ * Norwegian way — the sport, then the minutes or the kilometres:
+ * `Løping · 57 min`. A Workout's title, where an import carries one, stands.
+ */
+function ekstraTitle(session: LedgerSession): string | null {
+	const recording = session.recording
+	if (!recording || session.workout?.title) return null
+	const minutes =
+		recording.durationSec != null
+			? Math.round(recording.durationSec / 60)
+			: null
+	const quantity =
+		minutes != null && minutes > 0
+			? nbDurationLabel(minutes * 60)
+			: recording.distanceM != null && recording.distanceM > 0
+				? `${formatNbVolumeFigure(recording.distanceM / 1000, 'km')} km`
+				: null
+	return IMPORT_LINK_LABELS.extraTitle(
+		nbDisciplineLabel(recording.discipline),
+		quantity,
+	)
 }
 
 /**

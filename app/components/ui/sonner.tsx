@@ -20,7 +20,7 @@ function usePhone(): boolean {
 	)
 }
 
-// Local deviation (docs/design/design-system.md D14, ADR 0088): on a phone
+// Local deviation (docs/design/design-system.md D15, ADR 0088): on a phone
 // the toasts sit at the bottom, just above the tab bar — in the thumb's reach
 // for _Angre_, and leaving downwards the way the composer's Drawer just did —
 // instead of over I dag's top line. From `md` up, where the caller asked.

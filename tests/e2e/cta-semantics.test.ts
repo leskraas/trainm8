@@ -47,11 +47,11 @@ test('today-session CTA says "View session" and opens the Workout Detail View', 
 	// The CTA is honest about Session Status: a scheduled session is viewed. On
 	// I dag, today's row's action is a plain link to the detail view, so
 	// it carries the link role rather than base-ui Button's role="button".
-	// Scoped to the calendar: at 1280 the day pane beside it carries the same
-	// link for the selected day (today), and both are right.
+	// Scoped to the calendar and exact: at 1280 the day pane beside it repeats
+	// today's action, named for its session (`Se økta Threshold Run`).
 	const cta = page
 		.getByTestId('timeline-stream')
-		.getByRole('link', { name: 'Se økta' })
+		.getByRole('link', { name: 'Se økta', exact: true })
 	await expect(cta).toBeVisible()
 	// It never promises recording — that affordance does not exist in-app.
 	await expect(page.getByText('Start session')).not.toBeVisible()
@@ -61,7 +61,9 @@ test('today-session CTA says "View session" and opens the Workout Detail View', 
 	// Anchor on a detail-only affordance first: the URL flips before the new
 	// tree commits, so home elements can linger for a frame. Deleting lives in
 	// the detail view's "Mer" menu now (#505 round 2).
-	await expect(page.getByRole('button', { name: 'Mer', exact: true })).toBeVisible()
+	await expect(
+		page.getByRole('button', { name: 'Mer', exact: true }),
+	).toBeVisible()
 	await expect(page.getByText('Planlagt', { exact: true })).toBeVisible()
 	await expect(page.getByText('Threshold Run')).toBeVisible()
 })

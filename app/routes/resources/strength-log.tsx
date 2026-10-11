@@ -12,6 +12,7 @@ import {
 	type QuickLogEntry,
 	logStrengthSession,
 	readQuickLog,
+	undoQuickLog,
 } from '#app/utils/strength-quick-log.server.ts'
 import {
 	StrengthLogActionSchema,
@@ -38,9 +39,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 /**
- * _Som planlagt_ or _Endre_: log the session and finish it. The toast says how
- * many sets went in and what that did to the week's done sets, so the number
- * the week header moves to is stated where the tap was.
+ * _Som planlagt_ or _Endre_: log the session and finish it. The reply carries
+ * the toast's line — how many sets went in and what that did to the week's
+ * done sets — rather than flashing it, so the client's toast can say it *and*
+ * carry _Angre_ with the ids of the sets this log wrote (ADR 0088).
+ *
+ * _Angre_ (`intent: undo`) takes exactly those sets back and puts the session
+ * back to planned; its own toast says so.
  */
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
@@ -49,17 +54,48 @@ export async function action({ request }: Route.ActionArgs) {
 	})
 	if (submission.status !== 'success') {
 		return data(
-			{ submission: submission.reply(), result: null },
+			{ submission: submission.reply(), result: null, toast: null },
 			{ status: 400 },
 		)
 	}
 	const { sessionId } = submission.value
+	const timezone = await getAthleteTimezone(userId)
+	const now = new Date()
+	if (submission.value.intent === 'undo') {
+		const undone = await undoQuickLog(
+			userId,
+			sessionId,
+			submission.value.setLogIds,
+			{ now, timezone },
+		)
+		if (!undone.ok) {
+			return data(
+				{ submission: submission.reply(), result: null, toast: null, undone },
+				{ status: undone.reason === 'session-not-found' ? 404 : 409 },
+			)
+		}
+		const description = QUICK_LOG_LABELS.undone(
+			undone.removedSets,
+			undone.week
+				? {
+						name: relativeWeekName(
+							undone.week.weekKey,
+							weekMonday(now, timezone),
+						),
+						before: undone.week.before,
+						after: undone.week.after,
+					}
+				: null,
+		)
+		return data(
+			{ submission: submission.reply(), result: null, toast: null, undone },
+			{ headers: await createToastHeaders({ description, type: 'success' }) },
+		)
+	}
 	const entry: QuickLogEntry =
 		submission.value.intent === 'as-planned'
 			? { kind: 'as-planned' }
 			: { kind: 'edited', sets: submission.value.sets }
-	const timezone = await getAthleteTimezone(userId)
-	const now = new Date()
 	const result = await logStrengthSession(userId, sessionId, entry, {
 		now,
 		timezone,
@@ -71,12 +107,13 @@ export async function action({ request }: Route.ActionArgs) {
 					formErrors: [QUICK_LOG_REFUSAL_LABELS[result.reason]],
 				}),
 				result,
+				toast: null,
 			},
 			{ status: result.reason === 'session-not-found' ? 404 : 409 },
 		)
 	}
 	if (result.alreadyLogged) {
-		return data({ submission: submission.reply(), result })
+		return data({ submission: submission.reply(), result, toast: null })
 	}
 	const description = QUICK_LOG_LABELS.logged(
 		result.loggedSets,
@@ -91,8 +128,5 @@ export async function action({ request }: Route.ActionArgs) {
 				}
 			: null,
 	)
-	return data(
-		{ submission: submission.reply(), result },
-		{ headers: await createToastHeaders({ description, type: 'success' }) },
-	)
+	return data({ submission: submission.reply(), result, toast: description })
 }

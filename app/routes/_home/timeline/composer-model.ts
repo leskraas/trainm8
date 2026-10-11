@@ -21,6 +21,7 @@ import {
 import {
 	type ParsedSentence,
 	parseWorkoutSentence,
+	type SentenceExercise,
 } from '#app/utils/workout-sentence.ts'
 import { type ComposerSourceItem } from '../../resources/composer-sources.tsx'
 import { structureSentence } from './composer-sentence.ts'
@@ -139,19 +140,49 @@ function isComposerDiscipline(value: string): value is Discipline {
 	)
 }
 
-/** The chip as the reader takes it: a sport the line can say, or none. */
-export function readerChip(sport: ComposerSport | null): CardioDiscipline | null {
+/**
+ * The chip as the reader takes it: a sport the line can say — Styrke too,
+ * since the line names lifts (ADR 0089) — or none, for Annet.
+ */
+export function readerChip(sport: ComposerSport | null): Discipline | null {
+	return sport != null && sport !== 'annet' ? sport : null
+}
+
+/** The chip the stamp can write: a cardio sport (no lift is read off a tap). */
+export function stampChip(
+	sport: ComposerSport | null,
+): CardioDiscipline | null {
 	return sport != null && sport !== 'annet' && isCardioDiscipline(sport)
 		? sport
 		: null
 }
 
-/** The line, read for the chip the athlete has chosen. */
+/**
+ * The line, read for the chip the athlete has chosen — lifts named against
+ * the athlete's exercise catalogue once it has arrived. Null until then: a
+ * lift waits (`exercisesNeeded`) rather than reading as a typo.
+ */
 export function readLine(
 	text: string,
 	sport: ComposerSport | null,
+	exercises: readonly SentenceExercise[] | null = null,
 ): ParsedSentence {
-	return parseWorkoutSentence(text, { discipline: readerChip(sport) })
+	return parseWorkoutSentence(text, {
+		discipline: readerChip(sport),
+		exercises: exercises ?? undefined,
+	})
+}
+
+/**
+ * Whether the composer should fetch the exercise catalogue: the Styrke chip
+ * is on, or the line already names a lift under another chip. A run never
+ * pays for eight hundred names it will not read.
+ */
+export function needsExercises(
+	state: Pick<ComposerState, 'sport'>,
+	parsed: ParsedSentence,
+): boolean {
+	return state.sport === 'strength' || parsed.exercisesNeeded
 }
 
 /** What one tap on _Legg til_ would write, or why nothing yet. */
@@ -163,7 +194,12 @@ export type ComposerPlan =
 	| { kind: 'pick'; pick: ComposerPick }
 	| {
 			kind: 'none'
-			reason: 'no-sport' | 'strength' | 'annet' | 'unread'
+			/**
+			 * `strength`: the Styrke chip with an empty line — a lift has to be
+			 * named. `exercises`: the line names lifts and the catalogue they
+			 * are read against has not arrived yet.
+			 */
+			reason: 'no-sport' | 'strength' | 'annet' | 'unread' | 'exercises'
 	  }
 
 export function composerPlan(
@@ -179,7 +215,7 @@ export function composerPlan(
 		if (untouched) return { kind: 'pick', pick: state.pick }
 	}
 	if (text === '') {
-		const chip = readerChip(state.sport)
+		const chip = stampChip(state.sport)
 		if (chip) return { kind: 'stamp', discipline: chip }
 		return {
 			kind: 'none',
@@ -191,9 +227,11 @@ export function composerPlan(
 						: 'no-sport',
 		}
 	}
-	return parsed.structure
-		? { kind: 'sentence', parsed }
-		: { kind: 'none', reason: 'unread' }
+	if (parsed.structure) return { kind: 'sentence', parsed }
+	return {
+		kind: 'none',
+		reason: parsed.exercisesNeeded ? 'exercises' : 'unread',
+	}
 }
 
 /** The stamp's structure, read by the same reader the line uses. */

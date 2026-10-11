@@ -39,14 +39,20 @@ import {
 	ToggleGroupItem,
 } from '#app/components/ui/toggle-group.tsx'
 import { type loader as sourcesLoader } from '#app/routes/resources/composer-sources.tsx'
+import { type loader as sentenceExercisesLoader } from '#app/routes/resources/sentence-exercises.tsx'
 import { type loader as weekSumLoader } from '#app/routes/resources/week-sum.tsx'
 import {
 	addDays,
 	mondayOfDay,
 	weekdayIndex,
 } from '#app/utils/athlete-calendar.ts'
+import { sumBlockSets } from '#app/utils/dashboard.ts'
 import { STAMP_SENTENCE } from '#app/utils/day-stamp.ts'
-import { formatNbVolumeFigure } from '#app/utils/format.ts'
+import {
+	formatLiftWork,
+	formatNbKg,
+	formatNbVolumeFigure,
+} from '#app/utils/format.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
 	type ComposerSourceKey,
@@ -55,6 +61,7 @@ import {
 	nbDisciplineLabel,
 	nbDurationLabel,
 	SESSION_COMPOSER_LABELS,
+	TOKEN_SENTENCE_WORDS,
 	WRITING_LINE_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
@@ -71,6 +78,7 @@ import {
 	MAX_SENTENCE_LENGTH,
 	type ParsedSentence,
 	replaceWord,
+	type SentenceExercise,
 	sentenceNotationInput,
 } from '#app/utils/workout-sentence.ts'
 import { MAX_COMPOSER_NOTE_LENGTH } from '#app/utils/writing-line-schema.ts'
@@ -84,10 +92,10 @@ import {
 	type ComposerSport,
 	type ComposerState,
 	initialComposerState,
+	needsExercises,
 	nudgeBlock,
 	offersDone,
 	planShape,
-	readerChip,
 	readLine,
 } from './composer-model.ts'
 import { dayTitle } from './day-lookup.ts'
@@ -160,9 +168,17 @@ export function SessionComposer({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [landedCount])
 
-	const parsed = useMemo(
+	// The line is read first without the exercise catalogue: a run never needs
+	// it. Once the Styrke chip is on or the line names a lift, the catalogue is
+	// fetched (once per page) and the line read again against it (ADR 0089).
+	const bare = useMemo(
 		() => readLine(state.text, state.sport),
 		[state.text, state.sport],
+	)
+	const exercises = useSentenceExercises(needsExercises(state, bare))
+	const parsed = useMemo(
+		() => (exercises ? readLine(state.text, state.sport, exercises) : bare),
+		[bare, exercises, state.text, state.sport],
 	)
 	const plan = composerPlan(state, parsed)
 	const week = useWeekSum(state.dayKey)
@@ -215,6 +231,8 @@ export function SessionComposer({
 	}, [layoutKey, onCompactLayout])
 
 	const groupId = useId()
+	const ownLineRef = useRef<HTMLTextAreaElement>(null)
+	const line = inputRef ?? ownLineRef
 	return (
 		<div
 			data-composer={layout}
@@ -247,11 +265,16 @@ export function SessionComposer({
 							// rather than vanishing, so the four ways to fill a day stay
 							// where the athlete will find the fourth.
 							disabled={source === 'appen'}
-							className="h-9 flex-1 px-2 text-[13px]"
+							// Four equal quarters whatever the width: a narrow day pane
+							// (≈300px) or a 320px phone must not push one tab's words
+							// into the next. "kommer" sits under "Appen", not beside it.
+							className="h-9 min-w-0 flex-1 flex-col gap-0 px-1 text-[13px] leading-none max-[359px]:text-[12px]"
 						>
-							{SESSION_COMPOSER_LABELS.sources[source]}
+							<span className="max-w-full truncate">
+								{SESSION_COMPOSER_LABELS.sources[source]}
+							</span>
 							{source === 'appen' ? (
-								<span className="text-muted-foreground ml-1 text-[11px] font-normal">
+								<span className="text-muted-foreground max-w-full truncate text-[10px] font-normal">
 									{SESSION_COMPOSER_LABELS.soon}
 								</span>
 							) : null}
@@ -263,7 +286,14 @@ export function SessionComposer({
 					<>
 						<SportRow
 							sport={state.sport}
-							onSport={(sport) => dispatch({ type: 'sport', sport })}
+							onSport={(sport) => {
+								dispatch({ type: 'sport', sport })
+								// The sport is chosen so the line can be written: the keyboard
+								// comes back for it in the same tap (inside the tap's handler,
+								// which is what lets iOS raise it), rather than costing a
+								// second tap on the line.
+								line.current?.focus({ preventScroll: true })
+							}}
 						/>
 						{state.pick ? (
 							<PickedNote
@@ -275,7 +305,7 @@ export function SessionComposer({
 							state={state}
 							parsed={parsed}
 							plan={plan}
-							inputRef={inputRef}
+							inputRef={line}
 							onText={(text) => dispatch({ type: 'text', text })}
 							onSubmit={submit}
 							sum={outside ? null : sum}
@@ -391,7 +421,7 @@ export function SessionComposer({
 					plan={plan}
 					onText={(text) => dispatch({ type: 'text', text })}
 					onNotes={(notes) => dispatch({ type: 'notes', notes })}
-					inputRef={inputRef}
+					inputRef={line}
 				/>
 			) : null}
 		</div>
@@ -431,6 +461,39 @@ function useWeekSum(dayKey: string): WeekRead | null {
 		void load(`/resources/week-sum?day=${dayKey}`)
 	}, [dayKey, load])
 	return fetcher.data?.day === dayKey ? fetcher.data.week : null
+}
+
+/**
+ * The exercise catalogue the line names lifts against, read once per page from
+ * `resources/sentence-exercises` (one fetcher key, shared by every composer on
+ * it) and only once something asks for it. Null until it arrives, and if it
+ * never does — a lift then waits on the line, and the server reads the
+ * sentence again on save with its own copy.
+ */
+function useSentenceExercises(wanted: boolean): SentenceExercise[] | null {
+	const fetcher = useFetcher<typeof sentenceExercisesLoader>({
+		key: 'sentence-exercises',
+	})
+	const { load, state, data } = fetcher
+	useEffect(() => {
+		if (wanted && data === undefined && state === 'idle') {
+			void load('/resources/sentence-exercises')
+		}
+	}, [data, load, state, wanted])
+	return data?.exercises ?? null
+}
+
+/** A session of lifts, counted as the week counts it: its prescribed sets. */
+function plannedSets(structure: NonNullable<ParsedSentence['structure']>) {
+	return sumBlockSets(
+		structure.blocks.map((block) => ({
+			repeatCount: block.repeatCount,
+			seriesRepeatCount: block.seriesRepeatCount,
+			steps: block.steps.map((step) => ({
+				sets: step.kind === 'strength' ? step.sets : [],
+			})),
+		})),
+	)
 }
 
 /** `Løping neste uke: 30 → 36 km, målet står på 52` — or Annet's, or none. */
@@ -658,7 +721,9 @@ function ComposerLine({
 		plan.kind === 'pick'
 			? plan.pick.item.notation
 			: parsed.structure
-				? sentenceNotationInput(parsed.structure)
+				? sentenceNotationInput(parsed.structure, {
+						exerciseNames: parsed.exerciseNames,
+					})
 				: null
 	const notation = useMemo(
 		() =>
@@ -667,25 +732,33 @@ function ComposerLine({
 				: null,
 		[notationInput, thresholds],
 	)
+	const setCount =
+		plan.kind === 'sentence' && parsed.structure?.discipline === 'strength'
+			? plannedSets(parsed.structure)
+			: 0
 	const totals =
-		plan.kind === 'sentence'
-			? [
-					parsed.totals.distanceM != null
-						? `${formatNbVolumeFigure(parsed.totals.distanceM / 1000, 'km')} ${NB_VOLUME_UNITS.km}`
-						: null,
-					parsed.totals.durationSec != null
-						? nbDurationLabel(parsed.totals.durationSec)
-						: null,
-				].filter((part): part is string => part != null)
-			: []
+		setCount > 0
+			? [SESSION_COMPOSER_LABELS.sets(setCount)]
+			: plan.kind === 'sentence'
+				? [
+						parsed.totals.distanceM != null
+							? `${formatNbVolumeFigure(parsed.totals.distanceM / 1000, 'km')} ${NB_VOLUME_UNITS.km}`
+							: null,
+						parsed.totals.durationSec != null
+							? nbDurationLabel(parsed.totals.durationSec)
+							: null,
+					].filter((part): part is string => part != null)
+				: []
 	const hint =
 		plan.kind === 'none' && plan.reason === 'annet'
 			? SESSION_COMPOSER_LABELS.annetNote
 			: plan.kind === 'none' && plan.reason === 'strength'
 				? SESSION_COMPOSER_LABELS.strengthNote
-				: !typed && plan.kind === 'stamp'
-					? WRITING_LINE_LABELS.hint
-					: null
+				: plan.kind === 'none' && plan.reason === 'exercises'
+					? SESSION_COMPOSER_LABELS.exercisesLoading
+					: !typed && plan.kind === 'stamp'
+						? WRITING_LINE_LABELS.hint
+						: null
 	const problems = typed
 		? parsed.problems
 				.filter((problem) => problem !== 'empty')
@@ -711,10 +784,16 @@ function ComposerLine({
 					if (plan.kind !== 'none') onSubmit()
 				}}
 				aria-label={WRITING_LINE_LABELS.input}
-				placeholder={WRITING_LINE_LABELS.placeholder}
+				placeholder={
+					state.sport === 'strength'
+						? WRITING_LINE_LABELS.placeholderLifts
+						: WRITING_LINE_LABELS.placeholder
+				}
 				maxLength={MAX_SENTENCE_LENGTH}
 				autoComplete="off"
-				autoCapitalize="off"
+				// A lift is a name (`Knebøy`), so its line starts with a capital;
+				// a run's line is lower-case words and numbers.
+				autoCapitalize={state.sport === 'strength' ? 'sentences' : 'off'}
 				autoCorrect="off"
 				spellCheck={false}
 				enterKeyHint="done"
@@ -776,9 +855,12 @@ function ComposerLine({
 									</Button>
 								))}
 							</span>
-						) : word.reason === 'unknown-word' ? (
+						) : word.reason === 'unknown-word' ||
+						  word.reason === 'unknown-exercise' ? (
 							<span className="text-footnote text-muted-foreground">
-								{WRITING_LINE_LABELS.noSuggestion}
+								{word.reason === 'unknown-exercise'
+									? SESSION_COMPOSER_LABELS.noExercise
+									: WRITING_LINE_LABELS.noSuggestion}
 							</span>
 						) : null}
 					</div>
@@ -959,7 +1041,11 @@ function weekPhrase(weekKey: string): string {
  * steppers that write back into the line, so the line stays the one source
  * of what is written. A number is typed on the numeric keypad
  * (`inputMode="numeric"`). Under them a note, and the full editor for what no
- * line says (a lift, a series, a cadence).
+ * line says (a series, a cadence).
+ *
+ * A session of lifts is listed lift by lift — the name the catalogue gives it
+ * and its sets, `80 kg × 5 · 5 · 5 · 5 · 5` — and never sent to the full
+ * editor: the line names every lift (ADR 0089), so strength stays on I dag.
  */
 function DeepSection({
 	state,
@@ -978,6 +1064,8 @@ function DeepSection({
 }) {
 	const structure = parsed.structure
 	const notesId = useId()
+	const lifting =
+		state.sport === 'strength' || structure?.discipline === 'strength'
 	const params = new URLSearchParams({ date: state.dayKey })
 	const editorSport =
 		state.sport && state.sport !== 'annet' ? state.sport : null
@@ -1002,9 +1090,31 @@ function DeepSection({
 									data-composer-block={index}
 									className="bg-muted/60 flex flex-col gap-2 rounded-2xl p-3"
 								>
-									<p className="text-callout text-foreground">
-										{work.map(stepWords).join(' · ')}
-									</p>
+									{work.some((step) => step.kind === 'strength') ? (
+										<ul className="flex flex-col gap-1">
+											{work.map((step, stepIndex) =>
+												step.kind === 'strength' ? (
+													<li
+														key={stepIndex}
+														data-composer-lift={step.exerciseId}
+														className="flex flex-wrap items-baseline justify-between gap-x-3"
+													>
+														<span className="text-callout text-foreground font-medium [overflow-wrap:anywhere]">
+															{parsed.exerciseNames[step.exerciseId] ??
+																step.exerciseId}
+														</span>
+														<span className="text-footnote text-muted-foreground tabular-nums">
+															{liftWords(step)}
+														</span>
+													</li>
+												) : null,
+											)}
+										</ul>
+									) : (
+										<p className="text-callout text-foreground">
+											{work.map(stepWords).join(' · ')}
+										</p>
+									)}
 									{work.length === 1 && work[0]?.kind === 'cardio' ? (
 										<div className="flex flex-wrap items-center gap-x-4 gap-y-2">
 											<Stepper
@@ -1036,7 +1146,8 @@ function DeepSection({
 							variant="outline"
 							size="sm"
 							onClick={() => {
-								onText(`${state.text.trim()} + `)
+								// Lifts are joined by `·` on the line, parts of a run by `+`.
+								onText(`${state.text.trim()} ${lifting ? '·' : '+'} `)
 								inputRef?.current?.focus()
 							}}
 							className="rounded-full"
@@ -1045,15 +1156,17 @@ function DeepSection({
 							{SESSION_COMPOSER_LABELS.addPart}
 						</Button>
 					) : null}
-					<Link
-						to={`/training/sessions/new?${params}`}
-						className={cn(
-							buttonVariants({ variant: 'ghost', size: 'sm' }),
-							'rounded-full',
-						)}
-					>
-						{SESSION_COMPOSER_LABELS.fullEditor}
-					</Link>
+					{lifting ? null : (
+						<Link
+							to={`/training/sessions/new?${params}`}
+							className={cn(
+								buttonVariants({ variant: 'ghost', size: 'sm' }),
+								'rounded-full',
+							)}
+						>
+							{SESSION_COMPOSER_LABELS.fullEditor}
+						</Link>
+					)}
 				</div>
 			</section>
 			<section className="flex flex-col gap-2">
@@ -1093,6 +1206,46 @@ function stepWords(step: Step): string {
 	]
 		.filter(Boolean)
 		.join(' · ')
+}
+
+type StrengthStep = Extract<Step, { kind: 'strength' }>
+
+/** A set's load in words: `82,5 kg`, `kroppsvekt + 10 kg`, or none. */
+function loadWords(load: StrengthStep['sets'][number]['load']): string | null {
+	if (!load) return null
+	if (load.kind === 'absolute') return `${formatNbKg(load.kg)} kg`
+	if (load.kind === 'bodyweight') {
+		const added = load.addedKg ?? 0
+		if (added > 0) return TOKEN_SENTENCE_WORDS.bodyweightPlus(formatNbKg(added))
+		if (added < 0)
+			return TOKEN_SENTENCE_WORDS.bodyweightMinus(formatNbKg(-added))
+		return TOKEN_SENTENCE_WORDS.bodyweight
+	}
+	return null
+}
+
+/**
+ * A lift's sets the one way every lift line writes them —
+ * `82,5 kg × 5 · 5 · 5 · 4` — one run of sets per load, in order.
+ */
+function liftWords(step: StrengthStep): string {
+	const runs: { load: string | null; counts: string[] }[] = []
+	for (const set of step.sets) {
+		const load = loadWords(set.load)
+		const count =
+			'reps' in set && set.reps != null
+				? String(set.reps)
+				: 'durationSec' in set && set.durationSec != null
+					? nbDurationLabel(set.durationSec)
+					: ''
+		const last = runs.at(-1)
+		if (last && last.load === load) last.counts.push(count)
+		else runs.push({ load, counts: [count] })
+	}
+	return runs
+		.map((run) => formatLiftWork(run.load, run.counts.filter(Boolean)))
+		.filter(Boolean)
+		.join(', ')
 }
 
 /** − value + — 44px each, the value set in tabular figures. */

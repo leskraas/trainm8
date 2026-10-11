@@ -75,6 +75,7 @@ import {
 	DAY_ROW_LABELS,
 	DRIFT_MARK,
 	HORIZON_LABELS,
+	IMPORT_LINK_LABELS,
 	ownerGlyphName,
 	RELEASE_ACTION_LABELS,
 	SESSION_COMPOSER_LABELS,
@@ -100,6 +101,7 @@ import {
 	type TimelineWeek,
 } from './presenter.ts'
 import { type RowChipTone } from './row-content.ts'
+import { TITLE_INSET, TITLE_INSET_BOX } from './row-inset.ts'
 import { StrengthLogPanel } from './strength-log-panel.tsx'
 import {
 	TODAY_ATTR,
@@ -877,13 +879,6 @@ const DAY_GRID =
 	'grid grid-cols-[42px_minmax(0,1fr)] items-start gap-x-2.5 pl-4'
 
 /**
- * Where a session's sentence starts — the gutter (16 + 42 + 10), the track's
- * rule (3 + 6) and the glyph (20 + 6) — so what hangs under a session (its
- * actions, today's coach line) lines up with its words.
- */
-const TITLE_INSET = 'pl-[103px]'
-
-/**
  * The date gutter every row of a day aligns to (ADR 0065 §7): the weekday in
  * small capitals over the date. Today's date is circled — the one mark that
  * says "you are here" without colouring the row loud — and a past day's date
@@ -1030,8 +1025,11 @@ function AddAnother({ day }: { day: TimelineDay }) {
 				`${day.dayLabel} ${day.dateLabel}`,
 			)}
 			className={cn(
-				'pressable text-footnote text-muted-foreground relative -mt-1 flex h-8 w-full items-center justify-between gap-2 pr-2 pb-1 text-left italic after:absolute after:inset-x-0 after:-inset-y-1.5',
-				TITLE_INSET,
+				// Starts at the session's words, not at the row's edge: its hit
+				// area must never reach over the day's date in the gutter, which is
+				// a control of its own on a large screen (picks the day).
+				'pressable text-footnote text-muted-foreground relative -mt-1 flex h-8 items-center justify-between gap-2 pr-2 pb-1 text-left italic after:absolute after:inset-x-0 after:-inset-y-1.5',
+				TITLE_INSET_BOX,
 			)}
 		>
 			{SESSION_COMPOSER_LABELS.addAnother}
@@ -1172,8 +1170,9 @@ function SessionRow({
 	const facts = [
 		session.externalLoad,
 		session.internalLoad,
+		// The row's mark is said in the link's own text; the note's whole
+		// sentence still goes to a screen reader where it says more.
 		session.doneNote,
-		session.extraLabel,
 		session.annet?.inAnnet ? ANNET_ACTION_LABELS.chip : null,
 		...session.chips.map((chip) => chip.label),
 	].filter((fact): fact is string => !!fact)
@@ -1187,8 +1186,8 @@ function SessionRow({
 				// The landing: rises 4px and fades in as it mounts (`@starting-style`,
 				// 200ms ease-out); reduced motion keeps the fade. The tint leaves on
 				// the colour curve when the toast does.
-				'duration-collapse ease-out [transition-property:opacity,translate,background-color]',
-				'starting:opacity-0 starting:translate-y-1 motion-reduce:starting:translate-y-0',
+				'duration-collapse [transition-property:opacity,translate,background-color] ease-out',
+				'starting:translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0',
 				landed && 'bg-primary/6',
 			)}
 		>
@@ -1240,6 +1239,19 @@ function SessionRow({
 							)}
 						>
 							{session.title}
+							{session.rowMark ? (
+								<>
+									{' '}
+									{/* The import's one word on the row (audit PR D): what
+									    the athlete should see without asking the glyph. */}
+									<span
+										data-row-mark
+										className="text-caption text-muted-foreground bg-muted ml-0.5 inline-block rounded-full px-1.5 py-px align-[0.1em] font-medium whitespace-nowrap no-underline"
+									>
+										{session.rowMark}
+									</span>
+								</>
+							) : null}
 						</span>{' '}
 						<span className="text-footnote flex flex-none items-center gap-1.5 pt-0.5 text-right whitespace-nowrap tabular-nums">
 							{missed ? (
@@ -1364,22 +1376,30 @@ function SessionGlyph({
 	onOpen: () => void
 }) {
 	const athlete = session.owner === 'athlete'
+	// An ekstra exists only because an activity was recorded: no plan stood
+	// behind it, so the app's ◌ would claim a session it never laid (audit PR
+	// D). It wears the import's mark instead.
+	const imported = session.extraLabel != null
 	const owner = session.ownerLabel
 	return (
 		<button
 			type="button"
-			data-owner-glyph={session.owner}
+			data-owner-glyph={imported ? 'import' : session.owner}
 			onClick={onOpen}
 			aria-label={
-				owner
-					? ownerGlyphName(owner, session.title)
-					: SESSION_DETAIL_LABELS.name(session.title)
+				imported
+					? IMPORT_LINK_LABELS.glyph(session.title)
+					: owner
+						? ownerGlyphName(owner, session.title)
+						: SESSION_DETAIL_LABELS.name(session.title)
 			}
 			// 20px wide on screen, 44px under a thumb (the `after:` hit area),
 			// and above the row's link where the two meet.
 			className="pressable text-muted-foreground hover:bg-muted relative z-1 flex h-7 w-5 flex-none items-center justify-center rounded-full after:absolute after:-inset-x-3 after:-inset-y-2"
 		>
-			{athlete ? (
+			{imported ? (
+				<Icon name="download" size="xs" />
+			) : athlete ? (
 				<Icon name="pencil-1" size="xs" />
 			) : (
 				<span
@@ -1462,7 +1482,6 @@ export function ReleaseAction({
 		</fetcher.Form>
 	)
 }
-
 
 /**
  * The near end. It names the date rather than saying "no more results", because
