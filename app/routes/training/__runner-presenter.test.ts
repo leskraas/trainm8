@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { OUTCOME_LABELS } from '#app/utils/labels.ts'
 import { type PlateInventory } from '#app/utils/strength/plates.ts'
 import { type LiftOutcome } from '#app/utils/strength/program-engine.ts'
 import { type StrengthRecord } from '#app/utils/strength/records.ts'
@@ -150,7 +151,7 @@ test('a rung of a bodyweight-derived ramp names its base rather than falling sil
 				warmupRung: { targetKg: 0, effectiveKg: 74, plateLine: 'empty bar' },
 			}),
 		),
-	).toBe('5 reps · bodyweight')
+	).toBe('5 reps · kroppsvekt')
 
 	expect(
 		buildTargetText(
@@ -159,7 +160,7 @@ test('a rung of a bodyweight-derived ramp names its base rather than falling sil
 				warmupRung: { targetKg: 15, effectiveKg: 89, plateLine: '7.5' },
 			}),
 		),
-	).toBe('5 reps · bodyweight + 15 kg')
+	).toBe('5 reps · kroppsvekt + 15 kg')
 })
 
 test('a rung of a barbell ramp states the bar and never the athlete, because the two kilos are the same one', () => {
@@ -224,7 +225,7 @@ test('a rack that cannot make the number says which number it can make', () => {
 	})
 
 	expect(line?.kind).toBe('nearest')
-	expect(line && 'note' in line ? line.note : '').toMatch(/Your gym makes/)
+	expect(line && 'note' in line ? line.note : '').toMatch(/Gymmet ditt får til/)
 })
 
 test('the gap sentence quotes the quantity the athlete typed', () => {
@@ -254,7 +255,7 @@ test('the gap sentence quotes the quantity the athlete typed', () => {
 	})
 	expect(belt).toMatchObject({
 		kind: 'nearest',
-		note: 'Your gym makes 31,25 kg, not 31 kg.',
+		note: 'Gymmet ditt får til 31,25 kg, ikke 31 kg.',
 	})
 
 	const assist = buildPlateLine({
@@ -264,7 +265,7 @@ test('the gap sentence quotes the quantity the athlete typed', () => {
 	})
 	expect(assist).toMatchObject({
 		kind: 'nearest',
-		note: 'Your gym makes 11,25 kg, not 11 kg.',
+		note: 'Gymmet ditt får til 11,25 kg, ikke 11 kg.',
 	})
 
 	// A per-hand bell states the bell in the hand, never the pair.
@@ -275,13 +276,13 @@ test('the gap sentence quotes the quantity the athlete typed', () => {
 	})
 	expect(perHand).toMatchObject({
 		kind: 'nearest',
-		note: 'Your gym makes 20 kg, not 22 kg.',
+		note: 'Gymmet ditt får til 20 kg, ikke 22 kg.',
 	})
 
 	// And a barbell, where the two quantities coincide, is unchanged.
 	expect(
 		buildPlateLine({ loadNumber: '101', inventory: gym, options: {} }),
-	).toMatchObject({ note: 'Your gym makes 100 kg, not 101 kg.' })
+	).toMatchObject({ note: 'Gymmet ditt får til 100 kg, ikke 101 kg.' })
 })
 
 test('a machine level has no plates and no honest kilo, so it is given neither', () => {
@@ -350,7 +351,7 @@ test('a repeat states the Stall Count, and only where it is non-zero', () => {
 		appliedAtISO: '2026-08-14T09:00:00.000Z',
 	})
 
-	expect(buildOutcomePanel([repeat(1)], names)[0]?.label).toBe('Stall Count 1')
+	expect(buildOutcomePanel([repeat(1)], names)[0]?.label).toBe('1 økt til kort')
 	expect(buildOutcomePanel([repeat(0)], names)[0]?.label).toBeNull()
 })
 
@@ -372,11 +373,11 @@ test('a lighter-than-prescribed session is a notice that names both weights, and
 
 	const item = buildOutcomePanel(outcomes, names)[0]!
 	expect(item.headline).toBe(
-		'Back squat stays at 62,5 kg — logged at 20 kg, prescribed 62,5 kg',
+		'Back squat står på 62,5 kg — logget på 20 kg, foreskrevet 62,5 kg',
 	)
 	// A notice, like a Stall Cut: it tells, and it offers nothing.
 	expect(item.isNotice).toBe(true)
-	expect(item.label).toBe('Lighter than prescribed')
+	expect(item.label).toBe('Lettere enn foreskrevet')
 })
 
 test('a session with no kilos logged against a kilo prescription is a notice that claims neither', () => {
@@ -401,12 +402,12 @@ test('a session with no kilos logged against a kilo prescription is a notice tha
 
 	const item = buildOutcomePanel(outcomes, names)[0]!
 	expect(item.headline).toBe(
-		'Back squat stays at 90 kg — no kilos were logged, so the 90 kg prescribed could not be checked',
+		'Back squat står på 90 kg — ingen av settene ble logget med en kilo som kan sjekkes, så de 90 kg som var foreskrevet kunne ikke sjekkes',
 	)
 	// A notice: it tells the athlete the session could not be read, and it offers
 	// nothing — least of all a weight it cannot stand behind.
 	expect(item.isNotice).toBe(true)
-	expect(item.label).toBe('Could not be read')
+	expect(item.label).toBe('Kunne ikke leses')
 })
 
 test('a contradicted kilo is not headlined as a weight on the bar', () => {
@@ -436,13 +437,13 @@ test('a contradicted kilo is not headlined as a weight on the bar', () => {
 
 	const item = buildOutcomePanel(outcomes, names)[0]!
 	expect(item.headline).toBe(
-		'Back squat stays at 90 kg — every set recorded a kilo that does not follow from the load beside it, so the 90 kg prescribed could not be checked',
+		'Back squat står på 90 kg — ingen av settene ble logget med en kilo som kan sjekkes, så de 90 kg som var foreskrevet kunne ikke sjekkes',
 	)
 	// The phrasing this family of bugs keeps producing: the true kind, carrying a
 	// claim that is false.
 	expect(item.headline).not.toContain('logged as a weight on the bar')
 	expect(item.isNotice).toBe(true)
-	expect(item.label).toBe('Could not be read')
+	expect(item.label).toBe('Kunne ikke leses')
 })
 
 test('some sets contradicting their load is counted rather than generalized', () => {
@@ -465,7 +466,7 @@ test('some sets contradicting their load is counted rather than generalized', ()
 	]
 
 	expect(buildOutcomePanel(outcomes, names)[0]!.headline).toBe(
-		'Back squat stays at 90 kg — 2 of the 5 sets recorded a kilo that does not follow from the load beside it, so the 90 kg prescribed could not be checked',
+		'Back squat står på 90 kg — 2 av de 5 settene ble logget uten en kilo som kan sjekkes, så de 90 kg som var foreskrevet kunne ikke sjekkes',
 	)
 })
 
@@ -506,8 +507,8 @@ test('a Stall Cut is a notice with a reason, and it is labelled Stall Cut and ne
 
 	const item = buildOutcomePanel(outcomes, names)[0]!
 	expect(item.isNotice).toBe(true)
-	expect(item.label).toBe('Stall Cut')
-	expect(item.reason).toBe('You missed this lift three sessions in a row.')
+	expect(item.label).toBe('Vekta kuttes')
+	expect(item.reason).toBe(OUTCOME_LABELS.reason.stalled)
 	expect(item.headline).toBe('Back squat 100 kg → 90 kg')
 	expect(JSON.stringify(item).toLowerCase()).not.toContain('deload')
 })
@@ -530,7 +531,7 @@ test('a Stall Response that moved a training max says so, because a training max
 	]
 
 	expect(buildOutcomePanel(outcomes, names)[0]?.headline).toBe(
-		'Back squat training max 130 kg → 117 kg',
+		'Back squat treningsmaks 130 kg → 117 kg',
 	)
 })
 
@@ -548,7 +549,7 @@ test('a lift nobody logged is skipped, and is not reported as a failure', () => 
 	]
 
 	expect(buildOutcomePanel(outcomes, names)[0]).toMatchObject({
-		headline: 'Back squat unchanged at 100 kg',
+		headline: 'Back squat uendret på 100 kg',
 		isNotice: false,
 	})
 })
@@ -638,20 +639,20 @@ test('a sentence about where the lift now stands reads the lift state, never the
 	const headlines = items.map((item) => item.headline)
 	// `repeated` used to print the stamp here and `liftedLighter` the
 	// prescription — both under "stays at", about a lift standing somewhere else.
-	expect(headlines[1]).toBe('Back squat stays at 77,5 kg')
-	expect(headlines[4]).toBe('Back squat stays at 77,5 kg')
-	expect(headlines[5]).toContain('Back squat stays at 77,5 kg')
+	expect(headlines[1]).toBe('Back squat står på 77,5 kg')
+	expect(headlines[4]).toBe('Back squat står på 77,5 kg')
+	expect(headlines[5]).toContain('Back squat står på 77,5 kg')
 	expect(headlines[6]).toBe(
-		'Back squat stays at 77,5 kg — logged at 50 kg, prescribed 60 kg',
+		'Back squat står på 77,5 kg — logget på 50 kg, foreskrevet 60 kg',
 	)
-	expect(headlines[7]).toBe('Back squat unchanged at 77,5 kg')
+	expect(headlines[7]).toBe('Back squat uendret på 77,5 kg')
 	// And the two that move say the number they moved to, which is the same thing
 	// read from the same place.
 	expect(headlines[0]).toBe('Back squat 60 kg → 62,5 kg')
 	expect(headlines[2]).toBe('Back squat 60 kg → 54 kg')
 	// A training max is not the squat, so this one says which number moved and
 	// never claims the lift now stands there.
-	expect(headlines[3]).toBe('Back squat training max 130 kg → 117 kg')
+	expect(headlines[3]).toBe('Back squat treningsmaks 130 kg → 117 kg')
 })
 
 test('a session that logged kilos on some sets and none on others says how many, not that none were logged', () => {
@@ -678,7 +679,7 @@ test('a session that logged kilos on some sets and none on others says how many,
 	]
 
 	expect(buildOutcomePanel(outcomes, names)[0]?.headline).toBe(
-		'Back squat stays at 90 kg — 3 of the 5 sets logged no kilos, so the 90 kg prescribed could not be checked',
+		'Back squat står på 90 kg — 3 av de 5 settene ble logget uten en kilo som kan sjekkes, så de 90 kg som var foreskrevet kunne ikke sjekkes',
 	)
 })
 
@@ -708,13 +709,13 @@ test('a session logged as a bodyweight load is not reported as no kilos, because
 
 	const item = buildOutcomePanel(outcomes, names)[0]!
 	expect(item.headline).toBe(
-		'Back squat stays at 25 kg — every set was logged as a bodyweight load, so the 25 kg prescribed could not be checked',
+		'Back squat står på 25 kg — ingen av settene ble logget med en kilo som kan sjekkes, så de 25 kg som var foreskrevet kunne ikke sjekkes',
 	)
 	expect(item.headline).not.toContain('no kilos')
 	// And it is a notice claiming nothing, with the weight it could not check
 	// named and nothing offered.
 	expect(item.isNotice).toBe(true)
-	expect(item.label).toBe('Could not be read')
+	expect(item.label).toBe('Kunne ikke leses')
 })
 
 test('an assisted session says which kind was logged and how many sets it was', () => {
@@ -737,7 +738,7 @@ test('an assisted session says which kind was logged and how many sets it was', 
 	]
 
 	expect(buildOutcomePanel(outcomes, names)[0]?.headline).toBe(
-		'Back squat stays at 64 kg — 3 of the 5 sets were logged as an assisted load, so the 64 kg prescribed could not be checked',
+		'Back squat står på 64 kg — 3 av de 5 settene ble logget uten en kilo som kan sjekkes, så de 64 kg som var foreskrevet kunne ikke sjekkes',
 	)
 })
 
@@ -918,7 +919,7 @@ test('an untouched circle shows the target reps and asks to be tapped', () => {
 
 	expect(first?.state).toBe('untouched')
 	expect(first?.display).toBe('5')
-	expect(first?.ariaLabel).toBe('Log set 1 of Squat')
+	expect(first?.ariaLabel).toBe('Logg sett 1 av Squat')
 })
 
 test('a set logged at its target reads as made, and says so to a screen reader', () => {
@@ -926,7 +927,7 @@ test('a set logged at its target reads as made, and says so to a screen reader',
 
 	expect(second?.state).toBe('made')
 	expect(second?.display).toBe('5')
-	expect(second?.ariaLabel).toBe('Logged set 2 of Squat')
+	expect(second?.ariaLabel).toBe('Logget sett 2 av Squat')
 })
 
 test('a set under its target is short, and shows the count achieved rather than the target', () => {
@@ -934,7 +935,7 @@ test('a set under its target is short, and shows the count achieved rather than 
 
 	expect(third?.state).toBe('short')
 	expect(third?.display).toBe('3')
-	expect(third?.ariaLabel).toBe('Logged set 3 of Squat')
+	expect(third?.ariaLabel).toBe('Logget sett 3 av Squat')
 })
 
 test('zero reps is a short set and not an untouched one, because a tap happened', () => {
@@ -942,7 +943,7 @@ test('zero reps is a short set and not an untouched one, because a tap happened'
 
 	expect(first?.state).toBe('short')
 	expect(first?.display).toBe('0')
-	expect(first?.ariaLabel).toBe('Logged set 1 of Squat')
+	expect(first?.ariaLabel).toBe('Logget sett 1 av Squat')
 })
 
 test('a set with no prescribed count shows no number, because a zero there is a target nobody set', () => {
@@ -1028,15 +1029,15 @@ test('a count above the target steps down from the target, so the cycle cannot s
 // ——— The counter ——————————————————————————————————————————————————————————
 
 test('the counter reflects the working sets logged', () => {
-	expect(buildLoggedCounter(circles())).toBe('0 of 5 logged')
+	expect(buildLoggedCounter(circles())).toBe('0 av 5 logget')
 	expect(
 		buildLoggedCounter(circles({}, { 'step-1_0': 5, 'step-1_1': 4 })),
-	).toBe('2 of 5 logged')
+	).toBe('2 av 5 logget')
 })
 
 test('the counter counts a short set as logged, because it is a set that happened', () => {
 	expect(buildLoggedCounter(circles({}, { 'step-1_0': 0 }))).toBe(
-		'1 of 5 logged',
+		'1 av 5 logget',
 	)
 })
 
@@ -1311,13 +1312,13 @@ test('a rung is one chip, labelled with its weight and its reps', () => {
 		isLast: false,
 		loadKind: 'external',
 		loadNumber: '20',
-		ariaLabel: 'Logged warm-up 1 of Squat, 20 × 5',
+		ariaLabel: 'Logget oppvarming 1 av Squat, 20 × 5',
 	})
 	expect(chips[1]).toMatchObject({
 		label: '60 × 3',
 		on: false,
 		isLast: true,
-		ariaLabel: 'Log warm-up 2 of Squat, 60 × 3',
+		ariaLabel: 'Logg oppvarming 2 av Squat, 60 × 3',
 	})
 })
 
@@ -1405,12 +1406,12 @@ test('a rung of a bodyweight-derived ramp names its base and never the athlete�
 	})
 
 	expect(base).toMatchObject({
-		label: 'bw × 5',
+		label: 'kv × 5',
 		loadKind: 'bodyweight',
 		loadNumber: '',
 	})
 	expect(belt).toMatchObject({
-		label: 'bw + 15 × 3',
+		label: 'kv + 15 × 3',
 		loadKind: 'bodyweightPlus',
 		loadNumber: '15',
 	})
@@ -1510,7 +1511,7 @@ test('the clock is recomputed from the deadline and the clock, never decremented
 			reason: 'made-the-target',
 			now: DEADLINE - 180_000,
 		}),
-	).toMatchObject({ text: '3:00', past: false, label: 'rest' })
+	).toMatchObject({ text: '3:00', past: false, label: 'pause' })
 	expect(
 		buildRestClock({
 			deadline: DEADLINE,
@@ -1546,7 +1547,7 @@ test('past zero it counts on into +m:ss rather than stopping or disappearing', (
 			reason: 'made-the-target',
 			now: DEADLINE + 14_200,
 		}),
-	).toMatchObject({ text: '+0:14', past: true, label: 'over your rest' })
+	).toMatchObject({ text: '+0:14', past: true, label: 'over pausen' })
 	expect(
 		buildRestClock({
 			deadline: DEADLINE,
@@ -1570,14 +1571,14 @@ test('the reason is the rest module’s phrase, so the bar states why it is five
 			reason: 'missed-the-target',
 			now: DEADLINE - 300_000,
 		}),
-	).toMatchObject({ label: 'longer rest after a missed set' })
+	).toMatchObject({ label: 'lengre pause etter et sett til kort' })
 	expect(
 		buildRestClock({
 			deadline: DEADLINE,
 			reason: 'before-the-last-warmup-set',
 			now: DEADLINE - 180_000,
 		}),
-	).toMatchObject({ label: 'rest before your last warm-up set' })
+	).toMatchObject({ label: 'pause før siste oppvarmingssett' })
 })
 
 test('±15 s moves the deadline by the rest module’s own step', () => {
@@ -1607,7 +1608,7 @@ function progress(overrides: Partial<LiftProgress> = {}): LiftProgress {
 test('a progressing lift says the weight in the run of made sessions behind it', () => {
 	expect(
 		buildResolutionSentence({ progress: progress(), resolution: null }),
-	).toBe('82,5 kg is your working weight after five made sessions.')
+	).toBe('82,5 kg er arbeidsvekta di etter fem fullførte økter.')
 })
 
 test('a held lift says why it did not move, and the Stall Count outranks the run', () => {
@@ -1616,7 +1617,7 @@ test('a held lift says why it did not move, and the Stall Count outranks the run
 			progress: progress({ workingWeightKg: 60, stallCount: 2, madeInARow: 3 }),
 			resolution: null,
 		}),
-	).toBe('60 kg is held: two sessions in a row came up short.')
+	).toBe('60 kg står: to økter på rad kom til kort.')
 })
 
 test('one short session is not “one sessions in a row”', () => {
@@ -1625,13 +1626,13 @@ test('one short session is not “one sessions in a row”', () => {
 			progress: progress({ workingWeightKg: 60, stallCount: 1, madeInARow: 0 }),
 			resolution: null,
 		}),
-	).toBe('60 kg is held: a session came up short.')
+	).toBe('60 kg står: en økt kom til kort.')
 	expect(
 		buildResolutionSentence({
 			progress: progress({ madeInARow: 1 }),
 			resolution: null,
 		}),
-	).toBe('82,5 kg is your working weight after one made session.')
+	).toBe('82,5 kg er arbeidsvekta di etter én fullført økt.')
 })
 
 test('a lift with no history on this run says so rather than claiming a run of none', () => {
@@ -1641,7 +1642,7 @@ test('a lift with no history on this run says so rather than claiming a run of n
 			resolution: null,
 		}),
 	).toBe(
-		'82,5 kg is your working weight. Nothing has been logged for this lift on this run yet.',
+		'82,5 kg er arbeidsvekta di. Ingenting er logget for dette løftet i programmet ennå.',
 	)
 })
 
@@ -1693,10 +1694,13 @@ test('the panel is four lines: the resolution, the rack, the timer’s limit and
 	})
 
 	expect(panel).toMatchObject({
-		resolution: '82,5 kg is your working weight after five made sessions.',
-		plates: 'Plates are solved against Bredvid Gym.',
-		timer: 'The rest timer survives a locked phone, but not a closed tab.',
-		history: { text: 'This lift over time', href: '/training/exercises/ex-1' },
+		resolution: '82,5 kg er arbeidsvekta di etter fem fullførte økter.',
+		plates: 'Skivene regnes ut fra Bredvid Gym.',
+		timer: 'Pausetimeren tåler en låst telefon, men ikke en lukket fane.',
+		history: {
+			text: 'Dette løftet over tid',
+			href: '/training/exercises/ex-1',
+		},
 	})
 })
 
@@ -1711,7 +1715,7 @@ test('a refused warm-up is folded into the resolution line, so the panel stays f
 	})
 
 	expect(panel.resolution).toBe(
-		'82,5 kg is your working weight after five made sessions. No warm-up ramp is published for this equipment, so none is generated.',
+		'82,5 kg er arbeidsvekta di etter fem fullførte økter. No warm-up ramp is published for this equipment, so none is generated.',
 	)
 	// Where nothing can be said about the weight, the ramp's sentence stands on
 	// its own rather than being lost with it.
@@ -1728,14 +1732,14 @@ test('a refused warm-up is folded into the resolution line, so the panel stays f
 	).toBe('The work weight is the empty bar.')
 })
 
-test('with no gym described the panel says no plates are solved, and a step with no exercise has nowhere to link', () => {
+test('with no gym described the panel says nothing about plates — the offer under the sets says it once — and a step with no exercise has nowhere to link', () => {
 	const panel = buildHelpPanel({
 		exercise: exercise({ exerciseId: null }),
 		hasGymOnFile: false,
 		progress: null,
 	})
 
-	expect(panel.plates).toBe('No gym is described, so no plates are solved.')
+	expect(panel.plates).toBeNull()
 	expect(panel.history).toBeNull()
 })
 
@@ -1777,7 +1781,7 @@ test('a gym that cannot make the number says so, in the solver’s own sentence'
 		}),
 	).toMatchObject({
 		kind: 'refusal',
-		text: expect.stringContaining('not 101 kg'),
+		text: expect.stringContaining('ikke 101 kg'),
 	})
 })
 
@@ -1819,7 +1823,7 @@ test('last time is the previous session’s working sets, with the weight quoted
 			row({ orderIndex: 1, ghost: ghost(80, 5) }),
 			row({ orderIndex: 2, ghost: ghost(80, 4) }),
 		]),
-	).toBe('Last time 80 kg × 5 · 5 · 4')
+	).toBe('Sist 80 kg × 5 · 5 · 4')
 })
 
 test('a ramp is not flattened onto one weight', () => {
@@ -1828,7 +1832,7 @@ test('a ramp is not flattened onto one weight', () => {
 			row({ ghost: ghost(80, 5) }),
 			row({ orderIndex: 1, ghost: ghost(85, 3) }),
 		]),
-	).toBe('Last time 80 kg × 5, 85 kg × 3')
+	).toBe('Sist 80 kg × 5, 85 kg × 3')
 })
 
 test('an extrapolated ghost is dropped, so a fifth set nobody did is not claimed', () => {
@@ -1837,7 +1841,7 @@ test('an extrapolated ghost is dropped, so a fifth set nobody did is not claimed
 			row({ ghost: ghost(80, 5) }),
 			row({ orderIndex: 1, ghost: { ...ghost(80, 5), extrapolated: true } }),
 		]),
-	).toBe('Last time 80 kg × 5')
+	).toBe('Sist 80 kg × 5')
 })
 
 test('a lift with no ghosts quotes no last time at all', () => {

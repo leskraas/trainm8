@@ -24,6 +24,7 @@ import {
 	type PlateInventory,
 	type PlateOptions,
 } from '#app/utils/strength/plates.ts'
+import { OUTCOME_LABELS } from '#app/utils/labels.ts'
 import { type LiftOutcome } from '#app/utils/strength/program-engine.ts'
 import {
 	type OutcomeItem,
@@ -88,12 +89,7 @@ function toneOf(outcome: LiftOutcome): OutcomeTone {
  */
 function cutPercent(fromKg: number, toKg: number): string {
 	const pct = ((fromKg - toKg) / fromKg) * 100
-	return String(Math.round(pct * 10) / 10)
-}
-
-/** `StrongLifts 5×5` → `StrongLifts 5×5’s`, `StrongLifts` → `StrongLifts’`. */
-function possessive(name: string): string {
-	return name.endsWith('s') || name.endsWith('S') ? `${name}’` : `${name}’s`
+	return String(Math.round(pct * 10) / 10).replace('.', ',')
 }
 
 /**
@@ -123,9 +119,10 @@ export function buildOutcomePanelView(
 			exerciseId: outcome.exerciseId,
 			movedToKg: cut ? cut.toKg : null,
 			provenance: cut
-				? `The ${cutPercent(cut.fromKg, cut.toKg)} % cut is ${
-						programName ? possessive(programName) : 'the program’s'
-					} own published convention. No trial supports it.`
+				? OUTCOME_LABELS.cutProvenance(
+						cutPercent(cut.fromKg, cut.toKg),
+						programName,
+					)
 				: null,
 		}
 	})

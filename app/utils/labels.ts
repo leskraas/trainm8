@@ -6450,6 +6450,17 @@ export const STRENGTH_RUNNER_LABELS = {
 	timerLimit: 'Pausetimeren tåler en låst telefon, men ikke en lukket fane.',
 	history: 'Dette løftet over tid',
 	lastTime: (work: string) => `Sist ${work}`,
+	/** A logged Load Value in a lift line (`loadValueText`'s Norwegian twin). */
+	load: {
+		external: (kg: string) => `${kg} kg`,
+		perSide: (sides: number, kg: string) => `${sides} × ${kg} kg`,
+		bodyweight: 'kroppsvekt',
+		bodyweightPlus: (kg: string) => `kroppsvekt + ${kg} kg`,
+		assisted: (kg: string) => `assistert − ${kg} kg`,
+		level: (level: number) => `nivå ${level}`,
+		band: (band: string) => `strikk ${band}`,
+		unloaded: 'uten vekt',
+	},
 } as const
 
 /** The outcome panel: what you lift next time (`__outcome-panel*`). */

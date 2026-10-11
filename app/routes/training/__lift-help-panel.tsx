@@ -75,25 +75,25 @@ export function LiftHelpPanel({
 	return (
 		<CollapsibleContent id={panelId} data-lift-help-panel>
 			<div className="bg-muted text-muted-foreground text-footnote flex flex-col gap-2 rounded-3xl p-3.5">
-			{/* The weight, in the athlete's own numbers rather than in the
+				{/* The weight, in the athlete's own numbers rather than in the
 			    algorithm's — *"82.5 kg is your working weight after five made
 			    sessions"* / *"60 kg is held: two sessions in a row came up short"*.
 			    A weight that stopped moving and says nothing reads as a bug. Where
 			    the ramp refused, its sentence is folded into this line rather than
 			    given a fifth of its own: the panel says four things (#484). */}
-			{lines.resolution ? <p>{lines.resolution}</p> : null}
-			<p>{lines.plates}</p>
-			<p>{lines.timer}</p>
-			{lines.history ? (
-				<p>
-					<Link
-						to={lines.history.href}
-						className="text-foreground inline-flex min-h-11 items-center underline underline-offset-2"
-					>
-						{lines.history.text}
-					</Link>
-				</p>
-			) : null}
+				{lines.resolution ? <p>{lines.resolution}</p> : null}
+				{lines.plates ? <p>{lines.plates}</p> : null}
+				<p>{lines.timer}</p>
+				{lines.history ? (
+					<p>
+						<Link
+							to={lines.history.href}
+							className="text-foreground inline-flex min-h-11 items-center underline underline-offset-2"
+						>
+							{lines.history.text}
+						</Link>
+					</p>
+				) : null}
 			</div>
 		</CollapsibleContent>
 	)
@@ -169,7 +169,7 @@ export function LiftPlateRow({
 function LastTime({ text }: { text: string }) {
 	return (
 		<p
-			className="text-footnote text-muted-foreground shrink-0 underline decoration-dotted tabular-nums"
+			className="text-footnote text-muted-foreground shrink-0 tabular-nums underline decoration-dotted"
 			data-last-time
 		>
 			{text}
