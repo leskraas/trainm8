@@ -3525,18 +3525,20 @@ export const NB_THRESHOLD_FIELD_LABELS: Record<ThresholdField, string> = {
 }
 
 /** Why an accumulated Season Span may be added up at all (ADR 0043 §6). */
-export const NB_ACCUMULATED_SPAN_LABELS: Record<AccumulatingCurrency, string> = {
-	tss: 'Lagt sammen på tvers av utholdenhetssporene, fordi en TSS er den samme timen med terskelarbeid uansett hvilket spor den brukes i.',
-	hours:
-		'Lagt sammen på tvers av utholdenhetssporene som det uka koster i tid – aldri som hvor hard den er.',
-}
+export const NB_ACCUMULATED_SPAN_LABELS: Record<AccumulatingCurrency, string> =
+	{
+		tss: 'Lagt sammen på tvers av utholdenhetssporene, fordi en TSS er den samme timen med terskelarbeid uansett hvilket spor den brukes i.',
+		hours:
+			'Lagt sammen på tvers av utholdenhetssporene som det uka koster i tid – aldri som hvor hard den er.',
+	}
 
 /** Why a Block Boundary Step is not one the walk applies (ADR 0040 §5). */
 export const NB_BOUNDARY_STEP_OUT_OF_FORCE_LABELS: Record<
 	BoundaryStepOutOfForce,
 	string
 > = {
-	'season-opens': 'Sesongen starter her, så det er ingen blokkgrense å hoppe ved.',
+	'season-opens':
+		'Sesongen starter her, så det er ingen blokkgrense å hoppe ved.',
 	'no-anchor-yet':
 		'Ingen startnivå dekker denne blokka ennå, så starten kan ikke regnes ut – det er ikke noe nivå å hoppe fra.',
 	'anchor-opens-here':
@@ -3620,7 +3622,8 @@ export const SESONG_PAGE_LABELS = {
 	copyTitle: 'Kopier uke',
 	copyDetail: 'Tar med øktene i en uke slik du skrev dem, uten mønster.',
 	advancedChart: 'Sesongdiagram',
-	advancedChartDetail: 'Lag for fart, form, rytme og stigning, og regnestykket bak hver uke.',
+	advancedChartDetail:
+		'Lag for fart, form, rytme og stigning, og regnestykket bak hver uke.',
 	shapeTitle: 'Start fra en form',
 	shapeDetail:
 		'Ferdige former for sesongen, tegnet som belastningen de gir. En form erstatter blokkene dine.',
@@ -3734,8 +3737,7 @@ export const SESONG_SEGMENT_LABELS = {
 		track ? `Kvalitetsøkter for ${track.toLowerCase()}` : 'Kvalitetsøkter',
 	mixIntro:
 		'Økter i uka i hver kvalitetssone. Tomt eller 0 tar sonen ut – alle tre tomme er en blokk uten kvalitetsøkter, og det er en plan, ikke et hull. Dette tomme feltet er ikke det samme som stigningens tomme felt over: kvalitetsøkter har ingen vanlig praksis å falle tilbake på.',
-	mixField: (zone: number, name: string) =>
-		`Sone ${zone} ${name}, økter i uka`,
+	mixField: (zone: number, name: string) => `Sone ${zone} ${name}, økter i uka`,
 	emphasis: 'Vekt, utledet',
 	count: 'Kvalitetsøkter i uka, utledet',
 	derivedNote:
@@ -3758,6 +3760,12 @@ export const SESONG_SEGMENT_LABELS = {
 	wholeSessions: 'Et helt antall økter, eller tomt for ingen',
 	sessionRange: (max: number) => `Mellom 0 og ${max} økter i uka`,
 	gone: 'Den blokka er ikke lenger en del av planen.',
+} as const
+
+/** What the plan page's phase fields say when a box is left empty. */
+export const SESONG_PHASE_FIELD_LABELS = {
+	weeks: 'Hvor mange uker varer fasen?',
+	rhythm: 'Velg hvordan fasen har lette uker',
 } as const
 
 /** The phase cards on Blokker, and adding and deleting (#402). */
@@ -3901,7 +3909,8 @@ export const SESONG_LIFTING_LABELS = {
 	goalRequired: 'Velg hva blokka er til for',
 	sessionsRequired: 'Hvor mange styrkeøkter i uka?',
 	sessionsWhole: 'Antall økter er et helt tall',
-	summaryNone: 'Ingen styrkeblokk ennå – ukene mellom blokker er uker uten styrke.',
+	summaryNone:
+		'Ingen styrkeblokk ennå – ukene mellom blokker er uker uten styrke.',
 	summary: (blocks: number) =>
 		`${blocks === 1 ? '1 blokk' : `${blocks} blokker`}, hver datert og ikke knyttet til en fase.`,
 } as const
@@ -3961,7 +3970,8 @@ export const SESONG_PATTERN_LABELS = {
 	addDay: 'Legg til en dag',
 	weekday: 'Ukedag',
 	track: 'Spor',
-	trackNote: 'En svømmedag tar svømmevolum, så dagen sier hvilket spor den hører til.',
+	trackNote:
+		'En svømmedag tar svømmevolum, så dagen sier hvilket spor den hører til.',
 	kind: 'Hva slags dag',
 	fixedHint:
 		'Slik du skrev den og aldri skalert – de samme dragene i en stor uke og en liten.',
@@ -4009,7 +4019,8 @@ export const SESONG_PATTERN_LABELS = {
 		`${built}, med den siste dagen lang. Hver dag kan flyttes, vektes eller fjernes. Ukene fylles fra den når horisonten når dem.`,
 	nameRequired: 'Gi mønsteret et navn.',
 	whichDay: 'Hvilken ukedag?',
-	weightRequired: 'Hvor stor er dagen ved siden av de andre? f.eks. 1, eller 2,5',
+	weightRequired:
+		'Hvor stor er dagen ved siden av de andre? f.eks. 1, eller 2,5',
 } as const
 
 /** Kopier uke, under Uker (#415). */
@@ -4035,12 +4046,7 @@ export const SESONG_COPY_LABELS = {
 	orEmpty: 'Eller velg en tom uke i stedet.',
 	done: 'Uka er kopiert',
 	/** `4 økter fra uke 41 til uke 43, slik du skrev dem. …`. */
-	sentence: (
-		sessions: number,
-		from: number,
-		to: number,
-		replaced: number,
-	) =>
+	sentence: (sessions: number, from: number, to: number, replaced: number) =>
 		`${nbSessions(sessions)} fra uke ${from} til uke ${to}, slik du skrev dem. Endre den ene uka – den andre står.${replaced > 0 ? ` ${nbSessions(replaced)} ble erstattet.` : ''}`,
 	noPrescription:
 		'En økt uten en økt bak seg ble utelatt – det var ingenting å kopiere.',
@@ -4179,7 +4185,8 @@ export const SESONG_CHART_LABELS = {
 	readIn: 'Les i',
 	layers: 'Lag',
 	derived: 'utledet',
-	readInAuthored: (unit: string) => `Les i ${unit.toLowerCase()}, slik du skrev det`,
+	readInAuthored: (unit: string) =>
+		`Les i ${unit.toLowerCase()}, slik du skrev det`,
 	readInDerived: (unit: string) => `Les i ${unit.toLowerCase()}, utledet`,
 	layer: {
 		volume: 'Volum',
@@ -4242,7 +4249,12 @@ export const SESONG_CHART_LABELS = {
 	overflow:
 		'Kvalitetsøktene alene ber om mer enn ukas volum. Det rolige arbeidet går ned til null, og planen står slik du skrev den.',
 	whereFrom: 'Hvor tallet kommer fra',
-	substitution: (requested: number, recipe: string, band: string, declared: number) =>
+	substitution: (
+		requested: number,
+		recipe: string,
+		band: string,
+		declared: number,
+	) =>
 		`Sone ${requested} prises fra ${recipe} sone ${band}, den nærmeste sone ${declared} sonemodellen din har.`,
 	buckets: 'Uka delt opp i intensiteter',
 	bucketColumns: {
@@ -4291,6 +4303,57 @@ export const SESONG_CHART_LABELS = {
 		'Planen sier hvor mye en uke inneholder, ikke hvilke dager, så en framregning må spre hver uke jevnt. Formen tåler det – den leser seks uker om gangen – men trøtthet leser de siste sju dagene, og overskudd er form minus trøtthet. Spredt flatt ville begge vært former av gjennomsnittet og ikke av treningen din, så dette laget tegner ingenting i stedet for en kurve planen ikke kan bære. Det ekte overskuddet ditt står på I dag, fra det du faktisk gjorde.',
 	authoredMarker: 'skrevet',
 	derivedMarker: 'utledet',
+} as const
+
+/**
+ * The shapes under Avansert (_Start fra en form_, #405), named the way the
+ * Filosofi card names a philosophy: `Klassisk 3:1`, `Klassisk 3:1, lang
+ * innkjøring` — one name for one method on one page (audit B7).
+ */
+export const SESONG_SHAPE_LABELS = {
+	lengthSuffix: {
+		short: ', kort innkjøring',
+		standard: '',
+		long: ', lang innkjøring',
+	},
+	lengthNote: {
+		short: 'Den samme sesongen over færre uker.',
+		standard: null,
+		long: 'Den samme sesongen over flere uker.',
+	},
+	list: 'Sesongformer',
+	weeks: (weeks: number) => nbWeeks(weeks),
+	replaces: 'Erstatter blokkene du har nå.',
+	apply: (name: string) => `Bruk ${name}`,
+	copied:
+		'Hver form kopieres inn i planen din. Å bruke en erstatter blokkene du har nå – og det som lander er vanlige blokker du kan gi nytt navn, endre lengden på og flytte. Ingenting er knyttet til formen du valgte.',
+	notSize:
+		'En form sier hvordan sesongen bygges, aldri hvor store ukene er. Startuka, treningssporene og volumet du starter på står som før.',
+	fixedLength:
+		'Hver form har en fast lengde, så en kortere eller lengre innkjøring gjør at planen slutter før eller etter løpet i stedet for å strekke en blokk. Linja over blokkene sier hvilken – og tilbyr å tette gapet. Uker tas fra grunntreningen først, så framover gjennom sesongen, og nedtrappingen kortes aldri ned. Hver form finnes i tre lengder, så de fleste innkjøringer har en som passer.',
+	climb: (rate: string) =>
+		`Alle stiger etter vanlig praksis, rundt ${rate} per harde uke. Det er der trenerpraksis ligger, ikke en sikkerhetsgrense: ingen volumregel er vist å forebygge skader, så det er et utgangspunkt og ikke en regel.`,
+	cuts: (recovery: string, taper: string) =>
+		`Lette uker og nedtrapping følger vanlig praksis også – ${recovery} fra siste harde uke og ${taper} mot løpet. Ingen form velger dem, så de flytter seg hvis praksisen gjør det. Sett dine egne på en blokk etterpå.`,
+	rhythms:
+		'Rytmene er også vanlig praksis. Ingen studie har vist at tre harde uker og en lett slår to og en, eller å ta en lett uke når du trenger den – så velg rytmen som passer livet ditt. Du kan endre den på hver blokk.',
+	loads: (rhythm: string) => `Rytme ${rhythm}.`,
+	rhythmChanges: 'Rytmen skifter fra blokk til blokk.',
+	step: (rate: string, phase: string) =>
+		` Volumet går ${rate} inn i ${phase}, med vilje, når kvaliteten øker.`,
+	tableCaption: (name: string) =>
+		`${name}: belastningen formen gir, hver uke som andel av første uke`,
+	columns: { week: 'Uke', block: 'Blokk', role: 'Rolle', load: 'Belastning' },
+	week: (week: number) => `Uke ${week}`,
+	summary: (
+		name: string,
+		weeks: number,
+		peak: string,
+		peakWeek: number,
+		recovery: number,
+		taper: number,
+	) =>
+		`${name}: en belastning over ${nbWeeks(weeks)}. Den starter på volumet du starter fra og topper på ${peak} av det i uke ${peakWeek}. ${recovery === 1 ? '1 lett uke' : `${recovery} lette uker`} underveis, så trapper den ned over ${taper === 1 ? 'den siste uka' : `de siste ${taper} ukene`}. Hver uke står i tabellen som følger.`,
 } as const
 
 // ---------------------------------------------------------------------------

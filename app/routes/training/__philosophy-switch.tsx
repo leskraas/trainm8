@@ -16,12 +16,14 @@ import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { Form } from 'react-router'
 import { ErrorList } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import {
-	formatDate,
-	formatDayMonth,
-	formatVolumeTotal,
+	formatNbDate,
+	formatNbDayMonth,
+	formatNbVolumeTotal,
 } from '#app/utils/format.ts'
 import {
+	nbPhaseName,
 	nbWeeks,
 	PHILOSOPHY_DESCRIPTIONS,
 	PHILOSOPHY_LABELS,
@@ -228,7 +230,7 @@ function PhilosophyPreview({
 				{philosophyPreviewSentence(
 					preview.from,
 					preview.to,
-					formatDate(dayOf(preview.fromWeekKey), 'UTC'),
+					formatNbDate(dayOf(preview.fromWeekKey), 'UTC'),
 				)}
 			</p>
 			<RiseWarningNotice
@@ -265,7 +267,12 @@ function PhilosophyPreview({
 					{preview.weeks.map((week) => (
 						<tr key={week.weekKey} className="border-border/50 border-t">
 							<th scope="row" className="py-1 pr-2 font-normal">
-								{formatDayMonth(dayOf(week.weekKey), 'UTC')}
+								{/* The ISO week, as every Sesong surface numbers it, with its
+								    Monday beside it. */}
+								<span className="block">Uke {isoWeekNumber(week.weekKey)}</span>
+								<span className="text-muted-foreground text-caption block">
+									{formatNbDayMonth(dayOf(week.weekKey), 'UTC')}
+								</span>
 							</th>
 							<td className="py-1 pr-2">{weekCell(week.before)}</td>
 							<td className="py-1" data-after>
@@ -311,7 +318,7 @@ function PhaseList({ title, phases }: { title: string; phases: PhaseView[] }) {
 			<ul className="mt-1 space-y-1 text-sm">
 				{phases.map((phase) => (
 					<li key={`${phase.name}-${phase.fromWeekKey}`}>
-						<span className="font-medium">{phase.name}</span> ·{' '}
+						<span className="font-medium">{nbPhaseName(phase.name)}</span> ·{' '}
 						{nbWeeks(phase.weeks)} · {plainMixSentence(phase.mix)}
 					</li>
 				))}
@@ -327,7 +334,7 @@ function weekCell(week: WeekView | null): string {
 		.map((target) =>
 			target.value == null
 				? '–'
-				: formatVolumeTotal(target.value, target.currency),
+				: formatNbVolumeTotal(target.value, target.currency),
 		)
 		.join(' · ')
 	return `${targets} · ${NB_WEEK_ROLE_LABELS[week.role]}`

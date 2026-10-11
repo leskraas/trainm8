@@ -56,14 +56,21 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
+import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import {
-	formatDate,
-	formatWeeklyVolume,
+	formatNbDayMonth,
+	formatNbWeeklyVolume,
 	formatWeeklyVolumeField,
-	formatWeekSpan,
 	volumeFieldStep,
 } from '#app/utils/format.ts'
-import { DISCIPLINE_LABELS, VOLUME_CURRENCY_UNITS } from '#app/utils/labels.ts'
+import {
+	isoWeekSpanLabel,
+	NB_WEEKLY_UNITS,
+	nbTrackName,
+	SESONG_ANCHOR_LABELS,
+	SESONG_COPY_LABELS,
+	SESONG_PAGE_LABELS,
+} from '#app/utils/labels.ts'
 import { type VolumeCurrency } from '#app/utils/plan-outline/derive.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 
@@ -123,7 +130,7 @@ const AnchorValueField = z
 		if (raw === '') {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
-				message: 'How much a week are you starting from?',
+				message: SESONG_ANCHOR_LABELS.valueRequired,
 			})
 			return z.NEVER
 		}
@@ -131,7 +138,7 @@ const AnchorValueField = z
 		if (!Number.isFinite(value)) {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
-				message: 'Type a weekly volume, e.g. 45',
+				message: SESONG_ANCHOR_LABELS.valueNumber,
 			})
 			return z.NEVER
 		}
@@ -154,7 +161,7 @@ const AnchorValueField = z
  * simply carries its week as a hidden field instead of a picker.
  */
 export const SeasonAnchorFormSchema = z.object({
-	fromWeekKey: z.string().min(1, 'Which week does this anchor start from?'),
+	fromWeekKey: z.string().min(1, SESONG_ANCHOR_LABELS.weekRequired),
 	value: AnchorValueField,
 })
 
@@ -244,20 +251,13 @@ export function SeasonAnchorSection({
 			    this heading is the accessible name only — dropping it would leave the
 			    region unnamed, and showing it would print the name twice. */}
 			<h2 id="season-anchors" className="sr-only">
-				Season anchors
+				{SESONG_PAGE_LABELS.anchorsTitle}
 			</h2>
-			<p className="text-muted-foreground text-sm">
-				Your anchor is the weekly volume your season is derived from. It is a{' '}
-				<strong>list of dated segments</strong>, not one number: when a season
-				stops going to plan you can say{' '}
-				<em>from this week on, I am starting from here</em>, and the weeks you
-				already lived are left exactly as they were.
+			<p className="text-muted-foreground text-footnote">
+				{SESONG_ANCHOR_LABELS.intro}
 			</p>
-			<p className="text-muted-foreground text-sm">
-				A re-anchor is a <strong>fresh start, not a discount</strong>. Your ramp
-				begins again from the week you pick, so the weeks after it climb from
-				your new number rather than carrying on from the old one. Weeks you{' '}
-				<strong>hand-set</strong> stay hand-set, and stay revertible.
+			<p className="text-muted-foreground text-footnote">
+				{SESONG_ANCHOR_LABELS.freshStart}
 			</p>
 			{tracks.map((track) => (
 				<AnchorTrack
@@ -295,24 +295,25 @@ function AnchorTrack({
 		(anchor) => anchor.earliest,
 	)?.weekInPlan
 	const unpricedOpening = openingWeek != null && openingWeek > 1
+	// The plan's own first week, so the unpriced run reads as ISO weeks.
+	const firstWeekKey = weeks[0]?.weekKey ?? null
+	const openingKey = track.anchors.find(
+		(anchor) => anchor.earliest,
+	)?.fromWeekKey
 
 	return (
 		<div className="space-y-4">
-			<h3 className="text-base font-medium">
-				{DISCIPLINE_LABELS[track.discipline]}
+			<h3 className="text-callout font-semibold">
+				{nbTrackName(track.discipline)}
 			</h3>
-			<p className="text-muted-foreground text-sm">
-				Your anchor is in{' '}
-				<strong>{VOLUME_CURRENCY_UNITS[track.currency]}</strong> — the unit this
-				track keeps for its whole life. Re-anchoring changes the number and
-				never the unit; measuring this track in something else is a new track,
-				not an edit.
+			<p className="text-muted-foreground text-footnote">
+				{SESONG_ANCHOR_LABELS.unit(NB_WEEKLY_UNITS[track.currency])}
 			</p>
 			{/* Named for its own track, because a hybrid plan renders one of these per
 			    track and two lists called "Season anchors" would be two things with one
 			    name to anyone reading by role. */}
 			<ol
-				aria-label={`${DISCIPLINE_LABELS[track.discipline]} season anchors`}
+				aria-label={SESONG_ANCHOR_LABELS.list(nbTrackName(track.discipline))}
 				className="space-y-3"
 			>
 				{track.anchors.map((anchor) => (
@@ -330,11 +331,14 @@ function AnchorTrack({
 					</li>
 				))}
 			</ol>
-			{unpricedOpening ? (
-				<p className="text-muted-foreground text-sm">
-					{formatWeekSpan(1, openingWeek - 1)} of your plan read{' '}
-					<strong>Unavailable</strong>: no anchor covers them, and the app will
-					not make a number up for a week it cannot derive.
+			{unpricedOpening && firstWeekKey != null && openingKey != null ? (
+				<p className="text-muted-foreground text-footnote">
+					{SESONG_ANCHOR_LABELS.unpricedOpening(
+						isoWeekSpanLabel(
+							isoWeekNumber(firstWeekKey),
+							isoWeekNumber(addDays(openingKey, -7)),
+						),
+					)}
 				</p>
 			) : null}
 			<ReAnchorForm
@@ -384,8 +388,8 @@ function AnchorCard({
 	const fieldId = `anchor-value-${track.trackId}-${anchor.fromWeekKey}`
 	const where =
 		anchor.weekInPlan == null
-			? 'Outside your plan’s weeks'
-			: `From week ${anchor.weekInPlan}`
+			? SESONG_ANCHOR_LABELS.outside
+			: SESONG_ANCHOR_LABELS.from(isoWeekNumber(anchor.fromWeekKey))
 
 	return (
 		<Card>
@@ -393,14 +397,18 @@ function AnchorCard({
 				<CardTitle className="flex flex-wrap items-center gap-2 text-base">
 					{where}
 					<Badge variant={anchor.earliest ? 'outline' : 'secondary'}>
-						{anchor.earliest ? 'Season opening' : 'Re-anchored'}
+						{anchor.earliest
+							? SESONG_ANCHOR_LABELS.opening
+							: SESONG_ANCHOR_LABELS.reAnchored}
 					</Badge>
 				</CardTitle>
 				<p className="text-muted-foreground text-sm">
 					{anchor.weekInPlan == null
-						? 'This anchor takes effect from a week your plan no longer covers — a segment is dated, so shortening your season leaves it where it was. Remove it, or add weeks to your plan.'
-						: `${formatWeeklyVolume(anchor.value, track.currency)}${
-								weekStartsAt ? ` · ${formatDate(weekStartsAt, timezone)}` : ''
+						? SESONG_ANCHOR_LABELS.outsideNote
+						: `${formatNbWeeklyVolume(anchor.value, track.currency)}${
+								weekStartsAt
+									? ` · ${formatNbDayMonth(weekStartsAt, timezone)}`
+									: ''
 							}`}
 				</p>
 			</CardHeader>
@@ -418,7 +426,9 @@ function AnchorCard({
 					<Field
 						labelProps={{
 							htmlFor: fieldId,
-							children: `Weekly volume, ${VOLUME_CURRENCY_UNITS[track.currency]}`,
+							children: SESONG_ANCHOR_LABELS.value(
+								NB_WEEKLY_UNITS[track.currency],
+							),
 						}}
 						inputProps={{
 							...getInputProps(fields.value, { type: 'number' }),
@@ -430,14 +440,13 @@ function AnchorCard({
 						errors={fields.value.errors as string[] | undefined}
 					/>
 					<Button type="submit" variant="outline" className="w-full sm:w-auto">
-						Save
+						{SESONG_ANCHOR_LABELS.save}
 					</Button>
 				</Form>
 				<ErrorList errors={form.errors as string[] | undefined} />
 				{anchor.earliest ? (
-					<p className="text-muted-foreground text-sm">
-						Your season keeps this one: every week up to your next re-anchor is
-						derived from it. Change the number here rather than removing it.
+					<p className="text-muted-foreground text-footnote">
+						{SESONG_ANCHOR_LABELS.keepsFirst}
 					</p>
 				) : (
 					// Its own form, because a submit carries one name/value pair and
@@ -456,7 +465,7 @@ function AnchorCard({
 							size="sm"
 							className="w-full sm:w-auto"
 						>
-							Remove this re-anchor
+							{SESONG_ANCHOR_LABELS.remove}
 						</Button>
 					</Form>
 				)}
@@ -491,33 +500,35 @@ function ReAnchorForm({
 	const valueId = `re-anchor-value-${track.trackId}`
 
 	if (weeks.length === 0) {
-		return (
-			<p className="text-sm">
-				Every week of this plan already carries an anchor, so there is no week
-				left to re-anchor from.
-			</p>
-		)
+		return <p className="text-footnote">{SESONG_ANCHOR_LABELS.allTaken}</p>
 	}
 
 	return (
 		<Form method="POST" {...getFormProps(form)} className="space-y-4">
 			<input type="hidden" name="intent" value="add-season-anchor" />
 			<input type="hidden" name="trackId" value={track.trackId} />
-			<h4 className="text-base font-medium">Re-anchor from a week</h4>
+			<h4 className="text-callout font-semibold">
+				{SESONG_ANCHOR_LABELS.reAnchorTitle}
+			</h4>
 			<SelectField
 				meta={fields.fromWeekKey}
-				labelProps={{ children: 'From week' }}
-				placeholder="Pick a week"
+				labelProps={{ children: SESONG_ANCHOR_LABELS.fromWeek }}
+				placeholder={SESONG_ANCHOR_LABELS.pickWeek}
 				items={weeks.map((week) => ({
 					value: week.weekKey,
-					label: `Week ${week.weekInPlan} · ${formatDate(week.startsAt, timezone)}`,
+					label: SESONG_COPY_LABELS.weekOption(
+						isoWeekNumber(week.weekKey),
+						formatNbDayMonth(week.startsAt, timezone),
+					),
 				}))}
 				errors={fields.fromWeekKey.errors as string[] | undefined}
 			/>
 			<Field
 				labelProps={{
 					htmlFor: valueId,
-					children: `Starting from, ${VOLUME_CURRENCY_UNITS[track.currency]}`,
+					children: SESONG_ANCHOR_LABELS.startingFrom(
+						NB_WEEKLY_UNITS[track.currency],
+					),
 				}}
 				inputProps={{
 					...getInputProps(fields.value, { type: 'number' }),
@@ -528,14 +539,12 @@ function ReAnchorForm({
 				}}
 				errors={fields.value.errors as string[] | undefined}
 			/>
-			<p className="text-muted-foreground text-sm">
-				Your ramp restarts here: the week you pick <em>is</em> this number, and
-				the loading weeks after it climb from it. Everything before it is
-				untouched.
+			<p className="text-muted-foreground text-footnote">
+				{SESONG_ANCHOR_LABELS.restarts}
 			</p>
 			<ErrorList errors={form.errors as string[] | undefined} />
 			<Button type="submit" className="w-full sm:w-auto">
-				Re-anchor
+				{SESONG_ANCHOR_LABELS.reAnchor}
 			</Button>
 		</Form>
 	)

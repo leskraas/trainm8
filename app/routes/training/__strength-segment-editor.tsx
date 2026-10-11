@@ -51,21 +51,24 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
+import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import {
-	formatDate,
-	formatPct1RMBand,
+	formatNbDayMonth,
+	formatNbPct1RMBand,
+	formatNbRepRange,
+	formatNbSignedPercent,
 	formatRateField,
-	formatRepRange,
-	formatSignedPercent,
-	formatWeeks,
-	formatWeekSpan,
 	parseRateField,
 } from '#app/utils/format.ts'
 import {
-	BOUNDARY_STEP_OUT_OF_FORCE_LABELS,
-	DISCIPLINE_LABELS,
-	STRENGTH_GOAL_LABELS,
-	VOLUME_CURRENCY_UNITS,
+	isoWeekSpanLabel,
+	NB_BOUNDARY_STEP_OUT_OF_FORCE_LABELS,
+	NB_STRENGTH_GOAL_LABELS,
+	NB_WEEKLY_UNITS,
+	nbTrackName,
+	nbWeeks,
+	SESONG_COPY_LABELS,
+	SESONG_LIFTING_LABELS,
 	type BoundaryStepOutOfForce,
 } from '#app/utils/labels.ts'
 import {
@@ -153,7 +156,7 @@ const RatePercentField = z
 		if (!Number.isFinite(percent)) {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
-				message: 'Type a percentage, or leave it blank',
+				message: SESONG_LIFTING_LABELS.typeRate,
 			})
 			return z.NEVER
 		}
@@ -207,7 +210,7 @@ const DeloadWeeksField = z
 		if (!Number.isInteger(weeks)) {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
-				message: 'A whole number of weeks, or blank for the convention',
+				message: SESONG_LIFTING_LABELS.wholeDeload,
 			})
 			return z.NEVER
 		}
@@ -230,17 +233,17 @@ const DeloadWeeksField = z
  * form hides — a control this form cannot have.
  */
 export const StrengthSegmentFormSchema = z.object({
-	startWeekKey: z.string().min(1, 'Pick the week this block opens'),
+	startWeekKey: z.string().min(1, SESONG_LIFTING_LABELS.weekRequired),
 	weeks: requiredWholeNumber(
-		'How many weeks does this block run?',
-		'A block runs in whole weeks',
+		SESONG_LIFTING_LABELS.weeksRequired,
+		SESONG_LIFTING_LABELS.weeksWhole,
 	),
 	goal: z.enum(STRENGTH_GOALS, {
-		errorMap: () => ({ message: 'Pick what this block is for' }),
+		errorMap: () => ({ message: SESONG_LIFTING_LABELS.goalRequired }),
 	}),
 	sessionsPerWeek: requiredWholeNumber(
-		'How many lifting sessions a week?',
-		'A session count is a whole number',
+		SESONG_LIFTING_LABELS.sessionsRequired,
+		SESONG_LIFTING_LABELS.sessionsWhole,
 	),
 	ramp: RatePercentField,
 	boundaryStep: RatePercentField,
@@ -295,7 +298,7 @@ export type StrengthActionData =
  * route imports this module, so reaching back for two lines of shape would be a
  * cycle, and the thing the two surfaces must not word twice is the *sentence* —
  * which is why the member is the token and the sentence is
- * {@link BOUNDARY_STEP_OUT_OF_FORCE_LABELS}'.
+ * {@link NB_BOUNDARY_STEP_OUT_OF_FORCE_LABELS}'.
  */
 type BoundaryStepStanding =
 	| { inForce: true }
@@ -398,35 +401,24 @@ export function StrengthBlocksSection({
 			    this heading is the accessible name only — dropping it would leave the
 			    region unnamed, and showing it would print the name twice. */}
 			<h2 id="lifting-blocks" className="sr-only">
-				Lifting blocks
+				{SESONG_LIFTING_LABELS.list}
 			</h2>
-			<p className="text-muted-foreground text-sm">
-				A lifting block is <strong>dated</strong>: it opens on a week you pick
-				and runs for as long as you say, so it can start and finish inside a
-				phase rather than beside one. The weeks between two blocks are{' '}
-				<strong>no lifting</strong> — something you said, not a gap in your
-				plan.
+			<p className="text-muted-foreground text-footnote">
+				{SESONG_LIFTING_LABELS.intro}
 			</p>
 			{tracks.map((track) => {
 				const standings = boundaryStepStandings(track)
 				return (
 					<div key={track.trackId} className="space-y-4">
 						{tracks.length > 1 ? (
-							<h3 className="text-base font-medium">
-								{DISCIPLINE_LABELS[track.discipline]}
+							<h3 className="text-callout font-semibold">
+								{nbTrackName(track.discipline)}
 							</h3>
 						) : null}
-						<p className="text-muted-foreground text-sm">
-							This track is planned in{' '}
-							<strong>{VOLUME_CURRENCY_UNITS[track.currency]}</strong> — your
-							week&rsquo;s <strong>total working sets</strong>, counted across
-							your whole body rather than per muscle group or per movement.
-							There is no published number to hold that against: nobody measures
-							a weekly set count that way, so the figure to plan from is your
-							own — your anchor comes from the sets you already log, and your
-							ramp is how fast you grow it.
+						<p className="text-muted-foreground text-footnote">
+							{SESONG_LIFTING_LABELS.unit(NB_WEEKLY_UNITS[track.currency])}
 						</p>
-						<ol aria-label="Lifting blocks" className="space-y-3">
+						<ol aria-label={SESONG_LIFTING_LABELS.list} className="space-y-3">
 							{track.segments.map((segment, index) => (
 								<li key={segment.segmentId}>
 									<StrengthSegmentCard
@@ -440,11 +432,7 @@ export function StrengthBlocksSection({
 							))}
 						</ol>
 						{track.segments.length === 0 ? (
-							<p className="text-sm">
-								No lifting blocks yet, so every week of this plan reads{' '}
-								<strong>no lifting</strong>. Add one below when you know which
-								weeks you are in the gym.
-							</p>
+							<p className="text-footnote">{SESONG_LIFTING_LABELS.none}</p>
 						) : null}
 						<AddStrengthSegmentForm
 							track={track}
@@ -482,26 +470,31 @@ function StrengthSegmentCard({
 	timezone: string
 	actionData: StrengthActionData
 }) {
-	const lastWeekInPlan =
-		segment.startWeekInPlan == null
-			? null
-			: segment.startWeekInPlan + segment.weeks - 1
+	// The block's window as a calendar numbers it (`Uke 41–44`), read off its
+	// own dated opening week rather than its place in the plan (audit B6).
+	const span = isoWeekSpanLabel(
+		isoWeekNumber(segment.startWeekKey),
+		isoWeekNumber(addDays(segment.startWeekKey, 7 * (segment.weeks - 1))),
+	)
 
 	return (
 		<Card>
 			<CardHeader className="gap-1">
 				<CardTitle className="flex flex-wrap items-center gap-2 text-base">
-					{segment.startWeekInPlan == null || lastWeekInPlan == null
-						? 'Outside your plan’s weeks'
-						: formatWeekSpan(segment.startWeekInPlan, lastWeekInPlan)}
+					{segment.startWeekInPlan == null
+						? SESONG_LIFTING_LABELS.outside
+						: span}
 					<Badge variant="secondary">
-						{STRENGTH_GOAL_LABELS[segment.goal]}
+						{NB_STRENGTH_GOAL_LABELS[segment.goal]}
 					</Badge>
 				</CardTitle>
-				<p className="text-muted-foreground text-sm">
+				<p className="text-muted-foreground text-footnote">
 					{segment.startWeekInPlan == null
-						? 'This block opens on a week your plan no longer covers — a block is dated, so shortening your season leaves it where it was. Pick a week below to bring it back in.'
-						: `${formatWeeks(segment.weeks)} · ${segment.sessionsPerWeek}× a week`}
+						? SESONG_LIFTING_LABELS.outsideNote
+						: SESONG_LIFTING_LABELS.cardNote(
+								segment.weeks,
+								segment.sessionsPerWeek,
+							)}
 				</p>
 			</CardHeader>
 			<CardContent className="space-y-4">
@@ -523,7 +516,7 @@ function StrengthSegmentCard({
 						size="sm"
 						className="w-full sm:w-auto"
 					>
-						Remove block
+						{SESONG_LIFTING_LABELS.remove}
 					</Button>
 				</Form>
 			</CardContent>
@@ -587,7 +580,7 @@ function StrengthSegmentForm({
 			/>
 			<ErrorList errors={form.errors as string[] | undefined} />
 			<Button type="submit" variant="outline" className="w-full sm:w-auto">
-				Save block
+				{SESONG_LIFTING_LABELS.save}
 			</Button>
 		</Form>
 	)
@@ -639,7 +632,9 @@ function AddStrengthSegmentForm({
 		<Form method="POST" {...getFormProps(form)} className="space-y-4">
 			<input type="hidden" name="intent" value="add-strength-segment" />
 			<input type="hidden" name="trackId" value={track.trackId} />
-			<h3 className="text-base font-medium">Add a lifting block</h3>
+			<h3 className="text-callout font-semibold">
+				{SESONG_LIFTING_LABELS.addTitle}
+			</h3>
 			<StrengthSegmentFields
 				fields={fields}
 				// A block that does not exist yet has no window and no place among the
@@ -652,7 +647,7 @@ function AddStrengthSegmentForm({
 			/>
 			<ErrorList errors={form.errors as string[] | undefined} />
 			<Button type="submit" className="w-full sm:w-auto">
-				Add block
+				{SESONG_LIFTING_LABELS.add}
 			</Button>
 		</Form>
 	)
@@ -691,16 +686,19 @@ function StrengthSegmentFields({
 			<div className="grid gap-4 sm:grid-cols-2">
 				<SelectField
 					meta={fields.startWeekKey}
-					labelProps={{ children: 'Opens on' }}
-					placeholder="Pick a week"
+					labelProps={{ children: SESONG_LIFTING_LABELS.opensOn }}
+					placeholder={SESONG_LIFTING_LABELS.pickWeek}
 					items={weeks.map((week) => ({
 						value: week.weekKey,
-						label: `Week ${week.weekInPlan} · ${formatDate(week.startsAt, timezone)}`,
+						label: SESONG_COPY_LABELS.weekOption(
+							isoWeekNumber(week.weekKey),
+							formatNbDayMonth(week.startsAt, timezone),
+						),
 					}))}
 					errors={fields.startWeekKey.errors as string[] | undefined}
 				/>
 				<Field
-					labelProps={{ children: 'Weeks' }}
+					labelProps={{ children: SESONG_LIFTING_LABELS.weeks }}
 					inputProps={{
 						...getInputProps(fields.weeks, { type: 'number' }),
 						id: `weeks-${idSuffix}`,
@@ -713,16 +711,16 @@ function StrengthSegmentFields({
 				/>
 				<SelectField
 					meta={fields.goal}
-					labelProps={{ children: 'What this block is for' }}
-					placeholder="Pick a goal"
+					labelProps={{ children: SESONG_LIFTING_LABELS.goal }}
+					placeholder={SESONG_LIFTING_LABELS.pickGoal}
 					items={STRENGTH_GOALS.map((option) => ({
 						value: option,
-						label: STRENGTH_GOAL_LABELS[option],
+						label: NB_STRENGTH_GOAL_LABELS[option],
 					}))}
 					errors={fields.goal.errors as string[] | undefined}
 				/>
 				<Field
-					labelProps={{ children: 'Sessions a week' }}
+					labelProps={{ children: SESONG_LIFTING_LABELS.sessions }}
 					inputProps={{
 						...getInputProps(fields.sessionsPerWeek, { type: 'number' }),
 						id: `sessions-${idSuffix}`,
@@ -741,22 +739,24 @@ function StrengthSegmentFields({
 				<RateField
 					meta={fields.ramp}
 					id={`ramp-${idSuffix}`}
-					label="Volume ramp, % a loading week"
+					label={SESONG_LIFTING_LABELS.ramp}
 					meaning={
 						ramp == null
-							? 'Blank — sets hold level through this block.'
-							: `${formatSignedPercent(ramp)} on every loading week. Deload weeks do not step.`
+							? SESONG_LIFTING_LABELS.rampBlank
+							: SESONG_LIFTING_LABELS.rampSet(formatNbSignedPercent(ramp))
 					}
 				/>
 				{standing.inForce ? (
 					<RateField
 						meta={fields.boundaryStep}
 						id={`step-${idSuffix}`}
-						label="Boundary step at this block’s opening, %"
+						label={SESONG_LIFTING_LABELS.step}
 						meaning={
 							boundaryStep == null
-								? 'Blank — this block opens continuous with the week before it.'
-								: `${formatSignedPercent(boundaryStep)} once, at the opening. A deliberate drop into a heavier block belongs here rather than in the ramp.`
+								? SESONG_LIFTING_LABELS.stepBlank
+								: SESONG_LIFTING_LABELS.stepSet(
+										formatNbSignedPercent(boundaryStep),
+									)
 						}
 					/>
 				) : (
@@ -770,19 +770,19 @@ function StrengthSegmentFields({
 					<>
 						<CarriedRate meta={fields.boundaryStep} />
 						<p className="text-muted-foreground self-end text-sm">
-							{BOUNDARY_STEP_OUT_OF_FORCE_LABELS[standing.reason]}
+							{NB_BOUNDARY_STEP_OUT_OF_FORCE_LABELS[standing.reason]}
 						</p>
 					</>
 				)}
 				<RateField
 					meta={fields.deloadCut}
 					id={`deload-cut-${idSuffix}`}
-					label="Deload cut, %"
+					label={SESONG_LIFTING_LABELS.deloadCut}
 					nonNegative
 					meaning={deloadCutMeaning(fields.deloadCut.value)}
 				/>
 				<Field
-					labelProps={{ children: 'Deload weeks at the end' }}
+					labelProps={{ children: SESONG_LIFTING_LABELS.deloadWeeks }}
 					inputProps={{
 						...getInputProps(fields.deloadWeeks, { type: 'number' }),
 						id: `deload-weeks-${idSuffix}`,
@@ -813,20 +813,22 @@ function StrengthSegmentFields({
 export function deloadCutMeaning(typed: string | undefined): string {
 	const cut = parseRateField(typed)
 	if (cut == null) {
-		return `Blank — follows the documented convention, ${formatSignedPercent(-DEFAULT_DELOAD_CUT)} for every deload week. Leave it blank and it moves if the convention does.`
+		return SESONG_LIFTING_LABELS.deloadCutBlank(
+			formatNbSignedPercent(-DEFAULT_DELOAD_CUT),
+		)
 	}
-	return `Yours: ${formatSignedPercent(-cut)} for every deload week, held flat rather than descending.`
+	return SESONG_LIFTING_LABELS.deloadCutSet(formatNbSignedPercent(-cut))
 }
 
 /** The same three-state reading for how many tail weeks deload. */
 export function deloadWeeksMeaning(typed: string | undefined): string {
 	if (!typed) {
-		return `Blank — follows the documented convention, ${formatWeeks(DEFAULT_DELOAD_WEEKS)} at the end of the block. Leave it blank and it moves if the convention does.`
+		return SESONG_LIFTING_LABELS.deloadWeeksBlank(nbWeeks(DEFAULT_DELOAD_WEEKS))
 	}
 	if (typed.trim() === '0') {
-		return 'Yours: no deload — this block runs to its last week at full volume.'
+		return SESONG_LIFTING_LABELS.deloadWeeksNone
 	}
-	return `Yours: the last ${formatWeeks(Number(typed))} of this block deload, at the cut beside it.`
+	return SESONG_LIFTING_LABELS.deloadWeeksSet(nbWeeks(Number(typed)))
 }
 
 /**
@@ -851,23 +853,28 @@ export function DerivedPrescription({ goal }: { goal?: StrengthGoal }) {
 		<div className="space-y-1">
 			<dl className="text-sm">
 				<div className="flex flex-wrap gap-x-2">
-					<dt className="text-muted-foreground">Load band, derived</dt>
+					<dt className="text-muted-foreground">
+						{SESONG_LIFTING_LABELS.band}
+					</dt>
 					<dd className="font-medium tabular-nums">
-						{prescription ? formatPct1RMBand(prescription.band) : 'Pick a goal'}
+						{prescription
+							? formatNbPct1RMBand(prescription.band)
+							: SESONG_LIFTING_LABELS.pickGoal}
 					</dd>
 				</div>
 				<div className="flex flex-wrap gap-x-2">
-					<dt className="text-muted-foreground">Reps, derived</dt>
+					<dt className="text-muted-foreground">
+						{SESONG_LIFTING_LABELS.reps}
+					</dt>
 					<dd className="font-medium tabular-nums">
-						{prescription ? formatRepRange(prescription.reps) : 'Pick a goal'}
+						{prescription
+							? formatNbRepRange(prescription.reps)
+							: SESONG_LIFTING_LABELS.pickGoal}
 					</dd>
 				</div>
 			</dl>
-			<p className="text-muted-foreground text-sm">
-				Both come from the goal you picked above and there is nothing to type:
-				change the goal and the band moves with it. How much lifting is a
-				separate question and is not read off the goal — that is your anchor and
-				your ramp, so this plan never has two sources for one number.
+			<p className="text-muted-foreground text-footnote">
+				{SESONG_LIFTING_LABELS.derivedNote}
 			</p>
 		</div>
 	)
