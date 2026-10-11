@@ -54,10 +54,7 @@ import {
 	CollapsibleTrigger,
 } from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import {
-	SegmentedControl,
-	ToggleGroupItem,
-} from '#app/components/ui/toggle-group.tsx'
+import { toggleVariants } from '#app/components/ui/toggle.tsx'
 import { cn } from '#app/utils/misc.tsx'
 
 /**
@@ -475,12 +472,13 @@ export function PhaseSpark({
 }
 
 /**
- * The Blokker / Uker control: the `SegmentedControl` (ADR 0085), whose items
- * render as links because the reading is URL state — a reload or a shared link
- * lands on the same reading, and the browser's own navigation works before
- * hydration. One choice with two answers, so one track with the pressed segment
- * lifted out of it rather than two buttons, and each segment reaches 44px
- * through the toggle's own hit area.
+ * The Blokker / Uker control, drawn as the design system's `SegmentedControl`
+ * (the muted track, the pressed segment lifted out of it) but made of **links**,
+ * not toggles: the reading is URL state, so a reload or a shared link lands on
+ * the same reading, the browser's own navigation works before hydration, and a
+ * screen reader hears two links with the current one marked `aria-current`
+ * rather than toggle buttons that navigate. Each segment takes the toggle's
+ * size and its `after:` hit area to 44px (`toggleVariants`).
  */
 export function SegmentedNav<T extends string>({
 	label,
@@ -494,26 +492,29 @@ export function SegmentedNav<T extends string>({
 	hrefFor: (key: T) => string
 }) {
 	return (
-		<nav aria-label={label}>
-			<SegmentedControl
-				value={current}
-				// Navigation is the link's: the pressed state follows the URL.
-				onValueChange={() => {}}
-				aria-label={label}
-			>
-				{options.map((option) => (
-					<ToggleGroupItem
+		<nav
+			aria-label={label}
+			className="bg-muted inline-flex w-fit items-center rounded-full p-1"
+		>
+			{options.map((option) => {
+				const active = option.key === current
+				return (
+					<Link
 						key={option.key}
-						value={option.key}
-						aria-current={option.key === current ? 'page' : undefined}
-						className="px-5"
-						render={<Link to={hrefFor(option.key)} />}
-						nativeButton={false}
+						to={hrefFor(option.key)}
+						aria-current={active ? 'page' : undefined}
+						className={cn(
+							toggleVariants({ size: 'default' }),
+							'touch-manipulation rounded-full px-5',
+							active
+								? 'bg-background text-foreground dark:bg-input/50 hover:bg-background shadow-sm'
+								: 'text-muted-foreground',
+						)}
 					>
 						{option.label}
-					</ToggleGroupItem>
-				))}
-			</SegmentedControl>
+					</Link>
+				)
+			})}
 		</nav>
 	)
 }
