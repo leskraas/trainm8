@@ -99,7 +99,7 @@ export function RunnerFinish({
 	}
 
 	// Already recorded: no button. The statement lives at the top of the screen.
-	if (status === 'completed' || finished) return null
+	if (status === 'completed') return null
 
 	if (asking != null) {
 		return (

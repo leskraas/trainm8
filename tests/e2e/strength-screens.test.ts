@@ -602,7 +602,7 @@ test('the runner opens on the weight the program resolved, with its ramp and its
 	// The generated ramp, and the working sets with what is left of them.
 	await expect(page.getByText('Oppvarming').first()).toBeVisible()
 	await expect(page.getByText('Arbeidssett').first()).toBeVisible()
-	await expect(page.getByText('0 of 5 logged').first()).toBeVisible()
+	await expect(page.getByText('0 av 5 logget').first()).toBeVisible()
 	// Five circles, each showing its target rather than a bare number nobody
 	// asked for.
 	const circles = page.getByRole('button', {
@@ -634,7 +634,7 @@ test('a set circle logs and counts the reps down — from the keyboard', async (
 
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 	await waitForHydration(page, '[data-set-circle]')
-	const first = page.getByRole('button', { name: 'Log set 1 of Back Squat' })
+	const first = page.getByRole('button', { name: 'Logg sett 1 av Back Squat' })
 	await expect(first).toBeVisible()
 
 	// **Reachable**: tabbing from the top of the document arrives on the circle.
@@ -645,11 +645,11 @@ test('a set circle logs and counts the reps down — from the keyboard', async (
 	// athlete's own words rather than in a data attribute.
 	await pressAndSettle(page, 'Enter')
 	const logged = page.getByRole('button', {
-		name: 'Logged set 1 of Back Squat',
+		name: 'Logget sett 1 av Back Squat',
 	})
 	await expect(logged).toBeVisible()
 	await expect(logged).toHaveText('5')
-	await expect(page.getByText('1 of 5 logged').first()).toBeVisible()
+	await expect(page.getByText('1 av 5 logget').first()).toBeVisible()
 
 	// A second press counts the reps down, and a set under its target renders
 	// destructive — the program will read it as a miss and the athlete sees that
@@ -667,7 +667,7 @@ test('a set circle logs and counts the reps down — from the keyboard', async (
 		await expect(circle).toHaveText(count)
 	}
 	// Still one logged set: counting down restates the set, it does not undo it.
-	await expect(page.getByText('1 of 5 logged').first()).toBeVisible()
+	await expect(page.getByText('1 av 5 logget').first()).toBeVisible()
 })
 
 test.fail(
@@ -680,7 +680,9 @@ test.fail(
 
 		await page.goto(`/training/sessions/${run.sessionId}/log`)
 		await waitForHydration(page, '[data-set-circle]')
-		const first = page.getByRole('button', { name: 'Log set 1 of Back Squat' })
+		const first = page.getByRole('button', {
+			name: 'Logg sett 1 av Back Squat',
+		})
 		await expect(first).toBeVisible()
 		await tabTo(page, first)
 
@@ -704,7 +706,7 @@ test.fail(
 		await tabTo(page, circle)
 		await pressAndSettle(page, 'Space')
 		await expect(first).toBeVisible()
-		await expect(page.getByText('0 of 5 logged').first()).toBeVisible()
+		await expect(page.getByText('0 av 5 logget').first()).toBeVisible()
 
 		// **This one fails against the product, and is marked rather than
 		// softened.** The tap that would make it `0` is refused by the write seam:
@@ -732,13 +734,13 @@ test('the rest bar starts on a logged set, adjusts and dismisses from the keyboa
 
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 	await waitForHydration(page, '[data-set-circle]')
-	const first = page.getByRole('button', { name: 'Log set 1 of Back Squat' })
+	const first = page.getByRole('button', { name: 'Logg sett 1 av Back Squat' })
 	await expect(first).toBeVisible()
 	await first.click()
 
 	// It starts on its own — a timer you have to start is a timer you forget —
 	// and it says *why* it is this long.
-	const bar = page.getByRole('status', { name: 'Rest timer' })
+	const bar = page.getByRole('status', { name: 'Pausetimer' })
 	await expect(bar).toBeVisible()
 	await expect(bar.getByText('rest', { exact: true })).toBeVisible()
 	const clock = page.getByTestId('rest-clock')
@@ -747,7 +749,7 @@ test('the rest bar starts on a logged set, adjusts and dismisses from the keyboa
 	// **It never blocks the next set.** Every circle is still enabled while it
 	// runs, which is the whole reason it is a bar and not a screen.
 	await expect(
-		page.getByRole('button', { name: 'Log set 2 of Back Squat' }),
+		page.getByRole('button', { name: 'Logg sett 2 av Back Squat' }),
 	).toBeEnabled()
 
 	// −15s moves the deadline, from the keyboard.
@@ -758,7 +760,7 @@ test('the rest bar starts on a logged set, adjusts and dismisses from the keyboa
 	await expect(clock).not.toHaveText(before ?? '')
 
 	// And dismissing takes the bar away entirely.
-	const dismiss = page.getByRole('button', { name: 'Dismiss the rest timer' })
+	const dismiss = page.getByRole('button', { name: 'Lukk pausetimeren' })
 	await tabTo(page, dismiss)
 	await page.keyboard.press('Enter')
 	await expect(bar).toHaveCount(0)
@@ -789,7 +791,7 @@ test('a warm-up chip toggles from the keyboard and says which rung it is', async
 	await expect(chip).toHaveAccessibleName(/^Logged warm-up 1 of Back Squat/)
 
 	// A rung is not a working set: ticking one changes nothing about `n of m`.
-	await expect(page.getByText('0 of 5 logged').first()).toBeVisible()
+	await expect(page.getByText('0 av 5 logget').first()).toBeVisible()
 
 	// Pressing it again takes it back.
 	await pressAndSettle(page, 'Space')
@@ -848,12 +850,12 @@ test('every control on the runner is 44px to a thumb, rest bar included', async 
 	await page.goto(`/training/sessions/${run.sessionId}/log`)
 	await waitForHydration(page, '[data-set-circle]')
 	await expect(
-		page.getByRole('button', { name: 'Log set 1 of Back Squat' }),
+		page.getByRole('button', { name: 'Logg sett 1 av Back Squat' }),
 	).toBeVisible()
 	// The rest bar only exists once a set has been logged, and it is part of
 	// this screen — so it is measured on the same pass rather than exempted.
-	await page.getByRole('button', { name: 'Log set 1 of Back Squat' }).click()
-	await expect(page.getByRole('status', { name: 'Rest timer' })).toBeVisible()
+	await page.getByRole('button', { name: 'Logg sett 1 av Back Squat' }).click()
+	await expect(page.getByRole('status', { name: 'Pausetimer' })).toBeVisible()
 
 	// Every control on the busiest strength surface, including the three that
 	// only exist while a rest runs. The rest bar's ±15s and dismiss are drawn at
@@ -1275,13 +1277,15 @@ test('a repeated circuit is one circle per round, and round 2 logs as its own se
 	).toHaveCount(5)
 
 	// Round 2 of the squat.
-	const roundTwo = page.getByRole('button', { name: 'Log set 2 of Back Squat' })
+	const roundTwo = page.getByRole('button', {
+		name: 'Logg sett 2 av Back Squat',
+	})
 	await tabTo(page, roundTwo)
 	await pressAndSettle(page, 'Enter')
 	await expect(
-		page.getByRole('button', { name: 'Logged set 2 of Back Squat' }),
+		page.getByRole('button', { name: 'Logget sett 2 av Back Squat' }),
 	).toHaveText('8')
-	await expect(page.getByText('1 of 5 logged').first()).toBeVisible()
+	await expect(page.getByText('1 av 5 logget').first()).toBeVisible()
 
 	// It is stored as round 2 — its own row, answering the one authored set — and
 	// it survives a reload.
@@ -1294,7 +1298,7 @@ test('a repeated circuit is one circle per round, and round 2 logs as its own se
 	])
 	await page.reload()
 	await expect(
-		page.getByRole('button', { name: 'Logged set 2 of Back Squat' }),
+		page.getByRole('button', { name: 'Logget sett 2 av Back Squat' }),
 	).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 })
@@ -1318,7 +1322,7 @@ test('fifteen circles — three sets, five rounds — wrap into rows a thumb can
 	)) {
 		expect(box).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET)
 	}
-	await expect(page.getByText('0 of 15 logged').first()).toBeVisible()
+	await expect(page.getByText('0 av 15 logget').first()).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 })
 
