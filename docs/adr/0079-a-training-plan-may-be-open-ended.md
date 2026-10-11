@@ -94,10 +94,24 @@ defined a **Training Plan** as anchored to a **Target Event**.
   round is #505 S6.
 - **Making one**: _Hold meg aktiv_ on `/training/plan/new` asks for an endurance
   Discipline and hours a week (pre-filled from the last four weeks) and calls
-  `createOpenEndedPlan`: this week, one round `Blokk 1` of four weeks at 3:1,
-  one track in hours. No `fitness-goal` Event is created for it; the dated-goal
-  form stays for an athlete who has a date. The plan page addresses it as
-  `?outline=<id>` and shows _blokk n av ∞_, the round counted by phase position.
+  `createOpenEndedPlan`: one round `Blokk 1` of four weeks at 3:1, one track in
+  hours. No `fitness-goal` Event is created for it; the dated-goal form stays
+  for an athlete who has a date. The plan page addresses it as `?outline=<id>`
+  and shows _blokk n av ∞_, the round counted by phase position.
+  - **Amended in round 2** (sesong-family-fix, audit B2–B3): it no longer opens
+    in the week already begun. `createKeepMeActivePlan` opens it on the first
+    week not yet begun (`readFirstUnbegunWeekKey`), as the first run's plan does
+    (S14), so no session lands on a day behind the athlete; and it records the
+    family `classic` (`KEEP_ME_ACTIVE_FAMILY`) and lays Klassisk's round whole —
+    its climb and quality mix — where it used to lay the rhythm with every rate
+    unset. Sesong asks no philosophy question; _Bytt filosofi_ is the way to
+    another.
+  - **And on Sesong** (round 2, ADR 0090): a race plan links back to a resting
+    open-ended plan, a next round waiting in Ukeskiftet is said read-only on the
+    page, and the season table ends an open-ended plan with _fortsetter_. The
+    philosophy switch's preview reads the family over the phases
+    (`outlineFamily(stored, phases)`), like every other reader, so a plan whose
+    last phase is a taper no longer previews from "none".
 
 ## As built (#505 S6)
 

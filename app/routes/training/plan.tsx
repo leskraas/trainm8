@@ -1,6 +1,16 @@
 /**
- * The manual planning surface: the season the athlete authored, where they reshape
- * it, and where they author the progression into it.
+ * Sesong (`/training/plan`): the season the athlete authored, where they reshape
+ * it, and where they author the progression into it — in Norwegian, on the design
+ * system, since round 2 (ADR 0090).
+ *
+ * **The page leads with the season picture** (decision 12): I dag's curve and
+ * season table for this plan (`__season-picture.tsx`), where a row opens that
+ * week's target in _Endre sesongen_. Then the edits, the philosophy and the
+ * Events (the right column from `lg`, decision 13), what the season comes to,
+ * and the two readings below. **The weeks fill themselves** (decision 14): the
+ * week change lays them as the horizon reaches them, and a typical week that
+ * gains days lays the weeks up to the horizon at once — stamping is no longer the
+ * athlete's step. The analytical season chart lives under Blokker's _Avansert_.
  *
  * Two readings of one object (spec #399 story 67) — **Blocks** shapes the season
  * and **Weeks** audits it — selected by a `?tab=` search param rather than nested
@@ -18,10 +28,11 @@
  * a week it asks for in zones 3, 4 and 5. The mix is authored here, and the segment's
  * **Intensity Emphasis** label and its **Quality Session Count** are *read off* that
  * mix rather than typed anywhere (ADR 0042 §4–§5).
- * Above all of it sits the **preset gallery** (#405, `__preset-gallery.tsx`): three
- * periodization shapes, each picked from an illustration of the load profile it lays
- * down. Applying one **copies it in** — it replaces the phase structure, says so
- * before the tap and again in the toast after it, and leaves nothing linked back.
+ * Under _Avansert_ sits the **preset gallery** (#405, `__preset-gallery.tsx`): the
+ * periodization shapes, each picked from an illustration of the load profile it
+ * lays down, offered only before the plan has begun. Applying one **copies it in**
+ * — it replaces the phase structure, says so before the tap and again in the toast
+ * after it, and leaves nothing linked back.
  *
  * Every number here is **derived** on read from the **Season Anchor** and the
  * phases (ADR 0040 §1) — nothing on this page is stored per week, so every target

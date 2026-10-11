@@ -166,10 +166,13 @@ export function previewPhilosophySwitch(
 	)
 	const last = ordered.at(-1)
 	if (!last) return { ok: false, reason: 'no-phases' }
-	const from = outlineFamily(outline.family, rhythmOf(last.rhythm))
+	const specs = phaseSpecs(outline)
+	// Read over the phases, as `outlineFamily` reads them everywhere else: a race
+	// plan's last phase is its taper, whose rhythm names no family, so the first
+	// phase that is not a taper says which method the plan follows.
+	const from = outlineFamily(outline.family, specs)
 	if (from === family) return { ok: false, reason: 'same-family' }
 
-	const specs = phaseSpecs(outline)
 	const starts = phaseStartIndices(specs)
 	const total = specs.reduce((sum, phase) => sum + phase.weeks, 0)
 	// The first week the switch may change; before the plan opens, its first.
