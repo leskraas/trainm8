@@ -26,68 +26,94 @@
  *
  * The season is long: 27 weeks × 4 days is over a hundred rows at 390 px (ADR
  * 0028). The first four weeks are open and the rest sit behind one tap — the same
- * device the shape step uses for its nine cards — because what is hidden is *more
- * of the same weeks*, never an absence and never a decision.
+ * device the shape step uses for its other lengths — because what is hidden is
+ * *more of the same weeks*, never an absence and never a decision.
+ *
+ * **Norwegian, on the design system** (#505 round 2; ADR 0081, ADR 0085). The
+ * page is the shape step's sibling — «Bygg sesongen for meg» on
+ * `plan.new.$eventId.tsx` leads here, and «Legg den opp selv» leads back — so it
+ * is built from the same parts: `PlanCard` for each question, `ChoiceCard` in a
+ * `ui/radio-group` for each answer, the shapes named and drawn as Sesong names and
+ * draws them (`nbPresetName`, `nbPresetNote`, `LoadProfile`), and the type steps,
+ * 44px targets and 16px inputs of the system. Every word is in `labels.ts`
+ * (`PLAN_GENERATE_LABELS`); the domain's English — a preset's `name` and
+ * `provenance`, a phase's stored name, `provenanceSentence` — is never shown.
  */
+import { useState } from 'react'
 import { data, Form, redirect, useSearchParams } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { Field } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import { requireUserId } from '#app/utils/auth.server.ts'
-import { formatDate } from '#app/utils/format.ts'
+import { Card } from '#app/components/ui/card.tsx'
 import {
-	DISCIPLINE_LABELS,
-	PATTERN_WEEKDAY_LABELS,
-	SESSION_ARCHETYPE_LABELS,
-	VOLUME_CURRENCY_LABELS,
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '#app/components/ui/collapsible.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
+import { RadioGroup } from '#app/components/ui/radio-group.tsx'
+import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
+import { requireUserId } from '#app/utils/auth.server.ts'
+import {
+	formatNbDate,
+	formatNbDayMonth,
+	formatNbVolumeTotal,
+} from '#app/utils/format.ts'
+import {
 	APP_TAB_LABELS,
+	NB_CATALOGUE_PHASE_LABELS,
+	NB_DISCIPLINE_LABELS,
+	NB_PATTERN_WEEKDAY_LABELS,
+	NB_SESSION_ARCHETYPE_LABELS,
+	NB_VOLUME_UNITS,
+	NB_WEEK_ROLE_LABELS,
+	nbPhaseName,
+	PLAN_GENERATE_LABELS,
+	PLAN_SHAPE_STEP_LABELS,
 } from '#app/utils/labels.ts'
-import { cn } from '#app/utils/misc.tsx'
 import {
 	approveSeason,
+	defaultPresetFor,
 	previewSeason,
 	type GenerationAnswers,
 	type GenerationRefusal,
 	type SeasonPreview,
 } from '#app/utils/plan-generation/generate.server.ts'
 import {
-	provenanceNonVouch,
-	provenanceSentence,
-} from '#app/utils/plan-generation/provenance.ts'
-import {
 	GENERATION_INTENTS,
 	type GeneratedSession,
 	type GenerationIntent,
 	type UnfilledSlot,
 } from '#app/utils/plan-generation/season.ts'
-import { eventFit } from '#app/utils/plan-outline/event-fit.ts'
+import { eventFit, type EventFit } from '#app/utils/plan-outline/event-fit.ts'
 import {
-	PERIODIZATION_PRESETS,
 	PRESET_KEYS,
 	presetWeeks,
 	type PresetKey,
 } from '#app/utils/plan-outline/presets.ts'
+import { type Discipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.generate.$eventId.ts'
-import { Disclosure } from './__plan-chrome.tsx'
+import {
+	nbProvenanceNonVouch,
+	nbProvenanceSentence,
+} from './__catalogue-card.ts'
+import { CollapsibleSection, PlanCard } from './__plan-chrome.tsx'
+import { ChoiceCard } from './__plan-new-parts.tsx'
+import {
+	LoadProfile,
+	nbPresetName,
+	nbPresetNote,
+	presetProfiles,
+} from './__preset-gallery.tsx'
 
-export const meta: Route.MetaFunction = () => [
-	{ title: 'Your season | Trainm8' },
-]
+const L = PLAN_GENERATE_LABELS
+
+export const meta: Route.MetaFunction = () => [{ title: L.metaTitle }]
 
 /** How many weeks are open before the rest go behind a tap. */
 const WEEKS_SHOWN = 4
-
-/**
- * The one asked input, worded as the athlete would say it. Three sentences rather
- * than a slider, because they are three different situations and not three points
- * on a scale.
- */
-const INTENT_LABELS: Record<GenerationIntent, string> = {
-	'first-season': 'This is my first structured season',
-	'returning-from-injury': 'I am coming back from injury or a long break',
-	'deliberately-building': 'I am training consistently and building',
-}
 
 /**
  * Read the athlete's answers off the URL.
@@ -113,14 +139,16 @@ function readAnswers(url: URL): GenerationAnswers {
 				: parsed
 	}
 	return {
-		presetKey: (PRESET_KEYS as readonly string[]).includes(shape ?? '')
-			? (shape as PresetKey)
-			: undefined,
+		presetKey: isPresetKey(shape) ? shape : undefined,
 		intent: (GENERATION_INTENTS as readonly string[]).includes(you ?? '')
 			? (you as GenerationIntent)
 			: undefined,
 		anchors,
 	}
+}
+
+function isPresetKey(value: string | null): value is PresetKey {
+	return (PRESET_KEYS as readonly string[]).includes(value ?? '')
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -134,11 +162,22 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 			throw redirect(`/training/plan?event=${params.eventId}`)
 		}
 		if (result.reason === 'no-cardio-discipline') {
-			return { preview: null, refusal: result.reason }
+			return { preview: null, refusal: result.reason, nearestFit: false }
 		}
 		throw redirect('/training/plan/new')
 	}
-	return { preview: result.preview, refusal: null }
+	const { choice, eventWeekKey } = result.preview
+	return {
+		preview: result.preview,
+		refusal: null,
+		// Whether the season is built on the shape that lands nearest the Event —
+		// the default `resolveChoice` picks — whoever chose it. Read here, not off
+		// the URL: the rebuild always posts `shape`, so its presence says nothing
+		// about whether the athlete moved it.
+		nearestFit:
+			choice.presetKey ===
+			defaultPresetFor(choice.startWeekKey, eventWeekKey, PRESET_KEYS),
+	}
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -156,74 +195,62 @@ export async function action({ request, params }: Route.ActionArgs) {
 	throw redirect(`/training/plan?event=${params.eventId}`)
 }
 
-/** Each refusal, worded. Typed to the union so a new one is a compile error here. */
+/**
+ * Each refusal, worded. Typed to the union (`satisfies` in `labels.ts`), so a new
+ * one is a compile error there rather than a blank here.
+ */
 function refusalMessage(reason: GenerationRefusal): string {
-	switch (reason) {
-		case 'event-not-found':
-			return 'That event is not available to plan against.'
-		case 'no-cardio-discipline':
-			return 'This event names no run, bike or swim discipline, so there is no endurance track to build a season on.'
-		case 'anchor-missing':
-			return 'Say where each discipline is starting from before adding the season to your calendar — a track with no starting volume has no size, and nothing here will invent one.'
-		case 'event-past':
-			return 'That event has already happened, so it cannot anchor a new plan.'
-		case 'event-cancelled':
-			return 'That event is cancelled, so it cannot anchor a plan.'
-		case 'event-already-planned':
-			return 'That event already has a plan.'
-		case 'open-ended-already-active':
-			return 'You already have a plan with no end. Open it from your plan page.'
-	}
+	return L.refusals[reason]
+}
+
+/** A sport mid-sentence: `løping`, `styrke`. */
+function sportWord(discipline: Discipline): string {
+	return NB_DISCIPLINE_LABELS[discipline].toLowerCase()
 }
 
 export default function GenerateSeasonRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { preview, refusal } = loaderData
+	const { preview, refusal, nearestFit } = loaderData
 	const [searchParams] = useSearchParams()
 
 	if (!preview) {
 		return (
 			<main className="container mx-auto max-w-2xl py-6 md:py-8">
 				<PageHeader
-					title="Your season"
+					title={L.refusedTitle}
 					back={{ to: '/training/plan/new', label: APP_TAB_LABELS.season }}
 					className="mb-4"
 				/>
-				<p className="text-sm">{refusalMessage(refusal!)}</p>
+				<p className="text-body">{refusalMessage(refusal!)}</p>
 			</main>
 		)
 	}
 
 	const { event, season, choice } = preview
-	const chosenPreset = PERIODIZATION_PRESETS.find(
-		(preset) => preset.key === choice.presetKey,
-	)!
 	const weeks = season.weeks
 	const fit = eventFit(season.startWeekKey, weeks.length, preview.eventWeekKey)
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
-				title="Your season, ready to review"
+				title={L.title}
 				back={{
 					to: `/training/plan/new/${event.id}`,
-					label: 'Lay it out myself',
+					label: L.layOutMyself,
 				}}
 				className="mb-4"
 			/>
 
+			{/* Page prose sits on the page background, not in a card (§1.6). */}
 			<div className="mb-6 space-y-1">
-				<p className="font-medium">{event.name}</p>
-				<p className="text-muted-foreground text-sm">
-					{formatDate(event.startDate, 'UTC')} · {season.sessions.length}{' '}
-					sessions across {weeks.length} weeks · {fitSentence(fit)}
+				<p className="text-heading [overflow-wrap:anywhere]">{event.name}</p>
+				<p className="text-footnote text-muted-foreground tabular-nums">
+					{formatNbDate(event.startDate, 'UTC')} ·{' '}
+					{L.summary(season.sessions.length, weeks.length)} · {fitSentence(fit)}
 				</p>
-				<p className="text-muted-foreground text-sm">
-					Every session is retrieved from the Catalogue and shows where it came
-					from. Nothing is on your calendar until you add it.
-				</p>
+				<p className="text-footnote text-muted-foreground">{L.intro}</p>
 			</div>
 
 			{/* The absences, before the season rather than inside it. A source can wait
@@ -231,115 +258,85 @@ export default function GenerateSeasonRoute({
 			<Absences season={season} />
 
 			<Form method="get" className="mb-8 space-y-6">
-				<fieldset className="space-y-3">
-					<legend className="text-lg font-semibold">
-						Where are you right now?
-					</legend>
-					<p className="text-muted-foreground text-sm">
-						The one thing your training history cannot tell us. It sets how far
-						up the Catalogue&rsquo;s dose ladder we retrieve — a stated
-						convention, not a judgement about you.
-					</p>
-					<ul className="space-y-2">
-						{GENERATION_INTENTS.map((intent) => (
-							<li key={intent}>
-								<label className="border-border/70 bg-card has-[:checked]:border-primary has-[:checked]:ring-primary/40 flex cursor-pointer items-start gap-3 rounded-2xl border p-3 has-[:checked]:ring-2">
-									<input
-										type="radio"
-										name="you"
-										value={intent}
-										defaultChecked={choice.intent === intent}
-										className="mt-1 size-4 shrink-0"
-									/>
-									<span className="text-sm">{INTENT_LABELS[intent]}</span>
-								</label>
-							</li>
-						))}
-					</ul>
-				</fieldset>
-
-				{/* The shape is *pre-selected by fit* (#436), so it is a disclosure and
-				    not a question: the closed state names the season the athlete is
-				    about to read, and the nine radios behind it stay in the DOM and in
-				    one group, so the choice works closed and before hydration. */}
-				<Disclosure
-					summary="The shape of the season"
-					detail={`${chosenPreset.name} · ${presetWeeks(chosenPreset)} weeks · pre-selected because it lands nearest your event`}
-				>
-					<p className="text-muted-foreground mb-3 text-sm">
-						A default and never a recommendation — a shape that fits your
-						calendar is not thereby the right season for you.
-					</p>
-					<ul className="space-y-2">
-						{PERIODIZATION_PRESETS.map((preset) => (
-							<li key={preset.key}>
-								<label className="border-border/70 bg-card has-[:checked]:border-primary has-[:checked]:ring-primary/40 flex cursor-pointer items-start gap-3 rounded-2xl border p-3 has-[:checked]:ring-2">
-									<input
-										type="radio"
-										name="shape"
-										value={preset.key}
-										defaultChecked={choice.presetKey === preset.key}
-										className="mt-1 size-4 shrink-0"
-									/>
-									<span className="min-w-0 flex-1 text-sm">
-										<span className="block font-medium">{preset.name}</span>
-										<span className="text-muted-foreground block">
-											{presetWeeks(preset)} weeks · {preset.provenance}
-										</span>
-									</span>
-								</label>
-							</li>
-						))}
-					</ul>
-				</Disclosure>
-
-				{choice.tracks.map((track) => (
-					<div key={track.discipline} className="space-y-2">
-						<label
-							htmlFor={`anchor-${track.discipline}`}
-							className="text-sm font-medium"
+				<PlanCard titleId="where-you-are" title={L.youTitle}>
+					<div className="space-y-4">
+						<p className="text-footnote text-muted-foreground">{L.youIntro}</p>
+						<RadioGroup
+							name="you"
+							defaultValue={choice.intent}
+							aria-labelledby="where-you-are"
 						>
-							Where your {DISCIPLINE_LABELS[track.discipline].toLowerCase()}{' '}
-							weeks are starting from (
-							{VOLUME_CURRENCY_LABELS[track.currency].toLowerCase()})
-						</label>
-						<input
-							id={`anchor-${track.discipline}`}
-							name={`anchor-${track.discipline}`}
-							type="number"
-							step="any"
-							min={0}
-							inputMode="decimal"
-							defaultValue={track.anchorValue ?? ''}
-							className="border-input bg-background h-12 w-full rounded-md border px-3 text-sm"
-						/>
-						{track.anchorValue == null ? (
-							<p className="text-muted-foreground text-sm">
-								Nothing in your recent training to read this from, so it is
-								yours to state. Until you do, every week reads &ldquo;—&rdquo;.
-							</p>
-						) : (
-							<p className="text-muted-foreground text-sm">
-								Pre-filled from your own recent training, and yours to change.
-							</p>
-						)}
+							<ul className="space-y-3">
+								{GENERATION_INTENTS.map((intent) => (
+									<li key={intent}>
+										<ChoiceCard value={intent} title={L.intents[intent]} />
+									</li>
+								))}
+							</ul>
+						</RadioGroup>
 					</div>
-				))}
+				</PlanCard>
+
+				<ShapeCard chosen={choice.presetKey} nearestFit={nearestFit} />
+
+				<PlanCard titleId="anchors" title={L.anchorTitle}>
+					<ul className="space-y-4">
+						{choice.tracks.map((track) => (
+							<li key={track.discipline} className="space-y-1.5">
+								<Field
+									className="sm:max-w-xs"
+									labelProps={{
+										children: L.anchorLabel(
+											sportWord(track.discipline),
+											NB_VOLUME_UNITS[track.currency],
+										),
+									}}
+									inputProps={{
+										id: `anchor-${track.discipline}`,
+										name: `anchor-${track.discipline}`,
+										type: 'number',
+										step: 'any',
+										min: 0,
+										inputMode: 'decimal',
+										defaultValue: track.anchorValue ?? '',
+										className: 'tabular-nums',
+									}}
+								/>
+								<p className="text-footnote text-muted-foreground">
+									{track.anchorValue == null
+										? L.anchorNone
+										: // Read off their history only while it is still the
+											// history's figure: the rebuild posts every box, so the
+											// URL cannot tell a typed figure from an untouched one.
+											track.anchorValue ===
+											  preview.proposals.find(
+													(proposal) =>
+														proposal.discipline === track.discipline,
+											  )?.anchors[track.currency]?.value
+											? L.anchorFromHistory
+											: L.anchorOwn}
+								</p>
+							</li>
+						))}
+					</ul>
+				</PlanCard>
 
 				<Button type="submit" variant="secondary" className="w-full sm:w-auto">
-					Rebuild the season
+					{L.rebuild}
 				</Button>
 			</Form>
 
-			<section aria-labelledby="the-season" className="space-y-2">
-				<h2 id="the-season" className="text-lg font-semibold">
-					The season
-				</h2>
-				<p className="text-muted-foreground text-sm">
-					{season.phases
-						.map((phase) => `${phase.name} ${phase.weeks}w`)
-						.join(' · ')}
-				</p>
+			<section aria-labelledby="the-season" className="space-y-3">
+				<div className="space-y-1">
+					<h2 id="the-season" className="text-heading">
+						{L.seasonTitle}
+					</h2>
+					<p className="text-footnote text-muted-foreground tabular-nums">
+						{season.phases
+							.map((phase) => L.phase(nbPhaseName(phase.name), phase.weeks))
+							.join(' · ')}
+					</p>
+				</div>
 				<ul className="space-y-3">
 					{weeks.slice(0, WEEKS_SHOWN).map((week) => (
 						<li key={week.weekKey}>
@@ -348,9 +345,10 @@ export default function GenerateSeasonRoute({
 					))}
 				</ul>
 				{weeks.length > WEEKS_SHOWN ? (
-					<Disclosure
-						summary={`The remaining ${weeks.length - WEEKS_SHOWN} weeks`}
-						detail="The same season, week by week, all the way to your event."
+					<CollapsibleSection
+						summary={L.remaining(weeks.length - WEEKS_SHOWN)}
+						detail={L.remainingDetail}
+						contentClassName="space-y-3"
 					>
 						<ul className="space-y-3">
 							{weeks.slice(WEEKS_SHOWN).map((week) => (
@@ -359,7 +357,7 @@ export default function GenerateSeasonRoute({
 								</li>
 							))}
 						</ul>
-					</Disclosure>
+					</CollapsibleSection>
 				) : null}
 			</section>
 
@@ -369,19 +367,98 @@ export default function GenerateSeasonRoute({
 				className="mt-8 space-y-3"
 			>
 				{actionData?.refusal ? (
-					<p className="text-destructive text-sm" role="alert">
+					<p className="text-footnote text-foreground-destructive" role="alert">
 						{refusalMessage(actionData.refusal)}
 					</p>
 				) : null}
 				<Button type="submit" className="w-full sm:w-auto">
-					Add these {season.sessions.length} sessions to my calendar
+					{L.approve(season.sessions.length)}
 				</Button>
-				<p className="text-muted-foreground text-sm">
-					Everything lands editable, like any other session — and each one keeps
-					a pointer back to the Catalogue row it came from.
-				</p>
+				<p className="text-footnote text-muted-foreground">{L.approveNote}</p>
 			</Form>
 		</main>
+	)
+}
+
+/**
+ * The shape the season was built on, and the other eight one tap away.
+ *
+ * The shape is *pre-selected by fit* (#436), so it is a closed row and not a
+ * question: closed, it names the season the athlete is about to read. The cards
+ * behind it are the shape step's own — `ChoiceCard`, the Sesong name and note,
+ * the picture drawn to the gallery's shared scale — so one method looks the same
+ * on both ways into a plan. The panel stays mounted while closed
+ * (`keepMounted`), so every radio is in the one group and posts `shape` with the
+ * rebuild whether or not the athlete opened it.
+ */
+function ShapeCard({
+	chosen,
+	nearestFit,
+}: {
+	chosen: PresetKey
+	/** True while the season is built on the shape that lands nearest the Event. */
+	nearestFit: boolean
+}) {
+	const [open, setOpen] = useState(false)
+	const { profiles, ceiling, longest } = presetProfiles()
+	const chosenPreset = profiles.find(
+		({ preset }) => preset.key === chosen,
+	)!.preset
+	const chosenWeeks = presetWeeks(chosenPreset)
+	return (
+		<PlanCard titleId="season-shape" title={L.shapeTitle}>
+			<Collapsible open={open} onOpenChange={setOpen}>
+				<CollapsibleTrigger className="hover:bg-muted/50 active:bg-muted motion-safe:duration-press -mx-2 flex min-h-11 w-[calc(100%+1rem)] touch-manipulation items-center gap-3 rounded-2xl px-2 py-2.5 text-left motion-safe:transition-colors motion-safe:ease-out">
+					<span className="min-w-0 flex-1">
+						<span className="text-callout block font-semibold [overflow-wrap:anywhere]">
+							{nbPresetName(chosen)}
+						</span>
+						<span className="text-footnote text-muted-foreground block tabular-nums">
+							{nearestFit
+								? L.shapeDetail(chosenWeeks)
+								: L.shapeDetailOwn(chosenWeeks)}
+						</span>
+					</span>
+					<Icon
+						name="chevron-down"
+						size="sm"
+						className="text-muted-foreground motion-safe:duration-press shrink-0 motion-safe:transition-transform motion-safe:ease-out [[data-panel-open]>&]:rotate-180"
+					/>
+				</CollapsibleTrigger>
+				<CollapsibleContent keepMounted>
+					<div className="space-y-3 pt-3">
+						<p className="text-footnote text-muted-foreground">{L.shapeNote}</p>
+						<RadioGroup
+							name="shape"
+							defaultValue={chosen}
+							aria-labelledby="season-shape"
+						>
+							<ul className="space-y-3">
+								{profiles.map(({ preset, profile }) => (
+									<li key={preset.key}>
+										<ChoiceCard
+											value={preset.key}
+											title={nbPresetName(preset.key)}
+											detail={L.shapeOption(
+												presetWeeks(preset),
+												nbPresetNote(preset.key),
+											)}
+										>
+											<LoadProfile
+												preset={preset}
+												profile={profile}
+												ceiling={ceiling}
+												slots={longest}
+											/>
+										</ChoiceCard>
+									</li>
+								))}
+							</ul>
+						</RadioGroup>
+					</div>
+				</CollapsibleContent>
+			</Collapsible>
+		</PlanCard>
 	)
 }
 
@@ -390,7 +467,8 @@ export default function GenerateSeasonRoute({
  *
  * Two different absences with two different reasons, so two notices rather than
  * one: a **Discipline** generation declined outright, and the days its retrieval
- * could not fill.
+ * could not fill. A sunken well rather than a card: it is a statement about the
+ * season, not a thing to act on, so it separates by tone (ADR 0085 §2).
  */
 function Absences({ season }: { season: SeasonPreview['season'] }) {
 	if (season.unavailable.length === 0 && season.unfilled.length === 0)
@@ -398,37 +476,36 @@ function Absences({ season }: { season: SeasonPreview['season'] }) {
 	return (
 		<section
 			aria-labelledby="what-is-missing"
-			className="border-border/70 bg-muted/40 mb-8 space-y-2 rounded-2xl border p-4"
+			className="bg-muted/60 mb-6 space-y-2 rounded-4xl p-4 md:p-6"
 		>
-			<h2 id="what-is-missing" className="text-base font-semibold">
-				What this season does not include
+			<h2 id="what-is-missing" className="text-callout font-semibold">
+				{L.absencesTitle}
 			</h2>
 			{season.unavailable.map((entry) => (
-				<p key={entry.discipline} className="text-sm">
-					<span className="font-medium">
-						No {DISCIPLINE_LABELS[entry.discipline].toLowerCase()} track.
+				<p key={entry.discipline} className="text-footnote">
+					<span className="font-semibold">
+						{L.noTrack(sportWord(entry.discipline))}
 					</span>{' '}
-					None of the season shapes carries a strength block, and a strength
-					block needs a goal, a length and a number of sessions a week that
-					nothing here can read. Rather than invent them, this season leaves it
-					out — add one yourself on the plan page once the season lands.
+					{L.noTrackBody}
 				</p>
 			))}
 			{season.unfilled.length > 0 ? (
-				<p className="text-sm">
-					<span className="font-medium">
-						{season.unfilled.length} training{' '}
-						{season.unfilled.length === 1 ? 'day is' : 'days are'} empty.
+				<p className="text-footnote">
+					<span className="font-semibold tabular-nums">
+						{L.emptyDays(season.unfilled.length)}
 					</span>{' '}
-					The Catalogue has no session matching what those days asked for, and
-					nothing was substituted in their place. They are marked in the weeks
-					below.
+					{L.emptyDaysBody}
 				</p>
 			) : null}
 		</section>
 	)
 }
 
+/**
+ * One week of the season: a luma card, because a week is a repeated unit. Named
+ * by its ISO week as every week on Sesong is (ADR 0090 §4), with where it sits in
+ * this season, its phase and role, and its target per track underneath.
+ */
 function WeekCard({
 	week,
 	season,
@@ -443,74 +520,127 @@ function WeekCard({
 	const unfilled = season.unfilled.filter(
 		(slot) => slot.weekIndex === week.weekIndex,
 	)
+	const titleId = `week-${week.weekKey}`
 	return (
-		<div className="border-border/70 bg-card space-y-3 rounded-3xl border p-4 shadow-xs">
-			<div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-				<span className="font-medium">Week {week.weekIndex + 1}</span>
-				<span className="text-muted-foreground text-sm">{phase.name}</span>
-				{week.role === 'loading' ? null : (
-					<Badge variant="secondary">{week.role}</Badge>
-				)}
-				{week.isFinalWeek ? <Badge>Race week</Badge> : null}
-			</div>
-			<p className="text-muted-foreground text-body-xs">
-				{week.targets
-					.map(
-						(target) =>
-							`${DISCIPLINE_LABELS[target.discipline]} ${
-								target.value == null
-									? '—'
-									: `${round(target.value)} ${VOLUME_CURRENCY_LABELS[target.currency].toLowerCase()}`
-							}`,
-					)
-					.join(' · ')}
-			</p>
-			<ul className="space-y-3">
-				{sessions.map((session) => (
-					<li
-						key={`${session.weekday}-${session.discipline}-${session.entryId}`}
+		<Card
+			role="article"
+			aria-labelledby={titleId}
+			className="gap-3 [--card-spacing:--spacing(4)] md:[--card-spacing:--spacing(5)]"
+		>
+			<div className="space-y-1 px-(--card-spacing)">
+				<div className="flex items-baseline gap-2">
+					<h3
+						id={titleId}
+						className="text-callout flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 font-semibold tabular-nums"
 					>
-						<SessionRow session={session} />
-					</li>
-				))}
-				{unfilled.map((slot) => (
-					<li key={`${slot.weekday}-${slot.discipline}-${slot.slot}`}>
-						<UnfilledRow slot={slot} />
-					</li>
-				))}
-			</ul>
-		</div>
+						{L.week(isoWeekNumber(week.weekKey))}
+						{week.role === 'loading' ? null : (
+							<Badge variant="secondary">
+								{NB_WEEK_ROLE_LABELS[week.role]}
+							</Badge>
+						)}
+						{week.isFinalWeek ? <Badge>{L.raceWeek}</Badge> : null}
+					</h3>
+					<span className="text-footnote text-muted-foreground shrink-0 tabular-nums">
+						{formatNbDayMonth(new Date(`${week.weekKey}T00:00:00Z`), 'UTC')}
+					</span>
+				</div>
+				<p className="text-footnote text-muted-foreground tabular-nums">
+					{L.weekOf(week.weekIndex + 1, season.weeks.length)} ·{' '}
+					{nbPhaseName(phase.name)}
+				</p>
+				{/* One figure per track, each kept whole on its line: a sport and its
+				    figure split across a wrap read as two facts (`1 270,5 km`). */}
+				<p className="text-footnote flex flex-wrap gap-x-1.5 tabular-nums">
+					{week.targets.map((target, index) => (
+						<span key={target.discipline} className="contents">
+							{index > 0 ? <span aria-hidden>·</span> : null}
+							<span className="whitespace-nowrap">
+								{`${NB_DISCIPLINE_LABELS[target.discipline]} ${
+									target.value == null
+										? '—'
+										: formatNbVolumeTotal(target.value, target.currency)
+								}`}
+							</span>
+						</span>
+					))}
+				</p>
+			</div>
+			{sessions.length + unfilled.length > 0 ? (
+				<ul className="divide-border/60 divide-y px-(--card-spacing)">
+					{sessions.map((session) => (
+						<li
+							key={`${session.weekday}-${session.discipline}-${session.entryId}`}
+							className="py-3 first:pt-1 last:pb-0"
+						>
+							<SessionRow session={session} />
+						</li>
+					))}
+					{unfilled.map((slot) => (
+						<li
+							key={`${slot.weekday}-${slot.discipline}-${slot.slot}`}
+							className="py-3 first:pt-1 last:pb-0"
+						>
+							<UnfilledRow slot={slot} />
+						</li>
+					))}
+				</ul>
+			) : null}
+		</Card>
+	)
+}
+
+/** `Mandag · Løping` — the day and the sport a row sits on. */
+function DayLine({
+	weekday,
+	discipline,
+	extra,
+}: {
+	weekday: UnfilledSlot['weekday']
+	discipline: Discipline
+	extra?: readonly string[]
+}) {
+	return (
+		<p className="text-footnote text-muted-foreground flex flex-wrap items-baseline gap-x-1.5">
+			<span className="text-foreground font-semibold">
+				{NB_PATTERN_WEEKDAY_LABELS[weekday]}
+			</span>
+			<span aria-hidden>·</span>
+			<span>{NB_DISCIPLINE_LABELS[discipline]}</span>
+			{extra?.map((part) => (
+				<span key={part} className="contents">
+					<span aria-hidden>·</span>
+					<span>{part}</span>
+				</span>
+			))}
+		</p>
 	)
 }
 
 function SessionRow({ session }: { session: GeneratedSession }) {
-	const nonVouch = provenanceNonVouch(session.provenance)
+	const nonVouch = nbProvenanceNonVouch(session.provenance)
 	return (
-		<div className="space-y-1">
-			<p className="text-body-xs text-muted-foreground flex flex-wrap items-baseline gap-x-1.5">
-				<span className="font-medium">
-					{PATTERN_WEEKDAY_LABELS[session.weekday]}
-				</span>
-				<span aria-hidden>·</span>
-				<span>{DISCIPLINE_LABELS[session.discipline]}</span>
-				<span aria-hidden>·</span>
-				<span>{SESSION_ARCHETYPE_LABELS[session.archetype]}</span>
-				{session.zone == null ? null : (
-					<>
-						<span aria-hidden>·</span>
-						<span>zone {session.zone}</span>
-					</>
-				)}
-			</p>
-			<p className="text-sm font-medium">{session.title}</p>
+		<div className="space-y-0.5">
+			<DayLine
+				weekday={session.weekday}
+				discipline={session.discipline}
+				extra={[
+					NB_SESSION_ARCHETYPE_LABELS[session.archetype],
+					...(session.zone == null ? [] : [L.zone(session.zone)]),
+				]}
+			/>
+			<p className="text-callout [overflow-wrap:anywhere]">{session.title}</p>
 			{/* The provenance slot: one position, four possible contents, and the
 			    community one is the only one that says trainm8 is not standing behind
 			    it. Read off the row rather than assumed to be a Citation. */}
-			<p className="text-body-xs text-muted-foreground" data-provenance>
-				{provenanceSentence(session.provenance)}
+			<p
+				className="text-footnote text-muted-foreground [overflow-wrap:anywhere]"
+				data-provenance
+			>
+				{nbProvenanceSentence(session.provenance)}
 			</p>
 			{nonVouch ? (
-				<p className="text-body-xs text-muted-foreground" data-non-vouch>
+				<p className="text-footnote text-muted-foreground" data-non-vouch>
 					{nonVouch}
 				</p>
 			) : null}
@@ -520,38 +650,31 @@ function SessionRow({ session }: { session: GeneratedSession }) {
 
 function UnfilledRow({ slot }: { slot: UnfilledSlot }) {
 	return (
-		<div className={cn('space-y-1')} data-unfilled>
-			<p className="text-body-xs text-muted-foreground flex flex-wrap items-baseline gap-x-1.5">
-				<span className="font-medium">
-					{PATTERN_WEEKDAY_LABELS[slot.weekday]}
-				</span>
-				<span aria-hidden>·</span>
-				<span>{DISCIPLINE_LABELS[slot.discipline]}</span>
-			</p>
-			<p className="text-sm">
-				Nothing to place —{' '}
-				{slot.archetypes
-					.map((archetype) => SESSION_ARCHETYPE_LABELS[archetype].toLowerCase())
-					.join(' or ')}{' '}
-				in {slot.cataloguePhase.replace('-', ' ')} is not in the Catalogue for
-				this discipline.
+		<div className="space-y-0.5" data-unfilled>
+			<DayLine weekday={slot.weekday} discipline={slot.discipline} />
+			<p className="text-footnote">
+				{L.nothingToPlace(
+					slot.archetypes.map((archetype) =>
+						NB_SESSION_ARCHETYPE_LABELS[archetype].toLowerCase(),
+					),
+					NB_CATALOGUE_PHASE_LABELS[slot.cataloguePhase].toLowerCase(),
+				)}
 			</p>
 		</div>
 	)
 }
 
-/** A week's target, at the grain the currency reads in. */
-function round(value: number): string {
-	return value >= 100 ? String(Math.round(value)) : value.toFixed(1)
-}
-
-/** Where the season lands against the Event — the plan page's own three readings. */
-function fitSentence(fit: ReturnType<typeof eventFit>): string {
-	if (fit.kind === 'ends-on-event-week') return 'ends on your event’s week'
-	const plural = fit.weeks === 1 ? 'week' : 'weeks'
+/**
+ * Where the season lands against the Event — the shape step's own three
+ * readings, in its own words, so the athlete meets one sentence for one fact
+ * before and after they choose how to build.
+ */
+function fitSentence(fit: EventFit): string {
+	if (fit.kind === 'ends-on-event-week')
+		return PLAN_SHAPE_STEP_LABELS.landsOnEvent
 	return fit.kind === 'ends-before'
-		? `ends ${fit.weeks} ${plural} before your event`
-		: `runs ${fit.weeks} ${plural} past your event`
+		? PLAN_SHAPE_STEP_LABELS.endsBefore(fit.weeks)
+		: PLAN_SHAPE_STEP_LABELS.runsPast(fit.weeks)
 }
 
 export { GeneralErrorBoundary as ErrorBoundary }
