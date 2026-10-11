@@ -193,15 +193,16 @@ export const CATALOGUE_PHASE_LABELS: Record<CataloguePhase, string> = {
 /**
  * The eight goal events a Catalogue Entry may be scoped to. The **Discipline**
  * comes from the Workout, so these name a distance only — `10k`, never `10k run`.
+ * In Norwegian (#505 round 2, ADR 0081), display only: the keys are stored.
  */
 export const CATALOGUE_GOAL_EVENT_LABELS: Record<CatalogueGoalEvent, string> = {
 	'1500m': '1500 m',
 	'3k': '3 km',
 	'5k': '5 km',
 	'10k': '10 km',
-	hm: 'Half marathon',
-	marathon: 'Marathon',
-	trail: 'Trail',
+	hm: 'Halvmaraton',
+	marathon: 'Maraton',
+	trail: 'Terreng',
 	ultra: 'Ultra',
 }
 
@@ -6135,20 +6136,8 @@ export const NB_CATALOGUE_PHASE_LABELS: Record<CataloguePhase, string> = {
 	'race-week': 'Konkurranseuke',
 }
 
-/** The goal events a Catalogue Entry may be scoped to — a distance only. */
-export const NB_CATALOGUE_GOAL_EVENT_LABELS: Record<
-	CatalogueGoalEvent,
-	string
-> = {
-	'1500m': '1500 m',
-	'3k': '3 km',
-	'5k': '5 km',
-	'10k': '10 km',
-	hm: 'Halvmaraton',
-	marathon: 'Maraton',
-	trail: 'Terreng',
-	ultra: 'Ultra',
-}
+/** The goal events, as the Catalogue names them: one Norwegian list. */
+export const NB_CATALOGUE_GOAL_EVENT_LABELS = CATALOGUE_GOAL_EVENT_LABELS
 
 /** The three level floors. "og opp" is the card's word, not the label's. */
 export const NB_CATALOGUE_LEVEL_LABELS: Record<CatalogueLevel, string> = {
@@ -6509,6 +6498,14 @@ export const OUTCOME_LABELS = {
 	lighterLabel: 'Lettere enn foreskrevet',
 	cutProvenance: (pct: string, program: string | null) =>
 		`Kuttet på ${pct} % er ${program ? `${program} sin` : 'programmets'} egen publiserte konvensjon. Ingen studier støtter det.`,
+} as const
+
+/** The lift-over-time chart (`__lift-chart.tsx`). */
+export const LIFT_CHART_LABELS = {
+	/** Over a session whose load could not be read as a kilo. */
+	// Kept as `n/a` until the lift page's own test (exercises.$exerciseId, the
+	// editor PR) moves with it; the word is the chart's.
+	unavailable: 'n/a',
 } as const
 
 /** The rest bar (`__rest-bar.tsx`). */

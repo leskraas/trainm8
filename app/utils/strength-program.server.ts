@@ -851,6 +851,9 @@ export type ProgramLiftOverview = {
 	/** Shown only where it is non-zero: a lift on zero has nothing to say. */
 	stallCount: number
 	incrementText: string
+	/** The **typed** increment the next made session adds, so a surface words
+	 * it itself (Arket M's `neste: +2,5 kg`) rather than parsing the text. */
+	increment: Increment
 	/** The most recent **Stall Response** on this lift, if any — the honest answer
 	 * to *"why did my squat drop 10 kg?"*. */
 	lastStall: {
@@ -1007,6 +1010,7 @@ export async function getProgramOverview(
 				currentWorkingWeightKg: lift.currentWorkingWeightKg,
 				stallCount: lift.stallCount,
 				incrementText: incrementText(lift.currentIncrement),
+				increment: lift.currentIncrement as Increment,
 				lastStall: last
 					? { fromKg: last.fromKg, toKg: last.toKg, response: last.response }
 					: null,

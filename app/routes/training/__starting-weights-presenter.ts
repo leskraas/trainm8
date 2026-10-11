@@ -12,8 +12,9 @@
  * StrongLifts' empty bar moves the field and its sentence together. Only the
  * **prose** lives here, because prose is what the constants file does not carry.
  */
+import { formatNbKg } from '#app/utils/format.ts'
+import { PROGRAM_START_LABELS } from '#app/utils/labels.ts'
 import {
-	formatKg,
 	STRONGLIFTS_EMPTY_BAR_START_KG,
 	STRONGLIFTS_PULL_START_KG,
 	STRONGLIFTS_PULL_START_RANGE_TOP_KG,
@@ -52,23 +53,27 @@ export function startingWeightHint({
 	lift: StartingWeightLift
 }): string {
 	const { defaultStartKg, startSeedRepMaxReps } = lift
+	const H = PROGRAM_START_LABELS.hints
 
 	if (programKey === 'stronglifts-5x5' && defaultStartKg != null) {
 		if (defaultStartKg === STRONGLIFTS_EMPTY_BAR_START_KG) {
-			return `${programName} publishes ${formatKg(defaultStartKg)} kg here — the empty bar.`
+			return H.emptyBar(programName, formatNbKg(defaultStartKg))
 		}
 		if (defaultStartKg === STRONGLIFTS_PULL_START_KG) {
-			return `The low end of the published ${formatKg(STRONGLIFTS_PULL_START_KG)}–${formatKg(STRONGLIFTS_PULL_START_RANGE_TOP_KG)} kg range.`
+			return H.pullRange(
+				formatNbKg(STRONGLIFTS_PULL_START_KG),
+				formatNbKg(STRONGLIFTS_PULL_START_RANGE_TOP_KG),
+			)
 		}
 	}
 
 	if (defaultStartKg != null) {
-		return `${programName} publishes ${formatKg(defaultStartKg)} kg here. Overtype it if you know better.`
+		return H.published(programName, formatNbKg(defaultStartKg))
 	}
 	if (startSeedRepMaxReps != null) {
-		return `${programName} says: a weight you could lift for ${startSeedRepMaxReps} reps.`
+		return H.repMax(programName, startSeedRepMaxReps)
 	}
-	return `${programName} publishes no starting weight for this lift. Leave it blank and it is not started.`
+	return H.none(programName)
 }
 
 /** `5×5`, `1×5` — the scheme, on the label row beside the lift's name. */
