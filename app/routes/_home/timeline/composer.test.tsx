@@ -323,6 +323,8 @@ test('Styrke writes lifts through the line: the nearest name for an unknown lift
 	await userEvent.clear(line)
 
 	await userEvent.click(within(drawer).getByRole('button', { name: 'Styrke' }))
+	// The sport is picked to write the line: the line has the focus again.
+	expect(line).toHaveFocus()
 	expect(line).toHaveAttribute(
 		'placeholder',
 		expect.stringMatching(/Knebøy 5×5 @ 80 kg/),

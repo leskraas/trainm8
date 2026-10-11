@@ -231,6 +231,8 @@ export function SessionComposer({
 	}, [layoutKey, onCompactLayout])
 
 	const groupId = useId()
+	const ownLineRef = useRef<HTMLTextAreaElement>(null)
+	const line = inputRef ?? ownLineRef
 	return (
 		<div
 			data-composer={layout}
@@ -263,11 +265,16 @@ export function SessionComposer({
 							// rather than vanishing, so the four ways to fill a day stay
 							// where the athlete will find the fourth.
 							disabled={source === 'appen'}
-							className="h-9 flex-1 px-2 text-[13px]"
+							// Four equal quarters whatever the width: a narrow day pane
+							// (≈300px) or a 320px phone must not push one tab's words
+							// into the next. "kommer" sits under "Appen", not beside it.
+							className="h-9 min-w-0 flex-1 flex-col gap-0 px-1 text-[13px] leading-none max-[359px]:text-[12px]"
 						>
-							{SESSION_COMPOSER_LABELS.sources[source]}
+							<span className="max-w-full truncate">
+								{SESSION_COMPOSER_LABELS.sources[source]}
+							</span>
 							{source === 'appen' ? (
-								<span className="text-muted-foreground ml-1 text-[11px] font-normal">
+								<span className="text-muted-foreground max-w-full truncate text-[10px] font-normal">
 									{SESSION_COMPOSER_LABELS.soon}
 								</span>
 							) : null}
@@ -279,7 +286,14 @@ export function SessionComposer({
 					<>
 						<SportRow
 							sport={state.sport}
-							onSport={(sport) => dispatch({ type: 'sport', sport })}
+							onSport={(sport) => {
+								dispatch({ type: 'sport', sport })
+								// The sport is chosen so the line can be written: the keyboard
+								// comes back for it in the same tap (inside the tap's handler,
+								// which is what lets iOS raise it), rather than costing a
+								// second tap on the line.
+								line.current?.focus({ preventScroll: true })
+							}}
 						/>
 						{state.pick ? (
 							<PickedNote
@@ -291,7 +305,7 @@ export function SessionComposer({
 							state={state}
 							parsed={parsed}
 							plan={plan}
-							inputRef={inputRef}
+							inputRef={line}
 							onText={(text) => dispatch({ type: 'text', text })}
 							onSubmit={submit}
 							sum={outside ? null : sum}
@@ -407,7 +421,7 @@ export function SessionComposer({
 					plan={plan}
 					onText={(text) => dispatch({ type: 'text', text })}
 					onNotes={(notes) => dispatch({ type: 'notes', notes })}
-					inputRef={inputRef}
+					inputRef={line}
 				/>
 			) : null}
 		</div>
