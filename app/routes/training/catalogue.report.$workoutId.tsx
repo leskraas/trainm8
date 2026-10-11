@@ -19,7 +19,11 @@ import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { data, Form, Link, redirect } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { ErrorList, TextareaField } from '#app/components/forms.tsx'
+import {
+	ErrorList,
+	RadioGroupField,
+	TextareaField,
+} from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
@@ -34,27 +38,25 @@ import {
 	hasReported,
 	reportWorkout,
 } from '#app/utils/community.server.ts'
-import {
-	COMMUNITY_NON_VOUCH,
-	REPORT_REASONS,
-	REPORT_REASON_HINTS,
-	REPORT_REASON_LABELS,
-	formatAttribution,
-	readAttribution,
-} from '#app/utils/community.ts'
+import { REPORT_REASONS, readAttribution } from '#app/utils/community.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { LIBRARY_LABELS } from '#app/utils/labels.ts'
-import { getDisciplineLabel } from '#app/utils/training.ts'
+import {
+	CATALOGUE_REPORT_LABELS as L,
+	LIBRARY_LABELS,
+	NB_PROVENANCE_LABELS,
+	NB_REPORT_REASON_HINTS,
+	NB_REPORT_REASON_LABELS,
+	nbDisciplineLabel,
+} from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
 import { type Route } from './+types/catalogue.report.$workoutId.ts'
 
-export const meta: Route.MetaFunction = () => [
-	{ title: 'Report a session | Trainm8' },
-]
+export const meta: Route.MetaFunction = () => [{ title: L.metaTitle }]
 
 const ReportSchema = z
 	.object({
 		reason: z.enum(REPORT_REASONS, {
-			errorMap: () => ({ message: 'Pick what is wrong with it' }),
+			errorMap: () => ({ message: L.errors.reason }),
 		}),
 		detail: z.string().trim().max(1000).optional(),
 	})
@@ -65,7 +67,7 @@ const ReportSchema = z
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
 				path: ['detail'],
-				message: 'Tell us what is wrong — "something else" needs a description',
+				message: L.errors.detail,
 			})
 		}
 	})
@@ -123,10 +125,10 @@ export async function action({ request, params }: Route.ActionArgs) {
 	if (!result.ok) {
 		const message =
 			result.reason === 'your-own'
-				? 'This is your own session — withdraw it instead.'
+				? L.errors.yourOwn
 				: result.reason === 'not-public'
-					? 'That session is not in the Catalogue.'
-					: 'That session no longer exists.'
+					? L.errors.notPublic
+					: L.errors.gone
 		return data(
 			{ result: submission.reply({ formErrors: [message] }) },
 			{ status: 400 },
@@ -155,76 +157,62 @@ export default function ReportRoute({
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
-				title="Report this session"
+				title={L.title}
 				back={{ to: '/training/catalogue', label: LIBRARY_LABELS.catalogue }}
 				className="mb-6"
 			/>
 
 			<Card className="mb-6">
 				<CardHeader>
-					<CardTitle className="text-base font-bold tracking-tight">
+					<CardTitle className="text-callout [overflow-wrap:anywhere]">
 						{workout.title}
 					</CardTitle>
-					<p className="text-body-xs text-muted-foreground">
-						{getDisciplineLabel(workout.discipline)}
-						{attribution ? ` · ${formatAttribution(attribution)}` : ''}
+					<p className="text-footnote text-muted-foreground">
+						{nbDisciplineLabel(workout.discipline)}
+						{attribution
+							? ` · ${NB_PROVENANCE_LABELS.publishedBy(attribution.displayName)}`
+							: ''}
 					</p>
 				</CardHeader>
 				<CardContent>
-					<p className="text-body-xs text-muted-foreground" data-non-vouch>
-						{COMMUNITY_NON_VOUCH}
+					<p className="text-footnote text-muted-foreground" data-non-vouch>
+						{NB_PROVENANCE_LABELS.nonVouch}
 					</p>
 				</CardContent>
 			</Card>
 
 			{alreadyReported ? (
 				<Card className="mb-6">
-					<CardContent className="text-body-sm text-muted-foreground pt-6">
-						<p>
-							You have already reported this session. It is hidden from your
-							Catalogue and a moderator has it.
-						</p>
+					<CardContent className="text-footnote text-muted-foreground space-y-3">
+						<p>{L.already}</p>
 						<Link
 							to="/training/catalogue"
-							className={buttonVariants({ variant: 'outline', size: 'sm' })}
+							className={cn(
+								buttonVariants({ variant: 'outline', size: 'sm' }),
+								'rounded-full',
+							)}
 						>
-							Back to the Catalogue
+							{L.backToCatalogue}
 						</Link>
 					</CardContent>
 				</Card>
 			) : (
 				<Form method="POST" {...getFormProps(form)} className="space-y-6">
-					<fieldset className="space-y-3">
-						<legend className="text-h6 mb-2">What is wrong with it?</legend>
-						{REPORT_REASONS.map((reason) => (
-							<label
-								key={reason}
-								className="flex cursor-pointer items-start gap-3 rounded-xl border p-3"
-							>
-								<input
-									type="radio"
-									name={fields.reason.name}
-									value={reason}
-									className="mt-1"
-								/>
-								<span>
-									<span className="text-body-sm block font-medium">
-										{REPORT_REASON_LABELS[reason]}
-									</span>
-									<span className="text-body-xs text-muted-foreground block">
-										{REPORT_REASON_HINTS[reason]}
-									</span>
-								</span>
-							</label>
-						))}
-						<ErrorList
-							id={fields.reason.errorId}
-							errors={fields.reason.errors}
-						/>
-					</fieldset>
+					<RadioGroupField
+						name={fields.reason.name}
+						legend={L.whatIsWrong}
+						legendClassName="text-heading"
+						options={REPORT_REASONS.map((reason) => ({
+							value: reason,
+							label: NB_REPORT_REASON_LABELS[reason],
+							description: NB_REPORT_REASON_HINTS[reason],
+						}))}
+						errorId={fields.reason.errorId}
+						errors={fields.reason.errors}
+					/>
 
 					<TextareaField
-						labelProps={{ children: 'Anything else a moderator should know?' }}
+						labelProps={{ children: L.detail }}
 						textareaProps={{
 							...getTextareaProps(fields.detail),
 							rows: 4,
@@ -232,29 +220,32 @@ export default function ReportRoute({
 						errors={fields.detail.errors}
 					/>
 
-					<div className="text-body-sm text-muted-foreground space-y-2 rounded-xl border p-4">
-						<p className="font-medium">What reporting does</p>
-						<p>
-							It hides this session from your Catalogue straight away, and sends
-							it to a moderator.
+					<div className="bg-muted text-footnote text-muted-foreground space-y-2 rounded-3xl p-4">
+						<p className="text-callout text-foreground">
+							{L.whatReportingDoes}
 						</p>
-						<p>
-							It does not remove it for anybody else — that is a moderator's
-							decision, so no one athlete can take another's session down.
-						</p>
+						<p>{L.hides}</p>
+						<p>{L.notForOthers}</p>
 					</div>
 
 					<ErrorList id={form.errorId} errors={form.errors} />
 
 					<div className="flex flex-wrap gap-2">
-						<Button type="submit" variant="destructive">
-							Send report
+						<Button
+							type="submit"
+							variant="destructive"
+							className="rounded-full"
+						>
+							{L.send}
 						</Button>
 						<Link
 							to="/training/catalogue"
-							className={buttonVariants({ variant: 'ghost' })}
+							className={cn(
+								buttonVariants({ variant: 'ghost' }),
+								'rounded-full',
+							)}
 						>
-							Cancel
+							{L.cancel}
 						</Link>
 					</div>
 				</Form>

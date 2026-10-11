@@ -134,12 +134,14 @@ test('each pre-filled number says where it came from', async () => {
 	// The empty bar is a fixed absolute weight — that is why no 1RM is needed …
 	expect(
 		await screen.findByText(
-			'StrongLifts 5×5 publishes 20 kg here — the empty bar.',
+			'StrongLifts 5×5 starter her på 20 kg — den tomme stanga.',
 		),
 	).toBeInTheDocument()
 	// … and the pulls are published as a range, with the low end taken and said.
 	expect(
-		screen.getAllByText('The low end of the published 30–40 kg range.'),
+		screen.getAllByText(
+			'Den nedre enden av det publiserte spennet på 30–40 kg.',
+		),
 	).toHaveLength(2)
 })
 
@@ -150,7 +152,7 @@ test('the hint is attached to its own field, not merely nearby', async () => {
 	const hintId = squat.getAttribute('aria-describedby')
 	expect(hintId).toBeTruthy()
 	expect(document.getElementById(hintId!)).toHaveTextContent(
-		'StrongLifts 5×5 publishes 20 kg here — the empty bar.',
+		'StrongLifts 5×5 starter her på 20 kg — den tomme stanga.',
 	)
 })
 
@@ -162,7 +164,7 @@ test('a lift the program seeds by instruction is left empty and says so', async 
 	expect(await screen.findByLabelText(/Back squat/)).toHaveValue('')
 	expect(
 		screen.getByText(
-			'StrongLifts 5×5 says: a weight you could lift for 10 reps.',
+			'StrongLifts 5×5 sier: en vekt du kunne løftet 10 ganger.',
 		),
 	).toBeInTheDocument()
 })
@@ -212,7 +214,7 @@ test('the action reads a comma as a decimal, leaves a blank lift unstarted, and 
 		const refused = parse({ 'ex-squat::barbell': typed })
 		expect({ typed, message: refused.error?.issues[0]?.message }).toEqual({
 			typed,
-			message: 'A starting weight has to be a positive number of kilos.',
+			message: 'En startvekt må være et positivt antall kilo.',
 		})
 	}
 })
@@ -282,7 +284,7 @@ test('a value the form refuses says why rather than swallowing the submit', asyn
 	const { submitted } = renderRoute({
 		actionResult: {
 			ok: false,
-			error: 'A starting weight has to be a positive number of kilos.',
+			error: 'En startvekt må være et positivt antall kilo.',
 		},
 	})
 	const user = userEvent.setup()
@@ -294,6 +296,6 @@ test('a value the form refuses says why rather than swallowing the submit', asyn
 	expect(submitted).toHaveBeenCalled()
 	// … and the refusal is on the screen, in the same place every other one is.
 	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'A starting weight has to be a positive number of kilos.',
+		'En startvekt må være et positivt antall kilo.',
 	)
 })

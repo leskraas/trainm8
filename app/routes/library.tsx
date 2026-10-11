@@ -7,6 +7,10 @@
  * recent first, each opening its history; the whole exercise bank is one tap
  * further, searchable (`library_.exercises.tsx`), so an athlete with no lifts
  * still finds the exercises.
+ *
+ * Every row answers the press on pointer-down: the three hub cards with the
+ * house `pressable` (scale 0.97, 160 ms on `--ease-out`), the lift rows with an
+ * instant tint, because a list row that shrinks reads as a button, not a row.
  */
 import { Link } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -56,21 +60,21 @@ function HubLink({
 		<Link
 			to={to}
 			prefetch="intent"
-			className="border-border/70 bg-card hover:bg-muted/50 flex min-h-11 items-center gap-4 rounded-3xl border p-4 shadow-xs transition-colors"
+			className="bg-card pressable flex min-h-11 items-center gap-4 rounded-4xl p-4 shadow-xs"
 		>
 			<span className="bg-muted flex size-10 flex-none items-center justify-center rounded-full">
 				<Icon name={icon} size="md" aria-hidden="true" />
 			</span>
 			<span className="min-w-0 flex-1">
-				<span className="block font-semibold">{title}</span>
-				<span className="text-muted-foreground block text-sm">
+				<span className="text-callout block">{title}</span>
+				<span className="text-footnote text-muted-foreground block">
 					{description}
 				</span>
 			</span>
 			<Icon
 				name="chevron-right"
 				size="md"
-				className="text-muted-foreground"
+				className="text-muted-foreground shrink-0"
 				aria-hidden="true"
 			/>
 		</Link>
@@ -105,23 +109,25 @@ export default function LibraryRoute({ loaderData }: Route.ComponentProps) {
 			</div>
 
 			<section aria-labelledby="library-exercises" className="mt-8">
-				<h2 id="library-exercises" className="mb-3 text-base font-semibold">
+				<h2 id="library-exercises" className="text-heading mb-3">
 					{LIBRARY_LABELS.recentLifts}
 				</h2>
 				{lifts.length > 0 ? (
-					<ul className="divide-border/70 divide-y">
+					<ul className="bg-card divide-border/60 divide-y overflow-hidden rounded-4xl shadow-xs">
 						{lifts.map((lift) => (
 							<li key={lift.id}>
 								<Link
 									to={`/training/exercises/${lift.id}`}
 									prefetch="intent"
-									className="flex min-h-11 items-center justify-between gap-3 py-2 hover:underline"
+									className="active:bg-muted flex min-h-11 items-center justify-between gap-3 px-4 py-2.5"
 								>
-									<span className="min-w-0">{lift.name}</span>
+									<span className="text-callout min-w-0 [overflow-wrap:anywhere]">
+										{lift.name}
+									</span>
 									<Icon
 										name="chevron-right"
 										size="sm"
-										className="text-muted-foreground"
+										className="text-muted-foreground shrink-0"
 										aria-hidden="true"
 									/>
 								</Link>
@@ -129,7 +135,7 @@ export default function LibraryRoute({ loaderData }: Route.ComponentProps) {
 						))}
 					</ul>
 				) : (
-					<p className="text-muted-foreground text-sm">
+					<p className="text-footnote text-muted-foreground">
 						{LIBRARY_LABELS.noExercises}
 					</p>
 				)}

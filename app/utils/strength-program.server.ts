@@ -74,11 +74,12 @@
  */
 import { Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
-import { sessionOwner } from './session-ownership.ts'
+import { liftDisplayName } from './exercise-aliases-nb.ts'
 import {
 	getExercisePlateContext,
 	getGymProfile,
 } from './plate-inventory.server.ts'
+import { sessionOwner } from './session-ownership.ts'
 import { repLoadBasis, repLoadBasisText } from './strength/anchors.constants.ts'
 import {
 	estimateOneRm,
@@ -365,7 +366,7 @@ function toSummary(
 	const names = new Map(
 		row.liftRules.map((rule) => [
 			rule.exerciseId,
-			rule.exercise?.name ?? 'Lift',
+			liftDisplayName(rule.exerciseId, rule.exercise?.name ?? 'Løft'),
 		]),
 	)
 	return {
@@ -384,7 +385,7 @@ function toSummary(
 		lifts: definition.liftRules.map((rule) => ({
 			exerciseId: rule.exerciseId,
 			equipment: rule.equipment,
-			name: names.get(rule.exerciseId) ?? 'Lift',
+			name: names.get(rule.exerciseId) ?? 'Løft',
 			dayIds: rule.dayIds,
 			setCount: rule.setCount,
 			repsPerSet: rule.repsPerSet,
@@ -850,6 +851,9 @@ export type ProgramLiftOverview = {
 	/** Shown only where it is non-zero: a lift on zero has nothing to say. */
 	stallCount: number
 	incrementText: string
+	/** The **typed** increment the next made session adds, so a surface words
+	 * it itself (Arket M's `neste: +2,5 kg`) rather than parsing the text. */
+	increment: Increment
 	/** The most recent **Stall Response** on this lift, if any — the honest answer
 	 * to *"why did my squat drop 10 kg?"*. */
 	lastStall: {
@@ -968,12 +972,15 @@ export async function getProgramOverview(
 	const names = new Map(
 		instance.liftStates.map((row) => [
 			row.exerciseId,
-			row.exercise?.name ?? 'Lift',
+			liftDisplayName(row.exerciseId, row.exercise?.name ?? 'Løft'),
 		]),
 	)
 	for (const rule of programRow.liftRules) {
 		if (!names.has(rule.exerciseId)) {
-			names.set(rule.exerciseId, rule.exercise?.name ?? 'Lift')
+			names.set(
+				rule.exerciseId,
+				liftDisplayName(rule.exerciseId, rule.exercise?.name ?? 'Løft'),
+			)
 		}
 	}
 
@@ -999,10 +1006,11 @@ export async function getProgramOverview(
 			return {
 				exerciseId: lift.exerciseId,
 				equipment: lift.equipment,
-				name: names.get(lift.exerciseId) ?? 'Lift',
+				name: names.get(lift.exerciseId) ?? 'Løft',
 				currentWorkingWeightKg: lift.currentWorkingWeightKg,
 				stallCount: lift.stallCount,
 				incrementText: incrementText(lift.currentIncrement),
+				increment: lift.currentIncrement as Increment,
 				lastStall: last
 					? { fromKg: last.fromKg, toKg: last.toKg, response: last.response }
 					: null,
@@ -1315,7 +1323,7 @@ export async function openNextProgramSession(input: {
 	const names = new Map(
 		programRow.liftRules.map((rule) => [
 			rule.exerciseId,
-			rule.exercise?.name ?? 'Lift',
+			liftDisplayName(rule.exerciseId, rule.exercise?.name ?? 'Løft'),
 		]),
 	)
 	return {
@@ -1862,7 +1870,7 @@ export async function prepareProgramFold(input: {
 		names: Object.fromEntries(
 			programRow.liftRules.map((rule) => [
 				rule.exerciseId,
-				rule.exercise?.name ?? 'Lift',
+				liftDisplayName(rule.exerciseId, rule.exercise?.name ?? 'Løft'),
 			]),
 		),
 		movementPatterns,

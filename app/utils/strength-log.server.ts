@@ -16,6 +16,7 @@
 import { type Prisma } from '@prisma/client'
 import { weekBoundsUTC } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
+import { liftDisplayName } from './exercise-aliases-nb.ts'
 import { findVariantByEquipment } from './exercise-seed.server.ts'
 import {
 	type ExercisePlateContext,
@@ -448,7 +449,9 @@ export async function getStrengthLogView(
 			exerciseId: step.exerciseId,
 			// A Step without an `Exercise` row still has a name: its notes are what
 			// the athlete wrote in the slot. Never a bare "Exercise".
-			name: step.exercise?.name ?? step.notes ?? 'Lift',
+			name: step.exercise
+				? liftDisplayName(step.exerciseId, step.exercise.name)
+				: (step.notes ?? 'Løft'),
 			restBetweenSetsSec: step.restBetweenSetsSec,
 			// A Step naming no catalogued `Exercise` states nothing about laterality,
 			// which is exactly `null` — never `false`.

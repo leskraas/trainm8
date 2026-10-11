@@ -35,6 +35,8 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import { type LiftOutcome } from './strength/program-engine.ts'
+import { untappedWorkingSets } from './strength/working-load.ts'
+import { getStrengthLogView } from './strength-log.server.ts'
 import {
 	type PreparedProgramFold,
 	foldProgramSessionIn,
@@ -58,8 +60,14 @@ export type FinishSessionResult =
 			 * word, so a double tap answers the same thing twice rather than raising an
 			 * error at an athlete who tapped a button. */
 			alreadyFinished: boolean
+			/** Working sets the athlete chose to mark **not done** at Finish (owner
+			 * decision 10) — read by the fold as the missing sets they are. Zero
+			 * when every set was tapped. */
+			untappedMarkedNotDone: number
 	  }
 	| { ok: false; reason: 'not-found' | 'nothing-logged' }
+	/** Sets are still untapped and the athlete has not said what they were. */
+	| { ok: false; reason: 'untapped-sets'; untapped: number }
 
 /**
  * Finish the session.
@@ -73,12 +81,22 @@ export async function finishStrengthSession(input: {
 	userId: string
 	sessionId: string
 	now?: Date
+	/**
+	 * **The athlete's answer about untapped sets** (owner decision 10). Without
+	 * it, a session with untapped working sets is refused with their count, so
+	 * the surface can ask *"N sett er ikke logget: marker som ikke gjort, eller
+	 * fortsett?"*. `'not-done'` is the answer *marker som ikke gjort*: the fold
+	 * then reads them as the sets that were not done — a missing set is not a
+	 * completed one (`gradeSession`). Either way nothing is assumed silently.
+	 */
+	untapped?: 'not-done'
 }): Promise<FinishSessionResult> {
 	const now = input.now ?? new Date()
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: input.sessionId, userId: input.userId },
 		select: {
 			id: true,
+			status: true,
 			workoutId: true,
 			workout: { select: { copiedFromId: true } },
 			setLogs: {
@@ -90,6 +108,21 @@ export async function finishStrengthSession(input: {
 	if (!session) return { ok: false, reason: 'not-found' }
 	if (session.setLogs.length === 0)
 		return { ok: false, reason: 'nothing-logged' }
+
+	// **Untapped is not missed, and not made** (owner decision 10). A session
+	// already finished is not asked again: its fold has happened.
+	let untappedMarkedNotDone = 0
+	if (session.status !== 'completed') {
+		const view = await getStrengthLogView(input.userId, session.id)
+		const untapped = untappedWorkingSets(
+			view?.exercises ?? [],
+			(_, row) => row.logged != null,
+		)
+		if (untapped > 0 && input.untapped !== 'not-done') {
+			return { ok: false, reason: 'untapped-sets', untapped }
+		}
+		untappedMarkedNotDone = untapped
+	}
 
 	const instance = await activeRunFor(input.userId, session)
 
@@ -135,6 +168,7 @@ export async function finishStrengthSession(input: {
 		programName: instance?.program.name ?? null,
 		loggedWorkingSets: session.setLogs.length,
 		alreadyFinished: !claimed,
+		untappedMarkedNotDone,
 	}
 }
 

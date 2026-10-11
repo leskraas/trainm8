@@ -22,6 +22,7 @@
 import { Link } from 'react-router'
 import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { OUTCOME_LABELS as O } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type LogExercise } from '#app/utils/strength-log.server.ts'
 import {
@@ -68,25 +69,21 @@ export function OutcomePanel({
 				<button
 					type="button"
 					onClick={onBack}
-					aria-label="Back to your sets"
+					aria-label={O.backToSets}
 					className={cn(
 						buttonVariants({ variant: 'ghost', size: 'icon' }),
-						// ~44px effective touch target on a 32px control (ADR 0028).
-						'relative -ml-2 shrink-0 after:absolute after:-inset-1.5',
+						'-ml-2 shrink-0',
 					)}
 				>
 					<Icon name="arrow-left" size="md" />
 				</button>
-				<h2 id="what-next" className="text-h6">
-					What you lift next time
+				<h2 id="what-next" className="text-heading">
+					{O.heading}
 				</h2>
 			</div>
 
 			{items.length === 0 ? (
-				<p className="text-body-2xs text-muted-foreground">
-					Session finished. This one is not part of a running program, so
-					nothing advanced.
-				</p>
+				<p className="text-footnote text-muted-foreground">{O.notInProgram}</p>
 			) : (
 				<ul className="flex flex-col gap-3">
 					{items.map((item) => (
@@ -101,14 +98,14 @@ export function OutcomePanel({
 						to={`/training/exercises/${linked.exerciseId}`}
 						className={cn(
 							buttonVariants({ variant: 'outline' }),
-							'h-12 w-full',
+							'w-full rounded-full',
 						)}
 					>
-						See {linked.liftName} over time
+						{O.seeOverTime(linked.liftName)}
 					</Link>
 				) : null}
-				<Link to="/" className={cn(buttonVariants(), 'h-12 w-full')}>
-					Back to today
+				<Link to="/" className={cn(buttonVariants(), 'w-full rounded-full')}>
+					{O.backToToday}
 				</Link>
 			</div>
 		</section>
@@ -144,23 +141,23 @@ function OutcomeCard({
 	return (
 		<li
 			{...(item.isNotice ? { role: 'status' as const } : {})}
-			className={cn('rounded-2xl border px-4 py-3', TONE_CLASS[item.tone])}
+			className={cn('rounded-3xl border px-4 py-3', TONE_CLASS[item.tone])}
 		>
-			<p className="text-body-sm font-bold">
+			<p className="text-callout tabular-nums">
 				{item.isNotice && item.label ? <span>{item.label}: </span> : null}
 				<span>{item.headline}</span>
 			</p>
-			<p className="text-body-2xs text-muted-foreground mt-1.5">
+			<p className="text-footnote text-muted-foreground mt-1.5">
 				{item.reason}
 				{gymNote ? ` ${gymNote}` : null}
 			</p>
 			{!item.isNotice && item.label ? (
-				<p className="text-body-2xs text-muted-foreground/85 mt-1.5">
+				<p className="text-footnote text-muted-foreground mt-1.5">
 					{item.label}
 				</p>
 			) : null}
 			{item.provenance ? (
-				<p className="text-body-2xs text-muted-foreground/85 border-border mt-3 border-t pt-3">
+				<p className="text-footnote text-muted-foreground border-border mt-3 border-t pt-3">
 					{item.provenance}
 				</p>
 			) : null}

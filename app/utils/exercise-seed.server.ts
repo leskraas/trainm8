@@ -36,6 +36,7 @@
  * came back first".
  */
 import { type PrismaClient } from '@prisma/client'
+import { NB_ALIAS_LOCALE, NB_EXERCISE_ALIASES } from './exercise-aliases-nb.ts'
 import {
 	EXERCISE_CORPUS,
 	exerciseVariantId,
@@ -146,6 +147,24 @@ async function seedExercise(prisma: SeedClient, row: SeedExercise) {
 			select: { id: true },
 		})
 	}
+
+	// **The Norwegian names** (owner decision 9): `knebøy` for the Back Squat.
+	// The same search-only, movement-level rows, under `nb`, so the exercise
+	// search and the writing line both find a lift by the word the athlete types.
+	for (const text of NB_EXERCISE_ALIASES[row.id] ?? []) {
+		await prisma.exerciseAlias.upsert({
+			where: {
+				exerciseId_text_locale: {
+					exerciseId: row.id,
+					text,
+					locale: NB_ALIAS_LOCALE,
+				},
+			},
+			create: { exerciseId: row.id, text, locale: NB_ALIAS_LOCALE },
+			update: {},
+			select: { id: true },
+		})
+	}
 }
 
 /**
@@ -238,7 +257,8 @@ export async function writeExercises(
 		await seedExercise(prisma, row)
 		result.exercises += 1
 		result.variants += row.variants.length
-		result.aliases += row.aliases.length
+		result.aliases +=
+			row.aliases.length + (NB_EXERCISE_ALIASES[row.id]?.length ?? 0)
 		if (row.movementPattern !== null) result.withMovementPattern += 1
 		if (row.unilateral !== null) result.withStatedLaterality += 1
 	}

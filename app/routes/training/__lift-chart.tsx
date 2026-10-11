@@ -23,6 +23,7 @@ import {
 	type ChartDataTableModel,
 	type ChartGeom,
 } from '#app/components/chart/chart.tsx'
+import { LIFT_CHART_LABELS } from '#app/utils/labels.ts'
 import { type ChartBar } from './__exercise-history-presenter.ts'
 
 /**
@@ -36,8 +37,15 @@ const BAR_GAP = 13.6
 /** Below this the gap gives way, so a long history thins rather than vanishes. */
 const MIN_BAR_W_FRAC = 0.35
 
+/**
+ * The widest a bar may be, in viewBox units (~44px on a phone). With one or two
+ * sessions the slot is the whole chart, and an uncapped bar filled it: a
+ * 700-unit slab that read as a block, not as one session (break-ui: 1 item).
+ */
+const MAX_BAR_W = 96
+
 const barWidth = (slotW: number) =>
-	Math.max(slotW * MIN_BAR_W_FRAC, slotW - BAR_GAP)
+	Math.min(MAX_BAR_W, Math.max(slotW * MIN_BAR_W_FRAC, slotW - BAR_GAP))
 
 /**
  * The viewBox and the rendered box. The plot lands at ~134 px tall at 390×844,
@@ -145,7 +153,7 @@ function Overlay({ bars, geom }: { bars: ChartBar[]; geom: ChartGeom }) {
 					<div key={bar.sessionId}>
 						{bar.tickLabel ? (
 							<span
-								className="text-muted-foreground text-body-2xs absolute -translate-x-1/2 font-semibold"
+								className="text-muted-foreground text-caption absolute -translate-x-1/2 tabular-nums"
 								style={{ left, top: topPct(baselineY + 6) }}
 							>
 								{bar.tickLabel}
@@ -153,10 +161,10 @@ function Overlay({ bars, geom }: { bars: ChartBar[]; geom: ChartGeom }) {
 						) : null}
 						{bar.heightFraction == null ? (
 							<span
-								className="text-muted-foreground text-body-2xs absolute -translate-x-1/2 -translate-y-full"
+								className="text-muted-foreground text-caption absolute -translate-x-1/2 -translate-y-full"
 								style={{ left, top: topPct(baselineY - 6) }}
 							>
-								n/a
+								{LIFT_CHART_LABELS.unavailable}
 							</span>
 						) : null}
 					</div>

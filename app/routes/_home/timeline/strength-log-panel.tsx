@@ -17,7 +17,7 @@
  * (ADR 0088), which takes exactly those sets back and puts the session back to
  * planned — so a mistap on _Som planlagt_ is one tap from undone, on I dag.
  *
- * The lifts are named in Norwegian (`Knebøy`, `nbExerciseName`) and the kilos
+ * The lifts are named in Norwegian (`Knebøy`: the server names a lift by its Norwegian alias, `liftDisplayName`) and the kilos
  * with a decimal comma (`82,5 kg`, `formatNbKg` on the server), as every
  * other surface of I dag writes them (audit PR D).
  */
@@ -39,7 +39,7 @@ import {
 	type action as strengthLogAction,
 	type loader as strengthLogLoader,
 } from '#app/routes/resources/strength-log.tsx'
-import { nbExerciseName, QUICK_LOG_LABELS } from '#app/utils/labels.ts'
+import { QUICK_LOG_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	type QuickLog,
@@ -128,7 +128,7 @@ function PlanLines({ quickLog }: { quickLog: QuickLog }) {
 					data-quick-log-lift={lift.stepId}
 					className="text-callout text-foreground [text-wrap:pretty]"
 				>
-					<span className="font-semibold">{nbExerciseName(lift.name)}</span>
+					<span className="font-semibold">{lift.name}</span>
 					<span className="text-muted-foreground tabular-nums">
 						{` · ${lift.scheme}`}
 						{lift.loadLabel ? ` · ${lift.loadLabel}` : null}
@@ -296,7 +296,7 @@ function EditForm({
 			<input {...getInputProps(fields.intent, { type: 'hidden' })} />
 			<input {...getInputProps(fields.sessionId, { type: 'hidden' })} />
 			{quickLog.lifts.map((lift) => {
-				const name = nbExerciseName(lift.name)
+				const name = lift.name
 				return (
 					<fieldset key={lift.stepId} className="flex flex-col gap-1.5">
 						<legend className="text-callout text-foreground mb-1.5 font-semibold">

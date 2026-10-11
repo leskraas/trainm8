@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { OUTCOME_LABELS } from '#app/utils/labels.ts'
 import { type PlateInventory } from '#app/utils/strength/plates.ts'
 import { type LiftOutcome } from '#app/utils/strength/program-engine.ts'
 import {
@@ -119,8 +120,8 @@ test('the sentences are the shipped builder’s, and read where the lift now sta
 		'StrongLifts 5×5',
 	)[0]
 
-	expect(item?.headline).toBe('Bench Press stays at 77,5 kg')
-	expect(item?.reason).toBe('A set came up short, so the weight repeats.')
+	expect(item?.headline).toBe('Bench Press står på 77,5 kg')
+	expect(item?.reason).toBe(OUTCOME_LABELS.reason.repeatedShort)
 })
 
 test('the lift a panel is about is reachable, and the cut names the weight it moved to', () => {
@@ -142,7 +143,7 @@ test('a Stall Cut carries the program’s own provenance, in the percentage it a
 	const item = buildOutcomePanelView([stallCut], names, 'StrongLifts 5×5')[0]
 
 	expect(item?.provenance).toBe(
-		'The 10 % cut is StrongLifts 5×5’s own published convention. No trial supports it.',
+		'Kuttet på 10 % er StrongLifts 5×5 sin egen publiserte konvensjon. Ingen studier støtter det.',
 	)
 })
 
@@ -150,7 +151,7 @@ test('a session that belongs to no named program still says the cut is conventio
 	const item = buildOutcomePanelView([stallCut], names, null)[0]
 
 	expect(item?.provenance).toBe(
-		'The 10 % cut is the program’s own published convention. No trial supports it.',
+		'Kuttet på 10 % er programmets egen publiserte konvensjon. Ingen studier støtter det.',
 	)
 })
 
@@ -178,7 +179,7 @@ test('the word deload appears in nothing this presenter produces', () => {
 
 test('a rack that cannot make the cut weight says which weight it can make', () => {
 	expect(buildCutFeasibilityNote({ kg: 54, inventory: gym, options: {} })).toBe(
-		'Your gym makes 55 kg, not 54 kg.',
+		'Gymmet ditt får til 55 kg, ikke 54 kg.',
 	)
 })
 
