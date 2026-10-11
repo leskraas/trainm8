@@ -14,19 +14,19 @@ test('Users can add 2FA to their account and use it when logging in', async ({
 	const user = await login({ password })
 	await navigate('/settings/profile')
 
-	await page.getByRole('link', { name: /enable 2fa/i }).click()
+	await page.getByRole('link', { name: /^totrinnsbekreftelse/i }).click()
 
 	await expect(page).toHaveURL(`/settings/profile/two-factor`)
 	const main = page.getByRole('main')
-	await main.getByRole('button', { name: /enable 2fa/i }).click()
-	const otpUriString = await main
-		.getByLabel(/One-Time Password URI/i)
-		.innerText()
+	await main
+		.getByRole('button', { name: /slå på totrinnsbekreftelse/i })
+		.click()
+	const otpUriString = await main.getByLabel(/engangspassord-uri/i).innerText()
 
 	const otpUri = new URL(otpUriString)
 	const options = Object.fromEntries(otpUri.searchParams)
 
-	await main.getByRole('textbox', { name: /code/i }).fill(
+	await main.getByRole('textbox', { name: /kode/i }).fill(
 		(
 			await generateTOTP({
 				...options,
@@ -35,15 +35,17 @@ test('Users can add 2FA to their account and use it when logging in', async ({
 			})
 		).otp,
 	)
-	await main.getByRole('button', { name: /submit/i }).click()
+	await main.getByRole('button', { name: /bekreft/i }).click()
 
-	await expect(main).toHaveText(/You have enabled two-factor authentication./i)
-	await expect(main.getByRole('link', { name: /disable 2fa/i })).toBeVisible()
+	await expect(main).toHaveText(/totrinnsbekreftelse er på\./i)
+	await expect(
+		main.getByRole('link', { name: /slå av totrinnsbekreftelse/i }),
+	).toBeVisible()
 
 	// With the avatar dropdown gone (#178), logout lives on the Settings
 	// profile page itself.
 	await navigate('/settings/profile')
-	await page.getByRole('button', { name: /^log out$/i }).click()
+	await page.getByRole('button', { name: /^logg ut$/i }).click()
 	await expect(page).toHaveURL(`/`)
 
 	await navigate('/login')

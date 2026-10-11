@@ -1,13 +1,8 @@
 import { expect, test } from 'vitest'
 import { z } from 'zod'
+import { formatNbKg } from '#app/utils/format.ts'
 import { UsernameSchema } from '#app/utils/user-validation.ts'
-import {
-	megZodErrorMap,
-	nbDecimal,
-	nbErrors,
-	nbKg,
-	nbSeconds,
-} from './__meg-text.ts'
+import { megZodErrorMap, nbDecimal, nbErrors, nbSeconds } from './__meg-text.ts'
 
 test('a shared English validation message reads in Norwegian at the field', () => {
 	const result = UsernameSchema.safeParse('ab')
@@ -43,8 +38,9 @@ test("Zod's own defaults are Norwegian under the Meg error map", () => {
 })
 
 test('kilos and decimals use the Norwegian comma, never rounding what was stored', () => {
-	expect(nbKg(61.25)).toBe('61,25')
-	expect(nbKg(140)).toBe('140')
+	// Kilos are the shared display formatter's (`formatNbKg`), as on every page.
+	expect(formatNbKg(61.25)).toBe('61,25')
+	expect(formatNbKg(140)).toBe('140')
 	expect(nbDecimal(0.97, 2)).toBe('0,97')
 	expect(nbDecimal(10.2)).toBe('10,2')
 })
