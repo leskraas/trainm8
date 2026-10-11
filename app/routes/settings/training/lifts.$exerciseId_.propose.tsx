@@ -35,17 +35,33 @@ import { Link, data, useFetcher } from 'react-router'
 import { z } from 'zod'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+import { Button, buttonVariants } from '#app/components/ui/button.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '#app/components/ui/collapsible.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { formatDate } from '#app/utils/format.ts'
+import { formatNbDate } from '#app/utils/format.ts'
+import {
+	MEG_COMMON_LABELS,
+	MEG_CONFIDENCE_LABELS,
+	MEG_ESTIMATOR_EQUATION_LABELS,
+	MEG_ONE_RM_REFUSAL_LABELS,
+	MEG_PAGE_TITLES,
+	MEG_PROPOSE_LABELS,
+	MEG_REP_LOAD_BASIS_LABELS,
+} from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
 import {
 	DEFAULT_ESTIMATOR,
 	ESTIMATOR_MEAN_BIAS_PCT,
 	estimatorSdPct,
-	repLoadBasisText,
+	MAX_ESTIMATOR_REPS,
 } from '#app/utils/strength/anchors.constants.ts'
-import { oneRmRefusalText } from '#app/utils/strength/one-rm.ts'
 import { formatKg } from '#app/utils/strength/program.constants.ts'
 import {
 	type AnchorProposal,
@@ -53,10 +69,12 @@ import {
 	proposeExerciseOneRm,
 } from '#app/utils/strength-anchors.server.ts'
 import { ESTIMATOR_NAMES, type EstimatorName } from '#app/utils/strength-log.ts'
+import { nbDecimal, nbKg } from '../__meg-text.ts'
+import { MegNote, MegResult } from '../__meg-ui.tsx'
 import { type Route } from './+types/lifts.$exerciseId_.propose.ts'
 
 export const handle: PageHeaderHandle & SEOHandle = {
-	pageHeader: 'What your sets say',
+	pageHeader: MEG_PAGE_TITLES.propose,
 	getSitemapEntries: () => null,
 }
 
@@ -97,7 +115,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		// Resolved here rather than in the component so the server module stays out
 		// of the browser bundle; the sentence is the disclosure that this equation
 		// was never fitted to this movement, and it travels with the reading.
-		basisNote: repLoadBasisText(proposal.repLoadBasis),
+		basisNote: MEG_REP_LOAD_BASIS_LABELS[proposal.repLoadBasis],
 	}
 }
 
@@ -113,16 +131,14 @@ export type AcceptResult =
 	| { ok: false; error: string }
 
 const ACCEPT_ERRORS = {
-	'not-found': 'That lift no longer exists.',
-	'no-profile':
-		'Your athlete profile is missing, so there is nothing to attach this to.',
-	refused: 'There is no reading to accept any more.',
+	'not-found': MEG_COMMON_LABELS.liftGone,
+	'no-profile': MEG_COMMON_LABELS.noProfile,
+	refused: MEG_PROPOSE_LABELS.refused,
 	// The one worth spelling out: the history moved under the screen, so the
 	// number shown is not the number the engine produces now. Storing it anyway
 	// would store a figure no derivation supports.
-	stale:
-		'Your logged sets have changed since this was read. Reload and take another look.',
-	duplicate: 'You already saved that number a moment ago.',
+	stale: MEG_PROPOSE_LABELS.staleError,
+	duplicate: MEG_PROPOSE_LABELS.duplicate,
 } as const
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -130,12 +146,15 @@ export async function action({ request, params }: Route.ActionArgs) {
 	const formData = await request.formData()
 	const intent = String(formData.get('intent') ?? '')
 	if (intent !== 'accept-estimate') {
-		return data<AcceptResult>({ ok: false, error: 'Unknown action.' }, 400)
+		return data<AcceptResult>(
+			{ ok: false, error: MEG_COMMON_LABELS.unknownAction },
+			400,
+		)
 	}
 	const parsed = AcceptSchema.safeParse(Object.fromEntries(formData))
 	if (!parsed.success) {
 		return data<AcceptResult>(
-			{ ok: false, error: 'That reading did not make sense.' },
+			{ ok: false, error: MEG_PROPOSE_LABELS.invalid },
 			400,
 		)
 	}
@@ -155,7 +174,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 	}
 	return {
 		ok: true as const,
-		message: `Saved as your ${formatKg(result.valueKg)} kg 1RM. It is yours now, and nothing re-reads your history to move it.`,
+		message: MEG_PROPOSE_LABELS.saved(nbKg(result.valueKg)),
 	}
 }
 
@@ -163,29 +182,29 @@ export default function ProposeAnchorRoute({
 	loaderData,
 }: Route.ComponentProps) {
 	const { proposal, timezone, basisNote } = loaderData
+	const L = MEG_PROPOSE_LABELS
 
 	return (
 		<div className="flex flex-col gap-6">
-			<div>
-				<h2 className="text-lg font-semibold">{proposal.exerciseName}</h2>
-				<p className="text-body-sm text-muted-foreground mt-1">
-					Read from the sets you have already logged for this lift. Nothing is
-					saved until you accept it.
-				</p>
+			<div className="flex flex-col gap-1">
+				<h2 className="text-heading [overflow-wrap:anywhere]">
+					{proposal.exerciseName}
+				</h2>
+				<MegNote>{L.intro}</MegNote>
 			</div>
 
 			<Reading proposal={proposal} timezone={timezone} basisNote={basisNote} />
 
-			<p className="text-muted-foreground text-body-xs">
-				Accepted numbers are yours to see and replace on{' '}
+			<MegNote>
+				{L.footer}
 				<Link
 					to={`/settings/training/lifts/${proposal.exerciseId}`}
-					className="underline"
+					className="text-foreground underline underline-offset-4"
 				>
-					this lift's numbers
+					{L.footerLink}
 				</Link>
-				, and they never change on their own.
-			</p>
+				{L.footerEnd}
+			</MegNote>
 		</div>
 	)
 }
@@ -203,139 +222,153 @@ function Reading({
 	const fetcher = useFetcher<AcceptResult>()
 	const result = fetcher.data
 	const { reading } = proposal
+	const L = MEG_PROPOSE_LABELS
 
 	if (reading.kind === 'refusal') {
 		// Stated in place, never behind a disclosure and never as a low grade: a
 		// grade communicates uncertainty *within* a valid fit (ADR 0054).
 		return (
-			<div className="bg-background rounded-lg px-4 py-3">
-				<div className="flex flex-wrap items-baseline justify-between gap-x-3">
-					<span className="text-body-sm font-medium">Estimated 1RM</span>
-					<span className="text-muted-foreground text-body-sm">
-						Unavailable
-					</span>
-				</div>
-				<p className="text-muted-foreground text-body-xs mt-1">
-					{oneRmRefusalText(reading.refusal)}
-				</p>
-			</div>
+			<Card size="sm">
+				<CardContent className="flex flex-col gap-1">
+					<div className="flex flex-wrap items-baseline justify-between gap-x-3">
+						<span className="text-callout font-semibold">{L.estimated}</span>
+						<span className="text-footnote text-muted-foreground">
+							{MEG_COMMON_LABELS.unavailable}
+						</span>
+					</div>
+					<MegNote>
+						{MEG_ONE_RM_REFUSAL_LABELS[reading.refusal](MAX_ESTIMATOR_REPS)}
+					</MegNote>
+				</CardContent>
+			</Card>
 		)
 	}
 
 	const source = reading.basis.source
 	const tested = reading.construct === 'oneRm'
+	const equation =
+		reading.protocol === 'tested'
+			? L.testedEquation
+			: MEG_ESTIMATOR_EQUATION_LABELS[reading.protocol]
 
 	return (
-		<div className="bg-background rounded-lg px-4 py-3">
-			<div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-				<span className="text-body-sm font-medium">
-					{tested ? 'Tested 1RM' : 'Estimated 1RM'}
-				</span>
-				<span className="font-mono text-base">
-					{formatKg(reading.valueKg)}{' '}
-					<span className="text-muted-foreground text-xs">kg</span>
-				</span>
-			</div>
-
-			{/* The band, in place. A point estimate on its own claims a precision no
-			    equation here has. */}
-			<p className="text-body-xs text-muted-foreground mt-1">
-				Somewhere between {formatKg(reading.band.lowKg)} and{' '}
-				{formatKg(reading.band.highKg)} kg — ±{reading.band.sdPct} %, which is
-				this equation's own spread across the people it was fitted to.
-			</p>
-
-			{/* **Which basis this rests on, in place.** An equation applied to a
-			    movement nobody fitted it to is a weaker claim than the same equation
-			    on a bench press, and serving it silently would present a borrowed
-			    curve as though it were the validated one. */}
-			{!tested && basisNote ? (
-				<p className="text-body-xs text-muted-foreground mt-1">{basisNote}</p>
-			) : null}
-
-			<div className="mt-2 flex flex-wrap items-center gap-2">
-				<Badge
-					variant={reading.confidence === 'high' ? 'default' : 'secondary'}
-				>
-					{reading.confidence} confidence
-				</Badge>
-				{reading.basis.stale ? (
-					<span className="text-muted-foreground text-body-xs">
-						read from an old set — flagged, not adjusted, because nobody can
-						tell which way an untested lifter has moved
+		<Card size="sm">
+			<CardContent className="flex flex-col gap-2">
+				<div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+					<span className="text-callout font-semibold">
+						{tested ? L.tested : L.estimated}
 					</span>
-				) : null}
-			</div>
+					<span className="text-title tabular-nums">
+						{nbKg(reading.valueKg)}{' '}
+						<span className="text-footnote text-muted-foreground font-normal">
+							kg
+						</span>
+					</span>
+				</div>
 
-			<details className="mt-2">
-				<summary className="text-body-xs text-muted-foreground cursor-pointer">
-					How we got this
-				</summary>
-				<dl className="text-body-xs text-muted-foreground mt-2 space-y-1">
-					<Fact term="Sets read" detail={`${reading.basis.setsRead}`} />
-					{source ? (
-						<Fact
-							term="Set used"
-							detail={`${formatKg(source.loadKg)} kg × ${source.reps} on ${formatDate(source.performedAtISO, timezone)}${
-								source.toFailure
-									? ', taken to failure'
-									: source.rir != null
-										? `, ${source.rir} reps in reserve`
-										: ''
-							}`}
-						/>
+				{/* The band, in place. A point estimate on its own claims a precision
+				    no equation here has. */}
+				<MegNote className="tabular-nums">
+					{L.band(
+						nbKg(reading.band.lowKg),
+						nbKg(reading.band.highKg),
+						nbDecimal(reading.band.sdPct),
+					)}
+				</MegNote>
+
+				{/* **Which basis this rests on, in place.** An equation applied to a
+				    movement nobody fitted it to is a weaker claim than the same
+				    equation on a bench press, and serving it silently would present a
+				    borrowed curve as though it were the validated one. */}
+				{!tested && basisNote ? <MegNote>{basisNote}</MegNote> : null}
+
+				<div className="flex flex-wrap items-center gap-2">
+					<Badge
+						variant={reading.confidence === 'high' ? 'default' : 'secondary'}
+					>
+						{MEG_CONFIDENCE_LABELS[reading.confidence]}
+					</Badge>
+					{reading.basis.stale ? (
+						<span className="text-footnote text-muted-foreground">
+							{L.stale}
+						</span>
 					) : null}
-					<Fact term="Equation" detail={reading.basis.equationText} />
-					{reading.band.meanBiasPct !== 0 ? (
-						<Fact
-							term="Known bias"
-							detail={`${reading.band.meanBiasPct > 0 ? '+' : ''}${reading.band.meanBiasPct} % on average — reported, not corrected for, because a population correction is a claim about you that nobody measured`}
+				</div>
+
+				<Collapsible>
+					<CollapsibleTrigger className="text-footnote text-muted-foreground group/how -ml-1 flex min-h-11 items-center gap-1 rounded-2xl px-1">
+						<Icon
+							name="chevron-right"
+							size="sm"
+							className="duration-collapse transition-transform ease-out group-data-[panel-open]/how:rotate-90 motion-reduce:transition-none"
+							aria-hidden="true"
 						/>
+						{L.how}
+					</CollapsibleTrigger>
+					<CollapsibleContent>
+						<dl className="text-footnote text-muted-foreground space-y-1 pt-1 pb-2">
+							<Fact term={L.setsRead} detail={`${reading.basis.setsRead}`} />
+							{source ? (
+								<Fact
+									term={L.setUsed}
+									detail={L.setUsedDetail(
+										nbKg(source.loadKg),
+										source.reps,
+										formatNbDate(source.performedAtISO, timezone),
+										source.toFailure
+											? L.toFailure
+											: source.rir != null
+												? L.inReserve(source.rir)
+												: '',
+									)}
+								/>
+							) : null}
+							<Fact term={L.equation} detail={equation} />
+							{reading.band.meanBiasPct !== 0 ? (
+								<Fact
+									term={L.bias}
+									detail={L.biasDetail(
+										`${reading.band.meanBiasPct > 0 ? '+' : ''}${nbDecimal(reading.band.meanBiasPct)}`,
+									)}
+								/>
+							) : null}
+							{source?.rir != null && !source.toFailure ? (
+								<Fact term={L.note} detail={L.rirNote} />
+							) : null}
+						</dl>
+					</CollapsibleContent>
+				</Collapsible>
+
+				<MegResult result={result} />
+
+				<fetcher.Form method="POST" className="flex flex-wrap gap-2 pt-1">
+					<input type="hidden" name="intent" value="accept-estimate" />
+					{/* **The number as the server reads it**, not the float behind it:
+					    what the athlete accepts is what they read (`61,25` on screen is
+					    `61.25` here). The server re-derives and compares through the same
+					    `formatKg`, so the two can only agree. */}
+					<input
+						type="hidden"
+						name="valueKg"
+						value={formatKg(reading.valueKg)}
+					/>
+					{proposal.estimator ? (
+						<input type="hidden" name="estimator" value={proposal.estimator} />
 					) : null}
-					{source?.rir != null && !source.toFailure ? (
-						<Fact
-							term="Note"
-							detail="Reps in reserve are under-reported on average, which biases an estimate downwards. Surfaced, never corrected."
-						/>
-					) : null}
-				</dl>
-			</details>
+					<Button type="submit">
+						{proposal.currentAnchors.length === 0 ? L.use : L.replace}
+					</Button>
+					<Link
+						to={`/settings/training/lifts/${proposal.exerciseId}`}
+						className={buttonVariants({ variant: 'ghost' })}
+					>
+						{L.noThanks}
+					</Link>
+				</fetcher.Form>
 
-			{result && !result.ok ? (
-				<p className="text-destructive text-body-sm mt-3" role="alert">
-					{result.error}
-				</p>
-			) : null}
-			{result?.ok ? (
-				<p className="text-body-sm mt-3" role="status">
-					{result.message}
-				</p>
-			) : null}
-
-			<fetcher.Form method="POST" className="mt-3 flex flex-wrap gap-2">
-				<input type="hidden" name="intent" value="accept-estimate" />
-				{/* **The number as the screen states it**, not the float behind it: what
-				    the athlete accepts is what they read. The server re-derives and
-				    compares through the same `formatKg`, so the two can only agree. */}
-				<input type="hidden" name="valueKg" value={formatKg(reading.valueKg)} />
-				{proposal.estimator ? (
-					<input type="hidden" name="estimator" value={proposal.estimator} />
-				) : null}
-				<Button type="submit" variant="outline" size="sm">
-					{proposal.currentAnchors.length === 0
-						? 'Use this'
-						: 'Replace what I have'}
-				</Button>
-				<Link
-					to={`/settings/training/lifts/${proposal.exerciseId}`}
-					className="text-body-sm text-muted-foreground self-center underline"
-				>
-					No thanks
-				</Link>
-			</fetcher.Form>
-
-			{tested ? null : <EstimatorPicker current={proposal.estimator} />}
-		</div>
+				{tested ? null : <EstimatorPicker current={proposal.estimator} />}
+			</CardContent>
+		</Card>
 	)
 }
 
@@ -367,37 +400,34 @@ function Reading({
  */
 function EstimatorPicker({ current }: { current: EstimatorName | null }) {
 	const applied = current ?? DEFAULT_ESTIMATOR
+	const L = MEG_PROPOSE_LABELS
 	return (
-		<nav aria-label="Equation" className="mt-4">
-			<p className="text-body-xs text-muted-foreground">
-				Read with a different equation. None of these is the better one — they
-				are different published fits to different samples, and the ± beside each
-				is its own spread across the people it was fitted to. Changing it
-				re-reads your sets and saves nothing.
-			</p>
-			<ul className="mt-2 flex flex-wrap gap-2">
+		<nav aria-label={L.equationPicker} className="flex flex-col gap-2 pt-2">
+			<MegNote>{L.equationIntro}</MegNote>
+			<ul className="flex flex-wrap gap-2">
 				{ESTIMATOR_NAMES.map((name) => {
 					const isApplied = name === applied
+					const bias = ESTIMATOR_MEAN_BIAS_PCT[name]
 					return (
 						<li key={name}>
 							<Link
 								to={`?estimator=${name}`}
 								preventScrollReset
 								aria-current={isApplied ? 'true' : undefined}
-								className={`text-body-xs inline-flex min-h-11 items-center rounded-md border px-3 ${
+								className={cn(
+									'text-footnote pressable inline-flex min-h-11 items-center gap-1 rounded-full border px-3.5',
 									isApplied
-										? 'border-foreground font-medium'
-										: 'border-border text-muted-foreground'
-								}`}
+										? 'border-primary bg-primary/10 text-primary font-medium'
+										: 'border-border text-muted-foreground',
+								)}
 							>
 								{ESTIMATOR_LABELS[name]}
-								<span className="ml-1 font-mono">
-									±{estimatorSdPct(name)} %
+								<span className="tabular-nums">
+									±{nbDecimal(estimatorSdPct(name))} %
 								</span>
 								<span className="sr-only">
-									, mean bias {ESTIMATOR_MEAN_BIAS_PCT[name] > 0 ? '+' : ''}
-									{ESTIMATOR_MEAN_BIAS_PCT[name]} %
-									{isApplied ? ', currently applied' : ''}
+									{L.meanBias(`${bias > 0 ? '+' : ''}${nbDecimal(bias)}`)}
+									{isApplied ? L.applied : ''}
 								</span>
 							</Link>
 						</li>
@@ -424,7 +454,7 @@ function Fact({ term, detail }: { term: string; detail: string }) {
 	return (
 		<div className="flex flex-wrap gap-x-2">
 			<dt className="font-medium">{term}:</dt>
-			<dd className="min-w-0 flex-1">{detail}</dd>
+			<dd className="min-w-0 flex-1 tabular-nums">{detail}</dd>
 		</div>
 	)
 }

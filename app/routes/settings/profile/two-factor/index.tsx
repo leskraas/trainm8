@@ -1,9 +1,12 @@
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { redirect, Link, useFetcher } from 'react-router'
+import { buttonVariants } from '#app/components/ui/button.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { MEG_TWO_FACTOR_LABELS } from '#app/utils/labels.ts'
 import { generateTOTP } from '#app/utils/totp.server.ts'
 import { type Route } from './+types/index.ts'
 import { twoFAVerificationType } from './_layout.tsx'
@@ -42,49 +45,47 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function TwoFactorRoute({ loaderData }: Route.ComponentProps) {
 	const enable2FAFetcher = useFetcher<typeof action>()
+	const L = MEG_TWO_FACTOR_LABELS
+	const on = loaderData.is2FAEnabled
 
 	return (
-		<div className="flex flex-col gap-4">
-			{loaderData.is2FAEnabled ? (
-				<>
-					<p className="text-lg">
-						<Icon name="check">
-							You have enabled two-factor authentication.
-						</Icon>
-					</p>
-					<Link to="disable">
-						<Icon name="lock-open-1">Disable 2FA</Icon>
+		<Card size="sm" className="mx-auto max-w-md">
+			<CardContent className="flex flex-col gap-4">
+				<p className="text-callout flex items-center gap-2 font-semibold">
+					<Icon
+						name={on ? 'circle-check' : 'lock-open-1'}
+						size="md"
+						className={on ? 'text-primary' : 'text-muted-foreground'}
+						aria-hidden="true"
+					/>
+					{on ? L.on : L.off}
+				</p>
+				<p className="text-footnote text-muted-foreground">{L.explain}</p>
+				{on ? (
+					<Link
+						to="disable"
+						className={buttonVariants({
+							variant: 'outline',
+							className: 'w-full sm:w-auto sm:self-start',
+						})}
+					>
+						<Icon name="lock-open-1" data-icon="inline-start" />
+						{L.disable}
 					</Link>
-				</>
-			) : (
-				<>
-					<p>
-						<Icon name="lock-open-1">
-							You have not enabled two-factor authentication yet.
-						</Icon>
-					</p>
-					<p className="text-sm">
-						Two factor authentication adds an extra layer of security to your
-						account. You will need to enter a code from an authenticator app
-						like{' '}
-						<a className="underline" href="https://1password.com/">
-							1Password
-						</a>{' '}
-						to log in.
-					</p>
+				) : (
 					<enable2FAFetcher.Form method="POST">
 						<StatusButton
 							type="submit"
 							name="intent"
 							value="enable"
 							status={enable2FAFetcher.state === 'loading' ? 'pending' : 'idle'}
-							className="mx-auto"
+							className="w-full sm:w-auto"
 						>
-							Enable 2FA
+							{L.enable}
 						</StatusButton>
 					</enable2FAFetcher.Form>
-				</>
-			)}
-		</div>
+				)}
+			</CardContent>
+		</Card>
 	)
 }

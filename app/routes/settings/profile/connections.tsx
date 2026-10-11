@@ -1,10 +1,9 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { useState } from 'react'
-import { data, useFetcher } from 'react-router'
+import { data, Link, useFetcher } from 'react-router'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { Separator } from '#app/components/ui/separator.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	Tooltip,
@@ -22,14 +21,20 @@ import {
 	providerNames,
 } from '#app/utils/connections.tsx'
 import { prisma } from '#app/utils/db.server.ts'
-import { formatDateTime } from '#app/utils/format.ts'
+import { formatNbDate } from '#app/utils/format.ts'
 import { pipeHeaders } from '#app/utils/headers.server.js'
+import {
+	MEG_CONNECTIONS_LABELS,
+	MEG_PAGE_TITLES,
+	providerLabel,
+} from '#app/utils/labels.ts'
 import { makeTimings } from '#app/utils/timing.server.ts'
 import { createToastHeaders } from '#app/utils/toast.server.ts'
+import { MegNote, MegRows } from '../__meg-ui.tsx'
 import { type Route } from './+types/connections.ts'
 
 export const handle: PageHeaderHandle & SEOHandle = {
-	pageHeader: 'Connections',
+	pageHeader: MEG_PAGE_TITLES.connections,
 	getSitemapEntries: () => null,
 }
 
@@ -80,7 +85,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			...connectionData,
 			providerName,
 			id: connection.id,
-			createdAtFormatted: formatDateTime(connection.createdAt, timeZone),
+			createdAtFormatted: formatNbDate(connection.createdAt, timeZone),
 		})
 	}
 
@@ -104,7 +109,7 @@ export async function action({ request }: Route.ActionArgs) {
 	)
 	invariantResponse(
 		await userCanDeleteConnections(userId),
-		'You cannot delete your last connection unless you have a password.',
+		MEG_CONNECTIONS_LABELS.lastOne,
 	)
 	const connectionId = formData.get('connectionId')
 	invariantResponse(typeof connectionId === 'string', 'Invalid connectionId')
@@ -115,42 +120,51 @@ export async function action({ request }: Route.ActionArgs) {
 		},
 	})
 	const toastHeaders = await createToastHeaders({
-		title: 'Deleted',
-		description: 'Your connection has been deleted.',
+		title: MEG_CONNECTIONS_LABELS.deletedTitle,
+		description: MEG_CONNECTIONS_LABELS.deletedBody,
 	})
 	return data({ status: 'success' } as const, { headers: toastHeaders })
 }
 
 export default function Connections({ loaderData }: Route.ComponentProps) {
+	const L = MEG_CONNECTIONS_LABELS
 	return (
-		<div className="mx-auto max-w-md">
+		<div className="mx-auto flex max-w-md flex-col gap-6">
+			{/* Sign-in accounts only. The training sources (intervals.icu, Strava,
+			    the file upload) are the integrations page's: linked, not repeated. */}
+			<MegNote>
+				{L.intro}
+				<Link
+					to="/settings/integrations"
+					className="text-foreground underline underline-offset-4"
+				>
+					{L.integrationsLink}
+				</Link>
+				.
+			</MegNote>
 			{loaderData.connections.length ? (
-				<div className="flex flex-col gap-2">
-					<p>Here are your current connections:</p>
-					<ul className="flex flex-col gap-4">
-						{loaderData.connections.map((c) => (
-							<li key={c.id}>
-								<Connection
-									connection={c}
-									canDelete={loaderData.canDeleteConnections}
-								/>
-							</li>
-						))}
-					</ul>
-				</div>
+				<MegRows>
+					{loaderData.connections.map((c) => (
+						<li key={c.id}>
+							<Connection
+								connection={c}
+								canDelete={loaderData.canDeleteConnections}
+							/>
+						</li>
+					))}
+				</MegRows>
 			) : (
-				<p>You don't have any connections yet.</p>
+				<p className="text-body text-muted-foreground">{L.none}</p>
 			)}
-			<div className="mt-5 flex flex-col gap-5 py-3">
-				<Separator />
+			<div className="flex flex-col gap-3">
 				{providerNames.map((providerName) => (
 					<ProviderConnectionForm
 						key={providerName}
 						type="Connect"
 						providerName={providerName}
+						label={L.connect(providerLabel(providerName))}
 					/>
 				))}
-				<Separator />
 			</div>
 		</div>
 	)
@@ -167,18 +181,25 @@ function Connection({
 	const [infoOpen, setInfoOpen] = useState(false)
 	const icon = providerIcons[connection.providerName]
 	return (
-		<div className="flex justify-between gap-2">
-			<span className={`inline-flex items-center gap-1.5`}>
-				{icon}
-				<span>
-					{connection.link ? (
-						<a href={connection.link} className="underline">
-							{connection.displayName}
-						</a>
-					) : (
-						connection.displayName
-					)}{' '}
-					({connection.createdAtFormatted})
+		<div className="flex min-h-11 items-center justify-between gap-3 py-2">
+			<span className="flex min-w-0 items-center gap-3">
+				<span className="text-muted-foreground shrink-0">{icon}</span>
+				<span className="min-w-0 [overflow-wrap:anywhere]">
+					<span className="text-callout block">
+						{connection.link ? (
+							<a
+								href={connection.link}
+								className="underline underline-offset-4"
+							>
+								{connection.displayName}
+							</a>
+						) : (
+							connection.displayName
+						)}
+					</span>
+					<span className="text-footnote text-muted-foreground block">
+						{MEG_CONNECTIONS_LABELS.connectedOn(connection.createdAtFormatted)}
+					</span>
 				</span>
 			</span>
 			{canDelete ? (
@@ -191,8 +212,12 @@ function Connection({
 									<StatusButton
 										name="intent"
 										value="delete-connection"
-										variant="destructive"
-										size="sm"
+										variant="ghost"
+										size="icon"
+										aria-label={MEG_CONNECTIONS_LABELS.disconnect(
+											connection.displayName,
+										)}
+										className="text-destructive size-11 rounded-full"
 										status={
 											deleteFetcher.state !== 'idle'
 												? 'pending'
@@ -203,19 +228,23 @@ function Connection({
 									</StatusButton>
 								}
 							/>
-							<TooltipContent>Disconnect this account</TooltipContent>
+							<TooltipContent>
+								{MEG_CONNECTIONS_LABELS.disconnect(connection.displayName)}
+							</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
 				</deleteFetcher.Form>
 			) : (
 				<TooltipProvider>
 					<Tooltip open={infoOpen} onOpenChange={setInfoOpen}>
-						<TooltipTrigger onClick={() => setInfoOpen(true)}>
-							<Icon name="question-mark-circled"></Icon>
+						<TooltipTrigger
+							onClick={() => setInfoOpen(true)}
+							aria-label={MEG_CONNECTIONS_LABELS.lastOne}
+							className="text-muted-foreground flex size-11 shrink-0 items-center justify-center rounded-full"
+						>
+							<Icon name="question-mark-circled" size="md" />
 						</TooltipTrigger>
-						<TooltipContent>
-							You cannot delete your last connection unless you have a password.
-						</TooltipContent>
+						<TooltipContent>{MEG_CONNECTIONS_LABELS.lastOne}</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
 			)}

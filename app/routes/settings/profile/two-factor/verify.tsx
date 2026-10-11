@@ -4,27 +4,37 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import * as QRCode from 'qrcode'
 import { data, redirect, Form, useNavigation } from 'react-router'
 import { z } from 'zod'
-import { ErrorList, OTPField } from '#app/components/forms.tsx'
+import { OTPField } from '#app/components/forms.tsx'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { isCodeValid } from '#app/routes/_auth/verify.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import {
+	MEG_COMMON_LABELS,
+	MEG_PAGE_TITLES,
+	MEG_TWO_FACTOR_LABELS,
+} from '#app/utils/labels.ts'
 import { getDomainUrl, useIsPending } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { getTOTPAuthUri } from '#app/utils/totp.server.ts'
+import { megZodErrorMap, nbErrors } from '../../__meg-text.ts'
+import { MegFormErrors, MegNote } from '../../__meg-ui.tsx'
 import { type Route } from './+types/verify.ts'
 import { twoFAVerificationType } from './_layout.tsx'
 
 export const handle: PageHeaderHandle & SEOHandle = {
-	pageHeader: 'Verify 2FA',
+	pageHeader: MEG_PAGE_TITLES.twoFactorVerify,
 	getSitemapEntries: () => null,
 }
 
 const CancelSchema = z.object({ intent: z.literal('cancel') })
 const VerifySchema = z.object({
 	intent: z.literal('verify'),
-	code: z.string().min(6).max(6),
+	code: z
+		.string()
+		.min(6, MEG_TWO_FACTOR_LABELS.codeLength)
+		.max(6, MEG_TWO_FACTOR_LABELS.codeLength),
 })
 
 const ActionSchema = z.discriminatedUnion('intent', [
@@ -82,12 +92,13 @@ export async function action({ request }: Route.ActionArgs) {
 					ctx.addIssue({
 						path: ['code'],
 						code: z.ZodIssueCode.custom,
-						message: `Invalid code`,
+						message: MEG_TWO_FACTOR_LABELS.invalidCode,
 					})
 					return z.NEVER
 				}
 			}),
 		async: true,
+		errorMap: megZodErrorMap,
 	})
 
 	if (submission.status !== 'success') {
@@ -113,8 +124,8 @@ export async function action({ request }: Route.ActionArgs) {
 			})
 			return redirectWithToast('/settings/profile/two-factor', {
 				type: 'success',
-				title: 'Enabled',
-				description: 'Two-factor authentication has been enabled.',
+				title: MEG_TWO_FACTOR_LABELS.enabledTitle,
+				description: MEG_TWO_FACTOR_LABELS.enabledBody,
 			})
 		}
 	}
@@ -134,92 +145,97 @@ export default function TwoFactorRoute({
 		constraint: getZodConstraint(ActionSchema),
 		lastResult: actionData?.result,
 		onValidate({ formData }) {
-			return parseWithZod(formData, { schema: ActionSchema })
+			return parseWithZod(formData, {
+				schema: ActionSchema,
+				errorMap: megZodErrorMap,
+			})
 		},
 	})
 	const lastSubmissionIntent = fields.intent.value
+	const L = MEG_TWO_FACTOR_LABELS
+	const codeErrors = nbErrors(fields.code.errors)
+	const codeErrorId = `${fields.code.id}-error`
 
 	return (
-		<div>
-			<div className="flex flex-col items-center gap-4">
-				<img alt="qr code" src={loaderData.qrCode} className="size-56" />
-				<p>Scan this QR code with your authenticator app.</p>
-				<p className="text-sm">
-					If you cannot scan the QR code, you can manually add this account to
-					your authenticator app using this code:
-				</p>
-				<div className="p-3">
-					<pre
-						className="text-sm break-all whitespace-pre-wrap"
-						aria-label="One-time Password URI"
-					>
-						{loaderData.otpUri}
-					</pre>
-				</div>
-				<p className="text-sm">
-					Once you've added the account, enter the code from your authenticator
-					app below. Once you enable 2FA, you will need to enter a code from
-					your authenticator app every time you log in or perform important
-					actions. Do not lose access to your authenticator app, or you will
-					lose access to your account.
-				</p>
-				<div className="flex w-full max-w-xs flex-col justify-center gap-4">
-					<Form method="POST" {...getFormProps(form)} className="flex-1">
-						<div className="flex items-center justify-center">
-							<OTPField
-								labelProps={{
-									htmlFor: fields.code.id,
-									children: 'Code',
-								}}
-								inputProps={{
-									...getInputProps(fields.code, { type: 'text' }),
-									autoFocus: true,
-									autoComplete: 'one-time-code',
-								}}
-								errors={fields.code.errors}
-							/>
-						</div>
+		<div className="mx-auto flex max-w-md flex-col gap-6">
+			<div className="bg-card ring-foreground/5 dark:ring-foreground/10 flex flex-col items-center gap-4 rounded-4xl p-4 shadow-md ring-1">
+				{/* The QR code stays black on white in both themes: that is what an
+				    authenticator's camera reads. */}
+				<img
+					alt={L.qrAlt}
+					src={loaderData.qrCode}
+					className="size-52 rounded-2xl bg-white p-2"
+				/>
+				<p className="text-callout text-center">{L.scan}</p>
+				<MegNote className="text-center">{L.manual}</MegNote>
+				<pre
+					className="text-footnote bg-muted w-full rounded-2xl p-3 break-all whitespace-pre-wrap select-all"
+					aria-label={L.uriLabel}
+				>
+					{loaderData.otpUri}
+				</pre>
+			</div>
+			<MegNote>{L.enterCode}</MegNote>
+			<div className="flex w-full flex-col justify-center gap-4">
+				<Form method="POST" {...getFormProps(form)} className="flex-1">
+					<div className="flex flex-col items-center gap-1.5">
+						<OTPField
+							labelProps={{
+								htmlFor: fields.code.id,
+								children: L.code,
+							}}
+							inputProps={{
+								...getInputProps(fields.code, { type: 'text' }),
+								autoFocus: true,
+								autoComplete: 'one-time-code',
+								inputMode: 'numeric',
+								enterKeyHint: 'done',
+								'aria-describedby': codeErrors.length ? codeErrorId : undefined,
+							}}
+						/>
+						{/* The code's errors, as words under the boxes. */}
+						<MegFormErrors id={codeErrorId} errors={codeErrors} />
+					</div>
 
-						<div className="min-h-[32px] px-4 pt-1 pb-3">
-							<ErrorList id={form.errorId} errors={form.errors} />
-						</div>
+					<div className="min-h-8 pt-1 pb-3">
+						<MegFormErrors id={form.errorId} errors={form.errors} />
+					</div>
 
-						<div className="flex justify-between gap-4">
-							<StatusButton
-								className="w-full"
-								status={
-									pendingIntent === 'verify'
-										? 'pending'
-										: lastSubmissionIntent === 'verify'
-											? (form.status ?? 'idle')
-											: 'idle'
-								}
-								type="submit"
-								name="intent"
-								value="verify"
-							>
-								Submit
-							</StatusButton>
-							<StatusButton
-								className="w-full"
-								variant="secondary"
-								status={
-									pendingIntent === 'cancel'
-										? 'pending'
-										: lastSubmissionIntent === 'cancel'
-											? (form.status ?? 'idle')
-											: 'idle'
-								}
-								type="submit"
-								name="intent"
-								value="cancel"
-								disabled={isPending}
-							>
-								Cancel
-							</StatusButton>
-						</div>
-					</Form>
-				</div>
+					<div className="flex justify-between gap-3">
+						<StatusButton
+							className="w-full"
+							status={
+								pendingIntent === 'verify'
+									? 'pending'
+									: lastSubmissionIntent === 'verify'
+										? (form.status ?? 'idle')
+										: 'idle'
+							}
+							type="submit"
+							name="intent"
+							value="verify"
+						>
+							{L.verify}
+						</StatusButton>
+						<StatusButton
+							className="w-full"
+							variant="secondary"
+							status={
+								pendingIntent === 'cancel'
+									? 'pending'
+									: lastSubmissionIntent === 'cancel'
+										? (form.status ?? 'idle')
+										: 'idle'
+							}
+							type="submit"
+							name="intent"
+							value="cancel"
+							disabled={isPending}
+						>
+							{MEG_COMMON_LABELS.cancel}
+						</StatusButton>
+					</div>
+				</Form>
 			</div>
 		</div>
 	)

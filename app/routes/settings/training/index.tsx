@@ -1,3 +1,9 @@
+/**
+ * **Trening og terskler** — the athlete's thresholds per discipline and the
+ * Zone Recipe each is read on (#454), with the readings, history and gym one
+ * tap away. Norwegian and on the design system since round 2 (ADR 0081/0085);
+ * the schema and the action are unchanged.
+ */
 import {
 	getFormProps,
 	getInputProps,
@@ -6,11 +12,11 @@ import {
 } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
-import { data, Form, Link, useNavigation } from 'react-router'
+import { data, useFetcher } from 'react-router'
 import { z } from 'zod'
-import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
-import { Button, buttonVariants } from '#app/components/ui/button.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
+import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	DisciplineThresholdSchema,
 	recipeBelongsToDiscipline,
@@ -22,20 +28,35 @@ import {
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { formatPaceClock, parsePace } from '#app/utils/format.ts'
 import {
-	DISCIPLINE_LABELS,
+	MEG_TRAINING_LABELS,
+	MEG_UNIT_SUFFIX,
+	MEG_ZONE_ANCHOR_LABELS,
+	MEG_ZONE_RECIPE_LABELS,
+	NB_DISCIPLINE_LABELS,
+} from '#app/utils/labels.ts'
+import {
 	DISCIPLINES,
 	isCardioDiscipline,
 	type CardioDiscipline,
 	type Discipline,
 } from '#app/utils/workout-schema.ts'
 import {
-	anchorLabel,
 	defaultRecipeIdFor,
 	getRecipe,
 	listRecipesForDiscipline,
 	type ZoneAnchor,
 	type ZoneRecipeSource,
 } from '#app/utils/zones/index.ts'
+import { megZodErrorMap } from '../__meg-text.ts'
+import {
+	MegField,
+	MegFormErrors,
+	MegNote,
+	MegRow,
+	MegRows,
+	MegSection,
+	MegSelectField,
+} from '../__meg-ui.tsx'
 import { type Route } from './+types/index.ts'
 
 export const handle: SEOHandle = { getSitemapEntries: () => null }
@@ -54,6 +75,8 @@ function paceEntrySchema(
 	const inner = canonical.unwrap()
 	const min = inner.minValue ?? 0
 	const max = inner.maxValue ?? Number.MAX_SAFE_INTEGER
+	const unitWords =
+		unit === '/km' ? MEG_UNIT_SUFFIX.perKm : MEG_UNIT_SUFFIX.per100m
 	return z
 		.string()
 		.transform((value, ctx) => {
@@ -61,14 +84,18 @@ function paceEntrySchema(
 			if (seconds == null) {
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
-					message: `Enter a pace as mm:ss, e.g. ${example}`,
+					message: MEG_TRAINING_LABELS.paceFormat(example),
 				})
 				return z.NEVER
 			}
 			if (seconds < min || seconds > max) {
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
-					message: `Pace must be between ${formatPaceClock(min)} and ${formatPaceClock(max)} ${unit}`,
+					message: MEG_TRAINING_LABELS.paceRange(
+						formatPaceClock(min),
+						formatPaceClock(max),
+						unitWords,
+					),
 				})
 				return z.NEVER
 			}
@@ -108,7 +135,9 @@ const TrainingSubmitSchema = TrainingFormSchema.superRefine((value, ctx) => {
 		ctx.addIssue({
 			code: z.ZodIssueCode.custom,
 			path: ['zoneSystem'],
-			message: `That zone recipe is not a ${DISCIPLINE_LABELS[value.discipline].toLowerCase()} one`,
+			message: MEG_TRAINING_LABELS.recipeWrongDiscipline(
+				NB_DISCIPLINE_LABELS[value.discipline],
+			),
 		})
 	}
 })
@@ -123,7 +152,10 @@ export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
 
-	const submission = parseWithZod(formData, { schema: TrainingSubmitSchema })
+	const submission = parseWithZod(formData, {
+		schema: TrainingSubmitSchema,
+		errorMap: megZodErrorMap,
+	})
 	if (submission.status !== 'success') {
 		return data(
 			{ result: submission.reply() },
@@ -140,52 +172,37 @@ export async function action({ request }: Route.ActionArgs) {
 export default function TrainingSettingsIndex({
 	loaderData,
 }: Route.ComponentProps) {
-	const navigation = useNavigation()
-	const isPending = navigation.state !== 'idle'
-
+	const L = MEG_TRAINING_LABELS
 	return (
-		<div className="space-y-8">
-			<div>
-				<p className="text-body-md text-muted-foreground mt-2">
-					Set your discipline-specific thresholds. These feed into TSS
-					calculations and zone resolution.
-				</p>
+		<div className="flex flex-col gap-8">
+			<div className="flex flex-col gap-2">
+				<p className="text-body">{L.intro}</p>
 				{/* The ticket's whole distinction, said once at the top (#454): a Zone
 				    Recipe is a *shape* the app may choose, a threshold is a *number*
 				    about this athlete and only ever theirs. */}
-				<p className="text-body-sm text-muted-foreground mt-2">
-					Every discipline starts on a zone recipe we picked — it only sets
-					which ladder your numbers are read on. A threshold is a number about
-					you, so we never fill one in on our own: without it, targets stay as
-					zone labels rather than becoming a figure nobody measured.
-				</p>
-				{/* The proposal path (#434 follow-up). It does not weaken the sentence
-				    above — an estimate fitted to the athlete's *own* efforts is not a
-				    number nobody measured, and it still lands only when they accept it
-				    (ADR 0050's derived-then-authored rule). */}
-				<Link
-					to="analyze"
-					className={
-						buttonVariants({ variant: 'outline', size: 'sm' }) + ' mt-4'
-					}
-				>
-					Read these from my history
-				</Link>
-				<Link
-					to="history"
-					className="text-body-sm text-muted-foreground hover:text-foreground mt-2 inline-flex min-h-11 items-center underline"
-				>
-					View threshold history
-				</Link>
-				{/* The gym is not a threshold: it is what the athlete's rack can make, and
-				    without it the weight input has no honest plate line to draw. */}
-				<Link
-					to="gym"
-					className="text-body-sm text-muted-foreground hover:text-foreground mt-2 ml-4 inline-flex min-h-11 items-center underline"
-				>
-					Your gym’s bars and plates
-				</Link>
+				<MegNote>{L.recipeIntro}</MegNote>
 			</div>
+
+			{/* The proposal path (#434 follow-up), the history and the gym. The
+			    proposals do not weaken the sentence above — an estimate fitted to the
+			    athlete's *own* efforts is not a number nobody measured, and it still
+			    lands only when they accept it (ADR 0050's derived-then-authored
+			    rule). The gym is not a threshold: it is what the rack can make. */}
+			<MegRows>
+				<MegRow
+					to="analyze"
+					icon="bar-chart"
+					title={L.readHistory}
+					detail={L.readHistoryDetail}
+				/>
+				<MegRow
+					to="history"
+					icon="clock"
+					title={L.history}
+					detail={L.historyDetail}
+				/>
+				<MegRow to="gym" icon="barbell" title={L.gym} detail={L.gymDetail} />
+			</MegRows>
 
 			{DISCIPLINES.filter((d) => d !== 'strength').map((discipline) => {
 				const existing = loaderData.athleteProfile.disciplineProfiles.find(
@@ -197,7 +214,6 @@ export default function TrainingSettingsIndex({
 						key={discipline}
 						discipline={discipline}
 						existing={existing ?? null}
-						isPending={isPending}
 					/>
 				)
 			})}
@@ -218,15 +234,22 @@ type StoredDisciplineProfile = {
 	enabled: boolean
 }
 
+/** A whole-number threshold box: digits keypad, no spinner arithmetic. */
+function wholeNumber(enterKeyHint: 'next' | 'done') {
+	return { inputMode: 'numeric', enterKeyHint } as const
+}
+
 function DisciplineThresholdForm({
 	discipline,
 	existing,
-	isPending,
 }: {
 	discipline: Discipline
 	existing: StoredDisciplineProfile | null
-	isPending: boolean
 }) {
+	const L = MEG_TRAINING_LABELS
+	// One fetcher per discipline, so a save says "Lagret." under its own form and
+	// a refusal lands on its own fields — three forms share one action.
+	const fetcher = useFetcher<typeof action>()
 	// Every cardio profile carries a recipe now, but the form is rendered from a
 	// row that may not exist yet — so it falls back to the same default the app
 	// would stamp, and says so with the same words.
@@ -236,8 +259,12 @@ function DisciplineThresholdForm({
 	const [form, fields] = useForm({
 		id: `thresholds-${discipline}`,
 		constraint: getZodConstraint(TrainingFormSchema),
+		lastResult: fetcher.data?.result,
 		onValidate({ formData }) {
-			return parseWithZod(formData, { schema: TrainingSubmitSchema })
+			return parseWithZod(formData, {
+				schema: TrainingSubmitSchema,
+				errorMap: megZodErrorMap,
+			})
 		},
 		defaultValue: {
 			discipline,
@@ -258,107 +285,136 @@ function DisciplineThresholdForm({
 			zoneSystem: recipeId ?? '',
 		},
 	})
+	const name = NB_DISCIPLINE_LABELS[discipline]
+	const saved =
+		fetcher.state === 'idle' && fetcher.data?.result.status === 'success'
 
 	return (
-		<section>
-			<h2 className="mb-4 text-lg font-semibold">
-				{DISCIPLINE_LABELS[discipline]}
-			</h2>
-			<Form method="POST" {...getFormProps(form)}>
-				<input type="hidden" name="discipline" value={discipline} />
-				{isCardioDiscipline(discipline) && recipeId ? (
-					<ZoneRecipeField
-						discipline={discipline}
-						meta={fields.zoneSystem}
-						recipeId={recipeId}
-						source={recipeSource}
-						existing={existing}
-					/>
-				) : null}
-				{/* Single column on phones (§1.5); gap-x only + per-field pb-4 avoids
-				    the conform second-submit break from a space-y/gap-y field wrapper
-				    (map #277 Notes). */}
-				<div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
-					<Field
-						className="pb-4"
-						labelProps={{ htmlFor: fields.maxHr.id, children: 'Max HR (bpm)' }}
-						inputProps={getInputProps(fields.maxHr, { type: 'number' })}
-						errors={fields.maxHr.errors}
-					/>
-					<Field
-						className="pb-4"
-						labelProps={{ htmlFor: fields.lthr.id, children: 'LTHR (bpm)' }}
-						inputProps={getInputProps(fields.lthr, { type: 'number' })}
-						errors={fields.lthr.errors}
-					/>
-					{discipline === 'bike' && (
-						<Field
-							className="pb-4"
-							labelProps={{ htmlFor: fields.ftp.id, children: 'FTP (W)' }}
-							inputProps={getInputProps(fields.ftp, { type: 'number' })}
-							errors={fields.ftp.errors}
-						/>
-					)}
-					{discipline === 'run' && (
-						<>
-							<Field
+		<MegSection id={`thresholds-${discipline}-title`} title={name}>
+			<Card size="sm">
+				<CardContent>
+					<fetcher.Form method="POST" {...getFormProps(form)}>
+						<input type="hidden" name="discipline" value={discipline} />
+						{isCardioDiscipline(discipline) && recipeId ? (
+							<ZoneRecipeField
+								discipline={discipline}
+								meta={fields.zoneSystem}
+								recipeId={recipeId}
+								source={recipeSource}
+								existing={existing}
+							/>
+						) : null}
+						{/* Single column on phones (§1.5); gap-x only + per-field pb-4
+						    avoids the conform second-submit break from a space-y/gap-y
+						    field wrapper (map #277 Notes). */}
+						<div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+							<MegField
 								className="pb-4"
-								labelProps={{
-									htmlFor: fields.thresholdPaceSecPerKm.id,
-									children: 'Threshold pace (mm:ss /km)',
-								}}
+								label={L.maxHr}
 								inputProps={{
-									...getInputProps(fields.thresholdPaceSecPerKm, {
-										type: 'text',
-									}),
-									placeholder: '4:00',
+									...getInputProps(fields.maxHr, { type: 'number' }),
+									...wholeNumber('next'),
 								}}
-								errors={fields.thresholdPaceSecPerKm.errors}
+								errors={fields.maxHr.errors}
 							/>
-							<Field
+							<MegField
 								className="pb-4"
-								labelProps={{
-									htmlFor: fields.runPowerThresholdW.id,
-									children: 'Critical running power (W)',
+								label={L.lthr}
+								inputProps={{
+									...getInputProps(fields.lthr, { type: 'number' }),
+									...wholeNumber('next'),
 								}}
-								inputProps={getInputProps(fields.runPowerThresholdW, {
-									type: 'number',
-								})}
-								errors={fields.runPowerThresholdW.errors}
+								errors={fields.lthr.errors}
 							/>
-						</>
-					)}
-					{discipline === 'swim' && (
-						<Field
-							className="pb-4"
-							labelProps={{
-								htmlFor: fields.cssSecPer100m.id,
-								children: 'CSS (mm:ss /100m)',
-							}}
-							inputProps={{
-								...getInputProps(fields.cssSecPer100m, {
-									type: 'text',
-								}),
-								placeholder: '1:35',
-							}}
-							errors={fields.cssSecPer100m.errors}
-						/>
-					)}
-				</div>
+							{discipline === 'bike' && (
+								<MegField
+									className="pb-4"
+									label={L.ftp}
+									inputProps={{
+										...getInputProps(fields.ftp, { type: 'number' }),
+										...wholeNumber('done'),
+									}}
+									errors={fields.ftp.errors}
+								/>
+							)}
+							{discipline === 'run' && (
+								<>
+									<MegField
+										className="pb-4"
+										label={L.thresholdPace}
+										inputProps={{
+											...getInputProps(fields.thresholdPaceSecPerKm, {
+												type: 'text',
+											}),
+											placeholder: '4:00',
+											// `mm:ss` needs the colon, which the numeric pad
+											// lacks on iOS; the punctuation pad has it.
+											inputMode: 'text',
+											autoComplete: 'off',
+											autoCorrect: 'off',
+											spellCheck: false,
+											enterKeyHint: 'next',
+										}}
+										errors={fields.thresholdPaceSecPerKm.errors}
+									/>
+									<MegField
+										className="pb-4"
+										label={L.runPower}
+										inputProps={{
+											...getInputProps(fields.runPowerThresholdW, {
+												type: 'number',
+											}),
+											...wholeNumber('done'),
+										}}
+										errors={fields.runPowerThresholdW.errors}
+									/>
+								</>
+							)}
+							{discipline === 'swim' && (
+								<MegField
+									className="pb-4"
+									label={L.css}
+									inputProps={{
+										...getInputProps(fields.cssSecPer100m, {
+											type: 'text',
+										}),
+										placeholder: '1:35',
+										inputMode: 'text',
+										autoComplete: 'off',
+										autoCorrect: 'off',
+										spellCheck: false,
+										enterKeyHint: 'done',
+									}}
+									errors={fields.cssSecPer100m.errors}
+								/>
+							)}
+						</div>
 
-				<ErrorList errors={form.errors} id={form.errorId} />
+						<MegFormErrors errors={form.errors} id={form.errorId} />
 
-				<div className="pt-2">
-					<Button
-						type="submit"
-						disabled={isPending}
-						className="w-full sm:w-auto"
-					>
-						Save {DISCIPLINE_LABELS[discipline]}
-					</Button>
-				</div>
-			</Form>
-		</section>
+						<div className="flex flex-wrap items-center gap-3 pt-2">
+							<StatusButton
+								type="submit"
+								className="w-full sm:w-auto"
+								status={
+									fetcher.state !== 'idle' ? 'pending' : (form.status ?? 'idle')
+								}
+							>
+								{L.save(name)}
+							</StatusButton>
+							{saved ? (
+								<p
+									role="status"
+									className="text-footnote text-muted-foreground"
+								>
+									{L.saved}
+								</p>
+							) : null}
+						</div>
+					</fetcher.Form>
+				</CardContent>
+			</Card>
+		</MegSection>
 	)
 }
 
@@ -368,25 +424,26 @@ function anchorReading(
 	existing: StoredDisciplineProfile | null,
 ): string | null {
 	if (!existing) return null
+	const U = MEG_UNIT_SUFFIX
 	switch (anchor) {
 		case 'ftp':
-			return existing.ftp == null ? null : `${existing.ftp} W`
+			return existing.ftp == null ? null : `${existing.ftp} ${U.watt}`
 		case 'runPower':
 			return existing.runPowerThresholdW == null
 				? null
-				: `${existing.runPowerThresholdW} W`
+				: `${existing.runPowerThresholdW} ${U.watt}`
 		case 'lthr':
-			return existing.lthr == null ? null : `${existing.lthr} bpm`
+			return existing.lthr == null ? null : `${existing.lthr} ${U.bpm}`
 		case 'maxHr':
-			return existing.maxHr == null ? null : `${existing.maxHr} bpm`
+			return existing.maxHr == null ? null : `${existing.maxHr} ${U.bpm}`
 		case 'thresholdPace':
 			return existing.thresholdPaceSecPerKm == null
 				? null
-				: `${formatPaceClock(existing.thresholdPaceSecPerKm)} /km`
+				: `${formatPaceClock(existing.thresholdPaceSecPerKm)} ${U.perKm}`
 		case 'css':
 			return existing.cssSecPer100m == null
 				? null
-				: `${formatPaceClock(existing.cssSecPer100m)} /100m`
+				: `${formatPaceClock(existing.cssSecPer100m)} ${U.per100m}`
 		case 'rpe':
 			return null
 	}
@@ -396,12 +453,12 @@ function anchorReading(
  * The **Zone Recipe** picker (#454) — the one control on this screen that is not
  * a threshold, and the only value here the app is allowed to have filled in.
  *
- * It **says which of those two it is**. A recipe the app chose wears a `Default`
- * badge and the sentence explaining what was and was not chosen; a recipe the
- * athlete picked says `Your choice` and claims nothing. That distinction is
- * read off the stored `zoneSystemSource`, never off "does the id happen to equal
- * the default" — an athlete who deliberately picks the recipe that is also the
- * default has still picked it.
+ * It **says which of those two it is**. A recipe the app chose wears a
+ * `Valgt for deg` badge and the sentence explaining what was and was not chosen;
+ * a recipe the athlete picked says `Ditt valg` and claims nothing. That
+ * distinction is read off the stored `zoneSystemSource`, never off "does the id
+ * happen to equal the default" — an athlete who deliberately picks the recipe
+ * that is also the default has still picked it.
  *
  * Below it, the recipe's **anchor**: the one **Threshold** it is a ratio table
  * over, with the athlete's own figure when they have given one and an honest
@@ -421,55 +478,37 @@ function ZoneRecipeField({
 	source: ZoneRecipeSource
 	existing: StoredDisciplineProfile | null
 }) {
+	const L = MEG_TRAINING_LABELS
 	const recipe = getRecipe(recipeId)
 	const anchor = recipe?.anchor
 	const reading = anchor ? anchorReading(anchor, existing) : null
+	const name = NB_DISCIPLINE_LABELS[discipline]
 
 	return (
-		<div className="pb-4">
-			<SelectField
+		<div className="flex flex-col gap-2 pb-4">
+			<MegSelectField
 				meta={meta as FieldMetadata<string>}
-				labelProps={{ children: 'Zone recipe' }}
+				label={L.recipe}
 				items={listRecipesForDiscipline(discipline).map((r) => ({
 					value: r.id,
-					label: r.name,
+					label: MEG_ZONE_RECIPE_LABELS[r.id] ?? r.name,
 				}))}
 			/>
-			<p className="text-body-sm text-muted-foreground mt-2">
-				{source === 'default' ? (
-					<>
-						<Badge variant="secondary" className="mr-2 align-middle">
-							Default
-						</Badge>
-						We chose this one for {DISCIPLINE_LABELS[discipline].toLowerCase()}{' '}
-						— you have not picked a zone model. It decides which ladder your
-						numbers are read on and invents none of them.
-					</>
-				) : (
-					<>
-						<Badge variant="outline" className="mr-2 align-middle">
-							Your choice
-						</Badge>
-						You picked this one.
-					</>
-				)}
-			</p>
+			<MegNote>
+				<Badge
+					variant={source === 'default' ? 'secondary' : 'outline'}
+					className="mr-2 align-middle"
+				>
+					{source === 'default' ? L.recipeDefault : L.recipeChosen}
+				</Badge>
+				{source === 'default' ? L.recipeDefaultLine(name) : L.recipeChosenLine}
+			</MegNote>
 			{anchor ? (
-				<p className="text-body-sm text-muted-foreground mt-1">
-					{reading ? (
-						<>
-							Read against your {anchorLabel(anchor)}, {reading}. Changing the
-							recipe re-reads every session you have logged, not only the ones
-							ahead.
-						</>
-					) : (
-						<>
-							Read against your {anchorLabel(anchor)}, which you have not set —
-							so targets in this discipline stay as zone labels rather than
-							becoming a number nobody measured.
-						</>
-					)}
-				</p>
+				<MegNote className="tabular-nums">
+					{reading
+						? L.anchorSet(MEG_ZONE_ANCHOR_LABELS[anchor], reading)
+						: L.anchorMissing(MEG_ZONE_ANCHOR_LABELS[anchor])}
+				</MegNote>
 			) : null}
 		</div>
 	)

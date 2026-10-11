@@ -23,19 +23,28 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { data, useFetcher } from 'react-router'
 import { z } from 'zod'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
-import { Button } from '#app/components/ui/button.tsx'
-import { Input } from '#app/components/ui/input.tsx'
-import { Label } from '#app/components/ui/label.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
+import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import {
+	MEG_GYM_LABELS,
+	MEG_PAGE_TITLES,
+	MEG_PLATE_REFUSAL_LABELS,
+} from '#app/utils/labels.ts'
 import {
 	getGymProfile,
 	saveGymProfile,
 } from '#app/utils/plate-inventory.server.ts'
-import { calculatePlates, plateLineText } from '#app/utils/strength/plates.ts'
+import {
+	calculatePlates,
+	type PlateSolution,
+} from '#app/utils/strength/plates.ts'
+import { nbKg } from '../__meg-text.ts'
+import { MegField, MegNote, MegResult } from '../__meg-ui.tsx'
 import { type Route } from './+types/gym.ts'
 
 export const handle: PageHeaderHandle & SEOHandle = {
-	pageHeader: 'Your gym',
+	pageHeader: MEG_PAGE_TITLES.gym,
 	getSitemapEntries: () => null,
 }
 
@@ -82,7 +91,7 @@ export async function action({ request }: Route.ActionArgs) {
 	const parsed = GymSchema.safeParse(Object.fromEntries(formData))
 	if (!parsed.success) {
 		return data<SaveGymActionResult>(
-			{ ok: false, error: 'That did not make sense.' },
+			{ ok: false, error: MEG_GYM_LABELS.invalid },
 			400,
 		)
 	}
@@ -97,7 +106,7 @@ export async function action({ request }: Route.ActionArgs) {
 		)
 	) {
 		return data<SaveGymActionResult>(
-			{ ok: false, error: 'Every weight and count has to be a number.' },
+			{ ok: false, error: MEG_GYM_LABELS.notNumbers },
 			400,
 		)
 	}
@@ -105,7 +114,7 @@ export async function action({ request }: Route.ActionArgs) {
 		return data<SaveGymActionResult>(
 			{
 				ok: false,
-				error: 'Give a count for every plate, or leave the counts blank.',
+				error: MEG_GYM_LABELS.countMismatch,
 			},
 			400,
 		)
@@ -141,21 +150,41 @@ export async function action({ request }: Route.ActionArgs) {
 		return data<SaveGymActionResult>(
 			{
 				ok: false,
-				error: 'Your athlete profile is missing, so there is no gym to attach.',
+				error: MEG_GYM_LABELS.noProfile,
 			},
 			400,
 		)
 	}
 	return {
 		ok: true as const,
-		message: 'Saved. Every weight now says what goes on the bar.',
+		message: MEG_GYM_LABELS.saved,
 	}
+}
+
+/**
+ * The plate line with decimal commas: `20 · 20 · 10 · 2,5` — the Norwegian
+ * twin of `plateLineText`, whose `.` the session runner still reads.
+ */
+function nbPlateLine(solution: PlateSolution): string {
+	if (solution.outcome === 'unavailable') return '—'
+	if (solution.platesPerSide.length === 0) {
+		return solution.perSideKg > 0
+			? nbKg(solution.perSideKg)
+			: MEG_GYM_LABELS.emptyBar
+	}
+	return solution.platesPerSide
+		.flatMap((plate) =>
+			Array.from({ length: plate.count }, () => plate.weightKg),
+		)
+		.map(nbKg)
+		.join(' · ')
 }
 
 export default function GymRoute({ loaderData }: Route.ComponentProps) {
 	const fetcher = useFetcher<typeof action>()
 	const gym = loaderData.gym
 	const result = fetcher.data
+	const L = MEG_GYM_LABELS
 
 	// The example is solved against the gym on file, so the screen shows the
 	// consequence of the numbers rather than describing it.
@@ -163,106 +192,108 @@ export default function GymRoute({ loaderData }: Route.ComponentProps) {
 		? calculatePlates(100, gym.inventory, { kind: 'external' })
 		: null
 
+	// The list fields keep the parser's own format — commas between numbers, a
+	// point for decimals — and say so under the fields, because a Norwegian
+	// `2,5` in a comma list would read as two plates.
+	const list = {
+		inputMode: 'decimal',
+		autoComplete: 'off',
+		autoCorrect: 'off',
+		spellCheck: false,
+		enterKeyHint: 'next',
+	} as const
+
 	return (
-		<div className="space-y-6">
-			<p className="text-body-sm text-muted-foreground">
-				What your gym owns, so the weight input can say what goes on the bar.
-				The count is pairs — two 20s per side is a count of 2.
-			</p>
+		<div className="flex flex-col gap-6">
+			<p className="text-body">{L.intro}</p>
 
-			<fetcher.Form method="post" className="space-y-4">
-				<div>
-					<Label htmlFor="gym-name">This gym’s name</Label>
-					<Input
-						id="gym-name"
-						name="name"
-						defaultValue={gym?.name ?? 'My gym'}
-						className="mt-1"
-					/>
-				</div>
-
-				<div>
-					<Label htmlFor="gym-bars">Bars, in kg</Label>
-					<Input
-						id="gym-bars"
-						name="bars"
-						inputMode="decimal"
-						placeholder="20, 15"
-						defaultValue={gym?.inventory.bars.map((b) => b.weightKg).join(', ')}
-						className="mt-1"
-					/>
-					<p className="text-body-xs text-muted-foreground mt-1">
-						The first one is the bar a lift assumes.
-					</p>
-				</div>
-
-				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-					<div>
-						<Label htmlFor="gym-plates">Plates, in kg</Label>
-						<Input
-							id="gym-plates"
-							name="plates"
-							inputMode="decimal"
-							placeholder="25, 20, 10, 5, 2.5, 1.25"
-							defaultValue={gym?.inventory.plates
-								.map((p) => p.weightKg)
-								.join(', ')}
-							className="mt-1"
+			<Card size="sm">
+				<CardContent>
+					<fetcher.Form method="post" className="flex flex-col gap-4">
+						<MegField
+							label={L.name}
+							inputProps={{
+								id: 'gym-name',
+								name: 'name',
+								defaultValue: gym?.name ?? L.defaultName,
+								maxLength: 60,
+								autoComplete: 'off',
+								enterKeyHint: 'next',
+							}}
 						/>
-					</div>
-					<div>
-						<Label htmlFor="gym-plate-counts">Pairs of each</Label>
-						<Input
-							id="gym-plate-counts"
-							name="plateCounts"
-							inputMode="numeric"
-							placeholder="2, 2, 2, 2, 1, 1"
-							defaultValue={gym?.inventory.plates
-								.map((p) => p.count)
-								.join(', ')}
-							className="mt-1"
+						<MegField
+							label={L.bars}
+							hint={L.barsHint}
+							inputProps={{
+								...list,
+								id: 'gym-bars',
+								name: 'bars',
+								placeholder: '20, 15',
+								defaultValue: gym?.inventory.bars
+									.map((b) => b.weightKg)
+									.join(', '),
+							}}
 						/>
-					</div>
-				</div>
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<MegField
+								label={L.plates}
+								inputProps={{
+									...list,
+									id: 'gym-plates',
+									name: 'plates',
+									placeholder: '25, 20, 10, 5, 2.5, 1.25',
+									defaultValue: gym?.inventory.plates
+										.map((p) => p.weightKg)
+										.join(', '),
+								}}
+							/>
+							<MegField
+								label={L.plateCounts}
+								inputProps={{
+									...list,
+									inputMode: 'numeric',
+									id: 'gym-plate-counts',
+									name: 'plateCounts',
+									placeholder: '2, 2, 2, 2, 1, 1',
+									defaultValue: gym?.inventory.plates
+										.map((p) => p.count)
+										.join(', '),
+								}}
+							/>
+						</div>
+						<MegField
+							label={L.dumbbells}
+							hint={L.dumbbellsHint}
+							inputProps={{
+								...list,
+								enterKeyHint: 'done',
+								id: 'gym-dumbbells',
+								name: 'dumbbells',
+								placeholder: '5, 7.5, 10, 12.5, 15',
+								defaultValue: gym?.inventory.fixedDumbbellsKg?.join(', ') ?? '',
+							}}
+						/>
+						<MegNote>{L.listHint}</MegNote>
 
-				<div>
-					<Label htmlFor="gym-dumbbells">Fixed dumbbells, in kg</Label>
-					<Input
-						id="gym-dumbbells"
-						name="dumbbells"
-						inputMode="decimal"
-						placeholder="5, 7.5, 10, 12.5, 15"
-						defaultValue={gym?.inventory.fixedDumbbellsKg?.join(', ') ?? ''}
-						className="mt-1"
-					/>
-					<p className="text-body-xs text-muted-foreground mt-1">
-						Leave this blank if you have not said — a blank field is not an
-						empty rack.
-					</p>
-				</div>
+						<MegResult result={result} />
 
-				<Button type="submit" disabled={fetcher.state !== 'idle'}>
-					Save my gym
-				</Button>
-			</fetcher.Form>
-
-			{result && 'error' in result ? (
-				<p className="text-destructive text-body-sm" role="alert">
-					{result.error}
-				</p>
-			) : null}
-			{result && 'message' in result ? (
-				<p className="text-body-sm" role="status">
-					{result.message}
-				</p>
-			) : null}
+						<StatusButton
+							type="submit"
+							className="w-full sm:w-auto sm:self-start"
+							status={fetcher.state !== 'idle' ? 'pending' : 'idle'}
+						>
+							{L.save}
+						</StatusButton>
+					</fetcher.Form>
+				</CardContent>
+			</Card>
 
 			{example ? (
-				<p className="text-body-sm text-muted-foreground">
+				<MegNote className="tabular-nums">
 					{example.outcome === 'unavailable'
-						? example.explanation
+						? MEG_PLATE_REFUSAL_LABELS[example.reason]
 						: example.outcome === 'exact'
-							? `100 kg on this rack is ${plateLineText(example)} per side.`
+							? L.exampleExact(nbPlateLine(example))
 							: // `achievedKg`, not `totalWeight`: the gap sentence is owed in the
 								// quantity the probe was asked in, and `gapKg` is measured against
 								// `achievedKg`. The two coincide here only because the probe is an
@@ -270,8 +301,11 @@ export default function GymRoute({ loaderData }: Route.ComponentProps) {
 								// is quoted is the exact substitution that shipped three defects
 								// elsewhere in this module's callers. `achievedKg` is null only for
 								// `bodyweight`, which this probe never is.
-								`This rack cannot make 100 kg — the nearest is ${example.achievedKg} kg, ${plateLineText(example)} per side.`}
-				</p>
+								L.exampleNearest(
+									example.achievedKg == null ? '—' : nbKg(example.achievedKg),
+									nbPlateLine(example),
+								)}
+				</MegNote>
 			) : null}
 		</div>
 	)

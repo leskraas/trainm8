@@ -6,11 +6,11 @@ import {
 	type PageHeaderHandle,
 } from '#app/components/page-header.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { APP_TAB_LABELS } from '#app/utils/labels.ts'
+import { APP_TAB_LABELS, MEG_PAGE_TITLES } from '#app/utils/labels.ts'
 import { type Route } from './+types/_layout.tsx'
 
 export const handle: PageHeaderHandle & SEOHandle = {
-	pageHeader: 'Training Settings',
+	pageHeader: MEG_PAGE_TITLES.training,
 	getSitemapEntries: () => null,
 }
 

@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { render, screen } from '@testing-library/react'
+import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
 import {
@@ -10,7 +11,7 @@ import {
 } from '#app/utils/profile-analysis/types.ts'
 import AnalyzeProfileRoute from './analyze.tsx'
 
-// ── What your history says ───────────────────────────────────────────────────
+// ── Det historikken din sier ───────────────────────────────────────────────────
 // Every row is a proposal. The screen's contract: a number carries its caveat in
 // place, a derivation waits behind a tap, and a refusal is never hidden.
 
@@ -94,26 +95,31 @@ test('a critical power says it is a critical power, on the number', async () => 
 	// The caveat that keeps a CP from silently reading as an FTP. It sits in
 	// place, not behind the disclosure.
 	expect(
-		screen.getByText(/critical power — usually a little above FTP/i),
+		screen.getByText(/kritisk watt, vanligvis litt over FTP/i),
 	).toBeInTheDocument()
 })
 
 test('the derivation waits behind a tap, and names what it could not read', async () => {
 	renderRoute([cpEstimate()])
-	const summary = await screen.findByText('How we got this')
-	// A `<details>` is closed by default: the reasoning is available, not asserted.
-	const details = summary.closest('details')
-	expect(details).not.toBeNull()
-	expect(details).not.toHaveAttribute('open')
+	const trigger = await screen.findByRole('button', {
+		name: /Slik kom vi fram til det/i,
+	})
+	// Closed by default: the reasoning is available, not asserted.
+	expect(trigger).toHaveAttribute('aria-expanded', 'false')
+	await userEvent.click(trigger)
+	expect(trigger).toHaveAttribute('aria-expanded', 'true')
 	// The durations the storage was too coarse for are named rather than dropped.
-	expect(screen.getByText(/Too coarse to read/i)).toBeInTheDocument()
+	expect(await screen.findByText(/For grovt lagret/i)).toBeInTheDocument()
 })
 
 test('W′ is shown in the derivation and is not something you can accept', async () => {
 	renderRoute([cpEstimate()])
+	await userEvent.click(
+		await screen.findByRole('button', { name: /Slik kom vi fram til det/i }),
+	)
 	expect(await screen.findByText(/W′/)).toBeInTheDocument()
 	// One estimate, one accept control.
-	expect(screen.getAllByRole('button', { name: /Use this/i })).toHaveLength(1)
+	expect(screen.getAllByRole('button', { name: /Bruk dette/i })).toHaveLength(1)
 })
 
 test('a refusal is visible in place, never behind a disclosure', async () => {
@@ -127,12 +133,12 @@ test('a refusal is visible in place, never behind a disclosure', async () => {
 			basis: EMPTY_BASIS,
 		},
 	])
-	expect(await screen.findByText('Unavailable')).toBeInTheDocument()
+	expect(await screen.findByText('Ikke tilgjengelig')).toBeInTheDocument()
 	expect(
-		screen.getByText(/Not something we can read from your data yet/i),
+		screen.getByText(/Dette kan vi ikke lese fra dataene dine ennå/i),
 	).toBeInTheDocument()
 	// An absence offers nothing to accept.
-	expect(screen.queryByRole('button', { name: /Use this/i })).toBeNull()
+	expect(screen.queryByRole('button', { name: /Bruk dette/i })).toBeNull()
 })
 
 test('a coarse-storage refusal explains itself in one sentence', async () => {
@@ -147,7 +153,7 @@ test('a coarse-storage refusal explains itself in one sentence', async () => {
 		},
 	])
 	expect(
-		await screen.findByText(/too coarse a resolution to read short efforts/i),
+		await screen.findByText(/for lav oppløsning til å lese korte innsatser/i),
 	).toBeInTheDocument()
 })
 
@@ -164,10 +170,15 @@ test('an age-formula reading is marked low confidence and says why', async () =>
 			companion: null,
 		},
 	])
-	expect(await screen.findByText('low confidence')).toBeInTheDocument()
-	expect(screen.getByText(/estimated from your age/i)).toBeInTheDocument()
+	expect(await screen.findByText('lav sikkerhet')).toBeInTheDocument()
+	expect(screen.getByText(/anslått ut fra alderen din/i)).toBeInTheDocument()
+	await userEvent.click(
+		screen.getByRole('button', { name: /Slik kom vi fram til det/i }),
+	)
 	expect(
-		screen.getByText(/An age formula describes a population, not you/i),
+		await screen.findByText(
+			/En aldersformel beskriver en befolkning, ikke deg/i,
+		),
 	).toBeInTheDocument()
 })
 
@@ -175,25 +186,25 @@ test('an existing value is stated, and the control says it would replace it', as
 	renderRoute([cpEstimate()], {
 		stored: { ...STORED, bike: { ...STORED.bike, ftp: 240 } },
 	})
-	expect(await screen.findByText(/You have 240 W saved/i)).toBeInTheDocument()
+	expect(await screen.findByText(/Du har 240 W lagret/i)).toBeInTheDocument()
 	expect(
-		screen.getByRole('button', { name: /Replace what I have/i }),
+		screen.getByRole('button', { name: /Erstatt det jeg har/i }),
 	).toBeInTheDocument()
 })
 
 test('nothing imported yet points at the thing that would fix it', async () => {
 	renderRoute([], { activitiesRead: 0 })
 	expect(
-		await screen.findByText(/No imported activities yet/i),
+		await screen.findByText(/Ingen importerte aktiviteter ennå/i),
 	).toBeInTheDocument()
 	expect(
-		screen.getByRole('link', { name: /Connect an account/i }),
+		screen.getByRole('link', { name: /Koble til en konto/i }),
 	).toBeInTheDocument()
 })
 
 test('the screen states that nothing is saved until it is accepted', async () => {
 	renderRoute([cpEstimate()])
 	expect(
-		await screen.findByText(/Nothing is saved until you accept it/i),
+		await screen.findByText(/Ingenting lagres før du godtar det/i),
 	).toBeInTheDocument()
 })

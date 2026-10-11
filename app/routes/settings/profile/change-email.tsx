@@ -3,7 +3,6 @@ import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { data, redirect, Form } from 'react-router'
 import { z } from 'zod'
-import { ErrorList, Field } from '#app/components/forms.tsx'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
@@ -13,14 +12,17 @@ import {
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { sendEmail } from '#app/utils/email.server.ts'
+import { MEG_EMAIL_LABELS, MEG_PAGE_TITLES } from '#app/utils/labels.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
 import { EmailSchema } from '#app/utils/user-validation.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
+import { megZodErrorMap } from '../__meg-text.ts'
+import { MegField, MegFormErrors, MegNote } from '../__meg-ui.tsx'
 import { type Route } from './+types/change-email.ts'
 import { EmailChangeEmail } from './change-email.server.tsx'
 
 export const handle: PageHeaderHandle & SEOHandle = {
-	pageHeader: 'Change Email',
+	pageHeader: MEG_PAGE_TITLES.changeEmail,
 	getSitemapEntries: () => null,
 }
 
@@ -48,6 +50,7 @@ export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
 	const submission = await parseWithZod(formData, {
+		errorMap: megZodErrorMap,
 		schema: ChangeEmailSchema.superRefine(async (data, ctx) => {
 			const existingUser = await prisma.user.findUnique({
 				where: { email: data.email },
@@ -56,7 +59,7 @@ export async function action({ request }: Route.ActionArgs) {
 				ctx.addIssue({
 					path: ['email'],
 					code: z.ZodIssueCode.custom,
-					message: 'This email is already in use.',
+					message: MEG_EMAIL_LABELS.inUse,
 				})
 			}
 		}),
@@ -78,7 +81,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 	const response = await sendEmail({
 		to: submission.value.email,
-		subject: `Trainm8 Email Change Verification`,
+		subject: MEG_EMAIL_LABELS.codeSubject,
 		react: <EmailChangeEmail verifyUrl={verifyUrl.toString()} otp={otp} />,
 	})
 
@@ -107,39 +110,50 @@ export default function ChangeEmailIndex({
 		constraint: getZodConstraint(ChangeEmailSchema),
 		lastResult: actionData?.result,
 		onValidate({ formData }) {
-			return parseWithZod(formData, { schema: ChangeEmailSchema })
+			return parseWithZod(formData, {
+				schema: ChangeEmailSchema,
+				errorMap: megZodErrorMap,
+			})
 		},
 	})
 
 	const isPending = useIsPending()
+	const L = MEG_EMAIL_LABELS
 	return (
-		<div>
-			<p>You will receive an email at the new email address to confirm.</p>
-			<p>
-				An email notice will also be sent to your old address{' '}
-				{loaderData.user.email}.
-			</p>
-			<div className="mx-auto mt-5 max-w-sm">
-				<Form method="POST" {...getFormProps(form)}>
-					<Field
-						labelProps={{ children: 'New Email' }}
-						inputProps={{
-							...getInputProps(fields.email, { type: 'email' }),
-							autoComplete: 'email',
-						}}
-						errors={fields.email.errors}
-					/>
-					<ErrorList id={form.errorId} errors={form.errors} />
-					<div>
-						<StatusButton
-							type="submit"
-							status={isPending ? 'pending' : (form.status ?? 'idle')}
-						>
-							Send Confirmation
-						</StatusButton>
-					</div>
-				</Form>
+		<div className="mx-auto flex max-w-md flex-col gap-6">
+			<div className="flex flex-col gap-2">
+				<p className="text-body">{L.intro}</p>
+				<MegNote className="[overflow-wrap:anywhere]">
+					{L.notice(loaderData.user.email)}
+				</MegNote>
 			</div>
+			<Form
+				method="POST"
+				{...getFormProps(form)}
+				className="flex flex-col gap-4"
+			>
+				<MegField
+					label={L.newEmail}
+					inputProps={{
+						...getInputProps(fields.email, { type: 'email' }),
+						autoComplete: 'email',
+						inputMode: 'email',
+						autoCapitalize: 'none',
+						autoCorrect: 'off',
+						spellCheck: false,
+						enterKeyHint: 'send',
+					}}
+					errors={fields.email.errors}
+				/>
+				<MegFormErrors id={form.errorId} errors={form.errors} />
+				<StatusButton
+					type="submit"
+					className="w-full sm:w-auto sm:self-start"
+					status={isPending ? 'pending' : (form.status ?? 'idle')}
+				>
+					{L.send}
+				</StatusButton>
+			</Form>
 		</div>
 	)
 }
