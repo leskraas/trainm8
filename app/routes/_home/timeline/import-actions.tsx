@@ -6,9 +6,16 @@
  * posting to its owner-scoped resource route. The home loader revalidates
  * after each, so the row itself is the confirmation: the ekstra goes, the
  * plan's session turns done, the question disappears.
+ *
+ * _Gjort_ and a link answer also land as the composer's writes do (ADR 0088,
+ * amended): a toast saying what changed, the row tinted, and _Angre_ on both
+ * for as long as the toast stays — posting the token the write's reply
+ * carried back to its own route (`useLandingWatch`). A reply with no token (the
+ * write folded something an undo cannot unwind) lands without _Angre_.
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
+import { useState } from 'react'
 import { useFetcher } from 'react-router'
 import { ErrorList } from '#app/components/forms.tsx'
 import { buttonVariants } from '#app/components/ui/button.tsx'
@@ -21,8 +28,13 @@ import {
 	SESSION_DONE_ACTION,
 	SessionDoneSchema,
 } from '#app/utils/import-link-schema.ts'
-import { IMPORT_LINK_LABELS, MARK_DONE_LABELS } from '#app/utils/labels.ts'
+import {
+	ANGRE_REST_LABELS,
+	IMPORT_LINK_LABELS,
+	MARK_DONE_LABELS,
+} from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { type LandedWrite, useLandingWatch } from './composer-context.tsx'
 import { type TimelineImportLink } from './presenter.ts'
 import { TITLE_INSET, TITLE_INSET_BOX } from './row-inset.ts'
 
@@ -98,6 +110,7 @@ function ImportQuestion({
 						intent="link"
 						importId={ask.importId}
 						sessionId={option.sessionId}
+						title={option.title}
 						label={option.label}
 						className={cn(
 							buttonVariants({ variant: 'outline', size: 'sm' }),
@@ -138,6 +151,7 @@ function ImportLinkButton({
 	intent,
 	importId,
 	sessionId,
+	title,
 	label,
 	ariaLabel,
 	icon,
@@ -146,12 +160,16 @@ function ImportLinkButton({
 	intent: 'link' | 'keep' | 'annet' | 'undo' | 'relink'
 	importId: string
 	sessionId?: string
+	/** The planned session's title, which a link's toast quotes. */
+	title?: string
 	label: string
 	ariaLabel?: string
 	icon?: 'reset' | 'link-2'
 	className: string
 }) {
-	const fetcher = useFetcher<typeof importLinkAction>()
+	const fetcherKey = useLandingKey()
+	const watch = useLandingWatch()
+	const fetcher = useFetcher<typeof importLinkAction>({ key: fetcherKey })
 	const [form, fields] = useForm({
 		id: `import-${intent}-${importId}${sessionId ? `-${sessionId}` : ''}`,
 		lastResult: fetcher.data?.submission,
@@ -160,6 +178,7 @@ function ImportLinkButton({
 		},
 		defaultValue: { intent, importId, sessionId },
 	})
+	const formProps = getFormProps(form)
 	// Said while in flight and kept once the server agreed, until the
 	// revalidated row replaces this one; a refusal puts the button back.
 	const sent = fetcher.state !== 'idle' || fetcher.data?.result?.ok === true
@@ -167,7 +186,16 @@ function ImportLinkButton({
 		<fetcher.Form
 			method="post"
 			action={IMPORT_LINK_ACTION}
-			{...getFormProps(form)}
+			{...formProps}
+			onSubmit={(event) => {
+				formProps.onSubmit(event)
+				// A link lands as every write on I dag does (ADR 0088, amended).
+				if (event.defaultPrevented || intent !== 'link' || !watch) return
+				watch({
+					fetcherKey,
+					toWrite: (reply) => linkLanding(reply as ImportLinkReply, title),
+				})
+			}}
 			className="flex flex-col"
 		>
 			<input {...getInputProps(fields.intent, { type: 'hidden' })} />
@@ -199,14 +227,19 @@ function ImportLinkButton({
  */
 export function MarkDoneAction({
 	sessionId,
+	title,
 	label,
 	ariaLabel,
 }: {
 	sessionId: string
+	/** The session's title, which the toast quotes. */
+	title: string
 	label: string
 	ariaLabel: string
 }) {
-	const fetcher = useFetcher<typeof sessionDoneAction>()
+	const fetcherKey = useLandingKey()
+	const watch = useLandingWatch()
+	const fetcher = useFetcher<typeof sessionDoneAction>({ key: fetcherKey })
 	const [form, fields] = useForm({
 		id: `done-${sessionId}`,
 		lastResult: fetcher.data?.submission,
@@ -215,12 +248,22 @@ export function MarkDoneAction({
 		},
 		defaultValue: { sessionId },
 	})
+	const formProps = getFormProps(form)
 	const sent = fetcher.state !== 'idle' || fetcher.data?.result?.ok === true
 	return (
 		<fetcher.Form
 			method="post"
 			action={SESSION_DONE_ACTION}
-			{...getFormProps(form)}
+			{...formProps}
+			onSubmit={(event) => {
+				formProps.onSubmit(event)
+				if (event.defaultPrevented || !watch) return
+				watch({
+					fetcherKey,
+					toWrite: (reply) =>
+						markDoneLanding(reply as MarkDoneReply, sessionId, title),
+				})
+			}}
 			className="flex flex-col"
 		>
 			<input {...getInputProps(fields.sessionId, { type: 'hidden' })} />
@@ -240,4 +283,71 @@ export function MarkDoneAction({
 			<ErrorList id={form.errorId} errors={form.errors} />
 		</fetcher.Form>
 	)
+}
+
+type ImportLinkReply = ReturnType<
+	typeof useFetcher<typeof importLinkAction>
+>['data']
+type MarkDoneReply = ReturnType<
+	typeof useFetcher<typeof sessionDoneAction>
+>['data']
+
+/**
+ * One fetcher key per mounted button, so the reply can be read where the
+ * landing lives (`ComposerProvider`) after the button has gone, and a button
+ * mounted again (a _Gjort_ taken back) starts with no reply of its own.
+ */
+function useLandingKey(): string {
+	const [key] = useState(
+		() => `row-write-${Math.random().toString(36).slice(2)}`,
+	)
+	return key
+}
+
+/** A link answer's reply as its landing: the planned session it is on now. */
+function linkLanding(
+	reply: ImportLinkReply,
+	title: string | undefined,
+): LandedWrite | null {
+	const result = reply?.result
+	if (!result?.ok) return null
+	return {
+		sessionId: result.sessionId,
+		line: ANGRE_REST_LABELS.linked,
+		title,
+		undo: result.undo
+			? {
+					action: IMPORT_LINK_ACTION,
+					post: { intent: 'undo-answer', ...result.undo },
+				}
+			: null,
+	}
+}
+
+/** _Gjort_'s reply as its landing: the session it marked. */
+function markDoneLanding(
+	reply: MarkDoneReply,
+	sessionId: string,
+	title: string,
+): LandedWrite | null {
+	const result = reply?.result
+	if (!result?.ok) return null
+	const token = result.undo
+	return {
+		sessionId,
+		line: ANGRE_REST_LABELS.markedDone,
+		title,
+		undo: token
+			? {
+					action: SESSION_DONE_ACTION,
+					post: {
+						intent: 'undo',
+						sessionId: token.sessionId,
+						markedAt: token.markedAt,
+						status: token.status,
+						markedDoneAt: token.markedDoneAt ?? '',
+					},
+				}
+			: null,
+	}
 }

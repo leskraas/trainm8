@@ -3146,8 +3146,16 @@ describe('imports on the row: ekstra, hva var dette?, Angre kobling, Gjort (#505
 			question: 'Hva var dette?',
 			note: 'Det lå 2 planlagte økter denne dagen, og vi vet ikke hvilken.',
 			options: [
-				{ sessionId: 'morning', label: 'Det var 10 km rolig' },
-				{ sessionId: 'evening', label: 'Det var 6 km rolig' },
+				{
+					sessionId: 'morning',
+					label: 'Det var 10 km rolig',
+					title: '10 km rolig',
+				},
+				{
+					sessionId: 'evening',
+					label: 'Det var 6 km rolig',
+					title: '6 km rolig',
+				},
 			],
 			keepLabel: 'En ekstra økt',
 			annetLabel: 'Annet, teller ikke',
