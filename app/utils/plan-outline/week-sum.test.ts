@@ -161,6 +161,42 @@ describe('weekSumPreview', () => {
 		)
 	})
 
+	test('a sets track counts a session of lifts in sets (ADR 0089)', () => {
+		const strengthSets: PlanTrackTargets = {
+			...runTrack,
+			trackId: 'track-strength',
+			discipline: 'strength',
+			currency: 'sets',
+			targets: [12, 14, 16, 10],
+		}
+		const volumes = weekOf([], [runTrack, strengthSets])
+		const lifts = parseWorkoutSentence(
+			'Knebøy 5×5 @ 80 kg · Benkpress 5×5 @ 60 kg',
+			{
+				discipline: 'strength',
+				exercises: [
+					{ id: 'squat', name: 'Back Squat' },
+					{ id: 'bench', name: 'Bench Press' },
+				],
+			},
+		).structure
+		expect(lifts).not.toBeNull()
+		const preview = weekSumPreview(
+			volumes,
+			lifts!,
+			trackForDiscipline(volumes, 'strength'),
+		)
+		expect(preview).toMatchObject({
+			before: 0,
+			after: 10,
+			added: 10,
+			addedAbsence: null,
+			unmeasuredAdded: 0,
+			target: 16,
+		})
+		expect(weekSumPreviewLine(preview)).toBe('0 → 10 sett, målet står på 16')
+	})
+
 	test('a discipline the plan has no track for counts in Annet', () => {
 		const volumes = weekOf(FORTY)
 		const preview = weekSumPreview(

@@ -22,8 +22,8 @@ import {
 	writeSessionOnDay,
 } from '#app/utils/day-stamp.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { WEEK_SUM_LABELS } from '#app/utils/labels.ts'
 import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
+import { WEEK_SUM_LABELS } from '#app/utils/labels.ts'
 import { SUSTAINED_WEEKS, sustainedAdherence } from '#app/utils/load/coach.ts'
 import {
 	dismissLoadRecomputeNotice,

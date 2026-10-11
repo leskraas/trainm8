@@ -18,6 +18,7 @@
  * Codes and numbers only; the words are `week-sum-words.ts`'s, as the week
  * model's are the presenter's.
  */
+import { sumBlockSets } from '../dashboard.ts'
 import { type Discipline, type WorkoutStructure } from '../workout-schema.ts'
 import { type VolumeCurrency } from './derive.ts'
 import { fixedDayVolume } from './week-pattern.ts'
@@ -65,6 +66,23 @@ function addedIn(
 	// A Planned TSS is priced against the athlete's thresholds when the session
 	// is written (ADR 0019); before that there is no honest number to show.
 	if (currency === 'tss') return { added: null, absence: 'priced-on-save' }
+	// A sets track counts the session's prescribed sets, the week model's own
+	// reading (`buildWeekVolumes` → `sumBlockSets`); a session naming none is
+	// unmeasured there, so it is here — never `+0 sett` (ADR 0089).
+	if (currency === 'sets') {
+		const sets = sumBlockSets(
+			workout.blocks.map((block) => ({
+				repeatCount: block.repeatCount,
+				seriesRepeatCount: block.seriesRepeatCount,
+				steps: block.steps.map((step) => ({
+					sets: step.kind === 'strength' ? step.sets : [],
+				})),
+			})),
+		)
+		return sets > 0
+			? { added: sets, absence: null }
+			: { added: null, absence: 'no-number' }
+	}
 	const added = fixedDayVolume(
 		workout.blocks.map((block) => ({
 			repeatCount: block.repeatCount,

@@ -3,7 +3,12 @@ import sharp from 'sharp'
 import { landingTop } from '#app/routes/_home/timeline/anchoring.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { type Theme } from '#app/utils/theme.server.ts'
-import { expect, middayTimezone, test } from '#tests/playwright-utils.ts'
+import {
+	expect,
+	middayTimezone,
+	test,
+	untilHydrated,
+} from '#tests/playwright-utils.ts'
 
 /**
  * I dag: the top line, the season strip and the list, opened on today
@@ -1220,8 +1225,16 @@ test('today empty: today’s row says so, and is the cell that writes one', asyn
 	await expect(row).toContainText('Ingenting i dag')
 	await expect(row).not.toContainText('Interval Run')
 	await expect(page.getByRole('link', { name: 'Se økta' })).toHaveCount(0)
-	await row.locator('[data-timeline-empty]').click()
-	await expect(row.locator('[data-timeline-draft]')).toBeVisible()
+	// The cell opens the composer on today, in the Drawer (ADR 0088).
+	const cell = row.locator('[data-timeline-empty]')
+	await untilHydrated(cell)
+	await cell.click()
+	await expect(
+		page.getByRole('dialog', { name: 'Ny økt' }).locator('[data-composer]'),
+	).toHaveAttribute(
+		'data-composer-day',
+		(await row.getAttribute('data-timeline-day'))!,
+	)
 	expect(
 		await page.evaluate(
 			() =>
@@ -1310,19 +1323,30 @@ for (const theme of ['light', 'dark'] as const) {
 		const stream = page.getByTestId('timeline-stream')
 		await expect(stream).toBeVisible()
 
+		// What the row used to spell out on lines of its own is in the
+		// session's details, which the row opens in the composer's Drawer
+		// (ADR 0088).
+		const row = stream.locator('[data-session-row]').filter({
+			has: page.locator('[data-status="completed"]'),
+		})
+		const link = row.locator('[data-status="completed"]').first()
+		await untilHydrated(link)
+		await link.click()
+		const detail = page.locator('[data-session-detail]')
+		await expect(detail).toBeVisible()
 		// Line 1: the lift and its kilos — never the warm-up's 40 kg, and never
-		// the prescription's own numbers.
-		await expect(stream.getByText('Back Squat 82.5 × 5')).toBeVisible()
+		// the prescription's own numbers. Kilos with a decimal comma.
+		await expect(detail.getByText('Back Squat 82,5 kg × 5')).toBeVisible()
 		// Line 2: the figure, naming where it came from.
 		await expect(
-			stream.getByText('sRPE 78 — fra tid og innsats, ikke fra settene'),
+			detail.getByText('sRPE 78 — fra tid og innsats, ikke fra settene'),
 		).toBeVisible()
-		// The chip: four of five, because the abandoned set is not a set that
-		// happened and the warm-up rung was never asked for.
-		const chip = stream.getByText('SETT 4 / 5')
-		await expect(chip).toBeVisible()
-		// Amber, and a real colour rather than an unresolved token.
-		const colour = await chip.evaluate(
+		// Four of five, because the abandoned set is not a set that happened
+		// and the warm-up rung was never asked for.
+		const sets = detail.getByText('SETT 4 / 5')
+		await expect(sets).toBeVisible()
+		// A real colour in both themes, rather than an unresolved token.
+		const colour = await sets.evaluate(
 			(el) => getComputedStyle(el).color as string,
 		)
 		expect(colour).toMatch(/^(rgb|oklch|color)\(/)
@@ -1690,32 +1714,41 @@ test('a planned row says whose it is, and its title is never cut short (#505)', 
 	const appsGlyph = row.getByRole('button', { name: /^Appens økt: Rolig tur/ })
 	await expect(mineGlyph).toBeVisible()
 	await expect(appsGlyph).toBeVisible()
-	// The explanation and "Lås opp" are said once, behind the glyph — never
+	// The explanation and "Lås opp" are said once, in the session's details
+	// behind the glyph — the composer's Drawer at full (ADR 0088) — never
 	// repeated under every row.
 	await expect(
 		page.getByText('Gi økta tilbake til appen', { exact: false }),
 	).toHaveCount(0)
+	await untilHydrated(mineGlyph)
 	await mineGlyph.click()
-	const popover = page.locator('[data-owner-popover="athlete"]')
-	await expect(popover).toBeVisible()
-	await expect(popover).toContainText('Appen endrer den bare hvis du sier ja')
+	const details = page.getByRole('dialog', { name: longTitle })
+	await expect(details).toBeVisible()
+	await expect(details.locator('[data-day-session-owner]')).toHaveAttribute(
+		'data-day-session-owner',
+		'athlete',
+	)
+	// Lås opp, with the one sentence that says what the tap gives away.
+	await expect(details).toContainText(
+		'Gi økta tilbake til appen, så den kan justere den igjen.',
+	)
 	await expect(
-		popover.getByRole('button', { name: /^Lås opp Langtur med gjengen/ }),
+		details.getByRole('button', { name: /^Lås opp Langtur med gjengen/ }),
 	).toBeVisible()
 	// Inside the phone, whole.
-	const pbox = (await popover.boundingBox())!
+	const pbox = (await details.boundingBox())!
 	expect(pbox.x).toBeGreaterThanOrEqual(0)
 	expect(pbox.x + pbox.width).toBeLessThanOrEqual(390)
 	await page.keyboard.press('Escape')
-	await expect(popover).toHaveCount(0)
+	await expect(details).toHaveCount(0)
 	await appsGlyph.click()
-	await expect(page.locator('[data-owner-popover="machine"]')).toContainText(
-		'Planen la inn denne økta',
-	)
+	const apps = page.getByRole('dialog', { name: 'Rolig tur' })
+	await expect(apps).toContainText('Planen la inn denne økta')
 	await expect(
-		page.getByRole('button', { name: /^Lås opp Rolig tur/ }),
+		apps.getByRole('button', { name: /^Lås opp Rolig tur/ }),
 	).toHaveCount(0)
 	await page.keyboard.press('Escape')
+	await expect(apps).toHaveCount(0)
 
 	// The whole title, on as many lines as it takes: nothing overflows, nothing
 	// is clipped with an ellipsis, and the row grew to hold it.
@@ -1950,74 +1983,76 @@ test('the near end states how far home reads, never how far the athlete has trai
  * instrument arriving in a 44px row, and "opens without covering the next day's
  * row" is a claim about two boxes that only exist once the thing has laid out.
  */
-test('tapping an empty day stamps a Token Sentence, and its popover does not cover the next day', async ({
+/**
+ * The first empty day from today on: a day behind today opens the composer
+ * with _Allerede gjort_ on (owner decision 5), which these tests are not
+ * about.
+ */
+async function firstEmptyFromToday(page: Page) {
+	const today = new Date().toISOString().slice(0, 10)
+	const keys = await page
+		.locator('[data-timeline-empty]')
+		.evaluateAll((cells) =>
+			cells.map((cell) => cell.getAttribute('data-timeline-empty')!),
+		)
+	const key = keys.find((k) => k >= today)!
+	return { key, cell: page.locator(`[data-timeline-empty="${key}"]`) }
+}
+
+test('tapping an empty day opens the composer on it: the sport derived, the stamp its empty state, and the row lands in place', async ({
 	page,
 	navigate,
 	login,
 }) => {
 	test.setTimeout(120_000)
 	const user = await login()
-	// Completed runs, so the chip has a history to be derived from.
+	// Completed runs, so the sport has a history to be derived from.
 	await seedRestDayToday(user.id, { around: true })
 
 	await navigate('/')
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
-	await page.waitForTimeout(2500)
 
-	// An empty day with a day after it, so "the next day's row" is a box that
-	// exists — picked off what the stream actually drew rather than counted
-	// forward from today, whose neighbours the fixture writes sessions onto.
-	const key = await page.evaluate(() => {
-		const cells = [...document.querySelectorAll('[data-timeline-empty]')]
-		const withNeighbour = cells.find((cell) =>
-			cell
-				.closest('[data-timeline-day]')
-				?.nextElementSibling?.hasAttribute('data-timeline-day'),
-		)
-		return (withNeighbour ?? cells[0])!.getAttribute('data-timeline-empty')!
-	})
-	const cell = page.locator(`[data-timeline-empty="${key}"]`)
+	const { key, cell } = await firstEmptyFromToday(page)
 	await cell.scrollIntoViewIfNeeded()
+	await untilHydrated(cell)
 	await cell.click()
 
-	// Derived, and shown before it commits — never silently defaulted.
-	await expect(page.getByRole('radio', { name: 'Løping' })).toBeChecked()
-	await page.getByRole('button', { name: 'Legg til 45 min Z2' }).click()
+	// One Drawer from every "+" (owner decision 1, ADR 0088), on the day
+	// tapped. The sport is derived, and shown before anything commits —
+	// never silently defaulted.
+	const drawer = page.getByRole('dialog', { name: 'Ny økt' })
+	await expect(drawer.locator('[data-composer]')).toHaveAttribute(
+		'data-composer-day',
+		key,
+	)
+	await expect(drawer.getByRole('button', { name: 'Løping' })).toHaveAttribute(
+		'aria-pressed',
+		'true',
+	)
+	// The line is the composer's; at 16px, so iOS never zooms (story 41).
+	const line = drawer.getByRole('textbox', { name: 'Skriv økta' })
+	expect(
+		await line.evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+	).toBeGreaterThanOrEqual(16)
+	// The stamp is the empty state: two taps for 45 minutes easy.
+	await drawer.getByRole('button', { name: 'Legg til 45 min Z2' }).click()
 
-	// The row now renders the sentence, and every value in it is a token.
-	const sentence = page.locator('[data-timeline-stamped]')
-	await expect(sentence).toBeVisible()
-	const tokens = sentence.locator('[data-token-trigger]')
-	await expect(tokens).toHaveCount(2)
-	await expect(tokens.first()).toHaveAttribute('aria-label', /45 min duration/)
-
-	await tokens.first().click()
-	await expect(page.locator('[data-slot="token-popover"]')).toBeVisible()
-	// Type-to-edit with ± nudges — the editor's existing instrument, unforked.
-	await expect(
-		page.locator('[data-slot="token-popover"] input').first(),
-	).toHaveValue('45 min')
-	await page.waitForTimeout(400)
-
-	const geometry = await page.evaluate((dayAttr) => {
-		const popup = document
-			.querySelector('[data-slot="token-popover"]')!
-			.getBoundingClientRect()
-		const row = document.querySelector(`[data-timeline-day="${dayAttr}"]`)!
-		const next = row.nextElementSibling!.getBoundingClientRect()
-		return {
-			popupTop: Math.round(popup.top),
-			popupBottom: Math.round(popup.bottom),
-			rowBottom: Math.round(row.getBoundingClientRect().bottom),
-			nextTop: Math.round(next.top),
-		}
-	}, key)
-	// Below the cell, not above it — and the next day's row starts after the
-	// instrument ends, because the open row grew to hold it rather than letting
-	// it float over the day below.
-	expect(geometry.popupTop).toBeGreaterThan(0)
-	expect(geometry.nextTop).toBeGreaterThanOrEqual(geometry.popupBottom)
-	expect(geometry.rowBottom).toBeGreaterThanOrEqual(geometry.popupBottom)
+	// The Drawer leaves, the toast says what it did and carries Angre, and the
+	// row it wrote is in the list, marked, with its own Angre.
+	await expect(drawer).toHaveCount(0)
+	const toast = page.locator('[data-sonner-toast]').first()
+	await expect(toast).toBeVisible()
+	await expect(toast.getByRole('button', { name: 'Angre' })).toBeVisible()
+	const landed = page.locator(
+		`[data-timeline-day="${key}"] [data-session-row][data-landed]`,
+	)
+	await expect(landed).toBeVisible()
+	await expect(landed.getByRole('link', { name: /45 min Z2/ })).toBeVisible()
+	await expect(landed.locator('[data-landed-undo]')).toHaveText('Angre')
+	// On a phone the toast sits at the bottom, above the tab bar — in the
+	// thumb's reach, never over I dag's top line (ADR 0088 §3).
+	const box = (await toast.boundingBox())!
+	expect(box.y).toBeGreaterThan(844 / 2)
 })
 
 test('what a cell writes is a prescription, and a mistake is recoverable without leaving the timeline', async ({
@@ -2031,20 +2066,15 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
 
 	await navigate('/')
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
-	await page.waitForTimeout(2500)
 
-	// Today's own cell — the earliest one the grid offers, because behind today
-	// only days carrying a session are rows until #500's band expands. That the
-	// gesture is identical on a genuinely past date is asserted where the
-	// difference could actually live, on the server
-	// (`index.day-stamp.test.ts`), rather than pantomimed through a row the
-	// stream does not draw yet.
-	const cell = page.locator('[data-timeline-empty]').first()
+	const { key, cell } = await firstEmptyFromToday(page)
 	await cell.scrollIntoViewIfNeeded()
-	const key = await cell.getAttribute('data-timeline-empty')
+	await untilHydrated(cell)
 	await cell.click()
-	await page.getByRole('button', { name: 'Legg til 45 min Z2' }).click()
-	await expect(page.locator('[data-timeline-stamped]')).toBeVisible()
+	const drawer = page.getByRole('dialog', { name: 'Ny økt' })
+	await drawer.getByRole('button', { name: 'Legg til 45 min Z2' }).click()
+	const landed = page.locator('[data-session-row][data-landed]')
+	await expect(landed).toBeVisible()
 
 	// What it wrote is a prescription, never an actual: the row states planned
 	// load and claims nothing about what was done (`GOAL.md`'s no-recorder
@@ -2059,14 +2089,26 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
 		recordingId: null,
 	})
 
-	// The way back, on the row (ADR 0076).
-	await page
-		.locator('[data-timeline-stamped]')
-		.getByRole('button', { name: 'Angre', exact: true })
-		.click()
+	// The way back, on the landed row (ADR 0088 amending 0076): a real delete,
+	// not a status — the day is an empty cell again, nothing left behind.
+	await landed.locator('[data-landed-undo]').click()
 	await expect(page.locator(`[data-timeline-empty="${key}"]`)).toBeVisible()
-	// A real delete, not a status: the day is an empty cell again and nothing is
-	// left behind (ADR 0076 §2).
+	await expect
+		.poll(() =>
+			prisma.workoutSession.count({
+				where: { userId: user.id, workout: { title: '45 min Z2' } },
+			}),
+		)
+		.toBe(0)
+
+	// And from the toast: the same delete, the same empty day.
+	await page.locator(`[data-timeline-empty="${key}"]`).click()
+	await drawer.getByRole('button', { name: 'Legg til 45 min Z2' }).click()
+	const toast = page
+		.locator('[data-sonner-toast]')
+		.filter({ has: page.getByRole('button', { name: 'Angre' }) })
+	await toast.getByRole('button', { name: 'Angre' }).click()
+	await expect(page.locator(`[data-timeline-empty="${key}"]`)).toBeVisible()
 	await expect
 		.poll(() =>
 			prisma.workoutSession.count({
@@ -2079,19 +2121,20 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
 /*
  * ── the motion pass (#502) ────────────────────────────────────────────────
  *
- * Four animations earn their place on this screen and nothing else does, which
- * is a claim about the *whole* frame rather than about the four elements — so
- * it is asserted by enumeration. Every transition and animation the timeline
- * declares is collected and compared against the list, and a fifth one arriving
- * later fails here whatever it is attached to.
+ * Two animations earn their place in this frame — the press, and a session
+ * row landing from the composer (ADR 0088) — and nothing else does, which is
+ * a claim about the *whole* frame rather than about the elements — so it is
+ * asserted by enumeration. Every transition and animation the timeline
+ * declares is collected and compared against the list, and a third one
+ * arriving later fails here whatever it is attached to.
  *
  * **What this does not cover**: it is a *declaration* audit, so it sees only
  * what the stylesheet says. Nothing on this screen animates from JavaScript
- * since the hero's pager went (ADR 0086).
+ * since the hero's pager went (ADR 0086); the Drawer's swipe is Base UI's.
  *
- * The frame is also the boundary: the app's shared overlays (the create menu,
- * the token popover) portal to `document.body`, are not the timeline's markup,
- * and already carry their own `motion-safe:` gating.
+ * The frame is also the boundary: the composer's Drawer and the toasts portal
+ * to `document.body`, are not the timeline's markup, and are asserted on their
+ * own below — the Drawer on the sheet's curve, by transform.
  */
 
 /**
@@ -2190,7 +2233,18 @@ function ingredientsOf(declared: string[]): string[] {
 /** The one curve on the scale a deliberate animation is allowed to use. */
 const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
 
-test('the timeline animates its draft and its press, and the frame declares nothing else', async ({
+/** The iOS sheet curve the composer's Drawer travels on (ADR 0085). */
+const EASE_DRAWER = 'cubic-bezier(0.32, 0.72, 0, 1)'
+
+/** The press every tappable thing on I dag shares (ADR 0085 `pressable`). */
+const PRESS = (where: string) => [
+	`${where} — background-color 0.16s ${EASE_OUT}`,
+	`${where} — border-color 0.16s ${EASE_OUT}`,
+	`${where} — color 0.16s ${EASE_OUT}`,
+	`${where} — transform 0.16s ${EASE_OUT}`,
+]
+
+test('the timeline animates its press and a landing, the composer its Drawer, and the frame declares nothing else', async ({
 	page,
 	navigate,
 	login,
@@ -2204,54 +2258,33 @@ test('the timeline animates its draft and its press, and the frame declares noth
 	await page.waitForTimeout(2500)
 
 	const stream = page.getByTestId('timeline-stream')
-	// The one accordion left on I dag, open, because a transition that is not
-	// mounted declares nothing and would pass this by not existing.
-	await stream.locator('[data-timeline-empty]').first().click()
-	await expect(stream.locator('[data-timeline-draft]')).toBeVisible()
-
-	// The whole frame, element by element (ADR 0086 updates the list): the
-	// draft (height + opacity, 200ms) and the system's press, `pressable` (ADR
-	// 0085: `scale(0.97)` with the colours on the same 160ms curve) on what the
-	// athlete taps — a row, a cell, the ownership glyph and "+ Ny"
-	// (`data-base-ui-click-trigger`), today's "Se økta" link (`data-discover`)
-	// and the badge-and-pill buttons' `Button`s (`data-slot`). Every one on the
-	// scale's own curve: no `all`, no built-in easing, no keyframes. Nothing
-	// folds any more, so the band's and the folded week's accordions are gone
-	// from the list. The strip and the list's scroll declare nothing, and the
-	// "I dag" pill changes look instantly.
+	// The whole frame, element by element (ADR 0088 updates the list): the
+	// system's press, `pressable` (ADR 0085: `scale(0.97)` with the colours on
+	// the same 160ms curve), on what the athlete taps — a row, a cell, the
+	// ownership glyph, "legg til en til", "Ny økt" and the other `Button`s
+	// (`data-slot`), today's links (`data-discover`) — and the one thing that
+	// moves by itself: a session row landing from the composer, which rises
+	// 4px and fades in (`@starting-style`, 200ms) and wears a tint while its
+	// Angre stands. Every one on the scale's own curve: no `all`, no built-in
+	// easing, no keyframes. The draft's height accordion went with the draft
+	// (the composer is a Drawer, outside the frame). The strip and the list's
+	// scroll declare nothing, and the "I dag" pill changes look instantly.
 	//
 	// Element by element, because a set of ingredients cannot fail on a new
-	// element reusing a curve that is already on the list — which is exactly the
-	// shape of the row-enter fade #502 removed.
-	expect(await motionInFrame(page)).toEqual([
-		`[data-base-ui-click-trigger] — background-color 0.16s ${EASE_OUT}`,
-		`[data-base-ui-click-trigger] — border-color 0.16s ${EASE_OUT}`,
-		`[data-base-ui-click-trigger] — color 0.16s ${EASE_OUT}`,
-		`[data-base-ui-click-trigger] — transform 0.16s ${EASE_OUT}`,
-		// _Gjort_ inside its fetcher form (#505 polish: every control has a
-		// press, since the tap highlight is off).
-		`[data-discover] button — background-color 0.16s ${EASE_OUT}`,
-		`[data-discover] button — border-color 0.16s ${EASE_OUT}`,
-		`[data-discover] button — color 0.16s ${EASE_OUT}`,
-		`[data-discover] button — transform 0.16s ${EASE_OUT}`,
-		`[data-discover] — background-color 0.16s ${EASE_OUT}`,
-		`[data-discover] — border-color 0.16s ${EASE_OUT}`,
-		`[data-discover] — color 0.16s ${EASE_OUT}`,
-		`[data-discover] — transform 0.16s ${EASE_OUT}`,
-		`[data-slot] — background-color 0.16s ${EASE_OUT}`,
-		`[data-slot] — border-color 0.16s ${EASE_OUT}`,
-		`[data-slot] — color 0.16s ${EASE_OUT}`,
-		`[data-slot] — transform 0.16s ${EASE_OUT}`,
-		`[data-status] — background-color 0.16s ${EASE_OUT}`,
-		`[data-status] — border-color 0.16s ${EASE_OUT}`,
-		`[data-status] — color 0.16s ${EASE_OUT}`,
-		`[data-status] — transform 0.16s ${EASE_OUT}`,
-		`[data-timeline-draft] — height 0.2s ${EASE_OUT}`,
-		`[data-timeline-draft] — opacity 0.2s ${EASE_OUT}`,
-		`[data-timeline-empty] — background-color 0.16s ${EASE_OUT}`,
-		`[data-timeline-empty] — border-color 0.16s ${EASE_OUT}`,
-		`[data-timeline-empty] — color 0.16s ${EASE_OUT}`,
-		`[data-timeline-empty] — transform 0.16s ${EASE_OUT}`,
+	// element reusing a curve that is already on the list — which is exactly
+	// the shape of the row-enter fade #502 removed.
+	const declared = await motionInFrame(page)
+	expect(declared).toEqual([
+		...PRESS('[data-discover] button'),
+		...PRESS('[data-discover]'),
+		...PRESS('[data-owner-glyph]'),
+		`[data-session-row] — background-color 0.2s ${EASE_OUT}`,
+		`[data-session-row] — opacity 0.2s ${EASE_OUT}`,
+		`[data-session-row] — translate 0.2s ${EASE_OUT}`,
+		...PRESS('[data-slot]'),
+		...PRESS('[data-status]'),
+		...PRESS('[data-timeline-add-another]'),
+		...PRESS('[data-timeline-empty]'),
 	])
 
 	// And the press is where it was promised: rows and cells. Nothing in the
@@ -2268,26 +2301,36 @@ test('the timeline animates its draft and its press, and the frame declares noth
 	})
 	expect(pressed).toEqual({ row: true, cell: true })
 
-	// The ownership popover grows from its glyph, not from the middle of the
-	// screen (Emil: origin-aware), and on the popup's own scale.
-	await page.keyboard.press('Escape')
-	await stream.locator('[data-owner-glyph]').first().click()
-	const popup = page.locator('[data-owner-popover]')
-	await expect(popup).toBeVisible()
-	const motion = await popup.evaluate((el) => {
+	// The composer's Drawer travels on the sheet's own curve, by transform —
+	// never a layout property — inside the modal budget (≤ 500ms), and its
+	// backdrop fades on the same curve.
+	const cell = stream.locator('[data-timeline-empty]').first()
+	await untilHydrated(cell)
+	await cell.click()
+	const drawer = page.getByRole('dialog', { name: 'Ny økt' })
+	await expect(drawer).toBeVisible()
+	const sheet = await drawer.evaluate((el) => {
 		const style = getComputedStyle(el)
+		const overlay = document.querySelector('[data-slot="drawer-overlay"]')
 		return {
-			origin: style.transformOrigin,
 			property: style.transitionProperty,
+			duration: style.transitionDuration,
 			easing: style.transitionTimingFunction,
+			overlay: overlay
+				? getComputedStyle(overlay).transitionTimingFunction
+				: null,
 		}
 	})
-	expect(motion.property).toContain('transform')
-	expect(motion.property).toContain('opacity')
-	expect(motion.easing).toContain(EASE_OUT)
-	const box = (await popup.boundingBox())!
-	// Not the box's own centre: Base UI sets the origin to the trigger's side.
-	expect(motion.origin).not.toBe(`${box.width / 2}px ${box.height / 2}px`)
+	// Snapping and dismissing move the sheet by transform. (`height` is Base
+	// UI's nested-drawer stack; with snap points the sheet is a fixed 100dvh,
+	// so it never changes height — the composer never nests a drawer.)
+	expect(sheet.property).toContain('transform')
+	expect(sheet.property).not.toMatch(/\ball\b/)
+	expect(sheet.easing).toContain(EASE_DRAWER)
+	for (const duration of sheet.duration.split(',')) {
+		expect(parseFloat(duration)).toBeLessThanOrEqual(0.5)
+	}
+	expect(sheet.overlay).toContain(EASE_DRAWER)
 })
 
 test.describe(() => {
@@ -2306,17 +2349,13 @@ test.describe(() => {
 		await expect(page.getByTestId('timeline-stream')).toBeVisible()
 		await page.waitForTimeout(2500)
 
-		const stream = page.getByTestId('timeline-stream')
-		await stream.locator('[data-timeline-empty]').first().click()
-		await expect(stream.locator('[data-timeline-draft]')).toBeVisible()
-
-		// Gentler, never zero: the press-scale is gone — it is the one ingredient
-		// that is only movement — and the draft's height and opacity stay,
-		// because a reflow that jumps is the jarring change it exists to prevent.
+		// Gentler, never zero: the press-scale is gone — it is the one
+		// ingredient that is only movement — and the landing keeps its fade.
+		// Its rise starts from where it rests under reduced motion
+		// (`motion-reduce:starting:translate-y-0`), so nothing travels.
 		const declared = ingredientsOf(await motionInFrame(page))
 		expect(declared).not.toContain(`transform 0.16s ${EASE_OUT}`)
 		expect(declared).toContain(`opacity 0.2s ${EASE_OUT}`)
-		expect(declared).toContain(`height 0.2s ${EASE_OUT}`)
 
 		const resting = await page.evaluate(() => {
 			const pill = document.querySelector<HTMLElement>('[data-today-pill]')
@@ -2335,6 +2374,18 @@ test.describe(() => {
 		})
 		expect(resting.stream).toBe('auto')
 		expect(resting.pillMotion).toBe('0s')
+
+		// The Drawer still opens — it fades in where it rests rather than
+		// sliding up from below, and a snap moves it without travel: under
+		// reduced motion only its opacity transitions.
+		const { cell } = await firstEmptyFromToday(page)
+		await untilHydrated(cell)
+		await cell.click()
+		const drawer = page.getByRole('dialog', { name: 'Ny økt' })
+		await expect(drawer).toBeVisible()
+		expect(
+			await drawer.evaluate((el) => getComputedStyle(el).transitionProperty),
+		).toBe('opacity')
 	})
 })
 

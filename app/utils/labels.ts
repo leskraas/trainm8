@@ -1199,6 +1199,14 @@ export const IMPORT_LINK_LABELS = {
 	relinkNote: (title: string) => `Tilbake til ${title}.`,
 	/** Said while the post is in flight, before the row moves. */
 	saving: 'Lagrer …',
+	/**
+	 * An ekstra's own name, for a recording nothing named (audit PR D):
+	 * `Løping · 57 min`, `Sykling · 12,4 km` — never `57 min 12 s run`.
+	 */
+	extraTitle: (sport: string, quantity: string | null) =>
+		quantity ? `${sport} · ${quantity}` : sport,
+	/** The ekstra's glyph: an import, not one of the app's sessions. */
+	glyph: (title: string) => `Importert økt ${title}`,
 } as const
 
 /** Why the server turned an import answer down, said to the athlete. */
@@ -1222,6 +1230,9 @@ export const MARK_DONE_LABELS = {
 	actionFor: (title: string) => `Merk ${title} som gjort`,
 	fromImport: 'Gjort · tallene kommer fra importen',
 	noImport: 'Gjort · uten tall, ingen import er koblet til',
+	/** The same, as the row's own small mark: the done dot already says Gjort. */
+	rowFromImport: 'tallene kommer fra importen',
+	rowNoImport: 'uten tall',
 	saving: 'Merket som gjort …',
 } as const
 
@@ -1236,6 +1247,50 @@ export const MARK_DONE_REFUSAL_LABELS: Record<MarkDoneRefusal, string> = {
 
 /** The `LoadValue` member a resolved working load is logged as. */
 type WorkingLoadKind = Extract<WorkingLoad, { kind: 'resolved' }>['loadKind']
+
+/**
+ * The Norwegian names of the lifts athletes log most, by the exercise
+ * database's own (English) name — for display on I dag's quick log (audit PR
+ * D), where `Back Squat` beside `Som planlagt` read as two languages. The
+ * same words the writing line reads (`workout-sentence.ts`, ADR 0089), the
+ * other way round. A name not here is shown as the database has it; owner
+ * decision 9's aliases in the database will take over from this list.
+ */
+const NB_EXERCISE_NAMES: Record<string, string> = {
+	'Back Squat': 'Knebøy',
+	'Front Squat': 'Frontknebøy',
+	'Goblet Squat': 'Gobletknebøy',
+	Deadlift: 'Markløft',
+	'Romanian Deadlift': 'Rumensk markløft',
+	'Bench Press': 'Benkpress',
+	'Incline Bench Press': 'Skrå benkpress',
+	'Overhead Press': 'Skulderpress',
+	'Barbell Row': 'Stangroing',
+	'Dumbbell Row': 'Hantelroing',
+	'Seated Cable Row': 'Sittende roing',
+	'Chin-up': 'Chins',
+	'Pull-up': 'Pull-ups',
+	'Push-up': 'Armhevinger',
+	Dip: 'Dips',
+	Plank: 'Planke',
+	'Side Plank': 'Sideplanke',
+	'Leg Press': 'Beinpress',
+	'Lat Pulldown': 'Nedtrekk',
+	'Hip Thrust': 'Hoftehev',
+	'Power Clean': 'Frivending',
+	'Lateral Raise': 'Sidehev',
+	'Bicep Curl': 'Bicepscurl',
+	Lunge: 'Utfall',
+	'Walking Lunge': 'Gående utfall',
+	'Bulgarian Split Squat': 'Bulgarsk utfall',
+	'Calf Raise': 'Tåhev',
+	'Step-up': 'Step-up',
+}
+
+/** A lift by its Norwegian name, or the database's where there is none. */
+export function nbExerciseName(name: string): string {
+	return NB_EXERCISE_NAMES[name] ?? name
+}
 
 /** The short log under a strength session's row. */
 export const QUICK_LOG_LABELS = {
@@ -1254,7 +1309,7 @@ export const QUICK_LOG_LABELS = {
 	weightNote: 'Vekta står som planlagt. En annen vekt kan ikke logges her.',
 	notDoneNote: 'Tomt eller 0 betyr at settet ikke ble gjort.',
 	setInput: (lift: string, position: number, unit: SetUnit) =>
-		`Sett ${position} av ${lift}, ${unit === 'reps' ? 'reps' : 'sekunder'}`,
+		`Sett ${position} av ${lift}, ${unit === 'reps' ? 'repetisjoner' : 'sekunder'}`,
 	notLoggable:
 		'Ett av løftene har ingen fast vekt eller antall, så økta logges sett for sett.',
 	runnerLink: 'Logg sett for sett',
@@ -1272,6 +1327,20 @@ export const QUICK_LOG_LABELS = {
 	) => {
 		const head = `${sets} sett logget.`
 		if (week == null) return head
+		return `${head} Styrke ${week.name.toLowerCase()}: ${week.before} → ${week.after} sett gjort.`
+	},
+	/** The log's toast's way back (ADR 0088). */
+	undo: 'Angre',
+	/** After _Angre_: the sets are out, and the session is planned again. */
+	undone: (
+		sets: number,
+		week: { name: string; before: number; after: number } | null,
+	) => {
+		const head =
+			sets === 0
+				? 'Loggen var allerede angret.'
+				: `Loggen er angret — ${sets} sett tatt ut.`
+		if (week == null || sets === 0) return head
 		return `${head} Styrke ${week.name.toLowerCase()}: ${week.before} → ${week.after} sett gjort.`
 	},
 	/** The prescription's weight, in the load's own semantics (ADR 0056 §3);
@@ -1747,8 +1816,16 @@ export const SESSION_COMPOSER_LABELS = {
 	annetNote:
 		'Annet teller ikke i noe spor. Si idretten i linja: «25 min sykkel».',
 	annetNoDiscipline: 'Si hvilken idrett i linja: «25 min sykkel til jobb».',
+	/** The Styrke chip on an empty line: lifts are named, never stamped (ADR 0089). */
 	strengthNote:
-		'Løftene skrives i linja når den kan lese dem. Til da: åpne hele editoren.',
+		'Skriv løftene i linja — øvelse, sett × reps og vekt. Skill dem med «·».',
+	/** The line names lifts and the exercise catalogue is still on its way. */
+	exercisesLoading: 'Henter øvelsene…',
+	/** An unknown lift with no name near it. */
+	noExercise:
+		'Skriv øvelsen slik den heter i Bibliotek, f.eks. Knebøy eller Markløft.',
+	/** `Til sammen 10 sett` — a session of lifts, counted as the week counts it. */
+	sets: (count: number) => `${count} sett`,
 	add: 'Legg til',
 	/** The empty state: the stamp (ADR 0065 §5). */
 	addStamp: (sentence: string) => `Legg til ${sentence}`,
@@ -1807,6 +1884,16 @@ export const SESSION_COMPOSER_LABELS = {
 		open: 'Se økta',
 		openFor: (title: string) => `Se økta ${title}`,
 	},
+} as const
+
+/**
+ * Where "+ Ny"'s other two ways in went (owner decision 6): I dag's top line
+ * creates sessions only, and a race or a plan is started from Sesong.
+ */
+export const SESONG_ENTRY_LABELS = {
+	newEvent: 'Nytt løp',
+	newPlan: 'Ny plan',
+	group: 'Start noe nytt',
 } as const
 
 /** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */

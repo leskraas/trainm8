@@ -11,6 +11,7 @@ import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { useFetcher } from 'react-router'
 import { ErrorList } from '#app/components/forms.tsx'
+import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { type action as importLinkAction } from '#app/routes/resources/import-link.tsx'
 import { type action as sessionDoneAction } from '#app/routes/resources/session-done.tsx'
@@ -21,7 +22,9 @@ import {
 	SessionDoneSchema,
 } from '#app/utils/import-link-schema.ts'
 import { IMPORT_LINK_LABELS, MARK_DONE_LABELS } from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
 import { type TimelineImportLink } from './presenter.ts'
+import { TITLE_INSET, TITLE_INSET_BOX } from './row-inset.ts'
 
 const ACTION_TEXT =
 	'text-muted-foreground text-caption pressable flex min-h-11 flex-none items-center gap-1 underline decoration-dotted underline-offset-[3px]'
@@ -41,7 +44,7 @@ export function ImportLinkAction({
 			className={
 				inline
 					? 'flex flex-wrap items-center gap-x-2'
-					: '-mt-1 flex flex-wrap items-center gap-x-2 pr-4 pl-[103px]'
+					: cn('-mt-1 flex flex-wrap items-center gap-x-2 pr-4', TITLE_INSET)
 			}
 		>
 			<ImportLinkButton
@@ -52,7 +55,7 @@ export function ImportLinkAction({
 				icon={link.kind === 'undo' ? 'reset' : 'link-2'}
 				className={ACTION_TEXT}
 			/>
-			<span className="text-muted-foreground min-w-0 flex-1 text-[11px]/[1.35]">
+			<span className="text-caption text-muted-foreground min-w-0 flex-1 font-normal">
 				{link.note}
 			</span>
 		</div>
@@ -75,18 +78,20 @@ function ImportQuestion({
 			role="group"
 			aria-labelledby={headingId}
 			data-import-question={ask.importId}
-			className="border-border/70 mr-4 mb-3 ml-[103px] rounded-2xl border px-3 py-2.5"
+			className={cn(
+				'bg-muted/60 mr-4 mb-3 rounded-3xl px-3.5 py-3',
+				TITLE_INSET_BOX,
+			)}
 		>
-			<p
-				id={headingId}
-				className="text-foreground text-[12.5px]/[1.3] font-bold"
-			>
+			<p id={headingId} className="text-callout text-foreground font-semibold">
 				{ask.question}
 			</p>
-			<p className="text-muted-foreground mt-0.5 text-[11px]/[1.4] [text-wrap:pretty]">
+			<p className="text-footnote text-muted-foreground mt-0.5 [text-wrap:pretty]">
 				{ask.note}
 			</p>
-			<div className="mt-1.5 flex flex-col items-start">
+			{/* Real buttons, not loose text (audit D11): the plan's sessions as
+			    the answers that matter, the other two quieter. */}
+			<div className="mt-2.5 flex flex-wrap items-start gap-2">
 				{ask.options.map((option) => (
 					<ImportLinkButton
 						key={option.sessionId}
@@ -94,21 +99,30 @@ function ImportQuestion({
 						importId={ask.importId}
 						sessionId={option.sessionId}
 						label={option.label}
-						className="text-primary flex min-h-11 items-center text-left text-[12px]/[1.3] font-semibold"
+						className={cn(
+							buttonVariants({ variant: 'outline', size: 'sm' }),
+							'h-auto min-h-9 rounded-full py-1.5 text-left [overflow-wrap:anywhere] whitespace-normal',
+						)}
 					/>
 				))}
 				<ImportLinkButton
 					intent="keep"
 					importId={ask.importId}
 					label={ask.keepLabel}
-					className="text-muted-foreground flex min-h-11 items-center text-[12px]/[1.3] font-semibold"
+					className={cn(
+						buttonVariants({ variant: 'ghost', size: 'sm' }),
+						'min-h-9 rounded-full',
+					)}
 				/>
 				{ask.annetLabel ? (
 					<ImportLinkButton
 						intent="annet"
 						importId={ask.importId}
 						label={ask.annetLabel}
-						className="text-muted-foreground flex min-h-11 items-center text-[12px]/[1.3] font-semibold"
+						className={cn(
+							buttonVariants({ variant: 'ghost', size: 'sm' }),
+							'min-h-9 rounded-full',
+						)}
 					/>
 				) : null}
 			</div>
@@ -164,7 +178,7 @@ function ImportLinkButton({
 			{sent ? (
 				<span
 					aria-live="polite"
-					className="text-muted-foreground flex min-h-11 items-center text-[11px]/[1.35]"
+					className="text-caption text-muted-foreground flex min-h-9 items-center"
 				>
 					{IMPORT_LINK_LABELS.saving}
 				</span>

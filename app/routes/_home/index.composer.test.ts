@@ -24,7 +24,11 @@ const ARGS_BASE = {
 }
 
 type Reply = {
-	data: { stampedSessionId?: string; weekSumLine?: string | null; done?: boolean }
+	data: {
+		stampedSessionId?: string
+		weekSumLine?: string | null
+		done?: boolean
+	}
 	init: { status?: number; headers?: HeadersInit } | null
 }
 
@@ -212,9 +216,9 @@ test('a note from “Gjør grundigere” is the session’s description', async 
 		notes: 'Med klubben, start ved bryggen',
 		landing: 'toast',
 	})) as Reply
-	expect((await written(reply.data.stampedSessionId)).workout?.description).toBe(
-		'Med klubben, start ved bryggen',
-	)
+	expect(
+		(await written(reply.data.stampedSessionId)).workout?.description,
+	).toBe('Med klubben, start ved bryggen')
 })
 
 test('Bibliotek places through the Catalogue: a fresh copy with its lineage, authored', async () => {
@@ -317,4 +321,58 @@ test('the sources: Bibliotek says each session as a line when it can; Kopier rea
 		'6x1000 m terskel p 90 s',
 		'10 km rolig',
 	])
+})
+
+test('a session of lifts from the composer: read against the catalogue on the server and written as strength (ADR 0089)', async () => {
+	const user = await setUp()
+	const day = addDays(today(), 2)
+	const reply = (await post(user.cookie, {
+		intent: 'write-session',
+		date: day,
+		discipline: 'strength',
+		sentence: 'Knebøy 5×5 @ 82,5 kg · Benkpress 3×8',
+		landing: 'toast',
+	})) as Reply
+	expect(reply.data.stampedSessionId).toEqual(expect.any(String))
+	const session = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: reply.data.stampedSessionId },
+		select: {
+			source: true,
+			workout: {
+				select: {
+					discipline: true,
+					blocks: {
+						select: {
+							steps: {
+								orderBy: { orderIndex: 'asc' },
+								select: {
+									exercise: { select: { name: true } },
+									sets: { select: { reps: true } },
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	expect(session.source).toBe('authored')
+	expect(session.workout?.discipline).toBe('strength')
+	const steps = session.workout!.blocks[0]!.steps
+	expect(steps.map((step) => step.exercise?.name)).toEqual([
+		'Back Squat',
+		'Bench Press',
+	])
+	expect(steps.map((step) => step.sets.length)).toEqual([5, 3])
+
+	// A lift the catalogue does not hold is refused, never guessed.
+	const refused = await post(user.cookie, {
+		intent: 'write-session',
+		date: day,
+		discipline: 'strength',
+		sentence: 'Knebøj 5×5',
+		landing: 'toast',
+	})
+	expect(refused).toBeInstanceOf(Response)
+	expect((refused as Response).status).toBe(400)
 })

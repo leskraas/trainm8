@@ -4,7 +4,7 @@ import { Switch as SwitchPrimitive } from '@base-ui/react/switch'
 import { cn } from '#app/utils/misc.tsx'
 
 // shadcn `base-luma` switch (`npx shadcn@latest add switch`). Deviations
-// (docs/design/design-system.md): D13 `transition-all` becomes the track's
+// (docs/design/design-system.md): D14 `transition-all` becomes the track's
 // colours and the thumb's transform on the press curve (`duration-press`,
 // `--ease-out`); reduced motion keeps the colour and drops the slide.
 function Switch({

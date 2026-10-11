@@ -108,7 +108,15 @@ function post(entries: Record<string, string>, cookie: string) {
 
 type Reply = {
 	data: {
-		result: { ok: boolean; alreadyLogged?: boolean; reason?: string } | null
+		result: {
+			ok: boolean
+			alreadyLogged?: boolean
+			reason?: string
+			setLogIds?: string[]
+			undoable?: boolean
+		} | null
+		toast?: string | null
+		undone?: { ok: boolean; removedSets?: number }
 		submission: { status?: string; error?: Record<string, string[]> }
 	}
 	init: { status: number; headers?: HeadersInit } | null
@@ -132,9 +140,10 @@ test('Som planlagt logs the session, says so in a toast, and a second tap writes
 		request: post({ intent: 'as-planned', sessionId }, cookie),
 	})) as Reply
 	expect(reply.data.result).toMatchObject({ ok: true, alreadyLogged: false })
-	expect(new Headers(reply.init?.headers).get('set-cookie')).toContain(
-		'en_toast',
-	)
+	// The toast's line rides on the reply, for the client's toast and its
+	// Angre (ADR 0088) — nothing is flashed.
+	expect(reply.data.toast).toBe('2 sett logget.')
+	expect(new Headers(reply.init?.headers).get('set-cookie')).toBeNull()
 	expect(await setReps(sessionId)).toEqual([5, 5])
 
 	const again = (await action({
@@ -143,6 +152,46 @@ test('Som planlagt logs the session, says so in a toast, and a second tap writes
 	})) as Reply
 	expect(again.data.result).toMatchObject({ ok: true, alreadyLogged: true })
 	expect(await setReps(sessionId)).toEqual([5, 5])
+})
+
+test('Angre after Som planlagt takes those sets back and says so; only the athlete’s own (ADR 0088)', async () => {
+	const { sessionId, cookie } = await athlete()
+	const stranger = await athlete()
+	const reply = (await action({
+		...ARGS,
+		request: post({ intent: 'as-planned', sessionId }, cookie),
+	})) as Reply
+	const ids = reply.data.result?.setLogIds ?? []
+	expect(ids).toHaveLength(2)
+	expect(reply.data.result?.undoable).toBe(true)
+
+	const theirs = (await action({
+		...ARGS,
+		request: post(
+			{ intent: 'undo', sessionId, setLogIds: ids.join(',') },
+			stranger.cookie,
+		),
+	})) as Reply
+	expect(theirs.init?.status).toBe(404)
+	expect(await setReps(sessionId)).toEqual([5, 5])
+
+	const undone = (await action({
+		...ARGS,
+		request: post(
+			{ intent: 'undo', sessionId, setLogIds: ids.join(',') },
+			cookie,
+		),
+	})) as Reply
+	expect(undone.data.undone).toMatchObject({ ok: true, removedSets: 2 })
+	expect(new Headers(undone.init?.headers).get('set-cookie')).toContain(
+		'en_toast',
+	)
+	expect(await setReps(sessionId)).toEqual([])
+	const session = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: sessionId },
+		select: { status: true },
+	})
+	expect(session.status).toBe('scheduled')
 })
 
 test('Endre posts each set’s count; an empty one was not done', async () => {

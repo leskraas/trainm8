@@ -11,7 +11,7 @@
  * is enough to dismiss or to snap (it reads the release velocity), past the
  * top it resists, and it can be grabbed mid-flight. It travels on
  * `--ease-drawer`; reduced motion keeps the fade and drops the slide
- * (`drawer.tsx`).
+ * (`drawer.tsx`), snaps included (below).
  *
  * **The compact snap never moves on a keystroke.** It is measured while the
  * Drawer rises and then held; only a tap that changes what the compact part
@@ -36,8 +36,8 @@ import {
 	DrawerTitle,
 } from '#app/components/ui/drawer.tsx'
 import { SESSION_COMPOSER_LABELS } from '#app/utils/labels.ts'
-import { type CompactLayout, SessionComposer } from './composer.tsx'
 import { type ComposerTarget, useComposerStatus } from './composer-context.tsx'
+import { type CompactLayout, SessionComposer } from './composer.tsx'
 import { dayTitle, findSession } from './day-lookup.ts'
 import { type TimelineWeek } from './presenter.ts'
 import { SessionDetail } from './session-detail.tsx'
@@ -120,6 +120,9 @@ export function ComposerDrawer({
 				<DrawerContent
 					data-composer-drawer={shown?.mode ?? 'compose'}
 					aria-labelledby={titleId}
+					// Reduced motion: the sheet fades and never travels — not on
+					// opening (`drawer.tsx`), and not when a snap moves it either.
+					className="motion-reduce:[transition-property:opacity]"
 				>
 					<DrawerHeader className="px-4 pt-1 pb-2 text-left">
 						<DrawerTitle id={titleId} className="text-heading">
@@ -158,9 +161,7 @@ export function ComposerDrawer({
 							<SessionDetail
 								session={found.session}
 								cta={
-									today?.cta?.sessionId === found.session.id
-										? today.cta
-										: null
+									today?.cta?.sessionId === found.session.id ? today.cta : null
 								}
 							/>
 						) : null}
@@ -170,4 +171,3 @@ export function ComposerDrawer({
 		</Drawer>
 	)
 }
-
