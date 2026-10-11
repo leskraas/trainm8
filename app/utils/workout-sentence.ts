@@ -1649,13 +1649,23 @@ export function suggestWords(word: string): string[] {
 		.slice(0, 3)
 }
 
-/** The text with one word swapped for a suggestion. */
+/**
+ * The text with one word swapped for a suggestion, keeping the capital the
+ * athlete typed: `Knebøj` becomes `Knebøy` even though the alias is `knebøy`.
+ */
 export function replaceWord(
 	text: string,
 	word: SentenceWord,
 	replacement: string,
 ): string {
-	return `${text.slice(0, word.start)}${replacement}${text.slice(word.end)}`
+	const typed = text.slice(word.start, word.end)
+	const first = typed.charAt(0)
+	const capitalised =
+		first !== first.toLocaleLowerCase('nb') &&
+		replacement.charAt(0) === replacement.charAt(0).toLocaleLowerCase('nb')
+			? replacement.charAt(0).toLocaleUpperCase('nb') + replacement.slice(1)
+			: replacement
+	return `${text.slice(0, word.start)}${capitalised}${text.slice(word.end)}`
 }
 
 /**

@@ -44,7 +44,7 @@ async function createEasyRun({
 	// materialize the real one-cardio-step stanza (`45 min @ easy`).
 	await expect(page.locator('[data-token-sentence-editor]')).toBeVisible()
 	await page.locator('[data-seed="easy"]').click()
-	const durationToken = page.getByRole('button', { name: /min duration/ })
+	const durationToken = page.getByRole('button', { name: /min varighet/ })
 	await expect(durationToken).toBeVisible()
 
 	// The seed lands as a 45-min easy run; the whole flow from here is: title,
@@ -56,7 +56,7 @@ async function createEasyRun({
 	await page.locator('[data-slot="token-popover"] input').first().fill('40 min')
 	await page.keyboard.press('Escape')
 	await expect(
-		page.getByRole('button', { name: /40 min duration/ }),
+		page.getByRole('button', { name: /40 min varighet/ }),
 	).toBeVisible()
 	await page.getByRole('button', { name: 'Lag økta' }).click()
 

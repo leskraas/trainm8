@@ -340,4 +340,13 @@ describe('replaceWord', () => {
 		const [word] = parseWorkoutSentence(text, { discipline: 'run' }).unknown
 		expect(replaceWord(text, word!, 'terskel')).toBe('3x10 min terskel p 1 min')
 	})
+
+	test('a word typed with a capital keeps it, though the suggestion has none', () => {
+		const text = 'Terksel 3x10 min'
+		const word = { text: 'Terksel', start: 0, end: 7 } as Parameters<
+			typeof replaceWord
+		>[1]
+		expect(replaceWord(text, word, 'terskel')).toBe('Terskel 3x10 min')
+		expect(replaceWord('terksel', { ...word }, 'terskel')).toBe('terskel')
+	})
 })
