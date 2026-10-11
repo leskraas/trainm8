@@ -13,7 +13,9 @@ import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
  * dette?" — and answered by linking it; the link is undone with _Angre
  * kobling_ and made again with _Koble igjen_, each read back off the rows and
  * the database. Then a run marked _Gjort_ by hand says its numbers are not
- * coming, because no import is connected.
+ * coming, because no import is connected. Both writes — _Gjort_ and a link
+ * answer — are taken back with _Angre_ from their toast or their row (ADR
+ * 0088, amended), and the database reads as before the tap.
  *
  * Every date is the athlete's local day (the Athlete Timezone is UTC here):
  * today, so the rows sit in the open current week whatever weekday it runs.
@@ -222,6 +224,130 @@ test('Gjort by hand says the numbers are not coming when no import is connected'
 		'5-done-by-hand',
 		page.getByText('Gjort · uten tall, ingen import er koblet til'),
 	)
+})
+
+test('Gjort is taken back with the toast’s Angre, and the session stands as before', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await prisma.athleteProfile.create({
+		data: { userId: user.id, timezone: TZ },
+	})
+	const today = localDate(new Date(), TZ)
+	const plan = await plannedRun(
+		user.id,
+		'Morgentur',
+		localTimeUTC(today, '00:30', TZ),
+	)
+	await navigate('/')
+
+	const done = page.getByRole('button', { name: 'Merk Morgentur som gjort' })
+	await untilHydrated(done)
+	await done.click()
+
+	// It lands as every write on I dag does (ADR 0088): a toast saying what
+	// changed with Angre, and the row tinted with its own Angre.
+	const toast = page.locator('[data-sonner-toast]', {
+		hasText: 'Merket som gjort.',
+	})
+	await expect(toast).toBeVisible()
+	await expect(toast.getByText('«Morgentur»')).toBeVisible()
+	const rowUndo = page.getByRole('button', { name: 'Angre Morgentur' })
+	await expect(rowUndo).toBeVisible()
+	await expect
+		.poll(async () => (await recordingOf(plan.id))?.status)
+		.toBe('completed')
+	await shot(page, '6-done-landed', rowUndo)
+
+	await toast.getByRole('button', { name: 'Angre' }).click()
+
+	await expect
+		.poll(async () =>
+			prisma.workoutSession.findUnique({
+				where: { id: plan.id },
+				select: { status: true, markedDoneAt: true },
+			}),
+		)
+		.toEqual({ status: 'scheduled', markedDoneAt: null })
+	// The row offers Gjort again, and its own Angre went with the toast's.
+	await expect(done).toBeVisible()
+	await expect(rowUndo).toHaveCount(0)
+	await expect(
+		page.getByText('Gjort er angret. «Morgentur» står som før.'),
+	).toBeVisible()
+	await shot(page, '7-done-undone', done)
+})
+
+test('a link answer is taken back with the row’s Angre, and the question is asked again', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const errors: string[] = []
+	page.on('pageerror', (error) => {
+		if (!/websocket/i.test(error.message)) errors.push(error.message)
+	})
+	const user = await login()
+	await prisma.athleteProfile.create({
+		data: { userId: user.id, timezone: TZ },
+	})
+	const today = localDate(new Date(), TZ)
+	const importId = await ekstraRun(user.id, localTimeUTC(today, '06:30', TZ))
+	const plan = await plannedRun(
+		user.id,
+		'Rolig 10 km',
+		localTimeUTC(today, '18:00', TZ),
+	)
+	await navigate('/')
+
+	const question = page.getByRole('group', { name: 'Hva var dette?' })
+	const answer = question.getByRole('button', { name: 'Det var Rolig 10 km' })
+	await untilHydrated(answer)
+	await answer.click()
+
+	const toast = page.locator('[data-sonner-toast]', {
+		hasText: 'Importen er koblet til økta.',
+	})
+	await expect(toast).toBeVisible()
+	const rowUndo = page.getByRole('button', { name: 'Angre Rolig 10 km' })
+	await expect(rowUndo).toBeVisible()
+	await expect
+		.poll(async () => (await recordingOf(plan.id))?.recordingId)
+		.toBe(importId)
+	await shot(page, '8-link-landed', rowUndo)
+
+	await rowUndo.click()
+
+	// The plan is free and not done; the run is ekstra again, unanswered.
+	await expect
+		.poll(async () =>
+			prisma.activityImport.findUniqueOrThrow({
+				where: { id: importId },
+				select: {
+					linkAnsweredAt: true,
+					unlinkedFromSessionId: true,
+					promotedSession: { select: { source: true, status: true } },
+				},
+			}),
+		)
+		.toEqual({
+			linkAnsweredAt: null,
+			unlinkedFromSessionId: null,
+			promotedSession: { source: 'recorded', status: 'completed' },
+		})
+	expect(await recordingOf(plan.id)).toEqual({
+		recordingId: null,
+		status: 'scheduled',
+	})
+	await expect(question).toBeVisible()
+	await expect(toast).toHaveCount(0)
+	await expect(page.getByText('ekstra', { exact: true }).first()).toBeVisible()
+	await shot(page, '9-link-undone', question)
+	expect(errors).toEqual([])
 })
 
 /**
