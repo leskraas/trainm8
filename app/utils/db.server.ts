@@ -1,9 +1,10 @@
 import { styleText } from 'node:util'
 import { remember } from '@epic-web/remember'
 // Changed import due to issue: https://github.com/remix-run/react-router/pull/12644
-import { PrismaClient } from '@prisma/client/index.js'
+import { PrismaClient, type Prisma } from '@prisma/client/index.js'
+import { credentialEncryption } from './credential-storage.server.ts'
 
-export const prisma = remember('prisma', () => {
+const baseClient = remember('prisma-base', () => {
 	// NOTE: if you change anything in this function you'll need to restart
 	// the dev server to see your changes.
 
@@ -35,3 +36,26 @@ export const prisma = remember('prisma', () => {
 	void client.$connect()
 	return client
 })
+
+/**
+ * The app's Prisma client. Provider credentials are encrypted at rest (#548);
+ * see `credential-storage.server.ts` for what that covers and what it does not.
+ *
+ * The extension only intercepts queries and never changes a model's shape, so
+ * the client stays typed as the plain `PrismaClient` that the app's
+ * `Prisma.TransactionClient` parameters expect. Extended clients have no
+ * `$on`; listen with {@link onPrismaQuery} instead.
+ */
+export const prisma = remember(
+	'prisma',
+	() =>
+		baseClient.$extends(credentialEncryption) as unknown as Omit<
+			typeof baseClient,
+			'$on'
+		>,
+)
+
+/** Listen to every query the client sends (the base client's `query` event). */
+export function onPrismaQuery(listener: (event: Prisma.QueryEvent) => void) {
+	baseClient.$on('query', listener)
+}

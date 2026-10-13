@@ -361,3 +361,72 @@ test('the athlete reads a connection in four states, shared by the integrations 
 		),
 	).toBe('backfilling')
 })
+
+/** The stored columns as the database holds them, bypassing the client. */
+async function storedTokens(connectionId: string) {
+	const rows = await prisma.$queryRaw<
+		Array<{ accessToken: string; refreshToken: string | null }>
+	>`SELECT accessToken, refreshToken FROM AccountConnection WHERE id = ${connectionId}`
+	return rows[0]!
+}
+
+test('provider tokens are unreadable in the database and read back as plaintext', async () => {
+	const athlete = await createAthlete()
+	const connection = await connectAccountConnection({
+		athleteId: athlete.id,
+		provider: STRAVA,
+		externalAthleteId: '123',
+		accessToken: 'strava-access-abc',
+		refreshToken: 'strava-refresh-def',
+		expiresAt: new Date(Date.now() + 3_600_000),
+	})
+
+	expect(connection.accessToken).toBe('strava-access-abc')
+	const stored = await storedTokens(connection.id)
+	expect(stored.accessToken).not.toContain('strava-access-abc')
+	expect(stored.refreshToken).not.toContain('strava-refresh-def')
+	expect(stored.accessToken).toMatch(/^enc:v1:/)
+
+	const read = await getAccountConnection(athlete.id, STRAVA)
+	expect(read?.accessToken).toBe('strava-access-abc')
+	expect(read?.refreshToken).toBe('strava-refresh-def')
+})
+
+test('a rotated token (re-connect or refresh) is stored encrypted too', async () => {
+	const athlete = await createAthlete()
+	const { id } = await connectStrava(athlete.id)
+
+	await prisma.accountConnection.update({
+		where: { id },
+		data: { accessToken: 'rotated-access', refreshToken: 'rotated-refresh' },
+	})
+
+	const stored = await storedTokens(id)
+	expect(stored.accessToken).not.toContain('rotated-access')
+	expect(stored.refreshToken).not.toContain('rotated-refresh')
+	const [read] = await prisma.accountConnection.findMany({
+		where: { id },
+		select: { accessToken: true, refreshToken: true },
+	})
+	expect(read).toEqual({
+		accessToken: 'rotated-access',
+		refreshToken: 'rotated-refresh',
+	})
+})
+
+test('a key-based connection keeps its null refresh token', async () => {
+	const athlete = await createAthlete()
+	const connection = await connectAccountConnection({
+		athleteId: athlete.id,
+		provider: 'intervalsicu',
+		externalAthleteId: 'i123',
+		accessToken: 'intervals-key',
+		refreshToken: null,
+		expiresAt: null,
+	})
+
+	expect((await storedTokens(connection.id)).refreshToken).toBeNull()
+	expect(
+		(await getAccountConnection(athlete.id, 'intervalsicu'))?.refreshToken,
+	).toBeNull()
+})

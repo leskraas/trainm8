@@ -1,6 +1,6 @@
 import { faker } from '@faker-js/faker/locale/en'
 import { expect, test } from 'vitest'
-import { prisma } from '#app/utils/db.server.ts'
+import { onPrismaQuery, prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import { WARMUP_ORDER_INDEX_BASE } from './strength-log.ts'
 import {
@@ -2053,7 +2053,7 @@ async function countLedgerQueries(userId: string): Promise<number> {
 	let queries = 0
 	// Prisma's client has no `$off` and it is a module singleton, so the listener
 	// is left in place and made inert once the read it was watching is over.
-	prisma.$on('query', (event) => {
+	onPrismaQuery((event) => {
 		if (!counting) return
 		if (/^(BEGIN|COMMIT|ROLLBACK|PRAGMA)/i.test(event.query.trim())) return
 		queries += 1
