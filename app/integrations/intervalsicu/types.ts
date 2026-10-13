@@ -117,6 +117,12 @@ export const IntervalsIcuActivitySchema = z
 		max_speed: z.number().nullish(),
 		total_elevation_gain: z.number().nullish(),
 		icu_joules: z.number().nullish(),
+		// Provenance (ADR 0096 §1): where the activity came from before it
+		// reached Intervals.icu (`GARMIN_CONNECT`, `POLAR`, `UPLOAD`, …) and the
+		// recording device. `.catch(null)`: an odd value here costs the
+		// attribution's detail, never the whole activity list.
+		source: z.string().nullish().catch(null),
+		device_name: z.string().nullish().catch(null),
 	})
 	.passthrough()
 export type IntervalsIcuActivity = z.infer<typeof IntervalsIcuActivitySchema>
