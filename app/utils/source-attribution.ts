@@ -39,12 +39,19 @@ function brandedDevice(brand: string, deviceName: string | null): string {
 export function recordingSource({
 	originPlatform,
 	deviceName,
+	aliasOrigins = [],
 }: {
 	originPlatform: OriginPlatform | string
 	deviceName: string | null
+	/**
+	 * The Origin Platforms of the Recording's aliases (ADR 0096 §3): the same
+	 * activity from other sources. They bind it too, so a credit one of them
+	 * owes is owed here.
+	 */
+	aliasOrigins?: ReadonlyArray<OriginPlatform | string>
 }): RecordingSource | null {
 	const device = normalizeDeviceName(deviceName)
-	const verdict = sourceTerms([originPlatform], 'screen')
+	const verdict = sourceTerms([originPlatform, ...aliasOrigins], 'screen')
 	const owed = verdict.allowed ? verdict.attributions : []
 	const credited = owed[0]
 	if (credited) {

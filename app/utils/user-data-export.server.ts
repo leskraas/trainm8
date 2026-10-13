@@ -172,6 +172,14 @@ export async function exportUserData({
 		WorkoutDetection: await prisma.workoutDetection.findMany({
 			where: activityImport,
 		}),
+		// Every other source that delivered an activity (ADR 0096 §3).
+		ActivityImportAlias: await prisma.activityImportAlias.findMany({
+			where: athlete,
+		}),
+		// The original files, byte for byte (base64 in the JSON, like any binary).
+		ActivityFile: await prisma.activityFile.findMany({
+			where: activityImport,
+		}),
 		// The connection without its credentials.
 		AccountConnection: await prisma.accountConnection.findMany({
 			where: athlete,

@@ -17,6 +17,26 @@ test('a Garmin recording names Garmin and the device model, and it is owed', () 
 	).toEqual({ text: 'Garmin Forerunner 965', owed: true })
 })
 
+test('an upload that Garmin data also delivered owes the Garmin credit (ADR 0096 §3)', () => {
+	expect(
+		recordingSource({
+			originPlatform: 'upload',
+			deviceName: 'Garmin Forerunner 965',
+			aliasOrigins: ['garmin'],
+		}),
+	).toEqual({ text: 'Garmin Forerunner 965', owed: true })
+})
+
+test('an alias from a platform that owes nothing changes nothing', () => {
+	expect(
+		recordingSource({
+			originPlatform: 'upload',
+			deviceName: 'COROS PACE 3',
+			aliasOrigins: ['intervalsicu'],
+		}),
+	).toEqual({ text: 'COROS PACE 3', owed: false })
+})
+
 test('a Garmin device named without the brand still reads "Garmin [device model]"', () => {
 	expect(
 		recordingSource({ originPlatform: 'garmin', deviceName: 'Edge 840' }),
