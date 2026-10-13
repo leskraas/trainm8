@@ -58,6 +58,7 @@ import { parseWithZod } from '@conform-to/zod/v3'
 import { Fragment, memo, type ReactNode, useEffect, useRef } from 'react'
 import { Link, useFetcher } from 'react-router'
 import { ErrorList } from '#app/components/forms.tsx'
+import { SourceCredits } from '#app/components/source-credits.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Meter, MeterIndicator, MeterTrack } from '#app/components/ui/meter.tsx'
@@ -998,15 +999,7 @@ const DayRow = memo(function DayRow({
 					>
 						{today.verdict}
 					</p>
-					{today.credits?.map((credit) => (
-						<p
-							key={credit}
-							data-source-credit
-							className="text-caption text-muted-foreground mt-0.5 font-normal [text-wrap:pretty]"
-						>
-							{credit}
-						</p>
-					))}
+					<SourceCredits credits={today.credits ?? []} className="mt-0.5" />
 				</div>
 			) : null}
 		</div>

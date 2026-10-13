@@ -15,6 +15,9 @@ consequence of [ADR 0026](./0026-integration-hub-and-key-based-providers.md)**
 ("cross-provider dedup stays athlete-driven"). The terms that hang off the
 origin platform are [ADR 0098](./0098-source-terms-bind-per-origin-platform.md).
 
+Numbering: 0092–0095 and 0097 are reserved by the agent-strategy roadmap
+([`agent-strategy.md`, "The ADR roadmap"](../research/agent-strategy.md#the-adr-roadmap)).
+
 ## Context
 
 An `ActivityImport` knows its **transport** (`externalProvider`: `manual`,
@@ -90,10 +93,16 @@ null for history until the original FITs are harvested (#547).
 
 ### 2. The athlete is part of every key
 
-The transport key becomes `@@unique([athleteId, externalProvider, externalId])`,
-and the upload content hash covers `athleteId` as well as start, duration and
-distance. Two athletes can hold the same file; one athlete cannot hold one
-activity twice. (#544 builds this.)
+The transport key becomes `@@unique([athleteId, externalProvider, externalId])`.
+Two athletes can hold the same file; one athlete cannot hold one activity twice.
+(#544 builds this.)
+
+The upload content hash (`contentDerivedExternalId`: start, duration and
+distance) stays content-only; the athlete is in the key beside it, not in the
+hash. _Amended by #544:_ this ADR first said the hash would cover `athleteId`
+too. The unique key already separates two athletes' copies, and hashing the
+athlete in would have changed the id of every upload already stored, so a
+re-upload of an old file would no longer be caught as a duplicate.
 
 ### 3. One activity is one row; a second source becomes an alias
 
@@ -142,6 +151,14 @@ aliases. The first rule that matches decides:
      `createdAt`. Two different `fitFileKey`s do not block a fuzzy match: a
      watch and a bike computer recording the same ride are one ride for load.
 4. **No match** → a new `ActivityImport`, then auto-save as ADR 0049 says.
+
+**Multisport files** (_added by #547_). Every leg of a multisport FIT (a
+triathlon's swim, bike and run) is its own import and carries the file's one FIT
+key. So under rule 2, an import holding the candidate's FIT key (itself or
+through one of its aliases) is the same leg only when it has the same
+`discipline` or starts within 120 s of the candidate; of several, the same
+discipline wins, then the closest start, then the oldest `createdAt`. Otherwise
+the legs of one triathlon would collapse into one.
 
 Durations are compared with tolerance because sources disagree: Intervals.icu
 reports `moving_time`, FIT reports timer time. The rule errs towards a miss. A

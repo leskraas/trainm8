@@ -56,14 +56,8 @@ export function parseCredentialKeys(
 		}
 		raw = DEV_CREDENTIALS_ENCRYPTION_KEY
 	}
-	const parts = raw.split(',').map((part) => part.trim())
-	if (mode === 'production' && parts.includes(DEV_CREDENTIALS_ENCRYPTION_KEY)) {
-		throw new Error(
-			'CREDENTIALS_ENCRYPTION_KEY is the published development key; set a real key in production',
-		)
-	}
-	return parts.map((part, index) => {
-		const key = Buffer.from(part, 'base64')
+	const keys = raw.split(',').map((part, index) => {
+		const key = Buffer.from(part.trim(), 'base64')
 		if (key.length !== KEY_BYTES) {
 			throw new Error(
 				`CREDENTIALS_ENCRYPTION_KEY entry ${index + 1} must be 32 bytes of base64 (\`openssl rand -base64 32\`)`,
@@ -71,6 +65,15 @@ export function parseCredentialKeys(
 		}
 		return key
 	})
+	// Compared as bytes: the same key also decodes from its unpadded or
+	// base64url spelling.
+	const devKey = Buffer.from(DEV_CREDENTIALS_ENCRYPTION_KEY, 'base64')
+	if (mode === 'production' && keys.some((key) => key.equals(devKey))) {
+		throw new Error(
+			'CREDENTIALS_ENCRYPTION_KEY is the published development key; set a real key in production',
+		)
+	}
+	return keys
 }
 
 let cachedKeys: { raw: string | undefined; keys: CredentialKeys } | undefined

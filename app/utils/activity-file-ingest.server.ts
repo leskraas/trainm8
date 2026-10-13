@@ -41,6 +41,26 @@ export type IngestFileResult =
 	| { status: 'unsupported'; message: string }
 	| { status: 'failed'; message: string }
 
+const MiB = 1024 * 1024
+
+/**
+ * What one upload request may carry. Each file is held in memory whole, so
+ * these bound one request's memory: the form parser refuses a bigger part or
+ * more parts, a `.gz` may inflate to at most `maxInflatedFileSize`, and the
+ * entries of a `.zip` (nested archives included) may add up to at most
+ * `maxUnzippedSize`, checked against the sizes the archive declares before
+ * anything is inflated (an entry never inflates past its declared size).
+ */
+export const UPLOAD_LIMITS = {
+	maxFileSize: 64 * MiB,
+	maxFiles: 20,
+	maxInflatedFileSize: 64 * MiB,
+	maxUnzippedSize: 256 * MiB,
+} as const
+
+const FILE_TOO_LARGE = 'The file is too large.'
+const ARCHIVE_TOO_LARGE = 'The archive is too large.'
+
 /** The 4-byte data-type tag at offset 8 of every FIT file header. */
 const FIT_MAGIC_OFFSET = 8
 const FIT_MAGIC = '.FIT'
@@ -82,9 +102,22 @@ function parseArtifact(artifact: UploadedArtifact): ParseOutcome {
 	const ext = fileName.split('.').pop()?.toLowerCase()
 
 	if (ext === 'gz') {
+		let inflated: Uint8Array
+		try {
+			inflated = new Uint8Array(
+				gunzipSync(bytes, {
+					maxOutputLength: UPLOAD_LIMITS.maxInflatedFileSize,
+				}),
+			)
+		} catch (err) {
+			if ((err as { code?: unknown }).code === 'ERR_BUFFER_TOO_LARGE') {
+				throw new Error(FILE_TOO_LARGE)
+			}
+			throw err
+		}
 		return parseArtifact({
 			fileName: fileName.slice(0, -'.gz'.length),
-			bytes: new Uint8Array(gunzipSync(bytes)),
+			bytes: inflated,
 		})
 	}
 
@@ -162,7 +195,7 @@ export async function ingestActivityFile(
 		try {
 			legs = await ingestFit(athleteId, parsed.bytes, {
 				externalProvider: 'manual',
-				fileSource: 'upload',
+				fetchedVia: 'upload',
 				fileName: parsed.fileName,
 				timezone: options.timezone,
 				disciplineOverride: options.disciplineOverride,
@@ -238,18 +271,28 @@ function activityExtension(fileName: string): string | undefined {
  * a `.zip` (including nested folders and nested archives, as in the Strava
  * bulk export) fans out to its activity-format entries — non-activity entries
  * (images, `activities.csv`, segment files) are skipped silently; anything
- * else is a single candidate. Throws on an unreadable archive.
+ * else is a single candidate. Throws on an unreadable archive, and with
+ * `ARCHIVE_TOO_LARGE` when its entries add up past `maxUnzippedSize`.
  */
-function expandArtifact(artifact: UploadedArtifact): UploadedArtifact[] {
+function expandArtifact(
+	artifact: UploadedArtifact,
+	budget = { remaining: UPLOAD_LIMITS.maxUnzippedSize as number },
+): UploadedArtifact[] {
 	const ext = artifact.fileName.split('.').pop()?.toLowerCase()
 	if (ext !== 'zip') return [artifact]
 
-	const entries = unzipSync(artifact.bytes)
+	const entries = unzipSync(artifact.bytes, {
+		filter: (entry) => {
+			budget.remaining -= entry.originalSize
+			if (budget.remaining < 0) throw new Error(ARCHIVE_TOO_LARGE)
+			return true
+		},
+	})
 	return Object.entries(entries).flatMap(([entryPath, bytes]) => {
 		if (entryPath.endsWith('/')) return [] // directory entry
 		const entryExt = entryPath.split('.').pop()?.toLowerCase()
 		const entry = { fileName: entryPath, bytes }
-		if (entryExt === 'zip') return expandArtifact(entry)
+		if (entryExt === 'zip') return expandArtifact(entry, budget)
 		const inner = activityExtension(entryPath)
 		return inner && ACTIVITY_EXTENSIONS.has(inner) ? [entry] : []
 	})
@@ -277,10 +320,13 @@ export async function ingestUploadedFiles(
 		let candidates: UploadedArtifact[]
 		try {
 			candidates = expandArtifact(artifact)
-		} catch {
+		} catch (err) {
 			summary.failed.push({
 				fileName: artifact.fileName,
-				reason: 'Could not read the archive.',
+				reason:
+					err instanceof Error && err.message === ARCHIVE_TOO_LARGE
+						? ARCHIVE_TOO_LARGE
+						: 'Could not read the archive.',
 			})
 			continue
 		}

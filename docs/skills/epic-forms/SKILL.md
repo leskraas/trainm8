@@ -107,12 +107,17 @@ export async function action({ request }: Route.ActionArgs) {
 Epic Stack uses [Conform](https://conform.guide/) to handle forms with
 progressive enhancement.
 
+**Imports in trainm8 (zod 4, #551):** never bare `'zod'` or `'@conform-to/zod'`
+(the latter throws on v3 schemas under zod 4). Existing schemas use `'zod/v3'`
+with `'@conform-to/zod/v3'`, as below; a new, self-contained schema may use
+`'zod/v4'` with `'@conform-to/zod/v4'`. Never mix v3 and v4 schemas in one tree.
+
 **Basic setup:**
 
 ```typescript
 import { getFormProps, useForm } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { z } from 'zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
+import { z } from 'zod/v3'
 import { Form } from 'react-router'
 
 const SignupSchema = z.object({
@@ -146,7 +151,7 @@ Conform integrates seamlessly with Zod for validation.
 **Define schema:**
 
 ```typescript
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 const SignupSchema = z
 	.object({
@@ -519,7 +524,7 @@ Create reusable schemas in `app/utils/user-validation.ts`:
 
 ```typescript
 // app/utils/user-validation.ts
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 export const EmailSchema = z
 	.string({ required_error: 'Email is required' })
@@ -571,8 +576,8 @@ const SignupSchema = z
 ```typescript
 // app/routes/_auth/login.tsx
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { z } from 'zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
+import { z } from 'zod/v3'
 import { Field, ErrorList } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 

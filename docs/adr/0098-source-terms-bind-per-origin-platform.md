@@ -8,6 +8,9 @@ Not legal advice: each rule below records a reading of the vendor's text, and
 the readings marked _owner/legal_ need a person's sign-off before an athlete
 other than the owner connects an assistant.
 
+Numbering: 0092–0095 and 0097 are reserved by the agent-strategy roadmap
+([`agent-strategy.md`, "The ADR roadmap"](../research/agent-strategy.md#the-adr-roadmap)).
+
 **Defines the `source-terms` reason.** ADR 0092 (the action registry, #550) is
 not written yet; when it lands it cites this ADR for the reason and widens its
 model-facing gate from Strava to every Origin Platform. **Builds on

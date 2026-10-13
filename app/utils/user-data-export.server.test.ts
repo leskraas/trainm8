@@ -208,3 +208,52 @@ test('the export leaves out secrets and every other athlete', async () => {
 	expect(json).not.toContain('other kjentes tung')
 	expect(json).not.toContain('other-ext')
 })
+
+test("a moderator's export carries the reports they resolved, not the reporters' words", async () => {
+	const me = await createAthleteWithTrainingRecord('me')
+	const other = await createAthleteWithTrainingRecord('other')
+	const resolvedAt = new Date('2026-10-01T10:00:00Z')
+	const resolvedByMe = await prisma.workoutReport.create({
+		select: { id: true },
+		data: {
+			workoutId: other.workoutId,
+			reporterId: other.userId,
+			reason: 'spam',
+			detail: 'other wrote this privately',
+			resolvedAt,
+			resolution: 'dismissed',
+			resolvedById: me.userId,
+		},
+	})
+	const mine = await prisma.workoutReport.create({
+		select: { id: true },
+		data: {
+			workoutId: other.workoutId,
+			reporterId: me.userId,
+			reason: 'unsafe',
+			detail: 'me wrote this',
+		},
+	})
+
+	const { tables } = await exportUserData({
+		userId: me.userId,
+		domain: 'https://x.test',
+	})
+
+	const reports = tables.WorkoutReport as Array<Record<string, unknown>>
+	expect(reports.find((r) => r.id === mine.id)).toMatchObject({
+		reporterId: me.userId,
+		reason: 'unsafe',
+		detail: 'me wrote this',
+	})
+	expect(reports.find((r) => r.id === resolvedByMe.id)).toEqual({
+		id: resolvedByMe.id,
+		workoutId: other.workoutId,
+		resolvedAt,
+		resolution: 'dismissed',
+		resolvedById: me.userId,
+	})
+	const json = JSON.stringify(tables)
+	expect(json).not.toContain('other wrote this privately')
+	expect(json).not.toContain(other.userId)
+})

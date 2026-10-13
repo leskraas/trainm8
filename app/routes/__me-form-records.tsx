@@ -11,6 +11,7 @@
  * the app can stand behind (Form has bands, not bounds).
  */
 import { LoadLegendLabel } from '#app/components/load-legend.tsx'
+import { SourceCredits } from '#app/components/source-credits.tsx'
 import { Card, CardContent } from '#app/components/ui/card.tsx'
 import {
 	Progress,
@@ -36,27 +37,6 @@ export function MeSectionHeading({
 		<h2 id={id} className="text-overline text-muted-foreground mb-2 uppercase">
 			{children}
 		</h2>
-	)
-}
-
-/**
- * The derived-data credits a reading owes (ADR 0098 §3): Garmin's line while
- * Garmin-recorded sessions are behind it. In the card, under the figures it
- * speaks for, never in a tooltip or a fold.
- */
-function SourceCredits({ credits }: { credits: string[] }) {
-	if (credits.length === 0) return null
-	return (
-		<div data-source-credit className="flex flex-col gap-0.5">
-			{credits.map((credit) => (
-				<p
-					key={credit}
-					className="text-caption text-muted-foreground font-normal [text-wrap:pretty]"
-				>
-					{credit}
-				</p>
-			))}
-		</div>
 	)
 }
 
@@ -201,11 +181,7 @@ export function RecordsSection({
 							<p className="text-caption text-muted-foreground mt-3">
 								{ME_RECORD_LABELS.source}
 							</p>
-							{credits.length > 0 ? (
-								<div className="mt-1">
-									<SourceCredits credits={credits} />
-								</div>
-							) : null}
+							<SourceCredits credits={credits} className="mt-1" />
 						</>
 					)}
 				</CardContent>

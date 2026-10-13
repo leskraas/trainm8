@@ -1,13 +1,11 @@
+import { Prisma } from '@prisma/client'
 import {
 	ActivityImportInputSchema,
 	createActivityImport,
+	provenanceOf,
 	type ActivityImportInput,
 } from '#app/utils/activity-import.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import {
-	normalizeDeviceName,
-	originPlatformForTransport,
-} from './origin-platform.ts'
 
 /**
  * How a candidate matched an activity the athlete already holds (ADR 0096 §4):
@@ -208,11 +206,7 @@ async function recordAlias(
 				externalProvider: input.externalProvider,
 				externalId: input.externalId,
 				// The newcomer's own provenance, by the same rules as an import's.
-				originPlatform:
-					input.originPlatform ??
-					originPlatformForTransport(input.externalProvider),
-				deviceName: normalizeDeviceName(input.deviceName),
-				fitFileKey: input.fitFileKey ?? null,
+				...provenanceOf(input),
 				matchedBy,
 			},
 		})
@@ -224,5 +218,7 @@ async function recordAlias(
 }
 
 function isUniqueViolation(err: unknown): boolean {
-	return err instanceof Error && err.message.toLowerCase().includes('unique')
+	return (
+		err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002'
+	)
 }

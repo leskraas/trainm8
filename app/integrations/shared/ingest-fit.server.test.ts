@@ -110,7 +110,7 @@ test('a mirror with no original file takes the uploaded FIT, keeping who it is',
 			durationSec: true,
 			lapsJson: true,
 			promotedSessionId: true,
-			originalFile: { select: { source: true, bytes: true } },
+			originalFile: { select: { fetchedVia: true, bytes: true } },
 			stream: { select: { id: true } },
 		},
 	})
@@ -126,7 +126,7 @@ test('a mirror with no original file takes the uploaded FIT, keeping who it is',
 	})
 	expect(JSON.parse(refreshed.lapsJson!) as unknown[]).toHaveLength(7)
 	expect(refreshed.stream).not.toBeNull()
-	expect(refreshed.originalFile?.source).toBe('upload')
+	expect(refreshed.originalFile?.fetchedVia).toBe('upload')
 	expect(new Uint8Array(refreshed.originalFile!.bytes)).toEqual(
 		fixture('run-with-laps.fit'),
 	)
@@ -179,7 +179,7 @@ test('a new FIT keeps its key, device, laps and original bytes', async () => {
 			fitFileKey: true,
 			deviceName: true,
 			lapsJson: true,
-			originalFile: { select: { source: true, format: true, bytes: true } },
+			originalFile: { select: { fetchedVia: true, format: true, bytes: true } },
 		},
 	})
 	expect(imported).toMatchObject({
@@ -193,7 +193,7 @@ test('a new FIT keeps its key, device, laps and original bytes', async () => {
 		endSec: 780,
 	})
 	expect(imported.originalFile).toMatchObject({
-		source: 'upload',
+		fetchedVia: 'upload',
 		format: 'fit',
 	})
 	expect(new Uint8Array(imported.originalFile!.bytes)).toEqual(
@@ -236,7 +236,7 @@ test("a vendor's FIT is filed under the vendor's id, one id per leg", async () =
 		externalProvider: 'polar',
 		externalId: 'p-123',
 		originPlatform: 'polar',
-		fileSource: 'polar',
+		fetchedVia: 'polar',
 		timezone: 'UTC',
 	})
 	expect(results.map((r) => r.status)).toEqual([

@@ -104,6 +104,17 @@ describe('parseCredentialKeys', () => {
 		).toThrow(/development key/)
 	})
 
+	test('production refuses the development key however its base64 is spelled', () => {
+		const devBytes = Buffer.from(DEV_CREDENTIALS_ENCRYPTION_KEY, 'base64')
+		const unpadded = DEV_CREDENTIALS_ENCRYPTION_KEY.replace(/=+$/, '')
+		const urlSafe = devBytes.toString('base64url')
+		for (const spelling of [unpadded, urlSafe, `${keyA},${unpadded}`]) {
+			expect(() => parseCredentialKeys(spelling, 'production')).toThrow(
+				/development key/,
+			)
+		}
+	})
+
 	test('development and test fall back to the published development key', () => {
 		const dev = parseCredentialKeys(undefined, 'development')
 		expect(parseCredentialKeys('', 'test')).toEqual(dev)

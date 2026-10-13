@@ -5,6 +5,7 @@
 // What it all says is `first-run.ts`'s.
 
 import { INTERVALSICU_PROVIDER } from '#app/integrations/intervalsicu/types.ts'
+import { type OriginPlatform } from '#app/integrations/shared/origin-platform.ts'
 import {
 	isBackfillInProgress,
 	getAccountConnection,
@@ -40,7 +41,7 @@ export type FirstRunReading = {
 	 * sessions in the same four weeks, for the credits their terms ask of
 	 * anything derived from them.
 	 */
-	bindingSet: string[]
+	bindingSet: OriginPlatform[]
 }
 
 export async function readFirstRunFindings(

@@ -613,7 +613,7 @@ type PartialConfig = DeepPartial<Config>
 ### Pattern 2: Type-Safe Form Validation
 
 ```typescript
-import * as z from 'zod'
+import * as z from 'zod/v3'
 
 const loginFormSchema = z.object({
 	email: z

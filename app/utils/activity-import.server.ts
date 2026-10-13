@@ -159,6 +159,26 @@ function metricColumns(input: ActivityImportInput) {
 	}
 }
 
+/**
+ * Where an incoming activity came from (ADR 0096 §1), as an import or an
+ * alias stores it: the Origin Platform the caller names, or what the transport
+ * implies on its own; the device name normalised; the FIT key if any.
+ */
+export function provenanceOf(
+	input: Pick<
+		ActivityImportInput,
+		'externalProvider' | 'originPlatform' | 'deviceName' | 'fitFileKey'
+	>,
+) {
+	return {
+		originPlatform:
+			input.originPlatform ??
+			originPlatformForTransport(input.externalProvider),
+		deviceName: normalizeDeviceName(input.deviceName),
+		fitFileKey: input.fitFileKey ?? null,
+	}
+}
+
 export async function createActivityImport(
 	athleteId: string,
 	input: ActivityImportInput,
@@ -171,11 +191,7 @@ export async function createActivityImport(
 			externalId: data.externalId,
 			// Identity, fixed at insert: a mirror update never rewrites where the
 			// activity came from (ADR 0096 §6).
-			originPlatform:
-				data.originPlatform ??
-				originPlatformForTransport(data.externalProvider),
-			deviceName: normalizeDeviceName(data.deviceName),
-			fitFileKey: data.fitFileKey ?? null,
+			...provenanceOf(data),
 			...metricColumns(data),
 		},
 		select: { id: true, startedAt: true, endedAt: true, discipline: true },

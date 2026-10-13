@@ -1,3 +1,13 @@
+-- One activity is one row (ADR 0096 §3-§5, #547).
+--
+-- `ActivityImportAlias` records every other source that delivered an activity
+-- trainm8 already holds, so a second source becomes an alias instead of a
+-- second session. `ActivityFile` keeps an import's original FIT bytes
+-- (`fetchedVia`: how they reached trainm8). `fitHarvestedAt` marks an
+-- Intervals.icu import whose original file the harvest has asked for. The
+-- `fitFileKey` indexes serve the dedupe lookup on the FIT key. No backfill:
+-- the harvest fills the keys and files.
+
 -- AlterTable
 ALTER TABLE "ActivityImport" ADD COLUMN "fitHarvestedAt" DATETIME;
 
@@ -22,7 +32,7 @@ CREATE TABLE "ActivityFile" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "activityImportId" TEXT NOT NULL,
     "format" TEXT NOT NULL,
-    "source" TEXT NOT NULL,
+    "fetchedVia" TEXT NOT NULL,
     "bytes" BLOB NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "ActivityFile_activityImportId_fkey" FOREIGN KEY ("activityImportId") REFERENCES "ActivityImport" ("id") ON DELETE CASCADE ON UPDATE CASCADE

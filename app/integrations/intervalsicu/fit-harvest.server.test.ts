@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { gzipSync } from 'node:zlib'
-import { invariant } from '@epic-web/invariant'
 import { http, HttpResponse } from 'msw'
 import { expect, test } from 'vitest'
 import { ingestActivityFile } from '#app/utils/activity-file-ingest.server.ts'
@@ -22,10 +21,11 @@ import {
 	runIntervalsIcuFitHarvestJob,
 } from './fit-harvest.server.ts'
 
-// The harvest (#547, WI §4): while Intervals.icu still serves Garmin, fetch
-// each bridge-era activity's ORIGINAL file (`GET /activity/{id}/file`, one
-// request per activity, within the 5,000 requests a day a key allows) and keep
-// its bytes and FIT key. It is a job that resumes where it stopped.
+// The harvest (#547, `docs/research/watch-data-trainm8-ingest.md` §4): while
+// Intervals.icu still serves Garmin, fetch each bridge-era activity's ORIGINAL
+// file (`GET /activity/{id}/file`, one request per activity, within the 5,000
+// requests a day a key allows) and keep its bytes and FIT key. It is a job
+// that resumes where it stopped.
 
 const FILE_URL = 'https://intervals.icu/api/v1/activity/:id/file'
 const FIXTURES = path.join(process.cwd(), 'tests', 'fixtures', 'fit')
@@ -107,7 +107,7 @@ const harvested = (id: string) =>
 			fitHarvestedAt: true,
 			durationSec: true,
 			promotedSessionId: true,
-			originalFile: { select: { source: true, bytes: true } },
+			originalFile: { select: { fetchedVia: true, bytes: true } },
 		},
 	})
 
@@ -117,12 +117,12 @@ test("each bridge-era import keeps its original FIT's bytes and key", async () =
 	const manual = await bridgeImport(athleteId, 'i2')
 	serveOriginals({ i1: gzipSync(fixture('run-with-laps.fit')) })
 
-	const outcome = await runIntervalsIcuFitHarvest(athleteId, {}, { now: NOW })
+	const outcome = await runIntervalsIcuFitHarvest(athleteId, { now: NOW })
 
 	expect(outcome).toMatchObject({ kind: 'done', requests: 2 })
 	const kept = await harvested(run.id)
 	expect(kept.fitFileKey).toBe(LAPS_RUN_KEY)
-	expect(kept.originalFile?.source).toBe('intervalsicu-harvest')
+	expect(kept.originalFile?.fetchedVia).toBe('intervalsicu-harvest')
 	// Stored as the FIT itself, not the gzip it travelled in.
 	expect(new Uint8Array(kept.originalFile!.bytes)).toEqual(
 		fixture('run-with-laps.fit'),
@@ -139,10 +139,10 @@ test('a harvest that has finished asks for nothing more', async () => {
 	const { athleteId } = await setup()
 	await bridgeImport(athleteId, 'i1')
 	serveOriginals({ i1: fixture('run-with-laps.fit') })
-	await runIntervalsIcuFitHarvest(athleteId, {}, { now: NOW })
+	await runIntervalsIcuFitHarvest(athleteId, { now: NOW })
 
 	const requested = serveOriginals({ i1: fixture('run-with-laps.fit') })
-	const again = await runIntervalsIcuFitHarvest(athleteId, {}, { now: NOW })
+	const again = await runIntervalsIcuFitHarvest(athleteId, { now: NOW })
 
 	expect(again).toMatchObject({ kind: 'done', requests: 0 })
 	expect(requested).toEqual([])
@@ -155,7 +155,7 @@ test('the harvest never touches the Recording or its metrics', async () => {
 	const before = await harvested(run.id)
 	serveOriginals({ i1: fixture('run-with-laps.fit') })
 
-	await runIntervalsIcuFitHarvest(athleteId, {}, { now: NOW })
+	await runIntervalsIcuFitHarvest(athleteId, { now: NOW })
 
 	const after = await harvested(run.id)
 	expect(after.durationSec).toBe(before.durationSec)
@@ -176,7 +176,7 @@ test('Garmin-origin activities are harvested first, then the newest', async () =
 	})
 	const requested = serveOriginals({})
 
-	await runIntervalsIcuFitHarvest(athleteId, {}, { now: NOW })
+	await runIntervalsIcuFitHarvest(athleteId, { now: NOW })
 
 	expect(requested).toEqual(['garmin-new', 'garmin-old', 'polar-new'])
 })
@@ -190,7 +190,7 @@ test('only Intervals.icu imports are asked for', async () => {
 	)
 	const requested = serveOriginals({})
 
-	const outcome = await runIntervalsIcuFitHarvest(athleteId, {}, { now: NOW })
+	const outcome = await runIntervalsIcuFitHarvest(athleteId, { now: NOW })
 
 	expect(outcome).toMatchObject({ kind: 'done', requests: 0 })
 	expect(requested).toEqual([])
@@ -203,31 +203,53 @@ test('a spent daily budget pauses the harvest until its window turns', async () 
 	await bridgeImport(athleteId, 'c')
 	serveOriginals({})
 
-	const paused = await runIntervalsIcuFitHarvest(
-		athleteId,
-		{},
-		{ now: NOW, dailyBudget: 2, batchSize: 50 },
-	)
+	const paused = await runIntervalsIcuFitHarvest(athleteId, {
+		now: NOW,
+		dailyBudget: 2,
+		batchSize: 50,
+	})
 	expect(paused).toEqual({
 		kind: 'paused',
 		requests: 2,
 		resumeAt: new Date('2026-10-14T12:00:00Z'),
-		state: { windowStartedAt: NOW.toISOString(), requestsInWindow: 2 },
 	})
-	invariant(paused.kind === 'paused', 'expected the harvest to pause')
 
 	// Before the window turns, nothing is spent.
-	const early = await runIntervalsIcuFitHarvest(athleteId, paused.state, {
+	const early = await runIntervalsIcuFitHarvest(athleteId, {
 		now: new Date('2026-10-14T11:59:00Z'),
 		dailyBudget: 2,
 	})
 	expect(early).toMatchObject({ kind: 'paused', requests: 0 })
 
-	const resumed = await runIntervalsIcuFitHarvest(athleteId, paused.state, {
+	const resumed = await runIntervalsIcuFitHarvest(athleteId, {
 		now: new Date('2026-10-14T12:00:00Z'),
 		dailyBudget: 2,
 	})
 	expect(resumed).toMatchObject({ kind: 'done', requests: 1 })
+})
+
+test('athletes who share one key share its daily budget', async () => {
+	// Intervals.icu counts requests per API key, and several athletes may
+	// connect with the same key (#544).
+	const first = await setup('shared-key')
+	const second = await setup('shared-key')
+	for (const { athleteId } of [first, second]) {
+		await bridgeImport(athleteId, `${athleteId}-a`)
+		await bridgeImport(athleteId, `${athleteId}-b`)
+	}
+	serveOriginals({})
+	const options = { now: NOW, dailyBudget: 3, batchSize: 50 }
+
+	expect(
+		await runIntervalsIcuFitHarvest(first.athleteId, options),
+	).toMatchObject({ kind: 'done', requests: 2 })
+	expect(
+		await runIntervalsIcuFitHarvest(second.athleteId, options),
+	).toMatchObject({
+		kind: 'paused',
+		requests: 1,
+		resumeAt: new Date('2026-10-14T12:00:00Z'),
+	})
 })
 
 test('a batch hands over to the next run without losing count of the day', async () => {
@@ -236,17 +258,19 @@ test('a batch hands over to the next run without losing count of the day', async
 	await bridgeImport(athleteId, 'b')
 	serveOriginals({})
 
-	const first = await runIntervalsIcuFitHarvest(
-		athleteId,
-		{},
-		{ now: NOW, batchSize: 1 },
-	)
+	const options = { now: NOW, batchSize: 1, dailyBudget: 1 }
 
-	expect(first).toEqual({
+	// The batch is full: carry on straight away...
+	expect(await runIntervalsIcuFitHarvest(athleteId, options)).toEqual({
 		kind: 'paused',
 		requests: 1,
 		resumeAt: NOW,
-		state: { windowStartedAt: NOW.toISOString(), requestsInWindow: 1 },
+	})
+	// ... and the next run still knows the day's one request is spent.
+	expect(await runIntervalsIcuFitHarvest(athleteId, options)).toEqual({
+		kind: 'paused',
+		requests: 0,
+		resumeAt: new Date('2026-10-14T12:00:00Z'),
 	})
 })
 
@@ -254,7 +278,7 @@ test('a rejected key revokes the connection and stops, marking nothing', async (
 	const { athleteId, connectionId } = await setup('regenerated-key')
 	const run = await bridgeImport(athleteId, 'i1')
 
-	const outcome = await runIntervalsIcuFitHarvest(athleteId, {}, { now: NOW })
+	const outcome = await runIntervalsIcuFitHarvest(athleteId, { now: NOW })
 
 	expect(outcome).toMatchObject({ kind: 'revoked' })
 	expect(
@@ -276,7 +300,7 @@ test('a 403 on one file while the key still works marks that activity, not the c
 	})
 	serveOriginals({ blocked: 403, next: fixture('run-with-laps.fit') })
 
-	const outcome = await runIntervalsIcuFitHarvest(athleteId, {}, { now: NOW })
+	const outcome = await runIntervalsIcuFitHarvest(athleteId, { now: NOW })
 
 	expect(outcome).toMatchObject({ kind: 'done' })
 	expect(
@@ -293,18 +317,64 @@ test('a 403 on one file while the key still works marks that activity, not the c
 	expect((await harvested(next.id)).fitFileKey).toBe(LAPS_RUN_KEY)
 })
 
+test('a 403 on a file while the key check itself fails backs off and marks nothing', async () => {
+	// The check cannot tell whether the key is fine; the activity must not be
+	// written off as unavailable on that.
+	const { athleteId, connectionId } = await setup()
+	const blocked = await bridgeImport(athleteId, 'blocked')
+	serveOriginals({ blocked: 403 })
+	server.use(
+		http.get(
+			'https://intervals.icu/api/v1/athlete/0',
+			() => new HttpResponse(null, { status: 503 }),
+		),
+	)
+
+	const outcome = await runIntervalsIcuFitHarvest(athleteId, { now: NOW })
+
+	expect(outcome).toMatchObject({
+		kind: 'paused',
+		resumeAt: new Date('2026-10-13T13:00:00Z'),
+	})
+	expect((await harvested(blocked.id)).fitHarvestedAt).toBeNull()
+	expect(
+		(
+			await prisma.accountConnection.findUniqueOrThrow({
+				where: { id: connectionId },
+			})
+		).status,
+	).toBe('active')
+})
+
 test('rate limiting backs off for an hour and leaves the activity to retry', async () => {
 	const { athleteId } = await setup()
 	const run = await bridgeImport(athleteId, 'i1')
 	serveOriginals({ i1: 429 })
 
-	const outcome = await runIntervalsIcuFitHarvest(athleteId, {}, { now: NOW })
+	const outcome = await runIntervalsIcuFitHarvest(athleteId, { now: NOW })
 
 	expect(outcome).toMatchObject({
 		kind: 'paused',
 		resumeAt: new Date('2026-10-13T13:00:00Z'),
 	})
 	expect((await harvested(run.id)).fitHarvestedAt).toBeNull()
+})
+
+test('an original that inflates past the size limit is marked asked and not kept', async () => {
+	const { athleteId } = await setup()
+	const bomb = await bridgeImport(athleteId, 'bomb')
+	// A real FIT followed by 80 MiB of zeros: it gzips to about 80 KB.
+	const padded = new Uint8Array(80 * 1024 * 1024)
+	padded.set(fixture('run-with-laps.fit'))
+	serveOriginals({ bomb: gzipSync(padded) })
+
+	const outcome = await runIntervalsIcuFitHarvest(athleteId, { now: NOW })
+
+	expect(outcome).toMatchObject({ kind: 'done', requests: 1 })
+	expect(await harvested(bomb.id)).toMatchObject({
+		fitHarvestedAt: NOW,
+		originalFile: null,
+	})
 })
 
 test('the job re-enqueues itself until the harvest is done', async () => {
@@ -322,10 +392,7 @@ test('the job re-enqueues itself until the harvest is done', async () => {
 		{ now: NOW, dailyBudget: 0 },
 	)
 	const [next] = await continuations()
-	expect(JSON.parse(next!.payload)).toMatchObject({
-		athleteId,
-		windowStartedAt: NOW.toISOString(),
-	})
+	expect(JSON.parse(next!.payload)).toEqual({ athleteId })
 	expect(next!.runAt).toEqual(new Date('2026-10-14T12:00:00Z'))
 
 	await prisma.job.deleteMany({
@@ -343,7 +410,7 @@ test('after the harvest, uploading the same FIT matches on its FIT key', async (
 	})
 	await autoSaveImport(athleteId, run.id, 'UTC')
 	serveOriginals({ i1: fixture('run-with-laps.fit') })
-	await runIntervalsIcuFitHarvest(athleteId, {}, { now: NOW })
+	await runIntervalsIcuFitHarvest(athleteId, { now: NOW })
 
 	const result = await ingestActivityFile(
 		athleteId,

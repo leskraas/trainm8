@@ -3,6 +3,7 @@ import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { type CSSProperties, useEffect, useState } from 'react'
 import { data, Form, Link, redirect, useRevalidator } from 'react-router'
 import { ErrorList, Field } from '#app/components/forms.tsx'
+import { SourceCredits } from '#app/components/source-credits.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
 	Collapsible,
@@ -223,15 +224,9 @@ export default function FindingsStep({
 			</dl>
 			{/* Under the findings it speaks for, in view: never a tooltip or the
 			    "Noe er feil" fold. No motion — it is a credit, not a finding. */}
-			{credits.map((credit) => (
-				<p
-					key={credit}
-					data-source-credit
-					className="text-caption text-muted-foreground -mt-2 px-4 font-normal [text-wrap:pretty]"
-				>
-					{credit}
-				</p>
-			))}
+			{/* `gap-4`: two credits stand as far apart as each did on its own in
+			    the frame's `space-y-6` with `-mt-2`. */}
+			<SourceCredits credits={credits} className="-mt-2 gap-4 px-4" />
 			<Link to="/start/sporsmal" className={PRIMARY_ACTION}>
 				{L.correct}
 			</Link>
