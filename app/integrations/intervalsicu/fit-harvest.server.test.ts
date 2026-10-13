@@ -21,10 +21,11 @@ import {
 	runIntervalsIcuFitHarvestJob,
 } from './fit-harvest.server.ts'
 
-// The harvest (#547, WI §4): while Intervals.icu still serves Garmin, fetch
-// each bridge-era activity's ORIGINAL file (`GET /activity/{id}/file`, one
-// request per activity, within the 5,000 requests a day a key allows) and keep
-// its bytes and FIT key. It is a job that resumes where it stopped.
+// The harvest (#547, `docs/research/watch-data-trainm8-ingest.md` §4): while
+// Intervals.icu still serves Garmin, fetch each bridge-era activity's ORIGINAL
+// file (`GET /activity/{id}/file`, one request per activity, within the 5,000
+// requests a day a key allows) and keep its bytes and FIT key. It is a job
+// that resumes where it stopped.
 
 const FILE_URL = 'https://intervals.icu/api/v1/activity/:id/file'
 const FIXTURES = path.join(process.cwd(), 'tests', 'fixtures', 'fit')

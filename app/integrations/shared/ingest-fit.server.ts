@@ -48,9 +48,10 @@ export type IngestFitLegResult =
 	| { status: 'duplicate'; importId: string; matchedBy: MatchedBy }
 
 /**
- * **The shared FIT ingest** (WI §2): every source that hands trainm8 one FIT
- * per activity — the athlete's upload, a direct vendor, the Intervals.icu
- * harvest — calls this with the bytes and its own provider and activity id.
+ * **The shared FIT ingest** (`docs/research/watch-data-trainm8-ingest.md`
+ * §2): every source that hands trainm8 one FIT per activity — the athlete's
+ * upload, a direct vendor, the Intervals.icu harvest — calls this with the
+ * bytes and its own provider and activity id.
  *
  * Each sport session of the file is one activity (a triathlon is three). Per
  * leg: the candidate goes through the dedupe choke point
