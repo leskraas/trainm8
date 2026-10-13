@@ -108,7 +108,6 @@ import {
 	nbSessionStatusLabel,
 	nbStoredReplanReason,
 	nbUnavailableReason,
-	providerLabel,
 	sessionVolumeLabel,
 } from '#app/utils/labels.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
@@ -120,6 +119,7 @@ import {
 import { upsertSessionLog } from '#app/utils/session-log.server.ts'
 import { parseRecordingPhaseBars } from '#app/utils/session-profile.ts'
 import { buildReviewComparison } from '#app/utils/session-review.ts'
+import { recordingSource } from '#app/utils/source-attribution.ts'
 import { deriveShapeStrip } from '#app/utils/shape-strip.ts'
 import { type ResolveContext } from '#app/utils/strength/anchors.ts'
 import { getWorkoutLoadContexts } from '#app/utils/strength-log.server.ts'
@@ -810,6 +810,11 @@ export default function SessionDetailRoute({
 	const discipline =
 		session.workout?.discipline ?? session.recording?.discipline ?? ''
 	const hasReview = session.recording != null || session.status === 'completed'
+	// Where the recording came from, by its Origin Platform (ADR 0096). An owed
+	// credit — "Garmin [device model]" — goes by the title too: the Recording
+	// card is far below the fold on a phone, and ADR 0098 puts the attribution
+	// above it.
+	const source = session.recording ? recordingSource(session.recording) : null
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8 lg:max-w-6xl">
@@ -853,6 +858,14 @@ export default function SessionDetailRoute({
 								</Badge>
 							</div>
 							<SummaryFigures figures={summary} />
+							{source?.owed ? (
+								<p
+									data-source-attribution
+									className="text-footnote text-muted-foreground [overflow-wrap:anywhere]"
+								>
+									{source.text}
+								</p>
+							) : null}
 							<p
 								data-session-metadata
 								className="text-footnote text-muted-foreground flex flex-wrap items-baseline gap-x-1.5"
@@ -1896,17 +1909,23 @@ function RecordingPanel({
 }) {
 	const metrics = recordingMetrics(recording, sessionTss)
 	const phaseBars = parseRecordingPhaseBars(recording.phaseBarsJson)
-	const provider = recording.externalProvider
-		? providerLabel(recording.externalProvider)
-		: null
+	// The Origin Platform's words, not the transport's (ADR 0096, ADR 0098):
+	// "Garmin Forerunner 965" where "Intervals.icu" used to stand. In the
+	// device's own case, not the overline's capitals — it is a name (and
+	// Garmin's), not a kicker. A long name wraps under the title rather than
+	// squeezing it.
+	const source = recordingSource(recording)
 
 	return (
 		<Card>
-			<CardHeader className="flex flex-row items-baseline justify-between gap-3">
+			<CardHeader className="flex flex-row flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
 				<CardTitle className="text-heading">{L.recording.title}</CardTitle>
-				{provider ? (
-					<span className="text-overline text-muted-foreground uppercase">
-						{provider}
+				{source ? (
+					<span
+						data-source-attribution={source.owed ? 'owed' : 'courtesy'}
+						className="text-footnote text-muted-foreground min-w-0 [overflow-wrap:anywhere]"
+					>
+						{source.text}
 					</span>
 				) : null}
 			</CardHeader>

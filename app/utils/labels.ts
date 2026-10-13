@@ -3472,6 +3472,40 @@ export function providerLabel(provider: string): string {
 	return PROVIDER_LABELS[provider] ?? capitalize(provider)
 }
 
+/**
+ * Where a Recording came from, by its **Origin Platform** (ADR 0096) — never
+ * the transport it came down. `unknown` has no words: a Recording that cannot
+ * say where it came from says nothing rather than guess.
+ */
+export const ORIGIN_PLATFORM_LABELS: Record<string, string> = {
+	garmin: 'Garmin',
+	polar: 'Polar',
+	suunto: 'Suunto',
+	coros: 'COROS',
+	wahoo: 'Wahoo',
+	strava: 'Strava',
+	zwift: 'Zwift',
+	'apple-health': 'Apple Health',
+	'health-connect': 'Health Connect',
+	intervalsicu: 'intervals.icu',
+	upload: 'Opplastet fil',
+}
+
+/**
+ * The credits a platform's terms require (ADR 0098 §3, `source-terms.ts`).
+ *
+ * Garmin's derived-data line is Garmin's own wording, from its API Brand
+ * Guidelines' list of acceptable attributions, and stays in English on
+ * purpose: a Norwegian paraphrase is not on that list. Changing it waits on
+ * Garmin saying a translation is acceptable (#542's outreach).
+ */
+export const SOURCE_ATTRIBUTION_LABELS = {
+	derived: {
+		garmin: 'Insights derived in part from Garmin device-sourced data.',
+		polar: 'Bygger delvis på data fra Polar.',
+	},
+} as const
+
 // ---------------------------------------------------------------------------
 // The four tabs
 // ---------------------------------------------------------------------------
