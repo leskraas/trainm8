@@ -451,7 +451,10 @@ test('pasting a new key recovers the same revoked connection and sync works agai
 	expect(rows[0]!.status).toBe('active')
 })
 
-test('CHARACTERIZATION (today): a Strava stub is filed as a 0-second other session', async () => {
+test('a Strava stub from the activity list is skipped, not filed as a 0-second session', async () => {
+	// Intervals.icu cannot hand out Strava activities; it lists them as stubs
+	// with no type or duration. Before #544 each became a 0-second 'other'
+	// session (pinned in 5eea406); now only the real activity lands.
 	const { user } = await setupConnection()
 	server.use(
 		http.get(ACTIVITIES_URL, () =>
@@ -463,10 +466,13 @@ test('CHARACTERIZATION (today): a Strava stub is filed as a 0-second other sessi
 	const result = await syncIntervalsIcuActivities(user.id)
 
 	invariant(result.ok, 'expected a successful sync')
-	const stub = await prisma.activityImport.findFirst({
-		where: { athleteId: user.id, externalId: intervalsIcuStravaStub.id },
-		select: { durationSec: true, discipline: true, promotedSessionId: true },
+	expect(result).toMatchObject({ created: 1, skipped: 0 })
+	const imports = await prisma.activityImport.findMany({
+		where: { athleteId: user.id },
+		select: { externalId: true },
 	})
-	expect(stub).toMatchObject({ durationSec: 0, discipline: 'other' })
-	expect(stub!.promotedSessionId).not.toBeNull()
+	expect(imports).toEqual([{ externalId: 'i9100' }])
+	expect(
+		await prisma.workoutSession.count({ where: { userId: user.id } }),
+	).toBe(1)
 })

@@ -117,6 +117,10 @@ export const IntervalsIcuActivitySchema = z
 		max_speed: z.number().nullish(),
 		total_elevation_gain: z.number().nullish(),
 		icu_joules: z.number().nullish(),
+		// Set on stubs the API cannot supply (#544): `source: "STRAVA"` and a
+		// `_note` saying why. Read only to drop the row.
+		source: z.string().nullish(),
+		_note: z.string().nullish(),
 	})
 	.passthrough()
 export type IntervalsIcuActivity = z.infer<typeof IntervalsIcuActivitySchema>
