@@ -199,7 +199,7 @@ await cachified({
 Always validate cached data with Zod:
 
 ```typescript
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 const EventSchema = z.object({
 	id: z.string(),
@@ -365,7 +365,7 @@ Epic Stack includes a dashboard to manage cache:
 // app/utils/api.server.ts
 import { cachified, cache } from '#app/utils/cache.server.ts'
 import { type Timings } from '#app/utils/timing.server.ts'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 const GitHubEventSchema = z.object({
 	id: z.string(),
@@ -410,7 +410,7 @@ export async function getGitHubEvents({
 // app/utils/user.server.ts
 import { cachified, cache } from '#app/utils/cache.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 const UserStatsSchema = z.object({
 	totalNotes: z.number(),

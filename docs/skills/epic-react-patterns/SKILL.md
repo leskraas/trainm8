@@ -228,7 +228,7 @@ const handleClick = useCallback(() => {
 ```typescript
 // ✅ Import specific functions
 import { useSearchParams } from 'react-router'
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 ```
 
 **❌ Avoid - Barrel imports:**
@@ -236,7 +236,7 @@ import { parseWithZod } from '@conform-to/zod'
 ```typescript
 // ❌ Don't import entire libraries if you only need one thing
 import * as ReactRouter from 'react-router'
-import * as Conform from '@conform-to/zod'
+import * as Conform from '@conform-to/zod/v3'
 ```
 
 ### Form Handling with Conform
@@ -245,7 +245,7 @@ import * as Conform from '@conform-to/zod'
 
 ```typescript
 import { useForm, getFormProps } from '@conform-to/react'
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { Form } from 'react-router'
 
 const SignupSchema = z.object({
