@@ -44,7 +44,7 @@ import { STRAVA_PROVIDER } from './types.ts'
  * the window happens to reach — a backfill stays inside the per-app rate budget
  * (ADR 0013) without having to defer telemetry to read time.
  *
- * Idempotent on retry: the unique `(provider, externalId)` guard skips activities
+ * Idempotent on retry: the unique `(athlete, provider, externalId)` guard skips activities
  * already imported, and promotion is re-attempted for any import left unpromoted
  * by an interrupted earlier run.
  */
@@ -190,7 +190,8 @@ async function ensureImport(
 		if (err instanceof Error && err.message.toLowerCase().includes('unique')) {
 			const existing = await prisma.activityImport.findUnique({
 				where: {
-					externalProvider_externalId: {
+					athleteId_externalProvider_externalId: {
+						athleteId,
 						externalProvider: input.externalProvider,
 						externalId: input.externalId,
 					},

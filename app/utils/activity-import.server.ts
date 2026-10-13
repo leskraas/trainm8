@@ -191,12 +191,14 @@ export async function isAutoSaveMirror(importId: string): Promise<boolean> {
  * row was actually touched.
  */
 export async function updateActivityImportSnapshot(
+	athleteId: string,
 	input: ActivityImportInput,
 ): Promise<{ updated: boolean }> {
 	const data = ActivityImportInputSchema.parse(input)
 	const existing = await prisma.activityImport.findUnique({
 		where: {
-			externalProvider_externalId: {
+			athleteId_externalProvider_externalId: {
+				athleteId,
 				externalProvider: data.externalProvider,
 				externalId: data.externalId,
 			},
@@ -220,11 +222,18 @@ export async function updateActivityImportSnapshot(
  * training history is immutable to source-side deletes (ADR 0012 / ADR 0049).
  */
 export async function deleteImportIfAutoSaveMirror(
+	athleteId: string,
 	externalProvider: string,
 	externalId: string,
 ): Promise<{ deleted: boolean }> {
 	const existing = await prisma.activityImport.findUnique({
-		where: { externalProvider_externalId: { externalProvider, externalId } },
+		where: {
+			athleteId_externalProvider_externalId: {
+				athleteId,
+				externalProvider,
+				externalId,
+			},
+		},
 		select: { id: true, promotedSessionId: true },
 	})
 	if (!existing) return { deleted: false }

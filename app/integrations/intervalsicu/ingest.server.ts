@@ -128,7 +128,7 @@ export function mapActivityToImportInput(
  * reconciliation (#205), auto-saving each one (ADR 0049): matched onto a single
  * same-day same-discipline planned session when one exists, else onto a
  * recording-only session of its own. Idempotent via the unique
- * `(provider, externalId)` guard: an activity we already hold is counted as
+ * `(athlete, provider, externalId)` guard: an activity we already hold is counted as
  * skipped, not re-imported. Mirrors Strava's `fileActivitiesWithAutoSave`.
  */
 export async function fileIntervalsIcuActivities(
@@ -362,7 +362,8 @@ export async function ingestActivityTelemetry(
 		try {
 			const existing = await prisma.activityImport.findUnique({
 				where: {
-					externalProvider_externalId: {
+					athleteId_externalProvider_externalId: {
+						athleteId: connection.athleteId,
 						externalProvider: INTERVALSICU_PROVIDER,
 						externalId: activity.id,
 					},

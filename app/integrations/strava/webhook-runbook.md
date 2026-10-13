@@ -25,7 +25,8 @@ out-of-band work:
   athlete can re-authorize without losing anything.
 
 All flows are idempotent: duplicate `create` events hit the unique
-`(provider, externalId)` guard, and refresh/delete/revoke are effect-idempotent.
+`(athlete, provider, externalId)` guard, and refresh/delete/revoke are
+effect-idempotent.
 
 ## Environment variables
 

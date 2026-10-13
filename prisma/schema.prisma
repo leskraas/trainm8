@@ -1665,7 +1665,10 @@ model ActivityImport {
   stream          ActivityStream?
   detection       WorkoutDetection?
 
-  @@unique([externalProvider, externalId])
+  /// The athlete is part of the key (#544): two athletes may hold the same
+  /// provider activity (a shared Intervals.icu key, a group-ride file) and each
+  /// keeps their own copy.
+  @@unique([athleteId, externalProvider, externalId])
   @@index([athleteId])
 }
 

@@ -135,7 +135,13 @@ function parseArtifact(artifact: UploadedArtifact): ParseOutcome {
  * Stable content-derived dedupe key: a hash over the normalized activity
  * identity (start time + duration + distance), not the file name or bytes —
  * so the same activity uploaded twice, renamed, or once loose and once inside
- * a zip collapses via the `unique(externalProvider, externalId)` constraint.
+ * a zip collapses via the `unique(athleteId, externalProvider, externalId)`
+ * constraint.
+ *
+ * The athlete is deliberately not hashed in: the key already carries them
+ * (#544), so two athletes uploading the same file each keep a copy. Hashing the
+ * athlete as well would change the id of every upload already stored, and a
+ * re-upload of an old file would no longer be caught as a duplicate.
  */
 function contentDerivedExternalId(activity: ParsedActivity): string {
 	const hash = createHash('sha256')

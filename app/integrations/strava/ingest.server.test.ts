@@ -186,7 +186,8 @@ test('the forward streams loop persists index-mapped provider laps', async () =>
 
 	const imp = await prisma.activityImport.findUniqueOrThrow({
 		where: {
-			externalProvider_externalId: {
+			athleteId_externalProvider_externalId: {
+				athleteId: connection.athleteId,
 				externalProvider: 'strava',
 				externalId: '90042',
 			},

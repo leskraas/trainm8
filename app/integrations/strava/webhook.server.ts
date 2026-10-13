@@ -165,7 +165,11 @@ export async function processStravaWebhookEvent(
 				// Only an untouched auto-save mirror follows the source-side delete;
 				// a Recording the athlete has built on is their history and survives
 				// (ADR 0012 as amended by ADR 0049).
-				await deleteImportIfAutoSaveMirror(STRAVA_PROVIDER, payload.objectId)
+				await deleteImportIfAutoSaveMirror(
+					connection.athleteId,
+					STRAVA_PROVIDER,
+					payload.objectId,
+				)
 			}
 		} catch (err) {
 			// Permanent, non-retryable outcomes complete the job as a no-op instead of
@@ -206,7 +210,8 @@ async function refreshUpdatedActivity(
 ): Promise<void> {
 	const existing = await prisma.activityImport.findUnique({
 		where: {
-			externalProvider_externalId: {
+			athleteId_externalProvider_externalId: {
+				athleteId: connection.athleteId,
 				externalProvider: STRAVA_PROVIDER,
 				externalId,
 			},
@@ -218,7 +223,10 @@ async function refreshUpdatedActivity(
 
 	const activity = await fetchStravaActivityById(connection, externalId)
 	const input = mapActivityToImportInput(activity)
-	const { updated } = await updateActivityImportSnapshot(input)
+	const { updated } = await updateActivityImportSnapshot(
+		connection.athleteId,
+		input,
+	)
 	// Lost a race between the guard read and the guarded update — the athlete
 	// matched, edited, or logged it in between — so it is a frozen Recording now
 	// (ADR 0012) and its telemetry and detection stay untouched.
@@ -263,7 +271,7 @@ async function refreshUpdatedActivity(
  * Fetch a newly-created Strava activity, file it as an `ActivityImport`, and
  * auto-save it (ADR 0049) — matched onto a same-day planned session when exactly
  * one fits, else onto a recording-only session of its own. Idempotent: a
- * duplicate event hits the unique `(provider, externalId)` guard and is skipped.
+ * duplicate event hits the unique `(athlete, provider, externalId)` guard and is skipped.
  */
 type StravaConnectionRef = {
 	id: string
