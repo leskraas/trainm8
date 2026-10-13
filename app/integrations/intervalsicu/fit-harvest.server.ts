@@ -39,7 +39,8 @@ import {
  * window and its count travel in the job's payload; the job re-enqueues itself
  * until no import is left, at the window's turn when the budget is spent. A
  * rejected key revokes the connection (ADR 0026) and stops; a rate limit or a
- * server error backs off an hour and leaves the activity to the next run.
+ * server error backs off an hour and leaves the activity to the next run, as
+ * does a 401/403 on a file when the key check that follows cannot answer.
  *
  * **Order.** Garmin-origin activities first, because Garmin is the supply at
  * risk, then newest first.
@@ -148,16 +149,26 @@ export async function runIntervalsIcuFitHarvest(
 					// A 401/403 may be about this one activity (Garmin's block may
 					// answer per activity), not the key. Ask who owns the key: if
 					// that still works, the activity is unavailable, not the key.
+					// When the check itself fails, nothing is known: back off rather
+					// than write the activity off for good.
 					requests++
 					used++
-					if (await keyStillWorks(connection.accessToken)) {
+					const key = await checkKey(connection.accessToken)
+					if (key === 'works') {
 						file = null
-					} else {
+					} else if (key === 'rejected') {
 						await prisma.accountConnection.update({
 							where: { id: connection.id },
 							data: { status: 'revoked' },
 						})
 						return { kind: 'revoked', requests }
+					} else {
+						return {
+							kind: 'paused',
+							requests,
+							resumeAt: new Date(now.getTime() + BACKOFF_MS),
+							state: windowState(),
+						}
 					}
 				} else if (
 					err instanceof IntervalsIcuApiError ||
@@ -178,15 +189,19 @@ export async function runIntervalsIcuFitHarvest(
 	}
 }
 
-/** Whether the key still opens `athlete/0` (a rejection there is the key's). */
-async function keyStillWorks(apiKey: string): Promise<boolean> {
+/**
+ * Whether the key still opens `athlete/0`: a rejection there is the key's; any
+ * other failure (a 5xx, the network) says nothing either way.
+ */
+async function checkKey(
+	apiKey: string,
+): Promise<'works' | 'rejected' | 'unknown'> {
 	try {
 		await intervalsIcuApiGet(apiKey, INTERVALSICU_ATHLETE_SELF_PATH)
-		return true
+		return 'works'
 	} catch (err) {
-		if (err instanceof IntervalsIcuKeyRejectedError) return false
-		// Any other failure says nothing about the key; keep it.
-		return true
+		if (err instanceof IntervalsIcuKeyRejectedError) return 'rejected'
+		return 'unknown'
 	}
 }
 

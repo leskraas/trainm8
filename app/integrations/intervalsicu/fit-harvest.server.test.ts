@@ -293,6 +293,35 @@ test('a 403 on one file while the key still works marks that activity, not the c
 	expect((await harvested(next.id)).fitFileKey).toBe(LAPS_RUN_KEY)
 })
 
+test('a 403 on a file while the key check itself fails backs off and marks nothing', async () => {
+	// The check cannot tell whether the key is fine; the activity must not be
+	// written off as unavailable on that.
+	const { athleteId, connectionId } = await setup()
+	const blocked = await bridgeImport(athleteId, 'blocked')
+	serveOriginals({ blocked: 403 })
+	server.use(
+		http.get(
+			'https://intervals.icu/api/v1/athlete/0',
+			() => new HttpResponse(null, { status: 503 }),
+		),
+	)
+
+	const outcome = await runIntervalsIcuFitHarvest(athleteId, {}, { now: NOW })
+
+	expect(outcome).toMatchObject({
+		kind: 'paused',
+		resumeAt: new Date('2026-10-13T13:00:00Z'),
+	})
+	expect((await harvested(blocked.id)).fitHarvestedAt).toBeNull()
+	expect(
+		(
+			await prisma.accountConnection.findUniqueOrThrow({
+				where: { id: connectionId },
+			})
+		).status,
+	).toBe('active')
+})
+
 test('rate limiting backs off for an hour and leaves the activity to retry', async () => {
 	const { athleteId } = await setup()
 	const run = await bridgeImport(athleteId, 'i1')
