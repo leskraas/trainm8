@@ -1882,6 +1882,19 @@ and counts once (ADR 0096). It carries its own **Origin Platform**, so the
 duplicate's terms still bind. _Avoid_: Duplicate import, merged activity, shadow
 row
 
+**FIT Key**: The identity of an original FIT activity file,
+`fit:<manufacturer>:<product>:<serial>:<time created>` from its `file_id` (ADR
+0096 §1). The same file gives the same key on every path, so an upload of a file
+a source already delivered becomes an **Import Alias**. Strong, not certain: the
+FIT spec promises no uniqueness. Every leg of a multisport file shares its
+file's key. _Avoid_: File hash, activity id
+
+**FIT Harvest**: The one-time fetch of each bridge-era Intervals.icu activity's
+original file, while Intervals.icu still serves Garmin, to keep its bytes and
+**FIT Key** (#547, `docs/agents/intervalsicu-fit-harvest.md`). It changes no
+metric and no **Recording**. _Avoid_: Backfill (that fetches activities, not
+their files), bulk download
+
 **Recording**: An Activity Import that has been linked to a Workout Session as
 its executed telemetry. The Tape reads a Recording for the planned-vs-actual a
 **Stream** row states — what was done on line 1, what it cost on line 2, and the

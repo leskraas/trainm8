@@ -82,8 +82,24 @@ export async function recomputeLoadAfterBatch(
  * whenever the provider didn't report them. Distances are metres, speeds m/s,
  * times seconds. The type is inferred from the schema so the two never drift.
  */
+/**
+ * The transports an import can come down. The direct vendors are here ahead of
+ * their folders (#555) so the shared FIT ingest (`ingestFit`) can file them.
+ */
+export const IMPORT_TRANSPORTS = [
+	'manual',
+	'strava',
+	'intervalsicu',
+	'garmin',
+	'polar',
+	'coros',
+	'suunto',
+	'wahoo',
+] as const
+export type ImportTransport = (typeof IMPORT_TRANSPORTS)[number]
+
 export const ActivityImportInputSchema = z.object({
-	externalProvider: z.enum(['manual', 'strava', 'intervalsicu', 'garmin']),
+	externalProvider: z.enum(IMPORT_TRANSPORTS),
 	externalId: z.string(),
 	/**
 	 * Provenance (ADR 0096 §1). `originPlatform` defaults to what the transport
@@ -241,23 +257,32 @@ export async function updateActivityImportSnapshot(
  * Workout Session auto-save created goes with it, since the session exists only
  * to carry this import. A Recording the athlete has built on survives: their
  * training history is immutable to source-side deletes (ADR 0012 / ADR 0049).
+ *
+ * With aliases (ADR 0096 §7): a delete for a key held as an alias removes that
+ * alias only, and a delete for the import's own key keeps the import while any
+ * alias remains — another source still vouches for the activity.
  */
 export async function deleteImportIfAutoSaveMirror(
 	athleteId: string,
 	externalProvider: string,
 	externalId: string,
 ): Promise<{ deleted: boolean }> {
+	const key = { athleteId, externalProvider, externalId }
+	const { count: aliasesRemoved } = await prisma.activityImportAlias.deleteMany(
+		{ where: key },
+	)
+	if (aliasesRemoved > 0) return { deleted: false }
+
 	const existing = await prisma.activityImport.findUnique({
-		where: {
-			athleteId_externalProvider_externalId: {
-				athleteId,
-				externalProvider,
-				externalId,
-			},
+		where: { athleteId_externalProvider_externalId: key },
+		select: {
+			id: true,
+			promotedSessionId: true,
+			_count: { select: { aliases: true } },
 		},
-		select: { id: true, promotedSessionId: true },
 	})
 	if (!existing) return { deleted: false }
+	if (existing._count.aliases > 0) return { deleted: false }
 	if (!(await isAutoSaveMirror(existing.id))) return { deleted: false }
 
 	// The recompute reads the import's date, so resolve it before the rows go.

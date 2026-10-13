@@ -4933,8 +4933,9 @@ export const INTEGRATIONS_LABELS = {
 	disconnectConfirm: (name: string) => `Koble fra ${name}`,
 	disconnected: (name: string) => `Koblet fra ${name}`,
 	disconnectedBody: 'Øktene du har importert, blir i treningshistorikken din.',
+	// ADR 0096 §8: dedupe is strong, not certain, so the hub says both halves.
 	dualSource:
-		'Både Strava og intervals.icu er koblet til. En økt som når begge, kan komme hit to ganger – én fra hver. Begge lagres; slett den du ikke vil beholde.',
+		'Flere kilder er koblet til. En økt som kommer fra mer enn én av dem, lagres som én økt. Kjenner vi den ikke igjen, kan den likevel komme to ganger – da sletter du den du ikke vil beholde.',
 	intervalsicu: {
 		name: 'intervals.icu',
 		revoked:

@@ -12,26 +12,35 @@ import { prisma } from './db.server.ts'
  * and under-attributing breaches terms). With one, it is the sessions
  * scheduled inside it.
  *
- * Aliases (ADR 0096 §3) join the set when #547 adds them.
+ * Each import's aliases (ADR 0096 §3) join the set: an upload that duplicates
+ * a Strava import is still Strava data.
  */
 export async function readRecordedBindingSet(
 	athleteId: string,
 	window?: { from: Date; to: Date },
 ): Promise<string[]> {
-	const rows = await prisma.activityImport.findMany({
-		where: {
-			athleteId,
-			recordingFor: {
-				some: {
-					status: 'completed',
-					...(window
-						? { scheduledAt: { gte: window.from, lte: window.to } }
-						: {}),
-				},
+	const counted = {
+		athleteId,
+		recordingFor: {
+			some: {
+				status: 'completed',
+				...(window
+					? { scheduledAt: { gte: window.from, lte: window.to } }
+					: {}),
 			},
 		},
-		distinct: ['originPlatform'],
-		select: { originPlatform: true },
-	})
-	return rows.map((row) => row.originPlatform)
+	}
+	const [imports, aliases] = await Promise.all([
+		prisma.activityImport.findMany({
+			where: counted,
+			distinct: ['originPlatform'],
+			select: { originPlatform: true },
+		}),
+		prisma.activityImportAlias.findMany({
+			where: { athleteId, activityImport: counted },
+			distinct: ['originPlatform'],
+			select: { originPlatform: true },
+		}),
+	])
+	return [...new Set([...imports, ...aliases].map((row) => row.originPlatform))]
 }

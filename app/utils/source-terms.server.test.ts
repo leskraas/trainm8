@@ -1,5 +1,6 @@
 import { faker } from '@faker-js/faker/locale/en'
 import { expect, test } from 'vitest'
+import { fileActivityImport } from '#app/integrations/shared/file-activity-import.server.ts'
 import { createUser } from '#tests/db-utils.ts'
 import {
 	autoSaveImport,
@@ -35,6 +36,27 @@ async function recorded(
 	if (save) await autoSaveImport(athleteId, id, 'UTC', { recomputeLoad: false })
 	return id
 }
+
+test("an alias's Origin Platform binds what its import feeds (ADR 0096 §3)", async () => {
+	const { id: athleteId } = await athlete()
+	const startedAt = daysAgo(2)
+	await recorded(athleteId, { externalProvider: 'manual', startedAt })
+	// The same run from Strava: an alias, not a second session.
+	await fileActivityImport(athleteId, {
+		externalProvider: 'strava',
+		externalId: 'strava-1',
+		startedAt,
+		endedAt: new Date(startedAt.getTime() + 45 * 60 * 1000),
+		durationSec: 2700,
+		discipline: 'run',
+		rawJson: '{}',
+	})
+
+	expect((await readRecordedBindingSet(athleteId)).sort()).toEqual([
+		'strava',
+		'upload',
+	])
+})
 
 test('the binding set behind load is every Origin Platform the counted sessions were recorded on', async () => {
 	const { id: athleteId } = await athlete()

@@ -79,6 +79,16 @@ export function intervalsIcuStreamsPath(externalId: string): string {
 }
 
 /**
+ * The per-activity **original file** endpoint (#547): "Download original
+ * activity file" in the API's OpenAPI docs — the file as the device or source
+ * delivered it, unlike the bulk `download-fit-files`, which returns files
+ * Intervals.icu generated. It may arrive gzipped.
+ */
+export function intervalsIcuOriginalFilePath(externalId: string): string {
+	return `/activity/${encodeURIComponent(externalId)}/file`
+}
+
+/**
  * The per-activity intervals endpoint (#356): Intervals.icu's own detected (or
  * lap-derived, per the athlete's setting) interval breakdown — the highest-trust
  * external structure signal, athlete-editable and pre-typed `WORK`/`RECOVERY`.

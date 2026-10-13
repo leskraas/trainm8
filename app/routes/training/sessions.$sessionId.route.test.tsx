@@ -39,6 +39,7 @@ function makeRecording(overrides: Partial<Recording> = {}): Recording {
 		tssValue: 92,
 		originPlatform: 'strava',
 		deviceName: null,
+		aliasOrigins: [],
 		detection: null,
 		stream: null,
 		...overrides,
@@ -347,6 +348,20 @@ test('a Garmin recording with no device name says plain "Garmin"', async () => {
 
 	await screen.findByText('Opptak')
 	expect(screen.getAllByText('Garmin')).toHaveLength(2)
+})
+
+test('an uploaded run that Garmin also delivered owes "Garmin [device model]" by the title (ADR 0096 §3)', async () => {
+	const session = makeSession({
+		recording: makeRecording({
+			originPlatform: 'upload',
+			deviceName: 'Garmin Forerunner 965',
+			aliasOrigins: ['garmin'],
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Opptak')
+	expect(screen.getAllByText('Garmin Forerunner 965')).toHaveLength(2)
 })
 
 test('a non-Garmin recording names its source on the card only, owing nothing by the title', async () => {

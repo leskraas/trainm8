@@ -20,29 +20,30 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  image                UserImage?
-  password             Password?
-  roles                Role[]
-  sessions             Session[]
-  connections          Connection[]
-  passkey              Passkey[]
-  workouts             Workout[]
-  trainingSessions     WorkoutSession[]
-  athleteProfile       AthleteProfile?
-  exercises            Exercise[]
-  activityImports      ActivityImport[]
-  events               Event[]
-  loadSnapshots        LoadSnapshot[]
-  accountConnections   AccountConnection[]
-  weekReplans          WeekReplan[]
-  weekReplanProposals  WeekReplanProposal[]
+  image                 UserImage?
+  password              Password?
+  roles                 Role[]
+  sessions              Session[]
+  connections           Connection[]
+  passkey               Passkey[]
+  workouts              Workout[]
+  trainingSessions      WorkoutSession[]
+  athleteProfile        AthleteProfile?
+  exercises             Exercise[]
+  activityImports       ActivityImport[]
+  activityImportAliases ActivityImportAlias[]
+  events                Event[]
+  loadSnapshots         LoadSnapshot[]
+  accountConnections    AccountConnection[]
+  weekReplans           WeekReplan[]
+  weekReplanProposals   WeekReplanProposal[]
   /// Every Plan Outline this athlete owns, event-anchored or open-ended (ADR 0079).
-  planOutlines         PlanOutline[]
-  loadRecomputeNotices LoadRecomputeNotice[]
-  catalogueSaves       CatalogueSave[]
-  programInstances     ProgramInstance[]
-  workoutReports       WorkoutReport[]       @relation("WorkoutReportReporter")
-  moderatedReports     WorkoutReport[]       @relation("WorkoutReportModerator")
+  planOutlines          PlanOutline[]
+  loadRecomputeNotices  LoadRecomputeNotice[]
+  catalogueSaves        CatalogueSave[]
+  programInstances      ProgramInstance[]
+  workoutReports        WorkoutReport[]       @relation("WorkoutReportReporter")
+  moderatedReports      WorkoutReport[]       @relation("WorkoutReportModerator")
 }
 
 model UserImage {
@@ -1634,8 +1635,13 @@ model ActivityImport {
   /// Display text for the Garmin attribution only; never a key, never gated on.
   deviceName            String?
   /// `fit:<manufacturer>:<product|->:<serial|->:<time_created>` from the
-  /// original FIT's `file_id` (ADR 0096 §1); null without one. Filled by #547.
+  /// original FIT's `file_id` (ADR 0096 §1); null without one. Computed by
+  /// `app/integrations/shared/fit-file-key.ts` only.
   fitFileKey            String?
+  /// When the FIT harvest (#547) asked Intervals.icu for this import's original
+  /// file, whatever the answer: the harvest's resume marker. Null until asked;
+  /// never set for imports from other transports.
+  fitHarvestedAt        DateTime?
   startedAt             DateTime
   endedAt               DateTime
   durationSec           Int
@@ -1670,18 +1676,70 @@ model ActivityImport {
   tssConfidence         String? // 'high' | 'medium' | 'low'
   createdAt             DateTime  @default(now())
 
-  athlete         User              @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  promotedSession WorkoutSession?   @relation("ImportPromotedTo", fields: [promotedSessionId], references: [id])
-  unlinkedFrom    WorkoutSession?   @relation("ImportUnlinkedFrom", fields: [unlinkedFromSessionId], references: [id], onDelete: SetNull)
-  recordingFor    WorkoutSession[]  @relation("SessionRecording")
+  athlete         User                  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  promotedSession WorkoutSession?       @relation("ImportPromotedTo", fields: [promotedSessionId], references: [id])
+  unlinkedFrom    WorkoutSession?       @relation("ImportUnlinkedFrom", fields: [unlinkedFromSessionId], references: [id], onDelete: SetNull)
+  recordingFor    WorkoutSession[]      @relation("SessionRecording")
   stream          ActivityStream?
   detection       WorkoutDetection?
+  originalFile    ActivityFile?
+  aliases         ActivityImportAlias[]
 
   /// The athlete is part of the key (#544): two athletes may hold the same
   /// provider activity (a shared Intervals.icu key, a group-ride file) and each
   /// keeps their own copy.
   @@unique([athleteId, externalProvider, externalId])
   @@index([athleteId])
+  @@index([athleteId, fitFileKey])
+}
+
+/// An **Import Alias** (ADR 0096 §3): another source's record of an activity
+/// trainm8 already holds as an `ActivityImport`. Not an import — no session, no
+/// stream, no TSS. It exists so the next sync knows it has the activity, so the
+/// source-terms gate knows every platform the data touched (ADR 0098), and so
+/// the athlete can see "also from Polar". A transport key lives in exactly one
+/// of `ActivityImport` / `ActivityImportAlias` per athlete (enforced in code,
+/// `app/integrations/shared/file-activity-import.server.ts`).
+model ActivityImportAlias {
+  id               String   @id @default(cuid())
+  /// The import this source duplicates; the alias goes with it.
+  activityImportId String
+  /// The owner, denormalised so lookups never join.
+  athleteId        String
+  /// The newcomer's transport and its id there.
+  externalProvider String
+  externalId       String
+  /// The newcomer's Origin Platform, by the same rules as `ActivityImport`.
+  originPlatform   String   @default("unknown")
+  deviceName       String?
+  fitFileKey       String?
+  /// Which dedupe rule matched: 'fit-file-key' | 'fuzzy' (ADR 0096 §4).
+  matchedBy        String
+  createdAt        DateTime @default(now())
+
+  activityImport ActivityImport @relation(fields: [activityImportId], references: [id], onDelete: Cascade)
+  athlete        User           @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@unique([athleteId, externalProvider, externalId])
+  @@index([activityImportId])
+  @@index([athleteId, fitFileKey])
+}
+
+/// The original activity file an import was built from, byte for byte (#547):
+/// a FIT the athlete uploaded, or the original Intervals.icu hands out on
+/// `GET /activity/{id}/file`. Kept so laps and channels added later can be
+/// re-derived, and so bridge-era history keeps its file after the bridge
+/// closes. One per import; a multisport file is stored once per leg.
+model ActivityFile {
+  id               String   @id @default(cuid())
+  activityImportId String   @unique
+  format           String // 'fit'
+  /// Where the bytes came from: 'upload' | 'intervalsicu-harvest' | a vendor.
+  source           String
+  bytes            Bytes
+  createdAt        DateTime @default(now())
+
+  activityImport ActivityImport @relation(fields: [activityImportId], references: [id], onDelete: Cascade)
 }
 
 /// Per-sample telemetry for an Activity Import (ADR 0020): the moment-to-moment

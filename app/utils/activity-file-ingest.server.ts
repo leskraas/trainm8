@@ -1,14 +1,16 @@
-import { createHash } from 'node:crypto'
 import { gunzipSync } from 'node:zlib'
 import { unzipSync } from 'fflate'
+import { fileActivityImport } from '#app/integrations/shared/file-activity-import.server.ts'
+import {
+	contentDerivedExternalId,
+	ingestFit,
+} from '#app/integrations/shared/ingest-fit.server.ts'
 import {
 	autoSaveImport,
-	createActivityImport,
 	type ActivityImportInput,
 } from './activity-import.server.ts'
 import { type RawStream } from './activity-stream.ts'
 import { enrichImportTelemetry } from './activity-telemetry.server.ts'
-import { parseFit } from './fit-parser.server.ts'
 import { parseGpx } from './gpx-parser.server.ts'
 import { parseTcx } from './tcx-parser.server.ts'
 
@@ -65,6 +67,8 @@ type ParseOutcome =
 			stream: RawStream | null
 			rawJson: string
 	  }
+	/** A FIT file: handed whole to the shared FIT ingest (`ingestFit`). */
+	| { kind: 'fit'; fileName: string; bytes: Uint8Array }
 	| { kind: 'unsupported'; message: string }
 
 /**
@@ -85,15 +89,8 @@ function parseArtifact(artifact: UploadedArtifact): ParseOutcome {
 	}
 
 	if (ext === 'fit' || looksLikeFit(bytes)) {
-		const { activity, stream } = parseFit(bytes)
-		// The binary payload is not JSON-serializable; snapshot the decoded
-		// summary instead. (Raw-file retention is a later slice.)
-		return {
-			kind: 'activity',
-			activity,
-			stream,
-			rawJson: JSON.stringify({ fileName, format: 'fit', ...activity }),
-		}
+		// Decoded by the shared FIT ingest, which keeps the original bytes.
+		return { kind: 'fit', fileName, bytes }
 	}
 
 	if (ext === 'gpx') {
@@ -132,37 +129,17 @@ function parseArtifact(artifact: UploadedArtifact): ParseOutcome {
 }
 
 /**
- * Stable content-derived dedupe key: a hash over the normalized activity
- * identity (start time + duration + distance), not the file name or bytes —
- * so the same activity uploaded twice, renamed, or once loose and once inside
- * a zip collapses via the `unique(athleteId, externalProvider, externalId)`
- * constraint.
- *
- * The athlete is deliberately not hashed in: the key already carries them
- * (#544), so two athletes uploading the same file each keep a copy. Hashing the
- * athlete as well would change the id of every upload already stored, and a
- * re-upload of an old file would no longer be caught as a duplicate.
- */
-function contentDerivedExternalId(activity: ParsedActivity): string {
-	const hash = createHash('sha256')
-		.update(
-			[
-				activity.startedAt.toISOString(),
-				activity.durationSec,
-				activity.distanceM ?? '',
-			].join('|'),
-		)
-		.digest('hex')
-	return `manual-${hash}`
-}
-
-/**
  * The provider-neutral ingest entry point (PRD #164): takes an uploaded
- * artifact and files zero-or-more Activity Imports through the existing
- * `createActivityImport` + `autoSaveImport` pipeline — the same pipeline
- * Strava imports take, so Discipline handling, ADR 0015 `'other'` behavior,
- * and TSS / Training Load treatment are identical across sources. Every
- * upload surface (route action today; share target later) calls this.
+ * artifact and files its activity through the dedupe choke point
+ * (`fileActivityImport`, ADR 0096 §4) and `autoSaveImport` — the same pipeline
+ * every provider takes, so Discipline handling, ADR 0015 `'other'` behavior,
+ * and TSS / Training Load treatment are identical across sources. A FIT file
+ * goes whole to the shared FIT ingest (`ingestFit`), which also keeps its bytes
+ * and files each sport session of a multisport file on its own. Every upload
+ * surface (the upload route, the share target) calls this.
+ *
+ * `duplicate` covers a file uploaded before and an activity another source
+ * already delivered — the latter is kept as an Import Alias, not a session.
  */
 export async function ingestActivityFile(
 	athleteId: string,
@@ -180,29 +157,46 @@ export async function ingestActivityFile(
 		return { status: 'unsupported', message: parsed.message }
 	}
 
+	if (parsed.kind === 'fit') {
+		let legs
+		try {
+			legs = await ingestFit(athleteId, parsed.bytes, {
+				externalProvider: 'manual',
+				fileSource: 'upload',
+				fileName: parsed.fileName,
+				timezone: options.timezone,
+				disciplineOverride: options.disciplineOverride,
+			})
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : 'Failed to parse file'
+			return { status: 'failed', message }
+		}
+		// A multisport file lands as several sessions; the athlete goes to the
+		// first one that is new.
+		const imported = legs.find((leg) => leg.status === 'imported')
+		return imported
+			? {
+					status: 'imported',
+					importId: imported.importId,
+					sessionId: imported.sessionId,
+				}
+			: { status: 'duplicate' }
+	}
+
 	const { activity, stream, rawJson } = parsed
 	if (options.disciplineOverride) {
 		activity.discipline = options.disciplineOverride
 	}
 
-	const externalId = contentDerivedExternalId(activity)
-
-	let importId: string
-	try {
-		importId = (
-			await createActivityImport(athleteId, {
-				externalProvider: 'manual',
-				externalId,
-				rawJson,
-				...activity,
-			})
-		).id
-	} catch (err) {
-		if (err instanceof Error && err.message.toLowerCase().includes('unique')) {
-			return { status: 'duplicate' }
-		}
-		throw err
-	}
+	const filed = await fileActivityImport(athleteId, {
+		externalProvider: 'manual',
+		externalId: contentDerivedExternalId(activity),
+		rawJson,
+		...activity,
+	})
+	if (filed.kind === 'duplicate') return { status: 'duplicate' }
+	const importId = filed.importId
 
 	const saved = await autoSaveImport(athleteId, importId, options.timezone)
 

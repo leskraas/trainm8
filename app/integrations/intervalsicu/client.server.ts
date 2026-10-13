@@ -41,6 +41,34 @@ export function intervalsIcuAuthHeader(apiKey: string): string {
 }
 
 /**
+ * Authenticated GET of a binary body (an activity's original file). Same error
+ * contract as `intervalsIcuApiGet`; the bytes come back as they were sent.
+ */
+export async function intervalsIcuApiGetBytes(
+	apiKey: string,
+	path: string,
+): Promise<Uint8Array> {
+	const response = await fetch(`${INTERVALSICU_API_BASE}${path}`, {
+		headers: {
+			authorization: intervalsIcuAuthHeader(apiKey),
+			accept: 'application/octet-stream, */*',
+		},
+	})
+	if (response.status === 401 || response.status === 403) {
+		throw new IntervalsIcuKeyRejectedError(
+			`Intervals.icu rejected the API key on GET ${path} (${response.status})`,
+		)
+	}
+	if (!response.ok) {
+		throw new IntervalsIcuApiError(
+			`Intervals.icu API GET ${path} failed (${response.status})`,
+			response.status,
+		)
+	}
+	return new Uint8Array(await response.arrayBuffer())
+}
+
+/**
  * Authenticated GET against the Intervals.icu API. Throws
  * `IntervalsIcuKeyRejectedError` on 401/403 (bad or regenerated key) and
  * `IntervalsIcuApiError` on any other non-OK status.

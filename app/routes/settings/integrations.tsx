@@ -79,10 +79,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 			lastCheckedAt:
 				intervalsIcuConnection?.lastCheckedAt?.toISOString() ?? null,
 		},
-		// Dual-source honesty (#205): when both providers hold an `active`
-		// connection the same workout can arrive twice — the hub says so plainly.
-		// No automatic cross-provider dedup; the athlete chooses which copy to
-		// promote.
+		// Two or more active sources (ADR 0096 §8): the same workout arriving
+		// from each is kept once (an Import Alias), but the match is strong, not
+		// certain, so the hub says a duplicate can still slip through. Strava and
+		// intervals.icu are the only connections today.
 		dualSourceActive:
 			connection?.status === 'active' &&
 			intervalsIcuConnection?.status === 'active',
@@ -207,9 +207,9 @@ export default function IntegrationsRoute({
 }
 
 /**
- * Dual-source honesty (#205): rendered when and only when both Strava and
- * Intervals.icu connections are `active`. Plain warning, no automatic
- * cross-provider dedup — the athlete decides which copy of a workout counts.
+ * Multi-source honesty (#205, ADR 0096 §8): rendered when two or more sources
+ * are `active`. A workout both deliver is kept once; one the dedupe misses can
+ * still arrive twice, and the athlete deletes the copy.
  */
 function DualSourceNotice() {
 	return (

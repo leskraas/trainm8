@@ -1,156 +1,208 @@
 /**
- * Generates the committed `.fit` fixtures in this folder using Garmin's
- * official FIT SDK encoder, so tests exercise real spec-conformant binary FIT
- * files (header + record stream + CRC), not hand-rolled bytes.
+ * Generates the committed `.fit` fixtures in this folder. Normal files use
+ * Garmin's official FIT SDK encoder, so tests exercise real spec-conformant
+ * binary FIT files (header + record stream + CRC), not hand-rolled bytes; the
+ * compressed-timestamp file is written byte by byte because no official
+ * encoder emits that header (see `fit-builder.ts`).
  *
  * Rerun with: npx tsx tests/fixtures/fit/generate-fixtures.ts
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { Encoder, Profile, type Mesg } from '@garmin/fitsdk'
-
-// The SDK's .d.ts types enum fields (sport, type, …) as numbers, but its
-// runtime encoder/decoder use the Profile enum *strings* ('running',
-// 'activity', …) — so message literals are written untyped and cast here.
-function writeMesg(
-	encoder: Encoder,
-	num: number,
-	mesg: Record<string, unknown>,
-) {
-	encoder.onMesg(num, mesg as Mesg)
-}
+import {
+	type ActivitySpec,
+	encodeActivity,
+	encodeCompressedTimestampRun,
+} from './fit-builder.ts'
 
 const OUT_DIR = path.dirname(new URL(import.meta.url).pathname)
 
-function mesgNum(name: 'FILE_ID' | 'RECORD' | 'SESSION' | 'ACTIVITY'): number {
-	const num = Profile.MesgNum[name]
-	if (num == null) throw new Error(`Unknown mesg num: ${name}`)
-	return num
-}
-
-type SessionSpec = {
-	fileName: string
-	sport: string
-	subSport?: string
-	startTime: Date
-	durationSec: number
-	distanceM: number
-	hr?: { avg: number; max: number }
-	power?: { avg: number; max: number; normalized: number }
-	cadenceAvg?: number
-	totalAscentM?: number
-	maxSpeedMps?: number
-	kcal?: number
-}
-
-function encodeActivity(spec: SessionSpec): Uint8Array {
-	const encoder = new Encoder()
-
-	writeMesg(encoder, mesgNum('FILE_ID'), {
-		type: 'activity',
-		manufacturer: 'garmin',
-		product: 0,
-		timeCreated: spec.startTime,
-		serialNumber: 424242,
-	})
-
-	// A sparse record stream (1 sample/min) so the file carries real records,
-	// though aggregates come from the session message per the FIT convention.
-	// HR steps easy → hard at halfway so a derived stream / phase bars span
-	// more than one zone; speed is the steady average so pace is derivable.
-	const samples = Math.max(2, Math.floor(spec.durationSec / 60))
-	const speedMps = spec.distanceM / spec.durationSec
-	for (let i = 0; i < samples; i++) {
-		const t = new Date(
-			spec.startTime.getTime() + (i * spec.durationSec * 1000) / samples,
-		)
-		const record: Record<string, unknown> = {
-			timestamp: t,
-			distance: (i * spec.distanceM) / samples,
-			speed: speedMps,
-		}
-		if (spec.hr) {
-			record.heartRate = i < samples / 2 ? spec.hr.avg - 12 : spec.hr.avg + 12
-		}
-		if (spec.power) record.power = spec.power.avg
-		writeMesg(encoder, mesgNum('RECORD'), record)
-	}
-
-	const endTime = new Date(spec.startTime.getTime() + spec.durationSec * 1000)
-	const session: Record<string, unknown> = {
-		timestamp: endTime,
-		startTime: spec.startTime,
-		sport: spec.sport,
-		...(spec.subSport ? { subSport: spec.subSport } : {}),
-		totalElapsedTime: spec.durationSec,
-		totalTimerTime: spec.durationSec,
-		totalDistance: spec.distanceM,
-		...(spec.hr
-			? { avgHeartRate: spec.hr.avg, maxHeartRate: spec.hr.max }
-			: {}),
-		...(spec.power
-			? {
-					avgPower: spec.power.avg,
-					maxPower: spec.power.max,
-					normalizedPower: spec.power.normalized,
-				}
-			: {}),
-		...(spec.cadenceAvg != null ? { avgCadence: spec.cadenceAvg } : {}),
-		...(spec.totalAscentM != null ? { totalAscent: spec.totalAscentM } : {}),
-		...(spec.maxSpeedMps != null
-			? { maxSpeed: spec.maxSpeedMps, enhancedMaxSpeed: spec.maxSpeedMps }
-			: {}),
-		...(spec.kcal != null ? { totalCalories: spec.kcal } : {}),
-	}
-	writeMesg(encoder, mesgNum('SESSION'), session)
-	writeMesg(encoder, mesgNum('ACTIVITY'), {
-		timestamp: endTime,
-		totalTimerTime: spec.durationSec,
-		numSessions: 1,
-		type: 'manual',
-	})
-
-	return encoder.close()
-}
-
-const fixtures: SessionSpec[] = [
+const fixtures: Array<{ fileName: string; spec: ActivitySpec }> = [
 	{
 		fileName: 'run-with-hr.fit',
-		sport: 'running',
-		startTime: new Date('2026-06-01T07:30:00Z'),
-		durationSec: 2400, // 40 min
-		distanceM: 8000,
-		hr: { avg: 152, max: 176 },
-		cadenceAvg: 86,
-		totalAscentM: 120,
-		maxSpeedMps: 4.5,
-		kcal: 520,
+		spec: {
+			sessions: [
+				{
+					sport: 'running',
+					startTime: new Date('2026-06-01T07:30:00Z'),
+					durationSec: 2400, // 40 min
+					distanceM: 8000,
+					hr: { avg: 152, max: 176 },
+					cadenceAvg: 86,
+					totalAscentM: 120,
+					maxSpeedMps: 4.5,
+					kcal: 520,
+				},
+			],
+		},
 	},
 	{
 		fileName: 'ride-with-power.fit',
-		sport: 'cycling',
-		startTime: new Date('2026-06-02T16:00:00Z'),
-		durationSec: 3600, // 60 min
-		distanceM: 30000,
-		hr: { avg: 141, max: 168 },
-		power: { avg: 210, max: 450, normalized: 225 },
-		cadenceAvg: 88,
-		totalAscentM: 350,
-		maxSpeedMps: 14.2,
-		kcal: 760,
+		spec: {
+			sessions: [
+				{
+					sport: 'cycling',
+					startTime: new Date('2026-06-02T16:00:00Z'),
+					durationSec: 3600, // 60 min
+					distanceM: 30000,
+					hr: { avg: 141, max: 168 },
+					power: { avg: 210, max: 450, normalized: 225 },
+					cadenceAvg: 88,
+					totalAscentM: 350,
+					maxSpeedMps: 14.2,
+					kcal: 760,
+				},
+			],
+		},
 	},
 	{
 		fileName: 'hike.fit',
-		sport: 'hiking',
-		startTime: new Date('2026-06-03T10:00:00Z'),
-		durationSec: 5400, // 90 min
-		distanceM: 6000,
-		hr: { avg: 110, max: 130 },
+		spec: {
+			sessions: [
+				{
+					sport: 'hiking',
+					startTime: new Date('2026-06-03T10:00:00Z'),
+					durationSec: 5400, // 90 min
+					distanceM: 6000,
+					hr: { avg: 110, max: 130 },
+				},
+			],
+		},
+	},
+	{
+		// A Forerunner 965 interval run with per-rep laps: 10' warm-up, 3 × 3'
+		// on / 2' off, then the rest easy.
+		fileName: 'run-with-laps.fit',
+		spec: {
+			fileId: {
+				manufacturer: 'garmin',
+				product: 4315,
+				serialNumber: 3412345678,
+				timeCreated: new Date('2026-06-04T06:00:00Z'),
+			},
+			creator: {
+				manufacturer: 'garmin',
+				product: 4315,
+				productName: 'Forerunner 965',
+			},
+			sessions: [
+				{
+					sport: 'running',
+					startTime: new Date('2026-06-04T06:00:00Z'),
+					durationSec: 2400,
+					distanceM: 8400,
+					hr: { avg: 150, max: 182 },
+					laps: [
+						{ offsetSec: 0, durationSec: 600 },
+						{ offsetSec: 600, durationSec: 180 },
+						{ offsetSec: 780, durationSec: 120 },
+						{ offsetSec: 900, durationSec: 180 },
+						{ offsetSec: 1080, durationSec: 120 },
+						{ offsetSec: 1200, durationSec: 180 },
+						{ offsetSec: 1380, durationSec: 1020 },
+					],
+				},
+			],
+		},
+	},
+	{
+		// One multisport file: swim, T1, bike, T2, run.
+		fileName: 'triathlon.fit',
+		spec: {
+			fileId: {
+				manufacturer: 'garmin',
+				product: 3906,
+				serialNumber: 3300112233,
+				timeCreated: new Date('2026-06-07T07:00:00Z'),
+			},
+			creator: {
+				manufacturer: 'garmin',
+				product: 3906,
+				productName: 'fēnix 7',
+			},
+			sessions: [
+				{
+					sport: 'swimming',
+					subSport: 'openWater',
+					startTime: new Date('2026-06-07T07:00:00Z'),
+					durationSec: 1800,
+					distanceM: 1500,
+					hr: { avg: 140, max: 160 },
+				},
+				{
+					sport: 'transition',
+					startTime: new Date('2026-06-07T07:30:00Z'),
+					durationSec: 180,
+					distanceM: 300,
+				},
+				{
+					sport: 'cycling',
+					startTime: new Date('2026-06-07T07:33:00Z'),
+					durationSec: 4200,
+					distanceM: 40000,
+					hr: { avg: 148, max: 170 },
+					power: { avg: 200, max: 480, normalized: 215 },
+					laps: [
+						{ offsetSec: 0, durationSec: 2100 },
+						{ offsetSec: 2100, durationSec: 2100 },
+					],
+				},
+				{
+					sport: 'transition',
+					startTime: new Date('2026-06-07T08:43:00Z'),
+					durationSec: 120,
+					distanceM: 200,
+				},
+				{
+					sport: 'running',
+					startTime: new Date('2026-06-07T08:45:00Z'),
+					durationSec: 2700,
+					distanceM: 10000,
+					hr: { avg: 158, max: 178 },
+				},
+			],
+		},
+	},
+	{
+		// A SuuntoPlus Guide run: the guide's owner (our client id) and the
+		// external id we gave the guide come back as session developer fields.
+		fileName: 'suunto-guide-run.fit',
+		spec: {
+			fileId: {
+				manufacturer: 'suunto',
+				product: 31,
+				serialNumber: 2100445566,
+				timeCreated: new Date('2026-06-06T05:30:00Z'),
+			},
+			sessions: [
+				{
+					sport: 'running',
+					startTime: new Date('2026-06-06T05:30:00Z'),
+					durationSec: 1800,
+					distanceM: 6000,
+					hr: { avg: 148, max: 171 },
+					suuntoPlus: {
+						ownerIds: ['zztrainm8'],
+						externalIds: ['trainm8-session-ckx1'],
+					},
+				},
+			],
+		},
 	},
 ]
 
-for (const spec of fixtures) {
+for (const { fileName, spec } of fixtures) {
 	const bytes = encodeActivity(spec)
-	fs.writeFileSync(path.join(OUT_DIR, spec.fileName), bytes)
-	console.log(`wrote ${spec.fileName} (${bytes.length} bytes)`)
+	fs.writeFileSync(path.join(OUT_DIR, fileName), bytes)
+	console.log(`wrote ${fileName} (${bytes.length} bytes)`)
 }
+
+const compressed = encodeCompressedTimestampRun({
+	startTime: new Date('2026-06-05T17:00:00Z'),
+	durationSec: 1800,
+	distanceM: 5000,
+	hr: { avg: 145, max: 170 },
+	serialNumber: 5550001,
+})
+fs.writeFileSync(path.join(OUT_DIR, 'compressed-timestamps.fit'), compressed)
+console.log(`wrote compressed-timestamps.fit (${compressed.length} bytes)`)

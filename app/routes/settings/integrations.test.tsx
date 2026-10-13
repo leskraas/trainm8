@@ -362,15 +362,17 @@ test('connected Intervals.icu card offers "Sync now" and states syncing is daily
 	)
 })
 
-test('the dual-source duplicate warning renders when both providers are active (#205)', async () => {
+test('with two sources active the hub says a shared workout is kept once, and may still slip through twice (ADR 0096 §8)', async () => {
 	renderHub(connected, intervalsIcuConnected, { dualSourceActive: true })
 
-	expect(await screen.findByText(/kan komme hit to ganger/i)).toBeVisible()
+	const notice = await screen.findByText(/lagres som én økt/i)
+	expect(notice).toBeVisible()
+	expect(notice).toHaveTextContent(/to ganger/i)
 })
 
 test('no dual-source warning when only one provider is active (#205)', async () => {
 	renderHub(connected, intervalsIcuDisconnected)
 
 	await screen.findByText('intervals.icu')
-	expect(screen.queryByText(/kan komme hit to ganger/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/lagres som én økt/i)).not.toBeInTheDocument()
 })
