@@ -28,6 +28,10 @@ import {
 	STRAVA_WEBHOOK_JOB_KIND,
 } from '#app/integrations/strava/webhook.server.ts'
 import {
+	CREDENTIAL_ENCRYPTION_BACKFILL_JOB_KIND,
+	encryptPlaintextCredentials,
+} from '#app/utils/credential-backfill.server.ts'
+import {
 	NP_TSS_BACKFILL_JOB_KIND,
 	runNpTssBackfill,
 } from '#app/utils/load/np-tss-backfill.server.ts'
@@ -164,5 +168,10 @@ export const jobHandlers: JobHandlers = {
 		// One-shot lap heal (#356): fetch each lap-less Intervals.icu import's
 		// interval breakdown and re-run detection with the lap-edged path.
 		await runIntervalsIcuLapsBackfill()
+	},
+	[CREDENTIAL_ENCRYPTION_BACKFILL_JOB_KIND]: async () => {
+		// One-shot (#548): encrypt the Account Connection tokens stored in
+		// plaintext before credentials were encrypted at rest.
+		await encryptPlaintextCredentials()
 	},
 }

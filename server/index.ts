@@ -299,6 +299,14 @@ const { ensureIntervalsIcuLapsBackfillEnqueued } =
 	await import('#app/integrations/intervalsicu/laps-backfill.server.ts')
 await ensureIntervalsIcuLapsBackfillEnqueued()
 
+// One-shot credential encryption (#548): tokens stored before encryption at
+// rest are still plaintext. Enqueue the backfill exactly once — the job row is
+// the marker — delayed past the deploy window so a rolled-back release never
+// meets ciphertext. Until it runs, plaintext rows read through unchanged.
+const { ensureCredentialEncryptionBackfillEnqueued } =
+	await import('#app/utils/credential-backfill.server.ts')
+await ensureCredentialEncryptionBackfillEnqueued()
+
 // Start the daily reconciliation sweep (#77, generalized in #205): one job per
 // active Account Connection across every provider, catching any activities the
 // Strava webhook (#76) missed and giving webhook-less providers their daily pull.
