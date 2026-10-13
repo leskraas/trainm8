@@ -1,4 +1,9 @@
 import { z } from 'zod/v3'
+import {
+	normalizeDeviceName,
+	ORIGIN_PLATFORMS,
+	originPlatformForTransport,
+} from '#app/integrations/shared/origin-platform.ts'
 import { dayBoundsUTC, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
 import { fitsImport, isRecordingOnlySource } from './import-fit.ts'
@@ -80,6 +85,15 @@ export async function recomputeLoadAfterBatch(
 export const ActivityImportInputSchema = z.object({
 	externalProvider: z.enum(['manual', 'strava', 'intervalsicu', 'garmin']),
 	externalId: z.string(),
+	/**
+	 * Provenance (ADR 0096 §1). `originPlatform` defaults to what the transport
+	 * implies on its own (`originPlatformForTransport`); a bridge like
+	 * Intervals.icu reads it off the activity and must pass it. `deviceName` is
+	 * display text only, and `fitFileKey` the original FIT's identity (#547).
+	 */
+	originPlatform: z.enum(ORIGIN_PLATFORMS).optional(),
+	deviceName: z.string().nullish(),
+	fitFileKey: z.string().nullish(),
 	startedAt: z.date(),
 	endedAt: z.date(),
 	durationSec: z.number(),
@@ -139,6 +153,13 @@ export async function createActivityImport(
 			athleteId,
 			externalProvider: data.externalProvider,
 			externalId: data.externalId,
+			// Identity, fixed at insert: a mirror update never rewrites where the
+			// activity came from (ADR 0096 §6).
+			originPlatform:
+				data.originPlatform ??
+				originPlatformForTransport(data.externalProvider),
+			deviceName: normalizeDeviceName(data.deviceName),
+			fitFileKey: data.fitFileKey ?? null,
 			...metricColumns(data),
 		},
 		select: { id: true, startedAt: true, endedAt: true, discipline: true },

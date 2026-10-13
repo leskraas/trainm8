@@ -25,6 +25,7 @@ import {
 	nbWeekdayList,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { derivedAttributionLines } from '#app/utils/source-attribution.ts'
 import { type Route } from './+types/funn.ts'
 import { DaysField, DisciplineField } from './__first-run-fields.tsx'
 import {
@@ -52,9 +53,13 @@ export const meta: Route.MetaFunction = () => [
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireFirstRunAthlete(request)
-	const { findings, connection } = await readFirstRunFindings(userId)
+	const { findings, connection, bindingSet } =
+		await readFirstRunFindings(userId)
 	return {
 		importing: connection === 'importing',
+		// What the findings owe the data they were read from (ADR 0098 §3):
+		// Garmin's derived-data line when the history came from a Garmin.
+		credits: derivedAttributionLines(bindingSet),
 		rows: [
 			{
 				key: 'discipline',
@@ -124,7 +129,7 @@ export default function FindingsStep({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { importing, rows, prefill } = loaderData
+	const { importing, rows, prefill, credits } = loaderData
 	const revalidator = useRevalidator()
 	useEffect(() => {
 		if (!importing) return
@@ -216,6 +221,17 @@ export default function FindingsStep({
 					</div>
 				))}
 			</dl>
+			{/* Under the findings it speaks for, in view: never a tooltip or the
+			    "Noe er feil" fold. No motion — it is a credit, not a finding. */}
+			{credits.map((credit) => (
+				<p
+					key={credit}
+					data-source-credit
+					className="text-caption text-muted-foreground -mt-2 px-4 font-normal [text-wrap:pretty]"
+				>
+					{credit}
+				</p>
+			))}
 			<Link to="/start/sporsmal" className={PRIMARY_ACTION}>
 				{L.correct}
 			</Link>

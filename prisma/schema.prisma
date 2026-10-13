@@ -1624,6 +1624,18 @@ model ActivityImport {
   athleteId             String
   externalProvider      String // 'manual' | 'strava' | 'intervalsicu' | 'garmin'
   externalId            String
+  /// The **Origin Platform** (ADR 0096 §1): where the activity was recorded or
+  /// first synced, whose terms govern it (ADR 0098) — never the transport.
+  /// garmin | polar | suunto | coros | wahoo | strava | zwift | apple-health |
+  /// health-connect | intervalsicu | upload | unknown. A string, not an enum
+  /// (ADR 0014). Fixed at insert.
+  originPlatform        String    @default("unknown")
+  /// The recording device as the source names it ("Garmin Forerunner 965").
+  /// Display text for the Garmin attribution only; never a key, never gated on.
+  deviceName            String?
+  /// `fit:<manufacturer>:<product|->:<serial|->:<time_created>` from the
+  /// original FIT's `file_id` (ADR 0096 §1); null without one. Filled by #547.
+  fitFileKey            String?
   startedAt             DateTime
   endedAt               DateTime
   durationSec           Int

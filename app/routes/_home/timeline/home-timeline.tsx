@@ -120,6 +120,11 @@ export type HomeTimelineData = {
 	 */
 	importConnected?: boolean
 	/**
+	 * The derived-data credits the coach's verdict owes (ADR 0098 §3), from
+	 * the Origin Platforms behind the load (`readRecordedBindingSet`).
+	 */
+	sourceCredits?: string[]
+	/**
 	 * The Discipline a tapped empty cell prefills — the athlete's **most-trained**,
 	 * read from their own history, or null when there is none to read (ADR 0065
 	 * §5). Never a default: the cell asks rather than assigning one.
@@ -134,6 +139,9 @@ export type HomeTimelineData = {
  * has to be threaded through `WeekBlock` and `DayRow` as a prop neither has an
  * opinion about.
  */
+/** One empty list, so a loader without credits keeps the memo below stable. */
+const NO_CREDITS: string[] = []
+
 export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 	return <TimelineFrame data={data} />
 }
@@ -152,6 +160,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		loadRecomputeNotice,
 		weekChange = null,
 		importConnected = false,
+		sourceCredits = NO_CREDITS,
 	} = data
 	// `now` comes from the loader so SSR and hydration agree on "today", and the
 	// Athlete Timezone fixes which calendar day that instant reads as (#172).
@@ -175,8 +184,8 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 	// What the hero used to say about today, now said in today's row: the
 	// session's action — only on today's own session — and the coach's line.
 	const today = useMemo<TodayRowExtras>(
-		() =>
-			buildTodayRow({
+		() => ({
+			...buildTodayRow({
 				ledger,
 				now,
 				timezone,
@@ -186,7 +195,19 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 				sustained,
 				nudge,
 			}),
-		[current, ledger, nudge, sustained, thresholds, tsbTrust, now, timezone],
+			credits: sourceCredits,
+		}),
+		[
+			current,
+			ledger,
+			nudge,
+			sustained,
+			thresholds,
+			tsbTrust,
+			now,
+			timezone,
+			sourceCredits,
+		],
 	)
 
 	// How much chrome sits above the frame — see the `style` note on `<main>`.

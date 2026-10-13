@@ -183,6 +183,7 @@ function dashboardLoader(
 			ctlBefore: number
 			ctlAfter: number
 		} | null
+		sourceCredits?: string[]
 	} = {},
 ) {
 	// Exactly the loader's shape, field for field (`index.test.ts` guards the
@@ -200,6 +201,7 @@ function dashboardLoader(
 		sustained: opts.sustained ?? null,
 		thresholds: opts.thresholds ?? {},
 		loadRecomputeNotice: opts.loadRecomputeNotice ?? null,
+		sourceCredits: opts.sourceCredits ?? [],
 	})
 }
 
@@ -445,6 +447,39 @@ test("the coach's line never shows a Form number on a cold start", async () => {
 		within(week).getByText(/formen kan leses etter 42 dager — dag 9\/42\./i),
 	).toBeInTheDocument()
 	expect(within(week).queryByText(/^Form \+/)).not.toBeInTheDocument()
+})
+
+test("the coach's line built on Garmin data carries Garmin's derived-data line beneath it (ADR 0098)", async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			current: { ctl: 62, atl: 58, tsb: 4 },
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+			sourceCredits: [
+				'Insights derived in part from Garmin device-sourced data.',
+			],
+		}),
+	)
+
+	const week = (await todayRow()).closest<HTMLElement>('[data-timeline-week]')!
+	expect(
+		within(week).getByText(
+			'Insights derived in part from Garmin device-sourced data.',
+		),
+	).toBeVisible()
+})
+
+test("the coach's line owes no credit when no Garmin data is behind it", async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			current: { ctl: 62, atl: 58, tsb: 4 },
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+		}),
+	)
+
+	await todayRow()
+	expect(screen.queryByText(/garmin/i)).not.toBeInTheDocument()
 })
 
 test('today empty: the row says so, offers to write one, and lends Friday no action', async () => {

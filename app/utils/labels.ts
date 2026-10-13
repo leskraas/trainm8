@@ -3472,6 +3472,40 @@ export function providerLabel(provider: string): string {
 	return PROVIDER_LABELS[provider] ?? capitalize(provider)
 }
 
+/**
+ * Where a Recording came from, by its **Origin Platform** (ADR 0096) — never
+ * the transport it came down. `unknown` has no words: a Recording that cannot
+ * say where it came from says nothing rather than guess.
+ */
+export const ORIGIN_PLATFORM_LABELS: Record<string, string> = {
+	garmin: 'Garmin',
+	polar: 'Polar',
+	suunto: 'Suunto',
+	coros: 'COROS',
+	wahoo: 'Wahoo',
+	strava: 'Strava',
+	zwift: 'Zwift',
+	'apple-health': 'Apple Health',
+	'health-connect': 'Health Connect',
+	intervalsicu: 'intervals.icu',
+	upload: 'Opplastet fil',
+}
+
+/**
+ * The credits a platform's terms require (ADR 0098 §3, `source-terms.ts`).
+ *
+ * Garmin's derived-data line is Garmin's own wording, from its API Brand
+ * Guidelines' list of acceptable attributions, and stays in English on
+ * purpose: a Norwegian paraphrase is not on that list. Changing it waits on
+ * Garmin saying a translation is acceptable (#542's outreach).
+ */
+export const SOURCE_ATTRIBUTION_LABELS = {
+	derived: {
+		garmin: 'Insights derived in part from Garmin device-sourced data.',
+		polar: 'Bygger delvis på data fra Polar.',
+	},
+} as const
+
 // ---------------------------------------------------------------------------
 // The four tabs
 // ---------------------------------------------------------------------------
@@ -4936,20 +4970,24 @@ export const PROVIDER_DIRECTORY_LABELS = {
 		name: 'Filopplasting',
 		tagline: 'FIT-, TCX- eller GPX-filer. Alltid tilgjengelig.',
 	},
+	// #546: no card promises a vendor's data through intervals.icu. Its Garmin
+	// feed may close any day (its developer, 2026-10-09), and an activity's
+	// terms follow the watch it was recorded on, not the bridge (ADR 0098). A
+	// FIT file from the watch is the way in that does not depend on either.
 	intervalsicu: {
 		name: 'intervals.icu',
 		tagline:
-			'Gratis import med din personlige API-nøkkel – tar med data fra Garmin og Suunto også. Sjekkes daglig, og du kan synkronisere selv for det nyeste.',
+			'Gratis import med din personlige API-nøkkel: øktene som ligger i intervals.icu-kontoen din. Sjekkes daglig, og du kan synkronisere selv for det nyeste.',
 	},
 	garmin: {
 		name: 'Garmin Connect',
 		tagline:
-			'Garmins API krever opptak i partnerprogrammet deres. Til da har intervals.icu allerede Garmin-dataene dine.',
+			'Garmins API krever opptak i partnerprogrammet deres. Til da kan du laste opp FIT-filen fra klokka.',
 	},
 	suunto: {
 		name: 'Suunto',
 		tagline:
-			'Suuntos API er også bare for partnere. intervals.icu har Suunto-dataene dine i dag.',
+			'Suuntos API er også bare for partnere. Til da kan du laste opp FIT-filen fra klokka.',
 	},
 } as const
 

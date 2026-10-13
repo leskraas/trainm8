@@ -117,6 +117,59 @@ test('an unmodeled type maps to the "other" discipline', () => {
 	expect(mapActivityToImportInput(activity).discipline).toBe('other')
 })
 
+// ADR 0096 §1: the Origin Platform comes from `source`, and a device name
+// containing "garmin" (any case) makes it Garmin whatever `source` says.
+test.each([
+	['GARMIN_CONNECT', 'Garmin Forerunner 965', 'garmin'],
+	['POLAR', 'Polar Vantage V3', 'polar'],
+	['SUUNTO', null, 'suunto'],
+	['COROS', 'COROS PACE 3', 'coros'],
+	['WAHOO', null, 'wahoo'],
+	['ZWIFT', null, 'zwift'],
+	['STRAVA', null, 'strava'],
+	['UPLOAD', null, 'intervalsicu'],
+	['MANUAL', null, 'intervalsicu'],
+	['OAUTH_CLIENT', null, 'unknown'],
+	[null, null, 'unknown'],
+	// The override: an upload or an unmapped source from a Garmin device.
+	['UPLOAD', 'GARMIN Edge 840', 'garmin'],
+	['OAUTH_CLIENT', 'garmin fenix 8', 'garmin'],
+	[null, 'Garmin', 'garmin'],
+])(
+	'source %s with device %s is origin %s',
+	(source, deviceName, originPlatform) => {
+		const activity = IntervalsIcuActivitySchema.parse({
+			id: 'i4001',
+			type: 'Run',
+			moving_time: 1800,
+			start_date: '2026-06-01T06:00:00Z',
+			...(source ? { source } : {}),
+			...(deviceName ? { device_name: deviceName } : {}),
+		})
+
+		const input = mapActivityToImportInput(activity)
+
+		expect(input.originPlatform).toBe(originPlatform)
+		expect(input.deviceName ?? null).toBe(deviceName)
+	},
+)
+
+test('a blank device name is no device', () => {
+	const activity = IntervalsIcuActivitySchema.parse({
+		id: 'i4002',
+		type: 'Run',
+		moving_time: 1800,
+		start_date: '2026-06-01T06:00:00Z',
+		source: 'GARMIN_CONNECT',
+		device_name: '   ',
+	})
+
+	const input = mapActivityToImportInput(activity)
+
+	expect(input.originPlatform).toBe('garmin')
+	expect(input.deviceName).toBeNull()
+})
+
 test('a stub is recognised by any one of its signs, so a partial stub still drops (#544)', () => {
 	const parse = (body: Record<string, unknown>) =>
 		IntervalsIcuActivitySchema.parse(body)

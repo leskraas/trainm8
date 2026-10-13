@@ -42,17 +42,20 @@ function renderMe({
 		{ date: '2030-02-20', ctl: 62 },
 	],
 	records = [RECORD],
+	credits = [],
 }: {
 	current?: Parameters<typeof buildFormReading>[0]['current']
 	trust?: TsbTrust
 	snapshots?: Array<{ date: string; ctl: number }>
 	records?: PersonalRecord[]
+	credits?: string[]
 } = {}) {
 	const loaderData = {
 		user: { name: 'Kody', username: 'kody', image: null },
 		intervalsicu: 'connected' as const,
 		form: buildFormReading({ current, trust, snapshots }),
 		records: buildRecordLines(records),
+		credits,
 	}
 	const App = createRoutesStub([
 		{
@@ -167,4 +170,30 @@ test('with no records the section says what will make one, never a zero', async 
 	const section = await screen.findByRole('region', { name: 'Rekorder' })
 	expect(section).toHaveTextContent('Ingen personlige rekorder ennå')
 	expect(within(section).queryByRole('listitem')).not.toBeInTheDocument()
+})
+
+const GARMIN_DERIVED =
+	'Insights derived in part from Garmin device-sourced data.'
+
+test("Form and Rekorder built on Garmin data each carry Garmin's derived-data line, in view (ADR 0098)", async () => {
+	renderMe({ credits: [GARMIN_DERIVED] })
+
+	const form = await screen.findByRole('region', { name: 'Form' })
+	expect(within(form).getByText(GARMIN_DERIVED)).toBeVisible()
+	const records = screen.getByRole('region', { name: 'Rekorder' })
+	expect(within(records).getByText(GARMIN_DERIVED)).toBeVisible()
+})
+
+test('with no records, Rekorder has nothing derived to credit', async () => {
+	renderMe({ records: [], credits: [GARMIN_DERIVED] })
+
+	const records = await screen.findByRole('region', { name: 'Rekorder' })
+	expect(within(records).queryByText(GARMIN_DERIVED)).not.toBeInTheDocument()
+})
+
+test('without Garmin data behind them, neither section mentions Garmin', async () => {
+	renderMe()
+
+	await screen.findByRole('region', { name: 'Form' })
+	expect(screen.queryByText(/garmin/i)).not.toBeInTheDocument()
 })

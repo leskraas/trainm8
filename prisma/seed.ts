@@ -517,6 +517,7 @@ async function replayRealHistory(
 			data: {
 				athleteId,
 				externalProvider: 'strava',
+				originPlatform: 'strava',
 				externalId: a.externalId,
 				startedAt,
 				endedAt,
@@ -862,6 +863,7 @@ async function seed() {
 			data: {
 				athleteId: kody.id,
 				externalProvider: 'strava',
+				originPlatform: 'strava',
 				externalId: `seed-demo-stream`,
 				startedAt: demoDay,
 				endedAt: new Date(demoDay.getTime() + elapsedSec * 1000),

@@ -88,7 +88,10 @@ type Reply = {
 }
 
 /** Four complete weeks of recorded runs on Tuesdays and Saturdays. */
-async function seedRunningHistory(userId: string) {
+async function seedRunningHistory(
+	userId: string,
+	originPlatform: string = 'unknown',
+) {
 	const thisMonday = weekMonday(new Date(), 'UTC')
 	for (let week = 1; week <= 4; week++) {
 		const monday = addDays(thisMonday, -7 * week)
@@ -99,6 +102,7 @@ async function seedRunningHistory(userId: string) {
 					athleteId: userId,
 					externalProvider: 'intervalsicu',
 					externalId: `run-${userId}-${week}-${offset}`,
+					originPlatform,
 					startedAt,
 					endedAt: new Date(startedAt.getTime() + 7203 * 1000),
 					durationSec: Math.round(21.5 * 335),
@@ -219,6 +223,27 @@ describe('step 2: Dette fant vi', () => {
 			days: 'tirsdag og lørdag',
 			strength: 'Ingen styrkeøkter',
 		})
+	})
+
+	test("findings read from Garmin-recorded history carry Garmin's derived-data line; others owe none (ADR 0098)", async () => {
+		const garmin = await setUp()
+		const other = await setUp()
+		await seedRunningHistory(garmin.userId, 'garmin')
+		await seedRunningHistory(other.userId, 'intervalsicu')
+
+		const fromGarmin = await findingsLoader({
+			request: get('/start/funn', garmin.cookie),
+			...ARGS,
+		})
+		const fromOther = await findingsLoader({
+			request: get('/start/funn', other.cookie),
+			...ARGS,
+		})
+
+		expect(fromGarmin.credits).toEqual([
+			'Insights derived in part from Garmin device-sourced data.',
+		])
+		expect(fromOther.credits).toEqual([])
 	})
 
 	test('Noe er feil carries the correction to the questions', async () => {

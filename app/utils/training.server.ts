@@ -1780,7 +1780,11 @@ const sessionDetailSelect = {
 			polyline: true,
 			phaseBarsJson: true,
 			tssValue: true,
-			externalProvider: true,
+			// Where it came from (ADR 0096): the Origin Platform and the device,
+			// for the attribution by the title (ADR 0098). Not the transport —
+			// no attribution reads `externalProvider`.
+			originPlatform: true,
+			deviceName: true,
 			// The Structure Detection (ADR 0033): its grade for the "detected ·
 			// (confidence)" badge, and its structure for the display-derived
 			// Structure Adherence verdict a matched planned session shows beside the

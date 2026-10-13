@@ -1,4 +1,8 @@
 import {
+	intervalsIcuOriginPlatform,
+	normalizeDeviceName,
+} from '#app/integrations/shared/origin-platform.ts'
+import {
 	autoSaveImport,
 	recomputeLoadAfterBatch,
 	createActivityImport,
@@ -93,9 +97,18 @@ export function mapActivityToImportInput(
 			? durationSec / (distanceM / 1000)
 			: null
 
+	const deviceName = normalizeDeviceName(activity.device_name)
+
 	return {
 		externalProvider: INTERVALSICU_PROVIDER,
 		externalId: activity.id,
+		// The platform whose terms govern this activity, not the pipe it came
+		// down (ADR 0096 §1, ADR 0098 §1).
+		originPlatform: intervalsIcuOriginPlatform({
+			source: activity.source,
+			deviceName,
+		}),
+		deviceName,
 		startedAt,
 		endedAt,
 		durationSec,
