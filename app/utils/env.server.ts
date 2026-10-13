@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { parseCredentialKeys } from './credential-crypto.server.ts'
 
 const schema = z.object({
 	NODE_ENV: z.enum(['production', 'development', 'test'] as const),
@@ -8,6 +9,13 @@ const schema = z.object({
 	INTERNAL_COMMAND_TOKEN: z.string(),
 	HONEYPOT_SECRET: z.string(),
 	CACHE_DATABASE_PATH: z.string(),
+	// Encrypts stored provider credentials (AccountConnection tokens, ADR 0014;
+	// #548). One or more base64 32-byte keys, comma-separated; the first
+	// encrypts, all decrypt (rotation). Required in production, where the
+	// published development key is refused; development and test fall back to
+	// that key when unset. Set it as a Fly secret before deploying (see
+	// docs/secrets.md): `fly secrets set CREDENTIALS_ENCRYPTION_KEY="$(openssl rand -base64 32)"`.
+	CREDENTIALS_ENCRYPTION_KEY: z.string().optional(),
 	// If you plan on using Sentry, remove the .optional()
 	SENTRY_DSN: z.string().optional(),
 	// If you plan to use Resend, remove the .optional()
@@ -58,6 +66,18 @@ const schema = z.object({
 	BUCKET_NAME: z.string(),
 })
 
+const validatedSchema = schema.superRefine((env, ctx) => {
+	try {
+		parseCredentialKeys(env.CREDENTIALS_ENCRYPTION_KEY, env.NODE_ENV)
+	} catch (error) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ['CREDENTIALS_ENCRYPTION_KEY'],
+			message: error instanceof Error ? error.message : String(error),
+		})
+	}
+})
+
 declare global {
 	namespace NodeJS {
 		interface ProcessEnv extends z.infer<typeof schema> {}
@@ -65,7 +85,7 @@ declare global {
 }
 
 export function init() {
-	const parsed = schema.safeParse(process.env)
+	const parsed = validatedSchema.safeParse(process.env)
 
 	if (parsed.success === false) {
 		console.error(
