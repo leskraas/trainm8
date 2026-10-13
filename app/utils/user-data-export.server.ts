@@ -151,9 +151,28 @@ export async function exportUserData({
 		CatalogueSave: await prisma.catalogueSave.findMany({
 			where: { ownerId: userId },
 		}),
-		WorkoutReport: await prisma.workoutReport.findMany({
-			where: { OR: [{ reporterId: userId }, { resolvedById: userId }] },
-		}),
+		// The athlete's own reports whole; a report they resolved as a moderator
+		// only as far as their own act goes. Its reason, detail and reporter are
+		// the reporter's data, not the moderator's.
+		WorkoutReport: [
+			...(await prisma.workoutReport.findMany({
+				where: { reporterId: userId },
+			})),
+			...(await prisma.workoutReport.findMany({
+				where: {
+					resolvedById: userId,
+					// A reporter whose account is gone leaves `reporterId` null.
+					OR: [{ reporterId: null }, { reporterId: { not: userId } }],
+				},
+				select: {
+					id: true,
+					workoutId: true,
+					resolvedAt: true,
+					resolution: true,
+					resolvedById: true,
+				},
+			})),
+		],
 
 		Exercise: await prisma.exercise.findMany({
 			where: { createdByAthleteId: userId },
