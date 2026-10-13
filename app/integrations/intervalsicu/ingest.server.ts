@@ -1,4 +1,8 @@
 import {
+	intervalsIcuOriginPlatform,
+	normalizeDeviceName,
+} from '#app/integrations/shared/origin-platform.ts'
+import {
 	autoSaveImport,
 	recomputeLoadAfterBatch,
 	createActivityImport,
@@ -11,10 +15,6 @@ import {
 } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { type Lap } from '#app/utils/structure-detection/types.ts'
-import {
-	intervalsIcuOriginPlatform,
-	normalizeDeviceName,
-} from '#app/integrations/shared/origin-platform.ts'
 import { IntervalsIcuApiError, intervalsIcuApiGet } from './client.server.ts'
 import { intervalsIcuTypeToDiscipline } from './discipline-map.ts'
 import {

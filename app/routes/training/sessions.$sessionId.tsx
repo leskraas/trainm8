@@ -119,8 +119,8 @@ import {
 import { upsertSessionLog } from '#app/utils/session-log.server.ts'
 import { parseRecordingPhaseBars } from '#app/utils/session-profile.ts'
 import { buildReviewComparison } from '#app/utils/session-review.ts'
-import { recordingSource } from '#app/utils/source-attribution.ts'
 import { deriveShapeStrip } from '#app/utils/shape-strip.ts'
+import { recordingSource } from '#app/utils/source-attribution.ts'
 import { type ResolveContext } from '#app/utils/strength/anchors.ts'
 import { getWorkoutLoadContexts } from '#app/utils/strength-log.server.ts'
 import {

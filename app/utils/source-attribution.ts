@@ -14,10 +14,7 @@ import {
 	normalizeDeviceName,
 	type OriginPlatform,
 } from '#app/integrations/shared/origin-platform.ts'
-import {
-	ORIGIN_PLATFORM_LABELS,
-	SOURCE_ATTRIBUTION_LABELS,
-} from './labels.ts'
+import { ORIGIN_PLATFORM_LABELS, SOURCE_ATTRIBUTION_LABELS } from './labels.ts'
 import { type Attribution, sourceTerms } from './source-terms.ts'
 
 export type RecordingSource = {

@@ -172,7 +172,8 @@ test('with no records the section says what will make one, never a zero', async 
 	expect(within(section).queryByRole('listitem')).not.toBeInTheDocument()
 })
 
-const GARMIN_DERIVED = 'Insights derived in part from Garmin device-sourced data.'
+const GARMIN_DERIVED =
+	'Insights derived in part from Garmin device-sourced data.'
 
 test("Form and Rekorder built on Garmin data each carry Garmin's derived-data line, in view (ADR 0098)", async () => {
 	renderMe({ credits: [GARMIN_DERIVED] })

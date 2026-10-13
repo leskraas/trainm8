@@ -32,9 +32,9 @@ import {
 import { getCurrentLoad, getTsbTrust } from '#app/utils/load/snapshot.server.ts'
 import { readWeekChange } from '#app/utils/load/week-change-card.server.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { readMostTrainedDiscipline } from '#app/utils/most-trained-discipline.server.ts'
 import { derivedAttributionLines } from '#app/utils/source-attribution.ts'
 import { readRecordedBindingSet } from '#app/utils/source-terms.server.ts'
-import { readMostTrainedDiscipline } from '#app/utils/most-trained-discipline.server.ts'
 import {
 	isInWindow,
 	isWritableDay,

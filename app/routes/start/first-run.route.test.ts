@@ -225,7 +225,7 @@ describe('step 2: Dette fant vi', () => {
 		})
 	})
 
-	test('findings read from Garmin-recorded history carry Garmin\'s derived-data line; others owe none (ADR 0098)', async () => {
+	test("findings read from Garmin-recorded history carry Garmin's derived-data line; others owe none (ADR 0098)", async () => {
 		const garmin = await setUp()
 		const other = await setUp()
 		await seedRunningHistory(garmin.userId, 'garmin')

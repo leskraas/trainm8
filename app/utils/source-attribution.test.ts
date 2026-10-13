@@ -33,30 +33,30 @@ test('a Garmin recording with no device says plain "Garmin"', () => {
 	expect(
 		recordingSource({ originPlatform: 'garmin', deviceName: null }),
 	).toEqual({ text: 'Garmin', owed: true })
-	expect(recordingSource({ originPlatform: 'garmin', deviceName: '  ' })).toEqual(
-		{ text: 'Garmin', owed: true },
-	)
+	expect(
+		recordingSource({ originPlatform: 'garmin', deviceName: '  ' }),
+	).toEqual({ text: 'Garmin', owed: true })
 })
 
 test('a Polar recording credits Polar', () => {
 	expect(
 		recordingSource({ originPlatform: 'polar', deviceName: 'Polar Grit X2' }),
 	).toEqual({ text: 'Polar Grit X2', owed: true })
-	expect(recordingSource({ originPlatform: 'polar', deviceName: null })).toEqual(
-		{ text: 'Polar', owed: true },
-	)
+	expect(
+		recordingSource({ originPlatform: 'polar', deviceName: null }),
+	).toEqual({ text: 'Polar', owed: true })
 })
 
 test('other platforms name their device or the platform, unowed', () => {
 	expect(
 		recordingSource({ originPlatform: 'coros', deviceName: 'COROS PACE 3' }),
 	).toEqual({ text: 'COROS PACE 3', owed: false })
-	expect(recordingSource({ originPlatform: 'strava', deviceName: null })).toEqual(
-		{ text: 'Strava', owed: false },
-	)
-	expect(recordingSource({ originPlatform: 'upload', deviceName: null })).toEqual(
-		{ text: 'Opplastet fil', owed: false },
-	)
+	expect(
+		recordingSource({ originPlatform: 'strava', deviceName: null }),
+	).toEqual({ text: 'Strava', owed: false })
+	expect(
+		recordingSource({ originPlatform: 'upload', deviceName: null }),
+	).toEqual({ text: 'Opplastet fil', owed: false })
 	expect(
 		recordingSource({ originPlatform: 'intervalsicu', deviceName: null }),
 	).toEqual({ text: 'intervals.icu', owed: false })
@@ -71,7 +71,7 @@ test('an unknown origin with no device says nothing rather than guess', () => {
 	).toEqual({ text: 'Wahoo ELEMNT', owed: false })
 })
 
-test('the derived-data line is Garmin\'s own words, once per owed platform', () => {
+test("the derived-data line is Garmin's own words, once per owed platform", () => {
 	expect(derivedAttributionLines(['garmin'])).toEqual([
 		'Insights derived in part from Garmin device-sourced data.',
 	])

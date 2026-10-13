@@ -67,9 +67,9 @@ test('phone stores are closed to a model until the athlete names the AI', () => 
 })
 
 test('a derived value needs every platform behind it to allow the surface, and carries every attribution', () => {
-	expect(sourceTerms(['upload', 'garmin', 'polar', 'garmin'], 'screen')).toEqual(
-		{ allowed: true, attributions: ['garmin', 'polar'] },
-	)
+	expect(
+		sourceTerms(['upload', 'garmin', 'polar', 'garmin'], 'screen'),
+	).toEqual({ allowed: true, attributions: ['garmin', 'polar'] })
 	// One closed platform closes the whole value, naming only the closers.
 	expect(sourceTerms(['upload', 'strava', 'intervalsicu'], 'model')).toEqual({
 		allowed: false,

@@ -66,7 +66,10 @@ test('an import no completed session counts reads into nothing', async () => {
 
 test('a window keeps only the sessions inside it', async () => {
 	const { id: athleteId } = await athlete()
-	await recorded(athleteId, { originPlatform: 'garmin', startedAt: daysAgo(60) })
+	await recorded(athleteId, {
+		originPlatform: 'garmin',
+		startedAt: daysAgo(60),
+	})
 	await recorded(athleteId, { originPlatform: 'polar', startedAt: daysAgo(5) })
 
 	expect(
