@@ -13,7 +13,7 @@ import { intervalsIcuOriginPlatform } from './origin-platform.ts'
  */
 const MIGRATION = path.join(
 	process.cwd(),
-	'prisma/migrations/20261013120000_every_import_records_its_origin_platform/migration.sql',
+	'prisma/migrations/20261013130000_every_import_records_its_origin_platform/migration.sql',
 )
 
 function backfillStatements(): string[] {
