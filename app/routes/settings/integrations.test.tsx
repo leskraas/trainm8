@@ -320,6 +320,22 @@ test('Garmin and Suunto are coming soon, naming the partner-program gate; no Pol
 	expect(screen.queryByText(/polar/i)).not.toBeInTheDocument()
 })
 
+test('the hub promises no Garmin or Suunto data through intervals.icu, and names the FIT upload as the way in (#546)', async () => {
+	renderHub(connected)
+
+	const icu = (await screen.findByText('intervals.icu')).closest(
+		'[data-provider="intervalsicu"]',
+	)! as HTMLElement
+	// Intervals.icu's Garmin feed may close any day: the bridge's own card
+	// claims no vendor's data.
+	expect(icu).not.toHaveTextContent(/garmin|suunto/i)
+	for (const name of ['Garmin Connect', 'Suunto']) {
+		const card = screen.getByText(name).closest('[data-provider]')!
+		expect(card).toHaveTextContent(/FIT-fil/)
+		expect(card).not.toHaveTextContent(/har .*dataene dine/i)
+	}
+})
+
 const intervalsIcuConnected: IntervalsIcuHub = {
 	status: 'connected',
 	lastCheckedAt: '2026-07-07T06:12:00.000Z',

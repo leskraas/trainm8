@@ -4970,20 +4970,24 @@ export const PROVIDER_DIRECTORY_LABELS = {
 		name: 'Filopplasting',
 		tagline: 'FIT-, TCX- eller GPX-filer. Alltid tilgjengelig.',
 	},
+	// #546: no card promises a vendor's data through intervals.icu. Its Garmin
+	// feed may close any day (its developer, 2026-10-09), and an activity's
+	// terms follow the watch it was recorded on, not the bridge (ADR 0098). A
+	// FIT file from the watch is the way in that does not depend on either.
 	intervalsicu: {
 		name: 'intervals.icu',
 		tagline:
-			'Gratis import med din personlige API-nøkkel – tar med data fra Garmin og Suunto også. Sjekkes daglig, og du kan synkronisere selv for det nyeste.',
+			'Gratis import med din personlige API-nøkkel: øktene som ligger i intervals.icu-kontoen din. Sjekkes daglig, og du kan synkronisere selv for det nyeste.',
 	},
 	garmin: {
 		name: 'Garmin Connect',
 		tagline:
-			'Garmins API krever opptak i partnerprogrammet deres. Til da har intervals.icu allerede Garmin-dataene dine.',
+			'Garmins API krever opptak i partnerprogrammet deres. Til da kan du laste opp FIT-filen fra klokka.',
 	},
 	suunto: {
 		name: 'Suunto',
 		tagline:
-			'Suuntos API er også bare for partnere. intervals.icu har Suunto-dataene dine i dag.',
+			'Suuntos API er også bare for partnere. Til da kan du laste opp FIT-filen fra klokka.',
 	},
 } as const
 
