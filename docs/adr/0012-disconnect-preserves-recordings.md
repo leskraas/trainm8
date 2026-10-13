@@ -1,5 +1,20 @@
 # Disconnect preserves Recordings; source-side delete follows the same rule
 
+> **Amended by
+> [ADR 0096](./0096-every-import-records-its-origin-platform-and-one-activity-is-one-row.md)
+> and [ADR 0098](./0098-source-terms-bind-per-origin-platform.md) (#545).** The
+> rule stands; the mechanism text below was wrong. There is no
+> `accountConnectionId` column on `ActivityImport`: disconnect deletes the
+> athlete's unpromoted imports by `(athleteId, externalProvider)`
+> (`disconnectAccountConnection`), which is equivalent while there is one
+> Account Connection per athlete and provider. Since ADR 0049 that set is empty
+> anyway. With aliases (ADR 0096 §7), disconnect keeps the provider's aliases so
+> a reconnect does not re-import duplicates, and a source-side `delete` for an
+> aliased key removes only the alias. Keeping history after disconnect is right
+> for Garmin and Polar, but not for every vendor: retention after revocation is
+> a per-platform rule in ADR 0098 §5, and Wahoo does not ship before its rule is
+> settled.
+
 Trainm8 ingests activities from external training services (Strava first,
 Garmin/Polar later) into an inbox of **Activity Imports**, some of which the
 athlete promotes to **Recordings** attached to a **Workout Session**. Recordings
@@ -46,9 +61,10 @@ athlete operation, not part of disconnect.
 
 - `disconnectAccountConnection()` runs in a transaction: set `status = revoked`
   or hard-delete the Account Connection row, cascade-delete Activity Imports
-  where `promotedSessionId IS NULL` and `accountConnectionId` matches; leave
-  promoted imports and their Recordings intact. (The promoted import row stays
-  so Recording telemetry remains resolvable.)
+  where `promotedSessionId IS NULL` and `accountConnectionId` matches (_there is
+  no such column: the delete is by `athleteId` and `externalProvider`; see the
+  note at the top_); leave promoted imports and their Recordings intact. (The
+  promoted import row stays so Recording telemetry remains resolvable.)
 - Strava webhook `delete` events for non-promoted imports cascade-delete the
   import. `delete` events for promoted imports are a no-op against the Recording
   but may log a marker for audit.
