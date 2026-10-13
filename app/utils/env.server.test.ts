@@ -20,10 +20,7 @@ test('a production boot without CREDENTIALS_ENCRYPTION_KEY refuses to start', ()
 
 test('a production boot with a real key starts', () => {
 	vi.stubEnv('NODE_ENV', 'production')
-	vi.stubEnv(
-		'CREDENTIALS_ENCRYPTION_KEY',
-		randomBytes(32).toString('base64'),
-	)
+	vi.stubEnv('CREDENTIALS_ENCRYPTION_KEY', randomBytes(32).toString('base64'))
 
 	expect(() => init()).not.toThrow()
 })

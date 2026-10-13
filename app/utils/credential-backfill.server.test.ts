@@ -68,8 +68,11 @@ test('existing plaintext tokens become unreadable in the database and still read
 		refreshToken: 'legacy-refresh',
 	})
 	expect(
-		(await prisma.accountConnection.findUniqueOrThrow({ where: { id: intervals } }))
-			.accessToken,
+		(
+			await prisma.accountConnection.findUniqueOrThrow({
+				where: { id: intervals },
+			})
+		).accessToken,
 	).toBe('legacy-api-key')
 })
 

@@ -18,9 +18,7 @@ describe('encryptCredential / decryptCredential', () => {
 
 		expect(stored).not.toContain('intervals-api-key-123')
 		expect(isEncryptedCredential(stored)).toBe(true)
-		expect(decryptCredential(stored, 'ctx', keys)).toBe(
-			'intervals-api-key-123',
-		)
+		expect(decryptCredential(stored, 'ctx', keys)).toBe('intervals-api-key-123')
 	})
 
 	test('encrypting the same token twice gives different ciphertexts', () => {
@@ -39,7 +37,11 @@ describe('encryptCredential / decryptCredential', () => {
 
 	test('a ciphertext moved to another column is refused', () => {
 		const keys = parseCredentialKeys(keyA)
-		const stored = encryptCredential('secret', 'AccountConnection.refreshToken', keys)
+		const stored = encryptCredential(
+			'secret',
+			'AccountConnection.refreshToken',
+			keys,
+		)
 		expect(() =>
 			decryptCredential(stored, 'AccountConnection.accessToken', keys),
 		).toThrow()

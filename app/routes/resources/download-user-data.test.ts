@@ -39,8 +39,10 @@ test('the download is the whole export, never cached', async () => {
 	})
 
 	expect(response.headers.get('Cache-Control')).toBe('no-store')
-	const body = await response.json()
-	expect(body.tables.User[0].id).toBe(session.userId)
+	const body = (await response.json()) as {
+		tables: Record<string, Array<{ id: string }>>
+	}
+	expect(body.tables.User?.[0]?.id).toBe(session.userId)
 	expect(body.tables.AthleteProfile).toHaveLength(1)
 })
 

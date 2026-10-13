@@ -79,7 +79,9 @@ async function createAthleteWithTrainingRecord(label: string) {
 			intent: 'threshold',
 			ownerId: user.id,
 			authorship: 'athlete',
-			blocks: { create: { orderIndex: 0, steps: { create: { orderIndex: 0 } } } },
+			blocks: {
+				create: { orderIndex: 0, steps: { create: { orderIndex: 0 } } },
+			},
 		},
 	})
 	const session = await prisma.workoutSession.create({
@@ -119,7 +121,11 @@ async function createAthleteWithTrainingRecord(label: string) {
 		tracks: [{ discipline: 'run', currency: 'km', anchorValue: 40 }],
 	})
 	if (!outline.ok) throw new Error(outline.reason)
-	return { userId: user.id, workoutId: workout.id, activityImportId: activityImport.id }
+	return {
+		userId: user.id,
+		workoutId: workout.id,
+		activityImportId: activityImport.id,
+	}
 }
 
 test('the export carries every user-owned table in the schema', async () => {
@@ -168,7 +174,10 @@ test("the export holds the athlete's training record", async () => {
 	])
 	expect(tables.ActivityStream).toHaveLength(1)
 	expect(tables.AccountConnection).toEqual([
-		expect.objectContaining({ provider: 'intervalsicu', externalAthleteId: 'me-ext' }),
+		expect.objectContaining({
+			provider: 'intervalsicu',
+			externalAthleteId: 'me-ext',
+		}),
 	])
 	expect(tables.PlanOutline).toHaveLength(1)
 	expect(tables.TrainingTrack).toHaveLength(1)

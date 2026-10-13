@@ -111,7 +111,9 @@ export async function exportUserData({
 
 		Event: await prisma.event.findMany({ where: athlete }),
 		PlanOutline: await prisma.planOutline.findMany({ where: athlete }),
-		PlanOutlinePhase: await prisma.planOutlinePhase.findMany({ where: outline }),
+		PlanOutlinePhase: await prisma.planOutlinePhase.findMany({
+			where: outline,
+		}),
 		TrainingTrack: await prisma.trainingTrack.findMany({ where: outline }),
 		SeasonAnchorSegment: await prisma.seasonAnchorSegment.findMany({
 			where: track,
@@ -186,9 +188,9 @@ export async function exportUserData({
 		}),
 
 		ProgramInstance: await prisma.programInstance.findMany({ where: own }),
-		ProgramSessionApplication: await prisma.programSessionApplication.findMany(
-			{ where: instance },
-		),
+		ProgramSessionApplication: await prisma.programSessionApplication.findMany({
+			where: instance,
+		}),
 		ProgramLiftState: await prisma.programLiftState.findMany({
 			where: instance,
 		}),

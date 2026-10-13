@@ -56,10 +56,7 @@ export function parseCredentialKeys(
 		raw = DEV_CREDENTIALS_ENCRYPTION_KEY
 	}
 	const parts = raw.split(',').map((part) => part.trim())
-	if (
-		mode === 'production' &&
-		parts.includes(DEV_CREDENTIALS_ENCRYPTION_KEY)
-	) {
+	if (mode === 'production' && parts.includes(DEV_CREDENTIALS_ENCRYPTION_KEY)) {
 		throw new Error(
 			'CREDENTIALS_ENCRYPTION_KEY is the published development key; set a real key in production',
 		)

@@ -43,10 +43,11 @@ Beyond the Epic Stack's own (`SESSION_SECRET`, `HONEYPOT_SECRET`, see
 
 ### `CREDENTIALS_ENCRYPTION_KEY`
 
-Encrypts the provider credentials trainm8 stores (`AccountConnection.accessToken`
-and `refreshToken`: Strava OAuth tokens and Intervals.icu API keys) with
-AES-256-GCM (#548, `app/utils/credential-crypto.server.ts`). Any later stored
-secret (Better Auth's OAuth tables, Polar tokens) uses the same key.
+Encrypts the provider credentials trainm8 stores
+(`AccountConnection.accessToken` and `refreshToken`: Strava OAuth tokens and
+Intervals.icu API keys) with AES-256-GCM (#548,
+`app/utils/credential-crypto.server.ts`). Any later stored secret (Better Auth's
+OAuth tables, Polar tokens) uses the same key.
 
 - **Format:** one or more base64-encoded 32-byte keys, comma-separated. The
   first key encrypts; every key is tried when decrypting.
@@ -59,6 +60,7 @@ secret (Better Auth's OAuth tables, Polar tokens) uses the same key.
   Keep a copy in the password manager. **Losing the key loses every stored
   connection**: athletes would have to reconnect Strava and re-enter their
   Intervals.icu key.
+
 - **If it is missing, or is the development key from `.env.example`:** the
   release refuses to boot (`app/utils/env.server.ts`). The new machines fail
   their health check, Fly keeps the previous release serving, and no row is
