@@ -299,6 +299,15 @@ const { ensureIntervalsIcuLapsBackfillEnqueued } =
 	await import('#app/integrations/intervalsicu/laps-backfill.server.ts')
 await ensureIntervalsIcuLapsBackfillEnqueued()
 
+// The FIT harvest (#547): while Intervals.icu still serves Garmin, fetch each
+// bridge-era activity's original file and keep its bytes and FIT key. Enqueue
+// the dispatch exactly once — the job row is the marker — and it starts one
+// resumable, budgeted harvest per active connection
+// (docs/agents/intervalsicu-fit-harvest.md).
+const { ensureIntervalsIcuFitHarvestEnqueued } =
+	await import('#app/integrations/intervalsicu/fit-harvest.server.ts')
+await ensureIntervalsIcuFitHarvestEnqueued()
+
 // One-shot credential encryption (#548): tokens stored before encryption at
 // rest are still plaintext. Enqueue the backfill exactly once — the job row is
 // the marker — delayed past the deploy window so a rolled-back release never

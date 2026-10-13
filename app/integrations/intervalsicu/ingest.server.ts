@@ -1,3 +1,4 @@
+import { gunzipSync } from 'node:zlib'
 import { fileActivityImport } from '#app/integrations/shared/file-activity-import.server.ts'
 import {
 	intervalsIcuOriginPlatform,
@@ -15,7 +16,11 @@ import {
 } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { type Lap } from '#app/utils/structure-detection/types.ts'
-import { IntervalsIcuApiError, intervalsIcuApiGet } from './client.server.ts'
+import {
+	IntervalsIcuApiError,
+	intervalsIcuApiGet,
+	intervalsIcuApiGetBytes,
+} from './client.server.ts'
 import { intervalsIcuTypeToDiscipline } from './discipline-map.ts'
 import {
 	createCourtesyPacer,
@@ -27,6 +32,7 @@ import {
 	intervalsIcuActivitiesPath,
 	IntervalsIcuIntervalsSchema,
 	intervalsIcuIntervalsPath,
+	intervalsIcuOriginalFilePath,
 	IntervalsIcuStreamsSchema,
 	intervalsIcuStreamsPath,
 	type IntervalsIcuActivity,
@@ -266,6 +272,32 @@ export async function fetchIntervalsIcuActivityStreams(
 		raw.pace = pick(velocity).map((v) => (isNum(v) && v > 0 ? 1000 / v : null))
 	}
 	return raw
+}
+
+/**
+ * Fetch an activity's **original file** (`GET /activity/{id}/file`, #547), or
+ * `null` when it has none (a manual entry answers 404). One request, paced
+ * like every other Intervals.icu call. A gzipped body is returned unzipped.
+ * Key rejection and other failures throw, as the client does.
+ */
+export async function fetchIntervalsIcuOriginalFile(
+	apiKey: string,
+	externalId: string,
+): Promise<Uint8Array | null> {
+	await intervalsIcuPacer.acquire()
+	let bytes: Uint8Array
+	try {
+		bytes = await intervalsIcuApiGetBytes(
+			apiKey,
+			intervalsIcuOriginalFilePath(externalId),
+		)
+	} catch (err) {
+		if (err instanceof IntervalsIcuApiError && err.status === 404) return null
+		throw err
+	}
+	if (bytes.length === 0) return null
+	const gzipped = bytes[0] === 0x1f && bytes[1] === 0x8b
+	return gzipped ? new Uint8Array(gunzipSync(bytes)) : bytes
 }
 
 /**
