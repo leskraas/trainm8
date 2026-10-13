@@ -33,8 +33,8 @@ export type IngestFitOptions = {
 	externalId?: string
 	/** The Origin Platform; defaults to what the transport implies. */
 	originPlatform?: OriginPlatform
-	/** Where the bytes came from, recorded with the kept original file. */
-	fileSource: string
+	/** How the bytes reached trainm8, recorded with the kept original file. */
+	fetchedVia: string
 	/** IANA timezone used to resolve the calendar day for auto-matching. */
 	timezone: string
 	/** Manual Discipline override (single-file uploads only). */
@@ -119,7 +119,7 @@ export async function ingestFit(
 				continue
 			}
 
-			await keepOriginalFile(filed.importId, bytes, options.fileSource)
+			await keepOriginalFile(filed.importId, bytes, options.fetchedVia)
 			if (leg.laps.length > 0) {
 				await persistActivityLaps(filed.importId, leg.laps)
 			}
@@ -192,14 +192,14 @@ function legExternalId(
 async function keepOriginalFile(
 	activityImportId: string,
 	bytes: Uint8Array,
-	source: string,
+	fetchedVia: string,
 ) {
 	await prisma.activityFile.upsert({
 		where: { activityImportId },
 		create: {
 			activityImportId,
 			format: 'fit',
-			source,
+			fetchedVia,
 			bytes: new Uint8Array(bytes),
 		},
 		update: {},
@@ -268,7 +268,7 @@ async function refreshMirrorFromOriginalFit(
 				data: {
 					activityImportId: importId,
 					format: 'fit',
-					source: options.fileSource,
+					fetchedVia: options.fetchedVia,
 					bytes: new Uint8Array(bytes),
 				},
 			}),

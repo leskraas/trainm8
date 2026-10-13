@@ -281,7 +281,7 @@ async function keepOriginal(
 			create: {
 				activityImportId: importId,
 				format: 'fit',
-				source: 'intervalsicu-harvest',
+				fetchedVia: 'intervalsicu-harvest',
 				bytes: new Uint8Array(file),
 			},
 			update: {},

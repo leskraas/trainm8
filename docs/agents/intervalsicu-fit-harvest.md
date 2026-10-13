@@ -3,7 +3,7 @@
 While Intervals.icu still serves Garmin activities, trainm8 fetches the
 **original file** of every bridge-era activity it imported through Intervals.icu
 and keeps two things on the import: the bytes (`ActivityFile`,
-`source = 'intervalsicu-harvest'`) and the FIT key (`ActivityImport.fitFileKey`,
+`fetchedVia = 'intervalsicu-harvest'`) and the FIT key (`ActivityImport.fitFileKey`,
 ADR 0096 §1). Nothing else on the import changes: no metric, stream, Recording
 or identity. Code: `app/integrations/intervalsicu/fit-harvest.server.ts`.
 

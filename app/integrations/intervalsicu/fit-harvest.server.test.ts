@@ -106,7 +106,7 @@ const harvested = (id: string) =>
 			fitHarvestedAt: true,
 			durationSec: true,
 			promotedSessionId: true,
-			originalFile: { select: { source: true, bytes: true } },
+			originalFile: { select: { fetchedVia: true, bytes: true } },
 		},
 	})
 
@@ -121,7 +121,7 @@ test("each bridge-era import keeps its original FIT's bytes and key", async () =
 	expect(outcome).toMatchObject({ kind: 'done', requests: 2 })
 	const kept = await harvested(run.id)
 	expect(kept.fitFileKey).toBe(LAPS_RUN_KEY)
-	expect(kept.originalFile?.source).toBe('intervalsicu-harvest')
+	expect(kept.originalFile?.fetchedVia).toBe('intervalsicu-harvest')
 	// Stored as the FIT itself, not the gzip it travelled in.
 	expect(new Uint8Array(kept.originalFile!.bytes)).toEqual(
 		fixture('run-with-laps.fit'),

@@ -1734,8 +1734,8 @@ model ActivityFile {
   id               String   @id @default(cuid())
   activityImportId String   @unique
   format           String // 'fit'
-  /// Where the bytes came from: 'upload' | 'intervalsicu-harvest' | a vendor.
-  source           String
+  /// How the bytes reached trainm8: 'upload' | 'intervalsicu-harvest' | a vendor.
+  fetchedVia       String
   bytes            Bytes
   createdAt        DateTime @default(now())
 

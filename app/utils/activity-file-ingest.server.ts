@@ -195,7 +195,7 @@ export async function ingestActivityFile(
 		try {
 			legs = await ingestFit(athleteId, parsed.bytes, {
 				externalProvider: 'manual',
-				fileSource: 'upload',
+				fetchedVia: 'upload',
 				fileName: parsed.fileName,
 				timezone: options.timezone,
 				disciplineOverride: options.disciplineOverride,
