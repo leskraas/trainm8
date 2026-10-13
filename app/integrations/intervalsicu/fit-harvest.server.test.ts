@@ -307,6 +307,23 @@ test('rate limiting backs off for an hour and leaves the activity to retry', asy
 	expect((await harvested(run.id)).fitHarvestedAt).toBeNull()
 })
 
+test('an original that inflates past the size limit is marked asked and not kept', async () => {
+	const { athleteId } = await setup()
+	const bomb = await bridgeImport(athleteId, 'bomb')
+	// A real FIT followed by 80 MiB of zeros: it gzips to about 80 KB.
+	const padded = new Uint8Array(80 * 1024 * 1024)
+	padded.set(fixture('run-with-laps.fit'))
+	serveOriginals({ bomb: gzipSync(padded) })
+
+	const outcome = await runIntervalsIcuFitHarvest(athleteId, {}, { now: NOW })
+
+	expect(outcome).toMatchObject({ kind: 'done', requests: 1 })
+	expect(await harvested(bomb.id)).toMatchObject({
+		fitHarvestedAt: NOW,
+		originalFile: null,
+	})
+})
+
 test('the job re-enqueues itself until the harvest is done', async () => {
 	const { athleteId } = await setup()
 	await bridgeImport(athleteId, 'a')

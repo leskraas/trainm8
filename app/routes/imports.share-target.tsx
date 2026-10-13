@@ -1,7 +1,13 @@
-import { parseFormData } from '@mjackson/form-data-parser'
+import {
+	FormDataParseError,
+	MaxFilesExceededError,
+	MultipartParseError,
+	parseFormData,
+} from '@mjackson/form-data-parser'
 import { redirect } from 'react-router'
 import {
 	ingestUploadedFiles,
+	UPLOAD_LIMITS,
 	type BatchImportSummary,
 	type UploadedArtifact,
 } from '#app/utils/activity-file-ingest.server.ts'
@@ -26,14 +32,42 @@ export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 
 	const artifacts: UploadedArtifact[] = []
-	await parseFormData(request, async (field) => {
-		if (field.fieldName === 'file') {
-			artifacts.push({
-				fileName: field.name ?? 'shared-file',
-				bytes: await field.bytes(),
-			})
+	try {
+		await parseFormData(
+			request,
+			{
+				maxFileSize: UPLOAD_LIMITS.maxFileSize,
+				maxFiles: UPLOAD_LIMITS.maxFiles,
+			},
+			async (field) => {
+				if (field.fieldName === 'file') {
+					artifacts.push({
+						fileName: field.name ?? 'shared-file',
+						bytes: await field.bytes(),
+					})
+				}
+			},
+		)
+	} catch (err) {
+		if (
+			err instanceof FormDataParseError ||
+			err instanceof MultipartParseError
+		) {
+			return redirectWithToast(
+				'/',
+				{
+					title: L.shareNothing,
+					description:
+						err instanceof MaxFilesExceededError
+							? L.tooManyFiles(UPLOAD_LIMITS.maxFiles)
+							: L.tooLarge,
+					type: 'error',
+				},
+				{ status: 303 },
+			)
 		}
-	})
+		throw err
+	}
 
 	if (artifacts.length === 0) {
 		// Nothing usable came through the share sheet; the upload page is the

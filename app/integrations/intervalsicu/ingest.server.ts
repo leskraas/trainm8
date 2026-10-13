@@ -274,11 +274,16 @@ export async function fetchIntervalsIcuActivityStreams(
 	return raw
 }
 
+/** The largest original file kept, after inflating. */
+export const MAX_ORIGINAL_FILE_SIZE = 64 * 1024 * 1024
+
 /**
  * Fetch an activity's **original file** (`GET /activity/{id}/file`, #547), or
  * `null` when it has none (a manual entry answers 404). One request, paced
- * like every other Intervals.icu call. A gzipped body is returned unzipped.
- * Key rejection and other failures throw, as the client does.
+ * like every other Intervals.icu call. A gzipped body is returned unzipped,
+ * and one that would inflate past `MAX_ORIGINAL_FILE_SIZE` counts as no file
+ * (no activity file is that big; a body that is is not worth keeping). Key
+ * rejection and other failures throw, as the client does.
  */
 export async function fetchIntervalsIcuOriginalFile(
 	apiKey: string,
@@ -296,8 +301,17 @@ export async function fetchIntervalsIcuOriginalFile(
 		throw err
 	}
 	if (bytes.length === 0) return null
+	if (bytes.length > MAX_ORIGINAL_FILE_SIZE) return null
 	const gzipped = bytes[0] === 0x1f && bytes[1] === 0x8b
-	return gzipped ? new Uint8Array(gunzipSync(bytes)) : bytes
+	if (!gzipped) return bytes
+	try {
+		return new Uint8Array(
+			gunzipSync(bytes, { maxOutputLength: MAX_ORIGINAL_FILE_SIZE }),
+		)
+	} catch (err) {
+		if ((err as { code?: unknown }).code === 'ERR_BUFFER_TOO_LARGE') return null
+		throw err
+	}
 }
 
 /**

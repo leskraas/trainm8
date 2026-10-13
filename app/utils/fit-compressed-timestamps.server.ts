@@ -16,12 +16,18 @@ import { CrcCalculator } from '@garmin/fitsdk'
  * between its original layout and the one with the timestamp appended.
  * Developer fields stay where the protocol puts them, after the regular fields.
  *
- * Returns the bytes unchanged when the file has no compressed header.
+ * Returns the bytes unchanged when the file has no compressed header. Throws
+ * on a definition with a zero-size field, and on a file that would grow past
+ * twice its size: real files grow by a few percent, while one crafted to
+ * re-emit a wide definition before every tiny message would grow hundreds of
+ * times over.
  */
 
 const TIMESTAMP_FIELD = 253
 const UINT32 = 0x86
 const FIT_FILE_HEADER_MIN = 12
+const MAX_GROWTH_FACTOR = 2
+const MIN_OUTPUT_LIMIT = 4096
 
 type Definition = {
 	littleEndian: boolean
@@ -40,8 +46,65 @@ const calculateCrc = (
 	}
 ).calculateCRC
 
+/**
+ * The rewritten file: one byte array that grows by doubling up to a fixed
+ * limit, and throws past it.
+ */
+class Output {
+	bytes: Uint8Array
+	length = 0
+	private readonly limit: number
+
+	constructor(initial: number, limit: number) {
+		this.limit = limit
+		this.bytes = new Uint8Array(Math.min(initial, limit))
+	}
+
+	private reserve(extra: number) {
+		const needed = this.length + extra
+		if (needed > this.limit) {
+			throw new Error(
+				`FIT file would grow larger than ${this.limit} bytes when rewritten`,
+			)
+		}
+		if (needed <= this.bytes.length) return
+		const grown = new Uint8Array(
+			Math.min(this.limit, Math.max(needed, this.bytes.length * 2)),
+		)
+		grown.set(this.bytes.subarray(0, this.length))
+		this.bytes = grown
+	}
+
+	push(...values: number[]) {
+		this.reserve(values.length)
+		for (const v of values) this.bytes[this.length++] = v
+	}
+
+	append(chunk: Uint8Array) {
+		this.reserve(chunk.length)
+		this.bytes.set(chunk, this.length)
+		this.length += chunk.length
+	}
+
+	/** Overwrites `size` bytes already written, at `at`. */
+	writeUint(at: number, value: number, size: number, littleEndian = true) {
+		for (let i = 0; i < size; i++) {
+			const byte = Math.floor(value / 2 ** (8 * i)) & 0xff
+			this.bytes[littleEndian ? at + i : at + size - 1 - i] = byte
+		}
+	}
+
+	pushUint(value: number, size: number, littleEndian = true) {
+		this.reserve(size)
+		const at = this.length
+		this.length += size
+		this.writeUint(at, value, size, littleEndian)
+	}
+}
+
 export function expandCompressedTimestamps(bytes: Uint8Array): Uint8Array {
-	const out: number[] = []
+	const limit = Math.max(MIN_OUTPUT_LIMIT, bytes.length * MAX_GROWTH_FACTOR)
+	const out = new Output(bytes.length + 1024, limit)
 	let offset = 0
 	let changed = false
 	// A FIT file may be a chain of complete files; rewrite each in turn.
@@ -50,28 +113,28 @@ export function expandCompressedTimestamps(bytes: Uint8Array): Uint8Array {
 		const dataSize = readUint(bytes, offset + 4, 4, true)
 		const bodyStart = offset + headerSize
 		const bodyEnd = bodyStart + dataSize
-		if (bodyEnd + 2 > bytes.length) break
+		if (headerSize < FIT_FILE_HEADER_MIN || bodyEnd + 2 > bytes.length) break
 
-		const body = rewriteBody(bytes.subarray(bodyStart, bodyEnd))
-		if (body.changed) changed = true
+		const fileStart = out.length
+		out.append(bytes.subarray(offset, bodyStart))
+		const bodyOutStart = out.length
+		if (rewriteBody(bytes.subarray(bodyStart, bodyEnd), out)) changed = true
 
-		const header = Array.from(bytes.subarray(offset, offset + headerSize))
-		writeUint(header, 4, body.bytes.length, 4)
+		out.writeUint(fileStart + 4, out.length - bodyOutStart, 4)
 		if (headerSize >= 14) {
-			const crc = calculateCrc(Uint8Array.from(header), 0, 12)
-			header[12] = crc & 0xff
-			header[13] = crc >>> 8
+			const crc = calculateCrc(out.bytes, fileStart, fileStart + 12)
+			out.bytes[fileStart + 12] = crc & 0xff
+			out.bytes[fileStart + 13] = crc >>> 8
 		}
-		const file = [...header, ...body.bytes]
-		const crc = calculateCrc(Uint8Array.from(file), 0, file.length)
-		out.push(...file, crc & 0xff, crc >>> 8)
+		const crc = calculateCrc(out.bytes, fileStart, out.length)
+		out.push(crc & 0xff, crc >>> 8)
 		offset = bodyEnd + 2
 	}
-	return changed ? Uint8Array.from(out) : bytes
+	return changed ? out.bytes.slice(0, out.length) : bytes
 }
 
-function rewriteBody(body: Uint8Array): { bytes: number[]; changed: boolean } {
-	const out: number[] = []
+/** Rewrites one file's records into `out`; true when anything changed. */
+function rewriteBody(body: Uint8Array, out: Output): boolean {
 	const definitions = new Map<number, Definition>()
 	/** Which layout of each local type the output last defined. */
 	const emitted = new Map<number, 'original' | 'with-timestamp'>()
@@ -92,9 +155,8 @@ function rewriteBody(body: Uint8Array): { bytes: number[]; changed: boolean } {
 				: def.fields
 		const hasDev = def.devFields.length > 0
 		out.push(0x40 | (hasDev ? 0x20 : 0) | local, 0, def.littleEndian ? 0 : 1)
-		const global: number[] = [0, 0]
-		writeUint(global, 0, def.globalNum, 2, def.littleEndian)
-		out.push(...global, fields.length)
+		out.pushUint(def.globalNum, 2, def.littleEndian)
+		out.push(fields.length)
 		for (const f of fields) out.push(f.num, f.size, f.baseType)
 		if (hasDev) {
 			out.push(def.devFields.length)
@@ -115,15 +177,12 @@ function rewriteBody(body: Uint8Array): { bytes: number[]; changed: boolean } {
 			const offset5 = header & 0x1f
 			lastTimestamp =
 				lastTimestamp + ((offset5 - (lastTimestamp & 0x1f)) & 0x1f)
-			const fields = body.subarray(pos + 1, pos + 1 + def.fieldsSize)
-			const dev = body.subarray(
-				pos + 1 + def.fieldsSize,
-				pos + 1 + def.fieldsSize + def.devSize,
-			)
+			const fieldsEnd = pos + 1 + def.fieldsSize
 			emitDefinition(local, def, 'with-timestamp')
-			const ts: number[] = [0, 0, 0, 0]
-			writeUint(ts, 0, lastTimestamp, 4, def.littleEndian)
-			out.push(local, ...fields, ...ts, ...dev)
+			out.push(local)
+			out.append(body.subarray(pos + 1, fieldsEnd))
+			out.pushUint(lastTimestamp, 4, def.littleEndian)
+			out.append(body.subarray(fieldsEnd, fieldsEnd + def.devSize))
 			pos += 1 + def.fieldsSize + def.devSize
 			changed = true
 		} else if (header & 0x40) {
@@ -153,6 +212,11 @@ function rewriteBody(body: Uint8Array): { bytes: number[]; changed: boolean } {
 						devIndex: body[cursor + 2]!,
 					})
 				}
+			}
+			// The protocol has no zero-size field; one only makes a definition
+			// wide for free.
+			if (fields.some((f) => !f.size) || devFields.some((f) => !f.size)) {
+				throw new Error('FIT definition has a zero-size field')
 			}
 			let timestampOffset: number | null = null
 			let fieldsSize = 0
@@ -188,11 +252,11 @@ function rewriteBody(body: Uint8Array): { bytes: number[]; changed: boolean } {
 				)
 			}
 			emitDefinition(local, def, 'original')
-			out.push(...body.subarray(pos, pos + 1 + size))
+			out.append(body.subarray(pos, pos + 1 + size))
 			pos += 1 + size
 		}
 	}
-	return { bytes: out, changed }
+	return changed
 }
 
 function readUint(
@@ -207,17 +271,4 @@ function readUint(
 		value += byte * 2 ** (8 * i)
 	}
 	return value
-}
-
-function writeUint(
-	out: number[],
-	at: number,
-	value: number,
-	size: number,
-	littleEndian = true,
-) {
-	for (let i = 0; i < size; i++) {
-		const byte = Math.floor(value / 2 ** (8 * i)) & 0xff
-		out[littleEndian ? at + i : at + size - 1 - i] = byte
-	}
 }

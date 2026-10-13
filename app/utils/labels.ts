@@ -5066,6 +5066,8 @@ export const UPLOAD_LABELS = {
 	submit: 'Last opp',
 	submitting: 'Laster opp …',
 	noFile: 'Velg minst én fil.',
+	tooLarge: 'Fila er for stor.',
+	tooManyFiles: (max: number) => `Last opp høyst ${max} filer om gangen.`,
 	duplicate: 'Denne økta er allerede importert.',
 	/** `3 importert · 1 fantes fra før · 2 feilet` */
 	summary: (imported: number, duplicates: number, failed: number) =>
@@ -5102,6 +5104,8 @@ const UPLOAD_FAILURE_LABELS: Record<string, string> = {
 	'Unsupported file type. Accepted: .fit, .fit.gz, .tcx, .gpx, .zip, .gz.':
 		'Filtypen støttes ikke. Bruk .fit, .fit.gz, .tcx, .gpx, .zip eller .gz.',
 	'Could not read the archive.': 'Kunne ikke lese ZIP-fila.',
+	'The file is too large.': 'Fila er for stor.',
+	'The archive is too large.': 'ZIP-fila er for stor.',
 }
 
 export function uploadFailureLabel(reason: string): string {
