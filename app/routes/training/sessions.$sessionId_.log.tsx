@@ -37,7 +37,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { Link, data, useFetcher } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { buttonVariants } from '#app/components/ui/button.tsx'

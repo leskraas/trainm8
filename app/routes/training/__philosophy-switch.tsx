@@ -12,7 +12,7 @@
  * trusting it back from the form.
  */
 import { getFormProps, useForm } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { useEffect, useState } from 'react'
 import { Form } from 'react-router'
 import { ErrorList, RadioGroupField } from '#app/components/forms.tsx'

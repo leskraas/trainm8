@@ -11,7 +11,7 @@
  * 400 lands as one summary line in human words with focus and a live-region
  * announcement, clearing when the first step materializes.
  */
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'

@@ -8,7 +8,7 @@
  * `isCalendarDay`'s call, which needs the Athlete Timezone.
  */
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { weekdayIndex } from './athlete-calendar.ts'
 
 /** `YYYY-MM-DD`. */

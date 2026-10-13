@@ -1,5 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { useState } from 'react'
 import { data, Form, redirect } from 'react-router'
 import { ErrorList, Field, RadioGroupField } from '#app/components/forms.tsx'

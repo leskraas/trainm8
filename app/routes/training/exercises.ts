@@ -1,5 +1,5 @@
 import { data } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { MUSCLE_GROUPS } from '#app/utils/workout-schema.ts'
 import { createCustomExercise } from '#app/utils/workout.server.ts'

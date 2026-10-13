@@ -8,7 +8,7 @@
  * to different rules.
  */
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { OPEN_ENDED_FORM_LABELS } from '../labels.ts'
 import { CARDIO_DISCIPLINES } from '../workout-schema.ts'
 

@@ -11,7 +11,7 @@
  * moves to the first anchor with a live-region announcement, and a marking
  * clears locally the moment the value behind it changes.
  */
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'

@@ -119,7 +119,7 @@
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.1.18",
     "vite-env-only": "^3.0.3",
-    "zod": "^3.25.76"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.7.0",

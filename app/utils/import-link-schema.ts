@@ -6,7 +6,7 @@
  * too.
  */
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 /** Where an import's answers post (`routes/resources/import-link.tsx`). */
 export const IMPORT_LINK_ACTION = '/resources/import-link'

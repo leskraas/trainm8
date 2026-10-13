@@ -6,7 +6,7 @@
  * a toast. Kept beside `__season-edits.tsx` so the route's action only
  * dispatches to it.
  */
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { data } from 'react-router'
 import {
 	SEASON_EDIT_LABELS,

@@ -4,7 +4,7 @@ import {
 	useForm,
 	type SubmissionResult,
 } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import {
 	redirect,
 	data,
@@ -13,7 +13,7 @@ import {
 	useSearchParams,
 } from 'react-router'
 import { safeRedirect } from 'remix-utils/safe-redirect'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'

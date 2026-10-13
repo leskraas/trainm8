@@ -1,7 +1,7 @@
 import { parseFormData } from '@mjackson/form-data-parser'
 import { useRef, useState } from 'react'
 import { data, Form, Link, redirect, useActionData } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'

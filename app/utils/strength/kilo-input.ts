@@ -15,7 +15,7 @@
  * so the ambiguity of `1,000` is not worth resolving; it is a refusal the athlete
  * sees in words.
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 const KILO_PATTERN = /^(\d+)(?:[.,](\d+))?(?:\s*kg)?$/i
 

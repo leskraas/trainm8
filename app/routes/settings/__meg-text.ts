@@ -13,7 +13,7 @@
  * anywhere in the app, so they are replaced at parse time with
  * {@link megZodErrorMap} — a parse option, which changes no rule.
  */
-import { type ZodErrorMap, ZodIssueCode } from 'zod'
+import { type ZodErrorMap, ZodIssueCode } from 'zod/v3'
 import {
 	MEG_ANALYZE_LABELS,
 	MEG_VALIDATION_LABELS,

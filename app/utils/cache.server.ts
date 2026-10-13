@@ -14,7 +14,7 @@ import {
 } from '@epic-web/cachified'
 import { remember } from '@epic-web/remember'
 import { LRUCache } from 'lru-cache'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { updatePrimaryCacheValue } from '#app/routes/admin/cache/sqlite.server.ts'
 import { getInstanceInfo, getInstanceInfoSync } from './litefs.server.ts'
 import { cachifiedTimingReporter, type Timings } from './timing.server.ts'

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { parseDistance, parseDuration } from '#app/utils/format.ts'
 import { parseAuthoredIntensity } from '#app/utils/intensity-target.ts'
 import { WORKOUT_SCHEMA_MESSAGES } from '#app/utils/labels.ts'

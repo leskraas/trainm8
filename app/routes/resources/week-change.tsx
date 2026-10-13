@@ -1,4 +1,4 @@
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { data } from 'react-router'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { WEEK_CHANGE_REFUSAL_LABELS } from '#app/utils/labels.ts'

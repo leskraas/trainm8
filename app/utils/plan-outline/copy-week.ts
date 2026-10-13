@@ -26,7 +26,7 @@
 //
 // Nothing here carries wording; the route says it.
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import {
 	addDays,
 	localDate,
