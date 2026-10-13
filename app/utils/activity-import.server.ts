@@ -82,8 +82,24 @@ export async function recomputeLoadAfterBatch(
  * whenever the provider didn't report them. Distances are metres, speeds m/s,
  * times seconds. The type is inferred from the schema so the two never drift.
  */
+/**
+ * The transports an import can come down. The direct vendors are here ahead of
+ * their folders (#555) so the shared FIT ingest (`ingestFit`) can file them.
+ */
+export const IMPORT_TRANSPORTS = [
+	'manual',
+	'strava',
+	'intervalsicu',
+	'garmin',
+	'polar',
+	'coros',
+	'suunto',
+	'wahoo',
+] as const
+export type ImportTransport = (typeof IMPORT_TRANSPORTS)[number]
+
 export const ActivityImportInputSchema = z.object({
-	externalProvider: z.enum(['manual', 'strava', 'intervalsicu', 'garmin']),
+	externalProvider: z.enum(IMPORT_TRANSPORTS),
 	externalId: z.string(),
 	/**
 	 * Provenance (ADR 0096 §1). `originPlatform` defaults to what the transport
