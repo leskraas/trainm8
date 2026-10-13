@@ -1742,6 +1742,17 @@ model ActivityFile {
   activityImport ActivityImport @relation(fields: [activityImportId], references: [id], onDelete: Cascade)
 }
 
+/// The FIT harvest's daily request budget for one Intervals.icu API key
+/// (#547). Intervals.icu counts requests per key, and several athletes may
+/// connect with the same key (#544), so the count is the key's, shared by every
+/// connection that holds it. `keyHash` is the SHA-256 of the key, never the key.
+model IntervalsIcuKeyBudget {
+  keyHash          String   @id
+  windowStartedAt  DateTime
+  requestsInWindow Int      @default(0)
+  updatedAt        DateTime @updatedAt
+}
+
 /// Per-sample telemetry for an Activity Import (ADR 0020): the moment-to-moment
 /// power / heart-rate / pace the Workout Detail View overlays against the plan.
 /// One per Activity Import (many imports have none — manual uploads, providers or

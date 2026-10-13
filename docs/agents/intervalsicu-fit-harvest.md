@@ -28,10 +28,11 @@ needed.**
    `intervalsicu-fit-harvest` job per **active** Intervals.icu connection.
 4. Each harvest job fetches up to 100 originals (`GET /activity/{id}/file`, one
    request each, paced at 4 a second), then enqueues its own continuation. It
-   spends at most **2,000 requests per connection in any 24 hours**.
-   Intervals.icu allows 5,000 a day per key, so this leaves room for the daily
-   sync and for two athletes who share one key. When the budget is spent, the
-   continuation waits until the 24-hour window turns.
+   spends at most **2,000 requests per API key in any 24 hours**, counted in
+   `IntervalsIcuKeyBudget` (keyed by the key's SHA-256) and shared by every
+   athlete who connected with that key. Intervals.icu allows 5,000 a day per
+   key, so this leaves room for the daily sync. When the budget is spent, the
+   continuation waits until the key's 24-hour window turns.
 5. The daily reconciliation sweep then dispatches again, so activities synced
    after the first harvest are harvested too. A connection with a harvest
    already pending or running gets no second.
@@ -53,6 +54,9 @@ fly ssh console -C database-cli --app trainm8-085d
 -- Jobs: dispatch ran once; one harvest per athlete pending/running/completed.
 SELECT kind, status, attempts, runAt, lastError, payload
 FROM Job WHERE kind LIKE 'intervalsicu-fit-harvest%' ORDER BY createdAt DESC LIMIT 20;
+
+-- Per key: the harvest's spend in the current window.
+SELECT keyHash, windowStartedAt, requestsInWindow FROM IntervalsIcuKeyBudget;
 
 -- Per athlete: asked / with a kept FIT / with a FIT key / still to ask.
 SELECT athleteId,
@@ -108,8 +112,8 @@ the `lastError` column will show it if one is wrong.
   something else. A 401/403 is checked against `athlete/0` before the connection
   is revoked, so a per-activity block marks only that activity. Watch for
   `revoked` connections after the first run anyway.
-- The daily rate limit is per key, as the API docs say. 2,000 a day per
-  connection is a deliberate under-use.
+- The daily rate limit is per key, as the API docs say. 2,000 a day per key is a
+  deliberate under-use.
 
 ## Duplicates the harvest reveals
 
