@@ -3,7 +3,7 @@ import {
 	type RegistrationResponseJSON,
 } from '@simplewebauthn/server'
 import { createCookie } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { getDomainUrl } from '#app/utils/misc.tsx'
 
 export const passkeyCookie = createCookie('webauthn-challenge', {

@@ -1,5 +1,17 @@
 # Activity ingest trigger model: webhook + manual sync + reconciliation poll
 
+> **Amended (#545): Strava does not sign webhooks.** The consequence below that
+> requires verifying `X-Strava-Signature` is wrong: Strava sends no signature,
+> and the handler (`app/routes/webhook.strava.tsx`, `webhook.server.ts`) gates
+> on the subscription's verify token at registration and matches events against
+> the optional subscription id. The three trigger layers still fit the watch
+> vendors (Polar's webhook is HMAC-signed and dropped after 7 days of failures);
+> a poll-only source such as the COROS developer MCP or an Intervals.icu
+> personal key runs the layers minus the webhook, as ADR 0026 §3 already does.
+> Every layer now resolves identity before inserting
+> ([ADR 0096](./0096-every-import-records-its-origin-platform-and-one-activity-is-one-row.md)
+> §5).
+
 For the Strava integration (and future Garmin/Polar integrations), trainm8 needs
 to decide how new activities flow from the source provider into our **Activity
 Import** inbox. The trigger model determines whether we need a public webhook
@@ -49,10 +61,11 @@ All three layers feed the same job queue and the same downstream pipeline (fetch
   ADR commits us to introducing one. The minimum-viable shape is a SQLite-backed
   table plus a polling worker started from the entry server, scaling to BullMQ
   or Fly Machines schedules later.
-- A new public route `/webhook/strava` is added. It must verify
-  `X-Strava-Signature` (HMAC-SHA256 of raw body with the webhook signing secret)
-  and reject unsigned requests. `hub.verify_token` is used only at subscription
-  registration time, not on subsequent events.
+- _Wrong: Strava does not sign webhooks; see the note at the top._ A new public
+  route `/webhook/strava` is added. It must verify `X-Strava-Signature`
+  (HMAC-SHA256 of raw body with the webhook signing secret) and reject unsigned
+  requests. `hub.verify_token` is used only at subscription registration time,
+  not on subsequent events.
 - Local dev cannot receive Strava webhooks at `localhost`. An env-conditional
   path falls back to "manual sync + poll" in development; ngrok or similar is
   optional for end-to-end webhook testing.

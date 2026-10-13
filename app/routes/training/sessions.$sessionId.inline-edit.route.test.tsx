@@ -11,7 +11,7 @@
  * in `sessions.$sessionId.test.ts`), interact with tokens, and assert the
  * autosaved prescription.
  */
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { render, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub, data } from 'react-router'

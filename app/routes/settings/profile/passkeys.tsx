@@ -1,7 +1,7 @@
 import { startRegistration } from '@simplewebauthn/browser'
 import { useState } from 'react'
 import { useRevalidator } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { PasskeyItem } from '#app/components/passkey-item.tsx'
 import { Alert, AlertDescription } from '#app/components/ui/alert.tsx'
 import { Button } from '#app/components/ui/button.tsx'

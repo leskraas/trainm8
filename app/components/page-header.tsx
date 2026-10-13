@@ -7,7 +7,7 @@
  */
 import { type ReactNode } from 'react'
 import { Link, useMatches } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { PAGE_HEADER_LABELS } from '#app/utils/labels.ts'

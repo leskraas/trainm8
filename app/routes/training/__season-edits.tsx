@@ -25,10 +25,10 @@ import {
 	useForm,
 	type SubmissionResult,
 } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { useEffect, useState } from 'react'
 import { Form, Link, useLocation, useSearchParams } from 'react-router'
-import { type z } from 'zod'
+import { type z } from 'zod/v3'
 import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'

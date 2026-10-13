@@ -1,5 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { type CSSProperties, useEffect, useState } from 'react'
 import { data, Form, Link, redirect, useRevalidator } from 'react-router'
 import { ErrorList, Field } from '#app/components/forms.tsx'

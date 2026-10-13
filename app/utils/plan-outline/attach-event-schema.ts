@@ -9,7 +9,7 @@
  * action never has to guess from what is blank.
  */
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { DAY_KEY_PATTERN } from '#app/utils/calendar-key-schema.ts'
 import { EventFormSchema } from '#app/utils/event-schema.ts'
 import { ATTACH_EVENT_LABELS } from '#app/utils/labels.ts'

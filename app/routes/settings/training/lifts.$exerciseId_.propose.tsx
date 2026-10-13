@@ -32,7 +32,7 @@
  */
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Link, data, useFetcher } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'

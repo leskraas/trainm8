@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { TARGET_KIND_LABELS } from './labels.ts'
 import { DISCIPLINES, type Discipline } from './workout-schema.ts'
 

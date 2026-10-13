@@ -27,11 +27,11 @@ import {
 	useForm,
 	type FieldMetadata,
 } from '@conform-to/react'
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useFetcher, useSubmit } from 'react-router'
 import { toast } from 'sonner'
-import { type z } from 'zod'
+import { type z } from 'zod/v3'
 import { ErrorList } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'

@@ -1,8 +1,8 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { data, redirect, Form } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {

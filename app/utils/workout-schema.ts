@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { WORKOUT_SCHEMA_MESSAGES } from './labels.ts'
 
 // The display labels for these enums live in `app/utils/labels.ts` (#281), the

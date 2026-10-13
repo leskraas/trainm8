@@ -15,7 +15,7 @@
  * Pure: no database, no clock of its own — callers pass the local days.
  */
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { MARK_DONE_REACH_DAYS } from './import-fit.ts'
 import { type SetUnit } from './strength/working-load.ts'
 

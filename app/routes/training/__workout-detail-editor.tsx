@@ -39,7 +39,7 @@
  * discipline, schedule) are mirrored here, with `HiddenField`.
  */
 import { getFormProps, useForm } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFetcher } from 'react-router'
 import { formatDistance, formatDuration } from '#app/utils/format.ts'
