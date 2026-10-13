@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { dayBoundsUTC, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
 import { fitsImport, isRecordingOnlySource } from './import-fit.ts'
