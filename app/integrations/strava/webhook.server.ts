@@ -1,7 +1,7 @@
 import { z } from 'zod/v3'
+import { fileActivityImport } from '#app/integrations/shared/file-activity-import.server.ts'
 import {
 	autoSaveImport,
-	createActivityImport,
 	deleteImportIfAutoSaveMirror,
 	isAutoSaveMirror,
 	updateActivityImportSnapshot,
@@ -288,15 +288,11 @@ async function ingestCreatedActivity(
 	const activity = await fetchStravaActivityById(connection, externalId)
 	const input = mapActivityToImportInput(activity)
 
-	let importId: string
-	try {
-		importId = (await createActivityImport(connection.athleteId, input)).id
-	} catch (err) {
-		if (err instanceof Error && err.message.toLowerCase().includes('unique')) {
-			return
-		}
-		throw err
-	}
+	// The dedupe choke point (ADR 0096 §4): a redelivery, or the same activity
+	// another source already brought (kept as an alias), files nothing new.
+	const filed = await fileActivityImport(connection.athleteId, input)
+	if (filed.kind === 'duplicate') return
+	const importId = filed.importId
 
 	const timezone =
 		(

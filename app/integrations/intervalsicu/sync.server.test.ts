@@ -226,7 +226,12 @@ test('two same-day runs against one plan: one matches it, the other gets its own
 	})
 	server.use(
 		http.get(ACTIVITIES_URL, () =>
-			HttpResponse.json([newActivity('i9002'), newActivity('i9003')]),
+			// Two runs, morning and evening: at the same start and length they
+			// would be one activity seen twice (ADR 0096 §4).
+			HttpResponse.json([
+				newActivity('i9002'),
+				{ ...newActivity('i9003'), start_date: '2026-05-21T17:00:00Z' },
+			]),
 		),
 		http.get(STREAMS_URL, () => new HttpResponse(null, { status: 404 })),
 	)

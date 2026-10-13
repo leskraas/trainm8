@@ -3,10 +3,8 @@ import {
 	BACKFILL_MIN_DAYS,
 	BACKFILL_TARGET_SESSIONS,
 } from '#app/integrations/backfill-window.ts'
-import {
-	autoSaveImport,
-	createActivityImport,
-} from '#app/utils/activity-import.server.ts'
+import { fileActivityImport } from '#app/integrations/shared/file-activity-import.server.ts'
+import { autoSaveImport } from '#app/utils/activity-import.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
 import { IntervalsIcuKeyRejectedError } from './client.server.ts'
@@ -179,32 +177,16 @@ export async function runIntervalsIcuBackfill(
 }
 
 /**
- * Create the import, or report the pre-existing one on a unique-constraint hit
- * so retries are idempotent.
+ * File the import through the dedupe choke point (ADR 0096 §4), or report the
+ * import already holding it — this key on a retry, or the same activity from
+ * another source, kept as an alias — so retries are idempotent.
  */
 async function ensureImport(
 	athleteId: string,
 	input: ReturnType<typeof mapActivityToImportInput>,
 ): Promise<{ importId: string; isNew: boolean }> {
-	try {
-		const created = await createActivityImport(athleteId, input)
-		return { importId: created.id, isNew: true }
-	} catch (err) {
-		if (err instanceof Error && err.message.toLowerCase().includes('unique')) {
-			const existing = await prisma.activityImport.findUnique({
-				where: {
-					athleteId_externalProvider_externalId: {
-						athleteId,
-						externalProvider: input.externalProvider,
-						externalId: input.externalId,
-					},
-				},
-				select: { id: true },
-			})
-			if (existing) return { importId: existing.id, isNew: false }
-		}
-		throw err
-	}
+	const filed = await fileActivityImport(athleteId, input)
+	return { importId: filed.importId, isNew: filed.kind === 'created' }
 }
 
 /**

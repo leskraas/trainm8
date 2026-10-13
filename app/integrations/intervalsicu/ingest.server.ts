@@ -1,3 +1,4 @@
+import { fileActivityImport } from '#app/integrations/shared/file-activity-import.server.ts'
 import {
 	intervalsIcuOriginPlatform,
 	normalizeDeviceName,
@@ -5,7 +6,6 @@ import {
 import {
 	autoSaveImport,
 	recomputeLoadAfterBatch,
-	createActivityImport,
 	type ActivityImportInput,
 } from '#app/utils/activity-import.server.ts'
 import { isNum, type RawStream } from '#app/utils/activity-stream.ts'
@@ -170,19 +170,15 @@ export async function fileIntervalsIcuActivities(
 				oldestActivityAt = input.startedAt
 			}
 
-			let importId: string
-			try {
-				importId = (await createActivityImport(athleteId, input)).id
-			} catch (err) {
-				if (
-					err instanceof Error &&
-					err.message.toLowerCase().includes('unique')
-				) {
-					skipped++
-					continue
-				}
-				throw err
+			// The dedupe choke point (ADR 0096 §4): an activity already held —
+			// this key again, or the same run from another source — is skipped,
+			// the latter kept as an alias.
+			const filed = await fileActivityImport(athleteId, input)
+			if (filed.kind === 'duplicate') {
+				skipped++
+				continue
 			}
+			const importId = filed.importId
 			created++
 			if (oldestCreatedAt == null || input.startedAt < oldestCreatedAt) {
 				oldestCreatedAt = input.startedAt
