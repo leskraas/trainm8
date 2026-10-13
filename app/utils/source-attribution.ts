@@ -26,7 +26,13 @@ export type RecordingSource = {
 /** "Garmin" + the model, whether the source named the brand or not. */
 function brandedDevice(brand: string, deviceName: string | null): string {
 	if (!deviceName) return brand
-	const model = deviceName.replace(new RegExp(`^${brand}\\b\\s*`, 'i'), '')
+	// The brand, when it is a word of its own: followed by a separator (space,
+	// `_`, `-`) or nothing — `Garmin_fēnix` and `garmin-edge` lose it,
+	// `Garminator` does not.
+	const model = deviceName.replace(
+		new RegExp(`^${brand}(?![\\p{L}\\p{N}])[\\s_\\-]*`, 'iu'),
+		'',
+	)
 	return model ? `${brand} ${model}` : brand
 }
 

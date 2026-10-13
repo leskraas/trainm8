@@ -29,6 +29,22 @@ test('a Garmin device named without the brand still reads "Garmin [device model]
 	).toEqual({ text: 'Garmin fenix 8', owed: true })
 })
 
+test('a brand joined to the model by an underscore or dash is not said twice', () => {
+	expect(
+		recordingSource({
+			originPlatform: 'garmin',
+			deviceName: 'Garmin_fēnix®8_Pro',
+		}),
+	).toEqual({ text: 'Garmin fēnix®8_Pro', owed: true })
+	expect(
+		recordingSource({ originPlatform: 'garmin', deviceName: 'garmin-edge' }),
+	).toEqual({ text: 'Garmin edge', owed: true })
+	// A name that only starts with the brand's letters is not the brand.
+	expect(
+		recordingSource({ originPlatform: 'garmin', deviceName: 'Garminator 2' }),
+	).toEqual({ text: 'Garmin Garminator 2', owed: true })
+})
+
 test('a Garmin recording with no device says plain "Garmin"', () => {
 	expect(
 		recordingSource({ originPlatform: 'garmin', deviceName: null }),
