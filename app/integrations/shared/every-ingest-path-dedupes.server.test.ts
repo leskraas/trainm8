@@ -109,7 +109,11 @@ test('a Strava sync of a run already held becomes an alias carrying Strava', asy
 	expect(result).toMatchObject({ created: 0, skipped: 1 })
 	expect(await sessions(id)).toBe(1)
 	expect(await aliases(id)).toEqual([
-		{ externalProvider: 'strava', externalId: '1234567', originPlatform: 'strava' },
+		{
+			externalProvider: 'strava',
+			externalId: '1234567',
+			originPlatform: 'strava',
+		},
 	])
 })
 
@@ -140,7 +144,10 @@ test('the Intervals.icu backfill files an uploaded run as an alias, not a second
 	})
 	expect(held.map((h) => h.externalId)).not.toContain('i2001')
 	expect(await aliases(id)).toContainEqual(
-		expect.objectContaining({ externalProvider: 'intervalsicu', externalId: 'i2001' }),
+		expect.objectContaining({
+			externalProvider: 'intervalsicu',
+			externalId: 'i2001',
+		}),
 	)
 	// Every other listed activity is new; the uploaded run gained no twin.
 	expect(await sessions(id)).toBe(before + held.length)
