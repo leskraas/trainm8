@@ -27,6 +27,7 @@ const PREFIX = 'enc:v1:'
 const ALGORITHM = 'aes-256-gcm'
 const KEY_BYTES = 32
 const IV_BYTES = 12
+const TAG_BYTES = 16
 
 /**
  * The published, non-secret key that development and test fall back to, the
@@ -100,7 +101,9 @@ export function encryptCredential(
 	const key = keys[0]
 	if (!key) throw new Error('No credential encryption key configured')
 	const iv = randomBytes(IV_BYTES)
-	const cipher = createCipheriv(ALGORITHM, key, iv)
+	const cipher = createCipheriv(ALGORITHM, key, iv, {
+		authTagLength: TAG_BYTES,
+	})
 	cipher.setAAD(Buffer.from(context, 'utf8'))
 	const ciphertext = Buffer.concat([
 		cipher.update(plaintext, 'utf8'),
@@ -130,9 +133,16 @@ export function decryptCredential(
 	const iv = Buffer.from(ivPart, 'base64url')
 	const tag = Buffer.from(tagPart, 'base64url')
 	const data = Buffer.from(dataPart, 'base64url')
+	// Node accepts a GCM tag as short as 4 bytes unless told otherwise; a
+	// truncated tag would make a forged value far cheaper to find.
+	if (iv.length !== IV_BYTES || tag.length !== TAG_BYTES) {
+		throw new CredentialDecryptionError(context)
+	}
 	for (const key of keys) {
 		try {
-			const decipher = createDecipheriv(ALGORITHM, key, iv)
+			const decipher = createDecipheriv(ALGORITHM, key, iv, {
+				authTagLength: TAG_BYTES,
+			})
 			decipher.setAAD(Buffer.from(context, 'utf8'))
 			decipher.setAuthTag(tag)
 			return Buffer.concat([decipher.update(data), decipher.final()]).toString(

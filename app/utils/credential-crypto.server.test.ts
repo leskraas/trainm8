@@ -35,6 +35,18 @@ describe('encryptCredential / decryptCredential', () => {
 		expect(() => decryptCredential(tampered, 'ctx', keys)).toThrow()
 	})
 
+	test('a truncated authentication tag is refused', () => {
+		const keys = parseCredentialKeys(keyA)
+		const stored = encryptCredential('secret', 'ctx', keys)
+		const [iv, tag, data] = stored.slice('enc:v1:'.length).split('.')
+		const shortTag = Buffer.from(tag!, 'base64url')
+			.subarray(0, 4)
+			.toString('base64url')
+		expect(() =>
+			decryptCredential(`enc:v1:${iv}.${shortTag}.${data}`, 'ctx', keys),
+		).toThrow()
+	})
+
 	test('a ciphertext moved to another column is refused', () => {
 		const keys = parseCredentialKeys(keyA)
 		const stored = encryptCredential(
