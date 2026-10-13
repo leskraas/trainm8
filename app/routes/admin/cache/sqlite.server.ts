@@ -1,5 +1,5 @@
 import { redirect } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { cache } from '#app/utils/cache.server.ts'
 import {
 	getInstanceInfo,

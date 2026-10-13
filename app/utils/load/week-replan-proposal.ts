@@ -16,7 +16,7 @@
  * Pure: no clock, no DB.
  */
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { DayKeySchema } from '#app/utils/calendar-key-schema.ts'
 import { RHYTHMS, VOLUME_CURRENCIES } from '#app/utils/plan-outline/derive.ts'
 

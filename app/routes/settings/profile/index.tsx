@@ -14,12 +14,12 @@ import {
 	useForm,
 	type FieldMetadata,
 } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { invariantResponse } from '@epic-web/invariant'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Img } from 'openimg/react'
 import { data, Form, Link, useFetcher } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'

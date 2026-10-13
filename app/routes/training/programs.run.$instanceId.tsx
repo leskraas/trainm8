@@ -14,7 +14,7 @@
  * an offer is the other half of it.
  */
 import { Link, data, redirect, useFetcher } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Button } from '#app/components/ui/button.tsx'

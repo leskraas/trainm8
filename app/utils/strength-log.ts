@@ -21,7 +21,7 @@
  * failure on purpose is a *plan*, so it is `toFailure`. Racking it is neither,
  * so it is `outcome: 'abandoned'` and every aggregate excludes it.
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { formatKg, formatNbKg } from './format.ts'
 
 // ——— The set's role in the exercise ——————————————————————————————————————

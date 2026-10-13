@@ -32,7 +32,7 @@
  * arguments. The eight-member load union is {@link LoadValue}'s, imported rather
  * than restated.
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { formatNbKg } from '../format.ts'
 import { type LoadValueKind } from '../strength-log.ts'
 import {

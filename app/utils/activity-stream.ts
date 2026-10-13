@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 /**
  * The Activity Stream (ADR 0020): per-sample telemetry for a Recording, stored

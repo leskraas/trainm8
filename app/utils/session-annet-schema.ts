@@ -5,7 +5,7 @@
  * server refuse the same posts. No server imports.
  */
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 /** Where the row posts (`routes/resources/session-annet.tsx`). */
 export const SESSION_ANNET_ACTION = '/resources/session-annet'

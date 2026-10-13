@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { type LedgerSession } from './training.server.ts'
 import {
 	blockRepeatTotal,

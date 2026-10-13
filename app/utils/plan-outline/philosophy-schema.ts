@@ -12,7 +12,7 @@
  * service sees it.
  */
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { PHILOSOPHY_SWITCH_LABELS } from '#app/utils/labels.ts'
 import { PRESET_FAMILIES } from './presets.ts'
 
