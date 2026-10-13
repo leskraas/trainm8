@@ -65,13 +65,22 @@ OAuth tables, Polar tokens) uses the same key.
   release refuses to boot (`app/utils/env.server.ts`). The new machines fail
   their health check, Fly keeps the previous release serving, and no row is
   touched.
+- **New writes are encrypted from the first boot.** Every connect, reconnect and
+  Strava token refresh on the new release stores ciphertext at once; only the
+  rows that are not written again wait for the backfill.
 - **Existing rows:** a one-shot job (`app/utils/credential-backfill.server.ts`)
   encrypts the tokens stored before #548. It is enqueued on the first boot and
-  runs 30 minutes later, so an automatic rollback of a failed deploy never meets
-  ciphertext. Until then, plaintext rows read through unchanged.
-- **Do not roll back past that release once the job has run.** Older code would
-  send ciphertext to Strava and Intervals.icu and every sync would fail. Fix
+  runs 30 minutes later. Until then, plaintext rows read through unchanged. The
+  delay only keeps the untouched rows readable to older code; it does not make a
+  rollback safe.
+- **Do not roll back past that release once it has served traffic.** Older code
+  would send the ciphertext of every connection written since (a new connect, a
+  refreshed Strava token, and after the backfill every row) to Strava and
+  Intervals.icu, and those syncs would fail until the athlete reconnects. Fix
   forward instead.
+- **A row no key can read** (a key dropped too early, a tampered value) reads as
+  needing a reconnect: the hub asks the athlete to reconnect and the row's
+  status becomes `error`. The other connections are unaffected.
 - **Rotation:** prepend a new key and redeploy
   (`fly secrets set CREDENTIALS_ENCRYPTION_KEY="<new>,<old>"`). Rows written
   from then on use the new key; old rows still decrypt with the old one. Do not
