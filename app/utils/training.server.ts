@@ -1,4 +1,8 @@
 import { type Prisma } from '@prisma/client'
+import {
+	originPlatformOf,
+	type OriginPlatform,
+} from '#app/integrations/shared/origin-platform.ts'
 import { type ActivityStream, parseStoredStream } from './activity-stream.ts'
 import {
 	dayBoundsUTC,
@@ -1833,9 +1837,10 @@ type RecordingRow = NonNullable<SessionDetailRow['recording']>
  */
 export type SessionDetail = Omit<SessionDetailRow, 'recording'> & {
 	recording:
-		| (Omit<RecordingRow, 'stream' | 'aliases'> & {
+		| (Omit<RecordingRow, 'stream' | 'aliases' | 'originPlatform'> & {
 				stream: ActivityStream | null
-				aliasOrigins: string[]
+				originPlatform: OriginPlatform
+				aliasOrigins: OriginPlatform[]
 		  })
 		| null
 }
@@ -1859,7 +1864,10 @@ export async function getSessionByIdForUser(
 		recording: {
 			...recording,
 			stream: parseStoredStream(stream),
-			aliasOrigins: aliases.map((alias) => alias.originPlatform),
+			originPlatform: originPlatformOf(recording.originPlatform),
+			aliasOrigins: aliases.map((alias) =>
+				originPlatformOf(alias.originPlatform),
+			),
 		},
 	}
 }

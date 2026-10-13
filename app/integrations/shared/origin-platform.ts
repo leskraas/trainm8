@@ -33,6 +33,14 @@ export function isOriginPlatform(value: string): value is OriginPlatform {
 }
 
 /**
+ * A stored `originPlatform` (a plain string column) as an Origin Platform: a
+ * value this code does not know reads as `unknown`, which has no rule.
+ */
+export function originPlatformOf(value: string): OriginPlatform {
+	return isOriginPlatform(value) ? value : 'unknown'
+}
+
+/**
  * Intervals.icu's `source` values that name a vendor, and its own (an
  * activity uploaded or entered on Intervals.icu itself). Anything else —
  * `OAUTH_CLIENT`, `DROPBOX`, a value added after this was written — is

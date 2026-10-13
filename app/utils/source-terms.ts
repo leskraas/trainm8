@@ -15,15 +15,26 @@
  * have an empty set, which every surface allows.
  */
 
+import { type OriginPlatform } from '#app/integrations/shared/origin-platform.ts'
+
 /** Where a value is going (ADR 0098 §2). */
 export type Surface = 'screen' | 'model' | 'export'
 
-/** A credit a value must carry wherever it is shown. Words in `labels.ts`. */
-export type Attribution = 'garmin' | 'polar'
+/**
+ * The credits a value may owe, in the order they are shown. Words in
+ * `labels.ts`.
+ */
+export const ATTRIBUTIONS = [
+	'garmin',
+	'polar',
+] as const satisfies readonly OriginPlatform[]
+
+/** A credit a value must carry wherever it is shown. */
+export type Attribution = (typeof ATTRIBUTIONS)[number]
 
 export type SourceTermsVerdict =
 	| { allowed: true; attributions: Attribution[] }
-	| { allowed: false; platforms: string[] }
+	| { allowed: false; platforms: OriginPlatform[] }
 
 type PlatformRule = {
 	/** May this platform's data, or anything derived from it, reach a model? */
@@ -44,7 +55,7 @@ type PlatformRule = {
  * - upload, intervalsicu: open; the athlete's own file is not vendor API data.
  * - anything else, `unknown` included: no rule, no model.
  */
-const RULES: Record<string, PlatformRule> = {
+const RULES: Partial<Record<OriginPlatform, PlatformRule>> = {
 	garmin: { model: false, attribution: 'garmin' },
 	polar: { model: false, attribution: 'polar' },
 	strava: { model: false, attribution: null },
@@ -56,14 +67,12 @@ const RULES: Record<string, PlatformRule> = {
 
 const NO_RULE: PlatformRule = { model: false, attribution: null }
 
-function ruleFor(platform: string): PlatformRule {
+function ruleFor(platform: OriginPlatform): PlatformRule {
 	return RULES[platform] ?? NO_RULE
 }
 
-const ATTRIBUTION_ORDER: readonly Attribution[] = ['garmin', 'polar']
-
 export function sourceTerms(
-	bindingSet: Iterable<string>,
+	bindingSet: Iterable<OriginPlatform>,
 	surface: Surface,
 ): SourceTermsVerdict {
 	const platforms = [...new Set(bindingSet)]
@@ -74,6 +83,6 @@ export function sourceTerms(
 	const owed = new Set(platforms.map((p) => ruleFor(p).attribution))
 	return {
 		allowed: true,
-		attributions: ATTRIBUTION_ORDER.filter((a) => owed.has(a)),
+		attributions: ATTRIBUTIONS.filter((a) => owed.has(a)),
 	}
 }

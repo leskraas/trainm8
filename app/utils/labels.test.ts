@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 
+import { ORIGIN_PLATFORMS } from '#app/integrations/shared/origin-platform.ts'
 import { APP_TABS } from './app-tabs.ts'
 import { CONNECTION_HUB_STATUSES } from './connection-hub-status.ts'
 import {
@@ -46,7 +47,9 @@ import {
 	RHYTHM_LABELS,
 	RHYTHM_SUMMARY_LABELS,
 	NB_WEEKDAY_LABELS,
+	ORIGIN_PLATFORM_LABELS,
 	SESSION_OWNER_LABELS,
+	SOURCE_ATTRIBUTION_LABELS,
 	IMPORT_LINK_REFUSAL_LABELS,
 	MARK_DONE_REFUSAL_LABELS,
 	QUICK_LOG_LABELS,
@@ -104,6 +107,7 @@ import {
 // runtime leaf, and pinning its Monday-first list against the canonical mapping is
 // the whole reason this file reaches for the function.
 import { SESSION_OWNERS } from './session-ownership.ts'
+import { ATTRIBUTIONS } from './source-terms.ts'
 import { QUICK_LOG_REFUSALS } from './strength-quick-log.ts'
 import {
 	DISCIPLINES,
@@ -181,6 +185,24 @@ test('every Volume Currency has a long label and both unit suffixes', () => {
 		expect(VOLUME_CURRENCY_UNITS[currency]).toBeTruthy()
 		expect(VOLUME_UNITS[currency]).toBeTruthy()
 	}
+})
+
+test('every Origin Platform has a name of its own, except unknown, which says nothing', () => {
+	const named = ORIGIN_PLATFORMS.filter((p) => p !== 'unknown')
+	for (const platform of named) {
+		expect(ORIGIN_PLATFORM_LABELS[platform]).toBeTruthy()
+	}
+	expect(Object.keys(ORIGIN_PLATFORM_LABELS).sort()).toEqual([...named].sort())
+	expect(new Set(Object.values(ORIGIN_PLATFORM_LABELS)).size).toBe(named.length)
+})
+
+test('every credit a platform can be owed has its derived-data line', () => {
+	for (const attribution of ATTRIBUTIONS) {
+		expect(SOURCE_ATTRIBUTION_LABELS.derived[attribution]).toBeTruthy()
+	}
+	expect(Object.keys(SOURCE_ATTRIBUTION_LABELS.derived).sort()).toEqual(
+		[...ATTRIBUTIONS].sort(),
+	)
 })
 
 test('every session owner has a label of its own', () => {

@@ -1,3 +1,7 @@
+import {
+	originPlatformOf,
+	type OriginPlatform,
+} from '#app/integrations/shared/origin-platform.ts'
 import { prisma } from './db.server.ts'
 
 /**
@@ -18,7 +22,7 @@ import { prisma } from './db.server.ts'
 export async function readRecordedBindingSet(
 	athleteId: string,
 	window?: { from: Date; to: Date },
-): Promise<string[]> {
+): Promise<OriginPlatform[]> {
 	const counted = {
 		athleteId,
 		recordingFor: {
@@ -42,5 +46,11 @@ export async function readRecordedBindingSet(
 			select: { originPlatform: true },
 		}),
 	])
-	return [...new Set([...imports, ...aliases].map((row) => row.originPlatform))]
+	return [
+		...new Set(
+			[...imports, ...aliases].map((row) =>
+				originPlatformOf(row.originPlatform),
+			),
+		),
+	]
 }

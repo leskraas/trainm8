@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { originPlatformOf } from '#app/integrations/shared/origin-platform.ts'
 import { sourceTerms } from './source-terms.ts'
 
 // ADR 0098 §3, row by row.
@@ -53,7 +54,16 @@ test('no rule, no model: unknown and unlisted platforms are closed to a model', 
 		allowed: false,
 		platforms: ['coros', 'unknown', 'zwift'],
 	})
-	expect(sourceTerms(['some-future-vendor'], 'screen')).toEqual({
+	// A stored value this code does not know is read as `unknown`.
+	expect(
+		sourceTerms([originPlatformOf('some-future-vendor')], 'model'),
+	).toEqual({
+		allowed: false,
+		platforms: ['unknown'],
+	})
+	expect(
+		sourceTerms([originPlatformOf('some-future-vendor')], 'screen'),
+	).toEqual({
 		allowed: true,
 		attributions: [],
 	})

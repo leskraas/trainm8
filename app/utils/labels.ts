@@ -33,6 +33,7 @@
 // import cycle this module exists to avoid (server boot then dies on a TDZ
 // error). `import type` statements are erased entirely.
 /* eslint-disable import/consistent-type-specifier-style */
+import type { OriginPlatform } from '../integrations/shared/origin-platform.ts'
 import type { AppTab } from './app-tabs.ts'
 import type {
 	CatalogueGoalEvent,
@@ -112,6 +113,7 @@ import type {
 	ThresholdProtocol,
 } from './profile-analysis/types.ts'
 import type { SessionOwner } from './session-ownership.ts'
+import type { Attribution } from './source-terms.ts'
 import type { RepLoadBasis } from './strength/anchors.constants.ts'
 import type { OneRmRefusal } from './strength/one-rm.ts'
 import type { PlateRefusal } from './strength/plates.ts'
@@ -3477,7 +3479,10 @@ export function providerLabel(provider: string): string {
  * the transport it came down. `unknown` has no words: a Recording that cannot
  * say where it came from says nothing rather than guess.
  */
-export const ORIGIN_PLATFORM_LABELS: Record<string, string> = {
+export const ORIGIN_PLATFORM_LABELS: Record<
+	Exclude<OriginPlatform, 'unknown'>,
+	string
+> = {
 	garmin: 'Garmin',
 	polar: 'Polar',
 	suunto: 'Suunto',
@@ -3503,7 +3508,7 @@ export const SOURCE_ATTRIBUTION_LABELS = {
 	derived: {
 		garmin: 'Insights derived in part from Garmin device-sourced data.',
 		polar: 'Bygger delvis på data fra Polar.',
-	},
+	} satisfies Record<Attribution, string>,
 } as const
 
 // ---------------------------------------------------------------------------

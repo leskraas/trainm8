@@ -41,14 +41,14 @@ export function recordingSource({
 	deviceName,
 	aliasOrigins = [],
 }: {
-	originPlatform: OriginPlatform | string
+	originPlatform: OriginPlatform
 	deviceName: string | null
 	/**
 	 * The Origin Platforms of the Recording's aliases (ADR 0096 §3): the same
 	 * activity from other sources. They bind it too, so a credit one of them
 	 * owes is owed here.
 	 */
-	aliasOrigins?: ReadonlyArray<OriginPlatform | string>
+	aliasOrigins?: readonly OriginPlatform[]
 }): RecordingSource | null {
 	const device = normalizeDeviceName(deviceName)
 	const verdict = sourceTerms([originPlatform, ...aliasOrigins], 'screen')
@@ -56,11 +56,15 @@ export function recordingSource({
 	const credited = owed[0]
 	if (credited) {
 		return {
-			text: brandedDevice(ORIGIN_PLATFORM_LABELS[credited]!, device),
+			text: brandedDevice(ORIGIN_PLATFORM_LABELS[credited], device),
 			owed: true,
 		}
 	}
-	const text = device ?? ORIGIN_PLATFORM_LABELS[originPlatform] ?? null
+	const text =
+		device ??
+		(originPlatform === 'unknown'
+			? null
+			: ORIGIN_PLATFORM_LABELS[originPlatform])
 	return text ? { text, owed: false } : null
 }
 
@@ -69,7 +73,7 @@ export function recordingSource({
  * carry: one per credit owed, none when nothing is owed.
  */
 export function derivedAttributionLines(
-	bindingSet: Iterable<string>,
+	bindingSet: Iterable<OriginPlatform>,
 ): string[] {
 	const verdict = sourceTerms(bindingSet, 'screen')
 	if (!verdict.allowed) return []
