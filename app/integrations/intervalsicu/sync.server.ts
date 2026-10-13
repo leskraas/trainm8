@@ -54,7 +54,7 @@ export async function syncIntervalsIcuActivities(
 	// started (device upload lag can be hours) — so reach back with the same
 	// overlap as the reconcile sweep, or a ride that landed at Intervals.icu
 	// after our watermark would be silently missed forever. Idempotent
-	// `(provider, externalId)` filing absorbs the re-fetched window.
+	// `(athlete, provider, externalId)` filing absorbs the re-fetched window.
 	const since = connection.lastSyncedAt ?? connection.connectedAt
 	const oldest = new Date(since.getTime() - RECONCILE_OVERLAP_MS)
 

@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest'
-import { mapActivityToImportInput } from './ingest.server.ts'
+import { intervalsIcuStravaStub } from '#tests/fixtures/intervalsicu/strava-stub.ts'
+import {
+	isIntervalsIcuStub,
+	mapActivityToImportInput,
+} from './ingest.server.ts'
 import { IntervalsIcuActivitySchema } from './types.ts'
 
 test('maps a metric-rich ride onto the provider-neutral import shape', () => {
@@ -164,4 +168,36 @@ test('a blank device name is no device', () => {
 
 	expect(input.originPlatform).toBe('garmin')
 	expect(input.deviceName).toBeNull()
+})
+
+test('a stub is recognised by any one of its signs, so a partial stub still drops (#544)', () => {
+	const parse = (body: Record<string, unknown>) =>
+		IntervalsIcuActivitySchema.parse(body)
+	const real = {
+		id: 'i3003',
+		type: 'Run',
+		moving_time: 1800,
+		start_date: '2026-05-21T06:00:00Z',
+	}
+
+	expect(isIntervalsIcuStub(parse(intervalsIcuStravaStub))).toBe(true)
+	expect(isIntervalsIcuStub(parse({ ...real, source: 'STRAVA' }))).toBe(true)
+	expect(
+		isIntervalsIcuStub(parse({ ...real, _note: 'not available via the API' })),
+	).toBe(true)
+	expect(isIntervalsIcuStub(parse({ ...real, moving_time: undefined }))).toBe(
+		true,
+	)
+
+	expect(isIntervalsIcuStub(parse(real))).toBe(false)
+	// A device upload names its own source; only Strava's is a stub.
+	expect(isIntervalsIcuStub(parse({ ...real, source: 'GARMIN_CONNECT' }))).toBe(
+		false,
+	)
+	// Elapsed time alone is still a real duration.
+	expect(
+		isIntervalsIcuStub(
+			parse({ ...real, moving_time: undefined, elapsed_time: 1900 }),
+		),
+	).toBe(false)
 })

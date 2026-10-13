@@ -35,7 +35,7 @@ export type IntervalsIcuAthlete = z.infer<typeof IntervalsIcuAthleteSchema>
  * suffix (like `Date.toISOString()`'s trailing `Z`) is rejected, so instants
  * are rendered as wall-clock time in the athlete's timezone. A profile
  * timezone that differs from the athlete's Intervals.icu one only shifts the
- * window edges; idempotent `(provider, externalId)` filing and the sweep's
+ * window edges; idempotent `(athlete, provider, externalId)` filing and the sweep's
  * overlap absorb that.
  */
 export function intervalsIcuActivitiesPath(
@@ -117,12 +117,15 @@ export const IntervalsIcuActivitySchema = z
 		max_speed: z.number().nullish(),
 		total_elevation_gain: z.number().nullish(),
 		icu_joules: z.number().nullish(),
-		// Provenance (ADR 0096 §1): where the activity came from before it
-		// reached Intervals.icu (`GARMIN_CONNECT`, `POLAR`, `UPLOAD`, …) and the
-		// recording device. `.catch(null)`: an odd value here costs the
-		// attribution's detail, never the whole activity list.
+		// Where the activity came from before it reached Intervals.icu
+		// (`GARMIN_CONNECT`, `POLAR`, `UPLOAD`, …) and the recording device:
+		// the Origin Platform (ADR 0096 §1). `source: "STRAVA"` with a `_note`
+		// also marks a stub the API cannot supply, which is dropped (#544).
+		// `.catch(null)`: an odd value costs the attribution's detail, never the
+		// whole activity list.
 		source: z.string().nullish().catch(null),
 		device_name: z.string().nullish().catch(null),
+		_note: z.string().nullish(),
 	})
 	.passthrough()
 export type IntervalsIcuActivity = z.infer<typeof IntervalsIcuActivitySchema>

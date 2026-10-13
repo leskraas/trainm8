@@ -45,7 +45,7 @@ export const INTERVALSICU_BACKFILL_JOB_KIND = 'intervalsicu-backfill'
  *    history" state clears on the latter) and recompute Training Load across
  *    the CTL window.
  *
- * Idempotent on retry: the unique `(provider, externalId)` guard skips
+ * Idempotent on retry: the unique `(athlete, provider, externalId)` guard skips
  * activities already imported, promotion is re-attempted only for imports left
  * unpromoted, and stream ingestion skips imports already carrying a stream.
  *
@@ -193,7 +193,8 @@ async function ensureImport(
 		if (err instanceof Error && err.message.toLowerCase().includes('unique')) {
 			const existing = await prisma.activityImport.findUnique({
 				where: {
-					externalProvider_externalId: {
+					athleteId_externalProvider_externalId: {
+						athleteId,
 						externalProvider: input.externalProvider,
 						externalId: input.externalId,
 					},

@@ -55,6 +55,23 @@ const intervalsIcuPacer = createCourtesyPacer({
 })
 
 /**
+ * Whether a listed activity is a stub Intervals.icu cannot hand out (#544).
+ * The API "cannot supply Strava activities", so it lists them with only an id,
+ * a local start, `source: "STRAVA"` and a `_note` — no type, no duration.
+ * Filed, each became a 0-second 'other' session (ADR 0049 auto-saves every
+ * import). The shape is known from forum posts, not a live capture, so the
+ * test is defensive: any one of the three signs drops the row, which also
+ * covers a Garmin block that answers the same way.
+ */
+export function isIntervalsIcuStub(activity: IntervalsIcuActivity): boolean {
+	return (
+		activity.source === 'STRAVA' ||
+		activity._note != null ||
+		(activity.moving_time == null && activity.elapsed_time == null)
+	)
+}
+
+/**
  * Map one Intervals.icu activity onto the provider-neutral import shape.
  *
  * Intervals.icu's *computed* fitness numbers (`icu_training_load`, CTL, ATL)
@@ -124,7 +141,7 @@ export function mapActivityToImportInput(
  * reconciliation (#205), auto-saving each one (ADR 0049): matched onto a single
  * same-day same-discipline planned session when one exists, else onto a
  * recording-only session of its own. Idempotent via the unique
- * `(provider, externalId)` guard: an activity we already hold is counted as
+ * `(athlete, provider, externalId)` guard: an activity we already hold is counted as
  * skipped, not re-imported. Mirrors Strava's `fileActivitiesWithAutoSave`.
  */
 export async function fileIntervalsIcuActivities(
@@ -191,19 +208,22 @@ export async function fileIntervalsIcuActivities(
  * List every activity in the `[oldest, newest]` window. Intervals.icu's list
  * endpoint takes the window directly (no cursor pagination) as *local*
  * date-times, rendered in the athlete's `timezone`; key rejection (401/403)
- * surfaces as `IntervalsIcuKeyRejectedError` from the client.
+ * surfaces as `IntervalsIcuKeyRejectedError` from the client. Stubs
+ * (`isIntervalsIcuStub`) are dropped here, so no caller — sync, reconcile,
+ * backfill, telemetry — ever files one or lets one move a watermark.
  */
 export async function fetchIntervalsIcuActivitiesBetween(
 	connection: { externalAthleteId: string; accessToken: string },
 	window: { oldest: Date; newest: Date; timezone: string },
 ): Promise<IntervalsIcuActivity[]> {
 	await intervalsIcuPacer.acquire()
-	return IntervalsIcuActivitiesSchema.parse(
+	const activities = IntervalsIcuActivitiesSchema.parse(
 		await intervalsIcuApiGet(
 			connection.accessToken,
 			intervalsIcuActivitiesPath(connection.externalAthleteId, window),
 		),
 	)
+	return activities.filter((activity) => !isIntervalsIcuStub(activity))
 }
 
 /**
@@ -355,7 +375,8 @@ export async function ingestActivityTelemetry(
 		try {
 			const existing = await prisma.activityImport.findUnique({
 				where: {
-					externalProvider_externalId: {
+					athleteId_externalProvider_externalId: {
+						athleteId: connection.athleteId,
 						externalProvider: INTERVALSICU_PROVIDER,
 						externalId: activity.id,
 					},
