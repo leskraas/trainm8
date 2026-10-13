@@ -1,7 +1,7 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { data, Form, Link, redirect } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {

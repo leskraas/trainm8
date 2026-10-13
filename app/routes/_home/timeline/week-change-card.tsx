@@ -23,7 +23,7 @@ import {
 	useForm,
 	type SubmissionResult,
 } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { useCallback, useEffect, useState } from 'react'
 import { useFetcher } from 'react-router'
 import { ErrorList, SelectField } from '#app/components/forms.tsx'

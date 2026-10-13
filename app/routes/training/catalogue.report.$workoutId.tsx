@@ -15,9 +15,9 @@
  * triaged by it; free text is the detail beside it, and `other` demands one.
  */
 import { getFormProps, getTextareaProps, useForm } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { data, Form, Link, redirect } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import {
 	ErrorList,

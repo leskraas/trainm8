@@ -12,7 +12,7 @@
  * athlete's own sessions stay. A refusal opens it again with what was typed.
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { Form } from 'react-router'
 import { ErrorList, Field, RadioGroupField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'

@@ -13,7 +13,7 @@
 // `PlanOutlineUpdateInput` collects them so the rule is asserted over the set
 // rather than one schema at a time.
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { DISCIPLINES } from '../workout-schema.ts'
 import { RHYTHMS, STRENGTH_GOALS, VOLUME_CURRENCIES } from './derive.ts'
 import {

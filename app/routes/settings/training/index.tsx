@@ -10,10 +10,10 @@ import {
 	useForm,
 	type FieldMetadata,
 } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { data, useFetcher } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'

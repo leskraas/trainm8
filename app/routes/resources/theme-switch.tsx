@@ -1,9 +1,9 @@
 import { useForm, getFormProps } from '@conform-to/react'
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { invariantResponse } from '@epic-web/invariant'
 import { data, redirect, useFetcher, useFetchers } from 'react-router'
 import { ServerOnly } from 'remix-utils/server-only'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { useHints, useOptionalHints } from '#app/utils/client-hints.tsx'
 import {

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import {
 	normalizeDeviceName,
 	ORIGIN_PLATFORMS,
@@ -156,7 +156,8 @@ export async function createActivityImport(
 			// Identity, fixed at insert: a mirror update never rewrites where the
 			// activity came from (ADR 0096 §6).
 			originPlatform:
-				data.originPlatform ?? originPlatformForTransport(data.externalProvider),
+				data.originPlatform ??
+				originPlatformForTransport(data.externalProvider),
 			deviceName: normalizeDeviceName(data.deviceName),
 			fitFileKey: data.fitFileKey ?? null,
 			...metricColumns(data),

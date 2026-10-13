@@ -19,10 +19,10 @@ import {
 	type SubmissionResult,
 	useForm,
 } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { useId, useState } from 'react'
 import { Form, useNavigation } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { Button } from '#app/components/ui/button.tsx'
 import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { Checkbox } from '#app/components/ui/checkbox.tsx'

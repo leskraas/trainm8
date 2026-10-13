@@ -1,4 +1,4 @@
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { data } from 'react-router'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'

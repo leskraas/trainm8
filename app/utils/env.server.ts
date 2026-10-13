@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 const schema = z.object({
 	NODE_ENV: z.enum(['production', 'development', 'test'] as const),

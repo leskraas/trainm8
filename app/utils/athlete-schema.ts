@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { type Discipline } from './workout-schema.ts'
 import { BUILT_IN_RECIPES } from './zones/recipes.ts'
 

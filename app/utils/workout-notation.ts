@@ -31,7 +31,7 @@
  *   is structure, never these words, so nothing stored changes with them.
  */
 
-import { type z } from 'zod'
+import { type z } from 'zod/v3'
 import {
 	formatDistance,
 	formatDuration,

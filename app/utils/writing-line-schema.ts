@@ -4,7 +4,7 @@
  * `copy-session` intents, what every one of them may add (Annet, _Allerede
  * gjort_, a note), and the week-sum and sources resources' parameters.
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { DayKeySchema } from './calendar-key-schema.ts'
 import { DISCIPLINES } from './workout-schema.ts'
 import { MAX_SENTENCE_LENGTH } from './workout-sentence.ts'

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 /**
  * Strava-native API types and parse schemas. Private to the Strava integration

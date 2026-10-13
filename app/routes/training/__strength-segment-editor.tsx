@@ -39,9 +39,9 @@ import {
 	useForm,
 	type SubmissionResult,
 } from '@conform-to/react'
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { Form } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'

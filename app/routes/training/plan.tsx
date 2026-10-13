@@ -64,10 +64,10 @@ import {
 	useForm,
 	type SubmissionResult,
 } from '@conform-to/react'
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { data, Form, Link, redirect } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'

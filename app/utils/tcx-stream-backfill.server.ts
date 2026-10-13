@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { enrichImportTelemetry } from './activity-telemetry.server.ts'
 import { localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'

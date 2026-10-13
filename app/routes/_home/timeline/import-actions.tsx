@@ -14,7 +14,7 @@
  * write folded something an undo cannot unwind) lands without _Angre_.
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { useState } from 'react'
 import { useFetcher } from 'react-router'
 import { ErrorList } from '#app/components/forms.tsx'

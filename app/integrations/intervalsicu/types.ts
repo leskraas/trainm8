@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 /**
  * Intervals.icu-native API types and parse schemas. Private to the

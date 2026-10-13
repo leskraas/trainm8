@@ -1,5 +1,5 @@
 import { getFormProps, getTextareaProps, useForm } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { invariantResponse } from '@epic-web/invariant'
 import {
 	lazy,
@@ -17,7 +17,7 @@ import {
 	useActionData,
 	useNavigation,
 } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, TextareaField } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
