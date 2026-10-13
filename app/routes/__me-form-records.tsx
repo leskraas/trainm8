@@ -39,7 +39,34 @@ export function MeSectionHeading({
 	)
 }
 
-export function FormSection({ reading }: { reading: FormReading }) {
+/**
+ * The derived-data credits a reading owes (ADR 0098 §3): Garmin's line while
+ * Garmin-recorded sessions are behind it. In the card, under the figures it
+ * speaks for, never in a tooltip or a fold.
+ */
+function SourceCredits({ credits }: { credits: string[] }) {
+	if (credits.length === 0) return null
+	return (
+		<div data-source-credit className="flex flex-col gap-0.5">
+			{credits.map((credit) => (
+				<p
+					key={credit}
+					className="text-caption text-muted-foreground font-normal [text-wrap:pretty]"
+				>
+					{credit}
+				</p>
+			))}
+		</div>
+	)
+}
+
+export function FormSection({
+	reading,
+	credits = [],
+}: {
+	reading: FormReading
+	credits?: string[]
+}) {
 	return (
 		<section aria-labelledby="me-form" className="mt-8">
 			<MeSectionHeading id="me-form">{ME_FORM_LABELS.title}</MeSectionHeading>
@@ -118,13 +145,21 @@ export function FormSection({ reading }: { reading: FormReading }) {
 							{reading.trend}
 						</p>
 					) : null}
+
+					<SourceCredits credits={credits} />
 				</CardContent>
 			</Card>
 		</section>
 	)
 }
 
-export function RecordsSection({ records }: { records: RecordLine[] }) {
+export function RecordsSection({
+	records,
+	credits = [],
+}: {
+	records: RecordLine[]
+	credits?: string[]
+}) {
 	return (
 		<section aria-labelledby="me-records" className="mt-8">
 			<MeSectionHeading id="me-records">
@@ -166,6 +201,11 @@ export function RecordsSection({ records }: { records: RecordLine[] }) {
 							<p className="text-caption text-muted-foreground mt-3">
 								{ME_RECORD_LABELS.source}
 							</p>
+							{credits.length > 0 ? (
+								<div className="mt-1">
+									<SourceCredits credits={credits} />
+								</div>
+							) : null}
 						</>
 					)}
 				</CardContent>

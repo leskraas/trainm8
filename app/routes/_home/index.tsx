@@ -32,6 +32,8 @@ import {
 import { getCurrentLoad, getTsbTrust } from '#app/utils/load/snapshot.server.ts'
 import { readWeekChange } from '#app/utils/load/week-change-card.server.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { derivedAttributionLines } from '#app/utils/source-attribution.ts'
+import { readRecordedBindingSet } from '#app/utils/source-terms.server.ts'
 import { readMostTrainedDiscipline } from '#app/utils/most-trained-discipline.server.ts'
 import {
 	isInWindow,
@@ -119,6 +121,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		athleteProfile,
 		stampDiscipline,
 		importConnections,
+		loadBindingSet,
 	] = await Promise.all([
 		ledgerRead,
 		getCurrentLoad(userId),
@@ -150,6 +153,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 		prisma.accountConnection.count({
 			where: { athleteId: userId, status: 'active' },
 		}),
+		// The Origin Platforms behind the load the coach's verdict reads (ADR
+		// 0098 §1), for the derived-data line Garmin's terms ask of it.
+		readRecordedBindingSet(userId),
 	])
 	// The Athlete Timezone the shared formatting layer renders in (#172) — the
 	// same zone the server-computed nudge names weekdays with.
@@ -194,6 +200,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		loadRecomputeNotice,
 		stampDiscipline,
 		importConnected: importConnections > 0,
+		sourceCredits: derivedAttributionLines(loadBindingSet),
 	}
 }
 

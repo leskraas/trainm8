@@ -4,6 +4,10 @@
  */
 import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
+import {
+	autoSaveImport,
+	createActivityImport,
+} from '#app/utils/activity-import.server.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser } from '#tests/db-utils.ts'
@@ -32,6 +36,34 @@ async function runLoader(session: { id: string }) {
 		unstable_pattern: ROUTE_PATH,
 	})
 }
+
+test('an athlete whose counted sessions were recorded on Garmin owes the derived-data line; one with none owes nothing', async () => {
+	const garminAthlete = await setupUser()
+	const uploadAthlete = await setupUser()
+	for (const [athlete, originPlatform] of [
+		[garminAthlete, 'garmin'],
+		[uploadAthlete, 'upload'],
+	] as const) {
+		const startedAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+		const { id } = await createActivityImport(athlete.userId, {
+			externalProvider: originPlatform === 'garmin' ? 'intervalsicu' : 'manual',
+			externalId: `me-${originPlatform}`,
+			originPlatform,
+			deviceName: originPlatform === 'garmin' ? 'Garmin Edge 840' : null,
+			startedAt,
+			endedAt: new Date(startedAt.getTime() + 3600_000),
+			durationSec: 3600,
+			discipline: 'bike',
+			rawJson: '{}',
+		})
+		await autoSaveImport(athlete.userId, id, 'UTC', { recomputeLoad: false })
+	}
+
+	expect((await runLoader(garminAthlete)).credits).toEqual([
+		'Insights derived in part from Garmin device-sourced data.',
+	])
+	expect((await runLoader(uploadAthlete)).credits).toEqual([])
+})
 
 test('a new athlete gets "ikke målt" with its reason, and no records', async () => {
 	const session = await setupUser()

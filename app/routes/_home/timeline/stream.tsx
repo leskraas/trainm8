@@ -122,6 +122,12 @@ export type TodayRowExtras = {
 	cta: { label: string; to: string; sessionId: string } | null
 	/** `Form -13, sliten — neste økt er gjort lettere: 60 min rolig i sone 2`. */
 	verdict: string | null
+	/**
+	 * The credits the verdict owes the data it was computed from (ADR 0098
+	 * §3): Garmin's derived-data line while Garmin-recorded sessions are in
+	 * the load. Shown under the verdict, never in a tooltip.
+	 */
+	credits?: string[]
 }
 
 /**
@@ -985,15 +991,23 @@ const DayRow = memo(function DayRow({
 			)}
 			{addAnother ? <AddAnother day={day} /> : null}
 			{today?.verdict ? (
-				<p
-					data-today-verdict
-					className={cn(
-						'text-footnote text-muted-foreground pr-4 pb-2.5 [text-wrap:pretty]',
-						TITLE_INSET,
-					)}
-				>
-					{today.verdict}
-				</p>
+				<div className={cn('pr-4 pb-2.5', TITLE_INSET)}>
+					<p
+						data-today-verdict
+						className="text-footnote text-muted-foreground [text-wrap:pretty]"
+					>
+						{today.verdict}
+					</p>
+					{today.credits?.map((credit) => (
+						<p
+							key={credit}
+							data-source-credit
+							className="text-caption text-muted-foreground mt-0.5 font-normal [text-wrap:pretty]"
+						>
+							{credit}
+						</p>
+					))}
+				</div>
 			) : null}
 		</div>
 	)
