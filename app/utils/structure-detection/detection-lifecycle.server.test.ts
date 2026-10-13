@@ -313,6 +313,7 @@ test('a source delete of an auto-save mirror cascade-deletes its WorkoutDetectio
 	).not.toBeNull()
 
 	const { deleted } = await deleteImportIfAutoSaveMirror(
+		user.id,
 		'strava',
 		(
 			await prisma.activityImport.findUniqueOrThrow({
@@ -354,7 +355,11 @@ test('an import the athlete has built on keeps its Recording and detection when 
 	// The detection materialized a Workout onto the session, so this is no longer
 	// an auto-save mirror: the source `delete` is a no-op against the Recording
 	// (ADR 0012 / ADR 0049) and the import, session, and detection all survive.
-	const { deleted } = await deleteImportIfAutoSaveMirror('strava', externalId)
+	const { deleted } = await deleteImportIfAutoSaveMirror(
+		user.id,
+		'strava',
+		externalId,
+	)
 	expect(deleted).toBe(false)
 	expect(
 		await prisma.activityImport.findUnique({ where: { id: imp.id } }),

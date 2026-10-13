@@ -98,7 +98,7 @@ export function mapActivityToImportInput(
  * one fits, else onto a recording-only session of its own — the same landing
  * every other ingest path uses.
  *
- * Idempotent: a duplicate hits the unique `(provider, externalId)` guard and is
+ * Idempotent: a duplicate hits the unique `(athlete, provider, externalId)` guard and is
  * counted as `skipped` rather than re-imported. `'other'` imports (ADR 0015)
  * never match a plan but still get their own session. `latestActivityAt` is the
  * most recent activity start time seen, for callers that advance a watermark.
@@ -250,7 +250,8 @@ export async function enrichRecordingPhaseBars(
 
 			const existing = await prisma.activityImport.findUnique({
 				where: {
-					externalProvider_externalId: {
+					athleteId_externalProvider_externalId: {
+						athleteId,
 						externalProvider: STRAVA_PROVIDER,
 						externalId: activity.id,
 					},
@@ -435,7 +436,7 @@ export async function ingestActivityLaps(
  * — telemetry is an enrichment, never load-bearing for a sync's success.
  */
 export async function ingestActivityStreams(
-	connection: ConnectionRef,
+	connection: ConnectionRef & { athleteId: string },
 	activities: StravaActivity[],
 ): Promise<void> {
 	for (const activity of activities) {
@@ -447,7 +448,8 @@ export async function ingestActivityStreams(
 		try {
 			const existing = await prisma.activityImport.findUnique({
 				where: {
-					externalProvider_externalId: {
+					athleteId_externalProvider_externalId: {
+						athleteId: connection.athleteId,
 						externalProvider: STRAVA_PROVIDER,
 						externalId: activity.id,
 					},

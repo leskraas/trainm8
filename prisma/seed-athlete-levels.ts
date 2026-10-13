@@ -1225,7 +1225,8 @@ async function persistActivity(
 
 	const existing = await prisma.activityImport.findUnique({
 		where: {
-			externalProvider_externalId: {
+			athleteId_externalProvider_externalId: {
+				athleteId: userId,
 				externalProvider: provider,
 				externalId,
 			},

@@ -485,3 +485,36 @@ test('activities older than the age cap are not imported', async () => {
 	})
 	expect(imports).toBe(2)
 })
+
+test('two athletes sharing one Intervals.icu key each get their own imports and sessions (#544)', async () => {
+	// Both trainm8 athletes pasted the same key, so both see the same
+	// Intervals.icu activity ids. The import key carries the athlete, so the
+	// second backfill files its own copies instead of resolving onto the
+	// first athlete's rows.
+	const { user: first } = await setupBackfillAthlete()
+	const { user: second } = await setupBackfillAthlete()
+
+	await runIntervalsIcuBackfill(first.id)
+	const result = await runIntervalsIcuBackfill(second.id)
+
+	invariant(result.ok, 'expected a successful backfill')
+	expect(result).toMatchObject({ created: 4, promoted: 4 })
+	for (const user of [first, second]) {
+		const imports = await prisma.activityImport.findMany({
+			where: { athleteId: user.id },
+			select: { promotedSession: { select: { userId: true } } },
+		})
+		expect(imports).toHaveLength(4)
+		expect(imports.every((i) => i.promotedSession?.userId === user.id)).toBe(
+			true,
+		)
+	}
+
+	// A retry still resolves each athlete's own rows: nothing new, nothing moved.
+	const retry = await runIntervalsIcuBackfill(second.id)
+	invariant(retry.ok, 'expected a successful re-run')
+	expect(retry).toMatchObject({ created: 0, promoted: 0 })
+	expect(
+		await prisma.workoutSession.count({ where: { userId: second.id } }),
+	).toBe(4)
+})

@@ -306,6 +306,36 @@ test('re-uploading the same .fit file reports a duplicate', async () => {
 	expect(count).toBe(1)
 })
 
+test('two athletes uploading the same .fit file each get their own session (#544)', async () => {
+	// A shared group-ride file, or a coach uploading for an athlete: the upload
+	// key is the activity's content plus the athlete, so the second upload is
+	// not told "duplicate" and each athlete holds their own import.
+	const first = await setupAthlete()
+	const second = await setupAthlete()
+
+	expectRedirectToSavedSession(
+		await uploadFile(first.cookieHeader, fitFile('run-with-hr.fit')),
+	)
+	expectRedirectToSavedSession(
+		await uploadFile(second.cookieHeader, fitFile('run-with-hr.fit')),
+	)
+
+	for (const { userId } of [first, second]) {
+		const imports = await prisma.activityImport.findMany({
+			where: { athleteId: userId },
+			select: { promotedSession: { select: { userId: true } } },
+		})
+		expect(imports).toEqual([{ promotedSession: { userId } }])
+	}
+
+	// Each athlete's own re-upload is still a duplicate.
+	const again = await uploadFile(
+		second.cookieHeader,
+		fitFile('run-with-hr.fit'),
+	)
+	expect(errorResult(again).error).toMatch(/allerede importert/i)
+})
+
 test('a garbled .fit payload returns a clear parse error', async () => {
 	const { userId, cookieHeader } = await setupAthlete()
 	const garbled = new File(
