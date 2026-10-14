@@ -11,10 +11,14 @@ test('Garmin data may be shown, with the Garmin attribution', () => {
 	})
 })
 
-test('Garmin data is closed to a model, whatever the transport', () => {
+test('Garmin data reaches a model only with its Garmin credit', () => {
 	expect(sourceTerms(['garmin'], 'model')).toEqual({
+		allowed: true,
+		attributions: ['garmin'],
+	})
+	expect(sourceTerms(['garmin', 'strava'], 'model')).toEqual({
 		allowed: false,
-		platforms: ['garmin'],
+		platforms: ['strava'],
 	})
 })
 

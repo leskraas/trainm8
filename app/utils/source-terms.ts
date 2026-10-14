@@ -45,8 +45,9 @@ type PlatformRule = {
 /**
  * ADR 0098 §3. `screen` is open for every platform and `export` always is
  * (the athlete's own right), so only the model column and the credit vary.
- * - garmin: closed until Garmin's written §5.2(o) approval, or Intervals.icu's
- *   written word that bridge data may go to an MCP client with attribution.
+ * - garmin: open with the Garmin credit, for the data trainm8 has today
+ *   (through Intervals.icu or an uploaded file). The owner's call, 2026-10-14;
+ *   a Garmin direct integration needs Garmin's §5.2(o) approval before it ships.
  * - polar: open only with the athlete's separate Polar opt-in, which is not
  *   built yet (#549), so closed.
  * - strava: closed always (Policy §5.3, §5.10, §5.16).
@@ -56,7 +57,7 @@ type PlatformRule = {
  * - anything else, `unknown` included: no rule, no model.
  */
 const RULES: Partial<Record<OriginPlatform, PlatformRule>> = {
-	garmin: { model: false, attribution: 'garmin' },
+	garmin: { model: true, attribution: 'garmin' },
 	polar: { model: false, attribution: 'polar' },
 	strava: { model: false, attribution: null },
 	'apple-health': { model: false, attribution: null },
