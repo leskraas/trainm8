@@ -1,4 +1,8 @@
 import { type Prisma } from '@prisma/client'
+import {
+	originPlatformOf,
+	type OriginPlatform,
+} from '#app/integrations/shared/origin-platform.ts'
 import { type ActivityStream, parseStoredStream } from './activity-stream.ts'
 import {
 	dayBoundsUTC,
@@ -1780,7 +1784,13 @@ const sessionDetailSelect = {
 			polyline: true,
 			phaseBarsJson: true,
 			tssValue: true,
-			externalProvider: true,
+			// Where it came from (ADR 0096): the Origin Platform and the device,
+			// for the attribution by the title (ADR 0098). Not the transport —
+			// no attribution reads `externalProvider`.
+			originPlatform: true,
+			deviceName: true,
+			// Every other source that delivered it (ADR 0096 §3) binds it too.
+			aliases: { select: { originPlatform: true } },
 			// The Structure Detection (ADR 0033): its grade for the "detected ·
 			// (confidence)" badge, and its structure for the display-derived
 			// Structure Adherence verdict a matched planned session shows beside the
@@ -1822,11 +1832,16 @@ type RecordingRow = NonNullable<SessionDetailRow['recording']>
  * The session-detail read model. Identical to the queried row except the
  * Recording's raw `stream` columns are replaced by the parsed read-time
  * `ActivityStream` (or `null` when the Recording has no usable stream), so the
- * route never touches stored JSON.
+ * route never touches stored JSON, and its aliases are reduced to their Origin
+ * Platforms (`aliasOrigins`), which is all the attribution reads.
  */
 export type SessionDetail = Omit<SessionDetailRow, 'recording'> & {
 	recording:
-		| (Omit<RecordingRow, 'stream'> & { stream: ActivityStream | null })
+		| (Omit<RecordingRow, 'stream' | 'aliases' | 'originPlatform'> & {
+				stream: ActivityStream | null
+				originPlatform: OriginPlatform
+				aliasOrigins: OriginPlatform[]
+		  })
 		| null
 }
 
@@ -1843,10 +1858,17 @@ export async function getSessionByIdForUser(
 	})
 	if (!row) return null
 	if (!row.recording) return { ...row, recording: null }
-	const { stream, ...recording } = row.recording
+	const { stream, aliases, ...recording } = row.recording
 	return {
 		...row,
-		recording: { ...recording, stream: parseStoredStream(stream) },
+		recording: {
+			...recording,
+			stream: parseStoredStream(stream),
+			originPlatform: originPlatformOf(recording.originPlatform),
+			aliasOrigins: aliases.map((alias) =>
+				originPlatformOf(alias.originPlatform),
+			),
+		},
 	}
 }
 

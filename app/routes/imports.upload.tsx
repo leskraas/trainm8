@@ -1,7 +1,12 @@
-import { parseFormData } from '@mjackson/form-data-parser'
+import {
+	FormDataParseError,
+	MaxFilesExceededError,
+	MultipartParseError,
+	parseFormData,
+} from '@mjackson/form-data-parser'
 import { useRef, useState } from 'react'
 import { data, Form, Link, redirect, useActionData } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
@@ -15,6 +20,7 @@ import {
 import {
 	ingestActivityFile,
 	ingestUploadedFiles,
+	UPLOAD_LIMITS,
 	type UploadedArtifact,
 } from '#app/utils/activity-file-ingest.server.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
@@ -45,17 +51,41 @@ export async function action({ request }: Route.ActionArgs) {
 	let disciplineOverride: string | undefined
 	const artifacts: UploadedArtifact[] = []
 
-	const formData = await parseFormData(request, async (field) => {
-		if (field.fieldName === 'file') {
-			const bytes = await field.bytes()
-			// An empty file input still posts one part, with no filename and no
-			// bytes (the parser names such a part `file-upload`): that is "no
-			// file", not a file of an unknown type.
-			const unnamed = !field.name || field.name === 'file-upload'
-			if (unnamed && bytes.byteLength === 0) return
-			artifacts.push({ fileName: field.name ?? 'upload', bytes })
+	let formData: FormData
+	try {
+		formData = await parseFormData(
+			request,
+			{
+				maxFileSize: UPLOAD_LIMITS.maxFileSize,
+				maxFiles: UPLOAD_LIMITS.maxFiles,
+			},
+			async (field) => {
+				if (field.fieldName === 'file') {
+					const bytes = await field.bytes()
+					// An empty file input still posts one part, with no filename and
+					// no bytes (the parser names such a part `file-upload`): that is
+					// "no file", not a file of an unknown type.
+					const unnamed = !field.name || field.name === 'file-upload'
+					if (unnamed && bytes.byteLength === 0) return
+					artifacts.push({ fileName: field.name ?? 'upload', bytes })
+				}
+			},
+		)
+	} catch (err) {
+		if (err instanceof MaxFilesExceededError) {
+			return data(
+				{ error: L.tooManyFiles(UPLOAD_LIMITS.maxFiles) },
+				{ status: 400 },
+			)
 		}
-	})
+		if (
+			err instanceof FormDataParseError ||
+			err instanceof MultipartParseError
+		) {
+			return data({ error: L.tooLarge }, { status: 400 })
+		}
+		throw err
+	}
 
 	const rawDiscipline = formData.get('disciplineOverride')
 	const disciplineResult = DisciplineOverrideSchema.safeParse({

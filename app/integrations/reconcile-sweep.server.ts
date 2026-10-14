@@ -1,3 +1,4 @@
+import { dispatchIntervalsIcuFitHarvest } from '#app/integrations/intervalsicu/fit-harvest.server.ts'
 import { INTERVALSICU_RECONCILE_JOB_KIND } from '#app/integrations/intervalsicu/reconcile.server.ts'
 import { STRAVA_RECONCILE_JOB_KIND } from '#app/integrations/strava/reconcile.server.ts'
 import { type Provider } from '#app/utils/account-connection.server.ts'
@@ -88,6 +89,10 @@ export function startReconciliationSchedule({
 		if (running) return
 		running = true
 		void enqueueReconciliationJobs()
+			// Harvest the original FITs of whatever the sync brought in (#547),
+			// queued behind the day's reconciliations, while Intervals.icu still
+			// serves them. A connection with a harvest in flight gets no second.
+			.then(() => dispatchIntervalsIcuFitHarvest())
 			.catch((error) => {
 				console.error('[reconciliation] sweep failed to enqueue', error)
 			})

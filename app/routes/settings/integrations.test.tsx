@@ -320,6 +320,22 @@ test('Garmin and Suunto are coming soon, naming the partner-program gate; no Pol
 	expect(screen.queryByText(/polar/i)).not.toBeInTheDocument()
 })
 
+test('the hub promises no Garmin or Suunto data through intervals.icu, and names the FIT upload as the way in (#546)', async () => {
+	renderHub(connected)
+
+	const icu = (await screen.findByText('intervals.icu')).closest(
+		'[data-provider="intervalsicu"]',
+	)! as HTMLElement
+	// Intervals.icu's Garmin feed may close any day: the bridge's own card
+	// claims no vendor's data.
+	expect(icu).not.toHaveTextContent(/garmin|suunto/i)
+	for (const name of ['Garmin Connect', 'Suunto']) {
+		const card = screen.getByText(name).closest('[data-provider]')!
+		expect(card).toHaveTextContent(/FIT-fil/)
+		expect(card).not.toHaveTextContent(/har .*dataene dine/i)
+	}
+})
+
 const intervalsIcuConnected: IntervalsIcuHub = {
 	status: 'connected',
 	lastCheckedAt: '2026-07-07T06:12:00.000Z',
@@ -346,15 +362,17 @@ test('connected Intervals.icu card offers "Sync now" and states syncing is daily
 	)
 })
 
-test('the dual-source duplicate warning renders when both providers are active (#205)', async () => {
+test('with two sources active the hub says a shared workout is kept once, and may still slip through twice (ADR 0096 §8)', async () => {
 	renderHub(connected, intervalsIcuConnected, { dualSourceActive: true })
 
-	expect(await screen.findByText(/kan komme hit to ganger/i)).toBeVisible()
+	const notice = await screen.findByText(/lagres som én økt/i)
+	expect(notice).toBeVisible()
+	expect(notice).toHaveTextContent(/to ganger/i)
 })
 
 test('no dual-source warning when only one provider is active (#205)', async () => {
 	renderHub(connected, intervalsIcuDisconnected)
 
 	await screen.findByText('intervals.icu')
-	expect(screen.queryByText(/kan komme hit to ganger/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/lagres som én økt/i)).not.toBeInTheDocument()
 })

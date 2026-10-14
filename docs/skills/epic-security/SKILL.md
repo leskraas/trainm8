@@ -329,7 +329,7 @@ if (isCommonPassword) {
 **Always validate inputs with Zod:**
 
 ```typescript
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 const UserSchema = z.object({
 	email: z
@@ -525,7 +525,7 @@ app.use('/api', apiRateLimit)
 
 ```typescript
 // app/utils/user-validation.ts
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 export const EmailSchema = z
 	.string({ required_error: 'Email is required' })

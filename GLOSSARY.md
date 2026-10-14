@@ -1033,6 +1033,13 @@ or training stress. _Avoid_: Stat, number, KPI
 **Unavailable Metric**: A training metric that the current domain model cannot
 truthfully calculate. _Avoid_: Fake metric, mock stat
 
+**`source-terms`**: The reason a value is withheld rather than shown, when the
+terms of an **Origin Platform** behind it forbid the surface it would reach —
+most often a Garmin or Strava number an athlete's assistant asks for. The value
+exists; it is an **Unavailable Metric** on that surface only, and the reason
+names the platforms that closed it (ADR 0098). Never used for a value that does
+not exist. _Avoid_: Blocked, redacted, licence error, missing
+
 **Summary Count**: A truthful aggregate derived from existing sessions, such as
 number of sessions or number of days in the horizon. The **Strength Summary
 Count** is the shipped instance (ADR 0046 §4, built by ADR 0056): lifting
@@ -1858,6 +1865,35 @@ history sync, "the 42-day window" (42 days is now only the minimum floor).
 reaches the Tape through the **Workout Session** **Auto-Save** attaches it to,
 which is also what makes it count toward load metrics. _Avoid_: Activity
 (overloaded with Activity Type), raw activity, sync record, inbox item
+
+**Origin Platform**: The platform an **Activity Import** was recorded into or
+first synced to — Garmin, Polar, Strava, Apple Health, the athlete's own upload
+— and so the platform whose terms govern its data. Distinct from the
+**provider** (the transport it came down): a Garmin run that arrives through
+Intervals.icu has Garmin as its Origin Platform, and keeps it after the bridge
+is gone. Attribution and `source-terms` read the Origin Platform, never the
+transport (ADR 0096, ADR 0098). _Avoid_: Source (Intervals.icu's field name,
+ambiguous), provider, transport, origin device
+
+**Import Alias**: A second source's record of an activity trainm8 already holds
+as an **Activity Import** — the same FIT file, or a run whose start and duration
+match closely — kept instead of a second import, so the activity is one session
+and counts once (ADR 0096). It carries its own **Origin Platform**, so the
+duplicate's terms still bind. _Avoid_: Duplicate import, merged activity, shadow
+row
+
+**FIT Key**: The identity of an original FIT activity file,
+`fit:<manufacturer>:<product>:<serial>:<time created>` from its `file_id` (ADR
+0096 §1). The same file gives the same key on every path, so an upload of a file
+a source already delivered becomes an **Import Alias**. Strong, not certain: the
+FIT spec promises no uniqueness. Every leg of a multisport file shares its
+file's key. _Avoid_: File hash, activity id
+
+**FIT Harvest**: The one-time fetch of each bridge-era Intervals.icu activity's
+original file, while Intervals.icu still serves Garmin, to keep its bytes and
+**FIT Key** (#547, `docs/agents/intervalsicu-fit-harvest.md`). It changes no
+metric and no **Recording**. _Avoid_: Backfill (that fetches activities, not
+their files), bulk download
 
 **Recording**: An Activity Import that has been linked to a Workout Session as
 its executed telemetry. The Tape reads a Recording for the planned-vs-actual a

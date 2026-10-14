@@ -15,7 +15,7 @@ import { INTERVALSICU_PROVIDER } from './types.ts'
  * provider, the daily sweep IS the automatic sync: it re-fetches each active
  * connection's recent activities with a 48h overlap before the watermark and
  * files any it doesn't already hold, reusing the same fetch path and
- * idempotent `(provider, externalId)` guard as manual sync and backfill.
+ * idempotent `(athlete, provider, externalId)` guard as manual sync and backfill.
  *
  * Because the sweep is this provider's primary ingest path, it also carries
  * full telemetry: each modeled activity's per-sample streams are fetched and

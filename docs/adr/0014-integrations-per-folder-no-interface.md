@@ -1,5 +1,24 @@
 # Integrations live in per-provider folders; no shared TypeScript interface
 
+> **Amended by
+> [ADR 0096](./0096-every-import-records-its-origin-platform-and-one-activity-is-one-row.md)
+> (#545).** Three corrections. (1) **The layout below is not the one in use.**
+> Both providers have `client.server.ts`, `discipline-map.ts`, `types.ts`,
+> `ingest.server.ts` (map to `ActivityImportInput`), `sync.server.ts`,
+> `backfill.server.ts` and `reconcile.server.ts`, plus laps and telemetry
+> backfills; Strava adds `oauth.server.ts`, `webhook.server.ts` and
+> `rate-limit.ts`, Intervals.icu `connect.server.ts`, `link.server.ts` and
+> `pacer.ts`. Nobody has a `fetch-activity.server.ts`. (2) **Three registries
+> grow per provider**, against "no central switch statement": the reconcile
+> sweep's `switch` (`app/integrations/reconcile-sweep.server.ts`), the "Sync
+> now" fan-out (`integrations.sync.tsx`) and the job-handler registry
+> (`app/utils/jobs/handlers.server.ts`). They are small and honest; adding a
+> provider touches them, and the provider directory, the `externalProvider` enum
+> and the `Provider` union. (3) **Dedup is no longer out of scope.** Activity
+> identity and dedupe are the first module in `app/integrations/shared/`, ahead
+> of the rule of three, because every source needs them from its first row (ADR
+> 0096). FIT-first ingest is expected to be the second, with the third provider.
+
 Trainm8 will integrate with multiple training-service providers over time
 (Strava in V1, Garmin and Polar planned). The provider-specific work — OAuth
 flow, webhook signature verification, API client, activity mapping — is
@@ -22,7 +41,7 @@ app/integrations/{provider}/
   client.server.ts           API wrapper with token refresh
   oauth.server.ts            OAuth start + callback
   webhook.server.ts          signature verify + enqueue
-  fetch-activity.server.ts   queue worker: fetch + map to ActivityImportInput
+  fetch-activity.server.ts   queue worker: fetch + map to ActivityImportInput (in practice ingest.server.ts; see the note at the top)
   discipline-map.ts          provider activity type → Discipline (incl. 'other')
   types.ts                   provider-native API types (private to the folder)
 ```
@@ -70,14 +89,15 @@ Shared infrastructure lives outside `integrations/`:
   `app/integrations/strava/` to `app/integrations/garmin/`, rewrite the
   contents, register the OAuth route and webhook route, register the discipline
   mapping. No registry pattern, no plugin loader, no central switch statement
-  that grows with each provider.
+  that grows with each provider. (_Not so: three registries grow per provider;
+  see the note at the top._)
 - Provider tests live next to provider code (`*.test.ts` siblings) and import
   only from that folder plus shared utilities.
 - The Strava-specific discipline mapping table (where `Hike`, `Yoga`, `EBike`
   collapse to `'other'`) is **not** a global concept — it is private to
   `app/integrations/strava/discipline-map.ts`. Each provider's mapping is its
   own.
-- Cross-provider concerns that we may discover later (dedup, conflict
-  resolution, capability matrices for push-to-device) are deliberately out of
-  scope for this ADR. If they materialize, they get their own ADRs and shared
-  modules.
+- _Dedup is now decided by ADR 0096._ Cross-provider concerns that we may
+  discover later (dedup, conflict resolution, capability matrices for
+  push-to-device) are deliberately out of scope for this ADR. If they
+  materialize, they get their own ADRs and shared modules.

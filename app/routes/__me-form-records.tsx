@@ -11,6 +11,7 @@
  * the app can stand behind (Form has bands, not bounds).
  */
 import { LoadLegendLabel } from '#app/components/load-legend.tsx'
+import { SourceCredits } from '#app/components/source-credits.tsx'
 import { Card, CardContent } from '#app/components/ui/card.tsx'
 import {
 	Progress,
@@ -39,7 +40,13 @@ export function MeSectionHeading({
 	)
 }
 
-export function FormSection({ reading }: { reading: FormReading }) {
+export function FormSection({
+	reading,
+	credits = [],
+}: {
+	reading: FormReading
+	credits?: string[]
+}) {
 	return (
 		<section aria-labelledby="me-form" className="mt-8">
 			<MeSectionHeading id="me-form">{ME_FORM_LABELS.title}</MeSectionHeading>
@@ -118,13 +125,21 @@ export function FormSection({ reading }: { reading: FormReading }) {
 							{reading.trend}
 						</p>
 					) : null}
+
+					<SourceCredits credits={credits} />
 				</CardContent>
 			</Card>
 		</section>
 	)
 }
 
-export function RecordsSection({ records }: { records: RecordLine[] }) {
+export function RecordsSection({
+	records,
+	credits = [],
+}: {
+	records: RecordLine[]
+	credits?: string[]
+}) {
 	return (
 		<section aria-labelledby="me-records" className="mt-8">
 			<MeSectionHeading id="me-records">
@@ -166,6 +181,7 @@ export function RecordsSection({ records }: { records: RecordLine[] }) {
 							<p className="text-caption text-muted-foreground mt-3">
 								{ME_RECORD_LABELS.source}
 							</p>
+							<SourceCredits credits={credits} className="mt-1" />
 						</>
 					)}
 				</CardContent>

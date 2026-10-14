@@ -4,7 +4,7 @@
 // One set of field schemas reads them from a form and from the URL alike, so
 // a tampered URL is held to the same rules as the form.
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { addDays, isCalendarDay } from '../athlete-calendar.ts'
 import { EVENT_DATE_LABELS, FIRST_RUN_LABELS } from '../labels.ts'
 import { MAX_PLAN_WEEKS } from '../plan-outline/authoring-schema.ts'

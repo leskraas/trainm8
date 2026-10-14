@@ -35,7 +35,7 @@
 // Warnings carry numbers and no wording, exactly as `ramp-guard.ts` and
 // `week-pattern.ts` do; the surface words them.
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { type TrainingZone } from '../session-profile.ts'
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import { type VolumeCurrency } from './derive.ts'

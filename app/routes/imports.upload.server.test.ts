@@ -1,7 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { gzipSync } from 'node:zlib'
 import { invariant } from '@epic-web/invariant'
 import { faker } from '@faker-js/faker/locale/en'
+import { zipSync } from 'fflate'
 import { expect, test } from 'vitest'
 import {
 	isNum,
@@ -304,6 +306,36 @@ test('re-uploading the same .fit file reports a duplicate', async () => {
 		where: { athleteId: userId },
 	})
 	expect(count).toBe(1)
+})
+
+test('two athletes uploading the same .fit file each get their own session (#544)', async () => {
+	// A shared group-ride file, or a coach uploading for an athlete: the upload
+	// key is the activity's content plus the athlete, so the second upload is
+	// not told "duplicate" and each athlete holds their own import.
+	const first = await setupAthlete()
+	const second = await setupAthlete()
+
+	expectRedirectToSavedSession(
+		await uploadFile(first.cookieHeader, fitFile('run-with-hr.fit')),
+	)
+	expectRedirectToSavedSession(
+		await uploadFile(second.cookieHeader, fitFile('run-with-hr.fit')),
+	)
+
+	for (const { userId } of [first, second]) {
+		const imports = await prisma.activityImport.findMany({
+			where: { athleteId: userId },
+			select: { promotedSession: { select: { userId: true } } },
+		})
+		expect(imports).toEqual([{ promotedSession: { userId } }])
+	}
+
+	// Each athlete's own re-upload is still a duplicate.
+	const again = await uploadFile(
+		second.cookieHeader,
+		fitFile('run-with-hr.fit'),
+	)
+	expect(errorResult(again).error).toMatch(/allerede importert/i)
 })
 
 test('a garbled .fit payload returns a clear parse error', async () => {
@@ -839,6 +871,65 @@ test('an unreadable .zip is reported as failed', async () => {
 	expect(summary.imported).toBe(0)
 	expect(summary.failed).toHaveLength(1)
 	expect(summary.failed[0]!.fileName).toBe('broken.zip')
+})
+
+// ── size limits ────────────────────────────────────────────────────────────
+
+test('a .gz that inflates past the per-file limit is refused as too large', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	// 80 MiB of zeros gzips to about 80 KB.
+	const bomb = gzipSync(new Uint8Array(80 * 1024 * 1024))
+	const file = new File([new Uint8Array(bomb)], 'ride.gpx.gz')
+
+	const { error, status } = errorResult(await uploadFile(cookieHeader, file))
+
+	expect(status).toBe(400)
+	expect(error).toBe('Fila er for stor.')
+	expect(
+		await prisma.activityImport.count({ where: { athleteId: userId } }),
+	).toBe(0)
+})
+
+test('a .zip whose entries add up past the archive limit is refused before inflating', async () => {
+	const { cookieHeader } = await setupAthlete()
+	const zip = zipSync({ 'big.gpx': new TextEncoder().encode('<gpx/>') })
+	// Declare the entry as 300 MiB in the central directory; the archive is
+	// still a few hundred bytes.
+	const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength)
+	for (let at = 0; at + 4 <= zip.length; at++) {
+		if (view.getUint32(at, true) === 0x02014b50) {
+			view.setUint32(at + 24, 300 * 1024 * 1024, true)
+		}
+	}
+
+	const summary = summaryResult(
+		await uploadFile(cookieHeader, new File([zip], 'bomb.zip')),
+	)
+
+	expect(summary.imported).toBe(0)
+	expect(summary.failed).toEqual([
+		{ fileName: 'bomb.zip', reason: 'The archive is too large.' },
+	])
+})
+
+test('more files than the per-request limit are refused, not thrown', async () => {
+	const { cookieHeader } = await setupAthlete()
+	const files = Array.from({ length: 21 }, (_, i) => gpxFile(`run-${i}.gpx`))
+
+	const { error, status } = errorResult(await uploadFiles(cookieHeader, files))
+
+	expect(status).toBe(400)
+	expect(error).toBe('Last opp høyst 20 filer om gangen.')
+})
+
+test('a file over the upload size limit is refused, not thrown', async () => {
+	const { cookieHeader } = await setupAthlete()
+	const file = new File([new Uint8Array(65 * 1024 * 1024)], 'huge.fit')
+
+	const { error, status } = errorResult(await uploadFile(cookieHeader, file))
+
+	expect(status).toBe(400)
+	expect(error).toBe('Fila er for stor.')
 })
 
 // ── Athlete Timezone day attribution (#173) ────────────────────────────────

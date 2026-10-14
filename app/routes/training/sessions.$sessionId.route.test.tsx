@@ -37,7 +37,9 @@ function makeRecording(overrides: Partial<Recording> = {}): Recording {
 		polyline: null,
 		phaseBarsJson: null,
 		tssValue: 92,
-		externalProvider: 'strava',
+		originPlatform: 'strava',
+		deviceName: null,
+		aliasOrigins: [],
 		detection: null,
 		stream: null,
 		...overrides,
@@ -318,6 +320,62 @@ test('completed session with a recording leads with the planned-vs-actual summar
 	// The Recording aggregate metric grid is retained below ("Avg HR" lives only
 	// in that grid).
 	expect(screen.getByText('Snittpuls')).toBeInTheDocument()
+})
+
+test('a Garmin recording reads "Garmin [device model]" by the session title and on the Recording card, never the transport (ADR 0098)', async () => {
+	const session = makeSession({
+		recording: makeRecording({
+			originPlatform: 'garmin',
+			deviceName: 'Garmin Forerunner 965',
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Opptak')
+	const credits = screen.getAllByText('Garmin Forerunner 965')
+	// Once in the session card under the title's figures (above the fold on a
+	// phone), once beside the Recording card's title.
+	expect(credits).toHaveLength(2)
+	for (const credit of credits) expect(credit).toBeVisible()
+	expect(screen.queryByText(/intervals\.icu/i)).not.toBeInTheDocument()
+})
+
+test('a Garmin recording with no device name says plain "Garmin"', async () => {
+	const session = makeSession({
+		recording: makeRecording({ originPlatform: 'garmin', deviceName: null }),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Opptak')
+	expect(screen.getAllByText('Garmin')).toHaveLength(2)
+})
+
+test('an uploaded run that Garmin also delivered owes "Garmin [device model]" by the title (ADR 0096 §3)', async () => {
+	const session = makeSession({
+		recording: makeRecording({
+			originPlatform: 'upload',
+			deviceName: 'Garmin Forerunner 965',
+			aliasOrigins: ['garmin'],
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Opptak')
+	expect(screen.getAllByText('Garmin Forerunner 965')).toHaveLength(2)
+})
+
+test('a non-Garmin recording names its source on the card only, owing nothing by the title', async () => {
+	const session = makeSession({
+		recording: makeRecording({
+			originPlatform: 'coros',
+			deviceName: 'COROS PACE 3',
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Opptak')
+	expect(screen.getAllByText('COROS PACE 3')).toHaveLength(1)
+	expect(screen.queryByText(/garmin/i)).not.toBeInTheDocument()
 })
 
 /** A bike session whose work step carries a resolved power Intensity Target, so

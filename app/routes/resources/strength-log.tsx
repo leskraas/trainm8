@@ -1,4 +1,4 @@
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { data } from 'react-router'
 import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'

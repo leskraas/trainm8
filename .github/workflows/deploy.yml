@@ -109,8 +109,13 @@ jobs:
       - name: 🏗 Build
         run: npm run build
 
+      # The e2e server runs with NODE_ENV=production, which refuses the
+      # published development credential key from .env.example (see
+      # parseCredentialKeys), so each run gets a throwaway key.
       - name: 🎭 Playwright tests
-        run: npx playwright test
+        run:
+          CREDENTIALS_ENCRYPTION_KEY="$(openssl rand -base64 32)" npx playwright
+          test
 
       - name: 📊 Upload report
         uses: actions/upload-artifact@v4

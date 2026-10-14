@@ -5,6 +5,7 @@
 // What it all says is `first-run.ts`'s.
 
 import { INTERVALSICU_PROVIDER } from '#app/integrations/intervalsicu/types.ts'
+import { type OriginPlatform } from '#app/integrations/shared/origin-platform.ts'
 import {
 	isBackfillInProgress,
 	getAccountConnection,
@@ -20,6 +21,7 @@ import { prisma } from '../db.server.ts'
 import { readAnchorContext } from '../plan-outline/history.server.ts'
 import { ANCHOR_WINDOW_WEEKS } from '../plan-outline/proposal.ts'
 import { isPatternWeekday } from '../plan-outline/week-pattern.ts'
+import { readRecordedBindingSet } from '../source-terms.server.ts'
 import {
 	ageOn,
 	buildFindings,
@@ -34,6 +36,12 @@ export type FirstRunReading = {
 	findings: FirstRunFindings
 	/** Whole years, or null where the athlete has not said their birthdate. */
 	age: number | null
+	/**
+	 * The Origin Platforms behind the findings (ADR 0098 §1): the recorded
+	 * sessions in the same four weeks, for the credits their terms ask of
+	 * anything derived from them.
+	 */
+	bindingSet: OriginPlatform[]
 }
 
 export async function readFirstRunFindings(
@@ -60,17 +68,21 @@ export async function readFirstRunFindings(
 	const { timezone } = context
 	const currentWeekKey = weekMonday(now, timezone)
 	const firstWeekKey = addDays(currentWeekKey, -7 * ANCHOR_WINDOW_WEEKS)
-	const sessions = await prisma.workoutSession.findMany({
-		where: {
-			userId,
-			status: 'completed',
-			scheduledAt: {
-				gte: dayBoundsUTC(firstWeekKey, timezone).start,
-				lte: dayBoundsUTC(addDays(currentWeekKey, -1), timezone).end,
+	const window = {
+		from: dayBoundsUTC(firstWeekKey, timezone).start,
+		to: dayBoundsUTC(addDays(currentWeekKey, -1), timezone).end,
+	}
+	const [sessions, bindingSet] = await Promise.all([
+		prisma.workoutSession.findMany({
+			where: {
+				userId,
+				status: 'completed',
+				scheduledAt: { gte: window.from, lte: window.to },
 			},
-		},
-		select: { scheduledAt: true },
-	})
+			select: { scheduledAt: true },
+		}),
+		readRecordedBindingSet(userId, window),
+	])
 	const sessionDays: SessionDay[] = sessions.flatMap((session) => {
 		const day = localDate(session.scheduledAt, timezone)
 		const weekday = weekdayIndex(day)
@@ -89,5 +101,6 @@ export async function readFirstRunFindings(
 			sessionDays,
 		}),
 		age: ageOn(profile?.birthdate ?? null, now),
+		bindingSet,
 	}
 }

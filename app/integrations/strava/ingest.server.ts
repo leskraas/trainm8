@@ -1,8 +1,8 @@
 import { type AccountConnection } from '@prisma/client'
+import { fileActivityImport } from '#app/integrations/shared/file-activity-import.server.ts'
 import {
 	autoSaveImport,
 	recomputeLoadAfterBatch,
-	createActivityImport,
 	type ActivityImportInput,
 } from '#app/utils/activity-import.server.ts'
 import { isNum, type RawStream } from '#app/utils/activity-stream.ts'
@@ -98,7 +98,7 @@ export function mapActivityToImportInput(
  * one fits, else onto a recording-only session of its own — the same landing
  * every other ingest path uses.
  *
- * Idempotent: a duplicate hits the unique `(provider, externalId)` guard and is
+ * Idempotent: a duplicate hits the unique `(athlete, provider, externalId)` guard and is
  * counted as `skipped` rather than re-imported. `'other'` imports (ADR 0015)
  * never match a plan but still get their own session. `latestActivityAt` is the
  * most recent activity start time seen, for callers that advance a watermark.
@@ -124,19 +124,15 @@ export async function fileActivitiesWithAutoSave(
 				latestActivityAt = input.startedAt
 			}
 
-			let importId: string
-			try {
-				importId = (await createActivityImport(athleteId, input)).id
-			} catch (err) {
-				if (
-					err instanceof Error &&
-					err.message.toLowerCase().includes('unique')
-				) {
-					skipped++
-					continue
-				}
-				throw err
+			// The dedupe choke point (ADR 0096 §4): an activity already held —
+			// this key again, or the same run from another source — is skipped,
+			// the latter kept as an alias.
+			const filed = await fileActivityImport(athleteId, input)
+			if (filed.kind === 'duplicate') {
+				skipped++
+				continue
 			}
+			const importId = filed.importId
 			created++
 			if (oldestCreatedAt == null || input.startedAt < oldestCreatedAt) {
 				oldestCreatedAt = input.startedAt
@@ -250,7 +246,8 @@ export async function enrichRecordingPhaseBars(
 
 			const existing = await prisma.activityImport.findUnique({
 				where: {
-					externalProvider_externalId: {
+					athleteId_externalProvider_externalId: {
+						athleteId,
 						externalProvider: STRAVA_PROVIDER,
 						externalId: activity.id,
 					},
@@ -435,7 +432,7 @@ export async function ingestActivityLaps(
  * — telemetry is an enrichment, never load-bearing for a sync's success.
  */
 export async function ingestActivityStreams(
-	connection: ConnectionRef,
+	connection: ConnectionRef & { athleteId: string },
 	activities: StravaActivity[],
 ): Promise<void> {
 	for (const activity of activities) {
@@ -447,7 +444,8 @@ export async function ingestActivityStreams(
 		try {
 			const existing = await prisma.activityImport.findUnique({
 				where: {
-					externalProvider_externalId: {
+					athleteId_externalProvider_externalId: {
+						athleteId: connection.athleteId,
 						externalProvider: STRAVA_PROVIDER,
 						externalId: activity.id,
 					},

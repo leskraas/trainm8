@@ -1,7 +1,12 @@
+import { gunzipSync } from 'node:zlib'
+import { fileActivityImport } from '#app/integrations/shared/file-activity-import.server.ts'
+import {
+	intervalsIcuOriginPlatform,
+	normalizeDeviceName,
+} from '#app/integrations/shared/origin-platform.ts'
 import {
 	autoSaveImport,
 	recomputeLoadAfterBatch,
-	createActivityImport,
 	type ActivityImportInput,
 } from '#app/utils/activity-import.server.ts'
 import { isNum, type RawStream } from '#app/utils/activity-stream.ts'
@@ -11,7 +16,11 @@ import {
 } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { type Lap } from '#app/utils/structure-detection/types.ts'
-import { IntervalsIcuApiError, intervalsIcuApiGet } from './client.server.ts'
+import {
+	IntervalsIcuApiError,
+	intervalsIcuApiGet,
+	intervalsIcuApiGetBytes,
+} from './client.server.ts'
 import { intervalsIcuTypeToDiscipline } from './discipline-map.ts'
 import {
 	createCourtesyPacer,
@@ -23,6 +32,7 @@ import {
 	intervalsIcuActivitiesPath,
 	IntervalsIcuIntervalsSchema,
 	intervalsIcuIntervalsPath,
+	intervalsIcuOriginalFilePath,
 	IntervalsIcuStreamsSchema,
 	intervalsIcuStreamsPath,
 	type IntervalsIcuActivity,
@@ -51,6 +61,23 @@ const intervalsIcuPacer = createCourtesyPacer({
 })
 
 /**
+ * Whether a listed activity is a stub Intervals.icu cannot hand out (#544).
+ * The API "cannot supply Strava activities", so it lists them with only an id,
+ * a local start, `source: "STRAVA"` and a `_note` — no type, no duration.
+ * Filed, each became a 0-second 'other' session (ADR 0049 auto-saves every
+ * import). The shape is known from forum posts, not a live capture, so the
+ * test is defensive: any one of the three signs drops the row, which also
+ * covers a Garmin block that answers the same way.
+ */
+export function isIntervalsIcuStub(activity: IntervalsIcuActivity): boolean {
+	return (
+		activity.source === 'STRAVA' ||
+		activity._note != null ||
+		(activity.moving_time == null && activity.elapsed_time == null)
+	)
+}
+
+/**
  * Map one Intervals.icu activity onto the provider-neutral import shape.
  *
  * Intervals.icu's *computed* fitness numbers (`icu_training_load`, CTL, ATL)
@@ -76,9 +103,18 @@ export function mapActivityToImportInput(
 			? durationSec / (distanceM / 1000)
 			: null
 
+	const deviceName = normalizeDeviceName(activity.device_name)
+
 	return {
 		externalProvider: INTERVALSICU_PROVIDER,
 		externalId: activity.id,
+		// The platform whose terms govern this activity, not the pipe it came
+		// down (ADR 0096 §1, ADR 0098 §1).
+		originPlatform: intervalsIcuOriginPlatform({
+			source: activity.source,
+			deviceName,
+		}),
+		deviceName,
 		startedAt,
 		endedAt,
 		durationSec,
@@ -111,7 +147,7 @@ export function mapActivityToImportInput(
  * reconciliation (#205), auto-saving each one (ADR 0049): matched onto a single
  * same-day same-discipline planned session when one exists, else onto a
  * recording-only session of its own. Idempotent via the unique
- * `(provider, externalId)` guard: an activity we already hold is counted as
+ * `(athlete, provider, externalId)` guard: an activity we already hold is counted as
  * skipped, not re-imported. Mirrors Strava's `fileActivitiesWithAutoSave`.
  */
 export async function fileIntervalsIcuActivities(
@@ -140,19 +176,15 @@ export async function fileIntervalsIcuActivities(
 				oldestActivityAt = input.startedAt
 			}
 
-			let importId: string
-			try {
-				importId = (await createActivityImport(athleteId, input)).id
-			} catch (err) {
-				if (
-					err instanceof Error &&
-					err.message.toLowerCase().includes('unique')
-				) {
-					skipped++
-					continue
-				}
-				throw err
+			// The dedupe choke point (ADR 0096 §4): an activity already held —
+			// this key again, or the same run from another source — is skipped,
+			// the latter kept as an alias.
+			const filed = await fileActivityImport(athleteId, input)
+			if (filed.kind === 'duplicate') {
+				skipped++
+				continue
 			}
+			const importId = filed.importId
 			created++
 			if (oldestCreatedAt == null || input.startedAt < oldestCreatedAt) {
 				oldestCreatedAt = input.startedAt
@@ -178,19 +210,22 @@ export async function fileIntervalsIcuActivities(
  * List every activity in the `[oldest, newest]` window. Intervals.icu's list
  * endpoint takes the window directly (no cursor pagination) as *local*
  * date-times, rendered in the athlete's `timezone`; key rejection (401/403)
- * surfaces as `IntervalsIcuKeyRejectedError` from the client.
+ * surfaces as `IntervalsIcuKeyRejectedError` from the client. Stubs
+ * (`isIntervalsIcuStub`) are dropped here, so no caller — sync, reconcile,
+ * backfill, telemetry — ever files one or lets one move a watermark.
  */
 export async function fetchIntervalsIcuActivitiesBetween(
 	connection: { externalAthleteId: string; accessToken: string },
 	window: { oldest: Date; newest: Date; timezone: string },
 ): Promise<IntervalsIcuActivity[]> {
 	await intervalsIcuPacer.acquire()
-	return IntervalsIcuActivitiesSchema.parse(
+	const activities = IntervalsIcuActivitiesSchema.parse(
 		await intervalsIcuApiGet(
 			connection.accessToken,
 			intervalsIcuActivitiesPath(connection.externalAthleteId, window),
 		),
 	)
+	return activities.filter((activity) => !isIntervalsIcuStub(activity))
 }
 
 /**
@@ -237,6 +272,46 @@ export async function fetchIntervalsIcuActivityStreams(
 		raw.pace = pick(velocity).map((v) => (isNum(v) && v > 0 ? 1000 / v : null))
 	}
 	return raw
+}
+
+/** The largest original file kept, after inflating. */
+export const MAX_ORIGINAL_FILE_SIZE = 64 * 1024 * 1024
+
+/**
+ * Fetch an activity's **original file** (`GET /activity/{id}/file`, #547), or
+ * `null` when it has none (a manual entry answers 404). One request, paced
+ * like every other Intervals.icu call. A gzipped body is returned unzipped,
+ * and one that would inflate past `MAX_ORIGINAL_FILE_SIZE` counts as no file
+ * (no activity file is that big; a body that is is not worth keeping). Key
+ * rejection and other failures throw, as the client does.
+ */
+export async function fetchIntervalsIcuOriginalFile(
+	apiKey: string,
+	externalId: string,
+): Promise<Uint8Array | null> {
+	await intervalsIcuPacer.acquire()
+	let bytes: Uint8Array
+	try {
+		bytes = await intervalsIcuApiGetBytes(
+			apiKey,
+			intervalsIcuOriginalFilePath(externalId),
+		)
+	} catch (err) {
+		if (err instanceof IntervalsIcuApiError && err.status === 404) return null
+		throw err
+	}
+	if (bytes.length === 0) return null
+	if (bytes.length > MAX_ORIGINAL_FILE_SIZE) return null
+	const gzipped = bytes[0] === 0x1f && bytes[1] === 0x8b
+	if (!gzipped) return bytes
+	try {
+		return new Uint8Array(
+			gunzipSync(bytes, { maxOutputLength: MAX_ORIGINAL_FILE_SIZE }),
+		)
+	} catch (err) {
+		if ((err as { code?: unknown }).code === 'ERR_BUFFER_TOO_LARGE') return null
+		throw err
+	}
 }
 
 /**
@@ -342,7 +417,8 @@ export async function ingestActivityTelemetry(
 		try {
 			const existing = await prisma.activityImport.findUnique({
 				where: {
-					externalProvider_externalId: {
+					athleteId_externalProvider_externalId: {
+						athleteId: connection.athleteId,
 						externalProvider: INTERVALSICU_PROVIDER,
 						externalId: activity.id,
 					},

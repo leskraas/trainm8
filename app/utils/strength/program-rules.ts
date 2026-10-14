@@ -39,7 +39,7 @@
  * Re-estimate** and **Stall Count** are the terms. The word *deload* is ADR
  * 0047's planned week and does not appear in this module.
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { PRESCRIBED_LOAD_TOLERANCE_KG } from './program.constants.ts'
 
 // ——— The set as the engine reads it ——————————————————————————————————————

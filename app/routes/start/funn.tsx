@@ -1,8 +1,9 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
-import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { type CSSProperties, useEffect, useState } from 'react'
 import { data, Form, Link, redirect, useRevalidator } from 'react-router'
 import { ErrorList, Field } from '#app/components/forms.tsx'
+import { SourceCredits } from '#app/components/source-credits.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
 	Collapsible,
@@ -25,6 +26,7 @@ import {
 	nbWeekdayList,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { derivedAttributionLines } from '#app/utils/source-attribution.ts'
 import { type Route } from './+types/funn.ts'
 import { DaysField, DisciplineField } from './__first-run-fields.tsx'
 import {
@@ -52,9 +54,13 @@ export const meta: Route.MetaFunction = () => [
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireFirstRunAthlete(request)
-	const { findings, connection } = await readFirstRunFindings(userId)
+	const { findings, connection, bindingSet } =
+		await readFirstRunFindings(userId)
 	return {
 		importing: connection === 'importing',
+		// What the findings owe the data they were read from (ADR 0098 §3):
+		// Garmin's derived-data line when the history came from a Garmin.
+		credits: derivedAttributionLines(bindingSet),
 		rows: [
 			{
 				key: 'discipline',
@@ -124,7 +130,7 @@ export default function FindingsStep({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { importing, rows, prefill } = loaderData
+	const { importing, rows, prefill, credits } = loaderData
 	const revalidator = useRevalidator()
 	useEffect(() => {
 		if (!importing) return
@@ -216,6 +222,11 @@ export default function FindingsStep({
 					</div>
 				))}
 			</dl>
+			{/* Under the findings it speaks for, in view: never a tooltip or the
+			    "Noe er feil" fold. No motion — it is a credit, not a finding. */}
+			{/* `gap-4`: two credits stand as far apart as each did on its own in
+			    the frame's `space-y-6` with `-mt-2`. */}
+			<SourceCredits credits={credits} className="-mt-2 gap-4 px-4" />
 			<Link to="/start/sporsmal" className={PRIMARY_ACTION}>
 				{L.correct}
 			</Link>

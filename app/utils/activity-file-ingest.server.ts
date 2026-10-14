@@ -1,14 +1,16 @@
-import { createHash } from 'node:crypto'
 import { gunzipSync } from 'node:zlib'
 import { unzipSync } from 'fflate'
+import { fileActivityImport } from '#app/integrations/shared/file-activity-import.server.ts'
+import {
+	contentDerivedExternalId,
+	ingestFit,
+} from '#app/integrations/shared/ingest-fit.server.ts'
 import {
 	autoSaveImport,
-	createActivityImport,
 	type ActivityImportInput,
 } from './activity-import.server.ts'
 import { type RawStream } from './activity-stream.ts'
 import { enrichImportTelemetry } from './activity-telemetry.server.ts'
-import { parseFit } from './fit-parser.server.ts'
 import { parseGpx } from './gpx-parser.server.ts'
 import { parseTcx } from './tcx-parser.server.ts'
 
@@ -39,6 +41,26 @@ export type IngestFileResult =
 	| { status: 'unsupported'; message: string }
 	| { status: 'failed'; message: string }
 
+const MiB = 1024 * 1024
+
+/**
+ * What one upload request may carry. Each file is held in memory whole, so
+ * these bound one request's memory: the form parser refuses a bigger part or
+ * more parts, a `.gz` may inflate to at most `maxInflatedFileSize`, and the
+ * entries of a `.zip` (nested archives included) may add up to at most
+ * `maxUnzippedSize`, checked against the sizes the archive declares before
+ * anything is inflated (an entry never inflates past its declared size).
+ */
+export const UPLOAD_LIMITS = {
+	maxFileSize: 64 * MiB,
+	maxFiles: 20,
+	maxInflatedFileSize: 64 * MiB,
+	maxUnzippedSize: 256 * MiB,
+} as const
+
+const FILE_TOO_LARGE = 'The file is too large.'
+const ARCHIVE_TOO_LARGE = 'The archive is too large.'
+
 /** The 4-byte data-type tag at offset 8 of every FIT file header. */
 const FIT_MAGIC_OFFSET = 8
 const FIT_MAGIC = '.FIT'
@@ -65,6 +87,8 @@ type ParseOutcome =
 			stream: RawStream | null
 			rawJson: string
 	  }
+	/** A FIT file: handed whole to the shared FIT ingest (`ingestFit`). */
+	| { kind: 'fit'; fileName: string; bytes: Uint8Array }
 	| { kind: 'unsupported'; message: string }
 
 /**
@@ -78,22 +102,28 @@ function parseArtifact(artifact: UploadedArtifact): ParseOutcome {
 	const ext = fileName.split('.').pop()?.toLowerCase()
 
 	if (ext === 'gz') {
+		let inflated: Uint8Array
+		try {
+			inflated = new Uint8Array(
+				gunzipSync(bytes, {
+					maxOutputLength: UPLOAD_LIMITS.maxInflatedFileSize,
+				}),
+			)
+		} catch (err) {
+			if ((err as { code?: unknown }).code === 'ERR_BUFFER_TOO_LARGE') {
+				throw new Error(FILE_TOO_LARGE)
+			}
+			throw err
+		}
 		return parseArtifact({
 			fileName: fileName.slice(0, -'.gz'.length),
-			bytes: new Uint8Array(gunzipSync(bytes)),
+			bytes: inflated,
 		})
 	}
 
 	if (ext === 'fit' || looksLikeFit(bytes)) {
-		const { activity, stream } = parseFit(bytes)
-		// The binary payload is not JSON-serializable; snapshot the decoded
-		// summary instead. (Raw-file retention is a later slice.)
-		return {
-			kind: 'activity',
-			activity,
-			stream,
-			rawJson: JSON.stringify({ fileName, format: 'fit', ...activity }),
-		}
+		// Decoded by the shared FIT ingest, which keeps the original bytes.
+		return { kind: 'fit', fileName, bytes }
 	}
 
 	if (ext === 'gpx') {
@@ -132,31 +162,17 @@ function parseArtifact(artifact: UploadedArtifact): ParseOutcome {
 }
 
 /**
- * Stable content-derived dedupe key: a hash over the normalized activity
- * identity (start time + duration + distance), not the file name or bytes —
- * so the same activity uploaded twice, renamed, or once loose and once inside
- * a zip collapses via the `unique(externalProvider, externalId)` constraint.
- */
-function contentDerivedExternalId(activity: ParsedActivity): string {
-	const hash = createHash('sha256')
-		.update(
-			[
-				activity.startedAt.toISOString(),
-				activity.durationSec,
-				activity.distanceM ?? '',
-			].join('|'),
-		)
-		.digest('hex')
-	return `manual-${hash}`
-}
-
-/**
  * The provider-neutral ingest entry point (PRD #164): takes an uploaded
- * artifact and files zero-or-more Activity Imports through the existing
- * `createActivityImport` + `autoSaveImport` pipeline — the same pipeline
- * Strava imports take, so Discipline handling, ADR 0015 `'other'` behavior,
- * and TSS / Training Load treatment are identical across sources. Every
- * upload surface (route action today; share target later) calls this.
+ * artifact and files its activity through the dedupe choke point
+ * (`fileActivityImport`, ADR 0096 §4) and `autoSaveImport` — the same pipeline
+ * every provider takes, so Discipline handling, ADR 0015 `'other'` behavior,
+ * and TSS / Training Load treatment are identical across sources. A FIT file
+ * goes whole to the shared FIT ingest (`ingestFit`), which also keeps its bytes
+ * and files each sport session of a multisport file on its own. Every upload
+ * surface (the upload route, the share target) calls this.
+ *
+ * `duplicate` covers a file uploaded before and an activity another source
+ * already delivered — the latter is kept as an Import Alias, not a session.
  */
 export async function ingestActivityFile(
 	athleteId: string,
@@ -174,29 +190,46 @@ export async function ingestActivityFile(
 		return { status: 'unsupported', message: parsed.message }
 	}
 
+	if (parsed.kind === 'fit') {
+		let legs
+		try {
+			legs = await ingestFit(athleteId, parsed.bytes, {
+				externalProvider: 'manual',
+				fetchedVia: 'upload',
+				fileName: parsed.fileName,
+				timezone: options.timezone,
+				disciplineOverride: options.disciplineOverride,
+			})
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : 'Failed to parse file'
+			return { status: 'failed', message }
+		}
+		// A multisport file lands as several sessions; the athlete goes to the
+		// first one that is new.
+		const imported = legs.find((leg) => leg.status === 'imported')
+		return imported
+			? {
+					status: 'imported',
+					importId: imported.importId,
+					sessionId: imported.sessionId,
+				}
+			: { status: 'duplicate' }
+	}
+
 	const { activity, stream, rawJson } = parsed
 	if (options.disciplineOverride) {
 		activity.discipline = options.disciplineOverride
 	}
 
-	const externalId = contentDerivedExternalId(activity)
-
-	let importId: string
-	try {
-		importId = (
-			await createActivityImport(athleteId, {
-				externalProvider: 'manual',
-				externalId,
-				rawJson,
-				...activity,
-			})
-		).id
-	} catch (err) {
-		if (err instanceof Error && err.message.toLowerCase().includes('unique')) {
-			return { status: 'duplicate' }
-		}
-		throw err
-	}
+	const filed = await fileActivityImport(athleteId, {
+		externalProvider: 'manual',
+		externalId: contentDerivedExternalId(activity),
+		rawJson,
+		...activity,
+	})
+	if (filed.kind === 'duplicate') return { status: 'duplicate' }
+	const importId = filed.importId
 
 	const saved = await autoSaveImport(athleteId, importId, options.timezone)
 
@@ -238,18 +271,28 @@ function activityExtension(fileName: string): string | undefined {
  * a `.zip` (including nested folders and nested archives, as in the Strava
  * bulk export) fans out to its activity-format entries — non-activity entries
  * (images, `activities.csv`, segment files) are skipped silently; anything
- * else is a single candidate. Throws on an unreadable archive.
+ * else is a single candidate. Throws on an unreadable archive, and with
+ * `ARCHIVE_TOO_LARGE` when its entries add up past `maxUnzippedSize`.
  */
-function expandArtifact(artifact: UploadedArtifact): UploadedArtifact[] {
+function expandArtifact(
+	artifact: UploadedArtifact,
+	budget = { remaining: UPLOAD_LIMITS.maxUnzippedSize as number },
+): UploadedArtifact[] {
 	const ext = artifact.fileName.split('.').pop()?.toLowerCase()
 	if (ext !== 'zip') return [artifact]
 
-	const entries = unzipSync(artifact.bytes)
+	const entries = unzipSync(artifact.bytes, {
+		filter: (entry) => {
+			budget.remaining -= entry.originalSize
+			if (budget.remaining < 0) throw new Error(ARCHIVE_TOO_LARGE)
+			return true
+		},
+	})
 	return Object.entries(entries).flatMap(([entryPath, bytes]) => {
 		if (entryPath.endsWith('/')) return [] // directory entry
 		const entryExt = entryPath.split('.').pop()?.toLowerCase()
 		const entry = { fileName: entryPath, bytes }
-		if (entryExt === 'zip') return expandArtifact(entry)
+		if (entryExt === 'zip') return expandArtifact(entry, budget)
 		const inner = activityExtension(entryPath)
 		return inner && ACTIVITY_EXTENSIONS.has(inner) ? [entry] : []
 	})
@@ -277,10 +320,13 @@ export async function ingestUploadedFiles(
 		let candidates: UploadedArtifact[]
 		try {
 			candidates = expandArtifact(artifact)
-		} catch {
+		} catch (err) {
 			summary.failed.push({
 				fileName: artifact.fileName,
-				reason: 'Could not read the archive.',
+				reason:
+					err instanceof Error && err.message === ARCHIVE_TOO_LARGE
+						? ARCHIVE_TOO_LARGE
+						: 'Could not read the archive.',
 			})
 			continue
 		}

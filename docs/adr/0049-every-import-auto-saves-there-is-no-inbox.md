@@ -1,5 +1,15 @@
 # Every Activity Import auto-saves; there is no Activity Inbox
 
+> **Confirmed by
+> [ADR 0096](./0096-every-import-records-its-origin-platform-and-one-activity-is-one-row.md)
+> (#545).** Every import still auto-saves, and still no path creates an
+> unpromoted import. With several sources live, identity is resolved before
+> `createActivityImport` writes anything: a duplicate (same FIT key, or the
+> fuzzy start-and-duration match) is stored as an **Import Alias** of the
+> existing import, never as a second row, so auto-save never sees it. "A junk or
+> duplicate activity becomes a session immediately" (Consequences) now holds
+> only for a duplicate the rule misses.
+
 > **Amended (#505 S15): the correction path also lives on I dag, and the app
 > asks when it is unsure.** The rule above stands — match onto the one planned
 > session that fits, else stand up a recording-only session — and every ingest

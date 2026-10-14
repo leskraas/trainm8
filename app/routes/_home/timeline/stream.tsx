@@ -54,10 +54,11 @@
  * moves with the scroll.
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod/v3'
 import { Fragment, memo, type ReactNode, useEffect, useRef } from 'react'
 import { Link, useFetcher } from 'react-router'
 import { ErrorList } from '#app/components/forms.tsx'
+import { SourceCredits } from '#app/components/source-credits.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Meter, MeterIndicator, MeterTrack } from '#app/components/ui/meter.tsx'
@@ -122,6 +123,12 @@ export type TodayRowExtras = {
 	cta: { label: string; to: string; sessionId: string } | null
 	/** `Form -13, sliten — neste økt er gjort lettere: 60 min rolig i sone 2`. */
 	verdict: string | null
+	/**
+	 * The credits the verdict owes the data it was computed from (ADR 0098
+	 * §3): Garmin's derived-data line while Garmin-recorded sessions are in
+	 * the load. Shown under the verdict, never in a tooltip.
+	 */
+	credits?: string[]
 }
 
 /**
@@ -985,15 +992,15 @@ const DayRow = memo(function DayRow({
 			)}
 			{addAnother ? <AddAnother day={day} /> : null}
 			{today?.verdict ? (
-				<p
-					data-today-verdict
-					className={cn(
-						'text-footnote text-muted-foreground pr-4 pb-2.5 [text-wrap:pretty]',
-						TITLE_INSET,
-					)}
-				>
-					{today.verdict}
-				</p>
+				<div className={cn('pr-4 pb-2.5', TITLE_INSET)}>
+					<p
+						data-today-verdict
+						className="text-footnote text-muted-foreground [text-wrap:pretty]"
+					>
+						{today.verdict}
+					</p>
+					<SourceCredits credits={today.credits ?? []} className="mt-0.5" />
+				</div>
 			) : null}
 		</div>
 	)

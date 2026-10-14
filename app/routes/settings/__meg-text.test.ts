@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { formatNbKg } from '#app/utils/format.ts'
 import { UsernameSchema } from '#app/utils/user-validation.ts'
 import { megZodErrorMap, nbDecimal, nbErrors, nbSeconds } from './__meg-text.ts'

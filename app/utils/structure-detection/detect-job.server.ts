@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { parseStoredStream } from '../activity-stream.ts'
 import { prisma } from '../db.server.ts'
 import { enqueueJob } from '../jobs/queue.server.ts'

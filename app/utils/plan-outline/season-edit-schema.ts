@@ -10,7 +10,7 @@
  * edit has its own schema, so each form reports its own fields.
  */
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { SEASON_EDIT_LABELS } from '#app/utils/labels.ts'
 import { PhaseWeeksSchema } from './authoring-schema.ts'
 import { RHYTHMS } from './derive.ts'

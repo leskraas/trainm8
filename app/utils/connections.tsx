@@ -1,5 +1,5 @@
 import { Form } from 'react-router'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { useIsPending } from './misc.tsx'

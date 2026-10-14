@@ -101,7 +101,8 @@ test('a create event fetches the activity and files an ActivityImport', async ()
 	expect(result).toBe('processed')
 	const imp = await prisma.activityImport.findUnique({
 		where: {
-			externalProvider_externalId: {
+			athleteId_externalProvider_externalId: {
+				athleteId: user.id,
 				externalProvider: 'strava',
 				externalId: '5001',
 			},
@@ -113,7 +114,7 @@ test('a create event fetches the activity and files an ActivityImport', async ()
 })
 
 test('a create event ingests the activity Activity Stream', async () => {
-	await setupConnectedAthlete()
+	const user = await setupConnectedAthlete()
 	mockActivity('5006')
 
 	await enqueueAndRun({
@@ -127,7 +128,8 @@ test('a create event ingests the activity Activity Stream', async () => {
 	// the new import, from the default HR streams payload.
 	const imp = await prisma.activityImport.findUniqueOrThrow({
 		where: {
-			externalProvider_externalId: {
+			athleteId_externalProvider_externalId: {
+				athleteId: user.id,
 				externalProvider: 'strava',
 				externalId: '5006',
 			},
@@ -161,7 +163,8 @@ test('a create event with no streams files the import without a stream', async (
 	expect(result).toBe('processed')
 	const imp = await prisma.activityImport.findUniqueOrThrow({
 		where: {
-			externalProvider_externalId: {
+			athleteId_externalProvider_externalId: {
+				athleteId: user.id,
 				externalProvider: 'strava',
 				externalId: '5007',
 			},
@@ -204,7 +207,8 @@ test('a create event auto-matches the import to a planned same-day session', asy
 
 	const imp = await prisma.activityImport.findUnique({
 		where: {
-			externalProvider_externalId: {
+			athleteId_externalProvider_externalId: {
+				athleteId: user.id,
 				externalProvider: 'strava',
 				externalId: '5003',
 			},
@@ -280,7 +284,8 @@ test('an update event re-snapshots an auto-save mirror stream and re-enqueues de
 
 	const imp = await prisma.activityImport.findUniqueOrThrow({
 		where: {
-			externalProvider_externalId: {
+			athleteId_externalProvider_externalId: {
+				athleteId: user.id,
 				externalProvider: 'strava',
 				externalId: '6003',
 			},
@@ -540,7 +545,8 @@ test('a delete event removes an auto-save mirror', async () => {
 
 	const gone = await prisma.activityImport.findUnique({
 		where: {
-			externalProvider_externalId: {
+			athleteId_externalProvider_externalId: {
+				athleteId: user.id,
 				externalProvider: 'strava',
 				externalId: '7001',
 			},

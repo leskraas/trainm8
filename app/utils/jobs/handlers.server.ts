@@ -3,6 +3,12 @@ import {
 	runIntervalsIcuBackfill,
 } from '#app/integrations/intervalsicu/backfill.server.ts'
 import {
+	dispatchIntervalsIcuFitHarvest,
+	INTERVALSICU_FIT_HARVEST_DISPATCH_JOB_KIND,
+	INTERVALSICU_FIT_HARVEST_JOB_KIND,
+	runIntervalsIcuFitHarvestJob,
+} from '#app/integrations/intervalsicu/fit-harvest.server.ts'
+import {
 	INTERVALSICU_LAPS_BACKFILL_JOB_KIND,
 	runIntervalsIcuLapsBackfill,
 } from '#app/integrations/intervalsicu/laps-backfill.server.ts'
@@ -27,6 +33,10 @@ import {
 	processStravaWebhookEvent,
 	STRAVA_WEBHOOK_JOB_KIND,
 } from '#app/integrations/strava/webhook.server.ts'
+import {
+	CREDENTIAL_ENCRYPTION_BACKFILL_JOB_KIND,
+	encryptPlaintextCredentials,
+} from '#app/utils/credential-backfill.server.ts'
 import {
 	NP_TSS_BACKFILL_JOB_KIND,
 	runNpTssBackfill,
@@ -164,5 +174,20 @@ export const jobHandlers: JobHandlers = {
 		// One-shot lap heal (#356): fetch each lap-less Intervals.icu import's
 		// interval breakdown and re-run detection with the lap-edged path.
 		await runIntervalsIcuLapsBackfill()
+	},
+	[INTERVALSICU_FIT_HARVEST_DISPATCH_JOB_KIND]: async () => {
+		// Start the FIT harvest (#547) for every active Intervals.icu connection.
+		await dispatchIntervalsIcuFitHarvest()
+	},
+	[INTERVALSICU_FIT_HARVEST_JOB_KIND]: async (payload) => {
+		// One batch of an athlete's FIT harvest (#547), within the daily budget;
+		// it enqueues its own continuation until nothing is left. A revoked or
+		// missing connection is a deliberate stop, not a failure.
+		await runIntervalsIcuFitHarvestJob(payload)
+	},
+	[CREDENTIAL_ENCRYPTION_BACKFILL_JOB_KIND]: async () => {
+		// One-shot (#548): encrypt the Account Connection tokens stored in
+		// plaintext before credentials were encrypted at rest.
+		await encryptPlaintextCredentials()
 	},
 }

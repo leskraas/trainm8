@@ -5,7 +5,7 @@
  * server imports: the card validates with it too.
  */
 
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { WeekKeySchema } from '#app/utils/calendar-key-schema.ts'
 import { ProposalScopeSchema } from '#app/utils/load/week-replan-proposal.ts'
 

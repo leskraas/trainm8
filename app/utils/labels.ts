@@ -33,6 +33,7 @@
 // import cycle this module exists to avoid (server boot then dies on a TDZ
 // error). `import type` statements are erased entirely.
 /* eslint-disable import/consistent-type-specifier-style */
+import type { OriginPlatform } from '../integrations/shared/origin-platform.ts'
 import type { AppTab } from './app-tabs.ts'
 import type {
 	CatalogueGoalEvent,
@@ -112,6 +113,7 @@ import type {
 	ThresholdProtocol,
 } from './profile-analysis/types.ts'
 import type { SessionOwner } from './session-ownership.ts'
+import type { Attribution } from './source-terms.ts'
 import type { RepLoadBasis } from './strength/anchors.constants.ts'
 import type { OneRmRefusal } from './strength/one-rm.ts'
 import type { PlateRefusal } from './strength/plates.ts'
@@ -3472,6 +3474,43 @@ export function providerLabel(provider: string): string {
 	return PROVIDER_LABELS[provider] ?? capitalize(provider)
 }
 
+/**
+ * Where a Recording came from, by its **Origin Platform** (ADR 0096) — never
+ * the transport it came down. `unknown` has no words: a Recording that cannot
+ * say where it came from says nothing rather than guess.
+ */
+export const ORIGIN_PLATFORM_LABELS: Record<
+	Exclude<OriginPlatform, 'unknown'>,
+	string
+> = {
+	garmin: 'Garmin',
+	polar: 'Polar',
+	suunto: 'Suunto',
+	coros: 'COROS',
+	wahoo: 'Wahoo',
+	strava: 'Strava',
+	zwift: 'Zwift',
+	'apple-health': 'Apple Health',
+	'health-connect': 'Health Connect',
+	intervalsicu: 'intervals.icu',
+	upload: 'Opplastet fil',
+}
+
+/**
+ * The credits a platform's terms require (ADR 0098 §3, `source-terms.ts`).
+ *
+ * Garmin's derived-data line is Garmin's own wording, from its API Brand
+ * Guidelines' list of acceptable attributions, and stays in English on
+ * purpose: a Norwegian paraphrase is not on that list. Changing it waits on
+ * Garmin saying a translation is acceptable (#542's outreach).
+ */
+export const SOURCE_ATTRIBUTION_LABELS = {
+	derived: {
+		garmin: 'Insights derived in part from Garmin device-sourced data.',
+		polar: 'Bygger delvis på data fra Polar.',
+	} satisfies Record<Attribution, string>,
+} as const
+
 // ---------------------------------------------------------------------------
 // The four tabs
 // ---------------------------------------------------------------------------
@@ -4899,8 +4938,9 @@ export const INTEGRATIONS_LABELS = {
 	disconnectConfirm: (name: string) => `Koble fra ${name}`,
 	disconnected: (name: string) => `Koblet fra ${name}`,
 	disconnectedBody: 'Øktene du har importert, blir i treningshistorikken din.',
+	// ADR 0096 §8: dedupe is strong, not certain, so the hub says both halves.
 	dualSource:
-		'Både Strava og intervals.icu er koblet til. En økt som når begge, kan komme hit to ganger – én fra hver. Begge lagres; slett den du ikke vil beholde.',
+		'Flere kilder er koblet til. En økt som kommer fra mer enn én av dem, lagres som én økt. Kjenner vi den ikke igjen, kan den likevel komme to ganger – da sletter du den du ikke vil beholde.',
 	intervalsicu: {
 		name: 'intervals.icu',
 		revoked:
@@ -4936,20 +4976,24 @@ export const PROVIDER_DIRECTORY_LABELS = {
 		name: 'Filopplasting',
 		tagline: 'FIT-, TCX- eller GPX-filer. Alltid tilgjengelig.',
 	},
+	// #546: no card promises a vendor's data through intervals.icu. Its Garmin
+	// feed may close any day (its developer, 2026-10-09), and an activity's
+	// terms follow the watch it was recorded on, not the bridge (ADR 0098). A
+	// FIT file from the watch is the way in that does not depend on either.
 	intervalsicu: {
 		name: 'intervals.icu',
 		tagline:
-			'Gratis import med din personlige API-nøkkel – tar med data fra Garmin og Suunto også. Sjekkes daglig, og du kan synkronisere selv for det nyeste.',
+			'Gratis import med din personlige API-nøkkel: øktene som ligger i intervals.icu-kontoen din. Sjekkes daglig, og du kan synkronisere selv for det nyeste.',
 	},
 	garmin: {
 		name: 'Garmin Connect',
 		tagline:
-			'Garmins API krever opptak i partnerprogrammet deres. Til da har intervals.icu allerede Garmin-dataene dine.',
+			'Garmins API krever opptak i partnerprogrammet deres. Til da kan du laste opp FIT-filen fra klokka.',
 	},
 	suunto: {
 		name: 'Suunto',
 		tagline:
-			'Suuntos API er også bare for partnere. intervals.icu har Suunto-dataene dine i dag.',
+			'Suuntos API er også bare for partnere. Til da kan du laste opp FIT-filen fra klokka.',
 	},
 } as const
 
@@ -5027,6 +5071,8 @@ export const UPLOAD_LABELS = {
 	submit: 'Last opp',
 	submitting: 'Laster opp …',
 	noFile: 'Velg minst én fil.',
+	tooLarge: 'Fila er for stor.',
+	tooManyFiles: (max: number) => `Last opp høyst ${max} filer om gangen.`,
 	duplicate: 'Denne økta er allerede importert.',
 	/** `3 importert · 1 fantes fra før · 2 feilet` */
 	summary: (imported: number, duplicates: number, failed: number) =>
@@ -5063,6 +5109,8 @@ const UPLOAD_FAILURE_LABELS: Record<string, string> = {
 	'Unsupported file type. Accepted: .fit, .fit.gz, .tcx, .gpx, .zip, .gz.':
 		'Filtypen støttes ikke. Bruk .fit, .fit.gz, .tcx, .gpx, .zip eller .gz.',
 	'Could not read the archive.': 'Kunne ikke lese ZIP-fila.',
+	'The file is too large.': 'Fila er for stor.',
+	'The archive is too large.': 'ZIP-fila er for stor.',
 }
 
 export function uploadFailureLabel(reason: string): string {

@@ -1,5 +1,28 @@
 # Integration Hub surface and key-based providers (Intervals.icu first)
 
+> **Partly superseded (#545).** The hub, the provider directory and the
+> key-based Account Connection stand. Three things below do not:
+>
+> 1. **The rejection of Intervals.icu OAuth is superseded by
+>    [ADR 0098](./0098-source-terms-bind-per-origin-platform.md) §5.** Its
+>    reasons are out of date: Intervals.icu now pools OAuth limits ("100/user
+>    per day up to 500 users … with a minimum of 5000 … not applied per-user"),
+>    asks that "apps intended to be used by more than one person should use
+>    OAuth", and gives webhooks only to OAuth apps. Whether trainm8 registers an
+>    OAuth app is decided with workout export (ADR 0097) and before a second
+>    athlete connects Intervals.icu.
+> 2. **"Cross-provider dedup stays athlete-driven" is superseded by
+>    [ADR 0096](./0096-every-import-records-its-origin-platform-and-one-activity-is-one-row.md).**
+>    Identity is resolved before insert (FIT key, then a fuzzy match), and a
+>    duplicate becomes an alias, not a session. The hub's warning generalises to
+>    "two or more active sources".
+> 3. **Stale facts.** Garmin's flow is OAuth 2.0 with PKCE, not "OAuth 1.0a→2.0
+>    hybrid". Intervals.icu "already mirrors" Garmin data only while Garmin
+>    keeps serving it; its developer expects a block soon, so the hub must stop
+>    promising Garmin through Intervals.icu (#546). And Intervals.icu no longer
+>    yields a second real copy of a Strava activity, only a data-less stub
+>    (#544).
+
 Trainm8's only provider connection today is Strava, managed from a card on the
 Activity Inbox. Strava's API program has moved to paid access, and the providers
 athletes actually record with (Garmin, Suunto, Polar) gate their APIs behind
@@ -90,20 +113,21 @@ reconnect. `provider` stays a plain string column; `'intervalsicu'` joins the
   work queue (visited after every workout).
 - **A generic "connect provider" wizard driven by provider config**: Rejected —
   the OAuth redirect flow and the paste-a-key flow share almost nothing, and
-  Garmin's eventual flow (OAuth 1.0a→2.0 hybrid, partner review) will differ
-  again. Per-provider connect routes, composed by the hub, keep ADR 0014's
-  promise.
-- **Intervals.icu via OAuth instead of API key**: Rejected for this slice. OAuth
-  requires registering trainm8 as an Intervals.icu app and brings a
-  100-requests/user/day cap (vs 5,000 for personal keys) and no webhooks benefit
-  at this scale. The personal key is the self-coaching-athlete-shaped choice; an
-  OAuth app remains the escape hatch if trainm8 ever serves users who shouldn't
-  handle keys.
+  Garmin's eventual flow (OAuth 1.0a→2.0 hybrid, partner review — _in fact OAuth
+  2.0 with PKCE; see the note at the top_) will differ again. Per-provider
+  connect routes, composed by the hub, keep ADR 0014's promise.
+- **Intervals.icu via OAuth instead of API key**: _Superseded by ADR 0098 §5;
+  the reasons below no longer hold._ Rejected for this slice. OAuth requires
+  registering trainm8 as an Intervals.icu app and brings a 100-requests/user/day
+  cap (vs 5,000 for personal keys) and no webhooks benefit at this scale. The
+  personal key is the self-coaching-athlete-shaped choice; an OAuth app remains
+  the escape hatch if trainm8 ever serves users who shouldn't handle keys.
 - **Waiting for direct Garmin/Suunto integrations instead**: Rejected — both
   require partner-program acceptance with review cycles outside our control, and
-  Intervals.icu already mirrors their data through the athlete's own account.
-  Direct integrations stay on the roadmap (their hub cards say so); this ADR
-  just refuses to block activity ingest on them.
+  Intervals.icu already mirrors their data through the athlete's own account
+  (_at risk for Garmin; see the note at the top_). Direct integrations stay on
+  the roadmap (their hub cards say so); this ADR just refuses to block activity
+  ingest on them.
 - **Encrypting the stored API key at rest**: Deferred, explicitly. OAuth tokens
   are stored unencrypted today; a key-encryption scheme is a cross-cutting
   change deserving its own decision rather than a rider on this one.
@@ -124,6 +148,8 @@ reconnect. `provider` stays a plain string column; `'intervalsicu'` joins the
   (Intervals.icu itself syncs from Strava). Cross-provider dedup stays
   athlete-driven (GLOSSARY.md relationship holds); the hub warns plainly when
   both are connected. An automatic heuristic is future work with its own ADR.
+  _Superseded by ADR 0096: identity is resolved before insert and a duplicate
+  becomes an alias._
 - The hub becomes the single seam future providers extend: a Garmin integration
   is a folder + a directory entry + its connect route, and its card lights up.
 - API facts (auth header shape, endpoints, limits) were verified against

@@ -175,6 +175,16 @@ export const handlers: Array<HttpHandler> = [
 			return json({ icu_intervals: [] })
 		},
 	),
+
+	// Default original-file endpoint (#547 harvest): no original file, as for
+	// a manual entry. Tests that harvest a FIT override this handler.
+	http.get('https://intervals.icu/api/v1/activity/:id/file', ({ request }) => {
+		const key = authorizedKey(request)
+		if (key !== MOCK_INTERVALSICU_API_KEY) {
+			return new HttpResponse('Unauthorized', { status: 401 })
+		}
+		return new HttpResponse('Not Found', { status: 404 })
+	}),
 ]
 
 export const passthroughHandlers: Array<HttpHandler> = [

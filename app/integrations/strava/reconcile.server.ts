@@ -11,7 +11,7 @@ import { STRAVA_PROVIDER } from './types.ts'
  * daily sweep re-fetches each active Account Connection's recent Strava
  * activities and files any the webhook (#76) dropped during downtime or that
  * Strava retried-and-gave-up on. It reuses the same fetch path and idempotent
- * `(provider, externalId)` guard as manual sync and backfill.
+ * `(athlete, provider, externalId)` guard as manual sync and backfill.
  */
 
 /**
