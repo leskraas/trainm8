@@ -32,9 +32,18 @@ export const LIBRARY_SECTION_HREF = '/library'
 export const LIBRARY_SECTION_ID = 'bibliotek'
 
 /**
+ * The full Home Timeline's own address, _Se hele sesongen_ (spec #558 story
+ * 102, #562): today's whole timeline — strip, list, writing line and panes —
+ * which the calm I dag links to. It is a page deeper in I dag, so the bar keeps
+ * I dag current there.
+ */
+export const HOME_TIMELINE_HREF = '/season'
+
+/**
  * The URL prefixes each tab is home to, beyond its own landing page. Matched on
  * whole path segments, so `/training/plan` never claims `/training/planner`.
  *
+ * - **I dag**: the full Home Timeline (`/season`, _Se hele sesongen_).
  * - **Plan**: the season plan and plan creation (`/training/plan/…`), the
  *   Events it builds toward, and Bibliotek — the catalogue, programs and
  *   exercises.
@@ -45,7 +54,7 @@ export const LIBRARY_SECTION_ID = 'bibliotek'
  * and belongs to no tab, so the bar marks none rather than guessing.
  */
 const TAB_PREFIXES: Record<AppTab, readonly string[]> = {
-	today: [],
+	today: [HOME_TIMELINE_HREF],
 	plan: [
 		'/training/plan',
 		'/training/events',
