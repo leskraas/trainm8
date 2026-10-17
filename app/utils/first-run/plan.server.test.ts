@@ -518,7 +518,8 @@ function writeDraft(athleteId: string, draft: FirstRunDraft) {
 			round: draft.phases[0],
 			startWeekKey: START,
 			tracks: draft.tracks.map((track) => ({
-				discipline: track.discipline,
+				// Two endurance tracks: no Simple Activity's `other` among them.
+				discipline: track.discipline as 'run' | 'bike',
 				currency: track.currency,
 				weeklyHours: track.anchor,
 				mix: track.mix,

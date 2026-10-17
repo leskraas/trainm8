@@ -11,6 +11,7 @@ import { MAX_PLAN_WEEKS } from '../plan-outline/authoring-schema.ts'
 import { OpenEndedFieldsSchema } from '../plan-outline/open-ended-schema.ts'
 import { PRESET_FAMILIES, type PresetFamily } from '../plan-outline/presets.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
+import { type ActivityKind } from '../simple-activity.ts'
 import { type CardioDiscipline } from '../workout-schema.ts'
 import { type TrainingLevel } from './start-draft.ts'
 import {
@@ -130,7 +131,13 @@ export type FirstRunGoal =
 
 /** Everything the plan is made from, as the URL carries it. */
 export type FirstRunAnswers = {
-	discipline: CardioDiscipline
+	/**
+	 * The main sport. Only the simple start may leave it out, for an athlete
+	 * who picked Simple Activities alone (#572).
+	 */
+	discipline?: CardioDiscipline
+	/** The simple start's **Simple Activities**, in the order picked (#572). */
+	activities?: readonly ActivityKind[]
 	hours: number
 	days: PatternWeekday[]
 	goal: FirstRunGoal
@@ -185,7 +192,7 @@ export function readAnswers(
 /** The answers as the next step's query string. */
 export function answersSearch(answers: FirstRunAnswers): string {
 	const params = new URLSearchParams({
-		discipline: answers.discipline,
+		...(answers.discipline ? { discipline: answers.discipline } : {}),
 		hours: String(answers.hours),
 		days: answers.days.join(','),
 		goal: answers.goal.kind,
@@ -210,6 +217,7 @@ export function questionsPath(answers: FirstRunAnswers): string {
 			level: answers.level,
 			hours: answers.hours,
 			discipline: answers.discipline,
+			activities: answers.activities ? [...answers.activities] : undefined,
 			days: answers.days,
 		})}`
 	}

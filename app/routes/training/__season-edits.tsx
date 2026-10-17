@@ -34,7 +34,7 @@ import { Button } from '#app/components/ui/button.tsx'
 import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { formatNbDayMonth, formatNbVolumeFigure } from '#app/utils/format.ts'
 import {
-	NB_DISCIPLINE_LABELS,
+	nbTrackName,
 	NB_RHYTHM_CHOICE_LABELS,
 	NB_VOLUME_UNITS,
 	NB_WEEK_ROLE_LABELS,
@@ -134,9 +134,7 @@ function targetsLabel(targets: TargetView[]): string {
 				target.value == null
 					? '–'
 					: `${formatNbVolumeFigure(target.value, target.currency)} ${NB_VOLUME_UNITS[target.currency]}`
-			return named
-				? `${NB_DISCIPLINE_LABELS[target.discipline]} ${figure}`
-				: figure
+			return named ? `${nbTrackName(target.discipline)} ${figure}` : figure
 		})
 		.join(' · ')
 }
@@ -373,7 +371,7 @@ function WeekTargetEdit({
 					}}
 					items={tracks.map((track) => ({
 						value: track.trackId,
-						label: `${NB_DISCIPLINE_LABELS[track.discipline]} (${NB_VOLUME_UNITS[track.currency]})`,
+						label: `${nbTrackName(track.discipline)} (${NB_VOLUME_UNITS[track.currency]})`,
 					}))}
 				/>
 			)}

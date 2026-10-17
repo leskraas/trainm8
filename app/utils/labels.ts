@@ -2429,6 +2429,33 @@ export const START_OPTION_LABELS = {
 } as const
 
 /**
+ * The **Simple Activities** in the simple start (#572): the chips, what they
+ * are, the week laid from them alone, and _Fikk ikke plass_.
+ */
+export const START_SIMPLE_ACTIVITY_LABELS = {
+	legend: 'Andre aktiviteter',
+	help: 'Planlagt med tid og innsats. Teller i ukas timer.',
+	/** The main sport's choice of none, where only activities are picked. */
+	noSport: 'Ingen',
+	nothingPicked: 'Velg en idrett eller en aktivitet',
+	/** Story 16: no modelled endurance sport, so one simple week. */
+	simpleOnly:
+		'Uten en utholdenhetsidrett blir det én enkel uke med øktene spredt ut, ikke flere å velge mellom.',
+	/** Story 41: what did not fit week 1, and what would make room. */
+	notFitted: (kinds: readonly ActivityKind[], room: 'days' | 'hours') => {
+		const names = nbJoin(
+			kinds.map((kind) => SIMPLE_ACTIVITY_LABELS.kind[kind].toLowerCase()),
+		)
+		const them = kinds.length === 1 ? 'den' : 'de'
+		return room === 'days'
+			? `Fikk ikke plass denne uka: ${names}. Velg en dag til, så kommer ${them} med.`
+			: `Fikk ikke plass denne uka: ${names}. Gi uka mer tid, så kommer ${them} med.`
+	},
+	/** The one hours Training Track the Simple Activities share, on `other`. */
+	track: 'Enkle aktiviteter',
+} as const
+
+/**
  * What one session does to its week, in the track's unit (#505 stories 37 and
  * 39) — the preview under the writing line and the toast after a change.
  */
@@ -3944,9 +3971,14 @@ export const NB_PATTERN_WEEKDAY_LABELS = Object.fromEntries(
 	]),
 ) as Record<PatternWeekday, string>
 
-/** A Training Track's name on Sesong: the sport, in Norwegian. */
-export function nbTrackName(discipline: Discipline): string {
-	return NB_DISCIPLINE_LABELS[discipline]
+/**
+ * A Training Track's name on Sesong: the sport, in Norwegian, or _Enkle
+ * aktiviteter_ for the track on `other` (#572).
+ */
+export function nbTrackName(discipline: string): string {
+	return discipline === 'other'
+		? START_SIMPLE_ACTIVITY_LABELS.track
+		: nbDisciplineLabel(discipline)
 }
 
 /**

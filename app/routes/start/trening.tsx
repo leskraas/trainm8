@@ -9,6 +9,10 @@ import {
 } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
+	ToggleGroup,
+	ToggleGroupItem,
+} from '#app/components/ui/toggle-group.tsx'
+import {
 	readPlanStartWeekKey,
 	requireSimpleStartAthlete,
 } from '#app/utils/first-run/plan.server.ts'
@@ -26,9 +30,15 @@ import {
 	FIRST_RUN_LABELS,
 	NB_DISCIPLINE_LABELS,
 	NB_WEEKDAY_LABELS,
+	SIMPLE_ACTIVITY_LABELS,
 	SIMPLE_START_LABELS,
+	START_SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
 import { patternWeekdaysOf } from '#app/utils/plan-outline/week-pattern.ts'
+import {
+	ACTIVITY_KINDS,
+	type ActivityKind,
+} from '#app/utils/simple-activity.ts'
 import {
 	CARDIO_DISCIPLINES,
 	type CardioDiscipline,
@@ -67,7 +77,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 	return {
 		level,
 		hours,
-		discipline: answers.discipline ?? ('run' as const),
+		// Back from the cards with only Simple Activities picked, no sport.
+		discipline:
+			answers.discipline ?? (answers.activities ? null : ('run' as const)),
+		activities: answers.activities ?? [],
 		days: answers.days ?? levelDefaults(level).days,
 		startWeekKey: await readPlanStartWeekKey(userId),
 	}
@@ -88,8 +101,11 @@ export default function ActivitiesStep({
 	actionData,
 }: Route.ComponentProps) {
 	const { level, hours, startWeekKey } = loaderData
-	const [discipline, setDiscipline] = useState<CardioDiscipline>(
+	const [discipline, setDiscipline] = useState<CardioDiscipline | null>(
 		loaderData.discipline,
+	)
+	const [activities, setActivities] = useState<ActivityKind[]>(
+		loaderData.activities,
 	)
 	const [days, setDays] = useState<string[]>(loaderData.days.map(String))
 	const weekdays = useMemo(() => patternWeekdaysOf(days.map(Number)), [days])
@@ -99,11 +115,12 @@ export default function ActivitiesStep({
 			draftStart({
 				level,
 				discipline,
+				activities,
 				hours,
 				days: weekdays,
 				startWeekKey,
 			}),
-		[level, discipline, hours, weekdays, startWeekKey],
+		[level, discipline, activities, hours, weekdays, startWeekKey],
 	)
 	const sketch = useMemo(() => weekSketch(start), [start])
 
@@ -121,7 +138,8 @@ export default function ActivitiesStep({
 	const back = `/start/niva?${startSearch({
 		level,
 		hours,
-		discipline,
+		discipline: discipline ?? undefined,
+		activities,
 		days: weekdays,
 	})}`
 	const { sessionCap } = levelDefaults(level)
@@ -133,7 +151,7 @@ export default function ActivitiesStep({
 			title={L.activities.title}
 			back={{ to: back, label: L.backTo.level }}
 		>
-			<WeekSketch sketch={sketch} discipline={discipline} />
+			<WeekSketch sketch={sketch} />
 			<Form method="POST" className="space-y-8" {...getFormProps(form)}>
 				<input type="hidden" name={fields.level.name} value={level} />
 				<input type="hidden" name={fields.hours.name} value={hours} />
@@ -142,18 +160,74 @@ export default function ActivitiesStep({
 					name={fields.discipline.name}
 					legend={L.activities.sport}
 					legendClassName={QUESTION_LEGEND}
-					value={discipline}
+					value={discipline ?? ''}
 					onValueChange={(next) => {
-						const picked = CARDIO_DISCIPLINES.find((value) => value === next)
-						if (picked) setDiscipline(picked)
+						setDiscipline(
+							CARDIO_DISCIPLINES.find((value) => value === next) ?? null,
+						)
 					}}
-					options={CARDIO_DISCIPLINES.map((value) => ({
-						value,
-						label: NB_DISCIPLINE_LABELS[value],
-					}))}
+					options={[
+						...CARDIO_DISCIPLINES.map((value) => ({
+							value,
+							label: NB_DISCIPLINE_LABELS[value],
+						})),
+						// Only Simple Activities: one simple week (#572).
+						{ value: '', label: START_SIMPLE_ACTIVITY_LABELS.noSport },
+					]}
 					errorId={fields.discipline.errorId}
 					errors={fields.discipline.errors}
 				/>
+
+				<fieldset className="space-y-2" data-start-activities>
+					<legend className={QUESTION_LEGEND}>
+						{START_SIMPLE_ACTIVITY_LABELS.legend}
+					</legend>
+					<p className="text-footnote text-muted-foreground">
+						{START_SIMPLE_ACTIVITY_LABELS.help}
+					</p>
+					<ToggleGroup
+						multiple
+						variant="outline"
+						spacing={2}
+						value={activities}
+						onValueChange={(next) => {
+							const pressed = next as string[]
+							// Kept in the order picked: the first goes in first when the
+							// week has no room for all.
+							setActivities([
+								...activities.filter((kind) => pressed.includes(kind)),
+								...ACTIVITY_KINDS.filter(
+									(kind) =>
+										pressed.includes(kind) && !activities.includes(kind),
+								),
+							])
+						}}
+						className="w-full flex-wrap"
+					>
+						{ACTIVITY_KINDS.map((kind) => (
+							<ToggleGroupItem
+								key={kind}
+								value={kind}
+								className="aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground text-callout h-11 max-w-full rounded-full px-4"
+							>
+								{SIMPLE_ACTIVITY_LABELS.kind[kind]}
+							</ToggleGroupItem>
+						))}
+					</ToggleGroup>
+					{activities.map((kind) => (
+						<input key={kind} type="hidden" name="activities" value={kind} />
+					))}
+					<div
+						aria-live="polite"
+						className="text-footnote text-muted-foreground"
+					>
+						{start?.simpleOnly ? (
+							<p data-start-simple-only>
+								{START_SIMPLE_ACTIVITY_LABELS.simpleOnly}
+							</p>
+						) : null}
+					</div>
+				</fieldset>
 
 				<div className="space-y-2">
 					<ToggleGroupField

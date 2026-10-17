@@ -25,6 +25,8 @@ import { parseEventDisciplines, type EventKind } from '../event-schema.ts'
 import { createEvent } from '../event.server.ts'
 import { openEndedRoundName } from '../labels.ts'
 import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
+import { type PlannedDiscipline } from '../planned-discipline.ts'
+import { SIMPLE_ACTIVITY_DISCIPLINE } from '../simple-activity.ts'
 import {
 	isCardioDiscipline,
 	type CardioDiscipline,
@@ -94,6 +96,7 @@ import {
 } from './authoring-schema.ts'
 import { eventFit } from './event-fit.ts'
 import { proposeFit, type FitProposal } from './fit-proposal.ts'
+import { walksAsEndurance } from './from-rows.ts'
 import { readAnchorContext } from './history.server.ts'
 import {
 	familyOfPreset,
@@ -325,7 +328,7 @@ export async function createPlanOutline(
 		 * The tracks, by Discipline, that lay the family's climb but not its
 		 * mix ({@link layEnduranceSegments}).
 		 */
-		withoutMix?: readonly Discipline[]
+		withoutMix?: readonly PlannedDiscipline[]
 	} = {},
 ): Promise<CreateOutlineResult> {
 	const plan = PlanOutlineCreateSchema.parse(input)
@@ -413,7 +416,7 @@ export async function createPlanOutlineInTx(
 		familyRates?: ReadonlyArray<
 			Pick<PresetPhase, 'ramp' | 'boundaryStep' | 'mix'>
 		>
-		withoutMix?: readonly Discipline[]
+		withoutMix?: readonly PlannedDiscipline[]
 	} = {},
 ): Promise<string> {
 	const plan = PlanOutlineCreateSchema.parse(input)
@@ -471,7 +474,7 @@ async function writePlanOutline(
 	plan: PlanOutlineCreateOutput,
 	eventId: string | null,
 	phases: PhaseLay[],
-	withoutMix: readonly Discipline[] = [],
+	withoutMix: readonly PlannedDiscipline[] = [],
 ): Promise<{ id: string }> {
 	const created = await tx.planOutline.create({
 		data: {
@@ -1418,7 +1421,7 @@ export async function layEnduranceSegments(
 		 * Mix** whatever the phases say: easy sessions only, as the first run
 		 * lays a second endurance sport beside the main one (#558).
 		 */
-		withoutMix?: readonly Discipline[]
+		withoutMix?: readonly PlannedDiscipline[]
 	} = {},
 ): Promise<void> {
 	const tracks = await tx.trainingTrack.findMany({
@@ -1426,8 +1429,10 @@ export async function layEnduranceSegments(
 		select: { id: true, discipline: true },
 	})
 	for (const track of tracks) {
-		if (!isCardioDiscipline(track.discipline as Discipline)) continue
-		const mixless = withoutMix.includes(track.discipline as Discipline)
+		// The Simple Activities' track on `other` climbs with the phases too,
+		// with no mix (#572).
+		if (!walksAsEndurance(track.discipline)) continue
+		const mixless = withoutMix.includes(track.discipline as PlannedDiscipline)
 		for (const phase of phases) {
 			await tx.trainingTrackSegment.create({
 				data: {
@@ -2623,6 +2628,16 @@ type StarterPatternOptions = {
 	 * of the days rather than all of them (`StarterTrack.weekdays`).
 	 */
 	daysByDiscipline?: Partial<Record<Discipline, readonly PatternWeekday[]>>
+	/**
+	 * Fixed days written after the proposal's share days, each on the track of
+	 * its Discipline and copying its Workout: the start's Simple Activities on
+	 * the `other` track (#572), which takes no share day of its own.
+	 */
+	fixedDays?: ReadonlyArray<{
+		weekday: PatternWeekday
+		discipline: PlannedDiscipline
+		workoutId: string
+	}>
 }
 
 /**
@@ -2638,6 +2653,7 @@ export async function createStarterWeekPatternInTx(
 	{
 		trainableWeekdays: stated,
 		daysByDiscipline = {},
+		fixedDays = [],
 	}: StarterPatternOptions = {},
 ): Promise<StarterPatternResult> {
 	const start = WeekPatternStarterSchema.parse(input)
@@ -2676,9 +2692,14 @@ export async function createStarterWeekPatternInTx(
 	})
 	if (!outline) return { ok: false as const, reason: 'outline-gone' as const }
 
+	// A Simple Activity is a fixed day, never a share, so its track takes no
+	// share day here.
+	const shared = outline.tracks.filter(
+		(track) => track.discipline !== SIMPLE_ACTIVITY_DISCIPLINE,
+	)
 	const proposal = proposeStarterPattern({
 		trainableWeekdays,
-		tracks: outline.tracks.map((track) => ({
+		tracks: shared.map((track) => ({
 			trackId: track.id,
 			discipline: track.discipline as Discipline,
 			// The first block's **Strength Frequency** stands for the track: a
@@ -2689,8 +2710,18 @@ export async function createStarterWeekPatternInTx(
 			weekdays: daysByDiscipline[track.discipline as Discipline],
 		})),
 	})
-	if (!proposal) {
+	const fixed = fixedDays.flatMap((day) => {
+		const track = outline.tracks.find(
+			(candidate) => candidate.discipline === day.discipline,
+		)
+		return track ? [{ ...day, trackId: track.id }] : []
+	})
+	if (!proposal && fixed.length === 0) {
 		return { ok: false as const, reason: 'nothing-to-propose' as const }
+	}
+	const proposed: StarterProposal = proposal ?? {
+		days: [],
+		source: trainableWeekdays == null ? 'default' : 'availability',
 	}
 
 	const pattern = await tx.weekPattern.create({
@@ -2708,7 +2739,7 @@ export async function createStarterWeekPatternInTx(
 	// rule `addWeekPatternDay` applies one day at a time — so a Tuesday holding a
 	// lift and a run keeps them in the order they were proposed in.
 	const placed = new Map<number, number>()
-	for (const day of proposal.days) {
+	for (const day of proposed.days) {
 		const orderInDay = placed.get(day.weekday) ?? 0
 		placed.set(day.weekday, orderInDay + 1)
 		await tx.weekPatternDay.create({
@@ -2722,8 +2753,22 @@ export async function createStarterWeekPatternInTx(
 			},
 		})
 	}
+	for (const day of fixed) {
+		const orderInDay = placed.get(day.weekday) ?? 0
+		placed.set(day.weekday, orderInDay + 1)
+		await tx.weekPatternDay.create({
+			data: {
+				patternId: pattern.id,
+				trackId: day.trackId,
+				weekday: day.weekday,
+				orderInDay,
+				kind: 'fixed',
+				workoutId: day.workoutId,
+			},
+		})
+	}
 
-	return { ok: true as const, proposal }
+	return { ok: true as const, proposal: proposed }
 }
 
 /** Rename a pattern. The name is intent, and nothing derived depends on it. */

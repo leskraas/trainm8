@@ -103,7 +103,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 				// The title the stamp will store (`stampedSessionTitle`), so the
 				// session on I dag is called what it was called here.
 				title: stampedSessionTitle({
-					discipline: answers.discipline,
+					discipline: session.discipline,
 					role: session.role,
 					zone: session.zone,
 				}),

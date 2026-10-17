@@ -16,6 +16,7 @@ import {
 	type Effort,
 	type StartDraft,
 	type StartOption,
+	type StartWeekSession,
 } from '#app/utils/first-run/start-draft.ts'
 import {
 	readStartAnswers,
@@ -32,10 +33,10 @@ import {
 	PHILOSOPHY_LABELS,
 	SIMPLE_START_LABELS,
 	START_OPTION_LABELS,
+	START_SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
-import { type Discipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/valg.ts'
 import { FirstRunFrame, SIMPLE_START_STEP_COUNT } from './__first-run-frame.tsx'
 
@@ -81,7 +82,7 @@ export type StartCard = {
 		short: string
 		sessions: Array<{
 			title: string
-			discipline: Discipline
+			discipline: StartWeekSession['discipline']
 			effort: Effort
 			/** `45 min · rolig`. */
 			facts: string
@@ -94,6 +95,8 @@ export type StartCard = {
 	sessions: string
 	hard: string
 	shortOfHours: string | null
+	/** _Fikk ikke plass denne uka: …_, with what would make room (#572). */
+	notFitted: string | null
 	chooseLabel: string
 }
 
@@ -138,6 +141,12 @@ function cardOf(
 			option.shortOfHours == null
 				? null
 				: L.shortOfHours(duration(option.shortOfHours), nbHoursWords(hours)),
+		notFitted: option.notFitted
+			? START_SIMPLE_ACTIVITY_LABELS.notFitted(
+					option.notFitted.kinds,
+					option.notFitted.room,
+				)
+			: null,
 		chooseLabel: L.chooseLabel(plain.name),
 	}
 }
@@ -148,6 +157,7 @@ function cardOf(
  */
 function notesOf(start: StartDraft, sessionCap: number): string[] {
 	const notes: string[] = []
+	if (start.simpleOnly) notes.push(START_SIMPLE_ACTIVITY_LABELS.simpleOnly)
 	if (start.merged > 0) notes.push(L.merged(start.options.length))
 	if (start.capped) {
 		notes.push(SIMPLE_START_LABELS.activities.beginnerCap(sessionCap))
@@ -164,20 +174,27 @@ function notesOf(start: StartDraft, sessionCap: number): string[] {
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireSimpleStartAthlete(request)
 	const answers = readStartAnswers(new URL(request.url).searchParams)
-	const { level, hours, discipline, days } = answers
+	const { level, hours, discipline, activities, days } = answers
 	// Every answer comes first; without one, back to where it is asked.
 	if (!level || hours == null) {
 		const search = startSearch(answers)
 		throw redirect(search ? `/start/niva?${search}` : '/start/niva')
 	}
 	const back = `/start/trening?${startSearch(answers)}`
-	if (!discipline || !days) throw redirect(back)
+	if ((!discipline && !activities) || !days) throw redirect(back)
 	const startWeekKey = await readPlanStartWeekKey(userId)
-	const start = draftStart({ level, discipline, hours, days, startWeekKey })
+	const start = draftStart({
+		level,
+		discipline,
+		activities,
+		hours,
+		days,
+		startWeekKey,
+	})
 	if (!start) throw redirect(back)
 	const badge = start.badge ? L.badge[start.badge] : null
 	return {
-		answers: { level, hours, discipline, days },
+		answers: { level, hours, discipline, activities: activities ?? [], days },
 		title: L.title(start.options.length),
 		intro: L.intro(start.options.length, nbHoursWords(hours), start.daysUsed),
 		back,
@@ -196,10 +213,12 @@ export async function action({ request }: Route.ActionArgs) {
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	const { level, hours, discipline, days, family } = submission.value
+	const { level, hours, discipline, activities, days, family } =
+		submission.value
 	const startWeekKey = await readPlanStartWeekKey(userId)
 	const created = await createFirstRunPlan(userId, {
 		discipline,
+		activities,
 		hours,
 		days,
 		goal: { kind: 'active' },
@@ -224,7 +243,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 /** One mark colour per sport (design-system: track hues are marks). */
-const TRACK_MARK: Partial<Record<Discipline, string>> = {
+const TRACK_MARK: Partial<Record<StartWeekSession['discipline'], string>> = {
 	run: 'bg-track-run',
 	bike: 'bg-track-bike',
 	swim: 'bg-track-swim',
@@ -471,6 +490,14 @@ export default function StartOptions({
 									{card.shortOfHours}
 								</p>
 							) : null}
+							{card.notFitted ? (
+								<p
+									className="text-footnote text-muted-foreground"
+									data-start-option-not-fitted
+								>
+									{card.notFitted}
+								</p>
+							) : null}
 							<p className="text-footnote text-muted-foreground">
 								{loaderData.startsOn}
 							</p>
@@ -478,11 +505,21 @@ export default function StartOptions({
 							<Form method="POST" className="mt-auto pt-1">
 								<input type="hidden" name="level" value={answers.level} />
 								<input type="hidden" name="hours" value={answers.hours} />
-								<input
-									type="hidden"
-									name="discipline"
-									value={answers.discipline}
-								/>
+								{answers.discipline ? (
+									<input
+										type="hidden"
+										name="discipline"
+										value={answers.discipline}
+									/>
+								) : null}
+								{answers.activities.map((kind) => (
+									<input
+										key={kind}
+										type="hidden"
+										name="activities"
+										value={kind}
+									/>
+								))}
 								{answers.days.map((day) => (
 									<input key={day} type="hidden" name="days" value={day} />
 								))}

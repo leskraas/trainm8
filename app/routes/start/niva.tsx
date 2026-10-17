@@ -63,12 +63,13 @@ export async function action({ request }: Route.ActionArgs) {
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	const { level, hours, discipline, days } = submission.value
+	const { level, hours, discipline, activities, days } = submission.value
 	throw redirect(
 		`/start/trening?${startSearch({
 			level,
 			hours: hours ?? levelDefaults(level).hours,
 			discipline,
+			activities,
 			days,
 		})}`,
 	)
@@ -94,7 +95,8 @@ export default function LevelStep({
 	// were given for; a new level brings its own days.
 	const sameLevel = level != null && level === answers.level
 	const carriedDays = sameLevel ? answers.days : undefined
-	const discipline = answers.discipline ?? 'run'
+	const activities = sameLevel ? answers.activities : undefined
+	const discipline = answers.discipline ?? (activities ? null : 'run')
 
 	const sketch = useMemo(
 		() =>
@@ -103,13 +105,14 @@ export default function LevelStep({
 					? draftStart({
 							level,
 							discipline,
+							activities,
 							hours,
 							days: carriedDays ?? levelDefaults(level).days,
 							startWeekKey,
 						})
 					: null,
 			),
-		[level, hours, discipline, carriedDays, startWeekKey],
+		[level, hours, discipline, activities, carriedDays, startWeekKey],
 	)
 
 	const [form, fields] = useForm({
@@ -137,7 +140,7 @@ export default function LevelStep({
 			stepCount={SIMPLE_START_STEP_COUNT}
 			title={L.level.title}
 		>
-			<WeekSketch sketch={sketch} discipline={discipline} />
+			<WeekSketch sketch={sketch} />
 			<Form method="POST" className="space-y-8" {...getFormProps(form)}>
 				<RadioGroupField
 					name={fields.level.name}
@@ -212,6 +215,9 @@ export default function LevelStep({
 						value={answers.discipline}
 					/>
 				) : null}
+				{activities?.map((kind) => (
+					<input key={kind} type="hidden" name="activities" value={kind} />
+				))}
 				{carriedDays?.map((day) => (
 					<input key={day} type="hidden" name={fields.days.name} value={day} />
 				))}

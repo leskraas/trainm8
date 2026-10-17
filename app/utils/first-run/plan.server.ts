@@ -13,6 +13,7 @@ import { localDate, mondayOfDay } from '../athlete-calendar.ts'
 import { getAthleteTimezone, updateAthleteProfile } from '../athlete.server.ts'
 import { requireUserId } from '../auth.server.ts'
 import { prisma } from '../db.server.ts'
+import { type EffortWord } from '../effort-word.ts'
 import { fillPlanWeek } from '../load/horizon-fill.server.ts'
 import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
 import { anchoredActiveOutlineWhere } from '../plan-outline/active-outline.server.ts'
@@ -23,7 +24,15 @@ import {
 	type CreateOutlineRefusal,
 } from '../plan-outline/authoring.server.ts'
 import { weekIndexOf, weekKeyAt } from '../plan-outline/week-keys.ts'
-import { calendarWeekdaysOf } from '../plan-outline/week-pattern.ts'
+import {
+	calendarWeekdaysOf,
+	type PatternWeekday,
+} from '../plan-outline/week-pattern.ts'
+import { createSimpleActivityWorkout } from '../simple-activity.server.ts'
+import {
+	SIMPLE_ACTIVITY_DISCIPLINE,
+	type EffortWord as StoredEffortWord,
+} from '../simple-activity.ts'
 import { findActiveOutline } from '../training.server.ts'
 import {
 	draftFirstRunPlan,
@@ -104,6 +113,7 @@ export async function readFirstRunPlan(
 		const start = draftStart({
 			level,
 			discipline: answers.discipline,
+			activities: answers.activities,
 			hours: answers.hours,
 			days: answers.days,
 			startWeekKey,
@@ -139,6 +149,9 @@ export async function readFirstRunPlan(
 		weeksTrained: findings.weeksTrained,
 	})
 	const family = answers.family ?? proposed.family
+	// The first run's own questions always name a sport; only the simple
+	// start may name none (above).
+	if (!answers.discipline) return { ok: false, reason: 'nothing-to-lay' }
 	const draft = draftFirstRunPlan({
 		family,
 		goal,
@@ -285,7 +298,9 @@ export async function createFirstRunPlan(
 							priority: 'A',
 							startDate: new Date(`${goal.date}T00:00:00.000Z`),
 							endDate: null,
-							disciplines: JSON.stringify([answers.discipline]),
+							disciplines: JSON.stringify(
+								answers.discipline ? [answers.discipline] : [],
+							),
 							status: 'planned',
 						},
 						select: { id: true },
@@ -337,8 +352,27 @@ export async function createFirstRunPlan(
 				withoutMix,
 			},
 		)
+		// Each Simple Activity's own Workout, which its fixed day copies.
+		const fixedDays: Array<{
+			weekday: PatternWeekday
+			discipline: typeof SIMPLE_ACTIVITY_DISCIPLINE
+			workoutId: string
+		}> = []
+		for (const activity of draft.simpleActivities) {
+			const workout = await createSimpleActivityWorkout(tx, userId, {
+				kind: activity.kind,
+				effortWord: STORED_EFFORT_WORD[activity.effortWord],
+				durationMin: activity.minutes,
+			})
+			fixedDays.push({
+				weekday: activity.weekday,
+				discipline: SIMPLE_ACTIVITY_DISCIPLINE,
+				workoutId: workout.id,
+			})
+		}
 		// The days the draft lays each track on: its days, cut to what its
-		// hours fill and to six (`patternDaysFor`).
+		// hours fill and to six (`patternDaysFor`), and the Simple Activities'
+		// fixed days after them, as the draft numbered them.
 		const pattern = await createStarterWeekPatternInTx(
 			tx,
 			userId,
@@ -348,6 +382,7 @@ export async function createFirstRunPlan(
 				daysByDiscipline: Object.fromEntries(
 					draft.tracks.map((track) => [track.discipline, track.patternDays]),
 				),
+				fixedDays,
 			},
 		)
 		if (!pattern.ok) throw new Error(`starter pattern: ${pattern.reason}`)
@@ -377,6 +412,17 @@ export async function createFirstRunPlan(
 	}
 	return { ok: true, outlineId, eventId, laid }
 }
+
+/**
+ * The Effort Word as a Simple Activity's Workout stores it today. The words
+ * are one vocabulary (_rolig_, _middels_, _hard_); this bridge goes when the
+ * stored values are those words too.
+ */
+const STORED_EFFORT_WORD = {
+	rolig: 'light',
+	middels: 'medium',
+	hard: 'hard',
+} as const satisfies Record<EffortWord, StoredEffortWord>
 
 /**
  * The first run is for an athlete with no plan: one who has a plan is sent
