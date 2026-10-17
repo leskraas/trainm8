@@ -64,6 +64,8 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 			discipline: 'run',
 			intent: 'threshold',
 			archetype: null,
+			activityKind: null,
+			effortWord: null,
 			blocks: [
 				{
 					id: 'block-1',
@@ -411,6 +413,8 @@ function makeBikeWorkoutWithPowerTarget(): NonNullable<
 		discipline: 'bike',
 		intent: 'threshold',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: [
 			{
 				id: 'block-warmup',
@@ -690,6 +694,8 @@ function makeIntervalWorkout(): NonNullable<SessionDetail['workout']> {
 		discipline: 'run',
 		intent: 'vo2max',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: [
 			{
 				id: 'block-wu',
@@ -903,6 +909,8 @@ test('the structure card renders a strength step as exercise + set notation with
 			discipline: 'strength',
 			intent: 'strength-hypertrophy',
 			archetype: null,
+			activityKind: null,
+			effortWord: null,
 			blocks: [
 				{
 					id: 'block-1',

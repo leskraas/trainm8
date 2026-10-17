@@ -39,6 +39,8 @@ function ledger(overrides: Partial<LedgerSession> = {}): LedgerSession {
 			discipline: 'run',
 			intent: 'endurance',
 			archetype: null,
+			activityKind: null,
+			effortWord: null,
 			blocks: [],
 		},
 		recording: null,
@@ -108,6 +110,8 @@ function runWorkout(steps: WorkoutStep[]): Workout {
 		discipline: 'run',
 		intent: 'tempo',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: [
 			{
 				id: 'block-1',
@@ -708,6 +712,8 @@ describe('buildSessionNudge', () => {
 						discipline: 'strength',
 						intent: 'strength',
 						archetype: null,
+						activityKind: null,
+						effortWord: null,
 						blocks: [],
 					},
 				}),

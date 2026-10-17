@@ -271,11 +271,31 @@ Set group, segment
 discipline, intensity, and quantity. _Avoid_: Interval, action
 
 **Discipline**: The sport modality for a workout or step (run, bike, swim,
-strength), with an additional import-only value `other` for Activity Imports
-from external categories the app does not model (hike, yoga, e-bike, alpine ski,
-etc.). Workouts and planned Steps cannot use `other`. Activity Imports marked
-`other` do not auto-promote and do not contribute to TSS or Training Load.
+strength), with a fifth value `other` for what the app does not model (hike,
+yoga, climbing, e-bike, alpine ski, etc.). A planned session may use `other`
+only as a **Simple Activity** (ADR 0015, amended); every other Workout and
+planned Step stays on the four. An Activity Import on `other` is never
+auto-linked to a plan and does not contribute to TSS or Training Load. The set
+is not widened per activity: climbing is a Simple Activity, not a Discipline.
 _Avoid_: Activity type, sport type
+
+**Simple Activity** (UI word _enkel aktivitet_): A planned Workout Session on
+Discipline `other` that carries an **Activity Kind**, an **Effort Word** and a
+duration, and nothing else: one step of time with no Intensity Target. Its time
+counts in the week's hours; its zones, pace, power, Planned TSS and Training
+Load are **Unavailable Metrics**. It is done by _Gjort_ by hand or by linking an
+import to it by hand, never by auto-linking. _Avoid_: Other session, cross
+training, Annet session
+
+**Activity Kind**: What a Simple Activity is — _langrenn_, _fjelltur_,
+_klatring_, _yoga og bevegelighet_, and more as they are named. A name, never a
+Discipline: it chooses no Load Formula, no zones and no thresholds. _Avoid_:
+Sport, sub-discipline, activity type
+
+**Effort Word**: How hard a Simple Activity is meant to be or was, in the
+athlete's word — _rolig_, _middels_ or _hard_. It is never a **Training Zone**,
+an Intensity Target or RPE, and nothing converts it into one: a hard climb is
+not a zone-5 run. _Avoid_: Zone, intensity, RPE
 
 **Intensity Target**: The prescribed effort level for a step — a discriminated
 union over a zone label (`easy`, `zone2`, `threshold`, `max`) plus metric
@@ -1035,7 +1055,9 @@ score (the index is undefined off its domain)
 or training stress. _Avoid_: Stat, number, KPI
 
 **Unavailable Metric**: A training metric that the current domain model cannot
-truthfully calculate. _Avoid_: Fake metric, mock stat
+truthfully calculate, shown as _ikke målt_ with its reason and never as a number
+or a zero — a Simple Activity's zones, pace, power, Planned TSS and Training
+Load, or a pace no threshold resolves. _Avoid_: Fake metric, mock stat, 0
 
 **`source-terms`**: The reason a value is withheld rather than shown, when the
 terms of an **Origin Platform** behind it forbid the surface it would reach —
@@ -2677,33 +2699,36 @@ Planned load (that is Planned TSS, per session), week sum.
 
 **Actual Volume**: The same sum over the week's **completed** sessions, from
 what was recorded or logged — the recording's distance or duration, the
-session's TSS, the working **Exercise Set Logs**. A session done with nothing in
-yet reads "tallene kommer fra importen" and is counted apart, like Planned
-Volume's unmeasured ones. A week is **graded only through the days already
-past** — so a Monday never reads "under" — and only over sessions measured on
-**both** sides: a planned number in the currency and, when done, a recorded one
-(a missed session is a true zero done). A session with either side missing is
-left out of both sums, never read as 0. With no such pair, a closed week whose
-done sessions all have a number is held against its whole Week Target; otherwise
-the week is _ikke målt_, with that reason. The grade reads the **Adherence
-Band**'s cut points (on from 85 %, over above 108 %; ADR 0019 note). A week
-closes with the **Week Replan**, Sunday 20:00 local, so that evening it grades
-through Sunday. A strength week logged up to a day and not after says so ("til
-og med torsdag · resten ikke målt") and is graded only that far. _Avoid_: Done
-volume, completed load, adherence (that is the TSS ratio, **Adherence Band**).
+session's TSS, the working **Exercise Set Logs**. A **Simple Activity** marked
+_Gjort_ by hand counts its planned time, and an import linked to it by hand
+replaces that with the import's duration. A session done with nothing in yet
+reads "tallene kommer fra importen" and is counted apart, like Planned Volume's
+unmeasured ones. A week is **graded only through the days already past** — so a
+Monday never reads "under" — and only over sessions measured on **both** sides:
+a planned number in the currency and, when done, a recorded one (a missed
+session is a true zero done). A session with either side missing is left out of
+both sums, never read as 0. With no such pair, a closed week whose done sessions
+all have a number is held against its whole Week Target; otherwise the week is
+_ikke målt_, with that reason. The grade reads the **Adherence Band**'s cut
+points (on from 85 %, over above 108 %; ADR 0019 note). A week closes with the
+**Week Replan**, Sunday 20:00 local, so that evening it grades through Sunday. A
+strength week logged up to a day and not after says so ("til og med torsdag ·
+resten ikke målt") and is graded only that far. _Avoid_: Done volume, completed
+load, adherence (that is the TSS ratio, **Adherence Band**).
 
 **Annet**: The track that counts in nothing (#505 story 33): sessions shown
 apart from every **Training Track**, moving no **Week Target**, **Planned
-Volume** or **Actual Volume**. A session is there because its Discipline is the
-import-only `other` (ADR 0015), because the plan has no track for its
-Discipline, or because the athlete put it there
+Volume** or **Actual Volume**. A session is there because it is an import on
+`other` (ADR 0015) that nobody linked to a planned **Simple Activity**, because
+the plan has no track for its Discipline, or because the athlete put it there
 (`WorkoutSession.countsInNoTrack`) — a bike commute on a plan with a ride track.
 The athlete chooses it on a done session's row on home — _Tell i Annet_, and
 _Tell i sporet_ to put it back (ADR 0082 §8). Choosing Annet is not a
 prescription change: it neither adopts nor releases the session (**Session
 Ownership**). Its TSS **still feeds Training Load**, which is physiological:
-Annet leaves the track volumes, never the load. _Avoid_: Other track (in UI),
-excluded, ignored.
+Annet leaves the track volumes, never the load. A planned Simple Activity is not
+in Annet: it is on its own track, on `other`, and in Annet only where the plan
+has no such track. _Avoid_: Other track (in UI), excluded, ignored.
 
 **Quality Session Count**: The **derived** sum of a **Quality Session Mix** —
 the axis Tønnessen 2020 showed to be decisive at matched volume and matched zone

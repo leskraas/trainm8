@@ -100,6 +100,7 @@ import {
 	NB_ADHERENCE_LABELS,
 	NB_INTENT_LABELS,
 	NB_SESSION_ARCHETYPE_LABELS,
+	SIMPLE_ACTIVITY_LABELS,
 	WORKOUT_DETAIL_LABELS,
 	nbConfidenceLabel,
 	nbDisciplineLabel,
@@ -120,6 +121,7 @@ import { upsertSessionLog } from '#app/utils/session-log.server.ts'
 import { parseRecordingPhaseBars } from '#app/utils/session-profile.ts'
 import { buildReviewComparison } from '#app/utils/session-review.ts'
 import { deriveShapeStrip } from '#app/utils/shape-strip.ts'
+import { readSimpleActivity } from '#app/utils/simple-activity.ts'
 import { recordingSource } from '#app/utils/source-attribution.ts'
 import { type ResolveContext } from '#app/utils/strength/anchors.ts'
 import { getWorkoutLoadContexts } from '#app/utils/strength-log.server.ts'
@@ -304,19 +306,24 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		findActiveOutline(userId, new Date()),
 	])
 
-	const archetype = readSessionArchetype({
-		workout: session.workout,
-		recording: session.recording,
-		detectionGrade:
-			(session.recording?.detection?.confidence as
-				| DetectionGrade
-				| undefined) ?? null,
-		profile:
-			thresholds[
-				session.workout?.discipline ?? session.recording?.discipline ?? ''
-			],
-		medianSessionSec28d,
-	})
+	// A Simple Activity has no archetype to state or read (ADR 0015 §A): it is
+	// a time and an Effort Word, and a reading would be a guess.
+	const simpleActivity = readSimpleActivity(session.workout)
+	const archetype = simpleActivity
+		? null
+		: readSessionArchetype({
+				workout: session.workout,
+				recording: session.recording,
+				detectionGrade:
+					(session.recording?.detection?.confidence as
+						| DetectionGrade
+						| undefined) ?? null,
+				profile:
+					thresholds[
+						session.workout?.discipline ?? session.recording?.discipline ?? ''
+					],
+				medianSessionSec28d,
+			})
 
 	// Which of this session's exercise slots already carry logged sets, and how
 	// many (ADR 0056). Two jobs: the editor states, before the athlete taps, that
@@ -373,6 +380,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		lastSimilar,
 		relinkTargets,
 		archetype,
+		simpleActivity,
 		loggedSetCount,
 		loggedSetsByStep,
 		// Arket M: the session in its own numbers, the track's unit first. Built
@@ -384,6 +392,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 			workout: session.workout,
 			recording: session.recording,
 			loggedSets: loggedSetCount,
+			simpleActivity: simpleActivity != null,
 		}),
 	}
 }
@@ -792,6 +801,7 @@ export default function SessionDetailRoute({
 		lastSimilar,
 		relinkTargets,
 		archetype,
+		simpleActivity,
 		loggedSetCount,
 		loggedSetsByStep,
 		summary,
@@ -871,7 +881,9 @@ export default function SessionDetailRoute({
 								className="text-footnote text-muted-foreground flex flex-wrap items-baseline gap-x-1.5"
 							>
 								<span className="text-foreground font-medium">
-									{nbDisciplineLabel(discipline)}
+									{simpleActivity
+										? SIMPLE_ACTIVITY_LABELS.noun
+										: nbDisciplineLabel(discipline)}
 								</span>
 								<MetaDot />
 								{/* The **Session Archetype** token (ADR 0055): what kind of
@@ -881,7 +893,11 @@ export default function SessionDetailRoute({
 								    because two words for one axis is the defect. Falls back
 								    to the old token for a session nothing can say an
 								    archetype about. */}
-								{archetype ? (
+								{simpleActivity ? (
+									<span className="text-foreground font-medium">
+										{SIMPLE_ACTIVITY_LABELS.effort[simpleActivity.effortWord]}
+									</span>
+								) : archetype ? (
 									<ArchetypeToken view={archetype} />
 								) : (
 									<span className="text-foreground font-medium">
@@ -910,7 +926,9 @@ export default function SessionDetailRoute({
 							</p>
 						</CardHeader>
 
-						{session.workout ? (
+						{simpleActivity ? (
+							<SimpleActivityFacts replanReason={session.replanReason} />
+						) : session.workout ? (
 							<WorkoutPrescription
 								session={{ ...session, workout: session.workout }}
 								thresholds={thresholds ?? {}}
@@ -986,7 +1004,7 @@ export default function SessionDetailRoute({
 					    compared to the prescription (PRD #135, ADR 0019). Needs both a
 					    plan and a recording — scheduled and recording-only sessions
 					    skip it and render their one coherent side below. */}
-					{session.workout && session.recording ? (
+					{session.workout && session.recording && !simpleActivity ? (
 						<PlannedVsActualSummary session={session} />
 					) : null}
 
@@ -995,7 +1013,9 @@ export default function SessionDetailRoute({
 					    **Session Archetype** (ADR 0054). The first of its kind — and a
 					    session with no stored archetype — show an Unavailable state,
 					    never a fabricated delta (ADR 0008). */}
-					{session.status === 'completed' && session.workout ? (
+					{session.status === 'completed' &&
+					session.workout &&
+					!simpleActivity ? (
 						<VsLastSessionSummary
 							session={session}
 							lastSimilar={lastSimilar}
@@ -1372,6 +1392,62 @@ function WorkoutPrescription({
 					{L.unresolved.after}
 				</p>
 			) : null}
+		</CardContent>
+	)
+}
+
+/**
+ * A **Simple Activity**'s prescription (ADR 0015 §A, spec #558 story 63). Its
+ * time leads the header (`SummaryFigures`) and its Effort Word sits in the
+ * metadata line; this lists every number it does not carry, each _ikke målt_,
+ * and the one reason why. Never a number for those, never a zone; there is no
+ * sentence to edit, because there is nothing to prescribe but the two.
+ */
+function SimpleActivityFacts({
+	replanReason,
+}: {
+	replanReason: string | null
+}) {
+	const S = SIMPLE_ACTIVITY_LABELS
+	const withheld = [
+		S.metrics.zones,
+		S.metrics.pace,
+		S.metrics.power,
+		S.metrics.plannedTss,
+		S.metrics.trainingLoad,
+	]
+	return (
+		<CardContent className="flex flex-col gap-4" data-simple-activity>
+			{replanReason ? (
+				<p className="text-footnote text-foreground bg-status-under/10 rounded-2xl px-3 py-2.5">
+					<span className="font-semibold">{L.replanNote}</span>{' '}
+					{nbStoredReplanReason(replanReason)}
+				</p>
+			) : null}
+			<section aria-labelledby="simple-activity-not-measured">
+				<h3
+					id="simple-activity-not-measured"
+					className="text-footnote text-muted-foreground font-semibold"
+				>
+					{S.notMeasuredHeading}
+				</h3>
+				<dl className="divide-border mt-1 divide-y" data-not-measured>
+					{withheld.map((label) => (
+						<div
+							key={label}
+							className="text-footnote flex items-baseline justify-between gap-3 py-2"
+						>
+							<dt className="min-w-0">{label}</dt>
+							<dd className="text-muted-foreground shrink-0">
+								{S.notMeasured}
+							</dd>
+						</div>
+					))}
+				</dl>
+				<p className="text-footnote text-muted-foreground mt-2">
+					{S.notMeasuredReason}
+				</p>
+			</section>
 		</CardContent>
 	)
 }

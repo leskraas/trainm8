@@ -151,6 +151,10 @@ export const workoutCopySelect = {
 	/// is how the archetype arrives without anyone classifying anything: the row
 	/// was published *as* one by its source (ADR 0055 §4).
 	archetype: true,
+	/// Carried, because a copy of a climb is a climb (ADR 0015 §A): a Simple
+	/// Activity is only one with its Activity Kind and Effort Word.
+	activityKind: true,
+	effortWord: true,
 	visibility: true,
 	blocks: {
 		orderBy: { orderIndex: 'asc' as const },
@@ -322,6 +326,8 @@ export async function copyWorkout(
 			// owes its own answer, and `copiedFromId` is `SetNull`, so a read-through
 			// would evaporate the moment the source row went away.
 			archetype: source.archetype,
+			activityKind: source.activityKind,
+			effortWord: source.effortWord,
 			// `visibility` is **not** copied, and since #452 that is load-bearing
 			// rather than tidy. Publishing is an act with an **Attribution** attached
 			// (ADR 0052); a copy that inherited `public` would be a community row

@@ -1,6 +1,7 @@
 // The **planned discipline**: the Discipline a planned session may be on (spec
 // #558, ticket #561). It is the Discipline set plus `other`, where a **Simple
-// Activity** will live (a climb, a hike, yoga), carrying time and hardness only.
+// Activity** lives (a climb, a hike, yoga; ADR 0015 §A, `simple-activity.ts`),
+// carrying time and hardness only.
 //
 // The Discipline set itself (`DISCIPLINES`) is deliberately **not** widened:
 // dozens of switches on it — zones, thresholds, TSS formulas, PRs, structure
@@ -36,12 +37,17 @@ export const PLANNED_SESSION_METRICS = [
 	'planned-tss',
 	/** What the session contributes to the day's load (ADR 0008, 0046 §2). */
 	'training-load',
-	/** The session's figures in a track's Volume Currency (week volumes). */
+	/**
+	 * The session's figures in a track's Volume Currency other than hours (km,
+	 * TSS, sets; week volumes). Hours are the planned time, `planned-time`.
+	 */
 	'planned-volume',
 	/** The prescribed distance on session detail. */
 	'planned-distance',
-	/** The prescribed time on session detail. */
+	/** The prescribed time: on session detail, and as hours in week volumes. */
 	'planned-time',
+	/** The prescription's Training Zones (session profile, zone split). */
+	'planned-zones',
 ] as const
 export type PlannedSessionMetric = (typeof PLANNED_SESSION_METRICS)[number]
 
@@ -79,6 +85,7 @@ const SIMPLE_ACTIVITY_WITHHOLDS: Record<PlannedSessionMetric, boolean> = {
 	'planned-volume': true,
 	'planned-distance': true,
 	'planned-time': false,
+	'planned-zones': true,
 }
 
 function withheldOn(

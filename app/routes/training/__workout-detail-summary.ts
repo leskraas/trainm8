@@ -56,6 +56,11 @@ export type SessionSummaryInput = {
 	recording: { distanceM: number | null; durationSec: number | null } | null
 	/** Completed working sets logged on this session (ADR 0056). */
 	loggedSets: number
+	/**
+	 * A **Simple Activity** (ADR 0015 §A): done by _Gjort_ with no Recording,
+	 * its planned time is what was done, so it says that rather than nothing.
+	 */
+	simpleActivity?: boolean
 }
 
 export type SummaryFigure = {
@@ -80,8 +85,14 @@ export function buildSessionSummary(
 	input: SessionSummaryInput,
 ): SummaryFigure[] {
 	if (input.status === 'missed' || input.status === 'skipped') return []
+	const doneByHand =
+		input.simpleActivity === true &&
+		input.status === 'completed' &&
+		input.recording == null
 	const figures =
-		input.status === 'completed' ? recordedFigures(input) : plannedFigures(input)
+		input.status === 'completed' && !doneByHand
+			? recordedFigures(input)
+			: plannedFigures(input)
 	if (!figures) return []
 
 	const lead: VolumeCurrency =
