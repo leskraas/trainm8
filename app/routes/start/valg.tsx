@@ -23,6 +23,7 @@ import {
 	StartChoiceSchema,
 	startSearch,
 } from '#app/utils/first-run/start-schema.ts'
+import { readStartStrength } from '#app/utils/first-run/start-strength.server.ts'
 import {
 	FIRST_RUN_LABELS,
 	FIRST_RUN_REFUSAL_LABELS,
@@ -88,6 +89,8 @@ export type StartCard = {
 			/** `45 min · rolig`. */
 			facts: string
 		}>
+		/** The day's strength session, by its title and its lifts (#574). */
+		lifting: Array<{ title: string; lifts: string }>
 	}>
 	/** Minutes at each effort, the bar's widths. */
 	effortMinutes: Record<Effort, number>
@@ -95,6 +98,10 @@ export type StartCard = {
 	total: string
 	sessions: string
 	hard: string
+	/** `+2 styrkeøkter`, beside the hours and never in them; null without. */
+	strength: string | null
+	/** The frequency as the athlete's own answer, and why fewer were laid. */
+	strengthNotes: string[]
 	shortOfHours: string | null
 	chooseLabel: string
 }
@@ -104,6 +111,7 @@ function cardOf(
 	option: StartOption,
 	badge: string | null,
 	hours: number,
+	strengthChosen: number | null,
 ): StartCard {
 	if (option.family === 'masters') throw new Error('Masters is not offered')
 	const plain = L.plain[option.family]
@@ -126,6 +134,10 @@ function cardOf(
 					L.effort[session.effort],
 				),
 			})),
+			lifting: day.lifting.map((lift) => ({
+				title: lift.title,
+				lifts: lift.lifts.join(' · '),
+			})),
 		})),
 		effortMinutes: week.minutesByEffort,
 		barLabel: L.effortBar(
@@ -136,6 +148,17 @@ function cardOf(
 		total: L.total(duration(week.minutes)),
 		sessions: L.sessions(week.sessionCount),
 		hard: L.hardSessions(week.hardSessions),
+		strength:
+			week.strengthSessions > 0 ? L.plusStrength(week.strengthSessions) : null,
+		strengthNotes:
+			strengthChosen == null
+				? []
+				: [
+						L.strengthChoice(strengthChosen),
+						...(week.strengthSessions < strengthChosen
+							? [L.strengthFewer(week.strengthSessions, strengthChosen)]
+							: []),
+					],
 		shortOfHours:
 			option.shortOfHours == null
 				? null
@@ -163,6 +186,8 @@ function notesOf(start: StartDraft, sessionCap: number): string[] {
 	if (start.merged > 0) notes.push(L.merged(start.options.length))
 	if (start.capped) {
 		notes.push(SIMPLE_START_LABELS.activities.beginnerCap(sessionCap))
+	} else if (start.strengthCapped != null) {
+		notes.push(L.strengthTakesDays(sessionCap, start.strengthCapped))
 	} else if (start.restDayKept) {
 		notes.push(SIMPLE_START_LABELS.activities.restDay)
 	} else if (start.daysUsed < start.daysPicked) {
@@ -176,7 +201,7 @@ function notesOf(start: StartDraft, sessionCap: number): string[] {
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireSimpleStartAthlete(request)
 	const answers = readStartAnswers(new URL(request.url).searchParams)
-	const { level, hours, discipline, otherSports = [], days } = answers
+	const { level, hours, discipline, otherSports = [], days, strength } = answers
 	// Every answer comes first; without one, back to where it is asked.
 	if (!level || hours == null) {
 		const search = startSearch(answers)
@@ -185,6 +210,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const back = `/start/trening?${startSearch(answers)}`
 	if (!discipline || !days) throw redirect(back)
 	const startWeekKey = await readPlanStartWeekKey(userId)
+	// _Styrke_ (#574): read as the writer reads it, so the card is the plan.
+	const lifting = strength != null ? await readStartStrength(userId) : null
 	const start = draftStart({
 		level,
 		discipline,
@@ -192,18 +219,34 @@ export async function loader({ request }: Route.LoaderArgs) {
 		hours,
 		days,
 		startWeekKey,
+		strength:
+			lifting && strength != null
+				? { perWeek: strength, session: lifting.session }
+				: null,
 	})
 	if (!start) throw redirect(back)
 	const badge = start.badge ? L.badge[start.badge] : null
 	return {
-		answers: { level, hours, discipline, otherSports, days },
+		answers: {
+			level,
+			hours,
+			discipline,
+			otherSports,
+			days,
+			strength: lifting ? (strength ?? null) : null,
+		},
 		title: L.title(start.options.length),
 		intro: L.intro(start.options.length, nbHoursWords(hours), start.daysUsed),
 		back,
 		notes: notesOf(start, levelDefaults(level).sessionCap),
 		startsOn: L.startsOn(nbLongDay(startWeekKey)),
 		cards: start.options.map((option, index) =>
-			cardOf(option, index === 0 ? badge : null, hours),
+			cardOf(
+				option,
+				index === 0 ? badge : null,
+				hours,
+				lifting ? (strength ?? null) : null,
+			),
 		),
 	}
 }
@@ -215,7 +258,8 @@ export async function action({ request }: Route.ActionArgs) {
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	const { level, hours, discipline, sports, days, family } = submission.value
+	const { level, hours, discipline, sports, days, family, strength } =
+		submission.value
 	const created = await createFirstRunPlan(userId, {
 		discipline,
 		otherSports: otherSportsOf(discipline, sports),
@@ -224,6 +268,7 @@ export async function action({ request }: Route.ActionArgs) {
 		goal: { kind: 'active' },
 		family,
 		level,
+		...(strength != null ? { strength } : {}),
 	})
 	if (!created.ok) {
 		return data(
@@ -434,6 +479,9 @@ export default function StartOptions({
 									</span>
 									<span>{card.sessions}</span>
 									<span>{card.hard}</span>
+									{card.strength ? (
+										<span data-start-option-strength>{card.strength}</span>
+									) : null}
 								</p>
 							</div>
 
@@ -450,7 +498,7 @@ export default function StartOptions({
 											{day.short}
 										</span>
 										<span className="sr-only">{day.weekday}: </span>
-										{day.sessions.length === 0 ? (
+										{day.sessions.length === 0 && day.lifting.length === 0 ? (
 											<span className="text-muted-foreground">{L.free}</span>
 										) : (
 											<span className="space-y-0.5">
@@ -477,12 +525,39 @@ export default function StartOptions({
 														</span>
 													</span>
 												))}
+												{day.lifting.map((lift, at) => (
+													<span
+														key={`lift-${at}`}
+														className="block"
+														data-start-option-lifting
+													>
+														<span className="flex min-w-0 items-baseline gap-1.5">
+															<span
+																aria-hidden
+																className="bg-track-strength size-2 shrink-0 translate-y-[-1px] self-center rounded-full"
+															/>
+															<span className="text-foreground min-w-0 break-words">
+																{lift.title}
+															</span>
+														</span>
+														{lift.lifts ? (
+															<span className="text-muted-foreground block pl-3.5 break-words">
+																{lift.lifts}
+															</span>
+														) : null}
+													</span>
+												))}
 											</span>
 										)}
 									</li>
 								))}
 							</ol>
 
+							{card.strengthNotes.map((note) => (
+								<p key={note} className="text-footnote text-muted-foreground">
+									{note}
+								</p>
+							))}
 							{card.shortOfHours ? (
 								<p className="text-footnote text-muted-foreground">
 									{card.shortOfHours}
@@ -515,6 +590,13 @@ export default function StartOptions({
 								{answers.days.map((day) => (
 									<input key={day} type="hidden" name="days" value={day} />
 								))}
+								{answers.strength != null ? (
+									<input
+										type="hidden"
+										name="strength"
+										value={answers.strength}
+									/>
+								) : null}
 								<input type="hidden" name="family" value={card.family} />
 								<StatusButton
 									type="submit"

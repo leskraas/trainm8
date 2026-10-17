@@ -58,7 +58,7 @@ export function WeekSketch({
 	sketch: Sketch
 	discipline: CardioDiscipline
 }) {
-	const empty = sketch.sessionCount === 0
+	const empty = sketch.sessionCount === 0 && sketch.strengthSessions === 0
 	const longest = Math.max(
 		1,
 		...sketch.days.flatMap((day) => day.sessions.map((s) => s.minutes)),
@@ -83,6 +83,12 @@ export function WeekSketch({
 					{empty
 						? L.empty
 						: L.summary(sketch.sessionCount, duration(sketch.minutes))}
+					{sketch.strengthSessions > 0 ? (
+						<span data-week-sketch-strength>
+							{' · '}
+							{START_OPTION_LABELS.plusStrength(sketch.strengthSessions)}
+						</span>
+					) : null}
 				</p>
 			</div>
 			<ol
@@ -92,19 +98,19 @@ export function WeekSketch({
 			>
 				{sketch.days.map((day) => {
 					const weekday = NB_WEEKDAY_LABELS[day.weekday]!
-					const spoken =
-						day.sessions.length === 0
-							? L.free
-							: day.sessions
-									.map((session) =>
-										L.session(
-											session.effort === 'easy'
-												? session.title
-												: `${session.title} (${START_OPTION_LABELS.effort[session.effort]})`,
-											duration(session.minutes),
-										),
-									)
-									.join('; ')
+					const said = [
+						...day.sessions.map((session) =>
+							L.session(
+								session.effort === 'easy'
+									? session.title
+									: `${session.title} (${START_OPTION_LABELS.effort[session.effort]})`,
+								duration(session.minutes),
+							),
+						),
+						// A lifting day is said by its session, never in minutes (#574).
+						...day.lifting.map((lift) => L.lifting(lift.title)),
+					]
+					const spoken = said.length === 0 ? L.free : said.join('; ')
 					return (
 						<li key={day.weekday} className="flex min-w-0 flex-col gap-1">
 							<span className="sr-only">{L.day(weekday, spoken)}</span>
@@ -112,6 +118,13 @@ export function WeekSketch({
 								aria-hidden
 								className="bg-muted/60 flex h-16 flex-col justify-end gap-0.5 overflow-hidden rounded-2xl"
 							>
+								{day.lifting.map((_, index) => (
+									<span
+										key={`lift-${index}`}
+										className="bg-track-strength block h-3 w-full shrink-0 rounded-xl"
+										data-week-sketch-lifting
+									/>
+								))}
 								{day.sessions.map((session, index) => (
 									<span
 										key={index}

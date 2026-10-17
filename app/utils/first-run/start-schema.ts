@@ -15,6 +15,7 @@ import {
 	MAX_START_HOURS,
 	MIN_START_HOURS,
 	START_HOURS_STEP,
+	STRENGTH_PER_WEEK_CHOICES,
 	TRAINING_LEVELS,
 	type TrainingLevel,
 } from './start-draft.ts'
@@ -78,6 +79,16 @@ export function otherSportsOf(
 }
 
 /**
+ * The strength sessions a week the athlete tapped when they picked _styrke_
+ * (#574): 1, 2 or 3. Absent where _styrke_ was not picked.
+ */
+export const StrengthPerWeekSchema = z.coerce
+	.number({ errorMap: () => ({ message: M.strengthRequired }) })
+	.int(M.strengthRequired)
+	.min(STRENGTH_PER_WEEK_CHOICES[0], M.strengthRequired)
+	.max(STRENGTH_PER_WEEK_CHOICES.at(-1)!, M.strengthRequired)
+
+/**
  * _Hvor er du nå?_ and the hours. The hours may be missing (no script ran the
  * stepper), and then the level's own are taken. The later screen's answers,
  * when the athlete came back, ride along unchanged.
@@ -88,6 +99,7 @@ export const LevelStepSchema = z.object({
 	discipline: StartDisciplineSchema.optional(),
 	sports: SportsSchema.optional(),
 	days: DaysSchema.optional(),
+	strength: StrengthPerWeekSchema.optional(),
 })
 
 /**
@@ -100,6 +112,7 @@ export const ActivitiesStepSchema = z.object({
 	discipline: StartDisciplineSchema,
 	sports: SportsSchema.optional(),
 	days: DaysSchema,
+	strength: StrengthPerWeekSchema.optional(),
 })
 
 /**
@@ -118,6 +131,7 @@ export type StartAnswersSoFar = {
 	/** The endurance sports picked beside the main one (#573). */
 	otherSports?: CardioDiscipline[]
 	days?: PatternWeekday[]
+	strength?: number
 }
 
 /** Empty URL values read as absent, so `?hours=` is no answer, not zero. */
@@ -136,6 +150,9 @@ export function readStartAnswers(search: URLSearchParams): StartAnswersSoFar {
 		present(search.get('discipline')),
 	)
 	const days = DaysSchema.safeParse(search.get('days') ?? '')
+	const strength = StrengthPerWeekSchema.safeParse(
+		present(search.get('strength')),
+	)
 	const sports = SportsSchema.safeParse(search.get('sports') ?? '')
 	const otherSports =
 		discipline.success && sports.success
@@ -147,6 +164,7 @@ export function readStartAnswers(search: URLSearchParams): StartAnswersSoFar {
 		...(discipline.success ? { discipline: discipline.data } : {}),
 		...(otherSports.length > 0 ? { otherSports } : {}),
 		...(days.success ? { days: days.data } : {}),
+		...(strength.success ? { strength: strength.data } : {}),
 	}
 }
 
@@ -161,6 +179,9 @@ export function startSearch(answers: StartAnswersSoFar): string {
 	}
 	if (answers.days && answers.days.length > 0) {
 		params.set('days', answers.days.join(','))
+	}
+	if (answers.strength != null) {
+		params.set('strength', String(answers.strength))
 	}
 	return params.toString()
 }

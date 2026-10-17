@@ -64,7 +64,7 @@ export async function action({ request }: Route.ActionArgs) {
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	const { level, hours, discipline, sports, days } = submission.value
+	const { level, hours, discipline, sports, days, strength } = submission.value
 	throw redirect(
 		`/start/trening?${startSearch({
 			level,
@@ -72,6 +72,7 @@ export async function action({ request }: Route.ActionArgs) {
 			discipline,
 			otherSports: discipline ? otherSportsOf(discipline, sports) : undefined,
 			days,
+			strength,
 		})}`,
 	)
 }
@@ -229,6 +230,13 @@ export default function LevelStep({
 				{carriedDays?.map((day) => (
 					<input key={day} type="hidden" name={fields.days.name} value={day} />
 				))}
+				{answers.strength != null ? (
+					<input
+						type="hidden"
+						name={fields.strength.name}
+						value={answers.strength}
+					/>
+				) : null}
 
 				<ErrorList errors={form.errors} id={form.errorId} />
 				{/* In the thumb's reach while the answers scroll under it. */}
