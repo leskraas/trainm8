@@ -7,7 +7,7 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import {
 	readPlanStartWeekKey,
-	requireFirstRunAthlete,
+	requireSimpleStartAthlete,
 } from '#app/utils/first-run/plan.server.ts'
 import {
 	draftStart,
@@ -48,7 +48,7 @@ export const meta: Route.MetaFunction = () => [
 ]
 
 export async function loader({ request }: Route.LoaderArgs) {
-	const userId = await requireFirstRunAthlete(request)
+	const userId = await requireSimpleStartAthlete(request)
 	return {
 		// Back from the next screen: every answer given comes back with it.
 		answers: readStartAnswers(new URL(request.url).searchParams),
@@ -57,7 +57,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-	await requireFirstRunAthlete(request)
+	await requireSimpleStartAthlete(request)
 	const formData = await request.formData()
 	const submission = parseWithZod(formData, { schema: LevelStepSchema })
 	if (submission.status !== 'success') {

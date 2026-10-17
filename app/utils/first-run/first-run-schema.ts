@@ -104,7 +104,8 @@ export const FamilySwitchSchema = z.object({
 /**
  * Why the first run's plan cannot be made: the athlete has one already, the
  * race is too close or too far to plan toward, the goal could not carry a
- * plan, or the answers lay no session.
+ * plan, the answers lay no session, or the way to train picked is not one of
+ * the **Start Options** these answers show (a merged or tampered one).
  */
 export const FIRST_RUN_PLAN_REFUSALS = [
 	'plan-already-active',
@@ -112,6 +113,7 @@ export const FIRST_RUN_PLAN_REFUSALS = [
 	'event-too-far',
 	'goal-unavailable',
 	'nothing-to-lay',
+	'option-unavailable',
 ] as const
 export type FirstRunPlanRefusal = (typeof FIRST_RUN_PLAN_REFUSALS)[number]
 

@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { addDays, weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { parseTrainableWeekdays } from '#app/utils/athlete-schema.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
@@ -22,6 +22,7 @@ import {
 	firstRunRefusalOf,
 	readFirstRunPlan,
 } from './plan.server.ts'
+import { draftStart } from './start-draft.ts'
 
 // The first run's plan on the server (#505 S14): the plan it makes honours the
 // chosen days and hours — sessions only on those days, each week adding up to
@@ -672,4 +673,146 @@ test('the proposal reads the athlete: over fifty, a 2:1 rhythm, with the reason'
 	expect(read.plan.family).toBe('masters')
 	// Masters' round is three weeks, two that build and one easy.
 	expect(read.plan.draft.phases.map((phase) => phase.weeks)).toEqual([3])
+})
+
+// Velg denne (#566): the Start Option picked is the plan made, day for day
+// and minute for minute, with the athlete's answers, in one transaction.
+
+describe('a Start Option picked with Velg denne', () => {
+	const beginner = {
+		discipline: 'run' as const,
+		hours: 3,
+		// mandag, onsdag, fredag
+		days: [0, 2, 4] as Array<0 | 1 | 2 | 3 | 4 | 5 | 6>,
+		goal: { kind: 'active' as const },
+		level: 'beginner' as const,
+	}
+
+	test.each(['big-base', 'polarized', 'classic'] as const)(
+		'%s is made as its card showed it, and nothing is marked done or ikke gjort',
+		async (family) => {
+			const athleteId = await createAthlete()
+			const start = draftStart({
+				level: 'beginner',
+				discipline: 'run',
+				hours: 3,
+				days: beginner.days,
+				startWeekKey: START,
+			})!
+			const option = start.options.find((shown) => shown.family === family)!
+
+			const created = await createFirstRunPlan(
+				athleteId,
+				{ ...beginner, family },
+				NOW,
+			)
+			expect(created).toMatchObject({ ok: true, eventId: null })
+
+			const sessions = await prisma.workoutSession.findMany({
+				where: { userId: athleteId },
+				orderBy: { scheduledAt: 'asc' },
+				select: {
+					scheduledAt: true,
+					status: true,
+					markedDoneAt: true,
+					recordingId: true,
+					workout: {
+						select: {
+							blocks: { select: { steps: { select: { durationSec: true } } } },
+						},
+					},
+				},
+			})
+			// Nothing before the Plan Start Week, and nothing done or missed.
+			expect(
+				sessions.every(
+					(session) => session.scheduledAt.toISOString().slice(0, 10) >= START,
+				),
+			).toBe(true)
+			expect(
+				sessions.every(
+					(session) =>
+						session.status === 'scheduled' &&
+						session.markedDoneAt == null &&
+						session.recordingId == null,
+				),
+			).toBe(true)
+
+			// Week 1 is the card, minute for minute.
+			const weekOne = sessions
+				.filter(
+					(session) => session.scheduledAt.toISOString() < addDays(START, 7),
+				)
+				.map((session) => [
+					weekdayIndex(session.scheduledAt.toISOString().slice(0, 10)),
+					Math.round(
+						session
+							.workout!.blocks.flatMap((block) => block.steps)
+							.reduce((sum, step) => sum + (step.durationSec ?? 0), 0) / 60,
+					),
+				])
+			expect(weekOne).toEqual(
+				option.week.days.flatMap((day) =>
+					day.sessions.map((session) => [day.weekday, session.minutes]),
+				),
+			)
+
+			const plan = await getActivePlan(athleteId, NOW)
+			expect(plan).toMatchObject({ family })
+			const profile = await prisma.athleteProfile.findUniqueOrThrow({
+				where: { userId: athleteId },
+				select: { trainingLevel: true, trainableWeekdays: true },
+			})
+			expect(profile.trainingLevel).toBe('beginner')
+			// mandag, onsdag, fredag, Sunday-first as the profile stores them.
+			expect(
+				new Set(parseTrainableWeekdays(profile.trainableWeekdays)),
+			).toEqual(new Set([1, 3, 5]))
+		},
+	)
+
+	test('a way the answers do not show — Masters, or one merged away — is refused, and nothing is made', async () => {
+		const athleteId = await createAthlete()
+
+		expect(
+			await createFirstRunPlan(
+				athleteId,
+				{ ...beginner, family: 'masters' },
+				NOW,
+			),
+		).toEqual({ ok: false, reason: 'option-unavailable' })
+		// One day lays the same week whichever way, so only the first is shown.
+		expect(
+			await createFirstRunPlan(
+				athleteId,
+				{ ...beginner, days: [4], family: 'classic' },
+				NOW,
+			),
+		).toEqual({ ok: false, reason: 'option-unavailable' })
+		expect(await prisma.planOutline.count({ where: { athleteId } })).toBe(0)
+		expect(
+			await prisma.athleteProfile.count({
+				where: { userId: athleteId, trainingLevel: { not: null } },
+			}),
+		).toBe(0)
+	})
+
+	test('an athlete who has a plan gets no second one, and their level is not touched', async () => {
+		const athleteId = await createAthlete()
+		await createOpenEndedPlan(athleteId, { discipline: 'run', weeklyHours: 3 })
+
+		expect(
+			await createFirstRunPlan(
+				athleteId,
+				{ ...beginner, family: 'big-base' },
+				NOW,
+			),
+		).toEqual({ ok: false, reason: 'plan-already-active' })
+		expect(await prisma.planOutline.count({ where: { athleteId } })).toBe(1)
+		const profile = await prisma.athleteProfile.findUnique({
+			where: { userId: athleteId },
+			select: { trainingLevel: true },
+		})
+		expect(profile?.trainingLevel ?? null).toBeNull()
+	})
 })
