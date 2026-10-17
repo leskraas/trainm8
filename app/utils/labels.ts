@@ -54,7 +54,10 @@ import type {
 	FindingAbsence,
 	HoursEstimate,
 } from './first-run/first-run.ts'
-import type { TrainingLevel } from './first-run/start-draft.ts'
+import type {
+	SessionPreference,
+	TrainingLevel,
+} from './first-run/start-draft.ts'
 import type {
 	ImportLinkRefusal,
 	MarkDoneRefusal,
@@ -2281,7 +2284,7 @@ export const SIMPLE_START_LABELS = {
 			`Som nybegynner får du høyst ${cap} økter i uka. Vi velger dagene som gir mest hvile mellom.`,
 		/** Seven days: one stays free (`MAX_SESSION_DAYS`). */
 		restDay: 'Alle sju dager er valgt. Vi holder én dag fri, så du får hvile.',
-		next: 'Vis planen',
+		next: 'Neste',
 	},
 	/** _Uka di_: the live week (story 26–29). */
 	sketch: {
@@ -2317,6 +2320,73 @@ export const SIMPLE_START_LABELS = {
 		experienced: 'du har trent i flere år',
 		competitive: 'du trener mot konkurranser',
 	} satisfies Record<TrainingLevel, string>,
+} as const
+
+/**
+ * _Hva slags økter liker du?_ (#558, #571): the **Session Preferences**, the
+ * start's fourth question, which orders the **Start Options**; and where _Meg_
+ * shows and changes them with the **Training Level**.
+ */
+export const SESSION_PREFERENCE_LABELS = {
+	title: 'Hva slags økter liker du?',
+	intro:
+		'Vi bruker svaret til å velge hvilken måte å trene på du ser først. Velg så mange du vil.',
+	legend: 'Økter du liker',
+	/** Each preference, with the one line that says what it means. */
+	options: {
+		long: {
+			name: 'Lange, rolige turer',
+			description: 'Tid i beina, i et tempo der du kan prate.',
+		},
+		intervals: {
+			name: 'Korte, harde intervaller',
+			description: 'Få minutter der det virkelig går unna.',
+		},
+		threshold: {
+			name: 'Jevnt hardt',
+			description: 'Lengre drag der du jobber kontrollert hardt.',
+		},
+		short: {
+			name: 'Korte økter',
+			description: 'Høyst 45 minutter på hverdager.',
+		},
+		surprise: {
+			name: 'Overrask meg',
+			description: 'Bland gjerne, jeg liker variasjon.',
+		},
+	} satisfies Record<SessionPreference, { name: string; description: string }>,
+	/** The way on: with something picked, or the skip (story 23). */
+	next: (picked: number) =>
+		picked > 0 ? 'Vis forslag' : 'Hopp over, vis forslag',
+	back: 'Tilbake til hva du liker å trene',
+	/** From the Start Options, back to this question. */
+	backHere: 'Tilbake til hva slags økter du liker',
+	/** _Korte økter_ with _Lange, rolige turer_: how the two are met (story 24). */
+	shortAndLong:
+		'Du liker både korte økter og lange turer: hverdagsøktene blir høyst 45 minutter, og langturen får bli lang.',
+	/** Week 1 short of the hours because of _Korte økter_ (ADR 0102 §4). */
+	shortOfHours: (planned: string, hours: string) =>
+		`Uka blir ${planned}, ikke ${hours}: du valgte korte økter, så ingen økt på en hverdag er over 45 minutter.`,
+	/** The preferences as one line: `Korte økter, Jevnt hardt`. */
+	list: (names: readonly string[]) =>
+		names.length === 0 ? 'Ingen valgt' : names.join(', '),
+	/** _Meg_'s page for the start's answers. */
+	meg: {
+		title: 'Nivå og økter',
+		/** The row on Meg: `Mosjonist · Korte økter`. */
+		row: (level: string | null, preferences: string) =>
+			`${level ?? 'Nivå ikke valgt'} · ${preferences}`,
+		intro:
+			'Det du svarte da planen ble laget. Endrer du her, endres ikke uka som ligger. Det brukes neste gang du velger en måte å trene på.',
+		level: 'Nivå',
+		activities: 'Aktiviteter',
+		activitiesNone: 'Ingen plan ennå, så ingen aktiviteter.',
+		activitiesNote:
+			'Idrettene planen din har spor for. Du legger til og fjerner dem i Plan, under Avansert.',
+		activitiesLink: 'Endre aktiviteter i Plan',
+		save: 'Lagre',
+		saved: 'Nivå og økter er lagret.',
+	},
 } as const
 
 /** Months in full, as the start says a date: `19. oktober`. */

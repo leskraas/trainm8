@@ -107,6 +107,7 @@ export async function readFirstRunPlan(
 			hours: answers.hours,
 			days: answers.days,
 			startWeekKey,
+			preferences: answers.preferences,
 		})
 		if (!start) return { ok: false, reason: 'nothing-to-lay' }
 		const top = start.options[0]!
@@ -232,7 +233,8 @@ function existingPlanWhere(
  *    - The chosen days become their **Training Availability**, all of them,
  *      and the plan's heaviest week their **Weekly Capacity**, which the
  *      plan's fit checks read, so neither check fires on the plan just made.
- *      From the simple start, their **Training Level** is kept too (#566).
+ *      From the simple start, their **Training Level** is kept too (#566),
+ *      and their **Session Preferences**, none where they skipped (#571).
  * 2. Its first two weeks laid through the horizon fill's own `fillPlanWeek`,
  *    as `generated` sessions — the week's hard sessions on the days the
  *    preview showed them, each titled as it showed them. Nothing is laid
@@ -348,6 +350,12 @@ export async function createFirstRunPlan(
 				daysByDiscipline: Object.fromEntries(
 					draft.tracks.map((track) => [track.discipline, track.patternDays]),
 				),
+				// _Korte økter_'s shaped days, weighed as the draft weighed them.
+				weightsByDiscipline: Object.fromEntries(
+					draft.tracks.flatMap((track) =>
+						track.dayWeights ? [[track.discipline, track.dayWeights]] : [],
+					),
+				),
 			},
 		)
 		if (!pattern.ok) throw new Error(`starter pattern: ${pattern.reason}`)
@@ -357,6 +365,9 @@ export async function createFirstRunPlan(
 				trainableWeekdays: calendarWeekdaysOf(answers.days),
 				weeklyCapacityHours,
 				...(answers.level ? { trainingLevel: answers.level } : {}),
+				...(answers.preferences
+					? { sessionPreferences: answers.preferences }
+					: {}),
 			},
 			tx,
 		)

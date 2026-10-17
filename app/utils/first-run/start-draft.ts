@@ -92,6 +92,45 @@ export type StartAnswers = {
 	days: readonly PatternWeekday[]
 	/** The Plan Start Week: the first week not yet begun (ADR 0079). */
 	startWeekKey: string
+	/** The **Session Preferences**, none where the athlete skipped them. */
+	preferences?: readonly SessionPreference[]
+}
+
+/**
+ * The **Session Preferences** the start asks for (_Hva slags økter liker
+ * du?_), several at once or none: _Lange, rolige turer_; _Korte, harde
+ * intervaller_; _Jevnt hardt_; _Korte økter_; _Overrask meg_.
+ */
+export const SESSION_PREFERENCES = [
+	'long',
+	'intervals',
+	'threshold',
+	'short',
+	'surprise',
+] as const
+export type SessionPreference = (typeof SESSION_PREFERENCES)[number]
+
+/**
+ * How well a family suits the preferences (ADR 0102 §1, the spec's prototype
+ * A scoring): intervals and _jevnt hardt_ weigh two for the family built on
+ * them, _overrask meg_ two for _Klassisk 3:1_'s variety, long easy sessions one
+ * for the families that are mostly easy, and short sessions one for
+ * _Terskelfokus_, which does most in little time.
+ */
+export function preferenceScore(
+	family: PresetFamily,
+	preferences: readonly SessionPreference[],
+): number {
+	const picked = new Set(preferences)
+	return (
+		(picked.has('intervals') && family === 'polarized' ? 2 : 0) +
+		(picked.has('threshold') && family === 'threshold' ? 2 : 0) +
+		(picked.has('long') && (family === 'polarized' || family === 'big-base')
+			? 1
+			: 0) +
+		(picked.has('surprise') && family === 'classic' ? 2 : 0) +
+		(picked.has('short') && family === 'threshold' ? 1 : 0)
+	)
 }
 
 /**
@@ -185,9 +224,9 @@ export type StartOption = {
 	draft: FirstRunDraft
 	week: StartWeek
 	/**
-	 * How well the family fits the athlete's **Session Preferences**; the
-	 * options are ranked by it, highest first. No preference is asked yet, so
-	 * every option scores 0 and the level's order stands (#571 scores them).
+	 * How well the family fits the athlete's **Session Preferences**
+	 * (`preferenceScore`); the options are ranked by it, highest first, and
+	 * with none every option scores 0 and the level's order stands.
 	 */
 	score: number
 	/**
@@ -195,6 +234,11 @@ export type StartOption = {
 	 * (ADR 0102 §4), so the card can say so; null where it does.
 	 */
 	shortOfHours: number | null
+	/**
+	 * _Korte økter_ kept the weekday sessions to 45 minutes and took hours
+	 * off week 1 doing so: the reason the week is short, where it is.
+	 */
+	shortByPreference: boolean
 }
 
 /**
@@ -252,6 +296,10 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 	const { level, discipline, hours, days, startWeekKey } = answers
 	if (days.length === 0) return null
 	const { sessionCap } = LEVEL_DEFAULTS[level]
+	const preferences = answers.preferences ?? []
+	const shortWeekdays = preferences.includes('short')
+		? { longMayBeLong: preferences.includes('long') }
+		: undefined
 	const laid: StartOption[] = []
 	for (const family of startFamilies(level)) {
 		const draft = draftFirstRunPlan({
@@ -262,6 +310,7 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 			weeklyHours: hours,
 			days,
 			sessionCap,
+			shortWeekdays,
 		})
 		if (!draft) continue
 		const week = startWeekOf(draft)
@@ -269,7 +318,12 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 			family,
 			draft,
 			week,
-			score: 0,
+			score: preferenceScore(family, preferences),
+			// The cap reshaped a track's days, and the week came out under the
+			// hours: nothing else in the draft lowers a track's hours.
+			shortByPreference:
+				draft.tracks.some((track) => track.dayWeights != null) &&
+				draft.anchor < hours,
 			// Each session is rounded to the minute, so a week may read up to a
 			// minute a session off the hours without falling short of them.
 			shortOfHours:

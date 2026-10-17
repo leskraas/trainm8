@@ -69,6 +69,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		hours,
 		discipline: answers.discipline ?? ('run' as const),
 		days: answers.days ?? levelDefaults(level).days,
+		preferences: answers.preferences ?? [],
 		startWeekKey: await readPlanStartWeekKey(userId),
 	}
 }
@@ -80,7 +81,7 @@ export async function action({ request }: Route.ActionArgs) {
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	throw redirect(`/start/valg?${startSearch(submission.value)}`)
+	throw redirect(`/start/okter?${startSearch(submission.value)}`)
 }
 
 export default function ActivitiesStep({
@@ -137,6 +138,15 @@ export default function ActivitiesStep({
 			<Form method="POST" className="space-y-8" {...getFormProps(form)}>
 				<input type="hidden" name={fields.level.name} value={level} />
 				<input type="hidden" name={fields.hours.name} value={hours} />
+				{/* Back from the preferences, they ride along (#571). */}
+				{loaderData.preferences.map((preference) => (
+					<input
+						key={preference}
+						type="hidden"
+						name={fields.preferences.name}
+						value={preference}
+					/>
+				))}
 
 				<RadioGroupField
 					name={fields.discipline.name}

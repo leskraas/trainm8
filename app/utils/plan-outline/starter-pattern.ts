@@ -57,6 +57,11 @@ export type StarterTrack = {
 	 * long one. Absent, the track lays every available day, as it always has.
 	 */
 	weekdays?: readonly PatternWeekday[]
+	/**
+	 * Each day's weight where the first run shaped the week (_Korte økter_,
+	 * #571); a day it does not name keeps the long-day-double rule.
+	 */
+	dayWeights?: Partial<Record<PatternWeekday, number>>
 }
 
 export type StarterProposal = {
@@ -151,7 +156,9 @@ export function proposeStarterPattern({
 			days.push({
 				weekday,
 				trackId: track.trackId,
-				weight: long ? LONG_DAY_WEIGHT : ORDINARY_DAY_WEIGHT,
+				weight:
+					track.dayWeights?.[weekday] ??
+					(long ? LONG_DAY_WEIGHT : ORDINARY_DAY_WEIGHT),
 				role: long ? 'long' : 'ordinary',
 			})
 		}

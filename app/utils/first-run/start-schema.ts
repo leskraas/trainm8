@@ -14,8 +14,10 @@ import { CARDIO_DISCIPLINES, type CardioDiscipline } from '../workout-schema.ts'
 import {
 	MAX_START_HOURS,
 	MIN_START_HOURS,
+	SESSION_PREFERENCES,
 	START_HOURS_STEP,
 	TRAINING_LEVELS,
+	type SessionPreference,
 	type TrainingLevel,
 } from './start-draft.ts'
 
@@ -52,6 +54,21 @@ export const StartDisciplineSchema = z.enum(CARDIO_DISCIPLINES, {
 })
 
 /**
+ * _Hva slags økter liker du?_: the **Session Preferences**, several or none,
+ * each once and in the question's order. A form sends an array (or one value
+ * when one is ticked), the URL a comma list.
+ */
+export const PreferencesSchema = z.preprocess(
+	(value) =>
+		typeof value === 'string' ? value.split(',').filter(Boolean) : value,
+	z
+		.array(z.enum(SESSION_PREFERENCES))
+		.transform((picked) =>
+			SESSION_PREFERENCES.filter((preference) => picked.includes(preference)),
+		),
+)
+
+/**
  * _Hvor er du nå?_ and the hours. The hours may be missing (no script ran the
  * stepper), and then the level's own are taken. The later screen's answers,
  * when the athlete came back, ride along unchanged.
@@ -63,12 +80,17 @@ export const LevelStepSchema = z.object({
 	days: DaysSchema.optional(),
 })
 
-/** _Hva liker du å trene?_: the main sport and the days, with the level. */
+/**
+ * _Hva liker du å trene?_: the main sport and the days, with the level. The
+ * preferences ride along when the athlete came back from them, and the
+ * preferences screen sends them with every other answer (#571).
+ */
 export const ActivitiesStepSchema = z.object({
 	level: LevelSchema,
 	hours: StartHoursSchema,
 	discipline: StartDisciplineSchema,
 	days: DaysSchema,
+	preferences: PreferencesSchema.optional(),
 })
 
 /**
@@ -85,6 +107,7 @@ export type StartAnswersSoFar = {
 	hours?: number
 	discipline?: CardioDiscipline
 	days?: PatternWeekday[]
+	preferences?: SessionPreference[]
 }
 
 /** Empty URL values read as absent, so `?hours=` is no answer, not zero. */
@@ -103,11 +126,15 @@ export function readStartAnswers(search: URLSearchParams): StartAnswersSoFar {
 		present(search.get('discipline')),
 	)
 	const days = DaysSchema.safeParse(search.get('days') ?? '')
+	const preferences = PreferencesSchema.safeParse(present(search.get('prefs')))
 	return {
 		...(level.success ? { level: level.data } : {}),
 		...(hours.success ? { hours: hours.data } : {}),
 		...(discipline.success ? { discipline: discipline.data } : {}),
 		...(days.success ? { days: days.data } : {}),
+		...(preferences.success && preferences.data.length > 0
+			? { preferences: preferences.data }
+			: {}),
 	}
 }
 
@@ -119,6 +146,9 @@ export function startSearch(answers: StartAnswersSoFar): string {
 	if (answers.discipline) params.set('discipline', answers.discipline)
 	if (answers.days && answers.days.length > 0) {
 		params.set('days', answers.days.join(','))
+	}
+	if (answers.preferences && answers.preferences.length > 0) {
+		params.set('prefs', answers.preferences.join(','))
 	}
 	return params.toString()
 }
