@@ -177,10 +177,12 @@ function existingPlanWhere(
  *    athlete still has no plan, so a double submit makes one plan and a
  *    malformed write leaves no Event behind — then the starter pattern on the
  *    draft's days (the chosen days, cut to what the hours fill and to six).
- * 2. The track is anchored on the hours the athlete trains now (owner decision
- *    15, round 2): the first week is those hours and the family climbs from
- *    there. The chosen days become their **Training Availability** and the
- *    plan's heaviest week their **Weekly Capacity**, which the plan's fit
+ * 2. Every track the draft laid, each anchored on the hours the athlete
+ *    trains it now (owner decision 15, round 2): the first week is those hours
+ *    and the family climbs from there. A track whose mix is `none` lays the
+ *    climb with no hard sessions. The chosen days become their **Training
+ *    Availability** and the plan's heaviest week their **Weekly Capacity**,
+ *    which the plan's fit
  *    checks read, so neither check fires on the plan just made.
  * 3. Its first two weeks laid through the horizon fill's own `fillPlanWeek`,
  *    as `generated` sessions — the week's hard sessions on the days the
@@ -208,14 +210,18 @@ export async function createFirstRunPlan(
 		const created = await createOpenEndedPlan(
 			userId,
 			{
-				discipline: answers.discipline,
-				weeklyHours: draft.anchor,
 				family: plan.family,
 				round,
 				startWeekKey: plan.startWeekKey,
-				// The days the draft lays on: the chosen days, cut to what the
-				// hours fill and to six (`patternDaysFor`).
-				days: draft.patternDays,
+				tracks: draft.tracks.map((track) => ({
+					discipline: track.discipline,
+					currency: track.currency,
+					weeklyHours: track.anchor,
+					mix: track.mix,
+					// The days the draft lays the track on: its days, cut to what
+					// its hours fill and to six (`patternDaysFor`).
+					days: track.patternDays,
+				})),
 			},
 			now,
 		)
@@ -262,15 +268,18 @@ export async function createFirstRunPlan(
 						})),
 						family: plan.family,
 					},
-					tracks: [
-						{
-							discipline: answers.discipline,
-							currency: 'hours',
-							anchorValue: draft.anchor,
-						},
-					],
+					tracks: draft.tracks.map((track) => ({
+						discipline: track.discipline,
+						currency: track.currency,
+						anchorValue: track.anchor,
+					})),
 				},
-				{ familyRates: draft.phases },
+				{
+					familyRates: draft.phases,
+					withoutMix: draft.tracks
+						.filter((track) => track.mix === 'none')
+						.map((track) => track.discipline),
+				},
 			)
 			return { eventId: event.id, outlineId: outline }
 		})
@@ -280,7 +289,12 @@ export async function createFirstRunPlan(
 		await createStarterWeekPattern(
 			userId,
 			{ outlineId },
-			{ trainableWeekdays: calendarWeekdaysOf(draft.patternDays) },
+			{
+				trainableWeekdays: calendarWeekdaysOf(draft.patternDays),
+				daysByDiscipline: Object.fromEntries(
+					draft.tracks.map((track) => [track.discipline, track.patternDays]),
+				),
+			},
 		)
 	}
 

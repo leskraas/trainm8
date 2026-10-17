@@ -308,6 +308,7 @@ export async function createPlanOutline(
 	now: Date = new Date(),
 	{
 		familyRates,
+		withoutMix,
 	}: {
 		/**
 		 * The climb and **Quality Session Mix** of each phase, by position, when
@@ -320,6 +321,11 @@ export async function createPlanOutline(
 		familyRates?: ReadonlyArray<
 			Pick<PresetPhase, 'ramp' | 'boundaryStep' | 'mix'>
 		>
+		/**
+		 * The tracks, by Discipline, that lay the family's climb but not its
+		 * mix ({@link layEnduranceSegments}).
+		 */
+		withoutMix?: readonly Discipline[]
 	} = {},
 ): Promise<CreateOutlineResult> {
 	const plan = PlanOutlineCreateSchema.parse(input)
@@ -368,7 +374,7 @@ export async function createPlanOutline(
 				})
 				if (openEnded) return null
 			}
-			return writePlanOutline(tx, athleteId, plan, eventId, phases)
+			return writePlanOutline(tx, athleteId, plan, eventId, phases, withoutMix)
 		})
 
 		if (!outline) return { ok: false, reason: 'open-ended-already-active' }
@@ -402,10 +408,12 @@ export async function createPlanOutlineInTx(
 	input: PlanOutlineCreateInput,
 	{
 		familyRates,
+		withoutMix,
 	}: {
 		familyRates?: ReadonlyArray<
 			Pick<PresetPhase, 'ramp' | 'boundaryStep' | 'mix'>
 		>
+		withoutMix?: readonly Discipline[]
 	} = {},
 ): Promise<string> {
 	const plan = PlanOutlineCreateSchema.parse(input)
@@ -415,6 +423,7 @@ export async function createPlanOutlineInTx(
 		plan,
 		plan.eventId ?? null,
 		phaseLays(plan, familyRates),
+		withoutMix,
 	)
 	return created.id
 }
@@ -462,6 +471,7 @@ async function writePlanOutline(
 	plan: PlanOutlineCreateOutput,
 	eventId: string | null,
 	phases: PhaseLay[],
+	withoutMix: readonly Discipline[] = [],
 ): Promise<{ id: string }> {
 	const created = await tx.planOutline.create({
 		data: {
@@ -542,6 +552,7 @@ async function writePlanOutline(
 			boundaryStep: phases[index]!.boundaryStep,
 			mix: phases[index]!.mix,
 		})),
+		{ withoutMix },
 	)
 
 	return { id: created.id }
@@ -618,8 +629,6 @@ export { OPEN_ENDED_ROUND_WEEKS }
 export async function createOpenEndedPlan(
 	athleteId: string,
 	input: {
-		discipline: CardioDiscipline
-		weeklyHours: number
 		family?: PresetFamily
 		/**
 		 * The round as the caller drew it from the family — the first run cuts
@@ -639,12 +648,37 @@ export async function createOpenEndedPlan(
 		 * since it lays its first two weeks itself.
 		 */
 		startWeekKey?: string
-		/** The weekdays the starter pattern lays. */
-		days?: PatternWeekday[]
-	},
+	} & (
+		| {
+				discipline: CardioDiscipline
+				weeklyHours: number
+				/** The weekdays the starter pattern lays. */
+				days?: PatternWeekday[]
+		  }
+		| {
+				/**
+				 * Every track the plan has, at least one. Each lays the round's climb
+				 * and, where its `mix` is the family's, its **Quality Session Mix**;
+				 * the starter pattern lays each on its own days, its last one long.
+				 */
+				tracks: readonly OpenEndedTrack[]
+		  }
+	),
 	now: Date = new Date(),
 ): Promise<CreateOutlineResult> {
 	const timezone = await getAthleteTimezone(athleteId)
+	const tracks: readonly OpenEndedTrack[] =
+		'tracks' in input
+			? input.tracks
+			: [
+					{
+						discipline: input.discipline,
+						currency: 'hours',
+						weeklyHours: input.weeklyHours,
+						mix: 'family',
+						days: input.days,
+					},
+				]
 	const round =
 		input.round ?? (input.family ? openEndedRound(input.family) : null)
 	const created = await createPlanOutline(
@@ -661,25 +695,58 @@ export async function createOpenEndedPlan(
 				],
 				family: input.family ?? 'classic',
 			},
-			tracks: [
-				{
-					discipline: input.discipline,
-					currency: 'hours',
-					anchorValue: input.weeklyHours,
-				},
-			],
+			tracks: tracks.map((track) => ({
+				discipline: track.discipline,
+				currency: track.currency,
+				anchorValue: track.weeklyHours,
+			})),
 		},
 		now,
-		round ? { familyRates: [round] } : {},
+		{
+			...(round ? { familyRates: [round] } : {}),
+			withoutMix: tracks
+				.filter((track) => track.mix === 'none')
+				.map((track) => track.discipline),
+		},
 	)
-	if (created.ok && input.days) {
+	const days = tracks.flatMap((track) => track.days ?? [])
+	if (created.ok && days.length > 0) {
 		await createStarterWeekPattern(
 			athleteId,
 			{ outlineId: created.outlineId },
-			{ trainableWeekdays: calendarWeekdaysOf(input.days) },
+			{
+				trainableWeekdays: calendarWeekdaysOf([...new Set(days)]),
+				daysByDiscipline: daysByDisciplineOf(tracks),
+			},
 		)
 	}
 	return created
+}
+
+/** One track of a new open-ended plan ({@link createOpenEndedPlan}). */
+export type OpenEndedTrack = {
+	discipline: CardioDiscipline
+	currency: 'hours'
+	/** The track's **Season Anchor**: the hours a week trained now. */
+	weeklyHours: number
+	/** Whether it carries the family's **Quality Session Mix**, or none. */
+	mix: 'family' | 'none'
+	/** The Monday-first weekdays the starter pattern lays it on. */
+	days?: readonly PatternWeekday[]
+}
+
+/** Each track's own days, for the tracks that say them. */
+function daysByDisciplineOf(
+	tracks: ReadonlyArray<{
+		discipline: Discipline
+		days?: readonly PatternWeekday[]
+	}>,
+): Partial<Record<Discipline, readonly PatternWeekday[]>> {
+	return Object.fromEntries(
+		tracks.flatMap((track) =>
+			track.days ? [[track.discipline, track.days] as const] : [],
+		),
+	)
 }
 
 /**
@@ -1343,6 +1410,16 @@ export async function layEnduranceSegments(
 	tx: Prisma.TransactionClient,
 	outlineId: string,
 	phases: EnduranceSegmentLay[],
+	{
+		withoutMix = [],
+	}: {
+		/**
+		 * The endurance Disciplines whose segments carry no **Quality Session
+		 * Mix** whatever the phases say: easy sessions only, as the first run
+		 * lays a second endurance sport beside the main one (#558).
+		 */
+		withoutMix?: readonly Discipline[]
+	} = {},
 ): Promise<void> {
 	const tracks = await tx.trainingTrack.findMany({
 		where: { outlineId },
@@ -1350,6 +1427,7 @@ export async function layEnduranceSegments(
 	})
 	for (const track of tracks) {
 		if (!isCardioDiscipline(track.discipline as Discipline)) continue
+		const mixless = withoutMix.includes(track.discipline as Discipline)
 		for (const phase of phases) {
 			await tx.trainingTrackSegment.create({
 				data: {
@@ -1358,7 +1436,9 @@ export async function layEnduranceSegments(
 					phaseId: phase.phaseId,
 					ramp: phase.ramp ?? null,
 					boundaryStep: phase.boundaryStep ?? null,
-					...(phase.mix?.length ? { mix: { create: phase.mix } } : {}),
+					...(phase.mix?.length && !mixless
+						? { mix: { create: phase.mix } }
+						: {}),
 				},
 			})
 		}
@@ -2526,6 +2606,7 @@ export async function createStarterWeekPattern(
 	input: WeekPatternStarterInput,
 	{
 		trainableWeekdays: stated,
+		daysByDiscipline = {},
 	}: {
 		/**
 		 * The days the athlete just said they can train (the first run's third
@@ -2533,6 +2614,11 @@ export async function createStarterWeekPattern(
 		 * stored availability, so the pattern is exactly the days they chose.
 		 */
 		trainableWeekdays?: number[]
+		/**
+		 * The days each track keeps to, by Discipline, where it keeps to some
+		 * of the days rather than all of them (`StarterTrack.weekdays`).
+		 */
+		daysByDiscipline?: Partial<Record<Discipline, readonly PatternWeekday[]>>
 	} = {},
 ): Promise<StarterPatternResult> {
 	const start = WeekPatternStarterSchema.parse(input)
@@ -2582,6 +2668,7 @@ export async function createStarterWeekPattern(
 				// number, so the season's opening figure is the honest one to start
 				// from — and the athlete moves days from there.
 				sessionsPerWeek: track.segments[0]?.sessionsPerWeek ?? null,
+				weekdays: daysByDiscipline[track.discipline as Discipline],
 			})),
 		})
 		if (!proposal) {
