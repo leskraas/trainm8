@@ -1,0 +1,815 @@
+<title>Trainm8 én tommel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f8f8">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c1012">
+<!--
+  PROTOTYPE — THROWAWAY. Variant F · Én tommel, built on variant A of
+  enkel-start.prototype.html. Question: can the whole start be done with one
+  thumb, in as few taps as possible? Every control sits in the bottom thumb
+  zone. The four questions become one conversation: the app asks, its guess is
+  already the answer (a chip in the thread), and «Ser bra ut» accepts it. Tap a
+  chip to change it. Suggestions are A's swipe rail, bottom-anchored. I dag puts
+  today's session right above one big action, the week above that to read, and
+  «Juster» as three one-tap chips. Nothing is saved; everything is in memory.
+-->
+<style>
+/* Layout: one 100dvh column (max 440px). Content scrolls in .scroll and is bottom-anchored; every control lives in .dock. Tokens from app/styles/tailwind.css (ADR 0085). */
+:root {
+	--bg: oklch(0.975 0.003 197);
+	--fg: oklch(0.148 0.004 228.8);
+	--card: oklch(1 0 0);
+	--muted: oklch(0.948 0.004 197);
+	--muted-fg: oklch(0.52 0.016 213.5);
+	--border: oklch(0.915 0.005 214.3);
+	--primary: #0d7a68;
+	--primary-fg: #ffffff;
+	--primary-soft: color-mix(in oklab, #0d7a68 12%, transparent);
+	--ring: color-mix(in oklab, #0d7a68 55%, transparent);
+	--easy: oklch(0.6 0.12 160);
+	--mid: oklch(0.66 0.13 70);
+	--hard: oklch(0.58 0.17 25);
+	--t-run: oklch(0.63 0.16 32);
+	--t-bike: oklch(0.72 0.13 78);
+	--t-swim: oklch(0.62 0.1 225);
+	--t-ski: oklch(0.6 0.12 262);
+	--t-strength: oklch(0.55 0.11 300);
+	--t-climb: oklch(0.58 0.09 55);
+	--t-hike: oklch(0.6 0.09 145);
+	--t-yoga: oklch(0.66 0.08 350);
+	--shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 4px 12px rgb(0 0 0 / 0.05);
+	--font: 'Public Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: oklch(0.148 0.004 228.8); --fg: oklch(0.987 0.002 197.1); --card: oklch(0.205 0.007 223.9);
+		--muted: oklch(0.255 0.01 216.9); --muted-fg: oklch(0.723 0.014 214.4); --border: oklch(0.3 0.01 216.9);
+		--primary: #35b89c; --primary-fg: #0c1512; --primary-soft: color-mix(in oklab, #35b89c 16%, transparent);
+		--ring: color-mix(in oklab, #35b89c 55%, transparent);
+		--shadow: 0 0 0 1px rgb(255 255 255 / 0.06);
+		color-scheme: dark;
+	}
+}
+:root[data-theme="dark"] {
+	--bg: oklch(0.148 0.004 228.8); --fg: oklch(0.987 0.002 197.1); --card: oklch(0.205 0.007 223.9);
+	--muted: oklch(0.255 0.01 216.9); --muted-fg: oklch(0.723 0.014 214.4); --border: oklch(0.3 0.01 216.9);
+	--primary: #35b89c; --primary-fg: #0c1512; --primary-soft: color-mix(in oklab, #35b89c 16%, transparent);
+	--ring: color-mix(in oklab, #35b89c 55%, transparent);
+	--shadow: 0 0 0 1px rgb(255 255 255 / 0.06);
+	color-scheme: dark;
+}
+
+/* mobile-native baseline */
+* { box-sizing: border-box; }
+html {
+	-webkit-tap-highlight-color: transparent; /* no grey flash; every control has its own :active */
+	-webkit-text-size-adjust: 100%;           /* no font inflation in landscape */
+	overscroll-behavior: none;                /* the page never rubber-bands or pull-to-refreshes; .scroll owns scrolling */
+}
+html, body { height: 100%; margin: 0; overscroll-behavior: none; }
+body { background: var(--bg); color: var(--fg); font: 400 16px/24px var(--font); letter-spacing: -0.004em; overflow: hidden; }
+input, textarea, select { font-size: 16px; } /* none today; the floor if one is added (no iOS focus zoom) */
+button {
+	font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer;
+	touch-action: manipulation;      /* no double-tap-zoom wait */
+	user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; /* long-press never selects a label */
+}
+button:focus-visible, summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+summary { user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+
+/* Shell: content above, thumb zone below */
+.app { height: 100dvh; max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; }
+.scroll {
+	flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+	padding: calc(16px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+	display: flex; flex-direction: column;
+}
+.stack { margin-top: auto; display: flex; flex-direction: column; gap: 16px; } /* auto margin: bottom-anchored, still scrollable when it overflows */
+.stack.enter { animation: enter 260ms var(--ease-out) both; }
+.stack.enter.back { animation-name: enter-back; }
+@keyframes enter { from { opacity: 0; transform: translateX(16px); } }
+@keyframes enter-back { from { opacity: 0; transform: translateX(-16px); } }
+.dock {
+	flex: none; position: relative; display: flex; flex-direction: column; gap: 10px;
+	padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+	background: var(--bg);
+}
+.dock::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 12px; background: linear-gradient(to top, var(--bg), transparent); pointer-events: none; }
+.dock.over-tabs { padding-bottom: 10px; }
+.dock-row { display: flex; gap: 10px; }
+
+h1 { font-size: 26px; line-height: 32px; font-weight: 650; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+h2 { font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.012em; margin: 0; }
+p { margin: 0; }
+.lead { color: var(--muted-fg); font-size: 15px; line-height: 21px; }
+.small { font-size: 13px; line-height: 18px; color: var(--muted-fg); }
+.over { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-fg); }
+.num { font-variant-numeric: tabular-nums; }
+
+.btn { min-height: 52px; border-radius: 16px; padding: 0 20px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform 140ms var(--ease-out), opacity 160ms ease, background-color 160ms ease; }
+.btn:active { transform: scale(0.97); }
+.btn-big { min-height: 60px; font-size: 17px; border-radius: 18px; }
+.btn-primary { background: var(--primary); color: var(--primary-fg); }
+.btn-primary[disabled] { opacity: 0.4; pointer-events: none; }
+.btn-quiet { background: var(--muted); }
+.btn-block { width: 100%; }
+.btn-square { width: 60px; min-height: 60px; padding: 0; border-radius: 18px; flex: none; }
+
+/* Conversation */
+.thread { display: flex; flex-direction: column; gap: 12px; }
+.msg { align-self: flex-start; max-width: 86%; background: var(--card); box-shadow: var(--shadow); border-radius: 20px 20px 20px 6px; padding: 12px 14px; font-size: 16px; line-height: 22px; text-wrap: pretty; }
+.msg .over { display: block; margin-bottom: 2px; }
+.answers { align-self: flex-end; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 92%; }
+.ans { min-height: 44px; padding: 8px 14px 8px 16px; border-radius: 22px 22px 6px 22px; background: var(--primary-soft); color: var(--fg); font-weight: 600; font-size: 15px; line-height: 20px; display: inline-flex; align-items: center; gap: 8px; text-align: left; border: 2px solid transparent; transition: transform 140ms var(--ease-out), background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
+.ans svg { flex: none; opacity: 0.55; }
+.ans:active { transform: scale(0.96); }
+.ans.guess { border-style: dashed; border-color: var(--ring); background: transparent; }
+.ans[aria-expanded="true"] { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); border-style: solid; }
+.ans[aria-expanded="true"] svg { opacity: 1; }
+.hint { align-self: flex-end; font-size: 12px; line-height: 16px; color: var(--muted-fg); }
+.in { animation: msg-in 260ms var(--ease-out) both; }
+.in.d1 { animation-delay: 60ms; } .in.d2 { animation-delay: 120ms; }
+@keyframes msg-in { from { opacity: 0; transform: translateY(8px); } }
+.dev { border: 1px dashed var(--border); border-radius: 12px; padding: 8px 12px; font: 12px/17px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted-fg); }
+.dev b { color: var(--fg); }
+
+/* Editor: opens in the dock, right above the button that closes it */
+.editor { display: flex; flex-direction: column; gap: 10px; max-height: min(58dvh, 480px); overflow-y: auto; overscroll-behavior: contain; margin: 0 -4px; padding: 2px 4px; }
+.editor.open-anim { animation: ed-in 240ms var(--ease-drawer) both; }
+@keyframes ed-in { from { opacity: 0; transform: translateY(16px); } }
+.ed-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.options { display: flex; flex-direction: column; gap: 6px; }
+.option { text-align: left; background: var(--card); border-radius: 14px; padding: 10px 14px; box-shadow: var(--shadow); display: flex; gap: 12px; align-items: center; min-height: 52px; border: 2px solid transparent; transition: transform 140ms var(--ease-out), border-color 150ms ease, background-color 150ms ease; }
+.option:active { transform: scale(0.98); }
+.option[aria-pressed="true"] { border-color: var(--primary); background: color-mix(in oklab, var(--card) 90%, var(--primary)); }
+.option b { display: block; font-weight: 600; font-size: 16px; line-height: 21px; }
+.option span.d { display: block; font-size: 13px; line-height: 17px; color: var(--muted-fg); }
+.check { margin-left: auto; flex: none; width: 22px; height: 22px; border-radius: 999px; border: 2px solid var(--border); display: grid; place-items: center; transition: background-color 150ms ease, border-color 150ms ease; }
+.option[aria-pressed="true"] .check { background: var(--primary); border-color: var(--primary); }
+.check svg { opacity: 0; transform: scale(0.6); transition: opacity 150ms ease, transform 200ms var(--ease-out); }
+.option[aria-pressed="true"] .check svg { opacity: 1; transform: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); display: inline-flex; align-items: center; gap: 8px; font-weight: 500; border: 2px solid transparent; white-space: nowrap; transition: transform 140ms var(--ease-out), border-color 150ms ease, background-color 150ms ease; }
+.chip:active { transform: scale(0.96); }
+.chip[aria-pressed="true"] { border-color: var(--primary); background: color-mix(in oklab, var(--card) 88%, var(--primary)); }
+.dot { width: 10px; height: 10px; border-radius: 999px; flex: none; }
+.days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.day { min-height: 52px; border-radius: 12px; background: var(--card); box-shadow: var(--shadow); font-weight: 600; font-size: 14px; border: 2px solid transparent; transition: transform 140ms var(--ease-out), border-color 150ms ease; }
+.day:active { transform: scale(0.95); }
+.day[aria-pressed="true"] { border-color: var(--primary); background: color-mix(in oklab, var(--card) 88%, var(--primary)); }
+.hours { display: flex; align-items: center; gap: 12px; background: var(--card); box-shadow: var(--shadow); border-radius: 16px; padding: 6px; }
+.hours output { flex: 1; text-align: center; font-weight: 650; font-size: 18px; }
+.step-btn { width: 52px; height: 48px; border-radius: 12px; background: var(--muted); font-size: 22px; font-weight: 600; transition: transform 140ms var(--ease-out); }
+.step-btn:active { transform: scale(0.94); }
+
+/* Week (suggestion and home) */
+.card { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px; }
+.week { display: flex; flex-direction: column; }
+.wrow { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; min-height: 40px; padding: 4px 0; border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
+.wrow:first-child { border-top: 0; }
+.wrow .dn { font-size: 12px; font-weight: 600; color: var(--muted-fg); text-transform: uppercase; letter-spacing: 0.04em; }
+.wrow .t { font-size: 14px; line-height: 19px; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.wrow .t.rest { color: var(--muted-fg); }
+.wrow .m { font-size: 13px; color: var(--muted-fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.int { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; }
+.int::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: currentColor; }
+.int.easy { color: var(--easy); } .int.mid { color: var(--mid); } .int.hard { color: var(--hard); }
+.mix { display: flex; height: 8px; border-radius: 8px; overflow: hidden; gap: 2px; }
+.mix i { display: block; height: 100%; }
+.badge { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 12px; font-weight: 600; }
+.facts { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted-fg); }
+.facts b { color: var(--fg); font-weight: 600; }
+
+/* Swipe rail (from A), anchored to the bottom */
+.rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 4px 16px 8px; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: pan-x pan-y; }
+.rail::-webkit-scrollbar { display: none; }
+.rail > .card { flex: 0 0 86%; scroll-snap-align: center; display: flex; flex-direction: column; gap: 12px; }
+.pager { display: flex; justify-content: center; gap: 6px; }
+.pager i { width: 6px; height: 6px; border-radius: 6px; background: var(--border); transition: width 200ms var(--ease-out), background-color 200ms ease; }
+.pager i.on { width: 18px; background: var(--primary); }
+
+/* Plan ready */
+.ramp { display: flex; align-items: flex-end; gap: 4px; height: 72px; }
+.ramp i { flex: 1; border-radius: 4px 4px 2px 2px; background: var(--primary); opacity: 0.85; }
+.ramp i.light { opacity: 0.35; }
+details.hood { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); }
+details.hood summary { list-style: none; cursor: pointer; min-height: 52px; display: flex; align-items: center; padding: 0 16px; font-weight: 600; gap: 8px; }
+details.hood summary::-webkit-details-marker { display: none; }
+details.hood summary::after { content: "+"; margin-left: auto; color: var(--muted-fg); font-size: 20px; transition: transform 200ms var(--ease-out); }
+details.hood[open] summary::after { transform: rotate(45deg); }
+.hood-body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.kv { display: grid; grid-template-columns: 96px 1fr; gap: 6px 12px; font-size: 13px; line-height: 18px; }
+.kv dt { color: var(--muted-fg); }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.code { font: 12px/17px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--muted); border-radius: 10px; padding: 10px 12px; overflow-x: auto; white-space: pre; overscroll-behavior-x: contain; }
+.note { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 18px; color: var(--muted-fg); background: var(--muted); border-radius: 14px; padding: 12px 14px; }
+
+/* I dag */
+.today { display: flex; flex-direction: column; gap: 6px; border: 2px solid var(--primary); }
+.today h2 { font-size: 24px; line-height: 30px; font-weight: 650; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.done-mark { width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; background: var(--primary); color: var(--primary-fg); flex: none; }
+.todo-mark { width: 22px; height: 22px; border-radius: 999px; border: 2px solid var(--border); flex: none; }
+.wrow.today-row { background: var(--primary-soft); border-radius: 12px; margin: 2px -8px; padding: 4px 8px; border-top-color: transparent; }
+.wrow.today-row + .wrow { border-top-color: transparent; }
+.adjust { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px; padding: 2px 16px; scrollbar-width: none; overscroll-behavior-x: contain; }
+.adjust::-webkit-scrollbar { display: none; }
+.adjust .chip { flex: none; background: var(--card); }
+.tabbar { flex: none; background: var(--bg); border-top: 1px solid var(--border); padding: 0 max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px)); display: grid; grid-template-columns: repeat(3, 1fr); }
+.tab { min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; font-weight: 600; color: var(--muted-fg); transition: transform 140ms var(--ease-out); }
+.tab:active { transform: scale(0.95); }
+.tab[aria-current] { color: var(--primary); }
+
+/* Toast: placed by JS right above the dock, so «Angre» stays under the thumb */
+.toast { position: fixed; left: 50%; bottom: 120px; transform: translate(-50%, 12px); opacity: 0; transition: transform 240ms var(--ease-out), opacity 200ms ease; z-index: 30; background: var(--fg); color: var(--bg); border-radius: 14px; padding: 6px 6px 6px 16px; display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 500; width: max-content; max-width: calc(100% - 32px); pointer-events: none; }
+.toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.toast button { min-height: 44px; padding: 0 12px; border-radius: 10px; font-weight: 700; color: var(--bg); }
+
+@media (hover: hover) and (pointer: fine) {
+	.option:hover, .chip:hover, .day:hover { border-color: color-mix(in oklab, var(--primary) 35%, transparent); }
+	.option[aria-pressed="true"]:hover, .chip[aria-pressed="true"]:hover, .day[aria-pressed="true"]:hover { border-color: var(--primary); }
+	.ans:not([aria-expanded="true"]):hover { border-color: var(--ring); }
+	.btn-quiet:hover { background: var(--border); }
+}
+@media (prefers-reduced-motion: reduce) {
+	.stack.enter, .stack.enter.back, .in, .editor.open-anim { animation: fade 200ms ease both; }
+	@keyframes fade { from { opacity: 0; } }
+	.toast { transform: translate(-50%, 0); }
+	.btn:active, .option:active, .chip:active, .day:active, .ans:active, .tab:active, .step-btn:active { transform: none; }
+}
+</style>
+
+<main class="app" id="app"></main>
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-text"></span><button type="button" id="toast-undo">Angre</button></div>
+
+<script>
+const LEVELS = [
+	{ k: 'ny', t: 'Nybegynner', d: 'Jeg er i gang, eller kommer tilbake etter en pause.', h: 3, days: [1, 3, 5] },
+	{ k: 'mosjon', t: 'Mosjonist', d: 'Jeg trener jevnlig, to–tre ganger i uka.', h: 5, days: [1, 3, 5, 6] },
+	{ k: 'erfaren', t: 'Erfaren', d: 'Jeg har trent strukturert i flere år.', h: 7, days: [0, 1, 3, 4, 6] },
+	{ k: 'konk', t: 'Konkurranse', d: 'Jeg trener mot resultater og tåler mye.', h: 10, days: [0, 1, 2, 3, 5, 6] },
+]
+const ACTS = [
+	{ k: 'run', t: 'Løping', kind: 'endurance' },
+	{ k: 'bike', t: 'Sykling', kind: 'endurance' },
+	{ k: 'ski', t: 'Langrenn', kind: 'endurance' },
+	{ k: 'swim', t: 'Svømming', kind: 'endurance' },
+	{ k: 'hike', t: 'Fjelltur', kind: 'endurance' },
+	{ k: 'strength', t: 'Styrke', kind: 'strength' },
+	{ k: 'climb', t: 'Klatring', kind: 'climb' },
+	{ k: 'yoga', t: 'Yoga og bevegelighet', kind: 'mobility' },
+]
+const PREFS = [
+	{ k: 'long', t: 'Lange, rolige turer', d: 'Tid i beina, i et tempo der du kan prate.' },
+	{ k: 'intervals', t: 'Korte, harde intervaller', d: 'Få minutter der det virkelig går unna.' },
+	{ k: 'threshold', t: 'Jevnt hardt', d: 'Lengre drag der du jobber kontrollert hardt.' },
+	{ k: 'short', t: 'Korte økter', d: 'Helst ikke over 45 minutter.' },
+	{ k: 'surprise', t: 'Overrask meg', d: 'Bland gjerne, jeg liker variasjon.' },
+]
+const DAY = ['man', 'tir', 'ons', 'tor', 'fre', 'lør', 'søn']
+const DAY_LONG = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag', 'søndag']
+const MONTH = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des']
+const INT = { easy: 'rolig', mid: 'middels', hard: 'hard' }
+
+// The three principles. Plain name first; the family the Outline records second.
+const PRINCIPLES = {
+	polarized: { name: 'Mest rolig, litt veldig hardt', family: 'Polarisert 80/20', familyKey: 'polarized', why: 'Nesten alt går rolig. Én gang i uka går det skikkelig hardt. Gir mye form for lite slitasje.' },
+	threshold: { name: 'Jevnt og kontrollert hardt', family: 'Terskelfokus', familyKey: 'threshold', why: 'To økter i uka der du jobber jevnt hardt i lengre drag. Effektivt når tiden er knapp.' },
+	classic: { name: 'Variert og bygger seg opp', family: 'Klassisk 3:1', familyKey: 'classic', why: 'Litt av alt. Tre uker blir gradvis tyngre, den fjerde er lett så kroppen tar igjen.' },
+	base: { name: 'Bygg grunnform først', family: 'Stor base', familyKey: 'big-base', why: 'Lange perioder med rolig trening før det blir hardere. Trygt når du starter opp.' },
+}
+
+// Smart defaults: every question is pre-answered, so «Ser bra ut» alone gets you to suggestions.
+const DEFAULT_LEVEL = LEVELS[1]
+const state = {
+	step: 0, prevStep: 0,
+	level: DEFAULT_LEVEL.k, hours: DEFAULT_LEVEL.h, acts: new Set(['run', 'strength']), actOrder: ['run', 'strength'],
+	prefs: new Set(), days: new Set(DEFAULT_LEVEL.days), daysTouched: false,
+	turn: 0, shownTurn: -1, editing: null, lastEditing: null,
+	railIndex: 0, chosen: null, week: null, done: new Set(),
+}
+
+const today = new Date()
+const todayIdx = (today.getDay() + 6) % 7
+
+function fmtMin(m) {
+	if (m < 60) return `${m} min`
+	const h = Math.floor(m / 60), r = m % 60
+	return r ? `${h} t ${r} min` : `${h} t`
+}
+const fmtH = (h) => String(Math.round(h * 10) / 10).replace('.', ',')
+const actOf = (k) => ACTS.find((a) => a.k === k)
+const color = (k) => `var(--t-${k})`
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const checkSvg = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.5l4.5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary-fg)"/></svg>'
+const pencilSvg = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M9.5 2.5l2 2L5 11H3V9z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>'
+const backSvg = '<svg width="22" height="22" viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+
+// ——— Week generation: the same rules every principle card, the plan and I dag read ———
+const WORK = {
+	easy: { t: 'Rolig', int: 'easy', wt: 0.8, d: 'Rolig tempo hele veien. Du skal kunne prate.' },
+	long: { t: 'Langtur', int: 'easy', wt: 1.6, d: 'Lang og rolig. Ta med drikke.' },
+	intervals: { t: 'Intervaller', int: 'hard', wt: 1, d: 'Varm opp, så 4 × 4 min hardt med 3 min rolig mellom.' },
+	threshold: { t: 'Jevnt hardt', int: 'mid', wt: 1, d: '3 × 10 min kontrollert hardt. Pusten skal være tung, men jevn.' },
+	tempo: { t: 'Tempo', int: 'mid', wt: 1, d: '20 min i komfortabelt hardt tempo midt i økta.' },
+	strength: { t: 'Styrke', int: 'mid', d: 'Helkropp: knebøy, markløft, press og kjerne. 3 runder.' },
+	climb: { t: 'Klatring', int: 'mid', d: 'Buldring eller tau. Varm opp fingrene godt.' },
+	yoga: { t: 'Bevegelighet', int: 'easy', d: 'Rolig yoga for hofter og rygg.' },
+}
+
+function principlesFor() {
+	const keys = state.level === 'ny' ? ['base', 'polarized', 'classic'] : ['polarized', 'threshold', 'classic']
+	const score = (k) => {
+		let s = 0
+		if (state.prefs.has('intervals') && k === 'polarized') s += 2
+		if (state.prefs.has('threshold') && k === 'threshold') s += 2
+		if (state.prefs.has('long') && (k === 'polarized' || k === 'base')) s += 1
+		if (state.prefs.has('surprise') && k === 'classic') s += 2
+		if (state.prefs.has('short') && k === 'threshold') s += 1
+		return s
+	}
+	return keys.map((k) => ({ k, s: score(k) })).sort((a, b) => b.s - a.s).map((x) => x.k)
+}
+
+function buildWeek(pk) {
+	const days = [...state.days].sort((a, b) => a - b)
+	const n = days.length
+	const total = Math.round(state.hours * 60)
+	const endurance = enduranceChosen()
+	const short = state.prefs.has('short')
+	// One of each chosen activity first, so nothing the athlete asked for goes missing; a
+	// second strength or climbing day only when the week has room for it.
+	const strength = { w: 'strength', act: 'strength', min: 45 }
+	const climb = { w: 'climb', act: 'climb', min: short ? 60 : 90 }
+	const wanted = []
+	if (state.acts.has('strength')) wanted.push(strength)
+	if (state.acts.has('climb')) wanted.push(climb)
+	if (state.acts.has('yoga')) wanted.push({ w: 'yoga', act: 'yoga', min: 30 })
+	if (state.acts.has('strength') && state.level !== 'ny' && n >= 5) wanted.push({ ...strength })
+	if (state.acts.has('climb') && state.level === 'konk' && n >= 6) wanted.push({ ...climb })
+	const room = n - (endurance.length ? Math.min(2, n) : 0)
+	const others = wanted.slice(0, Math.max(0, room))
+
+	const slots = endurance.length ? n - others.length : 0
+	let kinds = []
+	if (slots > 0) {
+		const hardCount = pk === 'threshold' ? (slots >= 3 ? 2 : 1) : slots >= 2 ? 1 : 0
+		const hardKind = pk === 'threshold' ? 'threshold' : pk === 'base' ? 'tempo' : 'intervals'
+		for (let i = 0; i < hardCount; i++) kinds.push(hardKind)
+		if (pk === 'classic' && slots >= 4) kinds.push('tempo')
+		if (pk === 'base' && state.level !== 'ny' && slots >= 4) kinds.push('tempo')
+		if (slots - kinds.length >= 1 && !(short && slots < 3)) kinds.push(short ? 'easy' : 'long')
+		while (kinds.length < slots) kinds.push('easy')
+		kinds = kinds.slice(0, slots)
+	}
+	const otherMin = others.reduce((s, o) => s + o.min, 0)
+	const budget = Math.max(total - otherMin, slots * 25)
+	const weightSum = kinds.reduce((s, k) => s + WORK[k].wt, 0) || 1
+	const endSessions = kinds.map((k, i) => {
+		let min = Math.round((budget * WORK[k].wt) / weightSum / 5) * 5
+		min = Math.max(state.level === 'ny' ? 20 : 30, Math.min(short ? 45 : 180, min))
+		// The main sport takes the hard sessions and the long one; the others share the easy days.
+		const act = WORK[k].int !== 'easy' || k === 'long' || endurance.length === 1 ? endurance[0] : endurance[(i % endurance.length)]
+		return { w: k, act, min }
+	})
+
+	// Place: the long one last, hard ones spread with an easy day between, the rest fills.
+	const placed = new Array(n).fill(null)
+	const longI = endSessions.findIndex((s) => s.w === 'long')
+	if (longI >= 0) placed[n - 1] = endSessions.splice(longI, 1)[0]
+	const hard = endSessions.filter((s) => WORK[s.w].int !== 'easy')
+	const rest = endSessions.filter((s) => WORK[s.w].int === 'easy')
+	const free = () => placed.map((p, i) => (p ? -1 : i)).filter((i) => i >= 0)
+	hard.forEach((s, j) => {
+		const f = free()
+		const target = Math.round(((j + 1) * n) / (hard.length + 1)) - 1
+		const pick = f.reduce((best, i) => (Math.abs(i - target) < Math.abs(best - target) ? i : best), f[0])
+		placed[pick] = s
+	})
+	;[...others, ...rest].forEach((s) => { const f = free(); if (f.length) placed[f[0]] = s })
+	return placed.map((s, i) => (s ? { ...s, day: days[i], ...WORK[s.w], d: WORK[s.w].d } : null)).filter(Boolean)
+}
+
+function weekStats(week) {
+	const total = week.reduce((s, x) => s + x.min, 0)
+	const by = { easy: 0, mid: 0, hard: 0 }
+	week.forEach((x) => (by[x.int] += x.min))
+	return { total, by, count: week.length, hard: week.filter((x) => x.int === 'hard' || x.w === 'threshold').length }
+}
+function title(s) {
+	if (s.act === 'strength' || s.act === 'climb' || s.act === 'yoga') return s.t
+	return `${s.t} · ${actOf(s.act).t.toLowerCase()}`
+}
+
+// ——— Outline: what is built behind the chosen card ———
+function outlineFor(pk) {
+	const weeks = 12
+	const p = PRINCIPLES[pk]
+	const rhythm = 4
+	const climb = pk === 'base' ? 0.04 : 0.06
+	const series = []
+	let block = 0
+	for (let i = 0; i < weeks; i++) {
+		const pos = i % rhythm
+		if (pos === 0 && i > 0) block++
+		const h = state.hours * (1 + climb * (block * (rhythm - 1) + Math.min(pos, rhythm - 2)))
+		series.push(pos === rhythm - 1 ? { h: h * 0.7, light: true } : { h, light: false })
+	}
+	const tracks = []
+	const endurance = enduranceChosen().map(actOf)
+	if (endurance.length) tracks.push({ name: 'Utholdenhet', unit: 'timer', start: fmtH(state.hours), sports: endurance.map((a) => a.t).join(', ') })
+	if (state.acts.has('strength')) tracks.push({ name: 'Styrke', unit: 'økter', start: state.level === 'ny' ? '1 / uke' : '2 / uke' })
+	if (state.acts.has('climb')) tracks.push({ name: 'Klatring', unit: 'timer', start: 'enkel aktivitet, teller i ukas timer' })
+	if (state.acts.has('yoga')) tracks.push({ name: 'Bevegelighet', unit: 'økter', start: 'når det er plass' })
+	return { family: p.family, familyKey: p.familyKey, weeks, series, tracks, peak: Math.max(...series.map((s) => s.h)) }
+}
+
+const enduranceChosen = () => state.actOrder.filter((k) => actOf(k).kind === 'endurance' && state.acts.has(k))
+function mainSport() { return enduranceChosen()[0] ?? null }
+const levelOf = () => LEVELS.find((l) => l.k === state.level)
+
+// ——— Labels for the answer chips ———
+function listNo(items) {
+	if (items.length <= 1) return items.join('')
+	return `${items.slice(0, -1).join(', ')} og ${items[items.length - 1]}`
+}
+function actsLabel() {
+	const order = [...state.actOrder.filter((k) => state.acts.has(k)), ...[...state.acts].filter((k) => !state.actOrder.includes(k))]
+	const names = order.map((k, i) => (i === 0 ? actOf(k).t : actOf(k).t.toLowerCase()))
+	return names.length ? listNo(names) : 'Ingenting valgt'
+}
+function daysLabel() {
+	const d = [...state.days].sort((a, b) => a - b)
+	return d.length ? `${d.length} dager: ${d.map((i) => DAY[i]).join(' ')}` : 'Ingen dager'
+}
+function prefsLabel() {
+	if (!state.prefs.size) return 'Bland gjerne'
+	const names = PREFS.filter((p) => state.prefs.has(p.k)).map((p, i) => (i === 0 ? p.t : p.t.toLowerCase()))
+	return listNo(names)
+}
+
+// ——— The conversation: three questions, each pre-answered ———
+const QUESTIONS = [
+	{ ask: 'Hvor er du nå, og hvor mye tid har du i uka?', answers: () => [{ ed: 'level', t: levelOf().t }, { ed: 'level', t: `${fmtH(state.hours)} timer i uka` }] },
+	{ ask: 'Hva liker du å trene, og hvilke dager passer?', answers: () => [{ ed: 'acts', t: actsLabel() }, { ed: 'days', t: daysLabel() }] },
+	{ ask: 'Hva slags økter liker du?', answers: () => [{ ed: 'prefs', t: prefsLabel() }] },
+]
+// Taps from open to a chosen plan: one «Ser bra ut» per question, then «Velg denne».
+const MIN_TAPS = QUESTIONS.length + 1
+const A_TAPS = 7 // A: Kom i gang, nivå, Neste, aktivitet, Neste, Hopp over, Velg denne
+
+const EDITORS = {
+	level: {
+		title: 'Nivå og tid',
+		body: () => `<div class="options" role="group" aria-label="Nivå">
+			${LEVELS.map((l) => `<button type="button" class="option" data-level="${l.k}" aria-pressed="${state.level === l.k}"><div><b>${l.t}</b><span class="d">${l.d}</span></div><span class="check">${checkSvg}</span></button>`).join('')}
+		</div>
+		<div class="hours"><button type="button" class="step-btn" data-hours="-0.5" aria-label="Mindre tid">−</button><output class="num" aria-live="polite">${fmtH(state.hours)} timer i uka</output><button type="button" class="step-btn" data-hours="0.5" aria-label="Mer tid">+</button></div>`,
+		ok: () => true,
+	},
+	acts: {
+		title: 'Aktiviteter',
+		body: () => `<div class="chips" role="group" aria-label="Aktiviteter">
+			${ACTS.map((a) => `<button type="button" class="chip" data-act-k="${a.k}" aria-pressed="${state.acts.has(a.k)}"><span class="dot" style="background:${color(a.k)}"></span>${a.t}</button>`).join('')}
+		</div>
+		<p class="small">${mainSport() ? `Hovedidrett: <b style="color:var(--fg)">${actOf(mainSport()).t}</b>. Den første utholdenhetsidretten du velger, blir hovedidretten.` : 'Velg minst én.'}</p>`,
+		ok: () => state.acts.size > 0,
+	},
+	days: {
+		title: 'Treningsdager',
+		body: () => `<div class="days" role="group" aria-label="Treningsdager">${DAY.map((d, i) => `<button type="button" class="day" data-day="${i}" aria-pressed="${state.days.has(i)}">${d}</button>`).join('')}</div>
+		<p class="small num">${state.days.size} dager. Vi legger aldri inn mer enn du har tid til.</p>`,
+		ok: () => state.days.size > 0,
+	},
+	prefs: {
+		title: 'Økttyper',
+		body: () => `<div class="options" role="group" aria-label="Økttyper">
+			${PREFS.map((p) => `<button type="button" class="option" data-pref="${p.k}" aria-pressed="${state.prefs.has(p.k)}"><div><b>${p.t}</b><span class="d">${p.d}</span></div><span class="check">${checkSvg}</span></button>`).join('')}
+		</div>
+		<p class="small">Velg gjerne flere, eller ingen. Det avgjør bare hvilket forslag du ser først.</p>`,
+		ok: () => true,
+	},
+}
+
+// ——— Rendering ———
+const app = document.getElementById('app')
+const FLOW = ['chat', 'suggest', 'ready', 'home']
+
+function render(opts = {}) {
+	const name = FLOW[state.step]
+	const oldScroll = document.getElementById('main')?.scrollTop ?? 0
+	const oldEditorScroll = document.querySelector('.editor')?.scrollTop ?? 0
+	const stepChanged = state.step !== state.prevStep
+	const dir = state.step < state.prevStep ? ' back' : ''
+	const { main, dock } = SCREENS[name]()
+	app.innerHTML = `<div class="scroll" id="main"><div class="stack${stepChanged ? ` enter${dir}` : ''}">${main}</div></div>${dock}`
+	state.prevStep = state.step
+	const scroller = document.getElementById('main')
+	const editor = document.querySelector('.editor')
+	if (editor && !opts.editorOpened) editor.scrollTop = oldEditorScroll
+	if (stepChanged || opts.toBottom) scroller.scrollTop = scroller.scrollHeight
+	else scroller.scrollTop = oldScroll
+	if (opts.reveal) document.querySelector(opts.reveal)?.scrollIntoView({ block: 'nearest' })
+	bindAfter(name)
+}
+function go(step) { state.prevStep = state.step; state.step = step; render() }
+
+const dockHtml = (inner, cls = '') => `<div class="dock ${cls}">${inner}</div>`
+const backBtn = (label) => `<button type="button" class="btn btn-quiet btn-square" data-act="back" aria-label="${label}">${backSvg}</button>`
+
+const SCREENS = {
+	chat: () => {
+		const parts = [
+			`<p class="over" style="text-align:center">Trainm8</p>`,
+			`<div class="msg">Hei! Jeg lager treningsukene for deg. Tre korte spørsmål, og jeg har allerede gjettet svarene. Stemmer de, trykker du bare <b>Ser bra ut</b>. Trykk på et svar for å endre det.</div>`,
+			`<div class="dev" role="note">Dev: <b>${MIN_TAPS} trykk</b> fra åpning til valgt plan (${QUESTIONS.length} × «Ser bra ut», så «Velg denne»). Variant A trengte ${A_TAPS}.</div>`,
+		]
+		const upTo = Math.min(state.turn, QUESTIONS.length - 1)
+		for (let i = 0; i <= upTo; i++) {
+			const q = QUESTIONS[i]
+			const fresh = i > state.shownTurn
+			const pending = i === state.turn
+			parts.push(`<div class="msg${fresh ? ' in' : ''}"><span class="over num">Spørsmål ${i + 1} av ${QUESTIONS.length}</span>${q.ask}</div>`)
+			parts.push(`<div class="answers${fresh ? ' in d1' : ''}" id="ans-${i}">${q.answers().map((a) => `<button type="button" class="ans${pending ? ' guess' : ''}" data-edit="${a.ed}" aria-expanded="${state.editing === a.ed}" aria-label="${esc(a.t)}. Trykk for å endre">${esc(a.t)}${pencilSvg}</button>`).join('')}</div>`)
+			if (pending && !state.editing) parts.push(`<p class="hint${fresh ? ' in d2' : ''}">Mitt gjett. Trykk for å endre.</p>`)
+		}
+		if (state.turn >= QUESTIONS.length) parts.push(`<div class="msg">Takk! Tre forslag ligger klare.</div>`)
+		state.shownTurn = Math.max(state.shownTurn, upTo)
+
+		let inner = ''
+		if (state.editing) {
+			const ed = EDITORS[state.editing]
+			const anim = state.lastEditing !== state.editing ? ' open-anim' : ''
+			inner += `<div class="editor${anim}" role="group" aria-label="Endre ${ed.title.toLowerCase()}"><div class="ed-head"><h2>${ed.title}</h2><span class="small">Endre svaret</span></div>${ed.body()}</div>`
+			const pendingQ = editorQuestion(state.editing) === state.turn
+			inner += `<button type="button" class="btn btn-primary btn-block btn-big" data-act="edit-done" ${ed.ok() ? '' : 'disabled'}>${pendingQ ? 'Ferdig, ser bra ut' : 'Ferdig'}</button>`
+		} else if (state.turn >= QUESTIONS.length) {
+			inner += `<button type="button" class="btn btn-primary btn-block btn-big" data-act="confirm">Vis forslagene</button>`
+		} else {
+			inner += `<button type="button" class="btn btn-primary btn-block btn-big" data-act="confirm">Ser bra ut</button>`
+		}
+		state.lastEditing = state.editing
+		return { main: `<div class="thread">${parts.join('')}</div>`, dock: dockHtml(inner) }
+	},
+
+	suggest: () => {
+		const keys = principlesFor()
+		const main = `<div><p class="over">Tre forslag</p><h1>Tre måter å trene på</h1></div>
+			<p class="lead">Alle passer ${fmtH(state.hours)} timer på ${state.days.size} dager, men følger ulike prinsipper. Sveip, og velg den som frister mest.</p>
+			<div class="rail" id="rail" aria-label="Forslag">${keys.map((k, i) => suggestionCard(k, i === 0)).join('')}</div>`
+		const dock = dockHtml(`<div class="pager" aria-hidden="true">${keys.map((_, i) => `<i class="${i === state.railIndex ? 'on' : ''}"></i>`).join('')}</div>
+			<div class="dock-row">${backBtn('Tilbake til svarene')}<button type="button" class="btn btn-primary btn-big" style="flex:1" data-act="choose">Velg denne</button></div>`)
+		return { main, dock }
+	},
+
+	ready: () => {
+		const o = outlineFor(state.chosen)
+		const p = PRINCIPLES[state.chosen]
+		const max = o.peak
+		const main = `
+		<div><p class="over">Planen er klar</p><h1>${p.name}</h1></div>
+		<p class="lead">De neste ${o.weeks} ukene bygger seg forsiktig opp fra ${fmtH(state.hours)} til ${fmtH(o.peak)} timer, med en lett uke hver fjerde uke.</p>
+		<div class="card" style="display:flex;flex-direction:column;gap:10px">
+			<div class="ramp" role="img" aria-label="Timer per uke de neste ${o.weeks} ukene">${o.series.map((s) => `<i class="${s.light ? 'light' : ''}" style="height:${Math.round((s.h / max) * 100)}%"></i>`).join('')}</div>
+			<div class="facts"><span>uke 1</span><span style="margin-left:auto">uke ${o.weeks}</span></div>
+		</div>
+		<div class="note"><span aria-hidden="true">↻</span><span>Hver søndag kveld legger appen ut neste uke av seg selv, tilpasset det du faktisk trente. Du får beskjed, og kan alltid angre.</span></div>
+		${hood(o)}`
+		return { main, dock: dockHtml(`<div class="dock-row">${backBtn('Tilbake til forslagene')}<button type="button" class="btn btn-primary btn-big" style="flex:1" data-act="next">Til I dag</button></div>`) }
+	},
+
+	home: () => {
+		const week = state.week
+		const s = weekStats(week)
+		const doneCount = week.filter((x) => isDone(x)).length
+		const todays = week.find((x) => x.day === todayIdx)
+		const nextUp = week.filter((x) => x.day > todayIdx).sort((a, b) => a.day - b.day)[0]
+		const dateLine = `${DAY_LONG[todayIdx]} ${today.getDate()}. ${MONTH[today.getMonth()]}`
+		const main = `
+			<div><p class="over">${dateLine}</p><h1>I dag</h1></div>
+			<section style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;align-items:baseline;justify-content:space-between"><h2>Denne uka</h2><span class="small num">${doneCount} av ${s.count} gjort</span></div>
+			<div class="card week">${DAY.map((_, i) => homeRow(week, i)).join('')}</div></section>
+			<div class="note"><span aria-hidden="true">↻</span><span>Neste uke legges ut søndag kveld, tilpasset hvordan denne uka gikk.</span></div>
+			${todayCard(todays, nextUp)}`
+		let inner = ''
+		if (todays && !isDone(todays)) {
+			inner = `<div class="adjust" role="group" aria-label="Juster dagens økt">
+				<button type="button" class="chip" data-adj="tired">For sliten i dag</button>
+				<button type="button" class="chip" data-adj="short">Lite tid</button>
+				<button type="button" class="chip" data-adj="move">Bytt dag</button>
+			</div>
+			<button type="button" class="btn btn-primary btn-block btn-big" data-done="${todays.day}">Gjort</button>`
+		} else if (todays) {
+			inner = `<button type="button" class="btn btn-quiet btn-block btn-big" data-done="${todays.day}">Angre «gjort»</button>`
+		} else if (nextUp) {
+			inner = `<button type="button" class="btn btn-primary btn-block btn-big" data-act="pull">Ta neste økt i dag</button>`
+		} else {
+			inner = `<button type="button" class="btn btn-quiet btn-block btn-big" data-act="week-over">Uka er ferdig</button>`
+		}
+		const tabs = `<nav class="tabbar" aria-label="Hovedmeny">
+			<button type="button" class="tab" aria-current="page"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 9.5 11 4l7 5.5V18H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>I dag</button>
+			<button type="button" class="tab" data-act="plan-tab"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="3.5" y="5" width="15" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9h15M8 3v4M14 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Plan</button>
+			<button type="button" class="tab" data-act="me-tab"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 18c1.2-3 3.7-4.5 6.5-4.5s5.3 1.5 6.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Meg</button>
+		</nav>`
+		return { main, dock: dockHtml(inner, 'over-tabs') + tabs }
+	},
+}
+
+function editorQuestion(ed) { return ed === 'level' ? 0 : ed === 'prefs' ? 2 : 1 }
+
+function mixBar(by, total) {
+	return `<div class="mix" role="img" aria-label="${Math.round((by.easy / total) * 100)} % rolig, ${Math.round((by.mid / total) * 100)} % middels, ${Math.round((by.hard / total) * 100)} % hard">${['easy', 'mid', 'hard'].map((k) => (by[k] ? `<i style="flex:${by[k]};background:var(--${k})"></i>` : '')).join('')}</div>`
+}
+function weekRows(week) {
+	return DAY.map((d, i) => {
+		const s = week.find((x) => x.day === i)
+		return `<div class="wrow"><span class="dn">${d}</span>${s ? `<span class="t"><span class="dot" style="background:${color(s.act)}"></span>${esc(title(s))}</span><span class="m">${fmtMin(s.min)} · <span class="int ${s.int}">${INT[s.int]}</span></span>` : `<span class="t rest">hvile</span><span></span>`}</div>`
+	}).join('')
+}
+function missingNote(week) {
+	const missing = [...state.acts].filter((k) => !week.some((s) => s.act === k)).map((k) => actOf(k).t.toLowerCase())
+	return missing.length ? `<p class="small">Fikk ikke plass denne uka: ${missing.join(' og ')}. Velg en dag til, så kommer det med.</p>` : ''
+}
+function suggestionCard(k, best) {
+	const p = PRINCIPLES[k], week = buildWeek(k), s = weekStats(week)
+	return `<article class="card" data-k="${k}">
+		<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${best ? '<span class="badge">Passer deg best</span>' : ''}<span class="small">${p.family}</span></div>
+		<h2>${p.name}</h2>
+		<p class="small">${p.why}</p>
+		${mixBar(s.by, s.total)}
+		<div class="facts num"><span><b>${fmtMin(s.total)}</b> i uka</span><span><b>${s.count}</b> økter</span><span><b>${s.hard}</b> ${s.hard === 1 ? 'hard' : 'harde'}</span></div>
+		<div class="week">${weekRows(week)}</div>${missingNote(week)}
+	</article>`
+}
+function hood(o) {
+	const pattern = state.week.map((s) => `${DAY[s.day]}: ${s.w}${s.act !== s.w ? `/${s.act}` : ''} ${s.min}m`).join('\n')
+	return `<details class="hood"><summary>Under panseret</summary><div class="hood-body">
+		<p class="small">Dette er planen appen bygger av svarene dine. Den bruker den hver gang en ny uke lages. Du trenger aldri å se den, men den ligger her.</p>
+		<dl class="kv">
+			<dt>Filosofi</dt><dd>${o.family}</dd>
+			<dt>Lengde</dt><dd>Åpen, uten sluttdato. Her vises de første ${o.weeks} ukene.</dd>
+			<dt>Rytme</dt><dd>3 uker opp, 1 lett</dd>
+			<dt>Spor</dt><dd>${o.tracks.map((t) => `${t.name} (${t.unit}${t.sports ? `: ${t.sports}` : ''}), start ${t.start}`).join('<br>')}</dd>
+			<dt>Nivå</dt><dd>${levelOf().t}</dd>
+			<dt>Ønsker</dt><dd>${[...state.prefs].map((k) => PREFS.find((p) => p.k === k).t).join(', ') || 'ingen'}</dd>
+		</dl>
+		<p class="over">Ukemønster</p><div class="code">${esc(pattern)}</div>
+		<p class="over">Timer per uke</p><div class="code">${o.series.map((s, i) => `uke ${String(i + 1).padStart(2)}  ${fmtH(s.h).padStart(4)} t${s.light ? '  lett' : ''}`).join('\n')}</div>
+	</div></details>`
+}
+const isDone = (s) => state.done.has(s.day)
+function todayCard(s, next) {
+	if (!s) return `<div class="card today"><p class="over">Hviledag</p><h2>Ingen økt i dag</h2>${next ? `<p class="small">Neste: ${esc(title(next))}, ${DAY_LONG[next.day]}, ${fmtMin(next.min)}.</p>` : '<p class="small">Uka er ferdig. Neste uke kommer søndag kveld.</p>'}</div>`
+	return `<div class="card today" id="today"><div style="display:flex;align-items:center;gap:8px"><span class="dot" style="background:${color(s.act)}"></span><span class="small">${actOf(s.act).t} · i dag</span><span class="int ${s.int}" style="margin-left:auto">${INT[s.int]}</span></div>
+		<h2>${esc(s.t)}${isDone(s) ? ' ✓' : ''}</h2><p class="num" style="font-weight:600">${fmtMin(s.min)}</p><p class="small">${esc(s.d)}</p></div>`
+}
+function homeRow(week, i) {
+	const s = week.find((x) => x.day === i)
+	const cls = i === todayIdx ? 'wrow today-row' : 'wrow'
+	if (!s) return `<div class="${cls}"><span class="dn">${DAY[i]}</span><span class="t rest">hvile</span><span></span></div>`
+	const mark = isDone(s) ? `<span class="done-mark">${checkSvg}</span>` : i < todayIdx ? `<span class="small">ikke gjort</span>` : `<span class="todo-mark"></span>`
+	return `<div class="${cls}"><span class="dn">${DAY[i]}</span><span class="t"><span class="dot" style="background:${color(s.act)}"></span><span>${esc(title(s))}<br><span class="small num">${fmtMin(s.min)} · ${INT[s.int]}</span></span></span>${mark}</div>`
+}
+
+// ——— Toast ———
+const toastEl = document.getElementById('toast'), toastText = document.getElementById('toast-text')
+let toastTimer = null, undoFn = null
+function toast(msg, undo) {
+	const dock = document.querySelector('.dock')
+	if (dock) toastEl.style.bottom = `${Math.round(window.innerHeight - dock.getBoundingClientRect().top + 8)}px`
+	toastText.textContent = msg; undoFn = undo
+	document.getElementById('toast-undo').hidden = !undo
+	toastEl.classList.add('show')
+	clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), 4000)
+}
+toastEl.addEventListener('pointerenter', () => clearTimeout(toastTimer))
+toastEl.addEventListener('pointerleave', () => { toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000) })
+document.getElementById('toast-undo').addEventListener('click', () => { undoFn?.(); toastEl.classList.remove('show') })
+document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(toastTimer); else if (toastEl.classList.contains('show')) toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000) })
+
+// ——— Juster: three one-tap chips, each with Angre ———
+function adjustToday(kind) {
+	const before = state.week.map((s) => ({ ...s }))
+	const s = state.week.find((x) => x.day === todayIdx && !isDone(x))
+	if (!s) return
+	let msg = ''
+	if (kind === 'tired') {
+		const min = Math.max(20, Math.round((s.min * 0.6) / 5) * 5)
+		const endurance = actOf(s.act).kind === 'endurance'
+		Object.assign(s, endurance ? { w: 'easy', t: 'Rolig', int: 'easy', d: 'Rolig og kort. Kjenn etter underveis, og snu hvis kroppen sier nei.' } : { int: 'easy', d: `${s.d} Lett i dag: halve vekten, færre runder.` }, { min })
+		msg = `Dagens økt er rolig, ${fmtMin(min)}`
+	}
+	if (kind === 'short') {
+		const min = s.min > 30 ? 30 : 20
+		Object.assign(s, { min })
+		msg = `Dagens økt er kortet ned til ${fmtMin(min)}`
+	}
+	if (kind === 'move') {
+		const taken = new Set(state.week.map((x) => x.day))
+		let to = [1, 2, 3, 4, 5, 6].map((n) => todayIdx + n).find((d) => d <= 6 && !taken.has(d))
+		if (to == null) {
+			const swap = state.week.filter((x) => x.day > todayIdx).sort((a, b) => a.day - b.day)[0]
+			if (!swap) { toast('Ingen dager igjen denne uka å flytte til'); return }
+			to = swap.day; swap.day = todayIdx
+		}
+		s.day = to
+		msg = `Flyttet til ${DAY_LONG[to]}`
+	}
+	render({ toBottom: true })
+	toast(msg, () => { state.week = before; render({ toBottom: true }) })
+}
+
+// ——— Events ———
+function bindAfter(name) {
+	if (name === 'suggest') {
+		const rail = document.getElementById('rail')
+		const stepW = () => rail.firstElementChild.offsetWidth + 12
+		rail.scrollLeft = state.railIndex * stepW()
+		rail.addEventListener('scroll', () => {
+			const i = Math.round(rail.scrollLeft / stepW())
+			if (i !== state.railIndex) { state.railIndex = i; document.querySelectorAll('.pager i').forEach((el, j) => el.classList.toggle('on', j === i)) }
+		}, { passive: true })
+	}
+}
+
+function choose(k) {
+	state.chosen = k
+	state.week = buildWeek(k)
+	state.done = new Set(state.week.filter((s) => s.day < todayIdx).map((s) => s.day))
+	go(2)
+}
+
+function confirmTurn() {
+	if (state.turn >= QUESTIONS.length) { go(1); return }
+	state.turn++
+	if (state.turn >= QUESTIONS.length) { state.railIndex = 0; go(1); return }
+	render({ toBottom: true })
+}
+
+document.addEventListener('click', (e) => {
+	const t = e.target.closest('button')
+	if (!t) return
+	const d = t.dataset
+	if (d.edit) {
+		state.editing = state.editing === d.edit ? null : d.edit
+		render({ editorOpened: true, reveal: `[data-edit="${d.edit}"]` })
+		return
+	}
+	if (d.level) {
+		const l = LEVELS.find((x) => x.k === d.level)
+		state.level = l.k; state.hours = l.h
+		if (!state.daysTouched) state.days = new Set(l.days)
+		render(); return
+	}
+	if (d.hours) { state.hours = Math.min(20, Math.max(1, state.hours + Number(d.hours))); render(); return }
+	if (d.actK) {
+		if (state.acts.has(d.actK)) { state.acts.delete(d.actK); state.actOrder = state.actOrder.filter((k) => k !== d.actK) }
+		else { state.acts.add(d.actK); state.actOrder.push(d.actK) }
+		render(); return
+	}
+	if (d.day) { const i = Number(d.day); state.daysTouched = true; state.days.has(i) ? state.days.delete(i) : state.days.add(i); render(); return }
+	if (d.pref) { state.prefs.has(d.pref) ? state.prefs.delete(d.pref) : state.prefs.add(d.pref); render(); return }
+	if (d.done) {
+		const day = Number(d.done)
+		const was = state.done.has(day)
+		was ? state.done.delete(day) : state.done.add(day)
+		render({ toBottom: true })
+		if (!was) toast('Økta er markert som gjort', () => { state.done.delete(day); render({ toBottom: true }) })
+		return
+	}
+	if (d.adj) { adjustToday(d.adj); return }
+	switch (d.act) {
+		case 'confirm': confirmTurn(); break
+		case 'edit-done': {
+			const q = editorQuestion(state.editing)
+			state.editing = null
+			if (q === state.turn) confirmTurn()
+			else render({ toBottom: true })
+			break
+		}
+		case 'next': go(state.step + 1); break
+		case 'back': go(Math.max(0, state.step - 1)); break
+		case 'choose': choose(principlesFor()[state.railIndex] ?? principlesFor()[0]); break
+		case 'pull': {
+			const before = state.week.map((s) => ({ ...s }))
+			const next = state.week.filter((x) => x.day > todayIdx).sort((a, b) => a.day - b.day)[0]
+			const from = next.day
+			next.day = todayIdx
+			render({ toBottom: true })
+			toast(`${title(next)} er flyttet fra ${DAY_LONG[from]} til i dag`, () => { state.week = before; render({ toBottom: true }) })
+			break
+		}
+		case 'week-over': toast('Neste uke kommer søndag kveld'); break
+		case 'plan-tab': toast('Plan: sesongen som én enkel kurve, med «Avansert» for alt annet'); break
+		case 'me-tab': toast('Meg: profil, tilkoblinger og innstillinger'); break
+	}
+})
+
+document.addEventListener('keydown', (e) => {
+	if (e.key === 'Escape' && state.editing) { state.editing = null; render() }
+})
+
+render()
+</script>
