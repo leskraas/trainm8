@@ -1,3 +1,4 @@
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
 
 /**
@@ -43,13 +44,13 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 	// ---------------------------------------------------------------------
 
 	await navigate('/')
-	// Sesong is the way in (ADR 0083): with no season there is no season plan to
+	// Plan is the way in (ADR 0083, ADR 0101): with no season there is no season plan to
 	// open, so the tab lands on authoring one. The first tap after a load can race
 	// hydration, so retry until it lands.
 	await expect(async () => {
 		await page
 			.getByRole('navigation', { name: 'Hovedmeny' })
-			.getByRole('link', { name: 'Sesong' })
+			.getByRole('link', { name: 'Plan' })
 			.click()
 		await expect(page).toHaveURL('/training/plan/new', { timeout: 5000 })
 	}).toPass()
@@ -180,7 +181,7 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 	// The payoff: real sessions, and a home surface that knows about the plan
 	// ---------------------------------------------------------------------
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	// Home now knows about the plan: the top line says where in it today falls
 	// and counts down to the race the season is for (ADR 0086), the strip runs
 	// out to the plan's taper, and the line saying there is no plan is gone.

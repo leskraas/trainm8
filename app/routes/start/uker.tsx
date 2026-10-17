@@ -8,6 +8,7 @@ import { MAX_SESSION_DAYS } from '#app/utils/first-run/draft.ts'
 import {
 	answersSearch,
 	FirstRunCreateSchema,
+	questionsPath,
 	readAnswers,
 } from '#app/utils/first-run/first-run-schema.ts'
 import {
@@ -16,6 +17,7 @@ import {
 	readFirstRunPlan,
 	requireFirstRunAthlete,
 } from '#app/utils/first-run/plan.server.ts'
+import { levelDefaults } from '#app/utils/first-run/start-draft.ts'
 import { formatNbDayMonth } from '#app/utils/format.ts'
 import {
 	FIRST_RUN_LABELS,
@@ -24,6 +26,7 @@ import {
 	nbDurationLabel,
 	nbHoursLabel,
 	nbWeekdayList,
+	SIMPLE_START_LABELS,
 } from '#app/utils/labels.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
 import { stampedSessionTitle } from '#app/utils/session-title.ts'
@@ -62,10 +65,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireFirstRunAthlete(request)
 	const answers = await readAnswersOrBack(request, userId)
 	const read = await readFirstRunPlan(userId, answers)
-	if (!read.ok) throw redirect(`/start/sporsmal?${answersSearch(answers)}`)
+	if (!read.ok) throw redirect(questionsPath(answers))
 	const { draft } = read.plan
 	const chosen = new Set(answers.days).size
 	const used = draft.patternDays.length
+	const cap = answers.level
+		? levelDefaults(answers.level).sessionCap
+		: MAX_SESSION_DAYS
 
 	return {
 		intro: L.intro(
@@ -76,9 +82,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 		daysNote:
 			used >= chosen
 				? null
-				: chosen > MAX_SESSION_DAYS && used === MAX_SESSION_DAYS
-					? L.restDay(chosen, used)
-					: L.fewerDays(chosen, used),
+				: cap < MAX_SESSION_DAYS && chosen > cap && used === cap
+					? SIMPLE_START_LABELS.activities.beginnerCap(cap)
+					: chosen > MAX_SESSION_DAYS && used === MAX_SESSION_DAYS
+						? L.restDay(chosen, used)
+						: L.fewerDays(chosen, used),
 		weeks: draft.weeks.map((week) => ({
 			weekKey: week.weekKey,
 			heading: L.weekHeading(

@@ -1,3 +1,4 @@
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
@@ -88,7 +89,7 @@ test('Home at 390px: a row carries every field, the strip fits whole, no page ov
 		},
 	})
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	const stream = page.getByTestId('timeline-stream')
 	await expect(stream).toBeVisible()
 	await page.waitForTimeout(2500)

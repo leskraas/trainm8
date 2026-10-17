@@ -1,7 +1,10 @@
 /**
  * @vitest-environment jsdom
  *
- * I dag: the top line, the season strip, and the list (ADR 0086).
+ * The full Home Timeline — _Se hele sesongen_ (`/season`, #562): the top
+ * line, the season strip, and the list (ADR 0086). I dag (`/`) opens on its
+ * calm default view instead (ADR 0101 §3, `index.calm-view.test.tsx`); only
+ * the signed-out marketing page is still I dag's own here.
  *
  * There is no hero any more. What it said about today — the session, its
  * action, the coach's line — is said in today's row, and its Form and Rekorder
@@ -30,6 +33,7 @@ import {
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
 import IndexRoute from './index.tsx'
+import HomeTimelineFullView from './season.tsx'
 
 // Home subscribes to the Live Imports Stream via an EventSource (#75, ADR 0049),
 // which jsdom doesn't provide. Stub the hook so the render is deterministic.
@@ -71,6 +75,8 @@ function makeLedgerSession(
 			discipline: 'run',
 			intent: 'endurance',
 			archetype: null,
+			activityKind: null,
+			effortWord: null,
 			blocks: [],
 		},
 		recording: null,
@@ -215,9 +221,12 @@ function renderRoute(
 	loader: (args: LoaderFunctionArgs) => Promise<unknown>,
 	initialPath = '/',
 	action?: (args: ActionFunctionArgs) => Promise<unknown>,
+	Screen:
+		| typeof HomeTimelineFullView
+		| typeof IndexRoute = HomeTimelineFullView,
 ) {
 	const RouteComponent = (props: Record<string, unknown>) => (
-		<IndexRoute {...(props as any)} />
+		<Screen {...(props as any)} />
 	)
 	const App = createRoutesStub([
 		// The composer reads its week and its lifts from resource routes once it
@@ -333,7 +342,7 @@ afterAll(() => {
 // ── the unauthenticated surface is untouched ──────────────────────────────
 
 test('unauthenticated user sees marketing landing page', async () => {
-	renderRoute(marketingLoader())
+	renderRoute(marketingLoader(), '/', undefined, IndexRoute)
 	await screen.findByText(/the epic stack/i)
 })
 
@@ -350,6 +359,8 @@ const TODAY_SESSION = at(0, {
 		discipline: 'run',
 		intent: 'threshold',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: blocks([
 			step({
 				durationSec: 3720,
@@ -372,6 +383,8 @@ const FRIDAY_SESSION = at(2, {
 		discipline: 'run',
 		intent: 'vo2max',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: blocks([step({ durationSec: 3000 })]),
 	},
 })
@@ -390,6 +403,8 @@ const TODAY_DONE = at(0, {
 		discipline: 'run',
 		intent: 'tempo',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: blocks([step({ durationSec: 3600 })]),
 	},
 })
@@ -532,13 +547,13 @@ test('the top line names the plan and counts down to the race', async () => {
 	expect(top).toHaveTextContent('Spring Half Marathon om 8 uker')
 })
 
-test('with no plan the top line says so and leads to Sesong', async () => {
+test('with no plan the top line says so and leads to Plan', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	const top = await screen.findByTestId('timeline-top')
 	expect(top).toHaveTextContent('Ingen plan')
 	expect(
-		within(top).getByRole('link', { name: 'Lag en i Sesong' }),
+		within(top).getByRole('link', { name: 'Lag en i Plan' }),
 	).toHaveAttribute('href', '/training/plan')
 })
 
@@ -612,6 +627,8 @@ test('every week before today is mounted in full, and a strip tap jumps to one',
 				discipline: 'run',
 				intent: 'endurance',
 				archetype: null,
+				activityKind: null,
+				effortWord: null,
 				blocks: blocks(),
 			},
 		}),
@@ -748,6 +765,8 @@ test('a planned row is an instruction: line 1 ends in "planned", line 2 is the t
 						discipline: 'run',
 						intent: 'endurance',
 						archetype: null,
+						activityKind: null,
+						effortWord: null,
 						blocks: blocks([
 							step({
 								durationSec: 3000,
@@ -871,6 +890,8 @@ function titled(id: string, title: string): Workout {
 		discipline: 'run',
 		intent: 'endurance',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: blocks(),
 	}
 }

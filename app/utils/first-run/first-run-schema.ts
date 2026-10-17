@@ -10,28 +10,17 @@ import { EVENT_DATE_LABELS, FIRST_RUN_LABELS } from '../labels.ts'
 import { MAX_PLAN_WEEKS } from '../plan-outline/authoring-schema.ts'
 import { OpenEndedFieldsSchema } from '../plan-outline/open-ended-schema.ts'
 import { PRESET_FAMILIES, type PresetFamily } from '../plan-outline/presets.ts'
-import {
-	patternWeekdaysOf,
-	type PatternWeekday,
-} from '../plan-outline/week-pattern.ts'
+import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { type CardioDiscipline } from '../workout-schema.ts'
+import { type TrainingLevel } from './start-draft.ts'
+import {
+	DaysSchema,
+	LevelSchema,
+	StartHoursSchema,
+	startSearch,
+} from './start-schema.ts'
 
 const M = FIRST_RUN_LABELS.messages
-
-/**
- * Monday-first weekdays (0 = mandag), each once and in week order. A form
- * sends an array (or one value when one box is ticked), the URL a comma list.
- */
-const DaysSchema = z.preprocess(
-	(value) =>
-		typeof value === 'string' ? value.split(',').filter(Boolean) : value,
-	z
-		.array(z.coerce.number().int().min(0).max(6), {
-			errorMap: () => ({ message: M.daysRequired }),
-		})
-		.min(1, M.daysRequired)
-		.transform(patternWeekdaysOf),
-)
 
 /**
  * The fields every step shares: the sport and the hours — the open-ended
@@ -115,7 +104,8 @@ export const FamilySwitchSchema = z.object({
 /**
  * Why the first run's plan cannot be made: the athlete has one already, the
  * race is too close or too far to plan toward, the goal could not carry a
- * plan, or the answers lay no session.
+ * plan, the answers lay no session, or the way to train picked is not one of
+ * the **Start Options** these answers show (a merged or tampered one).
  */
 export const FIRST_RUN_PLAN_REFUSALS = [
 	'plan-already-active',
@@ -123,6 +113,7 @@ export const FIRST_RUN_PLAN_REFUSALS = [
 	'event-too-far',
 	'goal-unavailable',
 	'nothing-to-lay',
+	'option-unavailable',
 ] as const
 export type FirstRunPlanRefusal = (typeof FIRST_RUN_PLAN_REFUSALS)[number]
 
@@ -145,6 +136,16 @@ export type FirstRunAnswers = {
 	goal: FirstRunGoal
 	/** The philosophy the athlete switched to, or null to take the proposal. */
 	family: PresetFamily | null
+	/**
+	 * The **Training Level**, where the answers came from the simple start
+	 * (#563): it proposes the level's first family and caps the sessions.
+	 */
+	level?: TrainingLevel
+	/**
+	 * The simple start's other endurance sports, beside the main one in
+	 * `discipline` (#573): each its own track with easy sessions.
+	 */
+	otherSports?: CardioDiscipline[]
 }
 
 const AnswersSearchSchema = AnswerFieldsSchema.extend({
@@ -152,6 +153,7 @@ const AnswersSearchSchema = AnswerFieldsSchema.extend({
 	name: z.string().trim().min(1).max(120).optional(),
 	date: z.string().optional(),
 	family: z.enum(PRESET_FAMILIES).optional(),
+	level: LevelSchema.optional(),
 })
 
 /**
@@ -164,16 +166,25 @@ export function readAnswers(
 ): FirstRunAnswers | null {
 	const parsed = AnswersSearchSchema.safeParse(Object.fromEntries(search))
 	if (!parsed.success) return null
-	const { goal, name, date, family, ...fields } = parsed.data
+	const { goal, name, date, family, level, ...fields } = parsed.data
+	// The simple start's hours are held to its own bounds (1–20, in halves).
+	if (level && !StartHoursSchema.safeParse(fields.hours).success) return null
+	const fromLevel = level ? { level } : {}
 	if (goal === 'event') {
 		if (!name || !date || eventDateProblem(date, calendar)) return null
 		return {
 			...fields,
 			goal: { kind: 'event', name, date },
 			family: family ?? null,
+			...fromLevel,
 		}
 	}
-	return { ...fields, goal: { kind: 'active' }, family: family ?? null }
+	return {
+		...fields,
+		goal: { kind: 'active' },
+		family: family ?? null,
+		...fromLevel,
+	}
 }
 
 /** The answers as the next step's query string. */
@@ -189,7 +200,25 @@ export function answersSearch(answers: FirstRunAnswers): string {
 		params.set('date', answers.goal.date)
 	}
 	if (answers.family) params.set('family', answers.family)
+	if (answers.level) params.set('level', answers.level)
 	return params.toString()
+}
+
+/**
+ * The questions these answers came from, with the answers in hand: the
+ * simple start's last question where there is a Training Level, else the old
+ * first run's three questions.
+ */
+export function questionsPath(answers: FirstRunAnswers): string {
+	if (answers.level) {
+		return `/start/trening?${startSearch({
+			level: answers.level,
+			hours: answers.hours,
+			discipline: answers.discipline,
+			days: answers.days,
+		})}`
+	}
+	return `/start/sporsmal?${answersSearch({ ...answers, family: null })}`
 }
 
 /**

@@ -20,7 +20,8 @@
 // - **The current week is graded only against the days already past**, so a
 //   Monday never reads "under" (the comment's idea I).
 // - **Annet counts in nothing**: an `'other'` import (ADR 0015) or a Discipline
-//   the plan has no track for is shown apart and moves no track's numbers.
+//   the plan has no track for is shown apart and moves no track's numbers. A
+//   planned Simple Activity on `other` (ADR 0015 §A) is on its own hours track.
 //
 // It returns numbers, codes and value objects only. Every word is put on them at
 // the edge — `labels.ts` owns the Norwegian (ADR 0081) and the home presenter
@@ -33,11 +34,17 @@ import {
 	ADHERENCE_OVER_ABOVE,
 } from '../load/adherence.ts'
 import {
+	type PlannedMetric,
+	plannedMetricValue,
+	readPlannedMetric,
+} from '../planned-discipline.ts'
+import {
 	deriveSessionProfile,
 	intentToZone,
 	parseRecordingPhaseBars,
 	type ProfileBar,
 } from '../session-profile.ts'
+import { isSimpleActivity } from '../simple-activity.ts'
 import { type LedgerSession } from '../training.server.ts'
 import { getSessionDiscipline, type LedgerStatus } from '../training.ts'
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
@@ -58,8 +65,8 @@ import { fixedDayVolume } from './week-pattern.ts'
 export const DRIFT_TOLERANCE = 0.1
 
 /**
- * The import-only Discipline (ADR 0015). It is not in `DISCIPLINES`, because
- * nothing is authored in it — it only ever arrives on a recording.
+ * The Discipline `other` (ADR 0015). It is not in `DISCIPLINES`: it arrives on
+ * a recording, or is planned only as a Simple Activity (§A).
  */
 export const OTHER_DISCIPLINE = 'other'
 
@@ -203,6 +210,27 @@ export type CurrencyFigures = {
 	sets: number | null
 }
 
+/**
+ * A planned session's figures in each currency, read through the planned
+ * discipline (`planned-discipline.ts`). Hours are the session's planned time,
+ * so a planned Simple Activity on `other` counts its minutes in an hours track
+ * (ADR 0015 §A); km, TSS and sets are an Unavailable Metric
+ * (`simple-activity`) for it, so it can never be summed as a guessed number.
+ */
+export function plannedVolumeOf(
+	discipline: string,
+	figures: CurrencyFigures,
+): { [C in keyof CurrencyFigures]: PlannedMetric<number> } {
+	const read = (value: number | null) =>
+		readPlannedMetric(discipline, 'planned-volume', () => value)
+	return {
+		km: read(figures.km),
+		hours: readPlannedMetric(discipline, 'planned-time', () => figures.hours),
+		tss: read(figures.tss),
+		sets: read(figures.sets),
+	}
+}
+
 /** One session, as the week model reads it. */
 export type VolumeSession = {
 	/** `YYYY-MM-DD` in the Athlete Timezone. */
@@ -211,6 +239,11 @@ export type VolumeSession = {
 	discipline: string
 	/** The Workout's intent centres on zone 1–2: what easy pace averages over. */
 	easy: boolean
+	/**
+	 * A planned **Simple Activity** (ADR 0015 §A): on `other`, but on its own
+	 * track rather than in Annet. An import on `other` is not one.
+	 */
+	simpleActivity?: boolean
 	/** What the prescription holds; null for a recording-only session (an extra). */
 	prescribed: CurrencyFigures | null
 	/** What was recorded or logged; null when nothing has come in yet. */
@@ -245,26 +278,36 @@ export function volumeSessionOf(
 	// such sessions would read `planlagt 0 sett` beside `0 av 2 økter`.
 	const prescribedSets =
 		discipline === 'strength' && workout ? sumBlockSets(workout.blocks) : 0
+	const prescribed = workout
+		? prescribedFigures(discipline, {
+				km: fixedDayVolume(workout.blocks, 'km'),
+				hours: fixedDayVolume(workout.blocks, 'hours'),
+				// A Planned TSS of zero is one that did not resolve — the week's
+				// TSS line reads it the same way — so it is unmeasured, not 0.
+				tss:
+					session.plannedTssValue != null && session.plannedTssValue > 0
+						? session.plannedTssValue
+						: null,
+				sets: prescribedSets > 0 ? prescribedSets : null,
+			})
+		: null
+	// A Simple Activity marked _Gjort_ by hand counts its planned time as done
+	// (ADR 0015 §A); a Recording linked to it later replaces that below.
+	const doneByHand =
+		status === 'completed' &&
+		recording == null &&
+		isSimpleActivity(workout) &&
+		prescribed?.hours != null
 	return {
 		dayKey,
 		status,
 		discipline,
 		easy: intentZone != null && intentZone <= 2,
-		prescribed: workout
-			? {
-					km: fixedDayVolume(workout.blocks, 'km'),
-					hours: fixedDayVolume(workout.blocks, 'hours'),
-					// A Planned TSS of zero is one that did not resolve — the week's
-					// TSS line reads it the same way — so it is unmeasured, not 0.
-					tss:
-						session.plannedTssValue != null && session.plannedTssValue > 0
-							? session.plannedTssValue
-							: null,
-					sets: prescribedSets > 0 ? prescribedSets : null,
-				}
-			: null,
-		recorded:
-			recording || logged > 0 || session.tssValue != null
+		simpleActivity: isSimpleActivity(workout),
+		prescribed,
+		recorded: doneByHand
+			? { km: null, hours: prescribed?.hours ?? null, tss: null, sets: null }
+			: recording || logged > 0 || session.tssValue != null
 				? {
 						km:
 							recording?.distanceM != null ? recording.distanceM / 1000 : null,
@@ -276,9 +319,30 @@ export function volumeSessionOf(
 						sets: logged > 0 ? logged : null,
 					}
 				: null,
-		plannedZones: workout ? deriveSessionProfile(workout).bars : [],
+		plannedZones: workout
+			? (plannedMetricValue(
+					readPlannedMetric(
+						discipline,
+						'planned-zones',
+						() => deriveSessionProfile(workout).bars,
+					),
+				) ?? [])
+			: [],
 		doneZones: parseRecordingPhaseBars(recording?.phaseBarsJson),
 		countsInNoTrack: session.countsInNoTrack,
+	}
+}
+
+function prescribedFigures(
+	discipline: string,
+	figures: CurrencyFigures,
+): CurrencyFigures {
+	const read = plannedVolumeOf(discipline, figures)
+	return {
+		km: plannedMetricValue(read.km),
+		hours: plannedMetricValue(read.hours),
+		tss: plannedMetricValue(read.tss),
+		sets: plannedMetricValue(read.sets),
 	}
 }
 
@@ -405,7 +469,11 @@ export function buildWeekVolumes({
 
 	const annetReason = (s: VolumeSession): AnnetReason | null => {
 		if (s.countsInNoTrack) return 'athlete-choice'
-		if (s.discipline === OTHER_DISCIPLINE) return 'other-discipline'
+		// An import on `other` is in Annet (ADR 0015); a planned Simple Activity
+		// is on its track on `other`, and in Annet only where there is none.
+		if (s.discipline === OTHER_DISCIPLINE && !s.simpleActivity) {
+			return 'other-discipline'
+		}
 		if (trackDisciplines.size > 0 && !trackDisciplines.has(s.discipline)) {
 			return 'no-track'
 		}

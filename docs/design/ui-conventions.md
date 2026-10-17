@@ -188,9 +188,13 @@ duplicate a footer dismiss button — the ✕ is the dismissal affordance.
 
 ### 3.3 Top-level screens
 
-Top-level surfaces (each tab's landing page — I dag, Sesong, Bibliotek and Meg —
-and the auth entry screens) carry no back affordance: the tab bar is the way out
-(ADR 0083). A page inside a tab backs out to its tab's landing page. Auth flows
+Top-level surfaces (each tab's landing page — I dag, Plan and Meg, with Plan's
+plan creation standing in for the plan while there is none — and the auth entry
+screens) carry no back affordance: the tab bar is the way out (ADR 0083, ADR
+0101). A page inside a tab backs out to its tab's landing page. Bibliotek's
+landing is no longer one: Bibliotek is a section of Plan, and a page inside it
+(the Catalogue, Programs, the exercises) backs out to Plan through Bibliotek's
+old address, which forwards to that section (`LIBRARY_SECTION_HREF`). Auth flows
 use the page-title rules (§1.3) at the narrow tier.
 
 ## 4. Enum labels

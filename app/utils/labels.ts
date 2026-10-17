@@ -43,6 +43,7 @@ import type {
 	SessionArchetype,
 } from './catalogue.ts'
 import type { ConnectionHubStatus } from './connection-hub-status.ts'
+import type { EffortWord } from './effort-word.ts'
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
 import type {
 	EventDateProblem,
@@ -53,6 +54,7 @@ import type {
 	FindingAbsence,
 	HoursEstimate,
 } from './first-run/first-run.ts'
+import type { TrainingLevel } from './first-run/start-draft.ts'
 import type {
 	ImportLinkRefusal,
 	MarkDoneRefusal,
@@ -113,6 +115,7 @@ import type {
 	ThresholdProtocol,
 } from './profile-analysis/types.ts'
 import type { SessionOwner } from './session-ownership.ts'
+import type { ActivityKind } from './simple-activity.ts'
 import type { Attribution } from './source-terms.ts'
 import type { RepLoadBasis } from './strength/anchors.constants.ts'
 import type { OneRmRefusal } from './strength/one-rm.ts'
@@ -928,8 +931,8 @@ export function weekChangeWaitingLabel(count: number): string {
 export const TOP_LINE_LABELS = {
 	region: 'Planen',
 	noPlan: 'Ingen plan',
-	/** The no-plan line's link, to Sesong. */
-	noPlanAction: 'Lag en i Sesong',
+	/** The no-plan line's link, to Plan. */
+	noPlanAction: 'Lag en i Plan',
 	/** A race with no name, on the countdown. */
 	raceDay: 'Løpsdagen',
 	/**
@@ -1359,7 +1362,7 @@ export const SEASON_PANE_LABELS = {
 	horizon: 'horisont · økter fylles hit, videre bare mål',
 	noPlan: 'Ingen plan ennå',
 	noPlanNote: 'Sesongen er bare ukene du har skrevet.',
-	noPlanAction: 'Lag en i Sesong',
+	noPlanAction: 'Lag en i Plan',
 	/** A table cell's accessible name: `Løping: mål 46 km, gjort 35`. */
 	cellName: (track: string, target: string, done: string) =>
 		`${track}: mål ${target}, gjort ${done}`,
@@ -1459,6 +1462,48 @@ export function nbDisciplineLabel(discipline: string): string {
 		'Annen aktivitet'
 	)
 }
+
+/**
+ * A **Simple Activity** (ADR 0015 §A, #567): its Activity Kind, its Effort
+ * Word and the numbers it does not carry. Every one of those is _ikke målt_
+ * with the same reason, never a number (spec #558 story 63).
+ */
+export const SIMPLE_ACTIVITY_LABELS = {
+	/** The UI word for the thing itself. */
+	noun: 'Enkel aktivitet',
+	kind: {
+		'cross-country-ski': 'Langrenn',
+		hike: 'Fjelltur',
+		climb: 'Klatring',
+		'yoga-mobility': 'Yoga og bevegelighet',
+	} satisfies Record<ActivityKind, string>,
+	/** The Effort Word as a row and the detail page say it. Never a zone. */
+	effort: {
+		rolig: 'Rolig',
+		middels: 'Middels',
+		hard: 'Hard',
+	} satisfies Record<EffortWord, string>,
+	/** The heading over the numbers it does not carry. */
+	notMeasuredHeading: 'Ikke målt',
+	notMeasured: 'ikke målt',
+	/** Why, said once under the list. */
+	notMeasuredReason:
+		'En enkel aktivitet har bare tid og innsats. Soner, fart, watt og belastning kan ikke måles for den ennå, så de står uten tall.',
+	/** The numbers withheld, in the order the page lists them. */
+	metrics: {
+		zones: 'Soner',
+		pace: 'Fart',
+		power: 'Watt',
+		plannedTss: 'Planlagt TSS',
+		trainingLoad: 'Treningsbelastning',
+	},
+	/**
+	 * Under "hva var dette?" for an import on `other` on a day with a planned
+	 * Simple Activity: the app never links one itself (story 66).
+	 */
+	linkQuestionNote:
+		'Appen kobler ikke enkle aktiviteter selv. Si fra om det var denne.',
+} as const
 
 /**
  * What a session with no title of its own is called: `Løpeøkt`, `Sykkeløkt` —
@@ -1974,6 +2019,8 @@ export function familyChoiceSentence(choice: FamilyChoice): string {
 				return `du har ${nbHoursLabel(reason.hours)} i uka mot et løp. Med begrenset tid gir kontrollert harde økter mest igjen.`
 			case 'steady':
 				return 'du trener jevnt og vil holde deg i form. Tre uker som bygger og én lett holder formen oppe uten å slite deg ut.'
+			case 'training-level':
+				return `${SIMPLE_START_LABELS.levelReason[reason.level]}.`
 		}
 	})()
 	return `Vi valgte ${name} fordi ${because}`
@@ -2118,7 +2165,7 @@ export const FIRST_RUN_LABELS = {
 		curveLabel: (weeks: number) =>
 			`Ukene i planen, ${weeks} stolper: høyden er timene den uka.`,
 		strength: (perWeek: number) =>
-			`Du løfter ${nbNumber(perWeek)} ${perWeek === 1 ? 'gang' : 'ganger'} i uka. Styrken legger du til i Sesong når planen er laget – der foreslår vi et styrkespor fra historikken din.`,
+			`Du løfter ${nbNumber(perWeek)} ${perWeek === 1 ? 'gang' : 'ganger'} i uka. Styrken legger du til i Plan når planen er laget – der foreslår vi et styrkespor fra historikken din.`,
 		startsOn: (date: string) => `Planen starter ${date}.`,
 		switchTitle: 'Bytt filosofi',
 		switchSubmit: 'Bruk denne',
@@ -2145,7 +2192,7 @@ export const FIRST_RUN_LABELS = {
 		hard: 'hard økt',
 		create: 'Start planen',
 		selfSetUp: 'Jeg vil heller sette opp sesongen selv',
-		selfSetUpHelp: 'Du får den samme planen i Sesong, og kan endre alt i den.',
+		selfSetUpHelp: 'Du får den samme planen i Plan, og kan endre alt i den.',
 		created: 'Planen er klar',
 		createdDescription: 'De to første ukene ligger i I dag.',
 		back: 'Tilbake til planen',
@@ -2154,14 +2201,245 @@ export const FIRST_RUN_LABELS = {
 
 /** Why the first run's plan could not be made, said where it is refused. */
 export const FIRST_RUN_REFUSAL_LABELS: Record<FirstRunPlanRefusal, string> = {
-	'plan-already-active': 'Du har allerede en plan. Du finner den i Sesong.',
+	'plan-already-active': 'Du har allerede en plan. Du finner den i Plan.',
 	'event-too-soon': EVENT_DATE_LABELS['too-soon'],
 	'event-too-far': EVENT_DATE_LABELS['too-far'],
 	'goal-unavailable':
 		'Målet kunne ikke få en plan. Prøv igjen, eller velg Hold meg aktiv.',
 	'nothing-to-lay':
 		'Med disse svarene ble det ingen økter å legge. Velg minst én dag og noen timer i uka.',
+	'option-unavailable':
+		'Den måten å trene på finnes ikke for disse svarene. Velg en av dem som vises.',
 }
+
+/** `4,5 timer`, `1 time`: hours as a Norwegian reads them, comma and word. */
+export function nbHoursWords(hours: number): string {
+	return `${nbNumber(hours)} ${hours === 1 ? 'time' : 'timer'}`
+}
+
+/**
+ * The simple start (#558 _Levende start_, #563): _Hvor er du nå?_ with the
+ * hours, then _Hva liker du å trene?_ with the days, and _Uka di_ — the
+ * **Week Sketch** — filling in beside them as the athlete answers.
+ */
+export const SIMPLE_START_LABELS = {
+	title: 'Kom i gang',
+	/** Each **Training Level**, with the one sentence that describes it. */
+	levels: {
+		beginner: {
+			name: 'Nybegynner',
+			description: 'Jeg er i gang, eller kommer tilbake etter en pause.',
+		},
+		recreational: {
+			name: 'Mosjonist',
+			description: 'Jeg trener jevnlig, to–tre ganger i uka.',
+		},
+		experienced: {
+			name: 'Erfaren',
+			description: 'Jeg har trent strukturert i flere år.',
+		},
+		competitive: {
+			name: 'Konkurranse',
+			description: 'Jeg trener mot resultater og tåler mye.',
+		},
+	} satisfies Record<TrainingLevel, { name: string; description: string }>,
+	level: {
+		title: 'Hvor er du nå?',
+		legend: 'Nivå',
+		hours: 'Omtrent hvor mye tid i uka?',
+		fewer: 'Mindre tid',
+		more: 'Mer tid',
+		/** The hours' sentence at each end of the range (1–20). */
+		atMin: 'Minst 1 time. Mindre enn det blir ingen plan.',
+		atMax: 'Høyst 20 timer i uka. Mer enn det lager vi ikke plan for.',
+		/** Between the ends: where the number came from. */
+		typical: {
+			beginner: 'Vanlig for en nybegynner.',
+			recreational: 'Vanlig for en mosjonist.',
+			experienced: 'Vanlig for en som har trent i flere år.',
+			competitive: 'Vanlig for en som trener mot konkurranser.',
+		} satisfies Record<TrainingLevel, string>,
+		/** The hours are what the athlete trains now (ADR 0091 §3). */
+		meaning: 'Det du trener nå. Planen starter der og bygger seg opp.',
+		next: 'Neste',
+	},
+	activities: {
+		title: 'Hva liker du å trene?',
+		sport: 'Hovedidrett',
+		sportHelp: 'Planen bygges rundt denne idretten.',
+		days: 'Hvilke dager kan du trene?',
+		/** How many days are picked, and that they are a limit. */
+		daysPicked: (days: number) =>
+			days === 0
+				? 'Ingen dager valgt ennå.'
+				: `${days} ${days === 1 ? 'dag' : 'dager'}. Vi legger aldri inn mer enn du har tid til.`,
+		/** A _Nybegynner_ with more days than four (the level's session cap). */
+		beginnerCap: (cap: number) =>
+			`Som nybegynner får du høyst ${cap} økter i uka. Vi velger dagene som gir mest hvile mellom.`,
+		/** Seven days: one stays free (`MAX_SESSION_DAYS`). */
+		restDay: 'Alle sju dager er valgt. Vi holder én dag fri, så du får hvile.',
+		next: 'Vis planen',
+		/** Several endurance sports (#573): every one picked, and the main one. */
+		sports: 'Utholdenhetsidretter',
+		sportsHelp:
+			'Velg så mange du vil. Den første du velger, blir hovedidretten.',
+		mainSportLead: 'Hovedidrett:',
+		/** The line as a button, where another picked sport can take over. */
+		switchMainSport: (sport: string, next: string) =>
+			`Hovedidrett: ${sport}. Bytt til ${next}`,
+		switchHint: 'Bytt',
+	},
+	/** _Uka di_: the live week (story 26–29). */
+	sketch: {
+		title: 'Uka di',
+		empty: 'Uka di er tom ennå',
+		hint: 'Svarene dine blir til en uke her.',
+		summary: (sessions: number, duration: string) =>
+			`${sessions} ${sessions === 1 ? 'økt' : 'økter'} · ${duration}`,
+		free: 'fri',
+		/** A day as a screen reader hears it: `mandag: Rolig økt · Løping, 45 min`. */
+		day: (weekday: string, what: string) => `${weekday}: ${what}`,
+		session: (title: string, duration: string) => `${title}, ${duration}`,
+	},
+	backTo: {
+		level: 'Tilbake til nivå og timer',
+		activities: 'Tilbake til hva du liker å trene',
+	},
+	messages: {
+		levelRequired: 'Velg hvor du er nå',
+		hoursRequired: 'Velg hvor mye tid du har i uka',
+		hoursMin: 'Minst 1 time i uka',
+		hoursMax: 'Høyst 20 timer i uka',
+		hoursStep: 'Timene går i halve timer',
+		disciplineRequired: 'Velg en idrett',
+	},
+	/**
+	 * Why the plan screen proposes the level's first family, when the answers
+	 * came from the simple start: `Vi valgte Stor base fordi du er nybegynner.`
+	 */
+	levelReason: {
+		beginner: 'du er nybegynner',
+		recreational: 'du er mosjonist',
+		experienced: 'du har trent i flere år',
+		competitive: 'du trener mot konkurranser',
+	} satisfies Record<TrainingLevel, string>,
+} as const
+
+/** Months in full, as the start says a date: `19. oktober`. */
+const NB_MONTHS_LONG = [
+	'januar',
+	'februar',
+	'mars',
+	'april',
+	'mai',
+	'juni',
+	'juli',
+	'august',
+	'september',
+	'oktober',
+	'november',
+	'desember',
+] as const
+
+/** `mandag 19. oktober`: a calendar day (`YYYY-MM-DD`), weekday and all. */
+export function nbLongDay(dayKey: string): string {
+	const [year, month, day] = dayKey.split('-').map(Number) as [
+		number,
+		number,
+		number,
+	]
+	const weekday = (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7
+	return `${NB_WEEKDAY_LABELS[weekday]} ${day}. ${NB_MONTHS_LONG[month - 1]}`
+}
+
+/** The families the start offers, each with its plain name. */
+type StartFamily = Exclude<PresetFamily, 'masters'>
+
+/**
+ * _Tre måter å trene på_ (#558, #566): the **Start Options**, each a card led
+ * by a plain name with the family's name small, and _Velg denne_.
+ */
+export const START_OPTION_LABELS = {
+	metaTitle: 'Tre måter å trene på',
+	/** The heading says how many ways there are once identical ones merged. */
+	title: (count: number) =>
+		count >= 3
+			? 'Tre måter å trene på'
+			: count === 2
+				? 'To måter å trene på'
+				: 'Én måte å trene på',
+	intro: (count: number, hours: string, days: number) =>
+		`${count === 1 ? 'Det er' : 'Hver er'} en ekte første uke med ${hours} på ${days} ${days === 1 ? 'dag' : 'dager'}.`,
+	/** Why there are fewer than three (ADR 0102 §2). */
+	merged: (shown: number) =>
+		shown === 1
+			? 'Med disse svarene la alle måtene nøyaktig samme uke, så du ser bare én.'
+			: 'Med disse svarene la to av måtene nøyaktig samme uke, så du ser bare to.',
+	/** Each family's plain name and why, the way variant A wrote them. */
+	plain: {
+		polarized: {
+			name: 'Mest rolig, litt veldig hardt',
+			why: 'Nesten alt går rolig. Av og til går det skikkelig hardt. Gir mye form for lite slitasje.',
+		},
+		threshold: {
+			name: 'Jevnt og kontrollert hardt',
+			why: 'Økter der du jobber jevnt hardt i lengre drag. Effektivt når tiden er knapp.',
+		},
+		classic: {
+			name: 'Variert og bygger seg opp',
+			why: 'Litt av alt. Tre uker blir gradvis tyngre, den fjerde er lett så kroppen tar igjen.',
+		},
+		'big-base': {
+			name: 'Bygg grunnform først',
+			why: 'Bare rolig trening i starten, så blir det hardere. Trygt når du starter opp.',
+		},
+	} satisfies Record<StartFamily, { name: string; why: string }>,
+	familyName: (name: string) => `Fagnavn: ${name}`,
+	badge: {
+		'best-fit': 'Passer deg best',
+		level: 'Anbefalt for nivået ditt',
+	},
+	/** A session's effort word: never a Training Zone. */
+	effort: {
+		easy: 'rolig',
+		moderate: 'middels',
+		hard: 'hard',
+	},
+	/** The bar of easy, middling and hard time, for a screen reader. */
+	effortBar: (easy: number, moderate: number, hard: number) =>
+		`${easy} % rolig, ${moderate} % middels, ${hard} % hard`,
+	total: (duration: string) => `${duration} i uka`,
+	sessions: (count: number) => `${count} ${count === 1 ? 'økt' : 'økter'}`,
+	hardSessions: (count: number) => `${count} ${count === 1 ? 'hard' : 'harde'}`,
+	free: 'fri',
+	/** A session's facts on its row: `45 min · rolig`. */
+	sessionFacts: (duration: string, effort: string) => `${duration} · ${effort}`,
+	/** Week 1 short of the hours given (ADR 0102 §4), with the reason. */
+	shortOfHours: (planned: string, hours: string) =>
+		`Uka blir ${planned}, ikke ${hours}: øktene kan ikke bli lengre på dagene du valgte.`,
+	startsOn: (day: string) => `Planen starter ${day}.`,
+	choose: 'Velg denne',
+	/** _Velg denne_ as a screen reader hears it, with the card's name. */
+	chooseLabel: (name: string) => `Velg denne: ${name}`,
+	rail: 'Måtene å trene på',
+	railRole: 'karusell',
+	cardRole: 'måte',
+	card: (index: number, count: number, name: string) =>
+		`${index} av ${count}: ${name}`,
+	pager: 'Bla mellom måtene',
+	dot: (index: number, count: number, name: string) =>
+		`Vis ${index} av ${count}: ${name}`,
+	back: 'Tilbake til hva du liker å trene',
+	created: 'Planen er laget',
+	createdDescription: (day: string) => `Den starter ${day}.`,
+	/** Sports picked that the week has no day for (#573), lower case. */
+	sportsLeftOut: (sessions: number, sports: readonly string[]) =>
+		`Uka har plass til ${sessions} ${sessions === 1 ? 'økt' : 'økter'}, så ${
+			sports.length <= 1
+				? sports.join('')
+				: `${sports.slice(0, -1).join(', ')} og ${sports.at(-1)}`
+		} fikk ikke egne dager. Velg flere dager, mer tid eller færre idretter.`,
+} as const
 
 /**
  * What one session does to its week, in the track's unit (#505 stories 37 and
@@ -3512,20 +3790,83 @@ export const SOURCE_ATTRIBUTION_LABELS = {
 } as const
 
 // ---------------------------------------------------------------------------
-// The four tabs
+// The three tabs
 // ---------------------------------------------------------------------------
 
 /**
- * The tab names, in the spec's Norwegian (spec #505 stories 56–59; ADR 0081
- * lets the #505 surfaces use the spec's own words). They are the bar's labels
- * and the titles of the tabs' landing pages, so the two never disagree.
+ * The tab names, in the spec's Norwegian (spec #558, ADR 0101 §1; ADR 0081
+ * lets the spec's surfaces use the spec's own words). They are the bar's
+ * labels and the titles of the tabs' landing pages, so the two never disagree.
+ * _Sesong_ and _Bibliotek_ are retired as tab names: Plan is the old Sesong,
+ * and Bibliotek is a section of it (`LIBRARY_LABELS.title`).
  */
 export const APP_TAB_LABELS: Record<AppTab, string> = {
 	today: 'I dag',
-	season: 'Sesong',
-	library: 'Bibliotek',
+	plan: 'Plan',
 	me: 'Meg',
 }
+
+/**
+ * The full Home Timeline at its own address (spec #558 story 102, #562): the
+ * Week Strip, the Stream, the Writing Line and the panes, behind I dag's link
+ * of these words. The page's title says what the link promised.
+ */
+export const HOME_TIMELINE_FULL_VIEW_LABELS = {
+	link: 'Se hele sesongen',
+	title: 'Hele sesongen',
+} as const
+
+/**
+ * I dag's calm default view (spec #558 S4, ADR 0101 §3–§4): the top line, the
+ * today card and this week's seven rows. A free day is _fri_, never _hvile_;
+ * _hviledag_ only where the plan prescribes recovery (Every-Day Grid rule).
+ */
+export const CALM_TODAY_LABELS = {
+	region: 'I dag',
+	cardRegion: 'Dagens økt',
+	effort: {
+		rolig: 'rolig',
+		middels: 'middels',
+		hard: 'hard',
+	} satisfies Record<EffortWord, string>,
+	/** The card's one plain sentence, when the session carries no note. */
+	sentence: {
+		rolig: 'Rolig hele veien. Du skal kunne prate.',
+		middels: 'Kontrollert hardt. Pusten er tung, men jevn.',
+		hard: 'Varm godt opp. Hardt i dragene, rolig mellom.',
+	} satisfies Record<EffortWord, string>,
+	sentenceStrength: 'Ta settene slik de står, med hvile mellom.',
+	sentencePlain: 'Gjør økta slik den står.',
+	done: 'Gjort',
+	doneFor: (title: string) => `Marker «${title}» som gjort`,
+	openSession: 'Se økta',
+	doneTitle: 'Ferdig for i dag',
+	doneLine: (titles: string) => `Du har gjort ${titles}.`,
+	freeTitle: 'Fri i dag',
+	next: (title: string, when: string) => `Neste økt: ${title}, ${when}.`,
+	nothingAhead: 'Ingen økter er lagt ut framover ennå.',
+	tomorrow: 'i morgen',
+	addToday: 'Legg til en økt i dag',
+	beforeStartTitle: (date: string) => `Planen starter ${date}`,
+	firstSession: (title: string, when: string) =>
+		`Første økt: ${title}, ${when}.`,
+	noFirstSession: 'Ukene legges ut før planen starter.',
+	noPlanTitle: 'Du har ingen plan ennå',
+	noPlanBody: 'Svar på noen få spørsmål, så legger appen opp ukene for deg.',
+	noPlanAction: 'Kom i gang',
+	weekHeading: 'Denne uka',
+	weekDone: (done: number, total: number) =>
+		`${done} av ${total} ${total === 1 ? 'økt' : 'økter'} gjort`,
+	free: 'fri',
+	restDay: 'hviledag',
+	missed: 'ikke gjort',
+	doneMark: 'gjort',
+	plannedMark: 'ikke gjort ennå',
+	addOn: (day: string) => `Legg til en økt ${day}`,
+	weekChangeWaiting: (count: number) =>
+		`Ukeskiftet har ${count} forslag som venter på deg.`,
+	weekChangeOpen: 'Se forslagene',
+} as const
 
 /** The page header's back button, named for the screen it goes back to. */
 export const PAGE_HEADER_LABELS = {
@@ -3708,7 +4049,7 @@ export function nbDays(count: number): string {
 
 /** The page itself: its title, hero, picture, readings and summary card. */
 export const SESONG_PAGE_LABELS = {
-	metaTitle: 'Sesong | Trainm8',
+	metaTitle: 'Plan | Trainm8',
 	heroToward: 'Du bygger mot',
 	heroChange: 'Endre løpet',
 	/** `24. okt 2026 · 10 uker fra 10. aug 2026`. */
@@ -4555,7 +4896,7 @@ export const EVENTS_LABELS = {
 	// The list.
 	title: 'Løp',
 	metaTitle: 'Løp | Trainm8',
-	backToSeason: 'Sesong',
+	backToSeason: 'Plan',
 	newEvent: 'Nytt løp',
 	upcoming: 'Kommende',
 	past: 'Tidligere og avlyste',
@@ -4674,10 +5015,12 @@ export const PLAN_NEW_LABELS = {
 
 /**
  * Bibliotek (spec #505 story 58): the hub that names the catalogue, the
- * strength programs and the athlete's own lifts. The pages it opens keep their
- * own (English) words until they are redesigned (ADR 0081 §4).
+ * strength programs and the athlete's own lifts — a section of Plan since ADR
+ * 0101, no longer a tab. The pages it opens keep their own (English) words
+ * until they are redesigned (ADR 0081 §4).
  */
 export const LIBRARY_LABELS = {
+	title: 'Bibliotek',
 	catalogue: 'Katalog',
 	catalogueDetail: 'Ferdige økter du kan ta inn i uka di.',
 	programs: 'Styrkeprogrammer',
@@ -6507,7 +6850,7 @@ export const PLAN_SHAPE_STEP_LABELS = {
 			'Det løpet er avlyst, så det kan ikke være mål for en plan.',
 		'event-already-planned': 'Det løpet har allerede en plan.',
 		'open-ended-already-active':
-			'Du har allerede en plan uten slutt. Åpne den fra Sesong.',
+			'Du har allerede en plan uten slutt. Åpne den fra Plan.',
 	} satisfies Record<CreateOutlineRefusal, string>,
 } as const
 

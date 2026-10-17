@@ -1,6 +1,9 @@
 # Four tabs are the persistent chrome, and old URLs keep working
 
-Status: Accepted
+Status: Accepted · **§1 amended by
+[ADR 0101](./0101-three-tabs-and-a-calm-i-dag-that-shows-today-and-this-week.md)**:
+three tabs, _I dag_, _Plan_ and _Meg_; _Sesong_ is _Plan_ and _Bibliotek_ a
+section of it (§5, §6, §8 with it). §4 (old URLs keep working) stands.
 
 **Supersedes #178's embedded navigation** — _"the wordmark row is the only
 persistent chrome; every other destination is reached through page elements"_

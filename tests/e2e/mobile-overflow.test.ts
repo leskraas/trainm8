@@ -187,12 +187,13 @@ test('the Bibliotek and Meg tabs do not overflow, and the tab bar covers no cont
 	test.setTimeout(120_000)
 	await login()
 
-	// The two hub tabs are new surfaces (ADR 0083); the bottom tab bar is fixed
-	// over the phone's bottom edge, so it is the one new way to push a page
-	// sideways or hide its last line.
+	// The hub surfaces (ADR 0083, ADR 0101); the bottom tab bar is fixed over the
+	// phone's bottom edge, so it is the one new way to push a page sideways or
+	// hide its last line. Bibliotek is a section of Plan now, and its old address
+	// lands there.
 	await navigate('/library')
 	await expect(
-		page.getByRole('heading', { name: 'Bibliotek', level: 1 }),
+		page.getByRole('heading', { name: 'Bibliotek', level: 2 }),
 	).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 

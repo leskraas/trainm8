@@ -688,6 +688,8 @@ export function notationInputToWorkout(
 		intent: (options.intent ?? null) as Workout['intent'],
 		// The Shape never reads the archetype, and a draft has stated nothing.
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: input.blocks.map((block, blockIndex) => ({
 			id: `block-${blockIndex}`,
 			name: block.name ?? null,

@@ -454,7 +454,7 @@ export default function NewPlanStructureRoute({
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title={L.title}
-				back={{ to: '/training/plan/new', label: APP_TAB_LABELS.season }}
+				back={{ to: '/training/plan/new', label: APP_TAB_LABELS.plan }}
 				className="mb-4"
 			/>
 

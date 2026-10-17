@@ -13,6 +13,7 @@ import { type FirstRunDraft } from '#app/utils/first-run/draft.ts'
 import {
 	answersSearch,
 	FamilySwitchSchema,
+	questionsPath,
 	readAnswers,
 	type FirstRunAnswers,
 } from '#app/utils/first-run/first-run-schema.ts'
@@ -64,7 +65,7 @@ export const meta: Route.MetaFunction = () => [
 
 /** The questions' answers as "Endre svarene" hands them back. */
 function questionsLink(answers: FirstRunAnswers): string {
-	return `/start/sporsmal?${answersSearch({ ...answers, family: null })}`
+	return questionsPath(answers)
 }
 
 async function readPlan(request: Request) {

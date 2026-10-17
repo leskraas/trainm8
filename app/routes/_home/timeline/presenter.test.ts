@@ -69,6 +69,8 @@ function workout(overrides: Partial<Workout> = {}): Workout {
 		discipline: 'run',
 		intent: 'endurance',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: [
 			{
 				id: 'block-1',

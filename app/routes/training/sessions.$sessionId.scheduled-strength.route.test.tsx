@@ -52,6 +52,8 @@ function scheduledSquats(): SessionDetail {
 			discipline: 'strength',
 			intent: 'strength',
 			archetype: null,
+			activityKind: null,
+			effortWord: null,
 			blocks: [
 				{
 					id: 'block-1',

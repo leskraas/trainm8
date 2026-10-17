@@ -738,6 +738,49 @@ test('mark-missed action rejects a completed session with 400', async () => {
 	expect(after!.status).toBe('completed')
 })
 
+test('mark-missed refuses a session still ahead: the future cannot be marked ikke gjort (#558 S4)', async () => {
+	const user = await setupUser()
+	const ahead = await createWorkoutSession(user.userId, inDays(2))
+	const cookieHeader = await getSessionCookieHeader(user)
+
+	const page = await loader({
+		request: makeRequest(ahead.id, cookieHeader),
+		params: { sessionId: ahead.id },
+		...LOADER_ARGS_BASE,
+	})
+	expect(page.canMarkMissed).toBe(false)
+
+	const response = await action({
+		request: makeActionRequest(
+			ahead.id,
+			{ intent: 'mark-missed' },
+			cookieHeader,
+		),
+		params: { sessionId: ahead.id },
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+
+	expect((response as Response).status).toBe(400)
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: ahead.id },
+		select: { status: true },
+	})
+	expect(after!.status).toBe('scheduled')
+})
+
+test('a planned session whose day has passed may be marked ikke gjort from its page', async () => {
+	const user = await setupUser()
+	const gone = await createWorkoutSession(user.userId, daysAgo(1))
+	const cookieHeader = await getSessionCookieHeader(user)
+
+	const page = await loader({
+		request: makeRequest(gone.id, cookieHeader),
+		params: { sessionId: gone.id },
+		...LOADER_ARGS_BASE,
+	})
+	expect(page.canMarkMissed).toBe(true)
+})
+
 test('redetect action rejects a prescription-only session (no recording) with 400', async () => {
 	const user = await setupUser()
 	// A scheduled authored session: a prescription with no Recording to detect.

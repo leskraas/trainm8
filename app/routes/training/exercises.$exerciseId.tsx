@@ -32,9 +32,10 @@ import { Link } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
+import { LIBRARY_SECTION_HREF } from '#app/utils/app-tabs.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { EXERCISE_PAGE_LABELS as L } from '#app/utils/labels.ts'
+import { APP_TAB_LABELS, EXERCISE_PAGE_LABELS as L } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type StallHistoryEntry } from '#app/utils/strength/program-engine.ts'
 import { type EquipmentId, EQUIPMENT_IDS } from '#app/utils/strength-log.ts'
@@ -155,7 +156,7 @@ export default function ExerciseHistoryRoute({
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title={model.title}
-				back={{ to: '/library', label: 'Bibliotek' }}
+				back={{ to: LIBRARY_SECTION_HREF, label: APP_TAB_LABELS.plan }}
 				className="mb-6"
 			/>
 

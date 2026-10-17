@@ -163,13 +163,15 @@ export async function answerImportQuestion(
 			select: { id: true },
 		})
 		if (!owned) return { ok: false, reason: 'session-not-found' }
-		// Only a session the import could be: the same rule auto-save links by
-		// and the question offers (`fitsImport`) — same day, same sport, a
-		// planned session holding no Recording.
+		// Only a session the import could be: the rule the question offers by
+		// (`fitsImportByHand`) — same day, same sport, a planned session holding
+		// no Recording, or for an import on `other` a planned Simple Activity
+		// (ADR 0015 §A). Auto-save itself never links by it.
 		const candidates = await findPlanCandidates(
 			athleteId,
 			importId,
 			await getAthleteTimezone(athleteId),
+			{ rule: 'by-hand' },
 		)
 		if (!candidates.includes(answer.sessionId)) {
 			return { ok: false, reason: 'not-a-fit' }

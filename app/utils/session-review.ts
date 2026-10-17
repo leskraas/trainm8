@@ -7,10 +7,22 @@
 // number, and the Adherence Band only resolves when both TSS values exist.
 import { sumBlockDistanceM, sumBlockDurationMin } from './dashboard.ts'
 import { type AdherenceBand, sessionAdherence } from './load/adherence.ts'
+import {
+	type PlannedMetric,
+	type PlannedSessionMetric,
+	plannedMetricValue,
+	readPlannedMetric,
+} from './planned-discipline.ts'
 
 /** One planned-vs-actual comparison; either side is `null` when unavailable. */
 export type ReviewMetric = {
 	planned: number | null
+	/**
+	 * The planned side as read through the planned discipline
+	 * (`planned-discipline.ts`): the number, or the Unavailable Metric with its
+	 * reason. `planned` is its value.
+	 */
+	plannedRead: PlannedMetric<number>
 	actual: number | null
 }
 
@@ -29,6 +41,11 @@ export type ReviewSession = {
 	tssValue: number | null
 	plannedTssValue: number | null
 	workout: {
+		/**
+		 * The planned session's Discipline. Absent reads as a measured one — the
+		 * route always passes it (the session's own select), so `other` is caught.
+		 */
+		discipline?: string
 		blocks: Array<{
 			repeatCount: number
 			steps: Array<{ durationSec: number | null; distanceM: number | null }>
@@ -43,29 +60,41 @@ export type ReviewSession = {
 export function buildReviewComparison(
 	session: ReviewSession,
 ): ReviewComparison {
-	const plannedMin = session.workout
-		? sumBlockDurationMin(session.workout.blocks)
-		: null
-	const plannedDistanceM = session.workout
-		? sumBlockDistanceM(session.workout.blocks)
-		: null
+	// Only the prescription is planned; a recording-only session has no planned
+	// side, so an unknown ('') discipline keeps today's reading.
+	const discipline = session.workout?.discipline ?? ''
+	const read = (metric: PlannedSessionMetric, measure: () => number | null) =>
+		readPlannedMetric(discipline, metric, measure)
+
+	const plannedTss = read('planned-tss', () => session.plannedTssValue)
+	const plannedTime = read('planned-time', () => {
+		const minutes = session.workout
+			? sumBlockDurationMin(session.workout.blocks)
+			: null
+		return minutes != null ? minutes * 60 : null
+	})
+	const plannedDistance = read('planned-distance', () =>
+		session.workout ? sumBlockDistanceM(session.workout.blocks) : null,
+	)
+	const plannedTssValue = plannedMetricValue(plannedTss)
 
 	return {
 		tss: {
-			planned: session.plannedTssValue,
+			planned: plannedTssValue,
+			plannedRead: plannedTss,
 			actual: session.tssValue,
 			// The both-present / positive-denominator gate lives in
 			// `sessionAdherence`, shared with the ledger so bands never drift.
-			band:
-				sessionAdherence(session.tssValue, session.plannedTssValue)?.band ??
-				null,
+			band: sessionAdherence(session.tssValue, plannedTssValue)?.band ?? null,
 		},
 		duration: {
-			planned: plannedMin != null ? plannedMin * 60 : null,
+			planned: plannedMetricValue(plannedTime),
+			plannedRead: plannedTime,
 			actual: session.recording?.durationSec ?? null,
 		},
 		distance: {
-			planned: plannedDistanceM,
+			planned: plannedMetricValue(plannedDistance),
+			plannedRead: plannedDistance,
 			actual: session.recording?.distanceM ?? null,
 		},
 	}

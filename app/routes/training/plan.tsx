@@ -276,6 +276,8 @@ import {
 import { type Route } from './+types/plan.ts'
 import { AttachEventOffer } from './__attach-event.tsx'
 import { CopyWeekSection, type PendingCopy } from './__copy-week.tsx'
+import { readLibraryLifts } from './__library-section.server.ts'
+import { LibrarySection } from './__library-section.tsx'
 import {
 	AddPhaseForm,
 	DeletePlanSection,
@@ -586,11 +588,15 @@ export async function loader({ request }: Route.LoaderArgs) {
 					select: { id: true },
 				})
 
+	// Bibliotek, a section of Plan since it gave up its tab (ADR 0101 §1).
+	const libraryLifts = await readLibraryLifts(userId)
+
 	return {
 		seasonQuery,
 		attachableEvents,
 		strengthOffer,
 		firstUnbegunWeekKey,
+		libraryLifts,
 		seasonEvents: {
 			events: upcomingEvents.slice(0, SEASON_EVENTS_SHOWN),
 			upcomingCount: upcomingEvents.length,
@@ -2089,6 +2095,7 @@ export default function PlanRoute({
 		season,
 		tab,
 		seasonQuery,
+		libraryLifts,
 		week,
 		workouts,
 		strengthTracks,
@@ -2164,10 +2171,10 @@ export default function PlanRoute({
 		// One column to `lg`, then two (decision 13): wide enough for both
 		// columns to keep a phone's reading width rather than one long line.
 		<main className="container mx-auto max-w-2xl py-6 md:py-8 lg:max-w-6xl">
-			{/* Sesong is a tab's landing page (ADR 0083), so it carries no back
-			    affordance (ui-conventions §3.3): the tab bar is the way out. */}
+			{/* Plan is a tab's landing page (ADR 0101, ADR 0083), so it carries no
+			    back affordance (ui-conventions §3.3): the tab bar is the way out. */}
 			<PageHeader
-				title={APP_TAB_LABELS.season}
+				title={APP_TAB_LABELS.plan}
 				className="mb-2"
 				// Owner decision 6: "+ Ny" on I dag makes sessions only; a race and a
 				// plan are started here.
@@ -2436,6 +2443,13 @@ export default function PlanRoute({
 					)}
 				</div>
 			</div>
+
+			{/* Bibliotek, which had its own tab (ADR 0101 §1): below the plan, at
+			    the phone's reading width on every screen. */}
+			<LibrarySection
+				lifts={libraryLifts}
+				className="mt-10 lg:mx-auto lg:max-w-2xl"
+			/>
 		</main>
 	)
 }

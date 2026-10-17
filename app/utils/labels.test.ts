@@ -10,6 +10,11 @@ import {
 } from './event-schema.ts'
 import { EVENT_DATE_PROBLEMS } from './first-run/first-run-schema.ts'
 import {
+	MAX_START_HOURS,
+	MIN_START_HOURS,
+	TRAINING_LEVELS,
+} from './first-run/start-draft.ts'
+import {
 	IMPORT_LINK_REFUSALS,
 	MARK_DONE_REFUSALS,
 } from './import-link-schema.ts'
@@ -71,6 +76,9 @@ import {
 	unmeasuredCountLabel,
 	strengthPartialLabel,
 	NB_DISCIPLINE_LABELS,
+	nbHoursWords,
+	SIMPLE_START_LABELS,
+	familyChoiceSentence,
 	HORIZON_LABELS,
 	horizonFillLabel,
 	HELD_NUMBER_LABELS,
@@ -246,6 +254,53 @@ test('every race-date problem is said on the field, the longest plan named right
 		expect(EVENT_DATE_LABELS[problem]).toBeTruthy()
 	}
 	expect(EVENT_DATE_LABELS['too-far']).toContain(`${MAX_PLAN_WEEKS} uker`)
+})
+
+test('the simple start words every Training Level: its name, its sentence, its hours note and its reason', () => {
+	const names = new Set<string>()
+	for (const level of TRAINING_LEVELS) {
+		const { name, description } = SIMPLE_START_LABELS.levels[level]
+		expect(name).toBeTruthy()
+		expect(description).toMatch(/\.$/)
+		expect(SIMPLE_START_LABELS.level.typical[level]).toMatch(/\.$/)
+		expect(
+			familyChoiceSentence({
+				family: 'polarized',
+				reason: { code: 'training-level', level },
+			}),
+		).toBe(
+			`Vi valgte Polarisert 80/20 fordi ${SIMPLE_START_LABELS.levelReason[level]}.`,
+		)
+		names.add(name)
+	}
+	expect([...names]).toEqual([
+		'Nybegynner',
+		'Mosjonist',
+		'Erfaren',
+		'Konkurranse',
+	])
+	// The ends of the hours range are the range the schema holds.
+	expect(SIMPLE_START_LABELS.level.atMin).toContain(`${MIN_START_HOURS} time`)
+	expect(SIMPLE_START_LABELS.level.atMax).toContain(`${MAX_START_HOURS} timer`)
+})
+
+test('hours read with a decimal comma and time or timer, never a decimal point', () => {
+	expect(nbHoursWords(1)).toBe('1 time')
+	expect(nbHoursWords(1.5)).toBe('1,5 timer')
+	expect(nbHoursWords(4.5)).toBe('4,5 timer')
+	expect(nbHoursWords(20)).toBe('20 timer')
+})
+
+test('Uka di says how many sessions and how long, or that it is empty', () => {
+	expect(SIMPLE_START_LABELS.sketch.summary(1, '45 min')).toBe('1 økt · 45 min')
+	expect(SIMPLE_START_LABELS.sketch.summary(4, '4 t 30 min')).toBe(
+		'4 økter · 4 t 30 min',
+	)
+	expect(SIMPLE_START_LABELS.sketch.empty).toBe('Uka di er tom ennå')
+	expect(SIMPLE_START_LABELS.activities.daysPicked(0)).toBe(
+		'Ingen dager valgt ennå.',
+	)
+	expect(SIMPLE_START_LABELS.activities.daysPicked(1)).toMatch(/^1 dag\. /)
 })
 
 test('the page header names the screen it goes back to, in Norwegian', () => {
@@ -544,8 +599,7 @@ test('every Sesong edit message says which numbers did not move, in the spec’s
 test('every tab has its name in the spec’s own words', () => {
 	expect(APP_TABS.map((tab) => APP_TAB_LABELS[tab])).toEqual([
 		'I dag',
-		'Sesong',
-		'Bibliotek',
+		'Plan',
 		'Meg',
 	])
 })

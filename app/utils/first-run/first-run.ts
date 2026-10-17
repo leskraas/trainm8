@@ -14,6 +14,7 @@ import {
 import { DEFAULT_TRAINING_WEEKDAYS } from '../plan-outline/starter-pattern.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { isCardioDiscipline, type CardioDiscipline } from '../workout-schema.ts'
+import { type TrainingLevel } from './start-draft.ts'
 
 /** How far the athlete got linking intervals.icu, as the findings read it. */
 export const FIRST_RUN_CONNECTIONS = ['none', 'importing', 'ready'] as const
@@ -312,6 +313,8 @@ export type FamilyReason =
 	| { code: 'many-hours'; hours: number }
 	| { code: 'race-on-limited-time'; hours: number }
 	| { code: 'steady' }
+	/** The simple start: the Training Level's first family (#563). */
+	| { code: 'training-level'; level: TrainingLevel }
 
 export type FamilyChoice = { family: PresetFamily; reason: FamilyReason }
 

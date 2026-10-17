@@ -64,6 +64,8 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 			discipline: 'run',
 			intent: 'threshold',
 			archetype: null,
+			activityKind: null,
+			effortWord: null,
 			blocks: [
 				{
 					id: 'block-1',
@@ -411,6 +413,8 @@ function makeBikeWorkoutWithPowerTarget(): NonNullable<
 		discipline: 'bike',
 		intent: 'threshold',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: [
 			{
 				id: 'block-warmup',
@@ -690,6 +694,8 @@ function makeIntervalWorkout(): NonNullable<SessionDetail['workout']> {
 		discipline: 'run',
 		intent: 'vo2max',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: [
 			{
 				id: 'block-wu',
@@ -903,6 +909,8 @@ test('the structure card renders a strength step as exercise + set notation with
 			discipline: 'strength',
 			intent: 'strength-hypertrophy',
 			archetype: null,
+			activityKind: null,
+			effortWord: null,
 			blocks: [
 				{
 					id: 'block-1',
@@ -1490,4 +1498,13 @@ test('the session screen states a missing anchor rather than inventing a kilo', 
 	const sets = await screen.findByText(/85% 1RM/)
 	expect(sets).toHaveTextContent('85% 1RM · ingen 1RM registrert')
 	expect(sets).not.toHaveTextContent(/\d+ kg/)
+})
+
+test('a done session with no Workout and no Recording opens a readable detail, never a 404 (#558 S4)', async () => {
+	const session = makeSession({ workout: null, recording: null })
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByRole('heading', { level: 1 })
+	expect(document.body.textContent).toMatch(/gjort/i)
+	expect(screen.queryByText(/404|not found|fant ikke/i)).not.toBeInTheDocument()
 })

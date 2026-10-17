@@ -274,6 +274,12 @@ const MASTERS_SHAPE: PhaseShape[] = CLASSIC_SHAPE.map((phase) => ({
  * The step is what makes the profile a pyramid rather than a ramp — the picture
  * the athlete is choosing between is exactly this difference — and it is authored
  * intent, so nothing flags it.
+ *
+ * The base is **all easy**: an empty Quality Session Mix, so the first block —
+ * and with it every open-ended round, which reads it — lays no hard session
+ * (ADR 0102 §3). That is what sets _Stor base_ apart from _Klassisk 3:1_ in
+ * the weeks the athlete actually sees. Tracks already written keep the mix
+ * they were stored with until a philosophy is re-applied.
  */
 const BIG_BASE_SHAPE: PhaseShape[] = [
 	{
@@ -282,7 +288,7 @@ const BIG_BASE_SHAPE: PhaseShape[] = [
 		tapers: false,
 		ramp: PRESET_RAMP,
 		boundaryStep: null,
-		mix: [{ zone: 3, sessionsPerWeek: 1 }],
+		mix: [],
 	},
 	{
 		name: 'Build',

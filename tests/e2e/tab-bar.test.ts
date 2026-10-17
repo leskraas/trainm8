@@ -10,10 +10,11 @@ import {
 import { expect, test } from '#tests/playwright-utils.ts'
 
 /**
- * The four tabs (spec #505 stories 56–59, ADR 0083 — superseding #178's
- * embedded navigation). On a phone they are a bottom tab bar; every tab lands
- * where it says and marks itself as the current page, and a page that moved
- * into a tab keeps its URL and lights its tab when deep-linked.
+ * The three tabs (ADR 0101 §1, amending ADR 0083 — which superseded #178's
+ * embedded navigation): I dag, Plan and Meg. On a phone they are a bottom tab
+ * bar in the thumb zone; every tab lands where it says and marks itself as the
+ * current page, and a page that moved into a tab keeps its URL and lights its
+ * tab when deep-linked. Every old Sesong and Bibliotek address lands in Plan.
  */
 const VIEWPORT = { width: 390, height: 844 }
 test.use({ viewport: VIEWPORT })
@@ -59,7 +60,7 @@ test('every tab navigates and marks itself current on a phone', async ({
 	test.setTimeout(120_000)
 	const user = await login()
 
-	// A season with its Event, so Sesong opens on the plan and lists the Event.
+	// A season with its Event, so Plan opens on the plan and lists the Event.
 	const eventName = `Race ${faker.string.alphanumeric(8)}`
 	const goal = await createFitnessGoalEvent(user.id, {
 		name: eventName,
@@ -77,29 +78,31 @@ test('every tab navigates and marks itself current on a phone', async ({
 
 	await navigate('/')
 
-	// The bar is the phone's bottom edge: fixed there, full width, and its four
-	// tabs in the spec's order.
+	// The bar is the phone's bottom edge, where the thumb rests: fixed there,
+	// full width, and its three tabs in the spec's order.
 	const bar = tabBar(page)
 	await expect(bar).toBeVisible()
 	const box = await bar.boundingBox()
 	expect(box, 'the tab bar has no box').not.toBeNull()
 	expect(Math.round(box!.y + box!.height)).toBe(VIEWPORT.height)
 	expect(Math.round(box!.width)).toBe(VIEWPORT.width)
-	await expect(bar.getByRole('link')).toHaveText([
-		'I dag',
-		'Sesong',
-		'Bibliotek',
-		'Meg',
-	])
+	await expect(bar.getByRole('link')).toHaveText(['I dag', 'Plan', 'Meg'])
+	// Every tab is a target of at least 44px each way (ui-conventions §2.2).
+	for (const tab of await bar.getByRole('link').all()) {
+		const target = await tab.boundingBox()
+		expect(target, 'a tab has no box').not.toBeNull()
+		expect(target!.height).toBeGreaterThanOrEqual(44)
+		expect(target!.width).toBeGreaterThanOrEqual(44)
+	}
 	await expectCurrentTab(page, 'I dag')
 	if (SCREENSHOTS)
 		await page.screenshot({ path: `${SCREENSHOTS}/tab-i-dag.png` })
 
-	// Sesong: the season plan, with the Events it is planned around and the way
+	// Plan: the season plan, with the Events it is planned around and the way
 	// to plan another.
-	await tapTab(page, 'Sesong', '/training/plan')
+	await tapTab(page, 'Plan', '/training/plan')
 	await expect(
-		page.getByRole('heading', { name: 'Sesong', level: 1 }),
+		page.getByRole('heading', { name: 'Plan', level: 1 }),
 	).toBeVisible()
 	const events = page.getByRole('region', { name: 'Løp og arrangementer' })
 	await expect(
@@ -109,29 +112,30 @@ test('every tab navigates and marks itself current on a phone', async ({
 	await expect(
 		events.getByRole('link', { name: 'Planlegg en ny sesong' }),
 	).toHaveAttribute('href', '/training/plan/new')
-	await expectCurrentTab(page, 'Sesong')
+	await expectCurrentTab(page, 'Plan')
 	if (SCREENSHOTS)
-		await page.screenshot({ path: `${SCREENSHOTS}/tab-sesong.png` })
+		await page.screenshot({ path: `${SCREENSHOTS}/tab-plan.png` })
 
-	// Bibliotek: the hub for the catalogue, programs and exercises.
-	await tapTab(page, 'Bibliotek', '/library')
-	await expect(
-		page.getByRole('heading', { name: 'Bibliotek', level: 1 }),
-	).toBeVisible()
-	await expect(page.getByRole('link', { name: /katalog/i })).toHaveAttribute(
+	// Bibliotek is a section of Plan: the hub for the catalogue, programs and
+	// exercises, with no tab of its own.
+	const library = page.getByRole('region', { name: 'Bibliotek' })
+	await expect(library.getByRole('link', { name: /katalog/i })).toHaveAttribute(
 		'href',
 		'/training/catalogue',
 	)
 	await expect(
-		page.getByRole('link', { name: /styrkeprogrammer/i }),
+		library.getByRole('link', { name: /styrkeprogrammer/i }),
 	).toHaveAttribute('href', '/training/programs')
 	await expect(
-		page.getByRole('link', { name: /alle øvelser/i }),
+		library.getByRole('link', { name: /alle øvelser/i }),
 	).toHaveAttribute('href', '/library/exercises')
-	await expect(page.getByRole('heading', { name: 'Dine løft' })).toBeVisible()
-	await expectCurrentTab(page, 'Bibliotek')
-	if (SCREENSHOTS)
-		await page.screenshot({ path: `${SCREENSHOTS}/tab-bibliotek.png` })
+	await expect(
+		library.getByRole('heading', { name: 'Dine løft' }),
+	).toBeAttached()
+	if (SCREENSHOTS) {
+		await library.scrollIntoViewIfNeeded()
+		await page.screenshot({ path: `${SCREENSHOTS}/tab-plan-bibliotek.png` })
+	}
 
 	// Meg: profile, settings, intervals.icu and the file upload.
 	await tapTab(page, 'Meg', '/me')
@@ -163,7 +167,7 @@ test('every tab navigates and marks itself current on a phone', async ({
 	await expectCurrentTab(page, 'I dag')
 })
 
-test('a page that moved into a tab keeps its URL and lights its tab', async ({
+test('every old Sesong and Bibliotek address lands in Plan, with Plan lit', async ({
 	page,
 	navigate,
 	login,
@@ -182,32 +186,90 @@ test('a page that moved into a tab keeps its URL and lights its tab', async ({
 		},
 	})
 
-	// Events live under Sesong; their old URLs still open them.
+	// Sesong's own address with no plan lands on plan creation, Plan's landing.
+	await navigate('/training/plan')
+	await expect(page).toHaveURL('/training/plan/new')
+	await expectCurrentTab(page, 'Plan')
+
+	// Events lived under Sesong; their old URLs still open them, under Plan.
 	await navigate('/training/events')
-	await expectCurrentTab(page, 'Sesong', 'true')
+	await expectCurrentTab(page, 'Plan', 'true')
 	await page.getByRole('link', { name: new RegExp(eventName) }).click()
 	await expect(page).toHaveURL(`/training/events/${event.id}`)
-	await expectCurrentTab(page, 'Sesong', 'true')
+	await expectCurrentTab(page, 'Plan', 'true')
 	// The guessed `/events` still forwards to the real list.
 	await page.goto('/events')
 	await expect(page).toHaveURL('/training/events')
+	await expectCurrentTab(page, 'Plan', 'true')
+
+	// Bibliotek's own address lands in its section on Plan, scrolled to it.
+	await navigate('/library')
+	await expect(page).toHaveURL('/training/plan/new#bibliotek')
+	await expectCurrentTab(page, 'Plan')
+	await expect(
+		page.getByRole('heading', { name: 'Bibliotek', level: 2 }),
+	).toBeInViewport()
+
+	// Every page inside Bibliotek keeps its URL, lights Plan, and backs out to
+	// the Bibliotek section.
+	for (const path of [
+		'/training/catalogue',
+		'/training/programs',
+		'/library/exercises',
+	] as const) {
+		await navigate(path)
+		await expectCurrentTab(page, 'Plan', 'true')
+	}
+	await navigate('/training/catalogue')
+	await page.getByRole('link', { name: /tilbake til plan/i }).click()
+	await expect(page).toHaveURL('/training/plan/new#bibliotek')
+	await expectCurrentTab(page, 'Plan')
+
 	// The settings root and the retired inbox both land on Meg.
 	await page.goto('/settings')
 	await expect(page).toHaveURL('/me')
 	await page.goto('/imports')
 	await expect(page).toHaveURL('/me')
 
-	// The catalogue lives under Bibliotek, and backs out to it.
-	await navigate('/training/catalogue')
-	await expectCurrentTab(page, 'Bibliotek', 'true')
-	await page.getByRole('link', { name: /tilbake til bibliotek/i }).click()
-	await expect(page).toHaveURL('/library')
-
 	// Settings live under Meg, and back out to it.
 	await navigate('/settings/profile')
 	await expectCurrentTab(page, 'Meg', 'true')
 	await page.getByRole('link', { name: /tilbake til meg/i }).click()
 	await expect(page).toHaveURL('/me')
+})
+
+test('with a plan, Bibliotek lands in its section on the plan', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	const goal = await createFitnessGoalEvent(user.id, {
+		name: `Race ${faker.string.alphanumeric(8)}`,
+		startDate: new Date(Date.now() + 140 * 24 * 60 * 60 * 1000),
+		disciplines: ['run'],
+	})
+	const timezone = await getAthleteTimezone(user.id)
+	const created = await createPlanOutline(user.id, {
+		eventId: goal.id,
+		startWeekKey: weekMonday(new Date(), timezone),
+		structure: { presetKey: 'classic-linear' },
+		tracks: [{ discipline: 'run', currency: 'km', anchorValue: 55 }],
+	})
+	expect(created.ok, 'the plan fixture failed to author').toBe(true)
+
+	await navigate('/library')
+	await expect(page).toHaveURL('/training/plan#bibliotek')
+	await expectCurrentTab(page, 'Plan')
+	await expect(
+		page.getByRole('heading', { name: 'Bibliotek', level: 2 }),
+	).toBeInViewport()
+
+	// The exercise list backs out the same way, to the plan's section.
+	await navigate('/library/exercises')
+	await page.getByRole('link', { name: /tilbake til plan/i }).click()
+	await expect(page).toHaveURL('/training/plan#bibliotek')
 })
 
 test('Bibliotek lists every exercise, searchable, for an athlete with no lifts yet', async ({
@@ -222,7 +284,7 @@ test('Bibliotek lists every exercise, searchable, for an athlete with no lifts y
 	await expect(page.getByText(/løftene du legger inn i en økt/i)).toBeVisible()
 	await page.getByRole('link', { name: /alle øvelser/i }).click()
 	await expect(page).toHaveURL('/library/exercises')
-	await expectCurrentTab(page, 'Bibliotek', 'true')
+	await expectCurrentTab(page, 'Plan', 'true')
 	await expect(
 		page.getByRole('heading', { name: 'Alle øvelser', level: 1 }),
 	).toBeVisible()

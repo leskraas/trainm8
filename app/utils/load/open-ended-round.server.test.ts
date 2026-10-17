@@ -510,3 +510,41 @@ test('an open-ended plan stops proposing rounds at two years of weeks (MAX_PLAN_
 		['Blokk 2', 49],
 	])
 })
+
+// ADR 0102 §3: Stor base now opens all easy, but a track already written from
+// it keeps the mix it was stored with — the next round carries that on, until
+// the athlete re-applies a philosophy.
+test('a Stor base plan written before its base became all easy keeps its stored mix in the next round', async () => {
+	const { userId, outlineId } = await createOpenEndedAthlete()
+	await prisma.planOutline.update({
+		where: { id: outlineId },
+		data: { family: 'big-base' },
+	})
+	const base = await prisma.trainingTrackSegment.findFirstOrThrow({
+		where: { track: { outlineId }, kind: 'endurance' },
+		select: { id: true },
+	})
+	await prisma.trainingTrackSegment.update({
+		where: { id: base.id },
+		data: { mix: { create: [{ zone: 3, sessionsPerWeek: 1 }] } },
+	})
+	await trainTheRound(userId, [50, null])
+
+	await runWeekChangeForUser(userId, CLOSE)
+	await runWeekChangeForUser(userId, MORNING)
+
+	const rounds = await prisma.planOutlinePhase.findMany({
+		where: { outlineId },
+		orderBy: { orderIndex: 'asc' },
+		select: {
+			name: true,
+			segments: {
+				select: { mix: { select: { zone: true, sessionsPerWeek: true } } },
+			},
+		},
+	})
+	expect(rounds).toEqual([
+		{ name: 'Blokk 1', segments: [{ mix: [{ zone: 3, sessionsPerWeek: 1 }] }] },
+		{ name: 'Blokk 2', segments: [{ mix: [{ zone: 3, sessionsPerWeek: 1 }] }] },
+	])
+})
