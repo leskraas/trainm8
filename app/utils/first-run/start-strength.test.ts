@@ -147,6 +147,19 @@ test('the Week Sketch carries the top option’s lifting days', () => {
 	expect(liftingDays(weekSketch(made))).toEqual(made.options[0]!.strengthDays)
 })
 
+test('where the lifts take endurance days, the draft says how many endurance sessions are left', () => {
+	const made = start({
+		level: 'experienced',
+		hours: 7,
+		days: [0, 1, 3, 4, 6],
+		strength: { perWeek: 3, session: SESSION },
+	})
+	expect(made.strengthCapped).toBe(3)
+	expect(
+		start({ strength: { perWeek: 1, session: SESSION } }).strengthCapped,
+	).toBeNull()
+})
+
 test('with several endurance sports the lifts come out of the same session cap', () => {
 	const made = start({
 		level: 'beginner',

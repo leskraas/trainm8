@@ -85,7 +85,7 @@ export function WeekSketch({
 						: L.summary(sketch.sessionCount, duration(sketch.minutes))}
 					{sketch.strengthSessions > 0 ? (
 						<span data-week-sketch-strength>
-							{' '}
+							{' · '}
 							{START_OPTION_LABELS.plusStrength(sketch.strengthSessions)}
 						</span>
 					) : null}

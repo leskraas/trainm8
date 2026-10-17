@@ -374,6 +374,12 @@ export type StartDraft = {
 	capped: boolean
 	/** All seven days were picked, and the plan keeps one of them _fri_. */
 	restDayKept: boolean
+	/**
+	 * The lifts took endurance days (#574): the level's session cap is the
+	 * week's, so endurance lays on fewer of the picked days than it could.
+	 * The endurance sessions it was left, or null where lifting cut nothing.
+	 */
+	strengthCapped: number | null
 }
 
 /**
@@ -621,6 +627,12 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 		daysUsed: top.draft.patternDays.length,
 		capped: sessionCap < MAX_SESSION_DAYS && daysPicked + lifts > sessionCap,
 		restDayKept: daysPicked === 7,
+		strengthCapped:
+			lifts > 0 &&
+			top.draft.patternDays.length >= enduranceCap &&
+			Math.min(daysPicked, MAX_SESSION_DAYS) > enduranceCap
+				? enduranceCap
+				: null,
 	}
 }
 
