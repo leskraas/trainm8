@@ -24,6 +24,7 @@ import {
 } from './week-replan-proposal.ts'
 import {
 	afterApply,
+	appliedData,
 	applyPayload,
 	proposalData,
 	proposalSelect,
@@ -164,7 +165,7 @@ async function answerWith(
 		if (result.applied) {
 			await tx.weekReplanProposal.update({
 				where: { id: proposal.id },
-				data: { appliedAt: now },
+				data: appliedData(result, now),
 			})
 		}
 		return result
@@ -266,6 +267,10 @@ export async function easeWeek(
 			by: 'yes',
 			now,
 			timezone,
+		})
+		await tx.weekReplanProposal.update({
+			where: { id: row.id },
+			data: appliedData(result, now),
 		})
 		return { proposalId: row.id, changed: result.changed }
 	})
