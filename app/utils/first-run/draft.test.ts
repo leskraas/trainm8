@@ -173,3 +173,80 @@ test('a race gets the family’s season fitted to the weeks up to it', () => {
 	}
 	expect(firstRunPhases('classic', { kind: 'event', weeks: 0 })).toBeNull()
 })
+
+// #558: the draft lays any number of Training Tracks. A second endurance
+// sport is an hours track of its own with no Quality Session Mix (easy
+// sessions only), on its own days.
+const RUN_AND_BIKE = [
+	{ discipline: 'run', weeklyHours: 4.5, days: [1, 3, 5], mix: 'family' },
+	{ discipline: 'bike', weeklyHours: 2, days: [2, 6], mix: 'none' },
+] as const
+
+test.each(PRESET_FAMILIES)(
+	'%s: two tracks each lie on their own days, and each week adds up to both',
+	(family) => {
+		const made = draftFirstRunPlan({
+			family,
+			goal: { kind: 'active' },
+			startWeekKey: '2030-01-14',
+			tracks: RUN_AND_BIKE,
+		})
+		if (!made) throw new Error('no draft')
+
+		expect(made.anchor).toBe(6.5)
+		expect(made.targets[0]).toBe(6.5)
+		expect(made.patternDays).toEqual([1, 2, 3, 5, 6])
+		expect(made.weeks).toHaveLength(2)
+		for (const [index, week] of made.weeks.entries()) {
+			const of = (discipline: string) =>
+				week.sessions.filter((session) => session.discipline === discipline)
+			expect(of('run').map((session) => session.weekday)).toEqual([1, 3, 5])
+			expect(of('bike').map((session) => session.weekday)).toEqual([2, 6])
+			// The second sport is easy only, and its long day is its own last day.
+			expect(of('bike').every((session) => session.zone == null)).toBe(true)
+			expect(of('bike').find((s) => s.role === 'long')?.weekday).toBe(6)
+			expect(of('run').find((s) => s.role === 'long')?.weekday).toBe(5)
+			for (const track of made.tracks) {
+				const hours = of(track.discipline).reduce(
+					(sum, session) => sum + (session.volume ?? 0),
+					0,
+				)
+				expect(hours).toBeCloseTo(track.targets[index]!, 1)
+			}
+			expect(week.planned).toBeCloseTo(week.target!, 1)
+		}
+		expect(made.dayWarnings).toEqual([])
+	},
+)
+
+test('the main sport keeps the family’s hard sessions beside a second sport', () => {
+	const alone = draft({
+		family: 'threshold',
+		weeklyHours: 4.5,
+		days: [1, 3, 5],
+	})
+	const beside = draftFirstRunPlan({
+		family: 'threshold',
+		goal: { kind: 'active' },
+		startWeekKey: '2030-01-14',
+		tracks: RUN_AND_BIKE,
+	})!
+	const runZones = (week: (typeof alone.weeks)[number]) =>
+		week.sessions
+			.filter((session) => session.discipline === 'run')
+			.map((session) => session.zone)
+	expect(runZones(beside.weeks[0]!)).toEqual(runZones(alone.weeks[0]!))
+	expect(runZones(beside.weeks[0]!).some((zone) => zone != null)).toBe(true)
+	expect(beside.tracks.map((track) => track.mix)).toEqual(['family', 'none'])
+})
+
+test('a track with no day lays nothing', () => {
+	expect(
+		draftFirstRunPlan({
+			family: 'classic',
+			goal: { kind: 'active' },
+			startWeekKey: '2030-01-14',
+			tracks: [RUN_AND_BIKE[0], { ...RUN_AND_BIKE[1], days: [] }],
+		}),
+	).toBeNull()
+})

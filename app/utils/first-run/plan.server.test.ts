@@ -1,12 +1,20 @@
 import { expect, test } from 'vitest'
 import { addDays, weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { parseTrainableWeekdays } from '#app/utils/athlete-schema.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { fillPlanWeek } from '#app/utils/load/horizon-fill.server.ts'
 import { createOpenEndedPlan } from '#app/utils/plan-outline/authoring.server.ts'
 import { readStampedMixWarnings } from '#app/utils/plan-outline/stamp.server.ts'
+import { weekKeyAt } from '#app/utils/plan-outline/week-keys.ts'
 import { stampedSessionTitle } from '#app/utils/session-title.ts'
 import { getActivePlan, getActiveSeason } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
+import {
+	draftFirstRunPlan,
+	FIRST_RUN_WEEKS,
+	type FirstRunDraft,
+} from './draft.ts'
 import { readFirstRunFindings } from './findings.server.ts'
 import { type FirstRunAnswers } from './first-run-schema.ts'
 import {
@@ -482,6 +490,134 @@ test('an athlete who already has a plan gets no second one', async () => {
 		reason: 'plan-already-active',
 	})
 	expect(await prisma.planOutline.count({ where: { athleteId } })).toBe(1)
+})
+
+// #558: the draft and the open-ended plan writer take any number of Training
+// Tracks. A second endurance sport is its own hours track with no Quality
+// Session Mix, on its own days.
+function runAndBikeDraft() {
+	const draft = draftFirstRunPlan({
+		family: 'threshold',
+		goal: { kind: 'active' },
+		startWeekKey: START,
+		tracks: [
+			{ discipline: 'run', weeklyHours: 4.5, days: [1, 3, 5], mix: 'family' },
+			{ discipline: 'bike', weeklyHours: 2, days: [2, 6], mix: 'none' },
+		],
+	})
+	if (!draft) throw new Error('no draft')
+	return draft
+}
+
+function writeDraft(athleteId: string, draft: FirstRunDraft) {
+	return createOpenEndedPlan(
+		athleteId,
+		{
+			family: 'threshold',
+			round: draft.phases[0],
+			startWeekKey: START,
+			tracks: draft.tracks.map((track) => ({
+				discipline: track.discipline,
+				currency: track.currency,
+				weeklyHours: track.anchor,
+				mix: track.mix,
+				days: track.patternDays,
+			})),
+		},
+		NOW,
+	)
+}
+
+test('a two-track plan made is the plan shown, minute for minute', async () => {
+	const athleteId = await createAthlete()
+	const shown = runAndBikeDraft()
+
+	const created = await writeDraft(athleteId, shown)
+	if (!created.ok) throw new Error(created.reason)
+	const timezone = await getAthleteTimezone(athleteId)
+	for (let index = 0; index < FIRST_RUN_WEEKS; index++) {
+		await fillPlanWeek(athleteId, weekKeyAt(START, index), timezone, NOW)
+	}
+
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { id: created.outlineId },
+		select: {
+			tracks: {
+				select: {
+					discipline: true,
+					segments: { select: { mix: { select: { zone: true } } } },
+				},
+				orderBy: { discipline: 'asc' },
+			},
+		},
+	})
+	// The second sport carries no hard sessions; the main one the family's.
+	expect(
+		outline.tracks.map((track) => ({
+			discipline: track.discipline,
+			hard: track.segments.some((segment) => segment.mix.length > 0),
+		})),
+	).toEqual([
+		{ discipline: 'bike', hard: false },
+		{ discipline: 'run', hard: true },
+	])
+
+	const byDay = (a: string, b: string) => a.localeCompare(b)
+	const shownSessions = shown.weeks
+		.flatMap((week) =>
+			week.sessions.map(
+				(session) =>
+					`${addDays(week.weekKey, session.weekday)} ${session.discipline} ${Math.round((session.volume ?? 0) * 60)}`,
+			),
+		)
+		.sort(byDay)
+	const laid = await prisma.workoutSession.findMany({
+		where: { userId: athleteId },
+		select: {
+			scheduledAt: true,
+			source: true,
+			status: true,
+			workout: {
+				select: {
+					discipline: true,
+					blocks: { select: { steps: { select: { durationSec: true } } } },
+				},
+			},
+		},
+	})
+	const laidSessions = laid
+		.map((session) => {
+			const seconds =
+				session.workout?.blocks
+					.flatMap((block) => block.steps)
+					.reduce((sum, step) => sum + (step.durationSec ?? 0), 0) ?? 0
+			return `${session.scheduledAt.toISOString().slice(0, 10)} ${session.workout?.discipline} ${Math.round(seconds / 60)}`
+		})
+		.sort(byDay)
+	expect(laidSessions).toEqual(shownSessions)
+	expect(laid.every((session) => session.source === 'generated')).toBe(true)
+	// Nothing made is done or missed.
+	expect(laid.every((session) => session.status === 'scheduled')).toBe(true)
+})
+
+test('a two-track plan is refused whole when the athlete has a plan', async () => {
+	const athleteId = await createAthlete()
+	await createOpenEndedPlan(
+		athleteId,
+		{ discipline: 'run', weeklyHours: 3 },
+		NOW,
+	)
+
+	expect(await writeDraft(athleteId, runAndBikeDraft())).toEqual({
+		ok: false,
+		reason: 'open-ended-already-active',
+	})
+	expect(await prisma.planOutline.count({ where: { athleteId } })).toBe(1)
+	expect(
+		await prisma.trainingTrack.count({
+			where: { outline: { athleteId }, discipline: 'bike' },
+		}),
+	).toBe(0)
 })
 
 test('Dette fant vi reads the last four weeks: the sport, the arithmetic and the days', async () => {
