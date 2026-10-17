@@ -3527,6 +3527,16 @@ export const APP_TAB_LABELS: Record<AppTab, string> = {
 	me: 'Meg',
 }
 
+/**
+ * The full Home Timeline at its own address (spec #558 story 102, #562): the
+ * Week Strip, the Stream, the Writing Line and the panes, behind I dag's link
+ * of these words. The page's title says what the link promised.
+ */
+export const HOME_TIMELINE_FULL_VIEW_LABELS = {
+	link: 'Se hele sesongen',
+	title: 'Hele sesongen',
+} as const
+
 /** The page header's back button, named for the screen it goes back to. */
 export const PAGE_HEADER_LABELS = {
 	back: (screen: string) => `Tilbake til ${screen}`,
