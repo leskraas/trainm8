@@ -2430,8 +2430,6 @@ export const START_OPTION_LABELS = {
 	dot: (index: number, count: number, name: string) =>
 		`Vis ${index} av ${count}: ${name}`,
 	back: 'Tilbake til hva du liker å trene',
-	created: 'Planen er laget',
-	createdDescription: (day: string) => `Den starter ${day}.`,
 	/** Sports picked that the week has no day for (#573), lower case. */
 	sportsLeftOut: (sessions: number, sports: readonly string[]) =>
 		`Uka har plass til ${sessions} ${sessions === 1 ? 'økt' : 'økter'}, så ${
@@ -2439,6 +2437,61 @@ export const START_OPTION_LABELS = {
 				? sports.join('')
 				: `${sports.slice(0, -1).join(', ')} og ${sports.at(-1)}`
 		} fikk ikke egne dager. Velg flere dager, mer tid eller færre idretter.`,
+} as const
+
+/**
+ * _Planen er klar_ (#558, #570): what _Velg denne_ made, by its plain name,
+ * the day it begins, 12 weeks of hours, how it moves each Sunday, and _Under
+ * panseret_ — a read-only view of everything that was written.
+ */
+export const PLAN_READY_LABELS = {
+	metaTitle: 'Planen er klar',
+	overline: 'Planen er klar',
+	startsOn: (day: string) => `Planen starter ${day}.`,
+	curveTitle: 'Timer i uka, de neste 12 ukene',
+	/** The curve as a screen reader hears it. */
+	curveName: (laid: number, projected: number) =>
+		`Timer i uka: ${laid} uker som planen er lagt, så ${projected} uker hvis du trener som planlagt. De lette ukene er dumpene.`,
+	curveCaption: 'Timer i uka, uke for uke',
+	track: 'Timer',
+	/** The dashed weeks: ADR 0079's next rounds, if every week is done to plan. */
+	ifAsPlanned: 'hvis du trener som planlagt',
+	note: (percent: number) =>
+		`Stiplet: de neste blokkene hvis du trener som planlagt, med ${percent} % mer per blokk.`,
+	/** How the plan moves (story 49): the autopilot, undo and _Spør meg først_. */
+	sunday:
+		'Hver søndag kveld legger appen ut neste uke, ut fra det du faktisk trente. Du får beskjed om hva den gjorde, og kan angre. Vil du heller at den spør deg først, velger du Spør meg først i Meg.',
+	hood: {
+		title: 'Under panseret',
+		intro:
+			'Dette er det appen laget av svarene dine. Den bruker det hver gang en ny uke legges ut. Du trenger aldri å se det, men det ligger her.',
+		family: 'Filosofi',
+		length: 'Lengde',
+		openEnded: 'Åpen, uten løp og uten sluttdato. Den går blokk for blokk.',
+		race: (name: string, day: string) => `Mot ${name}, ${day}.`,
+		rhythm: 'Rytme',
+		rhythms: {
+			'3:1': '3 uker som bygger, så 1 lett',
+			'2:1': '2 uker som bygger, så 1 lett',
+			none: 'Ingen lett uke',
+		} satisfies Record<Rhythm, string>,
+		tracks: 'Spor',
+		/** `Løping, starter på 3 t/uke`: a track and its Season Anchor. */
+		track: (name: string, start: string | null) =>
+			start == null ? name : `${name}, starter på ${start}`,
+		level: 'Nivå',
+		pattern: 'Ukemønster',
+		free: 'fri',
+		/** A share day: `Løping · andel, vekt 1,5`. */
+		shareDay: (track: string, weight: number) =>
+			`${track} · andel, vekt ${nbNumber(weight)}`,
+		fixedDay: (track: string, title: string) => `${track} · ${title}`,
+		weeks: 'Timer per uke i blokka som er lagt',
+		/** `uke 43`. */
+		week: (number: number) => `uke ${number}`,
+		easy: 'lett uke',
+	},
+	toToday: 'Til I dag',
 } as const
 
 /**

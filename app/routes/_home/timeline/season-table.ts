@@ -252,6 +252,12 @@ export type SeasonCurve = {
 	horizonAt: number | null
 	/** The index of race week, where the flag stands, or null. */
 	eventAt: number | null
+	/**
+	 * The first point the plan has not laid: from here the target is how an
+	 * open-ended plan would go on if every week were done to plan, drawn
+	 * dashed (_Planen er klar_, #570). Absent where every point is the plan.
+	 */
+	projectedFrom?: number | null
 	/** Each point's figures as strings, for the chart's data table. */
 	figure: (value: number) => string
 }

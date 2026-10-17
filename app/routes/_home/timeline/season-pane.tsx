@@ -26,7 +26,7 @@
  * with layers and read-in switches) stays on Sesong; the full spreadsheet
  * season (variant N) is deliberately not this.
  */
-import { memo, useMemo, useSyncExternalStore } from 'react'
+import { memo, useMemo, useSyncExternalStore, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { ChartFigure, niceLinearTicks } from '#app/components/chart/chart.tsx'
 import { buttonVariants } from '#app/components/ui/button.tsx'
@@ -508,21 +508,44 @@ const CURVE_HEIGHT = 92
  * under the bars and the race's flag over its week. A static chart on the
  * primitive — every value it draws is in its data table.
  */
-/** Exported for Sesong's season picture, as the table is. */
+/**
+ * Exported for Sesong's season picture, as the table is, and for _Planen er
+ * klar_ (#570), which names the curve and its legend itself: it draws a plan
+ * just made, with no done weeks, no today and the weeks it projects dashed
+ * (`projectedFrom`).
+ */
 export const SeasonCurveView = memo(function SeasonCurveView({
 	curve,
+	ariaLabel,
+	caption,
+	legend,
+	projectedLabel,
 }: {
 	curve: SeasonCurveModel
+	/** What the curve draws, said once for a screen reader. */
+	ariaLabel?: string
+	/** The data table's caption. */
+	caption?: string
+	/** The legend under the curve, in place of the season's own; null for none. */
+	legend?: ReactNode
+	/** Over the dashed weeks, and after their figures in the data table. */
+	projectedLabel?: string
 }) {
 	const { points } = curve
 	if (points.length === 0) return null
 	const ticks = niceLinearTicks(curve.max * 1.1)
 	const yMax = ticks[ticks.length - 1] ?? 1
 	const discipline = curve.discipline
+	const projectedFrom =
+		curve.projectedFrom != null && curve.projectedFrom < points.length
+			? curve.projectedFrom
+			: null
 	return (
 		<section data-season-curve className="flex flex-col gap-1.5">
 			<ChartFigure
-				ariaLabel={SEASON_PANE_LABELS.curveName(curve.trackName, curve.unit)}
+				ariaLabel={
+					ariaLabel ?? SEASON_PANE_LABELS.curveName(curve.trackName, curve.unit)
+				}
 				count={points.length}
 				yMax={yMax}
 				width={CURVE_WIDTH}
@@ -532,13 +555,22 @@ export const SeasonCurveView = memo(function SeasonCurveView({
 				gridlines={false}
 				renderMarks={(geom) => {
 					const x = (at: number) => geom.padding.left + geom.slotW * at
-					const targets = points
-						.map((point, i) =>
-							point.target == null
-								? null
-								: `${geom.slotCenter(i)},${geom.scaleY(point.target)}`,
-						)
-						.filter((p): p is string => p != null)
+					const line = (from: number, to: number) =>
+						points
+							.slice(from, to)
+							.map((point, at) =>
+								point.target == null
+									? null
+									: `${geom.slotCenter(from + at)},${geom.scaleY(point.target)}`,
+							)
+							.filter((p): p is string => p != null)
+					// The plan as laid is solid; the weeks it projects carry on from
+					// its last laid week, dashed.
+					const targets = line(0, projectedFrom ?? points.length)
+					const projected =
+						projectedFrom == null
+							? []
+							: line(Math.max(0, projectedFrom - 1), points.length)
 					return (
 						<>
 							{points.map((point, i) => (
@@ -586,6 +618,19 @@ export const SeasonCurveView = memo(function SeasonCurveView({
 									className="text-foreground"
 								/>
 							) : null}
+							{projected.length > 1 ? (
+								<polyline
+									data-curve-projected
+									points={projected.join(' ')}
+									fill="none"
+									stroke="currentColor"
+									strokeWidth={1.5}
+									strokeDasharray="4 3"
+									strokeLinejoin="round"
+									vectorEffect="non-scaling-stroke"
+									className="text-foreground/60"
+								/>
+							) : null}
 							{curve.horizonAt != null ? (
 								<line
 									data-curve-horizon
@@ -618,6 +663,18 @@ export const SeasonCurveView = memo(function SeasonCurveView({
 				}}
 				renderOverlay={(geom) => (
 					<>
+						{projectedFrom != null && projectedLabel ? (
+							<span
+								aria-hidden
+								className="text-muted-foreground absolute top-0 truncate pl-1 text-[10px]/[12px]"
+								style={{
+									left: geom.leftPct(geom.slotLeft(projectedFrom)),
+									right: 0,
+								}}
+							>
+								{projectedLabel}
+							</span>
+						) : null}
 						{curve.horizonAt != null ? (
 							<span
 								className="text-muted-foreground absolute top-0 pl-1 text-[10px]/[12px]"
@@ -657,36 +714,45 @@ export const SeasonCurveView = memo(function SeasonCurveView({
 					</>
 				)}
 				dataTable={{
-					caption: SEASON_PANE_LABELS.curveCaption(curve.trackName),
+					caption: caption ?? SEASON_PANE_LABELS.curveCaption(curve.trackName),
 					columns: [
 						SEASON_PANE_LABELS.week,
 						`${WEEK_FIGURE_LABELS.target} (${curve.unit})`,
 						`${WEEK_FIGURE_LABELS.done} (${curve.unit})`,
 					],
-					rows: points.map((point) => [
+					rows: points.map((point, i) => [
 						String(point.weekNumber),
-						point.target == null ? '–' : curve.figure(point.target),
+						point.target == null
+							? '–'
+							: projectedFrom != null && i >= projectedFrom && projectedLabel
+								? `${curve.figure(point.target)} (${projectedLabel})`
+								: curve.figure(point.target),
 						point.done == null ? '–' : curve.figure(point.done),
 					]),
 				}}
 			/>
-			<p
-				aria-hidden
-				className="text-muted-foreground text-[11px]/[16px] [text-wrap:pretty]"
-			>
-				<span className="text-foreground">—</span>{' '}
-				{SEASON_PANE_LABELS.legendTarget(curve.trackName, curve.unit)} ·{' '}
-				<span
-					className={cn(
-						'inline-block h-2.5 w-1.5 rounded-[1px] align-[-1px]',
-						(discipline && TRACK_BG[discipline]) ?? 'bg-muted-foreground/60',
-					)}
-				/>{' '}
-				{SEASON_PANE_LABELS.legendDone} ·{' '}
-				<span className="text-primary font-semibold">|</span>{' '}
-				{SEASON_PANE_LABELS.legendToday} · ┆ {SEASON_PANE_LABELS.legendHorizon}{' '}
-				· {SEASON_PANE_LABELS.legendPhase} · {SEASON_PANE_LABELS.legendDrift}
-			</p>
+			{legend !== undefined ? (
+				legend
+			) : (
+				<p
+					aria-hidden
+					className="text-muted-foreground text-[11px]/[16px] [text-wrap:pretty]"
+				>
+					<span className="text-foreground">—</span>{' '}
+					{SEASON_PANE_LABELS.legendTarget(curve.trackName, curve.unit)} ·{' '}
+					<span
+						className={cn(
+							'inline-block h-2.5 w-1.5 rounded-[1px] align-[-1px]',
+							(discipline && TRACK_BG[discipline]) ?? 'bg-muted-foreground/60',
+						)}
+					/>{' '}
+					{SEASON_PANE_LABELS.legendDone} ·{' '}
+					<span className="text-primary font-semibold">|</span>{' '}
+					{SEASON_PANE_LABELS.legendToday} · ┆{' '}
+					{SEASON_PANE_LABELS.legendHorizon} · {SEASON_PANE_LABELS.legendPhase}{' '}
+					· {SEASON_PANE_LABELS.legendDrift}
+				</p>
+			)}
 		</section>
 	)
 })
