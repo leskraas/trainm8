@@ -15,6 +15,7 @@ import {
 	type AvailabilityFitWarning,
 } from '../plan-outline/availability-fit.ts'
 import {
+	CURRENCY_DECIMALS,
 	phaseIndexForWeek,
 	totalWeeks,
 	weekRole,
@@ -103,6 +104,12 @@ export type DraftedTrack = {
 	patternDays: PatternWeekday[]
 	/** Every plan week's target for this track in hours, earliest first. */
 	targets: Array<number | null>
+	/**
+	 * Each pattern day's weight, in hours, where _Korte økter_ reshaped the
+	 * track's week ({@link shortWeekdayHours}); absent, the starter pattern's
+	 * own (the long day double).
+	 */
+	dayWeights?: Partial<Record<PatternWeekday, number>>
 }
 
 /** The placeholder id of the draft's first Training Track. */
@@ -340,6 +347,66 @@ export function patternDaysFor(
 	return kept
 }
 
+/**
+ * The longest weekday session _Korte økter_ allows: 45 minutes (#571). The
+ * stamp lays hours in tenths, so the longest it lays is 42.
+ */
+export const SHORT_SESSION_HOURS = 0.75
+
+/** _Korte økter_ keeps Monday to Friday short; the weekend is left alone. */
+function isWeekday(day: PatternWeekday): boolean {
+	return day < 5
+}
+
+/**
+ * _Korte økter_ on one track's days (#571, ADR 0102 §1: a preference shapes
+ * session lengths within the family's rules). Each weekday session is held to
+ * {@link SHORT_SESSION_HOURS}, the weekend's keep the share the starter
+ * pattern gives them (the long day double), and the hours the cap takes are
+ * not moved anywhere, so the week falls short of them and the option says so.
+ * With _Lange, rolige turer_ too, the long day is not held, and it takes the
+ * hours the cap took: short weekdays, and a long session that may be long.
+ *
+ * Returns each day's hours, which become the pattern's weights and add up to
+ * the track's first week, or null where no weekday session was over the cap.
+ */
+export function shortWeekdayHours(
+	days: readonly PatternWeekday[],
+	hours: number,
+	{ longMayBeLong }: { longMayBeLong: boolean },
+): { hours: number; weights: Partial<Record<PatternWeekday, number>> } | null {
+	// In tenths of an hour, the hours currency's own step, so the stamp lays
+	// each day exactly its weight: 45 minutes is laid as the 42 under it.
+	const scale = 10 ** CURRENCY_DECIMALS.hours
+	const cap = Math.floor(SHORT_SESSION_HOURS * scale)
+	const units = Math.round(hours * scale)
+	const long = days.at(-1)
+	const weightOf = (day: PatternWeekday) =>
+		day === long && days.length > 1 ? 2 : 1
+	const total = days.reduce<number>((sum, day) => sum + weightOf(day), 0)
+	const held = (day: PatternWeekday) =>
+		isWeekday(day) && !(longMayBeLong && day === long)
+	const shares = days.map((day) => ({
+		day,
+		units: (units * weightOf(day)) / total,
+	}))
+	if (!shares.some((share) => held(share.day) && share.units > cap)) {
+		return null
+	}
+	const laid = new Map<PatternWeekday, number>()
+	for (const share of shares) {
+		const rounded = Math.round(share.units)
+		laid.set(share.day, held(share.day) ? Math.min(rounded, cap) : rounded)
+	}
+	const kept = () => [...laid.values()].reduce((sum, value) => sum + value, 0)
+	if (longMayBeLong && long != null) {
+		laid.set(long, (laid.get(long) ?? 0) + units - kept())
+	}
+	const weights: Partial<Record<PatternWeekday, number>> = {}
+	for (const [day, value] of laid) weights[day] = value / scale
+	return { hours: kept() / scale, weights }
+}
+
 /** The one-track answers: a Discipline, its hours and the days. */
 type OneTrackAnswers = {
 	discipline: CardioDiscipline
@@ -374,9 +441,15 @@ export function draftFirstRunPlan(
 		 * track's days are cut to it.
 		 */
 		sessionCap?: number
+		/**
+		 * _Korte økter_ (#571): weekday sessions held to 45 minutes on every
+		 * track ({@link shortWeekdayHours}), the long day free with _Lange,
+		 * rolige turer_ too. Never touches the mix.
+		 */
+		shortWeekdays?: { longMayBeLong: boolean }
 	} & (OneTrackAnswers | { tracks: readonly DraftTrack[] }),
 ): FirstRunDraft | null {
-	const { family, goal, startWeekKey, sessionCap } = input
+	const { family, goal, startWeekKey, sessionCap, shortWeekdays } = input
 	const given: readonly DraftTrack[] =
 		'tracks' in input
 			? input.tracks
@@ -392,14 +465,27 @@ export function draftFirstRunPlan(
 	if (!familyPhases || given.length === 0) return null
 	if (given.some((track) => track.days.length === 0)) return null
 
-	const laid = given.map((track, index) => ({
-		trackId: draftTrackId(index),
-		discipline: track.discipline,
-		currency: 'hours' as const,
-		anchor: track.weeklyHours,
-		mix: track.mix,
-		patternDays: patternDaysFor(track.days, track.weeklyHours, sessionCap),
-	}))
+	const laid = given.map((track, index) => {
+		const patternDays = patternDaysFor(
+			track.days,
+			track.weeklyHours,
+			sessionCap,
+		)
+		const shaped = shortWeekdays
+			? shortWeekdayHours(patternDays, track.weeklyHours, shortWeekdays)
+			: null
+		return {
+			trackId: draftTrackId(index),
+			discipline: track.discipline,
+			currency: 'hours' as const,
+			// Where _Korte økter_ took hours off the week, the track starts from
+			// what it lays, so week 1 is the week shown.
+			anchor: shaped?.hours ?? track.weeklyHours,
+			mix: track.mix,
+			patternDays,
+			...(shaped ? { dayWeights: shaped.weights } : {}),
+		}
+	})
 	// Hard sessions go on ordinary days, never the long one (`planStamp`), so
 	// the mix is cut to the pattern's days less the long day: the days of the
 	// first track that carries it, since the phases hold one mix.
@@ -434,6 +520,7 @@ export function draftFirstRunPlan(
 			discipline: track.discipline,
 			sessionsPerWeek: null,
 			weekdays: track.patternDays,
+			dayWeights: track.dayWeights,
 		})),
 	})
 	if (!starter) return null

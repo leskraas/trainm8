@@ -9,10 +9,10 @@ import { cn } from '#app/utils/misc.tsx'
 export const FIRST_RUN_STEP_COUNT = 5
 
 /**
- * The simple start's screens so far: the level, the activities (#563), then
- * the **Start Options** (#566).
+ * The simple start's screens so far: the level, the activities (#563), the
+ * Session Preferences (#571), then the **Start Options** (#566).
  */
-export const SIMPLE_START_STEP_COUNT = 3
+export const SIMPLE_START_STEP_COUNT = 4
 
 /**
  * One screen of the first run: which step it is, its heading, and its body —

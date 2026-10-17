@@ -9,6 +9,10 @@ import { createOpenEndedPlan } from '#app/utils/plan-outline/authoring.server.ts
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action as levelAction, loader as levelLoader } from './niva.tsx'
+import {
+	action as preferencesAction,
+	loader as preferencesLoader,
+} from './okter.tsx'
 import { loader as planLoader } from './plan.tsx'
 import {
 	action as activitiesAction,
@@ -245,7 +249,7 @@ describe('Hva liker du å trene? and the days', () => {
 		expect(given).toMatchObject({ discipline: 'swim', days: [1, 6] })
 	})
 
-	test('the answers move on to the three ways to train, and no day is refused', async () => {
+	test('the answers move on to the Session Preferences, and no day is refused', async () => {
 		const { cookie } = await setUp()
 
 		const response = await settle(() =>
@@ -266,7 +270,7 @@ describe('Hva liker du å trene? and the days', () => {
 			}),
 		)
 		expect(location(response)).toBe(
-			'/start/valg?level=beginner&hours=3&discipline=run&days=0,2,4',
+			'/start/okter?level=beginner&hours=3&discipline=run&days=0,2,4',
 		)
 
 		const noDays = (await activitiesAction({
@@ -310,7 +314,7 @@ describe('Hva liker du å trene? and the days', () => {
 		)
 		const next = location(response)
 		expect(next).toBe(
-			'/start/valg?level=experienced&hours=7&discipline=bike&sports=bike,run,swim&days=0,3,6',
+			'/start/okter?level=experienced&hours=7&discipline=bike&sports=bike,run,swim&days=0,3,6',
 		)
 
 		const back = await activitiesLoader({
@@ -362,6 +366,95 @@ describe('Hva liker du å trene? and the days', () => {
 		})) as unknown as Reply
 		expect(none.init?.status).toBe(400)
 		expect(none.data.result.error?.discipline?.[0]).toBe('Velg en idrett')
+	})
+})
+
+describe('Hva slags økter liker du?', () => {
+	const ANSWERS = 'level=recreational&hours=5&discipline=run&days=0,2,4,5'
+	const FIELDS: Array<[string, string]> = [
+		['level', 'recreational'],
+		['hours', '5'],
+		['discipline', 'run'],
+		['days', '0'],
+		['days', '2'],
+		['days', '4'],
+		['days', '5'],
+	]
+
+	test('is asked once the sport and days are, and comes back with the preferences given', async () => {
+		const { cookie } = await setUp()
+		expect(
+			location(
+				await settle(() =>
+					preferencesLoader({
+						request: get('/start/okter?level=recreational&hours=5', cookie),
+						...ARGS,
+					}),
+				),
+			),
+		).toBe('/start/trening?level=recreational&hours=5')
+		const back = await preferencesLoader({
+			request: get(`/start/okter?${ANSWERS}&prefs=short,nonsense`, cookie),
+			...ARGS,
+		})
+		// A tampered list is no answer at all.
+		expect(back.preferences).toEqual([])
+		const given = await preferencesLoader({
+			request: get(`/start/okter?${ANSWERS}&prefs=surprise,long`, cookie),
+			...ARGS,
+		})
+		expect(given.preferences).toEqual(['long', 'surprise'])
+	})
+
+	test('the preferences picked travel on to the ways, and Hopp over goes on with none', async () => {
+		const { cookie } = await setUp()
+		const picked = await settle(() =>
+			preferencesAction({
+				request: post(
+					'/start/okter',
+					[...FIELDS, ['preferences', 'short'], ['preferences', 'intervals']],
+					cookie,
+				),
+				...ARGS,
+			}),
+		)
+		expect(location(picked)).toBe(
+			`/start/valg?${ANSWERS}&prefs=intervals,short`,
+		)
+		const skipped = await settle(() =>
+			preferencesAction({
+				request: post('/start/okter', FIELDS, cookie),
+				...ARGS,
+			}),
+		)
+		expect(location(skipped)).toBe(`/start/valg?${ANSWERS}`)
+		// Several sports (#573) ride through unchanged.
+		const sports = await settle(() =>
+			preferencesAction({
+				request: post(
+					'/start/okter',
+					[...FIELDS, ['sports', 'run'], ['sports', 'bike']],
+					cookie,
+				),
+				...ARGS,
+			}),
+		)
+		expect(location(sports)).toBe(
+			'/start/valg?level=recreational&hours=5&discipline=run&sports=run,bike&days=0,2,4,5',
+		)
+	})
+
+	test('a preference that does not exist is refused, and the athlete stays', async () => {
+		const { cookie } = await setUp()
+		const refused = (await preferencesAction({
+			request: post(
+				'/start/okter',
+				[...FIELDS, ['preferences', 'everything']],
+				cookie,
+			),
+			...ARGS,
+		})) as unknown as Reply
+		expect(refused.init?.status).toBe(400)
 	})
 })
 

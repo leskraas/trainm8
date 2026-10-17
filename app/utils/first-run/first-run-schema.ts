@@ -12,7 +12,7 @@ import { OpenEndedFieldsSchema } from '../plan-outline/open-ended-schema.ts'
 import { PRESET_FAMILIES, type PresetFamily } from '../plan-outline/presets.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { type CardioDiscipline } from '../workout-schema.ts'
-import { type TrainingLevel } from './start-draft.ts'
+import { type SessionPreference, type TrainingLevel } from './start-draft.ts'
 import {
 	DaysSchema,
 	LevelSchema,
@@ -151,6 +151,12 @@ export type FirstRunAnswers = {
 	 * `discipline` (#573): each its own track with easy sessions.
 	 */
 	otherSports?: CardioDiscipline[]
+	/**
+	 * The **Session Preferences**, where the answers came from the simple
+	 * start (#571): they rank its options and may shorten weekday sessions.
+	 * Empty where the athlete skipped them.
+	 */
+	preferences?: readonly SessionPreference[]
 }
 
 const AnswersSearchSchema = AnswerFieldsSchema.extend({

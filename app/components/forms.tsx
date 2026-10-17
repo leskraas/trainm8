@@ -437,6 +437,89 @@ export function RadioGroupField({
 }
 
 /**
+ * Several of a few answers, or none, as choice cards: a {@link RadioGroupField}
+ * whose cards are `ui/checkbox`es (the Session Preferences, #571). The whole
+ * card is the target, at least 44px tall. Each ticked value posts under
+ * `name` as a hidden input, in the options' order, as a column of native
+ * checkboxes would.
+ */
+export function CheckboxCardsField({
+	name,
+	legend,
+	legendClassName,
+	options,
+	defaultValue,
+	value,
+	onValueChange,
+	className,
+}: {
+	name: string
+	legend: React.ReactNode
+	legendClassName?: string
+	options: readonly ChoiceOption[]
+	defaultValue?: readonly string[]
+	/** The ticked values, where the caller holds them. */
+	value?: readonly string[]
+	onValueChange?: (value: string[]) => void
+	className?: string
+}) {
+	const id = useId()
+	const [own, setOwn] = useState<string[]>([...(defaultValue ?? [])])
+	const ticked = value ? [...value] : own
+	const toggle = (option: string, on: boolean) => {
+		const next = options
+			.map((choice) => choice.value)
+			.filter((choice) => (choice === option ? on : ticked.includes(choice)))
+		if (!value) setOwn(next)
+		onValueChange?.(next)
+	}
+	return (
+		<FieldSet className={cn('gap-3', className)}>
+			<FieldLegend className={cn('mb-0', legendClassName)}>
+				{legend}
+			</FieldLegend>
+			<div className="flex flex-col gap-2">
+				{options.map((option) => (
+					<FieldLabel
+						key={option.value}
+						htmlFor={`${id}-${option.value}`}
+						className="has-data-checked:border-primary has-data-checked:bg-primary/5 dark:has-data-checked:bg-primary/10 duration-press transition-colors ease-out"
+					>
+						<FormField orientation="horizontal" className="min-h-11 py-3!">
+							<Checkbox
+								id={`${id}-${option.value}`}
+								checked={ticked.includes(option.value)}
+								disabled={option.disabled}
+								onCheckedChange={(on) => toggle(option.value, on)}
+								className="mt-0.5"
+							/>
+							<FieldContent>
+								<FieldTitle className="text-callout">{option.label}</FieldTitle>
+								{option.description ? (
+									<FieldDescription className="text-footnote">
+										{option.description}
+									</FieldDescription>
+								) : null}
+							</FieldContent>
+						</FormField>
+					</FieldLabel>
+				))}
+			</div>
+			{options
+				.filter((option) => ticked.includes(option.value))
+				.map((option) => (
+					<input
+						key={option.value}
+						type="hidden"
+						name={name}
+						value={option.value}
+					/>
+				))}
+		</FieldSet>
+	)
+}
+
+/**
  * Several of a short row of answers (the days of a week), as `ui/toggle-group`
  * pills: 44px tall, pressed in the primary green. A toggle group posts nothing
  * on its own, so each pressed value is a hidden input under `name`, in the

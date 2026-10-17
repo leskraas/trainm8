@@ -27,7 +27,10 @@ import {
 	connectionHubStatus,
 	getAccountConnection,
 } from '#app/utils/account-connection.server.ts'
-import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
+import {
+	getAthleteTimezone,
+	readStartAnswersOf,
+} from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -36,6 +39,8 @@ import {
 	ME_LABELS,
 	MEG_STRENGTH_LABELS,
 	providerLabel,
+	SESSION_PREFERENCE_LABELS,
+	SIMPLE_START_LABELS,
 } from '#app/utils/labels.ts'
 import {
 	getCurrentLoad,
@@ -72,6 +77,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		personalRecords,
 		timezone,
 		bindingSet,
+		startAnswers,
 	] = await Promise.all([
 		prisma.user.findUniqueOrThrow({
 			where: { id: userId },
@@ -94,6 +100,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 		// The Origin Platforms behind the load and the records (ADR 0098 §1),
 		// for the derived-data line Garmin's terms ask of both.
 		readRecordedBindingSet(userId),
+		// The level and Session Preferences the start asked (#571).
+		readStartAnswersOf(userId),
 	])
 	// The same reading the integrations page makes (`connectionHubStatus`).
 	const intervalsicu = connectionHubStatus(connection)
@@ -116,7 +124,25 @@ export async function loader({ request }: Route.LoaderArgs) {
 				select: { strengthPerWeek: true },
 			})
 		)?.strengthPerWeek ?? null
-	return { user, intervalsicu, form, records, credits, strengthPerWeek }
+	const startAnswersDetail = SESSION_PREFERENCE_LABELS.meg.row(
+		startAnswers.level
+			? SIMPLE_START_LABELS.levels[startAnswers.level].name
+			: null,
+		SESSION_PREFERENCE_LABELS.list(
+			startAnswers.preferences.map(
+				(preference) => SESSION_PREFERENCE_LABELS.options[preference].name,
+			),
+		),
+	)
+	return {
+		user,
+		intervalsicu,
+		form,
+		records,
+		credits,
+		strengthPerWeek,
+		startAnswersDetail,
+	}
 }
 
 function MeLink({
@@ -183,7 +209,15 @@ function MeSection({
 }
 
 export default function MeRoute({ loaderData }: Route.ComponentProps) {
-	const { user, intervalsicu, form, records, credits, strengthPerWeek } =
+	const {
+		user,
+		intervalsicu,
+		form,
+		records,
+		credits,
+		strengthPerWeek,
+		startAnswersDetail,
+	} = loaderData
 		loaderData
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
@@ -228,6 +262,12 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 			<RecordsSection records={records} credits={credits} />
 
 			<MeSection id="me-settings" title={ME_LABELS.settings}>
+				<MeLink
+					to="/settings/level"
+					icon="bar-chart"
+					title={SESSION_PREFERENCE_LABELS.meg.title}
+					detail={startAnswersDetail}
+				/>
 				<MeLink
 					to="/settings/training"
 					icon="settings"

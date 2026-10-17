@@ -867,6 +867,76 @@ describe('a Start Option picked with Velg denne', () => {
 		},
 	)
 
+	test.each([
+		[['short'] as const, 246],
+		[['long', 'short'] as const, 300],
+	])(
+		'with %j the plan made is the card, minute for minute, and the weeks after keep its shape',
+		async (preferences, minutes) => {
+			const athleteId = await createAthlete()
+			const answers = {
+				...beginner,
+				level: 'recreational' as const,
+				hours: 5,
+				// mandag, onsdag, fredag, lørdag
+				days: [0, 2, 4, 5] as Array<0 | 1 | 2 | 3 | 4 | 5 | 6>,
+				preferences,
+			}
+			const start = draftStart({ ...answers, startWeekKey: START })!
+			const option = start.options[0]!
+			expect(option.week.minutes).toBe(minutes)
+
+			const created = await createFirstRunPlan(
+				athleteId,
+				{ ...answers, family: option.family },
+				NOW,
+			)
+			expect(created).toMatchObject({ ok: true })
+			const sessions = await prisma.workoutSession.findMany({
+				where: { userId: athleteId },
+				orderBy: { scheduledAt: 'asc' },
+				select: {
+					scheduledAt: true,
+					workout: {
+						select: {
+							blocks: { select: { steps: { select: { durationSec: true } } } },
+						},
+					},
+				},
+			})
+			const laid = sessions.map((session) => ({
+				day: session.scheduledAt.toISOString().slice(0, 10),
+				minutes: Math.round(
+					session
+						.workout!.blocks.flatMap((block) => block.steps)
+						.reduce((sum, step) => sum + (step.durationSec ?? 0), 0) / 60,
+				),
+			}))
+			const weekOne = laid.filter((session) => session.day < addDays(START, 7))
+			expect(
+				weekOne.map((session) => [weekdayIndex(session.day), session.minutes]),
+			).toEqual(
+				option.week.days.flatMap((day) =>
+					day.sessions.map((session) => [day.weekday, session.minutes]),
+				),
+			)
+			// The pattern keeps the shape, so the next week's weekdays stay short
+			// beside the long day as the family climbs.
+			const weekTwo = laid.filter((session) => session.day >= addDays(START, 7))
+			const longest = Math.max(...weekTwo.map((session) => session.minutes))
+			for (const session of weekTwo) {
+				if (weekdayIndex(session.day) < 5) {
+					expect(session.minutes).toBeLessThan(longest)
+				}
+			}
+			const profile = await prisma.athleteProfile.findUniqueOrThrow({
+				where: { userId: athleteId },
+				select: { sessionPreferences: true },
+			})
+			expect(JSON.parse(profile.sessionPreferences!)).toEqual(preferences)
+		},
+	)
+
 	test('a way the answers do not show — Masters, or one merged away — is refused, and nothing is made', async () => {
 		const athleteId = await createAthlete()
 

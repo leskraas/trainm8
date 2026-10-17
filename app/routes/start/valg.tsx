@@ -33,6 +33,7 @@ import {
 	nbHoursWords,
 	nbLongDay,
 	PHILOSOPHY_LABELS,
+	SESSION_PREFERENCE_LABELS,
 	SIMPLE_START_LABELS,
 	START_OPTION_LABELS,
 } from '#app/utils/labels.ts'
@@ -162,7 +163,12 @@ function cardOf(
 		shortOfHours:
 			option.shortOfHours == null
 				? null
-				: L.shortOfHours(duration(option.shortOfHours), nbHoursWords(hours)),
+				: (option.shortByPreference
+						? SESSION_PREFERENCE_LABELS.shortOfHours
+						: L.shortOfHours)(
+						duration(option.shortOfHours),
+						nbHoursWords(hours),
+					),
 		chooseLabel: L.chooseLabel(plain.name),
 	}
 }
@@ -201,14 +207,24 @@ function notesOf(start: StartDraft, sessionCap: number): string[] {
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireSimpleStartAthlete(request)
 	const answers = readStartAnswers(new URL(request.url).searchParams)
-	const { level, hours, discipline, otherSports = [], days, strength } = answers
+	const {
+		level,
+		hours,
+		discipline,
+		otherSports = [],
+		days,
+		strength,
+		preferences = [],
+	} = answers
 	// Every answer comes first; without one, back to where it is asked.
 	if (!level || hours == null) {
 		const search = startSearch(answers)
 		throw redirect(search ? `/start/niva?${search}` : '/start/niva')
 	}
-	const back = `/start/trening?${startSearch(answers)}`
-	if (!discipline || !days) throw redirect(back)
+	const back = `/start/okter?${startSearch(answers)}`
+	if (!discipline || !days) {
+		throw redirect(`/start/trening?${startSearch(answers)}`)
+	}
 	const startWeekKey = await readPlanStartWeekKey(userId)
 	// _Styrke_ (#574): read as the writer reads it, so the card is the plan.
 	const lifting = strength != null ? await readStartStrength(userId) : null
@@ -223,8 +239,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 			lifting && strength != null
 				? { perWeek: strength, session: lifting.session }
 				: null,
+		preferences,
 	})
-	if (!start) throw redirect(back)
+	if (!start) throw redirect(`/start/trening?${startSearch(answers)}`)
 	const badge = start.badge ? L.badge[start.badge] : null
 	return {
 		answers: {
@@ -234,11 +251,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 			otherSports,
 			days,
 			strength: lifting ? (strength ?? null) : null,
+			preferences,
 		},
 		title: L.title(start.options.length),
 		intro: L.intro(start.options.length, nbHoursWords(hours), start.daysUsed),
 		back,
-		notes: notesOf(start, levelDefaults(level).sessionCap),
+		notes: [
+			...notesOf(start, levelDefaults(level).sessionCap),
+			// How _Korte økter_ and _Lange, rolige turer_ are met (story 24).
+			...(preferences.includes('short') && preferences.includes('long')
+				? [SESSION_PREFERENCE_LABELS.shortAndLong]
+				: []),
+		],
 		startsOn: L.startsOn(nbLongDay(startWeekKey)),
 		cards: start.options.map((option, index) =>
 			cardOf(
@@ -258,8 +282,16 @@ export async function action({ request }: Route.ActionArgs) {
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	const { level, hours, discipline, sports, days, family, strength } =
-		submission.value
+	const {
+		level,
+		hours,
+		discipline,
+		sports,
+		days,
+		family,
+		strength,
+		preferences,
+	} = submission.value
 	const created = await createFirstRunPlan(userId, {
 		discipline,
 		otherSports: otherSportsOf(discipline, sports),
@@ -269,6 +301,8 @@ export async function action({ request }: Route.ActionArgs) {
 		family,
 		level,
 		...(strength != null ? { strength } : {}),
+		// Stored as the athlete's answer, `[]` for a skip (#571).
+		preferences: preferences ?? [],
 	})
 	if (!created.ok) {
 		return data(
@@ -392,11 +426,11 @@ export default function StartOptions({
 
 	return (
 		<FirstRunFrame
-			step={3}
+			step={4}
 			stepCount={SIMPLE_START_STEP_COUNT}
 			title={loaderData.title}
 			intro={loaderData.intro}
-			back={{ to: loaderData.back, label: L.back }}
+			back={{ to: loaderData.back, label: SESSION_PREFERENCE_LABELS.backHere }}
 		>
 			{loaderData.notes.length > 0 ? (
 				<div
@@ -597,6 +631,14 @@ export default function StartOptions({
 										value={answers.strength}
 									/>
 								) : null}
+								{answers.preferences.map((preference) => (
+									<input
+										key={preference}
+										type="hidden"
+										name="preferences"
+										value={preference}
+									/>
+								))}
 								<input type="hidden" name="family" value={card.family} />
 								<StatusButton
 									type="submit"

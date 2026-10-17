@@ -2623,6 +2623,13 @@ type StarterPatternOptions = {
 	 * of the days rather than all of them (`StarterTrack.weekdays`).
 	 */
 	daysByDiscipline?: Partial<Record<Discipline, readonly PatternWeekday[]>>
+	/**
+	 * Each track's day weights, by Discipline, where the first run shaped its
+	 * week (`StarterTrack.dayWeights`, _Korte økter_).
+	 */
+	weightsByDiscipline?: Partial<
+		Record<Discipline, Partial<Record<PatternWeekday, number>>>
+	>
 }
 
 /**
@@ -2638,6 +2645,7 @@ export async function createStarterWeekPatternInTx(
 	{
 		trainableWeekdays: stated,
 		daysByDiscipline = {},
+		weightsByDiscipline = {},
 	}: StarterPatternOptions = {},
 ): Promise<StarterPatternResult> {
 	const start = WeekPatternStarterSchema.parse(input)
@@ -2687,6 +2695,7 @@ export async function createStarterWeekPatternInTx(
 			// from — and the athlete moves days from there.
 			sessionsPerWeek: track.segments[0]?.sessionsPerWeek ?? null,
 			weekdays: daysByDiscipline[track.discipline as Discipline],
+			dayWeights: weightsByDiscipline[track.discipline as Discipline],
 		})),
 	})
 	if (!proposal) {

@@ -1,11 +1,17 @@
 import { expect, test } from 'vitest'
+import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { draftFirstRunPlan } from './draft.ts'
 import {
 	draftStart,
 	levelDefaults,
+	SESSION_PREFERENCES,
 	startFamilies,
+	startWeekOf,
 	TRAINING_LEVELS,
 	weekSketch,
+	type SessionPreference,
+	type StartWeek,
+	type TrainingLevel,
 } from './start-draft.ts'
 
 // The simple start's draft (#558 S2, #563): the answers in — Training Level,
@@ -460,4 +466,213 @@ test('a sport there is no day for is left out and said, never the main sport', (
 	})
 	expect(made.sports).toEqual(['swim', 'run'])
 	expect(made.sportsLeftOut).toEqual(['bike'])
+})
+
+// Session Preferences (#571): they order the options and, with _Korte økter_,
+// shape the weekday sessions; they never change a family's mix.
+
+/** Every set of preferences there is: none, each alone, and every mix. */
+function preferenceSets(): SessionPreference[][] {
+	return Array.from({ length: 2 ** SESSION_PREFERENCES.length }, (_, mask) =>
+		SESSION_PREFERENCES.filter((_, bit) => mask & (2 ** bit)),
+	)
+}
+
+/** The families in the order shown, and the first card's badge. */
+function ranking(
+	preferences: SessionPreference[],
+	level: TrainingLevel = 'recreational',
+) {
+	const made = start({ level, ...levelDefaults(level), preferences })
+	return {
+		families: made.options.map((option) => option.family),
+		badge: made.badge,
+	}
+}
+
+test('the ways are ranked by the prototype’s scoring, stably, and Passer deg best sits on the first only when it scores', () => {
+	expect(ranking(['intervals'])).toEqual({
+		families: ['polarized', 'threshold', 'classic'],
+		badge: 'best-fit',
+	})
+	expect(ranking(['threshold'])).toEqual({
+		families: ['threshold', 'polarized', 'classic'],
+		badge: 'best-fit',
+	})
+	expect(ranking(['surprise'])).toEqual({
+		families: ['classic', 'polarized', 'threshold'],
+		badge: 'best-fit',
+	})
+	expect(ranking(['short']).families[0]).toBe('threshold')
+	// A tie keeps the level's order.
+	expect(ranking(['threshold', 'surprise']).families).toEqual([
+		'threshold',
+		'classic',
+		'polarized',
+	])
+	expect(ranking(['long', 'surprise']).families[0]).toBe('classic')
+	// A beginner: long easy sessions score Stor base and Polarisert alike, so
+	// Stor base stays first, now with a reason the athlete gave.
+	expect(ranking(['long'], 'beginner')).toEqual({
+		families: ['big-base', 'polarized', 'classic'],
+		badge: 'best-fit',
+	})
+	expect(ranking(['intervals'], 'beginner').families[0]).toBe('polarized')
+	expect(ranking(['surprise'], 'beginner').families[0]).toBe('classic')
+})
+
+test('a skip, or a preference no shown family scores, claims no Passer deg best; a beginner’s Stor base is still recommended for the level', () => {
+	// _Korte økter_ scores only Terskelfokus, which a beginner is not offered.
+	expect(ranking(['short'], 'beginner').badge).toBe('level')
+	expect(ranking([], 'beginner').badge).toBe('level')
+	expect(ranking([]).badge).toBeNull()
+	expect(ranking([], 'competitive').badge).toBeNull()
+})
+
+test('Session Preferences never change a family’s Quality Session Mix', () => {
+	for (const level of TRAINING_LEVELS) {
+		const { hours } = levelDefaults(level)
+		for (const days of [
+			[0, 2, 4, 5],
+			[0, 1, 2, 3, 4, 5, 6],
+			[1, 3],
+		] as PatternWeekday[][]) {
+			const without = start({ level, hours, days })
+			for (const preferences of preferenceSets()) {
+				const made = start({ level, hours, days, preferences })
+				for (const option of made.options) {
+					const plain = without.options.find(
+						(shown) => shown.family === option.family,
+					)
+					const draft =
+						plain?.draft ??
+						draftFirstRunPlan({
+							family: option.family,
+							goal: { kind: 'active' },
+							startWeekKey: START,
+							discipline: 'run',
+							weeklyHours: hours,
+							days,
+							sessionCap: levelDefaults(level).sessionCap,
+						})!
+					expect(option.draft.phases.map((phase) => phase.mix)).toEqual(
+						draft.phases.map((phase) => phase.mix),
+					)
+					expect(option.week.hardSessions).toBe(startWeekOf(draft).hardSessions)
+				}
+			}
+		}
+	}
+})
+
+/** Every session on a weekday (mandag–fredag) of a week. */
+function weekdayMinutes(week: StartWeek): number[] {
+	return week.days
+		.filter((day) => day.weekday < 5)
+		.flatMap((day) => day.sessions.map((session) => session.minutes))
+}
+
+test('Korte økter keeps every weekday session to 45 minutes, and the week says it falls short of the hours because of it', () => {
+	// 5 t on mandag, onsdag, fredag and lørdag: an hour on each weekday.
+	const made = start({ preferences: ['short'] })
+	for (const option of made.options) {
+		expect(weekdayMinutes(option.week)).toEqual([42, 42, 42])
+		// The weekend keeps its share: two hours on lørdag, still the long one.
+		expect(option.week.days[5]!.sessions[0]).toMatchObject({
+			title: 'Langtur · Løping',
+			minutes: 120,
+		})
+		expect(option.week.minutes).toBe(3 * 42 + 120)
+		expect(option.shortOfHours).toBe(246)
+		expect(option.shortByPreference).toBe(true)
+	}
+})
+
+test('Korte økter changes nothing where every weekday session is already 45 minutes or less', () => {
+	const made = start({ hours: 3, preferences: ['short'] })
+	const plain = start({ hours: 3 })
+	// Ranked differently (_Korte økter_ suits Terskelfokus), the same weeks.
+	expect(made.options.map(shown).sort()).toEqual(
+		plain.options.map(shown).sort(),
+	)
+	for (const option of made.options) {
+		expect(option.shortOfHours).toBeNull()
+		expect(option.shortByPreference).toBe(false)
+	}
+})
+
+test('Korte økter with Lange, rolige turer keeps the weekdays short and gives the long session the rest of the hours', () => {
+	const made = start({ preferences: ['long', 'short'] })
+	for (const option of made.options) {
+		expect(weekdayMinutes(option.week)).toEqual([42, 42, 42])
+		expect(option.week.days[5]!.sessions[0]).toMatchObject({
+			title: 'Langtur · Løping',
+			minutes: 300 - 3 * 42,
+		})
+		expect(option.week.minutes).toBe(300)
+		expect(option.shortOfHours).toBeNull()
+		expect(option.shortByPreference).toBe(false)
+	}
+	// A long day on a weekday may be long too: the beginner's fredag.
+	const beginner = start({
+		level: 'beginner',
+		hours: 4,
+		days: [0, 2, 4],
+		preferences: ['long', 'short'],
+	})
+	for (const option of beginner.options) {
+		expect(weekdayMinutes(option.week)).toEqual([42, 42, 156])
+		expect(option.week.minutes).toBe(240)
+	}
+})
+
+test('with Korte økter, for every level and day count, no two shown weeks are equal and week 1 is the hours or says why not', () => {
+	for (const level of TRAINING_LEVELS) {
+		for (let count = 1; count <= 7; count++) {
+			for (const preferences of [
+				['short'],
+				['short', 'long'],
+			] as SessionPreference[][]) {
+				const made = start({
+					level,
+					hours: 8,
+					days: daySets(count)[0]!,
+					preferences,
+				})
+				const weeks = made.options.map(shown)
+				expect(new Set(weeks).size).toBe(weeks.length)
+				expect(made.options.length + made.merged).toBe(3)
+				for (const option of made.options) {
+					if (option.shortOfHours == null) {
+						expect(Math.abs(option.week.minutes - 8 * 60)).toBeLessThan(
+							option.week.sessionCount,
+						)
+					} else {
+						expect(option.shortOfHours).toBe(option.week.minutes)
+					}
+				}
+			}
+		}
+	}
+})
+
+test('Korte økter holds every sport’s weekday sessions to 45 minutes when there are several', () => {
+	const made = start({
+		hours: 8,
+		days: [0, 1, 2, 3, 5],
+		otherSports: ['bike'],
+		preferences: ['short'],
+	})
+	for (const option of made.options) {
+		expect(Math.max(...weekdayMinutes(option.week))).toBeLessThanOrEqual(45)
+		expect(
+			new Set(
+				option.week.days.flatMap((day) =>
+					day.sessions.map((session) => session.discipline),
+				),
+			),
+		).toEqual(new Set(['run', 'bike']))
+		expect(option.shortOfHours).toBe(option.week.minutes)
+		expect(option.shortByPreference).toBe(true)
+	}
 })

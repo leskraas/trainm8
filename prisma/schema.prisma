@@ -1148,6 +1148,12 @@ model AthleteProfile {
   // lifting history or their Training Level, and changed in Meg. Their own
   // answer, never invented. Null = never answered (they did not pick styrke).
   strengthPerWeek Int?
+  // Session Preferences (ADR 0102 §1): the kinds of session the athlete likes —
+  // JSON array of "long" | "intervals" | "threshold" | "short" | "surprise"
+  // (`SESSION_PREFERENCES`). They order the Start Options and _Korte økter_
+  // keeps weekday sessions short; they never change a Quality Session Mix.
+  // "[]" = skipped, null = never asked (an athlete from before #571).
+  sessionPreferences String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -14,9 +14,11 @@ import { CARDIO_DISCIPLINES, type CardioDiscipline } from '../workout-schema.ts'
 import {
 	MAX_START_HOURS,
 	MIN_START_HOURS,
+	SESSION_PREFERENCES,
 	START_HOURS_STEP,
 	STRENGTH_PER_WEEK_CHOICES,
 	TRAINING_LEVELS,
+	type SessionPreference,
 	type TrainingLevel,
 } from './start-draft.ts'
 
@@ -51,6 +53,21 @@ export const StartHoursSchema = z.coerce
 export const StartDisciplineSchema = z.enum(CARDIO_DISCIPLINES, {
 	errorMap: () => ({ message: M.disciplineRequired }),
 })
+
+/**
+ * _Hva slags økter liker du?_: the **Session Preferences**, several or none,
+ * each once and in the question's order. A form sends an array (or one value
+ * when one is ticked), the URL a comma list.
+ */
+export const PreferencesSchema = z.preprocess(
+	(value) =>
+		typeof value === 'string' ? value.split(',').filter(Boolean) : value,
+	z
+		.array(z.enum(SESSION_PREFERENCES))
+		.transform((picked) =>
+			SESSION_PREFERENCES.filter((preference) => picked.includes(preference)),
+		),
+)
 
 /**
  * Every endurance sport picked (#573), the main one among them, each once and
@@ -104,7 +121,8 @@ export const LevelStepSchema = z.object({
 
 /**
  * _Hva liker du å trene?_: the main sport, every sport picked and the days,
- * with the level.
+ * with the level. The preferences ride along when the athlete came back from
+ * them, and the preferences screen sends them with every other answer (#571).
  */
 export const ActivitiesStepSchema = z.object({
 	level: LevelSchema,
@@ -113,6 +131,7 @@ export const ActivitiesStepSchema = z.object({
 	sports: SportsSchema.optional(),
 	days: DaysSchema,
 	strength: StrengthPerWeekSchema.optional(),
+	preferences: PreferencesSchema.optional(),
 })
 
 /**
@@ -132,6 +151,7 @@ export type StartAnswersSoFar = {
 	otherSports?: CardioDiscipline[]
 	days?: PatternWeekday[]
 	strength?: number
+	preferences?: SessionPreference[]
 }
 
 /** Empty URL values read as absent, so `?hours=` is no answer, not zero. */
@@ -153,6 +173,7 @@ export function readStartAnswers(search: URLSearchParams): StartAnswersSoFar {
 	const strength = StrengthPerWeekSchema.safeParse(
 		present(search.get('strength')),
 	)
+	const preferences = PreferencesSchema.safeParse(present(search.get('prefs')))
 	const sports = SportsSchema.safeParse(search.get('sports') ?? '')
 	const otherSports =
 		discipline.success && sports.success
@@ -165,6 +186,9 @@ export function readStartAnswers(search: URLSearchParams): StartAnswersSoFar {
 		...(otherSports.length > 0 ? { otherSports } : {}),
 		...(days.success ? { days: days.data } : {}),
 		...(strength.success ? { strength: strength.data } : {}),
+		...(preferences.success && preferences.data.length > 0
+			? { preferences: preferences.data }
+			: {}),
 	}
 }
 
@@ -182,6 +206,9 @@ export function startSearch(answers: StartAnswersSoFar): string {
 	}
 	if (answers.strength != null) {
 		params.set('strength', String(answers.strength))
+	}
+	if (answers.preferences && answers.preferences.length > 0) {
+		params.set('prefs', answers.preferences.join(','))
 	}
 	return params.toString()
 }

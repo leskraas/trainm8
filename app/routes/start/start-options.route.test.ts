@@ -161,8 +161,99 @@ test('going back to a question and changing it recomputes the ways, and says why
 		'Med disse svarene la alle måtene nøyaktig samme uke, så du ser bare én.',
 	)
 	expect(oneDay.back).toBe(
-		'/start/trening?level=beginner&hours=3&discipline=run&days=4',
+		'/start/okter?level=beginner&hours=3&discipline=run&days=4',
 	)
+})
+
+// Session Preferences (#571) on the cards.
+
+const RECREATIONAL = 'level=recreational&hours=5&discipline=run&days=0,2,4,5'
+
+test('the ways come in the order the preferences give them, with Passer deg best on the first', async () => {
+	const { cookie } = await setUp()
+	const shown = await loader({
+		request: get(`/start/valg?${RECREATIONAL}&prefs=surprise`, cookie),
+		...ARGS,
+	})
+	expect(shown.cards.map((card) => [card.family, card.badge])).toEqual([
+		['classic', 'Passer deg best'],
+		['polarized', null],
+		['threshold', null],
+	])
+	expect(decodeURIComponent(shown.back)).toBe(
+		`/start/okter?${RECREATIONAL}&prefs=surprise`,
+	)
+	// A skip: the level's order, and no badge claiming a taste.
+	const skipped = await loader({
+		request: get(`/start/valg?${RECREATIONAL}`, cookie),
+		...ARGS,
+	})
+	expect(skipped.cards.map((card) => [card.family, card.badge])).toEqual([
+		['polarized', null],
+		['threshold', null],
+		['classic', null],
+	])
+})
+
+test('Korte økter says plainly that the week falls short of the hours, and with Lange, rolige turer how the two are met', async () => {
+	const { cookie } = await setUp()
+	const short = await loader({
+		request: get(`/start/valg?${RECREATIONAL}&prefs=short`, cookie),
+		...ARGS,
+	})
+	for (const card of short.cards) {
+		expect(card.total).toBe('4 t 6 min i uka')
+		expect(card.shortOfHours).toBe(
+			'Uka blir 4 t 6 min, ikke 5 timer: du valgte korte økter, så ingen økt på en hverdag er over 45 minutter.',
+		)
+	}
+	const both = await loader({
+		request: get(`/start/valg?${RECREATIONAL}&prefs=long,short`, cookie),
+		...ARGS,
+	})
+	expect(both.notes).toContain(
+		'Du liker både korte økter og lange turer: hverdagsøktene blir høyst 45 minutter, og langturen får bli lang.',
+	)
+	for (const card of both.cards) {
+		expect(card.total).toBe('5 t i uka')
+		expect(card.shortOfHours).toBeNull()
+	}
+})
+
+test('Velg denne keeps the Session Preferences on the Athlete Profile, and a skip as none', async () => {
+	const { userId, cookie } = await setUp()
+	await settle(() =>
+		action({
+			request: post(
+				'/start/valg',
+				[
+					...choice('polarized'),
+					['preferences', 'short'],
+					['preferences', 'long'],
+				],
+				cookie,
+			),
+			...ARGS,
+		}),
+	)
+	const profile = await prisma.athleteProfile.findUniqueOrThrow({
+		where: { userId },
+		select: { sessionPreferences: true },
+	})
+	expect(JSON.parse(profile.sessionPreferences!)).toEqual(['long', 'short'])
+
+	const skipper = await setUp()
+	await settle(() =>
+		action({
+			request: post('/start/valg', choice('polarized'), skipper.cookie),
+			...ARGS,
+		}),
+	)
+	const skipped = await prisma.athleteProfile.findUniqueOrThrow({
+		where: { userId: skipper.userId },
+		select: { sessionPreferences: true },
+	})
+	expect(skipped.sessionPreferences).toBe('[]')
 })
 
 test('Velg denne makes the plan picked, keeps the level, and takes the athlete to Planen er klar', async () => {
@@ -200,7 +291,7 @@ test('several sports: the cards lay every sport, carry them to Velg denne, and t
 		otherSports: ['run'],
 	})
 	expect(decodeURIComponent(shown.back)).toBe(
-		'/start/trening?level=experienced&hours=7&discipline=bike&sports=bike,run&days=0,1,3,4,6',
+		'/start/okter?level=experienced&hours=7&discipline=bike&sports=bike,run&days=0,1,3,4,6',
 	)
 	const laid = new Set(
 		shown.cards[0]!.days.flatMap((day) =>

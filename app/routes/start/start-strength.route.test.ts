@@ -8,6 +8,10 @@ import {
 	action as strengthSettingsAction,
 	loader as strengthSettingsLoader,
 } from '../settings/training/styrke.tsx'
+import {
+	action as preferencesAction,
+	loader as preferencesLoader,
+} from './okter.tsx'
 import { loader as activitiesLoader } from './trening.tsx'
 import { action, loader } from './valg.tsx'
 
@@ -74,6 +78,37 @@ test('the tap is offered pre-set by the level, with the full-body session to lif
 		request: get(`/start/trening?${ANSWERS}&strength=3`, cookie),
 	})
 	expect(again.strength?.picked).toBe(3)
+})
+
+test('the tap rides through Hva slags økter liker du? to the Start Options', async () => {
+	const { cookie } = await setUp()
+	const shown = await preferencesLoader({
+		...ARGS,
+		request: get(`/start/okter?${ANSWERS}&strength=2`, cookie),
+	})
+	expect(shown.strength?.perWeek).toBe(2)
+	const response = await preferencesAction({
+		...ARGS,
+		request: post(
+			'/start/okter',
+			[
+				['level', 'experienced'],
+				['hours', '7'],
+				['discipline', 'run'],
+				...['0', '1', '3', '4', '6'].map((day): [string, string] => [
+					'days',
+					day,
+				]),
+				['strength', '2'],
+				['preferences', 'long'],
+			],
+			cookie,
+		),
+	}).catch((thrown: unknown) => thrown)
+	expect(response).toBeInstanceOf(Response)
+	const location = (response as Response).headers.get('location') ?? ''
+	expect(location).toMatch(/^\/start\/valg\?/)
+	expect(new URLSearchParams(location.split('?')[1]).get('strength')).toBe('2')
 })
 
 test('each card counts its lifting beside the hours, shows its lifts, and says the frequency is the athlete’s', async () => {

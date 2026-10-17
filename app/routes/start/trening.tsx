@@ -78,6 +78,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		discipline: answers.discipline ?? ('run' as const),
 		otherSports: answers.otherSports ?? [],
 		days: answers.days ?? levelDefaults(level).days,
+		preferences: answers.preferences ?? [],
 		startWeekKey: await readPlanStartWeekKey(userId),
 		strength: lifting
 			? {
@@ -99,7 +100,7 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 	const { sports, ...answers } = submission.value
 	throw redirect(
-		`/start/valg?${startSearch({
+		`/start/okter?${startSearch({
 			...answers,
 			otherSports: otherSportsOf(answers.discipline, sports),
 		})}`,
@@ -192,6 +193,15 @@ export default function ActivitiesStep({
 			<Form method="POST" className="space-y-8" {...getFormProps(form)}>
 				<input type="hidden" name={fields.level.name} value={level} />
 				<input type="hidden" name={fields.hours.name} value={hours} />
+				{/* Back from the preferences, they ride along (#571). */}
+				{loaderData.preferences.map((preference) => (
+					<input
+						key={preference}
+						type="hidden"
+						name={fields.preferences.name}
+						value={preference}
+					/>
+				))}
 
 				<div className="space-y-1">
 					<ToggleGroupField
