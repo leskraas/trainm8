@@ -920,7 +920,7 @@ async function seed() {
 		climbAt.setUTCHours(17, 0, 0, 0)
 		await createSimpleActivitySession(kody.id, {
 			scheduledAt: climbAt,
-			activity: { kind: 'climb', effortWord: 'medium', durationMin: 90 },
+			activity: { kind: 'climb', effortWord: 'middels', durationMin: 90 },
 		})
 		const wallAt = new Date(now)
 		wallAt.setUTCHours(7, 0, 0, 0)
