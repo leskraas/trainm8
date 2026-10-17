@@ -1,0 +1,1114 @@
+<title>Trainm8 fysisk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!--
+  PROTOTYPE — THROWAWAY. Variant D · Fysisk. Same four plain questions and the
+  same week generation as enkel-start (variant A), made physical: the three
+  suggestions are a deck you drag, flick and lift (flick up to choose); the
+  chosen card's week travels into "Planen er klar" and on into I dag; I dag is
+  a day pager with today in the middle; Juster is a sheet that follows the
+  finger. Every moving thing is a vanilla rAF spring that starts from where it
+  is on screen, inherits the finger's velocity and can be grabbed mid-flight.
+  Reduced motion: cross-fades, no travel. Nothing is saved.
+-->
+<style>
+/* Layout: one phone-width column, centred on large screens; tokens from app/styles/tailwind.css (ADR 0085). */
+:root {
+	--bg: oklch(0.975 0.003 197);
+	--fg: oklch(0.148 0.004 228.8);
+	--card: oklch(1 0 0);
+	--muted: oklch(0.948 0.004 197);
+	--muted-fg: oklch(0.52 0.016 213.5);
+	--border: oklch(0.915 0.005 214.3);
+	--primary: #0d7a68;
+	--primary-fg: #ffffff;
+	--primary-soft: color-mix(in oklab, #0d7a68 12%, transparent);
+	--ring: color-mix(in oklab, #0d7a68 55%, transparent);
+	--easy: oklch(0.6 0.12 160);
+	--mid: oklch(0.66 0.13 70);
+	--hard: oklch(0.58 0.17 25);
+	--t-run: oklch(0.63 0.16 32);
+	--t-bike: oklch(0.72 0.13 78);
+	--t-swim: oklch(0.62 0.1 225);
+	--t-ski: oklch(0.6 0.12 262);
+	--t-strength: oklch(0.55 0.11 300);
+	--t-climb: oklch(0.58 0.09 55);
+	--t-hike: oklch(0.6 0.09 145);
+	--t-yoga: oklch(0.66 0.08 350);
+	--shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 4px 12px rgb(0 0 0 / 0.05);
+	--shadow-lift: 0 1px 2px rgb(0 0 0 / 0.05), 0 10px 28px rgb(0 0 0 / 0.1);
+	--font: 'Public Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: oklch(0.148 0.004 228.8); --fg: oklch(0.987 0.002 197.1); --card: oklch(0.205 0.007 223.9);
+		--muted: oklch(0.255 0.01 216.9); --muted-fg: oklch(0.723 0.014 214.4); --border: oklch(0.3 0.01 216.9);
+		--primary: #35b89c; --primary-fg: #0c1512; --primary-soft: color-mix(in oklab, #35b89c 16%, transparent);
+		--ring: color-mix(in oklab, #35b89c 55%, transparent);
+		--shadow: 0 0 0 1px rgb(255 255 255 / 0.06); --shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.08), 0 12px 32px rgb(0 0 0 / 0.5);
+		color-scheme: dark;
+	}
+}
+:root[data-theme="dark"] {
+	--bg: oklch(0.148 0.004 228.8); --fg: oklch(0.987 0.002 197.1); --card: oklch(0.205 0.007 223.9);
+	--muted: oklch(0.255 0.01 216.9); --muted-fg: oklch(0.723 0.014 214.4); --border: oklch(0.3 0.01 216.9);
+	--primary: #35b89c; --primary-fg: #0c1512; --primary-soft: color-mix(in oklab, #35b89c 16%, transparent);
+	--ring: color-mix(in oklab, #35b89c 55%, transparent);
+	--shadow: 0 0 0 1px rgb(255 255 255 / 0.06); --shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.08), 0 12px 32px rgb(0 0 0 / 0.5);
+	color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 16px/24px var(--font); letter-spacing: -0.004em; -webkit-text-size-adjust: 100%; overflow-x: hidden; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.app { max-width: 440px; margin: 0 auto; min-height: 100%; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-top: calc(12px + env(safe-area-inset-top, 0px)); padding-bottom: 150px; position: relative; }
+.screen { display: flex; flex-direction: column; gap: 20px; }
+.screen.enter { animation: enter 260ms var(--ease-out) both; }
+.screen.enter.back { animation-name: enter-back; }
+.screen.enter.fade { animation: fade 220ms var(--ease-out) both; }
+@keyframes enter { from { opacity: 0; transform: translateX(16px); } }
+@keyframes enter-back { from { opacity: 0; transform: translateX(-16px); } }
+@keyframes fade { from { opacity: 0; } }
+h1 { font-size: 26px; line-height: 32px; font-weight: 650; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+h2 { font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.012em; margin: 0; }
+p { margin: 0; }
+.lead { color: var(--muted-fg); font-size: 15px; line-height: 21px; }
+.small { font-size: 13px; line-height: 18px; color: var(--muted-fg); }
+.over { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-fg); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Flow chrome */
+.top { display: flex; align-items: center; gap: 12px; }
+.back { width: 44px; height: 44px; margin-left: -10px; border-radius: 999px; display: grid; place-items: center; }
+.progress { flex: 1; height: 4px; border-radius: 4px; background: var(--muted); overflow: hidden; }
+.progress > i { display: block; height: 100%; background: var(--primary); border-radius: 4px; transition: transform 300ms var(--ease-out); transform-origin: left; }
+.cta-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); background: linear-gradient(to top, var(--bg) 70%, transparent); z-index: 5; }
+.cta-bar > div { max-width: 408px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+
+.btn { min-height: 52px; border-radius: 16px; padding: 0 20px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform 160ms var(--ease-out), opacity 160ms ease; }
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--primary); color: var(--primary-fg); }
+.btn-primary[disabled] { opacity: 0.4; pointer-events: none; }
+.btn-quiet { background: var(--muted); }
+.btn-ghost { min-height: 44px; color: var(--primary); }
+.btn-block { width: 100%; }
+
+/* Choices */
+.options { display: flex; flex-direction: column; gap: 8px; }
+.option { text-align: left; background: var(--card); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow); display: flex; gap: 12px; align-items: center; border: 2px solid transparent; transition: transform 160ms var(--ease-out), border-color 150ms ease, background-color 150ms ease; }
+.option:active { transform: scale(0.98); }
+.option[aria-pressed="true"] { border-color: var(--primary); background: color-mix(in oklab, var(--card) 90%, var(--primary)); }
+.option b { display: block; font-weight: 600; font-size: 16px; }
+.option span.d { display: block; font-size: 13px; line-height: 18px; color: var(--muted-fg); }
+.check { margin-left: auto; flex: none; width: 22px; height: 22px; border-radius: 999px; border: 2px solid var(--border); display: grid; place-items: center; transition: background-color 150ms ease, border-color 150ms ease; }
+.option[aria-pressed="true"] .check { background: var(--primary); border-color: var(--primary); }
+.check svg { opacity: 0; transform: scale(0.6); transition: opacity 150ms ease, transform 200ms var(--ease-out); }
+.option[aria-pressed="true"] .check svg { opacity: 1; transform: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); display: inline-flex; align-items: center; gap: 8px; font-weight: 500; border: 2px solid transparent; transition: transform 160ms var(--ease-out), border-color 150ms ease; }
+.chip:active { transform: scale(0.96); }
+.chip[aria-pressed="true"] { border-color: var(--primary); background: color-mix(in oklab, var(--card) 88%, var(--primary)); }
+.dot { width: 10px; height: 10px; border-radius: 999px; flex: none; }
+.days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.day { min-height: 48px; border-radius: 12px; background: var(--card); box-shadow: var(--shadow); font-weight: 600; font-size: 14px; border: 2px solid transparent; transition: transform 160ms var(--ease-out), border-color 150ms ease; }
+.day:active { transform: scale(0.95); }
+.day[aria-pressed="true"] { border-color: var(--primary); background: color-mix(in oklab, var(--card) 88%, var(--primary)); }
+.hours { display: flex; align-items: center; gap: 12px; background: var(--card); box-shadow: var(--shadow); border-radius: 16px; padding: 8px; }
+.hours output { flex: 1; text-align: center; font-weight: 650; font-size: 20px; }
+.step-btn { width: 48px; height: 48px; border-radius: 12px; background: var(--muted); font-size: 22px; font-weight: 600; transition: transform 160ms var(--ease-out); }
+.step-btn:active { transform: scale(0.94); }
+section.group { display: flex; flex-direction: column; gap: 10px; }
+
+/* Week rows: one shape everywhere (deck card, Planen er klar, I dag), so the week can travel between them */
+.card { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px; }
+.rows { display: flex; flex-direction: column; }
+.wrow { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 38px; padding: 3px 0; border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); width: 100%; text-align: left; }
+.wrow:first-child { border-top: 0; }
+.wrow .dn { font-size: 12px; font-weight: 600; color: var(--muted-fg); text-transform: uppercase; letter-spacing: 0.04em; }
+.wrow .t { font-size: 14px; line-height: 19px; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.wrow .t > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wrow .t.rest { color: var(--muted-fg); }
+.wrow .m { font-size: 13px; color: var(--muted-fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.int { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; }
+.int::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: currentColor; }
+.int.easy { color: var(--easy); } .int.mid { color: var(--mid); } .int.hard { color: var(--hard); }
+.mix { display: flex; height: 8px; border-radius: 8px; overflow: hidden; gap: 2px; }
+.mix i { display: block; height: 100%; }
+.badge { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 12px; font-weight: 600; }
+.facts { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted-fg); }
+.facts b { color: var(--fg); font-weight: 600; }
+
+/* The deck: one card on top, the others stacked under it */
+.deck { position: relative; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+.deck:active { cursor: grabbing; }
+.deck:focus-visible { outline: none; }
+.deck:focus-visible .deck-card:not([inert]) { outline: 2px solid var(--ring); outline-offset: 2px; }
+.deck-card { position: absolute; left: 0; right: 0; top: 0; display: flex; flex-direction: column; gap: 10px; transform-origin: 50% 100%; box-shadow: var(--shadow-lift); will-change: transform; overflow: hidden; }
+.deck-meta { display: flex; align-items: center; gap: 4px; min-height: 44px; }
+.dotbtn { width: 32px; height: 44px; display: grid; place-items: center; flex: none; }
+.dotbtn i { width: 6px; height: 6px; border-radius: 6px; background: var(--border); transition: width 200ms var(--ease-out), background-color 200ms ease; }
+.dotbtn[aria-current="true"] i { width: 18px; background: var(--primary); }
+#deck-hint { margin-left: auto; text-align: right; transition: color 150ms ease; }
+#deck-hint.armed { color: var(--primary); font-weight: 600; }
+
+/* The travelling week */
+.ghost { position: fixed; left: 0; top: 0; z-index: 15; background: var(--card); border-radius: 20px; padding: 16px; box-shadow: var(--shadow-lift); transform-origin: 0 0; pointer-events: none; will-change: transform; }
+
+/* Plan ready */
+.ramp { display: flex; align-items: flex-end; gap: 4px; height: 64px; }
+.ramp i { flex: 1; border-radius: 4px 4px 2px 2px; background: var(--primary); opacity: 0.85; }
+.ramp i.light { opacity: 0.35; }
+details.hood { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); }
+details.hood summary { list-style: none; cursor: pointer; min-height: 52px; display: flex; align-items: center; padding: 0 16px; font-weight: 600; gap: 8px; }
+details.hood summary::-webkit-details-marker { display: none; }
+details.hood summary::after { content: "+"; margin-left: auto; color: var(--muted-fg); font-size: 20px; transition: transform 200ms var(--ease-out); }
+details.hood[open] summary::after { transform: rotate(45deg); }
+.hood-body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; font-size: 13px; line-height: 18px; }
+.kv dt { color: var(--muted-fg); }
+.kv dd { margin: 0; min-width: 0; }
+.code { font: 12px/17px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--muted); border-radius: 10px; padding: 10px 12px; overflow-x: auto; white-space: pre; }
+.split { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+
+/* Home */
+.home-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.icon-btn { min-height: 44px; padding: 0 14px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; transition: transform 160ms var(--ease-out); }
+.icon-btn:active { transform: scale(0.96); }
+.row-actions { display: flex; gap: 8px; margin-top: auto; }
+.row-actions .btn { flex: 1; }
+.done-mark { width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; background: var(--primary); color: var(--primary-fg); flex: none; }
+.todo-mark { width: 22px; height: 22px; border-radius: 999px; border: 2px solid var(--border); flex: none; }
+#home-week .wrow { grid-template-columns: 36px minmax(0, 1fr) auto auto; min-height: 44px; transition: background-color 150ms ease; }
+#home-week .wrow.today-row, #home-week .wrow.shown { border-radius: 12px; }
+#home-week .wrow:active { background: var(--muted); }
+.wrow.today-row { background: var(--primary-soft); margin: 1px -8px; padding: 3px 8px; width: calc(100% + 16px); border-top-color: transparent; }
+.wrow.shown:not(.today-row) { background: var(--muted); margin: 1px -8px; padding: 3px 8px; width: calc(100% + 16px); border-top-color: transparent; }
+.wrow.today-row + .wrow, .wrow.shown + .wrow { border-top-color: transparent; }
+.pager { position: relative; margin: -12px -16px 0; padding: 12px 0 24px; overflow: hidden; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.pager:focus-visible { outline-offset: -2px; }
+.pager-track { position: relative; }
+.page { position: absolute; top: 0; left: 32px; right: 32px; display: flex; flex-direction: column; gap: 10px; will-change: transform; }
+.page.is-today { box-shadow: var(--shadow-lift), inset 0 0 0 2px var(--primary); }
+.page h2 { font-size: 24px; line-height: 30px; font-weight: 650; letter-spacing: -0.02em; }
+.pager-nav { display: flex; align-items: center; gap: 4px; margin-top: -32px; }
+.page .row-actions .btn { padding: 0 12px; font-size: 15px; }
+.nav-btn { width: 44px; height: 44px; border-radius: 999px; display: grid; place-items: center; color: var(--muted-fg); transition: transform 160ms var(--ease-out); }
+.nav-btn:active { transform: scale(0.92); }
+.nav-btn[disabled] { opacity: 0.3; pointer-events: none; }
+.pager-nav .mid { flex: 1; display: flex; justify-content: center; align-items: center; min-height: 44px; }
+.today-link { min-height: 44px; padding: 0 14px; border-radius: 999px; color: var(--primary); font-weight: 600; font-size: 14px; }
+.note { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 18px; color: var(--muted-fg); background: var(--muted); border-radius: 14px; padding: 12px 14px; }
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; background: color-mix(in oklab, var(--bg) 88%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--border); padding: 0 max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px)); z-index: 5; }
+.tabbar > div { max-width: 408px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); }
+.tab { min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; font-weight: 600; color: var(--muted-fg); }
+.tab[aria-current] { color: var(--primary); }
+
+/* Sheet + toast. The sheet and scrim are moved by a spring in JS, never by a CSS transition. */
+.scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 0.35); opacity: 0; pointer-events: none; z-index: 20; }
+.scrim.open { pointer-events: auto; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; transform: translateY(110%); visibility: hidden; touch-action: none; will-change: transform; }
+.sheet.open { visibility: visible; }
+.sheet::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 200px; background: var(--card); max-width: 440px; margin: 0 auto; } /* fills the gap when it is pulled up past its height */
+.sheet > div { max-width: 440px; margin: 0 auto; background: var(--card); border-radius: 24px 24px 0 0; padding: 8px max(16px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: 8px; box-shadow: 0 -8px 32px rgb(0 0 0 / 0.12); }
+.grabber { width: 36px; height: 5px; border-radius: 5px; background: var(--border); margin: 4px auto 8px; }
+.sheet .option { box-shadow: none; background: var(--muted); }
+.toast { position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 16px); opacity: 0; transition: transform 240ms var(--ease-out), opacity 200ms ease; z-index: 30; background: var(--fg); color: var(--bg); border-radius: 14px; padding: 6px 6px 6px 16px; display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 500; width: max-content; max-width: calc(100% - 32px); pointer-events: none; }
+.toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.toast button { min-height: 44px; padding: 0 12px; border-radius: 10px; font-weight: 700; color: var(--bg); }
+
+@media (hover: hover) and (pointer: fine) {
+	.option:hover, .chip:hover, .day:hover { border-color: color-mix(in oklab, var(--primary) 35%, transparent); }
+	.option[aria-pressed="true"]:hover, .chip[aria-pressed="true"]:hover, .day[aria-pressed="true"]:hover { border-color: var(--primary); }
+	#home-week .wrow:hover { background: var(--muted); }
+}
+@media (prefers-reduced-motion: reduce) {
+	.screen.enter, .screen.enter.back, .screen.enter.fade { animation: fade 200ms ease both; }
+	.toast { transform: translate(-50%, 0); }
+	.btn:active, .option:active, .chip:active, .day:active, .nav-btn:active, .icon-btn:active { transform: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+	.tabbar { background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+</style>
+
+<main class="app" id="app"></main>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><div id="sheet-body"></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-text"></span><button type="button" id="toast-undo">Angre</button></div>
+
+<script>
+const LEVELS = [
+	{ k: 'ny', t: 'Nybegynner', d: 'Jeg er i gang, eller kommer tilbake etter en pause.', h: 3, days: [1, 3, 5] },
+	{ k: 'mosjon', t: 'Mosjonist', d: 'Jeg trener jevnlig, to–tre ganger i uka.', h: 5, days: [1, 3, 5, 6] },
+	{ k: 'erfaren', t: 'Erfaren', d: 'Jeg har trent strukturert i flere år.', h: 7, days: [0, 1, 3, 4, 6] },
+	{ k: 'konk', t: 'Konkurranse', d: 'Jeg trener mot resultater og tåler mye.', h: 10, days: [0, 1, 2, 3, 5, 6] },
+]
+const ACTS = [
+	{ k: 'run', t: 'Løping', kind: 'endurance' },
+	{ k: 'bike', t: 'Sykling', kind: 'endurance' },
+	{ k: 'ski', t: 'Langrenn', kind: 'endurance' },
+	{ k: 'swim', t: 'Svømming', kind: 'endurance' },
+	{ k: 'hike', t: 'Fjelltur', kind: 'endurance' },
+	{ k: 'strength', t: 'Styrke', kind: 'strength' },
+	{ k: 'climb', t: 'Klatring', kind: 'climb' },
+	{ k: 'yoga', t: 'Yoga og bevegelighet', kind: 'mobility' },
+]
+const PREFS = [
+	{ k: 'long', t: 'Lange, rolige turer', d: 'Tid i beina, i et tempo der du kan prate.' },
+	{ k: 'intervals', t: 'Korte, harde intervaller', d: 'Få minutter der det virkelig går unna.' },
+	{ k: 'threshold', t: 'Jevnt hardt', d: 'Lengre drag der du jobber kontrollert hardt.' },
+	{ k: 'short', t: 'Korte økter', d: 'Helst ikke over 45 minutter.' },
+	{ k: 'surprise', t: 'Overrask meg', d: 'Bland gjerne, jeg liker variasjon.' },
+]
+const DAY = ['man', 'tir', 'ons', 'tor', 'fre', 'lør', 'søn']
+const DAY_LONG = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag', 'søndag']
+const MONTH = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des']
+const INT = { easy: 'rolig', mid: 'middels', hard: 'hard' }
+
+// The three principles. Plain name first; the family the Outline records second.
+const PRINCIPLES = {
+	polarized: { name: 'Mest rolig, litt veldig hardt', family: 'Polarisert 80/20', familyKey: 'polarized', why: 'Nesten alt går rolig. Én gang i uka går det skikkelig hardt. Gir mye form for lite slitasje.' },
+	threshold: { name: 'Jevnt og kontrollert hardt', family: 'Terskelfokus', familyKey: 'threshold', why: 'To økter i uka der du jobber jevnt hardt i lengre drag. Effektivt når tiden er knapp.' },
+	classic: { name: 'Variert og bygger seg opp', family: 'Klassisk 3:1', familyKey: 'classic', why: 'Litt av alt. Tre uker blir gradvis tyngre, den fjerde er lett så kroppen tar igjen.' },
+	base: { name: 'Bygg grunnform først', family: 'Stor base', familyKey: 'big-base', why: 'Lange perioder med rolig trening før det blir hardere. Trygt når du starter opp.' },
+}
+
+const state = {
+	step: 0, prevStep: 0,
+	level: null, hours: null, acts: new Set(), actOrder: [], prefs: new Set(), days: new Set(),
+	deckIndex: 0, chosen: null, week: null, done: new Set(), dayIndex: null,
+}
+
+const today = new Date()
+const todayIdx = (today.getDay() + 6) % 7
+
+function fmtMin(m) {
+	if (m < 60) return `${m} min`
+	const h = Math.floor(m / 60), r = m % 60
+	return r ? `${h} t ${r} min` : `${h} t`
+}
+const fmtH = (h) => String(Math.round(h * 10) / 10).replace('.', ',')
+const actOf = (k) => ACTS.find((a) => a.k === k)
+const color = (k) => `var(--t-${k})`
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const cap = (s) => s[0].toUpperCase() + s.slice(1)
+const checkSvg = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.5l4.5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary-fg)"/></svg>'
+const chevron = (dir) => `<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="${dir < 0 ? 'M12.5 4.5 7 10l5.5 5.5' : 'M7.5 4.5 13 10l-5.5 5.5'}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+
+// ——— Physics: one rAF clock, springs in Apple's terms (response, damping ratio) ———
+// Every spring starts from its current on-screen value and keeps its velocity when it is
+// re-targeted, so anything moving can be grabbed and thrown somewhere else mid-flight.
+const RM = matchMedia('(prefers-reduced-motion: reduce)')
+const reduced = () => RM.matches
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
+// Where a release at v px/s would come to rest (Apple's Designing Fluid Interfaces projection).
+const project = (v, rate = 0.998) => ((v / 1000) * rate) / (1 - rate)
+// Progressive resistance past a boundary: the further past, the less it follows.
+const rubber = (o, dim, c = 0.55) => (o * dim * c) / (dim + c * Math.abs(o))
+
+const running = new Set()
+let rafId = 0, lastT = 0
+function frame(t) {
+	const dt = clamp((t - lastT) / 1000, 0, 1 / 20) || 1 / 60
+	lastT = t
+	for (const s of [...running]) s.tick(dt)
+	rafId = running.size ? requestAnimationFrame(frame) : 0
+}
+class Spring {
+	constructor(v, paint, eps = 0.1) { this.v = v; this.vel = 0; this.target = v; this.paint = paint; this.eps = eps }
+	get moving() { return running.has(this) }
+	// Hold it where it is (a finger caught it). Velocity is kept for whoever re-targets it.
+	stop() { running.delete(this); this.onRest = null }
+	set(v) { this.stop(); this.v = v; this.target = v; this.vel = 0; this.paint(v) }
+	to(target, { velocity = this.vel, response = 0.4, damping = 1, onRest = null } = {}) {
+		this.target = target; this.vel = velocity; this.onRest = onRest
+		this.k = (2 * Math.PI / response) ** 2 // stiffness, unit mass
+		this.c = (4 * Math.PI * damping) / response // damping ratio 1 = critically damped, no overshoot
+		running.add(this)
+		if (!rafId) { lastT = performance.now(); rafId = requestAnimationFrame(frame) }
+	}
+	tick(dt) {
+		const n = Math.ceil(dt * 240), h = dt / n
+		for (let i = 0; i < n; i++) {
+			this.vel += (-this.k * (this.v - this.target) - this.c * this.vel) * h
+			this.v += this.vel * h
+		}
+		if (Math.abs(this.v - this.target) < this.eps && Math.abs(this.vel) < this.eps * 10) {
+			this.v = this.target; this.vel = 0; running.delete(this)
+			this.paint(this.v)
+			const f = this.onRest; this.onRest = null; f?.()
+			return
+		}
+		this.paint(this.v)
+	}
+}
+// Reduced motion: no travel, a short cross-fade around the change instead.
+function fadeSwap(el, apply) {
+	el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 90, easing: 'ease' }).onfinish = () => {
+		apply()
+		el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: 'ease' })
+	}
+}
+
+// One drag recogniser: nothing moves until 10px of travel picks an axis, then the element
+// follows the finger 1:1 from where it was grabbed, with pointer capture so it keeps tracking
+// outside its bounds. Release hands over the velocity of the last 100ms.
+let suppressClickUntil = 0
+document.addEventListener('click', (e) => { if (performance.now() < suppressClickUntil) { e.stopPropagation(); e.preventDefault() } }, true)
+function drag(el, o) {
+	let g = null
+	el.addEventListener('pointerdown', (e) => {
+		if (g || (e.pointerType === 'mouse' && e.button !== 0)) return
+		g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, axis: null, samples: [{ x: e.clientX, y: e.clientY, t: e.timeStamp }] }
+		o.down?.(e)
+	})
+	el.addEventListener('pointermove', (e) => {
+		if (!g || e.pointerId !== g.id) return
+		const dx = e.clientX - g.x0, dy = e.clientY - g.y0
+		g.samples.push({ x: e.clientX, y: e.clientY, t: e.timeStamp })
+		while (g.samples.length > 2 && e.timeStamp - g.samples[0].t > 100) g.samples.shift()
+		if (g.axis === null) {
+			if (Math.hypot(dx, dy) < 10) return
+			const axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+			if (!o.axes.includes(axis)) { g.axis = 'none'; return }
+			g.axis = axis
+			try { el.setPointerCapture(e.pointerId) } catch {}
+			o.start?.(axis)
+		}
+		if (g.axis === 'none') return
+		e.preventDefault()
+		o.move(dx, dy, g.axis)
+	})
+	const end = (e, cancelled) => {
+		if (!g || e.pointerId !== g.id) return
+		const t = e.timeStamp
+		const recent = g.samples.filter((s) => t - s.t <= 100)
+		let vx = 0, vy = 0
+		if (!cancelled && recent.length >= 2) {
+			const a = recent[0], b = recent[recent.length - 1], dt = (b.t - a.t) / 1000
+			if (dt > 0) { vx = (b.x - a.x) / dt; vy = (b.y - a.y) / dt }
+		}
+		const { axis } = g
+		const dx = e.clientX - g.x0, dy = e.clientY - g.y0
+		g = null
+		if (axis === 'x' || axis === 'y') { suppressClickUntil = performance.now() + 350; o.end({ vx, vy, dx, dy, axis }) }
+		else o.release?.(e, cancelled || axis === 'none')
+	}
+	el.addEventListener('pointerup', (e) => end(e, false))
+	el.addEventListener('pointercancel', (e) => end(e, true))
+	el.addEventListener('lostpointercapture', (e) => { if (g && g.axis && g.axis !== 'none') end(e, true) })
+}
+
+// ——— Week generation: the same rules every principle card, the plan and I dag read ———
+const WORK = {
+	easy: { t: 'Rolig', int: 'easy', wt: 0.8, d: 'Rolig tempo hele veien. Du skal kunne prate.' },
+	long: { t: 'Langtur', int: 'easy', wt: 1.6, d: 'Lang og rolig. Ta med drikke.' },
+	intervals: { t: 'Intervaller', int: 'hard', wt: 1, d: 'Varm opp, så 4 × 4 min hardt med 3 min rolig mellom.' },
+	threshold: { t: 'Jevnt hardt', int: 'mid', wt: 1, d: '3 × 10 min kontrollert hardt. Pusten skal være tung, men jevn.' },
+	tempo: { t: 'Tempo', int: 'mid', wt: 1, d: '20 min i komfortabelt hardt tempo midt i økta.' },
+	strength: { t: 'Styrke', int: 'mid', d: 'Helkropp: knebøy, markløft, press og kjerne. 3 runder.' },
+	climb: { t: 'Klatring', int: 'mid', d: 'Buldring eller tau. Varm opp fingrene godt.' },
+	yoga: { t: 'Bevegelighet', int: 'easy', d: 'Rolig yoga for hofter og rygg.' },
+}
+
+function principlesFor() {
+	const keys = state.level === 'ny' ? ['base', 'polarized', 'classic'] : ['polarized', 'threshold', 'classic']
+	const score = (k) => {
+		let s = 0
+		if (state.prefs.has('intervals') && k === 'polarized') s += 2
+		if (state.prefs.has('threshold') && k === 'threshold') s += 2
+		if (state.prefs.has('long') && (k === 'polarized' || k === 'base')) s += 1
+		if (state.prefs.has('surprise') && k === 'classic') s += 2
+		if (state.prefs.has('short') && k === 'threshold') s += 1
+		return s
+	}
+	return keys.map((k) => ({ k, s: score(k) })).sort((a, b) => b.s - a.s).map((x) => x.k)
+}
+
+function buildWeek(pk) {
+	const days = [...state.days].sort((a, b) => a - b)
+	const n = days.length
+	const total = Math.round(state.hours * 60)
+	const endurance = enduranceChosen()
+	const short = state.prefs.has('short')
+	// One of each chosen activity first, so nothing the athlete asked for goes missing; a
+	// second strength or climbing day only when the week has room for it.
+	const strength = { w: 'strength', act: 'strength', min: 45 }
+	const climb = { w: 'climb', act: 'climb', min: short ? 60 : 90 }
+	const wanted = []
+	if (state.acts.has('strength')) wanted.push(strength)
+	if (state.acts.has('climb')) wanted.push(climb)
+	if (state.acts.has('yoga')) wanted.push({ w: 'yoga', act: 'yoga', min: 30 })
+	if (state.acts.has('strength') && state.level !== 'ny' && n >= 5) wanted.push({ ...strength })
+	if (state.acts.has('climb') && state.level === 'konk' && n >= 6) wanted.push({ ...climb })
+	const room = n - (endurance.length ? Math.min(2, n) : 0)
+	const others = wanted.slice(0, Math.max(0, room))
+
+	const slots = endurance.length ? n - others.length : 0
+	let kinds = []
+	if (slots > 0) {
+		const hardCount = pk === 'threshold' ? (slots >= 3 ? 2 : 1) : slots >= 2 ? 1 : 0
+		const hardKind = pk === 'threshold' ? 'threshold' : pk === 'base' ? 'tempo' : 'intervals'
+		for (let i = 0; i < hardCount; i++) kinds.push(hardKind)
+		if (pk === 'classic' && slots >= 4) kinds.push('tempo')
+		if (pk === 'base' && state.level !== 'ny' && slots >= 4) kinds.push('tempo')
+		if (slots - kinds.length >= 1 && !(short && slots < 3)) kinds.push(short ? 'easy' : 'long')
+		while (kinds.length < slots) kinds.push('easy')
+		kinds = kinds.slice(0, slots)
+	}
+	const otherMin = others.reduce((s, o) => s + o.min, 0)
+	const budget = Math.max(total - otherMin, slots * 25)
+	const weightSum = kinds.reduce((s, k) => s + WORK[k].wt, 0) || 1
+	const endSessions = kinds.map((k, i) => {
+		let min = Math.round((budget * WORK[k].wt) / weightSum / 5) * 5
+		min = Math.max(state.level === 'ny' ? 20 : 30, Math.min(short ? 45 : 180, min))
+		// The main sport takes the hard sessions and the long one; the others share the easy days.
+		const act = WORK[k].int !== 'easy' || k === 'long' || endurance.length === 1 ? endurance[0] : endurance[(i % endurance.length)]
+		return { w: k, act, min }
+	})
+
+	// Place: the long one last, hard ones spread with an easy day between, the rest fills.
+	const placed = new Array(n).fill(null)
+	const longI = endSessions.findIndex((s) => s.w === 'long')
+	if (longI >= 0) placed[n - 1] = endSessions.splice(longI, 1)[0]
+	const hard = endSessions.filter((s) => WORK[s.w].int !== 'easy')
+	const rest = endSessions.filter((s) => WORK[s.w].int === 'easy')
+	const free = () => placed.map((p, i) => (p ? -1 : i)).filter((i) => i >= 0)
+	hard.forEach((s, j) => {
+		const f = free()
+		const target = Math.round(((j + 1) * n) / (hard.length + 1)) - 1
+		const pick = f.reduce((best, i) => (Math.abs(i - target) < Math.abs(best - target) ? i : best), f[0])
+		placed[pick] = s
+	})
+	;[...others, ...rest].forEach((s) => { const f = free(); if (f.length) placed[f[0]] = s })
+	return placed.map((s, i) => (s ? { ...s, day: days[i], ...WORK[s.w], d: WORK[s.w].d } : null)).filter(Boolean)
+}
+
+function weekStats(week) {
+	const total = week.reduce((s, x) => s + x.min, 0)
+	const by = { easy: 0, mid: 0, hard: 0 }
+	week.forEach((x) => (by[x.int] += x.min))
+	return { total, by, count: week.length, hard: week.filter((x) => x.int === 'hard' || x.w === 'threshold').length }
+}
+function title(s) {
+	if (s.act === 'strength' || s.act === 'climb' || s.act === 'yoga') return s.t
+	return `${s.t} · ${actOf(s.act).t.toLowerCase()}`
+}
+
+// ——— Outline: what is built behind the chosen card ———
+function outlineFor(pk) {
+	const weeks = 12
+	const p = PRINCIPLES[pk]
+	const rhythm = 4
+	const climb = pk === 'base' ? 0.04 : 0.06
+	const series = []
+	let block = 0
+	for (let i = 0; i < weeks; i++) {
+		const pos = i % rhythm
+		if (pos === 0 && i > 0) block++
+		const h = state.hours * (1 + climb * (block * (rhythm - 1) + Math.min(pos, rhythm - 2)))
+		series.push(pos === rhythm - 1 ? { h: h * 0.7, light: true } : { h, light: false })
+	}
+	const tracks = []
+	const endurance = enduranceChosen().map(actOf)
+	if (endurance.length) tracks.push({ name: 'Utholdenhet', unit: 'timer', start: fmtH(state.hours), sports: endurance.map((a) => a.t).join(', ') })
+	if (state.acts.has('strength')) tracks.push({ name: 'Styrke', unit: 'økter', start: state.level === 'ny' ? '1 / uke' : '2 / uke' })
+	if (state.acts.has('climb')) tracks.push({ name: 'Klatring', unit: 'timer', start: 'enkel aktivitet, teller i ukas timer' })
+	if (state.acts.has('yoga')) tracks.push({ name: 'Bevegelighet', unit: 'økter', start: 'når det er plass' })
+	return { family: p.family, familyKey: p.familyKey, weeks, series, tracks, peak: Math.max(...series.map((s) => s.h)) }
+}
+
+// ——— Rendering ———
+const app = document.getElementById('app')
+const FLOW = ['intro', 'level', 'acts', 'prefs', 'suggest', 'ready', 'home']
+
+function render(opts = {}) {
+	const name = FLOW[state.step]
+	const html = SCREENS[name]()
+	const anim = state.step === state.prevStep ? '' : opts.fade ? ' enter fade' : ` enter${state.step < state.prevStep ? ' back' : ''}`
+	app.innerHTML = `<div class="screen${anim}">${html}</div>${CTA[name] ? CTA[name]() : ''}`
+	state.prevStep = state.step
+	bindAfter(name)
+}
+function go(step, opts) { state.prevStep = state.step; state.step = step; render(opts); window.scrollTo({ top: 0 }) }
+
+function flowTop(i) {
+	const pct = i / 4
+	return `<div class="top"><button type="button" class="back" data-act="back" aria-label="Tilbake">${chevron(-1)}</button><div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="4" aria-valuenow="${i}" aria-label="Steg ${i} av 4"><i style="transform:scaleX(${pct})"></i></div><span class="small num">${i} av 4</span></div>`
+}
+const ctaBar = (inner) => `<div class="cta-bar"><div>${inner}</div></div>`
+
+const SCREENS = {
+	intro: () => `
+		<div style="height:14vh"></div>
+		<p class="over">Trainm8</p>
+		<h1>La oss lage treningen din</h1>
+		<p class="lead">Fire korte spørsmål, så foreslår vi tre treningsuker. Du velger én, og appen tar seg av resten: hver uke legges ut av seg selv, tilpasset det du faktisk trente.</p>
+		<div class="note">Tar under ett minutt. Alt kan endres senere.</div>`,
+
+	level: () => `
+		${flowTop(1)}
+		<h1>Hvor er du nå?</h1>
+		<div class="options" role="group" aria-label="Nivå">
+			${LEVELS.map((l) => `<button type="button" class="option" data-level="${l.k}" aria-pressed="${state.level === l.k}"><div><b>${l.t}</b><span class="d">${l.d}</span></div><span class="check">${checkSvg}</span></button>`).join('')}
+		</div>
+		${state.level ? `<section class="group"><h2>Omtrent hvor mye tid i uka?</h2>
+		<div class="hours"><button type="button" class="step-btn" data-hours="-0.5" aria-label="Mindre tid">−</button><output class="num" aria-live="polite">${fmtH(state.hours)} timer</output><button type="button" class="step-btn" data-hours="0.5" aria-label="Mer tid">+</button></div>
+		<p class="small">Vanlig for en ${LEVELS.find((l) => l.k === state.level).t.toLowerCase()}. Har du koblet til Strava eller intervals.icu, fyller vi inn det du faktisk trener.</p></section>` : ''}`,
+
+	acts: () => `
+		${flowTop(2)}
+		<h1>Hva liker du å trene?</h1>
+		<p class="lead">Velg så mange du vil. Den første utholdenhetsidretten du velger, blir hovedidretten.</p>
+		<div class="chips" role="group" aria-label="Aktiviteter">
+			${ACTS.map((a) => `<button type="button" class="chip" data-act-k="${a.k}" aria-pressed="${state.acts.has(a.k)}"><span class="dot" style="background:${color(a.k)}"></span>${a.t}</button>`).join('')}
+		</div>
+		${mainSport() ? `<p class="small">Hovedidrett: <b style="color:var(--fg)">${actOf(mainSport()).t}</b></p>` : ''}
+		<section class="group"><h2>Hvilke dager kan du trene?</h2>
+		<div class="days" role="group" aria-label="Treningsdager">${DAY.map((d, i) => `<button type="button" class="day" data-day="${i}" aria-pressed="${state.days.has(i)}">${d}</button>`).join('')}</div>
+		<p class="small num">${state.days.size} dager. Vi legger aldri inn mer enn du har tid til.</p></section>`,
+
+	prefs: () => `
+		${flowTop(3)}
+		<h1>Hva slags økter liker du?</h1>
+		<p class="lead">Vi bruker dette til å velge hvilke forslag du ser først.</p>
+		<div class="options" role="group" aria-label="Økttyper">
+			${PREFS.map((p) => `<button type="button" class="option" data-pref="${p.k}" aria-pressed="${state.prefs.has(p.k)}"><div><b>${p.t}</b><span class="d">${p.d}</span></div><span class="check">${checkSvg}</span></button>`).join('')}
+		</div>`,
+
+	suggest: () => {
+		const keys = principlesFor()
+		return `${flowTop(4)}<h1>Tre måter å trene på</h1><p class="lead">Alle passer ${fmtH(state.hours)} timer på ${state.days.size} dager. Bla i bunken, og dra kortet du vil ha opp.</p>
+		<div class="deck" id="deck" tabindex="0" role="region" aria-roledescription="kortbunke" aria-label="Tre forslag. Piltastene blar, Enter velger.">${keys.map((k, i) => suggestionCard(k, i === 0, i, keys.length)).join('')}</div>`
+	},
+
+	ready: () => {
+		const o = outlineFor(state.chosen)
+		const p = PRINCIPLES[state.chosen]
+		const s = weekStats(state.week)
+		const max = o.peak
+		return `
+		<div style="height:2vh"></div>
+		<p class="over">Planen er klar</p>
+		<h1>${p.name}</h1>
+		<section class="group"><div class="split"><h2>Uke 1</h2><span class="small num">${fmtMin(s.total)} · ${s.count} økter</span></div>
+		<div class="card" id="ready-week"><div class="rows">${weekRows(state.week)}</div></div></section>
+		<p class="lead">De neste ${o.weeks} ukene bygger seg forsiktig opp fra ${fmtH(state.hours)} til ${fmtH(o.peak)} timer, med en lett uke hver fjerde uke.</p>
+		<div class="card" style="display:flex;flex-direction:column;gap:10px">
+			<div class="ramp" role="img" aria-label="Timer per uke de neste ${o.weeks} ukene">${o.series.map((x) => `<i class="${x.light ? 'light' : ''}" style="height:${Math.round((x.h / max) * 100)}%"></i>`).join('')}</div>
+			<div class="facts"><span>uke 1</span><span style="margin-left:auto">uke ${o.weeks}</span></div>
+		</div>
+		<div class="note"><span aria-hidden="true">↻</span><span>Hver søndag kveld legger appen ut neste uke av seg selv. Den ser på hva du faktisk trente, og gjør uka lettere eller tyngre deretter. Du får beskjed, og kan alltid angre.</span></div>
+		${hood(o)}`
+	},
+
+	home: () => {
+		const week = state.week
+		const s = weekStats(week)
+		const doneCount = week.filter((x) => isDone(x)).length
+		const dateLine = `${DAY_LONG[todayIdx]} ${today.getDate()}. ${MONTH[today.getMonth()]}`
+		return `<div class="home-head"><div><p class="over">${dateLine}</p><h1>I dag</h1></div><button type="button" class="icon-btn" data-act="adjust"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h7M13 4h1M2 12h1M7 12h7M11 2v4M5 10v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Juster</button></div>
+		<section class="pager" id="pager" tabindex="0" role="region" aria-roledescription="dagvelger" aria-label="Dagene denne uka. Piltastene blar.">
+			<div class="pager-track">${DAY.map((_, i) => dayPage(week, i)).join('')}</div>
+		</section>
+		<div class="pager-nav"><button type="button" class="nav-btn" data-pg="-1" aria-label="Forrige dag">${chevron(-1)}</button><div class="mid"><span class="small" id="pg-label" aria-live="polite"></span><button type="button" class="today-link" data-act="to-today" id="to-today" hidden>Tilbake til i dag</button></div><button type="button" class="nav-btn" data-pg="1" aria-label="Neste dag">${chevron(1)}</button></div>
+		<section class="group"><div class="split"><h2>Denne uka</h2><span class="small num">${doneCount} av ${s.count} gjort</span></div>
+		<div class="card" id="home-week"><div class="rows">${DAY.map((_, i) => homeRow(week, i)).join('')}</div></div></section>
+		${nextWeekNote()}`
+	},
+}
+
+const CTA = {
+	intro: () => ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="next">Kom i gang</button><button type="button" class="btn btn-ghost btn-block" data-act="demo">Hopp rett til et ferdig eksempel</button>`),
+	level: () => ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="next" ${state.level ? '' : 'disabled'}>Neste</button>`),
+	acts: () => ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="next" ${state.acts.size && state.days.size ? '' : 'disabled'}>Neste</button>`),
+	prefs: () => ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="next">${state.prefs.size ? 'Vis forslag' : 'Hopp over, vis forslag'}</button>`),
+	suggest: () => ctaBar(`<div class="deck-meta"><div role="group" aria-label="Forslag" style="display:flex">${principlesFor().map((_, i) => `<button type="button" class="dotbtn" data-deck="${i}" aria-label="Forslag ${i + 1} av 3"><i></i></button>`).join('')}</div><span class="small" id="deck-hint">Sveip for å bla</span></div><button type="button" class="btn btn-primary btn-block" data-act="choose-deck">Velg denne</button>`),
+	ready: () => ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="next">Til I dag</button>`),
+	home: () => `<nav class="tabbar" aria-label="Hovedmeny"><div>
+		<button type="button" class="tab" aria-current="page"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 9.5 11 4l7 5.5V18H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>I dag</button>
+		<button type="button" class="tab" data-act="plan-tab"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="3.5" y="5" width="15" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9h15M8 3v4M14 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Plan</button>
+		<button type="button" class="tab" data-act="me-tab"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 18c1.2-3 3.7-4.5 6.5-4.5s5.3 1.5 6.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Meg</button>
+	</div></nav>`,
+}
+
+const enduranceChosen = () => state.actOrder.filter((k) => actOf(k).kind === 'endurance' && state.acts.has(k))
+function mainSport() { return enduranceChosen()[0] ?? null }
+
+function mixBar(by, total) {
+	return `<div class="mix" role="img" aria-label="${Math.round((by.easy / total) * 100)} % rolig, ${Math.round((by.mid / total) * 100)} % middels, ${Math.round((by.hard / total) * 100)} % hard">${['easy', 'mid', 'hard'].map((k) => (by[k] ? `<i style="flex:${by[k]};background:var(--${k})"></i>` : '')).join('')}</div>`
+}
+function weekRows(week) {
+	return DAY.map((d, i) => {
+		const s = week.find((x) => x.day === i)
+		return `<div class="wrow"><span class="dn">${d}</span>${s ? `<span class="t"><span class="dot" style="background:${color(s.act)}"></span><span>${esc(title(s))}</span></span><span class="m">${fmtMin(s.min)} · <span class="int ${s.int}">${INT[s.int]}</span></span>` : `<span class="t rest">hvile</span><span></span>`}</div>`
+	}).join('')
+}
+function missingNote(week) {
+	const missing = [...state.acts].filter((k) => !week.some((s) => s.act === k)).map((k) => actOf(k).t.toLowerCase())
+	return missing.length ? `<p class="small">Fikk ikke plass denne uka: ${missing.join(' og ')}. Velg en dag til, så kommer det med.</p>` : ''
+}
+function suggestionCard(k, best, i, n) {
+	const p = PRINCIPLES[k], week = buildWeek(k), s = weekStats(week)
+	return `<article class="card deck-card" data-k="${k}" role="group" aria-roledescription="forslag" aria-label="Forslag ${i + 1} av ${n}: ${p.name}">
+		<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-height:24px">${best ? '<span class="badge">Passer deg best</span>' : ''}<span class="small">${p.family}</span></div>
+		<h2>${p.name}</h2>
+		<p class="small">${p.why}</p>
+		${mixBar(s.by, s.total)}
+		<div class="facts num"><span><b>${fmtMin(s.total)}</b> i uka</span><span><b>${s.count}</b> økter</span><span><b>${s.hard}</b> ${s.hard === 1 ? 'hard' : 'harde'}</span></div>
+		<div class="rows">${weekRows(week)}</div>${missingNote(week)}
+	</article>`
+}
+function hood(o) {
+	const pattern = state.week.map((s) => `${DAY[s.day]}: ${s.w}${s.act !== s.w ? `/${s.act}` : ''} ${s.min}m`).join('\n')
+	return `<details class="hood"><summary>Under panseret</summary><div class="hood-body">
+		<p class="small">Dette er planen appen bygger av svarene dine. Den bruker den hver gang en ny uke lages. Du trenger aldri å se den, men den ligger her.</p>
+		<dl class="kv">
+			<dt>Filosofi</dt><dd>${o.family}</dd>
+			<dt>Lengde</dt><dd>Åpen, uten sluttdato. Her vises de første ${o.weeks} ukene.</dd>
+			<dt>Rytme</dt><dd>3 uker opp, 1 lett</dd>
+			<dt>Spor</dt><dd>${o.tracks.map((t) => `${t.name} (${t.unit}${t.sports ? `: ${t.sports}` : ''}), start ${t.start}`).join('<br>')}</dd>
+			<dt>Nivå</dt><dd>${LEVELS.find((l) => l.k === state.level).t}</dd>
+			<dt>Ønsker</dt><dd>${[...state.prefs].map((k) => PREFS.find((p) => p.k === k).t).join(', ') || 'ingen'}</dd>
+		</dl>
+		<p class="over">Ukemønster</p><div class="code">${esc(pattern)}</div>
+		<p class="over">Timer per uke</p><div class="code">${o.series.map((s, i) => `uke ${String(i + 1).padStart(2)}  ${fmtH(s.h).padStart(4)} t${s.light ? '  lett' : ''}`).join('\n')}</div>
+	</div></details>`
+}
+const isDone = (s) => state.done.has(s.day)
+function todayActions(s) {
+	return isDone(s)
+		? `<div class="row-actions"><button type="button" class="btn btn-quiet" data-done="${s.day}">Angre «gjort»</button></div>`
+		: `<div class="row-actions"><button type="button" class="btn btn-primary" data-done="${s.day}">Gjort</button><button type="button" class="btn btn-quiet" data-act="adjust">Bytt eller flytt</button></div>`
+}
+function dayName(i) {
+	if (i === todayIdx) return 'I dag'
+	if (i === todayIdx - 1) return 'I går'
+	if (i === todayIdx + 1) return 'I morgen'
+	return cap(DAY_LONG[i])
+}
+function dateOf(i) {
+	const d = new Date(today); d.setDate(today.getDate() + i - todayIdx)
+	return `${DAY_LONG[i]} ${d.getDate()}. ${MONTH[d.getMonth()]}`
+}
+function dayPage(week, i) {
+	const s = week.find((x) => x.day === i)
+	const cls = `card page${i === todayIdx ? ' is-today' : ''}`
+	const head = `<p class="over">${i === todayIdx || Math.abs(i - todayIdx) === 1 ? `${dayName(i)} · ` : ''}${dateOf(i)}</p>`
+	if (!s) return `<article class="${cls}" data-page="${i}" role="group" aria-roledescription="dag" aria-label="${dayName(i)}">${head}<h2>Hviledag</h2><p class="small">Ingen økt. Det er når du hviler at kroppen blir sterkere.</p></article>`
+	let foot = ''
+	if (i === todayIdx) foot = todayActions(s)
+	else if (i < todayIdx) foot = `<div class="row-actions"><button type="button" class="btn btn-quiet" data-done="${s.day}">${isDone(s) ? 'Angre «gjort»' : 'Marker som gjort'}</button></div>`
+	else foot = `<p class="small" style="margin-top:auto">Kommer ${DAY_LONG[i]}. Du kan flytte den under Juster.</p>`
+	return `<article class="${cls}" data-page="${i}" role="group" aria-roledescription="dag" aria-label="${dayName(i)}">${head}
+		<div style="display:flex;align-items:center;gap:8px"><span class="dot" style="background:${color(s.act)}"></span><span class="small">${actOf(s.act).t}</span><span class="int ${s.int}" style="margin-left:auto">${INT[s.int]}</span></div>
+		<h2>${esc(s.t)}${isDone(s) ? ' ✓' : ''}</h2><p class="num" style="font-weight:600">${fmtMin(s.min)}${i < todayIdx && !isDone(s) ? ' · <span class="small">ikke gjort</span>' : ''}</p><p class="small">${esc(s.d)}</p>${foot}</article>`
+}
+function homeRow(week, i) {
+	const s = week.find((x) => x.day === i)
+	const cls = i === todayIdx ? 'wrow today-row' : 'wrow'
+	const label = `aria-label="Vis ${dayName(i).toLowerCase()}"`
+	if (!s) return `<button type="button" class="${cls}" data-goday="${i}" ${label}><span class="dn">${DAY[i]}</span><span class="t rest">hvile</span><span></span><span></span></button>`
+	const mark = isDone(s) ? `<span class="done-mark">${checkSvg}</span>` : i < todayIdx ? `<span class="small">ikke gjort</span>` : `<span class="todo-mark"></span>`
+	return `<button type="button" class="${cls}" data-goday="${i}" ${label}><span class="dn">${DAY[i]}</span><span class="t"><span class="dot" style="background:${color(s.act)}"></span><span>${esc(title(s))}</span></span><span class="m">${fmtMin(s.min)}</span>${mark}</button>`
+}
+function nextWeekNote() {
+	return `<div class="note"><span aria-hidden="true">↻</span><span>Neste uke legges ut søndag kveld, tilpasset hvordan denne uka gikk.</span></div>`
+}
+
+// ——— The deck ———
+// One continuous position p drives every card: p = 1.4 means card 1 is 40% of the way off to the
+// left and card 2 is 60% of the way up from under it. A second spring lifts the top card.
+let deckPaint = () => {}
+const deckX = new Spring(0, () => deckPaint(), 0.0005)
+const deckY = new Spring(0, () => deckPaint(), 0.2)
+const LIFT = 110 // how far up the top card has to travel (or be thrown) to be chosen
+let deckMeasure = null
+
+function bindDeck() {
+	const deck = document.getElementById('deck')
+	const cards = [...deck.querySelectorAll('.deck-card')]
+	const n = cards.length
+	const dots = [...document.querySelectorAll('.dotbtn')]
+	const hint = document.getElementById('deck-hint')
+	let W = 1, H = 1, top = -1, armed = null
+	deckX.stop(); deckY.stop()
+	deckX.v = deckX.target = state.deckIndex; deckY.v = deckY.target = 0
+	deckMeasure = () => {
+		cards.forEach((c) => (c.style.height = 'auto'))
+		H = Math.max(...cards.map((c) => c.offsetHeight))
+		cards.forEach((c) => (c.style.height = `${H}px`))
+		deck.style.height = `${H + 28}px`
+		W = deck.offsetWidth + 24
+		deckPaint()
+	}
+	deckPaint = () => {
+		const p = deckX.v, lift = deckY.v
+		const cur = clamp(Math.round(p), 0, n - 1)
+		cards.forEach((el, i) => {
+			const d = i - p
+			let x = 0, y = 0, s = 1, r = 0, o = 1, z
+			if (d < 0) { x = d * W; r = Math.max(d, -1) * 5; z = 300 + Math.round(d * 10) } // thrown off to the left, tipping the way it goes
+			else { const k = Math.min(d, 3); y = k * 13; s = 1 - k * 0.05; o = d > 2 ? clamp(3 - d, 0, 1) : 1; z = 200 - Math.round(d * 10) } // waiting underneath
+			if (i === cur) { y += lift; s *= 1 + clamp(-lift / 4000, -0.015, 0.03) }
+			el.style.transform = `translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) rotate(${r.toFixed(3)}deg) scale(${s.toFixed(4)})`
+			el.style.opacity = o
+			el.style.zIndex = z
+			el.style.visibility = d < -1.25 || d > 3 ? 'hidden' : ''
+		})
+		if (cur !== top) {
+			top = cur; state.deckIndex = cur
+			cards.forEach((el, i) => (el.inert = i !== cur))
+			dots.forEach((b, i) => b.setAttribute('aria-current', String(i === cur)))
+		}
+		const a = lift < -LIFT ? 2 : lift < -12 ? 1 : 0
+		if (a !== armed) {
+			armed = a
+			hint.textContent = ['Sveip for å bla · dra opp for å velge', 'Dra helt opp for å velge', 'Slipp for å velge'][a]
+			hint.classList.toggle('armed', a === 2)
+		}
+	}
+	deckMeasure()
+
+	let baseP = 0, baseY = 0
+	drag(deck, {
+		axes: ['x', 'y'],
+		down: () => { deckX.stop(); deckY.stop() }, // catch it mid-flight, right where it is
+		start: (axis) => {
+			baseP = deckX.v; baseY = deckY.v
+			if (axis === 'y') deckX.to(Math.round(clamp(baseP, 0, n - 1)), { response: 0.3 }) // lifting settles the stack under it
+		},
+		move: (dx, dy, axis) => {
+			if (reduced()) return
+			if (axis === 'x') {
+				const raw = baseP - dx / W
+				const over = raw < 0 ? raw : raw > n - 1 ? raw - (n - 1) : 0
+				deckX.set(over ? (raw < 0 ? 0 : n - 1) + rubber(over * W, W) / W : raw)
+			} else {
+				const raw = baseY + dy
+				deckY.set(raw > 0 ? rubber(raw, H) : raw) // it lifts freely; pushing it down meets resistance
+			}
+		},
+		end: ({ vx, vy, dx, dy, axis }) => {
+			if (reduced()) {
+				if (axis === 'x' && (Math.abs(dx) > 40 || Math.abs(vx) > 400)) deckGo(state.deckIndex + (dx < 0 ? 1 : -1))
+				if (axis === 'y' && (dy < -60 || vy < -600)) chooseDeck(0)
+				return
+			}
+			if (axis === 'x') {
+				const from = Math.round(clamp(baseP, 0, n - 1))
+				const projected = deckX.v - project(vx) / W
+				const target = clamp(Math.round(projected), Math.max(0, from - 1), Math.min(n - 1, from + 1))
+				const flick = Math.abs(vx) > 400
+				deckX.to(target, { velocity: -vx / W, response: 0.42, damping: flick ? 0.82 : 1 })
+				deckY.to(0, { response: 0.3 })
+			} else {
+				const projected = deckY.v + project(vy)
+				if (projected < -LIFT && vy < 300) chooseDeck(vy)
+				else deckY.to(0, { velocity: vy, response: 0.38, damping: Math.abs(vy) > 400 ? 0.8 : 1 })
+			}
+		},
+		release: () => { // a tap or a cancelled touch: let anything that was caught finish settling
+			if (deckX.v !== Math.round(deckX.v)) deckX.to(clamp(Math.round(deckX.v), 0, n - 1), { response: 0.35 })
+			if (deckY.v !== 0) deckY.to(0, { response: 0.35 })
+		},
+	})
+	deck.addEventListener('keydown', (e) => {
+		if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); deckGo(state.deckIndex + (e.key === 'ArrowRight' ? 1 : -1)) }
+		if (e.key === 'Enter') { e.preventDefault(); chooseDeck(0) }
+	})
+}
+function deckGo(i) {
+	const n = principlesFor().length
+	i = clamp(i, 0, n - 1)
+	if (reduced()) { fadeSwap(document.getElementById('deck'), () => deckX.set(i)); return }
+	deckX.to(i, { response: 0.42, damping: 1 })
+}
+function chooseDeck(vy) {
+	const keys = principlesFor()
+	const i = clamp(Math.round(deckX.v), 0, keys.length - 1)
+	const card = document.querySelectorAll('.deck-card')[i]
+	deckX.stop(); deckY.stop()
+	const k = keys[i]
+	state.chosen = k
+	state.week = buildWeek(k)
+	state.done = new Set(state.week.filter((s) => s.day < todayIdx).map((s) => s.day))
+	state.dayIndex = todayIdx
+	morphTo(5, card.querySelector('.rows'), 'ready-week', vy)
+}
+
+// ——— The week that travels: the chosen card's week becomes Uke 1, then this week on I dag ———
+// A copy of the rows lifts off where it is (including any lift the finger gave it), the next
+// screen renders underneath, and three springs (x, y, scale, decomposed) carry it onto the
+// matching card there, starting with the finger's vertical speed.
+function morphTo(step, src, targetId, vy = 0) {
+	if (reduced() || !src) { go(step); return }
+	const P = 16
+	const a = src.getBoundingClientRect()
+	const w = src.offsetWidth
+	const s0 = a.width / w
+	const ghost = document.createElement('div')
+	ghost.className = 'ghost'
+	ghost.style.width = `${w + 2 * P}px`
+	ghost.innerHTML = `<div class="rows">${src.innerHTML}</div>`
+	document.body.appendChild(ghost)
+	go(step, { fade: true })
+	const target = document.getElementById(targetId)
+	const b = target.getBoundingClientRect()
+	const s1 = b.width / (w + 2 * P)
+	target.style.opacity = '0'
+	const paint = () => { ghost.style.transform = `translate3d(${gx.v}px,${gy.v}px,0) scale(${gs.v})` }
+	const gx = new Spring(a.left - P * s0, paint, 0.3)
+	const gy = new Spring(a.top - P * s0, paint, 0.3)
+	const gs = new Spring(s0, paint, 0.0005)
+	paint()
+	const opts = { response: 0.5, damping: Math.abs(vy) > 500 ? 0.84 : 1 } // a throw may overshoot a touch; a tap never does
+	let left = 3
+	const land = () => {
+		if (--left) return
+		target.style.transition = 'opacity 160ms ease'; target.style.opacity = ''
+		ghost.style.transition = 'opacity 160ms ease'; ghost.style.opacity = '0'
+		setTimeout(() => { ghost.remove(); target.style.transition = '' }, 200)
+	}
+	gx.to(b.left, { ...opts, velocity: 0, onRest: land })
+	gy.to(b.top, { ...opts, velocity: vy, onRest: land })
+	gs.to(s1, { ...opts, velocity: 0, onRest: land })
+}
+
+// ——— I dag: a day pager with today in the middle ———
+let pagerPaint = () => {}
+const dayP = new Spring(0, () => pagerPaint(), 0.0005)
+let pagerMeasure = null
+
+function bindPager() {
+	const pager = document.getElementById('pager')
+	const track = pager.firstElementChild
+	const pages = [...track.children]
+	const rows = [...document.querySelectorAll('#home-week .wrow')]
+	const label = document.getElementById('pg-label'), toToday = document.getElementById('to-today')
+	const prev = document.querySelector('[data-pg="-1"]'), next = document.querySelector('[data-pg="1"]')
+	let PW = 1, cur = -1
+	dayP.stop()
+	dayP.v = dayP.target = state.dayIndex ?? todayIdx
+	pagerMeasure = () => {
+		pages.forEach((el) => (el.style.minHeight = '0'))
+		const h = Math.max(...pages.map((el) => el.offsetHeight))
+		pages.forEach((el) => (el.style.minHeight = `${h}px`))
+		track.style.height = `${h}px`
+		PW = pages[0].offsetWidth + 12
+		pagerPaint()
+	}
+	pagerPaint = () => {
+		const p = dayP.v
+		pages.forEach((el, i) => {
+			const d = i - p, ad = Math.min(1, Math.abs(d))
+			el.style.transform = `translate3d(${(d * PW).toFixed(2)}px,0,0) scale(${(1 - 0.06 * ad).toFixed(4)})`
+			el.style.opacity = (1 - 0.5 * ad).toFixed(3)
+			el.style.visibility = Math.abs(d) > 2.5 ? 'hidden' : ''
+		})
+		const c = clamp(Math.round(p), 0, 6)
+		if (c !== cur) {
+			cur = c; state.dayIndex = c
+			pages.forEach((el, i) => (el.inert = i !== c))
+			rows.forEach((r, i) => r.classList.toggle('shown', i === c))
+			label.textContent = c === todayIdx ? 'I dag' : dayName(c)
+			label.hidden = c !== todayIdx
+			toToday.hidden = c === todayIdx
+			prev.disabled = c === 0; next.disabled = c === 6
+		}
+	}
+	pagerMeasure()
+
+	let base = 0
+	drag(pager, {
+		axes: ['x'], // vertical belongs to the page scroll
+		down: () => dayP.stop(),
+		start: () => { base = dayP.v },
+		move: (dx) => {
+			if (reduced()) return
+			const raw = base - dx / PW
+			const over = raw < 0 ? raw : raw > 6 ? raw - 6 : 0
+			dayP.set(over ? (raw < 0 ? 0 : 6) + rubber(over * PW, PW) / PW : raw)
+		},
+		end: ({ vx, dx }) => {
+			if (reduced()) { if (Math.abs(dx) > 40 || Math.abs(vx) > 400) dayGo(state.dayIndex + (dx < 0 ? 1 : -1)); return }
+			const target = clamp(Math.round(dayP.v - project(vx) / PW), 0, 6)
+			dayP.to(target, { velocity: -vx / PW, response: 0.42, damping: Math.abs(vx) > 400 ? 0.82 : 1 })
+		},
+		release: (e, cancelled) => {
+			// A tap on a neighbouring day brings it to the middle.
+			if (!cancelled && dayP.v === Math.round(dayP.v)) {
+				const r = pager.getBoundingClientRect()
+				const i = clamp(Math.round(dayP.v + (e.clientX - (r.left + r.width / 2)) / PW), 0, 6)
+				if (i !== state.dayIndex) { dayGo(i); return }
+			}
+			if (dayP.v !== Math.round(dayP.v)) dayP.to(clamp(Math.round(dayP.v), 0, 6), { response: 0.35 })
+		},
+	})
+	pager.addEventListener('keydown', (e) => {
+		if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); dayGo(state.dayIndex + (e.key === 'ArrowRight' ? 1 : -1)) }
+	})
+}
+function dayGo(i) {
+	i = clamp(i, 0, 6)
+	if (reduced()) { fadeSwap(document.getElementById('pager'), () => dayP.set(i)); return }
+	dayP.to(i, { response: 0.42, damping: 1 })
+}
+window.addEventListener('resize', () => { if (FLOW[state.step] === 'suggest') deckMeasure?.(); if (FLOW[state.step] === 'home') pagerMeasure?.() })
+
+// ——— Sheet: follows the finger, leaves by velocity, can be caught on its way out ———
+const scrim = document.getElementById('scrim'), sheet = document.getElementById('sheet'), sheetBody = document.getElementById('sheet-body')
+let lastFocus = null, sheetH = 400, sheetOpen = false
+const sheetY = new Spring(0, (y) => {
+	sheet.style.transform = `translate3d(0,${y.toFixed(2)}px,0)`
+	scrim.style.opacity = clamp(1 - y / sheetH, 0, 1).toFixed(3)
+}, 0.3)
+function openSheet(html) {
+	lastFocus = document.activeElement
+	sheetBody.innerHTML = `<div class="grabber"></div>${html}`
+	sheet.classList.add('open'); scrim.classList.add('open'); sheetOpen = true
+	sheetH = sheetBody.offsetHeight
+	if (reduced()) {
+		sheetY.set(0)
+		sheet.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease' })
+		scrim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease' })
+	} else {
+		if (!sheetY.moving && sheetY.v < sheetH * 0.5) sheetY.set(sheetH + 24)
+		sheetY.to(0, { response: 0.38, damping: 1 })
+	}
+	setTimeout(() => sheetBody.querySelector('button')?.focus({ preventScroll: true }), 60)
+}
+function hideSheet() { sheet.classList.remove('open'); scrim.classList.remove('open') }
+function closeSheet(velocity = 0) {
+	if (!sheet.classList.contains('open')) return
+	sheetOpen = false
+	scrim.classList.remove('open')
+	if (reduced()) {
+		sheet.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'ease' }).onfinish = hideSheet
+		scrim.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'ease' }).onfinish = () => (scrim.style.opacity = '0')
+	} else {
+		sheetY.to(sheetH + 24, { velocity, response: 0.32, damping: 1, onRest: hideSheet })
+	}
+	lastFocus?.focus?.({ preventScroll: true })
+}
+scrim.addEventListener('click', () => closeSheet())
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet() })
+let sheetBase = 0
+drag(sheet, {
+	axes: ['y'],
+	down: () => { if (!reduced()) sheetY.stop() },
+	start: () => { sheetBase = sheetY.v; sheet.classList.add('open') },
+	move: (dx, dy) => {
+		if (reduced()) return
+		const raw = sheetBase + dy
+		sheetY.set(raw < 0 ? rubber(raw, sheetH) : raw) // pulling up past open resists
+	},
+	end: ({ vy, dy }) => {
+		if (reduced()) { if (dy > 60 || vy > 600) closeSheet(); return }
+		const projected = sheetY.v + project(vy)
+		if (projected > sheetH * 0.5 && vy > -200) closeSheet(vy)
+		else { sheetOpen = true; scrim.classList.add('open'); sheetY.to(0, { velocity: vy, response: 0.36, damping: Math.abs(vy) > 400 ? 0.8 : 1 }) }
+	},
+	release: () => { if (!reduced() && sheetY.v !== 0 && sheetOpen) sheetY.to(0, { response: 0.36 }); else if (!sheetOpen && sheet.classList.contains('open')) closeSheet() },
+})
+
+const toastEl = document.getElementById('toast'), toastText = document.getElementById('toast-text')
+let toastTimer = null, undoFn = null
+function toast(msg, undo) {
+	toastText.textContent = msg; undoFn = undo
+	document.getElementById('toast-undo').hidden = !undo
+	toastEl.classList.add('show')
+	clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), 4000)
+}
+toastEl.addEventListener('pointerenter', () => clearTimeout(toastTimer))
+toastEl.addEventListener('pointerleave', () => { toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000) })
+document.getElementById('toast-undo').addEventListener('click', () => { undoFn?.(); toastEl.classList.remove('show') })
+
+function adjustSheet() {
+	openSheet(`<h2 id="sheet-title">Juster</h2><p class="small">Si hva som skjer, så ordner appen resten.</p>
+		<div class="options" style="margin-top:8px">
+			<button type="button" class="option" data-adj="lighter"><div><b>Uka er for tung</b><span class="d">Kortere økter resten av uka, ingen harde.</span></div></button>
+			<button type="button" class="option" data-adj="less-time"><div><b>Jeg har mindre tid denne uka</b><span class="d">Fjerner den korteste økta som gjenstår.</span></div></button>
+			<button type="button" class="option" data-adj="harder"><div><b>Jeg vil ha mer</b><span class="d">Litt lengre økter resten av uka.</span></div></button>
+			<button type="button" class="option" data-adj="advanced"><div><b>Avansert</b><span class="d">Sesong, filosofi, ukemål, soner og terskler. Alt som finnes i dag.</span></div></button>
+		</div>`)
+}
+function adjust(kind) {
+	const before = state.week.map((s) => ({ ...s }))
+	const ahead = (s) => s.day >= todayIdx && !isDone(s)
+	let msg = ''
+	if (kind === 'lighter') { state.week = state.week.map((s) => (ahead(s) ? { ...s, min: Math.max(20, Math.round((s.min * 0.8) / 5) * 5), ...(s.int !== 'easy' ? { w: 'easy', t: 'Rolig', int: 'easy', d: WORK.easy.d } : {}) } : s)); msg = 'Resten av uka er gjort lettere' }
+	if (kind === 'harder') { state.week = state.week.map((s) => (ahead(s) ? { ...s, min: Math.round((s.min * 1.15) / 5) * 5 } : s)); msg = 'Resten av uka er litt lengre' }
+	if (kind === 'less-time') {
+		const left = state.week.filter(ahead).sort((a, b) => a.min - b.min)
+		if (!left.length) { toast('Ingen økter igjen å fjerne'); closeSheet(); return }
+		state.week = state.week.filter((s) => s !== left[0]); msg = `${title(left[0])} på ${DAY_LONG[left[0].day]} er fjernet`
+	}
+	if (kind === 'advanced') { closeSheet(); toast('Her åpnes dagens Sesong-side med alt det avanserte'); return }
+	closeSheet(); render()
+	toast(msg, () => { state.week = before; render() })
+}
+
+// ——— Events ———
+function bindAfter(name) {
+	if (name === 'suggest') bindDeck()
+	if (name === 'home') bindPager()
+}
+
+document.addEventListener('click', (e) => {
+	const t = e.target.closest('button')
+	if (!t) return
+	const d = t.dataset
+	if (d.level) {
+		const l = LEVELS.find((x) => x.k === d.level)
+		state.level = l.k; state.hours = l.h
+		if (!state.daysTouched) state.days = new Set(l.days)
+		render(); return
+	}
+	if (d.hours) { state.hours = Math.min(20, Math.max(1, state.hours + Number(d.hours))); render(); return }
+	if (d.actK) {
+		if (state.acts.has(d.actK)) { state.acts.delete(d.actK); state.actOrder = state.actOrder.filter((k) => k !== d.actK) }
+		else { state.acts.add(d.actK); state.actOrder.push(d.actK) }
+		render(); return
+	}
+	if (d.day) { const i = Number(d.day); state.daysTouched = true; state.days.has(i) ? state.days.delete(i) : state.days.add(i); render(); return }
+	if (d.pref) { state.prefs.has(d.pref) ? state.prefs.delete(d.pref) : state.prefs.add(d.pref); render(); return }
+	if (d.deck) { deckGo(Number(d.deck)); return }
+	if (d.goday) { dayGo(Number(d.goday)); return }
+	if (d.pg) { dayGo(state.dayIndex + Number(d.pg)); return }
+	if (d.done) {
+		const day = Number(d.done)
+		const was = state.done.has(day)
+		was ? state.done.delete(day) : state.done.add(day)
+		render()
+		if (!was) toast('Økta er markert som gjort', () => { state.done.delete(day); render() })
+		return
+	}
+	if (d.adj) { adjust(d.adj); return }
+	switch (d.act) {
+		case 'next':
+			if (FLOW[state.step] === 'ready') morphTo(6, document.querySelector('#ready-week .rows'), 'home-week')
+			else go(state.step + 1)
+			break
+		case 'back': go(Math.max(0, state.step - 1)); break
+		case 'demo': demo(); break
+		case 'choose-deck': chooseDeck(0); break
+		case 'to-today': dayGo(todayIdx); break
+		case 'adjust': adjustSheet(); break
+		case 'plan-tab': toast('Plan: sesongen som én enkel kurve, med «Avansert» for alt annet'); break
+		case 'me-tab': toast('Meg: profil, tilkoblinger og innstillinger'); break
+	}
+})
+
+function demo() {
+	state.level = 'mosjon'; state.hours = 6
+	state.acts = new Set(['run', 'strength', 'climb']); state.actOrder = ['run', 'strength', 'climb']
+	state.days = new Set([0, 1, 3, 5, 6]); state.prefs = new Set(['long', 'intervals'])
+	state.deckIndex = 0
+	go(4)
+}
+
+render()
+</script>
