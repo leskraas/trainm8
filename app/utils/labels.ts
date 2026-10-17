@@ -928,8 +928,8 @@ export function weekChangeWaitingLabel(count: number): string {
 export const TOP_LINE_LABELS = {
 	region: 'Planen',
 	noPlan: 'Ingen plan',
-	/** The no-plan line's link, to Sesong. */
-	noPlanAction: 'Lag en i Sesong',
+	/** The no-plan line's link, to Plan. */
+	noPlanAction: 'Lag en i Plan',
 	/** A race with no name, on the countdown. */
 	raceDay: 'Løpsdagen',
 	/**
@@ -1359,7 +1359,7 @@ export const SEASON_PANE_LABELS = {
 	horizon: 'horisont · økter fylles hit, videre bare mål',
 	noPlan: 'Ingen plan ennå',
 	noPlanNote: 'Sesongen er bare ukene du har skrevet.',
-	noPlanAction: 'Lag en i Sesong',
+	noPlanAction: 'Lag en i Plan',
 	/** A table cell's accessible name: `Løping: mål 46 km, gjort 35`. */
 	cellName: (track: string, target: string, done: string) =>
 		`${track}: mål ${target}, gjort ${done}`,
@@ -2118,7 +2118,7 @@ export const FIRST_RUN_LABELS = {
 		curveLabel: (weeks: number) =>
 			`Ukene i planen, ${weeks} stolper: høyden er timene den uka.`,
 		strength: (perWeek: number) =>
-			`Du løfter ${nbNumber(perWeek)} ${perWeek === 1 ? 'gang' : 'ganger'} i uka. Styrken legger du til i Sesong når planen er laget – der foreslår vi et styrkespor fra historikken din.`,
+			`Du løfter ${nbNumber(perWeek)} ${perWeek === 1 ? 'gang' : 'ganger'} i uka. Styrken legger du til i Plan når planen er laget – der foreslår vi et styrkespor fra historikken din.`,
 		startsOn: (date: string) => `Planen starter ${date}.`,
 		switchTitle: 'Bytt filosofi',
 		switchSubmit: 'Bruk denne',
@@ -2145,7 +2145,7 @@ export const FIRST_RUN_LABELS = {
 		hard: 'hard økt',
 		create: 'Start planen',
 		selfSetUp: 'Jeg vil heller sette opp sesongen selv',
-		selfSetUpHelp: 'Du får den samme planen i Sesong, og kan endre alt i den.',
+		selfSetUpHelp: 'Du får den samme planen i Plan, og kan endre alt i den.',
 		created: 'Planen er klar',
 		createdDescription: 'De to første ukene ligger i I dag.',
 		back: 'Tilbake til planen',
@@ -2154,7 +2154,7 @@ export const FIRST_RUN_LABELS = {
 
 /** Why the first run's plan could not be made, said where it is refused. */
 export const FIRST_RUN_REFUSAL_LABELS: Record<FirstRunPlanRefusal, string> = {
-	'plan-already-active': 'Du har allerede en plan. Du finner den i Sesong.',
+	'plan-already-active': 'Du har allerede en plan. Du finner den i Plan.',
 	'event-too-soon': EVENT_DATE_LABELS['too-soon'],
 	'event-too-far': EVENT_DATE_LABELS['too-far'],
 	'goal-unavailable':
@@ -3512,18 +3512,19 @@ export const SOURCE_ATTRIBUTION_LABELS = {
 } as const
 
 // ---------------------------------------------------------------------------
-// The four tabs
+// The three tabs
 // ---------------------------------------------------------------------------
 
 /**
- * The tab names, in the spec's Norwegian (spec #505 stories 56–59; ADR 0081
- * lets the #505 surfaces use the spec's own words). They are the bar's labels
- * and the titles of the tabs' landing pages, so the two never disagree.
+ * The tab names, in the spec's Norwegian (spec #558, ADR 0101 §1; ADR 0081
+ * lets the spec's surfaces use the spec's own words). They are the bar's
+ * labels and the titles of the tabs' landing pages, so the two never disagree.
+ * _Sesong_ and _Bibliotek_ are retired as tab names: Plan is the old Sesong,
+ * and Bibliotek is a section of it (`LIBRARY_LABELS.title`).
  */
 export const APP_TAB_LABELS: Record<AppTab, string> = {
 	today: 'I dag',
-	season: 'Sesong',
-	library: 'Bibliotek',
+	plan: 'Plan',
 	me: 'Meg',
 }
 
@@ -3708,7 +3709,7 @@ export function nbDays(count: number): string {
 
 /** The page itself: its title, hero, picture, readings and summary card. */
 export const SESONG_PAGE_LABELS = {
-	metaTitle: 'Sesong | Trainm8',
+	metaTitle: 'Plan | Trainm8',
 	heroToward: 'Du bygger mot',
 	heroChange: 'Endre løpet',
 	/** `24. okt 2026 · 10 uker fra 10. aug 2026`. */
@@ -4555,7 +4556,7 @@ export const EVENTS_LABELS = {
 	// The list.
 	title: 'Løp',
 	metaTitle: 'Løp | Trainm8',
-	backToSeason: 'Sesong',
+	backToSeason: 'Plan',
 	newEvent: 'Nytt løp',
 	upcoming: 'Kommende',
 	past: 'Tidligere og avlyste',
@@ -4674,10 +4675,12 @@ export const PLAN_NEW_LABELS = {
 
 /**
  * Bibliotek (spec #505 story 58): the hub that names the catalogue, the
- * strength programs and the athlete's own lifts. The pages it opens keep their
- * own (English) words until they are redesigned (ADR 0081 §4).
+ * strength programs and the athlete's own lifts — a section of Plan since ADR
+ * 0101, no longer a tab. The pages it opens keep their own (English) words
+ * until they are redesigned (ADR 0081 §4).
  */
 export const LIBRARY_LABELS = {
+	title: 'Bibliotek',
 	catalogue: 'Katalog',
 	catalogueDetail: 'Ferdige økter du kan ta inn i uka di.',
 	programs: 'Styrkeprogrammer',
@@ -6507,7 +6510,7 @@ export const PLAN_SHAPE_STEP_LABELS = {
 			'Det løpet er avlyst, så det kan ikke være mål for en plan.',
 		'event-already-planned': 'Det løpet har allerede en plan.',
 		'open-ended-already-active':
-			'Du har allerede en plan uten slutt. Åpne den fra Sesong.',
+			'Du har allerede en plan uten slutt. Åpne den fra Plan.',
 	} satisfies Record<CreateOutlineRefusal, string>,
 } as const
 

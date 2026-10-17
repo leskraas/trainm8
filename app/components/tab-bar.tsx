@@ -1,5 +1,9 @@
-// The four tabs (spec #505 stories 56–59, ADR 0083): I dag, Sesong, Bibliotek
-// and Meg. It replaces #178's "the wordmark row is the only persistent chrome".
+// The three tabs (ADR 0101 §1, amending ADR 0083): I dag, Plan and Meg. It
+// replaces #178's "the wordmark row is the only persistent chrome".
+//
+// **Three, in the thumb zone.** The bar sits on the bottom edge of a phone,
+// where the thumb already rests, and each tab is a third of it: 56px tall and
+// well over 44px wide on the narrowest phone (ui-conventions §2.2).
 //
 // **One bar, two placements.** On a phone (ADR 0028: the phone is the primary
 // target) it is a bottom tab bar, fixed to the bottom edge and padded by the
@@ -26,8 +30,7 @@ import { cn } from '#app/utils/misc.tsx'
 
 const TAB_ICONS: Record<AppTab, IconName> = {
 	today: 'home',
-	season: 'calendar',
-	library: 'books',
+	plan: 'calendar',
 	me: 'user',
 }
 
@@ -52,7 +55,7 @@ export function TabBar({ className }: { className?: string }) {
 				className,
 			)}
 		>
-			<ul className="mx-auto grid h-14 max-w-md grid-cols-4 md:flex md:h-auto md:max-w-none md:gap-1">
+			<ul className="mx-auto grid h-14 max-w-md grid-cols-3 md:flex md:h-auto md:max-w-none md:gap-1">
 				{APP_TABS.map((tab) => {
 					const active = place?.tab === tab
 					return (
@@ -69,7 +72,9 @@ export function TabBar({ className }: { className?: string }) {
 									// The press is an instant tint: the tap highlight is off
 									// app-wide, so this is the only feedback a thumb gets, and a
 									// control used a hundred times a day gets no transition.
-									'focus-visible:outline-ring active:bg-muted/60 flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px]/[1.1] font-semibold focus-visible:outline-2 focus-visible:-outline-offset-2',
+									// A tab is a control, not a link to copy: a long press
+									// neither selects its label nor pops the link callout.
+									'focus-visible:outline-ring active:bg-muted/60 flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px]/[1.1] font-semibold select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:-outline-offset-2',
 									// 44px to a pointer or a thumb on a tablet (ui-conventions §2.2).
 									'md:h-11 md:flex-row md:gap-1.5 md:rounded-full md:px-3.5 md:text-sm',
 									active

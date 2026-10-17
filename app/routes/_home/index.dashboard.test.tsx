@@ -532,13 +532,13 @@ test('the top line names the plan and counts down to the race', async () => {
 	expect(top).toHaveTextContent('Spring Half Marathon om 8 uker')
 })
 
-test('with no plan the top line says so and leads to Sesong', async () => {
+test('with no plan the top line says so and leads to Plan', async () => {
 	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
 	const top = await screen.findByTestId('timeline-top')
 	expect(top).toHaveTextContent('Ingen plan')
 	expect(
-		within(top).getByRole('link', { name: 'Lag en i Sesong' }),
+		within(top).getByRole('link', { name: 'Lag en i Plan' }),
 	).toHaveAttribute('href', '/training/plan')
 })
 

@@ -51,6 +51,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '#app/components/ui/select.tsx'
+import { LIBRARY_SECTION_HREF } from '#app/utils/app-tabs.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	catalogueSavedIds,
@@ -634,7 +635,7 @@ export default function CatalogueRoute({ loaderData }: Route.ComponentProps) {
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title={CATALOGUE_LABELS.title}
-				back={{ to: '/library', label: APP_TAB_LABELS.library }}
+				back={{ to: LIBRARY_SECTION_HREF, label: APP_TAB_LABELS.plan }}
 				className="mb-2"
 			/>
 			<p className="text-footnote text-muted-foreground mb-4">

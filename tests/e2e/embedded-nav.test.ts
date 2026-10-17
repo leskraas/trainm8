@@ -2,14 +2,14 @@ import { faker } from '@faker-js/faker/locale/en'
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
-// Navigation (ADR 0083, superseding #178's embedded navigation): the four tabs
-// are the persistent chrome, and every other destination is still reached
-// through page elements. The walk an athlete with no plan takes runs at 390px:
-// Sesong is plan creation then, and the Events it builds toward are reached
+// Navigation (ADR 0083, superseding #178's embedded navigation): the three
+// tabs (ADR 0101) are the persistent chrome, and every other destination is
+// still reached through page elements. The walk an athlete with no plan takes runs at 390px:
+// Plan is plan creation then, and the Events it builds toward are reached
 // from there; Meg is where the account lives.
 test.use({ viewport: { width: 390, height: 844 } })
 
-test('walks Sesong → Events → back → Meg → profile with no plan', async ({
+test('walks Plan → Events → back → Meg → profile with no plan', async ({
 	page,
 	navigate,
 	login,
@@ -17,7 +17,7 @@ test('walks Sesong → Events → back → Meg → profile with no plan', async 
 	test.setTimeout(120_000)
 	const user = await login()
 
-	// An Event without a Plan Outline: no active plan, so Sesong opens on plan
+	// An Event without a Plan Outline: no active plan, so Plan opens on plan
 	// creation, which lists it.
 	const eventName = `Race ${faker.string.alphanumeric(8)}`
 	await prisma.event.create({
@@ -43,14 +43,14 @@ test('walks Sesong → Events → back → Meg → profile with no plan', async 
 	await expect(tabs).toHaveCount(1)
 	await expect(page.getByRole('link', { name: /inbox/i })).toHaveCount(0)
 
-	// Sesong with no plan is plan creation. The first interaction after the
+	// Plan with no plan is plan creation. The first interaction after the
 	// initial page load can race client hydration (the pointer-down node is
 	// swapped mid-render and the click is lost), so retry until it lands.
 	await expect(async () => {
-		await tabs.getByRole('link', { name: 'Sesong' }).click()
+		await tabs.getByRole('link', { name: 'Plan' }).click()
 		await expect(page).toHaveURL('/training/plan/new', { timeout: 5000 })
 	}).toPass()
-	await expect(tabs.getByRole('link', { name: 'Sesong' })).toHaveAttribute(
+	await expect(tabs.getByRole('link', { name: 'Plan' })).toHaveAttribute(
 		'aria-current',
 		'page',
 	)
@@ -58,18 +58,18 @@ test('walks Sesong → Events → back → Meg → profile with no plan', async 
 	// A tab's landing page: no way back but the bar.
 	await expect(page.getByRole('link', { name: /^tilbake til/i })).toHaveCount(0)
 
-	// Sesong → the full Events list → the Event, all through page elements.
+	// Plan → the full Events list → the Event, all through page elements.
 	await page.getByRole('link', { name: 'Alle løp' }).click()
 	await expect(page).toHaveURL('/training/events')
 	await page.getByRole('link', { name: new RegExp(eventName, 'i') }).click()
 	await expect(page).toHaveURL(/\/training\/events\/[a-z0-9]+$/i)
 	await expect(page.getByText(eventName).first()).toBeVisible()
 
-	// Event → back to the Events list → back up to Sesong, which is still plan
+	// Event → back to the Events list → back up to Plan, which is still plan
 	// creation for this athlete.
 	await page.getByRole('link', { name: /^tilbake til løp$/i }).click()
 	await expect(page).toHaveURL('/training/events')
-	await page.getByRole('link', { name: /tilbake til sesong/i }).click()
+	await page.getByRole('link', { name: /tilbake til plan/i }).click()
 	await expect(page).toHaveURL('/training/plan/new')
 
 	// Meg → the profile, and back.

@@ -39,7 +39,7 @@ test('the wordmark links home', async () => {
 	).toHaveAttribute('href', '/')
 })
 
-test('the four tabs land where they say (ADR 0083)', async () => {
+test('the three tabs land where they say (ADR 0101)', async () => {
 	renderRow()
 
 	const tabs = await screen.findByRole('navigation', { name: 'Hovedmeny' })
@@ -48,8 +48,7 @@ test('the four tabs land where they say (ADR 0083)', async () => {
 		links.map((link) => [link.textContent, link.getAttribute('href')]),
 	).toEqual([
 		['I dag', '/'],
-		['Sesong', '/training/plan'],
-		['Bibliotek', '/library'],
+		['Plan', '/training/plan'],
 		['Meg', '/me'],
 	])
 })
@@ -76,13 +75,24 @@ test('a page that moved into a tab marks that tab, as inside it', async () => {
 	)
 })
 
-test('with no plan, Sesong’s plan creation is Sesong’s landing page', async () => {
+test('with no plan, plan creation is Plan’s landing page', async () => {
 	renderRow({ at: '/training/plan/new' })
 	const tabs = await screen.findByRole('navigation', { name: 'Hovedmeny' })
-	expect(within(tabs).getByRole('link', { name: 'Sesong' })).toHaveAttribute(
+	expect(within(tabs).getByRole('link', { name: 'Plan' })).toHaveAttribute(
 		'aria-current',
 		'page',
 	)
+})
+
+test('a page inside Bibliotek marks Plan, as inside it (ADR 0101)', async () => {
+	renderRow({ at: '/training/catalogue' })
+
+	const tabs = await screen.findByRole('navigation', { name: 'Hovedmeny' })
+	expect(within(tabs).getByRole('link', { name: 'Plan' })).toHaveAttribute(
+		'aria-current',
+		'true',
+	)
+	expect(tabs.querySelectorAll('[aria-current]')).toHaveLength(1)
 })
 
 test('the first run carries no tab bar', async () => {

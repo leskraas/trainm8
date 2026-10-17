@@ -138,11 +138,11 @@ test('with no programs published the screen says so is nobody’s fault and poin
 	)
 })
 
-test('the back link leaves for Bibliotek, the tab programs live under (ADR 0083)', async () => {
+test('the back link leaves for Plan, whose Bibliotek section programs live in (ADR 0101)', async () => {
 	renderPrograms()
 
 	expect(
-		await screen.findByRole('link', { name: /tilbake til bibliotek/i }),
+		await screen.findByRole('link', { name: /tilbake til plan/i }),
 	).toHaveAttribute('href', '/library')
 })
 

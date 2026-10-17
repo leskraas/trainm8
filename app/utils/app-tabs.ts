@@ -1,32 +1,43 @@
 /**
- * The four tabs (spec #505 stories 56–59, ADR 0083): I dag, Sesong, Bibliotek
- * and Meg. This module owns **which** tabs there are, where each one lands and
- * which URLs belong to which; `labels.ts` owns how each is worded and
+ * The three tabs (ADR 0101 §1, amending ADR 0083 §1): I dag, Plan and Meg. This
+ * module owns **which** tabs there are, where each one lands and which URLs
+ * belong to which; `labels.ts` owns how each is worded and
  * `components/tab-bar.tsx` owns how they are drawn.
  *
  * A tab is a home for a set of URLs, not a URL of its own. The pages that moved
  * into a tab kept their addresses (`/training/events`, `/settings/profile`, …)
- * so no deep link breaks; the bar marks the tab a page now lives under.
+ * so no deep link breaks; the bar marks the tab a page now lives under. Plan is
+ * the old Sesong under a new name, and Bibliotek, which had a tab of its own, is
+ * a section of Plan: every address either of them was home to lights Plan.
  */
 
-export const APP_TABS = ['today', 'season', 'library', 'me'] as const
+export const APP_TABS = ['today', 'plan', 'me'] as const
 export type AppTab = (typeof APP_TABS)[number]
 
 /** Where tapping each tab lands. */
 export const APP_TAB_HREFS: Record<AppTab, string> = {
 	today: '/',
-	season: '/training/plan',
-	library: '/library',
+	plan: '/training/plan',
 	me: '/me',
 }
+
+/**
+ * Bibliotek's own address. It is no longer a page: it forwards to the
+ * Bibliotek section of Plan (`routes/library.tsx`), so it is where a page
+ * inside Bibliotek backs out to, and every old link to it still lands.
+ */
+export const LIBRARY_SECTION_HREF = '/library'
+
+/** The Bibliotek section's anchor on Plan, which the forward lands on. */
+export const LIBRARY_SECTION_ID = 'bibliotek'
 
 /**
  * The URL prefixes each tab is home to, beyond its own landing page. Matched on
  * whole path segments, so `/training/plan` never claims `/training/planner`.
  *
- * - **Sesong**: the season plan and plan creation (`/training/plan/…`) and the
- *   Events it builds toward.
- * - **Bibliotek**: the catalogue, programs and exercises.
+ * - **Plan**: the season plan and plan creation (`/training/plan/…`), the
+ *   Events it builds toward, and Bibliotek — the catalogue, programs and
+ *   exercises.
  * - **Meg**: settings, integrations and the file upload — imports have no page
  *   of their own (spec #505, Navigation).
  *
@@ -35,9 +46,10 @@ export const APP_TAB_HREFS: Record<AppTab, string> = {
  */
 const TAB_PREFIXES: Record<AppTab, readonly string[]> = {
 	today: [],
-	season: ['/training/plan', '/training/events'],
-	library: [
-		'/library',
+	plan: [
+		'/training/plan',
+		'/training/events',
+		LIBRARY_SECTION_HREF,
 		'/training/catalogue',
 		'/training/programs',
 		'/training/exercises',
@@ -46,22 +58,21 @@ const TAB_PREFIXES: Record<AppTab, readonly string[]> = {
 }
 
 /**
- * The URLs that are a tab's **landing page**: its own address, plus Sesong's
- * plan creation, which is where Sesong lands while there is no plan (the plan
+ * The URLs that are a tab's **landing page**: its own address, plus Plan's
+ * plan creation, which is where Plan lands while there is no plan (the plan
  * page redirects there). A landing page is the tab itself
  * (`aria-current="page"`); a page deeper in the tab is only inside it
  * (`aria-current="true"`).
  */
 const TAB_LANDINGS: Record<AppTab, readonly string[]> = {
 	today: ['/'],
-	season: ['/training/plan', '/training/plan/new'],
-	library: ['/library'],
+	plan: ['/training/plan', '/training/plan/new'],
 	me: ['/me'],
 }
 
 /**
  * Pages that carry no tab bar at all: the first run (`/start…`) is a flow with
- * one way forward, and four ways out of it would be four ways to abandon it.
+ * one way forward, and three ways out of it would be three ways to abandon it.
  */
 const BARLESS_PREFIXES = ['/start'] as const
 

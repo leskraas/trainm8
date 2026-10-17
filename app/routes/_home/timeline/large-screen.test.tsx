@@ -300,7 +300,7 @@ describe('the season pane', () => {
 		const card = screen.getByRole('region', { name: 'Planen' })
 		expect(card).toHaveTextContent('Ingen plan ennå')
 		expect(
-			within(card).getByRole('link', { name: 'Lag en i Sesong' }),
+			within(card).getByRole('link', { name: 'Lag en i Plan' }),
 		).toHaveAttribute('href', '/training/plan')
 		const table = screen.getByRole('table', { name: 'Sesongtabell' })
 		expect(within(table).getAllByRole('columnheader')[2]).toHaveTextContent(
