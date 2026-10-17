@@ -17,8 +17,9 @@
  */
 
 import { z } from 'zod/v3'
-import { DayKeySchema } from '#app/utils/calendar-key-schema.ts'
+import { DayKeySchema, WeekKeySchema } from '#app/utils/calendar-key-schema.ts'
 import { RHYTHMS, VOLUME_CURRENCIES } from '#app/utils/plan-outline/derive.ts'
+import { SESSION_OWNERS } from '#app/utils/session-ownership.ts'
 
 const ClockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)
 
@@ -171,6 +172,71 @@ export type ProposalDraft = {
 	targetWeekKey: string
 	/** Why, in plain Norwegian — the only prose a proposal carries. */
 	reason: string
+}
+
+// ── the before-image ───────────────────────────────────────────────────────
+
+/**
+ * One session as it stood before an applied change wrote to it: its placement,
+ * its Replan Note and — when the change scaled it — the quantities of the
+ * cardio steps it scaled. Exactly what the apply engine writes, so putting
+ * these back puts the session back.
+ */
+const SessionImageSchema = z.object({
+	id: z.string().min(1),
+	scheduledAt: z.string().datetime(),
+	replanReason: z.string().nullable(),
+	/**
+	 * Whose the session was when the change applied (Session Adoption) — so an
+	 * undo can tell that the athlete took it over since, and leave it alone.
+	 */
+	owner: z.enum(SESSION_OWNERS),
+	steps: z
+		.array(
+			z.object({
+				id: z.string().min(1),
+				durationSec: z.number().nullable(),
+				distanceM: z.number().nullable(),
+			}),
+		)
+		.optional(),
+})
+export type SessionImage = z.infer<typeof SessionImageSchema>
+
+/**
+ * What an applied proposal replaced (#564, spec #558 "Autopilot"), so an undo
+ * restores exactly rather than guessing:
+ *
+ * - `sessions`: every session the change wrote to, as it stood before;
+ * - `placed`: every session the change created (an `add`, a make-up), which an
+ *   undo removes;
+ * - `round`: for a next round, what it appended — the plan, the new phase, the
+ *   week it opens on and the factor it was appended at. An undo re-lays it at
+ *   factor 1 rather than removing it, so an open-ended plan never ends.
+ *
+ * A `keep` (and a change that found nothing to write) has an empty image.
+ */
+export const BeforeImageSchema = z.object({
+	sessions: z.array(SessionImageSchema),
+	placed: z.array(z.string().min(1)),
+	round: z
+		.object({
+			outlineId: z.string().min(1),
+			phaseId: z.string().min(1),
+			opensWeekKey: WeekKeySchema,
+			factor: z.number().positive(),
+		})
+		.optional(),
+})
+export type BeforeImage = z.infer<typeof BeforeImageSchema>
+
+export function emptyBeforeImage(): BeforeImage {
+	return { sessions: [], placed: [] }
+}
+
+/** Read a stored before-image back, refusing anything the schema does not describe. */
+export function parseBeforeImage(json: string): BeforeImage {
+	return BeforeImageSchema.parse(JSON.parse(json))
 }
 
 /** Read a stored payload back, refusing anything the union does not describe. */
