@@ -5,7 +5,10 @@
 closed weeks, weeks past the horizon and free days render whole, and the pill is
 on the top bar.
 
-Status: Accepted
+Status: Accepted · **§5 amended by
+[ADR 0101](./0101-three-tabs-and-a-calm-i-dag-that-shows-today-and-this-week.md)**
+for I dag's default view: the strip moves behind _Se hele sesongen_, unchanged
+there.
 
 **Amends
 [ADR 0065](./0065-home-is-an-every-day-grid-and-tapping-an-empty-day-stamps-a-session.md)**

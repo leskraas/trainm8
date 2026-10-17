@@ -1,6 +1,9 @@
 # I dag has no hero, reads like a calendar, and the scroll engine never writes under a reader
 
-Status: Accepted
+Status: Accepted · **§1 reversed for I dag's default view by
+[ADR 0101](./0101-three-tabs-and-a-calm-i-dag-that-shows-today-and-this-week.md)**:
+a today card returns on top. This ADR still governs the full view behind _Se
+hele sesongen_.
 
 **Supersedes**
 [ADR 0065](0065-home-is-an-every-day-grid-and-tapping-an-empty-day-stamps-a-session.md)
