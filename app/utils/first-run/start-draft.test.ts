@@ -309,3 +309,155 @@ test('the start says how many of the chosen days the plan uses', () => {
 	expect(made.daysUsed).toBe(2)
 	expect(start().daysUsed).toBe(4)
 })
+
+// Several endurance sports (#573): the first one picked is the main sport and
+// carries the family's hard sessions; every other one gets its own hours
+// track with no mix, on the days the main sport leaves.
+
+type Sport = 'run' | 'bike' | 'swim'
+
+const SEVERAL: Array<{ discipline: Sport; otherSports: Sport[] }> = [
+	{ discipline: 'run', otherSports: ['bike'] },
+	{ discipline: 'swim', otherSports: ['run'] },
+	{ discipline: 'run', otherSports: ['bike', 'swim'] },
+	{ discipline: 'bike', otherSports: ['swim', 'run'] },
+]
+
+test('the main sport carries the family’s hard sessions; each other sport has its own track with none, one track per sport', () => {
+	for (const level of TRAINING_LEVELS) {
+		const { hours, days } = levelDefaults(level)
+		for (const sports of SEVERAL) {
+			const made = start({ level, hours: hours + 2, days, ...sports })
+			expect(made.sports).toEqual([sports.discipline, ...sports.otherSports])
+			expect(made.sportsLeftOut).toEqual([])
+			for (const option of made.options) {
+				const { tracks } = option.draft
+				expect(tracks.map((track) => track.discipline)).toEqual([
+					sports.discipline,
+					...sports.otherSports,
+				])
+				expect(tracks.map((track) => track.mix)).toEqual([
+					'family',
+					...sports.otherSports.map(() => 'none'),
+				])
+				// Every session that is not easy is the main sport's.
+				for (const session of option.week.days.flatMap((d) => d.sessions)) {
+					if (session.effort !== 'easy') {
+						expect(session.discipline).toBe(sports.discipline)
+					}
+				}
+			}
+		}
+	}
+})
+
+test('two and three sports at every level: week 1 adds up to the hours across every track, one session a day, within the level’s session cap', () => {
+	for (const level of TRAINING_LEVELS) {
+		const { sessionCap } = levelDefaults(level)
+		for (const sports of SEVERAL) {
+			for (const hours of [1, 2, 3.5, 5, 7, 10, 14.5, 20]) {
+				for (let count = 1; count <= 7; count++) {
+					// The earliest, a middle and the latest days of each count.
+					const sets = daySets(count)
+					const some = [...new Set([0, sets.length >> 1, sets.length - 1])]
+					for (const days of some.map((at) => sets[at]!)) {
+						const made = start({ level, hours, days, ...sports })
+						// Every sport picked is laid, or said to be left out.
+						expect([...made.sports, ...made.sportsLeftOut].sort()).toEqual(
+							[sports.discipline, ...sports.otherSports].sort(),
+						)
+						expect(made.sports[0]).toBe(sports.discipline)
+						for (const option of made.options) {
+							const { week } = option
+							expect(option.shortOfHours).toBeNull()
+							expect(Math.abs(week.minutes - hours * 60)).toBeLessThan(
+								week.sessionCount,
+							)
+							// The cap counts every track's sessions together.
+							expect(week.sessionCount).toBeLessThanOrEqual(sessionCap)
+							for (const day of week.days) {
+								expect(day.sessions.length).toBeLessThanOrEqual(1)
+								if (day.sessions.length > 0) {
+									expect(days).toContain(day.weekday)
+								}
+							}
+							const sessions = week.days.flatMap((day) => day.sessions)
+							for (const session of sessions) {
+								expect(session.minutes).toBeGreaterThanOrEqual(30)
+							}
+							// Each sport laid has a day of its own.
+							expect(
+								new Set(sessions.map((session) => session.discipline)),
+							).toEqual(new Set(made.sports))
+						}
+					}
+				}
+			}
+		}
+	}
+})
+
+test('the main sport keeps the long day; another sport fills days left with easy sessions', () => {
+	const made = start({
+		level: 'experienced',
+		hours: 7,
+		days: [0, 1, 3, 4, 6],
+		discipline: 'run',
+		otherSports: ['bike'],
+	})
+	for (const option of made.options) {
+		const sunday = option.week.days[6]!.sessions
+		expect(sunday).toHaveLength(1)
+		expect(sunday[0]).toMatchObject({
+			discipline: 'run',
+			title: 'Langtur · Løping',
+		})
+		const bike = option.week.days
+			.flatMap((day) => day.sessions)
+			.filter((session) => session.discipline === 'bike')
+		expect(bike.length).toBeGreaterThanOrEqual(1)
+		expect(bike.every((session) => session.effort === 'easy')).toBe(true)
+	}
+	// Terskelfokus still lays its hard sessions, all on the run.
+	const threshold = made.options.find((option) => option.family === 'threshold')
+	expect(threshold?.week.hardSessions).toBeGreaterThanOrEqual(1)
+})
+
+test('changing the main sport moves the hard sessions and the long day to it', () => {
+	const runFirst = start({ discipline: 'run', otherSports: ['bike'] })
+	const bikeFirst = start({ discipline: 'bike', otherSports: ['run'] })
+	expect(runFirst.options[0]!.draft.tracks[0]).toMatchObject({
+		discipline: 'run',
+		mix: 'family',
+	})
+	expect(bikeFirst.options[0]!.draft.tracks[0]).toMatchObject({
+		discipline: 'bike',
+		mix: 'family',
+	})
+	expect(bikeFirst.options[0]!.week.days[5]!.sessions[0]).toMatchObject({
+		discipline: 'bike',
+	})
+})
+
+test('one sport picked, or the main sport repeated among the others, is the one-sport week', () => {
+	expect(JSON.stringify(start({ otherSports: [] }).options)).toBe(
+		JSON.stringify(start().options),
+	)
+	expect(JSON.stringify(start({ otherSports: ['run'] }).options)).toBe(
+		JSON.stringify(start().options),
+	)
+	expect(start().sports).toEqual(['run'])
+	expect(start().sportsLeftOut).toEqual([])
+})
+
+test('a sport there is no day for is left out and said, never the main sport', () => {
+	const made = start({
+		level: 'recreational',
+		hours: 3,
+		days: [2, 5],
+		discipline: 'swim',
+		otherSports: ['run', 'bike'],
+	})
+	expect(made.sports).toEqual(['swim', 'run'])
+	expect(made.sportsLeftOut).toEqual(['bike'])
+})

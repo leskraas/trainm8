@@ -148,6 +148,11 @@ export type FirstRunAnswers = {
 	 * (#563): it proposes the level's first family and caps the sessions.
 	 */
 	level?: TrainingLevel
+	/**
+	 * The simple start's other endurance sports, beside the main one in
+	 * `discipline` (#573): each its own track with easy sessions.
+	 */
+	otherSports?: CardioDiscipline[]
 }
 
 const AnswersSearchSchema = AnswerFieldsSchema.extend({

@@ -186,6 +186,73 @@ test('Velg denne makes the plan picked, keeps the level, and takes the athlete t
 	expect(profile.trainingLevel).toBe('beginner')
 })
 
+test('several sports: the cards lay every sport, carry them to Velg denne, and the plan made has a track for each', async () => {
+	const { userId, cookie } = await setUp()
+	const shown = await loader({
+		request: get(
+			'/start/valg?level=experienced&hours=7&discipline=bike&sports=run,bike&days=0,1,3,4,6',
+			cookie,
+		),
+		...ARGS,
+	})
+	expect(shown.answers).toMatchObject({
+		discipline: 'bike',
+		otherSports: ['run'],
+	})
+	expect(decodeURIComponent(shown.back)).toBe(
+		'/start/trening?level=experienced&hours=7&discipline=bike&sports=bike,run&days=0,1,3,4,6',
+	)
+	const laid = new Set(
+		shown.cards[0]!.days.flatMap((day) =>
+			day.sessions.map((session) => session.discipline),
+		),
+	)
+	expect(laid).toEqual(new Set(['bike', 'run']))
+
+	const response = await settle(() =>
+		action({
+			request: post(
+				'/start/valg',
+				[
+					['level', 'experienced'],
+					['hours', '7'],
+					['discipline', 'bike'],
+					['sports', 'bike'],
+					['sports', 'run'],
+					...[0, 1, 3, 4, 6].map((day): [string, string] => [
+						'days',
+						String(day),
+					]),
+					['family', shown.cards[0]!.family],
+				],
+				cookie,
+			),
+			...ARGS,
+		}),
+	)
+	expect(location(response)).toBe('/')
+	const tracks = await prisma.trainingTrack.findMany({
+		where: { outline: { athleteId: userId } },
+		select: { discipline: true },
+		orderBy: { discipline: 'asc' },
+	})
+	expect(tracks.map((track) => track.discipline)).toEqual(['bike', 'run'])
+})
+
+test('a sport there is no day for is said above the cards', async () => {
+	const { cookie } = await setUp()
+	const shown = await loader({
+		request: get(
+			'/start/valg?level=recreational&hours=3&discipline=swim&sports=swim,run,bike&days=2,5',
+			cookie,
+		),
+		...ARGS,
+	})
+	expect(shown.notes).toContain(
+		'Uka har plass til 2 økter, så sykling fikk ikke egne dager. Velg flere dager, mer tid eller færre idretter.',
+	)
+})
+
 test('a way not shown for these answers is refused in Norwegian, and nothing is made', async () => {
 	const { userId, cookie } = await setUp()
 	const reply = (await action({

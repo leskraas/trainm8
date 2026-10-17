@@ -1,6 +1,7 @@
 import {
 	type Effort,
-	type WeekSketch as Sketch, type StartWeekSession 
+	type WeekSketch as Sketch,
+	type StartWeekSession,
 } from '#app/utils/first-run/start-draft.ts'
 import {
 	FIRST_RUN_LABELS,

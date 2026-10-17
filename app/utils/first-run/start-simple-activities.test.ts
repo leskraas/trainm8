@@ -250,3 +250,28 @@ test('the start’s Simple Activities are planned with a time and an Effort Word
 		}
 	}
 })
+
+test('beside several endurance sports, a Simple Activity takes a day of the same total, and week 1 is the hours', () => {
+	const made = start({
+		level: 'experienced',
+		discipline: 'run',
+		otherSports: ['bike'],
+		activities: ['climb'],
+		hours: 7,
+		days: [0, 1, 3, 4, 6],
+	})
+	expect(made.sports).toEqual(['run', 'bike'])
+	for (const option of made.options) {
+		expect(option.draft.tracks.map((track) => track.discipline).sort()).toEqual(
+			['bike', 'other', 'run'],
+		)
+		expect(option.week.sessionCount).toBe(5)
+		expect(option.notFitted).toBeNull()
+		expect(Math.abs(option.week.minutes - 7 * 60)).toBeLessThan(
+			option.week.sessionCount,
+		)
+		expect(simpleSessions(option).map((session) => session.minutes)).toEqual([
+			90,
+		])
+	}
+})

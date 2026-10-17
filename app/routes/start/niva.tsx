@@ -21,6 +21,7 @@ import {
 } from '#app/utils/first-run/start-draft.ts'
 import {
 	LevelStepSchema,
+	otherSportsOf,
 	readStartAnswers,
 	startSearch,
 } from '#app/utils/first-run/start-schema.ts'
@@ -63,13 +64,15 @@ export async function action({ request }: Route.ActionArgs) {
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	const { level, hours, discipline, activities, days } = submission.value
+	const { level, hours, discipline, sports, activities, days } =
+		submission.value
 	throw redirect(
 		`/start/trening?${startSearch({
 			level,
 			hours: hours ?? levelDefaults(level).hours,
 			discipline,
 			activities,
+			otherSports: discipline ? otherSportsOf(discipline, sports) : undefined,
 			days,
 		})}`,
 	)
@@ -97,6 +100,7 @@ export default function LevelStep({
 	const carriedDays = sameLevel ? answers.days : undefined
 	const activities = sameLevel ? answers.activities : undefined
 	const discipline = answers.discipline ?? (activities ? null : 'run')
+	const otherSports = sameLevel ? answers.otherSports : undefined
 
 	const sketch = useMemo(
 		() =>
@@ -106,13 +110,22 @@ export default function LevelStep({
 							level,
 							discipline,
 							activities,
+							otherSports,
 							hours,
 							days: carriedDays ?? levelDefaults(level).days,
 							startWeekKey,
 						})
 					: null,
 			),
-		[level, hours, discipline, activities, carriedDays, startWeekKey],
+		[
+			level,
+			hours,
+			discipline,
+			otherSports,
+			activities,
+			carriedDays,
+			startWeekKey,
+		],
 	)
 
 	const [form, fields] = useForm({
@@ -218,6 +231,16 @@ export default function LevelStep({
 				{activities?.map((kind) => (
 					<input key={kind} type="hidden" name="activities" value={kind} />
 				))}
+				{answers.discipline && otherSports?.length
+					? [answers.discipline, ...otherSports].map((sport) => (
+							<input
+								key={sport}
+								type="hidden"
+								name={fields.sports.name}
+								value={sport}
+							/>
+						))
+					: null}
 				{carriedDays?.map((day) => (
 					<input key={day} type="hidden" name={fields.days.name} value={day} />
 				))}

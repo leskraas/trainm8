@@ -11,8 +11,11 @@
 
 import { type EffortWord } from '../effort-word.ts'
 import { SIMPLE_ACTIVITY_LABELS } from '../labels.ts'
-import { type PresetFamily } from '../plan-outline/presets.ts'
-import { type QualityZone } from '../plan-outline/quality-mix.ts'
+import { openEndedRound, type PresetFamily } from '../plan-outline/presets.ts'
+import {
+	qualitySessionCount,
+	type QualityZone,
+} from '../plan-outline/quality-mix.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { stampedSessionTitle } from '../session-title.ts'
 import { type ActivityKind } from '../simple-activity.ts'
@@ -95,10 +98,18 @@ export function startFamilies(level: TrainingLevel): PresetFamily[] {
 
 export type StartAnswers = {
 	level: TrainingLevel
-	/** The main sport, or none: an athlete who picked only Simple Activities. */
+	/**
+	 * The main sport (_Hovedidrett_): the first endurance sport picked. None
+	 * where the athlete picked only Simple Activities (#572).
+	 */
 	discipline?: CardioDiscipline | null
 	/** The **Simple Activities** picked, in the order they were picked (#572). */
 	activities?: readonly ActivityKind[]
+	/**
+	 * The other endurance sports picked, beside the main one (#573). Each
+	 * gets its own hours track with easy sessions on the days left.
+	 */
+	otherSports?: readonly CardioDiscipline[]
 	hours: number
 	days: readonly PatternWeekday[]
 	/** The Plan Start Week: the first week not yet begun (ADR 0079). */
@@ -282,6 +293,10 @@ export type StartDraft = {
 	 * Activities spread out, and one option (#572).
 	 */
 	simpleOnly: boolean
+	/** The endurance sports laid, the main sport first. */
+	sports: CardioDiscipline[]
+	/** Sports picked that no day was left for (never the main sport). */
+	sportsLeftOut: CardioDiscipline[]
 	/** Ranked, and distinct: no two lay the same first week. */
 	options: StartOption[]
 	/** How many of the level's families laid a week already shown, and went. */
@@ -317,6 +332,129 @@ function sameWeek(a: StartWeek, b: StartWeek): boolean {
 }
 
 /**
+ * The endurance sports picked, the main sport first and each once. The
+ * others keep the order they came in.
+ */
+export function startSports(
+	main: CardioDiscipline,
+	others: readonly CardioDiscipline[] = [],
+): CardioDiscipline[] {
+	return [...new Set([main, ...others])]
+}
+
+/**
+ * How many of `sportCount` sports the week has a day for: the days the plan
+ * lays on, across every track, cut to the level's session cap (a total, not
+ * per sport) and so that no session falls under {@link MIN_SESSION_HOURS}.
+ * Each sport has a long day weighted double, so `days` days over `sports`
+ * sports are `days + sports` shares of the hours.
+ */
+function sessionDaysFor(
+	sportCount: number,
+	days: readonly PatternWeekday[],
+	hours: number,
+	sessionCap: number,
+): { days: number; sports: number } {
+	let count = Math.max(
+		1,
+		Math.min(new Set(days).size, MAX_SESSION_DAYS, sessionCap),
+	)
+	while (
+		count > 1 &&
+		hours / (count + Math.min(sportCount, count)) < MIN_SESSION_HOURS
+	) {
+		count -= 1
+	}
+	return { days: count, sports: Math.min(sportCount, count) }
+}
+
+/**
+ * The tracks for several endurance sports (#573): one hours track per sport
+ * (ADR 0044), on days of its own. The main sport takes the long day — the
+ * last one — and carries the family's **Quality Session Mix**, so it keeps
+ * enough days for the family's hard sessions where the week allows; the other
+ * sports share the days left, alternating with it, and have no mix. The
+ * hours are shared by the days, each track's long day counting double, so a
+ * session is about as long whichever sport it is.
+ */
+export function sportTracks({
+	family,
+	sports,
+	hours,
+	days,
+	sessionCap,
+}: {
+	family: PresetFamily
+	/** The main sport first; each one gets at least one day. */
+	sports: readonly CardioDiscipline[]
+	hours: number
+	days: readonly PatternWeekday[]
+	sessionCap: number
+}): DraftTrack[] {
+	const fit = sessionDaysFor(sports.length, days, hours, sessionCap)
+	const kept = sports.slice(0, fit.sports)
+	const used = patternDaysFor(days, hours, fit.days)
+	const others = kept.length - 1
+	// The main sport's days: an even share, or more, so that the family's
+	// hard sessions have ordinary days to go on, leaving each other sport one.
+	const hard = qualitySessionCount(openEndedRound(family).mix)
+	const mainDays = Math.min(
+		used.length - others,
+		Math.max(Math.ceil(used.length / kept.length), hard + 1),
+	)
+	// The ordinary days each sport gets; the main sport's long day is apart.
+	const rest = used.length - mainDays
+	const want = kept.map((_, index) =>
+		index === 0
+			? mainDays - 1
+			: Math.floor(rest / others) + (index - 1 < rest % others ? 1 : 0),
+	)
+	// The ordinary days are dealt out in turn, each to the sport furthest
+	// behind its share so far, so every sport's days lie spread through the
+	// week (the main sport first on a tie). The long day, the last, is the
+	// main sport's.
+	const owned: PatternWeekday[][] = kept.map(() => [])
+	const ordinary = used.slice(0, -1)
+	ordinary.forEach((weekday, at) => {
+		let pick = 0
+		let behind = -Infinity
+		want.forEach((total, index) => {
+			const has = owned[index]!.length
+			if (has >= total) return
+			const lag = (total * (at + 1)) / ordinary.length - has
+			if (lag > behind) {
+				behind = lag
+				pick = index
+			}
+		})
+		owned[pick]!.push(weekday)
+	})
+	owned[0]!.push(used.at(-1)!)
+	// Each track's shares as the starter pattern weighs its days: one a day,
+	// and one more for its long day where it has more than one day, so an
+	// ordinary session is about as long whichever sport it is. Hours are
+	// carried to a tenth (`derive.ts`), so each other sport's hours are
+	// rounded to one and the main sport takes the rest: the tracks still add
+	// up to the hours given.
+	const sharesOf = (own: readonly PatternWeekday[]) =>
+		own.length + (own.length > 1 ? 1 : 0)
+	const shares = owned.reduce((sum, own) => sum + sharesOf(own), 0)
+	const otherHours = owned
+		.slice(1)
+		.map((own) => Math.round(((hours * sharesOf(own)) / shares) * 10) / 10)
+	const mainHours =
+		Math.round(
+			(hours - otherHours.reduce((sum, value) => sum + value, 0)) * 10,
+		) / 10
+	return kept.map((discipline, index) => ({
+		discipline,
+		weeklyHours: index === 0 ? mainHours : otherHours[index - 1]!,
+		days: owned[index]!.sort((a, b) => a - b),
+		mix: index === 0 ? 'family' : 'none',
+	}))
+}
+
+/**
  * The ranked, distinct **Start Options** for these answers, or null where no
  * day is picked. Each is one of the level's families laid by
  * `draftFirstRunPlan` with the level's session cap. They are ranked by score
@@ -330,27 +468,42 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 	if (days.length === 0) return null
 	if (!discipline && activities.length === 0) return null
 	const { sessionCap } = LEVEL_DEFAULTS[level]
-	const week = layStartWeek({
-		discipline,
-		activities,
-		hours,
-		days,
-		sessionCap,
-	})
+	const picked = discipline ? startSports(discipline, answers.otherSports) : []
 	// With no endurance sport there is no family to tell apart: one way.
 	const families = discipline
 		? startFamilies(level)
 		: startFamilies(level).slice(0, 1)
 	const laid: StartOption[] = []
+	let sports: CardioDiscipline[] = []
 	for (const family of families) {
-		const draft = draftFirstRunPlan({
+		const week = layStartWeek({
 			family,
-			goal: { kind: 'active' },
-			startWeekKey,
-			tracks: week.tracks,
-			simpleActivities: week.activities,
+			sports: picked,
+			activities,
+			hours,
+			days,
 			sessionCap,
 		})
+		sports = week.sports
+		const draft =
+			week.activities.length === 0 && sports.length === 1
+				? draftFirstRunPlan({
+						family,
+						goal: { kind: 'active' },
+						startWeekKey,
+						discipline: sports[0]!,
+						weeklyHours: hours,
+						days,
+						sessionCap,
+					})
+				: draftFirstRunPlan({
+						family,
+						goal: { kind: 'active' },
+						startWeekKey,
+						sessionCap,
+						tracks: week.tracks,
+						simpleActivities: week.activities,
+					})
 		if (!draft) continue
 		const firstWeek = startWeekOf(draft)
 		laid.push({
@@ -380,51 +533,59 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 		}
 	}
 	const top = options[0]!
-	const picked = new Set(days).size
+	const daysPicked = new Set(days).size
 	return {
 		startWeekKey,
 		discipline,
 		simpleOnly: discipline == null,
+		sports,
+		sportsLeftOut: picked.slice(sports.length),
 		options,
 		merged: families.length - options.length,
 		badge:
 			top.score > 0 ? 'best-fit' : top.family === 'big-base' ? 'level' : null,
-		daysPicked: picked,
+		daysPicked,
 		daysUsed: top.draft.patternDays.length,
-		capped: sessionCap < MAX_SESSION_DAYS && picked > sessionCap,
-		restDayKept: picked === 7,
+		capped: sessionCap < MAX_SESSION_DAYS && daysPicked > sessionCap,
+		restDayKept: daysPicked === 7,
 	}
 }
 
 /**
- * How the start shares the week between the main sport and the **Simple
- * Activities** (#572), the same for every family:
+ * How the start shares the week between the endurance sports and the
+ * **Simple Activities** (#572):
  *
- * - Each Simple Activity takes a day of its own, in the order picked, from
- *   the days the level's session cap and {@link MAX_SESSION_DAYS} leave: a
- *   total across the tracks. The main sport keeps two of them (one, with one
- *   day), so it stays a sport and not a single session.
+ * - The days the plan lays on are one total across every track: the days
+ *   picked, cut to {@link MAX_SESSION_DAYS} and the level's session cap.
+ * - Each Simple Activity takes a day of its own from that total, in the order
+ *   picked. The sports keep two of the days (or one a sport, if more; one,
+ *   with one day), so a sport stays a sport and not a single session.
  * - Its time is its default ({@link SIMPLE_ACTIVITY_DEFAULTS}), and it counts
- *   in the hours: the main sport takes what is left, never less than an hour,
- *   so a short week leaves out the activity rather than the sport. With no
- *   main sport, the activities share all of the hours in proportion to their
- *   defaults, in five-minute steps, spread over the week.
+ *   in the hours: the sports take what is left (`sportTracks`), never less
+ *   than an hour, so a short week leaves out the activity rather than the
+ *   sport. With no sport, the activities share all of the hours in proportion
+ *   to their defaults, in five-minute steps, spread over the week.
  * - One that finds no day, or no time, did not fit, and the cards name it.
  */
 function layStartWeek({
-	discipline,
+	family,
+	sports,
 	activities,
 	hours,
 	days,
 	sessionCap,
 }: {
-	discipline: CardioDiscipline | null
+	family: PresetFamily
+	/** The endurance sports picked, the main sport first; none at all. */
+	sports: readonly CardioDiscipline[]
 	activities: readonly ActivityKind[]
 	hours: number
 	days: readonly PatternWeekday[]
 	sessionCap: number
 }): {
 	tracks: DraftTrack[]
+	/** The sports laid, the main sport first. */
+	sports: CardioDiscipline[]
 	activities: DraftSimpleActivity[]
 	notFitted: NotFitted | null
 } {
@@ -432,7 +593,7 @@ function layStartWeek({
 	const budget = Math.min(picked.length, MAX_SESSION_DAYS, sessionCap)
 	const wanted = [...new Set(activities)]
 	const defaults = (kind: ActivityKind) => SIMPLE_ACTIVITY_DEFAULTS[kind]
-	if (!discipline) {
+	if (sports.length === 0) {
 		const fitted = wanted.slice(0, budget)
 		const weekdays = spreadDays(picked, fitted.length)
 		const minutes = shareMinutes(
@@ -441,6 +602,7 @@ function layStartWeek({
 		)
 		return {
 			tracks: [],
+			sports: [],
 			activities: fitted.map((kind, index) => ({
 				kind,
 				effortWord: defaults(kind).effortWord,
@@ -450,12 +612,12 @@ function layStartWeek({
 			notFitted: notFittedOf(wanted.slice(budget), 'days'),
 		}
 	}
-	const room = budget - Math.min(2, budget)
+	const room = budget - Math.min(budget, Math.max(2, sports.length))
 	const fitted = wanted.slice(0, room)
 	const dayless = wanted.slice(room)
 	const minutesOf = (kinds: readonly ActivityKind[]) =>
 		kinds.reduce((sum, kind) => sum + defaults(kind).minutes, 0)
-	// The main sport keeps an hour at least: two half-hour sessions.
+	// The sports keep an hour at least: two half-hour sessions.
 	const floor = 2 * MIN_SESSION_HOURS * 60
 	const timeless: ActivityKind[] = []
 	while (fitted.length > 0 && hours * 60 - minutesOf(fitted) < floor) {
@@ -465,20 +627,35 @@ function layStartWeek({
 		[...timeless, ...dayless],
 		dayless.length > 0 ? 'days' : 'hours',
 	)
-	if (fitted.length === 0) {
-		return {
-			tracks: [{ discipline, weeklyHours: hours, days: picked, mix: 'family' }],
-			activities: [],
-			notFitted,
-		}
-	}
+	// The sports lay on what the activities leave of the total.
 	const sportHours = hours - minutesOf(fitted) / 60
-	const sportDays = patternDaysFor(picked, sportHours, budget - fitted.length)
-	const free = picked.filter((day) => !sportDays.includes(day))
+	const sportCap = budget - fitted.length
+	const kept = sports.slice(
+		0,
+		sessionDaysFor(sports.length, picked, sportHours, sportCap).sports,
+	)
+	const tracks: DraftTrack[] =
+		kept.length === 1
+			? [
+					{
+						discipline: kept[0]!,
+						weeklyHours: sportHours,
+						days: patternDaysFor(picked, sportHours, sportCap),
+						mix: 'family',
+					},
+				]
+			: sportTracks({
+					family,
+					sports: kept,
+					hours: sportHours,
+					days: picked,
+					sessionCap: sportCap,
+				})
+	const taken = new Set(tracks.flatMap((track) => track.days))
+	const free = picked.filter((day) => !taken.has(day))
 	return {
-		tracks: [
-			{ discipline, weeklyHours: sportHours, days: sportDays, mix: 'family' },
-		],
+		tracks,
+		sports: kept,
 		activities: fitted.map((kind, index) => ({
 			kind,
 			effortWord: defaults(kind).effortWord,

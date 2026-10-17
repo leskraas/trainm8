@@ -114,6 +114,7 @@ export async function readFirstRunPlan(
 			level,
 			discipline: answers.discipline,
 			activities: answers.activities,
+			otherSports: answers.otherSports,
 			hours: answers.hours,
 			days: answers.days,
 			startWeekKey,
