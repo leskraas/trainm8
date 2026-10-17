@@ -5,6 +5,7 @@
 
 import { z } from 'zod/v3'
 import { FIRST_RUN_LABELS, SIMPLE_START_LABELS } from '../labels.ts'
+import { PRESET_FAMILIES } from '../plan-outline/presets.ts'
 import {
 	patternWeekdaysOf,
 	type PatternWeekday,
@@ -68,6 +69,15 @@ export const ActivitiesStepSchema = z.object({
 	hours: StartHoursSchema,
 	discipline: StartDisciplineSchema,
 	days: DaysSchema,
+})
+
+/**
+ * _Velg denne_: every answer, and the family of the card picked. Which
+ * families are shown is the draft's to say (`draftStart`), so any preset
+ * family reads here and the plan writer refuses one not shown.
+ */
+export const StartChoiceSchema = ActivitiesStepSchema.extend({
+	family: z.enum(PRESET_FAMILIES),
 })
 
 export type StartAnswersSoFar = {

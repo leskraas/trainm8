@@ -8,10 +8,9 @@ import {
 	ToggleGroupField,
 } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import { answersSearch } from '#app/utils/first-run/first-run-schema.ts'
 import {
 	readPlanStartWeekKey,
-	requireFirstRunAthlete,
+	requireSimpleStartAthlete,
 } from '#app/utils/first-run/plan.server.ts'
 import {
 	draftStart,
@@ -43,10 +42,10 @@ import { WeekSketch } from './__week-sketch.tsx'
  * The simple start, screen 2 (#558 _Levende start_, #563): _Hva liker du å
  * trene?_ — one modelled endurance sport, the plan's main sport — and the days
  * the athlete can train, as seven buttons with a sentence saying how many were
- * picked. _Uka di_ fills in above as they answer. When they finish, the old
- * first run's plan screen continues with these answers and the level's first
- * family; every picked day is kept as their **Training Availability** when
- * the plan is made (`createFirstRunPlan`).
+ * picked. _Uka di_ fills in above as they answer. When they finish, the
+ * **Start Options** follow (`/start/valg`, #566); every picked day is kept as
+ * their **Training Availability** when the plan is made
+ * (`createFirstRunPlan`).
  */
 
 const L = SIMPLE_START_LABELS
@@ -56,7 +55,7 @@ export const meta: Route.MetaFunction = () => [
 ]
 
 export async function loader({ request }: Route.LoaderArgs) {
-	const userId = await requireFirstRunAthlete(request)
+	const userId = await requireSimpleStartAthlete(request)
 	const answers = readStartAnswers(new URL(request.url).searchParams)
 	const { level, hours } = answers
 	// The level and hours come first; without them, back to where they are
@@ -75,23 +74,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-	await requireFirstRunAthlete(request)
+	await requireSimpleStartAthlete(request)
 	const formData = await request.formData()
 	const submission = parseWithZod(formData, { schema: ActivitiesStepSchema })
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	const { level, hours, discipline, days } = submission.value
-	throw redirect(
-		`/start/plan?${answersSearch({
-			discipline,
-			hours,
-			days,
-			goal: { kind: 'active' },
-			family: null,
-			level,
-		})}`,
-	)
+	throw redirect(`/start/valg?${startSearch(submission.value)}`)
 }
 
 export default function ActivitiesStep({

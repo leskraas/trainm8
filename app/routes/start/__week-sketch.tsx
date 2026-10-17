@@ -1,9 +1,13 @@
-import { type WeekSketch as Sketch } from '#app/utils/first-run/start-draft.ts'
+import {
+	type Effort,
+	type WeekSketch as Sketch,
+} from '#app/utils/first-run/start-draft.ts'
 import {
 	FIRST_RUN_LABELS,
 	NB_WEEKDAY_LABELS,
 	nbDurationLabel,
 	SIMPLE_START_LABELS,
+	START_OPTION_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type CardioDiscipline } from '#app/utils/workout-schema.ts'
@@ -17,14 +21,21 @@ const TRACK_MARK: Record<CardioDiscipline, string> = {
 	swim: 'bg-track-swim',
 }
 
+/** Solid for a hard session, fainter as it gets easier. */
+const EFFORT_OPACITY: Record<Effort, string> = {
+	easy: 'opacity-45',
+	moderate: 'opacity-75',
+	hard: 'opacity-100',
+}
+
 function duration(minutes: number): string {
 	return nbDurationLabel(minutes * 60)
 }
 
 /**
  * _Uka di_, the **Week Sketch** (#563): seven days, Monday first, each a
- * column whose block is the day's session — taller for longer, solid for a
- * hard one — with the week's session count and total time above. It is the
+ * column whose block is the day's session — taller for longer, more solid
+ * the harder it is — with the week's session count and total time above. It is the
  * top Start Option's first week (`weekSketch`), so it never shows a week the
  * plan would not lay.
  *
@@ -80,9 +91,9 @@ export function WeekSketch({
 							: day.sessions
 									.map((session) =>
 										L.session(
-											session.hard
-												? `${session.title} (${L.hard})`
-												: session.title,
+											session.effort === 'easy'
+												? session.title
+												: `${session.title} (${START_OPTION_LABELS.effort[session.effort]})`,
 											duration(session.minutes),
 										),
 									)
@@ -100,7 +111,7 @@ export function WeekSketch({
 										className={cn(
 											'block w-full rounded-xl',
 											TRACK_MARK[discipline],
-											session.hard ? 'opacity-100' : 'opacity-45',
+											EFFORT_OPACITY[session.effort],
 										)}
 										style={{
 											height: `${Math.max(14, Math.round((session.minutes / longest) * 100))}%`,
