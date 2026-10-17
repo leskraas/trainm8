@@ -1,6 +1,11 @@
 # Week Replan proposes, and the athlete's own sessions need a yes
 
-Status: Accepted
+Status: Accepted · **§2–3 superseded by
+[ADR 0100](./0100-the-autopilot-lays-out-each-week-and-every-write-it-makes-says-what-it-did-and-can-be-undone.md)**
+for an athlete on **Autopilot** (the default since spec #558): the Week Change
+applies the Week Replan at the close within guards, the athlete's own sessions
+are never changed, and every write is stated and undoable. Under _Spør meg
+først_ this ADR stands unchanged.
 
 **Amends [ADR 0025](./0025-adaptive-week-replan.md).** It keeps §1: one
 persistent decision for each closed **Training Week**, made at most once. It
@@ -35,13 +40,14 @@ Sunday.
    _Ukeskiftet_), together with a short review of the week that closed. In the
    same step the horizon moves forward one week. "Keep" is a real proposal with
    a reason, not the absence of one.
-2. **The machine's sessions: an unanswered proposal is applied the next
-   morning.** This covers sessions the app made that the athlete has not adopted
-   (**Session Adoption**).
-3. **The athlete's own sessions: only an explicit yes applies a proposal.** This
-   covers sessions with `source` `authored` and adopted sessions. The app may
-   propose a change to them, and the proposal says that the session is theirs.
-   Silence changes nothing.
+2. _(Superseded by ADR 0100 for autopilot athletes.)_ **The machine's sessions:
+   an unanswered proposal is applied the next morning.** This covers sessions
+   the app made that the athlete has not adopted (**Session Adoption**).
+3. _(Superseded by ADR 0100 for autopilot athletes.)_ **The athlete's own
+   sessions: only an explicit yes applies a proposal.** This covers sessions
+   with `source` `authored` and adopted sessions. The app may propose a change
+   to them, and the proposal says that the session is theirs. Silence changes
+   nothing.
 4. **A move proposal asks for its scope:** _bare denne gangen_ (only this time)
    or _fra nå av_ (from now on). "Never on Tuesdays" is a different statement
    from "not this Tuesday".
