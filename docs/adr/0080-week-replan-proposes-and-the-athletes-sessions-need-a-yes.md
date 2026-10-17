@@ -245,7 +245,9 @@ Sunday.
 
 ## As built (#564): an applied proposal keeps a before-image and can be undone
 
-Groundwork for spec #558's autopilot; nothing changes for the athlete yet.
+Groundwork for spec #558's autopilot
+([ADR 0100](./0100-the-autopilot-lays-out-each-week-and-every-write-it-makes-says-what-it-did-and-can-be-undone.md)
+§4); nothing changes for the athlete yet.
 
 - **The before-image.** Every path that applies a proposal (silence, an Ok,
   "Gjør uka lettere") stores, with `appliedAt`, what the change replaced
