@@ -1,4 +1,5 @@
 import { type Locator, type Page } from '@playwright/test'
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { saveGymProfile } from '#app/utils/plate-inventory.server.ts'
 import { saveLoggedSet } from '#app/utils/strength-log.server.ts'
@@ -1090,7 +1091,7 @@ test('a gym day is logged som planlagt from I dag in one tap, and the week count
 	const gym = await seedGymDay(user.id, week)
 	const { monday } = week
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	const log = page.getByRole('region', { name: 'Logg Styrke A' })
 	await expect(log).toBeVisible()
 	// Pre-filled from the plan, in the athlete's words — Norwegian, not the
@@ -1160,7 +1161,7 @@ test('Endre logs the set that went differently, at the planned weight', async ({
 	const gym = await seedGymDay(user.id, week)
 	const { monday } = week
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	const log = page.getByRole('region', { name: 'Logg Styrke A' })
 	await expect(log.getByText('Knebøy')).toBeVisible()
 	await log.getByRole('button', { name: 'Endre' }).click()

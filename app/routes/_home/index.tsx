@@ -11,8 +11,8 @@ import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
+import { CalmToday } from './__calm-today-view.tsx'
 import { homeTimelineAction, readHomeTimeline } from './home-timeline.server.ts'
-import { HomeTimeline } from './timeline/home-timeline.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 
@@ -42,6 +42,12 @@ export default function Index() {
  * The athlete's home surface, split out so the Live Imports Stream only opens
  * for a signed-in athlete (the SSE resource route requires auth, and hooks
  * can't sit behind the `isAuthenticated` branch above).
+ *
+ * I dag opens on its calm default view (spec #558 S4, ADR 0101 §3): today's
+ * card and this week. The full Home Timeline is _Se hele sesongen_
+ * (`/season`), which reads and writes through the same server module — so
+ * this route keeps the timeline's whole loader and action, and every write
+ * the default view makes (_Gjort_, the composer, its undo) lands here.
  */
 function AuthenticatedHome({
 	data,
@@ -53,7 +59,7 @@ function AuthenticatedHome({
 	// a queue of things to link — is what refreshes when one arrives (#75).
 	useRevalidateOnImportEvent()
 
-	return <HomeTimeline data={data} />
+	return <CalmToday data={data} />
 }
 
 const columnClasses: Record<(typeof logos)[number]['column'], string> = {

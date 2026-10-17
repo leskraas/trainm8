@@ -230,12 +230,18 @@ export function MarkDoneAction({
 	title,
 	label,
 	ariaLabel,
+	look = 'row',
 }: {
 	sessionId: string
 	/** The session's title, which the toast quotes. */
 	title: string
 	label: string
 	ariaLabel: string
+	/**
+	 * `row`: the quiet action under a row. `card`: the today card's one large
+	 * _Gjort_ (ADR 0101 §3), the primary action of I dag's default view.
+	 */
+	look?: 'row' | 'card'
 }) {
 	const fetcherKey = useLandingKey()
 	const watch = useLandingWatch()
@@ -267,7 +273,25 @@ export function MarkDoneAction({
 			className="flex flex-col"
 		>
 			<input {...getInputProps(fields.sessionId, { type: 'hidden' })} />
-			{sent ? (
+			{look === 'card' ? (
+				// The card's button stays where it is while the mark goes out, and
+				// says so in place: no layout moves under the thumb that tapped it.
+				<button
+					type="submit"
+					aria-label={ariaLabel}
+					disabled={sent}
+					data-today-done
+					className={cn(
+						buttonVariants({ size: 'default' }),
+						'h-12 w-full gap-2 text-base font-semibold disabled:opacity-70',
+					)}
+				>
+					<Icon name="check" size="sm" />
+					<span aria-live="polite">
+						{sent ? MARK_DONE_LABELS.saving : label}
+					</span>
+				</button>
+			) : sent ? (
 				<span
 					aria-live="polite"
 					className="text-muted-foreground flex min-h-11 items-center text-[11px]/[1.35]"

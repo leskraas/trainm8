@@ -159,6 +159,7 @@ import {
 	describeLoggedSetRefusal,
 	getExerciseCatalog,
 	getRecentExerciseIds,
+	canMarkMissed,
 	markSessionMissed,
 	updateWorkoutSession,
 } from '#app/utils/workout.server.ts'
@@ -364,8 +365,16 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 			(track) => track.discipline === discipline,
 		)?.currency ?? null
 
+	// _Marker som ikke gjort_ only once the session's day has begun: a session
+	// still ahead offers no done or missed action (spec #558 S4, ADR 0101 §4).
+	const missable = canMarkMissed(session, {
+		now: new Date(),
+		timezone: await getAthleteTimezone(userId),
+	})
+
 	return {
 		session,
+		canMarkMissed: missable,
 		thresholds,
 		loadContexts,
 		exercises,
@@ -476,7 +485,9 @@ export async function action({ request, params }: Route.ActionArgs) {
 		// Recording the miss fires the load-recompute path (ADR 0008), which runs
 		// the Session Nudge applier — a recorded key miss eases the next planned
 		// cardio session right here, never on a page open (#186).
-		const result = await markSessionMissed(userId, params.sessionId)
+		const result = await markSessionMissed(userId, params.sessionId, {
+			timezone: await getAthleteTimezone(userId),
+		})
 		invariantResponse(result, L.errors.notFound, { status: 404 })
 		invariantResponse(result.marked, L.errors.onlyPlannedMissed, {
 			status: 400,
@@ -710,9 +721,12 @@ export async function action({ request, params }: Route.ActionArgs) {
 function SessionActions({
 	session,
 	loggedSetCount,
+	canMarkMissed = false,
 }: {
 	session: SessionDetail
 	loggedSetCount: number
+	/** Only once the session's day has begun (ADR 0101 §4). */
+	canMarkMissed?: boolean
 }) {
 	const [confirmDelete, setConfirmDelete] = useState(false)
 	return (
@@ -728,7 +742,7 @@ function SessionActions({
 					{loggedSetCount > 0 ? L.actions.setsLogged : L.actions.logSets}
 				</Link>
 			) : null}
-			{session.status === 'scheduled' ? (
+			{canMarkMissed ? (
 				<Form method="POST">
 					<input type="hidden" name="intent" value="mark-missed" />
 					<Button type="submit" variant="outline">
@@ -838,7 +852,11 @@ export default function SessionDetailRoute({
 				)}
 			>
 				<div className="flex min-w-0 flex-col gap-4">
-					<SessionActions session={session} loggedSetCount={loggedSetCount} />
+					<SessionActions
+						session={session}
+						loggedSetCount={loggedSetCount}
+						canMarkMissed={loaderData.canMarkMissed}
+					/>
 
 					{/* The session card (spec §2.6, B8; Arket M). Its order is the
 					    reading order: the title, **the session in its own numbers**,
