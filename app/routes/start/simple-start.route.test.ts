@@ -18,7 +18,7 @@ import { action as weeksAction, loader as weeksLoader } from './uker.tsx'
 
 // The simple start's questions (#563) through their loaders and actions: the
 // level and hours, the main sport and the days, the answers travelling in the
-// URL, and the old plan screen continuing with them and the level's family.
+// URL, and the old plan screen still reading them with the level's family.
 
 const ARGS = {
 	params: {},
@@ -80,7 +80,7 @@ type Reply = {
 	init: { status: number } | null
 }
 
-test('an athlete who already has a plan is sent to it from both questions', async () => {
+test('an athlete who already has a plan is sent to I dag from both questions', async () => {
 	const { userId, cookie } = await setUp()
 	await createOpenEndedPlan(userId, { discipline: 'run', weeklyHours: 3 })
 
@@ -98,7 +98,7 @@ test('an athlete who already has a plan is sent to it from both questions', asyn
 				...ARGS,
 			}),
 	]) {
-		expect(location(await settle(run))).toBe('/training/plan')
+		expect(location(await settle(run))).toBe('/')
 	}
 })
 
@@ -245,7 +245,7 @@ describe('Hva liker du å trene? and the days', () => {
 		expect(given).toMatchObject({ discipline: 'swim', days: [1, 6] })
 	})
 
-	test('the answers move on to the plan screen, and no day is refused', async () => {
+	test('the answers move on to the three ways to train, and no day is refused', async () => {
 		const { cookie } = await setUp()
 
 		const response = await settle(() =>
@@ -266,7 +266,7 @@ describe('Hva liker du å trene? and the days', () => {
 			}),
 		)
 		expect(location(response)).toBe(
-			'/start/plan?discipline=run&hours=3&days=0,2,4&goal=active&level=beginner',
+			'/start/valg?level=beginner&hours=3&discipline=run&days=0,2,4',
 		)
 
 		const noDays = (await activitiesAction({
@@ -283,6 +283,85 @@ describe('Hva liker du å trene? and the days', () => {
 		})) as unknown as Reply
 		expect(noDays.init?.status).toBe(400)
 		expect(noDays.data.result.error?.days?.[0]).toBe('Velg minst én dag')
+	})
+
+	test('several sports move on with the main sport first, and come back the same', async () => {
+		const { cookie } = await setUp()
+
+		const response = await settle(() =>
+			activitiesAction({
+				request: post(
+					'/start/trening',
+					[
+						['level', 'experienced'],
+						['hours', '7'],
+						['discipline', 'bike'],
+						['sports', 'run'],
+						['sports', 'bike'],
+						['sports', 'swim'],
+						['days', '0'],
+						['days', '3'],
+						['days', '6'],
+					],
+					cookie,
+				),
+				...ARGS,
+			}),
+		)
+		const next = location(response)
+		expect(next).toBe(
+			'/start/valg?level=experienced&hours=7&discipline=bike&sports=bike,run,swim&days=0,3,6',
+		)
+
+		const back = await activitiesLoader({
+			request: get(next!.replace('/start/valg', '/start/trening'), cookie),
+			...ARGS,
+		})
+		expect(back).toMatchObject({
+			discipline: 'bike',
+			otherSports: ['run', 'swim'],
+		})
+
+		// The level screen carries them both ways too.
+		const level = await settle(() =>
+			levelAction({
+				request: post(
+					'/start/niva',
+					[
+						['level', 'experienced'],
+						['hours', '7'],
+						['discipline', 'bike'],
+						['sports', 'bike'],
+						['sports', 'swim'],
+						['days', '0'],
+						['days', '3'],
+					],
+					cookie,
+				),
+				...ARGS,
+			}),
+		)
+		expect(location(level)).toBe(
+			'/start/trening?level=experienced&hours=7&discipline=bike&sports=bike,swim&days=0,3',
+		)
+	})
+
+	test('no sport picked is refused in Norwegian', async () => {
+		const { cookie } = await setUp()
+		const none = (await activitiesAction({
+			request: post(
+				'/start/trening',
+				[
+					['level', 'beginner'],
+					['hours', '3'],
+					['days', '0'],
+				],
+				cookie,
+			),
+			...ARGS,
+		})) as unknown as Reply
+		expect(none.init?.status).toBe(400)
+		expect(none.data.result.error?.discipline?.[0]).toBe('Velg en idrett')
 	})
 })
 

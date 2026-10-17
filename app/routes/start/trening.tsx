@@ -2,24 +2,21 @@ import { getFormProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { useMemo, useState } from 'react'
 import { data, Form, redirect } from 'react-router'
-import {
-	ErrorList,
-	RadioGroupField,
-	ToggleGroupField,
-} from '#app/components/forms.tsx'
+import { ErrorList, ToggleGroupField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import { answersSearch } from '#app/utils/first-run/first-run-schema.ts'
 import {
 	readPlanStartWeekKey,
-	requireFirstRunAthlete,
+	requireSimpleStartAthlete,
 } from '#app/utils/first-run/plan.server.ts'
 import {
 	draftStart,
 	levelDefaults,
+	startSports,
 	weekSketch,
 } from '#app/utils/first-run/start-draft.ts'
 import {
 	ActivitiesStepSchema,
+	otherSportsOf,
 	readStartAnswers,
 	startSearch,
 } from '#app/utils/first-run/start-schema.ts'
@@ -41,12 +38,14 @@ import { WeekSketch } from './__week-sketch.tsx'
 
 /**
  * The simple start, screen 2 (#558 _Levende start_, #563): _Hva liker du å
- * trene?_ — one modelled endurance sport, the plan's main sport — and the days
+ * trene?_ — the modelled endurance sports, the first picked the plan's main
+ * sport (_Hovedidrett_, #573), which a tap on its line hands to the next — and
+ * the days
  * the athlete can train, as seven buttons with a sentence saying how many were
- * picked. _Uka di_ fills in above as they answer. When they finish, the old
- * first run's plan screen continues with these answers and the level's first
- * family; every picked day is kept as their **Training Availability** when
- * the plan is made (`createFirstRunPlan`).
+ * picked. _Uka di_ fills in above as they answer. When they finish, the
+ * **Start Options** follow (`/start/valg`, #566); every picked day is kept as
+ * their **Training Availability** when the plan is made
+ * (`createFirstRunPlan`).
  */
 
 const L = SIMPLE_START_LABELS
@@ -56,7 +55,7 @@ export const meta: Route.MetaFunction = () => [
 ]
 
 export async function loader({ request }: Route.LoaderArgs) {
-	const userId = await requireFirstRunAthlete(request)
+	const userId = await requireSimpleStartAthlete(request)
 	const answers = readStartAnswers(new URL(request.url).searchParams)
 	const { level, hours } = answers
 	// The level and hours come first; without them, back to where they are
@@ -69,27 +68,24 @@ export async function loader({ request }: Route.LoaderArgs) {
 		level,
 		hours,
 		discipline: answers.discipline ?? ('run' as const),
+		otherSports: answers.otherSports ?? [],
 		days: answers.days ?? levelDefaults(level).days,
 		startWeekKey: await readPlanStartWeekKey(userId),
 	}
 }
 
 export async function action({ request }: Route.ActionArgs) {
-	await requireFirstRunAthlete(request)
+	await requireSimpleStartAthlete(request)
 	const formData = await request.formData()
 	const submission = parseWithZod(formData, { schema: ActivitiesStepSchema })
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	const { level, hours, discipline, days } = submission.value
+	const { sports, ...answers } = submission.value
 	throw redirect(
-		`/start/plan?${answersSearch({
-			discipline,
-			hours,
-			days,
-			goal: { kind: 'active' },
-			family: null,
-			level,
+		`/start/valg?${startSearch({
+			...answers,
+			otherSports: otherSportsOf(answers.discipline, sports),
 		})}`,
 	)
 }
@@ -99,22 +95,34 @@ export default function ActivitiesStep({
 	actionData,
 }: Route.ComponentProps) {
 	const { level, hours, startWeekKey } = loaderData
-	const [discipline, setDiscipline] = useState<CardioDiscipline>(
-		loaderData.discipline,
+	// Every sport picked, in the order picked: the first is the main sport.
+	const [picked, setPicked] = useState<CardioDiscipline[]>(() =>
+		startSports(loaderData.discipline, loaderData.otherSports),
 	)
+	const main = picked[0] ?? null
+	// The others in the fixed order the server reads them in, so the week
+	// shown here is the week the plan is made from.
+	const otherSports = useMemo(
+		() => (main ? otherSportsOf(main, picked) : []),
+		[main, picked],
+	)
+	const discipline = main ?? loaderData.discipline
 	const [days, setDays] = useState<string[]>(loaderData.days.map(String))
 	const weekdays = useMemo(() => patternWeekdaysOf(days.map(Number)), [days])
 
 	const start = useMemo(
 		() =>
-			draftStart({
-				level,
-				discipline,
-				hours,
-				days: weekdays,
-				startWeekKey,
-			}),
-		[level, discipline, hours, weekdays, startWeekKey],
+			main
+				? draftStart({
+						level,
+						discipline: main,
+						otherSports,
+						hours,
+						days: weekdays,
+						startWeekKey,
+					})
+				: null,
+		[level, main, otherSports, hours, weekdays, startWeekKey],
 	)
 	const sketch = useMemo(() => weekSketch(start), [start])
 
@@ -133,6 +141,7 @@ export default function ActivitiesStep({
 		level,
 		hours,
 		discipline,
+		otherSports,
 		days: weekdays,
 	})}`
 	const { sessionCap } = levelDefaults(level)
@@ -149,22 +158,71 @@ export default function ActivitiesStep({
 				<input type="hidden" name={fields.level.name} value={level} />
 				<input type="hidden" name={fields.hours.name} value={hours} />
 
-				<RadioGroupField
-					name={fields.discipline.name}
-					legend={L.activities.sport}
-					legendClassName={QUESTION_LEGEND}
-					value={discipline}
-					onValueChange={(next) => {
-						const picked = CARDIO_DISCIPLINES.find((value) => value === next)
-						if (picked) setDiscipline(picked)
-					}}
-					options={CARDIO_DISCIPLINES.map((value) => ({
-						value,
-						label: NB_DISCIPLINE_LABELS[value],
-					}))}
-					errorId={fields.discipline.errorId}
-					errors={fields.discipline.errors}
-				/>
+				<div className="space-y-1">
+					<ToggleGroupField
+						name={fields.sports.name}
+						legend={L.activities.sports}
+						legendClassName={QUESTION_LEGEND}
+						note={L.activities.sportsHelp}
+						options={CARDIO_DISCIPLINES.map((value) => ({
+							value,
+							label: NB_DISCIPLINE_LABELS[value],
+						}))}
+						defaultValue={picked}
+						value={picked}
+						onValueChange={(next) =>
+							// Kept in the order picked: an unpicked sport goes, a new one
+							// joins at the end, so the first picked stays the main sport.
+							setPicked((before) => [
+								...before.filter((sport) => next.includes(sport)),
+								...CARDIO_DISCIPLINES.filter(
+									(sport) => next.includes(sport) && !before.includes(sport),
+								),
+							])
+						}
+						errorId={fields.discipline.errorId}
+						errors={fields.discipline.errors}
+					/>
+					<input
+						type="hidden"
+						name={fields.discipline.name}
+						value={main ?? ''}
+					/>
+					<div aria-live="polite" className="min-h-11" data-start-main-sport>
+						{main && picked.length > 1 ? (
+							<Button
+								type="button"
+								variant="ghost"
+								aria-label={L.activities.switchMainSport(
+									NB_DISCIPLINE_LABELS[main],
+									NB_DISCIPLINE_LABELS[picked[1]!],
+								)}
+								onClick={() =>
+									// The main sport hands over to the next one picked.
+									setPicked((before) => [...before.slice(1), before[0]!])
+								}
+								className="text-footnote -mx-3 max-w-full gap-2"
+							>
+								<span className="text-muted-foreground truncate">
+									{L.activities.mainSportLead}{' '}
+									<span className="text-foreground font-semibold">
+										{NB_DISCIPLINE_LABELS[main]}
+									</span>
+								</span>
+								<span className="text-primary">{L.activities.switchHint}</span>
+							</Button>
+						) : main ? (
+							<p className="text-footnote text-muted-foreground flex min-h-11 items-center">
+								<span>
+									{L.activities.mainSportLead}{' '}
+									<span className="text-foreground font-semibold">
+										{NB_DISCIPLINE_LABELS[main]}
+									</span>
+								</span>
+							</p>
+						) : null}
+					</div>
+				</div>
 
 				<div className="space-y-2">
 					<ToggleGroupField

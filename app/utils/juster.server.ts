@@ -195,14 +195,14 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 	const simple = readSimpleActivity(workout)
 	if (simple) {
 		const minutes = tiredMinutes(simple.durationMin)
-		if (minutes === simple.durationMin && simple.effortWord === 'light') {
+		if (minutes === simple.durationMin && simple.effortWord === 'rolig') {
 			return { ok: false, reason: 'already-easy' }
 		}
 		return {
 			ok: true,
 			title: workout.title,
 			intent: workout.intent,
-			effortWord: 'light',
+			effortWord: 'rolig',
 			blocks: withSingleDuration(workout.blocks, minutes * 60),
 			minutes,
 		}
@@ -224,14 +224,14 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 					workout.blocks[index]!.steps[stepIndex]!.sets.length,
 			),
 		)
-		if (!fewer && workout.effortWord === 'light') {
+		if (!fewer && workout.effortWord === 'rolig') {
 			return { ok: false, reason: 'already-easy' }
 		}
 		return {
 			ok: true,
 			title: workout.title,
 			intent: workout.intent,
-			effortWord: 'light',
+			effortWord: 'rolig',
 			blocks,
 			minutes: sumBlockDurationMin(blocks) ?? 0,
 		}

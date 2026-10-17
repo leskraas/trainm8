@@ -14,26 +14,22 @@
  * Null where nothing says: a lift (strength sits on its own axis, ADR 0046), a
  * session with no prescription, or steps whose targets cannot be zoned without
  * thresholds. The surface then leaves the word out rather than guessing one.
- *
- * A stored Effort Word is read first: a Simple Activity's own (#567), and the
- * _rolig_ a _For sliten i dag_ gives a lift or a Simple Activity (#575).
+ * A stored Effort Word is read before all this: a Simple Activity's own
+ * (#567), and the _rolig_ a _For sliten i dag_ gives a lift (#575). It was
+ * said on purpose, so nothing is derived over it.
  */
 import { deriveSessionProfile, type Workout } from './session-profile.ts'
 
 export const EFFORT_WORDS = ['rolig', 'middels', 'hard'] as const
 export type EffortWord = (typeof EFFORT_WORDS)[number]
 
-/** The stored Effort Word (`simple-activity.ts`'s vocabulary) as said. */
-const STORED: Record<string, EffortWord> = {
-	light: 'rolig',
-	medium: 'middels',
-	hard: 'hard',
+export function isEffortWord(value: unknown): value is EffortWord {
+	return (EFFORT_WORDS as readonly unknown[]).includes(value)
 }
 
 export function readEffortWord(workout: Workout | null): EffortWord | null {
 	if (!workout) return null
-	const stored = workout.effortWord ? STORED[workout.effortWord] : undefined
-	if (stored) return stored
+	if (isEffortWord(workout.effortWord)) return workout.effortWord
 	if (workout.discipline === 'strength') return null
 	const zones = deriveSessionProfile(workout)
 		.bars.map((bar) => bar.zone)

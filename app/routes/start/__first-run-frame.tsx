@@ -8,8 +8,11 @@ import { cn } from '#app/utils/misc.tsx'
 /** The first run's five screens, in order (#505 story 61–68). */
 export const FIRST_RUN_STEP_COUNT = 5
 
-/** The simple start's question screens so far (#563): level, then activities. */
-export const SIMPLE_START_STEP_COUNT = 2
+/**
+ * The simple start's screens so far: the level, the activities (#563), then
+ * the **Start Options** (#566).
+ */
+export const SIMPLE_START_STEP_COUNT = 3
 
 /**
  * One screen of the first run: which step it is, its heading, and its body —

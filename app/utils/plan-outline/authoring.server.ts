@@ -2604,27 +2604,46 @@ export type StarterPatternResult =
 export async function createStarterWeekPattern(
 	userId: string,
 	input: WeekPatternStarterInput,
+	options: StarterPatternOptions = {},
+): Promise<StarterPatternResult> {
+	return prisma.$transaction((tx) =>
+		createStarterWeekPatternInTx(tx, userId, input, options),
+	)
+}
+
+type StarterPatternOptions = {
+	/**
+	 * The days the athlete just said they can train (the first run's third
+	 * question, Sunday-first like the profile column) — laid instead of the
+	 * stored availability, so the pattern is exactly the days they chose.
+	 */
+	trainableWeekdays?: number[]
+	/**
+	 * The days each track keeps to, by Discipline, where it keeps to some
+	 * of the days rather than all of them (`StarterTrack.weekdays`).
+	 */
+	daysByDiscipline?: Partial<Record<Discipline, readonly PatternWeekday[]>>
+}
+
+/**
+ * {@link createStarterWeekPattern}'s writes inside a transaction the caller
+ * holds, for a caller that makes the plan in the same transaction (#566: the
+ * first run's plan, its pattern and the athlete's answers land together or
+ * not at all).
+ */
+export async function createStarterWeekPatternInTx(
+	tx: Prisma.TransactionClient,
+	userId: string,
+	input: WeekPatternStarterInput,
 	{
 		trainableWeekdays: stated,
 		daysByDiscipline = {},
-	}: {
-		/**
-		 * The days the athlete just said they can train (the first run's third
-		 * question, Sunday-first like the profile column) — laid instead of the
-		 * stored availability, so the pattern is exactly the days they chose.
-		 */
-		trainableWeekdays?: number[]
-		/**
-		 * The days each track keeps to, by Discipline, where it keeps to some
-		 * of the days rather than all of them (`StarterTrack.weekdays`).
-		 */
-		daysByDiscipline?: Partial<Record<Discipline, readonly PatternWeekday[]>>
-	} = {},
+	}: StarterPatternOptions = {},
 ): Promise<StarterPatternResult> {
 	const start = WeekPatternStarterSchema.parse(input)
 	const profile = stated
 		? null
-		: await prisma.athleteProfile.findUnique({
+		: await tx.athleteProfile.findUnique({
 				where: { userId },
 				select: { trainableWeekdays: true },
 			})
@@ -2638,75 +2657,73 @@ export async function createStarterWeekPattern(
 			? null
 			: parseTrainableWeekdays(profile.trainableWeekdays))
 
-	return prisma.$transaction(async (tx) => {
-		const outline = await tx.planOutline.findFirst({
-			where: { id: start.outlineId, athleteId: userId },
-			select: {
-				id: true,
-				tracks: {
-					select: {
-						id: true,
-						discipline: true,
-						segments: {
-							where: { kind: 'strength' },
-							select: { sessionsPerWeek: true },
-							orderBy: { startWeekKey: 'asc' },
-						},
+	const outline = await tx.planOutline.findFirst({
+		where: { id: start.outlineId, athleteId: userId },
+		select: {
+			id: true,
+			tracks: {
+				select: {
+					id: true,
+					discipline: true,
+					segments: {
+						where: { kind: 'strength' },
+						select: { sessionsPerWeek: true },
+						orderBy: { startWeekKey: 'asc' },
 					},
 				},
 			},
-		})
-		if (!outline) return { ok: false as const, reason: 'outline-gone' as const }
-
-		const proposal = proposeStarterPattern({
-			trainableWeekdays,
-			tracks: outline.tracks.map((track) => ({
-				trackId: track.id,
-				discipline: track.discipline as Discipline,
-				// The first block's **Strength Frequency** stands for the track: a
-				// pattern is one week and the blocks may each ask for a different
-				// number, so the season's opening figure is the honest one to start
-				// from — and the athlete moves days from there.
-				sessionsPerWeek: track.segments[0]?.sessionsPerWeek ?? null,
-				weekdays: daysByDiscipline[track.discipline as Discipline],
-			})),
-		})
-		if (!proposal) {
-			return { ok: false as const, reason: 'nothing-to-propose' as const }
-		}
-
-		const pattern = await tx.weekPattern.create({
-			data: {
-				outlineId: outline.id,
-				name: STARTER_PATTERN_NAME,
-				orderIndex: await tx.weekPattern.count({
-					where: { outlineId: outline.id },
-				}),
-			},
-			select: { id: true },
-		})
-
-		// `orderInDay` counted per weekday as the days are laid, which is the same
-		// rule `addWeekPatternDay` applies one day at a time — so a Tuesday holding a
-		// lift and a run keeps them in the order they were proposed in.
-		const placed = new Map<number, number>()
-		for (const day of proposal.days) {
-			const orderInDay = placed.get(day.weekday) ?? 0
-			placed.set(day.weekday, orderInDay + 1)
-			await tx.weekPatternDay.create({
-				data: {
-					patternId: pattern.id,
-					trackId: day.trackId,
-					weekday: day.weekday,
-					orderInDay,
-					kind: 'share',
-					weight: day.weight,
-				},
-			})
-		}
-
-		return { ok: true as const, proposal }
+		},
 	})
+	if (!outline) return { ok: false as const, reason: 'outline-gone' as const }
+
+	const proposal = proposeStarterPattern({
+		trainableWeekdays,
+		tracks: outline.tracks.map((track) => ({
+			trackId: track.id,
+			discipline: track.discipline as Discipline,
+			// The first block's **Strength Frequency** stands for the track: a
+			// pattern is one week and the blocks may each ask for a different
+			// number, so the season's opening figure is the honest one to start
+			// from — and the athlete moves days from there.
+			sessionsPerWeek: track.segments[0]?.sessionsPerWeek ?? null,
+			weekdays: daysByDiscipline[track.discipline as Discipline],
+		})),
+	})
+	if (!proposal) {
+		return { ok: false as const, reason: 'nothing-to-propose' as const }
+	}
+
+	const pattern = await tx.weekPattern.create({
+		data: {
+			outlineId: outline.id,
+			name: STARTER_PATTERN_NAME,
+			orderIndex: await tx.weekPattern.count({
+				where: { outlineId: outline.id },
+			}),
+		},
+		select: { id: true },
+	})
+
+	// `orderInDay` counted per weekday as the days are laid, which is the same
+	// rule `addWeekPatternDay` applies one day at a time — so a Tuesday holding a
+	// lift and a run keeps them in the order they were proposed in.
+	const placed = new Map<number, number>()
+	for (const day of proposal.days) {
+		const orderInDay = placed.get(day.weekday) ?? 0
+		placed.set(day.weekday, orderInDay + 1)
+		await tx.weekPatternDay.create({
+			data: {
+				patternId: pattern.id,
+				trackId: day.trackId,
+				weekday: day.weekday,
+				orderInDay,
+				kind: 'share',
+				weight: day.weight,
+			},
+		})
+	}
+
+	return { ok: true as const, proposal }
 }
 
 /** Rename a pattern. The name is intent, and nothing derived depends on it. */

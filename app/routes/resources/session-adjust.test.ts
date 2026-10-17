@@ -319,7 +319,7 @@ test('For sliten i dag keeps a Simple Activity what it is, rolig and shorter', a
 		title: 'Klatring',
 		discipline: 'other',
 		activityKind: 'climb',
-		effortWord: 'light',
+		effortWord: 'rolig',
 	})
 	expect(after.minutes).toBe(55)
 })
@@ -345,7 +345,7 @@ test('For sliten i dag keeps a lift a lift, rolig with fewer sets', async () => 
 
 	const after = await picture(lift)
 	expect(after.workout?.discipline).toBe('strength')
-	expect(after.workout?.effortWord).toBe('light')
+	expect(after.workout?.effortWord).toBe('rolig')
 	const step = after.workout!.blocks[0]!.steps[0]!
 	expect(step.exerciseId).toBe(exercise.id)
 	expect(step.sets).toHaveLength(3)
