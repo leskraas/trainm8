@@ -572,3 +572,37 @@ test('the preview warns where the new plan would rise more than 10 % in a week, 
 	])
 	expect(preview.warnings[0]!.rise).toBeGreaterThan(0.1)
 })
+
+// ADR 0102 §3: Stor base's first block is all easy, so applying it in Sesong
+// previews, and lays, weeks with no hard session in them.
+test('switching to Stor base previews and lays only easy sessions in its first block', async () => {
+	const { userId, outlineId } = await openEndedPlan([1, 3, 6])
+
+	const preview = await readPhilosophySwitch(
+		userId,
+		outlineId,
+		'big-base',
+		WEDNESDAY,
+	)
+	if (!preview.ok) throw new Error(preview.reason)
+	expect(preview.phases.after).toEqual([
+		expect.objectContaining({ fromWeekKey: '2030-01-14', mix: [] }),
+	])
+
+	expect(
+		await switchPhilosophy(userId, outlineId, 'big-base', WEDNESDAY),
+	).toEqual(preview)
+
+	const laid = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			planOutlineId: outlineId,
+			scheduledAt: { gte: new Date('2030-01-14T00:00:00Z') },
+		},
+		select: { workout: { select: { intent: true } } },
+	})
+	expect(laid.length).toBeGreaterThan(0)
+	expect(new Set(laid.map((session) => session.workout?.intent))).toEqual(
+		new Set(['endurance']),
+	)
+})
