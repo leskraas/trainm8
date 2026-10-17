@@ -1948,6 +1948,15 @@ model WeekReplanProposal {
   /// When the change was written to the sessions — by an Ok, or by silence (then
   /// `answer` stays 'pending' and `answeredAt` null). Null = not applied.
   appliedAt     DateTime?
+  /// What the applied change replaced, as JSON validated by `BeforeImageSchema`
+  /// (`app/utils/load/week-replan-proposal.ts`): the placement, Replan Note and
+  /// step quantities of every session it changed, the sessions it placed, and
+  /// for a next round what it appended. Written with `appliedAt`; null for a
+  /// proposal not applied, or applied before before-images were kept (#564).
+  beforeImage   String?
+  /// When the change was undone from its before-image. Null = it stands. An
+  /// undone proposal keeps its `appliedAt`: it was applied, then taken back.
+  undoneAt      DateTime?
 
   /// The Monday (YYYY-MM-DD, Athlete Timezone) of the week the change lands in.
   targetWeekKey   String

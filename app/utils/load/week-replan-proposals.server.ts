@@ -52,6 +52,8 @@ import { copyWorkout, workoutCopySelect } from '#app/utils/workout.server.ts'
 import { fillPlanWeeksToHorizon } from './horizon-fill.server.ts'
 import { recomputePlannedTssForSession } from './planned-tss.server.ts'
 import {
+	type BeforeImage,
+	emptyBeforeImage,
 	LoadDirectionSchema,
 	loadDirectionOf,
 	parseProposalPayload,
@@ -160,7 +162,7 @@ export async function applyDueProposals(
 				if (!outcome.applied) return outcome
 				const claimed = await tx.weekReplanProposal.updateMany({
 					where: { id: proposal.id, answer: 'pending', appliedAt: null },
-					data: { appliedAt: now },
+					data: appliedData(outcome, now),
 				})
 				// Answered meanwhile: roll the writes back rather than double-apply.
 				if (claimed.count === 0) throw new ProposalRaceLost()
@@ -168,7 +170,7 @@ export async function applyDueProposals(
 			})
 			.catch((error: unknown) => {
 				if (error instanceof ProposalRaceLost) {
-					return { applied: false, changed: [] as string[] }
+					return nothing()
 				}
 				throw error
 			})
@@ -238,15 +240,71 @@ export type ApplyContext = {
 /**
  * Whether anything was written, and which sessions' prescriptions changed —
  * plus, for an appended round, that the plan's weeks up to the horizon are to
- * be laid after commit.
+ * be laid after commit — and the before-image of what it replaced (#564),
+ * which the caller stores with `appliedAt` ({@link appliedData}) so the change
+ * can be undone exactly (`week-replan-undo.server.ts`).
  */
 export type ApplyResult = {
 	applied: boolean
 	changed: string[]
 	fillsHorizon?: boolean
+	beforeImage: BeforeImage
 }
 
-const NOTHING: ApplyResult = { applied: false, changed: [] }
+/** What one kind's writer reports; the before-image is the run's. */
+type Outcome = Omit<ApplyResult, 'beforeImage'>
+
+const NOTHING: Outcome = { applied: false, changed: [] }
+
+function nothing(): ApplyResult {
+	return { ...NOTHING, beforeImage: emptyBeforeImage() }
+}
+
+/**
+ * The columns an applied proposal is marked with: when, and what it replaced.
+ * Every path that applies a proposal — silence, an Ok, "Gjør uka lettere" —
+ * writes both together, so no applied proposal lacks its before-image.
+ */
+export function appliedData(result: ApplyResult, now: Date) {
+	return {
+		appliedAt: now,
+		beforeImage: JSON.stringify(result.beforeImage),
+	} satisfies Prisma.WeekReplanProposalUpdateInput
+}
+
+/**
+ * One apply in progress: the context, and the before-image it fills as it
+ * writes — each session's prior state recorded once, before its first write.
+ */
+type Run = ApplyContext & { image: BeforeImage }
+
+type SessionBefore = Pick<
+	Target,
+	'id' | 'scheduledAt' | 'replanReason' | 'source' | 'adoptedAt' | 'releasedAt'
+>
+
+function remember(
+	run: Run,
+	session: SessionBefore,
+	steps?: Array<{
+		id: string
+		durationSec: number | null
+		distanceM: number | null
+	}>,
+) {
+	const known = run.image.sessions.find((image) => image.id === session.id)
+	if (known) {
+		if (steps && !known.steps) known.steps = steps
+		return
+	}
+	run.image.sessions.push({
+		id: session.id,
+		scheduledAt: session.scheduledAt.toISOString(),
+		replanReason: session.replanReason,
+		owner: sessionOwner(session),
+		...(steps ? { steps } : {}),
+	})
+}
 
 const targetSelect = {
 	id: true,
@@ -256,6 +314,7 @@ const targetSelect = {
 	adoptedAt: true,
 	releasedAt: true,
 	updatedAt: true,
+	replanReason: true,
 	targetEventId: true,
 	planOutlineId: true,
 	workout: { select: workoutCopySelect },
@@ -268,6 +327,17 @@ export async function applyPayload(
 	tx: Prisma.TransactionClient,
 	ctx: ApplyContext,
 ): Promise<ApplyResult> {
+	const run: Run = { ...ctx, image: emptyBeforeImage() }
+	const outcome = await applyKind(tx, run)
+	return outcome.applied
+		? { ...outcome, beforeImage: run.image }
+		: { ...outcome, beforeImage: emptyBeforeImage() }
+}
+
+async function applyKind(
+	tx: Prisma.TransactionClient,
+	ctx: Run,
+): Promise<Outcome> {
 	const { payload } = ctx.proposal
 	if (payload.kind === 'keep') return { applied: true, changed: [] }
 	if (payload.kind === 'add') return applyAdd(tx, ctx, payload)
@@ -351,20 +421,20 @@ function mayTouch(session: Target, ctx: ApplyContext): boolean {
 
 async function applySessionScale(
 	tx: Prisma.TransactionClient,
-	ctx: ApplyContext,
+	ctx: Run,
 	target: Target,
 	factor: number,
-): Promise<ApplyResult> {
+): Promise<Outcome> {
 	if (!mayTouch(target, ctx)) return NOTHING
-	const scaled = await scaleSession(tx, target, factor, ctx.proposal.reason)
+	const scaled = await scaleSession(tx, ctx, target, factor)
 	return scaled ? { applied: true, changed: [target.id] } : NOTHING
 }
 
 async function applyWeekScale(
 	tx: Prisma.TransactionClient,
-	ctx: ApplyContext,
+	ctx: Run,
 	factor: number,
-): Promise<ApplyResult> {
+): Promise<Outcome> {
 	const { start, end } = weekBoundsFromMondayUTC(
 		ctx.proposal.targetWeekKey,
 		ctx.timezone,
@@ -382,7 +452,7 @@ async function applyWeekScale(
 	const changed: string[] = []
 	for (const session of sessions) {
 		if (!mayTouch(session, ctx)) continue
-		if (await scaleSession(tx, session, factor, ctx.proposal.reason)) {
+		if (await scaleSession(tx, ctx, session, factor)) {
 			changed.push(session.id)
 		}
 	}
@@ -392,14 +462,16 @@ async function applyWeekScale(
 /**
  * Scale one session's quantified cardio volume and record why on its Replan
  * Note. `source` and adoption stay exactly as they were. False when there was
- * nothing to scale.
+ * nothing to scale. The steps' quantities and the note as they stood go into
+ * the run's before-image first.
  */
 async function scaleSession(
 	tx: Prisma.TransactionClient,
+	ctx: Run,
 	session: Target,
 	factor: number,
-	reason: string,
 ): Promise<boolean> {
+	const reason = ctx.proposal.reason
 	const workoutId = session.workout?.id
 	if (!workoutId) return false
 	const steps = await tx.workoutStep.findMany({
@@ -411,6 +483,7 @@ async function scaleSession(
 		select: { id: true, durationSec: true, distanceM: true },
 	})
 	if (steps.length === 0) return false
+	remember(ctx, session, steps)
 	for (const step of steps) {
 		await tx.workoutStep.update({
 			where: { id: step.id },
@@ -434,10 +507,10 @@ function onDay(instant: Date, date: string, timezone: string): Date {
 
 async function applyMove(
 	tx: Prisma.TransactionClient,
-	ctx: ApplyContext,
+	ctx: Run,
 	target: Target,
 	payload: Extract<ProposalPayload, { kind: 'move' }>,
-): Promise<ApplyResult> {
+): Promise<Outcome> {
 	const changed: string[] = []
 	let applied = false
 
@@ -461,10 +534,12 @@ async function applyMove(
 				},
 				select: { id: true },
 			})
+			ctx.image.placed.push(makeUp.id)
 			changed.push(makeUp.id)
 			applied = true
 		}
 	} else if (mayTouch(target, ctx)) {
+		remember(ctx, target)
 		await tx.workoutSession.update({
 			where: { id: target.id },
 			data: {
@@ -496,7 +571,7 @@ async function applyMove(
  */
 async function moveSlotFromNowOn(
 	tx: Prisma.TransactionClient,
-	ctx: ApplyContext,
+	ctx: Run,
 	target: Target,
 	payload: Extract<ProposalPayload, { kind: 'move' }>,
 ): Promise<string[]> {
@@ -517,7 +592,14 @@ async function moveSlotFromNowOn(
 			},
 			...MACHINE_OWNED_SESSION,
 		},
-		select: { id: true, scheduledAt: true },
+		select: {
+			id: true,
+			scheduledAt: true,
+			replanReason: true,
+			source: true,
+			adoptedAt: true,
+			releasedAt: true,
+		},
 	})
 	const moved: string[] = []
 	for (const session of later) {
@@ -525,6 +607,7 @@ async function moveSlotFromNowOn(
 		if (weekdayIndex(day) !== fromWeekday) continue
 		const when = onDay(session.scheduledAt, addDays(day, shift), ctx.timezone)
 		if (when <= ctx.now) continue
+		remember(ctx, session)
 		await tx.workoutSession.update({
 			where: { id: session.id },
 			data: { scheduledAt: when, replanReason: ctx.proposal.reason },
@@ -536,11 +619,13 @@ async function moveSlotFromNowOn(
 
 async function applySwap(
 	tx: Prisma.TransactionClient,
-	ctx: ApplyContext,
+	ctx: Run,
 	target: Target,
 	other: Target,
-): Promise<ApplyResult> {
+): Promise<Outcome> {
 	if (!mayTouch(target, ctx) || !mayTouch(other, ctx)) return NOTHING
+	remember(ctx, target)
+	remember(ctx, other)
 	const targetDay = localDate(target.scheduledAt, ctx.timezone)
 	const otherDay = localDate(other.scheduledAt, ctx.timezone)
 	await tx.workoutSession.update({
@@ -562,9 +647,9 @@ async function applySwap(
 
 async function applyAdd(
 	tx: Prisma.TransactionClient,
-	ctx: ApplyContext,
+	ctx: Run,
 	payload: Extract<ProposalPayload, { kind: 'add' }>,
-): Promise<ApplyResult> {
+): Promise<Outcome> {
 	// Added load: only ever on a yes, whatever reached this far.
 	if (ctx.by !== 'yes') return NOTHING
 	const when = localTimeUTC(payload.date, payload.time, ctx.timezone)
@@ -589,6 +674,7 @@ async function applyAdd(
 		},
 		select: { id: true },
 	})
+	ctx.image.placed.push(session.id)
 	return { applied: true, changed: [session.id] }
 }
 
@@ -601,12 +687,19 @@ async function applyAdd(
  */
 async function applyAddPhase(
 	tx: Prisma.TransactionClient,
-	ctx: ApplyContext,
+	ctx: Run,
 	payload: Extract<ProposalPayload, { kind: 'add-phase' }>,
-): Promise<ApplyResult> {
+): Promise<Outcome> {
 	if (ctx.by !== 'yes' && loadDirectionOf(payload) === 'adds') return NOTHING
 	const appended = await appendOpenEndedRound(tx, ctx.userId, payload, ctx)
-	return appended ? { applied: true, changed: [], fillsHorizon: true } : NOTHING
+	if (!appended) return NOTHING
+	ctx.image.round = {
+		outlineId: payload.outlineId,
+		phaseId: appended.phaseId,
+		opensWeekKey: appended.weekKey,
+		factor: payload.factor,
+	}
+	return { applied: true, changed: [], fillsHorizon: true }
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -621,7 +714,7 @@ async function applyAddPhase(
  */
 export async function afterApply(
 	userId: string,
-	result: ApplyResult,
+	result: Pick<ApplyResult, 'changed' | 'fillsHorizon'>,
 	timezone: string,
 	now: Date,
 ) {
