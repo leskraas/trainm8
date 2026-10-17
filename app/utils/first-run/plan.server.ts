@@ -13,7 +13,6 @@ import { localDate, mondayOfDay } from '../athlete-calendar.ts'
 import { getAthleteTimezone, updateAthleteProfile } from '../athlete.server.ts'
 import { requireUserId } from '../auth.server.ts'
 import { prisma } from '../db.server.ts'
-import { type EffortWord } from '../effort-word.ts'
 import { fillPlanWeek } from '../load/horizon-fill.server.ts'
 import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
 import { anchoredActiveOutlineWhere } from '../plan-outline/active-outline.server.ts'
@@ -29,10 +28,7 @@ import {
 	type PatternWeekday,
 } from '../plan-outline/week-pattern.ts'
 import { createSimpleActivityWorkout } from '../simple-activity.server.ts'
-import {
-	SIMPLE_ACTIVITY_DISCIPLINE,
-	type EffortWord as StoredEffortWord,
-} from '../simple-activity.ts'
+import { SIMPLE_ACTIVITY_DISCIPLINE } from '../simple-activity.ts'
 import { findActiveOutline } from '../training.server.ts'
 import {
 	draftFirstRunPlan,
@@ -362,7 +358,7 @@ export async function createFirstRunPlan(
 		for (const activity of draft.simpleActivities) {
 			const workout = await createSimpleActivityWorkout(tx, userId, {
 				kind: activity.kind,
-				effortWord: STORED_EFFORT_WORD[activity.effortWord],
+				effortWord: activity.effortWord,
 				durationMin: activity.minutes,
 			})
 			fixedDays.push({
@@ -413,17 +409,6 @@ export async function createFirstRunPlan(
 	}
 	return { ok: true, outlineId, eventId, laid }
 }
-
-/**
- * The Effort Word as a Simple Activity's Workout stores it today. The words
- * are one vocabulary (_rolig_, _middels_, _hard_); this bridge goes when the
- * stored values are those words too.
- */
-const STORED_EFFORT_WORD = {
-	rolig: 'light',
-	middels: 'medium',
-	hard: 'hard',
-} as const satisfies Record<EffortWord, StoredEffortWord>
 
 /**
  * The first run is for an athlete with no plan: one who has a plan is sent

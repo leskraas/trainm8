@@ -126,13 +126,13 @@ test('the plan made is the card shown, minute for minute, Simple Activities incl
 		{
 			title: 'Klatring',
 			kind: 'climb',
-			effortWord: 'medium',
+			effortWord: 'middels',
 			durationMin: 90,
 		},
 		{
 			title: 'Yoga og bevegelighet',
 			kind: 'yoga-mobility',
-			effortWord: 'light',
+			effortWord: 'rolig',
 			durationMin: 30,
 		},
 	])
