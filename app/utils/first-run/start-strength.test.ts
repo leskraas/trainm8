@@ -91,7 +91,9 @@ test('lifting days land away from the hard endurance days', () => {
 			const free = days.filter((day) => !hard.includes(day)).length
 			const onHard = option.strengthDays.filter((day) => hard.includes(day))
 			// Only where the days left no other choice.
-			expect(onHard).toHaveLength(Math.max(0, option.strengthDays.length - free))
+			expect(onHard).toHaveLength(
+				Math.max(0, option.strengthDays.length - free),
+			)
 		}
 	}
 })
@@ -143,4 +145,18 @@ test('more lifts than days picked lifts once on each day', () => {
 test('the Week Sketch carries the top option’s lifting days', () => {
 	const made = start()
 	expect(liftingDays(weekSketch(made))).toEqual(made.options[0]!.strengthDays)
+})
+
+test('with several endurance sports the lifts come out of the same session cap', () => {
+	const made = start({
+		level: 'beginner',
+		hours: 5,
+		days: [0, 1, 2, 3, 4, 5],
+		otherSports: ['bike'],
+		strength: { perWeek: 1, session: SESSION },
+	})
+	for (const option of made.options) {
+		expect(option.week.strengthSessions).toBe(1)
+		expect(option.week.sessionCount + option.week.strengthSessions).toBe(4)
+	}
 })

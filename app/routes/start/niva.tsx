@@ -21,6 +21,7 @@ import {
 } from '#app/utils/first-run/start-draft.ts'
 import {
 	LevelStepSchema,
+	otherSportsOf,
 	readStartAnswers,
 	startSearch,
 } from '#app/utils/first-run/start-schema.ts'
@@ -63,12 +64,13 @@ export async function action({ request }: Route.ActionArgs) {
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	const { level, hours, discipline, days, strength } = submission.value
+	const { level, hours, discipline, sports, days, strength } = submission.value
 	throw redirect(
 		`/start/trening?${startSearch({
 			level,
 			hours: hours ?? levelDefaults(level).hours,
 			discipline,
+			otherSports: discipline ? otherSportsOf(discipline, sports) : undefined,
 			days,
 			strength,
 		})}`,
@@ -96,6 +98,7 @@ export default function LevelStep({
 	const sameLevel = level != null && level === answers.level
 	const carriedDays = sameLevel ? answers.days : undefined
 	const discipline = answers.discipline ?? 'run'
+	const otherSports = sameLevel ? answers.otherSports : undefined
 
 	const sketch = useMemo(
 		() =>
@@ -104,13 +107,14 @@ export default function LevelStep({
 					? draftStart({
 							level,
 							discipline,
+							otherSports,
 							hours,
 							days: carriedDays ?? levelDefaults(level).days,
 							startWeekKey,
 						})
 					: null,
 			),
-		[level, hours, discipline, carriedDays, startWeekKey],
+		[level, hours, discipline, otherSports, carriedDays, startWeekKey],
 	)
 
 	const [form, fields] = useForm({
@@ -213,6 +217,16 @@ export default function LevelStep({
 						value={answers.discipline}
 					/>
 				) : null}
+				{answers.discipline && otherSports?.length
+					? [answers.discipline, ...otherSports].map((sport) => (
+							<input
+								key={sport}
+								type="hidden"
+								name={fields.sports.name}
+								value={sport}
+							/>
+						))
+					: null}
 				{carriedDays?.map((day) => (
 					<input key={day} type="hidden" name={fields.days.name} value={day} />
 				))}

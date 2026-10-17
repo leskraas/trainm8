@@ -146,6 +146,11 @@ export type FirstRunAnswers = {
 	 * _styrke_ (#574, ADR 0103), or absent where they did not.
 	 */
 	strength?: number
+	/**
+	 * The simple start's other endurance sports, beside the main one in
+	 * `discipline` (#573): each its own track with easy sessions.
+	 */
+	otherSports?: CardioDiscipline[]
 }
 
 const AnswersSearchSchema = AnswerFieldsSchema.extend({

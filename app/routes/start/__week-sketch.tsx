@@ -21,6 +21,13 @@ const TRACK_MARK: Record<CardioDiscipline, string> = {
 	swim: 'bg-track-swim',
 }
 
+/** A session's mark: its own sport's hue, or the main sport's (#573). */
+function markOf(discipline: string, main: CardioDiscipline): string {
+	return discipline in TRACK_MARK
+		? TRACK_MARK[discipline as CardioDiscipline]
+		: TRACK_MARK[main]
+}
+
 /** Solid for a hard session, fainter as it gets easier. */
 const EFFORT_OPACITY: Record<Effort, string> = {
 	easy: 'opacity-45',
@@ -123,7 +130,7 @@ export function WeekSketch({
 										key={index}
 										className={cn(
 											'block w-full rounded-xl',
-											TRACK_MARK[discipline],
+											markOf(session.discipline, discipline),
 											EFFORT_OPACITY[session.effort],
 										)}
 										style={{

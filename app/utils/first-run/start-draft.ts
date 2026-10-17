@@ -9,14 +9,20 @@
 // session cap passed in. Pure, so the question screens can run it in the
 // browser as the athlete answers.
 
-import { type PresetFamily } from '../plan-outline/presets.ts'
-import { type QualityZone } from '../plan-outline/quality-mix.ts'
+import { openEndedRound, type PresetFamily } from '../plan-outline/presets.ts'
+import {
+	qualitySessionCount,
+	type QualityZone,
+} from '../plan-outline/quality-mix.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { stampedSessionTitle } from '../session-title.ts'
 import { type CardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
 	draftFirstRunPlan,
 	MAX_SESSION_DAYS,
+	MIN_SESSION_HOURS,
+	patternDaysFor,
+	type DraftTrack,
 	type FirstRunDraft,
 } from './draft.ts'
 
@@ -87,7 +93,13 @@ export function startFamilies(level: TrainingLevel): PresetFamily[] {
 
 export type StartAnswers = {
 	level: TrainingLevel
+	/** The main sport (_Hovedidrett_): the first endurance sport picked. */
 	discipline: CardioDiscipline
+	/**
+	 * The other endurance sports picked, beside the main one (#573). Each
+	 * gets its own hours track with easy sessions on the days left.
+	 */
+	otherSports?: readonly CardioDiscipline[]
 	hours: number
 	days: readonly PatternWeekday[]
 	/** The Plan Start Week: the first week not yet begun (ADR 0079). */
@@ -346,6 +358,10 @@ export type StartBadge = 'best-fit' | 'level' | null
 export type StartDraft = {
 	startWeekKey: string
 	discipline: CardioDiscipline
+	/** The endurance sports laid, the main sport first. */
+	sports: CardioDiscipline[]
+	/** Sports picked that no day was left for (never the main sport). */
+	sportsLeftOut: CardioDiscipline[]
 	/** Ranked, and distinct: no two lay the same first week. */
 	options: StartOption[]
 	/** How many of the level's families laid a week already shown, and went. */
@@ -382,6 +398,129 @@ function sameWeek(a: StartWeek, b: StartWeek): boolean {
 }
 
 /**
+ * The endurance sports picked, the main sport first and each once. The
+ * others keep the order they came in.
+ */
+export function startSports(
+	main: CardioDiscipline,
+	others: readonly CardioDiscipline[] = [],
+): CardioDiscipline[] {
+	return [...new Set([main, ...others])]
+}
+
+/**
+ * How many of `sportCount` sports the week has a day for: the days the plan
+ * lays on, across every track, cut to the level's session cap (a total, not
+ * per sport) and so that no session falls under {@link MIN_SESSION_HOURS}.
+ * Each sport has a long day weighted double, so `days` days over `sports`
+ * sports are `days + sports` shares of the hours.
+ */
+function sessionDaysFor(
+	sportCount: number,
+	days: readonly PatternWeekday[],
+	hours: number,
+	sessionCap: number,
+): { days: number; sports: number } {
+	let count = Math.max(
+		1,
+		Math.min(new Set(days).size, MAX_SESSION_DAYS, sessionCap),
+	)
+	while (
+		count > 1 &&
+		hours / (count + Math.min(sportCount, count)) < MIN_SESSION_HOURS
+	) {
+		count -= 1
+	}
+	return { days: count, sports: Math.min(sportCount, count) }
+}
+
+/**
+ * The tracks for several endurance sports (#573): one hours track per sport
+ * (ADR 0044), on days of its own. The main sport takes the long day — the
+ * last one — and carries the family's **Quality Session Mix**, so it keeps
+ * enough days for the family's hard sessions where the week allows; the other
+ * sports share the days left, alternating with it, and have no mix. The
+ * hours are shared by the days, each track's long day counting double, so a
+ * session is about as long whichever sport it is.
+ */
+export function sportTracks({
+	family,
+	sports,
+	hours,
+	days,
+	sessionCap,
+}: {
+	family: PresetFamily
+	/** The main sport first; each one gets at least one day. */
+	sports: readonly CardioDiscipline[]
+	hours: number
+	days: readonly PatternWeekday[]
+	sessionCap: number
+}): DraftTrack[] {
+	const fit = sessionDaysFor(sports.length, days, hours, sessionCap)
+	const kept = sports.slice(0, fit.sports)
+	const used = patternDaysFor(days, hours, fit.days)
+	const others = kept.length - 1
+	// The main sport's days: an even share, or more, so that the family's
+	// hard sessions have ordinary days to go on, leaving each other sport one.
+	const hard = qualitySessionCount(openEndedRound(family).mix)
+	const mainDays = Math.min(
+		used.length - others,
+		Math.max(Math.ceil(used.length / kept.length), hard + 1),
+	)
+	// The ordinary days each sport gets; the main sport's long day is apart.
+	const rest = used.length - mainDays
+	const want = kept.map((_, index) =>
+		index === 0
+			? mainDays - 1
+			: Math.floor(rest / others) + (index - 1 < rest % others ? 1 : 0),
+	)
+	// The ordinary days are dealt out in turn, each to the sport furthest
+	// behind its share so far, so every sport's days lie spread through the
+	// week (the main sport first on a tie). The long day, the last, is the
+	// main sport's.
+	const owned: PatternWeekday[][] = kept.map(() => [])
+	const ordinary = used.slice(0, -1)
+	ordinary.forEach((weekday, at) => {
+		let pick = 0
+		let behind = -Infinity
+		want.forEach((total, index) => {
+			const has = owned[index]!.length
+			if (has >= total) return
+			const lag = (total * (at + 1)) / ordinary.length - has
+			if (lag > behind) {
+				behind = lag
+				pick = index
+			}
+		})
+		owned[pick]!.push(weekday)
+	})
+	owned[0]!.push(used.at(-1)!)
+	// Each track's shares as the starter pattern weighs its days: one a day,
+	// and one more for its long day where it has more than one day, so an
+	// ordinary session is about as long whichever sport it is. Hours are
+	// carried to a tenth (`derive.ts`), so each other sport's hours are
+	// rounded to one and the main sport takes the rest: the tracks still add
+	// up to the hours given.
+	const sharesOf = (own: readonly PatternWeekday[]) =>
+		own.length + (own.length > 1 ? 1 : 0)
+	const shares = owned.reduce((sum, own) => sum + sharesOf(own), 0)
+	const otherHours = owned
+		.slice(1)
+		.map((own) => Math.round(((hours * sharesOf(own)) / shares) * 10) / 10)
+	const mainHours =
+		Math.round(
+			(hours - otherHours.reduce((sum, value) => sum + value, 0)) * 10,
+		) / 10
+	return kept.map((discipline, index) => ({
+		discipline,
+		weeklyHours: index === 0 ? mainHours : otherHours[index - 1]!,
+		days: owned[index]!.sort((a, b) => a - b),
+		mix: index === 0 ? 'family' : 'none',
+	}))
+}
+
+/**
  * The ranked, distinct **Start Options** for these answers, or null where no
  * day is picked. Each is one of the level's families laid by
  * `draftFirstRunPlan` with the level's session cap. They are ranked by score
@@ -392,23 +531,44 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 	const { level, discipline, hours, days, startWeekKey, strength } = answers
 	if (days.length === 0) return null
 	const { sessionCap } = LEVEL_DEFAULTS[level]
-	const picked = new Set(days).size
+	const daysPicked = new Set(days).size
 	// The level's session cap is the whole week's, lifts included, and leaves
 	// endurance one session at least; one lift a day at most.
 	const lifts = strength
-		? Math.max(0, Math.min(strength.perWeek, picked, sessionCap - 1))
+		? Math.max(0, Math.min(strength.perWeek, daysPicked, sessionCap - 1))
 		: 0
+	const enduranceCap = sessionCap - lifts
+	const picked = startSports(discipline, answers.otherSports)
+	const sports = picked.slice(
+		0,
+		sessionDaysFor(picked.length, days, hours, enduranceCap).sports,
+	)
 	const laid: StartOption[] = []
 	for (const family of startFamilies(level)) {
-		const draft = draftFirstRunPlan({
-			family,
-			goal: { kind: 'active' },
-			startWeekKey,
-			discipline,
-			weeklyHours: hours,
-			days,
-			sessionCap: sessionCap - lifts,
-		})
+		const draft =
+			sports.length === 1
+				? draftFirstRunPlan({
+						family,
+						goal: { kind: 'active' },
+						startWeekKey,
+						discipline,
+						weeklyHours: hours,
+						days,
+						sessionCap: enduranceCap,
+					})
+				: draftFirstRunPlan({
+						family,
+						goal: { kind: 'active' },
+						startWeekKey,
+						sessionCap: enduranceCap,
+						tracks: sportTracks({
+							family,
+							sports,
+							hours,
+							days,
+							sessionCap: enduranceCap,
+						}),
+					})
 		if (!draft) continue
 		const endurance = startWeekOf(draft)
 		const strengthDays = strength
@@ -451,14 +611,16 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 	return {
 		startWeekKey,
 		discipline,
+		sports,
+		sportsLeftOut: picked.slice(sports.length),
 		options,
 		merged: startFamilies(level).length - options.length,
 		badge:
 			top.score > 0 ? 'best-fit' : top.family === 'big-base' ? 'level' : null,
-		daysPicked: picked,
+		daysPicked,
 		daysUsed: top.draft.patternDays.length,
-		capped: sessionCap < MAX_SESSION_DAYS && picked + lifts > sessionCap,
-		restDayKept: picked === 7,
+		capped: sessionCap < MAX_SESSION_DAYS && daysPicked + lifts > sessionCap,
+		restDayKept: daysPicked === 7,
 	}
 }
 

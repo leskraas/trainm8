@@ -2282,6 +2282,15 @@ export const SIMPLE_START_LABELS = {
 		/** Seven days: one stays free (`MAX_SESSION_DAYS`). */
 		restDay: 'Alle sju dager er valgt. Vi holder én dag fri, så du får hvile.',
 		next: 'Vis planen',
+		/** Several endurance sports (#573): every one picked, and the main one. */
+		sports: 'Utholdenhetsidretter',
+		sportsHelp:
+			'Velg så mange du vil. Den første du velger, blir hovedidretten.',
+		mainSportLead: 'Hovedidrett:',
+		/** The line as a button, where another picked sport can take over. */
+		switchMainSport: (sport: string, next: string) =>
+			`Hovedidrett: ${sport}. Bytt til ${next}`,
+		switchHint: 'Bytt',
 	},
 	/** _Uka di_: the live week (story 26–29). */
 	sketch: {
@@ -2457,6 +2466,13 @@ export const START_OPTION_LABELS = {
 	back: 'Tilbake til hva du liker å trene',
 	created: 'Planen er laget',
 	createdDescription: (day: string) => `Den starter ${day}.`,
+	/** Sports picked that the week has no day for (#573), lower case. */
+	sportsLeftOut: (sessions: number, sports: readonly string[]) =>
+		`Uka har plass til ${sessions} ${sessions === 1 ? 'økt' : 'økter'}, så ${
+			sports.length <= 1
+				? sports.join('')
+				: `${sports.slice(0, -1).join(', ')} og ${sports.at(-1)}`
+		} fikk ikke egne dager. Velg flere dager, mer tid eller færre idretter.`,
 } as const
 
 /**
