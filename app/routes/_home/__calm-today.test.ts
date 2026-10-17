@@ -88,6 +88,8 @@ function session(
 			discipline,
 			intent,
 			archetype: null,
+			activityKind: null,
+			effortWord: null,
 			blocks: [
 				{
 					id: `b-${id}`,

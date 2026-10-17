@@ -35,6 +35,7 @@ import {
 	type CalmSession,
 	type CalmWeek,
 } from './__calm-today.ts'
+import { JusterChips } from './__juster-chips.tsx'
 import {
 	ComposerProvider,
 	useComposer,
@@ -250,6 +251,12 @@ function SessionCard({
 	headingId: string
 }) {
 	const { session } = card
+	const { landedSessionId, landedUndoable, undoingSessionId } =
+		useComposerLanding()
+	const composer = useComposer()
+	// A Juster that just landed here keeps its _Angre_ on the card for as long
+	// as its toast (ADR 0088): the card is the row it landed on.
+	const undoable = landedSessionId === session.id && landedUndoable
 	return (
 		<>
 			<p className="text-footnote text-muted-foreground flex items-center gap-2">
@@ -293,6 +300,7 @@ function SessionCard({
 				</p>
 			</div>
 			<div className="mt-1 flex flex-col gap-2">
+				<JusterChips sessionId={session.id} title={session.title} />
 				{session.markDone ? (
 					<MarkDoneAction
 						look="card"
@@ -313,13 +321,30 @@ function SessionCard({
 						{card.logTo.label}
 					</Link>
 				) : null}
-				<Link
-					to={session.to}
-					prefetch="intent"
-					className="text-footnote text-muted-foreground pressable relative self-center py-1 underline-offset-4 after:absolute after:inset-x-0 after:-inset-y-2.5 hover:underline"
-				>
-					{L.openSession}
-				</Link>
+				{/* One line, so an _Angre_ arriving never moves _Gjort_. */}
+				<div className="flex items-center justify-center gap-6">
+					<Link
+						to={session.to}
+						prefetch="intent"
+						className="text-footnote text-muted-foreground pressable relative py-1 underline-offset-4 after:absolute after:inset-x-0 after:-inset-y-2.5 hover:underline"
+					>
+						{L.openSession}
+					</Link>
+					{undoable ? (
+						<button
+							type="button"
+							data-today-undo={session.id}
+							disabled={undoingSessionId === session.id}
+							aria-label={SESSION_COMPOSER_LABELS.undoFor(session.title)}
+							onClick={() => composer.undo(session.id)}
+							className="text-footnote text-primary pressable relative py-1 font-semibold underline-offset-4 after:absolute after:-inset-x-2 after:-inset-y-2.5 hover:underline"
+						>
+							{undoingSessionId === session.id
+								? SESSION_COMPOSER_LABELS.undoing
+								: SESSION_COMPOSER_LABELS.undo}
+						</button>
+					) : null}
+				</div>
 			</div>
 		</>
 	)
