@@ -771,6 +771,102 @@ describe('a Start Option picked with Velg denne', () => {
 		},
 	)
 
+	test.each([
+		{ discipline: 'run' as const, otherSports: ['bike' as const] },
+		{
+			discipline: 'swim' as const,
+			otherSports: ['run' as const, 'bike' as const],
+		},
+	])(
+		'several sports ($discipline first) are made as the card showed them: every track, minute for minute',
+		async ({ discipline, otherSports }) => {
+			const athleteId = await createAthlete()
+			const several = {
+				discipline,
+				otherSports,
+				hours: 7,
+				// mandag, tirsdag, torsdag, fredag, søndag
+				days: [0, 1, 3, 4, 6] as Array<0 | 1 | 2 | 3 | 4 | 5 | 6>,
+				goal: { kind: 'active' as const },
+				level: 'experienced' as const,
+			}
+			const option = draftStart({ ...several, startWeekKey: START })!
+				.options[0]!
+
+			const created = await createFirstRunPlan(
+				athleteId,
+				{ ...several, family: option.family },
+				NOW,
+			)
+			if (!created.ok) throw new Error(created.reason)
+
+			const outline = await prisma.planOutline.findUniqueOrThrow({
+				where: { id: created.outlineId },
+				select: {
+					tracks: {
+						select: {
+							discipline: true,
+							segments: { select: { mix: { select: { zone: true } } } },
+						},
+					},
+				},
+			})
+			// One track per sport; only the main sport's carries hard sessions.
+			expect(
+				outline.tracks
+					.map((track) => ({
+						discipline: track.discipline,
+						hard: track.segments.some((segment) => segment.mix.length > 0),
+					}))
+					.sort((a, b) => a.discipline.localeCompare(b.discipline)),
+			).toEqual(
+				[discipline, ...otherSports]
+					.map((sport) => ({ discipline: sport, hard: sport === discipline }))
+					.sort((a, b) => a.discipline.localeCompare(b.discipline)),
+			)
+
+			const sessions = await prisma.workoutSession.findMany({
+				where: { userId: athleteId },
+				orderBy: { scheduledAt: 'asc' },
+				select: {
+					scheduledAt: true,
+					status: true,
+					workout: {
+						select: {
+							discipline: true,
+							blocks: { select: { steps: { select: { durationSec: true } } } },
+						},
+					},
+				},
+			})
+			const weekOne = sessions
+				.filter(
+					(session) => session.scheduledAt.toISOString() < addDays(START, 7),
+				)
+				.map((session) => [
+					weekdayIndex(session.scheduledAt.toISOString().slice(0, 10)),
+					session.workout!.discipline,
+					Math.round(
+						session
+							.workout!.blocks.flatMap((block) => block.steps)
+							.reduce((sum, step) => sum + (step.durationSec ?? 0), 0) / 60,
+					),
+				])
+			expect(weekOne).toEqual(
+				option.week.days.flatMap((day) =>
+					day.sessions.map((session) => [
+						day.weekday,
+						session.discipline,
+						session.minutes,
+					]),
+				),
+			)
+			expect(sessions.every((session) => session.status === 'scheduled')).toBe(
+				true,
+			)
+		},
+	)
+
 	test('a way the answers do not show — Masters, or one merged away — is refused, and nothing is made', async () => {
 		const athleteId = await createAthlete()
 

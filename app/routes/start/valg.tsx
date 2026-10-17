@@ -18,6 +18,7 @@ import {
 	type StartOption,
 } from '#app/utils/first-run/start-draft.ts'
 import {
+	otherSportsOf,
 	readStartAnswers,
 	StartChoiceSchema,
 	startSearch,
@@ -25,6 +26,7 @@ import {
 import {
 	FIRST_RUN_LABELS,
 	FIRST_RUN_REFUSAL_LABELS,
+	NB_DISCIPLINE_LABELS,
 	NB_WEEKDAY_LABELS,
 	nbDurationLabel,
 	nbHoursWords,
@@ -34,7 +36,6 @@ import {
 	START_OPTION_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/valg.ts'
 import { FirstRunFrame, SIMPLE_START_STEP_COUNT } from './__first-run-frame.tsx'
@@ -47,7 +48,8 @@ import { FirstRunFrame, SIMPLE_START_STEP_COUNT } from './__first-run-frame.tsx'
  * its session or _fri_, a bar of easy, middling and hard time, the total and
  * the hard sessions, and when the plan starts. The athlete swipes between the
  * cards (or uses the dots or the arrow keys) and picks one with _Velg denne_,
- * which makes exactly that plan (`createFirstRunPlan`) and goes to I dag.
+ * which makes exactly that plan (`createFirstRunPlan`) and goes to _Planen er
+ * klar_ (#570).
  *
  * The answers travel in the URL, so going back to a question and changing it
  * recomputes the cards. No motion of its own yet: the cards scroll natively
@@ -148,6 +150,16 @@ function cardOf(
  */
 function notesOf(start: StartDraft, sessionCap: number): string[] {
 	const notes: string[] = []
+	if (start.sportsLeftOut.length > 0) {
+		notes.push(
+			L.sportsLeftOut(
+				start.daysUsed,
+				start.sportsLeftOut.map((sport) =>
+					NB_DISCIPLINE_LABELS[sport].toLowerCase(),
+				),
+			),
+		)
+	}
 	if (start.merged > 0) notes.push(L.merged(start.options.length))
 	if (start.capped) {
 		notes.push(SIMPLE_START_LABELS.activities.beginnerCap(sessionCap))
@@ -164,7 +176,7 @@ function notesOf(start: StartDraft, sessionCap: number): string[] {
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireSimpleStartAthlete(request)
 	const answers = readStartAnswers(new URL(request.url).searchParams)
-	const { level, hours, discipline, days } = answers
+	const { level, hours, discipline, otherSports = [], days } = answers
 	// Every answer comes first; without one, back to where it is asked.
 	if (!level || hours == null) {
 		const search = startSearch(answers)
@@ -173,11 +185,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const back = `/start/trening?${startSearch(answers)}`
 	if (!discipline || !days) throw redirect(back)
 	const startWeekKey = await readPlanStartWeekKey(userId)
-	const start = draftStart({ level, discipline, hours, days, startWeekKey })
+	const start = draftStart({
+		level,
+		discipline,
+		otherSports,
+		hours,
+		days,
+		startWeekKey,
+	})
 	if (!start) throw redirect(back)
 	const badge = start.badge ? L.badge[start.badge] : null
 	return {
-		answers: { level, hours, discipline, days },
+		answers: { level, hours, discipline, otherSports, days },
 		title: L.title(start.options.length),
 		intro: L.intro(start.options.length, nbHoursWords(hours), start.daysUsed),
 		back,
@@ -196,10 +215,10 @@ export async function action({ request }: Route.ActionArgs) {
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	const { level, hours, discipline, days, family } = submission.value
-	const startWeekKey = await readPlanStartWeekKey(userId)
+	const { level, hours, discipline, sports, days, family } = submission.value
 	const created = await createFirstRunPlan(userId, {
 		discipline,
+		otherSports: otherSportsOf(discipline, sports),
 		hours,
 		days,
 		goal: { kind: 'active' },
@@ -216,11 +235,9 @@ export async function action({ request }: Route.ActionArgs) {
 			{ status: 409 },
 		)
 	}
-	return redirectWithToast('/', {
-		title: L.created,
-		description: L.createdDescription(nbLongDay(startWeekKey)),
-		type: 'success',
-	})
+	// _Planen er klar_ says what was made; it reads the plan, so a reload or
+	// the back button shows it again and makes nothing.
+	return redirect('/start/klar')
 }
 
 /** One mark colour per sport (design-system: track hues are marks). */
@@ -483,6 +500,18 @@ export default function StartOptions({
 									name="discipline"
 									value={answers.discipline}
 								/>
+								{answers.otherSports.length > 0
+									? [answers.discipline, ...answers.otherSports].map(
+											(sport) => (
+												<input
+													key={sport}
+													type="hidden"
+													name="sports"
+													value={sport}
+												/>
+											),
+										)
+									: null}
 								{answers.days.map((day) => (
 									<input key={day} type="hidden" name="days" value={day} />
 								))}
