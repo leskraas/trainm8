@@ -1116,6 +1116,11 @@ model AthleteProfile {
   preferredUnits String    @default("metric") // "metric" | "imperial"
   weekStartsOn   Int       @default(1) // 0=Sun … 6=Sat; 1=Mon per ADR 0005
   timezone       String    @default("UTC") // IANA timezone string
+  // Autopilot (ADR 0100 §1, #576): true = the Week Change applies its Week
+  // Replan at the close; false = _Spør meg først_, it proposes and waits for a
+  // yes (ADR 0080). Read at each close, so a switch applies from the next one.
+  // Off by default until #583 turns it on for everyone.
+  autopilot      Boolean   @default(false)
 
   // Training Availability (PRD #103): days the athlete can train and a
   // default time-of-day, reused across plan generations. Times are interpreted in
@@ -1912,6 +1917,14 @@ model WeekReplan {
   /// null, so the next run retries it, and a set one never runs again.
   horizonFilledAt DateTime?
   silencedAt      DateTime?
+  /// Whether the athlete was on Autopilot when this week closed (ADR 0100 §2,
+  /// #576): then the close applies the proposals, silence never runs over
+  /// them, and I dag states them in the Autopilot Notice instead of asking.
+  /// Fixed at the close, so switching later never applies open proposals.
+  autopilot          Boolean   @default(false)
+  /// When the autopilot's apply step ran over these proposals — once, claimed
+  /// first like the two steps above. Null = not yet (or not an autopilot week).
+  autopilotAppliedAt DateTime?
 
   createdAt DateTime @default(now())
 
@@ -1957,6 +1970,13 @@ model WeekReplanProposal {
   /// When the change was undone from its before-image. Null = it stands. An
   /// undone proposal keeps its `appliedAt`: it was applied, then taken back.
   undoneAt      DateTime?
+  /// What the autopilot did with it at the close (ADR 0100 §3, #576):
+  /// 'applied' | 'left-alone' (the athlete's own session) | 'not-placed' (a
+  /// make-up or an extra session, which adds load on a day nobody chose) |
+  /// 'over-guard' (a step up past the guards) | 'gone' (nothing left to change).
+  /// Null = the autopilot never looked at it. `answer` stays 'pending': nobody
+  /// answered, and a proposal the autopilot looked at is never answerable.
+  autopilotOutcome String?
 
   /// The Monday (YYYY-MM-DD, Athlete Timezone) of the week the change lands in.
   targetWeekKey   String

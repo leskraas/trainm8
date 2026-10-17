@@ -49,6 +49,8 @@ export type AnswerProposalResult =
 				| 'scope-not-for-a-make-up'
 				| 'factor-not-a-round'
 				| 'factor-out-of-range'
+				/** The autopilot decided it at the close (ADR 0100): nothing to answer. */
+				| 'autopilot'
 	  }
 
 /**
@@ -105,6 +107,7 @@ async function answerWith(
 	})
 	if (!row) return { ok: false, reason: 'not-found' }
 	const stored = readStoredProposal(row)
+	if (stored.autopilotOutcome != null) return { ok: false, reason: 'autopilot' }
 	if (stored.answer !== 'pending') {
 		return { ok: false, reason: 'already-answered' }
 	}
