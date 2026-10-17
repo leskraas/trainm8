@@ -111,8 +111,41 @@ test('each philosophy lays its own hard sessions, so a switch is visible', () =>
 	expect(zonesOf('classic')).toEqual([null, 3, null, null])
 	expect(zonesOf('polarized')).toEqual([null, 5, null, null])
 	expect(zonesOf('threshold')).toEqual([4, 3, null, null])
+	expect(zonesOf('big-base')).toEqual([null, null, null, null])
 	expect(zonesOf('polarized')).not.toEqual(zonesOf('classic'))
 })
+
+// ADR 0102 §3: Stor base's first block is all easy, so for a beginner it is
+// a genuinely different way to train from Klassisk 3:1.
+test.each([
+	[2, [2, 6]],
+	[3, [1, 3, 6]],
+	[4, [1, 3, 5, 6]],
+	[5, [0, 2, 4, 6]],
+] as const)(
+	'a beginner on %i h: Stor base lays only easy sessions and a different first week from Klassisk 3:1',
+	(weeklyHours, days) => {
+		for (const goal of [
+			{ kind: 'active' },
+			{ kind: 'event', weeks: 16 },
+		] as const) {
+			const made = (family: 'big-base' | 'classic') =>
+				draft({ family, goal, weeklyHours, days: [...days] })
+			const firstWeek = (family: 'big-base' | 'classic') =>
+				made(family).weeks[0]!.sessions.map(({ weekday, zone, volume }) => ({
+					weekday,
+					zone,
+					volume,
+				}))
+			for (const week of made('big-base').weeks) {
+				expect(week.sessions.map((session) => session.zone)).toEqual(
+					week.sessions.map(() => null),
+				)
+			}
+			expect(firstWeek('big-base')).not.toEqual(firstWeek('classic'))
+		}
+	},
+)
 
 // break-ui (round 2): 0,5 t on four days gave "Langtur · 6 min".
 test('few hours lay fewer days, and no session is shorter than half an hour', () => {

@@ -236,17 +236,33 @@ describe('the Quality Session Mix each preset authors', () => {
 		}
 	})
 
-	test('Klassisk, Masters and big base climb in intensity: zone 3 in the opening phase, zone 5 by the peak', () => {
-		const climbing = [
-			...FAMILIES.classic,
-			...FAMILIES.masters,
-			...FAMILIES.bigBase,
-		].map(presetFor)
+	test('Klassisk and Masters climb in intensity: zone 3 in the opening phase, zone 5 by the peak', () => {
+		const climbing = [...FAMILIES.classic, ...FAMILIES.masters].map(presetFor)
 		for (const preset of climbing) {
 			expect(preset.phases.at(0)?.mix.map((e) => e.zone)).toEqual([3])
 			const zones = preset.phases.flatMap((p) => p.mix.map((e) => e.zone))
 			expect(zones).toContain(5)
 		}
+	})
+
+	test('Stor base opens all easy, then climbs to zone 5 by the peak (ADR 0102 §3)', () => {
+		for (const preset of FAMILIES.bigBase.map(presetFor)) {
+			expect(preset.phases.at(0)?.mix).toEqual([])
+			const zones = preset.phases.flatMap((p) => p.mix.map((e) => e.zone))
+			expect(zones).toContain(5)
+		}
+	})
+
+	test('Stor base differs from Klassisk only by its all-easy opening block and the step down', () => {
+		FAMILIES.bigBase.forEach((key) => {
+			const [opening, ...later] = presetFor(key).phases
+			const [classicOpening, ...classicLater] =
+				presetFor('classic-linear').phases
+			expect(opening!.mix).toEqual([])
+			expect(classicOpening!.mix).not.toEqual([])
+			// Every later block keeps the mix it always had.
+			expect(later.map((p) => p.mix)).toEqual(classicLater.map((p) => p.mix))
+		})
 	})
 })
 
@@ -497,6 +513,10 @@ describe('every family can drive an open-ended plan (ADR 0079 §5)', () => {
 			expect(weekRole(phases, round.weeks - 1)).toBe('recovery')
 		}
 		// What tells the philosophies' rounds apart is their mix.
+		expect(openEndedRound('big-base').mix).toEqual([])
+		expect(openEndedRound('classic').mix).toEqual([
+			{ zone: 3, sessionsPerWeek: 1 },
+		])
 		expect(openEndedRound('polarized').mix).toEqual([
 			{ zone: 5, sessionsPerWeek: 1 },
 		])
