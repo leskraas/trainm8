@@ -119,7 +119,7 @@ test('a week row reads no Planned TSS for a planned Simple Activity, even if one
 	).toEqual(unavailable)
 })
 
-test('week volumes read every currency of a planned Simple Activity as unavailable', () => {
+test('week volumes count a planned Simple Activity in hours and read every other currency as unavailable', () => {
 	expect(
 		plannedVolumeOf('other', {
 			km: null,
@@ -129,7 +129,7 @@ test('week volumes read every currency of a planned Simple Activity as unavailab
 		}),
 	).toEqual({
 		km: unavailable,
-		hours: unavailable,
+		hours: { status: 'available', value: 1 },
 		tss: unavailable,
 		sets: unavailable,
 	})

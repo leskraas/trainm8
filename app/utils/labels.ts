@@ -115,6 +115,10 @@ import type {
 	ThresholdProtocol,
 } from './profile-analysis/types.ts'
 import type { SessionOwner } from './session-ownership.ts'
+import type {
+	ActivityKind,
+	EffortWord as SimpleActivityEffortWord,
+} from './simple-activity.ts'
 import type { Attribution } from './source-terms.ts'
 import type { RepLoadBasis } from './strength/anchors.constants.ts'
 import type { OneRmRefusal } from './strength/one-rm.ts'
@@ -1461,6 +1465,48 @@ export function nbDisciplineLabel(discipline: string): string {
 		'Annen aktivitet'
 	)
 }
+
+/**
+ * A **Simple Activity** (ADR 0015 §A, #567): its Activity Kind, its Effort
+ * Word and the numbers it does not carry. Every one of those is _ikke målt_
+ * with the same reason, never a number (spec #558 story 63).
+ */
+export const SIMPLE_ACTIVITY_LABELS = {
+	/** The UI word for the thing itself. */
+	noun: 'Enkel aktivitet',
+	kind: {
+		'cross-country-ski': 'Langrenn',
+		hike: 'Fjelltur',
+		climb: 'Klatring',
+		'yoga-mobility': 'Yoga og bevegelighet',
+	} satisfies Record<ActivityKind, string>,
+	/** The Effort Word as a row and the detail page say it. Never a zone. */
+	effort: {
+		light: 'Rolig',
+		medium: 'Middels',
+		hard: 'Hard',
+	} satisfies Record<SimpleActivityEffortWord, string>,
+	/** The heading over the numbers it does not carry. */
+	notMeasuredHeading: 'Ikke målt',
+	notMeasured: 'ikke målt',
+	/** Why, said once under the list. */
+	notMeasuredReason:
+		'En enkel aktivitet har bare tid og innsats. Soner, fart, watt og belastning kan ikke måles for den ennå, så de står uten tall.',
+	/** The numbers withheld, in the order the page lists them. */
+	metrics: {
+		zones: 'Soner',
+		pace: 'Fart',
+		power: 'Watt',
+		plannedTss: 'Planlagt TSS',
+		trainingLoad: 'Treningsbelastning',
+	},
+	/**
+	 * Under "hva var dette?" for an import on `other` on a day with a planned
+	 * Simple Activity: the app never links one itself (story 66).
+	 */
+	linkQuestionNote:
+		'Appen kobler ikke enkle aktiviteter selv. Si fra om det var denne.',
+} as const
 
 /**
  * What a session with no title of its own is called: `Løpeøkt`, `Sykkeløkt` —

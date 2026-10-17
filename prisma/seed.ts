@@ -10,6 +10,7 @@ import { seedExercises } from '#app/utils/exercise-seed.server.ts'
 import { deriveMetricTarget } from '#app/utils/intensity-target.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
 import { MOCK_CODE_GITHUB } from '#app/utils/providers/constants.ts'
+import { createSimpleActivitySession } from '#app/utils/simple-activity.server.ts'
 import { seedStrengthPrograms } from '#app/utils/strength-program-seed.server.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/resolve.ts'
 import { createPassword, createUser, getUserImages } from '#tests/db-utils.ts'
@@ -907,6 +908,47 @@ async function seed() {
 			},
 		})
 		completedDateStrs.push(demoDay.toISOString().slice(0, 10))
+	}
+
+	// Demo Simple Activity (ADR 0015 §A, #567): a planned climb today — 90 min,
+	// _middels_ — and a climbing import on `other` the same morning, standing
+	// on an _ekstra_ session of its own, as auto-save leaves it: never linked to
+	// the climb by itself. I dag asks "hva var dette?" so it can be linked by
+	// hand. Dev/demo data only.
+	{
+		const climbAt = new Date(now)
+		climbAt.setUTCHours(17, 0, 0, 0)
+		await createSimpleActivitySession(kody.id, {
+			scheduledAt: climbAt,
+			activity: { kind: 'climb', effortWord: 'medium', durationMin: 90 },
+		})
+		const wallAt = new Date(now)
+		wallAt.setUTCHours(7, 0, 0, 0)
+		const climbImport = await prisma.activityImport.create({
+			select: { id: true },
+			data: {
+				athleteId: kody.id,
+				externalProvider: 'strava',
+				originPlatform: 'strava',
+				externalId: 'seed-demo-climb',
+				startedAt: wallAt,
+				endedAt: new Date(wallAt.getTime() + 80 * 60 * 1000),
+				durationSec: 80 * 60,
+				discipline: 'other',
+				hrAvg: 118,
+				rawJson: '{"type":"RockClimbing"}',
+			},
+		})
+		await prisma.workoutSession.create({
+			data: {
+				userId: kody.id,
+				scheduledAt: wallAt,
+				status: 'completed',
+				source: 'recorded',
+				recordingId: climbImport.id,
+				promotedImports: { connect: { id: climbImport.id } },
+			},
+		})
 	}
 
 	// Build LoadSnapshots (CTL/ATL/TSB) + per-session tssValue through the real

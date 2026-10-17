@@ -13,6 +13,8 @@ function workoutWithBlocks(blocks: Workout['blocks']): Workout {
 		discipline: 'run',
 		intent: 'threshold',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks,
 	}
 }
