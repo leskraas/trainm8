@@ -1,34 +1,25 @@
-Bygg **Levende start** i trainm8 (`leskraas/trainm8`). Spesifikasjonen er issue #558, og den er delt opp i 25 tickets (#559–#583), som alle er underissues til #558 med `ready-for-agent`. Det hver ticket blokkeres av, står i dens «Blocked by»-seksjon.
+/bredvid-engineering:implement-spec Levende start: spesifikasjonen er #558 i leskraas/trainm8, og ticketene er underissues #559–#583. Avhengighetene står i hver tickets «Blocked by»-seksjon (GitHub har ingen egen blocked-by-kobling). Frontlinjen ved start er #559, #560, #561, #562, #563 og #564.
 
-## Kontekst
-- Les #558 i sin helhet først, og deretter ticketen du jobber med.
-- Prototypene ligger på grenen `prototype/enkel-start` under `docs/prototypes/`. Den valgte retningen er `variant-e-levende.prototype.html`, som bygger på `enkel-start.prototype.html` (variant A), pluss Juster-knappene fra `variant-f-en-tommel.prototype.html`. `TICKETS-PUBLISHED.md` har oversikten over tickets og avhengigheter. Prototypene er kun referanse for utseende og flyt. Reglene som bygger uker i dem, er en skisse. Bruk appens ekte planmotor (presets, Plan Outline, Week Pattern, Quality Session Mix, stamp).
-- Les CLAUDE.md, GLOSSARY.md, `docs/agents/*.md`, ADR-ene som #558 viser til, `docs/design/design-system.md` og `docs/design/ui-conventions.md`. Alle UI-ord er norske og ligger i `labels.ts`.
-- Ingenting seedes i produksjon (`docs/agents/production-seed-data.md`).
+## Parallelt arbeid
+- Hold hovedkonteksten liten. Hovedsesjonen koordinerer bare: den leser grafen, starter agenter, fletter inn og flytter frontlinjen.
+- Start én implementer-subagent i bakgrunnen per ticket på frontlinjen, alle samtidig, hver i sin egen worktree (`isolation: "worktree"`) på egen branch fra integrasjonsbranchen. Når en ticket er flettet inn og nye tickets blir frie, starter du dem straks.
+- Integrasjonsbranch: `feature/levende-start`, laget fra `main`. Åpne en draft-PR etter første innfletting, og merk den som lukkende for #558 og alle ticketene.
+- Kommuniser med kontekstpekere (issuenummer, commits, notatfiler), ikke ved å kopiere tekst. Agentene svarer kort.
+- Utforskningsnotater lagres utenfor repoet, i scratchpad, slik at alle implementer-agenter kan lese dem.
+- Tickets som berører de samme filene (for eksempel #566 med #571–#574, og `labels.ts`), flettes inn én om gangen av merger-agenten. Ved konflikt bruker den skillen `resolving-merge-conflicts`.
 
-## Rekkefølge
-Start med frontlinjen: **#559, #560, #561, #562, #563, #564**. Ta deretter neste ticket der alle blokkere er lukket. Én ticket blir én branch og én PR, som lenker ticketen og #558.
+## Kontekst hver agent skal lese
+- Ticketen, #558 og CLAUDE.md, GLOSSARY.md, `docs/agents/*.md`, ADR-ene ticketen nevner, `docs/design/design-system.md` og `docs/design/ui-conventions.md`. Alle UI-ord er norske og ligger i `labels.ts`. Ingenting seedes i produksjon.
+- Prototypene ligger på grenen `prototype/enkel-start` under `docs/prototypes/`. Retningen er `variant-e-levende.prototype.html` (bygget på `enkel-start.prototype.html`), pluss Juster-knappene fra `variant-f-en-tommel.prototype.html`. Prototypene er bare referanse for utseende og flyt. Reglene som bygger uker i dem, er en skisse. Bruk appens ekte planmotor.
 
-## Arbeidsform
-- Bruk subagenter mye, og spar hovedkonteksten. La subagenter utforske, implementere og gå gjennom koden, og la dem rapportere kort tilbake. Uavhengige tickets på frontlinjen kan kjøres parallelt i egne worktrees (`isolation: "worktree"`).
-- Hovedsesjonen koordinerer: den velger ticket, gir oppdrag, sjekker resultatet, åpner PR og følger CI til den er grønn.
+## Skills hver implementer-agent skal bruke
+Står en skill ikke som tilgjengelig, leser agenten `.claude/skills/<navn>/SKILL.md` direkte.
+- **Alltid:** `tdd` (krav i implement-spec), på testflatene i #558 (Testing Decisions), og `verify` for å sjekke endringen i den kjørende appen.
+- **ADR og ordliste** (#559, #567, #574): `domain-modeling`.
+- **Forarbeid** (#560, #561, #564): `codebase-design`.
+- **UI og bevegelse** (alle UI-tickets, krav fra CLAUDE.md): les `emil-design-eng` og `apple-design` før du designer, `animate` før du legger til bevegelse, og bruk `mobile-native` for alt en tommel rører. Før ticketen er ferdig: kjør `review-animations` (rett hver Block), sjekklisten i `mobile-native` og `break-ui` med data for verste tilfelle. Skriv i ticketen hva som må prøves på en ekte telefon. Bruk `pick-ui-library` for bibliotekvalg, `icon-workflow` for ikoner og `ask-sonner` for varsler med Angre.
 
-## Skills: bruk disse (krav fra CLAUDE.md)
-**Prosess for hver ticket**
-- `implement`: følg den for hver ticket.
-- `tdd`: skriv testen først. Testflatene står i #558 (Testing Decisions): den rene first-run-utkastet (forbilde: `draft.test.ts` over alle presetfamilier), planskriveren (forbilde: `plan.server.test.ts`), autopilot gjennom ukeskiftet med injisert klokke (forbilde: `week-change.server.test.ts`), og rutetester for oppstart, Juster og I dag. E2E-tester bare for bevegelse.
-- `domain-modeling`: for ADR-er og GLOSSARY (særlig #559, #567 og #574).
-- `codebase-design`: for forarbeidet (#560, #561, #564). Lag dype moduler, med så få testflater som mulig.
-- `verify`: kjør appen og sjekk endringen i den, med Playwright på 390×844 og på desktop.
-- `code-review`: kjør den før hver PR (standarder og spesifikasjon).
-- `pr`: bruk den til PR-teksten.
-
-**UI og bevegelse (alle UI-tickets)**
-- Les `emil-design-eng` og `apple-design` før du designer.
-- Les `animate` før du legger til bevegelse (særlig #563, #566, #570 og #582).
-- Bruk `mobile-native` for alt en tommel rører.
-- Før en UI-ticket er ferdig: kjør `review-animations` (Before/After/Why-tabell og dom, og rett hver Block), kjør sjekklisten i `mobile-native`, og kjør `break-ui` med data for verste tilfelle. Skriv i PR-en hva som fortsatt må prøves på en ekte telefon.
-- `pick-ui-library` avgjør valg av bibliotek. Bruk `icon-workflow` for ikoner og `ask-sonner` for varsler med Angre.
-
-## Ferdig betyr
-Akseptansekriteriene i ticketen er oppfylt. Testene er grønne, og typecheck og lint er rene. Endringen er verifisert i appen. UI-skillene over er kjørt. PR-en er grønn i CI, og ticketen er krysset av. Si fra hvis noe i en ticket strider mot en ADR som ikke er endret ennå.
+## Til slutt
+- Når alle tickets er flettet inn, kjører du `code-review` på integrasjonsbranchen og lar én implementer-agent rette alle funn.
+- Skriv PR-teksten med `pr`, merk draft-PR-en som klar for review, følg CI til den er grønn og rydd opp worktrees.
+- Si fra hvis noe i en ticket strider mot en ADR som ikke er endret ennå. #559 endrer ADR-ene og må derfor flettes inn før ticketene som er avhengige av den.
