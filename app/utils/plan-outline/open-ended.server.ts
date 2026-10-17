@@ -66,14 +66,15 @@ export function roundBoundaryStep(factor: number): number | null {
  * edit can change (each refuses `plan-too-long`), so a round that would take
  * the plan past it is not appended; `readRoundFacts` stops proposing one
  * first (ADR 0079 "As built (#505 gaps)"). Returns the Monday the round opens
- * on.
+ * on and the phase it appended — what the proposal's before-image keeps, so
+ * an undo can re-lay that round at factor 1 (#564).
  */
 export async function appendOpenEndedRound(
 	tx: Prisma.TransactionClient,
 	athleteId: string,
 	round: AddPhasePayload,
 	{ now, timezone }: { now: Date; timezone: string },
-): Promise<{ weekKey: string } | null> {
+): Promise<{ weekKey: string; phaseId: string } | null> {
 	const outline = await tx.planOutline.findFirst({
 		where: { id: round.outlineId, athleteId, eventId: null },
 		select: {
@@ -164,7 +165,7 @@ export async function appendOpenEndedRound(
 		})
 	}
 
-	return { weekKey: opens }
+	return { weekKey: opens, phaseId: created.id }
 }
 
 // ── Adding an Event ─────────────────────────────────────────────────────────
