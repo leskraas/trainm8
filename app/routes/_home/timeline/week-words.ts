@@ -22,7 +22,7 @@ import {
 	easyShareLabel,
 	horizonFillLabel,
 	missedCountLabel,
-	NB_DISCIPLINE_LABELS,
+	nbTrackName,
 	NB_VOLUME_UNITS,
 	FAR_WEEK_LABEL,
 	NOT_FILLED_LABEL,
@@ -186,7 +186,7 @@ export function wordTrackWeek(
 	const wholeSplit = track.currency === 'hours'
 	return {
 		...track,
-		name: NB_DISCIPLINE_LABELS[track.discipline],
+		name: nbTrackName(track.discipline),
 		unit: NB_VOLUME_UNITS[track.currency],
 		figures: {
 			target: figure(track.target),

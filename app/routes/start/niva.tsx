@@ -64,12 +64,14 @@ export async function action({ request }: Route.ActionArgs) {
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	const { level, hours, discipline, sports, days, strength } = submission.value
+	const { level, hours, discipline, sports, activities, days, strength } =
+		submission.value
 	throw redirect(
 		`/start/trening?${startSearch({
 			level,
 			hours: hours ?? levelDefaults(level).hours,
 			discipline,
+			activities,
 			otherSports: discipline ? otherSportsOf(discipline, sports) : undefined,
 			days,
 			strength,
@@ -97,7 +99,8 @@ export default function LevelStep({
 	// were given for; a new level brings its own days.
 	const sameLevel = level != null && level === answers.level
 	const carriedDays = sameLevel ? answers.days : undefined
-	const discipline = answers.discipline ?? 'run'
+	const activities = sameLevel ? answers.activities : undefined
+	const discipline = answers.discipline ?? (activities ? null : 'run')
 	const otherSports = sameLevel ? answers.otherSports : undefined
 
 	const sketch = useMemo(
@@ -107,6 +110,7 @@ export default function LevelStep({
 					? draftStart({
 							level,
 							discipline,
+							activities,
 							otherSports,
 							hours,
 							days: carriedDays ?? levelDefaults(level).days,
@@ -114,7 +118,15 @@ export default function LevelStep({
 						})
 					: null,
 			),
-		[level, hours, discipline, otherSports, carriedDays, startWeekKey],
+		[
+			level,
+			hours,
+			discipline,
+			otherSports,
+			activities,
+			carriedDays,
+			startWeekKey,
+		],
 	)
 
 	const [form, fields] = useForm({
@@ -142,7 +154,7 @@ export default function LevelStep({
 			stepCount={SIMPLE_START_STEP_COUNT}
 			title={L.level.title}
 		>
-			<WeekSketch sketch={sketch} discipline={discipline} />
+			<WeekSketch sketch={sketch} />
 			<Form method="POST" className="space-y-8" {...getFormProps(form)}>
 				<RadioGroupField
 					name={fields.level.name}
@@ -217,6 +229,9 @@ export default function LevelStep({
 						value={answers.discipline}
 					/>
 				) : null}
+				{activities?.map((kind) => (
+					<input key={kind} type="hidden" name="activities" value={kind} />
+				))}
 				{answers.discipline && otherSports?.length
 					? [answers.discipline, ...otherSports].map((sport) => (
 							<input

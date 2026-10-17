@@ -365,7 +365,10 @@ describe('Hva liker du å trene? and the days', () => {
 			...ARGS,
 		})) as unknown as Reply
 		expect(none.init?.status).toBe(400)
-		expect(none.data.result.error?.discipline?.[0]).toBe('Velg en idrett')
+		expect(none.data.result.error?.discipline?.[0]).toBe(
+			// A Simple Activity alone is enough too (#572).
+			'Velg en idrett eller en aktivitet',
+		)
 	})
 })
 

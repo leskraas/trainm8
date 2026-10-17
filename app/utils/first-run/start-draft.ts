@@ -9,6 +9,8 @@
 // session cap passed in. Pure, so the question screens can run it in the
 // browser as the athlete answers.
 
+import { type EffortWord } from '../effort-word.ts'
+import { SIMPLE_ACTIVITY_LABELS } from '../labels.ts'
 import { openEndedRound, type PresetFamily } from '../plan-outline/presets.ts'
 import {
 	qualitySessionCount,
@@ -16,12 +18,15 @@ import {
 } from '../plan-outline/quality-mix.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { stampedSessionTitle } from '../session-title.ts'
+import { type ActivityKind } from '../simple-activity.ts'
 import { type CardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
 	draftFirstRunPlan,
 	MAX_SESSION_DAYS,
 	MIN_SESSION_HOURS,
 	patternDaysFor,
+	spreadDays,
+	type DraftSimpleActivity,
 	type DraftTrack,
 	type FirstRunDraft,
 } from './draft.ts'
@@ -93,8 +98,13 @@ export function startFamilies(level: TrainingLevel): PresetFamily[] {
 
 export type StartAnswers = {
 	level: TrainingLevel
-	/** The main sport (_Hovedidrett_): the first endurance sport picked. */
-	discipline: CardioDiscipline
+	/**
+	 * The main sport (_Hovedidrett_): the first endurance sport picked. None
+	 * where the athlete picked only Simple Activities (#572).
+	 */
+	discipline?: CardioDiscipline | null
+	/** The **Simple Activities** picked, in the order they were picked (#572). */
+	activities?: readonly ActivityKind[]
 	/**
 	 * The other endurance sports picked, beside the main one (#573). Each
 	 * gets its own hours track with easy sessions on the days left.
@@ -200,9 +210,36 @@ export function effortOf(zone: QualityZone | null): Effort {
 	return zone === 3 ? 'moderate' : 'hard'
 }
 
+/**
+ * A Simple Activity's own **Effort Word** as the cards say it: the same three
+ * words (_rolig_, _middels_, _hard_), carried straight from the activity and
+ * never read off a zone.
+ */
+const EFFORT_OF_WORD: Record<EffortWord, Effort> = {
+	rolig: 'easy',
+	middels: 'moderate',
+	hard: 'hard',
+}
+
+/**
+ * What a **Simple Activity** is in the start before the athlete says more:
+ * its time and its Effort Word (#572). A _fjelltur_ is a long one in hours, a
+ * climb a session of middling effort, yoga short and _rolig_ (spec #558
+ * stories 59–61). The athlete changes each later, as any session.
+ */
+export const SIMPLE_ACTIVITY_DEFAULTS: Record<
+	ActivityKind,
+	{ minutes: number; effortWord: EffortWord }
+> = {
+	'cross-country-ski': { minutes: 60, effortWord: 'rolig' },
+	hike: { minutes: 120, effortWord: 'rolig' },
+	climb: { minutes: 90, effortWord: 'middels' },
+	'yoga-mobility': { minutes: 30, effortWord: 'rolig' },
+}
+
 export type StartWeekSession = {
 	title: string
-	discipline: Discipline
+	discipline: Discipline | 'other'
 	minutes: number
 	effort: Effort
 }
@@ -248,21 +285,42 @@ export function startWeekOf(
 	} | null = null,
 ): StartWeek {
 	const laid = draft?.weeks[0]?.sessions ?? []
+	const activities = new Map(
+		(draft?.simpleActivities ?? []).map((activity) => [
+			activity.workoutId,
+			activity,
+		]),
+	)
 	const days = WEEKDAYS.map((weekday) => ({
 		weekday,
 		lifting: lifting && lifting.days.includes(weekday) ? [lifting.session] : [],
 		sessions: laid
 			.filter((session) => session.weekday === weekday)
-			.map((session) => ({
-				title: stampedSessionTitle({
+			.map((session): StartWeekSession => {
+				// A Simple Activity is titled by its Activity Kind, as its Workout
+				// is (`createSimpleActivityWorkout`), and keeps its own Effort Word.
+				const activity = session.sourceWorkoutId
+					? activities.get(session.sourceWorkoutId)
+					: undefined
+				if (activity) {
+					return {
+						title: SIMPLE_ACTIVITY_LABELS.kind[activity.kind],
+						discipline: 'other',
+						minutes: activity.minutes,
+						effort: EFFORT_OF_WORD[activity.effortWord],
+					}
+				}
+				return {
+					title: stampedSessionTitle({
+						discipline: session.discipline,
+						role: session.role,
+						zone: session.zone,
+					}),
 					discipline: session.discipline,
-					role: session.role,
-					zone: session.zone,
-				}),
-				discipline: session.discipline,
-				minutes: Math.round((session.volume ?? 0) * 60),
-				effort: effortOf(session.zone),
-			})),
+					minutes: Math.round((session.volume ?? 0) * 60),
+					effort: effortOf(session.zone),
+				}
+			}),
 	}))
 	const sessions = days.flatMap((day) => day.sessions)
 	const minutesByEffort: Record<Effort, number> = {
@@ -390,6 +448,17 @@ export type StartOption = {
 	 * off week 1 doing so: the reason the week is short, where it is.
 	 */
 	shortByPreference: boolean
+	/**
+	 * The Simple Activities that did not fit week 1 (_Fikk ikke plass denne
+	 * uka_), and what would make room: another day, or more time. Null where
+	 * every one fits.
+	 */
+	notFitted: NotFitted | null
+}
+
+export type NotFitted = {
+	kinds: ActivityKind[]
+	room: 'days' | 'hours'
 }
 
 /**
@@ -401,7 +470,12 @@ export type StartBadge = 'best-fit' | 'level' | null
 
 export type StartDraft = {
 	startWeekKey: string
-	discipline: CardioDiscipline
+	discipline: CardioDiscipline | null
+	/**
+	 * No modelled endurance sport was picked: one simple week of the Simple
+	 * Activities spread out, and one option (#572).
+	 */
+	simpleOnly: boolean
 	/** The endurance sports laid, the main sport first. */
 	sports: CardioDiscipline[]
 	/** Sports picked that no day was left for (never the main sport). */
@@ -578,12 +652,16 @@ export function sportTracks({
  * matches one ranked above it is merged into that one.
  */
 export function draftStart(answers: StartAnswers): StartDraft | null {
-	const { level, discipline, hours, days, startWeekKey, strength } = answers
+	const { level, hours, days, startWeekKey, strength } = answers
+	const discipline = answers.discipline ?? null
+	const activities = answers.activities ?? []
 	if (days.length === 0) return null
+	if (!discipline && activities.length === 0) return null
 	const { sessionCap } = LEVEL_DEFAULTS[level]
 	const daysPicked = new Set(days).size
-	// The level's session cap is the whole week's, lifts included, and leaves
-	// endurance one session at least; one lift a day at most.
+	// The level's session cap is the whole week's — lifts, Simple Activities
+	// and sports together — and leaves the rest one session at least; one lift
+	// a day at most.
 	const lifts = strength
 		? Math.max(0, Math.min(strength.perWeek, daysPicked, sessionCap - 1))
 		: 0
@@ -592,20 +670,31 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 	const shortWeekdays = preferences.includes('short')
 		? { longMayBeLong: preferences.includes('long') }
 		: undefined
-	const picked = startSports(discipline, answers.otherSports)
-	const sports = picked.slice(
-		0,
-		sessionDaysFor(picked.length, days, hours, enduranceCap).sports,
-	)
+	const picked = discipline ? startSports(discipline, answers.otherSports) : []
+	// With no endurance sport there is no family to tell apart: one way.
+	const families = discipline
+		? startFamilies(level)
+		: startFamilies(level).slice(0, 1)
 	const laid: StartOption[] = []
-	for (const family of startFamilies(level)) {
+	let sports: CardioDiscipline[] = []
+	for (const family of families) {
+		// The Simple Activities and the sports share what the lifts leave.
+		const layout = layStartWeek({
+			family,
+			sports: picked,
+			activities,
+			hours,
+			days,
+			sessionCap: enduranceCap,
+		})
+		sports = layout.sports
 		const draft =
-			sports.length === 1
+			layout.activities.length === 0 && sports.length === 1
 				? draftFirstRunPlan({
 						family,
 						goal: { kind: 'active' },
 						startWeekKey,
-						discipline,
+						discipline: sports[0]!,
 						weeklyHours: hours,
 						days,
 						sessionCap: enduranceCap,
@@ -617,13 +706,8 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 						startWeekKey,
 						sessionCap: enduranceCap,
 						shortWeekdays,
-						tracks: sportTracks({
-							family,
-							sports,
-							hours,
-							days,
-							sessionCap: enduranceCap,
-						}),
+						tracks: layout.tracks,
+						simpleActivities: layout.activities,
 					})
 		if (!draft) continue
 		const endurance = startWeekOf(draft)
@@ -655,6 +739,7 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 					? null
 					: week.minutes,
 			strengthDays,
+			notFitted: layout.notFitted,
 		})
 	}
 	if (laid.length === 0) return null
@@ -672,10 +757,11 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 	return {
 		startWeekKey,
 		discipline,
+		simpleOnly: discipline == null,
 		sports,
 		sportsLeftOut: picked.slice(sports.length),
 		options,
-		merged: startFamilies(level).length - options.length,
+		merged: families.length - options.length,
 		badge:
 			top.score > 0 ? 'best-fit' : top.family === 'big-base' ? 'level' : null,
 		daysPicked,
@@ -689,6 +775,161 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 				? enduranceCap
 				: null,
 	}
+}
+
+/**
+ * How the start shares the week between the endurance sports and the
+ * **Simple Activities** (#572):
+ *
+ * - The days the plan lays on are one total across every track: the days
+ *   picked, cut to {@link MAX_SESSION_DAYS} and the level's session cap.
+ * - Each Simple Activity takes a day of its own from that total, in the order
+ *   picked. The sports keep two of the days (or one a sport, if more; one,
+ *   with one day), so a sport stays a sport and not a single session.
+ * - Its time is its default ({@link SIMPLE_ACTIVITY_DEFAULTS}), and it counts
+ *   in the hours: the sports take what is left (`sportTracks`), never less
+ *   than an hour, so a short week leaves out the activity rather than the
+ *   sport. With no sport, the activities share all of the hours in proportion
+ *   to their defaults, in five-minute steps, spread over the week.
+ * - One that finds no day, or no time, did not fit, and the cards name it.
+ */
+function layStartWeek({
+	family,
+	sports,
+	activities,
+	hours,
+	days,
+	sessionCap,
+}: {
+	family: PresetFamily
+	/** The endurance sports picked, the main sport first; none at all. */
+	sports: readonly CardioDiscipline[]
+	activities: readonly ActivityKind[]
+	hours: number
+	days: readonly PatternWeekday[]
+	sessionCap: number
+}): {
+	tracks: DraftTrack[]
+	/** The sports laid, the main sport first. */
+	sports: CardioDiscipline[]
+	activities: DraftSimpleActivity[]
+	notFitted: NotFitted | null
+} {
+	const picked = [...new Set(days)].sort((a, b) => a - b)
+	const budget = Math.min(picked.length, MAX_SESSION_DAYS, sessionCap)
+	const wanted = [...new Set(activities)]
+	const defaults = (kind: ActivityKind) => SIMPLE_ACTIVITY_DEFAULTS[kind]
+	if (sports.length === 0) {
+		const fitted = wanted.slice(0, budget)
+		const weekdays = spreadDays(picked, fitted.length)
+		const minutes = shareMinutes(
+			fitted.map((kind) => defaults(kind).minutes),
+			hours * 60,
+		)
+		return {
+			tracks: [],
+			sports: [],
+			activities: fitted.map((kind, index) => ({
+				kind,
+				effortWord: defaults(kind).effortWord,
+				minutes: minutes[index]!,
+				weekday: weekdays[index]!,
+			})),
+			notFitted: notFittedOf(wanted.slice(budget), 'days'),
+		}
+	}
+	const room = budget - Math.min(budget, Math.max(2, sports.length))
+	const fitted = wanted.slice(0, room)
+	const dayless = wanted.slice(room)
+	const minutesOf = (kinds: readonly ActivityKind[]) =>
+		kinds.reduce((sum, kind) => sum + defaults(kind).minutes, 0)
+	// The sports keep an hour at least: two half-hour sessions.
+	const floor = 2 * MIN_SESSION_HOURS * 60
+	const timeless: ActivityKind[] = []
+	while (fitted.length > 0 && hours * 60 - minutesOf(fitted) < floor) {
+		timeless.unshift(fitted.pop()!)
+	}
+	const notFitted = notFittedOf(
+		[...timeless, ...dayless],
+		dayless.length > 0 ? 'days' : 'hours',
+	)
+	// The sports lay on what the activities leave of the total.
+	const sportHours = hours - minutesOf(fitted) / 60
+	const sportCap = budget - fitted.length
+	const kept = sports.slice(
+		0,
+		sessionDaysFor(sports.length, picked, sportHours, sportCap).sports,
+	)
+	const tracks: DraftTrack[] =
+		kept.length === 1
+			? [
+					{
+						discipline: kept[0]!,
+						weeklyHours: sportHours,
+						days: patternDaysFor(picked, sportHours, sportCap),
+						mix: 'family',
+					},
+				]
+			: sportTracks({
+					family,
+					sports: kept,
+					hours: sportHours,
+					days: picked,
+					sessionCap: sportCap,
+				})
+	const taken = new Set(tracks.flatMap((track) => track.days))
+	const free = picked.filter((day) => !taken.has(day))
+	return {
+		tracks,
+		sports: kept,
+		activities: fitted.map((kind, index) => ({
+			kind,
+			effortWord: defaults(kind).effortWord,
+			minutes: defaults(kind).minutes,
+			weekday: free[index]!,
+		})),
+		notFitted,
+	}
+}
+
+function notFittedOf(
+	kinds: ActivityKind[],
+	room: NotFitted['room'],
+): NotFitted | null {
+	return kinds.length === 0 ? null : { kinds, room }
+}
+
+/** The steps a Simple Activity's share of the hours is laid in, and its bounds. */
+const SHARE_STEP_MINUTES = 5
+const MIN_SHARE_MINUTES = 10
+const MAX_SHARE_MINUTES = 600
+
+/**
+ * `total` minutes shared in proportion to `weights`, in five-minute steps that
+ * add up to the total exactly (largest remainder), each kept between ten
+ * minutes and ten hours. Where that clamps, the week falls short and says so.
+ */
+function shareMinutes(weights: readonly number[], total: number): number[] {
+	const steps = Math.round(total / SHARE_STEP_MINUTES)
+	const sum = weights.reduce((all, weight) => all + weight, 0)
+	if (sum === 0) return weights.map(() => 0)
+	const exact = weights.map((weight) => (weight / sum) * steps)
+	const whole = exact.map((value) => Math.floor(value))
+	let left = steps - whole.reduce((all, value) => all + value, 0)
+	const order = exact
+		.map((value, index) => ({ index, rest: value - Math.floor(value) }))
+		.sort((a, b) => b.rest - a.rest || a.index - b.index)
+	for (const { index } of order) {
+		if (left <= 0) break
+		whole[index] = whole[index]! + 1
+		left -= 1
+	}
+	return whole.map((count) =>
+		Math.min(
+			MAX_SHARE_MINUTES,
+			Math.max(MIN_SHARE_MINUTES, count * SHARE_STEP_MINUTES),
+		),
+	)
 }
 
 /** _Uka di_: the top Start Option's first week. */

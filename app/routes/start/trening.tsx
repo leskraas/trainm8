@@ -5,6 +5,10 @@ import { data, Form, redirect } from 'react-router'
 import { ErrorList, ToggleGroupField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
+	ToggleGroup,
+	ToggleGroupItem,
+} from '#app/components/ui/toggle-group.tsx'
+import {
 	readPlanStartWeekKey,
 	requireSimpleStartAthlete,
 } from '#app/utils/first-run/plan.server.ts'
@@ -27,9 +31,15 @@ import {
 	FIRST_RUN_LABELS,
 	NB_DISCIPLINE_LABELS,
 	NB_WEEKDAY_LABELS,
+	SIMPLE_ACTIVITY_LABELS,
 	SIMPLE_START_LABELS,
+	START_SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
 import { patternWeekdaysOf } from '#app/utils/plan-outline/week-pattern.ts'
+import {
+	ACTIVITY_KINDS,
+	type ActivityKind,
+} from '#app/utils/simple-activity.ts'
 import {
 	CARDIO_DISCIPLINES,
 	type CardioDiscipline,
@@ -75,8 +85,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 	return {
 		level,
 		hours,
-		discipline: answers.discipline ?? ('run' as const),
+		// Back from the cards with only Simple Activities picked, no sport.
+		discipline:
+			answers.discipline ?? (answers.activities ? null : ('run' as const)),
 		otherSports: answers.otherSports ?? [],
+		activities: answers.activities ?? [],
 		days: answers.days ?? levelDefaults(level).days,
 		preferences: answers.preferences ?? [],
 		startWeekKey: await readPlanStartWeekKey(userId),
@@ -102,7 +115,9 @@ export async function action({ request }: Route.ActionArgs) {
 	throw redirect(
 		`/start/okter?${startSearch({
 			...answers,
-			otherSports: otherSportsOf(answers.discipline, sports),
+			otherSports: answers.discipline
+				? otherSportsOf(answers.discipline, sports)
+				: undefined,
 		})}`,
 	)
 }
@@ -114,7 +129,9 @@ export default function ActivitiesStep({
 	const { level, hours, startWeekKey } = loaderData
 	// Every sport picked, in the order picked: the first is the main sport.
 	const [picked, setPicked] = useState<CardioDiscipline[]>(() =>
-		startSports(loaderData.discipline, loaderData.otherSports),
+		loaderData.discipline
+			? startSports(loaderData.discipline, loaderData.otherSports)
+			: [],
 	)
 	const main = picked[0] ?? null
 	// The others in the fixed order the server reads them in, so the week
@@ -123,7 +140,9 @@ export default function ActivitiesStep({
 		() => (main ? otherSportsOf(main, picked) : []),
 		[main, picked],
 	)
-	const discipline = main ?? loaderData.discipline
+	const [activities, setActivities] = useState<ActivityKind[]>(
+		loaderData.activities,
+	)
 	const [days, setDays] = useState<string[]>(loaderData.days.map(String))
 	const weekdays = useMemo(() => patternWeekdaysOf(days.map(Number)), [days])
 	const [strength, setStrength] = useState<StrengthPerWeek | null>(() => {
@@ -134,24 +153,24 @@ export default function ActivitiesStep({
 
 	const start = useMemo(
 		() =>
-			main
-				? draftStart({
-						level,
-						discipline: main,
-						otherSports,
-						hours,
-						days: weekdays,
-						startWeekKey,
-						strength:
-							lifting && strength != null
-								? { perWeek: strength, session: lifting.session }
-								: null,
-					})
-				: null,
+			draftStart({
+				level,
+				discipline: main,
+				otherSports,
+				activities,
+				hours,
+				days: weekdays,
+				startWeekKey,
+				strength:
+					lifting && strength != null
+						? { perWeek: strength, session: lifting.session }
+						: null,
+			}),
 		[
 			level,
 			main,
 			otherSports,
+			activities,
 			hours,
 			weekdays,
 			startWeekKey,
@@ -175,8 +194,9 @@ export default function ActivitiesStep({
 	const back = `/start/niva?${startSearch({
 		level,
 		hours,
-		discipline,
+		discipline: main ?? undefined,
 		otherSports,
+		activities,
 		days: weekdays,
 		strength: strength ?? undefined,
 	})}`
@@ -189,7 +209,7 @@ export default function ActivitiesStep({
 			title={L.activities.title}
 			back={{ to: back, label: L.backTo.level }}
 		>
-			<WeekSketch sketch={sketch} discipline={discipline} />
+			<WeekSketch sketch={sketch} />
 			<Form method="POST" className="space-y-8" {...getFormProps(form)}>
 				<input type="hidden" name={fields.level.name} value={level} />
 				<input type="hidden" name={fields.hours.name} value={hours} />
@@ -269,6 +289,56 @@ export default function ActivitiesStep({
 					</div>
 				</div>
 
+				<fieldset className="space-y-2" data-start-activities>
+					<legend className={QUESTION_LEGEND}>
+						{START_SIMPLE_ACTIVITY_LABELS.legend}
+					</legend>
+					<p className="text-footnote text-muted-foreground">
+						{START_SIMPLE_ACTIVITY_LABELS.help}
+					</p>
+					<ToggleGroup
+						multiple
+						variant="outline"
+						spacing={2}
+						value={activities}
+						onValueChange={(next) => {
+							const pressed = next as string[]
+							// Kept in the order picked: the first goes in first when the
+							// week has no room for all.
+							setActivities([
+								...activities.filter((kind) => pressed.includes(kind)),
+								...ACTIVITY_KINDS.filter(
+									(kind) =>
+										pressed.includes(kind) && !activities.includes(kind),
+								),
+							])
+						}}
+						className="w-full flex-wrap"
+					>
+						{ACTIVITY_KINDS.map((kind) => (
+							<ToggleGroupItem
+								key={kind}
+								value={kind}
+								className="aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground text-callout h-11 max-w-full rounded-full px-4"
+							>
+								{SIMPLE_ACTIVITY_LABELS.kind[kind]}
+							</ToggleGroupItem>
+						))}
+					</ToggleGroup>
+					{activities.map((kind) => (
+						<input key={kind} type="hidden" name="activities" value={kind} />
+					))}
+					<div
+						aria-live="polite"
+						className="text-footnote text-muted-foreground"
+					>
+						{start?.simpleOnly ? (
+							<p data-start-simple-only>
+								{START_SIMPLE_ACTIVITY_LABELS.simpleOnly}
+							</p>
+						) : null}
+					</div>
+				</fieldset>
 				{lifting ? (
 					<StrengthField
 						name={fields.strength.name}

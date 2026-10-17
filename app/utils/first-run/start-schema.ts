@@ -4,12 +4,17 @@
 // screen to screen, and back, until the plan is made.
 
 import { z } from 'zod/v3'
-import { FIRST_RUN_LABELS, SIMPLE_START_LABELS } from '../labels.ts'
+import {
+	FIRST_RUN_LABELS,
+	SIMPLE_START_LABELS,
+	START_SIMPLE_ACTIVITY_LABELS,
+} from '../labels.ts'
 import { PRESET_FAMILIES } from '../plan-outline/presets.ts'
 import {
 	patternWeekdaysOf,
 	type PatternWeekday,
 } from '../plan-outline/week-pattern.ts'
+import { ACTIVITY_KINDS, type ActivityKind } from '../simple-activity.ts'
 import { CARDIO_DISCIPLINES, type CardioDiscipline } from '../workout-schema.ts'
 import {
 	MAX_START_HOURS,
@@ -70,6 +75,21 @@ export const PreferencesSchema = z.preprocess(
 )
 
 /**
+ * The **Simple Activities** picked (#572), each once and in the order picked:
+ * the order decides which goes first when the week has no room for all. A
+ * form sends an array (or one value), the URL a comma list.
+ */
+export const StartActivitiesSchema = z.preprocess(
+	(value) =>
+		typeof value === 'string'
+			? value.split(',').filter(Boolean)
+			: value == null
+				? []
+				: value,
+	z.array(z.enum(ACTIVITY_KINDS)).transform((kinds) => [...new Set(kinds)]),
+)
+
+/**
  * Every endurance sport picked (#573), the main one among them, each once and
  * in a fixed order. A form sends an array (or one value when one is picked),
  * the URL a comma list. The main sport is `discipline`; the others are what
@@ -114,6 +134,7 @@ export const LevelStepSchema = z.object({
 	level: LevelSchema,
 	hours: StartHoursSchema.optional(),
 	discipline: StartDisciplineSchema.optional(),
+	activities: StartActivitiesSchema.optional(),
 	sports: SportsSchema.optional(),
 	days: DaysSchema.optional(),
 	strength: StrengthPerWeekSchema.optional(),
@@ -121,32 +142,51 @@ export const LevelStepSchema = z.object({
 
 /**
  * _Hva liker du å trene?_: the main sport, every sport picked and the days,
- * with the level. The preferences ride along when the athlete came back from
+ * with the level. The main sport may be left out where a Simple Activity is
+ * picked (#572). The preferences ride along when the athlete came back from
  * them, and the preferences screen sends them with every other answer (#571).
  */
-export const ActivitiesStepSchema = z.object({
+const ActivitiesStepFields = z.object({
 	level: LevelSchema,
 	hours: StartHoursSchema,
-	discipline: StartDisciplineSchema,
+	discipline: StartDisciplineSchema.optional(),
 	sports: SportsSchema.optional(),
+	activities: StartActivitiesSchema.optional(),
 	days: DaysSchema,
 	strength: StrengthPerWeekSchema.optional(),
 	preferences: PreferencesSchema.optional(),
 })
+
+/** Something to lay: a main sport, or at least one Simple Activity. */
+function somethingPicked(
+	answers: { discipline?: CardioDiscipline; activities?: ActivityKind[] },
+	context: z.RefinementCtx,
+) {
+	if (answers.discipline || (answers.activities ?? []).length > 0) return
+	context.addIssue({
+		code: z.ZodIssueCode.custom,
+		path: ['discipline'],
+		message: START_SIMPLE_ACTIVITY_LABELS.nothingPicked,
+	})
+}
+
+export const ActivitiesStepSchema =
+	ActivitiesStepFields.superRefine(somethingPicked)
 
 /**
  * _Velg denne_: every answer, and the family of the card picked. Which
  * families are shown is the draft's to say (`draftStart`), so any preset
  * family reads here and the plan writer refuses one not shown.
  */
-export const StartChoiceSchema = ActivitiesStepSchema.extend({
+export const StartChoiceSchema = ActivitiesStepFields.extend({
 	family: z.enum(PRESET_FAMILIES),
-})
+}).superRefine(somethingPicked)
 
 export type StartAnswersSoFar = {
 	level?: TrainingLevel
 	hours?: number
 	discipline?: CardioDiscipline
+	activities?: ActivityKind[]
 	/** The endurance sports picked beside the main one (#573). */
 	otherSports?: CardioDiscipline[]
 	days?: PatternWeekday[]
@@ -174,6 +214,9 @@ export function readStartAnswers(search: URLSearchParams): StartAnswersSoFar {
 		present(search.get('strength')),
 	)
 	const preferences = PreferencesSchema.safeParse(present(search.get('prefs')))
+	const activities = StartActivitiesSchema.safeParse(
+		search.get('activities') ?? '',
+	)
 	const sports = SportsSchema.safeParse(search.get('sports') ?? '')
 	const otherSports =
 		discipline.success && sports.success
@@ -183,6 +226,9 @@ export function readStartAnswers(search: URLSearchParams): StartAnswersSoFar {
 		...(level.success ? { level: level.data } : {}),
 		...(hours.success ? { hours: hours.data } : {}),
 		...(discipline.success ? { discipline: discipline.data } : {}),
+		...(activities.success && activities.data.length > 0
+			? { activities: activities.data }
+			: {}),
 		...(otherSports.length > 0 ? { otherSports } : {}),
 		...(days.success ? { days: days.data } : {}),
 		...(strength.success ? { strength: strength.data } : {}),
@@ -200,6 +246,9 @@ export function startSearch(answers: StartAnswersSoFar): string {
 	if (answers.discipline) params.set('discipline', answers.discipline)
 	if (answers.discipline && answers.otherSports?.length) {
 		params.set('sports', [answers.discipline, ...answers.otherSports].join(','))
+	}
+	if (answers.activities && answers.activities.length > 0) {
+		params.set('activities', answers.activities.join(','))
 	}
 	if (answers.days && answers.days.length > 0) {
 		params.set('days', answers.days.join(','))

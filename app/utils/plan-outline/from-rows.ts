@@ -3,6 +3,7 @@
 // Kept free of Prisma types so it is testable without a database: the row shapes
 // below are structural, and the query in `training.server.ts` satisfies them.
 
+import { SIMPLE_ACTIVITY_DISCIPLINE } from '../simple-activity.ts'
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
 	derivedStrengthWeekTargets,
@@ -410,7 +411,20 @@ function segmentSpec(
  * segment somehow sat in its spec.
  */
 function walkFor(discipline: Discipline): SeasonWalk {
-	return isCardioDiscipline(discipline) ? 'endurance' : 'strength'
+	return walksAsEndurance(discipline) ? 'endurance' : 'strength'
+}
+
+/**
+ * Whether a track's Discipline is priced by the endurance walk: an endurance
+ * Discipline, or `other` — the one hours track the Simple Activities share
+ * (ADR 0015 §A, #572), which climbs with the phases like an endurance track
+ * with no mix.
+ */
+export function walksAsEndurance(discipline: string): boolean {
+	return (
+		isCardioDiscipline(discipline as Discipline) ||
+		discipline === SIMPLE_ACTIVITY_DISCIPLINE
+	)
 }
 
 /**

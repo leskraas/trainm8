@@ -1,6 +1,7 @@
 import {
 	type Effort,
 	type WeekSketch as Sketch,
+	type StartWeekSession,
 } from '#app/utils/first-run/start-draft.ts'
 import {
 	FIRST_RUN_LABELS,
@@ -10,22 +11,17 @@ import {
 	START_OPTION_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { type CardioDiscipline } from '#app/utils/workout-schema.ts'
 
 const L = SIMPLE_START_LABELS.sketch
 
-/** One mark colour per sport (design-system: track hues are marks). */
-const TRACK_MARK: Record<CardioDiscipline, string> = {
+/**
+ * One mark colour per sport (design-system: track hues are marks); a Simple
+ * Activity, which has no track hue, takes the muted one.
+ */
+const TRACK_MARK: Partial<Record<StartWeekSession['discipline'], string>> = {
 	run: 'bg-track-run',
 	bike: 'bg-track-bike',
 	swim: 'bg-track-swim',
-}
-
-/** A session's mark: its own sport's hue, or the main sport's (#573). */
-function markOf(discipline: string, main: CardioDiscipline): string {
-	return discipline in TRACK_MARK
-		? TRACK_MARK[discipline as CardioDiscipline]
-		: TRACK_MARK[main]
 }
 
 /** Solid for a hard session, fainter as it gets easier. */
@@ -51,13 +47,7 @@ function duration(minutes: number): string {
  * the same list. No motion yet: the blocks change in place (#558 S2; S10
  * adds the morphs).
  */
-export function WeekSketch({
-	sketch,
-	discipline,
-}: {
-	sketch: Sketch
-	discipline: CardioDiscipline
-}) {
+export function WeekSketch({ sketch }: { sketch: Sketch }) {
 	const empty = sketch.sessionCount === 0 && sketch.strengthSessions === 0
 	const longest = Math.max(
 		1,
@@ -130,7 +120,7 @@ export function WeekSketch({
 										key={index}
 										className={cn(
 											'block w-full rounded-xl',
-											markOf(session.discipline, discipline),
+											TRACK_MARK[session.discipline] ?? 'bg-muted-foreground',
 											EFFORT_OPACITY[session.effort],
 										)}
 										style={{

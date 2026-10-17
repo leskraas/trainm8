@@ -16,6 +16,7 @@ import {
 	type Effort,
 	type StartDraft,
 	type StartOption,
+	type StartWeekSession,
 } from '#app/utils/first-run/start-draft.ts'
 import {
 	otherSportsOf,
@@ -36,9 +37,9 @@ import {
 	SESSION_PREFERENCE_LABELS,
 	SIMPLE_START_LABELS,
 	START_OPTION_LABELS,
+	START_SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { type Discipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/valg.ts'
 import { FirstRunFrame, SIMPLE_START_STEP_COUNT } from './__first-run-frame.tsx'
 
@@ -85,7 +86,7 @@ export type StartCard = {
 		short: string
 		sessions: Array<{
 			title: string
-			discipline: Discipline
+			discipline: StartWeekSession['discipline']
 			effort: Effort
 			/** `45 min · rolig`. */
 			facts: string
@@ -104,6 +105,8 @@ export type StartCard = {
 	/** The frequency as the athlete's own answer, and why fewer were laid. */
 	strengthNotes: string[]
 	shortOfHours: string | null
+	/** _Fikk ikke plass denne uka: …_, with what would make room (#572). */
+	notFitted: string | null
 	chooseLabel: string
 }
 
@@ -169,6 +172,12 @@ function cardOf(
 						duration(option.shortOfHours),
 						nbHoursWords(hours),
 					),
+		notFitted: option.notFitted
+			? START_SIMPLE_ACTIVITY_LABELS.notFitted(
+					option.notFitted.kinds,
+					option.notFitted.room,
+				)
+			: null,
 		chooseLabel: L.chooseLabel(plain.name),
 	}
 }
@@ -179,6 +188,7 @@ function cardOf(
  */
 function notesOf(start: StartDraft, sessionCap: number): string[] {
 	const notes: string[] = []
+	if (start.simpleOnly) notes.push(START_SIMPLE_ACTIVITY_LABELS.simpleOnly)
 	if (start.sportsLeftOut.length > 0) {
 		notes.push(
 			L.sportsLeftOut(
@@ -212,6 +222,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		hours,
 		discipline,
 		otherSports = [],
+		activities,
 		days,
 		strength,
 		preferences = [],
@@ -222,7 +233,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		throw redirect(search ? `/start/niva?${search}` : '/start/niva')
 	}
 	const back = `/start/okter?${startSearch(answers)}`
-	if (!discipline || !days) {
+	if ((!discipline && !activities) || !days) {
 		throw redirect(`/start/trening?${startSearch(answers)}`)
 	}
 	const startWeekKey = await readPlanStartWeekKey(userId)
@@ -232,6 +243,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		level,
 		discipline,
 		otherSports,
+		activities,
 		hours,
 		days,
 		startWeekKey,
@@ -249,6 +261,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			hours,
 			discipline,
 			otherSports,
+			activities: activities ?? [],
 			days,
 			strength: lifting ? (strength ?? null) : null,
 			preferences,
@@ -287,6 +300,7 @@ export async function action({ request }: Route.ActionArgs) {
 		hours,
 		discipline,
 		sports,
+		activities,
 		days,
 		family,
 		strength,
@@ -294,7 +308,8 @@ export async function action({ request }: Route.ActionArgs) {
 	} = submission.value
 	const created = await createFirstRunPlan(userId, {
 		discipline,
-		otherSports: otherSportsOf(discipline, sports),
+		otherSports: discipline ? otherSportsOf(discipline, sports) : undefined,
+		activities,
 		hours,
 		days,
 		goal: { kind: 'active' },
@@ -320,7 +335,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 /** One mark colour per sport (design-system: track hues are marks). */
-const TRACK_MARK: Partial<Record<Discipline, string>> = {
+const TRACK_MARK: Partial<Record<StartWeekSession['discipline'], string>> = {
 	run: 'bg-track-run',
 	bike: 'bg-track-bike',
 	swim: 'bg-track-swim',
@@ -597,6 +612,14 @@ export default function StartOptions({
 									{card.shortOfHours}
 								</p>
 							) : null}
+							{card.notFitted ? (
+								<p
+									className="text-footnote text-muted-foreground"
+									data-start-option-not-fitted
+								>
+									{card.notFitted}
+								</p>
+							) : null}
 							<p className="text-footnote text-muted-foreground">
 								{loaderData.startsOn}
 							</p>
@@ -604,12 +627,14 @@ export default function StartOptions({
 							<Form method="POST" className="mt-auto pt-1">
 								<input type="hidden" name="level" value={answers.level} />
 								<input type="hidden" name="hours" value={answers.hours} />
-								<input
-									type="hidden"
-									name="discipline"
-									value={answers.discipline}
-								/>
-								{answers.otherSports.length > 0
+								{answers.discipline ? (
+									<input
+										type="hidden"
+										name="discipline"
+										value={answers.discipline}
+									/>
+								) : null}
+								{answers.discipline && answers.otherSports.length > 0
 									? [answers.discipline, ...answers.otherSports].map(
 											(sport) => (
 												<input
@@ -621,6 +646,14 @@ export default function StartOptions({
 											),
 										)
 									: null}
+								{answers.activities.map((kind) => (
+									<input
+										key={kind}
+										type="hidden"
+										name="activities"
+										value={kind}
+									/>
+								))}
 								{answers.days.map((day) => (
 									<input key={day} type="hidden" name="days" value={day} />
 								))}

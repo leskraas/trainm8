@@ -1402,7 +1402,7 @@ model PlanOutlinePhase {
 /// triathlete who lifts authors four — over one shared phase timeline.
 model TrainingTrack {
   id         String @id @default(cuid())
-  discipline String // Discipline: 'run' | 'bike' | 'swim' | 'strength'
+  discipline String // Discipline: 'run' | 'bike' | 'swim' | 'strength', or 'other': the Simple Activities' hours track (#572)
   /// Volume Currency: the unit this track authors volume in. **Immutable for the
   /// life of the track** (ADR 0043 §2) — changing it would rewrite the unit of
   /// every week already lived. Enforced by the value vocabulary in the migration's

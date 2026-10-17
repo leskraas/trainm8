@@ -45,12 +45,12 @@ export const meta: Route.MetaFunction = () => [
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireSimpleStartAthlete(request)
 	const answers = readStartAnswers(new URL(request.url).searchParams)
-	const { level, hours, discipline, days } = answers
+	const { level, hours, discipline, activities, days } = answers
 	if (!level || hours == null) {
 		const search = startSearch(answers)
 		throw redirect(search ? `/start/niva?${search}` : '/start/niva')
 	}
-	if (!discipline || !days) {
+	if ((!discipline && !activities) || !days) {
 		throw redirect(`/start/trening?${startSearch(answers)}`)
 	}
 	// _Styrke_ (#574), carried through to the Start Options: the lifting days
@@ -60,8 +60,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 	return {
 		level,
 		hours,
-		discipline,
+		// None where only Simple Activities were picked (#572).
+		discipline: discipline ?? null,
 		otherSports: answers.otherSports ?? [],
+		activities: activities ?? [],
 		days,
 		preferences: answers.preferences ?? [],
 		startWeekKey: await readPlanStartWeekKey(userId),
@@ -83,7 +85,9 @@ export async function action({ request }: Route.ActionArgs) {
 	throw redirect(
 		`/start/valg?${startSearch({
 			...answers,
-			otherSports: otherSportsOf(answers.discipline, sports),
+			otherSports: answers.discipline
+				? otherSportsOf(answers.discipline, sports)
+				: undefined,
 		})}`,
 	)
 }
@@ -97,6 +101,7 @@ export default function PreferencesStep({
 		hours,
 		discipline,
 		otherSports,
+		activities,
 		days,
 		startWeekKey,
 		strength,
@@ -112,6 +117,7 @@ export default function PreferencesStep({
 					level,
 					discipline,
 					otherSports,
+					activities,
 					hours,
 					days,
 					startWeekKey,
@@ -123,6 +129,7 @@ export default function PreferencesStep({
 			level,
 			discipline,
 			otherSports,
+			activities,
 			hours,
 			days,
 			startWeekKey,
@@ -140,8 +147,9 @@ export default function PreferencesStep({
 	const back = `/start/trening?${startSearch({
 		level,
 		hours,
-		discipline,
+		discipline: discipline ?? undefined,
 		otherSports,
+		activities,
 		days,
 		strength: strength?.perWeek,
 		preferences,
@@ -155,16 +163,21 @@ export default function PreferencesStep({
 			intro={L.intro}
 			back={{ to: back, label: L.back }}
 		>
-			<WeekSketch sketch={sketch} discipline={discipline} />
+			<WeekSketch sketch={sketch} />
 			<Form method="POST" className="space-y-8" {...getFormProps(form)}>
 				<input type="hidden" name="level" value={level} />
 				<input type="hidden" name="hours" value={hours} />
-				<input type="hidden" name="discipline" value={discipline} />
-				{otherSports.length > 0
+				{discipline ? (
+					<input type="hidden" name="discipline" value={discipline} />
+				) : null}
+				{discipline && otherSports.length > 0
 					? startSports(discipline, otherSports).map((sport) => (
 							<input key={sport} type="hidden" name="sports" value={sport} />
 						))
 					: null}
+				{activities.map((kind) => (
+					<input key={kind} type="hidden" name="activities" value={kind} />
+				))}
 				{days.map((day) => (
 					<input key={day} type="hidden" name="days" value={day} />
 				))}
