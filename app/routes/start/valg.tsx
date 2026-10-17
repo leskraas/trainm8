@@ -34,7 +34,6 @@ import {
 	START_OPTION_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/valg.ts'
 import { FirstRunFrame, SIMPLE_START_STEP_COUNT } from './__first-run-frame.tsx'
@@ -47,7 +46,8 @@ import { FirstRunFrame, SIMPLE_START_STEP_COUNT } from './__first-run-frame.tsx'
  * its session or _fri_, a bar of easy, middling and hard time, the total and
  * the hard sessions, and when the plan starts. The athlete swipes between the
  * cards (or uses the dots or the arrow keys) and picks one with _Velg denne_,
- * which makes exactly that plan (`createFirstRunPlan`) and goes to I dag.
+ * which makes exactly that plan (`createFirstRunPlan`) and goes to _Planen er
+ * klar_ (#570).
  *
  * The answers travel in the URL, so going back to a question and changing it
  * recomputes the cards. No motion of its own yet: the cards scroll natively
@@ -197,7 +197,6 @@ export async function action({ request }: Route.ActionArgs) {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
 	const { level, hours, discipline, days, family } = submission.value
-	const startWeekKey = await readPlanStartWeekKey(userId)
 	const created = await createFirstRunPlan(userId, {
 		discipline,
 		hours,
@@ -216,11 +215,9 @@ export async function action({ request }: Route.ActionArgs) {
 			{ status: 409 },
 		)
 	}
-	return redirectWithToast('/', {
-		title: L.created,
-		description: L.createdDescription(nbLongDay(startWeekKey)),
-		type: 'success',
-	})
+	// _Planen er klar_ says what was made; it reads the plan, so a reload or
+	// the back button shows it again and makes nothing.
+	return redirect('/start/klar')
 }
 
 /** One mark colour per sport (design-system: track hues are marks). */

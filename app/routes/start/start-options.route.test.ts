@@ -10,7 +10,7 @@ import { action, loader } from './valg.tsx'
 
 // _Tre måter å trene på_ (#566) through its loader and action: the Start
 // Options read from the answers in the URL, and _Velg denne_ making the one
-// picked and taking the athlete to I dag.
+// picked and taking the athlete to Planen er klar.
 
 const ARGS = {
 	params: {},
@@ -165,7 +165,7 @@ test('going back to a question and changing it recomputes the ways, and says why
 	)
 })
 
-test('Velg denne makes the plan picked, keeps the level, and takes the athlete to I dag', async () => {
+test('Velg denne makes the plan picked, keeps the level, and takes the athlete to Planen er klar', async () => {
 	const { userId, cookie } = await setUp()
 	const response = await settle(() =>
 		action({
@@ -173,7 +173,7 @@ test('Velg denne makes the plan picked, keeps the level, and takes the athlete t
 			...ARGS,
 		}),
 	)
-	expect(location(response)).toBe('/')
+	expect(location(response)).toBe('/start/klar')
 	const outline = await prisma.planOutline.findFirstOrThrow({
 		where: { athleteId: userId },
 		select: { family: true, eventId: true },
