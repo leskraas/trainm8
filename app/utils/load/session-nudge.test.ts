@@ -300,6 +300,8 @@ function workoutWith(steps: WorkoutStep[], discipline = 'run'): Workout {
 		discipline,
 		intent: 'tempo',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: [
 			{
 				id: 'block-1',

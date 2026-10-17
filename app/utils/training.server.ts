@@ -1419,6 +1419,10 @@ const upcomingSessionSelect = {
 			/// copied from) stated, or null when nobody stated one — in which case
 			/// the surface reads one instead (ADR 0055).
 			archetype: true,
+			/// A **Simple Activity**'s Activity Kind and Effort Word (ADR 0015 §A),
+			/// read by `readSimpleActivity`; null on every other Workout.
+			activityKind: true,
+			effortWord: true,
 			blocks: {
 				orderBy: { orderIndex: 'asc' as const },
 				select: {

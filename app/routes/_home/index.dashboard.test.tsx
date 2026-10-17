@@ -75,6 +75,8 @@ function makeLedgerSession(
 			discipline: 'run',
 			intent: 'endurance',
 			archetype: null,
+			activityKind: null,
+			effortWord: null,
 			blocks: [],
 		},
 		recording: null,
@@ -357,6 +359,8 @@ const TODAY_SESSION = at(0, {
 		discipline: 'run',
 		intent: 'threshold',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: blocks([
 			step({
 				durationSec: 3720,
@@ -379,6 +383,8 @@ const FRIDAY_SESSION = at(2, {
 		discipline: 'run',
 		intent: 'vo2max',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: blocks([step({ durationSec: 3000 })]),
 	},
 })
@@ -397,6 +403,8 @@ const TODAY_DONE = at(0, {
 		discipline: 'run',
 		intent: 'tempo',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: blocks([step({ durationSec: 3600 })]),
 	},
 })
@@ -619,6 +627,8 @@ test('every week before today is mounted in full, and a strip tap jumps to one',
 				discipline: 'run',
 				intent: 'endurance',
 				archetype: null,
+				activityKind: null,
+				effortWord: null,
 				blocks: blocks(),
 			},
 		}),
@@ -755,6 +765,8 @@ test('a planned row is an instruction: line 1 ends in "planned", line 2 is the t
 						discipline: 'run',
 						intent: 'endurance',
 						archetype: null,
+						activityKind: null,
+						effortWord: null,
 						blocks: blocks([
 							step({
 								durationSec: 3000,
@@ -878,6 +890,8 @@ function titled(id: string, title: string): Workout {
 		discipline: 'run',
 		intent: 'endurance',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: blocks(),
 	}
 }
