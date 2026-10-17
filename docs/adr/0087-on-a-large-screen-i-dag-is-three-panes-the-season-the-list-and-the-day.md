@@ -1,6 +1,9 @@
 # On a large screen I dag is three panes: the season, the list and the day
 
-Status: Accepted
+Status: Accepted · **Amended by
+[ADR 0101](./0101-three-tabs-and-a-calm-i-dag-that-shows-today-and-this-week.md)**
+for I dag's default view: on a large screen it shows the today card and the week
+side by side; the three panes open behind _Se hele sesongen_.
 
 **Amends**
 [ADR 0086](0086-i-dag-has-no-hero-reads-like-a-calendar-and-the-scroll-engine-never-writes-under-a-reader.md)
