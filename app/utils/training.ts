@@ -4,6 +4,11 @@ import { sumBlockDurationMin } from './dashboard.ts'
 // existing importers of these helpers are unchanged.
 export { getDisciplineLabel, getStatusLabel } from './labels.ts'
 import { type AdherenceBand, sessionAdherence } from './load/adherence.ts'
+import {
+	type PlannedMetric,
+	plannedMetricValue,
+	readPlannedMetric,
+} from './planned-discipline.ts'
 import { deriveRecordingTitle } from './session-title.ts'
 
 export type StatusBadgeVariant =
@@ -119,6 +124,23 @@ export type SessionLedgerEntry = {
 	replanReason: string | null
 }
 
+/**
+ * A week row's Planned TSS, read through the planned discipline
+ * (`planned-discipline.ts`): a planned Simple Activity on `other` is an
+ * Unavailable Metric (`simple-activity`) even if a figure was stored.
+ */
+export function readLedgerPlannedTss(session: {
+	plannedTssValue: number | null
+	workout: { discipline: string } | null
+	recording: { discipline: string } | null
+}): PlannedMetric<number> {
+	return readPlannedMetric(
+		getSessionDiscipline(session),
+		'planned-tss',
+		() => session.plannedTssValue,
+	)
+}
+
 export function toSessionLedgerEntry(
 	session: {
 		id: string
@@ -148,7 +170,7 @@ export function toSessionLedgerEntry(
 	timezone?: string,
 ): SessionLedgerEntry {
 	const load = session.tssValue ?? null
-	const plannedTss = session.plannedTssValue ?? null
+	const plannedTss = plannedMetricValue(readLedgerPlannedTss(session))
 	// The gate (both sides present, planned positive) and the band rule live in
 	// `sessionAdherence` so the ledger and Weekly Plan Adherence never drift.
 	const adherence = sessionAdherence(load, plannedTss)?.band ?? null

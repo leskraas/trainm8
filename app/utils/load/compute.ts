@@ -1,3 +1,8 @@
+import {
+	type PlannedMetric,
+	plannedMetricValue,
+	readPlannedMetric,
+} from '../planned-discipline.ts'
 import { coggan, hrTSS, rTSS, sTSS, sRPE, type TssResult } from './formulas.ts'
 import { normalizedPower } from './normalized-power.ts'
 
@@ -178,12 +183,30 @@ export function computeSessionContribution(
 	recording: RecordingArg,
 	athleteProfile: AthleteProfileArg,
 ): SessionContribution | null {
-	if (session.discipline === 'strength') {
-		const { durationSec, rpe } = session
-		if (rpe == null) return null
-		return { ...sRPE({ durationSec, rpe }), countsTowardTriad: false }
-	}
+	return plannedMetricValue(
+		readSessionContribution(session, recording, athleteProfile),
+	)
+}
 
-	const result = computeSessionTss(session, recording, athleteProfile)
-	return result ? { ...result, countsTowardTriad: true } : null
+/**
+ * The contribution as a planned session's path reads it: through the planned
+ * discipline (`planned-discipline.ts`), so a session on `other` — an import
+ * (ADR 0015) or a planned Simple Activity done — is an Unavailable Metric
+ * (`simple-activity`) and never runs a formula.
+ */
+export function readSessionContribution(
+	session: SessionArg,
+	recording: RecordingArg,
+	athleteProfile: AthleteProfileArg,
+): PlannedMetric<SessionContribution> {
+	return readPlannedMetric(session.discipline, 'training-load', () => {
+		if (session.discipline === 'strength') {
+			const { durationSec, rpe } = session
+			if (rpe == null) return null
+			return { ...sRPE({ durationSec, rpe }), countsTowardTriad: false }
+		}
+
+		const result = computeSessionTss(session, recording, athleteProfile)
+		return result ? { ...result, countsTowardTriad: true } : null
+	})
 }

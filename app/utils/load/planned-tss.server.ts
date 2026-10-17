@@ -1,11 +1,12 @@
 import { prisma } from '#app/utils/db.server.ts'
+import { plannedMetricValue } from '#app/utils/planned-discipline.ts'
 import { type IntensityTarget } from '#app/utils/workout-schema.ts'
 import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 } from '#app/utils/zones/index.ts'
 import {
-	computePlannedTss,
+	readPlannedTss,
 	type PlannedTssProfile,
 	type PlannedTssStep,
 	type PlannedTssWorkout,
@@ -244,11 +245,15 @@ async function persist(
 	// athlete's corrected structure *against* the retained detection, so the two
 	// sides differ and the comparison is real.)
 	const hasPrescription = source !== 'recorded' && source !== 'detected'
+	// Read through the planned discipline: a session on `other` (a Simple
+	// Activity) stores no Planned TSS rather than one a formula guessed at.
 	const result =
 		workout && hasPrescription
-			? computePlannedTss(
-					toPlannedWorkout(workout, profiles),
-					toPlannedProfile(profiles),
+			? plannedMetricValue(
+					readPlannedTss(
+						toPlannedWorkout(workout, profiles),
+						toPlannedProfile(profiles),
+					),
 				)
 			: null
 	await prisma.workoutSession.update({
