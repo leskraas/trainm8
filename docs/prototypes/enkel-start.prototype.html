@@ -1,10 +1,13 @@
 <title>Trainm8 enkel start</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f7f7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#090b0c">
+<meta name="color-scheme" content="light dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap">
 <!--
-  PROTOTYPE — THROWAWAY. Question: can the app start with four plain questions
-  (nivå, aktiviteter, økttyper, dager), offer three weeks that follow different
+  PROTOTYPE — THROWAWAY. Question: can the app start with a few plain questions
+  (nivå, aktiviteter, dager, økttyper), offer up to three weeks that follow different
   training principles, and land on a calm I dag, with the Plan Outline built
   behind it? Three variants of the suggestion screen and of I dag, switchable
   from the pill at the top (or ← →). Nothing is saved; everything is in memory.
@@ -22,6 +25,7 @@
 	--primary-fg: #ffffff;
 	--primary-soft: color-mix(in oklab, #0d7a68 12%, transparent);
 	--ring: color-mix(in oklab, #0d7a68 55%, transparent);
+	--press: brightness(0.94);
 	--easy: oklch(0.6 0.12 160);
 	--mid: oklch(0.66 0.13 70);
 	--hard: oklch(0.58 0.17 25);
@@ -39,13 +43,15 @@
 	--font: 'Public Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+	color-scheme: light;
+	interpolate-size: allow-keywords;
 }
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme="light"]) {
 		--bg: oklch(0.148 0.004 228.8); --fg: oklch(0.987 0.002 197.1); --card: oklch(0.205 0.007 223.9);
 		--muted: oklch(0.255 0.01 216.9); --muted-fg: oklch(0.723 0.014 214.4); --border: oklch(0.3 0.01 216.9);
 		--primary: #35b89c; --primary-fg: #0c1512; --primary-soft: color-mix(in oklab, #35b89c 16%, transparent);
-		--ring: color-mix(in oklab, #35b89c 55%, transparent);
+		--ring: color-mix(in oklab, #35b89c 55%, transparent); --press: brightness(1.15);
 		--shadow: 0 0 0 1px rgb(255 255 255 / 0.06); --switch-bg: oklch(0.92 0.01 228); --switch-fg: oklch(0.15 0.01 228);
 		color-scheme: dark;
 	}
@@ -54,185 +60,269 @@
 	--bg: oklch(0.148 0.004 228.8); --fg: oklch(0.987 0.002 197.1); --card: oklch(0.205 0.007 223.9);
 	--muted: oklch(0.255 0.01 216.9); --muted-fg: oklch(0.723 0.014 214.4); --border: oklch(0.3 0.01 216.9);
 	--primary: #35b89c; --primary-fg: #0c1512; --primary-soft: color-mix(in oklab, #35b89c 16%, transparent);
-	--ring: color-mix(in oklab, #35b89c 55%, transparent);
+	--ring: color-mix(in oklab, #35b89c 55%, transparent); --press: brightness(1.15);
 	--shadow: 0 0 0 1px rgb(255 255 255 / 0.06); --switch-bg: oklch(0.92 0.01 228); --switch-fg: oklch(0.15 0.01 228);
 	color-scheme: dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; }
-body { background: var(--bg); color: var(--fg); font: 400 16px/24px var(--font); letter-spacing: -0.004em; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html, body { min-height: 100%; overscroll-behavior: none; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 1rem/1.5rem var(--font); letter-spacing: -0.004em; }
+/* Status-bar strip: content scrolls under a soft material instead of straight under the clock */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 39; background: color-mix(in oklab, var(--bg) 70%, transparent); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
-button:focus-visible, a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.app { max-width: 440px; margin: 0 auto; min-height: 100%; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 56px 120px; position: relative; }
+button, summary, [role="button"] { -webkit-touch-callout: none; }
+button:focus-visible, a:focus-visible, summary:focus-visible, .rail:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.app { max-width: 440px; margin: 0 auto; min-height: 100%; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-top: calc(56px + env(safe-area-inset-top, 0px)); padding-bottom: calc(var(--cta-h, 140px) + 24px); position: relative; }
 .screen { display: flex; flex-direction: column; gap: 20px; }
-.screen.enter { animation: enter 260ms var(--ease-out) both; }
-.screen.enter.back { animation-name: enter-back; }
-@keyframes enter { from { opacity: 0; transform: translateX(16px); } }
-@keyframes enter-back { from { opacity: 0; transform: translateX(-16px); } }
-h1 { font-size: 26px; line-height: 32px; font-weight: 650; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
-h2 { font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.012em; margin: 0; }
+h1 { font-size: 1.5rem; line-height: 1.875rem; font-weight: 650; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+h2, .h2 { font-size: 1.125rem; line-height: 1.5rem; font-weight: 600; letter-spacing: -0.012em; margin: 0; }
 p { margin: 0; }
-.lead { color: var(--muted-fg); font-size: 15px; line-height: 21px; }
-.small { font-size: 13px; line-height: 18px; color: var(--muted-fg); }
-.over { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-fg); }
+.lead { color: var(--muted-fg); font-size: 1rem; line-height: 1.5rem; }
+.small { font-size: 0.8125rem; line-height: 1.125rem; color: var(--muted-fg); letter-spacing: 0.002em; }
+.over { font-size: 0.6875rem; line-height: 1rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-fg); }
 .num { font-variant-numeric: tabular-nums; }
+.rise { animation: rise 200ms var(--ease-out) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+
+/* Screen transitions: View Transitions give the old screen a real exit. Chrome (top bar, CTA) stays put. */
+.app > .screen { view-transition-name: screen; }
+.app > .top { view-transition-name: flow-top; }
+.cta-bar, .tabbar { view-transition-name: cta; }
+::view-transition-group(*) { animation-duration: 260ms; animation-timing-function: var(--ease-out); }
+::view-transition-old(screen) { animation: 180ms var(--ease-out) both vt-out; }
+::view-transition-new(screen) { animation: 260ms var(--ease-out) both vt-in; }
+html[data-dir="back"]::view-transition-old(screen) { animation-name: vt-out-back; }
+html[data-dir="back"]::view-transition-new(screen) { animation-name: vt-in-back; }
+html[data-dir="root"]::view-transition-old(screen) { animation-name: vt-fade; }
+html[data-dir="root"]::view-transition-new(screen) { animation: 320ms var(--ease-out) both vt-rise; }
+@keyframes vt-out { to { opacity: 0; transform: translateX(-24px); } }
+@keyframes vt-in { from { opacity: 0; transform: translateX(24px); } }
+@keyframes vt-out-back { to { opacity: 0; transform: translateX(24px); } }
+@keyframes vt-in-back { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes vt-fade { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; } }
+@keyframes vt-rise { from { opacity: 0; transform: translateY(8px) scale(0.985); } }
 
 /* Flow chrome */
-.top { display: flex; align-items: center; gap: 12px; }
-.back { width: 44px; height: 44px; margin-left: -10px; border-radius: 999px; display: grid; place-items: center; }
+.top { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.back { width: 44px; height: 44px; margin-left: -10px; border-radius: 999px; display: grid; place-items: center; transition: transform 160ms var(--ease-out), background-color 120ms ease; }
 .progress { flex: 1; height: 4px; border-radius: 4px; background: var(--muted); overflow: hidden; }
-.progress > i { display: block; height: 100%; background: var(--primary); border-radius: 4px; transition: transform 300ms var(--ease-out); transform-origin: left; }
-.cta-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); background: linear-gradient(to top, var(--bg) 70%, transparent); z-index: 5; }
+.progress > i { display: block; height: 100%; background: var(--primary); border-radius: 4px; transform-origin: left; }
+.cta-bar, .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: color-mix(in oklab, var(--bg) 70%, transparent); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14px); mask-image: linear-gradient(to bottom, transparent, #000 14px); transition: background-color 200ms ease; }
+html:not(.under-bottom) :is(.cta-bar, .tabbar) { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.cta-bar { padding: 20px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
 .cta-bar > div { max-width: 408px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
 
-.btn { min-height: 52px; border-radius: 16px; padding: 0 20px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform 160ms var(--ease-out), opacity 160ms ease; }
+.btn { min-height: 3.25rem; border-radius: 16px; padding: 0.5rem 20px; font-weight: 600; line-height: 1.25rem; text-align: center; text-wrap: balance; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform 160ms var(--ease-out), background-color 150ms ease, color 150ms ease, filter 120ms ease; }
 .btn:active { transform: scale(0.97); }
 .btn-primary { background: var(--primary); color: var(--primary-fg); }
-.btn-primary[disabled] { opacity: 0.4; pointer-events: none; }
+/* Not ready yet: readable, still tappable, and the tap says what is missing */
+.btn-primary[aria-disabled="true"] { background: var(--muted); color: var(--muted-fg); }
 .btn-quiet { background: var(--muted); }
 .btn-ghost { min-height: 44px; color: var(--primary); }
 .btn-block { width: 100%; }
 
 /* Choices */
 .options { display: flex; flex-direction: column; gap: 8px; }
-.option { text-align: left; background: var(--card); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow); display: flex; gap: 12px; align-items: center; border: 2px solid transparent; transition: transform 160ms var(--ease-out), border-color 150ms ease, background-color 150ms ease; }
+.option { text-align: left; background: var(--card); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow); display: flex; gap: 12px; align-items: center; border: 2px solid transparent; transition: transform 160ms var(--ease-out), border-color 150ms ease, background-color 150ms ease, filter 120ms ease; }
 .option:active { transform: scale(0.98); }
 .option[aria-pressed="true"] { border-color: var(--primary); background: color-mix(in oklab, var(--card) 90%, var(--primary)); }
-.option b { display: block; font-weight: 600; font-size: 16px; }
-.option span.d { display: block; font-size: 13px; line-height: 18px; color: var(--muted-fg); }
+.option[aria-disabled="true"] { opacity: 1; }
+.option[aria-disabled="true"] b { color: var(--muted-fg); }
+.option[aria-disabled="true"]:active { transform: none; }
+.option b { display: block; font-weight: 600; font-size: 1rem; }
+.option span.d { display: block; font-size: 0.8125rem; line-height: 1.125rem; color: var(--muted-fg); }
 .check { margin-left: auto; flex: none; width: 22px; height: 22px; border-radius: 999px; border: 2px solid var(--border); display: grid; place-items: center; transition: background-color 150ms ease, border-color 150ms ease; }
 .option[aria-pressed="true"] .check { background: var(--primary); border-color: var(--primary); }
-.check svg { opacity: 0; transform: scale(0.6); transition: opacity 150ms ease, transform 200ms var(--ease-out); }
+.check svg { opacity: 0; transform: scale(0.9); transition: opacity 150ms ease, transform 200ms var(--ease-out); }
 .option[aria-pressed="true"] .check svg { opacity: 1; transform: none; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip { min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); display: inline-flex; align-items: center; gap: 8px; font-weight: 500; border: 2px solid transparent; transition: transform 160ms var(--ease-out), border-color 150ms ease; }
+.chip { min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); display: inline-flex; align-items: center; gap: 8px; font-weight: 500; border: 2px solid transparent; transition: transform 160ms var(--ease-out), border-color 150ms ease, background-color 150ms ease, filter 120ms ease; }
 .chip:active { transform: scale(0.96); }
 .chip[aria-pressed="true"] { border-color: var(--primary); background: color-mix(in oklab, var(--card) 88%, var(--primary)); }
 .dot { width: 10px; height: 10px; border-radius: 999px; flex: none; }
-.days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.day { min-height: 48px; border-radius: 12px; background: var(--card); box-shadow: var(--shadow); font-weight: 600; font-size: 14px; border: 2px solid transparent; transition: transform 160ms var(--ease-out), border-color 150ms ease; }
+.days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.day { min-height: 3rem; min-width: 0; padding: 0; border-radius: 12px; background: var(--card); box-shadow: var(--shadow); font-weight: 600; font-size: clamp(0.6875rem, 3.4vw, 0.875rem); border: 2px solid transparent; transition: transform 160ms var(--ease-out), border-color 150ms ease, background-color 150ms ease, filter 120ms ease; }
 .day:active { transform: scale(0.95); }
 .day[aria-pressed="true"] { border-color: var(--primary); background: color-mix(in oklab, var(--card) 88%, var(--primary)); }
 .hours { display: flex; align-items: center; gap: 12px; background: var(--card); box-shadow: var(--shadow); border-radius: 16px; padding: 8px; }
-.hours output { flex: 1; text-align: center; font-weight: 650; font-size: 20px; }
-.step-btn { width: 48px; height: 48px; border-radius: 12px; background: var(--muted); font-size: 22px; font-weight: 600; transition: transform 160ms var(--ease-out); }
-.step-btn:active { transform: scale(0.94); }
+.hours output { flex: 1; text-align: center; font-weight: 650; font-size: 1.25rem; letter-spacing: -0.015em; }
+.step-btn { width: 3rem; height: 3rem; border-radius: 12px; background: var(--muted); font-size: 1.375rem; font-weight: 600; transition: transform 160ms var(--ease-out), opacity 150ms ease, filter 120ms ease; }
+.step-btn:active { transform: scale(0.96); }
+.step-btn:disabled { opacity: 0.35; cursor: default; }
+.step-btn:disabled:active { transform: none; }
 section.group { display: flex; flex-direction: column; gap: 10px; }
 
 /* Week (suggestion and home) */
 .card { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px; }
 .week { display: flex; flex-direction: column; }
-.wrow { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; min-height: 40px; padding: 4px 0; border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
+.wrow { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 40px; padding: 4px 0; border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
 .wrow:first-child { border-top: 0; }
-.wrow .dn { font-size: 12px; font-weight: 600; color: var(--muted-fg); text-transform: uppercase; letter-spacing: 0.04em; }
-.wrow .t { font-size: 14px; line-height: 19px; min-width: 0; display: flex; align-items: center; gap: 8px; }
-.wrow .t.rest { color: var(--muted-fg); }
-.wrow .m { font-size: 13px; color: var(--muted-fg); font-variant-numeric: tabular-nums; }
-.int { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; }
+.wrow .dn { font-size: 0.6875rem; line-height: 1rem; font-weight: 600; color: var(--muted-fg); text-transform: uppercase; letter-spacing: 0.06em; }
+.wrow .t { font-size: 0.9375rem; line-height: 1.3125rem; font-weight: 500; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.wrow .t.rest { color: var(--muted-fg); font-weight: 400; }
+.wrow .m { font-size: 0.8125rem; color: var(--muted-fg); font-variant-numeric: tabular-nums; letter-spacing: 0.002em; text-align: right; }
+.wrow.pre .dot { opacity: 0.4; }
+.wrow.pre .t > span:last-child { color: var(--muted-fg); }
+.int { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.01em; }
 .int::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: currentColor; }
 .int.easy { color: var(--easy); } .int.mid { color: var(--mid); } .int.hard { color: var(--hard); }
 .mix { display: flex; height: 8px; border-radius: 8px; overflow: hidden; gap: 2px; }
 .mix i { display: block; height: 100%; }
-.badge { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 12px; font-weight: 600; }
-.facts { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted-fg); }
+.badge-row { display: flex; gap: 8px; align-items: center; min-height: 24px; }
+.badge { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.01em; }
+.facts { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.8125rem; color: var(--muted-fg); letter-spacing: 0.002em; }
 .facts b { color: var(--fg); font-weight: 600; }
+.notes { display: flex; flex-direction: column; gap: 6px; }
+.notes p { font-size: 0.8125rem; line-height: 1.125rem; color: var(--fg); background: var(--muted); border-radius: 10px; padding: 8px 10px; }
 
 /* Variant A: swipe cards */
-.rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 4px 16px 12px; scrollbar-width: none; overscroll-behavior-x: contain; }
+.rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 4px 16px 12px; scrollbar-width: none; overscroll-behavior-x: contain; outline-offset: -2px; }
 .rail::-webkit-scrollbar { display: none; }
 .rail > .card { flex: 0 0 86%; scroll-snap-align: center; display: flex; flex-direction: column; gap: 12px; }
-.pager { display: flex; justify-content: center; gap: 6px; }
-.pager i { width: 6px; height: 6px; border-radius: 6px; background: var(--border); transition: width 200ms var(--ease-out), background-color 200ms ease; }
-.pager i.on { width: 18px; background: var(--primary); }
+.rail.single > .card { flex-basis: 100%; }
+.pager { display: flex; justify-content: center; margin-top: -8px; }
+.pager button { width: 24px; height: 44px; display: grid; place-items: center; }
+.pager button::before { content: ""; width: 7px; height: 7px; border-radius: 7px; background: var(--border); transition: background-color 200ms ease, transform 200ms var(--ease-out); }
+.pager button.on::before { background: var(--primary); transform: scale(1.25); }
 /* Variant B: compare rows */
-.cmp { text-align: left; width: 100%; display: flex; flex-direction: column; gap: 10px; border: 2px solid transparent; transition: border-color 150ms ease; }
-.cmp[aria-pressed="true"] { border-color: var(--primary); }
-.cmp-head { display: flex; gap: 12px; align-items: flex-start; }
-.cmp .radio { margin-left: auto; flex: none; width: 22px; height: 22px; border-radius: 999px; border: 2px solid var(--border); display: grid; place-items: center; }
-.cmp[aria-pressed="true"] .radio { border-color: var(--primary); }
-.cmp[aria-pressed="true"] .radio::after { content: ""; width: 10px; height: 10px; border-radius: 999px; background: var(--primary); }
-.strip7 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-.strip7 div { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--muted-fg); }
+.cmp { text-align: left; width: 100%; display: flex; flex-direction: column; gap: 10px; border: 2px solid transparent; transition: border-color 150ms ease, transform 160ms var(--ease-out), filter 120ms ease; }
+.cmp:active { transform: scale(0.99); }
+.cmp[aria-checked="true"] { border-color: var(--primary); }
+.cmp-head { display: flex; gap: 12px; align-items: flex-start; width: 100%; }
+.cmp-titles { display: flex; flex-direction: column; gap: 4px; }
+.cmp .radio { margin-left: auto; flex: none; width: 22px; height: 22px; border-radius: 999px; border: 2px solid var(--border); display: grid; place-items: center; transition: border-color 150ms ease; }
+.cmp[aria-checked="true"] .radio { border-color: var(--primary); }
+.cmp .radio::after { content: ""; width: 10px; height: 10px; border-radius: 999px; background: var(--primary); opacity: 0; transform: scale(0.9); transition: opacity 150ms ease, transform 200ms var(--ease-out); }
+.cmp[aria-checked="true"] .radio::after { opacity: 1; transform: none; }
+.strip7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; width: 100%; }
+.strip7 div { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 0.6875rem; color: var(--muted-fg); }
 .strip7 .bar { width: 100%; border-radius: 4px; background: var(--muted); height: 36px; position: relative; overflow: hidden; }
 .strip7 .bar i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 4px; }
-.reveal { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 240ms var(--ease-out); }
-.reveal > div { overflow: hidden; }
+.reveal { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 240ms var(--ease-out); width: 100%; }
+.reveal > div { overflow: hidden; opacity: 0; transition: opacity 160ms ease; }
 .reveal.open { grid-template-rows: 1fr; }
+.reveal.open > div { opacity: 1; transition: opacity 200ms ease 60ms; }
 /* Variant C: one at a time */
 .solo { display: flex; flex-direction: column; gap: 14px; }
-.solo-card.swap { animation: swap 220ms var(--ease-out) both; }
-@keyframes swap { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+.solo-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.solo-nav .btn-ghost { padding: 0 8px; margin-left: -8px; }
 
 /* Plan ready */
 .ramp { display: flex; align-items: flex-end; gap: 4px; height: 72px; }
-.ramp i { flex: 1; border-radius: 4px 4px 2px 2px; background: var(--primary); opacity: 0.85; }
+.ramp i { flex: 1; border-radius: 4px 4px 2px 2px; background: var(--primary); opacity: 0.85; transform-origin: bottom; animation: grow 360ms var(--ease-out) both; animation-delay: calc(120ms + var(--i) * 30ms); }
 .ramp i.light { opacity: 0.35; }
+@keyframes grow { from { opacity: 0; transform: scaleY(0.15); } }
 details.hood { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); }
-details.hood summary { list-style: none; cursor: pointer; min-height: 52px; display: flex; align-items: center; padding: 0 16px; font-weight: 600; gap: 8px; }
+details.hood::details-content { block-size: 0; overflow: clip; transition: block-size 240ms var(--ease-out), content-visibility 240ms allow-discrete; }
+details.hood[open]::details-content { block-size: auto; }
+details.hood summary { list-style: none; cursor: pointer; min-height: 52px; display: flex; align-items: center; padding: 0 16px; font-weight: 600; gap: 8px; border-radius: 16px; user-select: none; -webkit-user-select: none; touch-action: manipulation; transition: background-color 120ms ease; }
+details.hood summary:active { background: var(--muted); }
 details.hood summary::-webkit-details-marker { display: none; }
-details.hood summary::after { content: "+"; margin-left: auto; color: var(--muted-fg); font-size: 20px; transition: transform 200ms var(--ease-out); }
+details.hood summary::after { content: "+"; margin-left: auto; color: var(--muted-fg); font-size: 1.25rem; transition: transform 200ms var(--ease-out); }
 details.hood[open] summary::after { transform: rotate(45deg); }
 .hood-body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
-.kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; font-size: 13px; line-height: 18px; }
+.kv { display: grid; grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr); gap: 6px 12px; font-size: 0.8125rem; line-height: 1.125rem; }
 .kv dt { color: var(--muted-fg); }
 .kv dd { margin: 0; min-width: 0; }
-.code { font: 12px/17px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--muted); border-radius: 10px; padding: 10px 12px; overflow-x: auto; white-space: pre; }
+.code { font: 0.75rem/1.0625rem ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--muted); border-radius: 10px; padding: 10px 12px; overflow-x: auto; overscroll-behavior-x: contain; white-space: pre; }
 
 /* Home */
 .home-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.icon-btn { min-height: 44px; padding: 0 14px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; transition: transform 160ms var(--ease-out); }
+.icon-btn { min-height: 44px; padding: 0 14px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); font-weight: 600; font-size: 0.875rem; display: inline-flex; align-items: center; gap: 6px; transition: transform 160ms var(--ease-out), filter 120ms ease; }
 .icon-btn:active { transform: scale(0.96); }
 .today { display: flex; flex-direction: column; gap: 14px; }
-.today h2 { font-size: 24px; line-height: 30px; font-weight: 650; letter-spacing: -0.02em; }
+.today h2 { font-size: 1.5rem; line-height: 1.875rem; font-weight: 650; letter-spacing: -0.02em; display: flex; align-items: center; gap: 10px; }
+.today .meta { display: flex; align-items: center; gap: 8px; }
+.today.is-done { background: color-mix(in oklab, var(--card) 92%, var(--primary)); }
 .row-actions { display: flex; gap: 8px; }
 .row-actions .btn { flex: 1; }
 .done-mark { width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; background: var(--primary); color: var(--primary-fg); flex: none; }
+.done-mark.just-done { animation: pop 200ms var(--ease-out) both; }
+@keyframes pop { from { opacity: 0; transform: scale(0.9); } }
 .todo-mark { width: 22px; height: 22px; border-radius: 999px; border: 2px solid var(--border); flex: none; }
 .wrow.today-row { background: var(--primary-soft); border-radius: 12px; margin: 2px -8px; padding: 4px 8px; border-top-color: transparent; }
 .wrow.today-row + .wrow { border-top-color: transparent; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .tl { display: flex; flex-direction: column; gap: 6px; }
 .tl-item { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
-.tl-item.past { opacity: 0.7; }
+.tl-item.past { background: color-mix(in oklab, var(--card) 60%, var(--bg)); box-shadow: none; }
+.tl-item.past .dot { opacity: 0.5; }
 .tl-item.is-today { border: 2px solid var(--primary); }
 .tl-line { display: flex; align-items: center; gap: 10px; }
 .ring { width: 56px; height: 56px; flex: none; }
-.coach { font-size: 28px; line-height: 36px; font-weight: 650; letter-spacing: -0.022em; text-wrap: balance; }
+.ring .arc { transition: stroke-dashoffset 280ms var(--ease-out); }
+.coach { font-size: 1.75rem; line-height: 2.125rem; font-weight: 650; letter-spacing: -0.022em; text-wrap: balance; }
 .coach em { font-style: normal; color: var(--primary); }
-.note { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 18px; color: var(--muted-fg); background: var(--muted); border-radius: 14px; padding: 12px 14px; }
-.tabbar { position: fixed; left: 0; right: 0; bottom: 0; background: color-mix(in oklab, var(--bg) 88%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--border); padding: 0 max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px)); z-index: 5; }
-.tabbar > div { max-width: 408px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); }
-.tab { min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; font-weight: 600; color: var(--muted-fg); }
+.note { display: flex; gap: 10px; align-items: flex-start; font-size: 0.8125rem; line-height: 1.125rem; color: var(--muted-fg); background: var(--muted); border-radius: 14px; padding: 12px 14px; }
+.tabbar { padding: 14px max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px)); }
+.tabbar > div { max-width: 408px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tab { min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.01em; color: var(--muted-fg); transition: transform 160ms var(--ease-out); }
+.tab:active { transform: scale(0.94); }
 .tab[aria-current] { color: var(--primary); }
 
-/* Sheet + toast */
-.scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 0.35); opacity: 0; pointer-events: none; transition: opacity 240ms ease; z-index: 20; }
-.scrim.open { opacity: 1; pointer-events: auto; }
-.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; transform: translateY(100%); transition: transform 320ms var(--ease-drawer); }
-.sheet.open { transform: none; }
-.sheet > div { max-width: 440px; margin: 0 auto; background: var(--card); border-radius: 24px 24px 0 0; padding: 8px max(16px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: 8px; overscroll-behavior: contain; }
-.grabber { width: 36px; height: 5px; border-radius: 5px; background: var(--border); margin: 4px auto 8px; }
+/* Sheet: positioned by JS (spring, 1:1 drag). Closed = below the screen and invisible. */
+.scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 0.35); opacity: 0; pointer-events: none; z-index: 20; touch-action: none; will-change: opacity; }
+.scrim.open { pointer-events: auto; }
+/* bottom: -48px plus the extra padding: a flick-back settle can lift the sheet a little without showing a gap under it */
+.sheet { position: fixed; left: 0; right: 0; bottom: -48px; z-index: 21; transform: translate3d(0, 110%, 0); visibility: hidden; will-change: transform; touch-action: none; user-select: none; -webkit-user-select: none; }
+.sheet.live { visibility: visible; }
+.sheet.scrolls { touch-action: pan-y; }
+.sheet > div { max-width: 440px; max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) + 48px); overflow-y: auto; overscroll-behavior: contain; margin: 0 auto; background: var(--card); border-radius: 24px 24px 0 0; padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(68px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: 8px; box-shadow: 0 -8px 32px rgb(0 0 0 / 0.12); }
+.grabber { position: relative; flex: none; width: 36px; height: 5px; border-radius: 5px; background: var(--border); margin: 10px auto 10px; touch-action: none; cursor: grab; }
+.grabber::after { content: ""; position: absolute; inset: -14px -60px; }
 .sheet .option { box-shadow: none; background: var(--muted); }
-.toast { position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 16px); opacity: 0; transition: transform 240ms var(--ease-out), opacity 200ms ease; z-index: 30; background: var(--fg); color: var(--bg); border-radius: 14px; padding: 6px 6px 6px 16px; display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 500; width: max-content; max-width: calc(100% - 32px); pointer-events: none; }
-.toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
-.toast button { min-height: 40px; padding: 0 12px; border-radius: 10px; font-weight: 700; color: var(--bg); }
+.toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 16px); opacity: 0; transition: transform 160ms var(--ease-out), opacity 140ms ease; z-index: 30; background: var(--fg); color: var(--bg); border-radius: 14px; padding: 4px 4px 4px 16px; min-height: 52px; display: flex; align-items: center; gap: 12px; font-size: 0.9375rem; line-height: 1.3125rem; font-weight: 500; width: max-content; max-width: calc(100% - 32px); pointer-events: none; }
+.toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; transition-duration: 240ms, 200ms; }
+.toast span { padding-block: 8px; }
+.toast button { flex: none; min-height: 44px; padding: 0 14px; border-radius: 10px; font-weight: 700; color: var(--bg); transition: transform 160ms var(--ease-out), background-color 120ms ease; }
+.toast button:active { transform: scale(0.96); background: color-mix(in oklab, var(--bg) 18%, transparent); }
 
 /* Prototype switcher (not part of the design) */
-.switcher { position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 2px; background: var(--switch-bg); color: var(--switch-fg); border-radius: 999px; padding: 3px; box-shadow: 0 4px 16px rgb(0 0 0 / 0.25); font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
-.switcher button { color: inherit; min-width: 32px; height: 32px; border-radius: 999px; padding: 0 8px; }
+.switcher { position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 2px; background: var(--switch-bg); color: var(--switch-fg); border-radius: 999px; padding: 3px; box-shadow: 0 4px 16px rgb(0 0 0 / 0.25); font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; view-transition-name: switcher; }
+.switcher button { color: inherit; min-width: 32px; height: 32px; border-radius: 999px; padding: 0 8px; transition: background-color 120ms ease; }
+.switcher button:active { background: rgb(127 127 127 / 0.3); }
 .switcher span { padding: 0 6px; }
+
+/* Press: fast in, eased out */
+:is(.btn, .option, .chip, .day, .step-btn, .icon-btn, .back, .tab, .cmp):active { transition-duration: 60ms; }
+.back:active { background: var(--muted); transform: scale(0.94); }
 
 @media (hover: hover) and (pointer: fine) {
 	.option:hover, .chip:hover, .day:hover { border-color: color-mix(in oklab, var(--primary) 35%, transparent); }
 	.option[aria-pressed="true"]:hover, .chip[aria-pressed="true"]:hover, .day[aria-pressed="true"]:hover { border-color: var(--primary); }
 	.switcher button:hover { background: rgb(127 127 127 / 0.25); }
+	.rail { cursor: grab; }
 }
 @media (prefers-reduced-motion: reduce) {
-	.screen.enter, .screen.enter.back, .solo-card.swap { animation: fade 200ms ease both; }
-	@keyframes fade { from { opacity: 0; } }
-	.sheet { transition: none; }
-	.sheet:not(.open) { visibility: hidden; }
-	.toast { transform: translate(-50%, 0); }
-	.btn:active, .option:active, .chip:active, .day:active { transform: none; }
+	::view-transition-old(*) { animation: 200ms ease both vt-fade !important; }
+	::view-transition-new(*) { animation: 200ms ease both vt-fade-in !important; }
+	.rise, .done-mark.just-done, .ramp i { animation: vt-fade-in 200ms ease both; }
+	:is(.btn, .option, .chip, .day, .step-btn, .icon-btn, .cmp):active { transform: none; filter: var(--press); }
+	.back:active, .tab:active, .toast button:active { transform: none; }
+	.check svg, .cmp .radio::after { transform: none; }
+	.reveal, .reveal > div, .reveal.open > div { transition: none; }
+	details.hood summary::after { transition: none; }
+	details.hood::details-content { transition: none; }
+	.pager button::before { transition: background-color 200ms ease; transform: none !important; }
+	.ring .arc { transition: none; }
+	.toast, .toast.show { transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-transparency: reduce) {
+	.tabbar, .cta-bar, body::before { background: var(--bg) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; -webkit-mask-image: none; mask-image: none; border-top: 1px solid var(--border); }
+	.scrim { background: rgb(0 0 0 / 0.5); }
+}
+@media (prefers-contrast: more) {
+	:root { --muted-fg: oklch(0.4 0.016 213.5); --border: oklch(0.6 0.01 214.3); }
+	.option, .chip, .day, .card, .hours, .tl-item, details.hood { border: 2px solid var(--border); box-shadow: none; }
+	.option[aria-pressed="true"], .chip[aria-pressed="true"], .day[aria-pressed="true"], .cmp[aria-checked="true"] { border-color: var(--fg); }
+	.tabbar, .cta-bar { background: var(--bg) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; -webkit-mask-image: none; mask-image: none; border-top: 1px solid var(--fg); }
+	.grabber { background: var(--muted-fg); }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) { --muted-fg: oklch(0.85 0.01 214.4); --border: oklch(0.6 0.01 216.9); }
 }
 </style>
 
@@ -260,14 +350,14 @@ const LEVELS = [
 	{ k: 'konk', t: 'Konkurranse', d: 'Jeg trener mot resultater og tåler mye.', h: 10, days: [0, 1, 2, 3, 5, 6] },
 ]
 const ACTS = [
-	{ k: 'run', t: 'Løping', kind: 'endurance' },
-	{ k: 'bike', t: 'Sykling', kind: 'endurance' },
-	{ k: 'ski', t: 'Langrenn', kind: 'endurance' },
-	{ k: 'swim', t: 'Svømming', kind: 'endurance' },
-	{ k: 'hike', t: 'Fjelltur', kind: 'endurance' },
-	{ k: 'strength', t: 'Styrke', kind: 'strength' },
-	{ k: 'climb', t: 'Klatring', kind: 'climb' },
-	{ k: 'yoga', t: 'Yoga og bevegelighet', kind: 'mobility' },
+	{ k: 'run', t: 'Løping', s: 'løping', kind: 'endurance' },
+	{ k: 'bike', t: 'Sykling', s: 'sykling', kind: 'endurance' },
+	{ k: 'ski', t: 'Langrenn', s: 'langrenn', kind: 'endurance' },
+	{ k: 'swim', t: 'Svømming', s: 'svømming', kind: 'endurance' },
+	{ k: 'hike', t: 'Fjelltur', s: 'fjelltur', kind: 'endurance' },
+	{ k: 'strength', t: 'Styrke', s: 'styrke', kind: 'strength' },
+	{ k: 'climb', t: 'Klatring', s: 'klatring', kind: 'climb' },
+	{ k: 'yoga', t: 'Yoga og bevegelighet', s: 'yoga', kind: 'mobility' },
 ]
 const PREFS = [
 	{ k: 'long', t: 'Lange, rolige turer', d: 'Tid i beina, i et tempo der du kan prate.' },
@@ -280,20 +370,25 @@ const DAY = ['man', 'tir', 'ons', 'tor', 'fre', 'lør', 'søn']
 const DAY_LONG = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag', 'søndag']
 const MONTH = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des']
 const INT = { easy: 'rolig', mid: 'middels', hard: 'hard' }
+const MIN_H = 1, MAX_H = 20
 
-// The three principles. Plain name first; the family the Outline records second.
+const pl = (n, one, many) => `${n} ${n === 1 ? one : many}`
+const listFmt = (xs) => (Intl.ListFormat ? new Intl.ListFormat('nb', { type: 'conjunction' }).format(xs) : xs.join(', '))
+
+// The principles. Plain name first; the family the Outline records second.
 const PRINCIPLES = {
-	polarized: { name: 'Mest rolig, litt veldig hardt', family: 'Polarisert 80/20', familyKey: 'polarized', why: 'Nesten alt går rolig. Én gang i uka går det skikkelig hardt. Gir mye form for lite slitasje.' },
-	threshold: { name: 'Jevnt og kontrollert hardt', family: 'Terskelfokus', familyKey: 'threshold', why: 'To økter i uka der du jobber jevnt hardt i lengre drag. Effektivt når tiden er knapp.' },
-	classic: { name: 'Variert og bygger seg opp', family: 'Klassisk 3:1', familyKey: 'classic', why: 'Litt av alt. Tre uker blir gradvis tyngre, den fjerde er lett så kroppen tar igjen.' },
-	base: { name: 'Bygg grunnform først', family: 'Stor base', familyKey: 'big-base', why: 'Lange perioder med rolig trening før det blir hardere. Trygt når du starter opp.' },
+	polarized: { name: 'Mest rolig, litt veldig hardt', family: 'Polarisert 80/20', familyKey: 'polarized', why: () => 'Nesten alt går rolig. Én gang i uka går det skikkelig hardt. Gir mye form for lite slitasje.' },
+	threshold: { name: 'Jevnt og kontrollert hardt', family: 'Terskelfokus', familyKey: 'threshold', why: (s) => `${s.hard === 1 ? 'Én økt' : `${s.hard} økter`} i uka der du jobber jevnt hardt i lengre drag. Effektivt når tiden er knapp.` },
+	classic: { name: 'Variert og bygger seg opp', family: 'Klassisk 3:1', familyKey: 'classic', why: () => 'Litt av alt. Tre uker blir gradvis tyngre, den fjerde er lett så kroppen tar igjen.' },
+	base: { name: 'Bygg grunnform først', family: 'Stor base', familyKey: 'big-base', why: () => 'Lange perioder med rolig trening før det blir hardere. Trygt når du starter opp.' },
+	mixed: { name: 'Jevnt fordelt', family: 'Uten utholdenhetsplan', familyKey: 'none', why: () => 'Uten en utholdenhetsidrett er det ingen rolige og harde økter å fordele. Vi sprer øktene, så du får hvile mellom.' },
 }
 
 const state = {
-	step: 0, prevStep: 0, variant: 0,
-	level: null, hours: null, acts: new Set(), prefs: new Set(), days: new Set(),
+	step: 0, rendered: -1, variant: 0,
+	level: null, hours: null, acts: new Set(), actOrder: [], prefs: new Set(), days: new Set(), daysTouched: false,
 	railIndex: 0, soloIndex: 0, expanded: null, chosen: null,
-	week: null, done: new Set(), tab: 'today',
+	week: null, startDay: 0, done: new Set(), justDone: null, adj: {}, tab: 'today',
 }
 
 const today = new Date()
@@ -305,10 +400,13 @@ function fmtMin(m) {
 	return r ? `${h} t ${r} min` : `${h} t`
 }
 const fmtH = (h) => String(Math.round(h * 10) / 10).replace('.', ',')
+const hoursTxt = (h) => `${fmtH(h)} ${h === 1 ? 'time' : 'timer'}`
 const actOf = (k) => ACTS.find((a) => a.k === k)
 const color = (k) => `var(--t-${k})`
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
 const checkSvg = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.5l4.5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary-fg)"/></svg>'
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+const buzz = (ms = 10) => { try { navigator.vibrate?.(ms) } catch {} }
 
 // ——— Week generation: the same rules every principle card, the plan and I dag read ———
 const WORK = {
@@ -317,12 +415,148 @@ const WORK = {
 	intervals: { t: 'Intervaller', int: 'hard', wt: 1, d: 'Varm opp, så 4 × 4 min hardt med 3 min rolig mellom.' },
 	threshold: { t: 'Jevnt hardt', int: 'mid', wt: 1, d: '3 × 10 min kontrollert hardt. Pusten skal være tung, men jevn.' },
 	tempo: { t: 'Tempo', int: 'mid', wt: 1, d: '20 min i komfortabelt hardt tempo midt i økta.' },
-	strength: { t: 'Styrke', int: 'mid', d: 'Helkropp: knebøy, markløft, press og kjerne. 3 runder.' },
-	climb: { t: 'Klatring', int: 'mid', d: 'Buldring eller tau. Varm opp fingrene godt.' },
-	yoga: { t: 'Bevegelighet', int: 'easy', d: 'Rolig yoga for hofter og rygg.' },
+	strength: { t: 'Styrke', int: 'mid', wt: 0.7, d: 'Helkropp: knebøy, markløft, press og kjerne. 3 runder.' },
+	climb: { t: 'Klatring', int: 'mid', wt: 1.1, d: 'Buldring eller tau. Varm opp fingrene godt.' },
+	yoga: { t: 'Bevegelighet', int: 'easy', wt: 0.5, d: 'Rolig yoga for hofter og rygg.' },
+}
+const isEndurance = (s) => actOf(s.act).kind === 'endurance'
+
+// Shortest and longest a session may be. The week is fitted inside these, never outside.
+function limits(w) {
+	const ny = state.level === 'ny', konk = state.level === 'konk', short = state.prefs.has('short')
+	switch (w) {
+		case 'easy': return [ny ? 20 : 30, short ? 45 : konk ? 180 : 150]
+		case 'long': return [ny ? 40 : 60, short ? 90 : ny ? 120 : konk ? 240 : 180]
+		case 'intervals': case 'tempo': return [ny ? 25 : 30, short ? 45 : 90]
+		case 'threshold': return [30, short ? 45 : 105]
+		case 'strength': return [30, 75]
+		case 'climb': return [45, short ? 60 : 150]
+		case 'yoga': return [20, 60]
+	}
+}
+const session = (w, act, extra) => { const [lo, hi] = limits(w); return { w, act, lo, hi, wt: WORK[w].wt, extra: !!extra, min: lo } }
+
+// Pick k of the days, as spread out as possible, always keeping the last one (the long day).
+function spread(days, k) {
+	if (k >= days.length) return days
+	if (k === 1) return [days[days.length - 1]]
+	return [...new Set(Array.from({ length: k }, (_, i) => days[Math.round((i * (days.length - 1)) / (k - 1))]))]
+}
+
+function enduranceKinds(pk, S) {
+	if (S <= 0) return []
+	const ny = state.level === 'ny'
+	const L = !state.prefs.has('short') || state.prefs.has('long') ? 'long' : 'easy'
+	let k
+	if (pk === 'polarized') k = S === 1 ? [L] : ['intervals', L, ...(S >= 6 && !ny ? ['intervals'] : [])]
+	else if (pk === 'threshold') k = S === 1 ? ['threshold'] : S === 2 ? ['threshold', 'easy'] : ['threshold', 'threshold', ...(S >= 5 ? [L] : [])]
+	else if (pk === 'classic') k = S === 1 ? ['tempo'] : S === 2 ? ['tempo', L] : ny ? ['tempo', L] : ['intervals', 'tempo', L]
+	else k = S === 1 ? ['easy'] : [L, ...(!ny && S >= 4 ? ['tempo'] : [])]
+	k = k.slice(0, S)
+	while (k.length < S) k.push('easy')
+	return k
+}
+
+// Share the minutes by weight, clamped to each session's limits (water-filling).
+function fit(list, total) {
+	const fixed = new Map()
+	for (let guard = 0; guard < 20; guard++) {
+		const free = list.filter((s) => !fixed.has(s))
+		if (!free.length) break
+		const rem = total - [...fixed.values()].reduce((a, b) => a + b, 0)
+		const wsum = free.reduce((a, s) => a + s.wt, 0)
+		let changed = false
+		for (const s of free) {
+			const m = (rem * s.wt) / wsum
+			if (m < s.lo) { fixed.set(s, s.lo); changed = true } else if (m > s.hi) { fixed.set(s, s.hi); changed = true }
+		}
+		if (!changed) { free.forEach((s) => (s.min = (rem * s.wt) / wsum)); break }
+	}
+	fixed.forEach((v, s) => (s.min = v))
+	list.forEach((s) => (s.min = Math.min(s.hi, Math.max(s.lo, Math.round(s.min / 5) * 5))))
+}
+
+function plan(pk) {
+	const notes = []
+	let days = [...state.days].sort((a, b) => a - b)
+	const total = Math.round(state.hours * 60)
+	const end = enduranceChosen()
+	const ny = state.level === 'ny'
+	const cap = ny ? 4 : 7
+	if (days.length > cap) { days = spread(days, cap); notes.push(`Som nybegynner får du høyst ${cap} økter i uka, så kroppen rekker å hente seg inn.`) }
+	const n = days.length
+	let list = []
+	if (end.length) {
+		const firsts = ['strength', 'climb', 'yoga'].filter((k) => state.acts.has(k)).map((k) => session(k, k))
+		const extras = []
+		if (state.acts.has('strength') && !ny && n >= 5) extras.push(session('strength', 'strength', true))
+		if (state.acts.has('climb') && state.level === 'konk' && n >= 6) extras.push(session('climb', 'climb', true))
+		const others = [...firsts, ...extras].slice(0, Math.max(0, n - Math.min(2, n)))
+		let e = 0
+		const endS = enduranceKinds(pk, n - others.length).map((k) => {
+			const main = WORK[k].int !== 'easy' || k === 'long' || end.length === 1
+			return session(k, main ? end[0] : end[(1 + e++) % end.length])
+		})
+		// Priority order: what goes first when the hours run short is at the end.
+		list = [...endS.slice(0, 2), ...others.filter((o) => !o.extra), ...endS.slice(2), ...others.filter((o) => o.extra)]
+	} else {
+		const max = { strength: ny ? 2 : 3, climb: state.level === 'konk' ? 4 : 3, yoga: 7 }
+		const kinds = ['strength', 'climb', 'yoga'].filter((k) => state.acts.has(k))
+		const count = {}
+		for (let i = 0; list.length < n && kinds.some((k) => (count[k] || 0) < max[k]); i++) {
+			const k = kinds[i % kinds.length]
+			if ((count[k] || 0) < max[k]) { count[k] = (count[k] || 0) + 1; list.push(session(k, k)) }
+		}
+		if (list.length < n) notes.push(`${listFmt(kinds.map((k) => actOf(k).s)).replace(/^./, (c) => c.toUpperCase())} trenger hvile mellom øktene, så det blir ${pl(list.length, 'økt', 'økter')} på ${pl(n, 'dag', 'dager')}.`)
+	}
+	const before = list.length
+	while (list.length > 1 && list.reduce((a, s) => a + s.lo, 0) > total) list.pop()
+	if (list.length < before) notes.push(`${hoursTxt(state.hours)} rekker til ${pl(list.length, 'økt', 'økter')}, så vi bruker ${list.length} av de ${n} dagene.`)
+	fit(list, total)
+	const sum = list.reduce((a, s) => a + s.min, 0)
+	if (sum < total - 20) notes.push(state.prefs.has('short') && end.length
+		? `Du vil ha korte økter, så uka blir ${fmtMin(sum)}, ikke ${hoursTxt(state.hours)}.${state.days.size < 7 ? ' Velg flere dager for å komme nærmere.' : ''}`
+		: `Øktene blir ikke lengre enn det som gir mening, så uka blir ${fmtMin(sum)}, ikke ${hoursTxt(state.hours)}. ${!end.length ? 'Legg til en utholdenhetsidrett for å fylle timene.' : state.days.size < 7 ? 'Velg flere dager for å komme helt opp.' : 'Mer enn dette krever to økter noen dager.'}`)
+	else if (sum > total + 20) notes.push(`Den korteste økta som gir mening er ${fmtMin(sum)}, så uka blir litt over ${hoursTxt(state.hours)}.`)
+	if (state.prefs.has('short') && state.prefs.has('long') && list.some((s) => s.w === 'long')) notes.push('Korte økter, men langturen får være opptil 1 t 30 min, siden du også liker lange turer.')
+
+	// Place: the long one last, hard ones spread with an easy day between, other sports spread out, rest fills.
+	days = spread(days, list.length)
+	const m = days.length
+	const placed = new Array(m).fill(null)
+	const free = () => placed.map((p, i) => (p ? -1 : i)).filter((i) => i >= 0)
+	const nearest = (target, avoid) => {
+		const f = free()
+		const ok = f.filter((i) => !avoid || !placed.some((p, j) => p && avoid(p) && Math.abs(days[j] - days[i]) <= 1))
+		const pool = ok.length ? ok : f
+		return pool.reduce((best, i) => (Math.abs(i - target) < Math.abs(best - target) ? i : best), pool[0])
+	}
+	const longI = list.findIndex((s) => s.w === 'long')
+	if (longI >= 0) placed[m - 1] = list[longI]
+	const hard = list.filter((s) => isEndurance(s) && WORK[s.w].int !== 'easy')
+	hard.forEach((s, j) => (placed[nearest(Math.round(((j + 1) * m) / (hard.length + 1)) - 1, (p) => isEndurance(p) && WORK[p.w].int !== 'easy')] = s))
+	const others = list.filter((s) => !isEndurance(s))
+	if (end.length) others.forEach((s, j) => (placed[nearest(Math.round(((j + 1) * m) / (others.length + 1)) - 1, (p) => p.w === s.w)] = s))
+	else others.forEach((s) => (placed[free()[0]] = s))
+	list.filter((s) => !placed.includes(s)).forEach((s) => (placed[free()[0]] = s))
+	const week = placed.map((s, i) => ({ w: s.w, act: s.act, min: s.min, day: days[i], t: WORK[s.w].t, int: WORK[s.w].int, d: WORK[s.w].d }))
+	return { week, notes }
+}
+const buildWeek = (pk) => plan(pk).week
+
+function weekStats(week) {
+	const total = week.reduce((s, x) => s + x.min, 0)
+	const by = { easy: 0, mid: 0, hard: 0 }
+	week.forEach((x) => (by[x.int] += x.min))
+	return { total, by, count: week.length, hard: week.filter((x) => x.int === 'hard' || x.w === 'threshold').length }
+}
+function title(s) {
+	if (!isEndurance(s)) return s.t
+	return `${s.t} · ${actOf(s.act).s}`
 }
 
 function principlesFor() {
+	if (!enduranceChosen().length) return [{ k: 'mixed', s: 0 }]
 	const keys = state.level === 'ny' ? ['base', 'polarized', 'classic'] : ['polarized', 'threshold', 'classic']
 	const score = (k) => {
 		let s = 0
@@ -333,77 +567,21 @@ function principlesFor() {
 		if (state.prefs.has('short') && k === 'threshold') s += 1
 		return s
 	}
-	return keys.map((k) => ({ k, s: score(k) })).sort((a, b) => b.s - a.s).map((x) => x.k)
+	return keys.map((k) => ({ k, s: score(k) })).sort((a, b) => b.s - a.s)
 }
-
-function buildWeek(pk) {
-	const days = [...state.days].sort((a, b) => a - b)
-	const n = days.length
-	const total = Math.round(state.hours * 60)
-	const endurance = enduranceChosen()
-	const short = state.prefs.has('short')
-	// One of each chosen activity first, so nothing the athlete asked for goes missing; a
-	// second strength or climbing day only when the week has room for it.
-	const strength = { w: 'strength', act: 'strength', min: 45 }
-	const climb = { w: 'climb', act: 'climb', min: short ? 60 : 90 }
-	const wanted = []
-	if (state.acts.has('strength')) wanted.push(strength)
-	if (state.acts.has('climb')) wanted.push(climb)
-	if (state.acts.has('yoga')) wanted.push({ w: 'yoga', act: 'yoga', min: 30 })
-	if (state.acts.has('strength') && state.level !== 'ny' && n >= 5) wanted.push({ ...strength })
-	if (state.acts.has('climb') && state.level === 'konk' && n >= 6) wanted.push({ ...climb })
-	const room = n - (endurance.length ? Math.min(2, n) : 0)
-	const others = wanted.slice(0, Math.max(0, room))
-
-	const slots = endurance.length ? n - others.length : 0
-	let kinds = []
-	if (slots > 0) {
-		const hardCount = pk === 'threshold' ? (slots >= 3 ? 2 : 1) : slots >= 2 ? 1 : 0
-		const hardKind = pk === 'threshold' ? 'threshold' : pk === 'base' ? 'tempo' : 'intervals'
-		for (let i = 0; i < hardCount; i++) kinds.push(hardKind)
-		if (pk === 'classic' && slots >= 4) kinds.push('tempo')
-		if (pk === 'base' && state.level !== 'ny' && slots >= 4) kinds.push('tempo')
-		if (slots - kinds.length >= 1 && !(short && slots < 3)) kinds.push(short ? 'easy' : 'long')
-		while (kinds.length < slots) kinds.push('easy')
-		kinds = kinds.slice(0, slots)
+// The suggestions actually shown: identical weeks collapse into one, so every card is a real choice.
+function suggestions() {
+	const seen = new Set(), out = []
+	const all = principlesFor()
+	for (const { k, s } of all) {
+		const { week, notes } = plan(k)
+		const sig = week.map((x) => `${x.day}${x.int}${x.min}${x.act}`).join('|')
+		if (seen.has(sig)) continue
+		seen.add(sig); out.push({ k, score: s, week, notes })
 	}
-	const otherMin = others.reduce((s, o) => s + o.min, 0)
-	const budget = Math.max(total - otherMin, slots * 25)
-	const weightSum = kinds.reduce((s, k) => s + WORK[k].wt, 0) || 1
-	const endSessions = kinds.map((k, i) => {
-		let min = Math.round((budget * WORK[k].wt) / weightSum / 5) * 5
-		min = Math.max(state.level === 'ny' ? 20 : 30, Math.min(short ? 45 : 180, min))
-		// The main sport takes the hard sessions and the long one; the others share the easy days.
-		const act = WORK[k].int !== 'easy' || k === 'long' || endurance.length === 1 ? endurance[0] : endurance[(i % endurance.length)]
-		return { w: k, act, min }
-	})
-
-	// Place: the long one last, hard ones spread with an easy day between, the rest fills.
-	const placed = new Array(n).fill(null)
-	const longI = endSessions.findIndex((s) => s.w === 'long')
-	if (longI >= 0) placed[n - 1] = endSessions.splice(longI, 1)[0]
-	const hard = endSessions.filter((s) => WORK[s.w].int !== 'easy')
-	const rest = endSessions.filter((s) => WORK[s.w].int === 'easy')
-	const free = () => placed.map((p, i) => (p ? -1 : i)).filter((i) => i >= 0)
-	hard.forEach((s, j) => {
-		const f = free()
-		const target = Math.round(((j + 1) * n) / (hard.length + 1)) - 1
-		const pick = f.reduce((best, i) => (Math.abs(i - target) < Math.abs(best - target) ? i : best), f[0])
-		placed[pick] = s
-	})
-	;[...others, ...rest].forEach((s) => { const f = free(); if (f.length) placed[f[0]] = s })
-	return placed.map((s, i) => (s ? { ...s, day: days[i], ...WORK[s.w], d: WORK[s.w].d } : null)).filter(Boolean)
-}
-
-function weekStats(week) {
-	const total = week.reduce((s, x) => s + x.min, 0)
-	const by = { easy: 0, mid: 0, hard: 0 }
-	week.forEach((x) => (by[x.int] += x.min))
-	return { total, by, count: week.length, hard: week.filter((x) => x.int === 'hard' || x.w === 'threshold').length }
-}
-function title(s) {
-	if (s.act === 'strength' || s.act === 'climb' || s.act === 'yoga') return s.t
-	return `${s.t} · ${actOf(s.act).t.toLowerCase()}`
+	out.forEach((x, i) => (x.badge = i === 0 && x.score > 0 ? 'Passer deg best' : i === 0 && x.k === 'base' ? 'Anbefalt for nivået ditt' : ''))
+	out.collapsed = all.length - out.length
+	return out
 }
 
 // ——— Outline: what is built behind the chosen card ———
@@ -412,91 +590,168 @@ function outlineFor(pk) {
 	const p = PRINCIPLES[pk]
 	const rhythm = 4
 	const climb = pk === 'base' ? 0.04 : 0.06
+	const startH = weekStats(state.week).total / 60
 	const series = []
 	let block = 0
 	for (let i = 0; i < weeks; i++) {
 		const pos = i % rhythm
 		if (pos === 0 && i > 0) block++
-		const h = state.hours * (1 + climb * (block * (rhythm - 1) + Math.min(pos, rhythm - 2)))
+		const h = startH * (1 + climb * (block * (rhythm - 1) + Math.min(pos, rhythm - 2)))
 		series.push(pos === rhythm - 1 ? { h: h * 0.7, light: true } : { h, light: false })
 	}
 	const tracks = []
 	const endurance = enduranceChosen().map(actOf)
-	if (endurance.length) tracks.push({ name: 'Utholdenhet', unit: 'timer', start: fmtH(state.hours), sports: endurance.map((a) => a.t).join(', ') })
-	if (state.acts.has('strength')) tracks.push({ name: 'Styrke', unit: 'økter', start: state.level === 'ny' ? '1 / uke' : '2 / uke' })
+	if (endurance.length) tracks.push({ name: 'Utholdenhet', unit: 'timer', start: fmtH(startH), sports: endurance.map((a) => a.t).join(', ') })
+	if (state.acts.has('strength')) tracks.push({ name: 'Styrke', unit: 'økter', start: `${state.week.filter((s) => s.w === 'strength').length} / uke` })
 	if (state.acts.has('climb')) tracks.push({ name: 'Klatring', unit: 'timer', start: 'enkel aktivitet, teller i ukas timer' })
 	if (state.acts.has('yoga')) tracks.push({ name: 'Bevegelighet', unit: 'økter', start: 'når det er plass' })
-	return { family: p.family, familyKey: p.familyKey, weeks, series, tracks, peak: Math.max(...series.map((s) => s.h)) }
+	return { family: p.family, familyKey: p.familyKey, weeks, series, tracks, startH, peak: Math.max(...series.map((s) => s.h)) }
 }
 
 // ——— Rendering ———
 const app = document.getElementById('app')
 const FLOW = ['intro', 'level', 'acts', 'prefs', 'suggest', 'ready', 'home']
+const pctFor = (step) => (step >= 1 && step <= 4 ? Math.min(step, 3) / 3 : null)
+
+// Patch the new markup into the live DOM so pressed buttons keep their node: the press releases
+// smoothly and selection transitions actually run. Only a step change replaces the screen.
+function morph(from, to) {
+	if (from.nodeType !== to.nodeType || from.nodeName !== to.nodeName) { from.replaceWith(to.cloneNode(true)); return }
+	if (from.nodeType === Node.TEXT_NODE) { if (from.data !== to.data) from.data = to.data; return }
+	if (from.nodeType !== Node.ELEMENT_NODE) return
+	for (const { name } of [...from.attributes]) {
+		if (name === 'open' && from.nodeName === 'DETAILS') continue // user-toggled
+		if (!to.hasAttribute(name)) from.removeAttribute(name)
+	}
+	for (const { name, value } of [...to.attributes]) if (from.getAttribute(name) !== value) from.setAttribute(name, value)
+	morphChildren(from, to)
+}
+function morphChildren(from, to) {
+	const a = [...from.childNodes], b = [...to.childNodes]
+	b.forEach((n, i) => (a[i] ? morph(a[i], n) : from.appendChild(n.cloneNode(true))))
+	a.slice(b.length).forEach((n) => n.remove())
+}
+
+function topFor(name) {
+	const step = FLOW.indexOf(name)
+	const backBtn = '<button type="button" class="back" data-act="back" aria-label="Tilbake"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
+	if (name === 'ready') return `<div class="top">${backBtn}</div>`
+	const pct = pctFor(step)
+	if (pct == null) return ''
+	const label = step <= 3 ? `${step} av 3` : 'Velg'
+	return `<div class="top">${backBtn}<div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="3" aria-valuenow="${Math.min(step, 3)}" aria-label="Steg ${Math.min(step, 3)} av 3"><i style="transform:scaleX(${pct})"></i></div><span class="small num">${label}</span></div>`
+}
 
 function render() {
 	const name = FLOW[state.step]
-	const html = SCREENS[name]()
-	const dir = state.step < state.prevStep ? ' back' : ''
-	const anim = state.step !== state.prevStep ? ` enter${dir}` : ''
-	app.innerHTML = `<div class="screen${anim}">${html}</div>${CTA[name] ? CTA[name]() : ''}`
-	state.prevStep = state.step
+	const stepChanged = state.step !== state.rendered
+	const structural = stepChanged || state.variant !== state.renderedVariant // a variant switch is a different screen, not a patch
+	const prevPct = pctFor(state.rendered)
+	const html = `${topFor(name)}<div class="screen">${SCREENS[name]()}</div>${CTA[name] ? CTA[name]() : ''}`
+	if (structural || !app.firstElementChild) app.innerHTML = html
+	else { const next = document.createElement('main'); next.innerHTML = html; morphChildren(app, next) }
+	state.rendered = state.step
+	state.renderedVariant = state.variant
+	state.justDone = null
+	const fill = app.querySelector('.progress > i'), pct = pctFor(state.step)
+	if (stepChanged && fill && prevPct != null && prevPct !== pct && !reduceMotion()) fill.animate([{ transform: `scaleX(${prevPct})` }, { transform: `scaleX(${pct})` }], { duration: 240, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' })
 	document.getElementById('sw-label').textContent = `${VARIANTS[state.variant].k} · ${VARIANTS[state.variant].name}`
+	const bar = app.querySelector('.cta-bar, .tabbar')
+	app.style.setProperty('--cta-h', `${bar ? bar.offsetHeight : 0}px`)
 	bindAfter(name)
+	edge()
 }
-function go(step) { state.prevStep = state.step; state.step = step; render(); window.scrollTo({ top: 0 }) }
 
-function flowTop(i) {
-	const pct = i / 4
-	return `<div class="top"><button type="button" class="back" data-act="back" aria-label="Tilbake"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="4" aria-valuenow="${i}" aria-label="Steg ${i} av 4"><i style="transform:scaleX(${pct})"></i></div><span class="small num">${i} av 4</span></div>`
+// ——— Navigation: real history entries, View Transitions with an exit, rapid taps land at once ———
+let histOk = true, vt = null
+function pushHist(step, prev, replace) {
+	if (!histOk) return
+	try { history[replace ? 'replaceState' : 'pushState']({ step, prev }, '', `#${FLOW[step]}`) } catch { histOk = false }
 }
+function go(step, { fromHistory = false } = {}) {
+	if (step === state.step && state.rendered === step) return
+	const from = state.step
+	document.documentElement.dataset.dir = from === 5 && step === 6 ? 'root' : step < from ? 'back' : 'forward'
+	if (!fromHistory) pushHist(step, from)
+	state.step = step
+	const swap = () => { render(); window.scrollTo(0, 0) }
+	if (document.startViewTransition && !document.hidden) {
+		try { vt?.skipTransition() } catch {}
+		vt = document.startViewTransition(swap)
+		vt.finished.catch(() => {}).finally(() => (vt = null))
+	} else swap()
+}
+function back() {
+	const to = state.step === 5 ? 4 : Math.max(0, state.step - 1)
+	if (histOk && history.state && history.state.step === state.step && history.state.prev === to) history.back()
+	else go(to)
+}
+addEventListener('popstate', (e) => {
+	if (isOpen) closeSheet()
+	const step = e.state?.step
+	if (typeof step !== 'number') return
+	if (step >= 4 && !state.level) return // nothing answered yet (after a restart): stay put
+	if (step >= 5 && !state.week) return
+	go(step, { fromHistory: true })
+})
+
+const edge = () => document.documentElement.classList.toggle('under-bottom', document.documentElement.scrollHeight - scrollY - innerHeight > 1)
+addEventListener('scroll', edge, { passive: true })
+addEventListener('resize', () => { edge(); const bar = app.querySelector('.cta-bar, .tabbar'); app.style.setProperty('--cta-h', `${bar ? bar.offsetHeight : 0}px`) })
+
 const ctaBar = (inner) => `<div class="cta-bar"><div>${inner}</div></div>`
 
 const SCREENS = {
 	intro: () => `
-		<div style="height:12vh"></div>
+		<div style="height:12svh"></div>
 		<p class="over">Trainm8</p>
 		<h1>La oss lage treningen din</h1>
-		<p class="lead">Fire korte spørsmål, så foreslår vi tre treningsuker. Du velger én, og appen tar seg av resten: hver uke legges ut av seg selv, tilpasset det du faktisk trente.</p>
+		<p class="lead">Noen korte spørsmål, så foreslår vi treningsuker du kan velge mellom. Etterpå legger appen ut hver uke for deg.</p>
 		<div class="note">Tar under ett minutt. Alt kan endres senere.</div>`,
 
 	level: () => `
-		${flowTop(1)}
 		<h1>Hvor er du nå?</h1>
 		<div class="options" role="group" aria-label="Nivå">
 			${LEVELS.map((l) => `<button type="button" class="option" data-level="${l.k}" aria-pressed="${state.level === l.k}"><div><b>${l.t}</b><span class="d">${l.d}</span></div><span class="check">${checkSvg}</span></button>`).join('')}
 		</div>
-		${state.level ? `<section class="group"><h2>Omtrent hvor mye tid i uka?</h2>
-		<div class="hours"><button type="button" class="step-btn" data-hours="-0.5" aria-label="Mindre tid">−</button><output class="num" aria-live="polite">${fmtH(state.hours)} timer</output><button type="button" class="step-btn" data-hours="0.5" aria-label="Mer tid">+</button></div>
-		<p class="small">Vanlig for en ${LEVELS.find((l) => l.k === state.level).t.toLowerCase()}. Har du koblet til Strava eller intervals.icu, fyller vi inn det du faktisk trener.</p></section>` : ''}`,
+		${state.level ? `<section class="group rise"><h2>Omtrent hvor mye tid i uka?</h2>
+		<div class="hours"><button type="button" class="step-btn" data-hours="-0.5" aria-label="Mindre tid" ${state.hours <= MIN_H ? 'disabled' : ''}>−</button><output class="num" aria-live="polite">${hoursTxt(state.hours)}</output><button type="button" class="step-btn" data-hours="0.5" aria-label="Mer tid" ${state.hours >= MAX_H ? 'disabled' : ''}>+</button></div>
+		<p class="small">${state.hours <= MIN_H ? 'Minst 1 time. Mindre enn det blir ingen plan.' : state.hours >= MAX_H ? 'Høyst 20 timer i uka.' : `Vanlig for en ${LEVELS.find((l) => l.k === state.level).t.toLowerCase()}. Har du koblet til Strava eller intervals.icu, fyller vi inn det du faktisk trener.`}</p></section>` : ''}`,
 
 	acts: () => `
-		${flowTop(2)}
 		<h1>Hva liker du å trene?</h1>
 		<p class="lead">Velg så mange du vil. Den første utholdenhetsidretten du velger, blir hovedidretten.</p>
 		<div class="chips" role="group" aria-label="Aktiviteter">
 			${ACTS.map((a) => `<button type="button" class="chip" data-act-k="${a.k}" aria-pressed="${state.acts.has(a.k)}"><span class="dot" style="background:${color(a.k)}"></span>${a.t}</button>`).join('')}
 		</div>
-		${mainSport() ? `<p class="small">Hovedidrett: <b style="color:var(--fg)">${actOf(mainSport()).t}</b></p>` : ''}
+		<p class="small" ${mainSport() ? '' : 'hidden'}>Hovedidrett: <b style="color:var(--fg)">${mainSport() ? actOf(mainSport()).t : ''}</b></p>
+		<p class="small" ${state.acts.size && !mainSport() ? '' : 'hidden'}>Uten en utholdenhetsidrett blir det én enkel uke med øktene spredt ut, ikke flere å velge mellom.</p>
 		<section class="group"><h2>Hvilke dager kan du trene?</h2>
-		<div class="days" role="group" aria-label="Treningsdager">${DAY.map((d, i) => `<button type="button" class="day" data-day="${i}" aria-pressed="${state.days.has(i)}">${d}</button>`).join('')}</div>
-		<p class="small num">${state.days.size} dager. Vi legger aldri inn mer enn du har tid til.</p></section>`,
+		<div class="days" role="group" aria-label="Treningsdager">${DAY.map((d, i) => `<button type="button" class="day" data-day="${i}" aria-pressed="${state.days.has(i)}" aria-label="${DAY_LONG[i]}">${d}</button>`).join('')}</div>
+		<p class="small num">${state.days.size ? `${pl(state.days.size, 'dag', 'dager')}. Vi legger aldri inn mer enn du har tid til.` : 'Ingen dager valgt ennå.'}</p>
+		<p class="small" ${state.level === 'ny' && state.days.size > 4 ? '' : 'hidden'}>Som nybegynner får du høyst 4 økter i uka. Vi velger dagene som gir mest hvile mellom.</p></section>`,
 
 	prefs: () => `
-		${flowTop(3)}
 		<h1>Hva slags økter liker du?</h1>
 		<p class="lead">Vi bruker dette til å velge hvilke forslag du ser først.</p>
 		<div class="options" role="group" aria-label="Økttyper">
 			${PREFS.map((p) => `<button type="button" class="option" data-pref="${p.k}" aria-pressed="${state.prefs.has(p.k)}"><div><b>${p.t}</b><span class="d">${p.d}</span></div><span class="check">${checkSvg}</span></button>`).join('')}
-		</div>`,
+		</div>
+		<p class="small" ${state.prefs.has('short') && state.prefs.has('long') ? '' : 'hidden'}>Korte økter og lange turer trekker hver sin vei. Vi holder hverdagsøktene korte og lar langturen være lang.</p>`,
 
 	suggest: () => {
-		const keys = principlesFor()
-		const head = `${flowTop(4)}<h1>Tre måter å trene på</h1><p class="lead">Alle passer ${fmtH(state.hours)} timer på ${state.days.size} dager. De følger ulike prinsipper. Velg den som frister mest.</p>`
+		const list = suggestions()
+		const n = list.length
+		const h1 = n === 3 ? 'Tre måter å trene på' : n === 2 ? 'To måter å trene på' : 'Én uke som passer'
+		const lead = `Du ba om ${hoursTxt(state.hours)} på ${pl(state.days.size, 'dag', 'dager')}.${n > 1 ? ' Ukene følger ulike prinsipper. Velg den som frister mest.' : ''}`
+		const collapsed = list.collapsed && n > 0 && list[0].k !== 'mixed' ? `<p class="small">Med disse valgene ble noen av forslagene helt like, så vi viser bare ${n === 1 ? 'ett' : 'to'}.</p>` : ''
+		const head = `<h1>${h1}</h1><p class="lead">${lead}</p>${collapsed}`
 		const v = VARIANTS[state.variant].k
-		if (v === 'A') return head + `<div class="rail" id="rail">${keys.map((k, i) => suggestionCard(k, i === 0)).join('')}</div><div class="pager" aria-hidden="true">${keys.map((_, i) => `<i class="${i === state.railIndex ? 'on' : ''}"></i>`).join('')}</div>`
-		if (v === 'B') return head + `<div class="options">${keys.map((k, i) => compareRow(k, i === 0)).join('')}</div>`
-		const k = keys[state.soloIndex % keys.length]
-		return head + `<div class="solo"><div class="solo-card" id="solo">${suggestionCard(k, state.soloIndex % keys.length === 0, true)}</div><p class="small" style="text-align:center">Forslag ${state.soloIndex % keys.length + 1} av ${keys.length}</p></div>`
+		state.railIndex = Math.min(state.railIndex, n - 1)
+		if (v === 'A') return head + `<div class="rail${n === 1 ? ' single' : ''}" id="rail" tabindex="0" aria-label="Forslag">${list.map((x) => suggestionCard(x)).join('')}</div>${n > 1 ? `<div class="pager" role="tablist" aria-label="Forslag">${list.map((x, i) => `<button type="button" role="tab" data-page="${i}" class="${i === state.railIndex ? 'on' : ''}" aria-selected="${i === state.railIndex}" aria-label="${PRINCIPLES[x.k].name}"></button>`).join('')}</div>` : ''}`
+		if (v === 'B') return head + `<div class="options" role="radiogroup" aria-label="Forslag">${list.map((x) => compareRow(x)).join('')}</div>`
+		const i = state.soloIndex % n
+		return head + `<div class="solo"><div class="solo-card" id="solo">${suggestionCard(list[i])}</div>${n > 1 ? `<div class="solo-nav"><button type="button" class="btn btn-ghost" data-act="solo-prev">‹ Forrige</button><p class="small" id="solo-count">Forslag ${i + 1} av ${n}</p><span style="width:44px"></span></div>` : ''}</div>`
 	},
 
 	ready: () => {
@@ -504,12 +759,11 @@ const SCREENS = {
 		const p = PRINCIPLES[state.chosen]
 		const max = o.peak
 		return `
-		<div style="height:4vh"></div>
 		<p class="over">Planen er klar</p>
 		<h1>${p.name}</h1>
-		<p class="lead">De neste ${o.weeks} ukene bygger seg forsiktig opp fra ${fmtH(state.hours)} til ${fmtH(o.peak)} timer, med en lett uke hver fjerde uke.</p>
+		<p class="lead">De neste ${o.weeks} ukene bygger seg forsiktig opp fra ${fmtH(o.startH)} til ${fmtH(o.peak)} timer, med en lett uke hver fjerde uke.</p>
 		<div class="card" style="display:flex;flex-direction:column;gap:10px">
-			<div class="ramp" role="img" aria-label="Timer per uke de neste ${o.weeks} ukene">${o.series.map((s) => `<i class="${s.light ? 'light' : ''}" style="height:${Math.round((s.h / max) * 100)}%"></i>`).join('')}</div>
+			<div class="ramp" role="img" aria-label="Timer per uke de neste ${o.weeks} ukene">${o.series.map((s, i) => `<i class="${s.light ? 'light' : ''}" style="height:${Math.round((s.h / max) * 100)}%;--i:${i}"></i>`).join('')}</div>
 			<div class="facts"><span>uke 1</span><span style="margin-left:auto">uke ${o.weeks}</span></div>
 		</div>
 		<div class="note"><span aria-hidden="true">↻</span><span>Hver søndag kveld legger appen ut neste uke av seg selv. Den ser på hva du faktisk trente, og gjør uka lettere eller tyngre deretter. Du får beskjed, og kan alltid angre.</span></div>
@@ -519,31 +773,32 @@ const SCREENS = {
 	home: () => {
 		const v = VARIANTS[state.variant].k
 		const week = state.week
-		const s = weekStats(week)
-		const doneCount = week.filter((x) => isDone(x)).length
+		const active = week.filter((x) => x.day >= state.startDay)
+		const doneCount = active.filter(isDone).length
 		const todays = week.find((x) => x.day === todayIdx)
-		const nextUp = todays || week.find((x) => x.day > todayIdx)
+		const nextUp = week.find((x) => x.day > todayIdx)
 		const dateLine = `${DAY_LONG[todayIdx]} ${today.getDate()}. ${MONTH[today.getMonth()]}`
 		const head = `<div class="home-head"><div><p class="over">${dateLine}</p><h1>I dag</h1></div><button type="button" class="icon-btn" data-act="adjust"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h7M13 4h1M2 12h1M7 12h7M11 2v4M5 10v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Juster</button></div>`
+		const preNote = week.some((x) => x.day < state.startDay) ? `<p class="small">Du startet ${DAY_LONG[state.startDay]}, så uka teller fra i dag.</p>` : ''
 		let body = ''
 		if (v === 'A') {
 			body = `${todayCard(todays, nextUp)}
-			<section class="group"><div style="display:flex;align-items:baseline;justify-content:space-between"><h2>Denne uka</h2><span class="small num">${doneCount} av ${s.count} gjort</span></div>
-			<div class="card week">${DAY.map((_, i) => homeRow(week, i)).join('')}</div></section>
+			<section class="group"><div class="sec-head"><h2>Denne uka</h2><span class="small num">${doneCount} av ${pl(active.length, 'økt', 'økter')} gjort</span></div>
+			<div class="card week">${DAY.map((_, i) => homeRow(week, i)).join('')}</div>${preNote}</section>
 			${nextWeekNote()}`
 		} else if (v === 'B') {
-			const pct = s.count ? doneCount / s.count : 0
-			body = `<div class="card" style="display:flex;align-items:center;gap:14px">${ring(pct)}<div><b class="num" style="font-size:18px">${doneCount} av ${s.count} økter</b><p class="small num">${fmtMin(week.filter(isDone).reduce((a, x) => a + x.min, 0))} av ${fmtMin(s.total)} denne uka</p></div></div>
-			<div class="tl">${DAY.map((_, i) => timelineItem(week, i)).join('')}</div>
+			const pct = active.length ? doneCount / active.length : 0
+			body = `<div class="card" style="display:flex;align-items:center;gap:14px">${ring(pct)}<div><b class="num" style="font-size:1.125rem">${doneCount} av ${pl(active.length, 'økt', 'økter')}</b><p class="small num">${fmtMin(active.filter(isDone).reduce((a, x) => a + x.min, 0))} av ${fmtMin(active.reduce((a, x) => a + x.min, 0))} denne uka</p></div></div>
+			<div class="tl">${DAY.map((_, i) => timelineItem(week, i)).join('')}</div>${preNote}
 			${nextWeekNote()}`
 		} else {
 			const sentence = todays
 				? isDone(todays) ? `Bra jobba. <em>${esc(title(todays))}</em> er gjort. Hvil resten av dagen.` : `I dag: <em>${fmtMin(todays.min)} ${esc(title(todays).toLowerCase())}</em>, ${INT[todays.int]}.`
-				: nextUp ? `I dag er hviledag. Neste økt er <em>${esc(title(nextUp).toLowerCase())}</em> på ${DAY_LONG[nextUp.day]}.` : 'Uka er ferdig. Neste uke kommer søndag kveld.'
+				: nextUp ? `I dag er hviledag. Neste økt er <em>${esc(title(nextUp).toLowerCase())}</em> på ${DAY_LONG[nextUp.day]}.` : `Uka er ferdig. Neste uke kommer ${todayIdx === 6 ? 'i kveld' : 'søndag kveld'}.`
 			body = `<p class="coach">${sentence}</p>
 			${todays ? `<p class="lead">${esc(todays.d)}</p>${todayActions(todays)}` : ''}
-			<p class="small num">Denne uka: ${doneCount} av ${s.count} økter gjort.</p>
-			<details class="hood"><summary>Se hele uka</summary><div class="hood-body"><div class="week">${DAY.map((_, i) => homeRow(week, i)).join('')}</div></div></details>
+			<p class="small num">Denne uka: ${doneCount} av ${pl(active.length, 'økt', 'økter')} gjort.</p>
+			<details class="hood"><summary>Se hele uka</summary><div class="hood-body"><div class="week">${DAY.map((_, i) => homeRow(week, i)).join('')}</div>${preNote}</div></details>
 			${nextWeekNote()}`
 		}
 		return head + body
@@ -552,14 +807,15 @@ const SCREENS = {
 
 const CTA = {
 	intro: () => ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="next">Kom i gang</button><button type="button" class="btn btn-ghost btn-block" data-act="demo">Hopp rett til et ferdig eksempel</button>`),
-	level: () => ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="next" ${state.level ? '' : 'disabled'}>Neste</button>`),
-	acts: () => ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="next" ${state.acts.size && state.days.size ? '' : 'disabled'}>Neste</button>`),
+	level: () => ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="next" aria-disabled="${!state.level}">Neste</button>`),
+	acts: () => ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="next" aria-disabled="${!(state.acts.size && state.days.size)}">Neste</button>`),
 	prefs: () => ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="next">${state.prefs.size ? 'Vis forslag' : 'Hopp over, vis forslag'}</button>`),
 	suggest: () => {
 		const v = VARIANTS[state.variant].k
-		if (v === 'A') return ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="choose-rail">Velg denne</button>`)
-		if (v === 'B') return ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="choose-cmp" ${state.expanded ? '' : 'disabled'}>Velg</button>`)
-		return ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="choose-solo">Velg denne</button><button type="button" class="btn btn-quiet btn-block" data-act="solo-next">Vis et annet forslag</button>`)
+		const list = suggestions()
+		if (v === 'A') return ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="choose-rail">Velg «${PRINCIPLES[list[Math.min(state.railIndex, list.length - 1)].k].name}»</button>`)
+		if (v === 'B') return ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="choose-cmp" aria-disabled="${!list.some((x) => x.k === state.expanded)}">Velg</button>`)
+		return ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="choose-solo">Velg denne</button>${list.length > 1 ? '<button type="button" class="btn btn-quiet btn-block" data-act="solo-next">Vis et annet forslag</button>' : ''}`)
 	},
 	ready: () => ctaBar(`<button type="button" class="btn btn-primary btn-block" data-act="next">Til I dag</button>`),
 	home: () => `<nav class="tabbar" aria-label="Hovedmeny"><div>
@@ -578,31 +834,38 @@ function mixBar(by, total) {
 function weekRows(week) {
 	return DAY.map((d, i) => {
 		const s = week.find((x) => x.day === i)
-		return `<div class="wrow"><span class="dn">${d}</span>${s ? `<span class="t"><span class="dot" style="background:${color(s.act)}"></span>${esc(title(s))}</span><span class="m">${fmtMin(s.min)} · <span class="int ${s.int}">${INT[s.int]}</span></span>` : `<span class="t rest">hvile</span><span></span>`}</div>`
+		return `<div class="wrow"><span class="dn">${d}</span>${s ? `<span class="t"><span class="dot" style="background:${color(s.act)}"></span><span>${esc(title(s))}<br><span class="small num">${fmtMin(s.min)}</span></span></span><span class="int ${s.int}">${INT[s.int]}</span>` : `<span class="t rest">hvile</span><span></span>`}</div>`
 	}).join('')
 }
 function missingNote(week) {
-	const missing = [...state.acts].filter((k) => !week.some((s) => s.act === k)).map((k) => actOf(k).t.toLowerCase())
-	return missing.length ? `<p class="small" style="margin-top:8px">Fikk ikke plass denne uka: ${missing.join(' og ')}. Velg en dag til, så kommer det med.</p>` : ''
+	const missing = [...state.acts].filter((k) => !week.some((s) => s.act === k)).map((k) => actOf(k).s)
+	return missing.length ? `<p>Fikk ikke plass denne uka: ${listFmt(missing)}. Velg flere dager for å få ${missing.length === 1 ? 'det' : 'dem'} med.</p>` : ''
 }
-function suggestionCard(k, best, solo) {
-	const p = PRINCIPLES[k], week = buildWeek(k), s = weekStats(week)
-	return `<article class="card" data-k="${k}" style="display:flex;flex-direction:column;gap:12px">
-		<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${best ? '<span class="badge">Passer deg best</span>' : ''}<span class="small">${p.family}</span></div>
+function notesBlock(x) {
+	const missing = missingNote(x.week)
+	const inner = x.notes.map((t) => `<p>${esc(missing ? t.replace(/ Velg flere dager[^.]*\./, '') : t)}</p>`).join('') + missing // say "velg flere dager" once
+	return inner ? `<div class="notes">${inner}</div>` : ''
+}
+const hardTxt = (s) => (s.hard ? `<b>${s.hard}</b> ${s.hard === 1 ? 'hard økt' : 'harde økter'}` : 'ingen harde økter')
+function suggestionCard(x) {
+	const p = PRINCIPLES[x.k], s = weekStats(x.week)
+	return `<article class="card" data-k="${x.k}" style="display:flex;flex-direction:column;gap:12px">
+		<div class="badge-row">${x.badge ? `<span class="badge">${x.badge}</span>` : ''}</div>
 		<h2>${p.name}</h2>
-		<p class="small">${p.why}</p>
+		<p class="small">${p.why(s)}</p>
 		${mixBar(s.by, s.total)}
-		<div class="facts num"><span><b>${fmtMin(s.total)}</b> i uka</span><span><b>${s.count}</b> økter</span><span><b>${s.hard}</b> ${s.hard === 1 ? 'hard' : 'harde'}</span></div>
-		<div class="week">${weekRows(week)}</div>${missingNote(week)}
+		<div class="facts num"><span><b>${fmtMin(s.total)}</b> i uka</span><span>${hardTxt(s)}</span></div>
+		<div class="week">${weekRows(x.week)}</div>${notesBlock(x)}
+		${x.k === 'mixed' ? '' : `<p class="small">Fagnavn: ${p.family}</p>`}
 	</article>`
 }
-function compareRow(k, best) {
-	const p = PRINCIPLES[k], week = buildWeek(k), s = weekStats(week)
-	const open = state.expanded === k
-	return `<button type="button" class="card cmp" data-cmp="${k}" aria-pressed="${open}" aria-expanded="${open}">
-		<div class="cmp-head"><div style="display:flex;flex-direction:column;gap:4px">${best ? '<span class="badge" style="align-self:flex-start">Passer deg best</span>' : ''}<h2>${p.name}</h2><span class="small">${p.family} · ${fmtMin(s.total)} · ${s.hard} ${s.hard === 1 ? 'hard' : 'harde'}</span></div><span class="radio"></span></div>
-		<div class="strip7" aria-hidden="true">${DAY.map((d, i) => { const x = week.find((w) => w.day === i); return `<div><span class="bar">${x ? `<i style="height:${Math.min(100, Math.round((x.min / 120) * 100))}%;background:var(--${x.int})"></i>` : ''}</span>${d}</div>` }).join('')}</div>
-		<div class="reveal ${open ? 'open' : ''}"><div><p class="small" style="margin-bottom:8px">${p.why}</p><div class="week">${weekRows(week)}</div>${missingNote(week)}</div></div>
+function compareRow(x) {
+	const p = PRINCIPLES[x.k], s = weekStats(x.week), week = x.week
+	const open = state.expanded === x.k
+	return `<button type="button" class="card cmp" role="radio" data-cmp="${x.k}" aria-checked="${open}">
+		<div class="cmp-head"><div class="cmp-titles">${x.badge ? `<span class="badge" style="align-self:flex-start">${x.badge}</span>` : ''}<span class="h2">${p.name}</span><span class="small num">${fmtMin(s.total)} · ${hardTxt(s).replace(/<\/?b>/g, '')}</span></div><span class="radio"></span></div>
+		<div class="strip7" aria-hidden="true">${DAY.map((d, i) => { const w = week.find((y) => y.day === i); return `<div><span class="bar">${w ? `<i style="height:${Math.min(100, Math.round((w.min / 120) * 100))}%;background:var(--${w.int})"></i>` : ''}</span>${d}</div>` }).join('')}</div>
+		<div class="reveal ${open ? 'open' : ''}"><div><p class="small" style="margin-bottom:8px">${p.why(s)}</p><div class="week">${weekRows(week)}</div>${notesBlock(x)}</div></div>
 	</button>`
 }
 function hood(o) {
@@ -627,110 +890,307 @@ function todayActions(s) {
 		? `<div class="row-actions"><button type="button" class="btn btn-quiet" data-done="${s.day}">Angre «gjort»</button></div>`
 		: `<div class="row-actions"><button type="button" class="btn btn-primary" data-done="${s.day}">Gjort</button><button type="button" class="btn btn-quiet" data-act="adjust">Bytt eller flytt</button></div>`
 }
+function nextLine(next) {
+	return next ? `<p class="small">Neste: ${esc(title(next))}, ${DAY_LONG[next.day]}, ${fmtMin(next.min)}.</p>` : `<p class="small">Ingen flere økter denne uka. Neste uke kommer ${todayIdx === 6 ? 'i kveld' : 'søndag kveld'}.</p>`
+}
 function todayCard(s, next) {
-	if (!s) return `<div class="card today"><p class="over">Hviledag</p><h2>Ingen økt i dag</h2>${next ? `<p class="small">Neste: ${esc(title(next))}, ${DAY_LONG[next.day]}, ${fmtMin(next.min)}.</p>` : ''}</div>`
-	return `<div class="card today"><div style="display:flex;align-items:center;gap:8px"><span class="dot" style="background:${color(s.act)}"></span><span class="small">${actOf(s.act).t}</span><span class="int ${s.int}" style="margin-left:auto">${INT[s.int]}</span></div>
-		<h2>${esc(s.t)}${isDone(s) ? ' ✓' : ''}</h2><p class="num" style="font-weight:600">${fmtMin(s.min)}</p><p class="small">${esc(s.d)}</p>${todayActions(s)}</div>`
+	if (!s) return `<div class="card today"><p class="over">Hviledag</p><h2>Ingen økt i dag</h2>${nextLine(next)}</div>`
+	const done = isDone(s)
+	return `<div class="card today${done ? ' is-done' : ''}"><div class="meta"><span class="dot" style="background:${color(s.act)}"></span><span class="small">${actOf(s.act).t}</span><span class="int ${s.int}" style="margin-left:auto">${INT[s.int]}</span></div>
+		<h2>${esc(s.t)}${done ? `<span class="done-mark${state.justDone === s.day ? ' just-done' : ''}" aria-label="gjort">${checkSvg}</span>` : ''}</h2><p class="num" style="font-weight:600">${fmtMin(s.min)}</p><p class="small">${done ? 'Bra jobba. Hvil resten av dagen.' : esc(s.d)}</p>${todayActions(s)}${done ? nextLine(next) : ''}</div>`
 }
 function homeRow(week, i) {
 	const s = week.find((x) => x.day === i)
-	const cls = i === todayIdx ? 'wrow today-row' : 'wrow'
+	const pre = s && i < state.startDay
+	const cls = `wrow${i === todayIdx ? ' today-row' : ''}${pre ? ' pre' : ''}`
 	if (!s) return `<div class="${cls}"><span class="dn">${DAY[i]}</span><span class="t rest">hvile</span><span></span></div>`
-	const mark = isDone(s) ? `<span class="done-mark">${checkSvg}</span>` : i < todayIdx ? `<span class="small">ikke gjort</span>` : `<span class="todo-mark"></span>`
+	const mark = pre ? `<span class="small">før start</span>` : isDone(s) ? `<span class="done-mark${state.justDone === i ? ' just-done' : ''}">${checkSvg}</span>` : i < todayIdx ? `<span class="small">ikke gjort</span>` : `<span class="todo-mark"></span>`
 	return `<div class="${cls}"><span class="dn">${DAY[i]}</span><span class="t"><span class="dot" style="background:${color(s.act)}"></span><span>${esc(title(s))}<br><span class="small num">${fmtMin(s.min)} · ${INT[s.int]}</span></span></span>${mark}</div>`
 }
 function timelineItem(week, i) {
 	const s = week.find((x) => x.day === i)
 	const cls = `tl-item${i < todayIdx ? ' past' : ''}${i === todayIdx ? ' is-today' : ''}`
 	if (!s) return `<div class="${cls}" style="padding-block:8px"><div class="tl-line"><span class="dn small" style="width:34px;text-transform:uppercase;font-weight:600">${DAY[i]}</span><span class="small">hvile</span></div></div>`
-	return `<div class="${cls}"><div class="tl-line"><span class="small" style="width:34px;text-transform:uppercase;font-weight:600">${DAY[i]}</span><span class="dot" style="background:${color(s.act)}"></span><span style="flex:1;min-width:0;font-weight:500">${esc(title(s))}</span><span class="small num">${fmtMin(s.min)}</span>${isDone(s) ? `<span class="done-mark">${checkSvg}</span>` : ''}</div>
+	const pre = i < state.startDay
+	return `<div class="${cls}"><div class="tl-line"><span class="small" style="width:34px;text-transform:uppercase;font-weight:600">${DAY[i]}</span><span class="dot" style="background:${color(s.act)}"></span><span style="flex:1;min-width:0;font-weight:500">${esc(title(s))}</span><span class="small num">${pre ? 'før start' : fmtMin(s.min)}</span>${isDone(s) ? `<span class="done-mark">${checkSvg}</span>` : ''}</div>
 		${i === todayIdx ? `<p class="small">${esc(s.d)}</p>${todayActions(s)}` : ''}</div>`
 }
 function ring(pct) {
 	const r = 24, c = 2 * Math.PI * r
-	return `<svg class="ring" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="${r}" fill="none" stroke="var(--muted)" stroke-width="6"/><circle cx="28" cy="28" r="${r}" fill="none" stroke="var(--primary)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - pct)}" transform="rotate(-90 28 28)" style="transition:stroke-dashoffset 400ms var(--ease-out)"/></svg>`
+	return `<svg class="ring" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="${r}" fill="none" stroke="var(--muted)" stroke-width="6"/><circle class="arc" cx="28" cy="28" r="${r}" fill="none" stroke="var(--primary)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - pct)}" transform="rotate(-90 28 28)"/></svg>`
 }
 function nextWeekNote() {
-	return `<div class="note"><span aria-hidden="true">↻</span><span>Neste uke legges ut søndag kveld, tilpasset hvordan denne uka gikk.</span></div>`
+	return `<div class="note"><span aria-hidden="true">↻</span><span>Neste uke legges ut ${todayIdx === 6 ? 'i kveld' : 'søndag kveld'}, tilpasset hvordan denne uka gikk.</span></div>`
 }
 
-// ——— Sheet and toast ———
+// ——— Sheet: 1:1 drag, rubber band, velocity-projected dismiss, interruptible spring ———
 const scrim = document.getElementById('scrim'), sheet = document.getElementById('sheet'), sheetBody = document.getElementById('sheet-body')
-let lastFocus = null
+let lastFocus = null, sy = 0, sv = 0, sh = 1, raf = 0, isOpen = false
+
+const project = (v, d = 0.998) => ((v / 1000) * d) / (1 - d)
+const rubberband = (o, dim, c = 0.55) => (o * dim * c) / (dim + c * Math.abs(o))
+
+function paint() {
+	sheet.style.transform = `translate3d(0, ${sy}px, 0)`
+	scrim.style.opacity = String(Math.min(1, Math.max(0, 1 - sy / sh)))
+}
+// Damping/response spring, mass 1. It always starts from the live position (sy) and velocity (sv).
+function springTo(to, { velocity = sv, damping = 1, response = 0.35, done } = {}) {
+	cancelAnimationFrame(raf)
+	sv = velocity
+	if (reduceMotion()) return fadeTo(to, done)
+	const k = (2 * Math.PI / response) ** 2, c = (4 * Math.PI * damping) / response
+	let last = performance.now()
+	const step = (now) => {
+		const dt = Math.min(1 / 30, Math.max(0, now - last) / 1000); last = now
+		sv += (-k * (sy - to) - c * sv) * dt
+		sy += sv * dt
+		if (Math.abs(sv) < 4 && Math.abs(sy - to) < 0.5) { sy = to; sv = 0; paint(); raf = 0; done?.(); return }
+		paint(); raf = requestAnimationFrame(step)
+	}
+	raf = requestAnimationFrame(step)
+}
+// Reduced motion: no travel. The sheet cross-fades in place.
+function fadeTo(to, done) {
+	const opening = to <= 0
+	sy = 0; sheet.style.transform = 'none'
+	sheet.style.transition = scrim.style.transition = 'opacity 200ms ease'
+	requestAnimationFrame(() => { sheet.style.opacity = scrim.style.opacity = opening ? '1' : '0' })
+	setTimeout(() => { sheet.style.transition = scrim.style.transition = ''; if (!opening) sy = sh + 48; done?.() }, 220)
+}
+
 function openSheet(html) {
 	lastFocus = document.activeElement
-	sheetBody.innerHTML = `<div class="grabber"></div>${html}`
-	scrim.classList.add('open'); sheet.classList.add('open')
-	setTimeout(() => sheetBody.querySelector('button')?.focus(), 50)
+	sheetBody.innerHTML = `<div class="grabber" aria-hidden="true"></div>${html}`
+	sheetBody.scrollTop = 0
+	const wasLive = sheet.classList.contains('live')
+	sheet.classList.add('live'); scrim.classList.add('open'); isOpen = true
+	hideToast() // never cover the sheet's options
+	sheet.classList.toggle('scrolls', sheetBody.scrollHeight > sheetBody.clientHeight + 1)
+	sh = sheetBody.getBoundingClientRect().height
+	if (!wasLive) { sy = sh + 48; sheet.style.opacity = reduceMotion() ? '0' : '' } // a re-open mid-close starts from where it is
+	paint()
+	app.inert = true
+	document.documentElement.style.overflow = 'hidden'
+	springTo(0, { velocity: 0, damping: 1, response: 0.35 })
+	requestAnimationFrame(() => sheetBody.querySelector('button:not([aria-disabled="true"])')?.focus({ preventScroll: true }))
 }
-function closeSheet() { scrim.classList.remove('open'); sheet.classList.remove('open'); lastFocus?.focus?.() }
-scrim.addEventListener('click', closeSheet)
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet() })
+function closeSheet(velocity = 0) {
+	if (!isOpen) return
+	isOpen = false; scrim.classList.remove('open')
+	app.inert = false
+	document.documentElement.style.overflow = ''
+	springTo(sh + 48, { velocity, damping: 1, response: 0.3, done: () => { if (!isOpen) sheet.classList.remove('live') } })
+	lastFocus?.focus?.({ preventScroll: true })
+}
+scrim.addEventListener('click', () => closeSheet())
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && isOpen) closeSheet() })
 
-const toastEl = document.getElementById('toast'), toastText = document.getElementById('toast-text')
+// Drag. pointerdown stops the spring, so a sheet caught mid-flight stays under the finger.
+const g = { id: null, y0: 0, s0: 0, hist: [], drag: false, moved: false }
+sheet.addEventListener('pointerdown', (e) => {
+	if (!isOpen || g.id !== null || (e.pointerType === 'mouse' && e.button !== 0)) return // one finger at a time
+	if (sheetBody.scrollTop > 0 && !e.target.closest('.grabber')) return // let a scrolled list scroll
+	cancelAnimationFrame(raf); raf = 0
+	Object.assign(g, { id: e.pointerId, y0: e.clientY, s0: sy, hist: [{ t: e.timeStamp, y: sy }], drag: false, moved: false })
+})
+window.addEventListener('pointermove', (e) => { // on window: a mouse has no implicit capture before the threshold
+	if (e.pointerId !== g.id) return
+	const dy = e.clientY - g.y0
+	if (!g.drag) {
+		if (Math.abs(dy) < 10) return // hysteresis; after this, 1:1
+		g.drag = true; g.moved = true
+		getSelection()?.removeAllRanges()
+		try { sheet.setPointerCapture(e.pointerId) } catch {}
+		g.y0 = e.clientY; g.s0 = sy // no jump once the threshold is crossed
+	}
+	const raw = g.s0 + (e.clientY - g.y0)
+	sy = raw < 0 ? rubberband(raw, sh) : raw // resists above the open position
+	paint()
+	g.hist.push({ t: e.timeStamp, y: sy }); if (g.hist.length > 6) g.hist.shift()
+})
+function release(e) {
+	if (e.pointerId !== g.id) return
+	g.id = null
+	if (!g.drag) { if (isOpen && sy !== 0) springTo(0); return } // a tap mid-open: keep opening
+	const a = g.hist[0], b = g.hist[g.hist.length - 1]
+	const v = b.t > a.t ? ((b.y - a.y) / (b.t - a.t)) * 1000 : 0 // px/s over the last few events
+	const projected = sy + project(v)
+	const dismiss = v > 400 || (v > -400 && projected > sh * 0.5)
+	if (dismiss) { closeSheet(v); buzz(8) }
+	else springTo(0, { velocity: v, damping: Math.abs(v) > 400 ? 0.8 : 1, response: 0.3 }) // bounce only after a flick
+}
+window.addEventListener('pointerup', release)
+window.addEventListener('pointercancel', release)
+// A drag that ends over an option must not choose it
+sheet.addEventListener('click', (e) => { if (g.moved) { e.stopPropagation(); e.preventDefault(); g.moved = false } }, true)
+
+// ——— Toast ———
+const toastEl = document.getElementById('toast'), toastText = document.getElementById('toast-text'), undoBtn = document.getElementById('toast-undo')
 let toastTimer = null, undoFn = null
+const hideToast = () => toastEl.classList.remove('show')
+const armToast = (ms) => { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, ms) }
 function toast(msg, undo) {
+	const visible = toastEl.classList.contains('show')
 	toastText.textContent = msg; undoFn = undo
-	document.getElementById('toast-undo').hidden = !undo
+	undoBtn.hidden = !undo
 	toastEl.classList.add('show')
-	clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), 4000)
+	if (visible && !reduceMotion()) toastEl.animate([{ transform: 'translate(-50%, 4px)' }, { transform: 'translate(-50%, 0)' }], { duration: 160, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' })
+	armToast(undo ? 6000 : 3000) // undo needs time for a thumb to get there
 }
-toastEl.addEventListener('pointerenter', () => clearTimeout(toastTimer))
-toastEl.addEventListener('pointerleave', () => { toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000) })
-document.getElementById('toast-undo').addEventListener('click', () => { undoFn?.(); toastEl.classList.remove('show') })
+toastEl.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') clearTimeout(toastTimer) })
+toastEl.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') armToast(2500) })
+toastEl.addEventListener('pointerdown', () => clearTimeout(toastTimer))
+toastEl.addEventListener('pointerup', () => armToast(2500))
+undoBtn.addEventListener('click', () => { undoFn?.(); hideToast() })
 
+// ——— Adjust: each change has a limit, works once per week, and never turns one sport into another ———
+const ahead = (s) => s.day >= todayIdx && s.day >= state.startDay && !isDone(s)
+function adjustOptions() {
+	const left = state.week.filter(ahead)
+	const none = !left.length ? 'Ingen økter igjen denne uka.' : ''
+	const removable = state.week.filter((s) => ahead(s) && s.day > todayIdx).length || left.length
+	return [
+		{ k: 'lighter', t: 'Uka er for tung', d: 'Kortere økter resten av uka, ingen harde.', off: none || (state.adj.lighter ? 'Allerede gjort lettere denne uka.' : '') },
+		{ k: 'less-time', t: 'Jeg har mindre tid denne uka', d: 'Fjerner den korteste økta som gjenstår.', off: removable ? '' : 'Ingen økter igjen å fjerne.' },
+		{ k: 'harder', t: 'Jeg vil ha mer', d: 'Litt lengre økter resten av uka.', off: none || (state.adj.harder ? 'Allerede litt lengre denne uka. Mer enn det blir neste uke.' : '') },
+		{ k: 'switch', t: 'Bytt treningsform', d: 'Se forslagene igjen og velg en annen uke.', off: '' },
+		{ k: 'advanced', t: 'Avansert', d: 'Sesong, filosofi, ukemål, soner og terskler. Alt som finnes i dag.', off: '' },
+	]
+}
 function adjustSheet() {
 	openSheet(`<h2 id="sheet-title">Juster</h2><p class="small">Si hva som skjer, så ordner appen resten.</p>
 		<div class="options" style="margin-top:8px">
-			<button type="button" class="option" data-adj="lighter"><div><b>Uka er for tung</b><span class="d">Kortere økter resten av uka, ingen harde.</span></div></button>
-			<button type="button" class="option" data-adj="less-time"><div><b>Jeg har mindre tid denne uka</b><span class="d">Fjerner den korteste økta som gjenstår.</span></div></button>
-			<button type="button" class="option" data-adj="harder"><div><b>Jeg vil ha mer</b><span class="d">Litt lengre økter resten av uka.</span></div></button>
-			<button type="button" class="option" data-adj="advanced"><div><b>Avansert</b><span class="d">Sesong, filosofi, ukemål, soner og terskler. Alt som finnes i dag.</span></div></button>
+			${adjustOptions().map((o) => `<button type="button" class="option" data-adj="${o.k}" ${o.off ? 'aria-disabled="true"' : ''}><div><b>${o.t}</b><span class="d">${o.off || o.d}</span></div></button>`).join('')}
 		</div>`)
 }
 function adjust(kind) {
-	const before = state.week.map((s) => ({ ...s }))
-	const ahead = (s) => s.day >= todayIdx && !isDone(s)
+	if (kind === 'advanced') { closeSheet(); toast('Her åpnes dagens Sesong-side med alt det avanserte'); return }
+	if (kind === 'switch') { closeSheet(); go(4); return }
+	const before = state.week.map((s) => ({ ...s })), adjBefore = { ...state.adj }
 	let msg = ''
-	if (kind === 'lighter') { state.week = state.week.map((s) => (ahead(s) ? { ...s, min: Math.max(20, Math.round((s.min * 0.8) / 5) * 5), ...(s.int !== 'easy' ? { w: 'easy', t: 'Rolig', int: 'easy', d: WORK.easy.d } : {}) } : s)); msg = 'Resten av uka er gjort lettere' }
-	if (kind === 'harder') { state.week = state.week.map((s) => (ahead(s) ? { ...s, min: Math.round((s.min * 1.15) / 5) * 5 } : s)); msg = 'Resten av uka er litt lengre' }
+	if (kind === 'lighter') {
+		state.week = state.week.map((s) => {
+			if (!ahead(s)) return s
+			const toEasy = isEndurance(s) && s.int !== 'easy' && s.w !== 'long'
+			const w = toEasy ? 'easy' : s.w
+			const [lo] = limits(w)
+			return { ...s, ...(toEasy ? { w, t: WORK.easy.t, int: 'easy', d: WORK.easy.d } : {}), min: Math.max(lo, Math.round((s.min * 0.8) / 5) * 5) }
+		})
+		state.adj.lighter = true
+		msg = 'Resten av uka er gjort lettere'
+	}
+	if (kind === 'harder') {
+		state.week = state.week.map((s) => (ahead(s) ? { ...s, min: Math.min(limits(s.w)[1], Math.round((s.min * 1.15) / 5) * 5) } : s))
+		state.adj.harder = true
+		msg = 'Resten av uka er litt lengre'
+	}
 	if (kind === 'less-time') {
-		const left = state.week.filter(ahead).sort((a, b) => a.min - b.min)
-		if (!left.length) { toast('Ingen økter igjen å fjerne'); closeSheet(); return }
+		const later = state.week.filter((s) => ahead(s) && s.day > todayIdx)
+		const left = (later.length ? later : state.week.filter(ahead)).sort((a, b) => a.min - b.min)
+		if (!left.length) return
 		state.week = state.week.filter((s) => s !== left[0]); msg = `${title(left[0])} på ${DAY_LONG[left[0].day]} er fjernet`
 	}
-	if (kind === 'advanced') { closeSheet(); toast('Her åpnes dagens Sesong-side med alt det avanserte'); return }
 	closeSheet(); render()
-	toast(msg, () => { state.week = before; render() })
+	toast(msg, () => { state.week = before; state.adj = adjBefore; render() })
 }
 
 // ——— Events ———
 function bindAfter(name) {
-	if (name === 'suggest' && VARIANTS[state.variant].k === 'A') {
-		const rail = document.getElementById('rail')
-		rail.scrollLeft = state.railIndex * (rail.firstElementChild.offsetWidth + 12)
-		rail.addEventListener('scroll', () => {
-			const i = Math.round(rail.scrollLeft / (rail.firstElementChild.offsetWidth + 12))
-			if (i !== state.railIndex) { state.railIndex = i; document.querySelectorAll('.pager i').forEach((el, j) => el.classList.toggle('on', j === i)) }
-		}, { passive: true })
+	if (name !== 'suggest' || VARIANTS[state.variant].k !== 'A') return
+	const rail = document.getElementById('rail')
+	if (!rail || rail._bound) return
+	rail._bound = true
+	const w = () => rail.firstElementChild.offsetWidth + 12
+	const count = () => rail.children.length
+	rail.scrollLeft = state.railIndex * w()
+	const sync = (i) => {
+		state.railIndex = i
+		app.querySelectorAll('.pager button').forEach((el, j) => { el.classList.toggle('on', j === i); el.setAttribute('aria-selected', String(j === i)) })
+		const cta = app.querySelector('[data-act="choose-rail"]'), k = rail.children[i]?.dataset.k
+		if (cta && k) cta.textContent = `Velg «${PRINCIPLES[k].name}»`
 	}
+	rail.addEventListener('scroll', () => { const i = Math.max(0, Math.min(count() - 1, Math.round(rail.scrollLeft / w()))); if (i !== state.railIndex) sync(i) }, { passive: true })
+	rail._to = (i) => rail.scrollTo({ left: Math.max(0, Math.min(count() - 1, i)) * w(), behavior: reduceMotion() ? 'auto' : 'smooth' })
+	rail.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.stopPropagation(); e.preventDefault(); rail._to(state.railIndex + (e.key === 'ArrowRight' ? 1 : -1)) } })
+	// Mouse: 1:1 drag, rubber band at the ends, projected snap (touch uses native scroll-snap)
+	let m = null
+	rail.addEventListener('pointerdown', (e) => {
+		if (e.pointerType !== 'mouse' || e.button !== 0) return
+		m = { x: e.clientX, s: rail.scrollLeft, hist: [{ t: e.timeStamp, x: e.clientX }] }
+		rail.style.scrollSnapType = 'none'; rail.setPointerCapture(e.pointerId)
+	})
+	rail.addEventListener('pointermove', (e) => {
+		if (!m) return
+		const max = rail.scrollWidth - rail.clientWidth, want = m.s - (e.clientX - m.x)
+		rail.scrollLeft = want
+		const over = want < 0 ? want : want > max ? want - max : 0
+		rail.style.transform = over ? `translateX(${-rubberband(over, rail.clientWidth)}px)` : ''
+		m.hist.push({ t: e.timeStamp, x: e.clientX }); if (m.hist.length > 6) m.hist.shift()
+	})
+	const up = () => {
+		if (!m) return
+		const a = m.hist[0], b = m.hist[m.hist.length - 1]
+		const v = b.t > a.t ? ((b.x - a.x) / (b.t - a.t)) * 1000 : 0
+		const target = Math.round((rail.scrollLeft - project(v, 0.99)) / w())
+		rail.style.transition = 'transform 300ms var(--ease-out)'; rail.style.transform = ''
+		setTimeout(() => (rail.style.transition = ''), 300)
+		rail._to(target); m = null
+		setTimeout(() => (rail.style.scrollSnapType = ''), 450)
+	}
+	rail.addEventListener('pointerup', up)
+	rail.addEventListener('pointercancel', up)
+}
+
+function soloShow(delta) {
+	const solo = document.getElementById('solo'), list = suggestions()
+	state.soloIndex = (state.soloIndex + delta + list.length) % list.length
+	const i = state.soloIndex
+	const swap = () => { solo.innerHTML = suggestionCard(list[i]); const c = document.getElementById('solo-count'); if (c) c.textContent = `Forslag ${i + 1} av ${list.length}` }
+	solo.getAnimations().forEach((a) => a.cancel())
+	if (reduceMotion()) { swap(); solo.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200 }); return }
+	const dx = delta > 0 ? 24 : -24
+	const out = solo.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${-dx}px)` }], { duration: 150, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' })
+	out.onfinish = () => { swap(); out.cancel(); solo.animate([{ opacity: 0, transform: `translateX(${dx}px)` }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' }) }
 }
 
 function choose(k) {
 	state.chosen = k
 	state.week = buildWeek(k)
-	state.done = new Set(state.week.filter((s) => s.day < todayIdx).map((s) => s.day))
+	state.startDay = todayIdx // the week counts from today; nothing before it is marked done
+	state.done = new Set()
+	state.adj = {}
+	buzz()
 	go(5)
 }
+
+function notReady() {
+	const name = FLOW[state.step]
+	if (name === 'level') return 'Velg nivået ditt først.'
+	if (name === 'acts') return !state.acts.size ? 'Velg minst én aktivitet.' : 'Velg minst én dag.'
+	if (name === 'suggest') return 'Trykk på en av ukene først.'
+	return ''
+}
+
+function resetAll() {
+	Object.assign(state, { level: null, hours: null, acts: new Set(), prefs: new Set(), days: new Set(), daysTouched: false, actOrder: [], railIndex: 0, soloIndex: 0, expanded: null, chosen: null, week: null, startDay: 0, done: new Set(), adj: {} })
+}
+
+document.addEventListener('touchstart', () => {}, { passive: true }) // lets :active fire on iOS Safari
 
 document.addEventListener('click', (e) => {
 	const t = e.target.closest('button')
 	if (!t) return
 	const d = t.dataset
 	if (d.sw) {
-		if (d.sw === 'restart') { Object.assign(state, { level: null, hours: null, acts: new Set(), prefs: new Set(), days: new Set(), actOrder: [], railIndex: 0, soloIndex: 0, expanded: null, chosen: null, week: null, done: new Set() }); state.prevStep = -1; state.step = 0; render(); return }
+		if (d.sw === 'restart') { closeSheet(); resetAll(); if (state.step === 0) render(); else go(0); return }
 		state.variant = (state.variant + (d.sw === 'next' ? 1 : VARIANTS.length - 1)) % VARIANTS.length
-		state.prevStep = state.step; render(); return
+		render(); return
+	}
+	if (t.getAttribute('aria-disabled') === 'true') {
+		if (d.adj) return
+		const need = notReady(); if (need) { toast(need); buzz(8) }
+		return
 	}
 	if (d.level) {
 		const l = LEVELS.find((x) => x.k === d.level)
@@ -738,9 +1198,8 @@ document.addEventListener('click', (e) => {
 		if (!state.daysTouched) state.days = new Set(l.days)
 		render(); return
 	}
-	if (d.hours) { state.hours = Math.min(20, Math.max(1, state.hours + Number(d.hours))); render(); return }
+	if (d.hours) { state.hours = Math.min(MAX_H, Math.max(MIN_H, state.hours + Number(d.hours))); render(); return }
 	if (d.actK) {
-		state.actOrder = state.actOrder || []
 		if (state.acts.has(d.actK)) { state.acts.delete(d.actK); state.actOrder = state.actOrder.filter((k) => k !== d.actK) }
 		else { state.acts.add(d.actK); state.actOrder.push(d.actK) }
 		render(); return
@@ -748,10 +1207,12 @@ document.addEventListener('click', (e) => {
 	if (d.day) { const i = Number(d.day); state.daysTouched = true; state.days.has(i) ? state.days.delete(i) : state.days.add(i); render(); return }
 	if (d.pref) { state.prefs.has(d.pref) ? state.prefs.delete(d.pref) : state.prefs.add(d.pref); render(); return }
 	if (d.cmp) { state.expanded = state.expanded === d.cmp ? null : d.cmp; render(); return }
+	if (d.page) { document.getElementById('rail')?._to(Number(d.page)); return }
 	if (d.done) {
 		const day = Number(d.done)
 		const was = state.done.has(day)
 		was ? state.done.delete(day) : state.done.add(day)
+		if (!was) { state.justDone = day; buzz() }
 		render()
 		if (!was) toast('Økta er markert som gjort', () => { state.done.delete(day); render() })
 		return
@@ -759,20 +1220,13 @@ document.addEventListener('click', (e) => {
 	if (d.adj) { adjust(d.adj); return }
 	switch (d.act) {
 		case 'next': go(state.step + 1); break
-		case 'back': go(Math.max(0, state.step - 1)); break
+		case 'back': back(); break
 		case 'demo': demo(); break
-		case 'choose-rail': choose(principlesFor()[state.railIndex] ?? principlesFor()[0]); break
+		case 'choose-rail': { const list = suggestions(); choose(list[Math.min(state.railIndex, list.length - 1)].k); break }
 		case 'choose-cmp': choose(state.expanded); break
-		case 'choose-solo': choose(principlesFor()[state.soloIndex % 3]); break
-		case 'solo-next': {
-			state.soloIndex++
-			const solo = document.getElementById('solo')
-			const keys = principlesFor(), i = state.soloIndex % keys.length
-			solo.innerHTML = suggestionCard(keys[i], i === 0, true)
-			solo.classList.remove('swap'); void solo.offsetWidth; solo.classList.add('swap')
-			solo.nextElementSibling.textContent = `Forslag ${i + 1} av ${keys.length}`
-			break
-		}
+		case 'choose-solo': { const list = suggestions(); choose(list[state.soloIndex % list.length].k); break }
+		case 'solo-next': soloShow(1); break
+		case 'solo-prev': soloShow(-1); break
 		case 'adjust': adjustSheet(); break
 		case 'plan-tab': toast('Plan: sesongen som én enkel kurve, med «Avansert» for alt annet'); break
 		case 'me-tab': toast('Meg: profil, tilkoblinger og innstillinger'); break
@@ -780,9 +1234,9 @@ document.addEventListener('click', (e) => {
 })
 
 document.addEventListener('keydown', (e) => {
-	if (e.target.closest?.('input, textarea, [contenteditable]')) return
+	if (e.target.closest?.('input, textarea, [contenteditable], #rail')) return
 	if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-		if (sheet.classList.contains('open')) return
+		if (isOpen) return
 		state.variant = (state.variant + (e.key === 'ArrowRight' ? 1 : VARIANTS.length - 1)) % VARIANTS.length
 		render()
 	}
@@ -791,10 +1245,10 @@ document.addEventListener('keydown', (e) => {
 function demo() {
 	state.level = 'mosjon'; state.hours = 6
 	state.acts = new Set(['run', 'strength', 'climb']); state.actOrder = ['run', 'strength', 'climb']
-	state.days = new Set([0, 1, 3, 5, 6]); state.prefs = new Set(['long', 'intervals'])
+	state.days = new Set([0, 1, 3, 5, 6]); state.daysTouched = true; state.prefs = new Set(['long', 'intervals'])
 	go(4)
 }
 
-state.actOrder = []
+pushHist(0, null, true)
 render()
 </script>
