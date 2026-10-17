@@ -72,7 +72,7 @@ const DISCLOSURE_CHEVRON =
  * answer to a press — transform only, the strong ease-out at the press duration,
  * and no travel under reduced motion.
  */
-const COLLAPSIBLE_CHEVRON =
+export const COLLAPSIBLE_CHEVRON =
 	'text-muted-foreground shrink-0 [[data-panel-open]>&]:rotate-180 motion-safe:transition-transform motion-safe:duration-press motion-safe:ease-out'
 
 /**
@@ -80,7 +80,7 @@ const COLLAPSIBLE_CHEVRON =
  * because a full-width row that shrinks reads as the page flinching (design
  * system, mobile baseline). Hover is gated to fine pointers app-wide.
  */
-const ROW_PRESS =
+export const ROW_PRESS =
 	'hover:bg-muted/50 active:bg-muted motion-safe:transition-colors motion-safe:duration-press motion-safe:ease-out touch-manipulation'
 
 /**

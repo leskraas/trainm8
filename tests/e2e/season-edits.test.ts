@@ -1,4 +1,9 @@
-import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
+import {
+	expect,
+	openPlanAdvanced,
+	test,
+	untilHydrated,
+} from '#tests/playwright-utils.ts'
 
 /**
  * _Endre sesongen_ end to end (#505 stories 72–77): an athlete with an
@@ -28,6 +33,8 @@ test('a new week target shows a preview with the 10 % warning, and the message s
 	await holdActive.getByLabel('Timer i uka').fill('4')
 	await holdActive.getByRole('button', { name: 'Lag planen' }).click()
 	await expect(page.getByText('blokk 1 av ∞')).toBeVisible()
+	// Every Sesong editor is behind Plan's closed Avansert (ADR 0101 §2).
+	await openPlanAdvanced(page)
 
 	// The Weeks reading edits nothing itself: the plan's third week (a hard
 	// week after a hard week, never begun whatever day this runs) links to
@@ -133,6 +140,8 @@ test('choosing the easy week shows the weeks that change first, then says the ph
 	await holdActive.getByLabel('Timer i uka').fill('4')
 	await holdActive.getByRole('button', { name: 'Lag planen' }).click()
 	await expect(page.getByText('blokk 1 av ∞')).toBeVisible()
+	// Every Sesong editor is behind Plan's closed Avansert (ADR 0101 §2).
+	await openPlanAdvanced(page)
 
 	const card = page.getByRole('region', { name: 'Endre sesongen' })
 	await card.getByText('Velg hvilken uke som er lett').click()

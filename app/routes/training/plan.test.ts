@@ -2,6 +2,7 @@
 // who has none to the flow's first question rather than to an empty page.
 import { type AppLoadContext } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
+import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createOpenEndedPlan } from '#app/utils/plan-outline/authoring.server.ts'
@@ -217,6 +218,44 @@ test('the surface reads the authored season, phases and derived weeks', async ()
 	})
 	// The default reading is Blocks, kept out of the URL.
 	expect(result.tab).toBe('blocks')
+})
+
+test('Plan leads with the next easy week: the recovery week of the block being lived', async () => {
+	const athlete = await setupAthlete()
+	const { monday } = await createPlannedEvent(athlete.userId)
+
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+
+	// One 3:1 phase opening this week: its fourth week is the easy one.
+	const easy = weekKeyAt(monday, 3)
+	expect(result.nextEasyWeek).toEqual({
+		weekKey: easy,
+		weekNumber: isoWeekNumber(easy),
+		isThisWeek: false,
+	})
+})
+
+test('Plan says this week is the easy one when the athlete is in it', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId } = await createPlannedEvent(athlete.userId)
+	// Started three weeks ago, so this week is the block's fourth: the easy one.
+	await prisma.planOutline.update({
+		where: { id: outlineId },
+		data: { startWeekKey: weekKeyAt(mondayOf(new Date()), -3) },
+	})
+
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+
+	expect(result.nextEasyWeek).toMatchObject({
+		weekKey: mondayOf(new Date()),
+		isThisWeek: true,
+	})
 })
 
 test('a hand-set week is marked, and carries the number a revert would restore', async () => {

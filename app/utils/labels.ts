@@ -4126,6 +4126,44 @@ export const SESONG_PAGE_LABELS = {
 		'Kvalitetsøktene sier hva blokka er til for; øktene er hva uka faktisk inneholder. Å bytte en hard økt mot en rolig i en sliten uke er en plan, ikke en feil – ingenting her er endret.',
 } as const
 
+/**
+ * What _Plan_ leads with (ADR 0101 §2, #558 S9): the plan's plain name — the
+ * Start Options' own words, so the plan reads as the card the athlete picked —
+ * its family small, the curve, the next easy week, then a closed _Avansert_
+ * holding the rest of the old Sesong page.
+ */
+export const PLAN_LEAD_LABELS = {
+	/**
+	 * Each family's plain name. The four the start offers are the cards' own
+	 * (`START_OPTION_LABELS.plain`); _Masters 2:1_ is reached only through
+	 * _Avansert_, so it gets a plain name in the same voice here.
+	 */
+	plainName: {
+		polarized: START_OPTION_LABELS.plain.polarized.name,
+		threshold: START_OPTION_LABELS.plain.threshold.name,
+		classic: START_OPTION_LABELS.plain.classic.name,
+		'big-base': START_OPTION_LABELS.plain['big-base'].name,
+		masters: 'Kortere blokker, mer hvile',
+	} satisfies Record<PresetFamily, string>,
+	/** A plan whose phases follow no family: authored by hand. */
+	ownPlan: 'Din egen plan',
+	/** The family, small: the card's own `Fagnavn: …`. */
+	familyName: START_OPTION_LABELS.familyName,
+	/** `Mot Oslo Maraton`: the race the plan builds toward. */
+	toward: 'Mot',
+	nextEasyWeek: (week: number, from: string) =>
+		`Neste lette uke er uke ${week}, fra ${from}.`,
+	thisWeekEasy: 'Denne uka er en lett uke.',
+	advanced: 'Avansert',
+	advancedDetail:
+		'Filosofi, ukemål, faser, treningsspor, den typiske uka og sesongdiagrammet.',
+	/** No plan yet: Plan invites to the start, as I dag does (ADR 0101 §4). */
+	noPlanTitle: 'Du har ingen plan ennå',
+	noPlanBody:
+		'Svar på noen få spørsmål, så legger appen opp ukene for deg. Under kan du sette opp sesongen selv.',
+	noPlanAction: 'Kom i gang',
+} as const
+
 /** The ramp guard, the availability check and the load band (ADR 0040 §12–13). */
 export const SESONG_NOTICE_LABELS = {
 	dismiss: (name: string) => `Lukk ${name}`,
