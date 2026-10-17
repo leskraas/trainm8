@@ -8,6 +8,9 @@ import { cn } from '#app/utils/misc.tsx'
 /** The first run's five screens, in order (#505 story 61–68). */
 export const FIRST_RUN_STEP_COUNT = 5
 
+/** The simple start's question screens so far (#563): level, then activities. */
+export const SIMPLE_START_STEP_COUNT = 2
+
 /**
  * One screen of the first run: which step it is, its heading, and its body —
  * a phone-first column, the way every #505 surface is read.
@@ -20,12 +23,15 @@ export const FIRST_RUN_STEP_COUNT = 5
  */
 export function FirstRunFrame({
 	step,
+	stepCount = FIRST_RUN_STEP_COUNT,
 	title,
 	intro,
 	back,
 	children,
 }: {
 	step: number
+	/** How many screens the flow has; the old first run's five by default. */
+	stepCount?: number
 	title: string
 	intro?: ReactNode
 	/** The step before, by URL, and what the arrow is read out as. */
@@ -51,10 +57,10 @@ export function FirstRunFrame({
 					className="text-footnote text-muted-foreground shrink-0 tabular-nums"
 					data-first-run-step={step}
 				>
-					{FIRST_RUN_LABELS.stepOf(step, FIRST_RUN_STEP_COUNT)}
+					{FIRST_RUN_LABELS.stepOf(step, stepCount)}
 				</p>
 				<div aria-hidden className="flex flex-1 gap-1">
-					{Array.from({ length: FIRST_RUN_STEP_COUNT }, (_, index) => (
+					{Array.from({ length: stepCount }, (_, index) => (
 						<span
 							key={index}
 							className={cn(

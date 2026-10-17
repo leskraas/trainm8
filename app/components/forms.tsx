@@ -449,6 +449,8 @@ export function ToggleGroupField({
 	note,
 	options,
 	defaultValue,
+	value,
+	onValueChange,
 	errorId,
 	errors,
 	className,
@@ -459,11 +461,19 @@ export function ToggleGroupField({
 	note?: React.ReactNode
 	options: ReadonlyArray<{ value: string; label: string; ariaLabel?: string }>
 	defaultValue: readonly string[]
+	/** The pressed values, where the caller holds them (a live preview). */
+	value?: readonly string[]
+	onValueChange?: (value: string[]) => void
 	errorId?: string
 	errors?: ListOfErrors
 	className?: string
 }) {
-	const [pressed, setPressed] = useState<string[]>([...defaultValue])
+	const [own, setOwn] = useState<string[]>([...defaultValue])
+	const pressed = value ? [...value] : own
+	const setPressed = (next: string[]) => {
+		if (!value) setOwn(next)
+		onValueChange?.(next)
+	}
 	const errorsToRender = getErrorsToRender(errors)
 	return (
 		<FieldSet className={cn('gap-2', className)}>
