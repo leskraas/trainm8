@@ -284,6 +284,85 @@ describe('Hva liker du å trene? and the days', () => {
 		expect(noDays.init?.status).toBe(400)
 		expect(noDays.data.result.error?.days?.[0]).toBe('Velg minst én dag')
 	})
+
+	test('several sports move on with the main sport first, and come back the same', async () => {
+		const { cookie } = await setUp()
+
+		const response = await settle(() =>
+			activitiesAction({
+				request: post(
+					'/start/trening',
+					[
+						['level', 'experienced'],
+						['hours', '7'],
+						['discipline', 'bike'],
+						['sports', 'run'],
+						['sports', 'bike'],
+						['sports', 'swim'],
+						['days', '0'],
+						['days', '3'],
+						['days', '6'],
+					],
+					cookie,
+				),
+				...ARGS,
+			}),
+		)
+		const next = location(response)
+		expect(next).toBe(
+			'/start/valg?level=experienced&hours=7&discipline=bike&sports=bike,run,swim&days=0,3,6',
+		)
+
+		const back = await activitiesLoader({
+			request: get(next!.replace('/start/valg', '/start/trening'), cookie),
+			...ARGS,
+		})
+		expect(back).toMatchObject({
+			discipline: 'bike',
+			otherSports: ['run', 'swim'],
+		})
+
+		// The level screen carries them both ways too.
+		const level = await settle(() =>
+			levelAction({
+				request: post(
+					'/start/niva',
+					[
+						['level', 'experienced'],
+						['hours', '7'],
+						['discipline', 'bike'],
+						['sports', 'bike'],
+						['sports', 'swim'],
+						['days', '0'],
+						['days', '3'],
+					],
+					cookie,
+				),
+				...ARGS,
+			}),
+		)
+		expect(location(level)).toBe(
+			'/start/trening?level=experienced&hours=7&discipline=bike&sports=bike,swim&days=0,3',
+		)
+	})
+
+	test('no sport picked is refused in Norwegian', async () => {
+		const { cookie } = await setUp()
+		const none = (await activitiesAction({
+			request: post(
+				'/start/trening',
+				[
+					['level', 'beginner'],
+					['hours', '3'],
+					['days', '0'],
+				],
+				cookie,
+			),
+			...ARGS,
+		})) as unknown as Reply
+		expect(none.init?.status).toBe(400)
+		expect(none.data.result.error?.discipline?.[0]).toBe('Velg en idrett')
+	})
 })
 
 describe('the plan screen continues with the answers', () => {

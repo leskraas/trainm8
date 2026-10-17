@@ -104,6 +104,7 @@ export async function readFirstRunPlan(
 		const start = draftStart({
 			level,
 			discipline: answers.discipline,
+			otherSports: answers.otherSports,
 			hours: answers.hours,
 			days: answers.days,
 			startWeekKey,

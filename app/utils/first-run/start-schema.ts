@@ -52,6 +52,32 @@ export const StartDisciplineSchema = z.enum(CARDIO_DISCIPLINES, {
 })
 
 /**
+ * Every endurance sport picked (#573), the main one among them, each once and
+ * in a fixed order. A form sends an array (or one value when one is picked),
+ * the URL a comma list. The main sport is `discipline`; the others are what
+ * {@link otherSportsOf} reads from here.
+ */
+export const SportsSchema = z.preprocess(
+	(value) =>
+		typeof value === 'string' ? value.split(',').filter(Boolean) : value,
+	z
+		.array(StartDisciplineSchema)
+		.transform((sports) =>
+			CARDIO_DISCIPLINES.filter((sport) => sports.includes(sport)),
+		),
+)
+
+/** The sports picked beside the main one, in the fixed order. */
+export function otherSportsOf(
+	main: CardioDiscipline,
+	sports: readonly CardioDiscipline[] = [],
+): CardioDiscipline[] {
+	return CARDIO_DISCIPLINES.filter(
+		(sport) => sport !== main && sports.includes(sport),
+	)
+}
+
+/**
  * _Hvor er du nå?_ and the hours. The hours may be missing (no script ran the
  * stepper), and then the level's own are taken. The later screen's answers,
  * when the athlete came back, ride along unchanged.
@@ -60,14 +86,19 @@ export const LevelStepSchema = z.object({
 	level: LevelSchema,
 	hours: StartHoursSchema.optional(),
 	discipline: StartDisciplineSchema.optional(),
+	sports: SportsSchema.optional(),
 	days: DaysSchema.optional(),
 })
 
-/** _Hva liker du å trene?_: the main sport and the days, with the level. */
+/**
+ * _Hva liker du å trene?_: the main sport, every sport picked and the days,
+ * with the level.
+ */
 export const ActivitiesStepSchema = z.object({
 	level: LevelSchema,
 	hours: StartHoursSchema,
 	discipline: StartDisciplineSchema,
+	sports: SportsSchema.optional(),
 	days: DaysSchema,
 })
 
@@ -84,6 +115,8 @@ export type StartAnswersSoFar = {
 	level?: TrainingLevel
 	hours?: number
 	discipline?: CardioDiscipline
+	/** The endurance sports picked beside the main one (#573). */
+	otherSports?: CardioDiscipline[]
 	days?: PatternWeekday[]
 }
 
@@ -103,10 +136,16 @@ export function readStartAnswers(search: URLSearchParams): StartAnswersSoFar {
 		present(search.get('discipline')),
 	)
 	const days = DaysSchema.safeParse(search.get('days') ?? '')
+	const sports = SportsSchema.safeParse(search.get('sports') ?? '')
+	const otherSports =
+		discipline.success && sports.success
+			? otherSportsOf(discipline.data, sports.data)
+			: []
 	return {
 		...(level.success ? { level: level.data } : {}),
 		...(hours.success ? { hours: hours.data } : {}),
 		...(discipline.success ? { discipline: discipline.data } : {}),
+		...(otherSports.length > 0 ? { otherSports } : {}),
 		...(days.success ? { days: days.data } : {}),
 	}
 }
@@ -117,6 +156,9 @@ export function startSearch(answers: StartAnswersSoFar): string {
 	if (answers.level) params.set('level', answers.level)
 	if (answers.hours != null) params.set('hours', String(answers.hours))
 	if (answers.discipline) params.set('discipline', answers.discipline)
+	if (answers.discipline && answers.otherSports?.length) {
+		params.set('sports', [answers.discipline, ...answers.otherSports].join(','))
+	}
 	if (answers.days && answers.days.length > 0) {
 		params.set('days', answers.days.join(','))
 	}
