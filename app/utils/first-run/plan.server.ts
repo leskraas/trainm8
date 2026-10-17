@@ -40,6 +40,19 @@ import {
 	type FirstRunPlanRefusal,
 } from './first-run-schema.ts'
 import { chooseFamily, type FamilyChoice } from './first-run.ts'
+import { levelDefaults, startFamilies } from './start-draft.ts'
+
+/**
+ * The Plan Start Week for the athlete — the first week not yet begun, in
+ * their timezone — which the simple start lays its Week Sketch from.
+ */
+export async function readPlanStartWeekKey(
+	userId: string,
+	now: Date = new Date(),
+): Promise<string> {
+	const timezone = await getAthleteTimezone(userId)
+	return readFirstUnbegunWeekKey(userId, now, timezone)
+}
 
 /** A race needs at least this many plan weeks, the race week among them. */
 export const MIN_EVENT_WEEKS = 2
@@ -80,14 +93,22 @@ export async function readFirstRunPlan(
 		return { ok: false, reason: 'event-too-far' }
 	}
 	const { findings, age } = await readFirstRunFindings(userId, now)
-	const proposed = chooseFamily({
-		goal: goal.kind,
-		weeksToEvent: goal.kind === 'event' ? goal.weeks : null,
-		weeklyHours: answers.hours,
-		days: answers.days.length,
-		age,
-		weeksTrained: findings.weeksTrained,
-	})
+	// From the simple start, the Training Level proposes its first family
+	// and caps the sessions (#563), as `draftStart` lays the Week Sketch.
+	const { level } = answers
+	const proposed: FamilyChoice = level
+		? {
+				family: startFamilies(level)[0]!,
+				reason: { code: 'training-level', level },
+			}
+		: chooseFamily({
+				goal: goal.kind,
+				weeksToEvent: goal.kind === 'event' ? goal.weeks : null,
+				weeklyHours: answers.hours,
+				days: answers.days.length,
+				age,
+				weeksTrained: findings.weeksTrained,
+			})
 	const family = answers.family ?? proposed.family
 	const draft = draftFirstRunPlan({
 		family,
@@ -96,6 +117,7 @@ export async function readFirstRunPlan(
 		discipline: answers.discipline,
 		weeklyHours: answers.hours,
 		days: answers.days,
+		sessionCap: level ? levelDefaults(level).sessionCap : undefined,
 	})
 	if (!draft) return { ok: false, reason: 'nothing-to-lay' }
 	return {

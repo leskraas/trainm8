@@ -228,43 +228,58 @@ function weekdayGap(a: number, b: number): number {
 	return Math.min(apart, 7 - apart)
 }
 
-/** The smallest gap between neighbouring days, round the week. */
-function tightestGap(days: readonly number[]): number {
-	if (days.length < 2) return 7
-	return Math.min(
-		...days.map((day, index) =>
-			weekdayGap(day, days[(index + 1) % days.length]!),
-		),
+/** The gaps between neighbouring days, round the week. */
+function gapsOf(days: readonly number[]): number[] {
+	if (days.length < 2) return [7]
+	return days.map((day, index) =>
+		weekdayGap(day, days[(index + 1) % days.length]!),
 	)
 }
 
 /**
+ * How evenly apart a set of days is, higher is better: the smallest gap
+ * first, then how few neighbours sit that close — so four days out of seven
+ * are Tuesday, Thursday, Saturday and Sunday rather than four in a row.
+ */
+function spreadScore(days: readonly number[]): [number, number] {
+	const gaps = gapsOf(days)
+	const tightest = Math.min(...gaps)
+	return [tightest, -gaps.filter((gap) => gap === tightest).length]
+}
+
+/**
  * The days the plan lays sessions on: the chosen days, cut to what the hours
- * can fill ({@link sessionsFor}) and to {@link MAX_SESSION_DAYS}. The last
+ * can fill ({@link sessionsFor}), to {@link MAX_SESSION_DAYS} and to the
+ * level's session cap where there is one (a _Nybegynner_ gets four). The last
  * chosen day — the long one — always stays; the others go one at a time, each
- * time the one whose going leaves the remaining days most evenly apart, the
- * earliest on a tie (so seven days lose Monday, the day after Sunday's long
- * run). Monday-first and sorted, as the days came in.
+ * time the one whose going leaves the remaining days most evenly apart
+ * ({@link spreadScore}), the earliest on a tie (so seven days lose Monday, the
+ * day after Sunday's long run). Monday-first and sorted, as the days came in.
  */
 export function patternDaysFor(
 	days: readonly PatternWeekday[],
 	hours: number,
+	sessionCap: number = MAX_SESSION_DAYS,
 ): PatternWeekday[] {
 	const sorted = [...new Set(days)].sort((a, b) => a - b)
 	const keep = Math.max(
 		1,
-		Math.min(sorted.length, MAX_SESSION_DAYS, sessionsFor(hours)),
+		Math.min(sorted.length, MAX_SESSION_DAYS, sessionCap, sessionsFor(hours)),
 	)
 	const long = sorted.at(-1)
 	const kept = [...sorted]
 	while (kept.length > keep) {
 		let drop: PatternWeekday | null = null
-		let best = -1
+		let best: [number, number] | null = null
 		for (const day of kept) {
 			if (day === long) continue
-			const gap = tightestGap(kept.filter((other) => other !== day))
-			if (gap > best) {
-				best = gap
+			const score = spreadScore(kept.filter((other) => other !== day))
+			if (
+				best == null ||
+				score[0] > best[0] ||
+				(score[0] === best[0] && score[1] > best[1])
+			) {
+				best = score
 				drop = day
 			}
 		}
@@ -285,6 +300,7 @@ export function draftFirstRunPlan({
 	discipline,
 	weeklyHours,
 	days,
+	sessionCap,
 }: {
 	family: PresetFamily
 	goal: DraftGoal
@@ -298,10 +314,15 @@ export function draftFirstRunPlan({
 	weeklyHours: number
 	/** Monday-first weekdays the athlete can train. */
 	days: readonly PatternWeekday[]
+	/**
+	 * The most sessions a week the athlete's **Training Level** allows
+	 * (`levelDefaults`), or none beyond {@link MAX_SESSION_DAYS}.
+	 */
+	sessionCap?: number
 }): FirstRunDraft | null {
 	const familyPhases = firstRunPhases(family, goal)
 	if (!familyPhases || days.length === 0) return null
-	const patternDays = patternDaysFor(days, weeklyHours)
+	const patternDays = patternDaysFor(days, weeklyHours, sessionCap)
 	// Hard sessions go on ordinary days, never the long one (`planStamp`), so
 	// the mix is cut to the pattern's days less the long day.
 	const hardDays = patternDays.length > 1 ? patternDays.length - 1 : 0
