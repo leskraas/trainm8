@@ -1,10 +1,10 @@
 import { expect, test } from 'vitest'
+import { EFFORT_WORDS } from './effort-word.ts'
 import { canMarkDone, fitsImport, fitsImportByHand } from './import-fit.ts'
 import { SIMPLE_ACTIVITY_LABELS } from './labels.ts'
 import { deriveSessionProfile, intentToZone } from './session-profile.ts'
 import {
 	ACTIVITY_KINDS,
-	EFFORT_WORDS,
 	readSimpleActivity,
 	SIMPLE_ACTIVITY_INTENT,
 	simpleActivityWorkoutData,
@@ -94,7 +94,7 @@ test.each([
 test('what is written reads back as the same Simple Activity, on other with no Intensity Target', () => {
 	const data = simpleActivityWorkoutData({
 		kind: 'hike',
-		effortWord: 'light',
+		effortWord: 'rolig',
 		durationMin: 240,
 	})
 	expect(data.discipline).toBe('other')
@@ -106,7 +106,7 @@ test('what is written reads back as the same Simple Activity, on other with no I
 			effortWord: data.effortWord,
 			blocks: [{ repeatCount: 1, steps: [data.block.step] }],
 		}),
-	).toEqual({ kind: 'hike', effortWord: 'light', durationMin: 240 })
+	).toEqual({ kind: 'hike', effortWord: 'rolig', durationMin: 240 })
 })
 
 test.each(EFFORT_WORDS)(

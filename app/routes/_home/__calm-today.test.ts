@@ -192,6 +192,24 @@ test("the athlete's own note is the card's sentence, its first sentence only", (
 	expect(card.session.effortLabel).toBe('hard')
 })
 
+test("a Simple Activity's card says the Effort Word the athlete stored, not one read from its step", () => {
+	const climb = session('today', '2030-01-02T07:00:00Z', {
+		title: 'Klatring',
+		intent: 'simple-activity',
+		discipline: 'other',
+		minutes: 90,
+	})
+	const { view } = calm([
+		{
+			...climb,
+			workout: { ...climb.workout!, activityKind: 'climb', effortWord: 'hard' },
+		},
+	])
+
+	const card = cardOf(view.card, 'session')
+	expect(card.session.effortLabel).toBe('hard')
+})
+
 test('Gjort is offered only on today and on past sessions not yet done; nothing still ahead offers it', () => {
 	const { view } = calm([
 		session('mon-open', '2029-12-31T07:00:00Z'),
