@@ -48,11 +48,13 @@ import {
 	type CardioDiscipline,
 } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.new.ts'
+import { readLibraryLifts } from './__library-section.server.ts'
+import { LibrarySection } from './__library-section.tsx'
 import { PillLink, PlanCard } from './__plan-chrome.tsx'
 import { SportChoice } from './__plan-new-parts.tsx'
 
 export const meta: Route.MetaFunction = () => [
-	{ title: `${APP_TAB_LABELS.season} | Trainm8` },
+	{ title: `${APP_TAB_LABELS.plan} | Trainm8` },
 ]
 
 /**
@@ -79,16 +81,20 @@ const O = OPEN_ENDED_FORM_LABELS
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const [candidates, openEnded] = await Promise.all([
+	const [candidates, openEnded, libraryLifts] = await Promise.all([
 		listPlanAnchorCandidates(userId),
 		readOpenEndedPlanDefaults(userId),
+		// Bibliotek is a section of Plan (ADR 0101 §1), and with no plan this is
+		// where Plan lands — so the catalogue is here too.
+		readLibraryLifts(userId),
 	])
 	return {
 		candidates,
+		libraryLifts,
 		defaultDate: new Date().toISOString().slice(0, 10),
 		openEnded,
 		// Read here, not imported by the component: the constant lives in a
-		// `.server` module, and a client-side visit (the Sesong tab, ADR 0083)
+		// `.server` module, and a client-side visit (the Plan tab, ADR 0101)
 		// cannot load one.
 		roundWeeks: OPEN_ENDED_ROUND_WEEKS,
 	}
@@ -147,7 +153,8 @@ export default function NewPlanRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { candidates, defaultDate, openEnded, roundWeeks } = loaderData
+	const { candidates, defaultDate, openEnded, roundWeeks, libraryLifts } =
+		loaderData
 	const plannable = candidates.filter(
 		(candidate) => candidate.plannedOutlineId == null,
 	)
@@ -172,9 +179,10 @@ export default function NewPlanRoute({
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
-			{/* Sesong's own landing while there is no plan (ADR 0083): a tab's
-			    landing page, so no back affordance — the tab bar is the way out. */}
-			<PageHeader title={APP_TAB_LABELS.season} className="mb-2" />
+			{/* Plan's own landing while there is no plan (ADR 0101, ADR 0083): a
+			    tab's landing page, so no back affordance — the tab bar is the way
+			    out. */}
+			<PageHeader title={APP_TAB_LABELS.plan} className="mb-2" />
 			{/* Page prose sits on the page, not in a card (ui-conventions §1.6). */}
 			<div className="mb-6 space-y-1">
 				<h2 className="text-heading">{PLAN_NEW_LABELS.heading}</h2>
@@ -303,6 +311,8 @@ export default function NewPlanRoute({
 					</div>
 				</PlanCard>
 			</div>
+
+			<LibrarySection lifts={libraryLifts} className="mt-10" />
 		</main>
 	)
 }

@@ -220,7 +220,7 @@ export default function GenerateSeasonRoute({
 			<main className="container mx-auto max-w-2xl py-6 md:py-8">
 				<PageHeader
 					title={L.refusedTitle}
-					back={{ to: '/training/plan/new', label: APP_TAB_LABELS.season }}
+					back={{ to: '/training/plan/new', label: APP_TAB_LABELS.plan }}
 					className="mb-4"
 				/>
 				<p className="text-body">{refusalMessage(refusal!)}</p>

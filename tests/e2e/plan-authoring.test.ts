@@ -43,13 +43,13 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 	// ---------------------------------------------------------------------
 
 	await navigate('/')
-	// Sesong is the way in (ADR 0083): with no season there is no season plan to
+	// Plan is the way in (ADR 0083, ADR 0101): with no season there is no season plan to
 	// open, so the tab lands on authoring one. The first tap after a load can race
 	// hydration, so retry until it lands.
 	await expect(async () => {
 		await page
 			.getByRole('navigation', { name: 'Hovedmeny' })
-			.getByRole('link', { name: 'Sesong' })
+			.getByRole('link', { name: 'Plan' })
 			.click()
 		await expect(page).toHaveURL('/training/plan/new', { timeout: 5000 })
 	}).toPass()

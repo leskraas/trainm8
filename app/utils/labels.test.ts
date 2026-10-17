@@ -544,8 +544,7 @@ test('every Sesong edit message says which numbers did not move, in the spec’s
 test('every tab has its name in the spec’s own words', () => {
 	expect(APP_TABS.map((tab) => APP_TAB_LABELS[tab])).toEqual([
 		'I dag',
-		'Sesong',
-		'Bibliotek',
+		'Plan',
 		'Meg',
 	])
 })

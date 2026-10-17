@@ -37,6 +37,7 @@ import {
 	CollapsibleTrigger,
 } from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { LIBRARY_SECTION_HREF } from '#app/utils/app-tabs.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	APP_TAB_LABELS,
@@ -82,7 +83,7 @@ export default function ProgramsRoute({ loaderData }: Route.ComponentProps) {
 			    the guessed prefix is not a 404 either.) */}
 			<PageHeader
 				title={LIBRARY_LABELS.programs}
-				back={{ to: '/library', label: APP_TAB_LABELS.library }}
+				back={{ to: LIBRARY_SECTION_HREF, label: APP_TAB_LABELS.plan }}
 				className="mb-2"
 			/>
 			<p className="text-footnote text-muted-foreground mb-6">{L.intro}</p>

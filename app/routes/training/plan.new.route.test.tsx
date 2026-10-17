@@ -56,6 +56,7 @@ function renderStep(
 				defaultDate: '2030-01-09',
 				openEnded,
 				roundWeeks: 4,
+				libraryLifts: [],
 			}),
 			action: async ({ request }) => {
 				submitted(Object.fromEntries(await request.formData()))
@@ -68,11 +69,11 @@ function renderStep(
 	return { submitted }
 }
 
-test('the flow opens by asking what the athlete is building toward, as Sesong’s landing (ADR 0083)', async () => {
+test('the flow opens by asking what the athlete is building toward, as Plan’s landing (ADR 0083, ADR 0101)', async () => {
 	renderStep()
 
 	expect(
-		await screen.findByRole('heading', { name: 'Sesong', level: 1 }),
+		await screen.findByRole('heading', { name: 'Plan', level: 1 }),
 	).toBeInTheDocument()
 	expect(screen.getByText('Hva bygger du mot?')).toBeInTheDocument()
 	// A tab's landing page: the tab bar is the way out, not a back arrow.
@@ -83,6 +84,21 @@ test('the flow opens by asking what the athlete is building toward, as Sesong’
 		'href',
 		'/training/events',
 	)
+})
+
+test('with no plan, Plan still holds Bibliotek, with nothing lifted yet said in words (ADR 0101)', async () => {
+	renderStep()
+
+	const library = within(
+		await screen.findByRole('region', { name: 'Bibliotek' }),
+	)
+	expect(library.getByRole('link', { name: /katalog/i })).toHaveAttribute(
+		'href',
+		'/training/catalogue',
+	)
+	expect(
+		library.getByText(/løftene du legger inn i en økt/i),
+	).toBeInTheDocument()
 })
 
 test('an upcoming Event is offered as the plan’s anchor', async () => {

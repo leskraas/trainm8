@@ -636,6 +636,8 @@ function renderPlan(
 		}
 		/** The first week not yet begun; weeks before it offer no edit. */
 		firstUnbegunWeekKey?: string
+		/** Bibliotek's lifts (ADR 0101); none unless a test says so. */
+		libraryLifts?: Array<{ id: string; name: string }>
 	} = {},
 ) {
 	const week =
@@ -674,6 +676,7 @@ function renderPlan(
 				fitnessAnchor: null,
 				trackProposals: extra.trackProposals ?? proposalsFor(season),
 				seasonEvents: extra.seasonEvents ?? { events: [], upcomingCount: 0 },
+				libraryLifts: extra.libraryLifts ?? [],
 				// Every week of these fixtures is ahead, so each offers its edit.
 				firstUnbegunWeekKey:
 					extra.firstUnbegunWeekKey ?? season.weeks[0]?.weekKey ?? '2030-01-07',
@@ -767,7 +770,7 @@ test('the season names its Event, its length and where it ends against it', asyn
 	).toBeInTheDocument()
 })
 
-test('Sesong is a tab: no way back, and the Events it plans around are on it (ADR 0083)', async () => {
+test('Plan is a tab: no way back, and the Events it plans around are on it (ADR 0083, ADR 0101)', async () => {
 	renderPlan(SEASON, 'blocks', null, undefined, {
 		seasonEvents: {
 			events: [
@@ -784,7 +787,7 @@ test('Sesong is a tab: no way back, and the Events it plans around are on it (AD
 	})
 
 	expect(
-		await screen.findByRole('heading', { name: 'Sesong', level: 1 }),
+		await screen.findByRole('heading', { name: 'Plan', level: 1 }),
 	).toBeInTheDocument()
 	expect(
 		screen.queryByRole('link', { name: /tilbake til/i }),
@@ -3651,4 +3654,29 @@ test('weeks before the first anchor are named as Unavailable, never guessed', as
 	expect(
 		await screen.findByText(/Uke 2–3 i planen kan ikke regnes ut/),
 	).toBeInTheDocument()
+})
+
+test('Bibliotek is a section of Plan: the catalogue, programs, every exercise and the athlete’s own lifts (ADR 0101)', async () => {
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		libraryLifts: [{ id: 'exercise-1', name: 'Back Squat' }],
+	})
+
+	const library = within(
+		await screen.findByRole('region', { name: 'Bibliotek' }),
+	)
+	expect(library.getByRole('link', { name: /katalog/i })).toHaveAttribute(
+		'href',
+		'/training/catalogue',
+	)
+	expect(
+		library.getByRole('link', { name: /styrkeprogrammer/i }),
+	).toHaveAttribute('href', '/training/programs')
+	expect(library.getByRole('link', { name: /alle øvelser/i })).toHaveAttribute(
+		'href',
+		'/library/exercises',
+	)
+	expect(library.getByRole('link', { name: 'Back Squat' })).toHaveAttribute(
+		'href',
+		'/training/exercises/exercise-1',
+	)
 })
