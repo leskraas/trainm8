@@ -34,6 +34,7 @@ import {
 	APP_TAB_LABELS,
 	CONNECTION_HUB_STATUS_LABELS,
 	ME_LABELS,
+	MEG_STRENGTH_LABELS,
 	providerLabel,
 } from '#app/utils/labels.ts'
 import {
@@ -107,7 +108,15 @@ export async function loader({ request }: Route.LoaderArgs) {
 	})
 	const records = buildRecordLines(personalRecords, timezone)
 	const credits = derivedAttributionLines(bindingSet)
-	return { user, intervalsicu, form, records, credits }
+	// The athlete's own Strength Frequency answer (#574), changed below.
+	const strengthPerWeek =
+		(
+			await prisma.athleteProfile.findUnique({
+				where: { userId },
+				select: { strengthPerWeek: true },
+			})
+		)?.strengthPerWeek ?? null
+	return { user, intervalsicu, form, records, credits, strengthPerWeek }
 }
 
 function MeLink({
@@ -174,7 +183,8 @@ function MeSection({
 }
 
 export default function MeRoute({ loaderData }: Route.ComponentProps) {
-	const { user, intervalsicu, form, records, credits } = loaderData
+	const { user, intervalsicu, form, records, credits, strengthPerWeek } =
+		loaderData
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader title={APP_TAB_LABELS.me} className="mb-6" />
@@ -222,6 +232,12 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 					to="/settings/training"
 					icon="settings"
 					title={ME_LABELS.training}
+				/>
+				<MeLink
+					to="/settings/training/styrke"
+					icon="barbell"
+					title={MEG_STRENGTH_LABELS.title}
+					detail={MEG_STRENGTH_LABELS.detail(strengthPerWeek)}
 				/>
 			</MeSection>
 

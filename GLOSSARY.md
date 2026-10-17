@@ -66,7 +66,11 @@ accepting adds a `sets` track anchored on that average, a strength block over
 the plan's weeks left at that frequency, and lifting days in the week pattern
 (the athlete's most recent strength session), so the weeks ahead get lifting
 targets and sessions with nothing set up by hand; with no such history nothing
-is offered, so the frequency still comes from history and is never invented.
+is offered there. The **First Run** asks instead: picking _styrke_ asks one tap,
+_1_, _2_ or _3_ a week, pre-set from that same history where there is one and
+otherwise by the **Training Level**, and the athlete's tap is stored as their
+own answer (ADR 0103). So the frequency comes from history or from the
+athlete's own answer, and is never invented.
 Shown to the athlete as a _filosofi_ (training philosophy): each family is one
 philosophy — _Klassisk 3:1_, _Masters 2:1_, _Stor base_, _Polarisert 80/20_,
 _Terskelfokus_ — with a plain sentence saying what it is. Polarized 80/20 and
@@ -2746,7 +2750,11 @@ frequency's slope positive with **100% posterior probability for strength**
 prescribes ≥2 sessions/wk. Two readings depend on it that previously had no
 source: the strength **Summary Count**'s denominator for a week with no
 materialized sessions, and the days-against-days fit check against **Training
-Availability**'s trainable weekdays, which needs no conversion. It does **not**
+Availability**'s trainable weekdays, which needs no conversion. It comes from
+history or from the athlete's own answer, never invented: the **First Run**'s
+one tap (_1_, _2_ or _3_ a week, pre-set from history or the **Training
+Level**) is the athlete's answer, stored on the **Athlete Profile** and changed
+in _Meg_ (ADR 0103). It does **not**
 make calendar cost in hours derivable — that needs a per-session duration too,
 so ADR 0046 §3's **Unavailable Metric** stands. _Avoid_: Sessions per week (the
 field name, not the concept), gym days, training frequency (unqualified —

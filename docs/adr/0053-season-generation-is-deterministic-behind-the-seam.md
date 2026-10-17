@@ -215,6 +215,10 @@ plan** is `race-week` — a property of the week rather than of a block.
   Rejected outright; this is the fabrication the ticket exists around. The
   athlete's available days say when they _could_ lift, not how often they
   _should_, and the goal, the block length and the deload have no source at all.
+  (Amended by
+  [ADR 0103](./0103-the-first-run-asks-how-often-the-athlete-lifts-and-lays-lifting-away-from-hard-days.md):
+  the first run _asks_ the athlete how often they lift, and their answer is a
+  source; availability still is not.)
 - **Persist the previewed payload on approve, rather than regenerating.**
   Rejected — a posted payload is a season the app cannot re-derive, and
   determinism makes regenerating exact and free.

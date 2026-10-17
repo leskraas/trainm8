@@ -15,13 +15,16 @@ import {
 import {
 	draftStart,
 	levelDefaults,
+	startStrengthPerWeek,
 	weekSketch,
+	type StrengthPerWeek,
 } from '#app/utils/first-run/start-draft.ts'
 import {
 	ActivitiesStepSchema,
 	readStartAnswers,
 	startSearch,
 } from '#app/utils/first-run/start-schema.ts'
+import { readStartStrength } from '#app/utils/first-run/start-strength.server.ts'
 import {
 	FIRST_RUN_LABELS,
 	NB_DISCIPLINE_LABELS,
@@ -36,6 +39,7 @@ import {
 import { type Route } from './+types/trening.ts'
 import { QUESTION_LEGEND } from './__first-run-fields.tsx'
 import { FirstRunFrame, SIMPLE_START_STEP_COUNT } from './__first-run-frame.tsx'
+import { StrengthField } from './__strength-field.tsx'
 import { WeekSketch } from './__week-sketch.tsx'
 
 /**
@@ -64,12 +68,24 @@ export async function loader({ request }: Route.LoaderArgs) {
 		const search = startSearch(answers)
 		throw redirect(search ? `/start/niva?${search}` : '/start/niva')
 	}
+	// _Styrke_ (#574): the session a lifting day copies and the history's
+	// frequency the tap is pre-set from. With no session to copy there is no
+	// strength to offer.
+	const lifting = await readStartStrength(userId)
 	return {
 		level,
 		hours,
 		discipline: answers.discipline ?? ('run' as const),
 		days: answers.days ?? levelDefaults(level).days,
 		startWeekKey: await readPlanStartWeekKey(userId),
+		strength: lifting
+			? {
+					session: lifting.session,
+					fromHistory: lifting.fromHistory,
+					preset: startStrengthPerWeek(level, lifting.fromHistory),
+					picked: answers.strength ?? null,
+				}
+			: null,
 	}
 }
 
@@ -93,6 +109,11 @@ export default function ActivitiesStep({
 	)
 	const [days, setDays] = useState<string[]>(loaderData.days.map(String))
 	const weekdays = useMemo(() => patternWeekdaysOf(days.map(Number)), [days])
+	const [strength, setStrength] = useState<StrengthPerWeek | null>(() => {
+		const picked = loaderData.strength?.picked
+		return picked == null ? null : startStrengthPerWeek(level, picked)
+	})
+	const lifting = loaderData.strength
 
 	const start = useMemo(
 		() =>
@@ -102,8 +123,12 @@ export default function ActivitiesStep({
 				hours,
 				days: weekdays,
 				startWeekKey,
+				strength:
+					lifting && strength != null
+						? { perWeek: strength, session: lifting.session }
+						: null,
 			}),
-		[level, discipline, hours, weekdays, startWeekKey],
+		[level, discipline, hours, weekdays, startWeekKey, lifting, strength],
 	)
 	const sketch = useMemo(() => weekSketch(start), [start])
 
@@ -123,6 +148,7 @@ export default function ActivitiesStep({
 		hours,
 		discipline,
 		days: weekdays,
+		strength: strength ?? undefined,
 	})}`
 	const { sessionCap } = levelDefaults(level)
 
@@ -154,6 +180,18 @@ export default function ActivitiesStep({
 					errorId={fields.discipline.errorId}
 					errors={fields.discipline.errors}
 				/>
+
+				{lifting ? (
+					<StrengthField
+						name={fields.strength.name}
+						value={strength}
+						preset={lifting.preset}
+						fromHistory={lifting.fromHistory}
+						onValueChange={setStrength}
+						errorId={fields.strength.errorId}
+						errors={fields.strength.errors}
+					/>
+				) : null}
 
 				<div className="space-y-2">
 					<ToggleGroupField

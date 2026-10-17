@@ -92,6 +92,47 @@ export type StartAnswers = {
 	days: readonly PatternWeekday[]
 	/** The Plan Start Week: the first week not yet begun (ADR 0079). */
 	startWeekKey: string
+	/**
+	 * _Styrke_, where it was picked: the strength sessions a week the athlete
+	 * tapped (their **Strength Frequency** answer, ADR 0103) and the session
+	 * each lifting day copies. Absent or null: no lifting.
+	 */
+	strength?: StartStrength | null
+}
+
+/** The strength sessions a week the start's one tap offers: _1_, _2_ or _3_. */
+export const STRENGTH_PER_WEEK_CHOICES = [1, 2, 3] as const
+export type StrengthPerWeek = (typeof STRENGTH_PER_WEEK_CHOICES)[number]
+
+/**
+ * What the tap is pre-set to (ADR 0103): the lifting history's sessions a
+ * week where there is a history (the strength offer's reading), held to the
+ * tap's 1–3, or else the **Training Level**'s default.
+ */
+export function startStrengthPerWeek(
+	level: TrainingLevel,
+	fromHistory: number | null,
+): StrengthPerWeek {
+	const value =
+		fromHistory == null
+			? LEVEL_DEFAULTS[level].strengthPerWeek
+			: Math.round(fromHistory)
+	return Math.min(3, Math.max(1, value)) as StrengthPerWeek
+}
+
+/**
+ * A lifting day as the start shows it: the title of the session it copies
+ * (the athlete's most recent strength session, or the Catalogue's full-body
+ * **Stock Workout**) and its lifts (`Knebøy 3×12`) — never minutes.
+ */
+export type StartStrengthSession = {
+	title: string
+	lifts: readonly string[]
+}
+
+export type StartStrength = {
+	perWeek: number
+	session: StartStrengthSession
 }
 
 /**
@@ -118,12 +159,19 @@ export type StartWeekSession = {
 export type StartWeekDay = {
 	weekday: PatternWeekday
 	sessions: StartWeekSession[]
+	/**
+	 * The day's strength session, where it is a lifting day (#574): shown by
+	 * its lifts, never in minutes, and outside every figure in hours.
+	 */
+	lifting: StartStrengthSession[]
 }
 
 /**
  * A first week as the athlete reads it: seven days, Monday first, each with
  * its sessions (none is _fri_), and what the week adds up to — its minutes,
- * the minutes at each effort, and how many sessions are _hard_.
+ * the minutes at each effort, and how many sessions are _hard_. The strength
+ * sessions are counted apart (_+1 styrkeøkt_), as Planned Volume counts what
+ * hours do not measure.
  */
 export type StartWeek = {
 	days: StartWeekDay[]
@@ -131,18 +179,27 @@ export type StartWeek = {
 	minutes: number
 	minutesByEffort: Record<Effort, number>
 	hardSessions: number
+	strengthSessions: number
 }
 
 const WEEKDAYS: PatternWeekday[] = [0, 1, 2, 3, 4, 5, 6]
 
 /**
  * A draft's first week, as the stamp lays it and titled as the stamp will
- * title it, or seven free days where there is none.
+ * title it, or seven free days where there is none — with the lifting days,
+ * where there are any.
  */
-export function startWeekOf(draft: FirstRunDraft | null): StartWeek {
+export function startWeekOf(
+	draft: FirstRunDraft | null,
+	lifting: {
+		days: readonly PatternWeekday[]
+		session: StartStrengthSession
+	} | null = null,
+): StartWeek {
 	const laid = draft?.weeks[0]?.sessions ?? []
 	const days = WEEKDAYS.map((weekday) => ({
 		weekday,
+		lifting: lifting && lifting.days.includes(weekday) ? [lifting.session] : [],
 		sessions: laid
 			.filter((session) => session.weekday === weekday)
 			.map((session) => ({
@@ -172,7 +229,83 @@ export function startWeekOf(draft: FirstRunDraft | null): StartWeek {
 		minutesByEffort,
 		hardSessions: sessions.filter((session) => session.effort === 'hard')
 			.length,
+		strengthSessions: days.reduce((sum, day) => sum + day.lifting.length, 0),
 	}
+}
+
+/** Days apart on the week's wheel: Sunday and Monday are neighbours. */
+function weekdayGap(a: number, b: number): number {
+	const apart = Math.abs(a - b)
+	return Math.min(apart, 7 - apart)
+}
+
+/** Every way to pick `count` of the days, in week order. */
+function combinations<T>(items: readonly T[], count: number): T[][] {
+	if (count === 0) return [[]]
+	return items.flatMap((item, index) =>
+		combinations(items.slice(index + 1), count - 1).map((rest) => [
+			item,
+			...rest,
+		]),
+	)
+}
+
+/**
+ * The lifting days (#574, ADR 0103): `perWeek` of the athlete's days, placed
+ * away from the hard endurance days. Of every way to pick them, the one with
+ * the fewest lifts on a day with a hard or middling session, then on the day
+ * before one (legs fresh for the intervals), then on the long day, then the
+ * lifts furthest apart, then the earliest. One lift a day at most, so fewer
+ * days than lifts lifts once on each.
+ */
+export function strengthDaysFor(
+	days: readonly PatternWeekday[],
+	week: StartWeek,
+	perWeek: number,
+	longDay: PatternWeekday | null = null,
+): PatternWeekday[] {
+	const candidates = [...new Set(days)].sort((a, b) => a - b)
+	const count = Math.min(Math.max(0, perWeek), candidates.length)
+	if (count === 0) return []
+	const quality = new Set(
+		week.days
+			.filter((day) => day.sessions.some((s) => s.effort !== 'easy'))
+			.map((day) => day.weekday),
+	)
+	const scoreOf = (picked: readonly PatternWeekday[]): number[] => {
+		const gaps =
+			picked.length < 2
+				? [7]
+				: picked.map((day, at) =>
+						weekdayGap(day, picked[(at + 1) % picked.length]!),
+					)
+		return [
+			picked.filter((day) => quality.has(day)).length,
+			picked.filter((day) => quality.has(((day + 1) % 7) as PatternWeekday))
+				.length,
+			picked.filter((day) => day === longDay).length,
+			-Math.min(...gaps),
+			picked.reduce<number>((sum, day) => sum + day, 0),
+		]
+	}
+	let best: PatternWeekday[] = []
+	let bestScore: number[] | null = null
+	for (const picked of combinations(candidates, count)) {
+		const score = scoreOf(picked)
+		if (bestScore == null || lexicallyBefore(score, bestScore)) {
+			best = picked
+			bestScore = score
+		}
+	}
+	return best
+}
+
+/** Whether `a` comes before `b`, compared entry by entry. */
+function lexicallyBefore(a: readonly number[], b: readonly number[]): boolean {
+	for (let at = 0; at < a.length; at++) {
+		if (a[at] !== b[at]) return a[at]! < b[at]!
+	}
+	return false
 }
 
 /**
@@ -195,6 +328,12 @@ export type StartOption = {
 	 * (ADR 0102 §4), so the card can say so; null where it does.
 	 */
 	shortOfHours: number | null
+	/**
+	 * The lifting days (#574): Monday-first, as many as the athlete tapped
+	 * where their days allow, away from the hard endurance days
+	 * ({@link strengthDaysFor}). Empty without _styrke_.
+	 */
+	strengthDays: PatternWeekday[]
 }
 
 /**
@@ -229,6 +368,7 @@ function sameWeek(a: StartWeek, b: StartWeek): boolean {
 	return a.days.every((day, index) => {
 		const other = b.days[index]!.sessions
 		return (
+			day.lifting.length === b.days[index]!.lifting.length &&
 			day.sessions.length === other.length &&
 			day.sessions.every(
 				(session, at) =>
@@ -249,9 +389,15 @@ function sameWeek(a: StartWeek, b: StartWeek): boolean {
  * matches one ranked above it is merged into that one.
  */
 export function draftStart(answers: StartAnswers): StartDraft | null {
-	const { level, discipline, hours, days, startWeekKey } = answers
+	const { level, discipline, hours, days, startWeekKey, strength } = answers
 	if (days.length === 0) return null
 	const { sessionCap } = LEVEL_DEFAULTS[level]
+	const picked = new Set(days).size
+	// The level's session cap is the whole week's, lifts included, and leaves
+	// endurance one session at least; one lift a day at most.
+	const lifts = strength
+		? Math.max(0, Math.min(strength.perWeek, picked, sessionCap - 1))
+		: 0
 	const laid: StartOption[] = []
 	for (const family of startFamilies(level)) {
 		const draft = draftFirstRunPlan({
@@ -261,10 +407,21 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 			discipline,
 			weeklyHours: hours,
 			days,
-			sessionCap,
+			sessionCap: sessionCap - lifts,
 		})
 		if (!draft) continue
-		const week = startWeekOf(draft)
+		const endurance = startWeekOf(draft)
+		const strengthDays = strength
+			? strengthDaysFor(
+					days,
+					endurance,
+					lifts,
+					draft.patternDays.at(-1) ?? null,
+				)
+			: []
+		const week = strength
+			? startWeekOf(draft, { days: strengthDays, session: strength.session })
+			: endurance
 		laid.push({
 			family,
 			draft,
@@ -276,6 +433,7 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 				Math.abs(week.minutes - hours * 60) < Math.max(1, week.sessionCount)
 					? null
 					: week.minutes,
+			strengthDays,
 		})
 	}
 	if (laid.length === 0) return null
@@ -290,7 +448,6 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 		}
 	}
 	const top = options[0]!
-	const picked = new Set(days).size
 	return {
 		startWeekKey,
 		discipline,
@@ -300,7 +457,7 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 			top.score > 0 ? 'best-fit' : top.family === 'big-base' ? 'level' : null,
 		daysPicked: picked,
 		daysUsed: top.draft.patternDays.length,
-		capped: sessionCap < MAX_SESSION_DAYS && picked > sessionCap,
+		capped: sessionCap < MAX_SESSION_DAYS && picked + lifts > sessionCap,
 		restDayKept: picked === 7,
 	}
 }

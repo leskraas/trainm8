@@ -126,6 +126,8 @@ export async function updateAthleteProfile(
 	patch: AthleteProfileUpdate & {
 		/** The **Training Level** the athlete gave in the First Run (#566). */
 		trainingLevel?: TrainingLevel
+		/** The strength sessions a week the athlete answered (#574, ADR 0103). */
+		strengthPerWeek?: number
 	},
 	/** A transaction the caller holds, for a write that lands with others. */
 	db: Prisma.TransactionClient = prisma,

@@ -22,8 +22,12 @@ import {
 	createStarterWeekPatternInTx,
 	type CreateOutlineRefusal,
 } from '../plan-outline/authoring.server.ts'
+import { PROPOSED_STRENGTH_GOAL } from '../plan-outline/strength-offer.server.ts'
 import { weekIndexOf, weekKeyAt } from '../plan-outline/week-keys.ts'
-import { calendarWeekdaysOf } from '../plan-outline/week-pattern.ts'
+import {
+	calendarWeekdaysOf,
+	type PatternWeekday,
+} from '../plan-outline/week-pattern.ts'
 import { findActiveOutline } from '../training.server.ts'
 import {
 	draftFirstRunPlan,
@@ -40,6 +44,7 @@ import {
 } from './first-run-schema.ts'
 import { chooseFamily, type FamilyChoice } from './first-run.ts'
 import { draftStart, levelDefaults } from './start-draft.ts'
+import { readStartStrength } from './start-strength.server.ts'
 
 /**
  * The Plan Start Week for the athlete — the first week not yet begun, in
@@ -68,6 +73,17 @@ export type FirstRunPlan = {
 	draft: FirstRunDraft
 	/** Lifting sessions a week in the history, where there is any lifting. */
 	strengthPerWeek: number | null
+	/**
+	 * The lifting the Start Option laid (#574): its days, the Workout each
+	 * copies and the sets that Workout prescribes. Null without _styrke_.
+	 */
+	strength: FirstRunStrength | null
+}
+
+export type FirstRunStrength = {
+	days: PatternWeekday[]
+	workoutId: string
+	setsPerSession: number
 }
 
 /**
@@ -101,12 +117,20 @@ export async function readFirstRunPlan(
 	// made is what was shown. The top option is proposed; no age rule.
 	const { level } = answers
 	if (level && goal.kind === 'active') {
+		// _Styrke_ (#574): the session each lifting day copies, read here as
+		// the question screens read it, so the days laid are the days shown.
+		const lifting =
+			answers.strength != null ? await readStartStrength(userId, now) : null
 		const start = draftStart({
 			level,
 			discipline: answers.discipline,
 			hours: answers.hours,
 			days: answers.days,
 			startWeekKey,
+			strength:
+				lifting && answers.strength != null
+					? { perWeek: answers.strength, session: lifting.session }
+					: null,
 		})
 		if (!start) return { ok: false, reason: 'nothing-to-lay' }
 		const top = start.options[0]!
@@ -127,6 +151,14 @@ export async function readFirstRunPlan(
 				family: option.family,
 				draft: option.draft,
 				strengthPerWeek,
+				strength:
+					lifting && option.strengthDays.length > 0
+						? {
+								days: option.strengthDays,
+								workoutId: lifting.workoutId,
+								setsPerSession: lifting.setsPerSession,
+							}
+						: null,
 			},
 		}
 	}
@@ -159,6 +191,7 @@ export async function readFirstRunPlan(
 			family,
 			draft,
 			strengthPerWeek,
+			strength: null,
 		},
 	}
 }
@@ -351,12 +384,23 @@ export async function createFirstRunPlan(
 			},
 		)
 		if (!pattern.ok) throw new Error(`starter pattern: ${pattern.reason}`)
+		if (plan.strength) {
+			await createStartStrengthInTx(tx, {
+				outlineId,
+				startWeekKey: plan.startWeekKey,
+				weeks: draft.phases.reduce((sum, phase) => sum + phase.weeks, 0),
+				strength: plan.strength,
+			})
+		}
 		await updateAthleteProfile(
 			userId,
 			{
 				trainableWeekdays: calendarWeekdaysOf(answers.days),
 				weeklyCapacityHours,
 				...(answers.level ? { trainingLevel: answers.level } : {}),
+				...(answers.strength != null
+					? { strengthPerWeek: answers.strength }
+					: {}),
 			},
 			tx,
 		)
@@ -376,6 +420,79 @@ export async function createFirstRunPlan(
 		laid += filled.sessions
 	}
 	return { ok: true, outlineId, eventId, laid }
+}
+
+/**
+ * The Start Option's lifting (#574, ADR 0103), written beside the plan in its
+ * transaction, the way the strength offer adds it to a plan that exists
+ * (`addProposedStrengthTrack`):
+ *
+ * - **a strength track** in `sets`, anchored on what the lifting days copy:
+ *   the session's sets, once per lifting day;
+ * - **a strength block** over the round, at the lifting days' count (the
+ *   **Strength Frequency** the athlete tapped, where their days allowed it),
+ *   on the general goal; the round's end carries it on (`appendOpenEndedRound`);
+ * - **fixed lifting days** in the Week Pattern on the days the card showed,
+ *   each on the Workout the card named, after the day's endurance session.
+ */
+async function createStartStrengthInTx(
+	tx: Prisma.TransactionClient,
+	{
+		outlineId,
+		startWeekKey,
+		weeks,
+		strength,
+	}: {
+		outlineId: string
+		startWeekKey: string
+		weeks: number
+		strength: FirstRunStrength
+	},
+) {
+	const track = await tx.trainingTrack.create({
+		data: {
+			outlineId,
+			discipline: 'strength',
+			currency: 'sets',
+			anchors: {
+				create: [
+					{
+						fromWeekKey: startWeekKey,
+						value: strength.setsPerSession * strength.days.length,
+					},
+				],
+			},
+		},
+		select: { id: true },
+	})
+	await tx.trainingTrackSegment.create({
+		data: {
+			kind: 'strength',
+			trackId: track.id,
+			startWeekKey,
+			weeks,
+			goal: PROPOSED_STRENGTH_GOAL,
+			sessionsPerWeek: strength.days.length,
+		},
+	})
+	const pattern = await tx.weekPattern.findFirstOrThrow({
+		where: { outlineId },
+		orderBy: { orderIndex: 'asc' },
+		select: { id: true, days: { select: { weekday: true } } },
+	})
+	for (const weekday of strength.days) {
+		await tx.weekPatternDay.create({
+			data: {
+				patternId: pattern.id,
+				weekday,
+				orderInDay: pattern.days.filter((day) => day.weekday === weekday)
+					.length,
+				kind: 'fixed',
+				trackId: track.id,
+				workoutId: strength.workoutId,
+			},
+		})
+	}
 }
 
 /**

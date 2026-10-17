@@ -141,6 +141,11 @@ export type FirstRunAnswers = {
 	 * (#563): it proposes the level's first family and caps the sessions.
 	 */
 	level?: TrainingLevel
+	/**
+	 * The strength sessions a week the athlete tapped when they picked
+	 * _styrke_ (#574, ADR 0103), or absent where they did not.
+	 */
+	strength?: number
 }
 
 const AnswersSearchSchema = AnswerFieldsSchema.extend({

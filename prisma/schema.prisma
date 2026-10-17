@@ -1143,6 +1143,11 @@ model AthleteProfile {
   // (`TRAINING_LEVELS`). It sets defaults and is never a measured quantity.
   // Null = never said (an athlete from before the simple start).
   trainingLevel String?
+  // Strength Frequency answer (ADR 0103): the strength sessions a week the
+  // athlete chose in the First Run's one tap (1, 2 or 3), pre-set from their
+  // lifting history or their Training Level, and changed in Meg. Their own
+  // answer, never invented. Null = never answered (they did not pick styrke).
+  strengthPerWeek Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

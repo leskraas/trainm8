@@ -2294,6 +2294,27 @@ export const SIMPLE_START_LABELS = {
 		/** A day as a screen reader hears it: `mandag: Rolig økt · Løping, 45 min`. */
 		day: (weekday: string, what: string) => `${weekday}: ${what}`,
 		session: (title: string, duration: string) => `${title}, ${duration}`,
+		/** A lifting day as a screen reader hears it, by its session. */
+		lifting: (title: string) => `styrke: ${title}`,
+	},
+	/**
+	 * _Styrke_ on the activities screen (#574, ADR 0103): the chip, and the
+	 * one tap it asks for — strength sessions a week, pre-set and the
+	 * athlete's own answer.
+	 */
+	strength: {
+		chip: 'Styrke',
+		chipLabel: 'Styrke i tillegg',
+		legend: 'Styrkeøkter i uka',
+		choiceLabel: (count: number) =>
+			`${count} ${count === 1 ? 'styrkeøkt' : 'styrkeøkter'} i uka`,
+		/** Where the pre-set came from, said once. */
+		fromHistory: (count: number) =>
+			`Satt fra treningen din: du har løftet omtrent ${count} ${count === 1 ? 'gang' : 'ganger'} i uka.`,
+		fromLevel: 'Vanlig for nivået ditt. Velg det som passer deg.',
+		/** How the hours count strength (#558 story 73). */
+		notInHours:
+			'Styrke kommer i tillegg til timene, på dager uten harde økter.',
 	},
 	backTo: {
 		level: 'Tilbake til nivå og timer',
@@ -2306,6 +2327,7 @@ export const SIMPLE_START_LABELS = {
 		hoursMax: 'Høyst 20 timer i uka',
 		hoursStep: 'Timene går i halve timer',
 		disciplineRequired: 'Velg en idrett',
+		strengthRequired: 'Velg 1, 2 eller 3 styrkeøkter i uka',
 	},
 	/**
 	 * Why the plan screen proposes the level's first family, when the answers
@@ -2412,6 +2434,15 @@ export const START_OPTION_LABELS = {
 	shortOfHours: (planned: string, hours: string) =>
 		`Uka blir ${planned}, ikke ${hours}: øktene kan ikke bli lengre på dagene du valgte.`,
 	startsOn: (day: string) => `Planen starter ${day}.`,
+	/** Strength beside the hours, never in them (#574): `+2 styrkeøkter`. */
+	plusStrength: (count: number) =>
+		`+${count} ${count === 1 ? 'styrkeøkt' : 'styrkeøkter'}`,
+	/** The strength frequency on the card, as the athlete's own answer. */
+	strengthChoice: (count: number) =>
+		`Styrke ${count} ${count === 1 ? 'gang' : 'ganger'} i uka, som du valgte.`,
+	/** Fewer lifting days than tapped: there were not more days. */
+	strengthFewer: (laid: number, chosen: number) =>
+		`Du valgte ${chosen} styrkeøkter. Dagene dine ga plass til ${laid}.`,
 	choose: 'Velg denne',
 	/** _Velg denne_ as a screen reader hears it, with the card's name. */
 	chooseLabel: (name: string) => `Velg denne: ${name}`,
@@ -5045,6 +5076,26 @@ export const ME_LABELS = {
 	upload: 'Last opp en aktivitetsfil',
 	uploadDetail: '.fit, .tcx eller .gpx fra en klokke eller en annen app',
 	logout: 'Logg ut',
+} as const
+
+/**
+ * _Styrkeøkter i uka_ in Meg (#574, ADR 0103): the athlete's own **Strength
+ * Frequency** answer, and that it changes no plan already made.
+ */
+export const MEG_STRENGTH_LABELS = {
+	title: 'Styrkeøkter i uka',
+	intro:
+		'Hvor mange styrkeøkter du vil ha i uka. Det er ditt eget svar, og appen gjetter det aldri.',
+	unanswered: 'Ikke valgt ennå.',
+	answered: (count: number) =>
+		`Du har valgt ${count} ${count === 1 ? 'styrkeøkt' : 'styrkeøkter'} i uka.`,
+	/** Meg's row detail. */
+	detail: (count: number | null) =>
+		count == null ? 'Ikke valgt' : `${count} i uka`,
+	planNote:
+		'Planen du har nå, endres ikke av dette. Styrkedagene i den flytter du i Plan.',
+	invalid: 'Velg 1, 2 eller 3 styrkeøkter i uka',
+	save: 'Lagre',
 } as const
 
 /**
