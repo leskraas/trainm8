@@ -1,6 +1,11 @@
 # Sesong leads with the season picture, fills its own weeks, and is two columns on a large screen
 
-Status: Accepted · Owner decisions 12, 13 and 14 (round 2, 2026-10-10)
+Status: Accepted · Owner decisions 12, 13 and 14 (round 2, 2026-10-10) · **§2's
+order amended by
+[ADR 0101](./0101-three-tabs-and-a-calm-i-dag-that-shows-today-and-this-week.md)**:
+_Plan_ leads with the plain name, the curve, _Legg til et løp_ and _Bytt
+treningsform_, then _Bibliotek_ and a closed _Avansert_ holding the rest of this
+page.
 
 **Amends
 [ADR 0087](./0087-on-a-large-screen-i-dag-is-three-panes-the-season-the-list-and-the-day.md)**
