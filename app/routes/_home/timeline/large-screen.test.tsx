@@ -44,6 +44,8 @@ function workout(km: number, title = 'Rolig tur'): Workout {
 		discipline: 'run',
 		intent: 'endurance',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks: [
 			{
 				id: 'block-1',

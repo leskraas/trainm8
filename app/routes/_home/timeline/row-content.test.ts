@@ -99,6 +99,8 @@ function workout(
 		discipline: 'run',
 		intent: 'endurance',
 		archetype: null,
+		activityKind: null,
+		effortWord: null,
 		blocks,
 		...overrides,
 	}
@@ -1336,5 +1338,57 @@ describe('a load that is not bar kilos is never rendered as bar kilos', () => {
 		expect(content.chips).toEqual([
 			{ id: 'sets', label: 'SETT 3 / 3', tone: 'primary' },
 		])
+	})
+})
+
+describe('a Simple Activity says its time and its Effort Word, and nothing it cannot measure', () => {
+	function climbRow(overrides: Partial<LedgerSession> = {}) {
+		return row({
+			workout: workout(
+				[block([step({ discipline: 'other', durationSec: 5400 })])],
+				{
+					title: 'Klatring',
+					discipline: 'other',
+					intent: 'simple-activity',
+					activityKind: 'climb',
+					effortWord: 'hard',
+				},
+			),
+			...overrides,
+		})
+	}
+
+	test('planned: the minutes, then the Effort Word — no TSS, pace, power or ceiling, even with a Planned TSS stored', () => {
+		const content = buildRowContent(
+			climbRow({
+				scheduledAt: LATER_TODAY,
+				status: 'scheduled',
+				plannedTssValue: 80,
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe('90 min planlagt')
+		expect(content.internalLoad).toBe('Hard')
+	})
+
+	test('done by hand: the planned minutes and the Effort Word', () => {
+		const content = buildRowContent(climbRow(), THIS_WEEK)
+		expect(content.externalLoad).toBe('90 min')
+		expect(content.internalLoad).toBe('Hard')
+	})
+
+	test('done with a linked import: the import’s minutes, and still no TSS', () => {
+		const content = buildRowContent(
+			climbRow({
+				recording: recording({
+					discipline: 'other',
+					durationSec: 4500,
+					distanceM: null,
+				}),
+			}),
+			THIS_WEEK,
+		)
+		expect(content.externalLoad).toBe('75 min')
+		expect(content.internalLoad).toBe('Hard')
 	})
 })

@@ -18,7 +18,7 @@ import { action as weeksAction, loader as weeksLoader } from './uker.tsx'
 
 // The simple start's questions (#563) through their loaders and actions: the
 // level and hours, the main sport and the days, the answers travelling in the
-// URL, and the old plan screen continuing with them and the level's family.
+// URL, and the old plan screen still reading them with the level's family.
 
 const ARGS = {
 	params: {},
@@ -80,7 +80,7 @@ type Reply = {
 	init: { status: number } | null
 }
 
-test('an athlete who already has a plan is sent to it from both questions', async () => {
+test('an athlete who already has a plan is sent to I dag from both questions', async () => {
 	const { userId, cookie } = await setUp()
 	await createOpenEndedPlan(userId, { discipline: 'run', weeklyHours: 3 })
 
@@ -98,7 +98,7 @@ test('an athlete who already has a plan is sent to it from both questions', asyn
 				...ARGS,
 			}),
 	]) {
-		expect(location(await settle(run))).toBe('/training/plan')
+		expect(location(await settle(run))).toBe('/')
 	}
 })
 
@@ -245,7 +245,7 @@ describe('Hva liker du å trene? and the days', () => {
 		expect(given).toMatchObject({ discipline: 'swim', days: [1, 6] })
 	})
 
-	test('the answers move on to the plan screen, and no day is refused', async () => {
+	test('the answers move on to the three ways to train, and no day is refused', async () => {
 		const { cookie } = await setUp()
 
 		const response = await settle(() =>
@@ -266,7 +266,7 @@ describe('Hva liker du å trene? and the days', () => {
 			}),
 		)
 		expect(location(response)).toBe(
-			'/start/plan?discipline=run&hours=3&days=0,2,4&goal=active&level=beginner',
+			'/start/valg?level=beginner&hours=3&discipline=run&days=0,2,4',
 		)
 
 		const noDays = (await activitiesAction({

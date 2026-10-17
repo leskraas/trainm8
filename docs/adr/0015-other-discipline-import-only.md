@@ -1,5 +1,10 @@
 # `'other'` Discipline as import-only fifth value
 
+Status: Accepted · **Amended by §A below (spec #558, ticket #567)**: `other` is
+plannable as a **Simple Activity**, with an Activity Kind and an Effort Word,
+time and hardness only. Imports of `other` still land in **Annet** and are never
+auto-linked.
+
 > **Revisit — Amend.** Refusing to invent load for an unmapped activity is
 > confirmed, but tying that refusal to authorability conflates "may I plan it?"
 > with "may it contribute load?": XC skiing, rowing, ski touring and
@@ -85,3 +90,54 @@ a concrete athlete-profile demand exists.
   of scope here.
 - Expanding the Discipline vocabulary later (e.g., adding `hike`) remains an
   open option but requires its own ADR with a Load Formula decision.
+
+## §A — Amendment (spec #558, #567): `other` is plannable as a Simple Activity
+
+The Revisit note above asked for a plannable but load-silent discipline. Spec
+#558 needs one now: the athlete who climbs, skis _langrenn_, hikes or does yoga
+wants those days in the plan and in the week's hours. We make `other` itself
+plannable instead of adding a Discipline per activity.
+
+1. **A Simple Activity is a Workout Session on `other`.** Its Workout carries an
+   **Activity Kind** (_langrenn_, _fjelltur_, _klatring_, _yoga og
+   bevegelighet_, open for more) and an **Effort Word** (_rolig_ / _middels_ /
+   _hard_). Its structure is exactly one step of duration, with no Intensity
+   Target. A Workout on `other` without both is invalid, and so is a step on
+   `other` that is not a Simple Activity's one timed step. "Workouts and planned
+   Steps may not use `other`" now holds for everything except this one shape.
+2. **Time and hardness only.** Planned TSS, Training Load contribution, zones,
+   pace, power and planned distance are **Unavailable Metrics** with the reason
+   _enkel aktivitet_, shown as _ikke målt_ and never as a number. The Effort
+   Word is never converted into a Training Zone, an Intensity Target or RPE. The
+   Workout's intent is the Simple Activity's own value, which maps to no zone,
+   so no zone can come in through the intent either.
+3. **Volume.** Planned Volume counts a Simple Activity's planned minutes in
+   hours. Actual Volume counts the planned minutes when it is marked _Gjort_ by
+   hand, and a linked import's duration when one is linked.
+4. **Imports are unchanged.** An import of `other` still lands on a session of
+   its own in **Annet**, is never auto-linked to a plan (`autoMatchImport` still
+   skips it), and contributes no TSS. The athlete may link it by hand to a
+   planned Simple Activity on the same day, and undo that link. A planned Simple
+   Activity is not in Annet; it sits on the plan's track on `other` where there
+   is one.
+
+### Considered options
+
+- **A Discipline per activity (`climb`, `ski`, `hike`)**: rejected. Every switch
+  on Discipline (zones, thresholds, TSS formulas, PRs, Structure Detection,
+  import mapping) would need an honest "not available" branch for each new
+  value. One plannable `other` needs it once.
+- **Effort Word as an intent or a zone**: rejected. A hard climb is not a zone-5
+  run, and storing it as one would put a guessed zone into every reader of
+  intensity.
+
+### Consequences
+
+- The import-domain / authoring-domain split stays: the authoring form schemas
+  still offer only run, bike, swim and strength. A Simple Activity is written
+  through its own shape, not through the step editor.
+- One hours track on `other` holds all of an athlete's Simple Activities (spec
+  #558, built with the start in #572), which keeps one Training Track per
+  Discipline (ADR 0044).
+- Auto-linking imports to Simple Activities stays out of scope until an import
+  can name its Activity Kind.

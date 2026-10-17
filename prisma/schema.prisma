@@ -225,6 +225,16 @@ model Workout {
   /// written here either.
   strengthGoal String?
 
+  /// **Activity Kind** of a **Simple Activity** (ADR 0015 §A): what a Workout on
+  /// Discipline `other` is — `cross-country-ski | hike | climb | yoga-mobility`,
+  /// `ACTIVITY_KINDS` in `simple-activity.ts`. A name, never a Discipline: it
+  /// chooses no formula, zone or threshold. NULL on every other Workout.
+  activityKind String?
+  /// **Effort Word** of a Simple Activity: `light | medium | hard` (_rolig /
+  /// middels / hard_), `EFFORT_WORDS`. Never a Training Zone and never read as
+  /// one. NULL on every other Workout. Set together with `activityKind`.
+  effortWord   String?
+
   // ── The Catalogue's four axes (ADR 0051) ─────────────────────────────────
   // Authorship, membership, collection and visibility are four orthogonal
   // questions about one Workout. Two of them live here; membership is a
@@ -1133,6 +1143,11 @@ model AthleteProfile {
   // never per day, since availability is not uniform across the days. Null = never
   // set, and an unset capacity makes the hours fit check unavailable, never passing.
   weeklyCapacityHours Float?
+  // Training Level (ADR 0102 §6): how the athlete described themselves in the
+  // First Run — "beginner" | "recreational" | "experienced" | "competitive"
+  // (`TRAINING_LEVELS`). It sets defaults and is never a measured quantity.
+  // Null = never said (an athlete from before the simple start).
+  trainingLevel String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

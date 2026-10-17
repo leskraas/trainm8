@@ -116,6 +116,7 @@ import type {
 	ThresholdProtocol,
 } from './profile-analysis/types.ts'
 import type { SessionOwner } from './session-ownership.ts'
+import type { ActivityKind } from './simple-activity.ts'
 import type { Attribution } from './source-terms.ts'
 import type { RepLoadBasis } from './strength/anchors.constants.ts'
 import type { OneRmRefusal } from './strength/one-rm.ts'
@@ -1504,6 +1505,48 @@ export function nbDisciplineLabel(discipline: string): string {
 }
 
 /**
+ * A **Simple Activity** (ADR 0015 §A, #567): its Activity Kind, its Effort
+ * Word and the numbers it does not carry. Every one of those is _ikke målt_
+ * with the same reason, never a number (spec #558 story 63).
+ */
+export const SIMPLE_ACTIVITY_LABELS = {
+	/** The UI word for the thing itself. */
+	noun: 'Enkel aktivitet',
+	kind: {
+		'cross-country-ski': 'Langrenn',
+		hike: 'Fjelltur',
+		climb: 'Klatring',
+		'yoga-mobility': 'Yoga og bevegelighet',
+	} satisfies Record<ActivityKind, string>,
+	/** The Effort Word as a row and the detail page say it. Never a zone. */
+	effort: {
+		rolig: 'Rolig',
+		middels: 'Middels',
+		hard: 'Hard',
+	} satisfies Record<EffortWord, string>,
+	/** The heading over the numbers it does not carry. */
+	notMeasuredHeading: 'Ikke målt',
+	notMeasured: 'ikke målt',
+	/** Why, said once under the list. */
+	notMeasuredReason:
+		'En enkel aktivitet har bare tid og innsats. Soner, fart, watt og belastning kan ikke måles for den ennå, så de står uten tall.',
+	/** The numbers withheld, in the order the page lists them. */
+	metrics: {
+		zones: 'Soner',
+		pace: 'Fart',
+		power: 'Watt',
+		plannedTss: 'Planlagt TSS',
+		trainingLoad: 'Treningsbelastning',
+	},
+	/**
+	 * Under "hva var dette?" for an import on `other` on a day with a planned
+	 * Simple Activity: the app never links one itself (story 66).
+	 */
+	linkQuestionNote:
+		'Appen kobler ikke enkle aktiviteter selv. Si fra om det var denne.',
+} as const
+
+/**
  * What a session with no title of its own is called: `Løpeøkt`, `Sykkeløkt` —
  * an untitled plan session, or a recording that arrived with no workout.
  */
@@ -2206,6 +2249,8 @@ export const FIRST_RUN_REFUSAL_LABELS: Record<FirstRunPlanRefusal, string> = {
 		'Målet kunne ikke få en plan. Prøv igjen, eller velg Hold meg aktiv.',
 	'nothing-to-lay':
 		'Med disse svarene ble det ingen økter å legge. Velg minst én dag og noen timer i uka.',
+	'option-unavailable':
+		'Den måten å trene på finnes ikke for disse svarene. Velg en av dem som vises.',
 }
 
 /** `4,5 timer`, `1 time`: hours as a Norwegian reads them, comma and word. */
@@ -2287,7 +2332,6 @@ export const SIMPLE_START_LABELS = {
 		/** A day as a screen reader hears it: `mandag: Rolig økt · Løping, 45 min`. */
 		day: (weekday: string, what: string) => `${weekday}: ${what}`,
 		session: (title: string, duration: string) => `${title}, ${duration}`,
-		hard: 'hard økt',
 	},
 	backTo: {
 		level: 'Tilbake til nivå og timer',
@@ -2311,6 +2355,115 @@ export const SIMPLE_START_LABELS = {
 		experienced: 'du har trent i flere år',
 		competitive: 'du trener mot konkurranser',
 	} satisfies Record<TrainingLevel, string>,
+} as const
+
+/** Months in full, as the start says a date: `19. oktober`. */
+const NB_MONTHS_LONG = [
+	'januar',
+	'februar',
+	'mars',
+	'april',
+	'mai',
+	'juni',
+	'juli',
+	'august',
+	'september',
+	'oktober',
+	'november',
+	'desember',
+] as const
+
+/** `mandag 19. oktober`: a calendar day (`YYYY-MM-DD`), weekday and all. */
+export function nbLongDay(dayKey: string): string {
+	const [year, month, day] = dayKey.split('-').map(Number) as [
+		number,
+		number,
+		number,
+	]
+	const weekday = (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7
+	return `${NB_WEEKDAY_LABELS[weekday]} ${day}. ${NB_MONTHS_LONG[month - 1]}`
+}
+
+/** The families the start offers, each with its plain name. */
+type StartFamily = Exclude<PresetFamily, 'masters'>
+
+/**
+ * _Tre måter å trene på_ (#558, #566): the **Start Options**, each a card led
+ * by a plain name with the family's name small, and _Velg denne_.
+ */
+export const START_OPTION_LABELS = {
+	metaTitle: 'Tre måter å trene på',
+	/** The heading says how many ways there are once identical ones merged. */
+	title: (count: number) =>
+		count >= 3
+			? 'Tre måter å trene på'
+			: count === 2
+				? 'To måter å trene på'
+				: 'Én måte å trene på',
+	intro: (count: number, hours: string, days: number) =>
+		`${count === 1 ? 'Det er' : 'Hver er'} en ekte første uke med ${hours} på ${days} ${days === 1 ? 'dag' : 'dager'}.`,
+	/** Why there are fewer than three (ADR 0102 §2). */
+	merged: (shown: number) =>
+		shown === 1
+			? 'Med disse svarene la alle måtene nøyaktig samme uke, så du ser bare én.'
+			: 'Med disse svarene la to av måtene nøyaktig samme uke, så du ser bare to.',
+	/** Each family's plain name and why, the way variant A wrote them. */
+	plain: {
+		polarized: {
+			name: 'Mest rolig, litt veldig hardt',
+			why: 'Nesten alt går rolig. Av og til går det skikkelig hardt. Gir mye form for lite slitasje.',
+		},
+		threshold: {
+			name: 'Jevnt og kontrollert hardt',
+			why: 'Økter der du jobber jevnt hardt i lengre drag. Effektivt når tiden er knapp.',
+		},
+		classic: {
+			name: 'Variert og bygger seg opp',
+			why: 'Litt av alt. Tre uker blir gradvis tyngre, den fjerde er lett så kroppen tar igjen.',
+		},
+		'big-base': {
+			name: 'Bygg grunnform først',
+			why: 'Bare rolig trening i starten, så blir det hardere. Trygt når du starter opp.',
+		},
+	} satisfies Record<StartFamily, { name: string; why: string }>,
+	familyName: (name: string) => `Fagnavn: ${name}`,
+	badge: {
+		'best-fit': 'Passer deg best',
+		level: 'Anbefalt for nivået ditt',
+	},
+	/** A session's effort word: never a Training Zone. */
+	effort: {
+		easy: 'rolig',
+		moderate: 'middels',
+		hard: 'hard',
+	},
+	/** The bar of easy, middling and hard time, for a screen reader. */
+	effortBar: (easy: number, moderate: number, hard: number) =>
+		`${easy} % rolig, ${moderate} % middels, ${hard} % hard`,
+	total: (duration: string) => `${duration} i uka`,
+	sessions: (count: number) => `${count} ${count === 1 ? 'økt' : 'økter'}`,
+	hardSessions: (count: number) => `${count} ${count === 1 ? 'hard' : 'harde'}`,
+	free: 'fri',
+	/** A session's facts on its row: `45 min · rolig`. */
+	sessionFacts: (duration: string, effort: string) => `${duration} · ${effort}`,
+	/** Week 1 short of the hours given (ADR 0102 §4), with the reason. */
+	shortOfHours: (planned: string, hours: string) =>
+		`Uka blir ${planned}, ikke ${hours}: øktene kan ikke bli lengre på dagene du valgte.`,
+	startsOn: (day: string) => `Planen starter ${day}.`,
+	choose: 'Velg denne',
+	/** _Velg denne_ as a screen reader hears it, with the card's name. */
+	chooseLabel: (name: string) => `Velg denne: ${name}`,
+	rail: 'Måtene å trene på',
+	railRole: 'karusell',
+	cardRole: 'måte',
+	card: (index: number, count: number, name: string) =>
+		`${index} av ${count}: ${name}`,
+	pager: 'Bla mellom måtene',
+	dot: (index: number, count: number, name: string) =>
+		`Vis ${index} av ${count}: ${name}`,
+	back: 'Tilbake til hva du liker å trene',
+	created: 'Planen er laget',
+	createdDescription: (day: string) => `Den starter ${day}.`,
 } as const
 
 /**
