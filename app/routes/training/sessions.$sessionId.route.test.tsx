@@ -1491,3 +1491,12 @@ test('the session screen states a missing anchor rather than inventing a kilo', 
 	expect(sets).toHaveTextContent('85% 1RM · ingen 1RM registrert')
 	expect(sets).not.toHaveTextContent(/\d+ kg/)
 })
+
+test('a done session with no Workout and no Recording opens a readable detail, never a 404 (#558 S4)', async () => {
+	const session = makeSession({ workout: null, recording: null })
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByRole('heading', { level: 1 })
+	expect(document.body.textContent).toMatch(/gjort/i)
+	expect(screen.queryByText(/404|not found|fant ikke/i)).not.toBeInTheDocument()
+})

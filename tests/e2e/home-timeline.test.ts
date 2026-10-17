@@ -536,7 +536,8 @@ test('Se hele sesongen opens on this week, not on a long empty history (#562)', 
 	const closed = new Date(`${inView.thisWeek}T00:00:00.000Z`)
 	closed.setUTCDate(closed.getUTCDate() - 7)
 	const closedKey = closed.toISOString().slice(0, 10)
-	for (const week of inView.seen) expect(week >= closedKey).toBe(true)
+	for (const week of inView.seen)
+		expect(week.localeCompare(closedKey)).toBeGreaterThanOrEqual(0)
 	await expect(page.locator('[data-timeline-today]')).toBeInViewport()
 	await expect(todayPill(page)).toHaveAttribute('data-away', '0')
 

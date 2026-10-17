@@ -461,13 +461,34 @@ export async function deleteWorkoutSession(userId: string, sessionId: string) {
  * Returns `null` when the session doesn't exist (or isn't the caller's), and
  * `{ marked: false }` when its status can't take the transition.
  */
-export async function markSessionMissed(userId: string, sessionId: string) {
+/**
+ * Whether a session may be marked _ikke gjort_: still planned, on a day that
+ * has begun in the Athlete Timezone. A session still ahead offers no done or
+ * missed action (spec #558 S4, ADR 0101 §4) — the future cannot be missed.
+ */
+export function canMarkMissed(
+	session: { status: string; scheduledAt: Date },
+	{ now, timezone }: { now: Date; timezone: string },
+): boolean {
+	return (
+		session.status === 'scheduled' &&
+		localDate(session.scheduledAt, timezone) <= localDate(now, timezone)
+	)
+}
+
+export async function markSessionMissed(
+	userId: string,
+	sessionId: string,
+	{ now = new Date(), timezone }: { now?: Date; timezone: string },
+) {
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
-		select: { id: true, status: true },
+		select: { id: true, status: true, scheduledAt: true },
 	})
 	if (!session) return null
-	if (session.status !== 'scheduled') return { marked: false as const }
+	if (!canMarkMissed(session, { now, timezone })) {
+		return { marked: false as const }
+	}
 
 	await prisma.workoutSession.update({
 		where: { id: session.id },

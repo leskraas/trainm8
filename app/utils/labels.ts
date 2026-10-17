@@ -43,6 +43,7 @@ import type {
 	SessionArchetype,
 } from './catalogue.ts'
 import type { ConnectionHubStatus } from './connection-hub-status.ts'
+import type { EffortWord } from './effort-word.ts'
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
 import type {
 	EventDateProblem,
@@ -3536,6 +3537,58 @@ export const APP_TAB_LABELS: Record<AppTab, string> = {
 export const HOME_TIMELINE_FULL_VIEW_LABELS = {
 	link: 'Se hele sesongen',
 	title: 'Hele sesongen',
+} as const
+
+/**
+ * I dag's calm default view (spec #558 S4, ADR 0101 §3–§4): the top line, the
+ * today card and this week's seven rows. A free day is _fri_, never _hvile_;
+ * _hviledag_ only where the plan prescribes recovery (Every-Day Grid rule).
+ */
+export const CALM_TODAY_LABELS = {
+	region: 'I dag',
+	cardRegion: 'Dagens økt',
+	effort: {
+		rolig: 'rolig',
+		middels: 'middels',
+		hard: 'hard',
+	} satisfies Record<EffortWord, string>,
+	/** The card's one plain sentence, when the session carries no note. */
+	sentence: {
+		rolig: 'Rolig hele veien. Du skal kunne prate.',
+		middels: 'Kontrollert hardt. Pusten er tung, men jevn.',
+		hard: 'Varm godt opp. Hardt i dragene, rolig mellom.',
+	} satisfies Record<EffortWord, string>,
+	sentenceStrength: 'Ta settene slik de står, med hvile mellom.',
+	sentencePlain: 'Gjør økta slik den står.',
+	done: 'Gjort',
+	doneFor: (title: string) => `Marker «${title}» som gjort`,
+	openSession: 'Se økta',
+	doneTitle: 'Ferdig for i dag',
+	doneLine: (titles: string) => `Du har gjort ${titles}.`,
+	freeTitle: 'Fri i dag',
+	next: (title: string, when: string) => `Neste økt: ${title}, ${when}.`,
+	nothingAhead: 'Ingen økter er lagt ut framover ennå.',
+	tomorrow: 'i morgen',
+	addToday: 'Legg til en økt i dag',
+	beforeStartTitle: (date: string) => `Planen starter ${date}`,
+	firstSession: (title: string, when: string) =>
+		`Første økt: ${title}, ${when}.`,
+	noFirstSession: 'Ukene legges ut før planen starter.',
+	noPlanTitle: 'Du har ingen plan ennå',
+	noPlanBody: 'Svar på noen få spørsmål, så legger appen opp ukene for deg.',
+	noPlanAction: 'Kom i gang',
+	weekHeading: 'Denne uka',
+	weekDone: (done: number, total: number) =>
+		`${done} av ${total} ${total === 1 ? 'økt' : 'økter'} gjort`,
+	free: 'fri',
+	restDay: 'hviledag',
+	missed: 'ikke gjort',
+	doneMark: 'gjort',
+	plannedMark: 'ikke gjort ennå',
+	addOn: (day: string) => `Legg til en økt ${day}`,
+	weekChangeWaiting: (count: number) =>
+		`Ukeskiftet har ${count} forslag som venter på deg.`,
+	weekChangeOpen: 'Se forslagene',
 } as const
 
 /** The page header's back button, named for the screen it goes back to. */

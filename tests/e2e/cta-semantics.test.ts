@@ -1,3 +1,4 @@
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
@@ -42,7 +43,7 @@ test('today-session CTA says "View session" and opens the Workout Detail View', 
 		},
 	})
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 
 	// The CTA is honest about Session Status: a scheduled session is viewed. On
 	// I dag, today's row's action is a plain link to the detail view, so

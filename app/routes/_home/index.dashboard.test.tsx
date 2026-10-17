@@ -1,7 +1,10 @@
 /**
  * @vitest-environment jsdom
  *
- * I dag: the top line, the season strip, and the list (ADR 0086).
+ * The full Home Timeline — _Se hele sesongen_ (`/season`, #562): the top
+ * line, the season strip, and the list (ADR 0086). I dag (`/`) opens on its
+ * calm default view instead (ADR 0101 §3, `index.calm-view.test.tsx`); only
+ * the signed-out marketing page is still I dag's own here.
  *
  * There is no hero any more. What it said about today — the session, its
  * action, the coach's line — is said in today's row, and its Form and Rekorder
@@ -30,6 +33,7 @@ import {
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
 import IndexRoute from './index.tsx'
+import HomeTimelineFullView from './season.tsx'
 
 // Home subscribes to the Live Imports Stream via an EventSource (#75, ADR 0049),
 // which jsdom doesn't provide. Stub the hook so the render is deterministic.
@@ -215,9 +219,12 @@ function renderRoute(
 	loader: (args: LoaderFunctionArgs) => Promise<unknown>,
 	initialPath = '/',
 	action?: (args: ActionFunctionArgs) => Promise<unknown>,
+	Screen:
+		| typeof HomeTimelineFullView
+		| typeof IndexRoute = HomeTimelineFullView,
 ) {
 	const RouteComponent = (props: Record<string, unknown>) => (
-		<IndexRoute {...(props as any)} />
+		<Screen {...(props as any)} />
 	)
 	const App = createRoutesStub([
 		// The composer reads its week and its lifts from resource routes once it
@@ -333,7 +340,7 @@ afterAll(() => {
 // ── the unauthenticated surface is untouched ──────────────────────────────
 
 test('unauthenticated user sees marketing landing page', async () => {
-	renderRoute(marketingLoader())
+	renderRoute(marketingLoader(), '/', undefined, IndexRoute)
 	await screen.findByText(/the epic stack/i)
 })
 

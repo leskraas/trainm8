@@ -1,4 +1,5 @@
 import { type Page } from '@playwright/test'
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
 
 /**
@@ -18,9 +19,9 @@ async function createEasyRun({
 	navigate,
 }: {
 	page: Page
-	navigate: (to: '/') => Promise<unknown>
+	navigate: (to: typeof HOME_TIMELINE_HREF) => Promise<unknown>
 }) {
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 
 	// Creation starts at the top line's one control (owner decision 6), which
 	// opens the composer on today — a Drawer on a phone, the day pane on a
@@ -66,7 +67,7 @@ async function createEasyRun({
 
 	// Back on home, the session shows up as a row in the stream — the one place
 	// sessions live now that home is a single timeline.
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	const stream = page.getByTestId('timeline-stream')
 	await expect(stream).toBeVisible()
 	await expect(stream.getByText('Easy Run').first()).toBeVisible()

@@ -1,4 +1,5 @@
 import { type Page } from '@playwright/test'
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { addDays, mondayOfDay } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { formatNbDayOfMonth, formatNbWeekdayShort } from '#app/utils/format.ts'
@@ -100,7 +101,7 @@ test('writing a session on an empty day: the parse, the week sum, a suggestion, 
 	const user = await login()
 	await seedRunner(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	const day = todayKey()
 	const before = await trackWeek(user.id, day)
@@ -188,7 +189,7 @@ test('“Ny økt” on the top line writes a day months out, past the Planning H
 	await seedRunner(user.id, 40)
 	const far = addDays(todayKey(), 250)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	// One creation control on the top line (owner decision 6): it opens the
 	// same composer, on today.
@@ -219,11 +220,9 @@ test('“Ny økt” on the top line writes a day months out, past the Planning H
 	await drawer.getByRole('button', { name: 'Legg til', exact: true }).click()
 
 	await expect(
-		page
-			.locator('[data-sonner-toast]')
-			.filter({
-				hasText: /^Løping uke \d+: 0 → 21 km\. Ukemålet står på \d+\./,
-			}),
+		page.locator('[data-sonner-toast]').filter({
+			hasText: /^Løping uke \d+: 0 → 21 km\. Ukemålet står på \d+\./,
+		}),
 	).toBeVisible()
 	await expect(drawer).toHaveCount(0)
 
@@ -253,7 +252,7 @@ test('a session of lifts in the composer: an unknown lift offers the nearest, th
 	const user = await login()
 	await seedRunner(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	const day = todayKey()
 	const before = await trackWeek(user.id, day, 'strength')
@@ -312,8 +311,8 @@ test('a session of lifts in the composer: an unknown lift offers the nearest, th
 	await expect(
 		page.locator('[data-sonner-toast]').filter({ hasText: /Styrke/ }),
 	).toBeVisible()
-	// Still on I dag, with the session landed on its day.
-	await expect(page).toHaveURL(/\/$/)
+	// Still on the full view, with the session landed on its day.
+	await expect(page).toHaveURL(HOME_TIMELINE_HREF)
 	await expect(
 		page.locator(
 			`[data-timeline-day="${day}"] [data-session-row][data-landed]`,

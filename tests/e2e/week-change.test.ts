@@ -4,6 +4,7 @@ import {
 	localTimeUTC,
 	weekdayIndex,
 } from '#app/utils/athlete-calendar.ts'
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { recomputePlannedTssForSession } from '#app/utils/load/planned-tss.server.ts'
 import { lastClosedWeekKey } from '#app/utils/load/week-change.ts'
@@ -319,7 +320,7 @@ test('Ukeskiftet: the week that went, Ok, Nei takk, fra nå av, −15 % and lås
 	if (!plan.ok) throw new Error('no plan')
 	const tssBefore = await plannedTss(seeded.easy.id)
 	expect(tssBefore).toBeGreaterThan(0)
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 
 	// The badge on the top line says what waits, and takes the athlete to it
 	// (ADR 0086): the first question's Ok is on screen at 390×844.
@@ -407,7 +408,7 @@ test('Ukeskiftet: the week that went, Ok, Nei takk, fra nå av, −15 % and lås
 
 	// After a reload the card still says what the ease did: the numbers are kept.
 	const easedText = await eased.textContent()
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(card.getByText(easedText!)).toBeAttached()
 	// One question is left; the jump lands on it once the page is live.
 	const lastBadge = page.getByRole('button', {
@@ -460,7 +461,7 @@ test('Ukeskiftet: the week that went, Ok, Nei takk, fra nå av, −15 % and lås
 		.not.toBeNull()
 	// After the reload the session is the app's — its glyph says so — and there
 	// is no card: nothing is left to answer.
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(
 		page.getByRole('button', {
 			name: 'Appens økt: Langtur med gjengen. Hva betyr det?',
@@ -598,7 +599,7 @@ test('Ukeskiftet: the next round’s volume is the athlete’s to change, and a 
 		'Vi foreslår Blokk 3 med like mye trening som Blokk 2.',
 	)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	const card = page.getByRole('region', { name: 'Ukeskiftet' })
 	await expect(card).toBeAttached()
 	const ownProposal = card.getByRole('article', {
