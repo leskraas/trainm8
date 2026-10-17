@@ -33,6 +33,11 @@ import {
 	ADHERENCE_OVER_ABOVE,
 } from '../load/adherence.ts'
 import {
+	type PlannedMetric,
+	plannedMetricValue,
+	readPlannedMetric,
+} from '../planned-discipline.ts'
+import {
 	deriveSessionProfile,
 	intentToZone,
 	parseRecordingPhaseBars,
@@ -203,6 +208,26 @@ export type CurrencyFigures = {
 	sets: number | null
 }
 
+/**
+ * A planned session's figures in each currency, read through the planned
+ * discipline (`planned-discipline.ts`): a planned Simple Activity on `other` is
+ * an Unavailable Metric (`simple-activity`) in every currency, so it can never
+ * be summed into a track as a guessed number. It still sits in Annet.
+ */
+export function plannedVolumeOf(
+	discipline: string,
+	figures: CurrencyFigures,
+): { [C in keyof CurrencyFigures]: PlannedMetric<number> } {
+	const read = (value: number | null) =>
+		readPlannedMetric(discipline, 'planned-volume', () => value)
+	return {
+		km: read(figures.km),
+		hours: read(figures.hours),
+		tss: read(figures.tss),
+		sets: read(figures.sets),
+	}
+}
+
 /** One session, as the week model reads it. */
 export type VolumeSession = {
 	/** `YYYY-MM-DD` in the Athlete Timezone. */
@@ -251,7 +276,7 @@ export function volumeSessionOf(
 		discipline,
 		easy: intentZone != null && intentZone <= 2,
 		prescribed: workout
-			? {
+			? prescribedFigures(discipline, {
 					km: fixedDayVolume(workout.blocks, 'km'),
 					hours: fixedDayVolume(workout.blocks, 'hours'),
 					// A Planned TSS of zero is one that did not resolve — the week's
@@ -261,7 +286,7 @@ export function volumeSessionOf(
 							? session.plannedTssValue
 							: null,
 					sets: prescribedSets > 0 ? prescribedSets : null,
-				}
+				})
 			: null,
 		recorded:
 			recording || logged > 0 || session.tssValue != null
@@ -279,6 +304,19 @@ export function volumeSessionOf(
 		plannedZones: workout ? deriveSessionProfile(workout).bars : [],
 		doneZones: parseRecordingPhaseBars(recording?.phaseBarsJson),
 		countsInNoTrack: session.countsInNoTrack,
+	}
+}
+
+function prescribedFigures(
+	discipline: string,
+	figures: CurrencyFigures,
+): CurrencyFigures {
+	const read = plannedVolumeOf(discipline, figures)
+	return {
+		km: plannedMetricValue(read.km),
+		hours: plannedMetricValue(read.hours),
+		tss: plannedMetricValue(read.tss),
+		sets: plannedMetricValue(read.sets),
 	}
 }
 

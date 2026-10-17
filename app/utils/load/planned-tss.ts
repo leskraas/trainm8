@@ -1,3 +1,4 @@
+import { type PlannedMetric, readPlannedMetric } from '../planned-discipline.ts'
 import { blockRepeatTotal } from '../workout-schema.ts'
 import { coggan, hrTSS, rTSS, sTSS } from './formulas.ts'
 
@@ -206,4 +207,19 @@ export function computePlannedTss(
 
 	if (contributing === 0) return null
 	return { tss: total, confidence: unresolved > 0 ? 'partial' : 'full' }
+}
+
+/**
+ * Planned TSS as a planned session reads it: through the planned discipline
+ * (`planned-discipline.ts`), so a session on `other` is an Unavailable Metric
+ * (`simple-activity`) without running a formula, and a measured session whose
+ * steps resolve to nothing is `not-resolved`.
+ */
+export function readPlannedTss(
+	workout: PlannedTssWorkout,
+	profile: PlannedTssProfile,
+): PlannedMetric<PlannedTssResult> {
+	return readPlannedMetric(workout.discipline, 'planned-tss', () =>
+		computePlannedTss(workout, profile),
+	)
 }
