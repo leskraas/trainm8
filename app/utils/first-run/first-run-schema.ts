@@ -142,6 +142,11 @@ export type FirstRunAnswers = {
 	 */
 	level?: TrainingLevel
 	/**
+	 * The simple start's other endurance sports, beside the main one in
+	 * `discipline` (#573): each its own track with easy sessions.
+	 */
+	otherSports?: CardioDiscipline[]
+	/**
 	 * The **Session Preferences**, where the answers came from the simple
 	 * start (#571): they rank its options and may shorten weekday sessions.
 	 * Empty where the athlete skipped them.

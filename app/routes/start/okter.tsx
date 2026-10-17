@@ -11,11 +11,13 @@ import {
 import {
 	draftStart,
 	SESSION_PREFERENCES,
+	startSports,
 	weekSketch,
 	type SessionPreference,
 } from '#app/utils/first-run/start-draft.ts'
 import {
 	ActivitiesStepSchema,
+	otherSportsOf,
 	readStartAnswers,
 	startSearch,
 } from '#app/utils/first-run/start-schema.ts'
@@ -54,6 +56,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		level,
 		hours,
 		discipline,
+		otherSports: answers.otherSports ?? [],
 		days,
 		preferences: answers.preferences ?? [],
 		startWeekKey: await readPlanStartWeekKey(userId),
@@ -67,14 +70,21 @@ export async function action({ request }: Route.ActionArgs) {
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	throw redirect(`/start/valg?${startSearch(submission.value)}`)
+	const { sports, ...answers } = submission.value
+	throw redirect(
+		`/start/valg?${startSearch({
+			...answers,
+			otherSports: otherSportsOf(answers.discipline, sports),
+		})}`,
+	)
 }
 
 export default function PreferencesStep({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { level, hours, discipline, days, startWeekKey } = loaderData
+	const { level, hours, discipline, otherSports, days, startWeekKey } =
+		loaderData
 	const [preferences, setPreferences] = useState<SessionPreference[]>(
 		loaderData.preferences,
 	)
@@ -85,13 +95,14 @@ export default function PreferencesStep({
 				draftStart({
 					level,
 					discipline,
+					otherSports,
 					hours,
 					days,
 					startWeekKey,
 					preferences,
 				}),
 			),
-		[level, discipline, hours, days, startWeekKey, preferences],
+		[level, discipline, otherSports, hours, days, startWeekKey, preferences],
 	)
 
 	const [form] = useForm({
@@ -104,6 +115,7 @@ export default function PreferencesStep({
 		level,
 		hours,
 		discipline,
+		otherSports,
 		days,
 		preferences,
 	})}`
@@ -121,6 +133,11 @@ export default function PreferencesStep({
 				<input type="hidden" name="level" value={level} />
 				<input type="hidden" name="hours" value={hours} />
 				<input type="hidden" name="discipline" value={discipline} />
+				{otherSports.length > 0
+					? startSports(discipline, otherSports).map((sport) => (
+							<input key={sport} type="hidden" name="sports" value={sport} />
+						))
+					: null}
 				{days.map((day) => (
 					<input key={day} type="hidden" name="days" value={day} />
 				))}

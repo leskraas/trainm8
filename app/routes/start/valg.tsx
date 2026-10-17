@@ -18,6 +18,7 @@ import {
 	type StartOption,
 } from '#app/utils/first-run/start-draft.ts'
 import {
+	otherSportsOf,
 	readStartAnswers,
 	StartChoiceSchema,
 	startSearch,
@@ -25,6 +26,7 @@ import {
 import {
 	FIRST_RUN_LABELS,
 	FIRST_RUN_REFUSAL_LABELS,
+	NB_DISCIPLINE_LABELS,
 	NB_WEEKDAY_LABELS,
 	nbDurationLabel,
 	nbHoursWords,
@@ -154,6 +156,16 @@ function cardOf(
  */
 function notesOf(start: StartDraft, sessionCap: number): string[] {
 	const notes: string[] = []
+	if (start.sportsLeftOut.length > 0) {
+		notes.push(
+			L.sportsLeftOut(
+				start.daysUsed,
+				start.sportsLeftOut.map((sport) =>
+					NB_DISCIPLINE_LABELS[sport].toLowerCase(),
+				),
+			),
+		)
+	}
 	if (start.merged > 0) notes.push(L.merged(start.options.length))
 	if (start.capped) {
 		notes.push(SIMPLE_START_LABELS.activities.beginnerCap(sessionCap))
@@ -170,7 +182,14 @@ function notesOf(start: StartDraft, sessionCap: number): string[] {
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireSimpleStartAthlete(request)
 	const answers = readStartAnswers(new URL(request.url).searchParams)
-	const { level, hours, discipline, days, preferences = [] } = answers
+	const {
+		level,
+		hours,
+		discipline,
+		otherSports = [],
+		days,
+		preferences = [],
+	} = answers
 	// Every answer comes first; without one, back to where it is asked.
 	if (!level || hours == null) {
 		const search = startSearch(answers)
@@ -184,6 +203,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const start = draftStart({
 		level,
 		discipline,
+		otherSports,
 		hours,
 		days,
 		startWeekKey,
@@ -192,7 +212,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (!start) throw redirect(`/start/trening?${startSearch(answers)}`)
 	const badge = start.badge ? L.badge[start.badge] : null
 	return {
-		answers: { level, hours, discipline, days, preferences },
+		answers: { level, hours, discipline, otherSports, days, preferences },
 		title: L.title(start.options.length),
 		intro: L.intro(start.options.length, nbHoursWords(hours), start.daysUsed),
 		back,
@@ -217,11 +237,12 @@ export async function action({ request }: Route.ActionArgs) {
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
-	const { level, hours, discipline, days, family, preferences } =
+	const { level, hours, discipline, sports, days, family, preferences } =
 		submission.value
 	const startWeekKey = await readPlanStartWeekKey(userId)
 	const created = await createFirstRunPlan(userId, {
 		discipline,
+		otherSports: otherSportsOf(discipline, sports),
 		hours,
 		days,
 		goal: { kind: 'active' },
@@ -507,6 +528,18 @@ export default function StartOptions({
 									name="discipline"
 									value={answers.discipline}
 								/>
+								{answers.otherSports.length > 0
+									? [answers.discipline, ...answers.otherSports].map(
+											(sport) => (
+												<input
+													key={sport}
+													type="hidden"
+													name="sports"
+													value={sport}
+												/>
+											),
+										)
+									: null}
 								{answers.days.map((day) => (
 									<input key={day} type="hidden" name="days" value={day} />
 								))}
