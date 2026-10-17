@@ -118,10 +118,7 @@ import type {
 	ThresholdProtocol,
 } from './profile-analysis/types.ts'
 import type { SessionOwner } from './session-ownership.ts'
-import type {
-	ActivityKind,
-	EffortWord as SimpleActivityEffortWord,
-} from './simple-activity.ts'
+import type { ActivityKind } from './simple-activity.ts'
 import type { Attribution } from './source-terms.ts'
 import type { RepLoadBasis } from './strength/anchors.constants.ts'
 import type { OneRmRefusal } from './strength/one-rm.ts'
@@ -1485,10 +1482,10 @@ export const SIMPLE_ACTIVITY_LABELS = {
 	} satisfies Record<ActivityKind, string>,
 	/** The Effort Word as a row and the detail page say it. Never a zone. */
 	effort: {
-		light: 'Rolig',
-		medium: 'Middels',
+		rolig: 'Rolig',
+		middels: 'Middels',
 		hard: 'Hard',
-	} satisfies Record<SimpleActivityEffortWord, string>,
+	} satisfies Record<EffortWord, string>,
 	/** The heading over the numbers it does not carry. */
 	notMeasuredHeading: 'Ikke målt',
 	notMeasured: 'ikke målt',

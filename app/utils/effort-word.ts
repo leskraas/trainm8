@@ -14,15 +14,21 @@
  * Null where nothing says: a lift (strength sits on its own axis, ADR 0046), a
  * session with no prescription, or steps whose targets cannot be zoned without
  * thresholds. The surface then leaves the word out rather than guessing one.
- * A Simple Activity's stored Effort Word (#567) will be read before this.
+ * A Simple Activity's stored Effort Word (#567) is read before all this: the
+ * athlete said it, so nothing is derived over it.
  */
 import { deriveSessionProfile, type Workout } from './session-profile.ts'
 
 export const EFFORT_WORDS = ['rolig', 'middels', 'hard'] as const
 export type EffortWord = (typeof EFFORT_WORDS)[number]
 
+export function isEffortWord(value: unknown): value is EffortWord {
+	return (EFFORT_WORDS as readonly unknown[]).includes(value)
+}
+
 export function readEffortWord(workout: Workout | null): EffortWord | null {
 	if (!workout || workout.discipline === 'strength') return null
+	if (isEffortWord(workout.effortWord)) return workout.effortWord
 	const zones = deriveSessionProfile(workout)
 		.bars.map((bar) => bar.zone)
 		.filter((zone): zone is NonNullable<typeof zone> => zone != null)
