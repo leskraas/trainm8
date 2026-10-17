@@ -1,7 +1,7 @@
-# Levende start — ticket breakdown (draft, not published)
+# Levende start — ticket breakdown (published)
 
-Source: spec issue #558 (_Levende start_). Draft only; nothing here is on the
-tracker yet. Each ticket is a tracer-bullet vertical slice unless marked
+Source: spec issue #558 (_Levende start_). Published 2026-10-17 as sub-issues
+#559–#583 of #558; see `TICKETS-PUBLISHED.md` for the mapping. Each ticket is a tracer-bullet vertical slice unless marked
 **Prefactor**. Prefactors come first so the slices after them are easy
 changes.
 
@@ -20,7 +20,7 @@ changes.
   **Autopilot Notice**, **Juster**, and the updated **First Run**, **Week
   Replan**, **Tab Bar**, **Home Timeline**, **Periodization Preset** and
   **Session Adoption**. Ticket 1 gates only the slices that would otherwise
-  break an accepted ADR: 5, 15, 16, 19 and 21.
+  break an accepted ADR: 5, 15, 16, 19 and 22.
 - **The ADR 0015 amendment, with the glossary's **Discipline**, **Annet**,
   **Simple Activity**, **Activity Kind**, **Effort Word** and **Unavailable
   Metric** entries, is folded into ticket 10.** Only the Simple Activity work
@@ -316,17 +316,32 @@ _Angre_ then has an engine to call.
 answers _Ukeskiftet_. At Sunday's close the app applies the coming week's
 changes within the guards, and I dag shows _Neste uke er lagt ut_ with one
 line per change, its reason, _Angre_ and _Angre alt_. _Spør meg først_ stays
-today's behaviour, and is the default until ticket 20.
+today's behaviour, and is the default until ticket 21. How long the notice
+stays on I dag, its history and the could-not-lay line come in ticket 20.
 
 - [ ] A per-athlete Autopilot setting (default _Spør meg først_ in this ticket) is shown and switched in _Meg_. Switching it applies from the next close and never applies open proposals retroactively.
 - [ ] With autopilot on, the week change applies every proposal whose target is the machine's at the close, including added load, within the guards: at most 5 % per round and never past the ramp guard's 8 % week-on-week. Make-up copies are not placed, and the missed session stays _ikke gjort_. Sessions that are `authored`, adopted and not released are left alone. The 06:00 silence step does nothing for autopilot athletes.
-- [ ] The Autopilot Notice sits on I dag above the week. Each line states what changed and why (the stored reason) with _Angre_, plus _Angre alt_. A session left alone or a missed session let go is said in a line. A week that could not be laid says so.
-- [ ] The notice leaves I dag once it has been seen and the week has begun, and the history stays findable in _Se hele sesongen_. _Gjør uka lettere −15 %_ stays available.
+- [ ] The Autopilot Notice sits on I dag above the week. Each line states what changed and why (the stored reason) with _Angre_, plus _Angre alt_. A session left alone or a missed session let go is said in a line. _Gjør uka lettere −15 %_ stays available.
 - [ ] Server tests run the weekly step for one athlete with an injected clock: applied at close, guards, own sessions untouched, make-up not placed, undo exact and refused after the week begins, and _Spør meg først_ unchanged.
 
-### 20. Autopilot runs the open-ended plan, on for everyone
+### 20. The Autopilot Notice's lifecycle and history
 
 **Blocked by:** 19
+
+**What it delivers:** Split from ticket 19 (see the sizing note). The
+Autopilot Notice stops being a fixture: it leaves I dag once the athlete has
+seen it and the week has begun, and every notice stays findable in _Se hele
+sesongen_. A week that could not be laid is said plainly in the notice instead
+of passing in silence.
+
+- [ ] The notice stays on I dag until it has been seen and the week has begun, then leaves. Neither alone removes it.
+- [ ] Past notices, with their lines and reasons, stay findable in _Se hele sesongen_ at the week they belong to.
+- [ ] A week that could not be laid says so in the notice, with the reason.
+- [ ] Every word comes from the labels module. Tests with an injected clock cover the notice staying before it is seen or before the week begins, leaving after both, the history in _Se hele sesongen_, and the could-not-lay line.
+
+### 21. Autopilot runs the open-ended plan, on for everyone
+
+**Blocked by:** 20
 
 **What it delivers:** An open-ended plan's next round is appended at its
 proposed volume without a yes, and can be undone. Autopilot becomes the
@@ -339,7 +354,7 @@ _Spør meg først_ is.
 - [ ] A migrated athlete's first notice carries the one-time line about the change and where to switch back. It never appears again.
 - [ ] Tests cover a migrated athlete's first close and a new athlete's first close. Under _Spør meg først_, the next round still waits for a yes (ADR 0079 §3).
 
-### 21. Three tabs: _I dag_, _Plan_, _Meg_
+### 22. Three tabs: _I dag_, _Plan_, _Meg_
 
 **Blocked by:** 1
 
@@ -353,9 +368,9 @@ bookmark still works and lands in _Plan_ with the _Plan_ tab active.
 - [ ] The tab words come from the labels module. Tab-bar tests cover every old URL.
 - [ ] The `mobile-native` checklist is run on the bar, with targets of at least 44 px and the bar in the thumb zone.
 
-### 22. _Plan_ leads with the plain picture
+### 23. _Plan_ leads with the plain picture
 
-**Blocked by:** 7, 21
+**Blocked by:** 7, 22
 
 **What it delivers:** _Plan_ opens on the plan's plain name with the family
 small, the season as one curve with this week and the next easy week marked,
@@ -367,9 +382,9 @@ today's Sesong editors exactly as they work now.
 - [ ] _Avansert_ is closed by default and holds philosophy, week targets, phases, Training Tracks, Week Pattern and the season chart. The existing Sesong tests pass inside it.
 - [ ] An athlete without a plan is invited to the start.
 
-### 23. _Bytt treningsform_ through the Start Options
+### 24. _Bytt treningsform_ through the Start Options
 
-**Blocked by:** 22
+**Blocked by:** 23
 
 **What it delivers:** From _Plan_ the athlete sees the three ways to train
 again, as real weeks laid for their plan's tracks and days. Picking one
@@ -380,7 +395,7 @@ switches the philosophy through today's philosophy switch, behind its preview.
 - [ ] Sessions the athlete wrote or took over are untouched by the switch, as today.
 - [ ] Route tests cover the options shown, the preview and the applied switch.
 
-### 24. Motion that explains
+### 25. Motion that explains
 
 **Blocked by:** 7, 8, 15
 
@@ -418,17 +433,18 @@ graph TD
   T17[17 Bytt økt + Avansert]
   T18[18 Prefactor: before-image + undo]
   T19[19 Autopilot behind switch]
-  T20[20 Next round + on for everyone]
-  T21[21 Three tabs]
-  T22[22 Plan plain picture]
-  T23[23 Bytt treningsform]
-  T24[24 Motion]
+  T20[20 Notice lifecycle + history]
+  T21[21 Next round + on for everyone]
+  T22[22 Three tabs]
+  T23[23 Plan plain picture]
+  T24[24 Bytt treningsform]
+  T25[25 Motion]
 
   T1 --> T5
   T1 --> T15
   T1 --> T16
   T1 --> T19
-  T1 --> T21
+  T1 --> T22
   T6 --> T7
   T7 --> T8
   T7 --> T9
@@ -448,12 +464,13 @@ graph TD
   T15 --> T19
   T18 --> T19
   T19 --> T20
-  T7 --> T22
-  T21 --> T22
+  T20 --> T21
+  T7 --> T23
   T22 --> T23
-  T7 --> T24
-  T8 --> T24
-  T15 --> T24
+  T23 --> T24
+  T7 --> T25
+  T8 --> T25
+  T15 --> T25
 ```
 
 ## Initial frontier
@@ -464,10 +481,11 @@ before-image and undo).
 
 ## Notes on sizing
 
-- **19 (Autopilot behind a switch)** is the largest ticket: setting, apply step,
-  guards, notice and its lifecycle. If it does not fit one context, split the
-  notice's lifecycle and history (seen, week begun, findable in _Se hele
-  sesongen_, could-not-lay) into a follow-up blocked by 19.
+- **19 (Autopilot behind a switch)** was the largest ticket: setting, apply
+  step, guards, notice and its lifecycle. It is split: the notice's lifecycle
+  and history (seen, week begun, findable in _Se hele sesongen_,
+  could-not-lay) are ticket 20, blocked by 19. Everything that was blocked by
+  19 is now blocked by 20.
 - **15 (Calm I dag)** is the next largest. The before-start, no-plan and
   large-screen states can split off if needed.
 - 5 has no route of its own. It is demoable through Sesong's philosophy preview.
