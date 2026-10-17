@@ -18,6 +18,7 @@
 //
 // Pure: no database. Writes go through `simple-activity.server.ts`.
 import { z } from 'zod/v3'
+import { EFFORT_WORDS, type EffortWord, isEffortWord } from './effort-word.ts'
 
 /** The Discipline a Simple Activity is on (ADR 0015). */
 export const SIMPLE_ACTIVITY_DISCIPLINE = 'other'
@@ -36,10 +37,6 @@ export const ACTIVITY_KINDS = [
 	'yoga-mobility',
 ] as const
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number]
-
-/** How hard it is meant to be: _rolig_, _middels_, _hard_. Never a zone. */
-export const EFFORT_WORDS = ['light', 'medium', 'hard'] as const
-export type EffortWord = (typeof EFFORT_WORDS)[number]
 
 /** The shortest and longest Simple Activity the app will write, in minutes. */
 export const SIMPLE_ACTIVITY_MIN_MINUTES = 10
@@ -65,10 +62,6 @@ export const SimpleActivitySchema = z.object({
 
 export function isActivityKind(value: unknown): value is ActivityKind {
 	return (ACTIVITY_KINDS as readonly unknown[]).includes(value)
-}
-
-export function isEffortWord(value: unknown): value is EffortWord {
-	return (EFFORT_WORDS as readonly unknown[]).includes(value)
 }
 
 /** The stored Workout fields a Simple Activity is read from. */
