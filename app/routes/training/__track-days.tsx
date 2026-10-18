@@ -388,8 +388,12 @@ function useUndoneToast(reply: ReplyData | undefined, name: string) {
 	const undone =
 		reply && 'intent' in reply && reply.intent === 'undone' ? reply : null
 	useOncePer(undone, (undone) => {
+		// The same toast, so its _Angre_ goes: there is nothing left to undo.
 		if (undone.ok)
-			toast.success(L.undone(name), { id: `track-days-${undone.key}` })
+			toast.success(L.undone(name), {
+				id: `track-days-${undone.key}`,
+				action: undefined,
+			})
 		else if (undone.error)
 			toast.error(L.refusals[undone.error as keyof typeof L.refusals], {
 				id: `track-days-${undone.key}`,

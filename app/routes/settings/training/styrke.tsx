@@ -569,7 +569,9 @@ function useUndoneToast(reply: ReplyData | undefined) {
 	const undone =
 		reply && 'intent' in reply && reply.intent === 'undone' ? reply : null
 	useOncePer(undone, (undone) => {
-		if (undone.ok) toast.success(D.undone, { id: 'strength-days' })
+		// The same toast, so its _Angre_ goes: there is nothing left to undo.
+		if (undone.ok)
+			toast.success(D.undone, { id: 'strength-days', action: undefined })
 		else if (undone.error)
 			toast.error(D.refusals[undone.error as keyof typeof D.refusals], {
 				id: 'strength-days',
