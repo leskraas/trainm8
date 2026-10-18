@@ -30,6 +30,8 @@
  * swipe, `hasUAVisualTransition`) is not animated a second time.
  */
 
+import { EASE_IN_OUT, prefersReducedMotion } from './motion.ts'
+
 /** The `view-transition-name`s, one per hand-off. */
 export const MORPH = {
 	/** _Uka di_ → the top Start Option card. */
@@ -45,9 +47,6 @@ export type MorphState = { morph?: MorphName }
 
 /** Something on screen travelling to its new place (spec #558). */
 export const MORPH_MS = 280
-
-/** `--ease-in-out` (ADR 0077 §1): the curve for movement on screen. */
-const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)'
 
 /**
  * How far the clip stands outside the box at its edges, so the card's shadow
@@ -124,7 +123,7 @@ export function installViewMorphs(win: Window = window): void {
  * crossfade in place), so there is nothing to replace.
  */
 function containerTransforms(win: Window): void {
-	if (win.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+	if (prefersReducedMotion(win)) return
 	const root = win.document.documentElement
 	// Every named surface is a `rounded-4xl` card: 2rem.
 	const radius = 2 * (parseFloat(win.getComputedStyle(root).fontSize) || 16)

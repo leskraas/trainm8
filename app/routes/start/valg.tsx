@@ -34,6 +34,7 @@ import {
 	START_SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { prefersReducedMotion } from '#app/utils/motion.ts'
 import { MORPH } from '#app/utils/view-morph.ts'
 import { type Route } from './+types/valg.ts'
 import { FirstRunFrame, SIMPLE_START_STEP_COUNT } from './__first-run-frame.tsx'
@@ -211,10 +212,6 @@ export async function action({ request }: Route.ActionArgs) {
 	// _Planen er klar_ says what was made; it reads the plan, so a reload or
 	// the back button shows it again and makes nothing.
 	return redirect('/start/klar')
-}
-
-function prefersReducedMotion(): boolean {
-	return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 export default function StartOptions({
