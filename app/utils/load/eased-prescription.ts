@@ -105,16 +105,19 @@ function enduranceZoneLabel(
  * @param durationMin   the source session's planned duration in minutes, or null.
  * @param profile       the athlete's Discipline Profile for `discipline`, used to
  *                      resolve the endurance zone. `null`/absent ⇒ unresolvable.
+ * @param capMin        the longest the eased session may be. The Session Nudge
+ *                      caps at an hour (`EASED_CAP_MIN`); _For sliten i dag_
+ *                      (spec #558 S5) has already chosen its own length.
  */
 export function buildEasedPrescription(input: {
 	discipline: string
 	durationMin: number | null
 	profile: DisciplineProfileForResolver | null
+	capMin?: number
 }): EasedPrescription {
-	const { discipline, durationMin, profile } = input
+	const { discipline, durationMin, profile, capMin = EASED_CAP_MIN } = input
 
-	const cappedMin =
-		durationMin != null ? Math.min(durationMin, EASED_CAP_MIN) : EASED_CAP_MIN
+	const cappedMin = durationMin != null ? Math.min(durationMin, capMin) : capMin
 
 	// Strength (any non-cardio discipline): no zone model to ease into — no target.
 	if (!CARDIO_DISCIPLINE_SET.has(discipline)) {

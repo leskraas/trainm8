@@ -44,6 +44,8 @@ model User {
   programInstances      ProgramInstance[]
   workoutReports        WorkoutReport[]       @relation("WorkoutReportReporter")
   moderatedReports      WorkoutReport[]       @relation("WorkoutReportModerator")
+  /// Every **Juster** the athlete made on today's session (spec #558 S5).
+  sessionAdjustments    SessionAdjustment[]
 }
 
 model UserImage {
@@ -1110,6 +1112,8 @@ model WorkoutSession {
   programApplications ProgramSessionApplication[]
   /// The Week Replan proposals aimed at this session (ADR 0080).
   replanProposals     WeekReplanProposal[]
+  /// The **Juster** changes made on this session (spec #558 S5, ADR 0100 §7).
+  adjustments         SessionAdjustment[]
 
   @@index([userId])
   @@index([userId, scheduledAt])
@@ -2502,4 +2506,35 @@ model ProgramLiftState {
   @@unique([instanceId, exerciseId, equipment])
   @@index([instanceId])
   @@index([exerciseId])
+}
+
+/// A **Juster** (spec #558 S5, ADR 0100 §7): one tap on today's session —
+/// _For sliten i dag_, _Lite tid_ or _Bytt dag_ — and what it replaced, so its
+/// _Angre_ puts it back exactly. Written by `app/utils/juster.server.ts`.
+///
+/// The row is the undo token: the reply carries its id, and an undo claims
+/// `undoneAt` in the same transaction as its writes, so a second tap writes
+/// nothing. Ownership is never part of it: a Juster leaves `source`,
+/// `adoptedAt` and `releasedAt` exactly as they were.
+model SessionAdjustment {
+  id          String    @id @default(cuid())
+  /// 'tired' | 'short' | 'move' (`JUSTER_INTENTS`).
+  intent      String
+  /// What the change replaced and what it left, as JSON validated by
+  /// `JusterImageSchema` (`app/utils/juster.ts`): each touched session's
+  /// placement, Replan Note and Workout, the prescription it replaced, and the
+  /// state it left, which an undo must still find.
+  beforeImage String
+  createdAt   DateTime  @default(now())
+  /// When the change was taken back. Null = it stands.
+  undoneAt    DateTime?
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId    String
+  /// Today's session, the one the athlete tapped on.
+  session   WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sessionId String
+
+  @@index([userId])
+  @@index([sessionId])
 }
