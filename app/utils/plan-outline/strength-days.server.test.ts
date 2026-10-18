@@ -5,6 +5,7 @@ import { proposeWeekChange } from '#app/utils/load/propose-week-change.ts'
 import { applyWeekReplanForUser } from '#app/utils/load/week-replan.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import {
+	addStrengthSegment,
 	addWeekPattern,
 	addWeekPatternDay,
 	createPlanOutline,
@@ -245,6 +246,54 @@ test('the Strength Frequency is the number of days chosen', async () => {
 	expect(profile.strengthPerWeek).toBe(1)
 	for (const week of await calendar(userId)) {
 		expect(week.lifting).toEqual([THU])
+	}
+})
+
+test('the strength blocks lift as often as the days chosen, and the undo puts their frequency back (story 20)', async () => {
+	const { userId, liftTrackId } = await setup()
+	const frequencies = () =>
+		prisma.trainingTrackSegment.findMany({
+			where: { trackId: liftTrackId, kind: 'strength' },
+			orderBy: { id: 'asc' },
+			select: { id: true, sessionsPerWeek: true },
+		})
+	// The block said three a week before the athlete chose their days.
+	const added = await addStrengthSegment(userId, {
+		trackId: liftTrackId,
+		startWeekKey: '2030-01-07',
+		weeks: 6,
+		ramp: null,
+		boundaryStep: null,
+		goal: 'maximal-strength',
+		sessionsPerWeek: 3,
+		deloadCut: null,
+		deloadWeeks: null,
+	})
+	if (!added.ok) throw new Error(added.reason)
+	expect(await frequencies()).toHaveLength(1)
+	const state = (await readStrengthDays(userId, NOW))!
+	const written = await setStrengthDays(
+		userId,
+		{ choice: [TUE, THU], version: state.version },
+		NOW,
+	)
+	if (!written.ok) throw new Error(written.reason)
+	for (const segment of await frequencies()) {
+		expect(segment.sessionsPerWeek).toBe(2)
+	}
+
+	const undone = await setStrengthDays(
+		userId,
+		{
+			choice: written.previous.days,
+			version: written.version,
+			restore: written.previous,
+		},
+		NOW,
+	)
+	expect(undone.ok).toBe(true)
+	for (const segment of await frequencies()) {
+		expect(segment.sessionsPerWeek).toBe(3)
 	}
 })
 

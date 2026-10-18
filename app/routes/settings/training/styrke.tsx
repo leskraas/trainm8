@@ -91,6 +91,16 @@ const UndoSchema = z.object({
 	days: z.array(z.number().int().min(0).max(6)).nullable(),
 	count: z.number().int().min(0),
 	answer: z.number().int().nullable(),
+	/** The strength blocks' frequencies the write set, to put back. */
+	frequencies: z
+		.array(
+			z.object({
+				segmentId: z.string().min(1),
+				sessionsPerWeek: z.number().int().min(0).nullable(),
+			}),
+		)
+		.max(64)
+		.default([]),
 	version: z.string(),
 })
 
@@ -137,11 +147,11 @@ export async function action({ request }: Route.ActionArgs) {
 				{ status: 400 },
 			)
 		}
-		const { days, count, answer, version } = parsed.data
+		const { days, count, answer, frequencies, version } = parsed.data
 		const undone = await setStrengthDays(userId, {
 			choice: days == null ? null : patternWeekdaysOf(days),
 			version,
-			restore: { count, answer },
+			restore: { count, answer, frequencies },
 		})
 		return undone.ok
 			? { intent: 'undone' as const, ok: true, error: null }
@@ -525,6 +535,7 @@ function useWrittenToast(
 								days: written.previous.days,
 								count: written.previous.count,
 								answer: written.previous.answer,
+								frequencies: written.previous.frequencies,
 								version: written.version,
 							}),
 						},

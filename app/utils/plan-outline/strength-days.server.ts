@@ -316,11 +316,19 @@ async function liftedWorkoutId(
 	return (await readStartStrength(userId, now))?.workoutId ?? null
 }
 
+/** A strength block's **Strength Frequency**, as a write found it. */
+export type StrengthBlockFrequency = {
+	segmentId: string
+	sessionsPerWeek: number | null
+}
+
 /** What a write replaced, so its toast can put it back. */
 export type StrengthDaysPrevious = {
 	days: StrengthDaysChoice
 	count: number
 	answer: number | null
+	/** The track's strength blocks' frequencies, which chosen days set. */
+	frequencies: StrengthBlockFrequency[]
 }
 
 export type StrengthDaysWrite =
@@ -349,8 +357,15 @@ export async function setStrengthDays(
 	}: {
 		choice: StrengthDaysChoice
 		version: string
-		/** An undo: the count and answer to put back with the days. */
-		restore?: { count: number; answer: number | null }
+		/**
+		 * An undo: the count, the answer and the blocks' frequencies to put
+		 * back with the days.
+		 */
+		restore?: {
+			count: number
+			answer: number | null
+			frequencies?: readonly StrengthBlockFrequency[]
+		}
 	},
 	now: Date = new Date(),
 ): Promise<StrengthDaysWrite> {
@@ -408,13 +423,35 @@ export async function setStrengthDays(
 				where: { id: state.trackId },
 				data: { pinnedDays: serializePinnedDays(days) },
 			})
-			// The number of chosen days *is* the Strength Frequency.
+			// The number of chosen days *is* the Strength Frequency: the
+			// profile's answer and every strength block of the track (story 20),
+			// so the two never disagree. An undo puts back what each said.
 			const answer = restore ? restore.answer : days ? days.length : undefined
 			if (answer !== undefined) {
 				await tx.athleteProfile.upsert({
 					where: { userId },
 					update: { strengthPerWeek: answer },
 					create: { userId, strengthPerWeek: answer },
+				})
+			}
+			const frequencies = await tx.trainingTrackSegment.findMany({
+				where: { trackId: state.trackId, kind: 'strength' },
+				orderBy: { id: 'asc' },
+				select: { id: true, sessionsPerWeek: true },
+			})
+			if (restore) {
+				const own = new Set(frequencies.map((segment) => segment.id))
+				for (const back of restore.frequencies ?? []) {
+					if (!own.has(back.segmentId)) continue
+					await tx.trainingTrackSegment.update({
+						where: { id: back.segmentId },
+						data: { sessionsPerWeek: back.sessionsPerWeek },
+					})
+				}
+			} else if (days) {
+				await tx.trainingTrackSegment.updateMany({
+					where: { trackId: state.trackId, kind: 'strength' },
+					data: { sessionsPerWeek: days.length },
 				})
 			}
 			return {
@@ -425,6 +462,10 @@ export async function setStrengthDays(
 					days: state.pinned,
 					count: state.count,
 					answer: state.answer,
+					frequencies: frequencies.map((segment) => ({
+						segmentId: segment.id,
+						sessionsPerWeek: segment.sessionsPerWeek,
+					})),
 				},
 				version: `${serializePinnedDays(days) ?? 'auto'}|${count}`,
 				outlineId: state.outlineId,
