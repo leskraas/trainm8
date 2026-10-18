@@ -29,9 +29,17 @@ import {
 	SIMPLE_START_LABELS,
 	START_OPTION_LABELS,
 } from '../labels.ts'
-import { ROUND_STEP_UP } from '../load/propose-next-round.ts'
+import {
+	guardedRoundFactor,
+	ROUND_STEP_UP,
+} from '../load/propose-next-round.ts'
 import { weekRole } from '../plan-outline/derive.ts'
-import { phaseSpecs, resolvedTracks } from '../plan-outline/from-rows.ts'
+import {
+	isSimpleActivityTrack,
+	type OutlineRows,
+	phaseSpecs,
+	resolvedTracks,
+} from '../plan-outline/from-rows.ts'
 import { roundBoundaryStep } from '../plan-outline/open-ended.server.ts'
 import { withProjectedRounds } from '../plan-outline/round-projection.ts'
 import { weekKeyAt } from '../plan-outline/week-keys.ts'
@@ -127,9 +135,13 @@ export async function readPlanReady(
 		season.eventId == null && roundWeeks > 0 && laidWeeks < PLAN_READY_WEEKS
 			? Math.ceil((PLAN_READY_WEEKS - laidWeeks) / roundWeeks)
 			: 0
+	// The step such a round earns, under the 8 % guard against the steepest
+	// ramp the last round carries on (`guardedRoundFactor`, as the author
+	// caps it in both modes), so the projection never promises more.
+	const factor = guardedRoundFactor(ROUND_STEP_UP, lastRoundRamp(outline))
 	const rows = withProjectedRounds(outline, {
 		rounds,
-		boundaryStep: roundBoundaryStep(ROUND_STEP_UP),
+		boundaryStep: roundBoundaryStep(factor),
 	})
 	const tracks = resolvedTracks(rows).filter(
 		(track) => track.currency === 'hours',
@@ -155,7 +167,7 @@ export async function readPlanReady(
 		}
 	})
 	const projectedFrom = rounds > 0 ? laidWeeks : null
-	const percent = Math.round((ROUND_STEP_UP - 1) * 100)
+	const percent = Math.round((factor - 1) * 100)
 
 	const family = season.family
 	const plain =
@@ -283,4 +295,25 @@ export async function readPlanReady(
 		},
 		toToday: '/',
 	}
+}
+
+/**
+ * The steepest Volume Ramp the plan's last round carries on, its endurance
+ * segments' with the Simple Activities aside (they take no step), or null for
+ * none: the same reading the Week Change gives the author
+ * (`open-ended-round.server.ts`).
+ */
+function lastRoundRamp(rows: OutlineRows): number | null {
+	const last = [...rows.phases]
+		.sort((a, b) => a.orderIndex - b.orderIndex)
+		.at(-1)
+	if (!last) return null
+	const ramps = rows.tracks
+		.filter((track) => !isSimpleActivityTrack(track.discipline))
+		.flatMap((track) => track.segments)
+		.filter(
+			(segment) => segment.kind === 'endurance' && segment.phaseId === last.id,
+		)
+		.flatMap((segment) => (segment.ramp == null ? [] : [segment.ramp]))
+	return ramps.length > 0 ? Math.max(...ramps) : null
 }

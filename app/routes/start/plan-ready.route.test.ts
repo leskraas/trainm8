@@ -2,7 +2,11 @@ import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { ROUND_STEP_UP } from '#app/utils/load/propose-next-round.ts'
+import {
+	guardedRoundFactor,
+	ROUND_STEP_UP,
+} from '#app/utils/load/propose-next-round.ts'
+import { PLAN_READY_LABELS } from '#app/utils/labels.ts'
 import { appendOpenEndedRound } from '#app/utils/plan-outline/open-ended.server.ts'
 import { getSeasonForOutline } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
@@ -133,8 +137,25 @@ test('the curve is 12 weeks of hours: the round as laid from the hours given, an
 	expect(ready.curve.projectedFrom).toBe(4)
 	expect(ready.curve.points[0]!.key).toBe(outline.startWeekKey)
 
-	// What the autopilot would append for two rounds done to plan (+5 % each):
-	// append them for real, and the season then reads what was drawn dashed.
+	// What the autopilot would append for two rounds done to plan: +5 % each,
+	// capped so the round's ramp × the step stays inside the 8 % guard. Append
+	// them for real at that factor, and the season reads what was drawn dashed.
+	const segments = await prisma.trainingTrackSegment.findMany({
+		where: {
+			phase: { outlineId: outline.id },
+			kind: 'endurance',
+			track: { discipline: { not: 'other' } },
+		},
+		select: { ramp: true },
+	})
+	const ramps = segments.flatMap((segment) =>
+		segment.ramp == null ? [] : [segment.ramp],
+	)
+	const ramp = ramps.length > 0 ? Math.max(...ramps) : null
+	const factor = guardedRoundFactor(ROUND_STEP_UP, ramp)
+	// A beginner's 5 % ramp leaves room for 2.85 %, not 5 %.
+	expect(factor).toBeLessThan(ROUND_STEP_UP)
+	expect((1 + (ramp ?? 0)) * factor).toBeLessThanOrEqual(1.08 + 1e-9)
 	for (const round of [2, 3]) {
 		const phases = await prisma.planOutlinePhase.findMany({
 			where: { outlineId: outline.id },
@@ -152,7 +173,7 @@ test('the curve is 12 weeks of hours: the round as laid from the hours given, an
 					name: `Blokk ${round}`,
 					weeks: 4,
 					rhythm: '3:1',
-					factor: ROUND_STEP_UP,
+					factor,
 				},
 				{ now: new Date(), timezone: 'UTC' },
 			),
@@ -162,7 +183,7 @@ test('the curve is 12 weeks of hours: the round as laid from the hours given, an
 	// The next round opens higher than the first did.
 	expect(drawn[4]!).toBeGreaterThan(drawn[0]!)
 	expect(ready.curve.note).toBe(
-		'Stiplet: de neste blokkene hvis du trener som planlagt, med 5 % mer per blokk.',
+		PLAN_READY_LABELS.note(Math.round((factor - 1) * 100)),
 	)
 })
 
