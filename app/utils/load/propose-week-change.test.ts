@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { RAMP_GUARD_MAX } from '#app/utils/plan-outline/ramp-guard.ts'
 import { weeklyAdherence } from './adherence.ts'
 import {
 	proposeWeekChange,
@@ -39,11 +40,41 @@ const missedFacts: WeekChangeFacts = {
 	],
 }
 
+/**
+ * An open-ended plan's round done to plan, climbing +5 % a loading week as
+ * Klassisk does, closing with an on-plan week.
+ */
+const roundFacts: WeekChangeFacts = {
+	...facts,
+	adherence: weeklyAdherence([{ plannedTss: 100, actualTss: 100 }]),
+	tsb: 0,
+	repeatMisses: [],
+	round: {
+		outlineId: 'outline',
+		phaseId: 'round-1',
+		round: 1,
+		nextWeekKey: '2030-01-21',
+		next: { weeks: 4, rhythm: '3:1' },
+		ramp: 0.05,
+		weeks: [
+			{
+				weekKey: '2030-01-07',
+				sessions: [{ plannedTss: 100, actualTss: 100 }],
+			},
+			{
+				weekKey: '2030-01-14',
+				sessions: [{ plannedTss: 100, actualTss: 100 }],
+			},
+		],
+	},
+}
+
 const asking = /foreslår|sier ja|\?/
 
 test.each([
 	['a softened week', facts],
 	['a week with a missed session', missedFacts],
+	['a round done to plan under a +5 % ramp', roundFacts],
 ])(
 	'under autopilot, %s gets the same proposals, worded as done',
 	(_, given) => {
@@ -60,5 +91,26 @@ test.each([
 			expect(proposal.reason).not.toMatch(asking)
 		}
 		expect(autopilot.reason).not.toMatch(asking)
+	},
+)
+
+// The next-round guard (#584, ADR 0100 §3): the round's first week sits one
+// ramp step and the boundary step above the round's last loading week, so the
+// author caps the step to keep the two within 8 % — in both modes, since the
+// author is the same in both.
+test.each([
+	['Spør meg først', false],
+	['autopilot', true],
+])(
+	'under %s, a round after a +5 % ramp steps up only as far as the 8 % allows',
+	(_, autopilot) => {
+		const { proposals } = proposeWeekChange({ ...roundFacts, autopilot })
+		const round = proposals.find((p) => p.payload.kind === 'add-phase')
+		const factor =
+			round?.payload.kind === 'add-phase' ? round.payload.factor : null
+
+		expect(factor).toBeGreaterThan(1)
+		expect((1 + 0.05) * factor!).toBeLessThanOrEqual(1 + RAMP_GUARD_MAX)
+		expect(round!.reason).toContain('ca. 3 % mer trening')
 	},
 )

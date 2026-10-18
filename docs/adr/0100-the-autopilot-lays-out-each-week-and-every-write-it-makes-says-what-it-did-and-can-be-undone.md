@@ -66,7 +66,9 @@ a statement of what was done, not a question; the author's rules are unchanged.
 
 - **A step up is bounded.** At most the presets' 5 % per round
   (`ROUND_STEP_UP`), and never past the ramp guard's 8 % week-on-week rise
-  (`RAMP_GUARD_MAX`). Both stay conventions, not injury prevention.
+  (`RAMP_GUARD_MAX`). Both stay conventions, not injury prevention. The next
+  round's step is capped so ramp × step stays within 8 %, the same in both
+  modes.
 - **A make-up copy is not placed automatically.** It adds load on a day the
   athlete did not choose. The missed session stays _ikke gjort_ on its day (ADR
   0080 §5), and the notice says it was let go.
