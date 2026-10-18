@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, expect, test } from 'vitest'
+import { weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getSeasonForEvent } from '#app/utils/training.server.ts'
 import { updateWorkoutSession } from '#app/utils/workout.server.ts'
@@ -1326,4 +1327,167 @@ test('an open-ended plan resting behind a race plan refuses a stamp (ADR 0079)',
 			)
 		).ok,
 	).toBe(true)
+})
+
+// ── Lifting laid per week (#591, ADR 0104 §3–§4) ───────────────────────────
+//
+// A `lifting` row is a slot the stamp places each week away from the hard
+// days; a stored `fixed` strength day is a Pinned day and never moves.
+describe('lifting laid per week', () => {
+	/**
+	 * The run on Monday, Wednesday and Friday, long on Sunday, with one
+	 * threshold session a week — which the stamp lays on Wednesday — and the
+	 * athlete free every day of the week.
+	 */
+	async function setupRunWeek() {
+		const plan = await setupPlan()
+		await prisma.athleteProfile.update({
+			where: { userId: plan.athleteId },
+			data: { trainableWeekdays: JSON.stringify([0, 1, 2, 3, 4, 5, 6]) },
+		})
+		for (const [weekday, weight] of [
+			[0, 1],
+			[2, 1],
+			[4, 1],
+			[6, 2],
+		] as const) {
+			await addDay(plan, {
+				kind: 'share',
+				trackId: plan.runTrackId,
+				weekday,
+				weight,
+			})
+		}
+		const mixed = await setQualitySessionMix(plan.athleteId, {
+			segmentId: (
+				await prisma.trainingTrackSegment.findFirstOrThrow({
+					where: { trackId: plan.runTrackId, kind: 'endurance' },
+					select: { id: true },
+				})
+			).id,
+			entries: [{ zone: 4, sessionsPerWeek: 1 }],
+		})
+		if (!mixed.ok) throw new Error(`mix setup failed: ${mixed.reason}`)
+		return plan
+	}
+
+	async function addLiftingSlots(plan: Plan, workoutId: string, count: number) {
+		for (let orderInDay = 0; orderInDay < count; orderInDay++) {
+			await prisma.weekPatternDay.create({
+				data: {
+					patternId: plan.patternId,
+					weekday: null,
+					orderInDay,
+					kind: 'lifting',
+					trackId: plan.liftTrackId,
+					workoutId,
+				},
+			})
+		}
+	}
+
+	/** Each session of the plan as `weekday:discipline`, in the week's order. */
+	async function laid(plan: Plan) {
+		return (await sessionsOf(plan)).map(
+			(session) =>
+				`${weekdayIndex(session.scheduledAt.toISOString().slice(0, 10))}:${session.workout?.discipline}`,
+		)
+	}
+
+	async function liftingDays(plan: Plan) {
+		return (await laid(plan))
+			.filter((slot) => slot.endsWith(':strength'))
+			.map((slot) => Number(slot.split(':')[0]))
+	}
+
+	const stampWeek = (plan: Plan, replace: boolean) =>
+		stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace,
+		})
+
+	test('lifting slots are laid off the hard day and the day before it, after the run', async () => {
+		const plan = await setupRunWeek()
+		await addLiftingSlots(plan, await createStrengthWorkout(plan.athleteId), 2)
+		ok(await stampWeek(plan, false))
+		// Wednesday is hard and Sunday long: Monday and Thursday.
+		expect(await liftingDays(plan)).toEqual([0, 3])
+		// Monday's lift is written after Monday's run.
+		const monday = (await laid(plan)).filter((slot) => slot.startsWith('0:'))
+		expect(monday).toEqual(['0:run', '0:strength'])
+	})
+
+	test('a re-lay is stable: the same week comes out again', async () => {
+		const plan = await setupRunWeek()
+		await addLiftingSlots(plan, await createStrengthWorkout(plan.athleteId), 2)
+		ok(await stampWeek(plan, false))
+		const first = await laid(plan)
+		ok(await stampWeek(plan, true))
+		expect(await laid(plan)).toEqual(first)
+	})
+
+	test('a lift the athlete kept fills its slot on a re-lay, wherever it is', async () => {
+		const plan = await setupRunWeek()
+		await addLiftingSlots(plan, await createStrengthWorkout(plan.athleteId), 1)
+		ok(await stampWeek(plan, false))
+		const [lift] = (await sessionsOf(plan)).filter(
+			(session) => session.workout?.discipline === 'strength',
+		)
+		// The athlete lifted on Saturday instead and marked it done: it was
+		// trained, and is kept.
+		await prisma.workoutSession.update({
+			where: { id: lift!.id },
+			data: {
+				status: 'completed',
+				scheduledAt: new Date('2030-01-12T06:00:00Z'),
+			},
+		})
+		ok(
+			await stampWeekPattern(
+				plan.athleteId,
+				{ patternId: plan.patternId, weekKeys: ['2030-01-07'], replace: true },
+				NOW,
+				{ aroundKeptSessions: true },
+			),
+		)
+		// The week's one lift is Saturday's; Monday gets no second one.
+		expect(await liftingDays(plan)).toEqual([5])
+	})
+
+	test('an existing plan’s fixed strength days survive a re-lay unchanged', async () => {
+		const plan = await setupRunWeek()
+		const workoutId = await createStrengthWorkout(plan.athleteId)
+		// Lifting on Tuesday and Thursday, as a plan from before #591 stored it:
+		// Tuesday is the day before the hard Wednesday, which the per-week rule
+		// would never pick. A Pinned day stays where the athlete has it.
+		for (const weekday of [1, 3] as const) {
+			await addDay(plan, {
+				kind: 'fixed',
+				trackId: plan.liftTrackId,
+				weekday,
+				workoutId,
+			})
+		}
+		const rows = () =>
+			prisma.weekPatternDay.findMany({
+				where: { trackId: plan.liftTrackId },
+				orderBy: { id: 'asc' },
+				select: {
+					id: true,
+					kind: true,
+					weekday: true,
+					orderInDay: true,
+					workoutId: true,
+				},
+			})
+		const stored = await rows()
+
+		ok(await stampWeek(plan, false))
+		expect(await liftingDays(plan)).toEqual([1, 3])
+		ok(await stampWeek(plan, true))
+		expect(await liftingDays(plan)).toEqual([1, 3])
+		expect(await rows()).toEqual(stored)
+		expect(stored.every((row) => row.kind === 'fixed')).toBe(true)
+	})
 })

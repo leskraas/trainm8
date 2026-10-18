@@ -1317,7 +1317,9 @@ function seasonDayClashWarnings(
 	const pattern = outline.patterns.find((each) => each.days.length > 0)
 	if (!pattern) return []
 	const days: StampDay[] = pattern.days.flatMap((day): StampDay[] => {
-		if (!isPatternWeekday(day.weekday)) return []
+		// A lifting slot falls on no weekday (ADR 0104 §3): no day of the
+		// pattern, as `patternDayReading` reads it.
+		if (day.weekday == null || !isPatternWeekday(day.weekday)) return []
 		// Priced as the stamp prices it, so a share day the stamp would skip
 		// (nothing left after the fixed days) is skipped here too.
 		const priced = day.workout
@@ -1403,7 +1405,9 @@ function patternReading(pattern: PatternRow): SeasonPattern {
  * straight into every share day's number.
  */
 function patternDayReading(day: PatternDayRow): SeasonPatternDay[] {
-	if (!isPatternWeekday(day.weekday)) return []
+	// A lifting slot falls on no weekday: the stamp lays it each week (ADR
+	// 0104 §3), so it is no day of the authored microcycle.
+	if (day.weekday == null || !isPatternWeekday(day.weekday)) return []
 	const position = {
 		dayId: day.id,
 		weekday: day.weekday,

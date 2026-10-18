@@ -39,7 +39,10 @@ import {
 	weekdayIndex,
 	weekMonday,
 } from '../athlete-calendar.ts'
-import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
+import {
+	DEFAULT_TRAINING_TIME,
+	parseTrainableWeekdays,
+} from '../athlete-schema.ts'
 import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { isEffortWord } from '../effort-word.ts'
@@ -70,6 +73,7 @@ import {
 	WeekPatternStampSchema,
 	type MixDisagreement,
 	type StampDay,
+	type StampLiftingSlot,
 	type StampSession,
 	type StampSkip,
 	type StampTrack,
@@ -77,7 +81,12 @@ import {
 	type WeekPatternStampInput,
 } from './stamp.ts'
 import { weekIndexOf, weekKeyAt } from './week-keys.ts'
-import { fixedDayVolume } from './week-pattern.ts'
+import {
+	fixedDayVolume,
+	isPatternWeekday,
+	patternWeekdaysOfCalendar,
+	type PatternWeekday,
+} from './week-pattern.ts'
 import { clearPlanWeek, readWeekOccupancy } from './week-sessions.server.ts'
 
 /**
@@ -271,7 +280,7 @@ export async function stampWeekPattern(
 	// alone.
 	const eventId = outline.event?.id ?? null
 	const timezone = await getAthleteTimezone(userId)
-	const trainingTime = await defaultTrainingTime(userId)
+	const trainingTime = await readStampProfile(userId)
 	const specs = phaseSpecs(outline)
 	const weekCount = totalWeeks(specs)
 	const tracks = stampTracks(outline)
@@ -310,7 +319,13 @@ export async function stampWeekPattern(
 		})
 	}
 
-	const plans = planStamp({ days: stampDays(pattern, tracks), tracks, weeks })
+	const plans = planStamp({
+		days: stampDays(pattern, tracks),
+		lifting: liftingSlots(pattern, tracks),
+		liftingDays: trainingTime.liftingDays,
+		tracks,
+		weeks,
+	})
 	if (plans.every((plan) => plan.sessions.length === 0)) {
 		return refuse('nothing-to-stamp')
 	}
@@ -347,9 +362,13 @@ export async function stampWeekPattern(
 				? await filledSlots(tx, userId, outline.id, plan.weekKey, timezone)
 				: new Map<string, number>()
 			for (const session of plan.sessions) {
-				const slot = slotKey(session.weekday, session.discipline)
-				const taken = filled.get(slot) ?? 0
-				if (taken > 0) {
+				const slot =
+					filled.get(slotKey(session.weekday, session.discipline)) ||
+					session.kind !== 'lifting'
+						? slotKey(session.weekday, session.discipline)
+						: keptLiftElsewhere(filled, plan.sessions, session.discipline)
+				const taken = slot == null ? 0 : (filled.get(slot) ?? 0)
+				if (slot != null && taken > 0) {
 					filled.set(slot, taken - 1)
 					continue
 				}
@@ -370,7 +389,7 @@ export async function stampWeekPattern(
 						// the weekday *is* the offset from the week's own Monday (ADR 0019).
 						scheduledAt: localTimeUTC(
 							addDays(plan.weekKey, session.weekday),
-							trainingTime,
+							trainingTime.at,
 							timezone,
 						),
 						status: 'scheduled',
@@ -410,6 +429,30 @@ export async function stampWeekPattern(
 /** A pattern slot: the weekday (Monday-first) and the Discipline laid there. */
 function slotKey(weekday: number, discipline: string): string {
 	return `${weekday}|${discipline}`
+}
+
+/**
+ * A kept session of a lifting slot's Discipline on a day this week's laying
+ * puts no lift of it on, where there is one. A lifting slot falls on no
+ * weekday of its own (ADR 0104 §3), so a lift the athlete kept fills the slot
+ * whatever day it is on, and the re-lay does not lay a second lift beside it.
+ */
+function keptLiftElsewhere(
+	filled: ReadonlyMap<string, number>,
+	sessions: readonly StampSession[],
+	discipline: string,
+): string | null {
+	const laid = new Set(
+		sessions
+			.filter((session) => session.discipline === discipline)
+			.map((session) => slotKey(session.weekday, discipline)),
+	)
+	for (const [slot, count] of filled) {
+		if (count > 0 && slot.endsWith(`|${discipline}`) && !laid.has(slot)) {
+			return slot
+		}
+	}
+	return null
 }
 
 /**
@@ -611,7 +654,8 @@ function stampDays(
 		tracks.map((track) => [track.trackId, track.currency]),
 	)
 	return pattern.days.flatMap((day): StampDay[] => {
-		if (day.weekday < 0 || day.weekday > 6) return []
+		// A lifting slot has no weekday; `liftingSlots` reads it.
+		if (day.weekday == null || !isPatternWeekday(day.weekday)) return []
 		const currency = currencyByTrack.get(day.trackId)
 		if (!currency) return []
 		const priced = day.workout
@@ -619,7 +663,7 @@ function stampDays(
 			: null
 		const position = {
 			dayId: day.id,
-			weekday: day.weekday as StampDay['weekday'],
+			weekday: day.weekday,
 			orderInDay: day.orderInDay,
 			trackId: day.trackId,
 			workoutId: day.workout?.id ?? null,
@@ -644,6 +688,35 @@ function stampDays(
 	})
 }
 
+/**
+ * The pattern's **lifting slots** (ADR 0104 §3): its `lifting` rows on a
+ * strength track of the plan, each with the session it copies. The stamp
+ * lays them per week after the endurance mix. A stored `fixed` strength day
+ * is not one: it is a **Pinned day** and stays on its weekday (§4).
+ */
+function liftingSlots(
+	pattern: StampPattern,
+	tracks: readonly StampTrack[],
+): StampLiftingSlot[] {
+	const strength = new Set(
+		tracks
+			.filter((track) => track.discipline === 'strength')
+			.map((track) => track.trackId),
+	)
+	return pattern.days.flatMap((day): StampLiftingSlot[] =>
+		day.kind === 'lifting' && strength.has(day.trackId)
+			? [
+					{
+						dayId: day.id,
+						trackId: day.trackId,
+						workoutId: day.workout?.id ?? null,
+						orderInDay: day.orderInDay,
+					},
+				]
+			: [],
+	)
+}
+
 /** A stored Workout's blocks in the shape `fixedDayVolume` prices. */
 function pricingBlocks(workout: CopyableWorkout) {
 	return workout.blocks.map((block) => ({
@@ -657,15 +730,33 @@ function pricingBlocks(workout: CopyableWorkout) {
 }
 
 /**
- * The clock time a stamped session lands on: the athlete's **Default Training
- * Time**, or the documented convention where they never set one (ADR 0044 §4).
+ * What a stamp reads off the **Athlete Profile**:
+ *
+ * - `at`, the clock time a stamped session lands on: the athlete's **Default
+ *   Training Time**, or the documented convention where they never set one
+ *   (ADR 0044 §4);
+ * - `liftingDays`, the days a lifting slot may go on: their **Training
+ *   Availability**, converted here at the profile edge to the Monday-first
+ *   axis the stamp reads (ADR 0104). `undefined` where they never said, and
+ *   the stamp lifts on the pattern's own days.
  */
-async function defaultTrainingTime(userId: string): Promise<string> {
+async function readStampProfile(
+	userId: string,
+): Promise<{ at: string; liftingDays: PatternWeekday[] | undefined }> {
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId },
-		select: { defaultTrainingTime: true },
+		select: { defaultTrainingTime: true, trainableWeekdays: true },
 	})
-	return profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME
+	const available =
+		profile?.trainableWeekdays == null
+			? null
+			: patternWeekdaysOfCalendar(
+					parseTrainableWeekdays(profile.trainableWeekdays),
+				)
+	return {
+		at: profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME,
+		liftingDays: available && available.length > 0 ? available : undefined,
+	}
 }
 
 /**

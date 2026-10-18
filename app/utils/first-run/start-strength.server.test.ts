@@ -210,3 +210,118 @@ test('an athlete who lifts copies their own most recent strength session', async
 	)
 	expect(lifts.map((s) => s.workout!.title)).toEqual(['Min styrkeøkt'])
 })
+
+// Lifting laid per week (#591, ADR 0104 §3): the start writes lifting slots,
+// not fixed days, and the stamp lays them each week against that week's hard
+// days — week 1 on the card's days.
+
+async function weekOf(athleteId: string, weekKey: string) {
+	const sessions = await prisma.workoutSession.findMany({
+		where: {
+			userId: athleteId,
+			scheduledAt: {
+				gte: new Date(weekKey),
+				lt: new Date(addDays(weekKey, 7)),
+			},
+		},
+		orderBy: { scheduledAt: 'asc' },
+		select: {
+			scheduledAt: true,
+			workout: { select: { discipline: true, intent: true } },
+		},
+	})
+	return sessions.map((session) => ({
+		weekday: weekdayIndex(session.scheduledAt.toISOString().slice(0, 10)),
+		discipline: session.workout?.discipline,
+		intent: session.workout?.intent,
+	}))
+}
+
+test('the start writes lifting slots, one per lift, on no weekday', async () => {
+	const athleteId = await createAthlete()
+	expect(await createFirstRunPlan(athleteId, answers, NOW)).toMatchObject({
+		ok: true,
+	})
+	const days = await prisma.weekPatternDay.findMany({
+		where: { track: { discipline: 'strength', outline: { athleteId } } },
+		select: { kind: true, weekday: true, workoutId: true },
+	})
+	expect(days).toEqual([
+		{ kind: 'lifting', weekday: null, workoutId: 'stock_strength-S1' },
+		{ kind: 'lifting', weekday: null, workoutId: 'stock_strength-S1' },
+	])
+})
+
+test('every laid week lifts away from that week’s hard days', async () => {
+	const athleteId = await createAthlete()
+	expect(await createFirstRunPlan(athleteId, answers, NOW)).toMatchObject({
+		ok: true,
+	})
+	for (const weekKey of [START, addDays(START, 7)]) {
+		const week = await weekOf(athleteId, weekKey)
+		const lifts = week
+			.filter((s) => s.discipline === 'strength')
+			.map((s) => s.weekday)
+		const hard = week
+			.filter(
+				(s) =>
+					s.discipline !== 'strength' &&
+					s.intent != null &&
+					['tempo', 'threshold', 'vo2max'].includes(s.intent),
+			)
+			.map((s) => s.weekday)
+		expect(lifts).toHaveLength(2)
+		for (const day of hard) {
+			expect(lifts).not.toContain(day)
+			expect(lifts).not.toContain((day + 6) % 7)
+		}
+	}
+})
+
+test('a beginner’s lifts still count inside the session cap, week after week', async () => {
+	const athleteId = await createAthlete()
+	const beginner = {
+		...answers,
+		level: 'beginner' as const,
+		hours: 4,
+		days: [0, 1, 2, 3, 4, 5] as Array<0 | 1 | 2 | 3 | 4 | 5 | 6>,
+		strength: 1,
+	}
+	const created = await createFirstRunPlan(athleteId, beginner, NOW)
+	expect(created).toMatchObject({ ok: true })
+	for (const weekKey of [START, addDays(START, 7)]) {
+		const week = await weekOf(athleteId, weekKey)
+		expect(week.filter((s) => s.discipline === 'strength')).toHaveLength(1)
+		// A beginner's cap is four sessions a week, the lift among them.
+		expect(week).toHaveLength(4)
+	}
+})
+
+test('with several endurance sports, week 1 lifts on the card’s days', async () => {
+	const athleteId = await createAthlete()
+	const several = {
+		...answers,
+		hours: 7,
+		days: [0, 1, 2, 3, 4, 5, 6] as Array<0 | 1 | 2 | 3 | 4 | 5 | 6>,
+		otherSports: ['bike' as const],
+		strength: 2,
+	}
+	const reading = await readStartStrength(athleteId, NOW)
+	const start = draftStart({
+		level: several.level,
+		discipline: several.discipline,
+		otherSports: several.otherSports,
+		hours: several.hours,
+		days: several.days,
+		startWeekKey: START,
+		strength: { perWeek: 2, session: reading!.session },
+	})!
+	const option = start.options.find((shown) => shown.family === 'polarized')!
+	expect(await createFirstRunPlan(athleteId, several, NOW)).toMatchObject({
+		ok: true,
+	})
+	const lifts = (await weekOf(athleteId, START))
+		.filter((s) => s.discipline === 'strength')
+		.map((s) => s.weekday)
+	expect(lifts).toEqual(option.strengthDays)
+})

@@ -169,6 +169,7 @@ export async function addProposedStrengthTrack(
 			if (pattern && shape?.workoutId && proposal) {
 				const next = new Map<number, number>()
 				for (const day of pattern.days) {
+					if (day.weekday == null) continue
 					next.set(
 						day.weekday,
 						Math.max(next.get(day.weekday) ?? 0, day.orderInDay + 1),
