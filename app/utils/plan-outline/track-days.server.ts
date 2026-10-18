@@ -170,9 +170,10 @@ async function readPlan(
 		},
 	})
 	if (!outline) return null
-	const [pattern, profile] = await Promise.all([
-		// The pattern the weeks are laid from: the first one with days.
-		db.weekPattern.findFirst({
+	const [patterns, profile] = await Promise.all([
+		// Every pattern with days: the first is the one the weeks are laid
+		// from and the one the choice is read off; a choice holds in them all.
+		db.weekPattern.findMany({
 			where: { outlineId, days: { some: {} } },
 			orderBy: { orderIndex: 'asc' },
 			select: {
@@ -196,7 +197,9 @@ async function readPlan(
 				)
 	return {
 		outline,
-		pattern,
+		pattern: patterns[0] ?? null,
+		/** The plan's other patterns with days, which a choice rewrites too. */
+		elsewhere: patterns.slice(1),
 		available: available && available.length > 0 ? available : null,
 	}
 }
@@ -283,7 +286,7 @@ function unitRef(unit: TrackDaysUnit): DayChoiceUnit {
 		: { trackId: unit.trackId, workoutId: unit.workoutId }
 }
 
-function ofUnit(unit: TrackDaysUnit) {
+function isUnitRow(unit: TrackDaysUnit) {
 	return (row: { trackId: string; workoutId: string | null }) =>
 		row.trackId === unit.trackId &&
 		(unit.workoutId == null || row.workoutId === unit.workoutId)
@@ -319,7 +322,7 @@ async function rowsFor(
 	choice: TrackDaysChoice,
 ): Promise<TrackPatternRow[]> {
 	const rows = (plan.pattern?.days ?? [])
-		.filter(ofUnit(unit))
+		.filter(isUnitRow(unit))
 		.flatMap((row) => choiceRowOf(row) ?? [])
 	if (choice) {
 		return unit.kind === 'activity'
@@ -547,6 +550,11 @@ function unitClashes(
 export type TrackDaysPrevious = {
 	pinned: TrackDaysChoice
 	rows: TrackPatternRow[]
+	/**
+	 * The rows it replaced in each of the plan's other Week Patterns that
+	 * hold the unit (a choice holds in every pattern, spec #588).
+	 */
+	elsewhere?: Array<{ patternId: string; rows: TrackPatternRow[] }>
 }
 
 export type TrackDaysWrite =
@@ -603,38 +611,56 @@ export async function setTrackDays(
 				: await rowsFor(tx, plan, unit, days)
 			if (!rows) return { ok: false, reason: 'bad-restore' }
 
-			const patternId = plan.pattern.id
-			const previous = plan.pattern.days
-				.filter(ofUnit(unit))
-				.flatMap((row) => choiceRowOf(row) ?? [])
-			await tx.weekPatternDay.deleteMany({
-				where: {
-					id: {
-						in: plan.pattern.days.filter(ofUnit(unit)).map((row) => row.id),
-					},
-				},
-			})
-			for (const [index, row] of rows.entries()) {
-				await tx.weekPatternDay.create({
-					data: {
-						patternId,
-						trackId: unit.trackId,
-						kind: row.kind,
-						weekday: row.weekday,
-						weight: row.kind === 'share' ? (row.weight ?? 1) : null,
-						workoutId: row.workoutId,
-						// Numbered for real below, with the day's other sessions.
-						orderInDay: 100 + index,
-					},
-				})
+			// The choice holds in every pattern that holds the unit, so a week
+			// stamped from any of them keeps the athlete's days. An undo puts
+			// back what each had; one it carries nothing for is chosen again.
+			// Every pattern's rows are settled before anything is written.
+			const others: Array<{
+				pattern: (typeof plan.elsewhere)[number]
+				rows: TrackPatternRow[]
+			}> = []
+			for (const other of plan.elsewhere) {
+				if (!other.days.some(isUnitRow(unit))) continue
+				const back = restore?.elsewhere?.find(
+					(entry) => entry.patternId === other.id,
+				)
+				const otherRows = back
+					? await checkedRestore(tx, userId, unit, back.rows)
+					: await rowsFor(
+							tx,
+							{ ...plan, pattern: other },
+							unit,
+							restore ? restore.pinned : days,
+						)
+				if (!otherRows) return { ok: false, reason: 'bad-restore' }
+				others.push({ pattern: other, rows: otherRows })
 			}
+
 			const strength = new Set(
 				plan.outline.tracks
 					.filter((track) => track.discipline === 'strength')
 					.map((track) => track.id),
 			)
-			for (const weekday of new Set(rows.map((row) => row.weekday))) {
-				await renumberWeekday(tx, patternId, weekday, strength)
+			const previous = await replaceUnitRows(
+				tx,
+				plan.pattern,
+				unit,
+				rows,
+				strength,
+			)
+			const elsewhere: Array<{ patternId: string; rows: TrackPatternRow[] }> =
+				[]
+			for (const other of others) {
+				elsewhere.push({
+					patternId: other.pattern.id,
+					rows: await replaceUnitRows(
+						tx,
+						other.pattern,
+						unit,
+						other.rows,
+						strength,
+					),
+				})
 			}
 			const pinned = unit.kind === 'track' ? (restore?.pinned ?? days) : null
 			if (unit.kind === 'track') {
@@ -650,7 +676,7 @@ export async function setTrackDays(
 					unit.kind === 'track'
 						? pinned
 						: patternWeekdaysOf(rows.map((row) => row.weekday)),
-				previous: { pinned: unit.pinned, rows: previous },
+				previous: { pinned: unit.pinned, rows: previous, elsewhere },
 				version:
 					unit.kind === 'track'
 						? `${serializePinnedDays(pinned) ?? 'auto'}|${rowsKey(rows)}`
@@ -660,6 +686,41 @@ export async function setTrackDays(
 	)
 	if (result.ok && relay) await relayFrom(userId, outlineId, now)
 	return result
+}
+
+/**
+ * Put `rows` in place of the unit's rows in one pattern, numbering each day
+ * they touch again, and return the rows they replaced.
+ */
+async function replaceUnitRows(
+	tx: Prisma.TransactionClient,
+	pattern: NonNullable<Plan['pattern']>,
+	unit: TrackDaysUnit,
+	rows: readonly TrackPatternRow[],
+	strength: ReadonlySet<string>,
+): Promise<TrackPatternRow[]> {
+	const replaced = pattern.days.filter(isUnitRow(unit))
+	await tx.weekPatternDay.deleteMany({
+		where: { id: { in: replaced.map((row) => row.id) } },
+	})
+	for (const [index, row] of rows.entries()) {
+		await tx.weekPatternDay.create({
+			data: {
+				patternId: pattern.id,
+				trackId: unit.trackId,
+				kind: row.kind,
+				weekday: row.weekday,
+				weight: row.kind === 'share' ? (row.weight ?? 1) : null,
+				workoutId: row.workoutId,
+				// Numbered for real below, with the day's other sessions.
+				orderInDay: 100 + index,
+			},
+		})
+	}
+	for (const weekday of new Set(rows.map((row) => row.weekday))) {
+		await renumberWeekday(tx, pattern.id, weekday, strength)
+	}
+	return replaced.flatMap((row) => choiceRowOf(row) ?? [])
 }
 
 /** Lay the plan's weeks again from the first unbegun one. */

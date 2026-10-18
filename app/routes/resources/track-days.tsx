@@ -36,8 +36,26 @@ const RowSchema = z.object({
 const UndoSchema = z.object({
 	pinned: z.array(z.number().int().min(0).max(6)).nullable(),
 	rows: z.array(RowSchema).min(1).max(14),
+	/** The rows the write replaced in the plan's other Week Patterns. */
+	elsewhere: z
+		.array(
+			z.object({
+				patternId: z.string().min(1),
+				rows: z.array(RowSchema).min(1).max(14),
+			}),
+		)
+		.max(32)
+		.default([]),
 	version: z.string(),
 })
+
+/** Rows off the form, each weekday read onto the pattern's axis. */
+function restoredRows(rows: ReadonlyArray<z.infer<typeof RowSchema>>) {
+	return rows.map((row) => ({
+		...row,
+		weekday: patternWeekdaysOf([row.weekday])[0]!,
+	}))
+}
 
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
@@ -104,12 +122,13 @@ export async function action({ request }: Route.ActionArgs) {
 				{ status: 400 },
 			)
 		}
-		const { pinned, rows, version } = parsed.data
+		const { pinned, rows, elsewhere, version } = parsed.data
 		const restored = {
 			pinned: pinned == null ? null : patternWeekdaysOf(pinned),
-			rows: rows.map((row) => ({
-				...row,
-				weekday: patternWeekdaysOf([row.weekday])[0]!,
+			rows: restoredRows(rows),
+			elsewhere: elsewhere.map((entry) => ({
+				patternId: entry.patternId,
+				rows: restoredRows(entry.rows),
 			})),
 		}
 		const undone = await setTrackDays(userId, {

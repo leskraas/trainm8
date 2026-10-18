@@ -297,6 +297,65 @@ test('the strength blocks lift as often as the days chosen, and the undo puts th
 	}
 })
 
+test('chosen lifting days hold in every Week Pattern that lifts, and the undo puts each back', async () => {
+	const { userId, liftTrackId } = await setup()
+	const outlineId = (
+		await prisma.trainingTrack.findUniqueOrThrow({
+			where: { id: liftTrackId },
+			select: { outlineId: true },
+		})
+	).outlineId
+	const added = await addWeekPattern(userId, { outlineId, name: 'Lett uke' })
+	if (!added.ok) throw new Error(added.reason)
+	const second = await prisma.weekPattern.findFirstOrThrow({
+		where: { outlineId, name: 'Lett uke' },
+		select: { id: true },
+	})
+	const workout = await prisma.workout.findFirstOrThrow({
+		where: { ownerId: userId, discipline: 'strength' },
+		select: { id: true },
+	})
+	await prisma.weekPatternDay.create({
+		data: {
+			patternId: second.id,
+			trackId: liftTrackId,
+			kind: 'lifting',
+			weekday: null,
+			orderInDay: 0,
+			workoutId: workout.id,
+		},
+	})
+	const liftsIn = async (patternId: string) =>
+		(
+			await prisma.weekPatternDay.findMany({
+				where: { patternId, trackId: liftTrackId },
+				orderBy: [{ weekday: 'asc' }, { orderInDay: 'asc' }],
+				select: { kind: true, weekday: true },
+			})
+		).map((row) => `${row.kind}:${row.weekday}`)
+
+	const state = (await readStrengthDays(userId, NOW))!
+	const written = await setStrengthDays(
+		userId,
+		{ choice: [TUE, THU], version: state.version },
+		NOW,
+	)
+	if (!written.ok) throw new Error(written.reason)
+	expect(await liftsIn(second.id)).toEqual(['fixed:1', 'fixed:3'])
+
+	const undone = await setStrengthDays(
+		userId,
+		{
+			choice: written.previous.days,
+			version: written.version,
+			restore: written.previous,
+		},
+		NOW,
+	)
+	expect(undone.ok).toBe(true)
+	expect(await liftsIn(second.id)).toEqual(['lifting:null'])
+})
+
 test('undoing from the toast restores the previous days', async () => {
 	const { userId } = await setup()
 	const state = (await readStrengthDays(userId, NOW))!

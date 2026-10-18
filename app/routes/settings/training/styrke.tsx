@@ -101,6 +101,24 @@ const UndoSchema = z.object({
 		)
 		.max(64)
 		.default([]),
+	/** The strength rows the write replaced in the plan's other patterns. */
+	elsewhere: z
+		.array(
+			z.object({
+				patternId: z.string().min(1),
+				rows: z
+					.array(
+						z.object({
+							kind: z.enum(['fixed', 'lifting']),
+							weekday: z.number().int().min(0).max(6).nullable(),
+							workoutId: z.string().min(1).nullable(),
+						}),
+					)
+					.max(14),
+			}),
+		)
+		.max(32)
+		.default([]),
 	version: z.string(),
 })
 
@@ -147,11 +165,23 @@ export async function action({ request }: Route.ActionArgs) {
 				{ status: 400 },
 			)
 		}
-		const { days, count, answer, frequencies, version } = parsed.data
+		const { days, count, answer, frequencies, elsewhere, version } = parsed.data
 		const undone = await setStrengthDays(userId, {
 			choice: days == null ? null : patternWeekdaysOf(days),
 			version,
-			restore: { count, answer, frequencies },
+			restore: {
+				count,
+				answer,
+				frequencies,
+				elsewhere: elsewhere.map((entry) => ({
+					patternId: entry.patternId,
+					rows: entry.rows.map((row) => ({
+						...row,
+						weekday:
+							row.weekday == null ? null : patternWeekdaysOf([row.weekday])[0]!,
+					})),
+				})),
+			},
 		})
 		return undone.ok
 			? { intent: 'undone' as const, ok: true, error: null }
@@ -536,6 +566,7 @@ function useWrittenToast(
 								count: written.previous.count,
 								answer: written.previous.answer,
 								frequencies: written.previous.frequencies,
+								elsewhere: written.previous.elsewhere,
 								version: written.version,
 							}),
 						},

@@ -382,6 +382,7 @@ function useWrittenToast(
 							undo: JSON.stringify({
 								pinned: written.previous.pinned,
 								rows: written.previous.rows,
+								elsewhere: written.previous.elsewhere,
 								version: written.version,
 							}),
 						},
