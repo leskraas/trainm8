@@ -425,6 +425,54 @@ test('a pinned track trains only on its days in every Week Pattern, and the undo
 	expect(await bikeDaysIn(second.id)).toEqual([TUE, FRI])
 })
 
+test('undoing puts back a day shaped by a Stock Workout exactly as it was', async () => {
+	const { userId, outlineId, bikeTrackId } = await setup()
+	// Saturday's ride is shaped by a Catalogue session no athlete owns.
+	const stock = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId: null,
+			title: 'Rolig langtur',
+			discipline: 'bike',
+			intent: 'endurance',
+		},
+	})
+	await prisma.weekPatternDay.updateMany({
+		where: { trackId: bikeTrackId, weekday: SAT },
+		data: { workoutId: stock.id },
+	})
+	const bikeRows = async () =>
+		(
+			await prisma.weekPatternDay.findMany({
+				where: { trackId: bikeTrackId },
+				orderBy: { weekday: 'asc' },
+				select: { kind: true, weekday: true, weight: true, workoutId: true },
+			})
+		).map((row) => JSON.stringify(row))
+	const before = await bikeRows()
+
+	const bike = await unit(userId, outlineId, { discipline: 'bike' })
+	const written = await setTrackDays(
+		userId,
+		{ outlineId, key: bike.key, choice: [WED, SUN], version: bike.version },
+		NOW,
+	)
+	if (!written.ok) throw new Error(written.reason)
+	const undone = await setTrackDays(
+		userId,
+		{
+			outlineId,
+			key: bike.key,
+			choice: written.previous.pinned,
+			version: written.version,
+			restore: written.previous,
+		},
+		NOW,
+	)
+	expect(undone.ok).toBe(true)
+	expect(await bikeRows()).toEqual(before)
+})
+
 test('a choice made against a plan that changed since is refused', async () => {
 	const { userId, outlineId } = await setup()
 	const bike = await unit(userId, outlineId, { discipline: 'bike' })

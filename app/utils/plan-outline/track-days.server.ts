@@ -697,7 +697,11 @@ async function replaceUnitRows(
 	rows: readonly TrackPatternRow[],
 	strength: ReadonlySet<string>,
 ): Promise<TrackPatternRow[]> {
-	const replaced = pattern.days.filter(isUnitRow(unit))
+	// Only the rows a choice can put back: one it cannot read stays as it is,
+	// so an undo never loses a row it did not record.
+	const replaced = pattern.days
+		.filter(isUnitRow(unit))
+		.filter((row) => choiceRowOf(row) != null)
 	await tx.weekPatternDay.deleteMany({
 		where: { id: { in: replaced.map((row) => row.id) } },
 	})
@@ -723,8 +727,9 @@ async function replaceUnitRows(
 
 /**
  * Rows an undo sends back, held to what the unit could hold: real weekdays,
- * a share's weight, and only the athlete's own Workouts of the track's
- * Discipline — a Simple Activity's own one. `null` where any is not.
+ * a share's weight, and only Workouts of the track's Discipline the athlete
+ * owns or the Catalogue does — a Simple Activity's own one. `null` where any
+ * is not.
  */
 async function checkedRestore(
 	tx: Prisma.TransactionClient,
@@ -747,11 +752,13 @@ async function checkedRestore(
 	const workoutIds = [
 		...new Set(rows.flatMap((row) => (row.workoutId ? [row.workoutId] : []))),
 	]
+	// The athlete's own Workouts, or a Stock Workout no one owns: a day the
+	// Catalogue shaped is put back as it was.
 	const owned = await tx.workout.count({
 		where: {
 			id: { in: workoutIds },
-			ownerId: userId,
 			discipline: unit.discipline,
+			OR: [{ ownerId: userId }, { ownerId: null }],
 		},
 	})
 	return owned === workoutIds.length ? [...rows] : null
