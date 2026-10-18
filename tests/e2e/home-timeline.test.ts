@@ -2489,6 +2489,85 @@ test.describe(() => {
 })
 
 /*
+ * ── calm I dag's motion (#582, spec #558 S10) ─────────────────────────────
+ *
+ * The default view at `/` (ADR 0101 §3) gets the same enumeration as the full
+ * view above: everything its frame declares, element by element. It declares
+ * the system's press on what the athlete taps, and a row's tint while its
+ * _Angre_ stands — nothing that moves by itself.
+ *
+ * Its two moments are JavaScript and so invisible here by construction, the
+ * way ADR 0077 §2 says of the hero's spring: the curve-to-week morph (a View
+ * Transition, `view-morph.ts`) and the first _Gjort_'s sparks
+ * (`celebrate.ts`, on `document.body`). `tests/e2e/start-motion.test.ts`
+ * records both as they play, and their reduced-motion answers.
+ */
+
+/** A session of the athlete's own today, so the card offers _Gjort_. */
+async function seedTodayRun(userId: string) {
+	await prisma.athleteProfile.create({ data: { userId, timezone: 'UTC' } })
+	const workout = await prisma.workout.create({
+		data: {
+			title: 'Morgentur',
+			discipline: 'run',
+			intent: 'endurance',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 1,
+						steps: {
+							create: [{ orderIndex: 0, kind: 'cardio', durationSec: 2400 }],
+						},
+					},
+				],
+			},
+		},
+	})
+	const today = new Date()
+	today.setUTCHours(0, 30, 0, 0)
+	await prisma.workoutSession.create({
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt: today,
+			source: 'generated',
+		},
+	})
+}
+
+test('calm I dag declares its press and a landed row’s tint, and nothing else', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedTodayRun(user.id)
+
+	await navigate('/')
+	await expect(page.locator('[data-today-card="session"]')).toBeVisible()
+	await page.waitForTimeout(2500)
+
+	expect(await motionInFrame(page)).toEqual(CALM_MOTION)
+})
+
+/**
+ * Calm I dag's frame, element by element: the press (ADR 0085 `pressable`)
+ * on the card's links and buttons, the week's rows and its free days; the
+ * week row's tint (`background-color` on `duration-collapse`, ADR 0088) that
+ * stands while a landed write's _Angre_ does.
+ */
+const CALM_MOTION: string[] = [
+	...PRESS('[data-calm-free]'),
+	...PRESS('[data-calm-season-link]'),
+	`[data-calm-session] — background-color 0.2s ${EASE_OUT}`,
+	...PRESS('[data-discover]'),
+	...PRESS('[data-today-done]'),
+]
+
+/*
  * ── I dag: the week model (#505 S9) ─────────────────────────────────────────
  *
  * A plan that runs past the Planning Horizon, so the season has every shape a
