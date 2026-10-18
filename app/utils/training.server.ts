@@ -14,6 +14,7 @@ import { parseTrainableWeekdays } from './athlete-schema.ts'
 import { getAthleteTimezone } from './athlete.server.ts'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
+import { isEffortWord } from './effort-word.ts'
 import { type DisciplineThresholdMap } from './intensity-target.ts'
 import {
 	weeklyAdherence,
@@ -28,8 +29,10 @@ import {
 } from './plan-outline/active-outline.server.ts'
 import {
 	availabilityFitWarnings,
+	dayClashWarnings,
 	hoursFitWarnings,
 	weeklyEnduranceHours,
+	type FitDay,
 	type FitSegment,
 	type StrengthFitSegment,
 } from './plan-outline/availability-fit.ts'
@@ -38,6 +41,7 @@ import {
 	seasonSpanGroups,
 	type SeasonSpanGroup,
 } from './plan-outline/commensurability.ts'
+import { type ClashReason } from './plan-outline/day-rule.ts'
 import {
 	isStrengthGoal,
 	phaseIndexForWeek,
@@ -66,6 +70,7 @@ import {
 import { outlineFamily, type PresetFamily } from './plan-outline/presets.ts'
 import { type RampWarning } from './plan-outline/ramp-guard.ts'
 import { type SeasonSpanReading } from './plan-outline/season-span.ts'
+import { sessionZone } from './plan-outline/session-zone.ts'
 import { type Pct1RMBand } from './plan-outline/strength-goal.ts'
 import {
 	UNAVAILABLE_READINGS,
@@ -77,6 +82,7 @@ import {
 	fixedDayVolume,
 	isPatternWeekday,
 	type PatternDaySpec,
+	type PatternWeekday,
 } from './plan-outline/week-pattern.ts'
 import {
 	planTrackTargets,
@@ -389,6 +395,11 @@ const activeOutlineSelect = {
 						select: {
 							id: true,
 							title: true,
+							// What the day is, for the day check (ADR 0104 §6): a Simple
+							// Activity's own Effort Word, else the hardest zone its steps
+							// or its intent ask for (`sessionZone`).
+							effortWord: true,
+							intent: true,
 							blocks: {
 								orderBy: { orderIndex: 'asc' },
 								select: {
@@ -396,7 +407,12 @@ const activeOutlineSelect = {
 									seriesRepeatCount: true,
 									steps: {
 										orderBy: { orderIndex: 'asc' },
-										select: { kind: true, durationSec: true, distanceM: true },
+										select: {
+											kind: true,
+											durationSec: true,
+											distanceM: true,
+											intensity: true,
+										},
 									},
 								},
 							},
@@ -508,6 +524,21 @@ export type SeasonPattern = {
 	/** 0-based authored position; the athlete reorders it, nothing derives it. */
 	orderIndex: number
 	days: SeasonPatternDay[]
+}
+
+/**
+ * A stretch of the plan whose laid weeks put the same clash on the same weekday
+ * — the day check beside the count (ADR 0104 §6). 1-based, as the count
+ * warning is; the weekday is the Week Pattern's, Monday first. No figure: the
+ * reason and the day are the whole of it (ADR 0046).
+ */
+export type SeasonDayClashWarning = {
+	fromWeekInPlan: number
+	toWeekInPlan: number
+	reason: ClashReason
+	weekday: PatternWeekday
+	/** A day the athlete chose takes part, so the clash is that choice's. */
+	pinned: boolean
 }
 
 /**
@@ -666,6 +697,14 @@ export type AuthoredSeason = {
 	 * one week, so the per-phase reading is gone rather than kept beside this.
 	 */
 	availabilityWarnings: SeasonAvailabilityWarning[]
+	/**
+	 * The **day check** (ADR 0104 §6): each stretch of weeks whose laid days clash
+	 * by the cross-track day rule — lifting on or the day before a Hard day, or on
+	 * the Long day, two Hard days in a row, two hard or two long sessions on one
+	 * day. Read off the plan's Week Pattern as the stamp lays it, every track at
+	 * once. Beside `availabilityWarnings`, never instead; warns and never blocks.
+	 */
+	dayClashWarnings: SeasonDayClashWarning[]
 	/**
 	 * The athlete's **Weekly Capacity** in hours, or `null` where they have never
 	 * authored one — which reads as **unavailable, never as passing** (ADR 0050).
@@ -897,6 +936,7 @@ async function toSeason(
 			toWeekInPlan: toWeekIndex + 1,
 			...counts,
 		})),
+		dayClashWarnings: seasonDayClashWarnings(outline, specs, tracks),
 		// The second check, beside the first and never instead of it (ADR 0050 §5).
 		weeklyCapacityHours,
 		hoursWarnings: await seasonHoursWarnings(
@@ -1259,6 +1299,81 @@ export async function getAuthoredWorkouts(
 
 type PatternRow = OutlineRowsFor['patterns'][number]
 type PatternDayRow = PatternRow['days'][number]
+
+/**
+ * The day check over every plan week: the plan's Week Pattern — the first
+ * one with days, the one the weeks are laid from (`fillHorizon`) — laid by
+ * `planStamp` week by week with that week's targets and mixes, as a stamp
+ * would lay it, and read by the cross-track day rule (ADR 0104 §6).
+ *
+ * Read off the pattern rather than off the calendar, so a week not yet laid
+ * is checked too, and a clash made in Avansert shows before any week holds it.
+ */
+function seasonDayClashWarnings(
+	outline: OutlineRowsFor,
+	specs: PhaseSpec[],
+	tracks: ResolvedTrack[],
+): SeasonDayClashWarning[] {
+	const pattern = outline.patterns.find((each) => each.days.length > 0)
+	if (!pattern) return []
+	const days: FitDay[] = pattern.days.flatMap((day): FitDay[] => {
+		if (!isPatternWeekday(day.weekday)) return []
+		// Priced as the stamp prices it, so a share day the stamp would skip
+		// (nothing left after the fixed days) is skipped here too.
+		const priced = day.workout
+			? fixedDayVolume(day.workout.blocks, day.track.currency as VolumeCurrency)
+			: null
+		const position = {
+			dayId: day.id,
+			weekday: day.weekday,
+			orderInDay: day.orderInDay,
+			trackId: day.trackId,
+			workoutId: day.workout?.id ?? null,
+			zone: day.workout ? sessionZone(day.workout) : null,
+			effort: isEffortWord(day.workout?.effortWord)
+				? day.workout.effortWord
+				: null,
+		}
+		if (day.kind === 'fixed') {
+			return [{ ...position, kind: 'fixed', volume: priced, shapeVolume: null }]
+		}
+		if (day.kind === 'share' && day.weight != null) {
+			return [
+				{ ...position, kind: 'share', weight: day.weight, shapeVolume: priced },
+			]
+		}
+		return []
+	})
+	return dayClashWarnings({
+		days,
+		tracks: outline.tracks.map((track) => ({
+			trackId: track.id,
+			discipline: track.discipline as Discipline,
+			currency: track.currency as VolumeCurrency,
+		})),
+		weeks: Array.from({ length: totalWeeks(specs) }, (_, index) => {
+			const phaseIndex = phaseIndexForWeek(specs, index)
+			return {
+				weekKey: weekKeyAt(outline.startWeekKey, index),
+				weekInPlan: index + 1,
+				targets: tracks.map((track) => ({
+					trackId: track.trackId,
+					value: track.targets[index]?.value ?? null,
+				})),
+				mixes: tracks.map((track) => ({
+					trackId: track.trackId,
+					mix:
+						track.segments.find((segment) => segment.phaseIndex === phaseIndex)
+							?.mix ?? [],
+				})),
+			}
+		}),
+	}).map(({ fromWeekIndex, toWeekIndex, ...clash }) => ({
+		fromWeekInPlan: fromWeekIndex + 1,
+		toWeekInPlan: toWeekIndex + 1,
+		...clash,
+	}))
+}
 
 /** One stored **Week Pattern** as the surfaces read it, days already priced. */
 function patternReading(pattern: PatternRow): SeasonPattern {

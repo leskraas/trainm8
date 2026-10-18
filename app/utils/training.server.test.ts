@@ -2,6 +2,7 @@ import { faker } from '@faker-js/faker/locale/en'
 import { expect, test } from 'vitest'
 import { onPrismaQuery, prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
+import { addWeekPatternDay } from './plan-outline/authoring.server.ts'
 import { WARMUP_ORDER_INDEX_BASE } from './strength-log.ts'
 import {
 	getActivePlan,
@@ -1315,6 +1316,85 @@ test('getActiveSeason warns where quality sessions plus Strength Frequency outru
 			trainableWeekdays: 4,
 		},
 	])
+})
+
+test('getActiveSeason reads the laid days and warns where lifting meets the week’s hard day, without blocking', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 1 }] },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50 },
+			strength: {
+				anchorValue: 18,
+				segments: [
+					{ startWeekKey: '2030-01-07', weeks: 4, sessionsPerWeek: 1 },
+				],
+			},
+		},
+	})
+	const outline = await prisma.planOutline.findFirstOrThrow({
+		where: { athleteId: user.id },
+		select: { id: true, tracks: { select: { id: true, discipline: true } } },
+	})
+	const trackOf = (discipline: string) =>
+		outline.tracks.find((track) => track.discipline === discipline)!.id
+	const squat = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Knebøy',
+			discipline: 'strength',
+			intent: 'strength',
+			ownerId: user.id,
+		},
+	})
+	// Monday, Tuesday and a long Sunday: the threshold session goes on
+	// Tuesday, furthest from the long day — where the athlete lifts.
+	const pattern = await prisma.weekPattern.create({
+		select: { id: true },
+		data: {
+			outlineId: outline.id,
+			name: 'Uka',
+			orderIndex: 0,
+			days: {
+				create: [0, 1, 6].map((weekday) => ({
+					weekday,
+					orderInDay: 0,
+					kind: 'share',
+					weight: weekday === 6 ? 2 : 1,
+					trackId: trackOf('run'),
+				})),
+			},
+		},
+	})
+	// The clashing day is saved through the authoring service like any other:
+	// the check warns and never blocks (ADR 0104 §6).
+	expect(
+		await addWeekPatternDay(user.id, {
+			kind: 'fixed',
+			patternId: pattern.id,
+			trackId: trackOf('strength'),
+			weekday: 1,
+			workoutId: squat.id,
+		}),
+	).toEqual({ ok: true })
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// The day and the reason, and that the athlete's own lifting day is part
+	// of it; nothing moved, and the plan reads as stored.
+	expect(season?.dayClashWarnings).toEqual([
+		{
+			fromWeekInPlan: 1,
+			toWeekInPlan: 4,
+			reason: 'lifting-on-hard-day',
+			weekday: 1,
+			pinned: true,
+		},
+	])
+	expect(season?.patterns[0]?.days).toHaveLength(4)
 })
 
 test('getActiveSeason stays silent about a gap week, which asks for no lifting at all', async () => {

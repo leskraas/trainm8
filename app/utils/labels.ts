@@ -76,6 +76,7 @@ import type { GenerationIntent } from './plan-generation/season.ts'
 // this module owns the sentence each accumulation is explained by.
 import type { CreateOutlineRefusal } from './plan-outline/authoring.server.ts'
 import type { AccumulatingCurrency } from './plan-outline/commensurability.ts'
+import type { ClashReason } from './plan-outline/day-rule.ts'
 import type {
 	Rhythm,
 	StrengthGoal,
@@ -4570,6 +4571,44 @@ export const SESONG_NOTICE_LABELS = {
 		'Det er timer mot timer: timene utholdenhetsukene blir til, mot kapasiteten du har satt. ',
 	fitNote:
 		'Det kan være akkurat det du mente: to økter kan dele en dag, og begge tallene er innstillinger, ikke fakta om uka di. Planen er lagret slik du skrev den.',
+	/**
+	 * One day clash (ADR 0104 §6), the day named: `Styrke og en hard økt på
+	 * tirsdag`, `To harde dager etter hverandre (onsdag–torsdag)`. Takes the
+	 * Monday-first weekday; a two-day reason runs to the next day on the wheel.
+	 */
+	dayClash: (reason: ClashReason, weekday: number) => {
+		const day = NB_WEEKDAY_LABELS[weekday % 7]!
+		const pair = `${day}–${NB_WEEKDAY_LABELS[(weekday + 1) % 7]!}`
+		switch (reason) {
+			case 'lifting-on-hard-day':
+				return `Styrke og en hard økt på ${day}`
+			case 'lifting-before-hard-day':
+				return `Styrke dagen før en hard økt (${pair})`
+			case 'lifting-on-long-day':
+				return `Styrke og den lange økta på ${day}`
+			case 'hard-days-in-a-row':
+				return `To harde dager etter hverandre (${pair})`
+			case 'two-hard-sessions':
+				return `To harde økter på ${day}`
+			case 'two-long-sessions':
+				return `To lange økter på ${day}`
+		}
+	},
+	/** `Uke 3`, `Uke 3–5 og uke 9`, `Uke 3, uke 6–7 og uke 9`. */
+	weekSpans: (spans: readonly string[]) => {
+		const [first = '', ...rest] = spans.map((span, at) =>
+			at === 0 ? span : `${span[0]!.toLowerCase()}${span.slice(1)}`,
+		)
+		const last = rest.pop()
+		return last == null ? first : `${[first, ...rest].join(', ')} og ${last}`
+	},
+	/** `Uke 12–14: Styrke og en hard økt på tirsdag – en dag du har valgt selv.` */
+	dayClashLine: (span: string, clash: string, pinned: boolean) =>
+		`${span}: ${clash}${pinned ? '\u00a0– en dag du har valgt selv' : ''}.`,
+	dayClashCheck:
+		'Det er dagene lest mot hverandre, på tvers av alt du trener: hard betyr her en økt som ikke er rolig, også middels. ',
+	dayClashNote:
+		'Det kan være akkurat det du mente – en dag du har valgt selv, blir der du satte den. Planen er lagret slik den er.',
 	noCapacity: 'Timer er den andre sammenligningen, og',
 	noCapacityLink: 'utøverprofilen',
 	noCapacityEnd:
