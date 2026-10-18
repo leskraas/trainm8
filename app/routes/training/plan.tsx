@@ -93,6 +93,7 @@ import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getEventsForUser } from '#app/utils/event.server.ts'
+import { readPlanStartOptions } from '#app/utils/first-run/plan-start-options.server.ts'
 import {
 	formatNbDate,
 	formatNbDayMonth,
@@ -123,6 +124,7 @@ import {
 	PHILOSOPHY_SWITCH_LABELS,
 	PRESET_GALLERY_LABELS,
 	PHILOSOPHY_SWITCH_REFUSAL_LABELS,
+	PLAN_LEAD_LABELS,
 	SEASON_ADVANCED_LABELS,
 	SEASON_EDIT_LABELS,
 	SESONG_ANCHOR_LABELS,
@@ -139,6 +141,7 @@ import {
 	SESONG_TRACK_LABELS,
 	STRENGTH_OFFER_LABELS,
 	switchedPhilosophySentence,
+	TRENINGSFORM_LABELS,
 	type BoundaryStepOutOfForce,
 } from '#app/utils/labels.ts'
 import { fillPlanWeeksToHorizon } from '#app/utils/load/horizon-fill.server.ts'
@@ -223,6 +226,7 @@ import {
 } from '#app/utils/plan-outline/open-ended.server.ts'
 import {
 	PhilosophySwitchFormSchema,
+	TRENINGSFORM_SURFACE,
 	StrengthOfferFormSchema,
 } from '#app/utils/plan-outline/philosophy-schema.ts'
 import {
@@ -317,6 +321,8 @@ import {
 	type EditableStrengthTrack,
 } from './__strength-segment-editor.tsx'
 import { TrackRoster } from './__track-editor.tsx'
+import { treningsformViewOf } from './__treningsform-view.ts'
+import { TreningsformOffer } from './__treningsform.tsx'
 import {
 	type SeasonQuery,
 	WeekPatternSection,
@@ -594,6 +600,16 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// Bibliotek, a section of Plan since it gave up its tab (ADR 0101 §1).
 	const libraryLifts = await readLibraryLifts(userId)
 
+	// _Bytt treningsform_ (ADR 0101 §2, #581): the Start Options again, laid
+	// from the week a switch would begin in for this plan's tracks and days.
+	const startOptions = await readPlanStartOptions(
+		userId,
+		season,
+		firstUnbegunWeekKey,
+		now,
+	)
+	const treningsform = startOptions ? treningsformViewOf(startOptions) : null
+
 	return {
 		// What Plan leads with beside the curve (ADR 0101 §2): the easy week the
 		// rhythm prescribes next, from the week the athlete is in.
@@ -603,6 +619,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		),
 		seasonQuery,
 		attachableEvents,
+		treningsform,
 		strengthOffer,
 		firstUnbegunWeekKey,
 		libraryLifts,
@@ -1250,39 +1267,47 @@ export async function action({ request }: Route.ActionArgs) {
 		}
 		case 'preview-philosophy':
 		case 'switch-philosophy': {
+			// The same preview and switch serve _Bytt filosofi_ in Avansert and
+			// _Bytt treningsform_ in the lead (#581); each answers where it was
+			// asked, under a key of its own.
+			const lead = formData.get('surface') === TRENINGSFORM_SURFACE
+			type Reply = ReturnType<typeof philosophyReply>
+			const answer = (
+				reply: Reply,
+			): { treningsform: Reply } | { philosophy: Reply } =>
+				lead ? { treningsform: reply } : { philosophy: reply }
 			const submission = parseWithZod(formData, {
 				schema: PhilosophySwitchFormSchema,
 			})
 			if (submission.status !== 'success') {
-				return data(
-					{ philosophy: philosophyReply({ result: submission.reply() }) },
-					{ status: 400 },
-				)
+				return data(answer(philosophyReply({ result: submission.reply() })), {
+					status: 400,
+				})
 			}
 			const { intent: asked, outlineId: switching, family } = submission.value
 			if (asked === 'preview-philosophy') {
 				const preview = await readPhilosophySwitch(userId, switching, family)
 				if (!preview.ok) {
 					return data(
-						{
-							philosophy: philosophyReply({
+						answer(
+							philosophyReply({
 								result: submission.reply({
 									formErrors: [
 										PHILOSOPHY_SWITCH_REFUSAL_LABELS[preview.reason],
 									],
 								}),
 							}),
-						},
+						),
 						{ status: 400 },
 					)
 				}
 				// Nothing written: the preview, for the athlete to confirm under.
-				return {
-					philosophy: philosophyReply({
+				return answer(
+					philosophyReply({
 						result: submission.reply(),
 						preview: previewView(preview),
 					}),
-				}
+				)
 			}
 			const switched = await switchPhilosophy(
 				userId,
@@ -1297,8 +1322,8 @@ export async function action({ request }: Route.ActionArgs) {
 				const message = PHILOSOPHY_SWITCH_REFUSAL_LABELS[switched.reason]
 				const fresh = await readPhilosophySwitch(userId, switching, family)
 				return data(
-					{
-						philosophy: fresh.ok
+					answer(
+						fresh.ok
 							? philosophyReply({
 									confirmResult: submission.reply({ formErrors: [message] }),
 									preview: previewView(fresh),
@@ -1306,19 +1331,32 @@ export async function action({ request }: Route.ActionArgs) {
 							: philosophyReply({
 									result: submission.reply({ formErrors: [message] }),
 								}),
-					},
+					),
 					{ status: 400 },
 				)
 			}
 			const url = new URL(request.url)
-			return redirectWithToast(`${url.pathname}${url.search}`, {
-				type: 'success',
-				title: PHILOSOPHY_SWITCH_LABELS.done,
-				description: switchedPhilosophySentence(
-					family,
-					formatNbDate(new Date(`${switched.fromWeekKey}T12:00:00Z`), 'UTC'),
-				),
-			})
+			const from = formatNbDate(
+				new Date(`${switched.fromWeekKey}T12:00:00Z`),
+				'UTC',
+			)
+			return redirectWithToast(
+				`${url.pathname}${url.search}`,
+				lead
+					? {
+							type: 'success',
+							title: TRENINGSFORM_LABELS.done,
+							description: TRENINGSFORM_LABELS.switched(
+								PLAN_LEAD_LABELS.plainName[family],
+								from,
+							),
+						}
+					: {
+							type: 'success',
+							title: PHILOSOPHY_SWITCH_LABELS.done,
+							description: switchedPhilosophySentence(family, from),
+						},
+			)
 		}
 		// The Sesong edits (#505 stories 72–77): preview, then apply.
 		case 'preview-season-edit':
@@ -2143,6 +2181,11 @@ export default function PlanRoute({
 	// _Bytt filosofi_ and the strength offer answer inside their own forms.
 	const philosophy =
 		actionData && 'philosophy' in actionData ? actionData.philosophy : null
+	// _Bytt treningsform_ answers in the lead, under the card that asked (#581).
+	const treningsformReply =
+		actionData && 'treningsform' in actionData
+			? (actionData.treningsform ?? null)
+			: null
 	// The Sesong edits answer inside their own forms too.
 	const seasonEdit =
 		actionData && 'seasonEdit' in actionData ? actionData.seasonEdit : null
@@ -2152,8 +2195,11 @@ export default function PlanRoute({
 			: undefined
 	// Every other answer was asked inside Avansert, so it opens Avansert: a
 	// refusal or a preview is read where it was asked (`__plan-advanced.tsx`).
+	// The lead's own two answer in the lead and leave Avansert closed.
 	const advancedReply =
-		actionData && attachResult === undefined ? actionData : null
+		actionData && attachResult === undefined && treningsformReply == null
+			? actionData
+			: null
 	// The same, for a week copy aimed at a week that already holds sessions (#415).
 	const pendingCopy: PendingCopy | null =
 		actionData && 'copy' in actionData ? actionData.copy : null
@@ -2267,7 +2313,17 @@ export default function PlanRoute({
 					) : null
 				}
 				className="lg:mx-auto lg:max-w-2xl"
-			/>
+			>
+				{/* Bytt treningsform, after Legg til et løp (ADR 0101 §2): the Start
+				    Options again for this plan, switching only behind the preview. */}
+				{loaderData.treningsform ? (
+					<TreningsformOffer
+						outlineId={season.outlineId}
+						view={loaderData.treningsform}
+						reply={treningsformReply}
+					/>
+				) : null}
+			</PlanLeadCard>
 
 			{/* Bibliotek, which had its own tab (ADR 0101 §1): under the lead and
 			    above Avansert (ADR 0101 §2's order). */}

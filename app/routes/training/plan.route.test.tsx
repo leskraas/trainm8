@@ -5,8 +5,11 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
+import { draftStart } from '#app/utils/first-run/start-draft.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import { type EditableStrengthTrack } from './__strength-segment-editor.tsx'
+import { treningsformViewOf } from './__treningsform-view.ts'
+import { type TreningsformView } from './__treningsform.tsx'
 import PlanRoute from './plan.tsx'
 
 // A refusal lands only after the submit round-trips through the stub's action and
@@ -647,6 +650,8 @@ function renderPlan(
 		nextEasyWeek?: { weekKey: string; weekNumber: number; isThisWeek: boolean }
 		/** Where the athlete lands; Avansert open, unless a test says otherwise. */
 		at?: string
+		/** _Bytt treningsform_'s options (#581); none unless a test says so. */
+		treningsform?: TreningsformView
 	} = {},
 ) {
 	const week =
@@ -687,6 +692,7 @@ function renderPlan(
 				seasonEvents: extra.seasonEvents ?? { events: [], upcomingCount: 0 },
 				libraryLifts: extra.libraryLifts ?? [],
 				nextEasyWeek: extra.nextEasyWeek ?? null,
+				treningsform: extra.treningsform ?? null,
 				// No Event of the athlete's waits for a plan unless a test says so.
 				attachableEvents: [],
 				// Every week of these fixtures is ahead, so each offers its edit.
@@ -849,6 +855,76 @@ test('an open-ended plan offers Legg til et løp in the lead', async () => {
 	expect(
 		within(lead).getByRole('button', { name: /Legg til et løp/ }),
 	).toBeInTheDocument()
+})
+
+test('Bytt treningsform comes after Legg til et løp in the lead, and its preview leaves Avansert closed', async () => {
+	const answers = {
+		level: 'recreational' as const,
+		discipline: 'run' as const,
+		hours: 5,
+		days: [0, 2, 4, 5] as Array<0 | 2 | 4 | 5>,
+		startWeekKey: '2030-01-14',
+	}
+	const treningsform = treningsformViewOf({
+		answers,
+		start: draftStart(answers)!,
+		current: 'classic',
+		levelSaid: true,
+	})
+	renderPlan(
+		{
+			...SEASON,
+			eventId: null,
+			eventName: null,
+			eventDate: null,
+			fit: null,
+			round: 1,
+			family: 'classic',
+		},
+		'blocks',
+		null,
+		() => ({
+			treningsform: {
+				result: { status: 'success' },
+				confirmResult: null,
+				preview: {
+					from: 'classic',
+					to: 'polarized',
+					fromWeekKey: '2030-01-14',
+					digest: 'digest-1',
+					warnings: [],
+					phases: { before: [], after: [] },
+					weeks: [],
+				},
+			},
+		}),
+		{ at: '/training/plan', treningsform },
+	)
+
+	const lead = await screen.findByRole('region', {
+		name: 'Variert og bygger seg opp',
+	})
+	const attach = within(lead).getByRole('button', { name: /Legg til et løp/ })
+	const offer = within(lead).getByRole('button', { name: /Bytt treningsform/ })
+	expect(
+		attach.compareDocumentPosition(offer) & Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+
+	await userEvent.click(offer)
+	await userEvent.click(
+		within(lead).getByRole('button', {
+			name: 'Velg denne: Mest rolig, litt veldig hardt',
+		}),
+	)
+
+	expect(
+		await within(lead).findByRole('button', {
+			name: 'Bytt til Mest rolig, litt veldig hardt',
+		}),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('button', { name: /^Avansert\s*Filosofi/ }),
+	).toHaveAttribute('aria-expanded', 'false')
 })
 
 test('Avansert is closed by default, under Bibliotek, and holds the Sesong editors', async () => {
