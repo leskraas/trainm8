@@ -93,11 +93,13 @@ function renderToday({
 	activePlan = plan(),
 	autopilotNotice = null,
 	onAutopilotPost = () => {},
+	onAdjustPost = () => {},
 }: {
 	ledger?: LedgerSession[]
 	activePlan?: ActivePlan | null
 	autopilotNotice?: AutopilotNotice | null
 	onAutopilotPost?: (form: FormData) => void
+	onAdjustPost?: (form: FormData) => void
 } = {}) {
 	const loader = async (_args: LoaderFunctionArgs) => ({
 		autopilotNotice,
@@ -127,6 +129,45 @@ function renderToday({
 			action: async ({ request }: { request: Request }) => {
 				onAutopilotPost(await request.formData())
 				return { ok: true, toast: 'Endringen er angret.', submission: null }
+			},
+		},
+		{
+			path: '/resources/session-swap',
+			loader: ({ request }: { request: Request }) => {
+				const from = new URL(request.url).searchParams.get('from')
+				return {
+					from,
+					q: '',
+					rows:
+						from === 'catalogue'
+							? [
+									{
+										id: 'stock-ride',
+										title: 'Rolig sykkeltur',
+										sentence: null,
+										figures: ['45 min'],
+									},
+								]
+							: [],
+					total: from === 'catalogue' ? 1 : 0,
+				}
+			},
+		},
+		{
+			path: '/resources/session-adjust',
+			action: async ({ request }: { request: Request }) => {
+				onAdjustPost(await request.formData())
+				return {
+					submission: { status: 'success' },
+					result: {
+						ok: true,
+						toast: 'Dagens økt er byttet til «Rolig sykkeltur».',
+						title: 'Rolig sykkeltur',
+						changedSessionIds: ['today'],
+						undo: { adjustmentId: 'adj-1' },
+					},
+					undone: null,
+				}
 			},
 		},
 		{
@@ -317,4 +358,56 @@ test('with no plan, I dag invites the athlete to the start instead of an empty c
 	expect(
 		within(card).getByRole('button', { name: /Legg til en økt i dag/ }),
 	).toBeInTheDocument()
+})
+
+test('Bytt økt opens Bibliotek as a picker, and a pick replaces today’s session', async () => {
+	const user = userEvent.setup()
+	const posts: FormData[] = []
+	renderToday({
+		ledger: [session('today', '2030-01-02T07:00:00Z', 'Rolig løpetur')],
+		onAdjustPost: (form) => posts.push(form),
+	})
+
+	const card = await screen.findByRole('region', { name: 'Rolig løpetur' })
+	await user.click(
+		within(card).getByRole('button', { name: 'Bytt økt: «Rolig løpetur»' }),
+	)
+	const picker = await screen.findByRole('dialog', { name: 'Bytt økt' })
+	expect(within(picker).getByRole('button', { name: 'Katalog' })).toBeTruthy()
+	expect(within(picker).getByRole('button', { name: 'Program' })).toBeTruthy()
+	expect(within(picker).getByRole('button', { name: 'Øvelser' })).toBeTruthy()
+	await user.click(
+		await within(picker).findByRole('button', {
+			name: 'Ta «Rolig sykkeltur» i dag',
+		}),
+	)
+
+	await vi.waitFor(() => expect(posts).toHaveLength(1))
+	expect(Object.fromEntries(posts[0]!)).toEqual({
+		intent: 'swap',
+		sessionId: 'today',
+		from: 'catalogue',
+		pickId: 'stock-ride',
+	})
+})
+
+test('Avansert leads to the session, the composer and Plan’s Avansert', async () => {
+	const user = userEvent.setup()
+	renderToday({
+		ledger: [session('today', '2030-01-02T07:00:00Z', 'Rolig løpetur')],
+	})
+
+	const card = await screen.findByRole('region', { name: 'Rolig løpetur' })
+	await user.click(
+		within(card).getByRole('button', { name: 'Avansert for «Rolig løpetur»' }),
+	)
+	const menu = await screen.findByRole('menu')
+	expect(
+		within(menu).getByRole('menuitem', { name: 'Rediger økta' }),
+	).toHaveAttribute('href', '/training/sessions/today')
+	expect(
+		within(menu).getByRole('menuitem', { name: 'Planens verktøy' }),
+	).toHaveAttribute('href', '/training/plan#avansert')
+	await user.click(within(menu).getByRole('menuitem', { name: 'Ny økt i dag' }))
+	expect(await screen.findByRole('dialog')).toBeInTheDocument()
 })

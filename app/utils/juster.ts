@@ -13,10 +13,14 @@
  *   is kept.
  * - **Bytt dag** (`move`): the next free day this week, or a swap with the
  *   next session; refused when no later day is left.
+ * - **Bytt økt** (`swap`, #579): a session picked from Bibliotek — a Catalogue
+ *   session, a program day or one exercise — replaces today's prescription.
  *
- * None of them touches ownership: on the machine's session _For sliten i dag_
- * and _Lite tid_ are a machine write at the athlete's request (the documented
- * exception to Session Adoption), and _Bytt dag_ is a reschedule.
+ * The first three never touch ownership: on the machine's session _For sliten
+ * i dag_ and _Lite tid_ are a machine write at the athlete's request (the
+ * documented exception to Session Adoption), and _Bytt dag_ is a reschedule.
+ * _Bytt økt_ is the athlete's choice of session, so it **adopts** under the
+ * normal rule (ADR 0080).
  */
 import { z } from 'zod/v3'
 
@@ -41,6 +45,8 @@ export const JUSTER_REFUSALS = [
 	'already-easy',
 	/** _Bytt dag_ on the last day of the week. */
 	'no-later-day',
+	/** _Bytt økt_'s pick is not in Bibliotek (gone, retired, or not theirs). */
+	'pick-not-found',
 ] as const
 export type JusterRefusal = (typeof JUSTER_REFUSALS)[number]
 
@@ -118,6 +124,22 @@ export function pickNewDay(laterDays: readonly LaterDay[]): NewDay {
 	return { kind: 'refused', reason: 'no-later-day' }
 }
 
+// ── Bytt økt ─────────────────────────────────────────────────────────────
+
+/** Where in Bibliotek a _Bytt økt_ pick comes from. */
+export const SWAP_SOURCES = ['catalogue', 'program', 'exercise'] as const
+export type SwapSource = (typeof SWAP_SOURCES)[number]
+
+/**
+ * One exercise picked for today and never planned before: this many sets of
+ * this many reps. A lift the athlete has planned keeps their own last sets.
+ */
+export const EXERCISE_PICK_SETS = 3
+export const EXERCISE_PICK_REPS = 8
+
+/** Where _Bytt økt_'s picker reads Bibliotek (`resources/session-swap.tsx`). */
+export const SESSION_SWAP_PICKER = '/resources/session-swap'
+
 // ── the forms ────────────────────────────────────────────────────────────
 
 /** Where the today card's chips post (`routes/resources/session-adjust.tsx`). */
@@ -130,6 +152,12 @@ export const JusterSchema = z.discriminatedUnion('intent', [
 	z.object({ intent: z.literal('tired'), sessionId }),
 	z.object({ intent: z.literal('short'), sessionId }),
 	z.object({ intent: z.literal('move'), sessionId }),
+	z.object({
+		intent: z.literal('swap'),
+		sessionId,
+		from: z.enum(SWAP_SOURCES),
+		pickId: z.string().min(1),
+	}),
 ])
 export type JusterPost = z.infer<typeof JusterSchema>
 
@@ -175,9 +203,24 @@ const ImageWorkoutSchema = z.object({
 	afterFingerprint: z.string(),
 })
 
+/**
+ * What a _Bytt økt_ replaced besides the session's Workout: who owned the
+ * session (it adopts), the title it had, the copy it put on today (removed
+ * by the undo) and that copy's prescription as it left it.
+ */
+const ImageSwapSchema = z.object({
+	beforeTitle: z.string().nullable(),
+	adoptedAt: z.string().nullable(),
+	releasedAt: z.string().nullable(),
+	copyId: z.string(),
+	afterFingerprint: z.string(),
+})
+
 export const JusterImageSchema = z.object({
 	sessions: z.array(ImageSessionSchema).min(1),
 	workout: ImageWorkoutSchema.nullable(),
+	/** Only on a _Bytt økt_; images written before it have none. */
+	swap: ImageSwapSchema.nullable().optional(),
 })
 export type JusterImage = z.infer<typeof JusterImageSchema>
 

@@ -10,18 +10,24 @@
  * the card itself, or the week's row on the day _Bytt dag_ moved it to. A
  * chip that cannot act says why, under the chips, instead of doing nothing.
  *
- * The chips sit in one row that scrolls sideways on a narrow phone rather
- * than wrapping, so nothing a later chip adds (#579's _Bytt økt_, _Avansert_)
- * ever moves _Gjort_ under the thumb. Motion is the system's press only.
+ * The row ends with #579's _Bytt økt_ (Bibliotek as a picker; its pick goes
+ * out through this same form and lands the same way) and _Avansert_ (the
+ * power tools), `__bytt-okt.tsx`. The chips sit in one row that scrolls
+ * sideways on a narrow phone rather than wrapping, so no chip ever moves
+ * _Gjort_ under the thumb. Motion is the system's press only.
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { useState } from 'react'
 import { useFetcher } from 'react-router'
-import { buttonVariants } from '#app/components/ui/button.tsx'
 import { type action as sessionAdjustAction } from '#app/routes/resources/session-adjust.tsx'
-import { JUSTER_INTENTS, SESSION_ADJUST_ACTION } from '#app/utils/juster.ts'
+import {
+	JUSTER_INTENTS,
+	SESSION_ADJUST_ACTION,
+	type SwapSource,
+} from '#app/utils/juster.ts'
 import { JUSTER_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { AvansertChip, ByttOktChip, CHIP } from './__bytt-okt.tsx'
 import {
 	type LandedWrite,
 	useLandingWatch,
@@ -34,10 +40,18 @@ type JusterReply = ReturnType<
 export function JusterChips({
 	sessionId,
 	title,
+	discipline,
+	sessionTo,
+	todayKey,
 }: {
 	sessionId: string
 	/** The session's title, for the chips' names and the toast. */
 	title: string
+	/** Today's sport: _Bytt økt_'s Catalogue lists it first. */
+	discipline: string
+	/** The session's own page, for _Avansert_. */
+	sessionTo: string
+	todayKey: string
 }) {
 	// One fetcher key per mounted card, so the reply is read where the landing
 	// lives after a _Bytt dag_ has taken the card's session away.
@@ -56,6 +70,12 @@ export function JusterChips({
 	const pressed = busy ? fetcher.formData?.get('intent') : null
 	const errorId = `${form.id}-reason`
 	const reason = busy ? null : (form.errors?.[0] ?? null)
+	const startWatch = () => {
+		watch?.({
+			fetcherKey,
+			toWrite: (reply) => justerLanding(reply as JusterReply, sessionId),
+		})
+	}
 	return (
 		<fetcher.Form
 			method="post"
@@ -63,11 +83,8 @@ export function JusterChips({
 			{...formProps}
 			onSubmit={(event) => {
 				formProps.onSubmit(event)
-				if (event.defaultPrevented || !watch) return
-				watch({
-					fetcherKey,
-					toWrite: (reply) => justerLanding(reply as JusterReply, sessionId),
-				})
+				if (event.defaultPrevented) return
+				startWatch()
 			}}
 			className="flex min-w-0 flex-col gap-1.5"
 		>
@@ -94,8 +111,7 @@ export function JusterChips({
 							aria-busy={pressed === intent || undefined}
 							aria-label={JUSTER_LABELS.chipFor(label, title)}
 							className={cn(
-								buttonVariants({ variant: 'outline' }),
-								'text-callout h-11 flex-none rounded-full px-4',
+								CHIP,
 								// The tapped chip stays as it is while its change goes out;
 								// the others step back, so a second tap has nowhere to land.
 								pressed === intent && 'disabled:opacity-100',
@@ -105,6 +121,19 @@ export function JusterChips({
 						</button>
 					)
 				})}
+				<ByttOktChip
+					title={title}
+					discipline={discipline}
+					disabled={busy}
+					onPick={(from: SwapSource, pickId: string) => {
+						startWatch()
+						void fetcher.submit(
+							{ intent: 'swap', sessionId, from, pickId },
+							{ method: 'post', action: SESSION_ADJUST_ACTION },
+						)
+					}}
+				/>
+				<AvansertChip title={title} sessionTo={sessionTo} todayKey={todayKey} />
 			</div>
 			<p
 				id={errorId}
