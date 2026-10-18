@@ -890,3 +890,147 @@
 		}
 	}
 }
+
+/* ==========================================================================
+ * Levende start · Motion that explains (spec #558 S10, #582). One section;
+ * other PRs add their own below rather than editing this one.
+ *
+ * The start shows the athlete their week becoming a plan: _Uka di_ becomes
+ * the Start Option cards, the chosen card becomes the plan's curve, and the
+ * curve becomes this week on I dag. Rare by Emil's frequency table — the
+ * start runs once — so it may explain at full size; everything is still
+ * under 300ms, exits are faster than entrances, and only `transform`,
+ * `opacity` and `clip-path` move. Reduced motion crossfades every morph in
+ * 200ms (ADR 0077: gentler, never zero).
+ * ========================================================================== */
+
+@theme static {
+	/* A shared element travelling to its new place (container clip + FLIP). */
+	--transition-duration-morph: 280ms;
+	/* What arrives: a sketch block rising, the new snapshot, and the
+	 * reduced-motion crossfade. */
+	--transition-duration-morph-enter: 200ms;
+	/* What leaves: a sketch block dropping, the old snapshot. */
+	--transition-duration-morph-exit: 160ms;
+}
+
+/*
+ * The morphs, on the View Transitions API (`app/utils/view-morph.ts`). React
+ * Router starts them (`viewTransition`) and plays them backwards on back
+ * navigation; without the API the page changes at once.
+ *
+ * The named group travels 280ms on `--ease-in-out` — the browser animates
+ * its size, and `view-morph.ts` swaps that for a translate plus a clip-path
+ * once the transition is ready. The old snapshot keeps its own size (it is
+ * what the old screen leaves behind) and fades out in 160ms; the new one
+ * fades in over 200ms. The rest of the page crossfades on the same two
+ * durations, so nothing else moves.
+ */
+::view-transition-group(start-week),
+::view-transition-group(start-plan) {
+	animation-duration: var(--transition-duration-morph);
+	animation-timing-function: var(--ease-in-out);
+}
+::view-transition-old(start-week),
+::view-transition-old(start-plan) {
+	inline-size: auto;
+	animation-duration: var(--transition-duration-morph-exit);
+	animation-timing-function: var(--ease-out);
+}
+::view-transition-new(start-week),
+::view-transition-new(start-plan) {
+	animation-duration: var(--transition-duration-morph-enter);
+	animation-timing-function: var(--ease-out);
+}
+/* The page itself never travels (its group would animate size): it only
+ * crossfades. */
+::view-transition-group(root) {
+	animation: none;
+}
+::view-transition-old(root) {
+	animation-duration: var(--transition-duration-morph-exit);
+	animation-timing-function: var(--ease-out);
+}
+::view-transition-new(root) {
+	animation-duration: var(--transition-duration-morph-enter);
+	animation-timing-function: var(--ease-out);
+}
+/* Reduced motion: nothing travels. Each surface crossfades where it lands. */
+@media (prefers-reduced-motion: reduce) {
+	::view-transition-group(*) {
+		animation: none;
+	}
+	/* Named as well as `*`: a named pseudo outranks the universal one. */
+	::view-transition-old(*),
+	::view-transition-new(*),
+	::view-transition-old(root),
+	::view-transition-new(root),
+	::view-transition-old(start-week),
+	::view-transition-new(start-week),
+	::view-transition-old(start-plan),
+	::view-transition-new(start-plan) {
+		animation-duration: var(--transition-duration-morph-enter);
+		animation-timing-function: var(--ease-out);
+	}
+}
+
+/*
+ * One block of _Uka di_ (`app/routes/start/__week-sketch.tsx`). Every block is
+ * the day's full height, placed by `translateY(--sketch-y)` and cut to its
+ * size by `clip-path` (`--sketch-cut`, with the corner radius exact), so a
+ * block that changes size moves only on the compositor. Both variables are
+ * set on the block itself, never on a parent.
+ *
+ * Motion only once the sketch has mounted (`[data-sketch-live]`), so a screen
+ * that opens with a week does not replay it: then a block that arrives rises
+ * from the baseline (200ms ease-out, `--sketch-index` × 30ms apart), one that
+ * changes size stretches in place (280ms ease-in-out), and one that leaves
+ * drops out in 160ms. Transitions, not keyframes: a day tapped twice reverses
+ * from where its block is. Reduced motion keeps the fades and drops the
+ * movement: a block appears and goes where it stands.
+ */
+@utility sketch-block {
+	transform: translateY(var(--sketch-y, 0%));
+	clip-path: inset(0 0 var(--sketch-cut, 0%) 0 round 0.75rem);
+
+	[data-sketch-live] & {
+		transition:
+			transform var(--transition-duration-morph) var(--ease-in-out),
+			clip-path var(--transition-duration-morph) var(--ease-in-out),
+			opacity var(--transition-duration-morph-enter) var(--ease-out);
+
+		@starting-style {
+			transform: translateY(101%);
+			opacity: 0;
+		}
+	}
+	[data-sketch-live] &[data-entering] {
+		transition-duration: var(--transition-duration-morph-enter);
+		transition-timing-function: var(--ease-out);
+		transition-delay: calc(var(--sketch-index, 0) * 30ms);
+	}
+	[data-sketch-live] &[data-leaving] {
+		transform: translateY(101%);
+		opacity: 0;
+		transition-duration: var(--transition-duration-morph-exit);
+		transition-timing-function: var(--ease-out);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		[data-sketch-live] & {
+			transition: opacity var(--transition-duration-morph-enter) var(--ease-out);
+
+			@starting-style {
+				transform: translateY(var(--sketch-y, 0%));
+				opacity: 0;
+			}
+		}
+		[data-sketch-live] &[data-entering] {
+			transition-delay: 0ms;
+		}
+		[data-sketch-live] &[data-leaving] {
+			transform: translateY(var(--sketch-y, 0%));
+			transition-duration: var(--transition-duration-morph-exit);
+		}
+	}
+}

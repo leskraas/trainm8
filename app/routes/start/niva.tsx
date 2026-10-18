@@ -155,7 +155,13 @@ export default function LevelStep({
 			title={L.level.title}
 		>
 			<WeekSketch sketch={sketch} />
-			<Form method="POST" className="space-y-8" {...getFormProps(form)}>
+			<Form
+				method="POST"
+				className="space-y-8"
+				// _Uka di_ stays with the athlete to the next screen (#582).
+				viewTransition
+				{...getFormProps(form)}
+			>
 				<RadioGroupField
 					name={fields.level.name}
 					legend={<span className="sr-only">{L.level.legend}</span>}

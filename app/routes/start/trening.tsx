@@ -210,7 +210,13 @@ export default function ActivitiesStep({
 			back={{ to: back, label: L.backTo.level }}
 		>
 			<WeekSketch sketch={sketch} />
-			<Form method="POST" className="space-y-8" {...getFormProps(form)}>
+			<Form
+				method="POST"
+				className="space-y-8"
+				// _Uka di_ stays with the athlete to the next screen (#582).
+				viewTransition
+				{...getFormProps(form)}
+			>
 				<input type="hidden" name={fields.level.name} value={level} />
 				<input type="hidden" name={fields.hours.name} value={hours} />
 				{/* Back from the preferences, they ride along (#571). */}

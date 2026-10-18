@@ -47,6 +47,8 @@ export function FirstRunFrame({
 				{back ? (
 					<Link
 						to={back.to}
+						// Back plays the morph that brought the athlete here in reverse.
+						viewTransition
 						aria-label={back.label}
 						className={cn(
 							buttonVariants({ variant: 'ghost', size: 'icon' }),
