@@ -1,5 +1,5 @@
 import { prisma } from '#app/utils/db.server.ts'
-import { expect, test } from '#tests/playwright-utils.ts'
+import { expect, openPlanAdvanced, test } from '#tests/playwright-utils.ts'
 
 /**
  * _Bytt filosofi_ end to end (#505 stories 10–14): an athlete with an
@@ -29,6 +29,8 @@ test('switching philosophy shows a preview first, and the plan follows the new o
 	await holdActive.getByLabel('Timer i uka').fill('4')
 	await holdActive.getByRole('button', { name: 'Lag planen' }).click()
 	await expect(page.getByText('blokk 1 av ∞')).toBeVisible()
+	// Every Sesong editor is behind Plan's closed Avansert (ADR 0101 §2).
+	await openPlanAdvanced(page)
 
 	// The plan says which philosophy it follows, in plain words.
 	const card = page.getByRole('region', { name: 'Filosofi' })
@@ -102,6 +104,8 @@ test('the preview warns where the new plan would rise more than 10 % in a week (
 		},
 	})
 	await page.reload()
+	// Every Sesong editor is behind Plan's closed Avansert (ADR 0101 §2).
+	await openPlanAdvanced(page)
 
 	const card = page.getByRole('region', { name: 'Filosofi' })
 	await card.getByText('Bytt filosofi').click()
