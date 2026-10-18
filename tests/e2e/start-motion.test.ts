@@ -357,10 +357,13 @@ test('Uka di’s blocks rise in 30ms apart, stretch in place, and drop out in 16
 		expect(block.easing).toBe(EASE_OUT)
 	}
 
-	// Fewer hours: the same blocks stretch in place, on the morph's curve.
+	// Fewer hours: the same blocks stretch in place, on the morph's curve —
+	// arrived blocks stay, whether or not the change moved their sizes.
 	await page.getByRole('button', { name: FEWER_HOURS }).click()
+	await expect
+		.poll(async () => (await sketchBlocks(page)).map((block) => block.state))
+		.toEqual(Array(5).fill('staying'))
 	for (const block of await sketchBlocks(page)) {
-		expect(block.state).toBe('staying')
 		expect(block.property).toBe('transform, clip-path, opacity')
 		expect(block.duration).toBe('0.28s, 0.28s, 0.2s')
 		expect(block.easing).toBe([EASE_IN_OUT, EASE_IN_OUT, EASE_OUT].join(', '))
