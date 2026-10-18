@@ -4478,6 +4478,34 @@ export const PLAN_LEAD_LABELS = {
 	noPlanAction: 'Kom i gang',
 } as const
 
+/**
+ * _Bytt treningsform_ in Plan's lead (ADR 0101 §2, #581): the **Start
+ * Options** again, laid for the plan's tracks and days, and picking one
+ * through the philosophy switch's preview. The cards' own words are
+ * `START_OPTION_LABELS`'.
+ */
+export const TRENINGSFORM_LABELS = {
+	open: 'Bytt treningsform',
+	/** The closed row's line: what is inside. */
+	detail: 'Se måtene å trene på igjen, lagt for ukene dine',
+	intro: (count: number, hours: string, days: number, from: string) =>
+		`${count === 1 ? 'Det er' : 'Hver er'} en ekte uke med ${hours} på ${days} ${days === 1 ? 'dag' : 'dager'}, fra uka som starter ${from}. Du ser hva som endres før noe skjer.`,
+	/** The current family's badge, and what stands where its button would. */
+	current: 'Nå',
+	currentNote: 'Planen følger denne nå.',
+	/** The plan follows a family the options do not show (Masters, or merged). */
+	currentNotShown: (family: string) =>
+		`Planen følger ${family} nå, som ikke er blant måtene her. Alle filosofiene finner du under Avansert.`,
+	/** An athlete from before the simple start, who never said a level. */
+	levelUnsaid:
+		'Du har ikke valgt nivå, så måtene er lagt som for en mosjonist. Nivået velger du i Meg.',
+	/** The confirm under the preview: `Bytt til Mest rolig, litt veldig hardt`. */
+	switchTo: (name: string) => `Bytt til ${name}`,
+	done: 'Planen har ny treningsform',
+	switched: (name: string, from: string) =>
+		`Planen er nå «${name}» fra ${from}. Ukene du har trent og øktene dine står som før.`,
+} as const
+
 /** The ramp guard, the availability check and the load band (ADR 0040 §12–13). */
 export const SESONG_NOTICE_LABELS = {
 	dismiss: (name: string) => `Lukk ${name}`,
