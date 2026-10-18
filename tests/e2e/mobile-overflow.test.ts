@@ -10,7 +10,7 @@ import {
 	createPlanOutline,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
-import { expect, test } from '#tests/playwright-utils.ts'
+import { expect, openPlanAdvanced, test } from '#tests/playwright-utils.ts'
 
 // Mirrors `onboardingEmailSessionKey` in
 // `app/routes/_auth/onboarding/index.tsx`. Inlined rather than imported: that
@@ -160,6 +160,9 @@ test('the season plan does not overflow at 390px', async ({
 	// Blokker is the default reading, under the season picture (I dag's curve
 	// and table, ADR 0090) and the phase cards under it.
 	await navigate('/training/plan')
+	await expectNoHorizontalOverflow(page)
+	// Every Sesong editor is behind Plan's closed Avansert (ADR 0101 §2).
+	await openPlanAdvanced(page)
 	await expect(
 		page.getByRole('heading', { name: 'Sesongen', exact: true }),
 	).toBeVisible()
@@ -187,12 +190,13 @@ test('the Bibliotek and Meg tabs do not overflow, and the tab bar covers no cont
 	test.setTimeout(120_000)
 	await login()
 
-	// The two hub tabs are new surfaces (ADR 0083); the bottom tab bar is fixed
-	// over the phone's bottom edge, so it is the one new way to push a page
-	// sideways or hide its last line.
+	// The hub surfaces (ADR 0083, ADR 0101); the bottom tab bar is fixed over the
+	// phone's bottom edge, so it is the one new way to push a page sideways or
+	// hide its last line. Bibliotek is a section of Plan now, and its old address
+	// lands there.
 	await navigate('/library')
 	await expect(
-		page.getByRole('heading', { name: 'Bibliotek', level: 1 }),
+		page.getByRole('heading', { name: 'Bibliotek', level: 2 }),
 	).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 
@@ -241,4 +245,36 @@ test('onboarding does not overflow at 390px', async ({ page, navigate }) => {
 		page.getByRole('button', { name: /create an account/i }),
 	).toBeVisible()
 	await expectNoHorizontalOverflow(page)
+})
+
+test.describe('at 320px', () => {
+	test.use({ viewport: { width: 320, height: 640 } })
+
+	test('the start’s activity list, Start Option cards and twelve-week bars do not overflow', async ({
+		page,
+		navigate,
+		login,
+	}) => {
+		test.setTimeout(120_000)
+		await login()
+		// The most the start can lay: every day, the most hours, every activity.
+		await navigate(
+			'/start/trening?level=competitive&hours=20&discipline=run&days=0,1,2,3,4,5,6&activities=cross-country-ski,hike,climb,yoga-mobility' as '/start/trening',
+		)
+		await expect(page.getByRole('group', { name: 'Aktiviteter' })).toBeVisible()
+		await expectNoHorizontalOverflow(page)
+		await page.getByRole('button', { name: 'Neste' }).click()
+		await expect(page).toHaveURL(/\/start\/okter/)
+		await page.getByRole('button', { name: 'Hopp over', exact: true }).click()
+		await expect(page).toHaveURL(/\/start\/valg/)
+		await expect(page.locator('[data-week-blocks]').first()).toBeVisible()
+		await expectNoHorizontalOverflow(page)
+		await page
+			.getByRole('button', { name: /^Velg denne/ })
+			.first()
+			.click()
+		await expect(page).toHaveURL('/start/klar', { timeout: 20_000 })
+		await expect(page.locator('[data-plan-ready-bars]')).toBeVisible()
+		await expectNoHorizontalOverflow(page)
+	})
 })

@@ -26,6 +26,7 @@
 // The warnings carry numbers and no wording; the surface words them, exactly as
 // `ramp-guard.ts` and `quality-mix.ts` do.
 
+import { FIVE_MINUTES, inWholeFiveMinutes } from '../five-minutes.ts'
 import { blockRepeatTotal } from '../workout-schema.ts'
 import {
 	CURRENCY_DECIMALS,
@@ -168,7 +169,13 @@ function apportion(
 	currency: VolumeCurrency,
 ): number[] {
 	const scale = 10 ** CURRENCY_DECIMALS[currency]
-	const units = Math.round(total * scale)
+	return apportionUnits(Math.round(total * scale), fractions).map(
+		(units) => units / scale,
+	)
+}
+
+/** {@link apportion} in whole units: the parts add up to `units` exactly. */
+function apportionUnits(units: number, fractions: readonly number[]): number[] {
 	const exact = fractions.map((fraction) => fraction * units)
 	const floors = exact.map(Math.floor)
 	const spare = units - floors.reduce((sum, floor) => sum + floor, 0)
@@ -180,9 +187,68 @@ function apportion(
 		.slice(0, Math.max(spare, 0))
 	const topped = new Set(byFraction.map((entry) => entry.index))
 
-	return floors.map(
-		(floor, index) => (floor + (topped.has(index) ? 1 : 0)) / scale,
-	)
+	return floors.map((floor, index) => floor + (topped.has(index) ? 1 : 0))
+}
+
+/**
+ * An hours split in whole five minutes (owner decision, #571): every share day
+ * but the long one — the heaviest, the last of them on a tie — is its exact
+ * share rounded to five minutes, and the long day takes the rest, so the
+ * column still adds up to the hours minute for minute.
+ *
+ * Rounding to the nearest five can spend a small week before the long day gets
+ * a minute (60 minutes over 1:1:1:1:1:1:2 is six 10s and a 0), and a share
+ * under 2½ minutes rounds to nothing. A day with a share is never laid as
+ * nothing while the week has minutes (#584), so the split steps down: the
+ * nearest five; then each day rounded *down* to five, the long day taking the
+ * residual; then whole minutes. Each step still adds up to the hours.
+ */
+function inFiveMinutes(hours: number, weights: readonly number[]): number[] {
+	if (weights.length === 0) return []
+	const minutes = Math.round(hours * 60)
+	const fractions = normaliseWeights(weights)
+	const heaviest = Math.max(...weights)
+	const long = weights.lastIndexOf(heaviest)
+
+	const nothingLost = (laid: readonly number[]) =>
+		minutes <= 0 ||
+		laid.every((value, index) => value > 0 || (fractions[index] ?? 0) === 0)
+	const withLongRest = (round: (minutes: number) => number) => {
+		const laid = fractions.map((fraction, index) =>
+			index === long ? 0 : round(fraction * minutes),
+		)
+		laid[long] = minutes - laid.reduce((sum, value) => sum + value, 0)
+		return laid
+	}
+
+	const steps = [
+		withLongRest(inWholeFiveMinutes),
+		withLongRest((exact) => Math.floor(exact / FIVE_MINUTES) * FIVE_MINUTES),
+	]
+	const laid =
+		steps.find((step) => step[long]! >= 0 && nothingLost(step)) ??
+		inWholeMinutes(minutes, fractions, long)
+	return laid.map((value) => value / 60)
+}
+
+/**
+ * The last step of {@link inFiveMinutes}: the largest-remainder split in whole
+ * minutes, and any day with a share still left at nothing given one minute
+ * from the long day while it has one to give.
+ */
+function inWholeMinutes(
+	minutes: number,
+	fractions: readonly number[],
+	long: number,
+): number[] {
+	const laid = apportionUnits(minutes, fractions)
+	laid.forEach((value, index) => {
+		if (value > 0 || (fractions[index] ?? 0) === 0 || index === long) return
+		if (laid[long]! <= 1) return
+		laid[long]! -= 1
+		laid[index] = 1
+	})
+	return laid
 }
 
 /**
@@ -254,9 +320,16 @@ function resolveTrack(
 	const fractions = normaliseWeights(shareDays.map((day) => day.weight))
 
 	// Apportioned rather than rounded one by one, so the share column adds up to
-	// the remainder it divides.
+	// the remainder it divides; hours in whole five minutes.
 	const shareVolumes =
-		absorbable == null ? null : apportion(absorbable, fractions, track.currency)
+		absorbable == null
+			? null
+			: track.currency === 'hours'
+				? inFiveMinutes(
+						absorbable,
+						shareDays.map((day) => day.weight),
+					)
+				: apportion(absorbable, fractions, track.currency)
 
 	const shareValues = new Map<string, { value: number | null; share: number }>()
 	shareDays.forEach((day, index) => {

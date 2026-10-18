@@ -16,7 +16,11 @@ import {
 } from '#app/utils/plan-outline/week-sessions.server.ts'
 import { findActiveOutline } from '#app/utils/training.server.ts'
 import { readFirstUnbegunWeekKey } from './week-begun.server.ts'
-import { horizonWeekKey, lastClosedWeekKey } from './week-change.ts'
+import {
+	horizonWeekKey,
+	lastClosedWeekKey,
+	type UnlaidReason,
+} from './week-change.ts'
 
 /**
  * Lay the active plan's Week Pattern into one week, as `generated`
@@ -32,15 +36,34 @@ export async function fillPlanWeek(
 	timezone: string,
 	now: Date,
 ): Promise<{ weekKey: string; sessions: number }> {
-	const nothing = { weekKey, sessions: 0 }
+	const { sessions } = await layPlanWeek(userId, weekKey, timezone, now)
+	return { weekKey, sessions }
+}
+
+/**
+ * {@link fillPlanWeek}, also saying why a week it did not lay was not laid
+ * (`unlaid`): null when it laid the week, the plan had laid it already, or
+ * nobody expected anything laid there.
+ */
+export async function layPlanWeek(
+	userId: string,
+	weekKey: string,
+	timezone: string,
+	now: Date,
+): Promise<{ weekKey: string; sessions: number; unlaid: UnlaidReason | null }> {
+	const nothing = (unlaid: UnlaidReason | null = null) => ({
+		weekKey,
+		sessions: 0,
+		unlaid,
+	})
 	const active = await findActiveOutline(userId, now)
-	if (!active) return nothing
+	if (!active) return nothing()
 	const pattern = await prisma.weekPattern.findFirst({
 		where: { outlineId: active.outline.id, days: { some: {} } },
 		orderBy: { orderIndex: 'asc' },
 		select: { id: true },
 	})
-	if (!pattern) return nothing
+	if (!pattern) return nothing('no-pattern')
 
 	// Already laid — by the athlete's own stamp of many weeks, or a copy: the
 	// plan's sessions there are the plan's week, and laying it again would
@@ -51,7 +74,7 @@ export async function fillPlanWeek(
 		readWeekOccupancy(userId, active.outline.id, weekKey, timezone),
 		countPlanLaidSessions(userId, active.outline.id, weekKey, timezone),
 	])
-	if (occupancy.replacing > 0 || laid > 0) return nothing
+	if (occupancy.replacing > 0 || laid > 0) return nothing()
 
 	// `replace` because the athlete's own sessions in the week would otherwise
 	// stop the stamp at its confirmation gate. The stamp's clearing only ever
@@ -66,7 +89,24 @@ export async function fillPlanWeek(
 		{ patternId: pattern.id, weekKeys: [weekKey], replace: true },
 		now,
 	)
-	return stamped.ok ? { weekKey, sessions: stamped.report.sessions } : nothing
+	if (stamped.ok) {
+		return { weekKey, sessions: stamped.report.sessions, unlaid: null }
+	}
+	switch (stamped.reason) {
+		case 'pattern-gone':
+		case 'pattern-empty':
+			return nothing('no-pattern')
+		case 'week-outside-plan':
+			// A week before the plan starts is one nobody expected laid.
+			return nothing(
+				weekKey < active.outline.startWeekKey ? null : 'past-plan-end',
+			)
+		case 'nothing-to-stamp':
+			return nothing('nothing-to-lay')
+		default:
+			// A plan resting behind a race lays nothing here, by design.
+			return nothing()
+	}
 }
 
 /**

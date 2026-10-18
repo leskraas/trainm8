@@ -107,6 +107,7 @@ export async function applyWeekReplanForUser(
 		missedSessions,
 		round,
 		repeatMisses,
+		profile,
 	] = await Promise.all([
 		getClosedWeekAdherence(userId, weekKey, timezone),
 		getCurrentLoad(userId),
@@ -115,8 +116,21 @@ export async function applyWeekReplanForUser(
 		getMissedSessions(userId, weekKey, timezone, now),
 		readRoundFacts(userId, weekKey, timezone, now),
 		getRepeatMisses(userId, weekKey, timezone, now),
+		// The mode this week closes under (ADR 0100 §6): read here, at the
+		// close, and stored with the decision — so a switch in Meg applies
+		// from the next close and never to proposals already written.
+		prisma.athleteProfile.findUnique({
+			where: { userId },
+			select: { autopilot: true, autopilotIntroPending: true },
+		}),
 	])
 	const tsb = currentLoad?.tsb ?? null
+	// On unless switched off (#583): an athlete with no profile row yet is
+	// on the default, as a new profile would be.
+	const autopilot = profile?.autopilot ?? true
+	// The one-time line (#583): the first close under autopilot after the
+	// switch claims it for this week's notice, and no later week has it.
+	const intro = autopilot && (profile?.autopilotIntroPending ?? false)
 
 	const change = author({
 		targetWeekKey,
@@ -128,6 +142,7 @@ export async function applyWeekReplanForUser(
 		freeDays: coming.freeDays,
 		round,
 		repeatMisses,
+		autopilot,
 	})
 
 	try {
@@ -140,11 +155,19 @@ export async function applyWeekReplanForUser(
 					reason: change.reason,
 					adherenceRatio: adherence?.ratio ?? null,
 					tsb,
+					autopilot,
+					autopilotIntro: intro,
 					createdAt: now,
 				},
 				select: { id: true },
 			})
 			await recordProposals(tx, userId, change.proposals, replan.id)
+			if (intro) {
+				await tx.athleteProfile.update({
+					where: { userId },
+					data: { autopilotIntroPending: false },
+				})
+			}
 		})
 	} catch (error) {
 		// Two recomputes can race past the findUnique check above; the unique

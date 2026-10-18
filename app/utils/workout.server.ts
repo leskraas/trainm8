@@ -151,6 +151,10 @@ export const workoutCopySelect = {
 	/// is how the archetype arrives without anyone classifying anything: the row
 	/// was published *as* one by its source (ADR 0055 §4).
 	archetype: true,
+	/// Carried, because a copy of a climb is a climb (ADR 0015 §A): a Simple
+	/// Activity is only one with its Activity Kind and Effort Word.
+	activityKind: true,
+	effortWord: true,
 	visibility: true,
 	blocks: {
 		orderBy: { orderIndex: 'asc' as const },
@@ -322,6 +326,8 @@ export async function copyWorkout(
 			// owes its own answer, and `copiedFromId` is `SetNull`, so a read-through
 			// would evaporate the moment the source row went away.
 			archetype: source.archetype,
+			activityKind: source.activityKind,
+			effortWord: source.effortWord,
 			// `visibility` is **not** copied, and since #452 that is load-bearing
 			// rather than tidy. Publishing is an act with an **Attribution** attached
 			// (ADR 0052); a copy that inherited `public` would be a community row
@@ -461,13 +467,34 @@ export async function deleteWorkoutSession(userId: string, sessionId: string) {
  * Returns `null` when the session doesn't exist (or isn't the caller's), and
  * `{ marked: false }` when its status can't take the transition.
  */
-export async function markSessionMissed(userId: string, sessionId: string) {
+/**
+ * Whether a session may be marked _ikke gjort_: still planned, on a day that
+ * has begun in the Athlete Timezone. A session still ahead offers no done or
+ * missed action (spec #558 S4, ADR 0101 §4) — the future cannot be missed.
+ */
+export function canMarkMissed(
+	session: { status: string; scheduledAt: Date },
+	{ now, timezone }: { now: Date; timezone: string },
+): boolean {
+	return (
+		session.status === 'scheduled' &&
+		localDate(session.scheduledAt, timezone) <= localDate(now, timezone)
+	)
+}
+
+export async function markSessionMissed(
+	userId: string,
+	sessionId: string,
+	{ now = new Date(), timezone }: { now?: Date; timezone: string },
+) {
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
-		select: { id: true, status: true },
+		select: { id: true, status: true, scheduledAt: true },
 	})
 	if (!session) return null
-	if (session.status !== 'scheduled') return { marked: false as const }
+	if (!canMarkMissed(session, { now, timezone })) {
+		return { marked: false as const }
+	}
 
 	await prisma.workoutSession.update({
 		where: { id: session.id },
@@ -787,7 +814,7 @@ export async function getWorkoutSessionForEdit(
  * **Session Adoption** is about — an `authored` session was the athlete's from
  * the start and a `recorded` one has no prescription to take over.
  */
-function isMachineWritten(source: string): boolean {
+export function isMachineWritten(source: string): boolean {
 	return source === 'generated' || source === 'detected'
 }
 

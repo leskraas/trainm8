@@ -5,6 +5,7 @@ import {
 	addWeekPatternDay,
 	createPlanOutline,
 } from '#app/utils/plan-outline/authoring.server.ts'
+import { RAMP_GUARD_MAX } from '#app/utils/plan-outline/ramp-guard.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { ROUND_STEP_UP } from './propose-next-round.ts'
 import { runWeekChangeForUser } from './week-change.server.ts'
@@ -37,7 +38,7 @@ const oslo = (day: string, time: string) => {
 const CLOSE = oslo('2030-01-13', '20:01')
 const MORNING = oslo('2030-01-14', '06:01')
 
-async function createOpenEndedAthlete() {
+async function createOpenEndedAthlete({ autopilot = false } = {}) {
 	const userData = createUser()
 	const user = await prisma.user.create({
 		select: { id: true },
@@ -45,7 +46,13 @@ async function createOpenEndedAthlete() {
 			...userData,
 			password: { create: createPassword(userData.username) },
 			athleteProfile: {
-				create: { timezone: OSLO, defaultTrainingTime: '07:00' },
+				// Spør meg først (ADR 0080): these tests are about proposals
+				// that wait for a yes and the morning's silence (#583).
+				create: {
+					timezone: OSLO,
+					defaultTrainingTime: '07:00',
+					autopilot,
+				},
 			},
 		},
 	})
@@ -184,6 +191,33 @@ test('a round done to plan proposes the next one with more volume, and silence d
 		appliedAt: null,
 	})
 	expect((await phasesOf(outlineId)).map((p) => p.name)).toEqual(['Blokk 1'])
+})
+
+test('under autopilot, a round done to plan never opens past the ramp guard over the week before it (#584)', async () => {
+	const { userId, outlineId } = await createOpenEndedAthlete({
+		autopilot: true,
+	})
+	// The round climbs at the presets' +5 % a loading week, as Klassisk does.
+	await prisma.trainingTrackSegment.updateMany({
+		where: { kind: 'endurance', track: { outlineId } },
+		data: { ramp: 0.05 },
+	})
+	await trainTheRound(userId, [50, 50])
+
+	await runWeekChangeForUser(userId, CLOSE)
+
+	// The new round's first week sits one ramp step and its boundary step above
+	// the last loading week: +5 % and +5 % would be +10.25 %, past the 8 %.
+	const [, next] = await phasesOf(outlineId)
+	const step = next!.segments[0]!.boundaryStep!
+	expect(step).toBeGreaterThan(0)
+	expect((1 + 0.05) * (1 + step)).toBeLessThanOrEqual(1 + RAMP_GUARD_MAX)
+	const proposal = await roundProposal(userId)
+	expect(proposal.appliedAt).toEqual(CLOSE)
+	expect(proposal).toMatchObject({
+		payload: { factor: expect.closeTo(1 + step, 10) },
+	})
+	expect(proposal.reason).toContain('ca. 3 % mer trening')
 })
 
 test('a round with missed weeks proposes the same volume, says why, and silence appends it', async () => {
@@ -472,7 +506,13 @@ test('an open-ended plan stops proposing rounds at two years of weeks (MAX_PLAN_
 			...userData,
 			password: { create: createPassword(userData.username) },
 			athleteProfile: {
-				create: { timezone: OSLO, defaultTrainingTime: '07:00' },
+				// Spør meg først (ADR 0080): these tests are about proposals
+				// that wait for a yes and the morning's silence (#583).
+				create: {
+					timezone: OSLO,
+					defaultTrainingTime: '07:00',
+					autopilot: false,
+				},
 			},
 		},
 	})
@@ -508,5 +548,43 @@ test('an open-ended plan stops proposing rounds at two years of weeks (MAX_PLAN_
 	).toEqual([
 		['Blokk 1', 52],
 		['Blokk 2', 49],
+	])
+})
+
+// ADR 0102 §3: Stor base now opens all easy, but a track already written from
+// it keeps the mix it was stored with — the next round carries that on, until
+// the athlete re-applies a philosophy.
+test('a Stor base plan written before its base became all easy keeps its stored mix in the next round', async () => {
+	const { userId, outlineId } = await createOpenEndedAthlete()
+	await prisma.planOutline.update({
+		where: { id: outlineId },
+		data: { family: 'big-base' },
+	})
+	const base = await prisma.trainingTrackSegment.findFirstOrThrow({
+		where: { track: { outlineId }, kind: 'endurance' },
+		select: { id: true },
+	})
+	await prisma.trainingTrackSegment.update({
+		where: { id: base.id },
+		data: { mix: { create: [{ zone: 3, sessionsPerWeek: 1 }] } },
+	})
+	await trainTheRound(userId, [50, null])
+
+	await runWeekChangeForUser(userId, CLOSE)
+	await runWeekChangeForUser(userId, MORNING)
+
+	const rounds = await prisma.planOutlinePhase.findMany({
+		where: { outlineId },
+		orderBy: { orderIndex: 'asc' },
+		select: {
+			name: true,
+			segments: {
+				select: { mix: { select: { zone: true, sessionsPerWeek: true } } },
+			},
+		},
+	})
+	expect(rounds).toEqual([
+		{ name: 'Blokk 1', segments: [{ mix: [{ zone: 3, sessionsPerWeek: 1 }] }] },
+		{ name: 'Blokk 2', segments: [{ mix: [{ zone: 3, sessionsPerWeek: 1 }] }] },
 	])
 })

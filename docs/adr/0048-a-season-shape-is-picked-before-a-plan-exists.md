@@ -245,8 +245,14 @@ rather than a `sessionsPerWeek` to be invented (#386's resolution).
 
 ## Status
 
-Accepted (follow-up to map #362, on the owner's report after using the shipped
-surface).
+Accepted
+
+**Amended by
+[ADR 0102](./0102-the-first-run-shows-up-to-three-start-options-as-real-weeks-and-stor-base-starts-all-easy.md)**
+(spec #558): _Stor base_'s first block has an empty **Quality Session Mix** (all
+easy), for every plan made from it after the change; tracks already written keep
+their stored mix. (follow-up to map #362, on the owner's report after using the
+shipped surface).
 
 **Amended by #455** (§6): nine shapes rather than three, and §3's proportional
 shortening rule replaced by _base absorbs first, the taper never_. Every other

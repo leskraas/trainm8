@@ -121,8 +121,8 @@ export async function action({ request }: Route.ActionArgs) {
 	)
 
 	return redirectWithToast(
-		// A new athlete starts with the first run (#505 story 61).
-		safeRedirect(redirectTo, '/start'),
+		// A new athlete starts with the start's first screen (#578).
+		safeRedirect(redirectTo, '/start/niva'),
 		{ title: 'Welcome', description: 'Thanks for signing up!' },
 		{ headers },
 	)

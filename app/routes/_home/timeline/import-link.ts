@@ -8,11 +8,13 @@
  *   (Session Source `recorded` / `detected`): no plan stood behind it.
  * - **"hva var dette?"** — asked only when the app is unsure: an ekstra session
  *   nobody has answered for, on a day that still has a planned session the
- *   import fits (`fitsImport`, the rule auto-save links by). Auto-save links
- *   when exactly one fits, so this is the day two fitted, or the plan was
- *   written after the run landed. Never asked about Annet, `'other'`, an
- *   answered import, or one older than `IMPORT_QUESTION_DAYS` — the athlete
- *   is not asked about last spring the day this ships.
+ *   import fits (`fitsImportByHand`). Auto-save links when exactly one fits
+ *   (`fitsImport`), so this is the day two fitted, the plan was written after
+ *   the run landed, or an import on `'other'` sits on a day with a planned
+ *   Simple Activity — which auto-save never links (ADR 0015 §A), so the athlete
+ *   links it by hand here. Never asked about Annet, an answered import, or one
+ *   older than `IMPORT_QUESTION_DAYS` — the athlete is not asked about last
+ *   spring the day this ships.
  * - **Angre kobling** — on a planned session holding an import.
  * - **Koble igjen** — on the ekstra session an Angre kobling made, while the
  *   session it came from is still on I dag and still has no Recording.
@@ -23,13 +25,17 @@
 import { addDays, localDate } from '#app/utils/athlete-calendar.ts'
 import {
 	canMarkDone,
-	fitsImport,
+	fitsImportByHand,
 	IMPORT_QUESTION_DAYS,
 	importBringsNumbers,
 	isRecordingOnlySource,
 	MARK_DONE_REACH_DAYS,
 } from '#app/utils/import-fit.ts'
-import { IMPORT_LINK_LABELS, MARK_DONE_LABELS } from '#app/utils/labels.ts'
+import {
+	IMPORT_LINK_LABELS,
+	MARK_DONE_LABELS,
+	SIMPLE_ACTIVITY_LABELS,
+} from '#app/utils/labels.ts'
 import { type SessionRow } from '#app/utils/session-ledger-rows.ts'
 
 /** The offer on an import's row. One at a time: the row has one question. */
@@ -157,7 +163,7 @@ export function buildImportFacts(
 				importDay >= askFrom
 			) {
 				const candidates = (byDay.get(importDay) ?? []).filter((other) =>
-					fitsImport(
+					fitsImportByHand(
 						{
 							source: other.session.source,
 							adoptedAt: other.session.adoptedAt,
@@ -173,7 +179,10 @@ export function buildImportFacts(
 						kind: 'ask',
 						importId: recording.id,
 						question: IMPORT_LINK_LABELS.question,
-						note: IMPORT_LINK_LABELS.questionNote(candidates.length),
+						note:
+							recording.discipline === 'other'
+								? SIMPLE_ACTIVITY_LABELS.linkQuestionNote
+								: IMPORT_LINK_LABELS.questionNote(candidates.length),
 						options: candidates.map((candidate) => ({
 							sessionId: candidate.session.id,
 							label: IMPORT_LINK_LABELS.linkTo(candidate.entry.title ?? ''),

@@ -14,6 +14,7 @@
 // rather than one schema at a time.
 
 import { z } from 'zod/v3'
+import { PLANNED_DISCIPLINES } from '../planned-discipline.ts'
 import { DISCIPLINES } from '../workout-schema.ts'
 import { RHYTHMS, STRENGTH_GOALS, VOLUME_CURRENCIES } from './derive.ts'
 import {
@@ -91,7 +92,10 @@ export const PhaseCreateSchema = z.object({
  */
 export const TrackCreateSchema = z
 	.object({
-		discipline: z.enum(DISCIPLINES),
+		// `other` too: the hours track the start lays its Simple Activities on
+		// (#572). Adding a track by hand (`TrackAddSchema`) still offers the
+		// Discipline set only.
+		discipline: z.enum(PLANNED_DISCIPLINES),
 		currency: z.enum(VOLUME_CURRENCIES),
 		/**
 		 * The anchor is positive: ADR 0040 §3's derivation is multiplicative, so an

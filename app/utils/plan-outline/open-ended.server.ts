@@ -20,6 +20,7 @@ import { MAX_PLAN_WEEKS } from './authoring-schema.ts'
 import { layEnduranceSegments } from './authoring.server.ts'
 import { phaseIndexForWeek, phaseStartIndices, rhythmOf } from './derive.ts'
 import { fitRunUp } from './fit-proposal.ts'
+import { isSimpleActivityTrack, SIMPLE_ACTIVITY_SEGMENT } from './from-rows.ts'
 import { familyRunUp, outlineFamily } from './presets.ts'
 import { stampWeekPattern } from './stamp.server.ts'
 import { weekIndexOf, weekKeyAt } from './week-keys.ts'
@@ -66,14 +67,15 @@ export function roundBoundaryStep(factor: number): number | null {
  * edit can change (each refuses `plan-too-long`), so a round that would take
  * the plan past it is not appended; `readRoundFacts` stops proposing one
  * first (ADR 0079 "As built (#505 gaps)"). Returns the Monday the round opens
- * on.
+ * on and the phase it appended — what the proposal's before-image keeps, so
+ * an undo can re-lay that round at factor 1 (#564).
  */
 export async function appendOpenEndedRound(
 	tx: Prisma.TransactionClient,
 	athleteId: string,
 	round: AddPhasePayload,
 	{ now, timezone }: { now: Date; timezone: string },
-): Promise<{ weekKey: string } | null> {
+): Promise<{ weekKey: string; phaseId: string } | null> {
 	const outline = await tx.planOutline.findFirst({
 		where: { id: round.outlineId, athleteId, eventId: null },
 		select: {
@@ -118,6 +120,7 @@ export async function appendOpenEndedRound(
 		where: { phaseId: last.id, kind: 'endurance' },
 		select: {
 			trackId: true,
+			track: { select: { discipline: true } },
 			ramp: true,
 			recoveryCut: true,
 			taperCut: true,
@@ -131,10 +134,16 @@ export async function appendOpenEndedRound(
 				kind: 'endurance',
 				trackId: segment.trackId,
 				phaseId: created.id,
-				ramp: segment.ramp,
-				recoveryCut: segment.recoveryCut,
-				taperCut: segment.taperCut,
-				boundaryStep,
+				// The Simple Activities' fixed days stay as they are: their track
+				// takes no step up into the next round (#572).
+				...(isSimpleActivityTrack(segment.track.discipline)
+					? SIMPLE_ACTIVITY_SEGMENT
+					: {
+							ramp: segment.ramp,
+							recoveryCut: segment.recoveryCut,
+							taperCut: segment.taperCut,
+							boundaryStep,
+						}),
 				...(segment.mix.length
 					? {
 							mix: {
@@ -164,7 +173,7 @@ export async function appendOpenEndedRound(
 		})
 	}
 
-	return { weekKey: opens }
+	return { weekKey: opens, phaseId: created.id }
 }
 
 // ── Adding an Event ─────────────────────────────────────────────────────────

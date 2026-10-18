@@ -1,3 +1,4 @@
+import { type Prisma } from '@prisma/client'
 import { rederiveHrPhaseBarsForDiscipline } from './activity-telemetry.server.ts'
 import { localDate } from './athlete-calendar.ts'
 import {
@@ -5,6 +6,11 @@ import {
 	type DisciplineThresholdInput,
 } from './athlete-schema.ts'
 import { prisma } from './db.server.ts'
+import {
+	type SessionPreference,
+	type TrainingLevel,
+} from './first-run/start-draft.ts'
+import { LevelSchema, PreferencesSchema } from './first-run/start-schema.ts'
 import { recomputePlannedTssForUser } from './load/planned-tss.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
 import { CARDIO_DISCIPLINES, type Discipline } from './workout-schema.ts'
@@ -81,8 +87,11 @@ export async function getAthleteTimezone(userId: string): Promise<string> {
  *
  * Idempotent, and cheap: one read, and a write only on the first call.
  */
-async function ensureCardioDisciplineProfiles(athleteProfileId: string) {
-	const existing = await prisma.disciplineProfile.findMany({
+async function ensureCardioDisciplineProfiles(
+	athleteProfileId: string,
+	db: Prisma.TransactionClient = prisma,
+) {
+	const existing = await db.disciplineProfile.findMany({
 		where: { athleteProfileId },
 		select: { discipline: true },
 	})
@@ -93,7 +102,7 @@ async function ensureCardioDisciplineProfiles(athleteProfileId: string) {
 	if (missing.length === 0) return
 	// `createMany`'s `skipDuplicates` is unsupported on SQLite, so the guard above
 	// is the whole of the de-duplication.
-	await prisma.disciplineProfile.createMany({
+	await db.disciplineProfile.createMany({
 		data: missing.map((discipline) => ({
 			athleteProfileId,
 			discipline,
@@ -118,23 +127,36 @@ export async function getOrCreateAthleteProfile(userId: string) {
 
 export async function updateAthleteProfile(
 	userId: string,
-	patch: AthleteProfileUpdate,
+	patch: AthleteProfileUpdate & {
+		/** The **Training Level** the athlete gave in the First Run (#566). */
+		trainingLevel?: TrainingLevel
+		/** The strength sessions a week the athlete answered (#574, ADR 0103). */
+		strengthPerWeek?: number
+		/** The **Session Preferences**, several or none (#571). */
+		sessionPreferences?: readonly SessionPreference[]
+	},
+	/** A transaction the caller holds, for a write that lands with others. */
+	db: Prisma.TransactionClient = prisma,
 ) {
 	// `trainableWeekdays` is a number[] in the API but a JSON string column in the DB.
 	// Serialize it only when present so an omitted field leaves the stored value alone.
-	const { trainableWeekdays, ...rest } = patch
+	const { trainableWeekdays, sessionPreferences, ...rest } = patch
 	const data = {
 		...rest,
 		...(trainableWeekdays !== undefined
 			? { trainableWeekdays: JSON.stringify(trainableWeekdays) }
 			: {}),
+		// A JSON list too; `[]` is a skip, distinct from never asked (null).
+		...(sessionPreferences !== undefined
+			? { sessionPreferences: JSON.stringify(sessionPreferences) }
+			: {}),
 	}
-	const profile = await prisma.athleteProfile.upsert({
+	const profile = await db.athleteProfile.upsert({
 		where: { userId },
 		create: { userId, ...data },
 		update: data,
 	})
-	await ensureCardioDisciplineProfiles(profile.id)
+	await ensureCardioDisciplineProfiles(profile.id, db)
 	return profile
 }
 
@@ -294,4 +316,33 @@ export async function getThresholdHistory(
 		},
 		orderBy: { effectiveAt: 'desc' },
 	})
+}
+
+/**
+ * What the athlete answered in the start and keeps on their **Athlete
+ * Profile** (#571): the **Training Level** and the **Session Preferences**,
+ * each read by the start's own schema, so a value that no longer reads is
+ * none rather than a guess. Null level = never said; no preferences = a skip
+ * or never asked.
+ */
+export async function readStartAnswersOf(userId: string): Promise<{
+	level: TrainingLevel | null
+	preferences: SessionPreference[]
+}> {
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { trainingLevel: true, sessionPreferences: true },
+	})
+	const level = LevelSchema.safeParse(profile?.trainingLevel)
+	let stored: unknown = []
+	try {
+		stored = JSON.parse(profile?.sessionPreferences ?? '[]')
+	} catch {
+		stored = []
+	}
+	const preferences = PreferencesSchema.safeParse(stored)
+	return {
+		level: level.success ? level.data : null,
+		preferences: preferences.success ? preferences.data : [],
+	}
 }

@@ -1,4 +1,5 @@
 import { type Page } from '@playwright/test'
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
@@ -62,7 +63,7 @@ test('Dashboard renders no unrounded floats even from raw TSS values', async ({
 		},
 	})
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	const stream = page.getByTestId('timeline-stream')
 	await expect(stream).toBeVisible()
 	// Let the landing settle before measuring anything.

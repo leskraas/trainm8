@@ -43,6 +43,8 @@ function renderStep(
 		hoursByDiscipline: {},
 		defaultDiscipline: 'run',
 	},
+	/** No plan yet: Plan invites to the start (ADR 0101 §4). */
+	startInvite = false,
 ) {
 	const submitted = vi.fn()
 	const App = createRoutesStub([
@@ -56,6 +58,8 @@ function renderStep(
 				defaultDate: '2030-01-09',
 				openEnded,
 				roundWeeks: 4,
+				libraryLifts: [],
+				startInvite,
 			}),
 			action: async ({ request }) => {
 				submitted(Object.fromEntries(await request.formData()))
@@ -68,11 +72,11 @@ function renderStep(
 	return { submitted }
 }
 
-test('the flow opens by asking what the athlete is building toward, as Sesong’s landing (ADR 0083)', async () => {
+test('the flow opens by asking what the athlete is building toward, as Plan’s landing (ADR 0083, ADR 0101)', async () => {
 	renderStep()
 
 	expect(
-		await screen.findByRole('heading', { name: 'Sesong', level: 1 }),
+		await screen.findByRole('heading', { name: 'Plan', level: 1 }),
 	).toBeInTheDocument()
 	expect(screen.getByText('Hva bygger du mot?')).toBeInTheDocument()
 	// A tab's landing page: the tab bar is the way out, not a back arrow.
@@ -83,6 +87,21 @@ test('the flow opens by asking what the athlete is building toward, as Sesong’
 		'href',
 		'/training/events',
 	)
+})
+
+test('with no plan, Plan still holds Bibliotek, with nothing lifted yet said in words (ADR 0101)', async () => {
+	renderStep()
+
+	const library = within(
+		await screen.findByRole('region', { name: 'Bibliotek' }),
+	)
+	expect(library.getByRole('link', { name: /katalog/i })).toHaveAttribute(
+		'href',
+		'/training/catalogue',
+	)
+	expect(
+		library.getByText(/løftene du legger inn i en økt/i),
+	).toBeInTheDocument()
 })
 
 test('an upcoming Event is offered as the plan’s anchor', async () => {
@@ -200,5 +219,30 @@ test('an athlete who already has an open-ended plan is sent to it instead', asyn
 	).toHaveAttribute('href', '/training/plan?outline=outline-9')
 	expect(
 		screen.queryByRole('button', { name: /lag planen/i }),
+	).not.toBeInTheDocument()
+})
+
+test('an athlete with no plan is invited to the start above setting a season up', async () => {
+	renderStep(undefined, undefined, true)
+
+	const invite = await screen.findByRole('region', {
+		name: 'Du har ingen plan ennå',
+	})
+	expect(
+		within(invite).getByRole('link', { name: 'Kom i gang' }),
+	).toHaveAttribute('href', '/start')
+	// The expert path stays, below it.
+	expect(
+		invite.compareDocumentPosition(screen.getByText('Hva bygger du mot?')) &
+			Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+})
+
+test('an athlete who has a plan is not invited to the start', async () => {
+	renderStep()
+
+	await screen.findByText('Hva bygger du mot?')
+	expect(
+		screen.queryByRole('region', { name: 'Du har ingen plan ennå' }),
 	).not.toBeInTheDocument()
 })

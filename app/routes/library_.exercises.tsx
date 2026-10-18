@@ -28,6 +28,7 @@ import { PageHeader } from '#app/components/page-header.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
+import { LIBRARY_SECTION_HREF } from '#app/utils/app-tabs.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { searchExercises } from '#app/utils/exercise-search.ts'
@@ -111,7 +112,7 @@ export default function LibraryExercisesRoute({
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title={LIBRARY_LABELS.allExercises}
-				back={{ to: '/library', label: APP_TAB_LABELS.library }}
+				back={{ to: LIBRARY_SECTION_HREF, label: APP_TAB_LABELS.plan }}
 				className="mb-4"
 			/>
 

@@ -44,6 +44,8 @@ model User {
   programInstances      ProgramInstance[]
   workoutReports        WorkoutReport[]       @relation("WorkoutReportReporter")
   moderatedReports      WorkoutReport[]       @relation("WorkoutReportModerator")
+  /// Every **Juster** the athlete made on today's session (spec #558 S5).
+  sessionAdjustments    SessionAdjustment[]
 }
 
 model UserImage {
@@ -224,6 +226,16 @@ model Workout {
   /// NULL means nobody stated one — unambiguous, because no reading is ever
   /// written here either.
   strengthGoal String?
+
+  /// **Activity Kind** of a **Simple Activity** (ADR 0015 §A): what a Workout on
+  /// Discipline `other` is — `cross-country-ski | hike | climb | yoga-mobility`,
+  /// `ACTIVITY_KINDS` in `simple-activity.ts`. A name, never a Discipline: it
+  /// chooses no formula, zone or threshold. NULL on every other Workout.
+  activityKind String?
+  /// **Effort Word** of a Simple Activity: `light | medium | hard` (_rolig /
+  /// middels / hard_), `EFFORT_WORDS`. Never a Training Zone and never read as
+  /// one. NULL on every other Workout. Set together with `activityKind`.
+  effortWord   String?
 
   // ── The Catalogue's four axes (ADR 0051) ─────────────────────────────────
   // Authorship, membership, collection and visibility are four orthogonal
@@ -1100,6 +1112,8 @@ model WorkoutSession {
   programApplications ProgramSessionApplication[]
   /// The Week Replan proposals aimed at this session (ADR 0080).
   replanProposals     WeekReplanProposal[]
+  /// The **Juster** changes made on this session (spec #558 S5, ADR 0100 §7).
+  adjustments         SessionAdjustment[]
 
   @@index([userId])
   @@index([userId, scheduledAt])
@@ -1116,6 +1130,16 @@ model AthleteProfile {
   preferredUnits String    @default("metric") // "metric" | "imperial"
   weekStartsOn   Int       @default(1) // 0=Sun … 6=Sat; 1=Mon per ADR 0005
   timezone       String    @default("UTC") // IANA timezone string
+  // Autopilot (ADR 0100 §1, #576): true = the Week Change applies its Week
+  // Replan at the close; false = _Spør meg først_, it proposes and waits for a
+  // yes (ADR 0080). Read at each close, so a switch applies from the next one.
+  // On for everyone (#583): every athlete who had a plan when it shipped was
+  // switched on by migration, and a new athlete starts on it.
+  autopilot      Boolean   @default(true)
+  // The one-time line (#583): true for an athlete the migration switched on,
+  // until their first close under autopilot claims it for that week's notice
+  // (`WeekReplan.autopilotIntro`), or they choose a mode in Meg themselves.
+  autopilotIntroPending Boolean @default(false)
 
   // Training Availability (PRD #103): days the athlete can train and a
   // default time-of-day, reused across plan generations. Times are interpreted in
@@ -1128,6 +1152,22 @@ model AthleteProfile {
   // never per day, since availability is not uniform across the days. Null = never
   // set, and an unset capacity makes the hours fit check unavailable, never passing.
   weeklyCapacityHours Float?
+  // Training Level (ADR 0102 §6): how the athlete described themselves in the
+  // First Run — "beginner" | "recreational" | "experienced" | "competitive"
+  // (`TRAINING_LEVELS`). It sets defaults and is never a measured quantity.
+  // Null = never said (an athlete from before the simple start).
+  trainingLevel String?
+  // Strength Frequency answer (ADR 0103): the strength sessions a week the
+  // athlete chose in the First Run's one tap (1, 2 or 3), pre-set from their
+  // lifting history or their Training Level, and changed in Meg. Their own
+  // answer, never invented. Null = never answered (they did not pick styrke).
+  strengthPerWeek Int?
+  // Session Preferences (ADR 0102 §1): the kinds of session the athlete likes —
+  // JSON array of "long" | "intervals" | "threshold" | "short" | "surprise"
+  // (`SESSION_PREFERENCES`). They order the Start Options and _Korte økter_
+  // keeps weekday sessions short; they never change a Quality Session Mix.
+  // "[]" = skipped, null = never asked (an athlete from before #571).
+  sessionPreferences String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1376,7 +1416,7 @@ model PlanOutlinePhase {
 /// triathlete who lifts authors four — over one shared phase timeline.
 model TrainingTrack {
   id         String @id @default(cuid())
-  discipline String // Discipline: 'run' | 'bike' | 'swim' | 'strength'
+  discipline String // Discipline: 'run' | 'bike' | 'swim' | 'strength', or 'other': the Simple Activities' hours track (#572)
   /// Volume Currency: the unit this track authors volume in. **Immutable for the
   /// life of the track** (ADR 0043 §2) — changing it would rewrite the unit of
   /// every week already lived. Enforced by the value vocabulary in the migration's
@@ -1912,6 +1952,27 @@ model WeekReplan {
   /// null, so the next run retries it, and a set one never runs again.
   horizonFilledAt DateTime?
   silencedAt      DateTime?
+  /// Whether the athlete was on Autopilot when this week closed (ADR 0100 §2,
+  /// #576): then the close applies the proposals, silence never runs over
+  /// them, and I dag states them in the Autopilot Notice instead of asking.
+  /// Fixed at the close, so switching later never applies open proposals.
+  autopilot          Boolean   @default(false)
+  /// When the autopilot's apply step ran over these proposals — once, claimed
+  /// first like the two steps above. Null = not yet (or not an autopilot week).
+  autopilotAppliedAt DateTime?
+  /// When the athlete first saw this week's Autopilot Notice on I dag (#580).
+  /// The notice leaves I dag once it has been seen on an earlier day and the
+  /// week it laid has begun; neither alone removes it. Null = not seen yet.
+  autopilotSeenAt    DateTime?
+  /// Why the close could not lay the horizon week (#580): 'no-pattern' |
+  /// 'past-plan-end' | 'nothing-to-lay' | 'error'. Null = laid, laid already,
+  /// or nothing to lay that anyone expected (no plan, before its start). The
+  /// Autopilot Notice says it, so silence never means broken.
+  horizonUnlaid      String?
+  /// Whether this week's notice carries the one-time line about the switch to
+  /// autopilot and where _Spør meg først_ is (#583). Claimed at the close from
+  /// `AthleteProfile.autopilotIntroPending`, so it is one week's, and only one.
+  autopilotIntro     Boolean   @default(false)
 
   createdAt DateTime @default(now())
 
@@ -1948,6 +2009,22 @@ model WeekReplanProposal {
   /// When the change was written to the sessions — by an Ok, or by silence (then
   /// `answer` stays 'pending' and `answeredAt` null). Null = not applied.
   appliedAt     DateTime?
+  /// What the applied change replaced, as JSON validated by `BeforeImageSchema`
+  /// (`app/utils/load/week-replan-proposal.ts`): the placement, Replan Note and
+  /// step quantities of every session it changed, the sessions it placed, and
+  /// for a next round what it appended. Written with `appliedAt`; null for a
+  /// proposal not applied, or applied before before-images were kept (#564).
+  beforeImage   String?
+  /// When the change was undone from its before-image. Null = it stands. An
+  /// undone proposal keeps its `appliedAt`: it was applied, then taken back.
+  undoneAt      DateTime?
+  /// What the autopilot did with it at the close (ADR 0100 §3, #576):
+  /// 'applied' | 'left-alone' (the athlete's own session) | 'not-placed' (a
+  /// make-up or an extra session, which adds load on a day nobody chose) |
+  /// 'over-guard' (a step up past the guards) | 'gone' (nothing left to change).
+  /// Null = the autopilot never looked at it. `answer` stays 'pending': nobody
+  /// answered, and a proposal the autopilot looked at is never answerable.
+  autopilotOutcome String?
 
   /// The Monday (YYYY-MM-DD, Athlete Timezone) of the week the change lands in.
   targetWeekKey   String
@@ -2447,4 +2524,35 @@ model ProgramLiftState {
   @@unique([instanceId, exerciseId, equipment])
   @@index([instanceId])
   @@index([exerciseId])
+}
+
+/// A **Juster** (spec #558 S5, ADR 0100 §7): one tap on today's session —
+/// _For sliten i dag_, _Lite tid_ or _Bytt dag_ — and what it replaced, so its
+/// _Angre_ puts it back exactly. Written by `app/utils/juster.server.ts`.
+///
+/// The row is the undo token: the reply carries its id, and an undo claims
+/// `undoneAt` in the same transaction as its writes, so a second tap writes
+/// nothing. Ownership is never part of it: a Juster leaves `source`,
+/// `adoptedAt` and `releasedAt` exactly as they were.
+model SessionAdjustment {
+  id          String    @id @default(cuid())
+  /// 'tired' | 'short' | 'move' (`JUSTER_INTENTS`).
+  intent      String
+  /// What the change replaced and what it left, as JSON validated by
+  /// `JusterImageSchema` (`app/utils/juster.ts`): each touched session's
+  /// placement, Replan Note and Workout, the prescription it replaced, and the
+  /// state it left, which an undo must still find.
+  beforeImage String
+  createdAt   DateTime  @default(now())
+  /// When the change was taken back. Null = it stands.
+  undoneAt    DateTime?
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId    String
+  /// Today's session, the one the athlete tapped on.
+  session   WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sessionId String
+
+  @@index([userId])
+  @@index([sessionId])
 }

@@ -1,6 +1,7 @@
 import { type Locator, type Page } from '@playwright/test'
 import sharp from 'sharp'
 import { landingTop } from '#app/routes/_home/timeline/anchoring.ts'
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { type Theme } from '#app/utils/theme.server.ts'
 import {
@@ -13,6 +14,11 @@ import {
 /**
  * I dag: the top line, the season strip and the list, opened on today
  * (ADR 0086). No hero; a list that never has its scroll taken from the reader.
+ *
+ * Driven at the full Home Timeline's own address, _Se hele sesongen_
+ * (`HOME_TIMELINE_HREF`, spec #558 story 102, #562): that is where this
+ * timeline lives once I dag itself is the calm view, and it is the same
+ * timeline, read and written through the same server module, as `/` today.
  *
  * This spec replaces the tabbed-dashboard one (#184's Week / Trends / History
  * panels), which asserted a composition the handoff removed. What is worth
@@ -388,7 +394,7 @@ test('opens parked on today before the first paint: no hero, no jump, and the li
 				: null
 		})
 	})
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(1500)
 
@@ -451,6 +457,99 @@ test('opens parked on today before the first paint: no hero, no jump, and the li
 	).toBeLessThanOrEqual(0)
 })
 
+/**
+ * The audit's "26 empty weeks back" (spec #558, story 103): an athlete whose
+ * only history is half a year old has a season of empty weeks above today.
+ * The full view must open where they are — this week's rows first — and not
+ * at the top of that history; and it is a page inside I dag, so the bar keeps
+ * I dag current.
+ */
+test('Se hele sesongen opens on this week, not on a long empty history (#562)', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	const now = new Date()
+	const day = 24 * 60 * 60 * 1000
+	await prisma.athleteProfile.create({
+		data: { userId: user.id, timezone: middayTimezone(now) },
+	})
+	// One run 25 weeks back — the edge of what the timeline reads — and nothing
+	// since: every week between it and today is empty.
+	await prisma.workoutSession.create({
+		data: {
+			userId: user.id,
+			scheduledAt: new Date(now.getTime() - 175 * day),
+			status: 'completed',
+			tssValue: 50,
+			source: 'recorded',
+		},
+	})
+
+	await navigate(HOME_TIMELINE_HREF)
+	const stream = page.getByTestId('timeline-stream')
+	await expect(stream).toBeVisible()
+
+	// The history is really there above the reader: half a year of weeks.
+	expect((await streamState(page)).weeks).toBeGreaterThanOrEqual(25)
+	// Parked by the landing rule once late layout has settled (ADR 0086 §4:
+	// the landing follows it until the reader's first input) — or as near it
+	// as the list goes: with nothing ahead of today the list ends under this
+	// week, and the end of the list is as far as it scrolls.
+	await expect
+		.poll(
+			async () => {
+				const state = await streamState(page)
+				const reachable = Math.min(
+					await landingOf(page),
+					state.scrollHeight - state.clientHeight,
+				)
+				return Math.abs(state.scrollTop - reachable)
+			},
+			{ timeout: 10_000 },
+		)
+		.toBeLessThanOrEqual(1)
+	// What the reader sees is this week: its header, and no week older than
+	// the one just closed — never the empty weeks months back.
+	const inView = await stream.evaluate((el) => {
+		const box = el.getBoundingClientRect()
+		const thisWeek = el
+			.querySelector('[data-timeline-today]')!
+			.closest('[data-timeline-week]')!
+		const header = thisWeek.querySelector('[data-week-header]')!
+		const seen = [...el.querySelectorAll('[data-timeline-week]')]
+			.filter((week) => {
+				const r = week.getBoundingClientRect()
+				return r.bottom > box.top + 1 && r.top < box.bottom - 1
+			})
+			.map((week) => week.getAttribute('data-timeline-week')!)
+		const h = header.getBoundingClientRect()
+		return {
+			thisWeek: thisWeek.getAttribute('data-timeline-week')!,
+			seen,
+			headerInView: h.top >= box.top - 1 && h.bottom <= box.bottom + 1,
+		}
+	})
+	expect(inView.headerInView).toBe(true)
+	const closed = new Date(`${inView.thisWeek}T00:00:00.000Z`)
+	closed.setUTCDate(closed.getUTCDate() - 7)
+	const closedKey = closed.toISOString().slice(0, 10)
+	for (const week of inView.seen)
+		expect(week.localeCompare(closedKey)).toBeGreaterThanOrEqual(0)
+	await expect(page.locator('[data-timeline-today]')).toBeInViewport()
+	await expect(todayPill(page)).toHaveAttribute('data-away', '0')
+
+	// A page inside I dag: the tab is current, and not as its landing page.
+	await expect(
+		page
+			.getByRole('navigation', { name: 'Hovedmeny' })
+			.getByRole('link', { name: 'I dag' }),
+	).toHaveAttribute('aria-current', 'true')
+	await expect(page).toHaveTitle('Hele sesongen | Trainm8')
+})
+
 test('the reader’s own scroll is never taken back: no snap-back to today', async ({
 	page,
 	navigate,
@@ -463,7 +562,7 @@ test('the reader’s own scroll is never taken back: no snap-back to today', asy
 	const user = await login()
 	await seedSeason(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	const stream = page.getByTestId('timeline-stream')
 	await expect(stream).toBeVisible()
 	await page.waitForTimeout(300)
@@ -492,7 +591,7 @@ test('the whole past is mounted on open, and scrolling up through it writes no s
 	const user = await login()
 	await seedSeason(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(1500)
 
@@ -532,7 +631,7 @@ test('the pill appears with the direction back to today, and takes you there', a
 	const user = await login()
 	await seedSeason(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
@@ -574,7 +673,7 @@ test('reading forwards loads later weeks, and the far end states itself', async 
 	const user = await login()
 	await seedSeason(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
@@ -597,7 +696,7 @@ test('tapping a week in the strip jumps the stream there, and the frame follows 
 	const user = await login()
 	await seedSeason(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
@@ -736,7 +835,7 @@ test('a season too long for a phone shows a window around the reader, and the re
 		})
 	}
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(1500)
 
@@ -777,7 +876,7 @@ test('a comparable session names its basis and its band; an unplanned one refuse
 	const user = await login()
 	await seedSeason(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
@@ -943,7 +1042,7 @@ for (const theme of ['light', 'dark'] as const) {
 		await seedThemeMarks(user.id)
 		await useTheme(page, theme)
 
-		await navigate('/')
+		await navigate(HOME_TIMELINE_HREF)
 		await expect(page.getByTestId('timeline-stream')).toBeVisible()
 		await page.waitForTimeout(2500)
 		// The theme is the one asked for, not whatever the machine prefers.
@@ -1170,7 +1269,7 @@ test('today still to come: today’s row is that session, with its action on it'
 	const user = await login()
 	await seedTodayShape(user.id, 'to-come')
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 
 	const row = todayRow(page)
@@ -1200,7 +1299,7 @@ test('today completed: today’s row is the done session, and nothing later is h
 	const user = await login()
 	await seedTodayShape(user.id, 'completed')
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 
 	const row = todayRow(page)
@@ -1218,7 +1317,7 @@ test('today empty: today’s row says so, and is the cell that writes one', asyn
 	const user = await login()
 	await seedTodayShape(user.id, 'empty')
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 
 	const row = todayRow(page)
@@ -1260,7 +1359,7 @@ for (const theme of ['light', 'dark'] as const) {
 		await seedSeason(user.id)
 		await useTheme(page, theme)
 
-		await navigate('/')
+		await navigate(HOME_TIMELINE_HREF)
 		await expect(page.getByTestId('timeline-stream')).toBeVisible()
 		await page.waitForTimeout(1500)
 
@@ -1319,7 +1418,7 @@ for (const theme of ['light', 'dark'] as const) {
 			},
 		])
 
-		await navigate('/')
+		await navigate(HOME_TIMELINE_HREF)
 		const stream = page.getByTestId('timeline-stream')
 		await expect(stream).toBeVisible()
 
@@ -1462,7 +1561,7 @@ for (const around of [true, false] as const) {
 		const user = await login()
 		await seedRestDayToday(user.id, { around })
 
-		await navigate('/')
+		await navigate(HOME_TIMELINE_HREF)
 		await expect(page.getByTestId('timeline-stream')).toBeVisible()
 		await page.waitForTimeout(2500)
 
@@ -1530,7 +1629,7 @@ test('with nothing on today the stream still lands on today, and the pill still 
 	const user = await login()
 	await seedRestDayToday(user.id, { around: true })
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(1500)
 
@@ -1620,7 +1719,7 @@ test('a day holding two sessions is one row under one gutter, between the cells 
 		})
 	}
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
@@ -1696,7 +1795,7 @@ test('a planned row says whose it is, and its title is never cut short (#505)', 
 		})
 	}
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 
 	const row = page.locator(`[data-timeline-day="${tomorrow}"]`)
@@ -1782,7 +1881,7 @@ test('today’s row wraps the session’s title, never cutting it (#505 story 32
 		data: { title: longTitle },
 	})
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 
 	const title = page
@@ -1847,7 +1946,7 @@ for (const theme of ['light', 'dark'] as const) {
 		const user = await login()
 		await seedRestDayToday(user.id, { around: true })
 
-		await navigate('/')
+		await navigate(HOME_TIMELINE_HREF)
 		await expect(page.getByTestId('timeline-stream')).toBeVisible()
 		await page.waitForTimeout(2500)
 
@@ -1952,7 +2051,7 @@ test('the near end states how far home reads, never how far the athlete has trai
 	const user = await login()
 	await seedEmptyWeekBehind(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
@@ -2009,7 +2108,7 @@ test('tapping an empty day opens the composer on it: the sport derived, the stam
 	// Completed runs, so the sport has a history to be derived from.
 	await seedRestDayToday(user.id, { around: true })
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 
 	const { key, cell } = await firstEmptyFromToday(page)
@@ -2064,7 +2163,7 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
 	const user = await login()
 	await seedRestDayToday(user.id, { around: true })
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 
 	const { key, cell } = await firstEmptyFromToday(page)
@@ -2170,11 +2269,16 @@ async function motionInFrame(page: Page) {
 				// `data-tsd-source` is the dev server's devtools tagging elements
 				// with their source file; it names no part of this screen, and a
 				// production build does not carry it.
-				const attr = node
+				// A component's own `data-slot` (Base UI, shadcn) names the kind of
+				// control, not the part of the screen: the screen's own mark wins
+				// where the element has one (the Avansert chip is a menu trigger
+				// and a Juster chip, #579).
+				const marks = node
 					.getAttributeNames()
-					.find(
+					.filter(
 						(name) => name.startsWith('data-') && name !== 'data-tsd-source',
 					)
+				const attr = marks.find((name) => name !== 'data-slot') ?? marks[0]
 				if (attr) {
 					return node === el
 						? `[${attr}]`
@@ -2253,7 +2357,7 @@ test('the timeline animates its press and a landing, the composer its Drawer, an
 	const user = await login()
 	await seedEmptyWeekBehind(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
@@ -2261,8 +2365,8 @@ test('the timeline animates its press and a landing, the composer its Drawer, an
 	// The whole frame, element by element (ADR 0088 updates the list): the
 	// system's press, `pressable` (ADR 0085: `scale(0.97)` with the colours on
 	// the same 160ms curve), on what the athlete taps — a row, a cell, the
-	// ownership glyph, "legg til en til", "Ny økt" and the other `Button`s
-	// (`data-slot`), today's links (`data-discover`) — and the one thing that
+	// ownership glyph, "legg til en til", "Ny økt" (`data-new-session`),
+	// today's links (`data-discover`) — and the one thing that
 	// moves by itself: a session row landing from the composer, which rises
 	// 4px and fades in (`@starting-style`, 200ms) and wears a tint while its
 	// Angre stands. Every one on the scale's own curve: no `all`, no built-in
@@ -2277,11 +2381,11 @@ test('the timeline animates its press and a landing, the composer its Drawer, an
 	expect(declared).toEqual([
 		...PRESS('[data-discover] button'),
 		...PRESS('[data-discover]'),
+		...PRESS('[data-new-session]'),
 		...PRESS('[data-owner-glyph]'),
 		`[data-session-row] — background-color 0.2s ${EASE_OUT}`,
 		`[data-session-row] — opacity 0.2s ${EASE_OUT}`,
 		`[data-session-row] — translate 0.2s ${EASE_OUT}`,
-		...PRESS('[data-slot]'),
 		...PRESS('[data-status]'),
 		...PRESS('[data-timeline-add-another]'),
 		...PRESS('[data-timeline-empty]'),
@@ -2345,7 +2449,7 @@ test.describe(() => {
 		const user = await login()
 		await seedEmptyWeekBehind(user.id)
 
-		await navigate('/')
+		await navigate(HOME_TIMELINE_HREF)
 		await expect(page.getByTestId('timeline-stream')).toBeVisible()
 		await page.waitForTimeout(2500)
 
@@ -2388,6 +2492,87 @@ test.describe(() => {
 		).toBe('opacity')
 	})
 })
+
+/*
+ * ── calm I dag's motion (#582, spec #558 S10) ─────────────────────────────
+ *
+ * The default view at `/` (ADR 0101 §3) gets the same enumeration as the full
+ * view above: everything its frame declares, element by element. It declares
+ * the system's press on what the athlete taps, and a row's tint while its
+ * _Angre_ stands — nothing that moves by itself.
+ *
+ * Its two moments are JavaScript and so invisible here by construction, the
+ * way ADR 0077 §2 says of the hero's spring: the curve-to-week morph (a View
+ * Transition, `view-morph.ts`) and the first _Gjort_'s sparks
+ * (`celebrate.ts`, on `document.body`). `tests/e2e/start-motion.test.ts`
+ * records both as they play, and their reduced-motion answers.
+ */
+
+/** A session of the athlete's own today, so the card offers _Gjort_. */
+async function seedTodayRun(userId: string) {
+	await prisma.athleteProfile.create({ data: { userId, timezone: 'UTC' } })
+	const workout = await prisma.workout.create({
+		data: {
+			title: 'Morgentur',
+			discipline: 'run',
+			intent: 'endurance',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 1,
+						steps: {
+							create: [{ orderIndex: 0, kind: 'cardio', durationSec: 2400 }],
+						},
+					},
+				],
+			},
+		},
+	})
+	const today = new Date()
+	today.setUTCHours(0, 30, 0, 0)
+	await prisma.workoutSession.create({
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt: today,
+			source: 'generated',
+		},
+	})
+}
+
+test('calm I dag declares its press and a landed row’s tint, and nothing else', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedTodayRun(user.id)
+
+	await navigate('/')
+	await expect(page.locator('[data-today-card="session"]')).toBeVisible()
+	await page.waitForTimeout(2500)
+
+	expect(await motionInFrame(page)).toEqual(CALM_MOTION)
+})
+
+/**
+ * Calm I dag's frame, element by element: the press (ADR 0085 `pressable`)
+ * on the card's links and buttons — _Gjort_ and the _Juster_ chips (#575) —
+ * the week's rows and its free days; the
+ * week row's tint (`background-color` on `duration-collapse`, ADR 0088) that
+ * stands while a landed write's _Angre_ does.
+ */
+const CALM_MOTION: string[] = [
+	...PRESS('[data-calm-free]'),
+	...PRESS('[data-calm-season-link]'),
+	`[data-calm-session] — background-color 0.2s ${EASE_OUT}`,
+	...PRESS('[data-discover]'),
+	...PRESS('[data-juster-chip]'),
+	...PRESS('[data-today-done]'),
+]
 
 /*
  * ── I dag: the week model (#505 S9) ─────────────────────────────────────────
@@ -2486,7 +2671,7 @@ test('a week header reads the Week Target, the Planned Volume and the Actual Vol
 	const user = await login()
 	const { monday } = await seedPlanPastTheHorizon(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
@@ -2536,7 +2721,7 @@ test('a week past the Planning Horizon is a whole week under the horizon’s div
 	const user = await login()
 	const { farWeek } = await seedPlanPastTheHorizon(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
@@ -2584,7 +2769,7 @@ test('a closed week is drawn whole above today, muted, with its numbers and verd
 	const user = await login()
 	const { monday } = await seedPlanPastTheHorizon(user.id)
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 

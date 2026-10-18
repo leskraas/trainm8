@@ -3,6 +3,7 @@ import {
 	createActivityImport,
 	promoteToNewSession,
 } from '#app/utils/activity-import.server.ts'
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { localDate, localTimeUTC } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
@@ -135,7 +136,7 @@ test('hva var dette? answered by linking, then Angre kobling and Koble igjen', a
 		'Rolig 10 km',
 		localTimeUTC(today, '18:00', TZ),
 	)
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 
 	// The ekstra row carries its chip and the question.
 	const question = page.getByRole('group', { name: 'Hva var dette?' })
@@ -208,7 +209,7 @@ test('Gjort by hand says the numbers are not coming when no import is connected'
 		'Morgentur',
 		localTimeUTC(today, '00:30', TZ),
 	)
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 
 	const done = page.getByRole('button', { name: 'Merk Morgentur som gjort' })
 	await untilHydrated(done)
@@ -242,7 +243,7 @@ test('Gjort is taken back with the toast’s Angre, and the session stands as be
 		'Morgentur',
 		localTimeUTC(today, '00:30', TZ),
 	)
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 
 	const done = page.getByRole('button', { name: 'Merk Morgentur som gjort' })
 	await untilHydrated(done)
@@ -302,7 +303,7 @@ test('a link answer is taken back with the row’s Angre, and the question is as
 		'Rolig 10 km',
 		localTimeUTC(today, '18:00', TZ),
 	)
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 
 	const question = page.getByRole('group', { name: 'Hva var dette?' })
 	const answer = question.getByRole('button', { name: 'Det var Rolig 10 km' })

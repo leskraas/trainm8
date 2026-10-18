@@ -12,6 +12,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { createRoutesStub, Outlet } from 'react-router'
 import { beforeEach, expect, test } from 'vitest'
+import { HOME_TIMELINE_FULL_VIEW_LABELS } from '#app/utils/labels.ts'
 import { consoleError } from '#tests/setup/setup-test-env.ts'
 import IndexRoute, { ErrorBoundary } from './index.tsx'
 
@@ -73,7 +74,7 @@ test('a 404 and an unexpected error do not read as the same failure', async () =
 	)
 
 	expect(
-		await screen.findByText(/could not find your training/i),
+		await screen.findByText(HOME_TIMELINE_FULL_VIEW_LABELS.notFound),
 	).toBeInTheDocument()
 	// Neither the bare status nor the server's own string reaches the athlete —
 	// what they get is a sentence about their training.
@@ -88,6 +89,6 @@ test('a 404 and an unexpected error do not read as the same failure', async () =
 		await screen.findByText('the session ledger query failed'),
 	).toBeInTheDocument()
 	expect(
-		screen.queryByText(/could not find your training/i),
+		screen.queryByText(HOME_TIMELINE_FULL_VIEW_LABELS.notFound),
 	).not.toBeInTheDocument()
 })

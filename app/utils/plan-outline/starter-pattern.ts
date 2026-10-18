@@ -49,6 +49,19 @@ export type StarterTrack = {
 	 * authors no frequency and takes the athlete's available days instead.
 	 */
 	sessionsPerWeek: number | null
+	/**
+	 * The days this track lays on, where it keeps to some of the athlete's
+	 * days rather than all of them: the first run's second endurance sport
+	 * takes the days the main sport leaves (#558). Days outside the athlete's
+	 * availability are never laid; the last of the track's own days is its
+	 * long one. Absent, the track lays every available day, as it always has.
+	 */
+	weekdays?: readonly PatternWeekday[]
+	/**
+	 * Each day's weight where the first run shaped the week (_Korte økter_,
+	 * #571); a day it does not name keeps the long-day-double rule.
+	 */
+	dayWeights?: Partial<Record<PatternWeekday, number>>
 }
 
 export type StarterProposal = {
@@ -125,20 +138,27 @@ export function proposeStarterPattern({
 	const strength = tracks.filter((track) => track.sessionsPerWeek != null)
 	if (endurance.length === 0 && strength.length === 0) return null
 
-	const longDay = weekdays.at(-1)
 	const days: StarterDay[] = []
 
 	// Every available day, on every endurance track. A triathlete gets a swim, a
 	// ride and a run on each of their days rather than one discipline chosen for
 	// them — each track's week is its own, and dropping two of three would be the
-	// app deciding which discipline they train on Tuesday.
+	// app deciding which discipline they train on Tuesday. A track that names
+	// its own days keeps to those, and its long day is the last of them.
 	for (const track of endurance) {
-		for (const weekday of weekdays) {
+		const own = track.weekdays
+		const trackDays = own
+			? weekdays.filter((weekday) => own.includes(weekday))
+			: weekdays
+		const longDay = trackDays.at(-1)
+		for (const weekday of trackDays) {
 			const long = weekday === longDay
 			days.push({
 				weekday,
 				trackId: track.trackId,
-				weight: long ? LONG_DAY_WEIGHT : ORDINARY_DAY_WEIGHT,
+				weight:
+					track.dayWeights?.[weekday] ??
+					(long ? LONG_DAY_WEIGHT : ORDINARY_DAY_WEIGHT),
 				role: long ? 'long' : 'ordinary',
 			})
 		}

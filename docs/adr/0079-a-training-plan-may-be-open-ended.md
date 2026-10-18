@@ -1,6 +1,12 @@
 # A Training Plan may be open-ended, and each round of it is an ordinary phase
 
-Status: Accepted
+Status: Accepted · **§3 amended by
+[ADR 0100](./0100-the-autopilot-lays-out-each-week-and-every-write-it-makes-says-what-it-did-and-can-be-undone.md)**:
+with autopilot on, the next round is applied without a yes, within its guards,
+and can be undone. **The S14 record's proposed philosophy is replaced in the
+first run by
+[ADR 0102](./0102-the-first-run-shows-up-to-three-start-options-as-real-weeks-and-stor-base-starts-all-easy.md)**'s
+Start Options.
 
 **Amends [ADR 0044](./0044-plan-outline-is-relational.md) §1**, whose table
 diagram makes the Plan Outline _"1:1 with Event"_ (line 155): an Outline may now
@@ -25,8 +31,9 @@ defined a **Training Plan** as anchored to a **Target Event**.
    freely ("Blokk 4"). The next phase is appended when the current one ends.
    There is no separate cycle concept, and "Block" stays a workout term.
 3. **The next round's volume is a proposal with its reason**, never applied
-   silently: more after a round done to plan, the same after a round with missed
-   weeks. The athlete accepts or changes it.
+   silently (_amended by ADR 0100: applied without a yes under autopilot_): more
+   after a round done to plan, the same after a round with missed weeks. The
+   athlete accepts or changes it.
 4. **Adding an Event later ends the current round early** and lays phases toward
    the Event from there. The plan becomes an ordinary plan toward that Event.
 5. **Every Periodization Preset family can drive an open-ended plan**: one round

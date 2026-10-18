@@ -1,32 +1,23 @@
 import { expect, test } from 'vitest'
-import { addDays } from '#app/utils/athlete-calendar.ts'
 import {
-	EVENT_DATE_LABELS,
-	familyChoiceSentence,
 	FINDING_ABSENCE_LABELS,
 	FIRST_RUN_REFUSAL_LABELS,
 	hoursEstimateLabel,
 	nbWeekdayList,
 } from '#app/utils/labels.ts'
 import { type LoggedVolume } from '#app/utils/plan-outline/proposal.ts'
-import {
-	FIRST_RUN_PLAN_REFUSALS,
-	questionsSchema,
-	readAnswers,
-	readCorrections,
-} from './first-run-schema.ts'
+import { FIRST_RUN_PLAN_REFUSALS } from './first-run-schema.ts'
 import {
 	buildFindings,
 	FINDING_ABSENCES,
-	chooseFamily,
-	questionPrefill,
+	startPrefill,
 	typicalWeekdays,
 	weeklyHoursEstimate,
-	type FamilyChoiceInputs,
 } from './first-run.ts'
 
-// The first run's pure half (#505 stories 62–71): what the history says, the
-// hours arithmetic it shows, and which philosophy it picks, and why.
+// The start's reading of the history (#505 stories 62–71, #578): what the
+// last four weeks say, the hours arithmetic it shows, and the hours and days
+// it pre-fills the start with.
 
 function volume(overrides: Partial<LoggedVolume>): LoggedVolume {
 	return {
@@ -127,7 +118,7 @@ test('typical days are the weekdays trained in at least two weeks', () => {
 	expect(typicalWeekdays([])).toEqual([])
 })
 
-test('Dette fant vi reads the most-trained sport, the volume, the days and the lifting', () => {
+test('the history reads the most-trained sport, the volume, the days and the lifting', () => {
 	const findings = buildFindings({
 		connection: 'ready',
 		volumes: withVolumes(
@@ -203,7 +194,7 @@ test('every ikke målt carries its reason (story 71)', () => {
 	expect(noClock.volume).toEqual({ measured: false, reason: 'no-duration' })
 })
 
-test('the questions are pre-filled from the findings, and a correction wins', () => {
+test('the start is pre-filled with the history’s hours and days, held to its range, or nothing where none read', () => {
 	const findings = buildFindings({
 		connection: 'ready',
 		volumes: withVolumes(RUNNER),
@@ -215,90 +206,36 @@ test('the questions are pre-filled from the findings, and a correction wins', ()
 			{ weekKey: '2026-09-21', weekday: 5 },
 		],
 	})
+	expect(startPrefill(findings)).toEqual({ hours: 4, days: [1, 5] })
 
-	expect(questionPrefill(findings, {})).toEqual({
-		discipline: 'run',
-		hours: 4,
-		days: [1, 5],
-		daysSource: 'history',
-	})
-	expect(
-		questionPrefill(findings, { discipline: 'bike', hours: 6, days: [0, 2] }),
-	).toEqual({
-		discipline: 'bike',
-		hours: 6,
-		days: [0, 2],
-		daysSource: 'corrected',
-	})
+	// Half an hour a week is under the start's hour; 30 is over its 20.
+	const hoursOf = (hours: number) =>
+		startPrefill(
+			buildFindings({
+				connection: 'ready',
+				volumes: withVolumes(
+					volume({
+						discipline: 'bike',
+						sessions: 4,
+						weeksTrained: 4,
+						hours: hours * 4,
+					}),
+				),
+				weeksTrained: 4,
+				sessionDays: [],
+			}),
+		).hours
+	expect(hoursOf(0.5)).toBe(1)
+	expect(hoursOf(30)).toBe(20)
 
-	// Nothing to read: the convention's days, named as such, and no hours.
+	// Nothing to read: no hours and no days, so the level's stand.
 	const none = buildFindings({
 		connection: 'none',
 		volumes: NONE,
 		weeksTrained: 0,
 		sessionDays: [],
 	})
-	expect(questionPrefill(none, {})).toEqual({
-		discipline: 'run',
-		hours: null,
-		days: [1, 3, 5, 6],
-		daysSource: 'default',
-	})
-})
-
-const STEADY: FamilyChoiceInputs = {
-	goal: 'active',
-	weeksToEvent: null,
-	weeklyHours: 5,
-	days: 4,
-	age: 35,
-	weeksTrained: 4,
-}
-
-test.each([
-	[{}, 'classic', 'steady'],
-	[{ age: 52 }, 'masters', 'older-athlete'],
-	[{ weeksTrained: 1 }, 'classic', 'little-history'],
-	[{ weeksTrained: null }, 'classic', 'little-history'],
-	[{ days: 2 }, 'classic', 'few-days'],
-	[{ weeklyHours: 3 }, 'classic', 'few-hours'],
-	[{ weeklyHours: 8 }, 'polarized', 'many-hours'],
-	[{ goal: 'event', weeksToEvent: 30 }, 'big-base', 'long-run-up'],
-	[{ goal: 'event', weeksToEvent: 12 }, 'threshold', 'race-on-limited-time'],
-	[
-		{ goal: 'event', weeksToEvent: 12, weeklyHours: 9 },
-		'polarized',
-		'many-hours',
-	],
-] as const)('chooseFamily %j → %s because %s', (overrides, family, code) => {
-	const choice = chooseFamily({ ...STEADY, ...overrides })
-	expect(choice.family).toBe(family)
-	expect(choice.reason.code).toBe(code)
-})
-
-test('the reason is said in plain words, with no zone codes (story 70)', () => {
-	const sentences = [
-		chooseFamily(STEADY),
-		chooseFamily({ ...STEADY, age: 61 }),
-		chooseFamily({ ...STEADY, weeksTrained: 2 }),
-		chooseFamily({ ...STEADY, weeksTrained: null }),
-		chooseFamily({ ...STEADY, days: 2 }),
-		chooseFamily({ ...STEADY, weeklyHours: 2.5 }),
-		chooseFamily({ ...STEADY, weeklyHours: 10 }),
-		chooseFamily({ ...STEADY, goal: 'event', weeksToEvent: 30 }),
-		chooseFamily({ ...STEADY, goal: 'event', weeksToEvent: 10 }),
-	].map(familyChoiceSentence)
-
-	for (const sentence of sentences) {
-		expect(sentence).toMatch(/^Vi valgte .+ fordi /)
-		expect(sentence).not.toMatch(/\b[ZI][1-5]\b|zone|sone \d/i)
-	}
-	expect(sentences[1]).toBe(
-		'Vi valgte Masters 2:1 fordi du er 61 år. Da trenger kroppen hvile oftere, så hver tredje uke er lett.',
-	)
-	expect(sentences[6]).toBe(
-		'Vi valgte Polarisert 80/20 fordi du har 10 t i uka. Med så mye tid lønner det seg å trene det meste rolig og litt veldig hardt.',
-	)
+	expect(startPrefill(none)).toEqual({ hours: null, days: null })
 })
 
 test('every ikke målt and every refusal has its own words (story 71)', () => {
@@ -340,70 +277,4 @@ test('lifting with no endurance beside it says so, never "no sessions"', () => {
 	})
 	expect(lifter.days).toEqual({ measured: true, value: [0] })
 	expect(FINDING_ABSENCE_LABELS['only-strength']).toMatch(/styrkeøkter/)
-})
-
-// Today is passed in, as the route reads it in the Athlete Timezone: the
-// schema never reads a clock of its own.
-const CALENDAR = { today: '2030-01-01', timezone: 'Europe/Oslo' }
-const TODAY = CALENDAR.today
-const QuestionsSchema = questionsSchema(CALENDAR)
-function inDays(days: number): string {
-	return addDays(TODAY, days)
-}
-
-function dateError(eventDate: string): string | undefined {
-	const parsed = QuestionsSchema.safeParse({
-		discipline: 'run',
-		goal: 'event',
-		eventName: 'Løpet',
-		eventDate,
-		hours: '4',
-		days: ['1', '3'],
-	})
-	return parsed.success
-		? undefined
-		: parsed.error.issues.find((issue) => issue.path[0] === 'eventDate')
-				?.message
-}
-
-test('a race date must be a real day, after this week and within the longest plan', () => {
-	expect(dateError('2026-99-99')).toBe(EVENT_DATE_LABELS.invalid)
-	expect(dateError('2027-02-30')).toBe(EVENT_DATE_LABELS.invalid)
-	expect(dateError('i morgen')).toBe(EVENT_DATE_LABELS.invalid)
-	expect(dateError('')).toBe(EVENT_DATE_LABELS.missing)
-	expect(dateError(TODAY)).toBe(EVENT_DATE_LABELS['too-soon'])
-	expect(dateError(inDays(7 * 105))).toBe(EVENT_DATE_LABELS['too-far'])
-	expect(dateError(inDays(7 * 20))).toBeUndefined()
-})
-
-test('a tampered URL is held to the form’s rules', () => {
-	const read = (query: string) =>
-		readAnswers(new URLSearchParams(query), CALENDAR)
-	const base = 'discipline=run&hours=4&days=1,3&goal=event&name=L%C3%B8pet'
-	expect(read(`${base}&date=2026-99-99`)).toBeNull()
-	expect(read(`${base}&date=${inDays(7 * 110)}`)).toBeNull()
-	expect(read(`${base}&date=${TODAY}`)).toBeNull()
-	expect(read(`${base}&date=${inDays(7 * 20)}`)).toMatchObject({
-		days: [1, 3],
-		goal: { kind: 'event', name: 'Løpet' },
-	})
-	// Days outside the week or repeated are read once, in order.
-	expect(read('discipline=run&hours=4&days=5,1,5&goal=active')).toMatchObject({
-		days: [1, 5],
-	})
-	expect(read('discipline=run&hours=4&days=9&goal=active')).toBeNull()
-	// The questions read a correction field by field, keeping what reads.
-	expect(
-		readCorrections(new URLSearchParams('discipline=ski&hours=6&days=0,2')),
-	).toEqual({ hours: 6, days: [0, 2] })
-})
-
-test('one ticked day is read as a list of one', () => {
-	const parsed = QuestionsSchema.safeParse({
-		discipline: 'run',
-		goal: 'active',
-		hours: '4',
-		days: '6',
-	})
-	expect(parsed.success && parsed.data.days).toEqual([6])
 })

@@ -1,4 +1,5 @@
-import { expect, test } from '#tests/playwright-utils.ts'
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
+import { expect, openPlanAdvanced, test } from '#tests/playwright-utils.ts'
 
 /**
  * _Hold meg aktiv_ end to end (#505 stories 1 and 9, ADR 0079): an athlete with
@@ -50,7 +51,7 @@ test('Hold meg aktiv makes a plan with no race, marked blokk 1 av ∞ on the pla
 	// down to no race day. The top line is the phone's surface; from 1024px up
 	// the season pane's plan card says it instead (ADR 0087).
 	await page.setViewportSize({ width: 390, height: 844 })
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(
 		page.getByTestId('timeline-top').getByText('Blokk 1 av ∞'),
 	).toBeVisible()
@@ -97,6 +98,8 @@ test('Legg til et løp turns an open-ended plan into a plan toward the race, wit
 		page.getByRole('link', { name: 'Vårmilen', exact: true }),
 	).toBeVisible()
 	await expect(page.getByText('blokk 1 av ∞')).toHaveCount(0)
+	// Every Sesong editor is behind Plan's closed Avansert (ADR 0101 §2).
+	await openPlanAdvanced(page)
 	// The round lived so far stays; the run-up to the race follows it.
 	for (const phase of ['Blokk 1', 'Oppbygging', 'Spissing', 'Nedtrapping']) {
 		// Each phase is a card whose trigger opens on its name (the taper's

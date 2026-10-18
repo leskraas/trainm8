@@ -24,6 +24,7 @@ import {
 } from './week-replan-proposal.ts'
 import {
 	afterApply,
+	appliedData,
 	applyPayload,
 	proposalData,
 	proposalSelect,
@@ -48,6 +49,8 @@ export type AnswerProposalResult =
 				| 'scope-not-for-a-make-up'
 				| 'factor-not-a-round'
 				| 'factor-out-of-range'
+				/** The autopilot decided it at the close (ADR 0100): nothing to answer. */
+				| 'autopilot'
 	  }
 
 /**
@@ -104,6 +107,7 @@ async function answerWith(
 	})
 	if (!row) return { ok: false, reason: 'not-found' }
 	const stored = readStoredProposal(row)
+	if (stored.autopilotOutcome != null) return { ok: false, reason: 'autopilot' }
 	if (stored.answer !== 'pending') {
 		return { ok: false, reason: 'already-answered' }
 	}
@@ -164,7 +168,7 @@ async function answerWith(
 		if (result.applied) {
 			await tx.weekReplanProposal.update({
 				where: { id: proposal.id },
-				data: { appliedAt: now },
+				data: appliedData(result, now),
 			})
 		}
 		return result
@@ -266,6 +270,10 @@ export async function easeWeek(
 			by: 'yes',
 			now,
 			timezone,
+		})
+		await tx.weekReplanProposal.update({
+			where: { id: row.id },
+			data: appliedData(result, now),
 		})
 		return { proposalId: row.id, changed: result.changed }
 	})

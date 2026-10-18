@@ -9,6 +9,8 @@
 // is what lays the sessions when the plan is created. Pure; ids are
 // placeholders that never reach a database.
 
+import { type EffortWord } from '../effort-word.ts'
+import { inWholeFiveMinutes } from '../five-minutes.ts'
 import { openEndedRoundName } from '../labels.ts'
 import {
 	availabilityFitWarnings,
@@ -22,8 +24,10 @@ import {
 } from '../plan-outline/derive.ts'
 import { fitRunUp } from '../plan-outline/fit-proposal.ts'
 import {
+	isSimpleActivityTrack,
 	phaseSpecs,
 	resolvedTracks,
+	SIMPLE_ACTIVITY_SEGMENT,
 	type OutlineRows,
 } from '../plan-outline/from-rows.ts'
 import {
@@ -50,7 +54,11 @@ import {
 	calendarWeekdaysOf,
 	type PatternWeekday,
 } from '../plan-outline/week-pattern.ts'
-import { type CardioDiscipline } from '../workout-schema.ts'
+import {
+	SIMPLE_ACTIVITY_DISCIPLINE,
+	type ActivityKind,
+} from '../simple-activity.ts'
+import { type CardioDiscipline, type Discipline } from '../workout-schema.ts'
 
 /** What the plan is toward: nothing (rounds), or a race this many weeks out. */
 export type DraftGoal = { kind: 'active' } | { kind: 'event'; weeks: number }
@@ -71,20 +79,87 @@ export function firstRunPhases(
 	return fitRunUp(familySeason(family), goal.weeks)
 }
 
-/** The one Training Track the first run authors: endurance, in hours. */
+/**
+ * One **Training Track** the first run lays: an endurance Discipline in
+ * hours, the hours a week the athlete trains it **now** (its **Season
+ * Anchor**, owner decision 15, round 2), the days it may lay on, and whether
+ * it carries the family's **Quality Session Mix** or none at all (easy
+ * sessions only: a second endurance sport beside the main one, #558).
+ */
+export type DraftTrack = {
+	discipline: CardioDiscipline
+	weeklyHours: number
+	/** Monday-first weekdays this track may lay on. */
+	days: readonly PatternWeekday[]
+	mix: 'family' | 'none'
+}
+
+/**
+ * One **Simple Activity** the first run lays (#572): a fixed Week Pattern day
+ * on the one hours track on `other`, with its Activity Kind, its Effort Word
+ * and its minutes, on a day of its own.
+ */
+export type DraftSimpleActivity = {
+	kind: ActivityKind
+	effortWord: EffortWord
+	minutes: number
+	weekday: PatternWeekday
+}
+
+/** A Simple Activity as the draft laid it: with the placeholder Workout id its day copies. */
+export type DraftedSimpleActivity = DraftSimpleActivity & { workoutId: string }
+
+/** A track as the draft laid it, in the shape the plan writer takes it. */
+export type DraftedTrack = {
+	/** A placeholder id, the one the draft's rows, pattern and weeks use. */
+	trackId: string
+	/**
+	 * An endurance Discipline, or `other`: the one hours track every Simple
+	 * Activity shares, with no mix and no zones (ADR 0015 §A).
+	 */
+	discipline: CardioDiscipline | typeof SIMPLE_ACTIVITY_DISCIPLINE
+	currency: 'hours'
+	/** The track's first week, in hours: the hours given for it. */
+	anchor: number
+	mix: 'family' | 'none'
+	/**
+	 * The days the track lays sessions on: its days, cut to what its hours can
+	 * fill without a session under half an hour, and to six
+	 * ({@link patternDaysFor}).
+	 */
+	patternDays: PatternWeekday[]
+	/** Every plan week's target for this track in hours, earliest first. */
+	targets: Array<number | null>
+	/**
+	 * Each pattern day's weight, in hours, where _Korte økter_ reshaped the
+	 * track's week ({@link shortWeekdayHours}); absent, the starter pattern's
+	 * own (the long day double).
+	 */
+	dayWeights?: Partial<Record<PatternWeekday, number>>
+}
+
+/** The placeholder id of the draft's first Training Track. */
 export const DRAFT_TRACK_ID = 'first-run-track'
 
-/** The stored rows the plan will have, in the shape the derivation reads. */
+function draftTrackId(index: number): string {
+	return index === 0 ? DRAFT_TRACK_ID : `${DRAFT_TRACK_ID}-${index}`
+}
+
+/**
+ * The stored rows the plan will have, in the shape the derivation reads:
+ * the phases once, and every track over them, each segment carrying the
+ * phase's climb and, on a track that carries the family's mix, its mix.
+ */
 export function draftRows({
 	phases,
 	startWeekKey,
-	discipline,
-	weeklyHours,
+	tracks,
 }: {
 	phases: readonly PresetPhase[]
 	startWeekKey: string
-	discipline: CardioDiscipline
-	weeklyHours: number
+	tracks: ReadonlyArray<
+		Pick<DraftedTrack, 'trackId' | 'discipline' | 'anchor' | 'mix'>
+	>
 }): OutlineRows {
 	return {
 		startWeekKey,
@@ -96,31 +171,38 @@ export function draftRows({
 			rhythm: phase.rhythm,
 			tapers: phase.tapers,
 		})),
-		tracks: [
-			{
-				id: DRAFT_TRACK_ID,
-				discipline,
-				currency: 'hours',
-				anchors: [{ fromWeekKey: startWeekKey, value: weeklyHours }],
-				segments: phases.map((phase, index) => ({
-					id: `segment-${index}`,
-					kind: 'endurance',
-					phaseId: `phase-${index}`,
-					ramp: phase.ramp,
-					boundaryStep: phase.boundaryStep,
-					recoveryCut: null,
-					taperCut: null,
-					startWeekKey: null,
-					weeks: null,
-					goal: null,
-					sessionsPerWeek: null,
-					deloadCut: null,
-					deloadWeeks: null,
-					mix: phase.mix.map((entry) => ({ ...entry })),
-				})),
-				overrides: [],
-			},
-		],
+		tracks: tracks.map((track) => ({
+			id: track.trackId,
+			discipline: track.discipline,
+			currency: 'hours',
+			anchors: [{ fromWeekKey: startWeekKey, value: track.anchor }],
+			segments: phases.map((phase, index) => ({
+				id: `${track.trackId}-segment-${index}`,
+				kind: 'endurance',
+				phaseId: `phase-${index}`,
+				// The Simple Activities' fixed days do not climb, so their track's
+				// target does not either (#572).
+				...(isSimpleActivityTrack(track.discipline)
+					? SIMPLE_ACTIVITY_SEGMENT
+					: {
+							ramp: phase.ramp,
+							boundaryStep: phase.boundaryStep,
+							recoveryCut: null,
+							taperCut: null,
+						}),
+				startWeekKey: null,
+				weeks: null,
+				goal: null,
+				sessionsPerWeek: null,
+				deloadCut: null,
+				deloadWeeks: null,
+				mix:
+					track.mix === 'family'
+						? phase.mix.map((entry) => ({ ...entry }))
+						: [],
+			})),
+			overrides: [],
+		})),
 	}
 }
 
@@ -133,24 +215,37 @@ export type DraftWeek = StampWeekPlan & {
 }
 
 export type FirstRunDraft = {
+	/**
+	 * The plan's phases. Their mix is the one every track that carries the
+	 * family's mix lays: cut to the days of the first such track.
+	 */
 	phases: PresetPhase[]
 	rows: OutlineRows
+	/** Every track the plan will have, in the order they were given. */
+	tracks: DraftedTrack[]
 	/**
-	 * The first week's target in hours — the track's **Season Anchor**: the
-	 * hours the athlete trains now (owner decision 15, round 2). The family's
-	 * climb starts from it, so later weeks ask for more.
+	 * The first week's target in hours across the tracks. Each track's
+	 * **Season Anchor** is the hours the athlete trains it now (owner decision
+	 * 15, round 2); the family's climb starts from them, so later weeks ask
+	 * for more.
 	 */
 	anchor: number
-	/** Every plan week's target in hours, earliest first. */
+	/** Every plan week's target in hours across the tracks, earliest first. */
 	targets: Array<number | null>
 	/**
-	 * The days the plan lays sessions on: the chosen days, cut to what the
-	 * hours can fill without a session under half an hour, and to six
-	 * ({@link patternDaysFor}). The chosen days stay the athlete's availability.
+	 * The days the plan lays sessions on, across the tracks: each track's
+	 * days, cut to what its hours can fill without a session under half an
+	 * hour, and to six ({@link patternDaysFor}). The chosen days stay the
+	 * athlete's availability.
 	 */
 	patternDays: PatternWeekday[]
-	/** The starter pattern's days: the pattern days, the last one long. */
+	/** The starter pattern's days: each track's days, its last one long. */
 	pattern: StarterDay[]
+	/**
+	 * The Simple Activities, each a fixed day on the `other` track, in the
+	 * order they were given. Their minutes count in every week's hours.
+	 */
+	simpleActivities: DraftedSimpleActivity[]
 	/** The plan's first two weeks, as the stamp lays them. */
 	weeks: DraftWeek[]
 	/**
@@ -228,43 +323,75 @@ function weekdayGap(a: number, b: number): number {
 	return Math.min(apart, 7 - apart)
 }
 
-/** The smallest gap between neighbouring days, round the week. */
-function tightestGap(days: readonly number[]): number {
-	if (days.length < 2) return 7
-	return Math.min(
-		...days.map((day, index) =>
-			weekdayGap(day, days[(index + 1) % days.length]!),
-		),
+/** The gaps between neighbouring days, round the week. */
+function gapsOf(days: readonly number[]): number[] {
+	if (days.length < 2) return [7]
+	return days.map((day, index) =>
+		weekdayGap(day, days[(index + 1) % days.length]!),
 	)
 }
 
 /**
+ * How evenly apart a set of days is, higher is better: the smallest gap
+ * first, then how few neighbours sit that close — so four days out of seven
+ * are Tuesday, Thursday, Saturday and Sunday rather than four in a row.
+ */
+function spreadScore(days: readonly number[]): [number, number] {
+	const gaps = gapsOf(days)
+	const tightest = Math.min(...gaps)
+	return [tightest, -gaps.filter((gap) => gap === tightest).length]
+}
+
+/**
  * The days the plan lays sessions on: the chosen days, cut to what the hours
- * can fill ({@link sessionsFor}) and to {@link MAX_SESSION_DAYS}. The last
+ * can fill ({@link sessionsFor}), to {@link MAX_SESSION_DAYS} and to the
+ * level's session cap where there is one (a _Nybegynner_ gets four). The last
  * chosen day — the long one — always stays; the others go one at a time, each
- * time the one whose going leaves the remaining days most evenly apart, the
- * earliest on a tie (so seven days lose Monday, the day after Sunday's long
- * run). Monday-first and sorted, as the days came in.
+ * time the one whose going leaves the remaining days most evenly apart
+ * ({@link spreadScore}), the earliest on a tie (so seven days lose Monday, the
+ * day after Sunday's long run). Monday-first and sorted, as the days came in.
  */
 export function patternDaysFor(
 	days: readonly PatternWeekday[],
 	hours: number,
+	sessionCap: number = MAX_SESSION_DAYS,
 ): PatternWeekday[] {
-	const sorted = [...new Set(days)].sort((a, b) => a - b)
 	const keep = Math.max(
 		1,
-		Math.min(sorted.length, MAX_SESSION_DAYS, sessionsFor(hours)),
+		Math.min(
+			new Set(days).size,
+			MAX_SESSION_DAYS,
+			sessionCap,
+			sessionsFor(hours),
+		),
 	)
+	return spreadDays(days, keep)
+}
+
+/**
+ * `keep` of the days, as evenly apart as they go: the last day always stays,
+ * and the others go one at a time as {@link patternDaysFor} says. Monday-first
+ * and sorted.
+ */
+export function spreadDays(
+	days: readonly PatternWeekday[],
+	keep: number,
+): PatternWeekday[] {
+	const sorted = [...new Set(days)].sort((a, b) => a - b)
 	const long = sorted.at(-1)
 	const kept = [...sorted]
 	while (kept.length > keep) {
 		let drop: PatternWeekday | null = null
-		let best = -1
+		let best: [number, number] | null = null
 		for (const day of kept) {
 			if (day === long) continue
-			const gap = tightestGap(kept.filter((other) => other !== day))
-			if (gap > best) {
-				best = gap
+			const score = spreadScore(kept.filter((other) => other !== day))
+			if (
+				best == null ||
+				score[0] > best[0] ||
+				(score[0] === best[0] && score[1] > best[1])
+			) {
+				best = score
 				drop = day
 			}
 		}
@@ -275,20 +402,69 @@ export function patternDaysFor(
 }
 
 /**
- * The whole draft, or null where there is nothing to lay: no phase toward a
- * race this close, or no day chosen.
+ * The longest weekday session _Korte økter_ allows: 45 minutes (#571). The
+ * stamp lays hours in whole five minutes, so 45 is laid as 45.
  */
-export function draftFirstRunPlan({
-	family,
-	goal,
-	startWeekKey,
-	discipline,
-	weeklyHours,
-	days,
-}: {
-	family: PresetFamily
-	goal: DraftGoal
-	startWeekKey: string
+export const SHORT_SESSION_HOURS = 0.75
+
+/** _Korte økter_ keeps Monday to Friday short; the weekend is left alone. */
+function isWeekday(day: PatternWeekday): boolean {
+	return day < 5
+}
+
+/**
+ * _Korte økter_ on one track's days (#571, ADR 0102 §1: a preference shapes
+ * session lengths within the family's rules). Each weekday session is held to
+ * {@link SHORT_SESSION_HOURS}, the weekend's keep the share the starter
+ * pattern gives them (the long day double), and the hours the cap takes are
+ * not moved anywhere, so the week falls short of them and the option says so.
+ * With _Lange, rolige turer_ too, the long day is not held, and it takes the
+ * hours the cap took: short weekdays, and a long session that may be long.
+ *
+ * Returns each day's hours, which become the pattern's weights and add up to
+ * the track's first week, or null where no weekday session was over the cap.
+ */
+export function shortWeekdayHours(
+	days: readonly PatternWeekday[],
+	hours: number,
+	{ longMayBeLong }: { longMayBeLong: boolean },
+): { hours: number; weights: Partial<Record<PatternWeekday, number>> } | null {
+	// In minutes; the stamp lays the short days in whole five minutes, so a
+	// held day is laid exactly its weight (`resolveWeekPattern`).
+	const scale = 60
+	const cap = SHORT_SESSION_HOURS * scale
+	const units = Math.round(hours * scale)
+	const long = days.at(-1)
+	const weightOf = (day: PatternWeekday) =>
+		day === long && days.length > 1 ? 2 : 1
+	const total = days.reduce<number>((sum, day) => sum + weightOf(day), 0)
+	const held = (day: PatternWeekday) =>
+		isWeekday(day) && !(longMayBeLong && day === long)
+	const shares = days.map((day) => ({
+		day,
+		units: (units * weightOf(day)) / total,
+	}))
+	if (!shares.some((share) => held(share.day) && share.units > cap)) {
+		return null
+	}
+	const laid = new Map<PatternWeekday, number>()
+	for (const share of shares) {
+		const rounded = inWholeFiveMinutes(share.units)
+		laid.set(share.day, held(share.day) ? Math.min(rounded, cap) : rounded)
+	}
+	const kept = () => [...laid.values()].reduce((sum, value) => sum + value, 0)
+	if (longMayBeLong && long != null) {
+		laid.set(long, (laid.get(long) ?? 0) + units - kept())
+	}
+	const weights: Partial<Record<PatternWeekday, number>> = {}
+	for (const [day, value] of laid) weights[day] = value / scale
+	// Hours are carried to a tenth (`derive.ts`); the long day takes the odd
+	// minutes, so every weekday session stays a whole five minutes.
+	return { hours: Math.round((kept() / scale) * 10) / 10, weights }
+}
+
+/** The one-track answers: a Discipline, its hours and the days. */
+type OneTrackAnswers = {
 	discipline: CardioDiscipline
 	/**
 	 * The hours a week the athlete trains **now** (owner decision 15, round
@@ -298,32 +474,151 @@ export function draftFirstRunPlan({
 	weeklyHours: number
 	/** Monday-first weekdays the athlete can train. */
 	days: readonly PatternWeekday[]
-}): FirstRunDraft | null {
+}
+
+/**
+ * The whole draft, or null where there is nothing to lay: no phase toward a
+ * race this close, no track, or a track with no day.
+ *
+ * Takes the tracks the plan will have, or, as the first run reads today, one
+ * Discipline with its hours and days: one track carrying the family's mix.
+ * Every track goes through the same machinery: its days cut to its hours,
+ * the starter pattern on those days with its long day last, and the stamp
+ * laying each week's targets and mixes.
+ */
+export function draftFirstRunPlan(
+	input: {
+		family: PresetFamily
+		goal: DraftGoal
+		startWeekKey: string
+		/**
+		 * The most sessions a week the athlete's **Training Level** allows
+		 * (`levelDefaults`), or none beyond {@link MAX_SESSION_DAYS} a track.
+		 * A total across the tracks: the Simple Activities take theirs first,
+		 * then each track's days are cut to what is left, in order.
+		 */
+		sessionCap?: number
+		/**
+		 * _Korte økter_ (#571): weekday sessions held to 45 minutes on every
+		 * track ({@link shortWeekdayHours}), the long day free with _Lange,
+		 * rolige turer_ too. Never touches the mix.
+		 */
+		shortWeekdays?: { longMayBeLong: boolean }
+		/** The Simple Activities, each on its own day (#572). */
+		simpleActivities?: readonly DraftSimpleActivity[]
+	} & (OneTrackAnswers | { tracks: readonly DraftTrack[] }),
+): FirstRunDraft | null {
+	const { family, goal, startWeekKey, sessionCap, shortWeekdays } = input
+	const activities = input.simpleActivities ?? []
+	const given: readonly DraftTrack[] =
+		'tracks' in input
+			? input.tracks
+			: [
+					{
+						discipline: input.discipline,
+						weeklyHours: input.weeklyHours,
+						days: input.days,
+						mix: 'family',
+					},
+				]
 	const familyPhases = firstRunPhases(family, goal)
-	if (!familyPhases || days.length === 0) return null
-	const patternDays = patternDaysFor(days, weeklyHours)
+	if (!familyPhases || given.length + activities.length === 0) return null
+	if (given.some((track) => track.days.length === 0)) return null
+
+	let capLeft = (sessionCap ?? Infinity) - activities.length
+	const laid: Array<Omit<DraftedTrack, 'targets'>> = given.map(
+		(track, index) => {
+			const patternDays = patternDaysFor(
+				track.days,
+				track.weeklyHours,
+				Math.max(1, capLeft),
+			)
+			capLeft -= patternDays.length
+			const shaped = shortWeekdays
+				? shortWeekdayHours(patternDays, track.weeklyHours, shortWeekdays)
+				: null
+			return {
+				trackId: draftTrackId(index),
+				discipline: track.discipline,
+				currency: 'hours' as const,
+				// Where _Korte økter_ took hours off the week, the track starts
+				// from what it lays, so week 1 is the week shown.
+				anchor: shaped?.hours ?? track.weeklyHours,
+				mix: track.mix,
+				patternDays,
+				...(shaped ? { dayWeights: shaped.weights } : {}),
+			}
+		},
+	)
+	// Every Simple Activity on one hours track on `other`: no mix, and its
+	// first week the activities' own minutes.
+	const simpleTrackId = draftTrackId(given.length)
+	if (activities.length > 0) {
+		laid.push({
+			trackId: simpleTrackId,
+			discipline: SIMPLE_ACTIVITY_DISCIPLINE,
+			currency: 'hours',
+			anchor:
+				activities.reduce((sum, activity) => sum + activity.minutes, 0) / 60,
+			mix: 'none',
+			patternDays: [...new Set(activities.map((a) => a.weekday))].sort(
+				(a, b) => a - b,
+			),
+		})
+	}
+	const simpleActivities: DraftedSimpleActivity[] = activities.map(
+		(activity, index) => ({
+			...activity,
+			workoutId: `simple-activity-${index}`,
+		}),
+	)
 	// Hard sessions go on ordinary days, never the long one (`planStamp`), so
-	// the mix is cut to the pattern's days less the long day.
-	const hardDays = patternDays.length > 1 ? patternDays.length - 1 : 0
+	// the mix is cut to the pattern's days less the long day: the days of the
+	// first track that carries it, since the phases hold one mix.
+	const mixDays =
+		laid.find((track) => track.mix === 'family')?.patternDays.length ?? 0
+	const hardDays = mixDays > 1 ? mixDays - 1 : 0
 	const phases = familyPhases.map((phase) => ({
 		...phase,
 		mix: mixWithinDays(phase.mix, hardDays),
 	}))
-	const anchor = weeklyHours
-	const rows = draftRows({
-		phases,
-		startWeekKey,
-		discipline,
-		weeklyHours: anchor,
-	})
-	const [track] = resolvedTracks(rows)
-	if (!track) return null
-	const targets = track.targets.map((target) => target.value)
+	const rows = draftRows({ phases, startWeekKey, tracks: laid })
+	const resolved = resolvedTracks(rows)
+	const readingOf = (trackId: string) =>
+		resolved.find((reading) => reading.trackId === trackId)
+	const tracks: DraftedTrack[] = laid.map((track) => ({
+		...track,
+		targets:
+			readingOf(track.trackId)?.targets.map((target) => target.value) ?? [],
+	}))
+	if (tracks.some((track) => track.targets.length === 0)) return null
+	const targets = tracks[0]!.targets.map((_, week) =>
+		sumOrNull(tracks.map((track) => track.targets[week] ?? null)),
+	)
+	const patternDays = [
+		...new Set(tracks.flatMap((track) => track.patternDays)),
+	].sort((a, b) => a - b)
 
-	const starter = proposeStarterPattern({
-		trainableWeekdays: calendarWeekdaysOf(patternDays),
-		tracks: [{ trackId: DRAFT_TRACK_ID, discipline, sessionsPerWeek: null }],
-	})
+	// The share days, on the endurance tracks; a Simple Activity is a fixed
+	// day, never a share.
+	const shared = tracks.flatMap((track) =>
+		track.discipline === SIMPLE_ACTIVITY_DISCIPLINE
+			? []
+			: [{ ...track, discipline: track.discipline }],
+	)
+	const starter =
+		shared.length === 0
+			? { days: [] }
+			: proposeStarterPattern({
+					trainableWeekdays: calendarWeekdaysOf(patternDays),
+					tracks: shared.map((track) => ({
+						trackId: track.trackId,
+						discipline: track.discipline,
+						sessionsPerWeek: null,
+						weekdays: track.patternDays,
+						dayWeights: track.dayWeights,
+					})),
+				})
 	if (!starter) return null
 
 	// Numbered per weekday as `createStarterWeekPattern` writes them.
@@ -342,38 +637,61 @@ export function draftFirstRunPlan({
 			shapeVolume: null,
 		}
 	})
+	// After the share days, as `createStarterWeekPatternInTx` writes them.
+	simpleActivities.forEach((activity, index) => {
+		const orderInDay = placed.get(activity.weekday) ?? 0
+		placed.set(activity.weekday, orderInDay + 1)
+		stampDays.push({
+			dayId: `simple-day-${index}`,
+			weekday: activity.weekday,
+			orderInDay,
+			trackId: simpleTrackId,
+			kind: 'fixed',
+			volume: activity.minutes / 60,
+			workoutId: activity.workoutId,
+			shapeVolume: null,
+		})
+	})
 
 	const specs = phaseSpecs(rows)
 	const shown = Math.min(FIRST_RUN_WEEKS, totalWeeks(specs))
 	const planned = planStamp({
 		days: stampDays,
-		tracks: [{ trackId: DRAFT_TRACK_ID, discipline, currency: 'hours' }],
+		tracks: tracks.map((track) => ({
+			trackId: track.trackId,
+			// `other` is a planned discipline, not a `Discipline` (ADR 0015 §A);
+			// the stamp lays its fixed days as it lays any, and lays no mix on it.
+			discipline: track.discipline as Discipline,
+			currency: track.currency,
+		})),
 		weeks: Array.from({ length: shown }, (_, index) => ({
 			weekKey: weekKeyAt(startWeekKey, index),
 			weekInPlan: index + 1,
-			targets: [{ trackId: DRAFT_TRACK_ID, value: targets[index] ?? null }],
+			targets: tracks.map((track) => ({
+				trackId: track.trackId,
+				value: track.targets[index] ?? null,
+			})),
 			// The week's segment's mix, read as the stamp reads it, so the hard
 			// sessions shown are the hard sessions laid.
-			mixes: [
-				{
-					trackId: DRAFT_TRACK_ID,
-					mix:
-						track.segments.find(
-							(segment) =>
-								segment.phaseIndex === phaseIndexForWeek(specs, index),
-						)?.mix ?? [],
-				},
-			],
+			mixes: tracks.map((track) => ({
+				trackId: track.trackId,
+				mix:
+					readingOf(track.trackId)?.segments.find(
+						(segment) => segment.phaseIndex === phaseIndexForWeek(specs, index),
+					)?.mix ?? [],
+			})),
 		})),
 	})
 
 	return {
 		phases,
 		rows,
-		anchor,
+		tracks,
+		anchor: tracks.reduce((sum, track) => sum + track.anchor, 0),
 		targets,
 		patternDays,
 		pattern: starter.days,
+		simpleActivities,
 		weeks: planned.map((week, index) => ({
 			...week,
 			role: weekRole(specs, index),
@@ -385,12 +703,27 @@ export function draftFirstRunPlan({
 		})),
 		dayWarnings: availabilityFitWarnings(
 			specs,
-			track.segments.map((segment) => ({
-				kind: 'endurance' as const,
-				phaseIndex: segment.phaseIndex,
-				mix: segment.mix,
-			})),
-			days.length,
+			resolved.flatMap((reading) =>
+				reading.segments.map((segment) => ({
+					kind: 'endurance' as const,
+					phaseIndex: segment.phaseIndex,
+					mix: segment.mix,
+				})),
+			),
+			new Set([
+				...given.flatMap((track) => track.days),
+				...activities.map((activity) => activity.weekday),
+			]).size,
 		),
 	}
+}
+
+/** The sum, or null where any part is unpriced. */
+function sumOrNull(values: ReadonlyArray<number | null>): number | null {
+	let sum = 0
+	for (const value of values) {
+		if (value == null) return null
+		sum += value
+	}
+	return sum
 }

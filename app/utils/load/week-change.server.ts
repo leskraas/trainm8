@@ -20,8 +20,17 @@
  *    machine's sessions (the stamp's own clearing rule) and lays nothing in a
  *    week the plan has already laid — even when the athlete has since adopted
  *    every session in it; the athlete's own sessions there stay exactly as they
- *    are. No plan, no pattern, or a week past the plan's end: nothing is filled.
- * 3. **Let silence answer, once.** From the first 06:00 local after a Week
+ *    are. No plan, no pattern, or a week past the plan's end: nothing is filled,
+ *    and why is kept on the row for the Autopilot Notice (#580). A fill that
+ *    throws never stops the steps below; it is thrown on after them.
+ * 3. **Under Autopilot, apply at the close, once** (#576, ADR 0100 §2). A
+ *    week that closed with the athlete on autopilot (`WeekReplan.autopilot`,
+ *    read at the close) has its proposals applied there and then by
+ *    `applyAtClose`, within the guards, and never waits for an answer
+ *    (`WeekReplan.autopilotAppliedAt`). Switching the setting applies from
+ *    the next close: a week already closed keeps the mode it closed under.
+ * 4. **Let silence answer, once** — under _Spør meg først_ only: a week
+ *    closed under autopilot has nothing left for silence to do. From the first 06:00 local after a Week
  *    Replan was written (Monday morning, for a Sunday-evening close), its
  *    unanswered proposals go to `applyDueProposals`, which applies only what
  *    keeps or reduces load on a session that is the machine's at that moment.
@@ -37,7 +46,7 @@ import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { enqueueJob } from '#app/utils/jobs/queue.server.ts'
-import { fillPlanWeek } from './horizon-fill.server.ts'
+import { layPlanWeek } from './horizon-fill.server.ts'
 import {
 	proposeWeekChange,
 	type ProposalAuthor,
@@ -47,10 +56,16 @@ import {
 	lastClosedWeekKey,
 	nextSilenceAfter,
 } from './week-change.ts'
-import { applyDueProposals } from './week-replan-proposals.server.ts'
+import {
+	applyAtClose,
+	applyDueProposals,
+} from './week-replan-proposals.server.ts'
 import { applyWeekReplanForUser } from './week-replan.server.ts'
 
 export const WEEK_CHANGE_JOB_KIND = 'week-change'
+
+/** How the close lays the horizon week: the plan's fill, swappable in tests. */
+type LayWeek = typeof layPlanWeek
 
 /** How often the sweep looks for a week change that is due. */
 const DEFAULT_WEEK_CHANGE_INTERVAL_MS = 60 * 60 * 1000
@@ -80,21 +95,80 @@ export async function runWeekChangeForUser(
 	userId: string,
 	now: Date = new Date(),
 	author: ProposalAuthor = proposeWeekChange,
+	{ layWeek = layPlanWeek }: { layWeek?: LayWeek } = {},
 ): Promise<WeekChangeRun> {
 	const timezone = await getAthleteTimezone(userId)
 
 	const replan = await applyWeekReplanForUser(userId, now, author, {
 		timezone,
 	})
-	const horizon = await fillHorizonOnce(userId, replan.weekKey, timezone, now)
-	const { applied, held } = await silenceOnce(userId, timezone, now)
+	// A fill that throws is said in the notice and retried by the next run
+	// (#580), but never stops the steps after it: the autopilot's notice is
+	// what tells the athlete, and it needs its apply step to have run. The
+	// error is thrown on once they have, so the job still reports it.
+	let fillError: unknown = null
+	let horizon: WeekChangeRun['horizon'] = null
+	try {
+		horizon = await fillHorizonOnce(
+			userId,
+			replan.weekKey,
+			timezone,
+			now,
+			layWeek,
+		)
+	} catch (error) {
+		fillError = error
+	}
+	const atClose = await autopilotOnce(userId, replan.weekKey, timezone, now)
+	if (atClose.ran) {
+		await rejudgeUnlaid(userId, replan.weekKey, timezone, now, layWeek)
+	}
+	const silence = await silenceOnce(userId, timezone, now)
+	if (fillError) throw fillError
 
 	return {
 		closedWeekKey: replan.weekKey,
 		replanned: replan.created,
 		horizon,
-		applied,
-		held,
+		applied: [...atClose.applied, ...silence.applied],
+		held: [...atClose.held, ...silence.held],
+	}
+}
+
+/**
+ * The autopilot's apply step (ADR 0100 §2): for a week that closed under
+ * autopilot, apply its proposals now — once, claimed on the Week Replan row
+ * first, like the fill. A run that throws releases the claim; what it already
+ * applied stays applied and carries its outcome, so the retry skips it.
+ */
+async function autopilotOnce(
+	userId: string,
+	closedWeekKey: string,
+	timezone: string,
+	now: Date,
+): Promise<{ applied: string[]; held: string[]; ran: boolean }> {
+	const where = { athleteId: userId, weekKey: closedWeekKey, autopilot: true }
+	const claimed = await prisma.weekReplan.updateMany({
+		where: { ...where, autopilotAppliedAt: null },
+		data: { autopilotAppliedAt: now },
+	})
+	if (claimed.count === 0) return { applied: [], held: [], ran: false }
+	const replan = await prisma.weekReplan.findFirstOrThrow({
+		where,
+		select: { id: true },
+	})
+	try {
+		const result = await applyAtClose(userId, now, {
+			weekReplanId: replan.id,
+			timezone,
+		})
+		return { ...result, ran: true }
+	} catch (error) {
+		await prisma.weekReplan.updateMany({
+			where,
+			data: { autopilotAppliedAt: null },
+		})
+		throw error
 	}
 }
 
@@ -103,12 +177,16 @@ export async function runWeekChangeForUser(
  * Week Replan row first, so two runs never both fill; a fill that throws
  * releases the claim and the next run retries. Only the most recently closed
  * week is ever filled, so a week is never filled late after the next close.
+ *
+ * Why a week was not laid is kept on the row (`horizonUnlaid`, #580) for the
+ * Autopilot Notice — `error` for a fill that threw, until a retry lays it.
  */
 async function fillHorizonOnce(
 	userId: string,
 	closedWeekKey: string,
 	timezone: string,
 	now: Date,
+	layWeek: LayWeek,
 ): Promise<WeekChangeRun['horizon']> {
 	const where = { athleteId: userId, weekKey: closedWeekKey }
 	const claimed = await prisma.weekReplan.updateMany({
@@ -117,19 +195,56 @@ async function fillHorizonOnce(
 	})
 	if (claimed.count === 0) return null
 	try {
-		return await fillPlanWeek(
+		const { weekKey, sessions, unlaid } = await layWeek(
 			userId,
 			horizonWeekKey(closedWeekKey),
 			timezone,
 			now,
 		)
+		await prisma.weekReplan.updateMany({
+			where,
+			data: { horizonUnlaid: unlaid },
+		})
+		return { weekKey, sessions }
 	} catch (error) {
 		await prisma.weekReplan.updateMany({
 			where,
-			data: { horizonFilledAt: null },
+			data: { horizonFilledAt: null, horizonUnlaid: 'error' },
 		})
 		throw error
 	}
+}
+
+/**
+ * After the autopilot applied a week (#580): a horizon week the fill found
+ * past the plan's end may since have been laid by the next round it applied
+ * (whose apply lays the weeks it opens). Judge it again, so the notice never
+ * says a week was not laid when it was. A fill that threw is left to its
+ * retry.
+ */
+async function rejudgeUnlaid(
+	userId: string,
+	closedWeekKey: string,
+	timezone: string,
+	now: Date,
+	layWeek: LayWeek,
+): Promise<void> {
+	const where = { athleteId: userId, weekKey: closedWeekKey }
+	const replan = await prisma.weekReplan.findUnique({
+		where: { athleteId_weekKey: where },
+		select: { horizonUnlaid: true, horizonFilledAt: true },
+	})
+	if (!replan?.horizonUnlaid || replan.horizonFilledAt == null) return
+	const { unlaid } = await layWeek(
+		userId,
+		horizonWeekKey(closedWeekKey),
+		timezone,
+		now,
+	)
+	await prisma.weekReplan.updateMany({
+		where,
+		data: { horizonUnlaid: unlaid },
+	})
 }
 
 /**
@@ -184,6 +299,9 @@ async function dueWeekReplanIds(
 			athleteId: userId,
 			weekKey: { gte: addDays(weekMonday(now, timezone), -7) },
 			silencedAt: null,
+			// A week closed under autopilot was applied at its close: nothing in
+			// it waits for an answer, so silence has nothing to do (ADR 0100 §2).
+			autopilot: false,
 		},
 		select: { id: true, createdAt: true },
 	})
@@ -205,9 +323,14 @@ async function isWeekChangeDue(
 				weekKey: lastClosedWeekKey(now, timezone),
 			},
 		},
-		select: { horizonFilledAt: true },
+		select: {
+			horizonFilledAt: true,
+			autopilot: true,
+			autopilotAppliedAt: true,
+		},
 	})
 	if (!closed || closed.horizonFilledAt == null) return true
+	if (closed.autopilot && closed.autopilotAppliedAt == null) return true
 	return (await dueWeekReplanIds(userId, timezone, now)).length > 0
 }
 

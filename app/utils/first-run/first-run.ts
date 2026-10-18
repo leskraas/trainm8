@@ -1,19 +1,18 @@
-// The **first run**'s reading of the athlete (#505 stories 61–71): what their
-// history says ("Dette fant vi"), the hours arithmetic it shows, the three
-// questions it pre-fills, and which philosophy it picks for them, and why.
+// The start's reading of the athlete's history (#505 stories 61–71, #578):
+// what the last four weeks say, the hours arithmetic it shows, and the hours
+// and days it pre-fills on the start's first screen.
 //
 // Pure: the history arrives as values read by `findings.server.ts`, and
 // nothing here words anything. Every reading that has no number carries the
 // reason it has none (story 71), as a code the surface words in `labels.ts`.
 
-import { type PresetFamily } from '../plan-outline/presets.ts'
 import {
 	ANCHOR_WINDOW_WEEKS,
 	type LoggedVolume,
 } from '../plan-outline/proposal.ts'
-import { DEFAULT_TRAINING_WEEKDAYS } from '../plan-outline/starter-pattern.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { isCardioDiscipline, type CardioDiscipline } from '../workout-schema.ts'
+import { MAX_START_HOURS, MIN_START_HOURS } from './start-draft.ts'
 
 /** How far the athlete got linking intervals.icu, as the findings read it. */
 export const FIRST_RUN_CONNECTIONS = ['none', 'importing', 'ready'] as const
@@ -142,7 +141,7 @@ export function typicalWeekdays(
 	return habits.length > 0 ? habits : all
 }
 
-/** "Dette fant vi": what the history says, and why where it says nothing. */
+/** What the history says, and why where it says nothing. */
 export type FirstRunFindings = {
 	/** The endurance sport with the most sessions — the plan's one track. */
 	discipline: Finding<{
@@ -227,149 +226,25 @@ export function buildFindings({
 	}
 }
 
-/** What "Noe er feil" lets the athlete set right before the questions. */
-export type FindingCorrections = {
-	discipline?: CardioDiscipline
-	hours?: number
-	days?: PatternWeekday[]
-}
-
-export type QuestionPrefill = {
-	discipline: CardioDiscipline
-	/** Null where nothing reads: the athlete says it themselves. */
+/**
+ * The hours and days the history gives the start (#578), where it gives
+ * them: the hours held to the start's own range (1–20 in half hours), the
+ * days as the athlete usually trains. Null where the history has no reading,
+ * and the level's own defaults stand.
+ */
+export type StartPrefill = {
 	hours: number | null
-	days: PatternWeekday[]
-	/** Where the days came from, so the surface can say when they are a guess. */
-	daysSource: 'history' | 'corrected' | 'default'
+	days: PatternWeekday[] | null
 }
 
-/**
- * The three questions' answers before the athlete touches them: a correction
- * where they made one, else the history, else — for the days only — the
- * starter pattern's stated convention, named as such on the surface.
- */
-export function questionPrefill(
-	findings: FirstRunFindings,
-	corrections: FindingCorrections,
-): QuestionPrefill {
-	const days =
-		corrections.days && corrections.days.length > 0
-			? { days: corrections.days, daysSource: 'corrected' as const }
-			: findings.days.measured
-				? { days: findings.days.value, daysSource: 'history' as const }
-				: {
-						days: [...DEFAULT_TRAINING_WEEKDAYS],
-						daysSource: 'default' as const,
-					}
+export function startPrefill(findings: FirstRunFindings): StartPrefill {
 	return {
-		discipline:
-			corrections.discipline ??
-			(findings.discipline.measured
-				? findings.discipline.value.discipline
-				: 'run'),
-		hours:
-			corrections.hours ??
-			(findings.volume.measured ? findings.volume.value.hours : null),
-		...days,
+		hours: findings.volume.measured
+			? Math.min(
+					MAX_START_HOURS,
+					Math.max(MIN_START_HOURS, findings.volume.value.hours),
+				)
+			: null,
+		days: findings.days.measured ? findings.days.value : null,
 	}
-}
-
-// ── Which philosophy, and why (#505 stories 66, 70) ──────────────────────────
-
-/** From this age a 2:1 rhythm's extra rest is offered first. */
-export const MASTERS_FROM_AGE = 50
-/** Fewer weeks trained of the last four than this reads as a fresh start. */
-export const STEADY_WEEKS = 3
-/** Fewer training days than this leaves no room for more than the classic. */
-export const FEW_DAYS_BELOW = 3
-/** Under this many hours a week, a steady climb is the honest plan. */
-export const FEW_HOURS_BELOW = 4
-/** From this many hours a week there is room for mostly easy and a little very hard. */
-export const MANY_HOURS_FROM = 7
-/** From this many weeks to the race there is time for a long base first. */
-export const LONG_RUN_UP_WEEKS = 24
-
-export type FamilyChoiceInputs = {
-	goal: 'active' | 'event'
-	/** Plan weeks up to and including the race week; null without a race. */
-	weeksToEvent: number | null
-	weeklyHours: number
-	/** Training days a week. */
-	days: number
-	/** Whole years, or null where the athlete has not said their birthdate. */
-	age: number | null
-	/** Weeks of the last four with training; null with no history at all. */
-	weeksTrained: number | null
-}
-
-/** Why a family was chosen, with the numbers the sentence says. */
-export type FamilyReason =
-	| { code: 'older-athlete'; age: number }
-	| { code: 'little-history'; weeksTrained: number | null }
-	| { code: 'few-days'; days: number }
-	| { code: 'few-hours'; hours: number }
-	| { code: 'long-run-up'; weeks: number }
-	| { code: 'many-hours'; hours: number }
-	| { code: 'race-on-limited-time'; hours: number }
-	| { code: 'steady' }
-
-export type FamilyChoice = { family: PresetFamily; reason: FamilyReason }
-
-/**
- * The philosophy the first run proposes, and the one reason it says for it.
- *
- * A deterministic rule list, first match wins, ordered from what protects the
- * athlete to what serves the goal: rest first (age, then a thin history or
- * little room in the week), then the shape the time allows. Every family is
- * offered beside it, so this is a starting point and never a verdict.
- */
-export function chooseFamily(inputs: FamilyChoiceInputs): FamilyChoice {
-	const { age, weeksTrained, days, weeklyHours: hours } = inputs
-	if (age != null && age >= MASTERS_FROM_AGE) {
-		return { family: 'masters', reason: { code: 'older-athlete', age } }
-	}
-	if (weeksTrained == null || weeksTrained < STEADY_WEEKS) {
-		return {
-			family: 'classic',
-			reason: { code: 'little-history', weeksTrained },
-		}
-	}
-	if (days < FEW_DAYS_BELOW) {
-		return { family: 'classic', reason: { code: 'few-days', days } }
-	}
-	if (hours < FEW_HOURS_BELOW) {
-		return { family: 'classic', reason: { code: 'few-hours', hours } }
-	}
-	if (
-		inputs.goal === 'event' &&
-		inputs.weeksToEvent != null &&
-		inputs.weeksToEvent >= LONG_RUN_UP_WEEKS
-	) {
-		return {
-			family: 'big-base',
-			reason: { code: 'long-run-up', weeks: inputs.weeksToEvent },
-		}
-	}
-	if (hours >= MANY_HOURS_FROM) {
-		return { family: 'polarized', reason: { code: 'many-hours', hours } }
-	}
-	if (inputs.goal === 'event') {
-		return {
-			family: 'threshold',
-			reason: { code: 'race-on-limited-time', hours },
-		}
-	}
-	return { family: 'classic', reason: { code: 'steady' } }
-}
-
-/** Whole years between a birthdate and today, or null where none is stored. */
-export function ageOn(birthdate: Date | null, now: Date): number | null {
-	if (!birthdate) return null
-	let age = now.getUTCFullYear() - birthdate.getUTCFullYear()
-	const before =
-		now.getUTCMonth() < birthdate.getUTCMonth() ||
-		(now.getUTCMonth() === birthdate.getUTCMonth() &&
-			now.getUTCDate() < birthdate.getUTCDate())
-	if (before) age -= 1
-	return age
 }

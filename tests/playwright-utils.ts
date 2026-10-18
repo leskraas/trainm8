@@ -1,4 +1,9 @@
-import { test as base, type Locator, type Response } from '@playwright/test'
+import {
+	test as base,
+	type Locator,
+	type Page,
+	type Response,
+} from '@playwright/test'
 import { type User as UserModel } from '@prisma/client'
 import { href, type Register } from 'react-router'
 import * as setCookieParser from 'set-cookie-parser'
@@ -55,6 +60,19 @@ export async function untilHydrated(control: Locator) {
 			{ timeout: 15_000 },
 		)
 		.toBe(true)
+}
+
+/**
+ * Open Plan's closed _Avansert_ (ADR 0101 §2), where every Sesong editor now
+ * lives, the way the athlete does: one tap on its heading, once hydrated.
+ */
+export async function openPlanAdvanced(page: Page) {
+	const trigger = page.getByRole('button', { name: /^Avansert\s*Filosofi/ })
+	await untilHydrated(trigger)
+	if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
+		await trigger.click()
+	}
+	await expect(trigger).toHaveAttribute('aria-expanded', 'true')
 }
 
 type GetOrInsertUserOptions = {

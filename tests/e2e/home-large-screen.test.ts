@@ -1,9 +1,11 @@
 import { type Page } from '@playwright/test'
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
 /**
- * I dag on a large screen (#505 story 60, ADR 0087, Arket variant Q): the
+ * I dag's full Home Timeline on a large screen (#505 story 60, ADR 0087, Arket
+ * variant Q), driven at its own address, _Se hele sesongen_ (#562): the
  * season — plan card, season table, compact curve — left of the list, and the
  * selected day right of it from 1280px, or in a Sheet from 1024px to 1279px.
  *
@@ -115,12 +117,14 @@ test('three columns: the season, the list and the day, each scrolling on its own
 	test.setTimeout(120_000)
 	const user = await login()
 	const { today, monday, farWeek } = await seedPlan(user.id)
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 
 	const season = page.getByRole('complementary', { name: 'Sesongen' })
 	const day = page.locator('[data-day-pane]')
 	const stream = page.getByTestId('timeline-stream')
-	await expect(season.getByRole('table', { name: 'Sesongtabell' })).toBeVisible()
+	await expect(
+		season.getByRole('table', { name: 'Sesongtabell' }),
+	).toBeVisible()
 	await expect(day.locator(`[data-day-detail="${today}"]`)).toBeVisible()
 	expect(await overflowX(page)).toBe(0)
 
@@ -187,7 +191,7 @@ test('three columns: the season, the list and the day, each scrolling on its own
 	await expect(
 		day.getByRole('link', { name: 'Rediger Langtur med gjengen' }),
 	).toBeVisible()
-	await expect(page).toHaveURL(/\/$/)
+	await expect(page).toHaveURL(/\/season$/)
 	await expect(
 		page.locator(`[data-timeline-day="${fixedDay}"][data-day-selected]`),
 	).toHaveCount(1)
@@ -208,10 +212,12 @@ test.describe('1024–1279', () => {
 		test.setTimeout(120_000)
 		const user = await login()
 		const { today } = await seedPlan(user.id)
-		await navigate('/')
+		await navigate(HOME_TIMELINE_HREF)
 
 		const season = page.getByRole('complementary', { name: 'Sesongen' })
-		await expect(season.getByRole('table', { name: 'Sesongtabell' })).toBeVisible()
+		await expect(
+			season.getByRole('table', { name: 'Sesongtabell' }),
+		).toBeVisible()
 		await expect(page.locator('[data-day-pane]')).toBeHidden()
 		expect(await overflowX(page)).toBe(0)
 
@@ -238,7 +244,7 @@ test('1440: no horizontal overflow, and the list keeps a reading width', async (
 	await page.setViewportSize({ width: 1440, height: 900 })
 	const user = await login()
 	await seedPlan(user.id)
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.locator('[data-day-detail]')).toBeVisible()
 	expect(await overflowX(page)).toBe(0)
 	const list = await page.locator('[data-timeline-column]').boundingBox()

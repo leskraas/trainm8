@@ -12,6 +12,7 @@
 // `history.server.ts`. Nothing here formats — the derivation travels as a
 // structured value and the display layer words it (ADR 0023).
 
+import { type PlannedDiscipline } from '../planned-discipline.ts'
 import { CARDIO_DISCIPLINES, type Discipline } from '../workout-schema.ts'
 import { roundToCurrency, type VolumeCurrency } from './derive.ts'
 
@@ -159,9 +160,13 @@ export type TrackProposal = {
  * Strength gets exactly one — `sets`, a systemic weekly count (ADR 0047 §2) —
  * because the athlete is not asked to pick a unit strength cannot express
  * (ADR 0043 §2). An endurance discipline gets the other three; which of them is
- * *proposed* is `proposeTrack`'s.
+ * *proposed* is `proposeTrack`'s. The Simple Activities' track on `other`
+ * speaks hours only: time is the one number a Simple Activity carries (#572).
  */
-export function currencyOptionsFor(discipline: Discipline): VolumeCurrency[] {
+export function currencyOptionsFor(
+	discipline: PlannedDiscipline,
+): VolumeCurrency[] {
+	if (discipline === 'other') return ['hours']
 	return isEndurance(discipline) ? ['km', 'hours', 'tss'] : ['sets']
 }
 

@@ -6,7 +6,11 @@ import {
 } from '#app/integrations/shared/origin-platform.ts'
 import { dayBoundsUTC, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
-import { fitsImport, isRecordingOnlySource } from './import-fit.ts'
+import {
+	fitsImport,
+	fitsImportByHand,
+	isRecordingOnlySource,
+} from './import-fit.ts'
 import { publishActivityImportCreated } from './imports-events.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
 import { triggerRecomputeForSession } from './session-log.server.ts'
@@ -336,20 +340,27 @@ export class ImportLinkNotFoundError extends Error {
 /**
  * The planned sessions an import could be, by `fitsImport` (same local day,
  * same sport, a planned session holding no Recording). The one rule
- * auto-save links by, its `unsure` verdict reads, I dag's "hva var dette?"
- * offers by, and a link answer is checked against. Empty for an unknown
+ * auto-save links by and its `unsure` verdict reads. Empty for an unknown
  * import and for `'other'` (ADR 0015).
+ *
+ * `rule: 'by-hand'` is what I dag's "hva var dette?" offers and a link answer
+ * is checked against (`fitsImportByHand`): the same sessions, and for an
+ * import on `other` also the planned Simple Activities that day (ADR 0015 §A).
+ * Auto-save never asks for it.
  */
 export async function findPlanCandidates(
 	athleteId: string,
 	importId: string,
 	athleteTimezone: string,
+	{ rule = 'auto' }: { rule?: 'auto' | 'by-hand' } = {},
 ): Promise<string[]> {
 	const imported = await prisma.activityImport.findFirst({
 		where: { id: importId, athleteId },
 		select: { id: true, startedAt: true, discipline: true },
 	})
-	if (!imported || imported.discipline === 'other') return []
+	if (!imported) return []
+	if (rule === 'auto' && imported.discipline === 'other') return []
+	const fits = rule === 'auto' ? fitsImport : fitsImportByHand
 
 	const dayKey = localDate(imported.startedAt, athleteTimezone)
 	const { start: dayStart, end: dayEnd } = dayBoundsUTC(dayKey, athleteTimezone)
@@ -371,7 +382,7 @@ export async function findPlanCandidates(
 	})
 	return sessions
 		.filter((session) =>
-			fitsImport(
+			fits(
 				{
 					source: session.source,
 					adoptedAt: session.adoptedAt,

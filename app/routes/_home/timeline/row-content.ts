@@ -32,6 +32,10 @@
  *   that looks derived from the bar when it is not is the kind of quiet claim
  *   this module exists to refuse. The set count rides a chip, so the row still
  *   says two things and refuses a third.
+ * - **A Simple Activity says its time and its Effort Word** (ADR 0015 §A): line
+ *   1 is the minutes, line 2 is _Rolig_ / _Middels_ / _Hard_. It has no pace,
+ *   power, zone or Planned TSS, so none of those clauses resolve and none is
+ *   printed; the detail page says _ikke målt_ for each, with the reason.
  *
  * Two things the handoff asks for are **deliberately not emitted**, and each one
  * is a missing input rather than a missing feature:
@@ -66,8 +70,10 @@ import {
 	NB_LOAD_WORDS,
 	nbStoredReplanReason,
 	ROW_LABELS,
+	SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
 import { type SessionRow } from '#app/utils/session-ledger-rows.ts'
+import { readSimpleActivity } from '#app/utils/simple-activity.ts'
 import {
 	type LoadValue,
 	parseStoredLoadValue,
@@ -427,13 +433,19 @@ function internalLoad({
 	// also wants ("second quality session missed in this block") needs the other
 	// sessions in the block, which one row does not have.
 	if (entry.status === 'missed') return null
+	const simple = readSimpleActivity(session.workout)
 	if (entry.status === 'completed') {
 		if (entry.discipline === 'strength') return liftingCostLine(entry)
 		return clauses(
+			simple ? SIMPLE_ACTIVITY_LABELS.effort[simple.effortWord] : null,
 			!statesLoad && entry.load != null ? formatTss(entry.load) : null,
 			entry.rpe != null ? `RPE ${entry.rpe}` : null,
 		)
 	}
+	// A Simple Activity asks for a time and an Effort Word, nothing else (ADR
+	// 0015 §A): no pace, power or heart rate to hold, and the word is never
+	// read as a zone.
+	if (simple) return SIMPLE_ACTIVITY_LABELS.effort[simple.effortWord]
 	return plannedTargetLine(session, entry)
 }
 

@@ -1,6 +1,11 @@
 # Week Replan proposes, and the athlete's own sessions need a yes
 
-Status: Accepted
+Status: Accepted · **§2–3 superseded by
+[ADR 0100](./0100-the-autopilot-lays-out-each-week-and-every-write-it-makes-says-what-it-did-and-can-be-undone.md)**
+for an athlete on **Autopilot** (the default since spec #558): the Week Change
+applies the Week Replan at the close within guards, the athlete's own sessions
+are never changed, and every write is stated and undoable. Under _Spør meg
+først_ this ADR stands unchanged.
 
 **Amends [ADR 0025](./0025-adaptive-week-replan.md).** It keeps §1: one
 persistent decision for each closed **Training Week**, made at most once. It
@@ -35,13 +40,14 @@ Sunday.
    _Ukeskiftet_), together with a short review of the week that closed. In the
    same step the horizon moves forward one week. "Keep" is a real proposal with
    a reason, not the absence of one.
-2. **The machine's sessions: an unanswered proposal is applied the next
-   morning.** This covers sessions the app made that the athlete has not adopted
-   (**Session Adoption**).
-3. **The athlete's own sessions: only an explicit yes applies a proposal.** This
-   covers sessions with `source` `authored` and adopted sessions. The app may
-   propose a change to them, and the proposal says that the session is theirs.
-   Silence changes nothing.
+2. _(Superseded by ADR 0100 for autopilot athletes.)_ **The machine's sessions:
+   an unanswered proposal is applied the next morning.** This covers sessions
+   the app made that the athlete has not adopted (**Session Adoption**).
+3. _(Superseded by ADR 0100 for autopilot athletes.)_ **The athlete's own
+   sessions: only an explicit yes applies a proposal.** This covers sessions
+   with `source` `authored` and adopted sessions. The app may propose a change
+   to them, and the proposal says that the session is theirs. Silence changes
+   nothing.
 4. **A move proposal asks for its scope:** _bare denne gangen_ (only this time)
    or _fra nå av_ (from now on). "Never on Tuesdays" is a different statement
    from "not this Tuesday".
@@ -236,3 +242,27 @@ Sunday.
   running (same workout title and discipline, same weekday, _ikke gjort_ both
   times) gets a `move` of its coming session to a free day that the make-up did
   not take, with _bare denne gangen_ / _fra nå av_ offered. It keeps the load.
+
+## As built (#564): an applied proposal keeps a before-image and can be undone
+
+Groundwork for spec #558's autopilot
+([ADR 0100](./0100-the-autopilot-lays-out-each-week-and-every-write-it-makes-says-what-it-did-and-can-be-undone.md)
+§4); nothing changes for the athlete yet.
+
+- **The before-image.** Every path that applies a proposal (silence, an Ok,
+  "Gjør uka lettere") stores, with `appliedAt`, what the change replaced
+  (`WeekReplanProposal.beforeImage`, validated by `BeforeImageSchema` in
+  `week-replan-proposal.ts`): each session it wrote to as it stood before (its
+  placement, Replan Note, whose it was, and the quantities of the steps it
+  scaled), the sessions it placed (an `add`, a make-up), and for a next round
+  what it appended (the phase, the week it opens on, the factor). The apply
+  engine fills it as it writes, so no kind can apply without one.
+- **The undo** is `undoProposal` (`week-replan-undo.server.ts`), one call for
+  every kind. It restores the before-image exactly, removes what the change
+  placed, and re-lays a next round at factor 1 rather than removing it, so an
+  open-ended plan never ends. It is idempotent (`undoneAt`, claimed in the same
+  transaction as its writes) and refuses rather than tramples (ADR 0088): once
+  the week the change landed in has begun (a round: the week it opens on), once
+  a session it changed has been trained, or when the athlete took one over
+  since. An undone proposal keeps its `appliedAt`. A proposal applied before
+  this has no before-image, and its undo is refused (`no-before-image`).

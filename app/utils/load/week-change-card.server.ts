@@ -80,6 +80,7 @@ export async function readWeekChange(
 		},
 		select: {
 			reason: true,
+			autopilot: true,
 			proposals: {
 				orderBy: { createdAt: 'asc' },
 				select: {
@@ -126,21 +127,44 @@ export async function readWeekChange(
 		}),
 	)
 	const todayKey = localDate(now, timezone)
-	const open = proposals.some(
-		(proposal) =>
-			proposal.answer === 'pending' &&
-			!proposal.appliedAt &&
-			!proposalTooLate(proposal, todayKey),
-	)
+	// A week closed under autopilot asks nothing: the close decided it, and the
+	// Autopilot Notice states what it did (ADR 0100 §5).
+	const open =
+		!replan.autopilot &&
+		proposals.some(
+			(proposal) =>
+				proposal.answer === 'pending' &&
+				!proposal.appliedAt &&
+				!proposalTooLate(proposal, todayKey),
+		)
 	if (onlyOpen && !open) return null
 
 	const comingWeekKey = addDays(closedWeekKey, 7)
+
+	return {
+		closedWeekKey,
+		comingWeekKey,
+		reason: replan.reason,
+		open,
+		proposals,
+		eased: await readWeekEase(userId, comingWeekKey),
+	}
+}
+
+/**
+ * The athlete's own "Gjør uka lettere −15 %" on a week, once made — read by
+ * this card and by the Autopilot Notice, which both offer it (ADR 0100 §5).
+ */
+export async function readWeekEase(
+	userId: string,
+	weekKey: string,
+): Promise<WeekChangeData['eased']> {
 	const eased = await prisma.weekReplanProposal.findFirst({
 		where: {
 			athleteId: userId,
 			kind: 'scale',
 			targetSessionId: null,
-			targetWeekKey: comingWeekKey,
+			targetWeekKey: weekKey,
 			answer: 'accepted',
 		},
 		select: {
@@ -150,15 +174,7 @@ export async function readWeekChange(
 			payload: true,
 		},
 	})
-
-	return {
-		closedWeekKey,
-		comingWeekKey,
-		reason: replan.reason,
-		open,
-		proposals,
-		eased: eased ? easedOf(eased) : null,
-	}
+	return eased ? easedOf(eased) : null
 }
 
 function easedOf(row: {

@@ -167,6 +167,66 @@ describe('the share column sums to the remainder', () => {
 	})
 })
 
+describe('hours are laid in whole five minutes', () => {
+	function minutes(weights: number[], target: number) {
+		const days = weights.map((weight, index) =>
+			share(index, weight, { dayId: `d${index}` }),
+		)
+		return reading(days, [
+			{ trackId: 'run', currency: 'hours', target },
+		]).days.map((day) => Math.round(day.value! * 60))
+	}
+
+	test('every session but the long one is a whole five minutes, and the long one takes the rest', () => {
+		// 3.7 t over 1:1:2 is 55.5, 55.5 and 111 minutes.
+		expect(minutes([1, 1, 2], 3.7)).toEqual([55, 55, 112])
+	})
+
+	test('45 minutes is laid as 45 (#571)', () => {
+		expect(minutes([0.75, 0.75, 0.75, 2.75], 5)).toEqual([45, 45, 45, 165])
+	})
+
+	test('the long day is never rounded away (#584)', () => {
+		// 60 minutes over 1:1:1:1:1:1:2 is 7.5 a weekday and 15 for the long day.
+		// Each weekday to the nearest five is 10, and the six of them spend the
+		// whole hour before the long day gets a minute.
+		expect(minutes([1, 1, 1, 1, 1, 1, 2], 1)).toEqual([5, 5, 5, 5, 5, 5, 30])
+	})
+
+	test('no day with a share ends at nothing while the week has minutes', () => {
+		for (const weights of [
+			[1, 1, 1, 1, 1, 1, 2],
+			[1, 1, 1, 1, 1, 1, 1],
+			[1, 2, 1, 2],
+			[1, 20],
+		]) {
+			for (const target of [0.5, 0.7, 1, 1.3, 2]) {
+				const laid = minutes(weights, target)
+				expect(laid.every((value) => value > 0)).toBe(true)
+				expect(laid.reduce((sum, value) => sum + value, 0)).toBe(
+					Math.round(target * 60),
+				)
+			}
+		}
+	})
+
+	test('the sessions still add up to the hours, minute for minute', () => {
+		for (const weights of [
+			[1, 1],
+			[1, 1, 1],
+			[1, 2, 1, 2],
+			[3, 7, 11, 13],
+		]) {
+			for (const target of [0.5, 1.3, 3.7, 6.1, 12.7]) {
+				const laid = minutes(weights, target)
+				expect(laid.reduce((sum, value) => sum + value, 0)).toBe(
+					Math.round(target * 60),
+				)
+			}
+		}
+	})
+})
+
 // ── Resolving against a week ──
 
 describe('resolving a pattern against a week', () => {

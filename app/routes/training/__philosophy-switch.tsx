@@ -41,6 +41,7 @@ import { type WeekView } from '#app/utils/plan-outline/outline-preview.ts'
 import {
 	PhilosophySwitchFormSchema,
 	StrengthOfferFormSchema,
+	type TRENINGSFORM_SURFACE,
 } from '#app/utils/plan-outline/philosophy-schema.ts'
 import {
 	type PhaseView,
@@ -188,19 +189,34 @@ export function PhilosophyCard({
 	)
 }
 
-function PhilosophyPreview({
+/**
+ * The switch's _Forhåndsvisning_ and its confirm: what changes from which
+ * week, the phases and the weeks before and after, then _Bytt til …_. Shown
+ * under _Bytt filosofi_ in _Avansert_, and under _Bytt treningsform_ in the
+ * lead (#581), which names itself with `surface` so the answer comes back
+ * there, and confirms with the option's plain name.
+ */
+export function PhilosophyPreview({
 	outlineId,
 	preview,
 	lastResult,
+	surface,
+	confirmLabel,
+	idPrefix = 'philosophy',
 }: {
 	outlineId: string
 	preview: PhilosophyPreviewView
 	lastResult: LastResult
+	surface?: typeof TRENINGSFORM_SURFACE
+	/** The confirm's words; `Bytt til <family>` unless given. */
+	confirmLabel?: string
+	/** Keeps the form and heading ids apart where two previews could mount. */
+	idPrefix?: string
 }) {
 	// The confirm is a form of its own: it posts the preview's digest, so the
 	// switch that lands is the one shown, and a refusal is said under it.
 	const [form] = useForm({
-		id: 'philosophy-confirm',
+		id: `${idPrefix}-confirm`,
 		lastResult,
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: PhilosophySwitchFormSchema })
@@ -208,11 +224,14 @@ function PhilosophyPreview({
 	})
 	return (
 		<section
-			aria-labelledby="philosophy-preview-title"
+			aria-labelledby={`${idPrefix}-preview-title`}
 			className="border-border/70 space-y-4 border-t pt-4 pb-2"
 			data-philosophy-preview
 		>
-			<h3 id="philosophy-preview-title" className="text-callout font-semibold">
+			<h3
+				id={`${idPrefix}-preview-title`}
+				className="text-callout font-semibold"
+			>
 				{PHILOSOPHY_SWITCH_LABELS.preview}
 			</h3>
 			<p className="text-footnote">
@@ -284,6 +303,9 @@ function PhilosophyPreview({
 				<input type="hidden" name="outlineId" value={outlineId} />
 				<input type="hidden" name="family" value={preview.to} />
 				<input type="hidden" name="digest" value={preview.digest} />
+				{surface ? (
+					<input type="hidden" name="surface" value={surface} />
+				) : null}
 				{form.errors ? (
 					<div role="alert">
 						<ErrorList
@@ -293,7 +315,7 @@ function PhilosophyPreview({
 					</div>
 				) : null}
 				<Button type="submit" className="w-full sm:w-auto">
-					{switchToLabel(preview.to)}
+					{confirmLabel ?? switchToLabel(preview.to)}
 				</Button>
 			</Form>
 		</section>

@@ -84,11 +84,16 @@ import {
 	CollapsibleTrigger,
 } from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
+import {
+	addDays,
+	isoWeekNumber,
+	weekMonday,
+} from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getEventsForUser } from '#app/utils/event.server.ts'
+import { readPlanStartOptions } from '#app/utils/first-run/plan-start-options.server.ts'
 import {
 	formatNbDate,
 	formatNbDayMonth,
@@ -116,11 +121,10 @@ import {
 	nbPhaseName,
 	nbTrackName,
 	SESONG_ENTRY_LABELS,
-	OPEN_ENDED_PLAN_LABEL,
-	openEndedBlockLabel,
 	PHILOSOPHY_SWITCH_LABELS,
 	PRESET_GALLERY_LABELS,
 	PHILOSOPHY_SWITCH_REFUSAL_LABELS,
+	PLAN_LEAD_LABELS,
 	SEASON_ADVANCED_LABELS,
 	SEASON_EDIT_LABELS,
 	SESONG_ANCHOR_LABELS,
@@ -137,6 +141,7 @@ import {
 	SESONG_TRACK_LABELS,
 	STRENGTH_OFFER_LABELS,
 	switchedPhilosophySentence,
+	TRENINGSFORM_LABELS,
 	type BoundaryStepOutOfForce,
 } from '#app/utils/labels.ts'
 import { fillPlanWeeksToHorizon } from '#app/utils/load/horizon-fill.server.ts'
@@ -221,6 +226,7 @@ import {
 } from '#app/utils/plan-outline/open-ended.server.ts'
 import {
 	PhilosophySwitchFormSchema,
+	TRENINGSFORM_SURFACE,
 	StrengthOfferFormSchema,
 } from '#app/utils/plan-outline/philosophy-schema.ts'
 import {
@@ -274,8 +280,9 @@ import {
 	type Discipline,
 } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.ts'
-import { AttachEventOffer } from './__attach-event.tsx'
 import { CopyWeekSection, type PendingCopy } from './__copy-week.tsx'
+import { readLibraryLifts } from './__library-section.server.ts'
+import { LibrarySection } from './__library-section.tsx'
 import {
 	AddPhaseForm,
 	DeletePlanSection,
@@ -286,14 +293,16 @@ import {
 	StrengthTrackOfferCard,
 	type PhilosophyPreviewView,
 } from './__philosophy-switch.tsx'
+import { PlanAdvanced } from './__plan-advanced.tsx'
 import {
 	CollapsibleSection,
 	PhaseSpark,
 	PillLink,
 	PlanCard,
-	PlanHero,
 	SegmentedNav,
 } from './__plan-chrome.tsx'
+import { PlanLeadCard } from './__plan-lead-card.tsx'
+import { nextEasyWeek as readNextEasyWeek } from './__plan-lead.ts'
 import { PresetGallery } from './__preset-gallery.tsx'
 import {
 	SeasonAnchorFormSchema,
@@ -312,6 +321,8 @@ import {
 	type EditableStrengthTrack,
 } from './__strength-segment-editor.tsx'
 import { TrackRoster } from './__track-editor.tsx'
+import { treningsformViewOf } from './__treningsform-view.ts'
+import { TreningsformOffer } from './__treningsform.tsx'
 import {
 	type SeasonQuery,
 	WeekPatternSection,
@@ -586,11 +597,32 @@ export async function loader({ request }: Route.LoaderArgs) {
 					select: { id: true },
 				})
 
+	// Bibliotek, a section of Plan since it gave up its tab (ADR 0101 §1).
+	const libraryLifts = await readLibraryLifts(userId)
+
+	// _Bytt treningsform_ (ADR 0101 §2, #581): the Start Options again, laid
+	// from the week a switch would begin in for this plan's tracks and days.
+	const startOptions = await readPlanStartOptions(
+		userId,
+		season,
+		firstUnbegunWeekKey,
+		now,
+	)
+	const treningsform = startOptions ? treningsformViewOf(startOptions) : null
+
 	return {
+		// What Plan leads with beside the curve (ADR 0101 §2): the easy week the
+		// rhythm prescribes next, from the week the athlete is in.
+		nextEasyWeek: readNextEasyWeek(
+			season.weeks,
+			weekMonday(now, season.timezone),
+		),
 		seasonQuery,
 		attachableEvents,
+		treningsform,
 		strengthOffer,
 		firstUnbegunWeekKey,
+		libraryLifts,
 		seasonEvents: {
 			events: upcomingEvents.slice(0, SEASON_EVENTS_SHOWN),
 			upcomingCount: upcomingEvents.length,
@@ -1235,39 +1267,47 @@ export async function action({ request }: Route.ActionArgs) {
 		}
 		case 'preview-philosophy':
 		case 'switch-philosophy': {
+			// The same preview and switch serve _Bytt filosofi_ in Avansert and
+			// _Bytt treningsform_ in the lead (#581); each answers where it was
+			// asked, under a key of its own.
+			const lead = formData.get('surface') === TRENINGSFORM_SURFACE
+			type Reply = ReturnType<typeof philosophyReply>
+			const answer = (
+				reply: Reply,
+			): { treningsform: Reply } | { philosophy: Reply } =>
+				lead ? { treningsform: reply } : { philosophy: reply }
 			const submission = parseWithZod(formData, {
 				schema: PhilosophySwitchFormSchema,
 			})
 			if (submission.status !== 'success') {
-				return data(
-					{ philosophy: philosophyReply({ result: submission.reply() }) },
-					{ status: 400 },
-				)
+				return data(answer(philosophyReply({ result: submission.reply() })), {
+					status: 400,
+				})
 			}
 			const { intent: asked, outlineId: switching, family } = submission.value
 			if (asked === 'preview-philosophy') {
 				const preview = await readPhilosophySwitch(userId, switching, family)
 				if (!preview.ok) {
 					return data(
-						{
-							philosophy: philosophyReply({
+						answer(
+							philosophyReply({
 								result: submission.reply({
 									formErrors: [
 										PHILOSOPHY_SWITCH_REFUSAL_LABELS[preview.reason],
 									],
 								}),
 							}),
-						},
+						),
 						{ status: 400 },
 					)
 				}
 				// Nothing written: the preview, for the athlete to confirm under.
-				return {
-					philosophy: philosophyReply({
+				return answer(
+					philosophyReply({
 						result: submission.reply(),
 						preview: previewView(preview),
 					}),
-				}
+				)
 			}
 			const switched = await switchPhilosophy(
 				userId,
@@ -1282,8 +1322,8 @@ export async function action({ request }: Route.ActionArgs) {
 				const message = PHILOSOPHY_SWITCH_REFUSAL_LABELS[switched.reason]
 				const fresh = await readPhilosophySwitch(userId, switching, family)
 				return data(
-					{
-						philosophy: fresh.ok
+					answer(
+						fresh.ok
 							? philosophyReply({
 									confirmResult: submission.reply({ formErrors: [message] }),
 									preview: previewView(fresh),
@@ -1291,19 +1331,32 @@ export async function action({ request }: Route.ActionArgs) {
 							: philosophyReply({
 									result: submission.reply({ formErrors: [message] }),
 								}),
-					},
+					),
 					{ status: 400 },
 				)
 			}
 			const url = new URL(request.url)
-			return redirectWithToast(`${url.pathname}${url.search}`, {
-				type: 'success',
-				title: PHILOSOPHY_SWITCH_LABELS.done,
-				description: switchedPhilosophySentence(
-					family,
-					formatNbDate(new Date(`${switched.fromWeekKey}T12:00:00Z`), 'UTC'),
-				),
-			})
+			const from = formatNbDate(
+				new Date(`${switched.fromWeekKey}T12:00:00Z`),
+				'UTC',
+			)
+			return redirectWithToast(
+				`${url.pathname}${url.search}`,
+				lead
+					? {
+							type: 'success',
+							title: TRENINGSFORM_LABELS.done,
+							description: TRENINGSFORM_LABELS.switched(
+								PLAN_LEAD_LABELS.plainName[family],
+								from,
+							),
+						}
+					: {
+							type: 'success',
+							title: PHILOSOPHY_SWITCH_LABELS.done,
+							description: switchedPhilosophySentence(family, from),
+						},
+			)
 		}
 		// The Sesong edits (#505 stories 72–77): preview, then apply.
 		case 'preview-season-edit':
@@ -2089,6 +2142,7 @@ export default function PlanRoute({
 		season,
 		tab,
 		seasonQuery,
+		libraryLifts,
 		week,
 		workouts,
 		strengthTracks,
@@ -2105,6 +2159,7 @@ export default function PlanRoute({
 		seasonPicture,
 		restingOpenEnded,
 		seasonFitness,
+		nextEasyWeek,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -2126,6 +2181,11 @@ export default function PlanRoute({
 	// _Bytt filosofi_ and the strength offer answer inside their own forms.
 	const philosophy =
 		actionData && 'philosophy' in actionData ? actionData.philosophy : null
+	// _Bytt treningsform_ answers in the lead, under the card that asked (#581).
+	const treningsformReply =
+		actionData && 'treningsform' in actionData
+			? (actionData.treningsform ?? null)
+			: null
 	// The Sesong edits answer inside their own forms too.
 	const seasonEdit =
 		actionData && 'seasonEdit' in actionData ? actionData.seasonEdit : null
@@ -2133,6 +2193,13 @@ export default function PlanRoute({
 		actionData && 'strengthOffer' in actionData
 			? actionData.strengthOffer.result
 			: undefined
+	// Every other answer was asked inside Avansert, so it opens Avansert: a
+	// refusal or a preview is read where it was asked (`__plan-advanced.tsx`).
+	// The lead's own two answer in the lead and leave Avansert closed.
+	const advancedReply =
+		actionData && attachResult === undefined && treningsformReply == null
+			? actionData
+			: null
 	// The same, for a week copy aimed at a week that already holds sessions (#415).
 	const pendingCopy: PendingCopy | null =
 		actionData && 'copy' in actionData ? actionData.copy : null
@@ -2164,15 +2231,18 @@ export default function PlanRoute({
 		// One column to `lg`, then two (decision 13): wide enough for both
 		// columns to keep a phone's reading width rather than one long line.
 		<main className="container mx-auto max-w-2xl py-6 md:py-8 lg:max-w-6xl">
-			{/* Sesong is a tab's landing page (ADR 0083), so it carries no back
-			    affordance (ui-conventions §3.3): the tab bar is the way out. */}
+			{/* Plan is a tab's landing page (ADR 0101, ADR 0083), so it carries no
+			    back affordance (ui-conventions §3.3): the tab bar is the way out. */}
 			<PageHeader
-				title={APP_TAB_LABELS.season}
+				title={APP_TAB_LABELS.plan}
 				className="mb-2"
 				// Owner decision 6: "+ Ny" on I dag makes sessions only; a race and a
 				// plan are started here.
 				actions={
-					<nav aria-label={SESONG_ENTRY_LABELS.group} className="flex gap-2">
+					<nav
+						aria-label={SESONG_ENTRY_LABELS.group}
+						className="flex flex-wrap justify-end gap-2"
+					>
 						<PillLink to="/training/events/new" className="px-3">
 							<Icon name="plus" size="sm" />
 							{SESONG_ENTRY_LABELS.newEvent}
@@ -2185,96 +2255,93 @@ export default function PlanRoute({
 				}
 			/>
 
-			<div className="mb-6 space-y-3 lg:mx-auto lg:max-w-2xl">
-				{season.eventId != null && season.eventDate != null ? (
-					<PlanHero
-						eyebrow={SESONG_PAGE_LABELS.heroToward}
-						title={
+			{/* Plan leads with the plan in plain words (ADR 0101 §2): the plain
+			    name and the family small, the curve with this week marked, the next
+			    easy week and Legg til et løp. Then Bibliotek, then everything else
+			    behind a closed Avansert. One column at the phone's reading width on
+			    every screen; only Avansert's inside widens to two from `lg`. */}
+			<PlanLeadCard
+				family={season.family}
+				toward={
+					season.eventId != null && season.eventDate != null
+						? {
+								kind: 'event',
+								eventId: season.eventId,
+								name: season.eventName ?? '',
+								date: season.eventDate,
+								weeks: totalWeeks,
+							}
+						: { kind: 'open-ended', round: season.round ?? 1 }
+				}
+				startsAt={season.phases[0]!.startsAt}
+				timezone={timezone}
+				picture={seasonPicture}
+				nextEasyWeek={nextEasyWeek}
+				attach={{
+					outlineId: season.outlineId,
+					events: attachableEvents,
+					lastResult: attachResult,
+				}}
+				resting={
+					season.resting ? (
+						// A plan toward a race is the active one, so this plan lays no weeks
+						// until that race has passed (ADR 0079).
+						<p
+							data-plan-resting
+							className="text-footnote text-muted-foreground text-center"
+						>
+							{SESONG_PAGE_LABELS.resting}{' '}
 							<Link
-								to={`/training/events/${season.eventId}`}
-								className="hover:underline"
+								to="/training/plan"
+								className="text-foreground relative inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
 							>
-								{season.eventName}
+								{SESONG_PAGE_LABELS.restingLink}
 							</Link>
-						}
-						meta={
-							// The Event's date is a calendar day anchor, formatted in UTC
-							// like every other Event date in the app (ADR 0023).
-							SESONG_PAGE_LABELS.heroMeta(
-								formatNbDate(season.eventDate, 'UTC'),
-								totalWeeks,
-								formatNbDate(season.phases[0]!.startsAt, timezone),
-							)
-						}
-						action={
-							<PillLink to={`/training/events/${season.eventId}`}>
-								<Icon name="calendar" size="sm" />
-								{SESONG_PAGE_LABELS.heroChange}
-							</PillLink>
-						}
-					/>
-				) : (
-					// An open-ended plan has no Event and no end date (ADR 0079): its hero
-					// says which round it is in and that there is no end, never a race
-					// day it would have to invent (#505 story 9).
-					<PlanHero
-						eyebrow={OPEN_ENDED_PLAN_LABEL}
-						title={
-							<span data-open-ended-round>
-								{openEndedBlockLabel(season.round ?? 1)}
-							</span>
-						}
-						meta={SESONG_PAGE_LABELS.openEndedMeta(
-							formatNbDate(season.phases[0]!.startsAt, timezone),
-						)}
-						action={
-							<AttachEventOffer
-								outlineId={season.outlineId}
-								events={attachableEvents}
-								lastResult={attachResult}
-							/>
-						}
-					/>
-				)}
-				{season.resting ? (
-					// A plan toward a race is the active one, so this plan lays no weeks
-					// until that race has passed (ADR 0079).
-					<p
-						data-plan-resting
-						className="text-footnote text-muted-foreground text-center"
-					>
-						{SESONG_PAGE_LABELS.resting}{' '}
-						<Link
-							to="/training/plan"
-							className="text-foreground relative inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+						</p>
+					) : restingOpenEnded ? (
+						// The way back to the athlete's open-ended plan while it rests behind
+						// this one (audit B12): otherwise only `?outline=` reached it.
+						<p
+							data-plan-resting-elsewhere
+							className="text-footnote text-muted-foreground text-center"
 						>
-							{SESONG_PAGE_LABELS.restingLink}
-						</Link>
-					</p>
-				) : restingOpenEnded ? (
-					// The way back to the athlete's open-ended plan while it rests behind
-					// this one (audit B12): otherwise only `?outline=` reached it.
-					<p
-						data-plan-resting-elsewhere
-						className="text-footnote text-muted-foreground text-center"
-					>
-						{SESONG_PAGE_LABELS.restingElsewhere}{' '}
-						<Link
-							to={`/training/plan?outline=${restingOpenEnded.outlineId}`}
-							className="text-foreground relative inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
-						>
-							{SESONG_PAGE_LABELS.restingElsewhereLink}
-						</Link>
-					</p>
+							{SESONG_PAGE_LABELS.restingElsewhere}{' '}
+							<Link
+								to={`/training/plan?outline=${restingOpenEnded.outlineId}`}
+								className="text-foreground relative inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+							>
+								{SESONG_PAGE_LABELS.restingElsewhereLink}
+							</Link>
+						</p>
+					) : null
+				}
+				className="lg:mx-auto lg:max-w-2xl"
+			>
+				{/* Bytt treningsform, after Legg til et løp (ADR 0101 §2): the Start
+				    Options again for this plan, switching only behind the preview. */}
+				{loaderData.treningsform ? (
+					<TreningsformOffer
+						outlineId={season.outlineId}
+						view={loaderData.treningsform}
+						reply={treningsformReply}
+					/>
 				) : null}
-			</div>
+			</PlanLeadCard>
 
-			{/* The surface's order (round-2 decisions 12 and 13, ADR 0090): the season
+			{/* Bibliotek, which had its own tab (ADR 0101 §1): under the lead and
+			    above Avansert (ADR 0101 §2's order). */}
+			<LibrarySection
+				lifts={libraryLifts}
+				className="mt-10 lg:mx-auto lg:max-w-2xl"
+			/>
+
+			<PlanAdvanced reply={advancedReply} className="mt-10">
+				{/* The surface's order (round-2 decisions 12 and 13, ADR 0090): the season
 			    as a picture first — I dag's curve and table, where a week is read and
 			    opened — then the edits and the philosophy that change it, the Events
 			    it is planned around, what it adds up to, and the two readings that
 			    author its rules. */}
-			{/* From `lg`, two columns (round-2 decision 13, ADR 0090): the season —
+				{/* From `lg`, two columns (round-2 decision 13, ADR 0090): the season —
 			    picture and table, what it comes to, the readings — on the left, and
 			    the edits, the philosophy and the Events on the right. Not the full
 			    spreadsheet (Arket N). One DOM order for both widths, so the phone's
@@ -2283,159 +2350,162 @@ export default function PlanRoute({
 			    beside it. The last row is `1fr`, so a tall right column grows that
 			    row (the readings', which run longest) rather than opening gaps
 			    between the left column's cards. */}
-			<div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:grid-rows-[repeat(4,auto)_1fr] lg:items-start lg:space-y-0 lg:gap-x-6 lg:gap-y-6">
-				{seasonPicture ? (
-					<div className="lg:col-start-1">
-						<SeasonPicture
-							picture={seasonPicture}
-							firstUnbegunWeekKey={firstUnbegunWeekKey}
-						/>
-					</div>
-				) : null}
+				<div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:grid-rows-[repeat(4,auto)_1fr] lg:items-start lg:space-y-0 lg:gap-x-6 lg:gap-y-6">
+					{seasonPicture ? (
+						<div className="lg:col-start-1">
+							<SeasonPicture
+								picture={seasonPicture}
+								firstUnbegunWeekKey={firstUnbegunWeekKey}
+							/>
+						</div>
+					) : null}
 
-				<div className="space-y-6 lg:col-start-2 lg:row-span-full lg:row-start-1">
-					{/* The Sesong edits (#505 stories 72–77): a week's target, a phase's
+					<div className="space-y-6 lg:col-start-2 lg:row-span-full lg:row-start-1">
+						{/* The Sesong edits (#505 stories 72–77): a week's target, a phase's
 					    name and length, and the easy week — each behind a preview. A row
 					    of the season table opens the first of them on its week. */}
-					<PlanCard
-						titleId="season-edits"
-						title={SEASON_EDIT_LABELS.title}
-						contentClassName="space-y-3"
-						className="scroll-mt-4"
-					>
-						<SeasonEditsCard
-							outlineId={season.outlineId}
-							weeks={season.weeks}
-							phases={season.phases}
-							tracks={season.tracks}
-							firstUnbegunWeekKey={firstUnbegunWeekKey}
-							reply={seasonEdit}
-						/>
-					</PlanCard>
+						<PlanCard
+							titleId="season-edits"
+							title={SEASON_EDIT_LABELS.title}
+							contentClassName="space-y-3"
+							className="scroll-mt-4"
+						>
+							<SeasonEditsCard
+								outlineId={season.outlineId}
+								weeks={season.weeks}
+								phases={season.phases}
+								tracks={season.tracks}
+								firstUnbegunWeekKey={firstUnbegunWeekKey}
+								reply={seasonEdit}
+							/>
+						</PlanCard>
 
-					{/* The philosophy the plan follows, and the way to another one behind
+						{/* The philosophy the plan follows, and the way to another one behind
 					    a preview (#505 stories 10–14). Its own card: it is a choice about
 					    the whole season, not a figure of it. */}
-					<PlanCard
-						titleId="philosophy"
-						title={PHILOSOPHY_SWITCH_LABELS.title}
-						contentClassName="space-y-3"
-						className="scroll-mt-4"
-					>
-						<PhilosophyCard
-							key={philosophy?.preview?.digest ?? 'none'}
-							outlineId={season.outlineId}
-							family={season.family}
-							preview={philosophy?.preview ?? null}
-							lastResult={philosophy?.result}
-							confirmResult={philosophy?.confirmResult}
-						/>
-					</PlanCard>
+						<PlanCard
+							titleId="philosophy"
+							title={PHILOSOPHY_SWITCH_LABELS.title}
+							contentClassName="space-y-3"
+							className="scroll-mt-4"
+						>
+							<PhilosophyCard
+								key={philosophy?.preview?.digest ?? 'none'}
+								outlineId={season.outlineId}
+								family={season.family}
+								preview={philosophy?.preview ?? null}
+								lastResult={philosophy?.result}
+								confirmResult={philosophy?.confirmResult}
+							/>
+						</PlanCard>
 
-					{/* The Events the season is planned around, and the ways to plan
+						{/* The Events the season is planned around, and the ways to plan
 					    another race or another plan (spec #505 story 57, decision 6). */}
-					<SeasonEvents
-						events={seasonEvents.events}
-						upcomingCount={seasonEvents.upcomingCount}
-					/>
-				</div>
+						<SeasonEvents
+							events={seasonEvents.events}
+							upcomingCount={seasonEvents.upcomingCount}
+						/>
+					</div>
 
-				{/* What the plan comes to, as figures rather than as a paragraph. The
+					{/* What the plan comes to, as figures rather than as a paragraph. The
 				    **Season Span** is the headline #399 asks for, and it keeps its own
 				    per-group honesty in here — the card is a frame around the figures and
 				    decides nothing about which of them may be added to which. */}
-				<PlanCard
-					titleId="season-summary"
-					title={SESONG_PAGE_LABELS.summaryTitle}
-					contentClassName="space-y-5"
-					className="lg:col-start-1"
-				>
-					{season.spanGroups.length > 0 ? (
-						<SeasonSpanHeadline
-							groups={season.spanGroups}
-							weeks={season.weeks}
-						/>
-					) : null}
-					{/* Where the season lands against the Event. No Event, nothing to fit
+					<PlanCard
+						titleId="season-summary"
+						title={SESONG_PAGE_LABELS.summaryTitle}
+						contentClassName="space-y-5"
+						className="lg:col-start-1"
+					>
+						{season.spanGroups.length > 0 ? (
+							<SeasonSpanHeadline
+								groups={season.spanGroups}
+								weeks={season.weeks}
+							/>
+						) : null}
+						{/* Where the season lands against the Event. No Event, nothing to fit
 					    to: an open-ended plan says nothing here rather than measuring
 					    itself against a race it does not have. */}
-					{season.fit ? (
-						<p className="border-border/60 text-footnote text-muted-foreground border-t pt-4">
-							{fitSentence(season.fit)}
-						</p>
-					) : null}
-					{strengthOffer ? (
-						<StrengthTrackOfferCard
+						{season.fit ? (
+							<p className="border-border/60 text-footnote text-muted-foreground border-t pt-4">
+								{fitSentence(season.fit)}
+							</p>
+						) : null}
+						{strengthOffer ? (
+							<StrengthTrackOfferCard
+								outlineId={season.outlineId}
+								offer={strengthOffer}
+								lastResult={strengthOfferResult}
+							/>
+						) : null}
+						<TrackRoster
 							outlineId={season.outlineId}
-							offer={strengthOffer}
-							lastResult={strengthOfferResult}
+							tracks={season.tracks}
+							proposals={trackProposals}
+							error={trackError}
 						/>
-					) : null}
-					<TrackRoster
-						outlineId={season.outlineId}
-						tracks={season.tracks}
-						proposals={trackProposals}
-						error={trackError}
-					/>
-				</PlanCard>
+					</PlanCard>
 
-				{/* What is left to set up, above the two readings that do it — gone
+					{/* What is left to set up, above the two readings that do it — gone
 				    once nothing is outstanding: a way in, not a scoreboard. */}
-				<div className="lg:col-start-1">
-					<NextSteps
-						season={season}
-						weeksWithSessions={weeksWithSessions}
-						hrefFor={readingHref}
-					/>
-				</div>
+					<div className="lg:col-start-1">
+						<NextSteps
+							season={season}
+							weeksWithSessions={weeksWithSessions}
+							hrefFor={readingHref}
+						/>
+					</div>
 
-				{/* What the plan **cannot** tell you (#399 story 49, ADR 0047 §5): about
+					{/* What the plan **cannot** tell you (#399 story 49, ADR 0047 §5): about
 				    the plan, not a control, so said once beside its figures — behind a
 				    closed line that names it, rather than three paragraphs in the way
 				    of the edits. */}
-				{season.unavailableReadings.length > 0 ? (
-					<div className="lg:col-start-1">
-						<UnavailableReadingsNotice readings={season.unavailableReadings} />
+					{season.unavailableReadings.length > 0 ? (
+						<div className="lg:col-start-1">
+							<UnavailableReadingsNotice
+								readings={season.unavailableReadings}
+							/>
+						</div>
+					) : null}
+
+					<div className="space-y-6 lg:col-start-1">
+						<SegmentedNav
+							label={SESONG_PAGE_LABELS.readings}
+							options={TABS.map((name) => ({
+								key: name,
+								label: TAB_LABELS[name],
+							}))}
+							current={tab}
+							hrefFor={readingHref}
+						/>
+
+						{tab === 'blocks' ? (
+							<BlocksReading
+								season={season}
+								error={error}
+								actionData={actionData}
+								strengthTracks={strengthTracks}
+								anchorTracks={anchorTracks}
+								firstUnbegunWeekKey={firstUnbegunWeekKey}
+								conversionContexts={conversionContexts}
+								fitnessAnchor={fitnessAnchor}
+								seasonFitness={seasonFitness}
+							/>
+						) : (
+							<WeeksReading
+								season={season}
+								error={error}
+								chosenWeek={previewWeek}
+								workouts={workouts}
+								seasonQuery={seasonQuery}
+								pendingCopy={pendingCopy}
+								mixWarnings={mixWarnings}
+								firstUnbegunWeekKey={firstUnbegunWeekKey}
+							/>
+						)}
 					</div>
-				) : null}
-
-				<div className="space-y-6 lg:col-start-1">
-					<SegmentedNav
-						label={SESONG_PAGE_LABELS.readings}
-						options={TABS.map((name) => ({
-							key: name,
-							label: TAB_LABELS[name],
-						}))}
-						current={tab}
-						hrefFor={readingHref}
-					/>
-
-					{tab === 'blocks' ? (
-						<BlocksReading
-							season={season}
-							error={error}
-							actionData={actionData}
-							strengthTracks={strengthTracks}
-							anchorTracks={anchorTracks}
-							firstUnbegunWeekKey={firstUnbegunWeekKey}
-							conversionContexts={conversionContexts}
-							fitnessAnchor={fitnessAnchor}
-							seasonFitness={seasonFitness}
-						/>
-					) : (
-						<WeeksReading
-							season={season}
-							error={error}
-							chosenWeek={previewWeek}
-							workouts={workouts}
-							seasonQuery={seasonQuery}
-							pendingCopy={pendingCopy}
-							mixWarnings={mixWarnings}
-							firstUnbegunWeekKey={firstUnbegunWeekKey}
-						/>
-					)}
 				</div>
-			</div>
+			</PlanAdvanced>
 		</main>
 	)
 }

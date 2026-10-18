@@ -5,27 +5,36 @@ import { Icon } from '#app/components/ui/icon.tsx'
 import { FIRST_RUN_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 
-/** The first run's five screens, in order (#505 story 61–68). */
-export const FIRST_RUN_STEP_COUNT = 5
+/**
+ * The simple start's screens so far: the level, the activities (#563), the
+ * Session Preferences (#571), then the **Start Options** (#566).
+ */
+export const SIMPLE_START_STEP_COUNT = 4
 
 /**
- * One screen of the first run: which step it is, its heading, and its body —
- * a phone-first column, the way every #505 surface is read.
+ * One screen of the start: which step it is, its heading, and its body — a
+ * phone-first column, the way every #505 surface is read.
  *
  * On the design system (round 2, ADR 0085): the heading is the `title` step,
- * the intro `body`, the step count a footnote beside five segments that fill
- * as the athlete goes (static: progress never animates, design-system D6), and
- * steps 2–5 carry the 44px back arrow every non-top-level screen has (Arket
- * J; `PageHeader`'s own control), so "back" is never a link at the bottom.
+ * the intro `body`, the step count a footnote beside segments that fill as the
+ * athlete goes (static: progress never animates, design-system D6), and every
+ * screen after the first carries the 44px back arrow every non-top-level
+ * screen has (Arket J; `PageHeader`'s own control), so "back" is never a link
+ * at the bottom. A screen beside the steps (connecting intervals.icu, #578)
+ * has no `step`, and shows the arrow alone.
  */
 export function FirstRunFrame({
 	step,
+	stepCount = SIMPLE_START_STEP_COUNT,
 	title,
 	intro,
 	back,
 	children,
 }: {
-	step: number
+	/** Which step this is, or none for a screen beside the steps. */
+	step?: number
+	/** How many screens the flow has; the simple start's by default. */
+	stepCount?: number
 	title: string
 	intro?: ReactNode
 	/** The step before, by URL, and what the arrow is read out as. */
@@ -38,6 +47,8 @@ export function FirstRunFrame({
 				{back ? (
 					<Link
 						to={back.to}
+						// Back plays the morph that brought the athlete here in reverse.
+						viewTransition
 						aria-label={back.label}
 						className={cn(
 							buttonVariants({ variant: 'ghost', size: 'icon' }),
@@ -47,23 +58,27 @@ export function FirstRunFrame({
 						<Icon name="arrow-left" size="md" />
 					</Link>
 				) : null}
-				<p
-					className="text-footnote text-muted-foreground shrink-0 tabular-nums"
-					data-first-run-step={step}
-				>
-					{FIRST_RUN_LABELS.stepOf(step, FIRST_RUN_STEP_COUNT)}
-				</p>
-				<div aria-hidden className="flex flex-1 gap-1">
-					{Array.from({ length: FIRST_RUN_STEP_COUNT }, (_, index) => (
-						<span
-							key={index}
-							className={cn(
-								'h-1 flex-1 rounded-full',
-								index < step ? 'bg-primary' : 'bg-muted',
-							)}
-						/>
-					))}
-				</div>
+				{step != null ? (
+					<>
+						<p
+							className="text-footnote text-muted-foreground shrink-0 tabular-nums"
+							data-first-run-step={step}
+						>
+							{FIRST_RUN_LABELS.stepOf(step, stepCount)}
+						</p>
+						<div aria-hidden className="flex flex-1 gap-1">
+							{Array.from({ length: stepCount }, (_, index) => (
+								<span
+									key={index}
+									className={cn(
+										'h-1 flex-1 rounded-full',
+										index < step ? 'bg-primary' : 'bg-muted',
+									)}
+								/>
+							))}
+						</div>
+					</>
+				) : null}
 			</div>
 			<h1 className="text-title mt-3 text-balance">{title}</h1>
 			{intro ? (
@@ -87,7 +102,7 @@ export const SECONDARY_ACTION = cn(
 )
 
 /**
- * A disclosure's row ("Noe er feil", "Bytt filosofi"): the whole card-width
+ * A disclosure's row ("Under panseret", "Slik regnet vi"): the whole card-width
  * row is the 44px+ target, with an instant tint on press — the row is a
  * surface, not a button to scale — and the chevron turns as the panel opens.
  */

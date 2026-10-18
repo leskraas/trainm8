@@ -5,9 +5,18 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
+import { draftStart } from '#app/utils/first-run/start-draft.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import { type EditableStrengthTrack } from './__strength-segment-editor.tsx'
+import { treningsformViewOf } from './__treningsform-view.ts'
+import { type TreningsformView } from './__treningsform.tsx'
 import PlanRoute from './plan.tsx'
+
+// jsdom has no layout, so no `scrollIntoView`. These suites land on
+// `#avansert`, and Avansert scrolls its target to the top once the panel has
+// settled (`__plan-advanced.tsx`), a timer that fires while the route is still
+// mounted.
+window.HTMLElement.prototype.scrollIntoView = () => {}
 
 // A refusal lands only after the submit round-trips through the stub's action and
 // the route re-renders — and this route renders the roster, the anchor list, both
@@ -19,9 +28,14 @@ const REFUSAL_TIMEOUT = 5000
 
 type Season = {
 	outlineId: string
-	eventId: string
-	eventName: string
-	eventDate: Date
+	/** All three null for an open-ended plan (ADR 0079). */
+	eventId: string | null
+	eventName: string | null
+	eventDate: Date | null
+	/** The philosophy the plan follows; absent or null when it follows none. */
+	family?: 'classic' | 'masters' | 'big-base' | 'polarized' | 'threshold' | null
+	/** An open-ended plan's round, the n of _blokk n av ∞_. */
+	round?: number | null
 	startWeekKey: string
 	timezone: string
 	/** `null` means the athlete never set their availability (ADR 0042 §9). */
@@ -159,7 +173,7 @@ type Season = {
 		orderIndex: number
 		days: PatternDay[]
 	}>
-	fit: { kind: string; weeks?: number }
+	fit: { kind: string; weeks?: number } | null
 	currentPhaseIndex: number | null
 }
 
@@ -636,6 +650,14 @@ function renderPlan(
 		}
 		/** The first week not yet begun; weeks before it offer no edit. */
 		firstUnbegunWeekKey?: string
+		/** Bibliotek's lifts (ADR 0101); none unless a test says so. */
+		libraryLifts?: Array<{ id: string; name: string }>
+		/** The lead's next easy week (ADR 0101 §2); none unless a test says so. */
+		nextEasyWeek?: { weekKey: string; weekNumber: number; isThisWeek: boolean }
+		/** Where the athlete lands; Avansert open, unless a test says otherwise. */
+		at?: string
+		/** _Bytt treningsform_'s options (#581); none unless a test says so. */
+		treningsform?: TreningsformView
 	} = {},
 ) {
 	const week =
@@ -674,6 +696,11 @@ function renderPlan(
 				fitnessAnchor: null,
 				trackProposals: extra.trackProposals ?? proposalsFor(season),
 				seasonEvents: extra.seasonEvents ?? { events: [], upcomingCount: 0 },
+				libraryLifts: extra.libraryLifts ?? [],
+				nextEasyWeek: extra.nextEasyWeek ?? null,
+				treningsform: extra.treningsform ?? null,
+				// No Event of the athlete's waits for a plan unless a test says so.
+				attachableEvents: [],
 				// Every week of these fixtures is ahead, so each offers its edit.
 				firstUnbegunWeekKey:
 					extra.firstUnbegunWeekKey ?? season.weeks[0]?.weekKey ?? '2030-01-07',
@@ -685,7 +712,13 @@ function renderPlan(
 	render(
 		<App
 			initialEntries={[
-				tab === 'blocks' ? '/training/plan' : '/training/plan?tab=weeks',
+				// Every Sesong editor lives behind Plan's closed Avansert now (ADR
+				// 0101 §2). These suites read the editors, so they land on Avansert
+				// the way I dag's Avansert chip does; `?tab=weeks` opens it by itself.
+				extra.at ??
+					(tab === 'blocks'
+						? '/training/plan#avansert'
+						: '/training/plan?tab=weeks'),
 			]}
 		/>,
 	)
@@ -753,6 +786,202 @@ async function openWeeks() {
 	return within(list).getAllByRole('listitem')
 }
 
+// ---------------------------------------------------------------------------
+// Plan leads with the plain picture (ADR 0101 §2, #577)
+// ---------------------------------------------------------------------------
+
+const EASY_WEEK = { weekKey: '2030-01-14', weekNumber: 3, isThisWeek: false }
+
+test('Plan opens on the plain name with the family small and the next easy week', async () => {
+	renderPlan({ ...SEASON, family: 'polarized' }, 'blocks', null, undefined, {
+		at: '/training/plan',
+		nextEasyWeek: EASY_WEEK,
+	})
+
+	// The Start Option's own words, so the plan reads as the card picked.
+	expect(
+		await screen.findByRole('heading', {
+			level: 1,
+			name: 'Mest rolig, litt veldig hardt',
+		}),
+	).toBeInTheDocument()
+	expect(screen.getByText('Fagnavn: Polarisert 80/20')).toBeInTheDocument()
+	expect(
+		screen.getByText('Neste lette uke er uke 3, fra 14. jan 2030.'),
+	).toBeInTheDocument()
+	// Toward the race, by name.
+	expect(
+		screen.getByRole('link', { name: 'Spring Half Marathon' }),
+	).toBeInTheDocument()
+})
+
+test('a plan that follows no family is the athlete’s own, and says no family', async () => {
+	renderPlan({ ...SEASON, family: null }, 'blocks', null, undefined, {
+		at: '/training/plan',
+	})
+
+	expect(
+		await screen.findByRole('heading', { level: 1, name: 'Din egen plan' }),
+	).toBeInTheDocument()
+	expect(screen.queryByText(/^Fagnavn:/)).not.toBeInTheDocument()
+})
+
+test('the athlete in the easy week is told so, not given a date', async () => {
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		at: '/training/plan',
+		nextEasyWeek: { ...EASY_WEEK, isThisWeek: true },
+	})
+
+	expect(
+		await screen.findByText('Denne uka er en lett uke.'),
+	).toBeInTheDocument()
+})
+
+test('an open-ended plan offers Legg til et løp in the lead', async () => {
+	renderPlan(
+		{
+			...SEASON,
+			eventId: null,
+			eventName: null,
+			eventDate: null,
+			fit: null,
+			round: 2,
+			family: 'classic',
+		},
+		'blocks',
+		null,
+		undefined,
+		{ at: '/training/plan' },
+	)
+
+	const lead = await screen.findByRole('region', {
+		name: 'Variert og bygger seg opp',
+	})
+	expect(lead).toHaveTextContent('blokk 2 av ∞')
+	expect(
+		within(lead).getByRole('button', { name: /Legg til et løp/ }),
+	).toBeInTheDocument()
+})
+
+test('Bytt treningsform comes after Legg til et løp in the lead, and its preview leaves Avansert closed', async () => {
+	const answers = {
+		level: 'recreational' as const,
+		discipline: 'run' as const,
+		hours: 5,
+		days: [0, 2, 4, 5] as Array<0 | 2 | 4 | 5>,
+		startWeekKey: '2030-01-14',
+	}
+	const treningsform = treningsformViewOf({
+		answers,
+		start: draftStart(answers)!,
+		current: 'classic',
+		levelSaid: true,
+	})
+	renderPlan(
+		{
+			...SEASON,
+			eventId: null,
+			eventName: null,
+			eventDate: null,
+			fit: null,
+			round: 1,
+			family: 'classic',
+		},
+		'blocks',
+		null,
+		() => ({
+			treningsform: {
+				result: { status: 'success' },
+				confirmResult: null,
+				preview: {
+					from: 'classic',
+					to: 'polarized',
+					fromWeekKey: '2030-01-14',
+					digest: 'digest-1',
+					warnings: [],
+					phases: { before: [], after: [] },
+					weeks: [],
+				},
+			},
+		}),
+		{ at: '/training/plan', treningsform },
+	)
+
+	const lead = await screen.findByRole('region', {
+		name: 'Variert og bygger seg opp',
+	})
+	const attach = within(lead).getByRole('button', { name: /Legg til et løp/ })
+	const offer = within(lead).getByRole('button', { name: /Bytt treningsform/ })
+	expect(
+		attach.compareDocumentPosition(offer) & Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+
+	await userEvent.click(offer)
+	await userEvent.click(
+		within(lead).getByRole('button', {
+			name: 'Velg denne: Mest rolig, litt veldig hardt',
+		}),
+	)
+
+	expect(
+		await within(lead).findByRole('button', {
+			name: 'Bytt til Mest rolig, litt veldig hardt',
+		}),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('button', { name: /^Avansert\s*Filosofi/ }),
+	).toHaveAttribute('aria-expanded', 'false')
+})
+
+test('Avansert is closed by default, under Bibliotek, and holds the Sesong editors', async () => {
+	renderPlan({ ...SEASON, family: 'classic' }, 'blocks', null, undefined, {
+		at: '/training/plan',
+	})
+
+	const advanced = await screen.findByRole('button', {
+		name: /^Avansert\s*Filosofi, ukemål/,
+	})
+	expect(advanced).toHaveAttribute('aria-expanded', 'false')
+	// Closed means unrendered: none of the editors are on the page yet.
+	expect(
+		screen.queryByRole('region', { name: 'Endre sesongen' }),
+	).not.toBeInTheDocument()
+	expect(
+		screen.queryByRole('region', { name: 'Filosofi' }),
+	).not.toBeInTheDocument()
+	// The order ADR 0101 §2 sets: the lead, Bibliotek, then Avansert.
+	const library = screen.getByRole('region', { name: 'Bibliotek' })
+	const lead = screen.getByRole('region', { name: 'Variert og bygger seg opp' })
+	expect(
+		lead.compareDocumentPosition(library) & Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+	expect(
+		library.compareDocumentPosition(advanced) &
+			Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+
+	await userEvent.click(advanced)
+
+	expect(advanced).toHaveAttribute('aria-expanded', 'true')
+	for (const name of ['Endre sesongen', 'Filosofi', 'Hva planen består av']) {
+		expect(screen.getByRole('region', { name })).toBeInTheDocument()
+	}
+	expect(screen.getByRole('list', { name: 'Faser' })).toBeInTheDocument()
+})
+
+test('a link to a reading or an edit lands on Avansert open', async () => {
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		at: '/training/plan?edit=week-target&weekKey=2030-01-14&trackId=track-run',
+	})
+
+	expect(
+		await screen.findByRole('button', { name: /^Avansert\s*Filosofi/ }),
+	).toHaveAttribute('aria-expanded', 'true')
+	expect(
+		screen.getByRole('region', { name: 'Endre sesongen' }),
+	).toBeInTheDocument()
+})
+
 test('the season names its Event, its length and where it ends against it', async () => {
 	renderPlan()
 
@@ -767,7 +996,7 @@ test('the season names its Event, its length and where it ends against it', asyn
 	).toBeInTheDocument()
 })
 
-test('Sesong is a tab: no way back, and the Events it plans around are on it (ADR 0083)', async () => {
+test('Plan is a tab: no way back, and the Events it plans around are on it (ADR 0083, ADR 0101)', async () => {
 	renderPlan(SEASON, 'blocks', null, undefined, {
 		seasonEvents: {
 			events: [
@@ -784,7 +1013,7 @@ test('Sesong is a tab: no way back, and the Events it plans around are on it (AD
 	})
 
 	expect(
-		await screen.findByRole('heading', { name: 'Sesong', level: 1 }),
+		await screen.findByRole('heading', { name: 'Plan', level: 1 }),
 	).toBeInTheDocument()
 	expect(
 		screen.queryByRole('link', { name: /tilbake til/i }),
@@ -2345,9 +2574,11 @@ test('once the plan has begun, no shape is offered: Bytt filosofi is, behind its
 test('the edits outside Sesong v1 wait behind Avansert, which says they apply directly', async () => {
 	renderPlan()
 
-	const advanced = await screen.findAllByRole('button', {
-		name: /^Avansert/,
-	})
+	// Plan's own Avansert, which holds all of this (ADR 0101 §2), is not one of
+	// these lines: it says what it holds, not how its edits apply.
+	const advanced = (
+		await screen.findAllByRole('button', { name: /^Avansert/ })
+	).filter((trigger) => !trigger.hasAttribute('data-plan-advanced'))
 	// One per open block card (the current one), and one for the season's own
 	// rules.
 	expect(advanced.length).toBeGreaterThan(1)
@@ -3651,4 +3882,29 @@ test('weeks before the first anchor are named as Unavailable, never guessed', as
 	expect(
 		await screen.findByText(/Uke 2–3 i planen kan ikke regnes ut/),
 	).toBeInTheDocument()
+})
+
+test('Bibliotek is a section of Plan: the catalogue, programs, every exercise and the athlete’s own lifts (ADR 0101)', async () => {
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		libraryLifts: [{ id: 'exercise-1', name: 'Back Squat' }],
+	})
+
+	const library = within(
+		await screen.findByRole('region', { name: 'Bibliotek' }),
+	)
+	expect(library.getByRole('link', { name: /katalog/i })).toHaveAttribute(
+		'href',
+		'/training/catalogue',
+	)
+	expect(
+		library.getByRole('link', { name: /styrkeprogrammer/i }),
+	).toHaveAttribute('href', '/training/programs')
+	expect(library.getByRole('link', { name: /alle øvelser/i })).toHaveAttribute(
+		'href',
+		'/library/exercises',
+	)
+	expect(library.getByRole('link', { name: 'Back Squat' })).toHaveAttribute(
+		'href',
+		'/training/exercises/exercise-1',
+	)
 })

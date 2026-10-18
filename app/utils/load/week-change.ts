@@ -48,6 +48,25 @@ export function horizonWeekKey(closedWeekKey: string): string {
 	return addDays(closedWeekKey, 14)
 }
 
+/**
+ * Why the close could not lay its horizon week (#580): the Autopilot Notice
+ * says it, so an empty week never passes in silence. Only a week the athlete
+ * would expect laid counts — no plan, a week before the plan starts, or a plan
+ * resting behind a race is nothing to lay, and is not said.
+ */
+export const UNLAID_REASONS = [
+	'no-pattern',
+	'past-plan-end',
+	'nothing-to-lay',
+	'error',
+] as const
+export type UnlaidReason = (typeof UNLAID_REASONS)[number]
+
+/** A stored `WeekReplan.horizonUnlaid`, or null for none (or one unknown). */
+export function parseUnlaidReason(stored: string | null): UnlaidReason | null {
+	return UNLAID_REASONS.find((reason) => reason === stored) ?? null
+}
+
 /** The first local {@link SILENCE_APPLIES_AT} strictly after `instant`. */
 export function nextSilenceAfter(instant: Date, timezone: string): Date {
 	const day = localDate(instant, timezone)

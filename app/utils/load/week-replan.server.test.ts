@@ -67,6 +67,8 @@ async function createBiker({
 			athleteProfile: {
 				create: {
 					timezone,
+					// Spør meg først (ADR 0080): the proposals wait (#583).
+					autopilot: false,
 					disciplineProfiles: {
 						create: [
 							{
@@ -400,7 +402,9 @@ test('an over + fatigued week with nothing adjustable stores an explicit no-chan
 	const replans = await readReplans(user.id)
 	expect(replans).toHaveLength(1)
 	expect(replans[0]!.outcome).toBe('no-change')
-	expect(replans[0]!.reason).toContain('ingen økter igjen denne uka som kan gjøres lettere')
+	expect(replans[0]!.reason).toContain(
+		'ingen økter igjen denne uka som kan gjøres lettere',
+	)
 	expect(replans[0]!.appliedScale).toBeNull()
 	expect((await readSession(session.id)).replanReason).toBeNull()
 })
@@ -695,6 +699,7 @@ test('recomputeLoadFrom evaluates the Week Replan before the Session Nudge, and 
 			athleteProfile: {
 				create: {
 					timezone: 'UTC',
+					autopilot: false,
 					disciplineProfiles: {
 						create: [
 							{

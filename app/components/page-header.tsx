@@ -38,7 +38,7 @@ export function PageHeader({
 	className?: string
 }) {
 	return (
-		<header className={cn('flex items-center gap-2', className)}>
+		<header className={cn('flex flex-wrap items-center gap-2', className)}>
 			{back ? (
 				<Link
 					to={back.to}
@@ -52,9 +52,15 @@ export function PageHeader({
 					<Icon name="arrow-left" size="md" />
 				</Link>
 			) : null}
-			<h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{title}</h1>
+			<h1 className="min-w-0 flex-1 basis-40 truncate text-lg font-semibold">
+				{title}
+			</h1>
 			{actions ? (
-				<div className="flex shrink-0 items-center gap-2">{actions}</div>
+				// At large text on a phone the actions take a row of their own and
+				// wrap there, rather than pushing the page wider than the screen.
+				<div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+					{actions}
+				</div>
 			) : null}
 		</header>
 	)

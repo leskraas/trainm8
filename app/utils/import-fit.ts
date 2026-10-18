@@ -50,6 +50,27 @@ export function fitsImport(
 	)
 }
 
+/**
+ * Whether the athlete may link an import to a session **by hand** ("hva var
+ * dette?", spec #558 story 67): every session `fitsImport` allows, and also an
+ * import on `other` onto a planned **Simple Activity** — a session on `other`
+ * on the same day, holding no Recording (ADR 0015 §A). Auto-save never links
+ * by this rule; it stays on `fitsImport`, so no guess is shown as a match.
+ */
+export function fitsImportByHand(
+	session: Parameters<typeof fitsImport>[0],
+	imported: Parameters<typeof fitsImport>[1],
+): boolean {
+	if (fitsImport(session, imported)) return true
+	return (
+		imported.discipline === 'other' &&
+		session.workoutDiscipline === 'other' &&
+		session.dayKey === imported.dayKey &&
+		!session.hasRecording &&
+		!isRecordingOnlySource(session)
+	)
+}
+
 /** Strength is logged set by set (ADR 0056); no import brings its numbers. */
 export function importBringsNumbers(discipline: string): boolean {
 	return discipline !== 'strength' && discipline !== 'other'
@@ -58,8 +79,9 @@ export function importBringsNumbers(discipline: string): boolean {
 /**
  * Whether a session may be marked _Gjort_ by hand (#505 story 82): not yet
  * done or still open (`scheduled`, or marked `missed`), holding no Recording,
- * carrying a Workout in a sport an import can bring numbers for, on a day that
- * has begun and is at most a week back.
+ * carrying a Workout in a sport an import can bring numbers for — or a planned
+ * Simple Activity on `other`, whose _Gjort_ counts its planned time (ADR 0015
+ * §A) — on a day that has begun and is at most a week back.
  */
 export function canMarkDone(
 	session: {
@@ -74,7 +96,8 @@ export function canMarkDone(
 		(session.status === 'scheduled' || session.status === 'missed') &&
 		!session.hasRecording &&
 		session.workoutDiscipline != null &&
-		importBringsNumbers(session.workoutDiscipline) &&
+		(importBringsNumbers(session.workoutDiscipline) ||
+			session.workoutDiscipline === 'other') &&
 		session.dayKey <= todayKey &&
 		session.dayKey >= reachFromKey
 	)

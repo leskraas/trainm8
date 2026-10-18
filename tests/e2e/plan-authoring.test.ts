@@ -1,4 +1,10 @@
-import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
+import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
+import {
+	expect,
+	openPlanAdvanced,
+	test,
+	untilHydrated,
+} from '#tests/playwright-utils.ts'
 
 /**
  * Plan authoring end-to-end (#399, ADR 0039/0043/0044): the whole manual
@@ -43,13 +49,13 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 	// ---------------------------------------------------------------------
 
 	await navigate('/')
-	// Sesong is the way in (ADR 0083): with no season there is no season plan to
+	// Plan is the way in (ADR 0083, ADR 0101): with no season there is no season plan to
 	// open, so the tab lands on authoring one. The first tap after a load can race
 	// hydration, so retry until it lands.
 	await expect(async () => {
 		await page
 			.getByRole('navigation', { name: 'Hovedmeny' })
-			.getByRole('link', { name: 'Sesong' })
+			.getByRole('link', { name: 'Plan' })
 			.click()
 		await expect(page).toHaveURL('/training/plan/new', { timeout: 5000 })
 	}).toPass()
@@ -106,7 +112,12 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 	// ---------------------------------------------------------------------
 
 	await expect(page).toHaveURL(/\/training\/plan\?event=[a-z0-9]+$/i)
-	await expect(page.getByRole('heading', { name: goalName })).toBeVisible()
+	// The lead names the race the plan builds toward (ADR 0101 §2).
+	await expect(
+		page.getByRole('link', { name: goalName, exact: true }),
+	).toBeVisible()
+	// Every Sesong editor is behind Plan's closed Avansert (ADR 0101 §2).
+	await openPlanAdvanced(page)
 	// The season picture leads: I dag's curve and table, in ISO weeks, the
 	// lead track in its own unit.
 	const picture = page.getByRole('region', { name: 'Sesongen', exact: true })
@@ -139,7 +150,8 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 		.getByRole('article')
 		.filter({ hasText: 'Stor base' })
 	await expect(currentBlock.getByText('Nå', { exact: true })).toBeVisible()
-	await expect(currentBlock).toContainText('med 1 kvalitetsøkt i uka')
+	// Stor base starts all easy (ADR 0102, #565): its first block has no mix.
+	await expect(currentBlock).toContainText('uten kvalitetsøkter')
 	await currentBlock.getByRole('button', { name: /^Avansert/ }).click()
 	await currentBlock.getByLabel('Sone 4 terskel, økter i uka').fill('2')
 	await currentBlock
@@ -148,8 +160,8 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 
 	// Both readings are derived off the saved mix and nothing else (ADR 0042 §5):
 	// the emphasis label and the count follow the boxes, and neither is typed.
-	await expect(currentBlock).toContainText('1× tempo + 2× terskel')
-	await expect(currentBlock).toContainText('3 kvalitetsøkter i uka')
+	await expect(currentBlock).toContainText('2× terskel')
+	await expect(currentBlock).toContainText('2 kvalitetsøkter i uka')
 
 	// ---------------------------------------------------------------------
 	// Story 8–9: a typical week — and the weeks fill themselves from it
@@ -180,7 +192,7 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 	// The payoff: real sessions, and a home surface that knows about the plan
 	// ---------------------------------------------------------------------
 
-	await navigate('/')
+	await navigate(HOME_TIMELINE_HREF)
 	// Home now knows about the plan: the top line says where in it today falls
 	// and counts down to the race the season is for (ADR 0086), the strip runs
 	// out to the plan's taper, and the line saying there is no plan is gone.
