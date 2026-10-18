@@ -240,24 +240,25 @@ const sessionsOf = (laid: readonly Laid[]) => laid.map((l) => l.session)
 type DayPick = { date: string; clash: Clash | null }
 
 /**
- * The day pick: of the `candidates` (free days, ascending), the first on the
- * track's own days that fits, else the first that fits, else the first with
- * the clash it makes. A move the rule cannot read fits anywhere.
+ * The day pick: of the `candidates` (free days, ascending), the first that
+ * fits, else the first with the clash it makes. A track that names its own
+ * days and has one free is kept to them, clash or not (ADR 0104 §4: it trains
+ * only on them). A move the rule cannot read fits anywhere.
  */
 function pickDay(
-	candidates: readonly string[],
+	free: readonly string[],
 	week: readonly PlacedSession[],
 	shape: PlacedSessionShape | null | undefined,
 	ownDays: readonly PatternWeekday[] = [],
 ): DayPick | null {
+	const own = free.filter((date) => ownDays.includes(patternWeekday(date)))
+	const candidates = own.length > 0 ? own : free
 	const first = candidates[0]
 	if (first == null) return null
 	if (!shape) return { date: first, clash: null }
 	const clashesOn = (date: string) =>
 		placingClashes(week, placedOn(shape, patternWeekday(date)))
-	const fits = candidates.filter((date) => clashesOn(date).length === 0)
-	const fit =
-		fits.find((date) => ownDays.includes(patternWeekday(date))) ?? fits[0]
+	const fit = candidates.find((date) => clashesOn(date).length === 0)
 	if (fit) return { date: fit, clash: null }
 	return { date: first, clash: clashesOn(first)[0] ?? null }
 }

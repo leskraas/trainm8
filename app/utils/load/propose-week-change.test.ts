@@ -314,3 +314,26 @@ test("a make-up goes on its track's own day when one fits", () => {
 
 	expect(move?.toDate).toBe('2030-01-19')
 })
+
+test("a make-up stays on its track's free own day even when that day clashes, saying why", () => {
+	const move = moveOf(
+		proposeWeekChange({
+			...holdingFacts,
+			missedSessions: [
+				{
+					id: 'missed',
+					title: 'Terskeløkt',
+					date: '2030-01-09',
+					plannedTss: 90,
+					placement: { kind: 'session', effort: 'hard' },
+					// Pinned on Wednesday only, the day before Thursday's intervals.
+					ownDays: [2],
+				},
+			],
+		}),
+		'missed',
+	)
+
+	expect(move?.toDate).toBe('2030-01-16')
+	expect(move?.reason).toContain('onsdag og torsdag blir harde dager på rad')
+})
