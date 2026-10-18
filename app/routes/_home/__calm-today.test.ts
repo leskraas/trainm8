@@ -238,6 +238,7 @@ test('this week is seven rows: fri on a free day, ikke gjort on a past missed da
 		session('mon-open', '2029-12-31T07:00:00Z'),
 		session('tue-done', '2030-01-01T07:00:00Z', { status: 'completed' }),
 		session('today', '2030-01-02T07:00:00Z'),
+		// A threshold session is hard here as on the Start Option cards.
 		session('sat', '2030-01-05T07:00:00Z', { intent: 'threshold' }),
 	])
 
@@ -258,7 +259,7 @@ test('this week is seven rows: fri on a free day, ikke gjort on a past missed da
 	expect(tue!.sessions[0]!.status).toBe('completed')
 	expect(wed!.isToday).toBe(true)
 	expect(thu!.freeLabel).toBe('fri')
-	expect(sat!.sessions[0]!.effortLabel).toBe('middels')
+	expect(sat!.sessions[0]!.effortLabel).toBe('hard')
 	expect(view.week.days.some((day) => day.freeLabel === 'hvile')).toBe(false)
 })
 

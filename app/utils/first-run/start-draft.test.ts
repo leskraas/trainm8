@@ -237,8 +237,8 @@ test('a Nybegynner on the level’s own week sees three ways, Stor base first an
 	expect(base.hardSessions).toBe(0)
 	expect(
 		base.days.flatMap((day) => day.sessions.map((session) => session.effort)),
-	).toEqual(['easy', 'easy', 'easy'])
-	expect(base.minutesByEffort).toEqual({ easy: 180, moderate: 0, hard: 0 })
+	).toEqual(['rolig', 'rolig', 'rolig'])
+	expect(base.minutesByEffort).toEqual({ rolig: 180, middels: 0, hard: 0 })
 })
 
 test('one day leaves no hard session, so every way lays the same week and they merge into one', () => {
@@ -260,24 +260,24 @@ test('each option’s first week holds every day, its effort words, the effort t
 		expect(week.days[6]!.sessions).toEqual([])
 		expect(week.minutes).toBe(300)
 		expect(
-			week.minutesByEffort.easy +
-				week.minutesByEffort.moderate +
+			week.minutesByEffort.rolig +
+				week.minutesByEffort.middels +
 				week.minutesByEffort.hard,
 		).toBe(300)
 		// The long day is lørdag, and it is easy.
 		expect(week.days[5]!.sessions[0]).toMatchObject({
 			title: 'Langtur · Løping',
-			effort: 'easy',
+			effort: 'rolig',
 		})
 	}
 	// Polarisert: one very hard session. Terskelfokus: one tempo, one
 	// threshold. Klassisk: one tempo, nothing harder.
 	expect(byFamily.polarized).toMatchObject({ hardSessions: 1 })
-	expect(byFamily.polarized!.minutesByEffort.moderate).toBe(0)
+	expect(byFamily.polarized!.minutesByEffort.middels).toBe(0)
 	expect(byFamily.threshold).toMatchObject({ hardSessions: 1 })
-	expect(byFamily.threshold!.minutesByEffort.moderate).toBeGreaterThan(0)
+	expect(byFamily.threshold!.minutesByEffort.middels).toBeGreaterThan(0)
 	expect(byFamily.classic).toMatchObject({ hardSessions: 0 })
-	expect(byFamily.classic!.minutesByEffort.moderate).toBeGreaterThan(0)
+	expect(byFamily.classic!.minutesByEffort.middels).toBeGreaterThan(0)
 })
 
 test('week 1 of every option adds up to the hours given, or the option says by how much it falls short', () => {
@@ -348,7 +348,7 @@ test('the main sport carries the family’s hard sessions; each other sport has 
 				])
 				// Every session that is not easy is the main sport's.
 				for (const session of option.week.days.flatMap((d) => d.sessions)) {
-					if (session.effort !== 'easy') {
+					if (session.effort !== 'rolig') {
 						expect(session.discipline).toBe(sports.discipline)
 					}
 				}
@@ -422,7 +422,7 @@ test('the main sport keeps the long day; another sport fills days left with easy
 			.flatMap((day) => day.sessions)
 			.filter((session) => session.discipline === 'bike')
 		expect(bike.length).toBeGreaterThanOrEqual(1)
-		expect(bike.every((session) => session.effort === 'easy')).toBe(true)
+		expect(bike.every((session) => session.effort === 'rolig')).toBe(true)
 	}
 	// Terskelfokus still lays its hard sessions, all on the run.
 	const threshold = made.options.find((option) => option.family === 'threshold')

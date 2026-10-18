@@ -1,6 +1,6 @@
 import { type CSSProperties, useEffect, useMemo, useState } from 'react'
+import { type EffortWord } from '#app/utils/effort-word.ts'
 import {
-	type Effort,
 	type WeekSketch as Sketch,
 	type StartWeekSession,
 } from '#app/utils/first-run/start-draft.ts'
@@ -27,9 +27,9 @@ const TRACK_MARK: Partial<Record<StartWeekSession['discipline'], string>> = {
 }
 
 /** Solid for a hard session, fainter as it gets easier. */
-const EFFORT_OPACITY: Record<Effort, string> = {
-	easy: 'opacity-45',
-	moderate: 'opacity-75',
+const EFFORT_OPACITY: Record<EffortWord, string> = {
+	rolig: 'opacity-45',
+	middels: 'opacity-75',
 	hard: 'opacity-100',
 }
 
@@ -238,7 +238,7 @@ export function WeekSketch({ sketch }: { sketch: Sketch }) {
 					const said = [
 						...day.sessions.map((session) =>
 							L.session(
-								session.effort === 'easy'
+								session.effort === 'rolig'
 									? session.title
 									: `${session.title} (${START_OPTION_LABELS.effort[session.effort]})`,
 								duration(session.minutes),

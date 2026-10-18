@@ -85,8 +85,8 @@ test('every Simple Activity shares one hours track on other, with no mix, each a
 				effort,
 			})),
 		).toEqual([
-			{ title: 'Klatring', minutes: 90, effort: 'moderate' },
-			{ title: 'Yoga og bevegelighet', minutes: 30, effort: 'easy' },
+			{ title: 'Klatring', minutes: 90, effort: 'middels' },
+			{ title: 'Yoga og bevegelighet', minutes: 30, effort: 'rolig' },
 		])
 		// A day of its own: never beside a run.
 		for (const day of option.week.days) {

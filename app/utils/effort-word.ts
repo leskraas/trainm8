@@ -8,8 +8,7 @@
  * hardest zone its steps ask for (`deriveSessionProfile`, which falls back to
  * the Workout's intent where a step states no intensity). A warm-up does not
  * make an interval session rolig, and a cool-down does not make it hard, so
- * the hardest step decides. Zones 1–2 read _rolig_, 3–4 _middels_ (tempo and
- * threshold: _jevnt hardt_), 5 _hard_ (the VO₂max and anaerobic end).
+ * the hardest step decides, read by `effortWordOfZone`.
  *
  * Null where nothing says: a lift (strength sits on its own axis, ADR 0046), a
  * session with no prescription, or steps whose targets cannot be zoned without
@@ -27,6 +26,17 @@ export function isEffortWord(value: unknown): value is EffortWord {
 	return (EFFORT_WORDS as readonly unknown[]).includes(value)
 }
 
+/**
+ * The one reading of a Training Zone as an Effort Word, for I dag and the
+ * Start Option cards alike: zones 1–2 read _rolig_, 3 (tempo) _middels_, 4–5
+ * (threshold up to VO₂max and the anaerobic end) _hard_ — a threshold session
+ * is _jevnt hardt_, still hard. It is a word for the surface; nothing turns an
+ * Effort Word back into a zone.
+ */
+export function effortWordOfZone(zone: number): EffortWord {
+	return zone <= 2 ? 'rolig' : zone === 3 ? 'middels' : 'hard'
+}
+
 export function readEffortWord(workout: Workout | null): EffortWord | null {
 	if (!workout) return null
 	if (isEffortWord(workout.effortWord)) return workout.effortWord
@@ -35,6 +45,5 @@ export function readEffortWord(workout: Workout | null): EffortWord | null {
 		.bars.map((bar) => bar.zone)
 		.filter((zone): zone is NonNullable<typeof zone> => zone != null)
 	if (zones.length === 0) return null
-	const hardest = Math.max(...zones)
-	return hardest <= 2 ? 'rolig' : hardest <= 4 ? 'middels' : 'hard'
+	return effortWordOfZone(Math.max(...zones))
 }

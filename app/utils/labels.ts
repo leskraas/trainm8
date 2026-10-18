@@ -2382,12 +2382,12 @@ export const START_OPTION_LABELS = {
 		'best-fit': 'Passer deg best',
 		level: 'Anbefalt for nivået ditt',
 	},
-	/** A session's effort word: never a Training Zone. */
+	/** A session's Effort Word: never a Training Zone. */
 	effort: {
-		easy: 'rolig',
-		moderate: 'middels',
+		rolig: 'rolig',
+		middels: 'middels',
 		hard: 'hard',
-	},
+	} satisfies Record<EffortWord, string>,
 	/** The bar of easy, middling and hard time, for a screen reader. */
 	effortBar: (easy: number, moderate: number, hard: number) =>
 		`${easy} % rolig, ${moderate} % middels, ${hard} % hard`,

@@ -46,7 +46,7 @@ function liftingDays(week: StartWeek): PatternWeekday[] {
 
 function hardDays(week: StartWeek): PatternWeekday[] {
 	return week.days
-		.filter((day) => day.sessions.some((session) => session.effort !== 'easy'))
+		.filter((day) => day.sessions.some((session) => session.effort !== 'rolig'))
 		.map((day) => day.weekday)
 }
 
