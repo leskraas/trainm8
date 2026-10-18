@@ -105,6 +105,33 @@ test('a new athlete goes from the level screen to Planen er klar, the history fi
 	expect(errors).toEqual([])
 })
 
+test('preferences ticked but not sent survive going back a screen and forward again', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	await login()
+	await navigate(
+		'/start/okter?level=recreational&hours=5&discipline=run&days=0,2,4,5',
+	)
+	const checkbox = (name: RegExp) => page.getByRole('checkbox', { name })
+	await checkbox(/Korte økter/).click()
+	await checkbox(/Jevnt hardt/).click()
+	await expect(checkbox(/Korte økter/)).toBeChecked()
+
+	await page
+		.getByRole('link', { name: 'Tilbake til hva du liker å trene' })
+		.click()
+	await expect(page).toHaveURL(/\/start\/trening\?/)
+	await page.getByRole('button', { name: 'Neste' }).click()
+
+	await expect(page).toHaveURL(/\/start\/okter\?/)
+	await expect(checkbox(/Korte økter/)).toBeChecked()
+	await expect(checkbox(/Jevnt hardt/)).toBeChecked()
+	await expect(checkbox(/Overrask meg/)).not.toBeChecked()
+})
+
 test('Jeg vil heller sette opp sesongen selv opens plan authoring, and connecting is a quiet way back', async ({
 	page,
 	navigate,
