@@ -36,8 +36,10 @@
 // `week-pattern.ts` do; the surface words them.
 
 import { z } from 'zod/v3'
+import { effortWordOfZone, type EffortWord } from '../effort-word.ts'
 import { type TrainingZone } from '../session-profile.ts'
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
+import { readDays, type PlacedSession } from './day-rule.ts'
 import { type VolumeCurrency } from './derive.ts'
 import {
 	isQualityZone,
@@ -113,6 +115,12 @@ export type StampDay = PatternDaySpec & {
 	 * mix asks the share days for one fewer. Absent or `null` for a bare share.
 	 */
 	zone?: TrainingZone | null
+	/**
+	 * A **Simple Activity**'s own **Effort Word**, said on its Workout. A
+	 * `middels` or `hard` one is a **Hard day** every track's mix is laid
+	 * around (ADR 0104 §2). Absent or `null` on every other day.
+	 */
+	effort?: EffortWord | null
 }
 
 /** A Training Track the pattern draws from, in its own Volume Currency. */
@@ -289,15 +297,25 @@ export function planStamp({
 			}
 		}
 
+		const ownOf = (trackId: string) =>
+			sessions.filter((session) => session.trackId === trackId)
+		// Every track's long day first, so each mix is laid around them all.
+		for (const track of tracks) markLongDays(ownOf(track.trackId), dayById)
+		// Then each mix in turn, around the week as laid so far: a track laid
+		// later steps around the hard days of the tracks laid before it.
 		for (const track of tracks) {
-			const own = sessions.filter(
-				(session) => session.trackId === track.trackId,
-			)
-			markLongDays(own, dayById)
 			if (!isCardioDiscipline(track.discipline)) continue
 			const mix =
 				week.mixes?.find((entry) => entry.trackId === track.trackId)?.mix ?? []
-			layMix(own, mix, dayById)
+			const others = sessions.filter(
+				(session) => session.trackId !== track.trackId,
+			)
+			layMix(
+				ownOf(track.trackId),
+				mix,
+				dayById,
+				anchorDaysOf(others, dayById, trackById),
+			)
 		}
 
 		return {
@@ -338,6 +356,43 @@ function markLongDays(
 	}
 }
 
+/**
+ * The days another track's sessions hold a mix away from (ADR 0104 §2): every
+ * **Hard day**, **Long day** and **Lifting day** of theirs, read by the one
+ * cross-track day rule. A stamped session is read by its zone's Effort Word
+ * (no zone is _rolig_), a Simple Activity by its own, a strength session as
+ * lifting.
+ */
+function anchorDaysOf(
+	sessions: readonly StampSession[],
+	dayById: ReadonlyMap<string, StampDay>,
+	trackById: ReadonlyMap<string, StampTrack>,
+): PatternWeekday[] {
+	const placed = sessions.map((session): PlacedSession => {
+		const discipline = trackById.get(session.trackId)?.discipline
+		if (discipline === 'strength') {
+			return { weekday: session.weekday, kind: 'lifting' }
+		}
+		const day = dayById.get(session.dayId)
+		const zone = session.zone ?? day?.zone ?? null
+		const effort =
+			discipline != null && isCardioDiscipline(discipline)
+				? zone != null
+					? effortWordOfZone(zone)
+					: 'rolig'
+				: (day?.effort ?? 'rolig')
+		return {
+			weekday: session.weekday,
+			kind: 'session',
+			effort,
+			long: session.role === 'long',
+		}
+	})
+	return readDays(placed)
+		.filter((day) => day.hard || day.long || day.lifting)
+		.map((day) => day.weekday)
+}
+
 /** Days apart on the week's wheel: Sunday and Monday are neighbours. */
 function weekdayGap(a: number, b: number): number {
 	const apart = Math.abs(a - b)
@@ -353,9 +408,11 @@ function weekdayGap(a: number, b: number): number {
  * - **Where:** ordinary bare share days only, never the long day, and never
  *   more hard days than there are ordinary ones (the rest of the mix is left
  *   to `mixDisagreements` to say, softly, as before). Picked one at a time,
- *   each as far as the week allows from the long day, the fixed quality days
- *   and the days already picked, the earlier day on a tie: hard days apart,
- *   with easy days between them.
+ *   each as far as the week allows from the long day, the fixed quality days,
+ *   the days already picked and the `outside` days (every other track's hard,
+ *   long and lifting days, ADR 0104 §2), the earlier day on a tie: hard days
+ *   apart, with easy days between them. A week with no room still lays the
+ *   whole mix, on the days nearest to that.
  * - **Which zone:** hardest first, in the week's order — the earliest hard day
  *   carries the hardest session, and the week eases toward the long day.
  *
@@ -366,6 +423,7 @@ function layMix(
 	sessions: StampSession[],
 	mix: readonly QualitySessionMixEntry[],
 	dayById: ReadonlyMap<string, StampDay>,
+	outside: readonly PatternWeekday[],
 ) {
 	const asked = new Map<QualityZone, number>()
 	for (const entry of mix) {
@@ -376,7 +434,7 @@ function layMix(
 			)
 		}
 	}
-	const anchors: number[] = []
+	const anchors: number[] = [...outside]
 	for (const session of sessions) {
 		const day = dayById.get(session.dayId)
 		if (session.role === 'long') anchors.push(session.weekday)
