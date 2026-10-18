@@ -29,6 +29,10 @@ export type PlacedSession =
 	  }
 	| { weekday: PatternWeekday; kind: 'lifting' }
 
+/** A {@link PlacedSession} before it has a day: what is placed, not where. */
+export type PlacedSessionShape = WithoutWeekday<PlacedSession>
+type WithoutWeekday<S> = S extends unknown ? Omit<S, 'weekday'> : never
+
 /**
  * Why a day clashes. A closed set: every caller words each one.
  *
