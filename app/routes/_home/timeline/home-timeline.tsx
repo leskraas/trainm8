@@ -49,6 +49,7 @@ import {
 	SEASON_STRIP_LABELS,
 	TOP_LINE_LABELS,
 } from '#app/utils/labels.ts'
+import { type AutopilotNotice } from '#app/utils/load/autopilot-notice.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
@@ -114,6 +115,12 @@ export type HomeTimelineData = {
 	 * while one still waits for an answer; null otherwise.
 	 */
 	weekChange?: WeekChangeData | null
+	/**
+	 * The Autopilot Notice (#576, ADR 0100 §5): what the autopilot wrote at the
+	 * latest close, for a week that closed under autopilot; null otherwise. I
+	 * dag's default view shows it above the week.
+	 */
+	autopilotNotice?: AutopilotNotice | null
 	/**
 	 * Whether an import source is connected (#505 story 82): a session done by
 	 * hand then says its numbers come from the import.

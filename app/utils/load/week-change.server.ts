@@ -21,7 +21,14 @@
  *    week the plan has already laid — even when the athlete has since adopted
  *    every session in it; the athlete's own sessions there stay exactly as they
  *    are. No plan, no pattern, or a week past the plan's end: nothing is filled.
- * 3. **Let silence answer, once.** From the first 06:00 local after a Week
+ * 3. **Under Autopilot, apply at the close, once** (#576, ADR 0100 §2). A
+ *    week that closed with the athlete on autopilot (`WeekReplan.autopilot`,
+ *    read at the close) has its proposals applied there and then by
+ *    `applyAtClose`, within the guards, and never waits for an answer
+ *    (`WeekReplan.autopilotAppliedAt`). Switching the setting applies from
+ *    the next close: a week already closed keeps the mode it closed under.
+ * 4. **Let silence answer, once** — under _Spør meg først_ only: a week
+ *    closed under autopilot has nothing left for silence to do. From the first 06:00 local after a Week
  *    Replan was written (Monday morning, for a Sunday-evening close), its
  *    unanswered proposals go to `applyDueProposals`, which applies only what
  *    keeps or reduces load on a session that is the machine's at that moment.
@@ -47,7 +54,10 @@ import {
 	lastClosedWeekKey,
 	nextSilenceAfter,
 } from './week-change.ts'
-import { applyDueProposals } from './week-replan-proposals.server.ts'
+import {
+	applyAtClose,
+	applyDueProposals,
+} from './week-replan-proposals.server.ts'
 import { applyWeekReplanForUser } from './week-replan.server.ts'
 
 export const WEEK_CHANGE_JOB_KIND = 'week-change'
@@ -87,14 +97,51 @@ export async function runWeekChangeForUser(
 		timezone,
 	})
 	const horizon = await fillHorizonOnce(userId, replan.weekKey, timezone, now)
-	const { applied, held } = await silenceOnce(userId, timezone, now)
+	const atClose = await autopilotOnce(userId, replan.weekKey, timezone, now)
+	const silence = await silenceOnce(userId, timezone, now)
 
 	return {
 		closedWeekKey: replan.weekKey,
 		replanned: replan.created,
 		horizon,
-		applied,
-		held,
+		applied: [...atClose.applied, ...silence.applied],
+		held: [...atClose.held, ...silence.held],
+	}
+}
+
+/**
+ * The autopilot's apply step (ADR 0100 §2): for a week that closed under
+ * autopilot, apply its proposals now — once, claimed on the Week Replan row
+ * first, like the fill. A run that throws releases the claim; what it already
+ * applied stays applied and carries its outcome, so the retry skips it.
+ */
+async function autopilotOnce(
+	userId: string,
+	closedWeekKey: string,
+	timezone: string,
+	now: Date,
+): Promise<{ applied: string[]; held: string[] }> {
+	const where = { athleteId: userId, weekKey: closedWeekKey, autopilot: true }
+	const claimed = await prisma.weekReplan.updateMany({
+		where: { ...where, autopilotAppliedAt: null },
+		data: { autopilotAppliedAt: now },
+	})
+	if (claimed.count === 0) return { applied: [], held: [] }
+	const replan = await prisma.weekReplan.findFirstOrThrow({
+		where,
+		select: { id: true },
+	})
+	try {
+		return await applyAtClose(userId, now, {
+			weekReplanId: replan.id,
+			timezone,
+		})
+	} catch (error) {
+		await prisma.weekReplan.updateMany({
+			where,
+			data: { autopilotAppliedAt: null },
+		})
+		throw error
 	}
 }
 
@@ -184,6 +231,9 @@ async function dueWeekReplanIds(
 			athleteId: userId,
 			weekKey: { gte: addDays(weekMonday(now, timezone), -7) },
 			silencedAt: null,
+			// A week closed under autopilot was applied at its close: nothing in
+			// it waits for an answer, so silence has nothing to do (ADR 0100 §2).
+			autopilot: false,
 		},
 		select: { id: true, createdAt: true },
 	})
@@ -205,9 +255,14 @@ async function isWeekChangeDue(
 				weekKey: lastClosedWeekKey(now, timezone),
 			},
 		},
-		select: { horizonFilledAt: true },
+		select: {
+			horizonFilledAt: true,
+			autopilot: true,
+			autopilotAppliedAt: true,
+		},
 	})
 	if (!closed || closed.horizonFilledAt == null) return true
+	if (closed.autopilot && closed.autopilotAppliedAt == null) return true
 	return (await dueWeekReplanIds(userId, timezone, now)).length > 0
 }
 

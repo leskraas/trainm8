@@ -68,6 +68,7 @@ import type { AdherenceTone } from './load/adherence.ts'
 import type { RoundVerdict } from './load/propose-next-round.ts'
 import type { ReadinessTone } from './load/readiness.ts'
 import type { LoadRecomputeKind } from './load/recompute-notice.ts'
+import type { UndoRefusal } from './load/week-replan-undo.server.ts'
 import type { WeekHoldWhy } from './load/week-replan.ts'
 import type { GenerationRefusal } from './plan-generation/generate.server.ts'
 import type { GenerationIntent } from './plan-generation/season.ts'
@@ -1076,7 +1077,8 @@ export const WEEK_CHANGE_REFUSAL_LABELS: Record<
 	| 'factor-out-of-range'
 	| 'not-a-week'
 	| 'not-the-coming-week'
-	| 'already-eased',
+	| 'already-eased'
+	| 'autopilot',
 	string
 > = {
 	'not-found': 'Fant ikke forslaget.',
@@ -1089,6 +1091,7 @@ export const WEEK_CHANGE_REFUSAL_LABELS: Record<
 	'not-a-week': 'Det er ikke en uke.',
 	'not-the-coming-week': 'Bare uka etter ukeskiftet kan gjøres lettere.',
 	'already-eased': 'Uka er allerede gjort lettere.',
+	autopilot: 'Autopiloten har allerede lagt ut denne uka.',
 }
 
 /** The coming week's planned sum, under the ease action: `Neste uke: 44 km planlagt`. */
@@ -1179,6 +1182,44 @@ export const WEEK_CHANGE_REASON_LABELS = {
 	easeWeek:
 		'Du ba om en lettere uke, så de øktene som er igjen er gjort ca. 15 % kortere.',
 } as const
+
+/** The reason sentences' shape, whichever mode they are worded for. */
+type WeekChangeReasonWords = {
+	[K in keyof typeof WEEK_CHANGE_REASON_LABELS]: (typeof WEEK_CHANGE_REASON_LABELS)[K] extends string
+		? string
+		: (typeof WEEK_CHANGE_REASON_LABELS)[K]
+}
+
+/**
+ * The same reasons for a week closed under **Autopilot** (#576, ADR 0100):
+ * the same author and the same rules, worded as what the close does, since
+ * nothing waits for a yes — the Autopilot Notice shows them as stored. A
+ * make-up is never placed by the autopilot (§3), so its reason says the
+ * missed session was let go; a proposal on the athlete's own session says
+ * the session stands.
+ */
+export const AUTOPILOT_REASON_LABELS: WeekChangeReasonWords = {
+	scale: (over, tsb, cut) =>
+		`${overClause(over)}, og formen er ${tsb}. Økta er gjort ca. ${cut} kortere.`,
+	theirs: 'Dette er din økt, så den står.',
+	notDone: WEEK_CHANGE_REASON_LABELS.notDone,
+	letGoHeavyWeek: (notDone) =>
+		`${notDone} Uka var tung nok likevel, så vi lar den gå.`,
+	makeUp: (notDone) =>
+		`${notDone} Å ta den igjen ville gitt mer trening på en dag du ikke har valgt, så vi lar den gå. Du kan legge den inn selv.`,
+	letGoNoFreeDay: (notDone) =>
+		`${notDone} Det er ingen ledig dag igjen denne uka, så vi lar den gå.`,
+	letGo: (notDone) => `${notDone} Vi lar den gå, så uka ikke blir for full.`,
+	slotMove: (title, slot, toWeekday) =>
+		`«${title}» ble ikke gjort ${slot} to uker på rad, så den er flyttet til ${toWeekday}, som er ledig. Bare denne gangen.`,
+	weekSoften: (over, tsb, cut) =>
+		`${overClause(over)}, og formen er ${tsb}. De neste øktene er gjort ca. ${cut} kortere.`,
+	weekMakeUp:
+		'En økt forrige uke ble ikke gjort. Den står som ikke gjort, og vi la ikke inn en ekstra.',
+	weekSlotMove:
+		'En økt er ikke gjort to uker på rad, så den er flyttet til en dag som er ledig.',
+	easeWeek: WEEK_CHANGE_REASON_LABELS.easeWeek,
+}
 
 /** "Lås opp" on one of the athlete's own planned rows (#505 story 55). */
 export const RELEASE_ACTION_LABELS = {
@@ -2786,13 +2827,40 @@ export function nextRoundReason(
 	round: number,
 	graded: number,
 	stepPercent: number,
+	{ autopilot = false }: { autopilot?: boolean } = {},
 ): string {
 	const ended = openEndedRoundName(round)
 	const next = openEndedRoundName(round + 1)
+	if (autopilot)
+		return nextRoundAutopilotReason(verdict, ended, next, graded, stepPercent)
 	const same = `Vi foreslår ${next} med like mye trening som ${ended}`
 	switch (verdict.kind) {
 		case 'done-to-plan':
 			return `${ended} har gått etter planen: ${lastWeeks(graded)} ble gjort som planlagt. Vi foreslår ${next} med ca. ${stepPercent} % mer trening. Det er mer belastning, så den legges bare inn hvis du sier ja.`
+		case 'missed-weeks':
+			return `${verdict.missed} av ${lastWeeks(graded)} ble ikke gjort som planlagt. ${same}, så planen ikke presser deg etter en tung blokk.`
+		case 'unmeasured':
+			return `${verdict.unmeasured} av ${lastWeeks(graded)} hadde ingen planlagte økter å måle mot, så vi kan ikke si at ${ended} gikk etter planen. ${same}.`
+		case 'too-early':
+			return `${ended} er for kort til å måle ennå. ${same}.`
+	}
+}
+
+/**
+ * The next round's reason under Autopilot (#576, ADR 0100 §2, amending ADR
+ * 0079 §3): the round is appended at the close, so the reason says it is.
+ */
+function nextRoundAutopilotReason(
+	verdict: RoundVerdict,
+	ended: string,
+	next: string,
+	graded: number,
+	stepPercent: number,
+): string {
+	const same = `${next} er lagt inn med like mye trening som ${ended}`
+	switch (verdict.kind) {
+		case 'done-to-plan':
+			return `${ended} har gått etter planen: ${lastWeeks(graded)} ble gjort som planlagt. ${next} er lagt inn med ca. ${stepPercent} % mer trening.`
 		case 'missed-weeks':
 			return `${verdict.missed} av ${lastWeeks(graded)} ble ikke gjort som planlagt. ${same}, så planen ikke presser deg etter en tung blokk.`
 		case 'unmeasured':
@@ -4048,6 +4116,77 @@ export const CALM_TODAY_LABELS = {
 	weekChangeWaiting: (count: number) =>
 		`Ukeskiftet har ${count} forslag som venter på deg.`,
 	weekChangeOpen: 'Se forslagene',
+} as const
+
+/**
+ * The Autopilot Notice on I dag (#576, ADR 0100 §5): what the autopilot wrote
+ * at the close, one line each with its stored reason and _Angre_, and _Angre
+ * alt_. It states; it never asks. The lines the reason does not word itself —
+ * a session left alone, a step held by the guards — are worded here.
+ */
+export const AUTOPILOT_NOTICE_LABELS = {
+	heading: 'Neste uke er lagt ut',
+	region: 'Autopiloten',
+	/** What one line is about, when its reason does not say: `«Rolig tur» · onsdag`. */
+	subject: (title: string, weekday: string) => `«${title}» · ${weekday}`,
+	/** ADR 0100 §3: the athlete's own session stands, and the notice says so. */
+	leftAlone: (weekday: string, title: string) =>
+		`${capitalize(weekday)}ens «${title}» er din, den står.`,
+	leftAloneUnnamed: 'Økta er din, så den står.',
+	notPlacedExtra:
+		'En ekstra økt ble ikke lagt inn: autopiloten legger ikke inn mer trening på en dag du ikke har valgt.',
+	overGuard: (percent: string) =>
+		`Endringen ville gitt mer enn ${percent} mer trening på én gang, så den er ikke gjort.`,
+	gone: (title: string) =>
+		`«${title}» var allerede gjort, flyttet eller slettet, så den ble ikke endret.`,
+	goneUnnamed: 'Det var ingenting igjen å endre.',
+	undo: 'Angre',
+	undoFor: (what: string) => `Angre: ${what}`,
+	undoing: 'Angrer …',
+	undone: 'Angret',
+	undoAll: 'Angre alt',
+	undoAllFor: (count: number) => `Angre alle ${count} endringene`,
+	/** The toast after an _Angre_. */
+	undoneToast: 'Endringen er angret. Økta er som før.',
+	undoneAllToast: (count: number) =>
+		count === 1
+			? 'Endringen er angret.'
+			: `${count} endringer er angret. Uka er som før.`,
+	nothingToUndo: 'Det var ingenting å angre.',
+	/** ADR 0100 §4: the window has closed, said once under the lines. */
+	closed: 'Uka har begynt, så endringene kan ikke angres lenger.',
+	easeHeading: 'Vil du ha en lettere uke?',
+} as const
+
+/** Why an _Angre_ on the Autopilot Notice was refused (ADR 0100 §4, ADR 0088). */
+export const AUTOPILOT_UNDO_REFUSAL_LABELS: Record<UndoRefusal, string> = {
+	'not-found': 'Fant ikke endringen.',
+	'not-applied': 'Endringen ble aldri gjort, så det er ingenting å angre.',
+	'no-before-image': 'Denne endringen kan ikke angres.',
+	'week-begun': 'Uka har begynt, så endringen kan ikke angres lenger.',
+	'session-trained':
+		'En økt endringen gjaldt er allerede trent, så den kan ikke angres.',
+	'session-taken-over':
+		'Du har endret økta selv etterpå, så den står som du la den.',
+}
+
+/**
+ * The Autopilot setting in Meg (#576, ADR 0100 §1 and §6): on, the app lays
+ * out each week by itself; _Spør meg først_ brings back the Week Change Card.
+ */
+export const AUTOPILOT_SETTING_LABELS = {
+	title: 'Ukeplanen',
+	legend: 'Hvordan neste uke legges ut',
+	autopilot: 'Autopilot',
+	autopilotDetail:
+		'Appen legger ut neste uke hver søndag kveld ut fra det du faktisk gjorde. Den sier hva den endret, og du kan angre. Øktene du har lagt selv, endres aldri.',
+	ask: 'Spør meg først',
+	askDetail:
+		'Appen foreslår endringene søndag kveld og venter på ditt ja i Ukeskiftet.',
+	fromNextClose: 'Gjelder fra neste ukeskifte, søndag kveld.',
+	saving: 'Lagrer …',
+	saved: 'Lagret.',
+	failed: 'Det ble ikke lagret. Prøv igjen.',
 } as const
 
 /** The page header's back button, named for the screen it goes back to. */
