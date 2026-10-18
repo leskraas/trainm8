@@ -207,10 +207,14 @@ export function CalmToday({ data }: { data: HomeTimelineData }) {
 							data-calm-season-link
 							className={cn(
 								buttonVariants({ variant: 'outline' }),
-								'w-full justify-between rounded-full px-5',
+								// Wraps at large text instead of pushing the chevron off a
+								// 320px screen.
+								'h-auto min-h-11 w-full justify-between gap-2 rounded-full px-5 py-2 text-left whitespace-normal',
 							)}
 						>
-							{HOME_TIMELINE_FULL_VIEW_LABELS.link}
+							<span className="min-w-0">
+								{HOME_TIMELINE_FULL_VIEW_LABELS.link}
+							</span>
 							<Icon name="chevron-right" size="sm" />
 						</Link>
 					</div>
@@ -278,7 +282,9 @@ function SessionCard({
 	const undoable = landedSessionId === session.id && landedUndoable
 	return (
 		<>
-			<p className="text-footnote text-muted-foreground flex items-center gap-2">
+			{/* The pill wraps under a long activity at large text rather than
+			    pushing I dag wider than the phone (320px at 200%). */}
+			<p className="text-footnote text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
 				<span
 					aria-hidden
 					className={cn(
@@ -286,11 +292,13 @@ function SessionCard({
 						TRACK_DOT[session.discipline] ?? 'bg-muted-foreground/60',
 					)}
 				/>
-				<span data-calm-activity>{session.disciplineLabel}</span>
+				<span data-calm-activity className="min-w-0 [overflow-wrap:anywhere]">
+					{session.disciplineLabel}
+				</span>
 				{session.effortLabel ? (
 					<span
 						data-calm-effort
-						className="text-caption text-foreground bg-muted ml-auto rounded-full px-2.5 py-0.5"
+						className="text-caption text-foreground bg-muted ml-auto shrink-0 rounded-full px-2.5 py-0.5 whitespace-nowrap"
 					>
 						{session.effortLabel}
 					</span>

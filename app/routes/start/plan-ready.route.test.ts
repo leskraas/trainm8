@@ -215,6 +215,37 @@ test('Under panseret reads what was made: the family, open-ended, the rhythm, th
 	expect(hood.weeks[0]!.hours).toBe('3\u00a0t')
 })
 
+test('Under panseret also says the strength sessions a week and the Session Preferences the athlete gave', async () => {
+	const { cookie } = await setUp()
+	await settle(() =>
+		choose({
+			request: post(
+				'/start/valg',
+				[
+					...choice('big-base'),
+					['strength', '2'],
+					['preferences', 'long'],
+					['preferences', 'short'],
+				],
+				cookie,
+			),
+			...ARGS,
+			unstable_pattern: '/start/valg',
+		}),
+	)
+	const { hood } = await loader({
+		request: get('/start/klar', cookie),
+		...ARGS,
+	})
+	expect(hood.facts.slice(-2)).toEqual([
+		{ term: 'Styrke', details: ['2 styrkeøkter i uka'] },
+		{
+			term: 'Økter du liker',
+			details: ['Lange, rolige turer', 'Korte økter'],
+		},
+	])
+})
+
 test('reloading Planen er klar after the plan exists still shows it and never makes a second plan; with no plan it is the start', async () => {
 	const { userId, cookie } = await setUp()
 	expect(

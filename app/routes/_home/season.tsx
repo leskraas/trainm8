@@ -46,7 +46,7 @@ export function ErrorBoundary() {
 	return (
 		<GeneralErrorBoundary
 			statusHandlers={{
-				404: () => <p>We could not find your training.</p>,
+				404: () => <p>{HOME_TIMELINE_FULL_VIEW_LABELS.notFound}</p>,
 			}}
 		/>
 	)

@@ -10,6 +10,7 @@
 // placeholders that never reach a database.
 
 import { type EffortWord } from '../effort-word.ts'
+import { inWholeFiveMinutes } from '../five-minutes.ts'
 import { openEndedRoundName } from '../labels.ts'
 import {
 	availabilityFitWarnings,
@@ -23,8 +24,10 @@ import {
 } from '../plan-outline/derive.ts'
 import { fitRunUp } from '../plan-outline/fit-proposal.ts'
 import {
+	isSimpleActivityTrack,
 	phaseSpecs,
 	resolvedTracks,
+	SIMPLE_ACTIVITY_SEGMENT,
 	type OutlineRows,
 } from '../plan-outline/from-rows.ts'
 import {
@@ -177,10 +180,16 @@ export function draftRows({
 				id: `${track.trackId}-segment-${index}`,
 				kind: 'endurance',
 				phaseId: `phase-${index}`,
-				ramp: phase.ramp,
-				boundaryStep: phase.boundaryStep,
-				recoveryCut: null,
-				taperCut: null,
+				// The Simple Activities' fixed days do not climb, so their track's
+				// target does not either (#572).
+				...(isSimpleActivityTrack(track.discipline)
+					? SIMPLE_ACTIVITY_SEGMENT
+					: {
+							ramp: phase.ramp,
+							boundaryStep: phase.boundaryStep,
+							recoveryCut: null,
+							taperCut: null,
+						}),
 				startWeekKey: null,
 				weeks: null,
 				goal: null,
@@ -440,7 +449,7 @@ export function shortWeekdayHours(
 	}
 	const laid = new Map<PatternWeekday, number>()
 	for (const share of shares) {
-		const rounded = Math.round(share.units / 5) * 5
+		const rounded = inWholeFiveMinutes(share.units)
 		laid.set(share.day, held(share.day) ? Math.min(rounded, cap) : rounded)
 	}
 	const kept = () => [...laid.values()].reduce((sum, value) => sum + value, 0)

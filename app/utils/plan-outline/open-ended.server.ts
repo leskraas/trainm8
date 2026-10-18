@@ -20,6 +20,7 @@ import { MAX_PLAN_WEEKS } from './authoring-schema.ts'
 import { layEnduranceSegments } from './authoring.server.ts'
 import { phaseIndexForWeek, phaseStartIndices, rhythmOf } from './derive.ts'
 import { fitRunUp } from './fit-proposal.ts'
+import { isSimpleActivityTrack, SIMPLE_ACTIVITY_SEGMENT } from './from-rows.ts'
 import { familyRunUp, outlineFamily } from './presets.ts'
 import { stampWeekPattern } from './stamp.server.ts'
 import { weekIndexOf, weekKeyAt } from './week-keys.ts'
@@ -119,6 +120,7 @@ export async function appendOpenEndedRound(
 		where: { phaseId: last.id, kind: 'endurance' },
 		select: {
 			trackId: true,
+			track: { select: { discipline: true } },
 			ramp: true,
 			recoveryCut: true,
 			taperCut: true,
@@ -132,10 +134,16 @@ export async function appendOpenEndedRound(
 				kind: 'endurance',
 				trackId: segment.trackId,
 				phaseId: created.id,
-				ramp: segment.ramp,
-				recoveryCut: segment.recoveryCut,
-				taperCut: segment.taperCut,
-				boundaryStep,
+				// The Simple Activities' fixed days stay as they are: their track
+				// takes no step up into the next round (#572).
+				...(isSimpleActivityTrack(segment.track.discipline)
+					? SIMPLE_ACTIVITY_SEGMENT
+					: {
+							ramp: segment.ramp,
+							recoveryCut: segment.recoveryCut,
+							taperCut: segment.taperCut,
+							boundaryStep,
+						}),
 				...(segment.mix.length
 					? {
 							mix: {

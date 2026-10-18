@@ -174,7 +174,7 @@ export function AutopilotHistoryCard({ notice }: { notice: AutopilotNotice }) {
 		>
 			<h3
 				id={headingId}
-				className="text-muted-foreground text-[11px]/[1.2] font-bold tracking-[0.04em] uppercase"
+				className="text-overline text-muted-foreground uppercase"
 			>
 				{L.historyHeading}
 			</h3>

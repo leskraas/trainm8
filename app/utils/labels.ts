@@ -2276,7 +2276,7 @@ export const SESSION_PREFERENCE_LABELS = {
 	} satisfies Record<SessionPreference, { name: string; description: string }>,
 	/** The way on: with something picked, or the skip (story 23). */
 	next: (picked: number) =>
-		picked > 0 ? 'Vis forslag' : 'Hopp over, vis forslag',
+		picked > 0 ? 'Vis måtene å trene på' : 'Hopp over',
 	back: 'Tilbake til hva du liker å trene',
 	/** From the Start Options, back to this question. */
 	backHere: 'Tilbake til hva slags økter du liker',
@@ -2382,12 +2382,12 @@ export const START_OPTION_LABELS = {
 		'best-fit': 'Passer deg best',
 		level: 'Anbefalt for nivået ditt',
 	},
-	/** A session's effort word: never a Training Zone. */
+	/** A session's Effort Word: never a Training Zone. */
 	effort: {
-		easy: 'rolig',
-		moderate: 'middels',
+		rolig: 'rolig',
+		middels: 'middels',
 		hard: 'hard',
-	},
+	} satisfies Record<EffortWord, string>,
 	/** The bar of easy, middling and hard time, for a screen reader. */
 	effortBar: (easy: number, moderate: number, hard: number) =>
 		`${easy} % rolig, ${moderate} % middels, ${hard} % hard`,
@@ -2475,6 +2475,12 @@ export const PLAN_READY_LABELS = {
 		track: (name: string, start: string | null) =>
 			start == null ? name : `${name}, starter på ${start}`,
 		level: 'Nivå',
+		/** The Strength Frequency answer (#574, ADR 0103). */
+		strength: 'Styrke',
+		strengthPerWeek: (count: number) =>
+			`${count} ${count === 1 ? 'styrkeøkt' : 'styrkeøkter'} i uka`,
+		/** The Session Preferences, each by its own name (#571). */
+		preferences: 'Økter du liker',
 		pattern: 'Ukemønster',
 		free: 'fri',
 		/** A share day: `Løping · andel, vekt 1,5`. */
@@ -3914,6 +3920,8 @@ export const APP_TAB_LABELS: Record<AppTab, string> = {
 export const HOME_TIMELINE_FULL_VIEW_LABELS = {
 	link: 'Se hele sesongen',
 	title: 'Hele sesongen',
+	/** I dag's and the full view's 404: a state to act on, not a bug. */
+	notFound: 'Vi fant ikke treningen din.',
 } as const
 
 /**

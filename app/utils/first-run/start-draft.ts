@@ -9,13 +9,11 @@
 // session cap passed in. Pure, so the question screens can run it in the
 // browser as the athlete answers.
 
-import { type EffortWord } from '../effort-word.ts'
+import { type EffortWord, effortWordOfZone } from '../effort-word.ts'
+import { FIVE_MINUTES } from '../five-minutes.ts'
 import { SIMPLE_ACTIVITY_LABELS } from '../labels.ts'
 import { openEndedRound, type PresetFamily } from '../plan-outline/presets.ts'
-import {
-	qualitySessionCount,
-	type QualityZone,
-} from '../plan-outline/quality-mix.ts'
+import { qualitySessionCount } from '../plan-outline/quality-mix.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { stampedSessionTitle } from '../session-title.ts'
 import { type ActivityKind } from '../simple-activity.ts'
@@ -197,31 +195,6 @@ export function preferenceScore(
 }
 
 /**
- * How hard a session in a Start Option is, in the words the cards say it
- * (_rolig_, _middels_, _hard_): an easy day is _rolig_, a tempo session
- * _middels_, a threshold or VO₂ max session _hard_. Read off the zone the
- * stamp gave the day; it is a word for the card, never a **Training Zone**.
- */
-export const EFFORTS = ['easy', 'moderate', 'hard'] as const
-export type Effort = (typeof EFFORTS)[number]
-
-export function effortOf(zone: QualityZone | null): Effort {
-	if (zone == null) return 'easy'
-	return zone === 3 ? 'moderate' : 'hard'
-}
-
-/**
- * A Simple Activity's own **Effort Word** as the cards say it: the same three
- * words (_rolig_, _middels_, _hard_), carried straight from the activity and
- * never read off a zone.
- */
-const EFFORT_OF_WORD: Record<EffortWord, Effort> = {
-	rolig: 'easy',
-	middels: 'moderate',
-	hard: 'hard',
-}
-
-/**
  * What a **Simple Activity** is in the start before the athlete says more:
  * its time and its Effort Word (#572). A _fjelltur_ is a long one in hours, a
  * climb a session of middling effort, yoga short and _rolig_ (spec #558
@@ -241,7 +214,8 @@ export type StartWeekSession = {
 	title: string
 	discipline: Discipline | 'other'
 	minutes: number
-	effort: Effort
+	/** Its Effort Word, as I dag says it (`effortWordOfZone`). */
+	effort: EffortWord
 }
 
 export type StartWeekDay = {
@@ -265,7 +239,7 @@ export type StartWeek = {
 	days: StartWeekDay[]
 	sessionCount: number
 	minutes: number
-	minutesByEffort: Record<Effort, number>
+	minutesByEffort: Record<EffortWord, number>
 	hardSessions: number
 	strengthSessions: number
 }
@@ -307,7 +281,7 @@ export function startWeekOf(
 						title: SIMPLE_ACTIVITY_LABELS.kind[activity.kind],
 						discipline: 'other',
 						minutes: activity.minutes,
-						effort: EFFORT_OF_WORD[activity.effortWord],
+						effort: activity.effortWord,
 					}
 				}
 				return {
@@ -318,14 +292,15 @@ export function startWeekOf(
 					}),
 					discipline: session.discipline,
 					minutes: Math.round((session.volume ?? 0) * 60),
-					effort: effortOf(session.zone),
+					effort:
+						session.zone == null ? 'rolig' : effortWordOfZone(session.zone),
 				}
 			}),
 	}))
 	const sessions = days.flatMap((day) => day.sessions)
-	const minutesByEffort: Record<Effort, number> = {
-		easy: 0,
-		moderate: 0,
+	const minutesByEffort: Record<EffortWord, number> = {
+		rolig: 0,
+		middels: 0,
 		hard: 0,
 	}
 	for (const session of sessions) {
@@ -378,7 +353,7 @@ export function strengthDaysFor(
 	if (count === 0) return []
 	const quality = new Set(
 		week.days
-			.filter((day) => day.sessions.some((s) => s.effort !== 'easy'))
+			.filter((day) => day.sessions.some((s) => s.effort !== 'rolig'))
 			.map((day) => day.weekday),
 	)
 	const scoreOf = (picked: readonly PatternWeekday[]): number[] => {
@@ -909,7 +884,7 @@ function notFittedOf(
 }
 
 /** The steps a Simple Activity's share of the hours is laid in, and its bounds. */
-const SHARE_STEP_MINUTES = 5
+const SHARE_STEP_MINUTES = FIVE_MINUTES
 const MIN_SHARE_MINUTES = 10
 const MAX_SHARE_MINUTES = 600
 

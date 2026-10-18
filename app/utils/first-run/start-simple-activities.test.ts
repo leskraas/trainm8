@@ -85,14 +85,27 @@ test('every Simple Activity shares one hours track on other, with no mix, each a
 				effort,
 			})),
 		).toEqual([
-			{ title: 'Klatring', minutes: 90, effort: 'moderate' },
-			{ title: 'Yoga og bevegelighet', minutes: 30, effort: 'easy' },
+			{ title: 'Klatring', minutes: 90, effort: 'middels' },
+			{ title: 'Yoga og bevegelighet', minutes: 30, effort: 'rolig' },
 		])
 		// A day of its own: never beside a run.
 		for (const day of option.week.days) {
 			const kinds = new Set(day.sessions.map((session) => session.discipline))
 			expect(kinds.size).toBeLessThanOrEqual(1)
 		}
+	}
+})
+
+test('the Simple Activities’ track asks for the same hours every week, as the fixed days lay them', () => {
+	// The fixed days do not climb with the phases, so neither does the target:
+	// from week 2 a climbing target would ask for hours no day lays, and say
+	// nothing about it.
+	for (const option of start().options) {
+		const simple = option.draft.tracks.find(
+			(track) => track.discipline === 'other',
+		)!
+		expect(simple.targets.length).toBeGreaterThanOrEqual(4)
+		expect(new Set(simple.targets)).toEqual(new Set([simple.anchor]))
 	}
 })
 

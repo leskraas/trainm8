@@ -1,6 +1,6 @@
 import { type CSSProperties, useEffect, useMemo, useState } from 'react'
+import { type EffortWord } from '#app/utils/effort-word.ts'
 import {
-	type Effort,
 	type WeekSketch as Sketch,
 	type StartWeekSession,
 } from '#app/utils/first-run/start-draft.ts'
@@ -27,9 +27,9 @@ const TRACK_MARK: Partial<Record<StartWeekSession['discipline'], string>> = {
 }
 
 /** Solid for a hard session, fainter as it gets easier. */
-const EFFORT_OPACITY: Record<Effort, string> = {
-	easy: 'opacity-45',
-	moderate: 'opacity-75',
+const EFFORT_OPACITY: Record<EffortWord, string> = {
+	rolig: 'opacity-45',
+	middels: 'opacity-75',
 	hard: 'opacity-100',
 }
 
@@ -45,6 +45,9 @@ const STACK_GAP = 3.125
 const MIN_SESSION = 14
 /** How long a block that left stays to drop out (`--transition-duration-morph-exit`). */
 const LEAVE_MS = 160
+/** A block's rise, and the stagger between blocks arriving together. */
+const ENTER_MS = 200
+const STAGGER_MS = 30
 
 /** One block of a day, placed in percent of the day's height from the top. */
 type SketchBlock = {
@@ -159,6 +162,27 @@ function useShownBlocks(blocks: SketchBlock[]): ShownBlock[] {
 		}
 		setState(current)
 	}
+	// Once the last one has risen, an arrived block is a block that stays:
+	// the next change stretches it in place rather than replaying the rise's
+	// curve and stagger, even when that change keeps every size (#582).
+	const arrived = current.shown.reduce(
+		(count, block) => (block.enterIndex == null ? count : count + 1),
+		0,
+	)
+	useEffect(() => {
+		if (arrived === 0) return
+		const timer = window.setTimeout(
+			() =>
+				setState((was) => ({
+					...was,
+					shown: was.shown.map((block) =>
+						block.enterIndex == null ? block : { ...block, enterIndex: null },
+					),
+				})),
+			ENTER_MS + (arrived - 1) * STAGGER_MS + 20,
+		)
+		return () => window.clearTimeout(timer)
+	}, [arrived, current.signature])
 	const hasLeaving = current.shown.some((block) => block.leaving)
 	useEffect(() => {
 		if (!hasLeaving) return
@@ -238,7 +262,7 @@ export function WeekSketch({ sketch }: { sketch: Sketch }) {
 					const said = [
 						...day.sessions.map((session) =>
 							L.session(
-								session.effort === 'easy'
+								session.effort === 'rolig'
 									? session.title
 									: `${session.title} (${START_OPTION_LABELS.effort[session.effort]})`,
 								duration(session.minutes),

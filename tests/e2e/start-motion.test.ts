@@ -267,7 +267,7 @@ test('Uka di becomes the cards, the chosen card the curve, the curve I dag’s w
 	await login()
 
 	await navigate(`/start/okter?${ANSWERS}` as '/start/okter')
-	const next = page.getByRole('button', { name: 'Hopp over, vis forslag' })
+	const next = page.getByRole('button', { name: 'Hopp over', exact: true })
 	await untilHydrated(next)
 	await next.click()
 	await expect(page).toHaveURL(/\/start\/valg/)
@@ -357,10 +357,13 @@ test('Uka di’s blocks rise in 30ms apart, stretch in place, and drop out in 16
 		expect(block.easing).toBe(EASE_OUT)
 	}
 
-	// Fewer hours: the same blocks stretch in place, on the morph's curve.
+	// Fewer hours: the same blocks stretch in place, on the morph's curve —
+	// arrived blocks stay, whether or not the change moved their sizes.
 	await page.getByRole('button', { name: FEWER_HOURS }).click()
+	await expect
+		.poll(async () => (await sketchBlocks(page)).map((block) => block.state))
+		.toEqual(Array(5).fill('staying'))
 	for (const block of await sketchBlocks(page)) {
-		expect(block.state).toBe('staying')
 		expect(block.property).toBe('transform, clip-path, opacity')
 		expect(block.duration).toBe('0.28s, 0.28s, 0.2s')
 		expect(block.easing).toBe([EASE_IN_OUT, EASE_IN_OUT, EASE_OUT].join(', '))
@@ -393,7 +396,7 @@ test('a tap during a morph lands it at once, and a key never animates', async ({
 	await login()
 
 	await navigate(`/start/okter?${ANSWERS}` as '/start/okter')
-	const next = page.getByRole('button', { name: 'Hopp over, vis forslag' })
+	const next = page.getByRole('button', { name: 'Hopp over', exact: true })
 	await untilHydrated(next)
 	// Started from the keyboard: the transition is skipped before it plays.
 	await next.focus()
@@ -485,7 +488,7 @@ test.describe(() => {
 		await login()
 
 		await navigate(`/start/okter?${ANSWERS}` as '/start/okter')
-		const next = page.getByRole('button', { name: 'Hopp over, vis forslag' })
+		const next = page.getByRole('button', { name: 'Hopp over', exact: true })
 		await untilHydrated(next)
 		await next.click()
 		await expect(page).toHaveURL(/\/start\/valg/)

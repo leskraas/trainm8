@@ -191,7 +191,7 @@ test('each card shows the Simple Activities on their days with their effort, and
 		expect(climb).toEqual([
 			expect.objectContaining({
 				discipline: 'other',
-				effort: 'moderate',
+				effort: 'middels',
 				facts: '1 t 30 min · middels',
 			}),
 		])

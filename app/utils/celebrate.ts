@@ -14,15 +14,13 @@
  * Reduced motion: no sparks. The check fades in over 200ms instead — calm,
  * and still a change the athlete sees (ADR 0077: gentler, never zero).
  */
+import { EASE_OUT, prefersReducedMotion } from './motion.ts'
 
 /** How many sparks, how long they fly (spec #558). */
 export const SPARK_COUNT = 8
 export const SPARK_MS = 300
 /** The reduced-motion answer: the check fades in. */
 export const CHECK_FADE_MS = 200
-
-/** `--ease-out` (ADR 0077 §1): something leaving, fast start. */
-const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
 
 const STORAGE_KEY = 'trainm8:celebrated'
 /** Enough to cover any week; the oldest are forgotten first. */
@@ -72,7 +70,7 @@ export function celebrateOnce(
 ): 'sparks' | 'fade' | null {
 	if (!check || alreadyCelebrated(sessionId)) return null
 	remember(sessionId)
-	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+	if (prefersReducedMotion()) {
 		check.animate([{ opacity: 0 }, { opacity: 1 }], {
 			duration: CHECK_FADE_MS,
 			easing: EASE_OUT,

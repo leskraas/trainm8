@@ -3,8 +3,19 @@ import { addDays, weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { fillPlanWeek } from '#app/utils/load/horizon-fill.server.ts'
+import { ROUND_STEP_UP } from '#app/utils/load/propose-next-round.ts'
+import {
+	isSimpleActivityTrack,
+	resolvedTracks,
+} from '#app/utils/plan-outline/from-rows.ts'
+import {
+	appendOpenEndedRound,
+	roundBoundaryStep,
+} from '#app/utils/plan-outline/open-ended.server.ts'
+import { withProjectedRounds } from '#app/utils/plan-outline/round-projection.ts'
 import { weekKeyAt } from '#app/utils/plan-outline/week-keys.ts'
 import { readSimpleActivity } from '#app/utils/simple-activity.ts'
+import { findActiveOutline } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { type FirstRunAnswers } from './first-run-schema.ts'
 import { createFirstRunPlan } from './plan.server.ts'
@@ -172,6 +183,58 @@ test('the plan made is the card shown, minute for minute, Simple Activities incl
 			.filter((day) => day.track.discipline === 'other')
 			.map((day) => day.kind),
 	).toEqual(['fixed', 'fixed'])
+})
+
+test('the plan’s Simple Activities track asks for the same hours every week, through every phase', async () => {
+	const athleteId = await createAthlete()
+	expect(await createFirstRunPlan(athleteId, ANSWERS, NOW)).toMatchObject({
+		ok: true,
+	})
+	const found = await findActiveOutline(athleteId, NOW)
+	const other = resolvedTracks(found!.outline).find((track) =>
+		isSimpleActivityTrack(track.discipline),
+	)!
+	const values = other.targets.map((target) => target.value)
+	expect(values.length).toBeGreaterThanOrEqual(4)
+	expect(new Set(values)).toEqual(new Set([2]))
+
+	// Planen er klar's dashed rounds, and a next round appended for real,
+	// step the sports up 5 % and leave the fixed days' hours where they are.
+	const projected = resolvedTracks(
+		withProjectedRounds(found!.outline, {
+			rounds: 2,
+			boundaryStep: roundBoundaryStep(ROUND_STEP_UP),
+		}),
+	).find((track) => isSimpleActivityTrack(track.discipline))!
+	expect(projected.targets).toHaveLength(values.length + 8)
+	expect(new Set(projected.targets.map((target) => target.value))).toEqual(
+		new Set([2]),
+	)
+
+	const last = found!.outline.phases.at(-1)!
+	await prisma.$transaction((tx) =>
+		appendOpenEndedRound(
+			tx,
+			athleteId,
+			{
+				kind: 'add-phase',
+				outlineId: found!.outline.id,
+				afterPhaseId: last.id,
+				name: 'Blokk 2',
+				weeks: 4,
+				rhythm: '3:1',
+				factor: ROUND_STEP_UP,
+			},
+			{ now: NOW, timezone: 'UTC' },
+		),
+	)
+	const appended = resolvedTracks(
+		(await findActiveOutline(athleteId, NOW))!.outline,
+	).find((track) => isSimpleActivityTrack(track.discipline))!
+	expect(appended.targets).toHaveLength(values.length + 4)
+	expect(new Set(appended.targets.map((target) => target.value))).toEqual(
+		new Set([2]),
+	)
 })
 
 test('the horizon fill lays the Simple Activities in the weeks after the first two', async () => {

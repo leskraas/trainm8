@@ -9,8 +9,8 @@
  * the same in both places. Each page keeps its own card frame, heading and
  * action.
  */
+import { type EffortWord } from '#app/utils/effort-word.ts'
 import {
-	type Effort,
 	type StartOption,
 	type StartWeekSession,
 } from '#app/utils/first-run/start-draft.ts'
@@ -50,7 +50,7 @@ export type StartCard = {
 		sessions: Array<{
 			title: string
 			discipline: StartWeekSession['discipline']
-			effort: Effort
+			effort: EffortWord
 			/** `45 min · rolig`. */
 			facts: string
 		}>
@@ -58,7 +58,7 @@ export type StartCard = {
 		lifting: Array<{ title: string; lifts: string }>
 	}>
 	/** Minutes at each effort, the bar's widths. */
-	effortMinutes: Record<Effort, number>
+	effortMinutes: Record<EffortWord, number>
 	barLabel: string
 	total: string
 	sessions: string
@@ -108,8 +108,8 @@ export function cardOf(
 		})),
 		effortMinutes: week.minutesByEffort,
 		barLabel: L.effortBar(
-			percent(week.minutesByEffort.easy, week.minutes),
-			percent(week.minutesByEffort.moderate, week.minutes),
+			percent(week.minutesByEffort.rolig, week.minutes),
+			percent(week.minutesByEffort.middels, week.minutes),
 			percent(week.minutesByEffort.hard, week.minutes),
 		),
 		total: L.total(duration(week.minutes)),
@@ -158,13 +158,13 @@ const TRACK_MARK: Partial<Record<StartWeekSession['discipline'], string>> = {
  * primary hue, so it reads in both themes and never by colour alone (the
  * label says the shares).
  */
-const EFFORT_FILL: Record<Effort, string> = {
-	easy: 'bg-primary/30',
-	moderate: 'bg-primary/65',
+const EFFORT_FILL: Record<EffortWord, string> = {
+	rolig: 'bg-primary/30',
+	middels: 'bg-primary/65',
 	hard: 'bg-primary',
 }
 
-const EFFORT_ORDER: Effort[] = ['easy', 'moderate', 'hard']
+const EFFORT_ORDER: EffortWord[] = ['rolig', 'middels', 'hard']
 
 /**
  * A card's week: the effort bar and its figures, the days, and the notes on

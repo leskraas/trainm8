@@ -11,6 +11,7 @@
 //   its Season Anchor, the Week Pattern, and the athlete's Training Level.
 
 import { isoWeekNumber } from '../athlete-calendar.ts'
+import { readStartAnswersOf } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import {
 	formatNbDate,
@@ -24,6 +25,7 @@ import {
 	nbTrackName,
 	PHILOSOPHY_LABELS,
 	PLAN_READY_LABELS,
+	SESSION_PREFERENCE_LABELS,
 	SIMPLE_START_LABELS,
 	START_OPTION_LABELS,
 } from '../labels.ts'
@@ -106,12 +108,13 @@ export async function readPlanReady(
 	const found = await findActiveOutline(userId, now)
 	if (!found) return null
 	const { outline } = found
-	const [season, profile] = await Promise.all([
+	const [season, profile, { preferences }] = await Promise.all([
 		getSeasonForOutline(userId, outline.id, now),
 		prisma.athleteProfile.findUnique({
 			where: { userId },
-			select: { trainingLevel: true },
+			select: { trainingLevel: true, strengthPerWeek: true },
 		}),
+		readStartAnswersOf(userId),
 	])
 	if (!season) return null
 
@@ -198,6 +201,22 @@ export async function readPlanReady(
 		facts.push({
 			term: L.hood.level,
 			details: [SIMPLE_START_LABELS.levels[level].name],
+		})
+	}
+	// What else the start was told and keeps: the lifts a week (#574) and the
+	// sessions the athlete likes (#571). Left out where never answered.
+	if (profile?.strengthPerWeek != null) {
+		facts.push({
+			term: L.hood.strength,
+			details: [L.hood.strengthPerWeek(profile.strengthPerWeek)],
+		})
+	}
+	if (preferences.length > 0) {
+		facts.push({
+			term: L.hood.preferences,
+			details: preferences.map(
+				(preference) => SESSION_PREFERENCE_LABELS.options[preference].name,
+			),
 		})
 	}
 

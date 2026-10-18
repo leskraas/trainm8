@@ -744,6 +744,14 @@
 	* {
 		@apply border-border outline-ring/50;
 	}
+	/*
+	 * A fieldset's UA default is `min-inline-size: min-content`, so one
+	 * unbreakable row inside it (a row of toggles at 200% text) widens the whole
+	 * screen past a 320px phone instead of letting the row wrap or shrink.
+	 */
+	fieldset {
+		min-inline-size: 0;
+	}
 	body {
 		@apply bg-background text-foreground;
 	}

@@ -2269,11 +2269,16 @@ async function motionInFrame(page: Page) {
 				// `data-tsd-source` is the dev server's devtools tagging elements
 				// with their source file; it names no part of this screen, and a
 				// production build does not carry it.
-				const attr = node
+				// A component's own `data-slot` (Base UI, shadcn) names the kind of
+				// control, not the part of the screen: the screen's own mark wins
+				// where the element has one (the Avansert chip is a menu trigger
+				// and a Juster chip, #579).
+				const marks = node
 					.getAttributeNames()
-					.find(
+					.filter(
 						(name) => name.startsWith('data-') && name !== 'data-tsd-source',
 					)
+				const attr = marks.find((name) => name !== 'data-slot') ?? marks[0]
 				if (attr) {
 					return node === el
 						? `[${attr}]`
@@ -2360,8 +2365,8 @@ test('the timeline animates its press and a landing, the composer its Drawer, an
 	// The whole frame, element by element (ADR 0088 updates the list): the
 	// system's press, `pressable` (ADR 0085: `scale(0.97)` with the colours on
 	// the same 160ms curve), on what the athlete taps — a row, a cell, the
-	// ownership glyph, "legg til en til", "Ny økt" and the other `Button`s
-	// (`data-slot`), today's links (`data-discover`) — and the one thing that
+	// ownership glyph, "legg til en til", "Ny økt" (`data-new-session`),
+	// today's links (`data-discover`) — and the one thing that
 	// moves by itself: a session row landing from the composer, which rises
 	// 4px and fades in (`@starting-style`, 200ms) and wears a tint while its
 	// Angre stands. Every one on the scale's own curve: no `all`, no built-in
@@ -2376,11 +2381,11 @@ test('the timeline animates its press and a landing, the composer its Drawer, an
 	expect(declared).toEqual([
 		...PRESS('[data-discover] button'),
 		...PRESS('[data-discover]'),
+		...PRESS('[data-new-session]'),
 		...PRESS('[data-owner-glyph]'),
 		`[data-session-row] — background-color 0.2s ${EASE_OUT}`,
 		`[data-session-row] — opacity 0.2s ${EASE_OUT}`,
 		`[data-session-row] — translate 0.2s ${EASE_OUT}`,
-		...PRESS('[data-slot]'),
 		...PRESS('[data-status]'),
 		...PRESS('[data-timeline-add-another]'),
 		...PRESS('[data-timeline-empty]'),

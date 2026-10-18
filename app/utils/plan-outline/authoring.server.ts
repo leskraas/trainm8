@@ -96,7 +96,11 @@ import {
 } from './authoring-schema.ts'
 import { eventFit } from './event-fit.ts'
 import { proposeFit, type FitProposal } from './fit-proposal.ts'
-import { walksAsEndurance } from './from-rows.ts'
+import {
+	isSimpleActivityTrack,
+	SIMPLE_ACTIVITY_SEGMENT,
+	walksAsEndurance,
+} from './from-rows.ts'
 import { readAnchorContext } from './history.server.ts'
 import {
 	familyOfPreset,
@@ -1429,18 +1433,24 @@ export async function layEnduranceSegments(
 		select: { id: true, discipline: true },
 	})
 	for (const track of tracks) {
-		// The Simple Activities' track on `other` climbs with the phases too,
-		// with no mix (#572).
+		// The Simple Activities' track on `other` walks the phases too, with no
+		// mix and a flat progression: its days are fixed (#572).
 		if (!walksAsEndurance(track.discipline)) continue
-		const mixless = withoutMix.includes(track.discipline as PlannedDiscipline)
+		const simple = isSimpleActivityTrack(track.discipline)
+		const mixless =
+			simple || withoutMix.includes(track.discipline as PlannedDiscipline)
 		for (const phase of phases) {
 			await tx.trainingTrackSegment.create({
 				data: {
 					kind: 'endurance',
 					trackId: track.id,
 					phaseId: phase.phaseId,
-					ramp: phase.ramp ?? null,
-					boundaryStep: phase.boundaryStep ?? null,
+					...(simple
+						? SIMPLE_ACTIVITY_SEGMENT
+						: {
+								ramp: phase.ramp ?? null,
+								boundaryStep: phase.boundaryStep ?? null,
+							}),
 					...(phase.mix?.length && !mixless
 						? { mix: { create: phase.mix } }
 						: {}),

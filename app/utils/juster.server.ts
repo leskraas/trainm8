@@ -29,6 +29,7 @@
  * been trained, or has changed again since (another Juster, an edit, a Week
  * Replan, the Session Nudge).
  */
+import { invariant } from '@epic-web/invariant'
 import { type Prisma } from '@prisma/client'
 import {
 	addDays,
@@ -41,6 +42,7 @@ import {
 import { readRetrievableEntry } from './catalogue.server.ts'
 import { sumBlockDurationMin } from './dashboard.ts'
 import { prisma } from './db.server.ts'
+import { type EffortWord, isEffortWord } from './effort-word.ts'
 import { formatNbWeekday } from './format.ts'
 import {
 	type JusterImage,
@@ -62,9 +64,16 @@ import { JUSTER_LABELS, nbDurationLabel } from './labels.ts'
 import { buildEasedPrescription } from './load/eased-prescription.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import { stampedSessionTitle } from './session-title.ts'
-import { readSimpleActivity } from './simple-activity.ts'
+import {
+	readSimpleActivity,
+	SIMPLE_ACTIVITY_INTENT,
+} from './simple-activity.ts'
 import { getDisciplineThresholds } from './training.server.ts'
-import { CARDIO_DISCIPLINES } from './workout-schema.ts'
+import {
+	CARDIO_DISCIPLINES,
+	isWorkoutIntent,
+	type WorkoutIntent,
+} from './workout-schema.ts'
 import {
 	buildBlocksCopy,
 	copyWorkout,
@@ -168,19 +177,14 @@ export async function justerSession(
 	const intent = post.intent
 	const workout = session.workout
 	if (!workout) return { ok: false, reason: 'no-workout' }
-	const change =
-		intent === 'tired'
-			? await tiredChange(userId, workout)
-			: shortChange(workout)
+	const change = await PRESCRIPTION_CHANGES[intent](userId, workout)
 	if (!change.ok) return change
 
 	const adjustmentId = await writePrescription(userId, session, intent, change)
 	await recomputePlannedTssForSession(userId, session.id)
 	return {
 		ok: true,
-		toast: (intent === 'tired'
-			? JUSTER_LABELS.done.tired
-			: JUSTER_LABELS.done.short)(nbDurationLabel(change.minutes * 60)),
+		toast: JUSTER_LABELS.done[intent](nbDurationLabel(change.minutes * 60)),
 		title,
 		changedSessionIds: [session.id],
 		undo: { adjustmentId },
@@ -197,12 +201,47 @@ type Change =
 	| {
 			ok: true
 			title: string
-			intent: string
-			effortWord: string | null
+			intent: KeptIntent
+			effortWord: EffortWord | null
 			blocks: Blocks
 			minutes: number
 	  }
 	| { ok: false; reason: JusterRefusal }
+
+/** The Juster choices that write a new prescription on the session. */
+type PrescriptionIntent = Exclude<JusterIntent, 'move'>
+
+/** Each prescription choice and the change it makes. */
+const PRESCRIPTION_CHANGES: Record<
+	PrescriptionIntent,
+	(userId: string, workout: Workout) => Promise<Change> | Change
+> = {
+	tired: (userId, workout) => tiredChange(userId, workout),
+	short: (_userId, workout) => shortChange(workout),
+}
+
+/** A stored intent: a **Workout Intent**, or a Simple Activity's own. */
+type KeptIntent = WorkoutIntent | typeof SIMPLE_ACTIVITY_INTENT
+
+/**
+ * A stored Workout's intent and Effort Word, read as the vocabularies they
+ * are. Every Workout is written through its schema, so the intent always
+ * reads; an Effort Word that does not is none.
+ */
+function keptWords(workout: Workout): {
+	intent: KeptIntent
+	effortWord: EffortWord | null
+} {
+	invariant(
+		isWorkoutIntent(workout.intent) ||
+			workout.intent === SIMPLE_ACTIVITY_INTENT,
+		`Workout ${workout.id} has an unknown intent`,
+	)
+	return {
+		intent: workout.intent,
+		effortWord: isEffortWord(workout.effortWord) ? workout.effortWord : null,
+	}
+}
 
 /** _For sliten i dag_. */
 async function tiredChange(userId: string, workout: Workout): Promise<Change> {
@@ -215,7 +254,7 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 		return {
 			ok: true,
 			title: workout.title,
-			intent: workout.intent,
+			intent: keptWords(workout).intent,
 			effortWord: 'rolig',
 			blocks: withSingleDuration(workout.blocks, minutes * 60),
 			minutes,
@@ -244,7 +283,7 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 		return {
 			ok: true,
 			title: workout.title,
-			intent: workout.intent,
+			intent: keptWords(workout).intent,
 			effortWord: 'rolig',
 			blocks,
 			minutes: sumBlockDurationMin(blocks) ?? 0,
@@ -280,7 +319,7 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 			zone: null,
 		}),
 		intent: eased.intent,
-		effortWord: workout.effortWord,
+		effortWord: keptWords(workout).effortWord,
 		blocks: eased.blocks.map((block, blockIndex) => ({
 			name: null,
 			orderIndex: blockIndex,
@@ -310,8 +349,7 @@ function shortChange(workout: Workout): Change {
 		return {
 			ok: true,
 			title: workout.title,
-			intent: workout.intent,
-			effortWord: workout.effortWord,
+			...keptWords(workout),
 			blocks: withSingleDuration(workout.blocks, minutes * 60),
 			minutes,
 		}
@@ -326,8 +364,7 @@ function shortChange(workout: Workout): Change {
 	return {
 		ok: true,
 		title: workout.title,
-		intent: workout.intent,
-		effortWord: workout.effortWord,
+		...keptWords(workout),
 		blocks: scaledTo(workout.blocks, minutes * 60),
 		minutes,
 	}
@@ -423,13 +460,11 @@ function isShared(workout: Workout): boolean {
 }
 
 /** What an undo must still find on a Workout: its prescription, as it stands. */
-function fingerprintOf(workout: {
-	title: string
-	discipline: string
-	intent: string
-	effortWord: string | null
-	blocks: Blocks
-}): string {
+function fingerprintOf(
+	workout: Pick<Workout, 'title' | 'discipline' | 'intent' | 'effortWord'> & {
+		blocks: Blocks
+	},
+): string {
 	return JSON.stringify([
 		workout.title,
 		workout.discipline,
@@ -442,7 +477,7 @@ function fingerprintOf(workout: {
 async function writePrescription(
 	userId: string,
 	session: SessionRow,
-	intent: Exclude<JusterIntent, 'move'>,
+	intent: PrescriptionIntent,
 	change: Extract<Change, { ok: true }>,
 ): Promise<string> {
 	const workout = session.workout!
@@ -667,7 +702,7 @@ async function moveSession(
 // ── Bytt økt ─────────────────────────────────────────────────────────────
 
 /** What a pick puts on today: a prescription to copy, and where it came from. */
-type Pick = { workout: CopyableWorkout; copiedFromId: string | null }
+type PickedWorkout = { workout: CopyableWorkout; copiedFromId: string | null }
 
 /**
  * A pick, read through Bibliotek's own guards: a Catalogue session the list
@@ -677,7 +712,7 @@ async function readPick(
 	userId: string,
 	from: SwapSource,
 	pickId: string,
-): Promise<Pick | null> {
+): Promise<PickedWorkout | null> {
 	if (from === 'catalogue') {
 		const entry = await readRetrievableEntry(userId, pickId)
 		if (!entry) return null
@@ -719,7 +754,7 @@ const EMPTY_SET: Omit<Step['sets'][number], 'orderIndex' | 'reps'> = {
 async function exercisePick(
 	userId: string,
 	exerciseId: string,
-): Promise<Pick | null> {
+): Promise<PickedWorkout | null> {
 	// The bank Bibliotek lists: trainm8's exercises and the athlete's own.
 	const exercise = await prisma.exercise.findFirst({
 		where: {

@@ -418,7 +418,7 @@ export function RadioGroupField({
 								disabled={option.disabled}
 								className="mt-0.5"
 							/>
-							<FieldContent>
+							<FieldContent className="min-w-0 [overflow-wrap:anywhere]">
 								<FieldTitle className="text-callout">{option.label}</FieldTitle>
 								{option.description ? (
 									<FieldDescription className="text-footnote">
@@ -493,7 +493,7 @@ export function CheckboxCardsField({
 								onCheckedChange={(on) => toggle(option.value, on)}
 								className="mt-0.5"
 							/>
-							<FieldContent>
+							<FieldContent className="min-w-0 [overflow-wrap:anywhere]">
 								<FieldTitle className="text-callout">{option.label}</FieldTitle>
 								{option.description ? (
 									<FieldDescription className="text-footnote">
