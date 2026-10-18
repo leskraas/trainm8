@@ -311,10 +311,13 @@ export default function LevelStep({
 				/>
 
 				{level != null && hours != null ? (
-					<fieldset className="space-y-3" data-start-hours>
+					<fieldset className="@container space-y-3" data-start-hours>
 						<legend className={QUESTION_LEGEND}>{L.level.hours}</legend>
 						<input type="hidden" name={fields.hours.name} value={hours} />
-						<div className="flex items-center justify-between gap-3">
+						{/* Where the row cannot hold the figure between the two buttons
+						    (a 320px phone at 200% text), the figure takes a row of its
+						    own above them. */}
+						<div className="flex flex-wrap items-center justify-between gap-3">
 							<Button
 								type="button"
 								variant="outline"
@@ -327,7 +330,7 @@ export default function LevelStep({
 							</Button>
 							<output
 								aria-live="polite"
-								className="text-display min-w-0 text-center tabular-nums"
+								className="text-display min-w-0 flex-1 text-center tabular-nums @max-[17rem]:order-first @max-[17rem]:basis-full"
 								data-start-hours-value
 							>
 								{nbHoursWords(hours)}

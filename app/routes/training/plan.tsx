@@ -2239,7 +2239,10 @@ export default function PlanRoute({
 				// Owner decision 6: "+ Ny" on I dag makes sessions only; a race and a
 				// plan are started here.
 				actions={
-					<nav aria-label={SESONG_ENTRY_LABELS.group} className="flex gap-2">
+					<nav
+						aria-label={SESONG_ENTRY_LABELS.group}
+						className="flex flex-wrap justify-end gap-2"
+					>
 						<PillLink to="/training/events/new" className="px-3">
 							<Icon name="plus" size="sm" />
 							{SESONG_ENTRY_LABELS.newEvent}

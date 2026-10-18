@@ -158,19 +158,22 @@ function SwapPicker({
 					{L.description(title)}
 				</DrawerDescription>
 			</DrawerHeader>
-			<div className="flex flex-col gap-3 px-4 pb-3">
+			{/* Where three sources cannot sit side by side at the text size the
+			    athlete reads (a phone at 200%), they stack, each in full,
+			    instead of truncating to an initial. */}
+			<div className="@container flex flex-col gap-3 px-4 pb-3">
 				<SegmentedControl
 					value={from}
 					onValueChange={setFrom}
 					aria-label={L.sourcesLabel}
-					className="w-full"
+					className="w-full @max-[15rem]:flex-col @max-[15rem]:rounded-3xl"
 				>
 					{SWAP_SOURCES.map((source) => (
 						<ToggleGroupItem
 							key={source}
 							value={source}
 							data-swap-source={source}
-							className="h-9 min-w-0 flex-1 px-1 text-footnote max-[359px]:text-caption"
+							className="text-footnote max-[359px]:text-caption h-9 min-w-0 flex-1 px-1 @max-[15rem]:h-auto @max-[15rem]:min-h-11 @max-[15rem]:w-full @max-[15rem]:flex-none"
 						>
 							<span className="max-w-full truncate">{L.sources[source]}</span>
 						</ToggleGroupItem>

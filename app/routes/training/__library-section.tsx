@@ -41,7 +41,7 @@ function HubLink({
 			<span className="bg-muted flex size-10 flex-none items-center justify-center rounded-full">
 				<Icon name={icon} size="md" aria-hidden="true" />
 			</span>
-			<span className="min-w-0 flex-1">
+			<span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
 				<span className="text-callout block">{title}</span>
 				<span className="text-footnote text-muted-foreground block">
 					{description}
