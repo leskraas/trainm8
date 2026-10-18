@@ -17,7 +17,7 @@ import {
 	IMPORT_LINK_REFUSALS,
 	MARK_DONE_REFUSALS,
 } from './import-link-schema.ts'
-import {
+import { nbPlannedDisciplineLabel,
 	SESONG_NOTICE_LABELS,
 	APP_TAB_LABELS,
 	CONVERSION_CONVENTION_LABELS,
@@ -81,8 +81,7 @@ import {
 	horizonFillLabel,
 	HELD_NUMBER_LABELS,
 	seasonEditSentence,
-	weekRiseSentence,
-} from './labels.ts'
+	weekRiseSentence } from './labels.ts'
 import { LOAD_RECOMPUTE_KINDS } from './load/recompute-notice.ts'
 import { INSUFFICIENT_DATA_WHYS, NO_CHANGE_WHYS } from './load/week-replan.ts'
 import { CLASH_REASONS } from './plan-outline/day-rule.ts'
@@ -109,6 +108,7 @@ import {
 	UNMEASURED_REASONS,
 	VOLUME_GRADES,
 } from './plan-outline/week-volumes.ts'
+import { PLANNED_DISCIPLINES } from './planned-discipline.ts'
 // A value import, which `labels.ts` itself may not make: only that module is the
 // runtime leaf, and pinning its Monday-first list against the canonical mapping is
 // the whole reason this file reaches for the function.
@@ -714,4 +714,13 @@ test('one clash held by several stretches of the plan names them all on one line
 	expect(SESONG_NOTICE_LABELS.weekSpans(['Uke 3', 'Uke 6–7', 'Uke 9'])).toBe(
 		'Uke 3, uke 6–7 og uke 9',
 	)
+})
+
+test('every planned discipline has a Norwegian name, and none shows its stored id', () => {
+	for (const discipline of PLANNED_DISCIPLINES) {
+		const name = nbPlannedDisciplineLabel(discipline)
+		expect(name).not.toBe(discipline)
+		expect(name.length).toBeGreaterThan(0)
+	}
+	expect(nbPlannedDisciplineLabel('other')).toBe('Enkel aktivitet')
 })

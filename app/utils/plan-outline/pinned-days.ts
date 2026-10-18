@@ -11,7 +11,8 @@
 // stamp lays each week after the endurance mix (§3). Pure: no I/O.
 
 import { STRENGTH_PER_WEEK_CHOICES } from '../first-run/start-draft.ts'
-import { type Discipline } from '../workout-schema.ts'
+import { type PlannedDiscipline } from '../planned-discipline.ts'
+import { type CardioDiscipline } from '../workout-schema.ts'
 import { type StampDay, type StampLiftingSlot } from './stamp.ts'
 import { proposeStarterPattern } from './starter-pattern.ts'
 import {
@@ -286,13 +287,13 @@ export function trackRowsByRule({
 	hardSessions = 0,
 }: {
 	trackId: string
-	discipline: Discipline
+	discipline: CardioDiscipline
 	rows: readonly TrackPatternRow[]
 	available: readonly PatternWeekday[] | null
 	/** The plan's other endurance tracks and Simple Activities, on their days. */
 	others: ReadonlyArray<{
 		trackId: string
-		discipline: Discipline
+		discipline: PlannedDiscipline
 		days: readonly PatternWeekday[]
 	}>
 	/** The most hard sessions a week the track's mix asks for. */

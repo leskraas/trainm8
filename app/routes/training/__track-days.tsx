@@ -23,7 +23,7 @@ import { WeekdayChips } from '#app/components/weekday-chips.tsx'
 import { type action as trackDaysAction } from '#app/routes/resources/track-days.tsx'
 import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import {
-	NB_DISCIPLINE_LABELS,
+	nbPlannedDisciplineLabel,
 	PLAN_TRACK_DAYS_LABELS,
 	SESONG_NOTICE_LABELS,
 } from '#app/utils/labels.ts'
@@ -47,8 +47,7 @@ const ACTION = '/resources/track-days'
 function nameOf(unit: TrackDaysUnit): string {
 	return unit.kind === 'activity'
 		? L.activity(unit.title)
-		: ((NB_DISCIPLINE_LABELS as Record<string, string>)[unit.discipline] ??
-				unit.discipline)
+		: nbPlannedDisciplineLabel(unit.discipline)
 }
 
 export function TrackDaysCard({ state }: { state: TrackDaysState }) {

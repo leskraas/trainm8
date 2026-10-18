@@ -4,7 +4,10 @@
 
 import { prisma } from '../db.server.ts'
 import { findActiveOutline } from '../training.server.ts'
-import { type Discipline } from '../workout-schema.ts'
+import {
+	type PlannedDiscipline,
+	readPlannedDiscipline,
+} from '../planned-discipline.ts'
 import { parsePinnedDays, strengthPinnedDays } from './pinned-days.ts'
 import { type PatternWeekday } from './week-pattern.ts'
 
@@ -16,8 +19,8 @@ import { type PatternWeekday } from './week-pattern.ts'
 export async function readPinnedDaysByDiscipline(
 	userId: string,
 	now: Date = new Date(),
-): Promise<Map<Discipline, PatternWeekday[]>> {
-	const pinned = new Map<Discipline, PatternWeekday[]>()
+): Promise<Map<PlannedDiscipline, PatternWeekday[]>> {
+	const pinned = new Map<PlannedDiscipline, PatternWeekday[]>()
 	const active = await findActiveOutline(userId, now)
 	if (!active) return pinned
 	const [tracks, pattern] = await Promise.all([
@@ -41,7 +44,8 @@ export async function readPinnedDaysByDiscipline(
 						(pattern?.days ?? []).filter((day) => day.trackId === track.id),
 					)
 				: parsePinnedDays(track.pinnedDays)
-		if (days) pinned.set(track.discipline as Discipline, days)
+		const discipline = readPlannedDiscipline(track.discipline)
+		if (days && discipline) pinned.set(discipline, days)
 	}
 	return pinned
 }

@@ -33,7 +33,11 @@ import { prisma } from '../db.server.ts'
 import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
 import { SIMPLE_ACTIVITY_DISCIPLINE } from '../simple-activity.ts'
 import { findActiveOutline } from '../training.server.ts'
-import { type Discipline } from '../workout-schema.ts'
+import {
+	type PlannedDiscipline,
+	readPlannedDiscipline,
+} from '../planned-discipline.ts'
+import { isCardioDiscipline, type CardioDiscipline } from '../workout-schema.ts'
 import {
 	clashesIn,
 	placingClashes,
@@ -67,8 +71,17 @@ import {
 /** How many coming weeks a change previews, as the strength days do. */
 export const TRACK_DAYS_PREVIEW_WEEKS = 4
 
-/** The endurance disciplines whose days the athlete can choose here. */
-const ENDURANCE: readonly string[] = ['run', 'bike', 'swim']
+/** The order the endurance tracks are listed in, before the Activities. */
+const LISTED: readonly CardioDiscipline[] = ['run', 'bike', 'swim']
+
+/** A track whose days the athlete chooses here: run, bike or swim. */
+function isEnduranceDiscipline(
+	discipline: PlannedDiscipline,
+): discipline is CardioDiscipline {
+	return (
+		discipline !== SIMPLE_ACTIVITY_DISCIPLINE && isCardioDiscipline(discipline)
+	)
+}
 
 /** A day choice: days, Monday first, or `null` for _La appen velge_. */
 export type TrackDaysChoice = PatternWeekday[] | null
@@ -77,11 +90,7 @@ export type TrackDaysChoice = PatternWeekday[] | null
 export type TrackDaysUnit = {
 	/** `track:<id>` or `activity:<trackId>:<workoutId>`. */
 	key: string
-	kind: 'track' | 'activity'
 	trackId: string
-	/** A Simple Activity's own Workout, which each of its days copies. */
-	workoutId: string | null
-	discipline: string
 	/** A Simple Activity's name — its Workout's title (_Langrenn_). */
 	title: string | null
 	/**
@@ -96,7 +105,15 @@ export type TrackDaysUnit = {
 	 * since is refused rather than applied to something they never saw.
 	 */
 	version: string
-}
+} & (
+	| { kind: 'track'; discipline: CardioDiscipline; workoutId: null }
+	| {
+			kind: 'activity'
+			discipline: typeof SIMPLE_ACTIVITY_DISCIPLINE
+			/** The Simple Activity's own Workout, which each of its days copies. */
+			workoutId: string
+	  }
+)
 
 export type TrackDaysState = {
 	outlineId: string
@@ -171,6 +188,10 @@ async function readPlan(
 		},
 	})
 	if (!outline) return null
+	const tracks = outline.tracks.flatMap((track) => {
+		const discipline = readPlannedDiscipline(track.discipline)
+		return discipline ? [{ ...track, discipline }] : []
+	})
 	const [patterns, available] = await Promise.all([
 		// Every pattern with days: the first is the one the weeks are laid
 		// from and the one the choice is read off; a choice holds in them all.
@@ -188,7 +209,7 @@ async function readPlan(
 		readAvailablePatternDays(userId, db),
 	])
 	return {
-		outline,
+		outline: { id: outline.id, tracks },
 		pattern: patterns[0] ?? null,
 		/** The plan's other patterns with days, which a choice rewrites too. */
 		elsewhere: patterns.slice(1),
@@ -203,16 +224,17 @@ function unitsOf({ outline, pattern }: Plan): TrackDaysUnit[] {
 	const rows = pattern?.days ?? []
 	const units: TrackDaysUnit[] = []
 	// Run, bike, swim, then the Simple Activities.
-	const rank = (discipline: string) =>
-		ENDURANCE.includes(discipline)
-			? ENDURANCE.indexOf(discipline)
-			: ENDURANCE.length
+	const rank = (discipline: PlannedDiscipline) =>
+		isEnduranceDiscipline(discipline)
+			? LISTED.indexOf(discipline)
+			: LISTED.length
 	const ordered = [...outline.tracks].sort(
 		(a, b) => rank(a.discipline) - rank(b.discipline),
 	)
 	for (const track of ordered) {
 		const own = rows.filter((row) => row.trackId === track.id)
-		if (ENDURANCE.includes(track.discipline)) {
+		const { discipline } = track
+		if (isEnduranceDiscipline(discipline)) {
 			const choiceRows = own.flatMap((row) => choiceRowOf(row) ?? [])
 			const pinned = parsePinnedDays(track.pinnedDays)
 			units.push({
@@ -220,13 +242,13 @@ function unitsOf({ outline, pattern }: Plan): TrackDaysUnit[] {
 				kind: 'track',
 				trackId: track.id,
 				workoutId: null,
-				discipline: track.discipline,
+				discipline,
 				title: null,
 				pinned,
 				days: patternWeekdaysOf(choiceRows.map((row) => row.weekday)),
 				version: `${serializePinnedDays(pinned) ?? 'auto'}|${rowsKey(choiceRows)}`,
 			})
-		} else if (track.discipline === SIMPLE_ACTIVITY_DISCIPLINE) {
+		} else if (discipline === SIMPLE_ACTIVITY_DISCIPLINE) {
 			// One unit per Simple Activity: the rows that copy one Workout.
 			const byWorkout = new Map<string, PatternRow[]>()
 			for (const row of own) {
@@ -244,7 +266,7 @@ function unitsOf({ outline, pattern }: Plan): TrackDaysUnit[] {
 					kind: 'activity',
 					trackId: track.id,
 					workoutId,
-					discipline: track.discipline,
+					discipline,
 					title: activityRows[0]?.workout?.title ?? null,
 					pinned: days,
 					days,
@@ -338,7 +360,7 @@ async function rowsFor(
 		.filter((track) => track.id !== unit.trackId && !strength.has(track.id))
 		.map((track) => ({
 			trackId: track.id,
-			discipline: track.discipline as Discipline,
+			discipline: track.discipline,
 			days: patternWeekdaysOf(
 				(plan.pattern?.days ?? []).flatMap((row) =>
 					row.trackId === track.id && row.weekday != null ? [row.weekday] : [],
@@ -346,9 +368,10 @@ async function rowsFor(
 			),
 		}))
 		.filter((track) => track.days.length > 0)
+	if (unit.kind !== 'track') return rows
 	return trackRowsByRule({
 		trackId: unit.trackId,
-		discipline: unit.discipline as Discipline,
+		discipline: unit.discipline,
 		rows,
 		available: plan.available,
 		others,
@@ -782,7 +805,7 @@ async function renumberWeekday(
 
 /** A track that lost days when Training Availability changed. */
 export type DroppedPinnedDays = {
-	discipline: string
+	discipline: PlannedDiscipline
 	/** A Simple Activity's name, where it was one. */
 	title: string | null
 	lost: PatternWeekday[]
