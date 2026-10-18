@@ -76,8 +76,15 @@ Week Replan all ask this one module, so they cannot drift apart again.
 
 When `planStamp` lays a track's Quality Session Mix, the days it spreads away
 from include every other track's hard sessions, long days and lifting days that
-week, and every Simple Activity that is not _rolig_. No day carries two long
-days. The rest of ADR 0091 §1 stands.
+week, every Simple Activity that is not _rolig_, and every session already in
+the week that the stamp does not write: one the athlete scheduled by hand, or
+one another plan laid (spec #588 story 34). The stamp lays around those and
+never moves them. No day carries two long days. The rest of ADR 0091 §1 stands.
+
+The tracks are laid in one order each week: a track on its Pinned days first
+(§4), then the track whose mix asks the most hard sessions that week, then the
+rest in track order. So the week's hard mix gets the room, and a lighter mix
+steps around it whichever order the tracks were made in.
 
 ### 3. Lifting is laid per week
 
@@ -86,9 +93,17 @@ week's endurance mix, with ADR 0103 §2's ordering: the fewest lifts on a Hard
 day (`middels` counts), then on the day before one, then on the Long day, then
 the lifts furthest apart, then the earliest. A phase that moves the hard days
 moves lifting with them. The rule is deterministic, so a re-lay lands where the
-stamp did. **Strength Frequency** says how many lifts a week. The session
-lifted, its place after the day's endurance session and the _Nybegynner_ cap
-(ADR 0103 §3–§5) stand.
+stamp did. **Strength Frequency** says how many lifts a week.
+
+The days a lift may go on are the athlete's **Training Availability**. Where
+they never stated it, a lift goes on the pattern's own days, and where those are
+fewer than the lifts, the starter pattern's default four-day week
+(`DEFAULT_TRAINING_WEEKDAYS`: Tuesday, Thursday, Saturday, Sunday) lends the
+rest (#592). This invents days the athlete never named, so it is the fallback
+only: it keeps the number of lifts the athlete asked for rather than silently
+dropping one, and stating availability replaces it. The session lifted, its
+place after the day's endurance session and the _Nybegynner_ cap (ADR 0103
+§3–§5) stand.
 
 ### 4. Pinned days per track
 
@@ -101,7 +116,10 @@ the default and means the day rule lays the track.
 - Pinned days stay where the athlete put them even when they clash. The fit
   check says so and names the athlete's choice as the cause. It never moves
   them.
-- On the strength track, the number of Pinned days is the Strength Frequency.
+- A choice holds in every Week Pattern that holds the track, not only the one
+  the weeks are laid from, so a week stamped from any of them keeps it.
+- On the strength track, the number of Pinned days is the Strength Frequency:
+  the profile's answer and every strength block of the track (story 20).
 - Removing a day from Training Availability drops it from every track that
   pinned it, and says so.
 - **Fixed strength days already stored**, from the first run or the strength
