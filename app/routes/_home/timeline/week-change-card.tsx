@@ -52,6 +52,8 @@ import {
 
 type OnCard = (next: WeekChangeData | null | undefined) => void
 
+const noCard: OnCard = () => {}
+
 /**
  * The newest card seen, from home or from a reply. Home's wins when it
  * arrives (it is the revalidation after the reply); a null from home after
@@ -507,8 +509,17 @@ function Answered({
 	)
 }
 
-/** "Gjør uka lettere −15 %" (#505 story 51): once per week, before → after. */
-function Ease({ ease, onCard }: { ease: WeekChangeEase; onCard: OnCard }) {
+/**
+ * "Gjør uka lettere −15 %" (#505 story 51): once per week, before → after.
+ * Also on the Autopilot Notice (ADR 0100 §5), which passes no card to keep.
+ */
+export function Ease({
+	ease,
+	onCard = noCard,
+}: {
+	ease: WeekChangeEase
+	onCard?: OnCard
+}) {
 	const fetcher = useFetcher<typeof weekChangeAction>()
 	useCardFromReply(fetcher, onCard)
 	const [form, fields] = useWeekChangeForm(`ease-${ease.weekKey}`, fetcher, {

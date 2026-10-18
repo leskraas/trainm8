@@ -43,12 +43,14 @@ function renderMe({
 	],
 	records = [RECORD],
 	credits = [],
+	autopilot = false,
 }: {
 	current?: Parameters<typeof buildFormReading>[0]['current']
 	trust?: TsbTrust
 	snapshots?: Array<{ date: string; ctl: number }>
 	records?: PersonalRecord[]
 	credits?: string[]
+	autopilot?: boolean
 } = {}) {
 	const loaderData = {
 		user: { name: 'Kody', username: 'kody', image: null },
@@ -56,6 +58,7 @@ function renderMe({
 		form: buildFormReading({ current, trust, snapshots }),
 		records: buildRecordLines(records),
 		credits,
+		autopilot,
 	}
 	const App = createRoutesStub([
 		{
@@ -77,7 +80,26 @@ test('Form and Rekorder sit between the profile and the account sections', async
 	const sections = screen
 		.getAllByRole('heading', { level: 2 })
 		.map((heading) => heading.textContent)
-	expect(sections).toEqual(['Form', 'Rekorder', 'Innstillinger', 'Koblinger'])
+	expect(sections).toEqual([
+		'Form',
+		'Rekorder',
+		'Ukeplanen',
+		'Innstillinger',
+		'Koblinger',
+	])
+})
+
+test('Ukeplanen holds the Autopilot switch, showing the stored choice (#576)', async () => {
+	renderMe({ autopilot: true })
+
+	const section = await screen.findByRole('region', { name: 'Ukeplanen' })
+	expect(
+		within(section).getByRole('radio', { name: 'Autopilot' }),
+	).toBeChecked()
+	expect(
+		within(section).getByRole('radio', { name: 'Spør meg først' }),
+	).not.toBeChecked()
+	expect(section).toHaveTextContent('Gjelder fra neste ukeskifte')
 })
 
 test('the Form section shows the triad as legend triggers, with its trust and trend', async () => {

@@ -109,7 +109,10 @@ export function roundFactor(verdict: RoundVerdict): number {
 }
 
 /** The next round's proposal: an `add-phase` aimed at the plan, never a session. */
-export function proposeNextRound(facts: RoundFacts): ProposalDraft {
+export function proposeNextRound(
+	facts: RoundFacts,
+	{ autopilot = false }: { autopilot?: boolean } = {},
+): ProposalDraft {
 	const verdict = roundVerdict(facts.weeks)
 	return {
 		payload: {
@@ -128,6 +131,7 @@ export function proposeNextRound(facts: RoundFacts): ProposalDraft {
 			facts.round,
 			facts.weeks.length,
 			Math.round((ROUND_STEP_UP - 1) * 100),
+			{ autopilot },
 		),
 	}
 }

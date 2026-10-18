@@ -18,6 +18,10 @@
  *   takes a move "fra nå av" — that is a rule only the athlete can state.
  * - **An open-ended plan's next round** (`add-phase`) targets the plan, not a
  *   session: silence appends one that keeps the volume, never one that adds.
+ * - **The autopilot** (`applyAtClose`, ADR 0100) applies at the close what
+ *   silence would, plus added load within its guards (`autopilot.ts`): a step
+ *   up of at most 5 % and the next round. It re-reads ownership exactly as
+ *   silence does, and never places a make-up or an extra session.
  * - **A gone target applies nothing.** A proposal aimed at one session never
  *   widens to the week when that session is deleted; week-wide is said in the
  *   payload (`scope: 'week'`).
@@ -49,6 +53,7 @@ import {
 	sessionOwner,
 } from '#app/utils/session-ownership.ts'
 import { copyWorkout, workoutCopySelect } from '#app/utils/workout.server.ts'
+import { type AutopilotOutcome, autopilotGuard } from './autopilot.ts'
 import { fillPlanWeeksToHorizon } from './horizon-fill.server.ts'
 import { recomputePlannedTssForSession } from './planned-tss.server.ts'
 import {
@@ -186,6 +191,112 @@ export async function applyDueProposals(
 
 class ProposalRaceLost extends Error {}
 
+/**
+ * The autopilot's apply step (#576, ADR 0100 §2–3): at the close, every
+ * proposal of the week's decision is applied at once when the guards allow it
+ * and its target is the machine's **now** — added load and a next round
+ * included — and what it did with each is stored on the proposal
+ * (`autopilotOutcome`), so the Autopilot Notice can say it. Nothing waits for
+ * an answer, and a proposal the autopilot looked at is never answerable.
+ *
+ * When this runs is the week change's: once per decision closed under
+ * autopilot, claimed first (`WeekReplan.autopilotAppliedAt`).
+ */
+export async function applyAtClose(
+	userId: string,
+	now: Date,
+	{ weekReplanId, timezone }: { weekReplanId: string; timezone: string },
+): Promise<{ applied: string[]; held: string[] }> {
+	const pending = await prisma.weekReplanProposal.findMany({
+		where: {
+			athleteId: userId,
+			weekReplanId,
+			answer: 'pending',
+			appliedAt: null,
+			autopilotOutcome: null,
+		},
+		orderBy: { createdAt: 'asc' },
+		select: proposalSelect,
+	})
+	const applied: string[] = []
+	const held: string[] = []
+
+	for (const row of pending) {
+		const proposal = readStoredProposal(row)
+		const guard = autopilotGuard(proposal.payload)
+		if (guard !== 'may-apply') {
+			await markOutcome(proposal.id, guard)
+			held.push(proposal.id)
+			continue
+		}
+		const result = await prisma
+			.$transaction(async (tx) => {
+				const outcome = await applyPayload(tx, {
+					userId,
+					proposal,
+					scope: 'this-time',
+					by: 'autopilot',
+					now,
+					timezone,
+				})
+				if (!outcome.applied) return outcome
+				const claimed = await tx.weekReplanProposal.updateMany({
+					where: {
+						id: proposal.id,
+						answer: 'pending',
+						appliedAt: null,
+						autopilotOutcome: null,
+					},
+					data: { ...appliedData(outcome, now), autopilotOutcome: 'applied' },
+				})
+				if (claimed.count === 0) throw new ProposalRaceLost()
+				return outcome
+			})
+			.catch((error: unknown) => {
+				if (error instanceof ProposalRaceLost) return null
+				throw error
+			})
+		if (result == null) continue
+		if (result.applied) {
+			applied.push(proposal.id)
+			await afterApply(userId, result, timezone, now)
+		} else {
+			await markOutcome(proposal.id, await heldOutcome(userId, proposal))
+			held.push(proposal.id)
+		}
+	}
+	return { applied, held }
+}
+
+async function markOutcome(proposalId: string, outcome: AutopilotOutcome) {
+	await prisma.weekReplanProposal.updateMany({
+		where: { id: proposalId, appliedAt: null, autopilotOutcome: null },
+		data: { autopilotOutcome: outcome },
+	})
+}
+
+/**
+ * Why an allowed proposal applied nothing: a session it is aimed at is the
+ * athlete's (left alone, and said so), or there was nothing left to change.
+ */
+async function heldOutcome(
+	userId: string,
+	proposal: StoredProposal,
+): Promise<AutopilotOutcome> {
+	const ids = [
+		proposal.targetSessionId,
+		proposal.payload.kind === 'swap' ? proposal.payload.otherSessionId : null,
+	].filter((id): id is string => id != null)
+	if (ids.length === 0) return 'gone'
+	const sessions = await prisma.workoutSession.findMany({
+		where: { id: { in: ids }, userId },
+		select: { source: true, adoptedAt: true, releasedAt: true },
+	})
+	return sessions.some((session) => sessionOwner(session) === 'athlete')
+		? 'left-alone'
+		: 'gone'
+}
+
 // ── applying one payload ────────────────────────────────────────────────────
 
 export const proposalSelect = {
@@ -195,6 +306,7 @@ export const proposalSelect = {
 	answer: true,
 	loadDirection: true,
 	appliedAt: true,
+	autopilotOutcome: true,
 	reason: true,
 	targetSessionId: true,
 	targetWeekKey: true,
@@ -231,8 +343,12 @@ export type ApplyContext = {
 	userId: string
 	proposal: StoredProposal
 	scope: ProposalScope
-	/** An explicit yes, or the morning's silence — which re-checks ownership. */
-	by: 'yes' | 'silence'
+	/**
+	 * An explicit yes; the morning's silence; or the autopilot at the close
+	 * (ADR 0100). Silence and the autopilot re-check ownership; only a yes
+	 * places a session, and only silence holds back a next round that adds.
+	 */
+	by: 'yes' | 'silence' | 'autopilot'
 	now: Date
 	timezone: string
 }
@@ -382,10 +498,10 @@ function isAhead(session: Target, now: Date): boolean {
 }
 
 /**
- * Whether silence may write to this session: it is the machine's **now**, and
- * it has not changed since the proposal was written.
+ * Whether silence or the autopilot may write to this session: it is the
+ * machine's **now**, and it has not changed since the proposal was written.
  */
-function silenceMayTouch(session: Target, ctx: ApplyContext): boolean {
+function machineMayTouch(session: Target, ctx: ApplyContext): boolean {
 	return (
 		sessionOwner(session) === 'machine' &&
 		!changedSince(session, ctx.proposal.createdAt)
@@ -415,7 +531,7 @@ function changedSince(session: Target, writtenAt: Date): boolean {
 function mayTouch(session: Target, ctx: ApplyContext): boolean {
 	return (
 		isAhead(session, ctx.now) &&
-		(ctx.by === 'yes' || silenceMayTouch(session, ctx))
+		(ctx.by === 'yes' || machineMayTouch(session, ctx))
 	)
 }
 
@@ -445,7 +561,7 @@ async function applyWeekScale(
 			status: 'scheduled',
 			scheduledAt: { gt: ctx.now, gte: start, lte: end },
 			workoutId: { not: null },
-			...(ctx.by === 'silence' ? MACHINE_OWNED_SESSION : {}),
+			...(ctx.by === 'yes' ? {} : MACHINE_OWNED_SESSION),
 		},
 		select: targetSelect,
 	})
@@ -681,8 +797,9 @@ async function applyAdd(
 /**
  * Append an open-ended plan's next round (ADR 0079 §3). Its target is the plan,
  * not a session, so session ownership has nothing to say: silence may append a
- * round that keeps the volume (the caller has already held one that adds), and
- * a yes appends either. Nothing is written when the plan has gained an Event or
+ * round that keeps the volume (the caller has already held one that adds), a
+ * yes appends either, and so does the autopilot within its guards (ADR 0100
+ * §2, amending ADR 0079 §3; the caller has held one past them). Nothing is written when the plan has gained an Event or
  * been reshaped since the proposal was written (`appendOpenEndedRound`).
  */
 async function applyAddPhase(
@@ -690,7 +807,9 @@ async function applyAddPhase(
 	ctx: Run,
 	payload: Extract<ProposalPayload, { kind: 'add-phase' }>,
 ): Promise<Outcome> {
-	if (ctx.by !== 'yes' && loadDirectionOf(payload) === 'adds') return NOTHING
+	if (ctx.by === 'silence' && loadDirectionOf(payload) === 'adds') {
+		return NOTHING
+	}
 	const appended = await appendOpenEndedRound(tx, ctx.userId, payload, ctx)
 	if (!appended) return NOTHING
 	ctx.image.round = {
