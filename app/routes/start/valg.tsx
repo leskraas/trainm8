@@ -200,10 +200,10 @@ function notesOf(start: StartDraft, sessionCap: number): string[] {
 		)
 	}
 	if (start.merged > 0) notes.push(L.merged(start.options.length))
-	if (start.capped) {
-		notes.push(SIMPLE_START_LABELS.activities.beginnerCap(sessionCap))
-	} else if (start.strengthCapped != null) {
+	if (start.strengthCapped != null) {
 		notes.push(L.strengthTakesDays(sessionCap, start.strengthCapped))
+	} else if (start.capped) {
+		notes.push(SIMPLE_START_LABELS.activities.beginnerCap(sessionCap))
 	} else if (start.restDayKept) {
 		notes.push(SIMPLE_START_LABELS.activities.restDay)
 	} else if (start.daysUsed < start.daysPicked) {
