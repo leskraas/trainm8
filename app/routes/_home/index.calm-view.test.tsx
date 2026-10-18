@@ -179,7 +179,7 @@ function renderToday({
 			HydrateFallback: () => <div>Loading...</div>,
 		},
 	])
-	render(<App initialEntries={['/']} />)
+	return render(<App initialEntries={['/']} />)
 }
 
 test("I dag opens on today's card with one large Gjort, then this week", async () => {
@@ -249,14 +249,23 @@ test('a free today says Fri i dag and names the next session', async () => {
 })
 
 /** A notice for the week that closed on Sunday 30 Dec, as the reader builds it. */
-function notice(lines: AutopilotNotice['lines']): AutopilotNotice {
+function notice(
+	lines: AutopilotNotice['lines'],
+	extra: Partial<AutopilotNotice> = {},
+): AutopilotNotice {
 	return {
 		closedWeekKey: '2029-12-24',
 		comingWeekKey: '2029-12-31',
+		heading: 'Neste uke er lagt ut',
+		begun: false,
+		showEase: true,
+		seen: true,
 		lines,
+		unlaidLine: null,
 		undoable: lines.filter((line) => line.undo === 'offered').length,
 		closedLine: null,
 		eased: null,
+		...extra,
 	}
 }
 
@@ -338,6 +347,86 @@ test('one change has its Angre and no Angre alt; an undone one says Angret', asy
 	).toBeNull()
 	expect(region).toHaveTextContent('Angret')
 })
+
+test('once its week has begun, the notice says Denne uka and no longer offers Gjør uka lettere', async () => {
+	renderToday({
+		ledger: [session('today', '2030-01-02T07:00:00Z', 'Rolig løpetur')],
+		autopilotNotice: notice(
+			[{ ...CHANGED, proposalId: 'p1', undo: 'closed' }],
+			{
+				heading: 'Denne uka er lagt ut',
+				begun: true,
+				showEase: false,
+				closedLine: 'Uka har begynt, så endringene kan ikke angres lenger.',
+			},
+		),
+	})
+
+	const region = await screen.findByRole('region', {
+		name: 'Denne uka er lagt ut',
+	})
+	expect(
+		within(region).queryByRole('button', { name: /Gjør uka lettere/ }),
+	).toBeNull()
+	expect(within(region).queryByRole('button', { name: /^Angre/ })).toBeNull()
+})
+
+test('a week the autopilot could not lay is said in the notice, with why', async () => {
+	renderToday({
+		ledger: [session('today', '2030-01-02T07:00:00Z', 'Rolig løpetur')],
+		autopilotNotice: notice([], {
+			unlaidLine:
+				'Uka fra mandag 7. januar ble ikke lagt ut: den ligger etter slutten av planen.',
+		}),
+	})
+
+	const region = await screen.findByRole('region', {
+		name: 'Neste uke er lagt ut',
+	})
+	expect(region).toHaveTextContent(
+		'Uka fra mandag 7. januar ble ikke lagt ut: den ligger etter slutten av planen.',
+	)
+})
+
+test('a notice not yet seen tells the server once it is on screen, and a seen one does not', async () => {
+	const fetchSpy = vi
+		.spyOn(globalThis, 'fetch')
+		.mockResolvedValue(new Response(null, { status: 200 }))
+	try {
+		const { unmount } = renderToday({
+			ledger: [session('today', '2030-01-02T07:00:00Z', 'Rolig løpetur')],
+			autopilotNotice: notice([{ ...CHANGED, proposalId: 'p1' }], {
+				seen: false,
+			}),
+		})
+		await screen.findByRole('region', { name: 'Neste uke er lagt ut' })
+		await vi.waitFor(() => expect(seenPosts(fetchSpy)).toHaveLength(1))
+		expect(seenPosts(fetchSpy)[0]).toEqual({
+			intent: 'seen',
+			weekKey: '2029-12-24',
+		})
+		unmount()
+
+		fetchSpy.mockClear()
+		renderToday({
+			ledger: [session('today', '2030-01-02T07:00:00Z', 'Rolig løpetur')],
+			autopilotNotice: notice([{ ...CHANGED, proposalId: 'p1' }]),
+		})
+		await screen.findByRole('region', { name: 'Neste uke er lagt ut' })
+		expect(seenPosts(fetchSpy)).toHaveLength(0)
+	} finally {
+		fetchSpy.mockRestore()
+	}
+})
+
+/** The `seen` posts among the fetches the page made, as their form fields. */
+function seenPosts(spy: { mock: { calls: unknown[][] } }) {
+	return spy.mock.calls
+		.filter(([url]) => String(url) === '/resources/autopilot')
+		.map(([, init]) =>
+			Object.fromEntries((init as RequestInit).body as FormData),
+		)
+}
 
 test('Se hele sesongen leads to the full Home Timeline', async () => {
 	renderToday()

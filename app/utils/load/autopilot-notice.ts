@@ -8,8 +8,11 @@
  * held. It states; it never asks — that is the Week Change Card's, under
  * _Spør meg først_.
  *
- * How long the notice stays on I dag, its history behind _Se hele sesongen_
- * and the could-not-lay line are #580's.
+ * Its lifecycle (#580): it stays on I dag until it has been seen and the week
+ * it laid has begun — neither alone removes it (`isNoticeOnToday`). Once that
+ * week has begun it is this week: the heading says so, and _Gjør uka lettere_
+ * is no longer offered. Every notice stays at its week in _Se hele sesongen_.
+ * A horizon week the close could not lay is said under the lines, with why.
  *
  * Pure: no clock, no DB. The server reader is `autopilot-notice.server.ts`.
  */
@@ -18,10 +21,12 @@ import { weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import {
 	AUTOPILOT_NOTICE_LABELS as L,
 	NB_WEEKDAY_LABELS,
+	nbLongDay,
 } from '#app/utils/labels.ts'
 import { type SessionOwner } from '#app/utils/session-ownership.ts'
 import { AUTOPILOT_STEP_UP_MAX, type AutopilotOutcome } from './autopilot.ts'
 import { type WeekChangeData } from './week-change-card.ts'
+import { type UnlaidReason } from './week-change.ts'
 import { type ProposalPayload } from './week-replan-proposal.ts'
 
 /** One proposal of the decision, as the reader hands it in. */
@@ -56,7 +61,20 @@ export type AutopilotNotice = {
 	closedWeekKey: string
 	/** The week the changes landed in, and the one _Gjør uka lettere_ eases. */
 	comingWeekKey: string
+	/** _Neste uke er lagt ut_, or _Denne uka …_ from that week's Monday. */
+	heading: string
+	/** Whether the week the changes landed in has begun (ADR 0100 §4). */
+	begun: boolean
+	/**
+	 * Whether _Gjør uka lettere_ shows: offered until the week begins, and its
+	 * result kept once made.
+	 */
+	showEase: boolean
+	/** Whether the athlete has seen it on I dag yet (#580). */
+	seen: boolean
 	lines: AutopilotNoticeLine[]
+	/** A week the close could not lay, with why (#580); null when none. */
+	unlaidLine: string | null
 	/** How many changes can still be undone — _Angre alt_ shows from two. */
 	undoable: number
 	/** Said once under the lines when the window has closed on a change. */
@@ -126,12 +144,38 @@ function lineOf(
 	}
 }
 
+/**
+ * Whether the notice still belongs on I dag (#580, spec #558 story 87): until
+ * it has been seen **and** the week it laid has begun — neither alone removes
+ * it. Begun is ADR 0100 §4's (`readFirstUnbegunWeekKey`: its Monday past, or
+ * a session in it trained), the same instant _Angre_ closes, so the notice
+ * never leaves while a change can still be undone. Seen counts from the day
+ * after: a notice first seen on a begun week stays the rest of that day, so
+ * it never vanishes under the athlete's thumb when the page reloads after a
+ * tap.
+ */
+export function isNoticeOnToday({
+	begun,
+	seenDayKey,
+	todayKey,
+}: {
+	begun: boolean
+	/** The local day it was first seen on I dag; null when not yet. */
+	seenDayKey: string | null
+	todayKey: string
+}): boolean {
+	return !(begun && seenDayKey != null && seenDayKey < todayKey)
+}
+
 export function buildAutopilotNotice({
 	closedWeekKey,
 	comingWeekKey,
 	proposals,
 	undoOpen,
 	eased,
+	todayWeekKey = null,
+	seen = false,
+	unlaid = null,
 }: {
 	closedWeekKey: string
 	comingWeekKey: string
@@ -139,12 +183,30 @@ export function buildAutopilotNotice({
 	/** Whether the week the changes landed in is still not begun (ADR 0100 §4). */
 	undoOpen: boolean
 	eased: AutopilotNotice['eased']
+	/**
+	 * The Monday of the week `now` is in. From the coming week's Monday the
+	 * heading says _Denne uka_ — even on a Monday whose week is not yet begun
+	 * in ADR 0100 §4's sense (nothing trained yet, so _Angre_ still stands).
+	 */
+	todayWeekKey?: string | null
+	seen?: boolean
+	/** The horizon week the close could not lay, and why (#580). */
+	unlaid?: { weekKey: string; reason: UnlaidReason } | null
 }): AutopilotNotice {
 	const lines = proposals.map((proposal) => lineOf(proposal, undoOpen))
+	const arrived =
+		!undoOpen || (todayWeekKey != null && comingWeekKey <= todayWeekKey)
 	return {
 		closedWeekKey,
 		comingWeekKey,
+		heading: arrived ? L.headingThisWeek : L.heading,
+		begun: !undoOpen,
+		showEase: undoOpen || eased != null,
+		seen,
 		lines,
+		unlaidLine: unlaid
+			? L.unlaid(unlaid.reason, nbLongDay(unlaid.weekKey))
+			: null,
 		undoable: lines.filter((line) => line.undo === 'offered').length,
 		closedLine: lines.some((line) => line.undo === 'closed') ? L.closed : null,
 		eased,
