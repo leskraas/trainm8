@@ -1,7 +1,9 @@
 # The first run asks how often the athlete lifts, and lays lifting away from hard days
 
 Status: Accepted · Owner decision 6 of spec #558 (_Levende start_, 2026-10-17) ·
-Built in #574 (S8)
+Built in #574 (S8) · **§2 superseded in part by
+[ADR 0104](./0104-one-day-rule-across-tracks-lifting-laid-per-week-and-pinned-days-per-track.md)**:
+lifting is laid per week, not fixed from the start; the ordering stands.
 
 **Amends
 [ADR 0053](./0053-season-generation-is-deterministic-behind-the-seam.md)** and

@@ -12,6 +12,7 @@
 import { type EffortWord, effortWordOfZone } from '../effort-word.ts'
 import { FIVE_MINUTES } from '../five-minutes.ts'
 import { SIMPLE_ACTIVITY_LABELS } from '../labels.ts'
+import { liftingDaysFor, type PlacedSession } from '../plan-outline/day-rule.ts'
 import { openEndedRound, type PresetFamily } from '../plan-outline/presets.ts'
 import { qualitySessionCount } from '../plan-outline/quality-mix.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
@@ -317,79 +318,36 @@ export function startWeekOf(
 	}
 }
 
-/** Days apart on the week's wheel: Sunday and Monday are neighbours. */
-function weekdayGap(a: number, b: number): number {
-	const apart = Math.abs(a - b)
-	return Math.min(apart, 7 - apart)
-}
-
-/** Every way to pick `count` of the days, in week order. */
-function combinations<T>(items: readonly T[], count: number): T[][] {
-	if (count === 0) return [[]]
-	return items.flatMap((item, index) =>
-		combinations(items.slice(index + 1), count - 1).map((rest) => [
-			item,
-			...rest,
-		]),
-	)
-}
-
 /**
- * The lifting days (#574, ADR 0103): `perWeek` of the athlete's days, placed
- * away from the hard endurance days. Of every way to pick them, the one with
- * the fewest lifts on a day with a hard or middling session, then on the day
- * before one (legs fresh for the intervals), then on the long day, then the
- * lifts furthest apart, then the earliest. One lift a day at most, so fewer
- * days than lifts lifts once on each.
+ * A first week as the cross-track day rule reads it (ADR 0104): each session
+ * by its Effort Word, the lifts as lifting, and the pattern's long day (the
+ * draft lays it last) marked long.
  */
-export function strengthDaysFor(
-	days: readonly PatternWeekday[],
+function placedSessionsOf(
 	week: StartWeek,
-	perWeek: number,
-	longDay: PatternWeekday | null = null,
-): PatternWeekday[] {
-	const candidates = [...new Set(days)].sort((a, b) => a - b)
-	const count = Math.min(Math.max(0, perWeek), candidates.length)
-	if (count === 0) return []
-	const quality = new Set(
-		week.days
-			.filter((day) => day.sessions.some((s) => s.effort !== 'rolig'))
-			.map((day) => day.weekday),
-	)
-	const scoreOf = (picked: readonly PatternWeekday[]): number[] => {
-		const gaps =
-			picked.length < 2
-				? [7]
-				: picked.map((day, at) =>
-						weekdayGap(day, picked[(at + 1) % picked.length]!),
-					)
-		return [
-			picked.filter((day) => quality.has(day)).length,
-			picked.filter((day) => quality.has(((day + 1) % 7) as PatternWeekday))
-				.length,
-			picked.filter((day) => day === longDay).length,
-			-Math.min(...gaps),
-			picked.reduce<number>((sum, day) => sum + day, 0),
-		]
+	longDay: PatternWeekday | null,
+): PlacedSession[] {
+	const placed: PlacedSession[] = week.days.flatMap((day) => [
+		...day.sessions.map(
+			(session): PlacedSession => ({
+				weekday: day.weekday,
+				kind: 'session',
+				effort: session.effort,
+			}),
+		),
+		...day.lifting.map(
+			(): PlacedSession => ({ weekday: day.weekday, kind: 'lifting' }),
+		),
+	])
+	if (longDay != null) {
+		placed.push({
+			weekday: longDay,
+			kind: 'session',
+			effort: 'rolig',
+			long: true,
+		})
 	}
-	let best: PatternWeekday[] = []
-	let bestScore: number[] | null = null
-	for (const picked of combinations(candidates, count)) {
-		const score = scoreOf(picked)
-		if (bestScore == null || lexicallyBefore(score, bestScore)) {
-			best = picked
-			bestScore = score
-		}
-	}
-	return best
-}
-
-/** Whether `a` comes before `b`, compared entry by entry. */
-function lexicallyBefore(a: readonly number[], b: readonly number[]): boolean {
-	for (let at = 0; at < a.length; at++) {
-		if (a[at] !== b[at]) return a[at]! < b[at]!
-	}
-	return false
+	return placed
 }
 
 /**
@@ -415,7 +373,7 @@ export type StartOption = {
 	/**
 	 * The lifting days (#574): Monday-first, as many as the athlete tapped
 	 * where their days allow, away from the hard endurance days
-	 * ({@link strengthDaysFor}). Empty without _styrke_.
+	 * (`liftingDaysFor`, the cross-track day rule). Empty without _styrke_.
 	 */
 	strengthDays: PatternWeekday[]
 	/**
@@ -695,11 +653,10 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 		if (!draft) continue
 		const endurance = startWeekOf(draft)
 		const strengthDays = strength
-			? strengthDaysFor(
+			? liftingDaysFor(
 					days,
-					endurance,
+					placedSessionsOf(endurance, draft.patternDays.at(-1) ?? null),
 					lifts,
-					draft.patternDays.at(-1) ?? null,
 				)
 			: []
 		const week = strength
