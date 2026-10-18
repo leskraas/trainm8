@@ -51,16 +51,23 @@ what each day is and whether placing a session on a day clashes, and why.
   effort.
 - A **Lifting day** carries a strength session.
 
-A clash has one of six reasons, a closed set every caller words:
+A clash has one of seven reasons, a closed set every caller words:
 
-| Reason                    | What it means                                |
-| ------------------------- | -------------------------------------------- |
-| `lifting-on-hard-day`     | lifting on a Hard day                        |
-| `lifting-before-hard-day` | lifting the day before a Hard day            |
-| `lifting-on-long-day`     | lifting on the Long day                      |
-| `hard-days-in-a-row`      | two Hard days in a row                       |
-| `two-hard-sessions`       | two sessions that are not _rolig_ on one day |
-| `two-long-sessions`       | two long sessions, two Long days, on one day |
+| Reason                    | What it means                                                       |
+| ------------------------- | ------------------------------------------------------------------- |
+| `lifting-on-hard-day`     | lifting on a Hard day                                               |
+| `lifting-before-hard-day` | lifting the day before a Hard day                                   |
+| `lifting-on-long-day`     | lifting on the Long day                                             |
+| `hard-days-in-a-row`      | two Hard days in a row                                              |
+| `two-hard-sessions`       | two sessions that are not _rolig_ on one day                        |
+| `two-long-sessions`       | two long sessions, two Long days, on one day                        |
+| `easy-before-hard-day`    | a _rolig_ session moved to the day before a Hard day (placing only) |
+
+`easy-before-hard-day` (spec #588 story 28, added by #595) is a **placing**
+reason: every laid week has easy days before its hard ones by design, so the
+week's own clash list (the fit check) never names it. Only placing a session, as
+_Bytt dag_ and Week Replan do, asks it, so a move keeps the day before the key
+session free.
 
 The stamp, the lifting-day search, the availability fit check, _Bytt dag_ and
 Week Replan all ask this one module, so they cannot drift apart again.

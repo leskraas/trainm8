@@ -445,7 +445,10 @@ test('Lite tid on a session with no time says so', async () => {
 test('Bytt dag moves today’s session to the next free day this week, at the same time of day', async () => {
 	const { userId, cookie } = await signedIn()
 	const today = await planned(userId, '2030-01-02T17:00:00Z')
-	await planned(userId, '2030-01-03T07:00:00Z', { title: 'Rolig økt' })
+	await planned(userId, '2030-01-03T07:00:00Z', {
+		title: 'Rolig økt',
+		intent: 'endurance',
+	})
 
 	const reply = await juster(cookie, 'move', today)
 
@@ -459,6 +462,77 @@ test('Bytt dag moves today’s session to the next free day this week, at the sa
 	// A reschedule: nothing adopted, the prescription as it was.
 	expect(after.owner).toBe('machine')
 	expect(after.minutes).toBe(60)
+	expect(after.replanReason).toBe('Flyttet fra onsdag med Bytt dag.')
+})
+
+test('Bytt dag moves an easy run past the day before the intervals (spec #588 story 28)', async () => {
+	const { userId, cookie } = await signedIn()
+	const today = await planned(userId, '2030-01-02T17:00:00Z', {
+		title: 'Rolig økt',
+		intent: 'endurance',
+	})
+	// Friday's intervals: Thursday is the day before them.
+	await planned(userId, '2030-01-04T07:00:00Z', { blocks: THRESHOLD_RUN })
+
+	const reply = await juster(cookie, 'move', today)
+
+	expect(reply.data.result).toMatchObject({
+		ok: true,
+		toast: 'Økta er flyttet til lørdag.',
+	})
+	expect((await picture(today)).scheduledAt).toEqual(
+		new Date('2030-01-05T17:00:00Z'),
+	)
+})
+
+test('Bytt dag on intervals skips the day after a lift', async () => {
+	const { userId, cookie } = await signedIn()
+	const today = await planned(userId, '2030-01-02T17:00:00Z', {
+		blocks: THRESHOLD_RUN,
+	})
+	const exercise = await prisma.exercise.findFirstOrThrow({
+		select: { id: true },
+	})
+	await planned(userId, '2030-01-03T07:00:00Z', {
+		title: 'Styrke',
+		discipline: 'strength',
+		intent: 'strength-max',
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [{ kind: 'strength', exerciseId: exercise.id, sets: 3 }],
+			},
+		],
+	})
+
+	const reply = await juster(cookie, 'move', today)
+
+	expect(reply.data.result).toMatchObject({
+		ok: true,
+		toast: 'Økta er flyttet til lørdag.',
+	})
+})
+
+test('Bytt dag, when every free day clashes, still moves to the first free day and says why in one line, adopting nothing', async () => {
+	const { userId, cookie } = await signedIn()
+	const today = await planned(userId, '2030-01-02T17:00:00Z', {
+		blocks: THRESHOLD_RUN,
+	})
+	// Hard on Friday and Sunday: Thursday and Saturday are each next to one.
+	await planned(userId, '2030-01-04T07:00:00Z', { blocks: THRESHOLD_RUN })
+	await planned(userId, '2030-01-06T07:00:00Z', { blocks: THRESHOLD_RUN })
+
+	const reply = await juster(cookie, 'move', today)
+
+	expect(reply.data.result).toMatchObject({
+		ok: true,
+		toast:
+			'Økta er flyttet til torsdag, dagen før en annen hard økt. Ingen ledig dag passet bedre.',
+		changedSessionIds: [today],
+	})
+	const after = await picture(today)
+	expect(after.scheduledAt).toEqual(new Date('2030-01-03T17:00:00Z'))
+	expect(after.owner).toBe('machine')
 	expect(after.replanReason).toBe('Flyttet fra onsdag med Bytt dag.')
 })
 
