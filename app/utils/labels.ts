@@ -76,6 +76,7 @@ import type { GenerationIntent } from './plan-generation/season.ts'
 // this module owns the sentence each accumulation is explained by.
 import type { CreateOutlineRefusal } from './plan-outline/authoring.server.ts'
 import type { AccumulatingCurrency } from './plan-outline/commensurability.ts'
+import type { ClashReason } from './plan-outline/day-rule.ts'
 import type {
 	Rhythm,
 	StrengthGoal,
@@ -4118,7 +4119,34 @@ export const JUSTER_LABELS = {
 		swapped: (day: string, other: string) =>
 			`Økta er flyttet til ${day}, og «${other}» er i dag.`,
 		swappedSession: (title: string) => `Dagens økt er byttet til «${title}».`,
+		/**
+		 * _Bytt dag_ when every free day clashed (spec #588 story 30): the
+		 * first free day, and in the same line why it lands there.
+		 */
+		movedAnyway: (day: string, why: string) =>
+			`Økta er flyttet til ${day}, ${why}. Ingen ledig dag passet bedre.`,
 	},
+	/**
+	 * Why a moved session's day clashes (ADR 0104 §1), said from the moved
+	 * session: `lifting` when it is a lift, `after` when it is the second day
+	 * of a two-day clash (the day after a lift, or after another hard day).
+	 */
+	clash: {
+		'lifting-on-hard-day': ({ lifting }) =>
+			lifting ? 'samme dag som en hard økt' : 'samme dag som styrke',
+		'lifting-before-hard-day': ({ after }) =>
+			after ? 'dagen etter styrke' : 'dagen før en hard økt',
+		'lifting-on-long-day': ({ lifting }) =>
+			lifting ? 'samme dag som langturen' : 'samme dag som styrke',
+		'hard-days-in-a-row': ({ after }) =>
+			after ? 'dagen etter en annen hard økt' : 'dagen før en annen hard økt',
+		'two-hard-sessions': () => 'samme dag som en annen hard økt',
+		'two-long-sessions': () => 'samme dag som en annen langtur',
+		'easy-before-hard-day': () => 'dagen før en hard økt',
+	} satisfies Record<
+		ClashReason,
+		(as: { lifting: boolean; after: boolean }) => string
+	>,
 	/** The Replan Note each change leaves on the session it changed. */
 	note: {
 		tired: 'For sliten i dag: gjort rolig og kortere.',

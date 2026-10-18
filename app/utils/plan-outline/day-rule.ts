@@ -29,7 +29,15 @@ export type PlacedSession =
 	  }
 	| { weekday: PatternWeekday; kind: 'lifting' }
 
-/** Why a day clashes. A closed set: every caller words each one. */
+/**
+ * Why a day clashes. A closed set: every caller words each one.
+ *
+ * `easy-before-hard-day` (spec #588 story 28, for _Bytt dag_ and Week Replan)
+ * is a **placing** reason only: a _rolig_ session moved to the day before a
+ * Hard day. Every laid week has easy days before its hard ones by design, so
+ * {@link clashesIn} never lists it; {@link placingClashes} does, so a move
+ * keeps the day before the key session free.
+ */
 export const CLASH_REASONS = [
 	'lifting-on-hard-day',
 	'lifting-before-hard-day',
@@ -37,6 +45,7 @@ export const CLASH_REASONS = [
 	'hard-days-in-a-row',
 	'two-hard-sessions',
 	'two-long-sessions',
+	'easy-before-hard-day',
 ] as const
 export type ClashReason = (typeof CLASH_REASONS)[number]
 
@@ -106,11 +115,23 @@ function isLong(session: PlacedSession): boolean {
 	return session.kind === 'session' && session.long === true
 }
 
+function isEasy(session: PlacedSession): boolean {
+	return session.kind === 'session' && session.effort === 'rolig'
+}
+
 /**
  * Every clash in the laid week, Monday first and in {@link CLASH_REASONS}'
  * order within a day. Each is named once, however many sessions make it.
+ * The placing reason `easy-before-hard-day` is not a clash of a laid week.
  */
 export function clashesIn(week: readonly PlacedSession[]): Clash[] {
+	return clashesOf(week, { placing: false })
+}
+
+function clashesOf(
+	week: readonly PlacedSession[],
+	{ placing }: { placing: boolean },
+): Clash[] {
 	const days = readDays(week)
 	const clashes: Clash[] = []
 	for (const day of days) {
@@ -123,6 +144,7 @@ export function clashesIn(week: readonly PlacedSession[]): Clash[] {
 			'hard-days-in-a-row': day.hard && next.hard,
 			'two-hard-sessions': on.filter(isHard).length > 1,
 			'two-long-sessions': on.filter(isLong).length > 1,
+			'easy-before-hard-day': placing && next.hard && on.some(isEasy),
 		}
 		for (const reason of CLASH_REASONS) {
 			if (found[reason]) clashes.push({ reason, weekday: day.weekday })
@@ -133,7 +155,8 @@ export function clashesIn(week: readonly PlacedSession[]): Clash[] {
 
 /**
  * Whether `session` takes part in `clash`: it is on a day the clash reads, in
- * the role the reason names. A _rolig_ session takes part in none.
+ * the role the reason names. A _rolig_ session takes part only in being the
+ * day before a Hard day; the hard session after it never does.
  */
 function takesPart(session: PlacedSession, clash: Clash): boolean {
 	const on = session.weekday === clash.weekday
@@ -152,6 +175,8 @@ function takesPart(session: PlacedSession, clash: Clash): boolean {
 			return on && isHard(session)
 		case 'two-long-sessions':
 			return on && isLong(session)
+		case 'easy-before-hard-day':
+			return on && isEasy(session)
 	}
 }
 
@@ -159,13 +184,15 @@ function takesPart(session: PlacedSession, clash: Clash): boolean {
  * Whether placing `session` on its day clashes with the laid week, and why:
  * every clash of the week with it placed that it takes part in. Empty where
  * it fits. A clash the week already has without it is not the session's,
- * unless the session adds to it (a third hard session on a day of two).
+ * unless the session adds to it (a third hard session on a day of two). A
+ * _rolig_ session clashes only the day before a Hard day
+ * (`easy-before-hard-day`).
  */
 export function placingClashes(
 	week: readonly PlacedSession[],
 	session: PlacedSession,
 ): Clash[] {
-	return clashesIn([...week, session]).filter((clash) =>
+	return clashesOf([...week, session], { placing: true }).filter((clash) =>
 		takesPart(session, clash),
 	)
 }
