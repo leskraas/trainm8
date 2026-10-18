@@ -576,14 +576,15 @@ test('Korte økter keeps every weekday session to 45 minutes, and the week says 
 	// 5 t on mandag, onsdag, fredag and lørdag: an hour on each weekday.
 	const made = start({ preferences: ['short'] })
 	for (const option of made.options) {
-		expect(weekdayMinutes(option.week)).toEqual([42, 42, 42])
-		// The weekend keeps its share: two hours on lørdag, still the long one.
+		expect(weekdayMinutes(option.week)).toEqual([45, 45, 45])
+		// The weekend keeps its share: two hours on lørdag, still the long one,
+		// and the odd minutes of hours carried to a tenth (4,3 t).
 		expect(option.week.days[5]!.sessions[0]).toMatchObject({
 			title: 'Langtur · Løping',
-			minutes: 120,
+			minutes: 123,
 		})
-		expect(option.week.minutes).toBe(3 * 42 + 120)
-		expect(option.shortOfHours).toBe(246)
+		expect(option.week.minutes).toBe(3 * 45 + 123)
+		expect(option.shortOfHours).toBe(258)
 		expect(option.shortByPreference).toBe(true)
 	}
 })
@@ -604,10 +605,10 @@ test('Korte økter changes nothing where every weekday session is already 45 min
 test('Korte økter with Lange, rolige turer keeps the weekdays short and gives the long session the rest of the hours', () => {
 	const made = start({ preferences: ['long', 'short'] })
 	for (const option of made.options) {
-		expect(weekdayMinutes(option.week)).toEqual([42, 42, 42])
+		expect(weekdayMinutes(option.week)).toEqual([45, 45, 45])
 		expect(option.week.days[5]!.sessions[0]).toMatchObject({
 			title: 'Langtur · Løping',
-			minutes: 300 - 3 * 42,
+			minutes: 300 - 3 * 45,
 		})
 		expect(option.week.minutes).toBe(300)
 		expect(option.shortOfHours).toBeNull()
@@ -621,7 +622,7 @@ test('Korte økter with Lange, rolige turer keeps the weekdays short and gives t
 		preferences: ['long', 'short'],
 	})
 	for (const option of beginner.options) {
-		expect(weekdayMinutes(option.week)).toEqual([42, 42, 156])
+		expect(weekdayMinutes(option.week)).toEqual([45, 45, 150])
 		expect(option.week.minutes).toBe(240)
 	}
 })

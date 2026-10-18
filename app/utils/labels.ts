@@ -2516,9 +2516,9 @@ export const START_OPTION_LABELS = {
 	/** The strength frequency on the card, as the athlete's own answer. */
 	strengthChoice: (count: number) =>
 		`Styrke ${count} ${count === 1 ? 'gang' : 'ganger'} i uka, som du valgte.`,
-	/** The lifts count in the level's session cap, so endurance got fewer. */
+	/** A _Nybegynner_'s lifts count in the session cap, so endurance got fewer. */
 	strengthTakesDays: (cap: number, endurance: number) =>
-		`Med styrke blir det høyst ${cap} økter i uka til sammen, så utholdenheten får ${endurance}.`,
+		`Som nybegynner får du høyst ${cap} økter i uka, styrke medregnet, så utholdenheten får ${endurance}.`,
 	/** Fewer lifting days than tapped: there were not more days. */
 	strengthFewer: (laid: number, chosen: number) =>
 		`Du valgte ${chosen} styrkeøkter. Dagene dine ga plass til ${laid}.`,

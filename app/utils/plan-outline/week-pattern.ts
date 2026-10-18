@@ -186,6 +186,32 @@ function apportion(
 }
 
 /**
+ * An hours split in whole five minutes (owner decision, #571): every share day
+ * but the long one — the heaviest, the last of them on a tie — is its exact
+ * share rounded to five minutes, and the long day takes the rest, so the
+ * column still adds up to the hours minute for minute. Null where the long
+ * day would be left less than nothing (a tiny week), and the tenths split
+ * stands.
+ */
+function inFiveMinutes(
+	hours: number,
+	weights: readonly number[],
+): number[] | null {
+	if (weights.length === 0) return []
+	const minutes = Math.round(hours * 60)
+	const fractions = normaliseWeights(weights)
+	const heaviest = Math.max(...weights)
+	const long = weights.lastIndexOf(heaviest)
+	const laid = fractions.map((fraction, index) =>
+		index === long ? 0 : Math.round((fraction * minutes) / 5) * 5,
+	)
+	const rest = minutes - laid.reduce((sum, value) => sum + value, 0)
+	if (rest < 0) return null
+	laid[long] = rest
+	return laid.map((value) => value / 60)
+}
+
+/**
  * What each day of a pattern resolves to against one week, per Training Track.
  *
  * Each track is resolved on its own, drawing from its own volume in its own
@@ -254,9 +280,16 @@ function resolveTrack(
 	const fractions = normaliseWeights(shareDays.map((day) => day.weight))
 
 	// Apportioned rather than rounded one by one, so the share column adds up to
-	// the remainder it divides.
+	// the remainder it divides; hours in whole five minutes.
 	const shareVolumes =
-		absorbable == null ? null : apportion(absorbable, fractions, track.currency)
+		absorbable == null
+			? null
+			: track.currency === 'hours'
+				? (inFiveMinutes(
+						absorbable,
+						shareDays.map((day) => day.weight),
+					) ?? apportion(absorbable, fractions, track.currency))
+				: apportion(absorbable, fractions, track.currency)
 
 	const shareValues = new Map<string, { value: number | null; share: number }>()
 	shareDays.forEach((day, index) => {
