@@ -51,7 +51,6 @@
 //   `RampWarning` and `BandFitWarning` carry numbers and a locator — the
 //   surface words it, so the honesty rules stay where the athlete reads them.
 
-import { effortWordOfZone, type EffortWord } from '../effort-word.ts'
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
 	CLASH_REASONS,
@@ -74,6 +73,7 @@ import {
 	type QualitySessionMixEntry,
 } from './quality-mix.ts'
 import {
+	placedSessionOf,
 	planStamp,
 	type StampDay,
 	type StampSession,
@@ -264,14 +264,6 @@ export function availabilityFitWarnings(
 // ---------------------------------------------------------------------------
 
 /**
- * A **Week Pattern** day as the day check reads it: the stamp's day, plus the
- * **Effort Word** its Workout carries where it says one on purpose (a Simple
- * Activity's own, #567). Without one, a fixed day reads by its `zone`, and
- * with neither it is _rolig_.
- */
-export type FitDay = StampDay & { effort?: EffortWord | null }
-
-/**
  * A stretch of weeks that put the same clash on the same weekday. Carries no
  * wording and no figure — only the day rule's reason and where it is — so no
  * number spans tracks (ADR 0046).
@@ -294,28 +286,17 @@ export type DayClashWarning = {
 /** A laid session, and whether it sits on a day the athlete chose. */
 type FitSession = { placed: PlacedSession; pinned: boolean }
 
-/** One stamped session as the day rule reads it. */
+/**
+ * One stamped session as the day rule reads it — the stamp's own reading —
+ * and whether it is pinned: today a stored fixed strength day.
+ */
 function fitSessionOf(
 	session: StampSession,
-	day: FitDay | undefined,
+	day: StampDay | undefined,
 ): FitSession {
-	if (session.discipline === 'strength') {
-		return {
-			placed: { weekday: session.weekday, kind: 'lifting' },
-			pinned: session.kind === 'fixed',
-		}
-	}
-	const zone = session.zone ?? day?.zone ?? null
-	const effort: EffortWord =
-		day?.effort ?? (zone == null ? 'rolig' : effortWordOfZone(zone))
 	return {
-		placed: {
-			weekday: session.weekday,
-			kind: 'session',
-			effort,
-			long: session.role === 'long',
-		},
-		pinned: false,
+		placed: placedSessionOf(session, day, session.discipline),
+		pinned: session.discipline === 'strength' && session.kind === 'fixed',
 	}
 }
 
@@ -364,7 +345,7 @@ export function dayClashWarnings({
 	tracks,
 	weeks,
 }: {
-	days: readonly FitDay[]
+	days: readonly StampDay[]
 	tracks: readonly StampTrack[]
 	weeks: readonly StampWeekInput[]
 }): DayClashWarning[] {

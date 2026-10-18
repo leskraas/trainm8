@@ -3,7 +3,6 @@ import {
 	availabilityFitWarnings,
 	dayClashWarnings,
 	hoursFitWarnings,
-	type FitDay,
 	weeklyEnduranceHours,
 	weekSessionDemand,
 	type FitSegment,
@@ -11,7 +10,7 @@ import {
 } from './availability-fit.ts'
 import { type PhaseSpec } from './derive.ts'
 import { type QualitySessionMixEntry } from './quality-mix.ts'
-import { type StampTrack, type StampWeekInput } from './stamp.ts'
+import { type StampDay, type StampTrack, type StampWeekInput } from './stamp.ts'
 
 /** A phase of `weeks` with no rhythm — the roles decide nothing about a fit check. */
 function phase(weeks: number): PhaseSpec {
@@ -477,8 +476,8 @@ const SKI = {
 function fixedDay(
 	trackId: string,
 	weekday: Weekday,
-	extra: Partial<FitDay> = {},
-): FitDay {
+	extra: Partial<StampDay> = {},
+): StampDay {
 	return {
 		dayId: `${trackId}-fixed-${weekday}`,
 		weekday,
@@ -489,11 +488,11 @@ function fixedDay(
 		workoutId: `${trackId}-w-${weekday}`,
 		shapeVolume: null,
 		...extra,
-	} as FitDay
+	} as StampDay
 }
 
 /** A bare share day; the heaviest of a track's is its long day. */
-function shareDay(trackId: string, weekday: Weekday, weight = 1): FitDay {
+function shareDay(trackId: string, weekday: Weekday, weight = 1): StampDay {
 	return {
 		dayId: `${trackId}-share-${weekday}`,
 		weekday,
@@ -503,7 +502,7 @@ function shareDay(trackId: string, weekday: Weekday, weight = 1): FitDay {
 		weight,
 		workoutId: null,
 		shapeVolume: null,
-	} as FitDay
+	} as StampDay
 }
 
 /** `count` plan weeks, every track at a target of 40. */
@@ -520,7 +519,7 @@ function planWeeks(
 	}))
 }
 
-function clashes(days: FitDay[], tracks: StampTrack[], weeks = 1) {
+function clashes(days: StampDay[], tracks: StampTrack[], weeks = 1) {
 	return dayClashWarnings({ days, tracks, weeks: planWeeks(weeks, tracks) })
 }
 
@@ -616,17 +615,13 @@ test('a rolig week with lifting away from it says nothing', () => {
 })
 
 test('the hard days are read as the stamp lays the mix, and a clash spans the weeks that hold it', () => {
-	// Monday, Tuesday and a long Sunday; one threshold session a week from the
-	// third week on goes on Tuesday, the ordinary day furthest from Sunday —
-	// where the athlete's fixed lifting already is.
+	// Tuesday and a long Sunday: from the third week on, the one threshold
+	// session has nowhere to go but Tuesday — where the athlete's fixed
+	// lifting already is. The stamp steps around lifting where it can
+	// (ADR 0104 §2); the check says so where it cannot.
 	const tracks = [RUN, LIFT]
 	const warnings = dayClashWarnings({
-		days: [
-			shareDay('run', 0),
-			shareDay('run', 1),
-			shareDay('run', 6, 2),
-			fixedDay('lift', 1),
-		],
+		days: [shareDay('run', 1), shareDay('run', 6, 2), fixedDay('lift', 1)],
 		tracks,
 		weeks: planWeeks(5, tracks, (week) =>
 			week >= 2

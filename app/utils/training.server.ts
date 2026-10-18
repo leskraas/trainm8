@@ -32,7 +32,6 @@ import {
 	dayClashWarnings,
 	hoursFitWarnings,
 	weeklyEnduranceHours,
-	type FitDay,
 	type FitSegment,
 	type StrengthFitSegment,
 } from './plan-outline/availability-fit.ts'
@@ -71,6 +70,7 @@ import { outlineFamily, type PresetFamily } from './plan-outline/presets.ts'
 import { type RampWarning } from './plan-outline/ramp-guard.ts'
 import { type SeasonSpanReading } from './plan-outline/season-span.ts'
 import { sessionZone } from './plan-outline/session-zone.ts'
+import { type StampDay } from './plan-outline/stamp.ts'
 import { type Pct1RMBand } from './plan-outline/strength-goal.ts'
 import {
 	UNAVAILABLE_READINGS,
@@ -1316,7 +1316,7 @@ function seasonDayClashWarnings(
 ): SeasonDayClashWarning[] {
 	const pattern = outline.patterns.find((each) => each.days.length > 0)
 	if (!pattern) return []
-	const days: FitDay[] = pattern.days.flatMap((day): FitDay[] => {
+	const days: StampDay[] = pattern.days.flatMap((day): StampDay[] => {
 		if (!isPatternWeekday(day.weekday)) return []
 		// Priced as the stamp prices it, so a share day the stamp would skip
 		// (nothing left after the fixed days) is skipped here too.

@@ -357,37 +357,51 @@ function markLongDays(
 }
 
 /**
+ * One stamped session as the cross-track day rule reads it (ADR 0104 §1): a
+ * strength session as lifting, a track's session by its zone's Effort Word
+ * (no zone is _rolig_), a Simple Activity by its own, and the long role as
+ * long. The stamp's anchors and the availability fit check read it alike.
+ */
+export function placedSessionOf(
+	session: StampSession,
+	day: StampDay | undefined,
+	discipline: Discipline | undefined,
+): PlacedSession {
+	if (discipline === 'strength') {
+		return { weekday: session.weekday, kind: 'lifting' }
+	}
+	const zone = session.zone ?? day?.zone ?? null
+	const effort =
+		discipline != null && isCardioDiscipline(discipline)
+			? zone != null
+				? effortWordOfZone(zone)
+				: 'rolig'
+			: (day?.effort ?? 'rolig')
+	return {
+		weekday: session.weekday,
+		kind: 'session',
+		effort,
+		long: session.role === 'long',
+	}
+}
+
+/**
  * The days another track's sessions hold a mix away from (ADR 0104 §2): every
  * **Hard day**, **Long day** and **Lifting day** of theirs, read by the one
- * cross-track day rule. A stamped session is read by its zone's Effort Word
- * (no zone is _rolig_), a Simple Activity by its own, a strength session as
- * lifting.
+ * cross-track day rule.
  */
 function anchorDaysOf(
 	sessions: readonly StampSession[],
 	dayById: ReadonlyMap<string, StampDay>,
 	trackById: ReadonlyMap<string, StampTrack>,
 ): PatternWeekday[] {
-	const placed = sessions.map((session): PlacedSession => {
-		const discipline = trackById.get(session.trackId)?.discipline
-		if (discipline === 'strength') {
-			return { weekday: session.weekday, kind: 'lifting' }
-		}
-		const day = dayById.get(session.dayId)
-		const zone = session.zone ?? day?.zone ?? null
-		const effort =
-			discipline != null && isCardioDiscipline(discipline)
-				? zone != null
-					? effortWordOfZone(zone)
-					: 'rolig'
-				: (day?.effort ?? 'rolig')
-		return {
-			weekday: session.weekday,
-			kind: 'session',
-			effort,
-			long: session.role === 'long',
-		}
-	})
+	const placed = sessions.map((session) =>
+		placedSessionOf(
+			session,
+			dayById.get(session.dayId),
+			trackById.get(session.trackId)?.discipline,
+		),
+	)
 	return readDays(placed)
 		.filter((day) => day.hard || day.long || day.lifting)
 		.map((day) => day.weekday)

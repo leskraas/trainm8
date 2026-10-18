@@ -1350,8 +1350,8 @@ test('getActiveSeason reads the laid days and warns where lifting meets the week
 			ownerId: user.id,
 		},
 	})
-	// Monday, Tuesday and a long Sunday: the threshold session goes on
-	// Tuesday, furthest from the long day — where the athlete lifts.
+	// Tuesday and a long Sunday: the threshold session has nowhere to go
+	// but Tuesday — where the athlete lifts.
 	const pattern = await prisma.weekPattern.create({
 		select: { id: true },
 		data: {
@@ -1359,7 +1359,7 @@ test('getActiveSeason reads the laid days and warns where lifting meets the week
 			name: 'Uka',
 			orderIndex: 0,
 			days: {
-				create: [0, 1, 6].map((weekday) => ({
+				create: [1, 6].map((weekday) => ({
 					weekday,
 					orderInDay: 0,
 					kind: 'share',
@@ -1394,7 +1394,7 @@ test('getActiveSeason reads the laid days and warns where lifting meets the week
 			pinned: true,
 		},
 	])
-	expect(season?.patterns[0]?.days).toHaveLength(4)
+	expect(season?.patterns[0]?.days).toHaveLength(3)
 })
 
 test('getActiveSeason stays silent about a gap week, which asks for no lifting at all', async () => {
