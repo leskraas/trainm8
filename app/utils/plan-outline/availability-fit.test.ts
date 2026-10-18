@@ -641,6 +641,30 @@ test('the hard days are read as the stamp lays the mix, and a clash spans the we
 	])
 })
 
+test('the check sees where a week’s lifting slots land, and the app’s choice is not the athlete’s', () => {
+	// The athlete trains only on Tuesday, the run's threshold day. The app has
+	// nowhere else to lift, and says so — as its own choice, not a pinned day
+	// (#597).
+	const tracks = [RUN, LIFT]
+	expect(
+		dayClashWarnings({
+			days: [fixedDay('run', 1, { zone: 4 })],
+			lifting: [{ dayId: 'slot-0', trackId: 'lift', workoutId: 'w-lift' }],
+			liftingDays: [1],
+			tracks,
+			weeks: planWeeks(1, tracks),
+		}),
+	).toEqual([
+		{
+			fromWeekIndex: 0,
+			toWeekIndex: 0,
+			reason: 'lifting-on-hard-day',
+			weekday: 1,
+			pinned: false,
+		},
+	])
+})
+
 test('a day clash carries the day and the reason, never a figure spanning tracks', () => {
 	// ADR 0046: no load, fatigue or hours number across tracks — the warning
 	// is a kind of day and a span of weeks, nothing to add up.

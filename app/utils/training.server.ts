@@ -70,7 +70,7 @@ import { outlineFamily, type PresetFamily } from './plan-outline/presets.ts'
 import { type RampWarning } from './plan-outline/ramp-guard.ts'
 import { type SeasonSpanReading } from './plan-outline/season-span.ts'
 import { sessionZone } from './plan-outline/session-zone.ts'
-import { type StampDay } from './plan-outline/stamp.ts'
+import { type StampDay, type StampLiftingSlot } from './plan-outline/stamp.ts'
 import { type Pct1RMBand } from './plan-outline/strength-goal.ts'
 import {
 	UNAVAILABLE_READINGS,
@@ -81,6 +81,7 @@ import { weekIndexOf, weekKeyAt } from './plan-outline/week-keys.ts'
 import {
 	fixedDayVolume,
 	isPatternWeekday,
+	patternWeekdaysOfCalendar,
 	type PatternDaySpec,
 	type PatternWeekday,
 } from './plan-outline/week-pattern.ts'
@@ -524,6 +525,11 @@ export type SeasonPattern = {
 	/** 0-based authored position; the athlete reorders it, nothing derives it. */
 	orderIndex: number
 	days: SeasonPatternDay[]
+	/**
+	 * How many **lifting slots** the pattern holds (ADR 0104 §3): lifts a week
+	 * on no weekday, laid by the stamp each week, so no day of `days`.
+	 */
+	liftingSlots: number
 }
 
 /**
@@ -887,7 +893,7 @@ async function toSeason(
 	// Both halves of **Training Availability** in one read: the two fit checks are
 	// independent but they are the same athlete's statement, and reading them apart
 	// would let one surface show a capacity the other's check did not use.
-	const { trainableWeekdays, weeklyCapacityHours } =
+	const { trainableWeekdays, trainableDays, weeklyCapacityHours } =
 		await readTrainingAvailability(userId)
 	const phases = phaseReadings(outline)
 	const specs = phaseSpecs(outline)
@@ -936,7 +942,12 @@ async function toSeason(
 			toWeekInPlan: toWeekIndex + 1,
 			...counts,
 		})),
-		dayClashWarnings: seasonDayClashWarnings(outline, specs, tracks),
+		dayClashWarnings: seasonDayClashWarnings(
+			outline,
+			specs,
+			tracks,
+			trainableDays,
+		),
 		// The second check, beside the first and never instead of it (ADR 0050 §5).
 		weeklyCapacityHours,
 		hoursWarnings: await seasonHoursWarnings(
@@ -1313,9 +1324,30 @@ function seasonDayClashWarnings(
 	outline: OutlineRowsFor,
 	specs: PhaseSpec[],
 	tracks: ResolvedTrack[],
+	/** Training Availability, Monday first; empty where never set. */
+	available: readonly PatternWeekday[],
 ): SeasonDayClashWarning[] {
 	const pattern = outline.patterns.find((each) => each.days.length > 0)
 	if (!pattern) return []
+	const strength = new Set(
+		outline.tracks
+			.filter((track) => track.discipline === 'strength')
+			.map((track) => track.id),
+	)
+	// The lifting slots, laid per week as the stamp lays them (ADR 0104 §3),
+	// so the check sees where each week's lifting lands.
+	const lifting: StampLiftingSlot[] = pattern.days.flatMap((day) =>
+		day.kind === 'lifting' && strength.has(day.trackId)
+			? [
+					{
+						dayId: day.id,
+						trackId: day.trackId,
+						workoutId: day.workout?.id ?? null,
+						orderInDay: day.orderInDay,
+					},
+				]
+			: [],
+	)
 	const days: StampDay[] = pattern.days.flatMap((day): StampDay[] => {
 		// A lifting slot falls on no weekday (ADR 0104 §3): no day of the
 		// pattern, as `patternDayReading` reads it.
@@ -1348,6 +1380,8 @@ function seasonDayClashWarnings(
 	})
 	return dayClashWarnings({
 		days,
+		lifting,
+		liftingDays: available.length > 0 ? available : undefined,
 		tracks: outline.tracks.map((track) => ({
 			trackId: track.id,
 			discipline: track.discipline as Discipline,
@@ -1384,6 +1418,7 @@ function patternReading(pattern: PatternRow): SeasonPattern {
 		name: pattern.name,
 		orderIndex: pattern.orderIndex,
 		days: pattern.days.flatMap(patternDayReading),
+		liftingSlots: pattern.days.filter((day) => day.kind === 'lifting').length,
 	}
 }
 
@@ -1461,6 +1496,8 @@ function patternDayReading(day: PatternDayRow): SeasonPatternDay[] {
  */
 async function readTrainingAvailability(userId: string): Promise<{
 	trainableWeekdays: number | null
+	/** The trainable days themselves, Monday first; empty when never set. */
+	trainableDays: PatternWeekday[]
 	weeklyCapacityHours: number | null
 }> {
 	const profile = await prisma.athleteProfile.findUnique({
@@ -1471,6 +1508,11 @@ async function readTrainingAvailability(userId: string): Promise<{
 	return {
 		trainableWeekdays:
 			stored == null ? null : parseTrainableWeekdays(stored).length,
+		// Converted here, at the profile edge (ADR 0104).
+		trainableDays:
+			stored == null
+				? []
+				: patternWeekdaysOfCalendar(parseTrainableWeekdays(stored)),
 		weeklyCapacityHours: profile?.weeklyCapacityHours ?? null,
 	}
 }

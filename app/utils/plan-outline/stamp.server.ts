@@ -77,6 +77,7 @@ import {
 	type StampSession,
 	type StampSkip,
 	type StampTrack,
+	type StampWeekInput,
 	type StampWeekPlan,
 	type WeekPatternStampInput,
 } from './stamp.ts'
@@ -299,24 +300,7 @@ export async function stampWeekPattern(
 		) {
 			return refuse('week-outside-plan')
 		}
-		const phaseIndex = phaseIndexForWeek(specs, index)
-		weeks.push({
-			weekKey,
-			weekInPlan: index + 1,
-			targets: resolved.map((track) => ({
-				trackId: track.trackId,
-				value: track.targets[index]?.value ?? null,
-			})),
-			// The week's segment's **Quality Session Mix**, which the planner lays
-			// on the bare share days (round 2): a plan that says two hard sessions
-			// a week lays two.
-			mixes: resolved.map((track) => ({
-				trackId: track.trackId,
-				mix:
-					track.segments.find((segment) => segment.phaseIndex === phaseIndex)
-						?.mix ?? [],
-			})),
-		})
+		weeks.push(stampWeekInput(weekKey, index, specs, resolved))
 	}
 
 	const plans = planStamp({
@@ -423,6 +407,88 @@ export async function stampWeekPattern(
 			replaced: written.replaced,
 			skipped: plans.flatMap((plan) => plan.skipped),
 		},
+	}
+}
+
+/** One plan week as the planner reads it: its targets and its mixes. */
+function stampWeekInput(
+	weekKey: string,
+	index: number,
+	specs: ReturnType<typeof phaseSpecs>,
+	resolved: ReturnType<typeof resolvedTracks>,
+): StampWeekInput {
+	const phaseIndex = phaseIndexForWeek(specs, index)
+	return {
+		weekKey,
+		weekInPlan: index + 1,
+		targets: resolved.map((track) => ({
+			trackId: track.trackId,
+			value: track.targets[index]?.value ?? null,
+		})),
+		// The week's segment's **Quality Session Mix**, which the planner lays
+		// on the bare share days (round 2): a plan that says two hard sessions
+		// a week lays two.
+		mixes: resolved.map((track) => ({
+			trackId: track.trackId,
+			mix:
+				track.segments.find((segment) => segment.phaseIndex === phaseIndex)
+					?.mix ?? [],
+		})),
+	}
+}
+
+/** The planner's input for a pattern: its days and its lifting slots. */
+export type LaidPatternInput = {
+	days: StampDay[]
+	lifting: StampLiftingSlot[]
+}
+
+/**
+ * The plan's weeks `weekKeys` as the stamp would lay them from the plan's
+ * Week Pattern — the first one with days, the one the weeks are laid from —
+ * without writing anything: the preview of a change (ADR 0084) runs the same
+ * `planStamp` the write does, so the two cannot disagree. `swap` replaces the
+ * pattern's days before laying, which is how a change is shown before it is
+ * made. Weeks outside the plan are left out; `null` without a pattern.
+ */
+export async function readLaidWeeks(
+	userId: string,
+	outlineId: string,
+	weekKeys: readonly string[],
+	swap: (laid: LaidPatternInput) => LaidPatternInput = (laid) => laid,
+): Promise<{
+	plans: StampWeekPlan[]
+	input: LaidPatternInput
+	tracks: StampTrack[]
+} | null> {
+	const pattern = await prisma.weekPattern.findFirst({
+		where: { outlineId, outline: { athleteId: userId }, days: { some: {} } },
+		orderBy: { orderIndex: 'asc' },
+		select: stampPatternSelect,
+	})
+	if (!pattern) return null
+	const outline = pattern.outline
+	const specs = phaseSpecs(outline)
+	const weekCount = totalWeeks(specs)
+	const tracks = stampTracks(outline)
+	const resolved = resolvedTracks(outline)
+	const weeks = weekKeys.flatMap((weekKey) => {
+		const index = weekIndexOf(outline.startWeekKey, weekKey)
+		return index >= 0 &&
+			index < weekCount &&
+			weekKeyAt(outline.startWeekKey, index) === weekKey
+			? [stampWeekInput(weekKey, index, specs, resolved)]
+			: []
+	})
+	const input = swap({
+		days: stampDays(pattern, tracks),
+		lifting: liftingSlots(pattern, tracks),
+	})
+	const { liftingDays } = await readStampProfile(userId)
+	return {
+		plans: planStamp({ ...input, liftingDays, tracks, weeks }),
+		input,
+		tracks,
 	}
 }
 

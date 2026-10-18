@@ -4935,6 +4935,10 @@ export const SESONG_PATTERN_LABELS = {
 	name: 'Navn',
 	rename: 'Gi nytt navn',
 	noDays: 'Ingen dager ennå. Legg til øktene du trener i en vanlig uke.',
+	/** The pattern's lifting slots (ADR 0104 §3), which have no weekday. */
+	liftingSlots: (count: number) =>
+		`Styrke: ${count} ${count === 1 ? 'økt' : 'økter'} i uka, på dager appen velger hver uke, unna de harde dagene.`,
+	liftingSlotsLink: 'Velg styrkedagene selv',
 	days: (name: string) => `Dager i ${name}`,
 	unknownTrack: 'Ukjent spor',
 	workoutRemoved: 'Økta er fjernet',
@@ -5584,6 +5588,80 @@ export const MEG_STRENGTH_LABELS = {
 		'Planen du har nå, endres ikke av dette. Styrkedagene i den flytter du i Plan.',
 	invalid: 'Velg 1, 2 eller 3 styrkeøkter i uka',
 	save: 'Lagre',
+	/** Under the frequency, where the plan's lifting days are chosen below it. */
+	planNoteWithDays:
+		'Planen du har nå, endres ikke av dette. Dagene i planen velger du under.',
+	/** The frequency, once the athlete has chosen the days themselves. */
+	fromDays: (count: number) =>
+		`${count} i uka – én for hver dag du har valgt i planen.`,
+} as const
+
+/**
+ * The plan's lifting days in _Meg → Trening → Styrke_ (#597, ADR 0104 §4):
+ * _La appen velge_, or the athlete's own **Pinned days**, previewed over the
+ * coming weeks before anything is written (ADR 0084) and undone from the
+ * toast (ADR 0088). Weekdays Monday first, as {@link NB_WEEKDAY_LABELS}.
+ */
+export const MEG_STRENGTH_DAYS_LABELS = {
+	heading: 'Styrkedagene i planen',
+	intro:
+		'Velg selv hvilke dager du løfter, eller la appen legge styrken unna de harde øktene hver uke.',
+	modeLegend: 'Hvem velger dagene',
+	auto: 'La appen velge',
+	own: 'Velg dager',
+	autoNote: (count: number) =>
+		`Appen legger ${count} ${count === 1 ? 'styrkeøkt' : 'styrkeøkter'} i uka på dager uten harde økter, og flytter dem når de harde dagene flytter seg.`,
+	chipsLegend: 'Dagene du løfter',
+	chipsNote:
+		'Bare dagene du kan trene, fra profilen din. Like mange dager som styrkeøkter i uka, opptil 3.',
+	chipsNoteNoAvailability:
+		'Like mange dager som styrkeøkter i uka, opptil 3. Setter du treningsdagene dine i profilen, kan du bare velge blant dem.',
+	ownNote:
+		'Styrken legges bare på disse dagene, og de harde øktene legges rundt dem.',
+	preview: 'Se hva som endres',
+	previewing: 'Henter de neste ukene …',
+	previewHeading: 'De neste ukene',
+	/** `Uke 43`, the ISO week the athlete reads everywhere. */
+	week: (isoWeek: number) => `Uke ${isoWeek}`,
+	/** `Styrke tirsdag og torsdag`. */
+	lifting: (days: readonly number[]) =>
+		days.length === 0
+			? 'Ingen styrke'
+			: `Styrke ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+	/** `Harde økter mandag`. */
+	hard: (days: readonly number[]) =>
+		days.length === 0
+			? 'ingen harde økter'
+			: `${days.length === 1 ? 'hard økt' : 'harde økter'} ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+	/** What the week had before, where it changes. */
+	was: (days: readonly number[]) =>
+		`Før: ${days.length === 0 ? 'ingen styrke' : nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+	same: 'Som før',
+	/** A clash the change leaves, worded as the fit check words it. */
+	clash: (clash: string, pinned: boolean) =>
+		`${clash}${pinned ? ' – en dag du har valgt selv' : ''}.`,
+	clashNote:
+		'Dagene du velger, blir der du satte dem. Appen sier fra, men flytter dem ikke.',
+	apply: 'Bruk',
+	applying: 'Lagrer …',
+	cancel: 'Avbryt',
+	/** The toast after a write. */
+	saved: (days: readonly number[] | null) =>
+		days == null
+			? 'Appen velger styrkedagene igjen.'
+			: `Du løfter nå ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}.`,
+	undo: 'Angre',
+	undone: 'Styrkedagene er som før.',
+	refusals: {
+		'no-days': 'Velg minst én dag, eller la appen velge.',
+		'outside-availability': 'Velg bare dager du kan trene.',
+		'too-many': 'Velg opptil 3 dager.',
+		stale: 'Planen endret seg mens du så på den. Se hva som endres igjen.',
+		'no-session': 'Det finnes ingen styrkeøkt å legge inn ennå.',
+		'no-plan': 'Du har ingen plan å legge styrkedagene i.',
+		'no-strength-track': 'Planen din har ikke styrke.',
+		'no-pattern': 'Planen har ikke noe ukemønster å legge styrken i ennå.',
+	},
 } as const
 
 /**
