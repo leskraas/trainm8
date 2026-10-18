@@ -107,6 +107,7 @@ export async function applyWeekReplanForUser(
 		missedSessions,
 		round,
 		repeatMisses,
+		profile,
 	] = await Promise.all([
 		getClosedWeekAdherence(userId, weekKey, timezone),
 		getCurrentLoad(userId),
@@ -115,8 +116,16 @@ export async function applyWeekReplanForUser(
 		getMissedSessions(userId, weekKey, timezone, now),
 		readRoundFacts(userId, weekKey, timezone, now),
 		getRepeatMisses(userId, weekKey, timezone, now),
+		// The mode this week closes under (ADR 0100 §6): read here, at the
+		// close, and stored with the decision — so a switch in Meg applies
+		// from the next close and never to proposals already written.
+		prisma.athleteProfile.findUnique({
+			where: { userId },
+			select: { autopilot: true },
+		}),
 	])
 	const tsb = currentLoad?.tsb ?? null
+	const autopilot = profile?.autopilot ?? false
 
 	const change = author({
 		targetWeekKey,
@@ -128,6 +137,7 @@ export async function applyWeekReplanForUser(
 		freeDays: coming.freeDays,
 		round,
 		repeatMisses,
+		autopilot,
 	})
 
 	try {
@@ -140,6 +150,7 @@ export async function applyWeekReplanForUser(
 					reason: change.reason,
 					adherenceRatio: adherence?.ratio ?? null,
 					tsb,
+					autopilot,
 					createdAt: now,
 				},
 				select: { id: true },

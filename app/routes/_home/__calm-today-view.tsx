@@ -10,6 +10,9 @@
  * card and the rows say is `__calm-today.ts`, read off the same season the
  * full view renders, so the two cannot disagree.
  *
+ * Under Autopilot the Autopilot Notice sits between the card and the week
+ * (#576, ADR 0100 §5, `__autopilot-notice.tsx`).
+ *
  * Motion is the system's: presses (`pressable`), the Drawer, the toast. A row
  * that just landed is tinted while its _Angre_ stands. Two moments are #558
  * S10's (#582): the first _Gjort_ on a session sends eight sparks from its
@@ -31,6 +34,7 @@ import { cn } from '#app/utils/misc.tsx'
 import { timelineWindow } from '#app/utils/timeline-window.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { MORPH, morphOf } from '#app/utils/view-morph.ts'
+import { AutopilotNoticeCard } from './__autopilot-notice.tsx'
 import {
 	buildCalmToday,
 	type CalmCard,
@@ -76,6 +80,7 @@ export function CalmToday({ data }: { data: HomeTimelineData }) {
 		nudge,
 		thresholds,
 		weekChange = null,
+		autopilotNotice = null,
 		importConnected = false,
 	} = data
 	const now = useMemo(
@@ -183,6 +188,14 @@ export function CalmToday({ data }: { data: HomeTimelineData }) {
 						{view.invite ? <StartInvite /> : null}
 					</div>
 					<div className="flex min-w-0 flex-col gap-4">
+						{/* What the autopilot wrote, above the week it wrote to (ADR
+						    0100 §5); under Spør meg først, the line to Ukeskiftet. */}
+						{autopilotNotice ? (
+							<AutopilotNoticeCard
+								notice={autopilotNotice}
+								weeks={season.weeks}
+							/>
+						) : null}
 						{waiting > 0 ? <WeekChangeWaiting count={waiting} /> : null}
 						{view.week.shown ? (
 							<WeekList week={view.week} onCard={onCard} />

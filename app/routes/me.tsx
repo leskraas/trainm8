@@ -52,6 +52,7 @@ import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import { derivedAttributionLines } from '#app/utils/source-attribution.ts'
 import { readRecordedBindingSet } from '#app/utils/source-terms.server.ts'
 import { type Route } from './+types/me.ts'
+import { AutopilotSetting } from './__me-autopilot.tsx'
 import {
 	buildFormReading,
 	buildRecordLines,
@@ -78,6 +79,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		timezone,
 		bindingSet,
 		startAnswers,
+		profile,
 	] = await Promise.all([
 		prisma.user.findUniqueOrThrow({
 			where: { id: userId },
@@ -102,6 +104,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 		readRecordedBindingSet(userId),
 		// The level and Session Preferences the start asked (#571).
 		readStartAnswersOf(userId),
+		// The Autopilot switch (#576, ADR 0100 §6).
+		prisma.athleteProfile.findUnique({
+			where: { userId },
+			select: { autopilot: true },
+		}),
 	])
 	// The same reading the integrations page makes (`connectionHubStatus`).
 	const intervalsicu = connectionHubStatus(connection)
@@ -142,6 +149,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		credits,
 		strengthPerWeek,
 		startAnswersDetail,
+		autopilot: profile?.autopilot ?? false,
 	}
 }
 
@@ -217,8 +225,8 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 		credits,
 		strengthPerWeek,
 		startAnswersDetail,
+		autopilot,
 	} = loaderData
-		loaderData
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader title={APP_TAB_LABELS.me} className="mb-6" />
@@ -260,6 +268,8 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 
 			<FormSection reading={form} credits={credits} />
 			<RecordsSection records={records} credits={credits} />
+
+			<AutopilotSetting autopilot={autopilot} />
 
 			<MeSection id="me-settings" title={ME_LABELS.settings}>
 				<MeLink
