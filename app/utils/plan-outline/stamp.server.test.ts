@@ -1418,6 +1418,38 @@ describe('lifting laid per week', () => {
 		expect(monday).toEqual(['0:run', '0:strength'])
 	})
 
+	test('a hard session the athlete scheduled by hand is stepped around, and kept', async () => {
+		const plan = await setupRunWeek()
+		await addLiftingSlots(plan, await createStrengthWorkout(plan.athleteId), 2)
+		// Intervals on Thursday, put in by hand before the stamp.
+		const intervals = await prisma.workout.create({
+			select: { id: true },
+			data: {
+				ownerId: plan.athleteId,
+				title: 'Intervaller',
+				discipline: 'run',
+				intent: 'vo2max',
+				effortWord: 'hard',
+			},
+		})
+		const own = await prisma.workoutSession.create({
+			select: { id: true },
+			data: {
+				userId: plan.athleteId,
+				workoutId: intervals.id,
+				scheduledAt: new Date('2030-01-10T16:00:00Z'),
+				status: 'scheduled',
+				source: 'authored',
+			},
+		})
+		ok(await stampWeek(plan, false))
+		// The threshold run steps off Thursday's neighbours onto Monday, and
+		// the lifts off both hard days and the days before them: Tuesday and
+		// Friday, not the Monday and Thursday the week alone would take.
+		expect(await liftingDays(plan)).toEqual([1, 4])
+		expect(await prisma.workoutSession.count({ where: { id: own.id } })).toBe(1)
+	})
+
 	test('a re-lay is stable: the same week comes out again', async () => {
 		const plan = await setupRunWeek()
 		await addLiftingSlots(plan, await createStrengthWorkout(plan.athleteId), 2)

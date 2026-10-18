@@ -172,6 +172,13 @@ export type StampWeekInput = {
 		trackId: string
 		mix: readonly QualitySessionMixEntry[]
 	}>
+	/**
+	 * The sessions already in the week that the stamp does not write — the
+	 * ones the athlete scheduled by hand, and any it keeps — as the day rule
+	 * reads them. The mix and the lifting are laid around them as around any
+	 * track's (spec #588 story 34); the stamp never moves or writes them.
+	 */
+	held?: readonly PlacedSession[]
 }
 
 /**
@@ -295,6 +302,7 @@ export function planStamp({
 						?.value ?? null,
 			}))
 
+		const held = week.held ?? []
 		const readings = resolveWeekPattern({ days, tracks: specs })
 		const sessions: StampSession[] = []
 		const skipped: StampSkip[] = []
@@ -374,7 +382,7 @@ export function planStamp({
 				ownOf(track.trackId),
 				mix,
 				dayById,
-				anchorDaysOf(others, dayById, trackById),
+				anchorDaysOf(others, dayById, trackById, held),
 			)
 		}
 		// Last, the lifting slots, against the week as laid (ADR 0104 §3).
@@ -386,6 +394,7 @@ export function planStamp({
 				skipped,
 				dayById,
 				trackById,
+				held,
 			})
 		}
 
@@ -458,15 +467,16 @@ export function placedSessionOf(
 
 /**
  * The days another track's sessions hold a mix away from (ADR 0104 §2): every
- * **Hard day**, **Long day** and **Lifting day** of theirs, read by the one
- * cross-track day rule.
+ * **Hard day**, **Long day** and **Lifting day** of theirs and of the
+ * sessions already in the week (`held`), read by the one cross-track day rule.
  */
 function anchorDaysOf(
 	sessions: readonly StampSession[],
 	dayById: ReadonlyMap<string, StampDay>,
 	trackById: ReadonlyMap<string, StampTrack>,
+	held: readonly PlacedSession[],
 ): PatternWeekday[] {
-	return readDays(placedWeekOf(sessions, dayById, trackById))
+	return readDays([...placedWeekOf(sessions, dayById, trackById), ...held])
 		.filter((day) => day.hard || day.long || day.lifting)
 		.map((day) => day.weekday)
 }
@@ -534,11 +544,13 @@ function layLifting(
 		skipped,
 		dayById,
 		trackById,
+		held,
 	}: {
 		sessions: StampSession[]
 		skipped: StampSkip[]
 		dayById: ReadonlyMap<string, StampDay>
 		trackById: ReadonlyMap<string, StampTrack>
+		held: readonly PlacedSession[]
 	},
 ) {
 	const ordered = [...slots].sort(
@@ -548,7 +560,7 @@ function layLifting(
 	)
 	const picked = liftingDaysFor(
 		liftOn,
-		placedWeekOf(sessions, dayById, trackById),
+		[...placedWeekOf(sessions, dayById, trackById), ...held],
 		ordered.length,
 	)
 	picked.forEach((weekday, index) => {

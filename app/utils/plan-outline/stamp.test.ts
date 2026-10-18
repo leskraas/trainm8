@@ -610,6 +610,22 @@ describe('planStamp lays the mix around every track', () => {
 		expect(hardDaysOf(plan, 'bike')).toEqual([0])
 	})
 
+	test('a hard session already in the week, laid by hand, is an anchor', () => {
+		const [plan] = planStamp({
+			days: runDays,
+			tracks: [RUN_HOURS],
+			weeks: [
+				{
+					...laidWeek([RUN_HOURS], [{ trackId: 'run', mix: THRESHOLD }]),
+					held: [{ weekday: 5, kind: 'session', effort: 'hard' }],
+				},
+			],
+		})
+		// Alone the run would take Sunday; the hard Saturday the athlete put
+		// in by hand pushes it to Monday, two days from both.
+		expect(hardDaysOf(plan, 'run')).toEqual([0])
+	})
+
 	test('another track’s long day is an anchor', () => {
 		const [plan] = planStamp({
 			days: [
@@ -874,6 +890,23 @@ describe('planStamp lays lifting per week', () => {
 		const laid = lifts.filter((lift) => lift.kind === 'lifting')
 		expect(laid).toHaveLength(1)
 		expect(laid[0]!.weekday).not.toBe(2)
+	})
+
+	test('a hard session already in the week, laid by hand, keeps the lift off its day and the day before', () => {
+		const [plan] = planStamp({
+			days: runDays,
+			lifting: slots(1),
+			liftingDays: [2, 3, 4],
+			tracks: [RUN_HOURS, STRENGTH],
+			weeks: [
+				{
+					...laidWeek(1, []),
+					held: [{ weekday: 3, kind: 'session', effort: 'hard' }],
+				},
+			],
+		})
+		// Wednesday would do without it; the hand-laid hard Thursday leaves Friday.
+		expect(liftingDaysOf(plan)).toEqual([4])
 	})
 
 	test('a slot whose session is gone is reported, not laid', () => {

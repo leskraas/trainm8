@@ -49,6 +49,7 @@ import { isEffortWord } from '../effort-word.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
 import { type TrainingZone } from '../session-profile.ts'
 import { stampedSessionTitle } from '../session-title.ts'
+import { sessionWorkoutSelect } from '../training.server.ts'
 import {
 	isCardioDiscipline,
 	type CardioDiscipline,
@@ -66,7 +67,9 @@ import { isOutlineResting } from './active-outline.server.ts'
 import { phaseIndexForWeek, totalWeeks, type VolumeCurrency } from './derive.ts'
 import { phaseSpecs, resolvedTracks } from './from-rows.ts'
 import { parsePinnedDays } from './pinned-days.ts'
+import { type PlacedSession } from './day-rule.ts'
 import { type QualityZone } from './quality-mix.ts'
+import { placedOn, readPlacement } from './session-placement.ts'
 import { sessionZone, sessionZoneSelect } from './session-zone.ts'
 import {
 	mixDisagreements,
@@ -302,7 +305,10 @@ export async function stampWeekPattern(
 		) {
 			return refuse('week-outside-plan')
 		}
-		weeks.push(stampWeekInput(weekKey, index, specs, resolved))
+		weeks.push({
+			...stampWeekInput(weekKey, index, specs, resolved),
+			held: await readHeldSessions(userId, outline.id, weekKey, timezone),
+		})
 	}
 
 	const plans = planStamp({
@@ -487,14 +493,22 @@ export async function readLaidWeeks(
 			: track,
 	)
 	const resolved = resolvedTracks(outline)
-	const weeks = weekKeys.flatMap((weekKey) => {
+	const timezone = await getAthleteTimezone(userId)
+	const weeks: StampWeekInput[] = []
+	for (const weekKey of weekKeys) {
 		const index = weekIndexOf(outline.startWeekKey, weekKey)
-		return index >= 0 &&
-			index < weekCount &&
-			weekKeyAt(outline.startWeekKey, index) === weekKey
-			? [stampWeekInput(weekKey, index, specs, resolved)]
-			: []
-	})
+		if (
+			index < 0 ||
+			index >= weekCount ||
+			weekKeyAt(outline.startWeekKey, index) !== weekKey
+		) {
+			continue
+		}
+		weeks.push({
+			...stampWeekInput(weekKey, index, specs, resolved),
+			held: await readHeldSessions(userId, outline.id, weekKey, timezone),
+		})
+	}
 	const input = swap({
 		days: stampDays(pattern, tracks),
 		lifting: liftingSlots(pattern, tracks),
@@ -505,6 +519,41 @@ export async function readLaidWeeks(
 		input,
 		tracks,
 	}
+}
+
+/**
+ * The sessions in one week the stamp lays around and never writes (spec #588
+ * story 34): the ones the athlete scheduled by hand, and any another plan
+ * laid — scheduled or trained, as the day rule reads them. This plan's own
+ * laid sessions are not among them: the stamp is what lays those. Skipped
+ * and missed sessions were not trained, so they make no day hard.
+ */
+async function readHeldSessions(
+	userId: string,
+	planOutlineId: string,
+	weekKey: string,
+	timezone: string,
+): Promise<PlacedSession[]> {
+	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
+	const rows = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			scheduledAt: { gte: start, lte: end },
+			status: { in: ['scheduled', 'completed'] },
+			OR: [
+				{ source: 'authored' },
+				{ planOutlineId: null },
+				{ planOutlineId: { not: planOutlineId } },
+			],
+		},
+		select: { scheduledAt: true, workout: sessionWorkoutSelect },
+	})
+	return rows.flatMap((row) => {
+		const shape = readPlacement(row.workout)
+		if (!shape) return []
+		const weekday = weekdayIndex(localDate(row.scheduledAt, timezone))
+		return isPatternWeekday(weekday) ? [placedOn(shape, weekday)] : []
+	})
 }
 
 /** A pattern slot: the weekday (Monday-first) and the Discipline laid there. */
