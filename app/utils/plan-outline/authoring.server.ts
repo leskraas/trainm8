@@ -2699,10 +2699,16 @@ export async function createStarterWeekPatternInTx(
 				select: {
 					id: true,
 					discipline: true,
+					currency: true,
 					segments: {
 						where: { kind: 'strength' },
 						select: { sessionsPerWeek: true },
 						orderBy: { startWeekKey: 'asc' },
+					},
+					anchors: {
+						select: { value: true },
+						orderBy: { fromWeekKey: 'asc' },
+						take: 1,
 					},
 				},
 			},
@@ -2715,6 +2721,39 @@ export async function createStarterWeekPatternInTx(
 	const shared = outline.tracks.filter(
 		(track) => track.discipline !== SIMPLE_ACTIVITY_DISCIPLINE,
 	)
+	// The most hard sessions any one week of each track's mix asks for: the
+	// track carrying the most is the one the week is built around, and it
+	// keeps a day for each of them (ADR 0104 §5).
+	const mixEntries = await tx.qualitySessionMixEntry.findMany({
+		where: { segment: { track: { outlineId: outline.id } } },
+		select: {
+			sessionsPerWeek: true,
+			segment: { select: { id: true, trackId: true } },
+		},
+	})
+	const perSegment = new Map<string, { trackId: string; count: number }>()
+	for (const entry of mixEntries) {
+		const seen = perSegment.get(entry.segment.id)
+		perSegment.set(entry.segment.id, {
+			trackId: entry.segment.trackId,
+			count: (seen?.count ?? 0) + entry.sessionsPerWeek,
+		})
+	}
+	const hardSessionsOf = (trackId: string) =>
+		Math.max(
+			0,
+			...[...perSegment.values()]
+				.filter((segment) => segment.trackId === trackId)
+				.map((segment) => segment.count),
+		)
+	// Weekly volumes are only compared within one Volume Currency (ADR 0046):
+	// tracks counted in different ones are taken in order instead.
+	const enduranceCurrencies = new Set(
+		shared
+			.filter((track) => track.discipline !== 'strength')
+			.map((track) => track.currency),
+	)
+	const comparable = enduranceCurrencies.size <= 1
 	const proposal = proposeStarterPattern({
 		trainableWeekdays,
 		tracks: shared.map((track) => ({
@@ -2727,6 +2766,10 @@ export async function createStarterWeekPatternInTx(
 			sessionsPerWeek: track.segments[0]?.sessionsPerWeek ?? null,
 			weekdays: daysByDiscipline[track.discipline as Discipline],
 			dayWeights: weightsByDiscipline[track.discipline as Discipline],
+			hardSessions: hardSessionsOf(track.id),
+			...(comparable && track.anchors[0]
+				? { weeklyShare: track.anchors[0].value }
+				: {}),
 		})),
 	})
 	const fixed = fixedDays.flatMap((day) => {

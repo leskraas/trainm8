@@ -4493,6 +4493,73 @@ describe('a Week Pattern to start from (#362 follow-up)', () => {
 		expect(await daysOf(outlineId)).toEqual([])
 	})
 
+	test('a run and bike plan deals the days: one session a day, the run’s long day and hard days', async () => {
+		const FLAT = { ramp: null, boundaryStep: null }
+		const athleteId = await createAthlete()
+		await prisma.athleteProfile.create({
+			data: {
+				userId: athleteId,
+				timezone: 'Europe/Oslo',
+				trainableWeekdays: JSON.stringify([0, 1, 2, 3, 4, 5, 6]),
+			},
+		})
+		const eventId = await createRace(athleteId)
+		const input = planInput(eventId)
+		const created = await createPlanOutline(
+			athleteId,
+			{
+				...input,
+				// The ride listed first: the mix decides the main track, not order.
+				tracks: [
+					{ discipline: 'bike', currency: 'km', anchorValue: 150 },
+					...input.tracks,
+				],
+			},
+			NOW,
+			{
+				familyRates: [
+					{ ...FLAT, mix: [{ zone: 4, sessionsPerWeek: 2 }] },
+					{
+						...FLAT,
+						mix: [
+							{ zone: 4, sessionsPerWeek: 1 },
+							{ zone: 5, sessionsPerWeek: 1 },
+						],
+					},
+					{ ...FLAT, mix: [] },
+				],
+				withoutMix: ['bike'],
+			},
+		)
+		if (!created.ok) throw new Error(`plan setup failed: ${created.reason}`)
+
+		await createStarterWeekPattern(athleteId, { outlineId: created.outlineId })
+
+		const days = await prisma.weekPatternDay.findMany({
+			where: { pattern: { outlineId: created.outlineId } },
+			orderBy: [{ weekday: 'asc' }],
+			select: {
+				weekday: true,
+				weight: true,
+				track: { select: { discipline: true } },
+			},
+		})
+		// One endurance session on each of the seven days.
+		expect(days.map((day) => day.weekday)).toEqual([0, 1, 2, 3, 4, 5, 6])
+		const longOf = (discipline: string) =>
+			days
+				.filter(
+					(day) => day.track.discipline === discipline && day.weight === 2,
+				)
+				.map((day) => day.weekday)
+		// The run carries the mix: Sunday long, and room for two hard sessions.
+		expect(longOf('run')).toEqual([6])
+		expect(longOf('bike')).toEqual([2])
+		expect(
+			days.filter((day) => day.track.discipline === 'run').length,
+		).toBeGreaterThanOrEqual(3)
+	})
+
 	test('another athlete cannot start a week on a plan that is not theirs', async () => {
 		const { outlineId } = await planWithAvailability([2, 4, 0])
 		const intruder = await createAthlete()
