@@ -92,6 +92,12 @@ export type StarterProposal = {
 	days: StarterDay[]
 	/** The strength tracks' lifts a week, one slot per lift. */
 	lifting: StarterLiftingSlot[]
+	/**
+	 * A strength track's **Pinned days** (ADR 0104 §4), where it names its
+	 * own: one lift on each, on the day the athlete chose, in place of slots
+	 * (#598). Written as `fixed` strength days, which the stamp lays first.
+	 */
+	pinnedLifting: Array<{ trackId: string; weekday: PatternWeekday }>
 	/** The days the week was built from, Monday first. */
 	weekdays: PatternWeekday[]
 	/** Whether the weekdays came from the athlete's own availability or the default. */
@@ -191,16 +197,26 @@ export function proposeStarterPattern({
 
 	// As many lifts as the block says, and never more than the athlete has
 	// days: slots the stamp lays per week (ADR 0104 §3).
+	// A strength track on its Pinned days lifts on them instead (#598).
 	const lifting: StarterLiftingSlot[] = strength.flatMap((track) =>
-		Array.from(
-			{ length: Math.min(track.sessionsPerWeek ?? 0, weekdays.length) },
-			() => ({ trackId: track.trackId }),
-		),
+		track.weekdays
+			? []
+			: Array.from(
+					{ length: Math.min(track.sessionsPerWeek ?? 0, weekdays.length) },
+					() => ({ trackId: track.trackId }),
+				),
 	)
+	const pinnedLifting = strength.flatMap((track) => {
+		const own = track.weekdays
+		if (!own) return []
+		return weekdays
+			.filter((weekday) => own.includes(weekday))
+			.map((weekday) => ({ trackId: track.trackId, weekday }))
+	})
 
-	return days.length === 0 && lifting.length === 0
+	return days.length === 0 && lifting.length === 0 && pinnedLifting.length === 0
 		? null
-		: { days, lifting, weekdays: [...weekdays], source }
+		: { days, lifting, pinnedLifting, weekdays: [...weekdays], source }
 }
 
 /**

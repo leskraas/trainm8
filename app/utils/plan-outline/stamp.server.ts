@@ -65,6 +65,7 @@ import {
 import { isOutlineResting } from './active-outline.server.ts'
 import { phaseIndexForWeek, totalWeeks, type VolumeCurrency } from './derive.ts'
 import { phaseSpecs, resolvedTracks } from './from-rows.ts'
+import { parsePinnedDays } from './pinned-days.ts'
 import { type QualityZone } from './quality-mix.ts'
 import { sessionZone, sessionZoneSelect } from './session-zone.ts'
 import {
@@ -171,6 +172,7 @@ const stampOutlineSelect = {
 			id: true,
 			discipline: true,
 			currency: true,
+			pinnedDays: true,
 			anchors: { select: { fromWeekKey: true, value: true } },
 			segments: {
 				select: {
@@ -456,6 +458,15 @@ export async function readLaidWeeks(
 	outlineId: string,
 	weekKeys: readonly string[],
 	swap: (laid: LaidPatternInput) => LaidPatternInput = (laid) => laid,
+	{
+		pinned,
+	}: {
+		/**
+		 * Whether a track is on its **Pinned days** as the change would leave
+		 * it, where that differs from what is stored (#598).
+		 */
+		pinned?: ReadonlyMap<string, boolean>
+	} = {},
 ): Promise<{
 	plans: StampWeekPlan[]
 	input: LaidPatternInput
@@ -470,7 +481,11 @@ export async function readLaidWeeks(
 	const outline = pattern.outline
 	const specs = phaseSpecs(outline)
 	const weekCount = totalWeeks(specs)
-	const tracks = stampTracks(outline)
+	const tracks = stampTracks(outline).map((track) =>
+		pinned?.has(track.trackId)
+			? { ...track, pinned: pinned.get(track.trackId) }
+			: track,
+	)
 	const resolved = resolvedTracks(outline)
 	const weeks = weekKeys.flatMap((weekKey) => {
 		const index = weekIndexOf(outline.startWeekKey, weekKey)
@@ -698,6 +713,8 @@ function stampTracks(outline: StampOutline): StampTrack[] {
 		trackId: track.id,
 		discipline: track.discipline as Discipline,
 		currency: track.currency as VolumeCurrency,
+		// A track on its **Pinned days** lays its mix first (ADR 0104 §4).
+		pinned: parsePinnedDays(track.pinnedDays) != null,
 	}))
 }
 

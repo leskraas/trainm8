@@ -307,3 +307,29 @@ test('the other tracks are dealt around a track that names its own days', () => 
 	expect(daysOf(proposal, 'track-run')).toEqual([0, 1, 3, 4, 6])
 	expect(longDayOf(proposal, 'track-run')).toBe(6)
 })
+
+test('a strength track on its Pinned days lifts on those days, not in slots', () => {
+	// Mon, Tue, Thu, Sat, Sun (Sunday-first as stored).
+	const proposal = proposeStarterPattern({
+		trainableWeekdays: [1, 2, 4, 6, 0],
+		tracks: [RUN, { ...LIFT, weekdays: [1, 3] }],
+	})
+
+	expect(proposal?.lifting).toEqual([])
+	expect(proposal?.pinnedLifting).toEqual([
+		{ trackId: 'track-strength', weekday: 1 },
+		{ trackId: 'track-strength', weekday: 3 },
+	])
+})
+
+test('a Pinned lifting day outside Training Availability is not laid', () => {
+	// Tue and Thu (Sunday-first as stored): Monday-first 1 and 3.
+	const proposal = proposeStarterPattern({
+		trainableWeekdays: [2, 4],
+		tracks: [{ ...LIFT, weekdays: [1, 5] }],
+	})
+
+	expect(proposal?.pinnedLifting).toEqual([
+		{ trackId: 'track-strength', weekday: 1 },
+	])
+})
