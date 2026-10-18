@@ -31,6 +31,7 @@ import {
 	nbDisciplineLabel,
 	OPEN_ENDED_FORM_LABELS,
 	OPEN_ENDED_PLAN_LABEL,
+	PLAN_LEAD_LABELS,
 	PLAN_NEW_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
@@ -42,6 +43,7 @@ import {
 } from '#app/utils/plan-outline/authoring.server.ts'
 import { OpenEndedFieldsSchema } from '#app/utils/plan-outline/open-ended-schema.ts'
 import { OPEN_ENDED_ROUND_WEEKS } from '#app/utils/plan-outline/presets.ts'
+import { findActiveOutline } from '#app/utils/training.server.ts'
 import {
 	CARDIO_DISCIPLINES,
 	DISCIPLINES,
@@ -81,14 +83,19 @@ const O = OPEN_ENDED_FORM_LABELS
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const [candidates, openEnded, libraryLifts] = await Promise.all([
+	const [candidates, openEnded, libraryLifts, active] = await Promise.all([
 		listPlanAnchorCandidates(userId),
 		readOpenEndedPlanDefaults(userId),
 		// Bibliotek is a section of Plan (ADR 0101 §1), and with no plan this is
 		// where Plan lands — so the catalogue is here too.
 		readLibraryLifts(userId),
+		findActiveOutline(userId, new Date()),
 	])
 	return {
+		// With no plan, Plan invites to the start as I dag does (ADR 0101 §4); an
+		// athlete with one came here for another plan, and the start would only
+		// send them home.
+		startInvite: active == null,
 		candidates,
 		libraryLifts,
 		defaultDate: new Date().toISOString().slice(0, 10),
@@ -153,8 +160,14 @@ export default function NewPlanRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { candidates, defaultDate, openEnded, roundWeeks, libraryLifts } =
-		loaderData
+	const {
+		candidates,
+		defaultDate,
+		openEnded,
+		roundWeeks,
+		libraryLifts,
+		startInvite,
+	} = loaderData
 	const plannable = candidates.filter(
 		(candidate) => candidate.plannedOutlineId == null,
 	)
@@ -183,6 +196,7 @@ export default function NewPlanRoute({
 			    tab's landing page, so no back affordance — the tab bar is the way
 			    out. */}
 			<PageHeader title={APP_TAB_LABELS.plan} className="mb-2" />
+			{startInvite ? <StartInvite /> : null}
 			{/* Page prose sits on the page, not in a card (ui-conventions §1.6). */}
 			<div className="mb-6 space-y-1">
 				<h2 className="text-heading">{PLAN_NEW_LABELS.heading}</h2>
@@ -314,6 +328,36 @@ export default function NewPlanRoute({
 
 			<LibrarySection lifts={libraryLifts} className="mt-10" />
 		</main>
+	)
+}
+
+/**
+ * No plan yet: the simple start first, the way I dag's no-plan card asks
+ * (ADR 0101 §4), and setting a season up by hand below it — the expert path
+ * stays, one scroll further.
+ */
+function StartInvite() {
+	return (
+		<PlanCard
+			titleId="start-invite"
+			title={PLAN_LEAD_LABELS.noPlanTitle}
+			className="mb-8"
+			contentClassName="space-y-3"
+		>
+			<p className="text-body text-muted-foreground [text-wrap:pretty]">
+				{PLAN_LEAD_LABELS.noPlanBody}
+			</p>
+			<Link
+				to="/start"
+				data-plan-start-invite
+				className={cn(
+					buttonVariants({ size: 'default' }),
+					'h-12 w-full text-base font-semibold sm:w-auto sm:px-8',
+				)}
+			>
+				{PLAN_LEAD_LABELS.noPlanAction}
+			</Link>
+		</PlanCard>
 	)
 }
 

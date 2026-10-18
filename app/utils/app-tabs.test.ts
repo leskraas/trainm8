@@ -90,6 +90,6 @@ test('a page in no tab marks none, and a prefix matches whole segments only', ()
 
 test('the first run carries no bar', () => {
 	expect(showsTabBar('/start')).toBe(false)
-	expect(showsTabBar('/start/funn')).toBe(false)
+	expect(showsTabBar('/start/niva')).toBe(false)
 	expect(showsTabBar('/training/plan')).toBe(true)
 })

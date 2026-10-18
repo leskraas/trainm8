@@ -5,7 +5,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { openEndedRound } from '#app/utils/plan-outline/presets.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
-import { action } from './plan.new.tsx'
+import { action, loader } from './plan.new.tsx'
 
 // _Hold meg aktiv_ on Sesong's landing (ADR 0079, audit B2/B3): the plan it
 // makes is the Klassisk 3:1 round its words promise — the climb and the hard
@@ -146,4 +146,21 @@ test('a Monday already trained on is begun, so the plan opens the week after', a
 	const outline = await holdMegAktiv(cookie)
 
 	expect(outline.startWeekKey).toBe('2030-01-21')
+})
+
+test('Plan with no plan invites the athlete to the start; with one it does not', async () => {
+	const { cookie } = await setUp()
+	const get = () =>
+		loader({
+			request: new Request(new URL(ROUTE_PATH, BASE_URL).toString(), {
+				headers: { cookie },
+			}),
+			...ARGS,
+		})
+
+	expect((await get()).startInvite).toBe(true)
+
+	await holdMegAktiv(cookie)
+
+	expect((await get()).startInvite).toBe(false)
 })

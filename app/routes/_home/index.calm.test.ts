@@ -156,7 +156,7 @@ test('before the Plan Start Week the card says when the plan starts, and a sessi
 			discipline: 'run',
 			hours: 4,
 			days: [1, 3, 5],
-			goal: { kind: 'active' },
+			level: 'recreational',
 			family: null,
 		},
 		NOW,

@@ -126,7 +126,9 @@ test('athlete builds a season from the catalogue, answers its question, and adds
 	// Add it: Sesong opens on the season just written.
 	await approve.click()
 	await expect(page).toHaveURL(`/training/plan?event=${event.id}`)
-	await expect(page.getByRole('heading', { name: eventName })).toBeVisible()
+	await expect(
+		page.getByRole('link', { name: eventName, exact: true }),
+	).toBeVisible()
 	const outline = await prisma.planOutline.findFirst({
 		where: { athleteId: user.id, eventId: event.id },
 		select: { id: true },

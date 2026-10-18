@@ -106,10 +106,10 @@ test('onboarding with link', async ({ page, navigate, getOnboardingData }) => {
 
 	await page.getByRole('button', { name: /Create an account/i }).click()
 
-	// A new athlete lands on the first run (#505 story 61).
-	await expect(page).toHaveURL(`/start`)
+	// A new athlete lands on the start's first screen (#578).
+	await expect(page).toHaveURL(`/start/niva`)
 
-	// The first run carries no tab bar (ADR 0083): one way forward.
+	// The start carries no tab bar (ADR 0083): one way forward.
 	await expect(page.getByRole('navigation', { name: 'Hovedmeny' })).toHaveCount(
 		0,
 	)
@@ -202,8 +202,8 @@ test('completes onboarding after GitHub OAuth given valid user details', async (
 		.click()
 	await createAccountButton.click()
 
-	// A new athlete lands on the first run (#505 story 61).
-	await expect(page).toHaveURL('/start')
+	// A new athlete lands on the start's first screen (#578).
+	await expect(page).toHaveURL('/start/niva')
 	await expect(page.getByText(/thanks for signing up/i)).toBeVisible()
 
 	// internally, a user has been created:

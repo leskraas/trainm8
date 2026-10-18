@@ -19,9 +19,14 @@ const REFUSAL_TIMEOUT = 5000
 
 type Season = {
 	outlineId: string
-	eventId: string
-	eventName: string
-	eventDate: Date
+	/** All three null for an open-ended plan (ADR 0079). */
+	eventId: string | null
+	eventName: string | null
+	eventDate: Date | null
+	/** The philosophy the plan follows; absent or null when it follows none. */
+	family?: 'classic' | 'masters' | 'big-base' | 'polarized' | 'threshold' | null
+	/** An open-ended plan's round, the n of _blokk n av ∞_. */
+	round?: number | null
 	startWeekKey: string
 	timezone: string
 	/** `null` means the athlete never set their availability (ADR 0042 §9). */
@@ -159,7 +164,7 @@ type Season = {
 		orderIndex: number
 		days: PatternDay[]
 	}>
-	fit: { kind: string; weeks?: number }
+	fit: { kind: string; weeks?: number } | null
 	currentPhaseIndex: number | null
 }
 
@@ -638,6 +643,10 @@ function renderPlan(
 		firstUnbegunWeekKey?: string
 		/** Bibliotek's lifts (ADR 0101); none unless a test says so. */
 		libraryLifts?: Array<{ id: string; name: string }>
+		/** The lead's next easy week (ADR 0101 §2); none unless a test says so. */
+		nextEasyWeek?: { weekKey: string; weekNumber: number; isThisWeek: boolean }
+		/** Where the athlete lands; Avansert open, unless a test says otherwise. */
+		at?: string
 	} = {},
 ) {
 	const week =
@@ -677,6 +686,9 @@ function renderPlan(
 				trackProposals: extra.trackProposals ?? proposalsFor(season),
 				seasonEvents: extra.seasonEvents ?? { events: [], upcomingCount: 0 },
 				libraryLifts: extra.libraryLifts ?? [],
+				nextEasyWeek: extra.nextEasyWeek ?? null,
+				// No Event of the athlete's waits for a plan unless a test says so.
+				attachableEvents: [],
 				// Every week of these fixtures is ahead, so each offers its edit.
 				firstUnbegunWeekKey:
 					extra.firstUnbegunWeekKey ?? season.weeks[0]?.weekKey ?? '2030-01-07',
@@ -688,7 +700,13 @@ function renderPlan(
 	render(
 		<App
 			initialEntries={[
-				tab === 'blocks' ? '/training/plan' : '/training/plan?tab=weeks',
+				// Every Sesong editor lives behind Plan's closed Avansert now (ADR
+				// 0101 §2). These suites read the editors, so they land on Avansert
+				// the way I dag's Avansert chip does; `?tab=weeks` opens it by itself.
+				extra.at ??
+					(tab === 'blocks'
+						? '/training/plan#avansert'
+						: '/training/plan?tab=weeks'),
 			]}
 		/>,
 	)
@@ -755,6 +773,132 @@ async function openWeeks() {
 	await openAllIn(list)
 	return within(list).getAllByRole('listitem')
 }
+
+// ---------------------------------------------------------------------------
+// Plan leads with the plain picture (ADR 0101 §2, #577)
+// ---------------------------------------------------------------------------
+
+const EASY_WEEK = { weekKey: '2030-01-14', weekNumber: 3, isThisWeek: false }
+
+test('Plan opens on the plain name with the family small and the next easy week', async () => {
+	renderPlan({ ...SEASON, family: 'polarized' }, 'blocks', null, undefined, {
+		at: '/training/plan',
+		nextEasyWeek: EASY_WEEK,
+	})
+
+	// The Start Option's own words, so the plan reads as the card picked.
+	expect(
+		await screen.findByRole('heading', {
+			level: 1,
+			name: 'Mest rolig, litt veldig hardt',
+		}),
+	).toBeInTheDocument()
+	expect(screen.getByText('Fagnavn: Polarisert 80/20')).toBeInTheDocument()
+	expect(
+		screen.getByText('Neste lette uke er uke 3, fra 14. jan 2030.'),
+	).toBeInTheDocument()
+	// Toward the race, by name.
+	expect(
+		screen.getByRole('link', { name: 'Spring Half Marathon' }),
+	).toBeInTheDocument()
+})
+
+test('a plan that follows no family is the athlete’s own, and says no family', async () => {
+	renderPlan({ ...SEASON, family: null }, 'blocks', null, undefined, {
+		at: '/training/plan',
+	})
+
+	expect(
+		await screen.findByRole('heading', { level: 1, name: 'Din egen plan' }),
+	).toBeInTheDocument()
+	expect(screen.queryByText(/^Fagnavn:/)).not.toBeInTheDocument()
+})
+
+test('the athlete in the easy week is told so, not given a date', async () => {
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		at: '/training/plan',
+		nextEasyWeek: { ...EASY_WEEK, isThisWeek: true },
+	})
+
+	expect(
+		await screen.findByText('Denne uka er en lett uke.'),
+	).toBeInTheDocument()
+})
+
+test('an open-ended plan offers Legg til et løp in the lead', async () => {
+	renderPlan(
+		{
+			...SEASON,
+			eventId: null,
+			eventName: null,
+			eventDate: null,
+			fit: null,
+			round: 2,
+			family: 'classic',
+		},
+		'blocks',
+		null,
+		undefined,
+		{ at: '/training/plan' },
+	)
+
+	const lead = await screen.findByRole('region', {
+		name: 'Variert og bygger seg opp',
+	})
+	expect(lead).toHaveTextContent('blokk 2 av ∞')
+	expect(
+		within(lead).getByRole('button', { name: /Legg til et løp/ }),
+	).toBeInTheDocument()
+})
+
+test('Avansert is closed by default, under Bibliotek, and holds the Sesong editors', async () => {
+	renderPlan({ ...SEASON, family: 'classic' }, 'blocks', null, undefined, {
+		at: '/training/plan',
+	})
+
+	const advanced = await screen.findByRole('button', {
+		name: /^Avansert\s*Filosofi, ukemål/,
+	})
+	expect(advanced).toHaveAttribute('aria-expanded', 'false')
+	// Closed means unrendered: none of the editors are on the page yet.
+	expect(
+		screen.queryByRole('region', { name: 'Endre sesongen' }),
+	).not.toBeInTheDocument()
+	expect(
+		screen.queryByRole('region', { name: 'Filosofi' }),
+	).not.toBeInTheDocument()
+	// The order ADR 0101 §2 sets: the lead, Bibliotek, then Avansert.
+	const library = screen.getByRole('region', { name: 'Bibliotek' })
+	const lead = screen.getByRole('region', { name: 'Variert og bygger seg opp' })
+	expect(
+		lead.compareDocumentPosition(library) & Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+	expect(
+		library.compareDocumentPosition(advanced) &
+			Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+
+	await userEvent.click(advanced)
+
+	expect(advanced).toHaveAttribute('aria-expanded', 'true')
+	for (const name of ['Endre sesongen', 'Filosofi', 'Hva planen består av']) {
+		expect(screen.getByRole('region', { name })).toBeInTheDocument()
+	}
+	expect(screen.getByRole('list', { name: 'Faser' })).toBeInTheDocument()
+})
+
+test('a link to a reading or an edit lands on Avansert open', async () => {
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		at: '/training/plan?edit=week-target&weekKey=2030-01-14&trackId=track-run',
+	})
+
+	expect(
+		await screen.findByRole('button', { name: /^Avansert\s*Filosofi/ }),
+	).toHaveAttribute('aria-expanded', 'true')
+	expect(
+		screen.getByRole('region', { name: 'Endre sesongen' }),
+	).toBeInTheDocument()
+})
 
 test('the season names its Event, its length and where it ends against it', async () => {
 	renderPlan()
@@ -2348,9 +2492,11 @@ test('once the plan has begun, no shape is offered: Bytt filosofi is, behind its
 test('the edits outside Sesong v1 wait behind Avansert, which says they apply directly', async () => {
 	renderPlan()
 
-	const advanced = await screen.findAllByRole('button', {
-		name: /^Avansert/,
-	})
+	// Plan's own Avansert, which holds all of this (ADR 0101 §2), is not one of
+	// these lines: it says what it holds, not how its edits apply.
+	const advanced = (
+		await screen.findAllByRole('button', { name: /^Avansert/ })
+	).filter((trigger) => !trigger.hasAttribute('data-plan-advanced'))
 	// One per open block card (the current one), and one for the season's own
 	// rules.
 	expect(advanced.length).toBeGreaterThan(1)

@@ -87,7 +87,6 @@ const ANSWERS = {
 	activities: ['climb', 'yoga-mobility'],
 	hours: 5,
 	days: [0, 2, 4, 5],
-	goal: { kind: 'active' },
 	family: 'polarized',
 } satisfies FirstRunAnswers
 
@@ -200,7 +199,6 @@ test('an athlete who picked only Simple Activities gets one simple week, made as
 		activities: ['hike', 'yoga-mobility'],
 		hours: 3,
 		days: [1, 3, 5],
-		goal: { kind: 'active' },
 		family: null,
 	} satisfies FirstRunAnswers
 	const start = draftStart({ ...answers, startWeekKey: START })!
