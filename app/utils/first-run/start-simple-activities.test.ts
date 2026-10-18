@@ -96,6 +96,19 @@ test('every Simple Activity shares one hours track on other, with no mix, each a
 	}
 })
 
+test('the Simple Activities’ track asks for the same hours every week, as the fixed days lay them', () => {
+	// The fixed days do not climb with the phases, so neither does the target:
+	// from week 2 a climbing target would ask for hours no day lays, and say
+	// nothing about it.
+	for (const option of start().options) {
+		const simple = option.draft.tracks.find(
+			(track) => track.discipline === 'other',
+		)!
+		expect(simple.targets.length).toBeGreaterThanOrEqual(4)
+		expect(new Set(simple.targets)).toEqual(new Set([simple.anchor]))
+	}
+})
+
 test('week 1 of every option adds up to the hours across every track, Simple Activities included', () => {
 	const made = start()
 	expect(made.options.length).toBeGreaterThan(1)

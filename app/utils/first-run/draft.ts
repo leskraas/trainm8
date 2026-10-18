@@ -23,8 +23,10 @@ import {
 } from '../plan-outline/derive.ts'
 import { fitRunUp } from '../plan-outline/fit-proposal.ts'
 import {
+	isSimpleActivityTrack,
 	phaseSpecs,
 	resolvedTracks,
+	SIMPLE_ACTIVITY_SEGMENT,
 	type OutlineRows,
 } from '../plan-outline/from-rows.ts'
 import {
@@ -177,10 +179,16 @@ export function draftRows({
 				id: `${track.trackId}-segment-${index}`,
 				kind: 'endurance',
 				phaseId: `phase-${index}`,
-				ramp: phase.ramp,
-				boundaryStep: phase.boundaryStep,
-				recoveryCut: null,
-				taperCut: null,
+				// The Simple Activities' fixed days do not climb, so their track's
+				// target does not either (#572).
+				...(isSimpleActivityTrack(track.discipline)
+					? SIMPLE_ACTIVITY_SEGMENT
+					: {
+							ramp: phase.ramp,
+							boundaryStep: phase.boundaryStep,
+							recoveryCut: null,
+							taperCut: null,
+						}),
 				startWeekKey: null,
 				weeks: null,
 				goal: null,

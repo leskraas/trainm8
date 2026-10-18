@@ -3,8 +3,13 @@ import { addDays, weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { fillPlanWeek } from '#app/utils/load/horizon-fill.server.ts'
+import {
+	isSimpleActivityTrack,
+	resolvedTracks,
+} from '#app/utils/plan-outline/from-rows.ts'
 import { weekKeyAt } from '#app/utils/plan-outline/week-keys.ts'
 import { readSimpleActivity } from '#app/utils/simple-activity.ts'
+import { findActiveOutline } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { type FirstRunAnswers } from './first-run-schema.ts'
 import { createFirstRunPlan } from './plan.server.ts'
@@ -172,6 +177,20 @@ test('the plan made is the card shown, minute for minute, Simple Activities incl
 			.filter((day) => day.track.discipline === 'other')
 			.map((day) => day.kind),
 	).toEqual(['fixed', 'fixed'])
+})
+
+test('the plan’s Simple Activities track asks for the same hours every week, through every phase', async () => {
+	const athleteId = await createAthlete()
+	expect(await createFirstRunPlan(athleteId, ANSWERS, NOW)).toMatchObject({
+		ok: true,
+	})
+	const found = await findActiveOutline(athleteId, NOW)
+	const other = resolvedTracks(found!.outline).find((track) =>
+		isSimpleActivityTrack(track.discipline),
+	)!
+	const values = other.targets.map((target) => target.value)
+	expect(values.length).toBeGreaterThanOrEqual(4)
+	expect(new Set(values)).toEqual(new Set([2]))
 })
 
 test('the horizon fill lays the Simple Activities in the weeks after the first two', async () => {
