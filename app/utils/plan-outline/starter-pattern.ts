@@ -80,8 +80,20 @@ export type StarterTrack = {
 	weeklyShare?: number
 }
 
+/**
+ * One **lifting slot** (ADR 0104 §3): a lift a week on a strength track, on
+ * no weekday. The stamp lays each week's slots after that week's endurance
+ * mix, away from its hard days, so the starter week lifts by the same rule as
+ * the first run's.
+ */
+export type StarterLiftingSlot = { trackId: string }
+
 export type StarterProposal = {
 	days: StarterDay[]
+	/** The strength tracks' lifts a week, one slot per lift. */
+	lifting: StarterLiftingSlot[]
+	/** The days the week was built from, Monday first. */
+	weekdays: PatternWeekday[]
 	/** Whether the weekdays came from the athlete's own availability or the default. */
 	source: 'availability' | 'default'
 }
@@ -105,8 +117,8 @@ const ORDINARY_DAY_WEIGHT = 1
 /**
  * A week to start from: the training days dealt across the endurance tracks,
  * one endurance session a day, each track's long day weighted double and on a
- * day of its own ({@link enduranceDays}), plus a day per session on any
- * strength track that says how often it lifts.
+ * day of its own ({@link enduranceDays}), plus a lifting slot per session on
+ * any strength track that says how often it lifts.
  *
  * `null` where there is nothing to propose — no track at all, or an athlete whose
  * availability says they train on no days. Both are refusals to invent: a pattern
@@ -122,11 +134,13 @@ const ORDINARY_DAY_WEIGHT = 1
  * would be answering a question the segment already answers. It only makes
  * room for it: the track carrying the mix gets a day for each hard session.
  *
- * **Strength days sit alongside, never instead.** A lifting day draws from the
- * strength track's own weekly sets, so it neither takes volume from a run day nor
- * funds one (ADR 0046 §1). They are laid on the *earliest* available days, so a
- * lifting session lands away from the long day at the end of the week rather than
- * on top of it.
+ * **Lifting sits alongside, never instead.** A lift draws from the strength
+ * track's own weekly sets, so it neither takes volume from a run day nor funds
+ * one (ADR 0046 §1). It is proposed as a **lifting slot** on no weekday, never
+ * a day picked here: which days are hard is the week's mix's to say, so the
+ * stamp lays each week's lifts against that week's hard days by the one day
+ * rule (ADR 0104 §3, §5) — not on a hard day, then not the day before one,
+ * then not the long day, then as far apart as the week allows.
  */
 export function proposeStarterPattern({
 	trainableWeekdays,
@@ -175,20 +189,18 @@ export function proposeStarterPattern({
 		}
 	}
 
-	// As many lifting days as the block says, from the front of the week — and
-	// never more days than the athlete has.
-	for (const track of strength) {
-		for (const weekday of weekdays.slice(0, track.sessionsPerWeek ?? 0)) {
-			days.push({
-				weekday,
-				trackId: track.trackId,
-				weight: ORDINARY_DAY_WEIGHT,
-				role: 'ordinary',
-			})
-		}
-	}
+	// As many lifts as the block says, and never more than the athlete has
+	// days: slots the stamp lays per week (ADR 0104 §3).
+	const lifting: StarterLiftingSlot[] = strength.flatMap((track) =>
+		Array.from(
+			{ length: Math.min(track.sessionsPerWeek ?? 0, weekdays.length) },
+			() => ({ trackId: track.trackId }),
+		),
+	)
 
-	return days.length === 0 ? null : { days, source }
+	return days.length === 0 && lifting.length === 0
+		? null
+		: { days, lifting, weekdays: [...weekdays], source }
 }
 
 /**

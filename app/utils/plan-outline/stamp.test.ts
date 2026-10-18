@@ -7,6 +7,7 @@ import {
 	type StampWeekInput,
 	type StampWeekPlan,
 } from './stamp.ts'
+import { DEFAULT_TRAINING_WEEKDAYS } from './starter-pattern.ts'
 
 const RUN: StampTrack = {
 	trackId: 'run',
@@ -808,6 +809,22 @@ describe('planStamp lays lifting per week', () => {
 			weeks: [laidWeek(1, [{ zone: 4, sessionsPerWeek: 1 }])],
 		})
 		expect(liftingDaysOf(plan)).toEqual([0])
+	})
+
+	test('without days given and too few pattern days for the lifts, the default training days are lifted on too', () => {
+		const [plan] = planStamp({
+			days: [share('wed', 2, 1)],
+			lifting: slots(2),
+			tracks: [RUN_HOURS, STRENGTH],
+			weeks: [laidWeek(1, [])],
+		})
+		// One Wednesday run cannot hold two lifts; the stated default week
+		// (Tue, Thu, Sat, Sun) lends the days, so the athlete still lifts twice.
+		const lifts = liftingDaysOf(plan)
+		expect(lifts).toHaveLength(2)
+		for (const day of lifts) {
+			expect([2, ...DEFAULT_TRAINING_WEEKDAYS]).toContain(day)
+		}
 	})
 
 	test('a pinned (fixed) lifting day stays put, and the slots are laid around it', () => {

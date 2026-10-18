@@ -1,9 +1,11 @@
 import { expect, test } from 'vitest'
+import { planStamp, type StampDay } from './stamp.ts'
 import {
 	DEFAULT_TRAINING_WEEKDAYS,
 	proposeStarterPattern,
 	type StarterTrack,
 } from './starter-pattern.ts'
+import { patternWeekdaysOfCalendar } from './week-pattern.ts'
 
 const RUN: StarterTrack = {
 	trackId: 'track-run',
@@ -56,21 +58,22 @@ test('a plan with no tracks has no week to propose', () => {
 	).toBeNull()
 })
 
-test('lifting days sit alongside the endurance week, from the front of it', () => {
+test('lifting is proposed as slots beside the endurance week, on no weekday', () => {
 	const proposal = proposeStarterPattern({
 		trainableWeekdays: [2, 4, 0],
 		tracks: [RUN, LIFT],
 	})
 
-	const lifting = proposal?.days.filter(
-		(day) => day.trackId === 'track-strength',
-	)
-	// Two, because that is what the block authors — and on the first two days, so
-	// they land away from the long day rather than on top of it.
-	expect(lifting).toEqual([
-		{ weekday: 1, trackId: 'track-strength', weight: 1, role: 'ordinary' },
-		{ weekday: 3, trackId: 'track-strength', weight: 1, role: 'ordinary' },
+	// Two, because that is what the block authors — and on no day of their
+	// own: the stamp lays each week's lifts away from that week's hard days
+	// (ADR 0104 §3), not from the front of the week.
+	expect(proposal?.lifting).toEqual([
+		{ trackId: 'track-strength' },
+		{ trackId: 'track-strength' },
 	])
+	expect(
+		proposal?.days.filter((day) => day.trackId === 'track-strength'),
+	).toEqual([])
 	// And the run week is untouched by their presence: no figure crosses the two
 	// tracks in either direction.
 	expect(
@@ -84,7 +87,69 @@ test('a lifter who trains more often than they are available gets what fits', ()
 		tracks: [{ ...LIFT, sessionsPerWeek: 4 }],
 	})
 
-	expect(proposal?.days).toHaveLength(1)
+	expect(proposal?.lifting).toHaveLength(1)
+	expect(proposal?.days).toEqual([])
+})
+
+test('the starter week lifts on neither a hard day nor the day before one, where the days allow', () => {
+	// Mon, Wed, Thu, Fri, Sun (Sunday-first as stored).
+	const trainableWeekdays = [1, 3, 4, 5, 0]
+	const proposal = proposeStarterPattern({
+		trainableWeekdays,
+		tracks: [{ ...RUN, hardSessions: 1 }, LIFT],
+	})
+	const days: StampDay[] = proposal!.days.map((day, index) => ({
+		dayId: `day-${index}`,
+		weekday: day.weekday,
+		orderInDay: 0,
+		trackId: day.trackId,
+		kind: 'share',
+		weight: day.weight,
+		workoutId: null,
+		shapeVolume: null,
+	}))
+	const [week] = planStamp({
+		days,
+		lifting: proposal!.lifting.map((slot, index) => ({
+			dayId: `lift-${index}`,
+			trackId: slot.trackId,
+			workoutId: 'w-lift',
+			orderInDay: index,
+		})),
+		liftingDays: patternWeekdaysOfCalendar(trainableWeekdays),
+		tracks: [
+			{ trackId: 'track-run', discipline: 'run', currency: 'hours' },
+			{ trackId: 'track-strength', discipline: 'strength', currency: 'sets' },
+		],
+		weeks: [
+			{
+				weekKey: '2030-01-14',
+				weekInPlan: 1,
+				targets: [
+					{ trackId: 'track-run', value: 5 },
+					{ trackId: 'track-strength', value: 12 },
+				],
+				mixes: [
+					{ trackId: 'track-run', mix: [{ zone: 4, sessionsPerWeek: 1 }] },
+				],
+			},
+		],
+	})
+	const hard = week!.sessions
+		.filter((session) => session.zone != null)
+		.map((session) => session.weekday)
+	const lifts = week!.sessions
+		.filter((session) => session.trackId === 'track-strength')
+		.map((session) => session.weekday)
+
+	expect(hard).toHaveLength(1)
+	expect(lifts).toHaveLength(2)
+	for (const day of hard) {
+		expect(lifts).not.toContain(day)
+		expect(lifts).not.toContain((day + 6) % 7)
+	}
+	// The old rule's days, the first two of the week, are not what it lays.
+	expect(lifts).not.toEqual([0, 2])
 })
 
 const BIKE: StarterTrack = {

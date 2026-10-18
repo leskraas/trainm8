@@ -47,6 +47,7 @@ import {
 	type QualitySessionMixEntry,
 	type QualityZone,
 } from './quality-mix.ts'
+import { DEFAULT_TRAINING_WEEKDAYS } from './starter-pattern.ts'
 import {
 	PATTERN_WEEKDAYS,
 	resolveWeekPattern,
@@ -250,7 +251,7 @@ export type StampWeekPlan = {
  * each track's mix around the rest, and last the **lifting slots** (ADR 0104
  * §3), placed against that week's hard, long and lifting days on the
  * `liftingDays` — the athlete's **Training Availability**, Monday first, or
- * the pattern's own days where none is given.
+ * where none is given the pattern's own days ({@link fallbackLiftingDays}).
  */
 export function planStamp({
 	days,
@@ -271,10 +272,7 @@ export function planStamp({
 	const trackById = new Map(tracks.map((track) => [track.trackId, track]))
 	const dayById = new Map(days.map((day) => [day.dayId, day]))
 	const liftOn: readonly PatternWeekday[] =
-		liftingDays ??
-		(days.length > 0
-			? [...new Set(days.map((day) => day.weekday))]
-			: PATTERN_WEEKDAYS)
+		liftingDays ?? fallbackLiftingDays(days, lifting)
 
 	return weeks.map((week) => {
 		const specs: PatternTrackSpec[] = tracks
@@ -465,6 +463,30 @@ function placedWeekOf(
 			trackById.get(session.trackId)?.discipline,
 		),
 	)
+}
+
+/**
+ * The days a lift may go on where the athlete never stated their **Training
+ * Availability**: the days the pattern already trains on, and where those are
+ * fewer than a track's lifts, the starter pattern's stated default week
+ * ({@link DEFAULT_TRAINING_WEEKDAYS}) as well — so an athlete who lifts twice
+ * a week on a one-run pattern lifts twice, not once. A pattern of no days
+ * lifts on any day.
+ */
+function fallbackLiftingDays(
+	days: readonly StampDay[],
+	lifting: readonly StampLiftingSlot[],
+): PatternWeekday[] {
+	if (days.length === 0) return [...PATTERN_WEEKDAYS]
+	const own = new Set(days.map((day) => day.weekday))
+	const perTrack = new Map<string, number>()
+	for (const slot of lifting) {
+		perTrack.set(slot.trackId, (perTrack.get(slot.trackId) ?? 0) + 1)
+	}
+	const most = Math.max(0, ...perTrack.values())
+	const pool =
+		own.size >= most ? own : new Set([...own, ...DEFAULT_TRAINING_WEEKDAYS])
+	return [...pool].sort((a, b) => a - b)
 }
 
 /**

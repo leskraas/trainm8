@@ -3549,7 +3549,7 @@ function BlocksReading({
  * that must not be left ambiguous.
  */
 function starterSentence(proposal: StarterProposal): string {
-	const days = new Set(proposal.days.map((day) => day.weekday)).size
+	const days = proposal.weekdays.length
 	const built =
 		proposal.source === 'availability'
 			? SESONG_PATTERN_LABELS.starterFromProfile(days)

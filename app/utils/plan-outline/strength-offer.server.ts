@@ -1,11 +1,10 @@
 // Accepting the strength track the athlete's own lifting proposes (#505 story
 // 15): one tap, and the plan lifts — a track with targets, a block over the
-// weeks left, lifting days in the week pattern and sessions in the weeks ahead.
+// weeks left, lifting slots in the week pattern and sessions in the weeks ahead.
 // The athlete sets none of it up by hand, and edits any of it afterwards
 // through the ordinary paths.
 
 import { Prisma } from '@prisma/client'
-import { parseTrainableWeekdays } from '#app/utils/athlete-schema.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
@@ -14,7 +13,6 @@ import { type AddTrackRefusal } from './authoring.server.ts'
 import { type StrengthGoal } from './derive.ts'
 import { readStrengthTrackOffer } from './history.server.ts'
 import { relayPlanFrom } from './open-ended.server.ts'
-import { proposeStarterPattern } from './starter-pattern.ts'
 import { weekIndexOf } from './week-keys.ts'
 
 /**
@@ -31,8 +29,8 @@ export type AcceptStrengthOfferResult =
 			trackId: string
 			/** The block laid over the weeks left, or null when none are left. */
 			segmentId: string | null
-			/** Lifting days added to the week pattern. */
-			days: number
+			/** Lifting slots added to the week pattern, one per lift a week. */
+			lifts: number
 	  }
 	| { ok: false; reason: AddTrackRefusal | 'no-strength-history' }
 
@@ -46,10 +44,12 @@ export type AcceptStrengthOfferResult =
  *   its end, at the offer's Strength Frequency, so every week ahead has a
  *   target (a strength track's target comes from its blocks). Its rates are
  *   left to the convention; its goal is {@link PROPOSED_STRENGTH_GOAL}.
- * - **Lifting days** in the plan's week pattern — as many as the frequency,
- *   on the athlete's available days from the front of the week, the starter
- *   pattern's rule — each a fixed day on the athlete's most recent strength
- *   session, so a stamped lifting day is the session they actually do.
+ * - **Lifting slots** in the plan's week pattern (ADR 0104 §3) — as many as
+ *   the frequency, on no weekday, each on the athlete's most recent strength
+ *   session, so a stamped lift is the session they actually do. The stamp lays
+ *   each week's slots after that week's endurance mix, away from its hard
+ *   days (`liftingDaysFor`), over the athlete's Training Availability — the
+ *   first run's rule, so the offer and the first run lift alike.
  *
  * After commit the weeks the plan laid are laid again and the weeks up to the
  * horizon filled (`relayPlanFrom`), so the lifting sessions are on the
@@ -64,22 +64,16 @@ export async function addProposedStrengthTrack(
 	if (!offer) return { ok: false, reason: 'no-strength-history' }
 	const timezone = await getAthleteTimezone(athleteId)
 	const fromWeekKey = await readFirstUnbegunWeekKey(athleteId, now, timezone)
-	const [shape, profile] = await Promise.all([
-		prisma.workoutSession.findFirst({
-			where: {
-				userId: athleteId,
-				status: 'completed',
-				scheduledAt: { lte: now },
-				workout: { discipline: 'strength' },
-			},
-			orderBy: { scheduledAt: 'desc' },
-			select: { workoutId: true },
-		}),
-		prisma.athleteProfile.findUnique({
-			where: { userId: athleteId },
-			select: { trainableWeekdays: true },
-		}),
-	])
+	const shape = await prisma.workoutSession.findFirst({
+		where: {
+			userId: athleteId,
+			status: 'completed',
+			scheduledAt: { lte: now },
+			workout: { discipline: 'strength' },
+		},
+		orderBy: { scheduledAt: 'desc' },
+		select: { workoutId: true },
+	})
 	const sessionsPerWeek = Math.min(
 		offer.sessionsPerWeek,
 		MAX_QUALITY_SESSIONS_PER_WEEK,
@@ -98,10 +92,7 @@ export async function addProposedStrengthTrack(
 					patterns: {
 						orderBy: { orderIndex: 'asc' },
 						take: 1,
-						select: {
-							id: true,
-							days: { select: { weekday: true, orderInDay: true } },
-						},
+						select: { id: true },
 					},
 				},
 			})
@@ -148,47 +139,24 @@ export async function addProposedStrengthTrack(
 						})
 					: null
 
+			// One slot per lift, on no weekday (ADR 0104 §3): the stamp lays each
+			// week's against that week's hard days, as the first run's are.
 			const pattern = outline.patterns[0]
-			const proposal =
-				pattern && shape?.workoutId
-					? proposeStarterPattern({
-							trainableWeekdays:
-								profile?.trainableWeekdays == null
-									? null
-									: parseTrainableWeekdays(profile.trainableWeekdays),
-							tracks: [
-								{
-									trackId: track.id,
-									discipline: 'strength',
-									sessionsPerWeek,
-								},
-							],
-						})
-					: null
-			let days = 0
-			if (pattern && shape?.workoutId && proposal) {
-				const next = new Map<number, number>()
-				for (const day of pattern.days) {
-					if (day.weekday == null) continue
-					next.set(
-						day.weekday,
-						Math.max(next.get(day.weekday) ?? 0, day.orderInDay + 1),
-					)
-				}
-				for (const day of proposal.days) {
-					const orderInDay = next.get(day.weekday) ?? 0
-					next.set(day.weekday, orderInDay + 1)
+			const workoutId = shape?.workoutId
+			let lifts = 0
+			if (pattern && workoutId) {
+				for (let orderInDay = 0; orderInDay < sessionsPerWeek; orderInDay++) {
 					await tx.weekPatternDay.create({
 						data: {
 							patternId: pattern.id,
-							weekday: day.weekday,
+							weekday: null,
 							orderInDay,
-							kind: 'fixed',
+							kind: 'lifting',
 							trackId: track.id,
-							workoutId: shape.workoutId,
+							workoutId,
 						},
 					})
-					days++
+					lifts++
 				}
 			}
 
@@ -196,7 +164,7 @@ export async function addProposedStrengthTrack(
 				ok: true as const,
 				trackId: track.id,
 				segmentId: segment?.id ?? null,
-				days,
+				lifts,
 			}
 		})
 	} catch (error) {
