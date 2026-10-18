@@ -737,7 +737,9 @@ async function checkedRestore(
 	unit: TrackDaysUnit,
 	rows: readonly TrackPatternRow[],
 ): Promise<TrackPatternRow[] | null> {
-	if (rows.length === 0) return null
+	// A track the pattern held no row of goes back to none; an Activity is
+	// its rows, so it always has one.
+	if (rows.length === 0) return unit.kind === 'track' ? [] : null
 	for (const row of rows) {
 		if (!isPatternWeekday(row.weekday)) return null
 		if (row.kind === 'share' && !(row.weight != null && row.weight > 0)) {

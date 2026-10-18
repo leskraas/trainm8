@@ -29,7 +29,8 @@ const RowSchema = z.object({
 
 const UndoSchema = z.object({
 	pinned: z.array(z.number().int().min(0).max(6)).nullable(),
-	rows: z.array(RowSchema).min(1).max(14),
+	/** Empty where the track had no rows before the write. */
+	rows: z.array(RowSchema).max(14),
 	/** The rows the write replaced in the plan's other Week Patterns. */
 	elsewhere: z
 		.array(

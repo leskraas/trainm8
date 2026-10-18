@@ -373,6 +373,37 @@ test('undoing from the toast puts back exactly what the change replaced', async 
 	expect(await calendar(userId)).toEqual(before)
 })
 
+test('undoing the first days chosen for a track with none puts back none', async () => {
+	const { userId, outlineId, bikeTrackId } = await setup()
+	// A track the Week Pattern does not hold yet, as one just added is.
+	await prisma.weekPatternDay.deleteMany({ where: { trackId: bikeTrackId } })
+	const bike = await unit(userId, outlineId, { discipline: 'bike' })
+	expect(bike.days).toEqual([])
+	const written = await setTrackDays(
+		userId,
+		{ outlineId, key: bike.key, choice: [WED], version: bike.version },
+		NOW,
+	)
+	if (!written.ok) throw new Error(written.reason)
+	expect(written.previous.rows).toEqual([])
+	const undone = await setTrackDays(
+		userId,
+		{
+			outlineId,
+			key: bike.key,
+			choice: written.previous.pinned,
+			version: written.version,
+			restore: written.previous,
+		},
+		NOW,
+	)
+	expect(undone).toMatchObject({ ok: true, choice: null })
+	expect(await unit(userId, outlineId, { discipline: 'bike' })).toMatchObject({
+		pinned: null,
+		days: [],
+	})
+})
+
 test('a pinned track trains only on its days in every Week Pattern, and the undo puts each back', async () => {
 	const { userId, outlineId, bikeTrackId } = await setup()
 	// A second week the athlete authored in Avansert, the bike on its own days.
