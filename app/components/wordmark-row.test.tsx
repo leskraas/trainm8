@@ -96,7 +96,7 @@ test('a page inside Bibliotek marks Plan, as inside it (ADR 0101)', async () => 
 })
 
 test('the first run carries no tab bar', async () => {
-	renderRow({ at: '/start/funn' })
+	renderRow({ at: '/start/niva' })
 	await screen.findByRole('banner')
 	expect(
 		screen.queryByRole('navigation', { name: 'Hovedmeny' }),

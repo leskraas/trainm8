@@ -757,8 +757,8 @@ function daysByDisciplineOf(
  * Its form promises three weeks that build and one easy, and the plan's
  * _Filosofi_ card then says the hard sessions grow, so the round is that
  * family's block whole, its climb and its mix, not a rhythm with every rate
- * unset (audit B2). The first run proposes a family from the athlete's answers
- * (`chooseFamily`) and lets them switch; Sesong asks no such question, so it
+ * unset (audit B2). The start shows the athlete its ways to train as real
+ * weeks (the **Start Options**, ADR 0102); Sesong asks no such question, so it
  * lays the family its words name, and _Bytt filosofi_ is the way to another.
  */
 export const KEEP_ME_ACTIVE_FAMILY: PresetFamily = 'classic'

@@ -163,7 +163,7 @@ From Emil Kowalski's skills, enforced by the utilities in `tailwind.css`.
 | `motion-modal`      | Centred (modals have no trigger), from `scale(0.96)`, 250 / 200.                                                                                                                                                          |
 | `motion-backdrop`   | Opacity, in step with its modal; follows a drawer swipe.                                                                                                                                                                  |
 | `motion-collapse`   | Height (Base UI's `--collapsible-panel-height`) + opacity, 200 / 150. The one sanctioned layout animation.                                                                                                                |
-| `motion-reveal`     | The first run's one moment of delight ("Dette fant vi", seen once): rise 6px + fade from `@starting-style`, 200ms ease-out, `--reveal-index` × 40ms stagger; reduced motion keeps the fade. Not for anything seen weekly. |
+| `motion-reveal`     | The start's one moment of delight (the history's line on the level screen, seen once; "Dette fant vi" before #578): rise 6px + fade from `@starting-style`, 200ms ease-out, `--reveal-index` × 40ms stagger; reduced motion keeps the fade. Not for anything seen weekly. |
 | `starting:` landing | A row the composer just wrote (ADR 0088): rises 4px and fades in via `@starting-style`, 200ms `--ease-out`, tinted while its Angre stands; reduced motion keeps the fade.                                                 |
 
 The rules: transitions, never keyframes, on anything that can be interrupted.
