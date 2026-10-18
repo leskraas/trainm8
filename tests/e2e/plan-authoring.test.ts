@@ -150,7 +150,8 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 		.getByRole('article')
 		.filter({ hasText: 'Stor base' })
 	await expect(currentBlock.getByText('Nå', { exact: true })).toBeVisible()
-	await expect(currentBlock).toContainText('med 1 kvalitetsøkt i uka')
+	// Stor base starts all easy (ADR 0102, #565): its first block has no mix.
+	await expect(currentBlock).toContainText('uten kvalitetsøkter')
 	await currentBlock.getByRole('button', { name: /^Avansert/ }).click()
 	await currentBlock.getByLabel('Sone 4 terskel, økter i uka').fill('2')
 	await currentBlock
@@ -159,8 +160,8 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 
 	// Both readings are derived off the saved mix and nothing else (ADR 0042 §5):
 	// the emphasis label and the count follow the boxes, and neither is typed.
-	await expect(currentBlock).toContainText('1× tempo + 2× terskel')
-	await expect(currentBlock).toContainText('3 kvalitetsøkter i uka')
+	await expect(currentBlock).toContainText('2× terskel')
+	await expect(currentBlock).toContainText('2 kvalitetsøkter i uka')
 
 	// ---------------------------------------------------------------------
 	// Story 8–9: a typical week — and the weeks fill themselves from it
