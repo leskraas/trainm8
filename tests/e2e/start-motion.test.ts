@@ -267,7 +267,7 @@ test('Uka di becomes the cards, the chosen card the curve, the curve I dag’s w
 	await login()
 
 	await navigate(`/start/okter?${ANSWERS}` as '/start/okter')
-	const next = page.getByRole('button', { name: 'Hopp over, vis forslag' })
+	const next = page.getByRole('button', { name: 'Hopp over', exact: true })
 	await untilHydrated(next)
 	await next.click()
 	await expect(page).toHaveURL(/\/start\/valg/)
@@ -393,7 +393,7 @@ test('a tap during a morph lands it at once, and a key never animates', async ({
 	await login()
 
 	await navigate(`/start/okter?${ANSWERS}` as '/start/okter')
-	const next = page.getByRole('button', { name: 'Hopp over, vis forslag' })
+	const next = page.getByRole('button', { name: 'Hopp over', exact: true })
 	await untilHydrated(next)
 	// Started from the keyboard: the transition is skipped before it plays.
 	await next.focus()
@@ -485,7 +485,7 @@ test.describe(() => {
 		await login()
 
 		await navigate(`/start/okter?${ANSWERS}` as '/start/okter')
-		const next = page.getByRole('button', { name: 'Hopp over, vis forslag' })
+		const next = page.getByRole('button', { name: 'Hopp over', exact: true })
 		await untilHydrated(next)
 		await next.click()
 		await expect(page).toHaveURL(/\/start\/valg/)

@@ -2276,7 +2276,7 @@ export const SESSION_PREFERENCE_LABELS = {
 	} satisfies Record<SessionPreference, { name: string; description: string }>,
 	/** The way on: with something picked, or the skip (story 23). */
 	next: (picked: number) =>
-		picked > 0 ? 'Vis forslag' : 'Hopp over, vis forslag',
+		picked > 0 ? 'Vis måtene å trene på' : 'Hopp over',
 	back: 'Tilbake til hva du liker å trene',
 	/** From the Start Options, back to this question. */
 	backHere: 'Tilbake til hva slags økter du liker',

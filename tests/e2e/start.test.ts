@@ -84,7 +84,7 @@ test('a new athlete goes from the level screen to Planen er klar, the history fi
 	await page.getByRole('button', { name: 'Neste' }).click()
 
 	await expect(page).toHaveURL(/\/start\/okter\?/)
-	await page.getByRole('button', { name: 'Hopp over, vis forslag' }).click()
+	await page.getByRole('button', { name: 'Hopp over', exact: true }).click()
 
 	await expect(page).toHaveURL(/\/start\/valg\?/)
 	await page
