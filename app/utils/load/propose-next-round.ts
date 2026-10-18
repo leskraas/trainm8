@@ -59,7 +59,7 @@ export type RoundFacts = {
 	/**
 	 * The steepest Volume Ramp the ending round carries into the next — its
 	 * endurance segments', the Simple Activities' aside (they take no step) —
-	 * or null for none. Read by {@link autopilotRoundFactor}.
+	 * or null for none. Read by {@link guardedRoundFactor}.
 	 */
 	ramp: number | null
 	/**
@@ -116,16 +116,17 @@ export function roundFactor(verdict: RoundVerdict): number {
 }
 
 /**
- * The factor the autopilot appends a round at (ADR 0100 §3): the verdict's,
- * but never so much that the round's first week rises past the ramp guard's
- * 8 % over the round's last loading week (#584). That week sits one ramp step
- * **and** the boundary step above it, so a +5 % ramp and a +5 % round would be
- * +10.25 %; under a +5 % ramp the round steps up about 2.9 %. A ramp at the
- * guard or past it leaves no room, and the round keeps the volume. Floored to
- * the boundary step's four decimals (`roundBoundaryStep`), so the rounding
- * cannot carry it back over.
+ * The factor the next round is authored at (ADR 0100 §3), in both modes: the
+ * verdict's, but never so much that the round's first week rises past the
+ * ramp guard's 8 % over the round's last loading week (#584). That week sits
+ * one ramp step **and** the boundary step above it, so a +5 % ramp and a +5 %
+ * round would be +10.25 %; under a +5 % ramp the round steps up about 2.9 %.
+ * A ramp at the guard or past it leaves no room, and the round keeps the
+ * volume. Floored to the boundary step's four decimals (`roundBoundaryStep`),
+ * so the rounding cannot carry it back over. The same under Spør meg først as
+ * under autopilot: the author's proposal does not depend on the mode.
  */
-export function autopilotRoundFactor(
+export function guardedRoundFactor(
 	factor: number,
 	ramp: number | null,
 ): number {
@@ -140,11 +141,7 @@ export function proposeNextRound(
 	{ autopilot = false }: { autopilot?: boolean } = {},
 ): ProposalDraft {
 	const verdict = roundVerdict(facts.weeks)
-	// The yes is what lets a round past the guards under Spør meg først; under
-	// autopilot there is none, so the guard is the factor (ADR 0100 §3).
-	const factor = autopilot
-		? autopilotRoundFactor(roundFactor(verdict), facts.ramp)
-		: roundFactor(verdict)
+	const factor = guardedRoundFactor(roundFactor(verdict), facts.ramp)
 	return {
 		payload: {
 			kind: 'add-phase',
@@ -161,7 +158,7 @@ export function proposeNextRound(
 			verdict,
 			facts.round,
 			facts.weeks.length,
-			Math.round(((autopilot ? factor : ROUND_STEP_UP) - 1) * 100),
+			Math.round((factor - 1) * 100),
 			{ autopilot },
 		),
 	}

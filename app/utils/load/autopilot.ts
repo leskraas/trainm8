@@ -6,9 +6,9 @@
  *   (`ROUND_STEP_UP`) and never past the ramp guard's 8 % (`RAMP_GUARD_MAX`).
  *   Both are conventions, not injury prevention (ADR 0040 §13). The stricter
  *   of the two is the cap. A next round's step also rides on the ramp step
- *   into its first week, so the autopilot's round is authored at a factor that
- *   keeps the two together inside the 8 % (`autopilotRoundFactor`, #584); the
- *   payload guard here then holds it to the 5 %.
+ *   into its first week, so the author writes the round at a factor that keeps
+ *   the two together inside the 8 % in both modes (`guardedRoundFactor`,
+ *   #584); the payload guard here then holds it to the 5 %.
  * - **Nothing is placed on a day nobody chose**: a make-up copy and an extra
  *   session add a session the athlete never asked for, so neither is placed.
  *   The missed session stays _ikke gjort_ on its day (ADR 0080 §5).

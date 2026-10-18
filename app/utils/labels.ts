@@ -2676,7 +2676,8 @@ function lastWeeks(count: number): string {
 /**
  * Why an open-ended plan's next round is the size it is (ADR 0079 §3), in
  * plain Norwegian. `graded` is how many lived weeks the verdict read, and
- * `stepPercent` the step a round done to plan earns.
+ * `stepPercent` the step the round is authored at — the capped figure, so the
+ * reason states what is made (#584).
  */
 export function nextRoundReason(
 	verdict: RoundVerdict,
@@ -2692,6 +2693,9 @@ export function nextRoundReason(
 	const same = `Vi foreslår ${next} med like mye trening som ${ended}`
 	switch (verdict.kind) {
 		case 'done-to-plan':
+			// A ramp already at the guard leaves the round no room to step up (#584).
+			if (stepPercent <= 0)
+				return `${ended} har gått etter planen: ${lastWeeks(graded)} ble gjort som planlagt. ${same}, fordi blokka allerede øker så mye fra uke til uke.`
 			return `${ended} har gått etter planen: ${lastWeeks(graded)} ble gjort som planlagt. Vi foreslår ${next} med ca. ${stepPercent} % mer trening. Det er mer belastning, så den legges bare inn hvis du sier ja.`
 		case 'missed-weeks':
 			return `${verdict.missed} av ${lastWeeks(graded)} ble ikke gjort som planlagt. ${same}, så planen ikke presser deg etter en tung blokk.`
