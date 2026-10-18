@@ -206,3 +206,26 @@ test('another athlete’s change answers 404 and stays', async () => {
 	expect(reply).toMatchObject({ status: 404, ok: false })
 	expect(await duration(session.id)).toBe(2880)
 })
+
+test('the notice having been seen is kept quietly, once, and only on the athlete’s own week', async () => {
+	const owner = await athlete()
+	await run(owner.userId, new Date('2030-01-16T07:00:00Z'))
+	await runWeekChangeForUser(owner.userId, CLOSE, soften)
+	const intruder = await athlete()
+
+	expect(
+		await post(intruder.cookie, { intent: 'seen', weekKey: '2030-01-07' }),
+	).toMatchObject({ status: 404, ok: false, toast: null })
+
+	expect(
+		await post(owner.cookie, { intent: 'seen', weekKey: '2030-01-07' }),
+	).toMatchObject({ status: 200, ok: true, toast: null })
+	vi.setSystemTime(TUESDAY)
+	await post(owner.cookie, { intent: 'seen', weekKey: '2030-01-07' })
+
+	const replan = await prisma.weekReplan.findFirstOrThrow({
+		where: { athleteId: owner.userId },
+		select: { autopilotSeenAt: true },
+	})
+	expect(replan.autopilotSeenAt).toEqual(SUNDAY_EVENING)
+})

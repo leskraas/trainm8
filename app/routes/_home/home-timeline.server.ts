@@ -26,7 +26,10 @@ import {
 } from '#app/utils/day-stamp.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { WEEK_SUM_LABELS } from '#app/utils/labels.ts'
-import { readAutopilotNotice } from '#app/utils/load/autopilot-notice.server.ts'
+import {
+	readAutopilotHistory,
+	readAutopilotNotice,
+} from '#app/utils/load/autopilot-notice.server.ts'
 import { SUSTAINED_WEEKS, sustainedAdherence } from '#app/utils/load/coach.ts'
 import {
 	dismissLoadRecomputeNotice,
@@ -110,6 +113,7 @@ export async function readHomeTimeline(userId: string) {
 		thresholds,
 		weekChange,
 		autopilotNotice,
+		autopilotHistory,
 		loadRecomputeNotice,
 		athleteProfile,
 		stampDiscipline,
@@ -129,6 +133,9 @@ export async function readHomeTimeline(userId: string) {
 		// The Autopilot Notice (#576, ADR 0100 §5): what the autopilot wrote at
 		// the latest close, when that week closed under autopilot.
 		readAutopilotNotice(userId),
+		// Every notice the autopilot wrote, for _Se hele sesongen_ to show at
+		// the week each one laid (#580) — I dag shows only the one above.
+		readAutopilotHistory(userId),
 		// The undismissed Load Recompute Notice (ADR 0046 §2) — why a number the
 		// athlete had already read moved. Read-only; the one-shot backfill writes it
 		// and the dismiss action below clears it.
@@ -193,6 +200,7 @@ export async function readHomeTimeline(userId: string) {
 		nudge,
 		weekChange,
 		autopilotNotice,
+		autopilotHistory,
 		loadRecomputeNotice,
 		stampDiscipline,
 		importConnected: importConnections > 0,

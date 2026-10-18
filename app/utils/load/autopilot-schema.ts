@@ -20,5 +20,7 @@ export const AutopilotActionSchema = z.discriminatedUnion('intent', [
 	/** _Angre alt_: every change of the week that closed on `weekKey`. */
 	z.object({ intent: z.literal('undo-week'), weekKey: WeekKeySchema }),
 	z.object({ intent: z.literal('mode'), mode: z.enum(AUTOPILOT_MODES) }),
+	/** #580: the athlete has seen the notice of the week that closed on `weekKey`. */
+	z.object({ intent: z.literal('seen'), weekKey: WeekKeySchema }),
 ])
 export type AutopilotAction = z.infer<typeof AutopilotActionSchema>

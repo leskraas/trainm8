@@ -544,3 +544,66 @@ describe('picking a day in the list', () => {
 		expect(screen.queryByRole('table', { name: 'Sesongtabell' })).toBeNull()
 	})
 })
+
+describe('the autopilot’s history in Se hele sesongen (#580)', () => {
+	beforeEach(() => {
+		Element.prototype.scrollTo = () => {}
+	})
+	afterEach(() => vi.unstubAllGlobals())
+
+	test('a past notice sits at the week it laid, with its lines and reasons, read-only', async () => {
+		screenWidth(390)
+		inRouter(
+			<HomeTimeline
+				data={{
+					...homeData(),
+					autopilotHistory: [
+						{
+							closedWeekKey: '2030-02-11',
+							comingWeekKey: THIS_MONDAY,
+							heading: 'Denne uka er lagt ut',
+							begun: true,
+							showEase: false,
+							seen: true,
+							lines: [
+								{
+									proposalId: 'p1',
+									kind: 'changed',
+									subject: '«Terskel» · onsdag',
+									text: 'Økta er gjort ca. 15 % kortere.',
+									undo: 'closed',
+								},
+								{
+									proposalId: 'p2',
+									kind: 'changed',
+									subject: '«Langtur» · søndag',
+									text: 'Økta er gjort ca. 15 % kortere.',
+									undo: 'undone',
+								},
+							],
+							unlaidLine:
+								'Uka fra mandag 4. mars ble ikke lagt ut: den ligger etter slutten av planen.',
+							undoable: 0,
+							closedLine:
+								'Uka har begynt, så endringene kan ikke angres lenger.',
+							eased: null,
+						},
+					],
+				}}
+			/>,
+		)
+
+		const card = await screen.findByRole('region', {
+			name: 'Lagt ut av autopiloten',
+		})
+		// At its own week, after that week's days.
+		expect(card.closest(`[data-timeline-week="${THIS_MONDAY}"]`)).not.toBeNull()
+		expect(card).toHaveTextContent('«Terskel» · onsdag')
+		expect(card).toHaveTextContent('Økta er gjort ca. 15 % kortere.')
+		expect(card).toHaveTextContent('Angret')
+		expect(card).toHaveTextContent(
+			'Uka fra mandag 4. mars ble ikke lagt ut: den ligger etter slutten av planen.',
+		)
+		expect(within(card).queryByRole('button')).toBeNull()
+	})
+})

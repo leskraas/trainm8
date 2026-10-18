@@ -7,6 +7,7 @@ import {
 	AUTOPILOT_UNDO_REFUSAL_LABELS,
 } from '#app/utils/labels.ts'
 import {
+	markAutopilotNoticeSeen,
 	undoAutopilotChange,
 	undoAutopilotWeek,
 } from '#app/utils/load/autopilot-notice.server.ts'
@@ -15,8 +16,8 @@ import { type Route } from './+types/autopilot.ts'
 
 /**
  * The Autopilot's posts (#576, ADR 0100): _Angre_ on one line of the
- * Autopilot Notice, _Angre alt_ on all of them, and the switch in Meg
- * (Autopilot or _Spør meg først_).
+ * Autopilot Notice, _Angre alt_ on all of them, the switch in Meg
+ * (Autopilot or _Spør meg først_), and the notice having been seen (#580).
  *
  * A resource route, so each control posts with its own fetcher and stays
  * where it is; the page's loaders revalidate after, so the notice reads the
@@ -49,6 +50,16 @@ export async function action({ request }: Route.ActionArgs) {
 			update: { autopilot: value.mode === 'autopilot' },
 		})
 		return data({ submission: submission.reply(), ok: true, toast: null })
+	}
+
+	if (value.intent === 'seen') {
+		// Quiet: nothing is said, and I dag lets the notice go on a later day
+		// once its week has begun (#580).
+		const seen = await markAutopilotNoticeSeen(userId, value.weekKey)
+		return data(
+			{ submission: submission.reply(), ok: seen.ok, toast: null },
+			{ status: seen.ok ? 200 : 404 },
+		)
 	}
 
 	const result =

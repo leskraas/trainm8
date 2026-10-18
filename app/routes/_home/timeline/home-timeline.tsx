@@ -64,6 +64,7 @@ import {
 } from '#app/utils/training.server.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
+import { AutopilotHistoryCard } from '../__autopilot-notice.tsx'
 import {
 	buildLoadRecomputeLine,
 	type LoadRecomputeLine,
@@ -122,6 +123,11 @@ export type HomeTimelineData = {
 	 */
 	autopilotNotice?: AutopilotNotice | null
 	/**
+	 * Every notice the autopilot wrote (#580), newest first: the stream shows
+	 * each, read-only, at the week it laid.
+	 */
+	autopilotHistory?: AutopilotNotice[]
+	/**
 	 * Whether an import source is connected (#505 story 82): a session done by
 	 * hand then says its numbers come from the import.
 	 */
@@ -148,6 +154,8 @@ export type HomeTimelineData = {
  */
 /** One empty list, so a loader without credits keeps the memo below stable. */
 const NO_CREDITS: string[] = []
+/** The same for a loader without autopilot history. */
+const NO_HISTORY: AutopilotNotice[] = []
 
 export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 	return <TimelineFrame data={data} />
@@ -166,6 +174,7 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		thresholds,
 		loadRecomputeNotice,
 		weekChange = null,
+		autopilotHistory = NO_HISTORY,
 		importConnected = false,
 		sourceCredits = NO_CREDITS,
 	} = data
@@ -338,6 +347,30 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		() => <WeekChangeCard card={weekChangeView} onCard={onCard} />,
 		[weekChangeView, onCard],
 	)
+	// Each Autopilot Notice at the week it laid (#580), after its days. Built
+	// once per history, so the memoised week blocks keep their props.
+	const historyByWeek = useMemo(
+		() =>
+			new Map(
+				autopilotHistory.map((notice) => [
+					notice.comingWeekKey,
+					<AutopilotHistoryCard key={notice.closedWeekKey} notice={notice} />,
+				]),
+			),
+		[autopilotHistory],
+	)
+	const nowWeekKey = season.weeks.find((week) => week.isNow)?.key ?? null
+	const nowWeekAfterDays = useMemo(() => {
+		const history = nowWeekKey ? historyByWeek.get(nowWeekKey) : undefined
+		return history ? (
+			<>
+				{history}
+				{weekChangeCard}
+			</>
+		) : (
+			weekChangeCard
+		)
+	}, [historyByWeek, nowWeekKey, weekChangeCard])
 
 	const streamId = useId()
 	const nonce = useNonce()
@@ -486,7 +519,11 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 										key={week.key}
 										week={week}
 										anchorDayKey={season.todayKey}
-										afterDays={week.isNow ? weekChangeCard : null}
+										afterDays={
+											week.isNow
+												? nowWeekAfterDays
+												: (historyByWeek.get(week.key) ?? null)
+										}
 										today={week.isNow ? today : null}
 									/>
 								))}

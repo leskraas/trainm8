@@ -73,6 +73,7 @@ import type { AdherenceTone } from './load/adherence.ts'
 import type { RoundVerdict } from './load/propose-next-round.ts'
 import type { ReadinessTone } from './load/readiness.ts'
 import type { LoadRecomputeKind } from './load/recompute-notice.ts'
+import type { UnlaidReason } from './load/week-change.ts'
 import type { UndoRefusal } from './load/week-replan-undo.server.ts'
 import type { WeekHoldWhy } from './load/week-replan.ts'
 import type { GenerationRefusal } from './plan-generation/generate.server.ts'
@@ -4161,7 +4162,26 @@ export const AUTOPILOT_NOTICE_LABELS = {
 	/** ADR 0100 §4: the window has closed, said once under the lines. */
 	closed: 'Uka har begynt, så endringene kan ikke angres lenger.',
 	easeHeading: 'Vil du ha en lettere uke?',
+	/** #580: from the Monday of the week it laid, that is this week, not the next. */
+	headingThisWeek: 'Denne uka er lagt ut',
+	/** #580: a past notice at its week in _Se hele sesongen_. */
+	historyHeading: 'Lagt ut av autopiloten',
+	/**
+	 * #580, spec #558 story 88: a week the close could not lay, said with the
+	 * reason, so an empty week never passes in silence. `week` is its Monday,
+	 * `mandag 28. januar`.
+	 */
+	unlaid: (reason: UnlaidReason, week: string) =>
+		`Uka fra ${week} ble ikke lagt ut${UNLAID_REASON_TAILS[reason]}`,
 } as const
+
+/** Why a week was not laid, as the end of the notice's sentence (#580). */
+const UNLAID_REASON_TAILS: Record<UnlaidReason, string> = {
+	'no-pattern': ': planen har ikke noe ukemønster å legge den etter.',
+	'past-plan-end': ': den ligger etter slutten av planen.',
+	'nothing-to-lay': ': planen hadde ingen økter å legge den uka.',
+	error: ' fordi noe gikk galt. Appen prøver igjen snart.',
+}
 
 /** Why an _Angre_ on the Autopilot Notice was refused (ADR 0100 §4, ADR 0088). */
 export const AUTOPILOT_UNDO_REFUSAL_LABELS: Record<UndoRefusal, string> = {

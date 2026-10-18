@@ -1955,6 +1955,15 @@ model WeekReplan {
   /// When the autopilot's apply step ran over these proposals — once, claimed
   /// first like the two steps above. Null = not yet (or not an autopilot week).
   autopilotAppliedAt DateTime?
+  /// When the athlete first saw this week's Autopilot Notice on I dag (#580).
+  /// The notice leaves I dag once it has been seen on an earlier day and the
+  /// week it laid has begun; neither alone removes it. Null = not seen yet.
+  autopilotSeenAt    DateTime?
+  /// Why the close could not lay the horizon week (#580): 'no-pattern' |
+  /// 'past-plan-end' | 'nothing-to-lay' | 'error'. Null = laid, laid already,
+  /// or nothing to lay that anyone expected (no plan, before its start). The
+  /// Autopilot Notice says it, so silence never means broken.
+  horizonUnlaid      String?
 
   createdAt DateTime @default(now())
 
