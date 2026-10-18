@@ -1,6 +1,11 @@
-// Every Training Track's **Pinned days** on the athlete's active plan, by
-// Discipline (#597, ADR 0104 §4) — what Week Replan prefers for a track's
-// make-up when one of its days is free (spec #588 story 32).
+// Every Training Track's **Pinned days** on the athlete's active plan, across
+// the strength days (`strength-days.server.ts`) and every other track's
+// (`track-days.server.ts`), ADR 0104 §4:
+//
+// - by Discipline, what Week Replan prefers for a track's make-up when one of
+//   its days is free (spec #588 story 32);
+// - and the availability cascade: a day taken out of Training Availability
+//   leaves every track that pinned it (story 19).
 
 import { prisma } from '../db.server.ts'
 import {
@@ -8,7 +13,14 @@ import {
 	readPlannedDiscipline,
 } from '../planned-discipline.ts'
 import { findActiveOutline } from '../training.server.ts'
-import { parsePinnedDays, strengthPinnedDays } from './pinned-days.ts'
+import { relayPlanFromFirstUnbegunWeek } from './open-ended.server.ts'
+import {
+	parsePinnedDays,
+	pinnedDaysWithin,
+	strengthPinnedDays,
+} from './pinned-days.ts'
+import { readStrengthDays, setStrengthDays } from './strength-days.server.ts'
+import { readTrackDays, setTrackDays } from './track-days.server.ts'
 import { type PatternWeekday } from './week-pattern.ts'
 
 /**
@@ -48,4 +60,78 @@ export async function readPinnedDaysByDiscipline(
 		if (days && discipline) pinned.set(discipline, days)
 	}
 	return pinned
+}
+
+/** A track that lost days when Training Availability changed. */
+export type DroppedPinnedDays = {
+	discipline: PlannedDiscipline
+	/** A Simple Activity's name, where it was one. */
+	title: string | null
+	lost: PatternWeekday[]
+	/** What it keeps; `null` where it went back to _La appen velge_. */
+	kept: PatternWeekday[] | null
+}
+
+/**
+ * Drop the days the athlete no longer trains on from every track of the
+ * active plan that pinned them (spec #588 story 19), lay the weeks again,
+ * and say which tracks lost which days. A track left with none goes back to
+ * _La appen velge_. A Simple Activity keeps its other days; one left with
+ * none stays where it is, and is said, since only the athlete can name its
+ * new day. Call it after the new availability is stored.
+ */
+export async function dropUnavailablePinnedDays(
+	userId: string,
+	now: Date = new Date(),
+): Promise<DroppedPinnedDays[]> {
+	const active = await findActiveOutline(userId, now)
+	if (!active) return []
+	const outlineId = active.outline.id
+	const dropped: DroppedPinnedDays[] = []
+
+	const strength = await readStrengthDays(userId, now)
+	if (strength?.pinned && strength.available) {
+		const { kept, lost } = pinnedDaysWithin(strength.pinned, strength.available)
+		if (lost.length > 0) {
+			const written = await setStrengthDays(
+				userId,
+				{ choice: kept, version: strength.version },
+				now,
+			)
+			if (written.ok) {
+				dropped.push({ discipline: 'strength', title: null, lost, kept })
+			}
+		}
+	}
+
+	const state = await readTrackDays(userId, outlineId)
+	if (!state?.available) return dropped
+	let changed = false
+	for (const unit of state.units) {
+		if (!unit.pinned) continue
+		const { kept, lost } = pinnedDaysWithin(unit.pinned, state.available)
+		if (lost.length === 0) continue
+		if (unit.kind === 'activity' && !kept) {
+			dropped.push({
+				discipline: unit.discipline,
+				title: unit.title,
+				lost,
+				kept,
+			})
+			continue
+		}
+		const written = await setTrackDays(
+			userId,
+			{ outlineId, key: unit.key, choice: kept, version: unit.version },
+			now,
+			{ relay: false },
+		)
+		if (!written.ok) continue
+		changed = true
+		dropped.push({ discipline: unit.discipline, title: unit.title, lost, kept })
+	}
+	if (changed) {
+		await relayPlanFromFirstUnbegunWeek(userId, outlineId, now, 'track-days')
+	}
+	return dropped
 }

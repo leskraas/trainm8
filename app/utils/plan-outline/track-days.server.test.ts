@@ -13,9 +13,9 @@ import {
 	createStarterWeekPattern,
 	setQualitySessionMix,
 } from './authoring.server.ts'
+import { dropUnavailablePinnedDays } from './pinned-days.server.ts'
 import { stampWeekPattern } from './stamp.server.ts'
 import {
-	dropUnavailablePinnedDays,
 	previewTrackDays,
 	readTrackDays,
 	setTrackDays,

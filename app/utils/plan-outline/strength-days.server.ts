@@ -33,7 +33,7 @@ import {
 	type ClashReason,
 	type PlacedSession,
 } from './day-rule.ts'
-import { relayPlanFrom } from './open-ended.server.ts'
+import { relayPlanFromFirstUnbegunWeek } from './open-ended.server.ts'
 import {
 	DAY_CHOICE_PREVIEW_WEEKS,
 	pinnedDaysRefusal,
@@ -554,13 +554,7 @@ export async function setStrengthDays(
 	if (!result.ok) return result
 	const { outlineId, ...written } = result
 	if (outlineId) {
-		try {
-			const timezone = await getAthleteTimezone(userId)
-			const from = await readFirstUnbegunWeekKey(userId, now, timezone)
-			await relayPlanFrom(userId, outlineId, from, timezone, now)
-		} catch (error) {
-			console.error('[strength-days] laying weeks after a change failed', error)
-		}
+		await relayPlanFromFirstUnbegunWeek(userId, outlineId, now, 'strength-days')
 	}
 	return written
 }

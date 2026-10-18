@@ -19,9 +19,9 @@
 // undone from its toast (ADR 0088) by putting back exactly the rows it
 // replaced.
 //
-// And when the athlete takes a day out of their Training Availability in
-// _Meg_, every track that pinned it loses it, and they are told which
-// (`dropUnavailablePinnedDays`, spec #588 story 19).
+// When the athlete takes a day out of their Training Availability, the
+// tracks that pinned it lose it through `dropUnavailablePinnedDays`
+// (`pinned-days.server.ts`), which writes through `setTrackDays`.
 
 import { type Prisma } from '@prisma/client'
 import { addDays } from '../athlete-calendar.ts'
@@ -36,7 +36,6 @@ import {
 	readPlannedDiscipline,
 } from '../planned-discipline.ts'
 import { SIMPLE_ACTIVITY_DISCIPLINE } from '../simple-activity.ts'
-import { findActiveOutline } from '../training.server.ts'
 import { isCardioDiscipline, type CardioDiscipline } from '../workout-schema.ts'
 import {
 	clashesIn,
@@ -45,12 +44,11 @@ import {
 	type ClashReason,
 	type PlacedSession,
 } from './day-rule.ts'
-import { relayPlanFrom } from './open-ended.server.ts'
+import { relayPlanFromFirstUnbegunWeek } from './open-ended.server.ts'
 import {
 	DAY_CHOICE_PREVIEW_WEEKS,
 	parsePinnedDays,
 	pinnedDaysRefusal,
-	pinnedDaysWithin,
 	serializePinnedDays,
 	trackRowsByRule,
 	trackRowsOnDays,
@@ -62,7 +60,6 @@ import {
 } from './pinned-days.ts'
 import { readLaidWeeks, type LaidPatternInput } from './stamp.server.ts'
 import { placedWeekOf, type StampWeekPlan } from './stamp.ts'
-import { readStrengthDays, setStrengthDays } from './strength-days.server.ts'
 import {
 	isPatternWeekday,
 	PATTERN_WEEKDAYS,
@@ -290,12 +287,14 @@ export async function readTrackDays(
 		: { outlineId, available: plan.available, units }
 }
 
-function unitRef(unit: TrackDaysUnit): DayChoiceUnit {
+/** The unit as the stamp's input names it: a track, or one of its Activities. */
+function dayChoiceUnitOf(unit: TrackDaysUnit): DayChoiceUnit {
 	return unit.workoutId == null
 		? { trackId: unit.trackId }
 		: { trackId: unit.trackId, workoutId: unit.workoutId }
 }
 
+/** Whether a pattern row is one of the unit's: its track's, or its Activity's. */
 function isUnitRow(unit: TrackDaysUnit) {
 	return (row: { trackId: string; workoutId: string | null }) =>
 		row.trackId === unit.trackId &&
@@ -324,8 +323,11 @@ async function hardSessionsOf(
 	return Math.max(0, ...perSegment.values())
 }
 
-/** The unit's rows with the choice: on the chosen days, or dealt by rule. */
-async function rowsFor(
+/**
+ * The unit's pattern rows once the choice is made: on the chosen days, or
+ * dealt again by rule for _La appen velge_.
+ */
+async function rowsWithChoice(
 	db: Prisma.TransactionClient,
 	plan: Plan,
 	unit: TrackDaysUnit,
@@ -442,7 +444,7 @@ export async function previewTrackDays(
 	if (!unit) return { ok: false, reason: 'no-unit' }
 	const refusal = choiceRefusal(plan, unit, choice)
 	if (refusal) return { ok: false, reason: refusal }
-	const rows = await rowsFor(prisma, plan, unit, choice)
+	const rows = await rowsWithChoice(prisma, plan, unit, choice)
 
 	const timezone = await getAthleteTimezone(userId)
 	const from = await readFirstUnbegunWeekKey(userId, now, timezone)
@@ -451,7 +453,7 @@ export async function previewTrackDays(
 	)
 	const pinnedChoice = unit.kind === 'track' && choice != null
 	const swap = (laid: LaidPatternInput) =>
-		withTrackRows(laid, unitRef(unit), rows)
+		withTrackRows(laid, dayChoiceUnitOf(unit), rows)
 	const [before, after] = await Promise.all([
 		readLaidWeeks(userId, outlineId, weekKeys),
 		readLaidWeeks(userId, outlineId, weekKeys, swap, {
@@ -602,7 +604,7 @@ export async function setTrackDays(
 			}
 			const rows = restore
 				? await checkedRestore(tx, userId, unit, restore.rows)
-				: await rowsFor(tx, plan, unit, days)
+				: await rowsWithChoice(tx, plan, unit, days)
 			if (!rows) return { ok: false, reason: 'bad-restore' }
 
 			// The choice holds in every pattern that holds the unit, so a week
@@ -620,7 +622,7 @@ export async function setTrackDays(
 				)
 				const otherRows = back
 					? await checkedRestore(tx, userId, unit, back.rows)
-					: await rowsFor(
+					: await rowsWithChoice(
 							tx,
 							{ ...plan, pattern: other },
 							unit,
@@ -678,7 +680,9 @@ export async function setTrackDays(
 			}
 		},
 	)
-	if (result.ok && relay) await relayFrom(userId, outlineId, now)
+	if (result.ok && relay) {
+		await relayPlanFromFirstUnbegunWeek(userId, outlineId, now, 'track-days')
+	}
 	return result
 }
 
@@ -715,17 +719,6 @@ async function replaceUnitRows(
 		await renumberWeekday(tx, pattern.id, weekday, strength)
 	}
 	return replaced.flatMap((row) => choiceRowOf(row) ?? [])
-}
-
-/** Lay the plan's weeks again from the first unbegun one. */
-async function relayFrom(userId: string, outlineId: string, now: Date) {
-	try {
-		const timezone = await getAthleteTimezone(userId)
-		const from = await readFirstUnbegunWeekKey(userId, now, timezone)
-		await relayPlanFrom(userId, outlineId, from, timezone, now)
-	} catch (error) {
-		console.error('[track-days] laying weeks after a change failed', error)
-	}
 }
 
 /**
@@ -797,76 +790,4 @@ async function renumberWeekday(
 			data: { orderInDay: index },
 		})
 	}
-}
-
-/** A track that lost days when Training Availability changed. */
-export type DroppedPinnedDays = {
-	discipline: PlannedDiscipline
-	/** A Simple Activity's name, where it was one. */
-	title: string | null
-	lost: PatternWeekday[]
-	/** What it keeps; `null` where it went back to _La appen velge_. */
-	kept: PatternWeekday[] | null
-}
-
-/**
- * Drop the days the athlete no longer trains on from every track of the
- * active plan that pinned them (spec #588 story 19), lay the weeks again,
- * and say which tracks lost which days. A track left with none goes back to
- * _La appen velge_. A Simple Activity keeps its other days; one left with
- * none stays where it is, and is said, since only the athlete can name its
- * new day. Call it after the new availability is stored.
- */
-export async function dropUnavailablePinnedDays(
-	userId: string,
-	now: Date = new Date(),
-): Promise<DroppedPinnedDays[]> {
-	const active = await findActiveOutline(userId, now)
-	if (!active) return []
-	const outlineId = active.outline.id
-	const dropped: DroppedPinnedDays[] = []
-
-	const strength = await readStrengthDays(userId, now)
-	if (strength?.pinned && strength.available) {
-		const { kept, lost } = pinnedDaysWithin(strength.pinned, strength.available)
-		if (lost.length > 0) {
-			const written = await setStrengthDays(
-				userId,
-				{ choice: kept, version: strength.version },
-				now,
-			)
-			if (written.ok) {
-				dropped.push({ discipline: 'strength', title: null, lost, kept })
-			}
-		}
-	}
-
-	const plan = await readPlan(userId, outlineId)
-	if (!plan?.pattern || !plan.available) return dropped
-	let changed = false
-	for (const unit of unitsOf(plan)) {
-		if (!unit.pinned) continue
-		const { kept, lost } = pinnedDaysWithin(unit.pinned, plan.available)
-		if (lost.length === 0) continue
-		if (unit.kind === 'activity' && !kept) {
-			dropped.push({
-				discipline: unit.discipline,
-				title: unit.title,
-				lost,
-				kept,
-			})
-			continue
-		}
-		const written = await setTrackDays(
-			userId,
-			{ outlineId, key: unit.key, choice: kept, version: unit.version },
-			now,
-			{ relay: false },
-		)
-		if (!written.ok) continue
-		changed = true
-		dropped.push({ discipline: unit.discipline, title: unit.title, lost, kept })
-	}
-	if (changed) await relayFrom(userId, outlineId, now)
-	return dropped
 }
