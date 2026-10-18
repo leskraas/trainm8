@@ -202,9 +202,9 @@ test('Korte økter says plainly that the week falls short of the hours, and with
 		...ARGS,
 	})
 	for (const card of short.cards) {
-		expect(card.total).toBe('4 t 6 min i uka')
+		expect(card.total).toBe('4 t 18 min i uka')
 		expect(card.shortOfHours).toBe(
-			'Uka blir 4 t 6 min, ikke 5 timer: du valgte korte økter, så ingen økt på en hverdag er over 45 minutter.',
+			'Uka blir 4 t 18 min, ikke 5 timer: du valgte korte økter, så ingen økt på en hverdag er over 45 minutter.',
 		)
 	}
 	const both = await loader({

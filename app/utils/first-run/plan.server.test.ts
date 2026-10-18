@@ -8,7 +8,7 @@ import { createOpenEndedPlan } from '#app/utils/plan-outline/authoring.server.ts
 import { readStampedMixWarnings } from '#app/utils/plan-outline/stamp.server.ts'
 import { weekKeyAt } from '#app/utils/plan-outline/week-keys.ts'
 import { stampedSessionTitle } from '#app/utils/session-title.ts'
-import { getActivePlan, getActiveSeason } from '#app/utils/training.server.ts'
+import { getActivePlan } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import {
 	draftFirstRunPlan,
@@ -17,11 +17,7 @@ import {
 } from './draft.ts'
 import { readFirstRunFindings } from './findings.server.ts'
 import { type FirstRunAnswers } from './first-run-schema.ts'
-import {
-	createFirstRunPlan,
-	firstRunRefusalOf,
-	readFirstRunPlan,
-} from './plan.server.ts'
+import { createFirstRunPlan, readFirstRunPlan } from './plan.server.ts'
 import { draftStart } from './start-draft.ts'
 
 // The first run's plan on the server (#505 S14): the plan it makes honours the
@@ -77,14 +73,15 @@ async function addRun(
 	})
 }
 
+/** A Mosjonist's answers, Klassisk 3:1 picked, unless a test says else. */
 function answers(overrides: Partial<FirstRunAnswers> = {}): FirstRunAnswers {
 	return {
+		level: 'recreational',
 		discipline: 'run',
 		hours: 4.5,
 		// tirsdag, torsdag, lørdag
 		days: [1, 3, 5],
-		goal: { kind: 'active' },
-		family: null,
+		family: 'classic',
 		...overrides,
 	}
 }
@@ -128,7 +125,7 @@ test('an open-ended first plan lays its first two weeks on the chosen days only,
 	const athleteId = await createAthlete()
 
 	const created = await createFirstRunPlan(athleteId, answers(), NOW)
-	expect(created).toMatchObject({ ok: true, eventId: null })
+	expect(created).toMatchObject({ ok: true })
 	if (!created.ok) return
 
 	const sessions = await laidSessions(athleteId)
@@ -290,115 +287,12 @@ test('seven chosen days lay six, and keep all seven as the athlete’s availabil
 	)
 })
 
-test('a dated goal gets an Event and the family’s season fitted to it, laid on the chosen days', async () => {
+test('two submits at once make one plan', async () => {
 	const athleteId = await createAthlete()
-	const date = addDays(START, 7 * 15 + 5) // the Saturday of plan week 16
-
-	const created = await createFirstRunPlan(
-		athleteId,
-		answers({
-			goal: { kind: 'event', name: 'Bergen City Marathon', date },
-			family: 'threshold',
-			days: [0, 2, 4, 6],
-			hours: 6,
-		}),
-		NOW,
-	)
-	if (!created.ok) throw new Error(created.reason)
-	expect(created.eventId).not.toBeNull()
-
-	const outline = await prisma.planOutline.findUniqueOrThrow({
-		where: { id: created.outlineId },
-		select: {
-			family: true,
-			event: { select: { name: true, kind: true } },
-			phases: { select: { weeks: true } },
-		},
-	})
-	expect(outline.family).toBe('threshold')
-	expect(outline.event).toEqual({
-		name: 'Bergen City Marathon',
-		kind: 'fitness-goal',
-	})
-	// Sixteen plan weeks, the race week the last of them.
-	expect(outline.phases.reduce((sum, phase) => sum + phase.weeks, 0)).toBe(16)
-
-	const sessions = await laidSessions(athleteId)
-	expect(new Set(sessions.map((s) => s.weekday))).toEqual(new Set([0, 2, 4, 6]))
-	const plan = await getActivePlan(athleteId, NOW)
-	const targets = plan!.tracks[0]!.targets
-	const firstWeek = sessions.filter(inWeek(START))
-	expect(firstWeek.reduce((sum, s) => sum + s.seconds, 0) / 3600).toBeCloseTo(
-		targets[0]!,
-		1,
-	)
-	// The season starts at the 6 t the athlete trains now.
-	expect(targets[0]).toBe(6)
-})
-
-/** The plan's weeks as Sesong reads them, and both of its fit checks. */
-async function readSeason(athleteId: string) {
-	const plan = await getActivePlan(athleteId, NOW)
-	const season = await getActiveSeason(athleteId, NOW)
-	return {
-		targets: plan!.tracks[0]!.targets.map((t) => t ?? 0),
-		hoursWarnings: season!.hoursWarnings,
-		availabilityWarnings: season!.availabilityWarnings,
-	}
-}
-
-test.each([
-	['a race 25 weeks out', 25],
-	['a race 51 weeks out', 51],
-	['no race', null],
-] as const)(
-	'a 5 h athlete with %s starts at 5 h, and no fit check fires',
-	async (_, weeks) => {
-		for (const family of ['classic', 'big-base', 'polarized'] as const) {
-			const athleteId = await createAthlete()
-			const created = await createFirstRunPlan(
-				athleteId,
-				answers({
-					hours: 5,
-					// One day only: every family's hard sessions must fit it too.
-					days: [5],
-					family,
-					goal:
-						weeks == null
-							? { kind: 'active' }
-							: {
-									kind: 'event',
-									name: 'Målløpet',
-									date: addDays(START, 7 * (weeks - 1) + 5),
-								},
-				}),
-				NOW,
-			)
-			if (!created.ok) throw new Error(created.reason)
-
-			const season = await readSeason(athleteId)
-			if (weeks != null) expect(season.targets).toHaveLength(weeks)
-			// The first week is the hours given (owner decision 15).
-			expect(season.targets[0]).toBe(5)
-			expect(season.hoursWarnings).toEqual([])
-			expect(season.availabilityWarnings).toEqual([])
-		}
-	},
-)
-
-test('two submits of a race plan at once make one plan and one Event', async () => {
-	const athleteId = await createAthlete()
-	const race = answers({
-		goal: {
-			kind: 'event',
-			name: 'Dobbeltklikk',
-			date: addDays(START, 7 * 11 + 5),
-		},
-	})
 
 	const results = await Promise.all([
-		createFirstRunPlan(athleteId, race, NOW),
-		createFirstRunPlan(athleteId, race, NOW),
+		createFirstRunPlan(athleteId, answers(), NOW),
+		createFirstRunPlan(athleteId, answers(), NOW),
 	])
 
 	expect(results.filter((result) => result.ok)).toHaveLength(1)
@@ -407,75 +301,6 @@ test('two submits of a race plan at once make one plan and one Event', async () 
 		reason: 'plan-already-active',
 	})
 	expect(await prisma.planOutline.count({ where: { athleteId } })).toBe(1)
-	expect(await prisma.event.count({ where: { athleteId } })).toBe(1)
-})
-
-test('a race plan that fails to write leaves no Event behind', async () => {
-	const athleteId = await createAthlete()
-
-	// Zero hours anchors the track at nothing, which the plan's schema refuses
-	// inside the transaction that made the Event.
-	await expect(
-		createFirstRunPlan(
-			athleteId,
-			answers({
-				hours: 0,
-				goal: { kind: 'event', name: 'Ingenting', date: addDays(START, 40) },
-			}),
-			NOW,
-		),
-	).rejects.toThrow()
-	expect(await prisma.event.count({ where: { athleteId } })).toBe(0)
-	expect(await prisma.planOutline.count({ where: { athleteId } })).toBe(0)
-})
-
-test('a race past the longest plan is refused as too far, and nothing is made', async () => {
-	const athleteId = await createAthlete()
-
-	expect(
-		await createFirstRunPlan(
-			athleteId,
-			answers({
-				goal: {
-					kind: 'event',
-					name: 'Langt unna',
-					date: addDays(START, 7 * 104 + 1),
-				},
-			}),
-			NOW,
-		),
-	).toEqual({ ok: false, reason: 'event-too-far' })
-	expect(await prisma.event.count({ where: { athleteId } })).toBe(0)
-})
-
-test('each refusal of the plan write is said as what it is', () => {
-	expect(firstRunRefusalOf('open-ended-already-active')).toBe(
-		'plan-already-active',
-	)
-	expect(firstRunRefusalOf('event-past')).toBe('event-too-soon')
-	for (const reason of [
-		'event-not-found',
-		'event-cancelled',
-		'event-already-planned',
-	] as const) {
-		expect(firstRunRefusalOf(reason)).toBe('goal-unavailable')
-	}
-})
-
-test('a race this week or next is refused, and nothing is made', async () => {
-	const athleteId = await createAthlete()
-
-	expect(
-		await createFirstRunPlan(
-			athleteId,
-			answers({
-				goal: { kind: 'event', name: 'Too soon', date: addDays(START, 2) },
-			}),
-			NOW,
-		),
-	).toEqual({ ok: false, reason: 'event-too-soon' })
-	expect(await prisma.event.count({ where: { athleteId } })).toBe(0)
-	expect(await prisma.planOutline.count({ where: { athleteId } })).toBe(0)
 })
 
 test('an athlete who already has a plan gets no second one', async () => {
@@ -622,7 +447,7 @@ test('a two-track plan is refused whole when the athlete has a plan', async () =
 	).toBe(0)
 })
 
-test('Dette fant vi reads the last four weeks: the sport, the arithmetic and the days', async () => {
+test('the history reads the last four weeks: the sport, the arithmetic and the days', async () => {
 	const athleteId = await createAthlete()
 	// Four weeks of 43 km at 5:35, on Tuesdays and Saturdays.
 	for (const monday of [
@@ -654,26 +479,17 @@ test('Dette fant vi reads the last four weeks: the sport, the arithmetic and the
 	expect(findings.weeksTrained).toBe(4)
 })
 
-test('the proposal reads the athlete: over fifty, a 2:1 rhythm, with the reason', async () => {
+// #578: the start's age rule is retired. Masters is never proposed for an
+// age; it stays reachable through Plan → Avansert.
+test('the athlete’s age picks nothing: over fifty, the top way is the level’s, not Masters', async () => {
 	const athleteId = await createAthlete(new Date('1975-03-01T00:00:00Z'))
-	for (const monday of [
-		'2029-12-10',
-		'2029-12-17',
-		'2029-12-24',
-		'2029-12-31',
-	]) {
-		await addRun(athleteId, addDays(monday, 1), 10, 330)
-	}
 
-	const read = await readFirstRunPlan(athleteId, answers(), NOW)
+	const read = await readFirstRunPlan(athleteId, answers({ family: null }), NOW)
 	if (!read.ok) throw new Error(read.reason)
-	expect(read.plan.proposed).toEqual({
-		family: 'masters',
-		reason: { code: 'older-athlete', age: 54 },
-	})
-	expect(read.plan.family).toBe('masters')
-	// Masters' round is three weeks, two that build and one easy.
-	expect(read.plan.draft.phases.map((phase) => phase.weeks)).toEqual([3])
+	expect(read.plan.family).toBe('polarized')
+	expect(
+		await readFirstRunPlan(athleteId, answers({ family: 'masters' }), NOW),
+	).toEqual({ ok: false, reason: 'option-unavailable' })
 })
 
 // Velg denne (#566): the Start Option picked is the plan made, day for day
@@ -685,7 +501,6 @@ describe('a Start Option picked with Velg denne', () => {
 		hours: 3,
 		// mandag, onsdag, fredag
 		days: [0, 2, 4] as Array<0 | 1 | 2 | 3 | 4 | 5 | 6>,
-		goal: { kind: 'active' as const },
 		level: 'beginner' as const,
 	}
 
@@ -707,7 +522,7 @@ describe('a Start Option picked with Velg denne', () => {
 				{ ...beginner, family },
 				NOW,
 			)
-			expect(created).toMatchObject({ ok: true, eventId: null })
+			expect(created).toMatchObject({ ok: true })
 
 			const sessions = await prisma.workoutSession.findMany({
 				where: { userId: athleteId },
@@ -788,7 +603,6 @@ describe('a Start Option picked with Velg denne', () => {
 				hours: 7,
 				// mandag, tirsdag, torsdag, fredag, søndag
 				days: [0, 1, 3, 4, 6] as Array<0 | 1 | 2 | 3 | 4 | 5 | 6>,
-				goal: { kind: 'active' as const },
 				level: 'experienced' as const,
 			}
 			const option = draftStart({ ...several, startWeekKey: START })!
@@ -869,7 +683,7 @@ describe('a Start Option picked with Velg denne', () => {
 	)
 
 	test.each([
-		[['short'] as const, 246],
+		[['short'] as const, 258],
 		[['long', 'short'] as const, 300],
 	])(
 		'with %j the plan made is the card, minute for minute, and the weeks after keep its shape',

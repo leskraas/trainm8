@@ -1,8 +1,8 @@
-// "Dette fant vi" from the database (#505 stories 61–62): the athlete's last
-// four complete weeks — the Season Anchor pre-fill's own window
-// (`readAnchorContext`) — plus the weekdays they trained on, how far the
-// intervals.icu link has got, and their age for the philosophy's reason.
-// What it all says is `first-run.ts`'s.
+// The athlete's history from the database (#505 stories 61–62), which the
+// start's first screen pre-fills from (#578): their last four complete weeks
+// — the Season Anchor pre-fill's own window (`readAnchorContext`) — plus the
+// weekdays they trained on and how far the intervals.icu link has got. What
+// it all says is `first-run.ts`'s.
 
 import { INTERVALSICU_PROVIDER } from '#app/integrations/intervalsicu/types.ts'
 import { type OriginPlatform } from '#app/integrations/shared/origin-platform.ts'
@@ -23,7 +23,6 @@ import { ANCHOR_WINDOW_WEEKS } from '../plan-outline/proposal.ts'
 import { isPatternWeekday } from '../plan-outline/week-pattern.ts'
 import { readRecordedBindingSet } from '../source-terms.server.ts'
 import {
-	ageOn,
 	buildFindings,
 	type FirstRunConnection,
 	type FirstRunFindings,
@@ -34,8 +33,6 @@ export type FirstRunReading = {
 	timezone: string
 	connection: FirstRunConnection
 	findings: FirstRunFindings
-	/** Whole years, or null where the athlete has not said their birthdate. */
-	age: number | null
 	/**
 	 * The Origin Platforms behind the findings (ADR 0098 §1): the recorded
 	 * sessions in the same four weeks, for the credits their terms ask of
@@ -48,13 +45,9 @@ export async function readFirstRunFindings(
 	userId: string,
 	now: Date = new Date(),
 ): Promise<FirstRunReading> {
-	const [context, link, profile] = await Promise.all([
+	const [context, link] = await Promise.all([
 		readAnchorContext(userId, now),
 		getAccountConnection(userId, INTERVALSICU_PROVIDER),
-		prisma.athleteProfile.findUnique({
-			where: { userId },
-			select: { birthdate: true },
-		}),
 	])
 	const connection: FirstRunConnection =
 		link == null || link.status !== 'active'
@@ -100,7 +93,6 @@ export async function readFirstRunFindings(
 			weeksTrained: new Set(sessionDays.map((day) => day.weekKey)).size,
 			sessionDays,
 		}),
-		age: ageOn(profile?.birthdate ?? null, now),
 		bindingSet,
 	}
 }

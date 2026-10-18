@@ -139,6 +139,25 @@ test('each card counts its lifting beside the hours, shows its lifts, and says t
 	}
 })
 
+test('only a Nybegynner is told the lifts count in the session cap; above it they come on top', async () => {
+	const { cookie } = await setUp()
+	const beginner = await loader({
+		...ARGS,
+		request: get(
+			'/start/valg?level=beginner&hours=4&discipline=run&days=0,1,2,3,4,5&strength=1',
+			cookie,
+		),
+	})
+	expect(beginner.notes).toContain(
+		'Som nybegynner får du høyst 4 økter i uka, styrke medregnet, så utholdenheten får 3.',
+	)
+	const experienced = await loader({
+		...ARGS,
+		request: get(`/start/valg?${ANSWERS}&strength=3`, cookie),
+	})
+	expect(experienced.notes.join(' ')).not.toMatch(/styrke/i)
+})
+
 test('Velg denne with styrke makes the lifting and keeps the tap; Meg changes it', async () => {
 	const { userId, cookie } = await setUp()
 	const response = await action({

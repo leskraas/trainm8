@@ -13,16 +13,15 @@ import {
 	action as preferencesAction,
 	loader as preferencesLoader,
 } from './okter.tsx'
-import { loader as planLoader } from './plan.tsx'
 import {
 	action as activitiesAction,
 	loader as activitiesLoader,
 } from './trening.tsx'
-import { action as weeksAction, loader as weeksLoader } from './uker.tsx'
+import { action as choiceAction } from './valg.tsx'
 
 // The simple start's questions (#563) through their loaders and actions: the
 // level and hours, the main sport and the days, the answers travelling in the
-// URL, and the old plan screen still reading them with the level's family.
+// URL, and the plan made from them laying what Uka di showed.
 
 const ARGS = {
 	params: {},
@@ -461,37 +460,10 @@ describe('Hva slags økter liker du?', () => {
 	})
 })
 
-describe('the plan screen continues with the answers', () => {
-	test('it proposes the level’s first family, and its way back is the simple start', async () => {
-		const { cookie } = await setUp()
-
-		const beginner = await planLoader({
-			request: get(
-				'/start/plan?discipline=run&hours=3&days=0,2,4&goal=active&level=beginner',
-				cookie,
-			),
-			...ARGS,
-		})
-		expect(beginner).toMatchObject({ family: 'big-base', switched: false })
-		expect(beginner.reason).toBe('Vi valgte Stor base fordi du er nybegynner.')
-		expect(decodeURIComponent(beginner.questionsLink)).toBe(
-			'/start/trening?level=beginner&hours=3&discipline=run&days=0,2,4',
-		)
-
-		const recreational = await planLoader({
-			request: get(
-				'/start/plan?discipline=bike&hours=5&days=0,2,4,5&goal=active&level=recreational',
-				cookie,
-			),
-			...ARGS,
-		})
-		expect(recreational.family).toBe('polarized')
-	})
-
+describe('the plan made from the answers', () => {
 	test('a Nybegynner’s seven days lay four sessions, the ones Uka di showed, and keep all seven as availability', async () => {
 		const { userId, cookie } = await setUp()
-		const query =
-			'discipline=run&hours=4&days=0,1,2,3,4,5,6&goal=active&level=beginner'
+		const days = [0, 1, 2, 3, 4, 5, 6] as const
 
 		const { startWeekKey } = await activitiesLoader({
 			request: get('/start/trening?level=beginner&hours=4', cookie),
@@ -502,34 +474,32 @@ describe('the plan screen continues with the answers', () => {
 				level: 'beginner',
 				discipline: 'run',
 				hours: 4,
-				days: [0, 1, 2, 3, 4, 5, 6],
+				days: [...days],
 				startWeekKey,
 			}),
-		)
-
-		const weeks = await weeksLoader({
-			request: get(`/start/uker?${query}`, cookie),
-			...ARGS,
-		})
-		expect(weeks.daysNote).toBe(
-			'Som nybegynner får du høyst 4 økter i uka. Vi velger dagene som gir mest hvile mellom.',
-		)
-		expect(weeks.weeks[0]!.weekKey).toBe(startWeekKey)
-		// What the plan screens lay is what Uka di showed, title for title.
-		expect(weeks.weeks[0]!.sessions.map((session) => session.title)).toEqual(
-			sketch.days.flatMap((day) => day.sessions.map((s) => s.title)),
 		)
 		expect(sketch.sessionCount).toBe(4)
 
 		const created = await settle(() =>
-			weeksAction({
-				request: post(`/start/uker?${query}`, [['intent', 'create']], cookie),
+			choiceAction({
+				request: post(
+					'/start/valg',
+					[
+						['level', 'beginner'],
+						['hours', '4'],
+						['discipline', 'run'],
+						...days.map((day): [string, string] => ['days', String(day)]),
+						['family', 'big-base'],
+					],
+					cookie,
+				),
 				...ARGS,
 			}),
 		)
-		expect(location(created)).toBe('/')
+		expect(location(created)).toBe('/start/klar')
 		const sessions = await prisma.workoutSession.findMany({
 			where: { userId },
+			orderBy: { scheduledAt: 'asc' },
 			select: { status: true, scheduledAt: true },
 		})
 		// Two weeks of four, nothing before the Plan Start Week, and nothing
@@ -543,6 +513,20 @@ describe('the plan screen continues with the answers', () => {
 		).toBe(true)
 		expect(new Set(sessions.map((session) => session.status))).toEqual(
 			new Set(['scheduled']),
+		)
+		// On the days Uka di showed them.
+		expect(
+			new Set(
+				sessions.map((session) =>
+					weekdayIndex(session.scheduledAt.toISOString().slice(0, 10)),
+				),
+			),
+		).toEqual(
+			new Set(
+				sketch.days.flatMap((day, weekday) =>
+					day.sessions.length > 0 ? [weekday] : [],
+				),
+			),
 		)
 		const profile = await prisma.athleteProfile.findUniqueOrThrow({
 			where: { userId },
