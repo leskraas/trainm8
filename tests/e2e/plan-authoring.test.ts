@@ -1,5 +1,10 @@
 import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
-import { expect, test, untilHydrated } from '#tests/playwright-utils.ts'
+import {
+	expect,
+	openPlanAdvanced,
+	test,
+	untilHydrated,
+} from '#tests/playwright-utils.ts'
 
 /**
  * Plan authoring end-to-end (#399, ADR 0039/0043/0044): the whole manual
@@ -107,7 +112,12 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 	// ---------------------------------------------------------------------
 
 	await expect(page).toHaveURL(/\/training\/plan\?event=[a-z0-9]+$/i)
-	await expect(page.getByRole('heading', { name: goalName })).toBeVisible()
+	// The lead names the race the plan builds toward (ADR 0101 §2).
+	await expect(
+		page.getByRole('link', { name: goalName, exact: true }),
+	).toBeVisible()
+	// Every Sesong editor is behind Plan's closed Avansert (ADR 0101 §2).
+	await openPlanAdvanced(page)
 	// The season picture leads: I dag's curve and table, in ISO weeks, the
 	// lead track in its own unit.
 	const picture = page.getByRole('region', { name: 'Sesongen', exact: true })

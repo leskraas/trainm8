@@ -10,7 +10,7 @@ import {
 	createPlanOutline,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
-import { expect, test } from '#tests/playwright-utils.ts'
+import { expect, openPlanAdvanced, test } from '#tests/playwright-utils.ts'
 
 // Mirrors `onboardingEmailSessionKey` in
 // `app/routes/_auth/onboarding/index.tsx`. Inlined rather than imported: that
@@ -160,6 +160,9 @@ test('the season plan does not overflow at 390px', async ({
 	// Blokker is the default reading, under the season picture (I dag's curve
 	// and table, ADR 0090) and the phase cards under it.
 	await navigate('/training/plan')
+	await expectNoHorizontalOverflow(page)
+	// Every Sesong editor is behind Plan's closed Avansert (ADR 0101 §2).
+	await openPlanAdvanced(page)
 	await expect(
 		page.getByRole('heading', { name: 'Sesongen', exact: true }),
 	).toBeVisible()

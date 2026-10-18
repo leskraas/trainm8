@@ -43,6 +43,8 @@ function renderStep(
 		hoursByDiscipline: {},
 		defaultDiscipline: 'run',
 	},
+	/** No plan yet: Plan invites to the start (ADR 0101 §4). */
+	startInvite = false,
 ) {
 	const submitted = vi.fn()
 	const App = createRoutesStub([
@@ -57,6 +59,7 @@ function renderStep(
 				openEnded,
 				roundWeeks: 4,
 				libraryLifts: [],
+				startInvite,
 			}),
 			action: async ({ request }) => {
 				submitted(Object.fromEntries(await request.formData()))
@@ -216,5 +219,30 @@ test('an athlete who already has an open-ended plan is sent to it instead', asyn
 	).toHaveAttribute('href', '/training/plan?outline=outline-9')
 	expect(
 		screen.queryByRole('button', { name: /lag planen/i }),
+	).not.toBeInTheDocument()
+})
+
+test('an athlete with no plan is invited to the start above setting a season up', async () => {
+	renderStep(undefined, undefined, true)
+
+	const invite = await screen.findByRole('region', {
+		name: 'Du har ingen plan ennå',
+	})
+	expect(
+		within(invite).getByRole('link', { name: 'Kom i gang' }),
+	).toHaveAttribute('href', '/start')
+	// The expert path stays, below it.
+	expect(
+		invite.compareDocumentPosition(screen.getByText('Hva bygger du mot?')) &
+			Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+})
+
+test('an athlete who has a plan is not invited to the start', async () => {
+	renderStep()
+
+	await screen.findByText('Hva bygger du mot?')
+	expect(
+		screen.queryByRole('region', { name: 'Du har ingen plan ennå' }),
 	).not.toBeInTheDocument()
 })

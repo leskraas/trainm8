@@ -7,7 +7,7 @@ import {
 	createFitnessGoalEvent,
 	createPlanOutline,
 } from '#app/utils/plan-outline/authoring.server.ts'
-import { expect, test } from '#tests/playwright-utils.ts'
+import { expect, openPlanAdvanced, test } from '#tests/playwright-utils.ts'
 
 /**
  * The three tabs (ADR 0101 §1, amending ADR 0083 — which superseded #178's
@@ -104,6 +104,8 @@ test('every tab navigates and marks itself current on a phone', async ({
 	await expect(
 		page.getByRole('heading', { name: 'Plan', level: 1 }),
 	).toBeVisible()
+	// Every Sesong editor is behind Plan's closed Avansert (ADR 0101 §2).
+	await openPlanAdvanced(page)
 	const events = page.getByRole('region', { name: 'Løp og arrangementer' })
 	await expect(
 		events.getByRole('link', { name: new RegExp(eventName) }),
