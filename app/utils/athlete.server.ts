@@ -2,6 +2,7 @@ import { type Prisma } from '@prisma/client'
 import { rederiveHrPhaseBarsForDiscipline } from './activity-telemetry.server.ts'
 import { localDate } from './athlete-calendar.ts'
 import {
+	parseTrainableWeekdays,
 	type AthleteProfileUpdate,
 	type DisciplineThresholdInput,
 } from './athlete-schema.ts'
@@ -13,6 +14,10 @@ import {
 import { LevelSchema, PreferencesSchema } from './first-run/start-schema.ts'
 import { recomputePlannedTssForUser } from './load/planned-tss.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
+import {
+	patternWeekdaysOfCalendar,
+	type PatternWeekday,
+} from './plan-outline/week-pattern.ts'
 import { CARDIO_DISCIPLINES, type Discipline } from './workout-schema.ts'
 import { recomputeIntensityRanges } from './workout.server.ts'
 import { zoneRecipeFieldsForNewProfile } from './zones/defaults.ts'
@@ -54,6 +59,37 @@ const THRESHOLD_CONSTRUCT_MAP = {
 	thresholdPaceSecPerKm: 'thresholdPace',
 	cssSecPer100m: 'css',
 } as const satisfies Record<keyof typeof THRESHOLD_KIND_MAP, string>
+
+/**
+ * **Training Availability** as the Week Pattern reads it: the stored
+ * Sunday-first days (ADR 0005) as Monday-first pattern weekdays. The one
+ * place the two axes meet (ADR 0104). `null` where the athlete never said;
+ * an explicitly emptied list is `[]`, a statement they made.
+ */
+export function availablePatternDays(
+	stored: string | null | undefined,
+): PatternWeekday[] | null {
+	return stored == null
+		? null
+		: patternWeekdaysOfCalendar(parseTrainableWeekdays(stored))
+}
+
+/**
+ * The days the athlete can train on, Monday first, as the day rule and the
+ * day choices read them: `null` where they never said or left none, so the
+ * caller falls back rather than lays nothing.
+ */
+export async function readAvailablePatternDays(
+	userId: string,
+	db: Prisma.TransactionClient = prisma,
+): Promise<PatternWeekday[] | null> {
+	const profile = await db.athleteProfile.findUnique({
+		where: { userId },
+		select: { trainableWeekdays: true },
+	})
+	const days = availablePatternDays(profile?.trainableWeekdays)
+	return days && days.length > 0 ? days : null
+}
 
 /**
  * The Athlete Timezone (IANA) from the Athlete Profile, used for calendar-day

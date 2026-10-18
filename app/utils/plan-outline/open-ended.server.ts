@@ -491,6 +491,27 @@ async function layAfterAttach(
 	}
 }
 /**
+ * Lay the plan's weeks again from the first one not yet begun, after a change
+ * to how its weeks are laid (a day choice, its undo, a dropped day). Never
+ * fails the change it follows: a failure is logged under `label`, and the
+ * weeks are laid on the next change or horizon fill.
+ */
+export async function relayPlanFromFirstUnbegunWeek(
+	userId: string,
+	outlineId: string,
+	now: Date,
+	label: string,
+) {
+	try {
+		const timezone = await getAthleteTimezone(userId)
+		const from = await readFirstUnbegunWeekKey(userId, now, timezone)
+		await relayPlanFrom(userId, outlineId, from, timezone, now)
+	} catch (error) {
+		console.error(`[${label}] laying weeks after a change failed`, error)
+	}
+}
+
+/**
  * After the plan's phases changed under weeks already on the calendar: lay
  * every week from `fromWeekKey` on that the plan laid again at its new
  * targets, then fill the weeks up to the horizon it never laid. Shared by

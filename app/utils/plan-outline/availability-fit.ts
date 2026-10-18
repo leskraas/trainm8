@@ -298,7 +298,7 @@ function fitSessionOf(
 	pinnedTracks: ReadonlySet<string>,
 ): FitSession {
 	return {
-		placed: placedSessionOf(session, day, session.discipline),
+		placed: placedSessionOf(session, day),
 		pinned:
 			(session.discipline === 'strength' && session.kind === 'fixed') ||
 			pinnedTracks.has(session.trackId),

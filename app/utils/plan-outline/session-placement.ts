@@ -4,6 +4,11 @@
 // already on the calendar is one the rule can place a move around.
 //
 // Pure. The weekday is the caller's: it knows the session's day.
+//
+// The stamp reads the week it lays through `placedSessionOf` (`stamp.ts`),
+// off the zone and role it gives each session; this reads the same session
+// back off the Workout the stamp wrote (its intent's zone, its _Langtur_
+// title). The two must agree, and `stamp.server.test.ts` holds them to it.
 
 import { readEffortWord } from '../effort-word.ts'
 import { STAMPED_SESSION_LABELS } from '../labels.ts'

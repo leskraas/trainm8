@@ -45,15 +45,15 @@ import {
 	MEG_UNIT_LABELS,
 	MEG_WEEKDAY_LABELS,
 	MEG_WEEKDAY_SHORT_LABELS,
-	NB_DISCIPLINE_LABELS,
+	nbPlannedDisciplineLabel,
 } from '#app/utils/labels.ts'
 import { cn, getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx'
 import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
-import { weeklyCapacityFor } from '#app/utils/plan-outline/proposal.ts'
 import {
 	dropUnavailablePinnedDays,
 	type DroppedPinnedDays,
-} from '#app/utils/plan-outline/track-days.server.ts'
+} from '#app/utils/plan-outline/pinned-days.server.ts'
+import { weeklyCapacityFor } from '#app/utils/plan-outline/proposal.ts'
 import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { NameSchema, UsernameSchema } from '#app/utils/user-validation.ts'
@@ -597,11 +597,7 @@ function DroppedDaysNote({ dropped }: { dropped: DroppedPinnedDays[] }) {
 						className="text-footnote break-words"
 					>
 						{D.line(
-							track.title ??
-								(NB_DISCIPLINE_LABELS as Record<string, string>)[
-									track.discipline
-								] ??
-								track.discipline,
+							track.title ?? nbPlannedDisciplineLabel(track.discipline),
 							track.lost,
 							track.kept,
 							track.title != null,

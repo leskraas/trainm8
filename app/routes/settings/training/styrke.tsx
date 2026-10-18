@@ -13,10 +13,16 @@
  * (ADR 0084) and is undone from its toast (ADR 0088).
  */
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { data, useFetcher } from 'react-router'
 import { toast } from 'sonner'
 import { z } from 'zod/v3'
+import {
+	dayChoiceKey,
+	LANDED_MS,
+	useOncePer,
+	type ReplyDataOf,
+} from '#app/components/day-choice.ts'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
@@ -41,12 +47,15 @@ import {
 	SIMPLE_START_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { MAX_PINNED_STRENGTH_DAYS } from '#app/utils/plan-outline/pinned-days.ts'
+import {
+	dayChoiceOf,
+	MAX_PINNED_STRENGTH_DAYS,
+	type DayChoice,
+} from '#app/utils/plan-outline/pinned-days.ts'
 import {
 	previewStrengthDays,
 	readStrengthDays,
 	setStrengthDays,
-	type StrengthDaysChoice,
 	type StrengthDaysPreviewWeek,
 } from '#app/utils/plan-outline/strength-days.server.ts'
 import {
@@ -58,9 +67,6 @@ import { type Route } from './+types/styrke.ts'
 
 const L = MEG_STRENGTH_LABELS
 const D = MEG_STRENGTH_DAYS_LABELS
-
-/** How long the toast and its _Angre_ stand (ADR 0088's `LANDED_MS`). */
-const LANDED_MS = 10_000
 
 export const handle: PageHeaderHandle & SEOHandle = {
 	pageHeader: L.title,
@@ -81,16 +87,51 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 const StrengthAnswerSchema = z.object({ strength: StrengthPerWeekSchema })
 
-/** The chosen days off the form: `mode=auto`, or `mode=own` and each `day`. */
-function choiceOf(formData: FormData): StrengthDaysChoice {
-	if (formData.get('mode') !== 'own') return null
-	return patternWeekdaysOf(formData.getAll('day').map(Number))
+/** One strength row as a write found it, which an undo puts back exactly. */
+const StrengthRowSchema = z.object({
+	kind: z.enum(['fixed', 'lifting', 'share']),
+	weekday: z.number().int().min(0).max(6).nullable(),
+	workoutId: z.string().min(1).nullable(),
+	weight: z.number().positive().nullable().optional(),
+	orderInDay: z.number().int().min(0).optional(),
+})
+const StrengthRowsSchema = z.array(StrengthRowSchema).max(14)
+
+/** Rows off the form, each weekday read onto the pattern's axis. */
+function restoredRows(rows: z.infer<typeof StrengthRowsSchema>) {
+	return rows.map((row) => ({
+		...row,
+		weekday: row.weekday == null ? null : patternWeekdaysOf([row.weekday])[0]!,
+	}))
 }
 
 const UndoSchema = z.object({
 	days: z.array(z.number().int().min(0).max(6)).nullable(),
 	count: z.number().int().min(0),
 	answer: z.number().int().nullable(),
+	/** The strength blocks' frequencies the write set, to put back. */
+	frequencies: z
+		.array(
+			z.object({
+				segmentId: z.string().min(1),
+				sessionsPerWeek: z.number().int().min(0).nullable(),
+			}),
+		)
+		.max(64)
+		.default([]),
+	/** The strength rows the write replaced in the plan's other patterns. */
+	elsewhere: z
+		.array(
+			z.object({
+				patternId: z.string().min(1),
+				rows: StrengthRowsSchema,
+			}),
+		)
+		.max(32)
+		.default([]),
+	/** The rows and the stored Pinned days the write replaced. */
+	rows: StrengthRowsSchema.optional(),
+	pinnedDays: z.string().max(64).nullable().optional(),
 	version: z.string(),
 })
 
@@ -100,7 +141,7 @@ export async function action({ request }: Route.ActionArgs) {
 	const intent = formData.get('intent')
 
 	if (intent === 'preview-days') {
-		const preview = await previewStrengthDays(userId, choiceOf(formData))
+		const preview = await previewStrengthDays(userId, dayChoiceOf(formData))
 		return preview.ok
 			? { intent: 'preview' as const, preview, error: null }
 			: data(
@@ -111,7 +152,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 	if (intent === 'apply-days') {
 		const written = await setStrengthDays(userId, {
-			choice: choiceOf(formData),
+			choice: dayChoiceOf(formData),
 			version: String(formData.get('version') ?? ''),
 		})
 		if (!written.ok) {
@@ -137,11 +178,30 @@ export async function action({ request }: Route.ActionArgs) {
 				{ status: 400 },
 			)
 		}
-		const { days, count, answer, version } = parsed.data
+		const {
+			days,
+			count,
+			answer,
+			frequencies,
+			elsewhere,
+			rows,
+			pinnedDays,
+			version,
+		} = parsed.data
 		const undone = await setStrengthDays(userId, {
 			choice: days == null ? null : patternWeekdaysOf(days),
 			version,
-			restore: { count, answer },
+			restore: {
+				count,
+				answer,
+				frequencies,
+				...(rows ? { rows: restoredRows(rows) } : {}),
+				...(pinnedDays !== undefined ? { pinnedDays } : {}),
+				elsewhere: elsewhere.map((entry) => ({
+					patternId: entry.patternId,
+					rows: restoredRows(entry.rows),
+				})),
+			},
 		})
 		return undone.ok
 			? { intent: 'undone' as const, ok: true, error: null }
@@ -257,11 +317,6 @@ function StrengthAnswerForm({
 
 type DaysState = NonNullable<Route.ComponentProps['loaderData']['days']>
 
-/** `'auto'` or the chosen days, Monday first, as one comparable key. */
-function choiceKey(mode: 'auto' | 'own', chosen: readonly number[]): string {
-	return mode === 'auto' ? 'auto' : [...chosen].sort().join(',')
-}
-
 /**
  * The plan's lifting days: _La appen velge_ or the athlete's own, with the
  * coming weeks shown before the write and _Angre_ on the toast after it.
@@ -282,15 +337,16 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 		setChosen(state.pinned ?? [])
 	}
 
-	const current = choiceKey(mode, chosen)
-	const stored = choiceKey(state.pinned ? 'own' : 'auto', state.pinned ?? [])
+	const current = dayChoiceKey(mode, chosen)
+	const stored = dayChoiceKey(state.pinned ? 'own' : 'auto', state.pinned ?? [])
 	const reply = fetcher.data && 'intent' in fetcher.data ? fetcher.data : null
 	const preview =
 		reply?.intent === 'preview' && reply.preview ? reply.preview : null
 	// A preview stands only for the choice it was read for.
 	const showing =
 		preview &&
-		choiceKey(preview.choice ? 'own' : 'auto', preview.choice ?? []) === current
+		dayChoiceKey(preview.choice ? 'own' : 'auto', preview.choice ?? []) ===
+			current
 			? preview
 			: null
 	const error =
@@ -299,7 +355,7 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 			: null
 	const busy = fetcher.state !== 'idle'
 
-	useWrittenToast(reply, state, undo.submit)
+	useWrittenToast(reply, undo.submit)
 	useUndoneToast(undo.data)
 
 	return (
@@ -402,7 +458,7 @@ function StrengthDaysPreview({
 	onCancel,
 }: {
 	weeks: StrengthDaysPreviewWeek[]
-	choice: StrengthDaysChoice
+	choice: DayChoice
 	version: string
 	busy: boolean
 	onCancel: () => void
@@ -490,12 +546,7 @@ function StrengthDaysPreview({
 	)
 }
 
-type ActionReply = Awaited<ReturnType<typeof action>>
-type ReplyData = ActionReply extends infer R
-	? R extends { data: infer D }
-		? D
-		: R
-	: never
+type ReplyData = ReplyDataOf<typeof action>
 
 /**
  * The write's toast (ADR 0088): what the days are now, and _Angre_, which
@@ -503,15 +554,11 @@ type ReplyData = ActionReply extends infer R
  */
 function useWrittenToast(
 	reply: ReplyData | null,
-	state: DaysState,
 	submit: ReturnType<typeof useFetcher>['submit'],
 ) {
-	const shown = useRef<unknown>(null)
 	const written =
 		reply && 'written' in reply && reply.written ? reply.written : null
-	useEffect(() => {
-		if (!written || shown.current === written) return
-		shown.current = written
+	useOncePer(written, (written) => {
 		toast.success(D.saved(written.choice), {
 			id: 'strength-days',
 			duration: LANDED_MS,
@@ -525,6 +572,10 @@ function useWrittenToast(
 								days: written.previous.days,
 								count: written.previous.count,
 								answer: written.previous.answer,
+								frequencies: written.previous.frequencies,
+								rows: written.previous.rows,
+								pinnedDays: written.previous.pinnedDays,
+								elsewhere: written.previous.elsewhere,
 								version: written.version,
 							}),
 						},
@@ -532,20 +583,20 @@ function useWrittenToast(
 					),
 			},
 		})
-	}, [written, submit, state.version])
+	})
 }
 
 /** The undo's own toast: the days are as they were. */
 function useUndoneToast(reply: ReplyData | undefined) {
-	const shown = useRef<unknown>(null)
-	useEffect(() => {
-		if (!reply || shown.current === reply || !('intent' in reply)) return
-		if (reply.intent !== 'undone') return
-		shown.current = reply
-		if (reply.ok) toast.success(D.undone, { id: 'strength-days' })
-		else if (reply.error)
-			toast.error(D.refusals[reply.error as keyof typeof D.refusals], {
+	const undone =
+		reply && 'intent' in reply && reply.intent === 'undone' ? reply : null
+	useOncePer(undone, (undone) => {
+		// The same toast, so its _Angre_ goes: there is nothing left to undo.
+		if (undone.ok)
+			toast.success(D.undone, { id: 'strength-days', action: undefined })
+		else if (undone.error)
+			toast.error(D.refusals[undone.error as keyof typeof D.refusals], {
 				id: 'strength-days',
 			})
-	}, [reply])
+	})
 }

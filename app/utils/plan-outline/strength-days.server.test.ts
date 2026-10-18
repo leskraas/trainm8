@@ -5,6 +5,7 @@ import { proposeWeekChange } from '#app/utils/load/propose-week-change.ts'
 import { applyWeekReplanForUser } from '#app/utils/load/week-replan.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import {
+	addStrengthSegment,
 	addWeekPattern,
 	addWeekPatternDay,
 	createPlanOutline,
@@ -246,6 +247,207 @@ test('the Strength Frequency is the number of days chosen', async () => {
 	for (const week of await calendar(userId)) {
 		expect(week.lifting).toEqual([THU])
 	}
+})
+
+test('the strength blocks lift as often as the days chosen, and the undo puts their frequency back (story 20)', async () => {
+	const { userId, liftTrackId } = await setup()
+	const frequencies = () =>
+		prisma.trainingTrackSegment.findMany({
+			where: { trackId: liftTrackId, kind: 'strength' },
+			orderBy: { id: 'asc' },
+			select: { id: true, sessionsPerWeek: true },
+		})
+	// The block said three a week before the athlete chose their days.
+	const added = await addStrengthSegment(userId, {
+		trackId: liftTrackId,
+		startWeekKey: '2030-01-07',
+		weeks: 6,
+		ramp: null,
+		boundaryStep: null,
+		goal: 'maximal-strength',
+		sessionsPerWeek: 3,
+		deloadCut: null,
+		deloadWeeks: null,
+	})
+	if (!added.ok) throw new Error(added.reason)
+	expect(await frequencies()).toHaveLength(1)
+	const state = (await readStrengthDays(userId, NOW))!
+	const written = await setStrengthDays(
+		userId,
+		{ choice: [TUE, THU], version: state.version },
+		NOW,
+	)
+	if (!written.ok) throw new Error(written.reason)
+	for (const segment of await frequencies()) {
+		expect(segment.sessionsPerWeek).toBe(2)
+	}
+
+	const undone = await setStrengthDays(
+		userId,
+		{
+			choice: written.previous.days,
+			version: written.version,
+			restore: written.previous,
+		},
+		NOW,
+	)
+	expect(undone.ok).toBe(true)
+	for (const segment of await frequencies()) {
+		expect(segment.sessionsPerWeek).toBe(3)
+	}
+})
+
+test('chosen lifting days hold in every Week Pattern that lifts, and the undo puts each back', async () => {
+	const { userId, liftTrackId } = await setup()
+	const outlineId = (
+		await prisma.trainingTrack.findUniqueOrThrow({
+			where: { id: liftTrackId },
+			select: { outlineId: true },
+		})
+	).outlineId
+	const added = await addWeekPattern(userId, { outlineId, name: 'Lett uke' })
+	if (!added.ok) throw new Error(added.reason)
+	const second = await prisma.weekPattern.findFirstOrThrow({
+		where: { outlineId, name: 'Lett uke' },
+		select: { id: true },
+	})
+	// The light week lifts the full-body Stock Workout, which no athlete owns.
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId: null,
+			title: 'Helkropp A',
+			discipline: 'strength',
+			intent: 'strength',
+		},
+	})
+	await prisma.weekPatternDay.create({
+		data: {
+			patternId: second.id,
+			trackId: liftTrackId,
+			kind: 'lifting',
+			weekday: null,
+			orderInDay: 0,
+			workoutId: workout.id,
+		},
+	})
+	const liftsIn = async (patternId: string) =>
+		(
+			await prisma.weekPatternDay.findMany({
+				where: { patternId, trackId: liftTrackId },
+				orderBy: [{ weekday: 'asc' }, { orderInDay: 'asc' }],
+				select: { kind: true, weekday: true },
+			})
+		).map((row) => `${row.kind}:${row.weekday}`)
+
+	const state = (await readStrengthDays(userId, NOW))!
+	const written = await setStrengthDays(
+		userId,
+		{ choice: [TUE, THU], version: state.version },
+		NOW,
+	)
+	if (!written.ok) throw new Error(written.reason)
+	expect(await liftsIn(second.id)).toEqual(['fixed:1', 'fixed:3'])
+
+	const undone = await setStrengthDays(
+		userId,
+		{
+			choice: written.previous.days,
+			version: written.version,
+			restore: written.previous,
+		},
+		NOW,
+	)
+	expect(undone.ok).toBe(true)
+	expect(await liftsIn(second.id)).toEqual(['lifting:null'])
+})
+
+test('undoing puts back exactly the rows the write replaced, whatever sessions they lifted', async () => {
+	const { userId, liftTrackId } = await setup({ fixedLiftingDays: [] })
+	const pattern = await prisma.weekPattern.findFirstOrThrow({
+		where: { outline: { tracks: { some: { id: liftTrackId } } } },
+		select: { id: true },
+	})
+	// Authored by hand before #597: squats on Tuesday, a pull session on
+	// Thursday, and a bare strength share on Saturday — no Pinned days stored.
+	const lift = (title: string) =>
+		prisma.workout.create({
+			select: { id: true },
+			data: {
+				ownerId: userId,
+				title,
+				discipline: 'strength',
+				intent: 'strength',
+			},
+		})
+	const squat = await lift('Knebøy')
+	const pull = await lift('Trekk')
+	for (const [weekday, workoutId] of [
+		[TUE, squat.id],
+		[THU, pull.id],
+	] as const) {
+		await prisma.weekPatternDay.create({
+			data: {
+				patternId: pattern.id,
+				trackId: liftTrackId,
+				kind: 'fixed',
+				weekday,
+				orderInDay: 1,
+				workoutId,
+			},
+		})
+	}
+	await prisma.weekPatternDay.create({
+		data: {
+			patternId: pattern.id,
+			trackId: liftTrackId,
+			kind: 'share',
+			weekday: 5,
+			weight: 1,
+			orderInDay: 1,
+		},
+	})
+	const rows = async () => ({
+		pinnedDays: (
+			await prisma.trainingTrack.findUniqueOrThrow({
+				where: { id: liftTrackId },
+				select: { pinnedDays: true },
+			})
+		).pinnedDays,
+		rows: (
+			await prisma.weekPatternDay.findMany({
+				where: { trackId: liftTrackId },
+				orderBy: [{ weekday: 'asc' }, { kind: 'asc' }],
+				select: {
+					kind: true,
+					weekday: true,
+					weight: true,
+					orderInDay: true,
+					workoutId: true,
+				},
+			})
+		).map((row) => JSON.stringify(row)),
+	})
+	const before = await rows()
+
+	const state = (await readStrengthDays(userId, NOW))!
+	const written = await setStrengthDays(
+		userId,
+		{ choice: [MON], version: state.version },
+		NOW,
+	)
+	if (!written.ok) throw new Error(written.reason)
+	const undone = await setStrengthDays(
+		userId,
+		{
+			choice: written.previous.days,
+			version: written.version,
+			restore: written.previous,
+		},
+		NOW,
+	)
+	expect(undone.ok).toBe(true)
+	expect(await rows()).toEqual(before)
 })
 
 test('undoing from the toast restores the previous days', async () => {

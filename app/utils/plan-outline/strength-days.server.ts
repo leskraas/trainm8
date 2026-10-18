@@ -18,8 +18,10 @@
 
 import { type Prisma } from '@prisma/client'
 import { addDays } from '../athlete-calendar.ts'
-import { parseTrainableWeekdays } from '../athlete-schema.ts'
-import { getAthleteTimezone } from '../athlete.server.ts'
+import {
+	getAthleteTimezone,
+	readAvailablePatternDays,
+} from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { readStartStrength } from '../first-run/start-strength.server.ts'
 import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
@@ -31,25 +33,25 @@ import {
 	type ClashReason,
 	type PlacedSession,
 } from './day-rule.ts'
-import { relayPlanFrom } from './open-ended.server.ts'
+import { relayPlanFromFirstUnbegunWeek } from './open-ended.server.ts'
 import {
+	DAY_CHOICE_PREVIEW_WEEKS,
+	parsePinnedDays,
 	pinnedDaysRefusal,
 	serializePinnedDays,
 	strengthPatternRows,
 	strengthPinnedDays,
 	withStrengthChoice,
+	type DayChoice,
 	type PinnedDaysRefusal,
 } from './pinned-days.ts'
 import { readLaidWeeks, type LaidPatternInput } from './stamp.server.ts'
-import { placedSessionOf, type StampWeekPlan } from './stamp.ts'
+import { placedWeekOf } from './stamp.ts'
 import {
+	isPatternWeekday,
 	patternWeekdaysOf,
-	patternWeekdaysOfCalendar,
 	type PatternWeekday,
 } from './week-pattern.ts'
-
-/** How many coming weeks a change previews. */
-export const STRENGTH_DAYS_PREVIEW_WEEKS = 4
 
 /** The strength track's days as _Meg → Trening → Styrke_ reads them. */
 export type StrengthDaysState = {
@@ -81,13 +83,11 @@ export type StrengthDaysRefusal =
 	| 'stale'
 	| PinnedDaysRefusal
 
-/** The choice: days, or `null` for _La appen velge_. */
-export type StrengthDaysChoice = PatternWeekday[] | null
-
 const strengthRowSelect = {
 	id: true,
 	kind: true,
 	weekday: true,
+	weight: true,
 	orderInDay: true,
 	workoutId: true,
 } as const
@@ -98,57 +98,58 @@ async function readStrengthTrack(
 	now: Date,
 	db: Prisma.TransactionClient = prisma,
 ) {
-	const active = await findActiveOutline(userId, now)
+	const active = await findActiveOutline(userId, now, db)
 	if (!active) return { ok: false as const, reason: 'no-plan' as const }
 	const outlineId = active.outline.id
-	const [track, pattern, profile] = await Promise.all([
+	const [track, profile, available] = await Promise.all([
 		db.trainingTrack.findFirst({
 			where: { outlineId, discipline: 'strength' },
 			select: { id: true, pinnedDays: true },
 		}),
-		db.weekPattern.findFirst({
-			where: { outlineId, days: { some: {} } },
-			orderBy: { orderIndex: 'asc' },
-			select: { id: true },
-		}),
 		db.athleteProfile.findUnique({
 			where: { userId },
-			select: { trainableWeekdays: true, strengthPerWeek: true },
+			select: { strengthPerWeek: true },
 		}),
+		readAvailablePatternDays(userId, db),
 	])
 	if (!track)
 		return { ok: false as const, reason: 'no-strength-track' as const }
-	const rows = pattern
-		? await db.weekPattern
-				.findUniqueOrThrow({
-					where: { id: pattern.id },
-					select: {
-						days: {
-							where: { trackId: track.id },
-							orderBy: [{ kind: 'asc' }, { orderInDay: 'asc' }],
-							select: strengthRowSelect,
-						},
-					},
-				})
-				.then((found) => found.days)
-		: []
+	// Every pattern with days, with the track's rows in each: the first is
+	// the one the weeks are laid from and the choice is read off; a choice
+	// holds in every one that lifts.
+	const [pattern, ...others] = await db.weekPattern.findMany({
+		where: { outlineId, days: { some: {} } },
+		orderBy: { orderIndex: 'asc' },
+		select: {
+			id: true,
+			days: {
+				where: { trackId: track.id },
+				orderBy: [{ kind: 'asc' }, { orderInDay: 'asc' }],
+				select: strengthRowSelect,
+			},
+		},
+	})
+	const rows = pattern?.days ?? []
+	const elsewhere = others.filter((other) => other.days.length > 0)
 	const pinned = strengthPinnedDays(track, rows)
-	const available =
-		profile?.trainableWeekdays == null
-			? null
-			: patternWeekdaysOfCalendar(
-					parseTrainableWeekdays(profile.trainableWeekdays),
-				)
 	const state: StrengthDaysState = {
 		outlineId,
 		trackId: track.id,
 		pinned,
 		count: rows.length,
-		available: available && available.length > 0 ? available : null,
+		available,
 		answer: profile?.strengthPerWeek ?? null,
 		version: `${serializePinnedDays(pinned) ?? 'auto'}|${rows.length}`,
 	}
-	return { ok: true as const, state, patternId: pattern?.id ?? null, rows }
+	return {
+		ok: true as const,
+		state,
+		patternId: pattern?.id ?? null,
+		rows,
+		elsewhere,
+		/** The track's stored Pinned days, as the column holds them. */
+		storedPinnedDays: track.pinnedDays,
+	}
 }
 
 /**
@@ -186,7 +187,7 @@ export type StrengthDaysPreviewWeek = {
 export type StrengthDaysPreview =
 	| {
 			ok: true
-			choice: StrengthDaysChoice
+			choice: DayChoice
 			/** How many lifts a week the choice lays. */
 			count: number
 			weeks: StrengthDaysPreviewWeek[]
@@ -201,7 +202,7 @@ export type StrengthDaysPreview =
  */
 export async function previewStrengthDays(
 	userId: string,
-	choice: StrengthDaysChoice,
+	choice: DayChoice,
 	now: Date = new Date(),
 ): Promise<StrengthDaysPreview> {
 	const read = await readStrengthTrack(userId, now)
@@ -217,7 +218,7 @@ export async function previewStrengthDays(
 
 	const timezone = await getAthleteTimezone(userId)
 	const from = await readFirstUnbegunWeekKey(userId, now, timezone)
-	const weekKeys = Array.from({ length: STRENGTH_DAYS_PREVIEW_WEEKS }, (_, i) =>
+	const weekKeys = Array.from({ length: DAY_CHOICE_PREVIEW_WEEKS }, (_, i) =>
 		addDays(from, i * 7),
 	)
 	const swap = (laid: LaidPatternInput) =>
@@ -235,12 +236,12 @@ export async function previewStrengthDays(
 
 	const weeks = after.plans.map((plan, index) => {
 		const was = before.plans[index]
-		const laidAfter = placedWeek(plan, after.input, after.tracks)
+		const laidAfter = placedWeekOf(plan.sessions, after.input.days)
 		return {
 			weekKey: plan.weekKey,
 			weekInPlan: plan.weekInPlan,
 			before: was
-				? dayKinds(placedWeek(was, before.input, before.tracks))
+				? dayKinds(placedWeekOf(was.sessions, before.input.days))
 				: { lifting: [], hard: [] },
 			after: {
 				...dayKinds(laidAfter),
@@ -249,23 +250,6 @@ export async function previewStrengthDays(
 		}
 	})
 	return { ok: true, choice, count, weeks, version: state.version }
-}
-
-/** A laid week's sessions as the day rule reads them. */
-function placedWeek(
-	plan: StampWeekPlan,
-	input: LaidPatternInput,
-	tracks: ReadonlyArray<{ trackId: string; discipline: string }>,
-): PlacedSession[] {
-	const dayById = new Map(input.days.map((day) => [day.dayId, day]))
-	return plan.sessions.map((session) =>
-		placedSessionOf(
-			session,
-			dayById.get(session.dayId),
-			tracks.find((track) => track.trackId === session.trackId)
-				?.discipline as Parameters<typeof placedSessionOf>[2],
-		),
-	)
 }
 
 function dayKinds(week: readonly PlacedSession[]) {
@@ -282,7 +266,7 @@ function dayKinds(week: readonly PlacedSession[]) {
  */
 function liftingClashes(
 	week: readonly PlacedSession[],
-	choice: StrengthDaysChoice,
+	choice: DayChoice,
 ): StrengthDaysPreviewWeek['after']['clashes'] {
 	const key = (clash: { reason: string; weekday: number }) =>
 		`${clash.weekday}|${clash.reason}`
@@ -316,17 +300,145 @@ async function liftedWorkoutId(
 	return (await readStartStrength(userId, now))?.workoutId ?? null
 }
 
+/** A strength block's **Strength Frequency**, as a write found it. */
+export type StrengthBlockFrequency = {
+	segmentId: string
+	sessionsPerWeek: number | null
+}
+
 /** What a write replaced, so its toast can put it back. */
 export type StrengthDaysPrevious = {
-	days: StrengthDaysChoice
+	days: DayChoice
 	count: number
 	answer: number | null
+	/** The track's strength blocks' frequencies, which chosen days set. */
+	frequencies: StrengthBlockFrequency[]
+	/** The track's rows the write replaced in the pattern its weeks are laid from. */
+	rows: StrengthRow[]
+	/** The track's Pinned days as the column held them. */
+	pinnedDays: string | null
+	/** The track's rows the write replaced in the plan's other patterns. */
+	elsewhere: Array<{ patternId: string; rows: StrengthRow[] }>
+}
+
+/** One strength row of a Week Pattern, as a write found it. */
+export type StrengthRow = {
+	kind: 'fixed' | 'lifting' | 'share'
+	weekday: PatternWeekday | null
+	workoutId: string | null
+	/** A share's weight; absent or `null` on the other kinds. */
+	weight?: number | null
+	/** Its place in the day as it was; absent, after the day's sessions. */
+	orderInDay?: number
+}
+
+/** A stored row exactly as a write found it, so an undo puts it back. */
+function strengthRowOf(row: {
+	kind: string
+	weekday: number | null
+	weight: number | null
+	orderInDay: number
+	workoutId: string | null
+}): StrengthRow[] {
+	const weekday =
+		row.weekday != null && isPatternWeekday(row.weekday) ? row.weekday : null
+	if (row.kind !== 'fixed' && row.kind !== 'lifting' && row.kind !== 'share') {
+		return []
+	}
+	return [
+		{
+			kind: row.kind,
+			weekday,
+			workoutId: row.workoutId,
+			weight: row.weight,
+			orderInDay: row.orderInDay,
+		},
+	]
+}
+
+/**
+ * Rows an undo sends back, held to what a strength track could hold: a
+ * fixed row or a share on a real weekday, a lifting slot on none, and only
+ * strength sessions the athlete owns or a Stock Workout. `null` where any is not.
+ */
+async function checkedStrengthRestore(
+	tx: Prisma.TransactionClient,
+	userId: string,
+	rows: readonly StrengthRow[],
+): Promise<StrengthRow[] | null> {
+	for (const row of rows) {
+		const onDay = row.weekday != null && isPatternWeekday(row.weekday)
+		if (row.kind === 'lifting' ? row.weekday != null : !onDay) return null
+		if (row.kind !== 'share' && row.workoutId == null) return null
+		if (row.kind === 'share' && !(row.weight != null && row.weight > 0)) {
+			return null
+		}
+		if (
+			row.orderInDay != null &&
+			!(Number.isInteger(row.orderInDay) && row.orderInDay >= 0)
+		) {
+			return null
+		}
+	}
+	const workoutIds = [
+		...new Set(rows.flatMap((row) => (row.workoutId ? [row.workoutId] : []))),
+	]
+	// The athlete's own sessions, or a Stock Workout no one owns: what a
+	// track with none of its own lifts (`readStartStrength`).
+	const owned = await tx.workout.count({
+		where: {
+			id: { in: workoutIds },
+			discipline: 'strength',
+			OR: [{ ownerId: userId }, { ownerId: null }],
+		},
+	})
+	return owned === workoutIds.length ? [...rows] : null
+}
+
+/**
+ * Put `rows` in place of the strength track's rows in one pattern: a lift
+ * after the day's endurance session, the slots in their own order.
+ */
+async function writeStrengthRows(
+	tx: Prisma.TransactionClient,
+	patternId: string,
+	trackId: string,
+	rows: readonly StrengthRow[],
+) {
+	await tx.weekPatternDay.deleteMany({ where: { patternId, trackId } })
+	const others = await tx.weekPatternDay.findMany({
+		where: { patternId, weekday: { not: null } },
+		select: { weekday: true, orderInDay: true },
+	})
+	for (const [index, row] of rows.entries()) {
+		await tx.weekPatternDay.create({
+			data: {
+				patternId,
+				trackId,
+				kind: row.kind,
+				weekday: row.weekday,
+				workoutId: row.workoutId,
+				weight: row.kind === 'share' ? (row.weight ?? null) : null,
+				orderInDay:
+					row.orderInDay != null
+						? row.orderInDay
+						: row.weekday == null
+							? index
+							: Math.max(
+									-1,
+									...others
+										.filter((other) => other.weekday === row.weekday)
+										.map((other) => other.orderInDay),
+								) + 1,
+			},
+		})
+	}
 }
 
 export type StrengthDaysWrite =
 	| {
 			ok: true
-			choice: StrengthDaysChoice
+			choice: DayChoice
 			count: number
 			previous: StrengthDaysPrevious
 			/** The state's version after the write, for the undo. */
@@ -347,14 +459,36 @@ export async function setStrengthDays(
 		version,
 		restore,
 	}: {
-		choice: StrengthDaysChoice
+		choice: DayChoice
 		version: string
-		/** An undo: the count and answer to put back with the days. */
-		restore?: { count: number; answer: number | null }
+		/**
+		 * An undo: the count, the answer and the blocks' frequencies to put
+		 * back with the days.
+		 */
+		restore?: {
+			count: number
+			answer: number | null
+			frequencies?: readonly StrengthBlockFrequency[]
+			/** The rows to put back exactly, where the write carried them. */
+			rows?: readonly StrengthRow[]
+			pinnedDays?: string | null
+			elsewhere?: ReadonlyArray<{
+				patternId: string
+				rows: readonly StrengthRow[]
+			}>
+		}
 	},
 	now: Date = new Date(),
 ): Promise<StrengthDaysWrite> {
 	const days = choice ? patternWeekdaysOf(choice) : null
+	// The session a track with none of its own would lift is read before the
+	// transaction: every read inside it goes through `tx`, since a database
+	// of one connection would otherwise wait on the transaction holding it.
+	const before = await readStrengthTrack(userId, now)
+	const startWorkoutId =
+		before.ok && !before.rows.some((row) => row.workoutId != null)
+			? ((await readStartStrength(userId, now))?.workoutId ?? null)
+			: null
 	const result = await prisma.$transaction(
 		async (tx): Promise<StrengthDaysWrite & { outlineId?: string }> => {
 			const read = await readStrengthTrack(userId, now, tx)
@@ -366,55 +500,85 @@ export async function setStrengthDays(
 				const refusal = pinnedDaysRefusal(days, state.available)
 				if (refusal) return { ok: false, reason: refusal }
 			}
-			const workoutId = await liftedWorkoutId(userId, rows, now)
+			const workoutId =
+				rows.find((row) => row.workoutId != null)?.workoutId ?? startWorkoutId
 			if (!workoutId) return { ok: false, reason: 'no-session' }
 			const count = days
 				? days.length
 				: (restore?.count ?? Math.max(state.count, 1))
 
-			await tx.weekPatternDay.deleteMany({
-				where: { patternId: read.patternId, trackId: state.trackId },
-			})
-			const others = await tx.weekPatternDay.findMany({
-				where: { patternId: read.patternId, weekday: { not: null } },
-				select: { weekday: true, orderInDay: true },
-			})
-			for (const [index, row] of strengthPatternRows(
-				days,
-				count,
-				workoutId,
-			).entries()) {
-				await tx.weekPatternDay.create({
-					data: {
-						patternId: read.patternId,
-						trackId: state.trackId,
-						kind: row.kind,
-						weekday: row.weekday,
-						workoutId: row.workoutId,
-						// A lift comes after the day's endurance session.
-						orderInDay:
-							row.weekday == null
-								? index
-								: Math.max(
-										-1,
-										...others
-											.filter((other) => other.weekday === row.weekday)
-											.map((other) => other.orderInDay),
-									) + 1,
-					},
-				})
+			// The choice holds in every other pattern that lifts, so a week
+			// stamped from any of them lifts on the athlete's days; an undo puts
+			// back what each had. Every pattern's rows are settled before
+			// anything is written.
+			const others: Array<{ patternId: string; rows: StrengthRow[] }> = []
+			for (const other of read.elsewhere) {
+				const back = restore?.elsewhere?.find(
+					(entry) => entry.patternId === other.id,
+				)
+				const rows = back
+					? await checkedStrengthRestore(tx, userId, back.rows)
+					: strengthPatternRows(
+							days,
+							days ? days.length : other.days.length,
+							other.days.find((row) => row.workoutId != null)?.workoutId ??
+								workoutId,
+						)
+				if (!rows) return { ok: false, reason: 'stale' }
+				others.push({ patternId: other.id, rows })
+			}
+
+			// An undo puts back the rows it carries exactly, whatever they lifted
+			// and however they were authored; a choice writes them from the days.
+			const written = restore?.rows
+				? await checkedStrengthRestore(tx, userId, restore.rows)
+				: strengthPatternRows(days, count, workoutId)
+			if (!written) return { ok: false, reason: 'stale' }
+			const pinnedDays =
+				restore?.pinnedDays !== undefined
+					? restore.pinnedDays
+					: serializePinnedDays(days)
+			if (pinnedDays != null && parsePinnedDays(pinnedDays) == null) {
+				return { ok: false, reason: 'stale' }
+			}
+
+			await writeStrengthRows(tx, read.patternId, state.trackId, written)
+			for (const other of others) {
+				await writeStrengthRows(tx, other.patternId, state.trackId, other.rows)
 			}
 			await tx.trainingTrack.update({
 				where: { id: state.trackId },
-				data: { pinnedDays: serializePinnedDays(days) },
+				data: { pinnedDays },
 			})
-			// The number of chosen days *is* the Strength Frequency.
+			// The number of chosen days *is* the Strength Frequency: the
+			// profile's answer and every strength block of the track (story 20),
+			// so the two never disagree. An undo puts back what each said.
 			const answer = restore ? restore.answer : days ? days.length : undefined
 			if (answer !== undefined) {
 				await tx.athleteProfile.upsert({
 					where: { userId },
 					update: { strengthPerWeek: answer },
 					create: { userId, strengthPerWeek: answer },
+				})
+			}
+			const frequencies = await tx.trainingTrackSegment.findMany({
+				where: { trackId: state.trackId, kind: 'strength' },
+				orderBy: { id: 'asc' },
+				select: { id: true, sessionsPerWeek: true },
+			})
+			if (restore) {
+				const own = new Set(frequencies.map((segment) => segment.id))
+				for (const back of restore.frequencies ?? []) {
+					if (!own.has(back.segmentId)) continue
+					await tx.trainingTrackSegment.update({
+						where: { id: back.segmentId },
+						data: { sessionsPerWeek: back.sessionsPerWeek },
+					})
+				}
+			} else if (days) {
+				await tx.trainingTrackSegment.updateMany({
+					where: { trackId: state.trackId, kind: 'strength' },
+					data: { sessionsPerWeek: days.length },
 				})
 			}
 			return {
@@ -425,6 +589,16 @@ export async function setStrengthDays(
 					days: state.pinned,
 					count: state.count,
 					answer: state.answer,
+					frequencies: frequencies.map((segment) => ({
+						segmentId: segment.id,
+						sessionsPerWeek: segment.sessionsPerWeek,
+					})),
+					rows: read.rows.flatMap(strengthRowOf),
+					pinnedDays: read.storedPinnedDays,
+					elsewhere: read.elsewhere.map((other) => ({
+						patternId: other.id,
+						rows: other.days.flatMap(strengthRowOf),
+					})),
 				},
 				version: `${serializePinnedDays(days) ?? 'auto'}|${count}`,
 				outlineId: state.outlineId,
@@ -434,13 +608,7 @@ export async function setStrengthDays(
 	if (!result.ok) return result
 	const { outlineId, ...written } = result
 	if (outlineId) {
-		try {
-			const timezone = await getAthleteTimezone(userId)
-			const from = await readFirstUnbegunWeekKey(userId, now, timezone)
-			await relayPlanFrom(userId, outlineId, from, timezone, now)
-		} catch (error) {
-			console.error('[strength-days] laying weeks after a change failed', error)
-		}
+		await relayPlanFromFirstUnbegunWeek(userId, outlineId, now, 'strength-days')
 	}
 	return written
 }

@@ -23,7 +23,7 @@
 //
 // Pure: availability and tracks in, days out. The service writes them.
 
-import { type Discipline } from '../workout-schema.ts'
+import { type PlannedDiscipline } from '../planned-discipline.ts'
 import { weekdayGap } from './day-rule.ts'
 import {
 	calendarWeekdayOf,
@@ -43,7 +43,8 @@ export type StarterDay = {
 
 export type StarterTrack = {
 	trackId: string
-	discipline: Discipline
+	/** The track's Discipline, or `other` for a Simple Activity's days. */
+	discipline: PlannedDiscipline
 	/**
 	 * Sessions a week this track authors, where it says: a strength segment's
 	 * **Strength Frequency** (ADR 0047 §4). `null` for an endurance track, which

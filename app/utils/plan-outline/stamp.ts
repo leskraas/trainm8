@@ -172,6 +172,13 @@ export type StampWeekInput = {
 		trackId: string
 		mix: readonly QualitySessionMixEntry[]
 	}>
+	/**
+	 * The sessions already in the week that the stamp does not write — the
+	 * ones the athlete scheduled by hand, and any it keeps — as the day rule
+	 * reads them. The mix and the lifting are laid around them as around any
+	 * track's (spec #588 story 34); the stamp never moves or writes them.
+	 */
+	held?: readonly PlacedSession[]
 }
 
 /**
@@ -295,6 +302,7 @@ export function planStamp({
 						?.value ?? null,
 			}))
 
+		const held = week.held ?? []
 		const readings = resolveWeekPattern({ days, tracks: specs })
 		const sessions: StampSession[] = []
 		const skipped: StampSkip[] = []
@@ -346,14 +354,27 @@ export function planStamp({
 		// Then each mix in turn, around the week as laid so far: a track laid
 		// later steps around the hard days of the tracks laid before it. A
 		// track on its **Pinned days** goes first, so the others are laid
-		// around the athlete's choice (ADR 0104 §4); otherwise in track order.
-		for (const track of [
+		// around the athlete's choice (ADR 0104 §4); then the track carrying
+		// the most hard sessions this week, so the week's hard mix gets the
+		// room and the lighter ones step around it; then in track order.
+		const mixOf = (trackId: string) =>
+			week.mixes?.find((entry) => entry.trackId === trackId)?.mix ?? []
+		const hardOf = (trackId: string) =>
+			mixOf(trackId).reduce(
+				(total, entry) => total + Math.max(0, entry.sessionsPerWeek),
+				0,
+			)
+		const layOrder = [
 			...tracks.filter((each) => each.pinned),
-			...tracks.filter((each) => !each.pinned),
-		]) {
+			...tracks
+				.filter((each) => !each.pinned)
+				.map((track, index) => ({ track, index, hard: hardOf(track.trackId) }))
+				.sort((a, b) => b.hard - a.hard || a.index - b.index)
+				.map((entry) => entry.track),
+		]
+		for (const track of layOrder) {
 			if (!isCardioDiscipline(track.discipline)) continue
-			const mix =
-				week.mixes?.find((entry) => entry.trackId === track.trackId)?.mix ?? []
+			const mix = mixOf(track.trackId)
 			const others = sessions.filter(
 				(session) => session.trackId !== track.trackId,
 			)
@@ -361,7 +382,7 @@ export function planStamp({
 				ownOf(track.trackId),
 				mix,
 				dayById,
-				anchorDaysOf(others, dayById, trackById),
+				anchorDaysOf(others, dayById, held),
 			)
 		}
 		// Last, the lifting slots, against the week as laid (ADR 0104 §3).
@@ -372,7 +393,7 @@ export function planStamp({
 				sessions,
 				skipped,
 				dayById,
-				trackById,
+				held,
 			})
 		}
 
@@ -423,18 +444,17 @@ function markLongDays(
 export function placedSessionOf(
 	session: StampSession,
 	day: StampDay | undefined,
-	discipline: Discipline | undefined,
 ): PlacedSession {
+	const { discipline } = session
 	if (discipline === 'strength') {
 		return { weekday: session.weekday, kind: 'lifting' }
 	}
 	const zone = session.zone ?? day?.zone ?? null
-	const effort =
-		discipline != null && isCardioDiscipline(discipline)
-			? zone != null
-				? effortWordOfZone(zone)
-				: 'rolig'
-			: (day?.effort ?? 'rolig')
+	const effort = isCardioDiscipline(discipline)
+		? zone != null
+			? effortWordOfZone(zone)
+			: 'rolig'
+		: (day?.effort ?? 'rolig')
 	return {
 		weekday: session.weekday,
 		kind: 'session',
@@ -445,35 +465,35 @@ export function placedSessionOf(
 
 /**
  * The days another track's sessions hold a mix away from (ADR 0104 §2): every
- * **Hard day**, **Long day** and **Lifting day** of theirs, read by the one
- * cross-track day rule.
+ * **Hard day**, **Long day** and **Lifting day** of theirs and of the
+ * sessions already in the week (`held`), read by the one cross-track day rule.
  */
 function anchorDaysOf(
 	sessions: readonly StampSession[],
 	dayById: ReadonlyMap<string, StampDay>,
-	trackById: ReadonlyMap<string, StampTrack>,
+	held: readonly PlacedSession[],
 ): PatternWeekday[] {
-	return readDays(placedWeekOf(sessions, dayById, trackById))
+	return readDays([...placedWeekOf(sessions, dayById), ...held])
 		.filter((day) => day.hard || day.long || day.lifting)
 		.map((day) => day.weekday)
 }
 
 /**
- * The week's sessions as the cross-track day rule reads them: a stamped
- * session by its zone's Effort Word (no zone is _rolig_), a Simple Activity
- * by its own, a strength session as lifting, and a long session as long.
+ * A laid week's sessions as the cross-track day rule reads them, each by
+ * {@link placedSessionOf} against the pattern day it came from: the one
+ * reading the stamp, its previews and the fit check share. `days` are the
+ * pattern's days the week was laid from, as a list or by id.
  */
-function placedWeekOf(
+export function placedWeekOf(
 	sessions: readonly StampSession[],
-	dayById: ReadonlyMap<string, StampDay>,
-	trackById: ReadonlyMap<string, StampTrack>,
+	days: readonly StampDay[] | ReadonlyMap<string, StampDay>,
 ): PlacedSession[] {
+	const dayById =
+		days instanceof Map
+			? (days as ReadonlyMap<string, StampDay>)
+			: new Map((days as readonly StampDay[]).map((day) => [day.dayId, day]))
 	return sessions.map((session) =>
-		placedSessionOf(
-			session,
-			dayById.get(session.dayId),
-			trackById.get(session.trackId)?.discipline,
-		),
+		placedSessionOf(session, dayById.get(session.dayId)),
 	)
 }
 
@@ -520,12 +540,12 @@ function layLifting(
 		sessions,
 		skipped,
 		dayById,
-		trackById,
+		held,
 	}: {
 		sessions: StampSession[]
 		skipped: StampSkip[]
 		dayById: ReadonlyMap<string, StampDay>
-		trackById: ReadonlyMap<string, StampTrack>
+		held: readonly PlacedSession[]
 	},
 ) {
 	const ordered = [...slots].sort(
@@ -535,7 +555,7 @@ function layLifting(
 	)
 	const picked = liftingDaysFor(
 		liftOn,
-		placedWeekOf(sessions, dayById, trackById),
+		[...placedWeekOf(sessions, dayById), ...held],
 		ordered.length,
 	)
 	picked.forEach((weekday, index) => {

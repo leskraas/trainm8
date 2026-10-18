@@ -42,7 +42,7 @@ import {
 import { readRetrievableEntry } from './catalogue.server.ts'
 import { sumBlockDurationMin } from './dashboard.ts'
 import { prisma } from './db.server.ts'
-import { type EffortWord, isEffortWord, readEffortWord } from './effort-word.ts'
+import { type EffortWord, isEffortWord } from './effort-word.ts'
 import { formatNbWeekday } from './format.ts'
 import {
 	type JusterImage,
@@ -55,7 +55,6 @@ import {
 	type LaterDay,
 	type MoveFit,
 	parseJusterImage,
-	type SessionToMove,
 	type SwapSource,
 	pickNewDay,
 	shortMinutes,
@@ -66,6 +65,7 @@ import { JUSTER_LABELS, nbDurationLabel } from './labels.ts'
 import { buildEasedPrescription } from './load/eased-prescription.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import { type PlacedSession } from './plan-outline/day-rule.ts'
+import { placedOn, readPlacement } from './plan-outline/session-placement.ts'
 import { type PatternWeekday } from './plan-outline/week-pattern.ts'
 import { stampedSessionTitle } from './session-title.ts'
 import {
@@ -578,20 +578,6 @@ function patternWeekdayOf(dayKey: string): PatternWeekday {
 }
 
 /**
- * A session as the cross-track day rule reads it (ADR 0104 §1): a lift is
- * lifting; anything else by its Effort Word, _rolig_ where nothing says. A
- * stored session carries no long role, so none is read as long.
- */
-function readToMove(
-	workout: Parameters<typeof readEffortWord>[0],
-): SessionToMove {
-	if (workout?.discipline === 'strength' && !isEffortWord(workout.effortWord)) {
-		return { kind: 'lifting' }
-	}
-	return { kind: 'session', effort: readEffortWord(workout) ?? 'rolig' }
-}
-
-/**
  * What _Bytt dag_'s day rule reads (spec #588): this week's sessions from
  * today on, each on its weekday, without the one that moves — skipped and
  * missed ones are not trained, so they make no day hard — and that session.
@@ -622,14 +608,27 @@ async function readMoveFit(
 			workout: effortWorkoutSelect,
 		},
 	})
+	// Each by the one reading of a stored session (`readPlacement`): a lift
+	// is lifting, a _Langtur_ is long, anything else by its Effort Word.
 	const moving = rows.find((row) => row.id === sessionId)
-	const week: PlacedSession[] = rows
-		.filter((row) => row.id !== sessionId)
-		.map((row) => ({
-			...readToMove(row.workout),
-			weekday: patternWeekdayOf(localDate(row.scheduledAt, timezone)),
-		}))
-	return { week, session: readToMove(moving?.workout ?? null) }
+	const week: PlacedSession[] = rows.flatMap((row) => {
+		const shape = row.id === sessionId ? null : readPlacement(row.workout)
+		return shape
+			? [
+					placedOn(
+						shape,
+						patternWeekdayOf(localDate(row.scheduledAt, timezone)),
+					),
+				]
+			: []
+	})
+	return {
+		week,
+		session: readPlacement(moving?.workout) ?? {
+			kind: 'session',
+			effort: 'rolig',
+		},
+	}
 }
 
 /** The same local time of day on another local day. */

@@ -11,7 +11,7 @@ import {
 	weekMonday,
 } from './athlete-calendar.ts'
 import { parseTrainableWeekdays } from './athlete-schema.ts'
-import { getAthleteTimezone } from './athlete.server.ts'
+import { availablePatternDays, getAthleteTimezone } from './athlete.server.ts'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { isEffortWord } from './effort-word.ts'
@@ -82,7 +82,6 @@ import { weekIndexOf, weekKeyAt } from './plan-outline/week-keys.ts'
 import {
 	fixedDayVolume,
 	isPatternWeekday,
-	patternWeekdaysOfCalendar,
 	type PatternDaySpec,
 	type PatternWeekday,
 } from './plan-outline/week-pattern.ts'
@@ -445,16 +444,21 @@ const activeOutlineSelect = {
  * anchored one is skipped for the next phased one, or the open-ended one, and a
  * phaseless open-ended one is no plan at all.
  */
-export async function findActiveOutline(userId: string, now: Date) {
+export async function findActiveOutline(
+	userId: string,
+	now: Date,
+	/** A transaction's client, where the read is part of one. */
+	db: Prisma.TransactionClient = prisma,
+) {
 	// Phased only, so a phaseless outline on the nearest Event never hides a
 	// phased one on a later Event (`active-outline.server.ts` holds the rule).
-	const anchored = await prisma.planOutline.findFirst({
+	const anchored = await db.planOutline.findFirst({
 		where: anchoredActiveOutlineWhere(userId, now),
 		orderBy: { event: { startDate: 'asc' } },
 		select: activeOutlineSelect,
 	})
 	if (anchored) return { event: anchored.event, outline: anchored }
-	const openEnded = await prisma.planOutline.findFirst({
+	const openEnded = await db.planOutline.findFirst({
 		where: { athleteId: userId, eventId: null },
 		select: activeOutlineSelect,
 	})
@@ -1514,10 +1518,7 @@ async function readTrainingAvailability(userId: string): Promise<{
 		trainableWeekdays:
 			stored == null ? null : parseTrainableWeekdays(stored).length,
 		// Converted here, at the profile edge (ADR 0104).
-		trainableDays:
-			stored == null
-				? []
-				: patternWeekdaysOfCalendar(parseTrainableWeekdays(stored)),
+		trainableDays: availablePatternDays(stored) ?? [],
 		weeklyCapacityHours: profile?.weeklyCapacityHours ?? null,
 	}
 }

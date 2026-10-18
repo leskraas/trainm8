@@ -111,6 +111,7 @@ import type {
 	UnmeasuredReason,
 	VolumeGrade,
 } from './plan-outline/week-volumes.ts'
+import type { PlannedDiscipline } from './planned-discipline.ts'
 // The domain owns *who* a session belongs to (ADR 0080); this module owns the
 // words the athlete reads for each owner.
 import type {
@@ -698,6 +699,18 @@ export const NB_DISCIPLINE_LABELS: Record<Discipline, string> = {
 	bike: 'Sykling',
 	swim: 'Svømming',
 	strength: 'Styrke',
+}
+
+/**
+ * A planned discipline's name: the sport, or _Enkel aktivitet_ for `other`
+ * — never the stored id.
+ */
+export function nbPlannedDisciplineLabel(
+	discipline: PlannedDiscipline,
+): string {
+	return discipline === 'other'
+		? SIMPLE_ACTIVITY_LABELS.noun
+		: NB_DISCIPLINE_LABELS[discipline]
 }
 
 /**
