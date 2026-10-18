@@ -7,6 +7,7 @@
 // - and the availability cascade: a day taken out of Training Availability
 //   leaves every track that pinned it (story 19).
 
+import { availablePatternDays } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import {
 	type PlannedDiscipline,
@@ -88,10 +89,18 @@ export async function dropUnavailablePinnedDays(
 	if (!active) return []
 	const outlineId = active.outline.id
 	const dropped: DroppedPinnedDays[] = []
+	// Read as stated, not as the day services read it: an emptied list is the
+	// athlete taking every day out, so every pin goes; only never-set keeps them.
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { trainableWeekdays: true },
+	})
+	const available = availablePatternDays(profile?.trainableWeekdays)
+	if (!available) return dropped
 
 	const strength = await readStrengthDays(userId, now)
-	if (strength?.pinned && strength.available) {
-		const { kept, lost } = pinnedDaysWithin(strength.pinned, strength.available)
+	if (strength?.pinned) {
+		const { kept, lost } = pinnedDaysWithin(strength.pinned, available)
 		if (lost.length > 0) {
 			const written = await setStrengthDays(
 				userId,
@@ -105,11 +114,11 @@ export async function dropUnavailablePinnedDays(
 	}
 
 	const state = await readTrackDays(userId, outlineId)
-	if (!state?.available) return dropped
+	if (!state) return dropped
 	let changed = false
 	for (const unit of state.units) {
 		if (!unit.pinned) continue
-		const { kept, lost } = pinnedDaysWithin(unit.pinned, state.available)
+		const { kept, lost } = pinnedDaysWithin(unit.pinned, available)
 		if (lost.length === 0) continue
 		if (unit.kind === 'activity' && !kept) {
 			dropped.push({

@@ -593,6 +593,27 @@ test('a track that loses every pinned day goes back to La appen velge', async ()
 	expect(after.days.length).toBeGreaterThan(0)
 })
 
+test('clearing every day of Training Availability drops every pinned day, not none', async () => {
+	const { userId, outlineId, bikeTrackId } = await setup()
+	const bike = await unit(userId, outlineId, { discipline: 'bike' })
+	await setTrackDays(
+		userId,
+		{ outlineId, key: bike.key, choice: [WED, SUN], version: bike.version },
+		NOW,
+	)
+	// The athlete unticks every day in _Meg_: an explicit empty list.
+	await updateAthleteProfile(userId, { trainableWeekdays: [] })
+	expect(await dropUnavailablePinnedDays(userId, NOW)).toEqual([
+		{ discipline: 'bike', title: null, lost: [WED, SUN], kept: null },
+		{ discipline: 'other', title: 'Langrenn', lost: [WED], kept: null },
+	])
+	const track = await prisma.trainingTrack.findUniqueOrThrow({
+		where: { id: bikeTrackId },
+		select: { pinnedDays: true },
+	})
+	expect(track.pinnedDays).toBeNull()
+})
+
 test('Sesong’s starter week keeps a pinned track on its days and deals the others around it', async () => {
 	const { userId, outlineId, bikeTrackId } = await setup()
 	await prisma.trainingTrack.update({
