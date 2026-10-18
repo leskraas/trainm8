@@ -346,14 +346,27 @@ export function planStamp({
 		// Then each mix in turn, around the week as laid so far: a track laid
 		// later steps around the hard days of the tracks laid before it. A
 		// track on its **Pinned days** goes first, so the others are laid
-		// around the athlete's choice (ADR 0104 §4); otherwise in track order.
-		for (const track of [
+		// around the athlete's choice (ADR 0104 §4); then the track carrying
+		// the most hard sessions this week, so the week's hard mix gets the
+		// room and the lighter ones step around it; then in track order.
+		const mixOf = (trackId: string) =>
+			week.mixes?.find((entry) => entry.trackId === trackId)?.mix ?? []
+		const hardOf = (trackId: string) =>
+			mixOf(trackId).reduce(
+				(total, entry) => total + Math.max(0, entry.sessionsPerWeek),
+				0,
+			)
+		const layOrder = [
 			...tracks.filter((each) => each.pinned),
-			...tracks.filter((each) => !each.pinned),
-		]) {
+			...tracks
+				.filter((each) => !each.pinned)
+				.map((track, index) => ({ track, index, hard: hardOf(track.trackId) }))
+				.sort((a, b) => b.hard - a.hard || a.index - b.index)
+				.map((entry) => entry.track),
+		]
+		for (const track of layOrder) {
 			if (!isCardioDiscipline(track.discipline)) continue
-			const mix =
-				week.mixes?.find((entry) => entry.trackId === track.trackId)?.mix ?? []
+			const mix = mixOf(track.trackId)
 			const others = sessions.filter(
 				(session) => session.trackId !== track.trackId,
 			)

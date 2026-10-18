@@ -583,6 +583,33 @@ describe('planStamp lays the mix around every track', () => {
 		expect(hardDaysOf(plan, 'bike')).toEqual([4])
 	})
 
+	test('the track carrying the most hard sessions is laid first, whatever the track order', () => {
+		const days = [
+			share('mon', 0, 1),
+			share('wed', 2, 1),
+			share('fri', 4, 1),
+			share('sun', 6, 2),
+		]
+		const [plan] = planStamp({
+			days: [...onTrack('run', days), ...onTrack('bike', days)],
+			// The bike comes first, but the run carries the week's hard mix.
+			tracks: [BIKE_HOURS, RUN_HOURS],
+			weeks: [
+				laidWeek(
+					[BIKE_HOURS, RUN_HOURS],
+					[
+						{ trackId: 'bike', mix: THRESHOLD },
+						{ trackId: 'run', mix: [{ zone: 4, sessionsPerWeek: 2 }] },
+					],
+				),
+			],
+		})
+		// The run's two take Wednesday and Friday, away from the long Sunday;
+		// the bike's one steps around them onto Monday.
+		expect(hardDaysOf(plan, 'run')).toEqual([2, 4])
+		expect(hardDaysOf(plan, 'bike')).toEqual([0])
+	})
+
 	test('another track’s long day is an anchor', () => {
 		const [plan] = planStamp({
 			days: [
