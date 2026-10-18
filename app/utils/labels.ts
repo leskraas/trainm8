@@ -4017,6 +4017,13 @@ export const AUTOPILOT_NOTICE_LABELS = {
 	 */
 	unlaid: (reason: UnlaidReason, week: string) =>
 		`Uka fra ${week} ble ikke lagt ut${UNLAID_REASON_TAILS[reason]}`,
+	/**
+	 * #583: once, on the first notice of an athlete the switch to autopilot was
+	 * news to — what changed, and where the old way is.
+	 */
+	intro:
+		'Nytt: appen legger nå ut ukene dine selv, ut fra det du faktisk trente. Vil du heller si ja til endringene først, velg «Spør meg først» i Meg.',
+	introLink: 'Gå til Ukeplanen i Meg',
 } as const
 
 /** Why a week was not laid, as the end of the notice's sentence (#580). */

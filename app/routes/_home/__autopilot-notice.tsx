@@ -20,9 +20,14 @@
  * it laid has begun. It leaves with a page load, never under the thumb, so it
  * needs no exit motion. _Se hele sesongen_ keeps every notice, read-only, at
  * its week (`AutopilotHistoryCard`).
+ *
+ * #583: a next round says its peak week before → after under its reason, and
+ * the first notice after the switch to autopilot carries one line saying so,
+ * with the way to _Spør meg først_ in Meg. Both arrive with the page, so
+ * neither moves.
  */
 import { type RefObject, useEffect, useRef } from 'react'
-import { useFetcher } from 'react-router'
+import { Link, useFetcher } from 'react-router'
 import { toast } from 'sonner'
 import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -131,6 +136,7 @@ export function AutopilotNoticeCard({
 			<h2 id={headingId} className="text-heading [text-wrap:balance]">
 				{notice.heading}
 			</h2>
+			<IntroLine text={notice.introLine} />
 			<ul className="divide-border/60 flex flex-col divide-y">
 				{notice.lines.map((line) => (
 					<NoticeLine key={line.proposalId} line={line} />
@@ -182,6 +188,33 @@ export function AutopilotHistoryCard({ notice }: { notice: AutopilotNotice }) {
 	)
 }
 
+/**
+ * The one-time line (#583): what changed, said once under the heading — it is
+ * why there is a notice at all — with the way back to _Spør meg først_. The
+ * link lands on the setting in Meg; its hit area reaches past the text, so a
+ * thumb does not have to find one line of small type.
+ */
+function IntroLine({ text }: { text: string | null }) {
+	if (!text) return null
+	return (
+		<div
+			data-autopilot-intro
+			className="bg-muted/60 flex min-w-0 flex-col items-start gap-1 rounded-2xl px-4 py-3"
+		>
+			<p className="text-callout text-foreground [text-wrap:pretty] [overflow-wrap:break-word]">
+				{text}
+			</p>
+			<Link
+				to="/me#me-autopilot"
+				prefetch="intent"
+				className="text-footnote text-foreground pressable relative py-1 font-medium underline underline-offset-4 after:absolute after:inset-x-0 after:-inset-y-2.5"
+			>
+				{L.introLink}
+			</Link>
+		</div>
+	)
+}
+
 /** A week the close could not lay, said plainly with why (#580). */
 function UnlaidLine({ text }: { text: string | null }) {
 	if (!text) return null
@@ -228,6 +261,14 @@ function NoticeLine({
 			>
 				{line.text}
 			</p>
+			{line.volumeLine ? (
+				<p
+					data-autopilot-volume
+					className="text-footnote text-muted-foreground [overflow-wrap:anywhere] tabular-nums"
+				>
+					{line.volumeLine}
+				</p>
+			) : null}
 			{line.undo === 'offered' && !readOnly ? (
 				<UndoLine line={line} />
 			) : line.undo === 'undone' ? (

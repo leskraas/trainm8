@@ -53,6 +53,8 @@ async function createBiker({ tsb = -12 }: { tsb?: number } = {}) {
 			athleteProfile: {
 				create: {
 					timezone: 'UTC',
+					// Spør meg først (ADR 0080): the proposals wait (#583).
+					autopilot: false,
 					disciplineProfiles: {
 						create: [
 							{

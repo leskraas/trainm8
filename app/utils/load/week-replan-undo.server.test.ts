@@ -40,7 +40,7 @@ async function createAthlete() {
 		data: {
 			...userData,
 			password: { create: createPassword(userData.username) },
-			athleteProfile: { create: { timezone: 'UTC' } },
+			athleteProfile: { create: { timezone: 'UTC', autopilot: false } },
 		},
 	})
 }
@@ -440,7 +440,13 @@ async function createOpenEndedAthlete() {
 			...userData,
 			password: { create: createPassword(userData.username) },
 			athleteProfile: {
-				create: { timezone: OSLO, defaultTrainingTime: '07:00' },
+				// Spør meg først (ADR 0080): these tests are about proposals
+				// that wait for a yes and the morning's silence (#583).
+				create: {
+					timezone: OSLO,
+					defaultTrainingTime: '07:00',
+					autopilot: false,
+				},
 			},
 		},
 	})

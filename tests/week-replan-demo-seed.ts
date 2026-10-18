@@ -59,7 +59,14 @@ async function createDemoAthlete(username: string, name: string) {
 	// bucket); no thresholds, so actual TSS resolves via sRPE — deterministic
 	// from duration × RPE alone.
 	await prisma.athleteProfile.create({
-		data: { userId: user.id, timezone: 'UTC', preferredUnits: 'metric' },
+		data: {
+			userId: user.id,
+			timezone: 'UTC',
+			preferredUnits: 'metric',
+			// The demo shows a proposal and the morning's silence, which is
+			// Spør meg først's; autopilot is the default since #583.
+			autopilot: false,
+		},
 	})
 	return user.id
 }

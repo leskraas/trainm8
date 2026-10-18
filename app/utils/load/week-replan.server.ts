@@ -121,11 +121,16 @@ export async function applyWeekReplanForUser(
 		// from the next close and never to proposals already written.
 		prisma.athleteProfile.findUnique({
 			where: { userId },
-			select: { autopilot: true },
+			select: { autopilot: true, autopilotIntroPending: true },
 		}),
 	])
 	const tsb = currentLoad?.tsb ?? null
-	const autopilot = profile?.autopilot ?? false
+	// On unless switched off (#583): an athlete with no profile row yet is
+	// on the default, as a new profile would be.
+	const autopilot = profile?.autopilot ?? true
+	// The one-time line (#583): the first close under autopilot after the
+	// switch claims it for this week's notice, and no later week has it.
+	const intro = autopilot && (profile?.autopilotIntroPending ?? false)
 
 	const change = author({
 		targetWeekKey,
@@ -151,11 +156,18 @@ export async function applyWeekReplanForUser(
 					adherenceRatio: adherence?.ratio ?? null,
 					tsb,
 					autopilot,
+					autopilotIntro: intro,
 					createdAt: now,
 				},
 				select: { id: true },
 			})
 			await recordProposals(tx, userId, change.proposals, replan.id)
+			if (intro) {
+				await tx.athleteProfile.update({
+					where: { userId },
+					data: { autopilotIntroPending: false },
+				})
+			}
 		})
 	} catch (error) {
 		// Two recomputes can race past the findUnique check above; the unique

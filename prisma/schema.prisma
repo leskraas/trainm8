@@ -1133,8 +1133,13 @@ model AthleteProfile {
   // Autopilot (ADR 0100 §1, #576): true = the Week Change applies its Week
   // Replan at the close; false = _Spør meg først_, it proposes and waits for a
   // yes (ADR 0080). Read at each close, so a switch applies from the next one.
-  // Off by default until #583 turns it on for everyone.
-  autopilot      Boolean   @default(false)
+  // On for everyone (#583): every athlete who had a plan when it shipped was
+  // switched on by migration, and a new athlete starts on it.
+  autopilot      Boolean   @default(true)
+  // The one-time line (#583): true for an athlete the migration switched on,
+  // until their first close under autopilot claims it for that week's notice
+  // (`WeekReplan.autopilotIntro`), or they choose a mode in Meg themselves.
+  autopilotIntroPending Boolean @default(false)
 
   // Training Availability (PRD #103): days the athlete can train and a
   // default time-of-day, reused across plan generations. Times are interpreted in
@@ -1964,6 +1969,10 @@ model WeekReplan {
   /// or nothing to lay that anyone expected (no plan, before its start). The
   /// Autopilot Notice says it, so silence never means broken.
   horizonUnlaid      String?
+  /// Whether this week's notice carries the one-time line about the switch to
+  /// autopilot and where _Spør meg først_ is (#583). Claimed at the close from
+  /// `AthleteProfile.autopilotIntroPending`, so it is one week's, and only one.
+  autopilotIntro     Boolean   @default(false)
 
   createdAt DateTime @default(now())
 

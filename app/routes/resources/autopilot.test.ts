@@ -150,6 +150,24 @@ test('the switch in Meg turns autopilot on and back to Spør meg først', async 
 	).toEqual({ autopilot: false })
 })
 
+test('choosing a mode in Meg means the one-time line pointing there is no longer news', async () => {
+	const { userId, cookie } = await athlete({ autopilot: true })
+	// As the migration leaves an athlete the switch was news to (#583).
+	await prisma.athleteProfile.update({
+		where: { userId },
+		data: { autopilotIntroPending: true },
+	})
+
+	await post(cookie, { intent: 'mode', mode: 'autopilot' })
+
+	expect(
+		await prisma.athleteProfile.findUniqueOrThrow({
+			where: { userId },
+			select: { autopilot: true, autopilotIntroPending: true },
+		}),
+	).toEqual({ autopilot: true, autopilotIntroPending: false })
+})
+
 test('Angre on one line puts that session back, and says so', async () => {
 	const { userId, cookie } = await athlete()
 	const session = await run(userId, new Date('2030-01-16T07:00:00Z'))
