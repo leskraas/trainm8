@@ -40,6 +40,7 @@ import {
 	START_SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { MORPH } from '#app/utils/view-morph.ts'
 import { type Route } from './+types/valg.ts'
 import { FirstRunFrame, SIMPLE_START_STEP_COUNT } from './__first-run-frame.tsx'
 
@@ -55,8 +56,9 @@ import { FirstRunFrame, SIMPLE_START_STEP_COUNT } from './__first-run-frame.tsx'
  * klar_ (#570).
  *
  * The answers travel in the URL, so going back to a question and changing it
- * recomputes the cards. No motion of its own yet: the cards scroll natively
- * (#558 S10 adds the morphs).
+ * recomputes the cards. The cards scroll natively. Motion (#582): the top
+ * card is what _Uka di_ morphs into on the way here, and the card being
+ * chosen morphs into the plan's curve on _Planen er klar_ (`view-morph.ts`).
  */
 
 const L = START_OPTION_LABELS
@@ -488,6 +490,18 @@ export default function StartOptions({
 								'focus-visible:ring-ring/30 outline-none focus-visible:ring-3',
 								cards.length === 1 ? 'w-full' : 'w-[86%]',
 							)}
+							// The top card is what _Uka di_ became; the one being chosen
+							// becomes the plan's curve (#582).
+							style={{
+								viewTransitionName:
+									choosing != null
+										? choosing === card.family
+											? MORPH.plan
+											: undefined
+										: index === 0
+											? MORPH.week
+											: undefined,
+							}}
 							data-start-option={card.family}
 						>
 							<div className="flex min-h-5 flex-wrap items-center gap-x-2 gap-y-1">
@@ -623,7 +637,7 @@ export default function StartOptions({
 								{loaderData.startsOn}
 							</p>
 
-							<Form method="POST" className="mt-auto pt-1">
+							<Form method="POST" viewTransition className="mt-auto pt-1">
 								<input type="hidden" name="level" value={answers.level} />
 								<input type="hidden" name="hours" value={answers.hours} />
 								{answers.discipline ? (

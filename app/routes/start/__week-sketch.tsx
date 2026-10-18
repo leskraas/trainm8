@@ -1,3 +1,4 @@
+import { type CSSProperties, useEffect, useMemo, useState } from 'react'
 import {
 	type Effort,
 	type WeekSketch as Sketch,
@@ -11,6 +12,7 @@ import {
 	START_OPTION_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { MORPH } from '#app/utils/view-morph.ts'
 
 const L = SIMPLE_START_LABELS.sketch
 
@@ -35,6 +37,144 @@ function duration(minutes: number): string {
 	return nbDurationLabel(minutes * 60)
 }
 
+/** A lifting chip's height: 0.75rem of the day's 4rem. */
+const LIFT_HEIGHT = 18.75
+/** The 2px between stacked blocks: 0.125rem of 4rem. */
+const STACK_GAP = 3.125
+/** The shortest session still reads as a block. */
+const MIN_SESSION = 14
+/** How long a block that left stays to drop out (`--transition-duration-morph-exit`). */
+const LEAVE_MS = 160
+
+/** One block of a day, placed in percent of the day's height from the top. */
+type SketchBlock = {
+	key: string
+	weekday: number
+	className: string
+	top: number
+	height: number
+	lifting: boolean
+}
+
+/** A block on screen: arriving (with its place in the stagger) or leaving. */
+type ShownBlock = SketchBlock & {
+	enterIndex: number | null
+	leaving: boolean
+}
+
+/**
+ * Each day's blocks as places in its column: lifting on top of the sessions,
+ * the stack resting on the baseline, sessions taller for longer and shrunk
+ * together when a day holds more than fits.
+ */
+function sketchBlocks(sketch: Sketch): SketchBlock[] {
+	const longest = Math.max(
+		1,
+		...sketch.days.flatMap((day) => day.sessions.map((s) => s.minutes)),
+	)
+	return sketch.days.flatMap((day) => {
+		const lifting = day.lifting.map((_, index) => ({
+			key: `${day.weekday}:lift-${index}`,
+			className: 'bg-track-strength',
+			height: LIFT_HEIGHT,
+			lifting: true,
+		}))
+		const raw = day.sessions.map((session) =>
+			Math.max(MIN_SESSION, (session.minutes / longest) * 100),
+		)
+		const count = lifting.length + raw.length
+		const room =
+			100 - lifting.length * LIFT_HEIGHT - Math.max(0, count - 1) * STACK_GAP
+		const sum = raw.reduce((total, height) => total + height, 0)
+		const scale = sum > room && sum > 0 ? Math.max(0, room) / sum : 1
+		const sessions = day.sessions.map((session, index) => ({
+			key: `${day.weekday}:session-${index}`,
+			className: cn(
+				TRACK_MARK[session.discipline] ?? 'bg-muted-foreground',
+				EFFORT_OPACITY[session.effort],
+			),
+			height: raw[index]! * scale,
+			lifting: false,
+		}))
+		// Top to bottom; placed from the baseline up.
+		const stack = [...lifting, ...sessions]
+		let bottom = 100
+		const placed = stack
+			.slice()
+			.reverse()
+			.map((block) => {
+				const top = bottom - block.height
+				bottom = top - STACK_GAP
+				return { ...block, weekday: day.weekday, top }
+			})
+		return placed.reverse()
+	})
+}
+
+/**
+ * The blocks on screen across changes of the sketch: a block that arrives is
+ * numbered for the 30ms stagger, and one that left stays for its 160ms exit
+ * before it unmounts. Derived while rendering (the sanctioned "state from
+ * the previous render" pattern), so a block that stays keeps its DOM node and
+ * its change transitions instead of replaying an entrance.
+ */
+function useShownBlocks(blocks: SketchBlock[]): ShownBlock[] {
+	const signature = useMemo(
+		() =>
+			blocks
+				.map(
+					(b) =>
+						`${b.key}@${b.top.toFixed(2)}/${b.height.toFixed(2)}/${b.className}`,
+				)
+				.join('|'),
+		[blocks],
+	)
+	const [state, setState] = useState(() => ({
+		signature,
+		shown: blocks.map<ShownBlock>((block) => ({
+			...block,
+			enterIndex: null,
+			leaving: false,
+		})),
+	}))
+	let current = state
+	if (state.signature !== signature) {
+		const before = new Set(
+			state.shown.filter((block) => !block.leaving).map((block) => block.key),
+		)
+		const now = new Set(blocks.map((block) => block.key))
+		let arriving = 0
+		current = {
+			signature,
+			shown: [
+				...blocks.map<ShownBlock>((block) => ({
+					...block,
+					enterIndex: before.has(block.key) ? null : arriving++,
+					leaving: false,
+				})),
+				...state.shown
+					.filter((block) => !now.has(block.key))
+					.map((block) => ({ ...block, enterIndex: null, leaving: true })),
+			],
+		}
+		setState(current)
+	}
+	const hasLeaving = current.shown.some((block) => block.leaving)
+	useEffect(() => {
+		if (!hasLeaving) return
+		const timer = window.setTimeout(
+			() =>
+				setState((was) => ({
+					...was,
+					shown: was.shown.filter((block) => !block.leaving),
+				})),
+			LEAVE_MS + 20,
+		)
+		return () => window.clearTimeout(timer)
+	}, [hasLeaving, current.signature])
+	return current.shown
+}
+
 /**
  * _Uka di_, the **Week Sketch** (#563): seven days, Monday first, each a
  * column whose block is the day's session — taller for longer, more solid
@@ -44,20 +184,27 @@ function duration(minutes: number): string {
  *
  * A screen reader hears a list of days (`mandag: Rolig økt · Løping, 45 min`,
  * `tirsdag: fri`), or _Uka di er tom ennå_; the blocks are only a picture of
- * the same list. No motion yet: the blocks change in place (#558 S2; S10
- * adds the morphs).
+ * the same list.
+ *
+ * Motion (#582): as the answers change, a block that arrives rises from the
+ * baseline, 30ms after the one before; one that changes size stretches in
+ * place; one that goes drops out in 160ms (`sketch-block`). The sketch is
+ * the `start-week` surface the top Start Option card morphs out of.
  */
 export function WeekSketch({ sketch }: { sketch: Sketch }) {
 	const empty = sketch.sessionCount === 0 && sketch.strengthSessions === 0
-	const longest = Math.max(
-		1,
-		...sketch.days.flatMap((day) => day.sessions.map((s) => s.minutes)),
-	)
+	const blocks = useMemo(() => sketchBlocks(sketch), [sketch])
+	const shown = useShownBlocks(blocks)
+	// No motion on the first paint: a screen that opens with a week shows it.
+	const [live, setLive] = useState(false)
+	useEffect(() => setLive(true), [])
 	return (
 		<section
 			aria-labelledby="week-sketch-title"
 			className="bg-card space-y-3 rounded-4xl p-4 shadow-xs"
+			style={{ viewTransitionName: MORPH.week }}
 			data-week-sketch
+			data-sketch-live={live ? '' : undefined}
 		>
 			<div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
 				<h2
@@ -106,28 +253,31 @@ export function WeekSketch({ sketch }: { sketch: Sketch }) {
 							<span className="sr-only">{L.day(weekday, spoken)}</span>
 							<span
 								aria-hidden
-								className="bg-muted/60 flex h-16 flex-col justify-end gap-0.5 overflow-hidden rounded-2xl"
+								className="bg-muted/60 relative block h-16 overflow-hidden rounded-2xl"
 							>
-								{day.lifting.map((_, index) => (
-									<span
-										key={`lift-${index}`}
-										className="bg-track-strength block h-3 w-full shrink-0 rounded-xl"
-										data-week-sketch-lifting
-									/>
-								))}
-								{day.sessions.map((session, index) => (
-									<span
-										key={index}
-										className={cn(
-											'block w-full rounded-xl',
-											TRACK_MARK[session.discipline] ?? 'bg-muted-foreground',
-											EFFORT_OPACITY[session.effort],
-										)}
-										style={{
-											height: `${Math.max(14, Math.round((session.minutes / longest) * 100))}%`,
-										}}
-									/>
-								))}
+								{shown
+									.filter((block) => block.weekday === day.weekday)
+									.map((block) => (
+										<span
+											key={block.key}
+											className={cn(
+												'sketch-block absolute inset-0 block',
+												block.className,
+											)}
+											style={
+												{
+													'--sketch-y': `${block.top.toFixed(2)}%`,
+													'--sketch-cut': `${(100 - block.height).toFixed(2)}%`,
+													'--sketch-index': block.enterIndex ?? undefined,
+												} as CSSProperties
+											}
+											data-week-sketch-lifting={
+												block.lifting && !block.leaving ? '' : undefined
+											}
+											data-entering={block.enterIndex != null ? '' : undefined}
+											data-leaving={block.leaving ? '' : undefined}
+										/>
+									))}
 							</span>
 							<span
 								aria-hidden
