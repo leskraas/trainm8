@@ -5,19 +5,26 @@
  * the app never guesses it, so an athlete who never answered sees that they
  * have not, and one tap answers.
  *
- * It changes the answer, not a plan already made: that plan's lifting days
- * stay as they are and move in _Plan_, and the page says so.
+ * **Styrkedagene i planen** (#597, ADR 0104 §4): where the active plan has a
+ * strength track, the athlete chooses its days — _La appen velge_, the
+ * default, or weekday chips limited to their **Training Availability**. The
+ * chosen days are the track's **Pinned days**, and their count is the
+ * Strength Frequency. A change shows the coming weeks before it writes
+ * (ADR 0084) and is undone from its toast (ADR 0088).
  */
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { data, useFetcher } from 'react-router'
+import { toast } from 'sonner'
 import { z } from 'zod/v3'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
+import { Button } from '#app/components/ui/button.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	SegmentedControl,
 	ToggleGroupItem,
 } from '#app/components/ui/toggle-group.tsx'
+import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { updateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -26,11 +33,37 @@ import {
 	type StrengthPerWeek,
 } from '#app/utils/first-run/start-draft.ts'
 import { StrengthPerWeekSchema } from '#app/utils/first-run/start-schema.ts'
-import { MEG_STRENGTH_LABELS, SIMPLE_START_LABELS } from '#app/utils/labels.ts'
+import {
+	MEG_STRENGTH_DAYS_LABELS,
+	MEG_STRENGTH_LABELS,
+	MEG_WEEKDAY_SHORT_LABELS,
+	NB_WEEKDAY_LABELS,
+	SESONG_NOTICE_LABELS,
+	SIMPLE_START_LABELS,
+} from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
+import { MAX_PINNED_STRENGTH_DAYS } from '#app/utils/plan-outline/pinned-days.ts'
+import {
+	previewStrengthDays,
+	readStrengthDays,
+	setStrengthDays,
+	type StrengthDaysChoice,
+	type StrengthDaysPreviewWeek,
+} from '#app/utils/plan-outline/strength-days.server.ts'
+import {
+	calendarWeekdayOf,
+	PATTERN_WEEKDAYS,
+	patternWeekdaysOf,
+	type PatternWeekday,
+} from '#app/utils/plan-outline/week-pattern.ts'
 import { MegFormErrors, MegNote } from '../__meg-ui.tsx'
 import { type Route } from './+types/styrke.ts'
 
 const L = MEG_STRENGTH_LABELS
+const D = MEG_STRENGTH_DAYS_LABELS
+
+/** How long the toast and its _Angre_ stand (ADR 0088's `LANDED_MS`). */
+const LANDED_MS = 10_000
 
 export const handle: PageHeaderHandle & SEOHandle = {
 	pageHeader: L.title,
@@ -39,20 +72,89 @@ export const handle: PageHeaderHandle & SEOHandle = {
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { strengthPerWeek: true },
-	})
-	return { strengthPerWeek: profile?.strengthPerWeek ?? null }
+	const [profile, days] = await Promise.all([
+		prisma.athleteProfile.findUnique({
+			where: { userId },
+			select: { strengthPerWeek: true },
+		}),
+		readStrengthDays(userId),
+	])
+	return { strengthPerWeek: profile?.strengthPerWeek ?? null, days }
 }
 
 const StrengthAnswerSchema = z.object({ strength: StrengthPerWeekSchema })
 
+/** The chosen days off the form: `mode=auto`, or `mode=own` and each `day`. */
+function choiceOf(formData: FormData): StrengthDaysChoice {
+	if (formData.get('mode') !== 'own') return null
+	return patternWeekdaysOf(formData.getAll('day').map(Number))
+}
+
+const UndoSchema = z.object({
+	days: z.array(z.number().int().min(0).max(6)).nullable(),
+	count: z.number().int().min(0),
+	answer: z.number().int().nullable(),
+	version: z.string(),
+})
+
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
-	const parsed = StrengthAnswerSchema.safeParse(
-		Object.fromEntries(await request.formData()),
-	)
+	const formData = await request.formData()
+	const intent = formData.get('intent')
+
+	if (intent === 'preview-days') {
+		const preview = await previewStrengthDays(userId, choiceOf(formData))
+		return preview.ok
+			? { intent: 'preview' as const, preview, error: null }
+			: data(
+					{ intent: 'preview' as const, preview: null, error: preview.reason },
+					{ status: 400 },
+				)
+	}
+
+	if (intent === 'apply-days') {
+		const written = await setStrengthDays(userId, {
+			choice: choiceOf(formData),
+			version: String(formData.get('version') ?? ''),
+		})
+		if (!written.ok) {
+			return data(
+				{ intent: 'applied' as const, written: null, error: written.reason },
+				{ status: 400 },
+			)
+		}
+		return { intent: 'applied' as const, written, error: null }
+	}
+
+	if (intent === 'undo-days') {
+		let payload: unknown = null
+		try {
+			payload = JSON.parse(String(formData.get('undo') ?? 'null'))
+		} catch {
+			payload = null
+		}
+		const parsed = UndoSchema.safeParse(payload)
+		if (!parsed.success) {
+			return data(
+				{ intent: 'undone' as const, ok: false, error: 'stale' as const },
+				{ status: 400 },
+			)
+		}
+		const { days, count, answer, version } = parsed.data
+		const undone = await setStrengthDays(userId, {
+			choice: days == null ? null : patternWeekdaysOf(days),
+			version,
+			restore: { count, answer },
+		})
+		return undone.ok
+			? { intent: 'undone' as const, ok: true, error: null }
+			: data(
+					{ intent: 'undone' as const, ok: false, error: undone.reason },
+					{ status: 400 },
+				)
+	}
+
+	const parsed = StrengthAnswerSchema.safeParse(Object.fromEntries(formData))
 	if (!parsed.success) {
 		return data({ ok: false as const, error: L.invalid }, { status: 400 })
 	}
@@ -63,13 +165,41 @@ export async function action({ request }: Route.ActionArgs) {
 export default function StrengthFrequencySettings({
 	loaderData,
 }: Route.ComponentProps) {
+	const days = loaderData.days
+	const pinned = days?.pinned ?? null
+	return (
+		<div className="flex flex-col gap-10">
+			{pinned ? (
+				<section className="flex flex-col gap-2">
+					<p className="text-body">{L.intro}</p>
+					<MegNote>{L.fromDays(pinned.length)}</MegNote>
+				</section>
+			) : (
+				<StrengthAnswerForm
+					stored={loaderData.strengthPerWeek}
+					withDays={days != null}
+				/>
+			)}
+			{days ? <StrengthDaysSection state={days} /> : null}
+		</div>
+	)
+}
+
+/** The Strength Frequency answer: 1, 2 or 3 a week (ADR 0103). */
+function StrengthAnswerForm({
+	stored,
+	withDays,
+}: {
+	stored: number | null
+	withDays: boolean
+}) {
 	const fetcher = useFetcher<typeof action>()
-	const stored = loaderData.strengthPerWeek
 	const [value, setValue] = useState<StrengthPerWeek | null>(
 		STRENGTH_PER_WEEK_CHOICES.find((count) => count === stored) ?? null,
 	)
+	const reply = fetcher.data && 'ok' in fetcher.data ? fetcher.data : null
 	const saved =
-		fetcher.state === 'idle' && fetcher.data?.ok === true && value === stored
+		fetcher.state === 'idle' && reply?.ok === true && value === stored
 	return (
 		<fetcher.Form method="POST" className="flex flex-col gap-6">
 			<div className="flex flex-col gap-2">
@@ -105,10 +235,14 @@ export default function StrengthFrequencySettings({
 				{value != null ? (
 					<input type="hidden" name="strength" value={value} />
 				) : null}
-				<MegNote>{L.planNote}</MegNote>
+				<MegNote>{withDays ? L.planNoteWithDays : L.planNote}</MegNote>
 			</div>
 			<MegFormErrors
-				errors={fetcher.data?.error ? [fetcher.data.error] : undefined}
+				errors={
+					reply?.error && typeof reply.error === 'string'
+						? [reply.error]
+						: undefined
+				}
 			/>
 			<StatusButton
 				type="submit"
@@ -122,4 +256,337 @@ export default function StrengthFrequencySettings({
 			</StatusButton>
 		</fetcher.Form>
 	)
+}
+
+type DaysState = NonNullable<Route.ComponentProps['loaderData']['days']>
+
+/** `'auto'` or the chosen days, Monday first, as one comparable key. */
+function choiceKey(mode: 'auto' | 'own', chosen: readonly number[]): string {
+	return mode === 'auto' ? 'auto' : [...chosen].sort().join(',')
+}
+
+/**
+ * The plan's lifting days: _La appen velge_ or the athlete's own, with the
+ * coming weeks shown before the write and _Angre_ on the toast after it.
+ */
+function StrengthDaysSection({ state }: { state: DaysState }) {
+	const fetcher = useFetcher<typeof action>({ key: 'strength-days' })
+	const undo = useFetcher<typeof action>({ key: 'strength-days-undo' })
+	const [mode, setMode] = useState<'auto' | 'own'>(
+		state.pinned ? 'own' : 'auto',
+	)
+	const [chosen, setChosen] = useState<PatternWeekday[]>(state.pinned ?? [])
+	// A write that lands (or an undo) reloads the state: start from it again.
+	const stateKey = `${state.version}`
+	const [seenState, setSeenState] = useState(stateKey)
+	if (seenState !== stateKey) {
+		setSeenState(stateKey)
+		setMode(state.pinned ? 'own' : 'auto')
+		setChosen(state.pinned ?? [])
+	}
+
+	const current = choiceKey(mode, chosen)
+	const stored = choiceKey(state.pinned ? 'own' : 'auto', state.pinned ?? [])
+	const reply = fetcher.data && 'intent' in fetcher.data ? fetcher.data : null
+	const preview =
+		reply?.intent === 'preview' && reply.preview ? reply.preview : null
+	// A preview stands only for the choice it was read for.
+	const showing =
+		preview &&
+		choiceKey(preview.choice ? 'own' : 'auto', preview.choice ?? []) === current
+			? preview
+			: null
+	const error =
+		reply?.error && current !== stored
+			? D.refusals[reply.error as keyof typeof D.refusals]
+			: null
+	const busy = fetcher.state !== 'idle'
+	const full = chosen.length >= MAX_PINNED_STRENGTH_DAYS
+
+	useWrittenToast(reply, state, undo.submit)
+	useUndoneToast(undo.data)
+
+	return (
+		<section
+			aria-labelledby="meg-strength-days"
+			className="flex flex-col gap-6"
+		>
+			<div className="flex flex-col gap-2">
+				<h2 id="meg-strength-days" className="text-heading">
+					{D.heading}
+				</h2>
+				<MegNote>{D.intro}</MegNote>
+			</div>
+
+			<fetcher.Form method="POST" className="flex flex-col gap-6">
+				<input type="hidden" name="mode" value={mode} />
+				<div className="space-y-2">
+					<p className="text-callout" id="meg-strength-days-mode">
+						{D.modeLegend}
+					</p>
+					<SegmentedControl
+						value={mode}
+						onValueChange={(next) => {
+							if (next === 'auto' || next === 'own') setMode(next)
+						}}
+						aria-labelledby="meg-strength-days-mode"
+						className="w-full"
+					>
+						<ToggleGroupItem value="auto" className="text-callout h-11 flex-1">
+							{D.auto}
+						</ToggleGroupItem>
+						<ToggleGroupItem value="own" className="text-callout h-11 flex-1">
+							{D.own}
+						</ToggleGroupItem>
+					</SegmentedControl>
+					{mode === 'auto' ? (
+						<MegNote>{D.autoNote(Math.max(state.count, 1))}</MegNote>
+					) : null}
+				</div>
+
+				{mode === 'own' ? (
+					<fieldset className="flex flex-col gap-2">
+						<legend className="text-callout mb-1.5">{D.chipsLegend}</legend>
+						<div className="flex flex-wrap gap-2">
+							{PATTERN_WEEKDAYS.map((weekday) => {
+								const id = `meg-strength-day-${weekday}`
+								const checked = chosen.includes(weekday)
+								const unavailable =
+									state.available != null && !state.available.includes(weekday)
+								const disabled = unavailable || (!checked && full)
+								return (
+									// A chip per day, as Meg's training days are: a real
+									// checkbox under a 44px pill, the focus ring on the box.
+									<label
+										key={weekday}
+										htmlFor={id}
+										aria-label={NB_WEEKDAY_LABELS[weekday]}
+										className={cn(
+											'border-border bg-background text-callout has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground has-[:focus-visible]:ring-ring/50 flex h-11 min-w-12 items-center justify-center rounded-full border px-3 select-none has-[:focus-visible]:ring-3 dark:bg-transparent',
+											disabled
+												? 'text-muted-foreground cursor-not-allowed opacity-50'
+												: // Only a chip that answers a tap presses.
+													'pressable cursor-pointer',
+											unavailable && 'line-through',
+										)}
+									>
+										<input
+											type="checkbox"
+											id={id}
+											name="day"
+											value={weekday}
+											checked={checked}
+											disabled={disabled}
+											onChange={(event) =>
+												setChosen((days) =>
+													event.target.checked
+														? patternWeekdaysOf([...days, weekday])
+														: days.filter((day) => day !== weekday),
+												)
+											}
+											className="sr-only"
+										/>
+										{MEG_WEEKDAY_SHORT_LABELS[calendarWeekdayOf(weekday)]}
+									</label>
+								)
+							})}
+						</div>
+						<MegNote>
+							{state.available ? D.chipsNote : D.chipsNoteNoAvailability}
+						</MegNote>
+						<MegNote>{D.ownNote}</MegNote>
+					</fieldset>
+				) : null}
+
+				{error ? <MegFormErrors errors={[error]} /> : null}
+
+				{showing ? (
+					<StrengthDaysPreview
+						weeks={showing.weeks}
+						choice={showing.choice}
+						version={showing.version}
+						busy={busy}
+						onCancel={() => {
+							setMode(state.pinned ? 'own' : 'auto')
+							setChosen(state.pinned ?? [])
+						}}
+					/>
+				) : (
+					<StatusButton
+						type="submit"
+						name="intent"
+						value="preview-days"
+						variant="outline"
+						className="text-callout w-full sm:w-auto sm:self-start"
+						disabled={
+							current === stored || (mode === 'own' && chosen.length === 0)
+						}
+						status={busy ? 'pending' : 'idle'}
+					>
+						{busy ? D.previewing : D.preview}
+					</StatusButton>
+				)}
+			</fetcher.Form>
+		</section>
+	)
+}
+
+/**
+ * The coming weeks with the choice, beside how they are laid now, and the
+ * write itself — so nothing is written the athlete has not seen (ADR 0084).
+ */
+function StrengthDaysPreview({
+	weeks,
+	choice,
+	version,
+	busy,
+	onCancel,
+}: {
+	weeks: StrengthDaysPreviewWeek[]
+	choice: StrengthDaysChoice
+	version: string
+	busy: boolean
+	onCancel: () => void
+}) {
+	const clashes = weeks.flatMap((week) =>
+		week.after.clashes.map((clash) => ({ week, clash })),
+	)
+	return (
+		<div
+			className={cn(
+				'bg-card ring-foreground/5 dark:ring-foreground/10 flex flex-col gap-4 rounded-4xl p-4 shadow-xs ring-1',
+				// It rises 4px and fades in as it mounts (`@starting-style`, 200ms
+				// ease-out); reduced motion keeps the fade.
+				'duration-collapse [transition-property:opacity,translate] ease-out',
+				'starting:translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0',
+			)}
+		>
+			<input type="hidden" name="version" value={version} />
+			<h3 className="text-callout font-semibold">{D.previewHeading}</h3>
+			<ul className="divide-border/70 flex flex-col divide-y">
+				{weeks.map((week) => {
+					const changed =
+						week.before.lifting.join(',') !== week.after.lifting.join(',')
+					return (
+						<li
+							key={week.weekKey}
+							className="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0"
+						>
+							<p className="text-footnote text-muted-foreground tabular-nums">
+								{D.week(isoWeekNumber(week.weekKey))}
+							</p>
+							<p className="text-callout break-words">
+								{D.lifting(week.after.lifting)}
+								<span className="text-muted-foreground">
+									{' · '}
+									{D.hard(week.after.hard)}
+								</span>
+							</p>
+							<p className="text-footnote text-muted-foreground break-words">
+								{changed ? D.was(week.before.lifting) : D.same}
+							</p>
+						</li>
+					)
+				})}
+			</ul>
+			{clashes.length > 0 ? (
+				<div className="flex flex-col gap-1.5">
+					<ul className="flex flex-col gap-1.5">
+						{clashes.map(({ week, clash }) => (
+							<li
+								key={`${week.weekKey}-${clash.reason}-${clash.weekday}`}
+								className="text-footnote break-words"
+							>
+								{D.week(isoWeekNumber(week.weekKey))}:{' '}
+								{D.clash(
+									SESONG_NOTICE_LABELS.dayClash(clash.reason, clash.weekday),
+									clash.pinned,
+								)}
+							</li>
+						))}
+					</ul>
+					{choice ? <MegNote>{D.clashNote}</MegNote> : null}
+				</div>
+			) : null}
+			<div className="flex flex-col gap-2 sm:flex-row">
+				<StatusButton
+					type="submit"
+					name="intent"
+					value="apply-days"
+					className="text-callout w-full sm:w-auto"
+					status={busy ? 'pending' : 'idle'}
+				>
+					{busy ? D.applying : D.apply}
+				</StatusButton>
+				<Button
+					type="button"
+					variant="ghost"
+					className="text-callout w-full sm:w-auto"
+					onClick={onCancel}
+				>
+					{D.cancel}
+				</Button>
+			</div>
+		</div>
+	)
+}
+
+type ActionReply = Awaited<ReturnType<typeof action>>
+type ReplyData = ActionReply extends infer R
+	? R extends { data: infer D }
+		? D
+		: R
+	: never
+
+/**
+ * The write's toast (ADR 0088): what the days are now, and _Angre_, which
+ * puts back exactly what the write replaced.
+ */
+function useWrittenToast(
+	reply: ReplyData | null,
+	state: DaysState,
+	submit: ReturnType<typeof useFetcher>['submit'],
+) {
+	const shown = useRef<unknown>(null)
+	const written =
+		reply && 'written' in reply && reply.written ? reply.written : null
+	useEffect(() => {
+		if (!written || shown.current === written) return
+		shown.current = written
+		toast.success(D.saved(written.choice), {
+			id: 'strength-days',
+			duration: LANDED_MS,
+			action: {
+				label: D.undo,
+				onClick: () =>
+					void submit(
+						{
+							intent: 'undo-days',
+							undo: JSON.stringify({
+								days: written.previous.days,
+								count: written.previous.count,
+								answer: written.previous.answer,
+								version: written.version,
+							}),
+						},
+						{ method: 'POST' },
+					),
+			},
+		})
+	}, [written, submit, state.version])
+}
+
+/** The undo's own toast: the days are as they were. */
+function useUndoneToast(reply: ReplyData | undefined) {
+	const shown = useRef<unknown>(null)
+	useEffect(() => {
+		if (!reply || shown.current === reply || !('intent' in reply)) return
+		if (reply.intent !== 'undone') return
+		shown.current = reply
+		if (reply.ok) toast.success(D.undone, { id: 'strength-days' })
+		else if (reply.error)
+			toast.error(D.refusals[reply.error as keyof typeof D.refusals], {
+				id: 'strength-days',
+			})
+	}, [reply])
 }

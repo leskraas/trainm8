@@ -39,7 +39,9 @@ import {
 } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { readPinnedDaysByDiscipline } from '#app/utils/plan-outline/pinned-days.server.ts'
 import { readPlacement } from '#app/utils/plan-outline/session-placement.ts'
+import { type PatternWeekday } from '#app/utils/plan-outline/week-pattern.ts'
 import {
 	MACHINE_OWNED_SESSION,
 	sessionOwner,
@@ -101,6 +103,9 @@ export async function applyWeekReplanForUser(
 	if (existing) return { weekKey, created: false }
 
 	const targetWeekKey = addDays(weekKey, 7)
+	// Each track's Pinned days (ADR 0104 §4): a make-up is put on one of its
+	// track's own days first, when one is free and fits (#596, #597).
+	const pinned = await readPinnedDaysByDiscipline(userId, now)
 	const [
 		adherence,
 		currentLoad,
@@ -115,9 +120,9 @@ export async function applyWeekReplanForUser(
 		getCurrentLoad(userId),
 		getTsbTrust(userId, now),
 		getComingWeek(userId, targetWeekKey, timezone, now),
-		getMissedSessions(userId, weekKey, timezone, now),
+		getMissedSessions(userId, weekKey, timezone, now, pinned),
 		readRoundFacts(userId, weekKey, timezone, now),
-		getRepeatMisses(userId, weekKey, timezone, now),
+		getRepeatMisses(userId, weekKey, timezone, now, pinned),
 		// The mode this week closes under (ADR 0100 §6): read here, at the
 		// close, and stored with the decision — so a switch in Meg applies
 		// from the next close and never to proposals already written.
@@ -291,6 +296,7 @@ async function getMissedSessions(
 	weekKey: string,
 	timezone: string,
 	now: Date,
+	pinned: PinnedDaysByDiscipline = new Map(),
 ): Promise<WeekChangeFacts['missedSessions']> {
 	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
 	const sessions = await prisma.workoutSession.findMany({
@@ -317,6 +323,7 @@ async function getMissedSessions(
 			date: localDate(session.scheduledAt, timezone),
 			plannedTss: session.plannedTssValue,
 			placement: readPlacement(session.workout),
+			...ownDaysOf(pinned, session.workout?.discipline),
 		}))
 }
 
@@ -334,6 +341,7 @@ async function getRepeatMisses(
 	closedWeekKey: string,
 	timezone: string,
 	now: Date,
+	pinned: PinnedDaysByDiscipline = new Map(),
 ): Promise<NonNullable<WeekChangeFacts['repeatMisses']>> {
 	const from = weekBoundsFromMondayUTC(addDays(closedWeekKey, -7), timezone)
 	const to = weekBoundsFromMondayUTC(addDays(closedWeekKey, 7), timezone)
@@ -361,6 +369,7 @@ async function getRepeatMisses(
 			week: addDays(date, -weekdayIndex(date)),
 			slot: `${weekdayIndex(date)}|${session.workout?.title}|${session.workout?.discipline}`,
 			title: session.workout?.title ?? 'Økta',
+			discipline: session.workout?.discipline,
 			missed: deriveLedgerStatus(session, now) === 'missed',
 			ahead: session.status === 'scheduled' && session.scheduledAt > now,
 		}
@@ -381,8 +390,20 @@ async function getRepeatMisses(
 						title: next.title,
 						next: { id: next.id, date: next.date },
 						placement: next.placement,
+						...ownDaysOf(pinned, next.discipline),
 					},
 				]
 			: []
 	})
+}
+
+type PinnedDaysByDiscipline = ReadonlyMap<string, readonly PatternWeekday[]>
+
+/** A session's track's Pinned days, where its Discipline's track names any. */
+function ownDaysOf(
+	pinned: PinnedDaysByDiscipline,
+	discipline: string | null | undefined,
+): { ownDays?: readonly PatternWeekday[] } {
+	const days = discipline == null ? undefined : pinned.get(discipline)
+	return days ? { ownDays: days } : {}
 }

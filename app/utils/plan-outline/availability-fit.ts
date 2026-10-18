@@ -76,6 +76,7 @@ import {
 	placedSessionOf,
 	planStamp,
 	type StampDay,
+	type StampLiftingSlot,
 	type StampSession,
 	type StampTrack,
 	type StampWeekInput,
@@ -344,13 +345,22 @@ export function dayClashWarnings({
 	days,
 	tracks,
 	weeks,
+	lifting,
+	liftingDays,
 }: {
 	days: readonly StampDay[]
 	tracks: readonly StampTrack[]
 	weeks: readonly StampWeekInput[]
+	/**
+	 * The strength tracks' **lifting slots**, laid per week as the stamp lays
+	 * them (ADR 0104 §3), so the check sees where that week's lifting lands.
+	 */
+	lifting?: readonly StampLiftingSlot[]
+	/** The days a lift may go on, Monday first: Training Availability. */
+	liftingDays?: readonly PatternWeekday[]
 }): DayClashWarning[] {
 	const dayById = new Map(days.map((day) => [day.dayId, day]))
-	const plans = planStamp({ days, tracks, weeks })
+	const plans = planStamp({ days, tracks, weeks, lifting, liftingDays })
 
 	const warnings: DayClashWarning[] = []
 	const open = new Map<string, DayClashWarning>()

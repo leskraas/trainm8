@@ -1425,6 +1425,16 @@ model TrainingTrack {
   /// 'sets' means total working sets per week — a *systemic* scalar, never per
   /// muscle group and never per movement (ADR 0047 §2).
   currency   String // 'km' | 'hours' | 'tss' | 'sets'
+  /// **Pinned days** (ADR 0104 §4, #597): the weekdays the athlete chose for
+  /// this track, as a JSON array on the Week Pattern's Monday-first axis
+  /// (0 = Monday … 6 = Sunday), e.g. "[1,3]" for Tuesday and Thursday —
+  /// converted from Training Availability's Sunday-first axis only at the
+  /// profile edge. Always a subset of **Training Availability**. `NULL` is
+  /// _La appen velge_: the day rule lays the track. On the strength track the
+  /// days are written as `fixed` strength days in the Week Pattern too, and
+  /// their count is the **Strength Frequency**; a strength track with `NULL`
+  /// here and stored `fixed` strength days reads those days as its Pinned days.
+  pinnedDays String?
 
   outline     PlanOutline            @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   outlineId   String
