@@ -2555,7 +2555,8 @@ test('calm I dag declares its press and a landed row’s tint, and nothing else'
 
 /**
  * Calm I dag's frame, element by element: the press (ADR 0085 `pressable`)
- * on the card's links and buttons, the week's rows and its free days; the
+ * on the card's links and buttons — _Gjort_ and the _Juster_ chips (#575) —
+ * the week's rows and its free days; the
  * week row's tint (`background-color` on `duration-collapse`, ADR 0088) that
  * stands while a landed write's _Angre_ does.
  */
@@ -2564,6 +2565,7 @@ const CALM_MOTION: string[] = [
 	...PRESS('[data-calm-season-link]'),
 	`[data-calm-session] — background-color 0.2s ${EASE_OUT}`,
 	...PRESS('[data-discover]'),
+	...PRESS('[data-juster-chip]'),
 	...PRESS('[data-today-done]'),
 ]
 
