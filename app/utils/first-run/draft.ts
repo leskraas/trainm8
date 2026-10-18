@@ -10,6 +10,7 @@
 // placeholders that never reach a database.
 
 import { type EffortWord } from '../effort-word.ts'
+import { inWholeFiveMinutes } from '../five-minutes.ts'
 import { openEndedRoundName } from '../labels.ts'
 import {
 	availabilityFitWarnings,
@@ -448,7 +449,7 @@ export function shortWeekdayHours(
 	}
 	const laid = new Map<PatternWeekday, number>()
 	for (const share of shares) {
-		const rounded = Math.round(share.units / 5) * 5
+		const rounded = inWholeFiveMinutes(share.units)
 		laid.set(share.day, held(share.day) ? Math.min(rounded, cap) : rounded)
 	}
 	const kept = () => [...laid.values()].reduce((sum, value) => sum + value, 0)

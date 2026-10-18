@@ -26,6 +26,7 @@
 // The warnings carry numbers and no wording; the surface words them, exactly as
 // `ramp-guard.ts` and `quality-mix.ts` do.
 
+import { inWholeFiveMinutes } from '../five-minutes.ts'
 import { blockRepeatTotal } from '../workout-schema.ts'
 import {
 	CURRENCY_DECIMALS,
@@ -203,7 +204,7 @@ function inFiveMinutes(
 	const heaviest = Math.max(...weights)
 	const long = weights.lastIndexOf(heaviest)
 	const laid = fractions.map((fraction, index) =>
-		index === long ? 0 : Math.round((fraction * minutes) / 5) * 5,
+		index === long ? 0 : inWholeFiveMinutes(fraction * minutes),
 	)
 	const rest = minutes - laid.reduce((sum, value) => sum + value, 0)
 	if (rest < 0) return null

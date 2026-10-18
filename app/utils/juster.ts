@@ -23,6 +23,7 @@
  * normal rule (ADR 0080).
  */
 import { z } from 'zod/v3'
+import { inWholeFiveMinutes } from './five-minutes.ts'
 
 export const JUSTER_INTENTS = ['tired', 'short', 'move'] as const
 export type JusterIntent = (typeof JUSTER_INTENTS)[number]
@@ -73,7 +74,7 @@ export const SHORTER_MIN = 20
  * and never longer than the session already was.
  */
 export function tiredMinutes(minutes: number): number {
-	const share = Math.round((minutes * TIRED_SHARE) / 5) * 5
+	const share = inWholeFiveMinutes(minutes * TIRED_SHARE)
 	return Math.min(minutes, Math.max(TIRED_FLOOR_MIN, share))
 }
 

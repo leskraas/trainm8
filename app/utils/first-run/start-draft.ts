@@ -10,6 +10,7 @@
 // browser as the athlete answers.
 
 import { type EffortWord, effortWordOfZone } from '../effort-word.ts'
+import { FIVE_MINUTES } from '../five-minutes.ts'
 import { SIMPLE_ACTIVITY_LABELS } from '../labels.ts'
 import { openEndedRound, type PresetFamily } from '../plan-outline/presets.ts'
 import { qualitySessionCount } from '../plan-outline/quality-mix.ts'
@@ -883,7 +884,7 @@ function notFittedOf(
 }
 
 /** The steps a Simple Activity's share of the hours is laid in, and its bounds. */
-const SHARE_STEP_MINUTES = 5
+const SHARE_STEP_MINUTES = FIVE_MINUTES
 const MIN_SHARE_MINUTES = 10
 const MAX_SHARE_MINUTES = 600
 
