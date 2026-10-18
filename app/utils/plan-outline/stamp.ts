@@ -130,6 +130,13 @@ export type StampTrack = {
 	trackId: string
 	discipline: Discipline
 	currency: VolumeCurrency
+	/**
+	 * Whether the athlete chose this track's days — its **Pinned days**
+	 * (ADR 0104 §4). A pinned track's mix is laid before the others', so its
+	 * hard days are where the athlete put the track and every other track's
+	 * mix steps around them.
+	 */
+	pinned?: boolean
 }
 
 /**
@@ -337,8 +344,13 @@ export function planStamp({
 		// Every track's long day first, so each mix is laid around them all.
 		for (const track of tracks) markLongDays(ownOf(track.trackId), dayById)
 		// Then each mix in turn, around the week as laid so far: a track laid
-		// later steps around the hard days of the tracks laid before it.
-		for (const track of tracks) {
+		// later steps around the hard days of the tracks laid before it. A
+		// track on its **Pinned days** goes first, so the others are laid
+		// around the athlete's choice (ADR 0104 §4); otherwise in track order.
+		for (const track of [
+			...tracks.filter((each) => each.pinned),
+			...tracks.filter((each) => !each.pinned),
+		]) {
 			if (!isCardioDiscipline(track.discipline)) continue
 			const mix =
 				week.mixes?.find((entry) => entry.trackId === track.trackId)?.mix ?? []

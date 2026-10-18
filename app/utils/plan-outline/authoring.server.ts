@@ -103,6 +103,7 @@ import {
 	walksAsEndurance,
 } from './from-rows.ts'
 import { readAnchorContext } from './history.server.ts'
+import { parsePinnedDays } from './pinned-days.ts'
 import {
 	familyOfPreset,
 	OPEN_ENDED_ROUND_WEEKS,
@@ -2701,6 +2702,7 @@ export async function createStarterWeekPatternInTx(
 					id: true,
 					discipline: true,
 					currency: true,
+					pinnedDays: true,
 					segments: {
 						where: { kind: 'strength' },
 						select: { sessionsPerWeek: true },
@@ -2766,7 +2768,13 @@ export async function createStarterWeekPatternInTx(
 			// from. It lays that many lifting slots, which the stamp places each
 			// week (ADR 0104 §3).
 			sessionsPerWeek: track.segments[0]?.sessionsPerWeek ?? null,
-			weekdays: daysByDiscipline[track.discipline as Discipline],
+			// The days the first run dealt it, or else the track's own **Pinned
+			// days** (ADR 0104 §4, #598): a pinned track keeps to them and the
+			// others are dealt around it.
+			weekdays:
+				daysByDiscipline[track.discipline as Discipline] ??
+				parsePinnedDays(track.pinnedDays) ??
+				undefined,
 			dayWeights: weightsByDiscipline[track.discipline as Discipline],
 			hardSessions: hardSessionsOf(track.id),
 			...(comparable && track.anchors[0]
@@ -2786,6 +2794,7 @@ export async function createStarterWeekPatternInTx(
 	const proposed: StarterProposal = proposal ?? {
 		days: [],
 		lifting: [],
+		pinnedLifting: [],
 		weekdays: [],
 		source: trainableWeekdays == null ? 'default' : 'availability',
 	}
@@ -2832,6 +2841,26 @@ export async function createStarterWeekPatternInTx(
 				workoutId: day.workoutId,
 			},
 		})
+	}
+	// A strength track's Pinned days (#598): a fixed lift on each, after the
+	// day's endurance session, which the stamp lays first and every mix steps
+	// around (ADR 0104 §4).
+	if (proposed.pinnedLifting.length > 0) {
+		const workoutId = await readLiftingWorkoutId(tx, userId)
+		for (const day of proposed.pinnedLifting) {
+			const orderInDay = placed.get(day.weekday) ?? 0
+			placed.set(day.weekday, orderInDay + 1)
+			await tx.weekPatternDay.create({
+				data: {
+					patternId: pattern.id,
+					trackId: day.trackId,
+					weekday: day.weekday,
+					orderInDay,
+					kind: 'fixed',
+					workoutId,
+				},
+			})
+		}
 	}
 	// The lifting slots, on no weekday (ADR 0104 §3): the stamp lays each
 	// week's lifts against that week's hard days, by the first run's rule. Each

@@ -62,6 +62,7 @@ import {
 	type SegmentReading,
 	type WeekTargetReading,
 } from './plan-outline/from-rows.ts'
+import { parsePinnedDays } from './plan-outline/pinned-days.ts'
 import {
 	plannedWeeklyLoad,
 	type PlannedLoadBasis,
@@ -327,6 +328,9 @@ const activeOutlineSelect = {
 			id: true,
 			discipline: true,
 			currency: true,
+			// **Pinned days** (ADR 0104 §4): the fit check says a clash on them
+			// comes from the athlete's choice.
+			pinnedDays: true,
 			anchors: { select: { fromWeekKey: true, value: true } },
 			// Both segment kinds, with everything each carries: since #400 a
 			// strength segment is resolved rather than filtered out, and it is
@@ -1386,6 +1390,7 @@ function seasonDayClashWarnings(
 			trackId: track.id,
 			discipline: track.discipline as Discipline,
 			currency: track.currency as VolumeCurrency,
+			pinned: parsePinnedDays(track.pinnedDays) != null,
 		})),
 		weeks: Array.from({ length: totalWeeks(specs) }, (_, index) => {
 			const phaseIndex = phaseIndexForWeek(specs, index)

@@ -1,8 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import {
 	pinnedDaysRefusal,
+	pinnedDaysWithin,
 	strengthPinnedDays,
+	trackRowsByRule,
+	trackRowsOnDays,
 	withStrengthChoice,
+	withTrackRows,
 } from './pinned-days.ts'
 import {
 	planStamp,
@@ -176,5 +180,287 @@ describe('the stamp with Pinned lifting days', () => {
 
 	test('the same choice lays the same weeks', () => {
 		expect(lay([TUE, THU])).toEqual(lay([TUE, THU]))
+	})
+})
+
+// Endurance tracks and Simple Activities (#598): the same Pinned days, written
+// as the track's share days in the Week Pattern.
+describe('trackRowsOnDays', () => {
+	const share = (weekday: PatternWeekday, weight = 1, workoutId = null) => ({
+		kind: 'share' as const,
+		weekday,
+		weight,
+		workoutId,
+	})
+	const fixed = (weekday: PatternWeekday, workoutId: string) => ({
+		kind: 'fixed' as const,
+		weekday,
+		weight: null,
+		workoutId,
+	})
+	const daysOf = (rows: ReadonlyArray<{ weekday: number }>) =>
+		rows.map((row) => row.weekday)
+
+	test('a track pinned to two days trains only on those days', () => {
+		const rows = trackRowsOnDays(
+			[share(MON), share(TUE), share(THU), share(SUN, 2)],
+			[WED, SUN],
+		)
+		expect(daysOf(rows)).toEqual([WED, SUN])
+	})
+
+	test('the long day stays the long day where it is still a chosen day', () => {
+		const rows = trackRowsOnDays(
+			[share(MON), share(TUE), share(SUN, 2)],
+			[TUE, SUN],
+		)
+		expect(rows).toEqual([share(TUE), share(SUN, 2)])
+	})
+
+	test('a track that had a long day keeps one, on the last chosen day', () => {
+		const rows = trackRowsOnDays(
+			[share(MON), share(TUE), share(SUN, 2)],
+			[WED, SAT],
+		)
+		expect(rows).toEqual([share(WED), share(SAT, 2)])
+	})
+
+	test('a session the athlete authored is moved onto a chosen day, never dropped', () => {
+		const rows = trackRowsOnDays(
+			[share(MON), fixed(TUE, 'w-intervals'), share(SUN, 2)],
+			[THU, SAT],
+		)
+		// One share takes the whole rest of the week: no long day to weigh.
+		expect(rows).toEqual([fixed(THU, 'w-intervals'), share(SAT)])
+	})
+
+	test('an authored session already on a chosen day stays there', () => {
+		const rows = trackRowsOnDays(
+			[share(MON), fixed(SAT, 'w-ski'), share(SUN, 2)],
+			[SAT],
+		)
+		expect(rows).toEqual([fixed(SAT, 'w-ski')])
+	})
+})
+
+describe('trackRowsByRule', () => {
+	const share = (weekday: PatternWeekday, weight = 1) => ({
+		kind: 'share' as const,
+		weekday,
+		weight,
+		workoutId: null,
+	})
+	// The run keeps Monday, Tuesday, Thursday and its long Sunday.
+	const others = [
+		{ trackId: 'run', discipline: 'run' as const, days: [MON, TUE, THU, SUN] },
+	] as Array<{
+		trackId: string
+		discipline: 'run'
+		days: PatternWeekday[]
+	}>
+
+	test('La appen velge deals the track the days the others leave, long on the last', () => {
+		expect(
+			trackRowsByRule({
+				trackId: 'bike',
+				discipline: 'bike',
+				rows: [share(WED), share(SAT)],
+				available: EVERY_DAY,
+				others,
+			}),
+		).toEqual([share(WED), share(FRI), share(SAT, 2)])
+	})
+
+	test('it keeps to Training Availability', () => {
+		expect(
+			trackRowsByRule({
+				trackId: 'bike',
+				discipline: 'bike',
+				rows: [share(SAT)],
+				available: [MON, TUE, THU, FRI, SUN],
+				others,
+			}).map((row) => row.weekday),
+		).toEqual([FRI])
+	})
+
+	test('a session the athlete authored stays where it is', () => {
+		expect(
+			trackRowsByRule({
+				trackId: 'bike',
+				discipline: 'bike',
+				rows: [
+					{ kind: 'fixed', weekday: WED, weight: null, workoutId: 'w-bike' },
+				],
+				available: EVERY_DAY,
+				others,
+			}),
+		).toEqual([
+			{ kind: 'fixed', weekday: WED, weight: null, workoutId: 'w-bike' },
+			share(FRI),
+			share(SAT, 2),
+		])
+	})
+})
+
+describe('pinnedDaysWithin', () => {
+	test('a day taken out of Training Availability is dropped from the track', () => {
+		expect(pinnedDaysWithin([TUE, SAT], [MON, TUE, THU])).toEqual({
+			kept: [TUE],
+			lost: [SAT],
+		})
+	})
+
+	test('a track that loses every day goes back to La appen velge', () => {
+		expect(pinnedDaysWithin([SAT], [MON, TUE])).toEqual({
+			kept: null,
+			lost: [SAT],
+		})
+	})
+
+	test('days still available are kept, and nothing is lost', () => {
+		expect(pinnedDaysWithin([TUE], [TUE, WED])).toEqual({
+			kept: [TUE],
+			lost: [],
+		})
+	})
+})
+
+describe('the stamp with an endurance track’s Pinned days', () => {
+	const RUN: StampTrack = {
+		trackId: 'run',
+		discipline: 'run',
+		currency: 'hours',
+	}
+	const BIKE: StampTrack = {
+		trackId: 'bike',
+		discipline: 'bike',
+		currency: 'hours',
+	}
+	const SIMPLE: StampTrack = {
+		trackId: 'simple',
+		discipline: 'other' as StampTrack['discipline'],
+		currency: 'hours',
+	}
+	const THRESHOLD = [{ zone: 4 as const, sessionsPerWeek: 1 }]
+	const day = (
+		trackId: string,
+		weekday: PatternWeekday,
+		weight = 1,
+		extra: Partial<StampDay> = {},
+	) =>
+		({
+			dayId: `${trackId}-${weekday}`,
+			weekday,
+			orderInDay: 0,
+			trackId,
+			kind: 'share',
+			weight,
+			workoutId: null,
+			shapeVolume: null,
+			...extra,
+		}) as StampDay
+	const week: StampWeekInput = {
+		weekKey: '2030-01-14',
+		weekInPlan: 1,
+		targets: [
+			{ trackId: 'run', value: 6 },
+			{ trackId: 'bike', value: 4 },
+			{ trackId: 'simple', value: 2 },
+		],
+		mixes: [
+			{ trackId: 'run', mix: THRESHOLD },
+			{ trackId: 'bike', mix: THRESHOLD },
+		],
+	}
+	const hardDaysOf = (plan: StampWeekPlan, trackId: string) =>
+		plan.sessions
+			.filter((s) => s.trackId === trackId && s.zone != null)
+			.map((s) => s.weekday)
+
+	// The run Monday, Tuesday, Thursday and its long Sunday.
+	const runDays = [
+		day('run', MON),
+		day('run', TUE),
+		day('run', THU),
+		day('run', SUN, 2),
+	]
+
+	test('a hard Langrenn day pinned to Saturday stays there, and the run’s intervals keep away from it', () => {
+		const langrenn = {
+			...day('simple', SAT),
+			kind: 'fixed',
+			weight: undefined,
+			volume: 2,
+			workoutId: 'w-ski',
+			effort: 'hard',
+		} as unknown as StampDay
+		const rows = trackRowsOnDays(
+			[{ kind: 'fixed', weekday: WED, weight: null, workoutId: 'w-ski' }],
+			[SAT],
+		)
+		const [plan] = planStamp({
+			...withTrackRows(
+				{ days: [...runDays, { ...langrenn, weekday: WED }], lifting: [] },
+				{ trackId: 'simple' },
+				rows,
+			),
+			tracks: [RUN, SIMPLE],
+			weeks: [week],
+		})
+		const ski = plan!.sessions.filter((s) => s.trackId === 'simple')
+		expect(ski.map((s) => s.weekday)).toEqual([SAT])
+		// Not Sunday or Friday beside it, nor Monday after the long Sunday.
+		expect(hardDaysOf(plan!, 'run')).toEqual([TUE])
+	})
+
+	test('a track pinned to two days spreads its whole week over them', () => {
+		const [plan] = planStamp({
+			...withTrackRows(
+				{
+					days: [...runDays, day('bike', MON), day('bike', FRI)],
+					lifting: [],
+				},
+				{ trackId: 'bike' },
+				trackRowsOnDays(
+					[
+						{ kind: 'share', weekday: MON, weight: 1, workoutId: null },
+						{ kind: 'share', weekday: FRI, weight: 1, workoutId: null },
+					],
+					[WED, SAT],
+				),
+			),
+			tracks: [RUN, { ...BIKE, pinned: true }],
+			weeks: [week],
+		})
+		const bike = plan!.sessions.filter((s) => s.trackId === 'bike')
+		expect(bike.map((s) => s.weekday)).toEqual([WED, SAT])
+		expect(bike.reduce((sum, s) => sum + (s.volume ?? 0), 0)).toBeCloseTo(4)
+	})
+
+	test('a pinned track’s hard day is laid first, and the other tracks’ go around it', () => {
+		const days = [...runDays, day('bike', WED), day('bike', SAT)]
+		const lay = (pinned: boolean) =>
+			planStamp({
+				days,
+				tracks: [RUN, { ...BIKE, pinned }],
+				weeks: [week],
+			})[0]!
+		// Laid second, the bike steps around the run's Thursday onto Wednesday:
+		// two hard days in a row.
+		expect(hardDaysOf(lay(false), 'run')).toEqual([THU])
+		expect(hardDaysOf(lay(false), 'bike')).toEqual([WED])
+		// Pinned, the bike is laid first, and the run's intervals step around it.
+		expect(hardDaysOf(lay(true), 'bike')).toEqual([WED])
+		expect(hardDaysOf(lay(true), 'run')).toEqual([MON])
+	})
+
+	test('the same pinned days lay the same week', () => {
+		const lay = () =>
+			planStamp({
+				days: [...runDays, day('bike', WED), day('bike', SAT)],
+				tracks: [RUN, { ...BIKE, pinned: true }],
+				weeks: [week],
+			})
+		expect(lay()).toEqual(lay())
 	})
 })

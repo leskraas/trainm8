@@ -577,6 +577,26 @@ test('two hard days in a row across tracks warn, a hard Simple Activity among th
 	])
 })
 
+test('a clash on a track’s Pinned days says it comes from the athlete’s choice', () => {
+	// The ride pinned to Thursday, its intervals laid there, after the run's
+	// threshold Wednesday the athlete authored (#598).
+	const laid = (pinned: boolean) =>
+		clashes(
+			[fixedDay('run', 2, { zone: 4 }), fixedDay('ride', 3, { zone: 4 })],
+			[RUN, { ...RIDE, pinned }],
+		)
+	expect(laid(true)).toEqual([
+		{
+			fromWeekIndex: 0,
+			toWeekIndex: 0,
+			reason: 'hard-days-in-a-row',
+			weekday: 2,
+			pinned: true,
+		},
+	])
+	expect(laid(false)[0]?.pinned).toBe(false)
+})
+
 test('two hard sessions on one day warn, a middels one counting as hard', () => {
 	expect(
 		clashes(

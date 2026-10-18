@@ -289,15 +289,19 @@ type FitSession = { placed: PlacedSession; pinned: boolean }
 
 /**
  * One stamped session as the day rule reads it — the stamp's own reading —
- * and whether it is pinned: today a stored fixed strength day.
+ * and whether it is pinned: a stored fixed strength day, or any session of a
+ * track on its **Pinned days** (ADR 0104 §4, #598).
  */
 function fitSessionOf(
 	session: StampSession,
 	day: StampDay | undefined,
+	pinnedTracks: ReadonlySet<string>,
 ): FitSession {
 	return {
 		placed: placedSessionOf(session, day, session.discipline),
-		pinned: session.discipline === 'strength' && session.kind === 'fixed',
+		pinned:
+			(session.discipline === 'strength' && session.kind === 'fixed') ||
+			pinnedTracks.has(session.trackId),
 	}
 }
 
@@ -361,13 +365,16 @@ export function dayClashWarnings({
 }): DayClashWarning[] {
 	const dayById = new Map(days.map((day) => [day.dayId, day]))
 	const plans = planStamp({ days, tracks, weeks, lifting, liftingDays })
+	const pinnedTracks = new Set(
+		tracks.filter((track) => track.pinned).map((track) => track.trackId),
+	)
 
 	const warnings: DayClashWarning[] = []
 	const open = new Map<string, DayClashWarning>()
 	for (const plan of plans) {
 		const week = plan.weekInPlan - 1
 		const sessions = plan.sessions.map((session) =>
-			fitSessionOf(session, dayById.get(session.dayId)),
+			fitSessionOf(session, dayById.get(session.dayId), pinnedTracks),
 		)
 		for (const clash of weekClashes(sessions)) {
 			const key = `${clashKey(clash)}|${clash.pinned}`
