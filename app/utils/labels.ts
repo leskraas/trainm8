@@ -2475,6 +2475,12 @@ export const PLAN_READY_LABELS = {
 		track: (name: string, start: string | null) =>
 			start == null ? name : `${name}, starter på ${start}`,
 		level: 'Nivå',
+		/** The Strength Frequency answer (#574, ADR 0103). */
+		strength: 'Styrke',
+		strengthPerWeek: (count: number) =>
+			`${count} ${count === 1 ? 'styrkeøkt' : 'styrkeøkter'} i uka`,
+		/** The Session Preferences, each by its own name (#571). */
+		preferences: 'Økter du liker',
 		pattern: 'Ukemønster',
 		free: 'fri',
 		/** A share day: `Løping · andel, vekt 1,5`. */
