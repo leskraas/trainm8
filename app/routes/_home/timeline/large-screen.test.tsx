@@ -571,6 +571,7 @@ describe('the autopilot’s history in Se hele sesongen (#580)', () => {
 									kind: 'changed',
 									subject: '«Terskel» · onsdag',
 									text: 'Økta er gjort ca. 15 % kortere.',
+									volumeLine: null,
 									undo: 'closed',
 								},
 								{
@@ -578,11 +579,13 @@ describe('the autopilot’s history in Se hele sesongen (#580)', () => {
 									kind: 'changed',
 									subject: '«Langtur» · søndag',
 									text: 'Økta er gjort ca. 15 % kortere.',
+									volumeLine: null,
 									undo: 'undone',
 								},
 							],
 							unlaidLine:
 								'Uka fra mandag 4. mars ble ikke lagt ut: den ligger etter slutten av planen.',
+							introLine: null,
 							undoable: 0,
 							closedLine:
 								'Uka har begynt, så endringene kan ikke angres lenger.',

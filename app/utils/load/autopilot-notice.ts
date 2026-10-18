@@ -18,11 +18,15 @@
  */
 
 import { weekdayIndex } from '#app/utils/athlete-calendar.ts'
+import { formatNbVolumeFigure } from '#app/utils/format.ts'
 import {
 	AUTOPILOT_NOTICE_LABELS as L,
+	NB_VOLUME_UNITS,
 	NB_WEEKDAY_LABELS,
 	nbLongDay,
+	roundPeakLabel,
 } from '#app/utils/labels.ts'
+import { type VolumeCurrency } from '#app/utils/plan-outline/derive.ts'
 import { type SessionOwner } from '#app/utils/session-ownership.ts'
 import { AUTOPILOT_STEP_UP_MAX, type AutopilotOutcome } from './autopilot.ts'
 import { type WeekChangeData } from './week-change-card.ts'
@@ -39,7 +43,16 @@ export type AutopilotNoticeProposal = {
 	undone: boolean
 	/** The session it is aimed at, as it stands; null for a week-wide one. */
 	target: { title: string | null; dayKey: string; owner: SessionOwner } | null
+	/**
+	 * A next round's: the peak week of the round it follows, in the plan's lead
+	 * track — what its factor scaled (#583). Null or absent otherwise, or when
+	 * the plan has no number to read it from.
+	 */
+	roundPeak?: RoundPeak | null
 }
+
+/** A round's peak week, in its track's unit. */
+export type RoundPeak = { value: number; currency: VolumeCurrency }
 
 export type AutopilotNoticeLine = {
 	proposalId: string
@@ -53,6 +66,12 @@ export type AutopilotNoticeLine = {
 	/** What the line is about, when the reason does not name it. */
 	subject: string | null
 	text: string
+	/**
+	 * A next round's peak week before → after, under its reason (#583):
+	 * `Toppuka: 4 → 4,2 t`. Null for any other line, a round that keeps its
+	 * volume, or one that has been undone.
+	 */
+	volumeLine: string | null
 	/** A change's way back: offered, already taken, or past its window. */
 	undo: 'offered' | 'undone' | 'closed' | null
 }
@@ -75,6 +94,11 @@ export type AutopilotNotice = {
 	lines: AutopilotNoticeLine[]
 	/** A week the close could not lay, with why (#580); null when none. */
 	unlaidLine: string | null
+	/**
+	 * The one-time line about the switch to autopilot and where _Spør meg
+	 * først_ is (#583) — on one notice only, the first after the switch.
+	 */
+	introLine: string | null
 	/** How many changes can still be undone — _Angre alt_ shows from two. */
 	undoable: number
 	/** Said once under the lines when the window has closed on a change. */
@@ -107,7 +131,14 @@ function lineOf(
 		text: string,
 		subject: string | null = null,
 		undo: AutopilotNoticeLine['undo'] = null,
-	): AutopilotNoticeLine => ({ proposalId: id, kind, subject, text, undo })
+	): AutopilotNoticeLine => ({
+		proposalId: id,
+		kind,
+		subject,
+		text,
+		volumeLine: null,
+		undo,
+	})
 
 	switch (outcome) {
 		case 'applied': {
@@ -118,7 +149,13 @@ function lineOf(
 			// A slot move's and a round's reasons name what they moved; a scale
 			// on one session says only "økta", so the line names it.
 			const subject = payload.kind === 'scale' ? subjectOf(target) : null
-			return line('changed', reason, subject, undo)
+			return {
+				...line('changed', reason, subject, undo),
+				volumeLine:
+					payload.kind === 'add-phase' && undo !== 'undone'
+						? roundVolumeLine(proposal.roundPeak ?? null, payload.factor)
+						: null,
+			}
 		}
 		case 'left-alone':
 			return line(
@@ -142,6 +179,20 @@ function lineOf(
 		case 'gone':
 			return line('held', target?.title ? L.gone(target.title) : L.goneUnnamed)
 	}
+}
+
+/**
+ * A next round's peak week before → after its factor, as the Week Change Card
+ * says it beside the percentage (`Toppuka: 4 → 4,2 t`). Nothing for a round
+ * that keeps the volume — its reason already says so — or without a peak.
+ */
+function roundVolumeLine(peak: RoundPeak | null, factor: number) {
+	if (!peak || factor === 1) return null
+	const before = formatNbVolumeFigure(peak.value, peak.currency)
+	const after = formatNbVolumeFigure(peak.value * factor, peak.currency)
+	return before === after
+		? null
+		: roundPeakLabel(before, after, NB_VOLUME_UNITS[peak.currency])
 }
 
 /**
@@ -176,6 +227,7 @@ export function buildAutopilotNotice({
 	todayWeekKey = null,
 	seen = false,
 	unlaid = null,
+	intro = false,
 }: {
 	closedWeekKey: string
 	comingWeekKey: string
@@ -192,6 +244,8 @@ export function buildAutopilotNotice({
 	seen?: boolean
 	/** The horizon week the close could not lay, and why (#580). */
 	unlaid?: { weekKey: string; reason: UnlaidReason } | null
+	/** Whether this is the one notice that carries the switch's line (#583). */
+	intro?: boolean
 }): AutopilotNotice {
 	const lines = proposals.map((proposal) => lineOf(proposal, undoOpen))
 	const arrived =
@@ -207,6 +261,7 @@ export function buildAutopilotNotice({
 		unlaidLine: unlaid
 			? L.unlaid(unlaid.reason, nbLongDay(unlaid.weekKey))
 			: null,
+		introLine: intro ? L.intro : null,
 		undoable: lines.filter((line) => line.undo === 'offered').length,
 		closedLine: lines.some((line) => line.undo === 'closed') ? L.closed : null,
 		eased,

@@ -15,11 +15,13 @@ import { addDays, localDate, weekMonday } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { sessionOwner } from '#app/utils/session-ownership.ts'
+import { getPlanForOutline } from '#app/utils/training.server.ts'
 import {
 	type AutopilotNotice,
 	type AutopilotNoticeProposal,
 	buildAutopilotNotice,
 	isNoticeOnToday,
+	type RoundPeak,
 } from './autopilot-notice.ts'
 import { AutopilotOutcomeSchema } from './autopilot.ts'
 import { readFirstUnbegunWeekKey } from './week-begun.server.ts'
@@ -41,6 +43,7 @@ const noticeReplanSelect = {
 	weekKey: true,
 	autopilotSeenAt: true,
 	horizonUnlaid: true,
+	autopilotIntro: true,
 	proposals: {
 		// Only what the autopilot looked at: never the athlete's own ease.
 		where: { autopilotOutcome: { not: null } },
@@ -81,11 +84,17 @@ function noticeOf(
 		now,
 		firstUnbegun,
 		eased,
+		roundPeaks,
+		intro,
 	}: {
 		timezone: string
 		now: Date
 		firstUnbegun: string
 		eased: AutopilotNotice['eased']
+		/** Each applied next round's peak week before it, by proposal id. */
+		roundPeaks: ReadonlyMap<string, RoundPeak | null>
+		/** Whether this notice carries the one-time line (I dag's only, #583). */
+		intro: boolean
 	},
 ): AutopilotNotice {
 	const comingWeekKey = addDays(replan.weekKey, 7)
@@ -102,6 +111,7 @@ function noticeOf(
 					owner: sessionOwner(row.targetSession),
 				}
 			: null,
+		roundPeak: roundPeaks.get(row.id) ?? null,
 	}))
 	const unlaid = parseUnlaidReason(replan.horizonUnlaid)
 	return buildAutopilotNotice({
@@ -115,7 +125,62 @@ function noticeOf(
 		unlaid: unlaid
 			? { weekKey: horizonWeekKey(replan.weekKey), reason: unlaid }
 			: null,
+		intro,
 	})
+}
+
+/**
+ * The peak week of the round an applied next round follows, per proposal
+ * (#583): the most that round asked of one week in the plan's lead track —
+ * the number the round's factor scaled, said as _Toppuka: 4 → 4,2 t_. Read
+ * from the plan as it stands; null when the round it followed is gone (the
+ * plan reshaped since) or has no number in km or hours.
+ */
+async function readRoundPeaks(
+	userId: string,
+	replans: readonly NoticeReplan[],
+	now: Date,
+): Promise<Map<string, RoundPeak | null>> {
+	const peaks = new Map<string, RoundPeak | null>()
+	for (const row of replans.flatMap((replan) => replan.proposals)) {
+		if (row.autopilotOutcome !== 'applied') continue
+		const payload = parseProposalPayload(row.payload)
+		if (payload.kind !== 'add-phase') continue
+		peaks.set(
+			row.id,
+			await readRoundPeak(userId, payload.outlineId, payload.afterPhaseId, now),
+		)
+	}
+	return peaks
+}
+
+async function readRoundPeak(
+	userId: string,
+	outlineId: string,
+	phaseId: string,
+	now: Date,
+): Promise<RoundPeak | null> {
+	const [phases, plan] = await Promise.all([
+		prisma.planOutlinePhase.findMany({
+			where: { outlineId, outline: { athleteId: userId } },
+			orderBy: { orderIndex: 'asc' },
+			select: { id: true, weeks: true },
+		}),
+		getPlanForOutline(userId, outlineId, now),
+	])
+	const index = phases.findIndex((phase) => phase.id === phaseId)
+	const lead = plan?.tracks.find((track) => track.currency !== 'sets')
+	if (index < 0 || !lead) return null
+	const from = phases
+		.slice(0, index)
+		.reduce((weeks, phase) => weeks + phase.weeks, 0)
+	const peak = Math.max(
+		0,
+		...lead.targets
+			.slice(from, from + phases[index]!.weeks)
+			.map((target) => target ?? 0),
+	)
+	return peak > 0 ? { value: peak, currency: lead.currency } : null
 }
 
 /**
@@ -141,11 +206,19 @@ export async function readAutopilotNotice(
 	if (!replan) return null
 
 	const comingWeekKey = addDays(closedWeekKey, 7)
-	const [firstUnbegun, eased] = await Promise.all([
+	const [firstUnbegun, eased, roundPeaks] = await Promise.all([
 		readFirstUnbegunWeekKey(userId, now, timezone),
 		readWeekEase(userId, comingWeekKey),
+		readRoundPeaks(userId, [replan], now),
 	])
-	const notice = noticeOf(replan, { timezone, now, firstUnbegun, eased })
+	const notice = noticeOf(replan, {
+		timezone,
+		now,
+		firstUnbegun,
+		eased,
+		roundPeaks,
+		intro: replan.autopilotIntro,
+	})
 	const onToday = isNoticeOnToday({
 		begun: notice.begun,
 		seenDayKey: replan.autopilotSeenAt
@@ -177,9 +250,20 @@ export async function readAutopilotHistory(
 		select: noticeReplanSelect,
 	})
 	if (replans.length === 0) return []
-	const firstUnbegun = await readFirstUnbegunWeekKey(userId, now, timezone)
+	const [firstUnbegun, roundPeaks] = await Promise.all([
+		readFirstUnbegunWeekKey(userId, now, timezone),
+		readRoundPeaks(userId, replans, now),
+	])
+	// The one-time line is I dag's: it is news once, not history.
 	return replans.map((replan) =>
-		noticeOf(replan, { timezone, now, firstUnbegun, eased: null }),
+		noticeOf(replan, {
+			timezone,
+			now,
+			firstUnbegun,
+			eased: null,
+			roundPeaks,
+			intro: false,
+		}),
 	)
 }
 

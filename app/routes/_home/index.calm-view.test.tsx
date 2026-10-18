@@ -12,6 +12,7 @@ import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { beforeAll, expect, test, vi } from 'vitest'
+import { AUTOPILOT_NOTICE_LABELS } from '#app/utils/labels.ts'
 import { type AutopilotNotice } from '#app/utils/load/autopilot-notice.ts'
 import {
 	type ActivePlan,
@@ -221,6 +222,7 @@ function notice(
 		seen: true,
 		lines,
 		unlaidLine: null,
+		introLine: null,
 		undoable: lines.filter((line) => line.undo === 'offered').length,
 		closedLine: null,
 		eased: null,
@@ -232,6 +234,7 @@ const CHANGED = {
 	kind: 'changed' as const,
 	subject: '«Fredagsintervaller» · fredag',
 	text: 'Økta er gjort ca. 15 % kortere.',
+	volumeLine: null,
 	undo: 'offered' as const,
 }
 
@@ -248,6 +251,7 @@ test('under autopilot, Neste uke er lagt ut sits above the week, one line per ch
 				kind: 'left-alone',
 				subject: null,
 				text: 'Lørdagens «Styrke» er din, den står.',
+				volumeLine: null,
 				undo: null,
 			},
 		]),
@@ -328,6 +332,67 @@ test('once its week has begun, the notice says Denne uka and no longer offers Gj
 		within(region).queryByRole('button', { name: /Gjør uka lettere/ }),
 	).toBeNull()
 	expect(within(region).queryByRole('button', { name: /^Angre/ })).toBeNull()
+})
+
+test('a next round says its peak week before → after under its reason', async () => {
+	renderToday({
+		ledger: [session('today', '2030-01-02T07:00:00Z', 'Rolig løpetur')],
+		autopilotNotice: notice([
+			{
+				...CHANGED,
+				proposalId: 'p1',
+				subject: null,
+				text: 'Blokk 3 er lagt inn med 5 % mer.',
+				volumeLine: 'Toppuka: 4 → 4,2 t',
+			},
+		]),
+	})
+
+	const region = await screen.findByRole('region', {
+		name: 'Neste uke er lagt ut',
+	})
+	expect(region).toHaveTextContent('Blokk 3 er lagt inn med 5 % mer.')
+	expect(region).toHaveTextContent('Toppuka: 4 → 4,2 t')
+	expect(
+		within(region).getByRole('button', {
+			name: 'Angre: Blokk 3 er lagt inn med 5 % mer.',
+		}),
+	).toBeInTheDocument()
+})
+
+test('the first notice after the switch says so once, with the way to Spør meg først in Meg', async () => {
+	renderToday({
+		ledger: [session('today', '2030-01-02T07:00:00Z', 'Rolig løpetur')],
+		autopilotNotice: notice([{ ...CHANGED, proposalId: 'p1' }], {
+			introLine: AUTOPILOT_NOTICE_LABELS.intro,
+		}),
+	})
+
+	const region = await screen.findByRole('region', {
+		name: 'Neste uke er lagt ut',
+	})
+	expect(region).toHaveTextContent(AUTOPILOT_NOTICE_LABELS.intro)
+	expect(
+		within(region).getByRole('link', {
+			name: AUTOPILOT_NOTICE_LABELS.introLink,
+		}),
+	).toHaveAttribute('href', '/me#me-autopilot')
+})
+
+test('a notice without the one-time line has no link to Meg', async () => {
+	renderToday({
+		ledger: [session('today', '2030-01-02T07:00:00Z', 'Rolig løpetur')],
+		autopilotNotice: notice([{ ...CHANGED, proposalId: 'p1' }]),
+	})
+
+	const region = await screen.findByRole('region', {
+		name: 'Neste uke er lagt ut',
+	})
+	expect(
+		within(region).queryByRole('link', {
+			name: AUTOPILOT_NOTICE_LABELS.introLink,
+		}),
+	).toBeNull()
 })
 
 test('a week the autopilot could not lay is said in the notice, with why', async () => {

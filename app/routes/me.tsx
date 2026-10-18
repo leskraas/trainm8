@@ -149,7 +149,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		credits,
 		strengthPerWeek,
 		startAnswersDetail,
-		autopilot: profile?.autopilot ?? false,
+		autopilot: profile?.autopilot ?? true,
 	}
 }
 

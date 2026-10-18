@@ -44,10 +44,15 @@ export async function action({ request }: Route.ActionArgs) {
 
 	if (value.intent === 'mode') {
 		// Read at the next close (ADR 0100 §6): nothing already written moves.
+		// An athlete who chose a mode has found the setting, so the one-time
+		// line pointing to it is no longer news (#583).
 		await prisma.athleteProfile.upsert({
 			where: { userId },
 			create: { userId, autopilot: value.mode === 'autopilot' },
-			update: { autopilot: value.mode === 'autopilot' },
+			update: {
+				autopilot: value.mode === 'autopilot',
+				autopilotIntroPending: false,
+			},
 		})
 		return data({ submission: submission.reply(), ok: true, toast: null })
 	}
