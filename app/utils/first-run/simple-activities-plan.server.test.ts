@@ -206,7 +206,7 @@ test('the plan’s Simple Activities track asks for the same hours every week, t
 			boundaryStep: roundBoundaryStep(ROUND_STEP_UP),
 		}),
 	).find((track) => isSimpleActivityTrack(track.discipline))!
-	expect(projected.targets.length).toBe(values.length + 8)
+	expect(projected.targets).toHaveLength(values.length + 8)
 	expect(new Set(projected.targets.map((target) => target.value))).toEqual(
 		new Set([2]),
 	)
@@ -231,7 +231,7 @@ test('the plan’s Simple Activities track asks for the same hours every week, t
 	const appended = resolvedTracks(
 		(await findActiveOutline(athleteId, NOW))!.outline,
 	).find((track) => isSimpleActivityTrack(track.discipline))!
-	expect(appended.targets.length).toBe(values.length + 4)
+	expect(appended.targets).toHaveLength(values.length + 4)
 	expect(new Set(appended.targets.map((target) => target.value))).toEqual(
 		new Set([2]),
 	)
