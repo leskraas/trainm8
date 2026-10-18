@@ -53,7 +53,7 @@ import {
 	type TrackPatternRow,
 } from './pinned-days.ts'
 import { readLaidWeeks, type LaidPatternInput } from './stamp.server.ts'
-import { placedSessionOf, type StampWeekPlan } from './stamp.ts'
+import { placedWeekOf, type StampWeekPlan } from './stamp.ts'
 import { readStrengthDays, setStrengthDays } from './strength-days.server.ts'
 import {
 	isPatternWeekday,
@@ -454,7 +454,7 @@ export async function previewTrackDays(
 
 	const weeks = after.plans.map((laidAfter, index) => {
 		const was = before.plans[index]
-		const afterWeek = placedWeek(laidAfter, after.input, after.tracks)
+		const afterWeek = placedWeekOf(laidAfter.sessions, after.input.days)
 		const unitAfter = unitSessions(laidAfter, after.input, unit)
 		return {
 			weekKey: laidAfter.weekKey,
@@ -462,7 +462,7 @@ export async function previewTrackDays(
 			before: was
 				? {
 						days: unitDays(unitSessions(was, before.input, unit)),
-						hard: hardDays(placedWeek(was, before.input, before.tracks)),
+						hard: hardDays(placedWeekOf(was.sessions, before.input.days)),
 					}
 				: { days: [], hard: [] },
 			after: {
@@ -477,23 +477,6 @@ export async function previewTrackDays(
 		}
 	})
 	return { ok: true, key, choice, weeks, version: unit.version }
-}
-
-/** A laid week's sessions as the day rule reads them. */
-function placedWeek(
-	plan: StampWeekPlan,
-	input: LaidPatternInput,
-	tracks: ReadonlyArray<{ trackId: string; discipline: string }>,
-): PlacedSession[] {
-	const dayById = new Map(input.days.map((day) => [day.dayId, day]))
-	return plan.sessions.map((session) =>
-		placedSessionOf(
-			session,
-			dayById.get(session.dayId),
-			tracks.find((track) => track.trackId === session.trackId)
-				?.discipline as Parameters<typeof placedSessionOf>[2],
-		),
-	)
 }
 
 function unitSessions(
