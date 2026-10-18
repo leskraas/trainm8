@@ -107,12 +107,11 @@ test('a new athlete goes from the level screen to Planen er klar, the history fi
 
 test('preferences ticked but not sent survive going back a screen and forward again', async ({
 	page,
-	navigate,
 	login,
 }) => {
 	test.setTimeout(120_000)
 	await login()
-	await navigate(
+	await page.goto(
 		'/start/okter?level=recreational&hours=5&discipline=run&days=0,2,4,5',
 	)
 	const checkbox = (name: RegExp) => page.getByRole('checkbox', { name })
