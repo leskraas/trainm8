@@ -11,7 +11,10 @@ export default defineConfig({
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
-	workers: process.env.CI ? 1 : undefined,
+	// Two vCPUs on a hosted runner; the tests are written to run in parallel.
+	workers: process.env.CI ? 2 : undefined,
+	// A broken build fails everything; stop paying for retries of each test.
+	maxFailures: process.env.CI ? 8 : undefined,
 	reporter: 'html',
 	use: {
 		baseURL: `http://localhost:${PORT}/`,
