@@ -3,9 +3,14 @@ import path from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { getSeasonForEvent } from '#app/utils/training.server.ts'
+import {
+	getSeasonForEvent,
+	sessionWorkoutSelect,
+} from '#app/utils/training.server.ts'
 import { updateWorkoutSession } from '#app/utils/workout.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
+import { readDays } from './day-rule.ts'
+import { placedOn, readPlacement } from './session-placement.ts'
 import {
 	addWeekPattern,
 	addWeekPatternDay,
@@ -1448,6 +1453,35 @@ describe('lifting laid per week', () => {
 		// Friday, not the Monday and Thursday the week alone would take.
 		expect(await liftingDays(plan)).toEqual([1, 4])
 		expect(await prisma.workoutSession.count({ where: { id: own.id } })).toBe(1)
+	})
+
+	test('the calendar reads back the week the stamp laid: its hard, long and lifting days', async () => {
+		const plan = await setupRunWeek()
+		await addLiftingSlots(plan, await createStrengthWorkout(plan.athleteId), 2)
+		ok(await stampWeek(plan, false))
+		const stored = await prisma.workoutSession.findMany({
+			where: { userId: plan.athleteId },
+			select: { scheduledAt: true, workout: sessionWorkoutSelect },
+		})
+		const week = stored.flatMap((session) => {
+			const shape = readPlacement(session.workout)
+			const weekday = weekdayIndex(
+				session.scheduledAt.toISOString().slice(0, 10),
+			) as 0 | 1 | 2 | 3 | 4 | 5 | 6
+			return shape ? [placedOn(shape, weekday)] : []
+		})
+		const days = readDays(week)
+		// As laid: the threshold run on Wednesday, the long run on Sunday, and
+		// the lifts on Monday and Thursday (see above).
+		expect(days.filter((day) => day.hard).map((day) => day.weekday)).toEqual([
+			2,
+		])
+		expect(days.filter((day) => day.long).map((day) => day.weekday)).toEqual([
+			6,
+		])
+		expect(days.filter((day) => day.lifting).map((day) => day.weekday)).toEqual(
+			[0, 3],
+		)
 	})
 
 	test('a re-lay is stable: the same week comes out again', async () => {
