@@ -87,6 +87,24 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 const StrengthAnswerSchema = z.object({ strength: StrengthPerWeekSchema })
 
+/** One strength row as a write found it, which an undo puts back exactly. */
+const StrengthRowSchema = z.object({
+	kind: z.enum(['fixed', 'lifting', 'share']),
+	weekday: z.number().int().min(0).max(6).nullable(),
+	workoutId: z.string().min(1).nullable(),
+	weight: z.number().positive().nullable().optional(),
+	orderInDay: z.number().int().min(0).optional(),
+})
+const StrengthRowsSchema = z.array(StrengthRowSchema).max(14)
+
+/** Rows off the form, each weekday read onto the pattern's axis. */
+function restoredRows(rows: z.infer<typeof StrengthRowsSchema>) {
+	return rows.map((row) => ({
+		...row,
+		weekday: row.weekday == null ? null : patternWeekdaysOf([row.weekday])[0]!,
+	}))
+}
+
 const UndoSchema = z.object({
 	days: z.array(z.number().int().min(0).max(6)).nullable(),
 	count: z.number().int().min(0),
@@ -106,19 +124,14 @@ const UndoSchema = z.object({
 		.array(
 			z.object({
 				patternId: z.string().min(1),
-				rows: z
-					.array(
-						z.object({
-							kind: z.enum(['fixed', 'lifting']),
-							weekday: z.number().int().min(0).max(6).nullable(),
-							workoutId: z.string().min(1).nullable(),
-						}),
-					)
-					.max(14),
+				rows: StrengthRowsSchema,
 			}),
 		)
 		.max(32)
 		.default([]),
+	/** The rows and the stored Pinned days the write replaced. */
+	rows: StrengthRowsSchema.optional(),
+	pinnedDays: z.string().max(64).nullable().optional(),
 	version: z.string(),
 })
 
@@ -165,7 +178,16 @@ export async function action({ request }: Route.ActionArgs) {
 				{ status: 400 },
 			)
 		}
-		const { days, count, answer, frequencies, elsewhere, version } = parsed.data
+		const {
+			days,
+			count,
+			answer,
+			frequencies,
+			elsewhere,
+			rows,
+			pinnedDays,
+			version,
+		} = parsed.data
 		const undone = await setStrengthDays(userId, {
 			choice: days == null ? null : patternWeekdaysOf(days),
 			version,
@@ -173,13 +195,11 @@ export async function action({ request }: Route.ActionArgs) {
 				count,
 				answer,
 				frequencies,
+				...(rows ? { rows: restoredRows(rows) } : {}),
+				...(pinnedDays !== undefined ? { pinnedDays } : {}),
 				elsewhere: elsewhere.map((entry) => ({
 					patternId: entry.patternId,
-					rows: entry.rows.map((row) => ({
-						...row,
-						weekday:
-							row.weekday == null ? null : patternWeekdaysOf([row.weekday])[0]!,
-					})),
+					rows: restoredRows(entry.rows),
 				})),
 			},
 		})
@@ -553,6 +573,8 @@ function useWrittenToast(
 								count: written.previous.count,
 								answer: written.previous.answer,
 								frequencies: written.previous.frequencies,
+								rows: written.previous.rows,
+								pinnedDays: written.previous.pinnedDays,
 								elsewhere: written.previous.elsewhere,
 								version: written.version,
 							}),

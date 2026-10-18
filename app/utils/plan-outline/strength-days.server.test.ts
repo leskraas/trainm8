@@ -362,6 +362,94 @@ test('chosen lifting days hold in every Week Pattern that lifts, and the undo pu
 	expect(await liftsIn(second.id)).toEqual(['lifting:null'])
 })
 
+test('undoing puts back exactly the rows the write replaced, whatever sessions they lifted', async () => {
+	const { userId, liftTrackId } = await setup({ fixedLiftingDays: [] })
+	const pattern = await prisma.weekPattern.findFirstOrThrow({
+		where: { outline: { tracks: { some: { id: liftTrackId } } } },
+		select: { id: true },
+	})
+	// Authored by hand before #597: squats on Tuesday, a pull session on
+	// Thursday, and a bare strength share on Saturday — no Pinned days stored.
+	const lift = (title: string) =>
+		prisma.workout.create({
+			select: { id: true },
+			data: {
+				ownerId: userId,
+				title,
+				discipline: 'strength',
+				intent: 'strength',
+			},
+		})
+	const squat = await lift('Knebøy')
+	const pull = await lift('Trekk')
+	for (const [weekday, workoutId] of [
+		[TUE, squat.id],
+		[THU, pull.id],
+	] as const) {
+		await prisma.weekPatternDay.create({
+			data: {
+				patternId: pattern.id,
+				trackId: liftTrackId,
+				kind: 'fixed',
+				weekday,
+				orderInDay: 1,
+				workoutId,
+			},
+		})
+	}
+	await prisma.weekPatternDay.create({
+		data: {
+			patternId: pattern.id,
+			trackId: liftTrackId,
+			kind: 'share',
+			weekday: 5,
+			weight: 1,
+			orderInDay: 1,
+		},
+	})
+	const rows = async () => ({
+		pinnedDays: (
+			await prisma.trainingTrack.findUniqueOrThrow({
+				where: { id: liftTrackId },
+				select: { pinnedDays: true },
+			})
+		).pinnedDays,
+		rows: (
+			await prisma.weekPatternDay.findMany({
+				where: { trackId: liftTrackId },
+				orderBy: [{ weekday: 'asc' }, { kind: 'asc' }],
+				select: {
+					kind: true,
+					weekday: true,
+					weight: true,
+					orderInDay: true,
+					workoutId: true,
+				},
+			})
+		).map((row) => JSON.stringify(row)),
+	})
+	const before = await rows()
+
+	const state = (await readStrengthDays(userId, NOW))!
+	const written = await setStrengthDays(
+		userId,
+		{ choice: [MON], version: state.version },
+		NOW,
+	)
+	if (!written.ok) throw new Error(written.reason)
+	const undone = await setStrengthDays(
+		userId,
+		{
+			choice: written.previous.days,
+			version: written.version,
+			restore: written.previous,
+		},
+		NOW,
+	)
+	expect(undone.ok).toBe(true)
+	expect(await rows()).toEqual(before)
+})
+
 test('undoing from the toast restores the previous days', async () => {
 	const { userId } = await setup()
 	const state = (await readStrengthDays(userId, NOW))!
