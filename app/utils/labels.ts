@@ -3914,6 +3914,8 @@ export const APP_TAB_LABELS: Record<AppTab, string> = {
 export const HOME_TIMELINE_FULL_VIEW_LABELS = {
 	link: 'Se hele sesongen',
 	title: 'Hele sesongen',
+	/** I dag's and the full view's 404: a state to act on, not a bug. */
+	notFound: 'Vi fant ikke treningen din.',
 } as const
 
 /**

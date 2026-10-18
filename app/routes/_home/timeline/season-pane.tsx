@@ -662,6 +662,11 @@ export const SeasonCurveView = memo(function SeasonCurveView({
 					)
 				}}
 				renderOverlay={(geom) => (
+					// The chart's in-plot labels (the projected line, the horizon, the
+					// week numbers on the axis) sit below the type scale on purpose:
+					// they live inside the 12px bands the plot leaves above and below
+					// the curve, and `text-caption` (12/16) would collide with the bars.
+					// They are glanceable marks, never the only place a figure is said.
 					<>
 						{projectedFrom != null && projectedLabel ? (
 							<span

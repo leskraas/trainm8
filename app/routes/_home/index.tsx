@@ -8,6 +8,7 @@ import {
 } from '#app/components/ui/tooltip.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
+import { HOME_TIMELINE_FULL_VIEW_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
@@ -171,7 +172,7 @@ export function ErrorBoundary() {
 	return (
 		<GeneralErrorBoundary
 			statusHandlers={{
-				404: () => <p>We could not find your training.</p>,
+				404: () => <p>{HOME_TIMELINE_FULL_VIEW_LABELS.notFound}</p>,
 			}}
 		/>
 	)

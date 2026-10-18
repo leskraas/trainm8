@@ -170,7 +170,7 @@ function SwapPicker({
 							key={source}
 							value={source}
 							data-swap-source={source}
-							className="h-9 min-w-0 flex-1 px-1 text-[13px] max-[359px]:text-[12px]"
+							className="h-9 min-w-0 flex-1 px-1 text-footnote max-[359px]:text-caption"
 						>
 							<span className="max-w-full truncate">{L.sources[source]}</span>
 						</ToggleGroupItem>
