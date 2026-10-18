@@ -39,11 +39,11 @@ import {
 	weekdayIndex,
 	weekMonday,
 } from '../athlete-calendar.ts'
+import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
 import {
-	DEFAULT_TRAINING_TIME,
-	parseTrainableWeekdays,
-} from '../athlete-schema.ts'
-import { getAthleteTimezone } from '../athlete.server.ts'
+	getAthleteTimezone,
+	readAvailablePatternDays,
+} from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { isEffortWord } from '../effort-word.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
@@ -64,10 +64,10 @@ import {
 	type CopyableWorkout,
 } from '../workout.server.ts'
 import { isOutlineResting } from './active-outline.server.ts'
+import { type PlacedSession } from './day-rule.ts'
 import { phaseIndexForWeek, totalWeeks, type VolumeCurrency } from './derive.ts'
 import { phaseSpecs, resolvedTracks } from './from-rows.ts'
 import { parsePinnedDays } from './pinned-days.ts'
-import { type PlacedSession } from './day-rule.ts'
 import { type QualityZone } from './quality-mix.ts'
 import { placedOn, readPlacement } from './session-placement.ts'
 import { sessionZone, sessionZoneSelect } from './session-zone.ts'
@@ -89,7 +89,6 @@ import { weekIndexOf, weekKeyAt } from './week-keys.ts'
 import {
 	fixedDayVolume,
 	isPatternWeekday,
-	patternWeekdaysOfCalendar,
 	type PatternWeekday,
 } from './week-pattern.ts'
 import { clearPlanWeek, readWeekOccupancy } from './week-sessions.server.ts'
@@ -875,19 +874,16 @@ function pricingBlocks(workout: CopyableWorkout) {
 async function readStampProfile(
 	userId: string,
 ): Promise<{ at: string; liftingDays: PatternWeekday[] | undefined }> {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { defaultTrainingTime: true, trainableWeekdays: true },
-	})
-	const available =
-		profile?.trainableWeekdays == null
-			? null
-			: patternWeekdaysOfCalendar(
-					parseTrainableWeekdays(profile.trainableWeekdays),
-				)
+	const [profile, available] = await Promise.all([
+		prisma.athleteProfile.findUnique({
+			where: { userId },
+			select: { defaultTrainingTime: true },
+		}),
+		readAvailablePatternDays(userId),
+	])
 	return {
 		at: profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME,
-		liftingDays: available && available.length > 0 ? available : undefined,
+		liftingDays: available ?? undefined,
 	}
 }
 

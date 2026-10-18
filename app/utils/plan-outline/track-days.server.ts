@@ -25,8 +25,10 @@
 
 import { type Prisma } from '@prisma/client'
 import { addDays } from '../athlete-calendar.ts'
-import { parseTrainableWeekdays } from '../athlete-schema.ts'
-import { getAthleteTimezone } from '../athlete.server.ts'
+import {
+	getAthleteTimezone,
+	readAvailablePatternDays,
+} from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
 import { SIMPLE_ACTIVITY_DISCIPLINE } from '../simple-activity.ts'
@@ -59,7 +61,6 @@ import {
 	isPatternWeekday,
 	PATTERN_WEEKDAYS,
 	patternWeekdaysOf,
-	patternWeekdaysOfCalendar,
 	type PatternWeekday,
 } from './week-pattern.ts'
 
@@ -170,7 +171,7 @@ async function readPlan(
 		},
 	})
 	if (!outline) return null
-	const [patterns, profile] = await Promise.all([
+	const [patterns, available] = await Promise.all([
 		// Every pattern with days: the first is the one the weeks are laid
 		// from and the one the choice is read off; a choice holds in them all.
 		db.weekPattern.findMany({
@@ -184,23 +185,14 @@ async function readPlan(
 				},
 			},
 		}),
-		db.athleteProfile.findUnique({
-			where: { userId },
-			select: { trainableWeekdays: true },
-		}),
+		readAvailablePatternDays(userId, db),
 	])
-	const available =
-		profile?.trainableWeekdays == null
-			? null
-			: patternWeekdaysOfCalendar(
-					parseTrainableWeekdays(profile.trainableWeekdays),
-				)
 	return {
 		outline,
 		pattern: patterns[0] ?? null,
 		/** The plan's other patterns with days, which a choice rewrites too. */
 		elsewhere: patterns.slice(1),
-		available: available && available.length > 0 ? available : null,
+		available,
 	}
 }
 

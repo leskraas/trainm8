@@ -11,7 +11,7 @@ import {
 	weekMonday,
 } from './athlete-calendar.ts'
 import { parseTrainableWeekdays } from './athlete-schema.ts'
-import { getAthleteTimezone } from './athlete.server.ts'
+import { availablePatternDays, getAthleteTimezone } from './athlete.server.ts'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { isEffortWord } from './effort-word.ts'
@@ -82,7 +82,6 @@ import { weekIndexOf, weekKeyAt } from './plan-outline/week-keys.ts'
 import {
 	fixedDayVolume,
 	isPatternWeekday,
-	patternWeekdaysOfCalendar,
 	type PatternDaySpec,
 	type PatternWeekday,
 } from './plan-outline/week-pattern.ts'
@@ -1514,10 +1513,7 @@ async function readTrainingAvailability(userId: string): Promise<{
 		trainableWeekdays:
 			stored == null ? null : parseTrainableWeekdays(stored).length,
 		// Converted here, at the profile edge (ADR 0104).
-		trainableDays:
-			stored == null
-				? []
-				: patternWeekdaysOfCalendar(parseTrainableWeekdays(stored)),
+		trainableDays: availablePatternDays(stored) ?? [],
 		weeklyCapacityHours: profile?.weeklyCapacityHours ?? null,
 	}
 }

@@ -18,8 +18,10 @@
 
 import { type Prisma } from '@prisma/client'
 import { addDays } from '../athlete-calendar.ts'
-import { parseTrainableWeekdays } from '../athlete-schema.ts'
-import { getAthleteTimezone } from '../athlete.server.ts'
+import {
+	getAthleteTimezone,
+	readAvailablePatternDays,
+} from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { readStartStrength } from '../first-run/start-strength.server.ts'
 import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
@@ -45,7 +47,6 @@ import { placedWeekOf } from './stamp.ts'
 import {
 	isPatternWeekday,
 	patternWeekdaysOf,
-	patternWeekdaysOfCalendar,
 	type PatternWeekday,
 } from './week-pattern.ts'
 
@@ -102,15 +103,16 @@ async function readStrengthTrack(
 	const active = await findActiveOutline(userId, now)
 	if (!active) return { ok: false as const, reason: 'no-plan' as const }
 	const outlineId = active.outline.id
-	const [track, profile] = await Promise.all([
+	const [track, profile, available] = await Promise.all([
 		db.trainingTrack.findFirst({
 			where: { outlineId, discipline: 'strength' },
 			select: { id: true, pinnedDays: true },
 		}),
 		db.athleteProfile.findUnique({
 			where: { userId },
-			select: { trainableWeekdays: true, strengthPerWeek: true },
+			select: { strengthPerWeek: true },
 		}),
+		readAvailablePatternDays(userId, db),
 	])
 	if (!track)
 		return { ok: false as const, reason: 'no-strength-track' as const }
@@ -132,18 +134,12 @@ async function readStrengthTrack(
 	const rows = pattern?.days ?? []
 	const elsewhere = others.filter((other) => other.days.length > 0)
 	const pinned = strengthPinnedDays(track, rows)
-	const available =
-		profile?.trainableWeekdays == null
-			? null
-			: patternWeekdaysOfCalendar(
-					parseTrainableWeekdays(profile.trainableWeekdays),
-				)
 	const state: StrengthDaysState = {
 		outlineId,
 		trackId: track.id,
 		pinned,
 		count: rows.length,
-		available: available && available.length > 0 ? available : null,
+		available,
 		answer: profile?.strengthPerWeek ?? null,
 		version: `${serializePinnedDays(pinned) ?? 'auto'}|${rows.length}`,
 	}
