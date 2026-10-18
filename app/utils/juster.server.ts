@@ -8,11 +8,13 @@
  *   session it swaps with. Nothing on the plan is read for writing, so the
  *   **Week Target** cannot move;
  * - **leaves a Replan Note** on each session it changed;
- * - **never changes ownership.** `source`, `adoptedAt` and `releasedAt` are
- *   not in any write here. On the machine's session that is the documented
- *   exception to Session Adoption (_For sliten i dag_, _Lite tid_: a machine
- *   write at the athlete's request, like the Session Nudge's ease); _Bytt dag_
- *   is a reschedule, which never adopted anything;
+ * - **never changes ownership**, except _Bytt økt_. `source`, `adoptedAt` and
+ *   `releasedAt` are in no other write here. On the machine's session that is
+ *   the documented exception to Session Adoption (_For sliten i dag_, _Lite
+ *   tid_: a machine write at the athlete's request, like the Session Nudge's
+ *   ease); _Bytt dag_ is a reschedule, which never adopted anything. _Bytt
+ *   økt_ (#579) is the athlete choosing another session, so it adopts under
+ *   the normal rule, as `updateWorkoutSession` does;
  * - **keeps a before-image** on a `SessionAdjustment` row, whose id is the
  *   reply's undo token.
  *
@@ -36,6 +38,7 @@ import {
 	localTimeUTC,
 	mondayOfDay,
 } from './athlete-calendar.ts'
+import { readRetrievableEntry } from './catalogue.server.ts'
 import { sumBlockDurationMin } from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { formatNbWeekday } from './format.ts'
@@ -45,8 +48,11 @@ import {
 	type JusterPost,
 	type JusterRefusal,
 	type JusterUndoRefusal,
+	EXERCISE_PICK_REPS,
+	EXERCISE_PICK_SETS,
 	type LaterDay,
 	parseJusterImage,
+	type SwapSource,
 	pickNewDay,
 	shortMinutes,
 	tiredMinutes,
@@ -61,7 +67,9 @@ import { getDisciplineThresholds } from './training.server.ts'
 import { CARDIO_DISCIPLINES } from './workout-schema.ts'
 import {
 	buildBlocksCopy,
+	copyWorkout,
 	type CopyableWorkout,
+	isMachineWritten,
 	prescriptionFingerprint,
 	workoutCopySelect,
 } from './workout.server.ts'
@@ -91,6 +99,9 @@ const sessionSelect = {
 	id: true,
 	scheduledAt: true,
 	status: true,
+	source: true,
+	adoptedAt: true,
+	releasedAt: true,
 	recordingId: true,
 	replanReason: true,
 	workoutId: true,
@@ -134,9 +145,10 @@ function isOpen(session: {
  */
 export async function justerSession(
 	userId: string,
-	{ intent, sessionId }: JusterPost,
+	post: JusterPost,
 	{ now = new Date(), timezone }: { now?: Date; timezone: string },
 ): Promise<JusterResult> {
+	const { sessionId } = post
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
 		select: sessionSelect,
@@ -149,9 +161,11 @@ export async function justerSession(
 	if (!isOpen(session)) return { ok: false, reason: 'not-open' }
 	const title = session.workout?.title ?? ''
 
-	if (intent === 'move') {
+	if (post.intent === 'move') {
 		return moveSession(userId, session, { todayKey, timezone, title })
 	}
+	if (post.intent === 'swap') return swapSession(userId, session, post)
+	const intent = post.intent
 	const workout = session.workout
 	if (!workout) return { ok: false, reason: 'no-workout' }
 	const change =
@@ -650,6 +664,215 @@ async function moveSession(
 	}
 }
 
+// ── Bytt økt ─────────────────────────────────────────────────────────────
+
+/** What a pick puts on today: a prescription to copy, and where it came from. */
+type Pick = { workout: CopyableWorkout; copiedFromId: string | null }
+
+/**
+ * A pick, read through Bibliotek's own guards: a Catalogue session the list
+ * would show, a seeded program's day, an exercise in the bank.
+ */
+async function readPick(
+	userId: string,
+	from: SwapSource,
+	pickId: string,
+): Promise<Pick | null> {
+	if (from === 'catalogue') {
+		const entry = await readRetrievableEntry(userId, pickId)
+		if (!entry) return null
+		const workout = await prisma.workout.findUnique({
+			where: { id: entry.workout.id },
+			select: workoutCopySelect,
+		})
+		return workout ? { workout, copiedFromId: workout.id } : null
+	}
+	if (from === 'program') {
+		const day = await prisma.strengthProgramDay.findFirst({
+			where: { id: pickId, program: { authorship: 'system' } },
+			select: { workout: { select: workoutCopySelect } },
+		})
+		return day ? { workout: day.workout, copiedFromId: day.workout.id } : null
+	}
+	return exercisePick(userId, pickId)
+}
+
+type Step = Blocks[number]['steps'][number]
+
+/** A set with nothing on it but its reps. */
+const EMPTY_SET: Omit<Step['sets'][number], 'orderIndex' | 'reps'> = {
+	kind: 'reps',
+	load: null,
+	weightKg: null,
+	pct1RM: null,
+	effortCap: null,
+	tempo: null,
+	durationSec: null,
+	terminationRir: null,
+	velocityLossPct: null,
+}
+
+/**
+ * One exercise as today's session: the sets the athlete last planned for it,
+ * or 3 × 8 when they never have. A fresh prescription, copied from nothing.
+ */
+async function exercisePick(
+	userId: string,
+	exerciseId: string,
+): Promise<Pick | null> {
+	// The bank Bibliotek lists: trainm8's exercises and the athlete's own.
+	const exercise = await prisma.exercise.findFirst({
+		where: {
+			id: exerciseId,
+			OR: [{ authorship: 'system' }, { createdByAthleteId: userId }],
+		},
+		select: { id: true, name: true },
+	})
+	if (!exercise) return null
+	const last = await prisma.workoutStep.findFirst({
+		where: {
+			kind: 'strength',
+			exerciseId,
+			block: { workout: { sessions: { some: { userId } } } },
+		},
+		orderBy: { block: { workout: { createdAt: 'desc' } } },
+		select: {
+			restBetweenSetsSec: true,
+			sets: workoutCopySelect.blocks.select.steps.select.sets,
+			block: { select: { workout: { select: { intent: true } } } },
+		},
+	})
+	const sets: Step['sets'] =
+		last && last.sets.length > 0
+			? last.sets
+			: Array.from({ length: EXERCISE_PICK_SETS }, (_, orderIndex) => ({
+					...EMPTY_SET,
+					orderIndex,
+					reps: EXERCISE_PICK_REPS,
+				}))
+	const lastIntent = last?.block.workout.intent
+	return {
+		copiedFromId: null,
+		workout: {
+			id: exercise.id,
+			title: exercise.name,
+			description: null,
+			discipline: 'strength',
+			intent: lastIntent?.startsWith('strength')
+				? lastIntent
+				: 'strength-hypertrophy',
+			archetype: null,
+			activityKind: null,
+			effortWord: null,
+			visibility: 'private',
+			blocks: [
+				{
+					name: null,
+					orderIndex: 0,
+					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
+					steps: [
+						{
+							...EMPTY_STEP,
+							kind: 'strength',
+							orderIndex: 0,
+							discipline: null,
+							intensity: null,
+							durationSec: null,
+							exerciseId: exercise.id,
+							restBetweenSetsSec: last?.restBetweenSetsSec ?? null,
+							sets,
+						},
+					],
+				},
+			],
+		},
+	}
+}
+
+/**
+ * _Bytt økt_: the pick, copied, on today's session in place of what stood.
+ * The session keeps its day and its time. It adopts the machine's session,
+ * and takes back one handed back, the way an athlete's edit does
+ * (`updateWorkoutSession`); the plan's Replan Note goes with the prescription
+ * it explained. The Workout that stood is left as it was, so the undo only
+ * points back to it and removes the copy.
+ */
+async function swapSession(
+	userId: string,
+	session: SessionRow,
+	{ from, pickId }: { from: SwapSource; pickId: string },
+): Promise<JusterResult> {
+	const pick = await readPick(userId, from, pickId)
+	if (!pick) return { ok: false, reason: 'pick-not-found' }
+	const adopting = session.adoptedAt == null && isMachineWritten(session.source)
+
+	const adjustmentId = await prisma.$transaction(async (tx) => {
+		const copy = await copyWorkout(
+			tx,
+			pick.workout,
+			userId,
+			pick.copiedFromId ? { copiedFromId: pick.copiedFromId } : {},
+		)
+		const written = await tx.workout.findUniqueOrThrow({
+			where: { id: copy.id },
+			select: workoutCopySelect,
+		})
+		await tx.workoutSession.update({
+			where: { id: session.id },
+			data: {
+				workoutId: copy.id,
+				replanReason: null,
+				...(adopting ? { adoptedAt: new Date() } : {}),
+				releasedAt: null,
+			},
+		})
+		const image: JusterImage = {
+			sessions: [
+				{
+					id: session.id,
+					scheduledAt: session.scheduledAt.toISOString(),
+					replanReason: session.replanReason,
+					workoutId: session.workoutId,
+					after: {
+						scheduledAt: session.scheduledAt.toISOString(),
+						workoutId: copy.id,
+					},
+				},
+			],
+			workout: null,
+			swap: {
+				beforeTitle: session.workout?.title ?? null,
+				adoptedAt: session.adoptedAt?.toISOString() ?? null,
+				releasedAt: session.releasedAt?.toISOString() ?? null,
+				copyId: copy.id,
+				afterFingerprint: fingerprintOf(written),
+			},
+		}
+		const adjustment = await tx.sessionAdjustment.create({
+			data: {
+				userId,
+				sessionId: session.id,
+				intent: 'swap',
+				beforeImage: JSON.stringify(image),
+			},
+			select: { id: true },
+		})
+		return adjustment.id
+	})
+	await recomputePlannedTssForSession(userId, session.id)
+
+	return {
+		ok: true,
+		toast: JUSTER_LABELS.done.swappedSession(pick.workout.title),
+		title: pick.workout.title,
+		changedSessionIds: [session.id],
+		undo: { adjustmentId },
+	}
+}
+
 // ── Angre ────────────────────────────────────────────────────────────────
 
 class Refused extends Error {
@@ -679,8 +902,9 @@ export async function undoJuster(
 	})
 	if (!adjustment) return { ok: false, reason: 'not-found' }
 	const image = parseJusterImage(adjustment.beforeImage)
-	const title =
-		image.workout?.title ?? adjustment.session.workout?.title ?? null
+	const title = image.swap
+		? image.swap.beforeTitle
+		: (image.workout?.title ?? adjustment.session.workout?.title ?? null)
 	if (adjustment.undoneAt) return { ok: true, undone: false, title }
 
 	let undone: boolean
@@ -700,7 +924,7 @@ export async function undoJuster(
 		if (error instanceof Refused) return { ok: false, reason: error.reason }
 		throw error
 	}
-	if (undone && image.workout) {
+	if (undone && (image.workout || image.swap)) {
 		await recomputePlannedTssForSession(userId, image.sessions[0]!.id)
 	}
 	return { ok: true, undone, title }
@@ -736,11 +960,13 @@ async function restore(
 		}
 	}
 	const prescription = image.workout
-	if (prescription) {
+	const afterFingerprint =
+		prescription?.afterFingerprint ?? image.swap?.afterFingerprint
+	if (afterFingerprint) {
 		const current = sessions.find((one) => one.id === image.sessions[0]!.id)
 		if (
 			!current?.workout ||
-			fingerprintOf(current.workout) !== prescription.afterFingerprint
+			fingerprintOf(current.workout) !== afterFingerprint
 		) {
 			throw new Refused('changed')
 		}
@@ -755,6 +981,18 @@ async function restore(
 				workoutId: before.workoutId,
 			},
 		})
+	}
+	if (image.swap) {
+		// Ownership back as it stood, and the copy Bytt økt put on today gone.
+		const { adoptedAt, releasedAt, copyId } = image.swap
+		await tx.workoutSession.update({
+			where: { id: image.sessions[0]!.id },
+			data: {
+				adoptedAt: adoptedAt ? new Date(adoptedAt) : null,
+				releasedAt: releasedAt ? new Date(releasedAt) : null,
+			},
+		})
+		await tx.workout.delete({ where: { id: copyId } })
 	}
 	if (!prescription) return
 	if (prescription.forkId) {

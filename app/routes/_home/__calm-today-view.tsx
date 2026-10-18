@@ -232,7 +232,7 @@ function TodayCard({ card, todayKey }: { card: CalmCard; todayKey: string }) {
 			className={cn(CARD, 'flex min-w-0 flex-col gap-3 p-5')}
 		>
 			{card.kind === 'session' ? (
-				<SessionCard card={card} headingId={headingId} />
+				<SessionCard card={card} headingId={headingId} todayKey={todayKey} />
 			) : card.kind === 'done' ? (
 				<DoneCard card={card} headingId={headingId} />
 			) : card.kind === 'free' ? (
@@ -263,9 +263,11 @@ function nextLine(next: CalmNext | null): string {
 function SessionCard({
 	card,
 	headingId,
+	todayKey,
 }: {
 	card: Extract<CalmCard, { kind: 'session' }>
 	headingId: string
+	todayKey: string
 }) {
 	const { session } = card
 	const { landedSessionId, landedUndoable, undoingSessionId } =
@@ -317,7 +319,13 @@ function SessionCard({
 				</p>
 			</div>
 			<div className="mt-1 flex flex-col gap-2">
-				<JusterChips sessionId={session.id} title={session.title} />
+				<JusterChips
+					sessionId={session.id}
+					title={session.title}
+					discipline={session.discipline}
+					sessionTo={session.to}
+					todayKey={todayKey}
+				/>
 				{session.markDone ? (
 					<MarkDoneAction
 						look="card"

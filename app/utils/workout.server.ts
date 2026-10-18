@@ -814,7 +814,7 @@ export async function getWorkoutSessionForEdit(
  * **Session Adoption** is about — an `authored` session was the athlete's from
  * the start and a `recorded` one has no prescription to take over.
  */
-function isMachineWritten(source: string): boolean {
+export function isMachineWritten(source: string): boolean {
 	return source === 'generated' || source === 'detected'
 }
 

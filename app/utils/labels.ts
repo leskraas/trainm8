@@ -61,6 +61,7 @@ import type {
 	JusterIntent,
 	JusterRefusal,
 	JusterUndoRefusal,
+	SwapSource,
 } from './juster.ts'
 import type { AdherenceTone } from './load/adherence.ts'
 import type { RoundVerdict } from './load/propose-next-round.ts'
@@ -4061,6 +4062,7 @@ export const JUSTER_LABELS = {
 		moved: (day: string) => `Økta er flyttet til ${day}.`,
 		swapped: (day: string, other: string) =>
 			`Økta er flyttet til ${day}, og «${other}» er i dag.`,
+		swappedSession: (title: string) => `Dagens økt er byttet til «${title}».`,
 	},
 	/** The Replan Note each change leaves on the session it changed. */
 	note: {
@@ -4081,6 +4083,7 @@ export const JUSTER_LABELS = {
 		'already-short': 'Økta er allerede kort, 20 minutter eller mindre.',
 		'already-easy': 'Økta er allerede rolig og så kort den kan bli.',
 		'no-later-day': 'Det er ingen dager igjen denne uka å flytte til.',
+		'pick-not-found': 'Fant ikke økta i Bibliotek. Velg en annen.',
 	} satisfies Record<JusterRefusal, string>,
 	/** Why an _Angre_ was turned down. */
 	undoRefused: {
@@ -4088,6 +4091,57 @@ export const JUSTER_LABELS = {
 		'session-trained': 'Det kan ikke angres lenger: økta er trent.',
 		changed: 'Det kan ikke angres lenger: økta er endret igjen siden.',
 	} satisfies Record<JusterUndoRefusal, string>,
+} as const
+
+/**
+ * _Bytt økt_ and _Avansert_, the today card's last two chips (spec #558 S5,
+ * #579): Bibliotek as a picker for today's session, and the way to the power
+ * tools — the session itself, the composer and Plan's Avansert.
+ */
+export const BYTT_OKT_LABELS = {
+	chip: 'Bytt økt',
+	/** The picker sheet. */
+	title: 'Bytt økt',
+	description: (title: string) =>
+		`Velg en økt fra Bibliotek i stedet for «${title}».`,
+	/** Bibliotek's three parts, as the picker's tabs. */
+	sources: {
+		catalogue: 'Katalog',
+		program: 'Program',
+		exercise: 'Øvelser',
+	} satisfies Record<SwapSource, string>,
+	sourcesLabel: 'Hvor i Bibliotek',
+	search: {
+		catalogue: 'Søk i katalogen',
+		program: 'Søk i programmene',
+		exercise: 'Søk etter øvelse',
+	} satisfies Record<SwapSource, string>,
+	/** Over the exercise list: what one exercise becomes. */
+	exerciseHint:
+		'Én øvelse blir dagens økt: settene du la inn sist, ellers 3 × 8.',
+	recentLifts: 'Dine løft',
+	loading: 'Henter …',
+	none: (query: string) => `Fant ingenting med «${query}».`,
+	empty: {
+		catalogue: 'Katalogen er tom.',
+		program: 'Ingen program ennå.',
+		exercise: 'Søk etter en øvelse for å ta den i dag.',
+	} satisfies Record<SwapSource, string>,
+	/** Under a capped list. */
+	more: (shown: number, total: number) =>
+		`Viser ${shown} av ${total}. Søk for å finne flere.`,
+	/** A pick's name for a screen reader. */
+	pickFor: (title: string) => `Ta «${title}» i dag`,
+	picking: 'Bytter …',
+	close: 'Lukk',
+	/** The fourth chip, and its menu. */
+	advanced: 'Avansert',
+	advancedFor: (title: string) => `Avansert for «${title}»`,
+	advancedMenu: {
+		session: 'Rediger økta',
+		composer: 'Ny økt i dag',
+		plan: 'Planens verktøy',
+	},
 } as const
 
 /** The page header's back button, named for the screen it goes back to. */

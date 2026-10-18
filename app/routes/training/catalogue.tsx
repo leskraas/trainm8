@@ -35,7 +35,6 @@
  * The rows' titles and prose are corpus **content** and stay as the corpus
  * wrote them (ADR 0027 A3); every word around them is Norwegian (ADR 0081).
  */
-import { type Prisma } from '@prisma/client'
 import { Form, Link, redirect, useSearchParams } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
@@ -99,8 +98,8 @@ import { cn } from '#app/utils/misc.tsx'
 import { readSessionProvenance } from '#app/utils/plan-generation/provenance.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
-import { workoutCopySelect } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/catalogue.ts'
+import { cardWorkoutSelect } from './__catalogue-card.server.ts'
 import {
 	buildCatalogueCard,
 	catalogueBlurb,
@@ -115,29 +114,6 @@ export const meta: Route.MetaFunction = () => [
 
 /** How many rows a first page shows, and how many each "Vis flere" adds. */
 const PAGE_SIZE = 24
-
-/**
- * What a card reads off a row's Workout: the tree the Token Sentence and the
- * figures are built from — the copy select's, plus a lift's name, which a
- * strength row's sentence says.
- */
-const cardWorkoutSelect = {
-	id: true,
-	discipline: true,
-	blocks: {
-		...workoutCopySelect.blocks,
-		select: {
-			...workoutCopySelect.blocks.select,
-			steps: {
-				...workoutCopySelect.blocks.select.steps,
-				select: {
-					...workoutCopySelect.blocks.select.steps.select,
-					exercise: { select: { name: true } },
-				},
-			},
-		},
-	},
-} satisfies Prisma.WorkoutSelect
 
 /**
  * The facets, read off the URL and validated against their own vocabularies.
