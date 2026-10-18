@@ -10,7 +10,12 @@
 // extended to the new end. Pure: nothing here is stored, and nothing promises
 // more than the rule would lay.
 
-import { type OutlineRows, type SegmentRow } from './from-rows.ts'
+import {
+	isSimpleActivityTrack,
+	type OutlineRows,
+	type SegmentRow,
+	SIMPLE_ACTIVITY_SEGMENT,
+} from './from-rows.ts'
 import { weekIndexOf, weekKeyAt } from './week-keys.ts'
 
 /**
@@ -63,7 +68,10 @@ export function withProjectedRounds(
 								...segment,
 								id: `${segment.id}-projected-${phase.orderIndex}`,
 								phaseId: phase.id,
-								boundaryStep,
+								// The Simple Activities' fixed days do not step up (#572).
+								boundaryStep: isSimpleActivityTrack(track.discipline)
+									? SIMPLE_ACTIVITY_SEGMENT.boundaryStep
+									: boundaryStep,
 								mix: segment.mix.map((entry) => ({ ...entry })),
 							}),
 						),
