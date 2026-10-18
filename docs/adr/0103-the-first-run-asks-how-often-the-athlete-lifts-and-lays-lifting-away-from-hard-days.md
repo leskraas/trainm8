@@ -42,9 +42,10 @@ has to be in those weeks, honestly.
 4. **Lifts, not minutes.** A lifting day shows the session and its lifts. It is
    not counted in the hours: week 1 still equals the hours (ADR 0102 §4), and
    the card says _+n styrkeøkt(er)_ beside them.
-5. **The session cap is the week's.** A level's session cap counts lifting
-   sessions too, so a _Nybegynner_ who lifts once gets three endurance sessions,
-   and endurance always keeps one.
+5. **A _Nybegynner_'s session cap is the week's.** For a _Nybegynner_ the
+   session cap counts lifting sessions too, so one who lifts once gets three
+   endurance sessions, and endurance always keeps one. Above _Nybegynner_ the
+   lifts come on top of the endurance cap (owner decision, 2026-10-17).
 
 ## Considered options
 

@@ -16,7 +16,6 @@ import {
 	type AvailabilityFitWarning,
 } from '../plan-outline/availability-fit.ts'
 import {
-	CURRENCY_DECIMALS,
 	phaseIndexForWeek,
 	totalWeeks,
 	weekRole,
@@ -395,7 +394,7 @@ export function spreadDays(
 
 /**
  * The longest weekday session _Korte økter_ allows: 45 minutes (#571). The
- * stamp lays hours in tenths, so the longest it lays is 42.
+ * stamp lays hours in whole five minutes, so 45 is laid as 45.
  */
 export const SHORT_SESSION_HOURS = 0.75
 
@@ -421,10 +420,10 @@ export function shortWeekdayHours(
 	hours: number,
 	{ longMayBeLong }: { longMayBeLong: boolean },
 ): { hours: number; weights: Partial<Record<PatternWeekday, number>> } | null {
-	// In tenths of an hour, the hours currency's own step, so the stamp lays
-	// each day exactly its weight: 45 minutes is laid as the 42 under it.
-	const scale = 10 ** CURRENCY_DECIMALS.hours
-	const cap = Math.floor(SHORT_SESSION_HOURS * scale)
+	// In minutes; the stamp lays the short days in whole five minutes, so a
+	// held day is laid exactly its weight (`resolveWeekPattern`).
+	const scale = 60
+	const cap = SHORT_SESSION_HOURS * scale
 	const units = Math.round(hours * scale)
 	const long = days.at(-1)
 	const weightOf = (day: PatternWeekday) =>
@@ -441,7 +440,7 @@ export function shortWeekdayHours(
 	}
 	const laid = new Map<PatternWeekday, number>()
 	for (const share of shares) {
-		const rounded = Math.round(share.units)
+		const rounded = Math.round(share.units / 5) * 5
 		laid.set(share.day, held(share.day) ? Math.min(rounded, cap) : rounded)
 	}
 	const kept = () => [...laid.values()].reduce((sum, value) => sum + value, 0)
@@ -450,7 +449,9 @@ export function shortWeekdayHours(
 	}
 	const weights: Partial<Record<PatternWeekday, number>> = {}
 	for (const [day, value] of laid) weights[day] = value / scale
-	return { hours: kept() / scale, weights }
+	// Hours are carried to a tenth (`derive.ts`); the long day takes the odd
+	// minutes, so every weekday session stays a whole five minutes.
+	return { hours: Math.round((kept() / scale) * 10) / 10, weights }
 }
 
 /** The one-track answers: a Discipline, its hours and the days. */

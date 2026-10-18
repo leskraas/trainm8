@@ -13,15 +13,18 @@
  * Under Autopilot the Autopilot Notice sits between the card and the week
  * (#576, ADR 0100 §5, `__autopilot-notice.tsx`).
  *
- * Motion is the system's and nothing new: presses (`pressable`), the Drawer,
- * the toast. A row that just landed is tinted while its _Angre_ stands. The
- * celebration on a first _Gjort_ and the morphs are #558 S10.
+ * Motion is the system's: presses (`pressable`), the Drawer, the toast. A row
+ * that just landed is tinted while its _Angre_ stands. Two moments are #558
+ * S10's (#582): the first _Gjort_ on a session sends eight sparks from its
+ * check (`celebrate.ts`; a calm check fade under reduced motion), and the
+ * week is the surface _Planen er klar_'s curve morphs into.
  */
-import { useMemo } from 'react'
-import { Link } from 'react-router'
+import { type RefObject, useEffect, useMemo, useRef } from 'react'
+import { Link, useLocation } from 'react-router'
 import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
+import { celebrateOnce } from '#app/utils/celebrate.ts'
 import {
 	CALM_TODAY_LABELS as L,
 	HOME_TIMELINE_FULL_VIEW_LABELS,
@@ -30,6 +33,7 @@ import {
 import { cn } from '#app/utils/misc.tsx'
 import { timelineWindow } from '#app/utils/timeline-window.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
+import { MORPH, morphOf } from '#app/utils/view-morph.ts'
 import { AutopilotNoticeCard } from './__autopilot-notice.tsx'
 import {
 	buildCalmToday,
@@ -376,10 +380,14 @@ function DoneCard({
 	// The mark that just landed keeps its _Angre_ on the card for as long as
 	// its toast (ADR 0088): the card is the row it landed on.
 	const landed = card.done.find((one) => one.id === landedSessionId)
+	const check = useRef<HTMLSpanElement>(null)
+	useEarnedCelebration(check, landed ?? null)
 	return (
 		<>
 			<p className="text-footnote text-status-on flex items-center gap-2 font-medium">
-				<Icon name="circle-check" size="sm" />
+				<span ref={check} data-today-check className="flex">
+					<Icon name="circle-check" size="sm" />
+				</span>
 				{L.doneMark}
 			</p>
 			<h2 id={headingId} className="text-title">
@@ -542,6 +550,9 @@ function WeekList({
 	onCard: ReadonlySet<string>
 }) {
 	const headingId = 'calm-week'
+	// Arriving from _Planen er klar_, the week is what the plan's curve
+	// becomes (#582); it carries no name otherwise, so nothing else morphs.
+	const arriving = morphOf(useLocation().state) === MORPH.plan
 	return (
 		<section aria-labelledby={headingId} data-calm-week className="min-w-0">
 			<div className="mb-2 flex items-baseline justify-between gap-3 px-1">
@@ -557,7 +568,10 @@ function WeekList({
 					</p>
 				) : null}
 			</div>
-			<ol className={cn(CARD, '@container overflow-hidden')}>
+			<ol
+				className={cn(CARD, '@container overflow-hidden')}
+				style={arriving ? { viewTransitionName: MORPH.plan } : undefined}
+			>
 				{week.days.map((day) => (
 					<li
 						key={day.key}
@@ -660,6 +674,9 @@ function WeekSession({
 	const undoable = landed && landedUndoable && !onCard
 	const missed = session.status === 'missed'
 	const done = session.status === 'completed'
+	const check = useRef<HTMLSpanElement>(null)
+	// The card celebrates its own session; a row celebrates one marked here.
+	useEarnedCelebration(check, landed && done && !onCard ? session : null)
 	const facts = [session.durationLabel, session.effortLabel]
 		.filter(Boolean)
 		.join(' · ')
@@ -704,7 +721,7 @@ function WeekSession({
 						</span>
 					) : null}
 				</span>
-				<SessionMark status={session.status} />
+				<SessionMark status={session.status} markRef={check} />
 			</Link>
 			{offerDone || undoable ? (
 				<div className="-mt-2 flex flex-wrap items-center gap-x-4 pr-4 pb-1 pl-[4.75rem] @max-[17rem]:pl-4">
@@ -739,11 +756,41 @@ function WeekSession({
 	)
 }
 
+/**
+ * The first _Gjort_ on a session, celebrated once from its check when the
+ * mark has landed (the server agreed, so the moment is earned): never on
+ * _Angre_, and not again when the same session is marked after an undo.
+ */
+function useEarnedCelebration(
+	check: RefObject<HTMLElement | null>,
+	session: CalmSession | null,
+) {
+	const id = session?.id ?? null
+	const discipline = session?.discipline ?? null
+	useEffect(() => {
+		if (!id) return
+		celebrateOnce(
+			id,
+			check.current,
+			discipline && discipline in TRACK_DOT
+				? `var(--track-${discipline})`
+				: undefined,
+		)
+	}, [check, id, discipline])
+}
+
 /** Done, _ikke gjort_ behind today, or an open ring for what is still ahead. */
-function SessionMark({ status }: { status: CalmSession['status'] }) {
+function SessionMark({
+	status,
+	markRef,
+}: {
+	status: CalmSession['status']
+	markRef?: RefObject<HTMLSpanElement | null>
+}) {
 	if (status === 'completed') {
 		return (
 			<span
+				ref={markRef}
 				data-calm-mark="done"
 				aria-hidden
 				className="bg-status-on text-primary-foreground flex size-6 items-center justify-center rounded-full"

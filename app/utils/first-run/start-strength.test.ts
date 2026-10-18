@@ -147,16 +147,42 @@ test('the Week Sketch carries the top option’s lifting days', () => {
 	expect(liftingDays(weekSketch(made))).toEqual(made.options[0]!.strengthDays)
 })
 
-test('where the lifts take endurance days, the draft says how many endurance sessions are left', () => {
-	const made = start({
+test('above Nybegynner the lifts come on top of the session cap: endurance keeps its days', () => {
+	const answers = {
 		level: 'experienced',
 		hours: 7,
 		days: [0, 1, 3, 4, 6],
+	} as const
+	const made = start({
+		...answers,
 		strength: { perWeek: 3, session: SESSION },
+	})
+	const plain = start({ ...answers, strength: null })
+	for (const [index, option] of made.options.entries()) {
+		expect(option.week.sessionCount).toBe(
+			plain.options[index]!.week.sessionCount,
+		)
+		expect(option.week.strengthSessions).toBe(3)
+	}
+	expect(made.strengthCapped).toBeNull()
+	expect(made.capped).toBe(false)
+})
+
+test('a beginner whose lifts take endurance days is told how many endurance sessions are left', () => {
+	const made = start({
+		level: 'beginner',
+		hours: 4,
+		days: [0, 1, 2, 3, 4, 5],
+		strength: { perWeek: 1, session: SESSION },
 	})
 	expect(made.strengthCapped).toBe(3)
 	expect(
-		start({ strength: { perWeek: 1, session: SESSION } }).strengthCapped,
+		start({
+			level: 'beginner',
+			hours: 3,
+			days: [0, 2, 4],
+			strength: { perWeek: 1, session: SESSION },
+		}).strengthCapped,
 	).toBeNull()
 })
 

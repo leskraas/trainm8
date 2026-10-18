@@ -493,7 +493,7 @@ export type StartDraft = {
 	/** All seven days were picked, and the plan keeps one of them _fri_. */
 	restDayKept: boolean
 	/**
-	 * The lifts took endurance days (#574): the level's session cap is the
+	 * The lifts took endurance days (#574): a _Nybegynner_'s session cap is the
 	 * week's, so endurance lays on fewer of the picked days than it could.
 	 * The endurance sessions it was left, or null where lifting cut nothing.
 	 */
@@ -659,13 +659,21 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 	if (!discipline && activities.length === 0) return null
 	const { sessionCap } = LEVEL_DEFAULTS[level]
 	const daysPicked = new Set(days).size
-	// The level's session cap is the whole week's — lifts, Simple Activities
-	// and sports together — and leaves the rest one session at least; one lift
-	// a day at most.
+	// A _Nybegynner_'s session cap is the whole week's — lifts, Simple
+	// Activities and sports together — and leaves the rest one session at
+	// least; above it, the lifts come on top of the cap. One lift a day at most.
+	const liftsInCap = level === 'beginner'
 	const lifts = strength
-		? Math.max(0, Math.min(strength.perWeek, daysPicked, sessionCap - 1))
+		? Math.max(
+				0,
+				Math.min(
+					strength.perWeek,
+					daysPicked,
+					liftsInCap ? sessionCap - 1 : Infinity,
+				),
+			)
 		: 0
-	const enduranceCap = sessionCap - lifts
+	const enduranceCap = liftsInCap ? sessionCap - lifts : sessionCap
 	const preferences = answers.preferences ?? []
 	const shortWeekdays = preferences.includes('short')
 		? { longMayBeLong: preferences.includes('long') }
@@ -769,6 +777,7 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 		capped: sessionCap < MAX_SESSION_DAYS && daysPicked + lifts > sessionCap,
 		restDayKept: daysPicked === 7,
 		strengthCapped:
+			liftsInCap &&
 			lifts > 0 &&
 			top.draft.patternDays.length >= enduranceCap &&
 			Math.min(daysPicked, MAX_SESSION_DAYS) > enduranceCap

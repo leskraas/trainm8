@@ -683,7 +683,7 @@ describe('a Start Option picked with Velg denne', () => {
 	)
 
 	test.each([
-		[['short'] as const, 246],
+		[['short'] as const, 258],
 		[['long', 'short'] as const, 300],
 	])(
 		'with %j the plan made is the card, minute for minute, and the weeks after keep its shape',

@@ -59,7 +59,8 @@ includes proposals that add load and the next round of an open-ended plan. The
 06:00 silence step has nothing left to do for an autopilot athlete.
 
 The **proposal author** is unchanged. Only the apply rules change, which is what
-ADR 0080 §6 anticipated.
+ADR 0080 §6 anticipated. Under autopilot the same proposal's reason is worded as
+a statement of what was done, not a question; the author's rules are unchanged.
 
 ### 3. Guards replace the yes
 
@@ -164,3 +165,6 @@ once the session is trained.
   autopilot, applying is no longer a yes from silence. Whether the autopilot may
   apply a proposal an assistant wrote is for ADR 0093 to say when it is written;
   until then the only author is the deterministic rule set.
+- **The autopilot has no author gate yet.** It applies every proposal written at
+  the close, whoever wrote it. ADR 0093 must add that gate before any assistant
+  writes proposals.

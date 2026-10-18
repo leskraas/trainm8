@@ -11,6 +11,7 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { readPlanReady } from '#app/utils/first-run/plan-ready.server.ts'
 import { formatNbVolumeFigure } from '#app/utils/format.ts'
 import { PLAN_READY_LABELS } from '#app/utils/labels.ts'
+import { MORPH, type MorphState } from '#app/utils/view-morph.ts'
 import { type Route } from './+types/klar.ts'
 import {
 	DISCLOSURE_CHEVRON,
@@ -27,9 +28,11 @@ import {
  * that was made, and _Til I dag_.
  *
  * It reads the plan that exists, never the answers: a reload shows the same
- * screen and makes nothing, and with no plan the start is where to go. No
- * motion of its own yet: the card-to-curve and curve-to-I-dag morphs are
- * #582's (#558 S10).
+ * screen and makes nothing, and with no plan the start is where to go.
+ *
+ * Motion (#582): the chosen card morphs into the curve card on the way here,
+ * and _Til I dag_ morphs the curve card into I dag's week (`view-morph.ts`);
+ * back from I dag plays it in reverse.
  */
 
 export const meta: Route.MetaFunction = () => [
@@ -75,6 +78,7 @@ export default function PlanReady({ loaderData }: Route.ComponentProps) {
 				<section
 					aria-labelledby="plan-ready-curve"
 					className="bg-card space-y-3 rounded-4xl p-4 shadow-xs"
+					style={{ viewTransitionName: MORPH.plan }}
 					data-plan-ready-curve
 				>
 					<h2 id="plan-ready-curve" className="text-callout font-semibold">
@@ -195,7 +199,12 @@ export default function PlanReady({ loaderData }: Route.ComponentProps) {
 
 			{/* In the thumb's reach, as every start screen's way forward is. */}
 			<div className="bg-background sticky bottom-0 -mx-4 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-				<Link to={loaderData.toToday} className={PRIMARY_ACTION}>
+				<Link
+					to={loaderData.toToday}
+					viewTransition
+					state={{ morph: MORPH.plan } satisfies MorphState}
+					className={PRIMARY_ACTION}
+				>
 					{PLAN_READY_LABELS.toToday}
 				</Link>
 			</div>

@@ -143,28 +143,32 @@ silently dropped the colour, and it already did so for `text-body-*`.
 
 From Emil Kowalski's skills, enforced by the utilities in `tailwind.css`.
 
-| Token               | Value                                                     | For                                                 |
-| ------------------- | --------------------------------------------------------- | --------------------------------------------------- |
-| `--ease-out`        | `cubic-bezier(0.23, 1, 0.32, 1)`                          | anything entering or leaving; press; colour changes |
-| `--ease-in-out`     | `cubic-bezier(0.77, 0, 0.175, 1)`                         | something already on screen moving                  |
-| `--ease-drawer`     | `cubic-bezier(0.32, 0.72, 0, 1)`                          | a sheet travelling its own height                   |
-| `duration-press`    | 160ms                                                     | press feedback                                      |
-| `duration-tooltip`  | 150 in / 100 out (`-exit`)                                | tooltips                                            |
-| `duration-dropdown` | 200 / 150                                                 | popovers, menus, selects                            |
-| `duration-collapse` | 200 / 150                                                 | collapsible panels                                  |
-| `duration-modal`    | 250 / 200                                                 | dialogs, sheets, backdrops                          |
-| `duration-drawer`   | 450 in; out = Base UI's `--drawer-swipe-strength` × 400ms | the bottom sheet                                    |
+| Token               | Value                                                     | For                                                   |
+| ------------------- | --------------------------------------------------------- | ----------------------------------------------------- |
+| `--ease-out`        | `cubic-bezier(0.23, 1, 0.32, 1)`                          | anything entering or leaving; press; colour changes   |
+| `--ease-in-out`     | `cubic-bezier(0.77, 0, 0.175, 1)`                         | something already on screen moving                    |
+| `--ease-drawer`     | `cubic-bezier(0.32, 0.72, 0, 1)`                          | a sheet travelling its own height                     |
+| `duration-press`    | 160ms                                                     | press feedback                                        |
+| `duration-tooltip`  | 150 in / 100 out (`-exit`)                                | tooltips                                              |
+| `duration-dropdown` | 200 / 150                                                 | popovers, menus, selects                              |
+| `duration-collapse` | 200 / 150                                                 | collapsible panels                                    |
+| `duration-modal`    | 250 / 200                                                 | dialogs, sheets, backdrops                            |
+| `duration-drawer`   | 450 in; out = Base UI's `--drawer-swipe-strength` × 400ms | the bottom sheet                                      |
+| `duration-morph`    | 280; `-enter` 200, `-exit` 160                            | the start's shared-element morphs and _Uka di_ (#582) |
 
-| Utility             | What it does                                                                                                                                                                                                              |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pressable`         | `scale(0.97)` on `:active`, 160ms ease-out; colours on the same curve; no scale on `aria-haspopup` triggers; reduced motion keeps the colours only.                                                                       |
-| `motion-popup`      | `transform-origin: var(--transform-origin)`, from `scale(0.96)` + opacity via `data-starting-style`/`data-ending-style`; 200 in / 150 out; only a fade when a select opens over its trigger.                              |
-| `motion-tooltip`    | Same shape from `scale(0.97)`, 150 / 100; `data-instant` → no transition.                                                                                                                                                 |
-| `motion-modal`      | Centred (modals have no trigger), from `scale(0.96)`, 250 / 200.                                                                                                                                                          |
-| `motion-backdrop`   | Opacity, in step with its modal; follows a drawer swipe.                                                                                                                                                                  |
-| `motion-collapse`   | Height (Base UI's `--collapsible-panel-height`) + opacity, 200 / 150. The one sanctioned layout animation.                                                                                                                |
-| `motion-reveal`     | The start's one moment of delight (the history's line on the level screen, seen once; "Dette fant vi" before #578): rise 6px + fade from `@starting-style`, 200ms ease-out, `--reveal-index` × 40ms stagger; reduced motion keeps the fade. Not for anything seen weekly. |
-| `starting:` landing | A row the composer just wrote (ADR 0088): rises 4px and fades in via `@starting-style`, 200ms `--ease-out`, tinted while its Angre stands; reduced motion keeps the fade.                                                 |
+| Utility             | What it does                                                                                                                                                                                                                                                                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pressable`         | `scale(0.97)` on `:active`, 160ms ease-out; colours on the same curve; no scale on `aria-haspopup` triggers; reduced motion keeps the colours only.                                                                                                                                                                                             |
+| `motion-popup`      | `transform-origin: var(--transform-origin)`, from `scale(0.96)` + opacity via `data-starting-style`/`data-ending-style`; 200 in / 150 out; only a fade when a select opens over its trigger.                                                                                                                                                    |
+| `motion-tooltip`    | Same shape from `scale(0.97)`, 150 / 100; `data-instant` → no transition.                                                                                                                                                                                                                                                                       |
+| `motion-modal`      | Centred (modals have no trigger), from `scale(0.96)`, 250 / 200.                                                                                                                                                                                                                                                                                |
+| `motion-backdrop`   | Opacity, in step with its modal; follows a drawer swipe.                                                                                                                                                                                                                                                                                        |
+| `motion-collapse`   | Height (Base UI's `--collapsible-panel-height`) + opacity, 200 / 150. The one sanctioned layout animation.                                                                                                                                                                                                                                      |
+| `motion-reveal`     | The start's one moment of delight (the history's line on the level screen, seen once; "Dette fant vi" before #578): rise 6px + fade from `@starting-style`, 200ms ease-out, `--reveal-index` × 40ms stagger; reduced motion keeps the fade. Not for anything seen weekly.                                                                       |
+| `starting:` landing | A row the composer just wrote (ADR 0088): rises 4px and fades in via `@starting-style`, 200ms `--ease-out`, tinted while its Angre stands; reduced motion keeps the fade.                                                                                                                                                                       |
+| `sketch-block`      | A block of _Uka di_ (#582): placed by `translateY` and cut by `clip-path`, so it rises in (200ms ease-out, 30ms stagger), stretches in place (280ms ease-in-out) and drops out (160ms). Motion only after mount; reduced motion fades in place.                                                                                                 |
+| View Transitions    | The start's morphs (#582, `view-morph.ts`): _Uka di_ → top Start Option card → (chosen) plan curve → I dag's week. Container transform (translate + clip-path) 280ms `--ease-in-out`; old snapshot out 160, new in 200, the page only crossfades. Back reverses; a tap skips; a key never animates. Reduced motion: a 200ms crossfade in place. |
+| Sparks              | The first _Gjort_ on a session (#582, `celebrate.ts`): 8 dots from the check, `transform` + `opacity`, 300ms `--ease-out`, once per session, never on Angre. Reduced motion: the check fades in, 200ms.                                                                                                                                         |
 
 The rules: transitions, never keyframes, on anything that can be interrupted.
 Never `scale(0)`, never `ease-in`, never `transition-all`. Exit faster than
