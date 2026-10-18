@@ -509,10 +509,10 @@ const CURVE_HEIGHT = 92
  * primitive — every value it draws is in its data table.
  */
 /**
- * Exported for Sesong's season picture, as the table is, and for _Planen er
- * klar_ (#570), which names the curve and its legend itself: it draws a plan
- * just made, with no done weeks, no today and the weeks it projects dashed
- * (`projectedFrom`).
+ * Exported for Sesong's season picture, as the table is. A caller may name
+ * the curve and its legend itself and dash the weeks it projects
+ * (`projectedFrom`); _Planen er klar_ did until #584 gave it bars
+ * (`start/__plan-ready-bars.tsx`).
  */
 export const SeasonCurveView = memo(function SeasonCurveView({
 	curve,

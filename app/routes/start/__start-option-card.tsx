@@ -12,6 +12,7 @@
 import { type EffortWord } from '#app/utils/effort-word.ts'
 import {
 	type StartOption,
+	type StartWeek,
 	type StartWeekSession,
 } from '#app/utils/first-run/start-draft.ts'
 import {
@@ -25,6 +26,7 @@ import {
 	START_SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { WeekBlocks } from './__week-sketch.tsx'
 
 const L = START_OPTION_LABELS
 
@@ -42,6 +44,8 @@ export type StartCard = {
 	why: string
 	familyName: string
 	badge: string | null
+	/** The week as _Uka di_ draws it: the card's blocks (#584). */
+	week: StartWeek
 	days: Array<{
 		/** `mandag`, as a screen reader hears the row. */
 		weekday: string
@@ -89,6 +93,7 @@ export function cardOf(
 		why: plain.why,
 		familyName: L.familyName(PHILOSOPHY_LABELS[option.family]),
 		badge,
+		week,
 		days: week.days.map((day) => ({
 			weekday: NB_WEEKDAY_LABELS[day.weekday]!,
 			short: FIRST_RUN_LABELS.dayShort[day.weekday]!,
@@ -167,12 +172,15 @@ const EFFORT_FILL: Record<EffortWord, string> = {
 const EFFORT_ORDER: EffortWord[] = ['rolig', 'middels', 'hard']
 
 /**
- * A card's week: the effort bar and its figures, the days, and the notes on
- * strength, short hours and what did not fit.
+ * A card's week: the week as blocks (the same blocks _Uka di_ draws, so the
+ * top card reads as the sketch it morphs out of), the effort bar and its
+ * figures, the days, and the notes on strength, short hours and what did not
+ * fit. The blocks are a picture: the rows say the same week.
  */
 export function StartOptionWeekView({ card }: { card: StartCard }) {
 	return (
 		<>
+			<WeekBlocks week={card.week} />
 			<div className="space-y-2">
 				<div
 					role="img"

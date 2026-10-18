@@ -35,6 +35,7 @@ import {
 	SIMPLE_START_LABELS,
 	START_SIMPLE_ACTIVITY_LABELS,
 } from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
 import { patternWeekdaysOf } from '#app/utils/plan-outline/week-pattern.ts'
 import {
 	ACTIVITY_KINDS,
@@ -52,9 +53,10 @@ import { WeekSketch } from './__week-sketch.tsx'
 
 /**
  * The simple start, screen 2 (#558 _Levende start_, #563): _Hva liker du å
- * trene?_ — the modelled endurance sports, the first picked the plan's main
- * sport (_Hovedidrett_, #573), which a tap on its line hands to the next — and
- * the days
+ * trene?_ — one list (#584) of the modelled endurance sports, the Simple
+ * Activities and _Styrke_, each with its mark; the first sport picked is the
+ * plan's main sport (_Hovedidrett_, #573), which a tap on its line hands to
+ * the next — and the days
  * the athlete can train, as seven buttons with a sentence saying how many were
  * picked. _Uka di_ fills in above as they answer. When they finish, the
  * **Start Options** follow (`/start/valg`, #566); every picked day is kept as
@@ -63,6 +65,19 @@ import { WeekSketch } from './__week-sketch.tsx'
  */
 
 const L = SIMPLE_START_LABELS
+
+/** The list's value for _Styrke_, beside the sports and Activity Kinds. */
+const STRENGTH = 'strength'
+
+/** A sport's mark is its track hue (design-system: hues are for marks). */
+const SPORT_MARK: Record<CardioDiscipline, string> = {
+	run: 'bg-track-run',
+	swim: 'bg-track-swim',
+	bike: 'bg-track-bike',
+}
+
+/** A Simple Activity has no track hue: the neutral mark, as in _Uka di_. */
+const SIMPLE_ACTIVITY_MARK = 'bg-muted-foreground'
 
 export const meta: Route.MetaFunction = () => [
 	{ title: `${L.activities.title} | Trainm8` },
@@ -151,6 +166,60 @@ export default function ActivitiesStep({
 	})
 	const lifting = loaderData.strength
 
+	// One list (#584): the sports, the Simple Activities and Styrke, each with
+	// its mark. What a press does is what the three groups did: a sport keeps
+	// the order picked (the first is the main sport), an activity likewise (the
+	// first goes in first), and Styrke starts on its pre-set.
+	const choices = useMemo(
+		() => [
+			...CARDIO_DISCIPLINES.map((sport) => ({
+				value: sport as string,
+				label: NB_DISCIPLINE_LABELS[sport],
+				mark: SPORT_MARK[sport],
+			})),
+			...ACTIVITY_KINDS.map((kind) => ({
+				value: kind as string,
+				label: SIMPLE_ACTIVITY_LABELS.kind[kind],
+				mark: SIMPLE_ACTIVITY_MARK,
+			})),
+			...(lifting
+				? [
+						{
+							value: STRENGTH,
+							label: L.strength.chip,
+							mark: 'bg-track-strength',
+						},
+					]
+				: []),
+		],
+		[lifting],
+	)
+	const pressed = [
+		...picked,
+		...activities,
+		...(strength != null ? [STRENGTH] : []),
+	]
+	function press(next: string[]) {
+		setPicked((before) => [
+			...before.filter((sport) => next.includes(sport)),
+			...CARDIO_DISCIPLINES.filter(
+				(sport) => next.includes(sport) && !before.includes(sport),
+			),
+		])
+		setActivities((before) => [
+			...before.filter((kind) => next.includes(kind)),
+			...ACTIVITY_KINDS.filter(
+				(kind) => next.includes(kind) && !before.includes(kind),
+			),
+		])
+		const wantsStrength = next.includes(STRENGTH)
+		if (wantsStrength && strength == null && lifting) {
+			setStrength(lifting.preset)
+		} else if (!wantsStrength && strength != null) {
+			setStrength(null)
+		}
+	}
+
 	const start = useMemo(
 		() =>
 			draftStart({
@@ -229,35 +298,69 @@ export default function ActivitiesStep({
 					/>
 				))}
 
-				<div className="space-y-1">
-					<ToggleGroupField
-						name={fields.sports.name}
-						legend={L.activities.sports}
-						legendClassName={QUESTION_LEGEND}
-						note={L.activities.sportsHelp}
-						options={CARDIO_DISCIPLINES.map((value) => ({
-							value,
-							label: NB_DISCIPLINE_LABELS[value],
-						}))}
-						defaultValue={picked}
-						value={picked}
-						onValueChange={(next) =>
-							// Kept in the order picked: an unpicked sport goes, a new one
-							// joins at the end, so the first picked stays the main sport.
-							setPicked((before) => [
-								...before.filter((sport) => next.includes(sport)),
-								...CARDIO_DISCIPLINES.filter(
-									(sport) => next.includes(sport) && !before.includes(sport),
-								),
-							])
-						}
-						errorId={fields.discipline.errorId}
-						errors={fields.discipline.errors}
-					/>
+				<fieldset
+					className="space-y-2"
+					data-start-activities
+					aria-describedby={
+						fields.discipline.errors?.length
+							? fields.discipline.errorId
+							: undefined
+					}
+				>
+					<legend className="sr-only">{L.activities.list}</legend>
+					<p className="text-footnote text-muted-foreground">
+						{L.activities.listHelp}
+					</p>
+					<ToggleGroup
+						multiple
+						variant="outline"
+						spacing={2}
+						value={pressed}
+						onValueChange={(next) => press(next as string[])}
+						aria-invalid={fields.discipline.errors?.length ? true : undefined}
+						className="w-full flex-wrap"
+					>
+						{choices.map((choice) => (
+							<ToggleGroupItem
+								key={choice.value}
+								value={choice.value}
+								className="group aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground text-callout h-11 max-w-full gap-2 rounded-full px-4"
+							>
+								<span
+									aria-hidden
+									className={cn(
+										'size-2.5 shrink-0 rounded-full',
+										// On the pressed fill the dot keeps its hue inside a ring
+										// of the pill's text colour, so it never sits hue on hue.
+										'group-aria-pressed:ring-primary-foreground group-aria-pressed:ring-2',
+										choice.mark,
+									)}
+								/>
+								<span className="min-w-0 truncate">{choice.label}</span>
+							</ToggleGroupItem>
+						))}
+					</ToggleGroup>
+					{CARDIO_DISCIPLINES.filter((sport) => picked.includes(sport)).map(
+						(sport) => (
+							<input
+								key={sport}
+								type="hidden"
+								name={fields.sports.name}
+								value={sport}
+							/>
+						),
+					)}
 					<input
 						type="hidden"
 						name={fields.discipline.name}
 						value={main ?? ''}
+					/>
+					{activities.map((kind) => (
+						<input key={kind} type="hidden" name="activities" value={kind} />
+					))}
+					<ErrorList
+						id={fields.discipline.errorId}
+						errors={fields.discipline.errors}
 					/>
 					<div aria-live="polite" className="min-h-11" data-start-main-sport>
 						{main && picked.length > 1 ? (
@@ -293,47 +396,6 @@ export default function ActivitiesStep({
 							</p>
 						) : null}
 					</div>
-				</div>
-
-				<fieldset className="space-y-2" data-start-activities>
-					<legend className={QUESTION_LEGEND}>
-						{START_SIMPLE_ACTIVITY_LABELS.legend}
-					</legend>
-					<p className="text-footnote text-muted-foreground">
-						{START_SIMPLE_ACTIVITY_LABELS.help}
-					</p>
-					<ToggleGroup
-						multiple
-						variant="outline"
-						spacing={2}
-						value={activities}
-						onValueChange={(next) => {
-							const pressed = next as string[]
-							// Kept in the order picked: the first goes in first when the
-							// week has no room for all.
-							setActivities([
-								...activities.filter((kind) => pressed.includes(kind)),
-								...ACTIVITY_KINDS.filter(
-									(kind) =>
-										pressed.includes(kind) && !activities.includes(kind),
-								),
-							])
-						}}
-						className="w-full flex-wrap"
-					>
-						{ACTIVITY_KINDS.map((kind) => (
-							<ToggleGroupItem
-								key={kind}
-								value={kind}
-								className="aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground text-callout h-11 max-w-full rounded-full px-4"
-							>
-								{SIMPLE_ACTIVITY_LABELS.kind[kind]}
-							</ToggleGroupItem>
-						))}
-					</ToggleGroup>
-					{activities.map((kind) => (
-						<input key={kind} type="hidden" name="activities" value={kind} />
-					))}
 					<div
 						aria-live="polite"
 						className="text-footnote text-muted-foreground"
@@ -349,7 +411,6 @@ export default function ActivitiesStep({
 					<StrengthField
 						name={fields.strength.name}
 						value={strength}
-						preset={lifting.preset}
 						fromHistory={lifting.fromHistory}
 						onValueChange={setStrength}
 						errorId={fields.strength.errorId}

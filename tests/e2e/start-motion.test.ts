@@ -42,6 +42,8 @@ type Played = {
 type Transition = {
 	played: Played[]
 	skipped: boolean
+	/** Each snapshot's (and image pair's) fill mode, by pseudo-element. */
+	fills: Record<string, string>
 	/** `performance.now()` when it was ready to play, and when it finished. */
 	readyAt: number | null
 	finishedAt: number | null
@@ -109,6 +111,7 @@ async function recordMotion(page: Page) {
 			const entry: Transition = {
 				played: [],
 				skipped: false,
+				fills: {},
 				readyAt: null,
 				finishedAt: null,
 			}
@@ -135,6 +138,9 @@ async function recordMotion(page: Page) {
 							continue
 						}
 						const timing = effect.getTiming()
+						if (!effect.pseudoElement.startsWith('::view-transition-group')) {
+							entry.fills[effect.pseudoElement] = String(timing.fill)
+						}
 						const frames = effect.getKeyframes()
 						const props = propsOf(frames)
 						// The browser's own blend helper for a crossfade: no motion.
@@ -199,6 +205,20 @@ function expectMorph(transition: Transition, name: string) {
 	expect(on(transition, `::view-transition-new(${name})`)).toEqual([
 		expect.objectContaining({ duration: 200, easing: EASE_OUT }),
 	])
+}
+
+/** Every snapshot and image pair keeps its last frame until the end. */
+function expectHeldSnapshots(transition: Transition) {
+	const fills = Object.entries(transition.fills)
+	expect(fills.map(([target]) => target)).toEqual(
+		expect.arrayContaining([
+			'::view-transition-old(root)',
+			'::view-transition-new(root)',
+			'::view-transition-old(start-plan)',
+			'::view-transition-new(start-plan)',
+		]),
+	)
+	for (const [target, fill] of fills) expect(fill, target).toBe('both')
 }
 
 /** Nothing in any transition animates layout, and nothing runs 300ms or more. */
@@ -303,7 +323,13 @@ test('Uka di becomes the cards, the chosen card the curve, the curve I dag’s w
 	await untilHydrated(toToday)
 	await toToday.click()
 	await expect(page).toHaveURL('/')
-	expectMorph(await nthTransition(page, 5), 'start-plan')
+	const intoToday = await nthTransition(page, 5)
+	expectMorph(intoToday, 'start-plan')
+	// Every snapshot holds its end state until the morph is over: with the
+	// root group's fill reset to none, the old page came back at full opacity
+	// after its fade and blended with the new one into a white, shredded
+	// frame (#584).
+	expectHeldSnapshots(intoToday)
 
 	// Browser back from I dag: the week morphs back into the curve.
 	await page.goBack()
@@ -348,9 +374,13 @@ test('Uka di’s blocks rise in 30ms apart, stretch in place, and drop out in 16
 	// Five days arrive, each 30ms after the one before, rising on ease-out.
 	const arrived = await sketchBlocks(page)
 	expect(arrived.map((block) => block.state)).toEqual(Array(5).fill('entering'))
-	expect(arrived.map((block) => block.delay)).toEqual(
-		['0s', '0.03s', '0.06s', '0.09s', '0.12s'],
-	)
+	expect(arrived.map((block) => block.delay)).toEqual([
+		'0s',
+		'0.03s',
+		'0.06s',
+		'0.09s',
+		'0.12s',
+	])
 	for (const block of arrived) {
 		expect(block.property).toBe('transform, clip-path, opacity')
 		expect(block.duration).toBe('0.2s')
@@ -512,6 +542,11 @@ test.describe(() => {
 			for (const played of transition.played) {
 				expect(played.props).toEqual(['opacity'])
 				expect(played.duration).toBe(200)
+			}
+			// A stopped group resets nothing: the snapshots still hold their
+			// end state (#584).
+			for (const [target, fill] of Object.entries(transition.fills)) {
+				expect(fill, target).toBe('both')
 			}
 		}
 		// And the container transform was never asked for.

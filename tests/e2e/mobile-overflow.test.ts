@@ -246,3 +246,35 @@ test('onboarding does not overflow at 390px', async ({ page, navigate }) => {
 	).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 })
+
+test.describe('at 320px', () => {
+	test.use({ viewport: { width: 320, height: 640 } })
+
+	test('the start’s activity list, Start Option cards and twelve-week bars do not overflow', async ({
+		page,
+		navigate,
+		login,
+	}) => {
+		test.setTimeout(120_000)
+		await login()
+		// The most the start can lay: every day, the most hours, every activity.
+		await navigate(
+			'/start/trening?level=competitive&hours=20&discipline=run&days=0,1,2,3,4,5,6&activities=cross-country-ski,hike,climb,yoga-mobility' as '/start/trening',
+		)
+		await expect(page.getByRole('group', { name: 'Aktiviteter' })).toBeVisible()
+		await expectNoHorizontalOverflow(page)
+		await page.getByRole('button', { name: 'Neste' }).click()
+		await expect(page).toHaveURL(/\/start\/okter/)
+		await page.getByRole('button', { name: 'Hopp over', exact: true }).click()
+		await expect(page).toHaveURL(/\/start\/valg/)
+		await expect(page.locator('[data-week-blocks]').first()).toBeVisible()
+		await expectNoHorizontalOverflow(page)
+		await page
+			.getByRole('button', { name: /^Velg denne/ })
+			.first()
+			.click()
+		await expect(page).toHaveURL('/start/klar', { timeout: 20_000 })
+		await expect(page.locator('[data-plan-ready-bars]')).toBeVisible()
+		await expectNoHorizontalOverflow(page)
+	})
+})

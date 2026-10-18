@@ -17,14 +17,18 @@ import { MORPH } from '#app/utils/view-morph.ts'
 const L = SIMPLE_START_LABELS.sketch
 
 /**
- * One mark colour per sport (design-system: track hues are marks); a Simple
- * Activity, which has no track hue, takes the muted one.
+ * One mark colour per sport (design-system: a track hue is the mark of its
+ * discipline). A Simple Activity, which has no track hue, takes the neutral
+ * one, and so does every block of a week whose athlete has not yet said what
+ * they train (`neutral`): before the activities screen the draft lays
+ * running only as a stand-in, and a stand-in gets no sport's colour.
  */
 const TRACK_MARK: Partial<Record<StartWeekSession['discipline'], string>> = {
 	run: 'bg-track-run',
 	bike: 'bg-track-bike',
 	swim: 'bg-track-swim',
 }
+const NEUTRAL_MARK = 'bg-muted-foreground'
 
 /** Solid for a hard session, fainter as it gets easier. */
 const EFFORT_OPACITY: Record<EffortWord, string> = {
@@ -70,7 +74,7 @@ type ShownBlock = SketchBlock & {
  * the stack resting on the baseline, sessions taller for longer and shrunk
  * together when a day holds more than fits.
  */
-function sketchBlocks(sketch: Sketch): SketchBlock[] {
+function sketchBlocks(sketch: Sketch, neutral: boolean): SketchBlock[] {
 	const longest = Math.max(
 		1,
 		...sketch.days.flatMap((day) => day.sessions.map((s) => s.minutes)),
@@ -78,7 +82,7 @@ function sketchBlocks(sketch: Sketch): SketchBlock[] {
 	return sketch.days.flatMap((day) => {
 		const lifting = day.lifting.map((_, index) => ({
 			key: `${day.weekday}:lift-${index}`,
-			className: 'bg-track-strength',
+			className: neutral ? NEUTRAL_MARK : 'bg-track-strength',
 			height: LIFT_HEIGHT,
 			lifting: true,
 		}))
@@ -93,7 +97,7 @@ function sketchBlocks(sketch: Sketch): SketchBlock[] {
 		const sessions = day.sessions.map((session, index) => ({
 			key: `${day.weekday}:session-${index}`,
 			className: cn(
-				TRACK_MARK[session.discipline] ?? 'bg-muted-foreground',
+				(neutral ? null : TRACK_MARK[session.discipline]) ?? NEUTRAL_MARK,
 				EFFORT_OPACITY[session.effort],
 			),
 			height: raw[index]! * scale,
@@ -200,6 +204,81 @@ function useShownBlocks(blocks: SketchBlock[]): ShownBlock[] {
 }
 
 /**
+ * A week as seven columns of blocks, Monday first: each day's sessions
+ * stacked on its baseline, taller for longer and more solid the harder, with
+ * the lifting on top. Shared by _Uka di_ and the Start Option cards (#584), so
+ * the top card reads as the same blocks the sketch morphs into.
+ *
+ * With `speak`, each day is a list item a screen reader hears; without it the
+ * blocks are only a picture (the card says the same week in its rows). Blocks
+ * move only inside a `[data-sketch-live]` ancestor (`sketch-block`).
+ */
+export function WeekBlocks({
+	week,
+	neutral = false,
+	speak,
+	label,
+	className,
+}: {
+	week: Sketch
+	neutral?: boolean
+	speak?: (day: Sketch['days'][number]) => string
+	label?: string
+	className?: string
+}) {
+	const blocks = useMemo(() => sketchBlocks(week, neutral), [week, neutral])
+	const shown = useShownBlocks(blocks)
+	return (
+		<ol
+			aria-label={speak ? label : undefined}
+			aria-hidden={speak ? undefined : true}
+			className={cn('grid grid-cols-7 gap-1.5', className)}
+			data-week-blocks
+		>
+			{week.days.map((day) => (
+				<li key={day.weekday} className="flex min-w-0 flex-col gap-1">
+					{speak ? <span className="sr-only">{speak(day)}</span> : null}
+					<span
+						aria-hidden
+						className="bg-muted/60 relative block h-16 overflow-hidden rounded-2xl"
+					>
+						{shown
+							.filter((block) => block.weekday === day.weekday)
+							.map((block) => (
+								<span
+									key={block.key}
+									className={cn(
+										'sketch-block absolute inset-0 block',
+										block.className,
+									)}
+									style={
+										{
+											'--sketch-y': `${block.top.toFixed(2)}%`,
+											'--sketch-cut': `${(100 - block.height).toFixed(2)}%`,
+											'--sketch-index': block.enterIndex ?? undefined,
+										} as CSSProperties
+									}
+									data-week-sketch-lifting={
+										block.lifting && !block.leaving ? '' : undefined
+									}
+									data-entering={block.enterIndex != null ? '' : undefined}
+									data-leaving={block.leaving ? '' : undefined}
+								/>
+							))}
+					</span>
+					<span
+						aria-hidden
+						className="text-caption text-muted-foreground text-center"
+					>
+						{FIRST_RUN_LABELS.dayShort[day.weekday]}
+					</span>
+				</li>
+			))}
+		</ol>
+	)
+}
+
+/**
  * _Uka di_, the **Week Sketch** (#563): seven days, Monday first, each a
  * column whose block is the day's session — taller for longer, more solid
  * the harder it is — with the week's session count and total time above. It is the
@@ -214,11 +293,18 @@ function useShownBlocks(blocks: SketchBlock[]): ShownBlock[] {
  * baseline, 30ms after the one before; one that changes size stretches in
  * place; one that goes drops out in 160ms (`sketch-block`). The sketch is
  * the `start-week` surface the top Start Option card morphs out of.
+ *
+ * `neutral` while the athlete has not said what they train: the blocks take
+ * the neutral mark, not the stand-in sport's colour.
  */
-export function WeekSketch({ sketch }: { sketch: Sketch }) {
+export function WeekSketch({
+	sketch,
+	neutral = false,
+}: {
+	sketch: Sketch
+	neutral?: boolean
+}) {
 	const empty = sketch.sessionCount === 0 && sketch.strengthSessions === 0
-	const blocks = useMemo(() => sketchBlocks(sketch), [sketch])
-	const shown = useShownBlocks(blocks)
 	// No motion on the first paint: a screen that opens with a week shows it.
 	const [live, setLive] = useState(false)
 	useEffect(() => setLive(true), [])
@@ -252,67 +338,33 @@ export function WeekSketch({ sketch }: { sketch: Sketch }) {
 					) : null}
 				</p>
 			</div>
-			<ol
-				aria-label={L.title}
-				aria-hidden={empty ? true : undefined}
-				className="grid grid-cols-7 gap-1.5"
-			>
-				{sketch.days.map((day) => {
-					const weekday = NB_WEEKDAY_LABELS[day.weekday]!
-					const said = [
-						...day.sessions.map((session) =>
-							L.session(
-								session.effort === 'rolig'
-									? session.title
-									: `${session.title} (${START_OPTION_LABELS.effort[session.effort]})`,
-								duration(session.minutes),
-							),
-						),
-						// A lifting day is said by its session, never in minutes (#574).
-						...day.lifting.map((lift) => L.lifting(lift.title)),
-					]
-					const spoken = said.length === 0 ? L.free : said.join('; ')
-					return (
-						<li key={day.weekday} className="flex min-w-0 flex-col gap-1">
-							<span className="sr-only">{L.day(weekday, spoken)}</span>
-							<span
-								aria-hidden
-								className="bg-muted/60 relative block h-16 overflow-hidden rounded-2xl"
-							>
-								{shown
-									.filter((block) => block.weekday === day.weekday)
-									.map((block) => (
-										<span
-											key={block.key}
-											className={cn(
-												'sketch-block absolute inset-0 block',
-												block.className,
-											)}
-											style={
-												{
-													'--sketch-y': `${block.top.toFixed(2)}%`,
-													'--sketch-cut': `${(100 - block.height).toFixed(2)}%`,
-													'--sketch-index': block.enterIndex ?? undefined,
-												} as CSSProperties
-											}
-											data-week-sketch-lifting={
-												block.lifting && !block.leaving ? '' : undefined
-											}
-											data-entering={block.enterIndex != null ? '' : undefined}
-											data-leaving={block.leaving ? '' : undefined}
-										/>
-									))}
-							</span>
-							<span
-								aria-hidden
-								className="text-caption text-muted-foreground text-center"
-							>
-								{FIRST_RUN_LABELS.dayShort[day.weekday]}
-							</span>
-						</li>
-					)
-				})}
-			</ol>
+			<WeekBlocks
+				week={sketch}
+				neutral={neutral}
+				label={L.title}
+				speak={
+					empty
+						? undefined
+						: (day) => L.day(NB_WEEKDAY_LABELS[day.weekday]!, spokenDay(day))
+				}
+			/>
 		</section>
 	)
+}
+
+/** A day as a screen reader hears it: its sessions, its lifting, or _fri_. */
+function spokenDay(day: Sketch['days'][number]): string {
+	const said = [
+		...day.sessions.map((session) =>
+			L.session(
+				session.effort === 'rolig'
+					? session.title
+					: `${session.title} (${START_OPTION_LABELS.effort[session.effort]})`,
+				duration(session.minutes),
+			),
+		),
+		// A lifting day is said by its session, never in minutes (#574).
+		...day.lifting.map((lift) => L.lifting(lift.title)),
+	]
+	return said.length === 0 ? L.free : said.join('; ')
 }

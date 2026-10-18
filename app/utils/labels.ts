@@ -2166,6 +2166,13 @@ export const SIMPLE_START_LABELS = {
 		switchMainSport: (sport: string, next: string) =>
 			`Hovedidrett: ${sport}. Bytt til ${next}`,
 		switchHint: 'Bytt',
+		/**
+		 * One list of everything the athlete can pick (#584, the prototype's
+		 * chips): the sports, the Simple Activities and _Styrke_.
+		 */
+		list: 'Aktiviteter',
+		listHelp:
+			'Velg så mange du vil. Den første utholdenhetsidretten du velger, blir hovedidretten.',
 	},
 	/** _Uka di_: the live week (story 26–29). */
 	sketch: {
@@ -2446,13 +2453,19 @@ export const PLAN_READY_LABELS = {
 	curveTitle: 'Timer i uka, de neste 12 ukene',
 	/** The curve as a screen reader hears it. */
 	curveName: (laid: number, projected: number) =>
-		`Timer i uka: ${laid} uker som planen er lagt, så ${projected} uker hvis du trener som planlagt. De lette ukene er dumpene.`,
+		`Timer i uka: ${laid} uker som planen er lagt, så ${projected} uker hvis du trener som planlagt. De lette ukene er de lave søylene.`,
 	curveCaption: 'Timer i uka, uke for uke',
 	track: 'Timer',
-	/** The dashed weeks: ADR 0079's next rounds, if every week is done to plan. */
+	/** The lighter bars: ADR 0079's next rounds, if every week is done to plan. */
 	ifAsPlanned: 'hvis du trener som planlagt',
+	/** The chart's legend (#584): the round as laid, then the projection. */
+	legendLaid: 'Lagt',
+	legendProjected: 'Hvis du trener som planlagt',
+	/** The step each projected round takes, under the 8 % guard. */
 	note: (percent: number) =>
-		`Stiplet: de neste blokkene hvis du trener som planlagt, med ${percent} % mer per blokk.`,
+		percent > 0
+			? `De neste blokkene får ${percent} % mer per blokk hvis du trener som planlagt.`
+			: 'De neste blokkene holder samme nivå, fordi planen allerede bygger så raskt den kan.',
 	/** How the plan moves (story 49): the autopilot, undo and _Spør meg først_. */
 	sunday:
 		'Hver søndag kveld legger appen ut neste uke, ut fra det du faktisk trente. Du får beskjed om hva den gjorde, og kan angre. Vil du heller at den spør deg først, velger du Spør meg først i Meg.',

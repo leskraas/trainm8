@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { Link, redirect } from 'react-router'
 import {
 	Collapsible,
@@ -6,7 +5,6 @@ import {
 	CollapsibleTrigger,
 } from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { SeasonCurveView } from '#app/routes/_home/timeline/season-pane.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { readPlanReady } from '#app/utils/first-run/plan-ready.server.ts'
 import { formatNbVolumeFigure } from '#app/utils/format.ts'
@@ -18,12 +16,13 @@ import {
 	DISCLOSURE_TRIGGER,
 	PRIMARY_ACTION,
 } from './__first-run-frame.tsx'
+import { PlanReadyBars } from './__plan-ready-bars.tsx'
 
 /**
  * _Planen er klar_ (#558 stories 46–51, #570): where _Velg denne_ lands. The
  * plan by its plain name with the family's small, the day it begins, twelve
- * weeks of hours on the Season Pane's curve (the round as laid, then dashed
- * as the plan would go on if every week were done to plan), one sentence on
+ * weeks of hours as bars (the round as laid solid, then a lighter step as the
+ * plan would go on if every week were done to plan, #584), one sentence on
  * how the plan moves each Sunday, a closed _Under panseret_ with everything
  * that was made, and _Til I dag_.
  *
@@ -46,16 +45,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 	return ready
 }
 
+/** A week's hours as the bars say them; a function does not cross the wire. */
+function hoursFigure(value: number): string {
+	return formatNbVolumeFigure(value, 'hours')
+}
+
 export default function PlanReady({ loaderData }: Route.ComponentProps) {
 	const { curve, hood } = loaderData
-	// The curve's figures, rebuilt here: a function does not cross the wire.
-	const model = useMemo(
-		() => ({
-			...curve,
-			figure: (value: number) => formatNbVolumeFigure(value, 'hours'),
-		}),
-		[curve],
-	)
 
 	return (
 		<main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 pt-6">
@@ -84,15 +80,7 @@ export default function PlanReady({ loaderData }: Route.ComponentProps) {
 					<h2 id="plan-ready-curve" className="text-callout font-semibold">
 						{curve.title}
 					</h2>
-					<SeasonCurveView
-						curve={model}
-						ariaLabel={curve.ariaLabel}
-						caption={curve.caption}
-						projectedLabel={curve.projectedLabel}
-						// The dashed weeks are named over them and in the note below;
-						// a legend would say it a third time.
-						legend={null}
-					/>
+					<PlanReadyBars curve={curve} figure={hoursFigure} />
 					{curve.note ? (
 						<p className="text-footnote text-muted-foreground">{curve.note}</p>
 					) : null}

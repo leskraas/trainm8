@@ -81,12 +81,34 @@ test('a new athlete goes from the level screen to Planen er klar, the history fi
 	const day = (name: string) => page.getByRole('button', { name, exact: true })
 	await expect(day('tirsdag')).toHaveAttribute('aria-pressed', 'true')
 	await expect(day('lørdag')).toHaveAttribute('aria-pressed', 'true')
+	// One list of everything to pick, each with its mark (#584): the sports,
+	// the Simple Activities and Styrke side by side, the main sport pressed.
+	const list = page.getByRole('group', { name: 'Aktiviteter' })
+	for (const name of [
+		'Løping',
+		'Sykling',
+		'Svømming',
+		'Klatring',
+		'Fjelltur',
+	]) {
+		await expect(list.getByRole('button', { name, exact: true })).toBeVisible()
+	}
+	await expect(
+		list.getByRole('button', { name: 'Løping', exact: true }),
+	).toHaveAttribute('aria-pressed', 'true')
 	await page.getByRole('button', { name: 'Neste' }).click()
 
 	await expect(page).toHaveURL(/\/start\/okter\?/)
 	await page.getByRole('button', { name: 'Hopp over', exact: true }).click()
 
 	await expect(page).toHaveURL(/\/start\/valg\?/)
+	// Each card draws its week as Uka di's blocks, a column a day (#584).
+	await expect(
+		page
+			.locator('[data-start-option]')
+			.first()
+			.locator('[data-week-blocks] > li'),
+	).toHaveCount(7)
 	await page
 		.getByRole('button', { name: /^Velg denne/ })
 		.first()
@@ -94,6 +116,15 @@ test('a new athlete goes from the level screen to Planen er klar, the history fi
 
 	// Making the plan lays two weeks of sessions, each priced: give it time.
 	await expect(page).toHaveURL('/start/klar', { timeout: 20_000 })
+	// Twelve weeks as bars: the round as laid solid, the rest projected.
+	await expect(page.locator('[data-plan-ready-bar]')).toHaveCount(12)
+	await expect(
+		page.locator('[data-plan-ready-bar="laid"]').first(),
+	).toBeAttached()
+	await expect(
+		page.locator('[data-plan-ready-bar="projected"]').first(),
+	).toBeAttached()
+	await expect(page.locator('[data-plan-ready-legend]')).toBeVisible()
 	await page.getByRole('link', { name: 'Til I dag' }).click()
 	await expect(page).toHaveURL('/')
 

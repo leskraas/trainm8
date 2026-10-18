@@ -277,7 +277,11 @@ export default function LevelStep({
 			stepCount={SIMPLE_START_STEP_COUNT}
 			title={L.level.title}
 		>
-			<WeekSketch sketch={sketch} />
+			{/* Before the activities, the running is a stand-in: no sport colour. */}
+			<WeekSketch
+				sketch={sketch}
+				neutral={!answers.discipline && !activities?.length}
+			/>
 			<Form
 				method="POST"
 				className="space-y-8"
