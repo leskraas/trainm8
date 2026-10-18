@@ -21,6 +21,7 @@ import {
 	nbDurationLabel,
 	nbHoursWords,
 	PHILOSOPHY_LABELS,
+	SESONG_NOTICE_LABELS,
 	SESSION_PREFERENCE_LABELS,
 	START_OPTION_LABELS,
 	START_SIMPLE_ACTIVITY_LABELS,
@@ -130,6 +131,7 @@ export function cardOf(
 						...(week.strengthSessions < strengthChosen
 							? [L.strengthFewer(week.strengthSessions, strengthChosen)]
 							: []),
+						...liftingClashLines(option),
 					],
 		shortOfHours:
 			option.shortOfHours == null
@@ -148,6 +150,19 @@ export function cardOf(
 			: null,
 		chooseLabel: L.chooseLabel(plain.name),
 	}
+}
+
+/**
+ * Where the lifts had to go on or the day before a hard day, or on the long
+ * day, because the days left no other (spec #588 story 40): the day check's
+ * own lines, once each, in week 1's order.
+ */
+function liftingClashLines(option: StartOption): string[] {
+	const lines = option.draft.dayClashes
+		.filter((clash) => clash.fromWeekIndex === 0)
+		.filter((clash) => clash.reason.startsWith('lifting-'))
+		.map((clash) => SESONG_NOTICE_LABELS.dayClash(clash.reason, clash.weekday))
+	return [...new Set(lines)]
 }
 
 /** One mark colour per sport (design-system: track hues are marks). */

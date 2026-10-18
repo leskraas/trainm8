@@ -111,6 +111,21 @@ test('the tap rides through Hva slags økter liker du? to the Start Options', as
 	expect(new URLSearchParams(location.split('?')[1]).get('strength')).toBe('2')
 })
 
+test('a card whose lifts had to go on a hard day says so, in the day check’s words (spec #588 story 40)', async () => {
+	const { cookie } = await setUp()
+	const data = await loader({
+		...ARGS,
+		request: get(
+			`/start/valg?level=experienced&hours=7&discipline=run&days=1,3,5&strength=3`,
+			cookie,
+		),
+	})
+	const said = data.cards.flatMap((card) => card.strengthNotes)
+	expect(said.some((note) => note.startsWith('Styrke og en hard økt på'))).toBe(
+		true,
+	)
+})
+
 test('each card counts its lifting beside the hours, shows its lifts, and says the frequency is the athlete’s', async () => {
 	const { cookie } = await setUp()
 	const data = await loader({
@@ -120,9 +135,12 @@ test('each card counts its lifting beside the hours, shows its lifts, and says t
 	expect(data.answers.strength).toBe(2)
 	for (const card of data.cards) {
 		expect(card.strength).toBe('+2 styrkeøkter')
-		expect(card.strengthNotes).toEqual([
-			'Styrke 2 ganger i uka, som du valgte.',
-		])
+		// The frequency first; a card whose lifts had to go on its long day
+		// says that after it (spec #588 story 40).
+		expect(card.strengthNotes[0]).toBe('Styrke 2 ganger i uka, som du valgte.')
+		for (const note of card.strengthNotes.slice(1)) {
+			expect(note).toMatch(/^Styrke (og|dagen før)/)
+		}
 		const lifting = card.days.flatMap((day) => day.lifting)
 		expect(lifting).toHaveLength(2)
 		expect(lifting[0]!.lifts).toContain('Planke')

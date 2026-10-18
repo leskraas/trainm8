@@ -14,7 +14,9 @@ import { inWholeFiveMinutes } from '../five-minutes.ts'
 import { openEndedRoundName } from '../labels.ts'
 import {
 	availabilityFitWarnings,
+	dayClashWarnings,
 	type AvailabilityFitWarning,
+	type DayClashWarning,
 } from '../plan-outline/availability-fit.ts'
 import {
 	phaseIndexForWeek,
@@ -253,6 +255,13 @@ export type FirstRunDraft = {
 	 * construction (`mixWithinDays`); read back so tests can hold it to that.
 	 */
 	dayWarnings: AvailabilityFitWarning[]
+	/**
+	 * The day check (ADR 0104 §6) over the weeks shown, with the lifts laid
+	 * as the stamp lays them (`lifting`): where a lift lands on or the day
+	 * before a hard day, or on the long day, because nothing else fits
+	 * (spec #588 story 40). Empty where the week fits.
+	 */
+	dayClashes: DayClashWarning[]
 }
 
 /** How many weeks the first run shows and lays at once (story 68). */
@@ -506,6 +515,12 @@ export function draftFirstRunPlan(
 		shortWeekdays?: { longMayBeLong: boolean }
 		/** The Simple Activities, each on its own day (#572). */
 		simpleActivities?: readonly DraftSimpleActivity[]
+		/**
+		 * _Styrke_: the lifts a week and the days they may go on, Monday
+		 * first. The day check lays them as the stamp does; the weeks shown
+		 * stay the endurance week.
+		 */
+		lifting?: { perWeek: number; days: readonly PatternWeekday[] } | null
 	} & (OneTrackAnswers | { tracks: readonly DraftTrack[] }),
 ): FirstRunDraft | null {
 	const { family, goal, startWeekKey, sessionCap, shortWeekdays } = input
@@ -657,7 +672,7 @@ export function draftFirstRunPlan(
 
 	const specs = phaseSpecs(rows)
 	const shown = Math.min(FIRST_RUN_WEEKS, totalWeeks(specs))
-	const planned = planStamp({
+	const stampInput = {
 		days: stampDays,
 		tracks: tracks.map((track) => ({
 			trackId: track.trackId,
@@ -683,6 +698,32 @@ export function draftFirstRunPlan(
 					)?.mix ?? [],
 			})),
 		})),
+	}
+
+	const planned = planStamp(stampInput)
+	// The lifts as lifting slots on a strength track of their own, so the
+	// check lays them per week after the mix, on the days given.
+	const lifts = Math.max(0, input.lifting?.perWeek ?? 0)
+	const dayClashes = dayClashWarnings({
+		...stampInput,
+		tracks:
+			lifts > 0
+				? [
+						...stampInput.tracks,
+						{
+							trackId: DRAFT_STRENGTH_TRACK_ID,
+							discipline: 'strength',
+							currency: 'sets',
+						},
+					]
+				: stampInput.tracks,
+		lifting: Array.from({ length: lifts }, (_, index) => ({
+			dayId: `lift-${index}`,
+			trackId: DRAFT_STRENGTH_TRACK_ID,
+			workoutId: DRAFT_STRENGTH_TRACK_ID,
+			orderInDay: index,
+		})),
+		liftingDays: input.lifting?.days,
 	})
 
 	return {
@@ -717,8 +758,12 @@ export function draftFirstRunPlan(
 				...activities.map((activity) => activity.weekday),
 			]).size,
 		),
+		dayClashes,
 	}
 }
+
+/** The draft's stand-in strength track, which only the day check reads. */
+const DRAFT_STRENGTH_TRACK_ID = 'draft-strength'
 
 /** The sum, or null where any part is unpriced. */
 function sumOrNull(values: ReadonlyArray<number | null>): number | null {

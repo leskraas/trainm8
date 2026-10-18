@@ -322,3 +322,34 @@ test('a hard Simple Activity keeps the run’s intervals off its day and its nei
 	// The same answers lay the same weeks.
 	expect(draft({ ...run, simpleActivities: ski }).weeks).toEqual(beside.weeks)
 })
+
+// Spec #588 story 40: lifting goes on a hard day only when nothing else fits,
+// and the fit check says so. The draft runs the day check over its weeks with
+// the lifts laid as the stamp lays them.
+test('lifts with no other day to go on land on the hard days, and the day check says so', () => {
+	const made = draft({
+		family: 'threshold',
+		days: [1, 3, 5],
+		lifting: { perWeek: 3, days: [1, 3, 5] },
+	})
+	const reasons = made.dayClashes.map(
+		(clash) => `${clash.reason}@${clash.weekday}`,
+	)
+	expect(reasons).toContain('lifting-on-hard-day@1')
+	expect(reasons).toContain('lifting-on-hard-day@3')
+	expect(reasons).toContain('lifting-on-long-day@5')
+})
+
+test('a week whose lifts fit says nothing in the day check', () => {
+	const made = draft({
+		family: 'threshold',
+		days: [0, 1, 2, 3, 4, 5, 6],
+		weeklyHours: 6,
+		lifting: { perWeek: 1, days: [0, 1, 2, 3, 4, 5, 6] },
+	})
+	expect(made.dayClashes).toEqual([])
+})
+
+test('without lifting the day check reads the endurance week alone', () => {
+	expect(draft({ family: 'threshold' }).dayClashes).toEqual([])
+})

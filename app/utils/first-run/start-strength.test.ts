@@ -98,6 +98,26 @@ test('lifting days land away from the hard endurance days', () => {
 	}
 })
 
+test('a lift laid on a hard day is said by the day check, on that day (spec #588 story 40)', () => {
+	for (const level of TRAINING_LEVELS) {
+		const { hours, days } = levelDefaults(level)
+		const made = start({
+			level,
+			hours,
+			days,
+			strength: { perWeek: 3, session: SESSION },
+		})
+		for (const option of made.options) {
+			const hard = hardDays(option.week)
+			const onHard = option.strengthDays.filter((day) => hard.includes(day))
+			const said = option.draft.dayClashes
+				.filter((clash) => clash.reason === 'lifting-on-hard-day')
+				.map((clash) => clash.weekday)
+			expect([...new Set(said)].sort()).toEqual(onHard)
+		}
+	}
+})
+
 test('a strength day shows its lifts, not minutes, and the hours stay the endurance hours', () => {
 	const without = start({ strength: null })
 	const made = start()

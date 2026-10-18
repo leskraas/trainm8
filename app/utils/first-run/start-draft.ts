@@ -629,6 +629,8 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 			sessionCap: enduranceCap,
 		})
 		sports = layout.sports
+		// The day check lays the lifts as `strengthDays` below does.
+		const lifting = strength && lifts > 0 ? { perWeek: lifts, days } : null
 		const draft =
 			layout.activities.length === 0 && sports.length === 1
 				? draftFirstRunPlan({
@@ -640,6 +642,7 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 						days,
 						sessionCap: enduranceCap,
 						shortWeekdays,
+						lifting,
 					})
 				: draftFirstRunPlan({
 						family,
@@ -649,6 +652,7 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 						shortWeekdays,
 						tracks: layout.tracks,
 						simpleActivities: layout.activities,
+						lifting,
 					})
 		if (!draft) continue
 		const endurance = startWeekOf(draft)
