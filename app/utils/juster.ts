@@ -11,8 +11,10 @@
  *   becomes _rolig_ and shorter.
  * - **Lite tid** (`short`): 30 minutes, or 20 if it was 30 or less. The intent
  *   is kept.
- * - **Bytt dag** (`move`): the next free day this week, or a swap with the
- *   next session; refused when no later day is left.
+ * - **Bytt dag** (`move`): the next free day this week that the cross-track
+ *   day rule finds no clash on (ADR 0104); failing that the next free day,
+ *   with the reason, or a swap with the next session; refused when no later
+ *   day is left.
  * - **Bytt økt** (`swap`, #579): a session picked from Bibliotek — a Catalogue
  *   session, a program day or one exercise — replaces today's prescription.
  *
@@ -24,6 +26,12 @@
  */
 import { z } from 'zod/v3'
 import { inWholeFiveMinutes } from './five-minutes.ts'
+import {
+	type Clash,
+	type PlacedSession,
+	placingClashes,
+} from './plan-outline/day-rule.ts'
+import { type PatternWeekday } from './plan-outline/week-pattern.ts'
 
 export const JUSTER_INTENTS = ['tired', 'short', 'move'] as const
 export type JusterIntent = (typeof JUSTER_INTENTS)[number]
@@ -99,25 +107,57 @@ export function tiredSets(sets: number): number {
 export type LaterDay = {
 	/** YYYY-MM-DD, Athlete Timezone. */
 	key: string
+	/** Its weekday on the Week Pattern's axis, Monday 0. */
+	weekday: PatternWeekday
 	/** The open sessions on it, earliest first. */
 	openSessionIds: readonly string[]
 	/** Whether anything at all is on it (an open session, or one done). */
 	occupied: boolean
 }
 
+/** The session being moved, as the day rule reads it: no day yet. */
+export type SessionToMove =
+	| Omit<Extract<PlacedSession, { kind: 'session' }>, 'weekday'>
+	| Omit<Extract<PlacedSession, { kind: 'lifting' }>, 'weekday'>
+
+/** What the day rule reads for a move: the week without the session, and it. */
+export type MoveFit = {
+	/** This week's other sessions, today's and later, on their days. */
+	week: readonly PlacedSession[]
+	session: SessionToMove
+}
+
 export type NewDay =
-	| { kind: 'move'; toKey: string }
+	/**
+	 * `clash` is null where the day fits; otherwise every free day clashed,
+	 * this is the first of them, and the clash is why it lands there.
+	 */
+	| { kind: 'move'; toKey: string; clash: Clash | null }
 	| { kind: 'swap'; toKey: string; withSessionId: string }
 	| { kind: 'refused'; reason: 'no-later-day' }
 
 /**
- * Where _Bytt dag_ puts today's session: the first free day after today this
- * week; with none free, a swap with the next open session; with neither, a
- * refusal. `laterDays` are this week's days after today, in order.
+ * Where _Bytt dag_ puts today's session (spec #588, ADR 0104 §1): the first
+ * free day after today this week that the cross-track day rule finds no
+ * clash on — so not the day before a hard session, and not next to lifting
+ * or another hard day when the session is hard. When every free day clashes,
+ * today's order: the first free day, with the clash that it carries; with
+ * none free, a swap with the next open session; with neither, a refusal.
+ * `laterDays` are this week's days after today, in order.
  */
-export function pickNewDay(laterDays: readonly LaterDay[]): NewDay {
-	const free = laterDays.find((day) => !day.occupied)
-	if (free) return { kind: 'move', toKey: free.key }
+export function pickNewDay(
+	laterDays: readonly LaterDay[],
+	{ week, session }: MoveFit,
+): NewDay {
+	const free = laterDays.filter((day) => !day.occupied)
+	const clashesOn = (day: LaterDay) =>
+		placingClashes(week, { ...session, weekday: day.weekday })
+	const fits = free.find((day) => clashesOn(day).length === 0)
+	if (fits) return { kind: 'move', toKey: fits.key, clash: null }
+	const first = free[0]
+	if (first) {
+		return { kind: 'move', toKey: first.key, clash: clashesOn(first)[0]! }
+	}
 	for (const day of laterDays) {
 		const next = day.openSessionIds[0]
 		if (next) return { kind: 'swap', toKey: day.key, withSessionId: next }

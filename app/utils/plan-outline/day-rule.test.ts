@@ -112,11 +112,29 @@ test('a middels Simple Activity makes a hard day', () => {
 	])
 })
 
-test('a rolig session clashes with nothing, even on a day that already does', () => {
+test('a rolig session clashes with nothing but the day before a hard day', () => {
 	const week = [hard(TUE), lifting(TUE), long(SUN)]
 	expect(placingClashes(week, rolig(TUE))).toEqual([])
 	expect(placingClashes(week, rolig(SUN))).toEqual([])
 	expect(placingClashes(week, rolig(WED))).toEqual([])
+})
+
+test('a rolig session placed the day before a hard day clashes (spec #588 story 28)', () => {
+	expect(placingClashes([hard(TUE)], rolig(MON))).toEqual([
+		{ reason: 'easy-before-hard-day', weekday: MON },
+	])
+	expect(placingClashes([middels(MON)], long(SUN))).toEqual([
+		{ reason: 'easy-before-hard-day', weekday: SUN },
+	])
+})
+
+test('a hard session placed the day after a rolig one does not clash for it', () => {
+	expect(placingClashes([rolig(MON)], hard(TUE))).toEqual([])
+})
+
+test('a laid week does not read an easy day before a hard day as a clash', () => {
+	// Every week has one: it is a placing reason, for a session being moved.
+	expect(clashesIn([rolig(MON), hard(TUE), rolig(WED)])).toEqual([])
 })
 
 test('a laid week reads every clash in it, Monday first', () => {
