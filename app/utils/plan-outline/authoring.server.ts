@@ -23,6 +23,7 @@ import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { parseEventDisciplines, type EventKind } from '../event-schema.ts'
 import { createEvent } from '../event.server.ts'
+import { readLiftingWorkoutId } from '../first-run/start-strength.server.ts'
 import { openEndedRoundName } from '../labels.ts'
 import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
 import { type PlannedDiscipline } from '../planned-discipline.ts'
@@ -2762,7 +2763,8 @@ export async function createStarterWeekPatternInTx(
 			// The first block's **Strength Frequency** stands for the track: a
 			// pattern is one week and the blocks may each ask for a different
 			// number, so the season's opening figure is the honest one to start
-			// from — and the athlete moves days from there.
+			// from. It lays that many lifting slots, which the stamp places each
+			// week (ADR 0104 §3).
 			sessionsPerWeek: track.segments[0]?.sessionsPerWeek ?? null,
 			weekdays: daysByDiscipline[track.discipline as Discipline],
 			dayWeights: weightsByDiscipline[track.discipline as Discipline],
@@ -2783,6 +2785,8 @@ export async function createStarterWeekPatternInTx(
 	}
 	const proposed: StarterProposal = proposal ?? {
 		days: [],
+		lifting: [],
+		weekdays: [],
 		source: trainableWeekdays == null ? 'default' : 'availability',
 	}
 
@@ -2828,6 +2832,27 @@ export async function createStarterWeekPatternInTx(
 				workoutId: day.workoutId,
 			},
 		})
+	}
+	// The lifting slots, on no weekday (ADR 0104 §3): the stamp lays each
+	// week's lifts against that week's hard days, by the first run's rule. Each
+	// copies the athlete's latest strength session, or the Stock Workout.
+	if (proposed.lifting.length > 0) {
+		const workoutId = await readLiftingWorkoutId(tx, userId)
+		const slotsOf = new Map<string, number>()
+		for (const slot of proposed.lifting) {
+			const orderInDay = slotsOf.get(slot.trackId) ?? 0
+			slotsOf.set(slot.trackId, orderInDay + 1)
+			await tx.weekPatternDay.create({
+				data: {
+					patternId: pattern.id,
+					trackId: slot.trackId,
+					weekday: null,
+					orderInDay,
+					kind: 'lifting',
+					workoutId,
+				},
+			})
+		}
 	}
 
 	return { ok: true as const, proposal: proposed }

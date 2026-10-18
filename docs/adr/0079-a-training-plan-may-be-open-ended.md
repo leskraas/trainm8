@@ -297,7 +297,11 @@ nullable `PlanOutline.family` and nothing else, no backfill.
   stamp. No history, no offer; the threshold is at least one session a week on
   average (as many sessions as the window has weeks). An open-ended plan's block
   ends with the plan's current last round; appended rounds do not extend it yet
-  (as S6 noted for strength segments).
+  (as S6 noted for strength segments). _Superseded in part by
+  [ADR 0104](./0104-one-day-rule-across-tracks-lifting-laid-per-week-and-pinned-days-per-track.md)
+  §5 (#592): the offer adds **lifting slots** on no weekday, one per lift, and
+  the stamp lays each week's against that week's hard days; it no longer writes
+  fixed days from the front of the week._
 
 ## As built (#505 S14): the first run makes the first plan
 

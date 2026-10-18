@@ -4560,6 +4560,53 @@ describe('a Week Pattern to start from (#362 follow-up)', () => {
 		).toBeGreaterThanOrEqual(3)
 	})
 
+	test('a strength track gets lifting slots on no weekday, on the session it lifts, not the first days of the week', async () => {
+		const { athleteId, outlineId } = await planWithAvailability([2, 4, 0])
+		const added = await addTrack(athleteId, {
+			outlineId,
+			discipline: 'strength',
+			currency: 'sets',
+			anchorValue: 12,
+		})
+		if (!added.ok) throw new Error(added.reason)
+		const strength = await prisma.trainingTrack.findFirstOrThrow({
+			where: { outlineId, discipline: 'strength' },
+			select: { id: true },
+		})
+		await prisma.trainingTrackSegment.create({
+			data: {
+				kind: 'strength',
+				trackId: strength.id,
+				startWeekKey: START_WEEK_KEY,
+				weeks: 8,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 2,
+			},
+		})
+
+		const result = await createStarterWeekPattern(athleteId, { outlineId })
+
+		expect(result).toMatchObject({ ok: true })
+		const lifting = await prisma.weekPatternDay.findMany({
+			where: { pattern: { outlineId }, trackId: strength.id },
+			select: { weekday: true, kind: true, workoutId: true },
+		})
+		// Two lifts a week, as the block says, which the stamp lays each week
+		// away from that week's hard days (ADR 0104 §3) — no weekday here.
+		expect(lifting).toEqual([
+			{ weekday: null, kind: 'lifting', workoutId: expect.any(String) },
+			{ weekday: null, kind: 'lifting', workoutId: expect.any(String) },
+		])
+		// The run's week is the same three days it is without the lifting.
+		expect(
+			(await daysOf(outlineId)).filter((day) => day.kind === 'share'),
+		).toEqual([
+			{ weekday: 1, kind: 'share', weight: 1 },
+			{ weekday: 3, kind: 'share', weight: 1 },
+			{ weekday: 6, kind: 'share', weight: 2 },
+		])
+	})
+
 	test('another athlete cannot start a week on a plan that is not theirs', async () => {
 		const { outlineId } = await planWithAvailability([2, 4, 0])
 		const intruder = await createAthlete()

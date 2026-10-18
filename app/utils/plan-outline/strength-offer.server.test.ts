@@ -135,7 +135,7 @@ test('an athlete who lifts twice a week is offered a strength track; accepting i
 
 	expect(await addProposedStrengthTrack(userId, outlineId, NOW)).toMatchObject({
 		ok: true,
-		days: 2,
+		lifts: 2,
 	})
 	const track = await prisma.trainingTrack.findFirstOrThrow({
 		where: { outlineId, discipline: 'strength' },
@@ -174,6 +174,95 @@ test('an athlete who lifts twice a week is offered a strength track; accepting i
 		ok: false,
 		reason: 'discipline-already-tracked',
 	})
+})
+
+/** A run Workout of the athlete's that prescribes intervals (VO₂ max). */
+async function intervals(userId: string) {
+	return prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Intervaller',
+			discipline: 'run',
+			intent: 'vo2max',
+			ownerId: userId,
+		},
+	})
+}
+
+/** The weekday (0 = Monday) each strength session in the range lands on. */
+async function liftingWeekdays(userId: string, from: string, to: string) {
+	const sessions = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			status: 'scheduled',
+			scheduledAt: { gte: new Date(from), lt: new Date(to) },
+			workout: { discipline: 'strength' },
+		},
+		select: { scheduledAt: true },
+	})
+	const monday = new Date(from).getTime()
+	return sessions
+		.map((s) => Math.floor((s.scheduledAt.getTime() - monday) / 86_400_000))
+		.sort((a, b) => a - b)
+}
+
+test('accepting the offer adds lifting slots, laid away from the intervals rather than on the first days of the week', async () => {
+	const { userId, outlineId } = await athlete()
+	// Every day is a training day, so the front of the week is free to lift on.
+	await prisma.athleteProfile.update({
+		where: { userId },
+		data: { trainableWeekdays: JSON.stringify([0, 1, 2, 3, 4, 5, 6]) },
+	})
+	await weekOfRunning(userId, outlineId)
+	// Intervals every Tuesday: a hard day, and Monday the day before it.
+	const pattern = await prisma.weekPattern.findFirstOrThrow({
+		where: { outlineId },
+		select: { id: true },
+	})
+	const run = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId, discipline: 'run' },
+		select: { id: true },
+	})
+	const tuesday = await addWeekPatternDay(userId, {
+		patternId: pattern.id,
+		kind: 'fixed',
+		trackId: run.id,
+		weekday: 1,
+		workoutId: (await intervals(userId)).id,
+	})
+	if (!tuesday.ok) throw new Error(tuesday.reason)
+	for (const monday of [10, 17, 24, 31]) {
+		const day = new Date(Date.UTC(2029, 11, monday, 16))
+		await lifted(userId, day)
+		await lifted(userId, new Date(day.getTime() + 3 * 24 * 60 * 60 * 1000))
+	}
+
+	expect(await addProposedStrengthTrack(userId, outlineId, NOW)).toMatchObject({
+		ok: true,
+		lifts: 2,
+	})
+
+	// Two lifting slots on no weekday: the stamp picks each week's days.
+	const slots = await prisma.weekPatternDay.findMany({
+		where: { patternId: pattern.id, track: { discipline: 'strength' } },
+		select: { kind: true, weekday: true, workoutId: true },
+	})
+	expect(slots).toEqual([
+		expect.objectContaining({ kind: 'lifting', weekday: null }),
+		expect.objectContaining({ kind: 'lifting', weekday: null }),
+	])
+	expect(slots.every((slot) => slot.workoutId != null)).toBe(true)
+
+	// The week of 14 Jan (Monday 00:00 Oslo) lifts twice, on neither the
+	// interval day nor the day before it.
+	const days = await liftingWeekdays(
+		userId,
+		'2030-01-13T23:00:00Z',
+		'2030-01-20T23:00:00Z',
+	)
+	expect(days).toHaveLength(2)
+	expect(days).not.toContain(0)
+	expect(days).not.toContain(1)
 })
 
 test('with no lifting in the window nothing is offered, and nothing can be accepted', async () => {

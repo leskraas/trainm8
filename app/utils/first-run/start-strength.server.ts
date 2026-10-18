@@ -1,6 +1,7 @@
 // Strength in the start, on the server (#574, spec #558, ADR 0103): what the
 // one tap is pre-set to, and the session a lifting day copies.
 
+import { type Prisma } from '@prisma/client'
 import { stockWorkoutId } from '../catalogue-corpus.all.ts'
 import { prisma } from '../db.server.ts'
 import { liftDisplayName } from '../exercise-aliases-nb.ts'
@@ -29,6 +30,36 @@ export type StartStrengthReading = {
 }
 
 /**
+ * The Workout a lift copies (ADR 0103 §3): the athlete's most recent completed
+ * strength session's, or else the full-body **Stock Workout**. Null where
+ * there is neither. Read through `db`, so a caller inside a transaction reads
+ * in it.
+ */
+export async function readLiftingWorkoutId(
+	db: Prisma.TransactionClient,
+	userId: string,
+	now: Date = new Date(),
+): Promise<string | null> {
+	const recent = await db.workoutSession.findFirst({
+		where: {
+			userId,
+			status: 'completed',
+			scheduledAt: { lte: now },
+			workoutId: { not: null },
+			workout: { discipline: 'strength' },
+		},
+		orderBy: { scheduledAt: 'desc' },
+		select: { workoutId: true },
+	})
+	if (recent?.workoutId) return recent.workoutId
+	const stock = await db.workout.findUnique({
+		where: { id: stockWorkoutId(START_STOCK_STRENGTH_KEY) },
+		select: { id: true, discipline: true },
+	})
+	return stock?.discipline === 'strength' ? stock.id : null
+}
+
+/**
  * What the start's strength needs: the athlete's history's frequency, and the
  * session to lift — their most recent strength session's Workout, or else the
  * full-body Stock Workout. Null where there is neither, and then _styrke_
@@ -38,22 +69,11 @@ export async function readStartStrength(
 	userId: string,
 	now: Date = new Date(),
 ): Promise<StartStrengthReading | null> {
-	const [offer, recent] = await Promise.all([
+	const [offer, workoutId] = await Promise.all([
 		readStrengthTrackOffer(userId, now),
-		prisma.workoutSession.findFirst({
-			where: {
-				userId,
-				status: 'completed',
-				scheduledAt: { lte: now },
-				workoutId: { not: null },
-				workout: { discipline: 'strength' },
-			},
-			orderBy: { scheduledAt: 'desc' },
-			select: { workoutId: true },
-		}),
+		readLiftingWorkoutId(prisma, userId, now),
 	])
-	const workoutId =
-		recent?.workoutId ?? stockWorkoutId(START_STOCK_STRENGTH_KEY)
+	if (!workoutId) return null
 	const workout = await prisma.workout.findUnique({
 		where: { id: workoutId },
 		select: {
