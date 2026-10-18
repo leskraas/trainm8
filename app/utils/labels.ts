@@ -2716,6 +2716,9 @@ function nextRoundAutopilotReason(
 	const same = `${next} er lagt inn med like mye trening som ${ended}`
 	switch (verdict.kind) {
 		case 'done-to-plan':
+			// A ramp already at the guard leaves the round no room to step up (#584).
+			if (stepPercent <= 0)
+				return `${ended} har gått etter planen: ${lastWeeks(graded)} ble gjort som planlagt. ${same}, fordi blokka allerede øker så mye fra uke til uke.`
 			return `${ended} har gått etter planen: ${lastWeeks(graded)} ble gjort som planlagt. ${next} er lagt inn med ca. ${stepPercent} % mer trening.`
 		case 'missed-weeks':
 			return `${verdict.missed} av ${lastWeeks(graded)} ble ikke gjort som planlagt. ${same}, så planen ikke presser deg etter en tung blokk.`

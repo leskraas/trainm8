@@ -31,6 +31,7 @@
 import { nextRoundReason, openEndedRoundName } from '#app/utils/labels.ts'
 import { type Rhythm } from '#app/utils/plan-outline/derive.ts'
 import { PRESET_RAMP } from '#app/utils/plan-outline/presets.ts'
+import { RAMP_GUARD_MAX } from '#app/utils/plan-outline/ramp-guard.ts'
 import { ADHERENCE_ON_TARGET_AT_OR_ABOVE, weeklyLoad } from './adherence.ts'
 import { type ProposalDraft } from './week-replan-proposal.ts'
 
@@ -55,6 +56,12 @@ export type RoundFacts = {
 	nextWeekKey: string
 	/** One block of the plan's rhythm (`openEndedRound`). */
 	next: { weeks: number; rhythm: Rhythm }
+	/**
+	 * The steepest Volume Ramp the ending round carries into the next — its
+	 * endurance segments', the Simple Activities' aside (they take no step) —
+	 * or null for none. Read by {@link autopilotRoundFactor}.
+	 */
+	ramp: number | null
 	/**
 	 * The lived weeks graded — the most recent ones, at most a round's length,
 	 * never before the round opened — each as its sessions' Planned and actual
@@ -108,12 +115,36 @@ export function roundFactor(verdict: RoundVerdict): number {
 	return verdict.kind === 'done-to-plan' ? ROUND_STEP_UP : 1
 }
 
+/**
+ * The factor the autopilot appends a round at (ADR 0100 §3): the verdict's,
+ * but never so much that the round's first week rises past the ramp guard's
+ * 8 % over the round's last loading week (#584). That week sits one ramp step
+ * **and** the boundary step above it, so a +5 % ramp and a +5 % round would be
+ * +10.25 %; under a +5 % ramp the round steps up about 2.9 %. A ramp at the
+ * guard or past it leaves no room, and the round keeps the volume. Floored to
+ * the boundary step's four decimals (`roundBoundaryStep`), so the rounding
+ * cannot carry it back over.
+ */
+export function autopilotRoundFactor(
+	factor: number,
+	ramp: number | null,
+): number {
+	const room = (1 + RAMP_GUARD_MAX) / (1 + Math.max(ramp ?? 0, 0))
+	if (factor <= room) return factor
+	return Math.max(1, Math.floor(room * 10_000) / 10_000)
+}
+
 /** The next round's proposal: an `add-phase` aimed at the plan, never a session. */
 export function proposeNextRound(
 	facts: RoundFacts,
 	{ autopilot = false }: { autopilot?: boolean } = {},
 ): ProposalDraft {
 	const verdict = roundVerdict(facts.weeks)
+	// The yes is what lets a round past the guards under Spør meg først; under
+	// autopilot there is none, so the guard is the factor (ADR 0100 §3).
+	const factor = autopilot
+		? autopilotRoundFactor(roundFactor(verdict), facts.ramp)
+		: roundFactor(verdict)
 	return {
 		payload: {
 			kind: 'add-phase',
@@ -122,7 +153,7 @@ export function proposeNextRound(
 			name: openEndedRoundName(facts.round + 1),
 			weeks: facts.next.weeks,
 			rhythm: facts.next.rhythm,
-			factor: roundFactor(verdict),
+			factor,
 		},
 		targetSessionId: null,
 		targetWeekKey: facts.nextWeekKey,
@@ -130,7 +161,7 @@ export function proposeNextRound(
 			verdict,
 			facts.round,
 			facts.weeks.length,
-			Math.round((ROUND_STEP_UP - 1) * 100),
+			Math.round(((autopilot ? factor : ROUND_STEP_UP) - 1) * 100),
 			{ autopilot },
 		),
 	}

@@ -24,6 +24,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { isOutlineResting } from '#app/utils/plan-outline/active-outline.server.ts'
 import { MAX_PLAN_WEEKS } from '#app/utils/plan-outline/authoring-schema.ts'
 import { rhythmOf, type Rhythm } from '#app/utils/plan-outline/derive.ts'
+import { isSimpleActivityTrack } from '#app/utils/plan-outline/from-rows.ts'
 import {
 	openEndedRound,
 	outlineFamily,
@@ -65,7 +66,15 @@ export async function readRoundFacts(
 			family: true,
 			phases: {
 				orderBy: { orderIndex: 'asc' },
-				select: { id: true, weeks: true, rhythm: true },
+				select: {
+					id: true,
+					weeks: true,
+					rhythm: true,
+					segments: {
+						where: { kind: 'endurance' },
+						select: { ramp: true, track: { select: { discipline: true } } },
+					},
+				},
 			},
 		},
 	})
@@ -124,9 +133,16 @@ export async function readRoundFacts(
 		),
 	)
 
+	// The ramp the next round carries on (`appendOpenEndedRound`); a Simple
+	// Activity track takes no step, so its ramp is not one the round steps on.
+	const ramps = last.segments
+		.filter((segment) => !isSimpleActivityTrack(segment.track.discipline))
+		.flatMap((segment) => (segment.ramp == null ? [] : [segment.ramp]))
+
 	return {
 		outlineId: outline.id,
 		phaseId: last.id,
+		ramp: ramps.length > 0 ? Math.max(...ramps) : null,
 		round: outline.phases.length,
 		nextWeekKey: weekKeyAt(outline.startWeekKey, total),
 		next,
