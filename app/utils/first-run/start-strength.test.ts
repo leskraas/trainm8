@@ -219,3 +219,19 @@ test('with several endurance sports the lifts come out of the same session cap',
 		expect(option.week.sessionCount + option.week.strengthSessions).toBe(4)
 	}
 })
+
+test('with several sports the card lifts where the plan will: a week with no long or hard day spreads the lifts', () => {
+	// Run and bike, one easy session each on Monday and Wednesday and no long
+	// day: two lifts go as far apart as the days allow (ADR 0103 §2), as the
+	// stamp lays them in the stored plan, not on Monday and Tuesday.
+	const made = start({
+		level: 'beginner',
+		hours: 5,
+		days: [0, 1, 2],
+		otherSports: ['bike'],
+		strength: { perWeek: 2, session: SESSION },
+	})
+	const option = made.options[0]!
+	expect(option.strengthDays).toEqual([0, 2])
+	expect(liftingDays(option.week)).toEqual([0, 2])
+})

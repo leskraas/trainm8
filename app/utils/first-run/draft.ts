@@ -262,6 +262,11 @@ export type FirstRunDraft = {
 	 * (spec #588 story 40). Empty where the week fits.
 	 */
 	dayClashes: DayClashWarning[]
+	/**
+	 * Week 1's lifting days, Monday first, as the stamp lays the lifts
+	 * (`lifting`) against every track's sessions. Empty with no lifts.
+	 */
+	liftingDays: PatternWeekday[]
 }
 
 /** How many weeks the first run shows and lays at once (story 68). */
@@ -704,7 +709,7 @@ export function draftFirstRunPlan(
 	// The lifts as lifting slots on a strength track of their own, so the
 	// check lays them per week after the mix, on the days given.
 	const lifts = Math.max(0, input.lifting?.perWeek ?? 0)
-	const dayClashes = dayClashWarnings({
+	const liftedInput = {
 		...stampInput,
 		tracks:
 			lifts > 0
@@ -724,7 +729,21 @@ export function draftFirstRunPlan(
 			orderInDay: index,
 		})),
 		liftingDays: input.lifting?.days,
-	})
+	}
+	const dayClashes = dayClashWarnings(liftedInput)
+	// Week 1's lifts where the stamp lays them, reading every track's long day
+	// and every Simple Activity's Effort Word, so the card shows the week the
+	// plan stores.
+	const liftingDays =
+		lifts > 0
+			? [
+					...new Set(
+						(planStamp(liftedInput)[0]?.sessions ?? [])
+							.filter((session) => session.discipline === 'strength')
+							.map((session) => session.weekday),
+					),
+				].sort((a, b) => a - b)
+			: []
 
 	return {
 		phases,
@@ -759,6 +778,7 @@ export function draftFirstRunPlan(
 			]).size,
 		),
 		dayClashes,
+		liftingDays,
 	}
 }
 

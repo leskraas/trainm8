@@ -12,7 +12,6 @@
 import { type EffortWord, effortWordOfZone } from '../effort-word.ts'
 import { FIVE_MINUTES } from '../five-minutes.ts'
 import { SIMPLE_ACTIVITY_LABELS } from '../labels.ts'
-import { liftingDaysFor, type PlacedSession } from '../plan-outline/day-rule.ts'
 import { openEndedRound, type PresetFamily } from '../plan-outline/presets.ts'
 import { qualitySessionCount } from '../plan-outline/quality-mix.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
@@ -319,38 +318,6 @@ export function startWeekOf(
 }
 
 /**
- * A first week as the cross-track day rule reads it (ADR 0104): each session
- * by its Effort Word, the lifts as lifting, and the pattern's long day (the
- * draft lays it last) marked long.
- */
-function placedSessionsOf(
-	week: StartWeek,
-	longDay: PatternWeekday | null,
-): PlacedSession[] {
-	const placed: PlacedSession[] = week.days.flatMap((day) => [
-		...day.sessions.map(
-			(session): PlacedSession => ({
-				weekday: day.weekday,
-				kind: 'session',
-				effort: session.effort,
-			}),
-		),
-		...day.lifting.map(
-			(): PlacedSession => ({ weekday: day.weekday, kind: 'lifting' }),
-		),
-	])
-	if (longDay != null) {
-		placed.push({
-			weekday: longDay,
-			kind: 'session',
-			effort: 'rolig',
-			long: true,
-		})
-	}
-	return placed
-}
-
-/**
  * One family's first week laid for the answers (ADR 0102 §1). A reading;
  * never stored. `draft` is what the plan writer makes when the athlete picks
  * it (`createFirstRunPlan`), `week` what the card shows of it.
@@ -372,8 +339,9 @@ export type StartOption = {
 	shortOfHours: number | null
 	/**
 	 * The lifting days (#574): Monday-first, as many as the athlete tapped
-	 * where their days allow, away from the hard endurance days
-	 * (`liftingDaysFor`, the cross-track day rule). Empty without _styrke_.
+	 * where their days allow, away from the hard endurance days: week 1's
+	 * lifts as the stamp lays them (`draft.liftingDays`), so the card shows
+	 * the plan stored. Empty without _styrke_.
 	 */
 	strengthDays: PatternWeekday[]
 	/**
@@ -655,17 +623,11 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 						lifting,
 					})
 		if (!draft) continue
-		const endurance = startWeekOf(draft)
-		const strengthDays = strength
-			? liftingDaysFor(
-					days,
-					placedSessionsOf(endurance, draft.patternDays.at(-1) ?? null),
-					lifts,
-				)
-			: []
+		// Where the stamp lays week 1's lifts, so the card shows the plan stored.
+		const strengthDays = strength ? draft.liftingDays : []
 		const week = strength
 			? startWeekOf(draft, { days: strengthDays, session: strength.session })
-			: endurance
+			: startWeekOf(draft)
 		laid.push({
 			family,
 			draft,
