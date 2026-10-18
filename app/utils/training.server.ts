@@ -444,16 +444,21 @@ const activeOutlineSelect = {
  * anchored one is skipped for the next phased one, or the open-ended one, and a
  * phaseless open-ended one is no plan at all.
  */
-export async function findActiveOutline(userId: string, now: Date) {
+export async function findActiveOutline(
+	userId: string,
+	now: Date,
+	/** A transaction's client, where the read is part of one. */
+	db: Prisma.TransactionClient = prisma,
+) {
 	// Phased only, so a phaseless outline on the nearest Event never hides a
 	// phased one on a later Event (`active-outline.server.ts` holds the rule).
-	const anchored = await prisma.planOutline.findFirst({
+	const anchored = await db.planOutline.findFirst({
 		where: anchoredActiveOutlineWhere(userId, now),
 		orderBy: { event: { startDate: 'asc' } },
 		select: activeOutlineSelect,
 	})
 	if (anchored) return { event: anchored.event, outline: anchored }
-	const openEnded = await prisma.planOutline.findFirst({
+	const openEnded = await db.planOutline.findFirst({
 		where: { athleteId: userId, eventId: null },
 		select: activeOutlineSelect,
 	})

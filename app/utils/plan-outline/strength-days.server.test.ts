@@ -311,9 +311,15 @@ test('chosen lifting days hold in every Week Pattern that lifts, and the undo pu
 		where: { outlineId, name: 'Lett uke' },
 		select: { id: true },
 	})
-	const workout = await prisma.workout.findFirstOrThrow({
-		where: { ownerId: userId, discipline: 'strength' },
+	// The light week lifts the full-body Stock Workout, which no athlete owns.
+	const workout = await prisma.workout.create({
 		select: { id: true },
+		data: {
+			ownerId: null,
+			title: 'Helkropp A',
+			discipline: 'strength',
+			intent: 'strength',
+		},
 	})
 	await prisma.weekPatternDay.create({
 		data: {

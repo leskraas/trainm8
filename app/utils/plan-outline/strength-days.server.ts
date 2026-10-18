@@ -96,7 +96,7 @@ async function readStrengthTrack(
 	now: Date,
 	db: Prisma.TransactionClient = prisma,
 ) {
-	const active = await findActiveOutline(userId, now)
+	const active = await findActiveOutline(userId, now, db)
 	if (!active) return { ok: false as const, reason: 'no-plan' as const }
 	const outlineId = active.outline.id
 	const [track, profile, available] = await Promise.all([
@@ -341,8 +341,8 @@ function strengthRowOf(row: {
 
 /**
  * Rows an undo sends back, held to what a strength track could hold: a
- * fixed row on a real weekday, a lifting slot on none, and only the
- * athlete's own strength sessions. `null` where any is not.
+ * fixed row on a real weekday, a lifting slot on none, and only strength
+ * sessions the athlete owns or a Stock Workout. `null` where any is not.
  */
 async function checkedStrengthRestore(
 	tx: Prisma.TransactionClient,
@@ -361,8 +361,14 @@ async function checkedStrengthRestore(
 	const workoutIds = [
 		...new Set(rows.flatMap((row) => (row.workoutId ? [row.workoutId] : []))),
 	]
+	// The athlete's own sessions, or a Stock Workout no one owns: what a
+	// track with none of its own lifts (`readStartStrength`).
 	const owned = await tx.workout.count({
-		where: { id: { in: workoutIds }, ownerId: userId, discipline: 'strength' },
+		where: {
+			id: { in: workoutIds },
+			discipline: 'strength',
+			OR: [{ ownerId: userId }, { ownerId: null }],
+		},
 	})
 	return owned === workoutIds.length ? [...rows] : null
 }
@@ -447,6 +453,14 @@ export async function setStrengthDays(
 	now: Date = new Date(),
 ): Promise<StrengthDaysWrite> {
 	const days = choice ? patternWeekdaysOf(choice) : null
+	// The session a track with none of its own would lift is read before the
+	// transaction: every read inside it goes through `tx`, since a database
+	// of one connection would otherwise wait on the transaction holding it.
+	const before = await readStrengthTrack(userId, now)
+	const startWorkoutId =
+		before.ok && !before.rows.some((row) => row.workoutId != null)
+			? ((await readStartStrength(userId, now))?.workoutId ?? null)
+			: null
 	const result = await prisma.$transaction(
 		async (tx): Promise<StrengthDaysWrite & { outlineId?: string }> => {
 			const read = await readStrengthTrack(userId, now, tx)
@@ -458,7 +472,8 @@ export async function setStrengthDays(
 				const refusal = pinnedDaysRefusal(days, state.available)
 				if (refusal) return { ok: false, reason: refusal }
 			}
-			const workoutId = await liftedWorkoutId(userId, rows, now)
+			const workoutId =
+				rows.find((row) => row.workoutId != null)?.workoutId ?? startWorkoutId
 			if (!workoutId) return { ok: false, reason: 'no-session' }
 			const count = days
 				? days.length
