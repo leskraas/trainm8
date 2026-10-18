@@ -9,8 +9,6 @@ import {
 } from '#app/utils/training.server.ts'
 import { updateWorkoutSession } from '#app/utils/workout.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
-import { readDays } from './day-rule.ts'
-import { placedOn, readPlacement } from './session-placement.ts'
 import {
 	addWeekPattern,
 	addWeekPatternDay,
@@ -18,6 +16,8 @@ import {
 	deletePlanOutline,
 	setQualitySessionMix,
 } from './authoring.server.ts'
+import { readDays } from './day-rule.ts'
+import { placedOn, readPlacement } from './session-placement.ts'
 import {
 	readStampedMixWarnings,
 	stampWeekPattern,
