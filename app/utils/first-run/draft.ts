@@ -709,7 +709,7 @@ export function draftFirstRunPlan(
 	// The lifts as lifting slots on a strength track of their own, so the
 	// check lays them per week after the mix, on the days given.
 	const lifts = Math.max(0, input.lifting?.perWeek ?? 0)
-	const liftedInput = {
+	const liftedInput: Parameters<typeof planStamp>[0] = {
 		...stampInput,
 		tracks:
 			lifts > 0
