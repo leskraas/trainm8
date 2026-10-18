@@ -650,6 +650,8 @@ export function draftFirstRunPlan(
 			volume: activity.minutes / 60,
 			workoutId: activity.workoutId,
 			shapeVolume: null,
+			// A `middels` or `hard` activity is a hard day the mix steps around.
+			effort: activity.effortWord,
 		})
 	})
 
