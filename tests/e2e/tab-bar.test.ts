@@ -311,7 +311,7 @@ test('Bibliotek lists every exercise, searchable, for an athlete with no lifts y
 	await expect(firstHit).toContainText('«knebøy»')
 })
 
-test('the first run carries no tab bar', async ({ page, navigate, login }) => {
+test('the start carries no tab bar', async ({ page, navigate, login }) => {
 	test.setTimeout(120_000)
 	await login()
 	await navigate('/start')

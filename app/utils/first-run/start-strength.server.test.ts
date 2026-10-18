@@ -30,7 +30,6 @@ const answers = {
 	hours: 5,
 	// mandag, onsdag, fredag, lørdag
 	days: [0, 2, 4, 5] as Array<0 | 1 | 2 | 3 | 4 | 5 | 6>,
-	goal: { kind: 'active' as const },
 	level: 'recreational' as const,
 	family: 'polarized' as const,
 	strength: 2,

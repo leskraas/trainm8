@@ -45,15 +45,8 @@ import type {
 import type { ConnectionHubStatus } from './connection-hub-status.ts'
 import type { EffortWord } from './effort-word.ts'
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
-import type {
-	EventDateProblem,
-	FirstRunPlanRefusal,
-} from './first-run/first-run-schema.ts'
-import type {
-	FamilyChoice,
-	FindingAbsence,
-	HoursEstimate,
-} from './first-run/first-run.ts'
+import type { FirstRunPlanRefusal } from './first-run/first-run-schema.ts'
+import type { FindingAbsence, HoursEstimate } from './first-run/first-run.ts'
 import type {
 	SessionPreference,
 	TrainingLevel,
@@ -1965,7 +1958,7 @@ export function hoursEstimateLabel(estimate: HoursEstimate): string {
 	return `${parts.join(' + ')} ≈ ${nbHoursLabel(estimate.hours)}`
 }
 
-/** Why a finding on "Dette fant vi" has no number (#505 story 71). */
+/** Why the history gave no number (#505 story 71), said on the start (#578). */
 export const FINDING_ABSENCE_LABELS: Record<FindingAbsence, string> = {
 	'not-connected':
 		'Ikke målt · intervals.icu er ikke koblet til, og du har ikke logget økter her',
@@ -1995,220 +1988,54 @@ export function nbPhaseName(name: string): string {
 	return PRESET_PHASE_NAME_LABELS[name] ?? name
 }
 
-/**
- * "Vi valgte X fordi …" (#505 stories 66 and 70): the philosophy the first
- * run proposes, and its one reason, in plain words.
- */
-export function familyChoiceSentence(choice: FamilyChoice): string {
-	const name = PHILOSOPHY_LABELS[choice.family]
-	const reason = choice.reason
-	const because = (() => {
-		switch (reason.code) {
-			case 'older-athlete':
-				return `du er ${reason.age} år. Da trenger kroppen hvile oftere, så hver tredje uke er lett.`
-			case 'little-history':
-				return reason.weeksTrained == null || reason.weeksTrained === 0
-					? 'vi ikke har noe trening å lese fra. En jevn økning med en lett uke hver fjerde uke er den tryggeste starten.'
-					: `vi fant trening i ${reason.weeksTrained} av de siste fire ukene. En jevn økning med en lett uke hver fjerde uke er den tryggeste starten.`
-			case 'few-days':
-				return `du har ${reason.days} ${reason.days === 1 ? 'dag' : 'dager'} i uka. Da passer en jevn økning med en lett uke hver fjerde uke best.`
-			case 'few-hours':
-				return `du har ${nbHoursLabel(reason.hours)} i uka. Med lite tid gir en jevn økning med en lett uke hver fjerde uke mest.`
-			case 'long-run-up':
-				return `det er ${reason.weeks} uker til løpet. Da rekker du en lang periode med rolig trening før de harde øktene kommer.`
-			case 'many-hours':
-				return `du har ${nbHoursLabel(reason.hours)} i uka. Med så mye tid lønner det seg å trene det meste rolig og litt veldig hardt.`
-			case 'race-on-limited-time':
-				return `du har ${nbHoursLabel(reason.hours)} i uka mot et løp. Med begrenset tid gir kontrollert harde økter mest igjen.`
-			case 'steady':
-				return 'du trener jevnt og vil holde deg i form. Tre uker som bygger og én lett holder formen oppe uten å slite deg ut.'
-			case 'training-level':
-				return `${SIMPLE_START_LABELS.levelReason[reason.level]}.`
-		}
-	})()
-	return `Vi valgte ${name} fordi ${because}`
-}
-
-/**
- * Why a race date cannot be planned toward, said on the date field. `too-far`
- * names `MAX_PLAN_WEEKS` (pinned by the label test).
- */
-export const EVENT_DATE_LABELS: Record<EventDateProblem, string> = {
-	missing: 'Velg en dato',
-	invalid: 'Velg en dato som finnes i kalenderen',
-	'too-soon': 'Velg en dato etter neste uke, så det blir uker å trene mot den.',
-	'too-far': 'Velg en dato innen 104 uker – lenger kan ikke en plan være.',
-}
-
-/** The first run's own words, screen by screen. */
+/** The start's shared words: the step count, the day pills, connecting. */
 export const FIRST_RUN_LABELS = {
 	stepOf: (step: number, of: number) => `Steg ${step} av ${of}`,
-	/** The page title of the first run's first step. */
-	start: 'Kom i gang',
 	/**
-	 * The back arrow above each step's heading, read out as where it goes:
-	 * the step before, by its own heading.
-	 */
-	backTo: {
-		funn: 'Tilbake til intervals.icu',
-		sporsmal: 'Tilbake til Dette fant vi',
-		plan: 'Tilbake til spørsmålene',
-		uker: 'Tilbake til planen',
-	},
-	/**
-	 * The days as the first run's day pills say them, Monday first (the
-	 * Training Week's order); each pill is read out by its full name.
+	 * The days as the start's day pills say them, Monday first (the Training
+	 * Week's order); each pill is read out by its full name.
 	 */
 	dayShort: ['ma', 'ti', 'on', 'to', 'fr', 'lø', 'sø'],
 	/** What a question left unanswered says. */
 	messages: {
 		daysRequired: 'Velg minst én dag',
-		goalRequired: 'Velg hva du trener mot',
-		eventNameRequired: 'Skriv hva løpet heter',
-		familyRequired: 'Velg en filosofi',
 	},
+	/**
+	 * Connecting intervals.icu from the start (#578): a quiet way from the
+	 * level screen, never a step, and back to it.
+	 */
 	connect: {
 		title: 'Koble til intervals.icu',
 		intro:
-			'Da kan vi lese de siste ukene dine og fylle ut svarene for deg. Vi henter bare fullførte økter.',
+			'Da kan vi lese de siste ukene dine og fylle ut timer og dager for deg. Vi henter bare fullførte økter.',
 		keyLabel: 'API-nøkkel fra intervals.icu',
 		keyHelp:
 			'Du finner den i intervals.icu under Settings → Developer Settings.',
 		submit: 'Koble til',
 		connected: 'intervals.icu er koblet til.',
-		next: 'Fortsett',
-		skip: 'Hopp over',
+		next: 'Tilbake til start',
+		skip: 'Ikke nå',
 		skipConsequence:
-			'Hopper du over, har vi ingen historikk å lese. Da fyller du inn svarene selv, og planen bygger bare på det du sier.',
+			'Uten historikk bruker vi det som er vanlig for nivået ditt. Du kan koble til senere under Meg.',
+		back: 'Tilbake til nivå og timer',
 		emptyKey: 'Lim inn API-nøkkelen fra intervals.icu.',
 		rejected:
 			'intervals.icu godtok ikke nøkkelen. Lager du en ny nøkkel, slutter den gamle å virke – kopier den som gjelder nå.',
 		unreachable: 'Vi fikk ikke kontakt med intervals.icu. Prøv igjen om litt.',
 	},
-	findings: {
-		title: 'Dette fant vi',
-		intro: 'Fra de siste fire ukene dine.',
-		importing:
-			'Historikken hentes fra intervals.icu. Siden oppdaterer seg selv når den er hentet.',
-		/** Where the import message stood, once the history is in. */
-		imported: 'Historikken er hentet.',
-		/** A finding's place while the history is still arriving: one line. */
-		pending: 'Hentes …',
-		discipline: 'Mest trent',
-		volume: 'Timer i uka',
-		days: 'Vanlige treningsdager',
-		strength: 'Styrke',
-		disciplineValue: (sport: string, sessions: number, weeks: number) =>
-			`${sport} · ${sessions} ${sessions === 1 ? 'økt' : 'økter'} på ${weeks} ${weeks === 1 ? 'uke' : 'uker'}`,
-		strengthValue: (perWeek: number) =>
-			perWeek === 0
-				? 'Ingen styrkeøkter'
-				: `${nbNumber(perWeek)} ${perWeek === 1 ? 'økt' : 'økter'} i uka`,
-		correct: 'Det stemmer',
-		wrong: 'Noe er feil',
-		wrongIntro:
-			'Rett det som ikke stemmer. Svarene på neste side fylles ut med det du skriver her.',
-		saveCorrection: 'Bruk dette',
-	},
-	questions: {
-		title: 'Tre spørsmål',
-		intro: 'Fylt ut fra historikken din. Endre det som ikke passer.',
-		goal: 'Hva trener du mot?',
-		goalActive: 'Hold meg aktiv',
-		goalActiveHelp: 'Ingen løp og ingen sluttdato. Planen går i blokker.',
-		goalEvent: 'Et løp eller en dato',
-		eventName: 'Hva heter det?',
-		eventDate: 'Dato',
-		hours: 'Timer i uka',
-		/**
-		 * What the hours are (owner decision 15, round 2): what the athlete
-		 * trains now, where the plan starts — not a ceiling.
-		 */
-		hoursMeaning: 'Det du trener nå. Planen starter der og bygger seg opp.',
-		hoursFromHistory: (arithmetic: string) => `Fra historikken: ${arithmetic}`,
-		hoursUnmeasured: (reason: string) => `${reason}. Skriv det du trener nå.`,
-		days: 'Hvilke dager kan du trene?',
-		daysFromHistory: 'Dagene du pleier å trene.',
-		daysDefault:
-			'Et forslag – vi hadde ingen dager å lese fra. Velg dagene som passer deg.',
-		daysCorrected: 'Dagene du skrev.',
-		discipline: 'Planen gjelder',
-		next: 'Vis planen',
-	},
-	plan: {
-		title: 'Planen',
-		youChose: (name: string) => `Du valgte ${name}.`,
-		weSuggested: (sentence: string) => `Vårt forslag: ${sentence}`,
-		openEnded: (weeks: number) =>
-			`Blokk 1 · ${weeks} uker, så neste blokk. Ingen sluttdato.`,
-		towardEvent: (name: string, weeks: number) => `${weeks} uker mot ${name}.`,
-		phase: (name: string, weeks: number) =>
-			`${name} · ${weeks} ${weeks === 1 ? 'uke' : 'uker'}`,
-		/**
-		 * The plan's rhythm: `3:1` is three weeks that build, then one easy.
-		 * Two families can share a hard session and differ here (Masters 2:1).
-		 */
-		rhythm: (building: number, easy: number) =>
-			`${building} ${building === 1 ? 'uke' : 'uker'} som bygger, så ${easy} lett${easy === 1 ? '' : 'e'}`,
-		/** The first week is what the athlete trains now (owner decision 15). */
-		firstWeek: (hours: string) => `Første uke: ${hours} – det du trener nå`,
-		peakWeek: (hours: string) => `Tyngste uke: ${hours}`,
-		/**
-		 * The week's hard sessions as the stamp lays them (`planStamp`), so the
-		 * philosophies read apart: `1 tempoøkt`, `1 terskeløkt og 1 tempoøkt`.
-		 */
-		hardSessions: (sessions: string) => `Harde økter: ${sessions} i uka`,
-		hardSession: (count: number, kind: string) =>
-			`${count} ${kind.toLowerCase()}${count === 1 ? '' : 'er'}`,
-		/** A plan whose first weeks are all easy, and when the hard ones come. */
-		hardLater: (weeks: number, phase: string) =>
-			`Ingen harde økter de første ${weeks} ${weeks === 1 ? 'uka' : 'ukene'} – de kommer i ${phase}.`,
-		noHardSessions: 'Ingen harde økter – bare rolig trening.',
-		/** The picture of the plan's weeks, for a screen reader. */
-		curveLabel: (weeks: number) =>
-			`Ukene i planen, ${weeks} stolper: høyden er timene den uka.`,
-		strength: (perWeek: number) =>
-			`Du løfter ${nbNumber(perWeek)} ${perWeek === 1 ? 'gang' : 'ganger'} i uka. Styrken legger du til i Plan når planen er laget – der foreslår vi et styrkespor fra historikken din.`,
-		startsOn: (date: string) => `Planen starter ${date}.`,
-		switchTitle: 'Bytt filosofi',
-		switchSubmit: 'Bruk denne',
-		next: 'Se de to første ukene',
-		back: 'Endre svarene',
-	},
 	weeks: {
-		title: 'De to første ukene',
-		intro: (days: string, hours: string) =>
-			`Øktene ligger på ${days}. Første uke er ${hours} til sammen.`,
-		weekHeading: (weekNumber: number, from: string) =>
-			`Uke ${weekNumber} · fra ${from}`,
-		weekTotal: (planned: string, target: string) =>
-			`${planned} planlagt · målet er ${target}`,
 		/**
 		 * Why the plan lays on fewer days than were chosen (`patternDaysFor`).
 		 * The chosen days stay the athlete's availability.
 		 */
-		restDay: (chosen: number, used: number) =>
-			`Du valgte ${chosen} dager. Planen bruker ${used}, så du har minst én hviledag.`,
 		fewerDays: (chosen: number, used: number) =>
 			`Du valgte ${chosen} dager. Planen bruker ${used}, så ingen økt blir kortere enn en halvtime.`,
-		/** A hard session's mark beside its title, for a screen reader. */
-		hard: 'hard økt',
-		create: 'Start planen',
-		selfSetUp: 'Jeg vil heller sette opp sesongen selv',
-		selfSetUpHelp: 'Du får den samme planen i Plan, og kan endre alt i den.',
-		created: 'Planen er klar',
-		createdDescription: 'De to første ukene ligger i I dag.',
-		back: 'Tilbake til planen',
 	},
 } as const
 
 /** Why the first run's plan could not be made, said where it is refused. */
 export const FIRST_RUN_REFUSAL_LABELS: Record<FirstRunPlanRefusal, string> = {
 	'plan-already-active': 'Du har allerede en plan. Du finner den i Plan.',
-	'event-too-soon': EVENT_DATE_LABELS['too-soon'],
-	'event-too-far': EVENT_DATE_LABELS['too-far'],
-	'goal-unavailable':
-		'Målet kunne ikke få en plan. Prøv igjen, eller velg Hold meg aktiv.',
 	'nothing-to-lay':
 		'Med disse svarene ble det ingen økter å legge. Velg minst én dag og noen timer i uka.',
 	'option-unavailable':
@@ -2338,16 +2165,32 @@ export const SIMPLE_START_LABELS = {
 		disciplineRequired: 'Velg en idrett',
 		strengthRequired: 'Velg 1, 2 eller 3 styrkeøkter i uka',
 	},
-	/**
-	 * Why the plan screen proposes the level's first family, when the answers
-	 * came from the simple start: `Vi valgte Stor base fordi du er nybegynner.`
-	 */
-	levelReason: {
-		beginner: 'du er nybegynner',
-		recreational: 'du er mosjonist',
-		experienced: 'du har trent i flere år',
-		competitive: 'du trener mot konkurranser',
-	} satisfies Record<TrainingLevel, string>,
+} as const
+
+/**
+ * The athlete's history on the start's first screen (#578): where the hours
+ * and days came from, the arithmetic behind a disclosure, the import still on
+ * its way, and the two quiet ways out — connecting intervals.icu, and setting
+ * the season up yourself.
+ */
+export const START_HISTORY_LABELS = {
+	/** `Fra de siste fire ukene dine: 4 timer i uka, tirsdag og lørdag.` */
+	fromHistory: (hours: string | null, days: string | null) =>
+		`Fra de siste fire ukene dine: ${[hours ? `${hours} i uka` : null, days]
+			.filter(Boolean)
+			.join(', ')}.`,
+	/** The history read, but it gave no hours: why, and what stands instead. */
+	noHours: (reason: string) =>
+		`${reason}. Vi bruker det som er vanlig for nivået ditt.`,
+	importing:
+		'Historikken din hentes fortsatt fra intervals.icu. Til den er her, bruker vi det som er vanlig for nivået ditt.',
+	/** The arithmetic's disclosure, and its one line. */
+	arithmetic: 'Slik regnet vi',
+	arithmeticNote:
+		'Snittet av de fire siste hele ukene, rundet til en halvtime.',
+	connect:
+		'Har du intervals.icu? Koble til, så henter vi treningen din derfra.',
+	selfSetUp: 'Jeg vil heller sette opp sesongen selv',
 } as const
 
 /**
