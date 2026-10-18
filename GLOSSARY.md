@@ -2664,6 +2664,14 @@ then not on the **Long day**, then as far apart as the days allow — unless the
 strength track has **Pinned days** (ADR 0103, ADR 0104). _Avoid_: Gym day,
 strength day.
 
+**Lifting Slot**: The third **Week Pattern** day kind (`lifting`, beside _fixed_
+and _share_): one strength session a week, carrying the session it copies and
+**no weekday**. The stamp places a week's slots after that week's endurance mix,
+on that week's **Lifting days**, so a phase that moves the **Hard days** moves
+the lifting with them (ADR 0104 §3). The first run writes one per lift. A stored
+_fixed_ strength day is not a slot: it is a **Pinned day** and stays put.
+_Avoid_: Strength slot, floating day.
+
 **Pinned day**: A weekday the athlete chose for one **Training Track** — lift
 Tuesday and Thursday, _langrenn_ on Saturday — always one of their **Training
 Availability** days. A track with pinned days trains only on them and the other

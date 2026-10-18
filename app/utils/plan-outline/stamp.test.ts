@@ -647,3 +647,220 @@ describe('planStamp lays the mix around every track', () => {
 		expect(planStamp(input)).toEqual(planStamp(input))
 	})
 })
+
+// ADR 0104 §3 (#591): lifting is laid per week. A strength track's **lifting
+// slots** carry no weekday; the stamp lays each week's endurance mix first and
+// then places the slots against that week's hard days, by ADR 0103 §2's order.
+describe('planStamp lays lifting per week', () => {
+	const RUN_HOURS: StampTrack = {
+		trackId: 'run',
+		discipline: 'run',
+		currency: 'hours',
+	}
+	const STRENGTH: StampTrack = {
+		trackId: 'lift',
+		discipline: 'strength',
+		currency: 'sets',
+	}
+	const SIMPLE: StampTrack = {
+		trackId: 'simple',
+		discipline: 'other' as StampTrack['discipline'],
+		currency: 'hours',
+	}
+	const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6] as const
+
+	// The run: Monday, Wednesday and Friday, long on Sunday.
+	const runDays = [
+		share('mon', 0, 1),
+		share('wed', 2, 1),
+		share('fri', 4, 1),
+		share('sun', 6, 2),
+	]
+
+	function slots(count: number, workoutId: string | null = 'w-lift') {
+		return Array.from({ length: count }, (_, index) => ({
+			dayId: `slot-${index}`,
+			trackId: 'lift',
+			workoutId,
+		}))
+	}
+
+	function laidWeek(
+		weekInPlan: number,
+		mix: Array<{ zone: 3 | 4 | 5; sessionsPerWeek: number }>,
+	): StampWeekInput {
+		return {
+			weekKey: `2030-01-${String(7 + weekInPlan * 7).padStart(2, '0')}`,
+			weekInPlan,
+			targets: [
+				{ trackId: 'run', value: 5 },
+				{ trackId: 'lift', value: 12 },
+			],
+			mixes: [{ trackId: 'run', mix }],
+		}
+	}
+
+	function liftingDaysOf(plan: StampWeekPlan | undefined): number[] {
+		return plan!.sessions
+			.filter((session) => session.trackId === 'lift')
+			.map((session) => session.weekday)
+	}
+
+	function hardDaysOf(plan: StampWeekPlan | undefined): number[] {
+		return plan!.sessions
+			.filter((session) => session.zone != null)
+			.map((session) => session.weekday)
+	}
+
+	test('the lifts go off the hard day, the day before it and the long day, as far apart as the week allows', () => {
+		const [plan] = planStamp({
+			days: runDays,
+			lifting: slots(2),
+			liftingDays: EVERY_DAY,
+			tracks: [RUN_HOURS, STRENGTH],
+			weeks: [laidWeek(1, [{ zone: 4, sessionsPerWeek: 1 }])],
+		})
+		// Wednesday is the hard day, so not Tuesday or Wednesday, and Sunday is
+		// long: Monday and Thursday, three days apart.
+		expect(hardDaysOf(plan)).toEqual([2])
+		expect(liftingDaysOf(plan)).toEqual([0, 3])
+		const lifts = plan!.sessions.filter((session) => session.trackId === 'lift')
+		expect(lifts.map((lift) => [lift.kind, lift.sourceWorkoutId])).toEqual([
+			['lifting', 'w-lift'],
+			['lifting', 'w-lift'],
+		])
+		expect(lifts.every((lift) => lift.carriesTss === false)).toBe(true)
+	})
+
+	test('a lift comes after the day’s endurance session', () => {
+		const [plan] = planStamp({
+			days: runDays,
+			lifting: slots(2),
+			liftingDays: EVERY_DAY,
+			tracks: [RUN_HOURS, STRENGTH],
+			weeks: [laidWeek(1, [{ zone: 4, sessionsPerWeek: 1 }])],
+		})
+		const monday = plan!.sessions.filter((session) => session.weekday === 0)
+		expect(monday.map((session) => session.trackId)).toEqual(['run', 'lift'])
+		expect(monday[1]!.orderInDay).toBeGreaterThan(monday[0]!.orderInDay)
+	})
+
+	test('a build week that adds a hard session moves the lifting off the day before it', () => {
+		const plans = planStamp({
+			days: runDays,
+			lifting: slots(2),
+			liftingDays: EVERY_DAY,
+			tracks: [RUN_HOURS, STRENGTH],
+			weeks: [
+				laidWeek(1, [{ zone: 4, sessionsPerWeek: 1 }]),
+				laidWeek(2, [
+					{ zone: 4, sessionsPerWeek: 1 },
+					{ zone: 5, sessionsPerWeek: 1 },
+				]),
+			],
+		})
+		// Base: Wednesday is hard, the lifts are Monday and Thursday.
+		expect(hardDaysOf(plans[0])).toEqual([2])
+		expect(liftingDaysOf(plans[0])).toEqual([0, 3])
+		// Build: Friday is hard too, and Thursday is the day before it — the
+		// Thursday lift moves to Saturday.
+		expect(hardDaysOf(plans[1])).toEqual([2, 4])
+		expect(liftingDaysOf(plans[1])).toEqual([0, 5])
+	})
+
+	test('a hard Simple Activity keeps the lifting off its day and the day before', () => {
+		const [plan] = planStamp({
+			days: [
+				...runDays,
+				fixed('ski-thu', 3, 1.5, {
+					trackId: 'simple',
+					workoutId: 'w-ski',
+					effort: 'hard',
+				}),
+			],
+			lifting: slots(2),
+			liftingDays: EVERY_DAY,
+			tracks: [RUN_HOURS, SIMPLE, STRENGTH],
+			weeks: [laidWeek(1, [])],
+		})
+		const lifts = liftingDaysOf(plan)
+		expect(lifts).not.toContain(3)
+		expect(lifts).not.toContain(2)
+		expect(lifts).toHaveLength(2)
+	})
+
+	test('lifts only on the days given, and once a day at most', () => {
+		const [plan] = planStamp({
+			days: runDays,
+			lifting: slots(3),
+			liftingDays: [0, 4],
+			tracks: [RUN_HOURS, STRENGTH],
+			weeks: [laidWeek(1, [])],
+		})
+		expect(liftingDaysOf(plan)).toEqual([0, 4])
+	})
+
+	test('without days given, the lifts go on the pattern’s own days', () => {
+		const [plan] = planStamp({
+			days: runDays,
+			lifting: slots(1),
+			tracks: [RUN_HOURS, STRENGTH],
+			weeks: [laidWeek(1, [{ zone: 4, sessionsPerWeek: 1 }])],
+		})
+		expect(liftingDaysOf(plan)).toEqual([0])
+	})
+
+	test('a pinned (fixed) lifting day stays put, and the slots are laid around it', () => {
+		const [plan] = planStamp({
+			days: [
+				...runDays,
+				fixed('lift-wed', 2, null, {
+					trackId: 'lift',
+					workoutId: 'w-pinned',
+					orderInDay: 1,
+				}),
+			],
+			lifting: slots(1),
+			liftingDays: EVERY_DAY,
+			tracks: [RUN_HOURS, STRENGTH],
+			weeks: [laidWeek(1, [])],
+		})
+		const lifts = plan!.sessions.filter((session) => session.trackId === 'lift')
+		expect(lifts.find((lift) => lift.kind === 'fixed')?.weekday).toBe(2)
+		const laid = lifts.filter((lift) => lift.kind === 'lifting')
+		expect(laid).toHaveLength(1)
+		expect(laid[0]!.weekday).not.toBe(2)
+	})
+
+	test('a slot whose session is gone is reported, not laid', () => {
+		const [plan] = planStamp({
+			days: runDays,
+			lifting: slots(1, null),
+			liftingDays: EVERY_DAY,
+			tracks: [RUN_HOURS, STRENGTH],
+			weeks: [laidWeek(1, [])],
+		})
+		expect(liftingDaysOf(plan)).toEqual([])
+		expect(plan!.skipped).toEqual([
+			expect.objectContaining({
+				dayId: 'slot-0',
+				trackId: 'lift',
+				reason: 'no-prescription',
+			}),
+		])
+	})
+
+	test('the same inputs lay the same lifting days', () => {
+		const input = {
+			days: runDays,
+			lifting: slots(2),
+			liftingDays: EVERY_DAY,
+			tracks: [RUN_HOURS, STRENGTH],
+			weeks: [
+				laidWeek(1, [{ zone: 4, sessionsPerWeek: 1 }]),
+				laidWeek(2, [{ zone: 5, sessionsPerWeek: 2 }]),
+			],
+		}
+		expect(planStamp(input)).toEqual(planStamp(input))
+	})
+})

@@ -2962,6 +2962,8 @@ export async function moveWeekPatternDay(
 			select: { id: true, patternId: true, weekday: true },
 		})
 		if (!day) return refuse('day-gone')
+		// A lifting slot falls on no weekday (ADR 0104 §3): nothing to order.
+		if (day.weekday == null) return refuse('at-the-edge')
 
 		const order = await daysOfWeekday(tx, day.patternId, day.weekday)
 		const from = order.indexOf(day.id)
@@ -2998,10 +3000,13 @@ export async function removeWeekPatternDay(
 		if (!day) return refuse('day-gone')
 
 		await tx.weekPatternDay.delete({ where: { id: day.id } })
-		await renumberPatternDays(
-			tx,
-			await daysOfWeekday(tx, day.patternId, day.weekday),
-		)
+		// A lifting slot holds no weekday, so no weekday's order changes.
+		if (day.weekday != null) {
+			await renumberPatternDays(
+				tx,
+				await daysOfWeekday(tx, day.patternId, day.weekday),
+			)
+		}
 
 		return { ok: true as const }
 	})

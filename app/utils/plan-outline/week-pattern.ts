@@ -67,6 +67,21 @@ export function calendarWeekdaysOf(days: readonly PatternWeekday[]): number[] {
 }
 
 /**
+ * Sunday-first calendar days (ADR 0005, **Training Availability**) as pattern
+ * weekdays, Monday first: the other way across the edge from
+ * {@link calendarWeekdaysOf}. Each day once, in the week's order.
+ */
+export function patternWeekdaysOfCalendar(
+	calendar: readonly number[],
+): PatternWeekday[] {
+	return patternWeekdaysOf(
+		calendar
+			.filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+			.map((day) => (day + 6) % 7),
+	)
+}
+
+/**
  * Weekday numbers read from a form or a URL as pattern weekdays: anything
  * outside 0–6 dropped, each day once, in the week's order.
  */
@@ -74,7 +89,11 @@ export function patternWeekdaysOf(values: readonly number[]): PatternWeekday[] {
 	return [...new Set(values.filter(isPatternWeekday))].sort((a, b) => a - b)
 }
 
-/** What a day *is*. Two kinds and no third: there is no unscaled-share shape. */
+/**
+ * What an authored day *is*. Two kinds: there is no unscaled-share shape. A
+ * stored `lifting` row is no day the athlete authors but a **Lifting Slot**
+ * the stamp places each week (ADR 0104 §3, `StampLiftingSlot`), on no weekday.
+ */
 export const PATTERN_DAY_KINDS = ['fixed', 'share'] as const
 export type PatternDayKind = (typeof PATTERN_DAY_KINDS)[number]
 

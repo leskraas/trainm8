@@ -1288,7 +1288,9 @@ function patternReading(pattern: PatternRow): SeasonPattern {
  * straight into every share day's number.
  */
 function patternDayReading(day: PatternDayRow): SeasonPatternDay[] {
-	if (!isPatternWeekday(day.weekday)) return []
+	// A lifting slot falls on no weekday: the stamp lays it each week (ADR
+	// 0104 §3), so it is no day of the authored microcycle.
+	if (day.weekday == null || !isPatternWeekday(day.weekday)) return []
 	const position = {
 		dayId: day.id,
 		weekday: day.weekday,
