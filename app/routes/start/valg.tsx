@@ -312,7 +312,6 @@ export async function action({ request }: Route.ActionArgs) {
 		activities,
 		hours,
 		days,
-		goal: { kind: 'active' },
 		family,
 		level,
 		...(strength != null ? { strength } : {}),

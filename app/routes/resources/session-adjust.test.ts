@@ -651,7 +651,7 @@ test('on a plan’s own session, a Juster leaves the machine’s session the mac
 			discipline: 'run',
 			hours: 4,
 			days: [1, 3, 5],
-			goal: { kind: 'active' },
+			level: 'recreational',
 			family: null,
 		},
 		NOW,

@@ -8,7 +8,6 @@ import {
 	EVENT_PRIORITIES,
 	EVENT_STATUSES,
 } from './event-schema.ts'
-import { EVENT_DATE_PROBLEMS } from './first-run/first-run-schema.ts'
 import {
 	MAX_START_HOURS,
 	MIN_START_HOURS,
@@ -32,7 +31,6 @@ import {
 	WEEK_REPLAN_SOFTENED_LABELS,
 	nbStoredReplanReason,
 	RECOMPUTE_NOTICE_LABELS,
-	EVENT_DATE_LABELS,
 	PAGE_HEADER_LABELS,
 	DISCIPLINE_LABELS,
 	EVENT_KIND_LABELS,
@@ -78,7 +76,6 @@ import {
 	NB_DISCIPLINE_LABELS,
 	nbHoursWords,
 	SIMPLE_START_LABELS,
-	familyChoiceSentence,
 	HORIZON_LABELS,
 	horizonFillLabel,
 	HELD_NUMBER_LABELS,
@@ -87,7 +84,6 @@ import {
 } from './labels.ts'
 import { LOAD_RECOMPUTE_KINDS } from './load/recompute-notice.ts'
 import { INSUFFICIENT_DATA_WHYS, NO_CHANGE_WHYS } from './load/week-replan.ts'
-import { MAX_PLAN_WEEKS } from './plan-outline/authoring-schema.ts'
 import {
 	RHYTHMS,
 	STRENGTH_GOALS,
@@ -249,28 +245,13 @@ test('every Load Recompute Notice kind has its own words, so none renders blank'
 	}
 })
 
-test('every race-date problem is said on the field, the longest plan named right', () => {
-	for (const problem of EVENT_DATE_PROBLEMS) {
-		expect(EVENT_DATE_LABELS[problem]).toBeTruthy()
-	}
-	expect(EVENT_DATE_LABELS['too-far']).toContain(`${MAX_PLAN_WEEKS} uker`)
-})
-
-test('the simple start words every Training Level: its name, its sentence, its hours note and its reason', () => {
+test('the simple start words every Training Level: its name, its sentence and its hours note', () => {
 	const names = new Set<string>()
 	for (const level of TRAINING_LEVELS) {
 		const { name, description } = SIMPLE_START_LABELS.levels[level]
 		expect(name).toBeTruthy()
 		expect(description).toMatch(/\.$/)
 		expect(SIMPLE_START_LABELS.level.typical[level]).toMatch(/\.$/)
-		expect(
-			familyChoiceSentence({
-				family: 'polarized',
-				reason: { code: 'training-level', level },
-			}),
-		).toBe(
-			`Vi valgte Polarisert 80/20 fordi ${SIMPLE_START_LABELS.levelReason[level]}.`,
-		)
 		names.add(name)
 	}
 	expect([...names]).toEqual([

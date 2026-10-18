@@ -855,14 +855,15 @@
  * ========================================================================== */
 
 /*
- * "Dette fant vi": the findings arrive (round-2 audit, PR A).
+ * The history arrives (round-2 audit, PR A; the start's level screen since
+ * #578, where "Dette fant vi" was).
  *
- * The one moment of delight in the first run, which Emil's frequency table
- * allows only because the athlete sees it once: the four rows of what the app
- * read from their history rise 6px into place and fade in, 40ms apart, 200ms
- * each on the strong ease-out — under 300ms for the whole group of four. It
- * plays when the values first paint (at load, or when the import finishes and
- * each value replaces its "Hentes …"), from `@starting-style`, so it is a
+ * The one moment of delight in the start, which Emil's frequency table
+ * allows only because the athlete sees it once: what the app read from their
+ * history rises 6px into place and fades in, 200ms on the strong ease-out, a
+ * group 40ms apart by `--reveal-index`. It plays when the words first paint
+ * (when the hours appear, or when the import finishes and the history's line
+ * replaces the import's), from `@starting-style`, so it is a
  * transition: nothing waits on it, a tap during it lands, and a value that
  * changes again retargets instead of restarting. `transform` and `opacity`
  * only, so it shifts no layout (the screen's CLS was 0.132 from the swap).

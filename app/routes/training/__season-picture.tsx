@@ -10,6 +10,11 @@
  *
  * The analytical `SeasonChart` — layers, read-in, the derivation panel — moved
  * under _Avansert_; this picture is what the athlete recognises first.
+ *
+ * Since _Plan_ leads with the plain picture (ADR 0101 §2, #577) the two halves
+ * live apart: the curve, with a next round waiting, is the lead's
+ * (`SeasonLeadCurve`), and the table that opens a week's target stays with the
+ * edits it opens, under the page's _Avansert_ (`SeasonPicture`).
  */
 import { useCallback, useMemo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
@@ -19,25 +24,20 @@ import {
 } from '#app/routes/_home/timeline/season-pane.tsx'
 import { formatLoad, formatNbVolumeFigure } from '#app/utils/format.ts'
 import { SEASON_EDIT_LABELS, SESONG_PAGE_LABELS } from '#app/utils/labels.ts'
-import { type SeasonPicture as SeasonPictureData } from './__season-picture.server.ts'
 import { PlanCard } from './__plan-chrome.tsx'
+import { type SeasonPicture as SeasonPictureData } from './__season-picture.server.ts'
 
 /** Where the Sesong edits card sits, as `SeasonEditLink` scrolls to it. */
 const EDITS_ANCHOR = 'season-edits'
 /** No week is "in view" on Sesong: there is no list beside the table. */
 const NO_FRAME = { from: '', to: '' }
 
-export function SeasonPicture({
-	picture,
-	firstUnbegunWeekKey,
-}: {
-	picture: SeasonPictureData
-	/** Weeks before it are history: their rows read and do not act. */
-	firstUnbegunWeekKey: string
-}) {
-	const navigate = useNavigate()
-	const location = useLocation()
-	const { currency, leadTrackId } = picture
+/**
+ * The season as one curve, this week marked (ADR 0090 §1), for _Plan_'s lead.
+ * A next round waiting in Ukeskiftet is said above it, read-only.
+ */
+export function SeasonLeadCurve({ picture }: { picture: SeasonPictureData }) {
+	const { currency } = picture
 	// The curve's formatter, rebuilt here: a function does not cross the wire.
 	const curve = useMemo(
 		() => ({
@@ -48,6 +48,28 @@ export function SeasonPicture({
 		}),
 		[picture.curve, currency],
 	)
+	return (
+		<>
+			{picture.pendingRound ? (
+				<PendingRound name={picture.pendingRound.name} />
+			) : null}
+			<SeasonCurveView curve={curve} />
+		</>
+	)
+}
+
+/** The season table: a row opens its week's target in _Endre sesongen_. */
+export function SeasonPicture({
+	picture,
+	firstUnbegunWeekKey,
+}: {
+	picture: SeasonPictureData
+	/** Weeks before it are history: their rows read and do not act. */
+	firstUnbegunWeekKey: string
+}) {
+	const navigate = useNavigate()
+	const location = useLocation()
+	const { leadTrackId } = picture
 	// A row opens its week's target edit — the page's own query kept, the edit
 	// and its fields added, the edits card scrolled to — exactly as
 	// `SeasonEditLink` builds the same URL from the readings below.
@@ -84,10 +106,6 @@ export function SeasonPicture({
 			title={SESONG_PAGE_LABELS.pictureTitle}
 			contentClassName="space-y-4"
 		>
-			{picture.pendingRound ? (
-				<PendingRound name={picture.pendingRound.name} />
-			) : null}
-			<SeasonCurveView curve={curve} />
 			<div className="space-y-1.5">
 				{/* The table scrolls inside itself on a narrow screen with many
 				    tracks, rather than pushing the page sideways (ui-conventions §5). */}
