@@ -9,6 +9,12 @@ import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import { type EditableStrengthTrack } from './__strength-segment-editor.tsx'
 import PlanRoute from './plan.tsx'
 
+// jsdom has no layout, so no `scrollIntoView`. These suites land on
+// `#avansert`, and Avansert scrolls its target to the top once the panel has
+// settled (`__plan-advanced.tsx`), a timer that fires while the route is still
+// mounted.
+window.HTMLElement.prototype.scrollIntoView = () => {}
+
 // A refusal lands only after the submit round-trips through the stub's action and
 // the route re-renders — and this route renders the roster, the anchor list, both
 // readings and every segment form each time. That is comfortably over
