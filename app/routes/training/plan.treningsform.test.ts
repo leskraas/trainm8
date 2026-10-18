@@ -64,7 +64,6 @@ async function setUp(answers: Answers = EXPERIENCED) {
 		discipline: 'run',
 		hours: answers.hours,
 		days: answers.days,
-		goal: { kind: 'active' },
 		family: 'threshold',
 		level: answers.level,
 		preferences: answers.preferences,
