@@ -503,13 +503,14 @@ describe('step 5: the first two weeks, and the way out', () => {
 			])
 		}
 		// The round opens at the 4,5 t the athlete trains now: one share each,
-		// the long Saturday two; Klassisk's tempo session on the Tuesday, as far
+		// the long Saturday two, each weekday a whole five minutes and the long
+		// day the rest; Klassisk's tempo session on the Tuesday, as far
 		// from the long day as the week allows.
 		expect(weeks.weeks[0]!.total).toBe('4,5 t planlagt · målet er 4,5 t')
 		expect(weeks.weeks[0]!.sessions.map((s) => s.duration)).toEqual([
-			'1 t 6 min',
-			'1 t 6 min',
-			'2 t 18 min',
+			'1 t 10 min',
+			'1 t 10 min',
+			'2 t 10 min',
 		])
 		expect(weeks.weeks[0]!.sessions.map((s) => s.title)).toEqual([
 			'Tempoøkt · Løping',
