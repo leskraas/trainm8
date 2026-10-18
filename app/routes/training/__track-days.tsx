@@ -10,9 +10,15 @@
  * (`CollapsibleSection`), and the preview rises 4px and fades in on mount, as
  * the strength days' preview does. Nothing else moves.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useFetcher } from 'react-router'
 import { toast } from 'sonner'
+import {
+	dayChoiceKey,
+	LANDED_MS,
+	useOncePer,
+	type ReplyDataOf,
+} from '#app/components/day-choice.ts'
 import { Button } from '#app/components/ui/button.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
@@ -37,9 +43,6 @@ import { type PatternWeekday } from '#app/utils/plan-outline/week-pattern.ts'
 import { CollapsibleSection } from './__plan-chrome.tsx'
 
 const L = PLAN_TRACK_DAYS_LABELS
-
-/** How long the toast and its _Angre_ stand (ADR 0088's `LANDED_MS`). */
-const LANDED_MS = 10_000
 
 const ACTION = '/resources/track-days'
 
@@ -69,11 +72,6 @@ export function TrackDaysCard({ state }: { state: TrackDaysState }) {
 			</div>
 		</div>
 	)
-}
-
-/** `'auto'` or the chosen days, Monday first, as one comparable key. */
-function choiceKey(mode: 'auto' | 'own', chosen: readonly number[]): string {
-	return mode === 'auto' ? 'auto' : [...chosen].sort().join(',')
 }
 
 function TrackDaysRow({
@@ -108,15 +106,16 @@ function TrackDaysRow({
 		setChosen(unit.pinned ?? [])
 	}
 
-	const current = choiceKey(mode, chosen)
-	const stored = choiceKey(storedMode, unit.pinned ?? [])
+	const current = dayChoiceKey(mode, chosen)
+	const stored = dayChoiceKey(storedMode, unit.pinned ?? [])
 	const reply = fetcher.data && 'intent' in fetcher.data ? fetcher.data : null
 	const preview =
 		reply?.intent === 'preview' && reply.preview ? reply.preview : null
 	// A preview stands only for the choice it was read for.
 	const showing =
 		preview &&
-		choiceKey(preview.choice ? 'own' : 'auto', preview.choice ?? []) === current
+		dayChoiceKey(preview.choice ? 'own' : 'auto', preview.choice ?? []) ===
+			current
 			? preview
 			: null
 	const error =
@@ -343,12 +342,7 @@ function TrackDaysPreview({
 	)
 }
 
-type ActionReply = Awaited<ReturnType<typeof trackDaysAction>>
-type ReplyData = ActionReply extends infer R
-	? R extends { data: infer D }
-		? D
-		: R
-	: never
+type ReplyData = ReplyDataOf<typeof trackDaysAction>
 
 /**
  * The write's toast (ADR 0088): what the days are now, and _Angre_, which
@@ -361,12 +355,9 @@ function useWrittenToast(
 	key: string,
 	submit: ReturnType<typeof useFetcher>['submit'],
 ) {
-	const shown = useRef<unknown>(null)
 	const written =
 		reply && 'written' in reply && reply.written ? reply.written : null
-	useEffect(() => {
-		if (!written || shown.current === written) return
-		shown.current = written
+	useOncePer(written, (written) => {
 		toast.success(L.saved(name, written.choice), {
 			id: `track-days-${key}`,
 			duration: LANDED_MS,
@@ -389,21 +380,19 @@ function useWrittenToast(
 					),
 			},
 		})
-	}, [written, submit, name, outlineId, key])
+	})
 }
 
 /** The undo's own toast: the days are as they were. */
 function useUndoneToast(reply: ReplyData | undefined, name: string) {
-	const shown = useRef<unknown>(null)
-	useEffect(() => {
-		if (!reply || shown.current === reply || !('intent' in reply)) return
-		if (reply.intent !== 'undone') return
-		shown.current = reply
-		if (reply.ok)
-			toast.success(L.undone(name), { id: `track-days-${reply.key}` })
-		else if (reply.error)
-			toast.error(L.refusals[reply.error as keyof typeof L.refusals], {
-				id: `track-days-${reply.key}`,
+	const undone =
+		reply && 'intent' in reply && reply.intent === 'undone' ? reply : null
+	useOncePer(undone, (undone) => {
+		if (undone.ok)
+			toast.success(L.undone(name), { id: `track-days-${undone.key}` })
+		else if (undone.error)
+			toast.error(L.refusals[undone.error as keyof typeof L.refusals], {
+				id: `track-days-${undone.key}`,
 			})
-	}, [reply, name])
+	})
 }

@@ -31,12 +31,12 @@ import {
 } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
-import { SIMPLE_ACTIVITY_DISCIPLINE } from '../simple-activity.ts'
-import { findActiveOutline } from '../training.server.ts'
 import {
 	type PlannedDiscipline,
 	readPlannedDiscipline,
 } from '../planned-discipline.ts'
+import { SIMPLE_ACTIVITY_DISCIPLINE } from '../simple-activity.ts'
+import { findActiveOutline } from '../training.server.ts'
 import { isCardioDiscipline, type CardioDiscipline } from '../workout-schema.ts'
 import {
 	clashesIn,
@@ -47,6 +47,7 @@ import {
 } from './day-rule.ts'
 import { relayPlanFrom } from './open-ended.server.ts'
 import {
+	DAY_CHOICE_PREVIEW_WEEKS,
 	parsePinnedDays,
 	pinnedDaysRefusal,
 	pinnedDaysWithin,
@@ -54,6 +55,7 @@ import {
 	trackRowsByRule,
 	trackRowsOnDays,
 	withTrackRows,
+	type DayChoice,
 	type DayChoiceUnit,
 	type PinnedDaysRefusal,
 	type TrackPatternRow,
@@ -68,9 +70,6 @@ import {
 	type PatternWeekday,
 } from './week-pattern.ts'
 
-/** How many coming weeks a change previews, as the strength days do. */
-export const TRACK_DAYS_PREVIEW_WEEKS = 4
-
 /** The order the endurance tracks are listed in, before the Activities. */
 const LISTED: readonly CardioDiscipline[] = ['run', 'bike', 'swim']
 
@@ -82,9 +81,6 @@ function isEnduranceDiscipline(
 		discipline !== SIMPLE_ACTIVITY_DISCIPLINE && isCardioDiscipline(discipline)
 	)
 }
-
-/** A day choice: days, Monday first, or `null` for _La appen velge_. */
-export type TrackDaysChoice = PatternWeekday[] | null
 
 /** One track or Simple Activity whose days the athlete can choose. */
 export type TrackDaysUnit = {
@@ -333,7 +329,7 @@ async function rowsFor(
 	db: Prisma.TransactionClient,
 	plan: Plan,
 	unit: TrackDaysUnit,
-	choice: TrackDaysChoice,
+	choice: DayChoice,
 ): Promise<TrackPatternRow[]> {
 	const rows = (plan.pattern?.days ?? [])
 		.filter(isUnitRow(unit))
@@ -383,7 +379,7 @@ async function rowsFor(
 function choiceRefusal(
 	plan: Plan,
 	unit: TrackDaysUnit,
-	choice: TrackDaysChoice,
+	choice: DayChoice,
 ): TrackDaysRefusal | null {
 	if (!choice) return unit.kind === 'activity' ? 'no-days' : null
 	const refusal = pinnedDaysRefusal(
@@ -419,7 +415,7 @@ export type TrackDaysPreview =
 	| {
 			ok: true
 			key: string
-			choice: TrackDaysChoice
+			choice: DayChoice
 			weeks: TrackDaysPreviewWeek[]
 			version: string
 	  }
@@ -436,7 +432,7 @@ export async function previewTrackDays(
 		outlineId,
 		key,
 		choice,
-	}: { outlineId: string; key: string; choice: TrackDaysChoice },
+	}: { outlineId: string; key: string; choice: DayChoice },
 	now: Date = new Date(),
 ): Promise<TrackDaysPreview> {
 	const plan = await readPlan(userId, outlineId)
@@ -450,7 +446,7 @@ export async function previewTrackDays(
 
 	const timezone = await getAthleteTimezone(userId)
 	const from = await readFirstUnbegunWeekKey(userId, now, timezone)
-	const weekKeys = Array.from({ length: TRACK_DAYS_PREVIEW_WEEKS }, (_, i) =>
+	const weekKeys = Array.from({ length: DAY_CHOICE_PREVIEW_WEEKS }, (_, i) =>
 		addDays(from, i * 7),
 	)
 	const pinnedChoice = unit.kind === 'track' && choice != null
@@ -546,7 +542,7 @@ function unitClashes(
 
 /** What a write replaced, so its toast can put it back exactly. */
 export type TrackDaysPrevious = {
-	pinned: TrackDaysChoice
+	pinned: DayChoice
 	rows: TrackPatternRow[]
 	/**
 	 * The rows it replaced in each of the plan's other Week Patterns that
@@ -559,7 +555,7 @@ export type TrackDaysWrite =
 	| {
 			ok: true
 			key: string
-			choice: TrackDaysChoice
+			choice: DayChoice
 			previous: TrackDaysPrevious
 			/** The unit's version after the write, for the undo. */
 			version: string
@@ -582,7 +578,7 @@ export async function setTrackDays(
 	}: {
 		outlineId: string
 		key: string
-		choice: TrackDaysChoice
+		choice: DayChoice
 		version: string
 		/** An undo: the rows to put back with the days. */
 		restore?: TrackDaysPrevious

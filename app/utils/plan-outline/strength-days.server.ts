@@ -35,11 +35,13 @@ import {
 } from './day-rule.ts'
 import { relayPlanFrom } from './open-ended.server.ts'
 import {
+	DAY_CHOICE_PREVIEW_WEEKS,
 	pinnedDaysRefusal,
 	serializePinnedDays,
 	strengthPatternRows,
 	strengthPinnedDays,
 	withStrengthChoice,
+	type DayChoice,
 	type PinnedDaysRefusal,
 } from './pinned-days.ts'
 import { readLaidWeeks, type LaidPatternInput } from './stamp.server.ts'
@@ -49,9 +51,6 @@ import {
 	patternWeekdaysOf,
 	type PatternWeekday,
 } from './week-pattern.ts'
-
-/** How many coming weeks a change previews. */
-export const STRENGTH_DAYS_PREVIEW_WEEKS = 4
 
 /** The strength track's days as _Meg → Trening → Styrke_ reads them. */
 export type StrengthDaysState = {
@@ -82,9 +81,6 @@ export type StrengthDaysRefusal =
 	/** The plan changed since the athlete looked. */
 	| 'stale'
 	| PinnedDaysRefusal
-
-/** The choice: days, or `null` for _La appen velge_. */
-export type StrengthDaysChoice = PatternWeekday[] | null
 
 const strengthRowSelect = {
 	id: true,
@@ -187,7 +183,7 @@ export type StrengthDaysPreviewWeek = {
 export type StrengthDaysPreview =
 	| {
 			ok: true
-			choice: StrengthDaysChoice
+			choice: DayChoice
 			/** How many lifts a week the choice lays. */
 			count: number
 			weeks: StrengthDaysPreviewWeek[]
@@ -202,7 +198,7 @@ export type StrengthDaysPreview =
  */
 export async function previewStrengthDays(
 	userId: string,
-	choice: StrengthDaysChoice,
+	choice: DayChoice,
 	now: Date = new Date(),
 ): Promise<StrengthDaysPreview> {
 	const read = await readStrengthTrack(userId, now)
@@ -218,7 +214,7 @@ export async function previewStrengthDays(
 
 	const timezone = await getAthleteTimezone(userId)
 	const from = await readFirstUnbegunWeekKey(userId, now, timezone)
-	const weekKeys = Array.from({ length: STRENGTH_DAYS_PREVIEW_WEEKS }, (_, i) =>
+	const weekKeys = Array.from({ length: DAY_CHOICE_PREVIEW_WEEKS }, (_, i) =>
 		addDays(from, i * 7),
 	)
 	const swap = (laid: LaidPatternInput) =>
@@ -266,7 +262,7 @@ function dayKinds(week: readonly PlacedSession[]) {
  */
 function liftingClashes(
 	week: readonly PlacedSession[],
-	choice: StrengthDaysChoice,
+	choice: DayChoice,
 ): StrengthDaysPreviewWeek['after']['clashes'] {
 	const key = (clash: { reason: string; weekday: number }) =>
 		`${clash.weekday}|${clash.reason}`
@@ -308,7 +304,7 @@ export type StrengthBlockFrequency = {
 
 /** What a write replaced, so its toast can put it back. */
 export type StrengthDaysPrevious = {
-	days: StrengthDaysChoice
+	days: DayChoice
 	count: number
 	answer: number | null
 	/** The track's strength blocks' frequencies, which chosen days set. */
@@ -411,7 +407,7 @@ async function writeStrengthRows(
 export type StrengthDaysWrite =
 	| {
 			ok: true
-			choice: StrengthDaysChoice
+			choice: DayChoice
 			count: number
 			previous: StrengthDaysPrevious
 			/** The state's version after the write, for the undo. */
@@ -432,7 +428,7 @@ export async function setStrengthDays(
 		version,
 		restore,
 	}: {
-		choice: StrengthDaysChoice
+		choice: DayChoice
 		version: string
 		/**
 		 * An undo: the count, the answer and the blocks' frequencies to put

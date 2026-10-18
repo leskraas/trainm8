@@ -3,11 +3,11 @@
 // make-up when one of its days is free (spec #588 story 32).
 
 import { prisma } from '../db.server.ts'
-import { findActiveOutline } from '../training.server.ts'
 import {
 	type PlannedDiscipline,
 	readPlannedDiscipline,
 } from '../planned-discipline.ts'
+import { findActiveOutline } from '../training.server.ts'
 import { parsePinnedDays, strengthPinnedDays } from './pinned-days.ts'
 import { type PatternWeekday } from './week-pattern.ts'
 

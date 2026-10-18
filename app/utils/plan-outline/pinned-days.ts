@@ -22,6 +22,24 @@ import {
 } from './week-pattern.ts'
 
 /**
+ * A day choice, for the strength track or any other: the Pinned days, Monday
+ * first, or `null` for _La appen velge_.
+ */
+export type DayChoice = PatternWeekday[] | null
+
+/** How many coming weeks a day choice previews before it is written. */
+export const DAY_CHOICE_PREVIEW_WEEKS = 4
+
+/**
+ * The choice off a day-choice form: `mode=auto` is _La appen velge_, and
+ * `mode=own` takes each `day`, read onto the pattern's axis.
+ */
+export function dayChoiceOf(formData: FormData): DayChoice {
+	if (formData.get('mode') !== 'own') return null
+	return patternWeekdaysOf(formData.getAll('day').map(Number))
+}
+
+/**
  * The most days a strength track may pin: the largest **Strength Frequency**
  * the athlete can answer (ADR 0103), since the number of Pinned days *is* the
  * frequency.

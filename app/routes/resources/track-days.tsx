@@ -1,10 +1,10 @@
 import { data } from 'react-router'
 import { z } from 'zod/v3'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { dayChoiceOf } from '#app/utils/plan-outline/pinned-days.ts'
 import {
 	previewTrackDays,
 	setTrackDays,
-	type TrackDaysChoice,
 } from '#app/utils/plan-outline/track-days.server.ts'
 import { patternWeekdaysOf } from '#app/utils/plan-outline/week-pattern.ts'
 import { type Route } from './+types/track-days.ts'
@@ -19,12 +19,6 @@ import { type Route } from './+types/track-days.ts'
  * Plan stays where it is. Owner-scoped: every read and write checks the plan
  * is the signed-in athlete's.
  */
-
-/** The choice off the form: `mode=auto`, or `mode=own` and each `day`. */
-function choiceOf(formData: FormData): TrackDaysChoice {
-	if (formData.get('mode') !== 'own') return null
-	return patternWeekdaysOf(formData.getAll('day').map(Number))
-}
 
 const RowSchema = z.object({
 	kind: z.enum(['share', 'fixed']),
@@ -68,7 +62,7 @@ export async function action({ request }: Route.ActionArgs) {
 		const preview = await previewTrackDays(userId, {
 			outlineId,
 			key,
-			choice: choiceOf(formData),
+			choice: dayChoiceOf(formData),
 		})
 		return preview.ok
 			? { intent: 'preview' as const, key, preview, error: null }
@@ -87,7 +81,7 @@ export async function action({ request }: Route.ActionArgs) {
 		const written = await setTrackDays(userId, {
 			outlineId,
 			key,
-			choice: choiceOf(formData),
+			choice: dayChoiceOf(formData),
 			version: String(formData.get('version') ?? ''),
 		})
 		return written.ok
