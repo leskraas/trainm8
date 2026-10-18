@@ -1,5 +1,6 @@
-import { expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { createPassword, createUser } from '#tests/db-utils.ts'
+import { seededDatabase } from '#tests/seeded-database.ts'
 import {
 	CATALOGUE_CORPUS,
 	stockEntryId,
@@ -74,117 +75,115 @@ test('re-seeding refreshes in place — ids, saves and lineage survive', async (
 	expect(await prisma.catalogueSave.count({ where: { workoutId } })).toBe(1)
 })
 
-test('a corpus row carries its Citation and a hand-written row carries none', async () => {
-	await seedCatalogue(prisma)
+describe('on a seeded Catalogue', () => {
+	seededDatabase(() => seedCatalogue(prisma))
 
-	const cited = await prisma.catalogueEntry.findUniqueOrThrow({
-		where: { id: stockEntryId(A_CITED) },
-		select: {
-			citationAuthor: true,
-			citationWork: true,
-			citationYear: true,
-			citationLocator: true,
-			archetype: true,
-			phases: { select: { phase: true } },
-			goalEvents: { select: { goalEvent: true } },
-		},
-	})
-	expect(readCitation(cited)).not.toBeNull()
-	expect(cited.archetype).toBe('sub-threshold')
-	expect(cited.phases.map((p) => p.phase).sort()).toEqual(['base', 'build'])
-	expect(cited.goalEvents.length).toBeGreaterThan(0)
-
-	const handWritten = await prisma.catalogueEntry.findUniqueOrThrow({
-		where: { id: stockEntryId(A_HAND_WRITTEN) },
-		select: {
-			citationAuthor: true,
-			citationWork: true,
-			citationYear: true,
-			citationLocator: true,
-		},
-	})
-	expect(readCitation(handWritten)).toBeNull()
-})
-
-test('the seeded rows are retrievable by the four facets', async () => {
-	await seedCatalogue(prisma)
-	const athlete = await createAthlete()
-
-	const threshold = await listCatalogue({
-		viewerId: athlete.id,
-		discipline: 'run',
-		archetype: 'sub-threshold',
-	})
-	expect(threshold.length).toBeGreaterThan(0)
-	for (const entry of threshold) {
-		expect(entry.workout.authorship).toBe('system')
-	}
-
-	// The hole archetype I closes: race week must not come back empty.
-	const raceWeek = await listCatalogue({
-		viewerId: athlete.id,
-		discipline: 'run',
-		phase: 'race-week',
-	})
-	expect(raceWeek.length).toBeGreaterThan(0)
-})
-
-test('a fork of a seeded row still reaches the original Citation', async () => {
-	await seedCatalogue(prisma)
-	const athlete = await createAthlete()
-
-	const fork = await prisma.workout.create({
-		select: { id: true },
-		data: {
-			title: 'My version',
-			discipline: 'run',
-			intent: 'threshold',
-			ownerId: athlete.id,
-			copiedFromId: stockWorkoutId(A_CITED),
-		},
-	})
-
-	const origin = await resolveCatalogueOrigin(fork.id)
-	expect(origin?.id).toBe(stockEntryId(A_CITED))
-	expect(readCitation(origin!)).not.toBeNull()
-})
-
-test('a seeded strength row reaches a real Exercise and keeps its load', async () => {
-	await seedCatalogue(prisma)
-	const step = await prisma.workoutStep.findFirstOrThrow({
-		where: { block: { workoutId: stockWorkoutId('strength-S8') } },
-		select: {
-			exercise: { select: { name: true } },
-			sets: {
-				select: { load: true, tempo: true },
-				orderBy: { orderIndex: 'asc' },
+	test('a corpus row carries its Citation and a hand-written row carries none', async () => {
+		const cited = await prisma.catalogueEntry.findUniqueOrThrow({
+			where: { id: stockEntryId(A_CITED) },
+			select: {
+				citationAuthor: true,
+				citationWork: true,
+				citationYear: true,
+				citationLocator: true,
+				archetype: true,
+				phases: { select: { phase: true } },
+				goalEvents: { select: { goalEvent: true } },
 			},
-		},
-	})
-	expect(step.exercise?.name).toBeTruthy()
-	// The rep-max anchor is what made this protocol authorable at all.
-	expect(step.sets[0]?.load).toContain('repMax')
-})
-
-test('progression edges resolve to real entries', async () => {
-	await seedCatalogue(prisma)
-	const withEdges = CATALOGUE_CORPUS.filter(
-		(s) => s.progressesTo != null || s.regressesTo != null,
-	)
-	expect(withEdges.length).toBeGreaterThan(0)
-
-	for (const session of withEdges) {
-		const entry = await prisma.catalogueEntry.findUniqueOrThrow({
-			where: { id: stockEntryId(session.key) },
-			select: { progressesToId: true, regressesToId: true },
 		})
-		if (session.progressesTo) {
-			expect(entry.progressesToId).toBe(stockEntryId(session.progressesTo))
+		expect(readCitation(cited)).not.toBeNull()
+		expect(cited.archetype).toBe('sub-threshold')
+		expect(cited.phases.map((p) => p.phase).sort()).toEqual(['base', 'build'])
+		expect(cited.goalEvents.length).toBeGreaterThan(0)
+
+		const handWritten = await prisma.catalogueEntry.findUniqueOrThrow({
+			where: { id: stockEntryId(A_HAND_WRITTEN) },
+			select: {
+				citationAuthor: true,
+				citationWork: true,
+				citationYear: true,
+				citationLocator: true,
+			},
+		})
+		expect(readCitation(handWritten)).toBeNull()
+	})
+
+	test('the seeded rows are retrievable by the four facets', async () => {
+		const athlete = await createAthlete()
+
+		const threshold = await listCatalogue({
+			viewerId: athlete.id,
+			discipline: 'run',
+			archetype: 'sub-threshold',
+		})
+		expect(threshold.length).toBeGreaterThan(0)
+		for (const entry of threshold) {
+			expect(entry.workout.authorship).toBe('system')
 		}
-		if (session.regressesTo) {
-			expect(entry.regressesToId).toBe(stockEntryId(session.regressesTo))
+
+		// The hole archetype I closes: race week must not come back empty.
+		const raceWeek = await listCatalogue({
+			viewerId: athlete.id,
+			discipline: 'run',
+			phase: 'race-week',
+		})
+		expect(raceWeek.length).toBeGreaterThan(0)
+	})
+
+	test('a fork of a seeded row still reaches the original Citation', async () => {
+		const athlete = await createAthlete()
+
+		const fork = await prisma.workout.create({
+			select: { id: true },
+			data: {
+				title: 'My version',
+				discipline: 'run',
+				intent: 'threshold',
+				ownerId: athlete.id,
+				copiedFromId: stockWorkoutId(A_CITED),
+			},
+		})
+
+		const origin = await resolveCatalogueOrigin(fork.id)
+		expect(origin?.id).toBe(stockEntryId(A_CITED))
+		expect(readCitation(origin!)).not.toBeNull()
+	})
+
+	test('a seeded strength row reaches a real Exercise and keeps its load', async () => {
+		const step = await prisma.workoutStep.findFirstOrThrow({
+			where: { block: { workoutId: stockWorkoutId('strength-S8') } },
+			select: {
+				exercise: { select: { name: true } },
+				sets: {
+					select: { load: true, tempo: true },
+					orderBy: { orderIndex: 'asc' },
+				},
+			},
+		})
+		expect(step.exercise?.name).toBeTruthy()
+		// The rep-max anchor is what made this protocol authorable at all.
+		expect(step.sets[0]?.load).toContain('repMax')
+	})
+
+	test('progression edges resolve to real entries', async () => {
+		const withEdges = CATALOGUE_CORPUS.filter(
+			(s) => s.progressesTo != null || s.regressesTo != null,
+		)
+		expect(withEdges.length).toBeGreaterThan(0)
+
+		for (const session of withEdges) {
+			const entry = await prisma.catalogueEntry.findUniqueOrThrow({
+				where: { id: stockEntryId(session.key) },
+				select: { progressesToId: true, regressesToId: true },
+			})
+			if (session.progressesTo) {
+				expect(entry.progressesToId).toBe(stockEntryId(session.progressesTo))
+			}
+			if (session.regressesTo) {
+				expect(entry.regressesToId).toBe(stockEntryId(session.regressesTo))
+			}
 		}
-	}
+	})
 })
 
 test('the strength corpus mints no orphan, and every row it adds has a variant to progress', async () => {

@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { createPassword, createUser } from '#tests/db-utils.ts'
+import { seededDatabase } from '#tests/seeded-database.ts'
 import { prisma } from './db.server.ts'
 import { NB_EXERCISE_ALIASES } from './exercise-aliases-nb.ts'
 import { FREE_EXERCISE_DB_ROWS } from './exercise-corpus.free-exercise-db.ts'
@@ -206,49 +207,53 @@ test('seeding writes the Norwegian names as movement aliases in `nb`, and re-see
 	expect(await prisma.exerciseAlias.count({ where: { locale: 'nb' } })).toBe(nb)
 })
 
-test('the seed lands on the default variant the migration backfilled rather than beside it', async () => {
-	await seedExercises(prisma, EXERCISE_CORPUS)
-	const squat = EXERCISE_CORPUS.find((row) => row.id === 'ex_bb_back_squat')!
-	const defaultId = exerciseVariantId(squat.id, squat.variants[0]!, true)
-	expect(defaultId).toBe('var_ex_bb_back_squat')
-	const variants = await prisma.exerciseVariant.findMany({
-		where: { exerciseId: 'ex_bb_back_squat' },
-		select: { id: true, isDefault: true },
+describe('on a seeded corpus', () => {
+	seededDatabase(() => seedExercises(prisma, EXERCISE_CORPUS))
+
+	test('the seed lands on the default variant the migration backfilled rather than beside it', async () => {
+		const squat = EXERCISE_CORPUS.find((row) => row.id === 'ex_bb_back_squat')!
+		const defaultId = exerciseVariantId(squat.id, squat.variants[0]!, true)
+		expect(defaultId).toBe('var_ex_bb_back_squat')
+		const variants = await prisma.exerciseVariant.findMany({
+			where: { exerciseId: 'ex_bb_back_squat' },
+			select: { id: true, isDefault: true },
+		})
+		expect(variants.filter((v) => v.isDefault)).toHaveLength(1)
+		expect(variants.map((v) => v.id)).toContain('var_ex_bb_back_squat')
 	})
-	expect(variants.filter((v) => v.isDefault)).toHaveLength(1)
-	expect(variants.map((v) => v.id)).toContain('var_ex_bb_back_squat')
-})
 
-test('barbell bench and dumbbell bench are separate progression keys with a shared variation group', async () => {
-	await seedExercises(prisma, EXERCISE_CORPUS)
+	test('barbell bench and dumbbell bench are separate progression keys with a shared variation group', async () => {
+		const barbell = await findVariantByEquipment(
+			prisma,
+			'ex_bb_bench',
+			'barbell',
+		)
+		const dumbbell = await findVariantByEquipment(
+			prisma,
+			'ex_db_bench',
+			'dumbbell',
+		)
+		expect(barbell).not.toBeNull()
+		expect(dumbbell).not.toBeNull()
+		expect(barbell!.id).not.toBe(dumbbell!.id)
+		expect(barbell!.loadKind).toBe('external')
+		expect(dumbbell!.loadKind).toBe('perSide')
 
-	const barbell = await findVariantByEquipment(prisma, 'ex_bb_bench', 'barbell')
-	const dumbbell = await findVariantByEquipment(
-		prisma,
-		'ex_db_bench',
-		'dumbbell',
-	)
-	expect(barbell).not.toBeNull()
-	expect(dumbbell).not.toBeNull()
-	expect(barbell!.id).not.toBe(dumbbell!.id)
-	expect(barbell!.loadKind).toBe('external')
-	expect(dumbbell!.loadKind).toBe('perSide')
-
-	const rows = await prisma.exercise.findMany({
-		where: { id: { in: ['ex_bb_bench', 'ex_db_bench'] } },
-		select: { variationGroupId: true },
+		const rows = await prisma.exercise.findMany({
+			where: { id: { in: ['ex_bb_bench', 'ex_db_bench'] } },
+			select: { variationGroupId: true },
+		})
+		expect(rows.map((row) => row.variationGroupId)).toEqual([
+			'grp_bench',
+			'grp_bench',
+		])
 	})
-	expect(rows.map((row) => row.variationGroupId)).toEqual([
-		'grp_bench',
-		'grp_bench',
-	])
-})
 
-test('an equipment the movement has no variant for resolves to nothing rather than to a neighbouring realization', async () => {
-	await seedExercises(prisma, EXERCISE_CORPUS)
-	expect(
-		await findVariantByEquipment(prisma, 'ex_bb_bench', 'kettlebell'),
-	).toBeNull()
+	test('an equipment the movement has no variant for resolves to nothing rather than to a neighbouring realization', async () => {
+		expect(
+			await findVariantByEquipment(prisma, 'ex_bb_bench', 'kettlebell'),
+		).toBeNull()
+	})
 })
 
 test('re-seeding does not clobber an exercise the athlete authored', async () => {
