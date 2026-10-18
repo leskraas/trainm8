@@ -1457,6 +1457,12 @@ export type UpcomingSession = Prisma.WorkoutSessionGetPayload<{
 	select: typeof upcomingSessionSelect
 }>
 
+/**
+ * A session's Workout as I dag reads it: enough for `readEffortWord`, which
+ * takes the ledger's Workout (_Bytt dag_ reads the week's days by it).
+ */
+export const effortWorkoutSelect = upcomingSessionSelect.workout
+
 export async function getUpcomingSessions(
 	userId: string,
 ): Promise<UpcomingSession[]> {
