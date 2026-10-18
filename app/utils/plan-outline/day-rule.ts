@@ -249,7 +249,7 @@ export function liftingDaysFor(
 }
 
 /** Days apart on the week's wheel: Sunday and Monday are neighbours. */
-function weekdayGap(a: number, b: number): number {
+export function weekdayGap(a: number, b: number): number {
 	const apart = Math.abs(a - b)
 	return Math.min(apart, 7 - apart)
 }

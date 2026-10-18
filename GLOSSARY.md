@@ -2633,14 +2633,19 @@ what the week holds rather than a claim a pattern day made about it (ADR 0042
 and never one undifferentiated pool. Weekdays run **Monday first**, matching the
 **Training Week** (ADR 0019) rather than the Sunday-first calendar index
 **Athlete Profile** stores (ADR 0005). A pattern is authored empty, or **built
-from a proposal the athlete asks for**: a starter week lays one share day per
-day of their **Training Availability** with the last one weighted double as the
-long day, plus a day per session on a strength track that authors a **Strength
-Frequency**. It proposes days and never intensity — which day is a quality
-session is the **Quality Session Mix**'s to say, and the stamp says it: each
-week it lays its segment's mix on the ordinary bare **share** days, never the
-long day, as far apart as the week allows, keeping each day's share (ADR 0091);
-the day itself still carries no zone, the new Workout's intent does — and where
+from a proposal the athlete asks for**: a starter week deals the days of their
+**Training Availability** across the endurance tracks, one share day each and at
+most one endurance session a day. The track carrying the family's **Quality
+Session Mix** (or else the largest weekly share) takes the last day, weighted
+double, as its **Long day**, and a day for each hard session plus one; each
+other track's Long day is on a day of its own, as far round the week from the
+others as it goes; a track that names its own days keeps to them (ADR 0104 §5).
+A strength track that authors a **Strength Frequency** adds a lifting day per
+session. It proposes days and never intensity — which day is a quality session
+is the **Quality Session Mix**'s to say, and the stamp says it: each week it
+lays its segment's mix on the ordinary bare **share** days, never the long day,
+as far apart as the week allows, keeping each day's share (ADR 0091); the day
+itself still carries no zone, the new Workout's intent does — and where
 availability was never set it falls back to a four-day week and says so rather
 than implying it read anything (ADR 0048 §4). _Avoid_: Week template (reserved
 for the future **Plan Template**), microcycle (as a UI/code term — recognized
