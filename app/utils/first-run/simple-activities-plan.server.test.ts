@@ -255,6 +255,55 @@ test('the horizon fill lays the Simple Activities in the weeks after the first t
 	])
 })
 
+// ADR 0104 §2 (#590): the stamp reads a stored Simple Activity's Effort Word,
+// so the week laid steps its hard runs around a middels climb as the card did.
+test('the hard runs laid step around a middels Simple Activity, as the card shows', async () => {
+	const athleteId = await createAthlete()
+	const answers = {
+		level: 'recreational',
+		discipline: 'run',
+		activities: ['climb'],
+		hours: 6,
+		days: [0, 1, 2, 3, 4, 6],
+		family: 'threshold',
+	} satisfies FirstRunAnswers
+	const option = draftStart({ ...answers, startWeekKey: START })!.options.find(
+		(shown) => shown.family === 'threshold',
+	)!
+	const climbDay = option.draft.simpleActivities[0]!.weekday
+	const shownHard = option.draft.weeks[0]!.sessions.filter(
+		(session) => session.discipline === 'run' && session.zone != null,
+	).map((session) => session.weekday)
+	// The climb on Monday and the long Sunday leave Tuesday and Thursday; a
+	// stamp that read the climb as easy would lay Wednesday and Friday.
+	expect(climbDay).toBe(0)
+	expect(shownHard).toEqual([1, 3])
+
+	expect(await createFirstRunPlan(athleteId, answers, NOW)).toMatchObject({
+		ok: true,
+	})
+	const stored = await prisma.workoutSession.findMany({
+		where: {
+			userId: athleteId,
+			scheduledAt: {
+				gte: new Date(`${START}T00:00:00Z`),
+				lt: new Date(`${addDays(START, 7)}T00:00:00Z`),
+			},
+			workout: {
+				discipline: 'run',
+				intent: { in: ['tempo', 'threshold', 'vo2max'] },
+			},
+		},
+		orderBy: { scheduledAt: 'asc' },
+		select: { scheduledAt: true },
+	})
+	expect(
+		stored.map((session) =>
+			weekdayIndex(session.scheduledAt.toISOString().slice(0, 10)),
+		),
+	).toEqual(shownHard)
+})
+
 test('an athlete who picked only Simple Activities gets one simple week, made as shown', async () => {
 	const athleteId = await createAthlete()
 	const answers = {

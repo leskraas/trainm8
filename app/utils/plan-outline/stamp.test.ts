@@ -5,6 +5,7 @@ import {
 	type StampDay,
 	type StampTrack,
 	type StampWeekInput,
+	type StampWeekPlan,
 } from './stamp.ts'
 
 const RUN: StampTrack = {
@@ -410,5 +411,239 @@ describe('planStamp lays the mix', () => {
 			weeks: [week('2030-01-14', 1, [{ trackId: 'run', value: 3 }])],
 		})
 		expect(plan!.sessions.map((s) => s.zone)).toEqual([null, null])
+	})
+})
+
+// ADR 0104 §2 (#590): a track's mix is laid around the whole week, every other
+// track's hard, long and lifting days and every Simple Activity that is not
+// _rolig_, not around the track's own days alone.
+describe('planStamp lays the mix around every track', () => {
+	const RUN_HOURS: StampTrack = {
+		trackId: 'run',
+		discipline: 'run',
+		currency: 'hours',
+	}
+	const BIKE_HOURS: StampTrack = {
+		trackId: 'bike',
+		discipline: 'bike',
+		currency: 'hours',
+	}
+	const SIMPLE: StampTrack = {
+		trackId: 'simple',
+		// `other` is a planned discipline, not a `Discipline` (ADR 0015 §A).
+		discipline: 'other' as StampTrack['discipline'],
+		currency: 'hours',
+	}
+	const STRENGTH: StampTrack = {
+		trackId: 'lift',
+		discipline: 'strength',
+		currency: 'sets',
+	}
+	const THRESHOLD = [{ zone: 4 as const, sessionsPerWeek: 1 }]
+
+	function laidWeek(
+		tracks: StampTrack[],
+		mixes: Array<{
+			trackId: string
+			mix: Array<{ zone: 3 | 4 | 5; sessionsPerWeek: number }>
+		}>,
+	): StampWeekInput {
+		return {
+			weekKey: '2030-01-14',
+			weekInPlan: 1,
+			targets: tracks.map((track) => ({ trackId: track.trackId, value: 6 })),
+			mixes,
+		}
+	}
+
+	function langrenn(
+		weekday: 0 | 1 | 2 | 3 | 4 | 5 | 6,
+		effort: 'rolig' | 'middels' | 'hard',
+	): StampDay {
+		return fixed(`ski-${weekday}`, weekday, 1.5, {
+			trackId: 'simple',
+			workoutId: `ski-${weekday}`,
+			effort,
+		})
+	}
+
+	function onTrack(trackId: string, days: StampDay[]): StampDay[] {
+		return days.map((day) => ({
+			...day,
+			dayId: `${trackId}-${day.dayId}`,
+			trackId,
+		}))
+	}
+
+	function hardDaysOf(
+		plan: StampWeekPlan | undefined,
+		trackId: string,
+	): number[] {
+		return plan!.sessions
+			.filter((session) => session.trackId === trackId && session.zone != null)
+			.map((session) => session.weekday)
+	}
+
+	// The run: Monday, Thursday, Friday and Sunday, long on Wednesday.
+	const runDays = [
+		share('mon', 0, 1),
+		share('wed', 2, 2),
+		share('thu', 3, 1),
+		share('fri', 4, 1),
+		share('sun', 6, 1),
+	]
+
+	test('alone, the run’s intervals go furthest from its long day', () => {
+		const [plan] = planStamp({
+			days: runDays,
+			tracks: [RUN_HOURS],
+			weeks: [laidWeek([RUN_HOURS], [{ trackId: 'run', mix: THRESHOLD }])],
+		})
+		expect(hardDaysOf(plan, 'run')).toEqual([6])
+	})
+
+	test('a hard Simple Activity pushes the intervals off its day and its neighbours', () => {
+		const [plan] = planStamp({
+			days: [...runDays, langrenn(5, 'hard')],
+			tracks: [RUN_HOURS, SIMPLE],
+			weeks: [
+				laidWeek([RUN_HOURS, SIMPLE], [{ trackId: 'run', mix: THRESHOLD }]),
+			],
+		})
+		// Not Friday or Sunday beside the hard Saturday ski, nor Thursday beside
+		// the long Wednesday: Monday is two days from both.
+		expect(hardDaysOf(plan, 'run')).toEqual([0])
+	})
+
+	test('a middels Simple Activity is a hard day too', () => {
+		const [plan] = planStamp({
+			days: [...runDays, langrenn(5, 'middels')],
+			tracks: [RUN_HOURS, SIMPLE],
+			weeks: [
+				laidWeek([RUN_HOURS, SIMPLE], [{ trackId: 'run', mix: THRESHOLD }]),
+			],
+		})
+		expect(hardDaysOf(plan, 'run')).toEqual([0])
+	})
+
+	test('a rolig Simple Activity is no anchor', () => {
+		const [plan] = planStamp({
+			days: [...runDays, langrenn(5, 'rolig')],
+			tracks: [RUN_HOURS, SIMPLE],
+			weeks: [
+				laidWeek([RUN_HOURS, SIMPLE], [{ trackId: 'run', mix: THRESHOLD }]),
+			],
+		})
+		expect(hardDaysOf(plan, 'run')).toEqual([6])
+	})
+
+	test('a lifting day pushes the intervals off it and the day after', () => {
+		const [plan] = planStamp({
+			days: [
+				...runDays,
+				fixed('lift-sun', 6, 3, {
+					trackId: 'lift',
+					workoutId: 'w-lift',
+					orderInDay: 1,
+				}),
+			],
+			tracks: [RUN_HOURS, STRENGTH],
+			weeks: [
+				laidWeek([RUN_HOURS, STRENGTH], [{ trackId: 'run', mix: THRESHOLD }]),
+			],
+		})
+		// Sunday lifts, Monday follows it and Thursday sits beside the long day:
+		// Friday, two days from both.
+		expect(hardDaysOf(plan, 'run')).toEqual([4])
+	})
+
+	test('two tracks that both carry a mix spread their hard days apart', () => {
+		const days = [
+			share('mon', 0, 1),
+			share('wed', 2, 1),
+			share('fri', 4, 1),
+			share('sun', 6, 2),
+		]
+		const [plan] = planStamp({
+			days: [...onTrack('run', days), ...onTrack('bike', days)],
+			tracks: [RUN_HOURS, BIKE_HOURS],
+			weeks: [
+				laidWeek(
+					[RUN_HOURS, BIKE_HOURS],
+					[
+						{ trackId: 'run', mix: THRESHOLD },
+						{ trackId: 'bike', mix: THRESHOLD },
+					],
+				),
+			],
+		})
+		// Each alone would take Wednesday; the bike is laid around the run.
+		expect(hardDaysOf(plan, 'run')).toEqual([2])
+		expect(hardDaysOf(plan, 'bike')).toEqual([4])
+	})
+
+	test('another track’s long day is an anchor', () => {
+		const [plan] = planStamp({
+			days: [
+				share('mon', 0, 1),
+				share('thu', 3, 1),
+				share('sun', 6, 2),
+				...onTrack('bike', [share('tue', 1, 1), share('fri', 4, 2)]),
+			],
+			tracks: [RUN_HOURS, BIKE_HOURS],
+			weeks: [
+				laidWeek([RUN_HOURS, BIKE_HOURS], [{ trackId: 'run', mix: THRESHOLD }]),
+			],
+		})
+		// Alone the run takes Thursday, three days from its long Sunday; the
+		// bike's long Friday puts Thursday beside it, so the earlier Monday.
+		expect(hardDaysOf(plan, 'run')).toEqual([0])
+	})
+
+	test('a week with no room still lays the full mix', () => {
+		const [plan] = planStamp({
+			days: [
+				share('tue', 1, 1),
+				share('wed', 2, 1),
+				share('sun', 6, 2),
+				langrenn(0, 'hard'),
+				langrenn(3, 'hard'),
+			],
+			tracks: [RUN_HOURS, SIMPLE],
+			weeks: [
+				laidWeek(
+					[RUN_HOURS, SIMPLE],
+					[
+						{
+							trackId: 'run',
+							mix: [
+								{ zone: 4, sessionsPerWeek: 1 },
+								{ zone: 3, sessionsPerWeek: 1 },
+							],
+						},
+					],
+				),
+			],
+		})
+		expect(
+			plan!.sessions
+				.filter((session) => session.trackId === 'run')
+				.map((session) => [session.weekday, session.zone]),
+		).toEqual([
+			[1, 4],
+			[2, 3],
+			[6, null],
+		])
+	})
+
+	test('the same inputs lay the same week', () => {
+		const input = {
+			days: [...runDays, langrenn(5, 'hard')],
+			tracks: [RUN_HOURS, SIMPLE],
+			weeks: [
+				laidWeek([RUN_HOURS, SIMPLE], [{ trackId: 'run', mix: THRESHOLD }]),
+			],
+		}
+		expect(planStamp(input)).toEqual(planStamp(input))
 	})
 })
