@@ -289,7 +289,8 @@ type FitSession = { placed: PlacedSession; pinned: boolean }
 
 /**
  * One stamped session as the day rule reads it — the stamp's own reading —
- * and whether it is pinned: a stored fixed strength day, or any session of a
+ * and whether it is pinned: a stored fixed strength day, a Simple Activity's
+ * day (always the athlete's: it has no _La appen velge_), or any session of a
  * track on its **Pinned days** (ADR 0104 §4, #598).
  */
 function fitSessionOf(
@@ -300,7 +301,9 @@ function fitSessionOf(
 	return {
 		placed: placedSessionOf(session, day),
 		pinned:
-			(session.discipline === 'strength' && session.kind === 'fixed') ||
+			// A fixed day that is no endurance session: a strength day, or a
+			// Simple Activity's (`other`, typed as no Discipline, ADR 0015).
+			(session.kind === 'fixed' && !isCardioDiscipline(session.discipline)) ||
 			pinnedTracks.has(session.trackId),
 	}
 }

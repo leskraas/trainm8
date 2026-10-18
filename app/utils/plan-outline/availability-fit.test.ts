@@ -565,14 +565,25 @@ test('two hard days in a row across tracks warn, a hard Simple Activity among th
 		clashes(
 			[fixedDay('run', 2, { zone: 4 }), fixedDay('ski', 3, { effort: 'hard' })],
 			[RUN, SKI],
+		).map(({ reason, weekday }) => [reason, weekday]),
+	).toEqual([['hard-days-in-a-row', 2]])
+})
+
+test('a clash on a Simple Activity’s day says it comes from the athlete’s choice', () => {
+	// _Langrenn_ is on the days the athlete gave it, with no _La appen
+	// velge_ (#598): a hard Saturday before the run's Sunday intervals.
+	expect(
+		clashes(
+			[fixedDay('ski', 5, { effort: 'hard' }), fixedDay('run', 6, { zone: 4 })],
+			[RUN, SKI],
 		),
 	).toEqual([
 		{
 			fromWeekIndex: 0,
 			toWeekIndex: 0,
 			reason: 'hard-days-in-a-row',
-			weekday: 2,
-			pinned: false,
+			weekday: 5,
+			pinned: true,
 		},
 	])
 })
