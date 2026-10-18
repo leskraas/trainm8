@@ -53,6 +53,13 @@
 
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
+	CLASH_REASONS,
+	clashesIn,
+	placingClashes,
+	type ClashReason,
+	type PlacedSession,
+} from './day-rule.ts'
+import {
 	phaseIndexForWeek,
 	roundToCurrency,
 	strengthSegmentForWeek,
@@ -66,10 +73,19 @@ import {
 	type QualitySessionMixEntry,
 } from './quality-mix.ts'
 import {
+	placedSessionOf,
+	planStamp,
+	type StampDay,
+	type StampSession,
+	type StampTrack,
+	type StampWeekInput,
+} from './stamp.ts'
+import {
 	convertWeeklyVolume,
 	type ConversionContext,
 	type ConversionProfile,
 } from './volume-conversion.ts'
+import { type PatternWeekday } from './week-pattern.ts'
 
 /**
  * An endurance segment as the fit check reads it: which phase it spans, and the
@@ -244,7 +260,127 @@ export function availabilityFitWarnings(
 }
 
 // ---------------------------------------------------------------------------
-// Hours against hours — the week's derived endurance hours against the athlete's
+// Days read as days — the laid week's clashes (#594, ADR 0104 §6)
+// ---------------------------------------------------------------------------
+
+/**
+ * A stretch of weeks that put the same clash on the same weekday. Carries no
+ * wording and no figure — only the day rule's reason and where it is — so no
+ * number spans tracks (ADR 0046).
+ */
+export type DayClashWarning = {
+	/** 0-based first and last plan week of the run. Single weeks have both equal. */
+	fromWeekIndex: number
+	toWeekIndex: number
+	reason: ClashReason
+	/** The day it is on, Monday first; a two-day reason names the first. */
+	weekday: PatternWeekday
+	/**
+	 * Whether a day the athlete chose takes part — a **Pinned day**, which a
+	 * stored fixed strength day reads as (ADR 0104 §4). It is kept where it is,
+	 * so the surface says the clash comes from that choice.
+	 */
+	pinned: boolean
+}
+
+/** A laid session, and whether it sits on a day the athlete chose. */
+type FitSession = { placed: PlacedSession; pinned: boolean }
+
+/**
+ * One stamped session as the day rule reads it — the stamp's own reading —
+ * and whether it is pinned: today a stored fixed strength day.
+ */
+function fitSessionOf(
+	session: StampSession,
+	day: StampDay | undefined,
+): FitSession {
+	return {
+		placed: placedSessionOf(session, day, session.discipline),
+		pinned: session.discipline === 'strength' && session.kind === 'fixed',
+	}
+}
+
+/** The week's clashes, each with whether a pinned session takes part. */
+function weekClashes(
+	sessions: readonly FitSession[],
+): Array<{ reason: ClashReason; weekday: PatternWeekday; pinned: boolean }> {
+	const week = sessions.map((session) => session.placed)
+	const fromPinned = new Set(
+		sessions.flatMap((session, at) =>
+			session.pinned
+				? placingClashes(
+						week.filter((_, other) => other !== at),
+						session.placed,
+					).map(clashKey)
+				: [],
+		),
+	)
+	return clashesIn(week).map((clash) => ({
+		...clash,
+		pinned: fromPinned.has(clashKey(clash)),
+	}))
+}
+
+function clashKey(clash: { reason: ClashReason; weekday: number }): string {
+	return `${clash.weekday}|${clash.reason}`
+}
+
+/**
+ * Soft, advisory, never blocking: every stretch of the plan whose laid weeks
+ * put lifting on or the day before a **Hard day**, lifting on the **Long
+ * day**, two Hard days in a row, or two hard or two long sessions on one day
+ * — the day rule's clashes (ADR 0104 §1), read off the weeks as the stamp
+ * lays them, across every track and Simple Activity at once.
+ *
+ * Beside the count warnings and never instead of them: a week can ask for no
+ * more sessions than there are days and still stack them badly, and the
+ * other way round.
+ *
+ * A **span** per clash, as the count check spans its weeks: a clash on the
+ * same weekday for the same reason in consecutive weeks is one thing to say.
+ * Ordered by the first week, then Monday first, then the day rule's order.
+ */
+export function dayClashWarnings({
+	days,
+	tracks,
+	weeks,
+}: {
+	days: readonly StampDay[]
+	tracks: readonly StampTrack[]
+	weeks: readonly StampWeekInput[]
+}): DayClashWarning[] {
+	const dayById = new Map(days.map((day) => [day.dayId, day]))
+	const plans = planStamp({ days, tracks, weeks })
+
+	const warnings: DayClashWarning[] = []
+	const open = new Map<string, DayClashWarning>()
+	for (const plan of plans) {
+		const week = plan.weekInPlan - 1
+		const sessions = plan.sessions.map((session) =>
+			fitSessionOf(session, dayById.get(session.dayId)),
+		)
+		for (const clash of weekClashes(sessions)) {
+			const key = `${clashKey(clash)}|${clash.pinned}`
+			const run = open.get(key)
+			if (run && run.toWeekIndex === week - 1) {
+				run.toWeekIndex = week
+				continue
+			}
+			const warning = { fromWeekIndex: week, toWeekIndex: week, ...clash }
+			warnings.push(warning)
+			open.set(key, warning)
+		}
+	}
+	return warnings.sort(
+		(a, b) =>
+			a.fromWeekIndex - b.fromWeekIndex ||
+			a.weekday - b.weekday ||
+			CLASH_REASONS.indexOf(a.reason) - CLASH_REASONS.indexOf(b.reason),
+	)
+}
+
+// ---------------------------------------------------------------------------
+// Hours against hours —the week's derived endurance hours against the athlete's
 // **Weekly Capacity** (ADR 0045 §8, unblocked by ADR 0050)
 // ---------------------------------------------------------------------------
 

@@ -18,6 +18,7 @@ import {
 	MARK_DONE_REFUSALS,
 } from './import-link-schema.ts'
 import {
+	SESONG_NOTICE_LABELS,
 	APP_TAB_LABELS,
 	CONVERSION_CONVENTION_LABELS,
 	CONNECTION_HUB_STATUS_LABELS,
@@ -84,6 +85,7 @@ import {
 } from './labels.ts'
 import { LOAD_RECOMPUTE_KINDS } from './load/recompute-notice.ts'
 import { INSUFFICIENT_DATA_WHYS, NO_CHANGE_WHYS } from './load/week-replan.ts'
+import { CLASH_REASONS } from './plan-outline/day-rule.ts'
 import {
 	RHYTHMS,
 	STRENGTH_GOALS,
@@ -666,3 +668,50 @@ const HOLD_FACTS = {
 	requiredDays: 0,
 	daysOfHistory: 0,
 }
+
+test('every day clash names its weekday in Norwegian, and the two-day ones both days', () => {
+	expect(
+		CLASH_REASONS.map((reason) => SESONG_NOTICE_LABELS.dayClash(reason, 1)),
+	).toEqual([
+		'Styrke og en hard økt på tirsdag',
+		'Styrke dagen før en hard økt (tirsdag–onsdag)',
+		'Styrke og den lange økta på tirsdag',
+		'To harde dager etter hverandre (tirsdag–onsdag)',
+		'To harde økter på tirsdag',
+		'To lange økter på tirsdag',
+		'En rolig økt dagen før en hard økt (tirsdag–onsdag)',
+	])
+	// The week is a wheel: Sunday runs into Monday.
+	expect(SESONG_NOTICE_LABELS.dayClash('hard-days-in-a-row', 6)).toBe(
+		'To harde dager etter hverandre (søndag–mandag)',
+	)
+})
+
+test('a day clash from a day the athlete chose says so, and carries no figure', () => {
+	expect(
+		SESONG_NOTICE_LABELS.dayClashLine(
+			'Uke 12–14',
+			'Styrke og en hard økt på tirsdag',
+			true,
+		),
+	).toBe(
+		'Uke 12–14: Styrke og en hard økt på tirsdag\u00a0– en dag du har valgt selv.',
+	)
+	expect(
+		SESONG_NOTICE_LABELS.dayClashLine(
+			'Uke 3',
+			'To harde økter på lørdag',
+			false,
+		),
+	).toBe('Uke 3: To harde økter på lørdag.')
+})
+
+test('one clash held by several stretches of the plan names them all on one line', () => {
+	expect(SESONG_NOTICE_LABELS.weekSpans(['Uke 3'])).toBe('Uke 3')
+	expect(SESONG_NOTICE_LABELS.weekSpans(['Uke 3–5', 'Uke 9'])).toBe(
+		'Uke 3–5 og uke 9',
+	)
+	expect(SESONG_NOTICE_LABELS.weekSpans(['Uke 3', 'Uke 6–7', 'Uke 9'])).toBe(
+		'Uke 3, uke 6–7 og uke 9',
+	)
+})

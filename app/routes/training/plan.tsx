@@ -272,6 +272,7 @@ import {
 	type AuthoredSeason,
 	type SeasonAvailabilityWarning,
 	type SeasonBandWarning,
+	type SeasonDayClashWarning,
 	type SeasonHoursFitWarning,
 } from '#app/utils/training.server.ts'
 import {
@@ -2926,9 +2927,30 @@ function RampGuardNotice({
  * readings are empty for a null counterpart, so there is no list to render rather
  * than a guess to word.
  */
+/**
+ * One line per clash — the same reason on the same weekday — however many
+ * stretches of the plan hold it: a season whose phases move the mix can
+ * break one clash into several spans, and a line per span would say one
+ * thing many times. In the order the clashes first appear.
+ */
+function clashLines(clashes: readonly SeasonDayClashWarning[]) {
+	const lines = new Map<
+		string,
+		{ clash: SeasonDayClashWarning; spans: Array<[number, number]> }
+	>()
+	for (const clash of clashes) {
+		const key = `${clash.weekday}|${clash.reason}|${clash.pinned}`
+		const line = lines.get(key) ?? { clash, spans: [] }
+		line.spans.push([clash.fromWeekInPlan, clash.toWeekInPlan])
+		lines.set(key, line)
+	}
+	return [...lines.values()]
+}
+
 function AvailabilityFitNotice({
 	warnings,
 	hoursWarnings,
+	dayClashes,
 	weeklyCapacityHours,
 	startWeekKey,
 }: {
@@ -2936,9 +2958,16 @@ function AvailabilityFitNotice({
 	startWeekKey: string
 	warnings: SeasonAvailabilityWarning[]
 	hoursWarnings: SeasonHoursFitWarning[]
+	/**
+	 * The day check (ADR 0104 §6): where the laid days clash, each naming its
+	 * weekday and why, and whether a day the athlete chose is part of it. Its
+	 * own list and paragraph under the counts, which stay exactly as they were.
+	 */
+	dayClashes: SeasonDayClashWarning[]
 	/** `null` when the athlete has never authored one — unavailable, not passing. */
 	weeklyCapacityHours: number | null
 }) {
+	const counted = warnings.length > 0 || hoursWarnings.length > 0
 	return (
 		<DismissibleNotice
 			// Re-keyed on the spans and both comparisons, for `RampGuardNotice`'s
@@ -2953,75 +2982,112 @@ function AvailabilityFitNotice({
 					(warning) =>
 						`${warning.fromWeekInPlan}-${warning.toWeekInPlan}:${warning.peakHours}/${warning.weeklyCapacityHours}h`,
 				),
+				...dayClashes.map(
+					(clash) =>
+						`${clash.fromWeekInPlan}-${clash.toWeekInPlan}:${clash.reason}@${clash.weekday}${clash.pinned ? '!' : ''}`,
+				),
 			].join('|')}
 			name={SESONG_NOTICE_LABELS.availabilityName}
 		>
-			<ul className="space-y-1">
-				{warnings.map((warning, position) => {
-					const single = warning.fromWeekInPlan === warning.toWeekInPlan
-					const span = weekSpan(
-						startWeekKey,
-						warning.fromWeekInPlan,
-						warning.toWeekInPlan,
-					)
-					const [lead, ...rest] = SESONG_NOTICE_LABELS.daysAsk(
-						span,
-						single,
-						SESONG_NOTICE_LABELS.sessionCounts(
-							warning.qualitySessions,
-							warning.strengthSessions,
-						),
-						warning.trainableWeekdays,
-					).split(span)
-					return (
-						<li key={`days-${warning.fromWeekInPlan}-${position}`}>
-							{lead}
-							<span className="font-medium">{span}</span>
-							{rest.join(span)}
-						</li>
-					)
-				})}
-				{hoursWarnings.map((warning, position) => {
-					const single = warning.fromWeekInPlan === warning.toWeekInPlan
-					const span = weekSpan(
-						startWeekKey,
-						warning.fromWeekInPlan,
-						warning.toWeekInPlan,
-					)
-					// "opptil" for a span and never for a single week: the figure is
-					// the run's worst week, so claiming it of every week in the run
-					// would be a number nothing derived.
-					const [lead, ...rest] = SESONG_NOTICE_LABELS.hoursAsk(
-						span,
-						single,
-						formatNbWeeklyVolume(warning.peakHours, 'hours'),
-						formatNbWeeklyVolume(warning.weeklyCapacityHours, 'hours'),
-					).split(span)
-					return (
-						<li key={`hours-${warning.fromWeekInPlan}-${position}`}>
-							{lead}
-							<span className="font-medium">{span}</span>
-							{rest.join(span)}
-						</li>
-					)
-				})}
-			</ul>
-			<p>
-				{warnings.length > 0 && hoursWarnings.length > 0
-					? SESONG_NOTICE_LABELS.bothChecks
-					: warnings.length > 0
-						? SESONG_NOTICE_LABELS.daysCheck
-						: SESONG_NOTICE_LABELS.hoursCheck}
-				{SESONG_NOTICE_LABELS.fitNote}
-			</p>
-			{hoursWarnings.length === 0 && weeklyCapacityHours == null ? (
-				<p>
-					{SESONG_NOTICE_LABELS.noCapacity}{' '}
-					<Link className="underline" to="/settings/profile">
-						{SESONG_NOTICE_LABELS.noCapacityLink}
-					</Link>{' '}
-					{SESONG_NOTICE_LABELS.noCapacityEnd}
-				</p>
+			{counted ? (
+				<>
+					<ul className="space-y-1">
+						{warnings.map((warning, position) => {
+							const single = warning.fromWeekInPlan === warning.toWeekInPlan
+							const span = weekSpan(
+								startWeekKey,
+								warning.fromWeekInPlan,
+								warning.toWeekInPlan,
+							)
+							const [lead, ...rest] = SESONG_NOTICE_LABELS.daysAsk(
+								span,
+								single,
+								SESONG_NOTICE_LABELS.sessionCounts(
+									warning.qualitySessions,
+									warning.strengthSessions,
+								),
+								warning.trainableWeekdays,
+							).split(span)
+							return (
+								<li key={`days-${warning.fromWeekInPlan}-${position}`}>
+									{lead}
+									<span className="font-medium">{span}</span>
+									{rest.join(span)}
+								</li>
+							)
+						})}
+						{hoursWarnings.map((warning, position) => {
+							const single = warning.fromWeekInPlan === warning.toWeekInPlan
+							const span = weekSpan(
+								startWeekKey,
+								warning.fromWeekInPlan,
+								warning.toWeekInPlan,
+							)
+							// "opptil" for a span and never for a single week: the figure is
+							// the run's worst week, so claiming it of every week in the run
+							// would be a number nothing derived.
+							const [lead, ...rest] = SESONG_NOTICE_LABELS.hoursAsk(
+								span,
+								single,
+								formatNbWeeklyVolume(warning.peakHours, 'hours'),
+								formatNbWeeklyVolume(warning.weeklyCapacityHours, 'hours'),
+							).split(span)
+							return (
+								<li key={`hours-${warning.fromWeekInPlan}-${position}`}>
+									{lead}
+									<span className="font-medium">{span}</span>
+									{rest.join(span)}
+								</li>
+							)
+						})}
+					</ul>
+					<p>
+						{warnings.length > 0 && hoursWarnings.length > 0
+							? SESONG_NOTICE_LABELS.bothChecks
+							: warnings.length > 0
+								? SESONG_NOTICE_LABELS.daysCheck
+								: SESONG_NOTICE_LABELS.hoursCheck}
+						{SESONG_NOTICE_LABELS.fitNote}
+					</p>
+					{hoursWarnings.length === 0 && weeklyCapacityHours == null ? (
+						<p>
+							{SESONG_NOTICE_LABELS.noCapacity}{' '}
+							<Link className="underline" to="/settings/profile">
+								{SESONG_NOTICE_LABELS.noCapacityLink}
+							</Link>{' '}
+							{SESONG_NOTICE_LABELS.noCapacityEnd}
+						</p>
+					) : null}
+				</>
+			) : null}
+			{dayClashes.length > 0 ? (
+				<>
+					<ul className="space-y-1">
+						{clashLines(dayClashes).map(({ clash, spans }) => {
+							const span = SESONG_NOTICE_LABELS.weekSpans(
+								spans.map(([from, to]) => weekSpan(startWeekKey, from, to)),
+							)
+							const [lead, ...rest] = SESONG_NOTICE_LABELS.dayClashLine(
+								span,
+								SESONG_NOTICE_LABELS.dayClash(clash.reason, clash.weekday),
+								clash.pinned,
+							).split(span)
+							return (
+								<li
+									key={`clash-${clash.weekday}-${clash.reason}-${clash.pinned}`}
+								>
+									{lead}
+									<span className="font-medium">{span}</span>
+									{rest.join(span)}
+								</li>
+							)
+						})}
+					</ul>
+					<p>
+						{SESONG_NOTICE_LABELS.dayClashCheck}
+						{SESONG_NOTICE_LABELS.dayClashNote}
+					</p>
+				</>
 			) : null}
 		</DismissibleNotice>
 	)
@@ -3192,6 +3258,7 @@ function BlocksReading({
 	// page.
 	const availability = season.availabilityWarnings
 	const hoursFit = season.hoursWarnings
+	const dayClashes = season.dayClashWarnings
 
 	// The spark on each phase's closed card, read off the *first* track that prices
 	// its weeks. One track and never a sum: no figure spans two tracks in either
@@ -3229,10 +3296,13 @@ function BlocksReading({
 					anyStrength={warnings.some((warning) => warning.lifting)}
 				/>
 			) : null}
-			{availability.length > 0 || hoursFit.length > 0 ? (
+			{availability.length > 0 ||
+			hoursFit.length > 0 ||
+			dayClashes.length > 0 ? (
 				<AvailabilityFitNotice
 					warnings={availability}
 					hoursWarnings={hoursFit}
+					dayClashes={dayClashes}
 					weeklyCapacityHours={season.weeklyCapacityHours}
 					startWeekKey={season.startWeekKey}
 				/>

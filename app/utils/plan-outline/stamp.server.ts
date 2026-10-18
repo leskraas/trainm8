@@ -44,15 +44,10 @@ import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { isEffortWord } from '../effort-word.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
-import {
-	intensityTargetToZone,
-	intentToZone,
-	type TrainingZone,
-} from '../session-profile.ts'
+import { type TrainingZone } from '../session-profile.ts'
 import { stampedSessionTitle } from '../session-title.ts'
 import {
 	isCardioDiscipline,
-	IntensityTargetSchema,
 	type CardioDiscipline,
 	type Discipline,
 	type WorkoutIntent,
@@ -68,6 +63,7 @@ import { isOutlineResting } from './active-outline.server.ts'
 import { phaseIndexForWeek, totalWeeks, type VolumeCurrency } from './derive.ts'
 import { phaseSpecs, resolvedTracks } from './from-rows.ts'
 import { type QualityZone } from './quality-mix.ts'
+import { sessionZone, sessionZoneSelect } from './session-zone.ts'
 import {
 	mixDisagreements,
 	planStamp,
@@ -773,56 +769,4 @@ export async function readStampedMixWarnings(
 		}
 	}
 	return warnings
-}
-
-/** The Workout columns a session's zone is read off — its intent and its steps. */
-const sessionZoneSelect = {
-	intent: true,
-	blocks: {
-		select: {
-			steps: { select: { kind: true, intensity: true } },
-		},
-	},
-} satisfies Prisma.WorkoutSelect
-
-type SessionZoneWorkout = Prisma.WorkoutGetPayload<{
-	select: typeof sessionZoneSelect
-}>
-
-/**
- * The **zone a session is**, for the purpose of counting quality sessions: the
- * hardest zone anything in it prescribes.
- *
- * The hardest and not the longest, because that is what makes a session a quality
- * session — `20 min Z1 · 5×1000m Z4 · 10 min Z1` is a threshold session even
- * though most of its minutes are easy, and counting it as zone 1 would report a
- * disagreement nobody would recognise.
- *
- * The zone comes off the **authored intensity** through the same
- * `intensityTargetToZone` the Workout Shape uses, falling back to the workout's
- * own **intent** where no step states one — the fallback `deriveSessionProfile`
- * already makes, and the only prescription a bare volume session has. A session
- * neither can zone truthfully reads `null` and counts toward nothing: an unzoned
- * session is not evidence that a zone is missing (ADR 0008).
- */
-function sessionZone(workout: SessionZoneWorkout | null): TrainingZone | null {
-	if (!workout) return null
-	const zones = workout.blocks
-		.flatMap((block) => block.steps)
-		.flatMap((step) =>
-			step.kind === 'cardio' ? [stepZone(step.intensity)] : [],
-		)
-		.filter((zone): zone is TrainingZone => zone != null)
-	if (zones.length > 0) return Math.max(...zones) as TrainingZone
-	return intentToZone(workout.intent)
-}
-
-function stepZone(intensity: string | null): TrainingZone | null {
-	if (!intensity) return null
-	try {
-		const parsed = IntensityTargetSchema.safeParse(JSON.parse(intensity))
-		return parsed.success ? intensityTargetToZone(parsed.data) : null
-	} catch {
-		return null
-	}
 }
