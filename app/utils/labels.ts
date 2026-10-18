@@ -64,6 +64,11 @@ import type {
 } from './import-link-schema.ts'
 // The domain owns *which* outcomes a stored Week Replan can carry (ADR 0080);
 // this module owns the name each one goes by.
+import type {
+	JusterIntent,
+	JusterRefusal,
+	JusterUndoRefusal,
+} from './juster.ts'
 import type { AdherenceTone } from './load/adherence.ts'
 import type { RoundVerdict } from './load/propose-next-round.ts'
 import type { ReadinessTone } from './load/readiness.ts'
@@ -4187,6 +4192,59 @@ export const AUTOPILOT_SETTING_LABELS = {
 	saving: 'Lagrer …',
 	saved: 'Lagret.',
 	failed: 'Det ble ikke lagret. Prøv igjen.',
+} as const
+
+/**
+ * **Juster** on the today card (spec #558 S5, ADR 0100 §7): the three chips
+ * right above _Gjort_, what each says it did, the Replan Note it leaves on the
+ * session, and why one could not act or be taken back.
+ */
+export const JUSTER_LABELS = {
+	/** The chips' group, for a screen reader. */
+	group: 'Juster dagens økt',
+	chip: {
+		tired: 'For sliten i dag',
+		short: 'Lite tid',
+		move: 'Bytt dag',
+	} satisfies Record<JusterIntent, string>,
+	/** A chip's name with the session it changes. */
+	chipFor: (chip: string, title: string) => `${chip}: «${title}»`,
+	/** On the chip while its change goes out. */
+	working: 'Endrer …',
+	/** The toast: what changed. The session's title is quoted under it. */
+	done: {
+		tired: (duration: string) => `Dagens økt er rolig nå, ${duration}.`,
+		short: (duration: string) => `Dagens økt er kortet ned til ${duration}.`,
+		moved: (day: string) => `Økta er flyttet til ${day}.`,
+		swapped: (day: string, other: string) =>
+			`Økta er flyttet til ${day}, og «${other}» er i dag.`,
+	},
+	/** The Replan Note each change leaves on the session it changed. */
+	note: {
+		tired: 'For sliten i dag: gjort rolig og kortere.',
+		short: 'Lite tid: kortet ned.',
+		moved: (day: string) => `Flyttet fra ${day} med Bytt dag.`,
+	},
+	/** _Angre_ took the change back. */
+	undone: (title: string | null) =>
+		title ? `Angret. «${title}» står som før.` : 'Angret. Økta står som før.',
+	/** Why a chip could not act, said where the chips are. */
+	refused: {
+		'session-not-found': 'Fant ikke økta. Den kan være slettet.',
+		'not-today': 'Juster endrer bare dagens økt.',
+		'not-open': 'Økta er allerede gjort eller merket som ikke gjort.',
+		'no-workout': 'Økta har ingen plan å endre.',
+		'no-time': 'Økta har ingen tid å korte ned fra.',
+		'already-short': 'Økta er allerede kort, 20 minutter eller mindre.',
+		'already-easy': 'Økta er allerede rolig og så kort den kan bli.',
+		'no-later-day': 'Det er ingen dager igjen denne uka å flytte til.',
+	} satisfies Record<JusterRefusal, string>,
+	/** Why an _Angre_ was turned down. */
+	undoRefused: {
+		'not-found': 'Fant ikke endringen. Økta kan være slettet.',
+		'session-trained': 'Det kan ikke angres lenger: økta er trent.',
+		changed: 'Det kan ikke angres lenger: økta er endret igjen siden.',
+	} satisfies Record<JusterUndoRefusal, string>,
 } as const
 
 /** The page header's back button, named for the screen it goes back to. */
