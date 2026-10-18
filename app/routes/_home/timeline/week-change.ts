@@ -294,8 +294,12 @@ function buildReview(
 	}
 }
 
-function buildEase(
-	data: WeekChangeData,
+/**
+ * "Gjør uka lettere −15 %" for the coming week — on this card, and on the
+ * Autopilot Notice, which offers it too (ADR 0100 §5).
+ */
+export function buildEase(
+	data: Pick<WeekChangeData, 'comingWeekKey' | 'eased'>,
 	coming: TimelineWeek | null,
 ): WeekChangeEase {
 	const lead = coming ? leadTrack(coming.tracks) : null

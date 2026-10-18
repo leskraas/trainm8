@@ -41,6 +41,7 @@
 import { weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { formatSignedTsb } from '#app/utils/format.ts'
 import {
+	AUTOPILOT_REASON_LABELS,
 	NB_WEEKDAY_LABELS,
 	WEEK_CHANGE_REASON_LABELS,
 	WEEK_HOLD_REASON_LABELS,
@@ -95,6 +96,13 @@ export type WeekChangeFacts = {
 		/** The coming week's session of the slot, and its day. */
 		next: { id: string; date: string }
 	}>
+	/**
+	 * The athlete is on Autopilot at this close (ADR 0100). It changes no rule
+	 * and no payload — only the wording: the reasons are then statements of
+	 * what the close does (_er gjort kortere_), since nothing waits for a yes
+	 * and the Autopilot Notice shows them as they are stored.
+	 */
+	autopilot?: boolean
 }
 
 /** The week's decision as the `WeekReplan` row stores it, plus its proposals. */
@@ -121,7 +129,13 @@ function percent(fraction: number): string {
 	return `${Math.round(fraction * 100)} %`
 }
 
-const R = WEEK_CHANGE_REASON_LABELS
+/**
+ * The reasons' words for this close: asking under _Spør meg først_, stating
+ * under Autopilot (ADR 0100). The same keys, so no rule can tell them apart.
+ */
+function wordsFor(facts: Pick<WeekChangeFacts, 'autopilot'>) {
+	return facts.autopilot ? AUTOPILOT_REASON_LABELS : WEEK_CHANGE_REASON_LABELS
+}
 
 /** The week-level keep's reason, one per branch that holds the week. */
 function keepReason(
@@ -143,6 +157,7 @@ function scaleReason(
 	tsb: number,
 	scale: number,
 	owner: SessionOwner,
+	R: ReturnType<typeof wordsFor>,
 ): string {
 	const base = R.scale(
 		percent(ratio - 1),
@@ -169,6 +184,7 @@ function missedProposals(facts: WeekChangeFacts): ProposalDraft[] {
 	const overloaded = facts.adherence?.band.tone === 'over'
 	const key = overloaded ? null : keyMissed(facts.missedSessions)
 	const freeDay = facts.freeDays[0] ?? null
+	const R = wordsFor(facts)
 	return facts.missedSessions.map((missed) => {
 		const notDone = R.notDone(missed.title, weekday(missed.date))
 		const draft = (payload: ProposalPayload, reason: string) => ({
@@ -208,6 +224,7 @@ function repeatMissProposals(
 ): ProposalDraft[] {
 	const used = new Set(taken)
 	const drafts: ProposalDraft[] = []
+	const R = wordsFor(facts)
 	for (const miss of facts.repeatMisses ?? []) {
 		const toDate = facts.freeDays.find(
 			(day) => day !== miss.next.date && !used.has(day),
@@ -239,6 +256,7 @@ export const proposeWeekChange: ProposalAuthor = (facts) => {
 		adjustableSessions: facts.adjustableSessions.map(({ id }) => ({ id })),
 	})
 
+	const R = wordsFor(facts)
 	const softening = decision.outcome === 'adjusted'
 	const weekProposals: ProposalDraft[] = softening
 		? facts.adjustableSessions.map((session) => ({
@@ -251,6 +269,7 @@ export const proposeWeekChange: ProposalAuthor = (facts) => {
 					facts.tsb!,
 					decision.scale,
 					session.owner,
+					R,
 				),
 			}))
 		: [
@@ -270,7 +289,9 @@ export const proposeWeekChange: ProposalAuthor = (facts) => {
 	)
 	const slotMoves = repeatMissProposals(facts, madeUpOn)
 	const weekChanges = [...weekProposals, ...missed, ...slotMoves]
-	const nextRound = facts.round ? proposeNextRound(facts.round) : null
+	const nextRound = facts.round
+		? proposeNextRound(facts.round, { autopilot: facts.autopilot })
+		: null
 	const proposals = nextRound ? [...weekChanges, nextRound] : weekChanges
 	const changes = weekChanges.some((p) => p.payload.kind !== 'keep')
 	if (!changes && nextRound) {

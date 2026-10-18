@@ -10,6 +10,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createFirstRunPlan } from '#app/utils/first-run/plan.server.ts'
+import { type ProposalAuthor } from '#app/utils/load/propose-week-change.ts'
+import { runWeekChangeForUser } from '#app/utils/load/week-change.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { loader as sessionLoader } from '../training/sessions.$sessionId.tsx'
@@ -217,4 +219,39 @@ test('a done session with no Workout opens a detail that says what is known, nev
 	expect(page.session.id).toBe(done.id)
 	expect(page.session.status).toBe('completed')
 	expect(page.canMarkMissed).toBe(false)
+})
+
+test('under autopilot I dag ships the Autopilot Notice; under Spør meg først it does not', async () => {
+	// The week of 24 Dec closed on Sunday 30 Dec at 20:00; today is Wednesday.
+	const close = new Date('2029-12-30T20:01:00Z')
+	const soften: ProposalAuthor = (facts) => ({
+		outcome: 'proposed',
+		reason: 'Test author.',
+		proposals: facts.adjustableSessions.map((session) => ({
+			payload: { kind: 'scale' as const, factor: 0.85 },
+			targetSessionId: session.id,
+			targetWeekKey: facts.targetWeekKey,
+			reason: 'Økta er gjort ca. 15 % kortere.',
+		})),
+	})
+	const notices = []
+	for (const autopilot of [true, false]) {
+		const { userId, cookie } = await signedIn()
+		await prisma.athleteProfile.create({ data: { userId, autopilot } })
+		// The machine's session, so the autopilot may change it.
+		await prisma.workoutSession.update({
+			where: { id: await run(userId, '2030-01-04T07:00:00Z') },
+			data: { source: 'generated' },
+		})
+		await runWeekChangeForUser(userId, close, soften)
+		const data = await loader({ ...ARGS, request: get(cookie) })
+		if (!data.isAuthenticated) throw new Error('expected a signed-in athlete')
+		notices.push(data.autopilotNotice)
+	}
+
+	const [on, off] = notices
+	expect(on?.lines.map((line) => [line.kind, line.text, line.undo])).toEqual([
+		['changed', 'Økta er gjort ca. 15 % kortere.', 'closed'],
+	])
+	expect(off).toBeNull()
 })

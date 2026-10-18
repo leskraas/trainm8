@@ -12,6 +12,7 @@ import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { beforeAll, expect, test, vi } from 'vitest'
+import { type AutopilotNotice } from '#app/utils/load/autopilot-notice.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -90,8 +91,16 @@ function plan(): ActivePlan {
 function renderToday({
 	ledger = [],
 	activePlan = plan(),
-}: { ledger?: LedgerSession[]; activePlan?: ActivePlan | null } = {}) {
+	autopilotNotice = null,
+	onAutopilotPost = () => {},
+}: {
+	ledger?: LedgerSession[]
+	activePlan?: ActivePlan | null
+	autopilotNotice?: AutopilotNotice | null
+	onAutopilotPost?: (form: FormData) => void
+} = {}) {
 	const loader = async (_args: LoaderFunctionArgs) => ({
+		autopilotNotice,
 		isAuthenticated: true as const,
 		now: NOW,
 		ledger,
@@ -112,6 +121,13 @@ function renderToday({
 		{
 			path: '/resources/sentence-exercises',
 			loader: () => ({ exercises: [] }),
+		},
+		{
+			path: '/resources/autopilot',
+			action: async ({ request }: { request: Request }) => {
+				onAutopilotPost(await request.formData())
+				return { ok: true, toast: 'Endringen er angret.', submission: null }
+			},
 		},
 		{
 			path: '/',
@@ -189,6 +205,97 @@ test('a free today says Fri i dag and names the next session', async () => {
 
 	const card = await screen.findByRole('region', { name: 'Fri i dag' })
 	expect(card).toHaveTextContent('Neste økt: Fredagsintervaller, fredag')
+})
+
+/** A notice for the week that closed on Sunday 30 Dec, as the reader builds it. */
+function notice(lines: AutopilotNotice['lines']): AutopilotNotice {
+	return {
+		closedWeekKey: '2029-12-24',
+		comingWeekKey: '2029-12-31',
+		lines,
+		undoable: lines.filter((line) => line.undo === 'offered').length,
+		closedLine: null,
+		eased: null,
+	}
+}
+
+const CHANGED = {
+	kind: 'changed' as const,
+	subject: '«Fredagsintervaller» · fredag',
+	text: 'Økta er gjort ca. 15 % kortere.',
+	undo: 'offered' as const,
+}
+
+test('under autopilot, Neste uke er lagt ut sits above the week, one line per change with Angre', async () => {
+	const user = userEvent.setup()
+	const posts: FormData[] = []
+	renderToday({
+		ledger: [session('today', '2030-01-02T07:00:00Z', 'Rolig løpetur')],
+		autopilotNotice: notice([
+			{ ...CHANGED, proposalId: 'p1' },
+			{ ...CHANGED, proposalId: 'p2', subject: '«Langtur» · søndag' },
+			{
+				proposalId: 'p3',
+				kind: 'left-alone',
+				subject: null,
+				text: 'Lørdagens «Styrke» er din, den står.',
+				undo: null,
+			},
+		]),
+		onAutopilotPost: (form) => posts.push(form),
+	})
+
+	const region = await screen.findByRole('region', {
+		name: 'Neste uke er lagt ut',
+	})
+	expect(region).toHaveTextContent('Lørdagens «Styrke» er din, den står.')
+	expect(
+		within(region).getAllByRole('button', { name: /^Angre:/ }),
+	).toHaveLength(2)
+	expect(
+		within(region).getByRole('button', { name: 'Angre alle 2 endringene' }),
+	).toBeInTheDocument()
+	// Gjør uka lettere stays available (ADR 0100 §5).
+	expect(
+		within(region).getByRole('button', { name: /Gjør uka lettere/ }),
+	).toBeInTheDocument()
+	// The notice comes before the week, in reading order.
+	const week = screen.getByRole('heading', { name: 'Denne uka' })
+	expect(
+		region.compareDocumentPosition(week) & Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+
+	await user.click(
+		within(region).getByRole('button', {
+			name: 'Angre: «Fredagsintervaller» · fredag',
+		}),
+	)
+	await vi.waitFor(() => expect(posts).toHaveLength(1))
+	expect(Object.fromEntries(posts[0]!)).toEqual({
+		intent: 'undo',
+		proposalId: 'p1',
+	})
+})
+
+test('one change has its Angre and no Angre alt; an undone one says Angret', async () => {
+	renderToday({
+		ledger: [session('today', '2030-01-02T07:00:00Z', 'Rolig løpetur')],
+		autopilotNotice: notice([
+			{ ...CHANGED, proposalId: 'p1' },
+			{ ...CHANGED, proposalId: 'p2', undo: 'undone' },
+		]),
+	})
+
+	const region = await screen.findByRole('region', {
+		name: 'Neste uke er lagt ut',
+	})
+	expect(
+		within(region).getAllByRole('button', { name: /^Angre:/ }),
+	).toHaveLength(1)
+	expect(
+		within(region).queryByRole('button', { name: /Angre alle/ }),
+	).toBeNull()
+	expect(region).toHaveTextContent('Angret')
 })
 
 test('Se hele sesongen leads to the full Home Timeline', async () => {

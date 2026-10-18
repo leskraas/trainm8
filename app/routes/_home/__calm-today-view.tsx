@@ -10,6 +10,9 @@
  * card and the rows say is `__calm-today.ts`, read off the same season the
  * full view renders, so the two cannot disagree.
  *
+ * Under Autopilot the Autopilot Notice sits between the card and the week
+ * (#576, ADR 0100 §5, `__autopilot-notice.tsx`).
+ *
  * Motion is the system's and nothing new: presses (`pressable`), the Drawer,
  * the toast. A row that just landed is tinted while its _Angre_ stands. The
  * celebration on a first _Gjort_ and the morphs are #558 S10.
@@ -27,6 +30,7 @@ import {
 import { cn } from '#app/utils/misc.tsx'
 import { timelineWindow } from '#app/utils/timeline-window.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
+import { AutopilotNoticeCard } from './__autopilot-notice.tsx'
 import {
 	buildCalmToday,
 	type CalmCard,
@@ -35,6 +39,7 @@ import {
 	type CalmSession,
 	type CalmWeek,
 } from './__calm-today.ts'
+import { JusterChips } from './__juster-chips.tsx'
 import {
 	ComposerProvider,
 	useComposer,
@@ -72,6 +77,7 @@ export function CalmToday({ data }: { data: HomeTimelineData }) {
 		nudge,
 		thresholds,
 		weekChange = null,
+		autopilotNotice = null,
 		importConnected = false,
 	} = data
 	const now = useMemo(
@@ -179,6 +185,14 @@ export function CalmToday({ data }: { data: HomeTimelineData }) {
 						{view.invite ? <StartInvite /> : null}
 					</div>
 					<div className="flex min-w-0 flex-col gap-4">
+						{/* What the autopilot wrote, above the week it wrote to (ADR
+						    0100 §5); under Spør meg først, the line to Ukeskiftet. */}
+						{autopilotNotice ? (
+							<AutopilotNoticeCard
+								notice={autopilotNotice}
+								weeks={season.weeks}
+							/>
+						) : null}
 						{waiting > 0 ? <WeekChangeWaiting count={waiting} /> : null}
 						{view.week.shown ? (
 							<WeekList week={view.week} onCard={onCard} />
@@ -250,6 +264,12 @@ function SessionCard({
 	headingId: string
 }) {
 	const { session } = card
+	const { landedSessionId, landedUndoable, undoingSessionId } =
+		useComposerLanding()
+	const composer = useComposer()
+	// A Juster that just landed here keeps its _Angre_ on the card for as long
+	// as its toast (ADR 0088): the card is the row it landed on.
+	const undoable = landedSessionId === session.id && landedUndoable
 	return (
 		<>
 			<p className="text-footnote text-muted-foreground flex items-center gap-2">
@@ -293,6 +313,7 @@ function SessionCard({
 				</p>
 			</div>
 			<div className="mt-1 flex flex-col gap-2">
+				<JusterChips sessionId={session.id} title={session.title} />
 				{session.markDone ? (
 					<MarkDoneAction
 						look="card"
@@ -313,13 +334,30 @@ function SessionCard({
 						{card.logTo.label}
 					</Link>
 				) : null}
-				<Link
-					to={session.to}
-					prefetch="intent"
-					className="text-footnote text-muted-foreground pressable relative self-center py-1 underline-offset-4 after:absolute after:inset-x-0 after:-inset-y-2.5 hover:underline"
-				>
-					{L.openSession}
-				</Link>
+				{/* One line, so an _Angre_ arriving never moves _Gjort_. */}
+				<div className="flex items-center justify-center gap-6">
+					<Link
+						to={session.to}
+						prefetch="intent"
+						className="text-footnote text-muted-foreground pressable relative py-1 underline-offset-4 after:absolute after:inset-x-0 after:-inset-y-2.5 hover:underline"
+					>
+						{L.openSession}
+					</Link>
+					{undoable ? (
+						<button
+							type="button"
+							data-today-undo={session.id}
+							disabled={undoingSessionId === session.id}
+							aria-label={SESSION_COMPOSER_LABELS.undoFor(session.title)}
+							onClick={() => composer.undo(session.id)}
+							className="text-footnote text-primary pressable relative py-1 font-semibold underline-offset-4 after:absolute after:-inset-x-2 after:-inset-y-2.5 hover:underline"
+						>
+							{undoingSessionId === session.id
+								? SESSION_COMPOSER_LABELS.undoing
+								: SESSION_COMPOSER_LABELS.undo}
+						</button>
+					) : null}
+				</div>
 			</div>
 		</>
 	)

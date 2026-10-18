@@ -183,6 +183,10 @@ export async function exportUserData({
 		WorkoutSession: await prisma.workoutSession.findMany({ where: own }),
 		SessionLog: await prisma.sessionLog.findMany({ where: session }),
 		ExerciseSetLog: await prisma.exerciseSetLog.findMany({ where: session }),
+		// Every Juster and what it replaced (spec #558 S5).
+		SessionAdjustment: await prisma.sessionAdjustment.findMany({
+			where: { userId },
+		}),
 
 		ActivityImport: await prisma.activityImport.findMany({ where: athlete }),
 		ActivityStream: await prisma.activityStream.findMany({
