@@ -956,6 +956,22 @@
 ::view-transition-group(root) {
 	animation: none;
 }
+/*
+ * Every snapshot holds its end state until the whole transition is over.
+ * The UA has the image pair and both snapshots inherit their fill mode from
+ * the group, and `animation: none` on a group resets it to `none`: the old
+ * page then came back at full opacity once its 160ms fade ended, still
+ * blended `plus-lighter` with the new one, and the two added up to a white
+ * frame with shreds of text until the 280ms morph finished (#584).
+ */
+::view-transition-image-pair(*),
+::view-transition-old(*),
+::view-transition-new(*),
+::view-transition-image-pair(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-fill-mode: both;
+}
 ::view-transition-old(root) {
 	animation-duration: var(--transition-duration-morph-exit);
 	animation-timing-function: var(--ease-out);
