@@ -62,11 +62,11 @@ import {
 	type SegmentReading,
 	type WeekTargetReading,
 } from './plan-outline/from-rows.ts'
+import { parsePinnedDays } from './plan-outline/pinned-days.ts'
 import {
 	plannedWeeklyLoad,
 	type PlannedLoadBasis,
 } from './plan-outline/planned-load.ts'
-import { parsePinnedDays } from './plan-outline/pinned-days.ts'
 import { outlineFamily, type PresetFamily } from './plan-outline/presets.ts'
 import { type RampWarning } from './plan-outline/ramp-guard.ts'
 import { type SeasonSpanReading } from './plan-outline/season-span.ts'

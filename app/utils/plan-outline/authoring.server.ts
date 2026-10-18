@@ -103,6 +103,7 @@ import {
 	walksAsEndurance,
 } from './from-rows.ts'
 import { readAnchorContext } from './history.server.ts'
+import { parsePinnedDays } from './pinned-days.ts'
 import {
 	familyOfPreset,
 	OPEN_ENDED_ROUND_WEEKS,
@@ -117,7 +118,6 @@ import {
 	type StarterProposal,
 } from './starter-pattern.ts'
 import { weekIndexOf } from './week-keys.ts'
-import { parsePinnedDays } from './pinned-days.ts'
 import { calendarWeekdaysOf, type PatternWeekday } from './week-pattern.ts'
 
 /**

@@ -24,6 +24,7 @@ import {
 	SegmentedControl,
 	ToggleGroupItem,
 } from '#app/components/ui/toggle-group.tsx'
+import { WeekdayChips } from '#app/components/weekday-chips.tsx'
 import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { updateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
@@ -36,8 +37,6 @@ import { StrengthPerWeekSchema } from '#app/utils/first-run/start-schema.ts'
 import {
 	MEG_STRENGTH_DAYS_LABELS,
 	MEG_STRENGTH_LABELS,
-	MEG_WEEKDAY_SHORT_LABELS,
-	NB_WEEKDAY_LABELS,
 	SESONG_NOTICE_LABELS,
 	SIMPLE_START_LABELS,
 } from '#app/utils/labels.ts'
@@ -51,8 +50,6 @@ import {
 	type StrengthDaysPreviewWeek,
 } from '#app/utils/plan-outline/strength-days.server.ts'
 import {
-	calendarWeekdayOf,
-	PATTERN_WEEKDAYS,
 	patternWeekdaysOf,
 	type PatternWeekday,
 } from '#app/utils/plan-outline/week-pattern.ts'
@@ -301,7 +298,6 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 			? D.refusals[reply.error as keyof typeof D.refusals]
 			: null
 	const busy = fetcher.state !== 'idle'
-	const full = chosen.length >= MAX_PINNED_STRENGTH_DAYS
 
 	useWrittenToast(reply, state, undo.submit)
 	useUndoneToast(undo.data)
@@ -347,50 +343,13 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 				{mode === 'own' ? (
 					<fieldset className="flex flex-col gap-2">
 						<legend className="text-callout mb-1.5">{D.chipsLegend}</legend>
-						<div className="flex flex-wrap gap-2">
-							{PATTERN_WEEKDAYS.map((weekday) => {
-								const id = `meg-strength-day-${weekday}`
-								const checked = chosen.includes(weekday)
-								const unavailable =
-									state.available != null && !state.available.includes(weekday)
-								const disabled = unavailable || (!checked && full)
-								return (
-									// A chip per day, as Meg's training days are: a real
-									// checkbox under a 44px pill, the focus ring on the box.
-									<label
-										key={weekday}
-										htmlFor={id}
-										aria-label={NB_WEEKDAY_LABELS[weekday]}
-										className={cn(
-											'border-border bg-background text-callout has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground has-[:focus-visible]:ring-ring/50 flex h-11 min-w-12 items-center justify-center rounded-full border px-3 select-none has-[:focus-visible]:ring-3 dark:bg-transparent',
-											disabled
-												? 'text-muted-foreground cursor-not-allowed opacity-50'
-												: // Only a chip that answers a tap presses.
-													'pressable cursor-pointer',
-											unavailable && 'line-through',
-										)}
-									>
-										<input
-											type="checkbox"
-											id={id}
-											name="day"
-											value={weekday}
-											checked={checked}
-											disabled={disabled}
-											onChange={(event) =>
-												setChosen((days) =>
-													event.target.checked
-														? patternWeekdaysOf([...days, weekday])
-														: days.filter((day) => day !== weekday),
-												)
-											}
-											className="sr-only"
-										/>
-										{MEG_WEEKDAY_SHORT_LABELS[calendarWeekdayOf(weekday)]}
-									</label>
-								)
-							})}
-						</div>
+						<WeekdayChips
+							idPrefix="meg-strength-day"
+							chosen={chosen}
+							onChange={setChosen}
+							available={state.available}
+							max={MAX_PINNED_STRENGTH_DAYS}
+						/>
 						<MegNote>
 							{state.available ? D.chipsNote : D.chipsNoteNoAvailability}
 						</MegNote>

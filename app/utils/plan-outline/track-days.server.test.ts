@@ -314,9 +314,10 @@ test('an endurance track pinned to two days trains only on them, its week spread
 		select: { pinnedDays: true },
 	})
 	expect(track.pinnedDays).toBe('[2,6]')
-	expect(await unit(userId, outlineId, { discipline: 'bike' })).toMatchObject(
-		{ pinned: [WED, SUN], days: [WED, SUN] },
-	)
+	expect(await unit(userId, outlineId, { discipline: 'bike' })).toMatchObject({
+		pinned: [WED, SUN],
+		days: [WED, SUN],
+	})
 })
 
 test('La appen velge deals the track’s days again around the others', async () => {
@@ -336,9 +337,10 @@ test('La appen velge deals the track’s days again around the others', async ()
 	expect(handed).toMatchObject({ ok: true, choice: null })
 	// The run holds Mon, Tue, Thu, Fri and Sun, the ski Wednesday: Saturday is
 	// the day left.
-	expect(await unit(userId, outlineId, { discipline: 'bike' })).toMatchObject(
-		{ pinned: null, days: [SAT] },
-	)
+	expect(await unit(userId, outlineId, { discipline: 'bike' })).toMatchObject({
+		pinned: null,
+		days: [SAT],
+	})
 })
 
 test('undoing from the toast puts back exactly what the change replaced', async () => {
@@ -363,9 +365,11 @@ test('undoing from the toast puts back exactly what the change replaced', async 
 		NOW,
 	)
 	expect(undone).toMatchObject({ ok: true, choice: null })
-	expect(await unit(userId, outlineId, { discipline: 'bike' })).toMatchObject(
-		{ pinned: null, days: [MON, THU, SAT], version: bike.version },
-	)
+	expect(await unit(userId, outlineId, { discipline: 'bike' })).toMatchObject({
+		pinned: null,
+		days: [MON, THU, SAT],
+		version: bike.version,
+	})
 	expect(await calendar(userId)).toEqual(before)
 })
 

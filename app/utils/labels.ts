@@ -5665,6 +5665,105 @@ export const MEG_STRENGTH_DAYS_LABELS = {
 } as const
 
 /**
+ * _Dagene i uka_ under _Plan → Avansert_ (#598, ADR 0104 §4): the days of
+ * every endurance track and Simple Activity — _La appen velge_ or weekday
+ * chips, as for strength in Meg, with the coming weeks before the write and
+ * _Angre_ after it.
+ */
+export const PLAN_TRACK_DAYS_LABELS = {
+	title: 'Dagene i uka',
+	intro:
+		'Velg selv hvilke dager en idrett eller aktivitet ligger på, eller la appen legge dem rundt de andre.',
+	/** A Simple Activity's row: its name, or the generic word. */
+	activity: (title: string | null) => title ?? 'Enkel aktivitet',
+	/** `Mandag, torsdag og lørdag`, or what a unit with no day says. */
+	days: (days: readonly number[]) =>
+		days.length === 0
+			? 'Ingen dager ennå'
+			: capitalize(nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))),
+	appChooses: 'appen velger',
+	ownChoice: 'valgt selv',
+	change: 'Endre',
+	changeFor: (name: string) => `Endre dagene for ${name}`,
+	modeLegend: 'Hvem velger dagene',
+	auto: 'La appen velge',
+	own: 'Velg dager',
+	autoNote:
+		'Appen gir den dagene de andre idrettene lar ligge, én økt om dagen, og den lange økta på den siste.',
+	chipsLegend: (name: string) => `Dagene for ${lowerFirst(name)}`,
+	chipsNote: 'Bare dagene du kan trene, fra profilen din.',
+	chipsNoteNoAvailability:
+		'Setter du treningsdagene dine i profilen, kan du bare velge blant dem.',
+	ownNote:
+		'Økta legges bare på disse dagene, og ukas mengde deles på dem. De harde øktene til de andre legges rundt.',
+	activityNote:
+		'En enkel aktivitet ligger alltid på dagene du velger. Økta er den samme hver gang.',
+	preview: 'Se hva som endres',
+	previewing: 'Henter de neste ukene …',
+	previewHeading: 'De neste ukene',
+	week: (isoWeek: number) => `Uke ${isoWeek}`,
+	/** `Sykling onsdag og søndag`. */
+	unitDays: (name: string, days: readonly number[]) =>
+		days.length === 0
+			? `Ingen ${lowerFirst(name)}`
+			: `${name} ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+	/** `harde økter tirsdag og lørdag`. */
+	hard: (days: readonly number[]) =>
+		days.length === 0
+			? 'ingen harde økter'
+			: `${days.length === 1 ? 'hard økt' : 'harde økter'} ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+	was: (days: readonly number[]) =>
+		`Før: ${days.length === 0 ? 'ingen dager' : nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+	same: 'Som før',
+	clash: (clash: string, pinned: boolean) =>
+		`${clash}${pinned ? ' – en dag du har valgt selv' : ''}.`,
+	clashNote:
+		'Dagene du velger, blir der du satte dem. Appen sier fra, men flytter dem ikke.',
+	apply: 'Bruk',
+	applying: 'Lagrer …',
+	cancel: 'Avbryt',
+	/** The toast after a write. */
+	saved: (name: string, days: readonly number[] | null) =>
+		days == null
+			? `Appen velger dagene for ${lowerFirst(name)} igjen.`
+			: `${name} ligger nå ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}.`,
+	undo: 'Angre',
+	undone: (name: string) => `Dagene for ${lowerFirst(name)} er som før.`,
+	refusals: {
+		'no-days': 'Velg minst én dag.',
+		'outside-availability': 'Velg bare dager du kan trene.',
+		stale: 'Planen endret seg mens du så på den. Se hva som endres igjen.',
+		'no-plan': 'Fant ikke planen.',
+		'no-pattern': 'Planen har ikke noe ukemønster ennå.',
+		'no-unit': 'Fant ikke idretten i planen lenger.',
+		'bad-restore': 'Kunne ikke sette dagene tilbake.',
+	},
+} as const
+
+/**
+ * What Meg says when the athlete takes a day out of their Training
+ * Availability that a track had as its own (#598, spec #588 story 19).
+ */
+export const MEG_DROPPED_DAYS_LABELS = {
+	/** One line per track: `Sykling mister søndag og ligger nå onsdag.` */
+	line: (
+		name: string,
+		lost: readonly number[],
+		kept: readonly number[] | null,
+		activity: boolean,
+	) => {
+		const lostDays = nbJoin(lost.map((day) => NB_WEEKDAY_LABELS[day % 7]!))
+		if (kept) {
+			return `${name} mister ${lostDays} og ligger nå ${nbJoin(kept.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}.`
+		}
+		return activity
+			? `${name} ligger fortsatt ${lostDays}. Velg en ny dag under Plan → Avansert.`
+			: `${name} mister ${lostDays}, og appen velger dagene igjen.`
+	},
+	heading: 'Treningsdagene dine endret planen',
+} as const
+
+/**
  * Meg's Form section: the Training Load triad and how far it can be trusted
  * (ADR 0008/0010). It came from the home hero's Form pane when the hero went
  * (#505). Every "ikke målt" here is said with its reason (story 71).
@@ -6738,6 +6837,11 @@ export const MEG_ZOD_ISSUE_LABELS = {
 } as const
 
 // ---------------------------------------------------------------------------
+
+/** The first character lower-cased, so a name stays its own mid-sentence. */
+function lowerFirst(value: string): string {
+	return value ? value[0]!.toLowerCase() + value.slice(1) : value
+}
 
 /** Capitalize the first character; the fallback for open-ended enum sets. */
 function capitalize(value: string): string {

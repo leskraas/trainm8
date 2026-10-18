@@ -40,14 +40,20 @@ import {
 } from '#app/utils/format.ts'
 import {
 	MEG_COMMON_LABELS,
+	MEG_DROPPED_DAYS_LABELS,
 	MEG_PROFILE_LABELS,
 	MEG_UNIT_LABELS,
 	MEG_WEEKDAY_LABELS,
 	MEG_WEEKDAY_SHORT_LABELS,
+	NB_DISCIPLINE_LABELS,
 } from '#app/utils/labels.ts'
 import { cn, getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx'
 import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
 import { weeklyCapacityFor } from '#app/utils/plan-outline/proposal.ts'
+import {
+	dropUnavailablePinnedDays,
+	type DroppedPinnedDays,
+} from '#app/utils/plan-outline/track-days.server.ts'
 import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { NameSchema, UsernameSchema } from '#app/utils/user-validation.ts'
@@ -356,7 +362,13 @@ async function athleteProfileUpdateAction({
 		)
 	}
 	await updateAthleteProfile(userId, submission.value)
-	return { result: submission.reply() }
+	// A day taken out of Training Availability leaves every track that pinned
+	// it (#598, spec #588 story 19), and the athlete is told which.
+	const droppedDays =
+		submission.value.trainableWeekdays !== undefined
+			? await dropUnavailablePinnedDays(userId)
+			: []
+	return { result: submission.reply(), droppedDays }
 }
 
 function UpdateAthleteProfile({
@@ -541,6 +553,16 @@ function UpdateAthleteProfile({
 
 			<MegFormErrors id={form.errorId} errors={form.errors} />
 
+			<DroppedDaysNote
+				dropped={
+					fetcher.state === 'idle' &&
+					fetcher.data &&
+					'droppedDays' in fetcher.data
+						? fetcher.data.droppedDays
+						: []
+				}
+			/>
+
 			<div className="pt-2">
 				<StatusButton
 					className="w-full sm:w-auto"
@@ -555,6 +577,39 @@ function UpdateAthleteProfile({
 				</StatusButton>
 			</div>
 		</fetcher.Form>
+	)
+}
+
+/**
+ * The tracks that lost a day the athlete just took out of their Training
+ * Availability (#598): one line each, said where the save is.
+ */
+function DroppedDaysNote({ dropped }: { dropped: DroppedPinnedDays[] }) {
+	if (dropped.length === 0) return null
+	const D = MEG_DROPPED_DAYS_LABELS
+	return (
+		<div role="status" className="bg-muted/50 mb-2 rounded-2xl p-3">
+			<p className="text-callout font-semibold">{D.heading}</p>
+			<ul className="mt-1 flex flex-col gap-1">
+				{dropped.map((track) => (
+					<li
+						key={`${track.discipline}-${track.title ?? ''}`}
+						className="text-footnote break-words"
+					>
+						{D.line(
+							track.title ??
+								(NB_DISCIPLINE_LABELS as Record<string, string>)[
+									track.discipline
+								] ??
+								track.discipline,
+							track.lost,
+							track.kept,
+							track.title != null,
+						)}
+					</li>
+				))}
+			</ul>
+		</div>
 	)
 }
 

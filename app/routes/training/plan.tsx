@@ -125,6 +125,7 @@ import {
 	PRESET_GALLERY_LABELS,
 	PHILOSOPHY_SWITCH_REFUSAL_LABELS,
 	PLAN_LEAD_LABELS,
+	PLAN_TRACK_DAYS_LABELS,
 	SEASON_ADVANCED_LABELS,
 	SEASON_EDIT_LABELS,
 	SESONG_ANCHOR_LABELS,
@@ -259,6 +260,7 @@ import {
 } from '#app/utils/plan-outline/stamp.server.ts'
 import { type StarterProposal } from '#app/utils/plan-outline/starter-pattern.ts'
 import { addProposedStrengthTrack } from '#app/utils/plan-outline/strength-offer.server.ts'
+import { readTrackDays } from '#app/utils/plan-outline/track-days.server.ts'
 import { type UnavailableReading } from '#app/utils/plan-outline/unavailable-readings.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import { PATTERN_DAY_KINDS } from '#app/utils/plan-outline/week-pattern.ts'
@@ -321,6 +323,7 @@ import {
 	StrengthSegmentFormSchema,
 	type EditableStrengthTrack,
 } from './__strength-segment-editor.tsx'
+import { TrackDaysCard } from './__track-days.tsx'
 import { TrackRoster } from './__track-editor.tsx'
 import { treningsformViewOf } from './__treningsform-view.ts'
 import { TreningsformOffer } from './__treningsform.tsx'
@@ -638,6 +641,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 		mixWarnings,
 		weeksWithSessions,
 		strengthTracks: strengthTracksOf(season),
+		// _Dagene i uka_ (#598): the days of each endurance track and Simple
+		// Activity, chosen or the app's.
+		trackDays: await readTrackDays(userId, season.outlineId),
 		anchorTracks: anchorTracksOf(season),
 		/**
 		 * The **season chart**'s two server-side inputs (#413), read the way every
@@ -2161,6 +2167,7 @@ export default function PlanRoute({
 		restingOpenEnded,
 		seasonFitness,
 		nextEasyWeek,
+		trackDays,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -2351,7 +2358,7 @@ export default function PlanRoute({
 			    beside it. The last row is `1fr`, so a tall right column grows that
 			    row (the readings', which run longest) rather than opening gaps
 			    between the left column's cards. */}
-				<div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:grid-rows-[repeat(4,auto)_1fr] lg:items-start lg:space-y-0 lg:gap-x-6 lg:gap-y-6">
+				<div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:grid-rows-[repeat(5,auto)_1fr] lg:items-start lg:space-y-0 lg:gap-x-6 lg:gap-y-6">
 					{seasonPicture ? (
 						<div className="lg:col-start-1">
 							<SeasonPicture
@@ -2446,6 +2453,19 @@ export default function PlanRoute({
 							error={trackError}
 						/>
 					</PlanCard>
+
+					{/* Which days each sport and Simple Activity trains on, and who
+				    chose them (#598, ADR 0104 §4): beside what the plan consists of,
+				    since a track's days are part of its week. */}
+					{trackDays ? (
+						<PlanCard
+							titleId="track-days"
+							title={PLAN_TRACK_DAYS_LABELS.title}
+							className="scroll-mt-4 lg:col-start-1"
+						>
+							<TrackDaysCard state={trackDays} />
+						</PlanCard>
+					) : null}
 
 					{/* What is left to set up, above the two readings that do it — gone
 				    once nothing is outstanding: a way in, not a scoreboard. */}
