@@ -42,6 +42,7 @@ import {
 import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
 import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
+import { isEffortWord } from '../effort-word.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
 import { type TrainingZone } from '../session-profile.ts'
 import { stampedSessionTitle } from '../session-title.ts'
@@ -625,6 +626,11 @@ function stampDays(
 			// What the day's own Workout already is, so the mix does not ask a
 			// share day for a session a fixed one is.
 			zone: day.workout ? sessionZone(day.workout) : null,
+			// A Simple Activity's own word, so a hard one is a day every track's
+			// mix steps around (ADR 0104 §2).
+			effort: isEffortWord(day.workout?.effortWord)
+				? day.workout.effortWord
+				: null,
 		}
 		if (day.kind === 'fixed') {
 			return [{ ...position, kind: 'fixed', volume: priced, shapeVolume: null }]

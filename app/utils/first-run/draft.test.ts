@@ -283,3 +283,42 @@ test('a track with no day lays nothing', () => {
 		}),
 	).toBeNull()
 })
+
+// ADR 0104 §2 (#590): a hard _Langrenn_ Saturday is a hard day the run's
+// intervals step around, in every week the first run shows.
+test('a hard Simple Activity keeps the run’s intervals off its day and its neighbours', () => {
+	const run = {
+		family: 'threshold' as const,
+		weeklyHours: 6,
+		days: [0, 1, 2, 3, 4, 6] as Array<0 | 1 | 2 | 3 | 4 | 5 | 6>,
+	}
+	const ski = [
+		{
+			kind: 'cross-country-ski' as const,
+			effortWord: 'hard' as const,
+			minutes: 90,
+			weekday: 5 as const,
+		},
+	]
+	const hardDays = (made: ReturnType<typeof draft>) =>
+		made.weeks.map((week) =>
+			week.sessions
+				.filter(
+					(session) => session.discipline === 'run' && session.zone != null,
+				)
+				.map((session) => session.weekday),
+		)
+	const alone = draft(run)
+	const beside = draft({ ...run, simpleActivities: ski })
+	// Alone, Friday carries a hard run; beside the hard ski it does not.
+	expect(hardDays(alone)).toEqual([
+		[2, 4],
+		[2, 4],
+	])
+	expect(hardDays(beside)).toEqual([
+		[0, 2],
+		[0, 2],
+	])
+	// The same answers lay the same weeks.
+	expect(draft({ ...run, simpleActivities: ski }).weeks).toEqual(beside.weeks)
+})
