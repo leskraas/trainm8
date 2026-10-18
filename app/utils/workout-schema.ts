@@ -68,6 +68,11 @@ export const WORKOUT_INTENTS = [
 ] as const
 export type WorkoutIntent = (typeof WORKOUT_INTENTS)[number]
 
+/** Whether a stored intent is one of the **Workout Intent** vocabulary. */
+export function isWorkoutIntent(value: unknown): value is WorkoutIntent {
+	return (WORKOUT_INTENTS as readonly unknown[]).includes(value)
+}
+
 /**
  * The enumerated race distances a **Portable Anchor** may name (`racePace`).
  * An enumerated set rather than a free distance, so `3.7k pace` cannot appear
