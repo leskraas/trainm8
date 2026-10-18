@@ -1453,6 +1453,12 @@ const upcomingSessionSelect = {
 	},
 } satisfies Prisma.WorkoutSessionSelect
 
+/**
+ * A session's Workout as every planned surface reads it — what the Effort Word
+ * and the day rule's reading (`readPlacement`) are read from.
+ */
+export const sessionWorkoutSelect = upcomingSessionSelect.workout
+
 export type UpcomingSession = Prisma.WorkoutSessionGetPayload<{
 	select: typeof upcomingSessionSelect
 }>

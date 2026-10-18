@@ -76,6 +76,7 @@ import type { GenerationIntent } from './plan-generation/season.ts'
 // this module owns the sentence each accumulation is explained by.
 import type { CreateOutlineRefusal } from './plan-outline/authoring.server.ts'
 import type { AccumulatingCurrency } from './plan-outline/commensurability.ts'
+import type { ClashReason } from './plan-outline/day-rule.ts'
 import type {
 	Rhythm,
 	StrengthGoal,
@@ -1146,6 +1147,34 @@ export const WEEK_HOLD_REASON_LABELS: Record<
 }
 
 /**
+ * A clash of the cross-track day rule (#589, ADR 0104 §1) as a clause that
+ * names its days: `day` is the day it is on and `next` the day after, which
+ * only the two-day reasons read. Weekdays as {@link NB_WEEKDAY_LABELS} say
+ * them. Never a number: the rule reads kinds of days (ADR 0046).
+ */
+export const CLASH_REASON_LABELS: Record<
+	ClashReason,
+	(day: string, next: string) => string
+> = {
+	'lifting-on-hard-day': (day) => `${day} får både styrke og en hard økt`,
+	'lifting-before-hard-day': (day, next) =>
+		`${day} får styrke dagen før en hard økt ${next}`,
+	'lifting-on-long-day': (day) => `${day} får både styrke og en langtur`,
+	'hard-days-in-a-row': (day, next) =>
+		`${day} og ${next} blir harde dager på rad`,
+	'two-hard-sessions': (day) => `${day} får to harde økter`,
+	'two-long-sessions': (day) => `${day} får to langturer`,
+}
+
+/**
+ * Said after a Week Replan move when no free day fits the day rule (#596): the
+ * move took the first free day anyway, and this says what that day gets.
+ */
+function noFittingDay(clash: string | null): string {
+	return clash ? ` Ingen ledig dag passer helt denne uka – ${clash}.` : ''
+}
+
+/**
  * The Week Replan's proposal reasons (#505 story 44, ADR 0080), as the
  * deterministic author (`propose-week-change.ts`) writes them. Never worded as
  * though anything were already applied: nothing has changed when they are
@@ -1162,15 +1191,21 @@ export const WEEK_CHANGE_REASON_LABELS = {
 		`«${title}» ble ikke gjort ${weekday}, og står der som ikke gjort.`,
 	letGoHeavyWeek: (notDone: string) =>
 		`${notDone} Uka var tung nok likevel, så vi foreslår å la den gå.`,
-	makeUp: (notDone: string, weekday: string) =>
-		`${notDone} Vil du ta den igjen ${weekday}? Den dagen er ledig. Det gir mer trening denne uka, så den legges bare inn hvis du sier ja.`,
+	/** `clash`: what the day gets when no free day fits (#596), else null. */
+	makeUp: (notDone: string, weekday: string, clash: string | null) =>
+		`${notDone} Vil du ta den igjen ${weekday}? Den dagen er ledig.${noFittingDay(clash)} Det gir mer trening denne uka, så den legges bare inn hvis du sier ja.`,
 	letGoNoFreeDay: (notDone: string) =>
 		`${notDone} Det er ingen ledig dag igjen denne uka, så vi foreslår å la den gå.`,
 	letGo: (notDone: string) =>
 		`${notDone} Vi foreslår å la den gå, så uka ikke blir for full.`,
 	/** A slot missed two closed weeks running, moved to a free day. */
-	slotMove: (title: string, slot: string, toWeekday: string) =>
-		`«${title}» ble ikke gjort ${slot} to uker på rad. Kanskje ${slot} ikke passer? Vi foreslår å flytte den til ${toWeekday}, som er ledig – bare denne gangen, eller fra nå av.`,
+	slotMove: (
+		title: string,
+		slot: string,
+		toWeekday: string,
+		clash: string | null,
+	) =>
+		`«${title}» ble ikke gjort ${slot} to uker på rad. Kanskje ${slot} ikke passer? Vi foreslår å flytte den til ${toWeekday}, som er ledig – bare denne gangen, eller fra nå av.${noFittingDay(clash)}`,
 	/** The week-level sentences for a week with changes proposed. */
 	weekSoften: (over: string, tsb: string, cut: string) =>
 		`${overClause(over)}, og formen er ${tsb}. Vi foreslår å gjøre de neste øktene ca. ${cut} kortere.`,
@@ -1210,8 +1245,8 @@ export const AUTOPILOT_REASON_LABELS: WeekChangeReasonWords = {
 	letGoNoFreeDay: (notDone) =>
 		`${notDone} Det er ingen ledig dag igjen denne uka, så vi lar den gå.`,
 	letGo: (notDone) => `${notDone} Vi lar den gå, så uka ikke blir for full.`,
-	slotMove: (title, slot, toWeekday) =>
-		`«${title}» ble ikke gjort ${slot} to uker på rad, så den er flyttet til ${toWeekday}, som er ledig. Bare denne gangen.`,
+	slotMove: (title, slot, toWeekday, clash) =>
+		`«${title}» ble ikke gjort ${slot} to uker på rad, så den er flyttet til ${toWeekday}, som er ledig. Bare denne gangen.${noFittingDay(clash)}`,
 	weekSoften: (over, tsb, cut) =>
 		`${overClause(over)}, og formen er ${tsb}. De neste øktene er gjort ca. ${cut} kortere.`,
 	weekMakeUp:
