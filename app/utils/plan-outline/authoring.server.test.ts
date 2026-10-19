@@ -4560,6 +4560,54 @@ describe('a Week Pattern to start from (#362 follow-up)', () => {
 		).toBeGreaterThanOrEqual(3)
 	})
 
+	test('a run and bike plan that both carry the mix keeps it on the run only', async () => {
+		const athleteId = await createAthlete()
+		await prisma.athleteProfile.create({
+			data: {
+				userId: athleteId,
+				timezone: 'Europe/Oslo',
+				trainableWeekdays: JSON.stringify([0, 1, 2, 3, 4, 5, 6]),
+			},
+		})
+		const eventId = await createRace(athleteId)
+		const input = planInput(eventId)
+		const created = await createPlanOutline(
+			athleteId,
+			{
+				...input,
+				tracks: [
+					{ discipline: 'bike', currency: 'km', anchorValue: 30 },
+					...input.tracks,
+				],
+			},
+			NOW,
+			{
+				familyRates: [
+					{
+						ramp: null,
+						boundaryStep: null,
+						mix: [{ zone: 4, sessionsPerWeek: 2 }],
+					},
+				],
+			},
+		)
+		if (!created.ok) throw new Error(`plan setup failed: ${created.reason}`)
+		const mixOf = (discipline: string) =>
+			prisma.qualitySessionMixEntry.count({
+				where: {
+					segment: { track: { outlineId: created.outlineId, discipline } },
+				},
+			})
+		expect(await mixOf('bike')).toBeGreaterThan(0)
+
+		await createStarterWeekPattern(athleteId, { outlineId: created.outlineId })
+
+		// The hard sessions belong to the track that carries the mix: the
+		// larger week's run. The ride keeps its days, all of them easy.
+		expect(await mixOf('run')).toBeGreaterThan(0)
+		expect(await mixOf('bike')).toBe(0)
+	})
+
 	test('a strength track gets lifting slots on no weekday, on the session it lifts, not the first days of the week', async () => {
 		const { athleteId, outlineId } = await planWithAvailability([2, 4, 0])
 		const added = await addTrack(athleteId, {

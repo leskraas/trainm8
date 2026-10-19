@@ -99,6 +99,12 @@ export type StarterProposal = {
 	 * (#598). Written as `fixed` strength days, which the stamp lays first.
 	 */
 	pinnedLifting: Array<{ trackId: string; weekday: PatternWeekday }>
+	/**
+	 * The endurance track that carries the family's **Quality Session Mix**,
+	 * or `null` where none does (ADR 0104 §5). The hard sessions belong to
+	 * it: every other endurance track's mix is stripped, so it trains easy.
+	 */
+	mixTrackId: string | null
 	/** The days the week was built from, Monday first. */
 	weekdays: PatternWeekday[]
 	/** Whether the weekdays came from the athlete's own availability or the default. */
@@ -173,7 +179,20 @@ export function proposeStarterPattern({
 				)
 	if (weekdays.length === 0) return null
 
-	const endurance = tracks.filter((track) => track.sessionsPerWeek == null)
+	// One track carries the mix, the main one among those with a mix; the
+	// others ask no room for hard sessions, as theirs are stripped.
+	const carrier = mainTrack(
+		tracks.filter(
+			(track) => track.sessionsPerWeek == null && (track.hardSessions ?? 0) > 0,
+		),
+	)
+	const endurance = tracks
+		.filter((track) => track.sessionsPerWeek == null)
+		.map((track) =>
+			track === carrier || !track.hardSessions
+				? track
+				: { ...track, hardSessions: 0 },
+		)
 	const strength = tracks.filter((track) => track.sessionsPerWeek != null)
 	if (endurance.length === 0 && strength.length === 0) return null
 
@@ -217,7 +236,14 @@ export function proposeStarterPattern({
 
 	return days.length === 0 && lifting.length === 0 && pinnedLifting.length === 0
 		? null
-		: { days, lifting, pinnedLifting, weekdays: [...weekdays], source }
+		: {
+				days,
+				lifting,
+				pinnedLifting,
+				mixTrackId: carrier?.trackId ?? null,
+				weekdays: [...weekdays],
+				source,
+			}
 }
 
 /**

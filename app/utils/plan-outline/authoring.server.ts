@@ -2795,8 +2795,21 @@ export async function createStarterWeekPatternInTx(
 		days: [],
 		lifting: [],
 		pinnedLifting: [],
+		mixTrackId: null,
 		weekdays: [],
 		source: trainableWeekdays == null ? 'default' : 'availability',
+	}
+
+	// The hard sessions belong to the track that carries the mix (ADR 0104
+	// §5): a second endurance track keeps its days and climb, all easy.
+	if (proposed.mixTrackId) {
+		await tx.qualitySessionMixEntry.deleteMany({
+			where: {
+				segment: {
+					track: { outlineId: outline.id, id: { not: proposed.mixTrackId } },
+				},
+			},
+		})
 	}
 
 	const pattern = await tx.weekPattern.create({

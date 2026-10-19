@@ -220,6 +220,28 @@ test('the track carrying the mix keeps the long day and room for its hard sessio
 	expect(daysOf(proposal, 'track-bike')).toHaveLength(1)
 })
 
+test('where two tracks carry a mix, only the main one keeps its hard sessions', () => {
+	const proposal = proposeStarterPattern({
+		trainableWeekdays: EVERY_DAY,
+		tracks: [
+			{ ...BIKE, hardSessions: 2, weeklyShare: 3 },
+			{ ...RUN, hardSessions: 2, weeklyShare: 6 },
+		],
+	})
+
+	// Level on hard sessions, so the larger week's run carries the mix.
+	expect(proposal?.mixTrackId).toBe('track-run')
+})
+
+test('with no track carrying a mix, none keeps one', () => {
+	const proposal = proposeStarterPattern({
+		trainableWeekdays: EVERY_DAY,
+		tracks: [RUN, BIKE],
+	})
+
+	expect(proposal?.mixTrackId).toBeNull()
+})
+
 test('the other tracks are dealt the days left in turn, spread through the week', () => {
 	const proposal = proposeStarterPattern({
 		trainableWeekdays: EVERY_DAY,

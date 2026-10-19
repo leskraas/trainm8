@@ -135,6 +135,15 @@ endurance session a day, the track carrying the family's mix (or else the
 largest share) gets the long day and its hard days, and each track's long day is
 on its own day.
 
+The hard sessions belong to the track that carries the mix. Where more than one
+endurance track carries one, as a Sesong run and bike plan laid from a family
+does, the starter pattern keeps the mix on the track asking the most hard
+sessions (then the largest share, then the first) and strips it from the others,
+which keep their days and climb and train easy. The first run already lays a
+second sport without a mix (#558); this makes the Sesong starter agree. The
+stamp's spreading (§2) remains for mixes the athlete authors on a second track
+afterwards.
+
 ### 6. The fit check reads days, and warns only
 
 The availability fit check adds the day rule's clashes, naming the weekday and
