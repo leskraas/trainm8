@@ -133,14 +133,18 @@ test('each card counts its lifting beside the hours, shows its lifts, and says t
 		request: get(`/start/valg?${ANSWERS}&strength=2`, cookie),
 	})
 	expect(data.answers.strength).toBe(2)
+	// The frequency first; the one card whose lifts had to go on its long day
+	// says that after it, in the day check's words (spec #588 story 40).
+	expect(data.cards.map((card) => card.strengthNotes)).toEqual([
+		['Styrke 2 ganger i uka, som du valgte.'],
+		[
+			'Styrke 2 ganger i uka, som du valgte.',
+			'Styrke og den lange økta på søndag',
+		],
+		['Styrke 2 ganger i uka, som du valgte.'],
+	])
 	for (const card of data.cards) {
 		expect(card.strength).toBe('+2 styrkeøkter')
-		// The frequency first; a card whose lifts had to go on its long day
-		// says that after it (spec #588 story 40).
-		expect(card.strengthNotes[0]).toBe('Styrke 2 ganger i uka, som du valgte.')
-		for (const note of card.strengthNotes.slice(1)) {
-			expect(note).toMatch(/^Styrke (og|dagen før)/)
-		}
 		const lifting = card.days.flatMap((day) => day.lifting)
 		expect(lifting).toHaveLength(2)
 		expect(lifting[0]!.lifts).toContain('Planke')
