@@ -50,7 +50,8 @@ type SeedActivity = {
 }
 
 type HandLabel =
-	| { kind: 'structured' }
+	/** `scheme` is the athlete's own word for an untitled session, read like a title. */
+	| { kind: 'structured'; scheme?: string; note?: string }
 	| Exclude<DetectionLabel, StructuredLabel>
 
 const seed = JSON.parse(readFileSync(SOURCE, 'utf8')) as {
@@ -70,14 +71,15 @@ for (const a of seed.activities) {
 	if (!hand) throw new Error(`No label for ${a.externalId} "${raw.name}"`)
 	let label: DetectionLabel
 	if (hand.kind === 'structured') {
-		const scheme = parseTitleScheme(raw.name)
-		if (!scheme) throw new Error(`Cannot read a scheme from "${raw.name}"`)
+		const scheme = parseTitleScheme(hand.scheme ?? raw.name)
+		if (!scheme)
+			throw new Error(`Cannot read a scheme from "${hand.scheme ?? raw.name}"`)
 		const fit = fitTemplate(stream, scheme)
 		if (!fit) throw new Error(`Cannot place "${raw.name}" on its stream`)
 		label = {
 			kind: 'structured',
-			source: 'title',
-			title: raw.name,
+			source: hand.scheme ? 'athlete' : 'title',
+			title: hand.scheme ?? raw.name,
 			reps: scheme.reps,
 			workSec: scheme.workSec,
 			recoverySec: fit.recoverySec,

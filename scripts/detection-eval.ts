@@ -169,7 +169,7 @@ const first = boards[0]!.board
 out.push(
 	`## Detection scoreboard — engine v${engineVersion}, corpus frozen ${corpus.frozenAt}`,
 	'',
-	`${first.activities} real runs (${corpus.from}): ${first.positives} structured from the athlete's title, ${first.negatives} hand-labelled unstructured, ${first.unlabelled} unlabelled (never scored). Streams at stored resolution (5–6 s); no 1 s stream and no real laps exist in the corpus. * = laps synthesised from the labels, not recorded.`,
+	`${first.activities} real runs (${corpus.from}): ${first.positives} structured (from the athlete's title or word), ${first.negatives} hand-labelled unstructured, ${first.unlabelled} unlabelled (never scored). Streams at stored resolution (5–6 s); no 1 s stream and no real laps exist in the corpus. * = laps synthesised from the labels, not recorded.`,
 	'',
 	'### The structured claim',
 	'',

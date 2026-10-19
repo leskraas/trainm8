@@ -12,8 +12,8 @@ import { type DetectionDiscipline, type Lap } from '../types.ts'
 /** A structured session's truth: N reps of `workSec` with `recoverySec` between. */
 export type StructuredLabel = {
 	kind: 'structured'
-	/** Where the rep scheme came from: the athlete's own title. */
-	source: 'title'
+	/** Where the rep scheme came from: the athlete's title, or the athlete's word for an untitled session. */
+	source: 'title' | 'athlete'
 	title: string
 	reps: number
 	workSec: number

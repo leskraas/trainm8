@@ -43,8 +43,9 @@
 			"note": "Trail: up then down; no repeats."
 		},
 		"17089380389": {
-			"kind": "unlabelled",
-			"note": "Trail with four ~4 min surges and ~2 min drops; could be hill repeats, the title does not say."
+			"kind": "structured",
+			"scheme": "4x4min",
+			"note": "Hill repeats, confirmed by the athlete 2026-10-19; recovery fitted."
 		},
 		"17100712358": {
 			"kind": "unstructured",
@@ -207,8 +208,9 @@
 			"kind": "structured"
 		},
 		"18552701268": {
-			"kind": "unlabelled",
-			"note": "Steady with a firmer 13-25 min stretch; tempo or terrain, the title does not say."
+			"kind": "structured",
+			"scheme": "15x45/15",
+			"note": "15x45/15 with walked recoveries, confirmed by the athlete 2026-10-19."
 		},
 		"18582785309": {
 			"kind": "unstructured",
