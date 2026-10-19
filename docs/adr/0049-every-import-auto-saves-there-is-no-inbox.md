@@ -1,5 +1,18 @@
 # Every Activity Import auto-saves; there is no Activity Inbox
 
+> **Amended by [#603](https://github.com/leskraas/trainm8/issues/603) (map
+> #600): intervals and the mirror.** An import's device and engine **Activity
+> Intervals** are telemetry, like its stream, so they don't end the **Auto-Save
+> Mirror**: a source-side `update` still re-snapshots, re-streams, re-reads laps
+> and re-detects. An **athlete** layer does end it, because an interval edit is
+> the athlete building on the import, and a source-side change must not rebuild
+> what they corrected. Separately, re-parsing trainm8's own kept copy of the
+> original file (FIT `ActivityFile`, TCX `rawJson`) to write device intervals is
+> not a source-side change, so it may reach promoted recordings too (ADR 0012's
+> freeze is against the source rewriting history). Fetching again from a
+> provider's API stays a mirror-only refresh. See
+> [the decided model](https://github.com/leskraas/trainm8/blob/research/structured-workouts/docs/wayfinder/structured-workouts/603-activity-interval.md) §7.
+
 > **Confirmed by
 > [ADR 0096](./0096-every-import-records-its-origin-platform-and-one-activity-is-one-row.md)
 > (#545).** Every import still auto-saves, and still no path creates an

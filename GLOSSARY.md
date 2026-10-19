@@ -2110,12 +2110,13 @@ it as all of it. _Avoid_: Quick log (bare), log as planned (that is the button),
 Gjort (that is for cardio, whose numbers an import brings).
 
 **Auto-Save Mirror**: An **Activity Import** the athlete has not built anything
-on — its recording-only session is still structureless and carries no **Session
-Log**. This is the line ADR 0012's source-side rules now use in place of
-"non-promoted", which Auto-Save made vacuous (ADR 0049): a mirror still tracks
-its source, so a provider `update` refreshes it and a provider `delete` removes
-it along with its session. Anything else is training history and is immutable to
-source-side changes. _Avoid_: unpromoted import, inbox copy, draft.
+on — its recording-only session is still structureless, carries no **Session
+Log**, and has no **Activity Intervals** of the athlete's own. This is the line
+ADR 0012's source-side rules now use in place of "non-promoted", which
+Auto-Save made vacuous (ADR 0049): a mirror still tracks its source, so a
+provider `update` refreshes it and a provider `delete` removes it along with its
+session. Anything else is training history and is immutable to source-side
+changes. _Avoid_: unpromoted import, inbox copy, draft.
 
 **Structure Detection**: The rule-based (no AI) reconstruction of a run or bike
 **Activity Import**'s workout structure — warmup, repeated efforts, cooldown —
@@ -2154,6 +2155,18 @@ so the HR `medium` cap applies exactly when the anchor threshold is missing and
 classification falls to HR (ADR 0035/0038). Running power is a direct
 measurement like cycling power, so it is _not_ HR-capped (ADR 0038). _Avoid_:
 Detection score, match score, a bespoke 0–1 scale.
+
+**Activity Interval**: One stretch of a **Recording**, with what was measured
+over it and who drew its edges: the device or provider (its laps), the
+**Structure Detection**, or the athlete. Each of the three keeps its own
+complete set, so an athlete's edit sits beside the machine's intervals rather
+than over them, and the session is read from the athlete's set first, then the
+detection's, then the device's workout-step laps. A recording that has none
+still reads as one interval over the whole session. An interval carries no zone
+and no link to the plan: both are read, through the **Workout Reading**, when
+they are needed. Interval names the executed thing; **Step** names the planned
+thing. _Avoid_: Lap (one source of an interval, not the interval), segment,
+split, phase, executed step (that is the reading's, not the recording's).
 
 **Structure Adherence**: The coarse, whole-session comparison of a matched
 planned session's _detected_ structure against its _prescribed_ structure,
@@ -2979,6 +2992,11 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   (ADR 0034). The session keeps its `detected` **Session Source** through the
   takeover, and its pre-edit **Workout** is preserved rather than deleted
   (#460).
+- An **Activity Import** has many **Activity Intervals**, cascade-deleted with
+  it like the **Activity Stream**, in up to three sets: the device's, the
+  **Structure Detection**'s (replaced whenever detection runs) and the
+  athlete's (changed only by the athlete). Re-detection never touches the
+  athlete's set.
 - Every **Workout** — `authored`, `generated`, `recorded`, or `detected` — is
   created with **visibility** `private`; an auto-materialized `detected`
   **Workout** is private exactly like every other, so it is out of the
