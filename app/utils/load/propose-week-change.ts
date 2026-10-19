@@ -100,7 +100,7 @@ export type WeekChangeFacts = {
 		/** What the day rule reads it as; absent or null, it fits any day. */
 		placement?: PlacedSessionShape | null
 		/** Its track's Pinned days, preferred for the make-up when one fits. */
-		ownDays?: readonly PatternWeekday[]
+		pinnedDays?: readonly PatternWeekday[]
 	}>
 	/** Days of the coming week, still ahead, with no session on them. Ascending. */
 	freeDays: string[]
@@ -131,7 +131,7 @@ export type WeekChangeFacts = {
 		/** What the day rule reads it as; absent or null, it fits any day. */
 		placement?: PlacedSessionShape | null
 		/** Its track's Pinned days, preferred when one fits. */
-		ownDays?: readonly PatternWeekday[]
+		pinnedDays?: readonly PatternWeekday[]
 	}>
 	/**
 	 * The athlete is on Autopilot at this close (ADR 0100). It changes no rule
@@ -249,9 +249,9 @@ function pickDay(
 	free: readonly string[],
 	week: readonly PlacedSession[],
 	shape: PlacedSessionShape | null | undefined,
-	ownDays: readonly PatternWeekday[] = [],
+	pinnedDays: readonly PatternWeekday[] = [],
 ): DayPick | null {
-	const own = free.filter((date) => ownDays.includes(patternWeekday(date)))
+	const own = free.filter((date) => pinnedDays.includes(patternWeekday(date)))
 	const candidates = own.length > 0 ? own : free
 	const first = candidates[0]
 	if (first == null) return null
@@ -279,7 +279,7 @@ function missedProposals(
 	const overloaded = facts.adherence?.band.tone === 'over'
 	const key = overloaded ? null : keyMissed(facts.missedSessions)
 	const pick = key
-		? pickDay(facts.freeDays, sessionsOf(week), key.placement, key.ownDays)
+		? pickDay(facts.freeDays, sessionsOf(week), key.placement, key.pinnedDays)
 		: null
 	const R = wordsFor(facts)
 	return facts.missedSessions.map((missed) => {
@@ -332,7 +332,7 @@ function repeatMissProposals(
 			facts.freeDays.filter((day) => day !== miss.next.date && !used.has(day)),
 			sessionsOf(rest),
 			miss.placement,
-			miss.ownDays,
+			miss.pinnedDays,
 		)
 		if (!pick) continue
 		const toDate = pick.date

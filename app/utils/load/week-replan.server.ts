@@ -323,7 +323,7 @@ async function getMissedSessions(
 			date: localDate(session.scheduledAt, timezone),
 			plannedTss: session.plannedTssValue,
 			placement: readPlacement(session.workout),
-			...ownDaysOf(pinned, session.workout?.discipline),
+			...pinnedDaysOf(pinned, session.workout?.discipline),
 		}))
 }
 
@@ -390,7 +390,7 @@ async function getRepeatMisses(
 						title: next.title,
 						next: { id: next.id, date: next.date },
 						placement: next.placement,
-						...ownDaysOf(pinned, next.discipline),
+						...pinnedDaysOf(pinned, next.discipline),
 					},
 				]
 			: []
@@ -400,10 +400,10 @@ async function getRepeatMisses(
 type PinnedDaysByDiscipline = ReadonlyMap<string, readonly PatternWeekday[]>
 
 /** A session's track's Pinned days, where its Discipline's track names any. */
-function ownDaysOf(
+function pinnedDaysOf(
 	pinned: PinnedDaysByDiscipline,
 	discipline: string | null | undefined,
-): { ownDays?: readonly PatternWeekday[] } {
+): { pinnedDays?: readonly PatternWeekday[] } {
 	const days = discipline == null ? undefined : pinned.get(discipline)
-	return days ? { ownDays: days } : {}
+	return days ? { pinnedDays: days } : {}
 }

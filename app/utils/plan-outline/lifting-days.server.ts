@@ -54,7 +54,7 @@ import {
 } from './week-pattern.ts'
 
 /** The strength track's days as _Meg → Trening → Styrke_ reads them. */
-export type StrengthDaysState = {
+export type LiftingDaysState = {
 	outlineId: string
 	trackId: string
 	/** The Pinned days, Monday first, or `null` for _La appen velge_. */
@@ -73,7 +73,7 @@ export type StrengthDaysState = {
 }
 
 /** Why a change to the lifting days was not made. */
-export type StrengthDaysRefusal =
+export type LiftingDaysRefusal =
 	| 'no-plan'
 	| 'no-strength-track'
 	| 'no-pattern'
@@ -132,7 +132,7 @@ async function readStrengthTrack(
 	const rows = pattern?.days ?? []
 	const elsewhere = others.filter((other) => other.days.length > 0)
 	const pinned = strengthPinnedDays(track, rows)
-	const state: StrengthDaysState = {
+	const state: LiftingDaysState = {
 		outlineId,
 		trackId: track.id,
 		pinned,
@@ -156,16 +156,16 @@ async function readStrengthTrack(
  * The active plan's strength track's days, or `null` where there is no plan
  * or no strength track — and then there is nothing to choose days for.
  */
-export async function readStrengthDays(
+export async function readLiftingDays(
 	userId: string,
 	now: Date = new Date(),
-): Promise<StrengthDaysState | null> {
+): Promise<LiftingDaysState | null> {
 	const read = await readStrengthTrack(userId, now)
 	return read.ok ? read.state : null
 }
 
 /** One coming week, before and after a change, as the day rule reads it. */
-export type StrengthDaysPreviewWeek = {
+export type LiftingDaysPreviewWeek = {
 	weekKey: string
 	weekInPlan: number
 	before: { lifting: PatternWeekday[]; hard: PatternWeekday[] }
@@ -184,27 +184,27 @@ export type StrengthDaysPreviewWeek = {
 	}
 }
 
-export type StrengthDaysPreview =
+export type LiftingDaysPreview =
 	| {
 			ok: true
 			choice: DayChoice
 			/** How many lifts a week the choice lays. */
 			count: number
-			weeks: StrengthDaysPreviewWeek[]
+			weeks: LiftingDaysPreviewWeek[]
 			version: string
 	  }
-	| { ok: false; reason: StrengthDaysRefusal }
+	| { ok: false; reason: LiftingDaysRefusal }
 
 /**
  * The coming weeks as the stamp would lay them with the choice — the plan's
  * own `planStamp` over its own pattern, with the strength track's days
  * swapped — beside how they are laid now. Writes nothing.
  */
-export async function previewStrengthDays(
+export async function previewLiftingDays(
 	userId: string,
 	choice: DayChoice,
 	now: Date = new Date(),
-): Promise<StrengthDaysPreview> {
+): Promise<LiftingDaysPreview> {
 	const read = await readStrengthTrack(userId, now)
 	if (!read.ok) return read
 	const { state } = read
@@ -267,7 +267,7 @@ function dayKinds(week: readonly PlacedSession[]) {
 function liftingClashes(
 	week: readonly PlacedSession[],
 	choice: DayChoice,
-): StrengthDaysPreviewWeek['after']['clashes'] {
+): LiftingDaysPreviewWeek['after']['clashes'] {
 	const key = (clash: { reason: string; weekday: number }) =>
 		`${clash.weekday}|${clash.reason}`
 	const fromPinned = new Set(
@@ -307,7 +307,7 @@ export type StrengthBlockFrequency = {
 }
 
 /** What a write replaced, so its toast can put it back. */
-export type StrengthDaysPrevious = {
+export type LiftingDaysPrevious = {
 	days: DayChoice
 	count: number
 	answer: number | null
@@ -361,7 +361,7 @@ function strengthRowOf(row: {
  * fixed row or a share on a real weekday, a lifting slot on none, and only
  * strength sessions the athlete owns or a Stock Workout. `null` where any is not.
  */
-async function checkedStrengthRestore(
+async function checkedLiftingRestore(
 	tx: Prisma.TransactionClient,
 	userId: string,
 	rows: readonly StrengthRow[],
@@ -435,16 +435,16 @@ async function writeStrengthRows(
 	}
 }
 
-export type StrengthDaysWrite =
+export type LiftingDaysWrite =
 	| {
 			ok: true
 			choice: DayChoice
 			count: number
-			previous: StrengthDaysPrevious
+			previous: LiftingDaysPrevious
 			/** The state's version after the write, for the undo. */
 			version: string
 	  }
-	| { ok: false; reason: StrengthDaysRefusal }
+	| { ok: false; reason: LiftingDaysRefusal }
 
 /**
  * Write the choice, if the plan is still what the athlete looked at
@@ -452,7 +452,7 @@ export type StrengthDaysWrite =
  * write replaced exactly — the days, the number of lifts and the frequency
  * answer — and is held to no rule the earlier state was not.
  */
-export async function setStrengthDays(
+export async function setLiftingDays(
 	userId: string,
 	{
 		choice,
@@ -479,7 +479,7 @@ export async function setStrengthDays(
 		}
 	},
 	now: Date = new Date(),
-): Promise<StrengthDaysWrite> {
+): Promise<LiftingDaysWrite> {
 	const days = choice ? patternWeekdaysOf(choice) : null
 	// The session a track with none of its own would lift is read before the
 	// transaction: every read inside it goes through `tx`, since a database
@@ -490,7 +490,7 @@ export async function setStrengthDays(
 			? ((await readStartStrength(userId, now))?.workoutId ?? null)
 			: null
 	const result = await prisma.$transaction(
-		async (tx): Promise<StrengthDaysWrite & { outlineId?: string }> => {
+		async (tx): Promise<LiftingDaysWrite & { outlineId?: string }> => {
 			const read = await readStrengthTrack(userId, now, tx)
 			if (!read.ok) return read
 			const { state, rows } = read
@@ -517,7 +517,7 @@ export async function setStrengthDays(
 					(entry) => entry.patternId === other.id,
 				)
 				const rows = back
-					? await checkedStrengthRestore(tx, userId, back.rows)
+					? await checkedLiftingRestore(tx, userId, back.rows)
 					: strengthPatternRows(
 							days,
 							days ? days.length : other.days.length,
@@ -531,7 +531,7 @@ export async function setStrengthDays(
 			// An undo puts back the rows it carries exactly, whatever they lifted
 			// and however they were authored; a choice writes them from the days.
 			const written = restore?.rows
-				? await checkedStrengthRestore(tx, userId, restore.rows)
+				? await checkedLiftingRestore(tx, userId, restore.rows)
 				: strengthPatternRows(days, count, workoutId)
 			if (!written) return { ok: false, reason: 'stale' }
 			const pinnedDays =
@@ -608,7 +608,7 @@ export async function setStrengthDays(
 	if (!result.ok) return result
 	const { outlineId, ...written } = result
 	if (outlineId) {
-		await relayPlanFromFirstUnbegunWeek(userId, outlineId, now, 'strength-days')
+		await relayPlanFromFirstUnbegunWeek(userId, outlineId, now, 'lifting-days')
 	}
 	return written
 }

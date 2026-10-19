@@ -5615,7 +5615,7 @@ export const MEG_STRENGTH_LABELS = {
  * coming weeks before anything is written (ADR 0084) and undone from the
  * toast (ADR 0088). Weekdays Monday first, as {@link NB_WEEKDAY_LABELS}.
  */
-export const MEG_STRENGTH_DAYS_LABELS = {
+export const MEG_LIFTING_DAYS_LABELS = {
 	heading: 'Styrkedagene i planen',
 	intro:
 		'Velg selv hvilke dager du løfter, eller la appen legge styrken unna de harde øktene hver uke.',

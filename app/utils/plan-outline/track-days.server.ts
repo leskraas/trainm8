@@ -1,6 +1,6 @@
 // The athlete chooses the days of every other track and Simple Activity
 // (#598, ADR 0104 §4) — _Plan → Avansert_, beside the strength track's days in
-// _Meg_ (#597, `strength-days.server.ts`), and by the same control:
+// _Meg_ (#597, `lifting-days.server.ts`), and by the same control:
 //
 // - **An endurance track** (run, bike, swim): _La appen velge_, the default,
 //   or weekday chips limited to **Training Availability**. The chosen days are

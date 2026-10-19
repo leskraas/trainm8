@@ -43,21 +43,21 @@ import {
 } from '#app/utils/first-run/start-draft.ts'
 import { StrengthPerWeekSchema } from '#app/utils/first-run/start-schema.ts'
 import {
-	MEG_STRENGTH_DAYS_LABELS,
+	MEG_LIFTING_DAYS_LABELS,
 	MEG_STRENGTH_LABELS,
 	SIMPLE_START_LABELS,
 } from '#app/utils/labels.ts'
 import { LANDED_MS } from '#app/utils/motion.ts'
 import {
+	previewLiftingDays,
+	readLiftingDays,
+	setLiftingDays,
+} from '#app/utils/plan-outline/lifting-days.server.ts'
+import {
 	dayChoiceOf,
-	MAX_PINNED_STRENGTH_DAYS,
+	MAX_PINNED_LIFTING_DAYS,
 	undoPayloadOf,
 } from '#app/utils/plan-outline/pinned-days.ts'
-import {
-	previewStrengthDays,
-	readStrengthDays,
-	setStrengthDays,
-} from '#app/utils/plan-outline/strength-days.server.ts'
 import {
 	patternWeekdaysOf,
 	type PatternWeekday,
@@ -66,7 +66,7 @@ import { MegFormErrors, MegNote } from '../__meg-ui.tsx'
 import { type Route } from './+types/styrke.ts'
 
 const L = MEG_STRENGTH_LABELS
-const D = MEG_STRENGTH_DAYS_LABELS
+const D = MEG_LIFTING_DAYS_LABELS
 
 export const handle: PageHeaderHandle & SEOHandle = {
 	pageHeader: L.title,
@@ -80,7 +80,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			where: { userId },
 			select: { strengthPerWeek: true },
 		}),
-		readStrengthDays(userId),
+		readLiftingDays(userId),
 	])
 	return { strengthPerWeek: profile?.strengthPerWeek ?? null, days }
 }
@@ -142,7 +142,7 @@ export async function action({ request }: Route.ActionArgs) {
 	const intent = formData.get('intent')
 
 	if (intent === 'preview-days') {
-		const preview = await previewStrengthDays(userId, dayChoiceOf(formData))
+		const preview = await previewLiftingDays(userId, dayChoiceOf(formData))
 		return preview.ok
 			? { intent: 'preview' as const, preview, error: null }
 			: data(
@@ -152,7 +152,7 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 
 	if (intent === 'apply-days') {
-		const written = await setStrengthDays(userId, {
+		const written = await setLiftingDays(userId, {
 			choice: dayChoiceOf(formData),
 			version: String(formData.get('version') ?? ''),
 		})
@@ -183,7 +183,7 @@ export async function action({ request }: Route.ActionArgs) {
 			pinnedDays,
 			version,
 		} = payload
-		const undone = await setStrengthDays(userId, {
+		const undone = await setLiftingDays(userId, {
 			choice: days == null ? null : patternWeekdaysOf(days),
 			version,
 			restore: {
@@ -234,7 +234,7 @@ export default function StrengthFrequencySettings({
 					withDays={days != null}
 				/>
 			)}
-			{days ? <StrengthDaysSection state={days} /> : null}
+			{days ? <LiftingDaysSection state={days} /> : null}
 		</div>
 	)
 }
@@ -318,9 +318,9 @@ type DaysState = NonNullable<Route.ComponentProps['loaderData']['days']>
  * The plan's lifting days: _La appen velge_ or the athlete's own, with the
  * coming weeks shown before the write and _Angre_ on the toast after it.
  */
-function StrengthDaysSection({ state }: { state: DaysState }) {
-	const fetcher = useFetcher<typeof action>({ key: 'strength-days' })
-	const undo = useFetcher<typeof action>({ key: 'strength-days-undo' })
+function LiftingDaysSection({ state }: { state: DaysState }) {
+	const fetcher = useFetcher<typeof action>({ key: 'lifting-days' })
+	const undo = useFetcher<typeof action>({ key: 'lifting-days-undo' })
 	const [mode, setMode] = useState<DayChoiceMode>(state.pinned ? 'own' : 'auto')
 	const [chosen, setChosen] = useState<PatternWeekday[]>(state.pinned ?? [])
 	// A write that lands (or an undo) reloads the state: start from it again.
@@ -349,7 +349,7 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 	// At the most days the frequency allows, say why the other chips rest.
 	const full =
 		mode === 'own' &&
-		chosen.length >= MAX_PINNED_STRENGTH_DAYS &&
+		chosen.length >= MAX_PINNED_LIFTING_DAYS &&
 		(state.available ?? []).some((day) => !chosen.includes(day))
 	const busy = fetcher.state !== 'idle'
 
@@ -357,12 +357,9 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 	useUndoneToast(undo.data)
 
 	return (
-		<section
-			aria-labelledby="meg-strength-days"
-			className="flex flex-col gap-6"
-		>
+		<section aria-labelledby="meg-lifting-days" className="flex flex-col gap-6">
 			<div className="flex flex-col gap-2">
-				<h2 id="meg-strength-days" className="text-heading">
+				<h2 id="meg-lifting-days" className="text-heading">
 					{D.heading}
 				</h2>
 				<MegNote>{D.intro}</MegNote>
@@ -371,13 +368,13 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 			<fetcher.Form method="POST" className="flex flex-col gap-6">
 				<input type="hidden" name="mode" value={mode} />
 				<div className="space-y-2">
-					<p className="text-callout" id="meg-strength-days-mode">
+					<p className="text-callout" id="meg-lifting-days-mode">
 						{D.modeLegend}
 					</p>
 					<DayChoiceModeControl
 						value={mode}
 						onValueChange={setMode}
-						labelledBy="meg-strength-days-mode"
+						labelledBy="meg-lifting-days-mode"
 						labels={D}
 					/>
 					{mode === 'auto' ? (
@@ -392,7 +389,7 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 							chosen={chosen}
 							onChange={setChosen}
 							available={state.available}
-							max={MAX_PINNED_STRENGTH_DAYS}
+							max={MAX_PINNED_LIFTING_DAYS}
 						/>
 						{full ? <MegNote>{D.full}</MegNote> : null}
 						<MegNote>
@@ -458,7 +455,7 @@ function useWrittenToast(
 		reply && 'written' in reply && reply.written ? reply.written : null
 	useOncePer(written, (written) => {
 		toast.success(D.saved(written.choice), {
-			id: 'strength-days',
+			id: 'lifting-days',
 			duration: LANDED_MS,
 			action: {
 				label: D.undo,
@@ -491,10 +488,10 @@ function useUndoneToast(reply: ReplyData | undefined) {
 	useOncePer(undone, (undone) => {
 		// The same toast, so its _Angre_ goes: there is nothing left to undo.
 		if (undone.ok)
-			toast.success(D.undone, { id: 'strength-days', action: undefined })
+			toast.success(D.undone, { id: 'lifting-days', action: undefined })
 		else if (undone.error)
 			toast.error(D.refusals[undone.error], {
-				id: 'strength-days',
+				id: 'lifting-days',
 			})
 	})
 }

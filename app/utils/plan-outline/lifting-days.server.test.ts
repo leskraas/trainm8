@@ -11,12 +11,12 @@ import {
 	createPlanOutline,
 	setQualitySessionMix,
 } from './authoring.server.ts'
-import { stampWeekPattern } from './stamp.server.ts'
 import {
-	previewStrengthDays,
-	readStrengthDays,
-	setStrengthDays,
-} from './strength-days.server.ts'
+	previewLiftingDays,
+	readLiftingDays,
+	setLiftingDays,
+} from './lifting-days.server.ts'
+import { stampWeekPattern } from './stamp.server.ts'
 
 // The athlete chooses their lifting days in _Meg → Trening → Styrke_ (#597,
 // ADR 0104 §4). Weekdays are the Week Pattern's: 0 is Monday, 6 Sunday.
@@ -191,7 +191,7 @@ function nextMonday(monday: string) {
 
 test('a plan whose lifting the app lays reads as La appen velge', async () => {
 	const { userId } = await setup()
-	expect(await readStrengthDays(userId, NOW)).toMatchObject({
+	expect(await readLiftingDays(userId, NOW)).toMatchObject({
 		pinned: null,
 		count: 2,
 	})
@@ -199,10 +199,10 @@ test('a plan whose lifting the app lays reads as La appen velge', async () => {
 
 test('choosing Tuesday and Thursday lifts on Tuesday and Thursday in every week, and the run’s intervals are laid away from them', async () => {
 	const { userId, liftTrackId } = await setup()
-	const state = (await readStrengthDays(userId, NOW))!
+	const state = (await readLiftingDays(userId, NOW))!
 
 	// The preview shows it before anything is written.
-	const preview = await previewStrengthDays(userId, [TUE, THU], NOW)
+	const preview = await previewLiftingDays(userId, [TUE, THU], NOW)
 	if (!preview.ok) throw new Error(preview.reason)
 	for (const week of preview.weeks) {
 		expect(week.after.lifting).toEqual([TUE, THU])
@@ -213,7 +213,7 @@ test('choosing Tuesday and Thursday lifts on Tuesday and Thursday in every week,
 		expect.objectContaining({ lifting: [TUE, THU] }),
 	)
 
-	const written = await setStrengthDays(
+	const written = await setLiftingDays(
 		userId,
 		{ choice: [TUE, THU], version: state.version },
 		NOW,
@@ -225,7 +225,7 @@ test('choosing Tuesday and Thursday lifts on Tuesday and Thursday in every week,
 		// day after each.
 		expect(week.hard).toEqual([MON])
 	}
-	expect(await readStrengthDays(userId, NOW)).toMatchObject({
+	expect(await readLiftingDays(userId, NOW)).toMatchObject({
 		pinned: [TUE, THU],
 	})
 	const track = await prisma.trainingTrack.findUniqueOrThrow({
@@ -237,8 +237,8 @@ test('choosing Tuesday and Thursday lifts on Tuesday and Thursday in every week,
 
 test('the Strength Frequency is the number of days chosen', async () => {
 	const { userId } = await setup()
-	const state = (await readStrengthDays(userId, NOW))!
-	await setStrengthDays(userId, { choice: [THU], version: state.version }, NOW)
+	const state = (await readLiftingDays(userId, NOW))!
+	await setLiftingDays(userId, { choice: [THU], version: state.version }, NOW)
 	const profile = await prisma.athleteProfile.findUniqueOrThrow({
 		where: { userId },
 		select: { strengthPerWeek: true },
@@ -271,8 +271,8 @@ test('the strength blocks lift as often as the days chosen, and the undo puts th
 	})
 	if (!added.ok) throw new Error(added.reason)
 	expect(await frequencies()).toHaveLength(1)
-	const state = (await readStrengthDays(userId, NOW))!
-	const written = await setStrengthDays(
+	const state = (await readLiftingDays(userId, NOW))!
+	const written = await setLiftingDays(
 		userId,
 		{ choice: [TUE, THU], version: state.version },
 		NOW,
@@ -282,7 +282,7 @@ test('the strength blocks lift as often as the days chosen, and the undo puts th
 		expect(segment.sessionsPerWeek).toBe(2)
 	}
 
-	const undone = await setStrengthDays(
+	const undone = await setLiftingDays(
 		userId,
 		{
 			choice: written.previous.days,
@@ -340,8 +340,8 @@ test('chosen lifting days hold in every Week Pattern that lifts, and the undo pu
 			})
 		).map((row) => `${row.kind}:${row.weekday}`)
 
-	const state = (await readStrengthDays(userId, NOW))!
-	const written = await setStrengthDays(
+	const state = (await readLiftingDays(userId, NOW))!
+	const written = await setLiftingDays(
 		userId,
 		{ choice: [TUE, THU], version: state.version },
 		NOW,
@@ -349,7 +349,7 @@ test('chosen lifting days hold in every Week Pattern that lifts, and the undo pu
 	if (!written.ok) throw new Error(written.reason)
 	expect(await liftsIn(second.id)).toEqual(['fixed:1', 'fixed:3'])
 
-	const undone = await setStrengthDays(
+	const undone = await setLiftingDays(
 		userId,
 		{
 			choice: written.previous.days,
@@ -430,14 +430,14 @@ test('undoing puts back exactly the rows the write replaced, whatever sessions t
 	})
 	const before = await rows()
 
-	const state = (await readStrengthDays(userId, NOW))!
-	const written = await setStrengthDays(
+	const state = (await readLiftingDays(userId, NOW))!
+	const written = await setLiftingDays(
 		userId,
 		{ choice: [MON], version: state.version },
 		NOW,
 	)
 	if (!written.ok) throw new Error(written.reason)
-	const undone = await setStrengthDays(
+	const undone = await setLiftingDays(
 		userId,
 		{
 			choice: written.previous.days,
@@ -452,16 +452,16 @@ test('undoing puts back exactly the rows the write replaced, whatever sessions t
 
 test('undoing from the toast restores the previous days', async () => {
 	const { userId } = await setup()
-	const state = (await readStrengthDays(userId, NOW))!
+	const state = (await readLiftingDays(userId, NOW))!
 	const before = await calendar(userId)
-	const written = await setStrengthDays(
+	const written = await setLiftingDays(
 		userId,
 		{ choice: [TUE, THU], version: state.version },
 		NOW,
 	)
 	if (!written.ok) throw new Error(written.reason)
 
-	const undone = await setStrengthDays(
+	const undone = await setLiftingDays(
 		userId,
 		{
 			choice: written.previous.days,
@@ -471,7 +471,7 @@ test('undoing from the toast restores the previous days', async () => {
 		NOW,
 	)
 	expect(undone).toMatchObject({ ok: true, choice: null, count: 2 })
-	expect(await readStrengthDays(userId, NOW)).toMatchObject({
+	expect(await readLiftingDays(userId, NOW)).toMatchObject({
 		pinned: null,
 		count: 2,
 		answer: null,
@@ -481,13 +481,13 @@ test('undoing from the toast restores the previous days', async () => {
 
 test('an existing plan’s fixed strength days appear as the chosen days, and La appen velge hands them back', async () => {
 	const { userId, liftTrackId } = await setup({ fixedLiftingDays: [MON, THU] })
-	const state = (await readStrengthDays(userId, NOW))!
+	const state = (await readLiftingDays(userId, NOW))!
 	expect(state).toMatchObject({ pinned: [MON, THU], count: 2 })
 	for (const week of await calendar(userId)) {
 		expect(week.lifting).toEqual([MON, THU])
 	}
 
-	const handed = await setStrengthDays(
+	const handed = await setLiftingDays(
 		userId,
 		{ choice: null, version: state.version },
 		NOW,
@@ -512,12 +512,12 @@ test('an existing plan’s fixed strength days appear as the chosen days, and La
 
 test('a day the athlete does not train on cannot be chosen', async () => {
 	const { userId } = await setup({ trainableWeekdays: [1, 3, 5, 6] })
-	const state = (await readStrengthDays(userId, NOW))!
+	const state = (await readLiftingDays(userId, NOW))!
 	// Training Availability is Sunday-first: Monday, Wednesday, Friday and
 	// Saturday are Monday-first 0, 2, 4 and 5.
 	expect(state.available).toEqual([0, 2, 4, 5])
 	expect(
-		await setStrengthDays(
+		await setLiftingDays(
 			userId,
 			{ choice: [TUE], version: state.version },
 			NOW,
@@ -527,10 +527,10 @@ test('a day the athlete does not train on cannot be chosen', async () => {
 
 test('a choice made against a plan that changed since is refused', async () => {
 	const { userId } = await setup()
-	const state = (await readStrengthDays(userId, NOW))!
-	await setStrengthDays(userId, { choice: [TUE], version: state.version }, NOW)
+	const state = (await readLiftingDays(userId, NOW))!
+	await setLiftingDays(userId, { choice: [TUE], version: state.version }, NOW)
 	expect(
-		await setStrengthDays(
+		await setLiftingDays(
 			userId,
 			{ choice: [THU], version: state.version },
 			NOW,
@@ -540,8 +540,8 @@ test('a choice made against a plan that changed since is refused', async () => {
 
 test('Week Replan is told a missed lift’s track’s chosen days, so a make-up goes on one of them', async () => {
 	const { userId } = await setup()
-	const state = (await readStrengthDays(userId, NOW))!
-	await setStrengthDays(
+	const state = (await readLiftingDays(userId, NOW))!
+	await setLiftingDays(
 		userId,
 		{ choice: [TUE, THU], version: state.version },
 		NOW,
@@ -560,11 +560,11 @@ test('Week Replan is told a missed lift’s track’s chosen days, so a make-up 
 		(session) => session.placement?.kind === 'lifting',
 	)
 	expect(missedLifts.length).toBeGreaterThan(0)
-	for (const lift of missedLifts) expect(lift.ownDays).toEqual([TUE, THU])
+	for (const lift of missedLifts) expect(lift.pinnedDays).toEqual([TUE, THU])
 	// A missed run's track names no days of its own.
 	for (const run of seen!.missedSessions.filter(
 		(s) => s.placement?.kind !== 'lifting',
 	)) {
-		expect(run.ownDays).toBeUndefined()
+		expect(run.pinnedDays).toBeUndefined()
 	}
 })

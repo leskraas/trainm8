@@ -566,9 +566,9 @@ test('Week Replan is told a missed ride’s track’s chosen days', async () => 
 		},
 	)
 	const missed = seen!.missedSessions
-	const rides = missed.filter((session) => session.ownDays != null)
+	const rides = missed.filter((session) => session.pinnedDays != null)
 	expect(rides.length).toBeGreaterThan(0)
-	for (const ride of rides) expect(ride.ownDays).toEqual([WED, SUN])
+	for (const ride of rides) expect(ride.pinnedDays).toEqual([WED, SUN])
 })
 
 test('taking a day out of Training Availability drops it from the tracks that pinned it, and says so', async () => {

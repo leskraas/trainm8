@@ -305,7 +305,7 @@ test("a make-up goes on its track's own day when one fits", () => {
 					plannedTss: 60,
 					placement: { kind: 'session', effort: 'rolig' },
 					// Pinned on Saturday and Sunday (Monday first).
-					ownDays: [5, 6],
+					pinnedDays: [5, 6],
 				},
 			],
 		}),
@@ -327,7 +327,7 @@ test("a make-up stays on its track's free own day even when that day clashes, sa
 					plannedTss: 90,
 					placement: { kind: 'session', effort: 'hard' },
 					// Pinned on Wednesday only, the day before Thursday's intervals.
-					ownDays: [2],
+					pinnedDays: [2],
 				},
 			],
 		}),

@@ -1,5 +1,5 @@
 // Every Training Track's **Pinned days** on the athlete's active plan, across
-// the strength days (`strength-days.server.ts`) and every other track's
+// the lifting days (`lifting-days.server.ts`) and every other track's
 // (`track-days.server.ts`), ADR 0104 §4:
 //
 // - by Discipline, what Week Replan prefers for a track's make-up when one of
@@ -14,13 +14,13 @@ import {
 	readPlannedDiscipline,
 } from '../planned-discipline.ts'
 import { findActiveOutline } from '../training.server.ts'
+import { readLiftingDays, setLiftingDays } from './lifting-days.server.ts'
 import { relayPlanFromFirstUnbegunWeek } from './open-ended.server.ts'
 import {
 	parsePinnedDays,
 	pinnedDaysWithin,
 	strengthPinnedDays,
 } from './pinned-days.ts'
-import { readStrengthDays, setStrengthDays } from './strength-days.server.ts'
 import { readTrackDays, setTrackDays } from './track-days.server.ts'
 import { type PatternWeekday } from './week-pattern.ts'
 
@@ -101,11 +101,11 @@ export async function dropUnavailablePinnedDays(
 	const available = availablePatternDays(profile?.trainableWeekdays)
 	if (!available) return dropped
 
-	const strength = await readStrengthDays(userId, now)
+	const strength = await readLiftingDays(userId, now)
 	if (strength?.pinned) {
 		const { kept, lost } = pinnedDaysWithin(strength.pinned, available)
 		if (lost.length > 0) {
-			const written = await setStrengthDays(
+			const written = await setLiftingDays(
 				userId,
 				{ choice: kept, version: strength.version },
 				now,

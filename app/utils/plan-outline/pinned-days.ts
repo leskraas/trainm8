@@ -64,7 +64,7 @@ export function undoPayloadOf<Schema extends z.ZodTypeAny>(
  * the athlete can answer (ADR 0103), since the number of Pinned days *is* the
  * frequency.
  */
-export const MAX_PINNED_STRENGTH_DAYS = Math.max(...STRENGTH_PER_WEEK_CHOICES)
+export const MAX_PINNED_LIFTING_DAYS = Math.max(...STRENGTH_PER_WEEK_CHOICES)
 
 /**
  * A stored `pinnedDays` column as weekdays, Monday first, each once — or
@@ -128,7 +128,7 @@ export type PinnedDaysRefusal = 'no-days' | 'outside-availability' | 'too-many'
 export function pinnedDaysRefusal(
 	days: readonly PatternWeekday[],
 	available: readonly PatternWeekday[] | null,
-	max: number = MAX_PINNED_STRENGTH_DAYS,
+	max: number = MAX_PINNED_LIFTING_DAYS,
 ): PinnedDaysRefusal | null {
 	if (days.length === 0) return 'no-days'
 	if (available && days.some((day) => !available.includes(day))) {
