@@ -273,6 +273,28 @@ Set group, segment
 **Step**: A single ordered instruction within a block, optionally including a
 discipline, intensity, and quantity. _Avoid_: Interval, action
 
+**Workout Reading**: The one derived account of what a session is: its
+**Executed Steps** in order, its totals, its zone, its effort and its headline
+target. It is read from a planned Workout or a recording's intervals, with
+the athlete's thresholds, every time it is needed, and it is never stored. Every
+number in it is a value with its provenance or an **Unavailable Metric** with
+a reason, and it never takes a zone from the session's intent. A total that
+misses a step is an honest lower bound (_≥ 34 min_), not a guess. _Avoid_:
+Profile, summary, parsed workout
+
+**Executed Step**: One step as it happens, in order, inside a **Workout
+Reading**: a Step on one rep of one series, or a rest the Block implies without
+writing it down (the rest between series, the rest left over in a
+**Send-Off**). It is what the drawing draws and what planned vs done is mapped
+on, identified by its Step, its rep and its slot. _Avoid_: Bar, expanded step,
+segment
+
+**Step Role**: What an **Executed Step** is for in its session: _warm-up_,
+_work_, _recovery_, _cool-down_ or _steady_. It is read from the block's name
+when that name says so, otherwise from position, rest steps and the main set,
+and it carries which of the two it came from. Nothing stores it. _Avoid_: Phase,
+step type, block type
+
 **Discipline**: The sport modality for a workout or step (run, bike, swim,
 strength), with a fifth value `other` for what the app does not model (hike,
 yoga, climbing, e-bike, alpine ski, etc.). A planned session may use `other`
