@@ -79,9 +79,18 @@ test('synthesised laps tile the whole stream', () => {
 	expect(autoLaps(stream)).toHaveLength(6)
 })
 
-test('edges pair one-to-one, closest first, within the tolerance', () => {
+test('edges pair one-to-one within the tolerance, most pairs first', () => {
 	expect(matchEdges([100, 200], [102, 104, 260], 10)).toEqual([2])
 	expect(matchEdges([100, 110], [105], 10)).toEqual([5])
+	// 45/15 reps drawn 9 s late: closest-first would pair 660↔654 and strand two.
+	const truth = [600, 645, 660, 705, 720, 765]
+	expect(
+		matchEdges(
+			truth,
+			truth.map((t) => t + 9),
+			10,
+		),
+	).toEqual([9, 9, 9, 9, 9, 9])
 })
 
 const label: StructuredLabel = {

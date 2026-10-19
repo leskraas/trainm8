@@ -119,30 +119,58 @@ export function labelEdges(label: StructuredLabel): number[] {
 }
 
 /**
- * Pair true and predicted edges one-to-one, closest first, within `tolSec`.
- * Returns the error of each matched pair.
+ * Pair true and predicted edges one-to-one within `tolSec`: as many pairs as
+ * possible, then the least total error. Closest-first pairing undercounts on
+ * short recoveries (an edge 6 s off steals its neighbour's 9 s match). On a
+ * line an optimal matching never crosses, so a DP over both sorted lists finds
+ * it. Returns the error of each matched pair.
  */
 export function matchEdges(
 	truth: number[],
 	predicted: number[],
 	tolSec: number,
 ): number[] {
-	const pairs: Array<[number, number, number]> = []
-	truth.forEach((a, i) =>
-		predicted.forEach((b, j) => {
-			const d = Math.abs(a - b)
-			if (d <= tolSec) pairs.push([d, i, j])
-		}),
+	const t = [...truth].sort((a, b) => a - b)
+	const p = [...predicted].sort((a, b) => a - b)
+	// best[i][j]: the best matching of t[i..] with p[j..], as [pairs, error].
+	const best: Array<Array<[number, number]>> = Array.from(
+		{ length: t.length + 1 },
+		() => Array.from({ length: p.length + 1 }, () => [0, 0]),
 	)
-	pairs.sort((x, y) => x[0] - y[0])
-	const usedT = new Set<number>()
-	const usedP = new Set<number>()
+	const better = (a: [number, number], b: [number, number]) =>
+		a[0] > b[0] || (a[0] === b[0] && a[1] < b[1])
+	for (let i = t.length - 1; i >= 0; i--) {
+		for (let j = p.length - 1; j >= 0; j--) {
+			let pick = better(best[i + 1]![j]!, best[i]![j + 1]!)
+				? best[i + 1]![j]!
+				: best[i]![j + 1]!
+			const d = Math.abs(t[i]! - p[j]!)
+			if (d <= tolSec) {
+				const [n, e] = best[i + 1]![j + 1]!
+				const matched: [number, number] = [n + 1, e + d]
+				if (better(matched, pick)) pick = matched
+			}
+			best[i]![j] = pick
+		}
+	}
 	const errors: number[] = []
-	for (const [d, i, j] of pairs) {
-		if (usedT.has(i) || usedP.has(j)) continue
-		usedT.add(i)
-		usedP.add(j)
-		errors.push(d)
+	let i = 0
+	let j = 0
+	while (i < t.length && j < p.length) {
+		const d = Math.abs(t[i]! - p[j]!)
+		const [n, e] = best[i + 1]![j + 1]!
+		if (d <= tolSec && best[i]![j]![0] === n + 1 && best[i]![j]![1] === e + d) {
+			errors.push(d)
+			i++
+			j++
+		} else if (
+			best[i]![j]![0] === best[i + 1]![j]![0] &&
+			best[i]![j]![1] === best[i + 1]![j]![1]
+		) {
+			i++
+		} else {
+			j++
+		}
 	}
 	return errors
 }
