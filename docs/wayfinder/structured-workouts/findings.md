@@ -166,3 +166,99 @@ after the last change have no target bands on the row or telemetry overlay.
 8. Out of scope: export to the watch, physically merging the four kind fields,
    strength execution.
 9. Today's bugs become separate `ready-for-agent` issues.
+
+## 8. Structure detection — measured, not guessed
+
+The engine was run (`npx tsx`) on all 50 real Kody runs in
+`prisma/seed-data/kody-strava-history.json` (Garmin FR965, power + HR + pace at
+5–6 s). Nine runs carry their structure in the athlete's title
+("i3 10x3 min, p:60", "i3 5x6min", seven N×45/15) and serve as labels. Scripts
+lived in the charting session's scratchpad (`run-kody.ts`, `run-laps.ts`; title
+parser and threshold sweep included) and should be rebuilt in-repo as the
+evaluation harness.
+
+| Profile | Runs with structure | Labelled right |
+|---|---|---|
+| Seed (threshold pace 240 s/km, Daniels) | 1/50 | 0/9 |
+| Threshold pace 285 | 25/50 | 10x3 → 6×185 s; 5x6 → 5×392 s; 45/15 0/7 |
+| Running power CP 360 W | 38/50 | 10x3 → 9×191/49 s (truth 10×180/60); 45/15 0/7 |
+| HR only | 41/50 | 45/15 0/7 |
+
+Diagnosis, by impact:
+
+1. **The verdict hangs on the threshold** — `mine.ts:186-188` needs work ≥1
+   zone above easy, zones from the threshold (`classify.ts:93-112`). A 45 s
+   threshold change moves 1/50 → 25/50. It gates neither recall nor honesty.
+2. **Degenerate two-means** (`mine.ts:77-108`): stops/walks become "easy", so
+   all running is "hard"; `mineSustained` (`:377-410`) has no
+   work-harder-than-flanks check → 9/27 "sustained" with work <5 % above
+   warm-up; flank intensity from first/last segment only (`:140,:155`).
+3. **Short reps unresolvable** (`segments.ts:253-260`, `constants.ts:28-32`):
+   5-sample median + `8·log n·channels` penalty make a 15 s recovery cost two
+   cuts it can't pay for; 20×45/15 became **one 2140 s segment** though the
+   pattern is plain in power and pace. Pace averaged in s/km, not speed.
+4. **Greedy ±12 % clustering** (`mine.ts:250-262`) splits hilly reps; one
+   cluster kept (`:371`); a slow rep becomes "recovery" (`:285-288`).
+5. **Rep 1 merges into the warm-up ramp** (constant cost on a ramp).
+6. **Lossy output** — reps averaged (`:344-361`), recovery = first only
+   (`:336-342`), +10 s boundary bias, no ramps/pyramids, single-number targets.
+7. **Laps all-or-nothing and untyped** (`segments.ts:202-219`): 1 km auto-laps
+   erase 45/15 reps; FIT step index/intensity, intervals.icu WORK/RECOVERY
+   (`intervalsicu/ingest.server.ts:350-353`) discarded.
+8. **Plumbing** — Strava create/sync never enqueue; TCX lap shape fails parse;
+   backfill one-shot per engine version.
+9. **The plan is never used** — ADR 0034 §1 forbids the plan as a prior.
+
+Device laps exist where structure lives: in `intervals-real-history.json` all
+16 structured-named Garmin sessions carry laps (8–62) and intervals.icu's
+`interval_summary` matches the title ("10x 3m 164bpm") — free labels.
+
+Outside state of the art (web sweep): intervals.icu labels intervals from
+`lap.wkt_step_index` since 2022 and ignores a lone lap; its plan-guided mode
+(Dec 2024) and TrainingPeaks' overlay are a **single manual time offset**.
+Better and cheap here: automatic offset by cross-correlating the plan's target
+step function, then **segmental DP** over candidate boundaries (PELT ∪ laps ∪
+pauses), cost = target residual + log-duration ratio, skip/insert-rest
+transitions — O(K·|B|²). HR never sets edges (τ ≈ 30–60 s); swim from FIT
+`length` messages, not the stream. Evaluate with boundary-F1 within a margin,
+rep-count exact match, per-step assignment accuracy; ground truth for free by
+stripping step laps from executed Garmin workouts.
+
+Ranked improvements: (1) plumbing; (2) rich typed laps — trust workout-step
+laps, ignore auto-laps; (3) contrast + periodicity gate, zones only label;
+(4) plan-guided alignment as a stored mapping beside plan-blind detection
+(amends ADR 0034 §1); (5) emit every rep, several sets, ramps; (6) short reps
+via a 1–2 s analysis channel and speed-domain pace; (7) boundary-bias
+correction; (8) swim from lengths. Every engine bump attaches the eval table.
+
+## 9. The workout visual — one workout, many drawings
+
+The session page alone draws one workout three ways (`ShapeStrip` at
+`sessions.$sessionId.tsx:1364`, `ProfileBars` planned shape and recording bars
+in the telemetry card). Two shape components, five zone readers, two zone-label
+vocabularies, three effort encodings, five repeat notations.
+
+| Concept | Divergence | Severity |
+|---|---|---|
+| Zone of a step | recipe-aware (`zoneEquivalent`) on the strip vs threshold-free elsewhere: a pace interval is Z4 on the strip, grey in the drawer, wordless on I dag | Block |
+| Done intensity | HR % LTHR bucketed on Coggan **power** cut-points (`recording-profile.ts:56`) | Block |
+| Distance steps | 0 width in `ProfileBars` (`profile-bars.tsx:88`), no telemetry band, missing from I dag minutes | Block |
+| No structure / unresolved | hatched vs intent fallback + fake bar vs dashed chip vs omitted | High |
+| Repeats | `4×`, `× 4`, `4 × 6 min`, `6x1000`, unmarked | High |
+| Height scale | % ladder vs h-1…h-3.5 vs h-2…h-6 | High |
+| Zone words | `rolig` = Z2 (notation) vs Z1–2 (effort word); `hardt` vs `hard` | High |
+| Zone tokens | hex in `:root` only, no dark values (`tailwind.css:183`) | Medium |
+| Units | `4:40–4:50 /km` vs `4:40–4:50/km` vs `4:30-4:40/km`; ad hoc `nbSpeed`, `W`, `bpm` (breaks ADR 0023) | Medium |
+| Rest ink | `restParts` matches `rest`, ADR 0089 says `pause` (`score-stanza.tsx:303`) | Low (bug) |
+
+Prototype canvas (throwaway): https://claude.ai/artifact/WcA6gTr8eQwsckvRKkMazB
+— today's three drawings; **A · Profil** (one shape, width = time,
+height + hue = zone, sizes full 56 / row 24 / mini 12 px, `6 ×` bracket in
+full only, dashed top when width is paced, hatched when unresolvable);
+**B · Bånd** (flat ribbon, hue only); **C · Setning og form** (a line per block
+with a micro shape); planned vs done (plan as ghost fill, done solid on one
+time axis, per-rep numbers, no verdict; a below-gate recording as one
+role-less interval); and seven worst cases (39-rep series, swim on CSS, no
+thresholds, autopilot day, 41 bars on a phone, Simple Activity, strength).
+Proposed zone scale in OKLCH with lightness steps so neighbours differ beyond
+hue, light and dark.
