@@ -2628,6 +2628,48 @@ export async function createStarterWeekPattern(
 	)
 }
 
+/**
+ * The segments off the mix carrier whose **Quality Session Mix** is the one
+ * the plan laid, not one the athlete authored (ADR 0104 §5). Laying a plan
+ * writes a block's mix on every endurance track alike
+ * (`layEnduranceSegments`), so a segment whose mix equals the carrier's on the
+ * same block is laid; one that differs — or where the carrier has none — was
+ * the athlete's hand, and is kept.
+ */
+function laidMixSegments(
+	entries: ReadonlyArray<{
+		zone: number
+		sessionsPerWeek: number
+		segment: { id: string; trackId: string; phaseId: string | null }
+	}>,
+	carrierTrackId: string,
+): string[] {
+	const mixes = new Map<
+		string,
+		{ trackId: string; phaseId: string | null; mix: string[] }
+	>()
+	for (const entry of entries) {
+		const { id, trackId, phaseId } = entry.segment
+		const seen = mixes.get(id) ?? { trackId, phaseId, mix: [] }
+		seen.mix.push(`${entry.zone}:${entry.sessionsPerWeek}`)
+		mixes.set(id, seen)
+	}
+	const keyOf = (mix: string[]) => [...mix].sort().join(',')
+	const carrierByPhase = new Map<string, string>()
+	for (const segment of mixes.values()) {
+		if (segment.trackId === carrierTrackId && segment.phaseId) {
+			carrierByPhase.set(segment.phaseId, keyOf(segment.mix))
+		}
+	}
+	return [...mixes.entries()].flatMap(([id, segment]) =>
+		segment.trackId !== carrierTrackId &&
+		segment.phaseId != null &&
+		carrierByPhase.get(segment.phaseId) === keyOf(segment.mix)
+			? [id]
+			: [],
+	)
+}
+
 type StarterPatternOptions = {
 	/**
 	 * The days the athlete just said they can train (the first run's third
@@ -2730,8 +2772,9 @@ export async function createStarterWeekPatternInTx(
 	const mixEntries = await tx.qualitySessionMixEntry.findMany({
 		where: { segment: { track: { outlineId: outline.id } } },
 		select: {
+			zone: true,
 			sessionsPerWeek: true,
-			segment: { select: { id: true, trackId: true } },
+			segment: { select: { id: true, trackId: true, phaseId: true } },
 		},
 	})
 	const perSegment = new Map<string, { trackId: string; count: number }>()
@@ -2801,15 +2844,17 @@ export async function createStarterWeekPatternInTx(
 	}
 
 	// The hard sessions belong to the track that carries the mix (ADR 0104
-	// §5): a second endurance track keeps its days and climb, all easy.
+	// §5): a second endurance track keeps its days and climb, all easy. Only
+	// the mix the plan laid goes — the one laid on every endurance track
+	// alike, so the same as the carrier's on that block. A mix that differs
+	// is the athlete's own, authored before this week was built, and stays.
 	if (proposed.mixTrackId) {
-		await tx.qualitySessionMixEntry.deleteMany({
-			where: {
-				segment: {
-					track: { outlineId: outline.id, id: { not: proposed.mixTrackId } },
-				},
-			},
-		})
+		const laid = laidMixSegments(mixEntries, proposed.mixTrackId)
+		if (laid.length > 0) {
+			await tx.qualitySessionMixEntry.deleteMany({
+				where: { segmentId: { in: laid } },
+			})
+		}
 	}
 
 	const pattern = await tx.weekPattern.create({

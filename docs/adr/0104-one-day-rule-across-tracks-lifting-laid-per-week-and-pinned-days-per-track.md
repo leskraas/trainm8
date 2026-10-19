@@ -145,11 +145,20 @@ on its own day.
 The hard sessions belong to the track that carries the mix. Where more than one
 endurance track carries one, as a Sesong run and bike plan laid from a family
 does, the starter pattern keeps the mix on the track asking the most hard
-sessions (then the largest share, then the first) and strips it from the others,
-which keep their days and climb and train easy. The first run already lays a
-second sport without a mix (#558); this makes the Sesong starter agree. The
-stamp's spreading (§2) remains for mixes the athlete authors on a second track
-afterwards.
+sessions (then the largest share, then the first) and strips the laid mix from
+the others, which keep their days and climb and train easy. The first run
+already lays a second sport without a mix (#558); this makes the Sesong starter
+agree.
+
+It strips only the mix the plan laid, never one the athlete authored. Nothing
+stores who wrote a mix, so the starter reads it off the mix itself: laying a
+plan writes each block's mix on every endurance track alike, so a second track's
+block whose mix equals the carrier's on the same block is the laid one and goes.
+A block whose mix differs, or where the carrier has none, is the athlete's own,
+authored before the starter week was built, and stays. An athlete who authors
+exactly the carrier's mix on a second track cannot be told from the laid one;
+that is the one case the guard strips. The stamp's spreading (§2) places the
+athlete's own mixes on a second track, kept here or authored afterwards.
 
 ### 6. The fit check reads days, and warns only
 

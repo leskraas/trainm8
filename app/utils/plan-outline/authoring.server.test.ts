@@ -4608,6 +4608,81 @@ describe('a Week Pattern to start from (#362 follow-up)', () => {
 		expect(await mixOf('bike')).toBe(0)
 	})
 
+	test('a mix the athlete authored on the second track survives the starter week; the laid one goes', async () => {
+		const athleteId = await createAthlete()
+		await prisma.athleteProfile.create({
+			data: {
+				userId: athleteId,
+				timezone: 'Europe/Oslo',
+				trainableWeekdays: JSON.stringify([0, 1, 2, 3, 4, 5, 6]),
+			},
+		})
+		const eventId = await createRace(athleteId)
+		const input = planInput(eventId)
+		const created = await createPlanOutline(
+			athleteId,
+			{
+				...input,
+				tracks: [
+					{ discipline: 'bike', currency: 'km', anchorValue: 30 },
+					...input.tracks,
+				],
+			},
+			NOW,
+			{
+				// The family's mix on the first two blocks, on both tracks.
+				familyRates: [0, 1].map(() => ({
+					ramp: null,
+					boundaryStep: null,
+					mix: [{ zone: 4 as const, sessionsPerWeek: 2 }],
+				})),
+			},
+		)
+		if (!created.ok) throw new Error(`plan setup failed: ${created.reason}`)
+		// The athlete makes the ride's first block their own before asking
+		// for a starter week: one VO2 session, not the family's two at Z4.
+		const [bikeSegment] = await prisma.trainingTrackSegment.findMany({
+			where: {
+				kind: 'endurance',
+				track: { outlineId: created.outlineId, discipline: 'bike' },
+			},
+			orderBy: { phase: { orderIndex: 'asc' } },
+			select: { id: true },
+		})
+		await setQualitySessionMix(athleteId, {
+			segmentId: bikeSegment!.id,
+			entries: [{ zone: 5, sessionsPerWeek: 1 }],
+		})
+		const mixOf = (segment: {
+			id?: { not: string }
+			track: { outlineId: string; discipline: string }
+		}) =>
+			prisma.qualitySessionMixEntry.findMany({
+				where: { segment },
+				select: { zone: true, sessionsPerWeek: true },
+			})
+		const bike = { outlineId: created.outlineId, discipline: 'bike' }
+
+		await createStarterWeekPattern(athleteId, { outlineId: created.outlineId })
+
+		// The athlete's own mix stands; the ride's blocks still on the family's
+		// mix lose it, as the run carries the hard sessions.
+		expect(
+			await prisma.qualitySessionMixEntry.findMany({
+				where: { segmentId: bikeSegment!.id },
+				select: { zone: true, sessionsPerWeek: true },
+			}),
+		).toEqual([{ zone: 5, sessionsPerWeek: 1 }])
+		expect(await mixOf({ id: { not: bikeSegment!.id }, track: bike })).toEqual(
+			[],
+		)
+		expect(
+			await mixOf({
+				track: { outlineId: created.outlineId, discipline: 'run' },
+			}),
+		).toHaveLength(2)
+	})
+
 	test('a strength track gets lifting slots on no weekday, on the session it lifts, not the first days of the week', async () => {
 		const { athleteId, outlineId } = await planWithAvailability([2, 4, 0])
 		const added = await addTrack(athleteId, {

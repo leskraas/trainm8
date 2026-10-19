@@ -102,7 +102,8 @@ export type StarterProposal = {
 	/**
 	 * The endurance track that carries the family's **Quality Session Mix**,
 	 * or `null` where none does (ADR 0104 §5). The hard sessions belong to
-	 * it: every other endurance track's mix is stripped, so it trains easy.
+	 * it: every other endurance track's laid mix is stripped, so it trains
+	 * easy; a mix the athlete authored there stays.
 	 */
 	mixTrackId: string | null
 	/** The days the week was built from, Monday first. */
