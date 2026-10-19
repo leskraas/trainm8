@@ -673,6 +673,29 @@ test('the make-up steps around the coming week’s hard day, the athlete’s own
 	expect((await readSession(own.id)).scheduledAt).toEqual(at(THURSDAY))
 })
 
+test('a skipped hard session in the coming week makes no day hard: the make-up takes the free day beside it', async () => {
+	const user = await createBiker()
+	const keyMissed = await createSession(user.id, {
+		title: 'Terskel',
+		durationSec: 4800,
+		scheduledAt: at(addDays(CLOSED_MONDAY, 1)),
+	})
+	// Thursday's tempo ride is skipped: it will not be trained, so Friday,
+	// the first free day, is no second hard day in a row.
+	await createSession(user.id, {
+		status: 'skipped',
+		scheduledAt: at(THURSDAY),
+	})
+
+	await applyWeekReplanForUser(user.id, NOW)
+
+	const move = await proposalFor(user.id, keyMissed.id)
+	expect(move.payload).toMatchObject({ kind: 'move', toDate: FRIDAY })
+	expect(move.reason).toContain(
+		'Vil du ta den igjen fredag? Den dagen er ledig.',
+	)
+})
+
 test('after an overloaded week a missed session is let go, never made up', async () => {
 	const user = await createBiker({ tsb: -12 })
 	await createDoneSession(user.id)

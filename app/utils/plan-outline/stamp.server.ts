@@ -69,7 +69,11 @@ import { phaseIndexForWeek, totalWeeks, type VolumeCurrency } from './derive.ts'
 import { phaseSpecs, resolvedTracks } from './from-rows.ts'
 import { parsePinnedDays } from './pinned-days.ts'
 import { type QualityZone } from './quality-mix.ts'
-import { placedOn, readPlacement } from './session-placement.ts'
+import {
+	placedOn,
+	readPlacement,
+	TRAINED_SESSION_STATUSES,
+} from './session-placement.ts'
 import { sessionZone, sessionZoneSelect } from './session-zone.ts'
 import {
 	mixDisagreements,
@@ -538,7 +542,7 @@ async function readHeldSessions(
 		where: {
 			userId,
 			scheduledAt: { gte: start, lte: end },
-			status: { in: ['scheduled', 'completed'] },
+			status: { in: [...TRAINED_SESSION_STATUSES] },
 			OR: [
 				{ source: 'authored' },
 				{ planOutlineId: null },

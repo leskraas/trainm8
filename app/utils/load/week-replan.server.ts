@@ -40,7 +40,10 @@ import {
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { readPinnedDaysByDiscipline } from '#app/utils/plan-outline/pinned-days.server.ts'
-import { readPlacement } from '#app/utils/plan-outline/session-placement.ts'
+import {
+	isTrainedStatus,
+	readPlacement,
+} from '#app/utils/plan-outline/session-placement.ts'
 import { type PatternWeekday } from '#app/utils/plan-outline/week-pattern.ts'
 import {
 	MACHINE_OWNED_SESSION,
@@ -227,7 +230,8 @@ export async function getClosedWeekAdherence(
  * may do, and a proposal on one says it is theirs (ADR 0080 step 3).
  *
  * A free day is a day of the week still ahead of today with no session on it
- * at all. The week is every session in it as the day rule reads it (#596),
+ * at all. The week is every session in it that will be trained (scheduled or
+ * completed) as the day rule reads it (#596),
  * whoever owns it: a move is placed around the athlete's own sessions too.
  */
 async function getComingWeek(
@@ -277,11 +281,15 @@ async function getComingWeek(
 	const freeDays = Array.from({ length: 7 }, (_, i) =>
 		addDays(targetMonday, i),
 	).filter((day) => day > today && !taken.has(day))
-	const week = sessions.map((session) => ({
-		id: session.id,
-		date: localDate(session.scheduledAt, timezone),
-		placement: readPlacement(session.workout),
-	}))
+	// Only sessions that will be trained make a day hard or lifting — the
+	// filter _Bytt dag_ reads with. A skipped one still holds its day.
+	const week = sessions
+		.filter((session) => isTrainedStatus(session.status))
+		.map((session) => ({
+			id: session.id,
+			date: localDate(session.scheduledAt, timezone),
+			placement: readPlacement(session.workout),
+		}))
 	return { adjustable, freeDays, week }
 }
 

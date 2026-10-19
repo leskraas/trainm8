@@ -19,6 +19,19 @@ import { type PatternWeekday } from './week-pattern.ts'
 export type { PlacedSessionShape }
 
 /**
+ * The statuses of a session that will be (or was) trained — the only ones the
+ * day rule places around. Skipped and missed sessions were not trained, so
+ * they make no day hard: _Bytt dag_, the stamp and Week Replan all read the
+ * calendar through this filter.
+ */
+export const TRAINED_SESSION_STATUSES = ['scheduled', 'completed'] as const
+
+/** Whether a stored session's status is one the day rule places around. */
+export function isTrainedStatus(status: string): boolean {
+	return (TRAINED_SESSION_STATUSES as readonly string[]).includes(status)
+}
+
+/**
  * What a stored session is to the day rule: a lift for a strength session,
  * else a session by its Effort Word (none read is _rolig_), long when it is a
  * long session — a _Langtur_ the stamp laid, or a Workout whose Session

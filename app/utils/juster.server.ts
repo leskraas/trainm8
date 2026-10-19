@@ -65,7 +65,11 @@ import { JUSTER_LABELS, nbDurationLabel } from './labels.ts'
 import { buildEasedPrescription } from './load/eased-prescription.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import { type PlacedSession } from './plan-outline/day-rule.ts'
-import { placedOn, readPlacement } from './plan-outline/session-placement.ts'
+import {
+	placedOn,
+	readPlacement,
+	TRAINED_SESSION_STATUSES,
+} from './plan-outline/session-placement.ts'
 import { type PatternWeekday } from './plan-outline/week-pattern.ts'
 import { stampedSessionTitle } from './session-title.ts'
 import {
@@ -596,7 +600,7 @@ async function readMoveFit(
 	const rows = await prisma.workoutSession.findMany({
 		where: {
 			userId,
-			status: { in: ['scheduled', 'completed'] },
+			status: { in: [...TRAINED_SESSION_STATUSES] },
 			scheduledAt: {
 				gte: dayBoundsUTC(todayKey, timezone).start,
 				lte: dayBoundsUTC(sundayKey, timezone).end,
