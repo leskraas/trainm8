@@ -417,17 +417,23 @@ test('opens parked on today before the first paint: no hero, no jump, and the li
 	expect(parsedAt).not.toBeNull()
 	expect(parsedAt).toBeGreaterThan(0)
 	expect(Math.abs(parsedAt! - state.scrollTop)).toBeLessThanOrEqual(2)
-	// Today lands *below* its week's sticky header, never under it.
-	const clear = await page.getByTestId('timeline-stream').evaluate((el) => {
-		const today = el.querySelector('[data-timeline-today]')!
-		const header = today
-			.closest('[data-timeline-week]')!
-			.querySelector('[data-week-header]')!
-		return (
-			today.getBoundingClientRect().top - header.getBoundingClientRect().bottom
-		)
-	})
-	expect(clear).toBeGreaterThanOrEqual(8)
+	// Today lands *below* its week's sticky header, never under it — right
+	// against it when today opens the week (a Monday), and with room to spare
+	// on any later day.
+	const { clear, first } = await page
+		.getByTestId('timeline-stream')
+		.evaluate((el) => {
+			const today = el.querySelector('[data-timeline-today]')!
+			const week = today.closest('[data-timeline-week]')!
+			const header = week.querySelector('[data-week-header]')!
+			return {
+				clear:
+					today.getBoundingClientRect().top -
+					header.getBoundingClientRect().bottom,
+				first: week.querySelector('[data-timeline-day]') === today,
+			}
+		})
+	expect(clear).toBeGreaterThanOrEqual(first ? 0 : 8)
 	// The page itself does not scroll — the frame is the viewport.
 	expect(
 		await page.evaluate(
