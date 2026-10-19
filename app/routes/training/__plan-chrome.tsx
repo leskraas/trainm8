@@ -255,7 +255,9 @@ export function CollapsibleSection({
 				)}
 			>
 				<span className="min-w-0 flex-1">
-					<span className="text-callout block">{summary}</span>
+					<span className="text-callout block [overflow-wrap:anywhere]">
+						{summary}
+					</span>
 					{detail ? (
 						<span className="text-footnote text-muted-foreground block">
 							{detail}

@@ -406,7 +406,8 @@ function PatternCard({
 						{SESONG_PATTERN_LABELS.liftingSlots(pattern.liftingSlots)}{' '}
 						<Link
 							to="/settings/training/styrke"
-							className="text-foreground underline underline-offset-4"
+							// Presses and reaches 44px like the Autopilot Notice's link.
+							className="text-foreground pressable relative inline-block underline underline-offset-4 after:absolute after:inset-x-0 after:-inset-y-2.5"
 						>
 							{SESONG_PATTERN_LABELS.liftingSlotsLink}
 						</Link>

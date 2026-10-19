@@ -17,7 +17,9 @@ import {
 	IMPORT_LINK_REFUSALS,
 	MARK_DONE_REFUSALS,
 } from './import-link-schema.ts'
-import { nbPlannedDisciplineLabel,
+import {
+	nbPlannedDisciplineLabel,
+	PLAN_TRACK_DAYS_LABELS,
 	SESONG_NOTICE_LABELS,
 	APP_TAB_LABELS,
 	CONVERSION_CONVENTION_LABELS,
@@ -81,7 +83,8 @@ import { nbPlannedDisciplineLabel,
 	horizonFillLabel,
 	HELD_NUMBER_LABELS,
 	seasonEditSentence,
-	weekRiseSentence } from './labels.ts'
+	weekRiseSentence,
+} from './labels.ts'
 import { LOAD_RECOMPUTE_KINDS } from './load/recompute-notice.ts'
 import { INSUFFICIENT_DATA_WHYS, NO_CHANGE_WHYS } from './load/week-replan.ts'
 import { CLASH_REASONS } from './plan-outline/day-rule.ts'
@@ -723,4 +726,26 @@ test('every planned discipline has a Norwegian name, and none shows its stored i
 		expect(name.length).toBeGreaterThan(0)
 	}
 	expect(nbPlannedDisciplineLabel('other')).toBe('Enkel aktivitet')
+})
+
+test('a sport is said lower-case inside a sentence, a Simple Activity as the athlete wrote it', () => {
+	const L = PLAN_TRACK_DAYS_LABELS
+	const bike = { text: 'Sykling', activity: false }
+	const hiit = { text: 'HIIT', activity: true }
+	expect(L.chipsLegend(bike)).toBe('Dagene for sykling')
+	expect(L.chipsLegend(hiit)).toBe('Dagene for HIIT')
+	expect(L.unitDays(hiit, [])).toBe('Ingen HIIT')
+	expect(L.unitDays(hiit, [2])).toBe('HIIT onsdag')
+	expect(L.saved(bike, null)).toBe('Appen velger dagene for sykling igjen.')
+	expect(L.undone(hiit)).toBe('Dagene for HIIT er som før.')
+})
+
+test('a chosen day that is no longer a training day is named', () => {
+	const L = PLAN_TRACK_DAYS_LABELS
+	expect(L.notAvailable([6])).toBe(
+		'Søndag er ikke en treningsdag lenger. Ta den bort, eller legg den til i profilen din.',
+	)
+	expect(L.notAvailable([5, 6])).toBe(
+		'Lørdag og søndag er ikke treningsdager lenger. Ta dem bort, eller legg dem til i profilen din.',
+	)
 })

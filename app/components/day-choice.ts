@@ -5,9 +5,6 @@
 
 import { useEffect, useRef } from 'react'
 
-/** How long the toast and its _Angre_ stand (ADR 0088's `LANDED_MS`). */
-export const LANDED_MS = 10_000
-
 /** `'auto'` or the chosen days, Monday first, as one comparable key. */
 export function dayChoiceKey(
 	mode: 'auto' | 'own',

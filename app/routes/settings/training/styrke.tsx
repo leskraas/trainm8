@@ -18,20 +18,22 @@ import { data, useFetcher } from 'react-router'
 import { toast } from 'sonner'
 import { z } from 'zod/v3'
 import {
+	DayChoiceModeControl,
+	DayChoicePreview,
+	type DayChoiceMode,
+} from '#app/components/day-choice-controls.tsx'
+import {
 	dayChoiceKey,
-	LANDED_MS,
 	useOncePer,
 	type ReplyDataOf,
 } from '#app/components/day-choice.ts'
 import { type PageHeaderHandle } from '#app/components/page-header.tsx'
-import { Button } from '#app/components/ui/button.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	SegmentedControl,
 	ToggleGroupItem,
 } from '#app/components/ui/toggle-group.tsx'
 import { WeekdayChips } from '#app/components/weekday-chips.tsx'
-import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { updateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -43,20 +45,18 @@ import { StrengthPerWeekSchema } from '#app/utils/first-run/start-schema.ts'
 import {
 	MEG_STRENGTH_DAYS_LABELS,
 	MEG_STRENGTH_LABELS,
-	SESONG_NOTICE_LABELS,
 	SIMPLE_START_LABELS,
 } from '#app/utils/labels.ts'
-import { cn } from '#app/utils/misc.tsx'
+import { LANDED_MS } from '#app/utils/motion.ts'
 import {
 	dayChoiceOf,
 	MAX_PINNED_STRENGTH_DAYS,
-	type DayChoice,
+	undoPayloadOf,
 } from '#app/utils/plan-outline/pinned-days.ts'
 import {
 	previewStrengthDays,
 	readStrengthDays,
 	setStrengthDays,
-	type StrengthDaysPreviewWeek,
 } from '#app/utils/plan-outline/strength-days.server.ts'
 import {
 	patternWeekdaysOf,
@@ -117,7 +117,7 @@ const UndoSchema = z.object({
 				sessionsPerWeek: z.number().int().min(0).nullable(),
 			}),
 		)
-		.max(64)
+		.max(512)
 		.default([]),
 	/** The strength rows the write replaced in the plan's other patterns. */
 	elsewhere: z
@@ -127,7 +127,8 @@ const UndoSchema = z.object({
 				rows: StrengthRowsSchema,
 			}),
 		)
-		.max(32)
+		// One entry per Week Pattern of the plan that holds the track.
+		.max(512)
 		.default([]),
 	/** The rows and the stored Pinned days the write replaced. */
 	rows: StrengthRowsSchema.optional(),
@@ -165,16 +166,10 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 
 	if (intent === 'undo-days') {
-		let payload: unknown = null
-		try {
-			payload = JSON.parse(String(formData.get('undo') ?? 'null'))
-		} catch {
-			payload = null
-		}
-		const parsed = UndoSchema.safeParse(payload)
-		if (!parsed.success) {
+		const payload = undoPayloadOf(formData, UndoSchema)
+		if (!payload) {
 			return data(
-				{ intent: 'undone' as const, ok: false, error: 'stale' as const },
+				{ intent: 'undone' as const, ok: false, error: 'bad-restore' as const },
 				{ status: 400 },
 			)
 		}
@@ -187,7 +182,7 @@ export async function action({ request }: Route.ActionArgs) {
 			rows,
 			pinnedDays,
 			version,
-		} = parsed.data
+		} = payload
 		const undone = await setStrengthDays(userId, {
 			choice: days == null ? null : patternWeekdaysOf(days),
 			version,
@@ -227,7 +222,9 @@ export default function StrengthFrequencySettings({
 	return (
 		<div className="flex flex-col gap-10">
 			{pinned ? (
-				<section className="flex flex-col gap-2">
+				// It lands where the answer form stood once days are chosen, as the
+				// preview does (`@starting-style`, 200ms ease-out).
+				<section className="duration-collapse flex flex-col gap-2 [transition-property:opacity,translate] ease-out starting:translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0">
 					<p className="text-body">{L.intro}</p>
 					<MegNote>{L.fromDays(pinned.length)}</MegNote>
 				</section>
@@ -324,9 +321,7 @@ type DaysState = NonNullable<Route.ComponentProps['loaderData']['days']>
 function StrengthDaysSection({ state }: { state: DaysState }) {
 	const fetcher = useFetcher<typeof action>({ key: 'strength-days' })
 	const undo = useFetcher<typeof action>({ key: 'strength-days-undo' })
-	const [mode, setMode] = useState<'auto' | 'own'>(
-		state.pinned ? 'own' : 'auto',
-	)
+	const [mode, setMode] = useState<DayChoiceMode>(state.pinned ? 'own' : 'auto')
 	const [chosen, setChosen] = useState<PatternWeekday[]>(state.pinned ?? [])
 	// A write that lands (or an undo) reloads the state: start from it again.
 	const stateKey = `${state.version}`
@@ -350,9 +345,12 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 			? preview
 			: null
 	const error =
-		reply?.error && current !== stored
-			? D.refusals[reply.error as keyof typeof D.refusals]
-			: null
+		reply?.error && current !== stored ? D.refusals[reply.error] : null
+	// At the most days the frequency allows, say why the other chips rest.
+	const full =
+		mode === 'own' &&
+		chosen.length >= MAX_PINNED_STRENGTH_DAYS &&
+		(state.available ?? []).some((day) => !chosen.includes(day))
 	const busy = fetcher.state !== 'idle'
 
 	useWrittenToast(reply, undo.submit)
@@ -376,21 +374,12 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 					<p className="text-callout" id="meg-strength-days-mode">
 						{D.modeLegend}
 					</p>
-					<SegmentedControl
+					<DayChoiceModeControl
 						value={mode}
-						onValueChange={(next) => {
-							if (next === 'auto' || next === 'own') setMode(next)
-						}}
-						aria-labelledby="meg-strength-days-mode"
-						className="w-full"
-					>
-						<ToggleGroupItem value="auto" className="text-callout h-11 flex-1">
-							{D.auto}
-						</ToggleGroupItem>
-						<ToggleGroupItem value="own" className="text-callout h-11 flex-1">
-							{D.own}
-						</ToggleGroupItem>
-					</SegmentedControl>
+						onValueChange={setMode}
+						labelledBy="meg-strength-days-mode"
+						labels={D}
+					/>
 					{mode === 'auto' ? (
 						<MegNote>{D.autoNote(Math.max(state.count, 1))}</MegNote>
 					) : null}
@@ -400,12 +389,12 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 					<fieldset className="flex flex-col gap-2">
 						<legend className="text-callout mb-1.5">{D.chipsLegend}</legend>
 						<WeekdayChips
-							idPrefix="meg-strength-day"
 							chosen={chosen}
 							onChange={setChosen}
 							available={state.available}
 							max={MAX_PINNED_STRENGTH_DAYS}
 						/>
+						{full ? <MegNote>{D.full}</MegNote> : null}
 						<MegNote>
 							{state.available ? D.chipsNote : D.chipsNoteNoAvailability}
 						</MegNote>
@@ -416,10 +405,19 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 				{error ? <MegFormErrors errors={[error]} /> : null}
 
 				{showing ? (
-					<StrengthDaysPreview
-						weeks={showing.weeks}
-						choice={showing.choice}
+					<DayChoicePreview
+						weeks={showing.weeks.map((week) => ({
+							weekKey: week.weekKey,
+							before: week.before.lifting,
+							after: week.after.lifting,
+							hard: week.after.hard,
+							clashes: week.after.clashes,
+						}))}
+						line={D.lifting}
+						chosen={showing.choice != null}
 						version={showing.version}
+						surface="card"
+						labels={D}
 						busy={busy}
 						onCancel={() => {
 							setMode(state.pinned ? 'own' : 'auto')
@@ -432,7 +430,7 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 						name="intent"
 						value="preview-days"
 						variant="outline"
-						className="text-callout w-full sm:w-auto sm:self-start"
+						className="w-full sm:w-auto sm:self-start"
 						disabled={
 							current === stored || (mode === 'own' && chosen.length === 0)
 						}
@@ -443,106 +441,6 @@ function StrengthDaysSection({ state }: { state: DaysState }) {
 				)}
 			</fetcher.Form>
 		</section>
-	)
-}
-
-/**
- * The coming weeks with the choice, beside how they are laid now, and the
- * write itself — so nothing is written the athlete has not seen (ADR 0084).
- */
-function StrengthDaysPreview({
-	weeks,
-	choice,
-	version,
-	busy,
-	onCancel,
-}: {
-	weeks: StrengthDaysPreviewWeek[]
-	choice: DayChoice
-	version: string
-	busy: boolean
-	onCancel: () => void
-}) {
-	const clashes = weeks.flatMap((week) =>
-		week.after.clashes.map((clash) => ({ week, clash })),
-	)
-	return (
-		<div
-			className={cn(
-				'bg-card ring-foreground/5 dark:ring-foreground/10 flex flex-col gap-4 rounded-4xl p-4 shadow-xs ring-1',
-				// It rises 4px and fades in as it mounts (`@starting-style`, 200ms
-				// ease-out); reduced motion keeps the fade.
-				'duration-collapse [transition-property:opacity,translate] ease-out',
-				'starting:translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0',
-			)}
-		>
-			<input type="hidden" name="version" value={version} />
-			<h3 className="text-callout font-semibold">{D.previewHeading}</h3>
-			<ul className="divide-border/70 flex flex-col divide-y">
-				{weeks.map((week) => {
-					const changed =
-						week.before.lifting.join(',') !== week.after.lifting.join(',')
-					return (
-						<li
-							key={week.weekKey}
-							className="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0"
-						>
-							<p className="text-footnote text-muted-foreground tabular-nums">
-								{D.week(isoWeekNumber(week.weekKey))}
-							</p>
-							<p className="text-callout break-words">
-								{D.lifting(week.after.lifting)}
-								<span className="text-muted-foreground">
-									{' · '}
-									{D.hard(week.after.hard)}
-								</span>
-							</p>
-							<p className="text-footnote text-muted-foreground break-words">
-								{changed ? D.was(week.before.lifting) : D.same}
-							</p>
-						</li>
-					)
-				})}
-			</ul>
-			{clashes.length > 0 ? (
-				<div className="flex flex-col gap-1.5">
-					<ul className="flex flex-col gap-1.5">
-						{clashes.map(({ week, clash }) => (
-							<li
-								key={`${week.weekKey}-${clash.reason}-${clash.weekday}`}
-								className="text-footnote break-words"
-							>
-								{D.week(isoWeekNumber(week.weekKey))}:{' '}
-								{D.clash(
-									SESONG_NOTICE_LABELS.dayClash(clash.reason, clash.weekday),
-									clash.pinned,
-								)}
-							</li>
-						))}
-					</ul>
-					{choice ? <MegNote>{D.clashNote}</MegNote> : null}
-				</div>
-			) : null}
-			<div className="flex flex-col gap-2 sm:flex-row">
-				<StatusButton
-					type="submit"
-					name="intent"
-					value="apply-days"
-					className="text-callout w-full sm:w-auto"
-					status={busy ? 'pending' : 'idle'}
-				>
-					{busy ? D.applying : D.apply}
-				</StatusButton>
-				<Button
-					type="button"
-					variant="ghost"
-					className="text-callout w-full sm:w-auto"
-					onClick={onCancel}
-				>
-					{D.cancel}
-				</Button>
-			</div>
-		</div>
 	)
 }
 
@@ -595,7 +493,7 @@ function useUndoneToast(reply: ReplyData | undefined) {
 		if (undone.ok)
 			toast.success(D.undone, { id: 'strength-days', action: undefined })
 		else if (undone.error)
-			toast.error(D.refusals[undone.error as keyof typeof D.refusals], {
+			toast.error(D.refusals[undone.error], {
 				id: 'strength-days',
 			})
 	})

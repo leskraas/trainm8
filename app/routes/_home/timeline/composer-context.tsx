@@ -47,6 +47,7 @@ import { useFetcher } from 'react-router'
 import { toast } from 'sonner'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { SESSION_COMPOSER_LABELS } from '#app/utils/labels.ts'
+import { LANDED_MS } from '#app/utils/motion.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
 
 /** Where the composer is: writing on a day, or a session's details. */
@@ -128,12 +129,6 @@ const LandingContext = createContext<ComposerLanding>({
 	landedUndoable: false,
 	undoingSessionId: null,
 })
-
-/**
- * How long a write's toast stays, and its row stays highlighted with _Angre_:
- * long enough to read the week's sum and reach the way back.
- */
-export const LANDED_MS = 10_000
 
 /** Never optional: every "+" in the list opens the composer. */
 export function useComposer(): ComposerActions {

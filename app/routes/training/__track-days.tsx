@@ -14,28 +14,25 @@ import { useState } from 'react'
 import { useFetcher } from 'react-router'
 import { toast } from 'sonner'
 import {
+	DayChoiceModeControl,
+	DayChoicePreview,
+	type DayChoiceMode,
+} from '#app/components/day-choice-controls.tsx'
+import {
 	dayChoiceKey,
-	LANDED_MS,
 	useOncePer,
 	type ReplyDataOf,
 } from '#app/components/day-choice.ts'
-import { Button } from '#app/components/ui/button.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import {
-	SegmentedControl,
-	ToggleGroupItem,
-} from '#app/components/ui/toggle-group.tsx'
 import { WeekdayChips } from '#app/components/weekday-chips.tsx'
 import { type action as trackDaysAction } from '#app/routes/resources/track-days.tsx'
-import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import {
 	nbPlannedDisciplineLabel,
 	PLAN_TRACK_DAYS_LABELS,
-	SESONG_NOTICE_LABELS,
+	type TrackDaysName,
 } from '#app/utils/labels.ts'
-import { cn } from '#app/utils/misc.tsx'
+import { LANDED_MS } from '#app/utils/motion.ts'
 import {
-	type TrackDaysPreviewWeek,
 	type TrackDaysState,
 	type TrackDaysUnit,
 } from '#app/utils/plan-outline/track-days.server.ts'
@@ -47,10 +44,10 @@ const L = PLAN_TRACK_DAYS_LABELS
 const ACTION = '/resources/track-days'
 
 /** A unit's name: the sport, or the Simple Activity's own. */
-function nameOf(unit: TrackDaysUnit): string {
+function nameOf(unit: TrackDaysUnit): TrackDaysName {
 	return unit.kind === 'activity'
-		? L.activity(unit.title)
-		: nbPlannedDisciplineLabel(unit.discipline)
+		? { text: L.activity(unit.title), activity: true }
+		: { text: nbPlannedDisciplineLabel(unit.discipline), activity: false }
 }
 
 export function TrackDaysCard({ state }: { state: TrackDaysState }) {
@@ -96,7 +93,7 @@ function TrackDaysRow({
 	})
 	const activity = unit.kind === 'activity'
 	const storedMode = unit.pinned ? 'own' : 'auto'
-	const [mode, setMode] = useState<'auto' | 'own'>(storedMode)
+	const [mode, setMode] = useState<DayChoiceMode>(storedMode)
 	const [chosen, setChosen] = useState<PatternWeekday[]>(unit.pinned ?? [])
 	// A write that lands (or an undo) reloads the unit: start from it again.
 	const [seen, setSeen] = useState(unit.version)
@@ -119,9 +116,12 @@ function TrackDaysRow({
 			? preview
 			: null
 	const error =
-		reply?.error && current !== stored
-			? L.refusals[reply.error as keyof typeof L.refusals]
-			: null
+		reply?.error && current !== stored ? L.refusals[reply.error] : null
+	// Days chosen before they left Training Availability: a Simple Activity
+	// keeps them until the athlete names new ones (ADR 0104 §4).
+	const unavailable = available
+		? chosen.filter((day) => !available.includes(day))
+		: []
 	const busy = fetcher.state !== 'idle'
 	const reset = () => {
 		setMode(storedMode)
@@ -135,13 +135,13 @@ function TrackDaysRow({
 		<CollapsibleSection
 			open={open}
 			onOpenChange={onOpenChange}
-			summary={name}
+			summary={name.text}
 			detail={
-				<span className="break-words">
+				<span className="[overflow-wrap:anywhere]">
 					{L.days(unit.days)}
 					{activity ? null : (
 						<>
-							{' · '}
+							{'\u00a0· '}
 							{unit.pinned ? L.ownChoice : L.appChooses}
 						</>
 					)}
@@ -158,24 +158,12 @@ function TrackDaysRow({
 						<p className="text-callout" id={`${unit.key}-mode`}>
 							{L.modeLegend}
 						</p>
-						<SegmentedControl
+						<DayChoiceModeControl
 							value={mode}
-							onValueChange={(next) => {
-								if (next === 'auto' || next === 'own') setMode(next)
-							}}
-							aria-labelledby={`${unit.key}-mode`}
-							className="w-full"
-						>
-							<ToggleGroupItem
-								value="auto"
-								className="text-callout h-11 flex-1"
-							>
-								{L.auto}
-							</ToggleGroupItem>
-							<ToggleGroupItem value="own" className="text-callout h-11 flex-1">
-								{L.own}
-							</ToggleGroupItem>
-						</SegmentedControl>
+							onValueChange={setMode}
+							labelledBy={`${unit.key}-mode`}
+							labels={L}
+						/>
 						{mode === 'auto' ? (
 							<p className="text-footnote text-muted-foreground">
 								{L.autoNote}
@@ -186,15 +174,17 @@ function TrackDaysRow({
 
 				{activity || mode === 'own' ? (
 					<fieldset className="flex flex-col gap-2">
-						<legend className="text-callout mb-1.5">
+						<legend className="text-callout mb-1.5 [overflow-wrap:anywhere]">
 							{L.chipsLegend(name)}
 						</legend>
 						<WeekdayChips
-							idPrefix={`track-day-${unit.key}`}
 							chosen={chosen}
 							onChange={setChosen}
 							available={available}
 						/>
+						{unavailable.length > 0 ? (
+							<p className="text-footnote">{L.notAvailable(unavailable)}</p>
+						) : null}
 						<p className="text-footnote text-muted-foreground">
 							{available ? L.chipsNote : L.chipsNoteNoAvailability}{' '}
 							{activity ? L.activityNote : L.ownNote}
@@ -203,19 +193,27 @@ function TrackDaysRow({
 				) : null}
 
 				{error ? (
-					<p className="text-footnote text-destructive" role="alert">
+					<p className="text-footnote text-foreground-destructive" role="alert">
 						{error}
 					</p>
 				) : null}
 
 				{showing ? (
-					<TrackDaysPreview
-						name={name}
-						weeks={showing.weeks}
+					<DayChoicePreview
+						weeks={showing.weeks.map((week) => ({
+							weekKey: week.weekKey,
+							before: week.before.days,
+							after: week.after.days,
+							hard: week.after.hard,
+							clashes: week.after.clashes,
+						}))}
+						line={(days) => L.unitDays(name, days)}
 						chosen={showing.choice != null}
 						version={showing.version}
 						busy={busy}
 						onCancel={reset}
+						surface="inset"
+						labels={L}
 					/>
 				) : (
 					<StatusButton
@@ -223,10 +221,11 @@ function TrackDaysRow({
 						name="intent"
 						value="preview-days"
 						variant="outline"
-						className="text-callout w-full sm:w-auto"
+						className="w-full sm:w-auto"
 						disabled={
 							current === stored ||
-							((activity || mode === 'own') && chosen.length === 0)
+							((activity || mode === 'own') &&
+								(chosen.length === 0 || unavailable.length > 0))
 						}
 						status={busy ? 'pending' : 'idle'}
 					>
@@ -238,110 +237,6 @@ function TrackDaysRow({
 	)
 }
 
-/**
- * The coming weeks with the change, beside how they are laid now, and the
- * write itself — so nothing is written the athlete has not seen (ADR 0084).
- */
-function TrackDaysPreview({
-	name,
-	weeks,
-	chosen,
-	version,
-	busy,
-	onCancel,
-}: {
-	name: string
-	weeks: TrackDaysPreviewWeek[]
-	chosen: boolean
-	version: string
-	busy: boolean
-	onCancel: () => void
-}) {
-	const clashes = weeks.flatMap((week) =>
-		week.after.clashes.map((clash) => ({ week, clash })),
-	)
-	return (
-		<div
-			className={cn(
-				'bg-muted/40 flex flex-col gap-4 rounded-3xl p-4',
-				// It rises 4px and fades in as it mounts (`@starting-style`, 200ms
-				// ease-out); reduced motion keeps the fade.
-				'duration-collapse [transition-property:opacity,translate] ease-out',
-				'starting:translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0',
-			)}
-		>
-			<input type="hidden" name="version" value={version} />
-			<h3 className="text-callout font-semibold">{L.previewHeading}</h3>
-			<ul className="divide-border/70 flex flex-col divide-y">
-				{weeks.map((week) => {
-					const changed =
-						week.before.days.join(',') !== week.after.days.join(',')
-					return (
-						<li
-							key={week.weekKey}
-							className="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0"
-						>
-							<p className="text-footnote text-muted-foreground tabular-nums">
-								{L.week(isoWeekNumber(week.weekKey))}
-							</p>
-							<p className="text-callout break-words">
-								{L.unitDays(name, week.after.days)}
-								<span className="text-muted-foreground">
-									{' · '}
-									{L.hard(week.after.hard)}
-								</span>
-							</p>
-							<p className="text-footnote text-muted-foreground break-words">
-								{changed ? L.was(week.before.days) : L.same}
-							</p>
-						</li>
-					)
-				})}
-			</ul>
-			{clashes.length > 0 ? (
-				<div className="flex flex-col gap-1.5">
-					<ul className="flex flex-col gap-1.5">
-						{clashes.map(({ week, clash }) => (
-							<li
-								key={`${week.weekKey}-${clash.reason}-${clash.weekday}`}
-								className="text-footnote break-words"
-							>
-								{L.week(isoWeekNumber(week.weekKey))}:{' '}
-								{L.clash(
-									SESONG_NOTICE_LABELS.dayClash(clash.reason, clash.weekday),
-									clash.pinned,
-								)}
-							</li>
-						))}
-					</ul>
-					{chosen ? (
-						<p className="text-footnote text-muted-foreground">{L.clashNote}</p>
-					) : null}
-				</div>
-			) : null}
-			<div className="flex flex-col gap-2 sm:flex-row">
-				<StatusButton
-					type="submit"
-					name="intent"
-					value="apply-days"
-					className="text-callout w-full sm:w-auto"
-					status={busy ? 'pending' : 'idle'}
-				>
-					{busy ? L.applying : L.apply}
-				</StatusButton>
-				<Button
-					type="button"
-					variant="ghost"
-					className="text-callout w-full sm:w-auto"
-					onClick={onCancel}
-				>
-					{L.cancel}
-				</Button>
-			</div>
-		</div>
-	)
-}
-
 type ReplyData = ReplyDataOf<typeof trackDaysAction>
 
 /**
@@ -350,7 +245,7 @@ type ReplyData = ReplyDataOf<typeof trackDaysAction>
  */
 function useWrittenToast(
 	reply: ReplyData | null,
-	name: string,
+	name: TrackDaysName,
 	outlineId: string,
 	key: string,
 	submit: ReturnType<typeof useFetcher>['submit'],
@@ -384,7 +279,7 @@ function useWrittenToast(
 }
 
 /** The undo's own toast: the days are as they were. */
-function useUndoneToast(reply: ReplyData | undefined, name: string) {
+function useUndoneToast(reply: ReplyData | undefined, name: TrackDaysName) {
 	const undone =
 		reply && 'intent' in reply && reply.intent === 'undone' ? reply : null
 	useOncePer(undone, (undone) => {
@@ -395,7 +290,7 @@ function useUndoneToast(reply: ReplyData | undefined, name: string) {
 				action: undefined,
 			})
 		else if (undone.error)
-			toast.error(L.refusals[undone.error as keyof typeof L.refusals], {
+			toast.error(L.refusals[undone.error], {
 				id: `track-days-${undone.key}`,
 			})
 	})

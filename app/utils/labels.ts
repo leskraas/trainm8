@@ -5631,6 +5631,8 @@ export const MEG_STRENGTH_DAYS_LABELS = {
 		'Like mange dager som styrkeøkter i uka, opptil 3. Setter du treningsdagene dine i profilen, kan du bare velge blant dem.',
 	ownNote:
 		'Styrken legges bare på disse dagene, og de harde øktene legges rundt dem.',
+	/** Under the chips once three are chosen: why the others rest. */
+	full: 'Du har valgt 3 dager, som er flest. Ta bort en dag for å velge en annen.',
 	preview: 'Se hva som endres',
 	previewing: 'Henter de neste ukene …',
 	previewHeading: 'De neste ukene',
@@ -5650,9 +5652,6 @@ export const MEG_STRENGTH_DAYS_LABELS = {
 	was: (days: readonly number[]) =>
 		`Før: ${days.length === 0 ? 'ingen styrke' : nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
 	same: 'Som før',
-	/** A clash the change leaves, worded as the fit check words it. */
-	clash: (clash: string, pinned: boolean) =>
-		`${clash}${pinned ? ' – en dag du har valgt selv' : ''}.`,
 	clashNote:
 		'Dagene du velger, blir der du satte dem. Appen sier fra, men flytter dem ikke.',
 	apply: 'Bruk',
@@ -5674,8 +5673,20 @@ export const MEG_STRENGTH_DAYS_LABELS = {
 		'no-plan': 'Du har ingen plan å legge styrkedagene i.',
 		'no-strength-track': 'Planen din har ikke styrke.',
 		'no-pattern': 'Planen har ikke noe ukemønster å legge styrken i ennå.',
+		'bad-restore': 'Kunne ikke sette dagene tilbake.',
 	},
 } as const
+
+/**
+ * A row's name under _Dagene i uka_: a sport's own word, said lower-case
+ * inside a sentence (_dagene for sykling_), or a Simple Activity's title,
+ * which is the athlete's and is said as they wrote it (_HIIT_, _Langrenn_).
+ */
+export type TrackDaysName = { text: string; activity: boolean }
+
+function inSentence(name: TrackDaysName): string {
+	return name.activity ? name.text : lowerFirst(name.text)
+}
 
 /**
  * _Dagene i uka_ under _Plan → Avansert_ (#598, ADR 0104 §4): the days of
@@ -5697,18 +5708,24 @@ export const PLAN_TRACK_DAYS_LABELS = {
 	appChooses: 'appen velger',
 	ownChoice: 'valgt selv',
 	change: 'Endre',
-	changeFor: (name: string) => `Endre dagene for ${name}`,
+	changeFor: (name: TrackDaysName) => `Endre dagene for ${inSentence(name)}`,
 	modeLegend: 'Hvem velger dagene',
 	auto: 'La appen velge',
 	own: 'Velg dager',
 	autoNote:
 		'Appen gir den dagene de andre idrettene lar ligge, én økt om dagen, og den lange økta på den siste.',
-	chipsLegend: (name: string) => `Dagene for ${lowerFirst(name)}`,
+	chipsLegend: (name: TrackDaysName) => `Dagene for ${inSentence(name)}`,
 	chipsNote: 'Bare dagene du kan trene, fra profilen din.',
 	chipsNoteNoAvailability:
 		'Setter du treningsdagene dine i profilen, kan du bare velge blant dem.',
 	ownNote:
 		'Økta legges bare på disse dagene, og ukas mengde deles på dem. De harde øktene til de andre legges rundt.',
+	/**
+	 * Under the chips, where a chosen day left the athlete's Training
+	 * Availability — a Simple Activity keeps it until they name a new one.
+	 */
+	notAvailable: (days: readonly number[]) =>
+		`${capitalize(nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!)))} er ikke ${days.length === 1 ? 'en treningsdag' : 'treningsdager'} lenger. Ta ${days.length === 1 ? 'den' : 'dem'} bort, eller legg ${days.length === 1 ? 'den' : 'dem'} til i profilen din.`,
 	activityNote:
 		'En enkel aktivitet ligger alltid på dagene du velger. Økta er den samme hver gang.',
 	preview: 'Se hva som endres',
@@ -5716,10 +5733,10 @@ export const PLAN_TRACK_DAYS_LABELS = {
 	previewHeading: 'De neste ukene',
 	week: (isoWeek: number) => `Uke ${isoWeek}`,
 	/** `Sykling onsdag og søndag`. */
-	unitDays: (name: string, days: readonly number[]) =>
+	unitDays: (name: TrackDaysName, days: readonly number[]) =>
 		days.length === 0
-			? `Ingen ${lowerFirst(name)}`
-			: `${name} ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+			? `Ingen ${inSentence(name)}`
+			: `${name.text} ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
 	/** `harde økter tirsdag og lørdag`. */
 	hard: (days: readonly number[]) =>
 		days.length === 0
@@ -5728,20 +5745,18 @@ export const PLAN_TRACK_DAYS_LABELS = {
 	was: (days: readonly number[]) =>
 		`Før: ${days.length === 0 ? 'ingen dager' : nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
 	same: 'Som før',
-	clash: (clash: string, pinned: boolean) =>
-		`${clash}${pinned ? ' – en dag du har valgt selv' : ''}.`,
 	clashNote:
 		'Dagene du velger, blir der du satte dem. Appen sier fra, men flytter dem ikke.',
 	apply: 'Bruk',
 	applying: 'Lagrer …',
 	cancel: 'Avbryt',
 	/** The toast after a write. */
-	saved: (name: string, days: readonly number[] | null) =>
+	saved: (name: TrackDaysName, days: readonly number[] | null) =>
 		days == null
-			? `Appen velger dagene for ${lowerFirst(name)} igjen.`
-			: `${name} ligger nå ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}.`,
+			? `Appen velger dagene for ${inSentence(name)} igjen.`
+			: `${name.text} ligger nå ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}.`,
 	undo: 'Angre',
-	undone: (name: string) => `Dagene for ${lowerFirst(name)} er som før.`,
+	undone: (name: TrackDaysName) => `Dagene for ${inSentence(name)} er som før.`,
 	refusals: {
 		'no-days': 'Velg minst én dag.',
 		'outside-availability': 'Velg bare dager du kan trene.',

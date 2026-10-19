@@ -41,6 +41,7 @@ import {
 } from '#app/routes/resources/strength-log.tsx'
 import { QUICK_LOG_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { LANDED_MS } from '#app/utils/motion.ts'
 import {
 	type QuickLog,
 	QUICK_LOG_MAX_COUNT,
@@ -48,7 +49,6 @@ import {
 	StrengthLogAsPlannedSchema,
 	StrengthLogEditSchema,
 } from '#app/utils/strength-quick-log.ts'
-import { LANDED_MS } from './composer-context.tsx'
 import { TITLE_INSET_BOX } from './row-inset.ts'
 import { type TimelineStrengthLog } from './strength-log.ts'
 

@@ -555,9 +555,9 @@ function UpdateAthleteProfile({
 
 			<DroppedDaysNote
 				dropped={
-					fetcher.state === 'idle' &&
-					fetcher.data &&
-					'droppedDays' in fetcher.data
+					// The last save's answer stands while the next one is on its way,
+					// so the note and the save button below it hold still.
+					fetcher.data && 'droppedDays' in fetcher.data
 						? fetcher.data.droppedDays
 						: []
 				}
@@ -588,19 +588,29 @@ function DroppedDaysNote({ dropped }: { dropped: DroppedPinnedDays[] }) {
 	if (dropped.length === 0) return null
 	const D = MEG_DROPPED_DAYS_LABELS
 	return (
-		<div role="status" className="bg-muted/50 mb-2 rounded-2xl p-3">
+		<div
+			role="status"
+			className={cn(
+				'bg-muted/50 mb-2 rounded-2xl p-3',
+				// It rises 4px and fades in as it mounts (`@starting-style`, 200ms
+				// ease-out), as the day choices' preview does; reduced motion keeps
+				// the fade.
+				'duration-collapse [transition-property:opacity,translate] ease-out',
+				'starting:translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0',
+			)}
+		>
 			<p className="text-callout font-semibold">{D.heading}</p>
 			<ul className="mt-1 flex flex-col gap-1">
 				{dropped.map((track) => (
 					<li
-						key={`${track.discipline}-${track.title ?? ''}`}
-						className="text-footnote break-words"
+						key={track.key}
+						className="text-footnote [overflow-wrap:anywhere]"
 					>
 						{D.line(
 							track.title ?? nbPlannedDisciplineLabel(track.discipline),
 							track.lost,
 							track.kept,
-							track.title != null,
+							track.activity,
 						)}
 					</li>
 				))}
