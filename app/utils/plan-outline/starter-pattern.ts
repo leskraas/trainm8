@@ -23,7 +23,8 @@
 //
 // Pure: availability and tracks in, days out. The service writes them.
 
-import { type Discipline } from '../workout-schema.ts'
+import { type PlannedDiscipline } from '../planned-discipline.ts'
+import { weekdayGap } from './day-rule.ts'
 import {
 	calendarWeekdayOf,
 	PATTERN_WEEKDAYS,
@@ -42,7 +43,8 @@ export type StarterDay = {
 
 export type StarterTrack = {
 	trackId: string
-	discipline: Discipline
+	/** The track's Discipline, or `other` for a Simple Activity's days. */
+	discipline: PlannedDiscipline
 	/**
 	 * Sessions a week this track authors, where it says: a strength segment's
 	 * **Strength Frequency** (ADR 0047 §4). `null` for an endurance track, which
@@ -62,10 +64,50 @@ export type StarterTrack = {
 	 * #571); a day it does not name keeps the long-day-double rule.
 	 */
 	dayWeights?: Partial<Record<PatternWeekday, number>>
+	/**
+	 * The most hard sessions a week its **Quality Session Mix** asks for. More
+	 * than none is a track carrying the family's mix, and the one carrying the
+	 * most is the main track: it keeps the long day and a day for each hard
+	 * session plus one (ADR 0104 §5). Absent or 0, the track has no mix.
+	 */
+	hardSessions?: number
+	/**
+	 * How big the track's week is beside the others', for picking the main
+	 * track where none carries a mix: the largest is the main one. Compared
+	 * only between tracks of one Volume Currency (ADR 0046), so a caller whose
+	 * tracks count in different currencies leaves it out, and the first track
+	 * is the main one.
+	 */
+	weeklyShare?: number
 }
+
+/**
+ * One **lifting slot** (ADR 0104 §3): a lift a week on a strength track, on
+ * no weekday. The stamp lays each week's slots after that week's endurance
+ * mix, away from its hard days, so the starter week lifts by the same rule as
+ * the first run's.
+ */
+export type StarterLiftingSlot = { trackId: string }
 
 export type StarterProposal = {
 	days: StarterDay[]
+	/** The strength tracks' lifts a week, one slot per lift. */
+	lifting: StarterLiftingSlot[]
+	/**
+	 * A strength track's **Pinned days** (ADR 0104 §4), where it names its
+	 * own: one lift on each, on the day the athlete chose, in place of slots
+	 * (#598). Written as `fixed` strength days, which the stamp lays first.
+	 */
+	pinnedLifting: Array<{ trackId: string; weekday: PatternWeekday }>
+	/**
+	 * The endurance track that carries the family's **Quality Session Mix**,
+	 * or `null` where none does (ADR 0104 §5). The hard sessions belong to
+	 * it: every other endurance track's laid mix is stripped, so it trains
+	 * easy; a mix the athlete authored there stays.
+	 */
+	mixTrackId: string | null
+	/** The days the week was built from, Monday first. */
+	weekdays: PatternWeekday[]
 	/** Whether the weekdays came from the athlete's own availability or the default. */
 	source: 'availability' | 'default'
 }
@@ -87,9 +129,10 @@ const LONG_DAY_WEIGHT = 2
 const ORDINARY_DAY_WEIGHT = 1
 
 /**
- * A week to start from: one share day per training day on the endurance track,
- * with the last day of the week weighted double as the long one, plus a day per
- * session on any strength track that says how often it lifts.
+ * A week to start from: the training days dealt across the endurance tracks,
+ * one endurance session a day, each track's long day weighted double and on a
+ * day of its own ({@link enduranceDays}), plus a lifting slot per session on
+ * any strength track that says how often it lifts.
  *
  * `null` where there is nothing to propose — no track at all, or an athlete whose
  * availability says they train on no days. Both are refusals to invent: a pattern
@@ -102,13 +145,16 @@ const ORDINARY_DAY_WEIGHT = 1
  * glance in the preview — the long day is the one that reads twice the others.
  * Nothing here proposes intensity: which day is a quality session is the **Quality
  * Session Mix**'s to say, and a starter pattern that pinned zones to weekdays
- * would be answering a question the segment already answers.
+ * would be answering a question the segment already answers. It only makes
+ * room for it: the track carrying the mix gets a day for each hard session.
  *
- * **Strength days sit alongside, never instead.** A lifting day draws from the
- * strength track's own weekly sets, so it neither takes volume from a run day nor
- * funds one (ADR 0046 §1). They are laid on the *earliest* available days, so a
- * lifting session lands away from the long day at the end of the week rather than
- * on top of it.
+ * **Lifting sits alongside, never instead.** A lift draws from the strength
+ * track's own weekly sets, so it neither takes volume from a run day nor funds
+ * one (ADR 0046 §1). It is proposed as a **lifting slot** on no weekday, never
+ * a day picked here: which days are hard is the week's mix's to say, so the
+ * stamp lays each week's lifts against that week's hard days by the one day
+ * rule (ADR 0104 §3, §5) — not on a hard day, then not the day before one,
+ * then not the long day, then as far apart as the week allows.
  */
 export function proposeStarterPattern({
 	trainableWeekdays,
@@ -134,23 +180,29 @@ export function proposeStarterPattern({
 				)
 	if (weekdays.length === 0) return null
 
-	const endurance = tracks.filter((track) => track.sessionsPerWeek == null)
+	// One track carries the mix, the main one among those with a mix; the
+	// others ask no room for hard sessions, as theirs are stripped.
+	const carrier = mainTrack(
+		tracks.filter(
+			(track) => track.sessionsPerWeek == null && (track.hardSessions ?? 0) > 0,
+		),
+	)
+	const endurance = tracks
+		.filter((track) => track.sessionsPerWeek == null)
+		.map((track) =>
+			track === carrier || !track.hardSessions
+				? track
+				: { ...track, hardSessions: 0 },
+		)
 	const strength = tracks.filter((track) => track.sessionsPerWeek != null)
 	if (endurance.length === 0 && strength.length === 0) return null
 
 	const days: StarterDay[] = []
 
-	// Every available day, on every endurance track. A triathlete gets a swim, a
-	// ride and a run on each of their days rather than one discipline chosen for
-	// them — each track's week is its own, and dropping two of three would be the
-	// app deciding which discipline they train on Tuesday. A track that names
-	// its own days keeps to those, and its long day is the last of them.
-	for (const track of endurance) {
-		const own = track.weekdays
-		const trackDays = own
-			? weekdays.filter((weekday) => own.includes(weekday))
-			: weekdays
-		const longDay = trackDays.at(-1)
+	for (const { track, days: trackDays, longDay } of enduranceDays(
+		weekdays,
+		endurance,
+	)) {
 		for (const weekday of trackDays) {
 			const long = weekday === longDay
 			days.push({
@@ -164,18 +216,195 @@ export function proposeStarterPattern({
 		}
 	}
 
-	// As many lifting days as the block says, from the front of the week — and
-	// never more days than the athlete has.
-	for (const track of strength) {
-		for (const weekday of weekdays.slice(0, track.sessionsPerWeek ?? 0)) {
-			days.push({
-				weekday,
-				trackId: track.trackId,
-				weight: ORDINARY_DAY_WEIGHT,
-				role: 'ordinary',
-			})
+	// As many lifts as the block says, and never more than the athlete has
+	// days: slots the stamp lays per week (ADR 0104 §3).
+	// A strength track on its Pinned days lifts on them instead (#598).
+	const lifting: StarterLiftingSlot[] = strength.flatMap((track) =>
+		track.weekdays
+			? []
+			: Array.from(
+					{ length: Math.min(track.sessionsPerWeek ?? 0, weekdays.length) },
+					() => ({ trackId: track.trackId }),
+				),
+	)
+	const pinnedLifting = strength.flatMap((track) => {
+		const own = track.weekdays
+		if (!own) return []
+		return weekdays
+			.filter((weekday) => own.includes(weekday))
+			.map((weekday) => ({ trackId: track.trackId, weekday }))
+	})
+
+	return days.length === 0 && lifting.length === 0 && pinnedLifting.length === 0
+		? null
+		: {
+				days,
+				lifting,
+				pinnedLifting,
+				mixTrackId: carrier?.trackId ?? null,
+				weekdays: [...weekdays],
+				source,
+			}
+}
+
+/**
+ * Each endurance track's days in week order, and its long day (ADR 0104 §5).
+ *
+ * A track that names its own days keeps to those, its long day the last of
+ * them, as the first run lays a second sport (#558). The others are dealt the
+ * days left as the first run deals sports (`sportTracks`), never two endurance
+ * sessions on one day — a run and a ride are a week an athlete can train, a
+ * run and a ride every day are not:
+ *
+ * - The main track ({@link mainTrack}) takes the last day as its long one, and
+ *   an even share of the days or its hard sessions plus one, whichever is
+ *   more, leaving each other track a day.
+ * - Each other track's long day is the day furthest round the wheel from the
+ *   long days already laid, the earlier on a tie, so no day carries two.
+ * - The ordinary days are dealt in turn, each to the track furthest behind its
+ *   share so far, the main track first on a tie.
+ *
+ * Only where the named days take every day are the others dealt all the
+ * athlete's days again: stacking a session beats dropping a track they have.
+ * A track left without a day, where there are more tracks than days, lays
+ * none.
+ */
+function enduranceDays(
+	weekdays: readonly PatternWeekday[],
+	endurance: readonly StarterTrack[],
+): Array<{
+	track: StarterTrack
+	days: PatternWeekday[]
+	longDay: PatternWeekday | undefined
+}> {
+	const laid = new Map<
+		StarterTrack,
+		{ days: PatternWeekday[]; longDay: PatternWeekday | undefined }
+	>()
+	for (const track of endurance) {
+		const own = track.weekdays
+		if (!own) continue
+		const days = weekdays.filter((day) => own.includes(day))
+		// The last of its days that no earlier track has as its long day, so
+		// two tracks naming the same last day do not stack two long sessions.
+		const taken = [...laid.values()].map(({ longDay }) => longDay)
+		const longDay =
+			[...days].reverse().find((day) => !taken.includes(day)) ?? days.at(-1)
+		laid.set(track, { days, longDay })
+	}
+	const named = new Set([...laid.values()].flatMap(({ days }) => days))
+	const left = weekdays.filter((day) => !named.has(day))
+	const free = left.length > 0 ? left : [...weekdays]
+
+	const unnamed = endurance.filter((track) => !track.weekdays)
+	const main = mainTrack(unnamed)
+	const dealt = main
+		? [main, ...unnamed.filter((track) => track !== main)].slice(0, free.length)
+		: []
+
+	if (dealt.length > 0) {
+		const others = dealt.length - 1
+		const mainCount = Math.min(
+			free.length - others,
+			Math.max(
+				Math.ceil(free.length / dealt.length),
+				(dealt[0]!.hardSessions ?? 0) + 1,
+			),
+		)
+		const rest = free.length - mainCount
+		const want = dealt.map((_, index) =>
+			index === 0
+				? mainCount
+				: Math.floor(rest / others) + (index - 1 < rest % others ? 1 : 0),
+		)
+
+		// The long days first, so each is apart from the others; the named
+		// tracks' long days count too.
+		const longDays: PatternWeekday[] = [...laid.values()].flatMap(
+			({ longDay }) => (longDay == null ? [] : [longDay]),
+		)
+		const dealtLong: PatternWeekday[] = []
+		for (const [index] of dealt.entries()) {
+			const last = free.at(-1)!
+			const open = free.filter(
+				(day) => !longDays.includes(day) && !dealtLong.includes(day),
+			)
+			const long =
+				index === 0 && open.includes(last)
+					? last
+					: farthestFrom(open.length > 0 ? open : free, [
+							...longDays,
+							...dealtLong,
+						])
+			dealtLong.push(long)
 		}
+
+		const ordinaryDays: PatternWeekday[][] = dealt.map(() => [])
+		const ordinary = free.filter((day) => !dealtLong.includes(day))
+		ordinary.forEach((weekday, at) => {
+			let pick = 0
+			let behind = -Infinity
+			want.forEach((total, index) => {
+				const share = total - 1
+				const has = ordinaryDays[index]!.length
+				if (has >= share) return
+				const lag = (share * (at + 1)) / ordinary.length - has
+				if (lag > behind) {
+					behind = lag
+					pick = index
+				}
+			})
+			ordinaryDays[pick]!.push(weekday)
+		})
+		dealt.forEach((track, index) => {
+			const longDay = dealtLong[index]!
+			laid.set(track, {
+				days: [...ordinaryDays[index]!, longDay].sort((a, b) => a - b),
+				longDay,
+			})
+		})
 	}
 
-	return days.length === 0 ? null : { days, source }
+	return endurance.flatMap((track) => {
+		const own = laid.get(track)
+		return own ? [{ track, ...own }] : []
+	})
+}
+
+/**
+ * The track the week is built around (ADR 0104 §5): the one carrying the most
+ * hard sessions, then the largest weekly share, then the first.
+ */
+function mainTrack(tracks: readonly StarterTrack[]): StarterTrack | undefined {
+	let best: StarterTrack | undefined
+	for (const track of tracks) {
+		if (!best) {
+			best = track
+			continue
+		}
+		const hard = (track.hardSessions ?? 0) - (best.hardSessions ?? 0)
+		const share = (track.weeklyShare ?? 0) - (best.weeklyShare ?? 0)
+		if (hard > 0 || (hard === 0 && share > 0)) best = track
+	}
+	return best
+}
+
+/**
+ * The day of `days` furthest round the week's wheel from all of `from`, the
+ * earliest on a tie.
+ */
+function farthestFrom(
+	days: readonly PatternWeekday[],
+	from: readonly PatternWeekday[],
+): PatternWeekday {
+	let best = days[0]!
+	let bestGap = -1
+	for (const day of days) {
+		const gap = Math.min(7, ...from.map((other) => weekdayGap(day, other)))
+		if (gap > bestGap) {
+			best = day
+			bestGap = gap
+		}
+	}
+	return best
 }

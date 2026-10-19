@@ -36,8 +36,10 @@
 // `week-pattern.ts` do; the surface words them.
 
 import { z } from 'zod/v3'
+import { effortWordOfZone, type EffortWord } from '../effort-word.ts'
 import { type TrainingZone } from '../session-profile.ts'
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
+import { liftingDaysFor, readDays, type PlacedSession } from './day-rule.ts'
 import { type VolumeCurrency } from './derive.ts'
 import {
 	isQualityZone,
@@ -45,7 +47,9 @@ import {
 	type QualitySessionMixEntry,
 	type QualityZone,
 } from './quality-mix.ts'
+import { DEFAULT_TRAINING_WEEKDAYS } from './starter-pattern.ts'
 import {
+	PATTERN_WEEKDAYS,
 	resolveWeekPattern,
 	type PatternDayKind,
 	type PatternDaySpec,
@@ -113,6 +117,12 @@ export type StampDay = PatternDaySpec & {
 	 * mix asks the share days for one fewer. Absent or `null` for a bare share.
 	 */
 	zone?: TrainingZone | null
+	/**
+	 * A **Simple Activity**'s own **Effort Word**, said on its Workout. A
+	 * `middels` or `hard` one is a **Hard day** every track's mix is laid
+	 * around (ADR 0104 §2). Absent or `null` on every other day.
+	 */
+	effort?: EffortWord | null
 }
 
 /** A Training Track the pattern draws from, in its own Volume Currency. */
@@ -120,7 +130,32 @@ export type StampTrack = {
 	trackId: string
 	discipline: Discipline
 	currency: VolumeCurrency
+	/**
+	 * Whether the athlete chose this track's days — its **Pinned days**
+	 * (ADR 0104 §4). A pinned track's mix is laid before the others', so its
+	 * hard days are where the athlete put the track and every other track's
+	 * mix steps around them.
+	 */
+	pinned?: boolean
 }
+
+/**
+ * A **lifting slot** (ADR 0104 §3): one strength session a week a strength
+ * track lifts, on no weekday anyone chose. The stamp places each week's slots
+ * after that week's endurance mix is laid, away from its hard days
+ * (`liftingDaysFor`), so a phase that moves the hard days moves the lifting.
+ * `workoutId` is the session each lift copies; `null` where it is gone.
+ */
+export type StampLiftingSlot = {
+	dayId: string
+	trackId: string
+	workoutId: string | null
+	/** The slot's stored position, which orders the slots among themselves. */
+	orderInDay?: number
+}
+
+/** A stamped session's kind: a pattern day's, or a lifting slot's. */
+export type StampSessionKind = PatternDayKind | 'lifting'
 
 /** One chosen week, with the derived target the plan already read for it. */
 export type StampWeekInput = {
@@ -137,6 +172,13 @@ export type StampWeekInput = {
 		trackId: string
 		mix: readonly QualitySessionMixEntry[]
 	}>
+	/**
+	 * The sessions already in the week that the stamp does not write — the
+	 * ones the athlete scheduled by hand, and any it keeps — as the day rule
+	 * reads them. The mix and the lifting are laid around them as around any
+	 * track's (spec #588 story 34); the stamp never moves or writes them.
+	 */
+	held?: readonly PlacedSession[]
 }
 
 /**
@@ -152,7 +194,8 @@ export type StampSession = {
 	trackId: string
 	discipline: Discipline
 	currency: VolumeCurrency
-	kind: PatternDayKind
+	/** The pattern day's kind, or `lifting` for a lifting slot the stamp laid. */
+	kind: StampSessionKind
 	/**
 	 * What this day comes out as in the track's currency — `null` on a fixed day
 	 * the currency cannot read, which does not stop it being stamped: the Workout
@@ -217,19 +260,33 @@ export type StampWeekPlan = {
  * representative week would write the same session into a 50 km week and a 65 km
  * one, which is the exact failure a pattern holding no absolute quantity exists to
  * prevent (ADR 0044 §7).
+ *
+ * Each week is laid in one order: the pattern's days, every track's long day,
+ * each track's mix around the rest, and last the **lifting slots** (ADR 0104
+ * §3), placed against that week's hard, long and lifting days on the
+ * `liftingDays` — the athlete's **Training Availability**, Monday first, or
+ * where none is given the pattern's own days ({@link fallbackLiftingDays}).
  */
 export function planStamp({
 	days,
 	tracks,
 	weeks,
+	lifting = [],
+	liftingDays,
 }: {
 	days: readonly StampDay[]
 	tracks: readonly StampTrack[]
 	weeks: readonly StampWeekInput[]
+	/** The strength tracks' lifting slots, laid per week after the mix. */
+	lifting?: readonly StampLiftingSlot[]
+	/** The days a lift may go on, Monday first. */
+	liftingDays?: readonly PatternWeekday[]
 }): StampWeekPlan[] {
 	const used = new Set(days.map((day) => day.trackId))
 	const trackById = new Map(tracks.map((track) => [track.trackId, track]))
 	const dayById = new Map(days.map((day) => [day.dayId, day]))
+	const liftOn: readonly PatternWeekday[] =
+		liftingDays ?? fallbackLiftingDays(days, lifting)
 
 	return weeks.map((week) => {
 		const specs: PatternTrackSpec[] = tracks
@@ -245,6 +302,7 @@ export function planStamp({
 						?.value ?? null,
 			}))
 
+		const held = week.held ?? []
 		const readings = resolveWeekPattern({ days, tracks: specs })
 		const sessions: StampSession[] = []
 		const skipped: StampSkip[] = []
@@ -289,15 +347,54 @@ export function planStamp({
 			}
 		}
 
-		for (const track of tracks) {
-			const own = sessions.filter(
-				(session) => session.trackId === track.trackId,
+		const ownOf = (trackId: string) =>
+			sessions.filter((session) => session.trackId === trackId)
+		// Every track's long day first, so each mix is laid around them all.
+		for (const track of tracks) markLongDays(ownOf(track.trackId), dayById)
+		// Then each mix in turn, around the week as laid so far: a track laid
+		// later steps around the hard days of the tracks laid before it. A
+		// track on its **Pinned days** goes first, so the others are laid
+		// around the athlete's choice (ADR 0104 §4); then the track carrying
+		// the most hard sessions this week, so the week's hard mix gets the
+		// room and the lighter ones step around it; then in track order.
+		const mixOf = (trackId: string) =>
+			week.mixes?.find((entry) => entry.trackId === trackId)?.mix ?? []
+		const hardOf = (trackId: string) =>
+			mixOf(trackId).reduce(
+				(total, entry) => total + Math.max(0, entry.sessionsPerWeek),
+				0,
 			)
-			markLongDays(own, dayById)
+		const layOrder = [
+			...tracks.filter((each) => each.pinned),
+			...tracks
+				.filter((each) => !each.pinned)
+				.map((track, index) => ({ track, index, hard: hardOf(track.trackId) }))
+				.sort((a, b) => b.hard - a.hard || a.index - b.index)
+				.map((entry) => entry.track),
+		]
+		for (const track of layOrder) {
 			if (!isCardioDiscipline(track.discipline)) continue
-			const mix =
-				week.mixes?.find((entry) => entry.trackId === track.trackId)?.mix ?? []
-			layMix(own, mix, dayById)
+			const mix = mixOf(track.trackId)
+			const others = sessions.filter(
+				(session) => session.trackId !== track.trackId,
+			)
+			layMix(
+				ownOf(track.trackId),
+				mix,
+				dayById,
+				anchorDaysOf(others, dayById, held),
+			)
+		}
+		// Last, the lifting slots, against the week as laid (ADR 0104 §3).
+		for (const track of tracks) {
+			const slots = lifting.filter((slot) => slot.trackId === track.trackId)
+			if (slots.length === 0) continue
+			layLifting(slots, liftOn, track, week.weekKey, {
+				sessions,
+				skipped,
+				dayById,
+				held,
+			})
 		}
 
 		return {
@@ -338,6 +435,165 @@ function markLongDays(
 	}
 }
 
+/**
+ * One stamped session as the cross-track day rule reads it (ADR 0104 §1): a
+ * strength session as lifting, a track's session by its zone's Effort Word
+ * (no zone is _rolig_), a Simple Activity by its own, and the long role as
+ * long. The stamp's anchors and the availability fit check read it alike.
+ */
+export function placedSessionOf(
+	session: StampSession,
+	day: StampDay | undefined,
+): PlacedSession {
+	const { discipline } = session
+	if (discipline === 'strength') {
+		return { weekday: session.weekday, kind: 'lifting' }
+	}
+	const zone = session.zone ?? day?.zone ?? null
+	const effort = isCardioDiscipline(discipline)
+		? zone != null
+			? effortWordOfZone(zone)
+			: 'rolig'
+		: (day?.effort ?? 'rolig')
+	return {
+		weekday: session.weekday,
+		kind: 'session',
+		effort,
+		long: session.role === 'long',
+	}
+}
+
+/**
+ * The days another track's sessions hold a mix away from (ADR 0104 §2): every
+ * **Hard day**, **Long day** and **Lifting day** of theirs and of the
+ * sessions already in the week (`held`), read by the one cross-track day rule.
+ */
+function anchorDaysOf(
+	sessions: readonly StampSession[],
+	dayById: ReadonlyMap<string, StampDay>,
+	held: readonly PlacedSession[],
+): PatternWeekday[] {
+	return readDays([...placedWeekOf(sessions, dayById), ...held])
+		.filter((day) => day.hard || day.long || day.lifting)
+		.map((day) => day.weekday)
+}
+
+/**
+ * A laid week's sessions as the cross-track day rule reads them, each by
+ * {@link placedSessionOf} against the pattern day it came from: the one
+ * reading the stamp, its previews and the fit check share. `days` are the
+ * pattern's days the week was laid from, as a list or by id.
+ */
+export function placedWeekOf(
+	sessions: readonly StampSession[],
+	days: readonly StampDay[] | ReadonlyMap<string, StampDay>,
+): PlacedSession[] {
+	const dayById =
+		days instanceof Map
+			? (days as ReadonlyMap<string, StampDay>)
+			: new Map((days as readonly StampDay[]).map((day) => [day.dayId, day]))
+	return sessions.map((session) =>
+		placedSessionOf(session, dayById.get(session.dayId)),
+	)
+}
+
+/**
+ * The days a lift may go on where the athlete never stated their **Training
+ * Availability**: the days the pattern already trains on, and where those are
+ * fewer than a track's lifts, the starter pattern's stated default week
+ * ({@link DEFAULT_TRAINING_WEEKDAYS}) as well — so an athlete who lifts twice
+ * a week on a one-run pattern lifts twice, not once. A pattern of no days
+ * lifts on any day.
+ */
+function fallbackLiftingDays(
+	days: readonly StampDay[],
+	lifting: readonly StampLiftingSlot[],
+): PatternWeekday[] {
+	if (days.length === 0) return [...PATTERN_WEEKDAYS]
+	const own = new Set(days.map((day) => day.weekday))
+	const perTrack = new Map<string, number>()
+	for (const slot of lifting) {
+		perTrack.set(slot.trackId, (perTrack.get(slot.trackId) ?? 0) + 1)
+	}
+	const most = Math.max(0, ...perTrack.values())
+	const pool =
+		own.size >= most ? own : new Set([...own, ...DEFAULT_TRAINING_WEEKDAYS])
+	return [...pool].sort((a, b) => a - b)
+}
+
+/**
+ * Lay one strength track's **lifting slots** into the week as laid so far
+ * (ADR 0104 §3): on the days `liftingDaysFor` picks by ADR 0103 §2's order —
+ * the fewest on a Hard day, then the day before one, then the Long day, then
+ * the furthest apart, then the earliest. A day that already lifts (a Pinned
+ * lifting day) is not picked again, and fewer days than slots lifts once on
+ * each. Each lift comes after the day's endurance session. A slot whose
+ * session is gone is reported on its day as `no-prescription`, as a fixed day
+ * with no Workout is. Deterministic, so a re-lay lands where the stamp did.
+ */
+function layLifting(
+	slots: readonly StampLiftingSlot[],
+	liftOn: readonly PatternWeekday[],
+	track: StampTrack,
+	weekKey: string,
+	{
+		sessions,
+		skipped,
+		dayById,
+		held,
+	}: {
+		sessions: StampSession[]
+		skipped: StampSkip[]
+		dayById: ReadonlyMap<string, StampDay>
+		held: readonly PlacedSession[]
+	},
+) {
+	const ordered = [...slots].sort(
+		(a, b) =>
+			(a.orderInDay ?? 0) - (b.orderInDay ?? 0) ||
+			a.dayId.localeCompare(b.dayId),
+	)
+	const picked = liftingDaysFor(
+		liftOn,
+		[...placedWeekOf(sessions, dayById), ...held],
+		ordered.length,
+	)
+	picked.forEach((weekday, index) => {
+		const slot = ordered[index]!
+		const position = {
+			dayId: slot.dayId,
+			weekKey,
+			weekday,
+			trackId: track.trackId,
+		}
+		if (slot.workoutId == null) {
+			skipped.push({ ...position, reason: 'no-prescription' })
+			return
+		}
+		const sameDay = sessions.filter((session) => session.weekday === weekday)
+		sessions.push({
+			...position,
+			// After whatever the day already holds.
+			orderInDay:
+				sameDay.length === 0
+					? 0
+					: Math.max(...sameDay.map((session) => session.orderInDay)) + 1,
+			discipline: track.discipline,
+			currency: track.currency,
+			kind: 'lifting',
+			// A strength session's sets are its Workout's; the `sets` currency
+			// prices no prescription (`fixedDayVolume`).
+			volume: null,
+			sourceWorkoutId: slot.workoutId,
+			scale: 1,
+			shapeUnscaled: false,
+			carriesTss: isCardioDiscipline(track.discipline),
+			role: 'ordinary',
+			zone: null,
+		})
+	})
+}
+
 /** Days apart on the week's wheel: Sunday and Monday are neighbours. */
 function weekdayGap(a: number, b: number): number {
 	const apart = Math.abs(a - b)
@@ -353,9 +609,11 @@ function weekdayGap(a: number, b: number): number {
  * - **Where:** ordinary bare share days only, never the long day, and never
  *   more hard days than there are ordinary ones (the rest of the mix is left
  *   to `mixDisagreements` to say, softly, as before). Picked one at a time,
- *   each as far as the week allows from the long day, the fixed quality days
- *   and the days already picked, the earlier day on a tie: hard days apart,
- *   with easy days between them.
+ *   each as far as the week allows from the long day, the fixed quality days,
+ *   the days already picked and the `outside` days (every other track's hard,
+ *   long and lifting days, ADR 0104 §2), the earlier day on a tie: hard days
+ *   apart, with easy days between them. A week with no room still lays the
+ *   whole mix, on the days nearest to that.
  * - **Which zone:** hardest first, in the week's order — the earliest hard day
  *   carries the hardest session, and the week eases toward the long day.
  *
@@ -366,6 +624,7 @@ function layMix(
 	sessions: StampSession[],
 	mix: readonly QualitySessionMixEntry[],
 	dayById: ReadonlyMap<string, StampDay>,
+	outside: readonly PatternWeekday[],
 ) {
 	const asked = new Map<QualityZone, number>()
 	for (const entry of mix) {
@@ -376,7 +635,7 @@ function layMix(
 			)
 		}
 	}
-	const anchors: number[] = []
+	const anchors: number[] = [...outside]
 	for (const session of sessions) {
 		const day = dayById.get(session.dayId)
 		if (session.role === 'long') anchors.push(session.weekday)

@@ -21,8 +21,9 @@
  *    - after a week that ran over plan, every missed session is let go — the
  *      load was done elsewhere, and making one up would undo any softening;
  *    - otherwise the **key** missed session (most Planned TSS; the earliest on a
- *      tie) is offered as a make-up `move` to the first free day still ahead in
- *      the coming week. That adds load, so it never applies without a yes;
+ *      tie) is offered as a make-up `move` to a free day still ahead in the
+ *      coming week (the day pick below). That adds load, so it never applies
+ *      without a yes;
  *    - every other missed session, and the key one when no day is free, is let
  *      go (`keep` on that session). One make-up a week at most, so a bad week
  *      never crams the next one.
@@ -31,6 +32,14 @@
  *    day may not suit the athlete, so the athlete chooses _bare denne gangen_
  *    or _fra nå av_. It keeps the load, so it is a reschedule, not more
  *    training; a free day the make-up already took is not offered again.
+ *
+ * **The day pick** (#596, ADR 0104 §1): both moves take the first free day
+ * the cross-track day rule (`placingClashes`) finds no clash on, against the
+ * whole coming week — every track's sessions, the athlete's own as fixed
+ * points, and the moves already picked. A day of the track's own (its Pinned
+ * days) that fits comes first. When no free day fits, the move takes the first
+ * free day as before, and its reason says what that day gets (ADR 0100: every
+ * write says what it did).
  * 4. **An open-ended plan whose last round just ended gets its next round**
  *    (`proposeNextRound`, ADR 0079 §3): more after a round done to plan, which
  *    waits for a yes; the same after missed weeks, which silence appends.
@@ -42,10 +51,21 @@ import { weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { formatSignedTsb } from '#app/utils/format.ts'
 import {
 	AUTOPILOT_REASON_LABELS,
+	CLASH_REASON_LABELS,
 	NB_WEEKDAY_LABELS,
 	WEEK_CHANGE_REASON_LABELS,
 	WEEK_HOLD_REASON_LABELS,
 } from '#app/utils/labels.ts'
+import {
+	type Clash,
+	type PlacedSession,
+	placingClashes,
+} from '#app/utils/plan-outline/day-rule.ts'
+import {
+	placedOn,
+	type PlacedSessionShape,
+} from '#app/utils/plan-outline/session-placement.ts'
+import { type PatternWeekday } from '#app/utils/plan-outline/week-pattern.ts'
 import { type SessionOwner } from '#app/utils/session-ownership.ts'
 import { type WeeklyAdherence } from './adherence.ts'
 import { proposeNextRound, type RoundFacts } from './propose-next-round.ts'
@@ -77,9 +97,22 @@ export type WeekChangeFacts = {
 		/** Its day, YYYY-MM-DD in the Athlete Timezone. */
 		date: string
 		plannedTss: number | null
+		/** What the day rule reads it as; absent or null, it fits any day. */
+		placement?: PlacedSessionShape | null
+		/** Its track's Pinned days, preferred for the make-up when one fits. */
+		pinnedDays?: readonly PatternWeekday[]
 	}>
 	/** Days of the coming week, still ahead, with no session on them. Ascending. */
 	freeDays: string[]
+	/**
+	 * Every session of the coming week as the day rule reads it, whoever owns
+	 * it — what a move is placed around (#596). Absent, no day clashes.
+	 */
+	comingWeek?: Array<{
+		id: string
+		date: string
+		placement: PlacedSessionShape | null
+	}>
 	/**
 	 * An open-ended plan whose last round ended with the closed week, or null
 	 * (ADR 0079 §3). Present, the author proposes the next round.
@@ -95,6 +128,10 @@ export type WeekChangeFacts = {
 		title: string
 		/** The coming week's session of the slot, and its day. */
 		next: { id: string; date: string }
+		/** What the day rule reads it as; absent or null, it fits any day. */
+		placement?: PlacedSessionShape | null
+		/** Its track's Pinned days, preferred when one fits. */
+		pinnedDays?: readonly PatternWeekday[]
 	}>
 	/**
 	 * The athlete is on Autopilot at this close (ADR 0100). It changes no rule
@@ -120,6 +157,11 @@ export type WeekChange = {
 
 /** The seam: anything that turns a week's facts into proposals of one type. */
 export type ProposalAuthor = (facts: WeekChangeFacts) => WeekChange
+
+/** A day's weekday on the Week Pattern's axis, Monday first. */
+function patternWeekday(date: string): PatternWeekday {
+	return weekdayIndex(date) as PatternWeekday
+}
 
 function weekday(date: string): string {
 	return NB_WEEKDAY_LABELS[weekdayIndex(date)]!
@@ -180,10 +222,65 @@ function keyMissed(missed: Missed[]): Missed | null {
 	)
 }
 
-function missedProposals(facts: WeekChangeFacts): ProposalDraft[] {
+/** A session of the coming week as the day rule reads it, by its id. */
+type Laid = { id: string; session: PlacedSession }
+
+/** The coming week laid out for the day rule. */
+function laidWeek(facts: WeekChangeFacts): Laid[] {
+	return (facts.comingWeek ?? []).flatMap(({ id, date, placement }) =>
+		placement
+			? [{ id, session: placedOn(placement, patternWeekday(date)) }]
+			: [],
+	)
+}
+
+const sessionsOf = (laid: readonly Laid[]) => laid.map((l) => l.session)
+
+/** A move's day, and the clash it takes when no free day fits. */
+type DayPick = { date: string; clash: Clash | null }
+
+/**
+ * The day pick: of the `candidates` (free days, ascending), the first that
+ * fits, else the first with the clash it makes. A track that names its own
+ * days and has one free is kept to them, clash or not (ADR 0104 §4: it trains
+ * only on them). A move the rule cannot read fits anywhere.
+ */
+function pickDay(
+	free: readonly string[],
+	week: readonly PlacedSession[],
+	shape: PlacedSessionShape | null | undefined,
+	pinnedDays: readonly PatternWeekday[] = [],
+): DayPick | null {
+	const own = free.filter((date) => pinnedDays.includes(patternWeekday(date)))
+	const candidates = own.length > 0 ? own : free
+	const first = candidates[0]
+	if (first == null) return null
+	if (!shape) return { date: first, clash: null }
+	const clashesOn = (date: string) =>
+		placingClashes(week, placedOn(shape, patternWeekday(date)))
+	const fit = candidates.find((date) => clashesOn(date).length === 0)
+	if (fit) return { date: fit, clash: null }
+	return { date: first, clash: clashesOn(first)[0] ?? null }
+}
+
+/** A clash as the reason says it, naming its days. */
+function clashWords(clash: Clash | null): string | null {
+	if (!clash) return null
+	return CLASH_REASON_LABELS[clash.reason](
+		NB_WEEKDAY_LABELS[clash.weekday]!,
+		NB_WEEKDAY_LABELS[(clash.weekday + 1) % 7]!,
+	)
+}
+
+function missedProposals(
+	facts: WeekChangeFacts,
+	week: readonly Laid[],
+): ProposalDraft[] {
 	const overloaded = facts.adherence?.band.tone === 'over'
 	const key = overloaded ? null : keyMissed(facts.missedSessions)
-	const freeDay = facts.freeDays[0] ?? null
+	const pick = key
+		? pickDay(facts.freeDays, sessionsOf(week), key.placement, key.pinnedDays)
+		: null
 	const R = wordsFor(facts)
 	return facts.missedSessions.map((missed) => {
 		const notDone = R.notDone(missed.title, weekday(missed.date))
@@ -196,15 +293,15 @@ function missedProposals(facts: WeekChangeFacts): ProposalDraft[] {
 		if (overloaded) {
 			return draft({ kind: 'keep' }, R.letGoHeavyWeek(notDone))
 		}
-		if (missed === key && freeDay) {
+		if (missed === key && pick) {
 			return draft(
 				{
 					kind: 'move',
 					fromDate: missed.date,
-					toDate: freeDay,
+					toDate: pick.date,
 					makeUp: true,
 				},
-				R.makeUp(notDone, weekday(freeDay)),
+				R.makeUp(notDone, weekday(pick.date), clashWords(pick.clash)),
 			)
 		}
 		if (missed === key) {
@@ -215,22 +312,40 @@ function missedProposals(facts: WeekChangeFacts): ProposalDraft[] {
 }
 
 /**
- * Rule 3: a move for each slot missed two weeks running, to the first free day
- * of the coming week that is not its own day and not already `taken`.
+ * Rule 3: a move for each slot missed two weeks running, to a free day of the
+ * coming week that is not its own day and not already `taken` — picked by the
+ * day rule against `week` without the slot's own session, and each move laid
+ * into the week before the next is picked.
  */
 function repeatMissProposals(
 	facts: WeekChangeFacts,
 	taken: ReadonlySet<string>,
+	week: readonly Laid[],
 ): ProposalDraft[] {
 	const used = new Set(taken)
+	let laid = [...week]
 	const drafts: ProposalDraft[] = []
 	const R = wordsFor(facts)
 	for (const miss of facts.repeatMisses ?? []) {
-		const toDate = facts.freeDays.find(
-			(day) => day !== miss.next.date && !used.has(day),
+		const rest = laid.filter((l) => l.id !== miss.next.id)
+		const pick = pickDay(
+			facts.freeDays.filter((day) => day !== miss.next.date && !used.has(day)),
+			sessionsOf(rest),
+			miss.placement,
+			miss.pinnedDays,
 		)
-		if (!toDate) continue
+		if (!pick) continue
+		const toDate = pick.date
 		used.add(toDate)
+		laid = miss.placement
+			? [
+					...rest,
+					{
+						id: miss.next.id,
+						session: placedOn(miss.placement, patternWeekday(toDate)),
+					},
+				]
+			: rest
 		const slot = weekday(miss.next.date)
 		drafts.push({
 			payload: {
@@ -241,7 +356,12 @@ function repeatMissProposals(
 			},
 			targetSessionId: miss.next.id,
 			targetWeekKey: facts.targetWeekKey,
-			reason: R.slotMove(miss.title, slot, weekday(toDate)),
+			reason: R.slotMove(
+				miss.title,
+				slot,
+				weekday(toDate),
+				clashWords(pick.clash),
+			),
 		})
 	}
 	return drafts
@@ -281,13 +401,25 @@ export const proposeWeekChange: ProposalAuthor = (facts) => {
 				},
 			]
 
-	const missed = missedProposals(facts)
+	const week = laidWeek(facts)
+	const missed = missedProposals(facts, week)
 	const madeUpOn = new Set(
 		missed.flatMap((draft) =>
 			draft.payload.kind === 'move' ? [draft.payload.toDate] : [],
 		),
 	)
-	const slotMoves = repeatMissProposals(facts, madeUpOn)
+	const madeUp = facts.missedSessions.flatMap(({ id, placement }) => {
+		const move = missed.find((draft) => draft.targetSessionId === id)
+		return move?.payload.kind === 'move' && placement
+			? [
+					{
+						id,
+						session: placedOn(placement, patternWeekday(move.payload.toDate)),
+					},
+				]
+			: []
+	})
+	const slotMoves = repeatMissProposals(facts, madeUpOn, [...week, ...madeUp])
 	const weekChanges = [...weekProposals, ...missed, ...slotMoves]
 	const nextRound = facts.round
 		? proposeNextRound(facts.round, { autopilot: facts.autopilot })

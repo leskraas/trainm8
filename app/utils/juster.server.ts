@@ -53,6 +53,7 @@ import {
 	EXERCISE_PICK_REPS,
 	EXERCISE_PICK_SETS,
 	type LaterDay,
+	type MoveFit,
 	parseJusterImage,
 	type SwapSource,
 	pickNewDay,
@@ -63,12 +64,22 @@ import {
 import { JUSTER_LABELS, nbDurationLabel } from './labels.ts'
 import { buildEasedPrescription } from './load/eased-prescription.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
+import { type PlacedSession } from './plan-outline/day-rule.ts'
+import {
+	placedOn,
+	readPlacement,
+	TRAINED_SESSION_STATUSES,
+} from './plan-outline/session-placement.ts'
+import { type PatternWeekday } from './plan-outline/week-pattern.ts'
 import { stampedSessionTitle } from './session-title.ts'
 import {
 	readSimpleActivity,
 	SIMPLE_ACTIVITY_INTENT,
 } from './simple-activity.ts'
-import { getDisciplineThresholds } from './training.server.ts'
+import {
+	effortWorkoutSelect,
+	getDisciplineThresholds,
+} from './training.server.ts'
 import {
 	CARDIO_DISCIPLINES,
 	isWorkoutIntent,
@@ -564,6 +575,66 @@ function weekdayOf(dayKey: string): string {
 	return formatNbWeekday(new Date(`${dayKey}T12:00:00Z`), 'UTC')
 }
 
+/** A day key's weekday on the Week Pattern's axis: Monday 0 … Sunday 6. */
+function patternWeekdayOf(dayKey: string): PatternWeekday {
+	return ((new Date(`${dayKey}T12:00:00Z`).getUTCDay() + 6) %
+		7) as PatternWeekday
+}
+
+/**
+ * What _Bytt dag_'s day rule reads (spec #588): this week's sessions from
+ * today on, each on its weekday, without the one that moves — skipped and
+ * missed ones are not trained, so they make no day hard — and that session.
+ * Earlier days are past; leaving them out keeps Sunday from reading this
+ * week's Monday as the day after it.
+ */
+async function readMoveFit(
+	userId: string,
+	sessionId: string,
+	{
+		todayKey,
+		sundayKey,
+		timezone,
+	}: { todayKey: string; sundayKey: string; timezone: string },
+): Promise<MoveFit> {
+	const rows = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			status: { in: [...TRAINED_SESSION_STATUSES] },
+			scheduledAt: {
+				gte: dayBoundsUTC(todayKey, timezone).start,
+				lte: dayBoundsUTC(sundayKey, timezone).end,
+			},
+		},
+		select: {
+			id: true,
+			scheduledAt: true,
+			workout: effortWorkoutSelect,
+		},
+	})
+	// Each by the one reading of a stored session (`readPlacement`): a lift
+	// is lifting, a _Langtur_ is long, anything else by its Effort Word.
+	const moving = rows.find((row) => row.id === sessionId)
+	const week: PlacedSession[] = rows.flatMap((row) => {
+		const shape = row.id === sessionId ? null : readPlacement(row.workout)
+		return shape
+			? [
+					placedOn(
+						shape,
+						patternWeekdayOf(localDate(row.scheduledAt, timezone)),
+					),
+				]
+			: []
+	})
+	return {
+		week,
+		session: readPlacement(moving?.workout) ?? {
+			kind: 'session',
+			effort: 'rolig',
+		},
+	}
+}
+
 /** The same local time of day on another local day. */
 function onDay(instant: Date, dayKey: string, timezone: string): Date {
 	return localTimeUTC(dayKey, localTimeOfDay(instant, timezone), timezone)
@@ -613,11 +684,18 @@ async function moveSession(
 		)
 		days.push({
 			key,
+			weekday: patternWeekdayOf(key),
 			occupied: on.length > 0,
 			openSessionIds: on.filter(isOpen).map((one) => one.id),
 		})
 	}
-	const pick = pickNewDay(days)
+	if (days.length === 0) return { ok: false, reason: 'no-later-day' }
+	const fit = await readMoveFit(userId, session.id, {
+		todayKey,
+		sundayKey,
+		timezone,
+	})
+	const pick = pickNewDay(days, fit)
 	if (pick.kind === 'refused') return { ok: false, reason: pick.reason }
 
 	const moved = onDay(session.scheduledAt, pick.toKey, timezone)
@@ -688,11 +766,20 @@ async function moveSession(
 	})
 
 	const day = weekdayOf(pick.toKey)
+	const clash = pick.kind === 'move' ? pick.clash : null
 	return {
 		ok: true,
 		toast: partner
 			? JUSTER_LABELS.done.swapped(day, partner.workout?.title ?? '')
-			: JUSTER_LABELS.done.moved(day),
+			: clash
+				? JUSTER_LABELS.done.movedAnyway(
+						day,
+						JUSTER_LABELS.clash[clash.reason]({
+							lifting: fit.session.kind === 'lifting',
+							after: clash.weekday !== patternWeekdayOf(pick.toKey),
+						}),
+					)
+				: JUSTER_LABELS.done.moved(day),
 		title,
 		changedSessionIds: partner ? [session.id, partner.id] : [session.id],
 		undo: { adjustmentId },

@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import {
 	availabilityFitWarnings,
+	dayClashWarnings,
 	hoursFitWarnings,
 	weeklyEnduranceHours,
 	weekSessionDemand,
@@ -9,6 +10,7 @@ import {
 } from './availability-fit.ts'
 import { type PhaseSpec } from './derive.ts'
 import { type QualitySessionMixEntry } from './quality-mix.ts'
+import { type StampDay, type StampTrack, type StampWeekInput } from './stamp.ts'
 
 /** A phase of `weeks` with no rhythm — the roles decide nothing about a fit check. */
 function phase(weeks: number): PhaseSpec {
@@ -448,4 +450,265 @@ test('the comparison is made at the precision the athlete reads, so no warning p
 	// which reads as a defect. Rounded, it fits — and 8.06 does not.
 	expect(hoursFitWarnings([8.04], 8)).toEqual([])
 	expect(hoursFitWarnings([8.06], 8)?.[0]?.peakHours).toBe(8.1)
+})
+
+// ---------------------------------------------------------------------------
+// Days read as days (#594, ADR 0104 §6): the laid week's clashes
+// ---------------------------------------------------------------------------
+
+type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6
+
+const RUN: StampTrack = { trackId: 'run', discipline: 'run', currency: 'km' }
+const RIDE: StampTrack = { trackId: 'ride', discipline: 'bike', currency: 'km' }
+const LIFT: StampTrack = {
+	trackId: 'lift',
+	discipline: 'strength',
+	currency: 'sets',
+}
+/** A Simple Activity's track: `other`, which is no `Discipline` (ADR 0015). */
+const SKI = {
+	trackId: 'ski',
+	discipline: 'other',
+	currency: 'hours',
+} as unknown as StampTrack
+
+/** A fixed day: its Workout is the session, its zone what it asks for. */
+function fixedDay(
+	trackId: string,
+	weekday: Weekday,
+	extra: Partial<StampDay> = {},
+): StampDay {
+	return {
+		dayId: `${trackId}-fixed-${weekday}`,
+		weekday,
+		orderInDay: 0,
+		trackId,
+		kind: 'fixed',
+		volume: 5,
+		workoutId: `${trackId}-w-${weekday}`,
+		shapeVolume: null,
+		...extra,
+	} as StampDay
+}
+
+/** A bare share day; the heaviest of a track's is its long day. */
+function shareDay(trackId: string, weekday: Weekday, weight = 1): StampDay {
+	return {
+		dayId: `${trackId}-share-${weekday}`,
+		weekday,
+		orderInDay: 0,
+		trackId,
+		kind: 'share',
+		weight,
+		workoutId: null,
+		shapeVolume: null,
+	} as StampDay
+}
+
+/** `count` plan weeks, every track at a target of 40. */
+function planWeeks(
+	count: number,
+	tracks: readonly StampTrack[],
+	mixFor: (week: number) => StampWeekInput['mixes'] = () => [],
+): StampWeekInput[] {
+	return Array.from({ length: count }, (_, index) => ({
+		weekKey: `week-${index}`,
+		weekInPlan: index + 1,
+		targets: tracks.map((track) => ({ trackId: track.trackId, value: 40 })),
+		mixes: mixFor(index),
+	}))
+}
+
+function clashes(days: StampDay[], tracks: StampTrack[], weeks = 1) {
+	return dayClashWarnings({ days, tracks, weeks: planWeeks(weeks, tracks) })
+}
+
+test('lifting on a hard day warns, naming the day', () => {
+	expect(
+		clashes(
+			[fixedDay('run', 1, { zone: 4 }), fixedDay('lift', 1)],
+			[RUN, LIFT],
+		),
+	).toEqual([
+		{
+			fromWeekIndex: 0,
+			toWeekIndex: 0,
+			reason: 'lifting-on-hard-day',
+			weekday: 1,
+			pinned: true,
+		},
+	])
+})
+
+test('lifting the day before a hard day warns on the lifting day', () => {
+	expect(
+		clashes(
+			[fixedDay('lift', 0), fixedDay('run', 1, { zone: 4 })],
+			[RUN, LIFT],
+		).map(({ reason, weekday }) => [reason, weekday]),
+	).toEqual([['lifting-before-hard-day', 0]])
+})
+
+test('lifting on the long day warns', () => {
+	expect(
+		clashes(
+			[shareDay('run', 1), shareDay('run', 6, 2), fixedDay('lift', 6)],
+			[RUN, LIFT],
+		).map(({ reason, weekday }) => [reason, weekday]),
+	).toEqual([['lifting-on-long-day', 6]])
+})
+
+test('two hard days in a row across tracks warn, a hard Simple Activity among them', () => {
+	// A `hard` _Langrenn_ Thursday after the run's threshold Wednesday: the
+	// Simple Activity reads by its own Effort Word, not by a zone.
+	expect(
+		clashes(
+			[fixedDay('run', 2, { zone: 4 }), fixedDay('ski', 3, { effort: 'hard' })],
+			[RUN, SKI],
+		).map(({ reason, weekday }) => [reason, weekday]),
+	).toEqual([['hard-days-in-a-row', 2]])
+})
+
+test('a clash on a Simple Activity’s day says it comes from the athlete’s choice', () => {
+	// _Langrenn_ is on the days the athlete gave it, with no _La appen
+	// velge_ (#598): a hard Saturday before the run's Sunday intervals.
+	expect(
+		clashes(
+			[fixedDay('ski', 5, { effort: 'hard' }), fixedDay('run', 6, { zone: 4 })],
+			[RUN, SKI],
+		),
+	).toEqual([
+		{
+			fromWeekIndex: 0,
+			toWeekIndex: 0,
+			reason: 'hard-days-in-a-row',
+			weekday: 5,
+			pinned: true,
+		},
+	])
+})
+
+test('a clash on a track’s Pinned days says it comes from the athlete’s choice', () => {
+	// The ride pinned to Thursday, its intervals laid there, after the run's
+	// threshold Wednesday the athlete authored (#598).
+	const laid = (pinned: boolean) =>
+		clashes(
+			[fixedDay('run', 2, { zone: 4 }), fixedDay('ride', 3, { zone: 4 })],
+			[RUN, { ...RIDE, pinned }],
+		)
+	expect(laid(true)).toEqual([
+		{
+			fromWeekIndex: 0,
+			toWeekIndex: 0,
+			reason: 'hard-days-in-a-row',
+			weekday: 2,
+			pinned: true,
+		},
+	])
+	expect(laid(false)[0]?.pinned).toBe(false)
+})
+
+test('two hard sessions on one day warn, a middels one counting as hard', () => {
+	expect(
+		clashes(
+			[fixedDay('run', 1, { zone: 4 }), fixedDay('ride', 1, { zone: 3 })],
+			[RUN, RIDE],
+		).map(({ reason, weekday }) => [reason, weekday]),
+	).toEqual([['two-hard-sessions', 1]])
+})
+
+test('two long sessions on one day warn', () => {
+	expect(
+		clashes(
+			[
+				shareDay('run', 1),
+				shareDay('run', 6, 2),
+				shareDay('ride', 2),
+				shareDay('ride', 6, 2),
+			],
+			[RUN, RIDE],
+		).map(({ reason, weekday }) => [reason, weekday]),
+	).toEqual([['two-long-sessions', 6]])
+})
+
+test('a rolig week with lifting away from it says nothing', () => {
+	expect(
+		clashes(
+			[
+				shareDay('run', 1),
+				shareDay('run', 6, 2),
+				fixedDay('lift', 3),
+				fixedDay('ski', 4, { effort: 'rolig' }),
+			],
+			[RUN, LIFT, SKI],
+		),
+	).toEqual([])
+})
+
+test('the hard days are read as the stamp lays the mix, and a clash spans the weeks that hold it', () => {
+	// Tuesday and a long Sunday: from the third week on, the one threshold
+	// session has nowhere to go but Tuesday — where the athlete's fixed
+	// lifting already is. The stamp steps around lifting where it can
+	// (ADR 0104 §2); the check says so where it cannot.
+	const tracks = [RUN, LIFT]
+	const warnings = dayClashWarnings({
+		days: [shareDay('run', 1), shareDay('run', 6, 2), fixedDay('lift', 1)],
+		tracks,
+		weeks: planWeeks(5, tracks, (week) =>
+			week >= 2
+				? [{ trackId: 'run', mix: [{ zone: 4, sessionsPerWeek: 1 }] }]
+				: [],
+		),
+	})
+
+	expect(warnings).toEqual([
+		{
+			fromWeekIndex: 2,
+			toWeekIndex: 4,
+			reason: 'lifting-on-hard-day',
+			weekday: 1,
+			pinned: true,
+		},
+	])
+})
+
+test('the check sees where a week’s lifting slots land, and the app’s choice is not the athlete’s', () => {
+	// The athlete trains only on Tuesday, the run's threshold day. The app has
+	// nowhere else to lift, and says so — as its own choice, not a pinned day
+	// (#597).
+	const tracks = [RUN, LIFT]
+	expect(
+		dayClashWarnings({
+			days: [fixedDay('run', 1, { zone: 4 })],
+			lifting: [{ dayId: 'slot-0', trackId: 'lift', workoutId: 'w-lift' }],
+			liftingDays: [1],
+			tracks,
+			weeks: planWeeks(1, tracks),
+		}),
+	).toEqual([
+		{
+			fromWeekIndex: 0,
+			toWeekIndex: 0,
+			reason: 'lifting-on-hard-day',
+			weekday: 1,
+			pinned: false,
+		},
+	])
+})
+
+test('a day clash carries the day and the reason, never a figure spanning tracks', () => {
+	// ADR 0046: no load, fatigue or hours number across tracks — the warning
+	// is a kind of day and a span of weeks, nothing to add up.
+	const [warning] = clashes(
+		[fixedDay('run', 1, { zone: 4 }), fixedDay('lift', 1)],
+		[RUN, LIFT],
+	)
+
+	expect(Object.keys(warning!).sort()).toEqual([
+		'fromWeekIndex',
+		'pinned',
+		'reason',
+		'toWeekIndex',
+		'weekday',
+	])
 })

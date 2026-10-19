@@ -14,6 +14,12 @@ export const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
 export const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)'
 
 /**
+ * How long a write's toast stays, and its row stays highlighted with _Angre_
+ * (ADR 0088): long enough to read what changed and reach the way back.
+ */
+export const LANDED_MS = 10_000
+
+/**
  * Whether the athlete asked for reduced motion. Gentler, never zero (ADR
  * 0077): a caller fades where it would have travelled.
  */

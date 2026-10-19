@@ -52,6 +52,20 @@ type Season = {
 		strengthSessions: number
 		trainableWeekdays: number
 	}>
+	/** The day check (ADR 0104 §6): where the laid days clash, and why. */
+	dayClashWarnings: Array<{
+		fromWeekInPlan: number
+		toWeekInPlan: number
+		reason:
+			| 'lifting-on-hard-day'
+			| 'lifting-before-hard-day'
+			| 'lifting-on-long-day'
+			| 'hard-days-in-a-row'
+			| 'two-hard-sessions'
+			| 'two-long-sessions'
+		weekday: 0 | 1 | 2 | 3 | 4 | 5 | 6
+		pinned: boolean
+	}>
 	/** `null` means the athlete never authored a **Weekly Capacity** (ADR 0050). */
 	weeklyCapacityHours: number | null
 	/**
@@ -540,6 +554,7 @@ const SEASON: Season = {
 	// Never set, which is the state that yields no availability warning at all.
 	trainableWeekdays: null,
 	availabilityWarnings: [],
+	dayClashWarnings: [],
 	// Never authored either, so the hours check is unavailable rather than passing.
 	weeklyCapacityHours: null,
 	hoursWarnings: [],
@@ -2214,6 +2229,56 @@ test('every guard arrives open, and each offers to be closed by name', async () 
 	]) {
 		expect(screen.getByRole('button', { name })).toBeEnabled()
 	}
+})
+
+test('the fit check names a clashing day and why, under the counts it keeps', async () => {
+	renderPlan({
+		...guardedSeason(),
+		dayClashWarnings: [
+			{
+				fromWeekInPlan: 1,
+				toWeekInPlan: 2,
+				reason: 'lifting-on-hard-day',
+				weekday: 1,
+				pinned: true,
+			},
+			{
+				fromWeekInPlan: 1,
+				toWeekInPlan: 1,
+				reason: 'hard-days-in-a-row',
+				weekday: 2,
+				pinned: false,
+			},
+			{
+				fromWeekInPlan: 3,
+				toWeekInPlan: 3,
+				reason: 'hard-days-in-a-row',
+				weekday: 2,
+				pinned: false,
+			},
+		],
+	})
+
+	await screen.findByText(/Det er dagene lest mot hverandre/)
+	const lines = screen
+		.getAllByRole('listitem')
+		.map((item) => item.textContent ?? '')
+		.filter((text) => /: (Styrke|To harde)/.test(text))
+	// The day and the reason, and the athlete's own day named as the cause;
+	// one line per clash, however many stretches of the plan hold it.
+	expect(lines).toEqual([
+		expect.stringMatching(
+			/^Uke \d+–\d+: Styrke og en hard økt på tirsdag\s– en dag du har valgt selv\.$/,
+		),
+		expect.stringMatching(
+			/^Uke \d+ og uke \d+: To harde dager etter hverandre \(onsdag–torsdag\)\.$/,
+		),
+	])
+	// The count line is still there, as it was; and nothing here is a figure.
+	expect(screen.getByText(/Det er dager mot dager/)).toBeInTheDocument()
+	expect(
+		screen.getByText(/Det er dagene lest mot hverandre/),
+	).toBeInTheDocument()
 })
 
 test('a guard the athlete has read and decided about closes, alone', async () => {

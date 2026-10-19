@@ -107,6 +107,8 @@ export type EditablePattern = {
 	name: string
 	orderIndex: number
 	days: EditablePatternDay[]
+	/** Lifts a week the stamp lays on days it picks each week (ADR 0104 §3). */
+	liftingSlots?: number
 }
 
 /** A track a pattern day can draw from, in its own **Volume Currency**. */
@@ -398,6 +400,19 @@ function PatternCard({
 						})}
 					</ol>
 				)}
+
+				{pattern.liftingSlots ? (
+					<p className="text-footnote text-muted-foreground">
+						{SESONG_PATTERN_LABELS.liftingSlots(pattern.liftingSlots)}{' '}
+						<Link
+							to="/settings/training/styrke"
+							// Presses and reaches 44px like the Autopilot Notice's link.
+							className="text-foreground pressable relative inline-block underline underline-offset-4 after:absolute after:inset-x-0 after:-inset-y-2.5"
+						>
+							{SESONG_PATTERN_LABELS.liftingSlotsLink}
+						</Link>
+					</p>
+				) : null}
 
 				{readings.map((reading) => (
 					<TrackTotals

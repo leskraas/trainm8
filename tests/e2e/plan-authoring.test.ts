@@ -216,9 +216,15 @@ test('athlete plans a season from a goal, and its weeks fill from the typical we
 	// from 40 km on any day but a Monday — so the shape is asserted, not the
 	// figures. Bare sessions are titled by what they are (ADR 0091 §2:
 	// `Langtur · Løping`, `Terskeløkt · Løping`), and the distance is the row's.
+	// From Sunday 20:00 the week has closed and the horizon reaches a week
+	// further (ADR 0086), so two weeks are laid: the shape is one week's.
 	const stream = page.getByTestId('timeline-stream')
 	await expect(stream).toContainText('Langtur · Løping')
-	const text = (await stream.textContent()) ?? ''
+	const laidWeek = stream
+		.locator('[data-timeline-week]')
+		.filter({ hasText: 'Langtur · Løping' })
+		.first()
+	const text = (await laidWeek.textContent()) ?? ''
 	const figure = (raw: string) => Number(raw.replace(',', '.'))
 	const long = /Langtur · Løping\s*([\d,]+)\s*km/.exec(text)?.[1]
 	const others = [

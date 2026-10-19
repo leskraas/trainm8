@@ -7,7 +7,7 @@
  */
 import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
-import { addDays, localDate } from '#app/utils/athlete-calendar.ts'
+import { addDays, localDate, mondayOfDay } from '#app/utils/athlete-calendar.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { createCatalogueEntry } from '#app/utils/catalogue.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -293,7 +293,9 @@ test('every write is undone by the same delete (ADR 0088)', async () => {
 test('the sources: Bibliotek says each session as a line when it can; Kopier reads the week before, same weekday first', async () => {
 	const user = await setUp()
 	const workoutId = await stockSession()
-	const day = addDays(today(), 7)
+	// Next week's Wednesday, so the day before its weekday a week back is still
+	// in the week Kopier reads, whatever weekday the test runs on.
+	const day = addDays(mondayOfDay(today()), 9)
 	// Last week, relative to `day`: one on the same weekday, one the day before.
 	for (const [offset, sentence] of [
 		[-8, '10 km rolig'],

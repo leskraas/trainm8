@@ -4,7 +4,10 @@ Status: Accepted · Owner decision 15 (round 2, 2026-10-10) and the round-2
 first-run audit (PR B) · ADR number 0091 claimed by branch
 `claude/r2-firstrun-meg-finish` · **§3 confirmed by
 [ADR 0102](./0102-the-first-run-shows-up-to-three-start-options-as-real-weeks-and-stor-base-starts-all-easy.md)**:
-the hours are week 1 of every Start Option.
+the hours are week 1 of every Start Option. **§1 superseded in part by
+[ADR 0104](./0104-one-day-rule-across-tracks-lifting-laid-per-week-and-pinned-days-per-track.md)**:
+the mix is spread away from every track's hard, long and lifting days, not the
+track's own only.
 
 **Amends [ADR 0044](./0044-plan-outline-is-relational.md) §7** (a pattern day
 carries no zone — it still does not, but the stamp now gives a bare share day

@@ -324,8 +324,10 @@ export async function createFirstRunPlan(
  * - **a strength block** over the round, at the lifting days' count (the
  *   **Strength Frequency** the athlete tapped, where their days allowed it),
  *   on the general goal; the round's end carries it on (`appendOpenEndedRound`);
- * - **fixed lifting days** in the Week Pattern on the days the card showed,
- *   each on the Workout the card named, after the day's endurance session.
+ * - **lifting slots** in the Week Pattern, one per lift the card showed, each
+ *   on the Workout the card named (ADR 0104 §3). The stamp lays them per
+ *   week after the endurance mix, by the same rule the card's days came from,
+ *   so week 1 lifts on the card's days, after the day's endurance session.
  */
 async function createStartStrengthInTx(
 	tx: Prisma.TransactionClient,
@@ -370,16 +372,18 @@ async function createStartStrengthInTx(
 	const pattern = await tx.weekPattern.findFirstOrThrow({
 		where: { outlineId },
 		orderBy: { orderIndex: 'asc' },
-		select: { id: true, days: { select: { weekday: true } } },
+		select: { id: true },
 	})
-	for (const weekday of strength.days) {
+	// One lifting slot per lift (ADR 0104 §3), on no weekday: the stamp lays
+	// each week's against that week's hard days, so week 1 lifts on the days
+	// the card showed and a later phase moves the lifting with its mix.
+	for (const [orderInDay] of strength.days.entries()) {
 		await tx.weekPatternDay.create({
 			data: {
 				patternId: pattern.id,
-				weekday,
-				orderInDay: pattern.days.filter((day) => day.weekday === weekday)
-					.length,
-				kind: 'fixed',
+				weekday: null,
+				orderInDay,
+				kind: 'lifting',
 				trackId: track.id,
 				workoutId: strength.workoutId,
 			},

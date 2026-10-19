@@ -317,81 +317,6 @@ export function startWeekOf(
 	}
 }
 
-/** Days apart on the week's wheel: Sunday and Monday are neighbours. */
-function weekdayGap(a: number, b: number): number {
-	const apart = Math.abs(a - b)
-	return Math.min(apart, 7 - apart)
-}
-
-/** Every way to pick `count` of the days, in week order. */
-function combinations<T>(items: readonly T[], count: number): T[][] {
-	if (count === 0) return [[]]
-	return items.flatMap((item, index) =>
-		combinations(items.slice(index + 1), count - 1).map((rest) => [
-			item,
-			...rest,
-		]),
-	)
-}
-
-/**
- * The lifting days (#574, ADR 0103): `perWeek` of the athlete's days, placed
- * away from the hard endurance days. Of every way to pick them, the one with
- * the fewest lifts on a day with a hard or middling session, then on the day
- * before one (legs fresh for the intervals), then on the long day, then the
- * lifts furthest apart, then the earliest. One lift a day at most, so fewer
- * days than lifts lifts once on each.
- */
-export function strengthDaysFor(
-	days: readonly PatternWeekday[],
-	week: StartWeek,
-	perWeek: number,
-	longDay: PatternWeekday | null = null,
-): PatternWeekday[] {
-	const candidates = [...new Set(days)].sort((a, b) => a - b)
-	const count = Math.min(Math.max(0, perWeek), candidates.length)
-	if (count === 0) return []
-	const quality = new Set(
-		week.days
-			.filter((day) => day.sessions.some((s) => s.effort !== 'rolig'))
-			.map((day) => day.weekday),
-	)
-	const scoreOf = (picked: readonly PatternWeekday[]): number[] => {
-		const gaps =
-			picked.length < 2
-				? [7]
-				: picked.map((day, at) =>
-						weekdayGap(day, picked[(at + 1) % picked.length]!),
-					)
-		return [
-			picked.filter((day) => quality.has(day)).length,
-			picked.filter((day) => quality.has(((day + 1) % 7) as PatternWeekday))
-				.length,
-			picked.filter((day) => day === longDay).length,
-			-Math.min(...gaps),
-			picked.reduce<number>((sum, day) => sum + day, 0),
-		]
-	}
-	let best: PatternWeekday[] = []
-	let bestScore: number[] | null = null
-	for (const picked of combinations(candidates, count)) {
-		const score = scoreOf(picked)
-		if (bestScore == null || lexicallyBefore(score, bestScore)) {
-			best = picked
-			bestScore = score
-		}
-	}
-	return best
-}
-
-/** Whether `a` comes before `b`, compared entry by entry. */
-function lexicallyBefore(a: readonly number[], b: readonly number[]): boolean {
-	for (let at = 0; at < a.length; at++) {
-		if (a[at] !== b[at]) return a[at]! < b[at]!
-	}
-	return false
-}
-
 /**
  * One family's first week laid for the answers (ADR 0102 §1). A reading;
  * never stored. `draft` is what the plan writer makes when the athlete picks
@@ -414,8 +339,9 @@ export type StartOption = {
 	shortOfHours: number | null
 	/**
 	 * The lifting days (#574): Monday-first, as many as the athlete tapped
-	 * where their days allow, away from the hard endurance days
-	 * ({@link strengthDaysFor}). Empty without _styrke_.
+	 * where their days allow, away from the hard endurance days: week 1's
+	 * lifts as the stamp lays them (`draft.liftingDays`), so the card shows
+	 * the plan stored. Empty without _styrke_.
 	 */
 	strengthDays: PatternWeekday[]
 	/**
@@ -671,6 +597,8 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 			sessionCap: enduranceCap,
 		})
 		sports = layout.sports
+		// The day check lays the lifts as `strengthDays` below does.
+		const lifting = strength && lifts > 0 ? { perWeek: lifts, days } : null
 		const draft =
 			layout.activities.length === 0 && sports.length === 1
 				? draftFirstRunPlan({
@@ -682,6 +610,7 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 						days,
 						sessionCap: enduranceCap,
 						shortWeekdays,
+						lifting,
 					})
 				: draftFirstRunPlan({
 						family,
@@ -691,20 +620,14 @@ export function draftStart(answers: StartAnswers): StartDraft | null {
 						shortWeekdays,
 						tracks: layout.tracks,
 						simpleActivities: layout.activities,
+						lifting,
 					})
 		if (!draft) continue
-		const endurance = startWeekOf(draft)
-		const strengthDays = strength
-			? strengthDaysFor(
-					days,
-					endurance,
-					lifts,
-					draft.patternDays.at(-1) ?? null,
-				)
-			: []
+		// Where the stamp lays week 1's lifts, so the card shows the plan stored.
+		const strengthDays = strength ? draft.liftingDays : []
 		const week = strength
 			? startWeekOf(draft, { days: strengthDays, session: strength.session })
-			: endurance
+			: startWeekOf(draft)
 		laid.push({
 			family,
 			draft,

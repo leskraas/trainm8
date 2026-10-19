@@ -98,6 +98,26 @@ test('lifting days land away from the hard endurance days', () => {
 	}
 })
 
+test('a lift laid on a hard day is said by the day check, on that day (spec #588 story 40)', () => {
+	for (const level of TRAINING_LEVELS) {
+		const { hours, days } = levelDefaults(level)
+		const made = start({
+			level,
+			hours,
+			days,
+			strength: { perWeek: 3, session: SESSION },
+		})
+		for (const option of made.options) {
+			const hard = hardDays(option.week)
+			const onHard = option.strengthDays.filter((day) => hard.includes(day))
+			const said = option.draft.dayClashes
+				.filter((clash) => clash.reason === 'lifting-on-hard-day')
+				.map((clash) => clash.weekday)
+			expect([...new Set(said)].sort()).toEqual(onHard)
+		}
+	}
+})
+
 test('a strength day shows its lifts, not minutes, and the hours stay the endurance hours', () => {
 	const without = start({ strength: null })
 	const made = start()
@@ -198,4 +218,20 @@ test('with several endurance sports the lifts come out of the same session cap',
 		expect(option.week.strengthSessions).toBe(1)
 		expect(option.week.sessionCount + option.week.strengthSessions).toBe(4)
 	}
+})
+
+test('with several sports the card lifts where the plan will: a week with no long or hard day spreads the lifts', () => {
+	// Run and bike, one easy session each on Monday and Wednesday and no long
+	// day: two lifts go as far apart as the days allow (ADR 0103 §2), as the
+	// stamp lays them in the stored plan, not on Monday and Tuesday.
+	const made = start({
+		level: 'beginner',
+		hours: 5,
+		days: [0, 1, 2],
+		otherSports: ['bike'],
+		strength: { perWeek: 2, session: SESSION },
+	})
+	const option = made.options[0]!
+	expect(option.strengthDays).toEqual([0, 2])
+	expect(liftingDays(option.week)).toEqual([0, 2])
 })

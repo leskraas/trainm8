@@ -105,12 +105,16 @@ async function createDoneSession(
 	})
 }
 
-/** A quantified bike session; by default the machine's, this Thursday. */
+/**
+ * A quantified bike session; by default the machine's, this Thursday, at
+ * tempo — a _middels_ day to the day rule. `easy` rides it at 60 % FTP, _rolig_.
+ */
 async function createSession(
 	userId: string,
 	{
 		title = 'Tempo ride',
 		durationSec = 3600,
+		easy = false,
 		source = 'generated',
 		adoptedAt = null as Date | null,
 		releasedAt = null as Date | null,
@@ -138,8 +142,8 @@ async function createSession(
 									durationSec,
 									intensity: JSON.stringify({
 										kind: 'powerPct',
-										minPct: 85,
-										maxPct: 95,
+										minPct: easy ? 55 : 85,
+										maxPct: easy ? 65 : 95,
 									}),
 								},
 							],
@@ -599,8 +603,9 @@ test('a missed session stays ikke gjort on its day; the key one is offered as a 
 		scheduledAt: at(addDays(CLOSED_MONDAY, 3)),
 		status: 'missed',
 	})
-	// Thursday is taken, so Friday is the first free day still ahead.
-	await createSession(user.id, { scheduledAt: at(THURSDAY) })
+	// Thursday is taken by an easy ride, so Friday is the first free day still
+	// ahead, and nothing hard sits beside it.
+	await createSession(user.id, { scheduledAt: at(THURSDAY), easy: true })
 
 	await applyWeekReplanForUser(user.id, NOW)
 
@@ -645,6 +650,52 @@ test('a missed session stays ikke gjort on its day; the key one is offered as a 
 	)
 })
 
+test('the make-up steps around the coming week’s hard day, the athlete’s own session left where it is (#596)', async () => {
+	const user = await createBiker()
+	const keyMissed = await createSession(user.id, {
+		title: 'Terskel',
+		durationSec: 4800,
+		scheduledAt: at(addDays(CLOSED_MONDAY, 1)),
+	})
+	// The athlete's own tempo ride on Thursday: Friday, the first free day,
+	// would make two hard days in a row.
+	const own = await createSession(user.id, {
+		source: 'authored',
+		scheduledAt: at(THURSDAY),
+	})
+
+	await applyWeekReplanForUser(user.id, NOW)
+
+	const move = await proposalFor(user.id, keyMissed.id)
+	expect(move.payload).toMatchObject({ kind: 'move', toDate: SATURDAY })
+	expect(move.reason).toContain('Vil du ta den igjen lørdag?')
+	expect(move.reason).not.toContain('Ingen ledig dag')
+	expect((await readSession(own.id)).scheduledAt).toEqual(at(THURSDAY))
+})
+
+test('a skipped hard session in the coming week makes no day hard: the make-up takes the free day beside it', async () => {
+	const user = await createBiker()
+	const keyMissed = await createSession(user.id, {
+		title: 'Terskel',
+		durationSec: 4800,
+		scheduledAt: at(addDays(CLOSED_MONDAY, 1)),
+	})
+	// Thursday's tempo ride is skipped: it will not be trained, so Friday,
+	// the first free day, is no second hard day in a row.
+	await createSession(user.id, {
+		status: 'skipped',
+		scheduledAt: at(THURSDAY),
+	})
+
+	await applyWeekReplanForUser(user.id, NOW)
+
+	const move = await proposalFor(user.id, keyMissed.id)
+	expect(move.payload).toMatchObject({ kind: 'move', toDate: FRIDAY })
+	expect(move.reason).toContain(
+		'Vil du ta den igjen fredag? Den dagen er ledig.',
+	)
+})
+
 test('after an overloaded week a missed session is let go, never made up', async () => {
 	const user = await createBiker({ tsb: -12 })
 	await createDoneSession(user.id)
@@ -661,7 +712,8 @@ test('after an overloaded week a missed session is let go, never made up', async
 
 test('a slot of the machine’s missed two weeks running gets a plain move of its next session, with the reach left to the athlete', async () => {
 	const user = await createBiker()
-	const slot = { title: 'Terskel' }
+	// Easy, so the day rule finds every free day fits and the order decides.
+	const slot = { title: 'Terskel', easy: true }
 	// Friday, missed the week before last and last week.
 	await createSession(user.id, {
 		...slot,

@@ -2,6 +2,10 @@ import { type Locator, type Page } from '@playwright/test'
 import sharp from 'sharp'
 import { landingTop } from '#app/routes/_home/timeline/anchoring.ts'
 import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
+import {
+	horizonWeekKey,
+	lastClosedWeekKey,
+} from '#app/utils/load/week-change.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { type Theme } from '#app/utils/theme.server.ts'
 import {
@@ -413,17 +417,23 @@ test('opens parked on today before the first paint: no hero, no jump, and the li
 	expect(parsedAt).not.toBeNull()
 	expect(parsedAt).toBeGreaterThan(0)
 	expect(Math.abs(parsedAt! - state.scrollTop)).toBeLessThanOrEqual(2)
-	// Today lands *below* its week's sticky header, never under it.
-	const clear = await page.getByTestId('timeline-stream').evaluate((el) => {
-		const today = el.querySelector('[data-timeline-today]')!
-		const header = today
-			.closest('[data-timeline-week]')!
-			.querySelector('[data-week-header]')!
-		return (
-			today.getBoundingClientRect().top - header.getBoundingClientRect().bottom
-		)
-	})
-	expect(clear).toBeGreaterThanOrEqual(8)
+	// Today lands *below* its week's sticky header, never under it — right
+	// against it when today opens the week (a Monday), and with room to spare
+	// on any later day.
+	const { clear, first } = await page
+		.getByTestId('timeline-stream')
+		.evaluate((el) => {
+			const today = el.querySelector('[data-timeline-today]')!
+			const week = today.closest('[data-timeline-week]')!
+			const header = week.querySelector('[data-week-header]')!
+			return {
+				clear:
+					today.getBoundingClientRect().top -
+					header.getBoundingClientRect().bottom,
+				first: week.querySelector('[data-timeline-day]') === today,
+			}
+		})
+	expect(clear).toBeGreaterThanOrEqual(first ? 0 : 8)
 	// The page itself does not scroll — the frame is the viewport.
 	expect(
 		await page.evaluate(
@@ -2647,9 +2657,16 @@ async function seedPlanPastTheHorizon(userId: string) {
 			source: 'authored',
 		},
 	})
-	// Two weeks out, past the horizon: the athlete's own fixed point.
+	// The week just past the horizon: the athlete's own fixed point. The
+	// horizon moves a week out when this week closes on Sunday 20:00 (ADR
+	// 0086), so which week that is depends on the hour the test runs — two
+	// weeks out before the close, three after it.
+	const farWeek = dayKey(
+		horizonWeekKey(lastClosedWeekKey(new Date(), 'UTC')),
+		7,
+	)
 	const group = await run('Langtur med gjengen', 24_000)
-	const farKey = dayKey(monday, 16)
+	const farKey = dayKey(farWeek, 2)
 	await prisma.workoutSession.create({
 		data: {
 			userId,
@@ -2659,7 +2676,7 @@ async function seedPlanPastTheHorizon(userId: string) {
 			source: 'authored',
 		},
 	})
-	return { farWeek: dayKey(monday, 14), monday }
+	return { farWeek, monday }
 }
 
 test('a week header reads the Week Target, the Planned Volume and the Actual Volume side by side (#505 story 23)', async ({

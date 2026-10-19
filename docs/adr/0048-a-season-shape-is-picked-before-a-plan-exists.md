@@ -117,7 +117,11 @@ athlete who does the thing by hand sees the step close:
   week rather than instead of it. Where availability was never set it falls back
   to a four-day week and the copy **says so** rather than implying it read
   anything. An athlete who says they train on no days is taken at their word and
-  gets no pattern.
+  gets no pattern. _Superseded in part by
+  [ADR 0104](./0104-one-day-rule-across-tracks-lifting-laid-per-week-and-pinned-days-per-track.md)
+  §5: the starter week deals endurance days across tracks instead of laying
+  every track on every day, and lays lifting by the day rule, not from the front
+  of the week._
 
 `addWeekPattern` still opens an **empty** pattern, and its reason still holds —
 "a pattern with a default week in it would be a shape nobody authored". A

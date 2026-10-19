@@ -76,6 +76,7 @@ import type { GenerationIntent } from './plan-generation/season.ts'
 // this module owns the sentence each accumulation is explained by.
 import type { CreateOutlineRefusal } from './plan-outline/authoring.server.ts'
 import type { AccumulatingCurrency } from './plan-outline/commensurability.ts'
+import type { ClashReason } from './plan-outline/day-rule.ts'
 import type {
 	Rhythm,
 	StrengthGoal,
@@ -110,6 +111,7 @@ import type {
 	UnmeasuredReason,
 	VolumeGrade,
 } from './plan-outline/week-volumes.ts'
+import type { PlannedDiscipline } from './planned-discipline.ts'
 // The domain owns *who* a session belongs to (ADR 0080); this module owns the
 // words the athlete reads for each owner.
 import type {
@@ -700,6 +702,18 @@ export const NB_DISCIPLINE_LABELS: Record<Discipline, string> = {
 }
 
 /**
+ * A planned discipline's name: the sport, or _Enkel aktivitet_ for `other`
+ * — never the stored id.
+ */
+export function nbPlannedDisciplineLabel(
+	discipline: PlannedDiscipline,
+): string {
+	return discipline === 'other'
+		? SIMPLE_ACTIVITY_LABELS.noun
+		: NB_DISCIPLINE_LABELS[discipline]
+}
+
+/**
  * The three week numbers side by side (#505 story 23): the Week Target, the
  * Planned Volume and the Actual Volume.
  */
@@ -1146,6 +1160,36 @@ export const WEEK_HOLD_REASON_LABELS: Record<
 }
 
 /**
+ * A clash of the cross-track day rule (#589, ADR 0104 §1) as a clause that
+ * names its days: `day` is the day it is on and `next` the day after, which
+ * only the two-day reasons read. Weekdays as {@link NB_WEEKDAY_LABELS} say
+ * them. Never a number: the rule reads kinds of days (ADR 0046).
+ */
+export const CLASH_REASON_LABELS: Record<
+	ClashReason,
+	(day: string, next: string) => string
+> = {
+	'lifting-on-hard-day': (day) => `${day} får både styrke og en hard økt`,
+	'lifting-before-hard-day': (day, next) =>
+		`${day} får styrke dagen før en hard økt ${next}`,
+	'lifting-on-long-day': (day) => `${day} får både styrke og en langtur`,
+	'hard-days-in-a-row': (day, next) =>
+		`${day} og ${next} blir harde dager på rad`,
+	'two-hard-sessions': (day) => `${day} får to harde økter`,
+	'two-long-sessions': (day) => `${day} får to langturer`,
+	'easy-before-hard-day': (day, next) =>
+		`${day} får en rolig økt dagen før en hard økt ${next}`,
+}
+
+/**
+ * Said after a Week Replan move when no free day fits the day rule (#596): the
+ * move took the first free day anyway, and this says what that day gets.
+ */
+function noFittingDay(clash: string | null): string {
+	return clash ? ` Ingen ledig dag passer helt denne uka – ${clash}.` : ''
+}
+
+/**
  * The Week Replan's proposal reasons (#505 story 44, ADR 0080), as the
  * deterministic author (`propose-week-change.ts`) writes them. Never worded as
  * though anything were already applied: nothing has changed when they are
@@ -1162,15 +1206,21 @@ export const WEEK_CHANGE_REASON_LABELS = {
 		`«${title}» ble ikke gjort ${weekday}, og står der som ikke gjort.`,
 	letGoHeavyWeek: (notDone: string) =>
 		`${notDone} Uka var tung nok likevel, så vi foreslår å la den gå.`,
-	makeUp: (notDone: string, weekday: string) =>
-		`${notDone} Vil du ta den igjen ${weekday}? Den dagen er ledig. Det gir mer trening denne uka, så den legges bare inn hvis du sier ja.`,
+	/** `clash`: what the day gets when no free day fits (#596), else null. */
+	makeUp: (notDone: string, weekday: string, clash: string | null) =>
+		`${notDone} Vil du ta den igjen ${weekday}? Den dagen er ledig.${noFittingDay(clash)} Det gir mer trening denne uka, så den legges bare inn hvis du sier ja.`,
 	letGoNoFreeDay: (notDone: string) =>
 		`${notDone} Det er ingen ledig dag igjen denne uka, så vi foreslår å la den gå.`,
 	letGo: (notDone: string) =>
 		`${notDone} Vi foreslår å la den gå, så uka ikke blir for full.`,
 	/** A slot missed two closed weeks running, moved to a free day. */
-	slotMove: (title: string, slot: string, toWeekday: string) =>
-		`«${title}» ble ikke gjort ${slot} to uker på rad. Kanskje ${slot} ikke passer? Vi foreslår å flytte den til ${toWeekday}, som er ledig – bare denne gangen, eller fra nå av.`,
+	slotMove: (
+		title: string,
+		slot: string,
+		toWeekday: string,
+		clash: string | null,
+	) =>
+		`«${title}» ble ikke gjort ${slot} to uker på rad. Kanskje ${slot} ikke passer? Vi foreslår å flytte den til ${toWeekday}, som er ledig – bare denne gangen, eller fra nå av.${noFittingDay(clash)}`,
 	/** The week-level sentences for a week with changes proposed. */
 	weekSoften: (over: string, tsb: string, cut: string) =>
 		`${overClause(over)}, og formen er ${tsb}. Vi foreslår å gjøre de neste øktene ca. ${cut} kortere.`,
@@ -1210,8 +1260,8 @@ export const AUTOPILOT_REASON_LABELS: WeekChangeReasonWords = {
 	letGoNoFreeDay: (notDone) =>
 		`${notDone} Det er ingen ledig dag igjen denne uka, så vi lar den gå.`,
 	letGo: (notDone) => `${notDone} Vi lar den gå, så uka ikke blir for full.`,
-	slotMove: (title, slot, toWeekday) =>
-		`«${title}» ble ikke gjort ${slot} to uker på rad, så den er flyttet til ${toWeekday}, som er ledig. Bare denne gangen.`,
+	slotMove: (title, slot, toWeekday, clash) =>
+		`«${title}» ble ikke gjort ${slot} to uker på rad, så den er flyttet til ${toWeekday}, som er ledig. Bare denne gangen.${noFittingDay(clash)}`,
 	weekSoften: (over, tsb, cut) =>
 		`${overClause(over)}, og formen er ${tsb}. De neste øktene er gjort ca. ${cut} kortere.`,
 	weekMakeUp:
@@ -4118,7 +4168,34 @@ export const JUSTER_LABELS = {
 		swapped: (day: string, other: string) =>
 			`Økta er flyttet til ${day}, og «${other}» er i dag.`,
 		swappedSession: (title: string) => `Dagens økt er byttet til «${title}».`,
+		/**
+		 * _Bytt dag_ when every free day clashed (spec #588 story 30): the
+		 * first free day, and in the same line why it lands there.
+		 */
+		movedAnyway: (day: string, why: string) =>
+			`Økta er flyttet til ${day}, ${why}. Ingen ledig dag passet bedre.`,
 	},
+	/**
+	 * Why a moved session's day clashes (ADR 0104 §1), said from the moved
+	 * session: `lifting` when it is a lift, `after` when it is the second day
+	 * of a two-day clash (the day after a lift, or after another hard day).
+	 */
+	clash: {
+		'lifting-on-hard-day': ({ lifting }) =>
+			lifting ? 'samme dag som en hard økt' : 'samme dag som styrke',
+		'lifting-before-hard-day': ({ after }) =>
+			after ? 'dagen etter styrke' : 'dagen før en hard økt',
+		'lifting-on-long-day': ({ lifting }) =>
+			lifting ? 'samme dag som langturen' : 'samme dag som styrke',
+		'hard-days-in-a-row': ({ after }) =>
+			after ? 'dagen etter en annen hard økt' : 'dagen før en annen hard økt',
+		'two-hard-sessions': () => 'samme dag som en annen hard økt',
+		'two-long-sessions': () => 'samme dag som en annen langtur',
+		'easy-before-hard-day': () => 'dagen før en hard økt',
+	} satisfies Record<
+		ClashReason,
+		(as: { lifting: boolean; after: boolean }) => string
+	>,
 	/** The Replan Note each change leaves on the session it changed. */
 	note: {
 		tired: 'For sliten i dag: gjort rolig og kortere.',
@@ -4570,6 +4647,46 @@ export const SESONG_NOTICE_LABELS = {
 		'Det er timer mot timer: timene utholdenhetsukene blir til, mot kapasiteten du har satt. ',
 	fitNote:
 		'Det kan være akkurat det du mente: to økter kan dele en dag, og begge tallene er innstillinger, ikke fakta om uka di. Planen er lagret slik du skrev den.',
+	/**
+	 * One day clash (ADR 0104 §6), the day named: `Styrke og en hard økt på
+	 * tirsdag`, `To harde dager etter hverandre (onsdag–torsdag)`. Takes the
+	 * Monday-first weekday; a two-day reason runs to the next day on the wheel.
+	 */
+	dayClash: (reason: ClashReason, weekday: number) => {
+		const day = NB_WEEKDAY_LABELS[weekday % 7]!
+		const pair = `${day}–${NB_WEEKDAY_LABELS[(weekday + 1) % 7]!}`
+		switch (reason) {
+			case 'lifting-on-hard-day':
+				return `Styrke og en hard økt på ${day}`
+			case 'lifting-before-hard-day':
+				return `Styrke dagen før en hard økt (${pair})`
+			case 'lifting-on-long-day':
+				return `Styrke og den lange økta på ${day}`
+			case 'hard-days-in-a-row':
+				return `To harde dager etter hverandre (${pair})`
+			case 'two-hard-sessions':
+				return `To harde økter på ${day}`
+			case 'two-long-sessions':
+				return `To lange økter på ${day}`
+			case 'easy-before-hard-day':
+				return `En rolig økt dagen før en hard økt (${pair})`
+		}
+	},
+	/** `Uke 3`, `Uke 3–5 og uke 9`, `Uke 3, uke 6–7 og uke 9`. */
+	weekSpans: (spans: readonly string[]) => {
+		const [first = '', ...rest] = spans.map((span, at) =>
+			at === 0 ? span : `${span[0]!.toLowerCase()}${span.slice(1)}`,
+		)
+		const last = rest.pop()
+		return last == null ? first : `${[first, ...rest].join(', ')} og ${last}`
+	},
+	/** `Uke 12–14: Styrke og en hard økt på tirsdag – en dag du har valgt selv.` */
+	dayClashLine: (span: string, clash: string, pinned: boolean) =>
+		`${span}: ${clash}${pinned ? '\u00a0– en dag du har valgt selv' : ''}.`,
+	dayClashCheck:
+		'Det er dagene lest mot hverandre, på tvers av alt du trener: hard betyr her en økt som ikke er rolig, også middels. ',
+	dayClashNote:
+		'Det kan være akkurat det du mente – en dag du har valgt selv, blir der du satte den. Planen er lagret slik den er.',
 	noCapacity: 'Timer er den andre sammenligningen, og',
 	noCapacityLink: 'utøverprofilen',
 	noCapacityEnd:
@@ -4831,6 +4948,10 @@ export const SESONG_PATTERN_LABELS = {
 	name: 'Navn',
 	rename: 'Gi nytt navn',
 	noDays: 'Ingen dager ennå. Legg til øktene du trener i en vanlig uke.',
+	/** The pattern's lifting slots (ADR 0104 §3), which have no weekday. */
+	liftingSlots: (count: number) =>
+		`Styrke: ${count} ${count === 1 ? 'økt' : 'økter'} i uka, på dager appen velger hver uke, unna de harde dagene.`,
+	liftingSlotsLink: 'Velg styrkedagene selv',
 	days: (name: string) => `Dager i ${name}`,
 	unknownTrack: 'Ukjent spor',
 	workoutRemoved: 'Økta er fjernet',
@@ -5480,6 +5601,194 @@ export const MEG_STRENGTH_LABELS = {
 		'Planen du har nå, endres ikke av dette. Styrkedagene i den flytter du i Plan.',
 	invalid: 'Velg 1, 2 eller 3 styrkeøkter i uka',
 	save: 'Lagre',
+	/** Under the frequency, where the plan's lifting days are chosen below it. */
+	planNoteWithDays:
+		'Planen du har nå, endres ikke av dette. Dagene i planen velger du under.',
+	/** The frequency, once the athlete has chosen the days themselves. */
+	fromDays: (count: number) =>
+		`${count} i uka – én for hver dag du har valgt i planen.`,
+} as const
+
+/**
+ * The plan's lifting days in _Meg → Trening → Styrke_ (#597, ADR 0104 §4):
+ * _La appen velge_, or the athlete's own **Pinned days**, previewed over the
+ * coming weeks before anything is written (ADR 0084) and undone from the
+ * toast (ADR 0088). Weekdays Monday first, as {@link NB_WEEKDAY_LABELS}.
+ */
+export const MEG_LIFTING_DAYS_LABELS = {
+	heading: 'Styrkedagene i planen',
+	intro:
+		'Velg selv hvilke dager du løfter, eller la appen legge styrken unna de harde øktene hver uke.',
+	modeLegend: 'Hvem velger dagene',
+	auto: 'La appen velge',
+	own: 'Velg dager',
+	autoNote: (count: number) =>
+		`Appen legger ${count} ${count === 1 ? 'styrkeøkt' : 'styrkeøkter'} i uka på dager uten harde økter, og flytter dem når de harde dagene flytter seg.`,
+	chipsLegend: 'Dagene du løfter',
+	chipsNote:
+		'Bare dagene du kan trene, fra profilen din. Like mange dager som styrkeøkter i uka, opptil 3.',
+	chipsNoteNoAvailability:
+		'Like mange dager som styrkeøkter i uka, opptil 3. Setter du treningsdagene dine i profilen, kan du bare velge blant dem.',
+	ownNote:
+		'Styrken legges bare på disse dagene, og de harde øktene legges rundt dem.',
+	/** Under the chips once three are chosen: why the others rest. */
+	full: 'Du har valgt 3 dager, som er flest. Ta bort en dag for å velge en annen.',
+	preview: 'Se hva som endres',
+	previewing: 'Henter de neste ukene …',
+	previewHeading: 'De neste ukene',
+	/** `Uke 43`, the ISO week the athlete reads everywhere. */
+	week: (isoWeek: number) => `Uke ${isoWeek}`,
+	/** `Styrke tirsdag og torsdag`. */
+	lifting: (days: readonly number[]) =>
+		days.length === 0
+			? 'Ingen styrke'
+			: `Styrke ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+	/** `Harde økter mandag`. */
+	hard: (days: readonly number[]) =>
+		days.length === 0
+			? 'ingen harde økter'
+			: `${days.length === 1 ? 'hard økt' : 'harde økter'} ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+	/** What the week had before, where it changes. */
+	was: (days: readonly number[]) =>
+		`Før: ${days.length === 0 ? 'ingen styrke' : nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+	same: 'Som før',
+	clashNote:
+		'Dagene du velger, blir der du satte dem. Appen sier fra, men flytter dem ikke.',
+	apply: 'Bruk',
+	applying: 'Lagrer …',
+	cancel: 'Avbryt',
+	/** The toast after a write. */
+	saved: (days: readonly number[] | null) =>
+		days == null
+			? 'Appen velger styrkedagene igjen.'
+			: `Du løfter nå ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}.`,
+	undo: 'Angre',
+	undone: 'Styrkedagene er som før.',
+	refusals: {
+		'no-days': 'Velg minst én dag, eller la appen velge.',
+		'outside-availability': 'Velg bare dager du kan trene.',
+		'too-many': 'Velg opptil 3 dager.',
+		stale: 'Planen endret seg mens du så på den. Se hva som endres igjen.',
+		'no-session': 'Det finnes ingen styrkeøkt å legge inn ennå.',
+		'no-plan': 'Du har ingen plan å legge styrkedagene i.',
+		'no-strength-track': 'Planen din har ikke styrke.',
+		'no-pattern': 'Planen har ikke noe ukemønster å legge styrken i ennå.',
+		'bad-restore': 'Kunne ikke sette dagene tilbake.',
+	},
+} as const
+
+/**
+ * A row's name under _Dagene i uka_: a sport's own word, said lower-case
+ * inside a sentence (_dagene for sykling_), or a Simple Activity's title,
+ * which is the athlete's and is said as they wrote it (_HIIT_, _Langrenn_).
+ */
+export type TrackDaysName = { text: string; activity: boolean }
+
+function inSentence(name: TrackDaysName): string {
+	return name.activity ? name.text : lowerFirst(name.text)
+}
+
+/**
+ * _Dagene i uka_ under _Plan → Avansert_ (#598, ADR 0104 §4): the days of
+ * every endurance track and Simple Activity — _La appen velge_ or weekday
+ * chips, as for strength in Meg, with the coming weeks before the write and
+ * _Angre_ after it.
+ */
+export const PLAN_TRACK_DAYS_LABELS = {
+	title: 'Dagene i uka',
+	intro:
+		'Velg selv hvilke dager en idrett eller aktivitet ligger på, eller la appen legge dem rundt de andre.',
+	/** A Simple Activity's row: its name, or the generic word. */
+	activity: (title: string | null) => title ?? 'Enkel aktivitet',
+	/** `Mandag, torsdag og lørdag`, or what a unit with no day says. */
+	days: (days: readonly number[]) =>
+		days.length === 0
+			? 'Ingen dager ennå'
+			: capitalize(nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))),
+	appChooses: 'appen velger',
+	ownChoice: 'valgt selv',
+	change: 'Endre',
+	changeFor: (name: TrackDaysName) => `Endre dagene for ${inSentence(name)}`,
+	modeLegend: 'Hvem velger dagene',
+	auto: 'La appen velge',
+	own: 'Velg dager',
+	autoNote:
+		'Appen gir den dagene de andre idrettene lar ligge, én økt om dagen, og den lange økta på den siste.',
+	chipsLegend: (name: TrackDaysName) => `Dagene for ${inSentence(name)}`,
+	chipsNote: 'Bare dagene du kan trene, fra profilen din.',
+	chipsNoteNoAvailability:
+		'Setter du treningsdagene dine i profilen, kan du bare velge blant dem.',
+	ownNote:
+		'Økta legges bare på disse dagene, og ukas mengde deles på dem. De harde øktene til de andre legges rundt.',
+	/**
+	 * Under the chips, where a chosen day left the athlete's Training
+	 * Availability — a Simple Activity keeps it until they name a new one.
+	 */
+	notAvailable: (days: readonly number[]) =>
+		`${capitalize(nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!)))} er ikke ${days.length === 1 ? 'en treningsdag' : 'treningsdager'} lenger. Ta ${days.length === 1 ? 'den' : 'dem'} bort, eller legg ${days.length === 1 ? 'den' : 'dem'} til i profilen din.`,
+	activityNote:
+		'En enkel aktivitet ligger alltid på dagene du velger. Økta er den samme hver gang.',
+	preview: 'Se hva som endres',
+	previewing: 'Henter de neste ukene …',
+	previewHeading: 'De neste ukene',
+	week: (isoWeek: number) => `Uke ${isoWeek}`,
+	/** `Sykling onsdag og søndag`. */
+	unitDays: (name: TrackDaysName, days: readonly number[]) =>
+		days.length === 0
+			? `Ingen ${inSentence(name)}`
+			: `${name.text} ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+	/** `harde økter tirsdag og lørdag`. */
+	hard: (days: readonly number[]) =>
+		days.length === 0
+			? 'ingen harde økter'
+			: `${days.length === 1 ? 'hard økt' : 'harde økter'} ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+	was: (days: readonly number[]) =>
+		`Før: ${days.length === 0 ? 'ingen dager' : nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}`,
+	same: 'Som før',
+	clashNote:
+		'Dagene du velger, blir der du satte dem. Appen sier fra, men flytter dem ikke.',
+	apply: 'Bruk',
+	applying: 'Lagrer …',
+	cancel: 'Avbryt',
+	/** The toast after a write. */
+	saved: (name: TrackDaysName, days: readonly number[] | null) =>
+		days == null
+			? `Appen velger dagene for ${inSentence(name)} igjen.`
+			: `${name.text} ligger nå ${nbJoin(days.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}.`,
+	undo: 'Angre',
+	undone: (name: TrackDaysName) => `Dagene for ${inSentence(name)} er som før.`,
+	refusals: {
+		'no-days': 'Velg minst én dag.',
+		'outside-availability': 'Velg bare dager du kan trene.',
+		stale: 'Planen endret seg mens du så på den. Se hva som endres igjen.',
+		'no-plan': 'Fant ikke planen.',
+		'no-pattern': 'Planen har ikke noe ukemønster ennå.',
+		'no-unit': 'Fant ikke idretten i planen lenger.',
+		'bad-restore': 'Kunne ikke sette dagene tilbake.',
+	},
+} as const
+
+/**
+ * What Meg says when the athlete takes a day out of their Training
+ * Availability that a track had as its own (#598, spec #588 story 19).
+ */
+export const MEG_DROPPED_DAYS_LABELS = {
+	/** One line per track: `Sykling mister søndag og ligger nå onsdag.` */
+	line: (
+		name: string,
+		lost: readonly number[],
+		kept: readonly number[] | null,
+		activity: boolean,
+	) => {
+		const lostDays = nbJoin(lost.map((day) => NB_WEEKDAY_LABELS[day % 7]!))
+		if (kept) {
+			return `${name} mister ${lostDays} og ligger nå ${nbJoin(kept.map((day) => NB_WEEKDAY_LABELS[day % 7]!))}.`
+		}
+		return activity
+			? `${name} ligger fortsatt ${lostDays}. Velg en ny dag under Plan → Avansert.`
+			: `${name} mister ${lostDays}, og appen velger dagene igjen.`
+	},
+	heading: 'Treningsdagene dine endret planen',
 } as const
 
 /**
@@ -6556,6 +6865,11 @@ export const MEG_ZOD_ISSUE_LABELS = {
 } as const
 
 // ---------------------------------------------------------------------------
+
+/** The first character lower-cased, so a name stays its own mid-sentence. */
+function lowerFirst(value: string): string {
+	return value ? value[0]!.toLowerCase() + value.slice(1) : value
+}
 
 /** Capitalize the first character; the fallback for open-ended enum sets. */
 function capitalize(value: string): string {

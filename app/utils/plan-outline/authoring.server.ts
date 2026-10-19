@@ -23,6 +23,7 @@ import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { parseEventDisciplines, type EventKind } from '../event-schema.ts'
 import { createEvent } from '../event.server.ts'
+import { readLiftingWorkoutId } from '../first-run/start-strength.server.ts'
 import { openEndedRoundName } from '../labels.ts'
 import { readFirstUnbegunWeekKey } from '../load/week-begun.server.ts'
 import { type PlannedDiscipline } from '../planned-discipline.ts'
@@ -102,6 +103,7 @@ import {
 	walksAsEndurance,
 } from './from-rows.ts'
 import { readAnchorContext } from './history.server.ts'
+import { parsePinnedDays } from './pinned-days.ts'
 import {
 	familyOfPreset,
 	OPEN_ENDED_ROUND_WEEKS,
@@ -2626,6 +2628,48 @@ export async function createStarterWeekPattern(
 	)
 }
 
+/**
+ * The segments off the mix carrier whose **Quality Session Mix** is the one
+ * the plan laid, not one the athlete authored (ADR 0104 §5). Laying a plan
+ * writes a block's mix on every endurance track alike
+ * (`layEnduranceSegments`), so a segment whose mix equals the carrier's on the
+ * same block is laid; one that differs — or where the carrier has none — was
+ * the athlete's hand, and is kept.
+ */
+function laidMixSegments(
+	entries: ReadonlyArray<{
+		zone: number
+		sessionsPerWeek: number
+		segment: { id: string; trackId: string; phaseId: string | null }
+	}>,
+	carrierTrackId: string,
+): string[] {
+	const mixes = new Map<
+		string,
+		{ trackId: string; phaseId: string | null; mix: string[] }
+	>()
+	for (const entry of entries) {
+		const { id, trackId, phaseId } = entry.segment
+		const seen = mixes.get(id) ?? { trackId, phaseId, mix: [] }
+		seen.mix.push(`${entry.zone}:${entry.sessionsPerWeek}`)
+		mixes.set(id, seen)
+	}
+	const keyOf = (mix: string[]) => [...mix].sort().join(',')
+	const carrierByPhase = new Map<string, string>()
+	for (const segment of mixes.values()) {
+		if (segment.trackId === carrierTrackId && segment.phaseId) {
+			carrierByPhase.set(segment.phaseId, keyOf(segment.mix))
+		}
+	}
+	return [...mixes.entries()].flatMap(([id, segment]) =>
+		segment.trackId !== carrierTrackId &&
+		segment.phaseId != null &&
+		carrierByPhase.get(segment.phaseId) === keyOf(segment.mix)
+			? [id]
+			: [],
+	)
+}
+
 type StarterPatternOptions = {
 	/**
 	 * The days the athlete just said they can train (the first run's third
@@ -2699,10 +2743,17 @@ export async function createStarterWeekPatternInTx(
 				select: {
 					id: true,
 					discipline: true,
+					currency: true,
+					pinnedDays: true,
 					segments: {
 						where: { kind: 'strength' },
 						select: { sessionsPerWeek: true },
 						orderBy: { startWeekKey: 'asc' },
+					},
+					anchors: {
+						select: { value: true },
+						orderBy: { fromWeekKey: 'asc' },
+						take: 1,
 					},
 				},
 			},
@@ -2715,6 +2766,40 @@ export async function createStarterWeekPatternInTx(
 	const shared = outline.tracks.filter(
 		(track) => track.discipline !== SIMPLE_ACTIVITY_DISCIPLINE,
 	)
+	// The most hard sessions any one week of each track's mix asks for: the
+	// track carrying the most is the one the week is built around, and it
+	// keeps a day for each of them (ADR 0104 §5).
+	const mixEntries = await tx.qualitySessionMixEntry.findMany({
+		where: { segment: { track: { outlineId: outline.id } } },
+		select: {
+			zone: true,
+			sessionsPerWeek: true,
+			segment: { select: { id: true, trackId: true, phaseId: true } },
+		},
+	})
+	const perSegment = new Map<string, { trackId: string; count: number }>()
+	for (const entry of mixEntries) {
+		const seen = perSegment.get(entry.segment.id)
+		perSegment.set(entry.segment.id, {
+			trackId: entry.segment.trackId,
+			count: (seen?.count ?? 0) + entry.sessionsPerWeek,
+		})
+	}
+	const hardSessionsOf = (trackId: string) =>
+		Math.max(
+			0,
+			...[...perSegment.values()]
+				.filter((segment) => segment.trackId === trackId)
+				.map((segment) => segment.count),
+		)
+	// Weekly volumes are only compared within one Volume Currency (ADR 0046):
+	// tracks counted in different ones are taken in order instead.
+	const enduranceCurrencies = new Set(
+		shared
+			.filter((track) => track.discipline !== 'strength')
+			.map((track) => track.currency),
+	)
+	const comparable = enduranceCurrencies.size <= 1
 	const proposal = proposeStarterPattern({
 		trainableWeekdays,
 		tracks: shared.map((track) => ({
@@ -2723,10 +2808,21 @@ export async function createStarterWeekPatternInTx(
 			// The first block's **Strength Frequency** stands for the track: a
 			// pattern is one week and the blocks may each ask for a different
 			// number, so the season's opening figure is the honest one to start
-			// from — and the athlete moves days from there.
+			// from. It lays that many lifting slots, which the stamp places each
+			// week (ADR 0104 §3).
 			sessionsPerWeek: track.segments[0]?.sessionsPerWeek ?? null,
-			weekdays: daysByDiscipline[track.discipline as Discipline],
+			// The days the first run dealt it, or else the track's own **Pinned
+			// days** (ADR 0104 §4, #598): a pinned track keeps to them and the
+			// others are dealt around it.
+			weekdays:
+				daysByDiscipline[track.discipline as Discipline] ??
+				parsePinnedDays(track.pinnedDays) ??
+				undefined,
 			dayWeights: weightsByDiscipline[track.discipline as Discipline],
+			hardSessions: hardSessionsOf(track.id),
+			...(comparable && track.anchors[0]
+				? { weeklyShare: track.anchors[0].value }
+				: {}),
 		})),
 	})
 	const fixed = fixedDays.flatMap((day) => {
@@ -2740,7 +2836,25 @@ export async function createStarterWeekPatternInTx(
 	}
 	const proposed: StarterProposal = proposal ?? {
 		days: [],
+		lifting: [],
+		pinnedLifting: [],
+		mixTrackId: null,
+		weekdays: [],
 		source: trainableWeekdays == null ? 'default' : 'availability',
+	}
+
+	// The hard sessions belong to the track that carries the mix (ADR 0104
+	// §5): a second endurance track keeps its days and climb, all easy. Only
+	// the mix the plan laid goes — the one laid on every endurance track
+	// alike, so the same as the carrier's on that block. A mix that differs
+	// is the athlete's own, authored before this week was built, and stays.
+	if (proposed.mixTrackId) {
+		const laid = laidMixSegments(mixEntries, proposed.mixTrackId)
+		if (laid.length > 0) {
+			await tx.qualitySessionMixEntry.deleteMany({
+				where: { segmentId: { in: laid } },
+			})
+		}
 	}
 
 	const pattern = await tx.weekPattern.create({
@@ -2785,6 +2899,47 @@ export async function createStarterWeekPatternInTx(
 				workoutId: day.workoutId,
 			},
 		})
+	}
+	// A strength track's Pinned days (#598): a fixed lift on each, after the
+	// day's endurance session, which the stamp lays first and every mix steps
+	// around (ADR 0104 §4).
+	if (proposed.pinnedLifting.length > 0) {
+		const workoutId = await readLiftingWorkoutId(tx, userId)
+		for (const day of proposed.pinnedLifting) {
+			const orderInDay = placed.get(day.weekday) ?? 0
+			placed.set(day.weekday, orderInDay + 1)
+			await tx.weekPatternDay.create({
+				data: {
+					patternId: pattern.id,
+					trackId: day.trackId,
+					weekday: day.weekday,
+					orderInDay,
+					kind: 'fixed',
+					workoutId,
+				},
+			})
+		}
+	}
+	// The lifting slots, on no weekday (ADR 0104 §3): the stamp lays each
+	// week's lifts against that week's hard days, by the first run's rule. Each
+	// copies the athlete's latest strength session, or the Stock Workout.
+	if (proposed.lifting.length > 0) {
+		const workoutId = await readLiftingWorkoutId(tx, userId)
+		const slotsOf = new Map<string, number>()
+		for (const slot of proposed.lifting) {
+			const orderInDay = slotsOf.get(slot.trackId) ?? 0
+			slotsOf.set(slot.trackId, orderInDay + 1)
+			await tx.weekPatternDay.create({
+				data: {
+					patternId: pattern.id,
+					trackId: slot.trackId,
+					weekday: null,
+					orderInDay,
+					kind: 'lifting',
+					workoutId,
+				},
+			})
+		}
 	}
 
 	return { ok: true as const, proposal: proposed }
@@ -2962,6 +3117,8 @@ export async function moveWeekPatternDay(
 			select: { id: true, patternId: true, weekday: true },
 		})
 		if (!day) return refuse('day-gone')
+		// A lifting slot falls on no weekday (ADR 0104 §3): nothing to order.
+		if (day.weekday == null) return refuse('at-the-edge')
 
 		const order = await daysOfWeekday(tx, day.patternId, day.weekday)
 		const from = order.indexOf(day.id)
@@ -2998,10 +3155,13 @@ export async function removeWeekPatternDay(
 		if (!day) return refuse('day-gone')
 
 		await tx.weekPatternDay.delete({ where: { id: day.id } })
-		await renumberPatternDays(
-			tx,
-			await daysOfWeekday(tx, day.patternId, day.weekday),
-		)
+		// A lifting slot holds no weekday, so no weekday's order changes.
+		if (day.weekday != null) {
+			await renumberPatternDays(
+				tx,
+				await daysOfWeekday(tx, day.patternId, day.weekday),
+			)
+		}
 
 		return { ok: true as const }
 	})

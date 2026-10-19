@@ -40,18 +40,18 @@ import {
 	weekMonday,
 } from '../athlete-calendar.ts'
 import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
-import { getAthleteTimezone } from '../athlete.server.ts'
-import { prisma } from '../db.server.ts'
-import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
 import {
-	intensityTargetToZone,
-	intentToZone,
-	type TrainingZone,
-} from '../session-profile.ts'
+	getAthleteTimezone,
+	readAvailablePatternDays,
+} from '../athlete.server.ts'
+import { prisma } from '../db.server.ts'
+import { isEffortWord } from '../effort-word.ts'
+import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
+import { type TrainingZone } from '../session-profile.ts'
 import { stampedSessionTitle } from '../session-title.ts'
+import { sessionWorkoutSelect } from '../training.server.ts'
 import {
 	isCardioDiscipline,
-	IntensityTargetSchema,
 	type CardioDiscipline,
 	type Discipline,
 	type WorkoutIntent,
@@ -64,23 +64,37 @@ import {
 	type CopyableWorkout,
 } from '../workout.server.ts'
 import { isOutlineResting } from './active-outline.server.ts'
+import { type PlacedSession } from './day-rule.ts'
 import { phaseIndexForWeek, totalWeeks, type VolumeCurrency } from './derive.ts'
 import { phaseSpecs, resolvedTracks } from './from-rows.ts'
+import { parsePinnedDays } from './pinned-days.ts'
 import { type QualityZone } from './quality-mix.ts'
+import {
+	placedOn,
+	readPlacement,
+	TRAINED_SESSION_STATUSES,
+} from './session-placement.ts'
+import { sessionZone, sessionZoneSelect } from './session-zone.ts'
 import {
 	mixDisagreements,
 	planStamp,
 	WeekPatternStampSchema,
 	type MixDisagreement,
 	type StampDay,
+	type StampLiftingSlot,
 	type StampSession,
 	type StampSkip,
 	type StampTrack,
+	type StampWeekInput,
 	type StampWeekPlan,
 	type WeekPatternStampInput,
 } from './stamp.ts'
 import { weekIndexOf, weekKeyAt } from './week-keys.ts'
-import { fixedDayVolume } from './week-pattern.ts'
+import {
+	fixedDayVolume,
+	isPatternWeekday,
+	type PatternWeekday,
+} from './week-pattern.ts'
 import { clearPlanWeek, readWeekOccupancy } from './week-sessions.server.ts'
 
 /**
@@ -164,6 +178,7 @@ const stampOutlineSelect = {
 			id: true,
 			discipline: true,
 			currency: true,
+			pinnedDays: true,
 			anchors: { select: { fromWeekKey: true, value: true } },
 			segments: {
 				select: {
@@ -274,7 +289,7 @@ export async function stampWeekPattern(
 	// alone.
 	const eventId = outline.event?.id ?? null
 	const timezone = await getAthleteTimezone(userId)
-	const trainingTime = await defaultTrainingTime(userId)
+	const trainingTime = await readStampProfile(userId)
 	const specs = phaseSpecs(outline)
 	const weekCount = totalWeeks(specs)
 	const tracks = stampTracks(outline)
@@ -293,27 +308,19 @@ export async function stampWeekPattern(
 		) {
 			return refuse('week-outside-plan')
 		}
-		const phaseIndex = phaseIndexForWeek(specs, index)
 		weeks.push({
-			weekKey,
-			weekInPlan: index + 1,
-			targets: resolved.map((track) => ({
-				trackId: track.trackId,
-				value: track.targets[index]?.value ?? null,
-			})),
-			// The week's segment's **Quality Session Mix**, which the planner lays
-			// on the bare share days (round 2): a plan that says two hard sessions
-			// a week lays two.
-			mixes: resolved.map((track) => ({
-				trackId: track.trackId,
-				mix:
-					track.segments.find((segment) => segment.phaseIndex === phaseIndex)
-						?.mix ?? [],
-			})),
+			...stampWeekInput(weekKey, index, specs, resolved),
+			held: await readHeldSessions(userId, outline.id, weekKey, timezone),
 		})
 	}
 
-	const plans = planStamp({ days: stampDays(pattern, tracks), tracks, weeks })
+	const plans = planStamp({
+		days: stampDays(pattern, tracks),
+		lifting: liftingSlots(pattern, tracks),
+		liftingDays: trainingTime.liftingDays,
+		tracks,
+		weeks,
+	})
 	if (plans.every((plan) => plan.sessions.length === 0)) {
 		return refuse('nothing-to-stamp')
 	}
@@ -350,9 +357,13 @@ export async function stampWeekPattern(
 				? await filledSlots(tx, userId, outline.id, plan.weekKey, timezone)
 				: new Map<string, number>()
 			for (const session of plan.sessions) {
-				const slot = slotKey(session.weekday, session.discipline)
-				const taken = filled.get(slot) ?? 0
-				if (taken > 0) {
+				const slot =
+					filled.get(slotKey(session.weekday, session.discipline)) ||
+					session.kind !== 'lifting'
+						? slotKey(session.weekday, session.discipline)
+						: keptLiftElsewhere(filled, plan.sessions, session.discipline)
+				const taken = slot == null ? 0 : (filled.get(slot) ?? 0)
+				if (slot != null && taken > 0) {
 					filled.set(slot, taken - 1)
 					continue
 				}
@@ -373,7 +384,7 @@ export async function stampWeekPattern(
 						// the weekday *is* the offset from the week's own Monday (ADR 0019).
 						scheduledAt: localTimeUTC(
 							addDays(plan.weekKey, session.weekday),
-							trainingTime,
+							trainingTime.at,
 							timezone,
 						),
 						status: 'scheduled',
@@ -410,9 +421,171 @@ export async function stampWeekPattern(
 	}
 }
 
+/** One plan week as the planner reads it: its targets and its mixes. */
+function stampWeekInput(
+	weekKey: string,
+	index: number,
+	specs: ReturnType<typeof phaseSpecs>,
+	resolved: ReturnType<typeof resolvedTracks>,
+): StampWeekInput {
+	const phaseIndex = phaseIndexForWeek(specs, index)
+	return {
+		weekKey,
+		weekInPlan: index + 1,
+		targets: resolved.map((track) => ({
+			trackId: track.trackId,
+			value: track.targets[index]?.value ?? null,
+		})),
+		// The week's segment's **Quality Session Mix**, which the planner lays
+		// on the bare share days (round 2): a plan that says two hard sessions
+		// a week lays two.
+		mixes: resolved.map((track) => ({
+			trackId: track.trackId,
+			mix:
+				track.segments.find((segment) => segment.phaseIndex === phaseIndex)
+					?.mix ?? [],
+		})),
+	}
+}
+
+/** The planner's input for a pattern: its days and its lifting slots. */
+export type LaidPatternInput = {
+	days: StampDay[]
+	lifting: StampLiftingSlot[]
+}
+
+/**
+ * The plan's weeks `weekKeys` as the stamp would lay them from the plan's
+ * Week Pattern — the first one with days, the one the weeks are laid from —
+ * without writing anything: the preview of a change (ADR 0084) runs the same
+ * `planStamp` the write does, so the two cannot disagree. `swap` replaces the
+ * pattern's days before laying, which is how a change is shown before it is
+ * made. Weeks outside the plan are left out; `null` without a pattern.
+ */
+export async function readLaidWeeks(
+	userId: string,
+	outlineId: string,
+	weekKeys: readonly string[],
+	swap: (laid: LaidPatternInput) => LaidPatternInput = (laid) => laid,
+	{
+		pinned,
+	}: {
+		/**
+		 * Whether a track is on its **Pinned days** as the change would leave
+		 * it, where that differs from what is stored (#598).
+		 */
+		pinned?: ReadonlyMap<string, boolean>
+	} = {},
+): Promise<{
+	plans: StampWeekPlan[]
+	input: LaidPatternInput
+	tracks: StampTrack[]
+} | null> {
+	const pattern = await prisma.weekPattern.findFirst({
+		where: { outlineId, outline: { athleteId: userId }, days: { some: {} } },
+		orderBy: { orderIndex: 'asc' },
+		select: stampPatternSelect,
+	})
+	if (!pattern) return null
+	const outline = pattern.outline
+	const specs = phaseSpecs(outline)
+	const weekCount = totalWeeks(specs)
+	const tracks = stampTracks(outline).map((track) =>
+		pinned?.has(track.trackId)
+			? { ...track, pinned: pinned.get(track.trackId) }
+			: track,
+	)
+	const resolved = resolvedTracks(outline)
+	const timezone = await getAthleteTimezone(userId)
+	const weeks: StampWeekInput[] = []
+	for (const weekKey of weekKeys) {
+		const index = weekIndexOf(outline.startWeekKey, weekKey)
+		if (
+			index < 0 ||
+			index >= weekCount ||
+			weekKeyAt(outline.startWeekKey, index) !== weekKey
+		) {
+			continue
+		}
+		weeks.push({
+			...stampWeekInput(weekKey, index, specs, resolved),
+			held: await readHeldSessions(userId, outline.id, weekKey, timezone),
+		})
+	}
+	const input = swap({
+		days: stampDays(pattern, tracks),
+		lifting: liftingSlots(pattern, tracks),
+	})
+	const { liftingDays } = await readStampProfile(userId)
+	return {
+		plans: planStamp({ ...input, liftingDays, tracks, weeks }),
+		input,
+		tracks,
+	}
+}
+
+/**
+ * The sessions in one week the stamp lays around and never writes (spec #588
+ * story 34): the ones the athlete scheduled by hand, and any another plan
+ * laid — scheduled or trained, as the day rule reads them. This plan's own
+ * laid sessions are not among them: the stamp is what lays those. Skipped
+ * and missed sessions were not trained, so they make no day hard.
+ */
+async function readHeldSessions(
+	userId: string,
+	planOutlineId: string,
+	weekKey: string,
+	timezone: string,
+): Promise<PlacedSession[]> {
+	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
+	const rows = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			scheduledAt: { gte: start, lte: end },
+			status: { in: [...TRAINED_SESSION_STATUSES] },
+			OR: [
+				{ source: 'authored' },
+				{ planOutlineId: null },
+				{ planOutlineId: { not: planOutlineId } },
+			],
+		},
+		select: { scheduledAt: true, workout: sessionWorkoutSelect },
+	})
+	return rows.flatMap((row) => {
+		const shape = readPlacement(row.workout)
+		if (!shape) return []
+		const weekday = weekdayIndex(localDate(row.scheduledAt, timezone))
+		return isPatternWeekday(weekday) ? [placedOn(shape, weekday)] : []
+	})
+}
+
 /** A pattern slot: the weekday (Monday-first) and the Discipline laid there. */
 function slotKey(weekday: number, discipline: string): string {
 	return `${weekday}|${discipline}`
+}
+
+/**
+ * A kept session of a lifting slot's Discipline on a day this week's laying
+ * puts no lift of it on, where there is one. A lifting slot falls on no
+ * weekday of its own (ADR 0104 §3), so a lift the athlete kept fills the slot
+ * whatever day it is on, and the re-lay does not lay a second lift beside it.
+ */
+function keptLiftElsewhere(
+	filled: ReadonlyMap<string, number>,
+	sessions: readonly StampSession[],
+	discipline: string,
+): string | null {
+	const laid = new Set(
+		sessions
+			.filter((session) => session.discipline === discipline)
+			.map((session) => slotKey(session.weekday, discipline)),
+	)
+	for (const [slot, count] of filled) {
+		if (count > 0 && slot.endsWith(`|${discipline}`) && !laid.has(slot)) {
+			return slot
+		}
+	}
+	return null
 }
 
 /**
@@ -592,6 +765,8 @@ function stampTracks(outline: StampOutline): StampTrack[] {
 		trackId: track.id,
 		discipline: track.discipline as Discipline,
 		currency: track.currency as VolumeCurrency,
+		// A track on its **Pinned days** lays its mix first (ADR 0104 §4).
+		pinned: parsePinnedDays(track.pinnedDays) != null,
 	}))
 }
 
@@ -614,7 +789,8 @@ function stampDays(
 		tracks.map((track) => [track.trackId, track.currency]),
 	)
 	return pattern.days.flatMap((day): StampDay[] => {
-		if (day.weekday < 0 || day.weekday > 6) return []
+		// A lifting slot has no weekday; `liftingSlots` reads it.
+		if (day.weekday == null || !isPatternWeekday(day.weekday)) return []
 		const currency = currencyByTrack.get(day.trackId)
 		if (!currency) return []
 		const priced = day.workout
@@ -622,13 +798,18 @@ function stampDays(
 			: null
 		const position = {
 			dayId: day.id,
-			weekday: day.weekday as StampDay['weekday'],
+			weekday: day.weekday,
 			orderInDay: day.orderInDay,
 			trackId: day.trackId,
 			workoutId: day.workout?.id ?? null,
 			// What the day's own Workout already is, so the mix does not ask a
 			// share day for a session a fixed one is.
 			zone: day.workout ? sessionZone(day.workout) : null,
+			// A Simple Activity's own word, so a hard one is a day every track's
+			// mix steps around (ADR 0104 §2).
+			effort: isEffortWord(day.workout?.effortWord)
+				? day.workout.effortWord
+				: null,
 		}
 		if (day.kind === 'fixed') {
 			return [{ ...position, kind: 'fixed', volume: priced, shapeVolume: null }]
@@ -640,6 +821,35 @@ function stampDays(
 		}
 		return []
 	})
+}
+
+/**
+ * The pattern's **lifting slots** (ADR 0104 §3): its `lifting` rows on a
+ * strength track of the plan, each with the session it copies. The stamp
+ * lays them per week after the endurance mix. A stored `fixed` strength day
+ * is not one: it is a **Pinned day** and stays on its weekday (§4).
+ */
+function liftingSlots(
+	pattern: StampPattern,
+	tracks: readonly StampTrack[],
+): StampLiftingSlot[] {
+	const strength = new Set(
+		tracks
+			.filter((track) => track.discipline === 'strength')
+			.map((track) => track.trackId),
+	)
+	return pattern.days.flatMap((day): StampLiftingSlot[] =>
+		day.kind === 'lifting' && strength.has(day.trackId)
+			? [
+					{
+						dayId: day.id,
+						trackId: day.trackId,
+						workoutId: day.workout?.id ?? null,
+						orderInDay: day.orderInDay,
+					},
+				]
+			: [],
+	)
 }
 
 /** A stored Workout's blocks in the shape `fixedDayVolume` prices. */
@@ -655,15 +865,30 @@ function pricingBlocks(workout: CopyableWorkout) {
 }
 
 /**
- * The clock time a stamped session lands on: the athlete's **Default Training
- * Time**, or the documented convention where they never set one (ADR 0044 §4).
+ * What a stamp reads off the **Athlete Profile**:
+ *
+ * - `at`, the clock time a stamped session lands on: the athlete's **Default
+ *   Training Time**, or the documented convention where they never set one
+ *   (ADR 0044 §4);
+ * - `liftingDays`, the days a lifting slot may go on: their **Training
+ *   Availability**, converted here at the profile edge to the Monday-first
+ *   axis the stamp reads (ADR 0104). `undefined` where they never said, and
+ *   the stamp lifts on the pattern's own days.
  */
-async function defaultTrainingTime(userId: string): Promise<string> {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { defaultTrainingTime: true },
-	})
-	return profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME
+async function readStampProfile(
+	userId: string,
+): Promise<{ at: string; liftingDays: PatternWeekday[] | undefined }> {
+	const [profile, available] = await Promise.all([
+		prisma.athleteProfile.findUnique({
+			where: { userId },
+			select: { defaultTrainingTime: true },
+		}),
+		readAvailablePatternDays(userId),
+	])
+	return {
+		at: profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME,
+		liftingDays: available ?? undefined,
+	}
 }
 
 /**
@@ -767,56 +992,4 @@ export async function readStampedMixWarnings(
 		}
 	}
 	return warnings
-}
-
-/** The Workout columns a session's zone is read off — its intent and its steps. */
-const sessionZoneSelect = {
-	intent: true,
-	blocks: {
-		select: {
-			steps: { select: { kind: true, intensity: true } },
-		},
-	},
-} satisfies Prisma.WorkoutSelect
-
-type SessionZoneWorkout = Prisma.WorkoutGetPayload<{
-	select: typeof sessionZoneSelect
-}>
-
-/**
- * The **zone a session is**, for the purpose of counting quality sessions: the
- * hardest zone anything in it prescribes.
- *
- * The hardest and not the longest, because that is what makes a session a quality
- * session — `20 min Z1 · 5×1000m Z4 · 10 min Z1` is a threshold session even
- * though most of its minutes are easy, and counting it as zone 1 would report a
- * disagreement nobody would recognise.
- *
- * The zone comes off the **authored intensity** through the same
- * `intensityTargetToZone` the Workout Shape uses, falling back to the workout's
- * own **intent** where no step states one — the fallback `deriveSessionProfile`
- * already makes, and the only prescription a bare volume session has. A session
- * neither can zone truthfully reads `null` and counts toward nothing: an unzoned
- * session is not evidence that a zone is missing (ADR 0008).
- */
-function sessionZone(workout: SessionZoneWorkout | null): TrainingZone | null {
-	if (!workout) return null
-	const zones = workout.blocks
-		.flatMap((block) => block.steps)
-		.flatMap((step) =>
-			step.kind === 'cardio' ? [stepZone(step.intensity)] : [],
-		)
-		.filter((zone): zone is TrainingZone => zone != null)
-	if (zones.length > 0) return Math.max(...zones) as TrainingZone
-	return intentToZone(workout.intent)
-}
-
-function stepZone(intensity: string | null): TrainingZone | null {
-	if (!intensity) return null
-	try {
-		const parsed = IntensityTargetSchema.safeParse(JSON.parse(intensity))
-		return parsed.success ? intensityTargetToZone(parsed.data) : null
-	} catch {
-		return null
-	}
 }

@@ -1425,6 +1425,16 @@ model TrainingTrack {
   /// 'sets' means total working sets per week — a *systemic* scalar, never per
   /// muscle group and never per movement (ADR 0047 §2).
   currency   String // 'km' | 'hours' | 'tss' | 'sets'
+  /// **Pinned days** (ADR 0104 §4, #597): the weekdays the athlete chose for
+  /// this track, as a JSON array on the Week Pattern's Monday-first axis
+  /// (0 = Monday … 6 = Sunday), e.g. "[1,3]" for Tuesday and Thursday —
+  /// converted from Training Availability's Sunday-first axis only at the
+  /// profile edge. Always a subset of **Training Availability**. `NULL` is
+  /// _La appen velge_: the day rule lays the track. On the strength track the
+  /// days are written as `fixed` strength days in the Week Pattern too, and
+  /// their count is the **Strength Frequency**; a strength track with `NULL`
+  /// here and stored `fixed` strength days reads those days as its Pinned days.
+  pinnedDays String?
 
   outline     PlanOutline            @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   outlineId   String
@@ -1624,14 +1634,23 @@ model WeekPattern {
 /// prescribed, not scaled — or a *share* that absorbs its part of the week's
 /// remaining volume by relative weight (ADR 0044 §7). Weights are normalised at
 /// stamp time, so "the shares sum to 97%" is unrepresentable.
+///
+/// A third kind, *lifting*, is a **lifting slot** the machine places (ADR 0104
+/// §3): one strength session a week on no weekday anyone chose. The stamp lays
+/// each week's slots after that week's endurance mix, away from its hard days,
+/// so a slot has no `weekday` — the migration's CHECK holds it `NULL` there and
+/// only there. A `fixed` strength day stays a day the athlete pinned.
 model WeekPatternDay {
   id         String   @id @default(cuid())
-  weekday    Int // 0 = Monday … 6 = Sunday (the Training Week is Mon–Sun, ADR 0019)
+  /// 0 = Monday … 6 = Sunday (the Training Week is Mon–Sun, ADR 0019). `NULL`
+  /// on a lifting slot, and only there: the stamp picks its day each week.
+  weekday    Int?
   orderInDay Int      @default(0)
-  kind       String // 'fixed' | 'share'
+  kind       String // 'fixed' | 'share' | 'lifting'
   /// share-only: relative weight, normalised across the week's share days.
   weight     Float?
   /// fixed: the Workout stamped as authored. share: an optional shape to scale.
+  /// lifting: the strength session each lift copies.
   workout    Workout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
   workoutId  String?
 

@@ -39,10 +39,17 @@ import {
 } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { readPinnedDaysByDiscipline } from '#app/utils/plan-outline/pinned-days.server.ts'
+import {
+	isTrainedStatus,
+	readPlacement,
+} from '#app/utils/plan-outline/session-placement.ts'
+import { type PatternWeekday } from '#app/utils/plan-outline/week-pattern.ts'
 import {
 	MACHINE_OWNED_SESSION,
 	sessionOwner,
 } from '#app/utils/session-ownership.ts'
+import { sessionWorkoutSelect } from '#app/utils/training.server.ts'
 import { deriveLedgerStatus } from '#app/utils/training.ts'
 import { weeklyAdherence } from './adherence.ts'
 import { readRoundFacts } from './open-ended-round.server.ts'
@@ -99,6 +106,9 @@ export async function applyWeekReplanForUser(
 	if (existing) return { weekKey, created: false }
 
 	const targetWeekKey = addDays(weekKey, 7)
+	// Each track's Pinned days (ADR 0104 §4): a make-up is put on one of its
+	// track's own days first, when one is free and fits (#596, #597).
+	const pinned = await readPinnedDaysByDiscipline(userId, now)
 	const [
 		adherence,
 		currentLoad,
@@ -113,9 +123,9 @@ export async function applyWeekReplanForUser(
 		getCurrentLoad(userId),
 		getTsbTrust(userId, now),
 		getComingWeek(userId, targetWeekKey, timezone, now),
-		getMissedSessions(userId, weekKey, timezone, now),
+		getMissedSessions(userId, weekKey, timezone, now, pinned),
 		readRoundFacts(userId, weekKey, timezone, now),
-		getRepeatMisses(userId, weekKey, timezone, now),
+		getRepeatMisses(userId, weekKey, timezone, now, pinned),
 		// The mode this week closes under (ADR 0100 §6): read here, at the
 		// close, and stored with the decision — so a switch in Meg applies
 		// from the next close and never to proposals already written.
@@ -140,6 +150,7 @@ export async function applyWeekReplanForUser(
 		adjustableSessions: coming.adjustable,
 		missedSessions,
 		freeDays: coming.freeDays,
+		comingWeek: coming.week,
 		round,
 		repeatMisses,
 		autopilot,
@@ -219,7 +230,9 @@ export async function getClosedWeekAdherence(
  * may do, and a proposal on one says it is theirs (ADR 0080 step 3).
  *
  * A free day is a day of the week still ahead of today with no session on it
- * at all.
+ * at all. The week is every session in it that will be trained (scheduled or
+ * completed) as the day rule reads it (#596),
+ * whoever owns it: a move is placed around the athlete's own sessions too.
  */
 async function getComingWeek(
 	userId: string,
@@ -229,6 +242,7 @@ async function getComingWeek(
 ): Promise<{
 	adjustable: WeekChangeFacts['adjustableSessions']
 	freeDays: string[]
+	week: NonNullable<WeekChangeFacts['comingWeek']>
 }> {
 	const { start, end } = weekBoundsFromMondayUTC(targetMonday, timezone)
 	const sessions = await prisma.workoutSession.findMany({
@@ -241,17 +255,7 @@ async function getComingWeek(
 			source: true,
 			adoptedAt: true,
 			releasedAt: true,
-			workout: {
-				select: {
-					blocks: {
-						select: {
-							steps: {
-								select: { kind: true, durationSec: true, distanceM: true },
-							},
-						},
-					},
-				},
-			},
+			workout: sessionWorkoutSelect,
 		},
 	})
 
@@ -277,7 +281,16 @@ async function getComingWeek(
 	const freeDays = Array.from({ length: 7 }, (_, i) =>
 		addDays(targetMonday, i),
 	).filter((day) => day > today && !taken.has(day))
-	return { adjustable, freeDays }
+	// Only sessions that will be trained make a day hard or lifting — the
+	// filter _Bytt dag_ reads with. A skipped one still holds its day.
+	const week = sessions
+		.filter((session) => isTrainedStatus(session.status))
+		.map((session) => ({
+			id: session.id,
+			date: localDate(session.scheduledAt, timezone),
+			placement: readPlacement(session.workout),
+		}))
+	return { adjustable, freeDays, week }
 }
 
 /**
@@ -291,6 +304,7 @@ async function getMissedSessions(
 	weekKey: string,
 	timezone: string,
 	now: Date,
+	pinned: PinnedDaysByDiscipline = new Map(),
 ): Promise<WeekChangeFacts['missedSessions']> {
 	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
 	const sessions = await prisma.workoutSession.findMany({
@@ -306,7 +320,7 @@ async function getMissedSessions(
 			status: true,
 			scheduledAt: true,
 			plannedTssValue: true,
-			workout: { select: { title: true } },
+			workout: sessionWorkoutSelect,
 		},
 	})
 	return sessions
@@ -316,6 +330,8 @@ async function getMissedSessions(
 			title: session.workout?.title ?? 'Økta',
 			date: localDate(session.scheduledAt, timezone),
 			plannedTss: session.plannedTssValue,
+			placement: readPlacement(session.workout),
+			...pinnedDaysOf(pinned, session.workout?.discipline),
 		}))
 }
 
@@ -333,6 +349,7 @@ async function getRepeatMisses(
 	closedWeekKey: string,
 	timezone: string,
 	now: Date,
+	pinned: PinnedDaysByDiscipline = new Map(),
 ): Promise<NonNullable<WeekChangeFacts['repeatMisses']>> {
 	const from = weekBoundsFromMondayUTC(addDays(closedWeekKey, -7), timezone)
 	const to = weekBoundsFromMondayUTC(addDays(closedWeekKey, 7), timezone)
@@ -348,17 +365,19 @@ async function getRepeatMisses(
 			id: true,
 			status: true,
 			scheduledAt: true,
-			workout: { select: { title: true, discipline: true } },
+			workout: sessionWorkoutSelect,
 		},
 	})
 	const read = sessions.map((session) => {
 		const date = localDate(session.scheduledAt, timezone)
 		return {
 			id: session.id,
+			placement: readPlacement(session.workout),
 			date,
 			week: addDays(date, -weekdayIndex(date)),
 			slot: `${weekdayIndex(date)}|${session.workout?.title}|${session.workout?.discipline}`,
 			title: session.workout?.title ?? 'Økta',
+			discipline: session.workout?.discipline,
 			missed: deriveLedgerStatus(session, now) === 'missed',
 			ahead: session.status === 'scheduled' && session.scheduledAt > now,
 		}
@@ -374,7 +393,25 @@ async function getRepeatMisses(
 			(s) => s.week === addDays(closedWeekKey, 7) && s.slot === slot && s.ahead,
 		)
 		return next
-			? [{ title: next.title, next: { id: next.id, date: next.date } }]
+			? [
+					{
+						title: next.title,
+						next: { id: next.id, date: next.date },
+						placement: next.placement,
+						...pinnedDaysOf(pinned, next.discipline),
+					},
+				]
 			: []
 	})
+}
+
+type PinnedDaysByDiscipline = ReadonlyMap<string, readonly PatternWeekday[]>
+
+/** A session's track's Pinned days, where its Discipline's track names any. */
+function pinnedDaysOf(
+	pinned: PinnedDaysByDiscipline,
+	discipline: string | null | undefined,
+): { pinnedDays?: readonly PatternWeekday[] } {
+	const days = discipline == null ? undefined : pinned.get(discipline)
+	return days ? { pinnedDays: days } : {}
 }
