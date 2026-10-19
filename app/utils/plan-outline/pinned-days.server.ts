@@ -65,7 +65,10 @@ export async function readPinnedDaysByDiscipline(
 
 /** A track that lost days when Training Availability changed. */
 export type DroppedPinnedDays = {
+	/** The track's, or the Simple Activity's, own key: one line each. */
+	key: string
 	discipline: PlannedDiscipline
+	activity: boolean
 	/** A Simple Activity's name, where it was one. */
 	title: string | null
 	lost: PatternWeekday[]
@@ -108,7 +111,14 @@ export async function dropUnavailablePinnedDays(
 				now,
 			)
 			if (written.ok) {
-				dropped.push({ discipline: 'strength', title: null, lost, kept })
+				dropped.push({
+					key: 'strength',
+					discipline: 'strength',
+					activity: false,
+					title: null,
+					lost,
+					kept,
+				})
 			}
 		}
 	}
@@ -122,7 +132,9 @@ export async function dropUnavailablePinnedDays(
 		if (lost.length === 0) continue
 		if (unit.kind === 'activity' && !kept) {
 			dropped.push({
+				key: unit.key,
 				discipline: unit.discipline,
+				activity: true,
 				title: unit.title,
 				lost,
 				kept,
@@ -137,7 +149,14 @@ export async function dropUnavailablePinnedDays(
 		)
 		if (!written.ok) continue
 		changed = true
-		dropped.push({ discipline: unit.discipline, title: unit.title, lost, kept })
+		dropped.push({
+			key: unit.key,
+			discipline: unit.discipline,
+			activity: unit.kind === 'activity',
+			title: unit.title,
+			lost,
+			kept,
+		})
 	}
 	if (changed) {
 		await relayPlanFromFirstUnbegunWeek(userId, outlineId, now, 'track-days')

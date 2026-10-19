@@ -10,6 +10,7 @@
 // _La appen velge_ writes **lifting slots** instead, one per lift, which the
 // stamp lays each week after the endurance mix (§3). Pure: no I/O.
 
+import { type z } from 'zod/v3'
 import { STRENGTH_PER_WEEK_CHOICES } from '../first-run/start-draft.ts'
 import { type PlannedDiscipline } from '../planned-discipline.ts'
 import { type CardioDiscipline } from '../workout-schema.ts'
@@ -37,6 +38,25 @@ export const DAY_CHOICE_PREVIEW_WEEKS = 4
 export function dayChoiceOf(formData: FormData): DayChoice {
 	if (formData.get('mode') !== 'own') return null
 	return patternWeekdaysOf(formData.getAll('day').map(Number))
+}
+
+/**
+ * What a day choice's toast _Angre_ posted (`undo`, as JSON), read against
+ * the surface's own shape — or `null` where it is not that shape, which the
+ * surface refuses as `bad-restore`.
+ */
+export function undoPayloadOf<Schema extends z.ZodTypeAny>(
+	formData: FormData,
+	schema: Schema,
+): z.infer<Schema> | null {
+	let payload: unknown = null
+	try {
+		payload = JSON.parse(String(formData.get('undo') ?? 'null'))
+	} catch {
+		return null
+	}
+	const parsed = schema.safeParse(payload)
+	return parsed.success ? (parsed.data as z.infer<Schema>) : null
 }
 
 /**

@@ -1,7 +1,10 @@
 import { data } from 'react-router'
 import { z } from 'zod/v3'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { dayChoiceOf } from '#app/utils/plan-outline/pinned-days.ts'
+import {
+	dayChoiceOf,
+	undoPayloadOf,
+} from '#app/utils/plan-outline/pinned-days.ts'
 import {
 	previewTrackDays,
 	setTrackDays,
@@ -19,6 +22,12 @@ import { type Route } from './+types/track-days.ts'
  * Plan stays where it is. Owner-scoped: every read and write checks the plan
  * is the signed-in athlete's.
  */
+
+/** Which plan and which row of _Dagene i uka_ a post is for. */
+const TargetSchema = z.object({
+	outlineId: z.string().min(1),
+	key: z.string().min(1),
+})
 
 const RowSchema = z.object({
 	kind: z.enum(['share', 'fixed']),
@@ -39,7 +48,8 @@ const UndoSchema = z.object({
 				rows: z.array(RowSchema).min(1).max(14),
 			}),
 		)
-		.max(32)
+		// One entry per Week Pattern of the plan that holds the track.
+		.max(512)
 		.default([]),
 	version: z.string(),
 })
@@ -56,8 +66,16 @@ export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
 	const intent = formData.get('intent')
-	const outlineId = String(formData.get('outlineId') ?? '')
-	const key = String(formData.get('key') ?? '')
+	const target = TargetSchema.safeParse({
+		outlineId: formData.get('outlineId'),
+		key: formData.get('key'),
+	})
+	if (!target.success) {
+		throw new Response('A day choice names its plan and its row', {
+			status: 400,
+		})
+	}
+	const { outlineId, key } = target.data
 
 	if (intent === 'preview-days') {
 		const preview = await previewTrackDays(userId, {
@@ -99,14 +117,8 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 
 	if (intent === 'undo-days') {
-		let payload: unknown = null
-		try {
-			payload = JSON.parse(String(formData.get('undo') ?? 'null'))
-		} catch {
-			payload = null
-		}
-		const parsed = UndoSchema.safeParse(payload)
-		if (!parsed.success) {
+		const payload = undoPayloadOf(formData, UndoSchema)
+		if (!payload) {
 			return data(
 				{
 					intent: 'undone' as const,
@@ -117,7 +129,7 @@ export async function action({ request }: Route.ActionArgs) {
 				{ status: 400 },
 			)
 		}
-		const { pinned, rows, elsewhere, version } = parsed.data
+		const { pinned, rows, elsewhere, version } = payload
 		const restored = {
 			pinned: pinned == null ? null : patternWeekdaysOf(pinned),
 			rows: restoredRows(rows),

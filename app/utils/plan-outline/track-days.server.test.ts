@@ -589,9 +589,23 @@ test('taking a day out of Training Availability drops it from the tracks that pi
 	await updateAthleteProfile(userId, { trainableWeekdays: [1, 2, 3, 4, 5] })
 	const dropped = await dropUnavailablePinnedDays(userId, NOW)
 	expect(dropped).toEqual([
-		{ discipline: 'bike', title: null, lost: [SUN], kept: [WED] },
+		{
+			key: expect.stringMatching(/^track:/),
+			discipline: 'bike',
+			activity: false,
+			title: null,
+			lost: [SUN],
+			kept: [WED],
+		},
 		// A Simple Activity left with no day stays put, and is said.
-		{ discipline: 'other', title: 'Langrenn', lost: [SAT], kept: null },
+		{
+			key: expect.stringMatching(/^activity:/),
+			discipline: 'other',
+			activity: true,
+			title: 'Langrenn',
+			lost: [SAT],
+			kept: null,
+		},
 	])
 	const track = await prisma.trainingTrack.findUniqueOrThrow({
 		where: { id: bikeTrackId },
@@ -612,7 +626,14 @@ test('a track that loses every pinned day goes back to La appen velge', async ()
 	// Every day but Saturday (Sunday-first 6).
 	await updateAthleteProfile(userId, { trainableWeekdays: [0, 1, 2, 3, 4, 5] })
 	expect(await dropUnavailablePinnedDays(userId, NOW)).toEqual([
-		{ discipline: 'bike', title: null, lost: [SAT], kept: null },
+		{
+			key: expect.stringMatching(/^track:/),
+			discipline: 'bike',
+			activity: false,
+			title: null,
+			lost: [SAT],
+			kept: null,
+		},
 	])
 	const track = await prisma.trainingTrack.findUniqueOrThrow({
 		where: { id: bikeTrackId },
@@ -635,8 +656,22 @@ test('clearing every day of Training Availability drops every pinned day, not no
 	// The athlete unticks every day in _Meg_: an explicit empty list.
 	await updateAthleteProfile(userId, { trainableWeekdays: [] })
 	expect(await dropUnavailablePinnedDays(userId, NOW)).toEqual([
-		{ discipline: 'bike', title: null, lost: [WED, SUN], kept: null },
-		{ discipline: 'other', title: 'Langrenn', lost: [WED], kept: null },
+		{
+			key: expect.stringMatching(/^track:/),
+			discipline: 'bike',
+			activity: false,
+			title: null,
+			lost: [WED, SUN],
+			kept: null,
+		},
+		{
+			key: expect.stringMatching(/^activity:/),
+			discipline: 'other',
+			activity: true,
+			title: 'Langrenn',
+			lost: [WED],
+			kept: null,
+		},
 	])
 	const track = await prisma.trainingTrack.findUniqueOrThrow({
 		where: { id: bikeTrackId },
