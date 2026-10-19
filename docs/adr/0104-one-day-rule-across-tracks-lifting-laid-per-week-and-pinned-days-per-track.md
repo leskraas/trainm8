@@ -122,6 +122,13 @@ the default and means the day rule lays the track.
   the profile's answer and every strength block of the track (story 20).
 - Removing a day from Training Availability drops it from every track that
   pinned it, and says so.
+- **A Simple Activity's days are always Pinned days.** It has no _La appen
+  velge_: it carries no mix and no volume of its own for a rule to deal, so its
+  chooser is the weekday chips alone (narrowing #598's "the same control as for
+  strength"). When removing an availability day would leave an Activity with no
+  day at all, it keeps that day and Meg names it, since only the athlete can
+  name its new day; the chooser then names the day that is no longer a training
+  day (narrowing #588's "always a subset").
 - **Fixed strength days already stored**, from the first run or the strength
   offer, are read as Pinned days and are not moved. _La appen velge_ hands them
   back to the per-week rule. Nothing is migrated.
