@@ -1,5 +1,22 @@
 # Structure Detection auto-imports a single structure, with no candidate inbox
 
+> **Amended by [#603](https://github.com/leskraas/trainm8/issues/603) (map
+> #600): Structure Detection gains a sibling, the Activity Interval.** The
+> Revisit note below is answered. A recording's executed intervals live in
+> `ActivityInterval`, many per **Activity Import** and cascade-deleted with it,
+> in three layers: `device` (every provider or watch lap, with its own figures),
+> `engine` (what detection found) and `athlete` (the athlete's edits, a full
+> copy made at the first edit). The detect job replaces the engine layer in the
+> same transaction that upserts or deletes the `WorkoutDetection` row, and
+> never touches the athlete layer. `ActivityImport.lapsJson` retires into the
+> device layer, which the engine reads instead. Everything this ADR decides
+> about the single stored structure, the honesty gate, auto-materialization and
+> the lifecycle stands: `WorkoutDetection`, its `structureJson` and the
+> `recorded` ⇄ `detected` compare-and-swap stay. Nothing about the plan is
+> stored on an interval, and no zone is stored. Below the gate there are no
+> engine rows, and the Workout Reading reads the recording as one whole-session
+> interval built from the import. See [the decided model](https://github.com/leskraas/trainm8/blob/research/structured-workouts/docs/wayfinder/structured-workouts/603-activity-interval.md).
+
 > **Revisit — Amend.** Reusing the prescription vocabulary is right for
 > materializing a Workout and wrong for measured intervals:
 > `WorkoutDetection.structureJson` is a prescription shape with nowhere to put a
