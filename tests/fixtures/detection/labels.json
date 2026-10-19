@@ -1,0 +1,232 @@
+{
+	"labelledBy": "Agent, from the athlete title (structured) or by reading each run's per-minute power, pace and HR (the rest). Correct a label here and re-run npm run detection:corpus.",
+	"labelledAt": "2026-10-19",
+	"labels": {
+		"16260909260": {
+			"kind": "unstructured",
+			"reason": "paused",
+			"note": "Errand run (\"Hente bil\"): steady, then a stop at the end."
+		},
+		"16402616365": {
+			"kind": "unstructured",
+			"reason": "hilly",
+			"note": "Trail: climbing first half, descending second; no repeats."
+		},
+		"16473320291": {
+			"kind": "unstructured",
+			"reason": "hilly",
+			"note": "70 min trail; power follows the terrain."
+		},
+		"16844559116": {
+			"kind": "unstructured",
+			"reason": "hilly",
+			"note": "Trail with two stops; power follows the terrain."
+		},
+		"16923952871": {
+			"kind": "unstructured",
+			"reason": "hilly",
+			"note": "Trail: up then down; no repeats."
+		},
+		"16976283329": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"16980521219": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"17047022100": {
+			"kind": "unstructured",
+			"reason": "hilly",
+			"note": "Trail: up then down; no repeats."
+		},
+		"17089380389": {
+			"kind": "unlabelled",
+			"note": "Trail with four ~4 min surges and ~2 min drops; could be hill repeats, the title does not say."
+		},
+		"17100712358": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run, one short dip."
+		},
+		"17104713918": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady after a fast first minute."
+		},
+		"17117012647": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"17120168962": {
+			"kind": "unlabelled",
+			"note": "Hilly night run with a slow middle third; no title to tell surges from hills."
+		},
+		"17135843169": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"17140683237": {
+			"kind": "unstructured",
+			"reason": "paused",
+			"note": "Steady, with a 10 min stop in the middle."
+		},
+		"17159105517": {
+			"kind": "unstructured",
+			"reason": "long",
+			"note": "65 min steady."
+		},
+		"17351112704": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"17351801148": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run, one dip."
+		},
+		"17370738139": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"17374536087": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"17452001608": {
+			"kind": "unlabelled",
+			"note": "Mostly steady with a firmer stretch around 19-25 min; tempo or terrain, the title does not say."
+		},
+		"17575686780": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run, one dip."
+		},
+		"17577194647": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"17584621839": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"17609923987": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"17614578374": {
+			"kind": "unstructured",
+			"reason": "paused",
+			"note": "Errand run (\"innom frisøren\"): a 38 min stop in the middle."
+		},
+		"17751492362": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady easy run."
+		},
+		"17764380575": {
+			"kind": "unlabelled",
+			"note": "Hard first 7 min, then easy; a test or a run-in, the title does not say."
+		},
+		"17814617769": {
+			"kind": "unstructured",
+			"reason": "long",
+			"note": "99 min steady around a lake (\"3x Songsvann\"): three laps of a route, not reps."
+		},
+		"17824531152": {
+			"kind": "unstructured",
+			"reason": "paused",
+			"note": "Steady, with a 7 min stop after the start."
+		},
+		"17829237425": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"17849741423": {
+			"kind": "structured"
+		},
+		"17855701147": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"17873912918": {
+			"kind": "structured"
+		},
+		"17914313994": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"17947739575": {
+			"kind": "structured"
+		},
+		"18009099660": {
+			"kind": "structured"
+		},
+		"18014376592": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady, one short stop."
+		},
+		"18036682827": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"18040935023": {
+			"kind": "structured"
+		},
+		"18077491703": {
+			"kind": "structured"
+		},
+		"18180485861": {
+			"kind": "unstructured",
+			"reason": "paused",
+			"note": "Steady, with a 7 min stop after the start."
+		},
+		"18184320902": {
+			"kind": "structured"
+		},
+		"18438430254": {
+			"kind": "unlabelled",
+			"note": "11 min hard and even; a time trial or a fast run, the title does not say."
+		},
+		"18501361328": {
+			"kind": "structured"
+		},
+		"18552701268": {
+			"kind": "unlabelled",
+			"note": "Steady with a firmer 13-25 min stretch; tempo or terrain, the title does not say."
+		},
+		"18582785309": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"18583586129": {
+			"kind": "unstructured",
+			"reason": "paused",
+			"note": "Steady, with a 13 min stop."
+		},
+		"19045461248": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Steady road run."
+		},
+		"19096546882": {
+			"kind": "structured"
+		}
+	}
+}
