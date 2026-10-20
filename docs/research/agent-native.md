@@ -31,7 +31,8 @@ framework's source at commit `1284000325bfd1f9f79c75eb4ea143d36fce6017`
 > data and each vendor's AI and MCP terms.
 > [`ai-product-privacy-cost.md`](ai-product-privacy-cost.md) covers privacy,
 > regulation and cost. [`agent-strategy.md`](agent-strategy.md) pulls the notes
-> into one strategy.
+> into one strategy. [`agent-native-deep-dive.md`](agent-native-deep-dive.md) is
+> the mechanism-level reference at 0.210.0 (2026-10-20), with six appendices.
 
 ### How claims are cited
 
