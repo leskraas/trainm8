@@ -199,6 +199,7 @@ for (const { v, board } of boards) {
 out.push(
 	'',
 	'Boundary error is over edges matched within 60 s; durations and intensity are medians over detected structured sessions.',
+	`Read with care: ${first.positives} positives from one athlete, so one session moves recall by ${Math.round(100 / first.positives)} points. The label-pace and label-power thresholds are medians of labelled reps scored on the same corpus, so they flatter recall and robustness; only seed and hr are free of that. The true work windows are themselves a fit to power, so boundary and intensity errors measure agreement with that fit, and the low-contrast placements (work/recovery power under 1.5, see labels) are the least certain.`,
 	'',
 	'### Threshold robustness',
 	'',

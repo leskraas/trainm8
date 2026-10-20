@@ -15,6 +15,17 @@ bump attaches its table.
   freezer places a title's scheme on the stream by fitting its square wave to
   power, so the work windows are good to about one 5 s sample.
 
+Read the numbers with these limits in mind:
+
+- **Small and from one athlete.** One positive moves recall by about 9 points.
+- **Two profiles leak the labels.** `label-pace` and `label-power` are medians
+  of the labelled i3 reps, scored on the same corpus, so they flatter recall and
+  robustness. Only `seed` and `hr` are free of that.
+- **The truth is a power fit.** Work windows come from fitting the scheme to the
+  same power channel the engine reads, so boundary and intensity errors measure
+  agreement with that fit. A placement with work/recovery power (`contrast`)
+  under 1.5 is the least certain.
+
 What the corpus does not hold yet:
 
 - **A 1 s stream.** Strava streams are stored downsampled (5–6 s), and no raw
