@@ -307,14 +307,43 @@ export function lapSets(
 			j += 2
 		}
 		if (j === i) continue
-		// laps[i..j] alternate active, rest, active, …, active. A first or last
-		// active lap far from the reps next to it, or not quite them and next
-		// to a recovery far from the median recovery, is the warm-up or
-		// cool-down (written `active`) or a rep cut short.
+		// laps[i..j] alternate active, rest, active, …, active.
 		const span = laps.slice(i, j + 1)
+		// Runs of equal reps, in order, as lap indices; a workout of more than
+		// one rep length (3×3′, 2×1′, 4×45″) keeps one set per run.
+		const runsOf = (reps: number[]) => {
+			const runs: number[][] = []
+			for (const k of reps) {
+				const run = runs[runs.length - 1]
+				const ref = run && medianOf(run.map((n) => lapSec(laps[n]!)))
+				if (run && near(lapSec(laps[k]!), ref!, REP_DURATION_TOLERANCE))
+					run.push(k)
+				else runs.push([k])
+			}
+			return runs
+		}
+		const isMulti = (runs: number[][]) => {
+			const medians = runs
+				.filter((r) => r.length >= 2)
+				.map((r) => medianOf(r.map((n) => lapSec(laps[n]!))))
+			return (
+				medians.length >= 2 &&
+				Math.max(...medians) / Math.min(...medians) >= MULTI_SET_RATIO
+			)
+		}
+		const repsIn = (a: number, b: number) =>
+			Array.from({ length: (b - a) / 2 + 1 }, (_, n) => a + 2 * n)
+		const multi = isMulti(runsOf(repsIn(i, j)))
+
+		// The warm-up and cool-down (a re-encoded file writes them `active`) or
+		// a rep cut short sit at the ends of the chain. An end lap easier than
+		// halfway from the median recovery to the median rep is one, whatever
+		// its length (distance reps vary). In a chain of one rep length, so is
+		// an end lap far from the reps next to it, or not quite them and next to
+		// a recovery far from the median recovery. In a multi-length chain the
+		// length alone cannot tell (a 3′ rep before 90″ reps is a rep), so an
+		// end lap goes only when it is easy or has a length no other rep has.
 		const restMed = medianOf(span.filter((_, k) => k % 2 === 1).map(lapSec))
-		// An end lap easier than halfway from the median recovery to the median
-		// rep is a cool-down whatever its length (distance reps vary).
 		const hard = (k: number) => hardness(laps[k]!)
 		const known = (xs: Array<number | null>) =>
 			xs.filter((x): x is number => x != null)
@@ -324,8 +353,7 @@ export function lapSets(
 			repHard.length && restHard.length
 				? (medianOf(repHard) + medianOf(restHard)) / 2
 				: null
-		// The median of the (up to) three reps inward of an end rep, so a
-		// multi-set workout's first set is not judged by its last.
+		// The median of the (up to) three reps inward of an end rep.
 		const inward = (rep: number, step: number) => {
 			const xs: number[] = []
 			for (let k = rep + step; k >= i && k <= j && xs.length < 3; k += step)
@@ -340,11 +368,18 @@ export function lapSets(
 			END_REP_TOLERANCE_MIN + END_REP_SPREAD_FACTOR * spread,
 		)
 		const bad = (rep: number, rest: number) => {
+			if (easyBelow != null && (hard(rep) ?? Infinity) < easyBelow) return true
 			const d = lapSec(laps[rep]!)
+			if (multi) {
+				// …or a length no other rep in the chain has (a 3′ jog after
+				// 5×60″, 5×45″, 3×30″).
+				return !repsIn(i, j).some(
+					(k) => k !== rep && near(lapSec(laps[k]!), d, REP_DURATION_TOLERANCE),
+				)
+			}
 			const ref = inward(rep, rest > rep ? 2 : -2)
 			return (
 				!near(d, ref, endTolerance, END_REP_SLACK_SEC) ||
-				(easyBelow != null && (hard(rep) ?? Infinity) < easyBelow) ||
 				(!near(d, ref, EXACT_REP_TOLERANCE, END_REP_SLACK_SEC) &&
 					!near(
 						lapSec(laps[rest]!),
@@ -358,29 +393,14 @@ export function lapSets(
 		let b = j
 		while (a < b && bad(a, a + 1)) a += 2
 		while (b > a && bad(b, b - 1)) b -= 2
-		const chain = laps.slice(a, b + 1)
-		if (chain.filter((_, k) => k % 2 === 0).length < MIN_REPS) continue
-		// A multi-set workout (3×3′, 2×1′, 4×45″) keeps one set per run of
-		// equal reps; a lone odd rep inside one set stays in it.
-		const runs: number[][] = []
-		for (let k = 0; k < chain.length; k += 2) {
-			const run = runs[runs.length - 1]
-			const ref = run && medianOf(run.map((n) => lapSec(chain[n]!)))
-			if (run && near(lapSec(chain[k]!), ref!, REP_DURATION_TOLERANCE))
-				run.push(k)
-			else runs.push([k])
-		}
-		const runMedians = runs
-			.filter((r) => r.length >= 2)
-			.map((r) => medianOf(r.map((n) => lapSec(chain[n]!))))
-		const multi =
-			runMedians.length >= 2 &&
-			Math.max(...runMedians) / Math.min(...runMedians) >= MULTI_SET_RATIO
-		for (const run of multi ? runs : [runs.flat()]) {
+		// MIN_REPS holds for the whole chain; a multi-length set may be one rep.
+		if ((b - a) / 2 + 1 < MIN_REPS) continue
+		const runs = runsOf(repsIn(a, b))
+		for (const run of isMulti(runs) ? runs : [runs.flat()]) {
 			sets.push({
 				kind: 'step',
-				work: run.map((k) => plain(chain[k]!)),
-				recovery: run.slice(0, -1).map((k) => plain(chain[k + 1]!)),
+				work: run.map((k) => plain(laps[k]!)),
+				recovery: run.slice(0, -1).map((k) => plain(laps[k + 1]!)),
 			})
 		}
 		for (let k = i; k <= j; k++) used.add(k)

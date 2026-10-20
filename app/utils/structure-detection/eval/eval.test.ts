@@ -237,3 +237,34 @@ test('a multi-set workout keeps one set per run of equal reps', () => {
 	)
 	expect(lapSets(laps, () => null).map((s) => s.work.length)).toEqual([3, 3])
 })
+
+/** Hardness by lap length: reps hard, recoveries and the warm-up easy. */
+const effort =
+	(easy: (sec: number, n: number) => boolean) => (laps: Lap[]) => (l: Lap) => {
+		const n = laps.findIndex((x) => x.startSec === l.startSec)
+		return easy(l.endSec - l.startSec, n) ? 250 : 400
+	}
+
+test('a multi-length workout keeps its opening long rep; only the easy warm-up goes', () => {
+	// "3x3m2x1m4x4": warm-up, then 3 × (1 × 3′, 2 × 90″, 4 × 45″), 60 s
+	// recoveries (75–82 s after the 3′), 180 s between rounds, cool-down.
+	const round = 'A180 r80 A90 r60 A90 r60 A45 r60 A45 r60 A45 r60 A45'
+	const laps = lapsOf(`A169 r75 ${round} r180 ${round} r180 ${round} A544`)
+	// The warm-up (n = 0), recoveries and cool-down are easy.
+	const hard = effort((sec, n) => n === 0 || n % 2 === 1 || sec > 500)(laps)
+	const sets = lapSets(laps, hard)
+	expect(sets.map((s) => s.work.length)).toEqual([1, 2, 4, 1, 2, 4, 1, 2, 4])
+	expect(sets.flatMap((s) => s.work)).toHaveLength(21)
+	expect(sets[0]!.work[0]!.endSec - sets[0]!.work[0]!.startSec).toBe(180)
+})
+
+test('a warm-up before equal timed reps is dropped even when it is not easy', () => {
+	// "10x3.5 min": a 241 s warm-up at rep-like effort, a normal 61 s
+	// recovery, then 10 × 210/60.
+	const reps = Array.from({ length: 9 }, () => 'A210 r60').join(' ')
+	const laps = lapsOf(`A241 r61 ${reps} A210 A389`)
+	const sets = lapSets(laps, () => null)
+	expect(sets).toHaveLength(1)
+	expect(sets[0]!.work).toHaveLength(10)
+	expect(sets[0]!.work.every((w) => w.endSec - w.startSec === 210)).toBe(true)
+})
