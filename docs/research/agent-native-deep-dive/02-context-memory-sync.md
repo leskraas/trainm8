@@ -187,9 +187,12 @@ commits `4e49b3ac3`, `deb1f926a`, `dd55f834c`). Schema unchanged.
 
 ### What it is
 
-Before every model call the server builds up to four context blocks from
-`application_state` and the clock, and **appends them to the current user
-message** (not to the system prompt).
+At the start of each chat turn (once per request, before the first model
+call) the server builds up to four context blocks from `application_state` and
+the clock, and **appends them to the current user message** (not to the system
+prompt). Later model calls in the same turn reuse that snapshot, so navigation
+or edits during the turn do not refresh it
+(`AN packages/core/src/agent/production-agent.ts:13457–13523`).
 
 ### How it works — exact flow and payload
 
@@ -1481,8 +1484,14 @@ key)`" — the `session_id` is the user's email, and six keys are tab-suffixed.
    (Chat, default)? A `tool-done` mapping for the app's `navigate` tool would make
    it immediate.
 3. Does Observational Memory intend to drop unobserved middle messages, and to
-   re-run the Reflector every turn after the first crossing of 40k? A
-   "superseded_by" column or deletion of reflected observations would fix both.
+   re-run the Reflector every turn after the first crossing of 40k? These need
+   two separate fixes. Keeping unobserved raw messages in context (instead of
+   the fixed 12-message cutoff) fixes the first. Superseding reflected
+   observations fixes the second, but only if their coverage survives: deleting
+   them would also move the observed-through cursor back, because
+   `getObservedThroughIndex()` reads `MAX(source_end_index)` from
+   observation-tier rows only
+   (`AN packages/core/src/agent/observational-memory/store.ts:222–240`).
 4. Why is the template `AGENTS.md` governance `inherited` rather than `required`
    (`prompt-resources.ts:1639–1651`) when SQL AGENTS.md files are `required`?
 5. Is there a plan to expire tab-scoped `application_state` rows?

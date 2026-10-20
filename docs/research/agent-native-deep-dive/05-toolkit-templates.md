@@ -933,8 +933,12 @@ Migrations: 38 hand-written versions in `runMigrations([...], { table: "mail_mig
   - settings `mail-settings` → settings plus inbox;
   - action names → email lists.
 
-  Own-tab events are ignored (`:415–470`). Realtime (SSE) is requested only on inbox paths;
-  elsewhere the app relies on the polling fallback.
+  Own-tab events are ignored (`:415–470`). Realtime is requested only on inbox paths.
+  Elsewhere `realtime` is `undefined`, which turns off both SSE and background polling:
+  `useDbSync` creates no transport at all without a realtime reason
+  (`AN packages/core/src/client/use-db-sync.ts:1933–1946`). Non-inbox pages update only
+  through local mutations, chat-run (`tool-done`) invalidation and ordinary refetches;
+  changes made elsewhere are not pushed to them.
 
 ### 8.7 Domain safety: drafts, queue, approval, undo
 
