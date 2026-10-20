@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs'
+import { invariant } from '@epic-web/invariant'
 import { parseStoredStream } from '#app/utils/activity-stream.ts'
 import {
 	fitTemplate,
@@ -12,6 +13,7 @@ import {
 	type DetectionLabel,
 	type StructuredLabel,
 } from '#app/utils/structure-detection/eval/types.ts'
+import { median } from '#app/utils/structure-detection/signal.ts'
 import { isDetectionDiscipline } from '#app/utils/structure-detection/types.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/resolve.ts'
 
@@ -68,14 +70,13 @@ for (const a of seed.activities) {
 	if (!stream) continue
 	const raw = JSON.parse(a.rawJson) as { name: string; device_name?: string }
 	const hand = labels[a.externalId]
-	if (!hand) throw new Error(`No label for ${a.externalId} "${raw.name}"`)
+	invariant(hand, `No label for ${a.externalId} "${raw.name}"`)
 	let label: DetectionLabel
 	if (hand.kind === 'structured') {
 		const scheme = parseTitleScheme(hand.scheme ?? raw.name)
-		if (!scheme)
-			throw new Error(`Cannot read a scheme from "${hand.scheme ?? raw.name}"`)
+		invariant(scheme, `Cannot read a scheme from "${hand.scheme ?? raw.name}"`)
 		const fit = fitTemplate(stream, scheme)
-		if (!fit) throw new Error(`Cannot place "${raw.name}" on its stream`)
+		invariant(fit, `Cannot place "${raw.name}" on its stream`)
 		label = {
 			kind: 'structured',
 			source: hand.scheme ? 'athlete' : 'title',
@@ -113,11 +114,6 @@ const longI3 = activities
 		(l): l is StructuredLabel =>
 			l.kind === 'structured' && /\bi3\b/.test(l.title) && l.workSec >= 180,
 	)
-const median = (xs: number[]) => {
-	const s = [...xs].sort((a, b) => a - b)
-	const m = Math.floor(s.length / 2)
-	return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2
-}
 const cp = Math.round(median(longI3.map((l) => l.workValue.power!)))
 const pace = Math.round(median(longI3.map((l) => l.workValue.pace!)))
 const fromLabels = `median work of ${longI3.map((l) => `"${l.title}"`).join(' and ')}`

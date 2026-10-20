@@ -1,5 +1,6 @@
 import { type ActivityStream, isNum } from '../../activity-stream.ts'
 import { type Lap } from '../types.ts'
+import { type ChannelMeans } from './types.ts'
 
 /**
  * Ground truth for the detection scoreboard: read a rep scheme from the
@@ -41,6 +42,11 @@ export function parseTitleScheme(title: string): TitleScheme | null {
 /** Recoveries tried when the title gives none: 30 s to 5 min in 15 s steps. */
 const RECOVERY_CANDIDATES = Array.from({ length: 19 }, (_, i) => 30 + i * 15)
 
+/** Pace as speed (m/s), so it averages and compares the way power does. */
+function speedOf(pace: Array<number | null>): Array<number | null> {
+	return pace.map((p) => (isNum(p) && p > 0 ? 1000 / p : null))
+}
+
 export type TemplateFit = {
 	recoverySec: number
 	work: Lap[]
@@ -60,64 +66,62 @@ export function fitTemplate(
 	stream: ActivityStream,
 	scheme: TitleScheme,
 ): TemplateFit | null {
-	const values =
-		stream.power ??
-		stream.pace?.map((p) => (isNum(p) && p > 0 ? 1000 / p : null))
+	const values = stream.power ?? (stream.pace && speedOf(stream.pace))
 	if (!values) return null
 	const end = stream.timeSec[stream.timeSec.length - 1] ?? 0
-	let best: { score: number; t0: number; recoverySec: number } | null = null
+	let best: {
+		t0: number
+		recoverySec: number
+		period: number
+		means: PhaseMeans
+	} | null = null
 	for (const recoverySec of scheme.recoverySec != null
 		? [scheme.recoverySec]
 		: RECOVERY_CANDIDATES) {
 		const period = scheme.workSec + recoverySec
 		const span = scheme.reps * period - recoverySec
 		for (let t0 = 0; t0 + span <= end; t0++) {
-			const m = phaseMeans(
-				stream.timeSec,
-				values,
+			const means = phaseMeans(stream.timeSec, values, {
 				t0,
 				span,
 				period,
-				scheme.workSec,
-			)
-			if (!m) continue
-			const score = m.work - m.recovery
-			if (!best || score > best.score) best = { score, t0, recoverySec }
+				workSec: scheme.workSec,
+			})
+			if (!means) continue
+			if (
+				!best ||
+				means.work - means.recovery > best.means.work - best.means.recovery
+			) {
+				best = { t0, recoverySec, period, means }
+			}
 		}
 	}
 	if (!best) return null
-	const period = scheme.workSec + best.recoverySec
-	const span = scheme.reps * period - best.recoverySec
-	const m = phaseMeans(
-		stream.timeSec,
-		values,
-		best.t0,
-		span,
-		period,
-		scheme.workSec,
-	)!
+	const { t0, period, means } = best
 	return {
 		recoverySec: best.recoverySec,
 		work: Array.from({ length: scheme.reps }, (_, i) => ({
-			startSec: best.t0 + i * period,
-			endSec: best.t0 + i * period + scheme.workSec,
+			startSec: t0 + i * period,
+			endSec: t0 + i * period + scheme.workSec,
 		})),
-		contrast: m.work / m.recovery,
+		contrast: means.work / means.recovery,
 	}
 }
+
+/** One placement of a square wave: `span` seconds from `t0`, work first in each `period`. */
+type Placement = { t0: number; span: number; period: number; workSec: number }
+
+type PhaseMeans = { work: number; recovery: number }
 
 function phaseMeans(
 	timeSec: number[],
 	values: Array<number | null>,
-	t0: number,
-	span: number,
-	period: number,
-	workSec: number,
-): { work: number; recovery: number } | null {
-	let ws = 0
-	let wn = 0
-	let rs = 0
-	let rn = 0
+	{ t0, span, period, workSec }: Placement,
+): PhaseMeans | null {
+	let workSum = 0
+	let workCount = 0
+	let recoverySum = 0
+	let recoveryCount = 0
 	for (let i = 0; i < timeSec.length; i++) {
 		const rel = timeSec[i]! - t0
 		if (rel < 0) continue
@@ -125,15 +129,15 @@ function phaseMeans(
 		const v = values[i]
 		if (!isNum(v)) continue
 		if (rel % period < workSec) {
-			ws += v
-			wn++
+			workSum += v
+			workCount++
 		} else {
-			rs += v
-			rn++
+			recoverySum += v
+			recoveryCount++
 		}
 	}
-	if (wn === 0 || rn === 0) return null
-	return { work: ws / wn, recovery: rs / rn }
+	if (workCount === 0 || recoveryCount === 0) return null
+	return { work: workSum / workCount, recovery: recoverySum / recoveryCount }
 }
 
 /**
@@ -143,7 +147,7 @@ function phaseMeans(
 export function windowMeans(
 	stream: ActivityStream,
 	windows: Lap[],
-): { power?: number; pace?: number; heartrate?: number } {
+): ChannelMeans {
 	const inside = (t: number) =>
 		windows.some((w) => t >= w.startSec && t < w.endSec)
 	const mean = (vals: Array<number | null> | undefined) => {
@@ -153,9 +157,7 @@ export function windowMeans(
 			? (xs as number[]).reduce((a, b) => a + b, 0) / xs.length
 			: undefined
 	}
-	const speed = mean(
-		stream.pace?.map((p) => (isNum(p) && p > 0 ? 1000 / p : null)),
-	)
+	const speed = mean(stream.pace && speedOf(stream.pace))
 	return {
 		power: mean(stream.power),
 		pace: speed ? 1000 / speed : undefined,
@@ -182,7 +184,7 @@ export function workoutStepLaps(stream: ActivityStream, work: Lap[]): Lap[] {
 }
 
 /** Every-kilometre auto-laps, integrated from the pace channel. */
-export function autoLaps(stream: ActivityStream, everyM = 1000): Lap[] {
+export function autoLaps(stream: ActivityStream): Lap[] {
 	if (!stream.pace) return []
 	const res = stream.resolutionSec
 	const laps: Lap[] = []
@@ -191,11 +193,11 @@ export function autoLaps(stream: ActivityStream, everyM = 1000): Lap[] {
 	for (let i = 0; i < stream.timeSec.length; i++) {
 		const p = stream.pace[i]
 		if (isNum(p) && p > 0) dist += (res * 1000) / p
-		if (dist >= everyM) {
+		if (dist >= 1000) {
 			const t = stream.timeSec[i]! + res
 			laps.push({ startSec: start, endSec: t })
 			start = t
-			dist -= everyM
+			dist -= 1000
 		}
 	}
 	const end = stream.timeSec[stream.timeSec.length - 1]! + res

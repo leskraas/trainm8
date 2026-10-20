@@ -9,6 +9,7 @@ import {
 } from '../workout.server.ts'
 import { type DisciplineProfileForResolver } from '../zones/index.ts'
 import { analyze } from './analyze.ts'
+import { STRUCTURE_DETECTION_ENGINE_VERSION } from './constants.ts'
 import { isDetectionDiscipline, type Lap } from './types.ts'
 
 /**
@@ -27,17 +28,8 @@ import { isDetectionDiscipline, type Lap } from './types.ts'
  */
 export const STRUCTURE_DETECTION_JOB_KIND = 'structure-detection'
 
-/**
- * The engine version stamped on each `WorkoutDetection` at write time, so the
- * re-detection trigger can tell a stale detection from a current one (ADR 0032).
- * Bump when the `analyze` pipeline changes in a way that would alter stored
- * structures — the version-aware backfill (#357) then re-detects existing history
- * under the new engine, not just new imports.
- *
- * `'2'` (#357): #354's power+pace edge fusion alters stored structures for runs
- * with power, so every `WorkoutDetection` written under `'1'` is now stale.
- */
-export const STRUCTURE_DETECTION_ENGINE_VERSION = '2'
+// Lives in `constants.ts` so the Prisma-free scoreboard can read it (#605).
+export { STRUCTURE_DETECTION_ENGINE_VERSION }
 
 /**
  * Enqueue a structure-detection job for one import. Called from the telemetry

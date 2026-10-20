@@ -1,4 +1,6 @@
 import { type ActivityStream } from '../../activity-stream.ts'
+import { type WorkoutStep } from '../../workout-schema.ts'
+import { type ClassifyChannel } from '../constants.ts'
 import { type DetectedStructure, type DetectionGrade } from '../types.ts'
 import { type DetectionLabel, type StructuredLabel } from './types.ts'
 
@@ -8,15 +10,13 @@ import { type DetectionLabel, type StructuredLabel } from './types.ts'
  * scoreboard measures the shipped engine, not its internals.
  */
 
-type Channel = 'power' | 'pace' | 'heartrate'
-
 /** What the engine claimed for one activity, read back from its structure. */
 export type Prediction = {
 	structured: boolean
 	grade: DetectionGrade | null
 	/** Reps in the main set: the most-repeated block, 1 for a sustained effort. */
 	reps: number
-	work: { durationSec: number; value: number; channel: Channel } | null
+	work: { durationSec: number; value: number; channel: ClassifyChannel } | null
 	recoverySec: number | null
 	/**
 	 * Every step edge, laid end to end from the stream's first sample, because
@@ -29,29 +29,20 @@ export type Prediction = {
 type Step = {
 	durationSec: number
 	value: number | null
-	channel: Channel | null
+	channel: ClassifyChannel | null
 }
 
-function stepOf(step: unknown): Step {
-	const s = step as {
-		durationSec?: number
-		intensity?: {
-			kind: string
-			minW?: number
-			minSecPerKm?: number
-			min?: number
-		}
-	}
-	const t = s.intensity
-	const read: [number | null, Channel | null] =
-		t?.kind === 'power'
-			? [t.minW ?? null, 'power']
-			: t?.kind === 'pace'
-				? [t.minSecPerKm ?? null, 'pace']
-				: t?.kind === 'hrBpm'
-					? [t.min ?? null, 'heartrate']
-					: [null, null]
-	return { durationSec: s.durationSec ?? 0, value: read[0], channel: read[1] }
+/** The step's duration and the measured target the engine wrote on it. */
+function stepOf(step: WorkoutStep): Step {
+	const durationSec = ('durationSec' in step ? step.durationSec : null) ?? 0
+	const t = step.kind === 'cardio' ? step.intensity : undefined
+	if (t?.kind === 'power')
+		return { durationSec, value: t.minW, channel: 'power' }
+	if (t?.kind === 'pace')
+		return { durationSec, value: t.minSecPerKm, channel: 'pace' }
+	if (t?.kind === 'hrBpm')
+		return { durationSec, value: t.min, channel: 'heartrate' }
+	return { durationSec, value: null, channel: null }
 }
 
 /** Harder first: more power or HR, or a faster (smaller) pace. */
@@ -188,7 +179,8 @@ export type ActivityScore = {
 	edges?: {
 		truth: number
 		predicted: number
-		within10: number
+		/** Edges paired within `BOUNDARY_TOLERANCE_SEC`. */
+		matched: number
 		errors: number[]
 	}
 	workDurationErrorSec?: number
@@ -208,8 +200,7 @@ export function scoreActivity(
 	score.edges = {
 		truth: truth.length,
 		predicted: prediction.edges.length,
-		within10: matchEdges(truth, prediction.edges, BOUNDARY_TOLERANCE_SEC)
-			.length,
+		matched: matchEdges(truth, prediction.edges, BOUNDARY_TOLERANCE_SEC).length,
 		errors: matchEdges(truth, prediction.edges, BOUNDARY_SEARCH_SEC),
 	}
 	if (prediction.work) {
@@ -271,7 +262,7 @@ export function quantile(xs: number[], q: number): number | null {
 export function aggregate(scores: ActivityScore[]): Scoreboard {
 	const pos = scores.filter((s) => s.label === 'structured')
 	const neg = scores.filter((s) => s.label === 'unstructured')
-	const unl = scores.filter((s) => s.label === 'unlabelled')
+	const unlabelled = scores.filter((s) => s.label === 'unlabelled')
 	const claimed = (s: ActivityScore, g: DetectionGrade) =>
 		s.prediction.structured && RANK[s.prediction.grade!] >= RANK[g]
 	const claims = (['high', 'medium', 'low'] as const).map((g) => {
@@ -289,7 +280,7 @@ export function aggregate(scores: ActivityScore[]): Scoreboard {
 	const detectedPos = pos.filter((s) => s.prediction.structured)
 	const truthEdges = pos.reduce((a, s) => a + s.edges!.truth, 0)
 	const predEdges = pos.reduce((a, s) => a + s.edges!.predicted, 0)
-	const hits = pos.reduce((a, s) => a + s.edges!.within10, 0)
+	const hits = pos.reduce((a, s) => a + s.edges!.matched, 0)
 	const errors = pos.flatMap((s) => s.edges!.errors)
 	const defined = (xs: Array<number | undefined>) =>
 		xs.filter((x): x is number => x != null)
@@ -297,8 +288,8 @@ export function aggregate(scores: ActivityScore[]): Scoreboard {
 		activities: scores.length,
 		positives: pos.length,
 		negatives: neg.length,
-		unlabelled: unl.length,
-		unlabelledClaimed: unl.filter((s) => s.prediction.structured).length,
+		unlabelled: unlabelled.length,
+		unlabelledClaimed: unlabelled.filter((s) => s.prediction.structured).length,
 		claims,
 		repsExact: pos.filter((s) => s.reps!.predicted === s.reps!.truth).length,
 		repsAbsErrorMean: pos.length

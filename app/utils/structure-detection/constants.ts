@@ -165,3 +165,15 @@ export const ALTERNATION_BROKEN = 0.3
 /** Grade cut points on the internal 0–1 score (never stored; ADR 0032/0033). */
 export const GRADE_HIGH_CUT = 0.7
 export const GRADE_MEDIUM_CUT = 0.4
+
+/**
+ * The engine version stamped on each `WorkoutDetection` at write time, so the
+ * re-detection trigger can tell a stale detection from a current one (ADR 0032).
+ * Bump when the `analyze` pipeline changes in a way that would alter stored
+ * structures — the version-aware backfill (#357) then re-detects existing history
+ * under the new engine, not just new imports.
+ *
+ * `'2'` (#357): #354's power+pace edge fusion alters stored structures for runs
+ * with power, so every `WorkoutDetection` written under `'1'` is now stale.
+ */
+export const STRUCTURE_DETECTION_ENGINE_VERSION = '2'

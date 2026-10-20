@@ -1,9 +1,11 @@
 import { readFileSync, writeFileSync } from 'node:fs'
+import { invariant } from '@epic-web/invariant'
 import {
 	type ActivityStream,
 	downsampleStream,
 } from '#app/utils/activity-stream.ts'
 import { analyze } from '#app/utils/structure-detection/analyze.ts'
+import { STRUCTURE_DETECTION_ENGINE_VERSION } from '#app/utils/structure-detection/constants.ts'
 import {
 	autoLaps,
 	workoutStepLaps,
@@ -26,7 +28,8 @@ import { type DisciplineProfileForResolver } from '#app/utils/zones/resolve.ts'
  * The detection scoreboard (map #600, ticket #605): run the pure `analyze`
  * engine over the frozen, labelled corpus in `tests/fixtures/detection/` and
  * print how it scores, per profile, per edge source, and under threshold
- * changes. Every engine version bump attaches this table.
+ * changes: the Detection Confidence grades (ADR 0033) and the classification
+ * ladder (ADR 0035). Every engine version bump attaches this table.
  *
  *   npm run detection:eval                 # the tables
  *   npm run detection:eval -- --verbose    # plus one row per labelled session
@@ -43,16 +46,11 @@ const corpus = JSON.parse(
 	readFileSync('tests/fixtures/detection/corpus.json', 'utf8'),
 ) as DetectionCorpus
 
-// Read rather than imported: the constant lives beside the job handler, which
-// pulls in Prisma.
-const engineVersion =
-	/STRUCTURE_DETECTION_ENGINE_VERSION = '([^']+)'/.exec(
-		readFileSync('app/utils/structure-detection/detect-job.server.ts', 'utf8'),
-	)?.[1] ?? '?'
+const engineVersion = STRUCTURE_DETECTION_ENGINE_VERSION
 
 const profile = (name: string) => {
 	const p = corpus.profiles.find((x) => x.name === name)
-	if (!p) throw new Error(`No profile "${name}" in the corpus`)
+	invariant(p, `No profile "${name}" in the corpus`)
 	return p.profile
 }
 
@@ -145,14 +143,18 @@ function run(
 	})
 }
 
-/** Scale whichever threshold the profile's classifier reads. */
+/**
+ * Scale every run threshold at once, so whichever rung the classifier picks
+ * (ADR 0035) moves by `k` without this script repeating its ladder.
+ */
 function scaled(p: DisciplineProfileForResolver, k: number) {
 	const r = (x: number | null) => (x == null ? null : Math.round(x * k))
-	if (p.runPowerThresholdW != null)
-		return { ...p, runPowerThresholdW: r(p.runPowerThresholdW) }
-	if (p.thresholdPaceSecPerKm != null)
-		return { ...p, thresholdPaceSecPerKm: r(p.thresholdPaceSecPerKm) }
-	return { ...p, lthr: r(p.lthr) }
+	return {
+		...p,
+		runPowerThresholdW: r(p.runPowerThresholdW),
+		thresholdPaceSecPerKm: r(p.thresholdPaceSecPerKm),
+		lthr: r(p.lthr),
+	}
 }
 
 const pct = (x: number | null) => (x == null ? '–' : `${Math.round(x * 100)} %`)
@@ -200,7 +202,7 @@ out.push(
 	'',
 	'### Threshold robustness',
 	'',
-	'How many of the 50 verdicts (structured or not) flip when the classifying threshold moves.',
+	`How many of the ${first.activities} verdicts (structured or not) flip when the classifying threshold moves.`,
 	'',
 	'| Profile | structured at ×1.00 | ×0.90 | ×0.95 | ×1.05 | ×1.10 |',
 	'|---|---|---|---|---|---|',
@@ -252,7 +254,7 @@ if (verbose) {
 					: a.label.kind
 			const p = s.prediction
 			out.push(
-				`| ${a.title} | ${truth} | ${p.structured ? 'yes' : 'no'} | ${p.grade ?? '–'} | ${p.reps} | ${sec(p.work?.durationSec ?? null)} | ${sec(p.recoverySec)} | ${s.edges ? frac(s.edges.within10, s.edges.truth) : '–'} |`,
+				`| ${a.title} | ${truth} | ${p.structured ? 'yes' : 'no'} | ${p.grade ?? '–'} | ${p.reps} | ${sec(p.work?.durationSec ?? null)} | ${sec(p.recoverySec)} | ${s.edges ? frac(s.edges.matched, s.edges.truth) : '–'} |`,
 			)
 		})
 	}

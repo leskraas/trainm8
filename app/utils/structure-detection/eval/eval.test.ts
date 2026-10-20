@@ -140,7 +140,7 @@ test('reads the main set, its work and recovery, and the drawn edges', () => {
 
 	const s = scoreActivity(label, p)
 	expect(s.reps).toEqual({ truth: 3, predicted: 3 })
-	expect(s.edges!.within10).toBe(6)
+	expect(s.edges!.matched).toBe(6)
 	expect(s.intensityError).toBeCloseTo(0.025)
 })
 

@@ -1,13 +1,18 @@
 import { type ActivityStream } from '../../activity-stream.ts'
 import { type DisciplineProfileForResolver } from '../../zones/resolve.ts'
+import { type ClassifyChannel } from '../constants.ts'
 import { type DetectionDiscipline, type Lap } from '../types.ts'
 
 /**
  * The detection scoreboard's frozen corpus (map #600, ticket #605): real
  * recordings as the engine sees them, each with a ground-truth label, so every
- * change to Structure Detection is measured rather than argued. Build-time
- * tooling only; nothing in the app imports it.
+ * change to Structure Detection is measured rather than argued. It scores the
+ * Detection Confidence grades (ADR 0033) and the segment classification ladder
+ * (ADR 0035). Build-time tooling only; nothing in the app imports it.
  */
+
+/** A mean measured value per classifying channel; absent where the stream has none. */
+export type ChannelMeans = Partial<Record<ClassifyChannel, number>>
 
 /** A structured session's truth: N reps of `workSec` with `recoverySec` between. */
 export type StructuredLabel = {
@@ -26,7 +31,7 @@ export type StructuredLabel = {
 	 */
 	work: Lap[]
 	/** Mean measured value inside the work windows, per channel. */
-	workValue: { power?: number; pace?: number; heartrate?: number }
+	workValue: ChannelMeans
 	/** Mean work power ÷ mean recovery power at the fitted placement. */
 	contrast: number
 }
