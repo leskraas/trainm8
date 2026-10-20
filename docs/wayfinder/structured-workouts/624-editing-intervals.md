@@ -369,6 +369,8 @@ path is the athlete layer of the Recording's Activity Intervals; see ADR
 
 ## Owner choices
 
+> **Taken on the evidence (2026-10-20), reopenable:** 1 → (b), 2 → (a), 3 → (a). The owner asked the agent to decide what it could; each pick rests on a mechanical argument (tap precision at 390 px, no figure or mapping changes, the existing ADR 0088 Drawer pattern), not on taste.
+
 **1. How much of the boundary editing ships in v1?**
 - (a) Split, merge, role, pin, skip and revert, with boundary moves later.
 - (b) (a) plus moving a boundary on the zoomed strip with snapping and
