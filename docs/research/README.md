@@ -72,16 +72,17 @@ challenges** table (Confirm / Amend / Supersede).
 
 ## The agent layer
 
-Eleven more documents, outside the endurance-science corpus, answer the owner's
+Twelve more documents, outside the endurance-science corpus, answer the owner's
 questions about an agent layer: adopt Builder.io's **agent-native**, fork it, or
 build our own on its principles; which stack, in what order; MCP; and training
 data straight from the watch. [agent-strategy.md](agent-strategy.md) is the
-decision; the other ten back it.
+decision; the other eleven back it.
 
 | Document                                                         | Covers                                                                                                                                                                                                                    |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [agent-strategy.md](agent-strategy.md)                           | **The capstone.** The answer in one screen, a decision map per axis, the phased path with effort and gates, what to fix and whom to write to this week, the ADR roadmap 0092–0099, and the owner's open decisions         |
 | [agent-native.md](agent-native.md)                               | The framework read from source — one `defineAction` per capability, served to UI, agent, MCP and A2A — its Postgres / Nitro 3 / React Router 8 stack and release churn, fit with trainm8, options A–E and the phased plan |
+| [agent-native-deep-dive.md](agent-native-deep-dive.md)           | The framework mechanism by mechanism at 0.210.0: 24 principles, the action wrapper, agent loop, screen context, sync, approvals, server, tenancy, durability, MCP and A2A; six appendices in `agent-native-deep-dive/`    |
 | [agent-native-open-stack.md](agent-native-open-stack.md)         | The same question once Postgres, Drizzle and Better Auth are accepted: the SSR rule enforced in code, churn, full adoption priced at 6–10 months, forks and MIT transplants priced, and the C+ verdict                    |
 | [agent-platforms.md](agent-platforms.md)                         | Convex, the Cloudflare Agents SDK, Mastra, Supabase and sync engines against the agent-native principles; candidate stacks, where an EU Postgres can live, and SSE over `NOTIFY`                                          |
 | [stack-migration.md](stack-migration.md)                         | Better Auth → MCP OAuth (`@better-auth/mcp` + `cimd`) → Postgres on a trigger → Drizzle after its 1.0 GA: repo inventory, user migration, region, phases and a risk register                                              |
