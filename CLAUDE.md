@@ -34,3 +34,12 @@ app.
 Nothing seeds in production and `prisma db seed` must never be run there; corpus
 data ships as `INSERT`s inside a migration. See
 `docs/agents/production-seed-data.md`.
+
+### Private notes
+
+This repository is public. Notes that must not be public live in the private
+repository `leskraas/trainm8-private` (attach it to the session to read them);
+its `README.md` lists what is there. Today that is
+`docs/research/agent-native-security-findings.md`, the 15 candidate security
+issues behind §17 of `docs/research/agent-native-deep-dive.md`. Never copy
+their contents into this repository.

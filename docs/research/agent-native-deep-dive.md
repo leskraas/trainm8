@@ -2309,11 +2309,13 @@ security-relevant ones are omitted here (see §17).
 A read-only review of the code raised **15 candidate security issues** across
 the request and authentication layer, A2A, the MCP server and its OAuth
 server, the approval layer in the agent loop and in two templates, credential
-handling, and the audit log. None was tested. They are recorded in a private
-note outside this repository, because this repository is public and
-agent-native's `SECURITY.md` asks that vulnerability details not be posted
-publicly (`AN SECURITY.md:5–28`). Where a chapter or appendix touches one of
-them, it says only that we noted security-relevant gaps in that area.
+handling, and the audit log. None was tested. They are recorded in the private
+repository `leskraas/trainm8-private`, in
+`docs/research/agent-native-security-findings.md`, because this repository is
+public and agent-native's `SECURITY.md` asks that vulnerability details not be
+posted publicly (`AN SECURITY.md:5–28`). Where a chapter or appendix touches
+one of them, it says only that we noted security-relevant gaps in that area;
+that "private note" is this file.
 
 ---
 

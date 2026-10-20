@@ -93,6 +93,10 @@ decision; the other eleven back it.
 | [watch-data-trainm8-ingest.md](watch-data-trainm8-ingest.md)     | Today's integrations, the FIT-first path, cross-provider identity and dedupe, leaving Intervals.icu without losing a Recording, workout export, and defects that apply today                                              |
 | [ai-product-privacy-cost.md](ai-product-privacy-cost.md)         | The AI-coaching landscape and its MCP servers, twelve ranked agent jobs, GDPR Art. 9, the DPIA and the AI Act in Norway, EU residency for inference, and the cost per athlete                                             |
 
+The deep dive's security findings are not in this public repository. They live
+in the private repository `leskraas/trainm8-private`, in
+`docs/research/agent-native-security-findings.md`.
+
 ### Synthesis
 
 - **Verdict:** build our own small layer on agent-native's principles and its
