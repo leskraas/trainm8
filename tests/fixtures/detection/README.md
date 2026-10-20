@@ -57,7 +57,9 @@ writes a `.gitignore` in the FIT folder to match. To rebuild, copy the full
 export into the FIT folder and run `npm run detection:corpus`. Without it, a
 labelled session whose file is missing keeps its frozen entry (and the summary
 of the build that saw every file), and the eval scores the sessions whose file
-is on disk.
+is on disk. With no FIT folder at all, the build keeps the frozen FIT half as it
+is and still rebuilds the Strava half, and the eval says the FIT half is not
+scored.
 
 - **Labels come from the laps**, not from power: a run of active laps separated
   by rest/recovery laps (a structured workout's steps), or laps that are all
@@ -68,7 +70,11 @@ is on disk.
   disagreement.
 - Sessions without a lap set take the Strava hand label of the same session
   (matched on start time), else `unstructured` when the planned title is an easy
-  run ("Basis", "Restitusjon"), else `unlabelled`.
+  run ("Basis", "Restitusjon"), else `unlabelled`. A structured title with no
+  lap set is placed from the title by power fit (`source: 'title'`); that is not
+  an independent truth, so the FIT tables list it and do not score it.
+- Streams and labels stay on the session's own axis (the axis laps use), even
+  where the first record comes after the session start.
 - `labels.json` → `fit` corrects the few the rules get wrong, each with a note.
 - The eval scores them at 1 s (gaps of up to 3 s filled), on the production grid
   (5–6 s), at 15 s, and with the files' laps, for v2 and for the #609 v3

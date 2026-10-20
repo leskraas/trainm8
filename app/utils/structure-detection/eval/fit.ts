@@ -5,6 +5,7 @@ import {
 	isNum,
 	type RawStream,
 } from '../../activity-stream.ts'
+import { expandCompressedTimestamps } from '../../fit-compressed-timestamps.server.ts'
 import { parseFit } from '../../fit-parser.server.ts'
 import { type Lap } from '../types.ts'
 
@@ -89,15 +90,47 @@ export type FitFile = {
 	sessions: FitSession[]
 }
 
+/**
+ * Decode the messages `parseFit` leaves out, normalised the way `parseFit`
+ * normalises them: a file with compressed timestamp headers, which the
+ * official decoder refuses, is rewritten into normal headers first. Any other
+ * decode error throws, rather than freezing a session with half its laps.
+ */
+function decodeMessages(bytes: Uint8Array) {
+	const read = (b: Uint8Array) =>
+		new Decoder(Stream.fromByteArray([...b])).read()
+	let { messages, errors } = read(bytes)
+	const compressed = (es: unknown[]) =>
+		es.some(
+			(e) => e instanceof Error && /compressed timestamp/i.test(e.message),
+		)
+	if (compressed(errors)) {
+		;({ messages, errors } = read(expandCompressedTimestamps(bytes)))
+	}
+	if (errors.length) {
+		const e = errors[0]
+		throw new Error(
+			`FIT file could not be decoded: ${e instanceof Error ? e.message : String(e)}`,
+		)
+	}
+	return messages
+}
+
 export function readFitFile(bytes: Uint8Array): FitFile {
 	const parsed = parseFit(bytes)
-	const decoder = new Decoder(Stream.fromByteArray([...bytes]))
-	const { messages: m } = decoder.read()
+	const m = decodeMessages(bytes)
 	const fileId = (m.fileIdMesgs?.[0] ?? {}) as Record<string, unknown>
-	const sessionMesgs = (m.sessionMesgs ?? [])
-		.map((s) => s as unknown as Record<string, unknown>)
+	const allSessions = (m.sessionMesgs ?? []).map(
+		(s) => s as unknown as Record<string, unknown>,
+	)
+	const sessionMesgs = allSessions
 		.filter((s) => s.sport !== 'transition')
 		.sort((a, b) => time(a.startTime)! - time(b.startTime)!)
+	// Every session, transitions included, bounds the one before it, as in
+	// `parseFit`: a leg ends where the next part of the race starts.
+	const allStarts = allSessions
+		.map((s) => time(s.startTime))
+		.filter((t): t is number => t != null)
 	const records = (m.recordMesgs ?? []) as unknown as Array<
 		Record<string, unknown>
 	>
@@ -109,7 +142,11 @@ export function readFitFile(bytes: Uint8Array): FitFile {
 		const mesg = sessionMesgs[i] ?? {}
 		const start = s.activity.startedAt.getTime()
 		const end = s.activity.endedAt.getTime()
-		const inWindow = (t: number | null) => t != null && t >= start && t <= end
+		const nextStart = allStarts
+			.filter((t) => t > start)
+			.reduce((min, t) => Math.min(min, t), Infinity)
+		const inWindow = (t: number | null) =>
+			t != null && t >= start && t <= end && t < nextStart
 		const rel = (t: number) => Math.round((t - start) / 1000)
 
 		const byTime = new Map<number, Record<string, unknown>>()
@@ -212,6 +249,24 @@ export function readFitFile(bytes: Uint8Array): FitFile {
 	}
 }
 
+/**
+ * The records downsampled the way ingest does (`downsampleStream`), on the
+ * session's own axis. `downsampleStream` starts its grid at 0 for the first
+ * record; laps and label windows count from the session start, so a first
+ * record later than the start would shift every edge. The grid is moved back
+ * by that offset.
+ */
+export function sessionStream(
+	raw: RawStream,
+	options?: Parameters<typeof downsampleStream>[1],
+): ActivityStream | null {
+	const s = downsampleStream(raw, options)
+	if (!s) return null
+	const { sampleCount: _, ...stream } = s
+	const t0 = raw.time[0] ?? 0
+	return t0 ? { ...stream, timeSec: stream.timeSec.map((t) => t + t0) } : stream
+}
+
 /** Gaps up to this long in a 1 s grid are sensor or smart-recording gaps, not pauses. */
 const FILL_GAP_SEC = 3
 
@@ -222,7 +277,7 @@ const FILL_GAP_SEC = 3
  * value forward; a longer gap stays `null`, a pause, as at every resolution.
  */
 export function oneSecondStream(raw: RawStream): ActivityStream | null {
-	const s = downsampleStream(raw, {
+	const s = sessionStream(raw, {
 		resolutionSec: 1,
 		maxSamples: Number.MAX_SAFE_INTEGER,
 	})
@@ -245,7 +300,7 @@ export function oneSecondStream(raw: RawStream): ActivityStream | null {
 		}
 		return out
 	}
-	const { sampleCount: _, ...stream } = s
+	const stream = s
 	return {
 		...stream,
 		...(stream.power ? { power: fill(stream.power) } : {}),

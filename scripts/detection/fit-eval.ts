@@ -2,13 +2,13 @@ import { existsSync, readFileSync } from 'node:fs'
 import { invariant } from '@epic-web/invariant'
 import {
 	type ActivityStream,
-	downsampleStream,
 	type RawStream,
 } from '#app/utils/activity-stream.ts'
 import { analyze } from '#app/utils/structure-detection/analyze.ts'
 import {
 	type DeviceLap,
 	oneSecondStream,
+	sessionStream,
 	readFitFile,
 } from '#app/utils/structure-detection/eval/fit.ts'
 import {
@@ -30,7 +30,7 @@ import {
 } from '#app/utils/structure-detection/eval/types.ts'
 import { type Lap } from '#app/utils/structure-detection/types.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/resolve.ts'
-import { fitPath } from './fit-dir.ts'
+import { FIT_DIR, fitPath } from './fit-dir.ts'
 import { analyzeV3, type TypedLap, V3 } from './v3-probe.ts'
 
 /**
@@ -94,17 +94,10 @@ function load(a: FitCorpusActivity): Loaded | null {
 	const raw: RawStream | null = session.raw
 	if (!raw) return null
 	const one = oneSecondStream(raw)
-	const grid = downsampleStream(raw)
-	const coarse = downsampleStream(raw, { resolutionSec: 15 })
+	const grid = sessionStream(raw)
+	const coarse = sessionStream(raw, { resolutionSec: 15 })
 	if (!one || !grid || !coarse) return null
-	const strip = ({
-		sampleCount: _,
-		...s
-	}: ActivityStream & { sampleCount: number }) => s
-	return {
-		a,
-		streams: { '1 s': one, grid: strip(grid), '15 s': strip(coarse) },
-	}
+	return { a, streams: { '1 s': one, grid, '15 s': coarse } }
 }
 
 /** The 1 s recovery lap many files end with is a writer artefact, not a step. */
@@ -220,11 +213,28 @@ export function fitScoreboard(
 ): { lines: string[]; boards: FitBoard[]; shortReps: unknown[] } {
 	const profile = corpus.profiles.find((p) => p.name === profileName)?.profile
 	invariant(profile, `No profile "${profileName}"`)
-	const loaded = corpus.fit.map(load).filter((x): x is Loaded => x != null)
-	const missing = corpus.fit.length - loaded.length
+	// These tables score against an independent truth: lap-derived structured
+	// labels and hand or Strava unstructured labels. A structured label placed
+	// from its title by power fit is the same circular truth as the Strava
+	// half, so it is listed, not scored here.
+	const titlePlaced = corpus.fit.filter(
+		(a) => a.label.kind === 'structured' && a.label.source === 'title',
+	)
+	const scored = corpus.fit.filter((a) => !titlePlaced.includes(a))
+	const loaded = scored.map(load).filter((x): x is Loaded => x != null)
+	const missing = scored.length - loaded.length
 	const sum = corpus.fitSummary
 	const excluded = Object.entries(sum.excluded).sort((a, b) => b[1] - a[1])
 	const excludedCount = excluded.reduce((n, [, k]) => n + k, 0)
+	if (loaded.length === 0) {
+		const lines = [
+			'',
+			`## FIT corpus — not scored: none of its ${scored.length} files is at ${FIT_DIR}`,
+			'',
+			'Clone leskraas/trainm8-private next to this repository, or set DETECTION_FIT_DIR.',
+		]
+		return { lines, boards: [], shortReps: [] }
+	}
 	const all: Array<{ engine: Engine; v: FitVariant; scored: Scored[] }> = []
 	for (const engine of ['v2', 'v3*'] as const) {
 		for (const v of FIT_VARIANTS) {
@@ -259,7 +269,7 @@ export function fitScoreboard(
 		'',
 		`## FIT corpus — ${loaded.length} labelled real sessions at 1 s with their own laps (#625)`,
 		'',
-		`${b0.positives} structured (labelled from the files' laps: step laps, or reps the athlete lapped by hand) and ${b0.negatives} unstructured (the Strava hand label of the same session, or an easy-run title)${missing ? `; ${missing} labelled sessions skipped, their FIT file not on disk` : ''}. Built from ${sum.files} files of the owner's bulk export; ${sum.unlabelled} run/bike sessions are unlabelled and ${excludedCount} are other sports (${excluded.map(([k, n]) => `${k} ${n}`).join(', ')}), and neither kind is kept or scored. Profile \`${profileName}\`. v3* is the #609 prototype (\`scripts/detection/v3-probe.ts\`), eval-only, not the shipped engine. The files are Intervals.icu's bulk export (\`download-fit-files\`), files it generated: no \`wkt_step_index\`, no \`workout_step\`, warm-up and cool-down written \`active\`, so (d) feeds v3 the lap's \`intensity\` as its role and no step index. v2's laps carry no role, so its (d) is its (e).`,
+		`${b0.positives} structured (labelled from the files' laps: step laps, or reps the athlete lapped by hand) and ${b0.negatives} unstructured (the Strava hand label of the same session, or an easy-run title)${missing ? `; ${missing} labelled sessions skipped, their FIT file not on disk` : ''}${titlePlaced.length ? `. Not scored here: ${titlePlaced.map((a) => `${a.id} "${a.title}"`).join(', ')}, structured with no lap set, placed from the title by power fit` : ''}. Built from ${sum.files} files of the owner's bulk export; ${sum.unlabelled} run/bike sessions are unlabelled and ${excludedCount} are other sports (${excluded.map(([k, n]) => `${k} ${n}`).join(', ')}), and neither kind is kept or scored. Profile \`${profileName}\`. v3* is the #609 prototype (\`scripts/detection/v3-probe.ts\`), eval-only, not the shipped engine. The files are Intervals.icu's bulk export (\`download-fit-files\`), files it generated: no \`wkt_step_index\`, no \`workout_step\`, warm-up and cool-down written \`active\`, so (d) feeds v3 the lap's \`intensity\` as its role and no step index. v2's laps carry no role, so its (d) is its (e).`,
 		'',
 		'### The structured claim',
 		'',

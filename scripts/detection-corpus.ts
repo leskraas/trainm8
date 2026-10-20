@@ -232,6 +232,20 @@ console.log(
  * the title and the Strava label of the same session.
  */
 function freezeFit(): { fit: FitCorpusActivity[]; summary: FitSummary } {
+	// A checkout without the private FIT repository still rebuilds the Strava
+	// half: the FIT half stays as frozen.
+	if (!existsSync(FIT_DIR)) {
+		const frozen = existsSync(OUT)
+			? (JSON.parse(readFileSync(OUT, 'utf8')) as Partial<DetectionCorpus>)
+			: null
+		console.log(
+			`No FIT directory at ${FIT_DIR} (clone leskraas/trainm8-private next to this repo, or set DETECTION_FIT_DIR): kept the ${frozen?.fit?.length ?? 0} frozen FIT sessions and their summary`,
+		)
+		return {
+			fit: frozen?.fit ?? [],
+			summary: frozen?.fitSummary ?? { files: 0, unlabelled: 0, excluded: {} },
+		}
+	}
 	const icu = new Map(
 		(
 			JSON.parse(readFileSync(ICU, 'utf8')) as {
@@ -450,7 +464,8 @@ function labelFitSession(
 			workSec,
 			recoverySec,
 			work,
-			workValue: round(windowMeans(stream, work)),
+			// The main set's reps, the set `readPrediction` reads the work from.
+			workValue: round(windowMeans(stream, main.work)),
 			contrast:
 				workPower && recoveryPower
 					? Math.round((workPower / recoveryPower) * 100) / 100
