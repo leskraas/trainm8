@@ -1,9 +1,10 @@
 import { expect, test } from 'vitest'
 import { type ActivityStream } from '../../activity-stream.ts'
-import { type DetectedStructure } from '../types.ts'
+import { type DetectedStructure, type Lap } from '../types.ts'
 import {
 	autoLaps,
 	fitTemplate,
+	lapSets,
 	parseTitleScheme,
 	workoutStepLaps,
 } from './label.ts'
@@ -173,4 +174,97 @@ test('precision counts false claims on unstructured sessions; unlabelled never c
 	expect(board.claims.find((c) => c.atLeast === 'high')!.truePositives).toBe(0)
 	expect(board.unlabelledClaimed).toBe(1)
 	expect(board.repsExact).toBe(0)
+})
+
+// ── The FIT half's lap labels (#625) ────────────────────────────────────────
+
+/** Laps from durations, laid end to end; `r` marks a recovery lap. */
+function lapsOf(spec: string): Array<Lap & { intensity: string }> {
+	let t = 0
+	return spec.split(' ').map((s) => {
+		const d = Number(s.slice(1))
+		const lap = {
+			startSec: t,
+			endSec: t + d,
+			intensity: s.startsWith('r') ? 'recovery' : 'active',
+		}
+		t += d
+		return lap
+	})
+}
+
+test('reads the titles Intervals.icu and file names write', () => {
+	expect(parseTitleScheme('Oslo - i4 30x45(15p)')).toEqual({
+		reps: 30,
+		workSec: 45,
+		recoverySec: 15,
+	})
+	expect(parseTitleScheme('i4 10x2.5 min ter')?.workSec).toBe(150)
+	expect(parseTitleScheme('3 x 10 minutter terskel')?.workSec).toBe(600)
+	expect(parseTitleScheme('i34 10x1km Tømmerrunden')).toBeNull()
+	expect(parseTitleScheme('5x400m')).toBeNull()
+})
+
+test('a step set drops the warm-up and cool-down a re-encoded file writes as active', () => {
+	// "i3 10x3min": warm-up 148 s, a 2 s step-change lap, 10 × 180/60, cool-down 34 s.
+	const reps = Array.from({ length: 9 }, () => 'A180 r60').join(' ')
+	const sets = lapSets(lapsOf(`A148 r2 ${reps} A180 A34`), () => null)
+	expect(sets).toHaveLength(1)
+	expect(sets[0]!.kind).toBe('step')
+	expect(sets[0]!.work).toHaveLength(10)
+	expect(sets[0]!.work[0]).toEqual({ startSec: 150, endSec: 330 })
+	expect(sets[0]!.recovery.every((r) => r.endSec - r.startSec === 60)).toBe(
+		true,
+	)
+})
+
+test('reps lapped by hand read as a set when they alternate, and work is the harder', () => {
+	const reps = Array.from({ length: 6 }, () => 'A46 A15').join(' ')
+	const hard = (l: Lap) => (l.endSec - l.startSec === 46 ? 420 : 250)
+	const [set] = lapSets(lapsOf(`A1365 ${reps} A46 A176`), hard)
+	expect(set!.kind).toBe('manual')
+	expect(set!.work).toHaveLength(7)
+	expect(set!.work.every((w) => w.endSec - w.startSec === 46)).toBe(true)
+	// Equal 1 km auto-laps are no set.
+	expect(lapSets(lapsOf('A300 A305 A298 A302 A299 A301'), () => 300)).toEqual(
+		[],
+	)
+})
+
+test('a multi-set workout keeps one set per run of equal reps', () => {
+	const laps = lapsOf(
+		'A600 A180 r60 A180 r60 A180 r120 A60 r60 A60 r60 A60 A500',
+	)
+	expect(lapSets(laps, () => null).map((s) => s.work.length)).toEqual([3, 3])
+})
+
+/** Hardness by lap length: reps hard, recoveries and the warm-up easy. */
+const effort =
+	(easy: (sec: number, n: number) => boolean) => (laps: Lap[]) => (l: Lap) => {
+		const n = laps.findIndex((x) => x.startSec === l.startSec)
+		return easy(l.endSec - l.startSec, n) ? 250 : 400
+	}
+
+test('a multi-length workout keeps its opening long rep; only the easy warm-up goes', () => {
+	// "3x3m2x1m4x4": warm-up, then 3 × (1 × 3′, 2 × 90″, 4 × 45″), 60 s
+	// recoveries (75–82 s after the 3′), 180 s between rounds, cool-down.
+	const round = 'A180 r80 A90 r60 A90 r60 A45 r60 A45 r60 A45 r60 A45'
+	const laps = lapsOf(`A169 r75 ${round} r180 ${round} r180 ${round} A544`)
+	// The warm-up (n = 0), recoveries and cool-down are easy.
+	const hard = effort((sec, n) => n === 0 || n % 2 === 1 || sec > 500)(laps)
+	const sets = lapSets(laps, hard)
+	expect(sets.map((s) => s.work.length)).toEqual([1, 2, 4, 1, 2, 4, 1, 2, 4])
+	expect(sets.flatMap((s) => s.work)).toHaveLength(21)
+	expect(sets[0]!.work[0]!.endSec - sets[0]!.work[0]!.startSec).toBe(180)
+})
+
+test('a warm-up before equal timed reps is dropped even when it is not easy', () => {
+	// "10x3.5 min": a 241 s warm-up at rep-like effort, a normal 61 s
+	// recovery, then 10 × 210/60.
+	const reps = Array.from({ length: 9 }, () => 'A210 r60').join(' ')
+	const laps = lapsOf(`A241 r61 ${reps} A210 A389`)
+	const sets = lapSets(laps, () => null)
+	expect(sets).toHaveLength(1)
+	expect(sets[0]!.work).toHaveLength(10)
+	expect(sets[0]!.work.every((w) => w.endSec - w.startSec === 210)).toBe(true)
 })
