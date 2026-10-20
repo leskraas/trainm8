@@ -130,6 +130,10 @@ re-derivable.
   gains `runPower`.
 - Detection stays decoupled: a run may fuse power+pace for _edges_ (PR #354) yet
   classify on power _or_ pace depending on which threshold is set. Re-running
-  `scripts/detection-calibration.ts` confirms no over-detection shift —
-  detected/ null holds at **8/50**, the PR #354 baseline (the corpus profile
-  sets no run-power threshold, so the pace rung still drives every corpus run).
+  the calibration harness of the time (`scripts/detection-calibration.ts`)
+  confirmed no over-detection shift — detected/ null held at **8/50**, the PR
+  #354 baseline (the corpus profile sets no run-power threshold, so the pace
+  rung still drives every corpus run). That harness is retired (#625): the
+  detection scoreboard, `npm run detection:eval` over
+  `tests/fixtures/detection/`, is now the one tool that scores detection, and
+  its `seed` profile row is the same check.

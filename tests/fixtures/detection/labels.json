@@ -230,5 +230,36 @@
 		"19096546882": {
 			"kind": "structured"
 		}
+	},
+	"fitLabelledBy": "FIT sessions (#625) are labelled by npm run detection:corpus from their own laps (eval/label.ts lapSets), else from the Strava hand label of the same session, else from an easy-run title (Basis, Restitusjon), else unlabelled. The entries under fit correct that by hand, after reading each session's laps and per-lap power.",
+	"fit": {
+		"i163548785": {
+			"kind": "structured",
+			"reps": 30,
+			"note": "The title says 30x45/15 and the watch wrote 28 work laps: two 75 s recovery laps (after reps 1 and 4) average 370 and 324 W against about 230 W for a 15 s recovery, so each holds an unlapped rep. Their edges are not in the truth."
+		},
+		"i163549772": {
+			"kind": "structured",
+			"reps": 13,
+			"note": "Hand-lapped hill reps; the athlete titled it 13x45/15 on Strava. Eleven clean laps, then a 34 s rep at 401 W, three stray presses (1, 2 and 14 s) and a 46 s rep at 453 W."
+		},
+		"i163552987": {
+			"kind": "unlabelled",
+			"note": "Easy 55 min run with four 11-18 s strides at the end (60-90 s jogs between): repeats, but not a session's structure."
+		},
+		"i164149998": {
+			"kind": "unstructured",
+			"reason": "steady",
+			"note": "Basis run with four irregular 13-23 s surges and no repeat set."
+		},
+		"i175496806": {
+			"kind": "unlabelled",
+			"note": "Titled Basis, but the laps are 2 x ~815 s and 2 x ~395 s at ~400 W with 90 s standing rests: structured, with no single rep scheme to score."
+		},
+		"i163604687": {
+			"kind": "structured",
+			"reps": 5,
+			"note": "Titled 5x6 min; four step laps of 359-361 s with 90 s rests, then two stray presses (11 and 25 s) and a fifth 361 s rep with no rest lap before it. Its edges are not in the truth."
+		}
 	}
 }

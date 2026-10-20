@@ -23,13 +23,18 @@ import {
 } from '#app/utils/structure-detection/eval/types.ts'
 import { type Lap } from '#app/utils/structure-detection/types.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/resolve.ts'
+import { type FitBoard, fitScoreboard } from './detection/fit-eval.ts'
 
 /**
- * The detection scoreboard (map #600, ticket #605): run the pure `analyze`
- * engine over the frozen, labelled corpus in `tests/fixtures/detection/` and
- * print how it scores, per profile, per edge source, and under threshold
- * changes: the Detection Confidence grades (ADR 0033) and the classification
- * ladder (ADR 0035). Every engine version bump attaches this table.
+ * The detection scoreboard (map #600, tickets #605, #625), the one tool that
+ * scores Structure Detection: run the pure `analyze` engine over the frozen,
+ * labelled corpus in `tests/fixtures/detection/` and print how it scores, per
+ * profile, per edge source, and under threshold changes: the Detection
+ * Confidence grades (ADR 0033) and the classification ladder (ADR 0035). The
+ * FIT half (`detection/fit-eval.ts`) scores the owner's FIT files at 1 s, on
+ * the production grid, at 15 s and with their own laps, for the shipped
+ * engine and the #609 v3 prototype. Every engine version bump attaches this
+ * table.
  *
  *   npm run detection:eval                 # the tables
  *   npm run detection:eval -- --verbose    # plus one row per labelled session
@@ -171,7 +176,7 @@ const first = boards[0]!.board
 out.push(
 	`## Detection scoreboard — engine v${engineVersion}, corpus frozen ${corpus.frozenAt}`,
 	'',
-	`${first.activities} real runs (${corpus.from}): ${first.positives} structured (from the athlete's title or word), ${first.negatives} hand-labelled unstructured, ${first.unlabelled} unlabelled (never scored). Streams at stored resolution (5–6 s); no 1 s stream and no real laps exist in the corpus. * = laps synthesised from the labels, not recorded.`,
+	`${first.activities} real runs (${corpus.from}): ${first.positives} structured (from the athlete's title or word), ${first.negatives} hand-labelled unstructured, ${first.unlabelled} unlabelled (never scored). Streams at stored resolution (5–6 s), no laps; the 1 s streams and real laps are in the FIT half below. * = laps synthesised from the labels, not recorded.`,
 	'',
 	'### The structured claim',
 	'',
@@ -261,6 +266,9 @@ if (verbose) {
 	}
 }
 
+const fit = fitScoreboard(corpus, 'label-power')
+out.push(...fit.lines)
+
 console.log(out.join('\n'))
 
 if (jsonOut) {
@@ -269,11 +277,13 @@ if (jsonOut) {
 		frozenAt: string
 		variants: Array<{ variant: Variant; board: Scoreboard }>
 		robustness: typeof robust
+		fit: { boards: FitBoard[]; shortReps: unknown[] }
 	} = {
 		engineVersion,
 		frozenAt: corpus.frozenAt,
 		variants: boards.map(({ v, board }) => ({ variant: v, board })),
 		robustness: robust,
+		fit: { boards: fit.boards, shortReps: fit.shortReps },
 	}
 	writeFileSync(jsonOut, JSON.stringify(json, null, '\t') + '\n')
 }
