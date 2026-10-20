@@ -28,7 +28,9 @@
     "validate": "run-p \"test -- --run\" lint typecheck test:e2e:run",
     "sandcastle": "npx tsx .sandcastle/main.ts",
     "db:reset-local": "sh -c 'cp prisma/data.db \"prisma/data.db.bak.$(date +%Y%m%d-%H%M%S)\" 2>/dev/null || true; rm -f prisma/data.db prisma/data.db-shm prisma/data.db-wal; npx prisma migrate reset --force'",
-    "db:studio": "npx prisma studio"
+    "db:studio": "npx prisma studio",
+    "detection:corpus": "tsx scripts/detection-corpus.ts",
+    "detection:eval": "tsx scripts/detection-eval.ts"
   },
   "prettier": "@epic-web/config/prettier",
   "eslintIgnore": [
