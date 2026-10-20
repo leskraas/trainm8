@@ -11,6 +11,7 @@ import {
 	sessionStream,
 	readFitFile,
 } from '#app/utils/structure-detection/eval/fit.ts'
+import { isRestIntensity } from '#app/utils/structure-detection/eval/label.ts'
 import {
 	type ActivityScore,
 	aggregate,
@@ -119,19 +120,17 @@ function lapsFor(
 	if (mode === 'edges' || engine === 'v2') return plain
 	const workout = laps.some(
 		(l) =>
-			(l.intensity === 'rest' || l.intensity === 'recovery') &&
-			l.endSec - l.startSec >= MIN_STEP_LAP_SEC,
+			isRestIntensity(l.intensity) && l.endSec - l.startSec >= MIN_STEP_LAP_SEC,
 	)
 	if (!workout) return plain
 	return laps.map((l) => ({
 		startSec: l.startSec,
 		endSec: l.endSec,
-		intensity:
-			l.intensity === 'rest' || l.intensity === 'recovery'
-				? 'rest'
-				: l.intensity === 'warmup' || l.intensity === 'cooldown'
-					? l.intensity
-					: 'active',
+		intensity: isRestIntensity(l.intensity)
+			? 'rest'
+			: l.intensity === 'warmup' || l.intensity === 'cooldown'
+				? l.intensity
+				: 'active',
 		stepIndex: l.wktStepIndex ?? 0,
 	}))
 }

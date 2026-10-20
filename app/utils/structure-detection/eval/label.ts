@@ -218,8 +218,8 @@ export type LapSet = {
 	/**
 	 * `step`: active laps alternating with rest/recovery laps, the way a watch
 	 * writes a structured workout's steps. `manual`: laps that are all active
-	 * but alternate between two lap durations, the way an athlete lapping each
-	 * rep by hand writes them.
+	 * but alternate in duration or effort, the way an athlete lapping each rep
+	 * by hand writes them.
 	 */
 	kind: 'step' | 'manual'
 	work: Lap[]
@@ -259,8 +259,10 @@ const MIN_MANUAL_REPS = 4
 const MANUAL_CLEAR_HARD_RATIO = 1.5
 
 const lapSec = (l: Lap) => l.endSec - l.startSec
-const isRest = (l: RoleLap) =>
-	l.intensity === 'rest' || l.intensity === 'recovery'
+/** A lap role a watch writes for the recovery between reps. */
+export const isRestIntensity = (intensity: string | null) =>
+	intensity === 'rest' || intensity === 'recovery'
+const isRest = (l: RoleLap) => isRestIntensity(l.intensity)
 const medianOf = (xs: number[]) => {
 	const s = [...xs].sort((a, b) => a - b)
 	const m = Math.floor(s.length / 2)
@@ -280,8 +282,9 @@ const near = (d: number, ref: number, frac: number, slackSec = 0) =>
  *   median duration is the warm-up or cool-down (Intervals.icu writes those as
  *   `active`) or a rep cut short, and is dropped.
  * - **Manual sets** are laps that are all active but alternate between two
- *   durations. The edges are still the athlete's; which of the two lengths is
- *   the work is read from `hardness` (mean power, or speed), the one place a
+ *   durations, or between two efforts at one duration (hill reps lapped at the
+ *   top and bottom). The edges are still the athlete's; which of the two is the
+ *   work is read from `hardness` (mean power, or speed), the one place a
  *   signal enters, so a manual set with no clear difference is no set.
  *
  * A set needs at least three reps.

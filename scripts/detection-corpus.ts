@@ -283,7 +283,6 @@ function freezeFit(): { fit: FitCorpusActivity[]; summary: FitSummary } {
 	for (const name of readdirSync(FIT_DIR)
 		.filter((f) => f.endsWith('.fit'))
 		.sort()) {
-		const file = name
 		const icuId = name.split('_')[0]!
 		const meta = icu.get(icuId)
 		const title =
@@ -300,7 +299,7 @@ function freezeFit(): { fit: FitCorpusActivity[]; summary: FitSummary } {
 				.trim()
 		let decoded: FitFile
 		try {
-			decoded = readFitFile(new Uint8Array(readFileSync(fitPath(file))))
+			decoded = readFitFile(new Uint8Array(readFileSync(fitPath(name))))
 		} catch (e) {
 			skipped.push(`${name}: ${(e as Error).message}`)
 			continue
@@ -352,7 +351,7 @@ function freezeFit(): { fit: FitCorpusActivity[]; summary: FitSummary } {
 			}
 			out.push({
 				id,
-				file,
+				file: name,
 				writer,
 				device: meta?.raw.device_name ?? null,
 				discipline: session.discipline,
@@ -443,7 +442,7 @@ function labelFitSession(
 	flags: string[],
 ): { label: DetectionLabel; from: string } {
 	const override = fitLabels[id]
-	const sets = lapSets(laps, (l) => windowPower(stream, l))
+	const sets = lapSets(laps, (l) => windowHardness(stream, l))
 	const scheme = parseTitleScheme(title)
 	if (sets.length) {
 		const main = [...sets].sort((a, b) => b.work.length - a.work.length)[0]!
@@ -453,8 +452,8 @@ function labelFitSession(
 		const recoverySec = main.recovery.length
 			? Math.round(median(main.recovery.map(span)))
 			: 0
-		const workPower = windowPower(stream, ...work)
-		const recoveryPower = windowPower(stream, ...recovery)
+		const workPower = windowHardness(stream, ...work)
+		const recoveryPower = windowHardness(stream, ...recovery)
 		const label: StructuredLabel = {
 			kind: 'structured',
 			source: main.kind === 'step' ? 'step-laps' : 'manual-laps',
@@ -596,8 +595,11 @@ function span(l: Lap) {
 	return l.endSec - l.startSec
 }
 
-/** Mean power over the given windows (speed when there is no power), or null. */
-function windowPower(stream: ActivityStream, ...windows: Lap[]): number | null {
+/** How hard the given windows were: mean power, or speed when there is no power; null when neither. */
+function windowHardness(
+	stream: ActivityStream,
+	...windows: Lap[]
+): number | null {
 	const vals =
 		stream.power ??
 		stream.pace?.map((p) => (isNum(p) && p > 0 ? 1000 / p : null))

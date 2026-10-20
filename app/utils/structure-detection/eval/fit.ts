@@ -123,9 +123,7 @@ export function readFitFile(bytes: Uint8Array): FitFile {
 	const allSessions = (m.sessionMesgs ?? []).map(
 		(s) => s as unknown as Record<string, unknown>,
 	)
-	const sessionMesgs = allSessions
-		.filter((s) => s.sport !== 'transition')
-		.sort((a, b) => time(a.startTime)! - time(b.startTime)!)
+	const sessionMesgs = allSessions.filter((s) => s.sport !== 'transition')
 	// Every session, transitions included, bounds the one before it, as in
 	// `parseFit`: a leg ends where the next part of the race starts.
 	const allStarts = allSessions
@@ -138,9 +136,11 @@ export function readFitFile(bytes: Uint8Array): FitFile {
 		Record<string, unknown>
 	>
 
-	const sessions = parsed.sessions.map((s, i): FitSession => {
-		const mesg = sessionMesgs[i] ?? {}
+	const sessions = parsed.sessions.map((s): FitSession => {
 		const start = s.activity.startedAt.getTime()
+		// This session's raw message, matched on its start rather than its
+		// position, so it holds however `parseFit` orders or drops sessions.
+		const mesg = sessionMesgs.find((m) => time(m.startTime) === start) ?? {}
 		const end = s.activity.endedAt.getTime()
 		const nextStart = allStarts
 			.filter((t) => t > start)
