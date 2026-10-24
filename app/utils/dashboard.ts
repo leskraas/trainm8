@@ -68,20 +68,32 @@ type Block = {
 
 type DurationStep = Block['steps'][number]
 
+/**
+ * What a duration reading times a distance step by, passed explicitly so every
+ * surface that says how long a session takes times it the same way (#615).
+ */
+export type DurationReading = {
+	/** The athlete's thresholds: a zone word's pace, else the threshold pace. */
+	thresholds: DisciplineThresholdMap
+	/** The Workout's Discipline, for a step that names none of its own. */
+	discipline?: string | null
+}
+
 /** One pass of a step: its time, else its distance at its pace, else null. */
 export function stepDurationSec(
 	step: DurationStep,
-	thresholds: DisciplineThresholdMap = {},
+	{ thresholds, discipline: workoutDiscipline }: DurationReading,
 ): number | null {
 	if (step.durationSec != null) return step.durationSec
 	if (step.kind === 'strength') return null
+	const discipline = step.discipline ?? workoutDiscipline ?? null
 	return stepDistanceDurationSec(
 		{
-			discipline: step.discipline,
+			discipline,
 			distanceM: step.distanceM,
 			intensity: parseAuthoredIntensity(step.intensity),
 		},
-		step.discipline ? thresholds[step.discipline] : undefined,
+		discipline ? thresholds[discipline] : undefined,
 	)
 }
 
@@ -95,15 +107,15 @@ export type PrescribedDuration = {
  * **How long a prescription takes**, the one reading every total shares
  * (#615). A distance step is timed through the pace its intensity resolves to,
  * else the discipline's threshold pace, as the Workout Shape strip does; a
- * repeated block's steps count once per rep of every series, and the rests
- * between series count once between each pair. An untimed strength step, and
- * any step with neither a time nor a pace to give it one, leaves the total
- * incomplete.
+ * step with no Discipline of its own is timed as the Workout's. A repeated
+ * block's steps count once per rep of every series, and the rests between
+ * series count once between each pair. An untimed strength step, and any step
+ * with neither a time nor a pace to give it one, leaves the total incomplete.
  * Null when no step could be timed at all.
  */
 export function prescribedDuration(
 	blocks: readonly Block[],
-	thresholds: DisciplineThresholdMap = {},
+	reading: DurationReading,
 ): PrescribedDuration | null {
 	let seconds = 0
 	let timed = 0
@@ -111,7 +123,7 @@ export function prescribedDuration(
 
 	for (const block of blocks) {
 		for (const step of block.steps) {
-			const stepSec = stepDurationSec(step, thresholds)
+			const stepSec = stepDurationSec(step, reading)
 			if (stepSec == null) {
 				complete = false
 				continue
@@ -126,13 +138,17 @@ export function prescribedDuration(
 	return timed > 0 ? { seconds, complete } : null
 }
 
-/** {@link prescribedDuration} in whole minutes, counting what it could time. */
+/**
+ * {@link prescribedDuration} in whole minutes, or null unless every step was
+ * timed: a total that leaves a step out is not the session's, so it is not
+ * shown as if it were (the Week Pattern's rule, `fixedDayVolume`).
+ */
 export function sumBlockDurationMin(
 	blocks: readonly Block[],
-	thresholds: DisciplineThresholdMap = {},
+	reading: DurationReading,
 ): number | null {
-	const duration = prescribedDuration(blocks, thresholds)
-	return duration == null ? null : Math.round(duration.seconds / 60)
+	const duration = prescribedDuration(blocks, reading)
+	return duration?.complete ? Math.round(duration.seconds / 60) : null
 }
 
 type DistanceBlock = {

@@ -1046,7 +1046,10 @@ export default function SessionDetailRoute({
 					    plan and a recording — scheduled and recording-only sessions
 					    skip it and render their one coherent side below. */}
 					{session.workout && session.recording && !simpleActivity ? (
-						<PlannedVsActualSummary session={session} />
+						<PlannedVsActualSummary
+							session={session}
+							thresholds={thresholds ?? NO_THRESHOLDS}
+						/>
 					) : null}
 
 					{/* "Mot forrige gang" (PRD #129): how this completed effort
@@ -1737,8 +1740,14 @@ function FigureTile({
 	)
 }
 
-function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
-	const comparison = buildReviewComparison(session)
+function PlannedVsActualSummary({
+	session,
+	thresholds,
+}: {
+	session: SessionDetail
+	thresholds: DisciplineThresholdMap
+}) {
+	const comparison = buildReviewComparison(session, thresholds)
 	const structureVerdict = resolveStructureAdherence(session)
 	const num = (v: number | null) => (v != null ? formatLoad(v) : EM_DASH)
 	const dur = (v: number | null) => (v != null ? nbDurationLabel(v) : EM_DASH)

@@ -490,7 +490,7 @@ export function fixedDayVolume(
 		}
 		case 'hours': {
 			// Timed end to end, a distance rep through its pace (#615).
-			const duration = prescribedDuration(blocks)
+			const duration = prescribedDuration(blocks, { thresholds: {} })
 			return duration?.complete
 				? roundToCurrency(duration.seconds / 3600, 'hours')
 				: null

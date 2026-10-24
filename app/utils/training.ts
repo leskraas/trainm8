@@ -80,11 +80,19 @@ export function deriveLedgerStatus(
 	return 'missed'
 }
 
-/** Actual duration (from the recording) when present, else the planned duration derived from the workout steps. */
+/**
+ * Actual duration (from the recording) when present, else the planned duration
+ * derived from the workout steps — null when a step cannot be timed, rather
+ * than a short total shown as the session's (#638).
+ */
 export function getSessionDurationMin(
 	session: {
 		recording: { durationSec: number | null } | null
-		workout: { blocks: Parameters<typeof sumBlockDurationMin>[0] } | null
+		workout: {
+			/** Times a step that names no Discipline of its own. */
+			discipline?: string
+			blocks: Parameters<typeof sumBlockDurationMin>[0]
+		} | null
 	},
 	/** What a distance step's pace resolves against (#615). */
 	thresholds: DisciplineThresholdMap = {},
@@ -93,7 +101,10 @@ export function getSessionDurationMin(
 		return Math.round(session.recording.durationSec / 60)
 	}
 	if (session.workout) {
-		return sumBlockDurationMin(session.workout.blocks, thresholds)
+		return sumBlockDurationMin(session.workout.blocks, {
+			thresholds,
+			discipline: session.workout.discipline,
+		})
 	}
 	return null
 }

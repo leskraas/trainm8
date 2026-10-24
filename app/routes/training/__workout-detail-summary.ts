@@ -21,7 +21,11 @@
  *
  * Pure: every number is passed in, nothing is queried.
  */
-import { prescribedDuration, sumBlockSets } from '#app/utils/dashboard.ts'
+import {
+	type DurationReading,
+	prescribedDuration,
+	sumBlockSets,
+} from '#app/utils/dashboard.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
 	nbDurationLabel,
@@ -58,7 +62,7 @@ export type SessionSummaryInput = {
 	currency: VolumeCurrency | null
 	workout: SummaryWorkout | null
 	/** The athlete's thresholds, which time a distance step with no pace. */
-	thresholds?: DisciplineThresholdMap
+	thresholds: DisciplineThresholdMap
 	recording: { distanceM: number | null; durationSec: number | null } | null
 	/** Completed working sets logged on this session (ADR 0056). */
 	loggedSets: number
@@ -189,7 +193,12 @@ function plannedFigures(input: SessionSummaryInput): Figures | null {
 		// A lifting session's steps carry no km or time, and a rest between
 		// lifts would make one up; only a session with cardio in it reads them.
 		km: cardio ? fixedDayVolume(blocks, 'km') : null,
-		seconds: cardio ? prescribedSeconds(blocks, input.thresholds) : null,
+		seconds: cardio
+			? prescribedSeconds(blocks, {
+					thresholds: input.thresholds,
+					discipline: input.discipline,
+				})
+			: null,
 		sets: sets > 0 ? sets : null,
 		lifts: exercises.size > 0 ? exercises.size : null,
 		topKg: kilos.length > 0 ? Math.max(...kilos) : null,
@@ -205,8 +214,8 @@ function plannedFigures(input: SessionSummaryInput): Figures | null {
  */
 function prescribedSeconds(
 	blocks: SummaryWorkout['blocks'],
-	thresholds?: DisciplineThresholdMap,
+	reading: DurationReading,
 ): number | null {
-	const duration = prescribedDuration(blocks, thresholds)
+	const duration = prescribedDuration(blocks, reading)
 	return duration?.complete ? duration.seconds : null
 }

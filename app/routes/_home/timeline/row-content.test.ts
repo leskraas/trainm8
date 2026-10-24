@@ -679,8 +679,10 @@ describe('rule 7: planned rows are instructions', () => {
 			),
 			PLANNED_WEEK,
 		)
-		// 9 km at 5:25–5:40 /km is timed through its pace (#615).
-		expect(content.externalLoad).toBe('50 min · 42 TSS planlagt')
+		// 9 km at 5:25–5:40 /km is timed through its pace (#615), but the
+		// open step under 145 bpm has no length: the minutes are not known, and
+		// a total without it is not shown as the session's (#638).
+		expect(content.externalLoad).toBe('42 TSS planlagt')
 		expect(content.internalLoad).toBe('9 km i 5:25–5:40 /km · under 145 bpm')
 	})
 

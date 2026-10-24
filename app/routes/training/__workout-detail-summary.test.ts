@@ -52,6 +52,7 @@ const base = {
 	discipline: 'run',
 	status: 'scheduled',
 	currency: null,
+	thresholds: {},
 	recording: null,
 	loggedSets: 0,
 } as const

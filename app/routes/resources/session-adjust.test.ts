@@ -377,8 +377,13 @@ test('For sliten i dag keeps a lift a lift, rolig with fewer sets', async () => 
 		],
 	})
 
-	await juster(cookie, 'tired', lift)
+	const reply = await juster(cookie, 'tired', lift)
 
+	// A lift has no time to state, so the toast states none.
+	expect(reply.data.result).toMatchObject({
+		ok: true,
+		toast: 'Dagens økt er rolig nå.',
+	})
 	const after = await picture(lift)
 	expect(after.workout?.discipline).toBe('strength')
 	expect(after.workout?.effortWord).toBe('rolig')
@@ -430,6 +435,33 @@ test('Lite tid cuts a session to 30 minutes and keeps its intent', async () => {
 	expect(after.owner).toBe('machine')
 	expect(after.adoptedAt).toBeNull()
 	expect(after.replanReason).toBe('Lite tid: kortet ned.')
+})
+
+test('Lite tid on a session with a step it cannot time says so, and changes nothing', async () => {
+	const { userId, cookie } = await signedIn()
+	// `15 min · 8 km terskel · 10 min` with no threshold pace: not 25 min.
+	const today = await planned(userId, '2030-01-02T17:00:00Z', {
+		blocks: [
+			{ repeatCount: 1, steps: [{ durationSec: 900 }] },
+			{
+				repeatCount: 1,
+				steps: [
+					{
+						distanceM: 8000,
+						intensity: JSON.stringify({ kind: 'zoneLabel', label: 'Z4' }),
+					},
+				],
+			},
+			{ repeatCount: 1, steps: [{ durationSec: 600 }] },
+		],
+	})
+	const before = await picture(today)
+
+	const reply = await juster(cookie, 'short', today)
+
+	expect(reply.init?.status).toBe(409)
+	expect(reply.data.result).toEqual({ ok: false, reason: 'no-time' })
+	expect(await picture(today)).toEqual(before)
 })
 
 test('Lite tid on distance reps lasts what the toast says', async () => {

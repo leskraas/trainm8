@@ -4168,8 +4168,15 @@ export const JUSTER_LABELS = {
 	working: 'Endrer …',
 	/** The toast: what changed. The session's title is quoted under it. */
 	done: {
-		tired: (duration: string) => `Dagens økt er rolig nå, ${duration}.`,
-		short: (duration: string) => `Dagens økt er kortet ned til ${duration}.`,
+		/** A lift states no time, so it says none. */
+		tired: (duration: string | null) =>
+			duration
+				? `Dagens økt er rolig nå, ${duration}.`
+				: 'Dagens økt er rolig nå.',
+		short: (duration: string | null) =>
+			duration
+				? `Dagens økt er kortet ned til ${duration}.`
+				: 'Dagens økt er kortet ned.',
 		moved: (day: string) => `Økta er flyttet til ${day}.`,
 		swapped: (day: string, other: string) =>
 			`Økta er flyttet til ${day}, og «${other}» er i dag.`,
