@@ -72,11 +72,12 @@ challenges** table (Confirm / Amend / Supersede).
 
 ## The agent layer
 
-Twelve more documents, outside the endurance-science corpus, answer the owner's
-questions about an agent layer: adopt Builder.io's **agent-native**, fork it, or
-build our own on its principles; which stack, in what order; MCP; and training
-data straight from the watch. [agent-strategy.md](agent-strategy.md) is the
-decision; the other eleven back it.
+Thirteen more documents, outside the endurance-science corpus, answer the
+owner's questions about an agent layer: adopt Builder.io's **agent-native**,
+fork it, or build our own on its principles; which stack, in what order; MCP;
+and training data straight from the watch.
+[agent-strategy.md](agent-strategy.md) is the decision; the other twelve back
+it.
 
 | Document                                                         | Covers                                                                                                                                                                                                                    |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -87,6 +88,7 @@ decision; the other eleven back it.
 | [agent-platforms.md](agent-platforms.md)                         | Convex, the Cloudflare Agents SDK, Mastra, Supabase and sync engines against the agent-native principles; candidate stacks, where an EU Postgres can live, and SSE over `NOTIFY`                                          |
 | [stack-migration.md](stack-migration.md)                         | Better Auth → MCP OAuth (`@better-auth/mcp` + `cimd`) → Postgres on a trigger → Drizzle after its 1.0 GA: repo inventory, user migration, region, phases and a risk register                                              |
 | [mcp-server-for-trainm8.md](mcp-server-for-trainm8.md)           | MCP spec 2026-07-28, remote MCP with OAuth 2.1, the Claude and ChatGPT connectors, MCP Apps, a proposed tool surface and registry (ADR 0092), and what Strava's API Policy allows                                         |
+| [better-auth-mcp-spike.md](better-auth-mcp-spike.md)             | The #552 prototype: `@better-auth/mcp` + `cimd` + `jwt()` behind `requireMcpAuth` on both MCP eras, checked against Claude's client short of the click, the Epic-session bridge, and the owner's click script             |
 | [agent-layer-trainm8-surface.md](agent-layer-trainm8-surface.md) | The repo side: 70 action modules rated by seam, the read paths, the safety rails an agent must reuse (proposals, digests, undo, ownership), and the first-slice candidates                                                |
 | [agent-layer-building-blocks.md](agent-layer-building-blocks.md) | Anthropic SDK tool runner, Claude Agent SDK, MCP SDK v2, Vercel AI SDK 7, CopilotKit, assistant-ui, A2A; the recommended minimal stack and what the zod 3 pin means for each                                              |
 | [watch-data-sources.md](watch-data-sources.md)                   | Garmin, Suunto, Polar, COROS, Wahoo, aggregators and the phone stores: access, data, write-back, each source's AI and MCP terms, the build order and vendor outreach                                                      |
