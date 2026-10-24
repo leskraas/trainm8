@@ -26,6 +26,7 @@
  * ledger already ships feeds all of it, through `toSessionLedgerEntry` for
  * status and load and `buildLedgerRows`' own profile rule for the shape bars.
  */
+import { originPlatformOf } from '#app/integrations/shared/origin-platform.ts'
 import {
 	addDays,
 	dayBoundsUTC,
@@ -105,6 +106,7 @@ import {
 	type ProfileBar,
 	type ProfileBarGroup,
 } from '#app/utils/session-profile.ts'
+import { recordingSource } from '#app/utils/source-attribution.ts'
 import {
 	TIMELINE_HORIZON_DAYS,
 	TIMELINE_TRAILING_DAYS,
@@ -201,6 +203,15 @@ export type TimelineSession = {
 	 * where the session has no number in that unit.
 	 */
 	volumeLabel: string | null
+	/**
+	 * The credit the row's recording owes by its title (#557, ADR 0098 §3):
+	 * "Garmin [device model]" (plain "Garmin" when the device is unknown), or
+	 * Polar's, read off the Origin Platform and its aliases, never the
+	 * transport. Only an **owed** credit: a Suunto or Intervals.icu row stays
+	 * quiet here, as a planned or missed row does. Never cut short — the
+	 * stream wraps it rather than truncating it.
+	 */
+	sourceCredit: string | null
 	/**
 	 * The row's Annet action, or null where it would change nothing:
 	 * `Tell i Annet` takes a done session out of the track it counts in, and
@@ -1189,6 +1200,7 @@ function buildSession({
 			thresholds,
 			entry.durationEstimated,
 		),
+		sourceCredit: sourceCreditOf(session.recording),
 		annet: annetOf(
 			session.countsInNoTrack,
 			entry.status,
@@ -1205,6 +1217,24 @@ function buildSession({
 		...imports,
 		strengthLog,
 	}
+}
+
+/**
+ * The credit a row owes for the recording behind it (#557): the same words
+ * the Workout Detail View puts by its title (`recordingSource`, #546), kept
+ * only when the platform's terms require them. A courtesy name ("Suunto") is
+ * the detail page's to give; on a dense row it would be noise.
+ */
+function sourceCreditOf(recording: LedgerSession['recording']): string | null {
+	if (!recording) return null
+	const source = recordingSource({
+		originPlatform: originPlatformOf(recording.originPlatform),
+		deviceName: recording.deviceName,
+		aliasOrigins: recording.aliases.map((alias) =>
+			originPlatformOf(alias.originPlatform),
+		),
+	})
+	return source?.owed ? source.text : null
 }
 
 /**

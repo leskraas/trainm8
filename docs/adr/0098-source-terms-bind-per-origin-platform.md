@@ -115,6 +115,33 @@ ends). **Wahoo** wants a user's personal data deleted on revocation unless an
 agreement with the user says otherwise, so Wahoo does not ship before its row
 here settles that. **Strava**'s seven-day cache is #543's decision.
 
+### 6. The credit on a dense row (added 2026-10-24, #557)
+
+Garmin's guidelines name feeds as well as cards, so every I dag timeline row
+built on a Garmin recording carries **"Garmin [device model]"**, and so does the
+row's details in the Drawer and the day pane. The design call, made with Emil
+Kowalski's skills against the design system (ADR 0085):
+
+- **Chosen: one caption line under the title, inside the row's link**
+  (`SourceCredits`, `text-caption text-muted-foreground`, no motion). It sits
+  where the guidelines ask (by the title, above the fold, never in a tooltip,
+  footnote or fold), keeps the volume and done dot on the title's line, and
+  costs a credited row about 12 px at 390 px. It wraps and is never truncated; a
+  long name takes the lines it needs. Only an **owed** credit shows (Garmin,
+  Polar): a Suunto or Strava row stays as it was.
+- **Rejected: the credit inline after the title.** It reads as part of the
+  session's name, and where it falls (same line or the next) changes row by row,
+  which a list scanned at a glance cannot afford.
+- **Rejected: the credit in the right-hand figures** ("Garmin · 9,8 km"). That
+  column never wraps, so a long device name would push the title out, and
+  dropping the model to fit breaks the "[device model]" rule.
+- **Rejected: a Garmin mark or glyph.** The guidelines' form for screens is the
+  words; a 12 px logo is neither legible nor the stated attribution.
+- **Rejected: once per week header or screen.** The rule is per item, by its
+  title; a header credit cannot say which device recorded which row.
+- **Rejected: only in the row's details.** That is an expandable container,
+  which the guidelines exclude.
+
 ## Considered options
 
 - **Gate on `externalProvider`.** Rejected: it gates the pipe. Garmin data
@@ -145,7 +172,8 @@ here settles that. **Strava**'s seven-day cache is #543's decision.
   and every model-facing reader and every attribution site calls it. No reader
   decides terms on its own.
 - Garmin attribution is owed on screens today (#546): on the Recording card and
-  on load numbers and Coach output drawn from Garmin-origin imports.
+  on load numbers and Coach output drawn from Garmin-origin imports, and on
+  every I dag timeline row built on one (#557, §6).
 - A derived value goes `source-terms` while any closed platform's input is in
   its window. A recompute that leaves those inputs out is possible but not
   built.
