@@ -5,6 +5,7 @@ import {
 	IntensityTargetSchema,
 	type IntensityTarget,
 } from './workout-schema.ts'
+import { ZONE_WORDS } from './zones/words.ts'
 
 /** The persisted Workout row tree the Workout Shape derives from (exported so
  * the draft→shape adapter in `workout-notation` can build the same shape). */
@@ -68,6 +69,13 @@ export type SessionProfile = {
 	groups: ProfileBarGroup[]
 }
 
+/** Each stored zone word (`zones/words.ts`) back to its Training Zone. */
+const STORED_WORD_ZONES = new Map(
+	Object.entries(ZONE_WORDS).map(
+		([zone, word]) => [word, Number(zone) as TrainingZone] as const,
+	),
+)
+
 function clampZone(n: number): TrainingZone {
 	if (n <= 1) return 1
 	if (n >= 5) return 5
@@ -100,27 +108,25 @@ export function zoneLabelToZone(label: string): TrainingZone | null {
 	if (zMatch) return clampZone(Number(zMatch[1]))
 	const oltMatch = /^i-([1-5])$/.exec(normalized)
 	if (oltMatch) return Number(oltMatch[1]) as TrainingZone
+	// The zone words the writing line, the day stamp and an eased session store
+	// (#627), read from the one list that writes them.
+	const stored = STORED_WORD_ZONES.get(normalized)
+	if (stored != null) return stored
 	switch (normalized) {
-		// The zone words the writing line, the day stamp and an eased session
-		// store (`zones/words.ts`, #627), plus the generic English vocabulary.
-		case 'lett':
+		// The generic English vocabulary, and the older Norwegian `restitusjon`.
 		case 'restitusjon':
 		case 'recovery':
 			return 1
 		// `easy` is zone 2, as Daniels' `E` band ("easy") declares (#607).
 		case 'easy':
-		case 'rolig':
 		case 'zone2':
 		case 'endurance':
 			return 2
-		case 'moderat':
 		case 'moderate':
 		case 'tempo':
 			return 3
-		case 'terskel':
 		case 'threshold':
 			return 4
-		case 'hardt':
 		case 'vo2max':
 		case 'anaerobic':
 		case 'max':
