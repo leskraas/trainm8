@@ -83,6 +83,14 @@ test('a block in series badges its series as well as its reps', () => {
 	expect(badge).toHaveTextContent('3 × 13×')
 })
 
+test('a rest value takes the semibold ink and its word recedes (ADR 0089: the word is `pause`)', () => {
+	render(<ScoreStanza notation={deriveWorkoutNotation(intervalInput)} />)
+
+	const rest = document.querySelector('[data-token-type="rest"]')!
+	expect(rest).toHaveTextContent('1 min pause')
+	expect(rest.querySelector('.font-semibold')).toHaveTextContent(/^1 min$/)
+})
+
 test('a block repeated only in series badges its series alone, never `3 × 1×`', () => {
 	render(
 		<ScoreStanza
@@ -107,12 +115,68 @@ test('a block repeated only in series badges its series alone, never `3 × 1×`'
 	expect(badge?.textContent).toBe('3×')
 })
 
-test('a rest value takes the semibold ink and its word recedes (ADR 0089: the word is `pause`)', () => {
-	render(<ScoreStanza notation={deriveWorkoutNotation(intervalInput)} />)
+test('every rest form splits its value from its words, not only `<value> pause`', () => {
+	render(
+		<ScoreStanza
+			notation={deriveWorkoutNotation({
+				blocks: [
+					{
+						repeatCount: 4,
+						steps: [
+							{ kind: 'cardio', durationSec: 180 },
+							{ kind: 'rest', rest: { kind: 'distance', distanceM: 200 } },
+						],
+					},
+					{
+						repeatCount: 3,
+						steps: [
+							{ kind: 'cardio', durationSec: 300 },
+							{ kind: 'rest', rest: { kind: 'toHr', belowBpm: 120 } },
+						],
+					},
+					{
+						repeatCount: 10,
+						sendOff: { kind: 'absolute', intervalSec: 100 },
+						steps: [{ kind: 'cardio', distanceM: 100 }],
+					},
+				],
+			})}
+		/>,
+	)
+
+	const rests = Array.from(
+		document.querySelectorAll('[data-token-type="rest"]'),
+	)
+	expect(rests.map((r) => r.textContent)).toEqual([
+		'200 m rolig',
+		'til puls < 120 bpm',
+		'på 1 min 40 s',
+	])
+	expect(
+		rests.map((r) => r.querySelector('.font-semibold')?.textContent),
+	).toEqual(['200 m', '120', '1 min 40 s'])
+})
+
+test('a rest that is an act has no value and recedes whole', () => {
+	render(
+		<ScoreStanza
+			notation={deriveWorkoutNotation({
+				blocks: [
+					{
+						repeatCount: 6,
+						steps: [
+							{ kind: 'cardio', distanceM: 200 },
+							{ kind: 'rest', rest: { kind: 'act', act: 'jogBack' } },
+						],
+					},
+				],
+			})}
+		/>,
+	)
 
 	const rest = document.querySelector('[data-token-type="rest"]')!
-	expect(rest).toHaveTextContent('1 min pause')
-	expect(rest.querySelector('.font-semibold')).toHaveTextContent(/^1 min$/)
+	expect(rest).toHaveTextContent('jogg tilbake')
+	expect(rest.querySelector('.font-semibold')).toBeNull()
 })
 
 test('block names never render on the line (G2)', () => {
