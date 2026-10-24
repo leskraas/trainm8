@@ -198,11 +198,11 @@ export async function runSwimPaceBackfill(): Promise<void> {
 			)
 			await recomputeLoadFrom(athleteId, localDate(earliest, profile.timezone))
 		}
-		if (toWrite.length === 0) continue
-
 		// The pace on each corrected swim is a number the athlete read, so the
 		// notice is owed even when CTL moved too little to show (no CSS, or a
-		// lone swim); the line then leaves its movement out (ADR 0107 §2).
+		// lone swim); the line then leaves its movement out (ADR 0107 §2). A retry
+		// that wrote no pace still owes it when a crash came before the notice;
+		// the notice is create-only, so one already written stands.
 		const after = await readCtlByDate(athleteId)
 		await recordLoadRecomputeNotice({
 			athleteId,

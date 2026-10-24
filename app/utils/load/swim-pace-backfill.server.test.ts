@@ -226,6 +226,10 @@ test('a retry after the paces were written still recomputes the load', async () 
 	await runSwimPaceBackfill()
 
 	expect((await paceOf(ids[0]!)).tssValue!).toBeGreaterThan(stale.tssValue!)
+	// The crash came before the notice too, so the retry owes it.
+	expect(
+		await prisma.loadRecomputeNotice.count({ where: { athleteId: user.id } }),
+	).toBe(1)
 })
 
 test('a swim with no kept FIT is left alone (Strava, Intervals.icu before the harvest)', async () => {
