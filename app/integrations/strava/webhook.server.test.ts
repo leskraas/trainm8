@@ -872,3 +872,48 @@ test('a duplicate create event does not create a second import', async () => {
 	})
 	expect(imports).toBe(1)
 })
+
+test('a retried create event fetches the stream its first run did not get', async () => {
+	const user = await setupConnectedAthlete()
+	mockActivity('5003')
+	const createPayload: StravaWebhookJobPayload = {
+		objectType: 'activity',
+		objectId: '5003',
+		aspectType: 'create',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	}
+	// The first run files the import, but its streams fetch never lands (a
+	// spent Strava budget defers the job here in production).
+	server.use(
+		http.get(
+			'https://www.strava.com/api/v3/activities/:id/streams',
+			() => new HttpResponse(null, { status: 500 }),
+			{ once: true },
+		),
+	)
+	await enqueueAndRun(createPayload)
+	const imp = await prisma.activityImport.findUniqueOrThrow({
+		where: {
+			athleteId_externalProvider_externalId: {
+				athleteId: user.id,
+				externalProvider: 'strava',
+				externalId: '5003',
+			},
+		},
+		select: { id: true, stream: { select: { id: true } } },
+	})
+	expect(imp.stream).toBeNull()
+
+	// The retry is a duplicate of the import, and still completes its telemetry.
+	await enqueueAndRun(createPayload)
+
+	const stream = await prisma.activityStream.findUnique({
+		where: { activityImportId: imp.id },
+	})
+	expect(stream).not.toBeNull()
+	expect(
+		await prisma.activityImport.count({
+			where: { athleteId: user.id, externalId: '5003' },
+		}),
+	).toBe(1)
+})

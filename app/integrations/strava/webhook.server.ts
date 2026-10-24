@@ -292,7 +292,16 @@ async function ingestCreatedActivity(
 	// The dedupe choke point (ADR 0096 §4): a redelivery, or the same activity
 	// another source already brought (kept as an alias), files nothing new.
 	const filed = await fileActivityImport(connection.athleteId, input)
-	if (filed.kind === 'duplicate') return
+	if (filed.kind === 'duplicate') {
+		// A retry of a job deferred mid-telemetry (#637) lands here with the
+		// import saved and its stream still missing. The streams ingest finishes
+		// it for this provider's own import, and is a no-op when the stream is
+		// there or the activity is another source's alias.
+		if (filed.matchedBy === 'transport-key' && input.discipline !== 'other') {
+			await ingestActivityStreams(connection, [activity], 'live')
+		}
+		return
+	}
 	const importId = filed.importId
 
 	const timezone =
