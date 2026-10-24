@@ -718,7 +718,6 @@ describe('rule 7: planned rows are instructions', () => {
 					],
 					{ discipline: 'swim' },
 				),
-				{ discipline: 'swim' },
 			),
 			PLANNED_WEEK,
 		)
