@@ -187,6 +187,8 @@ export async function connectStravaAccount(
 					expiresAt,
 				},
 				'/athlete',
+				// The athlete is waiting on the connect redirect.
+				'live',
 			),
 		)
 		externalAthleteId = athlete.id

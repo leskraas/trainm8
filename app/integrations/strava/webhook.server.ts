@@ -247,7 +247,7 @@ async function refreshUpdatedActivity(
 
 	// Re-snapshot the stream and re-compute the detection. A missing stream leaves
 	// the prior telemetry in place rather than wiping it.
-	const raw = await fetchStravaActivityStreams(connection, externalId)
+	const raw = await fetchStravaActivityStreams(connection, externalId, 'live')
 	if (!raw) return
 	// Re-fetch provider laps before enrichment enqueues detection (#356): the
 	// snapshot update above cleared `lapsJson`, so this repopulates it so the
@@ -258,6 +258,7 @@ async function refreshUpdatedActivity(
 		existing.id,
 		raw.time,
 		input.startedAt.getTime(),
+		'live',
 	)
 	await enrichImportTelemetry(
 		connection.athleteId,
@@ -310,7 +311,7 @@ async function ingestCreatedActivity(
 	// Ingest the activity's downsampled telemetry as an Activity Stream so the
 	// session's Workout Detail View overlay works end-to-end (#139, best-effort),
 	// with its HR phase bars and a Structure Detection enqueue (#611).
-	await ingestActivityStreams(connection, [activity])
+	await ingestActivityStreams(connection, [activity], 'live')
 }
 
 const StravaSubscriptionSchema = z.object({

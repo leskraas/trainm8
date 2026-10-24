@@ -2,6 +2,12 @@ import { type AccountConnection } from '@prisma/client'
 import { prisma } from '#app/utils/db.server.ts'
 import { StravaTokenExchangeError } from './oauth.server.ts'
 import {
+	createRateLimiter,
+	STRAVA_RATE_LIMIT,
+	type Clock,
+	type RateLimitLane,
+} from './rate-limit.ts'
+import {
 	STRAVA_API_BASE,
 	STRAVA_TOKEN_URL,
 	StravaTokenResponseSchema,
@@ -174,26 +180,47 @@ export async function getValidAccessToken(
 }
 
 /**
- * Authenticated GET against the Strava API. Refreshes proactively when the
- * stored token is near expiry, and reactively retries once on a 401 (the token
- * was rejected despite looking valid). A permanent refresh failure surfaces as
- * `StravaConnectionRevokedError`.
+ * Process-wide limiter shared by every Strava API call, so the per-app read
+ * budget (ADR 0013) is honoured across all athletes' activity. Tests talk to
+ * MSW, not Strava, so there a wait skips ahead in virtual time instead of
+ * sleeping; rate-limit.test.ts covers the pacing itself.
+ */
+const stravaRateLimiter = createRateLimiter({
+	...STRAVA_RATE_LIMIT,
+	...(process.env.NODE_ENV === 'test' ? { clock: skipAheadClock() } : {}),
+})
+
+function skipAheadClock(): Clock {
+	let skippedMs = 0
+	return {
+		now: () => Date.now() + skippedMs,
+		sleep: async (ms) => {
+			skippedMs += ms
+		},
+	}
+}
+
+/**
+ * Authenticated GET against the Strava API, paced by the shared rate limiter
+ * in `lane` (a `429` waits for the next window there). Refreshes proactively
+ * when the stored token is near expiry, and reactively retries once on a 401
+ * (the token was rejected despite looking valid). A permanent refresh failure
+ * surfaces as `StravaConnectionRevokedError`.
  */
 export async function stravaApiGet<T>(
 	connection: ConnectionRef,
 	path: string,
+	lane: RateLimitLane = 'bulk',
 ): Promise<T> {
 	const url = `${STRAVA_API_BASE}${path}`
-	const accessToken = await getValidAccessToken(connection)
-	let response = await fetch(url, {
-		headers: { Authorization: `Bearer ${accessToken}` },
-	})
+	const get = (token: string) =>
+		stravaRateLimiter.run(lane, () =>
+			fetch(url, { headers: { Authorization: `Bearer ${token}` } }),
+		)
+	let response = await get(await getValidAccessToken(connection))
 
 	if (response.status === 401) {
-		const refreshedToken = await refreshAndPersist(connection)
-		response = await fetch(url, {
-			headers: { Authorization: `Bearer ${refreshedToken}` },
-		})
+		response = await get(await refreshAndPersist(connection))
 	}
 
 	// A 403 is permanent (refreshing the token won't help), but the fix depends on

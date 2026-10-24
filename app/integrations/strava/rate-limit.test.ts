@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest'
-import { createRateLimiter, type Clock } from './rate-limit.ts'
+import {
+	createRateLimiter,
+	STRAVA_RATE_LIMIT,
+	type Clock,
+} from './rate-limit.ts'
 
 /** A deterministic clock: `sleep` simply advances virtual time, never waits. */
 function fakeClock(): Clock & { ms: number } {
@@ -15,9 +19,19 @@ function fakeClock(): Clock & { ms: number } {
 	return clock
 }
 
+const MIN_15 = 15 * 60 * 1000
+const DAY = 24 * 60 * 60 * 1000
+
+function response(status: number, headers: Record<string, string> = {}) {
+	return new Response(null, { status, headers })
+}
+
 test('acquisitions under the limit resolve without waiting', async () => {
 	const clock = fakeClock()
-	const limiter = createRateLimiter({ limit: 3, windowMs: 1000, clock })
+	const limiter = createRateLimiter({
+		windows: [{ limit: 3, windowMs: 1000 }],
+		clock,
+	})
 
 	await limiter.acquire()
 	await limiter.acquire()
@@ -29,7 +43,10 @@ test('acquisitions under the limit resolve without waiting', async () => {
 
 test('throttles past the limit but drops nothing', async () => {
 	const clock = fakeClock()
-	const limiter = createRateLimiter({ limit: 2, windowMs: 1000, clock })
+	const limiter = createRateLimiter({
+		windows: [{ limit: 2, windowMs: 1000 }],
+		clock,
+	})
 
 	let completed = 0
 	// Fire 5 acquisitions through a budget of 2-per-1000ms window.
@@ -42,4 +59,91 @@ test('throttles past the limit but drops nothing', async () => {
 	expect(completed).toBe(5)
 	// The 3rd–5th had to wait for the window to roll: virtual time advanced.
 	expect(clock.ms).toBeGreaterThanOrEqual(2000)
+})
+
+// ── Strava's read budget (#637) ─────────────────────────────────────────────
+
+test("Strava's limits are its read limits: 100 per 15 min and 1,000 per day", () => {
+	expect(STRAVA_RATE_LIMIT.windows).toEqual([
+		{ limit: 100, windowMs: MIN_15 },
+		{ limit: 1000, windowMs: DAY },
+	])
+})
+
+test('bulk work stops short of the limit, leaving a margin live webhooks still get', async () => {
+	const clock = fakeClock()
+	const limiter = createRateLimiter({ ...STRAVA_RATE_LIMIT, clock })
+
+	for (let i = 0; i < 80; i++) await limiter.acquire('bulk')
+	expect(clock.ms).toBe(0)
+
+	// The bulk share is spent, but a live request goes straight through.
+	await limiter.acquire('live')
+	expect(clock.ms).toBe(0)
+
+	// The next bulk request waits for the quarter-hour to turn.
+	await limiter.acquire('bulk')
+	expect(clock.ms).toBe(MIN_15)
+})
+
+test('the daily cap holds bulk work until midnight UTC', async () => {
+	const clock = fakeClock()
+	const limiter = createRateLimiter({ ...STRAVA_RATE_LIMIT, clock })
+
+	// 800 is the daily bulk share; the 15-minute windows roll as it goes.
+	for (let i = 0; i < 800; i++) await limiter.acquire('bulk')
+	expect(clock.ms).toBeLessThan(DAY)
+
+	await limiter.acquire('bulk')
+	expect(clock.ms).toBe(DAY)
+})
+
+test("Strava's rate-limit headers are followed over the assumed figures", async () => {
+	const clock = fakeClock()
+	const limiter = createRateLimiter({ ...STRAVA_RATE_LIMIT, clock })
+
+	// Strava reports a smaller limit and usage this process never saw (another
+	// process, or a restart): 40 of 50 in this quarter-hour.
+	await limiter.run('bulk', async () =>
+		response(200, {
+			'X-ReadRateLimit-Limit': '50,1000',
+			'X-ReadRateLimit-Usage': '40,40',
+		}),
+	)
+
+	// Bulk gets 80% of 50 = 40, already spent: the next bulk call waits.
+	await limiter.acquire('bulk')
+	expect(clock.ms).toBe(MIN_15)
+})
+
+test('a 429 backs off until the next window and retries, instead of failing', async () => {
+	const clock = fakeClock()
+	clock.ms = 5 * 60 * 1000
+	const limiter = createRateLimiter({ ...STRAVA_RATE_LIMIT, clock })
+
+	const statuses = [429, 200]
+	const result = await limiter.run('live', async () =>
+		response(statuses.shift()!),
+	)
+
+	expect(result.status).toBe(200)
+	expect(clock.ms).toBe(MIN_15)
+})
+
+test('a 429 that reports the daily budget spent waits until midnight UTC', async () => {
+	const clock = fakeClock()
+	clock.ms = 5 * 60 * 1000
+	const limiter = createRateLimiter({ ...STRAVA_RATE_LIMIT, clock })
+
+	const responses = [
+		response(429, {
+			'X-ReadRateLimit-Limit': '100,1000',
+			'X-ReadRateLimit-Usage': '30,1000',
+		}),
+		response(200),
+	]
+	const result = await limiter.run('live', async () => responses.shift()!)
+
+	expect(result.status).toBe(200)
+	expect(clock.ms).toBe(DAY)
 })
