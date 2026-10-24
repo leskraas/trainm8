@@ -84,7 +84,7 @@ export function isStampableDiscipline(
  * indistinguishable from one authored on the full route, deliberately (ADR 0065).
  *
  * The title is **derived** from the structure by the shared deriver, not typed
- * and not invented: `45 min Rolig` is what the session is.
+ * and not invented: `45 min rolig` is what the session is.
  */
 export function buildDayStamp({
 	discipline,

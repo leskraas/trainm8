@@ -115,7 +115,7 @@ test('an authored zone-label target contributes its word', () => {
 			],
 		},
 	])
-	expect(deriveWorkoutTitle(s)).toBe('4 × 6 min Threshold')
+	expect(deriveWorkoutTitle(s)).toBe('4 × 6 min terskel')
 })
 
 test('a single steady authored step reads as quantity + zone word', () => {
@@ -130,10 +130,10 @@ test('a single steady authored step reads as quantity + zone word', () => {
 			],
 		},
 	])
-	expect(deriveWorkoutTitle(s)).toBe('45 min Easy')
+	expect(deriveWorkoutTitle(s)).toBe('45 min rolig')
 })
 
-test('a percentage target still yields a zone word (Z-label)', () => {
+test('a percentage target writes its zone word, never a Z-code', () => {
 	const s = structure([
 		{
 			repeatCount: 1,
@@ -145,8 +145,8 @@ test('a percentage target still yields a zone word (Z-label)', () => {
 			],
 		},
 	])
-	// The exact zone comes from the shared mapping; the point is a word appears.
-	expect(deriveWorkoutTitle(s)).toMatch(/^30 min Z[1-5]$/)
+	// 95–105 % FTP is zone 4 on the shared mapping, written as its word.
+	expect(deriveWorkoutTitle(s)).toBe('30 min terskel')
 })
 
 test('a measured target on a single steady step omits the zone word', () => {
@@ -180,7 +180,7 @@ test('a repeat block that can name nothing does not shadow a later namable block
 			],
 		},
 	])
-	expect(deriveWorkoutTitle(s)).toBe('45 min Easy')
+	expect(deriveWorkoutTitle(s)).toBe('45 min rolig')
 })
 
 test('a repeat block whose work step has no quantity never dangles a bare "4 ×"', () => {
@@ -195,7 +195,39 @@ test('a repeat block whose work step has no quantity never dangles a bare "4 ×"
 	])
 	// No duration/distance to multiply, so the rep count is dropped rather than
 	// left dangling; the honest zone word still names it.
-	expect(deriveWorkoutTitle(s)).toBe('Threshold')
+	expect(deriveWorkoutTitle(s)).toBe('terskel')
+})
+
+test('a recipe code keeps its spelling; a stored word stays lowercase', () => {
+	const titled = (label: string) =>
+		deriveWorkoutTitle(
+			structure([
+				{
+					repeatCount: 1,
+					steps: [
+						cardio({
+							durationSec: 2700,
+							intensity: { kind: 'zoneLabel', label },
+						}),
+					],
+				},
+			]),
+		)
+	expect(titled('Z4')).toBe('45 min Z4')
+	expect(titled('T')).toBe('45 min T')
+	expect(titled('rolig')).toBe('45 min rolig')
+})
+
+test('an RPE target writes its zone word', () => {
+	const s = structure([
+		{
+			repeatCount: 1,
+			steps: [
+				cardio({ durationSec: 2700, intensity: { kind: 'rpe', min: 3 } }),
+			],
+		},
+	])
+	expect(deriveWorkoutTitle(s)).toBe('45 min rolig')
 })
 
 // ── deriveRecordingTitle ─────────────────────────────────────────────────────

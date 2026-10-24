@@ -158,7 +158,7 @@ test('a stamp from the composer may land past the window, as a sentence may', as
 	})) as Reply
 	const row = await written(reply.data.stampedSessionId)
 	expect(localDate(row.scheduledAt, 'UTC')).toBe(far)
-	expect(row.workout?.title).toBe('45 min Rolig')
+	expect(row.workout?.title).toBe('45 min rolig')
 })
 
 test('Annet when writing: the session counts in no track, and the toast says so (owner decision 4)', async () => {
