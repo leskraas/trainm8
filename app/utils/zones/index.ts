@@ -4,7 +4,9 @@ export {
 	formatMmol,
 	raceAnchorLabel,
 	resolveIntensity,
+	resolvedPaceUnit,
 	type DisciplineProfileForResolver,
+	type PaceUnit,
 	type RaceAnchorPaces,
 	type ResolvedIntensity,
 } from './resolve.ts'
