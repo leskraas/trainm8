@@ -31,6 +31,15 @@ surface would be the worst of both.
    Norwegian word is still never hand-written beside an enum at a call site. The
    module stays the i18n seam: one language more in it makes the seam more real,
    not less.
+
+   _Amended by #533 (module layout only):_ `labels.ts` is now a barrel over one
+   module per surface in `app/utils/labels/` (`i-dag.ts`, `sesong.ts`, `meg.ts`,
+   …, with shared enum words in `vocabulary.ts` and the plan's own words in
+   `plan-domain.ts`). Every caller still imports from `labels.ts`, the
+   completeness tests still read it, and the set stays a runtime leaf. A new
+   label goes in the module of the surface that shows it. The rule above is
+   unchanged: `labels.ts` is still the one home of every athlete-facing word.
+
 3. **Formatting does not change.** Numbers, dates and times stay `format.ts`'s
    fixed, pure, Athlete-Timezone formatting (ADR 0023 §1–2). Only wording is
    amended.
