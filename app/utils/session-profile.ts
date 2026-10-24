@@ -313,8 +313,56 @@ export function deriveRepeatGroups(workout: Workout | null): ProfileBarGroup[] {
 	return groups
 }
 
+/**
+ * More bars than any screen has pixels for. A session past it (`100 × 100 ×
+ * 10 s`) is drawn one rep per block instead, each bar carrying all its reps'
+ * time, so width stays time and the `N ×` bracket says the rest.
+ */
+const MAX_PROFILE_BARS = 400
+
+/** Each block drawn once: its steps at their full time, bracketed `N ×`. */
+function deriveCollapsedProfile(
+	workout: Workout,
+	fallbackZone: TrainingZone | null,
+): SessionProfile {
+	const bars: SessionProfile['bars'] = []
+	const groups: ProfileBarGroup[] = []
+	for (const block of workout.blocks
+		.slice()
+		.sort((a, b) => a.orderIndex - b.orderIndex)) {
+		const repeats = blockRepeatTotal(block)
+		const steps = block.steps
+			.slice()
+			.sort((a, b) => a.orderIndex - b.orderIndex)
+		if (steps.length > 0 && repeats > 1) {
+			groups.push({
+				startIndex: bars.length,
+				span: steps.length,
+				repeatCount: repeats,
+			})
+		}
+		for (const step of steps) {
+			bars.push({
+				id: step.id,
+				zone:
+					stepToZone(step) ??
+					(step.kind === 'cardio' && !step.intensity ? fallbackZone : null),
+				durationSec: stepDurationSec(step) * repeats,
+			})
+		}
+	}
+	return { bars, groups }
+}
+
 export function deriveSessionProfile(workout: Workout | null): SessionProfile {
 	const fallbackZone = intentToZone(workout?.intent)
+	const drawn = (workout?.blocks ?? []).reduce(
+		(sum, block) => sum + blockRepeatTotal(block) * block.steps.length,
+		0,
+	)
+	if (workout && drawn > MAX_PROFILE_BARS) {
+		return deriveCollapsedProfile(workout, fallbackZone)
+	}
 	const bars = expandWorkoutSteps(workout).map(
 		({ id, zone, durationSec, step }) => ({
 			id,
