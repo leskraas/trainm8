@@ -1758,6 +1758,9 @@ test('a single grade, a band across level ground and a one-ended grade', () => {
 	expect(sentence(undefined, -3)).toBe('1 min · ≤ −3 %')
 	// The notation's machine digits, like every other number in it.
 	expect(sentence(2.5, 2.5)).toBe('1 min · 2.5 % motbakke')
+	// A float column: drawn to a tenth, and a sign that rounds away is dropped.
+	expect(sentence(4.333, 6.6666)).toBe('1 min · 4.3–6.7 % motbakke')
+	expect(sentence(-0.04, 2)).toBe('1 min · 0 til +2 %')
 })
 
 test('grade comes before cadence, and both before a note', () => {

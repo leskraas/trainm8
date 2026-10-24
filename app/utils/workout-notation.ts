@@ -1111,10 +1111,20 @@ function band(min: number, max: number, format: (n: number) => string) {
 	return min === max ? format(min) : `${format(min)}–${format(max)}`
 }
 
-/** A real minus sign, as every signed figure in the app writes one. */
+/** A grade's magnitude to a tenth, in the notation's machine digits like
+ * `2.5 km`: `4`, `2.5`. The column is a float, so a stored `4.333` must not
+ * reach the sentence raw. */
+function gradeFigure(n: number): string {
+	return String(Math.round(Math.abs(n) * 10) / 10)
+}
+
+/** A grade with a real minus sign, as every signed figure in the app writes
+ * one. The sign follows the rounded figure, so `-0.04` reads `0`, not `−0`. */
 function signed(n: number, plus = false): string {
-	if (n < 0) return `−${Math.abs(n)}`
-	return plus && n > 0 ? `+${n}` : String(n)
+	const figure = gradeFigure(n)
+	if (figure === '0') return figure
+	if (n < 0) return `−${figure}`
+	return plus ? `+${figure}` : figure
 }
 
 /**
@@ -1147,16 +1157,16 @@ function gradeParts(
 ): ParameterParts | null {
 	if (min != null && max != null) {
 		if (min >= 0 && max > 0) {
-			return { value: `${band(min, max, String)} %`, word: WORDS.uphill }
+			return { value: `${band(min, max, gradeFigure)} %`, word: WORDS.uphill }
 		}
 		if (max <= 0 && min < 0) {
 			// A descent reads shallow to steep: −6..−3 is `3–6 %`.
 			return {
-				value: `${band(-max, -min, String)} %`,
+				value: `${band(-max, -min, gradeFigure)} %`,
 				word: WORDS.downhill,
 			}
 		}
-		if (min === max) return { value: `${min} %`, word: null }
+		if (min === max) return { value: `${gradeFigure(min)} %`, word: null }
 		return {
 			value: `${signed(min, true)} ${WORDS.gradeTo} ${signed(max, true)} %`,
 			word: null,

@@ -53,8 +53,9 @@
 >   series around the reps, `3 × (13 × 30 s (15 s pause))`, and the rest between
 >   series after them, `(10 min seriepause)`, as a block-level `rest` token. A
 >   block repeated only in series draws the series and no `1 ×`. The stanza
->   badges the series in the gutter ahead of the reps, outlined where the reps
->   are filled, and reads it aloud as `3 serier`.
+>   badges the series in the gutter, stacked above the reps so the gutter keeps
+>   its width, outlined where the reps are filled, and reads it aloud as
+>   `3 serier`.
 > - **`grade`** and **`cadence`**, the two **Step Parameters**, after the
 >   intensity with a facet dot: `90 s @ 92–95% HRmax · 4–7 % motbakke`,
 >   `2 min @ 65% FTP · 70 rpm`. A grade on one side of level ground names its
