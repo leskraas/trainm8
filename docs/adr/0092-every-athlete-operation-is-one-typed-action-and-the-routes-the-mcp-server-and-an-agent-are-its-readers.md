@@ -456,3 +456,39 @@ a reason here, before anyone else connects one. Tracked in #639.
   a test proves production refuses it (#639 H6).
 - **The rate limiter keys on IP.** Every Anthropic call shares one `/21`. Closes
   with Phase 2's limit per token subject (#639 H7).
+
+## As built in #553
+
+Where the first slice departs from the text above, and why:
+
+- **SDK.** `@modelcontextprotocol/server` 2.3.1, pinned exactly (2.4.0 was a day
+  old); `createMcpHandler` with `legacy: 'stateless'` and
+  `responseMode: 'json'`, tested on both eras with
+  `@modelcontextprotocol/client` 2.3.1. The factory registers every action
+  through `McpServer.registerTool` with pass-through Standard Schemas (JSON
+  Schema from `zod/v4`, identity validation) so `runAction` validates once and
+  an invalid input is a `refused`/`invalid-input` envelope. `web`-only actions
+  are registered too, so a model calling one hears `needs-athlete-yes` (§9.2);
+  `tools/list` is answered from the registry filtered by caller, so they never
+  appear in it. The envelope's JSON Schema root carries `type: object` beside
+  its `oneOf`.
+- **`ActionCtx` gains `origin` and `scopes`.** Deep links must be absolute for a
+  model; scopes come from the credential (absent for `web`).
+- **`refused` gains an optional `link`**, which ADR 0093 §3 already requires on
+  `needs-athlete-yes`. Ukeskiftet's service reasons are refusal codes one to
+  one, so the route's replies are unchanged.
+- **New Unavailable reasons:** `outside-plan`, `no-plan`, `not-logged`,
+  `structure-not-verifiable`.
+- **Counts are Readings too** (`openProposals`, `daysOfHistory`,
+  `requiredDays`), so the "every number is a Reading" walk has no exceptions.
+  Week tracks carry their `currency`; `vsLast.deltas` has the keys `tss` and
+  `durationS`.
+- **Lifts.** Only `resolveStructureAdherence` moved out of a route
+  (`app/utils/session-structure-adherence.ts`). `get_week_change` projects
+  `readWeekChange` (already in `app/utils/load/`); `buildWeekChangeCard` and
+  `buildSessionNudge` are Norwegian screen models no action reads, so they stay.
+- **`/mcp` is 404 in production** until OAuth, and accepts only localhost-class
+  Host and Origin. The catalog snapshot is one file, since the list does not
+  vary by scope; the compatibility test against `origin/main` is still later.
+- **Over-closing by week.** A week's actual volume binds to every Recording in
+  that week, so a Strava ride in Annet closes that week's run track for a model.
