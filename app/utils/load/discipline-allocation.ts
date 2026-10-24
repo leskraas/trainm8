@@ -50,7 +50,11 @@ export function buildDisciplineAllocation(
 		}
 		const part = endurance.get(session.discipline) ?? { sessions: 0, tss: null }
 		part.sessions += 1
-		if (session.tss != null && Number.isFinite(session.tss) && session.tss >= 0) {
+		if (
+			session.tss != null &&
+			Number.isFinite(session.tss) &&
+			session.tss >= 0
+		) {
 			part.tss = (part.tss ?? 0) + session.tss
 		}
 		endurance.set(session.discipline, part)

@@ -80,22 +80,38 @@ test('stamped and recorded sessions, other disciplines and other athletes are no
 	expect(await getAuthoredWorkouts(id, [])).toEqual([])
 })
 
+test('a busy discipline does not crowd another out of the picker', async () => {
+	const { id } = await createAthlete()
+	const ride = await session(id, 'Langtur', 'bike')
+	for (let index = 0; index < 205; index++) {
+		await session(id, `Run ${index}`, 'run')
+	}
+
+	const offered = await getAuthoredWorkouts(id, ['run', 'bike'])
+
+	expect(offered.filter((w) => w.discipline === 'run')).toHaveLength(
+		PICKER_PER_DISCIPLINE,
+	)
+	expect(offered.filter((w) => w.discipline === 'bike')).toEqual([
+		{ id: ride, title: 'Langtur', discipline: 'bike' },
+	])
+})
+
 test('the pure policy caps each discipline separately', () => {
 	const rows = ['run', 'bike', 'run', 'bike', 'run'].map((discipline, i) => ({
 		id: `w${i}`,
 		title: `T${i}`,
 		discipline,
 	}))
-	expect(pickRecentWorkouts(rows, 1).map((row) => row.id)).toEqual([
-		'w0',
-		'w1',
-	])
+	expect(pickRecentWorkouts(rows, 1).map((row) => row.id)).toEqual(['w0', 'w1'])
 	// Titles are compared case- and space-insensitively within a discipline only.
 	expect(
 		pickRecentWorkouts([
 			{ id: 'a', title: 'Langtur', discipline: 'run' },
 			{ id: 'b', title: ' langtur ', discipline: 'run' },
 			{ id: 'c', title: 'Langtur', discipline: 'bike' },
+			{ id: 'd', title: 'Lang  tur', discipline: 'run' },
+			{ id: 'e', title: 'lang tur', discipline: 'run' },
 		]).map((row) => row.id),
-	).toEqual(['a', 'c'])
+	).toEqual(['a', 'c', 'd'])
 })

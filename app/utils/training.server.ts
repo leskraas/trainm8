@@ -1310,34 +1310,45 @@ export type AuthoredWorkout = {
 
 /** At most this many Workouts per discipline in the picker. */
 export const PICKER_PER_DISCIPLINE = 12
-/** How many recent sessions are read to find the distinct Workouts. */
+/**
+ * How many recent sessions are read **per discipline** to find the distinct
+ * Workouts. Per discipline, so a busy discipline cannot use up the scan and
+ * leave another track's picker empty.
+ */
 const PICKER_SCAN = 200
 
 export async function getAuthoredWorkouts(
 	userId: string,
 	disciplines: readonly string[],
 ): Promise<AuthoredWorkout[]> {
-	if (disciplines.length === 0) return []
-	const sessions = await prisma.workoutSession.findMany({
-		where: {
-			userId,
-			source: 'authored',
-			workout: { ownerId: userId, discipline: { in: [...disciplines] } },
-		},
-		orderBy: { createdAt: 'desc' },
-		take: PICKER_SCAN,
-		select: {
-			workout: { select: { id: true, title: true, discipline: true } },
-		},
-	})
+	const perDiscipline = await Promise.all(
+		[...new Set(disciplines)].map((discipline) =>
+			prisma.workoutSession.findMany({
+				where: {
+					userId,
+					source: 'authored',
+					workout: { ownerId: userId, discipline },
+				},
+				orderBy: { createdAt: 'desc' },
+				take: PICKER_SCAN,
+				select: {
+					workout: { select: { id: true, title: true, discipline: true } },
+				},
+			}),
+		),
+	)
 	return pickRecentWorkouts(
-		sessions.flatMap((session) => (session.workout ? [session.workout] : [])),
+		perDiscipline.flatMap((sessions) =>
+			sessions.flatMap((session) => (session.workout ? [session.workout] : [])),
+		),
 	)
 }
 
 /**
- * The pure half: newest first in, one per discipline and title out, capped per
- * discipline. The first occurrence of a title wins, so the newest is offered.
+ * The pure half: newest first in (within each discipline), one per discipline
+ * and title out, capped per discipline. Titles compare case-insensitively with
+ * whitespace collapsed. The first occurrence of a title wins, so the newest is
+ * offered.
  */
 export function pickRecentWorkouts(
 	newestFirst: readonly AuthoredWorkout[],
@@ -1347,7 +1358,8 @@ export function pickRecentWorkouts(
 	const counts = new Map<string, number>()
 	const picked: AuthoredWorkout[] = []
 	for (const workout of newestFirst) {
-		const key = `${workout.discipline}|${workout.title.trim().toLocaleLowerCase('nb')}`
+		const title = workout.title.trim().replace(/\s+/g, ' ')
+		const key = `${workout.discipline}|${title.toLocaleLowerCase('nb')}`
 		if (seen.has(key)) continue
 		const count = counts.get(workout.discipline) ?? 0
 		if (count >= perDiscipline) continue

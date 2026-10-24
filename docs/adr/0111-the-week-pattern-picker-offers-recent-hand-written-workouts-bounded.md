@@ -13,10 +13,10 @@ here, and this change narrows it.
 ## Decision
 
 1. **What the picker offers: recent use, the athlete's own, bounded.** The
-   Workouts behind the athlete's `authored` sessions (hand-written, or placed from
-   the Catalogue), newest session first, one per title within a discipline, at
-   most 12 per discipline. `generated`, `recorded` and `detected` sessions are the
-   machine's copies, not choices, and are left out.
+   Workouts behind the athlete's `authored` sessions (hand-written, or placed
+   from the Catalogue), newest session first, one per title within a discipline,
+   at most 12 per discipline. `generated`, `recorded` and `detected` sessions
+   are the machine's copies, not choices, and are left out.
 2. **Discipline matching is server-side as well as client-side.** The loader
    asks only for the disciplines the plan's tracks hold; the form still filters
    to the chosen track, and `addWeekPatternDay` still refuses a mismatch.
@@ -28,9 +28,9 @@ here, and this change narrows it.
 
 ## Considered
 
-- **Read the saved list (`CatalogueSave`)**: the right long-term answer (ADR 0051
-  §1, "it is in my list"), but every row in it is someone else's Workout, so it
-  needs the service change below first.
+- **Read the saved list (`CatalogueSave`)**: the right long-term answer (ADR
+  0051 §1, "it is in my list"), but every row in it is someone else's Workout,
+  so it needs the service change below first.
 - **Search**: more UI for a list that is now at most 12 per discipline.
 
 ## Open for the owner
