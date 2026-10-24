@@ -86,3 +86,28 @@ OAuth tables, Polar tokens) uses the same key.
   from then on use the new key; old rows still decrypt with the old one. Do not
   drop the old key while any row may still be under it (a token is re-encrypted
   only when it is written again, which an Intervals.icu key never is).
+
+### `POLAR_CLIENT_ID`, `POLAR_CLIENT_SECRET`, `POLAR_REDIRECT_URI`, `POLAR_WEBHOOK_SECRET`
+
+Polar AccessLink (#555, ADR 0105). **Optional:** until all three client values
+are set, nothing about Polar is offered, and the webhook route answers 503 until
+`POLAR_WEBHOOK_SECRET` is set.
+
+1. Register a client under the company's Polar Flow account at
+   https://admin.polaraccesslink.com (self-serve). Redirect URL:
+   `https://<host>/integrations/polar/callback`.
+2. `fly secrets set POLAR_CLIENT_ID=... POLAR_CLIENT_SECRET=... POLAR_REDIRECT_URI=https://<host>/integrations/polar/callback --app trainm8-085d`
+3. Create the one webhook for the client (Basic auth with the client id and
+   secret; Polar pings the URL, which must answer 200):
+
+   ```sh
+   curl -u "$POLAR_CLIENT_ID:$POLAR_CLIENT_SECRET" -H 'content-type: application/json' \
+     -d '{"events":["EXERCISE"],"url":"https://<host>/webhook/polar"}' \
+     https://www.polaraccesslink.com/v3/webhooks
+   ```
+
+   Save `data.signature_secret_key` from the answer at once: Polar never shows
+   it again. `fly secrets set POLAR_WEBHOOK_SECRET=<it>`.
+
+Locally, tests always mock Polar (`tests/mocks/polar.ts`); in `npm run dev` with
+`MOCKS=true`, set `MOCK_POLAR=true` to mock it too.
