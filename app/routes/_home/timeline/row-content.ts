@@ -419,9 +419,9 @@ function rateClause(
 /**
  * A prescription's line 1. It ends in `planned` — the one word that keeps a
  * plan and a result apart in a stream that mixes them — and carries only the
- * quantities the prescription itself fixes. A distance-quantified session says
- * nothing here about minutes it never authored; its distance belongs with the
- * pace it is to be run at, on line 2.
+ * quantities the prescription fixes. A distance-quantified session's minutes
+ * are its distance timed through its pace (#615); the distance itself belongs
+ * with that pace, on line 2.
  */
 function plannedLine(entry: SessionLedgerEntry): string | null {
 	const duration =
