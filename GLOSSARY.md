@@ -1515,25 +1515,26 @@ training segment, plus whether the app itself read the telemetry (`verified`) so
 a hand-typed figure never masquerades as a measured one. The queryable history
 **Race Equivalence** resolves from at its top two rungs, and the single blocker
 for portable race-pace targets, which is why the table landed with the anchors
-(ADR 0007, #449). **It has no writer yet**: populating it from completed
-**Events** and from activity bests is a derivation with its own honesty rules —
-which efforts qualify, and ADR 0021's **Load Confidence** gate — so until one
-lands every `racePace` target degrades to its bare authored form, exactly as a
-`%FTP` target does without an FTP. A target resolves against the **most recent**
-result at that distance, not the fastest: a prescription is about what the
-athlete can do now, and the fastest-ever reading is a **Personal Record**.
-Distances match an anchor **exactly** — a 4.8 km parkrun is not a 5k, and
-rounding one into the other puts a pace the athlete never ran behind a `5k pace`
-target. Distinct from an **Event Target**, which is a _goal_: a goal that was
-met produces a result and a goal that was missed produces one too, so the two
-must not be overloaded into one field. Distinct from a **Personal Record**,
-which is the _derived best_ over a **Benchmark Kind**; a Performance Result is
-the raw datum a record is chosen from. The most reliable non-race source is not
-a curve fit but a deliberately repeated effort — a 3 km time trial or a
-20-minute tempo on the same route every 6–8 weeks — which is already expressible
-as an **Event** of `kind: 'time-trial'` and enters the ladder at rung 1 rather
-than rung 4. _Avoid_: Race result (a time trial is not a race), PB list,
-benchmark
+(ADR 0007, #449). **Its first writer is the athlete's own hand** (#464):
+_Løpsresultater_ under Meg adds a typed run result at a **Race Anchor**
+distance, always `verified: false`. Populating it from completed **Events** and
+from activity bests is a derivation with its own honesty rules — which efforts
+qualify, and ADR 0021's **Load Confidence** gate — so until one lands every
+`racePace` target degrades to its bare authored form, exactly as a `%FTP` target
+does without an FTP. A target resolves against the **most recent** result at
+that distance, not the fastest: a prescription is about what the athlete can do
+now, and the fastest-ever reading is a **Personal Record**. Distances match an
+anchor **exactly** — a 4.8 km parkrun is not a 5k, and rounding one into the
+other puts a pace the athlete never ran behind a `5k pace` target. Distinct from
+an **Event Target**, which is a _goal_: a goal that was met produces a result
+and a goal that was missed produces one too, so the two must not be overloaded
+into one field. Distinct from a **Personal Record**, which is the _derived best_
+over a **Benchmark Kind**; a Performance Result is the raw datum a record is
+chosen from. The most reliable non-race source is not a curve fit but a
+deliberately repeated effort — a 3 km time trial or a 20-minute tempo on the
+same route every 6–8 weeks — which is already expressible as an **Event** of
+`kind: 'time-trial'` and enters the ladder at rung 1 rather than rung 4.
+_Avoid_: Race result (a time trial is not a race), PB list, benchmark
 
 **Proof Strip**: The athlete's current **Personal Records** — one row per
 **Discipline**, each with the record value and the gain over the previous best;
