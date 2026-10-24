@@ -1680,3 +1680,47 @@ test('a re-detected 5 × 4 min at Z4 is a threshold session too', async () => {
 
 	expect(await detectedIntent(session.id)).toBe('threshold')
 })
+
+test('a power-detected 5 × 4 min is zoned on running power, not the pace recipe', async () => {
+	// A Daniels runner with a critical-power threshold: detection classified the
+	// run on Stryd power bands (ADR 0038), so its absolute watts are zoned the
+	// same way — the pace recipe cannot place them at all.
+	const user = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.id,
+			disciplineProfiles: {
+				create: [
+					{
+						discipline: 'run',
+						thresholdPaceSecPerKm: 220,
+						runPowerThresholdW: 300,
+						zoneSystem: 'daniels-pace-5',
+					},
+				],
+			},
+		},
+	})
+	const session = await recordingOnlySession(user.id)
+	const onPower: WorkoutStructure = {
+		discipline: 'run',
+		blocks: [
+			{
+				repeatCount: 5,
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						durationSec: 240,
+						intensity: { kind: 'power', minW: 290 },
+					},
+					{ kind: 'rest', durationSec: 120 },
+				],
+			},
+		],
+	}
+
+	await materializeDetectedStructure(user.id, session.id, onPower)
+
+	expect(await detectedIntent(session.id)).toBe('threshold')
+})
