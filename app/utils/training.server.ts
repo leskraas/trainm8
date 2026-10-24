@@ -1287,7 +1287,7 @@ async function seasonBandWarnings(
 
 /**
  * The Workouts a Week Pattern day may prescribe: the athlete's own, **bounded**
- * (#442, ADR 0105).
+ * (#442, ADR 0111).
  *
  * Every session owns a private 1:1 Workout (ADR 0003), so "every Workout the
  * athlete owns" is every session they ever planned and grows without bound. The
