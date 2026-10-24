@@ -3736,6 +3736,7 @@ export const WORKOUT_DETAIL_LABELS = {
 		notAttached: 'Opptaket er ikke koblet til en plan.',
 		targetRequired: 'Velg økta opptaket skal flyttes til.',
 		cannotRedetect: 'Denne økta kan ikke leses på nytt.',
+		recordingNotEditable: 'Et opptak kan ikke redigeres som en plan.',
 		badDateTime: 'Dato og klokkeslett henger ikke sammen.',
 	},
 } as const

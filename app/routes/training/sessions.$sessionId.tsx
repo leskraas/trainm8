@@ -87,6 +87,7 @@ import {
 	formatSigned,
 	formatTime,
 } from '#app/utils/format.ts'
+import { isRecordingOnlySource } from '#app/utils/import-fit.ts'
 import { undoImportLink } from '#app/utils/import-link.server.ts'
 import {
 	type DisciplineThresholdMap,
@@ -577,6 +578,21 @@ export async function action({ request, params }: Route.ActionArgs) {
 	// The dispatch rides a dedicated `saveWorkout` control field, not the domain
 	// `intent` the workout form already carries (which would collide).
 	if (formData.get('saveWorkout')) {
+		// The editor only opens on a scheduled session, so a recording-only one
+		// never posts here from the page — but a hand-made POST would adopt its
+		// `detected` Workout and end detection's compare-and-swap for it (#630).
+		// The athlete layer is the only way to correct a recording (#624).
+		const target = await prisma.workoutSession.findFirst({
+			where: { id: params.sessionId, userId },
+			select: { source: true, adoptedAt: true },
+		})
+		invariantResponse(target, L.errors.notFound, { status: 404 })
+		invariantResponse(
+			!isRecordingOnlySource(target),
+			L.errors.recordingNotEditable,
+			{ status: 400 },
+		)
+
 		const submission = parseWithZod(formData, { schema: FormSchema })
 
 		if (submission.status !== 'success') {
