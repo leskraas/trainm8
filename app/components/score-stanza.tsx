@@ -121,7 +121,8 @@ function StanzaLine({
 		<div
 			data-stanza-line
 			className={cn(
-				'border-border/70 grid grid-cols-[3rem_1fr] items-baseline gap-x-2.5 border-b py-2.5 last:border-b-0 min-[520px]:grid-cols-[4rem_1fr]',
+				// The gutter grows past its rem for a series badge (`3 × 13×`).
+				'border-border/70 grid grid-cols-[minmax(3rem,max-content)_1fr] items-baseline gap-x-2.5 border-b py-2.5 last:border-b-0 min-[520px]:grid-cols-[minmax(4rem,max-content)_1fr]',
 				className,
 			)}
 			{...props}
@@ -134,9 +135,10 @@ function StanzaLine({
 					<Wrapped token={block.repeat} renderToken={renderToken}>
 						<span
 							data-token-type="repeat"
-							className="bg-muted text-muted-foreground rounded-lg px-1.5 py-0.5 text-xs font-bold tabular-nums"
+							className="bg-muted text-muted-foreground rounded-lg px-1.5 py-0.5 text-xs font-bold whitespace-nowrap tabular-nums"
 						>
-							{block.repeat.count}
+							{/* The text, not the count: a block in series reads `3 × 13`. */}
+							{block.repeat.text}
 							{NOTATION_SEPARATORS.repeat}
 						</span>
 					</Wrapped>

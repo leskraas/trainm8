@@ -546,6 +546,27 @@ describe('sessionMetricTarget', () => {
 		).toEqual(expected)
 	})
 
+	test('picks short pace reps that have no zone over a longer Z2 warm-up (#617)', () => {
+		// `15 min Z2 + 6 × 400 m @ 3:40 + 10 min Z1`, no zone system: the reps
+		// can't say their zone and total 528 s, less than the warm-up.
+		const rep = {
+			...cardioStep('{"kind":"pace","minSecPerKm":220}', null, 1),
+			distanceM: 400,
+		}
+		const workout = {
+			blocks: [
+				{ repeatCount: 1, steps: [cardioStep('Z2', 900, 0)] },
+				{ repeatCount: 6, steps: [rep] },
+				{ repeatCount: 1, steps: [cardioStep('Z1', 600, 2)] },
+			],
+		}
+		expect(sessionMetricTarget(workout, runThresholds)).toEqual({
+			kind: 'metric',
+			metric: 'pace',
+			text: '3:40 /km',
+		})
+	})
+
 	test('picks the hardest step, not the longest, when every step has a zone (#615)', () => {
 		// 30 min Z2 + 4 × 4 min Z4: the Z2 runs longer, the Z4 is the session.
 		const workout = {

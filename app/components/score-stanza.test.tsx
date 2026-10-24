@@ -59,6 +59,30 @@ test('repeat renders only as the gutter badge — repeat parentheses leave the l
 	expect(stanza).toHaveTextContent('(1 min pause)')
 })
 
+test('a block in series badges its series as well as its reps', () => {
+	render(
+		<ScoreStanza
+			notation={deriveWorkoutNotation({
+				blocks: [
+					{
+						repeatCount: 13,
+						seriesRepeatCount: 3,
+						steps: [
+							{ kind: 'cardio', durationSec: 30 },
+							{ kind: 'rest', durationSec: 15 },
+						],
+					},
+				],
+			})}
+		/>,
+	)
+
+	const badge = document.querySelector(
+		'[data-stanza-gutter] [data-token-type="repeat"]',
+	)
+	expect(badge).toHaveTextContent('3 × 13×')
+})
+
 test('a rest value takes the semibold ink and its word recedes (ADR 0089: the word is `pause`)', () => {
 	render(<ScoreStanza notation={deriveWorkoutNotation(intervalInput)} />)
 

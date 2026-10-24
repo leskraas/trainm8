@@ -596,13 +596,14 @@ export function sessionMetricTarget(
 	}
 	if (candidates.length === 0) return null
 
-	// Hardest first where every step can say how hard it is, then the longest
-	// effective effort; ties resolve to the earlier step so the choice is
-	// deterministic.
-	const byZone = candidates.every((c) => c.zone != null)
+	// Hardest first, then the longest effective effort; ties resolve to the
+	// earlier step so the choice is deterministic. A step that can't say how
+	// hard it is is not easy (#617): it ranks above Z2 and below Z3, so a short
+	// set of pace reps still beats a longer Z2 warm-up.
+	const rank = (c: Candidate) => c.zone ?? 2.5
 	candidates.sort(
 		(a, b) =>
-			(byZone ? b.zone! - a.zone! : 0) ||
+			rank(b) - rank(a) ||
 			b.effDurationSec - a.effDurationSec ||
 			a.order - b.order,
 	)

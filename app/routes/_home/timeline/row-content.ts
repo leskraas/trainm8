@@ -544,8 +544,16 @@ function paceWindow(
 	if (discipline === 'bike') return powerWindow(steps)
 	const authored = steps.filter((step) => step.paceMin != null)
 	if (authored.length === 0) return null
+	// Compared in the discipline's unit: a swim CSS step (per 100 m) and a pace
+	// step (per km) can name the same pace.
+	const unit = (
+		step: (typeof authored)[number],
+		sec: number | null | undefined,
+	) => (sec == null ? '' : paceInDistanceUnit(sec, discipline, step.targetKind))
 	const distinct = new Set(
-		authored.map((step) => `${step.paceMin}:${step.paceMax ?? ''}`),
+		authored.map(
+			(step) => `${unit(step, step.paceMin)}:${unit(step, step.paceMax)}`,
+		),
 	)
 	if (distinct.size !== 1) return null
 	const step = authored[0]!
@@ -582,6 +590,11 @@ function powerWindow(steps: ResolvedIntensity[]): string | null {
  * 172 would be a ceiling the athlete is meant to break.
  */
 function hrCeiling(steps: ResolvedIntensity[]): string | null {
+	// A step open above (Z5 on an LTHR recipe: a floor, no cap) has no ceiling,
+	// so neither does the session.
+	if (steps.some((step) => step.hrMin != null && step.hrMax == null)) {
+		return null
+	}
 	const caps = steps
 		.map((step) => step.hrMax)
 		.filter((cap): cap is number => cap != null)

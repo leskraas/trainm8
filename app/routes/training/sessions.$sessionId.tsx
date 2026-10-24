@@ -177,6 +177,9 @@ import {
 
 const L = WORKOUT_DETAIL_LABELS
 
+/** One empty map, so a session without thresholds keeps the telemetry memo. */
+const NO_THRESHOLDS: DisciplineThresholdMap = {}
+
 /**
  * The telemetry card is its own chunk, mounted when it nears the viewport
  * (`DeferredTelemetry`): it was half the page's DOM and all of it below the
@@ -843,7 +846,10 @@ export default function SessionDetailRoute({
 	// thresholds; null when there's no prescription or no truthful target. A
 	// Training Zone the thresholds cannot resolve is captioned ("E —
 	// easy/endurance"), never a bare code (#180).
-	const target = sessionMetricTarget(session.workout, thresholds ?? {})
+	const target = sessionMetricTarget(
+		session.workout,
+		thresholds ?? NO_THRESHOLDS,
+	)
 	const headlineTarget =
 		target?.kind === 'zone' && target.caption
 			? `${target.text} — ${target.caption}`
@@ -966,7 +972,7 @@ export default function SessionDetailRoute({
 						) : session.workout ? (
 							<WorkoutPrescription
 								session={{ ...session, workout: session.workout }}
-								thresholds={thresholds ?? {}}
+								thresholds={thresholds ?? NO_THRESHOLDS}
 								loadContexts={loadContexts ?? {}}
 								exercises={exercises ?? []}
 								recentExerciseIds={recentExerciseIds ?? []}
@@ -1067,7 +1073,7 @@ export default function SessionDetailRoute({
 							<DeferredTelemetry
 								stream={session.recording.stream}
 								workout={session.workout}
-								thresholds={thresholds ?? {}}
+								thresholds={thresholds ?? NO_THRESHOLDS}
 							/>
 						) : (
 							<TelemetryUnavailable />
@@ -1630,8 +1636,9 @@ function resolveStructureAdherence(
 		: null
 }
 
-// The two asserting verdicts get a coloured chip; `not-verifiable` renders as an
-// honest muted Unavailable Metric, never a red "you failed" grade (ADR 0008).
+// Only `as-prescribed` gets a coloured chip; `diverged` is neutral (#634) and
+// `not-verifiable` renders as an honest muted Unavailable Metric, never a red
+// "you failed" grade (ADR 0008).
 const STRUCTURE_TONE: Record<
 	'as-prescribed' | 'diverged',
 	{ dot: string; wash: string }

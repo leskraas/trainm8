@@ -782,6 +782,28 @@ describe('rule 7: planned rows are instructions', () => {
 		expect(content.internalLoad).toBe('under 172 bpm')
 	})
 
+	test('a step open above leaves the session with no HR ceiling', () => {
+		// The reps' floor has no cap, so the warm-up's 145 is no ceiling of the
+		// session: the reps are meant to break it.
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([
+						step({ id: 'wu', durationSec: 600, intensity: hrCap(145) }),
+						step({
+							id: 'work',
+							orderIndex: 1,
+							durationSec: 1200,
+							intensity: JSON.stringify({ kind: 'hrBpm', min: 175 }),
+						}),
+					]),
+				]),
+			),
+			PLANNED_WEEK,
+		)
+		expect(content.internalLoad ?? '').not.toContain('under')
+	})
+
 	// #616: the target is resolved from what the step authors against the
 	// athlete's thresholds now, never from the cached range columns — which only
 	// a threshold change ever fills, so most new sessions have none.
