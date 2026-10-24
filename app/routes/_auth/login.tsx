@@ -112,6 +112,9 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 						labelProps={{ children: 'Username' }}
 						inputProps={{
 							...getInputProps(fields.username, { type: 'text' }),
+							autoCapitalize: 'none',
+							autoCorrect: 'off',
+							spellCheck: false,
 							autoFocus: true,
 							className: 'lowercase',
 							autoComplete: 'username',

@@ -1,5 +1,6 @@
 import { invariant } from '@epic-web/invariant'
 import { faker } from '@faker-js/faker/locale/en'
+import { type Locator } from '@playwright/test'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	normalizeEmail,
@@ -16,6 +17,17 @@ import {
 	test as base,
 	type AppPages,
 } from '#tests/playwright-utils.ts'
+
+/**
+ * A username is typed as one on a phone: iOS neither capitalises its first
+ * letter nor autocorrects it, and the keychain offers the saved one.
+ */
+async function expectUsernameInput(input: Locator) {
+	await expect(input).toHaveAttribute('autocomplete', 'username')
+	await expect(input).toHaveAttribute('autocapitalize', 'none')
+	await expect(input).toHaveAttribute('autocorrect', 'off')
+	await expect(input).toHaveAttribute('spellcheck', 'false')
+}
 
 const URL_REGEX = /(?<url>https?:\/\/[^\s$.?#].[^\s]*)/
 const CODE_REGEX = /Here's your verification code: (?<code>[\d\w]+)/
@@ -84,6 +96,7 @@ test('onboarding with link', async ({ page, navigate, getOnboardingData }) => {
 		.click()
 
 	await expect(page).toHaveURL(`/onboarding`)
+	await expectUsernameInput(page.getByRole('textbox', { name: /^username/i }))
 	await page
 		.getByRole('textbox', { name: /^username/i })
 		.fill(onboardingData.username)
@@ -187,6 +200,7 @@ test('completes onboarding after GitHub OAuth given valid user details', async (
 	await expect(usernameInput).toHaveValue(
 		normalizeUsername(ghUser.profile.login),
 	)
+	await expectUsernameInput(usernameInput)
 	await expect(page.getByRole('textbox', { name: /^name/i })).toHaveValue(
 		ghUser.profile.name,
 	)
@@ -372,6 +386,7 @@ test('login as existing user', async ({ page, navigate, insertNewUser }) => {
 	const user = await insertNewUser({ password })
 	invariant(user.name, 'User name not found')
 	await navigate('/login')
+	await expectUsernameInput(page.getByRole('textbox', { name: /username/i }))
 	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
 	await page.getByLabel(/^password$/i).fill(password)
 	await page.getByRole('button', { name: /log in/i }).click()
@@ -402,6 +417,7 @@ test('reset password with a link', async ({
 	await expect(
 		page.getByRole('heading', { name: /forgot password/i }),
 	).toBeVisible()
+	await expectUsernameInput(page.getByRole('textbox', { name: /username/i }))
 	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
 	await page.getByRole('button', { name: /recover password/i }).click()
 	await expect(page.getByText(/check your email/i)).toBeVisible()
@@ -464,6 +480,7 @@ test('reset password with a short code', async ({
 	await expect(
 		page.getByRole('heading', { name: /forgot password/i }),
 	).toBeVisible()
+	await expectUsernameInput(page.getByRole('textbox', { name: /username/i }))
 	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
 	await page.getByRole('button', { name: /recover password/i }).click()
 	await expect(page.getByText(/check your email/i)).toBeVisible()

@@ -150,6 +150,10 @@ export default function ForgotPasswordRoute() {
 					inputProps={{
 						autoFocus: true,
 						...getInputProps(fields.usernameOrEmail, { type: 'text' }),
+						autoComplete: 'username',
+						autoCapitalize: 'none',
+						autoCorrect: 'off',
+						spellCheck: false,
 					}}
 					errors={fields.usernameOrEmail.errors}
 				/>
