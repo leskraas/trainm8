@@ -59,6 +59,14 @@ test('repeat renders only as the gutter badge — repeat parentheses leave the l
 	expect(stanza).toHaveTextContent('(1 min pause)')
 })
 
+test('a rest value takes the semibold ink and its word recedes (ADR 0089: the word is `pause`)', () => {
+	render(<ScoreStanza notation={deriveWorkoutNotation(intervalInput)} />)
+
+	const rest = document.querySelector('[data-token-type="rest"]')!
+	expect(rest).toHaveTextContent('1 min pause')
+	expect(rest.querySelector('.font-semibold')).toHaveTextContent(/^1 min$/)
+})
+
 test('block names never render on the line (G2)', () => {
 	render(<ScoreStanza notation={deriveWorkoutNotation(intervalInput)} />)
 	expect(screen.queryByText('warm-up')).not.toBeInTheDocument()

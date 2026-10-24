@@ -1842,8 +1842,10 @@ model ActivityStream {
 /// keyed to the import and cascade-deleted with it — it rides with a promoted
 /// Recording on disconnect exactly like the stream (ADR 0012). Only the winning
 /// structure is persisted (no ranked candidates); the internal 0–1 score is not
-/// stored (ADR 0032/0033) — only the graded confidence label. Inert groundwork:
-/// no engine, job, or write path populates this yet.
+/// stored (ADR 0032/0033) — only the graded confidence label. Written by the
+/// `structure-detection` background job (`structure-detection/detect-job.server.ts`)
+/// when an import's analysis clears the honesty gate; below the gate it writes
+/// nothing.
 model WorkoutDetection {
   id String @id @default(cuid())
 

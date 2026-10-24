@@ -23,6 +23,7 @@ import {
 	type WeeklyLoad,
 } from './load/adherence.ts'
 import { lastClosedWeekKey } from './load/week-change.ts'
+import { raceAnchorPacesFor } from './performance-result.server.ts'
 import {
 	anchoredActiveOutlineWhere,
 	isOutlineResting,
@@ -2061,7 +2062,8 @@ export async function getSessionByIdForUser(
  * (pace/power/HR) on the home surface and session detail. A discipline with no
  * profile is simply absent from the map, so its %-based targets degrade to an
  * Unavailable Metric rather than a fabricated value (the Unavailable Metric
- * principle, GLOSSARY.md).
+ * principle, GLOSSARY.md). Each profile carries the athlete's **Race Anchor**
+ * paces too, so a `racePace` target resolves off their own result.
  */
 export async function getDisciplineThresholds(
 	userId: string,
@@ -2069,6 +2071,7 @@ export async function getDisciplineThresholds(
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId },
 		select: {
+			id: true,
 			disciplineProfiles: {
 				select: {
 					discipline: true,
@@ -2084,11 +2087,16 @@ export async function getDisciplineThresholds(
 			},
 		},
 	})
+	if (!profile) return {}
 	const map: DisciplineThresholdMap = {}
-	for (const dp of profile?.disciplineProfiles ?? []) {
-		const { discipline, ...thresholds } = dp
-		map[discipline] = thresholds
-	}
+	await Promise.all(
+		profile.disciplineProfiles.map(async ({ discipline, ...thresholds }) => {
+			map[discipline] = {
+				...thresholds,
+				raceAnchorPaces: await raceAnchorPacesFor(profile.id, discipline),
+			}
+		}),
+	)
 	return map
 }
 

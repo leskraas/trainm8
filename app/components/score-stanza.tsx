@@ -298,11 +298,12 @@ function IntensityChip({
 	)
 }
 
-/** A rest token split into its value and word inks: `1 min` weighs, `rest` recedes. */
+/** A rest token split into its value and word inks: `1 min` weighs, `pause`
+ * (ADR 0089) recedes. */
 function restParts(text: string): { value: string | null; word: string } {
-	const match = /^(.*)\s+rest$/.exec(text)
+	const match = /^(.*)\s+pause$/.exec(text)
 	return match
-		? { value: match[1]!, word: 'rest' }
+		? { value: match[1]!, word: 'pause' }
 		: { value: null, word: text }
 }
 
