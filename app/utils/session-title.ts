@@ -45,13 +45,16 @@ type CardioStep = Extract<WorkoutBlock['steps'][number], { kind: 'cardio' }>
  * (`zones/words.ts`), never `Z3`; a measured power/pace/HR target does not, so
  * it stays wordless — never guessed from the raw value.
  */
+/** The shape of a recipe band's code: `Z4`, `I-3`, `T`, `sub-T` (`zones/recipes.ts`). */
+const RECIPE_CODE = /^(?:[A-Z](?:-?\d)?|sub-T)$/
+
 function intensityWord(target: IntensityTarget): string | null {
 	if (target.kind === 'zoneLabel') {
 		const label = target.label.trim()
 		const word = zoneLabelWord(label)
-		// A code is its own spelling; a word is the lowercase word it reads as.
-		const isCode = word === label && label !== label.toLowerCase()
-		return isCode ? label : word.toLowerCase() || null
+		// A code is its own spelling; a word is the lowercase word it reads as,
+		// however it was typed (`Rolig`, `Terskel`).
+		return RECIPE_CODE.test(label) ? label : word.toLowerCase() || null
 	}
 	const zone = intensityTargetToZone(target)
 	return zone != null ? ZONE_WORDS[zone] : null

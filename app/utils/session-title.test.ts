@@ -216,6 +216,12 @@ test('a recipe code keeps its spelling; a stored word stays lowercase', () => {
 	expect(titled('Z4')).toBe('45 min Z4')
 	expect(titled('T')).toBe('45 min T')
 	expect(titled('rolig')).toBe('45 min rolig')
+	expect(titled('I-3')).toBe('45 min I-3')
+	expect(titled('sub-T')).toBe('45 min sub-T')
+	// A word typed with a capital is still a word, not a code.
+	expect(titled('Rolig')).toBe('45 min rolig')
+	expect(titled('Terskel')).toBe('45 min terskel')
+	expect(titled('Tempo')).toBe('45 min tempo')
 })
 
 test('an RPE target writes its zone word', () => {
