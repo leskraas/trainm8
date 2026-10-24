@@ -688,8 +688,19 @@ describe('deriveMetricTarget', () => {
 		).toEqual(target)
 	})
 
-	test('a zone label the recipe does not define → keeps the Training Zone label', () => {
-		const target = zone('endurance')
+	test('a canonical zone label reads through the band the recipe declares (#614)', () => {
+		// `endurance` is zone 2, which Daniels declares on E: 1.15–1.31 × 240.
+		expect(
+			deriveMetricTarget(
+				zone('endurance'),
+				'run',
+				profile({ zoneSystem: 'daniels-pace-5' }),
+			),
+		).toEqual({ kind: 'pace', minSecPerKm: 276, maxSecPerKm: 314 })
+	})
+
+	test('a zone label that names no zone → keeps the Training Zone label', () => {
+		const target = zone('sprint')
 		expect(
 			deriveMetricTarget(
 				target,

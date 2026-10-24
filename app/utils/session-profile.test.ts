@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest'
-import { deriveRepeatGroups, deriveSessionProfile } from './session-profile.ts'
+import {
+	deriveRepeatGroups,
+	deriveSessionProfile,
+	intensityTargetToZone,
+} from './session-profile.ts'
 import { type LedgerSession } from './training.server.ts'
 
 type Workout = NonNullable<LedgerSession['workout']>
@@ -101,6 +105,13 @@ test('maps structured zoneLabel targets (Z1–Z7) to zones, clamping above Z5', 
 	)
 
 	expect(bars.map((b) => b.zone)).toEqual([3, 5])
+})
+
+test('maps recipe band labels (Daniels, Norwegian threshold, OLT) to their declared zones', () => {
+	const labels = ['E', 'M', 'sub-T', 'T', 'I', 'I-1', 'I-3', 'I-5']
+	expect(
+		labels.map((label) => intensityTargetToZone({ kind: 'zoneLabel', label })),
+	).toEqual([2, 3, 4, 4, 5, 1, 3, 5])
 })
 
 test('maps RPE and %FTP power targets to zones', () => {

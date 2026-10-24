@@ -74,10 +74,32 @@ function clampZone(n: number): TrainingZone {
 	return n as TrainingZone
 }
 
-function zoneLabelToZone(label: string): TrainingZone | null {
-	const normalized = label.trim().toLowerCase()
+/**
+ * The Training Zone a zone label names without reading any recipe: a `Z1…Z7`
+ * code (clamped to 5), a generic word, or a band label that means the same zone
+ * on every recipe that has it (Daniels/Norwegian `E M sub-T T I`, OLT
+ * `I-1…I-5`). Daniels' `R` declares no zone (ADR 0042 §7), so it stays null.
+ * `resolveIntensity` reads a label that is not the athlete's own band label
+ * through this (#614).
+ */
+export function zoneLabelToZone(label: string): TrainingZone | null {
+	const trimmed = label.trim()
+	switch (trimmed) {
+		case 'E':
+			return 2
+		case 'M':
+			return 3
+		case 'sub-T':
+		case 'T':
+			return 4
+		case 'I':
+			return 5
+	}
+	const normalized = trimmed.toLowerCase()
 	const zMatch = /^z\s*([1-7])$/.exec(normalized)
 	if (zMatch) return clampZone(Number(zMatch[1]))
+	const oltMatch = /^i-([1-5])$/.exec(normalized)
+	if (oltMatch) return Number(oltMatch[1]) as TrainingZone
 	switch (normalized) {
 		case 'recovery':
 		case 'easy':
