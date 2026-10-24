@@ -121,7 +121,8 @@ function StanzaLine({
 		<div
 			data-stanza-line
 			className={cn(
-				// The gutter grows past its rem for a block in series (`3× 13×`).
+				// The gutter grows past its rem only for a badge wider than it
+				// (`100×`); a block in series stacks its two badges instead.
 				'border-border/70 grid grid-cols-[minmax(3rem,max-content)_1fr] items-baseline gap-x-2.5 border-b py-2.5 last:border-b-0 min-[520px]:grid-cols-[minmax(4rem,max-content)_1fr]',
 				className,
 			)}
@@ -134,34 +135,38 @@ function StanzaLine({
 				{/* The outer Series Repeat leads the reps, as it does in the
 				    sentence (`3 × (13 × …)`): its own badge, outlined where the
 				    reps are filled, so the two levels never read as one number
-				    (#466). Heard as `3 serier`, not as a bare multiplier. */}
-				{block.series ? (
-					<Wrapped token={block.series} renderToken={renderToken}>
-						<span
-							data-token-type="series"
-							className="text-muted-foreground ring-border rounded-lg px-1.5 py-0.5 text-xs font-bold whitespace-nowrap tabular-nums ring-1 ring-inset"
-						>
-							<span aria-hidden>
-								{block.series.text}
+				    (#466). Heard as `3 serier`, not as a bare multiplier. The two
+				    stack, outer on top, so a `10× 25×` block keeps the gutter's
+				    width and its line starts where every other line does. */}
+				<span data-stanza-repeats className="flex flex-col items-end gap-1">
+					{block.series ? (
+						<Wrapped token={block.series} renderToken={renderToken}>
+							<span
+								data-token-type="series"
+								className="text-muted-foreground ring-border rounded-lg px-1.5 py-0.5 text-xs font-bold whitespace-nowrap tabular-nums ring-1 ring-inset"
+							>
+								<span aria-hidden>
+									{block.series.text}
+									{NOTATION_SEPARATORS.repeat}
+								</span>
+								<span className="sr-only">
+									{TOKEN_SENTENCE_WORDS.seriesCount(block.series.count)}
+								</span>
+							</span>
+						</Wrapped>
+					) : null}
+					{block.repeat ? (
+						<Wrapped token={block.repeat} renderToken={renderToken}>
+							<span
+								data-token-type="repeat"
+								className="bg-muted text-muted-foreground rounded-lg px-1.5 py-0.5 text-xs font-bold whitespace-nowrap tabular-nums"
+							>
+								{block.repeat.text}
 								{NOTATION_SEPARATORS.repeat}
 							</span>
-							<span className="sr-only">
-								{TOKEN_SENTENCE_WORDS.seriesCount(block.series.count)}
-							</span>
-						</span>
-					</Wrapped>
-				) : null}
-				{block.repeat ? (
-					<Wrapped token={block.repeat} renderToken={renderToken}>
-						<span
-							data-token-type="repeat"
-							className="bg-muted text-muted-foreground rounded-lg px-1.5 py-0.5 text-xs font-bold whitespace-nowrap tabular-nums"
-						>
-							{block.repeat.text}
-							{NOTATION_SEPARATORS.repeat}
-						</span>
-					</Wrapped>
-				) : null}
+						</Wrapped>
+					) : null}
+				</span>
 				{/* The block's ⠿ grip: the editor's interactive menu-and-drag handle
 				    when `renderGrip` is passed; otherwise the inert mark on editing
 				    surfaces only — an immutable stanza shows no chrome at all (§1). */}
@@ -196,7 +201,7 @@ function StanzaLine({
 				{block.seriesRest ? (
 					<span
 						data-series-rest
-						className="inline-flex items-baseline gap-x-1 whitespace-nowrap"
+						className="inline-flex max-w-full items-baseline gap-x-1 whitespace-nowrap max-sm:flex-wrap max-sm:whitespace-normal"
 					>
 						<Paren>(</Paren>
 						<Wrapped token={block.seriesRest} renderToken={renderToken}>
