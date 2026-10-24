@@ -2,7 +2,9 @@
 
 Date: 2023-06-05
 
-Status: accepted
+Status: accepted · to be amended by
+[ADR 0094](../adr/0094-better-auth-owns-login-and-is-the-mcp-authorization-server.md)
+(proposed) at the login cutover
 
 ## Context
 
