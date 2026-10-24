@@ -28,6 +28,7 @@ import {
 } from '#app/utils/dashboard.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
+	approxLabel,
 	nbDurationLabel,
 	nbKgLabel,
 	sessionVolumeLabel,
@@ -82,6 +83,8 @@ export type SummaryFigure = {
 type Figures = {
 	km: number | null
 	seconds: number | null
+	/** `seconds` was timed through a pace: it reads `≈ 56 min` (#638). */
+	estimated: boolean
 	sets: number | null
 	lifts: number | null
 	topKg: number | null
@@ -137,7 +140,10 @@ function figureText(
 				: null
 		case 'hours':
 			return figures.seconds != null && figures.seconds > 0
-				? nbDurationLabel(roundToMinute(figures.seconds))
+				? approxLabel(
+						nbDurationLabel(roundToMinute(figures.seconds)),
+						figures.estimated,
+					)
 				: null
 		case 'sets':
 			return figures.sets != null && figures.sets > 0
@@ -166,7 +172,7 @@ function recordedFigures(input: SessionSummaryInput): Figures | null {
 	const seconds = recording?.durationSec ?? null
 	const sets = loggedSets > 0 ? loggedSets : null
 	if (km == null && seconds == null && sets == null) return null
-	return { km, seconds, sets, lifts: null, topKg: null }
+	return { km, seconds, estimated: false, sets, lifts: null, topKg: null }
 }
 
 function plannedFigures(input: SessionSummaryInput): Figures | null {
@@ -190,11 +196,13 @@ function plannedFigures(input: SessionSummaryInput): Figures | null {
 		block.steps.some((step) => step.kind !== 'strength'),
 	)
 	const reading = { thresholds: input.thresholds, discipline: input.discipline }
+	const duration = cardio ? prescribedSeconds(blocks, reading) : null
 	return {
 		// A lifting session's steps carry no km or time, and a rest between
 		// lifts would make one up; only a session with cardio in it reads them.
 		km: cardio ? fixedDayVolume(blocks, 'km', reading) : null,
-		seconds: cardio ? prescribedSeconds(blocks, reading) : null,
+		seconds: duration?.seconds ?? null,
+		estimated: duration?.estimated ?? false,
 		sets: sets > 0 ? sets : null,
 		lifts: exercises.size > 0 ? exercises.size : null,
 		topKg: kilos.length > 0 ? Math.max(...kilos) : null,
@@ -202,7 +210,8 @@ function plannedFigures(input: SessionSummaryInput): Figures | null {
 }
 
 /**
- * The prescription's time in seconds, unrounded, by `fixedDayVolume`'s rule:
+ * The prescription's time in seconds, unrounded, and whether a pace timed it
+ * (`≈`), by `fixedDayVolume`'s rule:
  * null unless **every** step is timed (a distance step through its pace,
  * `prescribedDuration`). Not `fixedDayVolume(…, 'hours')`, whose
  * tenth-of-an-hour precision is a week's and would say a 45-minute run is 48
@@ -211,7 +220,7 @@ function plannedFigures(input: SessionSummaryInput): Figures | null {
 function prescribedSeconds(
 	blocks: SummaryWorkout['blocks'],
 	reading: DurationReading,
-): number | null {
+): { seconds: number; estimated: boolean } | null {
 	const duration = prescribedDuration(blocks, reading)
-	return duration?.complete ? duration.seconds : null
+	return duration?.complete ? duration : null
 }

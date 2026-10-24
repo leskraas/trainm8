@@ -323,6 +323,20 @@ test('a distance written in a zone word is timed through the threshold pace on t
 	expect(row.externalLoad).toMatch(/\d+ min/)
 })
 
+test('minutes timed through a pace read as a translation, with ≈, on the card and the row (#638)', () => {
+	const { card, row } = calmWithSteps([
+		step({ durationSec: null, distanceM: 10_000, intensity: ROLIG }),
+	])
+	expect(card.session.durationLabel).toMatch(/^≈ \d+ min$/)
+	expect(row.externalLoad).toMatch(/^≈ \d+ min/)
+
+	const timed = calmWithSteps([
+		step({ durationSec: 50 * 60, intensity: ROLIG }),
+	])
+	expect(timed.card.session.durationLabel).toBe('50 min')
+	expect(timed.row.externalLoad).toMatch(/^50 min/)
+})
+
 test('a timed warm-up and a distance in a zone word total both (#615)', () => {
 	const distance = step({
 		id: 's-distance',

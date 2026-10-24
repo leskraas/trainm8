@@ -2002,6 +2002,15 @@ export const SESONG_ENTRY_LABELS = {
 } as const
 
 /** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */
+/**
+ * A figure the app translated rather than read: minutes timed through a pace
+ * say so with `≈` (`≈ 57 min`), the mark a Lactate Anchor's zone and an
+ * Intensity Target's equivalent carry.
+ */
+export function approxLabel(text: string, estimated: boolean): string {
+	return estimated ? `≈ ${text}` : text
+}
+
 export function nbDurationLabel(seconds: number): string {
 	const hours = Math.floor(seconds / 3600)
 	const minutes = Math.floor((seconds % 3600) / 60)

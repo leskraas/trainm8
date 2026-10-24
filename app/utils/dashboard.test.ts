@@ -6,6 +6,7 @@ import {
 	isoDayKey,
 	paletteFor,
 	planArc,
+	plannedMinutes,
 	prescribedDuration,
 	sumBlockDurationMin,
 } from './dashboard.ts'
@@ -146,6 +147,7 @@ test('prescribedDuration times a distance rep through the pace it is run at', ()
 	expect(prescribedDuration(distanceReps, NO_THRESHOLDS)).toEqual({
 		seconds: 3360,
 		complete: true,
+		estimated: true,
 	})
 	expect(sumBlockDurationMin(distanceReps, NO_THRESHOLDS)).toBe(56)
 })
@@ -172,6 +174,18 @@ test('prescribedDuration falls back to the threshold pace for a distance rep wit
 	expect(prescribedDuration(blocks, { thresholds })).toEqual({
 		seconds: 1200,
 		complete: true,
+		estimated: true,
+	})
+})
+
+test('prescribedDuration says when a distance step was timed through a pace', () => {
+	expect(prescribedDuration(distanceReps, NO_THRESHOLDS)?.estimated).toBe(true)
+	expect(prescribedDuration([seriesBlock], NO_THRESHOLDS)?.estimated).toBe(
+		false,
+	)
+	expect(plannedMinutes(distanceReps, NO_THRESHOLDS)).toEqual({
+		minutes: 56,
+		estimated: true,
 	})
 })
 
@@ -179,6 +193,7 @@ test('prescribedDuration adds the rests between series', () => {
 	expect(prescribedDuration([seriesBlock], NO_THRESHOLDS)).toEqual({
 		seconds: 39 * 45 + 2 * 360,
 		complete: true,
+		estimated: false,
 	})
 	expect(sumBlockDurationMin([seriesBlock], NO_THRESHOLDS)).toBe(41)
 })
@@ -191,6 +206,7 @@ test('prescribedDuration says when a step it cannot time leaves the total short'
 	expect(prescribedDuration(blocks, NO_THRESHOLDS)).toEqual({
 		seconds: 600,
 		complete: false,
+		estimated: false,
 	})
 	expect(
 		prescribedDuration([{ repeatCount: 1, steps: [run({})] }], NO_THRESHOLDS),
@@ -236,7 +252,7 @@ test('prescribedDuration times a step with no Discipline of its own as the Worko
 	const thresholds = { run: runProfile }
 	expect(prescribedDuration(blocks, { thresholds })).toBeNull()
 	expect(prescribedDuration(blocks, { thresholds, discipline: 'run' })).toEqual(
-		{ seconds: 1200, complete: true },
+		{ seconds: 1200, complete: true, estimated: true },
 	)
 })
 

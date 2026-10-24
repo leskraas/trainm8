@@ -101,6 +101,12 @@ export type PrescribedDuration = {
 	seconds: number
 	/** Every step was timed. False when one was not and `seconds` falls short. */
 	complete: boolean
+	/**
+	 * Some distance step was timed through a pace, so `seconds` is a
+	 * translation and reads with `≈` (`approxLabel`), as a Lactate Anchor's
+	 * zone does.
+	 */
+	estimated: boolean
 }
 
 /**
@@ -120,6 +126,7 @@ export function prescribedDuration(
 	let seconds = 0
 	let timed = 0
 	let complete = true
+	let estimated = false
 
 	for (const block of blocks) {
 		for (const step of block.steps) {
@@ -129,13 +136,20 @@ export function prescribedDuration(
 				continue
 			}
 			timed++
+			if (step.durationSec == null) estimated = true
 			seconds += stepSec * blockRepeatTotal(block)
 		}
 		const series = Math.max(1, block.seriesRepeatCount ?? 1)
 		seconds += (block.betweenSeriesRestSec ?? 0) * (series - 1)
 	}
 
-	return timed > 0 ? { seconds, complete } : null
+	return timed > 0 ? { seconds, complete, estimated } : null
+}
+
+export type PlannedMinutes = {
+	minutes: number
+	/** Timed through a pace somewhere: reads `≈ 57 min`. */
+	estimated: boolean
 }
 
 /**
@@ -143,12 +157,25 @@ export function prescribedDuration(
  * timed: a total that leaves a step out is not the session's, so it is not
  * shown as if it were (the Week Pattern's rule, `fixedDayVolume`).
  */
+export function plannedMinutes(
+	blocks: readonly Block[],
+	reading: DurationReading,
+): PlannedMinutes | null {
+	const duration = prescribedDuration(blocks, reading)
+	return duration?.complete
+		? {
+				minutes: Math.round(duration.seconds / 60),
+				estimated: duration.estimated,
+			}
+		: null
+}
+
+/** {@link plannedMinutes}'s minutes alone, for a reader that states no `≈`. */
 export function sumBlockDurationMin(
 	blocks: readonly Block[],
 	reading: DurationReading,
 ): number | null {
-	const duration = prescribedDuration(blocks, reading)
-	return duration?.complete ? Math.round(duration.seconds / 60) : null
+	return plannedMinutes(blocks, reading)?.minutes ?? null
 }
 
 type DistanceBlock = {

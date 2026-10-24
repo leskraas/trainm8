@@ -29,7 +29,11 @@ import {
 } from '#app/utils/effort-word.ts'
 import { formatNbDayMonth, formatNbWeekday } from '#app/utils/format.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
-import { CALM_TODAY_LABELS as L, nbDurationLabel } from '#app/utils/labels.ts'
+import {
+	approxLabel,
+	CALM_TODAY_LABELS as L,
+	nbDurationLabel,
+} from '#app/utils/labels.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -158,9 +162,10 @@ export function buildCalmToday({
 	const byId = new Map(ledger.map((session) => [session.id, session]))
 	const toCalm = (session: TimelineSession, dayKey: string): CalmSession => {
 		const source = byId.get(session.id)
-		const minutes = source
-			? toSessionLedgerEntry(source, now, timezone, thresholds).durationMin
+		const entry = source
+			? toSessionLedgerEntry(source, now, timezone, thresholds)
 			: null
+		const minutes = entry?.durationMin ?? null
 		const effort = source ? readEffortWord(source.workout, thresholds) : null
 		return {
 			id: session.id,
@@ -170,9 +175,13 @@ export function buildCalmToday({
 			discipline: session.discipline,
 			disciplineLabel: session.disciplineLabel,
 			status: session.status,
+			// Minutes timed through a pace read `≈ 57 min`, as on the row (#638).
 			durationLabel:
 				minutes != null && minutes > 0
-					? nbDurationLabel(Math.round(minutes) * 60)
+					? approxLabel(
+							nbDurationLabel(Math.round(minutes) * 60),
+							entry?.durationEstimated ?? false,
+						)
 					: null,
 			effort,
 			// A title that already says how hard (`Rolig løpetur`, `45 min

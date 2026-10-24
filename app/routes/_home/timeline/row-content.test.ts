@@ -686,6 +686,19 @@ describe('rule 7: planned rows are instructions', () => {
 		expect(content.internalLoad).toBe('9 km i 5:25–5:40 /km · under 145 bpm')
 	})
 
+	test('minutes timed through a pace read with ≈, a translation (#638)', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([step({ distanceM: 9000, intensity: pace(325, 340) })]),
+				]),
+			),
+			PLANNED_WEEK,
+		)
+		// 9 km at the middle of 5:25–5:40 /km is about 50 minutes.
+		expect(content.externalLoad).toBe('≈ 50 min · 42 TSS planlagt')
+	})
+
 	test('a repeated block multiplies both the duration and the distance', () => {
 		const content = buildRowContent(
 			plannedRow(

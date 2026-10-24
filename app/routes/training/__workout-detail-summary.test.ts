@@ -110,7 +110,8 @@ test('a distance rep is timed through its pace, so the session keeps its time (#
 			],
 		},
 	})
-	expect(summary.map((f) => f.text)).toContain('56 min')
+	// Timed through a pace, the minutes are a translation (#638).
+	expect(summary.map((f) => f.text)).toContain('≈ 56 min')
 })
 
 test('the rests between series count toward the time (#615)', () => {
