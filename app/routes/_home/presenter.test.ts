@@ -773,8 +773,10 @@ describe('buildLoadRecomputeLine', () => {
 		// The movement is spelled out in the same rounded units the triad shows,
 		// and hedged to "up to … at the widest point" because the stored pair is
 		// the day CTL moved most — which for a past gym block is not today.
+		// The size is the gap between the two rounded figures it prints, so the
+		// line agrees with itself: 62.4 → 47.8 is "14 — 62 → 48", never "15".
 		expect(line!.movement).toBe(
-			'Kondisjonen falt med opptil 15 — 62 → 48 på det meste',
+			'Kondisjonen falt med opptil 14 — 62 → 48 på det meste',
 		)
 		// Why, in the athlete's terms — and the reassurance that this is the app
 		// correcting itself, not their training slipping.
@@ -796,6 +798,56 @@ describe('buildLoadRecomputeLine', () => {
 		// No pointer to that surface. ("mixing the two" is the copy describing what
 		// it stopped doing, which is the opposite of a recommendation.)
 		expect(line!.explanation).not.toMatch(/fordeling|discipline mix/i)
+	})
+
+	test('a correction that raised CTL says it rose (ADR 0107 §3)', () => {
+		const line = buildLoadRecomputeLine({
+			kind: 'swim-rest-left-the-pace',
+			ctlBefore: 41.2,
+			ctlAfter: 44.6,
+		})
+		expect(line).not.toBeNull()
+		expect(line!.movement).toBe(
+			'Kondisjonen steg med opptil 4 — 41 → 45 på det meste',
+		)
+		expect(line!.movement).not.toMatch(/falt/)
+	})
+
+	test('the swim correction names the rest at the wall and the file it read', () => {
+		const line = buildLoadRecomputeLine({
+			kind: 'swim-rest-left-the-pace',
+			ctlBefore: 41.2,
+			ctlAfter: 44.6,
+		})
+		expect(line!.kicker).toBe('Svømmeøktene er regnet ut på nytt')
+		expect(line!.explanation).toMatch(/pausene ved kanten/i)
+		expect(line!.explanation).toMatch(/bare lengdene du svømte/i)
+		expect(line!.explanation).toMatch(/treningen din er den samme/i)
+		expect(line!.kind).toBe('swim-rest-left-the-pace')
+	})
+
+	test('a huge movement is printed whole, in the units the triad shows', () => {
+		const line = buildLoadRecomputeLine({
+			kind: 'swim-rest-left-the-pace',
+			ctlBefore: 0.4,
+			ctlAfter: 1234.6,
+		})
+		expect(line!.movement).toBe(
+			'Kondisjonen steg med opptil 1235 — 0 → 1235 på det meste',
+		)
+	})
+
+	test('a movement the triad cannot show is left out, never "0 — 3 → 3"', () => {
+		// The swim notice is owed for the pace even when CTL barely moved (ADR
+		// 0107 §2); the line then says why, and names no movement.
+		const line = buildLoadRecomputeLine({
+			kind: 'swim-rest-left-the-pace',
+			ctlBefore: 3.1,
+			ctlAfter: 3.4,
+		})
+		expect(line).not.toBeNull()
+		expect(line!.movement).toBeNull()
+		expect(line!.explanation).toMatch(/bare lengdene du svømte/i)
 	})
 
 	test('renders nothing when there is no notice', () => {

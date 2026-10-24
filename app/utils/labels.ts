@@ -2626,12 +2626,33 @@ export const RECOMPUTE_NOTICE_LABELS = {
 			explanation:
 				'Styrkeøkter teller ikke lenger med i kondisjon, tretthet og form. Det finnes ingen ærlig måte å prise en styrkeøkt i samme enhet som en utholdenhetsøkt, så de tre tallene gjelder nå bare utholdenhet — og sier det. Treningen din er den samme; det som er endret, er hva tallene påstår å måle.',
 		},
+		/**
+		 * A pool swim read from the watch's own FIT counted its rest at the wall
+		 * as swimming (#628, ADR 0107). It says "the watch's own file" because
+		 * only those swims moved: a Strava or Intervals.icu swim's pace is the
+		 * provider's moving time, which this correction never touched.
+		 */
+		'swim-rest-left-the-pace': {
+			kicker: 'Svømmeøktene er regnet ut på nytt',
+			explanation:
+				'Når vi leste en bassengøkt fra klokkens egen fil, talte pausene ved kanten som svømming. Da ble tempoet lest for sakte og belastningen for lav. Nå teller bare lengdene du svømte. Treningen din er den samme; det som er endret, er at tallene måler den riktig.',
+		},
 	} satisfies Record<
 		LoadRecomputeKind,
 		{ kicker: string; explanation: string }
 	>,
-	movement: (drop: string, before: string, after: string) =>
-		`Kondisjonen falt med opptil ${drop} — ${before} → ${after} på det meste`,
+	/**
+	 * The movement, the way it went: a correction can lower CTL (strength
+	 * leaving the triad) or raise it (a swim's rest leaving its pace, ADR 0107).
+	 * `size` is the gap between the two rounded figures it prints.
+	 */
+	movement: (
+		direction: 'rose' | 'fell',
+		size: string,
+		before: string,
+		after: string,
+	) =>
+		`Kondisjonen ${direction === 'rose' ? 'steg' : 'falt'} med opptil ${size} — ${before} → ${after} på det meste`,
 	gotIt: 'Skjønner',
 } as const
 

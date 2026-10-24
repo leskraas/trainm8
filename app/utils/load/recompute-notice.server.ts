@@ -49,6 +49,20 @@ export async function recordLoadRecomputeNotice(input: {
 	}
 }
 
+/**
+ * The athlete's stored CTL by date: a recompute reads it on either side to find
+ * the movement it caused (`widestCtlMovement`).
+ */
+export async function readCtlByDate(
+	athleteId: string,
+): Promise<Map<string, number>> {
+	const rows = await prisma.loadSnapshot.findMany({
+		where: { athleteId },
+		select: { date: true, ctl: true },
+	})
+	return new Map(rows.map((r) => [r.date, r.ctl]))
+}
+
 /** The athlete's outstanding notice for the Dashboard, or null. */
 export async function getLoadRecomputeNotice(
 	athleteId: string,
