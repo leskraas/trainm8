@@ -32,6 +32,7 @@ import {
 	getOrCreateAthleteProfile,
 	updateAthleteProfile,
 } from '#app/utils/athlete.server.ts'
+import { deleteAccount } from '#app/utils/account-deletion.server.ts'
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -781,7 +782,9 @@ function SignOutOfSessions({
 }
 
 async function deleteDataAction({ userId }: ProfileActionArgs) {
-	await prisma.user.delete({ where: { id: userId } })
+	// Never a bare `prisma.user.delete`: `Workout.ownerId` is `SetNull`, so that
+	// would leave every Workout the athlete wrote behind as an orphan (#468).
+	await deleteAccount(userId)
 	return redirectWithToast('/', {
 		type: 'success',
 		title: MEG_PROFILE_LABELS.deletedTitle,

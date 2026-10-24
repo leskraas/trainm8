@@ -595,3 +595,41 @@ test('a retired row cannot be placed, and a malformed date is refused before any
 		await prisma.workoutSession.count({ where: { userId: athlete.id } }),
 	).toBe(0)
 })
+
+test('a published row whose author deleted their account is readable by nobody (#468)', async () => {
+	const reader = await createAthlete()
+	const author = await createAthlete()
+	const shared = await createSharedWorkout(author.id, 'a session left behind')
+	await createCatalogueEntry(shared.id, { archetype: 'threshold' })
+	expect(
+		(await listCatalogue({ viewerId: reader.id })).map((e) => e.workoutId),
+	).toContain(shared.id)
+
+	// The account goes the raw way — `onDelete: SetNull` — which is how every
+	// orphan that predates the account-deletion purge came to exist. The read
+	// path has to hold on its own, whatever the purge did or did not reach.
+	await prisma.user.delete({ where: { id: author.id } })
+	expect(
+		await prisma.workout.findUniqueOrThrow({
+			where: { id: shared.id },
+			select: { ownerId: true, visibility: true },
+		}),
+	).toEqual({ ownerId: null, visibility: 'public' })
+
+	expect(
+		(await listCatalogue({ viewerId: reader.id })).map((e) => e.workoutId),
+	).not.toContain(shared.id)
+	expect(
+		(await listCatalogue({ viewerId: reader.id, tier: 'community' })).map(
+			(e) => e.workoutId,
+		),
+	).not.toContain(shared.id)
+	expect(await readRetrievableEntry(reader.id, shared.id)).toBeNull()
+	expect(
+		await placeCatalogueSession({
+			athleteId: reader.id,
+			workoutId: shared.id,
+			date: '2026-09-01',
+		}),
+	).toEqual({ ok: false, reason: 'not-retrievable' })
+})
