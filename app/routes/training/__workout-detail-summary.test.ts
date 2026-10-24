@@ -60,7 +60,10 @@ test('a planned run in a km track leads with its km, then its time', () => {
 	const summary = buildSessionSummary({
 		...base,
 		currency: 'km',
-		workout: run([{ distanceM: 2000, durationSec: 600 }, { distanceM: 8000, durationSec: 2400 }]),
+		workout: run([
+			{ distanceM: 2000, durationSec: 600 },
+			{ distanceM: 8000, durationSec: 2400 },
+		]),
 	})
 	expect(summary.map((f) => f.text)).toEqual(['10 km', '50 min'])
 	expect(summary[0]!.unit).toBe('km')
@@ -80,7 +83,10 @@ test('repeats count once per round, and a rest with no distance does not hide th
 		...base,
 		currency: 'km',
 		workout: run(
-			[{ distanceM: 1000, durationSec: 240 }, { kind: 'rest', durationSec: 90 }],
+			[
+				{ distanceM: 1000, durationSec: 240 },
+				{ kind: 'rest', durationSec: 90 },
+			],
 			6,
 		),
 	})
@@ -163,7 +169,11 @@ test('a lift leads with its sets, then how many lifts and the heaviest prescribe
 			{ exerciseId: 'row', sets: 5, kg: 60 },
 		]),
 	})
-	expect(summary.map((f) => f.text)).toEqual(['15 sett', '3 løft', 'opptil 82,5 kg'])
+	expect(summary.map((f) => f.text)).toEqual([
+		'15 sett',
+		'3 løft',
+		'opptil 82,5 kg',
+	])
 	expect(summary[0]!.unit).toBe('sets')
 })
 

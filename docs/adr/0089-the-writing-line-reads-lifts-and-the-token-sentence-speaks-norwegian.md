@@ -113,8 +113,8 @@ in Norwegian where it is an English word (`easy` → _Rolig_, `threshold` →
 _Terskel_); a zone code (`Z2`, `I4`) and a Norwegian word pass through as
 stored.
 
-> **Amended by [#627](https://github.com/leskraas/trainm8/issues/627) (map
-> #600, decided in #607 D5): a zone the app writes is stored as its word.** The
+> **Amended by [#627](https://github.com/leskraas/trainm8/issues/627) (map #600,
+> decided in #607 D5): a zone the app writes is stored as its word.** The
 > writing line, the day stamp and an eased session store a zone as its canonical
 > Norwegian word (`lett`, `rolig`, `moderat`, `terskel`, `hardt`, from
 > `zones/words.ts`), never as a canonical code. A code is a recipe's band label:

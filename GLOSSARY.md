@@ -275,19 +275,18 @@ discipline, intensity, and quantity. _Avoid_: Interval, action
 
 **Workout Reading**: The one derived account of what a session is: its
 **Executed Steps** in order, its totals, its zone, its effort and its headline
-target. It is read from a planned Workout or a recording's intervals, with
-the athlete's thresholds, every time it is needed, and it is never stored. Every
-number in it is a value with its provenance or an **Unavailable Metric** with
-a reason, and it never takes a zone from the session's intent. A total that
-misses a step is an honest lower bound (_≥ 34 min_), not a guess. _Avoid_:
-Profile, summary, parsed workout
+target. It is read from a planned Workout or a recording's intervals, with the
+athlete's thresholds, every time it is needed, and it is never stored. Every
+number in it is a value with its provenance or an **Unavailable Metric** with a
+reason, and it never takes a zone from the session's intent. A total that misses
+a step is an honest lower bound (_≥ 34 min_), not a guess. _Avoid_: Profile,
+summary, parsed workout
 
 **Executed Step**: One step as it happens, in order, inside a **Workout
 Reading**: a Step on one rep of one series, or a rest the Block implies without
-writing it down (the rest between series, the rest left over in a
-**Send-Off**). It is what the drawing draws and what planned vs done is mapped
-on, identified by its Step, its rep and its slot. _Avoid_: Bar, expanded step,
-segment
+writing it down (the rest between series, the rest left over in a **Send-Off**).
+It is what the drawing draws and what planned vs done is mapped on, identified
+by its Step, its rep and its slot. _Avoid_: Bar, expanded step, segment
 
 **Step Role**: What an **Executed Step** is for in its session: _warm-up_,
 _work_, _recovery_, _cool-down_ or _steady_. It is read from the block's name
@@ -352,8 +351,8 @@ writing line's typed zone, the day stamp, an eased session — is stored as its
 canonical Norwegian zone word (_lett_, _rolig_, _moderat_, _terskel_, _hardt_),
 never as a zone code: a code such as `Z2` is a recipe's band label and names a
 different zone on another recipe (Stryd's `Z2` is zone 3). `easy` is zone 2, as
-the Daniels band of that name declares. A stored label is never rewritten
-(ADR 0089, amended by #627). _Avoid_: Zone target, effort
+the Daniels band of that name declares. A stored label is never rewritten (ADR
+0089, amended by #627). _Avoid_: Zone target, effort
 
 **Lactate Anchor**: A prescription in **blood lactate** (mmol·L⁻¹) — the
 Norwegian sub-threshold tradition's defining parameter, and the arm of the
@@ -2118,11 +2117,11 @@ Gjort (that is for cardio, whose numbers an import brings).
 **Auto-Save Mirror**: An **Activity Import** the athlete has not built anything
 on — its recording-only session is still structureless, carries no **Session
 Log**, and has no **Activity Intervals** of the athlete's own. This is the line
-ADR 0012's source-side rules now use in place of "non-promoted", which
-Auto-Save made vacuous (ADR 0049): a mirror still tracks its source, so a
-provider `update` refreshes it and a provider `delete` removes it along with its
-session. Anything else is training history and is immutable to source-side
-changes. _Avoid_: unpromoted import, inbox copy, draft.
+ADR 0012's source-side rules now use in place of "non-promoted", which Auto-Save
+made vacuous (ADR 0049): a mirror still tracks its source, so a provider
+`update` refreshes it and a provider `delete` removes it along with its session.
+Anything else is training history and is immutable to source-side changes.
+_Avoid_: unpromoted import, inbox copy, draft.
 
 **Structure Detection**: The rule-based (no AI) reconstruction of a run or bike
 **Activity Import**'s workout structure — warmup, repeated efforts, cooldown —
@@ -3000,9 +2999,8 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   (#460).
 - An **Activity Import** has many **Activity Intervals**, cascade-deleted with
   it like the **Activity Stream**, in up to three sets: the device's, the
-  **Structure Detection**'s (replaced whenever detection runs) and the
-  athlete's (changed only by the athlete). Re-detection never touches the
-  athlete's set.
+  **Structure Detection**'s (replaced whenever detection runs) and the athlete's
+  (changed only by the athlete). Re-detection never touches the athlete's set.
 - Every **Workout** — `authored`, `generated`, `recorded`, or `detected` — is
   created with **visibility** `private`; an auto-materialized `detected`
   **Workout** is private exactly like every other, so it is out of the

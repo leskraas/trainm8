@@ -33,10 +33,7 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { type ActivityStream, isNum } from '#app/utils/activity-stream.ts'
-import {
-	formatClockDuration,
-	formatPace,
-} from '#app/utils/format.ts'
+import { formatClockDuration, formatPace } from '#app/utils/format.ts'
 import {
 	resolveStepRange,
 	type DisciplineThresholdMap,
@@ -350,8 +347,8 @@ function targetAt(model: TelemetryModel, i: number): PlannedSegment['target'] {
 	if (model.totalSec <= 0) return null
 	const frac = (model.time[i] ?? 0) / model.totalSec
 	return (
-		model.bands.find((b) => frac >= b.startFrac && frac <= b.endFrac)
-			?.target ?? null
+		model.bands.find((b) => frac >= b.startFrac && frac <= b.endFrac)?.target ??
+		null
 	)
 }
 
@@ -582,8 +579,7 @@ const StaticMarks = memo(function StaticMarks({
 	baselineY: number
 }) {
 	const { time, totalSec, channels, bands, bandChannel, pauseRuns } = model
-	const x = (sec: number) =>
-		left + (totalSec > 0 ? sec / totalSec : 0) * plotW
+	const x = (sec: number) => left + (totalSec > 0 ? sec / totalSec : 0) * plotW
 	const xFrac = (frac: number) => left + frac * plotW
 	const scales = buildScales(channels, bands, bandChannel, baselineY, plotH)
 	const bandIdx = channels.findIndex((c) => c.key === bandChannel)
@@ -682,8 +678,7 @@ function Crosshair({
 	const { padding, plotW, plotH } = geom
 	const x =
 		padding.left +
-		(model.totalSec > 0 ? (model.time[index] ?? 0) / model.totalSec : 0) *
-			plotW
+		(model.totalSec > 0 ? (model.time[index] ?? 0) / model.totalSec : 0) * plotW
 	return (
 		<line
 			x1={x}

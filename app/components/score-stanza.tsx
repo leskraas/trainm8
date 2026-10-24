@@ -316,7 +316,7 @@ function Token({ token }: { token: NotationToken }) {
 			return (
 				<span
 					data-token-type="notes"
-					className="text-muted-foreground min-w-0 whitespace-normal italic [overflow-wrap:anywhere]"
+					className="text-muted-foreground min-w-0 [overflow-wrap:anywhere] whitespace-normal italic"
 				>
 					“{token.note}”
 				</span>
