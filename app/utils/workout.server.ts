@@ -80,7 +80,8 @@ function buildStepCreate(step: WorkoutStep, stepIndex: number) {
 			durationSec: step.durationSec ?? null,
 			distanceM: step.distanceM ?? null,
 			verticalM: step.verticalM ?? null,
-			gradePct: step.gradePct ?? null,
+			gradePctMin: step.gradePctMin ?? null,
+			gradePctMax: step.gradePctMax ?? null,
 			cadenceRpmMin: step.cadenceRpmMin ?? null,
 			cadenceRpmMax: step.cadenceRpmMax ?? null,
 			notes: step.notes ?? null,
@@ -182,7 +183,8 @@ export const workoutCopySelect = {
 					durationSec: true,
 					distanceM: true,
 					verticalM: true,
-					gradePct: true,
+					gradePctMin: true,
+					gradePctMax: true,
 					cadenceRpmMin: true,
 					cadenceRpmMax: true,
 					rest: true,
@@ -251,7 +253,8 @@ export function buildBlocksCopy(blocks: CopyableWorkout['blocks']) {
 				durationSec: step.durationSec,
 				distanceM: step.distanceM,
 				verticalM: step.verticalM,
-				gradePct: step.gradePct,
+				gradePctMin: step.gradePctMin,
+				gradePctMax: step.gradePctMax,
 				cadenceRpmMin: step.cadenceRpmMin,
 				cadenceRpmMax: step.cadenceRpmMax,
 				rest: step.rest,
@@ -865,13 +868,28 @@ type FingerprintStep = {
 	durationSec?: number | null
 	distanceM?: number | null
 	verticalM?: number | null
-	gradePct?: number | null
+	gradePctMin?: number | null
+	gradePctMax?: number | null
 	cadenceRpmMin?: number | null
 	cadenceRpmMax?: number | null
 	rest?: string | null
 	exerciseId?: string | null
 	restBetweenSetsSec?: number | null
 	sets?: { create: readonly FingerprintSet[] }
+}
+
+/**
+ * A grade band as one fingerprint slot. A band whose ends agree — every grade
+ * stored before #466, which the migration copied to both ends, and every step
+ * with no grade — reads as the single number the old scalar column did, so a
+ * fingerprint a Juster image stored before the migration still matches the
+ * row it describes and its undo is not refused as `changed`. Only a true band
+ * takes the pair.
+ */
+function gradeFingerprint(step: FingerprintStep) {
+	const min = step.gradePctMin ?? null
+	const max = step.gradePctMax ?? null
+	return min === max ? min : [min, max]
 }
 
 type FingerprintBlock = {
@@ -901,7 +919,7 @@ export function prescriptionFingerprint(
 				step.durationSec ?? null,
 				step.distanceM ?? null,
 				step.verticalM ?? null,
-				step.gradePct ?? null,
+				gradeFingerprint(step),
 				step.cadenceRpmMin ?? null,
 				step.cadenceRpmMax ?? null,
 				step.rest ?? null,

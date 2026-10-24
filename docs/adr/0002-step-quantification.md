@@ -10,6 +10,15 @@
 > lands on `WorkoutBlock` under ADR 0007. The original decision and its rejected
 > options are unchanged below; this note says what the shape grew.
 
+> **Amended (#466): grade is a band.** `gradePct Float?` became
+> `gradePctMin Float?` / `gradePctMax Float?`, the pair cadence already had.
+> Every hill row in the research states a band (`6–10 %`, `4–7 %`, a controlled
+> `3–6 %` descent), so a scalar could only hold a midpoint nobody prescribed and
+> the column stayed null across the seeded corpus. The band is signed and runs
+> low to high (a 3–6 % descent is `−6..−3`); a single grade states both ends
+> equal, and the migration copied every stored scalar to both ends, so no number
+> moved. Where this ADR says `gradePct` below, read the band.
+
 Each WorkoutStep may carry an optional **Step Quantity**: a Step Duration (in
 seconds), a Step Distance (in meters), or a **Step Vertical** (in metres of
 climb) — never more than one. All three are optional: an unquantified step is

@@ -293,8 +293,10 @@ export type NotationStep = {
 	distanceM?: number | null
 	/** The third Step Quantity (ADR 0002) — metres of climb. */
 	verticalM?: number | null
-	/** Step Parameters, which are not quantities and coexist with one. */
-	gradePct?: number | null
+	/** Step Parameters, which are not quantities and coexist with one. Grade
+	 * is a signed band, like cadence; a single grade states both ends equal. */
+	gradePctMin?: number | null
+	gradePctMax?: number | null
 	cadenceRpmMin?: number | null
 	cadenceRpmMax?: number | null
 	/** A rest step's authored form (ADR 0007). `durationSec` above stays the
@@ -377,7 +379,8 @@ type PersistedStep = {
 	durationSec?: number | null
 	distanceM?: number | null
 	verticalM?: number | null
-	gradePct?: number | null
+	gradePctMin?: number | null
+	gradePctMax?: number | null
 	cadenceRpmMin?: number | null
 	cadenceRpmMax?: number | null
 	/** Stored Rest Spec JSON. */
@@ -476,7 +479,8 @@ export function workoutToNotationInput(
 						durationSec: step.durationSec,
 						distanceM: step.distanceM,
 						verticalM: step.verticalM,
-						gradePct: step.gradePct,
+						gradePctMin: step.gradePctMin,
+						gradePctMax: step.gradePctMax,
 						cadenceRpmMin: step.cadenceRpmMin,
 						cadenceRpmMax: step.cadenceRpmMax,
 						rest: parseStoredJson(RestSpecSchema, step.rest),
@@ -708,7 +712,8 @@ export function notationInputToWorkout(
 				durationSec: step.durationSec ?? null,
 				distanceM: step.distanceM ?? null,
 				verticalM: step.verticalM ?? null,
-				gradePct: step.gradePct ?? null,
+				gradePctMin: step.gradePctMin ?? null,
+				gradePctMax: step.gradePctMax ?? null,
 				cadenceRpmMin: step.cadenceRpmMin ?? null,
 				cadenceRpmMax: step.cadenceRpmMax ?? null,
 				rest: step.rest ? JSON.stringify(step.rest) : null,
