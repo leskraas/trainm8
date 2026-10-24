@@ -1437,7 +1437,7 @@ export const QUICK_LOG_REFUSAL_LABELS: Record<QuickLogRefusal, string> = {
 	'unknown-set':
 		'Ett av settene finnes ikke i planen lenger. Last siden på nytt.',
 	'nothing-done': 'Ingen sett er merket som gjort. Skriv inn minst ett.',
-	'bad-weight': 'Skriv vekta som kilo over 0, høyst 500, for eksempel 82,5.',
+	'bad-weight': QUICK_LOG_LABELS.weightInvalid,
 	'weight-not-editable':
 		'Vekta på ett av løftene kan ikke endres her. Last siden på nytt.',
 }

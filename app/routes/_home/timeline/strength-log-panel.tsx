@@ -409,7 +409,7 @@ function WeightStepper({
 	const errorId = `${name}-kg-error`
 	return (
 		<div className="flex flex-col gap-1">
-			<div className="flex items-center gap-2">
+			<div className="flex flex-wrap items-center gap-2">
 				<input type="hidden" name={`${name}.stepId`} value={stepId} />
 				<input type="hidden" name={`${name}.kg`} value={changed ? text : ''} />
 				<Button
@@ -430,9 +430,15 @@ function WeightStepper({
 						inputMode="decimal"
 						autoComplete="off"
 						aria-label={QUICK_LOG_LABELS.weightFor(lift)}
-						aria-invalid={errors?.length ? true : undefined}
+						aria-invalid={
+							errors?.length || (text.trim() !== '' && kg == null)
+								? true
+								: undefined
+						}
 						aria-describedby={errors?.length ? errorId : undefined}
 						value={text}
+						placeholder={formatNbKg(planned)}
+						onFocus={(event) => event.currentTarget.select()}
 						onChange={(event) => setText(event.target.value)}
 						className="bg-background w-24 pr-8 pl-2 text-center text-[16px] tabular-nums md:text-[16px]"
 					/>
