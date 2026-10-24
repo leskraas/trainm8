@@ -503,6 +503,7 @@ export function buildTimelineSeason({
 	timezone = 'UTC',
 	activePlan = null,
 	importConnected = false,
+	thresholds = {},
 }: {
 	ledger: LedgerSession[]
 	now?: Date
@@ -513,6 +514,8 @@ export function buildTimelineSeason({
 	 * session with no numbers may say they are on their way (#505 story 82).
 	 */
 	importConnected?: boolean
+	/** What a planned row's pace, watts and heart rate resolve against (#616). */
+	thresholds?: DisciplineThresholdMap
 }): TimelineSeason {
 	const todayKey = localDate(now, timezone)
 	const nowMonday = weekMonday(now, timezone)
@@ -614,6 +617,7 @@ export function buildTimelineSeason({
 			far: monday > farAfter,
 			fillsWeeks: activePlan?.fillsWeeks ?? false,
 			importFacts,
+			thresholds,
 		}),
 	)
 
@@ -845,6 +849,7 @@ function buildWeek({
 	far,
 	fillsWeeks,
 	importFacts,
+	thresholds,
 }: {
 	monday: string
 	rows: SessionRow[]
@@ -867,6 +872,7 @@ function buildWeek({
 	/** Whether the week change will fill a week once the horizon reaches it. */
 	fillsWeeks: boolean
 	importFacts: ReadonlyMap<string, TimelineImportFacts>
+	thresholds: DisciplineThresholdMap
 }): TimelineWeek {
 	const isNow = monday === nowMonday
 	const start = dayBoundsUTC(monday, timezone).start
@@ -904,6 +910,7 @@ function buildWeek({
 				trackDisciplines,
 				trackCurrencies,
 				importFacts,
+				thresholds,
 			}),
 		)
 	const volumes = buildWeekVolumes({
@@ -1070,6 +1077,7 @@ function buildDay({
 	trackDisciplines,
 	trackCurrencies,
 	importFacts,
+	thresholds,
 }: {
 	key: string
 	rows: SessionRow[]
@@ -1082,6 +1090,7 @@ function buildDay({
 	trackDisciplines: ReadonlySet<string>
 	trackCurrencies: ReadonlyMap<string, VolumeCurrency>
 	importFacts: ReadonlyMap<string, TimelineImportFacts>
+	thresholds: DisciplineThresholdMap
 }): TimelineDay {
 	const isToday = key === todayKey
 	const midday = middayOf(key, timezone)
@@ -1110,6 +1119,7 @@ function buildDay({
 				trackCurrencies,
 				imports: importFacts.get(row.session.id) ?? NO_IMPORT_FACTS,
 				strengthLog: strengthLogOf(row, { timezone, todayKey }),
+				thresholds,
 			}),
 		),
 	}
@@ -1134,6 +1144,7 @@ function buildSession({
 	trackCurrencies,
 	imports,
 	strengthLog,
+	thresholds,
 }: {
 	row: SessionRow
 	week: RowWeekContext
@@ -1144,9 +1155,10 @@ function buildSession({
 	trackCurrencies: ReadonlyMap<string, VolumeCurrency>
 	imports: TimelineImportFacts
 	strengthLog: TimelineStrengthLog | null
+	thresholds: DisciplineThresholdMap
 }): TimelineSession {
 	const { session, entry } = row
-	const content = buildRowContent(row, week, { isToday })
+	const content = buildRowContent(row, week, { isToday, thresholds })
 	const owner = sessionOwner(session)
 	return {
 		id: session.id,

@@ -768,11 +768,25 @@ test('a planned row is an instruction: line 1 ends in "planned", line 2 is the t
 						activityKind: null,
 						effortWord: null,
 						blocks: blocks([
+							// Authored targets, resolved on read (#616): the cached range
+							// columns stay empty on a session made since thresholds changed.
 							step({
-								durationSec: 3000,
-								intensityPaceMin: 325,
-								intensityPaceMax: 340,
-								intensityHrMax: 145,
+								durationSec: 1500,
+								intensity: JSON.stringify({
+									kind: 'pace',
+									minSecPerKm: 325,
+									maxSecPerKm: 340,
+								}),
+							}),
+							step({
+								id: 'step-2',
+								orderIndex: 1,
+								durationSec: 1500,
+								intensity: JSON.stringify({
+									kind: 'hrBpm',
+									min: 120,
+									max: 145,
+								}),
 							}),
 						]),
 					},

@@ -499,6 +499,31 @@ export function parseAuthoredIntensity(
 	return label ? { kind: 'zoneLabel', label } : null
 }
 
+/**
+ * A step's concrete range, resolved from what it authors against the athlete's
+ * thresholds **now** — empty when it authors nothing a threshold can resolve.
+ *
+ * The readers that draw a target (I dag's row, the telemetry overlay) resolve
+ * here rather than reading the cached `intensity*` columns: those are written
+ * only when a threshold changes, so a session made since has none (#616).
+ * Planned TSS bypasses the cache for the same reason. A step with no discipline
+ * of its own is the workout's.
+ */
+export function resolveStepRange(
+	step: { kind: string; discipline?: string | null; intensity?: string | null },
+	workoutDiscipline: string,
+	thresholds: DisciplineThresholdMap = {},
+): ResolvedIntensity {
+	if (step.kind !== 'cardio') return {}
+	const target = parseAuthoredIntensity(step.intensity)
+	if (!target) return {}
+	const resolved = resolveIntensity(
+		target,
+		thresholds[step.discipline ?? workoutDiscipline] ?? EMPTY_PROFILE,
+	)
+	return resolved.unavailable ? {} : resolved
+}
+
 type StepForTarget = {
 	kind: string
 	discipline?: string | null

@@ -449,8 +449,13 @@ function makeBikeWorkoutWithPowerTarget(): NonNullable<
 						notes: '12 min at threshold',
 						orderIndex: 0,
 						durationSec: 720,
-						intensityPowerMin: 238,
-						intensityPowerMax: 263,
+						// Authored only: its cached range columns are empty, as they
+						// are on every session made since the last threshold change.
+						intensity: JSON.stringify({
+							kind: 'powerPct',
+							minPct: 95,
+							maxPct: 105,
+						}),
 					},
 				],
 			},
@@ -476,14 +481,28 @@ test('completed session with a telemetry stream renders the overlay, not the una
 			},
 		}),
 	})
-	renderRoute(sessionDetailLoader(session))
+	renderRoute(
+		sessionDetailLoader(session, {
+			bike: {
+				lthr: null,
+				maxHr: null,
+				ftp: 250,
+				runPowerThresholdW: null,
+				thresholdPaceSecPerKm: null,
+				cssSecPer100m: null,
+				zoneSystem: null,
+				zoneOverrides: null,
+			},
+		}),
+	)
 
 	await screen.findByText(/Data fra opptaket over/)
 	// The honest placeholder is gone once a real stream exists.
 	expect(screen.queryByText('Ingen data over tid')).not.toBeInTheDocument()
 	// The overlay is not chart-only: a non-visual summary states the pause…
 	expect(screen.getByText(/pause vist som hull/i)).toBeInTheDocument()
-	// …and the planned power target, surfaced as text.
+	// …and the planned power target, resolved from the %FTP against today's
+	// thresholds and surfaced as text (#616).
 	expect(screen.getByText(/Planlagt watt: 238–263 W/)).toBeInTheDocument()
 	// The planned Workout Shape rail rides beneath the chart.
 	expect(screen.getByText('Planlagt form')).toBeInTheDocument()

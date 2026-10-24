@@ -1067,6 +1067,7 @@ export default function SessionDetailRoute({
 							<DeferredTelemetry
 								stream={session.recording.stream}
 								workout={session.workout}
+								thresholds={thresholds ?? {}}
 							/>
 						) : (
 							<TelemetryUnavailable />
@@ -1139,9 +1140,11 @@ function SummaryFigures({ figures }: { figures: SummaryFigure[] }) {
 function DeferredTelemetry({
 	stream,
 	workout,
+	thresholds,
 }: {
 	stream: ActivityStream
 	workout: SessionDetail['workout']
+	thresholds: DisciplineThresholdMap
 }) {
 	const placeholderRef = useRef<HTMLDivElement>(null)
 	const [mounted, setMounted] = useState(false)
@@ -1194,7 +1197,11 @@ function DeferredTelemetry({
 	if (!mounted) return placeholder
 	return (
 		<Suspense fallback={placeholder}>
-			<TelemetryOverlay stream={stream} workout={workout} />
+			<TelemetryOverlay
+				stream={stream}
+				workout={workout}
+				thresholds={thresholds}
+			/>
 		</Suspense>
 	)
 }

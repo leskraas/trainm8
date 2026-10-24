@@ -66,6 +66,10 @@ import {
 	formatTss,
 } from '#app/utils/format.ts'
 import {
+	resolveStepRange,
+	type DisciplineThresholdMap,
+} from '#app/utils/intensity-target.ts'
+import {
 	NB_ADHERENCE_CHIP_LABELS,
 	NB_LOAD_WORDS,
 	nbStoredReplanReason,
@@ -81,6 +85,7 @@ import {
 import { type LedgerSession } from '#app/utils/training.server.ts'
 import { type SessionLedgerEntry } from '#app/utils/training.ts'
 import { blockRepeatTotal } from '#app/utils/workout-schema.ts'
+import { type ResolvedIntensity } from '#app/utils/zones/index.ts'
 
 /** The separator between clauses on a row line — one middot, everywhere. */
 const CLAUSE = ' · '
@@ -135,7 +140,14 @@ export type RowContent = {
 export function buildRowContent(
 	row: SessionRow,
 	week: RowWeekContext,
-	{ isToday = false }: { isToday?: boolean } = {},
+	{
+		isToday = false,
+		thresholds = {},
+	}: {
+		isToday?: boolean
+		/** What a planned row's pace, watts and heart rate resolve against. */
+		thresholds?: DisciplineThresholdMap
+	} = {},
 ): RowContent {
 	const { session, entry } = row
 	const compliance = complianceChip({ session, entry, week, isToday })
@@ -173,6 +185,7 @@ export function buildRowContent(
 		internalLoad: internalLoad({
 			session,
 			entry,
+			thresholds,
 			// The band chip already prints the actual TSS. Where no band exists,
 			// line 2 is the only place the number can go — so it goes there, and
 			// exactly once either way.
@@ -424,10 +437,12 @@ function internalLoad({
 	session,
 	entry,
 	statesLoad,
+	thresholds,
 }: {
 	session: LedgerSession
 	entry: SessionLedgerEntry
 	statesLoad: boolean
+	thresholds: DisciplineThresholdMap
 }): string | null {
 	// A missed session has no cost to report. The block-level context the rule
 	// also wants ("second quality session missed in this block") needs the other
@@ -446,7 +461,7 @@ function internalLoad({
 	// 0015 §A): no pace, power or heart rate to hold, and the word is never
 	// read as a zone.
 	if (simple) return SIMPLE_ACTIVITY_LABELS.effort[simple.effortWord]
-	return plannedTargetLine(session, entry)
+	return plannedTargetLine(session, entry, thresholds)
 }
 
 /**
@@ -482,6 +497,7 @@ function liftingCostLine(entry: SessionLedgerEntry): string | null {
 function plannedTargetLine(
 	session: LedgerSession,
 	entry: SessionLedgerEntry,
+	thresholds: DisciplineThresholdMap,
 ): string | null {
 	const workout = session.workout
 	if (!workout) return null
@@ -491,19 +507,19 @@ function plannedTargetLine(
 		// own history, which nothing here has. The count is what is true.
 		return sets > 0 ? ROW_LABELS.sets(sets) : null
 	}
-	const steps = workout.blocks.flatMap((block) => block.steps)
+	// Resolved from what each step authors, never from the cached range columns
+	// (#616): those fill only on a threshold change.
+	const targets = workout.blocks
+		.flatMap((block) => block.steps)
+		.map((step) => resolveStepRange(step, workout.discipline, thresholds))
 	const distance = sumBlockDistanceM(workout.blocks)
-	const pace = paceWindow(steps, entry.discipline)
+	const pace = paceWindow(targets, entry.discipline)
 	const effort =
 		distance != null && pace
 			? ROW_LABELS.distanceAt(nbDistance(distance), pace)
 			: (pace ?? (distance != null ? nbDistance(distance) : null))
-	return clauses(effort, hrCeiling(steps))
+	return clauses(effort, hrCeiling(targets))
 }
-
-type PlannedStep = NonNullable<
-	LedgerSession['workout']
->['blocks'][number]['steps'][number]
 
 /**
  * The session's pace window, or nothing. Every step that authors a pace has to
@@ -511,41 +527,40 @@ type PlannedStep = NonNullable<
  * single pace, and printing one of the two would be picking a favourite. A
  * discipline whose intensity is not a pace gets no clause here at all.
  */
-function paceWindow(steps: PlannedStep[], discipline: string): string | null {
+function paceWindow(
+	steps: ResolvedIntensity[],
+	discipline: string,
+): string | null {
 	if (discipline === 'bike') return powerWindow(steps)
-	const authored = steps.filter((step) => step.intensityPaceMin != null)
+	const authored = steps.filter((step) => step.paceMin != null)
 	if (authored.length === 0) return null
 	const distinct = new Set(
-		authored.map(
-			(step) => `${step.intensityPaceMin}:${step.intensityPaceMax ?? ''}`,
-		),
+		authored.map((step) => `${step.paceMin}:${step.paceMax ?? ''}`),
 	)
 	if (distinct.size !== 1) return null
 	const step = authored[0]!
 	if (discipline === 'swim') {
 		// A swim's authored pace is seconds per hundred metres, so it must not be
 		// rendered by the per-kilometre formatter.
-		return step.intensityPaceMax != null
-			? `${formatPaceClock(step.intensityPaceMin!)}–${formatPaceClock(step.intensityPaceMax)} /100m`
-			: `${formatPaceClock(step.intensityPaceMin!)} /100m`
+		return step.paceMax != null
+			? `${formatPaceClock(step.paceMin!)}–${formatPaceClock(step.paceMax)} /100m`
+			: `${formatPaceClock(step.paceMin!)} /100m`
 	}
-	return formatPaceRange(step.intensityPaceMin!, step.intensityPaceMax)
+	return formatPaceRange(step.paceMin!, step.paceMax)
 }
 
 /** A ride's equivalent of the pace window, under the same agreement rule. */
-function powerWindow(steps: PlannedStep[]): string | null {
-	const authored = steps.filter((step) => step.intensityPowerMin != null)
+function powerWindow(steps: ResolvedIntensity[]): string | null {
+	const authored = steps.filter((step) => step.powerMin != null)
 	if (authored.length === 0) return null
 	const distinct = new Set(
-		authored.map(
-			(step) => `${step.intensityPowerMin}:${step.intensityPowerMax ?? ''}`,
-		),
+		authored.map((step) => `${step.powerMin}:${step.powerMax ?? ''}`),
 	)
 	if (distinct.size !== 1) return null
 	const step = authored[0]!
-	return step.intensityPowerMax != null
-		? `${step.intensityPowerMin}–${step.intensityPowerMax} W`
-		: `${step.intensityPowerMin} W`
+	return step.powerMax != null
+		? `${step.powerMin}–${step.powerMax} W`
+		: `${step.powerMin} W`
 }
 
 /**
@@ -554,9 +569,9 @@ function powerWindow(steps: PlannedStep[]): string | null {
  * the highest one — quoting the warm-up's 145 for a session whose reps allow
  * 172 would be a ceiling the athlete is meant to break.
  */
-function hrCeiling(steps: PlannedStep[]): string | null {
+function hrCeiling(steps: ResolvedIntensity[]): string | null {
 	const caps = steps
-		.map((step) => step.intensityHrMax)
+		.map((step) => step.hrMax)
 		.filter((cap): cap is number => cap != null)
 	if (caps.length === 0) return null
 	return ROW_LABELS.hrCeiling(Math.max(...caps))

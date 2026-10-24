@@ -37,6 +37,10 @@ import {
 	formatClockDuration,
 	formatPace,
 } from '#app/utils/format.ts'
+import {
+	resolveStepRange,
+	type DisciplineThresholdMap,
+} from '#app/utils/intensity-target.ts'
 import { nbDurationLabel, WORKOUT_DETAIL_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
@@ -62,23 +66,22 @@ type PlannedSegment = {
 	target: { min: number; max: number } | null
 }
 
+/** A step's target on `channel`, resolved from what it authors against the
+ * athlete's thresholds now — never the cached range columns, which fill only on
+ * a threshold change and so are empty on most new sessions (#616). */
 function resolveStepTarget(
 	step: Step,
+	workout: WorkoutDetail,
+	thresholds: DisciplineThresholdMap,
 	channel: BandChannel,
 ): { min: number; max: number } | null {
-	if (step.kind !== 'cardio') return null
+	const r = resolveStepRange(step, workout.discipline, thresholds)
 	if (channel === 'power') {
-		if (!isNum(step.intensityPowerMin)) return null
-		return {
-			min: step.intensityPowerMin,
-			max: step.intensityPowerMax ?? step.intensityPowerMin,
-		}
+		if (!isNum(r.powerMin)) return null
+		return { min: r.powerMin, max: r.powerMax ?? r.powerMin }
 	}
-	if (!isNum(step.intensityHrMin)) return null
-	return {
-		min: step.intensityHrMin,
-		max: step.intensityHrMax ?? step.intensityHrMin,
-	}
+	if (!isNum(r.hrMin)) return null
+	return { min: r.hrMin, max: r.hrMax ?? r.hrMin }
 }
 
 /**
@@ -90,6 +93,7 @@ function resolveStepTarget(
  */
 function buildPlannedSegments(
 	workout: WorkoutDetail | null,
+	thresholds: DisciplineThresholdMap,
 	channel: BandChannel | null,
 ): PlannedSegment[] {
 	const expanded = expandWorkoutSteps(workout)
@@ -103,7 +107,10 @@ function buildPlannedSegments(
 			id: e.id,
 			startFrac,
 			endFrac: cum / total,
-			target: channel ? resolveStepTarget(e.step, channel) : null,
+			target:
+				channel && workout
+					? resolveStepTarget(e.step, workout, thresholds, channel)
+					: null,
 		}
 	})
 }
@@ -113,10 +120,15 @@ function buildPlannedSegments(
 function pickBandChannel(
 	stream: ActivityStream,
 	workout: WorkoutDetail | null,
+	thresholds: DisciplineThresholdMap,
 ): BandChannel | null {
-	const expanded = expandWorkoutSteps(workout)
-	const hasPowerTarget = expanded.some((e) => isNum(e.step.intensityPowerMin))
-	const hasHrTarget = expanded.some((e) => isNum(e.step.intensityHrMin))
+	const targets = workout
+		? expandWorkoutSteps(workout).map((e) =>
+				resolveStepRange(e.step, workout.discipline, thresholds),
+			)
+		: []
+	const hasPowerTarget = targets.some((r) => isNum(r.powerMin))
+	const hasHrTarget = targets.some((r) => isNum(r.hrMin))
 	if ((stream.power?.some(isNum) ?? false) && hasPowerTarget) return 'power'
 	if ((stream.heartrate?.some(isNum) ?? false) && hasHrTarget)
 		return 'heartrate'
@@ -282,9 +294,10 @@ function buildScales(
 function useTelemetryModel(
 	stream: ActivityStream,
 	workout: WorkoutDetail | null,
+	thresholds: DisciplineThresholdMap,
 ) {
 	return useMemo(() => {
-		const bandChannel = pickBandChannel(stream, workout)
+		const bandChannel = pickBandChannel(stream, workout, thresholds)
 		const time = stream.timeSec
 		const totalSec = time[time.length - 1] ?? 0
 		// The channels actually carried, in a stable read order (effort first,
@@ -302,7 +315,9 @@ function useTelemetryModel(
 		).length
 		const bands =
 			bandChannel != null
-				? buildPlannedSegments(workout, bandChannel).filter((s) => s.target)
+				? buildPlannedSegments(workout, thresholds, bandChannel).filter(
+						(s) => s.target,
+					)
 				: []
 		const targetLabels = Array.from(
 			new Set(bands.map((b) => `${b.target!.min}–${b.target!.max}`)),
@@ -323,7 +338,7 @@ function useTelemetryModel(
 			paceRange: paceChannel?.range ?? null,
 			profile: deriveSessionProfile(workout),
 		}
-	}, [stream, workout])
+	}, [stream, workout, thresholds])
 }
 
 type TelemetryModel = ReturnType<typeof useTelemetryModel>
@@ -343,11 +358,14 @@ function targetAt(model: TelemetryModel, i: number): PlannedSegment['target'] {
 export default function TelemetryOverlay({
 	stream,
 	workout,
+	thresholds,
 }: {
 	stream: ActivityStream
 	workout: WorkoutDetail | null
+	/** What the plan's targets resolve against for their bands (#616). */
+	thresholds: DisciplineThresholdMap
 }) {
-	const model = useTelemetryModel(stream, workout)
+	const model = useTelemetryModel(stream, workout, thresholds)
 	const { time, totalSec, channels, bands, pauseCount, profile } = model
 
 	// The Chart Inspect controller scrubs sample-by-sample across the whole

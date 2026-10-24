@@ -194,8 +194,9 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 				timezone,
 				activePlan,
 				importConnected,
+				thresholds,
 			}),
-		[activePlan, importConnected, ledger, now, timezone],
+		[activePlan, importConnected, ledger, now, thresholds, timezone],
 	)
 	// What the hero used to say about today, now said in today's row: the
 	// session's action — only on today's own session — and the coach's line.
