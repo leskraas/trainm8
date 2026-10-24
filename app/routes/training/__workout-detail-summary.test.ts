@@ -87,6 +87,47 @@ test('repeats count once per round, and a rest with no distance does not hide th
 	expect(summary.map((f) => f.text)).toEqual(['6 km', '33 min'])
 })
 
+test('a distance rep is timed through its pace, so the session keeps its time (#615)', () => {
+	// `15 min Z2 + 6 × (1 km @ 3:40 + 90 s) + 10 min Z1`.
+	const pace = JSON.stringify({ kind: 'pace', minSecPerKm: 220 })
+	const reps = run([{ distanceM: 1000 }, { kind: 'rest', durationSec: 90 }], 6)
+	reps.blocks[0]!.steps[0]!.intensity = pace
+	const summary = buildSessionSummary({
+		...base,
+		currency: 'hours',
+		workout: {
+			blocks: [
+				run([{ durationSec: 900 }]).blocks[0]!,
+				reps.blocks[0]!,
+				run([{ durationSec: 600 }]).blocks[0]!,
+			],
+		},
+	})
+	expect(summary.map((f) => f.text)).toContain('56 min')
+})
+
+test('the rests between series count toward the time (#615)', () => {
+	const series = run(
+		[{ durationSec: 30 }, { kind: 'rest', durationSec: 15 }],
+		13,
+	)
+	const summary = buildSessionSummary({
+		...base,
+		currency: 'hours',
+		workout: {
+			blocks: [
+				{
+					...series.blocks[0]!,
+					seriesRepeatCount: 3,
+					betweenSeriesRestSec: 360,
+				},
+			],
+		},
+	})
+	// 39 × 45 s and two 6-minute rests between the three series.
+	expect(summary.map((f) => f.text)).toEqual(['41 min'])
+})
+
 test('a unit the prescription does not carry end to end is left out, never understated', () => {
 	// 20 min warm-up + 5 × 1000 m: the km would be the intervals only.
 	const summary = buildSessionSummary({

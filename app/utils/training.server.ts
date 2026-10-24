@@ -410,10 +410,12 @@ const activeOutlineSelect = {
 								select: {
 									repeatCount: true,
 									seriesRepeatCount: true,
+									betweenSeriesRestSec: true,
 									steps: {
 										orderBy: { orderIndex: 'asc' },
 										select: {
 											kind: true,
+											discipline: true,
 											durationSec: true,
 											distanceM: true,
 											intensity: true,

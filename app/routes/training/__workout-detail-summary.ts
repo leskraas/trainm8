@@ -21,7 +21,8 @@
  *
  * Pure: every number is passed in, nothing is queried.
  */
-import { sumBlockSets } from '#app/utils/dashboard.ts'
+import { prescribedDuration, sumBlockSets } from '#app/utils/dashboard.ts'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
 	nbDurationLabel,
 	nbKgLabel,
@@ -29,7 +30,6 @@ import {
 } from '#app/utils/labels.ts'
 import { type VolumeCurrency } from '#app/utils/plan-outline/derive.ts'
 import { fixedDayVolume } from '#app/utils/plan-outline/week-pattern.ts'
-import { blockRepeatTotal } from '#app/utils/workout-schema.ts'
 
 /** The prescription as this reads it — a structural slice of the loader's
  * Workout, so a test can hand one over without a database row. */
@@ -37,8 +37,12 @@ export type SummaryWorkout = {
 	blocks: Array<{
 		repeatCount: number
 		seriesRepeatCount?: number | null
+		betweenSeriesRestSec?: number | null
 		steps: Array<{
 			kind: string
+			discipline?: string | null
+			/** Stored Intensity Target JSON: the pace a distance step is timed by. */
+			intensity?: string | null
 			durationSec: number | null
 			distanceM: number | null
 			exerciseId: string | null
@@ -53,6 +57,8 @@ export type SessionSummaryInput = {
 	/** The Volume Currency of the plan's track for this sport, or null. */
 	currency: VolumeCurrency | null
 	workout: SummaryWorkout | null
+	/** The athlete's thresholds, which time a distance step with no pace. */
+	thresholds?: DisciplineThresholdMap
 	recording: { distanceM: number | null; durationSec: number | null } | null
 	/** Completed working sets logged on this session (ADR 0056). */
 	loggedSets: number
@@ -183,7 +189,7 @@ function plannedFigures(input: SessionSummaryInput): Figures | null {
 		// A lifting session's steps carry no km or time, and a rest between
 		// lifts would make one up; only a session with cardio in it reads them.
 		km: cardio ? fixedDayVolume(blocks, 'km') : null,
-		seconds: cardio ? prescribedSeconds(blocks) : null,
+		seconds: cardio ? prescribedSeconds(blocks, input.thresholds) : null,
 		sets: sets > 0 ? sets : null,
 		lifts: exercises.size > 0 ? exercises.size : null,
 		topKg: kilos.length > 0 ? Math.max(...kilos) : null,
@@ -192,19 +198,15 @@ function plannedFigures(input: SessionSummaryInput): Figures | null {
 
 /**
  * The prescription's time in seconds, unrounded, by `fixedDayVolume`'s rule:
- * null unless **every** step states a time. Not `fixedDayVolume(…, 'hours')`,
- * whose tenth-of-an-hour precision is a week's and would say a 45-minute run
- * is 48 minutes.
+ * null unless **every** step is timed (a distance step through its pace,
+ * `prescribedDuration`). Not `fixedDayVolume(…, 'hours')`, whose
+ * tenth-of-an-hour precision is a week's and would say a 45-minute run is 48
+ * minutes.
  */
-function prescribedSeconds(blocks: SummaryWorkout['blocks']): number | null {
-	let total = 0
-	let steps = 0
-	for (const block of blocks) {
-		for (const step of block.steps) {
-			steps++
-			if (step.durationSec == null) return null
-			total += step.durationSec * blockRepeatTotal(block)
-		}
-	}
-	return steps > 0 ? total : null
+function prescribedSeconds(
+	blocks: SummaryWorkout['blocks'],
+	thresholds?: DisciplineThresholdMap,
+): number | null {
+	const duration = prescribedDuration(blocks, thresholds)
+	return duration?.complete ? duration.seconds : null
 }

@@ -428,6 +428,41 @@ describe('reading a fixed day in the track currency', () => {
 		).toBeNull()
 	})
 
+	test('an hours track times distance reps through their pace and counts the series rests (#615)', () => {
+		const pace = JSON.stringify({ kind: 'pace', minSecPerKm: 220 })
+		// `15 min Z2 + 6 × (1 km @ 3:40 + 90 s) + 10 min Z1` is 56 minutes.
+		const distanceReps = [
+			{ repeatCount: 1, steps: [{ durationSec: 900, distanceM: null }] },
+			{
+				repeatCount: 6,
+				steps: [
+					{
+						kind: 'cardio',
+						intensity: pace,
+						durationSec: null,
+						distanceM: 1000,
+					},
+					{ kind: 'rest', durationSec: 90, distanceM: null },
+				],
+			},
+			{ repeatCount: 1, steps: [{ durationSec: 600, distanceM: null }] },
+		]
+		expect(fixedDayVolume(distanceReps, 'hours')).toBe(0.9)
+		// `3 × 13 × 30/15 s` with 6 min between series: 41 min 15 s, not 39 × 45 s.
+		const series = [
+			{
+				repeatCount: 13,
+				seriesRepeatCount: 3,
+				betweenSeriesRestSec: 360,
+				steps: [
+					{ durationSec: 30, distanceM: null },
+					{ kind: 'rest', durationSec: 15, distanceM: null },
+				],
+			},
+		]
+		expect(fixedDayVolume(series, 'hours')).toBe(0.7)
+	})
+
 	test('a tss or sets track cannot price a prescription yet, and says so', () => {
 		expect(fixedDayVolume(blocks, 'tss')).toBeNull()
 		expect(fixedDayVolume(blocks, 'sets')).toBeNull()

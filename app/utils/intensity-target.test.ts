@@ -522,6 +522,44 @@ describe('sessionMetricTarget', () => {
 		})
 	})
 
+	test('picks the 3:40/km distance rep over a longer Z2 warm-up (#615)', () => {
+		// `15 min Z2 + 6 × (1 km @ 3:40 + 90 s) + 10 min Z1`: the reps state a
+		// distance, not a time, and are still the session's work.
+		const rep = (distanceM: number, orderIndex: number) => ({
+			...cardioStep('{"kind":"pace","minSecPerKm":220}', null, orderIndex),
+			distanceM,
+		})
+		const workout = {
+			blocks: [
+				{ repeatCount: 1, steps: [cardioStep('Z2', 900, 0)] },
+				{ repeatCount: 6, steps: [rep(1000, 1)] },
+				{ repeatCount: 1, steps: [cardioStep('Z1', 600, 2)] },
+			],
+		}
+		const expected = { kind: 'metric', metric: 'pace', text: '3:40 /km' }
+		expect(sessionMetricTarget(workout, runThresholds)).toEqual(expected)
+		// With a zone system the rep is also the hardest step, by zone.
+		expect(
+			sessionMetricTarget(workout, {
+				run: profile({ zoneSystem: 'daniels-pace-5' }),
+			}),
+		).toEqual(expected)
+	})
+
+	test('picks the hardest step, not the longest, when every step has a zone (#615)', () => {
+		// 30 min Z2 + 4 × 4 min Z4: the Z2 runs longer, the Z4 is the session.
+		const workout = {
+			blocks: [
+				{ repeatCount: 1, steps: [cardioStep('Z2', 1800, 0)] },
+				{ repeatCount: 4, steps: [cardioStep('Z4', 240, 1)] },
+			],
+		}
+		expect(sessionMetricTarget(workout, runThresholds)).toEqual({
+			kind: 'zone',
+			text: 'Z4',
+		})
+	})
+
 	test('falls back to the Training Zone when the only targets are zone labels', () => {
 		const workout = {
 			blocks: [{ repeatCount: 1, steps: [cardioStep('threshold', 1200, 0)] }],

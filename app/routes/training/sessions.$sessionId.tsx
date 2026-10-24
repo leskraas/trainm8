@@ -400,6 +400,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 			status: session.status,
 			currency: isSummaryCurrency(trackCurrency) ? trackCurrency : null,
 			workout: session.workout,
+			thresholds,
 			recording: session.recording,
 			loggedSets: loggedSetCount,
 			simpleActivity: simpleActivity != null,

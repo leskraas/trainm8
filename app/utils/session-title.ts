@@ -115,10 +115,13 @@ export function deriveWorkoutTitle(structure: WorkoutStructure): string {
 
 	const quantity = stepQuantity(headline.step)
 	const reps = headline.block.repeatCount
+	// The series lead the reps: `3 × 13 × 30 s` is three series of 13 (#615).
+	const series = headline.block.seriesRepeatCount ?? 1
+	const count = series >= 2 ? `${series} × ${reps}` : `${reps}`
 	// A dangling `4 ×` (a repeat block whose work step states no quantity) reads
 	// worse than the plain zone word or discipline fallback, so the rep count
 	// only appears when it has a quantity to multiply.
-	const core = quantity ? (reps >= 2 ? `${reps} × ${quantity}` : quantity) : ''
+	const core = quantity ? (reps >= 2 ? `${count} × ${quantity}` : quantity) : ''
 	const word = headline.step.intensity
 		? intensityWord(headline.step.intensity)
 		: null

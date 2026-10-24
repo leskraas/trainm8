@@ -78,14 +78,26 @@ export type ShapeSegment = {
 	zone: TrainingZone | null
 }
 
+/** No thresholds at all: an authored pace still resolves to itself. */
+const NO_THRESHOLDS: NonNullable<DisciplineThresholdMap[string]> = {
+	lthr: null,
+	maxHr: null,
+	ftp: null,
+	runPowerThresholdW: null,
+	thresholdPaceSecPerKm: null,
+	cssSecPer100m: null,
+	zoneSystem: null,
+	zoneOverrides: null,
+}
+
 /** The pace a step's intensity resolves to (midpoint), in the resolver's own
  * unit — sec/km for pace-anchored recipes, sec/100 m for CSS. */
 function resolvedPaceMid(
 	intensity: IntensityTarget | null | undefined,
 	profile: DisciplineThresholdMap[string],
 ): number | null {
-	if (!intensity || !profile) return null
-	const resolved = resolveIntensity(intensity, profile)
+	if (!intensity) return null
+	const resolved = resolveIntensity(intensity, profile ?? NO_THRESHOLDS)
 	if (resolved.unavailable) return null
 	if (resolved.paceMin != null && resolved.paceMax != null) {
 		return (resolved.paceMin + resolved.paceMax) / 2
@@ -98,8 +110,8 @@ function resolvedPaceMid(
  * resolves to when there is one, else the discipline's threshold pace. Swim
  * paces are sec/100 m; every other discipline's are sec/km.
  */
-function distanceDurationSec(
-	step: NotationStep,
+export function distanceDurationSec(
+	step: Pick<NotationStep, 'discipline' | 'distanceM' | 'intensity'>,
 	profile: DisciplineThresholdMap[string],
 ): number | null {
 	if (step.distanceM == null) return null

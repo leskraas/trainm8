@@ -1230,11 +1230,17 @@ export function deriveWorkoutNotation(
 					},
 				})
 			}
+			// The series lead the reps, `3 × 13` (#615); `count` stays the reps,
+			// the field the repeat token edits.
+			const series = block.seriesRepeatCount ?? 1
 			const repeat =
 				block.repeatCount > 1
 					? ({
 							type: 'repeat',
-							text: String(block.repeatCount),
+							text:
+								series > 1
+									? `${series} ${NOTATION_SEPARATORS.repeat} ${block.repeatCount}`
+									: String(block.repeatCount),
 							count: block.repeatCount,
 							address: { blockIndex, stepIndex: null, field: 'repeatCount' },
 						} as const)

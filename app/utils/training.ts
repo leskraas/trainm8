@@ -82,12 +82,7 @@ export function deriveLedgerStatus(
 /** Actual duration (from the recording) when present, else the planned duration derived from the workout steps. */
 export function getSessionDurationMin(session: {
 	recording: { durationSec: number | null } | null
-	workout: {
-		blocks: Array<{
-			repeatCount: number
-			steps: Array<{ durationSec: number | null }>
-		}>
-	} | null
+	workout: { blocks: Parameters<typeof sumBlockDurationMin>[0] } | null
 }): number | null {
 	if (session.recording?.durationSec != null) {
 		return Math.round(session.recording.durationSec / 60)
@@ -153,10 +148,7 @@ export function toSessionLedgerEntry(
 		workout: {
 			title: string
 			discipline: string
-			blocks: Array<{
-				repeatCount: number
-				steps: Array<{ durationSec: number | null }>
-			}>
+			blocks: Parameters<typeof sumBlockDurationMin>[0]
 		} | null
 		recording: {
 			discipline: string

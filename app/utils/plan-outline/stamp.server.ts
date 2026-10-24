@@ -856,8 +856,12 @@ function liftingSlots(
 function pricingBlocks(workout: CopyableWorkout) {
 	return workout.blocks.map((block) => ({
 		repeatCount: block.repeatCount,
+		seriesRepeatCount: block.seriesRepeatCount,
+		betweenSeriesRestSec: block.betweenSeriesRestSec,
 		steps: block.steps.map((step) => ({
 			kind: step.kind,
+			discipline: step.discipline,
+			intensity: step.intensity,
 			durationSec: step.durationSec,
 			distanceM: step.distanceM,
 		})),

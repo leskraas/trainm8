@@ -1,3 +1,8 @@
+import {
+	type DisciplineThresholdMap,
+	parseAuthoredIntensity,
+} from './intensity-target.ts'
+import { distanceDurationSec } from './shape-strip.ts'
 import { blockRepeatTotal } from './workout-schema.ts'
 
 export type Palette = {
@@ -49,24 +54,85 @@ export function paletteFor(discipline: string | null | undefined): Palette {
 type Block = {
 	repeatCount: number
 	seriesRepeatCount?: number | null
-	steps: Array<{ durationSec: number | null }>
+	betweenSeriesRestSec?: number | null
+	steps: ReadonlyArray<{
+		/** `rest` and `strength` as stored; absent reads as cardio. */
+		kind?: string
+		discipline?: string | null
+		/** Stored Intensity Target JSON, the pace a distance step is timed by. */
+		intensity?: string | null
+		durationSec: number | null
+		distanceM?: number | null
+	}>
 }
 
-export function sumBlockDurationMin(blocks: Block[]): number | null {
-	let totalSec = 0
-	let hasDuration = false
+type DurationStep = Block['steps'][number]
+
+/** One pass of a step: its time, else its distance at its pace, else null. */
+export function stepDurationSec(
+	step: DurationStep,
+	thresholds: DisciplineThresholdMap = {},
+): number | null {
+	if (step.durationSec != null) return step.durationSec
+	if (step.kind === 'strength') return null
+	return distanceDurationSec(
+		{
+			discipline: step.discipline,
+			distanceM: step.distanceM,
+			intensity: parseAuthoredIntensity(step.intensity),
+		},
+		step.discipline ? thresholds[step.discipline] : undefined,
+	)
+}
+
+export type PrescribedDuration = {
+	seconds: number
+	/** Every step was timed. False when one was not and `seconds` falls short. */
+	complete: boolean
+}
+
+/**
+ * **How long a prescription takes**, the one reading every total shares
+ * (#615). A distance step is timed through the pace its intensity resolves to,
+ * else the discipline's threshold pace, as the Workout Shape strip does; a
+ * repeated block's steps count once per rep of every series, and the rests
+ * between series count once between each pair. An untimed strength step, and
+ * any step with neither a time nor a pace to give it one, leaves the total
+ * incomplete.
+ * Null when no step could be timed at all.
+ */
+export function prescribedDuration(
+	blocks: readonly Block[],
+	thresholds: DisciplineThresholdMap = {},
+): PrescribedDuration | null {
+	let seconds = 0
+	let timed = 0
+	let complete = true
 
 	for (const block of blocks) {
 		for (const step of block.steps) {
-			if (step.durationSec != null) {
-				hasDuration = true
-				totalSec += step.durationSec * blockRepeatTotal(block)
+			const stepSec = stepDurationSec(step, thresholds)
+			if (stepSec == null) {
+				complete = false
+				continue
 			}
+			timed++
+			seconds += stepSec * blockRepeatTotal(block)
 		}
+		const series = Math.max(1, block.seriesRepeatCount ?? 1)
+		seconds += (block.betweenSeriesRestSec ?? 0) * (series - 1)
 	}
 
-	if (!hasDuration) return null
-	return Math.round(totalSec / 60)
+	return timed > 0 ? { seconds, complete } : null
+}
+
+/** {@link prescribedDuration} in whole minutes, counting what it could time. */
+export function sumBlockDurationMin(
+	blocks: readonly Block[],
+	thresholds: DisciplineThresholdMap = {},
+): number | null {
+	const duration = prescribedDuration(blocks, thresholds)
+	return duration == null ? null : Math.round(duration.seconds / 60)
 }
 
 type DistanceBlock = {

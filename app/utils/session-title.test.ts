@@ -68,6 +68,18 @@ test('the repeat block is the headline even with a warm-up and cool-down around 
 	expect(deriveWorkoutTitle(s)).toBe('5 × 3 min')
 })
 
+test('a block repeated in series reads with its series (#615)', () => {
+	const s = structure([
+		{
+			repeatCount: 13,
+			seriesRepeatCount: 3,
+			betweenSeriesRestSec: 360,
+			steps: [cardio({ durationSec: 30, intensity: power }), rest(15)],
+		},
+	])
+	expect(deriveWorkoutTitle(s)).toBe('3 × 13 × 30 s')
+})
+
 test('distance reps read in the distance unit', () => {
 	const s = structure([
 		{

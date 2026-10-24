@@ -40,10 +40,11 @@ import {
 	mondayOfDay,
 } from './athlete-calendar.ts'
 import { readRetrievableEntry } from './catalogue.server.ts'
-import { sumBlockDurationMin } from './dashboard.ts'
+import { stepDurationSec, sumBlockDurationMin } from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { type EffortWord, isEffortWord } from './effort-word.ts'
 import { formatNbWeekday } from './format.ts'
+import { type DisciplineThresholdMap } from './intensity-target.ts'
 import {
 	type JusterImage,
 	type JusterIntent,
@@ -228,7 +229,7 @@ const PRESCRIPTION_CHANGES: Record<
 	(userId: string, workout: Workout) => Promise<Change> | Change
 > = {
 	tired: (userId, workout) => tiredChange(userId, workout),
-	short: (_userId, workout) => shortChange(workout),
+	short: (userId, workout) => shortChange(userId, workout),
 }
 
 /** A stored intent: a **Workout Intent**, or a Simple Activity's own. */
@@ -301,7 +302,8 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 		}
 	}
 
-	const current = sumBlockDurationMin(workout.blocks)
+	const thresholds = await getDisciplineThresholds(userId)
+	const current = sumBlockDurationMin(workout.blocks, thresholds)
 	if (!CARDIO.has(workout.discipline) || current == null || current <= 0) {
 		return { ok: false, reason: 'no-time' }
 	}
@@ -314,7 +316,6 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 	}
 	// The Session Nudge's own easy session (one step in the athlete's endurance
 	// zone), at the length chosen here rather than its one-hour cap.
-	const thresholds = await getDisciplineThresholds(userId)
 	const eased = buildEasedPrescription({
 		discipline: workout.discipline,
 		durationMin: minutes,
@@ -352,7 +353,7 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 }
 
 /** _Lite tid_: 30 minutes, or 20; the intent and the structure kept. */
-function shortChange(workout: Workout): Change {
+async function shortChange(userId: string, workout: Workout): Promise<Change> {
 	const simple = readSimpleActivity(workout)
 	if (simple) {
 		const minutes = shortMinutes(simple.durationMin)
@@ -365,10 +366,11 @@ function shortChange(workout: Workout): Change {
 			minutes,
 		}
 	}
+	const thresholds = await getDisciplineThresholds(userId)
 	const current =
 		workout.discipline === 'strength'
 			? null
-			: sumBlockDurationMin(workout.blocks)
+			: sumBlockDurationMin(workout.blocks, thresholds)
 	if (current == null || current <= 0) return { ok: false, reason: 'no-time' }
 	const minutes = shortMinutes(current)
 	if (minutes == null) return { ok: false, reason: 'already-short' }
@@ -376,7 +378,7 @@ function shortChange(workout: Workout): Change {
 		ok: true,
 		title: workout.title,
 		...keptWords(workout),
-		blocks: scaledTo(workout.blocks, minutes * 60),
+		blocks: scaledTo(workout.blocks, minutes * 60, thresholds),
 		minutes,
 	}
 }
@@ -418,16 +420,25 @@ function withSingleDuration(blocks: Blocks, durationSec: number): Blocks {
  * threshold, only shorter. Times round to 10 seconds and distances to 100 m,
  * never to nothing; a rest step keeps its length.
  */
-function scaledTo(blocks: Blocks, targetSec: number): Blocks {
+function scaledTo(
+	blocks: Blocks,
+	targetSec: number,
+	thresholds: DisciplineThresholdMap,
+): Blocks {
+	// A distance rep scales with the time it takes at its pace, and the rests
+	// between series stay as they are (#615).
 	let fixed = 0
 	let scalable = 0
 	for (const block of blocks) {
 		const times = block.repeatCount * (block.seriesRepeatCount ?? 1)
 		for (const step of block.steps) {
-			if (step.durationSec == null) continue
-			if (step.kind === 'cardio') scalable += step.durationSec * times
-			else fixed += step.durationSec * times
+			const stepSec = stepDurationSec(step, thresholds)
+			if (stepSec == null) continue
+			if (step.kind === 'cardio') scalable += stepSec * times
+			else fixed += stepSec * times
 		}
+		fixed +=
+			(block.betweenSeriesRestSec ?? 0) * ((block.seriesRepeatCount ?? 1) - 1)
 	}
 	const factor = scalable > 0 ? Math.max(0, targetSec - fixed) / scalable : 1
 	return blocks.map((block) => ({

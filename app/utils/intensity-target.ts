@@ -17,12 +17,14 @@ import {
 	nbZoneCaption,
 	zoneLabelWord,
 } from './labels.ts'
+import { distanceDurationSec } from './shape-strip.ts'
 import {
 	blockRepeatTotal,
 	IntensityTargetSchema,
 	powerPctRef,
 	type IntensityTarget,
 } from './workout-schema.ts'
+import { zoneEquivalent } from './zone-equivalent.ts'
 import { DANIELS_PACE_5, getRecipe } from './zones/index.ts'
 import {
 	formatMmol,
@@ -502,6 +504,7 @@ type StepForTarget = {
 	discipline?: string | null
 	intensity?: string | null
 	durationSec?: number | null
+	distanceM?: number | null
 	orderIndex?: number
 }
 
@@ -516,10 +519,12 @@ type WorkoutForTarget = {
 /**
  * The single headline target for a whole session — what the Today card, Week
  * timeline stop, and session detail show. A workout can mix zone / pace / HR
- * steps, so we surface the *primary work step*: the cardio step with the most
- * effective work time (`durationSec × block repeatCount`, so interval reps
- * outweigh a long single warm-up), formatted against its own discipline's
- * thresholds. Null when no cardio step carries an intensity target.
+ * steps, so we surface the *primary work step*: the **hardest** cardio step,
+ * by its Zone Equivalent, formatted against its own discipline's thresholds
+ * (#615). Hardness only decides when every candidate has a zone; otherwise the
+ * step with the most effective work time wins (`time × block repeats`, a
+ * distance step timed through its pace), so interval reps still outweigh a
+ * long single warm-up. Null when no cardio step carries an intensity target.
  */
 export function sessionMetricTarget(
 	workout: WorkoutForTarget | null | undefined,
@@ -530,6 +535,7 @@ export function sessionMetricTarget(
 	type Candidate = {
 		target: IntensityTarget
 		discipline: string | null
+		zone: number | null
 		effDurationSec: number
 		order: number
 	}
@@ -542,20 +548,38 @@ export function sessionMetricTarget(
 			if (step.kind !== 'cardio') continue
 			const target = parseAuthoredIntensity(step.intensity)
 			if (!target) continue
+			const profile = step.discipline ? thresholds[step.discipline] : undefined
+			const stepSec =
+				step.durationSec ??
+				distanceDurationSec(
+					{
+						discipline: step.discipline,
+						distanceM: step.distanceM,
+						intensity: target,
+					},
+					profile,
+				) ??
+				0
 			candidates.push({
 				target,
 				discipline: step.discipline ?? null,
-				effDurationSec: (step.durationSec ?? 0) * reps,
+				zone: zoneEquivalent(target, profile).step,
+				effDurationSec: stepSec * reps,
 				order: stepOrder,
 			})
 		}
 	}
 	if (candidates.length === 0) return null
 
-	// Longest effective effort defines the session; ties resolve to the earlier
-	// step so the choice is deterministic.
+	// Hardest first where every step can say how hard it is, then the longest
+	// effective effort; ties resolve to the earlier step so the choice is
+	// deterministic.
+	const byZone = candidates.every((c) => c.zone != null)
 	candidates.sort(
-		(a, b) => b.effDurationSec - a.effDurationSec || a.order - b.order,
+		(a, b) =>
+			(byZone ? b.zone! - a.zone! : 0) ||
+			b.effDurationSec - a.effDurationSec ||
+			a.order - b.order,
 	)
 	const chosen = candidates[0]!
 	const profile =
