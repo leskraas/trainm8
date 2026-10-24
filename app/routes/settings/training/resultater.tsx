@@ -31,19 +31,29 @@ import {
 	formatNbDate,
 	formatPace,
 } from '#app/utils/format.ts'
-import { INTENSITY_DISPLAY_WORDS, MEG_RESULTS_LABELS } from '#app/utils/labels.ts'
+import {
+	INTENSITY_DISPLAY_WORDS,
+	MEG_RESULTS_LABELS,
+} from '#app/utils/labels.ts'
 import {
 	addPerformanceResult,
 	deletePerformanceResult,
 	listPerformanceResults,
 	parseFinishTime,
 	PERFORMANCE_SOURCES,
+	type PerformanceSource,
 } from '#app/utils/performance-result-writer.server.ts'
 import { RACE_ANCHORS } from '#app/utils/workout-schema.ts'
 import { MegFormErrors, MegNote } from '../__meg-ui.tsx'
 import { type Route } from './+types/resultater.ts'
 
 const L = MEG_RESULTS_LABELS
+// The component cannot import the writer's value (a .server module); the
+// `satisfies` keeps this list and the writer's in step.
+const SOURCE_CHOICES = [
+	'race',
+	'timeTrial',
+] as const satisfies readonly PerformanceSource[]
 const anchorName = (anchor: string) =>
 	INTENSITY_DISPLAY_WORDS.race[anchor] ?? anchor
 
@@ -131,7 +141,10 @@ export default function RaceResultsSettings({
 				<p className="text-body">{L.intro}</p>
 			</div>
 			<AddResultForm today={today} />
-			<section aria-labelledby="meg-results-list" className="flex flex-col gap-2">
+			<section
+				aria-labelledby="meg-results-list"
+				className="flex flex-col gap-2"
+			>
 				<h2 id="meg-results-list" className="text-heading">
 					{L.title}
 				</h2>
@@ -200,10 +213,7 @@ function AddResultForm({ today }: { today: string }) {
 		label: anchorName(value),
 	}))
 	return (
-		<fetcher.Form
-			method="POST"
-			className="flex flex-col gap-4"
-		>
+		<fetcher.Form method="POST" className="flex flex-col gap-4">
 			<h2 className="text-heading">{L.add}</h2>
 			<div className="flex flex-col gap-1.5">
 				<Label htmlFor="result-anchor" className="text-footnote font-medium">
@@ -271,7 +281,7 @@ function AddResultForm({ today }: { today: string }) {
 					aria-labelledby="result-source"
 					className="w-full"
 				>
-					{PERFORMANCE_SOURCES.map((value) => (
+					{SOURCE_CHOICES.map((value) => (
 						<ToggleGroupItem
 							key={value}
 							value={value}

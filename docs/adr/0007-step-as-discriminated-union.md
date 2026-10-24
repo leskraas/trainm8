@@ -287,12 +287,12 @@ Snapshot**, so it owes an explanation nowhere (ADR 0006's own test).
   produces a result and a goal that was missed produces one too), and **distinct
   from a Personal Record**, which is the derived best over a **Benchmark Kind**.
   It shipped with **no writer**; the manual writer landed with #464 (see the
-  amendment above). Populating it from completed **Events** and from
-  activity bests is a derivation with its own honesty rules — which efforts
-  qualify, and ADR 0021's **Load Confidence** gate — and duplicating the
-  Personal Record detection function here to get one would be the wrong seam.
-  Until a writer lands, every `racePace` target degrades to its bare authored
-  form, which is exactly what `powerPct` does without an FTP.
+  amendment above). Populating it from completed **Events** and from activity
+  bests is a derivation with its own honesty rules — which efforts qualify, and
+  ADR 0021's **Load Confidence** gate — and duplicating the Personal Record
+  detection function here to get one would be the wrong seam. Until a writer
+  lands, every `racePace` target degrades to its bare authored form, which is
+  exactly what `powerPct` does without an FTP.
 - The **Race Equivalence** ladder resolves at **rung 1 only** — the athlete's
   own result at that distance. Rungs 2–5 (a result at another distance
   converted, a **Threshold** read as a virtual race result, a mean-maximal-curve
