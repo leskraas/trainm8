@@ -34,7 +34,8 @@ power and GPS, so it meets that item.
   trainm8; trainm8 → the athlete's assistant over MCP on the athlete's OAuth
   grant (Phase 2); trainm8 → an inference processor (in-app agent, not built).
 - **Processors and recipients:** Fly.io (hosting and database, Stockholm, US
-  company, DPF), Tigris (images), Resend (email), Sentry if enabled [REGION].
+  company, DPF), Tigris (images), Resend (email), Sentry if enabled [REGION]
+  (errors plus performance traces and profiles, `server/utils/monitoring.ts`).
   The athlete's assistant provider (Anthropic, OpenAI) is an independent
   controller of the chat. Intervals.icu is the athlete's own source.
 - **Retention:** ADR 0105 §3.

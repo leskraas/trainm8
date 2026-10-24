@@ -8424,7 +8424,7 @@ export const PRIVACY_NOTICE_LABELS = {
 				'Tigris (gjennom Fly.io) lagrer profilbilder.',
 				'Resend sender e-post til deg og får e-postadressen din.',
 				'Intervals.icu, hvis du kobler til: vi henter øktene dine derfra med nøkkelen du gir oss. Data fra Garmin-klokker kommer til oss gjennom Intervals.icu, og vi oppgir Garmin som kilde.',
-				'Sentry mottar feilrapporter uten treningsdata [HVIS AKTIVERT: REGION OG LAGRINGSTID].',
+				'Sentry mottar feilrapporter og ytelsesdata (sporing og profilering av forespørsler) uten at vi sender treningsdata med med vilje [HVIS AKTIVERT: REGION OG LAGRINGSTID].',
 				'En KI-tjeneste er planlagt, men ikke i bruk. Den blir bare brukt hvis du samtykker, og står her med navn og region før den tas i bruk.',
 				'Kobler du din egen KI-assistent (for eksempel Claude eller ChatGPT) til trainm8, havner det den henter hos den leverandøren, under deres vilkår, og kan bli sendt ut av EØS. Vi kan ikke hente tilbake det assistenten allerede har fått.',
 			],
