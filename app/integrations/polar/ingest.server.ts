@@ -8,6 +8,7 @@ import {
 	POLAR_FETCHED_VIA,
 	POLAR_MAX_FIT_BYTES,
 	POLAR_PROVIDER,
+	POLAR_REQUEST_TIMEOUT_MS,
 	PolarExerciseListSchema,
 } from './types.ts'
 
@@ -56,6 +57,7 @@ async function polarGet(connection: Connection, path: string, accept: string) {
 			authorization: `Bearer ${connection.accessToken}`,
 			accept,
 		},
+		signal: AbortSignal.timeout(POLAR_REQUEST_TIMEOUT_MS),
 	})
 	if (response.status === 401 || response.status === 403) {
 		// The athlete revoked the grant at Polar, or never accepted Polar's

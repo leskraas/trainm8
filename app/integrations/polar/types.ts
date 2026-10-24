@@ -25,6 +25,9 @@ export const POLAR_FETCHED_VIA = 'polar-accesslink'
 /** The largest FIT trainm8 accepts from Polar, as for an upload (#548). */
 export const POLAR_MAX_FIT_BYTES = 64 * 1024 * 1024
 
+/** A stalled Polar call must not hold a sync or webhook job open. */
+export const POLAR_REQUEST_TIMEOUT_MS = 30_000
+
 /**
  * The EXERCISE webhook body. `user_id` is the Polar user id
  * (`AccountConnection.externalAthleteId`), `entity_id` the hashed exercise id.
