@@ -93,7 +93,10 @@ export default function ResetPasswordPage({
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: ResetPasswordSchema })
 		},
-		shouldRevalidate: 'onBlur',
+		// A fixed field clears its error as it is fixed. On blur, the error line
+		// above the button would vanish as the athlete presses it, moving the
+		// button out from under the click (#532).
+		shouldRevalidate: 'onInput',
 	})
 
 	return (
