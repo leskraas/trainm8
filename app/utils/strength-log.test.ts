@@ -116,8 +116,11 @@ test('a completed set has to say what was performed, and a count of seconds is a
 	// A weight with no count is not a set: it would mint a record off an effort
 	// nobody made, and read as zero reps in the program's success predicate.
 	expect(performed({})).toBe(false)
-	expect(performed({ reps: 0 })).toBe(false)
 	expect(performed({ reps: 5 })).toBe(true)
+	// Zero is a count: the runner's tap cycle reaches it (ADR 0064 §1), and a set
+	// that got no rep up is a miss the program has to read, not a blank (#531).
+	expect(performed({ reps: 0 })).toBe(true)
+	expect(performed({ reps: -1 })).toBe(false)
 	// A timed hold is counted in seconds, and the other side of a unilateral set
 	// is a count of its own.
 	expect(performed({ durationSec: 45 })).toBe(true)
