@@ -16,11 +16,22 @@ export const RESOURCE = `${BASE_URL}/mcp`
 export const IS_LOCAL = new URL(BASE_URL).hostname === 'localhost'
 export const prisma = new PrismaClient()
 
+// The placeholder secrets are for localhost only; a tunnelled or deployed spike must set its own.
+function secretFor(name: string, fallback: string) {
+	const value = process.env[name]
+	if (value) return value
+	if (!IS_LOCAL)
+		throw new Error(`${name} must be set when BASE_URL is not localhost`)
+	return fallback
+}
+
 export const auth = betterAuth({
 	baseURL: BASE_URL,
 	basePath: '/api/auth',
-	secret:
-		process.env.BETTER_AUTH_SECRET ?? 'spike-secret-wipe-me-0123456789abcdef',
+	secret: secretFor(
+		'BETTER_AUTH_SECRET',
+		'spike-secret-wipe-me-0123456789abcdef',
+	),
 	database: prismaAdapter(prisma, { provider: 'sqlite' }),
 	emailAndPassword: { enabled: true },
 	user: {

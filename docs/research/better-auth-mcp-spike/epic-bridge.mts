@@ -14,7 +14,7 @@ export const epicSessionStorage = createCookieSessionStorage({
 		sameSite: 'lax',
 		path: '/',
 		httpOnly: true,
-		secrets: (process.env.SESSION_SECRET ?? 'epic-secret-wipe-me').split(','),
+		secrets: (process.env.SESSION_SECRET ?? 'epic-secret-wipe-me').split(','), // localhost spike only; set SESSION_SECRET anywhere else
 		secure: false,
 	},
 })
