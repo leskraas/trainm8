@@ -86,7 +86,16 @@ export async function runStravaLapsBackfill(): Promise<void> {
 				const markers = stravaLapsToMarkers(laps, {
 					activityStartMs: imp.startedAt.getTime(),
 				})
-				if (!(await persistActivityLaps(imp.id, markers))) continue
+				if (!(await persistActivityLaps(imp.id, markers))) {
+					// Asked, and Strava has no interior laps for it. Mark it so a
+					// deferred run (#637), which starts over, doesn't spend the budget on
+					// it again; detection reads `[]` as no laps.
+					await prisma.activityImport.update({
+						where: { id: imp.id },
+						data: { lapsJson: '[]' },
+					})
+					continue
+				}
 				// Re-run detection against the fresh laps (idempotent upsert): an
 				// unpromoted import's detection re-computes with the lap-edged path.
 				await runStructureDetection({ activityImportId: imp.id })
