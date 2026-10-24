@@ -239,6 +239,78 @@ test('a threshold session written as pace reads hard against T-pace (#617)', () 
 	expect(cardOf(view.card, 'session').session.effortLabel).toBe('hard')
 })
 
+/** A run profile with a threshold pace, the Daniels recipe declared. */
+const DANIELS_RUN = {
+	run: {
+		lthr: null,
+		maxHr: null,
+		ftp: null,
+		runPowerThresholdW: null,
+		thresholdPaceSecPerKm: 240,
+		cssSecPer100m: null,
+		zoneSystem: 'daniels-pace-5',
+		zoneOverrides: null,
+	},
+}
+
+/** Today's session as `steps`, read through the season and I dag on DANIELS_RUN. */
+function calmWithSteps(steps: Step[]) {
+	const base = session('today', '2030-01-02T07:00:00Z', {
+		title: '10 km rolig',
+	})
+	const block = base.workout!.blocks[0]!
+	const ledger = [
+		{ ...base, workout: { ...base.workout!, blocks: [{ ...block, steps }] } },
+	]
+	const season = buildTimelineSeason({
+		ledger,
+		now: NOW,
+		timezone: TZ,
+		thresholds: DANIELS_RUN,
+	})
+	const view = buildCalmToday({
+		season,
+		ledger,
+		now: NOW,
+		timezone: TZ,
+		activePlan: plan(),
+		thresholds: DANIELS_RUN,
+	})
+	const row = season.weeks[season.todayWeekIndex]!.rows.find(
+		(day) => day.key === '2030-01-02',
+	)!.sessions[0]!
+	return { card: cardOf(view.card, 'session'), row }
+}
+
+const ROLIG = JSON.stringify({ kind: 'zoneLabel', label: 'Z2' })
+
+test('a distance written in a zone word is timed through the threshold pace on the card and the row (#615)', () => {
+	const { card, row } = calmWithSteps([
+		step({ durationSec: null, distanceM: 10_000, intensity: ROLIG }),
+	])
+
+	expect(card.session.durationLabel).not.toBeNull()
+	expect(row.externalLoad).toMatch(/\d+ min/)
+})
+
+test('a timed warm-up and a distance in a zone word total both (#615)', () => {
+	const distance = step({
+		id: 's-distance',
+		durationSec: null,
+		distanceM: 10_000,
+		intensity: ROLIG,
+	})
+	const alone = calmWithSteps([distance])
+	const { card, row } = calmWithSteps([
+		step({ id: 's-warmup', durationSec: 15 * 60, intensity: ROLIG }),
+		distance,
+	])
+
+	const minutes = (line: string | null) => Number(/(\d+) min/.exec(line!)![1])
+	expect(minutes(row.externalLoad)).toBe(minutes(alone.row.externalLoad) + 15)
+	expect(card.session.durationLabel).not.toBe('15 min')
+})
+
 test("a Simple Activity's card says the Effort Word the athlete stored, not one read from its step", () => {
 	const climb = session('today', '2030-01-02T07:00:00Z', {
 		title: 'Klatring',

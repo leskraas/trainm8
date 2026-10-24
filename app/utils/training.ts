@@ -1,5 +1,6 @@
 import { localDate } from './athlete-calendar.ts'
 import { sumBlockDurationMin } from './dashboard.ts'
+import { type DisciplineThresholdMap } from './intensity-target.ts'
 // Enum display labels live in the shared label seam (#281); re-exported here so
 // existing importers of these helpers are unchanged.
 export { getDisciplineLabel, getStatusLabel } from './labels.ts'
@@ -80,15 +81,19 @@ export function deriveLedgerStatus(
 }
 
 /** Actual duration (from the recording) when present, else the planned duration derived from the workout steps. */
-export function getSessionDurationMin(session: {
-	recording: { durationSec: number | null } | null
-	workout: { blocks: Parameters<typeof sumBlockDurationMin>[0] } | null
-}): number | null {
+export function getSessionDurationMin(
+	session: {
+		recording: { durationSec: number | null } | null
+		workout: { blocks: Parameters<typeof sumBlockDurationMin>[0] } | null
+	},
+	/** What a distance step's pace resolves against (#615). */
+	thresholds: DisciplineThresholdMap = {},
+): number | null {
 	if (session.recording?.durationSec != null) {
 		return Math.round(session.recording.durationSec / 60)
 	}
 	if (session.workout) {
-		return sumBlockDurationMin(session.workout.blocks)
+		return sumBlockDurationMin(session.workout.blocks, thresholds)
 	}
 	return null
 }
@@ -160,6 +165,8 @@ export function toSessionLedgerEntry(
 	now: Date = new Date(),
 	/** Passed on to `deriveLedgerStatus`: today's sessions stay planned. */
 	timezone?: string,
+	/** Passed on to `getSessionDurationMin`: a distance step's pace (#615). */
+	thresholds: DisciplineThresholdMap = {},
 ): SessionLedgerEntry {
 	const load = session.tssValue ?? null
 	const plannedTss = plannedMetricValue(readLedgerPlannedTss(session))
@@ -184,7 +191,7 @@ export function toSessionLedgerEntry(
 					})
 				: null),
 		status: deriveLedgerStatus(session, now, timezone),
-		durationMin: getSessionDurationMin(session),
+		durationMin: getSessionDurationMin(session, thresholds),
 		load,
 		plannedTss,
 		adherence,

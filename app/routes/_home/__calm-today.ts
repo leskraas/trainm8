@@ -154,7 +154,7 @@ export function buildCalmToday({
 	const toCalm = (session: TimelineSession, dayKey: string): CalmSession => {
 		const source = byId.get(session.id)
 		const minutes = source
-			? toSessionLedgerEntry(source, now, timezone).durationMin
+			? toSessionLedgerEntry(source, now, timezone, thresholds).durationMin
 			: null
 		const effort = source ? readEffortWord(source.workout, thresholds) : null
 		return {

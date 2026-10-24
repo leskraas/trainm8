@@ -225,7 +225,10 @@ export function buildTodayCard(
 	const todayKey = localDate(now, timezone)
 	const todayStart = dayBoundsUTC(todayKey, timezone).start.getTime()
 	const next = ledger
-		.map((session) => ({ session, entry: toSessionLedgerEntry(session, now) }))
+		.map((session) => ({
+			session,
+			entry: toSessionLedgerEntry(session, now, undefined, thresholds),
+		}))
 		.filter(
 			({ session, entry }) =>
 				entry.status === 'planned' &&
