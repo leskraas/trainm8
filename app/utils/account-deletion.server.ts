@@ -106,7 +106,7 @@ async function spliceLineage(
 		where: { copiedFrom: { ownerId: userId } },
 		select: { id: true, copiedFromId: true },
 	})
-	let spliced = 0
+	const byTarget = new Map<string | null, string[]>()
 	for (const child of children) {
 		if (parentOf.has(child.id)) continue
 		if (child.copiedFromId == null || !parentOf.has(child.copiedFromId)) {
@@ -123,11 +123,17 @@ async function spliceLineage(
 		if (target != null && (parentOf.has(target) || target === child.id)) {
 			target = null
 		}
-		await tx.workout.update({
-			where: { id: child.id },
+		byTarget.set(target, [...(byTarget.get(target) ?? []), child.id])
+	}
+	// One write per surviving ancestor, not per child: this runs inside the
+	// erasure transaction, whose interactive timeout a big fork tree would hit.
+	let spliced = 0
+	for (const [target, ids] of byTarget) {
+		await tx.workout.updateMany({
+			where: { id: { in: ids } },
 			data: { copiedFromId: target },
 		})
-		spliced++
+		spliced += ids.length
 	}
 	return spliced
 }
