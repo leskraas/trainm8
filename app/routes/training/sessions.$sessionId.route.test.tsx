@@ -150,6 +150,7 @@ function summaryOf(session: SessionDetail, loggedSets = 0) {
 			session.workout?.discipline ?? session.recording?.discipline ?? '',
 		status: session.status,
 		currency: null,
+		thresholds: {},
 		workout: session.workout,
 		recording: session.recording,
 		loggedSets,

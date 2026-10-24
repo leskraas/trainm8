@@ -37,8 +37,8 @@ export type StravaSyncResult =
 				| 'revoked'
 				| 'insufficient-scope'
 				| 'app-inactive'
-				| 'rate-limited'
 	  }
+	| { ok: false; reason: 'rate-limited'; retryAt: Date }
 
 export async function syncStravaActivities(
 	athleteId: string,
@@ -66,9 +66,11 @@ export async function syncStravaActivities(
 	try {
 		activities = await fetchStravaActivitiesAfter(connection, after)
 	} catch (err) {
-		// A manual sync runs inside the request, so a spent Strava day can't be
-		// waited out or deferred to the queue: say so instead (#637).
-		if (err instanceof DeferJob) return { ok: false, reason: 'rate-limited' }
+		// A manual sync runs inside the request, so a spent Strava budget can't
+		// be waited out or deferred to the queue: say until when instead (#637).
+		if (err instanceof DeferJob) {
+			return { ok: false, reason: 'rate-limited', retryAt: err.until }
+		}
 		if (err instanceof StravaConnectionRevokedError) {
 			return { ok: false, reason: 'revoked' }
 		}
@@ -94,7 +96,7 @@ export async function syncStravaActivities(
 	try {
 		await ingestActivityStreams(connection, activities)
 	} catch (err) {
-		// The day ran out after the activities were saved. Keep them, but leave
+		// The budget ran out after the activities were saved. Keep them, but leave
 		// the watermark so the next sync fetches the streams still missing.
 		if (err instanceof DeferJob) return { ok: true, created, skipped }
 		throw err

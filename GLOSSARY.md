@@ -373,8 +373,10 @@ carried honestly — Casado et al. 2023 say 2–4.5 mmol·L⁻¹ across the fami
 Bakken 2.3–3.0 for the Ingebrigtsen practice — and neither is presented as _the_
 number. Storing the source anchor is what **retired `intensityFidelity` before
 it was built**: a flag asserting "this row is a lossy translation" is
-unnecessary once the translation is visible in the resolution. _Avoid_: Lactate
-threshold (that is a **Threshold**), mmol target, blood test
+unnecessary once the translation is visible in the resolution. A session's
+planned minutes timed through a pace (a distance step at its zone's or authored
+pace) carry it too: `≈ 57 min` (#638). _Avoid_: Lactate threshold (that is a
+**Threshold**), mmol target, blood test
 
 **Portable Anchor**: _Future (not yet built)._ A prescription target that means
 the same thing for every athlete and resolves against that athlete's own
@@ -2195,9 +2197,12 @@ verdict, interval grade, compliance score, "X of Y intervals".
 
 **Job Queue**: The in-process background-work primitive (ADR 0013). A `Job` row
 carries a `kind` (which handler runs it) and an opaque JSON `payload`, with
-retry/backoff and a terminal `failed` state. A single polling worker drains the
-queue one job at a time. The Backfill Window is its first `kind`; webhook-fetch
-and reconciliation-poll reuse it. _Avoid_: Task queue, worker pool, scheduler
+retry/backoff, a terminal `failed` state, and deferral: a handler that can't
+proceed until a known time (a spent read budget) goes back to `pending` then
+without spending an attempt, for up to 7 days. A single polling worker drains
+the queue one job at a time. The Backfill Window is its first `kind`;
+webhook-fetch and reconciliation-poll reuse it. _Avoid_: Task queue, worker
+pool, scheduler
 
 **Live Imports Stream**: The per-athlete Server-Sent Events channel that pushes
 "a new Activity Import landed" to the athlete's open tabs so the home surface
@@ -2772,13 +2777,16 @@ number), goal, sum.
 prescription, per **Training Track**, in the track's **Volume Currency** — km or
 hours read off the prescription only where every step carries the unit (the
 **Week Pattern**'s own reading; in km a timed rest between reps carries none and
-is skipped, so `6x1 km p 1 min` is 6 km), **Planned TSS** on a TSS track,
-prescribed sets on a strength track. A missed session still counts: it was
-planned. A session with no number in the currency is **counted apart with its
-reason** ("+2 uten km") and never added as zero, so a week whose sessions are
-all unmeasured has no Planned Volume rather than a planned zero. Writing, moving
-or editing a session moves this number and never the **Week Target**. _Avoid_:
-Planned load (that is Planned TSS, per session), week sum.
+is skipped, so `6x1 km p 1 min` is 6 km; in hours a distance step is timed
+through its pace against the athlete's thresholds, the same reading the row, I
+dag and the detail view give a session's minutes, and a session with a step it
+cannot time has none), **Planned TSS** on a TSS track, prescribed sets on a
+strength track. A missed session still counts: it was planned. A session with no
+number in the currency is **counted apart with its reason** ("+2 uten km") and
+never added as zero, so a week whose sessions are all unmeasured has no Planned
+Volume rather than a planned zero. Writing, moving or editing a session moves
+this number and never the **Week Target**. _Avoid_: Planned load (that is
+Planned TSS, per session), week sum.
 
 **Actual Volume**: The same sum over the week's **completed** sessions, from
 what was recorded or logged — the recording's distance or duration, the

@@ -367,6 +367,9 @@ describe('what the reading declines to say', () => {
 	})
 })
 
+/** A reading with no thresholds: only authored times and paces count. */
+const NO_THRESHOLDS = { thresholds: {} }
+
 // ── Pricing a fixed day ──
 
 describe('reading a fixed day in the track currency', () => {
@@ -379,11 +382,43 @@ describe('reading a fixed day in the track currency', () => {
 	]
 
 	test('a km track reads the prescribed distance', () => {
-		expect(fixedDayVolume(blocks, 'km')).toBe(7)
+		expect(fixedDayVolume(blocks, 'km', NO_THRESHOLDS)).toBe(7)
 	})
 
 	test('an hours track reads the prescribed duration', () => {
-		expect(fixedDayVolume(blocks, 'hours')).toBe(0.5)
+		expect(fixedDayVolume(blocks, 'hours', NO_THRESHOLDS)).toBe(0.5)
+	})
+
+	test('an hours track times a zone-word distance through the thresholds (#638)', () => {
+		const tenk = [
+			{
+				repeatCount: 1,
+				steps: [
+					{
+						discipline: null,
+						intensity: JSON.stringify({ kind: 'zoneLabel', label: 'Z4' }),
+						durationSec: null,
+						distanceM: 10_000,
+					},
+				],
+			},
+		]
+		const thresholds = {
+			run: {
+				lthr: null,
+				maxHr: null,
+				ftp: null,
+				runPowerThresholdW: null,
+				thresholdPaceSecPerKm: 300,
+				cssSecPer100m: null,
+				zoneSystem: null,
+				zoneOverrides: null,
+			},
+		}
+		expect(fixedDayVolume(tenk, 'hours', NO_THRESHOLDS)).toBeNull()
+		expect(
+			fixedDayVolume(tenk, 'hours', { thresholds, discipline: 'run' }),
+		).toBe(0.8)
 	})
 
 	test('a distance-only prescription is unavailable in hours, not zero', () => {
@@ -391,12 +426,14 @@ describe('reading a fixed day in the track currency', () => {
 			fixedDayVolume(
 				[{ repeatCount: 1, steps: [{ durationSec: null, distanceM: 5000 }] }],
 				'hours',
+				NO_THRESHOLDS,
 			),
 		).toBeNull()
 		expect(
 			fixedDayVolume(
 				[{ repeatCount: 1, steps: [{ durationSec: null, distanceM: 5000 }] }],
 				'km',
+				NO_THRESHOLDS,
 			),
 		).toBe(5)
 	})
@@ -411,9 +448,9 @@ describe('reading a fixed day in the track currency', () => {
 				],
 			},
 		]
-		expect(fixedDayVolume(reps, 'km')).toBe(6)
+		expect(fixedDayVolume(reps, 'km', NO_THRESHOLDS)).toBe(6)
 		// In hours the reps state no time, so the session's hours stay unknown.
-		expect(fixedDayVolume(reps, 'hours')).toBeNull()
+		expect(fixedDayVolume(reps, 'hours', NO_THRESHOLDS)).toBeNull()
 		// A rest is skipped only where it states no distance; work never is.
 		expect(
 			fixedDayVolume(
@@ -424,6 +461,7 @@ describe('reading a fixed day in the track currency', () => {
 					},
 				],
 				'km',
+				NO_THRESHOLDS,
 			),
 		).toBeNull()
 	})
@@ -447,7 +485,7 @@ describe('reading a fixed day in the track currency', () => {
 			},
 			{ repeatCount: 1, steps: [{ durationSec: 600, distanceM: null }] },
 		]
-		expect(fixedDayVolume(distanceReps, 'hours')).toBe(0.9)
+		expect(fixedDayVolume(distanceReps, 'hours', NO_THRESHOLDS)).toBe(0.9)
 		// `3 × 13 × 30/15 s` with 6 min between series: 41 min 15 s, not 39 × 45 s.
 		const series = [
 			{
@@ -460,12 +498,12 @@ describe('reading a fixed day in the track currency', () => {
 				],
 			},
 		]
-		expect(fixedDayVolume(series, 'hours')).toBe(0.7)
+		expect(fixedDayVolume(series, 'hours', NO_THRESHOLDS)).toBe(0.7)
 	})
 
 	test('a tss or sets track cannot price a prescription yet, and says so', () => {
-		expect(fixedDayVolume(blocks, 'tss')).toBeNull()
-		expect(fixedDayVolume(blocks, 'sets')).toBeNull()
+		expect(fixedDayVolume(blocks, 'tss', NO_THRESHOLDS)).toBeNull()
+		expect(fixedDayVolume(blocks, 'sets', NO_THRESHOLDS)).toBeNull()
 	})
 
 	test('a session only partly prescribed in the currency is unavailable, not understated', () => {
@@ -479,14 +517,16 @@ describe('reading a fixed day in the track currency', () => {
 			{ repeatCount: 1, steps: [{ durationSec: 600, distanceM: null }] },
 		]
 
-		expect(fixedDayVolume(partly, 'km')).toBeNull()
+		expect(fixedDayVolume(partly, 'km', NO_THRESHOLDS)).toBeNull()
 		// And the same session read in hours, where only the intervals are missing.
-		expect(fixedDayVolume(partly, 'hours')).toBeNull()
+		expect(fixedDayVolume(partly, 'hours', NO_THRESHOLDS)).toBeNull()
 	})
 
 	test('a prescription with no steps at all prices as unavailable', () => {
-		expect(fixedDayVolume([], 'km')).toBeNull()
-		expect(fixedDayVolume([{ repeatCount: 1, steps: [] }], 'hours')).toBeNull()
+		expect(fixedDayVolume([], 'km', NO_THRESHOLDS)).toBeNull()
+		expect(
+			fixedDayVolume([{ repeatCount: 1, steps: [] }], 'hours', NO_THRESHOLDS),
+		).toBeNull()
 	})
 
 	test('an unpriced fixed day takes the whole week off the shares, whatever the reason', () => {

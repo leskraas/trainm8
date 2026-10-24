@@ -405,6 +405,8 @@ const activeOutlineSelect = {
 							// or its intent ask for (`sessionZone`).
 							effortWord: true,
 							intent: true,
+							// Times a step that names no Discipline of its own.
+							discipline: true,
 							blocks: {
 								orderBy: { orderIndex: 'asc' },
 								select: {
@@ -906,6 +908,9 @@ async function toSeason(
 	// would let one surface show a capacity the other's check did not use.
 	const { trainableWeekdays, trainableDays, weeklyCapacityHours } =
 		await readTrainingAvailability(userId)
+	// What prices a fixed day's hours: a distance step timed at the athlete's
+	// pace, as the week header and the stamp time it (`fixedDayVolume`).
+	const thresholds = await getDisciplineThresholds(userId)
 	const phases = phaseReadings(outline)
 	const specs = phaseSpecs(outline)
 	const tracks = resolvedTracks(outline)
@@ -958,6 +963,7 @@ async function toSeason(
 			specs,
 			tracks,
 			trainableDays,
+			thresholds,
 		),
 		// The second check, beside the first and never instead of it (ADR 0050 §5).
 		weeklyCapacityHours,
@@ -1050,7 +1056,9 @@ async function toSeason(
 						: (track.strengthRoles[week] ?? 'gap'),
 			})),
 		})),
-		patterns: outline.patterns.map(patternReading),
+		patterns: outline.patterns.map((pattern) =>
+			patternReading(pattern, thresholds),
+		),
 		fit: event
 			? eventFit(
 					outline.startWeekKey,
@@ -1337,6 +1345,7 @@ function seasonDayClashWarnings(
 	tracks: ResolvedTrack[],
 	/** Training Availability, Monday first; empty where never set. */
 	available: readonly PatternWeekday[],
+	thresholds: DisciplineThresholdMap,
 ): SeasonDayClashWarning[] {
 	const pattern = outline.patterns.find((each) => each.days.length > 0)
 	if (!pattern) return []
@@ -1366,7 +1375,11 @@ function seasonDayClashWarnings(
 		// Priced as the stamp prices it, so a share day the stamp would skip
 		// (nothing left after the fixed days) is skipped here too.
 		const priced = day.workout
-			? fixedDayVolume(day.workout.blocks, day.track.currency as VolumeCurrency)
+			? fixedDayVolume(
+					day.workout.blocks,
+					day.track.currency as VolumeCurrency,
+					{ thresholds, discipline: day.workout.discipline },
+				)
 			: null
 		const position = {
 			dayId: day.id,
@@ -1424,12 +1437,15 @@ function seasonDayClashWarnings(
 }
 
 /** One stored **Week Pattern** as the surfaces read it, days already priced. */
-function patternReading(pattern: PatternRow): SeasonPattern {
+function patternReading(
+	pattern: PatternRow,
+	thresholds: DisciplineThresholdMap,
+): SeasonPattern {
 	return {
 		id: pattern.id,
 		name: pattern.name,
 		orderIndex: pattern.orderIndex,
-		days: pattern.days.flatMap(patternDayReading),
+		days: pattern.days.flatMap((day) => patternDayReading(day, thresholds)),
 		liftingSlots: pattern.days.filter((day) => day.kind === 'lifting').length,
 	}
 }
@@ -1451,7 +1467,10 @@ function patternReading(pattern: PatternRow): SeasonPattern {
  * track cannot read a prescription at all yet, and a guessed price would flow
  * straight into every share day's number.
  */
-function patternDayReading(day: PatternDayRow): SeasonPatternDay[] {
+function patternDayReading(
+	day: PatternDayRow,
+	thresholds: DisciplineThresholdMap,
+): SeasonPatternDay[] {
 	// A lifting slot falls on no weekday: the stamp lays it each week (ADR
 	// 0104 §3), so it is no day of the authored microcycle.
 	if (day.weekday == null || !isPatternWeekday(day.weekday)) return []
@@ -1477,6 +1496,7 @@ function patternDayReading(day: PatternDayRow): SeasonPatternDay[] {
 					? fixedDayVolume(
 							day.workout.blocks,
 							day.track.currency as VolumeCurrency,
+							{ thresholds, discipline: day.workout.discipline },
 						)
 					: null,
 				workout,

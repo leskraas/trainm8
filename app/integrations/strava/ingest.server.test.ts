@@ -202,3 +202,70 @@ test('the forward streams loop persists index-mapped provider laps', async () =>
 		{ startSec: 107, endSec: 120 },
 	])
 })
+
+test('streams that answer nothing usable are asked for once, not on every pass', async () => {
+	const user = await prisma.user.create({
+		select: { id: true },
+		data: { ...createUser() },
+	})
+	const connection = await prisma.accountConnection.create({
+		data: {
+			athleteId: user.id,
+			provider: 'strava',
+			externalAthleteId: '12345678',
+			accessToken: 'initial_access',
+			refreshToken: 'initial_refresh',
+			expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000),
+			status: 'active',
+			connectedAt: new Date('2026-05-01T00:00:00.000Z'),
+		},
+	})
+	const activity = (id: number) =>
+		StravaActivitySchema.parse({
+			id,
+			sport_type: 'Run',
+			type: 'Run',
+			moving_time: 120,
+			elapsed_time: 120,
+			start_date: '2026-05-21T11:00:00Z',
+		})
+	for (const id of ['90043', '90044']) {
+		await prisma.activityImport.create({
+			data: {
+				athleteId: user.id,
+				externalProvider: 'strava',
+				externalId: id,
+				startedAt: new Date('2026-05-21T11:00:00.000Z'),
+				endedAt: new Date('2026-05-21T11:02:00.000Z'),
+				durationSec: 120,
+				discipline: 'run',
+				rawJson: '{}',
+			},
+		})
+	}
+	// 90043: no channels at all. 90044: a time axis too short to keep.
+	const asked: string[] = []
+	server.use(
+		http.get(
+			'https://www.strava.com/api/v3/activities/:id/streams',
+			({ params }) => {
+				asked.push(String(params.id))
+				return HttpResponse.json(
+					params.id === '90043' ? {} : { time: { data: [0] } },
+				)
+			},
+		),
+	)
+
+	// A deferred sync or backfill starts over: the second pass is that rerun.
+	await ingestActivityStreams(connection, [activity(90043), activity(90044)])
+	await ingestActivityStreams(connection, [activity(90043), activity(90044)])
+
+	expect(asked).toEqual(['90043', '90044'])
+	const imports = await prisma.activityImport.findMany({
+		where: { athleteId: user.id },
+		select: { streamsCheckedAt: true, stream: { select: { id: true } } },
+	})
+	expect(imports.map((i) => i.stream)).toEqual([null, null])
+	expect(imports.every((i) => i.streamsCheckedAt instanceof Date)).toBe(true)
+})

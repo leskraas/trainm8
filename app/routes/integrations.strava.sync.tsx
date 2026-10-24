@@ -41,7 +41,7 @@ export async function action({ request }: Route.ActionArgs) {
 					: result.reason === 'insufficient-scope'
 						? T.stravaScope
 						: result.reason === 'rate-limited'
-							? T.stravaRateLimited
+							? T.stravaRateLimited(result.retryAt)
 							: T.connectFirstNamed(INTEGRATIONS_LABELS.strava.name)
 		return redirectWithToast(redirectTo, {
 			title: T.syncFailed,

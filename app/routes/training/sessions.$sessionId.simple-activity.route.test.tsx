@@ -98,6 +98,7 @@ function loaderFor(session: SessionDetail) {
 			discipline: 'other',
 			status: session.status,
 			currency: null,
+			thresholds: {},
 			workout: session.workout,
 			recording: session.recording,
 			loggedSets: 0,

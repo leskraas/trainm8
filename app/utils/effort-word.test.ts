@@ -149,3 +149,43 @@ test('a known hard step is hard however unknown the rest is', () => {
 	])
 	expect(readEffortWord(mixed)).toBe('hard')
 })
+
+// One reader of the hardest zone (#638): a measured target is zoned on the
+// recipe Structure Detection classifies that channel against
+// (`classifyingRecipe`), the rule a detected session's intent is read by. A
+// Daniels runner with a critical-power threshold is read on Stryd power bands,
+// since the pace recipe cannot place watts at all.
+test('watts at critical power read hard for a runner on a pace recipe', () => {
+	const watts = workout([
+		block(
+			'reps',
+			0,
+			[
+				step({
+					id: 'rep',
+					durationSec: 300,
+					intensity: JSON.stringify({ kind: 'power', minW: 300 }),
+				}),
+			],
+			6,
+		),
+	])
+	const withCp: DisciplineThresholdMap = {
+		run: { ...T_PACE_3_40.run!, runPowerThresholdW: 300 },
+	}
+	expect(readEffortWord(watts, withCp)).toBe('hard')
+})
+
+// The hardest zone is read over the distinct steps a workout authors, not over
+// every rep it expands into, so a block repeated without bound costs no more
+// than one written once (#638).
+test('a block repeated without bound reads in constant work', () => {
+	const endless = workout([
+		block('reps', 0, [
+			step({ id: 'rep', durationSec: 10, intensity: zone('Z4') }),
+		]),
+	])
+	endless.blocks[0]!.repeatCount = 1_000_000
+	endless.blocks[0]!.seriesRepeatCount = 1_000_000
+	expect(readEffortWord(endless)).toBe('hard')
+})
