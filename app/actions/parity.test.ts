@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+import { isDeepStrictEqual } from 'node:util'
 import { type AppLoadContext } from 'react-router'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { z } from 'zod/v4'
@@ -411,9 +413,19 @@ test('the catalog a model sees is checked in, and does not vary by scope', async
 			read,
 		)
 		expect(read).toEqual(JSON.parse(JSON.stringify(toolCatalog())))
-		await expect(JSON.stringify(read, null, '\t') + '\n').toMatchFileSnapshot(
-			'./__snapshots__/mcp-catalog.json',
-		)
+		// Compared as parsed JSON, so Prettier reformatting the checked-in file
+		// is not a change; any real change to the catalog still fails, and
+		// `vitest -u` rewrites the file.
+		const snapshot = './__snapshots__/mcp-catalog.json'
+		const committed = await readFile(
+			new URL(snapshot, import.meta.url),
+			'utf8',
+		).catch(() => null)
+		await expect(
+			committed !== null && isDeepStrictEqual(JSON.parse(committed), read)
+				? committed
+				: JSON.stringify(read, null, '\t') + '\n',
+		).toMatchFileSnapshot(snapshot)
 	} finally {
 		process.env.MCP_DEV_TOKENS = saved
 	}
