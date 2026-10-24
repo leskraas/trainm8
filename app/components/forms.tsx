@@ -70,7 +70,11 @@ function InlineFieldErrors({
 	if (!errors.length && !reserveErrorLine) return null
 
 	return (
-		<div className={cn('pt-1', reserveErrorLine && FIELD_ERROR_LINE)}>
+		<div
+			className={cn('pt-1', reserveErrorLine && FIELD_ERROR_LINE)}
+			// The reserved line stays mounted, so it can announce what fills it.
+			aria-live={reserveErrorLine ? 'polite' : undefined}
+		>
 			{errors.map((error, index) => (
 				<FieldDescription
 					key={`${error}-${index}`}
@@ -95,13 +99,14 @@ export function ErrorList({
 	reserveErrorLine?: boolean
 }) {
 	const errorsToRender = getErrorsToRender(errors)
-	if (!errorsToRender?.length) {
-		return reserveErrorLine ? <div className={ERROR_LINE} /> : null
-	}
+	if (!errorsToRender?.length && !reserveErrorLine) return null
 	return (
+		// A reserved line is one element, empty or not, so the error that fills
+		// it is announced and keeps its id.
 		<ul
 			id={id}
 			className={cn('flex flex-col gap-1', reserveErrorLine && ERROR_LINE)}
+			aria-live={reserveErrorLine ? 'polite' : undefined}
 		>
 			{errorsToRender.map((e) => (
 				<li key={e} className={ERROR_TEXT}>

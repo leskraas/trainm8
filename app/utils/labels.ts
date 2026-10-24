@@ -3672,13 +3672,16 @@ export const WORKOUT_DETAIL_LABELS = {
 		plannedShape: 'Planlagt form',
 		inspectHint:
 			'Dra over grafen for å lese hver kanal — trykk og dra på mobil, hold pekeren over på PC.',
-		/** A planned target band; an open-ended zone has a floor only. */
+		/** A planned target band; an open-ended zone has a floor only, and a
+		 * single-value target (`150 bpm`) reads as its one value. */
 		targetRange: (min: number, max: number | null) =>
-			max != null ? `${min}–${max}` : `over ${min}`,
+			max == null ? `over ${min}` : max === min ? `${min}` : `${min}–${max}`,
 		plannedRange: (min: number, max: number | null, unit: string) =>
-			max != null
-				? `Planlagt ${min}–${max} ${unit}`
-				: `Planlagt over ${min} ${unit}`,
+			max == null
+				? `Planlagt over ${min} ${unit}`
+				: max === min
+					? `Planlagt ${min} ${unit}`
+					: `Planlagt ${min}–${max} ${unit}`,
 		missing: 'mangler',
 		tableCaption:
 			'Data fra opptaket, et utvalg gjennom økta, fra start til slutt.',

@@ -599,7 +599,7 @@ function powerWindow(steps: ResolvedIntensity[]): string | null {
  * Anchor*, *Target Resolution*) — when any step it stands for is one.
  */
 function approx(steps: ResolvedIntensity[], text: string): string {
-	return steps.some((step) => step.approximate) ? `≈ ${text}` : text
+	return steps.some((step) => step.approximate) ? `≈\u00a0${text}` : text
 }
 
 /**

@@ -892,7 +892,7 @@ describe('rule 7: planned rows are instructions', () => {
 				},
 			},
 		)
-		expect(content.internalLoad).toBe('≈ 4:00 /km')
+		expect(content.internalLoad).toBe('≈\u00a04:00 /km')
 	})
 
 	test('a lactate target states the pace it reads as with ≈', () => {
@@ -921,7 +921,7 @@ describe('rule 7: planned rows are instructions', () => {
 				},
 			},
 		)
-		expect(content.internalLoad).toMatch(/^≈ \d:\d\d–\d:\d\d \/km$/)
+		expect(content.internalLoad).toMatch(/^≈\u00a0\d:\d\d–\d:\d\d \/km$/)
 	})
 
 	test('a stale cached range is not what the row states', () => {
