@@ -8,6 +8,7 @@
  */
 import { render, screen } from '@testing-library/react'
 import { expect, test } from 'vitest'
+import { PRIVACY_NOTICE_LABELS } from '#app/utils/labels.ts'
 import PrivacyRoute from './privacy.tsx'
 
 test('the privacy page is a Norwegian Art. 13 notice marked as a draft', () => {
@@ -35,4 +36,14 @@ test('the privacy page is a Norwegian Art. 13 notice marked as a draft', () => {
 	expect(screen.getByText(/Sikkerhetskopier: inntil 5 dager/)).toBeTruthy()
 	// Controller facts nobody has given us stay visible placeholders.
 	expect(screen.getByText(/\[NAVN PÅ BEHANDLINGSANSVARLIG\]/)).toBeTruthy()
+})
+
+// `privacy.tsx` keys sections by heading and lines by text, so a repeat would
+// collide in React.
+test('the notice has no repeated heading or line within a section', () => {
+	const headings = PRIVACY_NOTICE_LABELS.sections.map((s) => s.heading)
+	expect(new Set(headings).size).toBe(headings.length)
+	for (const section of PRIVACY_NOTICE_LABELS.sections) {
+		expect(new Set(section.body).size).toBe(section.body.length)
+	}
 })

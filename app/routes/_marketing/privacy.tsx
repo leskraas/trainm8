@@ -28,16 +28,16 @@ export default function PrivacyRoute() {
 					<h2 className="text-foreground text-xl font-semibold tracking-tight">
 						{section.heading}
 					</h2>
-					<ul className="mt-3 space-y-3">
+					<div className="mt-3 space-y-3">
 						{section.body.map((line) => (
-							<li
+							<p
 								key={line}
 								className="text-foreground/90 text-base leading-relaxed text-pretty break-words"
 							>
 								{line}
-							</li>
+							</p>
 						))}
-					</ul>
+					</div>
 				</section>
 			))}
 		</main>
