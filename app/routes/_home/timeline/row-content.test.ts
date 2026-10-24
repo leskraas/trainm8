@@ -855,6 +855,60 @@ describe('rule 7: planned rows are instructions', () => {
 		expect(content.internalLoad).toBe('4:00–4:13 /km')
 	})
 
+	// A race pace or lactate target is a translation, not arithmetic on a
+	// number the athlete typed, so the pace it reads as wears `≈` (GLOSSARY
+	// *Lactate Anchor*, #638); a %T-pace above does not.
+	test('a race-pace target states its pace with ≈', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([
+						step({
+							durationSec: 1200,
+							intensity: JSON.stringify({ kind: 'racePace', event: '5k' }),
+						}),
+					]),
+				]),
+			),
+			PLANNED_WEEK,
+			{
+				thresholds: {
+					run: { ...thresholds(), raceAnchorPaces: { '5k': 240 } },
+				},
+			},
+		)
+		expect(content.internalLoad).toBe('≈ 4:00 /km')
+	})
+
+	test('a lactate target states the pace it reads as with ≈', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([
+						step({
+							durationSec: 1200,
+							intensity: JSON.stringify({
+								kind: 'lactate',
+								minMmol: 2,
+								maxMmol: 3,
+							}),
+						}),
+					]),
+				]),
+			),
+			PLANNED_WEEK,
+			{
+				thresholds: {
+					run: thresholds({
+						thresholdPaceSecPerKm: 240,
+						zoneSystem: 'norwegian-threshold-run',
+					}),
+				},
+			},
+		)
+		expect(content.internalLoad).toMatch(/^≈ \d:\d\d–\d:\d\d \/km$/)
+	})
+
 	test('a stale cached range is not what the row states', () => {
 		const content = buildRowContent(
 			plannedRow(

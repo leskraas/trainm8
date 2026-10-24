@@ -557,16 +557,21 @@ function paceWindow(
 	)
 	if (distinct.size !== 1) return null
 	const step = authored[0]!
+	// A single pace resolves to equal bounds (`5 km-fart` is one pace).
+	const max = step.paceMax === step.paceMin ? undefined : step.paceMax
 	if (discipline === 'swim') {
 		// A swim reads per hundred metres. A CSS target resolves in that unit
 		// already; a pace target resolves per km and is divided down (#613).
 		const per100 = (sec: number) =>
 			formatPaceClock(paceInDistanceUnit(sec, 'swim', step.targetKind))
-		return step.paceMax != null
-			? `${per100(step.paceMin!)}–${per100(step.paceMax)} /100m`
-			: `${per100(step.paceMin!)} /100m`
+		return approx(
+			authored,
+			max != null
+				? `${per100(step.paceMin!)}–${per100(max)} /100m`
+				: `${per100(step.paceMin!)} /100m`,
+		)
 	}
-	return formatPaceRange(step.paceMin!, step.paceMax)
+	return approx(authored, formatPaceRange(step.paceMin!, max))
 }
 
 /** A ride's equivalent of the pace window, under the same agreement rule. */
@@ -578,9 +583,21 @@ function powerWindow(steps: ResolvedIntensity[]): string | null {
 	)
 	if (distinct.size !== 1) return null
 	const step = authored[0]!
-	return step.powerMax != null
-		? `${step.powerMin}–${step.powerMax} W`
-		: `${step.powerMin} W`
+	return approx(
+		authored,
+		step.powerMax != null
+			? `${step.powerMin}–${step.powerMax} W`
+			: `${step.powerMin} W`,
+	)
+}
+
+/**
+ * A window read off a race pace or a lactate band is a translation, not
+ * arithmetic on a number the athlete typed, so it wears `≈` (GLOSSARY *Lactate
+ * Anchor*, *Target Resolution*) — when any step it stands for is one.
+ */
+function approx(steps: ResolvedIntensity[], text: string): string {
+	return steps.some((step) => step.approximate) ? `≈ ${text}` : text
 }
 
 /**
