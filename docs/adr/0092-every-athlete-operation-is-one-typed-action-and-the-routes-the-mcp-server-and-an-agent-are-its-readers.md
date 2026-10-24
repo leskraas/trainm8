@@ -1,14 +1,16 @@
 # Every athlete operation is one typed action, and the routes, the MCP server and an agent are its readers
 
-Status: Accepted on delegation · Ticket #550 (map #541) · Backed by
+Status: Accepted · owner confirmed 2026-10-24 · Ticket #550 (map #541) · Backed
+by
 [`mcp-server-for-trainm8.md` §6.1, §6.5, §6.7, §7, §8](../research/mcp-server-for-trainm8.md#8-one-registry-three-consumers),
 [`agent-layer-building-blocks.md` §9.1](../research/agent-layer-building-blocks.md#91-the-registry-owned-by-trainm8-with-no-framework),
 [`agent-native.md` §5.4, §7.1](../research/agent-native.md#71-what-to-borrow)
 and
 [`agent-native-deep-dive.md` §3, §11.5, §18](../research/agent-native-deep-dive.md#18-what-this-means-for-trainm8s-own-agent-layer).
 The owner asked the agent to answer #550's grilling from the research
-(2026-10-24). Every choice below is the agent's; the items under
-[Open for the owner](#open-for-the-owner) are **Proposed, owner to confirm**.
+(2026-10-24) and confirmed every recommendation the same day; see
+[Owner's decisions](#owners-decisions). The shortcuts among them are tracked
+under [Deferred hardening](#deferred-hardening) and #639.
 
 Where this ADR borrows from the sibling project Bredvid/tavla, which worked
 through the same registry questions later than trainm8's research, it cites
@@ -414,9 +416,10 @@ the session-vs-plan computations in `training/sessions.$sessionId.tsx`.
 - `app/mcp/` exists before OAuth does; the dev token is the only way in until
   ADR 0094 lands.
 
-## Open for the owner
+## Owner's decisions
 
-Proposed, owner to confirm. Each has the recommended answer in place above.
+Confirmed by the owner on 2026-10-24, as recommended. Each answer is in place
+above.
 
 1. **A model sees `rpe` and the Session Log as athlete text** (§7,
    `get_session`). They are health data under Art. 9 and need the consent the
@@ -425,3 +428,23 @@ Proposed, owner to confirm. Each has the recommended answer in place above.
 2. **Model-facing calls are audited; the athlete's own web calls are not**
    (§11). Recommended: yes for v1. Auditing web writes too would answer "was
    that me or Claude?" for every write, at the cost of a row per tap.
+
+## Deferred hardening
+
+Shortcuts taken on purpose. Each is safe while the owner is the only athlete
+with an assistant and must close, or be re-accepted by the owner with a date and
+a reason here, before anyone else connects one. Tracked in #639.
+
+- **No audit of the athlete's own web calls** (decision 2). Together with ADR
+  0093's missing presence check, a write made by a browser agent holding the
+  athlete's cookie cannot be told from the athlete's own. Closes when web writes
+  are audited too, or a web yes is proven to be the athlete's (#639 H2).
+- **`rpe` and the Session Log reach a model without consent** (decision 1). Art.
+  9 health data, acceptable only on the owner's own dev token. Closes when
+  #549's per-purpose consent gates them and an unconsented token gets
+  `unavailable` with a reason (#639 H5).
+- **A static dev bearer token is the only way into `/mcp` in Phase 0.** No
+  expiry, rotation or scope. Closes when Phase 2's OAuth replaces it; until then
+  a test proves production refuses it (#639 H6).
+- **The rate limiter keys on IP.** Every Anthropic call shares one `/21`. Closes
+  with Phase 2's limit per token subject (#639 H7).

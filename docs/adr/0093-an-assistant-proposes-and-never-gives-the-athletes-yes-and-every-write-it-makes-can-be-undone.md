@@ -1,15 +1,17 @@
 # An assistant proposes and never gives the athlete's yes, and every write it makes can be undone
 
-Status: Accepted on delegation · Ticket #550 (map #541) · Backed by
+Status: Accepted · owner confirmed 2026-10-24 · Ticket #550 (map #541) · Backed
+by
 [`mcp-server-for-trainm8.md` §5.2, §6.2–6.4, §6.6, §6.7](../research/mcp-server-for-trainm8.md#62-adr-0080-the-model-is-a-proposal-author-never-the-yes),
 [`agent-native.md` §5.4(c), §7.2, §8](../research/agent-native.md#72-phased-plan),
 [`agent-layer-trainm8-surface.md` §4 and its ADR table](../research/agent-layer-trainm8-surface.md#adrs-this-research-challenges)
 and
 [`agent-layer-building-blocks.md`'s ADR table](../research/agent-layer-building-blocks.md#adrs-this-research-challenges).
 The owner asked the agent to answer #550's grilling from the research
-(2026-10-24). Every choice below is the agent's; the items under
-[Open for the owner](#open-for-the-owner) are **Proposed, owner to confirm**,
-among them the owner's two questions on #550.
+(2026-10-24) and confirmed every recommendation the same day; see
+[Owner's decisions](#owners-decisions). The shortcuts among them are tracked
+under [Deferred hardening](#deferred-hardening) and #639, among them the owner's
+two questions on #550.
 
 Where this ADR borrows from the sibling project Bredvid/tavla, which worked
 through the same proposal and undo questions later than trainm8's research, it
@@ -238,7 +240,7 @@ approval must bind to the stored preview rather than regenerate
   undo payload alive indefinitely, and "you can still undo this" a week later is
   not a promise a conversation should make.
 - **A presence check (a passkey per yes), as tavla requires for high risk.** Not
-  now; see Open for the owner.
+  now; see Owner's decisions.
 
 ## Consequences
 
@@ -255,9 +257,10 @@ approval must bind to the stored preview rather than regenerate
 - ADR 0080 §6's "only the author changes" no longer holds for an assistant: the
   author changes, and so do the apply rules.
 
-## Open for the owner
+## Owner's decisions
 
-Proposed, owner to confirm. Each has the recommended answer in place above.
+Confirmed by the owner on 2026-10-24, as recommended. Each answer is in place
+above.
 
 1. **Is an agent's write on the athlete's say-so the athlete's or the
    machine's?** (#550; §5.) Recommended: the athlete's. The session is
@@ -280,3 +283,21 @@ Proposed, owner to confirm. Each has the recommended answer in place above.
    environment flag that makes them `not-run`, `switched-off`.
 6. **The caps**: 280 characters for an assistant's reason, 10 pending assistant
    proposals a day, one pending per target session.
+
+## Deferred hardening
+
+Shortcuts taken on purpose. Each is safe while the owner is the only athlete
+with an assistant and must close, or be re-accepted by the owner with a date and
+a reason here, before anyone else connects one. Tracked in #639.
+
+- **No presence check on the yes** (decision 4). Anything driving the athlete's
+  browser with their cookie can tap yes. Closes with step-up or a user-presence
+  check on a yes to an assistant's proposal (#639 H1). Decide again at once if a
+  yes ever reaches beyond the athlete's own plan.
+- **A model's write on the athlete's say-so is the athlete's** (decision 1). An
+  injected assistant can write `authored` sessions the ownership gate then
+  protects. Closes when such sessions name their client in the UI and one action
+  undoes or revokes everything a client wrote (#639 H3).
+- **The kill switch is an environment flag** (decision 5). It needs a secret
+  change and a restart, and it is all or nothing. Closes with a switch stored in
+  the database plus revocation per client and per athlete (#639 H4).
