@@ -21,7 +21,6 @@ import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
 import { planArc } from '#app/utils/dashboard.ts'
 import {
 	formatDayMonth,
-	formatLoad,
 	formatNbKg,
 	formatNbWeekday,
 	roundLoad,
@@ -570,8 +569,11 @@ export type LoadRecomputeLine = {
 	kicker: string
 	/** Why it happened, in the athlete's terms. */
 	explanation: string
-	/** The movement, e.g. "Fitness fell by up to 15 (62 → 48 at the widest)". */
-	movement: string
+	/**
+	 * The movement, e.g. "Kondisjonen falt med opptil 14 — 62 → 48 på det
+	 * meste", or null when the rounded figures did not move.
+	 */
+	movement: string | null
 }
 
 export function buildLoadRecomputeLine(
@@ -583,12 +585,24 @@ export function buildLoadRecomputeLine(
 	// "by up to … at the widest point": the stored pair is the day the recompute
 	// moved CTL most, which for a past gym block is a historical chart point and
 	// not today's figure. A present-tense "moved from A to B" would be false there.
-	const before = formatLoad(notice.ctlBefore)
-	const after = formatLoad(notice.ctlAfter)
-	const drop = formatLoad(notice.ctlBefore - notice.ctlAfter)
+	// The size is taken between the two rounded figures, so the sentence agrees
+	// with itself ("14 — 62 → 48", never "15"); its direction is the sign, since
+	// a correction may raise CTL as well as lower it (ADR 0107 §3).
+	// A movement the rounded triad cannot show is left out rather than printed
+	// as "0 — 3 → 3": the swim notice is owed for the pace alone (ADR 0107 §2).
+	const before = roundLoad(notice.ctlBefore)
+	const after = roundLoad(notice.ctlAfter)
 	return {
 		kind: notice.kind,
 		...copy,
-		movement: RECOMPUTE_NOTICE_LABELS.movement(drop, before, after),
+		movement:
+			after === before
+				? null
+				: RECOMPUTE_NOTICE_LABELS.movement(
+						after > before ? 'rose' : 'fell',
+						String(Math.abs(after - before)),
+						String(before),
+						String(after),
+					),
 	}
 }
