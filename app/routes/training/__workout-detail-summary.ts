@@ -189,16 +189,12 @@ function plannedFigures(input: SessionSummaryInput): Figures | null {
 	const cardio = blocks.some((block) =>
 		block.steps.some((step) => step.kind !== 'strength'),
 	)
+	const reading = { thresholds: input.thresholds, discipline: input.discipline }
 	return {
 		// A lifting session's steps carry no km or time, and a rest between
 		// lifts would make one up; only a session with cardio in it reads them.
-		km: cardio ? fixedDayVolume(blocks, 'km') : null,
-		seconds: cardio
-			? prescribedSeconds(blocks, {
-					thresholds: input.thresholds,
-					discipline: input.discipline,
-				})
-			: null,
+		km: cardio ? fixedDayVolume(blocks, 'km', reading) : null,
+		seconds: cardio ? prescribedSeconds(blocks, reading) : null,
 		sets: sets > 0 ? sets : null,
 		lifts: exercises.size > 0 ? exercises.size : null,
 		topKg: kilos.length > 0 ? Math.max(...kilos) : null,

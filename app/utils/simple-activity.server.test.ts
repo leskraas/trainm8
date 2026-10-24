@@ -58,6 +58,7 @@ async function weekOf(userId: string, tracks: PlanTrackTargets[]) {
 			volumeSessionOf(session, {
 				dayKey: '2030-01-15',
 				status: deriveLedgerStatus(session, WEDNESDAY_NOON, OSLO),
+				thresholds: {},
 			}),
 		),
 	})

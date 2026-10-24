@@ -923,6 +923,7 @@ function buildWeek({
 			volumeSessionOf(session, {
 				dayKey: localDate(new Date(session.scheduledAt), timezone),
 				status: entry.status,
+				thresholds,
 			}),
 		),
 	})
@@ -1184,6 +1185,7 @@ function buildSession({
 			entry.discipline,
 			dayKey,
 			trackCurrencies,
+			thresholds,
 		),
 		annet: annetOf(
 			session.countsInNoTrack,
@@ -1246,9 +1248,10 @@ function sessionVolume(
 	discipline: string,
 	dayKey: string,
 	currencies: ReadonlyMap<string, VolumeCurrency>,
+	thresholds: DisciplineThresholdMap,
 ): string | null {
 	if (status === 'missed') return null
-	const read = volumeSessionOf(session, { dayKey, status })
+	const read = volumeSessionOf(session, { dayKey, status, thresholds })
 	const figures = status === 'completed' ? read.recorded : read.prescribed
 	if (!figures) return null
 	const currency =
