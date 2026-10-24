@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { DeferJob } from '#app/utils/jobs/queue.server.ts'
 import {
 	createRateLimiter,
 	STRAVA_RATE_LIMIT,
@@ -86,16 +87,21 @@ test('bulk work stops short of the limit, leaving a margin live webhooks still g
 	expect(clock.ms).toBe(MIN_15)
 })
 
-test('the daily cap holds bulk work until midnight UTC', async () => {
+test('a spent daily cap defers the job to midnight UTC instead of holding the worker', async () => {
 	const clock = fakeClock()
 	const limiter = createRateLimiter({ ...STRAVA_RATE_LIMIT, clock })
 
 	// 800 is the daily bulk share; the 15-minute windows roll as it goes.
 	for (let i = 0; i < 800; i++) await limiter.acquire('bulk')
-	expect(clock.ms).toBeLessThan(DAY)
+	const spentAt = clock.ms
+	expect(spentAt).toBeLessThan(DAY)
 
-	await limiter.acquire('bulk')
-	expect(clock.ms).toBe(DAY)
+	// Waiting would hold the single job worker for hours; the job is handed
+	// back to the queue to run at midnight UTC instead.
+	const deferred = await limiter.acquire('bulk').catch((e: unknown) => e)
+	expect(deferred).toBeInstanceOf(DeferJob)
+	expect((deferred as DeferJob).until.getTime()).toBe(DAY)
+	expect(clock.ms).toBe(spentAt)
 })
 
 test("Strava's rate-limit headers are followed over the assumed figures", async () => {
@@ -130,7 +136,7 @@ test('a 429 backs off until the next window and retries, instead of failing', as
 	expect(clock.ms).toBe(MIN_15)
 })
 
-test('a 429 that reports the daily budget spent waits until midnight UTC', async () => {
+test('a 429 that reports the daily budget spent defers the job to midnight UTC', async () => {
 	const clock = fakeClock()
 	clock.ms = 5 * 60 * 1000
 	const limiter = createRateLimiter({ ...STRAVA_RATE_LIMIT, clock })
@@ -142,8 +148,10 @@ test('a 429 that reports the daily budget spent waits until midnight UTC', async
 		}),
 		response(200),
 	]
-	const result = await limiter.run('live', async () => responses.shift()!)
+	const deferred = await limiter
+		.run('live', async () => responses.shift()!)
+		.catch((e: unknown) => e)
 
-	expect(result.status).toBe(200)
-	expect(clock.ms).toBe(DAY)
+	expect(deferred).toBeInstanceOf(DeferJob)
+	expect((deferred as DeferJob).until.getTime()).toBe(DAY)
 })

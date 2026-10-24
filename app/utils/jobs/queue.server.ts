@@ -66,6 +66,22 @@ export async function claimNextJob(): Promise<ClaimedJob | null> {
 	}
 }
 
+/**
+ * Thrown by a handler that can't make progress until a known time, such as a
+ * provider's spent daily budget. The job goes back to `pending` at `until`
+ * without spending an attempt, so the single worker is free for other jobs in
+ * the meantime (#637).
+ */
+export class DeferJob extends Error {
+	constructor(
+		readonly until: Date,
+		message: string,
+	) {
+		super(message)
+		this.name = 'DeferJob'
+	}
+}
+
 /** A handler runs one job kind. It receives the job's parsed JSON payload. */
 export type JobHandler = (payload: Record<string, unknown>) => Promise<void>
 
@@ -76,6 +92,7 @@ export type JobHandlers = Record<string, JobHandler>
  * Claim the next runnable job and run its registered handler. On success the job
  * is completed; a throwing handler (or a missing handler) fails the job, which
  * either reschedules it with backoff or dead-letters it once attempts are spent.
+ * A handler that throws `DeferJob` is rescheduled to its time instead.
  * Returns `'idle'` when nothing was runnable so the worker loop can back off.
  */
 export async function processNextJob(
@@ -92,7 +109,8 @@ export async function processNextJob(
 		await handler(job.payload)
 		await completeJob(job.id)
 	} catch (error) {
-		await failJob(job.id, error)
+		if (error instanceof DeferJob) await deferJob(job.id, error)
+		else await failJob(job.id, error)
 	}
 	return 'processed'
 }
@@ -132,6 +150,22 @@ export async function failJob(id: string, error: unknown): Promise<void> {
 			status: 'pending',
 			lastError: message,
 			runAt: new Date(Date.now() + delayMs),
+		},
+	})
+}
+
+/**
+ * Put a deferred job back to `pending` at the time it asked for. The claim
+ * counted an attempt; a deferral is not a failure, so it is given back.
+ */
+async function deferJob(id: string, deferral: DeferJob): Promise<void> {
+	await prisma.job.update({
+		where: { id },
+		data: {
+			status: 'pending',
+			lastError: deferral.message,
+			runAt: deferral.until,
+			attempts: { decrement: 1 },
 		},
 	})
 }

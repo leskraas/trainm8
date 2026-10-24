@@ -11,6 +11,7 @@ import {
 	persistActivityLaps,
 } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { DeferJob } from '#app/utils/jobs/queue.server.ts'
 import { type Lap } from '#app/utils/structure-detection/types.ts'
 import { stravaApiGet } from './client.server.ts'
 import { stravaTypeToDiscipline } from './discipline-map.ts'
@@ -330,8 +331,10 @@ export async function ingestActivityLaps(
 			activityStartMs,
 		})
 		if (markers.length > 0) await persistActivityLaps(activityImportId, markers)
-	} catch {
+	} catch (err) {
 		// Laps are a refinement; a failure must never abort the enclosing ingest.
+		// A spent Strava day is not a failure: the job waits for it (#637).
+		if (err instanceof DeferJob) throw err
 	}
 }
 
@@ -343,7 +346,8 @@ export async function ingestActivityLaps(
  * `'other'` activities (no overlay), imports we don't have, and imports already
  * carrying a stream (idempotent + spares a redundant stream call on re-sync).
  * An activity with no usable streams persists nothing. Never throws —
- * telemetry is an enrichment, never load-bearing for a sync's success. `lane`
+ * telemetry is an enrichment, never load-bearing for a sync's success — except
+ * `DeferJob` when Strava's day is spent, so the job resumes later. `lane`
  * is the rate-limit lane its Strava calls are paced in.
  */
 export async function ingestActivityStreams(
@@ -394,9 +398,11 @@ export async function ingestActivityStreams(
 				discipline,
 				raw,
 			)
-		} catch {
+		} catch (err) {
 			// One activity's stream failing (fetch error, or a concurrent trigger
-			// that already inserted the row) must not abort the rest.
+			// that already inserted the row) must not abort the rest. A spent
+			// Strava day would fail every one of them, so the job waits instead.
+			if (err instanceof DeferJob) throw err
 		}
 	}
 }

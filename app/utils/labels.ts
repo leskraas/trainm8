@@ -6108,6 +6108,8 @@ export const INTEGRATION_TOAST_LABELS = {
 		'Strava har slått av appen (status: inactive). Det er på Stravas side – å koble til på nytt hjelper ikke.',
 	stravaScope:
 		'Trainm8 har ikke lov til å lese Strava-øktene dine. Koble til på nytt, og la avkrysningen for økttilgang stå på.',
+	stravaRateLimited:
+		'Strava har nådd dagens grense for oppslag. Prøv igjen i morgen.',
 	stravaUnavailable: 'Strava er ikke tilgjengelig',
 	/** The Strava OAuth callback's refusals (a reconnect of an old link). */
 	stravaDenied: 'Du sa nei til tilgangen hos Strava.',

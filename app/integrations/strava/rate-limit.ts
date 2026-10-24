@@ -12,11 +12,17 @@
  * rate-limit headers, so its figures follow Strava's rather than ours, and
  * backs a `429` off until the next window instead of failing.
  *
+ * A wait longer than the shortest window (a spent day) would hold the single
+ * job worker for hours, so instead of sleeping the limiter throws `DeferJob`
+ * and the queue runs the job again when the window resets.
+ *
  * It is intentionally not concurrency-safe: the job worker runs single-threaded
  * and fetches pages sequentially, so calls into a limiter are serialised. The
  * single-worker design is what makes *concurrent* backfills queue behind one
  * another rather than hammering the budget all at once.
  */
+
+import { DeferJob } from '#app/utils/jobs/queue.server.ts'
 
 /** Injectable time source so tests can advance virtual time without waiting. */
 export type Clock = {
@@ -57,6 +63,7 @@ export function createRateLimiter({
 	clock?: Clock
 }): RateLimiter {
 	const state = windows.map((w) => ({ ...w, start: 0, used: 0 }))
+	const maxWaitMs = Math.min(...windows.map((w) => w.windowMs))
 
 	function roll(now: number) {
 		for (const w of state) {
@@ -81,8 +88,15 @@ export function createRateLimiter({
 				for (const w of state) w.used++
 				return
 			}
-			// Wait for the last of the full windows to reset.
+			// Wait for the last of the full windows to reset, or hand the job back
+			// to the queue when that is longer than the shortest window.
 			const resumeAt = Math.max(...full.map((w) => w.start + w.windowMs))
+			if (resumeAt - now > maxWaitMs) {
+				throw new DeferJob(
+					new Date(resumeAt),
+					`Strava read budget spent until ${new Date(resumeAt).toISOString()}`,
+				)
+			}
 			await clock.sleep(Math.max(resumeAt - now, 1))
 		}
 	}

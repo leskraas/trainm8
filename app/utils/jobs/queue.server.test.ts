@@ -3,6 +3,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import {
 	claimNextJob,
 	completeJob,
+	DeferJob,
 	enqueueJob,
 	failJob,
 	processNextJob,
@@ -105,6 +106,24 @@ test('a throwing handler fails the job for retry', async () => {
 	const row = await prisma.job.findUniqueOrThrow({ where: { id: enqueued.id } })
 	expect(row.status).toBe('pending')
 	expect(row.lastError).toBe('handler exploded')
+})
+
+test('a handler that defers its job reschedules it without spending an attempt', async () => {
+	const enqueued = await enqueueJob({ kind: 'strava-backfill', maxAttempts: 1 })
+	const until = new Date(Date.now() + 60 * 60 * 1000)
+
+	await processNextJob({
+		'strava-backfill': async () => {
+			throw new DeferJob(until, 'Strava read budget spent')
+		},
+	})
+
+	const row = await prisma.job.findUniqueOrThrow({ where: { id: enqueued.id } })
+	// With maxAttempts 1 a failure would be terminal; a deferral is not one.
+	expect(row.status).toBe('pending')
+	expect(row.attempts).toBe(0)
+	expect(row.runAt.getTime()).toBe(until.getTime())
+	expect(row.lastError).toBe('Strava read budget spent')
 })
 
 test('a job with no registered handler fails rather than spinning', async () => {

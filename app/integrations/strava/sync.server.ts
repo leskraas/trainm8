@@ -1,4 +1,5 @@
 import { prisma } from '#app/utils/db.server.ts'
+import { DeferJob } from '#app/utils/jobs/queue.server.ts'
 import {
 	StravaAppInactiveError,
 	StravaConnectionRevokedError,
@@ -36,6 +37,7 @@ export type StravaSyncResult =
 				| 'revoked'
 				| 'insufficient-scope'
 				| 'app-inactive'
+				| 'rate-limited'
 	  }
 
 export async function syncStravaActivities(
@@ -64,6 +66,9 @@ export async function syncStravaActivities(
 	try {
 		activities = await fetchStravaActivitiesAfter(connection, after)
 	} catch (err) {
+		// A manual sync runs inside the request, so a spent Strava day can't be
+		// waited out or deferred to the queue: say so instead (#637).
+		if (err instanceof DeferJob) return { ok: false, reason: 'rate-limited' }
 		if (err instanceof StravaConnectionRevokedError) {
 			return { ok: false, reason: 'revoked' }
 		}
@@ -86,7 +91,14 @@ export async function syncStravaActivities(
 	// freshly-synced session's Workout Detail View overlay works end-to-end with
 	// no manual step (#139, best-effort). The same single streams call per
 	// activity derives its HR phase bars and enqueues Structure Detection (#611).
-	await ingestActivityStreams(connection, activities)
+	try {
+		await ingestActivityStreams(connection, activities)
+	} catch (err) {
+		// The day ran out after the activities were saved. Keep them, but leave
+		// the watermark so the next sync fetches the streams still missing.
+		if (err instanceof DeferJob) return { ok: true, created, skipped }
+		throw err
+	}
 
 	// Only advance the watermark on a fully successful pass.
 	await prisma.accountConnection.update({
