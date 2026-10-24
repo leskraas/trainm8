@@ -232,3 +232,46 @@ starts from a list rather than a trace:
   is not touched here.
 - **`ADR 0065`'s open question is closed**, and the two remaining items in §5
   are performance work with numbers attached rather than an architectural fork.
+
+## Reopened (#503, 2026-10-24): the 364 rows are real again, and not yet measured
+
+ADR 0086 removed the bands this ADR's finding 1 relied on. Every past day is a
+row again, so a 52-week season is **exactly 364 day rows**, the number #503 was
+written about. The approach in place is ADR 0086 §4's:
+
+- the past is mounted up front;
+- weeks ahead are appended in chunks;
+- `WeekBlock` and `DayRow` are memoised;
+- where the browser anchors scrolling, each week is `content-visibility: auto`
+  with an estimated `contain-intrinsic-size`.
+
+No virtualiser is added, so `use-timeline-scroll.ts` keeps owning scroll
+position (§1 stands).
+
+- **The fixture now lives in the repo.** On a freshly seeded local database,
+  `scripts/home-stream-fixture.ts` stretches kody's plan to 34 weeks. That gives
+  52 weeks from the query's reach to race day, with four sessions a week across
+  the span. Run it with
+  `npx tsx --env-file=.env scripts/home-stream-fixture.ts`. It refuses to run
+  with `NODE_ENV=production`. The consequence above, _"the fixture was thrown
+  away"_, no longer holds.
+- **The measurement is still owed.** A production-mode server refuses the
+  `CREDENTIALS_ENCRYPTION_KEY` published in `.env.example`, so taking the
+  numbers needs a key generated locally. The measurement is 364 rows at 4× CPU
+  on 390×844: time to first paint, hydration, long tasks, and frame times while
+  scrolling the whole span. Until it is taken, ADR 0086 §4 is the standing
+  answer, and this section takes no new decision.
+- **The strip criterion in #503 is superseded (proposed, owner to confirm).**
+  #503 asks that the strip not render the whole season at once. ADR 0082 §5 and
+  ADR 0086 §5 are later owner decisions:
+  - the strip is fixed;
+  - it draws every week as two spans;
+  - it switches to a window only when bars would be narrower than 6px.
+
+  At 52 weeks on a 390px phone, every bar is drawn. That stays unless the
+  measurement shows the strip in the cost.
+
+### Deferred hardening
+
+None. The fixture is a local script with a production guard, and it writes only
+to the database that `DATABASE_URL` names.
