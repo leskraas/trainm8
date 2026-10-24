@@ -33,6 +33,7 @@
  * `terskel`, `langtur` are the words the athletes train in, so they live here,
  * beside the grammar they belong to, and not in `labels.ts`.
  */
+import { type TrainingZone } from './session-profile.ts'
 import { type NotationInput, type NotationStep } from './workout-notation.ts'
 import {
 	blockRepeatTotal,
@@ -45,6 +46,7 @@ import {
 	type WorkoutStructure,
 	WorkoutStructureSchema,
 } from './workout-schema.ts'
+import { ZONE_WORDS as STORED_ZONE_WORDS } from './zones/words.ts'
 
 /** The longest sentence the line takes — the input's `maxLength` and the
  * action's schema both read it. A session is a short sentence. */
@@ -152,8 +154,9 @@ export type SentenceLift = { exerciseId: string; name: string; typed: string }
 
 // ——— Vocabulary ————————————————————————————————————————————————————————
 
-/** Words on the Training Zone ladder, stored as the zone they name. */
-const ZONE_WORDS: Record<string, 1 | 2 | 3 | 4 | 5> = {
+/** Words on the Training Zone ladder, stored as the zone's own word. */
+const ZONE_WORDS: Record<string, TrainingZone> = {
+	lett: 1,
 	restitusjon: 1,
 	oppvarming: 1,
 	oppv: 1,
@@ -622,9 +625,13 @@ function readPart(tokens: Token[], context: PartContext): Part | null {
 			else restWordAt = i
 			continue
 		}
-		const zone = /^[zi]([1-5])$/.exec(word)?.[1] ?? ZONE_WORDS[word]
+		const code = /^[zi]([1-5])$/.exec(word)?.[1]
+		const zone =
+			code != null ? (Number(code) as TrainingZone) : ZONE_WORDS[word]
 		if (zone != null) {
-			setIntensity({ kind: 'zoneLabel', label: `Z${zone}` })
+			// Stored as the zone's word, never a code: `Z4` is a band label, and on
+			// Stryd it is zone 5 (#627).
+			setIntensity({ kind: 'zoneLabel', label: STORED_ZONE_WORDS[zone] })
 			continue
 		}
 		const discipline = DISCIPLINE_WORDS[word]
@@ -1362,7 +1369,7 @@ function intentOf(blocks: Block[]): WorkoutIntent {
 		for (const step of block.steps) {
 			if (step.kind !== 'cardio' || step.intensity?.kind !== 'zoneLabel')
 				continue
-			hardest = Math.max(hardest, Number(step.intensity.label.slice(1)))
+			hardest = Math.max(hardest, ZONE_WORDS[step.intensity.label] ?? 0)
 		}
 	}
 	// A pace with no zone word says nothing about the session's purpose, and

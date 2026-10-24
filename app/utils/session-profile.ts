@@ -101,17 +101,25 @@ export function zoneLabelToZone(label: string): TrainingZone | null {
 	const oltMatch = /^i-([1-5])$/.exec(normalized)
 	if (oltMatch) return Number(oltMatch[1]) as TrainingZone
 	switch (normalized) {
+		// The zone words the writing line, the day stamp and an eased session
+		// store (`zones/words.ts`, #627), plus the generic English vocabulary.
+		case 'lett':
+		case 'restitusjon':
 		case 'recovery':
 		case 'easy':
 			return 1
+		case 'rolig':
 		case 'zone2':
 		case 'endurance':
 			return 2
+		case 'moderat':
 		case 'moderate':
 		case 'tempo':
 			return 3
+		case 'terskel':
 		case 'threshold':
 			return 4
+		case 'hardt':
 		case 'vo2max':
 		case 'anaerobic':
 		case 'max':

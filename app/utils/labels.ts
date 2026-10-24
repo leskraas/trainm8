@@ -1834,7 +1834,7 @@ export const WRITING_LINE_LABELS = {
 	placeholder: 'f.eks. 10 km rolig eller 3x10 min terskel p 1 min',
 	/** The empty line under the Styrke chip (ADR 0089). */
 	placeholderLifts: 'f.eks. Knebøy 5×5 @ 80 kg · Benkpress 5×5 @ 60 kg',
-	hint: 'Eller la linja stå tom og legg til 45 min Z2.',
+	hint: 'Eller la linja stå tom og legg til 45 min rolig.',
 	understood: 'Forstått',
 	/** `Til sammen 10 km`, `Til sammen 5 km og 7 min 30 s`. */
 	totals: (parts: string[]) => `Til sammen ${parts.join(' og ')}`,

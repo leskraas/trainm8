@@ -23,15 +23,16 @@ import {
 	isCardioDiscipline,
 } from '#app/utils/workout-schema.ts'
 import { parseWorkoutSentence } from '#app/utils/workout-sentence.ts'
+import { ZONE_WORDS } from '#app/utils/zones/words.ts'
 
-/** The word the reader stores as each zone — its own vocabulary, round-tripped. */
-const ZONE_WORD: Record<string, string> = {
-	Z1: 'restitusjon',
-	Z2: 'rolig',
-	Z3: 'moderat',
-	Z4: 'terskel',
-	Z5: 'hardt',
-}
+/**
+ * The words the reader stores as each zone — its own vocabulary, round-tripped.
+ * A stored code (`Z4`, from before the reader wrote words, #627) has no word the
+ * reader would store it back as, so that session is placed whole.
+ */
+const STORED_ZONE_WORDS: ReadonlySet<string> = new Set(
+	Object.values(ZONE_WORDS),
+)
 
 type Block = SummedWorkout['blocks'][number]
 type Step = Block['steps'][number]
@@ -55,7 +56,8 @@ function clock(secPerKm: number): string {
 
 function intensityWords(intensity: IntensityTarget | undefined): string | null {
 	if (!intensity) return ''
-	if (intensity.kind === 'zoneLabel') return ZONE_WORD[intensity.label] ?? null
+	if (intensity.kind === 'zoneLabel')
+		return STORED_ZONE_WORDS.has(intensity.label) ? intensity.label : null
 	if (intensity.kind === 'pace') {
 		const max = intensity.maxSecPerKm
 		return max != null

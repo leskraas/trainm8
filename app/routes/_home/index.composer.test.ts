@@ -109,7 +109,10 @@ async function stockSession() {
 									kind: 'cardio',
 									discipline: 'run',
 									durationSec: 360,
-									intensity: JSON.stringify({ kind: 'zoneLabel', label: 'Z4' }),
+									intensity: JSON.stringify({
+										kind: 'zoneLabel',
+										label: 'terskel',
+									}),
 								},
 								{ orderIndex: 1, kind: 'rest', durationSec: 60 },
 							],
@@ -155,7 +158,7 @@ test('a stamp from the composer may land past the window, as a sentence may', as
 	})) as Reply
 	const row = await written(reply.data.stampedSessionId)
 	expect(localDate(row.scheduledAt, 'UTC')).toBe(far)
-	expect(row.workout?.title).toBe('45 min Z2')
+	expect(row.workout?.title).toBe('45 min Rolig')
 })
 
 test('Annet when writing: the session counts in no track, and the toast says so (owner decision 4)', async () => {

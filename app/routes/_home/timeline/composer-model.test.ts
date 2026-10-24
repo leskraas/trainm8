@@ -53,7 +53,7 @@ function item(overrides: Partial<ComposerSourceItem> = {}): ComposerSourceItem {
 }
 
 describe('the empty state is the stamp', () => {
-	test('an empty line on a cardio sport offers 45 min Z2 in that sport', () => {
+	test('an empty line on a cardio sport offers 45 min rolig in that sport', () => {
 		expect(post(state({ sport: 'bike' }))).toEqual({
 			intent: 'stamp-day',
 			date: '2030-02-22',

@@ -40,8 +40,13 @@ test('it validates as the very same authoring input the full route posts', () =>
 
 test('the title is derived from the structure, never typed and never invented', () => {
 	expect(buildDayStamp({ discipline: 'run', scheduledAt: AT }).title).toBe(
-		STAMP_SENTENCE,
+		'45 min Rolig',
 	)
+})
+
+test('the stamp stores zone 2’s word, never the code a recipe uses as a band label (#627)', () => {
+	expect(STAMP_ZONE_LABEL).toBe('rolig')
+	expect(STAMP_SENTENCE).toBe('45 min rolig')
 })
 
 test('strength is not stampable — a lifting session has to name a lift', () => {
