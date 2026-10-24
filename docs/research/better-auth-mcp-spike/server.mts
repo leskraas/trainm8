@@ -63,15 +63,21 @@ const mcpHandler = createMcpHandler(
 const TOOL_SCOPES: Record<string, string> = {
 	propose_week_change: 'training:propose',
 }
-async function toolName(request: Request) {
+/** Every tool the request would call: header and body must agree, and a JSON-RPC batch counts each call. */
+async function toolNames(request: Request): Promise<string[]> {
 	const header = request.headers.get('mcp-name')
-	if (header) return header
+	let names: string[] = []
 	try {
 		const body = await request.clone().json()
-		return body?.method === 'tools/call' ? body.params?.name : undefined
+		for (const msg of Array.isArray(body) ? body : [body])
+			if (msg?.method === 'tools/call' && typeof msg.params?.name === 'string')
+				names.push(msg.params.name)
 	} catch {
-		return undefined
+		// not JSON: nothing to dispatch
 	}
+	// The 2025 era ignores the header, so never let it hide the body's tool.
+	if (header && !names.every((n) => n === header)) names = [...names, header]
+	return names
 }
 
 const protectedMcp = requireMcpAuth(
@@ -80,9 +86,11 @@ const protectedMcp = requireMcpAuth(
 		const scopes = String(claims.scope ?? '')
 			.split(' ')
 			.filter(Boolean)
-		const needed = TOOL_SCOPES[(await toolName(request)) ?? '']
-		if (needed && !scopes.includes(needed))
-			throw createInsufficientScopeError(['training:read', needed])
+		for (const name of await toolNames(request)) {
+			const needed = TOOL_SCOPES[name]
+			if (needed && !scopes.includes(needed))
+				throw createInsufficientScopeError(['training:read', needed])
+		}
 		const authInfo = {
 			token: request.headers
 				.get('authorization')!
