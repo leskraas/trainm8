@@ -275,19 +275,18 @@ discipline, intensity, and quantity. _Avoid_: Interval, action
 
 **Workout Reading**: The one derived account of what a session is: its
 **Executed Steps** in order, its totals, its zone, its effort and its headline
-target. It is read from a planned Workout or a recording's intervals, with
-the athlete's thresholds, every time it is needed, and it is never stored. Every
-number in it is a value with its provenance or an **Unavailable Metric** with
-a reason, and it never takes a zone from the session's intent. A total that
-misses a step is an honest lower bound (_≥ 34 min_), not a guess. _Avoid_:
-Profile, summary, parsed workout
+target. It is read from a planned Workout or a recording's intervals, with the
+athlete's thresholds, every time it is needed, and it is never stored. Every
+number in it is a value with its provenance or an **Unavailable Metric** with a
+reason, and it never takes a zone from the session's intent. A total that misses
+a step is an honest lower bound (_≥ 34 min_), not a guess. _Avoid_: Profile,
+summary, parsed workout
 
 **Executed Step**: One step as it happens, in order, inside a **Workout
 Reading**: a Step on one rep of one series, or a rest the Block implies without
-writing it down (the rest between series, the rest left over in a
-**Send-Off**). It is what the drawing draws and what planned vs done is mapped
-on, identified by its Step, its rep and its slot. _Avoid_: Bar, expanded step,
-segment
+writing it down (the rest between series, the rest left over in a **Send-Off**).
+It is what the drawing draws and what planned vs done is mapped on, identified
+by its Step, its rep and its slot. _Avoid_: Bar, expanded step, segment
 
 **Step Role**: What an **Executed Step** is for in its session: _warm-up_,
 _work_, _recovery_, _cool-down_ or _steady_. It is read from the block's name
@@ -1091,6 +1090,14 @@ exists; it is an **Unavailable Metric** on that surface only, and the reason
 names the platforms that closed it (ADR 0098). Never used for a value that does
 not exist. _Avoid_: Blocked, redacted, licence error, missing
 
+**Reading**: One number as trainm8 states it to anything outside its own screens
+— an athlete's **Assistant** above all — either _available_ with its value or
+_unavailable_ with its reason and the athlete's words for it, never a zero, a
+blank or an omitted field (ADR 0092). An **Unavailable Metric** is a Reading
+that is unavailable; `source-terms` is one of its reasons. Distinct from a
+**Workout Reading**, which is a whole account of one session whose numbers are
+Readings. _Avoid_: Value, data point, nullable number, metric (alone)
+
 **Summary Count**: A truthful aggregate derived from existing sessions, such as
 number of sessions or number of days in the horizon. The **Strength Summary
 Count** is the shipped instance (ADR 0046 §4, built by ADR 0056): lifting
@@ -1259,11 +1266,21 @@ its target is the machine's when it applies. A missed session is never moved: a
 make-up proposal places a copy on a free day (only _bare denne gangen_ — a copy
 has no slot to move onward) and the missed session stays on its own day as _ikke
 gjort_. A proposal aimed at a session that has since been deleted applies
-nothing. "Keep" is a real proposal, never the absence of one. Written by a
-**proposal author** — a deterministic rule set today, AI later — and the apply
-rules do not depend on which (ADR 0080). The athlete's "Gjør uka lettere −15 %"
-is a proposal they create and accept in one tap. _Avoid_: Suggestion,
-recommendation, adjustment (that is the old in-place rescale)
+nothing. "Keep" is a real proposal, never the absence of one. Every proposal
+records its **Proposal Author**, and the rules above are the rules author's: an
+**Assistant**'s proposal applies only on the athlete's Ok in trainm8, under
+either mode (ADR 0093). The athlete's "Gjør uka lettere −15 %" is a proposal
+they create and accept in one tap. _Avoid_: Suggestion, recommendation,
+adjustment (that is the old in-place rescale)
+
+**Proposal Author**: Who wrote a **Week Replan Proposal**, stored on it: the
+**rules** (the Week Change's deterministic rule set, at a week's close), the
+**athlete** (their own one-tap proposals, such as "Gjør uka lettere −15 %"), or
+the athlete's **Assistant** (ADR 0093). Silence and the **Autopilot** apply only
+the rules' proposals; an assistant's is always a question, shown as the
+assistant's, and only the athlete's explicit yes in trainm8 applies it — never a
+host's tool-approval click. _Avoid_: Proposer, source (that is **Session
+Source**), AI, "the app" for an assistant's proposal
 
 **Week Change**: The one server step that turns a week over (UI word:
 _Ukeskiftet_; `runWeekChangeForUser`, ADR 0080) — run hourly for every athlete
@@ -1582,6 +1599,14 @@ discipline filter. _Avoid_: Local filter state, tab state
 **Self-Coaching Athlete**: The primary user who plans and reviews their own
 training without coach workflows. _Avoid_: Coach-managed athlete, team user
 
+**Assistant**: An AI the athlete connects to trainm8 to act for them — their own
+Claude or ChatGPT over MCP, or later an agent inside trainm8 (ADR 0092). It
+reads through **Readings**, proposes as a **Proposal Author**, and writes only
+the athlete's own acts, each with an **Undo Handle**; what it writes on the
+athlete's say-so is the athlete's. It never gives the athlete's yes (ADR 0093).
+_Avoid_: Agent (fine in code), bot, coach, AI coach, Claude (one assistant among
+several)
+
 **Authenticated User**: The signed-in identity used for data ownership and
 access control. _Avoid_: Viewer; _avoid bare_ "account" (use **Authenticated
 User** for internal identity, **Account Connection** for an external service
@@ -1646,6 +1671,14 @@ the machine's — the one documented exception to **Session Adoption**. _Bytt ø
 not Juster: the first adopts as any chosen session does, the second opens the
 editors. _Avoid_: Adjust (as a code term for the athlete's tap — the Week
 Replan's scale is not this), quick fix, tweak
+
+**Undo Handle**: The way back from a write the athlete's **Assistant** made for
+them — a name trainm8 hands back with the write's result and keeps the undo's
+state behind, so the state never passes through the model (ADR 0093). It belongs
+to one athlete, undoes one write once, and lasts 24 hours or until the write can
+no longer be taken back (something landed on top). On I dag the athlete's own
+writes are undone from the toast and the landed row instead (ADR 0088). _Avoid_:
+Undo token (the web's restore stamp), receipt, redo
 
 **Every-Day Grid**: The home stream's row model (ADR 0065, ADR 0086): the row is
 a **day** and a day owns **zero or more Workout Sessions**, so every date the
@@ -2112,11 +2145,11 @@ Gjort (that is for cardio, whose numbers an import brings).
 **Auto-Save Mirror**: An **Activity Import** the athlete has not built anything
 on — its recording-only session is still structureless, carries no **Session
 Log**, and has no **Activity Intervals** of the athlete's own. This is the line
-ADR 0012's source-side rules now use in place of "non-promoted", which
-Auto-Save made vacuous (ADR 0049): a mirror still tracks its source, so a
-provider `update` refreshes it and a provider `delete` removes it along with its
-session. Anything else is training history and is immutable to source-side
-changes. _Avoid_: unpromoted import, inbox copy, draft.
+ADR 0012's source-side rules now use in place of "non-promoted", which Auto-Save
+made vacuous (ADR 0049): a mirror still tracks its source, so a provider
+`update` refreshes it and a provider `delete` removes it along with its session.
+Anything else is training history and is immutable to source-side changes.
+_Avoid_: unpromoted import, inbox copy, draft.
 
 **Structure Detection**: The rule-based (no AI) reconstruction of a run or bike
 **Activity Import**'s workout structure — warmup, repeated efforts, cooldown —
@@ -2994,9 +3027,8 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   (#460).
 - An **Activity Import** has many **Activity Intervals**, cascade-deleted with
   it like the **Activity Stream**, in up to three sets: the device's, the
-  **Structure Detection**'s (replaced whenever detection runs) and the
-  athlete's (changed only by the athlete). Re-detection never touches the
-  athlete's set.
+  **Structure Detection**'s (replaced whenever detection runs) and the athlete's
+  (changed only by the athlete). Re-detection never touches the athlete's set.
 - Every **Workout** — `authored`, `generated`, `recorded`, or `detected` — is
   created with **visibility** `private`; an auto-materialized `detected`
   **Workout** is private exactly like every other, so it is out of the

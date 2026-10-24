@@ -1,6 +1,12 @@
 # Every write on I dag is undone from its toast, and from its landed row
 
-Status: Accepted · Owner decisions 1, 2 and 6 (round 2, 2026-10-10)
+Status: Accepted · Owner decisions 1, 2 and 6 (round 2, 2026-10-10) · **Amended
+by
+[ADR 0093](./0093-an-assistant-proposes-and-never-gives-the-athletes-yes-and-every-write-it-makes-can-be-undone.md)
+§6** for writes a model caller makes: there is no toast, so the result carries
+an opaque, server-held **Undo Handle** that lasts 24 hours or until the domain
+refuses, and the tokens below never pass through a model. For the athlete's own
+taps on I dag this ADR stands unchanged.
 
 **Amends [ADR 0076](./0076-an-undone-stamp-leaves-nothing-behind.md)** §1 and
 its first rejected alternative ("a toast with `Undo` in it"). §2 (`Undo` is a
