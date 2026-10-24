@@ -1,4 +1,6 @@
 import { expect, test } from 'vitest'
+import { encodePoolSwim } from '#tests/fixtures/fit/pool-swim.ts'
+import { parseFit } from '../fit-parser.server.ts'
 import { computeSessionContribution, computeSessionTss } from './compute.ts'
 import { ewmaStep } from './ewma.ts'
 
@@ -267,6 +269,34 @@ test('swim: uses sTSS when CSS + pace available', () => {
 	// For swim, recording has paceAvgSecPerKm but we need sec/100m.
 	// paceAvgSecPerKm → sec/100m = paceAvgSecPerKm / 10
 	expect(result!.formula).toBe('sTSS')
+})
+
+test('swim: sTSS prices the time swum, never the rest at the wall (#628)', () => {
+	// The pool swim fixture: 750 m swum in 761 s inside an 851 s timer.
+	const { activity } = parseFit(encodePoolSwim()).sessions[0]!
+	const result = computeSessionTss(
+		{ discipline: 'swim', durationSec: activity.durationSec, rpe: null },
+		{
+			hrAvg: activity.hrAvg ?? null,
+			powerAvg: null,
+			paceAvgSecPerKm: activity.paceAvgSecPerKm ?? null,
+			distanceM: activity.distanceM,
+		},
+		swimProfile(),
+	)
+	// (761 s / 3600) × (90 / 101.47)² × 100. Rest counted as swimming read
+	// (851 s / 3600) × (90 / 113.47)² × 100 = 14.87.
+	expect(result!.formula).toBe('sTSS')
+	expect(result!.tss).toBeCloseTo(16.63, 2)
+})
+
+test('swim: without a distance, sTSS falls back to the session duration', () => {
+	const result = computeSessionTss(
+		{ discipline: 'swim', durationSec: 3600, rpe: null },
+		{ hrAvg: null, powerAvg: null, paceAvgSecPerKm: 900 },
+		swimProfile(),
+	)
+	expect(result!.tss).toBeCloseTo(100, 6)
 })
 
 test('swim: falls back to sRPE when no CSS or no pace', () => {

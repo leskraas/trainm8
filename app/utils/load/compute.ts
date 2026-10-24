@@ -37,6 +37,8 @@ type RecordingArg = {
 	hrAvg: number | null
 	powerAvg: number | null
 	paceAvgSecPerKm: number | null
+	/** Distance in metres; with a swim's moving pace it gives the time swum. */
+	distanceM?: number | null
 	/** Per-sample power when the Recording carries one; absent/null otherwise. */
 	powerStream?: PowerStreamArg | null
 }
@@ -146,8 +148,16 @@ export function computeSessionTss(
 		if (dp?.cssSecPer100m != null && paceAvgSecPerKm != null) {
 			// paceAvgSecPerKm → paceAvgSecPer100m (1km = 10×100m)
 			const paceAvgSecPer100m = paceAvgSecPerKm / 10
+			// A swim's pace is its moving pace (a pool swim's rest at the wall is
+			// not swimming, #628), so the hours it prices are the hours swum at
+			// it: distance × pace. Rest earns no swim load.
+			const { distanceM } = recording
+			const swumSec =
+				distanceM != null && distanceM > 0
+					? (distanceM / 1000) * paceAvgSecPerKm
+					: durationSec
 			return sTSS({
-				durationSec,
+				durationSec: swumSec,
 				paceAvgSecPer100m,
 				cssSecPer100m: dp.cssSecPer100m,
 			})
