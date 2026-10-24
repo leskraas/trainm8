@@ -73,12 +73,40 @@ function structure(text: string, discipline: 'run' | 'bike' | 'swim' = 'run') {
 }
 
 describe('weekSumPreview', () => {
+	test('a zone-word distance adds its time at the athlete’s pace, as the week will count it (#638)', () => {
+		const runHours = { ...runTrack, currency: 'hours' as const }
+		const volumes = weekOf([], [runHours])
+		const track = trackForDiscipline(volumes, 'run')
+		const thresholds = {
+			run: {
+				lthr: null,
+				maxHr: null,
+				ftp: null,
+				runPowerThresholdW: null,
+				thresholdPaceSecPerKm: 300,
+				cssSecPer100m: null,
+				zoneSystem: null,
+				zoneOverrides: null,
+			},
+		}
+		const tenK = structure('10 km terskel')
+		expect(weekSumPreview(volumes, tenK, track, {})).toMatchObject({
+			added: null,
+			addedAbsence: 'no-number',
+		})
+		expect(weekSumPreview(volumes, tenK, track, thresholds)).toMatchObject({
+			added: 0.8,
+			addedAbsence: null,
+		})
+	})
+
 	test('a session in the track’s unit moves the sum and never the target', () => {
 		const volumes = weekOf(FORTY)
 		const preview = weekSumPreview(
 			volumes,
 			structure('6 km rolig'),
 			trackForDiscipline(volumes, 'run'),
+			{},
 		)
 		expect(preview).toEqual({
 			kind: 'track',
@@ -100,6 +128,7 @@ describe('weekSumPreview', () => {
 			volumes,
 			structure('5x2 km terskel'),
 			trackForDiscipline(volumes, 'run'),
+			{},
 		)
 		expect(preview).toMatchObject({ before: 40, after: 50, added: 10 })
 	})
@@ -110,6 +139,7 @@ describe('weekSumPreview', () => {
 			volumes,
 			structure('6x1 km p 1 min'),
 			trackForDiscipline(volumes, 'run'),
+			{},
 		)
 		expect(preview).toMatchObject({ before: 40, after: 46, added: 6 })
 	})
@@ -120,6 +150,7 @@ describe('weekSumPreview', () => {
 			volumes,
 			structure('3x10 min terskel p 1 min'),
 			trackForDiscipline(volumes, 'run'),
+			{},
 		)
 		expect(preview).toMatchObject({
 			before: 40,
@@ -139,6 +170,7 @@ describe('weekSumPreview', () => {
 			volumes,
 			structure('1,5 t rolig', 'bike'),
 			trackForDiscipline(volumes, 'bike'),
+			{},
 		)
 		expect(preview).toMatchObject({ before: 0, after: 1.5, target: 7 })
 		expect(weekSumPreviewLine(preview)).toBe('0 → 1,5 t, målet står på 7')
@@ -150,6 +182,7 @@ describe('weekSumPreview', () => {
 			volumes,
 			structure('2 km rolig', 'swim'),
 			trackForDiscipline(volumes, 'swim'),
+			{},
 		)
 		expect(preview).toMatchObject({
 			added: null,
@@ -185,6 +218,7 @@ describe('weekSumPreview', () => {
 			volumes,
 			lifts!,
 			trackForDiscipline(volumes, 'strength'),
+			{},
 		)
 		expect(preview).toMatchObject({
 			before: 0,
@@ -203,6 +237,7 @@ describe('weekSumPreview', () => {
 			volumes,
 			structure('1 t rolig', 'bike'),
 			trackForDiscipline(volumes, 'bike'),
+			{},
 		)
 		expect(preview).toEqual({ kind: 'annet', discipline: 'bike' })
 		expect(weekSumPreviewLine(preview)).toBe(
@@ -216,6 +251,7 @@ describe('weekSumPreview', () => {
 			volumes,
 			structure('6 km rolig'),
 			trackForDiscipline(volumes, 'run'),
+			{},
 		)
 		expect(preview).toEqual({ kind: 'no-plan', discipline: 'run' })
 	})

@@ -1195,6 +1195,46 @@ test('saveWorkout action rejects invalid workout input and returns field errors'
 	expect(response.data.result.status).toBe('error')
 })
 
+test('saveWorkout action refuses a recording-only session, so a hand-made POST cannot adopt its detected Workout', async () => {
+	const user = await setupUser()
+	const createdSession = await createWorkoutSession(
+		user.userId,
+		inDays(-1),
+		'completed',
+	)
+	await prisma.workoutSession.update({
+		where: { id: createdSession.id },
+		data: { source: 'detected' },
+	})
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeActionRequest(
+		createdSession.id,
+		validWorkoutFormEntries(),
+		cookieHeader,
+	)
+
+	const response = await action({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).status).toBe(400)
+
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: createdSession.id },
+		select: {
+			source: true,
+			adoptedAt: true,
+			workout: { select: { title: true } },
+		},
+	})
+	expect(after).toMatchObject({ source: 'detected', adoptedAt: null })
+	expect(after!.workout!.title).not.toBe('Updated Tempo Run')
+})
+
 test('saveWorkout action returns 404 for a non-owner', async () => {
 	const owner = await setupUser()
 	const otherUser = await setupUser()

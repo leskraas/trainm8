@@ -273,7 +273,7 @@ test('a free day’s “+” opens the composer in a Drawer, on that day, with t
 	).toBeInTheDocument()
 	// An empty line is the stamp, with what it does to the week.
 	await userEvent.click(
-		within(drawer).getByRole('button', { name: 'Legg til 45 min Z2' }),
+		within(drawer).getByRole('button', { name: 'Legg til 45 min rolig' }),
 	)
 	await waitFor(() => expect(posts).toHaveLength(1))
 	expect(posts[0]).toEqual({

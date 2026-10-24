@@ -47,13 +47,23 @@ export async function enqueueStructureDetection(
 }
 
 const LapArraySchema = z.array(
-	z.object({ startSec: z.number(), endSec: z.number() }),
+	z.union([
+		z.object({ startSec: z.number(), endSec: z.number() }),
+		// TCX rows written before #612 stored `{ startOffsetSec, durationSec }`.
+		z
+			.object({ startOffsetSec: z.number(), durationSec: z.number() })
+			.transform(({ startOffsetSec, durationSec }) => ({
+				startSec: startOffsetSec,
+				endSec: startOffsetSec + durationSec,
+			})),
+	]),
 )
 
 /**
  * Parse the import's `lapsJson` into the engine's `Lap[]` shape. Laps are an
  * optional refinement (#328) — a missing, empty, or malformed column degrades to
- * "no laps" (detection stays stream-first), never throws.
+ * "no laps" (detection stays stream-first), never throws. Legacy TCX markers are
+ * translated on read rather than migrated.
  */
 function parseLaps(lapsJson: string | null): Lap[] | undefined {
 	if (!lapsJson) return undefined

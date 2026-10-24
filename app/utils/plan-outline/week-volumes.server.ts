@@ -7,7 +7,11 @@
 import { localDate, weekMonday } from '../athlete-calendar.ts'
 import { getAthleteTimezone } from '../athlete.server.ts'
 import { lastClosedWeekKey } from '../load/week-change.ts'
-import { getActivePlan, getLedgerWeek } from '../training.server.ts'
+import {
+	getActivePlan,
+	getDisciplineThresholds,
+	getLedgerWeek,
+} from '../training.server.ts'
 import { deriveLedgerStatus } from '../training.ts'
 import {
 	buildWeekVolumes,
@@ -25,9 +29,10 @@ export async function getWeekVolumes(
 ): Promise<WeekVolumes> {
 	const timezone = await getAthleteTimezone(userId)
 	const monday = weekKey ?? weekMonday(now, timezone)
-	const [plan, sessions] = await Promise.all([
+	const [plan, sessions, thresholds] = await Promise.all([
 		getActivePlan(userId, now),
 		getLedgerWeek(userId, monday, timezone),
+		getDisciplineThresholds(userId),
 	])
 	return buildWeekVolumes({
 		weekKey: monday,
@@ -41,6 +46,7 @@ export async function getWeekVolumes(
 			volumeSessionOf(session, {
 				dayKey: localDate(session.scheduledAt, timezone),
 				status: deriveLedgerStatus(session, now, timezone),
+				thresholds,
 			}),
 		),
 	})

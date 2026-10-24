@@ -258,6 +258,47 @@ test('backfill ingests an Activity Stream for each modeled recording, never for 
 	expect(parsed.heartrate!).toHaveLength(runStream.sampleCount)
 })
 
+test('backfill enqueues detection once per run/bike recording, from one streams call per activity (#611)', async () => {
+	const { user } = await setupBackfillAthlete()
+	const streamPaths: string[] = []
+	server.events.on('request:start', ({ request }) => {
+		const { pathname } = new URL(request.url)
+		if (pathname.endsWith('/streams')) streamPaths.push(pathname)
+	})
+
+	await runStravaBackfill(user.id)
+	server.events.removeAllListeners('request:start')
+
+	const detected = await prisma.activityImport.findMany({
+		where: { athleteId: user.id, discipline: { in: ['run', 'bike'] } },
+		select: { id: true },
+	})
+	const jobs = await prisma.job.findMany({
+		where: { kind: 'structure-detection' },
+		select: { payload: true },
+	})
+	expect(
+		jobs
+			.map(
+				(j) =>
+					(JSON.parse(j.payload) as { activityImportId: string })
+						.activityImportId,
+			)
+			.sort(),
+	).toEqual(detected.map((d) => d.id).sort())
+	// Run, bike and swim each fetch their streams once; phase bars ride along.
+	expect(streamPaths.sort()).toEqual([
+		'/api/v3/activities/1001/streams',
+		'/api/v3/activities/1002/streams',
+		'/api/v3/activities/1003/streams',
+	])
+	const run = await prisma.activityImport.findFirst({
+		where: { athleteId: user.id, discipline: 'run' },
+		select: { phaseBarsJson: true },
+	})
+	expect(run?.phaseBarsJson).not.toBeNull()
+})
+
 test('re-running backfill does not duplicate Activity Streams (idempotent)', async () => {
 	const { user } = await setupBackfillAthlete()
 

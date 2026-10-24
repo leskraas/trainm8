@@ -52,6 +52,7 @@ const base = {
 	discipline: 'run',
 	status: 'scheduled',
 	currency: null,
+	thresholds: {},
 	recording: null,
 	loggedSets: 0,
 } as const
@@ -60,7 +61,10 @@ test('a planned run in a km track leads with its km, then its time', () => {
 	const summary = buildSessionSummary({
 		...base,
 		currency: 'km',
-		workout: run([{ distanceM: 2000, durationSec: 600 }, { distanceM: 8000, durationSec: 2400 }]),
+		workout: run([
+			{ distanceM: 2000, durationSec: 600 },
+			{ distanceM: 8000, durationSec: 2400 },
+		]),
 	})
 	expect(summary.map((f) => f.text)).toEqual(['10 km', '50 min'])
 	expect(summary[0]!.unit).toBe('km')
@@ -80,11 +84,56 @@ test('repeats count once per round, and a rest with no distance does not hide th
 		...base,
 		currency: 'km',
 		workout: run(
-			[{ distanceM: 1000, durationSec: 240 }, { kind: 'rest', durationSec: 90 }],
+			[
+				{ distanceM: 1000, durationSec: 240 },
+				{ kind: 'rest', durationSec: 90 },
+			],
 			6,
 		),
 	})
 	expect(summary.map((f) => f.text)).toEqual(['6 km', '33 min'])
+})
+
+test('a distance rep is timed through its pace, so the session keeps its time (#615)', () => {
+	// `15 min Z2 + 6 × (1 km @ 3:40 + 90 s) + 10 min Z1`.
+	const pace = JSON.stringify({ kind: 'pace', minSecPerKm: 220 })
+	const reps = run([{ distanceM: 1000 }, { kind: 'rest', durationSec: 90 }], 6)
+	reps.blocks[0]!.steps[0]!.intensity = pace
+	const summary = buildSessionSummary({
+		...base,
+		currency: 'hours',
+		workout: {
+			blocks: [
+				run([{ durationSec: 900 }]).blocks[0]!,
+				reps.blocks[0]!,
+				run([{ durationSec: 600 }]).blocks[0]!,
+			],
+		},
+	})
+	// Timed through a pace, the minutes are a translation (#638).
+	expect(summary.map((f) => f.text)).toContain('≈\u00a056 min')
+})
+
+test('the rests between series count toward the time (#615)', () => {
+	const series = run(
+		[{ durationSec: 30 }, { kind: 'rest', durationSec: 15 }],
+		13,
+	)
+	const summary = buildSessionSummary({
+		...base,
+		currency: 'hours',
+		workout: {
+			blocks: [
+				{
+					...series.blocks[0]!,
+					seriesRepeatCount: 3,
+					betweenSeriesRestSec: 360,
+				},
+			],
+		},
+	})
+	// 39 × 45 s and two 6-minute rests between the three series.
+	expect(summary.map((f) => f.text)).toEqual(['41 min'])
 })
 
 test('a unit the prescription does not carry end to end is left out, never understated', () => {
@@ -122,7 +171,11 @@ test('a lift leads with its sets, then how many lifts and the heaviest prescribe
 			{ exerciseId: 'row', sets: 5, kg: 60 },
 		]),
 	})
-	expect(summary.map((f) => f.text)).toEqual(['15 sett', '3 løft', 'opptil 82,5 kg'])
+	expect(summary.map((f) => f.text)).toEqual([
+		'15 sett',
+		'3 løft',
+		'opptil 82,5 kg',
+	])
 	expect(summary[0]!.unit).toBe('sets')
 })
 

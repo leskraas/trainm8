@@ -6,6 +6,7 @@
 // model can't supply stays `null` (the caller renders "—"), never a fabricated
 // number, and the Adherence Band only resolves when both TSS values exist.
 import { sumBlockDistanceM, sumBlockDurationMin } from './dashboard.ts'
+import { type DisciplineThresholdMap } from './intensity-target.ts'
 import { type AdherenceBand, sessionAdherence } from './load/adherence.ts'
 import {
 	type PlannedMetric,
@@ -48,7 +49,16 @@ export type ReviewSession = {
 		discipline?: string
 		blocks: Array<{
 			repeatCount: number
-			steps: Array<{ durationSec: number | null; distanceM: number | null }>
+			seriesRepeatCount?: number | null
+			betweenSeriesRestSec?: number | null
+			steps: Array<{
+				kind?: string
+				discipline?: string | null
+				/** Stored Intensity Target JSON: the pace a distance step is timed by. */
+				intensity?: string | null
+				durationSec: number | null
+				distanceM: number | null
+			}>
 		}>
 	} | null
 	recording: {
@@ -59,6 +69,8 @@ export type ReviewSession = {
 
 export function buildReviewComparison(
 	session: ReviewSession,
+	/** What a distance step's pace resolves against (#615). */
+	thresholds: DisciplineThresholdMap,
 ): ReviewComparison {
 	// Only the prescription is planned; a recording-only session has no planned
 	// side, so an unknown ('') discipline keeps today's reading.
@@ -69,7 +81,10 @@ export function buildReviewComparison(
 	const plannedTss = read('planned-tss', () => session.plannedTssValue)
 	const plannedTime = read('planned-time', () => {
 		const minutes = session.workout
-			? sumBlockDurationMin(session.workout.blocks)
+			? sumBlockDurationMin(session.workout.blocks, {
+					thresholds,
+					discipline: session.workout.discipline,
+				})
 			: null
 		return minutes != null ? minutes * 60 : null
 	})

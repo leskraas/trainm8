@@ -1,5 +1,7 @@
-import { expect, test } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { expect, test, vi } from 'vitest'
 import { createUser } from '#tests/db-utils.ts'
+import { ingestActivityFile } from '../activity-file-ingest.server.ts'
 import {
 	createActivityImport,
 	promoteToNewSession,
@@ -10,6 +12,13 @@ import { prisma } from '../db.server.ts'
 import { jobHandlers } from '../jobs/handlers.server.ts'
 import { processNextJob } from '../jobs/queue.server.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
+import { buildSegments } from './segments.ts'
+
+// A pass-through spy, so the TCX tests can read the laps `analyze` hands on.
+vi.mock('./segments.ts', async (importOriginal) => {
+	const actual = await importOriginal<{ buildSegments: typeof buildSegments }>()
+	return { ...actual, buildSegments: vi.fn(actual.buildSegments) }
+})
 
 // ── Structure Detection job handler — real-DB integration ────────────────────
 // The auto-import path (map #326, ADR 0032/0033/0034): a run/bike import with a
@@ -251,4 +260,68 @@ test('a swim import never enqueues detection (run/bike only, ADR 0015)', async (
 		where: { kind: 'structure-detection' },
 	})
 	expect(jobs).toBe(0)
+})
+
+// ── TCX laps reach the engine (#612) ─────────────────────────────────────────
+// The fixture's two 1200 s laps must arrive at `buildSegments` as lap edges, both
+// from a fresh upload and from a row stored in the old `TcxLapMarker` shape.
+
+test('a TCX upload with laps reaches buildSegments with lap edges (#612)', async () => {
+	const user = await createRunAthlete()
+	const result = await ingestActivityFile(
+		user.id,
+		{
+			fileName: 'run-with-hr.tcx',
+			bytes: new Uint8Array(readFileSync('tests/fixtures/tcx/run-with-hr.tcx')),
+		},
+		{ timezone: 'UTC' },
+	)
+	expect(result.status).toBe('imported')
+	vi.mocked(buildSegments).mockClear()
+
+	await runPendingJobs()
+
+	expect(vi.mocked(buildSegments)).toHaveBeenCalledTimes(1)
+	expect(vi.mocked(buildSegments).mock.calls[0]![3]).toEqual([
+		expect.objectContaining({ startSec: 0, endSec: 1200 }),
+		expect.objectContaining({ startSec: 1200, endSec: 2400 }),
+	])
+})
+
+test('a TCX import stored with legacy lap markers still reaches buildSegments with lap edges (#612)', async () => {
+	const user = await createRunAthlete()
+	const imp = await createRunImport(user.id)
+	await prisma.activityImport.update({
+		where: { id: imp.id },
+		data: {
+			lapsJson: JSON.stringify([
+				{
+					startOffsetSec: 0,
+					durationSec: 1200,
+					distanceM: 3000,
+					trigger: 'Manual',
+				},
+				{
+					startOffsetSec: 1200,
+					durationSec: 1200,
+					distanceM: 3000,
+					trigger: 'Manual',
+				},
+			]),
+		},
+	})
+	await enrichImportTelemetry(
+		user.id,
+		imp.id,
+		'run',
+		buildRawStream(intervalPhases()),
+	)
+	vi.mocked(buildSegments).mockClear()
+
+	await runPendingJobs()
+
+	expect(vi.mocked(buildSegments).mock.calls[0]![3]).toEqual([
+		expect.objectContaining({ startSec: 0, endSec: 1200 }),
+		expect.objectContaining({ startSec: 1200, endSec: 2400 }),
+	])
 })

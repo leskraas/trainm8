@@ -47,6 +47,7 @@ import {
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
 	ANNET_ACTION_LABELS,
+	approxLabel,
 	ANNET_TRACK_LABELS,
 	BEFORE_PLAN_LABEL,
 	eventCountdownWhen,
@@ -503,6 +504,7 @@ export function buildTimelineSeason({
 	timezone = 'UTC',
 	activePlan = null,
 	importConnected = false,
+	thresholds = {},
 }: {
 	ledger: LedgerSession[]
 	now?: Date
@@ -513,6 +515,8 @@ export function buildTimelineSeason({
 	 * session with no numbers may say they are on their way (#505 story 82).
 	 */
 	importConnected?: boolean
+	/** What a planned row's pace, watts and heart rate resolve against (#616). */
+	thresholds?: DisciplineThresholdMap
 }): TimelineSeason {
 	const todayKey = localDate(now, timezone)
 	const nowMonday = weekMonday(now, timezone)
@@ -523,7 +527,7 @@ export function buildTimelineSeason({
 	// profile bars), so the stream and the Session Ledger can never disagree
 	// about a session. Its `now` divider is dropped here: the week headers and
 	// today's own row already say where the boundary is, twice over.
-	const ledgerRows = buildLedgerRows(ledger, now, timezone).filter(
+	const ledgerRows = buildLedgerRows(ledger, now, timezone, thresholds).filter(
 		(row): row is SessionRow => row.kind === 'session',
 	)
 	// Weeks are bucketed by the Athlete Calendar, the same Monday–Sunday windows
@@ -614,6 +618,7 @@ export function buildTimelineSeason({
 			far: monday > farAfter,
 			fillsWeeks: activePlan?.fillsWeeks ?? false,
 			importFacts,
+			thresholds,
 		}),
 	)
 
@@ -845,6 +850,7 @@ function buildWeek({
 	far,
 	fillsWeeks,
 	importFacts,
+	thresholds,
 }: {
 	monday: string
 	rows: SessionRow[]
@@ -867,6 +873,7 @@ function buildWeek({
 	/** Whether the week change will fill a week once the horizon reaches it. */
 	fillsWeeks: boolean
 	importFacts: ReadonlyMap<string, TimelineImportFacts>
+	thresholds: DisciplineThresholdMap
 }): TimelineWeek {
 	const isNow = monday === nowMonday
 	const start = dayBoundsUTC(monday, timezone).start
@@ -904,6 +911,7 @@ function buildWeek({
 				trackDisciplines,
 				trackCurrencies,
 				importFacts,
+				thresholds,
 			}),
 		)
 	const volumes = buildWeekVolumes({
@@ -916,6 +924,7 @@ function buildWeek({
 			volumeSessionOf(session, {
 				dayKey: localDate(new Date(session.scheduledAt), timezone),
 				status: entry.status,
+				thresholds,
 			}),
 		),
 	})
@@ -1070,6 +1079,7 @@ function buildDay({
 	trackDisciplines,
 	trackCurrencies,
 	importFacts,
+	thresholds,
 }: {
 	key: string
 	rows: SessionRow[]
@@ -1082,6 +1092,7 @@ function buildDay({
 	trackDisciplines: ReadonlySet<string>
 	trackCurrencies: ReadonlyMap<string, VolumeCurrency>
 	importFacts: ReadonlyMap<string, TimelineImportFacts>
+	thresholds: DisciplineThresholdMap
 }): TimelineDay {
 	const isToday = key === todayKey
 	const midday = middayOf(key, timezone)
@@ -1110,6 +1121,7 @@ function buildDay({
 				trackCurrencies,
 				imports: importFacts.get(row.session.id) ?? NO_IMPORT_FACTS,
 				strengthLog: strengthLogOf(row, { timezone, todayKey }),
+				thresholds,
 			}),
 		),
 	}
@@ -1134,6 +1146,7 @@ function buildSession({
 	trackCurrencies,
 	imports,
 	strengthLog,
+	thresholds,
 }: {
 	row: SessionRow
 	week: RowWeekContext
@@ -1144,9 +1157,10 @@ function buildSession({
 	trackCurrencies: ReadonlyMap<string, VolumeCurrency>
 	imports: TimelineImportFacts
 	strengthLog: TimelineStrengthLog | null
+	thresholds: DisciplineThresholdMap
 }): TimelineSession {
 	const { session, entry } = row
-	const content = buildRowContent(row, week, { isToday })
+	const content = buildRowContent(row, week, { isToday, thresholds })
 	const owner = sessionOwner(session)
 	return {
 		id: session.id,
@@ -1172,6 +1186,8 @@ function buildSession({
 			entry.discipline,
 			dayKey,
 			trackCurrencies,
+			thresholds,
+			entry.durationEstimated,
 		),
 		annet: annetOf(
 			session.countsInNoTrack,
@@ -1234,16 +1250,24 @@ function sessionVolume(
 	discipline: string,
 	dayKey: string,
 	currencies: ReadonlyMap<string, VolumeCurrency>,
+	thresholds: DisciplineThresholdMap,
+	/** The planned minutes were timed through a pace (line 1's `≈`). */
+	estimated: boolean,
 ): string | null {
 	if (status === 'missed') return null
-	const read = volumeSessionOf(session, { dayKey, status })
+	const read = volumeSessionOf(session, { dayKey, status, thresholds })
 	const figures = status === 'completed' ? read.recorded : read.prescribed
 	if (!figures) return null
 	const currency =
 		currencies.get(discipline) ??
 		(discipline === 'strength' ? 'sets' : figures.km != null ? 'km' : 'hours')
 	const value = figures[currency]
-	return value != null && value > 0 ? sessionVolumeLabel(value, currency) : null
+	if (value == null || value <= 0) return null
+	const label = sessionVolumeLabel(value, currency)
+	// Planned minutes timed through a pace read `≈ 50 min`, as line 1 does.
+	return currency === 'hours' && status === 'planned'
+		? approxLabel(label, estimated)
+		: label
 }
 
 /**

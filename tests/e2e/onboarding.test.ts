@@ -1,5 +1,6 @@
 import { invariant } from '@epic-web/invariant'
 import { faker } from '@faker-js/faker/locale/en'
+import { type Locator } from '@playwright/test'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	normalizeEmail,
@@ -16,6 +17,17 @@ import {
 	test as base,
 	type AppPages,
 } from '#tests/playwright-utils.ts'
+
+/**
+ * A username is typed as one on a phone: iOS neither capitalises its first
+ * letter nor autocorrects it, and the keychain offers the saved one.
+ */
+async function expectUsernameInput(input: Locator) {
+	await expect(input).toHaveAttribute('autocomplete', 'username')
+	await expect(input).toHaveAttribute('autocapitalize', 'none')
+	await expect(input).toHaveAttribute('autocorrect', 'off')
+	await expect(input).toHaveAttribute('spellcheck', 'false')
+}
 
 const URL_REGEX = /(?<url>https?:\/\/[^\s$.?#].[^\s]*)/
 const CODE_REGEX = /Here's your verification code: (?<code>[\d\w]+)/
@@ -84,6 +96,7 @@ test('onboarding with link', async ({ page, navigate, getOnboardingData }) => {
 		.click()
 
 	await expect(page).toHaveURL(`/onboarding`)
+	await expectUsernameInput(page.getByRole('textbox', { name: /^username/i }))
 	await page
 		.getByRole('textbox', { name: /^username/i })
 		.fill(onboardingData.username)
@@ -148,7 +161,11 @@ test('onboarding with a short code', async ({
 	const codeMatch = email.text.match(CODE_REGEX)
 	const code = codeMatch?.groups?.code
 	invariant(code, 'Onboarding code not found')
-	await page.getByRole('textbox', { name: /code/i }).fill(code)
+	const codeInput = page.getByRole('textbox', { name: /code/i })
+	// The code has letters, so a phone must offer the letter keyboard, in capitals.
+	await expect(codeInput).toHaveAttribute('inputmode', 'text')
+	await expect(codeInput).toHaveAttribute('autocapitalize', 'characters')
+	await codeInput.fill(code)
 	await page.getByRole('button', { name: /submit/i }).click()
 
 	await expect(page).toHaveURL(`/onboarding`)
@@ -187,6 +204,7 @@ test('completes onboarding after GitHub OAuth given valid user details', async (
 	await expect(usernameInput).toHaveValue(
 		normalizeUsername(ghUser.profile.login),
 	)
+	await expectUsernameInput(usernameInput)
 	await expect(page.getByRole('textbox', { name: /^name/i })).toHaveValue(
 		ghUser.profile.name,
 	)
@@ -372,6 +390,7 @@ test('login as existing user', async ({ page, navigate, insertNewUser }) => {
 	const user = await insertNewUser({ password })
 	invariant(user.name, 'User name not found')
 	await navigate('/login')
+	await expectUsernameInput(page.getByRole('textbox', { name: /username/i }))
 	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
 	await page.getByLabel(/^password$/i).fill(password)
 	await page.getByRole('button', { name: /log in/i }).click()
@@ -402,6 +421,7 @@ test('reset password with a link', async ({
 	await expect(
 		page.getByRole('heading', { name: /forgot password/i }),
 	).toBeVisible()
+	await expectUsernameInput(page.getByRole('textbox', { name: /username/i }))
 	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
 	await page.getByRole('button', { name: /recover password/i }).click()
 	await expect(page.getByText(/check your email/i)).toBeVisible()
@@ -464,6 +484,7 @@ test('reset password with a short code', async ({
 	await expect(
 		page.getByRole('heading', { name: /forgot password/i }),
 	).toBeVisible()
+	await expectUsernameInput(page.getByRole('textbox', { name: /username/i }))
 	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
 	await page.getByRole('button', { name: /recover password/i }).click()
 	await expect(page.getByText(/check your email/i)).toBeVisible()
@@ -480,4 +501,102 @@ test('reset password with a short code', async ({
 	await page.getByRole('button', { name: /submit/i }).click()
 
 	await expect(page).toHaveURL(`/reset-password`)
+})
+
+// ——— A fixed field error does not swallow the submit press (#532) ———————————
+//
+// Each form below puts its field errors above its button. Cleared only on blur,
+// the error line vanished on the press itself — the press blurs the field — and
+// the button moved up out from under the click, so nothing was sent and a
+// second press was needed. Each test fixes a field error and presses once.
+
+test('signup sends on the first press after a field error is fixed', async ({
+	page,
+	navigate,
+	getOnboardingData,
+}) => {
+	const onboardingData = getOnboardingData()
+	await navigate('/signup')
+	await page.waitForLoadState('networkidle') // ensure js is fully loaded.
+
+	const submit = page.getByRole('button', { name: /submit/i })
+	await submit.click()
+	const emailTextbox = page.getByRole('textbox', { name: /email/i })
+	await expect(emailTextbox).toHaveAttribute('aria-invalid', 'true')
+
+	await emailTextbox.fill(onboardingData.email)
+	await submit.click()
+	await expect(page.getByText(/check your email/i)).toBeVisible()
+})
+
+test('login logs in on the first press after a field error is fixed', async ({
+	page,
+	navigate,
+	insertNewUser,
+}) => {
+	const password = faker.internet.password()
+	const user = await insertNewUser({ password })
+	await navigate('/login')
+	await page.waitForLoadState('networkidle') // ensure js is fully loaded.
+
+	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
+	const logIn = page.getByRole('button', { name: /log in/i })
+	await logIn.click()
+	const passwordInput = page.getByLabel(/^password$/i)
+	await expect(passwordInput).toHaveAttribute('aria-invalid', 'true')
+
+	await passwordInput.fill(password)
+	await logIn.click()
+	await expect(page).toHaveURL(`/`)
+})
+
+test('forgot password sends on the first press after a field error is fixed', async ({
+	page,
+	navigate,
+	insertNewUser,
+}) => {
+	const user = await insertNewUser()
+	await navigate('/forgot-password')
+	await page.waitForLoadState('networkidle') // ensure js is fully loaded.
+
+	const recover = page.getByRole('button', { name: /recover password/i })
+	await recover.click()
+	const usernameInput = page.getByRole('textbox', { name: /username/i })
+	await expect(usernameInput).toHaveAttribute('aria-invalid', 'true')
+
+	await usernameInput.fill(user.username)
+	await recover.click()
+	await expect(page.getByText(/check your email/i)).toBeVisible()
+})
+
+test('reset password resets on the first press after a field error is fixed', async ({
+	page,
+	navigate,
+	insertNewUser,
+}) => {
+	const user = await insertNewUser()
+	await navigate('/forgot-password')
+	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
+	await page.getByRole('button', { name: /recover password/i }).click()
+	await expect(page.getByText(/check your email/i)).toBeVisible()
+
+	const email = await readEmail(user.email)
+	invariant(email, 'Email not found')
+	const code = email.text.match(CODE_REGEX)?.groups?.code
+	invariant(code, 'Reset Password code not found')
+	await page.getByRole('textbox', { name: /code/i }).fill(code)
+	await page.getByRole('button', { name: /submit/i }).click()
+	await expect(page).toHaveURL(`/reset-password`)
+	await page.waitForLoadState('networkidle') // ensure js is fully loaded.
+
+	const newPassword = faker.internet.password()
+	await page.getByLabel(/^new password$/i).fill(newPassword)
+	const reset = page.getByRole('button', { name: /reset password/i })
+	await reset.click()
+	const confirm = page.getByLabel(/^confirm password$/i)
+	await expect(confirm).toHaveAttribute('aria-invalid', 'true')
+
+	await confirm.fill(newPassword)
+	await reset.click()
+	await expect(page).toHaveURL('/login')
 })

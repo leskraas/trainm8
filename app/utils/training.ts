@@ -1,5 +1,6 @@
 import { localDate } from './athlete-calendar.ts'
-import { sumBlockDurationMin } from './dashboard.ts'
+import { type PlannedMinutes, plannedMinutes } from './dashboard.ts'
+import { type DisciplineThresholdMap } from './intensity-target.ts'
 // Enum display labels live in the shared label seam (#281); re-exported here so
 // existing importers of these helpers are unchanged.
 export { getDisciplineLabel, getStatusLabel } from './labels.ts'
@@ -79,23 +80,47 @@ export function deriveLedgerStatus(
 	return 'missed'
 }
 
-/** Actual duration (from the recording) when present, else the planned duration derived from the workout steps. */
-export function getSessionDurationMin(session: {
+type DurationSession = {
 	recording: { durationSec: number | null } | null
 	workout: {
-		blocks: Array<{
-			repeatCount: number
-			steps: Array<{ durationSec: number | null }>
-		}>
+		/** Times a step that names no Discipline of its own. */
+		discipline?: string
+		blocks: Parameters<typeof plannedMinutes>[0]
 	} | null
-}): number | null {
+}
+
+/**
+ * Actual duration (from the recording) when present, else the planned duration
+ * derived from the workout steps — null when a step cannot be timed, rather
+ * than a short total shown as the session's (#638). A recorded duration is
+ * never `estimated`; a planned one is where a distance was timed by its pace.
+ */
+export function getSessionDuration(
+	session: DurationSession,
+	/** What a distance step's pace resolves against (#615). */
+	thresholds: DisciplineThresholdMap = {},
+): PlannedMinutes | null {
 	if (session.recording?.durationSec != null) {
-		return Math.round(session.recording.durationSec / 60)
+		return {
+			minutes: Math.round(session.recording.durationSec / 60),
+			estimated: false,
+		}
 	}
 	if (session.workout) {
-		return sumBlockDurationMin(session.workout.blocks)
+		return plannedMinutes(session.workout.blocks, {
+			thresholds,
+			discipline: session.workout.discipline,
+		})
 	}
 	return null
+}
+
+/** {@link getSessionDuration}'s minutes alone. */
+export function getSessionDurationMin(
+	session: DurationSession,
+	thresholds: DisciplineThresholdMap = {},
+): number | null {
+	return getSessionDuration(session, thresholds)?.minutes ?? null
 }
 
 /** The normalized shape each ledger row carries: date, discipline, title, duration, load, status, and RPE. */
@@ -106,6 +131,8 @@ export type SessionLedgerEntry = {
 	title: string | null
 	status: LedgerStatus
 	durationMin: number | null
+	/** `durationMin` was timed through a pace: it reads with `≈` (#638). */
+	durationEstimated: boolean
 	load: number | null
 	/** Planned TSS the prescription implies (ADR 0019); null when unavailable. */
 	plannedTss: number | null
@@ -153,10 +180,7 @@ export function toSessionLedgerEntry(
 		workout: {
 			title: string
 			discipline: string
-			blocks: Array<{
-				repeatCount: number
-				steps: Array<{ durationSec: number | null }>
-			}>
+			blocks: Parameters<typeof plannedMinutes>[0]
 		} | null
 		recording: {
 			discipline: string
@@ -168,12 +192,15 @@ export function toSessionLedgerEntry(
 	now: Date = new Date(),
 	/** Passed on to `deriveLedgerStatus`: today's sessions stay planned. */
 	timezone?: string,
+	/** Passed on to `getSessionDurationMin`: a distance step's pace (#615). */
+	thresholds: DisciplineThresholdMap = {},
 ): SessionLedgerEntry {
 	const load = session.tssValue ?? null
 	const plannedTss = plannedMetricValue(readLedgerPlannedTss(session))
 	// The gate (both sides present, planned positive) and the band rule live in
 	// `sessionAdherence` so the ledger and Weekly Plan Adherence never drift.
 	const adherence = sessionAdherence(load, plannedTss)?.band ?? null
+	const duration = getSessionDuration(session, thresholds)
 	return {
 		id: session.id,
 		scheduledAt: session.scheduledAt,
@@ -192,7 +219,8 @@ export function toSessionLedgerEntry(
 					})
 				: null),
 		status: deriveLedgerStatus(session, now, timezone),
-		durationMin: getSessionDurationMin(session),
+		durationMin: duration?.minutes ?? null,
+		durationEstimated: duration?.estimated ?? false,
 		load,
 		plannedTss,
 		adherence,

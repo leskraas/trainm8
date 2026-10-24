@@ -6,6 +6,7 @@ import {
 import { type SessionRow } from '#app/utils/session-ledger-rows.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
 import { toSessionLedgerEntry } from '#app/utils/training.ts'
+import { type DisciplineProfileForResolver } from '#app/utils/zones/index.ts'
 import { buildRowContent, type RowWeekContext } from './row-content.ts'
 
 // A fixed Wednesday at local noon, matching the home presenter's fixtures:
@@ -52,6 +53,33 @@ function step(overrides: Partial<WorkoutStep> = {}): WorkoutStep {
 		sets: [],
 		...overrides,
 	}
+}
+
+/** A Discipline Profile's thresholds, empty but for what a test names. */
+function thresholds(
+	overrides: Partial<DisciplineProfileForResolver> = {},
+): DisciplineProfileForResolver {
+	return {
+		lthr: null,
+		maxHr: null,
+		ftp: null,
+		runPowerThresholdW: null,
+		thresholdPaceSecPerKm: null,
+		cssSecPer100m: null,
+		zoneSystem: null,
+		zoneOverrides: null,
+		...overrides,
+	}
+}
+
+/** An authored pace target, the JSON a step stores in `intensity`. */
+function pace(minSecPerKm: number, maxSecPerKm?: number): string {
+	return JSON.stringify({ kind: 'pace', minSecPerKm, maxSecPerKm })
+}
+
+/** An authored heart-rate target whose ceiling is `max`. */
+function hrCap(max: number): string {
+	return JSON.stringify({ kind: 'hrBpm', min: 120, max })
 }
 
 function exerciseSet(orderIndex: number): ExerciseSet {
@@ -623,11 +651,12 @@ describe('rule 7: planned rows are instructions', () => {
 			plannedRow(
 				workout([
 					block([
+						step({ durationSec: 1500, intensity: pace(325, 340) }),
 						step({
-							durationSec: 3000,
-							intensityPaceMin: 325,
-							intensityPaceMax: 340,
-							intensityHrMax: 145,
+							id: 'step-2',
+							orderIndex: 1,
+							durationSec: 1500,
+							intensity: hrCap(145),
 						}),
 					]),
 				]),
@@ -643,26 +672,38 @@ describe('rule 7: planned rows are instructions', () => {
 			plannedRow(
 				workout([
 					block([
-						step({
-							distanceM: 9000,
-							intensityPaceMin: 325,
-							intensityPaceMax: 340,
-							intensityHrMax: 145,
-						}),
+						step({ distanceM: 9000, intensity: pace(325, 340) }),
+						step({ id: 'step-2', orderIndex: 1, intensity: hrCap(145) }),
 					]),
 				]),
 			),
 			PLANNED_WEEK,
 		)
+		// 9 km at 5:25–5:40 /km is timed through its pace (#615), but the
+		// open step under 145 bpm has no length: the minutes are not known, and
+		// a total without it is not shown as the session's (#638).
 		expect(content.externalLoad).toBe('42 TSS planlagt')
 		expect(content.internalLoad).toBe('9 km i 5:25–5:40 /km · under 145 bpm')
+	})
+
+	test('minutes timed through a pace read with ≈, a translation (#638)', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([step({ distanceM: 9000, intensity: pace(325, 340) })]),
+				]),
+			),
+			PLANNED_WEEK,
+		)
+		// 9 km at the middle of 5:25–5:40 /km is about 50 minutes.
+		expect(content.externalLoad).toBe('≈\u00a050 min · 42 TSS planlagt')
 	})
 
 	test('a repeated block multiplies both the duration and the distance', () => {
 		const content = buildRowContent(
 			plannedRow(
 				workout([
-					block([step({ distanceM: 1000, intensityPaceMin: 240 })], {
+					block([step({ distanceM: 1000, intensity: pace(240) })], {
 						repeatCount: 4,
 						seriesRepeatCount: 2,
 					}),
@@ -673,10 +714,36 @@ describe('rule 7: planned rows are instructions', () => {
 		expect(content.internalLoad).toBe('8 km i 4:00 /km')
 	})
 
+	test("a swim's pace target, stored per km, reads per 100 m", () => {
+		// 1:40 /100m is stored as 1000 s/km (#613); read raw it would be 16:40.
+		const content = buildRowContent(
+			plannedRow(
+				workout(
+					[
+						block(
+							[
+								step({
+									discipline: 'swim',
+									distanceM: 100,
+									intensity: pace(1000),
+								}),
+							],
+							{ repeatCount: 10 },
+						),
+					],
+					{ discipline: 'swim' },
+				),
+			),
+			PLANNED_WEEK,
+		)
+		expect(content.internalLoad).toContain('1:40 /100m')
+		expect(content.internalLoad).not.toContain('16:40')
+	})
+
 	test('a single-bound pace target reads as one pace', () => {
 		const content = buildRowContent(
 			plannedRow(
-				workout([block([step({ durationSec: 1800, intensityPaceMin: 330 })])]),
+				workout([block([step({ durationSec: 1800, intensity: pace(330) })])]),
 			),
 			PLANNED_WEEK,
 		)
@@ -688,14 +755,18 @@ describe('rule 7: planned rows are instructions', () => {
 			plannedRow(
 				workout([
 					block([
-						step({ id: 'wu', durationSec: 600, intensityPaceMin: 400 }),
+						step({ id: 'wu', durationSec: 600, intensity: pace(400) }),
 						step({
 							id: 'work',
 							orderIndex: 1,
-							durationSec: 1200,
-							intensityPaceMin: 250,
-							intensityPaceMax: 255,
-							intensityHrMax: 172,
+							durationSec: 600,
+							intensity: pace(250, 255),
+						}),
+						step({
+							id: 'cd',
+							orderIndex: 2,
+							durationSec: 600,
+							intensity: hrCap(172),
 						}),
 					]),
 				]),
@@ -711,12 +782,12 @@ describe('rule 7: planned rows are instructions', () => {
 			plannedRow(
 				workout([
 					block([
-						step({ id: 'wu', durationSec: 600, intensityHrMax: 145 }),
+						step({ id: 'wu', durationSec: 600, intensity: hrCap(145) }),
 						step({
 							id: 'work',
 							orderIndex: 1,
 							durationSec: 1200,
-							intensityHrMax: 172,
+							intensity: hrCap(172),
 						}),
 					]),
 				]),
@@ -724,6 +795,151 @@ describe('rule 7: planned rows are instructions', () => {
 			PLANNED_WEEK,
 		)
 		expect(content.internalLoad).toBe('under 172 bpm')
+	})
+
+	test('a step open above leaves the session with no HR ceiling', () => {
+		// The reps' floor has no cap, so the warm-up's 145 is no ceiling of the
+		// session: the reps are meant to break it.
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([
+						step({ id: 'wu', durationSec: 600, intensity: hrCap(145) }),
+						step({
+							id: 'work',
+							orderIndex: 1,
+							durationSec: 1200,
+							intensity: JSON.stringify({ kind: 'hrBpm', min: 175 }),
+						}),
+					]),
+				]),
+			),
+			PLANNED_WEEK,
+		)
+		expect(content.internalLoad ?? '').not.toContain('under')
+	})
+
+	// #616: the target is resolved from what the step authors against the
+	// athlete's thresholds now, never from the cached range columns — which only
+	// a threshold change ever fills, so most new sessions have none.
+	test('a new ride with a %FTP target states its watts from the thresholds', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout(
+					[
+						block([
+							step({
+								discipline: null,
+								durationSec: 3600,
+								intensity: JSON.stringify({
+									kind: 'powerPct',
+									minPct: 88,
+									maxPct: 94,
+								}),
+							}),
+						]),
+					],
+					{ discipline: 'bike' },
+				),
+			),
+			PLANNED_WEEK,
+			{ thresholds: { bike: thresholds({ ftp: 250 }) } },
+		)
+		expect(content.internalLoad).toBe('220–235 W')
+	})
+
+	test('a new run with a %T-pace target states its pace from the thresholds', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([
+						step({
+							durationSec: 1800,
+							intensity: JSON.stringify({
+								kind: 'pacePct',
+								minPct: 95,
+								maxPct: 100,
+							}),
+						}),
+					]),
+				]),
+			),
+			PLANNED_WEEK,
+			{ thresholds: { run: thresholds({ thresholdPaceSecPerKm: 240 }) } },
+		)
+		expect(content.internalLoad).toBe('4:00–4:13 /km')
+	})
+
+	// A race pace or lactate target is a translation, not arithmetic on a
+	// number the athlete typed, so the pace it reads as wears `≈` (GLOSSARY
+	// *Lactate Anchor*, #638); a %T-pace above does not.
+	test('a race-pace target states its pace with ≈', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([
+						step({
+							durationSec: 1200,
+							intensity: JSON.stringify({ kind: 'racePace', event: '5k' }),
+						}),
+					]),
+				]),
+			),
+			PLANNED_WEEK,
+			{
+				thresholds: {
+					run: { ...thresholds(), raceAnchorPaces: { '5k': 240 } },
+				},
+			},
+		)
+		expect(content.internalLoad).toBe('≈\u00a04:00 /km')
+	})
+
+	test('a lactate target states the pace it reads as with ≈', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([
+						step({
+							durationSec: 1200,
+							intensity: JSON.stringify({
+								kind: 'lactate',
+								minMmol: 2,
+								maxMmol: 3,
+							}),
+						}),
+					]),
+				]),
+			),
+			PLANNED_WEEK,
+			{
+				thresholds: {
+					run: thresholds({
+						thresholdPaceSecPerKm: 240,
+						zoneSystem: 'norwegian-threshold-run',
+					}),
+				},
+			},
+		)
+		expect(content.internalLoad).toMatch(/^≈\u00a0\d:\d\d–\d:\d\d \/km$/)
+	})
+
+	test('a stale cached range is not what the row states', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([
+						step({
+							durationSec: 1800,
+							intensity: pace(330),
+							intensityPaceMin: 400,
+						}),
+					]),
+				]),
+			),
+			PLANNED_WEEK,
+		)
+		expect(content.internalLoad).toBe('5:30 /km')
 	})
 
 	test('an unresolved prescription states no target at all', () => {
@@ -828,9 +1044,7 @@ describe('rule 7: planned rows are instructions', () => {
 
 	test('the rule applies to a far-future week exactly as to this one', () => {
 		const w = workout([
-			block([
-				step({ distanceM: 9000, intensityPaceMin: 325, intensityPaceMax: 340 }),
-			]),
+			block([step({ distanceM: 9000, intensity: pace(325, 340) })]),
 		])
 		const far = buildRowContent(
 			plannedRow(w, { scheduledAt: new Date('2030-04-10T08:00:00') }),
@@ -963,13 +1177,7 @@ describe('the week context', () => {
 			status: 'scheduled',
 			scheduledAt: LATER_TODAY,
 			workout: workout([
-				block([
-					step({
-						durationSec: 3000,
-						intensityPaceMin: 325,
-						intensityPaceMax: 340,
-					}),
-				]),
+				block([step({ durationSec: 3000, intensity: pace(325, 340) })]),
 			]),
 			plannedTssValue: 42,
 		})

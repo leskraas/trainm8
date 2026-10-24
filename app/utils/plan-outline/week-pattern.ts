@@ -26,6 +26,7 @@
 // The warnings carry numbers and no wording; the surface words them, exactly as
 // `ramp-guard.ts` and `quality-mix.ts` do.
 
+import { type DurationReading, prescribedDuration } from '../dashboard.ts'
 import { FIVE_MINUTES, inWholeFiveMinutes } from '../five-minutes.ts'
 import { blockRepeatTotal } from '../workout-schema.ts'
 import {
@@ -405,9 +406,13 @@ function isShareDay(
 type PrescribedBlock = {
 	repeatCount: number
 	seriesRepeatCount?: number | null
+	betweenSeriesRestSec?: number | null
 	steps: Array<{
 		/** `rest` marks a recovery step (ADR 0007); absent reads as work. */
 		kind?: string
+		discipline?: string | null
+		/** Stored Intensity Target JSON: the pace a distance step is timed by. */
+		intensity?: string | null
 		durationSec: number | null
 		distanceM: number | null
 	}>
@@ -459,7 +464,11 @@ function prescribedTotal(
  *
  * In `km`, a rest step that states no distance is skipped: `6 × 1 km p 1 min`
  * prescribes 6 km. In `hours` a rest's time is time the session takes, so it
- * counts, and a rest with no time leaves the hours unknown as before.
+ * counts, and a rest with no time leaves the hours unknown as before. A
+ * distance step is timed through its pace, a zone word's through the
+ * athlete's thresholds in `reading`, and the rests between series count
+ * (`prescribedDuration`) — the reading every surface that says a session's
+ * time shares, so a fixed day, the week header, the row and the drawer agree.
  *
  * `km` and `hours` are read off the prescription, and only where it prescribes
  * that unit from end to end ({@link prescribedTotal}). `tss` and `sets` return
@@ -473,6 +482,7 @@ function prescribedTotal(
 export function fixedDayVolume(
 	blocks: readonly PrescribedBlock[],
 	currency: VolumeCurrency,
+	reading: DurationReading,
 ): number | null {
 	switch (currency) {
 		case 'km': {
@@ -482,8 +492,11 @@ export function fixedDayVolume(
 			return metres == null ? null : roundToCurrency(metres / 1000, 'km')
 		}
 		case 'hours': {
-			const seconds = prescribedTotal(blocks, (step) => step.durationSec)
-			return seconds == null ? null : roundToCurrency(seconds / 3600, 'hours')
+			// Timed end to end, a distance rep through its pace (#615).
+			const duration = prescribedDuration(blocks, reading)
+			return duration?.complete
+				? roundToCurrency(duration.seconds / 3600, 'hours')
+				: null
 		}
 		case 'tss':
 		case 'sets':

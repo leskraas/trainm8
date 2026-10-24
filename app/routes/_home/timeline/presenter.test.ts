@@ -983,6 +983,64 @@ describe('a lifting row reconciles with the week header it sits under', () => {
 		expect(week.loadLine).toContain('gjort 138 · planlagt 50 TSS')
 	})
 
+	test('a ride planned today states its watts from the thresholds (#616)', () => {
+		// Made after the last threshold change, so its cached range columns are
+		// empty: the row has to resolve the %FTP itself.
+		const ride = on(1, {
+			id: 'ride',
+			status: 'scheduled',
+			recording: null,
+			tssValue: null,
+			workout: workout({
+				discipline: 'bike',
+				blocks: [
+					{
+						id: 'block-1',
+						name: 'Main',
+						orderIndex: 0,
+						repeatCount: 1,
+						seriesRepeatCount: 1,
+						betweenSeriesRestSec: null,
+						sendOff: null,
+						steps: [
+							step({
+								discipline: 'bike',
+								durationSec: 3600,
+								intensity: JSON.stringify({
+									kind: 'powerPct',
+									minPct: 88,
+									maxPct: 94,
+								}),
+							}),
+						],
+					},
+				],
+			}),
+		})
+		const result = buildTimelineSeason({
+			ledger: [ride],
+			now: NOW,
+			timezone: 'UTC',
+			thresholds: {
+				bike: {
+					lthr: null,
+					maxHr: null,
+					ftp: 250,
+					runPowerThresholdW: null,
+					thresholdPaceSecPerKm: null,
+					cssSecPer100m: null,
+					zoneSystem: null,
+					zoneOverrides: null,
+				},
+			},
+		})
+		const row = result.weeks
+			.flatMap((week) => week.rows)
+			.flatMap((day) => day.sessions)
+			.find((s) => s.id === 'ride')!
+		expect(row.internalLoad).toBe('220–235 W')
+	})
+
 	test('naming the figure sRPE moves no rollup — only what the row calls it', () => {
 		// The same ledger, read with and without a lifting session in it. The gym
 		// session adds its figure to the actual side and nothing to the planned
@@ -2328,6 +2386,74 @@ describe('a session row says its own volume in its track’s unit (#505 D6)', ()
 			runPlan(),
 		)
 		expect(sessionOn(result, 'run').volumeLabel).toBe('6,1 km')
+	})
+
+	test('a zone-word distance is timed through the thresholds, as the drawer times it (#638)', () => {
+		// `10 km rolig`, its step naming no Discipline of its own, in an hours
+		// track: the row, the week header and line 1 all read it at the
+		// athlete's pace rather than leaving it empty.
+		const easyTen = workout({
+			blocks: [
+				{
+					id: 'block-easy',
+					name: 'Main',
+					orderIndex: 0,
+					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
+					steps: [
+						step({
+							discipline: null,
+							distanceM: 10_000,
+							durationSec: null,
+							intensity: JSON.stringify({ kind: 'zoneLabel', label: 'Z4' }),
+						}),
+					],
+				},
+			],
+		})
+		const result = buildTimelineSeason({
+			ledger: [
+				on(1, {
+					id: 'run',
+					status: 'scheduled',
+					recording: null,
+					workout: easyTen,
+				}),
+			],
+			now: NOW,
+			timezone: 'UTC',
+			activePlan: plan({
+				tracks: [
+					{
+						trackId: 'track-run',
+						discipline: 'run',
+						currency: 'hours',
+						targets: Array<number>(12).fill(4),
+						overridden: Array<boolean>(12).fill(false),
+						sessionTargets: null,
+					},
+				],
+			}),
+			thresholds: {
+				run: {
+					lthr: null,
+					maxHr: null,
+					ftp: null,
+					runPowerThresholdW: null,
+					thresholdPaceSecPerKm: 300,
+					cssSecPer100m: null,
+					zoneSystem: null,
+					zoneOverrides: null,
+				},
+			},
+		})
+		const run = sessionOn(result, 'run')
+		// 10 km at the 5:00 /km threshold pace: 50 min, on the right edge as
+		// on line 1 — never the 48 min a tenth of an hour would make of it.
+		expect(run.volumeLabel).toBe('≈\u00a050 min')
+		expect(run.externalLoad).toBe('≈\u00a050 min · 50 TSS planlagt')
 	})
 
 	test('a missed session says nothing: nothing was done', () => {

@@ -175,5 +175,13 @@ export const GRADE_MEDIUM_CUT = 0.4
  *
  * `'2'` (#357): #354's power+pace edge fusion alters stored structures for runs
  * with power, so every `WorkoutDetection` written under `'1'` is now stale.
+ *
+ * `'3'` (#611): Strava's create webhook, sync and backfill never enqueued
+ * detection, so their imports carry a stream and no `WorkoutDetection`. The bump
+ * re-runs the backfill, which picks those up.
+ *
+ * `'4'` (#612): TCX laps were stored in a shape `parseLaps` rejected, so every
+ * TCX import was detected from the stream alone. They now read as lap edges, so
+ * TCX detections written under `'3'` and earlier are stale.
  */
-export const STRUCTURE_DETECTION_ENGINE_VERSION = '2'
+export const STRUCTURE_DETECTION_ENGINE_VERSION = '4'

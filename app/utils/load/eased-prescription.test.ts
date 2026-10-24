@@ -1,5 +1,8 @@
 import { expect, test } from 'vitest'
-import { type DisciplineProfileForResolver } from '#app/utils/zones/index.ts'
+import {
+	BUILT_IN_RECIPES,
+	type DisciplineProfileForResolver,
+} from '#app/utils/zones/index.ts'
 import { buildEasedPrescription } from './eased-prescription.ts'
 import { EASED_CAP_MIN } from './session-nudge.ts'
 
@@ -112,6 +115,43 @@ test('the endurance zone label follows the athlete recipe (Daniels pace uses E, 
 	})
 })
 
+test('on Stryd the eased target is the band declaring zone 2 (Stryd Z1), not the literal Z2 (#627)', () => {
+	// Stryd's `Z2` declares zone 3, so a literal `Z2` would ease into tempo.
+	const eased = buildEasedPrescription({
+		discipline: 'run',
+		durationMin: 40,
+		capMin: 40,
+		profile: runHrProfile({
+			lthr: null,
+			runPowerThresholdW: 250,
+			zoneSystem: 'stryd-run-power-5',
+		}),
+	})
+	expect(eased.blocks![0]!.steps[0]!.intensity).toEqual({
+		kind: 'zoneLabel',
+		label: 'Z1',
+	})
+	expect(eased.intensityResolvable).toBe(true)
+})
+
+test('every recipe eases into the band it declares as zone 2', () => {
+	for (const recipe of BUILT_IN_RECIPES) {
+		const eased = buildEasedPrescription({
+			discipline: recipe.discipline,
+			durationMin: 40,
+			profile: runHrProfile({ zoneSystem: recipe.id }),
+		})
+		const intensity = eased.blocks![0]!.steps[0]!.intensity
+		const band = recipe.zones.find(
+			(z) => intensity.kind === 'zoneLabel' && z.label === intensity.label,
+		)
+		expect({ recipe: recipe.id, zone: band?.zone }).toEqual({
+			recipe: recipe.id,
+			zone: 2,
+		})
+	}
+})
+
 // ── resolvability: honest Unavailable, never a fabricated range ───────────────
 
 test('a resolvable endurance zone reports resolved (its ranges resolve against the profile)', () => {
@@ -129,12 +169,13 @@ test('an unresolvable endurance zone (no zone system) yields an honest Unavailab
 		durationMin: 90,
 		profile: bikeProfile({ zoneSystem: null }),
 	})
-	// We still author the endurance zone (Z2 is the canonical default label), but
-	// mark it unresolvable so the applier/display never fabricate a range.
+	// We still author the endurance zone, as its word rather than a code (a code
+	// is a band label on some recipe, #627), but mark it unresolvable so the
+	// applier/display never fabricate a range.
 	expect(eased.intensityResolvable).toBe(false)
 	expect(eased.blocks![0]!.steps[0]!.intensity).toEqual({
 		kind: 'zoneLabel',
-		label: 'Z2',
+		label: 'rolig',
 	})
 })
 
