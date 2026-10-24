@@ -25,6 +25,7 @@ import { type Prisma } from '@prisma/client'
 import { addDays, localDate, mondayOfDay } from './athlete-calendar.ts'
 import { readPlannedSets } from './dashboard.ts'
 import { prisma } from './db.server.ts'
+import { formatNbKg } from './format.ts'
 import { QUICK_LOG_LABELS } from './labels.ts'
 import { getWeekTrackActual } from './plan-outline/week-volumes.server.ts'
 import { type LiftOutcome } from './strength/program-engine.ts'
@@ -33,11 +34,11 @@ import {
 	type SetUnit,
 	buildWorkingLoad,
 	liftSchemeOf,
+	loadStepKg,
 	plannedRowsOf,
 	workingLoadValue,
 } from './strength/working-load.ts'
 import { getStrengthLogView, saveLoggedSet } from './strength-log.server.ts'
-import { formatNbKg } from './format.ts'
 import { type LoadValue } from './strength-log.ts'
 import { openNextProgramSession } from './strength-program.server.ts'
 import {
@@ -45,6 +46,7 @@ import {
 	type QuickLogLift,
 	type QuickLogRefusal,
 	canQuickLogStrength,
+	quickLogKg,
 	QUICK_LOG_REACH_DAYS,
 } from './strength-quick-log.ts'
 import {
@@ -60,6 +62,9 @@ export type QuickLogEntry =
 	| {
 			kind: 'edited'
 			sets: Array<{ stepId: string; orderIndex: number; count?: number }>
+			/** A lift's weight, when it differed (#530, ADR 0064 amended): every
+			 * set of that lift is logged at it. Null, or left out, is as planned. */
+			lifts?: Array<{ stepId: string; kg: number | null }>
 	  }
 
 export type QuickLogResult =
@@ -164,6 +169,8 @@ export async function logStrengthSession(
 	if (!plan.quickLog.loggable) return { ok: false, reason: 'not-plannable' }
 	const counts = countsFor(plan.quickLog, entry)
 	if (counts === 'unknown-set') return { ok: false, reason: 'unknown-set' }
+	const loads = loadsFor(plan, entry)
+	if (typeof loads === 'string') return { ok: false, reason: loads }
 	const done = counts.filter((set) => set.count > 0)
 	if (done.length === 0) return { ok: false, reason: 'nothing-done' }
 
@@ -196,7 +203,7 @@ export async function logStrengthSession(
 					)`
 				if (claimed === 0) throw new QuickLogRefused('already-logged')
 				for (const set of done) {
-					const load = plan.loads.get(set.stepId)
+					const load = loads.get(set.stepId)
 					invariant(load, 'a loggable lift has a load')
 					const saved = await saveIn(tx, userId, sessionId, set, load)
 					// The plan was read from the same rows a moment ago, so a refusal
@@ -430,6 +437,7 @@ async function planFor(
 		const working = buildWorkingLoad(exercise)
 		const load = working.kind === 'resolved' ? workingLoadValue(working) : null
 		if (load) loads.set(exercise.stepId, load)
+		const kg = load ? loadKg(load) : null
 		const rows = plannedRowsOf(exercise.rows)
 		const scheme: LiftScheme = liftSchemeOf(exercise.rows)
 		return {
@@ -442,6 +450,10 @@ async function planFor(
 							working.loadKind,
 							working.kg == null ? null : formatNbKg(working.kg),
 						)
+					: null,
+			weight:
+				kg != null && working.kind === 'resolved'
+					? { kg, stepKg: loadStepKg(working, exercise.plateContext) }
 					: null,
 			loggable:
 				!repeated &&
@@ -464,6 +476,57 @@ async function planFor(
 		},
 		loads,
 	}
+}
+
+/** The number a Load Value carries in its own kilos, where it carries one. */
+function loadKg(load: LoadValue): number | null {
+	switch (load.kind) {
+		case 'external':
+			return load.kg
+		case 'bodyweightPlus':
+			return load.addedKg
+		case 'assisted':
+			return load.assistKg
+		default:
+			return null
+	}
+}
+
+/**
+ * Each lift's Load Value as it is logged: the plan's, or the plan's kind at the
+ * weight _Endre_ posted (#530). The kind never changes here — kilos on a
+ * bodyweight hold would be another kind of load, which `saveLoggedSet` locks
+ * — and a weight that cannot be true is refused rather than clamped.
+ */
+function loadsFor(
+	plan: Plan,
+	entry: QuickLogEntry,
+):
+	| Map<string, LoadValue>
+	| 'unknown-set'
+	| 'bad-weight'
+	| 'weight-not-editable' {
+	const loads = new Map(plan.loads)
+	if (entry.kind !== 'edited') return loads
+	for (const lift of entry.lifts ?? []) {
+		if (lift.kg == null) continue
+		if (!plan.quickLog.lifts.some((l) => l.stepId === lift.stepId)) {
+			return 'unknown-set'
+		}
+		const planned = loads.get(lift.stepId)
+		if (!planned || loadKg(planned) == null) return 'weight-not-editable'
+		const kg = quickLogKg(lift.kg)
+		if (kg == null) return 'bad-weight'
+		loads.set(
+			lift.stepId,
+			planned.kind === 'external'
+				? { kind: 'external', kg }
+				: planned.kind === 'bodyweightPlus'
+					? { kind: 'bodyweightPlus', addedKg: kg }
+					: { kind: 'assisted', assistKg: kg },
+		)
+	}
+	return loads
 }
 
 /** Every planned set with the count it is logged at: the plan's, or the one
