@@ -49,7 +49,10 @@ import { isEffortWord } from '../effort-word.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
 import { type TrainingZone } from '../session-profile.ts'
 import { stampedSessionTitle } from '../session-title.ts'
-import { sessionWorkoutSelect } from '../training.server.ts'
+import {
+	getDisciplineThresholds,
+	sessionWorkoutSelect,
+} from '../training.server.ts'
 import {
 	isCardioDiscipline,
 	type CardioDiscipline,
@@ -538,21 +541,25 @@ async function readHeldSessions(
 	timezone: string,
 ): Promise<PlacedSession[]> {
 	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
-	const rows = await prisma.workoutSession.findMany({
-		where: {
-			userId,
-			scheduledAt: { gte: start, lte: end },
-			status: { in: [...TRAINED_SESSION_STATUSES] },
-			OR: [
-				{ source: 'authored' },
-				{ planOutlineId: null },
-				{ planOutlineId: { not: planOutlineId } },
-			],
-		},
-		select: { scheduledAt: true, workout: sessionWorkoutSelect },
-	})
+	const [rows, thresholds] = await Promise.all([
+		prisma.workoutSession.findMany({
+			where: {
+				userId,
+				scheduledAt: { gte: start, lte: end },
+				status: { in: [...TRAINED_SESSION_STATUSES] },
+				OR: [
+					{ source: 'authored' },
+					{ planOutlineId: null },
+					{ planOutlineId: { not: planOutlineId } },
+				],
+			},
+			select: { scheduledAt: true, workout: sessionWorkoutSelect },
+		}),
+		// What an absolute pace, watts or bpm is read by (#617).
+		getDisciplineThresholds(userId),
+	])
 	return rows.flatMap((row) => {
-		const shape = readPlacement(row.workout)
+		const shape = readPlacement(row.workout, thresholds)
 		if (!shape) return []
 		const weekday = weekdayIndex(localDate(row.scheduledAt, timezone))
 		return isPatternWeekday(weekday) ? [placedOn(shape, weekday)] : []

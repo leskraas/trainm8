@@ -310,7 +310,12 @@ export function buildSessionNudge(input: {
 	// The miss signal is structural, from the same ledger — never assembled by
 	// callers, so the miss the card names is the miss the applier acts on
 	// (#185/#186); the display and the applier can't drift.
-	const recentMiss = selectQualifyingMiss(input.ledger, now, timezone)
+	const recentMiss = selectQualifyingMiss(
+		input.ledger,
+		now,
+		timezone,
+		thresholds,
+	)
 
 	// `decisionInput` deliberately excludes the miss: the honesty guard below
 	// re-runs the decision on it to learn whether an ease is miss-driven.

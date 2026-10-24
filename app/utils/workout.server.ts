@@ -8,9 +8,11 @@ import {
 	type MarkDoneRefusal,
 	type SessionDoneUndo,
 } from './import-link-schema.ts'
+import { type DisciplineThresholdMap } from './intensity-target.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import { triggerRecomputeForSession } from './session-log.server.ts'
 import { deriveWorkoutTitle } from './session-title.ts'
+import { getDisciplineThresholds } from './training.server.ts'
 import {
 	type ExerciseSet,
 	type IntensityTarget,
@@ -21,6 +23,8 @@ import {
 	restSpecDurationSec,
 	restStepSpec,
 } from './workout-schema.ts'
+import { INTENT_BY_ZONE } from './workout-sentence.ts'
+import { zoneEquivalent } from './zone-equivalent.ts'
 import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,
@@ -1481,16 +1485,43 @@ export function parseStoredWorkoutStructure(
 }
 
 /**
+ * A detected session's intent: the one its hardest step's Training Zone names,
+ * each measured target zoned against the athlete's thresholds the way the
+ * editor's chip zones it (`zoneEquivalent`). A detection holds absolute
+ * targets only, so a hard-coded `endurance` made every detected interval
+ * session an easy one (#617). With no step that zones, `endurance` stands —
+ * the same silence the Day Stamp and the sentence write it for.
+ */
+function detectedIntent(
+	structure: WorkoutStructure,
+	thresholds: DisciplineThresholdMap,
+): string {
+	let hardest = 0
+	for (const block of structure.blocks) {
+		for (const step of block.steps) {
+			if (step.kind !== 'cardio' || !step.intensity) continue
+			const zone = zoneEquivalent(
+				step.intensity,
+				thresholds[step.discipline ?? structure.discipline],
+			).step
+			if (zone != null && zone > hardest) hardest = zone
+		}
+	}
+	return INTENT_BY_ZONE[hardest] ?? 'endurance'
+}
+
+/**
  * Materialize a Structure Detection onto a recording-only session as its
  * Workout, marking the Session Source `detected` (ADR 0032/0033). Called by the
  * structure-detection job when a detection clears the honesty gate and its
  * import is already promoted to a recording-only session.
  *
  * The authoring envelope the structural schema omits (`title`, `intent`) is
- * synthesized: it carries no analytic weight — a `detected` session never
- * computes Planned TSS (ADR 0034), so `intent` never feeds load — and the
- * "detected · (confidence)" badge, not the intent label, is the provenance
- * signal on the Workout Detail View.
+ * synthesized: a `detected` session never computes Planned TSS (ADR 0034), so
+ * `intent` never feeds load — and the "detected · (confidence)" badge, not the
+ * intent label, is the provenance signal on the Workout Detail View. The
+ * intent is read off the structure's hardest step (`detectedIntent`), so a
+ * detected interval session counts as the quality session it was (#617).
  *
  * Idempotent and non-destructive: a session that already carries a Workout is
  * left untouched (a re-run of the detection job never double-materializes, and
@@ -1503,6 +1534,10 @@ export async function materializeDetectedStructure(
 	sessionId: string,
 	structure: WorkoutStructure,
 ): Promise<{ materialized: boolean }> {
+	const intent = detectedIntent(
+		structure,
+		await getDisciplineThresholds(ownerId),
+	)
 	return prisma.$transaction(async (tx) => {
 		const session = await tx.workoutSession.findFirst({
 			where: { id: sessionId, userId: ownerId },
@@ -1514,7 +1549,7 @@ export async function materializeDetectedStructure(
 			data: {
 				title: deriveWorkoutTitle(structure),
 				discipline: structure.discipline,
-				intent: 'endurance',
+				intent,
 				ownerId,
 				blocks: { create: buildBlocksCreate(structure.blocks) },
 			},
@@ -1560,6 +1595,10 @@ export async function replaceDetectedStructure(
 	sessionId: string,
 	structure: WorkoutStructure,
 ): Promise<{ replaced: boolean }> {
+	const intent = detectedIntent(
+		structure,
+		await getDisciplineThresholds(ownerId),
+	)
 	return prisma.$transaction(async (tx) => {
 		const session = await tx.workoutSession.findFirst({
 			where: {
@@ -1576,7 +1615,7 @@ export async function replaceDetectedStructure(
 			data: {
 				title: deriveWorkoutTitle(structure),
 				discipline: structure.discipline,
-				intent: 'endurance',
+				intent,
 				ownerId,
 				blocks: { create: buildBlocksCreate(structure.blocks) },
 			},

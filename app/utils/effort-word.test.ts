@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest'
-import { effortWordOfZone } from './effort-word.ts'
+import { effortWordOfZone, readEffortWord } from './effort-word.ts'
+import { type DisciplineThresholdMap } from './intensity-target.ts'
+import { type LedgerSession } from './training.server.ts'
 
 // One reading of a zone as an Effort Word, shared by the Start Option cards
 // and I dag (spec #558): a threshold session is _hard_ on both, never _hard_
@@ -13,4 +15,137 @@ test.each([
 	[5, 'hard'],
 ] as const)('zone %i reads %s', (zone, word) => {
 	expect(effortWordOfZone(zone)).toBe(word)
+})
+
+// #617: a target written as an absolute pace, watts or heart rate is read
+// against the athlete's own thresholds — the threshold-aware reading the
+// editor's chip already makes (`zoneEquivalent`) — and one nothing can zone is
+// *unknown*, never silently left out of the reading.
+
+type Workout = NonNullable<LedgerSession['workout']>
+type Step = Workout['blocks'][number]['steps'][number]
+
+function step(overrides: Partial<Step> & { id: string }): Step {
+	return {
+		kind: 'cardio',
+		notes: null,
+		discipline: 'run',
+		intensity: null,
+		intensityHrMin: null,
+		intensityHrMax: null,
+		intensityPowerMin: null,
+		intensityPowerMax: null,
+		intensityPaceMin: null,
+		intensityPaceMax: null,
+		orderIndex: 0,
+		durationSec: null,
+		distanceM: null,
+		verticalM: null,
+		gradePct: null,
+		cadenceRpmMin: null,
+		cadenceRpmMax: null,
+		rest: null,
+		exerciseId: null,
+		restBetweenSetsSec: null,
+		exercise: null,
+		sets: [],
+		...overrides,
+	}
+}
+
+function block(
+	id: string,
+	orderIndex: number,
+	steps: Step[],
+	repeatCount = 1,
+): Workout['blocks'][number] {
+	return {
+		id,
+		name: null,
+		orderIndex,
+		repeatCount,
+		seriesRepeatCount: 1,
+		betweenSeriesRestSec: null,
+		sendOff: null,
+		steps,
+	}
+}
+
+function workout(blocks: Workout['blocks']): Workout {
+	return {
+		id: 'workout-1',
+		title: '6 × 1000 m',
+		description: null,
+		discipline: 'run',
+		intent: 'endurance',
+		archetype: null,
+		activityKind: null,
+		effortWord: null,
+		blocks,
+	}
+}
+
+const pace = (minSecPerKm: number) =>
+	JSON.stringify({ kind: 'pace', minSecPerKm })
+const zone = (label: string) => JSON.stringify({ kind: 'zoneLabel', label })
+
+/** `6 × 1000 m @ 3:40/km`, between an easy warm-up and cool-down. */
+const SIX_BY_1000 = workout([
+	block('wu', 0, [step({ id: 'wu', durationSec: 900, intensity: zone('Z2') })]),
+	block(
+		'reps',
+		1,
+		[
+			step({ id: 'rep', distanceM: 1000, intensity: pace(220) }),
+			step({ id: 'jog', orderIndex: 1, kind: 'rest', durationSec: 120 }),
+		],
+		6,
+	),
+	block('cd', 2, [step({ id: 'cd', durationSec: 600, intensity: zone('Z2') })]),
+])
+
+/** T-pace 3:40/km on the default run recipe. */
+const T_PACE_3_40: DisciplineThresholdMap = {
+	run: {
+		lthr: null,
+		maxHr: null,
+		ftp: null,
+		runPowerThresholdW: null,
+		thresholdPaceSecPerKm: 220,
+		cssSecPer100m: null,
+		zoneSystem: 'daniels-pace-5',
+		zoneOverrides: null,
+	},
+}
+
+test('a threshold session written as pace reads hard against T-pace', () => {
+	expect(readEffortWord(SIX_BY_1000, T_PACE_3_40)).toBe('hard')
+})
+
+test('without the thresholds to read it by, it is unknown — not rolig', () => {
+	expect(readEffortWord(SIX_BY_1000)).toBeNull()
+})
+
+test('an easy run written as pace reads rolig against T-pace', () => {
+	const easy = workout([
+		block('main', 0, [
+			step({ id: 'run', durationSec: 2700, intensity: pace(275) }),
+		]),
+	])
+	expect(readEffortWord(easy, T_PACE_3_40)).toBe('rolig')
+})
+
+test('a known hard step is hard however unknown the rest is', () => {
+	const mixed = workout([
+		block('main', 0, [
+			step({ id: 'rep', durationSec: 600, intensity: zone('Z4') }),
+			step({
+				id: 'abs',
+				orderIndex: 1,
+				durationSec: 600,
+				intensity: pace(300),
+			}),
+		]),
+	])
+	expect(readEffortWord(mixed)).toBe('hard')
 })

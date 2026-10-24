@@ -608,26 +608,31 @@ async function readMoveFit(
 		timezone,
 	}: { todayKey: string; sundayKey: string; timezone: string },
 ): Promise<MoveFit> {
-	const rows = await prisma.workoutSession.findMany({
-		where: {
-			userId,
-			status: { in: [...TRAINED_SESSION_STATUSES] },
-			scheduledAt: {
-				gte: dayBoundsUTC(todayKey, timezone).start,
-				lte: dayBoundsUTC(sundayKey, timezone).end,
+	const [rows, thresholds] = await Promise.all([
+		prisma.workoutSession.findMany({
+			where: {
+				userId,
+				status: { in: [...TRAINED_SESSION_STATUSES] },
+				scheduledAt: {
+					gte: dayBoundsUTC(todayKey, timezone).start,
+					lte: dayBoundsUTC(sundayKey, timezone).end,
+				},
 			},
-		},
-		select: {
-			id: true,
-			scheduledAt: true,
-			workout: effortWorkoutSelect,
-		},
-	})
+			select: {
+				id: true,
+				scheduledAt: true,
+				workout: effortWorkoutSelect,
+			},
+		}),
+		// What an absolute pace, watts or bpm is read by (#617).
+		getDisciplineThresholds(userId),
+	])
 	// Each by the one reading of a stored session (`readPlacement`): a lift
 	// is lifting, a _Langtur_ is long, anything else by its Effort Word.
 	const moving = rows.find((row) => row.id === sessionId)
 	const week: PlacedSession[] = rows.flatMap((row) => {
-		const shape = row.id === sessionId ? null : readPlacement(row.workout)
+		const shape =
+			row.id === sessionId ? null : readPlacement(row.workout, thresholds)
 		return shape
 			? [
 					placedOn(
@@ -639,7 +644,7 @@ async function readMoveFit(
 	})
 	return {
 		week,
-		session: readPlacement(moving?.workout) ?? {
+		session: readPlacement(moving?.workout, thresholds) ?? {
 			kind: 'session',
 			effort: 'rolig',
 		},

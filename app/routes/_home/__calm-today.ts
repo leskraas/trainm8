@@ -24,6 +24,7 @@
 import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
 import { type EffortWord, readEffortWord } from '#app/utils/effort-word.ts'
 import { formatNbDayMonth, formatNbWeekday } from '#app/utils/format.ts'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { CALM_TODAY_LABELS as L, nbDurationLabel } from '#app/utils/labels.ts'
 import {
 	type ActivePlan,
@@ -136,6 +137,7 @@ export function buildCalmToday({
 	timezone,
 	activePlan,
 	strengthCta,
+	thresholds = {},
 }: {
 	season: TimelineSeason
 	ledger: readonly LedgerSession[]
@@ -144,6 +146,8 @@ export function buildCalmToday({
 	activePlan: ActivePlan | null
 	/** Today's runner link for a lift (`buildTodayRow`'s cta), by session. */
 	strengthCta?: { sessionId: string; label: string; to: string } | null
+	/** What an Effort Word reads an absolute pace, watts or bpm by (#617). */
+	thresholds?: DisciplineThresholdMap
 }): CalmToday {
 	const todayKey = season.todayKey
 	const byId = new Map(ledger.map((session) => [session.id, session]))
@@ -152,7 +156,7 @@ export function buildCalmToday({
 		const minutes = source
 			? toSessionLedgerEntry(source, now, timezone).durationMin
 			: null
-		const effort = source ? readEffortWord(source.workout) : null
+		const effort = source ? readEffortWord(source.workout, thresholds) : null
 		return {
 			id: session.id,
 			dayKey,

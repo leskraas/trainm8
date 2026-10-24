@@ -1315,7 +1315,8 @@ function liftBlocks(lifts: ReadLift[]): Block[] {
 type Block = WorkoutStructure['blocks'][number]
 type Step = Block['steps'][number]
 
-const INTENT_BY_ZONE: Record<number, WorkoutIntent> = {
+/** The intent a session's hardest Training Zone names. */
+export const INTENT_BY_ZONE: Record<number, WorkoutIntent> = {
 	1: 'recovery',
 	2: 'endurance',
 	3: 'tempo',

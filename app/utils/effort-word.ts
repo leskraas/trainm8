@@ -8,16 +8,31 @@
  * hardest zone its steps ask for (`deriveSessionProfile`, which falls back to
  * the Workout's intent where a step states no intensity). A warm-up does not
  * make an interval session rolig, and a cool-down does not make it hard, so
- * the hardest step decides, read by `effortWordOfZone`.
+ * the hardest step decides, read by `effortWordOfZone`. A target written as
+ * an absolute pace, watts or heart rate is zoned against the athlete's own
+ * thresholds (`zoneEquivalent`, the reading the editor's chip makes), so
+ * `6 × 1000 m @ 3:40/km` at T-pace 3:40 is _hard_ (#617).
  *
  * Null where nothing says: a lift (strength sits on its own axis, ADR 0046), a
- * session with no prescription, or steps whose targets cannot be zoned without
- * thresholds. The surface then leaves the word out rather than guessing one.
+ * session with no prescription, or a step whose target cannot be zoned — no
+ * threshold to read it by — unless another step is already _hard_. That null is
+ * **unknown**, not _rolig_: the surface leaves the word out rather than
+ * guessing one, and the day rule places it as not easy (`readPlacement`).
  * A stored Effort Word is read before all this: a Simple Activity's own
  * (#567), and the _rolig_ a _For sliten i dag_ gives a lift (#575). It was
  * said on purpose, so nothing is derived over it.
  */
-import { deriveSessionProfile, type Workout } from './session-profile.ts'
+import {
+	parseAuthoredIntensity,
+	type DisciplineThresholdMap,
+} from './intensity-target.ts'
+import {
+	deriveSessionProfile,
+	expandWorkoutSteps,
+	type TrainingZone,
+	type Workout,
+} from './session-profile.ts'
+import { zoneEquivalent } from './zone-equivalent.ts'
 
 export const EFFORT_WORDS = ['rolig', 'middels', 'hard'] as const
 export type EffortWord = (typeof EFFORT_WORDS)[number]
@@ -37,13 +52,54 @@ export function effortWordOfZone(zone: number): EffortWord {
 	return zone <= 2 ? 'rolig' : zone === 3 ? 'middels' : 'hard'
 }
 
-export function readEffortWord(workout: Workout | null): EffortWord | null {
+export function readEffortWord(
+	workout: Workout | null,
+	thresholds: DisciplineThresholdMap = {},
+): EffortWord | null {
 	if (!workout) return null
 	if (isEffortWord(workout.effortWord)) return workout.effortWord
 	if (workout.discipline === 'strength') return null
-	const zones = deriveSessionProfile(workout)
-		.bars.map((bar) => bar.zone)
-		.filter((zone): zone is NonNullable<typeof zone> => zone != null)
-	if (zones.length === 0) return null
-	return effortWordOfZone(Math.max(...zones))
+	const { zone, unknown } = readHardestZone(workout, thresholds)
+	if (zone == null) return null
+	const word = effortWordOfZone(zone)
+	// An unzoned step could be harder than every step that zoned — unless one is
+	// already as hard as a word can say.
+	return unknown && word !== 'hard' ? null : word
+}
+
+/**
+ * The hardest Training Zone a workout's steps ask for, each read the way the
+ * Workout Shape reads it (its intent where a step states no intensity), and a
+ * target the shape leaves unzoned — an absolute pace, watts or heart rate —
+ * read against the athlete's thresholds. `unknown` when some cardio step's
+ * target still cannot be zoned, so a caller can tell "easy" from "cannot say".
+ */
+export function readHardestZone(
+	workout: Workout | null,
+	thresholds: DisciplineThresholdMap = {},
+): { zone: TrainingZone | null; unknown: boolean } {
+	const steps = expandWorkoutSteps(workout)
+	let zone: TrainingZone | null = null
+	let unknown = false
+	deriveSessionProfile(workout).bars.forEach((bar, index) => {
+		const read =
+			bar.zone ?? thresholdZone(steps[index]?.step, workout, thresholds)
+		if (read === 'unknown') unknown = true
+		else if (read != null && (zone == null || read > zone)) zone = read
+	})
+	return { zone, unknown }
+}
+
+/** A step's authored target zoned against its discipline's thresholds; null
+ * for a step that authors nothing to zone. */
+function thresholdZone(
+	step: ReturnType<typeof expandWorkoutSteps>[number]['step'] | undefined,
+	workout: Workout | null,
+	thresholds: DisciplineThresholdMap,
+): TrainingZone | 'unknown' | null {
+	if (!step || step.kind !== 'cardio') return null
+	const target = parseAuthoredIntensity(step.intensity)
+	if (!target) return null
+	const profile = thresholds[step.discipline ?? workout?.discipline ?? '']
+	return zoneEquivalent(target, profile).step ?? 'unknown'
 }

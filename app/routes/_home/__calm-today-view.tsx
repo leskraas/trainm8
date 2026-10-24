@@ -126,8 +126,9 @@ export function CalmToday({ data }: { data: HomeTimelineData }) {
 				timezone,
 				activePlan,
 				strengthCta: today.cta,
+				thresholds,
 			}),
-		[activePlan, ledger, now, season, timezone, today.cta],
+		[activePlan, ledger, now, season, thresholds, timezone, today.cta],
 	)
 	const writable = useMemo(
 		() => timelineWindow({ now, timezone, plan: activePlan }),

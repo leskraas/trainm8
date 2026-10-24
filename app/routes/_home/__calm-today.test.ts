@@ -192,6 +192,53 @@ test("the athlete's own note is the card's sentence, its first sentence only", (
 	expect(card.session.effortLabel).toBe('hard')
 })
 
+test('a threshold session written as pace reads hard against T-pace (#617)', () => {
+	const reps = session('today', '2030-01-02T07:00:00Z', {
+		title: '6 × 1000 m',
+	})
+	const block = reps.workout!.blocks[0]!
+	const workout = {
+		...reps.workout!,
+		blocks: [
+			{
+				...block,
+				repeatCount: 6,
+				steps: [
+					{
+						...block.steps[0]!,
+						durationSec: null,
+						distanceM: 1000,
+						intensity: JSON.stringify({ kind: 'pace', minSecPerKm: 220 }),
+					},
+				],
+			},
+		],
+	}
+	const ledger = [{ ...reps, workout }]
+	const season = buildTimelineSeason({ ledger, now: NOW, timezone: TZ })
+	const view = buildCalmToday({
+		season,
+		ledger,
+		now: NOW,
+		timezone: TZ,
+		activePlan: plan(),
+		thresholds: {
+			run: {
+				lthr: null,
+				maxHr: null,
+				ftp: null,
+				runPowerThresholdW: null,
+				thresholdPaceSecPerKm: 220,
+				cssSecPer100m: null,
+				zoneSystem: 'daniels-pace-5',
+				zoneOverrides: null,
+			},
+		},
+	})
+
+	expect(cardOf(view.card, 'session').session.effortLabel).toBe('hard')
+})
+
 test("a Simple Activity's card says the Effort Word the athlete stored, not one read from its step", () => {
 	const climb = session('today', '2030-01-02T07:00:00Z', {
 		title: 'Klatring',
