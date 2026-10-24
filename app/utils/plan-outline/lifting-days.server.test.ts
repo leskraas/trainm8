@@ -316,6 +316,7 @@ test('chosen lifting days hold in every Week Pattern that lifts, and the undo pu
 		select: { id: true },
 		data: {
 			ownerId: null,
+			authorship: 'system',
 			title: 'Helkropp A',
 			discipline: 'strength',
 			intent: 'strength',

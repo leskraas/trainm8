@@ -38,7 +38,11 @@ import {
 	hasReported,
 	reportWorkout,
 } from '#app/utils/community.server.ts'
-import { REPORT_REASONS, readAttribution } from '#app/utils/community.ts'
+import {
+	REPORT_REASONS,
+	isPublished,
+	readAttribution,
+} from '#app/utils/community.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	CATALOGUE_REPORT_LABELS as L,
@@ -85,7 +89,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 			visibility: true,
 		},
 	})
-	if (!workout || workout.visibility !== 'public') {
+	if (!workout || !isPublished(workout)) {
 		throw new Response('Not found', { status: 404 })
 	}
 	if (workout.ownerId === userId) {

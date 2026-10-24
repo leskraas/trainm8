@@ -389,7 +389,7 @@ async function checkedLiftingRestore(
 		where: {
 			id: { in: workoutIds },
 			discipline: 'strength',
-			OR: [{ ownerId: userId }, { ownerId: null }],
+			OR: [{ ownerId: userId }, { authorship: 'system' }],
 		},
 	})
 	return owned === workoutIds.length ? [...rows] : null

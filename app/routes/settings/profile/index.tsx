@@ -24,6 +24,7 @@ import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
+import { deleteAccount } from '#app/utils/account-deletion.server.ts'
 import {
 	AthleteProfileUpdateSchema,
 	parseTrainableWeekdays,
@@ -781,7 +782,9 @@ function SignOutOfSessions({
 }
 
 async function deleteDataAction({ userId }: ProfileActionArgs) {
-	await prisma.user.delete({ where: { id: userId } })
+	// Never a bare `prisma.user.delete`: `Workout.ownerId` is `SetNull`, so that
+	// would leave every Workout the athlete wrote behind as an orphan (#468).
+	await deleteAccount(userId)
 	return redirectWithToast('/', {
 		type: 'success',
 		title: MEG_PROFILE_LABELS.deletedTitle,

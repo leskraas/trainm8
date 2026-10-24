@@ -46,6 +46,7 @@ import {
 	weekdayIndex,
 } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
+import { PUBLISHED_WORKOUT_WHERE } from '#app/utils/community.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { appendOpenEndedRound } from '#app/utils/plan-outline/open-ended.server.ts'
 import {
@@ -773,7 +774,7 @@ async function applyAdd(
 	const source = await tx.workout.findFirst({
 		where: {
 			id: payload.workoutId,
-			OR: [{ ownerId: ctx.userId }, { visibility: 'public' }],
+			OR: [{ ownerId: ctx.userId }, PUBLISHED_WORKOUT_WHERE],
 		},
 		select: workoutCopySelect,
 	})
