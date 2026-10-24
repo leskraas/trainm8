@@ -40,14 +40,14 @@ type PlatformRule = {
 	/**
 	 * May this platform's data, or anything derived from it, reach a model?
 	 * `opt-in`: only once the athlete has given that platform's own
-	 * **Model Sharing Opt-In** (ADR 0105), never by default.
+	 * **Model Sharing Opt-In** (ADR 0108), never by default.
 	 */
 	model: boolean | 'opt-in'
 	attribution: Attribution | null
 }
 
 /**
- * The platforms whose model rule is an athlete's opt-in (ADR 0105): the only
+ * The platforms whose model rule is an athlete's opt-in (ADR 0108): the only
  * platforms a **Model Sharing Opt-In** can be stored for. An opt-in for any
  * other platform would open nothing, so it is never offered or kept.
  */
@@ -77,7 +77,7 @@ export type SourceTermsContext = {
  *   (through Intervals.icu or an uploaded file). The owner's call, 2026-10-14;
  *   a Garmin direct integration needs Garmin's §5.2(o) approval before it ships.
  * - polar: open only with the athlete's separate Polar opt-in (§3.1.1; ADR
- *   0105), stored as a Model Sharing Opt-In; closed without it.
+ *   0108), stored as a Model Sharing Opt-In; closed without it.
  * - strava: closed always (Policy §5.3, §5.10, §5.16).
  * - apple-health, health-connect: closed until explicit permission naming the
  *   AI exists and a store review has seen it.

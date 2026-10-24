@@ -89,7 +89,7 @@ OAuth tables, Polar tokens) uses the same key.
 
 ### `POLAR_CLIENT_ID`, `POLAR_CLIENT_SECRET`, `POLAR_REDIRECT_URI`, `POLAR_WEBHOOK_SECRET`
 
-Polar AccessLink (#555, ADR 0105). **Optional:** until all three client values
+Polar AccessLink (#555, ADR 0108). **Optional:** until all three client values
 are set, nothing about Polar is offered, and the webhook route answers 503 until
 `POLAR_WEBHOOK_SECRET` is set.
 

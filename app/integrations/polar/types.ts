@@ -1,7 +1,7 @@
 import { z } from 'zod/v4'
 
 /**
- * Polar AccessLink v3 wire shapes and constants (ADR 0105). Private to the
+ * Polar AccessLink v3 wire shapes and constants (ADR 0108). Private to the
  * Polar folder (ADR 0014): the rest of the app speaks `ingestFit` and the
  * shared `AccountConnection` model.
  *

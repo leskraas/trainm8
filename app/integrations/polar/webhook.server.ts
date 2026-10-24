@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import { PolarWebhookEventSchema } from './types.ts'
 
 /**
- * Polar's webhook (ADR 0105). One webhook per client; every delivery carries
+ * Polar's webhook (ADR 0108). One webhook per client; every delivery carries
  * `Polar-Webhook-Signature`, the hex HMAC-SHA256 of the raw body under the
  * `signature_secret_key` Polar returned once, when the webhook was created
  * (`POLAR_WEBHOOK_SECRET`). The route is a notification sink: a verified

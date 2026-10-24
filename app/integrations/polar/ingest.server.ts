@@ -12,7 +12,7 @@ import {
 } from './types.ts'
 
 /**
- * Polar exercises in, as FIT, through the shared FIT ingest (ADR 0105):
+ * Polar exercises in, as FIT, through the shared FIT ingest (ADR 0108):
  * transport `polar`, Origin Platform `polar`, the exercise's hashed id as the
  * external id. Dedupe, aliases (ADR 0096 §4), the original bytes, laps and
  * auto-save all happen inside `ingestFit`.

@@ -3,7 +3,7 @@ import path from 'node:path'
 import { http, HttpResponse, passthrough, type HttpHandler } from 'msw'
 
 /**
- * Polar AccessLink mocks (ADR 0105): one run exercise whose FIT is the
+ * Polar AccessLink mocks (ADR 0108): one run exercise whose FIT is the
  * `run-with-laps.fit` fixture. Tests override with `server.use(...)`.
  */
 export const MOCK_POLAR_EXERCISE_ID = 'aQlC83'
