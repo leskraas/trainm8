@@ -254,42 +254,11 @@ export function PhilosophyPreview({
 					phases={preview.phases.after}
 				/>
 			</div>
-			<table className="text-footnote w-full text-left tabular-nums">
-				<caption className="text-muted-foreground text-caption pb-1 text-left">
-					{PHILOSOPHY_SWITCH_LABELS.weeks}
-				</caption>
-				<thead>
-					<tr className="text-muted-foreground text-caption">
-						<th scope="col" className="py-1 font-medium">
-							{PHILOSOPHY_SWITCH_LABELS.weekColumn}
-						</th>
-						<th scope="col" className="py-1 font-medium">
-							{PHILOSOPHY_SWITCH_LABELS.before}
-						</th>
-						<th scope="col" className="py-1 font-medium">
-							{PHILOSOPHY_SWITCH_LABELS.after}
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{preview.weeks.map((week) => (
-						<tr key={week.weekKey} className="border-border/50 border-t">
-							<th scope="row" className="py-1 pr-2 font-normal">
-								{/* The ISO week, as every Sesong surface numbers it, with its
-								    Monday beside it. */}
-								<span className="block">Uke {isoWeekNumber(week.weekKey)}</span>
-								<span className="text-muted-foreground text-caption block">
-									{formatNbDayMonth(dayOf(week.weekKey), 'UTC')}
-								</span>
-							</th>
-							<td className="py-1 pr-2">{weekCell(week.before)}</td>
-							<td className="py-1" data-after>
-								{weekCell(week.after)}
-							</td>
-						</tr>
-					))}
-				</tbody>
-			</table>
+			<PreviewWeekTable
+				caption={PHILOSOPHY_SWITCH_LABELS.weeks}
+				afterLabel={PHILOSOPHY_SWITCH_LABELS.after}
+				weeks={preview.weeks}
+			/>
 			<p className="text-muted-foreground text-caption">
 				{PHILOSOPHY_SWITCH_LABELS.aroundYours}
 			</p>
@@ -322,7 +291,18 @@ export function PhilosophyPreview({
 	)
 }
 
-function PhaseList({ title, phases }: { title: string; phases: PhaseView[] }) {
+/**
+ * One side of a plan preview's phases: each phase from the preview's first
+ * week, its length and its quality sessions. Shared with _Legg til et løp_'s
+ * preview (#518).
+ */
+export function PhaseList({
+	title,
+	phases,
+}: {
+	title: string
+	phases: PhaseView[]
+}) {
 	return (
 		<div>
 			<h4 className="text-muted-foreground text-caption font-medium">
@@ -337,6 +317,66 @@ function PhaseList({ title, phases }: { title: string; phases: PhaseView[] }) {
 				))}
 			</ul>
 		</div>
+	)
+}
+
+/**
+ * A plan preview's weeks, before and after: the ISO week with its Monday, and
+ * what each side reads in it. Shared with _Legg til et løp_'s preview (#518),
+ * which names its after side for the race.
+ */
+export function PreviewWeekTable({
+	caption,
+	afterLabel,
+	weeks,
+}: {
+	caption?: string
+	afterLabel: string
+	weeks: Array<{
+		weekKey: string
+		before: WeekView | null
+		after: WeekView | null
+	}>
+}) {
+	return (
+		<table className="text-footnote w-full text-left tabular-nums">
+			{caption ? (
+				<caption className="text-muted-foreground text-caption pb-1 text-left">
+					{caption}
+				</caption>
+			) : null}
+			<thead>
+				<tr className="text-muted-foreground text-caption">
+					<th scope="col" className="py-1 font-medium">
+						{PHILOSOPHY_SWITCH_LABELS.weekColumn}
+					</th>
+					<th scope="col" className="py-1 font-medium">
+						{PHILOSOPHY_SWITCH_LABELS.before}
+					</th>
+					<th scope="col" className="py-1 font-medium">
+						{afterLabel}
+					</th>
+				</tr>
+			</thead>
+			<tbody>
+				{weeks.map((week) => (
+					<tr key={week.weekKey} className="border-border/50 border-t">
+						<th scope="row" className="py-1 pr-2 font-normal">
+							{/* The ISO week, as every Sesong surface numbers it, with its
+							    Monday beside it. */}
+							<span className="block">Uke {isoWeekNumber(week.weekKey)}</span>
+							<span className="text-muted-foreground text-caption block">
+								{formatNbDayMonth(dayOf(week.weekKey), 'UTC')}
+							</span>
+						</th>
+						<td className="py-1 pr-2">{weekCell(week.before)}</td>
+						<td className="py-1" data-after>
+							{weekCell(week.after)}
+						</td>
+					</tr>
+				))}
+			</tbody>
+		</table>
 	)
 }
 
