@@ -262,6 +262,14 @@ const { ensureStrengthTssBackfillEnqueued } =
 	await import('#app/utils/load/strength-tss-backfill.server.ts')
 await ensureStrengthTssBackfillEnqueued()
 
+// One-shot Training Load correction (#628, ADR 0107): pool swims parsed from
+// their FIT before #628 stored a pace that counted the rest at the wall as
+// swimming. Enqueue the re-read exactly once — the job row is the marker — and
+// it leaves a notice naming the CTL rise.
+const { ensureSwimPaceBackfillEnqueued } =
+	await import('#app/utils/load/swim-pace-backfill.server.ts')
+await ensureSwimPaceBackfillEnqueued()
+
 // One-shot telemetry heal: the daily sweep — Intervals.icu's primary ingest
 // path — used to file imports without fetching their per-sample streams.
 // Enqueue the stream backfill exactly once; the job row is the marker.
