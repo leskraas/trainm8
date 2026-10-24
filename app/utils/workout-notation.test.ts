@@ -1253,6 +1253,27 @@ describe('token model invariants', () => {
 		expect(notationSentence(notation)).toBe('3 × 13 × 30 s (15 s pause)')
 	})
 
+	test('a block repeated only in series still draws its repeat token', () => {
+		const input: NotationInput = {
+			blocks: [
+				{
+					repeatCount: 1,
+					seriesRepeatCount: 3,
+					steps: [
+						{ kind: 'cardio', durationSec: 600 },
+						{ kind: 'rest', durationSec: 180 },
+					],
+				},
+			],
+		}
+		const notation = deriveWorkoutNotation(input)
+		// Three efforts, not one; the count is still the reps it edits.
+		expect(notation.blocks[0]!.repeat).toMatchObject({
+			text: '3 × 1',
+			count: 1,
+		})
+	})
+
 	test('tokenText composes intensity facets; stepSentence wraps parenthesized tokens', () => {
 		const input: NotationInput = {
 			blocks: [

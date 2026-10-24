@@ -80,6 +80,18 @@ test('a block repeated in series reads with its series (#615)', () => {
 	expect(deriveWorkoutTitle(s)).toBe('3 × 13 × 30 s')
 })
 
+test('a block repeated only in series reads with its series', () => {
+	const s = structure([
+		{ repeatCount: 1, steps: [cardio({ durationSec: 900, intensity: pace })] },
+		{
+			repeatCount: 1,
+			seriesRepeatCount: 3,
+			steps: [cardio({ durationSec: 600, intensity: power }), rest(180)],
+		},
+	])
+	expect(deriveWorkoutTitle(s)).toBe('3 × 10 min')
+})
+
 test('distance reps read in the distance unit', () => {
 	const s = structure([
 		{

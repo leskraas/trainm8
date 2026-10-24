@@ -107,8 +107,12 @@ export function deriveWorkoutTitle(structure: WorkoutStructure): string {
 	const informative = withCardio.filter(({ step }) => stepContributes(step))
 	const pool = informative.length > 0 ? informative : withCardio
 
+	// Either repeat level makes a block the repeated one: `1 × … × 3 series`
+	// is three efforts.
+	const repeated = (block: (typeof pool)[number]['block']) =>
+		block.repeatCount >= 2 || (block.seriesRepeatCount ?? 1) >= 2
 	const headline =
-		pool.find(({ block }) => block.repeatCount >= 2) ??
+		pool.find(({ block }) => repeated(block)) ??
 		pool.reduce((best, entry) =>
 			stepMagnitude(entry.step) > stepMagnitude(best.step) ? entry : best,
 		)
@@ -117,11 +121,16 @@ export function deriveWorkoutTitle(structure: WorkoutStructure): string {
 	const reps = headline.block.repeatCount
 	// The series lead the reps: `3 × 13 × 30 s` is three series of 13 (#615).
 	const series = headline.block.seriesRepeatCount ?? 1
-	const count = series >= 2 ? `${series} × ${reps}` : `${reps}`
+	const count =
+		series >= 2 ? (reps >= 2 ? `${series} × ${reps}` : `${series}`) : `${reps}`
 	// A dangling `4 ×` (a repeat block whose work step states no quantity) reads
 	// worse than the plain zone word or discipline fallback, so the rep count
 	// only appears when it has a quantity to multiply.
-	const core = quantity ? (reps >= 2 ? `${count} × ${quantity}` : quantity) : ''
+	const core = quantity
+		? repeated(headline.block)
+			? `${count} × ${quantity}`
+			: quantity
+		: ''
 	const word = headline.step.intensity
 		? intensityWord(headline.step.intensity)
 		: null

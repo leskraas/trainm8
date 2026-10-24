@@ -1234,7 +1234,7 @@ export function deriveWorkoutNotation(
 			// the field the repeat token edits.
 			const series = block.seriesRepeatCount ?? 1
 			const repeat =
-				block.repeatCount > 1
+				block.repeatCount > 1 || series > 1
 					? ({
 							type: 'repeat',
 							text:
