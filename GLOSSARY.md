@@ -2195,9 +2195,12 @@ verdict, interval grade, compliance score, "X of Y intervals".
 
 **Job Queue**: The in-process background-work primitive (ADR 0013). A `Job` row
 carries a `kind` (which handler runs it) and an opaque JSON `payload`, with
-retry/backoff and a terminal `failed` state. A single polling worker drains the
-queue one job at a time. The Backfill Window is its first `kind`; webhook-fetch
-and reconciliation-poll reuse it. _Avoid_: Task queue, worker pool, scheduler
+retry/backoff, a terminal `failed` state, and deferral: a handler that can't
+proceed until a known time (a spent read budget) goes back to `pending` then
+without spending an attempt, for up to 7 days. A single polling worker drains
+the queue one job at a time. The Backfill Window is its first `kind`;
+webhook-fetch and reconciliation-poll reuse it. _Avoid_: Task queue, worker
+pool, scheduler
 
 **Live Imports Stream**: The per-athlete Server-Sent Events channel that pushes
 "a new Activity Import landed" to the athlete's open tabs so the home surface
