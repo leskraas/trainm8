@@ -8,13 +8,6 @@ import { setSessionCookie } from 'better-auth/cookies'
 import { createCookieSessionStorage } from 'react-router'
 import * as z from 'zod'
 
-if (
-	!process.env.SESSION_SECRET &&
-	new URL(process.env.BASE_URL ?? 'http://localhost:3000').hostname !==
-		'localhost'
-)
-	throw new Error('SESSION_SECRET is required when BASE_URL is not localhost')
-
 export const epicSessionStorage = createCookieSessionStorage({
 	cookie: {
 		name: 'en_session',

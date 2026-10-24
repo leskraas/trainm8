@@ -15,11 +15,6 @@ export const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000'
 export const RESOURCE = `${BASE_URL}/mcp`
 export const IS_LOCAL = new URL(BASE_URL).hostname === 'localhost'
 export const prisma = new PrismaClient()
-// The fallback secret is for localhost only; anywhere else, fail closed.
-if (!IS_LOCAL && !process.env.BETTER_AUTH_SECRET)
-	throw new Error(
-		'BETTER_AUTH_SECRET is required when BASE_URL is not localhost',
-	)
 
 // The placeholder secrets are for localhost only; a tunnelled or deployed spike must set its own.
 function secretFor(name: string, fallback: string) {
