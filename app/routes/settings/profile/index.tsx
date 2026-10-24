@@ -24,6 +24,7 @@ import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
+import { deleteAccount } from '#app/utils/account-deletion.server.ts'
 import {
 	AthleteProfileUpdateSchema,
 	parseTrainableWeekdays,
@@ -32,7 +33,6 @@ import {
 	getOrCreateAthleteProfile,
 	updateAthleteProfile,
 } from '#app/utils/athlete.server.ts'
-import { deleteAccount } from '#app/utils/account-deletion.server.ts'
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {

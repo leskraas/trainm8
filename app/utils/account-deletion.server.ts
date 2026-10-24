@@ -37,6 +37,9 @@ export type AccountErasure = {
 	spliced: number
 }
 
+// The splice updates one child per row; a prolific athlete outruns Prisma's 5 s default.
+const TRANSACTION_TIMEOUT_MS = { timeout: 30_000 }
+
 export async function deleteAccount(userId: string): Promise<AccountErasure> {
 	return prisma.$transaction(async (tx) => {
 		const owned = await tx.workout.findMany({
@@ -72,7 +75,7 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 		})
 		await tx.user.delete({ where: { id: userId } })
 		return { erased, withdrawn: kept.size, spliced }
-	})
+	}, TRANSACTION_TIMEOUT_MS)
 }
 
 async function withdraw(tx: Prisma.TransactionClient, ids: string[]) {
