@@ -7246,6 +7246,9 @@ export const TOKEN_EDITOR_TOKEN_NAMES = {
 	duration: (text: string) => `${text} varighet`,
 	distance: (text: string) => `${text} distanse`,
 	repeat: (count: string | number) => `gjentas ${count} ganger`,
+	/** A block in series, `3 × 13`: the series first, as the badge reads. */
+	repeatSeries: (series: number, reps: number) =>
+		`${series} serier, gjentas ${reps} ganger`,
 	restBetweenSets: (text: string) => `${text} mellom settene`,
 	note: (note: string) => `notat: ${note}`,
 	intensity: (chip: string) => `${chip} intensitet`,

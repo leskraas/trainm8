@@ -83,6 +83,30 @@ test('a block in series badges its series as well as its reps', () => {
 	expect(badge).toHaveTextContent('3 × 13×')
 })
 
+test('a block repeated only in series badges its series alone, never `3 × 1×`', () => {
+	render(
+		<ScoreStanza
+			notation={deriveWorkoutNotation({
+				blocks: [
+					{
+						repeatCount: 1,
+						seriesRepeatCount: 3,
+						steps: [
+							{ kind: 'cardio', durationSec: 600 },
+							{ kind: 'rest', durationSec: 180 },
+						],
+					},
+				],
+			})}
+		/>,
+	)
+
+	const badge = document.querySelector(
+		'[data-stanza-gutter] [data-token-type="repeat"]',
+	)
+	expect(badge?.textContent).toBe('3×')
+})
+
 test('a rest value takes the semibold ink and its word recedes (ADR 0089: the word is `pause`)', () => {
 	render(<ScoreStanza notation={deriveWorkoutNotation(intervalInput)} />)
 

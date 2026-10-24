@@ -188,8 +188,21 @@ export type IntensityChip = { text: string; step: TrainingZone | null }
 export type NotationToken =
 	/** A Step Quantity: `6 min` (field `duration`) or `2 km` (field `distance`). */
 	| { type: 'quantity'; text: string; address: TokenAddress }
-	/** A block's repeat count, e.g. `4` (rendered `4 ×`). Present only when > 1. */
-	| { type: 'repeat'; text: string; count: number; address: TokenAddress }
+	/**
+	 * A block's repeat count, e.g. `4` (rendered `4 ×`), present only when the
+	 * block repeats. `count` is the innermost number the text shows; `series`
+	 * leads it when both levels show (`3 × 13`: series 3, count 13), and is null
+	 * when one does. A block repeated only in series reads as its series (`3`,
+	 * count 3), never `3 × 1`. The address stays `repeatCount`: the editor's
+	 * form carries no series field.
+	 */
+	| {
+			type: 'repeat'
+			text: string
+			count: number
+			series: number | null
+			address: TokenAddress
+	  }
 	/**
 	 * An Intensity Target with derived facets: `4:40 /km`, `Threshold`,
 	 * `95–105% FTP`. `targetKind` is null for the editor-only placeholder of a
@@ -1230,18 +1243,20 @@ export function deriveWorkoutNotation(
 					},
 				})
 			}
-			// The series lead the reps, `3 × 13` (#615); `count` stays the reps,
-			// the field the repeat token edits.
+			// The series lead the reps, `3 × 13` (#615). A block repeated only in
+			// series reads as its series, `3 ×`: a `× 1` says nothing.
 			const series = block.seriesRepeatCount ?? 1
+			const reps = block.repeatCount
 			const repeat =
-				block.repeatCount > 1 || series > 1
+				reps > 1 || series > 1
 					? ({
 							type: 'repeat',
 							text:
-								series > 1
-									? `${series} ${NOTATION_SEPARATORS.repeat} ${block.repeatCount}`
-									: String(block.repeatCount),
-							count: block.repeatCount,
+								series > 1 && reps > 1
+									? `${series} ${NOTATION_SEPARATORS.repeat} ${reps}`
+									: String(Math.max(series, reps)),
+							count: reps > 1 ? reps : series,
+							series: series > 1 && reps > 1 ? series : null,
 							address: { blockIndex, stepIndex: null, field: 'repeatCount' },
 						} as const)
 					: null
