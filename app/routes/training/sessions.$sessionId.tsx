@@ -1547,7 +1547,9 @@ function plannedStructureFromWorkout(
 		discipline: workout.discipline,
 		blocks: workout.blocks
 			.map((block) => ({
-				repeatCount: block.repeatCount ?? 1,
+				// The comparator has one repeat level, so `3 × (13 × 30/15)` reaches
+				// it as 39 reps (#634); the series rests do not enter its count.
+				repeatCount: (block.repeatCount ?? 1) * (block.seriesRepeatCount ?? 1),
 				steps: block.steps.flatMap((step) => {
 					if (step.kind === 'rest') {
 						return step.durationSec != null
@@ -1627,7 +1629,9 @@ const STRUCTURE_TONE: Record<
 	{ dot: string; wash: string }
 > = {
 	'as-prescribed': { dot: 'bg-status-on', wash: 'bg-status-on/12' },
-	diverged: { dot: 'bg-status-under', wash: 'bg-status-under/12' },
+	// Neutral, not the amber `status-under`: diverging means doing something
+	// other than (often more than) the plan, never the "under" warning (#634).
+	diverged: { dot: 'bg-muted-foreground', wash: 'bg-muted' },
 }
 
 /**

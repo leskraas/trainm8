@@ -823,6 +823,42 @@ test('a matched planned session with surplus detected structure reads "Diverged"
 	const slot = document.querySelector('[data-structure-adherence]')!
 	expect(slot).toHaveAttribute('data-structure-verdict', 'diverged')
 	expect(slot).toHaveTextContent('Avvek')
+	// Doing more than planned is not the amber "under" warning (#634).
+	expect(slot.querySelector('[class*="status-under"]')).toBeNull()
+})
+
+test('a planned 3 × (13 × 30/15) against a 39-rep detection reads "As prescribed" (#634)', async () => {
+	// The series level multiplies the rep count: 3 series of 13 is 39 reps,
+	// not 13 with 26 surplus.
+	const workout = makeIntervalWorkout()
+	const [warmUp, work] = workout.blocks
+	const series = {
+		...work!,
+		repeatCount: 13,
+		seriesRepeatCount: 3,
+		betweenSeriesRestSec: 360,
+		steps: [
+			{ ...work!.steps[0]!, durationSec: 30 },
+			{ ...work!.steps[1]!, durationSec: 15 },
+		],
+	}
+	const session = makeSession({
+		status: 'completed',
+		plannedTssValue: 90,
+		tssValue: 88,
+		workout: { ...workout, blocks: [warmUp!, series] },
+		recording: makeRecording({
+			detection: {
+				confidence: 'high',
+				structureJson: detectedIntervalJson({ reps: 39, workSec: 30 }),
+			},
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Plan mot gjennomført')
+	const slot = document.querySelector('[data-structure-adherence]')!
+	expect(slot).toHaveAttribute('data-structure-verdict', 'as-prescribed')
 })
 
 test('a matched structured plan with no gate-clearing detection reads the honest "not confidently verifiable" state', async () => {
