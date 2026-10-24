@@ -1651,7 +1651,7 @@ export async function getUpcomingSessions(
 	})
 }
 
-const ledgerSessionSelect = {
+export const ledgerSessionSelect = {
 	...upcomingSessionSelect,
 	// Session Adoption (#460): with `source` (already in the upcoming select) it
 	// says whose a session is, which the home timeline marks on every planned
