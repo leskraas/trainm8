@@ -90,9 +90,13 @@ stored, never inferred from `weekReplanId`.
 
 `ProposalAuthor` (`app/utils/load/propose-week-change.ts`) stays the rules
 author's seam for the Week Change. An assistant does not plug into it: it
-reaches the store through `propose_week_change`, whose input is
-`ProposalPayloadSchema` plus a reason, parsed again on the server with the
-domain schema whatever the model's tool schema said.
+reaches the store through `propose_week_change`, whose input is a
+`ProposalDraft`: `ProposalPayloadSchema`, `targetSessionId` (null only for a
+week-wide change), `targetWeekKey` and a reason. It is parsed again on the
+server with the domain schema whatever the model's tool schema said, and every
+id it names (the target, a swap's `otherSessionId`, an add's `workoutId`) is
+looked up under `ctx.userId`; one that is not the athlete's is `not-found` (ADR
+0092 §3).
 
 ### 3. Only the athlete's explicit yes applies an assistant's proposal
 
@@ -118,7 +122,8 @@ domain schema whatever the model's tool schema said.
   if the digest matches, the proposal is still pending, and its target session
   has not changed since the proposal was written. Otherwise it refuses (`stale`
   or `already-answered`) and writes nothing. A yes is consumed once, and there
-  is no standing "always yes".
+  is no standing "always yes". The stale check covers the target session only;
+  see [Deferred hardening](#deferred-hardening).
 
 _The MCP note let an app-only `answer_proposal` button in an MCP App widget be
 the yes
@@ -181,9 +186,11 @@ athlete asked for minutes earlier. Tavla records the agent as
 - **`undo` is one action** (`write`, `destructiveHint: true`,
   `idempotentHint: true`) that dispatches to the existing functions:
   `undoDayStamp`, `undoMarkSessionDone`, `undoQuickLog`. Their refusals carry
-  over unchanged: `not-undoable` once something has landed on top, and no handle
-  at all when the load recompute rewrote another session
-  (`recomputeRewroteSince`). A used handle answers `not-undoable`, idempotently.
+  over unchanged, and no handle is issued at all when the load recompute rewrote
+  another session (`recomputeRewroteSince`). A used handle answers
+  `not-undoable`, idempotently. Only `undoMarkSessionDone` compares and sets
+  today; `undoDayStamp` and `undoQuickLog` do not check for a later edit (see
+  [Deferred hardening](#deferred-hardening)).
 - **The window is 24 hours from the write**, or less when the domain refuses
   first. The `undo` tool's description states it, and so does each write's
   result (`expiresAt`).
@@ -301,3 +308,17 @@ a reason here, before anyone else connects one. Tracked in #639.
 - **The kill switch is an environment flag** (decision 5). It needs a secret
   change and a restart, and it is all or nothing. Closes with a switch stored in
   the database plus revocation per client and per athlete (#639 H4).
+- **The yes binds to the payload and the target session only** (§3). A swap also
+  moves `otherSessionId`, and a week-wide scale has no target, so a session
+  added to or changed in the week after the card rendered can be changed by a
+  yes whose digest still matches. Closes when the card's digest covers the set
+  of sessions the payload affects and their states, and the apply checks them in
+  the same transaction that writes (#639).
+- **Model-facing undo reuses helpers that do not all refuse a later edit** (§6).
+  `undoDayStamp` deletes the session whatever the athlete has done to it since,
+  and `undoQuickLog` deletes the stored set-log ids even after the athlete
+  corrected those rows, so a 24-hour handle can erase the athlete's own later
+  edits. Closes when `UndoHandle` stores the post-write state and `undo`
+  compares it with the rows in the deleting transaction, answering
+  `not-undoable` on a mismatch; this must hold before the writes ship in Phase 3
+  (#639).

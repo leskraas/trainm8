@@ -170,9 +170,15 @@ type ActionResult<O> =
 			credits: Credit[]
 	  }
 	| { outcome: 'proposed'; proposalIds: string[]; link: string }
-	| { outcome: 'refused'; code: RefusalCode; next: Next; message: string }
+	| {
+			outcome: 'refused'
+			code: RefusalCode
+			next: Next
+			message: string
+			link?: string
+	  }
 	| { outcome: 'not-run'; reason: 'rate-limited' | 'switched-off' | 'internal' }
-	| { outcome: 'unknown'; message: string } // writes only: may have happened; read first
+	| { outcome: 'unknown'; message: string } // propose and write only: may have happened; read first
 
 type Next = 'fix-input' | 'ask-athlete' | 'reread' | 'stop'
 ```
@@ -185,11 +191,12 @@ type Next = 'fix-input' | 'ask-athlete' | 'reread' | 'stop'
   shows today. The seed list: `invalid-input`, `not-found`, `not-allowed`,
   `needs-athlete-yes`, `needs-scope`, `stale`, `too-late`, `already-answered`,
   `not-undoable`, `undo-expired`, and the domain's own codes as each slice lands
-  (`not-the-coming-week`, `no-before-image`).
+  (`not-the-coming-week`, `no-before-image`). `link` is where the athlete can
+  act instead; `needs-athlete-yes` always carries it (0093 §3).
 - **`not-run`** means nothing happened and the same call may succeed later.
-- **`unknown`** is only for a write whose handler started and then failed: it
-  may have committed, so the model reads before it retries. A failed read is
-  `not-run`.
+- **`unknown`** is only for a `propose` or a `write` whose handler started and
+  then failed: it may have committed, so the model reads before it retries. A
+  failed read is `not-run`.
 - `ok: true` does not exist. A `proposed` result is not success-shaped, so a
   model cannot read "proposed" as "done".
 - `UndoRef` (an opaque handle id and its expiry) is ADR 0093 §6's.
@@ -337,8 +344,9 @@ text is not copied into the row.
 
 ## The first slice: six reads and Ukeskiftet (#553)
 
-Every number below is a `Reading`. `link` is a deep link into trainm8. Durations
-are seconds, distances metres. `owner` is **Session Ownership**.
+Every number below is a `Reading`, counts included. `link` is a deep link into
+trainm8. Durations are seconds, distances metres. `owner` is **Session
+Ownership**.
 
 ```ts
 type SessionSummary = {
@@ -362,14 +370,14 @@ type SessionSummary = {
 }
 ```
 
-| Action                | Input                              | Output                                                                                                                                                                                                                    |
-| --------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get_today`           | none                               | `{ date, sessions: SessionSummary[], load: { ctl, atl, tsb: Reading<number> }, week: { tracks: { discipline, planned, actual, target: Reading<number> }[] }, openProposals: number }`                                     |
-| `list_sessions`       | `{ from, to, cursor? }`, ≤ 28 days | `{ sessions: SessionSummary[], nextCursor: string \| null }`                                                                                                                                                              |
-| `get_session`         | `{ sessionId }`                    | `SessionSummary & { workout: { title, blocks } \| null, recording: { originPlatform, device: string \| null } \| null, rpe: Reading<number>, log: AthleteText \| null }`                                                  |
-| `get_session_vs_plan` | `{ sessionId }`                    | `{ tss, durationS, distanceM: { planned, actual: Reading<number> }, band: Reading<AdherenceBand>, structure: Reading<StructureAdherence>, vsLast: { sessionId, date, deltas: Record<string, Reading<number>> } \| null }` |
-| `get_training_load`   | `{ weeks: 1–26 }`                  | `{ days: { date, tss, ctl, atl, tsb: Reading<number> }[], weeks: { weekKey, plannedTss, actualTss: Reading<number>, adherence: Reading<AdherenceBand> }[], tsbTrust: { trustworthy, daysOfHistory, requiredDays } }`      |
-| `get_season`          | none                               | `{ plan: { name, openEnded, event: { name, date } \| null } \| null, weeks: { weekKey, phase, tracks: { discipline, target, planned, actual: Reading<number> }[] }[] }`                                                   |
+| Action                | Input                              | Output                                                                                                                                                                                                                                         |
+| --------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_today`           | none                               | `{ date, sessions: SessionSummary[], load: { ctl, atl, tsb: Reading<number> }, week: { tracks: { discipline, planned, actual, target: Reading<number> }[] }, openProposals: Reading<number> }`                                                 |
+| `list_sessions`       | `{ from, to, cursor? }`, ≤ 28 days | `{ sessions: SessionSummary[], nextCursor: string \| null }`                                                                                                                                                                                   |
+| `get_session`         | `{ sessionId }`                    | `SessionSummary & { workout: { title, blocks } \| null, recording: { originPlatform, device: string \| null } \| null, rpe: Reading<number>, log: AthleteText \| null }`                                                                       |
+| `get_session_vs_plan` | `{ sessionId }`                    | `{ tss, durationS, distanceM: { planned, actual: Reading<number> }, band: Reading<AdherenceBand>, structure: Reading<StructureAdherence>, vsLast: { sessionId, date, deltas: Record<string, Reading<number>> } \| null }`                      |
+| `get_training_load`   | `{ weeks: 1–26 }`                  | `{ days: { date, tss, ctl, atl, tsb: Reading<number> }[], weeks: { weekKey, plannedTss, actualTss: Reading<number>, adherence: Reading<AdherenceBand> }[], tsbTrust: { trustworthy: boolean, daysOfHistory, requiredDays: Reading<number> } }` |
+| `get_season`          | none                               | `{ plan: { name, openEnded, event: { name, date } \| null } \| null, weeks: { weekKey, phase, tracks: { discipline, target, planned, actual: Reading<number> }[] }[] }`                                                                        |
 
 `get_week_change` (read) wraps `readWeekChange` and the card model, which moves
 out of `app/routes/_home/timeline/week-change.ts` into `app/utils/load/`. The
