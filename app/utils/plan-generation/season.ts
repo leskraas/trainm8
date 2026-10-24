@@ -36,8 +36,10 @@ import {
 } from '../plan-outline/derive.ts'
 import { type PresetKey } from '../plan-outline/presets.ts'
 import { type QualityZone } from '../plan-outline/quality-mix.ts'
+import { type ConversionContext } from '../plan-outline/volume-conversion.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { type CardioDiscipline, type Discipline } from '../workout-schema.ts'
+import { type CapacityFit } from './capacity.ts'
 import { type SessionProvenance } from './provenance.ts'
 
 /**
@@ -128,6 +130,13 @@ export type SeasonRequest = {
 	intent: GenerationIntent
 	/** Hours per **Training Week** the athlete has room for, or null if unset. */
 	weeklyCapacityHours: number | null
+	/**
+	 * Per Discipline, what the **Volume Conversion** needs to read a week in hours
+	 * (`readConversionContexts`). Data, not a query, so the generator stays pure.
+	 * Missing for a Discipline means its weeks may not price in hours, and the
+	 * capacity check then says it did not run (ADR 0110).
+	 */
+	conversionContexts: Partial<Record<Discipline, ConversionContext>>
 }
 
 /** One block of the generated season, and the corpus facet it retrieves under. */
@@ -237,7 +246,13 @@ export type GeneratedSeason = {
 	startWeekKey: string
 	eventWeekKey: string
 	phases: GeneratedPhase[]
+	/**
+	 * The tracks the weeks were priced from — the request's, with each **Season
+	 * Anchor** lowered where `capacity` says it was. What approval writes.
+	 */
 	tracks: GenerationTrack[]
+	/** What the **Weekly Capacity** check did to the season (ADR 0110). */
+	capacity: CapacityFit
 	weeks: GeneratedWeek[]
 	/** Every placed session, in season order: week, then weekday, then discipline. */
 	sessions: GeneratedSession[]
