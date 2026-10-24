@@ -73,12 +73,14 @@ export async function claimNextJob(): Promise<ClaimedJob | null> {
  * the meantime (#637).
  */
 export class DeferJob extends Error {
-	constructor(
-		readonly until: Date,
-		message: string,
-	) {
+	// A plain field, not a parameter property: the server runs this file
+	// through Node's type stripping, which can't rewrite one.
+	readonly until: Date
+
+	constructor(until: Date, message: string) {
 		super(message)
 		this.name = 'DeferJob'
+		this.until = until
 	}
 }
 
