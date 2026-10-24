@@ -63,7 +63,7 @@ export type PhilosophyPreviewView = Omit<
 >
 
 /** A week key's calendar day, as a date with no zone to shift it. */
-const dayOf = (weekKey: string) => new Date(`${weekKey}T12:00:00Z`)
+export const dayOf = (weekKey: string) => new Date(`${weekKey}T12:00:00Z`)
 
 type LastResult = Parameters<typeof useForm>[0]['lastResult']
 

@@ -26,7 +26,7 @@ import {
 } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
 import { useEffect, useState } from 'react'
-import { Form } from 'react-router'
+import { Form, useNavigation } from 'react-router'
 import { ErrorList, Field, RadioGroupField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { formatNbDate } from '#app/utils/format.ts'
@@ -41,7 +41,7 @@ import {
 import { AttachEventFormSchema } from '#app/utils/plan-outline/attach-event-schema.ts'
 import { type ReadAttachEventResult } from '#app/utils/plan-outline/open-ended.server.ts'
 import { seasonEditWarningMessage } from '#app/utils/plan-outline/season-edit-words.ts'
-import { PhaseList, PreviewWeekTable } from './__philosophy-switch.tsx'
+import { dayOf, PhaseList, PreviewWeekTable } from './__philosophy-switch.tsx'
 import { CollapsibleSection } from './__plan-chrome.tsx'
 import { RiseWarningNotice } from './__season-edits.tsx'
 
@@ -73,9 +73,6 @@ export type AttachEventReply = {
  */
 const WEEKS_OPEN_UP_TO = 12
 
-/** A day key's calendar day, as a date with no zone to shift it. */
-const dayOf = (dayKey: string) => new Date(`${dayKey}T12:00:00Z`)
-
 export function AttachEventOffer({
 	outlineId,
 	events,
@@ -86,6 +83,7 @@ export function AttachEventOffer({
 	reply: AttachEventReply | null
 }) {
 	const preview = reply?.preview ?? null
+	const submitting = useNavigation().state === 'submitting'
 	const [form, fields] = useForm({
 		id: 'attach-event',
 		constraint: getZodConstraint(AttachEventFormSchema),
@@ -179,12 +177,18 @@ export function AttachEventOffer({
 					/>
 				</div>
 				{/* The outline button asks; the filled one under the preview acts. */}
-				<Button type="submit" variant="outline" className="w-full">
+				<Button
+					type="submit"
+					variant="outline"
+					className="w-full"
+					disabled={submitting}
+				>
 					{ATTACH_EVENT_LABELS.showPreview}
 				</Button>
 			</Form>
 			{preview ? (
 				<AttachEventPreview
+					key={preview.digest}
 					outlineId={outlineId}
 					preview={preview}
 					lastResult={reply?.confirmResult ?? null}
@@ -217,6 +221,7 @@ function AttachEventPreview({
 			return parseWithZod(formData, { schema: AttachEventFormSchema })
 		},
 	})
+	const submitting = useNavigation().state === 'submitting'
 	const removed = attachRemovedSentence(preview.removed)
 	const { confirm } = preview
 	return (
@@ -304,7 +309,7 @@ function AttachEventPreview({
 						/>
 					</div>
 				) : null}
-				<Button type="submit" className="w-full">
+				<Button type="submit" className="w-full" disabled={submitting}>
 					{ATTACH_EVENT_LABELS.submit}
 				</Button>
 			</Form>
