@@ -41,7 +41,7 @@ export type AccountErasure = {
 	spliced: number
 }
 
-// The splice updates one child per row; a prolific athlete outruns Prisma's 5 s default.
+// A prolific athlete's purge (many Workouts, a big fork tree) outruns Prisma's 5 s default.
 const TRANSACTION_TIMEOUT_MS = { timeout: 30_000 }
 
 export async function deleteAccount(userId: string): Promise<AccountErasure> {
