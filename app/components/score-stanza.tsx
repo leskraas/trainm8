@@ -121,7 +121,7 @@ function StanzaLine({
 		<div
 			data-stanza-line
 			className={cn(
-				// The gutter grows past its rem for a series badge (`3 × 13×`).
+				// The gutter grows past its rem for a block in series (`3× 13×`).
 				'border-border/70 grid grid-cols-[minmax(3rem,max-content)_1fr] items-baseline gap-x-2.5 border-b py-2.5 last:border-b-0 min-[520px]:grid-cols-[minmax(4rem,max-content)_1fr]',
 				className,
 			)}
@@ -131,13 +131,32 @@ function StanzaLine({
 				data-stanza-gutter
 				className="flex items-baseline justify-end gap-1.5"
 			>
+				{/* The outer Series Repeat leads the reps, as it does in the
+				    sentence (`3 × (13 × …)`): its own badge, outlined where the
+				    reps are filled, so the two levels never read as one number
+				    (#466). Heard as `3 serier`, not as a bare multiplier. */}
+				{block.series ? (
+					<Wrapped token={block.series} renderToken={renderToken}>
+						<span
+							data-token-type="series"
+							className="text-muted-foreground ring-border rounded-lg px-1.5 py-0.5 text-xs font-bold whitespace-nowrap tabular-nums ring-1 ring-inset"
+						>
+							<span aria-hidden>
+								{block.series.text}
+								{NOTATION_SEPARATORS.repeat}
+							</span>
+							<span className="sr-only">
+								{TOKEN_SENTENCE_WORDS.seriesCount(block.series.count)}
+							</span>
+						</span>
+					</Wrapped>
+				) : null}
 				{block.repeat ? (
 					<Wrapped token={block.repeat} renderToken={renderToken}>
 						<span
 							data-token-type="repeat"
 							className="bg-muted text-muted-foreground rounded-lg px-1.5 py-0.5 text-xs font-bold whitespace-nowrap tabular-nums"
 						>
-							{/* The text, not the count: a block in series reads `3 × 13`. */}
 							{block.repeat.text}
 							{NOTATION_SEPARATORS.repeat}
 						</span>
@@ -172,6 +191,20 @@ function StanzaLine({
 						/>
 					</Fragment>
 				))}
+				{/* The rest between series closes the line it separates, in a
+				    rest's parens and inks: `(10 min seriepause)`. */}
+				{block.seriesRest ? (
+					<span
+						data-series-rest
+						className="inline-flex items-baseline gap-x-1 whitespace-nowrap"
+					>
+						<Paren>(</Paren>
+						<Wrapped token={block.seriesRest} renderToken={renderToken}>
+							<Token token={block.seriesRest} />
+						</Wrapped>
+						<Paren>)</Paren>
+					</span>
+				) : null}
 				{extras}
 			</div>
 		</div>
@@ -211,10 +244,12 @@ function StepUnit({
 					</Wrapped>
 				)
 				// Rest-between-sets folds into the set notation with a mid-dot,
-				// never parentheses (§5.1) — `( … rest )` is the rest step's. The
-				// dot travels glued to its rest token so a wrap can't orphan it.
-				return token.type === 'rest' &&
-					token.address.field === 'restBetweenSetsSec' ? (
+				// never parentheses (§5.1) — `( … rest )` is the rest step's — and
+				// a Step Parameter follows the same dot (`· 50–60 rpm`, #466). The
+				// dot travels glued to its token so a wrap can't orphan it, and a
+				// step that opens on one has nothing before it to dot.
+				return index > 0 &&
+					positioned.separator === NOTATION_SEPARATORS.facet ? (
 					<span key={index} className="inline-flex items-baseline gap-x-1">
 						<span aria-hidden className="text-muted-foreground">
 							{NOTATION_SEPARATORS.facet}
@@ -302,10 +337,15 @@ function IntensityChip({
 }
 
 /** A rest token split into its value and word inks: `1 min` weighs, `pause`
- * (ADR 0089) recedes. The word is the one the notation writes. */
+ * (ADR 0089) or `seriepause` recedes. The words are the ones the notation
+ * writes. */
+const REST_WORDS = [
+	TOKEN_SENTENCE_WORDS.rest,
+	TOKEN_SENTENCE_WORDS.seriesRest,
+] as const
 function restParts(text: string): { value: string | null; word: string } {
-	const word = TOKEN_SENTENCE_WORDS.rest
-	return text.endsWith(` ${word}`)
+	const word = REST_WORDS.find((one) => text.endsWith(` ${one}`))
+	return word
 		? { value: text.slice(0, -(word.length + 1)), word }
 		: { value: null, word: text }
 }
@@ -372,10 +412,28 @@ function Token({ token }: { token: NotationToken }) {
 					{token.text}
 				</span>
 			)
-		// Repeat renders only as the gutter badge; block names never render on
-		// the line (G2) — neither reaches this switch from a step, but keep the
-		// union total and honest.
+		// A Step Parameter: the figure weighs like a quantity and the word
+		// recedes like a rest's (`4–7 %` motbakke, `50–60` rpm) — it is the
+		// condition the work happens under, never a chip (§7.2: the intensity
+		// chip stays the line's only one).
+		case 'grade':
+		case 'cadence':
+			return (
+				<span
+					data-token-type={token.type}
+					className="text-muted-foreground whitespace-nowrap"
+				>
+					<span className="text-foreground font-semibold tabular-nums">
+						{token.value}
+					</span>
+					{token.word ? <> {token.word}</> : null}
+				</span>
+			)
+		// Repeat and series render only as gutter badges; block names never
+		// render on the line (G2) — none reaches this switch from a step, but
+		// keep the union total and honest.
 		case 'repeat':
+		case 'series':
 		case 'label':
 			return null
 	}

@@ -308,6 +308,9 @@ function editorKindFor(token: NotationToken): EditorKind | null {
 		case 'repeat':
 			return 'repeat'
 		case 'rest':
+			// The rest between series is drawn but has no control on the form
+			// yet (#466), so it reads like the series badge: inert.
+			if (token.address.field === 'betweenSeriesRestSec') return null
 			return token.address.field === 'restBetweenSetsSec'
 				? 'restSeconds'
 				: 'rest'
@@ -320,7 +323,9 @@ function editorKindFor(token: NotationToken): EditorKind | null {
 		case 'discipline':
 			return 'discipline'
 		// The exercise token keeps its own instrument (the combobox IS the
-		// token); block labels never render on the line (G2).
+		// token); block labels never render on the line (G2). The series badge
+		// and the Step Parameters (grade, cadence) are drawn with no control
+		// behind them: the form does not carry them yet (#466).
 		default:
 			return null
 	}
