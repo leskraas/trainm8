@@ -23,6 +23,23 @@ function fakeClock(): Clock & { ms: number } {
 const MIN_15 = 15 * 60 * 1000
 const DAY = 24 * 60 * 60 * 1000
 
+/** Acquire on the bulk lane as the job queue would: a deferral to the next
+ * quarter-hour runs the job again then. */
+async function acquireAsTheQueueRetries(
+	limiter: ReturnType<typeof createRateLimiter>,
+	clock: Clock & { ms: number },
+) {
+	for (;;) {
+		try {
+			return await limiter.acquire('bulk')
+		} catch (e) {
+			if (!(e instanceof DeferJob) || e.until.getTime() - clock.ms > MIN_15)
+				throw e
+			clock.ms = e.until.getTime()
+		}
+	}
+}
+
 function response(status: number, headers: Record<string, string> = {}) {
 	return new Response(null, { status, headers })
 }
@@ -50,9 +67,9 @@ test('throttles past the limit but drops nothing', async () => {
 	})
 
 	let completed = 0
-	// Fire 5 acquisitions through a budget of 2-per-1000ms window.
+	// Fire 5 live acquisitions through a budget of 2-per-1000ms window.
 	for (let i = 0; i < 5; i++) {
-		await limiter.acquire()
+		await limiter.acquire('live')
 		completed++
 	}
 
@@ -82,17 +99,21 @@ test('bulk work stops short of the limit, leaving a margin live webhooks still g
 	await limiter.acquire('live')
 	expect(clock.ms).toBe(0)
 
-	// The next bulk request waits for the quarter-hour to turn.
-	await limiter.acquire('bulk')
-	expect(clock.ms).toBe(MIN_15)
+	// The next bulk request is handed back to the queue for the next
+	// quarter-hour rather than holding the single worker while it waits.
+	const deferred = await limiter.acquire('bulk').catch((e: unknown) => e)
+	expect(deferred).toBeInstanceOf(DeferJob)
+	expect((deferred as DeferJob).until.getTime()).toBe(MIN_15)
+	expect(clock.ms).toBe(0)
 })
 
 test('a spent daily cap defers the job to midnight UTC instead of holding the worker', async () => {
 	const clock = fakeClock()
 	const limiter = createRateLimiter({ ...STRAVA_RATE_LIMIT, clock })
 
-	// 800 is the daily bulk share; the 15-minute windows roll as it goes.
-	for (let i = 0; i < 800; i++) await limiter.acquire('bulk')
+	// 800 is the daily bulk share. Each quarter-hour's deferral is the queue
+	// running the job again at the time it asked for.
+	for (let i = 0; i < 800; i++) await acquireAsTheQueueRetries(limiter, clock)
 	const spentAt = clock.ms
 	expect(spentAt).toBeLessThan(DAY)
 
@@ -117,9 +138,27 @@ test("Strava's rate-limit headers are followed over the assumed figures", async 
 		}),
 	)
 
-	// Bulk gets 80% of 50 = 40, already spent: the next bulk call waits.
-	await limiter.acquire('bulk')
-	expect(clock.ms).toBe(MIN_15)
+	// Bulk gets 80% of 50 = 40, already spent: the next bulk call is deferred
+	// to the next quarter-hour.
+	const deferred = await limiter.acquire('bulk').catch((e: unknown) => e)
+	expect((deferred as DeferJob).until.getTime()).toBe(MIN_15)
+})
+
+test("Strava's overall headers never raise the read ceilings", async () => {
+	const clock = fakeClock()
+	const limiter = createRateLimiter({ ...STRAVA_RATE_LIMIT, clock })
+
+	// Only the overall (reads + uploads) figures, which are looser than reads.
+	await limiter.run('bulk', async () =>
+		response(200, {
+			'X-RateLimit-Limit': '200,2000',
+			'X-RateLimit-Usage': '1,1',
+		}),
+	)
+
+	// The bulk share stays 80% of the read limit 100: 79 more, then deferral.
+	for (let i = 0; i < 79; i++) await limiter.acquire('bulk')
+	await expect(limiter.acquire('bulk')).rejects.toThrow(DeferJob)
 })
 
 test('a 429 backs off until the next window and retries, instead of failing', async () => {

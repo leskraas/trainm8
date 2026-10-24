@@ -12,9 +12,9 @@
  * rate-limit headers, so its figures follow Strava's rather than ours, and
  * backs a `429` off until the next window instead of failing.
  *
- * A wait longer than the shortest window (a spent day) would hold the single
- * job worker for hours, so instead of sleeping the limiter throws `DeferJob`
- * and the queue runs the job again when the window resets.
+ * Bulk work that would have to wait, and a live fetch facing a spent day, would
+ * hold the single job worker, so instead of sleeping the limiter throws
+ * `DeferJob` and the queue runs the job again when the window resets.
  *
  * It is intentionally not concurrency-safe: the job worker runs single-threaded
  * and fetches pages sequentially, so calls into a limiter are serialised. The
@@ -55,12 +55,16 @@ export function createRateLimiter({
 	windows,
 	liveReserve = 0,
 	clock = realClock,
+	bulkMaySleep = false,
 }: {
 	/** Shortest first, in the order Strava's headers list them. */
 	windows: readonly RateLimitWindow[]
 	/** The share of each window only `live` requests may use. */
 	liveReserve?: number
 	clock?: Clock
+	/** Let bulk work wait out a quarter-hour like live, where no queue would
+	 * run a deferred job again (tests on a skip-ahead clock). */
+	bulkMaySleep?: boolean
 }): RateLimiter {
 	const state = windows.map((w) => ({ ...w, start: 0, used: 0 }))
 	const maxWaitMs = Math.min(...windows.map((w) => w.windowMs))
@@ -89,9 +93,11 @@ export function createRateLimiter({
 				return
 			}
 			// Wait for the last of the full windows to reset, or hand the job back
-			// to the queue when that is longer than the shortest window.
+			// to the queue. Bulk work never waits: sleeping would hold the single
+			// job worker, and the live fetches its reserve is kept for queue behind
+			// it. Live waits out a quarter-hour, but not a spent day.
 			const resumeAt = Math.max(...full.map((w) => w.start + w.windowMs))
-			if (resumeAt - now > maxWaitMs) {
+			if ((lane === 'bulk' && !bulkMaySleep) || resumeAt - now > maxWaitMs) {
 				throw new DeferJob(
 					new Date(resumeAt),
 					`Strava read budget spent until ${new Date(resumeAt).toISOString()}`,
@@ -103,20 +109,21 @@ export function createRateLimiter({
 
 	/**
 	 * Follow Strava's own figures. Every trainm8 call is a read, so the read
-	 * headers win; the overall ones stand in when they are absent. Each header
-	 * is `<15-minute>,<daily>`. Usage only ever raises our count: Strava's
-	 * includes requests this process never saw, ours ones still in flight.
+	 * headers win; the overall ones stand in when they are absent, but only to
+	 * lower a ceiling: they count uploads too, so they are looser than reads.
+	 * Each header is `<15-minute>,<daily>`. Usage only ever raises our count:
+	 * Strava's includes requests this process never saw, ours ones still in
+	 * flight.
 	 */
 	function observe(headers: Headers) {
-		const prefix = headers.has('x-readratelimit-usage')
-			? 'x-readratelimit'
-			: 'x-ratelimit'
+		const reads = headers.has('x-readratelimit-usage')
+		const prefix = reads ? 'x-readratelimit' : 'x-ratelimit'
 		const limits = parsePair(headers.get(`${prefix}-limit`))
 		const usage = parsePair(headers.get(`${prefix}-usage`))
 		roll(clock.now())
 		state.forEach((w, i) => {
 			const limit = limits?.[i]
-			if (limit != null) w.limit = limit
+			if (limit != null) w.limit = reads ? limit : Math.min(w.limit, limit)
 			const used = usage?.[i]
 			if (used != null) w.used = Math.max(w.used, used)
 		})

@@ -182,12 +182,15 @@ export async function getValidAccessToken(
 /**
  * Process-wide limiter shared by every Strava API call, so the per-app read
  * budget (ADR 0013) is honoured across all athletes' activity. Tests talk to
- * MSW, not Strava, so there a wait skips ahead in virtual time instead of
- * sleeping; rate-limit.test.ts covers the pacing itself.
+ * MSW, not Strava, and run no queue to retry a deferred job, so there a wait
+ * skips ahead in virtual time instead; rate-limit.test.ts covers the pacing
+ * and the deferrals themselves.
  */
 const stravaRateLimiter = createRateLimiter({
 	...STRAVA_RATE_LIMIT,
-	...(process.env.NODE_ENV === 'test' ? { clock: skipAheadClock() } : {}),
+	...(process.env.NODE_ENV === 'test'
+		? { clock: skipAheadClock(), bulkMaySleep: true }
+		: {}),
 })
 
 function skipAheadClock(): Clock {

@@ -6109,7 +6109,7 @@ export const INTEGRATION_TOAST_LABELS = {
 	stravaScope:
 		'Trainm8 har ikke lov til å lese Strava-øktene dine. Koble til på nytt, og la avkrysningen for økttilgang stå på.',
 	stravaRateLimited:
-		'Strava har nådd dagens grense for oppslag. Prøv igjen i morgen.',
+		'Strava har nådd grensen for oppslag. Prøv igjen om en stund.',
 	stravaUnavailable: 'Strava er ikke tilgjengelig',
 	/** The Strava OAuth callback's refusals (a reconnect of an old link). */
 	stravaDenied: 'Du sa nei til tilgangen hos Strava.',
