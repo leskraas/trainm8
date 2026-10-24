@@ -2452,8 +2452,8 @@ describe('a session row says its own volume in its track’s unit (#505 D6)', ()
 		const run = sessionOn(result, 'run')
 		// 10 km at the 5:00 /km threshold pace: 50 min, on the right edge as
 		// on line 1 — never the 48 min a tenth of an hour would make of it.
-		expect(run.volumeLabel).toBe('≈ 50 min')
-		expect(run.externalLoad).toBe('≈ 50 min · 50 TSS planlagt')
+		expect(run.volumeLabel).toBe('≈\u00a050 min')
+		expect(run.externalLoad).toBe('≈\u00a050 min · 50 TSS planlagt')
 	})
 
 	test('a missed session says nothing: nothing was done', () => {

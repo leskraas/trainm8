@@ -327,8 +327,8 @@ test('minutes timed through a pace read as a translation, with ≈, on the card 
 	const { card, row } = calmWithSteps([
 		step({ durationSec: null, distanceM: 10_000, intensity: ROLIG }),
 	])
-	expect(card.session.durationLabel).toMatch(/^≈ \d+ min$/)
-	expect(row.externalLoad).toMatch(/^≈ \d+ min/)
+	expect(card.session.durationLabel).toMatch(/^≈\u00a0\d+ min$/)
+	expect(row.externalLoad).toMatch(/^≈\u00a0\d+ min/)
 
 	const timed = calmWithSteps([
 		step({ durationSec: 50 * 60, intensity: ROLIG }),

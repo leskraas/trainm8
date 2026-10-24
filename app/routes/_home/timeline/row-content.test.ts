@@ -696,7 +696,7 @@ describe('rule 7: planned rows are instructions', () => {
 			PLANNED_WEEK,
 		)
 		// 9 km at the middle of 5:25–5:40 /km is about 50 minutes.
-		expect(content.externalLoad).toBe('≈ 50 min · 42 TSS planlagt')
+		expect(content.externalLoad).toBe('≈\u00a050 min · 42 TSS planlagt')
 	})
 
 	test('a repeated block multiplies both the duration and the distance', () => {

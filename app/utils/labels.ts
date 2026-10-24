@@ -2001,16 +2001,17 @@ export const SESONG_ENTRY_LABELS = {
 	group: 'Start noe nytt',
 } as const
 
-/** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */
 /**
  * A figure the app translated rather than read: minutes timed through a pace
  * say so with `≈` (`≈ 57 min`), the mark a Lactate Anchor's zone and an
- * Intensity Target's equivalent carry.
+ * Intensity Target's equivalent carry. A no-break space keeps the mark on
+ * its figure's line.
  */
 export function approxLabel(text: string, estimated: boolean): string {
-	return estimated ? `≈ ${text}` : text
+	return estimated ? `≈\u00a0${text}` : text
 }
 
+/** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */
 export function nbDurationLabel(seconds: number): string {
 	const hours = Math.floor(seconds / 3600)
 	const minutes = Math.floor((seconds % 3600) / 60)
