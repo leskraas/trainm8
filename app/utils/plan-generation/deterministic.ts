@@ -238,7 +238,7 @@ export function generateDeterministicSeason(
 
 	// Weekly Capacity first: where the heaviest week outruns it, the anchors are
 	// lowered by one common factor and every week below is priced from those
-	// (ADR 0105). Unset or unpriced leaves the request's anchors as they are.
+	// (ADR 0110). Unset or unpriced leaves the request's anchors as they are.
 	const { tracks, fit: capacity } = fitToCapacity({
 		phases: phaseSpecs,
 		segments: segmentSpecs,

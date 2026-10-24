@@ -1,5 +1,5 @@
 /**
- * **Weekly Capacity, enforced on a generated season** (#473, ADR 0105).
+ * **Weekly Capacity, enforced on a generated season** (#473, ADR 0110).
  *
  * The generator prices every week from the **Season Anchor** (anchor × ramps ×
  * boundary steps × role factor). This module reads those weeks in hours through
@@ -13,7 +13,7 @@
  *
  * It reads the **Week Target** and never the placed sessions: a placed corpus row
  * is never rescaled (ADR 0053 §6), so the placed hours are a different reading
- * (ADR 0105 §3).
+ * (ADR 0110 §3).
  *
  * Four honest outcomes, and none of them is "passing" by default:
  *

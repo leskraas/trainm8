@@ -252,7 +252,7 @@ type GenerationContext = {
 	trainableWeekdays: number[] | null
 	weeklyCapacityHours: number | null
 	corpus: RetrievableEntry[]
-	/** Reads the athlete's conversion inputs for a start week (ADR 0105). */
+	/** Reads the athlete's conversion inputs for a start week (ADR 0110). */
 	readContexts: (
 		startWeekKey: string,
 		disciplines: readonly Discipline[],
@@ -537,7 +537,7 @@ export async function approveSeason(
 			structure: { presetKey: choice.presetKey },
 			// The season's tracks, not the choice's: where the Weekly Capacity
 			// lowered an anchor, the lowered one is what the athlete was shown and
-			// what is written (ADR 0105 §2).
+			// what is written (ADR 0110 §2).
 			tracks: season.tracks.map((track) => ({
 				discipline: track.discipline,
 				currency: track.currency,

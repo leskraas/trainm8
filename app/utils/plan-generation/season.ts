@@ -134,7 +134,7 @@ export type SeasonRequest = {
 	 * Per Discipline, what the **Volume Conversion** needs to read a week in hours
 	 * (`readConversionContexts`). Data, not a query, so the generator stays pure.
 	 * Missing for a Discipline means its weeks may not price in hours, and the
-	 * capacity check then says it did not run (ADR 0105).
+	 * capacity check then says it did not run (ADR 0110).
 	 */
 	conversionContexts: Partial<Record<Discipline, ConversionContext>>
 }
@@ -251,7 +251,7 @@ export type GeneratedSeason = {
 	 * Anchor** lowered where `capacity` says it was. What approval writes.
 	 */
 	tracks: GenerationTrack[]
-	/** What the **Weekly Capacity** check did to the season (ADR 0105). */
+	/** What the **Weekly Capacity** check did to the season (ADR 0110). */
 	capacity: CapacityFit
 	weeks: GeneratedWeek[]
 	/** Every placed session, in season order: week, then weekday, then discipline. */
