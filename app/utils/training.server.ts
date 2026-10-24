@@ -1286,18 +1286,20 @@ async function seasonBandWarnings(
 }
 
 /**
- * The athlete's own **Workouts**, newest first — what a fixed pattern day can
- * point at.
+ * The Workouts a Week Pattern day may prescribe: the athlete's own, **bounded**
+ * (#442, ADR 0111).
  *
- * Owner-scoped, because a Workout belongs to the athlete who authored it and a
- * pattern day may only prescribe one of those. Deliberately thin: a title and a
- * discipline are what a picker needs to name a session, and the day itself is
- * priced from the stored blocks on read rather than from anything here.
+ * Every session owns a private 1:1 Workout (ADR 0003), so "every Workout the
+ * athlete owns" is every session they ever planned and grows without bound. The
+ * picker instead offers what the athlete **recently wrote or placed by hand**:
+ * the Workouts behind their `authored` sessions, newest first, one per title
+ * within a discipline, at most {@link PICKER_PER_DISCIPLINE} per discipline, and
+ * only for the disciplines the plan's tracks hold. Stamped (`generated`),
+ * recorded and detected sessions are the machine's copies, not the athlete's
+ * choices, and are left out.
  *
- * The honest state this read exists to expose is the **empty** one: the Catalogue
- * (#448/#451) covers trainm8-authored Stock Workouts, but an athlete has no
- * collection of their own past Workouts yet — Workouts are authored inline with
- * a session — so an athlete may well have none, and the surface has to say that
+ * Owner-scoped, as `addWeekPatternDay` is, so the picker offers nothing the
+ * service would refuse. An athlete may still have none, and the surface says so
  * rather than offer a control with nothing in it.
  */
 export type AuthoredWorkout = {
@@ -1306,14 +1308,66 @@ export type AuthoredWorkout = {
 	discipline: string
 }
 
+/** At most this many Workouts per discipline in the picker. */
+export const PICKER_PER_DISCIPLINE = 12
+/**
+ * How many recent sessions are read **per discipline** to find the distinct
+ * Workouts. Per discipline, so a busy discipline cannot use up the scan and
+ * leave another track's picker empty.
+ */
+const PICKER_SCAN = 200
+
 export async function getAuthoredWorkouts(
 	userId: string,
+	disciplines: readonly string[],
 ): Promise<AuthoredWorkout[]> {
-	return prisma.workout.findMany({
-		where: { ownerId: userId },
-		orderBy: { createdAt: 'desc' },
-		select: { id: true, title: true, discipline: true },
-	})
+	const perDiscipline = await Promise.all(
+		[...new Set(disciplines)].map((discipline) =>
+			prisma.workoutSession.findMany({
+				where: {
+					userId,
+					source: 'authored',
+					workout: { ownerId: userId, discipline },
+				},
+				orderBy: { createdAt: 'desc' },
+				take: PICKER_SCAN,
+				select: {
+					workout: { select: { id: true, title: true, discipline: true } },
+				},
+			}),
+		),
+	)
+	return pickRecentWorkouts(
+		perDiscipline.flatMap((sessions) =>
+			sessions.flatMap((session) => (session.workout ? [session.workout] : [])),
+		),
+	)
+}
+
+/**
+ * The pure half: newest first in (within each discipline), one per discipline
+ * and title out, capped per discipline. Titles compare case-insensitively with
+ * whitespace collapsed. The first occurrence of a title wins, so the newest is
+ * offered.
+ */
+export function pickRecentWorkouts(
+	newestFirst: readonly AuthoredWorkout[],
+	perDiscipline: number = PICKER_PER_DISCIPLINE,
+): AuthoredWorkout[] {
+	const seen = new Set<string>()
+	const counts = new Map<string, number>()
+	const picked: AuthoredWorkout[] = []
+	for (const workout of newestFirst) {
+		const title = workout.title.trim().replace(/\s+/g, ' ')
+		const key = `${workout.discipline}|${title.toLocaleLowerCase('nb')}`
+		if (seen.has(key)) continue
+		const count = counts.get(workout.discipline) ?? 0
+		if (count >= perDiscipline) continue
+		seen.add(key)
+		counts.set(workout.discipline, count + 1)
+		picked.push(workout)
+	}
+	return picked
 }
 
 type PatternRow = OutlineRowsFor['patterns'][number]
