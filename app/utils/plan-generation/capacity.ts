@@ -72,7 +72,7 @@ export type CapacityInput = {
 	phases: PhaseSpec[]
 	segments: SegmentSpec[]
 	/** The **Quality Session Mix** of each phase, by phase index. */
-	mixes: ReadonlyArray<readonly QualitySessionMixEntry[]>
+	mixes: ReadonlyArray<QualitySessionMixEntry[]>
 	tracks: readonly GenerationTrack[]
 	contexts: Partial<Record<Discipline, ConversionContext>>
 	weeklyCapacityHours: number | null

@@ -48,6 +48,7 @@ test('a second implementation is substitutable without touching any caller', () 
 				eventWeekKey: request.eventWeekKey,
 				phases: [],
 				tracks: request.tracks,
+				capacity: { kind: 'unset' },
 				weeks: [],
 				sessions: [],
 				unfilled: [],
