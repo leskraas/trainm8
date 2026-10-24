@@ -69,6 +69,8 @@ import {
 	trackDisciplinesFor,
 	type TrackProposal,
 } from '../plan-outline/proposal.ts'
+import { readConversionContexts } from '../plan-outline/volume-conversion.server.ts'
+import { type ConversionContext } from '../plan-outline/volume-conversion.ts'
 import {
 	isCardioDiscipline,
 	RACE_ANCHOR_DISTANCE_M,
@@ -250,6 +252,11 @@ type GenerationContext = {
 	trainableWeekdays: number[] | null
 	weeklyCapacityHours: number | null
 	corpus: RetrievableEntry[]
+	/** Reads the athlete's conversion inputs for a start week (ADR 0105). */
+	readContexts: (
+		startWeekKey: string,
+		disciplines: readonly Discipline[],
+	) => Promise<Partial<Record<Discipline, ConversionContext>>>
 }
 
 async function readContext(
@@ -292,6 +299,8 @@ async function readContext(
 		trainableWeekdays: parseWeekdays(profile?.trainableWeekdays ?? null),
 		weeklyCapacityHours: profile?.weeklyCapacityHours ?? null,
 		corpus: await readGenerationCorpus(),
+		readContexts: (startWeekKey, disciplines) =>
+			readConversionContexts(athleteId, startWeekKey, disciplines),
 	}
 }
 
@@ -317,10 +326,10 @@ function parseWeekdays(raw: string | null): number[] | null {
  * Exported so the preview and the approval build it the *same* way — the point of
  * regenerating on approve is lost if the two assemble different requests.
  */
-export function buildRequest(
+export async function buildRequest(
 	context: GenerationContext,
 	choice: GenerationChoice,
-): SeasonRequest {
+): Promise<SeasonRequest> {
 	const tracks: GenerationTrack[] = choice.tracks.map((track) => ({
 		discipline: track.discipline,
 		currency: track.currency,
@@ -340,6 +349,15 @@ export function buildRequest(
 		goalEvent: goalEventFor(context.event.target),
 		intent: choice.intent,
 		weeklyCapacityHours: context.weeklyCapacityHours,
+		// The same read the plan page's hours check makes for the stored plan, from
+		// the same start week, so the preview and the plan price hours alike.
+		conversionContexts:
+			context.weeklyCapacityHours == null
+				? {}
+				: await context.readContexts(
+						choice.startWeekKey,
+						tracks.map((track) => track.discipline),
+					),
 	}
 }
 
@@ -417,7 +435,7 @@ export async function previewSeason(
 	}
 
 	const season = generateSeason(
-		buildRequest(context, choice),
+		await buildRequest(context, choice),
 		context.corpus,
 		options.generator,
 	)
@@ -506,7 +524,7 @@ export async function approveSeason(
 	}
 
 	const season = generateSeason(
-		buildRequest(context, choice),
+		await buildRequest(context, choice),
 		context.corpus,
 		options.generator,
 	)
@@ -517,7 +535,10 @@ export async function approveSeason(
 			eventId,
 			startWeekKey: choice.startWeekKey,
 			structure: { presetKey: choice.presetKey },
-			tracks: anchored.map((track) => ({
+			// The season's tracks, not the choice's: where the Weekly Capacity
+			// lowered an anchor, the lowered one is what the athlete was shown and
+			// what is written (ADR 0105 §2).
+			tracks: season.tracks.map((track) => ({
 				discipline: track.discipline,
 				currency: track.currency,
 				anchorValue: track.anchorValue!,

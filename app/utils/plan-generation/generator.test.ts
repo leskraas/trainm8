@@ -18,6 +18,7 @@ const REQUEST: SeasonRequest = {
 	goalEvent: null,
 	intent: 'first-season',
 	weeklyCapacityHours: null,
+	conversionContexts: {},
 }
 
 test('the seam produces a payload through the deterministic implementation by default', () => {
