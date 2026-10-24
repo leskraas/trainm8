@@ -7,10 +7,8 @@ import {
 } from '#app/utils/activity-import.server.ts'
 import { isNum, type RawStream } from '#app/utils/activity-stream.ts'
 import {
-	getLthrByDiscipline,
+	enrichImportTelemetry,
 	persistActivityLaps,
-	persistActivityStream,
-	persistHrPhaseBars,
 } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { type Lap } from '#app/utils/structure-detection/types.ts'
@@ -198,83 +196,6 @@ export async function fetchStravaActivityById(
 }
 
 /**
- * Fetch an activity's time + heart-rate streams. Returns `null` when the
- * activity carries no usable HR data (no strap, or Strava omits the channel).
- * Shares the process-wide rate limiter like every other Strava fetch.
- */
-export async function fetchStravaHrStream(
-	connection: ConnectionRef,
-	externalId: string,
-): Promise<{ time: number[]; heartrate: number[] } | null> {
-	await stravaRateLimiter.acquire()
-	const parsed = StravaStreamSetSchema.safeParse(
-		await stravaApiGet(
-			connection,
-			`/activities/${externalId}/streams?keys=time,heartrate&key_by_type=true`,
-		),
-	)
-	if (!parsed.success) return null
-	const time = parsed.data.time?.data
-	const heartrate = parsed.data.heartrate?.data
-	if (!time?.length || !heartrate?.length) return null
-	return { time, heartrate }
-}
-
-/**
- * Best-effort: derive each recording's intensity profile (zone phases) from its
- * HR stream and store it on the import, so recordings show the same phase bars
- * as planned workouts. Uses the athlete's per-discipline threshold HR; skips
- * activities without HR, without a threshold for that discipline, or already
- * enriched (idempotent + avoids redundant stream calls on re-sync). Never throws
- * — phase bars are an adornment, never load-bearing for a sync's success.
- */
-export async function enrichRecordingPhaseBars(
-	connection: ConnectionRef,
-	athleteId: string,
-	activities: StravaActivity[],
-): Promise<void> {
-	try {
-		const lthrByDiscipline = await getLthrByDiscipline(athleteId)
-		if (lthrByDiscipline.size === 0) return
-
-		for (const activity of activities) {
-			const discipline = stravaTypeToDiscipline(
-				activity.sport_type ?? activity.type ?? '',
-			)
-			const thresholdHr = lthrByDiscipline.get(discipline)
-			if (thresholdHr == null) continue
-
-			const existing = await prisma.activityImport.findUnique({
-				where: {
-					athleteId_externalProvider_externalId: {
-						athleteId,
-						externalProvider: STRAVA_PROVIDER,
-						externalId: activity.id,
-					},
-				},
-				select: { id: true, phaseBarsJson: true },
-			})
-			if (!existing || existing.phaseBarsJson != null) continue
-
-			try {
-				const stream = await fetchStravaHrStream(connection, activity.id)
-				if (!stream) continue
-				await persistHrPhaseBars(
-					existing.id,
-					stream.time,
-					stream.heartrate,
-					thresholdHr,
-				)
-			} catch {
-				// One activity's stream failing must not abort the rest.
-			}
-		}
-	} catch {
-		// Profile lookup / DB issue — phase bars are best-effort.
-	}
-}
-
-/**
  * Fetch an activity's per-sample telemetry and adapt it to the provider-neutral
  * `RawStream` the downsampler consumes, or `null` when the activity carries no
  * usable streams (manual upload, no device, or Strava omits every channel).
@@ -426,7 +347,7 @@ export async function ingestActivityLaps(
  * Best-effort: for each modeled-discipline activity, fetch its per-sample
  * telemetry, downsample it (ADR 0020), and persist it as the Activity Import's
  * Activity Stream — the data the Workout Detail View overlays against the plan
- * (#139). Skips `'other'` activities (no overlay), imports we don't have, and
+ * (#139) — with its HR phase bars, then enqueue Structure Detection. Skips `'other'` activities (no overlay), imports we don't have, and
  * imports already carrying a stream (idempotent + spares a redundant stream call
  * on re-sync). An activity with no usable streams persists nothing. Never throws
  * — telemetry is an enrichment, never load-bearing for a sync's success.
@@ -465,7 +386,14 @@ export async function ingestActivityStreams(
 				raw.time,
 				new Date(activity.start_date).getTime(),
 			)
-			await persistActivityStream(existing.id, raw)
+			// The shared enrichment (#611): stream, HR phase bars and the detection
+			// enqueue, all from this one streams call.
+			await enrichImportTelemetry(
+				connection.athleteId,
+				existing.id,
+				discipline,
+				raw,
+			)
 		} catch {
 			// One activity's stream failing (fetch error, or a concurrent trigger
 			// that already inserted the row) must not abort the rest.

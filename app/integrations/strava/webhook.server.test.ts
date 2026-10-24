@@ -144,6 +144,60 @@ test('a create event ingests the activity Activity Stream', async () => {
 	expect(parsed?.heartrate).toBeDefined()
 })
 
+test('a create event enqueues detection once, with laps stored, phase bars and one streams call (#611)', async () => {
+	const user = await setupConnectedAthlete()
+	await prisma.athleteProfile.update({
+		where: { userId: user.id },
+		data: { disciplineProfiles: { create: { discipline: 'run', lthr: 168 } } },
+	})
+	mockActivity('5010')
+	let streamCalls = 0
+	server.events.on('request:start', ({ request }) => {
+		if (new URL(request.url).pathname.endsWith('/activities/5010/streams')) {
+			streamCalls++
+		}
+	})
+	server.use(
+		http.get('https://www.strava.com/api/v3/activities/:id/laps', () =>
+			HttpResponse.json([
+				{ lap_index: 1, start_index: 0, end_index: 299, elapsed_time: 300 },
+				{ lap_index: 2, start_index: 300, end_index: 599, elapsed_time: 300 },
+				{ lap_index: 3, start_index: 600, end_index: 899, elapsed_time: 300 },
+			]),
+		),
+	)
+
+	await enqueueAndRun({
+		objectType: 'activity',
+		objectId: '5010',
+		aspectType: 'create',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	})
+	server.events.removeAllListeners('request:start')
+
+	const imp = await prisma.activityImport.findUniqueOrThrow({
+		where: {
+			athleteId_externalProvider_externalId: {
+				athleteId: user.id,
+				externalProvider: 'strava',
+				externalId: '5010',
+			},
+		},
+		select: { id: true, lapsJson: true, phaseBarsJson: true },
+	})
+	// Laps land before the enqueue, so the first compute takes the lap-edged path.
+	expect(imp.lapsJson).not.toBeNull()
+	expect(imp.phaseBarsJson).not.toBeNull()
+	const detectionJobs = await prisma.job.findMany({
+		where: { kind: 'structure-detection' },
+		select: { payload: true },
+	})
+	expect(detectionJobs.map((j) => JSON.parse(j.payload))).toEqual([
+		{ activityImportId: imp.id },
+	])
+	expect(streamCalls).toBe(1)
+})
+
 test('a create event with no streams files the import without a stream', async () => {
 	const user = await setupConnectedAthlete()
 	mockActivity('5007')

@@ -9,7 +9,6 @@ import { prisma } from '#app/utils/db.server.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
 import { StravaConnectionRevokedError } from './client.server.ts'
 import {
-	enrichRecordingPhaseBars,
 	fetchStravaActivitiesAfter,
 	ingestActivityStreams,
 	mapActivityToImportInput,
@@ -137,12 +136,10 @@ export async function runStravaBackfill(
 	// The raw Strava bodies for the kept set, for the enrichment passes below.
 	const keptActivities = activities.map((m) => m.activity)
 
-	// Derive intensity-phase bars from each recording's HR stream (best-effort).
-	await enrichRecordingPhaseBars(connection, athleteId, keptActivities)
-
 	// Bring telemetry to backfilled history: ingest each modeled recording's
 	// downsampled Activity Stream so the Workout Detail View overlay works for
-	// auto-saved history, not just live activity (#140, best-effort). Scoped to
+	// auto-saved history, not just live activity (#140, best-effort), with its HR
+	// phase bars and a Structure Detection enqueue from the same call (#611). Scoped to
 	// modeled disciplines: `ingestActivityStreams` skips 'other' (no overlay for
 	// unmodeled activities, ADR 0015), imports already carrying a stream
 	// (idempotent), and activities with no usable telemetry. Each fetch is paced by the shared Strava rate limiter,

@@ -308,7 +308,8 @@ async function ingestCreatedActivity(
 	if (input.discipline === 'other') return
 
 	// Ingest the activity's downsampled telemetry as an Activity Stream so the
-	// session's Workout Detail View overlay works end-to-end (#139, best-effort).
+	// session's Workout Detail View overlay works end-to-end (#139, best-effort),
+	// with its HR phase bars and a Structure Detection enqueue (#611).
 	await ingestActivityStreams(connection, [activity])
 }
 
