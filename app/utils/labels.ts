@@ -6113,8 +6113,11 @@ export const INTEGRATION_TOAST_LABELS = {
 		'Strava har slått av appen (status: inactive). Det er på Stravas side – å koble til på nytt hjelper ikke.',
 	stravaScope:
 		'Trainm8 har ikke lov til å lese Strava-øktene dine. Koble til på nytt, og la avkrysningen for økttilgang stå på.',
-	stravaRateLimited:
-		'Strava har nådd grensen for oppslag. Prøv igjen om en stund.',
+	/** `… Prøv igjen om 10 min.`, `… om 6 t 40 min.`: until Strava's window resets. */
+	stravaRateLimited: (retryAt: Date, now: Date = new Date()) =>
+		`Strava har nådd grensen for oppslag. Prøv igjen om ${nbDurationLabel(
+			Math.max(1, Math.ceil((retryAt.getTime() - now.getTime()) / 60_000)) * 60,
+		)}.`,
 	stravaUnavailable: 'Strava er ikke tilgjengelig',
 	/** The Strava OAuth callback's refusals (a reconnect of an old link). */
 	stravaDenied: 'Du sa nei til tilgangen hos Strava.',
