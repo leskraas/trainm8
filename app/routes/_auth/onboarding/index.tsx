@@ -170,7 +170,8 @@ export default function OnboardingRoute({
 			<Form method="POST" {...getFormProps(form)}>
 				<HoneypotInputs />
 				<Field
-					className="pb-4"
+					className="pb-2"
+					reserveErrorLine
 					labelProps={{ htmlFor: fields.username.id, children: 'Username' }}
 					inputProps={{
 						...getInputProps(fields.username, { type: 'text' }),
@@ -180,7 +181,8 @@ export default function OnboardingRoute({
 					errors={fields.username.errors}
 				/>
 				<Field
-					className="pb-4"
+					className="pb-2"
+					reserveErrorLine
 					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
 					inputProps={{
 						...getInputProps(fields.name, { type: 'text' }),
@@ -189,7 +191,8 @@ export default function OnboardingRoute({
 					errors={fields.name.errors}
 				/>
 				<Field
-					className="pb-4"
+					className="pb-2"
+					reserveErrorLine
 					labelProps={{ htmlFor: fields.password.id, children: 'Password' }}
 					inputProps={{
 						...getInputProps(fields.password, { type: 'password' }),
@@ -199,7 +202,8 @@ export default function OnboardingRoute({
 				/>
 
 				<Field
-					className="pb-4"
+					className="pb-2"
+					reserveErrorLine
 					labelProps={{
 						htmlFor: fields.confirmPassword.id,
 						children: 'Confirm Password',
@@ -212,6 +216,7 @@ export default function OnboardingRoute({
 				/>
 
 				<CheckboxField
+					reserveErrorLine
 					labelProps={{
 						htmlFor: fields.agreeToTermsOfServiceAndPrivacyPolicy.id,
 						children:
@@ -233,7 +238,7 @@ export default function OnboardingRoute({
 				/>
 
 				<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
-				<ErrorList errors={form.errors} id={form.errorId} />
+				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
 
 				<StatusButton
 					className="w-full"

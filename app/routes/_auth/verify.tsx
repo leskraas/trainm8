@@ -86,11 +86,12 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 			subtitle={heading?.subtitle}
 		>
 			<div className="space-y-4">
-				<ErrorList errors={form.errors} id={form.errorId} />
+				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
 				<Form method="POST" {...getFormProps(form)}>
 					<HoneypotInputs />
 					<div className="flex items-center justify-center">
 						<OTPField
+							reserveErrorLine
 							labelProps={{
 								htmlFor: fields[codeQueryParam].id,
 								children: 'Code',

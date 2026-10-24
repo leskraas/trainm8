@@ -107,7 +107,8 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 				<Form method="POST" {...getFormProps(form)}>
 					<HoneypotInputs />
 					<Field
-						className="pb-4"
+						className="pb-2"
+						reserveErrorLine
 						labelProps={{ children: 'Username' }}
 						inputProps={{
 							...getInputProps(fields.username, { type: 'text' }),
@@ -119,7 +120,8 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 					/>
 
 					<Field
-						className="pb-4"
+						className="pb-2"
+						reserveErrorLine
 						labelProps={{ children: 'Password' }}
 						inputProps={{
 							...getInputProps(fields.password, {
@@ -150,7 +152,7 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 					</div>
 
 					<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
-					<ErrorList errors={form.errors} id={form.errorId} />
+					<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
 
 					<StatusButton
 						className="mt-2 w-full"

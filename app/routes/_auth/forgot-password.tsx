@@ -142,6 +142,7 @@ export default function ForgotPasswordRoute() {
 			<forgotPassword.Form method="POST" {...getFormProps(form)}>
 				<HoneypotInputs />
 				<Field
+					reserveErrorLine
 					labelProps={{
 						htmlFor: fields.usernameOrEmail.id,
 						children: 'Username or Email',
@@ -152,7 +153,7 @@ export default function ForgotPasswordRoute() {
 					}}
 					errors={fields.usernameOrEmail.errors}
 				/>
-				<ErrorList errors={form.errors} id={form.errorId} />
+				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
 
 				<StatusButton
 					className="w-full"
