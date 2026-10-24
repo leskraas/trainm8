@@ -100,6 +100,16 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 								...getInputProps(fields[codeQueryParam], { type: 'text' }),
 								autoComplete: 'one-time-code',
 								autoFocus: true,
+								// An authenticator's code is digits; an emailed one has capital
+								// letters too, which the number pad can't type.
+								...(type === '2fa'
+									? { inputMode: 'numeric' as const }
+									: {
+											inputMode: 'text' as const,
+											autoCapitalize: 'characters',
+											autoCorrect: 'off',
+											spellCheck: false,
+										}),
 							}}
 							errors={fields[codeQueryParam].errors}
 						/>

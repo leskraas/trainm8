@@ -161,7 +161,11 @@ test('onboarding with a short code', async ({
 	const codeMatch = email.text.match(CODE_REGEX)
 	const code = codeMatch?.groups?.code
 	invariant(code, 'Onboarding code not found')
-	await page.getByRole('textbox', { name: /code/i }).fill(code)
+	const codeInput = page.getByRole('textbox', { name: /code/i })
+	// The code has letters, so a phone must offer the letter keyboard, in capitals.
+	await expect(codeInput).toHaveAttribute('inputmode', 'text')
+	await expect(codeInput).toHaveAttribute('autocapitalize', 'characters')
+	await codeInput.fill(code)
 	await page.getByRole('button', { name: /submit/i }).click()
 
 	await expect(page).toHaveURL(`/onboarding`)
