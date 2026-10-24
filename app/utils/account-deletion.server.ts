@@ -23,6 +23,10 @@
  *
  * A bookmark (`CatalogueSave`) does not keep a row: it is a pointer, not a copy,
  * and it cascades away with the row.
+ *
+ * The athlete's own Week Pattern slots are deleted before the purge, not left to
+ * the `User` cascade: `WeekPatternDay.workoutId` is the one `SetNull` into an
+ * erased Workout, and a `fixed` or `lifting` slot with no Workout fails its CHECK.
  */
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
@@ -70,6 +74,12 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 
 		await withdraw(tx, [...kept])
 		const spliced = await spliceLineage(tx, userId, parentOf)
+		// The athlete's own plan goes with the account anyway; it goes first because
+		// a `fixed` or `lifting` slot on an erased Workout would be `SetNull`ed into
+		// a row the `WeekPatternDay_kind_fields` CHECK refuses, rolling it all back.
+		await tx.weekPatternDay.deleteMany({
+			where: { pattern: { outline: { athleteId: userId } } },
+		})
 		const { count: erased } = await tx.workout.deleteMany({
 			where: { ownerId: userId, id: { notIn: [...kept] } },
 		})

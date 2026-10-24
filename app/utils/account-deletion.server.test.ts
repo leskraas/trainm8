@@ -134,3 +134,89 @@ test('a row someone else’s training points at directly is withdrawn, never era
 		await prisma.attribution.count({ where: { workoutId: held.id } }),
 	).toBe(0)
 })
+
+/** A plan for `athleteId` with one Week Pattern slot pointing at `workoutId`. */
+async function createSlot(
+	athleteId: string,
+	workoutId: string,
+	kind: 'fixed' | 'lifting',
+) {
+	const outline = await prisma.planOutline.create({
+		select: { id: true },
+		data: { athleteId, startWeekKey: '2030-01-07' },
+	})
+	const track = await prisma.trainingTrack.create({
+		select: { id: true },
+		data: {
+			outlineId: outline.id,
+			discipline: kind === 'lifting' ? 'strength' : 'run',
+			currency: kind === 'lifting' ? 'sets' : 'km',
+		},
+	})
+	const pattern = await prisma.weekPattern.create({
+		select: { id: true },
+		data: { outlineId: outline.id, name: 'Base', orderIndex: 0 },
+	})
+	return prisma.weekPatternDay.create({
+		select: { id: true },
+		data: {
+			kind,
+			weekday: kind === 'lifting' ? null : 1,
+			workoutId,
+			trackId: track.id,
+			patternId: pattern.id,
+		},
+	})
+}
+
+for (const kind of ['fixed', 'lifting'] as const) {
+	test(`an athlete whose own ${kind} slot points at their own Workout can still delete their account`, async () => {
+		const athlete = await createAthlete()
+		const slotted = await createWorkout({
+			ownerId: athlete.id,
+			title: `${kind} session`,
+		})
+		const loose = await createWorkout({ ownerId: athlete.id, title: 'loose' })
+		const slot = await createSlot(athlete.id, slotted.id, kind)
+
+		const erasure = await deleteAccount(athlete.id)
+
+		expect(erasure).toEqual({ erased: 2, withdrawn: 0, spliced: 0 })
+		expect(
+			await prisma.user.findUnique({ where: { id: athlete.id } }),
+		).toBeNull()
+		expect(
+			await prisma.workout.count({
+				where: { id: { in: [slotted.id, loose.id] } },
+			}),
+		).toBe(0)
+		expect(await prisma.weekPatternDay.count({ where: { id: slot.id } })).toBe(
+			0,
+		)
+	})
+}
+
+test('another athlete’s Week Pattern slot on the departing athlete’s Workout keeps it, withdrawn', async () => {
+	const author = await createAthlete()
+	const other = await createAthlete()
+	const held = await createWorkout({ ownerId: author.id, title: 'held' })
+	// The author's own slot on the same row must not block the erasure either.
+	await createSlot(author.id, held.id, 'fixed')
+	const theirs = await createSlot(other.id, held.id, 'fixed')
+
+	const erasure = await deleteAccount(author.id)
+
+	expect(erasure).toEqual({ erased: 0, withdrawn: 1, spliced: 0 })
+	expect(
+		await prisma.weekPatternDay.findUniqueOrThrow({
+			where: { id: theirs.id },
+			select: { workoutId: true },
+		}),
+	).toEqual({ workoutId: held.id })
+	expect(
+		await prisma.workout.findUniqueOrThrow({
+			where: { id: held.id },
+			select: { ownerId: true, visibility: true },
+		}),
+	).toEqual({ ownerId: null, visibility: 'private' })
+})
