@@ -2,7 +2,7 @@ import {
 	type DisciplineThresholdMap,
 	parseAuthoredIntensity,
 } from './intensity-target.ts'
-import { distanceDurationSec } from './shape-strip.ts'
+import { stepDistanceDurationSec } from './shape-strip.ts'
 import { blockRepeatTotal } from './workout-schema.ts'
 
 export type Palette = {
@@ -75,7 +75,7 @@ export function stepDurationSec(
 ): number | null {
 	if (step.durationSec != null) return step.durationSec
 	if (step.kind === 'strength') return null
-	return distanceDurationSec(
+	return stepDistanceDurationSec(
 		{
 			discipline: step.discipline,
 			distanceM: step.distanceM,

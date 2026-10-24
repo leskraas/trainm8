@@ -17,7 +17,7 @@ import {
 	nbZoneCaption,
 	zoneLabelWord,
 } from './labels.ts'
-import { distanceDurationSec } from './shape-strip.ts'
+import { stepDistanceDurationSec } from './shape-strip.ts'
 import {
 	blockRepeatTotal,
 	IntensityTargetSchema,
@@ -576,7 +576,7 @@ export function sessionMetricTarget(
 			const profile = step.discipline ? thresholds[step.discipline] : undefined
 			const stepSec =
 				step.durationSec ??
-				distanceDurationSec(
+				stepDistanceDurationSec(
 					{
 						discipline: step.discipline,
 						distanceM: step.distanceM,

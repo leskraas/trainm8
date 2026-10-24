@@ -1,5 +1,7 @@
+import { parseAuthoredIntensity } from '../intensity-target.ts'
 import { type PlannedMetric, readPlannedMetric } from '../planned-discipline.ts'
 import { blockRepeatTotal } from '../workout-schema.ts'
+import { distanceDurationSec, paceInDistanceUnit } from '../zones/pace-unit.ts'
 import { coggan, hrTSS, rTSS, sTSS } from './formulas.ts'
 
 /**
@@ -86,11 +88,11 @@ function stepOutcome(
 ): StepOutcome {
 	const hrMid = midpoint(step.intensityHrMin, step.intensityHrMax)
 	const powerMid = midpoint(step.intensityPowerMin, step.intensityPowerMax)
-	const paceMid = midpoint(step.intensityPaceMin, step.intensityPaceMax)
+	const cachedPaceMid = midpoint(step.intensityPaceMin, step.intensityPaceMax)
 
 	const hasQuantity = step.durationSec != null || step.distanceM != null
 	const hasResolvedIntensity =
-		hrMid != null || powerMid != null || paceMid != null
+		hrMid != null || powerMid != null || cachedPaceMid != null
 
 	// An open step ("warm up until ready"): no quantity and no resolved
 	// intensity. Non-cardio steps (strength/rest) carry no resolvable cardio
@@ -105,7 +107,16 @@ function stepOutcome(
 
 	// Pace used both as the formula's intensity and (for distance-only steps) to
 	// derive the missing duration. Run/threshold pace is sec/km; swim/CSS pace is
-	// sec/100m — mirroring the actual-TSS formula inputs.
+	// sec/100m — mirroring the actual-TSS formula inputs. A swim step's `pace`
+	// target is cached in sec/km, so it converts first (#613).
+	const paceMid =
+		cachedPaceMid == null
+			? null
+			: paceInDistanceUnit(
+					cachedPaceMid,
+					discipline,
+					parseAuthoredIntensity(step.intensity)?.kind,
+				)
 	const durationSec = resolveDurationSec(step, discipline, paceMid)
 	if (durationSec == null) return { kind: 'unresolved' }
 
@@ -120,9 +131,9 @@ function resolveDurationSec(
 ): number | null {
 	if (step.durationSec != null) return step.durationSec
 	if (step.distanceM == null || paceMid == null) return null
-	// Distance-only: derive duration from the resolved pace.
-	if (discipline === 'swim') return (step.distanceM / 100) * paceMid // sec/100m
-	return (step.distanceM / 1000) * paceMid // sec/km (run)
+	// Distance-only: derive duration from the resolved pace, already in the
+	// discipline's distance unit (sec/100m swim, sec/km otherwise).
+	return distanceDurationSec(step.distanceM, paceMid, discipline, null)
 }
 
 function stepTss(opts: {
