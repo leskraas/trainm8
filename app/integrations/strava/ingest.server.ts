@@ -347,7 +347,7 @@ export async function ingestActivityLaps(
  * carrying a stream (idempotent + spares a redundant stream call on re-sync).
  * An activity with no usable streams persists nothing. Never throws —
  * telemetry is an enrichment, never load-bearing for a sync's success — except
- * `DeferJob` when Strava's day is spent, so the job resumes later. `lane`
+ * `DeferJob` when Strava's budget is spent, so the job resumes later. `lane`
  * is the rate-limit lane its Strava calls are paced in.
  */
 export async function ingestActivityStreams(

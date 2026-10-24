@@ -1,8 +1,8 @@
 /**
  * A rate limiter for Strava's per-app read budget (100 requests / 15 min and
  * 1,000 / day — ADR 0013). `acquire()` resolves immediately while every window
- * has room and otherwise waits until the full window resets, so throttling
- * delays calls rather than dropping them (#74).
+ * has room and otherwise throws `DeferJob` for when the full window resets, so
+ * throttling delays calls rather than dropping them (#74).
  *
  * Windows are fixed, as Strava counts them (#637): the 15-minute ones reset at
  * :00, :15, :30 and :45, the day at midnight UTC — both whole multiples of their
@@ -10,11 +10,12 @@
  * use only part of each window, keeping `liveReserve` of it for `live` webhook
  * fetches, so a backfill can't starve them. `run()` also reads Strava's
  * rate-limit headers, so its figures follow Strava's rather than ours, and
- * backs a `429` off until the next window instead of failing.
+ * takes a `429` as the window spent instead of failing.
  *
- * Bulk work that would have to wait, and a live fetch facing a spent day, would
- * hold the single job worker, so instead of sleeping the limiter throws
- * `DeferJob` and the queue runs the job again when the window resets.
+ * The limiter never sleeps. A wait would hold the single job worker, or the
+ * request a callback or manual sync runs in, for up to a day; instead it throws
+ * `DeferJob`. The queue runs a deferred job again when the window resets
+ * (ADR 0013), and a request path answers at once with when to try again.
  *
  * It is intentionally not concurrency-safe: the job worker runs single-threaded
  * and fetches pages sequentially, so calls into a limiter are serialised. The
@@ -48,23 +49,23 @@ export type RateLimiter = {
 	) => Promise<Response>
 }
 
-/** How many times a `429` is waited out before the response is handed back. */
+/** How many times the test seam waits out a `429` before handing it back. */
 const MAX_429_RETRIES = 3
 
 export function createRateLimiter({
 	windows,
 	liveReserve = 0,
 	clock = realClock,
-	bulkMaySleep = false,
+	maySleep = false,
 }: {
 	/** Shortest first, in the order Strava's headers list them. */
 	windows: readonly RateLimitWindow[]
 	/** The share of each window only `live` requests may use. */
 	liveReserve?: number
 	clock?: Clock
-	/** Let bulk work wait out a quarter-hour like live, where no queue would
-	 * run a deferred job again (tests on a skip-ahead clock). */
-	bulkMaySleep?: boolean
+	/** The test seam: wait out a quarter-hour instead of deferring, where no
+	 * queue would run a deferred job again (tests on a skip-ahead clock). */
+	maySleep?: boolean
 }): RateLimiter {
 	const state = windows.map((w) => ({ ...w, start: 0, used: 0 }))
 	const maxWaitMs = Math.min(...windows.map((w) => w.windowMs))
@@ -92,12 +93,9 @@ export function createRateLimiter({
 				for (const w of state) w.used++
 				return
 			}
-			// Wait for the last of the full windows to reset, or hand the job back
-			// to the queue. Bulk work never waits: sleeping would hold the single
-			// job worker, and the live fetches its reserve is kept for queue behind
-			// it. Live waits out a quarter-hour, but not a spent day.
+			// Hand the job back until the last of the full windows resets.
 			const resumeAt = Math.max(...full.map((w) => w.start + w.windowMs))
-			if ((lane === 'bulk' && !bulkMaySleep) || resumeAt - now > maxWaitMs) {
+			if (!maySleep || resumeAt - now > maxWaitMs) {
 				throw new DeferJob(
 					new Date(resumeAt),
 					`Strava read budget spent until ${new Date(resumeAt).toISOString()}`,
@@ -141,7 +139,7 @@ export function createRateLimiter({
 				return response
 			}
 			// Spent, says Strava. When its headers don't say which window, assume
-			// the shortest, so the retry waits for the next quarter-hour.
+			// the shortest, so the next acquire defers to the next quarter-hour.
 			if (!state.some((w) => w.used >= w.limit) && state[0]) {
 				state[0].used = state[0].limit
 			}

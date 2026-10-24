@@ -23,15 +23,16 @@ function fakeClock(): Clock & { ms: number } {
 const MIN_15 = 15 * 60 * 1000
 const DAY = 24 * 60 * 60 * 1000
 
-/** Acquire on the bulk lane as the job queue would: a deferral to the next
- * quarter-hour runs the job again then. */
+/** Acquire as the job queue would: a deferral to the next quarter-hour runs
+ * the job again then. */
 async function acquireAsTheQueueRetries(
 	limiter: ReturnType<typeof createRateLimiter>,
 	clock: Clock & { ms: number },
+	lane: 'live' | 'bulk' = 'bulk',
 ) {
 	for (;;) {
 		try {
-			return await limiter.acquire('bulk')
+			return await limiter.acquire(lane)
 		} catch (e) {
 			if (!(e instanceof DeferJob) || e.until.getTime() - clock.ms > MIN_15)
 				throw e
@@ -59,7 +60,7 @@ test('acquisitions under the limit resolve without waiting', async () => {
 	expect(clock.ms).toBe(0)
 })
 
-test('throttles past the limit but drops nothing', async () => {
+test('throttles past the limit but drops nothing: the job runs again at the reset', async () => {
 	const clock = fakeClock()
 	const limiter = createRateLimiter({
 		windows: [{ limit: 2, windowMs: 1000 }],
@@ -67,16 +68,44 @@ test('throttles past the limit but drops nothing', async () => {
 	})
 
 	let completed = 0
-	// Fire 5 live acquisitions through a budget of 2-per-1000ms window.
+	// Five acquisitions through a budget of 2 per 1000 ms window.
 	for (let i = 0; i < 5; i++) {
-		await limiter.acquire('live')
+		await acquireAsTheQueueRetries(limiter, clock, 'live')
 		completed++
 	}
 
 	// All five eventually proceed — throttling delays, never drops.
 	expect(completed).toBe(5)
-	// The 3rd–5th had to wait for the window to roll: virtual time advanced.
-	expect(clock.ms).toBeGreaterThanOrEqual(2000)
+	// The 3rd–5th waited for the window to roll, as deferred jobs.
+	expect(clock.ms).toBe(2000)
+})
+
+test('a live request facing a full quarter-hour defers instead of sleeping', async () => {
+	const clock = fakeClock()
+	clock.ms = 5 * 60 * 1000
+	const limiter = createRateLimiter({ ...STRAVA_RATE_LIMIT, clock })
+
+	for (let i = 0; i < 100; i++) await limiter.acquire('live')
+
+	// Sleeping would hold the single worker (a webhook job) or the request (the
+	// OAuth callback) for up to ten minutes; the caller is told when instead.
+	const deferred = await limiter.acquire('live').catch((e: unknown) => e)
+	expect(deferred).toBeInstanceOf(DeferJob)
+	expect((deferred as DeferJob).until.getTime()).toBe(MIN_15)
+	expect(clock.ms).toBe(5 * 60 * 1000)
+})
+
+test('on the test seam, a wait of up to a quarter-hour is slept instead', async () => {
+	const clock = fakeClock()
+	const limiter = createRateLimiter({
+		...STRAVA_RATE_LIMIT,
+		clock,
+		maySleep: true,
+	})
+
+	for (let i = 0; i < 81; i++) await limiter.acquire('bulk')
+
+	expect(clock.ms).toBe(MIN_15)
 })
 
 // ── Strava's read budget (#637) ─────────────────────────────────────────────
@@ -161,18 +190,23 @@ test("Strava's overall headers never raise the read ceilings", async () => {
 	await expect(limiter.acquire('bulk')).rejects.toThrow(DeferJob)
 })
 
-test('a 429 backs off until the next window and retries, instead of failing', async () => {
+test('a 429 marks the quarter-hour spent and defers to the next one', async () => {
 	const clock = fakeClock()
 	clock.ms = 5 * 60 * 1000
 	const limiter = createRateLimiter({ ...STRAVA_RATE_LIMIT, clock })
 
-	const statuses = [429, 200]
-	const result = await limiter.run('live', async () =>
-		response(statuses.shift()!),
-	)
+	let requests = 0
+	const deferred = await limiter
+		.run('live', async () => {
+			requests++
+			return response(429)
+		})
+		.catch((e: unknown) => e)
 
-	expect(result.status).toBe(200)
-	expect(clock.ms).toBe(MIN_15)
+	expect(deferred).toBeInstanceOf(DeferJob)
+	expect((deferred as DeferJob).until.getTime()).toBe(MIN_15)
+	expect(requests).toBe(1)
+	expect(clock.ms).toBe(5 * 60 * 1000)
 })
 
 test('a 429 that reports the daily budget spent defers the job to midnight UTC', async () => {
