@@ -12,7 +12,9 @@ questions #604, #608 §3/§10, #609 §2.1 and #623 left open, and re-runs the
 
 Tags: **[FILE]** a decoded original (named by its Intervals.icu id),
 **[SDK]** the `@garmin/fitsdk` 21.208.0 profile (`profile.js`, line numbers),
-**[RUN]** the throwaway probe in `635-probe/`. **Unverified** marks what the
+**[RUN]** the throwaway probe in `635-probe/`, **[WEB-GARMIN]** Garmin's
+developer and user forums, **[WEB-ICU]** the Intervals.icu forum (both are
+forums, so lower trust; links in §10). **Unverified** marks what the
 files here don't settle.
 
 ## Answer
@@ -30,11 +32,18 @@ files here don't settle.
 - **A trailing rest the watch skips writes nothing.** Two FR965 programs carry
   an undocumented field 18 = 1 on the repeat step. In those two the last
   rest of each repeat has no lap. The profile has no field 18 [SDK, FILE].
-- **`workout_step` messages are in the activity file only on older
-  firmware.** FR965 up to 19.18 had them in 24 of 24 workout files; from 20.23
-  on they appear in 0 of 19. All four named sessions are 0. fēnix 5 from 10.00
-  had them in 33 of 33 [FILE]. So `deviceWorkoutJson` (#608 §3) can be filled
-  from the file for history, but **not for the owner's current watch**.
+- **`workout_step` messages are in the file only for older activities.**
+  FR965 activities up to 2024-08-07 had them in 24 of 24 workout files; from
+  2025-08-08 on they appear in 0 of 19. All four named sessions are 0. fēnix 5
+  from firmware 10.00 had them in 33 of 33 [FILE].
+  - **The likely cause is Garmin, not the watch.** Since August 2025 Garmin
+    sends third-party apps the workout steps in the FIT file only for workouts
+    that app made itself. Intervals.icu's admin relayed this from Garmin
+    [WEB-ICU].
+  - All 97 files reached Intervals.icu on the same day (2026-07-07), so the
+    delivery date doesn't explain the split; the activity's date does.
+  - So `deviceWorkoutJson` (#608 §3) can be filled from these files for
+    history, but **not for anything the owner records today** (§4).
 - **FR965 types its laps; fēnix 5 doesn't.** On FR965 warm-up and cool-down
   are `warmup` / `cooldown`. On fēnix 5 and fēnix 3 every lap has no
   `intensity`, and the role is only in the step the lap points to [FILE].
@@ -156,8 +165,16 @@ no program. Each one is a rule the #608 §3 simulator needs:
    - fēnix 5 repeats don't carry field 18 and always write the last rest.
    - The profile's `workout_step` defines fields 0–13 and 19–22, but not 18
      [SDK 17670–18447]. So **field 18 reads as "skip last recovery"**, the
-     Garmin Connect option of that name. This is undocumented, and three files
-     show it.
+     Garmin Connect option of that name. Three files show it.
+   - A FIT SDK forum post reports the same field from a workout exported with
+     the option on: "field definition 18 set as a U8 to 1". Garmin never
+     answered it, so it is still not in the profile [WEB-GARMIN].
+   - Garmin Connect users report two more things [WEB-GARMIN]:
+     - the checkbox shows only when a repeat ends on a Rest or Recover step;
+     - it is on by default after Recover and off after Rest, and "on older
+       watches, the last rest/recovery is never skipped".
+
+     That fits the fēnix 5 here, which always writes the last rest.
    - *Rule:* with field 18 = 1, the trailing rest steps of a repeat's last
      pass are not program positions. They are never missed.
 3. **Laps after the program.** After the last step, what the watch writes
@@ -216,12 +233,30 @@ no program. Each one is a rule the #608 §3 simulator needs:
   `workout_step[wkt_step_index].intensity`.
 - **The program in the activity file:**
 
-  | Device | Firmware | Workout files | With `workout` + `workout_step` |
-  |---|---|---|---|
-  | FR965 | 4.19 – 19.18 (to 2024-08-07) | 24 | 24 |
-  | FR965 | 20.23 – 28.05 (from 2024-08-18) | 19 | **0** |
-  | fēnix 5 | 8.00 – 9.20 | 5 | 0 |
-  | fēnix 5 | 10.00 – 25.00 | 33 | 33 |
+  | Device | Activities | Firmware | Workout files | With `workout` + `workout_step` |
+  |---|---|---|---|---|
+  | FR965 | 2023-05-27 – 2024-08-07 | 4.19 – 19.18 | 24 | 24 |
+  | FR965 | 2025-08-08 – 2026-08-12 | 24.12 – 28.05 | 19 | **0** |
+  | fēnix 5 | 2018-06 – 2018-08 | 8.00 – 9.20 | 5 | 0 |
+  | fēnix 5 | 2018-08 – 2023-04 | 10.00 – 25.00 | 33 | 33 |
+
+  The owner has no FR965 workout between 2024-08-07 and 2025-08-08. So these
+  files can't tell a firmware change from a change on Garmin's side. The
+  sources point at Garmin [WEB-ICU]:
+  - **The change.** From 15 August 2025, Intervals.icu users reported that
+    activities synced from Garmin Connect had lost their workout details. The
+    admin found that "the one automatically sent to Intervals.icu from
+    Garmin Connect does not include the workout step messages". He then
+    relayed Garmin's explanation: "There was a change where 3rd party app will
+    receive workout details in the FIT file only if the 3rd party generated
+    workouts" (9 September 2025).
+  - **The workaround.** A file exported by hand from Garmin Connect ("Export
+    Original") still has the steps, and imported by hand it pairs again.
+    Intervals.icu's own "Original FIT" download doesn't help: it is the
+    stripped file, as here.
+  - **Not settled.** One user ran a workout built in Intervals.icu and still
+    got no steps. So whether the app that made a workout really gets it back
+    is unconfirmed.
 
   When it is there, it is complete: `wkt_name`, `num_valid_steps`, and steps
   with `duration_type` (`open`, `time`, `distance`,
@@ -230,11 +265,17 @@ no program. Each one is a rule the #608 §3 simulator needs:
 - **What this means for `deviceWorkoutJson` (#608 §3):**
   - It can be filled at ingest and by the zero-I/O backfill for the older
     files.
-  - It stays empty for every FR965 workout since firmware 20.23, which is the
-    owner's watch today. For those the program has to come from elsewhere:
-    - the plan the athlete pushed (trainm8's own, when it sent it);
+  - It stays empty for every workout the owner records today, through
+    Intervals.icu or any other third party. For those the program has to come
+    from elsewhere:
+    - the plan trainm8 pushed, when it pushed it (#541 W2). If Garmin keeps
+      its word, a workout trainm8 made would come back with its steps when
+      trainm8 reads Garmin directly (#541 FIT-first). That is unconfirmed;
     - the Garmin workout the `training_file` serial names (no API here);
-    - or the laps themselves.
+    - or the laps themselves. This is what Intervals.icu falls back to: its
+      "Use paired workout steps for laps" option (December 2024) lays the
+      planned workout's steps over the recording, with a manual time offset
+      [WEB-ICU].
   - Without the program, a missed position can't be seen. But a Garmin skip
     writes a lap anyway (§3), so almost nothing is lost. What is lost is the
     skip-last-recovery rule, which then reads as one rep's rest fewer, never a
@@ -293,7 +334,7 @@ no program. Each one is a rule the #608 §3 simulator needs:
 |---|---|---|
 | #608 §3 *program run, occurrence counting* | Index reused per rep and series; `repetition_num` never written (§2) | Stands. Add rules 1–4 of §2.3, chiefly skip-last-recovery (field 18) and same-index lap runs. |
 | #608 §3 *missed vs executed* | A Garmin skip writes a ~1 s manual lap; no lap only through skip-last-recovery (§3) | "Missed" is rare on Garmin. A < 5 s manual step lap reads as *skipped*, not as an executed rep. |
-| #608 §3 *`deviceWorkoutJson` from the file* | In the file up to FR965 19.18 and fēnix 5 ≥ 10.00; absent since FR965 20.23 (§4) | Keep it nullable; it is empty for the current watch. The pushed plan (or the laps) must stand in. |
+| #608 §3 *`deviceWorkoutJson` from the file* | In the file for FR965 activities up to 2024-08 and fēnix 5 ≥ 10.00; absent for every activity since 2025-08, most likely because Garmin strips third-party steps (§4) | Keep it nullable. It is empty for today's recordings via Intervals.icu. The pushed plan (or the laps) must stand in. |
 | #609 §2.1 *trust typed step laps* | FR965 types warm-up/cool-down; fēnix types nothing but points to its steps (§4) | Role = lap `intensity`, else `workout_step[wkt_step_index].intensity`. Drop step laps under 5 s. Group sets by role pattern, not by "same index". Measured 13 → 77/97 exact (§5). |
 | #609 §2.1 *depends on the FIT parser* | `fit-parser.server.ts:239-255` still keeps `{startSec, endSec}` | Unchanged dependency. The parser must also keep `workout_step`. The eval reader (`eval/fit.ts`) already does. |
 | #623 *rest is its own lap* | FR965: yes, a 0 m lap with one idle length. fēnix 5: one lap for the whole swim, rest as idle lengths inside it (§8) | Rest is the **idle length**. A rest lap exists only when the watch made one. Read idle lengths, not idle laps. |
@@ -345,9 +386,57 @@ no program. Each one is a rule the #608 §3 simulator needs:
   `scripts/detection/fit-eval.ts` would take the role from the step, and the
   < 5 s drop. That is a corpus change, with a new freeze, so it belongs to the
   v3 build ticket, not to this one.
-- **Field 18** is read from three files. A fourth workout built with "skip
-  last recovery" off and on would settle it.
+- **Field 18**: three files here and one forum report agree, but Garmin hasn't
+  documented it. Read it as "skip last recovery". If it is absent, assume
+  off.
 - **COROS, Polar, Wahoo and Apple via HealthFit** stay unverified (#604 §5).
-  The owner has only Garmin.
-- **A program for FR965 ≥ 20.23 files.** Matching the `training_file` serial to
+  The owner has only Garmin, and no first-party documentation says what their
+  FIT exports write (§10). The rule that settles it is cheap: a file without
+  `wkt_step_index` takes the untyped-lap path of #609 §2.1, whatever the
+  brand.
+- **A program for files since 2025-08.** Matching the `training_file` serial to
   a workout trainm8 pushed is the cheap route, if push lands (#608).
+
+## 10. What others do (web, 2026-10-24)
+
+- **Intervals.icu**:
+  - **Laps to steps.** It labels a lap by its step only when the file carries
+    `workout_step` messages and the lap's `wkt_step_index`. That works from
+    Garmin Connect, a manual FIT upload or Dropbox, never from Strava.
+  - **Skips.** It doesn't infer a skip. A rep abandoned after 2 of 5 minutes
+    still reads as planned after a reprocess. Its admin points at the reason:
+    the Garmin lap key both marks a lap and advances a step, so the file
+    can't tell the two apart.
+  - **Without steps.** Its fallback is "Use paired workout steps for laps"
+    (December 2024): the planned steps laid over the recording, with a time
+    offset the athlete sets by hand.
+  - **What trainm8 does better.** The Plan Mapping (#608) aligns without that
+    manual offset, and with the rules in §2.3.
+- **Garmin's API filter (from August 2025).** A third party receives the
+  workout steps in the FIT file only for workouts it created. "Export
+  Original" from Garmin Connect keeps them (§4).
+- **TrainingPeaks.**
+  - Per-interval figures come straight from the file's laps. Intervals.icu
+    recomputes them from the samples.
+  - Plan compliance is whole-session only: green within ±20 % of planned
+    duration, distance or TSS, red when not done.
+  - No per-interval verdict was found. That matches #632's whole-session
+    Structure Adherence.
+- **COROS, Polar, Suunto, Wahoo.**
+  - COROS's app shows a done workout as warm-up, rep, rest and cool-down laps,
+    but its docs don't say whether the FIT export writes `wkt_step_index` or
+    `intensity`.
+  - Polar Flow exports FIT, and its phases have no documented FIT encoding.
+  - Nothing found for Suunto or Wahoo.
+
+  So the brand rows in #604 §5 stay unverified, and the fallback in §9
+  covers them.
+
+Sources:
+- [Field definition for skipping last repeat on workout](https://forums.garmin.com/developer/fit-sdk/f/discussion/424362/field-definition-for-skipping-last-repeat-on-workout/1986142) (FIT SDK forum)
+- [Running workouts: remove last recovery in run repeat](https://forums.garmin.com/apps-software/mobile-apps-web/f/garmin-connect-web/424634/running-workouts-remove-last-recovery-in-run-repeat/1984949) and [Skip last recovery issue in repeat blocks, Garmin Swim 2](https://forums.garmin.com/apps-software/mobile-apps-web/f/garmin-connect-web/415083/skip-last-recovery-issue-in-repeat-blocks-garmin-swim-2/1946645)
+- [Request: steps-level breakdown for running activities](https://forums.garmin.com/developer/fit-sdk/f/discussion/427166/request-steps-level-breakdown-for-running-activities-start-end-time-per-segment/1994461) (FIT SDK forum: `wkt_step_index` ↔ `workout_step.message_index`)
+- [No workout details on Garmin activity since August 15](https://forum.intervals.icu/t/no-workout-details-on-garmin-activity-since-august-15/111170) and [Garmin workout lap syncing](https://forum.intervals.icu/t/garmin-workout-lap-syncing/110392) (Intervals.icu forum, Aug–Sep 2025)
+- [Intervals from workout (Use Paired Workout For Laps)](https://forum.intervals.icu/t/intervals-from-workout/82696/5), [Laps and interval detection updates](https://forum.intervals.icu/t/laps-and-interval-detection-updates/10779), [Lap button usage](https://forum.intervals.icu/t/lap-button-usage/121072)
+- [TrainingPeaks compliance colours](https://help.trainingpeaks.com/hc/en-us/articles/204861204), and [intervals.icu vs TrainingPeaks lap averages](https://forum.intervals.icu/t/solved-different-average-power-values-in-laps-between-interval-icu-and-trainingpeaks-for-40-20-intervals-ans-tp-uses-lap-data-directly/114116)
+- [COROS activity summary](https://support.coros.com/hc/en-us/articles/15284799576980-Activities-Page-Activity-Summary), [Polar Flow for Coach](https://support.polar.com/en/polar-flow-for-coach)

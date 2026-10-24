@@ -321,9 +321,10 @@ engine v3, their reps read *unknown*.
 - ~~**Decode one real structured-workout FIT**~~ Answered by #635
   (`635-device-fit-originals.md`). The index is reused per rep and per series.
   `repetition_num` is never written. A skip writes a lap of about 1 s, ended by
-  hand. "Skip last recovery" (undocumented field 18) writes no lap. Since FR965
-  firmware 20.23, `workout_step` is not in the activity file, so
-  `deviceWorkoutJson` is empty for the current watch. COROS and Polar are
+  hand. "Skip last recovery" (undocumented field 18) writes no lap. Activities
+  since 2025-08 come without `workout_step`, most likely because Garmin
+  strips third-party workout steps, so `deviceWorkoutJson` is empty for
+  today's recordings via Intervals.icu. COROS and Polar are
   still unknown.
 - **Swim send-off rests** (`slot: 'sendOffRest'`): whether a watch writes a rest
   lap for the residual. That belongs to #623.
