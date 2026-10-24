@@ -4,7 +4,7 @@ Status: Accepted · Owner decisions 1 and 8 of spec #558 (_Levende start_,
 2026-10-17) · Recorded in ticket #559; built in #558 S5 (_Juster_) and S6
 (Autopilot)
 
-Numbering: 0092–0095, 0097 and 0099 are reserved by the agent-strategy roadmap
+Numbering: 0094, 0095, 0097 and 0099 are reserved by the agent-strategy roadmap
 ([`agent-strategy.md`, "The ADR roadmap"](../research/agent-strategy.md#the-adr-roadmap)),
 so _Levende start_'s ADRs begin at 0100.
 
