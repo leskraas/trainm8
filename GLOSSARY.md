@@ -1513,7 +1513,9 @@ training segment, plus whether the app itself read the telemetry (`verified`) so
 a hand-typed figure never masquerades as a measured one. The queryable history
 **Race Equivalence** resolves from at its top two rungs, and the single blocker
 for portable race-pace targets, which is why the table landed with the anchors
-(ADR 0007, #449). **It has no writer yet**: populating it from completed
+(ADR 0007, #449). **Its first writer is the athlete's own hand** (#464): _Løpsresultater_ under
+Meg adds a typed run result at a **Race Anchor** distance, always `verified:
+false`. Populating it from completed
 **Events** and from activity bests is a derivation with its own honesty rules —
 which efforts qualify, and ADR 0021's **Load Confidence** gate — so until one
 lands every `racePace` target degrades to its bare authored form, exactly as a
