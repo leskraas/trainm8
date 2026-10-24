@@ -2703,13 +2703,71 @@ export const ATTACH_EVENT_LABELS = {
 	newRace: 'Nytt løp',
 	name: 'Navn på løpet',
 	date: 'Dato',
+	/** The first step: nothing is written until the preview is confirmed. */
+	showPreview: 'Vis forhåndsvisning',
 	submit: 'Legg til løpet',
 	done: 'Planen bygger mot løpet nå',
 	pickOne: 'Velg et løp, eller skriv navn og dato for et nytt.',
 	notBoth: 'Velg et løp eller lag et nytt – ikke begge.',
 	nameMissing: 'Gi løpet et navn.',
 	dateMissing: 'Skriv datoen for løpet.',
+	previewFirst: 'Se forhåndsvisningen før du legger til løpet.',
+	// The preview (#518), in the words of the philosophy switch's.
+	preview: 'Forhåndsvisning',
+	before: 'Nå',
+	after: 'Mot løpet',
+	livedStay: 'Ukene du har trent blir stående.',
+	aroundYours:
+		'Tallene er ukemålene. I uker der du har egne økter, legges appens økter rundt dem.',
 } as const
+
+/**
+ * The preview's first line (#518): the round being lived ends after this week,
+ * at the weeks it keeps — and, when it was meant to run longer, how long.
+ */
+export function attachEndsSentence(ended: {
+	name: string
+	weeks: number
+	wasWeeks: number
+}): string {
+	const name = nbPhaseName(ended.name)
+	return ended.weeks < ended.wasWeeks
+		? `${name} slutter etter denne uka: ${nbWeeks(ended.weeks)} i stedet for ${ended.wasWeeks}.`
+		: `${name} slutter etter denne uka, etter ${nbWeeks(ended.weeks)}.`
+}
+
+/** `Fra uka som starter 14. jan 2030 bygger planen mot Vårmilen, 10. mar 2030.` */
+export function attachTowardSentence(
+	fromDate: string,
+	eventName: string,
+	eventDate: string,
+): string {
+	return `Fra uka som starter ${fromDate} bygger planen mot ${eventName}, ${eventDate}.`
+}
+
+/** Rounds appended but never begun, which the attach removes. */
+export function attachRemovedSentence(names: string[]): string | null {
+	if (names.length === 0) return null
+	const said = names.map(nbPhaseName)
+	const list =
+		said.length === 1
+			? said[0]!
+			: `${said.slice(0, -1).join(', ')} og ${said.at(-1)}`
+	return `${list} blir ikke kjørt.`
+}
+
+/** The athlete's own upcoming sessions the attach keeps, or that there are none. */
+export function attachKeptSessionsSentence(count: number): string {
+	if (count === 0) {
+		return 'Du har ingen egne økter framover. Appen legger øktene mot løpet.'
+	}
+	return `${nbSessions(count)} du har lagt inn eller endret selv blir stående, og appens økter legges rundt ${count === 1 ? 'den' : 'dem'}.`
+}
+
+/** The week table's summary: `Uke for uke · 9 uker`. */
+export function attachWeeksSummary(count: number): string {
+	return `Uke for uke · ${nbWeeks(count)}`
+}
 
 /** Why adding an Event to an open-ended plan was refused, as the athlete reads it. */
 export const ATTACH_EVENT_REFUSAL_LABELS: Record<AttachEventRefusal, string> = {
@@ -2720,6 +2778,10 @@ export const ATTACH_EVENT_REFUSAL_LABELS: Record<AttachEventRefusal, string> = {
 	'event-already-planned': 'Det løpet har allerede en plan.',
 	'event-too-soon':
 		'Løpet er denne uka, så det er ingen uker igjen å bygge mot det.',
+	'plan-too-long':
+		'Løpet er så langt fram at planen ville bli lengre enn to år. Velg et løp innen to år fra planens start.',
+	'preview-stale':
+		'Planen har endret seg siden forhåndsvisningen. Se over den nye forhåndsvisningen før du legger til løpet.',
 }
 
 /**
