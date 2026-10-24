@@ -29,6 +29,7 @@ import {
 import {
 	intensityTargetToZone,
 	intentToZone,
+	zoneLabelToZone,
 	type TrainingZone,
 	type Workout,
 } from './session-profile.ts'
@@ -53,6 +54,26 @@ export function isEffortWord(value: unknown): value is EffortWord {
  */
 export function effortWordOfZone(zone: number): EffortWord {
 	return zone <= 2 ? 'rolig' : zone === 3 ? 'middels' : 'hard'
+}
+
+/**
+ * Whether a session's title already says its Effort Word — `Rolig løpetur`,
+ * `45 min moderat` for a _middels_ session — so a surface beside it leaves the
+ * word out rather than say one intensity twice in two words (#638). A title
+ * word counts when it is an Effort Word or names a Training Zone that reads as
+ * this one; a one-letter code (`T`, `I`) is too easily an ordinary word to
+ * count.
+ */
+export function titleStatesEffort(title: string, effort: EffortWord): boolean {
+	return title
+		.toLowerCase()
+		.split(/[^\p{L}\p{N}-]+/u)
+		.some((word) => {
+			if (word.length < 2) return false
+			if (isEffortWord(word)) return word === effort
+			const zone = zoneLabelToZone(word)
+			return zone != null && effortWordOfZone(zone) === effort
+		})
 }
 
 export function readEffortWord(

@@ -165,18 +165,48 @@ function cardOf<K extends CalmCard['kind']>(
 test("the today card names today's session: name, activity, duration, effort word and one sentence", () => {
 	const { view } = calm([
 		session('today', '2030-01-02T07:00:00Z', {
-			title: 'Rolig løpetur',
+			title: 'Løpetur',
 			minutes: 50,
 		}),
 	])
 
 	const card = cardOf(view.card, 'session')
-	expect(card.session.title).toBe('Rolig løpetur')
+	expect(card.session.title).toBe('Løpetur')
 	expect(card.session.disciplineLabel).toBe('Løping')
 	expect(card.session.durationLabel).toBe('50 min')
 	expect(card.session.effortLabel).toBe('rolig')
 	expect(card.sentence).toBe('Rolig hele veien. Du skal kunne prate.')
 	expect(card.session.markDone).not.toBeNull()
+})
+
+// One intensity in one word (#638): a title that already says how hard does
+// not get the Effort Word again beside it, in a word of its own (`middels`
+// beside `45 min moderat`). The sentence still reads the effort.
+test.each([
+	['Rolig løpetur', 'endurance'],
+	['45 min moderat', 'tempo'],
+	['45 min Moderat', 'tempo'],
+	['4 × 6 min terskel', 'threshold'],
+])(
+	'a title that says its effort (%s) drops the effort pill',
+	(title, intent) => {
+		const { view } = calm([
+			session('today', '2030-01-02T07:00:00Z', { title, intent }),
+		])
+		const card = cardOf(view.card, 'session')
+		expect(card.session.effort).not.toBeNull()
+		expect(card.session.effortLabel).toBeNull()
+	},
+)
+
+test('a title that names another effort keeps the pill', () => {
+	const { view } = calm([
+		session('today', '2030-01-02T07:00:00Z', {
+			title: 'Rolig løpetur',
+			intent: 'vo2max',
+		}),
+	])
+	expect(cardOf(view.card, 'session').session.effortLabel).toBe('hard')
 })
 
 test("the athlete's own note is the card's sentence, its first sentence only", () => {

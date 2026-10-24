@@ -22,7 +22,11 @@
  *   start.
  */
 import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
-import { type EffortWord, readEffortWord } from '#app/utils/effort-word.ts'
+import {
+	type EffortWord,
+	readEffortWord,
+	titleStatesEffort,
+} from '#app/utils/effort-word.ts'
 import { formatNbDayMonth, formatNbWeekday } from '#app/utils/format.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { CALM_TODAY_LABELS as L, nbDurationLabel } from '#app/utils/labels.ts'
@@ -50,6 +54,7 @@ export type CalmSession = {
 	/** `45 min`, `1 t 30 min`; null where the session states no time. */
 	durationLabel: string | null
 	effort: EffortWord | null
+	/** The Effort Word as shown; null where the title already says it. */
 	effortLabel: string | null
 	/** _Gjort_, where `canMarkDone` allows it; null on anything still ahead. */
 	markDone: TimelineSession['markDone']
@@ -170,7 +175,12 @@ export function buildCalmToday({
 					? nbDurationLabel(Math.round(minutes) * 60)
 					: null,
 			effort,
-			effortLabel: effort ? L.effort[effort] : null,
+			// A title that already says how hard (`Rolig løpetur`, `45 min
+			// moderat`) is not told it again in another word beside it (#638).
+			effortLabel:
+				effort && !titleStatesEffort(session.title, effort)
+					? L.effort[effort]
+					: null,
 			markDone: session.markDone,
 		}
 	}
