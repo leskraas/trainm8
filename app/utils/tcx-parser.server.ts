@@ -1,6 +1,7 @@
 import { XMLParser } from 'fast-xml-parser'
 import { type ActivityImportInput } from './activity-import.server.ts'
 import { isNum, type RawStream } from './activity-stream.ts'
+import { type Lap } from './structure-detection/types.ts'
 
 type ParsedActivity = Omit<
 	ActivityImportInput,
@@ -70,14 +71,12 @@ type TcxTrackpoint = {
 
 /**
  * A TCX lap boundary reduced to a provider-neutral marker (ADR 0036, #328):
- * the elapsed offset the lap starts at, its timer duration, distance, and the
- * device `TriggerMethod` (`Manual` | `Distance` | `Time` | `HeartRate` |
- * `Location`). A refinement edge signal for Structure Detection — laps rescue
- * short/in-zone reps the stream is blind to — never TCX's sole signal.
+ * the engine's `Lap` edges on the elapsed axis, plus distance and the device
+ * `TriggerMethod` (`Manual` | `Distance` | `Time` | `HeartRate` | `Location`).
+ * A refinement edge signal for Structure Detection — laps rescue short/in-zone
+ * reps the stream is blind to — never TCX's sole signal.
  */
-export type TcxLapMarker = {
-	startOffsetSec: number
-	durationSec: number
+export type TcxLapMarker = Lap & {
 	distanceM: number | null
 	trigger: string | null
 }
@@ -285,8 +284,8 @@ function extractLapMarkers(laps: TcxLap[], startedAt: Date): TcxLapMarker[] {
 
 		const distanceM = asNumber(lap.DistanceMeters)
 		markers.push({
-			startOffsetSec,
-			durationSec: Math.round(durationSec),
+			startSec: startOffsetSec,
+			endSec: startOffsetSec + Math.round(durationSec),
 			distanceM: distanceM != null ? Math.round(distanceM) : null,
 			trigger: typeof lap.TriggerMethod === 'string' ? lap.TriggerMethod : null,
 		})
