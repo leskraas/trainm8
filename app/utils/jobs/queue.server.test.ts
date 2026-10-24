@@ -7,6 +7,7 @@ import {
 	enqueueJob,
 	failJob,
 	processNextJob,
+	rethrowDeferral,
 } from './queue.server.ts'
 
 test('enqueued job can be claimed once', async () => {
@@ -124,6 +125,14 @@ test('a handler that defers its job reschedules it without spending an attempt',
 	expect(row.attempts).toBe(0)
 	expect(row.runAt.getTime()).toBe(until.getTime())
 	expect(row.lastError).toBe('Strava read budget spent')
+})
+
+test('rethrowDeferral passes a deferral on and lets any other error be swallowed', () => {
+	const deferral = new DeferJob(new Date(), 'Strava read budget spent')
+
+	expect(() => rethrowDeferral(deferral)).toThrow(deferral)
+	expect(() => rethrowDeferral(new Error('one activity failed'))).not.toThrow()
+	expect(() => rethrowDeferral('not even an error')).not.toThrow()
 })
 
 test('a job with no registered handler fails rather than spinning', async () => {

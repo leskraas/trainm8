@@ -84,6 +84,15 @@ export class DeferJob extends Error {
 	}
 }
 
+/**
+ * For a best-effort `catch` that swallows what it catches: pass a deferral on
+ * to the queue, so a spent budget pauses the job instead of skipping the rest
+ * of its work.
+ */
+export function rethrowDeferral(err: unknown): void {
+	if (err instanceof DeferJob) throw err
+}
+
 /** A handler runs one job kind. It receives the job's parsed JSON payload. */
 export type JobHandler = (payload: Record<string, unknown>) => Promise<void>
 

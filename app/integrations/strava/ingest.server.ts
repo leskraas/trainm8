@@ -11,7 +11,7 @@ import {
 	persistActivityLaps,
 } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { DeferJob } from '#app/utils/jobs/queue.server.ts'
+import { rethrowDeferral } from '#app/utils/jobs/queue.server.ts'
 import { type Lap } from '#app/utils/structure-detection/types.ts'
 import { stravaApiGet } from './client.server.ts'
 import { stravaTypeToDiscipline } from './discipline-map.ts'
@@ -333,8 +333,8 @@ export async function ingestActivityLaps(
 		if (markers.length > 0) await persistActivityLaps(activityImportId, markers)
 	} catch (err) {
 		// Laps are a refinement; a failure must never abort the enclosing ingest.
-		// A spent Strava day is not a failure: the job waits for it (#637).
-		if (err instanceof DeferJob) throw err
+		// A spent Strava budget is not a failure: the job waits for it (#637).
+		rethrowDeferral(err)
 	}
 }
 
@@ -401,8 +401,8 @@ export async function ingestActivityStreams(
 		} catch (err) {
 			// One activity's stream failing (fetch error, or a concurrent trigger
 			// that already inserted the row) must not abort the rest. A spent
-			// Strava day would fail every one of them, so the job waits instead.
-			if (err instanceof DeferJob) throw err
+			// Strava budget would fail every one of them, so the job waits instead.
+			rethrowDeferral(err)
 		}
 	}
 }
