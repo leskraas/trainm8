@@ -318,10 +318,13 @@ engine v3, their reps read *unknown*.
 
 ## 10. Left open
 
-- **Decode one real structured-workout FIT** (#625 / #604's open item). Does an
-  FR965 emit one lap per executed step, reuse the index per rep, and write
-  `repetition_num`? What does it write on *skip step*, and on ending early? §3
-  rests on the FIT profile, not on a decoded file. COROS and Polar are unknown.
+- ~~**Decode one real structured-workout FIT**~~ Answered by #635
+  (`635-device-fit-originals.md`). The index is reused per rep and per series.
+  `repetition_num` is never written. A skip writes a lap of about 1 s, ended by
+  hand. "Skip last recovery" (undocumented field 18) writes no lap. Since FR965
+  firmware 20.23, `workout_step` is not in the activity file, so
+  `deviceWorkoutJson` is empty for the current watch. COROS and Polar are
+  still unknown.
 - **Swim send-off rests** (`slot: 'sendOffRest'`): whether a watch writes a rest
   lap for the residual. That belongs to #623.
 - **Structure Adherence could read the mapping** instead of comparing
