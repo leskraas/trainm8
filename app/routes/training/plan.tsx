@@ -57,148 +57,57 @@
  * the mix**, because a mix has no convention to fall back on. Each set of fields
  * therefore says which blank it is, and the mix's fields are deliberately not built
  * out of the rate fields' components.
+ *
+ * **Where the code lives** (#533). This route reads the season and dispatches
+ * each posted `intent` to its editor's action, a `.server.ts` beside the editor's
+ * component (`__phase-editor.server.ts`, `__week-pattern-editor.server.ts`, …),
+ * the shape `__season-edits.server.ts` set. The two readings are
+ * `__blocks-reading.tsx` and `__weeks-reading.tsx`; what they share is
+ * `__plan-season.ts`.
  */
-import { type SubmissionResult } from '@conform-to/react'
-import { parseWithZod } from '@conform-to/zod/v3'
-import { data, Link, redirect } from 'react-router'
-import { z } from 'zod/v3'
+
+import { Link, redirect } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { isoWeekNumber, weekMonday } from '#app/utils/athlete-calendar.ts'
-import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
+import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getEventsForUser } from '#app/utils/event.server.ts'
 import { readPlanStartOptions } from '#app/utils/first-run/plan-start-options.server.ts'
+import { formatNbVolumeTotal, formatNbWeeklyVolume } from '#app/utils/format.ts'
 import {
-	formatNbDate,
-	formatNbVolumeTotal,
-	formatNbWeeklyVolume,
-} from '#app/utils/format.ts'
-import {
-	ATTACH_EVENT_LABELS,
-	ATTACH_EVENT_REFUSAL_LABELS,
-	attachedEventSentence,
 	APP_TAB_LABELS,
 	NB_ACCUMULATED_SPAN_LABELS,
 	nbTrackName,
 	SESONG_ENTRY_LABELS,
 	PHILOSOPHY_SWITCH_LABELS,
-	PRESET_GALLERY_LABELS,
-	PHILOSOPHY_SWITCH_REFUSAL_LABELS,
-	PLAN_LEAD_LABELS,
 	PLAN_TRACK_DAYS_LABELS,
 	SEASON_EDIT_LABELS,
-	SESONG_COPY_LABELS,
 	SESONG_NEXT_LABELS,
 	SESONG_PAGE_LABELS,
-	SESONG_PATTERN_LABELS,
-	SESONG_PHASE_FIELD_LABELS,
 	SESONG_REFUSAL_LABELS,
-	SESONG_SEGMENT_LABELS,
-	SESONG_TRACK_LABELS,
-	STRENGTH_OFFER_LABELS,
-	switchedPhilosophySentence,
-	TRENINGSFORM_LABELS,
 } from '#app/utils/labels.ts'
-import { fillPlanWeeksToHorizon } from '#app/utils/load/horizon-fill.server.ts'
 import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
-import { AttachEventFormSchema } from '#app/utils/plan-outline/attach-event-schema.ts'
-import {
-	EnduranceSegmentSetSchema,
-	PatternWeekdaySchema,
-	PhaseNameSchema,
-	PhaseWeeksSchema,
-	QualitySessionMixSetSchema,
-	SeasonAnchorRemoveSchema,
-	SeasonAnchorSetSchema,
-	ShareWeightSchema,
-	StrengthSegmentAddSchema,
-	StrengthSegmentSetSchema,
-	WeekPatternNameSchema,
-} from '#app/utils/plan-outline/authoring-schema.ts'
-import {
-	addPhase,
-	addStrengthSegment,
-	addTrack,
-	addWeekPattern,
-	addWeekPatternDay,
-	applyPreset,
-	createStarterWeekPattern,
-	deletePlanOutline,
-	listPlanAnchorCandidates,
-	movePhase,
-	fitPlanToEvent,
-	moveWeekPattern,
-	moveWeekPatternDay,
-	removePhase,
-	removeSeasonAnchorSegment,
-	removeStrengthSegment,
-	removeTrack,
-	removeWeekPattern,
-	removeWeekPatternDay,
-	renameWeekPattern,
-	setEnduranceSegment,
-	setQualitySessionMix,
-	setSeasonAnchorValue,
-	setStrengthSegment,
-	type AddTrackRefusal,
-	type FitToEventRefusal,
-	type PhaseEditRefusal,
-	type RemoveTrackRefusal,
-	type SeasonAnchorRefusal,
-	type StrengthSegmentRefusal,
-	type WeekPatternEditRefusal,
-} from '#app/utils/plan-outline/authoring.server.ts'
+import { listPlanAnchorCandidates } from '#app/utils/plan-outline/authoring.server.ts'
 import { accumulatesAcrossDisciplines } from '#app/utils/plan-outline/commensurability.ts'
-import {
-	copyWeek,
-	type CopyWeekRefusal,
-	type CopyWeekReport,
-} from '#app/utils/plan-outline/copy-week.server.ts'
-import {
-	WeekCopySchema,
-	type CopySkipReason,
-} from '#app/utils/plan-outline/copy-week.ts'
-import { RHYTHMS, VOLUME_CURRENCIES } from '#app/utils/plan-outline/derive.ts'
 import {
 	readAnchorContext,
 	readStrengthTrackOffer,
 } from '#app/utils/plan-outline/history.server.ts'
 import {
-	addRaceToOpenEndedPlan,
-	attachEventToOutline,
-} from '#app/utils/plan-outline/open-ended.server.ts'
-import {
-	PhilosophySwitchFormSchema,
-	TRENINGSFORM_SURFACE,
-	StrengthOfferFormSchema,
-} from '#app/utils/plan-outline/philosophy-schema.ts'
-import {
-	readPhilosophySwitch,
-	switchPhilosophy,
-} from '#app/utils/plan-outline/philosophy.server.ts'
-import { type PhilosophySwitchPreview } from '#app/utils/plan-outline/philosophy.ts'
-import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
-import {
 	proposeTrack,
 	type TrackProposal,
 } from '#app/utils/plan-outline/proposal.ts'
-import { QUALITY_ZONES } from '#app/utils/plan-outline/quality-mix.ts'
 import {
 	readSeasonChartInputs,
 	withWeekStarts,
 } from '#app/utils/plan-outline/season-chart.server.ts'
 import { readStampedMixWarnings } from '#app/utils/plan-outline/stamp.server.ts'
-import { type StarterProposal } from '#app/utils/plan-outline/starter-pattern.ts'
-import { addProposedStrengthTrack } from '#app/utils/plan-outline/strength-offer.server.ts'
 import { readTrackDays } from '#app/utils/plan-outline/track-days.server.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
-import { PATTERN_DAY_KINDS } from '#app/utils/plan-outline/week-pattern.ts'
 import { countWeeksWithSessions } from '#app/utils/plan-outline/week-sessions.server.ts'
-import { redirectWithToast } from '#app/utils/toast.server.ts'
 import {
 	getActiveSeason,
 	getAuthoredWorkouts,
@@ -212,16 +121,23 @@ import {
 	type Discipline,
 } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.ts'
+import { attachEventAction } from './__attach-event.server.ts'
 import { BlocksReading } from './__blocks-reading.tsx'
+import { copyWeekOnto } from './__copy-week.server.ts'
 import { type PendingCopy } from './__copy-week.tsx'
-import { fitProposalSentence } from './__fit-to-event.tsx'
+import { fitToEventAction } from './__fit-to-event.server.ts'
 import { readLibraryLifts } from './__library-section.server.ts'
 import { LibrarySection } from './__library-section.tsx'
+import { phaseEditAction } from './__phase-editor.server.ts'
+import {
+	philosophySwitchAction,
+	strengthOfferAction,
+} from './__philosophy-switch.server.ts'
 import {
 	PhilosophyCard,
 	StrengthTrackOfferCard,
-	type PhilosophyPreviewView,
 } from './__philosophy-switch.tsx'
+import { refuse } from './__plan-action.server.ts'
 import { PlanAdvanced } from './__plan-advanced.tsx'
 import { PillLink, PlanCard, SegmentedNav } from './__plan-chrome.tsx'
 import { PlanLeadCard } from './__plan-lead-card.tsx'
@@ -233,10 +149,9 @@ import {
 	weekNumberOf,
 	type SeasonData,
 } from './__plan-season.ts'
-import {
-	SeasonAnchorFormSchema,
-	type EditableAnchorTrack,
-} from './__season-anchor-editor.tsx'
+import { applyPresetAction } from './__preset-gallery.server.ts'
+import { seasonAnchorAction } from './__season-anchor-editor.server.ts'
+import { type EditableAnchorTrack } from './__season-anchor-editor.tsx'
 import { seasonFitnessOf } from './__season-chart.tsx'
 import { seasonEditAction } from './__season-edits.server.ts'
 import { SeasonEditsCard } from './__season-edits.tsx'
@@ -245,18 +160,17 @@ import { UnavailableReadingsNotice } from './__season-notices.tsx'
 import { readSeasonPicture } from './__season-picture.server.ts'
 import { SeasonPicture } from './__season-picture.tsx'
 import {
-	SegmentFormSchema,
-	mixFieldName,
-	MixFormSchema,
-} from './__segment-editor.tsx'
-import {
-	StrengthSegmentFormSchema,
-	type EditableStrengthTrack,
-} from './__strength-segment-editor.tsx'
+	authorQualityMix,
+	authorSegmentRates,
+} from './__segment-editor.server.ts'
+import { strengthSegmentAction } from './__strength-segment-editor.server.ts'
+import { type EditableStrengthTrack } from './__strength-segment-editor.tsx'
 import { TrackDaysCard } from './__track-days.tsx'
+import { trackEditAction } from './__track-editor.server.ts'
 import { TrackRoster } from './__track-editor.tsx'
 import { treningsformViewOf } from './__treningsform-view.ts'
 import { TreningsformOffer } from './__treningsform.tsx'
+import { weekPatternAction } from './__week-pattern-editor.server.ts'
 import { type SeasonQuery } from './__week-pattern-editor.tsx'
 import { WeeksReading } from './__weeks-reading.tsx'
 
@@ -293,14 +207,6 @@ function chosenWeekKey(
 	const chosen = weeks.find((week) => week.weekKey === asked)
 	return chosen?.weekKey ?? weeks[0]?.weekKey ?? null
 }
-
-/**
- * The name of a shape, read straight off the body like every other field on this
- * page. `PRESET_KEYS` is the one list of shipped keys — the service's schema reads
- * the same constant — so the surface cannot ask for a preset the app never
- * shipped, and a body carrying anything else is refused before the service sees it.
- */
-const PresetKeyField = z.enum(PRESET_KEYS)
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -589,349 +495,38 @@ function strengthTracksOf(season: AuthoredSeason): EditableStrengthTrack[] {
 		}))
 }
 
-/**
- * A box the athlete left empty, as HTML delivers it: absent from the body, or a
- * string of nothing.
- *
- * Every field below preprocesses through this, because `Number('')` is 0 — which
- * would read back as a bound the athlete broke ("a phase runs at least one week")
- * when what happened is that nothing was typed. What each field maps a blank *to* is
- * its own business and deliberately not always the same: `undefined` where a blank
- * means "you have not answered yet", `null` where the blank is itself the answer.
- */
-function isBlank(value: unknown): boolean {
-	return value == null || (typeof value === 'string' && value.trim() === '')
-}
-
-/**
- * What the phase forms submit, per field.
- *
- * A form body is strings, and these coerce them into the shapes the authoring
- * schemas take. The service re-parses everything it is handed, so no write reaches
- * the database without passing the same rules twice; what these add is *wording* —
- * an athlete who clears the weeks box reads a sentence rather than "expected
- * number, received nan".
- */
-const WeeksField = z.preprocess(
-	(value) => (isBlank(value) ? undefined : value),
-	z.coerce
-		.number({
-			errorMap: () => ({ message: SESONG_PHASE_FIELD_LABELS.weeks }),
-		})
-		// The bounds and their wording are the authoring schema's, piped rather than
-		// restated, so a rule cannot move on one side of the form only.
-		.pipe(PhaseWeeksSchema),
-)
-const NameField = z.preprocess((value) => value ?? '', PhaseNameSchema)
-const AtIndexField = z.coerce.number().int().min(0)
-/**
- * The rhythm as submitted. **Not** defaulted: a body missing its rhythm is refused
- * rather than written as `3:1`, which would record a convention as though the
- * athlete had chosen it — and would overwrite the `none` they had chosen before
- * (ADR 0044 §4, the rule `authoring-schema.ts` states).
- */
-const RhythmField = z.enum(RHYTHMS, {
-	errorMap: () => ({ message: SESONG_PHASE_FIELD_LABELS.rhythm }),
-})
-const IdField = z.string().min(1)
-
-/**
- * A new **Training Track**'s three fields (#414).
- *
- * The Discipline and the currency are the domain's own vocabularies, so a body
- * naming a fourth unit is refused here rather than reaching the service. The pair
- * is *not* cross-checked on this side — whether a Discipline may author a given
- * currency is `TrackAddSchema`'s refine, which is the same `currencyOptionsFor` the
- * form's picker is built from, so the rule has one home.
- */
-const DisciplineField = z.enum(DISCIPLINES, {
-	errorMap: () => ({ message: SESONG_TRACK_LABELS.disciplineRequired }),
-})
-const CurrencyField = z.enum(VOLUME_CURRENCIES, {
-	errorMap: () => ({ message: SESONG_TRACK_LABELS.unitRequired }),
-})
-const AnchorValueField = z.preprocess(
-	(value) => (isBlank(value) ? undefined : value),
-	z.coerce
-		.number({
-			errorMap: () => ({ message: SESONG_TRACK_LABELS.anchorRequired }),
-		})
-		.positive(SESONG_TRACK_LABELS.anchorPositive),
-)
-
-/**
- * A **Week Pattern**'s name, and a pattern day's three authored values, as the
- * forms submit them.
- *
- * Each pipes into the authoring schema rather than restating its bounds, for the
- * reason `WeeksField` does: the rule lives in one place and what these add is
- * wording. A pattern day carries **no volume field and no zone field** anywhere on
- * this route — not one that is validated away, one that has nowhere to be
- * submitted (ADR 0044 §7, ADR 0042 §9).
- */
-const PatternNameField = z.preprocess(
-	(value) => value ?? '',
-	WeekPatternNameSchema,
-)
-
-const WeekdayField = z.preprocess(
-	(value) => (isBlank(value) ? undefined : value),
-	z.coerce
-		.number({
-			errorMap: () => ({ message: SESONG_PATTERN_LABELS.whichDay }),
-		})
-		.pipe(PatternWeekdaySchema),
-)
-
-const ShareWeightField = z.preprocess(
-	(value) => (isBlank(value) ? undefined : value),
-	z.coerce
-		.number({
-			errorMap: () => ({
-				message: SESONG_PATTERN_LABELS.weightRequired,
-			}),
-		})
-		.pipe(ShareWeightSchema),
-)
-
-/**
- * The kind of day, from the two the domain has — the domain's own list, so a third
- * kind cannot be invented on this surface and cannot be forgotten here either.
- */
-const PatternDayKindField = z.enum(PATTERN_DAY_KINDS)
-
-/**
- * A share day's optional **shape**. Blank is `null` and `null` is a *choice* —
- * "volume with no structure" — so it travels as a value rather than as an omitted
- * field, the way a blank rate does.
- */
-const ShapeField = z.preprocess(
-	(value) => (isBlank(value) ? null : value),
-	z.string().min(1).nullable(),
-)
-
-/** A checkbox that is absent from the body when unchecked, as HTML has it. */
-function checked(formData: FormData, name: string): boolean {
-	return formData.get(name) === 'on'
-}
-
-/**
- * Which way a move goes — the one field every reorder on this route submits, for a
- * phase, a pattern and a pattern day alike.
- *
- * Anything that is not `later` reads as `earlier` rather than being refused: a move
- * is a nudge through a sequence with no destructive end, and the service refuses the
- * edge in either direction anyway, so there is no body that can move something
- * somewhere nobody asked for.
- */
-function moveDirection(formData: FormData): 'earlier' | 'later' {
-	return formData.get('direction') === 'later' ? 'later' : 'earlier'
-}
-
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
 	const intent = formData.get('intent')
-	const phaseId = IdField.safeParse(formData.get('phaseId'))
-	const outlineId = IdField.safeParse(formData.get('outlineId'))
-	const patternId = IdField.safeParse(formData.get('patternId'))
-	const dayId = IdField.safeParse(formData.get('dayId'))
 
+	// Each editor's action lives beside its component (#533); this only
+	// dispatches on the intent.
 	switch (intent) {
-		case 'add-phase': {
-			const name = NameField.safeParse(formData.get('name'))
-			const weeks = WeeksField.safeParse(formData.get('weeks'))
-			const atIndex = AtIndexField.safeParse(formData.get('atIndex'))
-			const rhythm = RhythmField.safeParse(formData.get('rhythm'))
-			if (!outlineId.success) return refuse(OUTLINE_GONE)
-			if (!name.success) return refuse(firstIssue(name.error))
-			if (!weeks.success) return refuse(firstIssue(weeks.error))
-			// A garbled position is refused rather than clamped to 0: falling back to
-			// "at the start" would put the phase in the most disruptive place in the
-			// season, which is nowhere the athlete pointed at.
-			if (!atIndex.success) return refuse(POSITION_UNREADABLE)
-			if (!rhythm.success) return refuse(firstIssue(rhythm.error))
-			return report(
-				await addPhase(userId, {
-					outlineId: outlineId.data,
-					atIndex: atIndex.data,
-					name: name.data,
-					weeks: weeks.data,
-					rhythm: rhythm.data,
-					tapers: checked(formData, 'tapers'),
-				}),
-			)
-		}
-		case 'move-phase': {
-			if (!phaseId.success) return refuse(PHASE_GONE)
-			return report(
-				await movePhase(userId, {
-					phaseId: phaseId.data,
-					direction: moveDirection(formData),
-				}),
-			)
-		}
-		case 'remove-phase': {
-			if (!phaseId.success) return refuse(PHASE_GONE)
-			return report(await removePhase(userId, { phaseId: phaseId.data }))
-		}
+		case 'add-phase':
+		case 'move-phase':
+		case 'remove-phase':
+		case 'delete-plan':
+			return phaseEditAction(userId, intent, formData)
 		// ── The set of Training Tracks (#414) ─────────────────────────────────
 		// Adding and removing whole tracks, and nothing in between: a track's
 		// **Volume Currency** is authored once and never edited (ADR 0044 §8), so
 		// re-authoring a unit is these two acts and the athlete can see both.
-		case 'add-track': {
-			const discipline = DisciplineField.safeParse(formData.get('discipline'))
-			const currency = CurrencyField.safeParse(formData.get('currency'))
-			const anchorValue = AnchorValueField.safeParse(
-				formData.get('anchorValue'),
-			)
-			if (!outlineId.success) return refuseTrack(OUTLINE_GONE)
-			if (!discipline.success) return refuseTrack(firstIssue(discipline.error))
-			if (!currency.success) return refuseTrack(firstIssue(currency.error))
-			if (!anchorValue.success) {
-				return refuseTrack(firstIssue(anchorValue.error))
-			}
-			const added = await addTrack(userId, {
-				outlineId: outlineId.data,
-				discipline: discipline.data,
-				currency: currency.data,
-				anchorValue: anchorValue.data,
-			})
-			return added.ok
-				? { ok: true as const }
-				: refuseTrack(trackRefusalMessage(added.reason))
-		}
-		case 'remove-track': {
-			const trackId = IdField.safeParse(formData.get('trackId'))
-			if (!trackId.success) return refuseTrack(TRACK_GONE)
-			const removed = await removeTrack(userId, { trackId: trackId.data })
-			return removed.ok
-				? { ok: true as const }
-				: refuseTrack(trackRefusalMessage(removed.reason))
-		}
+		case 'add-track':
+		case 'remove-track':
+			return trackEditAction(userId, intent, formData)
 		// ── The Week Pattern (#410) ───────────────────────────────────────────
 		// Authoring and previewing only: nothing here stamps a session, so no case
 		// below writes to the calendar.
-		case 'add-week-pattern': {
-			const name = PatternNameField.safeParse(formData.get('name'))
-			if (!outlineId.success) return refuse(OUTLINE_GONE)
-			if (!name.success) return refuse(firstIssue(name.error))
-			return reportPattern(
-				await addWeekPattern(userId, {
-					outlineId: outlineId.data,
-					name: name.data,
-				}),
-			)
-		}
-		case 'start-week-pattern': {
-			if (!outlineId.success) return refuse(OUTLINE_GONE)
-			const started = await createStarterWeekPattern(userId, {
-				outlineId: outlineId.data,
-			})
-			if (!started.ok) {
-				return refuse(
-					started.reason === 'outline-gone' ? OUTLINE_GONE : NO_STARTER_WEEK,
-				)
-			}
-			// The weeks fill themselves from the typical week (decision 14): the
-			// ones up to the horizon are laid now rather than at the next close.
-			await fillToHorizon(userId)
-			// A toast for `apply-preset`'s reason: a week the athlete did not type
-			// just appeared, and they are owed where it came from in words — the
-			// availability it read, or the convention it fell back to — before they
-			// start editing it.
-			const url = new URL(request.url)
-			return redirectWithToast(`${url.pathname}${url.search}`, {
-				type: 'success',
-				title: SESONG_PATTERN_LABELS.starterToast,
-				description: starterSentence(started.proposal),
-			})
-		}
-		case 'rename-week-pattern': {
-			const name = PatternNameField.safeParse(formData.get('name'))
-			if (!patternId.success) return refuse(PATTERN_GONE)
-			if (!name.success) return refuse(firstIssue(name.error))
-			return reportPattern(
-				await renameWeekPattern(userId, {
-					patternId: patternId.data,
-					name: name.data,
-				}),
-			)
-		}
-		case 'move-week-pattern': {
-			if (!patternId.success) return refuse(PATTERN_GONE)
-			return reportPattern(
-				await moveWeekPattern(userId, {
-					patternId: patternId.data,
-					direction: moveDirection(formData),
-				}),
-			)
-		}
-		case 'remove-week-pattern': {
-			if (!patternId.success) return refuse(PATTERN_GONE)
-			return reportPattern(
-				await removeWeekPattern(userId, { patternId: patternId.data }),
-			)
-		}
-		case 'add-week-pattern-day': {
-			const trackId = IdField.safeParse(formData.get('trackId'))
-			const weekday = WeekdayField.safeParse(formData.get('weekday'))
-			const kind = PatternDayKindField.safeParse(formData.get('kind'))
-			if (!patternId.success) return refuse(PATTERN_GONE)
-			if (!trackId.success) return refuse(TRACK_MISSING)
-			if (!weekday.success) return refuse(firstIssue(weekday.error))
-			if (!kind.success) return refuse(DAY_KIND_UNKNOWN)
-			if (kind.data === 'fixed') {
-				const workoutId = IdField.safeParse(formData.get('workoutId'))
-				// A fixed day *is* its Workout, so a body without one is refused rather
-				// than quietly stored as a share: that would be a different day than the
-				// athlete asked for, and it would carry a weight nobody typed.
-				if (!workoutId.success) return refuse(WORKOUT_MISSING)
-				return reportPattern(
-					await fillAfterDay(
-						userId,
-						await addWeekPatternDay(userId, {
-							kind: 'fixed',
-							patternId: patternId.data,
-							trackId: trackId.data,
-							weekday: weekday.data,
-							workoutId: workoutId.data,
-						}),
-					),
-				)
-			}
-			const weight = ShareWeightField.safeParse(formData.get('weight'))
-			const shape = ShapeField.safeParse(formData.get('workoutId'))
-			if (!weight.success) return refuse(firstIssue(weight.error))
-			return reportPattern(
-				await fillAfterDay(
-					userId,
-					await addWeekPatternDay(userId, {
-						kind: 'share',
-						patternId: patternId.data,
-						trackId: trackId.data,
-						weekday: weekday.data,
-						weight: weight.data,
-						workoutId: shape.success ? shape.data : null,
-					}),
-				),
-			)
-		}
-		case 'move-week-pattern-day': {
-			if (!dayId.success) return refuse(DAY_GONE)
-			return reportPattern(
-				await moveWeekPatternDay(userId, {
-					dayId: dayId.data,
-					direction: moveDirection(formData),
-				}),
-			)
-		}
-		case 'remove-week-pattern-day': {
-			if (!dayId.success) return refuse(DAY_GONE)
-			return reportPattern(
-				await removeWeekPatternDay(userId, { dayId: dayId.data }),
-			)
-		}
+		case 'add-week-pattern':
+		case 'start-week-pattern':
+		case 'rename-week-pattern':
+		case 'move-week-pattern':
+		case 'remove-week-pattern':
+		case 'add-week-pattern-day':
+		case 'move-week-pattern-day':
+		case 'remove-week-pattern-day':
+			return weekPatternAction(userId, intent, request, formData)
 		// ── Copying a week onto another week (#415) ───────────────────────────
 		// The one write on this route that leaves Workout Sessions behind, and the
 		// one whose refusal can be a question: a target week that already holds
@@ -944,966 +539,36 @@ export async function action({ request }: Route.ActionArgs) {
 		// `(trackId, fromWeekKey)` — the pair is the segment's identity — and the two
 		// intents differ only in which form the reply lands on.
 		case 'add-season-anchor':
-			return authorSeasonAnchor(userId, formData, 'add')
 		case 'set-season-anchor':
-			return authorSeasonAnchor(userId, formData, 'set')
-		case 'remove-season-anchor': {
-			const trackId = IdField.safeParse(formData.get('trackId'))
-			if (!trackId.success) return refuse(TRACK_GONE)
-			// The service's own schema at the boundary: only a hand-made body can carry
-			// a week key that is not a Monday, and it names a segment that cannot exist.
-			const removing = SeasonAnchorRemoveSchema.safeParse({
-				trackId: trackId.data,
-				fromWeekKey: formData.get('fromWeekKey'),
-			})
-			if (!removing.success) return refuse(ANCHOR_GONE)
-			return reportAnchor(
-				await removeSeasonAnchorSegment(userId, removing.data),
-			)
-		}
+		case 'remove-season-anchor':
+			return seasonAnchorAction(userId, intent, formData)
 		case 'set-segment-rates':
 			return authorSegmentRates(userId, formData)
 		case 'set-quality-mix':
 			return authorQualityMix(userId, formData)
 		// ── The strength Training Track's dated blocks (#409) ─────────────────
 		case 'add-strength-segment':
-			return authorStrengthSegment(userId, formData, 'add')
 		case 'set-strength-segment':
-			return authorStrengthSegment(userId, formData, 'set')
-		case 'remove-strength-segment': {
-			const segmentId = IdField.safeParse(formData.get('segmentId'))
-			if (!segmentId.success) return refuse(BLOCK_GONE)
-			return reportStrength(
-				await removeStrengthSegment(userId, { segmentId: segmentId.data }),
-			)
-		}
-		case 'apply-preset': {
-			const presetKey = PresetKeyField.safeParse(formData.get('presetKey'))
-			if (!outlineId.success) return refuse(OUTLINE_GONE)
-			if (!presetKey.success) return refuse(SHAPE_UNKNOWN)
-			const applied = await applyPreset(userId, {
-				outlineId: outlineId.data,
-				presetKey: presetKey.data,
-			})
-			if (!applied.ok) {
-				return applied.reason === 'plan-begun'
-					? refuse(PRESET_GALLERY_LABELS.begun)
-					: report(applied)
-			}
-			// A redirect rather than falling through to the loader, because there is
-			// something to *say* that the page cannot say by itself. Applying copies the
-			// shape in: nothing records where the blocks came from, no reference back
-			// exists, and every value that just landed is editable through the controls
-			// directly above the gallery (ADR 0044 §2, #371). An athlete who has just
-			// watched their season change shape needs to be told that, in words, once.
-			//
-			// Back to the URL that was posted to, so the `?event=` season being read and
-			// the reading it is on both survive applying. Whether the new shape now ends
-			// before or after the Event is not settled here: it is `season.fit`,
-			// re-derived on the next read and stated at the top of the page (ADR 0044
-			// §3). Nothing stretches to fit.
-			const url = new URL(request.url)
-			return redirectWithToast(`${url.pathname}${url.search}`, {
-				type: 'success',
-				title: SESONG_REFUSAL_LABELS.presetDone,
-				description: SESONG_REFUSAL_LABELS.presetDoneDetail,
-			})
-		}
-		case 'fit-to-event': {
-			if (!outlineId.success) return refuse(OUTLINE_GONE)
-			const fitted = await fitPlanToEvent(userId, {
-				outlineId: outlineId.data,
-			})
-			if (!fitted.ok) return refuse(fitRefusalMessage(fitted.reason))
-			// Said in a toast for `apply-preset`'s reason: several blocks just changed
-			// length at once, and an athlete who tapped one button is owed the list of
-			// what it did — the sentence names every block, so the edit is auditable
-			// against the blocks below without diffing them by eye. They are ordinary
-			// resizes and every one of them is editable back.
-			const url = new URL(request.url)
-			return redirectWithToast(`${url.pathname}${url.search}`, {
-				type: 'success',
-				title: SESONG_REFUSAL_LABELS.fitDone,
-				description: `${fitProposalSentence(fitted.proposal)}${SESONG_REFUSAL_LABELS.fitTail}`,
-			})
-		}
-		case 'attach-event': {
-			const submission = parseWithZod(formData, {
-				schema: AttachEventFormSchema,
-			})
-			if (submission.status !== 'success') {
-				return data(
-					{ intent: 'attach-event', result: submission.reply() },
-					{ status: 400 },
-				)
-			}
-			const { outlineId: attachTo, choice } = submission.value
-			const attached =
-				choice.kind === 'event'
-					? await attachEventToOutline(userId, attachTo, choice.eventId)
-					: await addRaceToOpenEndedPlan(userId, attachTo, choice)
-			if (!attached.ok) {
-				return data(
-					{
-						intent: 'attach-event',
-						result: submission.reply({
-							formErrors: [ATTACH_EVENT_REFUSAL_LABELS[attached.reason]],
-						}),
-					},
-					{ status: 400 },
-				)
-			}
-			// To the plan by its Event now: it is an ordinary plan toward it.
-			return redirectWithToast(`/training/plan?event=${attached.eventId}`, {
-				type: 'success',
-				title: ATTACH_EVENT_LABELS.done,
-				description: attachedEventSentence(attached.ended, attached.phases),
-			})
-		}
+		case 'remove-strength-segment':
+			return strengthSegmentAction(userId, intent, formData)
+		case 'apply-preset':
+			return applyPresetAction(userId, request, formData)
+		case 'fit-to-event':
+			return fitToEventAction(userId, request, formData)
+		case 'attach-event':
+			return attachEventAction(userId, formData)
 		case 'preview-philosophy':
-		case 'switch-philosophy': {
-			// The same preview and switch serve _Bytt filosofi_ in Avansert and
-			// _Bytt treningsform_ in the lead (#581); each answers where it was
-			// asked, under a key of its own.
-			const lead = formData.get('surface') === TRENINGSFORM_SURFACE
-			type Reply = ReturnType<typeof philosophyReply>
-			const answer = (
-				reply: Reply,
-			): { treningsform: Reply } | { philosophy: Reply } =>
-				lead ? { treningsform: reply } : { philosophy: reply }
-			const submission = parseWithZod(formData, {
-				schema: PhilosophySwitchFormSchema,
-			})
-			if (submission.status !== 'success') {
-				return data(answer(philosophyReply({ result: submission.reply() })), {
-					status: 400,
-				})
-			}
-			const { intent: asked, outlineId: switching, family } = submission.value
-			if (asked === 'preview-philosophy') {
-				const preview = await readPhilosophySwitch(userId, switching, family)
-				if (!preview.ok) {
-					return data(
-						answer(
-							philosophyReply({
-								result: submission.reply({
-									formErrors: [
-										PHILOSOPHY_SWITCH_REFUSAL_LABELS[preview.reason],
-									],
-								}),
-							}),
-						),
-						{ status: 400 },
-					)
-				}
-				// Nothing written: the preview, for the athlete to confirm under.
-				return answer(
-					philosophyReply({
-						result: submission.reply(),
-						preview: previewView(preview),
-					}),
-				)
-			}
-			const switched = await switchPhilosophy(
-				userId,
-				switching,
-				family,
-				new Date(),
-				{ digest: submission.value.digest },
-			)
-			if (!switched.ok) {
-				// Said under the preview as it stands now when there is one, so the
-				// athlete reads what would land and confirms that instead.
-				const message = PHILOSOPHY_SWITCH_REFUSAL_LABELS[switched.reason]
-				const fresh = await readPhilosophySwitch(userId, switching, family)
-				return data(
-					answer(
-						fresh.ok
-							? philosophyReply({
-									confirmResult: submission.reply({ formErrors: [message] }),
-									preview: previewView(fresh),
-								})
-							: philosophyReply({
-									result: submission.reply({ formErrors: [message] }),
-								}),
-					),
-					{ status: 400 },
-				)
-			}
-			const url = new URL(request.url)
-			const from = formatNbDate(
-				new Date(`${switched.fromWeekKey}T12:00:00Z`),
-				'UTC',
-			)
-			return redirectWithToast(
-				`${url.pathname}${url.search}`,
-				lead
-					? {
-							type: 'success',
-							title: TRENINGSFORM_LABELS.done,
-							description: TRENINGSFORM_LABELS.switched(
-								PLAN_LEAD_LABELS.plainName[family],
-								from,
-							),
-						}
-					: {
-							type: 'success',
-							title: PHILOSOPHY_SWITCH_LABELS.done,
-							description: switchedPhilosophySentence(family, from),
-						},
-			)
-		}
+		case 'switch-philosophy':
+			return philosophySwitchAction(userId, request, formData)
 		// The Sesong edits (#505 stories 72–77): preview, then apply.
 		case 'preview-season-edit':
 		case 'apply-season-edit':
 			return seasonEditAction(userId, request, formData)
-		case 'add-strength-track': {
-			const submission = parseWithZod(formData, {
-				schema: StrengthOfferFormSchema,
-			})
-			if (submission.status !== 'success') {
-				return data(
-					{ strengthOffer: { result: submission.reply() } },
-					{ status: 400 },
-				)
-			}
-			const added = await addProposedStrengthTrack(
-				userId,
-				submission.value.outlineId,
-			)
-			if (!added.ok) {
-				return data(
-					{
-						strengthOffer: {
-							result: submission.reply({
-								formErrors: [
-									added.reason === 'no-strength-history'
-										? STRENGTH_OFFER_LABELS.noHistory
-										: trackRefusalMessage(added.reason),
-								],
-							}),
-						},
-					},
-					{ status: 400 },
-				)
-			}
-			const url = new URL(request.url)
-			return redirectWithToast(`${url.pathname}${url.search}`, {
-				type: 'success',
-				title: STRENGTH_OFFER_LABELS.done,
-				description: STRENGTH_OFFER_LABELS.doneDetail,
-			})
-		}
-		case 'delete-plan': {
-			if (!outlineId.success) return refuse(OUTLINE_GONE)
-			const deleted = await deletePlanOutline(userId, {
-				outlineId: outlineId.data,
-			})
-			if (!deleted.ok) return report(deleted)
-			// Home, not back here: this athlete may have no plan left to render, and the
-			// Plan card is where the absence reads honestly.
-			return redirectWithToast('/', {
-				type: 'success',
-				title: SESONG_REFUSAL_LABELS.deleted,
-				description: SESONG_REFUSAL_LABELS.deletedDetail,
-			})
-		}
+		case 'add-strength-track':
+			return strengthOfferAction(userId, request, formData)
 	}
 
 	return refuse(SESONG_REFUSAL_LABELS.unknown)
-}
-
-const PHASE_GONE = SESONG_REFUSAL_LABELS.phaseGone
-const OUTLINE_GONE = SESONG_REFUSAL_LABELS.outlineGone
-const POSITION_UNREADABLE = SESONG_REFUSAL_LABELS.position
-const SHAPE_UNKNOWN = SESONG_REFUSAL_LABELS.shapeUnknown
-/**
- * Each way a fit can be declined, worded. The surface renders no control in any
- * of these states, so every one of them is a posted intent rather than a tap —
- * but each still gets its own sentence, because "nothing to do" and "this needs a
- * decision from you" are different answers.
- */
-function fitRefusalMessage(reason: FitToEventRefusal): string {
-	switch (reason) {
-		case 'outline-not-found':
-			return OUTLINE_GONE
-		case 'no-event':
-			return SESONG_REFUSAL_LABELS.noEvent
-		case 'already-fits':
-			return SESONG_REFUSAL_LABELS.alreadyFits
-		case 'cannot-fit':
-			return SESONG_REFUSAL_LABELS.cannotFit
-	}
-}
-/** An open-ended plan resting behind a plan toward a race (ADR 0079). */
-const PLAN_RESTING = SESONG_REFUSAL_LABELS.planResting
-const PATTERN_GONE = SESONG_REFUSAL_LABELS.patternGone
-/**
- * The one state a starter week declines in: an athlete whose availability says
- * they train on no days at all. Taken at their word rather than overruled — the
- * empty list is a statement they made, and a plan with no tracks cannot reach this
- * surface.
- */
-const NO_STARTER_WEEK = SESONG_REFUSAL_LABELS.noStarterWeek
-const DAY_GONE = SESONG_REFUSAL_LABELS.dayGone
-/**
- * One sentence for a track that is gone, shared by a pattern day, a hand-set week
- * and a lifting block — the same absence, so it must not be worded three times and
- * drift.
- */
-const TRACK_GONE = SESONG_REFUSAL_LABELS.trackGone
-const WEEK_OUTSIDE_PLAN = SESONG_REFUSAL_LABELS.weekOutside
-/**
- * One sentence for a week the plan does not hold, shared by a lifting block's
- * opening and a **Season Anchor** segment's — the same fact about the same span, so
- * it must not be worded twice and drift. It names both ways out, because a week
- * outside the plan has two: pick another, or make the plan reach it.
- */
-const WEEK_NOT_ONE_OF_THE_PLANS = SESONG_REFUSAL_LABELS.weekNotInPlan
-const ANCHOR_GONE = SESONG_REFUSAL_LABELS.anchorGone
-const TRACK_MISSING = SESONG_REFUSAL_LABELS.trackMissing
-const WORKOUT_MISSING = SESONG_REFUSAL_LABELS.workoutMissing
-const DAY_KIND_UNKNOWN = SESONG_REFUSAL_LABELS.dayKindUnknown
-const BLOCK_GONE = SESONG_REFUSAL_LABELS.blockGone
-
-/**
- * Lay the active plan's weeks up to the Planning Horizon that it has not laid
- * yet — what a typical week that just gained its days owes the athlete now that
- * stamping is not their step (round-2 decision 14, ADR 0090). The fill never
- * lays a week the plan already laid, nor a week already begun, and lays only
- * the active plan (a resting one waits). Contained like every relay after a
- * plan write (ADR 0079 S6): the pattern is saved either way, and the week
- * change lays the horizon from the next close on.
- */
-async function fillToHorizon(userId: string): Promise<void> {
-	try {
-		const timezone = await getAthleteTimezone(userId)
-		await fillPlanWeeksToHorizon(userId, timezone, new Date())
-	} catch (error) {
-		console.error('Sesong: filling the weeks to the horizon failed', error)
-	}
-}
-
-/** {@link fillToHorizon} after a pattern day lands, passing its result on. */
-async function fillAfterDay<Result extends { ok: boolean }>(
-	userId: string,
-	result: Result,
-): Promise<Result> {
-	if (result.ok) await fillToHorizon(userId)
-	return result
-}
-
-/** A refusal the athlete reads, at the top of the reading that produced it. */
-function refuse(error: string) {
-	return data({ error }, { status: 400 })
-}
-
-/**
- * A refusal about the **set of tracks**, tagged so it lands beside the roster
- * rather than at the top of whichever reading happens to be open.
- *
- * The roster sits *above* the tabs, so it is the one control on this page whose
- * refusal has nowhere to go: an untagged one would print inside Blocks or Weeks,
- * a scroll away from the button that earned it. `scope` is the smallest thing that
- * fixes that, and the component reads it rather than guessing from the wording.
- */
-function refuseTrack(error: string) {
-	return data({ error, scope: 'track' as const }, { status: 400 })
-}
-
-/**
- * _Bytt filosofi_'s reply, under a key of its own so the page narrows to it:
- * the preview form's result, the confirm form's, and the preview to show.
- */
-function philosophyReply({
-	result = null,
-	confirmResult = null,
-	preview = null,
-}: {
-	result?: SubmissionResult<string[]> | null
-	confirmResult?: SubmissionResult<string[]> | null
-	preview?: PhilosophyPreviewView | null
-}) {
-	return { result, confirmResult, preview }
-}
-
-/** The preview as the page shows it: the diff and its digest, not the rows. */
-function previewView(preview: PhilosophySwitchPreview): PhilosophyPreviewView {
-	const { rows: _rows, edit: _edit, ok: _ok, ...view } = preview
-	return view
-}
-
-/** One track-set refusal, worded (#414). */
-function trackRefusalMessage(
-	reason: AddTrackRefusal | RemoveTrackRefusal,
-): string {
-	switch (reason) {
-		case 'outline-not-found':
-			return OUTLINE_GONE
-		case 'track-not-found':
-			return TRACK_GONE
-		case 'discipline-already-tracked':
-			// The rule, not the constraint: one track per discipline is what the
-			// athlete needs to hear, and the second track they were about to author is
-			// the one they already have (ADR 0043 §1).
-			return SESONG_REFUSAL_LABELS.alreadyTracked
-		case 'last-track':
-			return SESONG_REFUSAL_LABELS.lastTrack
-	}
-}
-
-function firstIssue(error: z.ZodError): string {
-	return error.issues[0]?.message ?? SESONG_REFUSAL_LABELS.badValue
-}
-
-/**
- * One service result, worded. Every refusal is a state the athlete can act on, so
- * each is a sentence and none is an exception; typing the map to the union makes a
- * refusal added later a compile error here rather than a silent catch-all.
- */
-function report(
-	result: { ok: true } | { ok: false; reason: PhaseEditRefusal },
-) {
-	if (result.ok) return { ok: true as const }
-	return refuse(refusalMessage(result.reason))
-}
-
-function refusalMessage(reason: PhaseEditRefusal): string {
-	switch (reason) {
-		case 'outline-not-found':
-			return OUTLINE_GONE
-		case 'phase-not-found':
-			return PHASE_GONE
-		case 'plan-too-long':
-			return SESONG_REFUSAL_LABELS.planTooLong
-		case 'last-phase':
-			return SESONG_REFUSAL_LABELS.lastPhase
-		case 'at-the-edge':
-			// Either end, since one message serves both directions: naming "start" for a
-			// Move later would be the wrong word half the time.
-			return SESONG_REFUSAL_LABELS.phaseAtEdge
-	}
-}
-
-/**
- * One **Week Pattern** service result, worded. A separate pair from `report` above
- * because the two refusal unions are separate vocabularies — a pattern edit can
- * refuse over a day, a track or a Workout, and none of those is a phase — and
- * typing the map to the union makes a refusal added later a compile error here
- * rather than a silent catch-all.
- */
-function reportPattern(
-	result: { ok: true } | { ok: false; reason: WeekPatternEditRefusal },
-) {
-	if (result.ok) return { ok: true as const }
-	return refuse(patternRefusalMessage(result.reason))
-}
-
-function patternRefusalMessage(reason: WeekPatternEditRefusal): string {
-	switch (reason) {
-		case 'outline-gone':
-			return OUTLINE_GONE
-		case 'pattern-gone':
-			return PATTERN_GONE
-		case 'day-gone':
-			return DAY_GONE
-		case 'track-gone':
-			return TRACK_GONE
-		case 'workout-gone':
-			// The Workout, not the day: the day is fine and still there, and what the
-			// athlete has to do is pick a session that still exists.
-			return SESONG_REFUSAL_LABELS.workoutGone
-		case 'workout-discipline-mismatch':
-			// Not an absence: the session exists and is theirs, and it belongs to another
-			// discipline. Said as the domain rule rather than as a validation failure,
-			// because the rule is the reason (ADR 0041, ADR 0043 §5) — a day's volume comes
-			// out of its own track, so a ride cannot spend a run week.
-			return SESONG_REFUSAL_LABELS.workoutMismatch
-		case 'at-the-edge':
-			// One message for patterns and for days, in both directions: a pattern
-			// moves through the plan's list and a day moves within its own weekday, and
-			// naming either end would be the wrong word half the time.
-			return SESONG_REFUSAL_LABELS.atEdge
-	}
-}
-
-/**
- * One **Season Anchor** service result, worded — the pair `reportWeekOverride` is,
- * for a fourth vocabulary: an anchor edit refuses over a *segment*, which is neither
- * a phase, a pattern nor a week. Typing the map to the union makes a refusal added
- * later a compile error here rather than a silent catch-all.
- *
- * Only the **remove** control reports through this. Adding and editing report on
- * the form they were typed into, through `authorSeasonAnchor`.
- */
-function reportAnchor(
-	result: { ok: true } | { ok: false; reason: SeasonAnchorRefusal },
-) {
-	if (result.ok) return { ok: true as const }
-	return refuse(anchorRefusalMessage(result.reason))
-}
-
-/**
- * Each way authoring an anchor segment can be refused, as a sentence about the plan.
- *
- * None of them is about a *unit*, and that absence is the point: a segment carries
- * no unit at all, so there is no state in which the athlete is told they may not
- * change one (ADR 0043, ADR 0044 §8).
- */
-function anchorRefusalMessage(reason: SeasonAnchorRefusal): string {
-	switch (reason) {
-		case 'track-not-found':
-			// The same absence a pattern day and a hand-set week name, so the same
-			// sentence: a row that is not the athlete's reads as gone, not as forbidden.
-			return TRACK_GONE
-		case 'week-outside-plan':
-			return WEEK_NOT_ONE_OF_THE_PLANS
-		case 'anchor-not-found':
-			// Reachable from a stale reading, whose remove control was rendered before
-			// a second tab removed the segment. Nothing was changed.
-			return ANCHOR_GONE
-		case 'earliest-anchor':
-			// Not a permission and not a bug: removing the first segment would leave
-			// every week before the next one with nothing to derive from. Said as what
-			// the athlete can do instead, since both alternatives are on the same card.
-			return SESONG_REFUSAL_LABELS.earliestAnchor
-	}
-}
-
-/**
- * Author one **Season Anchor** segment — added or re-authored, which is the same
- * two fields either way, because a segment *is* its `(from week, value)` pair.
- *
- * Reported through Conform, like the other multi-field forms on this page: the
- * reply carries the intent **and** both handles, so it lands on the one card or the
- * one re-anchor form it answers and leaves every sibling alone. The add form is
- * keyed by the track and an anchor card by the track and its week — see `replyFor`
- * in `__season-anchor-editor.tsx`.
- *
- * `SeasonAnchorSetSchema` is re-parsed here for `authorSegmentRates`' reason: a
- * value the storage schema refuses — zero, a negative, a week key that is not a
- * Monday — reads as a sentence on this form rather than as a throw from the service
- * that re-parses it (ADR 0044 §8). It is `.strict()`, so a body that smuggles a
- * `currency` key in is rejected rather than silently stripped.
- */
-async function authorSeasonAnchor(
-	userId: string,
-	formData: FormData,
-	mode: 'add' | 'set',
-) {
-	const intent =
-		mode === 'add'
-			? ('add-season-anchor' as const)
-			: ('set-season-anchor' as const)
-	const trackId = String(formData.get('trackId') ?? '')
-	// A missing handle is a stale page rather than a typed value, so it is a
-	// sentence at the top of the reading and not an error on a form the row behind
-	// it no longer has.
-	if (trackId === '') return refuse(TRACK_GONE)
-
-	const submission = parseWithZod(formData, { schema: SeasonAnchorFormSchema })
-	// Off the body rather than off the parse, so a rejected submission still
-	// reports on the card it was typed into.
-	const row = {
-		intent,
-		trackId,
-		fromWeekKey: String(formData.get('fromWeekKey') ?? ''),
-	}
-	if (submission.status !== 'success') {
-		return data({ ...row, result: submission.reply() }, { status: 400 })
-	}
-
-	const formErrors = (messages: string[]) =>
-		data(
-			{ ...row, result: submission.reply({ formErrors: messages }) },
-			{ status: 400 },
-		)
-
-	const authored = SeasonAnchorSetSchema.safeParse({
-		trackId,
-		...submission.value,
-	})
-	if (!authored.success) return formErrors(issueMessages(authored.error))
-
-	const saved = await setSeasonAnchorValue(userId, authored.data)
-	if (!saved.ok) return formErrors([anchorRefusalMessage(saved.reason)])
-
-	return { ...row, result: submission.reply() }
-}
-
-/**
- * Copy one week of this plan onto another week of it (#415).
- *
- * The shape the retired stamp had (decision 14): a target week that already
- * holds sessions comes back as a question carrying the counts rather than as an
- * error, and a success redirects because the calendar changed in a way the page
- * cannot state by itself.
- *
- * What is *different* is the one sentence the toast has to carry: a copy is copied as
- * authored. It is not stretched to meet the target week's derived figure, so an
- * athlete who copies a 40 km week onto a 55 km week gets 40 km and the Weeks reading
- * shows it against the 55 (ADR 0040 §1).
- */
-async function copyWeekOnto(
-	userId: string,
-	request: Request,
-	formData: FormData,
-) {
-	const submitted = WeekCopySchema.safeParse({
-		outlineId: formData.get('outlineId'),
-		sourceWeekKey: formData.get('sourceWeekKey'),
-		targetWeekKey: formData.get('targetWeekKey'),
-		replace: checked(formData, 'replace'),
-	})
-	if (!submitted.success) return refuse(firstIssue(submitted.error))
-
-	const copied = await copyWeek(userId, submitted.data)
-	if (!copied.ok) {
-		if (copied.reason !== 'target-week-filled') {
-			return refuse(copyRefusalMessage(copied.reason))
-		}
-		// No `error` key: this is a question, not a refusal to word at the top of the
-		// reading. The panel that renders it is the answer.
-		return data(
-			{
-				copy: {
-					sourceWeekKey: submitted.data.sourceWeekKey,
-					targetWeekKey: submitted.data.targetWeekKey,
-					conflict: copied.conflict,
-				},
-			},
-			{ status: 400 },
-		)
-	}
-
-	const url = new URL(request.url)
-	return redirectWithToast(`${url.pathname}${url.search}`, {
-		type: 'success',
-		title: SESONG_COPY_LABELS.done,
-		description: copySentence(
-			copied.report,
-			submitted.data.sourceWeekKey,
-			submitted.data.targetWeekKey,
-		),
-	})
-}
-
-/**
- * What a copy did, in one sentence — the counts, then the two things the athlete has
- * to know: the weeks are independent, and the copy was not scaled to the week it
- * landed on.
- */
-function copySentence(
-	report: CopyWeekReport,
-	sourceWeekKey: string,
-	targetWeekKey: string,
-): string {
-	const skipped = copySkippedSentence(report.skipped)
-	// The ISO weeks, as every Sesong surface numbers them (audit B6).
-	return `${SESONG_COPY_LABELS.sentence(
-		report.sessions,
-		isoWeekNumber(sourceWeekKey),
-		isoWeekNumber(targetWeekKey),
-		report.replaced,
-	)}${skipped}`
-}
-
-/**
- * The sessions that produced no copy, named by reason — an absence with its cause
- * rather than a silent gap in the count (ADR 0008).
- */
-function copySkippedSentence(skipped: CopyWeekReport['skipped']): string {
-	const reasons = new Set(skipped.map((skip) => skip.reason))
-	const clauses = [...reasons].map((reason) => COPY_SKIP_COPY[reason])
-	return clauses.length === 0 ? '' : ` ${clauses.join(' ')}`
-}
-
-const COPY_SKIP_COPY: Record<CopySkipReason, string> = {
-	'no-prescription': SESONG_COPY_LABELS.noPrescription,
-}
-
-function copyRefusalMessage(
-	reason: Exclude<CopyWeekRefusal, 'target-week-filled'>,
-): string {
-	switch (reason) {
-		case 'plan-resting':
-			return PLAN_RESTING
-		case 'plan-gone':
-			return OUTLINE_GONE
-		case 'week-outside-plan':
-			return WEEK_OUTSIDE_PLAN
-		case 'same-week':
-			return SESONG_REFUSAL_LABELS.sameWeek
-		case 'source-week-empty':
-			return SESONG_REFUSAL_LABELS.sourceEmpty
-		case 'nothing-to-copy':
-			// The week holds sessions, but every one of them is a recording with no
-			// prescription behind it. Named rather than reported as a copy of nothing.
-			return SESONG_REFUSAL_LABELS.nothingToCopy
-	}
-}
-
-/**
- * Author one endurance segment's progression.
- *
- * The reply carries the `segmentId` it belongs to **and the intent it answers**, so a
- * rejected save reports on the card it was typed into and leaves every other form
- * alone — including the *other* form on its own card, since a segment now carries two
- * (the progression and the mix) and a segment id alone can no longer tell them apart.
- * Success needs no redirect: the loader re-runs, and every figure on the page — the
- * derived weeks, the **Season Span**, the guard — is recomputed from the rows that
- * just changed.
- *
- * This one reports through Conform because it is four numeric fields with per-field
- * errors; the structural edits report a sentence, because a rename has one thing to
- * say. Both are reached through `intent`, so the dispatch reads the same either way.
- */
-async function authorSegmentRates(userId: string, formData: FormData) {
-	const submission = parseWithZod(formData, { schema: SegmentFormSchema })
-	if (submission.status !== 'success') {
-		return data(
-			{
-				intent: 'set-segment-rates' as const,
-				segmentId: String(formData.get('segmentId') ?? ''),
-				result: submission.reply(),
-			},
-			{ status: 400 },
-		)
-	}
-
-	// The service's own gate, applied here first so a rate outside the storable
-	// range reports as a form error rather than throwing (ADR 0044 §8: the routes
-	// parse against the same schema the service re-parses).
-	const authored = EnduranceSegmentSetSchema.safeParse(submission.value)
-	if (!authored.success) {
-		return data(
-			{
-				intent: 'set-segment-rates' as const,
-				segmentId: submission.value.segmentId,
-				result: submission.reply({
-					formErrors: authored.error.issues.map((issue) => issue.message),
-				}),
-			},
-			{ status: 400 },
-		)
-	}
-
-	const saved = await setEnduranceSegment(userId, authored.data)
-	if (!saved.ok) {
-		return data(
-			{
-				intent: 'set-segment-rates' as const,
-				segmentId: submission.value.segmentId,
-				result: submission.reply({
-					formErrors: [SESONG_SEGMENT_LABELS.gone],
-				}),
-			},
-			{ status: 400 },
-		)
-	}
-
-	return {
-		intent: 'set-segment-rates' as const,
-		segmentId: submission.value.segmentId,
-		result: submission.reply(),
-	}
-}
-
-/**
- * Author one endurance segment's **Quality Session Mix**.
- *
- * Three fields in, a multiset out: the counts that are blank or `0` are **dropped**
- * rather than stored as zeros, because the mix holds the zones that are *in* it and
- * `QualitySessionMixSetSchema` takes at least one session per entry. Dropping every
- * one of them is a legitimate save — the empty mix, "no quality sessions in this
- * segment" (ADR 0042 §6) — and never a no-op.
- *
- * Nothing derived is written. The **Quality Session Count** and the emphasis label
- * are read back off these rows on the next load (ADR 0042 §4–§5), which is what keeps
- * a segment from being named for work it does not contain.
- *
- * Same reply shape as `authorSegmentRates`, keyed by intent *and* `segmentId`.
- */
-async function authorQualityMix(userId: string, formData: FormData) {
-	const submission = parseWithZod(formData, { schema: MixFormSchema })
-	if (submission.status !== 'success') {
-		return data(
-			{
-				intent: 'set-quality-mix' as const,
-				segmentId: String(formData.get('segmentId') ?? ''),
-				result: submission.reply(),
-			},
-			{ status: 400 },
-		)
-	}
-
-	const entries = QUALITY_ZONES.flatMap((zone) => {
-		const sessionsPerWeek = submission.value[mixFieldName(zone)]
-		return sessionsPerWeek == null || sessionsPerWeek === 0
-			? []
-			: [{ zone, sessionsPerWeek }]
-	})
-
-	// The storage schema, applied at the boundary for the reason `authorSegmentRates`
-	// gives: a count outside the storable range reads as a sentence on the form rather
-	// than as a throw from the service that re-parses it (ADR 0044 §8).
-	const authored = QualitySessionMixSetSchema.safeParse({
-		segmentId: submission.value.segmentId,
-		entries,
-	})
-	if (!authored.success) {
-		return data(
-			{
-				intent: 'set-quality-mix' as const,
-				segmentId: submission.value.segmentId,
-				result: submission.reply({
-					formErrors: authored.error.issues.map((issue) => issue.message),
-				}),
-			},
-			{ status: 400 },
-		)
-	}
-
-	const saved = await setQualitySessionMix(userId, authored.data)
-	if (!saved.ok) {
-		return data(
-			{
-				intent: 'set-quality-mix' as const,
-				segmentId: submission.value.segmentId,
-				result: submission.reply({
-					formErrors: [SESONG_SEGMENT_LABELS.gone],
-				}),
-			},
-			{ status: 400 },
-		)
-	}
-
-	return {
-		intent: 'set-quality-mix' as const,
-		segmentId: submission.value.segmentId,
-		result: submission.reply(),
-	}
-}
-
-/**
- * One strength segment service result, worded. A third pair beside `report` and
- * `reportPattern`, because the three refusal unions are three vocabularies — a
- * lifting block refuses over a *window*, which neither a phase nor a pattern has —
- * and typing the map to the union makes a refusal added later a compile error here
- * rather than a silent catch-all.
- */
-function reportStrength(
-	result: { ok: true } | { ok: false; reason: StrengthSegmentRefusal },
-) {
-	if (result.ok) return { ok: true as const }
-	return refuse(strengthRefusalMessage(result.reason))
-}
-
-/**
- * Each way a lifting block can be refused, as a sentence about the plan.
- *
- * The four placement refusals are worded as facts about the **window** the athlete
- * drew, and each names the edit that resolves it: a block is start-plus-length, so
- * every collision has two ways out and saying only "invalid" would hide both. None
- * of them is a safety claim and none is about volume — the guard warns about that
- * separately and never blocks (ADR 0047 §1).
- */
-function strengthRefusalMessage(reason: StrengthSegmentRefusal): string {
-	switch (reason) {
-		case 'track-not-found':
-			return TRACK_GONE
-		case 'not-a-strength-track':
-			// Not an absence: the track is theirs and it is an endurance one. Said as
-			// the domain rule, because the rule is the reason — an endurance track's
-			// segments span its phases 1:1 and are authored on the phase cards above.
-			return SESONG_REFUSAL_LABELS.notStrengthTrack
-		case 'segment-not-found':
-			return BLOCK_GONE
-		case 'start-week-outside-the-plan':
-			return WEEK_NOT_ONE_OF_THE_PLANS
-		case 'segment-runs-past-the-plan':
-			return SESONG_REFUSAL_LABELS.segmentPastPlan
-		case 'week-already-opens-a-segment':
-			return SESONG_REFUSAL_LABELS.weekOpensSegment
-		case 'segments-overlap':
-			return SESONG_REFUSAL_LABELS.segmentsOverlap
-	}
-}
-
-/**
- * Author one lifting block — added or re-authored, which is the same eight fields
- * either way (ADR 0047 §6: a moved block and a resized one are one action on
- * start-plus-length).
- *
- * **Whole, every time.** `StrengthSegmentSetSchema` rewrites every column including
- * the nulls, because `null` is the athlete choosing the documented convention and
- * clearing an authored number back to it has to be expressible (ADR 0044 §4).
- *
- * Reported through Conform, like the two endurance forms and for the same reason —
- * eight fields with per-field errors. The reply carries the intent **and** both
- * handles, so it lands on the one card or the one add form it answers and leaves
- * every sibling alone.
- */
-async function authorStrengthSegment(
-	userId: string,
-	formData: FormData,
-	mode: 'add' | 'set',
-) {
-	const intent =
-		mode === 'add'
-			? ('add-strength-segment' as const)
-			: ('set-strength-segment' as const)
-	const trackId = String(formData.get('trackId') ?? '')
-	const segmentId = String(formData.get('segmentId') ?? '')
-	// A missing handle is a stale page rather than a typed value, so it is a
-	// sentence at the top of the reading and not a field error on a form the row
-	// behind it no longer has.
-	if (mode === 'add' && trackId === '') return refuse(TRACK_GONE)
-	if (mode === 'set' && segmentId === '') return refuse(BLOCK_GONE)
-
-	const submission = parseWithZod(formData, {
-		schema: StrengthSegmentFormSchema,
-	})
-	if (submission.status !== 'success') {
-		return data(
-			{ intent, trackId, segmentId, result: submission.reply() },
-			{ status: 400 },
-		)
-	}
-	const value = submission.value
-
-	function formErrors(messages: string[]) {
-		return data(
-			{
-				intent,
-				trackId,
-				segmentId,
-				result: submission.reply({ formErrors: messages }),
-			},
-			{ status: 400 },
-		)
-	}
-
-	// The service's own gate, applied here first for `authorSegmentRates`' reason: a
-	// value outside the storable range reads as a sentence on the form rather than
-	// as a throw from the service that re-parses it (ADR 0044 §8).
-	if (mode === 'add') {
-		const authored = StrengthSegmentAddSchema.safeParse({ trackId, ...value })
-		if (!authored.success) return formErrors(issueMessages(authored.error))
-		const saved = await addStrengthSegment(userId, authored.data)
-		if (!saved.ok) return formErrors([strengthRefusalMessage(saved.reason)])
-	} else {
-		const authored = StrengthSegmentSetSchema.safeParse({ segmentId, ...value })
-		if (!authored.success) return formErrors(issueMessages(authored.error))
-		const saved = await setStrengthSegment(userId, authored.data)
-		if (!saved.ok) return formErrors([strengthRefusalMessage(saved.reason)])
-	}
-
-	return { intent, trackId, segmentId, result: submission.reply() }
-}
-
-function issueMessages(error: z.ZodError): string[] {
-	return error.issues.map((issue) => issue.message)
 }
 
 export default function PlanRoute({
@@ -2488,23 +1153,6 @@ function SeasonSpanHeadline({
 			})}
 		</ul>
 	)
-}
-
-/**
- * Where a starter week came from, in one sentence — said once, when it lands.
- *
- * It names the *source* rather than the shape, because the shape is now on the
- * page for the athlete to read: what they cannot see is whether the app read their
- * own availability or fell back to a convention, and that is exactly the claim
- * that must not be left ambiguous.
- */
-function starterSentence(proposal: StarterProposal): string {
-	const days = proposal.weekdays.length
-	const built =
-		proposal.source === 'availability'
-			? SESONG_PATTERN_LABELS.starterFromProfile(days)
-			: SESONG_PATTERN_LABELS.starterFromDefault
-	return SESONG_PATTERN_LABELS.starterTail(built)
 }
 
 /**
