@@ -3663,8 +3663,13 @@ export const WORKOUT_DETAIL_LABELS = {
 		plannedShape: 'Planlagt form',
 		inspectHint:
 			'Dra over grafen for å lese hver kanal — trykk og dra på mobil, hold pekeren over på PC.',
-		plannedRange: (min: number, max: number, unit: string) =>
-			`Planlagt ${min}–${max} ${unit}`,
+		/** A planned target band; an open-ended zone has a floor only. */
+		targetRange: (min: number, max: number | null) =>
+			max != null ? `${min}–${max}` : `over ${min}`,
+		plannedRange: (min: number, max: number | null, unit: string) =>
+			max != null
+				? `Planlagt ${min}–${max} ${unit}`
+				: `Planlagt over ${min} ${unit}`,
 		missing: 'mangler',
 		tableCaption:
 			'Data fra opptaket, et utvalg gjennom økta, fra start til slutt.',
