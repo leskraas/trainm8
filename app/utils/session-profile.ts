@@ -106,8 +106,9 @@ export function zoneLabelToZone(label: string): TrainingZone | null {
 		case 'lett':
 		case 'restitusjon':
 		case 'recovery':
-		case 'easy':
 			return 1
+		// `easy` is zone 2, as Daniels' `E` band ("easy") declares (#607).
+		case 'easy':
 		case 'rolig':
 		case 'zone2':
 		case 'endurance':

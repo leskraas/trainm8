@@ -278,8 +278,8 @@ function bandRange(profile: DisciplineProfileForResolver, label: string) {
 }
 
 // Canonical label → the band each default recipe reads it as, through the
-// band's declared zone. Daniels declares no zone 1, so Z1 and `easy` land on E
-// as a named substitution.
+// band's declared zone. Daniels declares no zone 1, so Z1 lands on E as a
+// named substitution. `easy` is zone 2 (#607).
 const canonicalCases: Array<{
 	profile: DisciplineProfileForResolver
 	cases: Array<[label: string, band: string]>
@@ -307,7 +307,7 @@ const canonicalCases: Array<{
 			['Z3', 'Z3'],
 			['Z4', 'Z4'],
 			['Z5', 'Z5'],
-			['easy', 'Z1'],
+			['easy', 'Z2'],
 			['endurance', 'Z2'],
 			['tempo', 'Z3'],
 			['threshold', 'Z4'],
@@ -322,7 +322,7 @@ const canonicalCases: Array<{
 			['Z3', 'Z3'],
 			['Z4', 'Z4'],
 			['Z5', 'Z5'],
-			['easy', 'Z1'],
+			['easy', 'Z2'],
 			['endurance', 'Z2'],
 			['tempo', 'Z3'],
 			['threshold', 'Z4'],

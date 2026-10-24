@@ -679,7 +679,8 @@ describe('rule 7: planned rows are instructions', () => {
 			),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBe('42 TSS planlagt')
+		// 9 km at 5:25–5:40 /km is timed through its pace (#615).
+		expect(content.externalLoad).toBe('50 min · 42 TSS planlagt')
 		expect(content.internalLoad).toBe('9 km i 5:25–5:40 /km · under 145 bpm')
 	})
 
@@ -696,6 +697,33 @@ describe('rule 7: planned rows are instructions', () => {
 			PLANNED_WEEK,
 		)
 		expect(content.internalLoad).toBe('8 km i 4:00 /km')
+	})
+
+	test("a swim's pace target, stored per km, reads per 100 m", () => {
+		// 1:40 /100m is stored as 1000 s/km (#613); read raw it would be 16:40.
+		const content = buildRowContent(
+			plannedRow(
+				workout(
+					[
+						block(
+							[
+								step({
+									discipline: 'swim',
+									distanceM: 100,
+									intensity: pace(1000),
+								}),
+							],
+							{ repeatCount: 10 },
+						),
+					],
+					{ discipline: 'swim' },
+				),
+				{ discipline: 'swim' },
+			),
+			PLANNED_WEEK,
+		)
+		expect(content.internalLoad).toContain('1:40 /100m')
+		expect(content.internalLoad).not.toContain('16:40')
 	})
 
 	test('a single-bound pace target reads as one pace', () => {

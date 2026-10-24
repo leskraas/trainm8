@@ -347,7 +347,13 @@ baking path does exist, `deriveMetricTarget`, which resolves the per-discipline
 default (run → threshold pace, bike → `%FTP`) into a stored metric target and
 falls back to the Training Zone label when no threshold resolves it; its only
 live caller is the seed script, since **Plan Generation**, its other intended
-caller, was deleted (ADR 0044). _Avoid_: Zone target, effort
+caller, was deleted (ADR 0044). A zone the app writes for the athlete — the
+writing line's typed zone, the day stamp, an eased session — is stored as its
+canonical Norwegian zone word (_lett_, _rolig_, _moderat_, _terskel_, _hardt_),
+never as a zone code: a code such as `Z2` is a recipe's band label and names a
+different zone on another recipe (Stryd's `Z2` is zone 3). `easy` is zone 2, as
+the Daniels band of that name declares. A stored label is never rewritten
+(ADR 0089, amended by #627). _Avoid_: Zone target, effort
 
 **Lactate Anchor**: A prescription in **blood lactate** (mmol·L⁻¹) — the
 Norwegian sub-threshold tradition's defining parameter, and the arm of the

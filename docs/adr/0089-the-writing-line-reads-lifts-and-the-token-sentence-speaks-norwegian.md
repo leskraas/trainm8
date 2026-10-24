@@ -113,6 +113,18 @@ in Norwegian where it is an English word (`easy` → _Rolig_, `threshold` →
 _Terskel_); a zone code (`Z2`, `I4`) and a Norwegian word pass through as
 stored.
 
+> **Amended by [#627](https://github.com/leskraas/trainm8/issues/627) (map
+> #600, decided in #607 D5): a zone the app writes is stored as its word.** The
+> writing line, the day stamp and an eased session store a zone as its canonical
+> Norwegian word (`lett`, `rolig`, `moderat`, `terskel`, `hardt`, from
+> `zones/words.ts`), never as a canonical code. A code is a recipe's band label:
+> stored `Z2` on `stryd-run-power-5` is that recipe's zone 3, and a typed
+> `moderat` stored as `Z3` read as `css-3`'s threshold band. The word is read
+> through the band the recipe **declares** for its zone. `easy` is zone 2, as
+> Daniels' `E` declares. A `Z4` typed on the writing line is read as the
+> canonical zone 4 and stored as `terskel`. What was stored before keeps its
+> label and is never rewritten. Everything else in the paragraph below stands.
+
 **Nothing stored changes.** A rest is a `RestSpec`, a zone is its stored label,
 a session's title is what the athlete typed, and the writing line's grammar
 still reads `p`, `pause` and `hvile`. The words are display, which is why one

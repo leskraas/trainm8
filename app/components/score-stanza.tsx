@@ -1,4 +1,5 @@
 import { Fragment, type HTMLAttributes, type ReactNode } from 'react'
+import { TOKEN_SENTENCE_WORDS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type TrainingZone } from '#app/utils/session-profile.ts'
 import {
@@ -299,11 +300,11 @@ function IntensityChip({
 }
 
 /** A rest token split into its value and word inks: `1 min` weighs, `pause`
- * (ADR 0089) recedes. */
+ * (ADR 0089) recedes. The word is the one the notation writes. */
 function restParts(text: string): { value: string | null; word: string } {
-	const match = /^(.*)\s+pause$/.exec(text)
-	return match
-		? { value: match[1]!, word: 'pause' }
+	const word = TOKEN_SENTENCE_WORDS.rest
+	return text.endsWith(` ${word}`)
+		? { value: text.slice(0, -(word.length + 1)), word }
 		: { value: null, word: text }
 }
 

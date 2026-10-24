@@ -83,7 +83,7 @@ test('maps the legacy intensity vocabulary to zones', () => {
 		),
 	)
 
-	expect(bars.map((b) => b.zone)).toEqual([1, 2, 3, 4, 5])
+	expect(bars.map((b) => b.zone)).toEqual([2, 2, 3, 4, 5])
 })
 
 test('maps structured zoneLabel targets (Z1–Z7) to zones, clamping above Z5', () => {
@@ -203,7 +203,7 @@ test('expands block repetition and carries step duration as bar weight', () => {
 	)
 
 	expect(bars).toHaveLength(6)
-	expect(bars.map((b) => b.zone)).toEqual([4, 1, 4, 1, 4, 1])
+	expect(bars.map((b) => b.zone)).toEqual([4, 2, 4, 2, 4, 2])
 	expect(bars.map((b) => b.durationSec)).toEqual([180, 60, 180, 60, 180, 60])
 })
 
