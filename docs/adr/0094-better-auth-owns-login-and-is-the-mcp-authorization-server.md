@@ -36,12 +36,14 @@ URL loops through the public URL, and two upstream bugs are open.
   `@better-auth/passkey`, `admin` and the GitHub social provider.
 - **Exact pins**, no carets: `better-auth`, `@better-auth/core`,
   `@better-auth/passkey`, `@better-auth/prisma-adapter` and the CLI `auth` at
-  `1.7.12`; `better-call` `1.4.4`; `@better-fetch/fetch` `1.3.2`;
-  `@better-auth/utils` `0.5.0`. An upgrade is its own PR that reads the release
-  notes and regenerates the schema (§8 R6).
+  `1.7.12` (Phase 2 adds `@better-auth/mcp`, `@better-auth/oauth-provider` and
+  the CIMD plugin package, pinned at the same version, as in the spike);
+  `better-call` `1.4.4`; `@better-fetch/fetch` `1.3.2`; `@better-auth/utils`
+  `0.5.0`. An upgrade is its own PR that reads the release notes and regenerates
+  the schema (§8 R6).
 - **`getUserId`, `requireUserId`, `requireAnonymous` and `requireUserWithRole`
   keep their signatures.** They read `auth.api.getSession({ headers })` instead
-  of `en_session`; the ~70 callers do not change.
+  of `en_session`; the ~90 files that call them (139 call sites) do not change.
 - **One login cutover.** Sessions cannot carry over, so every athlete signs in
   once more on cutover day. No dual-read of `en_session` after the cutover: a
   second session system is a second thing to revoke.
