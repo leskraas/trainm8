@@ -45,7 +45,10 @@
 																	"type": "string"
 																}
 															},
-															"required": ["name", "date"],
+															"required": [
+																"name",
+																"date"
+															],
 															"additionalProperties": false
 														},
 														{
@@ -54,7 +57,11 @@
 													]
 												}
 											},
-											"required": ["name", "openEnded", "event"],
+											"required": [
+												"name",
+												"openEnded",
+												"event"
+											],
 											"additionalProperties": false
 										},
 										{
@@ -83,7 +90,12 @@
 														},
 														"currency": {
 															"type": "string",
-															"enum": ["km", "hours", "tss", "sets"]
+															"enum": [
+																"km",
+																"hours",
+																"tss",
+																"sets"
+															]
 														},
 														"target": {
 															"oneOf": [
@@ -98,7 +110,10 @@
 																			"type": "number"
 																		}
 																	},
-																	"required": ["status", "value"],
+																	"required": [
+																		"status",
+																		"value"
+																	],
 																	"additionalProperties": false
 																},
 																{
@@ -159,7 +174,11 @@
 																			}
 																		}
 																	},
-																	"required": ["status", "reason", "label"],
+																	"required": [
+																		"status",
+																		"reason",
+																		"label"
+																	],
 																	"additionalProperties": false
 																}
 															]
@@ -177,7 +196,10 @@
 																			"type": "number"
 																		}
 																	},
-																	"required": ["status", "value"],
+																	"required": [
+																		"status",
+																		"value"
+																	],
 																	"additionalProperties": false
 																},
 																{
@@ -238,7 +260,11 @@
 																			}
 																		}
 																	},
-																	"required": ["status", "reason", "label"],
+																	"required": [
+																		"status",
+																		"reason",
+																		"label"
+																	],
 																	"additionalProperties": false
 																}
 															]
@@ -256,7 +282,10 @@
 																			"type": "number"
 																		}
 																	},
-																	"required": ["status", "value"],
+																	"required": [
+																		"status",
+																		"value"
+																	],
 																	"additionalProperties": false
 																},
 																{
@@ -317,7 +346,11 @@
 																			}
 																		}
 																	},
-																	"required": ["status", "reason", "label"],
+																	"required": [
+																		"status",
+																		"reason",
+																		"label"
+																	],
 																	"additionalProperties": false
 																}
 															]
@@ -334,12 +367,19 @@
 												}
 											}
 										},
-										"required": ["weekKey", "phase", "tracks"],
+										"required": [
+											"weekKey",
+											"phase",
+											"tracks"
+										],
 										"additionalProperties": false
 									}
 								}
 							},
-							"required": ["plan", "weeks"],
+							"required": [
+								"plan",
+								"weeks"
+							],
 							"additionalProperties": false
 						},
 						"undo": {
@@ -352,7 +392,10 @@
 									"type": "string"
 								}
 							},
-							"required": ["handle", "expiresAt"],
+							"required": [
+								"handle",
+								"expiresAt"
+							],
 							"additionalProperties": false
 						},
 						"link": {
@@ -365,18 +408,28 @@
 								"properties": {
 									"platform": {
 										"type": "string",
-										"enum": ["garmin", "polar"]
+										"enum": [
+											"garmin",
+											"polar"
+										]
 									},
 									"text": {
 										"type": "string"
 									}
 								},
-								"required": ["platform", "text"],
+								"required": [
+									"platform",
+									"text"
+								],
 								"additionalProperties": false
 							}
 						}
 					},
-					"required": ["outcome", "value", "credits"],
+					"required": [
+						"outcome",
+						"value",
+						"credits"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -396,7 +449,11 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "proposalIds", "link"],
+					"required": [
+						"outcome",
+						"proposalIds",
+						"link"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -433,7 +490,12 @@
 						},
 						"next": {
 							"type": "string",
-							"enum": ["fix-input", "ask-athlete", "reread", "stop"]
+							"enum": [
+								"fix-input",
+								"ask-athlete",
+								"reread",
+								"stop"
+							]
 						},
 						"message": {
 							"type": "string"
@@ -442,7 +504,12 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "code", "next", "message"],
+					"required": [
+						"outcome",
+						"code",
+						"next",
+						"message"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -454,10 +521,17 @@
 						},
 						"reason": {
 							"type": "string",
-							"enum": ["rate-limited", "switched-off", "internal"]
+							"enum": [
+								"rate-limited",
+								"switched-off",
+								"internal"
+							]
 						}
 					},
-					"required": ["outcome", "reason"],
+					"required": [
+						"outcome",
+						"reason"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -471,7 +545,10 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "message"],
+					"required": [
+						"outcome",
+						"message"
+					],
 					"additionalProperties": false
 				}
 			]
@@ -495,7 +572,9 @@
 					"minLength": 1
 				}
 			},
-			"required": ["sessionId"]
+			"required": [
+				"sessionId"
+			]
 		},
 		"outputSchema": {
 			"type": "object",
@@ -534,7 +613,10 @@
 													"maxLength": 2000
 												}
 											},
-											"required": ["by", "text"],
+											"required": [
+												"by",
+												"text"
+											],
 											"additionalProperties": false
 										},
 										{
@@ -544,11 +626,19 @@
 								},
 								"status": {
 									"type": "string",
-									"enum": ["planned", "done", "missed", "recording-only"]
+									"enum": [
+										"planned",
+										"done",
+										"missed",
+										"recording-only"
+									]
 								},
 								"owner": {
 									"type": "string",
-									"enum": ["athlete", "machine"]
+									"enum": [
+										"athlete",
+										"machine"
+									]
 								},
 								"planned": {
 									"type": "object",
@@ -566,7 +656,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -627,7 +720,11 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
@@ -645,7 +742,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -706,7 +806,11 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
@@ -724,7 +828,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -785,13 +892,21 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
 										}
 									},
-									"required": ["durationS", "distanceM", "tss"],
+									"required": [
+										"durationS",
+										"distanceM",
+										"tss"
+									],
 									"additionalProperties": false
 								},
 								"actual": {
@@ -810,7 +925,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -871,7 +989,11 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
@@ -889,7 +1011,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -950,7 +1075,11 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
@@ -968,7 +1097,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -1029,13 +1161,21 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
 										}
 									},
-									"required": ["durationS", "distanceM", "tss"],
+									"required": [
+										"durationS",
+										"distanceM",
+										"tss"
+									],
 									"additionalProperties": false
 								},
 								"link": {
@@ -1060,7 +1200,10 @@
 																	"maxLength": 2000
 																}
 															},
-															"required": ["by", "text"],
+															"required": [
+																"by",
+																"text"
+															],
 															"additionalProperties": false
 														},
 														{
@@ -1086,7 +1229,10 @@
 																				"type": "number"
 																			}
 																		},
-																		"required": ["status", "value"],
+																		"required": [
+																			"status",
+																			"value"
+																		],
 																		"additionalProperties": false
 																	},
 																	{
@@ -1147,7 +1293,11 @@
 																				}
 																			}
 																		},
-																		"required": ["status", "reason", "label"],
+																		"required": [
+																			"status",
+																			"reason",
+																			"label"
+																		],
 																		"additionalProperties": false
 																	}
 																]
@@ -1161,7 +1311,10 @@
 																			"type": "string"
 																		},
 																		"intensity": {
-																			"type": ["string", "null"]
+																			"type": [
+																				"string",
+																				"null"
+																			]
 																		},
 																		"durationS": {
 																			"oneOf": [
@@ -1176,7 +1329,10 @@
 																							"type": "number"
 																						}
 																					},
-																					"required": ["status", "value"],
+																					"required": [
+																						"status",
+																						"value"
+																					],
 																					"additionalProperties": false
 																				},
 																				{
@@ -1259,7 +1415,10 @@
 																							"type": "number"
 																						}
 																					},
-																					"required": ["status", "value"],
+																					"required": [
+																						"status",
+																						"value"
+																					],
 																					"additionalProperties": false
 																				},
 																				{
@@ -1342,7 +1501,10 @@
 																							"type": "number"
 																						}
 																					},
-																					"required": ["status", "value"],
+																					"required": [
+																						"status",
+																						"value"
+																					],
 																					"additionalProperties": false
 																				},
 																				{
@@ -1424,12 +1586,18 @@
 																}
 															}
 														},
-														"required": ["repeatCount", "steps"],
+														"required": [
+															"repeatCount",
+															"steps"
+														],
 														"additionalProperties": false
 													}
 												}
 											},
-											"required": ["title", "blocks"],
+											"required": [
+												"title",
+												"blocks"
+											],
 											"additionalProperties": false
 										},
 										{
@@ -1460,10 +1628,16 @@
 													]
 												},
 												"device": {
-													"type": ["string", "null"]
+													"type": [
+														"string",
+														"null"
+													]
 												}
 											},
-											"required": ["originPlatform", "device"],
+											"required": [
+												"originPlatform",
+												"device"
+											],
 											"additionalProperties": false
 										},
 										{
@@ -1484,7 +1658,10 @@
 													"type": "number"
 												}
 											},
-											"required": ["status", "value"],
+											"required": [
+												"status",
+												"value"
+											],
 											"additionalProperties": false
 										},
 										{
@@ -1545,7 +1722,11 @@
 													}
 												}
 											},
-											"required": ["status", "reason", "label"],
+											"required": [
+												"status",
+												"reason",
+												"label"
+											],
 											"additionalProperties": false
 										}
 									]
@@ -1564,7 +1745,10 @@
 													"maxLength": 2000
 												}
 											},
-											"required": ["by", "text"],
+											"required": [
+												"by",
+												"text"
+											],
 											"additionalProperties": false
 										},
 										{
@@ -1600,7 +1784,10 @@
 									"type": "string"
 								}
 							},
-							"required": ["handle", "expiresAt"],
+							"required": [
+								"handle",
+								"expiresAt"
+							],
 							"additionalProperties": false
 						},
 						"link": {
@@ -1613,18 +1800,28 @@
 								"properties": {
 									"platform": {
 										"type": "string",
-										"enum": ["garmin", "polar"]
+										"enum": [
+											"garmin",
+											"polar"
+										]
 									},
 									"text": {
 										"type": "string"
 									}
 								},
-								"required": ["platform", "text"],
+								"required": [
+									"platform",
+									"text"
+								],
 								"additionalProperties": false
 							}
 						}
 					},
-					"required": ["outcome", "value", "credits"],
+					"required": [
+						"outcome",
+						"value",
+						"credits"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -1644,7 +1841,11 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "proposalIds", "link"],
+					"required": [
+						"outcome",
+						"proposalIds",
+						"link"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -1681,7 +1882,12 @@
 						},
 						"next": {
 							"type": "string",
-							"enum": ["fix-input", "ask-athlete", "reread", "stop"]
+							"enum": [
+								"fix-input",
+								"ask-athlete",
+								"reread",
+								"stop"
+							]
 						},
 						"message": {
 							"type": "string"
@@ -1690,7 +1896,12 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "code", "next", "message"],
+					"required": [
+						"outcome",
+						"code",
+						"next",
+						"message"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -1702,10 +1913,17 @@
 						},
 						"reason": {
 							"type": "string",
-							"enum": ["rate-limited", "switched-off", "internal"]
+							"enum": [
+								"rate-limited",
+								"switched-off",
+								"internal"
+							]
 						}
 					},
-					"required": ["outcome", "reason"],
+					"required": [
+						"outcome",
+						"reason"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -1719,7 +1937,10 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "message"],
+					"required": [
+						"outcome",
+						"message"
+					],
 					"additionalProperties": false
 				}
 			]
@@ -1743,7 +1964,9 @@
 					"minLength": 1
 				}
 			},
-			"required": ["sessionId"]
+			"required": [
+				"sessionId"
+			]
 		},
 		"outputSchema": {
 			"type": "object",
@@ -1775,7 +1998,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -1836,7 +2062,11 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
@@ -1854,7 +2084,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -1915,13 +2148,20 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
 										}
 									},
-									"required": ["planned", "actual"],
+									"required": [
+										"planned",
+										"actual"
+									],
 									"additionalProperties": false
 								},
 								"durationS": {
@@ -1940,7 +2180,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -2001,7 +2244,11 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
@@ -2019,7 +2266,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -2080,13 +2330,20 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
 										}
 									},
-									"required": ["planned", "actual"],
+									"required": [
+										"planned",
+										"actual"
+									],
 									"additionalProperties": false
 								},
 								"distanceM": {
@@ -2105,7 +2362,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -2166,7 +2426,11 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
@@ -2184,7 +2448,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -2245,13 +2512,20 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
 										}
 									},
-									"required": ["planned", "actual"],
+									"required": [
+										"planned",
+										"actual"
+									],
 									"additionalProperties": false
 								},
 								"band": {
@@ -2265,10 +2539,17 @@
 												},
 												"value": {
 													"type": "string",
-													"enum": ["under", "on-target", "over"]
+													"enum": [
+														"under",
+														"on-target",
+														"over"
+													]
 												}
 											},
-											"required": ["status", "value"],
+											"required": [
+												"status",
+												"value"
+											],
 											"additionalProperties": false
 										},
 										{
@@ -2329,7 +2610,11 @@
 													}
 												}
 											},
-											"required": ["status", "reason", "label"],
+											"required": [
+												"status",
+												"reason",
+												"label"
+											],
 											"additionalProperties": false
 										}
 									]
@@ -2345,10 +2630,16 @@
 												},
 												"value": {
 													"type": "string",
-													"enum": ["as-prescribed", "diverged"]
+													"enum": [
+														"as-prescribed",
+														"diverged"
+													]
 												}
 											},
-											"required": ["status", "value"],
+											"required": [
+												"status",
+												"value"
+											],
 											"additionalProperties": false
 										},
 										{
@@ -2409,7 +2700,11 @@
 													}
 												}
 											},
-											"required": ["status", "reason", "label"],
+											"required": [
+												"status",
+												"reason",
+												"label"
+											],
 											"additionalProperties": false
 										}
 									]
@@ -2441,7 +2736,10 @@
 																			"type": "number"
 																		}
 																	},
-																	"required": ["status", "value"],
+																	"required": [
+																		"status",
+																		"value"
+																	],
 																	"additionalProperties": false
 																},
 																{
@@ -2502,7 +2800,11 @@
 																			}
 																		}
 																	},
-																	"required": ["status", "reason", "label"],
+																	"required": [
+																		"status",
+																		"reason",
+																		"label"
+																	],
 																	"additionalProperties": false
 																}
 															]
@@ -2520,7 +2822,10 @@
 																			"type": "number"
 																		}
 																	},
-																	"required": ["status", "value"],
+																	"required": [
+																		"status",
+																		"value"
+																	],
 																	"additionalProperties": false
 																},
 																{
@@ -2581,17 +2886,28 @@
 																			}
 																		}
 																	},
-																	"required": ["status", "reason", "label"],
+																	"required": [
+																		"status",
+																		"reason",
+																		"label"
+																	],
 																	"additionalProperties": false
 																}
 															]
 														}
 													},
-													"required": ["tss", "durationS"],
+													"required": [
+														"tss",
+														"durationS"
+													],
 													"additionalProperties": false
 												}
 											},
-											"required": ["sessionId", "date", "deltas"],
+											"required": [
+												"sessionId",
+												"date",
+												"deltas"
+											],
 											"additionalProperties": false
 										},
 										{
@@ -2620,7 +2936,10 @@
 									"type": "string"
 								}
 							},
-							"required": ["handle", "expiresAt"],
+							"required": [
+								"handle",
+								"expiresAt"
+							],
 							"additionalProperties": false
 						},
 						"link": {
@@ -2633,18 +2952,28 @@
 								"properties": {
 									"platform": {
 										"type": "string",
-										"enum": ["garmin", "polar"]
+										"enum": [
+											"garmin",
+											"polar"
+										]
 									},
 									"text": {
 										"type": "string"
 									}
 								},
-								"required": ["platform", "text"],
+								"required": [
+									"platform",
+									"text"
+								],
 								"additionalProperties": false
 							}
 						}
 					},
-					"required": ["outcome", "value", "credits"],
+					"required": [
+						"outcome",
+						"value",
+						"credits"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -2664,7 +2993,11 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "proposalIds", "link"],
+					"required": [
+						"outcome",
+						"proposalIds",
+						"link"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -2701,7 +3034,12 @@
 						},
 						"next": {
 							"type": "string",
-							"enum": ["fix-input", "ask-athlete", "reread", "stop"]
+							"enum": [
+								"fix-input",
+								"ask-athlete",
+								"reread",
+								"stop"
+							]
 						},
 						"message": {
 							"type": "string"
@@ -2710,7 +3048,12 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "code", "next", "message"],
+					"required": [
+						"outcome",
+						"code",
+						"next",
+						"message"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -2722,10 +3065,17 @@
 						},
 						"reason": {
 							"type": "string",
-							"enum": ["rate-limited", "switched-off", "internal"]
+							"enum": [
+								"rate-limited",
+								"switched-off",
+								"internal"
+							]
 						}
 					},
-					"required": ["outcome", "reason"],
+					"required": [
+						"outcome",
+						"reason"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -2739,7 +3089,10 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "message"],
+					"required": [
+						"outcome",
+						"message"
+					],
 					"additionalProperties": false
 				}
 			]
@@ -2804,7 +3157,10 @@
 																"maxLength": 2000
 															}
 														},
-														"required": ["by", "text"],
+														"required": [
+															"by",
+															"text"
+														],
 														"additionalProperties": false
 													},
 													{
@@ -2814,11 +3170,19 @@
 											},
 											"status": {
 												"type": "string",
-												"enum": ["planned", "done", "missed", "recording-only"]
+												"enum": [
+													"planned",
+													"done",
+													"missed",
+													"recording-only"
+												]
 											},
 											"owner": {
 												"type": "string",
-												"enum": ["athlete", "machine"]
+												"enum": [
+													"athlete",
+													"machine"
+												]
 											},
 											"planned": {
 												"type": "object",
@@ -2836,7 +3200,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -2897,7 +3264,11 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
@@ -2915,7 +3286,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -2976,7 +3350,11 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
@@ -2994,7 +3372,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -3055,13 +3436,21 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
 													}
 												},
-												"required": ["durationS", "distanceM", "tss"],
+												"required": [
+													"durationS",
+													"distanceM",
+													"tss"
+												],
 												"additionalProperties": false
 											},
 											"actual": {
@@ -3080,7 +3469,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -3141,7 +3533,11 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
@@ -3159,7 +3555,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -3220,7 +3619,11 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
@@ -3238,7 +3641,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -3299,13 +3705,21 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
 													}
 												},
-												"required": ["durationS", "distanceM", "tss"],
+												"required": [
+													"durationS",
+													"distanceM",
+													"tss"
+												],
 												"additionalProperties": false
 											},
 											"link": {
@@ -3342,7 +3756,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -3403,7 +3820,11 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
@@ -3421,7 +3842,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -3482,7 +3906,11 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
@@ -3500,7 +3928,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -3561,13 +3992,21 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
 										}
 									},
-									"required": ["ctl", "atl", "tsb"],
+									"required": [
+										"ctl",
+										"atl",
+										"tsb"
+									],
 									"additionalProperties": false
 								},
 								"week": {
@@ -3583,7 +4022,12 @@
 													},
 													"currency": {
 														"type": "string",
-														"enum": ["km", "hours", "tss", "sets"]
+														"enum": [
+															"km",
+															"hours",
+															"tss",
+															"sets"
+														]
 													},
 													"target": {
 														"oneOf": [
@@ -3598,7 +4042,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -3659,7 +4106,11 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
@@ -3677,7 +4128,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -3738,7 +4192,11 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
@@ -3756,7 +4214,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -3817,7 +4278,11 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
@@ -3834,7 +4299,9 @@
 											}
 										}
 									},
-									"required": ["tracks"],
+									"required": [
+										"tracks"
+									],
 									"additionalProperties": false
 								},
 								"openProposals": {
@@ -3850,7 +4317,10 @@
 													"type": "number"
 												}
 											},
-											"required": ["status", "value"],
+											"required": [
+												"status",
+												"value"
+											],
 											"additionalProperties": false
 										},
 										{
@@ -3911,13 +4381,23 @@
 													}
 												}
 											},
-											"required": ["status", "reason", "label"],
+											"required": [
+												"status",
+												"reason",
+												"label"
+											],
 											"additionalProperties": false
 										}
 									]
 								}
 							},
-							"required": ["date", "sessions", "load", "week", "openProposals"],
+							"required": [
+								"date",
+								"sessions",
+								"load",
+								"week",
+								"openProposals"
+							],
 							"additionalProperties": false
 						},
 						"undo": {
@@ -3930,7 +4410,10 @@
 									"type": "string"
 								}
 							},
-							"required": ["handle", "expiresAt"],
+							"required": [
+								"handle",
+								"expiresAt"
+							],
 							"additionalProperties": false
 						},
 						"link": {
@@ -3943,18 +4426,28 @@
 								"properties": {
 									"platform": {
 										"type": "string",
-										"enum": ["garmin", "polar"]
+										"enum": [
+											"garmin",
+											"polar"
+										]
 									},
 									"text": {
 										"type": "string"
 									}
 								},
-								"required": ["platform", "text"],
+								"required": [
+									"platform",
+									"text"
+								],
 								"additionalProperties": false
 							}
 						}
 					},
-					"required": ["outcome", "value", "credits"],
+					"required": [
+						"outcome",
+						"value",
+						"credits"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -3974,7 +4467,11 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "proposalIds", "link"],
+					"required": [
+						"outcome",
+						"proposalIds",
+						"link"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -4011,7 +4508,12 @@
 						},
 						"next": {
 							"type": "string",
-							"enum": ["fix-input", "ask-athlete", "reread", "stop"]
+							"enum": [
+								"fix-input",
+								"ask-athlete",
+								"reread",
+								"stop"
+							]
 						},
 						"message": {
 							"type": "string"
@@ -4020,7 +4522,12 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "code", "next", "message"],
+					"required": [
+						"outcome",
+						"code",
+						"next",
+						"message"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -4032,10 +4539,17 @@
 						},
 						"reason": {
 							"type": "string",
-							"enum": ["rate-limited", "switched-off", "internal"]
+							"enum": [
+								"rate-limited",
+								"switched-off",
+								"internal"
+							]
 						}
 					},
-					"required": ["outcome", "reason"],
+					"required": [
+						"outcome",
+						"reason"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -4049,7 +4563,10 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "message"],
+					"required": [
+						"outcome",
+						"message"
+					],
 					"additionalProperties": false
 				}
 			]
@@ -4074,7 +4591,9 @@
 					"maximum": 26
 				}
 			},
-			"required": ["weeks"]
+			"required": [
+				"weeks"
+			]
 		},
 		"outputSchema": {
 			"type": "object",
@@ -4111,7 +4630,10 @@
 																"type": "number"
 															}
 														},
-														"required": ["status", "value"],
+														"required": [
+															"status",
+															"value"
+														],
 														"additionalProperties": false
 													},
 													{
@@ -4172,7 +4694,11 @@
 																}
 															}
 														},
-														"required": ["status", "reason", "label"],
+														"required": [
+															"status",
+															"reason",
+															"label"
+														],
 														"additionalProperties": false
 													}
 												]
@@ -4190,7 +4716,10 @@
 																"type": "number"
 															}
 														},
-														"required": ["status", "value"],
+														"required": [
+															"status",
+															"value"
+														],
 														"additionalProperties": false
 													},
 													{
@@ -4251,7 +4780,11 @@
 																}
 															}
 														},
-														"required": ["status", "reason", "label"],
+														"required": [
+															"status",
+															"reason",
+															"label"
+														],
 														"additionalProperties": false
 													}
 												]
@@ -4269,7 +4802,10 @@
 																"type": "number"
 															}
 														},
-														"required": ["status", "value"],
+														"required": [
+															"status",
+															"value"
+														],
 														"additionalProperties": false
 													},
 													{
@@ -4330,7 +4866,11 @@
 																}
 															}
 														},
-														"required": ["status", "reason", "label"],
+														"required": [
+															"status",
+															"reason",
+															"label"
+														],
 														"additionalProperties": false
 													}
 												]
@@ -4348,7 +4888,10 @@
 																"type": "number"
 															}
 														},
-														"required": ["status", "value"],
+														"required": [
+															"status",
+															"value"
+														],
 														"additionalProperties": false
 													},
 													{
@@ -4409,13 +4952,23 @@
 																}
 															}
 														},
-														"required": ["status", "reason", "label"],
+														"required": [
+															"status",
+															"reason",
+															"label"
+														],
 														"additionalProperties": false
 													}
 												]
 											}
 										},
-										"required": ["date", "tss", "ctl", "atl", "tsb"],
+										"required": [
+											"date",
+											"tss",
+											"ctl",
+											"atl",
+											"tsb"
+										],
 										"additionalProperties": false
 									}
 								},
@@ -4440,7 +4993,10 @@
 																"type": "number"
 															}
 														},
-														"required": ["status", "value"],
+														"required": [
+															"status",
+															"value"
+														],
 														"additionalProperties": false
 													},
 													{
@@ -4501,7 +5057,11 @@
 																}
 															}
 														},
-														"required": ["status", "reason", "label"],
+														"required": [
+															"status",
+															"reason",
+															"label"
+														],
 														"additionalProperties": false
 													}
 												]
@@ -4519,7 +5079,10 @@
 																"type": "number"
 															}
 														},
-														"required": ["status", "value"],
+														"required": [
+															"status",
+															"value"
+														],
 														"additionalProperties": false
 													},
 													{
@@ -4580,7 +5143,11 @@
 																}
 															}
 														},
-														"required": ["status", "reason", "label"],
+														"required": [
+															"status",
+															"reason",
+															"label"
+														],
 														"additionalProperties": false
 													}
 												]
@@ -4596,10 +5163,17 @@
 															},
 															"value": {
 																"type": "string",
-																"enum": ["under", "on-target", "over"]
+																"enum": [
+																	"under",
+																	"on-target",
+																	"over"
+																]
 															}
 														},
-														"required": ["status", "value"],
+														"required": [
+															"status",
+															"value"
+														],
 														"additionalProperties": false
 													},
 													{
@@ -4660,7 +5234,11 @@
 																}
 															}
 														},
-														"required": ["status", "reason", "label"],
+														"required": [
+															"status",
+															"reason",
+															"label"
+														],
 														"additionalProperties": false
 													}
 												]
@@ -4694,7 +5272,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -4755,7 +5336,11 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
@@ -4773,7 +5358,10 @@
 															"type": "number"
 														}
 													},
-													"required": ["status", "value"],
+													"required": [
+														"status",
+														"value"
+													],
 													"additionalProperties": false
 												},
 												{
@@ -4834,17 +5422,29 @@
 															}
 														}
 													},
-													"required": ["status", "reason", "label"],
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
 													"additionalProperties": false
 												}
 											]
 										}
 									},
-									"required": ["trustworthy", "daysOfHistory", "requiredDays"],
+									"required": [
+										"trustworthy",
+										"daysOfHistory",
+										"requiredDays"
+									],
 									"additionalProperties": false
 								}
 							},
-							"required": ["days", "weeks", "tsbTrust"],
+							"required": [
+								"days",
+								"weeks",
+								"tsbTrust"
+							],
 							"additionalProperties": false
 						},
 						"undo": {
@@ -4857,7 +5457,10 @@
 									"type": "string"
 								}
 							},
-							"required": ["handle", "expiresAt"],
+							"required": [
+								"handle",
+								"expiresAt"
+							],
 							"additionalProperties": false
 						},
 						"link": {
@@ -4870,18 +5473,28 @@
 								"properties": {
 									"platform": {
 										"type": "string",
-										"enum": ["garmin", "polar"]
+										"enum": [
+											"garmin",
+											"polar"
+										]
 									},
 									"text": {
 										"type": "string"
 									}
 								},
-								"required": ["platform", "text"],
+								"required": [
+									"platform",
+									"text"
+								],
 								"additionalProperties": false
 							}
 						}
 					},
-					"required": ["outcome", "value", "credits"],
+					"required": [
+						"outcome",
+						"value",
+						"credits"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -4901,7 +5514,11 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "proposalIds", "link"],
+					"required": [
+						"outcome",
+						"proposalIds",
+						"link"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -4938,7 +5555,12 @@
 						},
 						"next": {
 							"type": "string",
-							"enum": ["fix-input", "ask-athlete", "reread", "stop"]
+							"enum": [
+								"fix-input",
+								"ask-athlete",
+								"reread",
+								"stop"
+							]
 						},
 						"message": {
 							"type": "string"
@@ -4947,7 +5569,12 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "code", "next", "message"],
+					"required": [
+						"outcome",
+						"code",
+						"next",
+						"message"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -4959,10 +5586,17 @@
 						},
 						"reason": {
 							"type": "string",
-							"enum": ["rate-limited", "switched-off", "internal"]
+							"enum": [
+								"rate-limited",
+								"switched-off",
+								"internal"
+							]
 						}
 					},
-					"required": ["outcome", "reason"],
+					"required": [
+						"outcome",
+						"reason"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -4976,7 +5610,10 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "message"],
+					"required": [
+						"outcome",
+						"message"
+					],
 					"additionalProperties": false
 				}
 			]
@@ -5045,11 +5682,18 @@
 													},
 													"loadDirection": {
 														"type": "string",
-														"enum": ["adds", "keeps-or-reduces"]
+														"enum": [
+															"adds",
+															"keeps-or-reduces"
+														]
 													},
 													"answer": {
 														"type": "string",
-														"enum": ["pending", "accepted", "declined"]
+														"enum": [
+															"pending",
+															"accepted",
+															"declined"
+														]
 													},
 													"applied": {
 														"type": "boolean"
@@ -5072,11 +5716,17 @@
 																		"type": "string"
 																	},
 																	"discipline": {
-																		"type": ["string", "null"]
+																		"type": [
+																			"string",
+																			"null"
+																		]
 																	},
 																	"owner": {
 																		"type": "string",
-																		"enum": ["athlete", "machine"]
+																		"enum": [
+																			"athlete",
+																			"machine"
+																		]
 																	}
 																},
 																"required": [
@@ -5139,7 +5789,10 @@
 									"type": "string"
 								}
 							},
-							"required": ["handle", "expiresAt"],
+							"required": [
+								"handle",
+								"expiresAt"
+							],
 							"additionalProperties": false
 						},
 						"link": {
@@ -5152,18 +5805,28 @@
 								"properties": {
 									"platform": {
 										"type": "string",
-										"enum": ["garmin", "polar"]
+										"enum": [
+											"garmin",
+											"polar"
+										]
 									},
 									"text": {
 										"type": "string"
 									}
 								},
-								"required": ["platform", "text"],
+								"required": [
+									"platform",
+									"text"
+								],
 								"additionalProperties": false
 							}
 						}
 					},
-					"required": ["outcome", "value", "credits"],
+					"required": [
+						"outcome",
+						"value",
+						"credits"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -5183,7 +5846,11 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "proposalIds", "link"],
+					"required": [
+						"outcome",
+						"proposalIds",
+						"link"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -5220,7 +5887,12 @@
 						},
 						"next": {
 							"type": "string",
-							"enum": ["fix-input", "ask-athlete", "reread", "stop"]
+							"enum": [
+								"fix-input",
+								"ask-athlete",
+								"reread",
+								"stop"
+							]
 						},
 						"message": {
 							"type": "string"
@@ -5229,7 +5901,12 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "code", "next", "message"],
+					"required": [
+						"outcome",
+						"code",
+						"next",
+						"message"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -5241,10 +5918,17 @@
 						},
 						"reason": {
 							"type": "string",
-							"enum": ["rate-limited", "switched-off", "internal"]
+							"enum": [
+								"rate-limited",
+								"switched-off",
+								"internal"
+							]
 						}
 					},
-					"required": ["outcome", "reason"],
+					"required": [
+						"outcome",
+						"reason"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -5258,7 +5942,10 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "message"],
+					"required": [
+						"outcome",
+						"message"
+					],
 					"additionalProperties": false
 				}
 			]
@@ -5290,7 +5977,10 @@
 					"minLength": 1
 				}
 			},
-			"required": ["from", "to"]
+			"required": [
+				"from",
+				"to"
+			]
 		},
 		"outputSchema": {
 			"type": "object",
@@ -5334,7 +6024,10 @@
 																"maxLength": 2000
 															}
 														},
-														"required": ["by", "text"],
+														"required": [
+															"by",
+															"text"
+														],
 														"additionalProperties": false
 													},
 													{
@@ -5344,11 +6037,19 @@
 											},
 											"status": {
 												"type": "string",
-												"enum": ["planned", "done", "missed", "recording-only"]
+												"enum": [
+													"planned",
+													"done",
+													"missed",
+													"recording-only"
+												]
 											},
 											"owner": {
 												"type": "string",
-												"enum": ["athlete", "machine"]
+												"enum": [
+													"athlete",
+													"machine"
+												]
 											},
 											"planned": {
 												"type": "object",
@@ -5366,7 +6067,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -5427,7 +6131,11 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
@@ -5445,7 +6153,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -5506,7 +6217,11 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
@@ -5524,7 +6239,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -5585,13 +6303,21 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
 													}
 												},
-												"required": ["durationS", "distanceM", "tss"],
+												"required": [
+													"durationS",
+													"distanceM",
+													"tss"
+												],
 												"additionalProperties": false
 											},
 											"actual": {
@@ -5610,7 +6336,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -5671,7 +6400,11 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
@@ -5689,7 +6422,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -5750,7 +6486,11 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
@@ -5768,7 +6508,10 @@
 																		"type": "number"
 																	}
 																},
-																"required": ["status", "value"],
+																"required": [
+																	"status",
+																	"value"
+																],
 																"additionalProperties": false
 															},
 															{
@@ -5829,13 +6572,21 @@
 																		}
 																	}
 																},
-																"required": ["status", "reason", "label"],
+																"required": [
+																	"status",
+																	"reason",
+																	"label"
+																],
 																"additionalProperties": false
 															}
 														]
 													}
 												},
-												"required": ["durationS", "distanceM", "tss"],
+												"required": [
+													"durationS",
+													"distanceM",
+													"tss"
+												],
 												"additionalProperties": false
 											},
 											"link": {
@@ -5857,10 +6608,16 @@
 									}
 								},
 								"nextCursor": {
-									"type": ["string", "null"]
+									"type": [
+										"string",
+										"null"
+									]
 								}
 							},
-							"required": ["sessions", "nextCursor"],
+							"required": [
+								"sessions",
+								"nextCursor"
+							],
 							"additionalProperties": false
 						},
 						"undo": {
@@ -5873,7 +6630,10 @@
 									"type": "string"
 								}
 							},
-							"required": ["handle", "expiresAt"],
+							"required": [
+								"handle",
+								"expiresAt"
+							],
 							"additionalProperties": false
 						},
 						"link": {
@@ -5886,18 +6646,28 @@
 								"properties": {
 									"platform": {
 										"type": "string",
-										"enum": ["garmin", "polar"]
+										"enum": [
+											"garmin",
+											"polar"
+										]
 									},
 									"text": {
 										"type": "string"
 									}
 								},
-								"required": ["platform", "text"],
+								"required": [
+									"platform",
+									"text"
+								],
 								"additionalProperties": false
 							}
 						}
 					},
-					"required": ["outcome", "value", "credits"],
+					"required": [
+						"outcome",
+						"value",
+						"credits"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -5917,7 +6687,11 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "proposalIds", "link"],
+					"required": [
+						"outcome",
+						"proposalIds",
+						"link"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -5954,7 +6728,12 @@
 						},
 						"next": {
 							"type": "string",
-							"enum": ["fix-input", "ask-athlete", "reread", "stop"]
+							"enum": [
+								"fix-input",
+								"ask-athlete",
+								"reread",
+								"stop"
+							]
 						},
 						"message": {
 							"type": "string"
@@ -5963,7 +6742,12 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "code", "next", "message"],
+					"required": [
+						"outcome",
+						"code",
+						"next",
+						"message"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -5975,10 +6759,17 @@
 						},
 						"reason": {
 							"type": "string",
-							"enum": ["rate-limited", "switched-off", "internal"]
+							"enum": [
+								"rate-limited",
+								"switched-off",
+								"internal"
+							]
 						}
 					},
-					"required": ["outcome", "reason"],
+					"required": [
+						"outcome",
+						"reason"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -5992,7 +6783,10 @@
 							"type": "string"
 						}
 					},
-					"required": ["outcome", "message"],
+					"required": [
+						"outcome",
+						"message"
+					],
 					"additionalProperties": false
 				}
 			]
