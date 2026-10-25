@@ -5,6 +5,10 @@ import {
 	handlers as intervalsIcuHandlers,
 	passthroughHandlers as intervalsIcuPassthroughHandlers,
 } from './intervalsicu.ts'
+import {
+	handlers as polarHandlers,
+	passthroughHandlers as polarPassthroughHandlers,
+} from './polar.ts'
 import { handlers as pwnedPasswordApiHandlers } from './pwned-passwords.ts'
 import { handlers as resendHandlers } from './resend.ts'
 import {
@@ -23,6 +27,10 @@ const mockStrava =
 const mockIntervalsIcu =
 	process.env.NODE_ENV === 'test' || process.env.MOCK_INTERVALSICU === 'true'
 
+// Polar AccessLink (#555): mocked in tests, opt-in mock in dev.
+const mockPolar =
+	process.env.NODE_ENV === 'test' || process.env.MOCK_POLAR === 'true'
+
 export const server = setupServer(
 	...resendHandlers,
 	...githubHandlers,
@@ -32,6 +40,7 @@ export const server = setupServer(
 	...(mockIntervalsIcu
 		? intervalsIcuHandlers
 		: intervalsIcuPassthroughHandlers),
+	...(mockPolar ? polarHandlers : polarPassthroughHandlers),
 )
 
 server.listen({
