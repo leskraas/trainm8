@@ -3,13 +3,15 @@
  * (`npx prisma db seed`), so the numbers in ADR 0078's "As measured (#503,
  * 2026-10)" can be taken again by anyone.
  *
- * kody's plan is stretched to 34 weeks and his race moved to the Sunday that
- * closes it, so the season runs from the query's reach (182 days behind
- * today) to that Sunday: **52 weeks, every day a row — 364 day rows** (ADR
- * 0086 §2). Behind today every Tuesday, Thursday, Saturday and Sunday without
- * a session gets a completed one; ahead, the same four days get a scheduled
- * one, to race week. That is a realistic four-a-week athlete across the whole
- * span, rather than an empty calendar that only measures the cost of `fri`.
+ * The stream draws whole weeks from the first Monday inside the query's reach
+ * (182 days behind today), so kody's plan is stretched, and his race moved to
+ * the Sunday that closes it, until that Monday plus 51 weeks: **52 weeks,
+ * every day a row — 364 day rows** (ADR 0086 §2). With the seed's plan start
+ * that is a 34- or 35-week plan, depending on the weekday it is run. Behind
+ * today every Tuesday, Thursday, Saturday and Sunday without a session gets a
+ * completed one; ahead, the same four days get a scheduled one, to race week.
+ * That is a realistic four-a-week athlete across the whole span, rather than
+ * an empty calendar that only measures the cost of `fri`.
  *
  * **Local only.** Nothing seeds in production
  * (`docs/agents/production-seed-data.md`), and this refuses to run there.
@@ -25,7 +27,9 @@ if (process.env.NODE_ENV === 'production') {
 
 /** Tuesday, Thursday, Saturday, Sunday, as days after Monday. */
 const TRAINING_DAYS = [1, 3, 5, 6]
-const PLAN_WEEKS = [12, 12, 6, 4]
+/** Every phase but the last; the last takes what is left of the 52 weeks. */
+const LEADING_PHASE_WEEKS = [12, 12, 6]
+const STREAM_WEEKS = 52
 
 const user = await prisma.user.findUniqueOrThrow({
 	where: { username: 'kody' },
@@ -41,17 +45,33 @@ const outline = await prisma.planOutline.findFirstOrThrow({
 		phases: { select: { id: true }, orderBy: { orderIndex: 'asc' } },
 	},
 })
+
+const now = new Date()
+const todayKey = localDate(now, timezone)
+const reachKey = addDays(todayKey, -182)
+const reachMonday = weekMonday(new Date(`${reachKey}T12:00:00Z`), timezone)
+// The week the reach starts inside is not drawn unless the reach is its Monday.
+const firstMonday =
+	reachMonday === reachKey ? reachMonday : addDays(reachMonday, 7)
+const lastMonday = addDays(firstMonday, 7 * (STREAM_WEEKS - 1))
+const planWeeks =
+	Math.round(
+		(Date.parse(`${lastMonday}T00:00:00Z`) -
+			Date.parse(`${outline.startWeekKey}T00:00:00Z`)) /
+			(7 * 86_400_000),
+	) + 1
+const leading = LEADING_PHASE_WEEKS.slice(0, outline.phases.length - 1)
 for (const [index, phase] of outline.phases.entries()) {
+	const last = index === outline.phases.length - 1
 	await prisma.planOutlinePhase.update({
 		where: { id: phase.id },
-		data: { weeks: PLAN_WEEKS[index] ?? 1 },
+		data: {
+			weeks: last
+				? planWeeks - leading.reduce((a, b) => a + b, 0)
+				: (leading[index] ?? 1),
+		},
 	})
 }
-const planWeeks = PLAN_WEEKS.slice(0, outline.phases.length).reduce(
-	(a, b) => a + b,
-	0,
-)
-const lastMonday = addDays(outline.startWeekKey, 7 * (planWeeks - 1))
 const raceDay = addDays(lastMonday, 6)
 if (outline.eventId) {
 	await prisma.event.update({
@@ -60,12 +80,6 @@ if (outline.eventId) {
 	})
 }
 
-const now = new Date()
-const todayKey = localDate(now, timezone)
-const firstMonday = weekMonday(
-	new Date(`${addDays(todayKey, -182)}T12:00:00Z`),
-	timezone,
-)
 const workouts = await prisma.workout.findMany({
 	where: { ownerId: user.id, discipline: { in: ['run', 'strength'] } },
 	select: { id: true },
@@ -112,6 +126,6 @@ const weeks =
 			(7 * 86_400_000),
 	) + 1
 console.log(
-	`kody: ${made} sessions added, ${firstMonday} → ${raceDay}, ${weeks} weeks, ${weeks * 7} day rows`,
+	`kody: ${made} sessions added, a ${planWeeks}-week plan, ${firstMonday} → ${raceDay}, ${weeks} weeks, ${weeks * 7} day rows`,
 )
 await prisma.$disconnect()

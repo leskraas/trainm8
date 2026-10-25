@@ -178,6 +178,13 @@ reach); it is kept for the long season (up to ~900 rows when a session is
 written two years out), where laying out every row is what it saves. The p90 is
 not smooth at 4×; recorded here, not chased with a virtualiser.
 
+**At 364 rows (#503, measured 2026-10-25, ADR 0078 "Reopened"):** the 52-week
+season, scrolled top to end 40px a frame at 4×, has a median of 16.9ms, a p90 of
+28.1ms and 8.3% of frames over 32ms, with no backward move of the reader; **no
+virtualiser is confirmed**. The cost of mounting the past up front shows on load
+instead: hydration's longest task is 2.4s against 0.96s on the seed season. ADR
+0078 proposes, for the owner, hydrating only the weeks near today.
+
 ### 5. The strip, and a long season (S10)
 
 One column per week tinted by `phase-*` at low opacity (a neutral tone outside a
@@ -245,26 +252,25 @@ Three behaviours shipped in wave 1 (#505 S3, S2, S5) without an ADR:
 
 ## Amended in the polish pass (same PR)
 
-- **Top line (§1):** the race's name is never cut. It wraps inside the
-  line's 44px and grows the bar only for a name longer than two lines. The
-  countdown is one unbreakable unit. Under 360px the badge shows the count
-  alone (`● 1`), and its name still says the whole sentence. From `lg` up,
-  the plan and goal are left to the season pane's plan card (ADR 0087).
+- **Top line (§1):** the race's name is never cut. It wraps inside the line's
+  44px and grows the bar only for a name longer than two lines. The countdown is
+  one unbreakable unit. Under 360px the badge shows the count alone (`● 1`), and
+  its name still says the whole sentence. From `lg` up, the plan and goal are
+  left to the season pane's plan card (ADR 0087).
 - **Strip (§5):** a phase is named whole or not at all, never abbreviated.
   Today's phase (or the reader's, when today is outside the window) is always
-  named. Its name may run past a narrow band, and a neighbouring name it
-  covers gives way.
-- **Header (§3):** it keeps the title, one line per track and the summary.
-  In the flow, at most one quiet line per track stays in view: the `+n uten
-  km` counts with their side, and a part-logged strength week. The ungraded
-  reason, pace, easy share, zone split with `hensikt, ikke en måling`, and
-  Annet sit behind the summary line in a popover, and stay in place as
-  screen-reader text. A track's name is set in ink. The Meter carries the
-  hue, because the run, bike and swim hues are under 4.5:1 as caption text
-  on a light card.
+  named. Its name may run past a narrow band, and a neighbouring name it covers
+  gives way.
+- **Header (§3):** it keeps the title, one line per track and the summary. In
+  the flow, at most one quiet line per track stays in view: the `+n uten km`
+  counts with their side, and a part-logged strength week. The ungraded reason,
+  pace, easy share, zone split with `hensikt, ikke en måling`, and Annet sit
+  behind the summary line in a popover, and stay in place as screen-reader text.
+  A track's name is set in ink. The Meter carries the hue, because the run, bike
+  and swim hues are under 4.5:1 as caption text on a light card.
 - **Load line:** `X av Y TSS` is used only when every session with done load
-  also had a Planned TSS. Otherwise the line names each side, as in `gjort
-  176 · planlagt 85 TSS`.
+  also had a Planned TSS. Otherwise the line names each side, as in
+  `gjort 176 · planlagt 85 TSS`.
 - **Figures:** `formatNbVolumeFigure` groups thousands with a no-break space
   (`1 270,3`).
 - Kilos still use a decimal point (`82.5 × 5,5,5,4`), because commas separate
