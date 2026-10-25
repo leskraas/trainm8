@@ -108,6 +108,9 @@ export function originPlatformForTransport(
 			return 'upload'
 		case 'garmin':
 			return 'garmin'
+		// A direct vendor's data is that vendor's (ADR 0096 §1, #555).
+		case 'polar':
+			return 'polar'
 		default:
 			return 'unknown'
 	}

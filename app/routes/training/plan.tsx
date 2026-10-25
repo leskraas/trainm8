@@ -242,7 +242,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// library: a Workout is authored inline with a session (`sessions.new.tsx`), so
 	// the picker offers the athlete's own — and says so plainly when there are none
 	// rather than rendering a control with nothing in it.
-	const workouts = await getAuthoredWorkouts(userId)
+	const workouts = await getAuthoredWorkouts(userId, [
+		...new Set(season.tracks.map((track) => track.discipline)),
+	])
 
 	// Where the weeks the athlete has already stamped disagree with the mix their
 	// segment authors — read here rather than derived on the client, because it is a
