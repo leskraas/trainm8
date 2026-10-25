@@ -175,9 +175,10 @@ export function getStravaRateLimiter(): RateLimiter {
 }
 
 /**
- * Replace the process-wide limiter. The test setup gives each test a fresh
- * budget this way, and a test can hand in one on its own clock or windows.
+ * Give the process-wide limiter its whole budget back. The test setup calls it
+ * before each test, so the reads earlier tests made never defer a later one; a
+ * test that needs its own clock or windows hands its limiter to `stravaApiGet`.
  */
-export function setStravaRateLimiter(limiter: RateLimiter): void {
-	sharedStravaRateLimiter = limiter
+export function resetStravaRateLimiter(): void {
+	sharedStravaRateLimiter = createRateLimiter(STRAVA_RATE_LIMIT)
 }

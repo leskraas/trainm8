@@ -5,7 +5,7 @@ import { enqueueJob, processNextJob } from '#app/utils/jobs/queue.server.ts'
 import { createUser } from '#tests/db-utils.ts'
 import { server } from '#tests/mocks/index.ts'
 import { stravaApiGet } from './client.server.ts'
-import { createRateLimiter, setStravaRateLimiter } from './rate-limit.ts'
+import { createRateLimiter } from './rate-limit.ts'
 
 /**
  * A spent Strava budget pauses a job, and the queue finishes it once the
@@ -27,7 +27,6 @@ test('a job deferred by a spent window is claimed again at its reset and complet
 	const limiter = createRateLimiter({
 		windows: [{ limit: 1, windowMs: MIN_15 }],
 	})
-	setStravaRateLimiter(limiter)
 	await limiter.acquire('bulk')
 
 	const user = await prisma.user.create({
@@ -54,7 +53,7 @@ test('a job deferred by a spent window is claimed again at its reset and complet
 	let reads = 0
 	const handlers = {
 		'strava-read': async () => {
-			await stravaApiGet(connection, '/athlete')
+			await stravaApiGet(connection, '/athlete', 'bulk', { limiter })
 			reads++
 		},
 	}
