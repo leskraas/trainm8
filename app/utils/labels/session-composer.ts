@@ -107,8 +107,13 @@ export const QUICK_LOG_LABELS = {
 	cancel: 'Avbryt',
 	saving: 'Logger …',
 	loading: 'Henter planen …',
-	/** ADR 0064 §2, said where the athlete would look for a weight field. */
-	weightNote: 'Vekta står som planlagt. En annen vekt kan ikke logges her.',
+	/** _Endre_'s weight (#530, ADR 0064 amended): one per lift, all its sets. */
+	weightFor: (lift: string) => `Vekt for ${lift}, kilo`,
+	lighter: (lift: string, step: string) => `${step} kg lettere på ${lift}`,
+	heavier: (lift: string, step: string) => `${step} kg tyngre på ${lift}`,
+	/** Beside a weight the athlete changed: what the plan said. */
+	weightWas: (kg: string) => `fra ${kg}`,
+	weightInvalid: 'Skriv vekta som kilo over 0, høyst 500, for eksempel 82,5.',
 	notDoneNote: 'Tomt eller 0 betyr at settet ikke ble gjort.',
 	setInput: (lift: string, position: number, unit: SetUnit) =>
 		`Sett ${position} av ${lift}, ${unit === 'reps' ? 'repetisjoner' : 'sekunder'}`,
@@ -171,6 +176,9 @@ export const QUICK_LOG_REFUSAL_LABELS: Record<QuickLogRefusal, string> = {
 	'unknown-set':
 		'Ett av settene finnes ikke i planen lenger. Last siden på nytt.',
 	'nothing-done': 'Ingen sett er merket som gjort. Skriv inn minst ett.',
+	'bad-weight': QUICK_LOG_LABELS.weightInvalid,
+	'weight-not-editable':
+		'Vekta på ett av løftene kan ikke endres her. Last siden på nytt.',
 }
 
 /**

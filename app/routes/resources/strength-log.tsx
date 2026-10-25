@@ -95,7 +95,11 @@ export async function action({ request }: Route.ActionArgs) {
 	const entry: QuickLogEntry =
 		submission.value.intent === 'as-planned'
 			? { kind: 'as-planned' }
-			: { kind: 'edited', sets: submission.value.sets }
+			: {
+					kind: 'edited',
+					sets: submission.value.sets,
+					lifts: submission.value.lifts,
+				}
 	const result = await logStrengthSession(userId, sessionId, entry, {
 		now,
 		timezone,

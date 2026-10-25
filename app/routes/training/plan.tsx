@@ -557,6 +557,8 @@ export async function action({ request }: Route.ActionArgs) {
 			return applyPresetAction(userId, request, formData)
 		case 'fit-to-event':
 			return fitToEventAction(userId, request, formData)
+		// _Legg til et løp_ (#505 stories 7–8, #518): preview, then attach.
+		case 'preview-attach-event':
 		case 'attach-event':
 			return attachEventAction(userId, formData)
 		case 'preview-philosophy':
@@ -613,11 +615,10 @@ export default function PlanRoute({
 		actionData && 'error' in actionData && trackError === undefined
 			? actionData.error
 			: undefined
-	// _Legg til et løp_ answers inside its own form, with what was typed kept.
-	const attachResult =
-		actionData && 'intent' in actionData && actionData.intent === 'attach-event'
-			? actionData.result
-			: undefined
+	// _Legg til et løp_ answers inside its own form, with what was typed kept,
+	// and its preview under it (#518).
+	const attachReply =
+		actionData && 'attachEvent' in actionData ? actionData.attachEvent : null
 	// _Bytt filosofi_ and the strength offer answer inside their own forms.
 	const philosophy =
 		actionData && 'philosophy' in actionData ? actionData.philosophy : null
@@ -637,7 +638,7 @@ export default function PlanRoute({
 	// refusal or a preview is read where it was asked (`__plan-advanced.tsx`).
 	// The lead's own two answer in the lead and leave Avansert closed.
 	const advancedReply =
-		actionData && attachResult === undefined && treningsformReply == null
+		actionData && attachReply == null && treningsformReply == null
 			? actionData
 			: null
 	// The same, for a week copy aimed at a week that already holds sessions (#415).
@@ -720,7 +721,7 @@ export default function PlanRoute({
 				attach={{
 					outlineId: season.outlineId,
 					events: attachableEvents,
-					lastResult: attachResult,
+					reply: attachReply,
 				}}
 				resting={
 					season.resting ? (

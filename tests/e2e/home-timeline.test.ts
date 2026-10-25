@@ -2810,3 +2810,64 @@ test('a closed week is drawn whole above today, muted, with its numbers and verd
 	// A past free day is still a cell to write into (ADR 0065 §6).
 	await expect(week.locator('[data-timeline-empty]').first()).toHaveText(/fri/)
 })
+
+test('a row built on a Garmin recording credits "Garmin [device model]" under its title, whole (#557)', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	const device =
+		'Forerunner 965 Music Edition (Triathlon Bundle, Whitestone/Powder Gray)'
+	// Yesterday: a run that came down the Intervals.icu pipe from Garmin. The
+	// transport is Intervals.icu; the credit reads the origin.
+	const startedAt = new Date(Date.now() - 26 * 60 * 60 * 1000)
+	const recording = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: user.id,
+			externalProvider: 'intervalsicu',
+			externalId: `garmin-credit-${user.id}`,
+			originPlatform: 'garmin',
+			deviceName: device,
+			startedAt,
+			endedAt: new Date(startedAt.getTime() + 50 * 60 * 1000),
+			durationSec: 50 * 60,
+			distanceM: 9200,
+			discipline: 'run',
+			rawJson: '{}',
+		},
+	})
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: user.id,
+			scheduledAt: startedAt,
+			status: 'completed',
+			recordingId: recording.id,
+		},
+	})
+	await prisma.activityImport.update({
+		where: { id: recording.id },
+		data: { promotedSessionId: session.id },
+	})
+
+	await navigate(HOME_TIMELINE_HREF)
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	const row = page.locator(`[data-session-row="${session.id}"]`)
+	await row.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+	const credit = row.locator('[data-source-credit]')
+	await expect(credit).toBeVisible()
+	await expect(credit).toHaveText(`Garmin ${device}`)
+	// Under the title, in the row, never cut short or past the edge.
+	const title = (await row.locator('[data-session-title]').boundingBox())!
+	const box = (await credit.boundingBox())!
+	expect(box.y).toBeGreaterThanOrEqual(title.y + title.height - 1)
+	expect(box.x + box.width).toBeLessThanOrEqual(390)
+	expect(
+		await credit
+			.locator('p')
+			.evaluate((p) => p.scrollWidth <= p.clientWidth + 1),
+	).toBe(true)
+})

@@ -17,6 +17,8 @@
 
 import { z } from 'zod/v3'
 import { MARK_DONE_REACH_DAYS } from './import-fit.ts'
+import { QUICK_LOG_LABELS } from './labels.ts'
+import { parseKiloInput } from './strength/kilo-input.ts'
 import { type SetUnit } from './strength/working-load.ts'
 
 /** Where the quick log is read and posted (`routes/resources/strength-log.tsx`). */
@@ -31,6 +33,38 @@ export const QUICK_LOG_REACH_DAYS = MARK_DONE_REACH_DAYS
 
 /** The most reps (or seconds of a hold) one set may claim from the log. */
 export const QUICK_LOG_MAX_COUNT = 600
+
+/** The heaviest weight _Endre_ takes, in the load's own kilos — the writing
+ * line's own ceiling (`workout-sentence.ts`), so 500 kg is still a weight. */
+export const QUICK_LOG_MAX_KG = 500
+
+/**
+ * A weight as the quick log stores it, or null where it cannot be true: kept to
+ * the hundredth (`postedNumber`'s rule — two decimals is the smallest plate
+ * anybody owns, twice over), more than 0 and at most {@link QUICK_LOG_MAX_KG}.
+ */
+export function quickLogKg(kg: number): number | null {
+	if (!Number.isFinite(kg)) return null
+	const kept = Math.round(kg * 100) / 100
+	return kept > 0 && kept <= QUICK_LOG_MAX_KG ? kept : null
+}
+
+/**
+ * The weight one press of _Endre_'s − or + lands on: the next multiple of the
+ * rack's step below or above, so an off-grid 81 kg steps to 80 or 82,5 rather
+ * than to 78,5 or 83,5. Never below one step, never above
+ * {@link QUICK_LOG_MAX_KG}.
+ */
+export function stepKilo(kg: number, stepKg: number, direction: 1 | -1) {
+	const scale = 100
+	const at = Math.round(kg * scale)
+	const step = Math.max(1, Math.round(stepKg * scale))
+	const next =
+		direction === 1
+			? (Math.floor(at / step) + 1) * step
+			: (Math.ceil(at / step) - 1) * step
+	return Math.min(QUICK_LOG_MAX_KG * scale, Math.max(step, next)) / scale
+}
 
 /**
  * Whether a session takes the quick log: a strength session with sets on its
@@ -68,6 +102,10 @@ export const QUICK_LOG_REFUSALS = [
 	'not-plannable',
 	'unknown-set',
 	'nothing-done',
+	/** A weight that cannot be true: 0, below a hundredth, or over 500 kg. */
+	'bad-weight',
+	/** A weight on a lift whose load carries no number (bodyweight, unloaded). */
+	'weight-not-editable',
 ] as const
 export type QuickLogRefusal = (typeof QUICK_LOG_REFUSALS)[number]
 
@@ -89,12 +127,37 @@ export const StrengthLogAsPlannedSchema = z.object({
 	sessionId: SessionId,
 })
 
-/** _Endre_ posts every set with its count; a set left out is logged as
- * planned. */
+/**
+ * One lift's weight as _Endre_ posts it (#530): typed with either separator
+ * (`82,5`, `82.5`), blank where it was left as planned.
+ */
+const EditedLift = z.object({
+	stepId: z.string().min(1),
+	kg: z
+		.string()
+		.optional()
+		.transform((typed, ctx) => {
+			if (typed == null || typed.trim() === '') return null
+			const read = parseKiloInput(typed)
+			const kg = read == null ? null : quickLogKg(read)
+			if (kg == null) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: QUICK_LOG_LABELS.weightInvalid,
+				})
+				return z.NEVER
+			}
+			return kg
+		}),
+})
+
+/** _Endre_ posts every set with its count, and each weighted lift's weight; a
+ * set left out is logged as planned, and so is a lift whose weight is blank. */
 export const StrengthLogEditSchema = z.object({
 	intent: z.literal('edited'),
 	sessionId: SessionId,
 	sets: z.array(EditedSet).min(1),
+	lifts: z.array(EditedLift).optional(),
 })
 
 /**
@@ -139,6 +202,13 @@ export type QuickLogLift = {
 	scheme: string
 	/** `82,5 kg`, `kroppsvekt + 15 kg` — or null where it does not resolve. */
 	loadLabel: string | null
+	/**
+	 * The weight _Endre_ may change (#530, ADR 0064 amended), in the load's own
+	 * kilos, and the step its − and + take — a pair of the smallest plates the
+	 * athlete's rack owns, else the app's stated 2,5 kg default. Null where the
+	 * load carries no number (bodyweight, unloaded) or does not resolve.
+	 */
+	weight: { kg: number; stepKg: number } | null
 	/** False where a set has no count or the weight does not resolve: such a
 	 * lift is logged in the runner, never guessed here. */
 	loggable: boolean
