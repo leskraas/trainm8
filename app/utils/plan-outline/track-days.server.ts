@@ -760,7 +760,7 @@ async function checkedRestore(
 		where: {
 			id: { in: workoutIds },
 			discipline: unit.discipline,
-			OR: [{ ownerId: userId }, { ownerId: null }],
+			OR: [{ ownerId: userId }, { authorship: 'system' }],
 		},
 	})
 	return owned === workoutIds.length ? [...rows] : null
