@@ -6,6 +6,7 @@ import {
 	createActivityImport,
 } from './activity-import.server.ts'
 import { prisma } from './db.server.ts'
+import { saveGymProfile } from './plate-inventory.server.ts'
 import {
 	PROGRAM_LIFT_EQUIPMENT,
 	PROGRAM_LIFT_EXERCISE_IDS,
@@ -197,6 +198,9 @@ test('the quick log reads the plan pre-filled, lift by lift and set by set', asy
 				name: 'Back Squat',
 				scheme: '3×5',
 				loadLabel: '100 kg',
+				// The weight Endre may change, stepped by what a rack can make: no
+				// gym on file, so the app's stated 2,5 kg default step.
+				weight: { kg: 100, stepKg: 2.5 },
 				loggable: true,
 				sets: [0, 1, 2].map((orderIndex) => ({
 					orderIndex,
@@ -209,6 +213,8 @@ test('the quick log reads the plan pre-filled, lift by lift and set by set', asy
 				name: 'Plank',
 				scheme: '2×45 s',
 				loadLabel: 'kroppsvekt',
+				// A bodyweight hold carries no number to change.
+				weight: null,
 				loggable: true,
 				sets: [0, 1].map((orderIndex) => ({
 					orderIndex,
@@ -670,4 +676,205 @@ test('a program session is logged at the run’s current working weight', async 
 	for (const squat of squats) {
 		expect(JSON.parse(squat.load)).toEqual({ kind: 'external', kg: 70 })
 	}
+})
+
+// ——— Endre changes the weight (#530, ADR 0064 amended) ————————————————————————
+
+test('Endre logs a different weight for a lift: every set of it, at the kilos typed', async () => {
+	const userId = await createAthlete()
+	const { sessionId, squatStep, plankStep } = await gymDay(userId)
+
+	const result = await logStrengthSession(
+		userId,
+		sessionId,
+		{
+			kind: 'edited',
+			sets: [{ stepId: squatStep, orderIndex: 2, count: 4 }],
+			// 97,5 kg: the rack had no 100.
+			lifts: [{ stepId: squatStep, kg: 97.5 }],
+		},
+		at,
+	)
+
+	expect(result).toMatchObject({ ok: true, loggedSets: 5 })
+	const sets = await setsOf(sessionId)
+	expect(
+		sets
+			.filter((s) => s.stepId === squatStep)
+			.map((s) => [s.reps, JSON.parse(s.load), s.effectiveKg]),
+	).toEqual([
+		[5, { kind: 'external', kg: 97.5 }, 97.5],
+		[5, { kind: 'external', kg: 97.5 }, 97.5],
+		[4, { kind: 'external', kg: 97.5 }, 97.5],
+	])
+	// The plank's load is untouched: a bodyweight hold is still bodyweight.
+	expect(
+		sets.filter((s) => s.stepId === plankStep).map((s) => JSON.parse(s.load)),
+	).toEqual([{ kind: 'bodyweight' }, { kind: 'bodyweight' }])
+})
+
+test('a lift whose weight is left alone is logged at the planned one', async () => {
+	const userId = await createAthlete()
+	const { sessionId, squatStep } = await gymDay(userId)
+
+	await logStrengthSession(
+		userId,
+		sessionId,
+		{ kind: 'edited', sets: [], lifts: [{ stepId: squatStep, kg: null }] },
+		at,
+	)
+
+	const squats = (await setsOf(sessionId)).filter((s) => s.stepId === squatStep)
+	expect(squats.map((s) => s.effectiveKg)).toEqual([100, 100, 100])
+})
+
+test('the weight is kept to the hundredth, from 2,5 kg to 500 kg', async () => {
+	const userId = await createAthlete()
+	const light = await gymDay(userId)
+	const heavy = await gymDay(userId, -1)
+
+	await logStrengthSession(
+		userId,
+		light.sessionId,
+		{
+			kind: 'edited',
+			sets: [],
+			// A float that came out of arithmetic, not out of a person.
+			lifts: [{ stepId: light.squatStep, kg: 2.4999999999 }],
+		},
+		at,
+	)
+	await logStrengthSession(
+		userId,
+		heavy.sessionId,
+		{ kind: 'edited', sets: [], lifts: [{ stepId: heavy.squatStep, kg: 500 }] },
+		at,
+	)
+
+	const lightSquat = (await setsOf(light.sessionId)).find(
+		(s) => s.stepId === light.squatStep,
+	)
+	expect(JSON.parse(lightSquat!.load)).toEqual({ kind: 'external', kg: 2.5 })
+	const heavySquat = (await setsOf(heavy.sessionId)).find(
+		(s) => s.stepId === heavy.squatStep,
+	)
+	expect(heavySquat?.effectiveKg).toBe(500)
+})
+
+test('a weight that cannot be true is refused, and nothing is written', async () => {
+	const userId = await createAthlete()
+	const { sessionId, squatStep } = await gymDay(userId)
+
+	for (const kg of [0, -5, 500.5, Number.NaN, Infinity, 0.001]) {
+		expect(
+			await logStrengthSession(
+				userId,
+				sessionId,
+				{ kind: 'edited', sets: [], lifts: [{ stepId: squatStep, kg }] },
+				at,
+			),
+		).toEqual({ ok: false, reason: 'bad-weight' })
+	}
+	expect(await setsOf(sessionId)).toEqual([])
+	expect(await statusOf(sessionId)).toBe('scheduled')
+})
+
+test('a weight on a lift that carries none, or on a lift the plan does not have, is refused', async () => {
+	const userId = await createAthlete()
+	const { sessionId, plankStep } = await gymDay(userId)
+
+	// Kilos on a bodyweight plank would make it another kind of load.
+	expect(
+		await logStrengthSession(
+			userId,
+			sessionId,
+			{ kind: 'edited', sets: [], lifts: [{ stepId: plankStep, kg: 10 }] },
+			at,
+		),
+	).toEqual({ ok: false, reason: 'weight-not-editable' })
+	expect(
+		await logStrengthSession(
+			userId,
+			sessionId,
+			{ kind: 'edited', sets: [], lifts: [{ stepId: 'nope', kg: 10 }] },
+			at,
+		),
+	).toEqual({ ok: false, reason: 'unknown-set' })
+	expect(await setsOf(sessionId)).toEqual([])
+})
+
+test('the weight steps by what the athlete’s rack can make: a pair of its smallest owned plates', async () => {
+	const userId = await createAthlete()
+	const saved = await saveGymProfile({
+		userId,
+		inventory: {
+			bars: [{ weightKg: 20 }],
+			plates: [
+				{ weightKg: 20, count: 4 },
+				{ weightKg: 0.5, count: 2 },
+				// Listed, none owned: not a step anybody can take.
+				{ weightKg: 0.25, count: 0 },
+			],
+			fixedDumbbellsKg: null,
+		},
+	})
+	expect(saved.ok).toBe(true)
+	const { sessionId } = await gymDay(userId)
+
+	expect((await readQuickLog(userId, sessionId, at))?.lifts[0]?.weight).toEqual(
+		{ kg: 100, stepKg: 1 },
+	)
+})
+
+test('a program lift logged lighter than prescribed moves nothing: not the weight, not the Stall Count', async () => {
+	const userId = await createAthlete()
+	await seedStrengthPrograms(prisma)
+	const now = new Date()
+	const started = await startProgram({
+		userId,
+		programId: 'prog_stronglifts_5x5_basic',
+		startedOn: new Date(now.getTime() - DAY),
+		startingWeights: [
+			{
+				exerciseId: PROGRAM_LIFT_EXERCISE_IDS.squat,
+				equipment: PROGRAM_LIFT_EQUIPMENT.squat,
+				weightKg: 60,
+			},
+		],
+	})
+	if (!started.ok) throw new Error(started.reason)
+	const opened = await openNextProgramSession({
+		userId,
+		instanceId: started.instanceId,
+	})
+	if (!opened) throw new Error('expected a session')
+	const plan = await readQuickLog(userId, opened.sessionId, {
+		now,
+		timezone: TZ,
+	})
+	const squat = plan?.lifts.find((lift) => lift.weight?.kg === 60)
+	invariant(squat, 'the squat is on the day at 60 kg')
+
+	const result = await logStrengthSession(
+		userId,
+		opened.sessionId,
+		{ kind: 'edited', sets: [], lifts: [{ stepId: squat.stepId, kg: 57.5 }] },
+		{ now, timezone: TZ },
+	)
+
+	invariant(result.ok && result.finished, 'the log folded into the run')
+	expect(
+		result.finished.outcomes.find(
+			(o) => o.exerciseId === PROGRAM_LIFT_EXERCISE_IDS.squat,
+		),
+	).toMatchObject({ kind: 'liftedLighter', prescribedKg: 60, loggedKg: 57.5 })
+	expect(
+		await prisma.programLiftState.findFirstOrThrow({
+			where: {
+				instanceId: started.instanceId,
+				exerciseId: PROGRAM_LIFT_EXERCISE_IDS.squat,
+			},
+			select: { currentWorkingWeightKg: true, stallCount: true },
+		}),
+	).toEqual({ currentWorkingWeightKg: 60, stallCount: 0 })
 })

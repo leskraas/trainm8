@@ -39,12 +39,17 @@ import {
 	type action as strengthLogAction,
 	type loader as strengthLogLoader,
 } from '#app/routes/resources/strength-log.tsx'
+import { formatNbKg } from '#app/utils/format.ts'
 import { QUICK_LOG_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { LANDED_MS } from '#app/utils/motion.ts'
+import { parseKiloInput } from '#app/utils/strength/kilo-input.ts'
 import {
 	type QuickLog,
 	QUICK_LOG_MAX_COUNT,
+	QUICK_LOG_MAX_KG,
+	quickLogKg,
+	stepKilo,
 	STRENGTH_LOG_ACTION,
 	StrengthLogAsPlannedSchema,
 	StrengthLogEditSchema,
@@ -269,7 +274,10 @@ function EditForm({
 			count: set.target,
 		})),
 	)
-	const [form, fields] = useForm<EditFields>({
+	const [form, fields] = useForm<
+		EditFields,
+		z.output<typeof StrengthLogEditSchema>
+	>({
 		id: `strength-log-edit-${quickLog.sessionId}`,
 		lastResult: fetcher.data?.submission,
 		onValidate({ formData }) {
@@ -284,6 +292,8 @@ function EditForm({
 	})
 	useLoggedToast(fetcher.data, quickLog.sessionId)
 	const setFields = fields.sets.getFieldList()
+	const weighted = quickLog.lifts.filter((lift) => lift.weight != null)
+	const liftFields = fields.lifts.getFieldList()
 	const sent = fetcher.state !== 'idle' || fetcher.data?.result?.ok === true
 	let index = 0
 	return (
@@ -307,6 +317,18 @@ function EditForm({
 								</span>
 							) : null}
 						</legend>
+						{lift.weight ? (
+							<WeightStepper
+								name={`lifts[${weighted.indexOf(lift)}]`}
+								stepId={lift.stepId}
+								lift={name}
+								planned={lift.weight.kg}
+								stepKg={lift.weight.stepKg}
+								errors={
+									liftFields.at(weighted.indexOf(lift))?.getFieldset().kg.errors
+								}
+							/>
+						) : null}
 						<div className="flex flex-wrap gap-2">
 							{lift.sets.map((set, position) => {
 								const field = setFields[index++]
@@ -327,7 +349,7 @@ function EditForm({
 				)
 			})}
 			<p className="text-footnote text-muted-foreground [text-wrap:pretty]">
-				{QUICK_LOG_LABELS.notDoneNote} {QUICK_LOG_LABELS.weightNote}
+				{QUICK_LOG_LABELS.notDoneNote}
 			</p>
 			{sent ? (
 				<p
@@ -353,6 +375,100 @@ function EditForm({
 			)}
 			<ErrorList id={form.errorId} errors={form.errors} />
 		</fetcher.Form>
+	)
+}
+
+/**
+ * One lift's weight (#530, ADR 0064 amended): − and + step by what the rack can
+ * make, and the number between them takes a typed `82,5` too. It posts only
+ * when it differs from the plan — a blank is "as planned" — so a plan that
+ * moved under an open form is not overwritten by the number it showed.
+ * 44 px buttons, a 16 px field so iOS does not zoom, `tabular-nums` so the
+ * figure does not shift as it changes; no motion beyond the buttons' press.
+ */
+function WeightStepper({
+	name,
+	stepId,
+	lift,
+	planned,
+	stepKg,
+	errors,
+}: {
+	name: string
+	stepId: string
+	lift: string
+	planned: number
+	stepKg: number
+	errors: string[] | undefined
+}) {
+	const [text, setText] = useState(formatNbKg(planned))
+	const read = parseKiloInput(text)
+	const kg = read == null ? null : quickLogKg(read)
+	const changed = text.trim() !== '' && kg !== planned
+	const step = formatNbKg(stepKg)
+	const errorId = `${name}-kg-error`
+	return (
+		<div className="flex flex-col gap-1">
+			<div className="flex flex-wrap items-center gap-2">
+				<input type="hidden" name={`${name}.stepId`} value={stepId} />
+				<input type="hidden" name={`${name}.kg`} value={changed ? text : ''} />
+				<Button
+					type="button"
+					variant="outline"
+					aria-label={QUICK_LOG_LABELS.lighter(lift, step)}
+					disabled={kg != null && kg <= stepKg}
+					onClick={() =>
+						setText(formatNbKg(stepKilo(kg ?? planned, stepKg, -1)))
+					}
+					className="size-11 shrink-0 rounded-full text-lg"
+				>
+					−
+				</Button>
+				<span className="relative flex items-center">
+					<Input
+						type="text"
+						inputMode="decimal"
+						autoComplete="off"
+						aria-label={QUICK_LOG_LABELS.weightFor(lift)}
+						aria-invalid={
+							errors?.length || (text.trim() !== '' && kg == null)
+								? true
+								: undefined
+						}
+						aria-describedby={errors?.length ? errorId : undefined}
+						value={text}
+						placeholder={formatNbKg(planned)}
+						onFocus={(event) => event.currentTarget.select()}
+						onChange={(event) => setText(event.target.value)}
+						className="bg-background w-24 pr-8 pl-2 text-center text-[16px] tabular-nums md:text-[16px]"
+					/>
+					<span
+						aria-hidden
+						className="text-muted-foreground text-footnote pointer-events-none absolute right-2.5"
+					>
+						kg
+					</span>
+				</span>
+				<Button
+					type="button"
+					variant="outline"
+					aria-label={QUICK_LOG_LABELS.heavier(lift, step)}
+					disabled={kg != null && kg >= QUICK_LOG_MAX_KG}
+					onClick={() =>
+						setText(formatNbKg(stepKilo(kg ?? planned, stepKg, 1)))
+					}
+					className="size-11 shrink-0 rounded-full text-lg"
+				>
+					+
+				</Button>
+				{changed && kg != null ? (
+					<span className="text-footnote text-muted-foreground min-w-0 truncate tabular-nums">
+						{QUICK_LOG_LABELS.weightWas(`${formatNbKg(planned)} kg`)}
+					</span>
+				) : null}
+			</div>
+			<ErrorList id={errorId} errors={errors} />
+		</div>
 	)
 }
 
