@@ -5681,6 +5681,48 @@ export const ME_LABELS = {
 } as const
 
 /**
+ * _Løpsresultater_ in Meg (#464, ADR 0007 as amended): the athlete's own race
+ * and time-trial results, which race-pace steps resolve against.
+ */
+export const MEG_RESULTS_LABELS = {
+	title: 'Løpsresultater',
+	detail: (count: number) =>
+		count === 0
+			? 'Gir fart til økter med løpsfart'
+			: count === 1
+				? '1 resultat'
+				: `${count} resultater`,
+	intro:
+		'Løp og testløp du har gjort. Økter som sier «10 km-fart» regner farten sin fra ditt nyeste resultat på den distansen.',
+	typedNote: 'Skrevet inn av deg — ikke målt av appen.',
+	none: 'Ingen resultater ennå.',
+	add: 'Legg til resultat',
+	distance: 'Distanse',
+	time: 'Tid',
+	timeHint: 'Som klokka viste den: 41:30 eller 1:32:00',
+	date: 'Dato',
+	source: 'Type',
+	sources: {
+		race: 'Løp',
+		timeTrial: 'Testløp',
+		trainingSegment: 'Del av en økt',
+	},
+	save: 'Lagre resultat',
+	delete: 'Slett',
+	deleteLabel: (what: string) => `Slett ${what}`,
+	invalid: 'Sjekk distanse, tid og dato.',
+	badTime: 'Skriv tiden som 41:30 eller 1:32:00.',
+	badDate: 'Velg en dato som finnes.',
+	implausible:
+		'Tiden passer ikke til distansen. Har løpet timer, skriv dem med: 3:15:00.',
+	future: 'Datoen kan ikke være fram i tid.',
+	noProfile: 'Fullfør oppstarten først, så kan du lagre resultater.',
+	saved: 'Resultatet er lagret.',
+	replaced: 'Resultatet er lagret i stedet for det du hadde samme dag.',
+	notDeleted: 'Fant ikke resultatet. Last siden på nytt.',
+} as const
+
+/**
  * _Styrkeøkter i uka_ in Meg (#574, ADR 0103): the athlete's own **Strength
  * Frequency** answer, and that it changes no plan already made.
  */
