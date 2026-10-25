@@ -5,8 +5,13 @@ import '#app/utils/env.server.ts'
 
 import { cleanup, configure } from '@testing-library/react'
 import { afterEach, beforeEach, vi, type MockInstance } from 'vitest'
+import { resetStravaRateLimiter } from '#app/integrations/strava/rate-limit.ts'
 import { server } from '#tests/mocks/index.ts'
 import './custom-matchers.ts'
+
+// Each test starts with Strava's whole read budget, so the reads earlier
+// tests in a file made against MSW never defer a later one.
+beforeEach(() => resetStravaRateLimiter())
 
 // `findBy*` / `waitFor` give up after Testing Library's 1s default, but a route
 // mounts through React Router's transition, so the DOM keeps HydrateFallback

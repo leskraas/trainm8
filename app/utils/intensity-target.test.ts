@@ -5,6 +5,7 @@ import {
 	type DisciplineThresholdMap,
 	formatIntensityTarget,
 	parseAuthoredIntensity,
+	resolveStepBand,
 	sessionMetricTarget,
 	unresolvedThresholdReasons,
 } from './intensity-target.ts'
@@ -522,6 +523,65 @@ describe('sessionMetricTarget', () => {
 		})
 	})
 
+	test('picks the 3:40/km distance rep over a longer Z2 warm-up (#615)', () => {
+		// `15 min Z2 + 6 × (1 km @ 3:40 + 90 s) + 10 min Z1`: the reps state a
+		// distance, not a time, and are still the session's work.
+		const rep = (distanceM: number, orderIndex: number) => ({
+			...cardioStep('{"kind":"pace","minSecPerKm":220}', null, orderIndex),
+			distanceM,
+		})
+		const workout = {
+			blocks: [
+				{ repeatCount: 1, steps: [cardioStep('Z2', 900, 0)] },
+				{ repeatCount: 6, steps: [rep(1000, 1)] },
+				{ repeatCount: 1, steps: [cardioStep('Z1', 600, 2)] },
+			],
+		}
+		const expected = { kind: 'metric', metric: 'pace', text: '3:40 /km' }
+		expect(sessionMetricTarget(workout, runThresholds)).toEqual(expected)
+		// With a zone system the rep is also the hardest step, by zone.
+		expect(
+			sessionMetricTarget(workout, {
+				run: profile({ zoneSystem: 'daniels-pace-5' }),
+			}),
+		).toEqual(expected)
+	})
+
+	test('picks short pace reps that have no zone over a longer Z2 warm-up (#617)', () => {
+		// `15 min Z2 + 6 × 400 m @ 3:40 + 10 min Z1`, no zone system: the reps
+		// can't say their zone and total 528 s, less than the warm-up.
+		const rep = {
+			...cardioStep('{"kind":"pace","minSecPerKm":220}', null, 1),
+			distanceM: 400,
+		}
+		const workout = {
+			blocks: [
+				{ repeatCount: 1, steps: [cardioStep('Z2', 900, 0)] },
+				{ repeatCount: 6, steps: [rep] },
+				{ repeatCount: 1, steps: [cardioStep('Z1', 600, 2)] },
+			],
+		}
+		expect(sessionMetricTarget(workout, runThresholds)).toEqual({
+			kind: 'metric',
+			metric: 'pace',
+			text: '3:40 /km',
+		})
+	})
+
+	test('picks the hardest step, not the longest, when every step has a zone (#615)', () => {
+		// 30 min Z2 + 4 × 4 min Z4: the Z2 runs longer, the Z4 is the session.
+		const workout = {
+			blocks: [
+				{ repeatCount: 1, steps: [cardioStep('Z2', 1800, 0)] },
+				{ repeatCount: 4, steps: [cardioStep('Z4', 240, 1)] },
+			],
+		}
+		expect(sessionMetricTarget(workout, runThresholds)).toEqual({
+			kind: 'zone',
+			text: 'Z4',
+		})
+	})
+
 	test('falls back to the Training Zone when the only targets are zone labels', () => {
 		const workout = {
 			blocks: [{ repeatCount: 1, steps: [cardioStep('threshold', 1200, 0)] }],
@@ -650,8 +710,19 @@ describe('deriveMetricTarget', () => {
 		).toEqual(target)
 	})
 
-	test('a zone label the recipe does not define → keeps the Training Zone label', () => {
-		const target = zone('endurance')
+	test('a canonical zone label reads through the band the recipe declares (#614)', () => {
+		// `endurance` is zone 2, which Daniels declares on E: 1.15–1.31 × 240.
+		expect(
+			deriveMetricTarget(
+				zone('endurance'),
+				'run',
+				profile({ zoneSystem: 'daniels-pace-5' }),
+			),
+		).toEqual({ kind: 'pace', minSecPerKm: 276, maxSecPerKm: 314 })
+	})
+
+	test('a zone label that names no zone → keeps the Training Zone label', () => {
+		const target = zone('sprint')
 		expect(
 			deriveMetricTarget(
 				target,
@@ -755,5 +826,73 @@ describe('the anchors the corpus needs', () => {
 				profile(),
 			).label,
 		).toBe('95–105% FTP')
+	})
+})
+
+describe('resolveStepBand', () => {
+	const thresholds: DisciplineThresholdMap = {
+		run: profile({ lthr: 172, maxHr: 195, zoneSystem: 'friel-hr-5-run' }),
+		bike: profile(),
+	}
+	const cardio = (intensity: object, discipline = 'run') => ({
+		kind: 'cardio',
+		discipline,
+		intensity: JSON.stringify(intensity),
+	})
+
+	test('a zone with a top is a bounded band', () => {
+		const band = resolveStepBand(
+			cardio({ kind: 'zoneLabel', label: 'Z4' }),
+			'run',
+			thresholds,
+			'heartrate',
+		)
+		expect(band).not.toBeNull()
+		expect(band!.max).not.toBeNull()
+		expect(band!.max!).toBeGreaterThan(band!.min)
+	})
+
+	test('a zone with no top is open above: a floor and no ceiling', () => {
+		expect(
+			resolveStepBand(
+				cardio({ kind: 'zoneLabel', label: 'Z5' }),
+				'run',
+				thresholds,
+				'heartrate',
+			),
+		).toEqual({ min: 172, max: null })
+	})
+
+	test('one authored value is a point, not an open band', () => {
+		expect(
+			resolveStepBand(
+				cardio({ kind: 'hrBpm', min: 150 }),
+				'run',
+				thresholds,
+				'heartrate',
+			),
+		).toEqual({ min: 150, max: 150 })
+		expect(
+			resolveStepBand(
+				cardio({ kind: 'power', minW: 200 }, 'bike'),
+				'bike',
+				thresholds,
+				'power',
+			),
+		).toEqual({ min: 200, max: 200 })
+	})
+
+	test('nothing on the channel, or nothing authored, is no band', () => {
+		expect(
+			resolveStepBand(
+				cardio({ kind: 'zoneLabel', label: 'Z4' }),
+				'run',
+				thresholds,
+				'power',
+			),
+		).toBeNull()
+		expect(
+			resolveStepBand({ kind: 'rest' }, 'run', thresholds, 'heartrate'),
+		).toBeNull()
 	})
 })

@@ -144,6 +144,60 @@ test('a create event ingests the activity Activity Stream', async () => {
 	expect(parsed?.heartrate).toBeDefined()
 })
 
+test('a create event enqueues detection once, with laps stored, phase bars and one streams call (#611)', async () => {
+	const user = await setupConnectedAthlete()
+	await prisma.athleteProfile.update({
+		where: { userId: user.id },
+		data: { disciplineProfiles: { create: { discipline: 'run', lthr: 168 } } },
+	})
+	mockActivity('5010')
+	let streamCalls = 0
+	server.events.on('request:start', ({ request }) => {
+		if (new URL(request.url).pathname.endsWith('/activities/5010/streams')) {
+			streamCalls++
+		}
+	})
+	server.use(
+		http.get('https://www.strava.com/api/v3/activities/:id/laps', () =>
+			HttpResponse.json([
+				{ lap_index: 1, start_index: 0, end_index: 299, elapsed_time: 300 },
+				{ lap_index: 2, start_index: 300, end_index: 599, elapsed_time: 300 },
+				{ lap_index: 3, start_index: 600, end_index: 899, elapsed_time: 300 },
+			]),
+		),
+	)
+
+	await enqueueAndRun({
+		objectType: 'activity',
+		objectId: '5010',
+		aspectType: 'create',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	})
+	server.events.removeAllListeners('request:start')
+
+	const imp = await prisma.activityImport.findUniqueOrThrow({
+		where: {
+			athleteId_externalProvider_externalId: {
+				athleteId: user.id,
+				externalProvider: 'strava',
+				externalId: '5010',
+			},
+		},
+		select: { id: true, lapsJson: true, phaseBarsJson: true },
+	})
+	// Laps land before the enqueue, so the first compute takes the lap-edged path.
+	expect(imp.lapsJson).not.toBeNull()
+	expect(imp.phaseBarsJson).not.toBeNull()
+	const detectionJobs = await prisma.job.findMany({
+		where: { kind: 'structure-detection' },
+		select: { payload: true },
+	})
+	expect(detectionJobs.map((j) => JSON.parse(j.payload))).toEqual([
+		{ activityImportId: imp.id },
+	])
+	expect(streamCalls).toBe(1)
+})
+
 test('a create event with no streams files the import without a stream', async () => {
 	const user = await setupConnectedAthlete()
 	mockActivity('5007')
@@ -301,6 +355,69 @@ test('an update event re-snapshots an auto-save mirror stream and re-enqueues de
 		where: { kind: 'structure-detection' },
 	})
 	expect(detectionJobs).toBe(1)
+})
+
+test('an update event whose streams body does not parse still refreshes its laps', async () => {
+	const user = await setupConnectedAthlete()
+	const original = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: user.id,
+			externalProvider: 'strava',
+			externalId: '6004',
+			startedAt: new Date('2026-05-25T06:00:00Z'),
+			endedAt: new Date('2026-05-25T06:50:00Z'),
+			durationSec: 3000,
+			distanceM: 10000,
+			discipline: 'run',
+			rawJson: '{}',
+		},
+	})
+	mockActivity('6004', { distance: 11000 })
+	server.use(
+		// A 200 that doesn't parse: a glitch to ask again about (#638).
+		http.get('https://www.strava.com/api/v3/activities/:id/streams', () =>
+			HttpResponse.json({ time: 'not a stream' }),
+		),
+		// Two pressed laps, placed by wall clock with no stream in hand.
+		http.get('https://www.strava.com/api/v3/activities/:id/laps', () =>
+			HttpResponse.json([
+				{ lap_index: 1, start_date: '2026-05-25T06:00:00Z', elapsed_time: 600 },
+				{ lap_index: 2, start_date: '2026-05-25T06:10:00Z', elapsed_time: 600 },
+			]),
+		),
+	)
+
+	await enqueueAndRun({
+		objectType: 'activity',
+		objectId: '6004',
+		aspectType: 'update',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	})
+
+	const job = await prisma.job.findFirstOrThrow({
+		where: { kind: STRAVA_WEBHOOK_JOB_KIND },
+		select: { status: true },
+	})
+	expect(job.status).toBe('completed')
+	const imp = await prisma.activityImport.findUniqueOrThrow({
+		where: { id: original.id },
+		select: {
+			distanceM: true,
+			lapsJson: true,
+			streamsCheckedAt: true,
+			stream: { select: { id: true } },
+		},
+	})
+	expect(imp.distanceM).toBe(11000)
+	expect(JSON.parse(imp.lapsJson!)).toEqual([
+		{ startSec: 0, endSec: 600 },
+		{ startSec: 600, endSec: 1200 },
+	])
+	// No stream came, and the import is not marked as asked: a later pass
+	// asks Strava again.
+	expect(imp.stream).toBeNull()
+	expect(imp.streamsCheckedAt).toBeNull()
 })
 
 test('an update event that re-types an import to "other" clears its stale detection', async () => {
@@ -817,4 +934,86 @@ test('a duplicate create event does not create a second import', async () => {
 		where: { athleteId: user.id, externalId: '5002' },
 	})
 	expect(imports).toBe(1)
+})
+
+test('a retried create event fetches the stream its first run did not get', async () => {
+	const user = await setupConnectedAthlete()
+	mockActivity('5003')
+	const createPayload: StravaWebhookJobPayload = {
+		objectType: 'activity',
+		objectId: '5003',
+		aspectType: 'create',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	}
+	// The first run files the import, but its streams fetch never lands (a
+	// spent Strava budget defers the job here in production).
+	server.use(
+		http.get(
+			'https://www.strava.com/api/v3/activities/:id/streams',
+			() => new HttpResponse(null, { status: 500 }),
+			{ once: true },
+		),
+	)
+	await enqueueAndRun(createPayload)
+	const imp = await prisma.activityImport.findUniqueOrThrow({
+		where: {
+			athleteId_externalProvider_externalId: {
+				athleteId: user.id,
+				externalProvider: 'strava',
+				externalId: '5003',
+			},
+		},
+		select: { id: true, stream: { select: { id: true } } },
+	})
+	expect(imp.stream).toBeNull()
+
+	// The retry is a duplicate of the import, and still completes its telemetry.
+	await enqueueAndRun(createPayload)
+
+	const stream = await prisma.activityStream.findUnique({
+		where: { activityImportId: imp.id },
+	})
+	expect(stream).not.toBeNull()
+	expect(
+		await prisma.activityImport.count({
+			where: { athleteId: user.id, externalId: '5003' },
+		}),
+	).toBe(1)
+})
+
+test('a redelivered create event does not ask again for streams Strava has none of', async () => {
+	const user = await setupConnectedAthlete()
+	mockActivity('5004')
+	let streamCalls = 0
+	server.use(
+		http.get('https://www.strava.com/api/v3/activities/:id/streams', () => {
+			streamCalls++
+			return HttpResponse.json({})
+		}),
+	)
+	const createPayload: StravaWebhookJobPayload = {
+		objectType: 'activity',
+		objectId: '5004',
+		aspectType: 'create',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	}
+
+	await enqueueAndRun(createPayload)
+	await enqueueAndRun(createPayload)
+
+	// Strava answered the first time, with nothing usable: the import is marked
+	// as asked, so a redelivery spends no read on it.
+	expect(streamCalls).toBe(1)
+	const imp = await prisma.activityImport.findUniqueOrThrow({
+		where: {
+			athleteId_externalProvider_externalId: {
+				athleteId: user.id,
+				externalProvider: 'strava',
+				externalId: '5004',
+			},
+		},
+		select: { streamsCheckedAt: true, stream: { select: { id: true } } },
+	})
+	expect(imp.stream).toBeNull()
+	expect(imp.streamsCheckedAt).toBeInstanceOf(Date)
 })

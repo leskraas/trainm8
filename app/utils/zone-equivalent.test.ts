@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { type IntensityTarget } from './workout-schema.ts'
 import {
 	intensityChipText,
+	readTargetZone,
 	rpeToStep,
 	zoneEquivalent,
 	zoneEquivalentProvenance,
@@ -347,5 +348,28 @@ describe('chip content and provenance stay in the authored form', () => {
 		expect(
 			zoneEquivalentProvenance({ kind: 'power', minW: 200 }, unplaced),
 		).toBe('kan ikke plasseres i en sone — FTP mangler i innstillingene')
+	})
+})
+
+// `readTargetZone` (#638): the one reading of an authored target against the
+// athlete's thresholds that I dag's Effort Word and a detected session's intent
+// share. A measured target is zoned on the recipe Structure Detection
+// classifies its channel against, so watts on a Daniels runner with a
+// critical-power threshold read on the Stryd power bands, not the pace recipe.
+describe('readTargetZone', () => {
+	const runner = { run: { ...runPace, runPowerThresholdW: 300 } }
+
+	test('a zone label reads as its own zone, thresholds or not', () => {
+		expect(readTargetZone({ kind: 'zoneLabel', label: 'Z4' }, 'run', {})).toBe(
+			4,
+		)
+	})
+
+	test('watts on a pace-recipe runner read on the power bands', () => {
+		expect(readTargetZone({ kind: 'power', minW: 300 }, 'run', runner)).toBe(4)
+	})
+
+	test('nothing to zone a measured target by is null', () => {
+		expect(readTargetZone({ kind: 'power', minW: 300 }, 'run', {})).toBeNull()
 	})
 })

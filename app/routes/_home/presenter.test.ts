@@ -90,7 +90,8 @@ function cardioStep(
 		durationSec,
 		distanceM: null,
 		verticalM: null,
-		gradePct: null,
+		gradePctMin: null,
+		gradePctMax: null,
 		cadenceRpmMin: null,
 		cadenceRpmMax: null,
 		rest: null,
@@ -639,11 +640,16 @@ describe('buildSessionNudge', () => {
 	}
 
 	/** The canonical eased prescription as the applier persists it (#158/#186):
-	 * one endurance-intent block, a single Z2 cardio step, capped at an hour. */
+	 * one endurance-intent block, a single zone-2 cardio step, capped at an
+	 * hour. With no recipe to read a band off, zone 2 is stored as its word. */
 	function persistedEasedWorkout(): NonNullable<LedgerSession['workout']> {
 		return {
 			...runWorkout([
-				cardioStep(JSON.stringify({ kind: 'zoneLabel', label: 'Z2' }), 3600, 0),
+				cardioStep(
+					JSON.stringify({ kind: 'zoneLabel', label: 'rolig' }),
+					3600,
+					0,
+				),
 			]),
 			intent: 'endurance',
 		}
@@ -695,6 +701,45 @@ describe('buildSessionNudge', () => {
 		expect(nudge.reason).toBe(
 			'Økta mandag ble ikke gjort – økta lørdag er gjort om til en rolig time i sone 2, så du ikke legger harde dager tett etter et opphold.',
 		)
+	})
+
+	test('a huge repeat on the next session is read without expanding its reps', () => {
+		// 1000 × 1000 × 10 s of zone 2: a million executed steps. The eased
+		// target is one step, so the session cannot equal it, and saying so must
+		// not walk every rep.
+		const eased = persistedEasedWorkout()
+		const huge: NonNullable<LedgerSession['workout']> = {
+			...eased,
+			blocks: eased.blocks.map((block) => ({
+				...block,
+				repeatCount: 1000,
+				seriesRepeatCount: 1000,
+				steps: block.steps.map((step) => ({ ...step, durationSec: 10 })),
+			})),
+		}
+		const started = performance.now()
+		const nudge = buildSessionNudge({
+			ledger: [
+				missedKeyMonday(),
+				ledger({
+					id: 'next',
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+					workout: huge,
+				}),
+			],
+			current: { tsb: 1 },
+			trust: trust(),
+			sustained: null,
+			now: NOW,
+		})
+		const elapsed = performance.now() - started
+		expect(nudge.outcome).toBe('eased')
+		if (nudge.outcome !== 'eased') throw new Error('expected eased')
+		expect(nudge.reason).toBe(
+			'Økta mandag ble ikke gjort – neste økt blir gjort lettere.',
+		)
+		expect(elapsed).toBeLessThan(50)
 	})
 
 	test('a miss with a strength next session is held with the honest miss-driven reason', () => {

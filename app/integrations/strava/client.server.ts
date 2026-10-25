@@ -2,6 +2,11 @@ import { type AccountConnection } from '@prisma/client'
 import { prisma } from '#app/utils/db.server.ts'
 import { StravaTokenExchangeError } from './oauth.server.ts'
 import {
+	getStravaRateLimiter,
+	type RateLimiter,
+	type RateLimitLane,
+} from './rate-limit.ts'
+import {
 	STRAVA_API_BASE,
 	STRAVA_TOKEN_URL,
 	StravaTokenResponseSchema,
@@ -174,26 +179,28 @@ export async function getValidAccessToken(
 }
 
 /**
- * Authenticated GET against the Strava API. Refreshes proactively when the
- * stored token is near expiry, and reactively retries once on a 401 (the token
- * was rejected despite looking valid). A permanent refresh failure surfaces as
- * `StravaConnectionRevokedError`.
+ * Authenticated GET against the Strava API, paced in `lane` by `limiter` (the
+ * process-wide one unless a test hands in its own): a spent window, or a
+ * `429`, throws `StravaRateLimitedError` for its reset. Refreshes proactively
+ * when the stored token is near expiry, and reactively retries once on a 401
+ * (the token was rejected despite looking valid). A permanent refresh failure
+ * surfaces as `StravaConnectionRevokedError`.
  */
 export async function stravaApiGet<T>(
 	connection: ConnectionRef,
 	path: string,
+	lane: RateLimitLane = 'bulk',
+	{ limiter = getStravaRateLimiter() }: { limiter?: RateLimiter } = {},
 ): Promise<T> {
 	const url = `${STRAVA_API_BASE}${path}`
-	const accessToken = await getValidAccessToken(connection)
-	let response = await fetch(url, {
-		headers: { Authorization: `Bearer ${accessToken}` },
-	})
+	const get = (token: string) =>
+		limiter.run(lane, () =>
+			fetch(url, { headers: { Authorization: `Bearer ${token}` } }),
+		)
+	let response = await get(await getValidAccessToken(connection))
 
 	if (response.status === 401) {
-		const refreshedToken = await refreshAndPersist(connection)
-		response = await fetch(url, {
-			headers: { Authorization: `Bearer ${refreshedToken}` },
-		})
+		response = await get(await refreshAndPersist(connection))
 	}
 
 	// A 403 is permanent (refreshing the token won't help), but the fix depends on

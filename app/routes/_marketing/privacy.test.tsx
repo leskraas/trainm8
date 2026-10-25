@@ -51,12 +51,20 @@ test('the notice has no repeated heading or line within a section', () => {
 })
 
 // Account deletion removes the user row, not everything (ADR 0105 §3): the
-// profile image stays in object storage, and workouts and exercises the athlete
-// wrote are kept without an owner (`onDelete: SetNull`). The notice says so.
+// profile image stays in object storage, and exercises the athlete wrote are
+// kept without an owner (`onDelete: SetNull`). The athlete's Workouts are purged
+// with the account (`deleteAccount`, #641), except one another athlete's
+// training points at, which is kept private and without its Attribution. The
+// notice says so, and says nothing that contradicts "Slett kontoen din".
 test('the notice does not promise more deletion than account deletion does', () => {
 	render(<PrivacyRoute />)
 
 	expect(screen.queryByText(/slettes alt/)).toBeNull()
 	expect(screen.getByText(/Profilbildet ditt/)).toBeTruthy()
-	expect(screen.getByText(/Økter og øvelser du har laget selv/)).toBeTruthy()
+	expect(
+		screen.getByText(/Øktene du har laget selv, slettes sammen med kontoen/),
+	).toBeTruthy()
+	expect(screen.getByText(/Øvelser du har laget selv/)).toBeTruthy()
+	// A workout someone else trains on is kept without the athlete's name.
+	expect(screen.queryByText(/visningsnavnet du delte den med/)).toBeNull()
 })

@@ -1,8 +1,10 @@
+import { zoneLabelToZone } from '../session-profile.ts'
 import {
 	powerPctRef,
 	type IntensityTarget,
 	type RaceAnchor,
 } from '../workout-schema.ts'
+import { bandForZone } from './band-for-zone.ts'
 import { BUILT_IN_RECIPES } from './recipes.ts'
 import { type ZoneAnchor, type ZoneBand, type ZoneRecipe } from './types.ts'
 
@@ -36,13 +38,27 @@ export type DisciplineProfileForResolver = {
 	raceAnchorPaces?: RaceAnchorPaces | null
 }
 
+/** The unit a resolved pace is in: seconds per km, or seconds per 100 m. */
+export type PaceUnit = 'secPerKm' | 'secPer100m'
+
 export type ResolvedIntensity = {
 	hrMin?: number
 	hrMax?: number
 	powerMin?: number
 	powerMax?: number
+	/** Paces, in the unit `paceUnit` names. */
 	paceMin?: number
 	paceMax?: number
+	/**
+	 * The unit `paceMin`/`paceMax` are in, set whenever either is — the one
+	 * statement every reader converts by (`zones/pace-unit.ts`, `zoneEquivalent`,
+	 * the step target text), so none re-derives it or keeps its own ÷10 (#613,
+	 * #638). A pace read off a recipe band (a `zoneLabel` or `lactate` target) is
+	 * in the band anchor's unit, per 100 m on CSS; an authored `pace`, a
+	 * percentage of threshold pace and a race pace are per km whatever the
+	 * discipline.
+	 */
+	paceUnit?: PaceUnit
 	unavailable?: string
 	/**
 	 * Whether the concrete range is a **translation** rather than arithmetic on
@@ -53,6 +69,12 @@ export type ResolvedIntensity = {
 	 * threshold by a percentage is *not* approximate and does not set it.
 	 */
 	approximate?: boolean
+	/**
+	 * Set when a `zoneLabel` is not one of the recipe's own band labels and was
+	 * read through its Training Zone instead (`Z2 read as E`), saying so — and
+	 * which zone the recipe lacks when the nearest band stood in (ADR 0045 §3).
+	 */
+	substitution?: string
 }
 
 /** The athlete's word for a `powerPct` reference. `map` and `cp` are named
@@ -181,8 +203,9 @@ function applyBand(
 		case 'maxHr':
 			return { hrMin: minVal, hrMax: maxVal }
 		case 'thresholdPace':
+			return { paceMin: minVal, paceMax: maxVal, paceUnit: 'secPerKm' }
 		case 'css':
-			return { paceMin: minVal, paceMax: maxVal }
+			return { paceMin: minVal, paceMax: maxVal, paceUnit: 'secPer100m' }
 		case 'rpe':
 			return {}
 	}
@@ -235,7 +258,11 @@ export function resolveIntensity(
 		}
 
 		case 'pace':
-			return { paceMin: authored.minSecPerKm, paceMax: authored.maxSecPerKm }
+			return {
+				paceMin: authored.minSecPerKm,
+				paceMax: authored.maxSecPerKm,
+				paceUnit: 'secPerKm',
+			}
 
 		case 'pacePct': {
 			if (!profile.thresholdPaceSecPerKm) {
@@ -301,8 +328,8 @@ export function resolveIntensity(
 			const found = recipeBands(profile)
 			if ('unavailable' in found) return found
 			const { recipe, bands } = found
-			const band = bands.find((z) => z.label === authored.label)
-			if (!band) {
+			const read = bandForLabel(recipe, bands, authored.label)
+			if (!read) {
 				return {
 					unavailable: `Zone ${authored.label} not found in recipe ${recipe.id}`,
 				}
@@ -315,8 +342,40 @@ export function resolveIntensity(
 				}
 			}
 
-			return applyBand(recipe.anchor, anchorValue, band)
+			const resolved = applyBand(recipe.anchor, anchorValue, read.band)
+			return read.substitution
+				? { ...resolved, substitution: read.substitution }
+				: resolved
 		}
+	}
+}
+
+/**
+ * The band a `zoneLabel` reads as. The athlete's own band label wins (`T` on
+ * Daniels, `Z4` on Coggan). Any other label the app writes — a canonical `Z2`,
+ * a catalogue `threshold` — is read as its Training Zone and then as the band
+ * the recipe *declares* for that zone, with the reading named, since a default
+ * runner's recipe calls its bands `E M T I R` (#614).
+ */
+function bandForLabel(
+	recipe: ZoneRecipe,
+	bands: ZoneBand[],
+	label: string,
+): { band: ZoneBand; substitution?: string } | null {
+	const own = bands.find((z) => z.label === label)
+	if (own) return { band: own }
+
+	const zone = zoneLabelToZone(label)
+	if (zone == null) return null
+	// Read the overridden bands, so an override applies however the band is named.
+	const found = bandForZone({ ...recipe, zones: bands }, zone)
+	if (!found) return null
+	const read = `${label} read as ${found.band.label}`
+	return {
+		band: found.band,
+		substitution: found.substituted
+			? `${read} (${recipe.name} has no zone ${zone})`
+			: read,
 	}
 }
 
@@ -341,7 +400,7 @@ function paceFromSpeedPct(
 	const slow = Math.round(anchorSecPerKm / (minPct / 100))
 	const fast =
 		maxPct != null ? Math.round(anchorSecPerKm / (maxPct / 100)) : slow
-	return { paceMin: fast, paceMax: slow }
+	return { paceMin: fast, paceMax: slow, paceUnit: 'secPerKm' }
 }
 
 /**

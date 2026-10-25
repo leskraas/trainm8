@@ -97,8 +97,9 @@ export function CalmToday({ data }: { data: HomeTimelineData }) {
 				timezone,
 				activePlan,
 				importConnected,
+				thresholds,
 			}),
-		[activePlan, importConnected, ledger, now, timezone],
+		[activePlan, importConnected, ledger, now, thresholds, timezone],
 	)
 	// Today's action as the full view says it: a lift's runner link, and what
 	// a session's details show when the Drawer opens on it.
@@ -125,8 +126,9 @@ export function CalmToday({ data }: { data: HomeTimelineData }) {
 				timezone,
 				activePlan,
 				strengthCta: today.cta,
+				thresholds,
 			}),
-		[activePlan, ledger, now, season, timezone, today.cta],
+		[activePlan, ledger, now, season, thresholds, timezone, today.cta],
 	)
 	const writable = useMemo(
 		() => timelineWindow({ now, timezone, plan: activePlan }),

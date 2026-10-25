@@ -8,12 +8,14 @@ Not legal advice: each rule below records a reading of the vendor's text, and
 the readings marked _owner/legal_ need a person's sign-off before an athlete
 other than the owner connects an assistant.
 
-Numbering: 0092–0095 and 0097 are reserved by the agent-strategy roadmap
+Numbering: 0094, 0095 and 0097 are reserved by the agent-strategy roadmap
 ([`agent-strategy.md`, "The ADR roadmap"](../research/agent-strategy.md#the-adr-roadmap)).
 
-**Defines the `source-terms` reason.** ADR 0092 (the action registry, #550) is
-not written yet; when it lands it cites this ADR for the reason and widens its
-model-facing gate from Strava to every Origin Platform. **Builds on
+**Defines the `source-terms` reason.**
+[ADR 0092](./0092-every-athlete-operation-is-one-typed-action-and-the-routes-the-mcp-server-and-an-agent-are-its-readers.md)
+(the action registry, #550) cites this ADR for the reason, makes it one value of
+the one `UnavailableReason` a **Reading** carries (§6 there), and puts every
+model-facing number through `sourceTerms` (§7 there). **Builds on
 [ADR 0096](./0096-every-import-records-its-origin-platform-and-one-activity-is-one-row.md)**,
 which records the Origin Platform this ADR keys on. **Carries the per-vendor
 retention rule** [ADR 0012](./0012-disconnect-preserves-recordings.md) needs,
@@ -74,7 +76,7 @@ requires.
 | Origin Platform                  | `screen`                                                                                                                                                                                                                                                                                   | `model`                                                                                                                                                                                                                                                                                                                                                                                                     |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `garmin`                         | Allowed, with **"Garmin [device model]"** (`deviceName`; plain "Garmin" when unknown) beside the title, above the fold, never in a tooltip, footnote or collapsed section. Derived values (load, charts, Coach text) carry **"Insights derived in part from Garmin device-sourced data."** | **Allowed with attribution** for Garmin data that arrives through Intervals.icu or an uploaded file: every result carrying the value, or anything derived from it, carries the Garmin credit. The owner decided this on 2026-10-14, ahead of the vendors' answers (#542). A Garmin direct integration needs Garmin's written §5.2(o) approval naming the assistant platforms before it ships. _owner/legal_ |
-| `polar`                          | Allowed, crediting **Polar** as the source on the data and on anything derived from it (§3.1.5).                                                                                                                                                                                           | Only with the athlete's **separate Polar opt-in** for sending Polar data to an assistant (§3.1.1), distinct from any general AI consent; closed without it. Carries the Polar credit.                                                                                                                                                                                                                       |
+| `polar`                          | Allowed, crediting **Polar** as the source on the data and on anything derived from it (§3.1.5).                                                                                                                                                                                           | Only with the athlete's **separate Polar opt-in** for sending Polar data to an assistant (§3.1.1), distinct from any general AI consent; closed without it. Carries the Polar credit. _Mechanism: [ADR 0108](./0108-polar-comes-in-through-accesslink-as-fit-and-reaches-a-model-only-on-the-athletes-polar-opt-in.md) (#555), a per-athlete Model Sharing Opt-In passed to `sourceTerms`._                 |
 | `strava`                         | Allowed, within Strava's seven-day cache rule (#543 decides retention).                                                                                                                                                                                                                    | **Closed, always.** Strava's Policy §5.3, §5.10 and §5.16 bar AI use of Strava Data and anything derived from it, with no consent exception.                                                                                                                                                                                                                                                                |
 | `apple-health`, `health-connect` | Allowed.                                                                                                                                                                                                                                                                                   | Only with explicit permission naming the AI (App Review 5.1.2(i); Google Play health data policy); MCP re-exposure stays closed until a store review has seen it. _owner/legal_                                                                                                                                                                                                                             |
 | `upload`, `intervalsicu`         | Allowed.                                                                                                                                                                                                                                                                                   | Allowed. The athlete's own file is not vendor API data; Intervals.icu's terms have no AI clause.                                                                                                                                                                                                                                                                                                            |
@@ -115,6 +117,33 @@ ends). **Wahoo** wants a user's personal data deleted on revocation unless an
 agreement with the user says otherwise, so Wahoo does not ship before its row
 here settles that. **Strava**'s seven-day cache is #543's decision.
 
+### 6. The credit on a dense row (added 2026-10-24, #557)
+
+Garmin's guidelines name feeds as well as cards, so every I dag timeline row
+built on a Garmin recording carries **"Garmin [device model]"**, and so does the
+row's details in the Drawer and the day pane. The design call, made with Emil
+Kowalski's skills against the design system (ADR 0085):
+
+- **Chosen: one caption line under the title, inside the row's link**
+  (`SourceCredits`, `text-caption text-muted-foreground`, no motion). It sits
+  where the guidelines ask (by the title, above the fold, never in a tooltip,
+  footnote or fold), keeps the volume and done dot on the title's line, and
+  costs a credited row about 12 px at 390 px. It wraps and is never truncated; a
+  long name takes the lines it needs. Only an **owed** credit shows (Garmin,
+  Polar): a Suunto or Strava row stays as it was.
+- **Rejected: the credit inline after the title.** It reads as part of the
+  session's name, and where it falls (same line or the next) changes row by row,
+  which a list scanned at a glance cannot afford.
+- **Rejected: the credit in the right-hand figures** ("Garmin · 9,8 km"). That
+  column never wraps, so a long device name would push the title out, and
+  dropping the model to fit breaks the "[device model]" rule.
+- **Rejected: a Garmin mark or glyph.** The guidelines' form for screens is the
+  words; a 12 px logo is neither legible nor the stated attribution.
+- **Rejected: once per week header or screen.** The rule is per item, by its
+  title; a header credit cannot say which device recorded which row.
+- **Rejected: only in the row's details.** That is an expandable container,
+  which the guidelines exclude.
+
 ## Considered options
 
 - **Gate on `externalProvider`.** Rejected: it gates the pipe. Garmin data
@@ -145,7 +174,8 @@ here settles that. **Strava**'s seven-day cache is #543's decision.
   and every model-facing reader and every attribution site calls it. No reader
   decides terms on its own.
 - Garmin attribution is owed on screens today (#546): on the Recording card and
-  on load numbers and Coach output drawn from Garmin-origin imports.
+  on load numbers and Coach output drawn from Garmin-origin imports, and on
+  every I dag timeline row built on one (#557, §6).
 - A derived value goes `source-terms` while any closed platform's input is in
   its window. A recompute that leaves those inputs out is possible but not
   built.

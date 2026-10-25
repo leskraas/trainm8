@@ -91,8 +91,8 @@ the files its auth model makes meaningless (no `oauth.server.ts`, no
   `ActivityImportInput` like every other source. Per-sample streams are ingested
   to the same downsampled Activity Stream shape (ADR 0020) so the Telemetry
   Overlay and NP-based TSS (ADR 0024) work identically. Rate budget (5,000
-  req/day **per athlete key**, vs Strava's per-app 600/15min) is generous; a
-  courtesy pacer suffices.
+  req/day **per athlete key**, vs Strava's per-app 100/15min and 1,000/day for
+  reads, ADR 0013 #637) is generous; a courtesy pacer suffices.
 
 ### 4. Account Connection generalizes to credential auth
 

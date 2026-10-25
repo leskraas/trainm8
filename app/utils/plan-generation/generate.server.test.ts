@@ -4,6 +4,7 @@ import { CONVENTION_NOTICE } from '../catalogue-corpus.ts'
 import { resolveCatalogueOrigin } from '../catalogue.server.ts'
 import { readCitation } from '../catalogue.ts'
 import { prisma } from '../db.server.ts'
+import { getSeasonForEvent } from '../training.server.ts'
 import {
 	approveSeason,
 	defaultPresetFor,
@@ -362,4 +363,39 @@ test('the default shape is the one landing nearest the Event, and is never a lab
 			'big-base-long',
 		]),
 	).toBe('masters-2-1-short')
+})
+
+test('approving under a Weekly Capacity writes the lowered season, and the plan’s own hours check stays quiet (#473)', async () => {
+	const athlete = await createAthlete()
+	await seedCorpus()
+	const profile = await prisma.athleteProfile.update({
+		where: { userId: athlete.id },
+		data: { weeklyCapacityHours: 3 },
+		select: { id: true },
+	})
+	await prisma.disciplineProfile.create({
+		data: {
+			athleteProfileId: profile.id,
+			discipline: 'run',
+			thresholdPaceSecPerKm: 300,
+		},
+	})
+	const event = await createEvent(athlete.id, new Date('2026-04-04T09:00:00Z'))
+
+	const preview = await previewSeason(athlete.id, event.id, choice(), {
+		now: NOW,
+	})
+	if (!preview.ok) throw new Error(preview.reason)
+	const { capacity, tracks } = preview.preview.season
+	expect(capacity.kind).toBe('lowered')
+	expect(tracks[0]!.anchorValue).toBeLessThan(40)
+
+	const approved = await approveSeason(athlete.id, event.id, choice(), {
+		now: NOW,
+	})
+	if (!approved.ok) throw new Error(approved.reason)
+
+	const season = await getSeasonForEvent(athlete.id, event.id, NOW)
+	expect(season?.weeklyCapacityHours).toBe(3)
+	expect(season?.hoursWarnings).toEqual([])
 })

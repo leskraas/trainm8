@@ -46,10 +46,14 @@ import {
 } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { isEffortWord } from '../effort-word.ts'
+import { type DisciplineThresholdMap } from '../intensity-target.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
 import { type TrainingZone } from '../session-profile.ts'
 import { stampedSessionTitle } from '../session-title.ts'
-import { sessionWorkoutSelect } from '../training.server.ts'
+import {
+	getDisciplineThresholds,
+	sessionWorkoutSelect,
+} from '../training.server.ts'
 import {
 	isCardioDiscipline,
 	type CardioDiscipline,
@@ -290,6 +294,7 @@ export async function stampWeekPattern(
 	const eventId = outline.event?.id ?? null
 	const timezone = await getAthleteTimezone(userId)
 	const trainingTime = await readStampProfile(userId)
+	const thresholds = await getDisciplineThresholds(userId)
 	const specs = phaseSpecs(outline)
 	const weekCount = totalWeeks(specs)
 	const tracks = stampTracks(outline)
@@ -315,7 +320,7 @@ export async function stampWeekPattern(
 	}
 
 	const plans = planStamp({
-		days: stampDays(pattern, tracks),
+		days: stampDays(pattern, tracks, thresholds),
 		lifting: liftingSlots(pattern, tracks),
 		liftingDays: trainingTime.liftingDays,
 		tracks,
@@ -513,7 +518,7 @@ export async function readLaidWeeks(
 		})
 	}
 	const input = swap({
-		days: stampDays(pattern, tracks),
+		days: stampDays(pattern, tracks, await getDisciplineThresholds(userId)),
 		lifting: liftingSlots(pattern, tracks),
 	})
 	const { liftingDays } = await readStampProfile(userId)
@@ -538,21 +543,25 @@ async function readHeldSessions(
 	timezone: string,
 ): Promise<PlacedSession[]> {
 	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
-	const rows = await prisma.workoutSession.findMany({
-		where: {
-			userId,
-			scheduledAt: { gte: start, lte: end },
-			status: { in: [...TRAINED_SESSION_STATUSES] },
-			OR: [
-				{ source: 'authored' },
-				{ planOutlineId: null },
-				{ planOutlineId: { not: planOutlineId } },
-			],
-		},
-		select: { scheduledAt: true, workout: sessionWorkoutSelect },
-	})
+	const [rows, thresholds] = await Promise.all([
+		prisma.workoutSession.findMany({
+			where: {
+				userId,
+				scheduledAt: { gte: start, lte: end },
+				status: { in: [...TRAINED_SESSION_STATUSES] },
+				OR: [
+					{ source: 'authored' },
+					{ planOutlineId: null },
+					{ planOutlineId: { not: planOutlineId } },
+				],
+			},
+			select: { scheduledAt: true, workout: sessionWorkoutSelect },
+		}),
+		// What an absolute pace, watts or bpm is read by (#617).
+		getDisciplineThresholds(userId),
+	])
 	return rows.flatMap((row) => {
-		const shape = readPlacement(row.workout)
+		const shape = readPlacement(row.workout, thresholds)
 		if (!shape) return []
 		const weekday = weekdayIndex(localDate(row.scheduledAt, timezone))
 		return isPatternWeekday(weekday) ? [placedOn(shape, weekday)] : []
@@ -784,6 +793,8 @@ function stampTracks(outline: StampOutline): StampTrack[] {
 function stampDays(
 	pattern: StampPattern,
 	tracks: readonly StampTrack[],
+	/** Times a fixed day's distance step, as the week header times it. */
+	thresholds: DisciplineThresholdMap,
 ): StampDay[] {
 	const currencyByTrack = new Map(
 		tracks.map((track) => [track.trackId, track.currency]),
@@ -794,7 +805,10 @@ function stampDays(
 		const currency = currencyByTrack.get(day.trackId)
 		if (!currency) return []
 		const priced = day.workout
-			? fixedDayVolume(pricingBlocks(day.workout), currency)
+			? fixedDayVolume(pricingBlocks(day.workout), currency, {
+					thresholds,
+					discipline: day.workout.discipline,
+				})
 			: null
 		const position = {
 			dayId: day.id,
@@ -856,8 +870,12 @@ function liftingSlots(
 function pricingBlocks(workout: CopyableWorkout) {
 	return workout.blocks.map((block) => ({
 		repeatCount: block.repeatCount,
+		seriesRepeatCount: block.seriesRepeatCount,
+		betweenSeriesRestSec: block.betweenSeriesRestSec,
 		steps: block.steps.map((step) => ({
 			kind: step.kind,
+			discipline: step.discipline,
+			intensity: step.intensity,
 			durationSec: step.durationSec,
 			distanceM: step.distanceM,
 		})),

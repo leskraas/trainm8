@@ -17,12 +17,18 @@ import { prisma } from './db.server.ts'
 import { isEffortWord } from './effort-word.ts'
 import { type DisciplineThresholdMap } from './intensity-target.ts'
 import {
+	ledgerSessionSelect,
+	upcomingSessionSelect,
+	type LedgerSession,
+} from './ledger-session.ts'
+import {
 	weeklyAdherence,
 	weeklyLoad,
 	type WeeklyAdherence,
 	type WeeklyLoad,
 } from './load/adherence.ts'
 import { lastClosedWeekKey } from './load/week-change.ts'
+import { raceAnchorPacesByDiscipline } from './performance-result.server.ts'
 import {
 	anchoredActiveOutlineWhere,
 	isOutlineResting,
@@ -94,55 +100,6 @@ import {
 	isCardioDiscipline,
 	type Discipline,
 } from './workout-schema.ts'
-
-const stepSelect = {
-	id: true,
-	kind: true,
-	notes: true,
-	discipline: true,
-	intensity: true,
-	intensityHrMin: true,
-	intensityHrMax: true,
-	intensityPowerMin: true,
-	intensityPowerMax: true,
-	intensityPaceMin: true,
-	intensityPaceMax: true,
-	orderIndex: true,
-	durationSec: true,
-	distanceM: true,
-	verticalM: true,
-	gradePct: true,
-	cadenceRpmMin: true,
-	cadenceRpmMax: true,
-	rest: true,
-	exerciseId: true,
-	restBetweenSetsSec: true,
-	exercise: {
-		select: {
-			id: true,
-			name: true,
-			primaryMuscle: true,
-			equipment: true,
-		},
-	},
-	sets: {
-		orderBy: { orderIndex: 'asc' as const },
-		select: {
-			id: true,
-			kind: true,
-			orderIndex: true,
-			load: true,
-			weightKg: true,
-			pct1RM: true,
-			effortCap: true,
-			tempo: true,
-			reps: true,
-			durationSec: true,
-			terminationRir: true,
-			velocityLossPct: true,
-		},
-	},
-} satisfies Prisma.WorkoutStepSelect
 
 export type ActivePlan = {
 	/**
@@ -404,15 +361,19 @@ const activeOutlineSelect = {
 							// or its intent ask for (`sessionZone`).
 							effortWord: true,
 							intent: true,
+							// Times a step that names no Discipline of its own.
+							discipline: true,
 							blocks: {
 								orderBy: { orderIndex: 'asc' },
 								select: {
 									repeatCount: true,
 									seriesRepeatCount: true,
+									betweenSeriesRestSec: true,
 									steps: {
 										orderBy: { orderIndex: 'asc' },
 										select: {
 											kind: true,
+											discipline: true,
 											durationSec: true,
 											distanceM: true,
 											intensity: true,
@@ -903,6 +864,9 @@ async function toSeason(
 	// would let one surface show a capacity the other's check did not use.
 	const { trainableWeekdays, trainableDays, weeklyCapacityHours } =
 		await readTrainingAvailability(userId)
+	// What prices a fixed day's hours: a distance step timed at the athlete's
+	// pace, as the week header and the stamp time it (`fixedDayVolume`).
+	const thresholds = await getDisciplineThresholds(userId)
 	const phases = phaseReadings(outline)
 	const specs = phaseSpecs(outline)
 	const tracks = resolvedTracks(outline)
@@ -955,6 +919,7 @@ async function toSeason(
 			specs,
 			tracks,
 			trainableDays,
+			thresholds,
 		),
 		// The second check, beside the first and never instead of it (ADR 0050 §5).
 		weeklyCapacityHours,
@@ -1047,7 +1012,9 @@ async function toSeason(
 						: (track.strengthRoles[week] ?? 'gap'),
 			})),
 		})),
-		patterns: outline.patterns.map(patternReading),
+		patterns: outline.patterns.map((pattern) =>
+			patternReading(pattern, thresholds),
+		),
 		fit: event
 			? eventFit(
 					outline.startWeekKey,
@@ -1286,18 +1253,20 @@ async function seasonBandWarnings(
 }
 
 /**
- * The athlete's own **Workouts**, newest first — what a fixed pattern day can
- * point at.
+ * The Workouts a Week Pattern day may prescribe: the athlete's own, **bounded**
+ * (#442, ADR 0111).
  *
- * Owner-scoped, because a Workout belongs to the athlete who authored it and a
- * pattern day may only prescribe one of those. Deliberately thin: a title and a
- * discipline are what a picker needs to name a session, and the day itself is
- * priced from the stored blocks on read rather than from anything here.
+ * Every session owns a private 1:1 Workout (ADR 0003), so "every Workout the
+ * athlete owns" is every session they ever planned and grows without bound. The
+ * picker instead offers what the athlete **recently wrote or placed by hand**:
+ * the Workouts behind their `authored` sessions, newest first, one per title
+ * within a discipline, at most {@link PICKER_PER_DISCIPLINE} per discipline, and
+ * only for the disciplines the plan's tracks hold. Stamped (`generated`),
+ * recorded and detected sessions are the machine's copies, not the athlete's
+ * choices, and are left out.
  *
- * The honest state this read exists to expose is the **empty** one: the Catalogue
- * (#448/#451) covers trainm8-authored Stock Workouts, but an athlete has no
- * collection of their own past Workouts yet — Workouts are authored inline with
- * a session — so an athlete may well have none, and the surface has to say that
+ * Owner-scoped, as `addWeekPatternDay` is, so the picker offers nothing the
+ * service would refuse. An athlete may still have none, and the surface says so
  * rather than offer a control with nothing in it.
  */
 export type AuthoredWorkout = {
@@ -1306,14 +1275,66 @@ export type AuthoredWorkout = {
 	discipline: string
 }
 
+/** At most this many Workouts per discipline in the picker. */
+export const PICKER_PER_DISCIPLINE = 12
+/**
+ * How many recent sessions are read **per discipline** to find the distinct
+ * Workouts. Per discipline, so a busy discipline cannot use up the scan and
+ * leave another track's picker empty.
+ */
+const PICKER_SCAN = 200
+
 export async function getAuthoredWorkouts(
 	userId: string,
+	disciplines: readonly string[],
 ): Promise<AuthoredWorkout[]> {
-	return prisma.workout.findMany({
-		where: { ownerId: userId },
-		orderBy: { createdAt: 'desc' },
-		select: { id: true, title: true, discipline: true },
-	})
+	const perDiscipline = await Promise.all(
+		[...new Set(disciplines)].map((discipline) =>
+			prisma.workoutSession.findMany({
+				where: {
+					userId,
+					source: 'authored',
+					workout: { ownerId: userId, discipline },
+				},
+				orderBy: { createdAt: 'desc' },
+				take: PICKER_SCAN,
+				select: {
+					workout: { select: { id: true, title: true, discipline: true } },
+				},
+			}),
+		),
+	)
+	return pickRecentWorkouts(
+		perDiscipline.flatMap((sessions) =>
+			sessions.flatMap((session) => (session.workout ? [session.workout] : [])),
+		),
+	)
+}
+
+/**
+ * The pure half: newest first in (within each discipline), one per discipline
+ * and title out, capped per discipline. Titles compare case-insensitively with
+ * whitespace collapsed. The first occurrence of a title wins, so the newest is
+ * offered.
+ */
+export function pickRecentWorkouts(
+	newestFirst: readonly AuthoredWorkout[],
+	perDiscipline: number = PICKER_PER_DISCIPLINE,
+): AuthoredWorkout[] {
+	const seen = new Set<string>()
+	const counts = new Map<string, number>()
+	const picked: AuthoredWorkout[] = []
+	for (const workout of newestFirst) {
+		const title = workout.title.trim().replace(/\s+/g, ' ')
+		const key = `${workout.discipline}|${title.toLocaleLowerCase('nb')}`
+		if (seen.has(key)) continue
+		const count = counts.get(workout.discipline) ?? 0
+		if (count >= perDiscipline) continue
+		seen.add(key)
+		counts.set(workout.discipline, count + 1)
+		picked.push(workout)
+	}
+	return picked
 }
 
 type PatternRow = OutlineRowsFor['patterns'][number]
@@ -1334,6 +1355,7 @@ function seasonDayClashWarnings(
 	tracks: ResolvedTrack[],
 	/** Training Availability, Monday first; empty where never set. */
 	available: readonly PatternWeekday[],
+	thresholds: DisciplineThresholdMap,
 ): SeasonDayClashWarning[] {
 	const pattern = outline.patterns.find((each) => each.days.length > 0)
 	if (!pattern) return []
@@ -1363,7 +1385,11 @@ function seasonDayClashWarnings(
 		// Priced as the stamp prices it, so a share day the stamp would skip
 		// (nothing left after the fixed days) is skipped here too.
 		const priced = day.workout
-			? fixedDayVolume(day.workout.blocks, day.track.currency as VolumeCurrency)
+			? fixedDayVolume(
+					day.workout.blocks,
+					day.track.currency as VolumeCurrency,
+					{ thresholds, discipline: day.workout.discipline },
+				)
 			: null
 		const position = {
 			dayId: day.id,
@@ -1421,12 +1447,15 @@ function seasonDayClashWarnings(
 }
 
 /** One stored **Week Pattern** as the surfaces read it, days already priced. */
-function patternReading(pattern: PatternRow): SeasonPattern {
+function patternReading(
+	pattern: PatternRow,
+	thresholds: DisciplineThresholdMap,
+): SeasonPattern {
 	return {
 		id: pattern.id,
 		name: pattern.name,
 		orderIndex: pattern.orderIndex,
-		days: pattern.days.flatMap(patternDayReading),
+		days: pattern.days.flatMap((day) => patternDayReading(day, thresholds)),
 		liftingSlots: pattern.days.filter((day) => day.kind === 'lifting').length,
 	}
 }
@@ -1448,7 +1477,10 @@ function patternReading(pattern: PatternRow): SeasonPattern {
  * track cannot read a prescription at all yet, and a guessed price would flow
  * straight into every share day's number.
  */
-function patternDayReading(day: PatternDayRow): SeasonPatternDay[] {
+function patternDayReading(
+	day: PatternDayRow,
+	thresholds: DisciplineThresholdMap,
+): SeasonPatternDay[] {
 	// A lifting slot falls on no weekday: the stamp lays it each week (ADR
 	// 0104 §3), so it is no day of the authored microcycle.
 	if (day.weekday == null || !isPatternWeekday(day.weekday)) return []
@@ -1474,6 +1506,7 @@ function patternDayReading(day: PatternDayRow): SeasonPatternDay[] {
 					? fixedDayVolume(
 							day.workout.blocks,
 							day.track.currency as VolumeCurrency,
+							{ thresholds, discipline: day.workout.discipline },
 						)
 					: null,
 				workout,
@@ -1570,56 +1603,6 @@ async function seasonHoursWarnings(
 	)
 }
 
-const upcomingSessionSelect = {
-	id: true,
-	scheduledAt: true,
-	status: true,
-	source: true,
-	workout: {
-		select: {
-			id: true,
-			title: true,
-			description: true,
-			discipline: true,
-			intent: true,
-			/// The **Session Archetype** the athlete (or the Catalogue row this was
-			/// copied from) stated, or null when nobody stated one — in which case
-			/// the surface reads one instead (ADR 0055).
-			archetype: true,
-			/// A **Simple Activity**'s Activity Kind and Effort Word (ADR 0015 §A),
-			/// read by `readSimpleActivity`; null on every other Workout.
-			activityKind: true,
-			effortWord: true,
-			blocks: {
-				orderBy: { orderIndex: 'asc' as const },
-				select: {
-					id: true,
-					name: true,
-					orderIndex: true,
-					repeatCount: true,
-					seriesRepeatCount: true,
-					betweenSeriesRestSec: true,
-					sendOff: true,
-					steps: {
-						orderBy: { orderIndex: 'asc' as const },
-						select: stepSelect,
-					},
-				},
-			},
-		},
-	},
-	recording: {
-		select: {
-			id: true,
-			discipline: true,
-			durationSec: true,
-			distanceM: true,
-			startedAt: true,
-			endedAt: true,
-		},
-	},
-} satisfies Prisma.WorkoutSessionSelect
-
 /**
  * A session's Workout as every planned surface reads it — what the Effort Word
  * and the day rule's reading (`readPlacement`) are read from.
@@ -1651,91 +1634,7 @@ export async function getUpcomingSessions(
 	})
 }
 
-const ledgerSessionSelect = {
-	...upcomingSessionSelect,
-	// Session Adoption (#460): with `source` (already in the upcoming select) it
-	// says whose a session is, which the home timeline marks on every planned
-	// row (#505, `session-ownership.ts`), and Session Release hands one back.
-	adoptedAt: true,
-	releasedAt: true,
-	// Annet (#505 story 33): the athlete put this session in no Training Track,
-	// so the week's three numbers leave it out (`week-volumes.ts`).
-	countsInNoTrack: true,
-	tssValue: true,
-	plannedTssValue: true,
-	plannedTssConfidence: true,
-	// The Replan Note (ADR 0025): rows that carry one get the ledger's small
-	// "adjusted" adornment, so softened sessions are spottable at a glance.
-	replanReason: true,
-	// Carry the derived phase bars so the ledger can draw a recording's intensity
-	// profile (recordings have no planned structure to derive one from).
-	recording: {
-		select: {
-			id: true,
-			discipline: true,
-			durationSec: true,
-			distanceM: true,
-			startedAt: true,
-			endedAt: true,
-			phaseBarsJson: true,
-			// What the athlete said about this import on I dag (#505 stories
-			// 80–81): once answered, "hva var dette?" is not asked again, and an
-			// Angre kobling remembers the session Koble igjen puts it back on.
-			linkAnsweredAt: true,
-			unlinkedFromSessionId: true,
-		},
-	},
-	sessionLog: {
-		select: {
-			id: true,
-			rpe: true,
-		},
-	},
-	/**
-	 * **The strength actual** — the set rows a lifting session's row states what
-	 * it lifted from (ADR 0056: logged in-app is the only route by which one can
-	 * exist). Until this was here, a completed gym session could say nothing at
-	 * all about its own kilos, because the ledger fetched the *prescription* and
-	 * a prescription is not what happened.
-	 *
-	 * **One round trip, not one per row.** This is a nested `select` on a
-	 * `findMany`, which Prisma resolves as a single extra `WHERE sessionId IN
-	 * (…)` over the whole page — the same shape `getStrengthSummaryCount`
-	 * already relies on. Reading the sets per row instead (a lazy relation, or a
-	 * count per session) would be an N+1 across a 56-day window.
-	 *
-	 * **Filtered to the sets every strength aggregate counts** — `working` and
-	 * `completed`, which is `countsTowardWork`'s gate. A warm-up rung is
-	 * generated when the session opens and was never part of what was asked for,
-	 * so it belongs on neither the kilos line nor the set count; an abandoned set
-	 * has no rep count to state.
-	 *
-	 * **Ordered by when the set was made**, so the lifts read in the order they
-	 * were lifted rather than in whatever order the rows come back. `orderIndex`
-	 * only disambiguates within one slot logged in the same instant.
-	 *
-	 * `effectiveKg` is deliberately **not** selected. The kilo a row *states* is
-	 * its `LoadValue`, and rendering from the baked number would put a dip belt's
-	 * 104 kg on a line that reads as a bar weight (ADR 0058 §4 as amended). The
-	 * load column is the half a surface may keep showing.
-	 */
-	setLogs: {
-		where: { role: 'working', outcome: 'completed' },
-		orderBy: [{ completedAt: 'asc' as const }, { orderIndex: 'asc' as const }],
-		select: {
-			load: true,
-			reps: true,
-			repsLeft: true,
-			durationSec: true,
-			exerciseId: true,
-			exercise: { select: { name: true } },
-		},
-	},
-} satisfies Prisma.WorkoutSessionSelect
-
-export type LedgerSession = Prisma.WorkoutSessionGetPayload<{
-	select: typeof ledgerSessionSelect
-}>
+export { ledgerSessionSelect, type LedgerSession }
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -2061,7 +1960,8 @@ export async function getSessionByIdForUser(
  * (pace/power/HR) on the home surface and session detail. A discipline with no
  * profile is simply absent from the map, so its %-based targets degrade to an
  * Unavailable Metric rather than a fabricated value (the Unavailable Metric
- * principle, GLOSSARY.md).
+ * principle, GLOSSARY.md). Each profile carries the athlete's **Race Anchor**
+ * paces too, so a `racePace` target resolves off their own result.
  */
 export async function getDisciplineThresholds(
 	userId: string,
@@ -2069,6 +1969,7 @@ export async function getDisciplineThresholds(
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId },
 		select: {
+			id: true,
 			disciplineProfiles: {
 				select: {
 					discipline: true,
@@ -2084,10 +1985,19 @@ export async function getDisciplineThresholds(
 			},
 		},
 	})
+	if (!profile) return {}
+	// Every discipline's Race Anchor paces in one query, not one per profile:
+	// this runs on the home timeline, the week sum and structure detection.
+	const paces = await raceAnchorPacesByDiscipline(
+		profile.id,
+		profile.disciplineProfiles.map(({ discipline }) => discipline),
+	)
 	const map: DisciplineThresholdMap = {}
-	for (const dp of profile?.disciplineProfiles ?? []) {
-		const { discipline, ...thresholds } = dp
-		map[discipline] = thresholds
+	for (const { discipline, ...thresholds } of profile.disciplineProfiles) {
+		map[discipline] = {
+			...thresholds,
+			raceAnchorPaces: paces.get(discipline) ?? {},
+		}
 	}
 	return map
 }

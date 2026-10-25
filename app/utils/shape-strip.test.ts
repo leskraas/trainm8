@@ -277,6 +277,40 @@ test('a swim distance step resolves via CSS pace per 100 m', () => {
 	expect(segment).toMatchObject({ weightSec: 20 * 90, nominalWidth: false })
 })
 
+test('a swim pace target is sec/km, so 10 × 100 m @ 1:40/100 m is about 1000 s of work', () => {
+	const thresholds: DisciplineThresholdMap = {
+		swim: {
+			lthr: null,
+			maxHr: null,
+			ftp: null,
+			runPowerThresholdW: null,
+			thresholdPaceSecPerKm: null,
+			cssSecPer100m: 90,
+			zoneSystem: 'css-3',
+			zoneOverrides: null,
+		},
+	}
+	const segments = deriveShapeStrip(
+		input(
+			block(
+				[
+					{
+						kind: 'cardio',
+						discipline: 'swim',
+						distanceM: 100,
+						// 1:40/100 m, stored as 1000 sec/km
+						intensity: { kind: 'pace', minSecPerKm: 1000 },
+					},
+				],
+				10,
+			),
+		),
+		{ thresholds },
+	)
+	const workSec = segments.reduce((sum, s) => sum + s.weightSec, 0)
+	expect(workSec).toBeCloseTo(1000)
+})
+
 test('reps-based strength estimates time Planned-TSS-style: reps, timed sets, AMRAP and inter-set rest', () => {
 	const [segment] = deriveShapeStrip(
 		input(

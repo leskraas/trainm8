@@ -132,7 +132,7 @@ test('writing a session on an empty day: the parse, the week sum, a suggestion, 
 	// What the app understood, rendered as the Token Sentence the row will be.
 	const understood = drawer.locator('[data-composer-understood]')
 	await expect(understood.getByText('10 km', { exact: true })).toBeVisible()
-	await expect(understood.getByText('Z2', { exact: true })).toBeVisible()
+	await expect(understood.getByText('Rolig', { exact: true })).toBeVisible()
 	await expect(understood.getByText('Til sammen 10 km')).toBeVisible()
 	// The week sum before → after, against a target the session does not move.
 	await expect(drawer.locator('[data-composer-week-sum]')).toHaveText(

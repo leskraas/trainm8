@@ -18,6 +18,7 @@ const REQUEST: SeasonRequest = {
 	goalEvent: null,
 	intent: 'first-season',
 	weeklyCapacityHours: null,
+	conversionContexts: {},
 }
 
 test('the seam produces a payload through the deterministic implementation by default', () => {
@@ -47,6 +48,7 @@ test('a second implementation is substitutable without touching any caller', () 
 				eventWeekKey: request.eventWeekKey,
 				phases: [],
 				tracks: request.tracks,
+				capacity: { kind: 'unset' },
 				weeks: [],
 				sessions: [],
 				unfilled: [],

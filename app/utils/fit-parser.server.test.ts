@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { expect, test } from 'vitest'
 import { encodeActivity } from '#tests/fixtures/fit/fit-builder.ts'
+import { encodePoolSwim } from '#tests/fixtures/fit/pool-swim.ts'
 import { parseFit } from './fit-parser.server.ts'
 
 const FIXTURES = path.join(process.cwd(), 'tests', 'fixtures', 'fit')
@@ -42,6 +43,29 @@ test('laps map to elapsed-second edges on the session axis', () => {
 		{ startSec: 1080, endSec: 1200 },
 		{ startSec: 1200, endSec: 1380 },
 		{ startSec: 1380, endSec: 2400 },
+	])
+})
+
+test('lap edges keep the fraction of a second the device wrote', () => {
+	const [session] = parseFit(
+		encodeActivity({
+			sessions: [
+				{
+					sport: 'running',
+					startTime: new Date('2026-06-01T07:30:00Z'),
+					durationSec: 1200,
+					distanceM: 4000,
+					laps: [
+						{ offsetSec: 0, durationSec: 600.5 },
+						{ offsetSec: 601, durationSec: 599 },
+					],
+				},
+			],
+		}),
+	).sessions
+	expect(session!.laps).toEqual([
+		{ startSec: 0, endSec: 600.5 },
+		{ startSec: 601, endSec: 1200 },
 	])
 })
 
@@ -135,4 +159,38 @@ test('SuuntoPlus Guide fields come back paired by index', () => {
 test('a file from any other device carries no guide fields', () => {
 	const [session] = parseFit(fixture('run-with-hr.fit')).sessions
 	expect(session!.suuntoPlusGuides).toEqual([])
+})
+
+test('a pool swim reads its pool length and every length, rest included', () => {
+	const [session] = parseFit(encodePoolSwim()).sessions
+	expect(session!.poolLengthM).toBe(25)
+	expect(session!.lengths).toHaveLength(35)
+	expect(session!.lengths.filter((l) => l.lengthType === 'idle')).toHaveLength(
+		5,
+	)
+	expect(session!.lengths.slice(8, 10)).toEqual([
+		{ startSec: 200, durationSec: 30, lengthType: 'idle' },
+		{ startSec: 230, durationSec: 22.5, lengthType: 'active' },
+	])
+	expect(session!.laps).toHaveLength(12)
+})
+
+test("a pool swim's pace is over the lengths swum, never the rest", () => {
+	const { activity } = parseFit(encodePoolSwim()).sessions[0]!
+	expect(activity.durationSec).toBe(851)
+	expect(activity.distanceM).toBe(750)
+	// 761 s swum over 750 m is 1:41.5 /100 m; the 90 s of rest would read 1:53.5.
+	expect(activity.paceAvgSecPerKm! / 10).toBeCloseTo(101.47, 2)
+})
+
+test('a pool swim written as one lap still leaves its idle lengths out of pace', () => {
+	const [session] = parseFit(encodePoolSwim({ oneLap: true })).sessions
+	expect(session!.laps).toEqual([])
+	expect(session!.activity.paceAvgSecPerKm).toBeCloseTo(761 / 0.75, 6)
+})
+
+test('a run carries no pool and no lengths', () => {
+	const [session] = parseFit(fixture('run-with-hr.fit')).sessions
+	expect(session!.poolLengthM).toBeNull()
+	expect(session!.lengths).toEqual([])
 })

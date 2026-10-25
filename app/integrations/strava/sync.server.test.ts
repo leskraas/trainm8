@@ -136,6 +136,53 @@ test('derives HR phase bars for recordings when the athlete has a threshold', as
 	expect(ride?.phaseBarsJson).toBeNull()
 })
 
+test('enqueues detection once per run/bike recording, from one streams call per activity (#611)', async () => {
+	const { user } = await setupConnection()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.id,
+			disciplineProfiles: { create: { discipline: 'run', lthr: 168 } },
+		},
+	})
+	const streamPaths: string[] = []
+	server.events.on('request:start', ({ request }) => {
+		const { pathname } = new URL(request.url)
+		if (pathname.endsWith('/streams')) streamPaths.push(pathname)
+	})
+
+	await syncStravaActivities(user.id)
+	server.events.removeAllListeners('request:start')
+
+	const detected = await prisma.activityImport.findMany({
+		where: { athleteId: user.id, discipline: { in: ['run', 'bike'] } },
+		select: { id: true },
+	})
+	const jobs = await prisma.job.findMany({
+		where: { kind: 'structure-detection' },
+		select: { payload: true },
+	})
+	expect(
+		jobs
+			.map(
+				(j) =>
+					(JSON.parse(j.payload) as { activityImportId: string })
+						.activityImportId,
+			)
+			.sort(),
+	).toEqual(detected.map((d) => d.id).sort())
+	// Run, bike and swim each fetch their streams once; phase bars ride along.
+	expect(streamPaths.sort()).toEqual([
+		'/api/v3/activities/1001/streams',
+		'/api/v3/activities/1002/streams',
+		'/api/v3/activities/1003/streams',
+	])
+	const run = await prisma.activityImport.findFirst({
+		where: { athleteId: user.id, discipline: 'run' },
+		select: { phaseBarsJson: true },
+	})
+	expect(run?.phaseBarsJson).not.toBeNull()
+})
+
 test('ingests an Activity Stream for each modeled recording, never for "other"', async () => {
 	const { user } = await setupConnection()
 
@@ -405,6 +452,59 @@ test('a permanent refresh failure moves the connection to revoked', async () => 
 		where: { athleteId: user.id },
 	})
 	expect(imports).toHaveLength(0)
+})
+
+test('a 429 answers the manual sync at once with the next window (#637)', async () => {
+	const { user } = await setupConnection()
+	// Strava rejects the list call as over the limit for this quarter-hour.
+	server.use(
+		http.get(
+			ACTIVITIES_URL,
+			() =>
+				new HttpResponse(null, {
+					status: 429,
+					headers: {
+						'X-ReadRateLimit-Limit': '100,1000',
+						'X-ReadRateLimit-Usage': '100,412',
+					},
+				}),
+			{ once: true },
+		),
+	)
+
+	const result = await syncStravaActivities(user.id)
+
+	// A request can't wait out the window: it says when to try again.
+	const nextQuarter = new Date(Math.ceil(Date.now() / MIN_15) * MIN_15)
+	expect(result).toEqual({
+		ok: false,
+		reason: 'rate-limited',
+		retryAt: nextQuarter,
+	})
+})
+
+const MIN_15 = 15 * 60 * 1000
+
+test('a budget spent partway through the streams keeps the saved activities', async () => {
+	const { user, connection } = await setupConnection()
+	// The first activity's streams are settled (nothing usable), then Strava
+	// says the quarter-hour is spent: a deferral that made progress.
+	let calls = 0
+	server.use(
+		http.get(STREAMS_URL, () =>
+			++calls === 1
+				? HttpResponse.json({})
+				: new HttpResponse(null, { status: 429 }),
+		),
+	)
+
+	const result = await syncStravaActivities(user.id)
+
+	expect(result).toEqual({ ok: true, created: 4, skipped: 0 })
+	const after = await prisma.accountConnection.findUniqueOrThrow({
+		where: { id: connection.id },
+	})
+	expect(after.lastSyncedAt).toBeNull()
 })
 
 test('a 403 (missing activity scope) returns insufficient-scope, not a throw', async () => {

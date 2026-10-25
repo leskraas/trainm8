@@ -2,14 +2,18 @@ import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { ATTACH_EVENT_LABELS } from '#app/utils/labels.ts'
+import {
+	ATTACH_EVENT_LABELS,
+	ATTACH_EVENT_REFUSAL_LABELS,
+} from '#app/utils/labels.ts'
 import { createOpenEndedPlan } from '#app/utils/plan-outline/authoring.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action } from './plan.tsx'
 
-// _Legg til et løp_ through the plan page's action (#505 stories 7–8): what a
-// refusal answers with, and that a refused race never stays on the calendar.
+// _Legg til et løp_ through the plan page's action (#505 stories 7–8, #518):
+// what a refusal answers with, that a refused race never stays on the
+// calendar, and that the preview writes nothing and its confirm applies it.
 
 const ROUTE_PATH = '/training/plan'
 const ARGS = {
@@ -18,16 +22,26 @@ const ARGS = {
 	unstable_pattern: ROUTE_PATH,
 }
 
+type Result = {
+	status: string
+	error?: Record<string, string[] | null>
+	initialValue?: Record<string, unknown>
+}
+
 type Reply = {
 	data: {
-		intent: string
-		result: {
-			status: string
-			error?: Record<string, string[] | null>
-			initialValue?: Record<string, unknown>
+		attachEvent: {
+			result: Result | null
+			confirmResult: Result | null
+			preview: {
+				digest: string
+				event: { name: string }
+				ended: { name: string; weeks: number }
+				confirm: Record<string, string>
+			} | null
 		}
 	}
-	init: { status: number }
+	init?: { status: number }
 }
 
 async function setUp() {
@@ -78,7 +92,7 @@ test('a refused race is answered in the form, with what was typed, and leaves no
 	const reply = (await action({
 		request: post(
 			[
-				['intent', 'attach-event'],
+				['intent', 'preview-attach-event'],
 				['outlineId', outlineId],
 				['name', 'Gammelt løp'],
 				['startDate', '2020-05-01'],
@@ -88,12 +102,12 @@ test('a refused race is answered in the form, with what was typed, and leaves no
 		...ARGS,
 	})) as Reply
 
-	expect(reply.init.status).toBe(400)
-	expect(reply.data.intent).toBe('attach-event')
-	expect(reply.data.result.error?.['']).toEqual([
+	expect(reply.init?.status).toBe(400)
+	expect(reply.data.attachEvent.preview).toBeNull()
+	expect(reply.data.attachEvent.result?.error?.['']).toEqual([
 		'Det løpet har allerede vært.',
 	])
-	expect(reply.data.result.initialValue).toMatchObject({
+	expect(reply.data.attachEvent.result?.initialValue).toMatchObject({
 		name: 'Gammelt løp',
 		startDate: '2020-05-01',
 	})
@@ -110,7 +124,7 @@ test('choosing an Event and naming a race at once is refused on the field', asyn
 	const reply = (await action({
 		request: post(
 			[
-				['intent', 'attach-event'],
+				['intent', 'preview-attach-event'],
 				['outlineId', outlineId],
 				['eventId', 'some-event'],
 				['name', 'Vårmilen'],
@@ -121,8 +135,8 @@ test('choosing an Event and naming a race at once is refused on the field', asyn
 		...ARGS,
 	})) as Reply
 
-	expect(reply.init.status).toBe(400)
-	expect(reply.data.result.error?.eventId).toEqual([
+	expect(reply.init?.status).toBe(400)
+	expect(reply.data.attachEvent.result?.error?.eventId).toEqual([
 		ATTACH_EVENT_LABELS.notBoth,
 	])
 	expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(0)
@@ -134,7 +148,7 @@ test('neither an Event nor a race is refused with what to do', async () => {
 	const reply = (await action({
 		request: post(
 			[
-				['intent', 'attach-event'],
+				['intent', 'preview-attach-event'],
 				['outlineId', outlineId],
 			],
 			cookie,
@@ -142,19 +156,71 @@ test('neither an Event nor a race is refused with what to do', async () => {
 		...ARGS,
 	})) as Reply
 
-	expect(reply.data.result.error?.['']).toEqual([ATTACH_EVENT_LABELS.pickOne])
+	expect(reply.data.attachEvent.result?.error?.['']).toEqual([
+		ATTACH_EVENT_LABELS.pickOne,
+	])
 })
 
-test('a race named on the spot is made, and the plan runs toward it', async () => {
+test('a confirm without the preview’s digest is refused: preview first', async () => {
 	const { userId, outlineId, cookie } = await setUp()
 
-	const response = await action({
+	const reply = (await action({
 		request: post(
 			[
 				['intent', 'attach-event'],
 				['outlineId', outlineId],
 				['name', 'Vårmilen'],
 				['startDate', inWeeks(10)],
+			],
+			cookie,
+		),
+		...ARGS,
+	})) as Reply
+
+	expect(reply.init?.status).toBe(400)
+	expect(reply.data.attachEvent.confirmResult?.error?.['']).toEqual([
+		ATTACH_EVENT_LABELS.previewFirst,
+	])
+	expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(0)
+})
+
+test('a race named on the spot is previewed without being made, then made by the confirm, and the plan runs toward it', async () => {
+	const { userId, outlineId, cookie } = await setUp()
+	const raceDay = inWeeks(10)
+
+	const previewed = (await action({
+		request: post(
+			[
+				['intent', 'preview-attach-event'],
+				['outlineId', outlineId],
+				['name', 'Vårmilen'],
+				['startDate', raceDay],
+			],
+			cookie,
+		),
+		...ARGS,
+	})) as Reply
+
+	const preview = previewed.data.attachEvent.preview
+	expect(preview).toMatchObject({
+		event: { name: 'Vårmilen' },
+		ended: { name: 'Blokk 1', weeks: 1 },
+		confirm: { name: 'Vårmilen', startDate: raceDay },
+	})
+	// Nothing written: no race, and the plan still has none.
+	expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(0)
+	expect(
+		(await prisma.planOutline.findUniqueOrThrow({ where: { id: outlineId } }))
+			.eventId,
+	).toBeNull()
+
+	const response = await action({
+		request: post(
+			[
+				['intent', 'attach-event'],
+				['outlineId', outlineId],
+				['digest', preview!.digest],
+				...Object.entries(preview!.confirm),
 			],
 			cookie,
 		),
@@ -178,4 +244,29 @@ test('a race named on the spot is made, and the plan runs toward it', async () =
 		(await prisma.planOutline.findUniqueOrThrow({ where: { id: outlineId } }))
 			.eventId,
 	).toBe(event.id)
+})
+
+test('a stale confirm is refused under a fresh preview, and no race is made', async () => {
+	const { userId, outlineId, cookie } = await setUp()
+
+	const reply = (await action({
+		request: post(
+			[
+				['intent', 'attach-event'],
+				['outlineId', outlineId],
+				['digest', 'not-what-was-shown'],
+				['name', 'Vårmilen'],
+				['startDate', inWeeks(10)],
+			],
+			cookie,
+		),
+		...ARGS,
+	})) as Reply
+
+	expect(reply.init?.status).toBe(400)
+	expect(reply.data.attachEvent.confirmResult?.error?.['']).toEqual([
+		ATTACH_EVENT_REFUSAL_LABELS['preview-stale'],
+	])
+	expect(reply.data.attachEvent.preview?.event.name).toBe('Vårmilen')
+	expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(0)
 })

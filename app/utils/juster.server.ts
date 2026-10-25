@@ -40,7 +40,11 @@ import {
 	mondayOfDay,
 } from './athlete-calendar.ts'
 import { readRetrievableEntry } from './catalogue.server.ts'
-import { sumBlockDurationMin } from './dashboard.ts'
+import {
+	type DurationReading,
+	stepDurationSec,
+	sumBlockDurationMin,
+} from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { type EffortWord, isEffortWord } from './effort-word.ts'
 import { formatNbWeekday } from './format.ts'
@@ -195,7 +199,9 @@ export async function justerSession(
 	await recomputePlannedTssForSession(userId, session.id)
 	return {
 		ok: true,
-		toast: JUSTER_LABELS.done[intent](nbDurationLabel(change.minutes * 60)),
+		toast: JUSTER_LABELS.done[intent](
+			change.minutes == null ? null : nbDurationLabel(change.minutes * 60),
+		),
 		title,
 		changedSessionIds: [session.id],
 		undo: { adjustmentId },
@@ -215,7 +221,8 @@ type Change =
 			intent: KeptIntent
 			effortWord: EffortWord | null
 			blocks: Blocks
-			minutes: number
+			/** Null where the session cannot be timed end to end, as a lift. */
+			minutes: number | null
 	  }
 	| { ok: false; reason: JusterRefusal }
 
@@ -228,7 +235,7 @@ const PRESCRIPTION_CHANGES: Record<
 	(userId: string, workout: Workout) => Promise<Change> | Change
 > = {
 	tired: (userId, workout) => tiredChange(userId, workout),
-	short: (_userId, workout) => shortChange(workout),
+	short: (userId, workout) => shortChange(userId, workout),
 }
 
 /** A stored intent: a **Workout Intent**, or a Simple Activity's own. */
@@ -272,6 +279,8 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 		}
 	}
 
+	// A lift's run warm-up is timed through its pace as a run's own steps are.
+	const thresholds = await getDisciplineThresholds(userId)
 	if (workout.discipline === 'strength') {
 		const blocks = workout.blocks.map((block) => ({
 			...block,
@@ -297,11 +306,19 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 			intent: keptWords(workout).intent,
 			effortWord: 'rolig',
 			blocks,
-			minutes: sumBlockDurationMin(blocks) ?? 0,
+			minutes: sumBlockDurationMin(blocks, {
+				thresholds,
+				discipline: workout.discipline,
+			}),
 		}
 	}
 
-	const current = sumBlockDurationMin(workout.blocks)
+	// A session it cannot time end to end has no length to ease from: a short
+	// total would make the easy session shorter than the one it replaces.
+	const current = sumBlockDurationMin(workout.blocks, {
+		thresholds,
+		discipline: workout.discipline,
+	})
 	if (!CARDIO.has(workout.discipline) || current == null || current <= 0) {
 		return { ok: false, reason: 'no-time' }
 	}
@@ -314,7 +331,6 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 	}
 	// The Session Nudge's own easy session (one step in the athlete's endurance
 	// zone), at the length chosen here rather than its one-hour cap.
-	const thresholds = await getDisciplineThresholds(userId)
 	const eased = buildEasedPrescription({
 		discipline: workout.discipline,
 		durationMin: minutes,
@@ -352,7 +368,7 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 }
 
 /** _Lite tid_: 30 minutes, or 20; the intent and the structure kept. */
-function shortChange(workout: Workout): Change {
+async function shortChange(userId: string, workout: Workout): Promise<Change> {
 	const simple = readSimpleActivity(workout)
 	if (simple) {
 		const minutes = shortMinutes(simple.durationMin)
@@ -365,10 +381,13 @@ function shortChange(workout: Workout): Change {
 			minutes,
 		}
 	}
+	const thresholds = await getDisciplineThresholds(userId)
+	const reading = { thresholds, discipline: workout.discipline }
+	// Untimed end to end there is nothing honest to cut down to (#638).
 	const current =
 		workout.discipline === 'strength'
 			? null
-			: sumBlockDurationMin(workout.blocks)
+			: sumBlockDurationMin(workout.blocks, reading)
 	if (current == null || current <= 0) return { ok: false, reason: 'no-time' }
 	const minutes = shortMinutes(current)
 	if (minutes == null) return { ok: false, reason: 'already-short' }
@@ -376,7 +395,7 @@ function shortChange(workout: Workout): Change {
 		ok: true,
 		title: workout.title,
 		...keptWords(workout),
-		blocks: scaledTo(workout.blocks, minutes * 60),
+		blocks: scaledTo(workout.blocks, minutes * 60, reading),
 		minutes,
 	}
 }
@@ -389,7 +408,8 @@ const EMPTY_STEP: Omit<
 	notes: null,
 	distanceM: null,
 	verticalM: null,
-	gradePct: null,
+	gradePctMin: null,
+	gradePctMax: null,
 	cadenceRpmMin: null,
 	cadenceRpmMax: null,
 	rest: null,
@@ -418,16 +438,25 @@ function withSingleDuration(blocks: Blocks, durationSec: number): Blocks {
  * threshold, only shorter. Times round to 10 seconds and distances to 100 m,
  * never to nothing; a rest step keeps its length.
  */
-function scaledTo(blocks: Blocks, targetSec: number): Blocks {
+function scaledTo(
+	blocks: Blocks,
+	targetSec: number,
+	reading: DurationReading,
+): Blocks {
+	// A distance rep scales with the time it takes at its pace, and the rests
+	// between series stay as they are (#615).
 	let fixed = 0
 	let scalable = 0
 	for (const block of blocks) {
 		const times = block.repeatCount * (block.seriesRepeatCount ?? 1)
 		for (const step of block.steps) {
-			if (step.durationSec == null) continue
-			if (step.kind === 'cardio') scalable += step.durationSec * times
-			else fixed += step.durationSec * times
+			const stepSec = stepDurationSec(step, reading)
+			if (stepSec == null) continue
+			if (step.kind === 'cardio') scalable += stepSec * times
+			else fixed += stepSec * times
 		}
+		fixed +=
+			(block.betweenSeriesRestSec ?? 0) * ((block.seriesRepeatCount ?? 1) - 1)
 	}
 	const factor = scalable > 0 ? Math.max(0, targetSec - fixed) / scalable : 1
 	return blocks.map((block) => ({
@@ -597,26 +626,31 @@ async function readMoveFit(
 		timezone,
 	}: { todayKey: string; sundayKey: string; timezone: string },
 ): Promise<MoveFit> {
-	const rows = await prisma.workoutSession.findMany({
-		where: {
-			userId,
-			status: { in: [...TRAINED_SESSION_STATUSES] },
-			scheduledAt: {
-				gte: dayBoundsUTC(todayKey, timezone).start,
-				lte: dayBoundsUTC(sundayKey, timezone).end,
+	const [rows, thresholds] = await Promise.all([
+		prisma.workoutSession.findMany({
+			where: {
+				userId,
+				status: { in: [...TRAINED_SESSION_STATUSES] },
+				scheduledAt: {
+					gte: dayBoundsUTC(todayKey, timezone).start,
+					lte: dayBoundsUTC(sundayKey, timezone).end,
+				},
 			},
-		},
-		select: {
-			id: true,
-			scheduledAt: true,
-			workout: effortWorkoutSelect,
-		},
-	})
+			select: {
+				id: true,
+				scheduledAt: true,
+				workout: effortWorkoutSelect,
+			},
+		}),
+		// What an absolute pace, watts or bpm is read by (#617).
+		getDisciplineThresholds(userId),
+	])
 	// Each by the one reading of a stored session (`readPlacement`): a lift
 	// is lifting, a _Langtur_ is long, anything else by its Effort Word.
 	const moving = rows.find((row) => row.id === sessionId)
 	const week: PlacedSession[] = rows.flatMap((row) => {
-		const shape = row.id === sessionId ? null : readPlacement(row.workout)
+		const shape =
+			row.id === sessionId ? null : readPlacement(row.workout, thresholds)
 		return shape
 			? [
 					placedOn(
@@ -628,7 +662,7 @@ async function readMoveFit(
 	})
 	return {
 		week,
-		session: readPlacement(moving?.workout) ?? {
+		session: readPlacement(moving?.workout, thresholds) ?? {
 			kind: 'session',
 			effort: 'rolig',
 		},
@@ -1129,8 +1163,28 @@ async function restore(
 			intent: prescription.intent,
 			effortWord: prescription.effortWord,
 			blocks: {
-				create: buildBlocksCopy(prescription.blocks as unknown as Blocks),
+				create: buildBlocksCopy(
+					imageBlocksWithGradeBand(prescription.blocks as unknown as Blocks),
+				),
 			},
 		},
 	})
+}
+
+/**
+ * An image's stored rows, with the scalar grade an image written before #466
+ * carries read as the band the migration made of it — both ends that number —
+ * so undoing a change made before the migration writes the grade back rather
+ * than dropping it. An image written since carries the band and passes as is.
+ */
+export function imageBlocksWithGradeBand(blocks: Blocks): Blocks {
+	return blocks.map((block) => ({
+		...block,
+		steps: block.steps.map((step) => {
+			const stored: Record<string, unknown> = step
+			const legacy = stored.gradePct
+			if (typeof legacy !== 'number' || 'gradePctMin' in stored) return step
+			return { ...step, gradePctMin: legacy, gradePctMax: legacy }
+		}),
+	}))
 }

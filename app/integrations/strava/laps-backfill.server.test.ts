@@ -145,3 +145,36 @@ test('enqueues the heal exactly once; a second boot does not double up', async (
 	})
 	expect(jobs).toBe(1)
 })
+
+test('an import Strava has no interior laps for is marked and not fetched again', async () => {
+	const { user } = await setupAthlete()
+	const { imp } = await createLaplessRun(user.id, '90003')
+	let requests = 0
+	server.use(
+		http.get(LAPS_URL, () => {
+			requests++
+			// One whole-activity lap: "no laps pressed", nothing to persist.
+			return HttpResponse.json([
+				{
+					lap_index: 1,
+					start_index: 0,
+					end_index: 1,
+					elapsed_time: 120,
+					start_date: '2026-05-21T11:00:00Z',
+				},
+			])
+		}),
+	)
+
+	await runStravaLapsBackfill()
+	// A deferred backfill restarts from the top: an import already asked must
+	// not spend the budget again, or the run never reaches the later ones.
+	await runStravaLapsBackfill()
+
+	expect(requests).toBe(1)
+	const row = await prisma.activityImport.findUniqueOrThrow({
+		where: { id: imp.id },
+		select: { lapsJson: true },
+	})
+	expect(JSON.parse(row.lapsJson!)).toEqual([])
+})

@@ -335,6 +335,38 @@ describe("a week's estimated height, for content-visibility (ADR 0086)", () => {
 		expect(two).toBe(one + WEEK_HEIGHTS.extraSession)
 	})
 
+	test('a Garmin credit under a title adds its line, and a long one its wraps (#557)', () => {
+		const plain = weekHeightEstimate(week({ rows: [day(['6 km rolig'])] }))
+		const credited = weekHeightEstimate(
+			week({
+				rows: [
+					{
+						sessions: [
+							{ title: '6 km rolig', sourceCredit: 'Garmin Forerunner 965' },
+						],
+					},
+				],
+			}),
+		)
+		const longCredit = weekHeightEstimate(
+			week({
+				rows: [
+					{
+						sessions: [
+							{
+								title: '6 km rolig',
+								sourceCredit:
+									'Garmin Forerunner 965 Music Edition (Triathlon Bundle, Whitestone/Powder Gray)',
+							},
+						],
+					},
+				],
+			}),
+		)
+		expect(credited).toBe(plain + WEEK_HEIGHTS.credit)
+		expect(longCredit).toBeGreaterThan(credited)
+	})
+
 	test('notes, the plan-start line and the horizon divider are counted', () => {
 		const base = weekHeightEstimate(week())
 		expect(

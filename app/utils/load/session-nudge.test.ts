@@ -280,7 +280,8 @@ function cardioStep(
 		durationSec,
 		distanceM: null,
 		verticalM: null,
-		gradePct: null,
+		gradePctMin: null,
+		gradePctMax: null,
 		cadenceRpmMin: null,
 		cadenceRpmMax: null,
 		rest: null,
@@ -402,6 +403,28 @@ test('a stored skipped key session qualifies like a silently missed one', () => 
 			NOW,
 		),
 	).toEqual({ discipline: 'run', label: 'tirsdag' })
+})
+
+test('a missed threshold session written as pace is key against T-pace (#617)', () => {
+	const pace = JSON.stringify({ kind: 'pace', minSecPerKm: 220 })
+	const workout = workoutWith([cardioStep(pace, 1200, 0)])
+	const thresholds = {
+		run: {
+			lthr: null,
+			maxHr: null,
+			ftp: null,
+			runPowerThresholdW: null,
+			thresholdPaceSecPerKm: 220,
+			cssSecPer100m: null,
+			zoneSystem: 'daniels-pace-5',
+			zoneOverrides: null,
+		},
+	}
+	expect(
+		selectQualifyingMiss([ledgerSession({ workout })], NOW, 'UTC', thresholds),
+	).toEqual({ discipline: 'run', label: 'mandag' })
+	// With nothing to read the pace by, a miss is not called key on a guess.
+	expect(selectQualifyingMiss([ledgerSession({ workout })], NOW)).toBeNull()
 })
 
 test('a missed strength session never qualifies (no cardio zone model to call it key)', () => {

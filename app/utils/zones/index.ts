@@ -5,6 +5,7 @@ export {
 	raceAnchorLabel,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
+	type PaceUnit,
 	type RaceAnchorPaces,
 	type ResolvedIntensity,
 } from './resolve.ts'

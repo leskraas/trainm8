@@ -92,6 +92,7 @@ test('Planned TSS of a planned Simple Activity is unavailable, never a guessed n
 			intensityPowerMax: null,
 			intensityPaceMin: null,
 			intensityPaceMax: null,
+			intensityPaceUnit: null,
 		})),
 	}))
 	expect(readPlannedTss({ discipline: 'other', blocks }, profile)).toEqual(
@@ -136,17 +137,20 @@ test('week volumes count a planned Simple Activity in hours and read every other
 })
 
 test('session detail reads Planned TSS and planned distance of a Simple Activity as unavailable, and keeps its planned time', () => {
-	const c = buildReviewComparison({
-		tssValue: null,
-		plannedTssValue: 40,
-		workout: {
-			discipline: 'other',
-			blocks: [
-				{ repeatCount: 1, steps: [{ durationSec: 3600, distanceM: 1000 }] },
-			],
+	const c = buildReviewComparison(
+		{
+			tssValue: null,
+			plannedTssValue: 40,
+			workout: {
+				discipline: 'other',
+				blocks: [
+					{ repeatCount: 1, steps: [{ durationSec: 3600, distanceM: 1000 }] },
+				],
+			},
+			recording: null,
 		},
-		recording: null,
-	})
+		{},
+	)
 	expect(c.tss.plannedRead).toEqual(unavailable)
 	expect(c.tss.planned).toBeNull()
 	expect(c.tss.band).toBeNull()

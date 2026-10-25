@@ -2144,7 +2144,7 @@ test('tapping an empty day opens the composer on it: the sport derived, the stam
 		await line.evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
 	).toBeGreaterThanOrEqual(16)
 	// The stamp is the empty state: two taps for 45 minutes easy.
-	await drawer.getByRole('button', { name: 'Legg til 45 min Z2' }).click()
+	await drawer.getByRole('button', { name: 'Legg til 45 min rolig' }).click()
 
 	// The Drawer leaves, the toast says what it did and carries Angre, and the
 	// row it wrote is in the list, marked, with its own Angre.
@@ -2156,7 +2156,7 @@ test('tapping an empty day opens the composer on it: the sport derived, the stam
 		`[data-timeline-day="${key}"] [data-session-row][data-landed]`,
 	)
 	await expect(landed).toBeVisible()
-	await expect(landed.getByRole('link', { name: /45 min Z2/ })).toBeVisible()
+	await expect(landed.getByRole('link', { name: /45 min rolig/ })).toBeVisible()
 	await expect(landed.locator('[data-landed-undo]')).toHaveText('Angre')
 	// On a phone the toast sits at the bottom, above the tab bar — in the
 	// thumb's reach, never over I dag's top line (ADR 0088 §3).
@@ -2181,7 +2181,7 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
 	await untilHydrated(cell)
 	await cell.click()
 	const drawer = page.getByRole('dialog', { name: 'Ny økt' })
-	await drawer.getByRole('button', { name: 'Legg til 45 min Z2' }).click()
+	await drawer.getByRole('button', { name: 'Legg til 45 min rolig' }).click()
 	const landed = page.locator('[data-session-row][data-landed]')
 	await expect(landed).toBeVisible()
 
@@ -2189,7 +2189,7 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
 	// load and claims nothing about what was done (`GOAL.md`'s no-recorder
 	// non-goal — executed cardio still arrives only by import).
 	const stamped = await prisma.workoutSession.findFirstOrThrow({
-		where: { userId: user.id, workout: { title: '45 min Z2' } },
+		where: { userId: user.id, workout: { title: '45 min rolig' } },
 		select: { status: true, tssValue: true, recordingId: true },
 	})
 	expect(stamped).toEqual({
@@ -2205,14 +2205,14 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
 	await expect
 		.poll(() =>
 			prisma.workoutSession.count({
-				where: { userId: user.id, workout: { title: '45 min Z2' } },
+				where: { userId: user.id, workout: { title: '45 min rolig' } },
 			}),
 		)
 		.toBe(0)
 
 	// And from the toast: the same delete, the same empty day.
 	await page.locator(`[data-timeline-empty="${key}"]`).click()
-	await drawer.getByRole('button', { name: 'Legg til 45 min Z2' }).click()
+	await drawer.getByRole('button', { name: 'Legg til 45 min rolig' }).click()
 	const toast = page
 		.locator('[data-sonner-toast]')
 		.filter({ has: page.getByRole('button', { name: 'Angre' }) })
@@ -2221,7 +2221,7 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
 	await expect
 		.poll(() =>
 			prisma.workoutSession.count({
-				where: { userId: user.id, workout: { title: '45 min Z2' } },
+				where: { userId: user.id, workout: { title: '45 min rolig' } },
 			}),
 		)
 		.toBe(0)
@@ -2809,4 +2809,81 @@ test('a closed week is drawn whole above today, muted, with its numbers and verd
 	expect((await track.boundingBox())!.x).toBeGreaterThanOrEqual(16)
 	// A past free day is still a cell to write into (ADR 0065 §6).
 	await expect(week.locator('[data-timeline-empty]').first()).toHaveText(/fri/)
+})
+
+test('a row built on a Garmin recording credits "Garmin [device model]" under its title, whole (#557)', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	const device =
+		'Forerunner 965 Music Edition (Triathlon Bundle, Whitestone/Powder Gray)'
+	// Yesterday: a run that came down the Intervals.icu pipe from Garmin. The
+	// transport is Intervals.icu; the credit reads the origin.
+	const startedAt = new Date(Date.now() - 26 * 60 * 60 * 1000)
+	const recording = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: user.id,
+			externalProvider: 'intervalsicu',
+			externalId: `garmin-credit-${user.id}`,
+			originPlatform: 'garmin',
+			deviceName: device,
+			startedAt,
+			endedAt: new Date(startedAt.getTime() + 50 * 60 * 1000),
+			durationSec: 50 * 60,
+			distanceM: 9200,
+			discipline: 'run',
+			rawJson: '{}',
+		},
+	})
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: user.id,
+			scheduledAt: startedAt,
+			status: 'completed',
+			recordingId: recording.id,
+		},
+	})
+	await prisma.activityImport.update({
+		where: { id: recording.id },
+		data: { promotedSessionId: session.id },
+	})
+
+	await navigate(HOME_TIMELINE_HREF)
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	const row = page.locator(`[data-session-row="${session.id}"]`)
+	// The stream scrolls smoothly (`scroll-behavior: smooth`), so a plain
+	// scrollIntoView animates; jump instead, like the app's own jumps do.
+	await row.evaluate((el) =>
+		el.scrollIntoView({ block: 'center', behavior: 'instant' }),
+	)
+	const credit = row.locator('[data-source-credit]')
+	await expect(credit).toBeVisible()
+	await expect(credit).toHaveText(`Garmin ${device}`)
+	// Under the title, in the row, never cut short or past the edge. Both
+	// boxes are read in one frame: read one call apart, a scroll still
+	// settling between them shifts the second box and fakes an overlap.
+	const { title, box } = await row.evaluate((el) => {
+		const rect = (selector: string) => {
+			const { x, y, width, height } = el
+				.querySelector(selector)!
+				.getBoundingClientRect()
+			return { x, y, width, height }
+		}
+		return {
+			title: rect('[data-session-title]'),
+			box: rect('[data-source-credit]'),
+		}
+	})
+	expect(box.y).toBeGreaterThanOrEqual(title.y + title.height - 1)
+	expect(box.x + box.width).toBeLessThanOrEqual(390)
+	expect(
+		await credit
+			.locator('p')
+			.evaluate((p) => p.scrollWidth <= p.clientWidth + 1),
+	).toBe(true)
 })

@@ -5,11 +5,11 @@ import {
 	StravaInsufficientScopeError,
 } from './client.server.ts'
 import {
-	enrichRecordingPhaseBars,
 	fetchStravaActivitiesAfter,
 	fileActivitiesWithAutoSave,
 	ingestActivityStreams,
 } from './ingest.server.ts'
+import { StravaRateLimitedError } from './rate-limit.ts'
 import { STRAVA_PROVIDER } from './types.ts'
 
 /**
@@ -38,6 +38,7 @@ export type StravaSyncResult =
 				| 'insufficient-scope'
 				| 'app-inactive'
 	  }
+	| { ok: false; reason: 'rate-limited'; retryAt: Date }
 
 export async function syncStravaActivities(
 	athleteId: string,
@@ -65,6 +66,11 @@ export async function syncStravaActivities(
 	try {
 		activities = await fetchStravaActivitiesAfter(connection, after)
 	} catch (err) {
+		// A manual sync runs inside the request, so a spent Strava budget can't
+		// be waited out or deferred to the queue: say until when instead (#637).
+		if (err instanceof StravaRateLimitedError) {
+			return { ok: false, reason: 'rate-limited', retryAt: err.until }
+		}
 		if (err instanceof StravaConnectionRevokedError) {
 			return { ok: false, reason: 'revoked' }
 		}
@@ -83,17 +89,19 @@ export async function syncStravaActivities(
 		timezone,
 	)
 
-	// Derive intensity-phase bars from each recording's HR stream (best-effort).
-	await enrichRecordingPhaseBars(connection, athleteId, activities)
-
 	// Ingest each recording's downsampled telemetry as an Activity Stream, so a
 	// freshly-synced session's Workout Detail View overlay works end-to-end with
-	// no manual step (#139, best-effort). A separate pass from phase-bar
-	// derivation above: the two are independently gated (streams need no
-	// threshold; phase bars do) and each makes its own rate-limited streams call.
-	// Folding both onto a single per-activity fetch is a possible future
-	// optimisation once backfill telemetry (#140) settles the shared shape.
-	await ingestActivityStreams(connection, activities)
+	// no manual step (#139, best-effort). The same single streams call per
+	// activity derives its HR phase bars and enqueues Structure Detection (#611).
+	try {
+		await ingestActivityStreams(connection, activities)
+	} catch (err) {
+		// The budget ran out after the activities were saved. Keep them, but leave
+		// the watermark so the next sync fetches the streams still missing.
+		if (err instanceof StravaRateLimitedError)
+			return { ok: true, created, skipped }
+		throw err
+	}
 
 	// Only advance the watermark on a fully successful pass.
 	await prisma.accountConnection.update({

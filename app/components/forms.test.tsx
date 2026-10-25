@@ -10,11 +10,20 @@ import {
 	CheckboxField,
 	ErrorList,
 	Field,
+	OTPField,
 	RadioGroupField,
+	ReserveErrorLines,
 	TextareaField,
 	ToggleGroupField,
 } from './forms.tsx'
 import { StatusButton } from './ui/status-button.tsx'
+
+// input-otp measures its box; jsdom has no ResizeObserver.
+window.ResizeObserver ??= class ResizeObserver {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+}
 
 describe('forms field wrappers', () => {
 	test('applies invalid state to input fields and ties aria-describedby', () => {
@@ -95,6 +104,301 @@ describe('forms field wrappers', () => {
 			expect(error).toHaveClass('text-footnote', 'text-foreground-destructive')
 			expect(error.className).not.toMatch(/text-\[10px\]/)
 		}
+	})
+
+	// An auth form keeps one error line's height with no error, so an error
+	// that comes or goes mid-typing moves nothing (tests/e2e/auth-form-layout).
+	// Every other form keeps its height to its errors.
+	test('only a field that reserves the error line keeps it without an error', () => {
+		const { container, rerender } = render(
+			<>
+				<Field labelProps={{ children: 'Email' }} inputProps={{}} />
+				<ErrorList errors={[]} />
+			</>,
+		)
+		expect(container.querySelector('[class*="min-h-"]')).toBeNull()
+		expect(
+			container.querySelector('[data-slot="field-content"]')?.children,
+		).toHaveLength(1)
+
+		rerender(
+			<Field
+				labelProps={{ children: 'Email' }}
+				inputProps={{}}
+				reserveErrorLine
+			/>,
+		)
+		expect(container.querySelectorAll('[class*="min-h-"]')).toHaveLength(1)
+	})
+
+	// A form that revalidates as the athlete types says so once, around its
+	// fields, and every field in it keeps its line; one that can't be wrong
+	// (Remember me) opts out.
+	test('every field inside ReserveErrorLines keeps its line unless it opts out', () => {
+		const { container } = render(
+			<form id="auth-form">
+				<ReserveErrorLines>
+					<Field labelProps={{ children: 'Username' }} inputProps={{}} />
+					<CheckboxField
+						labelProps={{ children: 'Agree to the terms' }}
+						buttonProps={{ name: 'terms', form: 'auth-form' }}
+					/>
+					<CheckboxField
+						labelProps={{ children: 'Remember me' }}
+						buttonProps={{ name: 'remember', form: 'auth-form' }}
+						reserveErrorLine={false}
+					/>
+				</ReserveErrorLines>
+				<Field labelProps={{ children: 'Elsewhere' }} inputProps={{}} />
+			</form>,
+		)
+		const lines = container.querySelectorAll('[aria-live="polite"]')
+		expect(lines).toHaveLength(2)
+		expect(lines[0]?.closest('[data-slot="field"]')).toContainElement(
+			screen.getByRole('textbox', { name: 'Username' }),
+		)
+		expect(lines[1]?.closest('[data-slot="field"]')).toContainElement(
+			screen.getByRole('checkbox', { name: 'Agree to the terms' }),
+		)
+	})
+
+	// The reserved line is the field's spacing, not added to it: one footnote
+	// line and no padding of its own, so the gap to the next field stays near
+	// the 16px it was before any line was reserved.
+	test('a reserved line is one footnote line and no padding', () => {
+		const { container } = render(
+			<Field
+				labelProps={{ children: 'Email' }}
+				inputProps={{}}
+				reserveErrorLine
+			/>,
+		)
+		const line = container.querySelector('[aria-live="polite"]')
+		expect(line).toHaveClass('min-h-(--text-footnote--line-height)')
+		expect(line?.className).not.toMatch(/\bp[tb]?-/)
+	})
+
+	// A reserved line holds one error, so a second one (`a.` is too short and
+	// has a dot) can't grow it; the next shows once the first is fixed. A
+	// field that reserves nothing still lists every error.
+	test('a reserved line shows only the first error', () => {
+		const errors = ['Username is too short', 'Use only letters, numbers']
+		const { rerender } = render(
+			<Field
+				labelProps={{ children: 'Username' }}
+				inputProps={{}}
+				errors={errors}
+				reserveErrorLine
+			/>,
+		)
+		const input = screen.getByRole('textbox', { name: 'Username' })
+		expect(screen.getByText('Username is too short')).toHaveAttribute(
+			'id',
+			input.getAttribute('aria-describedby'),
+		)
+		expect(screen.queryByText('Use only letters, numbers')).toBeNull()
+
+		rerender(
+			<Field
+				labelProps={{ children: 'Username' }}
+				inputProps={{}}
+				errors={errors}
+			/>,
+		)
+		expect(screen.getByText('Use only letters, numbers')).toBeInTheDocument()
+	})
+
+	// A return key that says "next" must go to the next field: left alone, a
+	// form submits on Enter from any field, half filled, and every field
+	// after this one turns red. "go" keeps the submit.
+	test('return on a "next" field moves to the next control, not submit', async () => {
+		const user = userEvent.setup()
+		let submitted = 0
+		render(
+			<form
+				onSubmit={(event) => {
+					event.preventDefault()
+					submitted += 1
+				}}
+			>
+				<input tabIndex={-1} aria-hidden name="honeypot" />
+				<Field
+					labelProps={{ children: 'Username' }}
+					inputProps={{ enterKeyHint: 'next' }}
+				/>
+				<input type="hidden" name="redirectTo" />
+				<Field
+					labelProps={{ children: 'Password' }}
+					inputProps={{ enterKeyHint: 'go' }}
+				/>
+				<button type="submit">Log in</button>
+			</form>,
+		)
+		const username = screen.getByRole('textbox', { name: 'Username' })
+		const password = screen.getByRole('textbox', { name: 'Password' })
+
+		await user.click(username)
+		await user.keyboard('kody{Enter}')
+		expect(password).toHaveFocus()
+		expect(submitted).toBe(0)
+
+		await user.keyboard('secret{Enter}')
+		expect(submitted).toBe(1)
+	})
+
+	// A password manager often fills the password before the athlete types
+	// the username; return in the username then logs in, as it always did.
+	// "next" only moves on while something after this field is still to do.
+	test('return on a "next" field submits once the fields after it are filled', async () => {
+		const user = userEvent.setup()
+		let submitted = 0
+		render(
+			<form
+				onSubmit={(event) => {
+					event.preventDefault()
+					submitted += 1
+				}}
+			>
+				<Field
+					labelProps={{ children: 'Username' }}
+					inputProps={{ enterKeyHint: 'next' }}
+				/>
+				<Field
+					labelProps={{ children: 'Password' }}
+					inputProps={{ enterKeyHint: 'go', defaultValue: 'filled' }}
+				/>
+				<input type="checkbox" name="remember" aria-label="Remember me" />
+				<button type="submit">Log in</button>
+			</form>,
+		)
+		const username = screen.getByRole('textbox', { name: 'Username' })
+
+		await user.click(username)
+		await user.keyboard('kody{Enter}')
+		expect(submitted).toBe(1)
+		expect(username).toHaveFocus()
+	})
+
+	// A required box left unticked is still to do, as an empty field is.
+	test('return on a "next" field moves on while a required box is unticked', async () => {
+		const user = userEvent.setup()
+		let submitted = 0
+		render(
+			<form
+				onSubmit={(event) => {
+					event.preventDefault()
+					submitted += 1
+				}}
+			>
+				<Field
+					labelProps={{ children: 'Name' }}
+					inputProps={{ enterKeyHint: 'next' }}
+				/>
+				<input type="checkbox" required aria-label="Agree to the terms" />
+				<button type="submit">Create an account</button>
+			</form>,
+		)
+		await user.click(screen.getByRole('textbox', { name: 'Name' }))
+		await user.keyboard('Kody{Enter}')
+		expect(
+			screen.getByRole('checkbox', { name: 'Agree to the terms' }),
+		).toHaveFocus()
+		expect(submitted).toBe(0)
+	})
+
+	// A form's own error (the server's answer) is never there while a field
+	// has one, so the last field's line holds it: no second empty line above
+	// the button. It is the form's error, not the field's, so the field is not
+	// marked invalid by it.
+	test("a field's line holds the form's error while it has none of its own", () => {
+		const { rerender } = render(
+			<Field
+				labelProps={{ children: 'Password' }}
+				inputProps={{ type: 'text' }}
+				reserveErrorLine
+				formErrors={['Invalid username or password']}
+				formErrorId="form-error"
+			/>,
+		)
+		const input = screen.getByRole('textbox', { name: 'Password' })
+		expect(screen.getByText('Invalid username or password')).toHaveAttribute(
+			'id',
+			'form-error',
+		)
+		expect(input).not.toHaveAttribute('aria-invalid')
+		expect(input.closest('[data-slot="field"]')).not.toHaveAttribute(
+			'data-invalid',
+		)
+
+		rerender(
+			<Field
+				labelProps={{ children: 'Password' }}
+				inputProps={{ type: 'text' }}
+				reserveErrorLine
+				errors={['Password is too short']}
+				formErrors={['Invalid username or password']}
+				formErrorId="form-error"
+			/>,
+		)
+		expect(screen.queryByText('Invalid username or password')).toBeNull()
+		expect(screen.getByText('Password is too short')).toBeInTheDocument()
+		expect(input).toHaveAttribute('aria-invalid', 'true')
+	})
+
+	// The onboarding forms end on the terms box, and verify on its code: their
+	// lines hold the form's error the same way, so it shifts nothing either.
+	test("a checkbox's line holds the form's error while it has none of its own", () => {
+		const { container } = render(
+			<form id="onboarding">
+				<CheckboxField
+					labelProps={{ children: 'Agree to terms' }}
+					buttonProps={{ name: 'terms', form: 'onboarding' }}
+					reserveErrorLine
+					formErrors={['Something went wrong']}
+					formErrorId="form-error"
+				/>
+			</form>,
+		)
+		const checkbox = screen.getByRole('checkbox', { name: 'Agree to terms' })
+		const error = screen.getByText('Something went wrong')
+		expect(error).toHaveAttribute('id', 'form-error')
+		expect(error.parentElement).toHaveClass(
+			'min-h-(--text-footnote--line-height)',
+		)
+		expect(checkbox).not.toHaveAttribute('aria-invalid')
+		expect(container.querySelectorAll('[aria-live]')).toHaveLength(1)
+	})
+
+	test("the code's line holds the form's error while it has none of its own", () => {
+		const { rerender } = render(
+			<OTPField
+				labelProps={{ children: 'Code' }}
+				inputProps={{}}
+				reserveErrorLine
+				formErrors={['Something went wrong']}
+				formErrorId="form-error"
+			/>,
+		)
+		expect(screen.getByText('Something went wrong')).toHaveAttribute(
+			'id',
+			'form-error',
+		)
+		expect(screen.getByRole('textbox', { name: 'Code' })).not.toHaveAttribute(
+			'aria-invalid',
+		)
+
+		rerender(
+			<OTPField
+				labelProps={{ children: 'Code' }}
+				inputProps={{}}
+				reserveErrorLine
+				errors={['Invalid code']}
+				formErrors={['Something went wrong']}
+				formErrorId="form-error"
+			/>,
+		)
+		expect(screen.queryByText('Something went wrong')).toBeNull()
+		expect(screen.getByText('Invalid code')).toBeInTheDocument()
 	})
 })
 

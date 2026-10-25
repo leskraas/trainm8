@@ -7,7 +7,7 @@ import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod/v3'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { ErrorList, Field } from '#app/components/forms.tsx'
+import { Field, ReserveErrorLines } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireAnonymous } from '#app/utils/auth.server.ts'
 import {
@@ -135,7 +135,10 @@ export default function SignupRoute({ actionData }: Route.ComponentProps) {
 			const result = parseWithZod(formData, { schema: SignupSchema })
 			return result
 		},
-		shouldRevalidate: 'onBlur',
+		// A fixed field clears its error as it is fixed. On blur, the error line
+		// above the button would vanish as the athlete presses it, moving the
+		// button out from under the click (#532).
+		shouldRevalidate: 'onInput',
 	})
 
 	return (
@@ -144,28 +147,32 @@ export default function SignupRoute({ actionData }: Route.ComponentProps) {
 			subtitle="Please enter your email."
 		>
 			<Form method="POST" {...getFormProps(form)}>
-				<HoneypotInputs />
-				<Field
-					labelProps={{
-						htmlFor: fields.email.id,
-						children: 'Email',
-					}}
-					inputProps={{
-						...getInputProps(fields.email, { type: 'email' }),
-						autoFocus: true,
-						autoComplete: 'email',
-					}}
-					errors={fields.email.errors}
-				/>
-				<ErrorList errors={form.errors} id={form.errorId} />
-				<StatusButton
-					className="w-full"
-					status={isPending ? 'pending' : (form.status ?? 'idle')}
-					type="submit"
-					disabled={isPending}
-				>
-					Submit
-				</StatusButton>
+				<ReserveErrorLines>
+					<HoneypotInputs />
+					<Field
+						labelProps={{
+							htmlFor: fields.email.id,
+							children: 'Email',
+						}}
+						inputProps={{
+							...getInputProps(fields.email, { type: 'email' }),
+							autoFocus: true,
+							autoComplete: 'email',
+							enterKeyHint: 'go',
+						}}
+						errors={fields.email.errors}
+						formErrors={form.errors}
+						formErrorId={form.errorId}
+					/>
+					<StatusButton
+						className="w-full"
+						status={isPending ? 'pending' : (form.status ?? 'idle')}
+						type="submit"
+						disabled={isPending}
+					>
+						Submit
+					</StatusButton>
+				</ReserveErrorLines>
 			</Form>
 			<ul className="flex flex-col gap-4">
 				{providerNames.map((providerName) => (

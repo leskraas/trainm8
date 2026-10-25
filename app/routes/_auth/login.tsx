@@ -8,7 +8,12 @@ import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod/v3'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
+import {
+	CheckboxField,
+	ErrorList,
+	Field,
+	ReserveErrorLines,
+} from '#app/components/forms.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { login, requireAnonymous } from '#app/utils/auth.server.ts'
@@ -95,68 +100,78 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: LoginFormSchema })
 		},
-		shouldRevalidate: 'onBlur',
+		// A fixed field clears its error as it is fixed. On blur, the error line
+		// above the button would vanish as the athlete presses it, moving the
+		// button out from under the click (#532).
+		shouldRevalidate: 'onInput',
 	})
 
 	return (
 		<AuthLayout title="Welcome back!" subtitle="Please enter your details.">
 			<div>
 				<Form method="POST" {...getFormProps(form)}>
-					<HoneypotInputs />
-					<Field
-						className="pb-4"
-						labelProps={{ children: 'Username' }}
-						inputProps={{
-							...getInputProps(fields.username, { type: 'text' }),
-							autoFocus: true,
-							className: 'lowercase',
-							autoComplete: 'username',
-						}}
-						errors={fields.username.errors}
-					/>
-
-					<Field
-						className="pb-4"
-						labelProps={{ children: 'Password' }}
-						inputProps={{
-							...getInputProps(fields.password, {
-								type: 'password',
-							}),
-							autoComplete: 'current-password',
-						}}
-						errors={fields.password.errors}
-					/>
-
-					<div className="flex items-center justify-between gap-4">
-						<CheckboxField
-							labelProps={{
-								htmlFor: fields.remember.id,
-								children: 'Remember me',
+					<ReserveErrorLines>
+						<HoneypotInputs />
+						<Field
+							labelProps={{ children: 'Username' }}
+							inputProps={{
+								...getInputProps(fields.username, { type: 'text' }),
+								autoCapitalize: 'none',
+								autoCorrect: 'off',
+								spellCheck: false,
+								autoFocus: true,
+								className: 'lowercase',
+								autoComplete: 'username',
+								enterKeyHint: 'next',
 							}}
-							buttonProps={getInputProps(fields.remember, {
-								type: 'checkbox',
-							})}
-							errors={fields.remember.errors}
+							errors={fields.username.errors}
 						/>
-						<Link
-							to="/forgot-password"
-							className="text-primary inline-flex min-h-11 shrink-0 items-center text-sm font-semibold underline-offset-4 hover:underline"
+
+						<Field
+							labelProps={{ children: 'Password' }}
+							inputProps={{
+								...getInputProps(fields.password, {
+									type: 'password',
+								}),
+								autoComplete: 'current-password',
+								enterKeyHint: 'go',
+							}}
+							errors={fields.password.errors}
+							formErrors={form.errors}
+							formErrorId={form.errorId}
+						/>
+
+						<div className="flex items-center justify-between gap-4">
+							<CheckboxField
+								reserveErrorLine={false}
+								labelProps={{
+									htmlFor: fields.remember.id,
+									children: 'Remember me',
+								}}
+								buttonProps={getInputProps(fields.remember, {
+									type: 'checkbox',
+								})}
+								errors={fields.remember.errors}
+							/>
+							<Link
+								to="/forgot-password"
+								className="text-primary inline-flex min-h-11 shrink-0 items-center text-sm font-semibold underline-offset-4 hover:underline"
+							>
+								Forgot password?
+							</Link>
+						</div>
+
+						<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
+
+						<StatusButton
+							className="mt-2 w-full"
+							status={isPending ? 'pending' : (form.status ?? 'idle')}
+							type="submit"
+							disabled={isPending}
 						>
-							Forgot password?
-						</Link>
-					</div>
-
-					<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
-					<ErrorList errors={form.errors} id={form.errorId} />
-
-					<StatusButton
-						className="mt-2 w-full"
-						status={isPending ? 'pending' : (form.status ?? 'idle')}
-						type="submit"
-						disabled={isPending}
-					>
-						Log in
-					</StatusButton>
+							Log in
+						</StatusButton>
+					</ReserveErrorLines>
 				</Form>
 				<hr className="my-4" />
 				<PasskeyLogin

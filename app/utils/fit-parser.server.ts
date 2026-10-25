@@ -2,6 +2,7 @@ import {
 	Decoder,
 	Stream,
 	type LapMesg,
+	type LengthMesg,
 	type RecordMesg,
 	type SessionMesg,
 } from '@garmin/fitsdk'
@@ -23,6 +24,16 @@ export type ParsedActivity = Omit<
 export type SuuntoPlusGuide = { ownerId: string; externalId: string }
 
 /**
+ * One FIT `length` of a pool swim: one trip down the pool (`active`), or a
+ * stretch of rest at the wall (`idle`). Seconds on the session's own axis.
+ */
+export type PoolLength = {
+	startSec: number
+	durationSec: number
+	lengthType: 'active' | 'idle'
+}
+
+/**
  * One session of a FIT file — a whole activity, or one leg of a multisport
  * file — with its own summary, its own slice of the record stream, and its
  * own laps.
@@ -34,6 +45,11 @@ export type ParsedFitSession = {
 	stream: RawStream | null
 	/** Lap edges in elapsed seconds on the session's own axis (ADR 0033). */
 	laps: Lap[]
+	/** The pool's length in metres (FIT `session.pool_length`, always metres,
+	 * 22.86 for 25 yd), or `null` for anything but a pool swim. */
+	poolLengthM: number | null
+	/** A pool swim's lengths in time order, rest included; empty otherwise. */
+	lengths: PoolLength[]
 	/** SuuntoPlus Guides the session ran (Suunto developer fields), if any. */
 	suuntoPlusGuides: SuuntoPlusGuide[]
 }
@@ -127,8 +143,8 @@ export function parseFit(bytes: Uint8Array): ParsedFitFile {
 	)
 
 	const sessions = ordered.map(({ mesg, startedAt }) => {
-		const activity = sessionActivity(mesg, startedAt)
-		const endMs = activity.endedAt.getTime()
+		const summary = sessionActivity(mesg, startedAt)
+		const endMs = summary.endedAt.getTime()
 		const nextStartMs = allStarts
 			.filter((t) => t > startedAt.getTime())
 			.reduce((min, t) => Math.min(min, t), Infinity)
@@ -136,8 +152,15 @@ export function parseFit(bytes: Uint8Array): ParsedFitFile {
 			t.getTime() >= startedAt.getTime() &&
 			t.getTime() <= endMs &&
 			t.getTime() < nextStartMs
+		const lengths = lengthsOnSessionAxis(
+			messages.lengthMesgs?.filter((l) => {
+				const t = toDate(l.startTime)
+				return t != null && inWindow(t)
+			}),
+			startedAt,
+		)
 		return {
-			activity,
+			activity: withSwimmingPace(summary, lengths),
 			stream: recordsToRawStream(
 				messages.recordMesgs?.filter((r) => {
 					const t = toDate(r.timestamp)
@@ -152,6 +175,8 @@ export function parseFit(bytes: Uint8Array): ParsedFitFile {
 				}),
 				startedAt,
 			),
+			poolLengthM: asNumber(mesg.poolLength),
+			lengths,
 			suuntoPlusGuides: suuntoPlusGuides(mesg, guideNames),
 		}
 	})
@@ -236,11 +261,60 @@ function sessionActivity(
 }
 
 /**
+ * A pool swim's pace is over the time spent swimming: the sum of its active
+ * lengths (#628). Timer time counts the rest at the wall too (the FIT cookbook
+ * writes idle lengths inside it), which reads an interval swim as slow. Laps
+ * can't tell rest apart, since a fēnix 5 writes the whole swim as one lap with
+ * the idle lengths inside it. A session without active lengths keeps the timer
+ * pace.
+ */
+function withSwimmingPace(
+	activity: ParsedActivity,
+	lengths: PoolLength[],
+): ParsedActivity {
+	const swimmingSec = lengths
+		.filter((l) => l.lengthType === 'active')
+		.reduce((sum, l) => sum + l.durationSec, 0)
+	const { distanceM } = activity
+	if (!(swimmingSec > 0) || distanceM == null || !(distanceM > 0)) {
+		return activity
+	}
+	return { ...activity, paceAvgSecPerKm: swimmingSec / (distanceM / 1000) }
+}
+
+/**
+ * FIT `length` messages on the session axis, keeping `length_type`. Counted
+ * from the messages, never `session.num_lengths`: an FR965 counts only active
+ * lengths there and a fēnix 5 counts all of them.
+ */
+function lengthsOnSessionAxis(
+	lengthMesgs: LengthMesg[] | undefined,
+	startedAt: Date,
+): PoolLength[] {
+	const lengths: PoolLength[] = []
+	for (const length of lengthMesgs ?? []) {
+		const start = toDate(length.startTime)
+		const durationSec =
+			asNumber(length.totalTimerTime) ?? asNumber(length.totalElapsedTime)
+		const lengthType = asString(length.lengthType)
+		if (!start || durationSec == null) continue
+		if (lengthType !== 'active' && lengthType !== 'idle') continue
+		lengths.push({
+			startSec: (start.getTime() - startedAt.getTime()) / 1000,
+			durationSec,
+			lengthType,
+		})
+	}
+	return lengths.sort((a, b) => a.startSec - b.startSec)
+}
+
+/**
  * FIT laps as `Lap { startSec, endSec }` on the session's elapsed-seconds
  * axis — the axis the Activity Stream inherits — using each lap's wall-clock
- * span. A lone lap covering the whole session says nothing about structure
- * (the device's auto "one lap" summary) and is dropped, as the API providers'
- * single whole-activity lap is.
+ * span, unrounded: a 25 m length lasts 12–40 s, so a whole-second edge moves a
+ * swim lap's pace by up to 4 %. A lone lap covering the whole session says
+ * nothing about structure (the device's auto "one lap" summary) and is
+ * dropped, as the API providers' single whole-activity lap is.
  */
 function lapsOnSessionAxis(
 	lapMesgs: LapMesg[] | undefined,
@@ -251,8 +325,8 @@ function lapsOnSessionAxis(
 		const start = toDate(lap.startTime)
 		const span = asNumber(lap.totalElapsedTime) ?? asNumber(lap.totalTimerTime)
 		if (!start || span == null) continue
-		const startSec = Math.round((start.getTime() - startedAt.getTime()) / 1000)
-		const endSec = startSec + Math.round(span)
+		const startSec = (start.getTime() - startedAt.getTime()) / 1000
+		const endSec = startSec + span
 		if (endSec > startSec) laps.push({ startSec, endSec })
 	}
 	laps.sort((a, b) => a.startSec - b.startSec)

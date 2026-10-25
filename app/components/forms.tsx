@@ -1,7 +1,8 @@
 import { type FieldMetadata, useInputControl } from '@conform-to/react'
 import { REGEXP_ONLY_DIGITS_AND_CHARS, type OTPInputProps } from 'input-otp'
-import React, { useId, useState } from 'react'
+import React, { createContext, useContext, useId, useState } from 'react'
 import { cn } from '#app/utils/misc.tsx'
+import { moveToNextControl } from './return-key.ts'
 import { Checkbox, type CheckboxProps } from './ui/checkbox.tsx'
 import {
 	Field as FormField,
@@ -42,25 +43,89 @@ export type ListOfErrors = Array<string | null | undefined> | null | undefined
  */
 const ERROR_TEXT = 'text-footnote text-foreground-destructive'
 
+/**
+ * One error line's height, kept whether an error shows or not, where a form
+ * revalidates as the athlete types (the auth forms): an error that appears on
+ * submit, or clears as the field is fixed, then never moves the fields below
+ * it or the submit button under the thumb.
+ *
+ * It holds one error: the first, and the next once that is fixed, as a
+ * native form names one problem at a time. Every auth error fits one line on
+ * a 320px phone (the longest, "No user exists with this username or email",
+ * is 255px of the 288px there); only text set larger than the default, or a
+ * longer message, wraps and grows it.
+ *
+ * The line is the field's spacing, not added to it: no padding of its own
+ * (the field content's 4px gap sits above it) and none under the field, so
+ * input to the next label is 22px — near the 16px it was with nothing
+ * reserved, where an error then pushed it to 42px.
+ */
+const ERROR_LINE = 'min-h-(--text-footnote--line-height)'
+
 function getErrorsToRender(errors?: ListOfErrors) {
 	return errors?.filter(Boolean) ?? []
 }
 
+const ReserveErrorLineContext = createContext(false)
+
+/**
+ * Around the fields of a form that revalidates as the athlete types
+ * (`shouldRevalidate: 'onInput'`, the auth forms): every Field, OTPField and
+ * CheckboxField inside keeps its {@link ERROR_LINE}, said once for the form
+ * rather than on each field. A field that can't be wrong (Remember me) opts
+ * out with `reserveErrorLine={false}`.
+ */
+export function ReserveErrorLines({ children }: { children: React.ReactNode }) {
+	return (
+		<ReserveErrorLineContext value={true}>{children}</ReserveErrorLineContext>
+	)
+}
+
+/**
+ * The form's own error (the server's answer, `form.errors`), shown on the last
+ * field's line while that field has none of its own. The server only answers
+ * once every field is valid, and any input clears its answer, so the two
+ * never meet: the last field's line holds both, and no second empty line
+ * waits above the button. It keeps the form's id, so the form's
+ * `aria-describedby` still finds it, and leaves the field unmarked.
+ */
+type FormErrorsOnLine = {
+	formErrors?: ListOfErrors
+	formErrorId?: string
+}
+
 function InlineFieldErrors({
 	errorId,
-	errors,
+	errors: fieldErrors,
+	formErrors,
+	formErrorId,
+	reserveErrorLine: ownReserveErrorLine,
 }: {
 	errorId?: string
 	errors: string[]
-}) {
-	if (!errors.length) return null
+	/** The field's own say; unset, the form's {@link ReserveErrorLines}. */
+	reserveErrorLine?: boolean
+} & FormErrorsOnLine) {
+	const formReservesErrorLines = useContext(ReserveErrorLineContext)
+	const reserveErrorLine = ownReserveErrorLine ?? formReservesErrorLines
+	const formErrorsToRender = fieldErrors.length
+		? []
+		: getErrorsToRender(formErrors)
+	const errors = formErrorsToRender.length ? formErrorsToRender : fieldErrors
+	const firstId = formErrorsToRender.length ? formErrorId : errorId
+	if (!errors.length && !reserveErrorLine) return null
+	const shown = reserveErrorLine ? errors.slice(0, 1) : errors
 
 	return (
-		<div className="pt-1">
-			{errors.map((error, index) => (
+		<div
+			className={reserveErrorLine ? ERROR_LINE : 'pt-1'}
+			// The reserved line stays mounted, so it can announce what fills it.
+			aria-live={reserveErrorLine ? 'polite' : undefined}
+		>
+			{shown.map((error, index) => (
 				<FieldDescription
 					key={`${error}-${index}`}
-					id={index === 0 ? errorId : undefined}
+					id={index === 0 ? firstId : undefined}
 					className={ERROR_TEXT}
 				>
 					{error}
@@ -94,13 +159,21 @@ export function Field({
 	labelProps,
 	inputProps,
 	errors,
+	reserveErrorLine,
+	formErrors,
+	formErrorId,
 	className,
 }: {
 	labelProps: React.LabelHTMLAttributes<HTMLLabelElement>
 	inputProps: React.InputHTMLAttributes<HTMLInputElement>
 	errors?: ListOfErrors
+	/**
+	 * Keep one error line's height while there is none ({@link ERROR_LINE}).
+	 * Unset, as the form says ({@link ReserveErrorLines}).
+	 */
+	reserveErrorLine?: boolean
 	className?: string
-}) {
+} & FormErrorsOnLine) {
 	const fallbackId = useId()
 	const id = inputProps.id ?? fallbackId
 	const errorsToRender = getErrorsToRender(errors)
@@ -118,8 +191,18 @@ export function Field({
 						aria-invalid={errorId ? true : undefined}
 						aria-describedby={errorId}
 						{...inputProps}
+						onKeyDown={(event) => {
+							inputProps.onKeyDown?.(event)
+							if (!event.defaultPrevented) moveToNextControl(event)
+						}}
 					/>
-					<InlineFieldErrors errorId={errorId} errors={errorsToRender} />
+					<InlineFieldErrors
+						errorId={errorId}
+						errors={errorsToRender}
+						formErrors={formErrors}
+						formErrorId={formErrorId}
+						reserveErrorLine={reserveErrorLine}
+					/>
 				</FieldContent>
 			</FormField>
 		</FieldGroup>
@@ -199,13 +282,21 @@ export function OTPField({
 	labelProps,
 	inputProps,
 	errors,
+	reserveErrorLine,
+	formErrors,
+	formErrorId,
 	className,
 }: {
 	labelProps: React.LabelHTMLAttributes<HTMLLabelElement>
 	inputProps: Partial<OTPInputProps & { render: never }>
 	errors?: ListOfErrors
+	/**
+	 * Keep one error line's height while there is none ({@link ERROR_LINE}).
+	 * Unset, as the form says ({@link ReserveErrorLines}).
+	 */
+	reserveErrorLine?: boolean
 	className?: string
-}) {
+} & FormErrorsOnLine) {
 	const fallbackId = useId()
 	const id = inputProps.id ?? fallbackId
 	const errorsToRender = getErrorsToRender(errors)
@@ -238,7 +329,13 @@ export function OTPField({
 							<InputOTPSlot index={5} />
 						</InputOTPGroup>
 					</InputOTP>
-					<InlineFieldErrors errorId={errorId} errors={errorsToRender} />
+					<InlineFieldErrors
+						errorId={errorId}
+						errors={errorsToRender}
+						formErrors={formErrors}
+						formErrorId={formErrorId}
+						reserveErrorLine={reserveErrorLine}
+					/>
 				</FieldContent>
 			</FormField>
 		</FieldGroup>
@@ -285,6 +382,9 @@ export function CheckboxField({
 	labelProps,
 	buttonProps,
 	errors,
+	reserveErrorLine,
+	formErrors,
+	formErrorId,
 	className,
 }: {
 	labelProps: React.ComponentProps<'label'>
@@ -294,8 +394,13 @@ export function CheckboxField({
 		value?: string
 	}
 	errors?: ListOfErrors
+	/**
+	 * Keep one error line's height while there is none ({@link ERROR_LINE}).
+	 * Unset, as the form says ({@link ReserveErrorLines}).
+	 */
+	reserveErrorLine?: boolean
 	className?: string
-}) {
+} & FormErrorsOnLine) {
 	const { key, defaultChecked, ...checkboxProps } = buttonProps
 	const fallbackId = useId()
 	const checkedValue = buttonProps.value ?? 'on'
@@ -341,7 +446,13 @@ export function CheckboxField({
 						{...labelProps}
 						className="text-muted-foreground text-sm"
 					/>
-					<InlineFieldErrors errorId={errorId} errors={errorsToRender} />
+					<InlineFieldErrors
+						errorId={errorId}
+						errors={errorsToRender}
+						formErrors={formErrors}
+						formErrorId={formErrorId}
+						reserveErrorLine={reserveErrorLine}
+					/>
 				</FieldContent>
 			</FormField>
 		</FieldGroup>

@@ -17,12 +17,14 @@ import {
 	nbZoneCaption,
 	zoneLabelWord,
 } from './labels.ts'
+import { stepDistanceDurationSec } from './shape-strip.ts'
 import {
 	blockRepeatTotal,
 	IntensityTargetSchema,
 	powerPctRef,
 	type IntensityTarget,
 } from './workout-schema.ts'
+import { zoneEquivalent } from './zone-equivalent.ts'
 import { DANIELS_PACE_5, getRecipe } from './zones/index.ts'
 import {
 	formatMmol,
@@ -84,16 +86,6 @@ const EMPTY_PROFILE: DisciplineProfileForResolver = {
 
 function range(min: number, max: number | null | undefined, unit: string) {
 	return max != null ? `${min}–${max} ${unit}` : `${min} ${unit}`
-}
-
-/**
- * Pace zone bands resolve in the recipe anchor's own unit: seconds per 100 m
- * for a CSS-anchored recipe, seconds per km otherwise — so a swim range is
- * never mislabelled `/km`.
- */
-function paceUnitFor(profile: DisciplineProfileForResolver): 'km' | '100m' {
-	const recipe = profile.zoneSystem ? getRecipe(profile.zoneSystem) : undefined
-	return recipe?.anchor === 'css' ? '100m' : 'km'
 }
 
 // Daniels letters (E/M/T/I/R) are the one built-in code set that is cryptic
@@ -174,7 +166,6 @@ function withApproxFacet(name: string, facet: string | null): string {
  */
 function resolvedRangeText(
 	resolved: ResolvedIntensity,
-	paceUnit: 'km' | '100m',
 ): { metric: 'pace' | 'power' | 'hr'; text: string } | null {
 	if (resolved.unavailable) return null
 	if (resolved.powerMin != null || resolved.powerMax != null) {
@@ -195,7 +186,9 @@ function resolvedRangeText(
 			text: boundedRange(
 				resolved.paceMin,
 				resolved.paceMax,
-				paceUnit === '100m' ? '/100m' : '/km',
+				// The unit the resolver handed the pace back in, so a swim range is
+				// never mislabelled `/km`, nor a per-km pace `/100m`.
+				resolved.paceUnit === 'secPer100m' ? '/100m' : '/km',
 				formatPaceClock,
 			),
 		}
@@ -280,7 +273,7 @@ export function formatIntensityTarget(
 			// A percentage of threshold pace is arithmetic on a number the athlete
 			// authored, so the resolved pace is exact and wears no `≈`.
 			const resolved = resolveIntensity(target, profile)
-			const text = resolvedRangeText(resolved, paceUnitFor(profile))
+			const text = resolvedRangeText(resolved)
 			if (!text) return { kind: 'unavailable' }
 			return { kind: 'metric', metric: 'pace', text: text.text }
 		}
@@ -295,7 +288,7 @@ export function formatIntensityTarget(
 				metric: 'lactate',
 				text: withApproxFacet(
 					formatMmol(target.minMmol, target.maxMmol),
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved)?.text ?? null,
 				),
 			}
 		}
@@ -306,7 +299,7 @@ export function formatIntensityTarget(
 				metric: 'pace',
 				text: withApproxFacet(
 					racePaceLabel(target),
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved)?.text ?? null,
 				),
 			}
 		}
@@ -316,7 +309,7 @@ export function formatIntensityTarget(
 			// threshold resolves it, the honest display is the captioned Training
 			// Zone — never a fabricated range.
 			const resolved = resolveIntensity(target, profile)
-			const range = resolvedRangeText(resolved, paceUnitFor(profile))
+			const range = resolvedRangeText(resolved)
 			if (range) {
 				return { kind: 'metric', metric: range.metric, text: range.text }
 			}
@@ -407,7 +400,7 @@ export function describeStepTarget(
 					target.maxPct,
 					INTENSITY_DISPLAY_WORDS.hrRef[target.ref === 'max' ? 'max' : 'lthr'],
 				),
-				resolved: resolvedRangeText(resolved, 'km')?.text ?? null,
+				resolved: resolvedRangeText(resolved)?.text ?? null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: false,
 			}
@@ -420,7 +413,7 @@ export function describeStepTarget(
 					target.maxPct,
 					POWER_REF_LABELS[powerPctRef(target)],
 				),
-				resolved: resolvedRangeText(resolved, 'km')?.text ?? null,
+				resolved: resolvedRangeText(resolved)?.text ?? null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: false,
 			}
@@ -433,8 +426,7 @@ export function describeStepTarget(
 					target.maxPct,
 					INTENSITY_DISPLAY_WORDS.thresholdPace,
 				),
-				resolved:
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+				resolved: resolvedRangeText(resolved)?.text ?? null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: false,
 			}
@@ -444,8 +436,7 @@ export function describeStepTarget(
 			const resolved = resolveIntensity(target, profile)
 			return {
 				label: formatMmol(target.minMmol, target.maxMmol),
-				resolved:
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+				resolved: resolvedRangeText(resolved)?.text ?? null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: true,
 			}
@@ -454,8 +445,7 @@ export function describeStepTarget(
 			const resolved = resolveIntensity(target, profile)
 			return {
 				label: racePaceLabel(target),
-				resolved:
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+				resolved: resolvedRangeText(resolved)?.text ?? null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: true,
 			}
@@ -467,8 +457,7 @@ export function describeStepTarget(
 				label: caption
 					? `${zoneLabelWord(target.label)} — ${caption}`
 					: zoneLabelWord(target.label),
-				resolved:
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+				resolved: resolvedRangeText(resolved)?.text ?? null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: false,
 			}
@@ -497,11 +486,97 @@ export function parseAuthoredIntensity(
 	return label ? { kind: 'zoneLabel', label } : null
 }
 
+/**
+ * A step's concrete range, resolved from what it authors against the athlete's
+ * thresholds **now** — empty when it authors nothing a threshold can resolve.
+ *
+ * The readers that draw a target (I dag's row, the telemetry overlay) resolve
+ * here rather than reading the cached `intensity*` columns: those are written
+ * only when a threshold changes, so a session made since has none (#616).
+ * Planned TSS bypasses the cache for the same reason. A step with no discipline
+ * of its own is the workout's.
+ */
+export function resolveStepRange(
+	step: StepWithIntensity,
+	workoutDiscipline: string,
+	thresholds: DisciplineThresholdMap = {},
+): ResolvedIntensity {
+	return (
+		resolveAuthoredStep(step, workoutDiscipline, thresholds)?.resolved ?? {}
+	)
+}
+
+type StepWithIntensity = {
+	kind: string
+	discipline?: string | null
+	intensity?: string | null
+}
+
+/** What a cardio step authors and what it resolves to now, parsed and
+ * resolved once for {@link resolveStepRange} and {@link resolveStepBand};
+ * null when it authors nothing a threshold can resolve. */
+function resolveAuthoredStep(
+	step: StepWithIntensity,
+	workoutDiscipline: string,
+	thresholds: DisciplineThresholdMap,
+): { target: IntensityTarget; resolved: ResolvedIntensity } | null {
+	if (step.kind !== 'cardio') return null
+	const target = parseAuthoredIntensity(step.intensity)
+	if (!target) return null
+	const resolved = resolveIntensity(
+		target,
+		thresholds[step.discipline ?? workoutDiscipline] ?? EMPTY_PROFILE,
+	)
+	return resolved.unavailable ? null : { target, resolved }
+}
+
+/** The channel a target band is drawn on. */
+export type BandChannel = 'power' | 'heartrate'
+
+/** A step's target on one channel, as a band. `max` is null for an open-ended
+ * zone (`172+ bpm`): a floor with no ceiling. A point target (`150 bpm`) is a
+ * band whose top is its floor. */
+export type StepBand = { min: number; max: number | null }
+
+/** Authored metrics whose missing top means one value (`150 bpm`), not an
+ * open band; a zone with no top resolves the same way and means `172+`. */
+const POINT_TARGET_KINDS = new Set<IntensityTarget['kind']>([
+	'hrBpm',
+	'hrPct',
+	'power',
+	'powerPct',
+])
+
+/**
+ * A step's target band on `channel`, resolved as {@link resolveStepRange}
+ * resolves it, or null when it has none there. Whether a missing top is one
+ * value or open above is read off what the step authors, here, so a reader
+ * that draws the band only draws it.
+ */
+export function resolveStepBand(
+	step: StepWithIntensity,
+	workoutDiscipline: string,
+	thresholds: DisciplineThresholdMap,
+	channel: BandChannel,
+): StepBand | null {
+	const authored = resolveAuthoredStep(step, workoutDiscipline, thresholds)
+	if (!authored) return null
+	const { target, resolved } = authored
+	const [min, max] =
+		channel === 'power'
+			? [resolved.powerMin, resolved.powerMax]
+			: [resolved.hrMin, resolved.hrMax]
+	if (min == null || !Number.isFinite(min)) return null
+	if (max != null && Number.isFinite(max)) return { min, max }
+	return { min, max: POINT_TARGET_KINDS.has(target.kind) ? min : null }
+}
+
 type StepForTarget = {
 	kind: string
 	discipline?: string | null
 	intensity?: string | null
 	durationSec?: number | null
+	distanceM?: number | null
 	orderIndex?: number
 }
 
@@ -516,10 +591,12 @@ type WorkoutForTarget = {
 /**
  * The single headline target for a whole session — what the Today card, Week
  * timeline stop, and session detail show. A workout can mix zone / pace / HR
- * steps, so we surface the *primary work step*: the cardio step with the most
- * effective work time (`durationSec × block repeatCount`, so interval reps
- * outweigh a long single warm-up), formatted against its own discipline's
- * thresholds. Null when no cardio step carries an intensity target.
+ * steps, so we surface the *primary work step*: the **hardest** cardio step,
+ * by its Zone Equivalent, formatted against its own discipline's thresholds
+ * (#615). Hardness only decides when every candidate has a zone; otherwise the
+ * step with the most effective work time wins (`time × block repeats`, a
+ * distance step timed through its pace), so interval reps still outweigh a
+ * long single warm-up. Null when no cardio step carries an intensity target.
  */
 export function sessionMetricTarget(
 	workout: WorkoutForTarget | null | undefined,
@@ -530,6 +607,7 @@ export function sessionMetricTarget(
 	type Candidate = {
 		target: IntensityTarget
 		discipline: string | null
+		zone: number | null
 		effDurationSec: number
 		order: number
 	}
@@ -542,20 +620,39 @@ export function sessionMetricTarget(
 			if (step.kind !== 'cardio') continue
 			const target = parseAuthoredIntensity(step.intensity)
 			if (!target) continue
+			const profile = step.discipline ? thresholds[step.discipline] : undefined
+			const stepSec =
+				step.durationSec ??
+				stepDistanceDurationSec(
+					{
+						discipline: step.discipline,
+						distanceM: step.distanceM,
+						intensity: target,
+					},
+					profile,
+				) ??
+				0
 			candidates.push({
 				target,
 				discipline: step.discipline ?? null,
-				effDurationSec: (step.durationSec ?? 0) * reps,
+				zone: zoneEquivalent(target, profile).step,
+				effDurationSec: stepSec * reps,
 				order: stepOrder,
 			})
 		}
 	}
 	if (candidates.length === 0) return null
 
-	// Longest effective effort defines the session; ties resolve to the earlier
-	// step so the choice is deterministic.
+	// Hardest first, then the longest effective effort; ties resolve to the
+	// earlier step so the choice is deterministic. A step that can't say how
+	// hard it is is not easy (#617): it ranks above Z2 and below Z3, so a short
+	// set of pace reps still beats a longer Z2 warm-up.
+	const rank = (c: Candidate) => c.zone ?? 2.5
 	candidates.sort(
-		(a, b) => b.effDurationSec - a.effDurationSec || a.order - b.order,
+		(a, b) =>
+			rank(b) - rank(a) ||
+			b.effDurationSec - a.effDurationSec ||
+			a.order - b.order,
 	)
 	const chosen = candidates[0]!
 	const profile =

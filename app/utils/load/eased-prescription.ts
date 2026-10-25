@@ -4,7 +4,7 @@
  * From an athlete's next planned *cardio* session it produces the canonical
  * eased target — the concrete prescription the server applier persists and the
  * home surface then reads back: one endurance-intent block in the SAME
- * Discipline, targeting the athlete's own endurance (Z2) zone resolved through
+ * Discipline, targeting the athlete's own endurance (zone 2) band resolved through
  * the existing zone-recipe resolver (ADR 0006), capped at an hour
  * (`EASED_CAP_MIN`). Strength has no zone model to ease into, so it produces no
  * target at all.
@@ -26,22 +26,24 @@ import {
 	CARDIO_DISCIPLINES,
 	type IntensityTarget,
 } from '#app/utils/workout-schema.ts'
+import { bandForZone } from '#app/utils/zones/band-for-zone.ts'
 import {
 	getRecipe,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 } from '#app/utils/zones/index.ts'
+import { ZONE_WORDS } from '#app/utils/zones/words.ts'
 import { EASED_CAP_MIN } from './session-nudge.ts'
 
 const CARDIO_DISCIPLINE_SET: ReadonlySet<string> = new Set(CARDIO_DISCIPLINES)
 
 /**
- * The canonical endurance zone label when the athlete has no configured recipe
- * to read one off. `Z2` is the near-universal "easy aerobic" label (Coggan,
- * Friel, CSS all use it); recipes that don't (e.g. Daniels' `E`) override it via
- * `enduranceZoneLabel`.
+ * The endurance zone label when the athlete has no configured recipe to read
+ * one off: zone 2's word, never the code `Z2` — a code is a recipe's band label,
+ * and Stryd's `Z2` declares zone 3 (#627). The word reads through whichever
+ * recipe the athlete later picks.
  */
-const DEFAULT_ENDURANCE_LABEL = 'Z2'
+const DEFAULT_ENDURANCE_LABEL = ZONE_WORDS[2]
 
 /** A single authored step of the eased prescription (mirrors WorkoutStep JSON). */
 export type EasedStep = {
@@ -78,12 +80,11 @@ export type EasedPrescription = {
 }
 
 /**
- * The endurance zone label for the athlete's configured recipe. The endurance
- * (easy aerobic) zone is the one every recipe places just above pure recovery:
- * `Z2` in the numbered HR/power/CSS systems, `E` in Daniels' pace system. We
- * read it off the recipe rather than hard-coding a number (ADR 0006), preferring
- * an explicit `Z2`/`E` label and otherwise falling back to the recipe's second
- * band (recovery is first). Without a recipe we use the canonical default.
+ * The endurance zone label for the athlete's configured recipe: the label of
+ * the band the recipe *declares* as zone 2 (`bandForZone`, ADR 0045 §3) — `Z2`
+ * on Coggan/Friel/CSS, `E` on Daniels, `Z1` on Stryd. Never a label literal:
+ * Stryd's `Z2` is zone 3, so matching on the code eased a Stryd runner into
+ * tempo (#627). Without a recipe we use zone 2's word.
  */
 function enduranceZoneLabel(
 	profile: DisciplineProfileForResolver | null,
@@ -91,11 +92,7 @@ function enduranceZoneLabel(
 	if (!profile?.zoneSystem) return DEFAULT_ENDURANCE_LABEL
 	const recipe = getRecipe(profile.zoneSystem)
 	if (!recipe) return DEFAULT_ENDURANCE_LABEL
-	const labels = recipe.zones.map((z) => z.label)
-	if (labels.includes('Z2')) return 'Z2'
-	if (labels.includes('E')) return 'E'
-	// Fall back to the second band (the first is recovery); the first if only one.
-	return labels[1] ?? labels[0] ?? DEFAULT_ENDURANCE_LABEL
+	return bandForZone(recipe, 2)?.band.label ?? DEFAULT_ENDURANCE_LABEL
 }
 
 /**
