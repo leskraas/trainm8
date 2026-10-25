@@ -1704,6 +1704,10 @@ model ActivityImport {
   /// file, whatever the answer: the harvest's resume marker. Null until asked;
   /// never set for imports from other transports.
   fitHarvestedAt        DateTime?
+  /// When a Strava streams fetch for this import answered with nothing usable
+  /// (#638): the streams ingest skips it, so a deferred rerun or a webhook
+  /// redelivery doesn't ask again. Null until so answered.
+  streamsCheckedAt      DateTime?
   startedAt             DateTime
   endedAt               DateTime
   durationSec           Int

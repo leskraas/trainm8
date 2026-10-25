@@ -40,11 +40,14 @@ import {
 	mondayOfDay,
 } from './athlete-calendar.ts'
 import { readRetrievableEntry } from './catalogue.server.ts'
-import { stepDurationSec, sumBlockDurationMin } from './dashboard.ts'
+import {
+	type DurationReading,
+	stepDurationSec,
+	sumBlockDurationMin,
+} from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { type EffortWord, isEffortWord } from './effort-word.ts'
 import { formatNbWeekday } from './format.ts'
-import { type DisciplineThresholdMap } from './intensity-target.ts'
 import {
 	type JusterImage,
 	type JusterIntent,
@@ -196,7 +199,9 @@ export async function justerSession(
 	await recomputePlannedTssForSession(userId, session.id)
 	return {
 		ok: true,
-		toast: JUSTER_LABELS.done[intent](nbDurationLabel(change.minutes * 60)),
+		toast: JUSTER_LABELS.done[intent](
+			change.minutes == null ? null : nbDurationLabel(change.minutes * 60),
+		),
 		title,
 		changedSessionIds: [session.id],
 		undo: { adjustmentId },
@@ -216,7 +221,8 @@ type Change =
 			intent: KeptIntent
 			effortWord: EffortWord | null
 			blocks: Blocks
-			minutes: number
+			/** Null where the session cannot be timed end to end, as a lift. */
+			minutes: number | null
 	  }
 	| { ok: false; reason: JusterRefusal }
 
@@ -273,6 +279,8 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 		}
 	}
 
+	// A lift's run warm-up is timed through its pace as a run's own steps are.
+	const thresholds = await getDisciplineThresholds(userId)
 	if (workout.discipline === 'strength') {
 		const blocks = workout.blocks.map((block) => ({
 			...block,
@@ -298,12 +306,19 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 			intent: keptWords(workout).intent,
 			effortWord: 'rolig',
 			blocks,
-			minutes: sumBlockDurationMin(blocks) ?? 0,
+			minutes: sumBlockDurationMin(blocks, {
+				thresholds,
+				discipline: workout.discipline,
+			}),
 		}
 	}
 
-	const thresholds = await getDisciplineThresholds(userId)
-	const current = sumBlockDurationMin(workout.blocks, thresholds)
+	// A session it cannot time end to end has no length to ease from: a short
+	// total would make the easy session shorter than the one it replaces.
+	const current = sumBlockDurationMin(workout.blocks, {
+		thresholds,
+		discipline: workout.discipline,
+	})
 	if (!CARDIO.has(workout.discipline) || current == null || current <= 0) {
 		return { ok: false, reason: 'no-time' }
 	}
@@ -367,10 +382,12 @@ async function shortChange(userId: string, workout: Workout): Promise<Change> {
 		}
 	}
 	const thresholds = await getDisciplineThresholds(userId)
+	const reading = { thresholds, discipline: workout.discipline }
+	// Untimed end to end there is nothing honest to cut down to (#638).
 	const current =
 		workout.discipline === 'strength'
 			? null
-			: sumBlockDurationMin(workout.blocks, thresholds)
+			: sumBlockDurationMin(workout.blocks, reading)
 	if (current == null || current <= 0) return { ok: false, reason: 'no-time' }
 	const minutes = shortMinutes(current)
 	if (minutes == null) return { ok: false, reason: 'already-short' }
@@ -378,7 +395,7 @@ async function shortChange(userId: string, workout: Workout): Promise<Change> {
 		ok: true,
 		title: workout.title,
 		...keptWords(workout),
-		blocks: scaledTo(workout.blocks, minutes * 60, thresholds),
+		blocks: scaledTo(workout.blocks, minutes * 60, reading),
 		minutes,
 	}
 }
@@ -424,7 +441,7 @@ function withSingleDuration(blocks: Blocks, durationSec: number): Blocks {
 function scaledTo(
 	blocks: Blocks,
 	targetSec: number,
-	thresholds: DisciplineThresholdMap,
+	reading: DurationReading,
 ): Blocks {
 	// A distance rep scales with the time it takes at its pace, and the rests
 	// between series stay as they are (#615).
@@ -433,7 +450,7 @@ function scaledTo(
 	for (const block of blocks) {
 		const times = block.repeatCount * (block.seriesRepeatCount ?? 1)
 		for (const step of block.steps) {
-			const stepSec = stepDurationSec(step, thresholds)
+			const stepSec = stepDurationSec(step, reading)
 			if (stepSec == null) continue
 			if (step.kind === 'cardio') scalable += stepSec * times
 			else fixed += stepSec * times

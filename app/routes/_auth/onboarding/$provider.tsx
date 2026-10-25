@@ -218,26 +218,33 @@ export default function OnboardingProviderRoute({
 					</div>
 				) : null}
 				<Field
-					className="pb-4"
+					className="pb-2"
+					reserveErrorLine
 					labelProps={{ htmlFor: fields.username.id, children: 'Username' }}
 					inputProps={{
 						...getInputProps(fields.username, { type: 'text' }),
+						autoCapitalize: 'none',
+						autoCorrect: 'off',
+						spellCheck: false,
 						autoComplete: 'username',
 						className: 'lowercase',
 					}}
 					errors={fields.username.errors}
 				/>
 				<Field
-					className="pb-4"
+					className="pb-2"
+					reserveErrorLine
 					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
 					inputProps={{
 						...getInputProps(fields.name, { type: 'text' }),
 						autoComplete: 'name',
+						autoCapitalize: 'words',
 					}}
 					errors={fields.name.errors}
 				/>
 
 				<CheckboxField
+					reserveErrorLine
 					labelProps={{
 						htmlFor: fields.agreeToTermsOfServiceAndPrivacyPolicy.id,
 						children:
@@ -262,7 +269,7 @@ export default function OnboardingProviderRoute({
 					<input type="hidden" name="redirectTo" value={redirectTo} />
 				) : null}
 
-				<ErrorList errors={form.errors} id={form.errorId} />
+				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
 
 				<StatusButton
 					className="w-full"

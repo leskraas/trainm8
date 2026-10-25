@@ -149,6 +149,7 @@ export default function SignupRoute({ actionData }: Route.ComponentProps) {
 			<Form method="POST" {...getFormProps(form)}>
 				<HoneypotInputs />
 				<Field
+					reserveErrorLine
 					labelProps={{
 						htmlFor: fields.email.id,
 						children: 'Email',
@@ -160,7 +161,7 @@ export default function SignupRoute({ actionData }: Route.ComponentProps) {
 					}}
 					errors={fields.email.errors}
 				/>
-				<ErrorList errors={form.errors} id={form.errorId} />
+				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
 				<StatusButton
 					className="w-full"
 					status={isPending ? 'pending' : (form.status ?? 'idle')}

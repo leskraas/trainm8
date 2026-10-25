@@ -680,9 +680,24 @@ describe('rule 7: planned rows are instructions', () => {
 			),
 			PLANNED_WEEK,
 		)
-		// 9 km at 5:25–5:40 /km is timed through its pace (#615).
-		expect(content.externalLoad).toBe('50 min · 42 TSS planlagt')
+		// 9 km at 5:25–5:40 /km is timed through its pace (#615), but the
+		// open step under 145 bpm has no length: the minutes are not known, and
+		// a total without it is not shown as the session's (#638).
+		expect(content.externalLoad).toBe('42 TSS planlagt')
 		expect(content.internalLoad).toBe('9 km i 5:25–5:40 /km · under 145 bpm')
+	})
+
+	test('minutes timed through a pace read with ≈, a translation (#638)', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([step({ distanceM: 9000, intensity: pace(325, 340) })]),
+				]),
+			),
+			PLANNED_WEEK,
+		)
+		// 9 km at the middle of 5:25–5:40 /km is about 50 minutes.
+		expect(content.externalLoad).toBe('≈\u00a050\u00a0min · 42 TSS planlagt')
 	})
 
 	test('a repeated block multiplies both the duration and the distance', () => {
@@ -854,6 +869,60 @@ describe('rule 7: planned rows are instructions', () => {
 			{ thresholds: { run: thresholds({ thresholdPaceSecPerKm: 240 }) } },
 		)
 		expect(content.internalLoad).toBe('4:00–4:13 /km')
+	})
+
+	// A race pace or lactate target is a translation, not arithmetic on a
+	// number the athlete typed, so the pace it reads as wears `≈` (GLOSSARY
+	// *Lactate Anchor*, #638); a %T-pace above does not.
+	test('a race-pace target states its pace with ≈', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([
+						step({
+							durationSec: 1200,
+							intensity: JSON.stringify({ kind: 'racePace', event: '5k' }),
+						}),
+					]),
+				]),
+			),
+			PLANNED_WEEK,
+			{
+				thresholds: {
+					run: { ...thresholds(), raceAnchorPaces: { '5k': 240 } },
+				},
+			},
+		)
+		expect(content.internalLoad).toBe('≈\u00a04:00 /km')
+	})
+
+	test('a lactate target states the pace it reads as with ≈', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([
+						step({
+							durationSec: 1200,
+							intensity: JSON.stringify({
+								kind: 'lactate',
+								minMmol: 2,
+								maxMmol: 3,
+							}),
+						}),
+					]),
+				]),
+			),
+			PLANNED_WEEK,
+			{
+				thresholds: {
+					run: thresholds({
+						thresholdPaceSecPerKm: 240,
+						zoneSystem: 'norwegian-threshold-run',
+					}),
+				},
+			},
+		)
+		expect(content.internalLoad).toMatch(/^≈\u00a0\d:\d\d–\d:\d\d \/km$/)
 	})
 
 	test('a stale cached range is not what the row states', () => {

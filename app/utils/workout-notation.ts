@@ -238,8 +238,13 @@ export type NotationToken =
 			facets: IntensityFacets
 			address: TokenAddress
 	  }
-	/** A rest — a rest step (`1 min rest`) or a strength rest-between-sets facet. */
-	| { type: 'rest'; text: string; address: TokenAddress }
+	/**
+	 * A rest — a rest step (`1 min pause`) or a strength rest-between-sets
+	 * facet. `value` is the part of `text` that is a number (`1 min`, `200 m`,
+	 * `120`, `1:40`), so the value can weigh and the words recede; null for a
+	 * rest that is an act or a bare `pause`.
+	 */
+	| { type: 'rest'; text: string; value: string | null; address: TokenAddress }
 	/** A strength step's exercise name: `Squat`. */
 	| { type: 'exercise'; text: string; address: TokenAddress }
 	/** A strength step's compact set summary: `5 × 5 @ 80 kg`. */
@@ -1046,27 +1051,38 @@ function notesToken(
  * non-`time` rest rendered as the bare word for a rest, which threw the
  * prescription away. The words are Norwegian on display (ADR 0089).
  */
-function restText(step: NotationStep): string {
+function restText(step: NotationStep): RestWords {
 	const spec =
 		step.rest ??
 		(step.durationSec != null
 			? ({ kind: 'time', durationSec: step.durationSec } as const)
 			: null)
-	if (!spec) return WORDS.rest
+	if (!spec) return { text: WORDS.rest, value: null }
 	switch (spec.kind) {
 		case 'time':
-			return WORDS.restFor(formatDuration(spec.durationSec))
+			return restWords(WORDS.restFor, formatDuration(spec.durationSec))
 		case 'distance':
-			return WORDS.recoveryOver(formatDistance(spec.distanceM))
+			return restWords(WORDS.recoveryOver, formatDistance(spec.distanceM))
 		case 'toHr':
-			return WORDS.untilHeartRate(spec.belowBpm)
+			return restWords(WORDS.untilHeartRate, spec.belowBpm)
 		case 'toHrPct':
-			return WORDS.untilHeartRatePct(spec.belowPct)
+			return restWords(WORDS.untilHeartRatePct, spec.belowPct)
 		case 'sendOff':
 			return sendOffText(spec)
 		case 'act':
-			return REST_ACT_WORDS[spec.act]
+			return { text: REST_ACT_WORDS[spec.act], value: null }
 	}
+}
+
+/** A rest's words and the value inside them, which the words' own builder
+ * placed — never found by matching an English or Norwegian literal. */
+type RestWords = { text: string; value: string | null }
+
+function restWords<V extends string | number>(
+	build: (value: V) => string,
+	value: V,
+): RestWords {
+	return { text: build(value), value: String(value) }
 }
 
 /**
@@ -1076,14 +1092,14 @@ function restText(step: NotationStep): string {
  */
 function sendOffText(
 	sendOff: SendOff | Extract<RestSpec, { kind: 'sendOff' }>,
-): string {
+): RestWords {
 	if (sendOff.kind === 'absolute') {
-		return WORDS.sendOff(formatDuration(sendOff.intervalSec))
+		return restWords(WORDS.sendOff, formatDuration(sendOff.intervalSec))
 	}
 	const allowance = sendOff.allowanceSecPer100m
-	if (allowance === 0) return WORDS.sendOff('CSS')
+	if (allowance === 0) return restWords(WORDS.sendOff, 'CSS')
 	const sign = allowance > 0 ? '+' : '−'
-	return WORDS.sendOff(`CSS ${sign} ${Math.abs(allowance)} s`)
+	return restWords(WORDS.sendOff, `CSS ${sign} ${Math.abs(allowance)} s`)
 }
 
 type ParameterParts = { value: string; word: string | null }
@@ -1212,7 +1228,7 @@ function buildStep(
 			parenthesized: true,
 			token: {
 				type: 'rest',
-				text: restText(step),
+				...restText(step),
 				address: at('duration'),
 			},
 		})
@@ -1253,7 +1269,7 @@ function buildStep(
 				parenthesized: false,
 				token: {
 					type: 'rest',
-					text: WORDS.restFor(formatDuration(step.restBetweenSetsSec)),
+					...restWords(WORDS.restFor, formatDuration(step.restBetweenSetsSec)),
 					address: at('restBetweenSetsSec'),
 				},
 			})
@@ -1369,7 +1385,7 @@ export function deriveWorkoutNotation(
 					parenthesized: true,
 					token: {
 						type: 'rest',
-						text: sendOffText(block.sendOff),
+						...sendOffText(block.sendOff),
 						address: {
 							blockIndex,
 							stepIndex: lastStep.stepIndex,
@@ -1411,7 +1427,8 @@ export function deriveWorkoutNotation(
 				series && block.betweenSeriesRestSec != null
 					? ({
 							type: 'rest',
-							text: WORDS.betweenSeries(
+							...restWords(
+								WORDS.betweenSeries,
 								formatDuration(block.betweenSeriesRestSec),
 							),
 							address: {

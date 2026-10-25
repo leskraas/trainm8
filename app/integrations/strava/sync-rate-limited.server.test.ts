@@ -47,7 +47,15 @@ test('a spent Strava day returns rate-limited from a manual sync, not a throw', 
 
 	const result = await syncStravaActivities(user.id)
 
-	expect(result).toEqual({ ok: false, reason: 'rate-limited' })
+	// It says when the day resets (midnight UTC), so the toast can say when to
+	// try again.
+	const midnight = new Date()
+	midnight.setUTCHours(24, 0, 0, 0)
+	expect(result).toEqual({
+		ok: false,
+		reason: 'rate-limited',
+		retryAt: midnight,
+	})
 	const after = await prisma.accountConnection.findUniqueOrThrow({
 		where: { id: connection.id },
 	})

@@ -106,6 +106,7 @@ export function buildCatalogueCard(input: {
 				discipline: workout.discipline,
 				status: 'scheduled',
 				currency: null,
+				thresholds: {},
 				recording: null,
 				loggedSets: 0,
 				workout: {

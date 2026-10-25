@@ -917,3 +917,40 @@ test('a retried create event fetches the stream its first run did not get', asyn
 		}),
 	).toBe(1)
 })
+
+test('a redelivered create event does not ask again for streams Strava has none of', async () => {
+	const user = await setupConnectedAthlete()
+	mockActivity('5004')
+	let streamCalls = 0
+	server.use(
+		http.get('https://www.strava.com/api/v3/activities/:id/streams', () => {
+			streamCalls++
+			return HttpResponse.json({})
+		}),
+	)
+	const createPayload: StravaWebhookJobPayload = {
+		objectType: 'activity',
+		objectId: '5004',
+		aspectType: 'create',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	}
+
+	await enqueueAndRun(createPayload)
+	await enqueueAndRun(createPayload)
+
+	// Strava answered the first time, with nothing usable: the import is marked
+	// as asked, so a redelivery spends no read on it.
+	expect(streamCalls).toBe(1)
+	const imp = await prisma.activityImport.findUniqueOrThrow({
+		where: {
+			athleteId_externalProvider_externalId: {
+				athleteId: user.id,
+				externalProvider: 'strava',
+				externalId: '5004',
+			},
+		},
+		select: { streamsCheckedAt: true, stream: { select: { id: true } } },
+	})
+	expect(imp.stream).toBeNull()
+	expect(imp.streamsCheckedAt).toBeInstanceOf(Date)
+})

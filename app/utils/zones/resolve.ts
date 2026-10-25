@@ -38,11 +38,34 @@ export type DisciplineProfileForResolver = {
 	raceAnchorPaces?: RaceAnchorPaces | null
 }
 
+/** The unit a resolved pace is in: seconds per km, or seconds per 100 m. */
+export type PaceUnit = 'secPerKm' | 'secPer100m'
+
+/**
+ * The unit `resolveIntensity` hands a target's paces back in — the one rule
+ * every reader converts by (`zones/pace-unit.ts`, `zoneEquivalent`, the step
+ * target text), so none keeps its own ÷10 (#613, #638). A pace read off a
+ * recipe band (a `zoneLabel` or `lactate` target) is in the band anchor's unit,
+ * per 100 m on CSS; an authored `pace`, a percentage of threshold pace and a
+ * race pace are per km whatever the discipline. With no target, the anchor's
+ * unit (a distance timed through the threshold itself).
+ */
+export function resolvedPaceUnit(
+	kind: IntensityTarget['kind'] | null | undefined,
+	anchor: ZoneAnchor | null | undefined,
+): PaceUnit {
+	if (kind === 'pace' || kind === 'pacePct' || kind === 'racePace') {
+		return 'secPerKm'
+	}
+	return anchor === 'css' ? 'secPer100m' : 'secPerKm'
+}
+
 export type ResolvedIntensity = {
 	hrMin?: number
 	hrMax?: number
 	powerMin?: number
 	powerMax?: number
+	/** Paces, in the unit `resolvedPaceUnit` names for the target. */
 	paceMin?: number
 	paceMax?: number
 	unavailable?: string

@@ -403,7 +403,7 @@ const FACET_EXCLUDES: Record<EditorKind, FacetExclude> = {
  * "6 min duration, step 1 of 2, block 2 of 4". Facet words that already live
  * in the token's own text (`1 min rest`) aren't repeated.
  */
-function tokenAccessibleName(
+export function tokenAccessibleName(
 	token: NotationToken,
 	kind: EditorKind,
 	notation: WorkoutNotation,
@@ -423,7 +423,17 @@ function tokenAccessibleName(
 			case 'distance':
 				return N.distance(token.text)
 			case 'repeat':
-				return N.repeat(token.type === 'repeat' ? token.count : token.text)
+				// Named from what its badge shows. A block in series names its
+				// series too, `3 × 13` being three series of 13: the series badge
+				// above it is inert, so the button is where a screen reader
+				// stops (#466).
+				if (token.type !== 'repeat') return N.repeat(token.text)
+				return notation.blocks[blockIndex]?.series
+					? N.repeatSeries(
+							notation.blocks[blockIndex]!.series!.count,
+							token.count,
+						)
+					: N.repeat(token.count)
 			case 'rest':
 				return token.text
 			case 'restSeconds':

@@ -342,17 +342,22 @@ function IntensityChip({
 }
 
 /** A rest token split into its value and word inks: `1 min` weighs, `pause`
- * (ADR 0089) or `seriepause` recedes. The words are the ones the notation
- * writes. */
-const REST_WORDS = [
-	TOKEN_SENTENCE_WORDS.rest,
-	TOKEN_SENTENCE_WORDS.seriesRest,
-] as const
-function restParts(text: string): { value: string | null; word: string } {
-	const word = REST_WORDS.find((one) => text.endsWith(` ${one}`))
-	return word
-		? { value: text.slice(0, -(word.length + 1)), word }
-		: { value: null, word: text }
+ * (ADR 0089) recedes, and so do `rolig`, `på` and `til puls <`. The value is
+ * the one the notation's word builder placed, so no word is matched here. */
+function restParts(token: Extract<NotationToken, { type: 'rest' }>): {
+	before: string
+	value: string | null
+	after: string
+} {
+	const at = token.value ? token.text.indexOf(token.value) : -1
+	if (!token.value || at < 0) {
+		return { before: token.text, value: null, after: '' }
+	}
+	return {
+		before: token.text.slice(0, at),
+		value: token.value,
+		after: token.text.slice(at + token.value.length),
+	}
 }
 
 function Token({ token }: { token: NotationToken }) {
@@ -369,20 +374,19 @@ function Token({ token }: { token: NotationToken }) {
 				</span>
 			)
 		case 'rest': {
-			const { value, word } = restParts(token.text)
+			const { before, value, after } = restParts(token)
 			return (
 				<span
 					data-token-type="rest"
 					className="text-muted-foreground whitespace-nowrap"
 				>
+					{before}
 					{value ? (
-						<>
-							<span className="text-foreground font-semibold tabular-nums">
-								{value}
-							</span>{' '}
-						</>
+						<span className="text-foreground font-semibold tabular-nums">
+							{value}
+						</span>
 					) : null}
-					{word}
+					{after}
 				</span>
 			)
 		}

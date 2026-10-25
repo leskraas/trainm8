@@ -28,6 +28,7 @@ import { zoneEquivalent } from './zone-equivalent.ts'
 import { DANIELS_PACE_5, getRecipe } from './zones/index.ts'
 import {
 	formatMmol,
+	resolvedPaceUnit,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 	type ResolvedIntensity,
@@ -89,13 +90,19 @@ function range(min: number, max: number | null | undefined, unit: string) {
 }
 
 /**
- * Pace zone bands resolve in the recipe anchor's own unit: seconds per 100 m
- * for a CSS-anchored recipe, seconds per km otherwise — so a swim range is
- * never mislabelled `/km`.
+ * The unit a target's resolved pace is labelled in: the one the resolver
+ * hands it back in (`resolvedPaceUnit`) — per 100 m for a band on a
+ * CSS-anchored recipe, per km otherwise — so a swim range is never
+ * mislabelled `/km`, nor a per-km pace `/100m`.
  */
-function paceUnitFor(profile: DisciplineProfileForResolver): 'km' | '100m' {
+function paceUnitFor(
+	target: IntensityTarget,
+	profile: DisciplineProfileForResolver,
+): 'km' | '100m' {
 	const recipe = profile.zoneSystem ? getRecipe(profile.zoneSystem) : undefined
-	return recipe?.anchor === 'css' ? '100m' : 'km'
+	return resolvedPaceUnit(target.kind, recipe?.anchor) === 'secPer100m'
+		? '100m'
+		: 'km'
 }
 
 // Daniels letters (E/M/T/I/R) are the one built-in code set that is cryptic
@@ -282,7 +289,7 @@ export function formatIntensityTarget(
 			// A percentage of threshold pace is arithmetic on a number the athlete
 			// authored, so the resolved pace is exact and wears no `≈`.
 			const resolved = resolveIntensity(target, profile)
-			const text = resolvedRangeText(resolved, paceUnitFor(profile))
+			const text = resolvedRangeText(resolved, paceUnitFor(target, profile))
 			if (!text) return { kind: 'unavailable' }
 			return { kind: 'metric', metric: 'pace', text: text.text }
 		}
@@ -297,7 +304,8 @@ export function formatIntensityTarget(
 				metric: 'lactate',
 				text: withApproxFacet(
 					formatMmol(target.minMmol, target.maxMmol),
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved, paceUnitFor(target, profile))?.text ??
+						null,
 				),
 			}
 		}
@@ -308,7 +316,8 @@ export function formatIntensityTarget(
 				metric: 'pace',
 				text: withApproxFacet(
 					racePaceLabel(target),
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved, paceUnitFor(target, profile))?.text ??
+						null,
 				),
 			}
 		}
@@ -318,7 +327,7 @@ export function formatIntensityTarget(
 			// threshold resolves it, the honest display is the captioned Training
 			// Zone — never a fabricated range.
 			const resolved = resolveIntensity(target, profile)
-			const range = resolvedRangeText(resolved, paceUnitFor(profile))
+			const range = resolvedRangeText(resolved, paceUnitFor(target, profile))
 			if (range) {
 				return { kind: 'metric', metric: range.metric, text: range.text }
 			}
@@ -436,7 +445,8 @@ export function describeStepTarget(
 					INTENSITY_DISPLAY_WORDS.thresholdPace,
 				),
 				resolved:
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved, paceUnitFor(target, profile))?.text ??
+					null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: false,
 			}
@@ -447,7 +457,8 @@ export function describeStepTarget(
 			return {
 				label: formatMmol(target.minMmol, target.maxMmol),
 				resolved:
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved, paceUnitFor(target, profile))?.text ??
+					null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: true,
 			}
@@ -457,7 +468,8 @@ export function describeStepTarget(
 			return {
 				label: racePaceLabel(target),
 				resolved:
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved, paceUnitFor(target, profile))?.text ??
+					null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: true,
 			}
@@ -470,7 +482,8 @@ export function describeStepTarget(
 					? `${zoneLabelWord(target.label)} — ${caption}`
 					: zoneLabelWord(target.label),
 				resolved:
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved, paceUnitFor(target, profile))?.text ??
+					null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: false,
 			}

@@ -26,7 +26,13 @@ const VerificationTypeSchema = z.enum(types)
 export type VerificationTypes = z.infer<typeof VerificationTypeSchema>
 
 export const VerifySchema = z.object({
-	[codeQueryParam]: z.string().min(6).max(6),
+	// The emailed code is uppercase; a keyboard that ignores the capitals hint
+	// (hardware, desktop, some Android) must not make it "Invalid code".
+	[codeQueryParam]: z
+		.string()
+		.min(6)
+		.max(6)
+		.transform((code) => code.toUpperCase()),
 	[typeQueryParam]: VerificationTypeSchema,
 	[targetQueryParam]: z.string(),
 	[redirectToQueryParam]: z.string().optional(),
@@ -86,11 +92,12 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 			subtitle={heading?.subtitle}
 		>
 			<div className="space-y-4">
-				<ErrorList errors={form.errors} id={form.errorId} />
+				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
 				<Form method="POST" {...getFormProps(form)}>
 					<HoneypotInputs />
 					<div className="flex items-center justify-center">
 						<OTPField
+							reserveErrorLine
 							labelProps={{
 								htmlFor: fields[codeQueryParam].id,
 								children: 'Code',
@@ -99,6 +106,16 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 								...getInputProps(fields[codeQueryParam], { type: 'text' }),
 								autoComplete: 'one-time-code',
 								autoFocus: true,
+								// An authenticator's code is digits; an emailed one has capital
+								// letters too, which the number pad can't type.
+								...(type === '2fa'
+									? { inputMode: 'numeric' as const }
+									: {
+											inputMode: 'text' as const,
+											autoCapitalize: 'characters',
+											autoCorrect: 'off',
+											spellCheck: false,
+										}),
 							}}
 							errors={fields[codeQueryParam].errors}
 						/>

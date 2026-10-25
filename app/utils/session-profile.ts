@@ -5,6 +5,7 @@ import {
 	IntensityTargetSchema,
 	type IntensityTarget,
 } from './workout-schema.ts'
+import { ZONE_WORDS } from './zones/words.ts'
 
 /** The persisted Workout row tree the Workout Shape derives from (exported so
  * the draft→shape adapter in `workout-notation` can build the same shape). */
@@ -68,6 +69,13 @@ export type SessionProfile = {
 	groups: ProfileBarGroup[]
 }
 
+/** Each stored zone word (`zones/words.ts`) back to its Training Zone. */
+const STORED_WORD_ZONES = new Map(
+	Object.entries(ZONE_WORDS).map(
+		([zone, word]) => [word, Number(zone) as TrainingZone] as const,
+	),
+)
+
 function clampZone(n: number): TrainingZone {
 	if (n <= 1) return 1
 	if (n >= 5) return 5
@@ -100,27 +108,25 @@ export function zoneLabelToZone(label: string): TrainingZone | null {
 	if (zMatch) return clampZone(Number(zMatch[1]))
 	const oltMatch = /^i-([1-5])$/.exec(normalized)
 	if (oltMatch) return Number(oltMatch[1]) as TrainingZone
+	// The zone words the writing line, the day stamp and an eased session store
+	// (#627), read from the one list that writes them.
+	const stored = STORED_WORD_ZONES.get(normalized)
+	if (stored != null) return stored
 	switch (normalized) {
-		// The zone words the writing line, the day stamp and an eased session
-		// store (`zones/words.ts`, #627), plus the generic English vocabulary.
-		case 'lett':
+		// The generic English vocabulary, and the older Norwegian `restitusjon`.
 		case 'restitusjon':
 		case 'recovery':
 			return 1
 		// `easy` is zone 2, as Daniels' `E` band ("easy") declares (#607).
 		case 'easy':
-		case 'rolig':
 		case 'zone2':
 		case 'endurance':
 			return 2
-		case 'moderat':
 		case 'moderate':
 		case 'tempo':
 			return 3
-		case 'terskel':
 		case 'threshold':
 			return 4
-		case 'hardt':
 		case 'vo2max':
 		case 'anaerobic':
 		case 'max':
@@ -307,8 +313,56 @@ export function deriveRepeatGroups(workout: Workout | null): ProfileBarGroup[] {
 	return groups
 }
 
+/**
+ * More bars than any screen has pixels for. A session past it (`100 × 100 ×
+ * 10 s`) is drawn one rep per block instead, each bar carrying all its reps'
+ * time, so width stays time and the `N ×` bracket says the rest.
+ */
+const MAX_PROFILE_BARS = 400
+
+/** Each block drawn once: its steps at their full time, bracketed `N ×`. */
+function deriveCollapsedProfile(
+	workout: Workout,
+	fallbackZone: TrainingZone | null,
+): SessionProfile {
+	const bars: SessionProfile['bars'] = []
+	const groups: ProfileBarGroup[] = []
+	for (const block of workout.blocks
+		.slice()
+		.sort((a, b) => a.orderIndex - b.orderIndex)) {
+		const repeats = blockRepeatTotal(block)
+		const steps = block.steps
+			.slice()
+			.sort((a, b) => a.orderIndex - b.orderIndex)
+		if (steps.length > 0 && repeats > 1) {
+			groups.push({
+				startIndex: bars.length,
+				span: steps.length,
+				repeatCount: repeats,
+			})
+		}
+		for (const step of steps) {
+			bars.push({
+				id: step.id,
+				zone:
+					stepToZone(step) ??
+					(step.kind === 'cardio' && !step.intensity ? fallbackZone : null),
+				durationSec: stepDurationSec(step) * repeats,
+			})
+		}
+	}
+	return { bars, groups }
+}
+
 export function deriveSessionProfile(workout: Workout | null): SessionProfile {
 	const fallbackZone = intentToZone(workout?.intent)
+	const drawn = (workout?.blocks ?? []).reduce(
+		(sum, block) => sum + blockRepeatTotal(block) * block.steps.length,
+		0,
+	)
+	if (workout && drawn > MAX_PROFILE_BARS) {
+		return deriveCollapsedProfile(workout, fallbackZone)
+	}
 	const bars = expandWorkoutSteps(workout).map(
 		({ id, zone, durationSec, step }) => ({
 			id,

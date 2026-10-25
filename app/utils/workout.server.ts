@@ -1,6 +1,7 @@
 import { type Prisma } from '@prisma/client'
 import { addDays, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
+import { readTargetZone } from './effort-word.ts'
 import { canMarkDone, MARK_DONE_REACH_DAYS } from './import-fit.ts'
 import {
 	type AngreRefusal,
@@ -12,8 +13,6 @@ import { type DisciplineThresholdMap } from './intensity-target.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import { triggerRecomputeForSession } from './session-log.server.ts'
 import { deriveWorkoutTitle } from './session-title.ts'
-import { classifyingRecipe } from './structure-detection/classify.ts'
-import { type ClassifyChannel } from './structure-detection/constants.ts'
 import { getDisciplineThresholds } from './training.server.ts'
 import {
 	type ExerciseSet,
@@ -26,7 +25,6 @@ import {
 	restStepSpec,
 } from './workout-schema.ts'
 import { INTENT_BY_ZONE } from './workout-sentence.ts'
-import { zoneEquivalent } from './zone-equivalent.ts'
 import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,
@@ -1504,23 +1502,14 @@ export function parseStoredWorkoutStructure(
 	}
 }
 
-/** The detection channel each measured target kind is stored from. */
-const CLASSIFIED_CHANNEL: Partial<
-	Record<IntensityTarget['kind'], ClassifyChannel>
-> = { power: 'power', pace: 'pace', hrBpm: 'heartrate' }
-
 /**
  * A detected session's intent: the one its hardest step's Training Zone names,
- * each measured target zoned against the athlete's thresholds the way the
- * editor's chip zones it (`zoneEquivalent`). A detection holds absolute
- * targets only, so a hard-coded `endurance` made every detected interval
- * session an easy one (#617). With no step that zones, `endurance` stands —
- * the same silence the Day Stamp and the sentence write it for.
- *
- * A measured target is zoned on the recipe detection classified it against
- * (`classifyingRecipe`), not blindly on the athlete's own: a Daniels runner
- * with a critical-power threshold is detected on Stryd power bands, and the
- * pace recipe cannot place watts at all.
+ * each measured target zoned against the athlete's thresholds by the reading
+ * I dag's Effort Word uses (`readTargetZone`), on the recipe detection
+ * classified that channel against. A detection holds absolute targets only, so
+ * a hard-coded `endurance` made every detected interval session an easy one
+ * (#617). With no step that zones, `endurance` stands — the same silence the
+ * Day Stamp and the sentence write it for.
  */
 function detectedIntent(
 	structure: WorkoutStructure,
@@ -1530,18 +1519,11 @@ function detectedIntent(
 	for (const block of structure.blocks) {
 		for (const step of block.steps) {
 			if (step.kind !== 'cardio' || !step.intensity) continue
-			const discipline = step.discipline ?? structure.discipline
-			const profile = thresholds[discipline]
-			const channel = CLASSIFIED_CHANNEL[step.intensity.kind]
-			const recipe =
-				profile &&
-				channel &&
-				(discipline === 'run' || discipline === 'bike') &&
-				classifyingRecipe(discipline, profile, channel)
-			const zone = zoneEquivalent(
+			const zone = readTargetZone(
 				step.intensity,
-				recipe ? { ...profile, zoneSystem: recipe.id } : profile,
-			).step
+				step.discipline ?? structure.discipline,
+				thresholds,
+			)
 			if (zone != null && zone > hardest) hardest = zone
 		}
 	}
