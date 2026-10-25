@@ -18,7 +18,7 @@
 //
 // Pure: no database. Writes go through `simple-activity.server.ts`.
 import { z } from 'zod/v3'
-import { EFFORT_WORDS, type EffortWord, isEffortWord } from './effort-word.ts'
+import { EFFORT_WORDS, type EffortWord, isEffortWord } from './effort-words.ts'
 
 /** The Discipline a Simple Activity is on (ADR 0015). */
 export const SIMPLE_ACTIVITY_DISCIPLINE = 'other'

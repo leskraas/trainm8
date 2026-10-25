@@ -11,7 +11,7 @@ import {
 	persistActivityLaps,
 } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { DeferJob } from '#app/utils/jobs/queue.server.ts'
+import { rethrowDeferral } from '#app/utils/jobs/queue.server.ts'
 import { type Lap } from '#app/utils/structure-detection/types.ts'
 import { stravaApiGet } from './client.server.ts'
 import { stravaTypeToDiscipline } from './discipline-map.ts'
@@ -333,8 +333,8 @@ export async function ingestActivityLaps(
 		if (markers.length > 0) await persistActivityLaps(activityImportId, markers)
 	} catch (err) {
 		// Laps are a refinement; a failure must never abort the enclosing ingest.
-		// A spent Strava day is not a failure: the job waits for it (#637).
-		if (err instanceof DeferJob) throw err
+		// A spent Strava budget is not a failure: the job waits for it (#637).
+		rethrowDeferral(err)
 	}
 }
 
@@ -345,9 +345,10 @@ export async function ingestActivityLaps(
  * (#139) — with its HR phase bars, then enqueue Structure Detection. Skips
  * `'other'` activities (no overlay), imports we don't have, and imports already
  * carrying a stream (idempotent + spares a redundant stream call on re-sync).
- * An activity with no usable streams persists nothing. Never throws —
+ * An activity with no usable streams persists nothing but `streamsCheckedAt`,
+ * and is skipped from then on too. Never throws —
  * telemetry is an enrichment, never load-bearing for a sync's success — except
- * `DeferJob` when Strava's day is spent, so the job resumes later. `lane`
+ * `DeferJob` when Strava's budget is spent, so the job resumes later. `lane`
  * is the rate-limit lane its Strava calls are paced in.
  */
 export async function ingestActivityStreams(
@@ -370,16 +371,23 @@ export async function ingestActivityStreams(
 						externalId: activity.id,
 					},
 				},
-				select: { id: true, stream: { select: { id: true } } },
+				select: {
+					id: true,
+					streamsCheckedAt: true,
+					stream: { select: { id: true } },
+				},
 			})
-			if (!existing || existing.stream) continue
+			if (!existing || existing.stream || existing.streamsCheckedAt) continue
 
 			const raw = await fetchStravaActivityStreams(
 				connection,
 				activity.id,
 				lane,
 			)
-			if (!raw) continue
+			if (!raw) {
+				await markStreamsChecked(existing.id)
+				continue
+			}
 			// Provider laps first (#356): ground-truth edges for the lap-edged path,
 			// persisted before the stream so any detection reads them on first compute.
 			await ingestActivityLaps(
@@ -398,11 +406,25 @@ export async function ingestActivityStreams(
 				discipline,
 				raw,
 			)
+			// A stream too short to keep is as good as none.
+			await markStreamsChecked(existing.id)
 		} catch (err) {
 			// One activity's stream failing (fetch error, or a concurrent trigger
 			// that already inserted the row) must not abort the rest. A spent
-			// Strava day would fail every one of them, so the job waits instead.
-			if (err instanceof DeferJob) throw err
+			// Strava budget would fail every one of them, so the job waits instead.
+			rethrowDeferral(err)
 		}
 	}
+}
+
+/**
+ * Strava answered the import's streams fetch with nothing usable: mark it, so
+ * a deferred job that starts over, or a webhook redelivery, doesn't spend a
+ * read asking again (#638). A no-op when a stream landed.
+ */
+async function markStreamsChecked(activityImportId: string): Promise<void> {
+	await prisma.activityImport.updateMany({
+		where: { id: activityImportId, stream: { is: null } },
+		data: { streamsCheckedAt: new Date() },
+	})
 }

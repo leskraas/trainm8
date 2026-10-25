@@ -5,7 +5,12 @@ Status: Accepted · **§2–3 superseded by
 for an athlete on **Autopilot** (the default since spec #558): the Week Change
 applies the Week Replan at the close within guards, the athlete's own sessions
 are never changed, and every write is stated and undoable. Under _Spør meg
-først_ this ADR stands unchanged.
+først_ this ADR stands unchanged. **§3 and §6 amended by
+[ADR 0093](./0093-an-assistant-proposes-and-never-gives-the-athletes-yes-and-every-write-it-makes-can-be-undone.md)**
+for proposals the athlete's assistant writes: every proposal records its
+**Proposal Author**, and an assistant's is applied only by the athlete's
+explicit yes in trainm8 — never by silence or the autopilot, whatever its load
+direction or target — and a host's tool-approval click is not that yes.
 
 **Amends [ADR 0025](./0025-adaptive-week-replan.md).** It keeps §1: one
 persistent decision for each closed **Training Week**, made at most once. It
@@ -47,7 +52,9 @@ Sunday.
    sessions: only an explicit yes applies a proposal.** This covers sessions
    with `source` `authored` and adopted sessions. The app may propose a change
    to them, and the proposal says that the session is theirs. Silence changes
-   nothing.
+   nothing. _(Amended by ADR 0093 §3: an assistant's proposal needs the
+   athlete's explicit yes on every session, the machine's included, and the yes
+   is a tap in trainm8 bound to the payload it showed.)_
 4. **A move proposal asks for its scope:** _bare denne gangen_ (only this time)
    or _fra nå av_ (from now on). "Never on Tuesdays" is a different statement
    from "not this Tuesday".
@@ -55,7 +62,9 @@ Sunday.
    automatically. The Week Replan may propose what to do about it.
 6. **AI later writes the same proposals on the same surface:** a proposal, a
    reason, and accept or change. Only the author of step 1 changes, not the
-   rules in steps 2–5.
+   rules in steps 2–5. _(Amended by ADR 0093 §2–4: the author is stored on each
+   proposal, and for an assistant the rules change too — no silence, no
+   autopilot, a yes always, its reason shown as the assistant's.)_
 
 ## Considered options
 

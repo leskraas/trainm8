@@ -156,6 +156,7 @@ function setup(
 					discipline: store.session.workout?.discipline ?? '',
 					status: store.session.status,
 					currency: null,
+					thresholds: {},
 					workout: store.session.workout,
 					recording: store.session.recording,
 					loggedSets: 0,

@@ -317,3 +317,21 @@ test('the Workout Shape expands both repeat levels into bars', () => {
 	expect(profile.bars).toHaveLength(78)
 	expect(profile.groups).toEqual([{ startIndex: 0, span: 78, repeatCount: 39 }])
 })
+
+test('a block too long to draw rep by rep is drawn once, at its full time', () => {
+	// 100 × 100 reps of 10 s would be 20,000 bars, far past any screen's pixels.
+	const [block] = oneBlock([
+		cardioStep({ id: 'on', intensity: 'threshold', durationSec: 10 }),
+		cardioStep({ id: 'off', intensity: 'recovery', durationSec: 10 }),
+	])
+	const workout = workoutWithBlocks([
+		{ ...block!, repeatCount: 100, seriesRepeatCount: 100 },
+	])
+
+	const { bars, groups } = deriveSessionProfile(workout)
+
+	expect(bars.map((b) => b.id)).toEqual(['on', 'off'])
+	// Width is time, so each bar carries all its reps' time.
+	expect(bars.map((b) => b.durationSec)).toEqual([100_000, 100_000])
+	expect(groups).toEqual([{ startIndex: 0, span: 2, repeatCount: 10_000 }])
+})

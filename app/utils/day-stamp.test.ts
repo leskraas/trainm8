@@ -40,7 +40,7 @@ test('it validates as the very same authoring input the full route posts', () =>
 
 test('the title is derived from the structure, never typed and never invented', () => {
 	expect(buildDayStamp({ discipline: 'run', scheduledAt: AT }).title).toBe(
-		'45 min Rolig',
+		'45 min rolig',
 	)
 })
 

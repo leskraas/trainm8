@@ -189,7 +189,7 @@ export async function getValidAccessToken(
 const stravaRateLimiter = createRateLimiter({
 	...STRAVA_RATE_LIMIT,
 	...(process.env.NODE_ENV === 'test'
-		? { clock: skipAheadClock(), bulkMaySleep: true }
+		? { clock: skipAheadClock(), maySleep: true }
 		: {}),
 })
 
@@ -205,7 +205,7 @@ function skipAheadClock(): Clock {
 
 /**
  * Authenticated GET against the Strava API, paced by the shared rate limiter
- * in `lane` (a `429` waits for the next window there). Refreshes proactively
+ * in `lane`: a spent window, or a `429`, throws `DeferJob` for its reset. Refreshes proactively
  * when the stored token is near expiry, and reactively retries once on a 401
  * (the token was rejected despite looking valid). A permanent refresh failure
  * surfaces as `StravaConnectionRevokedError`.

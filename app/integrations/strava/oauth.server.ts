@@ -164,7 +164,8 @@ export type StravaConnectionMetadata = {
  * when present, otherwise via a follow-up `/athlete` fetch+validate. Returns
  * domain connection metadata so the callback route never touches Strava's wire
  * shape. Throws `StravaTokenExchangeError` on a failed exchange and propagates
- * fetch/validation errors from the `/athlete` fallback.
+ * fetch/validation errors from the `/athlete` fallback, `DeferJob` among them
+ * when Strava's read budget is spent (the callback says when to try again).
  */
 export async function connectStravaAccount(
 	code: string,

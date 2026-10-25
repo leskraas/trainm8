@@ -188,8 +188,21 @@ export type IntensityChip = { text: string; step: TrainingZone | null }
 export type NotationToken =
 	/** A Step Quantity: `6 min` (field `duration`) or `2 km` (field `distance`). */
 	| { type: 'quantity'; text: string; address: TokenAddress }
-	/** A block's repeat count, e.g. `4` (rendered `4 ×`). Present only when > 1. */
-	| { type: 'repeat'; text: string; count: number; address: TokenAddress }
+	/**
+	 * A block's repeat count, e.g. `4` (rendered `4 ×`), present only when the
+	 * block repeats. `count` is the innermost number the text shows; `series`
+	 * leads it when both levels show (`3 × 13`: series 3, count 13), and is null
+	 * when one does. A block repeated only in series reads as its series (`3`,
+	 * count 3), never `3 × 1`. The address stays `repeatCount`: the editor's
+	 * form carries no series field.
+	 */
+	| {
+			type: 'repeat'
+			text: string
+			count: number
+			series: number | null
+			address: TokenAddress
+	  }
 	/**
 	 * An Intensity Target with derived facets: `4:40 /km`, `Threshold`,
 	 * `95–105% FTP`. `targetKind` is null for the editor-only placeholder of a
@@ -204,8 +217,13 @@ export type NotationToken =
 			facets: IntensityFacets
 			address: TokenAddress
 	  }
-	/** A rest — a rest step (`1 min rest`) or a strength rest-between-sets facet. */
-	| { type: 'rest'; text: string; address: TokenAddress }
+	/**
+	 * A rest — a rest step (`1 min pause`) or a strength rest-between-sets
+	 * facet. `value` is the part of `text` that is a number (`1 min`, `200 m`,
+	 * `120`, `1:40`), so the value can weigh and the words recede; null for a
+	 * rest that is an act or a bare `pause`.
+	 */
+	| { type: 'rest'; text: string; value: string | null; address: TokenAddress }
 	/** A strength step's exercise name: `Squat`. */
 	| { type: 'exercise'; text: string; address: TokenAddress }
 	/** A strength step's compact set summary: `5 × 5 @ 80 kg`. */
@@ -1001,27 +1019,38 @@ function notesToken(
  * non-`time` rest rendered as the bare word for a rest, which threw the
  * prescription away. The words are Norwegian on display (ADR 0089).
  */
-function restText(step: NotationStep): string {
+function restText(step: NotationStep): RestWords {
 	const spec =
 		step.rest ??
 		(step.durationSec != null
 			? ({ kind: 'time', durationSec: step.durationSec } as const)
 			: null)
-	if (!spec) return WORDS.rest
+	if (!spec) return { text: WORDS.rest, value: null }
 	switch (spec.kind) {
 		case 'time':
-			return WORDS.restFor(formatDuration(spec.durationSec))
+			return restWords(WORDS.restFor, formatDuration(spec.durationSec))
 		case 'distance':
-			return WORDS.recoveryOver(formatDistance(spec.distanceM))
+			return restWords(WORDS.recoveryOver, formatDistance(spec.distanceM))
 		case 'toHr':
-			return WORDS.untilHeartRate(spec.belowBpm)
+			return restWords(WORDS.untilHeartRate, spec.belowBpm)
 		case 'toHrPct':
-			return WORDS.untilHeartRatePct(spec.belowPct)
+			return restWords(WORDS.untilHeartRatePct, spec.belowPct)
 		case 'sendOff':
 			return sendOffText(spec)
 		case 'act':
-			return REST_ACT_WORDS[spec.act]
+			return { text: REST_ACT_WORDS[spec.act], value: null }
 	}
+}
+
+/** A rest's words and the value inside them, which the words' own builder
+ * placed — never found by matching an English or Norwegian literal. */
+type RestWords = { text: string; value: string | null }
+
+function restWords<V extends string | number>(
+	build: (value: V) => string,
+	value: V,
+): RestWords {
+	return { text: build(value), value: String(value) }
 }
 
 /**
@@ -1031,14 +1060,14 @@ function restText(step: NotationStep): string {
  */
 function sendOffText(
 	sendOff: SendOff | Extract<RestSpec, { kind: 'sendOff' }>,
-): string {
+): RestWords {
 	if (sendOff.kind === 'absolute') {
-		return WORDS.sendOff(formatDuration(sendOff.intervalSec))
+		return restWords(WORDS.sendOff, formatDuration(sendOff.intervalSec))
 	}
 	const allowance = sendOff.allowanceSecPer100m
-	if (allowance === 0) return WORDS.sendOff('CSS')
+	if (allowance === 0) return restWords(WORDS.sendOff, 'CSS')
 	const sign = allowance > 0 ? '+' : '−'
-	return WORDS.sendOff(`CSS ${sign} ${Math.abs(allowance)} s`)
+	return restWords(WORDS.sendOff, `CSS ${sign} ${Math.abs(allowance)} s`)
 }
 
 function buildStep(
@@ -1076,7 +1105,7 @@ function buildStep(
 			parenthesized: true,
 			token: {
 				type: 'rest',
-				text: restText(step),
+				...restText(step),
 				address: at('duration'),
 			},
 		})
@@ -1117,7 +1146,7 @@ function buildStep(
 				parenthesized: false,
 				token: {
 					type: 'rest',
-					text: WORDS.restFor(formatDuration(step.restBetweenSetsSec)),
+					...restWords(WORDS.restFor, formatDuration(step.restBetweenSetsSec)),
 					address: at('restBetweenSetsSec'),
 				},
 			})
@@ -1221,7 +1250,7 @@ export function deriveWorkoutNotation(
 					parenthesized: true,
 					token: {
 						type: 'rest',
-						text: sendOffText(block.sendOff),
+						...sendOffText(block.sendOff),
 						address: {
 							blockIndex,
 							stepIndex: lastStep.stepIndex,
@@ -1230,18 +1259,20 @@ export function deriveWorkoutNotation(
 					},
 				})
 			}
-			// The series lead the reps, `3 × 13` (#615); `count` stays the reps,
-			// the field the repeat token edits.
+			// The series lead the reps, `3 × 13` (#615). A block repeated only in
+			// series reads as its series, `3 ×`: a `× 1` says nothing.
 			const series = block.seriesRepeatCount ?? 1
+			const reps = block.repeatCount
 			const repeat =
-				block.repeatCount > 1 || series > 1
+				reps > 1 || series > 1
 					? ({
 							type: 'repeat',
 							text:
-								series > 1
-									? `${series} ${NOTATION_SEPARATORS.repeat} ${block.repeatCount}`
-									: String(block.repeatCount),
-							count: block.repeatCount,
+								series > 1 && reps > 1
+									? `${series} ${NOTATION_SEPARATORS.repeat} ${reps}`
+									: String(Math.max(series, reps)),
+							count: reps > 1 ? reps : series,
+							series: series > 1 && reps > 1 ? series : null,
 							address: { blockIndex, stepIndex: null, field: 'repeatCount' },
 						} as const)
 					: null
