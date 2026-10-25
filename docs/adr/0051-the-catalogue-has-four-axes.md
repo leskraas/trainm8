@@ -250,9 +250,9 @@ moderation records must outlive an erased account, that is the first item under
 Deferred hardening below, and it changes what is _kept beside_ the purge, not
 whether the purge happens.
 
-**Proposed, owner to confirm:** deleting an account **deletes** its published
-Workouts rather than withdrawing them to an ownerless `private` row. Withdrawal
-would retain the athlete's text with no reader and no purpose.
+**Confirmed by the owner on 2026-10-25:** deleting an account **deletes** its
+published Workouts rather than withdrawing them to an ownerless `private` row.
+Withdrawal would retain the athlete's text with no reader and no purpose.
 
 ##### Deferred hardening
 
