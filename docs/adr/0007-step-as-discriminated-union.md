@@ -30,12 +30,14 @@
 > six **Race Anchor** distances, with its time, date and `source` (`race` or
 > `timeTrial`). Decisions:
 >
-> - **Manual entry first, derivation later.** An athlete's 10k from before the
->   app is real data no derivation can reach, and a manual path is the only
->   writer that needs neither the Event-linking rules nor ADR 0021's gate. A
->   writer from a completed **Event** (rung 1, `verified` when the linked
->   Recording supplies the time) and from activity bests (rung 4, needs a
->   distance channel on `ActivityStream`) remain open.
+> - **Manual entry first, derivation later** (confirmed by the owner,
+>   2026-10-25). An athlete's 10k from before the app is real data no derivation
+>   can reach, and a manual path is the only writer that needs neither the
+>   Event-linking rules nor ADR 0021's gate. The next writer is the one from a
+>   completed **Event** as proposed (rung 1, `verified` when the linked
+>   Recording supplies the time); swim and bike results come after it, and
+>   activity bests (rung 4, needs a distance channel on `ActivityStream`) remain
+>   open.
 > - **A typed result is always `verified: false`**, and the list says _Skrevet
 >   inn av deg — ikke målt av appen_. No row this writer makes can masquerade as
 >   measured.
@@ -43,27 +45,36 @@
 >   distance field would invite results no target can read; every `racePace` row
 >   in the corpus is a run.
 > - **A bare number is refused as a time.** `41` could be minutes or seconds;
->   the field takes `41:30` or `1:32:00` (`.` or `,` for `:`). A time outside
->   the anchor's plausible band — faster than the world record, or slower than
->   20:00/km — is refused too, which catches `3:15` typed for a 3 h 15 marathon.
->   A day that does not exist, or one after today in the athlete's own timezone,
->   is refused.
+>   the field takes `41:30` or `1:32:00` (`.` or `,` for `:`). A day that does
+>   not exist, or one after today in the athlete's own timezone, is refused.
+> - **The plausibility band refuses only the impossible** (owner, 2026-10-25). A
+>   time unusual for the athlete is theirs to type; only a time no person could
+>   run is refused, which still catches `3:15` typed for a 3 h 15 marathon.
+>   Floor: 5 % faster than the men's world-record pace at the anchor (World
+>   Athletics ratified records as of 2026-10-25, the faster of track and road:
+>   1500 m 3:26.00, 3000 m 7:17.55, 5000 m 12:35.36, 10 000 m 26:11.00, half
+>   marathon 57:30, marathon 2:00:35), so a new record saves the day it is run —
+>   the 5k floor is 11:57, the marathon's 1:54:33. Ceiling: 30:00/km (2 km/h),
+>   under half of comfortable adult walking speed (about 1.2–1.4 m/s by age;
+>   Bohannon & Williams Andrews, _Physiotherapy_ 97(3), 2011), so a marathon
+>   walked in 15 hours saves. The numbers live beside the rule in
+>   `app/utils/performance-result-entry.ts`.
 > - **One result per distance and day.** A second result at the same anchor on
 >   the same day replaces the first: it is a correction, and two rows on one day
 >   would leave the resolver to pick between them.
 > - **Delete is scoped to the owner** (`deleteMany` keyed on id _and_ the
 >   athlete's profile), so a guessed id deletes nothing.
 >
-> **Open for the owner (Proposed, owner to confirm):** the Event-derived writer
-> and its `verified` rule; swim and bike results; and **Race Equivalence rungs
-> 2–5 (#465) are not walked in this amendment** — rung 1 is still the only rung.
+> **Confirmed by the owner (2026-10-25):** manual entry first, then the
+> Event-derived writer and its `verified` rule as proposed above, then swim and
+> bike results. **Race Equivalence rungs 2–5 (#465) are not walked in this
+> amendment** — rung 1 is still the only rung.
 >
 > **Deferred hardening** (for #639): the add action has no rate limit or
 > per-athlete cap on result rows, so a scripted client can grow the table
-> without bound; and `setEventResult` (pre-existing) links any `sessionId`
-> without checking that the session belongs to the athlete — harmless today, but
-> an Event-derived writer must not read a Recording through it until that check
-> exists.
+> without bound. (`setEventResult` now refuses a session that is not the
+> athlete's own, #640, so an Event-derived writer can read a Recording through
+> it.)
 >
 > **Lactate is authored and pace is a derived facet — one stored value, not
 > two.** See §"The lactate arm" below; this is the decision the amendment turns

@@ -33,19 +33,32 @@ export function paceSecPerKm(
 	return distanceM > 0 ? Math.round(timeSec / (distanceM / 1000)) : null
 }
 
-/** Just under the world record at each anchor: no athlete runs faster, so a
- * faster time is a typo — most often `3:15` meant as 3 h 15 for a marathon. */
-const FASTEST_SEC: Record<RaceAnchor, number> = {
-	'1500m': 200,
-	'3k': 430,
-	'5k': 750,
-	'10k': 1560,
-	hm: 3420,
-	marathon: 7200,
+/** The men's world record at each anchor, in seconds — World Athletics'
+ * ratified records as of 2026-10-25 (the faster of track and road where both
+ * exist): 1500 m 3:26.00 (El Guerrouj, 1998), 3000 m 7:17.55 (Ingebrigtsen,
+ * 2024), 5000 m 12:35.36 and 10 000 m 26:11.00 (Cheptegei, 2020), half
+ * marathon 57:30 (Kejelcha, 2024), marathon 2:00:35 (Kiptum, 2023). */
+const WORLD_RECORD_SEC: Record<RaceAnchor, number> = {
+	'1500m': 206,
+	'3k': 437.55,
+	'5k': 755.36,
+	'10k': 1571,
+	hm: 3450,
+	marathon: 7235,
 }
 
-/** Slower than 20:00 per km is slower than a walk: `999:59` for a 5k. */
-const SLOWEST_SEC_PER_KM = 1200
+/** The band refuses only what is physically impossible (owner, 2026-10-25,
+ * ADR 0007): the floor is 5 % faster than world-record pace, so a new record
+ * saves the day it is run and only a typo — most often `3:15` meant as 3 h 15
+ * for a marathon — falls below it. 5k: 11:57; marathon: 1:54:33. */
+const FLOOR_OF_WORLD_RECORD = 0.95
+
+/** The ceiling is a slow walk with margin: 30:00/km is 2 km/h (0.56 m/s),
+ * under half of comfortable adult walking speed, about 1.2–1.4 m/s by age
+ * (Bohannon & Williams Andrews, "Normal walking speed: a descriptive
+ * meta-analysis", Physiotherapy 97(3), 2011). A marathon walked in 15 hours
+ * (21:20/km) saves; `999:59` typed for a 5k (200:00/km) does not. */
+const SLOWEST_SEC_PER_KM = 1800
 
 /** Whether `timeSec` is a time a person could run at `anchor`. */
 export function isPlausibleFinishTime(
@@ -54,7 +67,9 @@ export function isPlausibleFinishTime(
 ): boolean {
 	const pace = paceSecPerKm(timeSec, RACE_ANCHOR_DISTANCE_M[anchor])
 	return (
-		timeSec >= FASTEST_SEC[anchor] && pace != null && pace <= SLOWEST_SEC_PER_KM
+		timeSec >= Math.floor(WORLD_RECORD_SEC[anchor] * FLOOR_OF_WORLD_RECORD) &&
+		pace != null &&
+		pace <= SLOWEST_SEC_PER_KM
 	)
 }
 

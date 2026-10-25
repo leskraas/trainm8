@@ -1,7 +1,10 @@
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser } from '#tests/db-utils.ts'
-import { parseFinishTime } from './performance-result-entry.ts'
+import {
+	isPlausibleFinishTime,
+	parseFinishTime,
+} from './performance-result-entry.ts'
 import {
 	addPerformanceResult,
 	countPerformanceResults,
@@ -68,6 +71,39 @@ test('a time no one could run at that distance is refused', async () => {
 		ok: true,
 	})
 	expect(await listPerformanceResults(user.id)).toHaveLength(1)
+})
+
+test('a world-class but real time is accepted', () => {
+	expect(isPlausibleFinishTime('1500m', parseFinishTime('3:31')!)).toBe(true)
+	expect(isPlausibleFinishTime('10k', parseFinishTime('27:05')!)).toBe(true)
+	expect(isPlausibleFinishTime('marathon', parseFinishTime('2:04:10')!)).toBe(
+		true,
+	)
+})
+
+test('a time well beyond the world record is impossible and refused', () => {
+	// More than 5 % faster than world-record pace: a 5k in 11:30, a half
+	// marathon in 50:00.
+	expect(isPlausibleFinishTime('5k', parseFinishTime('11:30')!)).toBe(false)
+	expect(isPlausibleFinishTime('hm', parseFinishTime('50:00')!)).toBe(false)
+})
+
+test('a time just under the world record is accepted, not refused as a typo', () => {
+	// Men's 5000 m WR is 12:35.36 and the marathon's 2:00:35: a new record
+	// typed the day it is run must save.
+	expect(isPlausibleFinishTime('5k', parseFinishTime('12:20')!)).toBe(true)
+	expect(isPlausibleFinishTime('marathon', parseFinishTime('1:59:40')!)).toBe(
+		true,
+	)
+})
+
+test('a very slow but real time is accepted', () => {
+	// A marathon walked in 15 hours — races without a cutoff finish people
+	// later than that — is 21:20/km, slower than any brisk walk.
+	expect(isPlausibleFinishTime('marathon', parseFinishTime('15:00:00')!)).toBe(
+		true,
+	)
+	expect(isPlausibleFinishTime('5k', parseFinishTime('1:45:00')!)).toBe(true)
 })
 
 test('a day that is not on the calendar is refused, not rolled over', async () => {
