@@ -29,6 +29,7 @@ import {
 } from './intensity-target.ts'
 import {
 	intentToZone,
+	shapeZone,
 	zoneLabelToZone,
 	type TrainingZone,
 	type Workout,
@@ -118,9 +119,9 @@ export function readHardestZone(
 
 type WorkoutStep = Workout['blocks'][number]['steps'][number]
 
-/** One step's zone: the Workout Shape's reading first (the workout's intent
- * when the step states nothing), then its authored target zoned against the
- * thresholds. Null for a step that authors nothing to zone. */
+/** One step's zone: the Workout Shape's reading first (`shapeZone`, the
+ * workout's intent when the step states nothing), then its authored target
+ * zoned against the thresholds. Null for a step that authors nothing to zone. */
 function stepZone(
 	step: WorkoutStep,
 	workout: Workout,
@@ -128,7 +129,8 @@ function stepZone(
 	thresholds: DisciplineThresholdMap,
 ): TrainingZone | 'unknown' | null {
 	if (step.kind !== 'cardio') return null
-	if (!step.intensity) return fallback
+	const shaped = shapeZone(step, fallback)
+	if (shaped != null || !step.intensity) return shaped
 	const target = parseAuthoredIntensity(step.intensity)
 	if (!target) return null
 	return (

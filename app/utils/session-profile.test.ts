@@ -3,6 +3,7 @@ import {
 	deriveRepeatGroups,
 	deriveSessionProfile,
 	intensityTargetToZone,
+	shapeZone,
 } from './session-profile.ts'
 import { type LedgerSession } from './training.server.ts'
 
@@ -378,4 +379,17 @@ test('a short block beside a huge one keeps every rep', () => {
 	expect(bars.length).toBeLessThanOrEqual(400)
 	expect(groups[0]).toEqual({ startIndex: 0, span: 10, repeatCount: 5 })
 	expect(groups[1]).toMatchObject({ startIndex: 10, repeatCount: 10_000 })
+})
+
+// The one step zone rule (#638) the shape's bars and I dag's Effort Word read.
+test('shapeZone: a cardio step its target, an unstated one the intent', () => {
+	const intent = 4
+	expect(shapeZone(cardioStep({ id: 'z', intensity: 'zone2' }), intent)).toBe(2)
+	expect(shapeZone(cardioStep({ id: 'bare' }), intent)).toBe(4)
+	// Absolute watts need thresholds; the intent does not stand in for them.
+	const watts = JSON.stringify({ kind: 'power', minW: 300 })
+	expect(
+		shapeZone(cardioStep({ id: 'w', intensity: watts }), intent),
+	).toBeNull()
+	expect(shapeZone(cardioStep({ id: 'r', kind: 'rest' }), intent)).toBeNull()
 })

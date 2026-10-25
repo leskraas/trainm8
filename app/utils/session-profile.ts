@@ -194,6 +194,21 @@ function stepToZone(step: WorkoutStep): TrainingZone | null {
 	return zoneLabelToZone(step.intensity)
 }
 
+/**
+ * The **Workout Shape**'s zone for one step: the zone its authored intensity
+ * names, the workout's intent (`fallback`) where a cardio step states none,
+ * and null otherwise — a strength or rest step, or a target that cannot be
+ * zoned without thresholds. The one step zone rule the shape's bars and I
+ * dag's Effort Word both read (#638).
+ */
+export function shapeZone(
+	step: WorkoutStep,
+	fallback: TrainingZone | null,
+): TrainingZone | null {
+	if (step.kind !== 'cardio') return null
+	return step.intensity ? stepToZone(step) : fallback
+}
+
 /** One executed step in workout order, carrying the original Step so callers can
  * read its resolved Intensity Target alongside the derived zone and duration. */
 export type ExpandedStep = {
@@ -292,11 +307,7 @@ export function deriveSessionProfile(workout: Workout | null): SessionProfile {
 	const zones = new Map<WorkoutStep, TrainingZone | null>()
 	const zoneOf = (step: WorkoutStep) => {
 		if (!zones.has(step)) {
-			zones.set(
-				step,
-				stepToZone(step) ??
-					(step.kind === 'cardio' && !step.intensity ? fallbackZone : null),
-			)
+			zones.set(step, shapeZone(step, fallbackZone))
 		}
 		return zones.get(step)!
 	}
