@@ -46,6 +46,10 @@ import {
 	STRENGTH_TSS_BACKFILL_JOB_KIND,
 } from '#app/utils/load/strength-tss-backfill.server.ts'
 import {
+	runSwimPaceBackfill,
+	SWIM_PACE_BACKFILL_JOB_KIND,
+} from '#app/utils/load/swim-pace-backfill.server.ts'
+import {
 	runWeekChangeForUser,
 	WEEK_CHANGE_JOB_KIND,
 } from '#app/utils/load/week-change.server.ts'
@@ -136,6 +140,13 @@ export const jobHandlers: JobHandlers = {
 		// notice is left naming the CTL drop. Athletes with no strength history are
 		// untouched — not a failure, just nothing to correct.
 		await runStrengthTssBackfill()
+	},
+	[SWIM_PACE_BACKFILL_JOB_KIND]: async () => {
+		// One-shot Training Load correction (#628, ADR 0107): a pool swim parsed
+		// from its FIT before #628 stored a pace that counted rest as swimming.
+		// Re-read each kept FIT (no request goes out), write the pace swum,
+		// recompute load and leave a notice naming the CTL rise.
+		await runSwimPaceBackfill()
 	},
 	[TCX_STREAM_BACKFILL_JOB_KIND]: async () => {
 		// One-shot stream heal (ADR 0036): re-parse each existing TCX import's

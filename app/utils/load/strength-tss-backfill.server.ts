@@ -1,8 +1,15 @@
 import { localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { enqueueJob } from '#app/utils/jobs/queue.server.ts'
-import { recordLoadRecomputeNotice } from './recompute-notice.server.ts'
-import { type LoadRecomputeKind } from './recompute-notice.ts'
+import {
+	readCtlByDate,
+	recordLoadRecomputeNotice,
+} from './recompute-notice.server.ts'
+import {
+	type CtlMovement,
+	type LoadRecomputeKind,
+	widestCtlMovement,
+} from './recompute-notice.ts'
 import { recomputeLoadFrom } from './snapshot.server.ts'
 
 /**
@@ -37,48 +44,15 @@ export const STRENGTH_LEFT_THE_TRIAD_NOTICE: LoadRecomputeKind =
 	'strength-left-the-triad'
 
 /**
- * Below this many CTL points, the recompute did not move anything an athlete
- * could read off a chart, so there is nothing to explain and no notice is
- * written. Guards float noise and the lifter whose strength sessions carry no
- * RPE (they never had an `sRPE` contribution to lose).
- */
-const NOTICEABLE_CTL_DROP = 0.05
-
-/** One day's CTL on either side of the recompute. */
-type CtlMovement = { ctlBefore: number; ctlAfter: number }
-
-async function readCtlByDate(athleteId: string): Promise<Map<string, number>> {
-	const rows = await prisma.loadSnapshot.findMany({
-		where: { athleteId },
-		select: { date: true, ctl: true },
-	})
-	return new Map(rows.map((r) => [r.date, r.ctl]))
-}
-
-/**
- * The day the recompute moved CTL furthest, or null when nothing moved enough to
- * be worth explaining.
- *
- * Deliberately the widest gap over the whole history rather than today's value:
- * CTL is a 42-day EWMA, so an athlete whose gym block ended months ago sees no
- * change in their current fitness and a visibly redrawn 90-day chart. Reading
- * only the latest snapshot would leave exactly that athlete un-notified.
+ * The day the recompute moved CTL furthest down, or null when nothing moved
+ * enough to be worth explaining: most often a lifter whose gym sessions carry
+ * no RPE, who never had an `sRPE` contribution to lose.
  */
 export function widestCtlDrop(
 	before: Map<string, number>,
 	after: Map<string, number>,
 ): CtlMovement | null {
-	let widest: CtlMovement | null = null
-	for (const [date, ctlBefore] of before) {
-		const ctlAfter = after.get(date)
-		if (ctlAfter == null) continue
-		const drop = ctlBefore - ctlAfter
-		if (drop < NOTICEABLE_CTL_DROP) continue
-		if (!widest || drop > widest.ctlBefore - widest.ctlAfter) {
-			widest = { ctlBefore, ctlAfter }
-		}
-	}
-	return widest
+	return widestCtlMovement(before, after, 'fall')
 }
 
 /**

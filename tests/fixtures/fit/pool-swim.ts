@@ -34,15 +34,22 @@ const SETS: SetSpec[] = [
 	{ lengths: 4, durationSec: 121, stroke: 'mixed' },
 ]
 
-export function encodePoolSwim({ oneLap = false } = {}): Uint8Array {
+export function encodePoolSwim({
+	oneLap = false,
+	start = POOL_SWIM_START,
+}: {
+	oneLap?: boolean
+	/** When the swim starts; a whole second, as FIT stores it. */
+	start?: Date
+} = {}): Uint8Array {
 	const encoder = new Encoder()
-	const at = (sec: number) => new Date(POOL_SWIM_START.getTime() + sec * 1000)
+	const at = (sec: number) => new Date(start.getTime() + sec * 1000)
 
 	writeMesg(encoder, 'FILE_ID', {
 		type: 'activity',
 		manufacturer: 'garmin',
 		product: 0,
-		timeCreated: POOL_SWIM_START,
+		timeCreated: start,
 		serialNumber: 123456789,
 	})
 
@@ -105,7 +112,7 @@ export function encodePoolSwim({ oneLap = false } = {}): Uint8Array {
 		writeMesg(encoder, 'LAP', {
 			messageIndex: lapIndex++,
 			timestamp: at(sec),
-			startTime: POOL_SWIM_START,
+			startTime: start,
 			totalElapsedTime: sec,
 			totalTimerTime: sec,
 			totalDistance: activeLengths * POOL_LENGTH_M,
@@ -121,7 +128,7 @@ export function encodePoolSwim({ oneLap = false } = {}): Uint8Array {
 
 	writeMesg(encoder, 'SESSION', {
 		timestamp: at(sec),
-		startTime: POOL_SWIM_START,
+		startTime: start,
 		sport: 'swimming',
 		subSport: 'lapSwimming',
 		totalElapsedTime: sec,

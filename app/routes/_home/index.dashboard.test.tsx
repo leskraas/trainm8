@@ -1188,10 +1188,45 @@ test('an outstanding notice explains the drop above the timeline', async () => {
 	const callout = await screen.findByTestId('load-recompute-notice')
 	expect(callout).toHaveTextContent(/kondisjonen er regnet ut på nytt/i)
 	// The movement, in the same rounded units the triad shows.
-	expect(callout).toHaveTextContent(/kondisjonen falt med opptil 15/i)
+	expect(callout).toHaveTextContent(/kondisjonen falt med opptil 14/i)
 	// The cause, and that the athlete's own training is not what changed.
 	expect(callout).toHaveTextContent(/styrkeøkter teller ikke lenger/i)
 	expect(callout).toHaveTextContent(/treningen din er den samme/i)
+})
+
+test('the swim notice says CTL rose, and why (ADR 0107)', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			loadRecomputeNotice: {
+				kind: 'swim-rest-left-the-pace',
+				ctlBefore: 21.3,
+				ctlAfter: 23.8,
+			},
+		}),
+	)
+
+	const callout = await screen.findByTestId('load-recompute-notice')
+	expect(callout).toHaveTextContent(/svømmeøktene er regnet ut på nytt/i)
+	expect(callout).toHaveTextContent(/kondisjonen steg med opptil 3 — 21 → 24/i)
+	expect(callout).toHaveTextContent(/pausene ved kanten/i)
+})
+
+test('a swim notice whose CTL did not visibly move names no movement', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			loadRecomputeNotice: {
+				kind: 'swim-rest-left-the-pace',
+				ctlBefore: 0,
+				ctlAfter: 0,
+			},
+		}),
+	)
+
+	const callout = await screen.findByTestId('load-recompute-notice')
+	expect(callout).toHaveTextContent(/bare lengdene du svømte/i)
+	expect(callout).not.toHaveTextContent(/kondisjonen (steg|falt)/i)
 })
 
 test('no notice renders nothing — a dismissed correction stays dismissed', async () => {

@@ -753,9 +753,11 @@ function LoadRecomputeNoticeBar({ line }: { line: LoadRecomputeLine }) {
 			>
 				{line.kicker}
 			</h2>
-			<p className="text-foreground text-caption tabular-nums">
-				{line.movement}
-			</p>
+			{line.movement ? (
+				<p className="text-foreground text-caption tabular-nums">
+					{line.movement}
+				</p>
+			) : null}
 			<p className="text-muted-foreground text-caption w-full font-normal">
 				{line.explanation}
 			</p>
@@ -767,7 +769,9 @@ function LoadRecomputeNoticeBar({ line }: { line: LoadRecomputeLine }) {
 					type="submit"
 					name="intent"
 					value="dismiss-load-recompute-notice"
-					className="border-border text-foreground pressable text-caption hover:border-primary rounded-full border px-3 py-1 font-semibold"
+					// A ~26px pill: the invisible `after:` hit area makes it a 44px
+					// target on a phone (design system, ADR 0028).
+					className="border-border text-foreground pressable text-caption hover:border-primary relative touch-manipulation rounded-full border px-3 py-1 font-semibold select-none after:absolute after:inset-x-0 after:-inset-y-2.5"
 				>
 					{RECOMPUTE_NOTICE_LABELS.gotIt}
 				</button>
