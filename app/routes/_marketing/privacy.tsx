@@ -9,14 +9,20 @@ export const meta = () => [{ title: `${L.title} | Trainm8` }]
 
 export default function PrivacyRoute() {
 	return (
-		<main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
+		// `lang="nb"`: the shell is English, and a screen reader must switch to
+		// Norwegian for the legal text (ADR 0105 amends ADR 0081 §4).
+		<main lang="nb" className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
+			{/* Red border and tint mark the caution; the text stays `foreground`,
+			    because `destructive` on the tint is 3.7:1 in light (AA needs 4.5). */}
 			<p
 				role="note"
-				className="border-destructive/40 bg-destructive/10 text-destructive mb-8 rounded-lg border px-4 py-3 text-sm font-medium text-pretty"
+				className="border-destructive/40 bg-destructive/10 text-foreground mb-8 rounded-lg border px-4 py-3 text-sm font-medium text-pretty"
 			>
 				{L.draft}
 			</p>
-			<h1 className="text-foreground text-3xl font-semibold tracking-tight text-balance">
+			{/* One 19-letter word: with larger text on a 320px phone it is wider than
+			    the column, so it hyphenates (Norwegian, from `lang`) or breaks. */}
+			<h1 className="text-foreground text-3xl font-semibold tracking-tight text-balance break-words hyphens-auto">
 				{L.title}
 			</h1>
 			<p className="text-muted-foreground mt-2 text-sm">{L.updated}</p>

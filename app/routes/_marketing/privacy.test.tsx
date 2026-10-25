@@ -18,6 +18,8 @@ test('the privacy page is a Norwegian Art. 13 notice marked as a draft', () => {
 		screen.getByRole('heading', { level: 1, name: 'Personvernerklæring' }),
 	).toBeTruthy()
 	expect(screen.getByRole('note').textContent).toMatch(/UTKAST/)
+	// The app shell is `lang="en"`; a screen reader must read this as Norwegian.
+	expect(screen.getByRole('main').getAttribute('lang')).toBe('nb')
 	for (const heading of [
 		'Behandlingsansvarlig',
 		'Formål og rettslig grunnlag',
