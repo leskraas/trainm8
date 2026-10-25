@@ -2491,7 +2491,99 @@ test('getDisciplineThresholds hands each discipline its race anchor paces, so a 
 	expect(thresholds.bike?.raceAnchorPaces).toEqual({})
 	expect(
 		resolveIntensity({ kind: 'racePace', event: '10k' }, thresholds.run!),
-	).toEqual({ paceMin: 240, paceMax: 240, approximate: true })
+	).toEqual({
+		paceMin: 240,
+		paceMax: 240,
+		paceUnit: 'secPerKm',
+		approximate: true,
+	})
+})
+
+/** The round trips `read` sends, counted as `countLedgerQueries` counts them. */
+async function countQueries(read: () => Promise<unknown>): Promise<number> {
+	let counting = true
+	let queries = 0
+	onPrismaQuery((event) => {
+		if (!counting) return
+		if (/^(BEGIN|COMMIT|ROLLBACK|PRAGMA)/i.test(event.query.trim())) return
+		queries += 1
+	})
+	await read()
+	await new Promise((resolve) => setTimeout(resolve, 50))
+	counting = false
+	return queries
+}
+
+test('getDisciplineThresholds reads every discipline in the same round trips as one', async () => {
+	const one = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: one.id,
+			timezone: 'UTC',
+			disciplineProfiles: { create: [{ discipline: 'run' }] },
+		},
+	})
+	const four = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: four.id,
+			timezone: 'UTC',
+			disciplineProfiles: {
+				create: [
+					{ discipline: 'run', thresholdPaceSecPerKm: 240 },
+					{ discipline: 'bike', ftp: 250 },
+					{ discipline: 'swim', cssSecPer100m: 95 },
+					{ discipline: 'ski' },
+				],
+			},
+			performanceResults: {
+				create: [
+					// The newest 10k is the anchor (4:00/km), not the faster old one.
+					{
+						discipline: 'run',
+						distanceM: 10_000,
+						timeSec: 2400,
+						occurredAt: daysAgo(30),
+						source: 'race',
+					},
+					{
+						discipline: 'run',
+						distanceM: 10_000,
+						timeSec: 2300,
+						occurredAt: daysAgo(300),
+						source: 'race',
+					},
+					{
+						discipline: 'run',
+						distanceM: 5000,
+						timeSec: 1150,
+						occurredAt: daysAgo(10),
+						source: 'race',
+					},
+					// A ski 10k is the ski profile's anchor, never the run's.
+					{
+						discipline: 'ski',
+						distanceM: 10_000,
+						timeSec: 1800,
+						occurredAt: daysAgo(5),
+						source: 'race',
+					},
+				],
+			},
+		},
+	})
+
+	const oneCount = await countQueries(() => getDisciplineThresholds(one.id))
+	const fourCount = await countQueries(() => getDisciplineThresholds(four.id))
+	expect(fourCount).toBe(oneCount)
+
+	const thresholds = await getDisciplineThresholds(four.id)
+	expect(thresholds.run?.raceAnchorPaces).toEqual({ '10k': 240, '5k': 230 })
+	expect(thresholds.ski?.raceAnchorPaces).toEqual({ '10k': 180 })
+	expect(thresholds.bike?.raceAnchorPaces).toEqual({})
+	expect(thresholds.swim?.raceAnchorPaces).toEqual({})
+	expect(thresholds.bike?.ftp).toBe(250)
+	expect(thresholds.swim?.cssSecPer100m).toBe(95)
 })
 
 test('getDisciplineThresholds is empty for an athlete with no profile', async () => {

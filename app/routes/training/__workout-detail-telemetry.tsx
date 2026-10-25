@@ -17,7 +17,7 @@
  * bands, the pauses) are built once per stream; a move re-renders only the
  * crosshair, the dots and the readout.
  */
-import { memo, useMemo } from 'react'
+import { memo, useId, useMemo } from 'react'
 import {
 	ChartFigure,
 	useChartInspect,
@@ -35,29 +35,24 @@ import {
 import { type ActivityStream, isNum } from '#app/utils/activity-stream.ts'
 import { formatClockDuration, formatPace } from '#app/utils/format.ts'
 import {
-	parseAuthoredIntensity,
+	resolveStepBand,
 	resolveStepRange,
+	type BandChannel,
 	type DisciplineThresholdMap,
+	type StepBand,
 } from '#app/utils/intensity-target.ts'
 import { nbDurationLabel, WORKOUT_DETAIL_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
-import {
-	deriveSessionProfile,
-	expandWorkoutSteps,
-} from '#app/utils/session-profile.ts'
+import { deriveSessionProfile } from '#app/utils/session-profile.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
+import { perStep, workoutReps } from '#app/utils/workout-reps.ts'
 
 const L = WORKOUT_DETAIL_LABELS.telemetry
 
 type WorkoutDetail = NonNullable<SessionDetail['workout']>
 
-type BandChannel = 'power' | 'heartrate'
-
-type Step = WorkoutDetail['blocks'][number]['steps'][number]
-
-/** A planned target on the band channel. `max` is null for an open-ended zone
- * (`172+ bpm`): a floor with no ceiling. */
-type PlannedTarget = { min: number; max: number | null }
+/** A planned target on the band channel; `max` is null when it is open above. */
+type PlannedTarget = StepBand
 
 /** A planned step laid out as a fraction of the workout's planned duration,
  * carrying its resolved Intensity Target on the chosen channel (when any). */
@@ -67,34 +62,6 @@ type PlannedSegment = {
 	endFrac: number
 	target: PlannedTarget | null
 }
-
-/** Authored metrics whose missing top means one value (`150 bpm`), not an
- * open band; a zone with no top resolves the same way and means `172+`. */
-const POINT_TARGET_KINDS = new Set(['hrBpm', 'hrPct', 'power', 'powerPct'])
-
-/** A step's target on `channel`, resolved from what it authors against the
- * athlete's thresholds now — never the cached range columns, which fill only on
- * a threshold change and so are empty on most new sessions (#616). */
-function resolveStepTarget(
-	step: Step,
-	workout: WorkoutDetail,
-	thresholds: DisciplineThresholdMap,
-	channel: BandChannel,
-): PlannedTarget | null {
-	const r = resolveStepRange(step, workout.discipline, thresholds)
-	const [min, max] =
-		channel === 'power' ? [r.powerMin, r.powerMax] : [r.hrMin, r.hrMax]
-	if (!isNum(min)) return null
-	if (isNum(max)) return { min, max }
-	const kind = parseAuthoredIntensity(step.intensity)?.kind
-	return { min, max: kind && POINT_TARGET_KINDS.has(kind) ? min : null }
-}
-
-/**
- * Past this many segments a plan's reps are far narrower than a pixel of the
- * chart, so drawing them one by one only costs: `100x100x10 s` is 10 000 reps.
- */
-const MAX_PLANNED_SEGMENTS = 400
 
 const sameTarget = (a: PlannedTarget | null, b: PlannedTarget | null) =>
 	a === b || (a != null && b != null && a.min === b.min && a.max === b.max)
@@ -106,10 +73,10 @@ const sameTarget = (a: PlannedTarget | null, b: PlannedTarget | null) =>
  * telemetry-to-step alignment is out of scope per PRD #135), so we never assert a
  * per-step verdict; the athlete eyeballs the comparison.
  *
- * Built a block at a time from one rep, never by expanding every rep: each step
- * resolves once, a block with one target throughout is one segment, and a block
- * too dense to draw rep by rep reads as its one target (or as none, when its
- * reps target different things). Neighbours with the same target merge.
+ * Walks the steps `workoutReps` draws, the ones the Workout Shape draws: every
+ * rep while that fits, a dense block thinned to the reps that do, so its work
+ * and its recoveries keep their own targets. Each step resolves once, and
+ * neighbours with the same target merge.
  */
 function buildPlannedSegments(
 	workout: WorkoutDetail | null,
@@ -117,76 +84,29 @@ function buildPlannedSegments(
 	channel: BandChannel | null,
 ): PlannedSegment[] {
 	if (!workout) return []
-	const blocks = workout.blocks
-		.slice()
-		.sort((a, b) => a.orderIndex - b.orderIndex)
-		.map((block) => {
-			// One rep of the block, laid out as the profile lays out every rep.
-			const rep = expandWorkoutSteps({
-				...workout,
-				blocks: [{ ...block, repeatCount: 1, seriesRepeatCount: 1 }],
-			}).map((e) => ({
-				id: e.id,
-				durationSec: e.durationSec,
-				target: channel
-					? resolveStepTarget(e.step, workout, thresholds, channel)
-					: null,
-			}))
-			const reps =
-				Math.max(1, block.repeatCount) *
-				Math.max(1, block.seriesRepeatCount ?? 1)
-			const repSec = rep.reduce((sum, e) => sum + e.durationSec, 0)
-			return { id: block.id, rep, reps, repSec }
-		})
-	const total = blocks.reduce((sum, b) => sum + b.reps * b.repSec, 0)
+	const { steps } = workoutReps(workout)
+	const total = steps.reduce((sum, s) => sum + s.durationSec, 0)
 	if (total <= 0) return []
-
-	const raw: Array<
-		Omit<PlannedSegment, 'startFrac' | 'endFrac'> & {
-			sec: number
-		}
-	> = []
-	let budget = MAX_PLANNED_SEGMENTS
-	for (const block of blocks) {
-		const first = block.rep[0]?.target ?? null
-		const uniform = block.rep.every((e) => sameTarget(e.target, first))
-		const targets = block.rep
-			.map((e) => e.target)
-			.filter((t, i, all): t is PlannedTarget =>
-				t != null ? all.findIndex((u) => sameTarget(u, t)) === i : false,
-			)
-		const count = block.reps * block.rep.length
-		if (uniform || count > budget) {
-			raw.push({
-				id: block.id,
-				sec: block.reps * block.repSec,
-				target: uniform ? first : targets.length === 1 ? targets[0]! : null,
-			})
-			continue
-		}
-		budget -= count
-		for (let r = 0; r < block.reps; r++) {
-			for (const e of block.rep) {
-				raw.push({ id: `${e.id}-r${r}`, sec: e.durationSec, target: e.target })
-			}
-		}
-	}
+	// Resolved now, never off the cached range columns, which fill only on a
+	// threshold change and so are empty on most new sessions (#616).
+	const targetOf = perStep(
+		(step: (typeof steps)[number]['step']): PlannedTarget | null =>
+			channel
+				? resolveStepBand(step, workout.discipline, thresholds, channel)
+				: null,
+	)
 
 	const segments: PlannedSegment[] = []
 	let cum = 0
-	for (const s of raw) {
+	for (const s of steps) {
+		const target = targetOf(s.step)
 		const startFrac = cum / total
-		cum += s.sec
+		cum += s.durationSec
 		const last = segments.at(-1)
-		if (last && sameTarget(last.target, s.target)) {
+		if (last && sameTarget(last.target, target)) {
 			last.endFrac = cum / total
 		} else {
-			segments.push({
-				id: s.id,
-				startFrac,
-				endFrac: cum / total,
-				target: s.target,
-			})
+			segments.push({ id: s.id, startFrac, endFrac: cum / total, target })
 		}
 	}
 	return segments
@@ -671,6 +591,9 @@ const StaticMarks = memo(function StaticMarks({
 	const scales = buildScales(channels, bands, bandChannel, baselineY, plotH)
 	const bandIdx = channels.findIndex((c) => c.key === bandChannel)
 	const bandScale = bandIdx >= 0 ? scales[bandIdx]! : null
+	// One fade for every open-ended band, unique per chart (an id is global).
+	const openFadeId = `open-band-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+	const hasOpenBand = bands.some((b) => b.target!.max == null)
 
 	const gappedPath = (
 		values: Array<number | null>,
@@ -711,6 +634,27 @@ const StaticMarks = memo(function StaticMarks({
 				) : null
 			})}
 
+			{/* An open-ended band fades from a bounded band's fill at its floor to
+			    nothing at the top: a fill that stops reads as a ceiling, and an
+			    "over 172" target has none. Painted in the primary token, so it
+			    follows the theme. */}
+			{bandScale && hasOpenBand ? (
+				<defs>
+					<linearGradient id={openFadeId} x1="0" y1="1" x2="0" y2="0">
+						<stop
+							offset="0"
+							style={{ stopColor: 'var(--primary)' }}
+							stopOpacity="0.15"
+						/>
+						<stop
+							offset="1"
+							style={{ stopColor: 'var(--primary)' }}
+							stopOpacity="0"
+						/>
+					</linearGradient>
+				</defs>
+			) : null}
+
 			{/* Planned target bands on the channel the plan targets. */}
 			{bandScale
 				? bands.map((b) => {
@@ -735,8 +679,8 @@ const StaticMarks = memo(function StaticMarks({
 							)
 						}
 						// An open-ended zone (`172+`) has a floor and no ceiling: the band
-						// fills to the top of the plot, edged only at its floor, so it
-						// never draws a ceiling the plan does not have.
+						// fades out toward the top of the plot, edged only at its floor,
+						// so it never draws a ceiling the plan does not have.
 						return (
 							<g key={`band-${b.id}`}>
 								<rect
@@ -746,7 +690,7 @@ const StaticMarks = memo(function StaticMarks({
 									height={Math.max(0, floor - top)}
 									data-planned-band
 									data-open-ended
-									className="fill-primary/15"
+									fill={`url(#${openFadeId})`}
 								/>
 								<line
 									x1={x0}

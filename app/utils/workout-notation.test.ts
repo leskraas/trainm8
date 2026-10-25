@@ -1613,6 +1613,28 @@ test('every Rest Spec form says what ends it, and never a number it lacks', () =
 	])
 })
 
+test('a rest token carries its words split around the value its builder placed', () => {
+	const parts = (
+		[
+			{ kind: 'time', durationSec: 60 },
+			{ kind: 'toHr', belowBpm: 120 },
+			{ kind: 'act', act: 'jogBack' },
+		] as const
+	).map((rest) => {
+		const notation = deriveWorkoutNotation({
+			blocks: [{ repeatCount: 1, steps: [{ kind: 'rest', rest }] }],
+		})
+		const token = notation.blocks[0]!.steps[0]!.tokens[0]!.token
+		return token.type === 'rest' ? token.parts : undefined
+	})
+	expect(parts).toEqual([
+		{ before: '', value: '1 min', after: ' pause' },
+		{ before: 'til puls < ', value: '120', after: ' bpm' },
+		// An act has no value: its words recede whole.
+		null,
+	])
+})
+
 test('an anchored send-off is drawn, because it is all the block says about rest', () => {
 	const notation = deriveWorkoutNotation({
 		blocks: [

@@ -1,13 +1,13 @@
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	bestEffort,
 	claimNextJob,
 	completeJob,
 	DeferJob,
 	enqueueJob,
 	failJob,
 	processNextJob,
-	rethrowDeferral,
 } from './queue.server.ts'
 
 test('enqueued job can be claimed once', async () => {
@@ -155,12 +155,55 @@ test('a job deferred for more than 7 days spends its attempts and dead-letters',
 	expect(row.lastError).toBe('Strava read budget spent')
 })
 
-test('rethrowDeferral passes a deferral on and lets any other error be swallowed', () => {
-	const deferral = new DeferJob(new Date(), 'Strava read budget spent')
+test('past the cap, a deferral that made progress still gives its attempt back', async () => {
+	// A large heal that reads a day's budget, then defers, is doing its job:
+	// counting from creation would dead-letter it with work left (#638).
+	const enqueued = await enqueueJob({ kind: 'strava-backfill', maxAttempts: 1 })
+	await prisma.job.update({
+		where: { id: enqueued.id },
+		data: { createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+	})
+	const until = new Date(Date.now() + 60 * 60 * 1000)
 
-	expect(() => rethrowDeferral(deferral)).toThrow(deferral)
-	expect(() => rethrowDeferral(new Error('one activity failed'))).not.toThrow()
-	expect(() => rethrowDeferral('not even an error')).not.toThrow()
+	await processNextJob({
+		'strava-backfill': async () => {
+			throw new DeferJob(until, 'Strava read budget spent').markProgressed()
+		},
+	})
+
+	const row = await prisma.job.findUniqueOrThrow({ where: { id: enqueued.id } })
+	expect(row.status).toBe('pending')
+	expect(row.attempts).toBe(0)
+	expect(row.runAt.getTime()).toBe(until.getTime())
+})
+
+test('bestEffort hands back the value, or the error it swallowed', async () => {
+	expect(await bestEffort(async () => 42)).toEqual({ ok: true, value: 42 })
+
+	const failure = new Error('one activity failed')
+	const result = await bestEffort(async () => {
+		throw failure
+	})
+	expect(result).toEqual({ ok: false, error: failure })
+})
+
+test('bestEffort passes a deferral on, marked when the caller did work', async () => {
+	const deferral = new DeferJob(new Date(), 'Strava read budget spent')
+	const defer = async () => {
+		throw deferral
+	}
+
+	await expect(bestEffort(defer)).rejects.toBe(deferral)
+	expect(deferral.progressed).toBe(false)
+
+	// The same error, marked: a subclass a request path catches by name (a
+	// Strava rate limit) must stay that subclass.
+	await expect(bestEffort(defer, { progressed: true })).rejects.toBe(deferral)
+	expect(deferral.progressed).toBe(true)
+
+	// Progress recorded deeper down is never lost by a caller that did none.
+	await expect(bestEffort(defer, { progressed: false })).rejects.toBe(deferral)
+	expect(deferral.progressed).toBe(true)
 })
 
 test('a job with no registered handler fails rather than spinning', async () => {

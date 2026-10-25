@@ -194,8 +194,10 @@ test('a repeat block whose work step has no quantity never dangles a bare "4 ×"
 		},
 	])
 	// No duration/distance to multiply, so the rep count is dropped rather than
-	// left dangling; the honest zone word still names it.
-	expect(deriveWorkoutTitle(s)).toBe('terskel')
+	// left dangling; the honest zone word still names it. A title starts with a
+	// capital, so the word that leads it is capitalised — only there: mid-title
+	// it stays lowercase (`45 min rolig`).
+	expect(deriveWorkoutTitle(s)).toBe('Terskel')
 })
 
 test('a recipe code keeps its spelling; a stored word stays lowercase', () => {
@@ -222,6 +224,18 @@ test('a recipe code keeps its spelling; a stored word stays lowercase', () => {
 	expect(titled('Rolig')).toBe('45 min rolig')
 	expect(titled('Terskel')).toBe('45 min terskel')
 	expect(titled('Tempo')).toBe('45 min tempo')
+})
+
+test('a recipe code that leads the title keeps its spelling', () => {
+	// A step with no quantity is titled by its zone alone; the capital a title
+	// starts with is for a word (`Terskel`), never for a code (`sub-T`).
+	const s = structure([
+		{
+			repeatCount: 1,
+			steps: [cardio({ intensity: { kind: 'zoneLabel', label: 'sub-T' } })],
+		},
+	])
+	expect(deriveWorkoutTitle(s)).toBe('sub-T')
 })
 
 test('an RPE target writes its zone word', () => {

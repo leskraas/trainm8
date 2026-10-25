@@ -1,5 +1,4 @@
 import { prisma } from '#app/utils/db.server.ts'
-import { DeferJob } from '#app/utils/jobs/queue.server.ts'
 import {
 	StravaAppInactiveError,
 	StravaConnectionRevokedError,
@@ -10,6 +9,7 @@ import {
 	fileActivitiesWithAutoSave,
 	ingestActivityStreams,
 } from './ingest.server.ts'
+import { StravaRateLimitedError } from './rate-limit.ts'
 import { STRAVA_PROVIDER } from './types.ts'
 
 /**
@@ -68,7 +68,7 @@ export async function syncStravaActivities(
 	} catch (err) {
 		// A manual sync runs inside the request, so a spent Strava budget can't
 		// be waited out or deferred to the queue: say until when instead (#637).
-		if (err instanceof DeferJob) {
+		if (err instanceof StravaRateLimitedError) {
 			return { ok: false, reason: 'rate-limited', retryAt: err.until }
 		}
 		if (err instanceof StravaConnectionRevokedError) {
@@ -98,7 +98,8 @@ export async function syncStravaActivities(
 	} catch (err) {
 		// The budget ran out after the activities were saved. Keep them, but leave
 		// the watermark so the next sync fetches the streams still missing.
-		if (err instanceof DeferJob) return { ok: true, created, skipped }
+		if (err instanceof StravaRateLimitedError)
+			return { ok: true, created, skipped }
 		throw err
 	}
 

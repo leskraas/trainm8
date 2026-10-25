@@ -21,6 +21,7 @@ function step(overrides: Partial<PlannedTssStep> = {}): PlannedTssStep {
 		intensityPowerMax: null,
 		intensityPaceMin: null,
 		intensityPaceMax: null,
+		intensityPaceUnit: null,
 		...overrides,
 	}
 }
@@ -229,6 +230,7 @@ test('a swim pace target (sec/km) prices 10 × 100 m @ 1:40/100 m as about 1000 
 					intensity: JSON.stringify({ kind: 'pace', minSecPerKm: 1000 }),
 					intensityPaceMin: 1000,
 					intensityPaceMax: 1000,
+					intensityPaceUnit: 'secPerKm',
 				}),
 			],
 			'swim',
@@ -249,6 +251,7 @@ test('a swim CSS-relative target (sec/100 m) prices the distance at that pace', 
 					intensity: JSON.stringify({ kind: 'zoneLabel', label: 'Threshold' }),
 					intensityPaceMin: 100,
 					intensityPaceMax: 100,
+					intensityPaceUnit: 'secPer100m',
 				}),
 			],
 			'swim',

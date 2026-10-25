@@ -11,7 +11,6 @@ import type { ConnectionHubStatus } from '../connection-hub-status.ts'
 import type { Attribution } from '../source-terms.ts'
 /* eslint-enable import/consistent-type-specifier-style */
 import { capitalize } from './_helpers.ts'
-import { nbDurationLabel } from './i-dag.ts'
 
 // ---------------------------------------------------------------------------
 // Integration providers
@@ -216,11 +215,21 @@ export const INTEGRATION_TOAST_LABELS = {
 		'Strava har slått av appen (status: inactive). Det er på Stravas side – å koble til på nytt hjelper ikke.',
 	stravaScope:
 		'Trainm8 har ikke lov til å lese Strava-øktene dine. Koble til på nytt, og la avkrysningen for økttilgang stå på.',
-	/** `… Prøv igjen om 10 min.`, `… om 6 t 40 min.`: until Strava's window resets. */
-	stravaRateLimited: (retryAt: Date, now: Date = new Date()) =>
-		`Strava har nådd grensen for oppslag. Prøv igjen om ${nbDurationLabel(
-			Math.max(1, Math.ceil((retryAt.getTime() - now.getTime()) / 60_000)) * 60,
-		)}.`,
+	/**
+	 * `… Prøv igjen om 10 min.`, `… om ca. 7 t.`: until the Strava window
+	 * resets. Usually trainm8's own share of the budget is what's spent, so it
+	 * names the sync quota, not a limit of Strava's. Over an hour it rounds to
+	 * whole hours.
+	 */
+	stravaRateLimited: (retryAt: Date, now: Date = new Date()) => {
+		const minutes = Math.max(
+			1,
+			Math.ceil((retryAt.getTime() - now.getTime()) / 60_000),
+		)
+		const wait =
+			minutes < 60 ? `${minutes} min` : `ca. ${Math.round(minutes / 60)} t`
+		return `Strava-kvoten for synk er brukt opp for nå. Prøv igjen om ${wait}.`
+	},
 	stravaUnavailable: 'Strava er ikke tilgjengelig',
 	/** The Strava OAuth callback's refusals (a reconnect of an old link). */
 	stravaDenied: 'Du sa nei til tilgangen hos Strava.',

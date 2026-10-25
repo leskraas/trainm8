@@ -5,6 +5,7 @@ import {
 	type DisciplineThresholdMap,
 	formatIntensityTarget,
 	parseAuthoredIntensity,
+	resolveStepBand,
 	sessionMetricTarget,
 	unresolvedThresholdReasons,
 } from './intensity-target.ts'
@@ -825,5 +826,73 @@ describe('the anchors the corpus needs', () => {
 				profile(),
 			).label,
 		).toBe('95–105% FTP')
+	})
+})
+
+describe('resolveStepBand', () => {
+	const thresholds: DisciplineThresholdMap = {
+		run: profile({ lthr: 172, maxHr: 195, zoneSystem: 'friel-hr-5-run' }),
+		bike: profile(),
+	}
+	const cardio = (intensity: object, discipline = 'run') => ({
+		kind: 'cardio',
+		discipline,
+		intensity: JSON.stringify(intensity),
+	})
+
+	test('a zone with a top is a bounded band', () => {
+		const band = resolveStepBand(
+			cardio({ kind: 'zoneLabel', label: 'Z4' }),
+			'run',
+			thresholds,
+			'heartrate',
+		)
+		expect(band).not.toBeNull()
+		expect(band!.max).not.toBeNull()
+		expect(band!.max!).toBeGreaterThan(band!.min)
+	})
+
+	test('a zone with no top is open above: a floor and no ceiling', () => {
+		expect(
+			resolveStepBand(
+				cardio({ kind: 'zoneLabel', label: 'Z5' }),
+				'run',
+				thresholds,
+				'heartrate',
+			),
+		).toEqual({ min: 172, max: null })
+	})
+
+	test('one authored value is a point, not an open band', () => {
+		expect(
+			resolveStepBand(
+				cardio({ kind: 'hrBpm', min: 150 }),
+				'run',
+				thresholds,
+				'heartrate',
+			),
+		).toEqual({ min: 150, max: 150 })
+		expect(
+			resolveStepBand(
+				cardio({ kind: 'power', minW: 200 }, 'bike'),
+				'bike',
+				thresholds,
+				'power',
+			),
+		).toEqual({ min: 200, max: 200 })
+	})
+
+	test('nothing on the channel, or nothing authored, is no band', () => {
+		expect(
+			resolveStepBand(
+				cardio({ kind: 'zoneLabel', label: 'Z4' }),
+				'run',
+				thresholds,
+				'power',
+			),
+		).toBeNull()
+		expect(
+			resolveStepBand({ kind: 'rest' }, 'run', thresholds, 'heartrate'),
+		).toBeNull()
 	})
 })

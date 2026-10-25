@@ -318,16 +318,10 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 	await expect(createAccountButton.getByRole('status')).not.toBeAttached()
 	await expect(createAccountButton.getByText('error')).not.toBeAttached()
 	await expect(
-		page.getByText(
-			/username can only include letters, numbers, and underscores/i,
-		),
+		page.getByText(/use only letters, numbers and underscores/i),
 	).toBeVisible()
 	// but we also never checked that privacy consent box
-	await expect(
-		page.getByText(
-			/you must agree to the terms of service and privacy policy/i,
-		),
-	).toBeVisible()
+	await expect(page.getByText(/agree to the terms to continue/i)).toBeVisible()
 	await expect(page).toHaveURL(/\/onboarding\/github/)
 
 	// empty username
@@ -359,9 +353,7 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 		normalizeUsername(`U5er_name_0k_${faker.person.lastName()}`),
 	)
 	await createAccountButton.click()
-	await expect(
-		page.getByText(/must agree to the terms of service and privacy policy/i),
-	).toBeVisible()
+	await expect(page.getByText(/agree to the terms to continue/i)).toBeVisible()
 	await expect(page).toHaveURL(/\/onboarding\/github/)
 
 	// we are all set up and ...
@@ -376,7 +368,7 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 	// already where it will stay when it is pressed. (Cleared only on blur,
 	// the line vanished on the press and the button moved out from under it.)
 	await expect(
-		page.getByText(/must agree to the terms of service and privacy policy/i),
+		page.getByText(/agree to the terms to continue/i),
 	).not.toBeVisible()
 	await createAccountButton.click()
 	await expect(createAccountButton.getByText('error')).not.toBeAttached()

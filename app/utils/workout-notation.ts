@@ -240,11 +240,16 @@ export type NotationToken =
 	  }
 	/**
 	 * A rest — a rest step (`1 min pause`) or a strength rest-between-sets
-	 * facet. `value` is the part of `text` that is a number (`1 min`, `200 m`,
-	 * `120`, `1:40`), so the value can weigh and the words recede; null for a
-	 * rest that is an act or a bare `pause`.
+	 * facet. `parts` is `text` split around its value (`1 min`, `200 m`, `120`,
+	 * `1:40`), so the value can weigh and the words recede; null for a rest
+	 * that is an act or a bare `pause`.
 	 */
-	| { type: 'rest'; text: string; value: string | null; address: TokenAddress }
+	| {
+			type: 'rest'
+			text: string
+			parts: RestParts | null
+			address: TokenAddress
+	  }
 	/** A strength step's exercise name: `Squat`. */
 	| { type: 'exercise'; text: string; address: TokenAddress }
 	/** A strength step's compact set summary: `5 × 5 @ 80 kg`. */
@@ -716,8 +721,8 @@ const UNRESOLVED_RANGE = {
  * Adapt the shared normalized notation input (from either adapter, but used for
  * the *draft* form values) into the persisted `Workout` row shape the Workout
  * Shape pipeline expects, so the editor can feed the draft through the exact
- * same `expandWorkoutSteps` / `deriveSessionProfile` derivation the detail view
- * and ledger use — one shape everywhere, no duplicated zone/duration logic.
+ * same `deriveSessionProfile` derivation (`workoutReps`) the detail view and
+ * ledger use — one shape everywhere, no duplicated zone/duration logic.
  *
  * Pure and total: authored intensity re-serializes to the JSON string
  * `stepToZone` parses; `intent`/`discipline` seed the intent-fallback zone
@@ -1057,7 +1062,7 @@ function restText(step: NotationStep): RestWords {
 		(step.durationSec != null
 			? ({ kind: 'time', durationSec: step.durationSec } as const)
 			: null)
-	if (!spec) return { text: WORDS.rest, value: null }
+	if (!spec) return { text: WORDS.rest, parts: null }
 	switch (spec.kind) {
 		case 'time':
 			return restWords(WORDS.restFor, formatDuration(spec.durationSec))
@@ -1070,19 +1075,33 @@ function restText(step: NotationStep): RestWords {
 		case 'sendOff':
 			return sendOffText(spec)
 		case 'act':
-			return { text: REST_ACT_WORDS[spec.act], value: null }
+			return { text: REST_ACT_WORDS[spec.act], parts: null }
 	}
 }
 
-/** A rest's words and the value inside them, which the words' own builder
- * placed — never found by matching an English or Norwegian literal. */
-type RestWords = { text: string; value: string | null }
+/** A rest's words split around the value inside them: `til puls < ` ·
+ * `120` · ` bpm`. Concatenated, they are the token's `text`. */
+export type RestParts = { before: string; value: string; after: string }
+
+type RestWords = { text: string; parts: RestParts | null }
+
+/** Stands in for the value while the words are built, so the split is where
+ * the words' own builder placed it — never found by searching the finished
+ * text, which could hold the same digits in its words. */
+const VALUE_SLOT = '\uE000'
 
 function restWords<V extends string | number>(
 	build: (value: V) => string,
 	value: V,
 ): RestWords {
-	return { text: build(value), value: String(value) }
+	const text = build(value)
+	// Every rest builder interpolates its value as is, so the slot passes
+	// through in its place; a builder that did not would leave the words whole.
+	const [before, after, ...extra] = build(VALUE_SLOT as V).split(VALUE_SLOT)
+	if (before == null || after == null || extra.length > 0) {
+		return { text, parts: null }
+	}
+	return { text, parts: { before, value: String(value), after } }
 }
 
 /**

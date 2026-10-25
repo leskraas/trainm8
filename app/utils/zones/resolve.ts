@@ -41,33 +41,24 @@ export type DisciplineProfileForResolver = {
 /** The unit a resolved pace is in: seconds per km, or seconds per 100 m. */
 export type PaceUnit = 'secPerKm' | 'secPer100m'
 
-/**
- * The unit `resolveIntensity` hands a target's paces back in — the one rule
- * every reader converts by (`zones/pace-unit.ts`, `zoneEquivalent`, the step
- * target text), so none keeps its own ÷10 (#613, #638). A pace read off a
- * recipe band (a `zoneLabel` or `lactate` target) is in the band anchor's unit,
- * per 100 m on CSS; an authored `pace`, a percentage of threshold pace and a
- * race pace are per km whatever the discipline. With no target, the anchor's
- * unit (a distance timed through the threshold itself).
- */
-export function resolvedPaceUnit(
-	kind: IntensityTarget['kind'] | null | undefined,
-	anchor: ZoneAnchor | null | undefined,
-): PaceUnit {
-	if (kind === 'pace' || kind === 'pacePct' || kind === 'racePace') {
-		return 'secPerKm'
-	}
-	return anchor === 'css' ? 'secPer100m' : 'secPerKm'
-}
-
 export type ResolvedIntensity = {
 	hrMin?: number
 	hrMax?: number
 	powerMin?: number
 	powerMax?: number
-	/** Paces, in the unit `resolvedPaceUnit` names for the target. */
+	/** Paces, in the unit `paceUnit` names. */
 	paceMin?: number
 	paceMax?: number
+	/**
+	 * The unit `paceMin`/`paceMax` are in, set whenever either is — the one
+	 * statement every reader converts by (`zones/pace-unit.ts`, `zoneEquivalent`,
+	 * the step target text), so none re-derives it or keeps its own ÷10 (#613,
+	 * #638). A pace read off a recipe band (a `zoneLabel` or `lactate` target) is
+	 * in the band anchor's unit, per 100 m on CSS; an authored `pace`, a
+	 * percentage of threshold pace and a race pace are per km whatever the
+	 * discipline.
+	 */
+	paceUnit?: PaceUnit
 	unavailable?: string
 	/**
 	 * Whether the concrete range is a **translation** rather than arithmetic on
@@ -212,8 +203,9 @@ function applyBand(
 		case 'maxHr':
 			return { hrMin: minVal, hrMax: maxVal }
 		case 'thresholdPace':
+			return { paceMin: minVal, paceMax: maxVal, paceUnit: 'secPerKm' }
 		case 'css':
-			return { paceMin: minVal, paceMax: maxVal }
+			return { paceMin: minVal, paceMax: maxVal, paceUnit: 'secPer100m' }
 		case 'rpe':
 			return {}
 	}
@@ -266,7 +258,11 @@ export function resolveIntensity(
 		}
 
 		case 'pace':
-			return { paceMin: authored.minSecPerKm, paceMax: authored.maxSecPerKm }
+			return {
+				paceMin: authored.minSecPerKm,
+				paceMax: authored.maxSecPerKm,
+				paceUnit: 'secPerKm',
+			}
 
 		case 'pacePct': {
 			if (!profile.thresholdPaceSecPerKm) {
@@ -404,7 +400,7 @@ function paceFromSpeedPct(
 	const slow = Math.round(anchorSecPerKm / (minPct / 100))
 	const fast =
 		maxPct != null ? Math.round(anchorSecPerKm / (maxPct / 100)) : slow
-	return { paceMin: fast, paceMax: slow }
+	return { paceMin: fast, paceMax: slow, paceUnit: 'secPerKm' }
 }
 
 /**

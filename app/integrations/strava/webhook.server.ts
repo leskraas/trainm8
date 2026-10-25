@@ -8,6 +8,7 @@ import {
 } from '#app/utils/activity-import.server.ts'
 import { enrichImportTelemetry } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { bestEffort } from '#app/utils/jobs/queue.server.ts'
 import {
 	StravaAppInactiveError,
 	StravaConnectionRevokedError,
@@ -246,8 +247,27 @@ async function refreshUpdatedActivity(
 	}
 
 	// Re-snapshot the stream and re-compute the detection. A missing stream leaves
-	// the prior telemetry in place rather than wiping it.
-	const raw = await fetchStravaActivityStreams(connection, externalId, 'live')
+	// the prior telemetry in place rather than wiping it. The fetch is
+	// best-effort: a body that doesn't parse (#638) or a failed fetch must not
+	// fail the refresh already saved above, and marks nothing, so a later pass
+	// asks again. A spent budget still defers the job.
+	const streams = await bestEffort(() =>
+		fetchStravaActivityStreams(connection, externalId, 'live'),
+	)
+	if (!streams.ok) {
+		// The snapshot update cleared `lapsJson`; with no stream in hand the laps
+		// are placed by wall clock instead (#356).
+		await ingestActivityLaps(
+			connection,
+			externalId,
+			existing.id,
+			[],
+			input.startedAt.getTime(),
+			'live',
+		)
+		return
+	}
+	const raw = streams.value
 	if (!raw) return
 	// Re-fetch provider laps before enrichment enqueues detection (#356): the
 	// snapshot update above cleared `lapsJson`, so this repopulates it so the

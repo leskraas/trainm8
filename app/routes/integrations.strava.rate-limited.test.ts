@@ -11,11 +11,11 @@ import { server } from '#tests/mocks/index.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { loader as callback } from './integrations.strava.callback.tsx'
 import { action as sync } from './integrations.strava.sync.tsx'
+import { action as hubSync } from './integrations.sync.tsx'
 
 /**
  * The request paths that call Strava answer at once when its read budget is
- * spent, and say when to try again (#638). Kept in its own file: spending the
- * shared limiter's day would make every later test in a file defer too.
+ * spent, and say when to try again (#638).
  */
 
 const ARGS = { params: {}, context: {} as AppLoadContext }
@@ -30,8 +30,8 @@ const daySpent = () =>
 		},
 	})
 
-/** The day resets at midnight UTC: hours, and maybe minutes, from now. */
-const TRY_AGAIN_LATER = /Prøv igjen om \d+ t( \d+ min)?\.$/
+/** The day resets at midnight UTC: about some hours from now, or minutes. */
+const TRY_AGAIN_LATER = /Prøv igjen om (ca\. \d+ t|\d+ min)\.$/
 
 async function setupUser() {
 	return prisma.session.create({
@@ -47,15 +47,24 @@ test('the rate-limited copy says when to try again, relative', () => {
 	const now = new Date('2026-10-24T17:20:00Z')
 	const T = INTEGRATION_TOAST_LABELS
 
+	// Usually it's trainm8's own share of the budget that is spent, not
+	// Strava's limit for the athlete: the copy says the sync quota is used up.
 	expect(T.stravaRateLimited(new Date('2026-10-24T17:30:00Z'), now)).toBe(
-		'Strava har nådd grensen for oppslag. Prøv igjen om 10 min.',
+		'Strava-kvoten for synk er brukt opp for nå. Prøv igjen om 10 min.',
 	)
+	// Over an hour, whole hours read better than "6 t 40 min".
 	expect(T.stravaRateLimited(new Date('2026-10-25T00:00:00Z'), now)).toBe(
-		'Strava har nådd grensen for oppslag. Prøv igjen om 6 t 40 min.',
+		'Strava-kvoten for synk er brukt opp for nå. Prøv igjen om ca. 7 t.',
+	)
+	expect(T.stravaRateLimited(new Date('2026-10-25T02:30:00Z'), now)).toBe(
+		'Strava-kvoten for synk er brukt opp for nå. Prøv igjen om ca. 9 t.',
+	)
+	expect(T.stravaRateLimited(new Date('2026-10-24T18:20:00Z'), now)).toBe(
+		'Strava-kvoten for synk er brukt opp for nå. Prøv igjen om ca. 1 t.',
 	)
 	// Never "om 0 min": a reset seconds away still reads as a minute.
 	expect(T.stravaRateLimited(new Date('2026-10-24T17:20:05Z'), now)).toBe(
-		'Strava har nådd grensen for oppslag. Prøv igjen om 1 min.',
+		'Strava-kvoten for synk er brukt opp for nå. Prøv igjen om 1 min.',
 	)
 })
 
@@ -135,6 +144,47 @@ test('a rate-limited manual sync says when to try again', async () => {
 		unstable_pattern: '/integrations/strava/sync',
 	})
 
+	await expect(response).toSendToast(
+		expect.objectContaining({
+			title: 'Synkroniseringen feilet',
+			description: expect.stringMatching(TRY_AGAIN_LATER),
+			type: 'error',
+		}),
+	)
+})
+
+test("the hub's Sync now says when to try again when Strava is rate limited", async () => {
+	server.use(
+		http.get('https://www.strava.com/api/v3/athlete/activities', daySpent),
+	)
+	const session = await setupUser()
+	await prisma.accountConnection.create({
+		data: {
+			athleteId: session.userId,
+			provider: 'strava',
+			externalAthleteId: '12345678',
+			accessToken: 'tok',
+			refreshToken: 'ref',
+			expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000),
+			status: 'active',
+			connectedAt: new Date('2026-05-01T00:00:00.000Z'),
+		},
+	})
+	const request = new Request(
+		new URL('/integrations/sync', BASE_URL).toString(),
+		{
+			method: 'POST',
+			headers: { cookie: await getSessionCookieHeader(session) },
+		},
+	)
+
+	const response = await hubSync({
+		request,
+		...ARGS,
+		unstable_pattern: '/integrations/sync',
+	})
+
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			title: 'Synkroniseringen feilet',

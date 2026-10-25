@@ -1,4 +1,8 @@
-import { type TrainingZone } from '../session-profile.ts'
+// Type-only at the top level, so Node's type stripping drops the import:
+// session-profile.ts reads ZONE_WORDS as it loads, and an inline `type`
+// would still load it first and close the cycle (#638).
+// eslint-disable-next-line import/consistent-type-specifier-style
+import type { TrainingZone } from '../session-profile.ts'
 
 /**
  * The one word each **Training Zone** is written as (#607 D1): what the writing

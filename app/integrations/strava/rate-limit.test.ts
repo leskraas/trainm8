@@ -3,18 +3,16 @@ import { DeferJob } from '#app/utils/jobs/queue.server.ts'
 import {
 	createRateLimiter,
 	STRAVA_RATE_LIMIT,
+	StravaRateLimitedError,
 	type Clock,
 } from './rate-limit.ts'
 
-/** A deterministic clock: `sleep` simply advances virtual time, never waits. */
+/** A deterministic clock: a test moves `ms` itself. */
 function fakeClock(): Clock & { ms: number } {
 	const clock = {
 		ms: 0,
 		now() {
 			return clock.ms
-		},
-		async sleep(ms: number) {
-			clock.ms += ms
 		},
 	}
 	return clock
@@ -95,17 +93,20 @@ test('a live request facing a full quarter-hour defers instead of sleeping', asy
 	expect(clock.ms).toBe(5 * 60 * 1000)
 })
 
-test('on the test seam, a wait of up to a quarter-hour is slept instead', async () => {
-	const clock = fakeClock()
+test('a spent window throws a Strava-named error the queue still defers on', async () => {
 	const limiter = createRateLimiter({
-		...STRAVA_RATE_LIMIT,
-		clock,
-		maySleep: true,
+		windows: [{ limit: 1, windowMs: MIN_15 }],
+		clock: fakeClock(),
 	})
+	await limiter.acquire('live')
 
-	for (let i = 0; i < 81; i++) await limiter.acquire('bulk')
-
-	expect(clock.ms).toBe(MIN_15)
+	// Request paths catch it by its Strava name; the queue sees a deferral.
+	const deferred = await limiter.acquire('live').catch((e: unknown) => e)
+	expect(deferred).toBeInstanceOf(StravaRateLimitedError)
+	expect(deferred).toBeInstanceOf(DeferJob)
+	expect((deferred as StravaRateLimitedError).name).toBe(
+		'StravaRateLimitedError',
+	)
 })
 
 // ── Strava's read budget (#637) ─────────────────────────────────────────────

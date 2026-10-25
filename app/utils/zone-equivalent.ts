@@ -27,7 +27,10 @@
  * reuse).
  */
 import { formatPaceClock, formatPaceRange } from './format.ts'
-import { POWER_REF_LABELS } from './intensity-target.ts'
+import {
+	POWER_REF_LABELS,
+	type DisciplineThresholdMap,
+} from './intensity-target.ts'
 import {
 	INTENSITY_DISPLAY_WORDS,
 	nbUnavailableReason,
@@ -35,15 +38,17 @@ import {
 	zoneLabelWord,
 } from './labels.ts'
 import { intensityTargetToZone, type TrainingZone } from './session-profile.ts'
+import { classifyingRecipe } from './structure-detection/classify.ts'
+import { type ClassifyChannel } from './structure-detection/constants.ts'
 import { powerPctRef, type IntensityTarget } from './workout-schema.ts'
 import {
 	formatMmol,
 	getRecipe,
-	resolvedPaceUnit,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 	type ZoneRecipe,
 } from './zones/index.ts'
+import { paceIn } from './zones/pace-unit.ts'
 
 export type ZoneEquivalent =
 	| { step: TrainingZone; reason: null }
@@ -263,15 +268,13 @@ export function zoneEquivalent(
 			channelValue = mid(resolved.hrMin ?? resolved.hrMax!, resolved.hrMax)
 		}
 	} else if (resolved.paceMin != null || resolved.paceMax != null) {
-		channelValue = mid(resolved.paceMin ?? resolved.paceMax!, resolved.paceMax)
 		// A CSS-anchored recipe's bands are ratios to sec/100 m; a pace the
 		// resolver hands back per km converts (1 km = 10 × 100 m).
-		if (
-			recipe.anchor === 'css' &&
-			resolvedPaceUnit(target.kind, recipe.anchor) === 'secPerKm'
-		) {
-			channelValue = channelValue / 10
-		}
+		channelValue = paceIn(
+			mid(resolved.paceMin ?? resolved.paceMax!, resolved.paceMax),
+			resolved.paceUnit ?? 'secPerKm',
+			recipe.anchor === 'css' ? 'secPer100m' : 'secPerKm',
+		)
 	}
 	if (channelValue == null) {
 		return unresolvable(
@@ -280,6 +283,43 @@ export function zoneEquivalent(
 	}
 
 	return { step: bucketRatio(recipe, channelValue / anchorValue), reason: null }
+}
+
+/** The detection channel each measured target kind is classified on. */
+const MEASURED_CHANNEL: Partial<
+	Record<IntensityTarget['kind'], ClassifyChannel>
+> = { power: 'power', pace: 'pace', hrBpm: 'heartrate' }
+
+/**
+ * The one reading of an authored target as a Training Zone against the
+ * athlete's thresholds, for I dag's Effort Word and a detected session's
+ * intent alike (#638), so the two cannot disagree. Null when nothing zones it.
+ *
+ * A target that names its zone (a zone label, RPE, a percentage) reads as the
+ * Workout Shape reads it. A measured target (watts, pace, bpm) on a run or ride is zoned on the recipe
+ * Structure Detection classifies that channel against (`classifyingRecipe`),
+ * not blindly on the athlete's own: a Daniels runner with a critical-power
+ * threshold is classified on Stryd power bands, and the pace recipe cannot
+ * place watts at all (#617).
+ */
+export function readTargetZone(
+	target: IntensityTarget,
+	discipline: string,
+	thresholds: DisciplineThresholdMap,
+): TrainingZone | null {
+	const named = intensityTargetToZone(target)
+	if (named != null) return named
+	const profile = thresholds[discipline]
+	const channel = MEASURED_CHANNEL[target.kind]
+	const recipe =
+		profile &&
+		channel &&
+		(discipline === 'run' || discipline === 'bike') &&
+		classifyingRecipe(discipline, profile, channel)
+	return zoneEquivalent(
+		target,
+		recipe ? { ...profile, zoneSystem: recipe.id } : profile,
+	).step
 }
 
 // ——— Chip content (§7.2) ————————————————————————————————————————————————
@@ -395,10 +435,7 @@ export function resolvedRangeText(
 			: `${resolved.hrMin}+ bpm`
 	}
 	if (resolved.paceMin != null) {
-		const unit =
-			resolvedPaceUnit(target.kind, recipeFor(profile)?.anchor) === 'secPer100m'
-				? '/100m'
-				: '/km'
+		const unit = resolved.paceUnit === 'secPer100m' ? '/100m' : '/km'
 		return resolved.paceMax != null
 			? `${formatPaceClock(resolved.paceMin)}–${formatPaceClock(resolved.paceMax)} ${unit}`
 			: `${formatPaceClock(resolved.paceMin)}+ ${unit}`

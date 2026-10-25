@@ -36,6 +36,9 @@ import { ZONE_WORDS } from './zones/words.ts'
 type WorkoutBlock = WorkoutStructure['blocks'][number]
 type CardioStep = Extract<WorkoutBlock['steps'][number], { kind: 'cardio' }>
 
+/** The shape of a recipe band's code: `Z4`, `I-3`, `T`, `sub-T` (`zones/recipes.ts`). */
+const RECIPE_CODE = /^(?:[A-Z](?:-?\d)?|sub-T)$/
+
 /**
  * The zone word a target contributes to a title, or null when none can be named
  * honestly — lowercase, as the stamp and the sentence write it (`45 min rolig`
@@ -45,9 +48,6 @@ type CardioStep = Extract<WorkoutBlock['steps'][number], { kind: 'cardio' }>
  * (`zones/words.ts`), never `Z3`; a measured power/pace/HR target does not, so
  * it stays wordless — never guessed from the raw value.
  */
-/** The shape of a recipe band's code: `Z4`, `I-3`, `T`, `sub-T` (`zones/recipes.ts`). */
-const RECIPE_CODE = /^(?:[A-Z](?:-?\d)?|sub-T)$/
-
 function intensityWord(target: IntensityTarget): string | null {
 	if (target.kind === 'zoneLabel') {
 		const label = target.label.trim()
@@ -145,7 +145,14 @@ export function deriveWorkoutTitle(structure: WorkoutStructure): string {
 		: null
 
 	const title = [core, word].filter(Boolean).join(' ').trim()
-	return title || getDisciplineLabel(structure.discipline)
+	// A title starts with a capital: a zone word leading it (`Terskel`) is
+	// capitalised there and only there — mid-title it stays `45 min rolig`. A
+	// recipe code that leads it keeps its own spelling (`sub-T`).
+	const leadsWithCode = !core && word != null && RECIPE_CODE.test(word)
+	return (
+		(leadsWithCode ? title : title.charAt(0).toUpperCase() + title.slice(1)) ||
+		getDisciplineLabel(structure.discipline)
+	)
 }
 
 /**

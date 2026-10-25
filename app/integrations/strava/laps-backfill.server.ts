@@ -1,6 +1,6 @@
 import { persistActivityLaps } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { enqueueJob, rethrowDeferral } from '#app/utils/jobs/queue.server.ts'
+import { bestEffort, enqueueJob } from '#app/utils/jobs/queue.server.ts'
 import { runStructureDetection } from '#app/utils/structure-detection/detect-job.server.ts'
 import { DETECTION_DISCIPLINES } from '#app/utils/structure-detection/types.ts'
 import {
@@ -65,6 +65,10 @@ export async function runStravaLapsBackfill(): Promise<void> {
 		},
 	})
 
+	// Whether this run settled any import, so a deferral says it made progress
+	// and the queue's deferral cap doesn't dead-letter a long heal (#638).
+	let progressed = false
+
 	for (const connection of connections) {
 		const imports = await prisma.activityImport.findMany({
 			where: {
@@ -80,50 +84,64 @@ export async function runStravaLapsBackfill(): Promise<void> {
 		if (imports.length === 0) continue
 
 		for (const imp of imports) {
-			try {
-				const laps = await fetchStravaActivityLaps(connection, imp.externalId)
-				const markers = laps
-					? stravaLapsToMarkers(laps, {
-							activityStartMs: imp.startedAt.getTime(),
-						})
-					: []
-				if (!(await persistActivityLaps(imp.id, markers))) {
-					// Asked, and Strava has no interior laps for it (or a body that
-					// doesn't parse, which a retry would get again). Mark it so a
-					// deferred run (#637), which starts over, doesn't spend the budget on
-					// it again; detection reads `[]` as no laps.
-					await prisma.activityImport.update({
-						where: { id: imp.id },
-						data: { lapsJson: '[]' },
-					})
-					continue
-				}
-				// Re-run detection against the fresh laps (idempotent upsert): an
-				// unpromoted import's detection re-computes with the lap-edged path.
-				await runStructureDetection({ activityImportId: imp.id })
-			} catch (err) {
-				// A spent Strava budget: the queue resumes the backfill later (#637).
-				rethrowDeferral(err)
-				if (
-					err instanceof StravaConnectionRevokedError ||
-					err instanceof StravaInsufficientScopeError ||
-					err instanceof StravaAppInactiveError
-				) {
-					// The connection can't be fetched against until re-authorized (or the
-					// app is reactivated): stop this athlete and move to the next.
-					if (err instanceof StravaConnectionRevokedError) {
-						await prisma.accountConnection.update({
-							where: { id: connection.id },
-							data: { status: 'revoked' },
-						})
-					}
-					break
-				}
-				console.error(
-					`Strava laps backfill failed for activity ${imp.externalId}`,
-					err,
-				)
+			// A single activity's failure never aborts the rest; a spent Strava
+			// budget defers the backfill, and the queue resumes it later (#637).
+			const result = await bestEffort(() => healImportLaps(connection, imp), {
+				progressed,
+			})
+			if (result.ok) {
+				progressed = true
+				continue
 			}
+			const err = result.error
+			if (
+				err instanceof StravaConnectionRevokedError ||
+				err instanceof StravaInsufficientScopeError ||
+				err instanceof StravaAppInactiveError
+			) {
+				// The connection can't be fetched against until re-authorized (or the
+				// app is reactivated): stop this athlete and move to the next.
+				if (err instanceof StravaConnectionRevokedError) {
+					await prisma.accountConnection.update({
+						where: { id: connection.id },
+						data: { status: 'revoked' },
+					})
+				}
+				break
+			}
+			console.error(
+				`Strava laps backfill failed for activity ${imp.externalId}`,
+				err,
+			)
 		}
 	}
+}
+
+/**
+ * Fetch one import's laps and persist them, re-running its detection; or,
+ * when Strava has no interior laps for it, mark it settled. A body that
+ * doesn't parse throws, leaving the import for a later run to ask again
+ * (#638).
+ */
+async function healImportLaps(
+	connection: Parameters<typeof fetchStravaActivityLaps>[0],
+	imp: { id: string; externalId: string; startedAt: Date },
+): Promise<void> {
+	const laps = await fetchStravaActivityLaps(connection, imp.externalId)
+	const markers = stravaLapsToMarkers(laps, {
+		activityStartMs: imp.startedAt.getTime(),
+	})
+	if (!(await persistActivityLaps(imp.id, markers))) {
+		// Asked, and Strava has no interior laps for it. Mark it so a deferred
+		// run (#637), which starts over, doesn't spend the budget on it again;
+		// detection reads `[]` as no laps.
+		await prisma.activityImport.update({
+			where: { id: imp.id },
+			data: { lapsJson: '[]' },
+		})
+		return
+	}
+	// Re-run detection against the fresh laps (idempotent upsert): an
+	// unpromoted import's detection re-computes with the lap-edged path.
+	await runStructureDetection({ activityImportId: imp.id })
 }

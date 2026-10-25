@@ -2,9 +2,8 @@ import { type AccountConnection } from '@prisma/client'
 import { prisma } from '#app/utils/db.server.ts'
 import { StravaTokenExchangeError } from './oauth.server.ts'
 import {
-	createRateLimiter,
-	STRAVA_RATE_LIMIT,
-	type Clock,
+	getStravaRateLimiter,
+	type RateLimiter,
 	type RateLimitLane,
 } from './rate-limit.ts'
 import {
@@ -180,32 +179,9 @@ export async function getValidAccessToken(
 }
 
 /**
- * Process-wide limiter shared by every Strava API call, so the per-app read
- * budget (ADR 0013) is honoured across all athletes' activity. Tests talk to
- * MSW, not Strava, and run no queue to retry a deferred job, so there a wait
- * skips ahead in virtual time instead; rate-limit.test.ts covers the pacing
- * and the deferrals themselves.
- */
-const stravaRateLimiter = createRateLimiter({
-	...STRAVA_RATE_LIMIT,
-	...(process.env.NODE_ENV === 'test'
-		? { clock: skipAheadClock(), maySleep: true }
-		: {}),
-})
-
-function skipAheadClock(): Clock {
-	let skippedMs = 0
-	return {
-		now: () => Date.now() + skippedMs,
-		sleep: async (ms) => {
-			skippedMs += ms
-		},
-	}
-}
-
-/**
- * Authenticated GET against the Strava API, paced by the shared rate limiter
- * in `lane`: a spent window, or a `429`, throws `DeferJob` for its reset. Refreshes proactively
+ * Authenticated GET against the Strava API, paced in `lane` by `limiter` (the
+ * process-wide one unless a test hands in its own): a spent window, or a
+ * `429`, throws `StravaRateLimitedError` for its reset. Refreshes proactively
  * when the stored token is near expiry, and reactively retries once on a 401
  * (the token was rejected despite looking valid). A permanent refresh failure
  * surfaces as `StravaConnectionRevokedError`.
@@ -214,10 +190,11 @@ export async function stravaApiGet<T>(
 	connection: ConnectionRef,
 	path: string,
 	lane: RateLimitLane = 'bulk',
+	{ limiter = getStravaRateLimiter() }: { limiter?: RateLimiter } = {},
 ): Promise<T> {
 	const url = `${STRAVA_API_BASE}${path}`
 	const get = (token: string) =>
-		stravaRateLimiter.run(lane, () =>
+		limiter.run(lane, () =>
 			fetch(url, { headers: { Authorization: `Bearer ${token}` } }),
 		)
 	let response = await get(await getValidAccessToken(connection))

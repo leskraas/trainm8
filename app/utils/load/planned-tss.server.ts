@@ -5,6 +5,7 @@ import { type IntensityTarget } from '#app/utils/workout-schema.ts'
 import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,
+	type PaceUnit,
 	type RaceAnchorPaces,
 } from '#app/utils/zones/index.ts'
 import {
@@ -75,6 +76,7 @@ type ResolvedRanges = {
 	intensityPowerMax: number | null
 	intensityPaceMin: number | null
 	intensityPaceMax: number | null
+	intensityPaceUnit: PaceUnit | null
 }
 
 const EMPTY_RANGES: ResolvedRanges = {
@@ -84,6 +86,7 @@ const EMPTY_RANGES: ResolvedRanges = {
 	intensityPowerMax: null,
 	intensityPaceMin: null,
 	intensityPaceMax: null,
+	intensityPaceUnit: null,
 }
 
 /**
@@ -123,6 +126,7 @@ function resolveStepRanges(
 		intensityPowerMax: r.powerMax ?? null,
 		intensityPaceMin: r.paceMin ?? null,
 		intensityPaceMax: r.paceMax ?? null,
+		intensityPaceUnit: r.paceUnit ?? null,
 	}
 }
 

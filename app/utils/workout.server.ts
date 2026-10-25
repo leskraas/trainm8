@@ -1,7 +1,6 @@
 import { type Prisma } from '@prisma/client'
 import { addDays, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
-import { readTargetZone } from './effort-word.ts'
 import { canMarkDone, MARK_DONE_REACH_DAYS } from './import-fit.ts'
 import {
 	type AngreRefusal,
@@ -25,6 +24,7 @@ import {
 	restStepSpec,
 } from './workout-schema.ts'
 import { INTENT_BY_ZONE } from './workout-sentence.ts'
+import { readTargetZone } from './zone-equivalent.ts'
 import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,

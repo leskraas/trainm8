@@ -66,7 +66,6 @@ import {
 	formatTss,
 } from '#app/utils/format.ts'
 import {
-	parseAuthoredIntensity,
 	resolveStepRange,
 	type DisciplineThresholdMap,
 } from '#app/utils/intensity-target.ts'
@@ -86,10 +85,7 @@ import {
 } from '#app/utils/strength-log.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
 import { type SessionLedgerEntry } from '#app/utils/training.ts'
-import {
-	blockRepeatTotal,
-	type IntensityTarget,
-} from '#app/utils/workout-schema.ts'
+import { blockRepeatTotal } from '#app/utils/workout-schema.ts'
 import { type ResolvedIntensity } from '#app/utils/zones/index.ts'
 import { paceInDistanceUnit } from '#app/utils/zones/pace-unit.ts'
 
@@ -518,10 +514,7 @@ function plannedTargetLine(
 	// (#616): those fill only on a threshold change.
 	const targets = workout.blocks
 		.flatMap((block) => block.steps)
-		.map((step) => ({
-			...resolveStepRange(step, workout.discipline, thresholds),
-			targetKind: parseAuthoredIntensity(step.intensity)?.kind ?? null,
-		}))
+		.map((step) => resolveStepRange(step, workout.discipline, thresholds))
 	const distance = sumBlockDistanceM(workout.blocks)
 	const pace = paceWindow(targets, entry.discipline)
 	const effort =
@@ -538,9 +531,7 @@ function plannedTargetLine(
  * discipline whose intensity is not a pace gets no clause here at all.
  */
 function paceWindow(
-	steps: Array<
-		ResolvedIntensity & { targetKind: IntensityTarget['kind'] | null }
-	>,
+	steps: ResolvedIntensity[],
 	discipline: string,
 ): string | null {
 	if (discipline === 'bike') return powerWindow(steps)
@@ -551,7 +542,7 @@ function paceWindow(
 	const unit = (
 		step: (typeof authored)[number],
 		sec: number | null | undefined,
-	) => (sec == null ? '' : paceInDistanceUnit(sec, discipline, step.targetKind))
+	) => (sec == null ? '' : paceInDistanceUnit(sec, discipline, step.paceUnit))
 	const distinct = new Set(
 		authored.map(
 			(step) => `${unit(step, step.paceMin)}:${unit(step, step.paceMax)}`,
@@ -565,7 +556,7 @@ function paceWindow(
 		// A swim reads per hundred metres. A CSS target resolves in that unit
 		// already; a pace target resolves per km and is divided down (#613).
 		const per100 = (sec: number) =>
-			formatPaceClock(paceInDistanceUnit(sec, 'swim', step.targetKind))
+			formatPaceClock(paceInDistanceUnit(sec, 'swim', step.paceUnit))
 		return approx(
 			authored,
 			max != null

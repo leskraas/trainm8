@@ -144,7 +144,11 @@ export async function runStravaBackfill(
 	// unmodeled activities, ADR 0015), imports already carrying a stream
 	// (idempotent), and activities with no usable telemetry. Each fetch is paced by the shared Strava rate limiter,
 	// so backfilling streams stays within the per-app budget (ADR 0013).
-	await ingestActivityStreams(connection, keptActivities)
+	// A spent budget defers the job; filing activities this run counts as
+	// progress against the queue's deferral cap (#638).
+	await ingestActivityStreams(connection, keptActivities, 'bulk', {
+		progressed: created > 0 || promoted > 0,
+	})
 
 	await prisma.accountConnection.update({
 		where: { id: connection.id },

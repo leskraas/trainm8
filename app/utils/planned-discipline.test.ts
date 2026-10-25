@@ -92,6 +92,7 @@ test('Planned TSS of a planned Simple Activity is unavailable, never a guessed n
 			intensityPowerMax: null,
 			intensityPaceMin: null,
 			intensityPaceMax: null,
+			intensityPaceUnit: null,
 		})),
 	}))
 	expect(readPlannedTss({ discipline: 'other', blocks }, profile)).toEqual(
