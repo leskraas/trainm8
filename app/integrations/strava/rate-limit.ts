@@ -25,16 +25,10 @@
 
 import { DeferJob } from '#app/utils/jobs/queue.server.ts'
 
-/** Injectable time source so tests can advance virtual time without waiting. */
-export type Clock = {
-	now: () => number
-	sleep: (ms: number) => Promise<void>
-}
+/** Injectable time source so tests can move virtual time without waiting. */
+export type Clock = { now: () => number }
 
-const realClock: Clock = {
-	now: () => Date.now(),
-	sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-}
+const realClock: Clock = { now: () => Date.now() }
 
 /** Who is asking: a live webhook fetch, or bulk work that must leave it room. */
 export type RateLimitLane = 'live' | 'bulk'
@@ -49,26 +43,18 @@ export type RateLimiter = {
 	) => Promise<Response>
 }
 
-/** How many times the test seam waits out a `429` before handing it back. */
-const MAX_429_RETRIES = 3
-
 export function createRateLimiter({
 	windows,
 	liveReserve = 0,
 	clock = realClock,
-	maySleep = false,
 }: {
 	/** Shortest first, in the order Strava's headers list them. */
 	windows: readonly RateLimitWindow[]
 	/** The share of each window only `live` requests may use. */
 	liveReserve?: number
 	clock?: Clock
-	/** The test seam: wait out a quarter-hour instead of deferring, where no
-	 * queue would run a deferred job again (tests on a skip-ahead clock). */
-	maySleep?: boolean
 }): RateLimiter {
 	const state = windows.map((w) => ({ ...w, start: 0, used: 0 }))
-	const maxWaitMs = Math.min(...windows.map((w) => w.windowMs))
 
 	function roll(now: number) {
 		for (const w of state) {
@@ -85,24 +71,18 @@ export function createRateLimiter({
 	}
 
 	async function acquire(lane: RateLimitLane = 'bulk'): Promise<void> {
-		for (;;) {
-			const now = clock.now()
-			roll(now)
-			const full = state.filter((w) => w.used >= cap(w, lane))
-			if (full.length === 0) {
-				for (const w of state) w.used++
-				return
-			}
-			// Hand the job back until the last of the full windows resets.
-			const resumeAt = Math.max(...full.map((w) => w.start + w.windowMs))
-			if (!maySleep || resumeAt - now > maxWaitMs) {
-				throw new DeferJob(
-					new Date(resumeAt),
-					`Strava read budget spent until ${new Date(resumeAt).toISOString()}`,
-				)
-			}
-			await clock.sleep(Math.max(resumeAt - now, 1))
+		roll(clock.now())
+		const full = state.filter((w) => w.used >= cap(w, lane))
+		if (full.length === 0) {
+			for (const w of state) w.used++
+			return
 		}
+		// Hand the job back until the last of the full windows resets.
+		const resumeAt = Math.max(...full.map((w) => w.start + w.windowMs))
+		throw new DeferJob(
+			new Date(resumeAt),
+			`Strava read budget spent until ${new Date(resumeAt).toISOString()}`,
+		)
 	}
 
 	/**
@@ -131,19 +111,19 @@ export function createRateLimiter({
 		lane: RateLimitLane,
 		request: () => Promise<Response>,
 	): Promise<Response> {
-		for (let attempt = 0; ; attempt++) {
-			await acquire(lane)
-			const response = await request()
-			observe(response.headers)
-			if (response.status !== 429 || attempt >= MAX_429_RETRIES) {
-				return response
-			}
-			// Spent, says Strava. When its headers don't say which window, assume
-			// the shortest, so the next acquire defers to the next quarter-hour.
-			if (!state.some((w) => w.used >= w.limit) && state[0]) {
-				state[0].used = state[0].limit
-			}
+		await acquire(lane)
+		const response = await request()
+		observe(response.headers)
+		if (response.status !== 429) return response
+		// Spent, says Strava. When its headers don't say which window, assume
+		// the shortest, so the acquire below defers to the next quarter-hour.
+		if (!state.some((w) => w.used >= w.limit) && state[0]) {
+			state[0].used = state[0].limit
 		}
+		await acquire(lane)
+		// Unreachable while a window is spent; a limiter with no windows hands
+		// the 429 back as it came.
+		return response
 	}
 
 	return { acquire, run }
@@ -167,3 +147,21 @@ export const STRAVA_RATE_LIMIT = {
 	],
 	liveReserve: 0.2,
 } as const
+
+/**
+ * The process-wide limiter every Strava API call goes through, so the per-app
+ * read budget (ADR 0013) is honoured across all athletes' activity.
+ */
+let sharedStravaRateLimiter = createRateLimiter(STRAVA_RATE_LIMIT)
+
+export function getStravaRateLimiter(): RateLimiter {
+	return sharedStravaRateLimiter
+}
+
+/**
+ * Replace the process-wide limiter. The test setup gives each test a fresh
+ * budget this way, and a test can hand in one on its own clock or windows.
+ */
+export function setStravaRateLimiter(limiter: RateLimiter): void {
+	sharedStravaRateLimiter = limiter
+}

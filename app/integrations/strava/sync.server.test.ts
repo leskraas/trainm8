@@ -454,9 +454,9 @@ test('a permanent refresh failure moves the connection to revoked', async () => 
 	expect(imports).toHaveLength(0)
 })
 
-test('a 429 backs off until the next window and the sync still succeeds (#637)', async () => {
+test('a 429 answers the manual sync at once with the next window (#637)', async () => {
 	const { user } = await setupConnection()
-	// Strava rejects the first list call as over the limit, then serves it.
+	// Strava rejects the list call as over the limit for this quarter-hour.
 	server.use(
 		http.get(
 			ACTIVITIES_URL,
@@ -474,9 +474,16 @@ test('a 429 backs off until the next window and the sync still succeeds (#637)',
 
 	const result = await syncStravaActivities(user.id)
 
-	invariant(result.ok, 'a 429 must back off, not fail the sync')
-	expect(result.created).toBe(4)
+	// A request can't wait out the window: it says when to try again.
+	const nextQuarter = new Date(Math.ceil(Date.now() / MIN_15) * MIN_15)
+	expect(result).toEqual({
+		ok: false,
+		reason: 'rate-limited',
+		retryAt: nextQuarter,
+	})
 })
+
+const MIN_15 = 15 * 60 * 1000
 
 test('a 403 (missing activity scope) returns insufficient-scope, not a throw', async () => {
 	const { user, connection } = await setupConnection()

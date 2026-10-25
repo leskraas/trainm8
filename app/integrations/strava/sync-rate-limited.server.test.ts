@@ -8,8 +8,7 @@ import { syncStravaActivities } from './sync.server.ts'
 /**
  * A manual sync runs inside a request, not on the job queue, so a spent
  * Strava day can't be deferred there (#637). It reports `rate-limited`
- * instead. Kept in its own file: spending the shared limiter's day would make
- * every later test in a file defer too.
+ * instead.
  */
 
 test('a spent Strava day returns rate-limited from a manual sync, not a throw', async () => {

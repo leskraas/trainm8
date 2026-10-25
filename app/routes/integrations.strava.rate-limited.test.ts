@@ -15,8 +15,7 @@ import { action as hubSync } from './integrations.sync.tsx'
 
 /**
  * The request paths that call Strava answer at once when its read budget is
- * spent, and say when to try again (#638). Kept in its own file: spending the
- * shared limiter's day would make every later test in a file defer too.
+ * spent, and say when to try again (#638).
  */
 
 const ARGS = { params: {}, context: {} as AppLoadContext }
