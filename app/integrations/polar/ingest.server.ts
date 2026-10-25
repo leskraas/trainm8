@@ -3,6 +3,7 @@ import {
 	type IngestFitLegResult,
 } from '#app/integrations/shared/ingest-fit.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { parseFit } from '#app/utils/fit-parser.server.ts'
 import {
 	POLAR_API_BASE,
 	POLAR_FETCHED_VIA,
@@ -71,50 +72,129 @@ async function polarGet(connection: Connection, path: string, accept: string) {
 	return response
 }
 
-async function isHeld(athleteId: string, exerciseId: string) {
-	const key = {
+/**
+ * What trainm8 already holds of one Polar exercise. A multisport FIT files one
+ * leg at a time (`<id>`, `<id>#2`, …), so a held first leg does not mean the
+ * exercise is complete: a run cut off after it holds only some legs. The FIT
+ * Polar sent is kept with each leg it created (or with the mirror it
+ * refreshed), so the leg count and a resume come from those bytes, not from a
+ * second download.
+ */
+async function heldExercise(
+	athleteId: string,
+	exerciseId: string,
+): Promise<
+	| { status: 'absent' }
+	| { status: 'complete' }
+	| { status: 'partial'; bytes: Uint8Array | null }
+> {
+	const keys = {
 		athleteId,
 		externalProvider: POLAR_PROVIDER,
-		externalId: exerciseId,
+		OR: [
+			{ externalId: exerciseId },
+			{ externalId: { startsWith: `${exerciseId}#` } },
+		],
 	}
-	const [imported, alias] = await Promise.all([
-		prisma.activityImport.findUnique({
-			where: { athleteId_externalProvider_externalId: key },
-			select: { id: true },
+	const [imports, aliases] = await Promise.all([
+		prisma.activityImport.findMany({
+			where: keys,
+			select: { id: true, externalId: true },
 		}),
-		prisma.activityImportAlias.findUnique({
-			where: { athleteId_externalProvider_externalId: key },
-			select: { id: true },
+		prisma.activityImportAlias.findMany({
+			where: keys,
+			select: { activityImportId: true, externalId: true },
 		}),
 	])
-	return Boolean(imported ?? alias)
+	const held = new Set([...imports, ...aliases].map((row) => row.externalId))
+	if (held.size === 0) return { status: 'absent' }
+
+	const kept = await prisma.activityFile.findFirst({
+		where: {
+			fetchedVia: POLAR_FETCHED_VIA,
+			activityImportId: {
+				in: [
+					...imports.map((i) => i.id),
+					...aliases.map((a) => a.activityImportId),
+				],
+			},
+		},
+		select: { bytes: true },
+	})
+	if (!kept) return { status: 'partial', bytes: null }
+	const bytes = new Uint8Array(kept.bytes)
+	const legs = parseFit(bytes).sessions.length
+	const complete = Array.from({ length: legs }, (_, i) =>
+		i === 0 ? exerciseId : `${exerciseId}#${i + 1}`,
+	).every((key) => held.has(key))
+	return complete ? { status: 'complete' } : { status: 'partial', bytes }
 }
 
-/** Fetch one exercise's FIT and file it. Idempotent on the exercise id. */
+/**
+ * The response body, read chunk by chunk and dropped as soon as it is known to
+ * pass the cap: from `Content-Length` before a byte is read, or from the
+ * running total for a body without one. Never buffers more than the cap.
+ */
+async function readCappedBody(response: Response, cap: number) {
+	const declared = Number(response.headers.get('content-length') ?? 0)
+	if (declared > cap) {
+		void response.body?.cancel().catch(() => {})
+		throw new PolarApiError(413)
+	}
+	if (!response.body) return new Uint8Array()
+	const reader = response.body.getReader()
+	const chunks: Uint8Array[] = []
+	let total = 0
+	for (;;) {
+		const { done, value } = await reader.read()
+		if (done) break
+		total += value.byteLength
+		if (total > cap) {
+			void reader.cancel().catch(() => {})
+			throw new PolarApiError(413)
+		}
+		chunks.push(value)
+	}
+	const bytes = new Uint8Array(total)
+	let offset = 0
+	for (const chunk of chunks) {
+		bytes.set(chunk, offset)
+		offset += chunk.byteLength
+	}
+	return bytes
+}
+
+/**
+ * Fetch one exercise's FIT and file it. Idempotent on the exercise id: a
+ * complete exercise is never downloaded again (Polar's limits count it), and
+ * one cut off part way is completed — from the kept FIT when there is one.
+ */
 export async function ingestPolarExercise(
 	athleteId: string,
 	exerciseId: string,
 ): Promise<PolarExerciseResult> {
 	const connection = await activeConnection(athleteId)
 	if (!connection) return { status: 'not-connected' }
-	// Skip the download for an exercise already held: Polar's limits count it.
-	if (await isHeld(athleteId, exerciseId)) return { status: 'already-held' }
+	const held = await heldExercise(athleteId, exerciseId)
+	if (held.status === 'complete') return { status: 'already-held' }
 
-	const response = await polarGet(
-		connection,
-		`/exercises/${encodeURIComponent(exerciseId)}/fit`,
-		'*/*',
-	)
-	if (response === 'revoked') return { status: 'revoked' }
-	if (response.status === 404 || response.status === 204) {
-		return { status: 'not-found' }
+	let bytes = held.status === 'partial' ? held.bytes : null
+	if (!bytes) {
+		const response = await polarGet(
+			connection,
+			`/exercises/${encodeURIComponent(exerciseId)}/fit`,
+			'*/*',
+		)
+		if (response === 'revoked') return { status: 'revoked' }
+		if (response.status === 404 || response.status === 204) {
+			return { status: 'not-found' }
+		}
+		if (!response.ok) throw new PolarApiError(response.status)
+		bytes = await readCappedBody(response, POLAR_MAX_FIT_BYTES)
 	}
-	if (!response.ok) throw new PolarApiError(response.status)
-	const declared = Number(response.headers.get('content-length') ?? 0)
-	if (declared > POLAR_MAX_FIT_BYTES) throw new PolarApiError(413)
-	const bytes = new Uint8Array(await response.arrayBuffer())
-	if (bytes.byteLength > POLAR_MAX_FIT_BYTES) throw new PolarApiError(413)
 
+	// Legs already held come back as transport-key duplicates; only the
+	// missing ones are filed.
 	const legs = await ingestFit(athleteId, bytes, {
 		externalProvider: POLAR_PROVIDER,
 		externalId: exerciseId,

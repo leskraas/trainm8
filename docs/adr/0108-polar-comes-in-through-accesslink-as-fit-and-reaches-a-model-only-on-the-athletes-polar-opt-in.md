@@ -25,13 +25,18 @@ row its mechanism. Not legal advice.
    exercise; the fetch always uses the athlete's own token, so a forged event
    can only cause a refetch. A sync over `GET /v3/exercises` is the backfill and
    the safety net (Polar drops a webhook after 7 days of failures). An exercise
-   already held (transport key, import or alias) is never downloaded again.
+   held in full (every leg's transport key, as an import or an alias) is never
+   downloaded again. A multisport exercise cut off after some of its legs is
+   completed on the next delivery or sync from the FIT Polar sent, kept with the
+   legs it created; only when no such copy is kept is it downloaded again.
 4. **Signature.** `Polar-Webhook-Signature` is the hex HMAC-SHA256 of the raw
    body under the `signature_secret_key` Polar returns once at webhook creation
    (`POLAR_WEBHOOK_SECRET`). It is compared in constant time before the body is
    parsed; a truncated or missing signature fails.
 5. **A 401/403 revokes the connection** and deletes nothing (ADR 0012). A FIT
-   larger than 64 MiB is refused, as for an upload (#548).
+   larger than 64 MiB is refused, as for an upload (#548): on its
+   `Content-Length` before the body is read, or while it streams once the bytes
+   read pass the cap, so an oversized body is never buffered whole.
 6. **The Polar opt-in.** ADR 0098's `polar` model rule becomes `opt-in`:
    `sourceTerms(bindingSet, 'model', { optIns })` opens Polar only when the
    athlete's **Model Sharing Opt-In** for Polar is in `optIns`, and an opt-in
@@ -61,5 +66,10 @@ follow this ADR unchanged.
 - **Deregistration on disconnect is best-effort** (when built): if
   `DELETE /v3/users/{id}` fails, trainm8 forgets the token while Polar still
   holds the grant until the athlete revokes it in Flow.
+- **No completion marker per exercise.** Completeness is read from the kept
+  Polar FIT. An exercise held only as an alias onto an import that keeps no
+  Polar file (a fuzzy match on an import that is not an auto-save mirror) cannot
+  be checked, so it is downloaded again on each sync while Polar lists it (30
+  days). One request each; a stored leg count would remove it.
 - **The opt-in record has no consent-text version or withdrawal history** until
   #549's consent records exist.
