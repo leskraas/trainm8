@@ -118,6 +118,9 @@ function on(
 					phaseBarsJson: null,
 					linkAnsweredAt: null,
 					unlinkedFromSessionId: null,
+					originPlatform: 'unknown',
+					deviceName: null,
+					aliases: [],
 				}
 			: null,
 		sessionLog: null,

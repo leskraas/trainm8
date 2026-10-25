@@ -146,6 +146,9 @@ function recording(overrides: Partial<Recording> = {}): Recording {
 		phaseBarsJson: null,
 		linkAnsweredAt: null,
 		unlinkedFromSessionId: null,
+		originPlatform: 'unknown',
+		deviceName: null,
+		aliases: [],
 		...overrides,
 	}
 }

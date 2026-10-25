@@ -1760,6 +1760,12 @@ const ledgerSessionSelect = {
 			// Angre kobling remembers the session Koble igjen puts it back on.
 			linkAnsweredAt: true,
 			unlinkedFromSessionId: true,
+			// Where it came from (ADR 0096), for the credit a row built on it
+			// owes by its title (#557, ADR 0098 §3): the Origin Platform, the
+			// device, and every alias's platform. Never the transport.
+			originPlatform: true,
+			deviceName: true,
+			aliases: { select: { originPlatform: true } },
 		},
 	},
 	sessionLog: {
