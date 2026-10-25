@@ -374,6 +374,21 @@ function parseStepIntensity(raw: string | null): IntensityTarget | null {
 	}
 }
 
+/** How many steps blocks execute — each block's steps times its repeats —
+ * without expanding them. */
+function executedStepCount(
+	blocks: ReadonlyArray<{
+		repeatCount: number
+		seriesRepeatCount?: number | null
+		steps: ReadonlyArray<unknown>
+	}>,
+): number {
+	return blocks.reduce(
+		(sum, block) => sum + blockRepeatTotal(block) * block.steps.length,
+		0,
+	)
+}
+
 /**
  * Whether the session's persisted prescription already equals the canonical
  * eased target the applier writes (`buildEasedPrescription`): endurance intent
@@ -389,6 +404,15 @@ function easedPrescriptionPersisted(
 	const eased = buildEasedPrescription(source)
 	if (!eased.blocks || !session.workout) return false
 	if (session.workout.intent !== eased.intent) return false
+	// Count the executed steps per block before expanding any: the target is a
+	// step or two, so a session whose count differs (`100 × 100 × 10 s`) is
+	// answered without walking its reps, and one whose count matches is as
+	// small as the target (#638).
+	if (
+		executedStepCount(session.workout.blocks) !==
+		executedStepCount(eased.blocks)
+	)
+		return false
 	const persisted = expandWorkoutSteps(session.workout)
 	const target = eased.blocks.flatMap((block) =>
 		Array.from({ length: blockRepeatTotal(block) }, () => block.steps).flat(),
