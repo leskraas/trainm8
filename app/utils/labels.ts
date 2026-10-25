@@ -6992,7 +6992,7 @@ export const MEG_VALIDATION_LABELS: Record<string, string> = {
 	'Username is required': 'Skriv et brukernavn.',
 	'Username is too short': 'Brukernavnet er for kort (minst 3 tegn).',
 	'Username is too long': 'Brukernavnet er for langt (høyst 20 tegn).',
-	'Username can only include letters, numbers, and underscores':
+	'Use only letters, numbers and underscores':
 		'Brukernavnet kan bare ha bokstaver, tall og understrek.',
 	'Password is required': 'Skriv et passord.',
 	'Password is too short': 'Passordet er for kort (minst 6 tegn).',

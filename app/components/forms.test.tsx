@@ -138,6 +138,36 @@ describe('forms field wrappers', () => {
 		expect(line?.className).not.toMatch(/\bp[tb]?-/)
 	})
 
+	// A reserved line holds one error, so a second one (`a.` is too short and
+	// has a dot) can't grow it; the next shows once the first is fixed. A
+	// field that reserves nothing still lists every error.
+	test('a reserved line shows only the first error', () => {
+		const errors = ['Username is too short', 'Use only letters, numbers']
+		const { rerender } = render(
+			<Field
+				labelProps={{ children: 'Username' }}
+				inputProps={{}}
+				errors={errors}
+				reserveErrorLine
+			/>,
+		)
+		const input = screen.getByRole('textbox', { name: 'Username' })
+		expect(screen.getByText('Username is too short')).toHaveAttribute(
+			'id',
+			input.getAttribute('aria-describedby'),
+		)
+		expect(screen.queryByText('Use only letters, numbers')).toBeNull()
+
+		rerender(
+			<Field
+				labelProps={{ children: 'Username' }}
+				inputProps={{}}
+				errors={errors}
+			/>,
+		)
+		expect(screen.getByText('Use only letters, numbers')).toBeInTheDocument()
+	})
+
 	// A form's own error (the server's answer) is never there while a field
 	// has one, so the last field's line holds it: no second empty line above
 	// the button. It is the form's error, not the field's, so the field is not

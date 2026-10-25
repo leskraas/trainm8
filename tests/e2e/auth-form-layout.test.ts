@@ -70,6 +70,36 @@ test('the login form holds still as errors appear and clear', async ({
 	expect(await tops(page, watched)).toEqual(still)
 })
 
+// A reserved line holds one error, and every error fits one line at 320px,
+// so two errors on a field (`a.` is too short and has a dot) or the longest
+// one alone never grow it on the narrowest phone.
+test('two errors on one field move nothing at 320px', async ({
+	page,
+	navigate,
+}) => {
+	test.setTimeout(120_000)
+	await page.setViewportSize({ width: 320, height: 844 })
+	await navigate('/login')
+	await waitForHydration(page)
+
+	const main = page.getByRole('main')
+	const username = main.getByRole('textbox', { name: /^username/i })
+	const password = main.getByLabel(/^password/i)
+	const submit = main.getByRole('button', { name: /^log in$/i })
+	const watched = [password, submit]
+	const still = await tops(page, watched)
+
+	await username.fill('a.')
+	await submit.click()
+	await expect(main.getByText('Username is too short')).toBeVisible()
+	expect(await tops(page, watched)).toEqual(still)
+
+	// Fixed in length, the dot is the error left, on the same line.
+	await username.pressSequentially('bc')
+	await expect(main.getByText(/^Use only letters/)).toBeVisible()
+	expect(await tops(page, watched)).toEqual(still)
+})
+
 /** The space between two controls, top of `below` less bottom of `above`. */
 async function gap(above: Locator, below: Locator) {
 	const a = await above.boundingBox()

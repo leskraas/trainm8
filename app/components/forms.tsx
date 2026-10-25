@@ -46,8 +46,13 @@ const ERROR_TEXT = 'text-footnote text-foreground-destructive'
  * One error line's height, kept whether an error shows or not, where a form
  * revalidates as the athlete types (the auth forms): an error that appears on
  * submit, or clears as the field is fixed, then never moves the fields below
- * it or the submit button under the thumb. A long error wrapping on a narrow
- * phone, or text at 200%, still grows it.
+ * it or the submit button under the thumb.
+ *
+ * It holds one error: the first, and the next once that is fixed, as a
+ * native form names one problem at a time. Every auth error fits one line on
+ * a 320px phone (the longest, "No user exists with this username or email",
+ * is 255px of the 288px there); only text set larger than the default, or a
+ * longer message, wraps and grows it.
  *
  * The line is the field's spacing, not added to it: no padding of its own
  * (the field content's 4px gap sits above it) and none under the field, so
@@ -70,6 +75,7 @@ function InlineFieldErrors({
 	reserveErrorLine?: boolean
 }) {
 	if (!errors.length && !reserveErrorLine) return null
+	const shown = reserveErrorLine ? errors.slice(0, 1) : errors
 
 	return (
 		<div
@@ -77,7 +83,7 @@ function InlineFieldErrors({
 			// The reserved line stays mounted, so it can announce what fills it.
 			aria-live={reserveErrorLine ? 'polite' : undefined}
 		>
-			{errors.map((error, index) => (
+			{shown.map((error, index) => (
 				<FieldDescription
 					key={`${error}-${index}`}
 					id={index === 0 ? errorId : undefined}

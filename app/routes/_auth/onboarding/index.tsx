@@ -33,8 +33,7 @@ const SignupFormSchema = z
 		username: UsernameSchema,
 		name: NameSchema,
 		agreeToTermsOfServiceAndPrivacyPolicy: z.boolean({
-			required_error:
-				'You must agree to the terms of service and privacy policy',
+			required_error: 'Agree to the terms to continue',
 		}),
 		remember: z.boolean().optional(),
 		redirectTo: z.string().optional(),
