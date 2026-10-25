@@ -1,6 +1,5 @@
 import { RECONCILE_OVERLAP_MS } from '#app/integrations/reconcile-sweep.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { rethrowDeferral } from '#app/utils/jobs/queue.server.ts'
 import {
 	fetchStravaActivitiesAfter,
 	fileActivitiesWithAutoSave,
@@ -59,14 +58,11 @@ export async function runStravaReconciliation(
 	// Detection for what this sweep filed, and for any import in the overlap
 	// still missing its stream. A spent budget defers the job before the
 	// watermark moves, and the rerun picks up where this one stopped.
-	try {
-		await ingestActivityStreams(connection, activities)
-	} catch (err) {
-		// Filing activities this run counts as progress against the queue's
-		// deferral cap (#638).
-		rethrowDeferral(err, { progressed: created > 0 })
-		throw err
-	}
+	// Filing activities this run counts as progress against the queue's
+	// deferral cap (#638).
+	await ingestActivityStreams(connection, activities, 'bulk', {
+		progressed: created > 0,
+	})
 
 	// Advance the watermark forward-only: the 48h overlap reaches back before
 	// `lastSyncedAt`, so a sweep that only finds older activities must not pull it

@@ -108,19 +108,32 @@ export class DeferJob extends Error {
 	}
 }
 
+/** What `bestEffort` hands back: the value, or the error it swallowed. */
+export type BestEffortResult<T> =
+	| { ok: true; value: T }
+	| { ok: false; error: unknown }
+
 /**
- * For a best-effort `catch` that swallows what it catches: pass a deferral on
- * to the queue, so a spent budget pauses the job instead of skipping the rest
- * of its work. `progressed` marks the deferral when the caller settled work
- * before it; progress a deeper call already recorded is kept.
+ * Run a best-effort step, one that must not abort the work around it: an
+ * error comes back as `{ ok: false, error }` for the caller to narrow, log or
+ * ignore. A deferral is the exception, passed on to the queue, so a spent
+ * budget pauses the job instead of skipping the rest of its work.
+ * `progressed` marks the deferral when the caller settled work before this
+ * step; progress a deeper call already recorded is kept.
  */
-export function rethrowDeferral(
-	err: unknown,
+export async function bestEffort<T>(
+	step: () => Promise<T>,
 	{ progressed = false }: { progressed?: boolean } = {},
-): void {
-	if (!(err instanceof DeferJob)) return
-	if (progressed) err.markProgressed()
-	throw err
+): Promise<BestEffortResult<T>> {
+	try {
+		return { ok: true, value: await step() }
+	} catch (error) {
+		if (error instanceof DeferJob) {
+			if (progressed) error.markProgressed()
+			throw error
+		}
+		return { ok: false, error }
+	}
 }
 
 /** A handler runs one job kind. It receives the job's parsed JSON payload. */

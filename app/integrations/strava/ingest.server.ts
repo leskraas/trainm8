@@ -11,7 +11,7 @@ import {
 	persistActivityLaps,
 } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { rethrowDeferral } from '#app/utils/jobs/queue.server.ts'
+import { bestEffort } from '#app/utils/jobs/queue.server.ts'
 import { type Lap } from '#app/utils/structure-detection/types.ts'
 import { stravaApiGet } from './client.server.ts'
 import { stravaTypeToDiscipline } from './discipline-map.ts'
@@ -323,7 +323,9 @@ export async function ingestActivityLaps(
 	activityStartMs?: number,
 	lane: RateLimitLane = 'bulk',
 ): Promise<void> {
-	try {
+	// Laps are a refinement; a failure must never abort the enclosing ingest.
+	// A spent Strava budget is not a failure: the job waits for it (#637).
+	await bestEffort(async () => {
 		const laps = await fetchStravaActivityLaps(connection, externalId, lane)
 		if (!laps) return
 		const markers = stravaLapsToMarkers(laps, {
@@ -331,11 +333,7 @@ export async function ingestActivityLaps(
 			activityStartMs,
 		})
 		if (markers.length > 0) await persistActivityLaps(activityImportId, markers)
-	} catch (err) {
-		// Laps are a refinement; a failure must never abort the enclosing ingest.
-		// A spent Strava budget is not a failure: the job waits for it (#637).
-		rethrowDeferral(err)
-	}
+	})
 }
 
 /**
@@ -348,78 +346,85 @@ export async function ingestActivityLaps(
  * An activity with no usable streams persists nothing but `streamsCheckedAt`,
  * and is skipped from then on too. Never throws —
  * telemetry is an enrichment, never load-bearing for a sync's success — except
- * `DeferJob` when Strava's budget is spent, so the job resumes later. `lane`
- * is the rate-limit lane its Strava calls are paced in.
+ * a `DeferJob` when Strava's budget is spent, so the job resumes later. `lane`
+ * is the rate-limit lane its Strava calls are paced in. `progressed` says the
+ * caller already settled work this run (filed activities, say), so a deferral
+ * counts as progress against the queue's deferral cap (#638).
  */
 export async function ingestActivityStreams(
 	connection: ConnectionRef & { athleteId: string },
 	activities: StravaActivity[],
 	lane: RateLimitLane = 'bulk',
+	{ progressed = false }: { progressed?: boolean } = {},
 ): Promise<void> {
-	// Whether this pass settled any activity, so a deferral says it made
-	// progress and the queue's deferral cap doesn't dead-letter it (#638).
-	let progressed = false
 	for (const activity of activities) {
-		const discipline = stravaTypeToDiscipline(
-			activity.sport_type ?? activity.type ?? '',
+		// One activity's stream failing (fetch error, or a concurrent trigger
+		// that already inserted the row) must not abort the rest. A spent
+		// Strava budget would fail every one of them, so the job waits instead.
+		const result = await bestEffort(
+			() => ingestActivityStream(connection, activity, lane),
+			{ progressed },
 		)
-		if (discipline === 'other') continue
-
-		try {
-			const existing = await prisma.activityImport.findUnique({
-				where: {
-					athleteId_externalProvider_externalId: {
-						athleteId: connection.athleteId,
-						externalProvider: STRAVA_PROVIDER,
-						externalId: activity.id,
-					},
-				},
-				select: {
-					id: true,
-					streamsCheckedAt: true,
-					stream: { select: { id: true } },
-				},
-			})
-			if (!existing || existing.stream || existing.streamsCheckedAt) continue
-
-			const raw = await fetchStravaActivityStreams(
-				connection,
-				activity.id,
-				lane,
-			)
-			if (!raw) {
-				await markStreamsChecked(existing.id)
-				progressed = true
-				continue
-			}
-			// Provider laps first (#356): ground-truth edges for the lap-edged path,
-			// persisted before the stream so any detection reads them on first compute.
-			await ingestActivityLaps(
-				connection,
-				activity.id,
-				existing.id,
-				raw.time,
-				new Date(activity.start_date).getTime(),
-				lane,
-			)
-			// The shared enrichment (#611): stream, HR phase bars and the detection
-			// enqueue, all from this one streams call.
-			await enrichImportTelemetry(
-				connection.athleteId,
-				existing.id,
-				discipline,
-				raw,
-			)
-			// A stream too short to keep is as good as none.
-			await markStreamsChecked(existing.id)
-			progressed = true
-		} catch (err) {
-			// One activity's stream failing (fetch error, or a concurrent trigger
-			// that already inserted the row) must not abort the rest. A spent
-			// Strava budget would fail every one of them, so the job waits instead.
-			rethrowDeferral(err, { progressed })
-		}
+		if (result.ok && result.value) progressed = true
 	}
+}
+
+/**
+ * One activity of `ingestActivityStreams`. Returns whether it settled the
+ * import (a stream, or `streamsCheckedAt`), which is progress for the job.
+ */
+async function ingestActivityStream(
+	connection: ConnectionRef & { athleteId: string },
+	activity: StravaActivity,
+	lane: RateLimitLane,
+): Promise<boolean> {
+	const discipline = stravaTypeToDiscipline(
+		activity.sport_type ?? activity.type ?? '',
+	)
+	if (discipline === 'other') return false
+
+	const existing = await prisma.activityImport.findUnique({
+		where: {
+			athleteId_externalProvider_externalId: {
+				athleteId: connection.athleteId,
+				externalProvider: STRAVA_PROVIDER,
+				externalId: activity.id,
+			},
+		},
+		select: {
+			id: true,
+			streamsCheckedAt: true,
+			stream: { select: { id: true } },
+		},
+	})
+	if (!existing || existing.stream || existing.streamsCheckedAt) return false
+
+	const raw = await fetchStravaActivityStreams(connection, activity.id, lane)
+	if (!raw) {
+		await markStreamsChecked(existing.id)
+		return true
+	}
+	// Provider laps first (#356): ground-truth edges for the lap-edged path,
+	// persisted before the stream so any detection reads them on first compute.
+	await ingestActivityLaps(
+		connection,
+		activity.id,
+		existing.id,
+		raw.time,
+		new Date(activity.start_date).getTime(),
+		lane,
+	)
+	// The shared enrichment (#611): stream, HR phase bars and the detection
+	// enqueue, all from this one streams call.
+	await enrichImportTelemetry(
+		connection.athleteId,
+		existing.id,
+		discipline,
+		raw,
+	)
+	// A stream too short to keep is as good as none.
+	await markStreamsChecked(existing.id)
+	return true
 }
 
 /**

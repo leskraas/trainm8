@@ -6,7 +6,6 @@ import {
 import { fileActivityImport } from '#app/integrations/shared/file-activity-import.server.ts'
 import { autoSaveImport } from '#app/utils/activity-import.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { rethrowDeferral } from '#app/utils/jobs/queue.server.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
 import { StravaConnectionRevokedError } from './client.server.ts'
 import {
@@ -145,14 +144,11 @@ export async function runStravaBackfill(
 	// unmodeled activities, ADR 0015), imports already carrying a stream
 	// (idempotent), and activities with no usable telemetry. Each fetch is paced by the shared Strava rate limiter,
 	// so backfilling streams stays within the per-app budget (ADR 0013).
-	try {
-		await ingestActivityStreams(connection, keptActivities)
-	} catch (err) {
-		// A spent budget defers the job; filing activities this run counts as
-		// progress against the queue's deferral cap (#638).
-		rethrowDeferral(err, { progressed: created > 0 || promoted > 0 })
-		throw err
-	}
+	// A spent budget defers the job; filing activities this run counts as
+	// progress against the queue's deferral cap (#638).
+	await ingestActivityStreams(connection, keptActivities, 'bulk', {
+		progressed: created > 0 || promoted > 0,
+	})
 
 	await prisma.accountConnection.update({
 		where: { id: connection.id },

@@ -1,13 +1,13 @@
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	bestEffort,
 	claimNextJob,
 	completeJob,
 	DeferJob,
 	enqueueJob,
 	failJob,
 	processNextJob,
-	rethrowDeferral,
 } from './queue.server.ts'
 
 test('enqueued job can be claimed once', async () => {
@@ -179,33 +179,33 @@ test('past the cap, a deferral that made progress still gives its attempt back',
 	expect(row.runAt.getTime()).toBe(until.getTime())
 })
 
-test('rethrowDeferral marks a deferral as progressed when the caller did work', () => {
-	const deferral = new DeferJob(new Date(), 'Strava read budget spent')
+test('bestEffort hands back the value, or the error it swallowed', async () => {
+	expect(await bestEffort(async () => 42)).toEqual({ ok: true, value: 42 })
 
-	let thrown: unknown
-	try {
-		rethrowDeferral(deferral, { progressed: true })
-	} catch (e) {
-		thrown = e
+	const failure = new Error('one activity failed')
+	const result = await bestEffort(async () => {
+		throw failure
+	})
+	expect(result).toEqual({ ok: false, error: failure })
+})
+
+test('bestEffort passes a deferral on, marked when the caller did work', async () => {
+	const deferral = new DeferJob(new Date(), 'Strava read budget spent')
+	const defer = async () => {
+		throw deferral
 	}
+
+	await expect(bestEffort(defer)).rejects.toBe(deferral)
+	expect(deferral.progressed).toBe(false)
+
 	// The same error, marked: a subclass a request path catches by name (a
 	// Strava rate limit) must stay that subclass.
-	expect(thrown).toBe(deferral)
+	await expect(bestEffort(defer, { progressed: true })).rejects.toBe(deferral)
 	expect(deferral.progressed).toBe(true)
 
 	// Progress recorded deeper down is never lost by a caller that did none.
-	const progressed = new DeferJob(new Date(), 'spent', { progressed: true })
-	expect(() => rethrowDeferral(progressed, { progressed: false })).toThrow(
-		progressed,
-	)
-})
-
-test('rethrowDeferral passes a deferral on and lets any other error be swallowed', () => {
-	const deferral = new DeferJob(new Date(), 'Strava read budget spent')
-
-	expect(() => rethrowDeferral(deferral)).toThrow(deferral)
-	expect(() => rethrowDeferral(new Error('one activity failed'))).not.toThrow()
-	expect(() => rethrowDeferral('not even an error')).not.toThrow()
+	await expect(bestEffort(defer, { progressed: false })).rejects.toBe(deferral)
+	expect(deferral.progressed).toBe(true)
 })
 
 test('a job with no registered handler fails rather than spinning', async () => {

@@ -49,8 +49,9 @@
 > starts over, so everything a job does must be idempotent: imports dedupe on
 > their key, and an import whose streams Strava answered with nothing usable
 > carries `streamsCheckedAt`, so neither a rerun nor a webhook redelivery asks
-> again. A best-effort `catch` on these paths passes a deferral on with
-> `rethrowDeferral(err, { progressed })` instead of swallowing it.
+> again. A best-effort step on these paths runs through
+> `bestEffort(step, { progressed })`, which hands back any other error for the
+> caller to narrow or log but passes a deferral on instead of swallowing it.
 
 For the Strava integration (and future Garmin/Polar integrations), trainm8 needs
 to decide how new activities flow from the source provider into our **Activity
