@@ -2,7 +2,7 @@
 
 Status: Accepted (agent decision on delegated issues #473 and #472, 2026-10-24).
 §1–§2 are built, and the preview states what §2 did; §3–§4 are decided and **not
-yet built**. The owner should confirm each item under "Open for the owner".
+yet built**. The owner confirmed §1–§2 on 2026-10-25; §3–§4 stay open below.
 
 **Amends**
 [ADR 0053](./0053-season-generation-is-deterministic-behind-the-seam.md) §6 by
@@ -83,10 +83,11 @@ shortens a cited session to make the week fit.
 
 ## Open for the owner
 
-- **Proposed, owner to confirm:** lowering the anchor, rather than warning, even
-  where the athlete typed the anchor themselves.
-- **Proposed, owner to confirm:** one common factor across tracks, rather than
-  lowering the largest track first.
+- **Confirmed by the owner on 2026-10-25:** lowering the anchor, rather than
+  warning, even where the athlete typed the anchor themselves. The preview names
+  the change before anything is saved, so the athlete still decides.
+- **Confirmed by the owner on 2026-10-25:** one common factor across tracks,
+  rather than lowering the largest track first. It keeps the athlete's mix.
 - **Proposed, owner to confirm:** §3 and §4, which are not yet built.
 
 ## Deferred hardening
