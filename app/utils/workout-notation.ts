@@ -721,8 +721,8 @@ const UNRESOLVED_RANGE = {
  * Adapt the shared normalized notation input (from either adapter, but used for
  * the *draft* form values) into the persisted `Workout` row shape the Workout
  * Shape pipeline expects, so the editor can feed the draft through the exact
- * same `expandWorkoutSteps` / `deriveSessionProfile` derivation the detail view
- * and ledger use — one shape everywhere, no duplicated zone/duration logic.
+ * same `deriveSessionProfile` derivation (`workoutReps`) the detail view and
+ * ledger use — one shape everywhere, no duplicated zone/duration logic.
  *
  * Pure and total: authored intensity re-serializes to the JSON string
  * `stepToZone` parses; `intent`/`discipline` seed the intent-fallback zone
