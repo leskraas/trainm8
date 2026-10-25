@@ -166,14 +166,14 @@ test('lap boundaries are captured as ordered markers with trigger + distance', (
 	const laps = JSON.parse(activity.lapsJson!) as TcxLapMarker[]
 	expect(laps).toEqual([
 		{
-			startOffsetSec: 0,
-			durationSec: 600,
+			startSec: 0,
+			endSec: 600,
 			distanceM: 2000,
 			trigger: 'Distance',
 		},
 		{
-			startOffsetSec: 600,
-			durationSec: 300,
+			startSec: 600,
+			endSec: 900,
 			distanceM: 1000,
 			trigger: 'Manual',
 		},

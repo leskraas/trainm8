@@ -320,7 +320,7 @@ export async function homeTimelineAction({ request }: { request: Request }) {
 
 	/**
 	 * **The Day Stamp** (ADR 0065 §5): the composer's empty state —
-	 * `Legg til 45 min Z2` — commits a real session on that date. The date is
+	 * `Legg til 45 min rolig` — commits a real session on that date. The date is
 	 * the day the composer is on and the discipline is the chip — both travel
 	 * with the post, because neither may be decided here.
 	 *

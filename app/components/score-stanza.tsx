@@ -120,7 +120,8 @@ function StanzaLine({
 		<div
 			data-stanza-line
 			className={cn(
-				'border-border/70 grid grid-cols-[3rem_1fr] items-baseline gap-x-2.5 border-b py-2.5 last:border-b-0 min-[520px]:grid-cols-[4rem_1fr]',
+				// The gutter grows past its rem for a series badge (`3 × 13×`).
+				'border-border/70 grid grid-cols-[minmax(3rem,max-content)_1fr] items-baseline gap-x-2.5 border-b py-2.5 last:border-b-0 min-[520px]:grid-cols-[minmax(4rem,max-content)_1fr]',
 				className,
 			)}
 			{...props}
@@ -133,9 +134,10 @@ function StanzaLine({
 					<Wrapped token={block.repeat} renderToken={renderToken}>
 						<span
 							data-token-type="repeat"
-							className="bg-muted text-muted-foreground rounded-lg px-1.5 py-0.5 text-xs font-bold tabular-nums"
+							className="bg-muted text-muted-foreground rounded-lg px-1.5 py-0.5 text-xs font-bold whitespace-nowrap tabular-nums"
 						>
-							{block.repeat.count}
+							{/* The text, not the count: a block in series reads `3 × 13`. */}
+							{block.repeat.text}
 							{NOTATION_SEPARATORS.repeat}
 						</span>
 					</Wrapped>
@@ -298,12 +300,23 @@ function IntensityChip({
 	)
 }
 
-/** A rest token split into its value and word inks: `1 min` weighs, `rest` recedes. */
-function restParts(text: string): { value: string | null; word: string } {
-	const match = /^(.*)\s+rest$/.exec(text)
-	return match
-		? { value: match[1]!, word: 'rest' }
-		: { value: null, word: text }
+/** A rest token split into its value and word inks: `1 min` weighs, `pause`
+ * (ADR 0089) recedes, and so do `rolig`, `på` and `til puls <`. The value is
+ * the one the notation's word builder placed, so no word is matched here. */
+function restParts(token: Extract<NotationToken, { type: 'rest' }>): {
+	before: string
+	value: string | null
+	after: string
+} {
+	const at = token.value ? token.text.indexOf(token.value) : -1
+	if (!token.value || at < 0) {
+		return { before: token.text, value: null, after: '' }
+	}
+	return {
+		before: token.text.slice(0, at),
+		value: token.value,
+		after: token.text.slice(at + token.value.length),
+	}
 }
 
 function Token({ token }: { token: NotationToken }) {
@@ -314,26 +327,25 @@ function Token({ token }: { token: NotationToken }) {
 			return (
 				<span
 					data-token-type="notes"
-					className="text-muted-foreground min-w-0 whitespace-normal italic [overflow-wrap:anywhere]"
+					className="text-muted-foreground min-w-0 [overflow-wrap:anywhere] whitespace-normal italic"
 				>
 					“{token.note}”
 				</span>
 			)
 		case 'rest': {
-			const { value, word } = restParts(token.text)
+			const { before, value, after } = restParts(token)
 			return (
 				<span
 					data-token-type="rest"
 					className="text-muted-foreground whitespace-nowrap"
 				>
+					{before}
 					{value ? (
-						<>
-							<span className="text-foreground font-semibold tabular-nums">
-								{value}
-							</span>{' '}
-						</>
+						<span className="text-foreground font-semibold tabular-nums">
+							{value}
+						</span>
 					) : null}
-					{word}
+					{after}
 				</span>
 			)
 		}

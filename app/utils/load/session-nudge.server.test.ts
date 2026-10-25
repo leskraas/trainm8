@@ -328,11 +328,12 @@ test('an unresolvable endurance zone eases the prescription but leaves Planned T
 	await applySessionNudgeForUser(user.id, NOW)
 
 	const after = await readPrescription(session.id)
-	// Still eased to the canonical single Z2 endurance block…
+	// Still eased to the single zone-2 endurance block, stored as the zone's
+	// word since there is no recipe band to name (#627)…
 	expect(after.workout!.blocks).toHaveLength(1)
 	expect(JSON.parse(after.workout!.blocks[0]!.steps[0]!.intensity!)).toEqual({
 		kind: 'zoneLabel',
-		label: 'Z2',
+		label: 'rolig',
 	})
 	// …but Planned TSS is honestly Unavailable — never a fabricated number.
 	expect(after.plannedTssValue).toBeNull()

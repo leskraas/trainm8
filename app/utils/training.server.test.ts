@@ -13,6 +13,7 @@ import {
 	getSessionLedger,
 	getUpcomingSessions,
 } from './training.server.ts'
+import { resolveIntensity } from './zones/resolve.ts'
 
 async function createUserWithPassword() {
 	const userData = createUser()
@@ -2459,6 +2460,38 @@ test('getDisciplineThresholds keys each discipline profile by discipline', async
 	})
 	expect(thresholds.bike).toMatchObject({ ftp: 250 })
 	expect(thresholds.swim).toBeUndefined()
+})
+
+test('getDisciplineThresholds hands each discipline its race anchor paces, so a race-pace step resolves', async () => {
+	const user = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.id,
+			timezone: 'UTC',
+			disciplineProfiles: {
+				create: [{ discipline: 'run' }, { discipline: 'bike', ftp: 250 }],
+			},
+			performanceResults: {
+				create: [
+					// A 40:00 10k is 4:00/km.
+					{
+						discipline: 'run',
+						distanceM: 10_000,
+						timeSec: 2400,
+						occurredAt: daysAgo(30),
+						source: 'race',
+					},
+				],
+			},
+		},
+	})
+
+	const thresholds = await getDisciplineThresholds(user.id)
+	expect(thresholds.run?.raceAnchorPaces).toEqual({ '10k': 240 })
+	expect(thresholds.bike?.raceAnchorPaces).toEqual({})
+	expect(
+		resolveIntensity({ kind: 'racePace', event: '10k' }, thresholds.run!),
+	).toEqual({ paceMin: 240, paceMax: 240, approximate: true })
 })
 
 test('getDisciplineThresholds is empty for an athlete with no profile', async () => {

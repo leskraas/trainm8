@@ -12,6 +12,39 @@
 > ([ADR 0096](./0096-every-import-records-its-origin-platform-and-one-activity-is-one-row.md)
 > §5).
 
+> **Amended (#637): Strava's budget is 100 reads per 15 minutes and 1,000 per
+> day, not 600 per 15 minutes.** Strava's rate-limit page
+> (developers.strava.com/docs/rate-limits, checked 2026-10-24) gives each app
+> 200 requests per 15 minutes and 2,000 per day overall, and 100 per 15 minutes
+> and 1,000 per day for reads (non-upload). Every call trainm8 makes is a read,
+> so the read limits bind. The 15-minute windows reset at :00, :15, :30 and :45;
+> the day resets at midnight UTC. The figures below are corrected. The shared
+> limiter (`app/integrations/strava/rate-limit.ts`) now counts both windows as
+> Strava does, keeps a fifth of each for live webhook fetches so bulk work
+> (sync, backfill, reconciliation) can't starve them, and follows Strava's
+> `X-ReadRateLimit-*` (else `X-RateLimit-*`) headers. It never waits: see the
+> deferral amendment below (#638).
+
+> **Amended (#638): a job has a third outcome, deferral.** Besides completing
+> and failing, a handler can throw `DeferJob(until)`
+> (`app/utils/jobs/queue.server.ts`). The job goes back to `pending` with
+> `runAt = until`, and the attempt its claim counted is given back, since
+> waiting for a budget is not a failure. Once the job is older than 7 days (its
+> own `createdAt`), a deferral keeps the attempt, so a job that keeps deferring
+> dead-letters after `maxAttempts`. The Strava limiter never sleeps: any request
+> that would have to wait, bulk or live, throws `DeferJob` for the moment the
+> full window resets (the next quarter-hour of 100 reads, of which bulk may use
+> 80, or midnight UTC for the day's 1,000, of which bulk may use 800), and a
+> `429` marks the window spent and defers the same way. Sleeping would hold the
+> single worker, or the request. The request paths that call Strava, the OAuth
+> callback's `/athlete` fallback and manual sync, can't be deferred: they answer
+> at once and tell the athlete when to try again. A rerun starts over, so
+> everything a job does must be idempotent: imports dedupe on their key, and an
+> import whose streams Strava answered with nothing usable carries
+> `streamsCheckedAt`, so neither a rerun nor a webhook redelivery asks again. A
+> best-effort `catch` on these paths passes a deferral on with
+> `rethrowDeferral(err)` instead of swallowing it.
+
 For the Strava integration (and future Garmin/Polar integrations), trainm8 needs
 to decide how new activities flow from the source provider into our **Activity
 Import** inbox. The trigger model determines whether we need a public webhook
@@ -45,8 +78,8 @@ All three layers feed the same job queue and the same downstream pipeline (fetch
   shipping a webhook layer later would force a parallel infrastructure rewrite.
 - **Polling only (every 15–30 min)**: Rejected — wastes the provider's per-app
   rate budget on athletes who haven't trained today, and adds 30 minutes of lag
-  for athletes who have. With Strava's 600/15min cap shared across all Account
-  Connections, frequent polling does not scale.
+  for athletes who have. With Strava's 100/15min, 1,000/day read cap shared
+  across all Account Connections, frequent polling does not scale.
 - **Webhook only (no reconciliation)**: Rejected — webhooks are not durable.
   Strava retries a small number of times and gives up. A 10-minute outage can
   silently drop activities across all athletes. Reconciliation is the safety
@@ -71,7 +104,8 @@ All three layers feed the same job queue and the same downstream pipeline (fetch
   optional for end-to-end webhook testing.
 - Strava webhooks carry only `{ object_id, owner_id, aspect_type }`. Each event
   triggers a follow-up `GET /activities/:id` call that costs a slot in the
-  per-app 600/15min rate budget. Budgeting / backoff is the worker's job.
+  per-app read budget (100/15min, 1,000/day). The shared rate limiter does the
+  budgeting; a spent budget defers the job (see the #638 note at the top).
 - `Account Connection.lastSyncedAt` is updated by all three triggers and is the
   high-water mark used by manual sync and reconciliation.
 - The same queue and the same pipeline serve **Backfill Window** jobs on initial
@@ -105,12 +139,14 @@ ADR committed to, so the implementation choice is recorded here.
   `failJob`, which either returns the job to `pending` with `runAt` pushed out
   by exponential backoff (`1s * 2^attempts`) or, once `maxAttempts` is reached,
   marks it terminally `failed`. A job with no registered handler fails rather
-  than spinning.
+  than spinning. A handler that throws `DeferJob` is rescheduled instead (#638,
+  see the note at the top).
 - **Concurrency = 1, by design.** The worker drains jobs sequentially. This is
   what makes multiple concurrent backfills _queue_ behind one another instead of
   hammering Strava's per-app budget all at once. Within the budget, a shared
-  sliding-window rate limiter (600 req / 15 min) paces the activity fetches so
-  throttling delays requests rather than dropping activities.
+  rate limiter (100 reads / 15 min, 1,000 / day) paces the activity fetches:
+  past it the job is deferred, so throttling delays requests rather than
+  dropping activities.
 - **Backfill specifics.** `strava-backfill` fetches the 42-day window, files
   `ActivityImport` rows (idempotent via the unique `(provider, externalId)`
   guard), auto-promotes unmatched modeled-discipline imports to recording-only
@@ -140,6 +176,9 @@ trigger feeding the same queue and pipeline.
   so late edits and events that landed just before the watermark advanced are
   still caught. Deduplication relies on the unique `(provider, externalId)`
   guard — duplicate inserts are no-ops, so re-runs never double-import.
+- **Same telemetry as sync (#638).** What the sweep files gets the same streams
+  ingest as manual sync (stream, HR phase bars, Structure Detection), before the
+  watermark moves.
 - **Forward-only watermark.** `lastSyncedAt` advances to the latest fetched
   activity time but never regresses (the overlap reaches back before the
   watermark); a sweep that finds only older activities leaves it untouched.
@@ -208,10 +247,13 @@ spirit as the reconciliation cadence (#77).
 - **Eager enrichment stays eager, scoped to the kept set.** Phase bars and
   Activity Streams are still ingested during backfill (not deferred to read
   time), but over the count-bounded kept set rather than an open-ended window.
-  At the target (~50 workouts) that is ~50–100 Strava requests — comfortably
-  inside the per-app 600/15min budget (ADR 0013), paced by the shared limiter.
-  This keeps phase bars populated for the **Session Ledger** list (which reads
-  `ActivityImport.phaseBarsJson`), so a count-based window does not regress it.
+  At the target (~50 workouts) that is ~100 Strava requests (a streams and a
+  laps call per workout) — more than the 80 a bulk job may use in one 15-minute
+  window, so the job is deferred to the next quarter-hour and finishes then,
+  skipping what it already has, well inside the 1,000/day read budget (#637,
+  #638). This keeps phase bars populated for the **Session Ledger** list (which
+  reads `ActivityImport.phaseBarsJson`), so a count-based window does not
+  regress it.
 - **Deferring telemetry to read time was considered and rejected — for now.**
   Lazy, on-detail-view stream fetches would decouple cost from window size, but
   (a) they aren't needed while the count target bounds eager work, (b) a

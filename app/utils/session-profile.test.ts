@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest'
-import { deriveRepeatGroups, deriveSessionProfile } from './session-profile.ts'
+import {
+	deriveRepeatGroups,
+	deriveSessionProfile,
+	intensityTargetToZone,
+} from './session-profile.ts'
 import { type LedgerSession } from './training.server.ts'
 
 type Workout = NonNullable<LedgerSession['workout']>
@@ -79,7 +83,7 @@ test('maps the legacy intensity vocabulary to zones', () => {
 		),
 	)
 
-	expect(bars.map((b) => b.zone)).toEqual([1, 2, 3, 4, 5])
+	expect(bars.map((b) => b.zone)).toEqual([2, 2, 3, 4, 5])
 })
 
 test('maps structured zoneLabel targets (Z1–Z7) to zones, clamping above Z5', () => {
@@ -101,6 +105,13 @@ test('maps structured zoneLabel targets (Z1–Z7) to zones, clamping above Z5', 
 	)
 
 	expect(bars.map((b) => b.zone)).toEqual([3, 5])
+})
+
+test('maps recipe band labels (Daniels, Norwegian threshold, OLT) to their declared zones', () => {
+	const labels = ['E', 'M', 'sub-T', 'T', 'I', 'I-1', 'I-3', 'I-5']
+	expect(
+		labels.map((label) => intensityTargetToZone({ kind: 'zoneLabel', label })),
+	).toEqual([2, 3, 4, 4, 5, 1, 3, 5])
 })
 
 test('maps RPE and %FTP power targets to zones', () => {
@@ -192,7 +203,7 @@ test('expands block repetition and carries step duration as bar weight', () => {
 	)
 
 	expect(bars).toHaveLength(6)
-	expect(bars.map((b) => b.zone)).toEqual([4, 1, 4, 1, 4, 1])
+	expect(bars.map((b) => b.zone)).toEqual([4, 2, 4, 2, 4, 2])
 	expect(bars.map((b) => b.durationSec)).toEqual([180, 60, 180, 60, 180, 60])
 })
 
@@ -305,4 +316,22 @@ test('the Workout Shape expands both repeat levels into bars', () => {
 	// 3 series x 13 reps x 2 steps = 78 bars under one bracket labelled x 39.
 	expect(profile.bars).toHaveLength(78)
 	expect(profile.groups).toEqual([{ startIndex: 0, span: 78, repeatCount: 39 }])
+})
+
+test('a block too long to draw rep by rep is drawn once, at its full time', () => {
+	// 100 × 100 reps of 10 s would be 20,000 bars, far past any screen's pixels.
+	const [block] = oneBlock([
+		cardioStep({ id: 'on', intensity: 'threshold', durationSec: 10 }),
+		cardioStep({ id: 'off', intensity: 'recovery', durationSec: 10 }),
+	])
+	const workout = workoutWithBlocks([
+		{ ...block!, repeatCount: 100, seriesRepeatCount: 100 },
+	])
+
+	const { bars, groups } = deriveSessionProfile(workout)
+
+	expect(bars.map((b) => b.id)).toEqual(['on', 'off'])
+	// Width is time, so each bar carries all its reps' time.
+	expect(bars.map((b) => b.durationSec)).toEqual([100_000, 100_000])
+	expect(groups).toEqual([{ startIndex: 0, span: 2, repeatCount: 10_000 }])
 })

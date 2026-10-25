@@ -165,18 +165,48 @@ function cardOf<K extends CalmCard['kind']>(
 test("the today card names today's session: name, activity, duration, effort word and one sentence", () => {
 	const { view } = calm([
 		session('today', '2030-01-02T07:00:00Z', {
-			title: 'Rolig løpetur',
+			title: 'Løpetur',
 			minutes: 50,
 		}),
 	])
 
 	const card = cardOf(view.card, 'session')
-	expect(card.session.title).toBe('Rolig løpetur')
+	expect(card.session.title).toBe('Løpetur')
 	expect(card.session.disciplineLabel).toBe('Løping')
 	expect(card.session.durationLabel).toBe('50 min')
 	expect(card.session.effortLabel).toBe('rolig')
 	expect(card.sentence).toBe('Rolig hele veien. Du skal kunne prate.')
 	expect(card.session.markDone).not.toBeNull()
+})
+
+// One intensity in one word (#638): a title that already says how hard does
+// not get the Effort Word again beside it, in a word of its own (`middels`
+// beside `45 min moderat`). The sentence still reads the effort.
+test.each([
+	['Rolig løpetur', 'endurance'],
+	['45 min moderat', 'tempo'],
+	['45 min Moderat', 'tempo'],
+	['4 × 6 min terskel', 'threshold'],
+])(
+	'a title that says its effort (%s) drops the effort pill',
+	(title, intent) => {
+		const { view } = calm([
+			session('today', '2030-01-02T07:00:00Z', { title, intent }),
+		])
+		const card = cardOf(view.card, 'session')
+		expect(card.session.effort).not.toBeNull()
+		expect(card.session.effortLabel).toBeNull()
+	},
+)
+
+test('a title that names another effort keeps the pill', () => {
+	const { view } = calm([
+		session('today', '2030-01-02T07:00:00Z', {
+			title: 'Rolig løpetur',
+			intent: 'vo2max',
+		}),
+	])
+	expect(cardOf(view.card, 'session').session.effortLabel).toBe('hard')
 })
 
 test("the athlete's own note is the card's sentence, its first sentence only", () => {
@@ -190,6 +220,139 @@ test("the athlete's own note is the card's sentence, its first sentence only", (
 	const card = cardOf(view.card, 'session')
 	expect(card.sentence).toBe('Fem drag på bakken ved skolen.')
 	expect(card.session.effortLabel).toBe('hard')
+})
+
+test('a threshold session written as pace reads hard against T-pace (#617)', () => {
+	const reps = session('today', '2030-01-02T07:00:00Z', {
+		title: '6 × 1000 m',
+	})
+	const block = reps.workout!.blocks[0]!
+	const workout = {
+		...reps.workout!,
+		blocks: [
+			{
+				...block,
+				repeatCount: 6,
+				steps: [
+					{
+						...block.steps[0]!,
+						durationSec: null,
+						distanceM: 1000,
+						intensity: JSON.stringify({ kind: 'pace', minSecPerKm: 220 }),
+					},
+				],
+			},
+		],
+	}
+	const ledger = [{ ...reps, workout }]
+	const season = buildTimelineSeason({ ledger, now: NOW, timezone: TZ })
+	const view = buildCalmToday({
+		season,
+		ledger,
+		now: NOW,
+		timezone: TZ,
+		activePlan: plan(),
+		thresholds: {
+			run: {
+				lthr: null,
+				maxHr: null,
+				ftp: null,
+				runPowerThresholdW: null,
+				thresholdPaceSecPerKm: 220,
+				cssSecPer100m: null,
+				zoneSystem: 'daniels-pace-5',
+				zoneOverrides: null,
+			},
+		},
+	})
+
+	expect(cardOf(view.card, 'session').session.effortLabel).toBe('hard')
+})
+
+/** A run profile with a threshold pace, the Daniels recipe declared. */
+const DANIELS_RUN = {
+	run: {
+		lthr: null,
+		maxHr: null,
+		ftp: null,
+		runPowerThresholdW: null,
+		thresholdPaceSecPerKm: 240,
+		cssSecPer100m: null,
+		zoneSystem: 'daniels-pace-5',
+		zoneOverrides: null,
+	},
+}
+
+/** Today's session as `steps`, read through the season and I dag on DANIELS_RUN. */
+function calmWithSteps(steps: Step[]) {
+	const base = session('today', '2030-01-02T07:00:00Z', {
+		title: '10 km rolig',
+	})
+	const block = base.workout!.blocks[0]!
+	const ledger = [
+		{ ...base, workout: { ...base.workout!, blocks: [{ ...block, steps }] } },
+	]
+	const season = buildTimelineSeason({
+		ledger,
+		now: NOW,
+		timezone: TZ,
+		thresholds: DANIELS_RUN,
+	})
+	const view = buildCalmToday({
+		season,
+		ledger,
+		now: NOW,
+		timezone: TZ,
+		activePlan: plan(),
+		thresholds: DANIELS_RUN,
+	})
+	const row = season.weeks[season.todayWeekIndex]!.rows.find(
+		(day) => day.key === '2030-01-02',
+	)!.sessions[0]!
+	return { card: cardOf(view.card, 'session'), row }
+}
+
+const ROLIG = JSON.stringify({ kind: 'zoneLabel', label: 'Z2' })
+
+test('a distance written in a zone word is timed through the threshold pace on the card and the row (#615)', () => {
+	const { card, row } = calmWithSteps([
+		step({ durationSec: null, distanceM: 10_000, intensity: ROLIG }),
+	])
+
+	expect(card.session.durationLabel).not.toBeNull()
+	expect(row.externalLoad).toMatch(/\d+\smin/)
+})
+
+test('minutes timed through a pace read as a translation, with ≈, on the card and the row (#638)', () => {
+	const { card, row } = calmWithSteps([
+		step({ durationSec: null, distanceM: 10_000, intensity: ROLIG }),
+	])
+	expect(card.session.durationLabel).toMatch(/^≈\u00a0\d+\u00a0min$/)
+	expect(row.externalLoad).toMatch(/^≈\u00a0\d+\u00a0min/)
+
+	const timed = calmWithSteps([
+		step({ durationSec: 50 * 60, intensity: ROLIG }),
+	])
+	expect(timed.card.session.durationLabel).toBe('50 min')
+	expect(timed.row.externalLoad).toMatch(/^50 min/)
+})
+
+test('a timed warm-up and a distance in a zone word total both (#615)', () => {
+	const distance = step({
+		id: 's-distance',
+		durationSec: null,
+		distanceM: 10_000,
+		intensity: ROLIG,
+	})
+	const alone = calmWithSteps([distance])
+	const { card, row } = calmWithSteps([
+		step({ id: 's-warmup', durationSec: 15 * 60, intensity: ROLIG }),
+		distance,
+	])
+
+	const minutes = (line: string | null) => Number(/(\d+)\smin/.exec(line!)![1])
+	expect(minutes(row.externalLoad)).toBe(minutes(alone.row.externalLoad) + 15)
+	expect(card.session.durationLabel).not.toBe('15 min')
 })
 
 test("a Simple Activity's card says the Effort Word the athlete stored, not one read from its step", () => {
