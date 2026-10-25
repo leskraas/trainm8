@@ -357,6 +357,69 @@ test('an update event re-snapshots an auto-save mirror stream and re-enqueues de
 	expect(detectionJobs).toBe(1)
 })
 
+test('an update event whose streams body does not parse still refreshes its laps', async () => {
+	const user = await setupConnectedAthlete()
+	const original = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: user.id,
+			externalProvider: 'strava',
+			externalId: '6004',
+			startedAt: new Date('2026-05-25T06:00:00Z'),
+			endedAt: new Date('2026-05-25T06:50:00Z'),
+			durationSec: 3000,
+			distanceM: 10000,
+			discipline: 'run',
+			rawJson: '{}',
+		},
+	})
+	mockActivity('6004', { distance: 11000 })
+	server.use(
+		// A 200 that doesn't parse: a glitch to ask again about (#638).
+		http.get('https://www.strava.com/api/v3/activities/:id/streams', () =>
+			HttpResponse.json({ time: 'not a stream' }),
+		),
+		// Two pressed laps, placed by wall clock with no stream in hand.
+		http.get('https://www.strava.com/api/v3/activities/:id/laps', () =>
+			HttpResponse.json([
+				{ lap_index: 1, start_date: '2026-05-25T06:00:00Z', elapsed_time: 600 },
+				{ lap_index: 2, start_date: '2026-05-25T06:10:00Z', elapsed_time: 600 },
+			]),
+		),
+	)
+
+	await enqueueAndRun({
+		objectType: 'activity',
+		objectId: '6004',
+		aspectType: 'update',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	})
+
+	const job = await prisma.job.findFirstOrThrow({
+		where: { kind: STRAVA_WEBHOOK_JOB_KIND },
+		select: { status: true },
+	})
+	expect(job.status).toBe('completed')
+	const imp = await prisma.activityImport.findUniqueOrThrow({
+		where: { id: original.id },
+		select: {
+			distanceM: true,
+			lapsJson: true,
+			streamsCheckedAt: true,
+			stream: { select: { id: true } },
+		},
+	})
+	expect(imp.distanceM).toBe(11000)
+	expect(JSON.parse(imp.lapsJson!)).toEqual([
+		{ startSec: 0, endSec: 600 },
+		{ startSec: 600, endSec: 1200 },
+	])
+	// No stream came, and the import is not marked as asked: a later pass
+	// asks Strava again.
+	expect(imp.stream).toBeNull()
+	expect(imp.streamsCheckedAt).toBeNull()
+})
+
 test('an update event that re-types an import to "other" clears its stale detection', async () => {
 	const user = await setupConnectedAthlete()
 	const imp = await prisma.activityImport.create({
