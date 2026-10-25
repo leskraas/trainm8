@@ -43,4 +43,5 @@ curl -s http://localhost:3000/mcp -H "Authorization: Bearer $TOKEN" \
 
 Every number in a result is a Reading: `{ status: 'available', value }` or
 `{ status: 'unavailable', reason, label }`. The athlete's answers to proposals
-are not tools; calling one is refused `needs-athlete-yes`.
+are not tools: no answering tool exists on MCP (ADR 0093 §3), and a call by its
+name is an unknown tool. The athlete answers in trainm8.

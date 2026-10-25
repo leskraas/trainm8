@@ -169,18 +169,15 @@ for (const era of ['legacy', 'modern'] as const) {
 			next: 'fix-input',
 		})
 
-		// The athlete's yes is not on the list, and calling it anyway is refused.
-		const yes = await client.callTool({
-			name: 'answer_proposal',
-			arguments: { proposalId: 'p', answer: 'accepted' },
-		})
-		expect(yes.isError).toBe(true)
-		expect(yes.structuredContent).toMatchObject({
-			outcome: 'refused',
-			code: 'needs-athlete-yes',
-			next: 'ask-athlete',
-			link: `${baseUrl}/`,
-		})
+		// No answering tool exists on MCP (ADR 0093 §3): the athlete's yes is
+		// not on the list, and a call by its name reaches no action at all.
+		for (const name of ['answer_proposal', 'accept_round', 'ease_week']) {
+			const yes = await client
+				.callTool({ name, arguments: {} })
+				.catch((error: unknown) => ({ thrown: String(error) }))
+			expect(JSON.stringify(yes)).not.toContain('needs-athlete-yes')
+			expect(yes).not.toHaveProperty('structuredContent.outcome')
+		}
 		await client.close()
 	})
 }

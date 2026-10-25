@@ -19,13 +19,13 @@
  *   `validate` is the identity, so `runAction` validates the input once and an
  *   invalid one is a `refused`/`invalid-input` envelope a model can act on,
  *   not the SDK's own error text.
- * - Every action is registered, the `web`-only ones too, so a model that
- *   calls one is refused `needs-athlete-yes` with the link to where the
- *   athlete answers (ADR 0093 §3). `tools/list` is then answered from the
- *   registry filtered by caller — the web-only answers never appear in it —
- *   and never by anything the client sends (§4).
- * - A tool a model may call carries the SDK's scope challenge for its kind's
- *   scope, so a token without it gets `403 insufficient_scope` (§4).
+ * - Only the actions whose `callers` include `mcp` are registered. The
+ *   athlete's yes is `web`-only, so no answering tool exists on MCP, listed
+ *   or not (ADR 0093 §3); a call by its name is the SDK's unknown tool and
+ *   never reaches `runAction`. `tools/list` is answered from the same
+ *   filtered registry, never from anything the client sends (§4).
+ * - Every tool carries the SDK's scope challenge for its kind's scope, so a
+ *   token without it gets `403 insufficient_scope` (§4).
  */
 
 import {
@@ -147,7 +147,7 @@ export function buildMcpServer(ctx: () => Promise<ActionCtx>): McpServer {
 		capabilities: { tools: { listChanged: false } },
 		instructions: INSTRUCTIONS,
 	})
-	for (const action of listActions()) {
+	for (const action of listActions().filter(isListed)) {
 		server.registerTool(
 			action.name,
 			{
@@ -156,9 +156,7 @@ export function buildMcpServer(ctx: () => Promise<ActionCtx>): McpServer {
 				inputSchema: passThrough(inputJsonSchema(action)),
 				outputSchema: passThrough(outputJsonSchema(action)),
 				annotations: { title: action.title, ...annotationsFor(action) },
-				...(isListed(action)
-					? { scopeChallenge: requireScopes(SCOPE_OF_KIND[action.kind]) }
-					: {}),
+				scopeChallenge: requireScopes(SCOPE_OF_KIND[action.kind]),
 			},
 			async (args: unknown) =>
 				toToolResult(
@@ -166,7 +164,7 @@ export function buildMcpServer(ctx: () => Promise<ActionCtx>): McpServer {
 				),
 		)
 	}
-	// The list is the registry's, filtered by caller: never a web-only answer.
+	// The list is the registry's catalog, byte for byte the checked-in one.
 	const catalog = toolCatalog()
 	server.server.removeRequestHandler('tools/list')
 	server.server.setRequestHandler('tools/list', () => ({ tools: catalog }))

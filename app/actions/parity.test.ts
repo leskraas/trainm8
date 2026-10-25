@@ -23,6 +23,7 @@ import { ACTION_NAME, type ActionCtx } from './define.ts'
 import { READING_SCHEMAS } from './reading.ts'
 import {
 	type ActionName,
+	getAction,
 	isActionName,
 	listActions,
 } from './registry.server.ts'
@@ -168,6 +169,20 @@ const ORACLE: Record<ActionName, Record<Caller, string>> = {
 
 type Shape = string
 
+/** What the MCP reader answers for an action it does not register. */
+const NO_SUCH_TOOL = 'no-such-tool'
+
+/**
+ * What the reader itself should answer: the direct outcome, except that MCP
+ * registers no action a model may not call, so no answering tool exists there
+ * (ADR 0093 §3) and the call never reaches `runAction`.
+ */
+function viaReaderOracle(caller: Caller, name: ActionName, direct: Shape) {
+	return caller === 'mcp' && !getAction(name).callers.includes('mcp')
+		? NO_SUCH_TOOL
+		: direct
+}
+
 function shapeOf(result: { outcome: string; code?: string }): Shape {
 	return result.outcome === 'refused' ? (result.code ?? '') : result.outcome
 }
@@ -227,9 +242,11 @@ async function viaReader(
 			}),
 		)
 		const body = (await jsonRpc(response)) as {
-			result: { structuredContent: { outcome: string; code?: string } }
+			result?: { structuredContent?: { outcome: string; code?: string } }
+			error?: unknown
 		}
-		if (!body.result) throw new Error(JSON.stringify(body))
+		// No envelope: the call reached no action, so there is no such tool.
+		if (!body.result?.structuredContent) return NO_SUCH_TOOL
 		return shapeOf(body.result.structuredContent)
 	}
 	const form = caller === 'web' ? formFor(name, input) : null
@@ -280,7 +297,10 @@ describe('every action × every caller: the reader agrees with runAction and the
 				const direct = shapeOf(
 					await runAction(ctx(w.userId, caller), name, FIXTURES[name](w)),
 				)
-				expect({ caller, viaAdapter }).toEqual({ caller, viaAdapter: direct })
+				expect({ caller, viaAdapter }).toEqual({
+					caller,
+					viaAdapter: viaReaderOracle(caller, name, direct),
+				})
 				expect({ caller, direct }).toEqual({
 					caller,
 					direct: ORACLE[name][caller],
