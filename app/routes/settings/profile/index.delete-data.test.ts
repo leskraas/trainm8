@@ -1,4 +1,4 @@
-// "Slett alle dataene dine" when the erasure fails. `deleteAccount` runs in one
+// "Slett kontoen din" when the erasure fails. `deleteAccount` runs in one
 // transaction, so a failure (its timeout, a CHECK, a busy database) rolls every
 // write back: the athlete's account is untouched. The action has to say so on
 // the page, not hand the throw to the root boundary, which replaced the whole

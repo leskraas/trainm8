@@ -1,5 +1,5 @@
 /**
- * **Account erasure** — what "Slett alle dataene dine" does (#468, ADR 0051 §5
+ * **Account erasure** — what "Slett kontoen din" does (#468, ADR 0051 §5
  * amendment "Account erasure").
  *
  * `Workout.ownerId` is `SetNull` (ADR 0051 §2), so a bare `prisma.user.delete`
