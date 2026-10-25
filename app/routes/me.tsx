@@ -49,6 +49,7 @@ import {
 	getTsbTrust,
 } from '#app/utils/load/snapshot.server.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
+import { countPerformanceResults } from '#app/utils/performance-result-writer.server.ts'
 import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import { derivedAttributionLines } from '#app/utils/source-attribution.ts'
 import { readRecordedBindingSet } from '#app/utils/source-terms.server.ts'
@@ -132,10 +133,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 				select: { strengthPerWeek: true },
 			})
 		)?.strengthPerWeek ?? null
-	// How many race results the athlete has typed (#464), for the row's detail.
-	const raceResultCount = await prisma.performanceResult.count({
-		where: { athleteProfile: { userId } },
-	})
+	// How many performance results the athlete has (#464), for the row's detail.
+	const performanceResultCount = await countPerformanceResults(userId)
 	const startAnswersDetail = SESSION_PREFERENCE_LABELS.meg.row(
 		startAnswers.level
 			? SIMPLE_START_LABELS.levels[startAnswers.level].name
@@ -155,7 +154,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		strengthPerWeek,
 		startAnswersDetail,
 		autopilot: profile?.autopilot ?? true,
-		raceResultCount,
+		performanceResultCount,
 	}
 }
 
@@ -232,7 +231,7 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 		strengthPerWeek,
 		startAnswersDetail,
 		autopilot,
-		raceResultCount,
+		performanceResultCount,
 	} = loaderData
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
@@ -300,7 +299,7 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 					to="/settings/training/resultater"
 					icon="clock"
 					title={MEG_RESULTS_LABELS.title}
-					detail={MEG_RESULTS_LABELS.detail(raceResultCount)}
+					detail={MEG_RESULTS_LABELS.detail(performanceResultCount)}
 				/>
 			</MeSection>
 

@@ -5602,7 +5602,7 @@ export const MEG_RESULTS_LABELS = {
 				? '1 resultat'
 				: `${count} resultater`,
 	intro:
-		'Et løp eller en testløp du har gjort. Økter som sier «10 km-fart» regner farten sin fra ditt nyeste resultat på den distansen.',
+		'Løp og testløp du har gjort. Økter som sier «10 km-fart» regner farten sin fra ditt nyeste resultat på den distansen.',
 	typedNote: 'Skrevet inn av deg — ikke målt av appen.',
 	none: 'Ingen resultater ennå.',
 	add: 'Legg til resultat',
@@ -5611,16 +5611,24 @@ export const MEG_RESULTS_LABELS = {
 	timeHint: 'Som klokka viste den: 41:30 eller 1:32:00',
 	date: 'Dato',
 	source: 'Type',
-	sources: { race: 'Løp', timeTrial: 'Testløp' } as Record<string, string>,
+	sources: {
+		race: 'Løp',
+		timeTrial: 'Testløp',
+		trainingSegment: 'Del av en økt',
+	},
 	save: 'Lagre resultat',
 	delete: 'Slett',
 	deleteLabel: (what: string) => `Slett ${what}`,
 	invalid: 'Sjekk distanse, tid og dato.',
 	badTime: 'Skriv tiden som 41:30 eller 1:32:00.',
+	badDate: 'Velg en dato som finnes.',
+	implausible:
+		'Tiden passer ikke til distansen. Har løpet timer, skriv dem med: 3:15:00.',
 	future: 'Datoen kan ikke være fram i tid.',
 	noProfile: 'Fullfør oppstarten først, så kan du lagre resultater.',
-	saved: 'Resultatet er lagret',
-	deleted: 'Resultatet er slettet',
+	saved: 'Resultatet er lagret.',
+	replaced: 'Resultatet er lagret i stedet for det du hadde samme dag.',
+	notDeleted: 'Fant ikke resultatet. Last siden på nytt.',
 } as const
 
 /**

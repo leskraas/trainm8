@@ -43,7 +43,14 @@
 >   distance field would invite results no target can read; every `racePace` row
 >   in the corpus is a run.
 > - **A bare number is refused as a time.** `41` could be minutes or seconds;
->   the field takes `41:30` or `1:32:00`. A date in the future is refused.
+>   the field takes `41:30` or `1:32:00` (`.` or `,` for `:`). A time outside
+>   the anchor's plausible band — faster than the world record, or slower than
+>   20:00/km — is refused too, which catches `3:15` typed for a 3 h 15 marathon.
+>   A day that does not exist, or one after today in the athlete's own timezone,
+>   is refused.
+> - **One result per distance and day.** A second result at the same anchor on
+>   the same day replaces the first: it is a correction, and two rows on one day
+>   would leave the resolver to pick between them.
 > - **Delete is scoped to the owner** (`deleteMany` keyed on id _and_ the
 >   athlete's profile), so a guessed id deletes nothing.
 >
@@ -290,9 +297,9 @@ Snapshot**, so it owes an explanation nowhere (ADR 0006's own test).
   amendment above). Populating it from completed **Events** and from activity
   bests is a derivation with its own honesty rules — which efforts qualify, and
   ADR 0021's **Load Confidence** gate — and duplicating the Personal Record
-  detection function here to get one would be the wrong seam. Until a writer
-  lands, every `racePace` target degrades to its bare authored form, which is
-  exactly what `powerPct` does without an FTP.
+  detection function here to get one would be the wrong seam. Without a result
+  at that distance, a `racePace` target degrades to its bare authored form,
+  which is exactly what `powerPct` does without an FTP.
 - The **Race Equivalence** ladder resolves at **rung 1 only** — the athlete's
   own result at that distance. Rungs 2–5 (a result at another distance
   converted, a **Threshold** read as a virtual race result, a mean-maximal-curve

@@ -11,20 +11,39 @@
  * `racePace` target resolves against, and rung 1 matches distance exactly, so
  * the form offers the anchors rather than free metres (a 4.8 km parkrun is not
  * a 5k). Every `racePace` row in the corpus is a run.
+ *
+ * **One result per distance and day.** A second result at the same anchor on
+ * the same day is the athlete correcting a typo, so it replaces the first
+ * rather than leaving two rows the resolver has to choose between.
+ *
+ * **The athlete's own day.** A result is a calendar day, anchored at UTC
+ * midnight as an Event date is, and "in the future" is judged against today in
+ * the athlete's timezone — a race finished just after local midnight is not
+ * refused because the server is still on yesterday.
  */
+import { localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
+import {
+	isCalendarDay,
+	isPlausibleFinishTime,
+	type PerformanceSource,
+} from './performance-result-entry.ts'
 import { raceAnchorForDistance } from './performance-result.server.ts'
 import { RACE_ANCHOR_DISTANCE_M, type RaceAnchor } from './workout-schema.ts'
-
-export const PERFORMANCE_SOURCES = ['race', 'timeTrial'] as const
-export type PerformanceSource = (typeof PERFORMANCE_SOURCES)[number]
 
 export type PerformanceResultInput = {
 	anchor: RaceAnchor
 	timeSec: number
-	occurredAt: Date
+	/** The day of the result, `YYYY-MM-DD`, in the athlete's calendar. */
+	date: string
 	source: PerformanceSource
 }
+
+export type PerformanceResultRefusal =
+	| 'bad-date'
+	| 'future'
+	| 'implausible'
+	| 'no-profile'
 
 export type PerformanceResultRow = {
 	id: string
@@ -36,53 +55,74 @@ export type PerformanceResultRow = {
 	verified: boolean
 }
 
-/** A finish time as a race clock writes it — `41:30` or `1:32:00` — in
- * seconds, or null. A bare number is refused: `41` could be minutes or
- * seconds, and guessing would put a pace nobody ran behind a target. */
-export function parseFinishTime(input: string): number | null {
-	const match = /^(?:(\d{1,2}):)?(\d{1,3}):([0-5]\d)$/.exec(input.trim())
-	if (!match) return null
-	const hours = Number(match[1] ?? 0)
-	const minutes = Number(match[2])
-	if (match[1] != null && minutes > 59) return null
-	const total = hours * 3600 + minutes * 60 + Number(match[3])
-	return total > 0 ? total : null
+/** Every read of the athlete's typed results goes through this one filter, so
+ * the list and the count agree with the resolver: run results only. */
+const runResultsOf = (userId: string) => ({
+	athleteProfile: { userId },
+	discipline: 'run',
+})
+
+/** The athlete's local calendar day today, `YYYY-MM-DD` (UTC without a
+ * profile), for the form's default and limit. */
+export async function performanceResultToday(
+	userId: string,
+	now: Date = new Date(),
+): Promise<string> {
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { timezone: true },
+	})
+	return localDate(now, profile?.timezone ?? 'UTC')
 }
 
 export async function addPerformanceResult(
 	userId: string,
 	input: PerformanceResultInput,
 	now: Date = new Date(),
-): Promise<{ ok: true } | { ok: false; reason: 'future' | 'no-profile' }> {
-	if (input.occurredAt.getTime() > now.getTime()) {
-		return { ok: false, reason: 'future' }
+): Promise<
+	| { ok: true; replaced: boolean }
+	| { ok: false; reason: PerformanceResultRefusal }
+> {
+	if (!isCalendarDay(input.date)) return { ok: false, reason: 'bad-date' }
+	if (!isPlausibleFinishTime(input.anchor, input.timeSec)) {
+		return { ok: false, reason: 'implausible' }
 	}
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId },
-		select: { id: true },
+		select: { id: true, timezone: true },
 	})
 	if (!profile) return { ok: false, reason: 'no-profile' }
-	await prisma.performanceResult.create({
-		data: {
-			athleteProfileId: profile.id,
-			discipline: 'run',
-			distanceM: RACE_ANCHOR_DISTANCE_M[input.anchor],
-			timeSec: input.timeSec,
-			occurredAt: input.occurredAt,
-			source: input.source,
-			verified: false,
-		},
-	})
-	return { ok: true }
+	// Same-shape `YYYY-MM-DD` strings compare as days.
+	if (input.date > localDate(now, profile.timezone)) {
+		return { ok: false, reason: 'future' }
+	}
+	const sameDay = {
+		athleteProfileId: profile.id,
+		discipline: 'run',
+		distanceM: RACE_ANCHOR_DISTANCE_M[input.anchor],
+		occurredAt: new Date(`${input.date}T00:00:00Z`),
+	}
+	const [{ count }] = await prisma.$transaction([
+		prisma.performanceResult.deleteMany({ where: sameDay }),
+		prisma.performanceResult.create({
+			data: {
+				...sameDay,
+				timeSec: input.timeSec,
+				source: input.source,
+				verified: false,
+			},
+		}),
+	])
+	return { ok: true, replaced: count > 0 }
 }
 
-/** The athlete's results, newest first. */
+/** The athlete's run results, newest first (the newest typed first on a tie). */
 export async function listPerformanceResults(
 	userId: string,
 ): Promise<PerformanceResultRow[]> {
 	const rows = await prisma.performanceResult.findMany({
-		where: { athleteProfile: { userId } },
-		orderBy: { occurredAt: 'desc' },
+		where: runResultsOf(userId),
+		orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
 		select: {
 			id: true,
 			distanceM: true,
@@ -96,6 +136,11 @@ export async function listPerformanceResults(
 		...row,
 		anchor: raceAnchorForDistance(row.distanceM),
 	}))
+}
+
+/** How many run results the athlete has, for the Meg row. */
+export async function countPerformanceResults(userId: string): Promise<number> {
+	return prisma.performanceResult.count({ where: runResultsOf(userId) })
 }
 
 /** Delete one of the athlete's own results; false when it is not theirs. */
