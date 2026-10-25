@@ -266,9 +266,10 @@ would not recognise the name, it is wrong.
 **two repeat levels** — an inner one (the reps inside one series) and an outer
 **Series Repeat** — so `3 × (13 × 30/15)` is one block rather than a shape the
 model cannot say (ADR 0007, #450). Effective passes are the _product_ of the
-two, read through `blockRepeatTotal()` by every piece of block arithmetic. A
-block may also carry a **Send-Off**, and then it carries no rest steps. _Avoid_:
-Set group, segment
+two, read through `blockRepeatTotal()` by every piece of block arithmetic. The
+rest between two series is the **seriepause** the athlete reads
+(`(10 min seriepause)`). A block may also carry a **Send-Off**, and then it
+carries no rest steps. _Avoid_: Set group, segment
 
 **Step**: A single ordered instruction within a block, optionally including a
 discipline, intensity, and quantity. _Avoid_: Interval, action
@@ -611,18 +612,21 @@ distance, so without it they are not merely awkward but unrepresentable
 counterpart), climb, D+
 
 **Step Parameter**: A condition the work happens under rather than a magnitude
-of it — a signed **Grade** (`gradePct`) and a **Cadence** range — so a step
-states one beside its **Step Quantity** instead of choosing between them (ADR
-0002, #450). Both were previously free text in `notes`, which reads correctly to
-a human and is invisible to every filter, planner and adherence check: all five
-of the running research's hill rows seed today and are indistinguishable from a
-flat session. Grade is signed because a descent is a real prescription. Cadence
-is the **defining variable** of six cycling sessions and exists for
-_prescription fidelity_, not because low-cadence work is a proven lever — the
-best trial in the literature (12 weeks at 40 rpm) found no gain in VO₂max,
-performance or leg strength while the free-cadence control improved, so no
-seeded description may claim it builds strength. _Avoid_: Step metadata, step
-options, gradient (say **Grade**)
+of it — a signed **Grade** band (`gradePctMin`/`gradePctMax`) and a **Cadence**
+range — so a step states one beside its **Step Quantity** instead of choosing
+between them (ADR 0002, #450). Grade is a band because every hill session states
+one (`4–7 %`); a single grade states both ends equal (#466). The Token Sentence
+draws both after the intensity: `· 4–7 % motbakke`, `· 50–60 rpm`. Both were
+previously free text in `notes`, which reads correctly to a human and is
+invisible to every filter, planner and adherence check: all five of the running
+research's hill rows seeded that way and were indistinguishable from a flat
+session. Grade is signed because a descent is a real prescription. Cadence is
+the **defining variable** of six cycling sessions and exists for _prescription
+fidelity_, not because low-cadence work is a proven lever — the best trial in
+the literature (12 weeks at 40 rpm) found no gain in VO₂max, performance or leg
+strength while the free-cadence control improved, so no seeded description may
+claim it builds strength. _Avoid_: Step metadata, step options, gradient (say
+**Grade**)
 
 **Rest Spec**: The four forms rest actually takes in the field, as a
 discriminated union on the rest step (ADR 0007, #450; research:
@@ -861,17 +865,20 @@ _Avoid_: Shorthand, syntax
 
 **Token Sentence**: The rendering of a workout in the Workout Notation where
 every value is a **Token**. Rendered as the **Score stanza** (#251): one Block
-per line at every width, the block's repeat count as a gutter badge, and the
-Intensity Target chip as the line's only chip-shaped element. The same sentence
-is the read view and, for scheduled sessions, the edit view. _Avoid_: Summary
-line, formula, text editor
+per line at every width, the block's repeat count as a gutter badge — led by its
+**Series Repeat** as a second, outlined badge when the block has more than one
+series (#466) — and the Intensity Target chip as the line's only chip-shaped
+element. The same sentence is the read view and, for scheduled sessions, the
+edit view. _Avoid_: Summary line, formula, text editor
 
 **Token**: A single tappable value within a Token Sentence — a Step Quantity,
-repeat count, Intensity Target, rest, or exercise/sets summary — edited via a
-picker popover that can only produce valid values. Simple value tokens share one
-**retargeting popover** (#252): caret-anchored, type-to-edit with ± nudges,
-gliding to whichever token is activated next instead of closing and reopening.
-_Avoid_: Chip, pill, field
+repeat count, series count, Intensity Target, Step Parameter, rest, or
+exercise/sets summary — edited via a picker popover that can only produce valid
+values. A token the editor's form does not carry yet (the series count, the rest
+between series, grade, cadence, Step Vertical) is drawn and not tappable. Simple
+value tokens share one **retargeting popover** (#252): caret-anchored,
+type-to-edit with ± nudges, gliding to whichever token is activated next instead
+of closing and reopening. _Avoid_: Chip, pill, field
 
 ### The Catalogue
 
