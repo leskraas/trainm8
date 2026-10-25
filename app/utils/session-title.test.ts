@@ -226,6 +226,18 @@ test('a recipe code keeps its spelling; a stored word stays lowercase', () => {
 	expect(titled('Tempo')).toBe('45 min tempo')
 })
 
+test('a recipe code that leads the title keeps its spelling', () => {
+	// A step with no quantity is titled by its zone alone; the capital a title
+	// starts with is for a word (`Terskel`), never for a code (`sub-T`).
+	const s = structure([
+		{
+			repeatCount: 1,
+			steps: [cardio({ intensity: { kind: 'zoneLabel', label: 'sub-T' } })],
+		},
+	])
+	expect(deriveWorkoutTitle(s)).toBe('sub-T')
+})
+
 test('an RPE target writes its zone word', () => {
 	const s = structure([
 		{
