@@ -286,9 +286,12 @@ export function previewPhilosophySwitch(
 	}
 }
 
-/** The rows as the edit leaves them, the new ones under preview ids. */
-function rowsAfter(
-	outline: PhilosophyOutline,
+/**
+ * The rows as the edit leaves them, the new ones under preview ids. Shared
+ * with adding an Event (`attach-event.ts`), which cuts and lays the same way.
+ */
+export function rowsAfter(
+	outline: OutlineRows,
 	kept: PhaseRow[],
 	resize: Array<{ phaseId: string; weeks: number }>,
 	remove: string[],
@@ -348,7 +351,7 @@ function rowsAfter(
 }
 
 /** The phases that reach `boundary` or later, counted from it. */
-function phaseViews(rows: OutlineRows, boundary: number): PhaseView[] {
+export function phaseViews(rows: OutlineRows, boundary: number): PhaseView[] {
 	const ordered = [...rows.phases].sort((a, b) => a.orderIndex - b.orderIndex)
 	const starts = phaseStartIndices(phaseSpecs(rows))
 	const mixTrack = rows.tracks.find((track) =>

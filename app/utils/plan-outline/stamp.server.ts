@@ -46,6 +46,7 @@ import {
 } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { isEffortWord } from '../effort-word.ts'
+import { type DisciplineThresholdMap } from '../intensity-target.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
 import { type TrainingZone } from '../session-profile.ts'
 import { stampedSessionTitle } from '../session-title.ts'
@@ -293,6 +294,7 @@ export async function stampWeekPattern(
 	const eventId = outline.event?.id ?? null
 	const timezone = await getAthleteTimezone(userId)
 	const trainingTime = await readStampProfile(userId)
+	const thresholds = await getDisciplineThresholds(userId)
 	const specs = phaseSpecs(outline)
 	const weekCount = totalWeeks(specs)
 	const tracks = stampTracks(outline)
@@ -318,7 +320,7 @@ export async function stampWeekPattern(
 	}
 
 	const plans = planStamp({
-		days: stampDays(pattern, tracks),
+		days: stampDays(pattern, tracks, thresholds),
 		lifting: liftingSlots(pattern, tracks),
 		liftingDays: trainingTime.liftingDays,
 		tracks,
@@ -516,7 +518,7 @@ export async function readLaidWeeks(
 		})
 	}
 	const input = swap({
-		days: stampDays(pattern, tracks),
+		days: stampDays(pattern, tracks, await getDisciplineThresholds(userId)),
 		lifting: liftingSlots(pattern, tracks),
 	})
 	const { liftingDays } = await readStampProfile(userId)
@@ -791,6 +793,8 @@ function stampTracks(outline: StampOutline): StampTrack[] {
 function stampDays(
 	pattern: StampPattern,
 	tracks: readonly StampTrack[],
+	/** Times a fixed day's distance step, as the week header times it. */
+	thresholds: DisciplineThresholdMap,
 ): StampDay[] {
 	const currencyByTrack = new Map(
 		tracks.map((track) => [track.trackId, track.currency]),
@@ -801,7 +805,10 @@ function stampDays(
 		const currency = currencyByTrack.get(day.trackId)
 		if (!currency) return []
 		const priced = day.workout
-			? fixedDayVolume(pricingBlocks(day.workout), currency)
+			? fixedDayVolume(pricingBlocks(day.workout), currency, {
+					thresholds,
+					discipline: day.workout.discipline,
+				})
 			: null
 		const position = {
 			dayId: day.id,

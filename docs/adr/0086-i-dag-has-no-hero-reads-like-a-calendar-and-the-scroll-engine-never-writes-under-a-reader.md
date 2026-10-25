@@ -178,6 +178,13 @@ reach); it is kept for the long season (up to ~900 rows when a session is
 written two years out), where laying out every row is what it saves. The p90 is
 not smooth at 4×; recorded here, not chased with a virtualiser.
 
+**At 364 rows (#503, measured 2026-10-25, ADR 0078 "Reopened"):** the 52-week
+season, scrolled top to end 40px a frame at 4×, has a median of 16.9ms, a p90 of
+28.1ms and 8.3% of frames over 32ms, with no backward move of the reader; **no
+virtualiser is confirmed**. The cost of mounting the past up front shows on load
+instead: hydration's longest task is 2.4s against 0.96s on the seed season. ADR
+0078 proposes, for the owner, hydrating only the weeks near today.
+
 ### 5. The strip, and a long season (S10)
 
 One column per week tinted by `phase-*` at low opacity (a neutral tone outside a

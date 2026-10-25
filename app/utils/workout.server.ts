@@ -12,8 +12,6 @@ import { type DisciplineThresholdMap } from './intensity-target.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import { triggerRecomputeForSession } from './session-log.server.ts'
 import { deriveWorkoutTitle } from './session-title.ts'
-import { classifyingRecipe } from './structure-detection/classify.ts'
-import { type ClassifyChannel } from './structure-detection/constants.ts'
 import { getDisciplineThresholds } from './training.server.ts'
 import {
 	type ExerciseSet,
@@ -26,7 +24,7 @@ import {
 	restStepSpec,
 } from './workout-schema.ts'
 import { INTENT_BY_ZONE } from './workout-sentence.ts'
-import { zoneEquivalent } from './zone-equivalent.ts'
+import { readTargetZone } from './zone-equivalent.ts'
 import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,
@@ -80,7 +78,8 @@ function buildStepCreate(step: WorkoutStep, stepIndex: number) {
 			durationSec: step.durationSec ?? null,
 			distanceM: step.distanceM ?? null,
 			verticalM: step.verticalM ?? null,
-			gradePct: step.gradePct ?? null,
+			gradePctMin: step.gradePctMin ?? null,
+			gradePctMax: step.gradePctMax ?? null,
 			cadenceRpmMin: step.cadenceRpmMin ?? null,
 			cadenceRpmMax: step.cadenceRpmMax ?? null,
 			notes: step.notes ?? null,
@@ -182,7 +181,8 @@ export const workoutCopySelect = {
 					durationSec: true,
 					distanceM: true,
 					verticalM: true,
-					gradePct: true,
+					gradePctMin: true,
+					gradePctMax: true,
 					cadenceRpmMin: true,
 					cadenceRpmMax: true,
 					rest: true,
@@ -251,7 +251,8 @@ export function buildBlocksCopy(blocks: CopyableWorkout['blocks']) {
 				durationSec: step.durationSec,
 				distanceM: step.distanceM,
 				verticalM: step.verticalM,
-				gradePct: step.gradePct,
+				gradePctMin: step.gradePctMin,
+				gradePctMax: step.gradePctMax,
 				cadenceRpmMin: step.cadenceRpmMin,
 				cadenceRpmMax: step.cadenceRpmMax,
 				rest: step.rest,
@@ -865,13 +866,28 @@ type FingerprintStep = {
 	durationSec?: number | null
 	distanceM?: number | null
 	verticalM?: number | null
-	gradePct?: number | null
+	gradePctMin?: number | null
+	gradePctMax?: number | null
 	cadenceRpmMin?: number | null
 	cadenceRpmMax?: number | null
 	rest?: string | null
 	exerciseId?: string | null
 	restBetweenSetsSec?: number | null
 	sets?: { create: readonly FingerprintSet[] }
+}
+
+/**
+ * A grade band as one fingerprint slot. A band whose ends agree — every grade
+ * stored before #466, which the migration copied to both ends, and every step
+ * with no grade — reads as the single number the old scalar column did, so a
+ * fingerprint a Juster image stored before the migration still matches the
+ * row it describes and its undo is not refused as `changed`. Only a true band
+ * takes the pair.
+ */
+function gradeFingerprint(step: FingerprintStep) {
+	const min = step.gradePctMin ?? null
+	const max = step.gradePctMax ?? null
+	return min === max ? min : [min, max]
 }
 
 type FingerprintBlock = {
@@ -901,7 +917,7 @@ export function prescriptionFingerprint(
 				step.durationSec ?? null,
 				step.distanceM ?? null,
 				step.verticalM ?? null,
-				step.gradePct ?? null,
+				gradeFingerprint(step),
 				step.cadenceRpmMin ?? null,
 				step.cadenceRpmMax ?? null,
 				step.rest ?? null,
@@ -1486,23 +1502,14 @@ export function parseStoredWorkoutStructure(
 	}
 }
 
-/** The detection channel each measured target kind is stored from. */
-const CLASSIFIED_CHANNEL: Partial<
-	Record<IntensityTarget['kind'], ClassifyChannel>
-> = { power: 'power', pace: 'pace', hrBpm: 'heartrate' }
-
 /**
  * A detected session's intent: the one its hardest step's Training Zone names,
- * each measured target zoned against the athlete's thresholds the way the
- * editor's chip zones it (`zoneEquivalent`). A detection holds absolute
- * targets only, so a hard-coded `endurance` made every detected interval
- * session an easy one (#617). With no step that zones, `endurance` stands —
- * the same silence the Day Stamp and the sentence write it for.
- *
- * A measured target is zoned on the recipe detection classified it against
- * (`classifyingRecipe`), not blindly on the athlete's own: a Daniels runner
- * with a critical-power threshold is detected on Stryd power bands, and the
- * pace recipe cannot place watts at all.
+ * each measured target zoned against the athlete's thresholds by the reading
+ * I dag's Effort Word uses (`readTargetZone`), on the recipe detection
+ * classified that channel against. A detection holds absolute targets only, so
+ * a hard-coded `endurance` made every detected interval session an easy one
+ * (#617). With no step that zones, `endurance` stands — the same silence the
+ * Day Stamp and the sentence write it for.
  */
 function detectedIntent(
 	structure: WorkoutStructure,
@@ -1512,18 +1519,11 @@ function detectedIntent(
 	for (const block of structure.blocks) {
 		for (const step of block.steps) {
 			if (step.kind !== 'cardio' || !step.intensity) continue
-			const discipline = step.discipline ?? structure.discipline
-			const profile = thresholds[discipline]
-			const channel = CLASSIFIED_CHANNEL[step.intensity.kind]
-			const recipe =
-				profile &&
-				channel &&
-				(discipline === 'run' || discipline === 'bike') &&
-				classifyingRecipe(discipline, profile, channel)
-			const zone = zoneEquivalent(
+			const zone = readTargetZone(
 				step.intensity,
-				recipe ? { ...profile, zoneSystem: recipe.id } : profile,
-			).step
+				step.discipline ?? structure.discipline,
+				thresholds,
+			)
 			if (zone != null && zone > hardest) hardest = zone
 		}
 	}

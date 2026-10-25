@@ -36,7 +36,8 @@ function step(overrides: Partial<Step> = {}): Step {
 		durationSec: 45 * 60,
 		distanceM: null,
 		verticalM: null,
-		gradePct: null,
+		gradePctMin: null,
+		gradePctMax: null,
 		cadenceRpmMin: null,
 		cadenceRpmMax: null,
 		rest: null,
@@ -165,18 +166,48 @@ function cardOf<K extends CalmCard['kind']>(
 test("the today card names today's session: name, activity, duration, effort word and one sentence", () => {
 	const { view } = calm([
 		session('today', '2030-01-02T07:00:00Z', {
-			title: 'Rolig løpetur',
+			title: 'Løpetur',
 			minutes: 50,
 		}),
 	])
 
 	const card = cardOf(view.card, 'session')
-	expect(card.session.title).toBe('Rolig løpetur')
+	expect(card.session.title).toBe('Løpetur')
 	expect(card.session.disciplineLabel).toBe('Løping')
 	expect(card.session.durationLabel).toBe('50 min')
 	expect(card.session.effortLabel).toBe('rolig')
 	expect(card.sentence).toBe('Rolig hele veien. Du skal kunne prate.')
 	expect(card.session.markDone).not.toBeNull()
+})
+
+// One intensity in one word (#638): a title that already says how hard does
+// not get the Effort Word again beside it, in a word of its own (`middels`
+// beside `45 min moderat`). The sentence still reads the effort.
+test.each([
+	['Rolig løpetur', 'endurance'],
+	['45 min moderat', 'tempo'],
+	['45 min Moderat', 'tempo'],
+	['4 × 6 min terskel', 'threshold'],
+])(
+	'a title that says its effort (%s) drops the effort pill',
+	(title, intent) => {
+		const { view } = calm([
+			session('today', '2030-01-02T07:00:00Z', { title, intent }),
+		])
+		const card = cardOf(view.card, 'session')
+		expect(card.session.effort).not.toBeNull()
+		expect(card.session.effortLabel).toBeNull()
+	},
+)
+
+test('a title that names another effort keeps the pill', () => {
+	const { view } = calm([
+		session('today', '2030-01-02T07:00:00Z', {
+			title: 'Rolig løpetur',
+			intent: 'vo2max',
+		}),
+	])
+	expect(cardOf(view.card, 'session').session.effortLabel).toBe('hard')
 })
 
 test("the athlete's own note is the card's sentence, its first sentence only", () => {
@@ -290,7 +321,21 @@ test('a distance written in a zone word is timed through the threshold pace on t
 	])
 
 	expect(card.session.durationLabel).not.toBeNull()
-	expect(row.externalLoad).toMatch(/\d+ min/)
+	expect(row.externalLoad).toMatch(/\d+\smin/)
+})
+
+test('minutes timed through a pace read as a translation, with ≈, on the card and the row (#638)', () => {
+	const { card, row } = calmWithSteps([
+		step({ durationSec: null, distanceM: 10_000, intensity: ROLIG }),
+	])
+	expect(card.session.durationLabel).toMatch(/^≈\u00a0\d+\u00a0min$/)
+	expect(row.externalLoad).toMatch(/^≈\u00a0\d+\u00a0min/)
+
+	const timed = calmWithSteps([
+		step({ durationSec: 50 * 60, intensity: ROLIG }),
+	])
+	expect(timed.card.session.durationLabel).toBe('50 min')
+	expect(timed.row.externalLoad).toMatch(/^50 min/)
 })
 
 test('a timed warm-up and a distance in a zone word total both (#615)', () => {
@@ -306,7 +351,7 @@ test('a timed warm-up and a distance in a zone word total both (#615)', () => {
 		distance,
 	])
 
-	const minutes = (line: string | null) => Number(/(\d+) min/.exec(line!)![1])
+	const minutes = (line: string | null) => Number(/(\d+)\smin/.exec(line!)![1])
 	expect(minutes(row.externalLoad)).toBe(minutes(alone.row.externalLoad) + 15)
 	expect(card.session.durationLabel).not.toBe('15 min')
 })

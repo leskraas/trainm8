@@ -149,7 +149,7 @@ test('pace returns exact pace range', () => {
 		{ kind: 'pace', minSecPerKm: 210, maxSecPerKm: 240 },
 		emptyProfile,
 	)
-	expect(result).toEqual({ paceMin: 210, paceMax: 240 })
+	expect(result).toEqual({ paceMin: 210, paceMax: 240, paceUnit: 'secPerKm' })
 })
 
 test('pace without max returns only paceMin', () => {
@@ -157,7 +157,7 @@ test('pace without max returns only paceMin', () => {
 		{ kind: 'pace', minSecPerKm: 220 },
 		emptyProfile,
 	)
-	expect(result).toEqual({ paceMin: 220 })
+	expect(result).toEqual({ paceMin: 220, paceUnit: 'secPerKm' })
 })
 
 // zoneLabel — coggan-power-7 (bike/FTP) ———————————————————————————
@@ -222,7 +222,7 @@ test('zoneLabel Z2 resolves via css-3 with CSS', () => {
 		{ kind: 'zoneLabel', label: 'Z2' },
 		fullSwimProfile,
 	)
-	expect(result).toEqual({ paceMin: 95, paceMax: 119 })
+	expect(result).toEqual({ paceMin: 95, paceMax: 119, paceUnit: 'secPer100m' })
 })
 
 // zoneLabel — css-5 (swim/CSS, five bands) ——————————————————————————
@@ -239,7 +239,7 @@ test('zoneLabel Z3 resolves via css-5 to the moderate band css-3 lacks', () => {
 		{ kind: 'zoneLabel', label: 'Z3' },
 		fullSwim5Profile,
 	)
-	expect(result).toEqual({ paceMin: 99, paceMax: 105 })
+	expect(result).toEqual({ paceMin: 99, paceMax: 105, paceUnit: 'secPer100m' })
 })
 
 test('zoneLabel Z5 resolves via css-5 to faster than threshold', () => {
@@ -248,7 +248,7 @@ test('zoneLabel Z5 resolves via css-5 to faster than threshold', () => {
 		{ kind: 'zoneLabel', label: 'Z5' },
 		fullSwim5Profile,
 	)
-	expect(result).toEqual({ paceMax: 93 })
+	expect(result).toEqual({ paceMax: 93, paceUnit: 'secPer100m' })
 })
 
 test('zoneLabel Z1 resolves via css-5 to a two-sided easy range', () => {
@@ -259,7 +259,7 @@ test('zoneLabel Z1 resolves via css-5 to a two-sided easy range', () => {
 		{ kind: 'zoneLabel', label: 'Z1' },
 		fullSwim5Profile,
 	)
-	expect(result).toEqual({ paceMin: 113, paceMax: 126 })
+	expect(result).toEqual({ paceMin: 113, paceMax: 126, paceUnit: 'secPer100m' })
 })
 
 // zoneLabel — canonical labels on every default recipe (#614) ————————————
@@ -480,11 +480,11 @@ test('a pace percentage is of threshold *speed*, so it divides', () => {
 			{ kind: 'pacePct', minPct: 95, maxPct: 98 },
 			fullRunProfile,
 		),
-	).toEqual({ paceMin: 245, paceMax: 253 })
+	).toEqual({ paceMin: 245, paceMax: 253, paceUnit: 'secPerKm' })
 	// Above 100 % is faster: Daniels' T-ladder finishes at 102 %.
 	expect(
 		resolveIntensity({ kind: 'pacePct', minPct: 102 }, fullRunProfile),
-	).toEqual({ paceMin: 235, paceMax: 235 })
+	).toEqual({ paceMin: 235, paceMax: 235, paceUnit: 'secPerKm' })
 })
 
 test('a pace percentage with no threshold pace is Unavailable, and says which', () => {
@@ -502,7 +502,12 @@ test('lactate resolves through the band the recipe declares it at', () => {
 			{ kind: 'lactate', minMmol: 2.5, maxMmol: 3.0 },
 			norwegianRunProfile,
 		),
-	).toEqual({ paceMin: 245, paceMax: 252, approximate: true })
+	).toEqual({
+		paceMin: 245,
+		paceMax: 252,
+		approximate: true,
+		paceUnit: 'secPerKm',
+	})
 })
 
 test('the same lactate reading resolves on whichever channel the recipe anchors', () => {
@@ -548,11 +553,21 @@ test('a race pace resolves off the athlete’s own result, hedged', () => {
 	// today's fitness.
 	expect(
 		resolveIntensity({ kind: 'racePace', event: '5k', minPct: 95 }, withResult),
-	).toEqual({ paceMin: 253, paceMax: 253, approximate: true })
+	).toEqual({
+		paceMin: 253,
+		paceMax: 253,
+		approximate: true,
+		paceUnit: 'secPerKm',
+	})
 	// With no percentage the anchor itself is the target.
 	expect(
 		resolveIntensity({ kind: 'racePace', event: '5k' }, withResult),
-	).toEqual({ paceMin: 240, paceMax: 240, approximate: true })
+	).toEqual({
+		paceMin: 240,
+		paceMax: 240,
+		approximate: true,
+		paceUnit: 'secPerKm',
+	})
 })
 
 test('a race pace with no result on record degrades to Unavailable, naming the gap', () => {

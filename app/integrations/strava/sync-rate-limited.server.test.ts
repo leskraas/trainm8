@@ -8,8 +8,7 @@ import { syncStravaActivities } from './sync.server.ts'
 /**
  * A manual sync runs inside a request, not on the job queue, so a spent
  * Strava day can't be deferred there (#637). It reports `rate-limited`
- * instead. Kept in its own file: spending the shared limiter's day would make
- * every later test in a file defer too.
+ * instead.
  */
 
 test('a spent Strava day returns rate-limited from a manual sync, not a throw', async () => {
@@ -47,7 +46,15 @@ test('a spent Strava day returns rate-limited from a manual sync, not a throw', 
 
 	const result = await syncStravaActivities(user.id)
 
-	expect(result).toEqual({ ok: false, reason: 'rate-limited' })
+	// It says when the day resets (midnight UTC), so the toast can say when to
+	// try again.
+	const midnight = new Date()
+	midnight.setUTCHours(24, 0, 0, 0)
+	expect(result).toEqual({
+		ok: false,
+		reason: 'rate-limited',
+		retryAt: midnight,
+	})
 	const after = await prisma.accountConnection.findUniqueOrThrow({
 		where: { id: connection.id },
 	})

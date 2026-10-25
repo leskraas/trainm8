@@ -135,6 +135,14 @@ export type TokenField =
 	| 'restBetweenSetsSec'
 	| 'notes'
 	| 'discipline'
+	// The outer repeat level, the rest between its series (ADR 0007) and the
+	// two Step Parameters (ADR 0002). Read-only like `vertical`, for the same
+	// reason: the Conform form carries none of them yet, so they are drawn
+	// for reading and bind to no control (#466).
+	| 'seriesRepeatCount'
+	| 'betweenSeriesRestSec'
+	| 'grade'
+	| 'cadence'
 
 /** Where a token lives in the Block/Step tree; `stepIndex` is null for block-level tokens. */
 export type TokenAddress = {
@@ -185,11 +193,37 @@ export type IntensityFacets = {
  */
 export type IntensityChip = { text: string; step: TrainingZone | null }
 
+/**
+ * A **Step Parameter** token's shape (ADR 0002): the condition the work happens
+ * under, not a magnitude of it. `value` is the figure (`50–60`, `4–7 %`) and
+ * `word` what it is (`rpm`, `motbakke`), so a renderer can weigh the one and
+ * quiet the other without parsing `text`, which is the two joined. `word` is
+ * null where there is nothing true to say: a grade across level ground, or
+ * one end of a grade, names no direction it was not given.
+ */
+export type StepParameterToken = {
+	text: string
+	value: string
+	word: string | null
+	address: TokenAddress
+}
+
 export type NotationToken =
 	/** A Step Quantity: `6 min` (field `duration`) or `2 km` (field `distance`). */
 	| { type: 'quantity'; text: string; address: TokenAddress }
 	/** A block's repeat count, e.g. `4` (rendered `4 ×`). Present only when > 1. */
 	| { type: 'repeat'; text: string; count: number; address: TokenAddress }
+	/**
+	 * A block's **Series Repeat** — the outer of its two repeat levels, `3` in
+	 * `3 × (13 × 30/15)`. A second block-level arm rather than a reuse of
+	 * `repeat`, because both are present at once and one arm could not say
+	 * which is which (#466). Present only when > 1.
+	 */
+	| { type: 'series'; text: string; count: number; address: TokenAddress }
+	/** A step's **Grade** band: `4–7 % motbakke`, `3–6 % utforbakke`. */
+	| ({ type: 'grade' } & StepParameterToken)
+	/** A step's **Cadence**: `50–60 rpm`, `≥ 90 rpm`. */
+	| ({ type: 'cadence' } & StepParameterToken)
 	/**
 	 * An Intensity Target with derived facets: `4:40 /km`, `Threshold`,
 	 * `95–105% FTP`. `targetKind` is null for the editor-only placeholder of a
@@ -204,8 +238,18 @@ export type NotationToken =
 			facets: IntensityFacets
 			address: TokenAddress
 	  }
-	/** A rest — a rest step (`1 min rest`) or a strength rest-between-sets facet. */
-	| { type: 'rest'; text: string; address: TokenAddress }
+	/**
+	 * A rest — a rest step (`1 min pause`) or a strength rest-between-sets
+	 * facet. `parts` is `text` split around its value (`1 min`, `200 m`, `120`,
+	 * `1:40`), so the value can weigh and the words recede; null for a rest
+	 * that is an act or a bare `pause`.
+	 */
+	| {
+			type: 'rest'
+			text: string
+			parts: RestParts | null
+			address: TokenAddress
+	  }
 	/** A strength step's exercise name: `Squat`. */
 	| { type: 'exercise'; text: string; address: TokenAddress }
 	/** A strength step's compact set summary: `5 × 5 @ 80 kg`. */
@@ -244,6 +288,12 @@ export type BlockNotation = {
 	blockIndex: number
 	/** The repeat-group token, present only when repeatCount > 1. */
 	repeat: Extract<NotationToken, { type: 'repeat' }> | null
+	/** The outer Series Repeat token, present only when seriesRepeatCount > 1.
+	 * It wraps the reps: `3 × (13 × …)`. */
+	series: Extract<NotationToken, { type: 'series' }> | null
+	/** The rest between series, drawn after them (`(10 min seriepause)`);
+	 * present only when there is more than one series to separate. */
+	seriesRest: Extract<NotationToken, { type: 'rest' }> | null
 	/** The block name as a label token, when the block is named. */
 	label: Extract<NotationToken, { type: 'label' }> | null
 	/** Steps render wrapped in group parens: `3 × (3 min → 1 min)`. */
@@ -293,8 +343,10 @@ export type NotationStep = {
 	distanceM?: number | null
 	/** The third Step Quantity (ADR 0002) — metres of climb. */
 	verticalM?: number | null
-	/** Step Parameters, which are not quantities and coexist with one. */
-	gradePct?: number | null
+	/** Step Parameters, which are not quantities and coexist with one. Grade
+	 * is a signed band, like cadence; a single grade states both ends equal. */
+	gradePctMin?: number | null
+	gradePctMax?: number | null
 	cadenceRpmMin?: number | null
 	cadenceRpmMax?: number | null
 	/** A rest step's authored form (ADR 0007). `durationSec` above stays the
@@ -377,7 +429,8 @@ type PersistedStep = {
 	durationSec?: number | null
 	distanceM?: number | null
 	verticalM?: number | null
-	gradePct?: number | null
+	gradePctMin?: number | null
+	gradePctMax?: number | null
 	cadenceRpmMin?: number | null
 	cadenceRpmMax?: number | null
 	/** Stored Rest Spec JSON. */
@@ -476,7 +529,8 @@ export function workoutToNotationInput(
 						durationSec: step.durationSec,
 						distanceM: step.distanceM,
 						verticalM: step.verticalM,
-						gradePct: step.gradePct,
+						gradePctMin: step.gradePctMin,
+						gradePctMax: step.gradePctMax,
 						cadenceRpmMin: step.cadenceRpmMin,
 						cadenceRpmMax: step.cadenceRpmMax,
 						rest: parseStoredJson(RestSpecSchema, step.rest),
@@ -667,8 +721,8 @@ const UNRESOLVED_RANGE = {
  * Adapt the shared normalized notation input (from either adapter, but used for
  * the *draft* form values) into the persisted `Workout` row shape the Workout
  * Shape pipeline expects, so the editor can feed the draft through the exact
- * same `expandWorkoutSteps` / `deriveSessionProfile` derivation the detail view
- * and ledger use — one shape everywhere, no duplicated zone/duration logic.
+ * same `deriveSessionProfile` derivation (`workoutReps`) the detail view and
+ * ledger use — one shape everywhere, no duplicated zone/duration logic.
  *
  * Pure and total: authored intensity re-serializes to the JSON string
  * `stepToZone` parses; `intent`/`discipline` seed the intent-fallback zone
@@ -708,7 +762,8 @@ export function notationInputToWorkout(
 				durationSec: step.durationSec ?? null,
 				distanceM: step.distanceM ?? null,
 				verticalM: step.verticalM ?? null,
-				gradePct: step.gradePct ?? null,
+				gradePctMin: step.gradePctMin ?? null,
+				gradePctMax: step.gradePctMax ?? null,
 				cadenceRpmMin: step.cadenceRpmMin ?? null,
 				cadenceRpmMax: step.cadenceRpmMax ?? null,
 				rest: step.rest ? JSON.stringify(step.rest) : null,
@@ -1001,27 +1056,52 @@ function notesToken(
  * non-`time` rest rendered as the bare word for a rest, which threw the
  * prescription away. The words are Norwegian on display (ADR 0089).
  */
-function restText(step: NotationStep): string {
+function restText(step: NotationStep): RestWords {
 	const spec =
 		step.rest ??
 		(step.durationSec != null
 			? ({ kind: 'time', durationSec: step.durationSec } as const)
 			: null)
-	if (!spec) return WORDS.rest
+	if (!spec) return { text: WORDS.rest, parts: null }
 	switch (spec.kind) {
 		case 'time':
-			return WORDS.restFor(formatDuration(spec.durationSec))
+			return restWords(WORDS.restFor, formatDuration(spec.durationSec))
 		case 'distance':
-			return WORDS.recoveryOver(formatDistance(spec.distanceM))
+			return restWords(WORDS.recoveryOver, formatDistance(spec.distanceM))
 		case 'toHr':
-			return WORDS.untilHeartRate(spec.belowBpm)
+			return restWords(WORDS.untilHeartRate, spec.belowBpm)
 		case 'toHrPct':
-			return WORDS.untilHeartRatePct(spec.belowPct)
+			return restWords(WORDS.untilHeartRatePct, spec.belowPct)
 		case 'sendOff':
 			return sendOffText(spec)
 		case 'act':
-			return REST_ACT_WORDS[spec.act]
+			return { text: REST_ACT_WORDS[spec.act], parts: null }
 	}
+}
+
+/** A rest's words split around the value inside them: `til puls < ` ·
+ * `120` · ` bpm`. Concatenated, they are the token's `text`. */
+export type RestParts = { before: string; value: string; after: string }
+
+type RestWords = { text: string; parts: RestParts | null }
+
+/** Stands in for the value while the words are built, so the split is where
+ * the words' own builder placed it — never found by searching the finished
+ * text, which could hold the same digits in its words. */
+const VALUE_SLOT = '\uE000'
+
+function restWords<V extends string | number>(
+	build: (value: V) => string,
+	value: V,
+): RestWords {
+	const text = build(value)
+	// Every rest builder interpolates its value as is, so the slot passes
+	// through in its place; a builder that did not would leave the words whole.
+	const [before, after, ...extra] = build(VALUE_SLOT as V).split(VALUE_SLOT)
+	if (before == null || after == null || extra.length > 0) {
+		return { text, parts: null }
+	}
+	return { text, parts: { before, value: String(value), after } }
 }
 
 /**
@@ -1031,14 +1111,105 @@ function restText(step: NotationStep): string {
  */
 function sendOffText(
 	sendOff: SendOff | Extract<RestSpec, { kind: 'sendOff' }>,
-): string {
+): RestWords {
 	if (sendOff.kind === 'absolute') {
-		return WORDS.sendOff(formatDuration(sendOff.intervalSec))
+		return restWords(WORDS.sendOff, formatDuration(sendOff.intervalSec))
 	}
 	const allowance = sendOff.allowanceSecPer100m
-	if (allowance === 0) return WORDS.sendOff('CSS')
+	if (allowance === 0) return restWords(WORDS.sendOff, 'CSS')
 	const sign = allowance > 0 ? '+' : '−'
-	return WORDS.sendOff(`CSS ${sign} ${Math.abs(allowance)} s`)
+	return restWords(WORDS.sendOff, `CSS ${sign} ${Math.abs(allowance)} s`)
+}
+
+type ParameterParts = { value: string; word: string | null }
+
+function parameterToken(
+	type: 'grade' | 'cadence',
+	parts: ParameterParts,
+	address: TokenAddress,
+): PositionedToken {
+	return {
+		separator: NOTATION_SEPARATORS.facet,
+		parenthesized: false,
+		token: {
+			type,
+			text: parts.word ? `${parts.value} ${parts.word}` : parts.value,
+			value: parts.value,
+			word: parts.word,
+			address,
+		},
+	}
+}
+
+/** A band's figure: `50–60`, or `70` when both ends agree. */
+function band(min: number, max: number, format: (n: number) => string) {
+	return min === max ? format(min) : `${format(min)}–${format(max)}`
+}
+
+/** A grade's magnitude to a tenth, in the notation's machine digits like
+ * `2.5 km`: `4`, `2.5`. The column is a float, so a stored `4.333` must not
+ * reach the sentence raw. */
+function gradeFigure(n: number): string {
+	return String(Math.round(Math.abs(n) * 10) / 10)
+}
+
+/** A grade with a real minus sign, as every signed figure in the app writes
+ * one. The sign follows the rounded figure, so `-0.04` reads `0`, not `−0`. */
+function signed(n: number, plus = false): string {
+	const figure = gradeFigure(n)
+	if (figure === '0') return figure
+	if (n < 0) return `−${figure}`
+	return plus ? `+${figure}` : figure
+}
+
+/**
+ * Cadence as authored: a band, a single rpm, or one end of a band — `≥ 90`
+ * is a floor and says so rather than inventing the ceiling it lacks.
+ */
+function cadenceParts(
+	min: number | null | undefined,
+	max: number | null | undefined,
+): ParameterParts | null {
+	const word = WORDS.cadence
+	if (min != null && max != null) {
+		return { value: band(min, max, String), word }
+	}
+	if (min != null) return { value: `≥ ${min}`, word }
+	if (max != null) return { value: `≤ ${max}`, word }
+	return null
+}
+
+/**
+ * A signed **Grade** band in the words a coach uses: uphill and downhill are
+ * named (`4–7 % motbakke`, `3–6 % utforbakke`, the descent read by its
+ * magnitude), and only a band on one side of level ground has one direction
+ * to name. A band across level ground and a single bound are written signed,
+ * because a direction there would be one nobody stated.
+ */
+function gradeParts(
+	min: number | null | undefined,
+	max: number | null | undefined,
+): ParameterParts | null {
+	if (min != null && max != null) {
+		if (min >= 0 && max > 0) {
+			return { value: `${band(min, max, gradeFigure)} %`, word: WORDS.uphill }
+		}
+		if (max <= 0 && min < 0) {
+			// A descent reads shallow to steep: −6..−3 is `3–6 %`.
+			return {
+				value: `${band(-max, -min, gradeFigure)} %`,
+				word: WORDS.downhill,
+			}
+		}
+		if (min === max) return { value: `${gradeFigure(min)} %`, word: null }
+		return {
+			value: `${signed(min, true)} ${WORDS.gradeTo} ${signed(max, true)} %`,
+			word: null,
+		}
+	}
+	if (min != null) return { value: `≥ ${signed(min)} %`, word: null }
+	if (max != null) return { value: `≤ ${signed(max)} %`, word: null }
+	return null
 }
 
 function buildStep(
@@ -1076,7 +1247,7 @@ function buildStep(
 			parenthesized: true,
 			token: {
 				type: 'rest',
-				text: restText(step),
+				...restText(step),
 				address: at('duration'),
 			},
 		})
@@ -1117,7 +1288,7 @@ function buildStep(
 				parenthesized: false,
 				token: {
 					type: 'rest',
-					text: WORDS.restFor(formatDuration(step.restBetweenSetsSec)),
+					...restWords(WORDS.restFor, formatDuration(step.restBetweenSetsSec)),
 					address: at('restBetweenSetsSec'),
 				},
 			})
@@ -1183,6 +1354,18 @@ function buildStep(
 				},
 			})
 		}
+		// The Step Parameters follow what the work is, after a facet dot: a
+		// hill is `90 s @ 92 % HRmax · 4–7 % motbakke`, a torque interval
+		// `6 min @ 80–90% FTP · 50–60 rpm`. Before #466 neither was drawn, so a
+		// cadence ladder read as four identical steps.
+		const grade = gradeParts(step.gradePctMin, step.gradePctMax)
+		if (grade) {
+			tokens.push(parameterToken('grade', grade, at('grade')))
+		}
+		const cadence = cadenceParts(step.cadenceRpmMin, step.cadenceRpmMax)
+		if (cadence) {
+			tokens.push(parameterToken('cadence', cadence, at('cadence')))
+		}
 	}
 
 	if (step.notes?.trim()) {
@@ -1221,7 +1404,7 @@ export function deriveWorkoutNotation(
 					parenthesized: true,
 					token: {
 						type: 'rest',
-						text: sendOffText(block.sendOff),
+						...sendOffText(block.sendOff),
 						address: {
 							blockIndex,
 							stepIndex: lastStep.stepIndex,
@@ -1230,19 +1413,48 @@ export function deriveWorkoutNotation(
 					},
 				})
 			}
-			// The series lead the reps, `3 × 13` (#615); `count` stays the reps,
-			// the field the repeat token edits.
-			const series = block.seriesRepeatCount ?? 1
 			const repeat =
-				block.repeatCount > 1 || series > 1
+				block.repeatCount > 1
 					? ({
 							type: 'repeat',
-							text:
-								series > 1
-									? `${series} ${NOTATION_SEPARATORS.repeat} ${block.repeatCount}`
-									: String(block.repeatCount),
+							text: String(block.repeatCount),
 							count: block.repeatCount,
 							address: { blockIndex, stepIndex: null, field: 'repeatCount' },
+						} as const)
+					: null
+			// The outer level is its own token (#466): the series lead and wrap
+			// the reps, `3 × (13 × 30/15)`, and a block repeated only in series
+			// is still three efforts (#615) without a `1 ×` nobody wrote.
+			const seriesCount = block.seriesRepeatCount ?? 1
+			const series =
+				seriesCount > 1
+					? ({
+							type: 'series',
+							text: String(seriesCount),
+							count: seriesCount,
+							address: {
+								blockIndex,
+								stepIndex: null,
+								field: 'seriesRepeatCount',
+							},
+						} as const)
+					: null
+			// The schema refuses a rest between series of one series; a stray
+			// one in a stored row still has nothing to separate, so it draws
+			// nothing rather than a rest that never happens.
+			const seriesRest =
+				series && block.betweenSeriesRestSec != null
+					? ({
+							type: 'rest',
+							...restWords(
+								WORDS.betweenSeries,
+								formatDuration(block.betweenSeriesRestSec),
+							),
+							address: {
+								blockIndex,
+								stepIndex: null,
+								field: 'betweenSeriesRestSec',
+							},
 						} as const)
 					: null
 			const name = block.name?.trim()
@@ -1261,8 +1473,10 @@ export function deriveWorkoutNotation(
 			return {
 				blockIndex,
 				repeat,
+				series,
+				seriesRest,
 				label,
-				grouped: repeat != null && inlineSteps.length >= 2,
+				grouped: (repeat ?? series) != null && inlineSteps.length >= 2,
 				steps,
 			}
 		}),
@@ -1355,13 +1569,29 @@ function blockSegments(block: BlockNotation): SentenceSegment[] {
 	if (block.grouped && steps.length > 0) {
 		steps = [glue('('), ...steps, glue(')')]
 	}
-	const out: SentenceSegment[] = []
+	let reps: SentenceSegment[] = []
 	if (block.repeat) {
-		out.push(tokenSegment(block.repeat), glue(` ${NOTATION_SEPARATORS.repeat}`))
+		reps.push(
+			tokenSegment(block.repeat),
+			glue(` ${NOTATION_SEPARATORS.repeat}`),
+		)
 	}
 	if (steps.length > 0) {
+		if (reps.length > 0) reps.push(glue(' '))
+		reps.push(...steps)
+	}
+	const out: SentenceSegment[] = []
+	if (block.series) {
+		// The series wrap the reps, `3 × (13 × …)`. With no inner repeat the
+		// steps are already grouped where they need it: `2 × (10 min → 5 min)`.
+		if (block.repeat) reps = [glue('('), ...reps, glue(')')]
+		out.push(tokenSegment(block.series), glue(` ${NOTATION_SEPARATORS.repeat}`))
+		if (reps.length > 0) out.push(glue(' '))
+	}
+	out.push(...reps)
+	if (block.seriesRest) {
 		if (out.length > 0) out.push(glue(' '))
-		out.push(...steps)
+		out.push(glue('('), tokenSegment(block.seriesRest), glue(')'))
 	}
 	if (block.label) {
 		if (out.length > 0) out.push(glue(' '))

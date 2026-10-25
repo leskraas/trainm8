@@ -16,6 +16,7 @@ import {
 	type CatalogueTier,
 	type SessionArchetype,
 } from './catalogue.ts'
+import { PUBLISHED_WORKOUT_WHERE } from './community.ts'
 import { prisma } from './db.server.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import {
@@ -84,12 +85,14 @@ export type CatalogueEntryRow = Prisma.CatalogueEntryGetPayload<{
  * moderator: a row this viewer reported is gone **for this viewer** at once
  * (ADR 0052). It is not a moderation state and never becomes one.
  */
-function visibleToViewer(viewerId: string): Prisma.WorkoutWhereInput {
+export function visibleToViewer(viewerId: string): Prisma.WorkoutWhereInput {
 	return {
 		OR: [
 			{ authorship: 'system' },
 			{ ownerId: viewerId },
-			{ visibility: 'public' },
+			// Never `visibility: 'public'` alone: an orphan whose author deleted
+			// their account is not published by anybody any more (#468).
+			PUBLISHED_WORKOUT_WHERE,
 		],
 		reports: { none: { reporterId: viewerId } },
 	}
@@ -113,7 +116,7 @@ function tierWhere(
 		case 'community':
 			return {
 				authorship: 'athlete',
-				visibility: 'public',
+				...PUBLISHED_WORKOUT_WHERE,
 				NOT: { ownerId: viewerId },
 			}
 	}

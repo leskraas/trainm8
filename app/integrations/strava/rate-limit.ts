@@ -1,8 +1,8 @@
 /**
  * A rate limiter for Strava's per-app read budget (100 requests / 15 min and
  * 1,000 / day — ADR 0013). `acquire()` resolves immediately while every window
- * has room and otherwise waits until the full window resets, so throttling
- * delays calls rather than dropping them (#74).
+ * has room and otherwise throws `StravaRateLimitedError` (a `DeferJob`) for when the full window resets, so
+ * throttling delays calls rather than dropping them (#74).
  *
  * Windows are fixed, as Strava counts them (#637): the 15-minute ones reset at
  * :00, :15, :30 and :45, the day at midnight UTC — both whole multiples of their
@@ -10,11 +10,12 @@
  * use only part of each window, keeping `liveReserve` of it for `live` webhook
  * fetches, so a backfill can't starve them. `run()` also reads Strava's
  * rate-limit headers, so its figures follow Strava's rather than ours, and
- * backs a `429` off until the next window instead of failing.
+ * takes a `429` as the window spent instead of failing.
  *
- * Bulk work that would have to wait, and a live fetch facing a spent day, would
- * hold the single job worker, so instead of sleeping the limiter throws
- * `DeferJob` and the queue runs the job again when the window resets.
+ * The limiter never sleeps. A wait would hold the single job worker, or the
+ * request a callback or manual sync runs in, for up to a day; instead it throws
+ * `StravaRateLimitedError`. The queue runs a deferred job again when the window resets
+ * (ADR 0013), and a request path answers at once with when to try again.
  *
  * It is intentionally not concurrency-safe: the job worker runs single-threaded
  * and fetches pages sequentially, so calls into a limiter are serialised. The
@@ -24,16 +25,22 @@
 
 import { DeferJob } from '#app/utils/jobs/queue.server.ts'
 
-/** Injectable time source so tests can advance virtual time without waiting. */
-export type Clock = {
-	now: () => number
-	sleep: (ms: number) => Promise<void>
+/**
+ * Strava's read budget is spent until `until`. A request path (the OAuth
+ * callback, manual sync) catches it by this name and says when to try again;
+ * it is a `DeferJob`, so a job that hits it is deferred to `until`.
+ */
+export class StravaRateLimitedError extends DeferJob {
+	constructor(until: Date) {
+		super(until, `Strava read budget spent until ${until.toISOString()}`)
+		this.name = 'StravaRateLimitedError'
+	}
 }
 
-const realClock: Clock = {
-	now: () => Date.now(),
-	sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-}
+/** Injectable time source so tests can move virtual time without waiting. */
+export type Clock = { now: () => number }
+
+const realClock: Clock = { now: () => Date.now() }
 
 /** Who is asking: a live webhook fetch, or bulk work that must leave it room. */
 export type RateLimitLane = 'live' | 'bulk'
@@ -48,26 +55,18 @@ export type RateLimiter = {
 	) => Promise<Response>
 }
 
-/** How many times a `429` is waited out before the response is handed back. */
-const MAX_429_RETRIES = 3
-
 export function createRateLimiter({
 	windows,
 	liveReserve = 0,
 	clock = realClock,
-	bulkMaySleep = false,
 }: {
 	/** Shortest first, in the order Strava's headers list them. */
 	windows: readonly RateLimitWindow[]
 	/** The share of each window only `live` requests may use. */
 	liveReserve?: number
 	clock?: Clock
-	/** Let bulk work wait out a quarter-hour like live, where no queue would
-	 * run a deferred job again (tests on a skip-ahead clock). */
-	bulkMaySleep?: boolean
 }): RateLimiter {
 	const state = windows.map((w) => ({ ...w, start: 0, used: 0 }))
-	const maxWaitMs = Math.min(...windows.map((w) => w.windowMs))
 
 	function roll(now: number) {
 		for (const w of state) {
@@ -83,28 +82,23 @@ export function createRateLimiter({
 		return lane === 'live' ? w.limit : Math.floor(w.limit * (1 - liveReserve))
 	}
 
+	/**
+	 * When `lane`'s next request may go, as the windows stand: `null` while
+	 * every window has room, else when the last of the full ones resets.
+	 * Reads the windows only; the caller rolls them to now first.
+	 */
+	function resumeAt(lane: RateLimitLane): Date | null {
+		const full = state.filter((w) => w.used >= cap(w, lane))
+		if (full.length === 0) return null
+		return new Date(Math.max(...full.map((w) => w.start + w.windowMs)))
+	}
+
 	async function acquire(lane: RateLimitLane = 'bulk'): Promise<void> {
-		for (;;) {
-			const now = clock.now()
-			roll(now)
-			const full = state.filter((w) => w.used >= cap(w, lane))
-			if (full.length === 0) {
-				for (const w of state) w.used++
-				return
-			}
-			// Wait for the last of the full windows to reset, or hand the job back
-			// to the queue. Bulk work never waits: sleeping would hold the single
-			// job worker, and the live fetches its reserve is kept for queue behind
-			// it. Live waits out a quarter-hour, but not a spent day.
-			const resumeAt = Math.max(...full.map((w) => w.start + w.windowMs))
-			if ((lane === 'bulk' && !bulkMaySleep) || resumeAt - now > maxWaitMs) {
-				throw new DeferJob(
-					new Date(resumeAt),
-					`Strava read budget spent until ${new Date(resumeAt).toISOString()}`,
-				)
-			}
-			await clock.sleep(Math.max(resumeAt - now, 1))
-		}
+		roll(clock.now())
+		const until = resumeAt(lane)
+		// Hand the job back until the window it needs resets.
+		if (until) throw new StravaRateLimitedError(until)
+		for (const w of state) w.used++
 	}
 
 	/**
@@ -133,19 +127,19 @@ export function createRateLimiter({
 		lane: RateLimitLane,
 		request: () => Promise<Response>,
 	): Promise<Response> {
-		for (let attempt = 0; ; attempt++) {
-			await acquire(lane)
-			const response = await request()
-			observe(response.headers)
-			if (response.status !== 429 || attempt >= MAX_429_RETRIES) {
-				return response
-			}
-			// Spent, says Strava. When its headers don't say which window, assume
-			// the shortest, so the retry waits for the next quarter-hour.
-			if (!state.some((w) => w.used >= w.limit) && state[0]) {
-				state[0].used = state[0].limit
-			}
+		await acquire(lane)
+		const response = await request()
+		observe(response.headers)
+		if (response.status !== 429) return response
+		// Spent, says Strava. When its headers don't say which window, assume
+		// the shortest, so the job defers to the next quarter-hour.
+		if (!state.some((w) => w.used >= w.limit) && state[0]) {
+			state[0].used = state[0].limit
 		}
+		const until = resumeAt(lane)
+		if (until) throw new StravaRateLimitedError(until)
+		// A limiter with no windows hands the 429 back as it came.
+		return response
 	}
 
 	return { acquire, run }
@@ -169,3 +163,22 @@ export const STRAVA_RATE_LIMIT = {
 	],
 	liveReserve: 0.2,
 } as const
+
+/**
+ * The process-wide limiter every Strava API call goes through, so the per-app
+ * read budget (ADR 0013) is honoured across all athletes' activity.
+ */
+let sharedStravaRateLimiter = createRateLimiter(STRAVA_RATE_LIMIT)
+
+export function getStravaRateLimiter(): RateLimiter {
+	return sharedStravaRateLimiter
+}
+
+/**
+ * Give the process-wide limiter its whole budget back. The test setup calls it
+ * before each test, so the reads earlier tests made never defer a later one; a
+ * test that needs its own clock or windows hands its limiter to `stravaApiGet`.
+ */
+export function resetStravaRateLimiter(): void {
+	sharedStravaRateLimiter = createRateLimiter(STRAVA_RATE_LIMIT)
+}

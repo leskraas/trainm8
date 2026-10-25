@@ -74,6 +74,7 @@ import { proposeStarterPattern } from '../plan-outline/starter-pattern.ts'
 import { weekKeyAt } from '../plan-outline/week-keys.ts'
 import { type PatternWeekday } from '../plan-outline/week-pattern.ts'
 import { type Discipline } from '../workout-schema.ts'
+import { fitToCapacity } from './capacity.ts'
 import { readSessionProvenance } from './provenance.ts'
 import {
 	archetypesForSlot,
@@ -235,10 +236,22 @@ export function generateDeterministicSeason(
 		cataloguePhase: cataloguePhaseFor(preset.phases, index),
 	}))
 
+	// Weekly Capacity first: where the heaviest week outruns it, the anchors are
+	// lowered by one common factor and every week below is priced from those
+	// (ADR 0110). Unset or unpriced leaves the request's anchors as they are.
+	const { tracks, fit: capacity } = fitToCapacity({
+		phases: phaseSpecs,
+		segments: segmentSpecs,
+		mixes: preset.phases.map((phase) => phase.mix),
+		tracks: request.tracks,
+		contexts: request.conversionContexts,
+		weeklyCapacityHours: request.weeklyCapacityHours,
+	})
+
 	// The same derivation the plan page reads once the season exists, so the
 	// preview cannot promise weeks the applied plan does not deliver.
 	const targetsByDiscipline = new Map(
-		request.tracks.map((track) => [
+		tracks.map((track) => [
 			track.discipline,
 			weekTargets(phaseSpecs, {
 				currency: track.currency,
@@ -284,7 +297,7 @@ export function generateDeterministicSeason(
 			phaseIndex,
 			role,
 			isFinalWeek,
-			targets: request.tracks.map((track) => ({
+			targets: tracks.map((track) => ({
 				discipline: track.discipline,
 				currency: track.currency,
 				value: targetsByDiscipline.get(track.discipline)?.[weekIndex] ?? null,
@@ -370,7 +383,8 @@ export function generateDeterministicSeason(
 		startWeekKey: request.startWeekKey,
 		eventWeekKey: request.eventWeekKey,
 		phases,
-		tracks: request.tracks,
+		tracks,
+		capacity,
 		weeks,
 		sessions,
 		unfilled,

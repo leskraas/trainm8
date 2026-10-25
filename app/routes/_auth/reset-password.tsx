@@ -4,7 +4,7 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { data, redirect, Form } from 'react-router'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { ErrorList, Field } from '#app/components/forms.tsx'
+import { Field, ReserveErrorLines } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	checkIsCommonPassword,
@@ -105,41 +105,44 @@ export default function ResetPasswordPage({
 			subtitle={`Hi, ${loaderData.resetPasswordUsername}. No worries. It happens all the time.`}
 		>
 			<Form method="POST" {...getFormProps(form)}>
-				<Field
-					className="pb-4"
-					labelProps={{
-						htmlFor: fields.password.id,
-						children: 'New Password',
-					}}
-					inputProps={{
-						...getInputProps(fields.password, { type: 'password' }),
-						autoComplete: 'new-password',
-						autoFocus: true,
-					}}
-					errors={fields.password.errors}
-				/>
-				<Field
-					labelProps={{
-						htmlFor: fields.confirmPassword.id,
-						children: 'Confirm Password',
-					}}
-					inputProps={{
-						...getInputProps(fields.confirmPassword, { type: 'password' }),
-						autoComplete: 'new-password',
-					}}
-					errors={fields.confirmPassword.errors}
-				/>
+				<ReserveErrorLines>
+					<Field
+						labelProps={{
+							htmlFor: fields.password.id,
+							children: 'New Password',
+						}}
+						inputProps={{
+							...getInputProps(fields.password, { type: 'password' }),
+							autoComplete: 'new-password',
+							enterKeyHint: 'next',
+							autoFocus: true,
+						}}
+						errors={fields.password.errors}
+					/>
+					<Field
+						labelProps={{
+							htmlFor: fields.confirmPassword.id,
+							children: 'Confirm Password',
+						}}
+						inputProps={{
+							...getInputProps(fields.confirmPassword, { type: 'password' }),
+							autoComplete: 'new-password',
+							enterKeyHint: 'go',
+						}}
+						errors={fields.confirmPassword.errors}
+						formErrors={form.errors}
+						formErrorId={form.errorId}
+					/>
 
-				<ErrorList errors={form.errors} id={form.errorId} />
-
-				<StatusButton
-					className="w-full"
-					status={isPending ? 'pending' : (form.status ?? 'idle')}
-					type="submit"
-					disabled={isPending}
-				>
-					Reset password
-				</StatusButton>
+					<StatusButton
+						className="w-full"
+						status={isPending ? 'pending' : (form.status ?? 'idle')}
+						type="submit"
+						disabled={isPending}
+					>
+						Reset password
+					</StatusButton>
+				</ReserveErrorLines>
 			</Form>
 		</AuthLayout>
 	)

@@ -16,7 +16,7 @@
  */
 import { getFormProps, getTextareaProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod/v3'
-import { data, Form, Link, redirect } from 'react-router'
+import { data, Form, Link, redirect, useNavigation } from 'react-router'
 import { z } from 'zod/v3'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import {
@@ -25,20 +25,25 @@ import {
 	TextareaField,
 } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
-import { Button, buttonVariants } from '#app/components/ui/button.tsx'
+import { buttonVariants } from '#app/components/ui/button.tsx'
 import {
 	Card,
 	CardContent,
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
+import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	attributionsFor,
 	hasReported,
 	reportWorkout,
 } from '#app/utils/community.server.ts'
-import { REPORT_REASONS, readAttribution } from '#app/utils/community.ts'
+import {
+	REPORT_REASONS,
+	isPublished,
+	readAttribution,
+} from '#app/utils/community.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	CATALOGUE_REPORT_LABELS as L,
@@ -85,7 +90,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 			visibility: true,
 		},
 	})
-	if (!workout || workout.visibility !== 'public') {
+	if (!workout || !isPublished(workout)) {
 		throw new Response('Not found', { status: 404 })
 	}
 	if (workout.ownerId === userId) {
@@ -123,14 +128,20 @@ export async function action({ request, params }: Route.ActionArgs) {
 	})
 
 	if (!result.ok) {
-		const message =
-			result.reason === 'your-own'
-				? L.errors.yourOwn
-				: result.reason === 'not-public'
-					? L.errors.notPublic
-					: L.errors.gone
+		if (result.reason === 'your-own') {
+			return data(
+				{ result: submission.reply({ formErrors: [L.errors.yourOwn] }) },
+				{ status: 400 },
+			)
+		}
+		// Erased or out of the Catalogue since the screen loaded (its author may
+		// have deleted their account): no retry can succeed, so the form ends.
 		return data(
-			{ result: submission.reply({ formErrors: [message] }) },
+			{
+				result: submission.reply(),
+				ended:
+					result.reason === 'not-public' ? L.errors.notPublic : L.errors.gone,
+			},
 			{ status: 400 },
 		)
 	}
@@ -143,6 +154,11 @@ export default function ReportRoute({
 	actionData,
 }: Route.ComponentProps) {
 	const { workout, attribution, alreadyReported } = loaderData
+	const ended =
+		actionData && 'ended' in actionData && typeof actionData.ended === 'string'
+			? actionData.ended
+			: undefined
+	const navigation = useNavigation()
 
 	const [form, fields] = useForm({
 		id: 'report-workout',
@@ -167,7 +183,7 @@ export default function ReportRoute({
 					<CardTitle className="text-callout [overflow-wrap:anywhere]">
 						{workout.title}
 					</CardTitle>
-					<p className="text-footnote text-muted-foreground">
+					<p className="text-footnote text-muted-foreground [overflow-wrap:anywhere]">
 						{nbDisciplineLabel(workout.discipline)}
 						{attribution
 							? ` · ${NB_PROVENANCE_LABELS.publishedBy(attribution.displayName)}`
@@ -181,19 +197,11 @@ export default function ReportRoute({
 				</CardContent>
 			</Card>
 
-			{alreadyReported ? (
+			{alreadyReported || ended ? (
 				<Card className="mb-6">
 					<CardContent className="text-footnote text-muted-foreground space-y-3">
-						<p>{L.already}</p>
-						<Link
-							to="/training/catalogue"
-							className={cn(
-								buttonVariants({ variant: 'outline', size: 'sm' }),
-								'rounded-full',
-							)}
-						>
-							{L.backToCatalogue}
-						</Link>
+						<p role={ended ? 'alert' : undefined}>{ended ?? L.already}</p>
+						<BackToCatalogue />
 					</CardContent>
 				</Card>
 			) : (
@@ -231,13 +239,15 @@ export default function ReportRoute({
 					<ErrorList id={form.errorId} errors={form.errors} />
 
 					<div className="flex flex-wrap gap-2">
-						<Button
+						<StatusButton
 							type="submit"
 							variant="destructive"
 							className="rounded-full"
+							status={navigation.state === 'submitting' ? 'pending' : 'idle'}
+							disabled={navigation.state === 'submitting'}
 						>
 							{L.send}
-						</Button>
+						</StatusButton>
 						<Link
 							to="/training/catalogue"
 							className={cn(
@@ -254,6 +264,36 @@ export default function ReportRoute({
 	)
 }
 
+function BackToCatalogue() {
+	return (
+		<Link
+			to="/training/catalogue"
+			className={cn(
+				buttonVariants({ variant: 'outline', size: 'sm' }),
+				'rounded-full',
+			)}
+		>
+			{L.backToCatalogue}
+		</Link>
+	)
+}
+
+/**
+ * A missing Workout and an orphaned one (its author deleted their account, #468)
+ * both 404 here, and a stale catalogue tab reaches it routinely: that is a state
+ * the reporter reads in Norwegian with the way back, not the boundary's default.
+ */
 export function ErrorBoundary() {
-	return <GeneralErrorBoundary />
+	return (
+		<GeneralErrorBoundary
+			statusHandlers={{
+				404: () => (
+					<div className="text-body space-y-4 text-center">
+						<p>{L.errors.gone}</p>
+						<BackToCatalogue />
+					</div>
+				),
+			}}
+		/>
+	)
 }

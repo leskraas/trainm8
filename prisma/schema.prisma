@@ -588,10 +588,13 @@ model WorkoutStep {
   // climb and in neither time nor ground distance.
   verticalM   Int?
 
-  // Step parameters — not quantities, so they coexist with one. Grade may be
-  // negative (a descent). Cadence is a prescription in its own right: six
-  // cycling sessions have it as their defining variable.
-  gradePct      Float?
+  // Step parameters — not quantities, so they coexist with one. Grade is a
+  // signed band (a descent is negative) because every hill session states one
+  // (`4–7 %`); a single grade stores both ends equal (#466). Cadence is a
+  // prescription in its own right: six cycling sessions have it as their
+  // defining variable.
+  gradePctMin   Float?
+  gradePctMax   Float?
   cadenceRpmMin Int?
   cadenceRpmMax Int?
 
@@ -1701,6 +1704,10 @@ model ActivityImport {
   /// file, whatever the answer: the harvest's resume marker. Null until asked;
   /// never set for imports from other transports.
   fitHarvestedAt        DateTime?
+  /// When a Strava streams fetch for this import answered with nothing usable
+  /// (#638): the streams ingest skips it, so a deferred rerun or a webhook
+  /// redelivery doesn't ask again. Null until so answered.
+  streamsCheckedAt      DateTime?
   startedAt             DateTime
   endedAt               DateTime
   durationSec           Int

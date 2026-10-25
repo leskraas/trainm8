@@ -15,6 +15,7 @@ import {
 	previewLiftingDays,
 	readLiftingDays,
 	setLiftingDays,
+	type StrengthRow,
 } from './lifting-days.server.ts'
 import { stampWeekPattern } from './stamp.server.ts'
 
@@ -316,6 +317,7 @@ test('chosen lifting days hold in every Week Pattern that lifts, and the undo pu
 		select: { id: true },
 		data: {
 			ownerId: null,
+			authorship: 'system',
 			title: 'Helkropp A',
 			discipline: 'strength',
 			intent: 'strength',
@@ -448,6 +450,50 @@ test('undoing puts back exactly the rows the write replaced, whatever sessions t
 	)
 	expect(undone.ok).toBe(true)
 	expect(await rows()).toEqual(before)
+})
+
+test("an undo cannot put an orphaned athlete's Workout into the week (#639 H26)", async () => {
+	const { userId } = await setup()
+	// An athlete deleted their account; their lift lost its owner but is still
+	// an athlete's, not a Stock Workout.
+	const orphan = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId: null,
+			authorship: 'athlete',
+			title: 'Noens løft',
+			discipline: 'strength',
+			intent: 'strength',
+		},
+	})
+	const state = (await readLiftingDays(userId, NOW))!
+	const written = await setLiftingDays(
+		userId,
+		{ choice: [TUE, THU], version: state.version },
+		NOW,
+	)
+	if (!written.ok) throw new Error(written.reason)
+	const forged = {
+		...written.previous,
+		rows: [
+			{ kind: 'fixed', weekday: TUE, workoutId: orphan.id, orderInDay: 1 },
+		] satisfies StrengthRow[],
+	}
+
+	const undone = await setLiftingDays(
+		userId,
+		{
+			choice: written.previous.days,
+			version: written.version,
+			restore: forged,
+		},
+		NOW,
+	)
+
+	expect(undone.ok).toBe(false)
+	expect(
+		await prisma.weekPatternDay.count({ where: { workoutId: orphan.id } }),
+	).toBe(0)
 })
 
 test('undoing from the toast restores the previous days', async () => {

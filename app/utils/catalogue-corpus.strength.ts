@@ -1039,7 +1039,7 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		key: 'strength-S19',
 		title: 'Maximal hill sprints (the bridge)',
 		description:
-			'**Deliberately modelled as cardio, and that is the point.** It is a neuromuscular session with a strength purpose: it carries a run discipline, contributes running load, and would count toward endurance adherence — while the physiological intent belongs to the power phase. The classification problem is the session, not a defect in it. The grade is a 6–10 % band, which a single grade column cannot hold, so it is stated rather than stored.',
+			'**Deliberately modelled as cardio, and that is the point.** It is a neuromuscular session with a strength purpose: it carries a run discipline, contributes running load, and would count toward endurance adherence — while the physiological intent belongs to the power phase. The classification problem is the session, not a defect in it. The grade is a 6–10 % band.',
 		discipline: 'run',
 		intent: 'neuromuscular',
 		archetype: 'neuromuscular',
@@ -1057,7 +1057,9 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 					run({
 						durationSec: 8,
 						intensity: rpe(10),
-						notes: 'Maximal, uphill on 6–10 % grade.',
+						gradePctMin: 6,
+						gradePctMax: 10,
+						notes: 'Maximal.',
 					}),
 					rest(150),
 				],

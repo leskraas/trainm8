@@ -6,7 +6,7 @@ import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod/v3'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { ErrorList, OTPField } from '#app/components/forms.tsx'
+import { OTPField } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
@@ -26,7 +26,13 @@ const VerificationTypeSchema = z.enum(types)
 export type VerificationTypes = z.infer<typeof VerificationTypeSchema>
 
 export const VerifySchema = z.object({
-	[codeQueryParam]: z.string().min(6).max(6),
+	// The emailed code is uppercase; a keyboard that ignores the capitals hint
+	// (hardware, desktop, some Android) must not make it "Invalid code".
+	[codeQueryParam]: z
+		.string()
+		.min(6)
+		.max(6)
+		.transform((code) => code.toUpperCase()),
 	[typeQueryParam]: VerificationTypeSchema,
 	[targetQueryParam]: z.string(),
 	[redirectToQueryParam]: z.string().optional(),
@@ -86,11 +92,13 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 			subtitle={heading?.subtitle}
 		>
 			<div className="space-y-4">
-				<ErrorList errors={form.errors} id={form.errorId} />
 				<Form method="POST" {...getFormProps(form)}>
 					<HoneypotInputs />
 					<div className="flex items-center justify-center">
+						{/* The code's line is reserved and holds the form's error too, so
+						    the answer to a submit moves neither the code nor the button. */}
 						<OTPField
+							reserveErrorLine
 							labelProps={{
 								htmlFor: fields[codeQueryParam].id,
 								children: 'Code',
@@ -98,9 +106,22 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 							inputProps={{
 								...getInputProps(fields[codeQueryParam], { type: 'text' }),
 								autoComplete: 'one-time-code',
+								enterKeyHint: 'go',
 								autoFocus: true,
+								// An authenticator's code is digits; an emailed one has capital
+								// letters too, which the number pad can't type.
+								...(type === '2fa'
+									? { inputMode: 'numeric' as const }
+									: {
+											inputMode: 'text' as const,
+											autoCapitalize: 'characters',
+											autoCorrect: 'off',
+											spellCheck: false,
+										}),
 							}}
 							errors={fields[codeQueryParam].errors}
+							formErrors={form.errors}
+							formErrorId={form.errorId}
 						/>
 					</div>
 					<input
@@ -115,7 +136,7 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 						})}
 					/>
 					<StatusButton
-						className="w-full"
+						className="mt-4 w-full"
 						status={isPending ? 'pending' : (form.status ?? 'idle')}
 						type="submit"
 						disabled={isPending}

@@ -63,19 +63,43 @@ export function raceAnchorPacesFrom(rows: ResultRow[]): RaceAnchorPaces {
 	return paces
 }
 
-/** {@link raceAnchorPacesFrom} for one athlete's stored results in a discipline. */
-export async function raceAnchorPacesFor(
+/**
+ * {@link raceAnchorPacesFrom} for one athlete's stored results, per discipline
+ * and in one query: each discipline's paces read off its own results only, and
+ * a discipline with none gets `{}`. What `getDisciplineThresholds` reads, so
+ * an athlete with four discipline profiles costs the round trips one does.
+ */
+export async function raceAnchorPacesByDiscipline(
 	athleteProfileId: string,
-	discipline: string,
-): Promise<RaceAnchorPaces> {
+	disciplines: readonly string[],
+): Promise<Map<string, RaceAnchorPaces>> {
+	const paces = new Map<string, RaceAnchorPaces>()
+	if (disciplines.length === 0) return paces
 	const rows = await prisma.performanceResult.findMany({
 		where: {
 			athleteProfileId,
-			discipline,
+			discipline: { in: [...disciplines] },
 			distanceM: { in: Object.values(RACE_ANCHOR_DISTANCE_M) },
 		},
-		select: { distanceM: true, timeSec: true, occurredAt: true },
+		select: {
+			discipline: true,
+			distanceM: true,
+			timeSec: true,
+			occurredAt: true,
+		},
 		orderBy: { occurredAt: 'desc' },
 	})
-	return raceAnchorPacesFrom(rows)
+	const byDiscipline = new Map<string, ResultRow[]>()
+	for (const { discipline, ...row } of rows) {
+		const held = byDiscipline.get(discipline)
+		if (held) held.push(row)
+		else byDiscipline.set(discipline, [row])
+	}
+	for (const discipline of disciplines) {
+		paces.set(
+			discipline,
+			raceAnchorPacesFrom(byDiscipline.get(discipline) ?? []),
+		)
+	}
+	return paces
 }

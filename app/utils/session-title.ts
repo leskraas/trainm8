@@ -5,7 +5,7 @@
  *
  * - `deriveWorkoutTitle` names a session that has a **structure** (a Structure
  *   Detection's materialized Workout, or an authored/generated one) from its
- *   headline block — `4 × 6 min`, `45 min Easy`.
+ *   headline block — `4 × 6 min`, `45 min rolig`.
  * - `deriveRecordingTitle` names a **structureless recording** (a steady run/
  *   ride Structure Detection left `recorded`) from its duration/distance and
  *   discipline — `45 min run`, `8.2 km ride`.
@@ -23,6 +23,7 @@ import {
 	getDisciplineLabel,
 	NB_DISCIPLINE_LABELS,
 	STAMPED_SESSION_LABELS,
+	zoneLabelWord,
 } from './labels.ts'
 import { type QualityZone } from './plan-outline/quality-mix.ts'
 import { intensityTargetToZone } from './session-profile.ts'
@@ -30,25 +31,33 @@ import {
 	type IntensityTarget,
 	type WorkoutStructure,
 } from './workout-schema.ts'
+import { ZONE_WORDS } from './zones/words.ts'
 
 type WorkoutBlock = WorkoutStructure['blocks'][number]
 type CardioStep = Extract<WorkoutBlock['steps'][number], { kind: 'cardio' }>
 
-function capitalize(label: string): string {
-	const trimmed = label.trim()
-	return trimmed ? trimmed[0]!.toUpperCase() + trimmed.slice(1) : trimmed
-}
+/** The shape of a recipe band's code: `Z4`, `I-3`, `T`, `sub-T` (`zones/recipes.ts`). */
+const RECIPE_CODE = /^(?:[A-Z](?:-?\d)?|sub-T)$/
 
 /**
  * The zone word a target contributes to a title, or null when none can be named
- * honestly. A zone label is its own word (`Threshold`, `Z4`); RPE and %-targets
- * carry an intrinsic zone (`Z3`); a measured power/pace/HR target does not, so
+ * honestly — lowercase, as the stamp and the sentence write it (`45 min rolig`
+ * under `Legg til 45 min rolig`). A zone label is its own word in Norwegian
+ * (`threshold` → `terskel`), and a recipe's code (`Z4`, `T`) stays as written;
+ * RPE and %-targets carry an intrinsic zone, written as that zone's word
+ * (`zones/words.ts`), never `Z3`; a measured power/pace/HR target does not, so
  * it stays wordless — never guessed from the raw value.
  */
 function intensityWord(target: IntensityTarget): string | null {
-	if (target.kind === 'zoneLabel') return capitalize(target.label)
+	if (target.kind === 'zoneLabel') {
+		const label = target.label.trim()
+		const word = zoneLabelWord(label)
+		// A code is its own spelling; a word is the lowercase word it reads as,
+		// however it was typed (`Rolig`, `Terskel`).
+		return RECIPE_CODE.test(label) ? label : word.toLowerCase() || null
+	}
 	const zone = intensityTargetToZone(target)
-	return zone != null ? `Z${zone}` : null
+	return zone != null ? ZONE_WORDS[zone] : null
 }
 
 function isCardioStep(step: WorkoutBlock['steps'][number]): step is CardioStep {
@@ -136,7 +145,14 @@ export function deriveWorkoutTitle(structure: WorkoutStructure): string {
 		: null
 
 	const title = [core, word].filter(Boolean).join(' ').trim()
-	return title || getDisciplineLabel(structure.discipline)
+	// A title starts with a capital: a zone word leading it (`Terskel`) is
+	// capitalised there and only there — mid-title it stays `45 min rolig`. A
+	// recipe code that leads it keeps its own spelling (`sub-T`).
+	const leadsWithCode = !core && word != null && RECIPE_CODE.test(word)
+	return (
+		(leadsWithCode ? title : title.charAt(0).toUpperCase() + title.slice(1)) ||
+		getDisciplineLabel(structure.discipline)
+	)
 }
 
 /**

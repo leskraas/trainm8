@@ -17,7 +17,7 @@
  * bands, the pauses) are built once per stream; a move re-renders only the
  * crosshair, the dots and the readout.
  */
-import { memo, useMemo } from 'react'
+import { memo, useId, useMemo } from 'react'
 import {
 	ChartFigure,
 	useChartInspect,
@@ -35,24 +35,24 @@ import {
 import { type ActivityStream, isNum } from '#app/utils/activity-stream.ts'
 import { formatClockDuration, formatPace } from '#app/utils/format.ts'
 import {
+	resolveStepBand,
 	resolveStepRange,
+	type BandChannel,
 	type DisciplineThresholdMap,
+	type StepBand,
 } from '#app/utils/intensity-target.ts'
 import { nbDurationLabel, WORKOUT_DETAIL_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
-import {
-	deriveSessionProfile,
-	expandWorkoutSteps,
-} from '#app/utils/session-profile.ts'
+import { deriveSessionProfile } from '#app/utils/session-profile.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
+import { perStep, workoutReps } from '#app/utils/workout-reps.ts'
 
 const L = WORKOUT_DETAIL_LABELS.telemetry
 
 type WorkoutDetail = NonNullable<SessionDetail['workout']>
 
-type BandChannel = 'power' | 'heartrate'
-
-type Step = WorkoutDetail['blocks'][number]['steps'][number]
+/** A planned target on the band channel; `max` is null when it is open above. */
+type PlannedTarget = StepBand
 
 /** A planned step laid out as a fraction of the workout's planned duration,
  * carrying its resolved Intensity Target on the chosen channel (when any). */
@@ -60,26 +60,11 @@ type PlannedSegment = {
 	id: string
 	startFrac: number
 	endFrac: number
-	target: { min: number; max: number } | null
+	target: PlannedTarget | null
 }
 
-/** A step's target on `channel`, resolved from what it authors against the
- * athlete's thresholds now — never the cached range columns, which fill only on
- * a threshold change and so are empty on most new sessions (#616). */
-function resolveStepTarget(
-	step: Step,
-	workout: WorkoutDetail,
-	thresholds: DisciplineThresholdMap,
-	channel: BandChannel,
-): { min: number; max: number } | null {
-	const r = resolveStepRange(step, workout.discipline, thresholds)
-	if (channel === 'power') {
-		if (!isNum(r.powerMin)) return null
-		return { min: r.powerMin, max: r.powerMax ?? r.powerMin }
-	}
-	if (!isNum(r.hrMin)) return null
-	return { min: r.hrMin, max: r.hrMax ?? r.hrMin }
-}
+const sameTarget = (a: PlannedTarget | null, b: PlannedTarget | null) =>
+	a === b || (a != null && b != null && a.min === b.min && a.max === b.max)
 
 /**
  * Lay the workout's planned steps out as fractions of its total planned
@@ -87,29 +72,44 @@ function resolveStepTarget(
  * is deliberately not aligned sample-by-sample to the recording (that fragile
  * telemetry-to-step alignment is out of scope per PRD #135), so we never assert a
  * per-step verdict; the athlete eyeballs the comparison.
+ *
+ * Walks the steps `workoutReps` draws, the ones the Workout Shape draws: every
+ * rep while that fits, a dense block thinned to the reps that do, so its work
+ * and its recoveries keep their own targets. Each step resolves once, and
+ * neighbours with the same target merge.
  */
 function buildPlannedSegments(
 	workout: WorkoutDetail | null,
 	thresholds: DisciplineThresholdMap,
 	channel: BandChannel | null,
 ): PlannedSegment[] {
-	const expanded = expandWorkoutSteps(workout)
-	const total = expanded.reduce((sum, e) => sum + e.durationSec, 0)
+	if (!workout) return []
+	const { steps } = workoutReps(workout)
+	const total = steps.reduce((sum, s) => sum + s.durationSec, 0)
 	if (total <= 0) return []
+	// Resolved now, never off the cached range columns, which fill only on a
+	// threshold change and so are empty on most new sessions (#616).
+	const targetOf = perStep(
+		(step: (typeof steps)[number]['step']): PlannedTarget | null =>
+			channel
+				? resolveStepBand(step, workout.discipline, thresholds, channel)
+				: null,
+	)
+
+	const segments: PlannedSegment[] = []
 	let cum = 0
-	return expanded.map((e) => {
+	for (const s of steps) {
+		const target = targetOf(s.step)
 		const startFrac = cum / total
-		cum += e.durationSec
-		return {
-			id: e.id,
-			startFrac,
-			endFrac: cum / total,
-			target:
-				channel && workout
-					? resolveStepTarget(e.step, workout, thresholds, channel)
-					: null,
+		cum += s.durationSec
+		const last = segments.at(-1)
+		if (last && sameTarget(last.target, target)) {
+			last.endFrac = cum / total
+		} else {
+			segments.push({ id: s.id, startFrac, endFrac: cum / total, target })
 		}
-	})
+	}
+	return segments
 }
 
 /** Plot bands on the channel the plan targets *and* the stream actually carries;
@@ -119,9 +119,12 @@ function pickBandChannel(
 	workout: WorkoutDetail | null,
 	thresholds: DisciplineThresholdMap,
 ): BandChannel | null {
+	// Each authored step once, not once per rep: a rep repeats its step.
 	const targets = workout
-		? expandWorkoutSteps(workout).map((e) =>
-				resolveStepRange(e.step, workout.discipline, thresholds),
+		? workout.blocks.flatMap((block) =>
+				block.steps.map((step) =>
+					resolveStepRange(step, workout.discipline, thresholds),
+				),
 			)
 		: []
 	const hasPowerTarget = targets.some((r) => isNum(r.powerMin))
@@ -280,7 +283,11 @@ function buildScales(
 			baselineY,
 			plotH,
 			c.key === bandChannel
-				? bands.flatMap((b) => [b.target!.min, b.target!.max])
+				? bands.flatMap((b) =>
+						b.target!.max != null
+							? [b.target!.min, b.target!.max]
+							: [b.target!.min],
+					)
 				: [],
 		),
 	)
@@ -317,7 +324,7 @@ function useTelemetryModel(
 					)
 				: []
 		const targetLabels = Array.from(
-			new Set(bands.map((b) => `${b.target!.min}–${b.target!.max}`)),
+			new Set(bands.map((b) => L.targetRange(b.target!.min, b.target!.max))),
 		)
 		const targetUnit = bandChannel === 'power' ? 'W' : L.bpm
 		return {
@@ -414,7 +421,7 @@ export default function TelemetryOverlay({
 					? [
 							(() => {
 								const t = targetAt(model, i)
-								return t ? `${t.min}–${t.max}` : '—'
+								return t ? L.targetRange(t.min, t.max) : '—'
 							})(),
 						]
 					: []),
@@ -584,6 +591,9 @@ const StaticMarks = memo(function StaticMarks({
 	const scales = buildScales(channels, bands, bandChannel, baselineY, plotH)
 	const bandIdx = channels.findIndex((c) => c.key === bandChannel)
 	const bandScale = bandIdx >= 0 ? scales[bandIdx]! : null
+	// One fade for every open-ended band, unique per chart (an id is global).
+	const openFadeId = `open-band-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+	const hasOpenBand = bands.some((b) => b.target!.max == null)
 
 	const gappedPath = (
 		values: Array<number | null>,
@@ -624,25 +634,74 @@ const StaticMarks = memo(function StaticMarks({
 				) : null
 			})}
 
+			{/* An open-ended band fades from a bounded band's fill at its floor to
+			    nothing at the top: a fill that stops reads as a ceiling, and an
+			    "over 172" target has none. Painted in the primary token, so it
+			    follows the theme. */}
+			{bandScale && hasOpenBand ? (
+				<defs>
+					<linearGradient id={openFadeId} x1="0" y1="1" x2="0" y2="0">
+						<stop
+							offset="0"
+							style={{ stopColor: 'var(--primary)' }}
+							stopOpacity="0.15"
+						/>
+						<stop
+							offset="1"
+							style={{ stopColor: 'var(--primary)' }}
+							stopOpacity="0"
+						/>
+					</linearGradient>
+				</defs>
+			) : null}
+
 			{/* Planned target bands on the channel the plan targets. */}
 			{bandScale
 				? bands.map((b) => {
 						const x0 = xFrac(b.startFrac)
 						const x1 = xFrac(b.endFrac)
+						const width = Math.max(0, x1 - x0)
+						const floor = bandScale(b.target!.min)
+						const { max } = b.target!
+						if (max != null) {
+							return (
+								<rect
+									key={`band-${b.id}`}
+									x={x0}
+									y={bandScale(max)}
+									width={width}
+									height={Math.max(0, floor - bandScale(max))}
+									data-planned-band
+									className="fill-primary/15 stroke-primary/40"
+									strokeWidth={1}
+									vectorEffect="non-scaling-stroke"
+								/>
+							)
+						}
+						// An open-ended zone (`172+`) has a floor and no ceiling: the band
+						// fades out toward the top of the plot, edged only at its floor,
+						// so it never draws a ceiling the plan does not have.
 						return (
-							<rect
-								key={`band-${b.id}`}
-								x={x0}
-								y={bandScale(b.target!.max)}
-								width={Math.max(0, x1 - x0)}
-								height={Math.max(
-									0,
-									bandScale(b.target!.min) - bandScale(b.target!.max),
-								)}
-								className="fill-primary/15 stroke-primary/40"
-								strokeWidth={1}
-								vectorEffect="non-scaling-stroke"
-							/>
+							<g key={`band-${b.id}`}>
+								<rect
+									x={x0}
+									y={top}
+									width={width}
+									height={Math.max(0, floor - top)}
+									data-planned-band
+									data-open-ended
+									fill={`url(#${openFadeId})`}
+								/>
+								<line
+									x1={x0}
+									x2={x0 + width}
+									y1={floor}
+									y2={floor}
+									className="stroke-primary/40"
+									strokeWidth={1}
+									vectorEffect="non-scaling-stroke"
+								/>
+							</g>
 						)
 					})
 				: null}

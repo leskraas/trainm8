@@ -1,5 +1,6 @@
 import { invariant } from '@epic-web/invariant'
 import { faker } from '@faker-js/faker/locale/en'
+import { type Locator } from '@playwright/test'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	normalizeEmail,
@@ -16,6 +17,17 @@ import {
 	test as base,
 	type AppPages,
 } from '#tests/playwright-utils.ts'
+
+/**
+ * A username is typed as one on a phone: iOS neither capitalises its first
+ * letter nor autocorrects it, and the keychain offers the saved one.
+ */
+async function expectUsernameInput(input: Locator) {
+	await expect(input).toHaveAttribute('autocomplete', 'username')
+	await expect(input).toHaveAttribute('autocapitalize', 'none')
+	await expect(input).toHaveAttribute('autocorrect', 'off')
+	await expect(input).toHaveAttribute('spellcheck', 'false')
+}
 
 const URL_REGEX = /(?<url>https?:\/\/[^\s$.?#].[^\s]*)/
 const CODE_REGEX = /Here's your verification code: (?<code>[\d\w]+)/
@@ -84,6 +96,7 @@ test('onboarding with link', async ({ page, navigate, getOnboardingData }) => {
 		.click()
 
 	await expect(page).toHaveURL(`/onboarding`)
+	await expectUsernameInput(page.getByRole('textbox', { name: /^username/i }))
 	await page
 		.getByRole('textbox', { name: /^username/i })
 		.fill(onboardingData.username)
@@ -148,7 +161,11 @@ test('onboarding with a short code', async ({
 	const codeMatch = email.text.match(CODE_REGEX)
 	const code = codeMatch?.groups?.code
 	invariant(code, 'Onboarding code not found')
-	await page.getByRole('textbox', { name: /code/i }).fill(code)
+	const codeInput = page.getByRole('textbox', { name: /code/i })
+	// The code has letters, so a phone must offer the letter keyboard, in capitals.
+	await expect(codeInput).toHaveAttribute('inputmode', 'text')
+	await expect(codeInput).toHaveAttribute('autocapitalize', 'characters')
+	await codeInput.fill(code)
 	await page.getByRole('button', { name: /submit/i }).click()
 
 	await expect(page).toHaveURL(`/onboarding`)
@@ -187,6 +204,7 @@ test('completes onboarding after GitHub OAuth given valid user details', async (
 	await expect(usernameInput).toHaveValue(
 		normalizeUsername(ghUser.profile.login),
 	)
+	await expectUsernameInput(usernameInput)
 	await expect(page.getByRole('textbox', { name: /^name/i })).toHaveValue(
 		ghUser.profile.name,
 	)
@@ -300,16 +318,10 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 	await expect(createAccountButton.getByRole('status')).not.toBeAttached()
 	await expect(createAccountButton.getByText('error')).not.toBeAttached()
 	await expect(
-		page.getByText(
-			/username can only include letters, numbers, and underscores/i,
-		),
+		page.getByText(/use only letters, numbers and underscores/i),
 	).toBeVisible()
 	// but we also never checked that privacy consent box
-	await expect(
-		page.getByText(
-			/you must agree to the terms of service and privacy policy/i,
-		),
-	).toBeVisible()
+	await expect(page.getByText(/agree to the terms to continue/i)).toBeVisible()
 	await expect(page).toHaveURL(/\/onboarding\/github/)
 
 	// empty username
@@ -341,9 +353,7 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 		normalizeUsername(`U5er_name_0k_${faker.person.lastName()}`),
 	)
 	await createAccountButton.click()
-	await expect(
-		page.getByText(/must agree to the terms of service and privacy policy/i),
-	).toBeVisible()
+	await expect(page.getByText(/agree to the terms to continue/i)).toBeVisible()
 	await expect(page).toHaveURL(/\/onboarding\/github/)
 
 	// we are all set up and ...
@@ -358,7 +368,7 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 	// already where it will stay when it is pressed. (Cleared only on blur,
 	// the line vanished on the press and the button moved out from under it.)
 	await expect(
-		page.getByText(/must agree to the terms of service and privacy policy/i),
+		page.getByText(/agree to the terms to continue/i),
 	).not.toBeVisible()
 	await createAccountButton.click()
 	await expect(createAccountButton.getByText('error')).not.toBeAttached()
@@ -372,6 +382,7 @@ test('login as existing user', async ({ page, navigate, insertNewUser }) => {
 	const user = await insertNewUser({ password })
 	invariant(user.name, 'User name not found')
 	await navigate('/login')
+	await expectUsernameInput(page.getByRole('textbox', { name: /username/i }))
 	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
 	await page.getByLabel(/^password$/i).fill(password)
 	await page.getByRole('button', { name: /log in/i }).click()
@@ -402,6 +413,7 @@ test('reset password with a link', async ({
 	await expect(
 		page.getByRole('heading', { name: /forgot password/i }),
 	).toBeVisible()
+	await expectUsernameInput(page.getByRole('textbox', { name: /username/i }))
 	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
 	await page.getByRole('button', { name: /recover password/i }).click()
 	await expect(page.getByText(/check your email/i)).toBeVisible()
@@ -464,6 +476,7 @@ test('reset password with a short code', async ({
 	await expect(
 		page.getByRole('heading', { name: /forgot password/i }),
 	).toBeVisible()
+	await expectUsernameInput(page.getByRole('textbox', { name: /username/i }))
 	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
 	await page.getByRole('button', { name: /recover password/i }).click()
 	await expect(page.getByText(/check your email/i)).toBeVisible()

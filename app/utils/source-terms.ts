@@ -37,9 +37,37 @@ export type SourceTermsVerdict =
 	| { allowed: false; platforms: OriginPlatform[] }
 
 type PlatformRule = {
-	/** May this platform's data, or anything derived from it, reach a model? */
-	model: boolean
+	/**
+	 * May this platform's data, or anything derived from it, reach a model?
+	 * `opt-in`: only once the athlete has given that platform's own
+	 * **Model Sharing Opt-In** (ADR 0108), never by default.
+	 */
+	model: boolean | 'opt-in'
 	attribution: Attribution | null
+}
+
+/**
+ * The platforms whose model rule is an athlete's opt-in (ADR 0108): the only
+ * platforms a **Model Sharing Opt-In** can be stored for. An opt-in for any
+ * other platform would open nothing, so it is never offered or kept.
+ */
+export const OPT_IN_PLATFORMS = [
+	'polar',
+] as const satisfies readonly OriginPlatform[]
+export type OptInPlatform = (typeof OPT_IN_PLATFORMS)[number]
+
+export function isOptInPlatform(value: string): value is OptInPlatform {
+	return (OPT_IN_PLATFORMS as readonly string[]).includes(value)
+}
+
+export type SourceTermsContext = {
+	/**
+	 * The platforms the athlete whose data this is has opted in to sending to
+	 * an assistant (`getModelSharingOptIns`). Read only on the `model`
+	 * surface, and only for a platform whose rule is `opt-in`: an opt-in can
+	 * never open a platform whose terms bar a model whatever the athlete says.
+	 */
+	optIns?: Iterable<OriginPlatform>
 }
 
 /**
@@ -48,8 +76,8 @@ type PlatformRule = {
  * - garmin: open with the Garmin credit, for the data trainm8 has today
  *   (through Intervals.icu or an uploaded file). The owner's call, 2026-10-14;
  *   a Garmin direct integration needs Garmin's §5.2(o) approval before it ships.
- * - polar: open only with the athlete's separate Polar opt-in, which is not
- *   built yet (#549), so closed.
+ * - polar: open only with the athlete's separate Polar opt-in (§3.1.1; ADR
+ *   0108), stored as a Model Sharing Opt-In; closed without it.
  * - strava: closed always (Policy §5.3, §5.10, §5.16).
  * - apple-health, health-connect: closed until explicit permission naming the
  *   AI exists and a store review has seen it.
@@ -58,7 +86,7 @@ type PlatformRule = {
  */
 const RULES: Partial<Record<OriginPlatform, PlatformRule>> = {
 	garmin: { model: true, attribution: 'garmin' },
-	polar: { model: false, attribution: 'polar' },
+	polar: { model: 'opt-in', attribution: 'polar' },
 	strava: { model: false, attribution: null },
 	'apple-health': { model: false, attribution: null },
 	'health-connect': { model: false, attribution: null },
@@ -75,10 +103,16 @@ function ruleFor(platform: OriginPlatform): PlatformRule {
 export function sourceTerms(
 	bindingSet: Iterable<OriginPlatform>,
 	surface: Surface,
+	{ optIns = [] }: SourceTermsContext = {},
 ): SourceTermsVerdict {
 	const platforms = [...new Set(bindingSet)]
 	if (surface === 'model') {
-		const closing = platforms.filter((p) => !ruleFor(p).model).sort()
+		const optedIn = new Set(optIns)
+		const opens = (p: OriginPlatform) => {
+			const { model } = ruleFor(p)
+			return model === 'opt-in' ? optedIn.has(p) : model
+		}
+		const closing = platforms.filter((p) => !opens(p)).sort()
 		if (closing.length > 0) return { allowed: false, platforms: closing }
 	}
 	const owed = new Set(platforms.map((p) => ruleFor(p).attribution))

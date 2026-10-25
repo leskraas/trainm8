@@ -3,6 +3,7 @@ import {
 	deriveRepeatGroups,
 	deriveSessionProfile,
 	intensityTargetToZone,
+	shapeZone,
 } from './session-profile.ts'
 import { type LedgerSession } from './training.server.ts'
 
@@ -42,7 +43,8 @@ function cardioStep(overrides: Partial<Step> & { id: string }): Step {
 		durationSec: null,
 		distanceM: null,
 		verticalM: null,
-		gradePct: null,
+		gradePctMin: null,
+		gradePctMax: null,
 		cadenceRpmMin: null,
 		cadenceRpmMax: null,
 		rest: null,
@@ -316,4 +318,78 @@ test('the Workout Shape expands both repeat levels into bars', () => {
 	// 3 series x 13 reps x 2 steps = 78 bars under one bracket labelled x 39.
 	expect(profile.bars).toHaveLength(78)
 	expect(profile.groups).toEqual([{ startIndex: 0, span: 78, repeatCount: 39 }])
+})
+
+test('a block too long to draw rep by rep is thinned, still work then recovery', () => {
+	// 100 × 100 reps of 10 s would be 20,000 bars, far past any screen's pixels.
+	// Drawn once it read as one long threshold effort; thinned, it alternates.
+	const [block] = oneBlock([
+		cardioStep({ id: 'on', intensity: 'threshold', durationSec: 10 }),
+		cardioStep({
+			id: 'off',
+			intensity: 'recovery',
+			orderIndex: 1,
+			durationSec: 10,
+		}),
+	])
+	const workout = workoutWithBlocks([
+		{ ...block!, repeatCount: 100, seriesRepeatCount: 100 },
+	])
+
+	const { bars, groups } = deriveSessionProfile(workout)
+
+	expect(bars).toHaveLength(400)
+	expect(bars.slice(0, 4).map((b) => b.zone)).toEqual([4, 1, 4, 1])
+	// Width is time, so the drawn reps carry all 10,000 reps' time.
+	expect(bars.reduce((sum, b) => sum + b.durationSec, 0)).toBeCloseTo(200_000)
+	expect(groups).toEqual([{ startIndex: 0, span: 400, repeatCount: 10_000 }])
+})
+
+test('a short block beside a huge one keeps every rep', () => {
+	const small = {
+		...oneBlock([
+			cardioStep({ id: 's-on', intensity: 'threshold', durationSec: 60 }),
+			cardioStep({
+				id: 's-off',
+				intensity: 'recovery',
+				orderIndex: 1,
+				durationSec: 60,
+			}),
+		])[0]!,
+		id: 'small',
+		repeatCount: 5,
+	}
+	const huge = {
+		...oneBlock([
+			cardioStep({ id: 'h', intensity: 'easy', durationSec: 10 }),
+		])[0]!,
+		id: 'huge',
+		orderIndex: 1,
+		repeatCount: 100,
+		seriesRepeatCount: 100,
+	}
+
+	const { bars, groups } = deriveSessionProfile(
+		workoutWithBlocks([small, huge]),
+	)
+
+	expect(bars.slice(0, 10).map((b) => b.id)).toEqual(
+		[0, 1, 2, 3, 4].flatMap((r) => ['s-on-r' + r, 's-off-r' + r]),
+	)
+	expect(bars.length).toBeLessThanOrEqual(400)
+	expect(groups[0]).toEqual({ startIndex: 0, span: 10, repeatCount: 5 })
+	expect(groups[1]).toMatchObject({ startIndex: 10, repeatCount: 10_000 })
+})
+
+// The one step zone rule (#638) the shape's bars and I dag's Effort Word read.
+test('shapeZone: a cardio step its target, an unstated one the intent', () => {
+	const intent = 4
+	expect(shapeZone(cardioStep({ id: 'z', intensity: 'zone2' }), intent)).toBe(2)
+	expect(shapeZone(cardioStep({ id: 'bare' }), intent)).toBe(4)
+	// Absolute watts need thresholds; the intent does not stand in for them.
+	const watts = JSON.stringify({ kind: 'power', minW: 300 })
+	expect(
+		shapeZone(cardioStep({ id: 'w', intensity: watts }), intent),
+	).toBeNull()
+	expect(shapeZone(cardioStep({ id: 'r', kind: 'rest' }), intent)).toBeNull()
 })

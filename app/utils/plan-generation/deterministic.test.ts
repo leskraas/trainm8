@@ -44,6 +44,7 @@ function request(overrides: Partial<SeasonRequest> = {}): SeasonRequest {
 		goalEvent: '10k',
 		intent: 'deliberately-building',
 		weeklyCapacityHours: 6,
+		conversionContexts: {},
 		...overrides,
 	}
 }

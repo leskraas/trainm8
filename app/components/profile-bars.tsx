@@ -1,3 +1,4 @@
+import { type CSSProperties } from 'react'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	type ProfileBar,
@@ -46,6 +47,115 @@ const ZONE_HEIGHT_ROW: Record<TrainingZone, string> = {
 export type ProfileBarsScale = 'full' | 'row'
 
 /**
+ * The most bars drawn: every bar has a 1px floor and a 1px gap after it, so n
+ * bars need 2n - 1 pixels, and the narrowest box the profile draws in is the
+ * 140px session detail. Past 70 a bar's floor went under a pixel there and
+ * the shape smeared to a haze.
+ */
+export const MAX_PROFILE_BARS = 70
+
+/** A bar's weight in the row: its time, or a sliver for a timeless one. */
+function weightOf(bar: ProfileBar, hasDuration: boolean) {
+	return hasDuration ? bar.durationSec || 0.001 : 1
+}
+
+/**
+ * Where each drawn bar starts, as an index into the `n` bars, when every one
+ * of `segments` (the stretches between bracket edges) must be cut into `max`
+ * slices in all: each its share of the slots by length, at least one, so a
+ * slice never straddles a bracket's edge.
+ */
+function sliceStarts(
+	segments: Array<[number, number]>,
+	n: number,
+	max: number,
+) {
+	if (segments.length > max) {
+		return Array.from({ length: max }, (_, k) => Math.floor((k * n) / max))
+	}
+	const quotas = segments.map(([start, end]) =>
+		Math.max(1, Math.floor(((end - start) * max) / n)),
+	)
+	// The floor of one can overshoot by a slot or two: the longest give it back.
+	for (let over = quotas.reduce((a, b) => a + b, 0) - max; over > 0; over--) {
+		const most = quotas.indexOf(Math.max(...quotas))
+		quotas[most]!--
+	}
+	return segments.flatMap(([start, end], s) =>
+		Array.from(
+			{ length: quotas[s]! },
+			(_, k) => start + Math.floor((k * (end - start)) / quotas[s]!),
+		),
+	)
+}
+
+/**
+ * The bars a profile is drawn with, at most `max`. A profile that fits is drawn
+ * as it is. Past that, a run of one zone is one bar (a steady block drawn rep
+ * by rep reads the same as one block); still past it, the bars are cut into
+ * `max` slices, each painted by the zone it spends the most time in. Neither
+ * crosses a `× N` bracket's edge, so a bracket spans exactly its reps' bars,
+ * and every drawn bar carries the time it stands for, so width stays time.
+ */
+function fitBars(
+	bars: ProfileBar[],
+	groups: ProfileBarGroup[] | undefined,
+	max: number,
+): { bars: ProfileBar[]; groups: ProfileBarGroup[] | undefined } {
+	if (bars.length <= max) return { bars, groups }
+	const hasDuration = bars.some((b) => b.durationSec > 0)
+	const edges = new Set([0, bars.length])
+	for (const group of groups ?? []) {
+		edges.add(Math.min(group.startIndex, bars.length))
+		edges.add(Math.min(group.startIndex + group.span, bars.length))
+	}
+	// Where each drawn bar starts, as an index into `bars`.
+	let starts = bars.flatMap((bar, i) =>
+		edges.has(i) || bar.zone !== bars[i - 1]!.zone ? [i] : [],
+	)
+	if (starts.length > max) {
+		const sorted = [...edges].sort((a, b) => a - b)
+		const segments = sorted
+			.slice(1)
+			.map((end, s): [number, number] => [sorted[s]!, end])
+		starts = sliceStarts(segments, bars.length, max)
+	}
+	const drawnIndexOf: number[] = []
+	const drawn = starts.map((start, k) => {
+		const slice = bars.slice(start, starts[k + 1] ?? bars.length)
+		for (let i = 0; i < slice.length; i++) drawnIndexOf.push(k)
+		const timeIn = new Map<ProfileBar['zone'], number>()
+		for (const bar of slice) {
+			const time = (timeIn.get(bar.zone) ?? 0) + weightOf(bar, hasDuration)
+			timeIn.set(bar.zone, time)
+		}
+		let zone = slice[0]!.zone
+		for (const [z, time] of timeIn) if (time > timeIn.get(zone)!) zone = z
+		return {
+			id: slice[0]!.id,
+			zone,
+			durationSec: slice.reduce((sum, bar) => sum + bar.durationSec, 0),
+		}
+	})
+	let cursor = 0
+	const fittedGroups = groups
+		?.slice()
+		.sort((a, b) => a.startIndex - b.startIndex)
+		.flatMap((group) => {
+			const first = drawnIndexOf[group.startIndex]
+			const last = drawnIndexOf[group.startIndex + group.span - 1]
+			if (first == null || last == null) return []
+			// Two brackets never share a bar: the earlier keeps it.
+			const startIndex = Math.max(first, cursor)
+			const span = last + 1 - startIndex
+			if (span <= 0) return []
+			cursor = startIndex + span
+			return [{ ...group, startIndex, span }]
+		})
+	return { bars: drawn, groups: fittedGroups }
+}
+
+/**
  * Render an intensity profile as zone-coloured bars whose widths track each
  * segment's duration. Shared by planned workouts (authored steps) and recordings
  * (HR-derived phases) so both read identically. An empty profile renders a muted
@@ -57,54 +167,82 @@ export type ProfileBarsScale = 'full' | 'row'
  * every pre-existing caller do — and the bars render exactly as before.
  */
 export function ProfileBars({
-	bars,
-	groups,
+	bars: givenBars,
+	groups: givenGroups,
 	className,
 	scale = 'full',
 }: {
 	bars: ProfileBar[]
 	groups?: ProfileBarGroup[]
+	/** On the box the bars draw in, the box their floor is measured off. */
 	className?: string
 	scale?: ProfileBarsScale
 }) {
-	if (bars.length === 0) {
+	if (givenBars.length === 0) {
 		return <span className="text-muted-foreground text-xs">—</span>
 	}
+	const { bars, groups } = fitBars(givenBars, givenGroups, MAX_PROFILE_BARS)
 	const hasDuration = bars.some((b) => b.durationSec > 0)
 	const heights = scale === 'row' ? ZONE_HEIGHT_ROW : ZONE_HEIGHT
+	// The box is its own container, so `100cqw` in the floor is the width the
+	// bars actually share: a caller's width or height lands on it, never on a
+	// row inside a wider wrapper.
 	const barsRow = (
 		<span
 			aria-hidden
 			className={cn(
-				'flex w-full items-end gap-px overflow-hidden',
+				'@container block w-full',
 				scale === 'row' ? 'h-3.5' : 'h-6',
 				className,
 			)}
 		>
-			{bars.map((bar) => (
-				<span
-					key={bar.id}
-					style={
-						hasDuration ? { flexGrow: bar.durationSec || 0.001 } : undefined
-					}
-					className={cn(
-						'block min-w-px rounded-[1px]',
-						hasDuration ? '' : 'flex-1',
-						bar.zone == null
-							? cn(
-									'bg-muted-foreground/30',
-									scale === 'row' ? 'h-0.5' : 'h-1.5',
-								)
-							: ZONE_COLOR[bar.zone],
-						bar.zone == null ? '' : heights[bar.zone],
-					)}
-				/>
-			))}
+			<span className="flex h-full w-full items-end gap-(--profile-bar-px) overflow-hidden">
+				{bars.map((bar) => (
+					<span
+						key={bar.id}
+						data-profile-bar
+						style={
+							hasDuration ? { flexGrow: bar.durationSec || 0.001 } : undefined
+						}
+						className={cn(
+							'block min-w-(--profile-bar-px) rounded-[1px]',
+							hasDuration ? '' : 'flex-1',
+							bar.zone == null
+								? cn(
+										'bg-muted-foreground/30',
+										scale === 'row' ? 'h-0.5' : 'h-1.5',
+									)
+								: ZONE_COLOR[bar.zone],
+							bar.zone == null ? '' : heights[bar.zone],
+						)}
+					/>
+				))}
+			</span>
 		</span>
 	)
-	if (!groups || groups.length === 0) return barsRow
+	// Every bar has a floor and a gap after it, 1px each, so n bars need 2n - 1
+	// pixels. Past half the width (122 bars in a 140px timeline row) the end of
+	// the session was clipped, cool-down first. The floor is the smaller of 1px
+	// and the width over 2n - 1, read where it is used off the nearest
+	// container (the bars' own box; for the bracket rail, this wrapper), so the
+	// whole session always fits and anything that already fit draws as before.
+	// The cap keeps it a whole pixel down to the narrowest box.
+	const fit = {
+		'--profile-bar-px': `min(1px, 100cqw / ${2 * bars.length - 1})`,
+	} as CSSProperties
+	if (!groups || groups.length === 0) {
+		return (
+			<span data-profile-fit style={fit} className="block w-full">
+				{barsRow}
+			</span>
+		)
+	}
 	return (
-		<span className="flex w-full flex-col gap-0.5">
+		<span
+			data-profile-fit
+			style={fit}
+			className="@container flex w-full flex-col gap-0.5"
+		>
 			<RepeatBracketTrack
 				bars={bars}
 				groups={groups}
@@ -131,11 +269,9 @@ function RepeatBracketTrack({
 	groups: ProfileBarGroup[]
 	hasDuration: boolean
 }) {
-	const weightOf = (i: number) =>
-		hasDuration ? bars[i]!.durationSec || 0.001 : 1
 	const rangeWeight = (start: number, end: number) => {
 		let sum = 0
-		for (let i = start; i < end; i++) sum += weightOf(i)
+		for (let i = start; i < end; i++) sum += weightOf(bars[i]!, hasDuration)
 		return sum
 	}
 	const sorted = [...groups].sort((a, b) => a.startIndex - b.startIndex)
@@ -169,7 +305,7 @@ function RepeatBracketTrack({
 		})
 	}
 	return (
-		<span aria-hidden className="flex w-full items-end gap-px">
+		<span aria-hidden className="flex w-full items-end gap-(--profile-bar-px)">
 			{segments.map((segment) =>
 				segment.repeatCount == null ? (
 					<span key={segment.key} style={{ flexGrow: segment.grow }} />
