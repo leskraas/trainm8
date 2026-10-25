@@ -1,4 +1,5 @@
 import { z } from 'zod/v3'
+import { parseDevTokens } from '../mcp/dev-token.server.ts'
 import { parseCredentialKeys } from './credential-crypto.server.ts'
 
 const schema = z.object({
@@ -16,6 +17,10 @@ const schema = z.object({
 	// that key when unset. Set it as a Fly secret before deploying (see
 	// docs/secrets.md): `fly secrets set CREDENTIALS_ENCRYPTION_KEY="$(openssl rand -base64 32)"`.
 	CREDENTIALS_ENCRYPTION_KEY: z.string().optional(),
+	// The Phase 0 MCP dev bearer tokens (ADR 0092 §8; app/mcp/dev-token.server.ts):
+	// `userId:token[:scope+scope]`, comma-separated. Development and test
+	// only: production refuses to boot with one set (#639 H6).
+	MCP_DEV_TOKENS: z.string().optional(),
 	// If you plan on using Sentry, remove the .optional()
 	SENTRY_DSN: z.string().optional(),
 	// If you plan to use Resend, remove the .optional()
@@ -67,6 +72,15 @@ const schema = z.object({
 })
 
 const validatedSchema = schema.superRefine((env, ctx) => {
+	try {
+		parseDevTokens(env.MCP_DEV_TOKENS, env.NODE_ENV)
+	} catch (error) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ['MCP_DEV_TOKENS'],
+			message: error instanceof Error ? error.message : String(error),
+		})
+	}
 	try {
 		parseCredentialKeys(env.CREDENTIALS_ENCRYPTION_KEY, env.NODE_ENV)
 	} catch (error) {
