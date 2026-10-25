@@ -28,16 +28,12 @@ import {
 	type DisciplineThresholdMap,
 } from './intensity-target.ts'
 import {
-	intensityTargetToZone,
 	intentToZone,
 	zoneLabelToZone,
 	type TrainingZone,
 	type Workout,
 } from './session-profile.ts'
-import { classifyingRecipe } from './structure-detection/classify.ts'
-import { type ClassifyChannel } from './structure-detection/constants.ts'
-import { type IntensityTarget } from './workout-schema.ts'
-import { zoneEquivalent } from './zone-equivalent.ts'
+import { readTargetZone } from './zone-equivalent.ts'
 
 export { EFFORT_WORDS, type EffortWord, isEffortWord } from './effort-words.ts'
 
@@ -139,41 +135,4 @@ function stepZone(
 		readTargetZone(target, step.discipline ?? workout.discipline, thresholds) ??
 		'unknown'
 	)
-}
-
-/** The detection channel each measured target kind is classified on. */
-const MEASURED_CHANNEL: Partial<
-	Record<IntensityTarget['kind'], ClassifyChannel>
-> = { power: 'power', pace: 'pace', hrBpm: 'heartrate' }
-
-/**
- * The one reading of an authored target as a Training Zone against the
- * athlete's thresholds, for I dag's Effort Word and a detected session's
- * intent alike (#638), so the two cannot disagree. Null when nothing zones it.
- *
- * A target that names its zone (a zone label, RPE, a percentage) reads as the
- * Workout Shape reads it. A measured target (watts, pace, bpm) on a run or ride is zoned on the recipe
- * Structure Detection classifies that channel against (`classifyingRecipe`),
- * not blindly on the athlete's own: a Daniels runner with a critical-power
- * threshold is classified on Stryd power bands, and the pace recipe cannot
- * place watts at all (#617).
- */
-export function readTargetZone(
-	target: IntensityTarget,
-	discipline: string,
-	thresholds: DisciplineThresholdMap,
-): TrainingZone | null {
-	const named = intensityTargetToZone(target)
-	if (named != null) return named
-	const profile = thresholds[discipline]
-	const channel = MEASURED_CHANNEL[target.kind]
-	const recipe =
-		profile &&
-		channel &&
-		(discipline === 'run' || discipline === 'bike') &&
-		classifyingRecipe(discipline, profile, channel)
-	return zoneEquivalent(
-		target,
-		recipe ? { ...profile, zoneSystem: recipe.id } : profile,
-	).step
 }
