@@ -222,7 +222,7 @@ async function viaReader(
 ): Promise<Shape> {
 	const input = FIXTURES[name](w)
 	if (caller === 'mcp') {
-		process.env.MCP_DEV_TOKENS = `${w.username}:${TOKEN}`
+		process.env.MCP_DEV_TOKENS = `${w.userId}:${TOKEN}`
 		const response = await handleMcpRequest(
 			new Request('http://localhost/mcp', {
 				method: 'POST',
@@ -423,7 +423,7 @@ test('the web caller is the cookie session on a request with no Authorization he
 test('the catalog a model sees is checked in, and does not vary by scope', async () => {
 	const w = await createWorld()
 	const list = async (scopes: string) => {
-		process.env.MCP_DEV_TOKENS = `${w.username}:${TOKEN}${scopes}`
+		process.env.MCP_DEV_TOKENS = `${w.userId}:${TOKEN}${scopes}`
 		const response = await handleMcpRequest(
 			new Request('http://localhost/mcp', {
 				method: 'POST',

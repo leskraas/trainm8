@@ -65,8 +65,10 @@ export async function handleMcpRequest(request: Request): Promise<Response> {
 
 	const token = matchDevToken(request)
 	if (!token) return unauthorized()
+	// By id, never by username: a renamed athlete keeps their token, and
+	// whoever takes the old name gets nothing from it.
 	const user = await prisma.user.findUnique({
-		where: { username: token.username },
+		where: { id: token.userId },
 		select: { id: true },
 	})
 	if (!user) return unauthorized()
@@ -74,7 +76,7 @@ export async function handleMcpRequest(request: Request): Promise<Response> {
 	return handler.fetch(request, {
 		authInfo: {
 			token: token.token,
-			clientId: `dev-token:${token.username}`,
+			clientId: `dev-token:${user.id}`,
 			scopes: token.scopes,
 			extra: { userId: user.id },
 		},

@@ -47,7 +47,7 @@ test('#639 H6: a request never matches a dev token outside development and test'
 			...configured,
 			NODE_ENV: 'test',
 		}),
-	).toMatchObject({ username: 'kody', scopes: ['training:read'] })
+	).toMatchObject({ userId: 'kody', scopes: ['training:read'] })
 	expect(
 		matchDevToken(request(`Bearer ${TOKEN}`), {
 			...configured,
@@ -61,19 +61,19 @@ test('a token is matched exactly, and only as a bearer', () => {
 	expect(matchDevToken(request(), env)).toBeNull()
 	expect(matchDevToken(request(`Bearer ${TOKEN}x`), env)).toBeNull()
 	expect(matchDevToken(request(`Basic ${TOKEN}`), env)).toBeNull()
-	expect(matchDevToken(request(`bearer ${TOKEN}`), env)?.username).toBe('kody')
+	expect(matchDevToken(request(`bearer ${TOKEN}`), env)?.userId).toBe('kody')
 })
 
-test('entries are username:token[:scope+scope], with tokens long enough to guess at nothing', () => {
+test('entries are userId:token[:scope+scope], with tokens long enough to guess at nothing', () => {
 	expect(
 		parseDevTokens(
 			`kody:${TOKEN}, ann:${'b'.repeat(32)}:training:read+training:log`,
 			'test',
 		),
 	).toEqual([
-		{ username: 'kody', token: TOKEN, scopes: ['training:read'] },
+		{ userId: 'kody', token: TOKEN, scopes: ['training:read'] },
 		{
-			username: 'ann',
+			userId: 'ann',
 			token: 'b'.repeat(32),
 			scopes: ['training:read', 'training:log'],
 		},

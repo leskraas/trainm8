@@ -7,13 +7,16 @@ refuses to boot with a token configured (#639 H6) until ADR 0094's OAuth lands.
 ## 1. Configure a token
 
 ```bash
+USER_ID="$(sqlite3 prisma/data.db "select id from User where username = 'kody'")"
 TOKEN="$(openssl rand -hex 24)"
-echo "MCP_DEV_TOKENS=\"kody:$TOKEN\"" >> .env   # username:token[:scope+scope]
-npm run dev                                     # http://localhost:3000
+echo "MCP_DEV_TOKENS=\"$USER_ID:$TOKEN\"" >> .env   # userId:token[:scope+scope]
+npm run dev                                         # http://localhost:3000
 ```
 
-The default scope is `training:read`. Only `localhost`-class Host and Origin
-headers are accepted (DNS-rebinding guard), so connect to `localhost`.
+A token names the athlete by user id, never by username, so a rename never moves
+it to another account. The default scope is `training:read`. Only
+`localhost`-class Host and Origin headers are accepted (DNS-rebinding guard), so
+connect to `localhost`.
 
 ## 2. MCP Inspector
 

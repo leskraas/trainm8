@@ -2,9 +2,11 @@
  * The Phase 0 way into `/mcp` (ADR 0092 §8): a static, per-user development
  * bearer token, until ADR 0094's OAuth replaces it.
  *
- * `MCP_DEV_TOKENS` is a comma-separated list of `username:token` entries, with
+ * `MCP_DEV_TOKENS` is a comma-separated list of `userId:token` entries, with
  * an optional `:scope+scope` (default `training:read`). Tokens are at least 32
- * characters. It is read only when `NODE_ENV` is `development` or `test`; with
+ * characters. A token names the user by id, never by username: a username can
+ * change hands, so a rename must not move a token to another account (the
+ * same holds for OAuth's `sub`, ADR 0094). It is read only when `NODE_ENV` is `development` or `test`; with
  * one configured, production refuses to boot (`env.server.ts`), and the route
  * refuses to serve in production whatever is configured. Deferred hardening:
  * no expiry, rotation or audit — tracked as #639 H6, closed by Phase 2's OAuth.
@@ -21,7 +23,7 @@ export const DEV_TOKEN_MIN_LENGTH = 32
  */
 const PUBLISHED_PLACEHOLDER_TOKEN = 'replace-with-openssl-rand-hex-24-output'
 
-export type DevToken = { username: string; token: string; scopes: Scope[] }
+export type DevToken = { userId: string; token: string; scopes: Scope[] }
 
 /** Whether this environment may read a dev token at all. */
 export function devTokensAllowed(nodeEnv: string | undefined): boolean {
@@ -44,11 +46,11 @@ export function parseDevTokens(
 	}
 	return raw.split(',').map((entry) => {
 		// Scopes have colons of their own: split at the first two only.
-		const [username = '', rest = ''] = splitOnce(entry.trim(), ':')
+		const [userId = '', rest = ''] = splitOnce(entry.trim(), ':')
 		const [token, scopeList] = splitOnce(rest, ':')
-		if (!username || !token || token.length < DEV_TOKEN_MIN_LENGTH) {
+		if (!userId || !token || token.length < DEV_TOKEN_MIN_LENGTH) {
 			throw new Error(
-				`MCP_DEV_TOKENS entries are username:token[:scope+scope], with a token of at least ${DEV_TOKEN_MIN_LENGTH} characters.`,
+				`MCP_DEV_TOKENS entries are userId:token[:scope+scope], with a token of at least ${DEV_TOKEN_MIN_LENGTH} characters.`,
 			)
 		}
 		if (token === PUBLISHED_PLACEHOLDER_TOKEN) {
@@ -62,7 +64,7 @@ export function parseDevTokens(
 				throw new Error(`MCP_DEV_TOKENS names an unknown scope: ${scope}`)
 			}
 		}
-		return { username, token, scopes: scopes as Scope[] }
+		return { userId, token, scopes: scopes as Scope[] }
 	})
 }
 

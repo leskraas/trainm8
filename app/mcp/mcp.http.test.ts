@@ -7,7 +7,13 @@ import {
 import { http as mswHttp, passthrough } from 'msw'
 import { type AppLoadContext } from 'react-router'
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest'
-import { createWorld, TODAY, YESTERDAY } from '#tests/actions-world.ts'
+import { prisma } from '#app/utils/db.server.ts'
+import {
+	createAthlete,
+	createWorld,
+	TODAY,
+	YESTERDAY,
+} from '#tests/actions-world.ts'
 import { server as msw } from '#tests/mocks/index.ts'
 import { consoleError } from '#tests/setup/setup-test-env.ts'
 import { action, loader } from '../routes/mcp.ts'
@@ -78,7 +84,7 @@ beforeEach(() => {
 
 async function athleteWithToken(scopes?: string) {
 	const world = await createWorld()
-	process.env.MCP_DEV_TOKENS = `${world.username}:${TOKEN}${scopes ? `:${scopes}` : ''}`
+	process.env.MCP_DEV_TOKENS = `${world.userId}:${TOKEN}${scopes ? `:${scopes}` : ''}`
 	return world
 }
 
@@ -181,6 +187,45 @@ for (const era of ['legacy', 'modern'] as const) {
 		await client.close()
 	})
 }
+
+test('a dev token binds to the user id: a rename never moves it to another account', async () => {
+	const world = await athleteWithToken()
+	// The athlete renames themself, and someone else takes the old name.
+	await prisma.user.update({
+		where: { id: world.userId },
+		data: { username: `renamed-${world.username}` },
+	})
+	const other = await createAthlete()
+	await prisma.user.update({
+		where: { id: other.id },
+		data: { username: world.username },
+	})
+
+	const client = await connect('modern')
+	const own = await client.callTool({
+		name: 'get_session',
+		arguments: { sessionId: world.run },
+	})
+	// Still the athlete's own session: the token still names them.
+	expect(own.structuredContent).toMatchObject({
+		outcome: 'done',
+		value: { id: world.run },
+	})
+	await client.close()
+
+	// A username is not a user id, so a username-keyed entry opens nothing.
+	process.env.MCP_DEV_TOKENS = `${world.username}:${TOKEN}`
+	const response = await fetch(new URL('/mcp', baseUrl), {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			accept: 'application/json, text/event-stream',
+			authorization: `Bearer ${TOKEN}`,
+		},
+		body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+	})
+	expect(response.status).toBe(401)
+})
 
 test('no bearer, or a wrong one, gets no catalog', async () => {
 	await athleteWithToken()
