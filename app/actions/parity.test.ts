@@ -18,6 +18,7 @@ import { recordProposals } from '#app/utils/load/week-replan-proposals.server.ts
 import { createWorld } from '#tests/actions-world.ts'
 import { consoleError } from '#tests/setup/setup-test-env.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
+import { actionCtx } from './context.server.ts'
 import { ACTION_NAME, type ActionCtx } from './define.ts'
 import { READING_SCHEMAS } from './reading.ts'
 import {
@@ -381,6 +382,20 @@ test('every name is snake_case, at most 64 characters', () => {
 		expect(action.name).toMatch(ACTION_NAME)
 		expect(action.name).toMatch(/^[a-z0-9_]{1,64}$/)
 	}
+})
+
+test('the web caller is the cookie session on a request with no Authorization header (ADR 0092 §3)', async () => {
+	const { userId } = await createWorld()
+	const request = new Request('http://localhost/resources/week-change', {
+		method: 'POST',
+		headers: { authorization: `Bearer ${TOKEN}` },
+	})
+	await expect(
+		actionCtx(request, { userId, caller: 'web' }),
+	).rejects.toMatchObject({ status: 400 })
+	await expect(
+		actionCtx(request, { userId, caller: 'mcp' }),
+	).resolves.toMatchObject({ caller: 'mcp' })
 })
 
 // ── 5. catalog ───────────────────────────────────────────────────────────────

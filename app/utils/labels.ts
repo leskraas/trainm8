@@ -8387,7 +8387,7 @@ export const PLAN_GENERATE_LABELS = {
 /**
  * Each action's `title`, in the athlete's words (ADR 0092 §1, §10): the name a
  * host shows beside a tool call it asks the athlete to approve. Keyed by the
- * action's stable name; `app/actions/registry.test.ts` holds the keys and the
+ * action's stable name; `app/actions/labels.test.ts` holds the keys and the
  * registry to each other.
  */
 export const ACTION_TITLE_LABELS = {
@@ -8439,6 +8439,16 @@ export const REFUSAL_LABELS: Record<RefusalCode, string> = {
 	'already-eased': WEEK_CHANGE_REFUSAL_LABELS['already-eased'],
 	autopilot: WEEK_CHANGE_REFUSAL_LABELS.autopilot,
 }
+
+/**
+ * What the athlete reads when an action failed while it ran (ADR 0092 §5),
+ * where a form shows its error: `not-run` changed nothing, `unknown` may have.
+ */
+export const ACTION_FAILURE_LABELS = {
+	'not-run': 'Det gikk ikke akkurat nå. Prøv igjen.',
+	unknown:
+		'Noe gikk galt, og svaret kan ha blitt lagret. Se på kortet før du prøver igjen.',
+} as const
 
 /**
  * A **Reading**'s `label` when it is unavailable (ADR 0092 §6): why the number

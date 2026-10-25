@@ -111,16 +111,6 @@ export function reading<T>(
 	return { status: 'available', value: value as Exclude<T, Unavailable> }
 }
 
-/** A value, or the reason it has none, when there is nothing to gate. */
-export function readingOf<T>(
-	value: T | null | undefined,
-	reason: UnavailableReason,
-	bindingSet: Iterable<OriginPlatform>,
-	ctx: ReadingContext,
-): Reading<Exclude<T, Unavailable>> {
-	return reading<T>(value ?? unavailable(reason), bindingSet, ctx)
-}
-
 function unavailableReading(reason: UnavailableReason): Reading<never> {
 	return {
 		status: 'unavailable',

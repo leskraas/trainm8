@@ -28,7 +28,29 @@
 											"type": "object",
 											"properties": {
 												"name": {
-													"type": "string"
+													"anyOf": [
+														{
+															"type": "object",
+															"properties": {
+																"by": {
+																	"type": "string",
+																	"const": "athlete"
+																},
+																"text": {
+																	"type": "string",
+																	"maxLength": 2000
+																}
+															},
+															"required": [
+																"by",
+																"text"
+															],
+															"additionalProperties": false
+														},
+														{
+															"type": "string"
+														}
+													]
 												},
 												"openEnded": {
 													"type": "boolean"
@@ -39,7 +61,22 @@
 															"type": "object",
 															"properties": {
 																"name": {
-																	"type": "string"
+																	"type": "object",
+																	"properties": {
+																		"by": {
+																			"type": "string",
+																			"const": "athlete"
+																		},
+																		"text": {
+																			"type": "string",
+																			"maxLength": 2000
+																		}
+																	},
+																	"required": [
+																		"by",
+																		"text"
+																	],
+																	"additionalProperties": false
 																},
 																"date": {
 																	"type": "string"
@@ -1311,9 +1348,282 @@
 																			"type": "string"
 																		},
 																		"intensity": {
-																			"type": [
-																				"string",
-																				"null"
+																			"anyOf": [
+																				{
+																					"anyOf": [
+																						{
+																							"type": "object",
+																							"properties": {
+																								"kind": {
+																									"type": "string",
+																									"const": "zoneLabel"
+																								},
+																								"label": {
+																									"type": "object",
+																									"properties": {
+																										"by": {
+																											"type": "string",
+																											"const": "athlete"
+																										},
+																										"text": {
+																											"type": "string",
+																											"maxLength": 2000
+																										}
+																									},
+																									"required": [
+																										"by",
+																										"text"
+																									],
+																									"additionalProperties": false
+																								}
+																							},
+																							"required": [
+																								"kind",
+																								"label"
+																							],
+																							"additionalProperties": false
+																						},
+																						{
+																							"type": "object",
+																							"properties": {
+																								"kind": {
+																									"type": "string",
+																									"enum": [
+																										"rpe",
+																										"hrBpm",
+																										"hrPct",
+																										"power",
+																										"powerPct",
+																										"pace",
+																										"pacePct",
+																										"lactate",
+																										"racePace"
+																									]
+																								},
+																								"of": {
+																									"anyOf": [
+																										{
+																											"type": "string",
+																											"enum": [
+																												"max",
+																												"lthr",
+																												"ftp",
+																												"map",
+																												"cp",
+																												"1500m",
+																												"3k",
+																												"5k",
+																												"10k",
+																												"hm",
+																												"marathon"
+																											]
+																										},
+																										{
+																											"type": "null"
+																										}
+																									]
+																								},
+																								"min": {
+																									"anyOf": [
+																										{
+																											"oneOf": [
+																												{
+																													"type": "object",
+																													"properties": {
+																														"status": {
+																															"type": "string",
+																															"const": "available"
+																														},
+																														"value": {
+																															"type": "number"
+																														}
+																													},
+																													"required": [
+																														"status",
+																														"value"
+																													],
+																													"additionalProperties": false
+																												},
+																												{
+																													"type": "object",
+																													"properties": {
+																														"status": {
+																															"type": "string",
+																															"const": "unavailable"
+																														},
+																														"reason": {
+																															"type": "string",
+																															"enum": [
+																																"simple-activity",
+																																"not-resolved",
+																																"hours-calendar-cost",
+																																"combined-cross-track-load",
+																																"strength-ctl",
+																																"sets-has-no-reading",
+																																"not-an-endurance-discipline",
+																																"no-zone-recipe",
+																																"no-intensity-source",
+																																"no-heart-rate-anchor",
+																																"no-threshold-pace",
+																																"no-critical-swim-speed",
+																																"no-ride-history",
+																																"no-season-anchor",
+																																"no-recording",
+																																"building-baseline",
+																																"insufficient-data",
+																																"source-terms",
+																																"outside-plan",
+																																"no-plan",
+																																"not-logged",
+																																"structure-not-verifiable"
+																															]
+																														},
+																														"label": {
+																															"type": "string"
+																														},
+																														"platforms": {
+																															"type": "array",
+																															"items": {
+																																"type": "string",
+																																"enum": [
+																																	"garmin",
+																																	"polar",
+																																	"suunto",
+																																	"coros",
+																																	"wahoo",
+																																	"strava",
+																																	"zwift",
+																																	"apple-health",
+																																	"health-connect",
+																																	"intervalsicu",
+																																	"upload",
+																																	"unknown"
+																																]
+																															}
+																														}
+																													},
+																													"required": [
+																														"status",
+																														"reason",
+																														"label"
+																													],
+																													"additionalProperties": false
+																												}
+																											]
+																										},
+																										{
+																											"type": "null"
+																										}
+																									]
+																								},
+																								"max": {
+																									"anyOf": [
+																										{
+																											"oneOf": [
+																												{
+																													"type": "object",
+																													"properties": {
+																														"status": {
+																															"type": "string",
+																															"const": "available"
+																														},
+																														"value": {
+																															"type": "number"
+																														}
+																													},
+																													"required": [
+																														"status",
+																														"value"
+																													],
+																													"additionalProperties": false
+																												},
+																												{
+																													"type": "object",
+																													"properties": {
+																														"status": {
+																															"type": "string",
+																															"const": "unavailable"
+																														},
+																														"reason": {
+																															"type": "string",
+																															"enum": [
+																																"simple-activity",
+																																"not-resolved",
+																																"hours-calendar-cost",
+																																"combined-cross-track-load",
+																																"strength-ctl",
+																																"sets-has-no-reading",
+																																"not-an-endurance-discipline",
+																																"no-zone-recipe",
+																																"no-intensity-source",
+																																"no-heart-rate-anchor",
+																																"no-threshold-pace",
+																																"no-critical-swim-speed",
+																																"no-ride-history",
+																																"no-season-anchor",
+																																"no-recording",
+																																"building-baseline",
+																																"insufficient-data",
+																																"source-terms",
+																																"outside-plan",
+																																"no-plan",
+																																"not-logged",
+																																"structure-not-verifiable"
+																															]
+																														},
+																														"label": {
+																															"type": "string"
+																														},
+																														"platforms": {
+																															"type": "array",
+																															"items": {
+																																"type": "string",
+																																"enum": [
+																																	"garmin",
+																																	"polar",
+																																	"suunto",
+																																	"coros",
+																																	"wahoo",
+																																	"strava",
+																																	"zwift",
+																																	"apple-health",
+																																	"health-connect",
+																																	"intervalsicu",
+																																	"upload",
+																																	"unknown"
+																																]
+																															}
+																														}
+																													},
+																													"required": [
+																														"status",
+																														"reason",
+																														"label"
+																													],
+																													"additionalProperties": false
+																												}
+																											]
+																										},
+																										{
+																											"type": "null"
+																										}
+																									]
+																								}
+																							},
+																							"required": [
+																								"kind",
+																								"of",
+																								"min",
+																								"max"
+																							],
+																							"additionalProperties": false
+																						}
+																					],
+																					"description": "The prescribed intensity. min and max are in the unit of kind: rpe 1-10; hrBpm beats per minute; power watts; pace seconds per km; lactate mmol/L; hrPct and powerPct percent of the threshold named by of (max, lthr; ftp, map, cp); pacePct percent of threshold speed; racePace percent of race speed at the distance named by of. A null bound was not authored."
+																				},
+																				{
+																					"type": "null"
+																				}
 																			]
 																		},
 																		"durationS": {

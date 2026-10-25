@@ -15,6 +15,12 @@ import { SCOPES, type Scope } from '#app/actions/vocabulary.ts'
 
 export const DEV_TOKEN_MIN_LENGTH = 32
 
+/**
+ * The placeholder `.env.example` ships. It is long enough to pass the length
+ * check and public, so an uncommented example line must not become a token.
+ */
+const PUBLISHED_PLACEHOLDER_TOKEN = 'replace-with-openssl-rand-hex-24-output'
+
 export type DevToken = { username: string; token: string; scopes: Scope[] }
 
 /** Whether this environment may read a dev token at all. */
@@ -43,6 +49,11 @@ export function parseDevTokens(
 		if (!username || !token || token.length < DEV_TOKEN_MIN_LENGTH) {
 			throw new Error(
 				`MCP_DEV_TOKENS entries are username:token[:scope+scope], with a token of at least ${DEV_TOKEN_MIN_LENGTH} characters.`,
+			)
+		}
+		if (token === PUBLISHED_PLACEHOLDER_TOKEN) {
+			throw new Error(
+				'MCP_DEV_TOKENS still holds the placeholder from .env.example: generate a token with `openssl rand -hex 24`.',
 			)
 		}
 		const scopes = scopeList ? scopeList.split('+') : ['training:read']

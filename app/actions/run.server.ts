@@ -21,6 +21,7 @@
  * error rather than an outcome.
  */
 
+import * as Sentry from '@sentry/react-router'
 import { SOURCE_ATTRIBUTION_LABELS } from '#app/utils/labels.ts'
 import { ATTRIBUTIONS, type Attribution } from '#app/utils/source-terms.ts'
 import { type ActionCtx, type AnyActionResult, type RunCtx } from './define.ts'
@@ -81,6 +82,9 @@ async function run(
 		}
 	} catch (error) {
 		console.error(`[actions] ${name} failed`, error)
+		// The envelope says only `not-run` or `unknown`, so the error itself
+		// reaches Sentry here or nowhere.
+		Sentry.captureException(error)
 		return action.kind === 'read'
 			? { outcome: 'not-run', reason: 'internal' }
 			: {

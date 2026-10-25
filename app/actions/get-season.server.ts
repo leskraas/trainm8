@@ -22,7 +22,11 @@ import {
 	platformsOver,
 	readRecordedPlatformsByDay,
 } from './provenance.server.ts'
+import { athleteText, AthleteTextSchema } from './reading.ts'
 import { toWeekTrack, WeekTrackSchema } from './week-tracks.server.ts'
+
+/** An event's name is the athlete's text, capped like a workout title. */
+const EVENT_NAME_MAX = 200
 
 /** The most weeks one call states: two years of plan. */
 export const SEASON_MAX_WEEKS = 104
@@ -49,9 +53,12 @@ export const getSeasonAction = defineAction({
 	output: z.object({
 		plan: z
 			.object({
-				name: z.string(),
+				/** The event's name, the athlete's text; trainm8's words when open-ended. */
+				name: z.union([AthleteTextSchema, z.string()]),
 				openEnded: z.boolean(),
-				event: z.object({ name: z.string(), date: z.string() }).nullable(),
+				event: z
+					.object({ name: AthleteTextSchema, date: z.string() })
+					.nullable(),
 			})
 			.nullable(),
 		weeks: z.array(
@@ -96,14 +103,18 @@ export const getSeasonAction = defineAction({
 			})
 		})
 
+		// The athlete typed the event's name: it crosses as theirs (ADR 0092 §7).
+		const eventName = plan.eventName
+			? athleteText(plan.eventName, EVENT_NAME_MAX)
+			: null
 		return {
 			plan: {
-				name: plan.eventName ?? ACTION_VALUE_LABELS.openEndedPlan,
+				name: eventName ?? ACTION_VALUE_LABELS.openEndedPlan,
 				openEnded: plan.eventId == null,
 				event:
-					plan.eventName && plan.eventDate
+					eventName && plan.eventDate
 						? {
-								name: plan.eventName,
+								name: eventName,
 								date: localDate(plan.eventDate, ctx.timezone),
 							}
 						: null,

@@ -482,5 +482,10 @@ Where the first slice departs from the text above, and why:
 - **`/mcp` is 404 in production** until OAuth, and accepts only localhost-class
   Host and Origin. The catalog snapshot is one file, since the list does not
   vary by scope; the compatibility test against `origin/main` is still later.
+- **Typed intensity and event names.** A step's `intensity` is the parsed
+  Intensity Target, not the stored string: its bounds are Readings in the kind's
+  unit, and a zone label crosses as `AthleteText`. `get_season`'s event name
+  (and the plan's name when it is the event's) is `AthleteText`, capped at 200
+  characters.
 - **Over-closing by week.** A week's actual volume binds to every Recording in
   that week, so a Strava ride in Annet closes that week's run track for a model.

@@ -84,3 +84,14 @@ test('entries are username:token[:scope+scope], with tokens long enough to guess
 	)
 	expect(parseDevTokens(undefined, 'production')).toEqual([])
 })
+
+test('the placeholder in .env.example is public, so it is never a token', async () => {
+	const { readFile } = await import('node:fs/promises')
+	const example = await readFile(
+		new URL('../../.env.example', import.meta.url),
+		'utf8',
+	)
+	const line = /^# MCP_DEV_TOKENS="(.+)"$/m.exec(example)?.[1]
+	expect(line).toBeDefined()
+	expect(() => parseDevTokens(line, 'development')).toThrow(/\.env\.example/)
+})

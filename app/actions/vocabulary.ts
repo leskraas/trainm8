@@ -98,8 +98,8 @@ export type NotRunReason = (typeof NOT_RUN_REASONS)[number]
 
 /**
  * The volume conversion's reasons (`plan-outline/volume-conversion.ts`'s
- * `UnavailableReason`), restated as a list so they can be iterated; the
- * `satisfies` in `reading.test.ts` keeps the two in step.
+ * `UnavailableReason`), restated as a list so they can be iterated;
+ * `vocabulary.test.ts` holds the two to the same set at typecheck.
  */
 export const VOLUME_CONVERSION_REASONS = [
 	'sets-has-no-reading',

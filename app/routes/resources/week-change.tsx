@@ -4,6 +4,7 @@ import { actionCtx } from '#app/actions/context.server.ts'
 import { type ActionName } from '#app/actions/registry.server.ts'
 import { runAction } from '#app/actions/run.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { ACTION_FAILURE_LABELS } from '#app/utils/labels.ts'
 import { readWeekChange } from '#app/utils/load/week-change-card.server.ts'
 import {
 	type WeekChangeAction,
@@ -30,8 +31,8 @@ export const WEEK_CHANGE_INTENT_ACTIONS = {
  *
  * A resource route, so each control posts with its own fetcher and the card
  * stays where it is. Each intent runs its registry action as the `web` caller
- * (ADR 0092 §9): the route keeps the HTTP concerns — Conform, the 400, 404 and
- * 409 — and the action owns the operation. Owner-scoped twice over: the
+ * (ADR 0092 §9): the route keeps the HTTP concerns — Conform, the 400, 404,
+ * 409 and 500 — and the action owns the operation. Owner-scoped twice over: the
  * athlete must be signed in, and every action reads only the athlete's own
  * rows — another athlete's proposal answers 404 and changes nothing.
  *
@@ -69,8 +70,23 @@ export async function action({ request }: Route.ActionArgs) {
 						weekKey: value.weekKey,
 					})
 	if (outcome.outcome !== 'done' && outcome.outcome !== 'refused') {
-		// Nothing a form can say: the action failed to run (logged there).
-		throw new Response('Could not answer', { status: 500 })
+		// The action failed while it ran (logged and sent to Sentry there). The
+		// card stays where it is and comes back as it now stands, which is the
+		// read an `unknown` asks for before the athlete tries again.
+		return data(
+			{
+				submission: submission.reply({
+					formErrors: [
+						ACTION_FAILURE_LABELS[
+							outcome.outcome === 'not-run' ? 'not-run' : 'unknown'
+						],
+					],
+				}),
+				result: null,
+				weekChange: await readWeekChange(userId),
+			},
+			{ status: 500 },
+		)
 	}
 	// The reply's `result` is the service's own shape, as before the registry.
 	const result =
