@@ -72,7 +72,8 @@ function workout(km: number, title = 'Rolig tur'): Workout {
 						durationSec: null,
 						distanceM: km * 1000,
 						verticalM: null,
-						gradePct: null,
+						gradePctMin: null,
+						gradePctMax: null,
 						cadenceRpmMin: null,
 						cadenceRpmMax: null,
 						rest: null,
@@ -118,6 +119,9 @@ function on(
 					phaseBarsJson: null,
 					linkAnsweredAt: null,
 					unlinkedFromSessionId: null,
+					originPlatform: 'unknown',
+					deviceName: null,
+					aliases: [],
 				}
 			: null,
 		sessionLog: null,
@@ -398,7 +402,7 @@ describe('the day pane', () => {
 		expect(composer.querySelector('[data-composer-date]')).toBeNull()
 		expect(
 			within(composer as HTMLElement).getByRole('button', {
-				name: 'Legg til 45 min Z2',
+				name: 'Legg til 45 min rolig',
 			}),
 		).toBeInTheDocument()
 		// The week's zones close the pane, named by its ISO week.

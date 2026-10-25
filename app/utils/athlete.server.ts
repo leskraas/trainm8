@@ -237,8 +237,12 @@ export async function setDisciplineThresholds(
 		// of the patch and rejoined per branch (#454): submitting one is authoring
 		// it, and creating a profile without one takes the discipline's default.
 		// Omitting it on an update leaves both columns alone — an athlete saving a
-		// threshold has not restated their recipe.
+		// threshold has not restated their recipe. Nor has one resubmitting the
+		// recipe already stored: the settings form always posts its picker (#631),
+		// so only a different recipe is an act of choosing.
 		const { zoneSystem, ...thresholds } = patch
+		const recipeChanged =
+			zoneSystem != null && zoneSystem !== existing?.zoneSystem
 		const updated = await tx.disciplineProfile.upsert({
 			where: {
 				athleteProfileId_discipline: { athleteProfileId, discipline },
@@ -251,7 +255,7 @@ export async function setDisciplineThresholds(
 			},
 			update: {
 				...thresholds,
-				...(zoneSystem
+				...(recipeChanged
 					? { zoneSystem, zoneSystemSource: 'athlete' as const }
 					: {}),
 			},

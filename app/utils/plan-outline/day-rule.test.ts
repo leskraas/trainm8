@@ -112,6 +112,23 @@ test('a middels Simple Activity makes a hard day', () => {
 	])
 })
 
+test('a session of unknown effort is not easy: it makes a hard day (#617)', () => {
+	const unknown: PlacedSession = { weekday: WED, kind: 'session', effort: null }
+	expect(readDays([unknown])[WED]).toEqual({
+		weekday: WED,
+		effort: null,
+		hard: true,
+		long: false,
+		lifting: false,
+	})
+	expect(placingClashes([unknown], hard(THU))).toEqual([
+		{ reason: 'hard-days-in-a-row', weekday: WED },
+	])
+	expect(placingClashes([unknown], rolig(TUE))).toEqual([
+		{ reason: 'easy-before-hard-day', weekday: TUE },
+	])
+})
+
 test('a rolig session clashes with nothing but the day before a hard day', () => {
 	const week = [hard(TUE), lifting(TUE), long(SUN)]
 	expect(placingClashes(week, rolig(TUE))).toEqual([])

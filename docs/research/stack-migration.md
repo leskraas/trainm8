@@ -487,9 +487,14 @@ Prisma 7. Its documented SQLite driver adapter is
 
 1. **Does `requireMcpAuth` work behind an MCP handler on
    `legacy: 'stateless'`**, serving both eras? And what does PRM put in
-   `scopes_supported`?
+   `scopes_supported`? **Answered 2026-10-24:** yes on 2025-06-18, 2025-11-25
+   and 2026-07-28, while `legacy: 'reject'` breaks 2025-era clients. The PRM
+   lists only the `training:*` scopes, never `offline_access`
+   ([spike §3–4](better-auth-mcp-spike.md#3-both-eras-requiremcpauth-is-protocol-agnostic)).
 2. **Does Better Auth accept Claude's canonical `aud`** (lowercase host, no
-   trailing slash, no default port)?
+   trailing slash, no default port)? **Answered 2026-10-24:** yes, by exact
+   string match, so the configured `resource` must itself be canonical
+   ([spike §4](better-auth-mcp-spike.md#4-prm-scopes_supported-and-claudes-canonical-aud)).
 3. **Oslo → `fra` versus Oslo → `arn` latency**, measured; and which trigger
    fires first. Together they pick the host (§5.1).
 4. **Can PGlite carry this suite** (one connection; race tests still need a real
@@ -498,7 +503,10 @@ Prisma 7. Its documented SQLite driver adapter is
    `tests/setup/global-setup.ts:28`)? The upgrade guide names only `migrate dev`
    and `db push`. Does TypedSQL survive? trainm8 has no `.sql` files.
 6. **Bridge or cut over?** Issuing a Better Auth session from an Epic session
-   would let MCP ship before Phase 1, through internal APIs. Unexplored.
+   would let MCP ship before Phase 1, through internal APIs. **Answered
+   2026-10-24:** it works, through a 25-line server-only plugin endpoint; the
+   choice is ADR 0094's
+   ([spike §7](better-auth-mcp-spike.md#7-an-epic-session-can-issue-a-better-auth-session)).
 
 ---
 

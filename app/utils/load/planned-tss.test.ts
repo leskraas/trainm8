@@ -218,6 +218,62 @@ test('swim step uses sTSS from resolved pace and CSS', () => {
 	expect(result!.tss).toBeCloseTo(100, 0)
 })
 
+test('a swim pace target (sec/km) prices 10 × 100 m @ 1:40/100 m as about 1000 s', () => {
+	// 1:40/100 m is stored as 1000 sec/km; at CSS 100 s/100m that is IF 1.0, so
+	// 1000 s of work is 1000/3600 × 100 ≈ 27.8 TSS.
+	const result = computePlannedTss(
+		workout(
+			[
+				step({
+					distanceM: 100,
+					intensity: JSON.stringify({ kind: 'pace', minSecPerKm: 1000 }),
+					intensityPaceMin: 1000,
+					intensityPaceMax: 1000,
+				}),
+			],
+			'swim',
+			10,
+		),
+		profile({ cssSecPer100m: 100 }, 'swim'),
+	)
+	expect(result!.confidence).toBe('full')
+	expect(result!.tss).toBeCloseTo((1000 / 3600) * 100, 1)
+})
+
+test('a swim CSS-relative target (sec/100 m) prices the distance at that pace', () => {
+	const result = computePlannedTss(
+		workout(
+			[
+				step({
+					distanceM: 1000,
+					intensity: JSON.stringify({ kind: 'zoneLabel', label: 'Threshold' }),
+					intensityPaceMin: 100,
+					intensityPaceMax: 100,
+				}),
+			],
+			'swim',
+		),
+		profile({ cssSecPer100m: 100 }, 'swim'),
+	)
+	expect(result!.tss).toBeCloseTo((1000 / 3600) * 100, 1)
+})
+
+test('a run pace target prices the distance in sec/km', () => {
+	// 5 km at threshold pace 300 s/km → 1500 s at IF 1.0 → ≈ 41.7 rTSS
+	const result = computePlannedTss(
+		workout([
+			step({
+				distanceM: 5000,
+				intensity: JSON.stringify({ kind: 'pace', minSecPerKm: 300 }),
+				intensityPaceMin: 300,
+				intensityPaceMax: 300,
+			}),
+		]),
+		profile({ preferRTSS: true, thresholdPaceSecPerKm: 300 }),
+	)
+	expect(result!.tss).toBeCloseTo((1500 / 3600) * 100, 1)
+})
+
 // ── two repeat levels (#450) ──────────────────────────────────────────────────
 
 test('Planned TSS prices both repeat levels, not just the inner one', () => {

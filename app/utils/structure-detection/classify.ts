@@ -175,6 +175,41 @@ function athleteRecipe(profile: DisciplineProfileForResolver) {
 	return profile.zoneSystem ? getRecipe(profile.zoneSystem) : undefined
 }
 
+/** A direct rung's recipe: the athlete's own when anchored on it, else the default. */
+function rungRecipe(rung: PrimaryRung, recipe: ZoneRecipe | undefined) {
+	return recipe && recipe.anchor === rung.anchor ? recipe : rung.defaultRecipe
+}
+
+/** The HR rung's recipe: the athlete's own LTHR/maxHR recipe, else the default. */
+function hrRungRecipe(
+	discipline: DetectionDiscipline,
+	recipe: ZoneRecipe | undefined,
+) {
+	return recipe && (recipe.anchor === 'lthr' || recipe.anchor === 'maxHr')
+		? recipe
+		: defaultHrRecipe(discipline)
+}
+
+/**
+ * The recipe `resolveClassifier` reads a channel against, so a measured target
+ * the engine stored can be zoned the way it was classified — a Daniels runner
+ * with a critical-power threshold is classified on Stryd bands, and the pace
+ * recipe cannot place its watts at all (#617). `undefined` when the discipline
+ * never classifies on that channel.
+ */
+export function classifyingRecipe(
+	discipline: DetectionDiscipline,
+	profile: DisciplineProfileForResolver,
+	channel: ClassifyChannel,
+): ZoneRecipe | undefined {
+	const recipe = athleteRecipe(profile)
+	if (channel === 'heartrate') return hrRungRecipe(discipline, recipe)
+	const rung = primaryRungs(discipline, profile).find(
+		(r) => r.channel === channel,
+	)
+	return rung && rungRecipe(rung, recipe)
+}
+
 /**
  * Resolve how this activity's intensity is classified, walking the ADR
  * 0035/0038 ladder: the discipline's direct anchor channel(s) with their
@@ -203,8 +238,7 @@ export function resolveClassifier(
 	// it falls through to pace, so nothing regresses for pace-only runners.
 	for (const rung of primaryRungs(discipline, profile)) {
 		if (rung.threshold == null || stream[rung.channel] == null) continue
-		const anchorRecipe =
-			recipe && recipe.anchor === rung.anchor ? recipe : rung.defaultRecipe
+		const anchorRecipe = rungRecipe(rung, recipe)
 		const bands = effectiveBands(
 			anchorRecipe,
 			recipe === anchorRecipe ? overrides : null,
@@ -230,10 +264,7 @@ export function resolveClassifier(
 	// Tanaka age-estimate computed upstream (ADR 0005, "never materialized") — so
 	// the engine reads it honestly and never fabricates an age itself.
 	if (stream.heartrate != null) {
-		const hrRecipe =
-			recipe && (recipe.anchor === 'lthr' || recipe.anchor === 'maxHr')
-				? recipe
-				: defaultHrRecipe(discipline)
+		const hrRecipe = hrRungRecipe(discipline, recipe)
 		const hrAnchor = hrRecipe.anchor === 'maxHr' ? profile.maxHr : profile.lthr
 		if (hrAnchor != null) {
 			const bands = effectiveBands(

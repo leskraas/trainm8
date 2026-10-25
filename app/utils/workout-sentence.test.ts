@@ -6,7 +6,26 @@ import {
 } from './workout-sentence.ts'
 
 describe('parseWorkoutSentence', () => {
-	test('a distance at an easy word is one step in Z2', () => {
+	test('a zone is stored as its word, never as a code a recipe uses as a band label (#627)', () => {
+		const label = (sentence: string) =>
+			parseWorkoutSentence(sentence, { discipline: 'run' }).structure?.blocks[0]
+				?.steps[0]
+		expect(label('20 min terskel')).toMatchObject({
+			intensity: { kind: 'zoneLabel', label: 'terskel' },
+		})
+		expect(label('20 min moderat')).toMatchObject({
+			intensity: { kind: 'zoneLabel', label: 'moderat' },
+		})
+		// A typed code names the zone too, so it is stored as the same word.
+		expect(label('20 min Z4')).toMatchObject({
+			intensity: { kind: 'zoneLabel', label: 'terskel' },
+		})
+		expect(label('20 min oppvarming')).toMatchObject({
+			intensity: { kind: 'zoneLabel', label: 'lett' },
+		})
+	})
+
+	test('a distance at an easy word is one step in zone 2', () => {
 		const parsed = parseWorkoutSentence('10 km rolig', { discipline: 'run' })
 		expect(parsed.unknown).toEqual([])
 		expect(parsed.problems).toEqual([])
@@ -20,7 +39,7 @@ describe('parseWorkoutSentence', () => {
 							kind: 'cardio',
 							discipline: 'run',
 							distanceM: 10000,
-							intensity: { kind: 'zoneLabel', label: 'Z2' },
+							intensity: { kind: 'zoneLabel', label: 'rolig' },
 						},
 					],
 				},
@@ -42,7 +61,7 @@ describe('parseWorkoutSentence', () => {
 						kind: 'cardio',
 						discipline: 'run',
 						durationSec: 600,
-						intensity: { kind: 'zoneLabel', label: 'Z4' },
+						intensity: { kind: 'zoneLabel', label: 'terskel' },
 					},
 					{ kind: 'rest', durationSec: 60 },
 				],
@@ -79,7 +98,7 @@ describe('parseWorkoutSentence', () => {
 		})
 		expect(blocks[1]?.steps[1]).toEqual({ kind: 'rest', durationSec: 90 })
 		expect(blocks[0]?.steps[0]).toMatchObject({
-			intensity: { kind: 'zoneLabel', label: 'Z1' },
+			intensity: { kind: 'zoneLabel', label: 'lett' },
 		})
 	})
 

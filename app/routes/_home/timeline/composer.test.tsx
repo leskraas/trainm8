@@ -48,6 +48,7 @@ function session(overrides: Partial<TimelineSession> = {}): TimelineSession {
 		ownerLabel: 'din økt',
 		ownerNote: 'Appen endrer den ikke uten å spørre.',
 		volumeLabel: '45 min',
+		sourceCredit: null,
 		annet: { inAnnet: false, actionLabel: 'Tell i Annet' },
 		release: null,
 		strengthLog: null,
@@ -160,6 +161,7 @@ function renderComposer({
 								currency: 'km',
 								target: 40,
 								planned: 0,
+								plannedSum: 0,
 								done: 0,
 								plannedUnmeasuredCount: 0,
 								doneUnmeasuredCount: 0,
@@ -170,6 +172,7 @@ function renderComposer({
 								currency: 'sets',
 								target: 16,
 								planned: 6,
+								plannedSum: 6,
 								done: 0,
 								plannedUnmeasuredCount: 0,
 								doneUnmeasuredCount: 0,
@@ -273,7 +276,7 @@ test('a free day’s “+” opens the composer in a Drawer, on that day, with t
 	).toBeInTheDocument()
 	// An empty line is the stamp, with what it does to the week.
 	await userEvent.click(
-		within(drawer).getByRole('button', { name: 'Legg til 45 min Z2' }),
+		within(drawer).getByRole('button', { name: 'Legg til 45 min rolig' }),
 	)
 	await waitFor(() => expect(posts).toHaveLength(1))
 	expect(posts[0]).toEqual({
@@ -633,6 +636,64 @@ test('an import says what it is on the row itself: ekstra, or where a done sessi
 		'data-owner-glyph',
 		'machine',
 	)
+})
+
+test('a row built on Garmin data credits Garmin under its title, whole, and so do its details (#557)', async () => {
+	const credit =
+		'Garmin Forerunner 965 Music Edition (Triathlon Bundle, Whitestone/Powder Gray)'
+	renderComposer({
+		weeks: [
+			week([
+				day('2030-02-19', {
+					sessions: [
+						session({
+							id: 'garmin-1',
+							title: '10 km rolig',
+							status: 'completed',
+							owner: 'machine',
+							ownerLabel: null,
+							ownerNote: null,
+							sourceCredit: credit,
+						}),
+						session({
+							id: 'suunto-1',
+							title: 'Sykling · 40 min',
+							status: 'completed',
+							owner: 'machine',
+							ownerLabel: null,
+							ownerNote: null,
+						}),
+					],
+				}),
+				day(TODAY),
+			]),
+		],
+	})
+	const row = document.querySelector<HTMLElement>(
+		'[data-session-row="garmin-1"]',
+	)!
+	const line = row.querySelector('[data-source-credit]')
+	// By the title, in the row's own link: not behind a tap, a tooltip or a fold.
+	expect(line).toHaveTextContent(credit)
+	expect(line).toBeVisible()
+	expect(line?.closest('a')).toBe(row.querySelector('a[data-status]'))
+	// Under the title, never cut short.
+	expect(
+		row.querySelector('[data-session-title]')?.compareDocumentPosition(line!),
+	).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+	expect(line?.innerHTML).not.toMatch(/truncate|line-clamp|text-ellipsis/)
+	// A row that owes nothing says nothing.
+	expect(
+		document
+			.querySelector('[data-session-row="suunto-1"]')!
+			.querySelector('[data-source-credit]'),
+	).toBeNull()
+
+	await userEvent.click(within(row).getByRole('link', { name: /10 km rolig/ }))
+	const drawer = await screen.findByRole('dialog')
+	expect(
+		drawer.querySelector('[data-session-detail] [data-source-credit]'),
+	).toHaveTextContent(credit)
 })
 
 test('Avbryt closes the composer and writes nothing', async () => {

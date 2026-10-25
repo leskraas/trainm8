@@ -1368,8 +1368,13 @@ export const QUICK_LOG_LABELS = {
 	cancel: 'Avbryt',
 	saving: 'Logger …',
 	loading: 'Henter planen …',
-	/** ADR 0064 §2, said where the athlete would look for a weight field. */
-	weightNote: 'Vekta står som planlagt. En annen vekt kan ikke logges her.',
+	/** _Endre_'s weight (#530, ADR 0064 amended): one per lift, all its sets. */
+	weightFor: (lift: string) => `Vekt for ${lift}, kilo`,
+	lighter: (lift: string, step: string) => `${step} kg lettere på ${lift}`,
+	heavier: (lift: string, step: string) => `${step} kg tyngre på ${lift}`,
+	/** Beside a weight the athlete changed: what the plan said. */
+	weightWas: (kg: string) => `fra ${kg}`,
+	weightInvalid: 'Skriv vekta som kilo over 0, høyst 500, for eksempel 82,5.',
 	notDoneNote: 'Tomt eller 0 betyr at settet ikke ble gjort.',
 	setInput: (lift: string, position: number, unit: SetUnit) =>
 		`Sett ${position} av ${lift}, ${unit === 'reps' ? 'repetisjoner' : 'sekunder'}`,
@@ -1432,6 +1437,9 @@ export const QUICK_LOG_REFUSAL_LABELS: Record<QuickLogRefusal, string> = {
 	'unknown-set':
 		'Ett av settene finnes ikke i planen lenger. Last siden på nytt.',
 	'nothing-done': 'Ingen sett er merket som gjort. Skriv inn minst ett.',
+	'bad-weight': QUICK_LOG_LABELS.weightInvalid,
+	'weight-not-editable':
+		'Vekta på ett av løftene kan ikke endres her. Last siden på nytt.',
 }
 
 /**
@@ -1834,7 +1842,7 @@ export const WRITING_LINE_LABELS = {
 	placeholder: 'f.eks. 10 km rolig eller 3x10 min terskel p 1 min',
 	/** The empty line under the Styrke chip (ADR 0089). */
 	placeholderLifts: 'f.eks. Knebøy 5×5 @ 80 kg · Benkpress 5×5 @ 60 kg',
-	hint: 'Eller la linja stå tom og legg til 45 min Z2.',
+	hint: 'Eller la linja stå tom og legg til 45 min rolig.',
 	understood: 'Forstått',
 	/** `Til sammen 10 km`, `Til sammen 5 km og 7 min 30 s`. */
 	totals: (parts: string[]) => `Til sammen ${parts.join(' og ')}`,
@@ -2000,6 +2008,16 @@ export const SESONG_ENTRY_LABELS = {
 	newPlan: 'Ny plan',
 	group: 'Start noe nytt',
 } as const
+
+/**
+ * A figure the app translated rather than read: minutes timed through a pace
+ * say so with `≈` (`≈ 57 min`), the mark a Lactate Anchor's zone and an
+ * Intensity Target's equivalent carry. No-break spaces keep the mark and
+ * its figure on one line: `≈ 1 t 50 min` never wraps as `≈ 1 t 50` / `min`.
+ */
+export function approxLabel(text: string, estimated: boolean): string {
+	return estimated ? `≈\u00a0${text.replaceAll(' ', '\u00a0')}` : text
+}
 
 /** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */
 export function nbDurationLabel(seconds: number): string {
@@ -2693,13 +2711,71 @@ export const ATTACH_EVENT_LABELS = {
 	newRace: 'Nytt løp',
 	name: 'Navn på løpet',
 	date: 'Dato',
+	/** The first step: nothing is written until the preview is confirmed. */
+	showPreview: 'Vis forhåndsvisning',
 	submit: 'Legg til løpet',
 	done: 'Planen bygger mot løpet nå',
 	pickOne: 'Velg et løp, eller skriv navn og dato for et nytt.',
 	notBoth: 'Velg et løp eller lag et nytt – ikke begge.',
 	nameMissing: 'Gi løpet et navn.',
 	dateMissing: 'Skriv datoen for løpet.',
+	previewFirst: 'Se forhåndsvisningen før du legger til løpet.',
+	// The preview (#518), in the words of the philosophy switch's.
+	preview: 'Forhåndsvisning',
+	before: 'Nå',
+	after: 'Mot løpet',
+	livedStay: 'Ukene du har trent blir stående.',
+	aroundYours:
+		'Tallene er ukemålene. I uker der du har egne økter, legges appens økter rundt dem.',
 } as const
+
+/**
+ * The preview's first line (#518): the round being lived ends after this week,
+ * at the weeks it keeps — and, when it was meant to run longer, how long.
+ */
+export function attachEndsSentence(ended: {
+	name: string
+	weeks: number
+	wasWeeks: number
+}): string {
+	const name = nbPhaseName(ended.name)
+	return ended.weeks < ended.wasWeeks
+		? `${name} slutter etter denne uka: ${nbWeeks(ended.weeks)} i stedet for ${ended.wasWeeks}.`
+		: `${name} slutter etter denne uka, etter ${nbWeeks(ended.weeks)}.`
+}
+
+/** `Fra uka som starter 14. jan 2030 bygger planen mot Vårmilen, 10. mar 2030.` */
+export function attachTowardSentence(
+	fromDate: string,
+	eventName: string,
+	eventDate: string,
+): string {
+	return `Fra uka som starter ${fromDate} bygger planen mot ${eventName}, ${eventDate}.`
+}
+
+/** Rounds appended but never begun, which the attach removes. */
+export function attachRemovedSentence(names: string[]): string | null {
+	if (names.length === 0) return null
+	const said = names.map(nbPhaseName)
+	const list =
+		said.length === 1
+			? said[0]!
+			: `${said.slice(0, -1).join(', ')} og ${said.at(-1)}`
+	return `${list} blir ikke kjørt.`
+}
+
+/** The athlete's own upcoming sessions the attach keeps, or that there are none. */
+export function attachKeptSessionsSentence(count: number): string {
+	if (count === 0) {
+		return 'Du har ingen egne økter framover. Appen legger øktene mot løpet.'
+	}
+	return `${nbSessions(count)} du har lagt inn eller endret selv blir stående, og appens økter legges rundt ${count === 1 ? 'den' : 'dem'}.`
+}
+
+/** The week table's summary: `Uke for uke · 9 uker`. */
+export function attachWeeksSummary(count: number): string {
+	return `Uke for uke · ${nbWeeks(count)}`
+}
 
 /** Why adding an Event to an open-ended plan was refused, as the athlete reads it. */
 export const ATTACH_EVENT_REFUSAL_LABELS: Record<AttachEventRefusal, string> = {
@@ -2710,6 +2786,10 @@ export const ATTACH_EVENT_REFUSAL_LABELS: Record<AttachEventRefusal, string> = {
 	'event-already-planned': 'Det løpet har allerede en plan.',
 	'event-too-soon':
 		'Løpet er denne uka, så det er ingen uker igjen å bygge mot det.',
+	'plan-too-long':
+		'Løpet er så langt fram at planen ville bli lengre enn to år. Velg et løp innen to år fra planens start.',
+	'preview-stale':
+		'Planen har endret seg siden forhåndsvisningen. Se over den nye forhåndsvisningen før du legger til løpet.',
 }
 
 /**
@@ -3663,8 +3743,16 @@ export const WORKOUT_DETAIL_LABELS = {
 		plannedShape: 'Planlagt form',
 		inspectHint:
 			'Dra over grafen for å lese hver kanal — trykk og dra på mobil, hold pekeren over på PC.',
-		plannedRange: (min: number, max: number, unit: string) =>
-			`Planlagt ${min}–${max} ${unit}`,
+		/** A planned target band; an open-ended zone has a floor only, and a
+		 * single-value target (`150 bpm`) reads as its one value. */
+		targetRange: (min: number, max: number | null) =>
+			max == null ? `over ${min}` : max === min ? `${min}` : `${min}–${max}`,
+		plannedRange: (min: number, max: number | null, unit: string) =>
+			max == null
+				? `Planlagt over ${min} ${unit}`
+				: max === min
+					? `Planlagt ${min} ${unit}`
+					: `Planlagt ${min}–${max} ${unit}`,
 		missing: 'mangler',
 		tableCaption:
 			'Data fra opptaket, et utvalg gjennom økta, fra start til slutt.',
@@ -3736,6 +3824,7 @@ export const WORKOUT_DETAIL_LABELS = {
 		notAttached: 'Opptaket er ikke koblet til en plan.',
 		targetRequired: 'Velg økta opptaket skal flyttes til.',
 		cannotRedetect: 'Denne økta kan ikke leses på nytt.',
+		recordingNotEditable: 'Et opptak kan ikke redigeres som en plan.',
 		badDateTime: 'Dato og klokkeslett henger ikke sammen.',
 	},
 } as const
@@ -4162,8 +4251,15 @@ export const JUSTER_LABELS = {
 	working: 'Endrer …',
 	/** The toast: what changed. The session's title is quoted under it. */
 	done: {
-		tired: (duration: string) => `Dagens økt er rolig nå, ${duration}.`,
-		short: (duration: string) => `Dagens økt er kortet ned til ${duration}.`,
+		/** A lift states no time, so it says none. */
+		tired: (duration: string | null) =>
+			duration
+				? `Dagens økt er rolig nå, ${duration}.`
+				: 'Dagens økt er rolig nå.',
+		short: (duration: string | null) =>
+			duration
+				? `Dagens økt er kortet ned til ${duration}.`
+				: 'Dagens økt er kortet ned.',
 		moved: (day: string) => `Økta er flyttet til ${day}.`,
 		swapped: (day: string, other: string) =>
 			`Økta er flyttet til ${day}, og «${other}» er i dag.`,
@@ -5861,6 +5957,18 @@ export const TOKEN_SENTENCE_WORDS = {
 	sendOff: (clock: string) => `på ${clock}`,
 	/** Metres of climb: `200 hm`. */
 	vertical: (metres: number) => `${metres} hm`,
+	/** The rest between two series of a block: `10 min seriepause`. */
+	betweenSeries: (duration: string) => `${duration} seriepause`,
+	/** The series badge, read aloud: `3 serier`. */
+	seriesCount: (count: number) => `${count} serier`,
+	/** Cadence's unit — the number before it is the prescription (#466). */
+	cadence: 'rpm',
+	/** A grade band's direction: `4–7 % motbakke`, `3–6 % utforbakke`. */
+	uphill: 'motbakke',
+	downhill: 'utforbakke',
+	/** Between the ends of a grade band across level ground, which has no one
+	 * direction to name: `−2 til +3 %`. */
+	gradeTo: 'til',
 	/** The placeholders a step shows before its exercise or sets are chosen. */
 	exercise: 'øvelse',
 	sets: 'sett',
@@ -6107,6 +6215,11 @@ export const INTEGRATION_TOAST_LABELS = {
 		'Strava har slått av appen (status: inactive). Det er på Stravas side – å koble til på nytt hjelper ikke.',
 	stravaScope:
 		'Trainm8 har ikke lov til å lese Strava-øktene dine. Koble til på nytt, og la avkrysningen for økttilgang stå på.',
+	/** `… Prøv igjen om 10 min.`, `… om 6 t 40 min.`: until Strava's window resets. */
+	stravaRateLimited: (retryAt: Date, now: Date = new Date()) =>
+		`Strava har nådd grensen for oppslag. Prøv igjen om ${nbDurationLabel(
+			Math.max(1, Math.ceil((retryAt.getTime() - now.getTime()) / 60_000)) * 60,
+		)}.`,
 	stravaUnavailable: 'Strava er ikke tilgjengelig',
 	/** The Strava OAuth callback's refusals (a reconnect of an old link). */
 	stravaDenied: 'Du sa nei til tilgangen hos Strava.',
@@ -7245,6 +7358,9 @@ export const TOKEN_EDITOR_TOKEN_NAMES = {
 	duration: (text: string) => `${text} varighet`,
 	distance: (text: string) => `${text} distanse`,
 	repeat: (count: string | number) => `gjentas ${count} ganger`,
+	/** A block in series, `3 × 13`: the series first, as the badge reads. */
+	repeatSeries: (series: number, reps: number) =>
+		`${series} serier, gjentas ${reps} ganger`,
 	restBetweenSets: (text: string) => `${text} mellom settene`,
 	note: (note: string) => `notat: ${note}`,
 	intensity: (chip: string) => `${chip} intensitet`,
@@ -7354,6 +7470,7 @@ export const WORKOUT_SCHEMA_MESSAGES = {
 	durationXorDistance: 'Et steg kan ha tid eller distanse, ikke begge',
 	oneQuantity: 'Et steg oppgir én mengde: tid, distanse eller høydemeter',
 	cadenceOrder: 'Kadensen må gå fra lav til høy',
+	gradeOrder: 'Stigningen må gå fra lav til høy',
 	exercise: 'Velg en øvelse',
 	setsMin: 'Legg til minst ett sett',
 	restOnce: 'En pause oppgir formen sin bare én gang',

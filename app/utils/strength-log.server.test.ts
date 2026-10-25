@@ -1339,6 +1339,43 @@ test('a weight with no count is refused rather than saved as a completed working
 	expect(await prisma.exerciseSetLog.count({ where: { sessionId } })).toBe(0)
 })
 
+test('a set counted down to zero saves as a miss, and the tap past zero clears it', async () => {
+	// ADR 0064 §1's tap cycle, target → … → 0 → cleared. Refusing the 0 left a
+	// working set logged on the runner with no way to clear it (#531).
+	const user = await createAthlete()
+	const exercise = await createExercise('Back squat')
+	const { sessionId, stepId } = await createSquatSession(
+		user.id,
+		exercise.id,
+		new Date('2026-08-13T17:00:00Z'),
+	)
+
+	const zero = await saveLoggedSet({
+		athleteId: user.id,
+		sessionId,
+		stepId,
+		orderIndex: 0,
+		role: 'working',
+		outcome: 'completed',
+		toFailure: false,
+		load: { kind: 'external', kg: 100 },
+		reps: 0,
+		repsLeft: null,
+		durationSec: null,
+		rir: null,
+		restTakenSec: null,
+	})
+
+	expect(zero.ok).toBe(true)
+	const row = await prisma.exerciseSetLog.findFirstOrThrow({
+		where: { sessionId },
+	})
+	expect(row.reps).toBe(0)
+
+	expect(await clearLoggedSet(user.id, sessionId, stepId, 0)).toBe(true)
+	expect(await prisma.exerciseSetLog.count({ where: { sessionId } })).toBe(0)
+})
+
 test('a timed hold logs its seconds with no rep count at all, so the rule is about the count and not about reps', async () => {
 	const user = await createAthlete()
 	const exercise = await createExercise('Plank')

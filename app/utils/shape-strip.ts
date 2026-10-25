@@ -29,6 +29,7 @@ import {
 import { blockRepeatTotal, type IntensityTarget } from './workout-schema.ts'
 import { zoneEquivalent } from './zone-equivalent.ts'
 import { resolveIntensity } from './zones/index.ts'
+import { distanceDurationSec } from './zones/pace-unit.ts'
 
 /** Heights of the five zone steps, % of the strip (Z1 30 % → Z5 100 %). */
 export const ZONE_HEIGHT_PCT: Record<TrainingZone, number> = {
@@ -78,14 +79,26 @@ export type ShapeSegment = {
 	zone: TrainingZone | null
 }
 
+/** No thresholds at all: an authored pace still resolves to itself. */
+const NO_THRESHOLDS: NonNullable<DisciplineThresholdMap[string]> = {
+	lthr: null,
+	maxHr: null,
+	ftp: null,
+	runPowerThresholdW: null,
+	thresholdPaceSecPerKm: null,
+	cssSecPer100m: null,
+	zoneSystem: null,
+	zoneOverrides: null,
+}
+
 /** The pace a step's intensity resolves to (midpoint), in the resolver's own
  * unit — sec/km for pace-anchored recipes, sec/100 m for CSS. */
 function resolvedPaceMid(
 	intensity: IntensityTarget | null | undefined,
 	profile: DisciplineThresholdMap[string],
 ): number | null {
-	if (!intensity || !profile) return null
-	const resolved = resolveIntensity(intensity, profile)
+	if (!intensity) return null
+	const resolved = resolveIntensity(intensity, profile ?? NO_THRESHOLDS)
 	if (resolved.unavailable) return null
 	if (resolved.paceMin != null && resolved.paceMax != null) {
 		return (resolved.paceMin + resolved.paceMax) / 2
@@ -95,21 +108,29 @@ function resolvedPaceMid(
 
 /**
  * A distance step's time, via the athlete's pace: the pace the intensity
- * resolves to when there is one, else the discipline's threshold pace. Swim
- * paces are sec/100 m; every other discipline's are sec/km.
+ * resolves to when there is one, else the discipline's threshold pace (CSS
+ * for swim, in sec/100 m).
  */
-function distanceDurationSec(
-	step: NotationStep,
+export function stepDistanceDurationSec(
+	step: Pick<NotationStep, 'discipline' | 'distanceM' | 'intensity'>,
 	profile: DisciplineThresholdMap[string],
 ): number | null {
 	if (step.distanceM == null) return null
-	const swim = step.discipline === 'swim'
-	const pace =
-		resolvedPaceMid(step.intensity, profile) ??
-		(swim ? profile?.cssSecPer100m : profile?.thresholdPaceSecPerKm) ??
-		null
-	if (pace == null) return null
-	return swim ? (step.distanceM / 100) * pace : (step.distanceM / 1000) * pace
+	const resolved = resolvedPaceMid(step.intensity, profile)
+	if (resolved != null) {
+		return distanceDurationSec(
+			step.distanceM,
+			resolved,
+			step.discipline,
+			step.intensity?.kind,
+		)
+	}
+	const fallback =
+		step.discipline === 'swim'
+			? profile?.cssSecPer100m
+			: profile?.thresholdPaceSecPerKm
+	if (fallback == null) return null
+	return distanceDurationSec(step.distanceM, fallback, step.discipline, null)
 }
 
 function setDurationSec(set: NotationSet): number {
@@ -189,7 +210,7 @@ function toSegment(
 	const hasQuantity = step.durationSec != null || step.distanceM != null
 	if (!hasQuantity && step.intensity == null) return null
 
-	const durationSec = step.durationSec ?? distanceDurationSec(step, profile)
+	const durationSec = step.durationSec ?? stepDistanceDurationSec(step, profile)
 
 	let heightPct: number = UNKNOWN_HEIGHT_PCT
 	let fill: ShapeSegmentFill = 'muted'

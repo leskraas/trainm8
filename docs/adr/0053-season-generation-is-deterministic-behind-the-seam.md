@@ -1,6 +1,12 @@
 # Season generation is deterministic, and the deterministic generator _is_ the implementation behind the model-client seam
 
-Status: Accepted
+Status: Accepted · **§1 amended by
+[ADR 0093](./0093-an-assistant-proposes-and-never-gives-the-athletes-yes-and-every-write-it-makes-can-be-undone.md)
+§7**: a model may arrive as a _caller_ of the seam, through the read
+`preview_season`, before any model implementation exists behind it. Approval
+stays in trainm8 and still regenerates (§2), so §2 and §8 hold. A model
+implementation is ADR 0095's, and then §2's approval binds to the stored
+preview.
 
 Resolves [#456](https://github.com/leskraas/trainm8/issues/456), the build
 ticket for the decision recorded on

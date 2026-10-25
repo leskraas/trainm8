@@ -2,16 +2,55 @@
 
 Status: Accepted
 
-> **As built (#505 S16): the quick strength log on I dag follows §2.** The
-> short log under a strength session's row (_Som planlagt_ / _Endre_) writes
-> each set through the same upsert at the weight `buildWorkingLoad` resolves —
-> the one a circle posts — and its editor changes reps (or a hold's seconds) and
-> marks a set not done, but has **no weight field**. It says so where a weight
-> field would be (_"Vekta står som planlagt. En annen vekt kan ikke logges
-> her."_). So §2's cost now reaches a second surface, stated there as here; the
-> load editor §2 names is still the honest fix and is still not built. A lift
-> whose weight does not resolve (§3) is not logged from I dag at all: the whole
-> session goes to the runner.
+> **Amended (#530, closes #525's last criterion): the quick log's _Endre_
+> records a different weight, one per lift.** §2's cost no longer reaches I dag.
+> Decided against this ADR, story 84 and ADR 0059's fold:
+>
+> 1. **Yes, the quick log may change the weight.** §1's case against a load
+>    input is the runner's — one thumb, mid-set, twenty-five taps. _Endre_ is
+>    opened after the session, on purpose, to say what differed; for an
+>    import-linked gym day it is the only place a kilo can come from (ADR 0056
+>    §1). §2 already named the honest fix as a load editor and called it _not
+>    built_, never declined.
+> 2. **One weight per lift, not per set** — §2's own shape ("one control, one
+>    lift, not one per set"), and the rejected per-set stepper's reasons still
+>    hold. Every set of the lift is logged at it. _Proposed, owner to confirm:_
+>    a drop on the last set only is not recordable here.
+> 3. **The progression rule is the one that already exists.** ADR 0059's fold
+>    reads the logged load (`gradeSession`): a lift logged lighter than
+>    prescribed is `liftedLighter` — nothing moves, no Stall Count; made
+>    heavier, it moves on from what was lifted; at the weight with reps short,
+>    it is a miss. No new rule.
+> 4. **The kind never changes here.** Only a load carrying a number (`external`,
+>    `bodyweightPlus`, `assisted`) gets the stepper; a bodyweight or unloaded
+>    lift has none, and the server refuses kilos on it (`weight-not-editable`) —
+>    the set log's load-kind lock.
+> 5. **The step is loadability, not the program's increment:** a pair of the
+>    smallest plates the athlete owns (one on a dip belt), else the stated 2,5
+>    kg default (`loadStepKg`). Typing any value is allowed (`82,5` or `82.5`);
+>    the server keeps it to the hundredth and refuses ≤ 0 or > 500 kg
+>    (`bad-weight`), the writing line's ceiling. Off-grid is not refused: it is
+>    an observation, and a rack can own plates nobody put on file.
+> 6. **Only a changed weight posts.** A blank is "as planned", so a program
+>    weight re-stamped under an open form is not overwritten by a stale one.
+>
+> **Still true:** the runner has no load editor (§2 stands there), and nothing
+> marks a set's load as observed rather than prescribed. _Proposed, owner to
+> confirm:_ give the runner the same per-lift editor.
+>
+> **Deferred hardening:** none. The weight is owner-scoped with the rest of the
+> log, bounded and validated on the server, and cannot change a load's kind.
+
+> **As built (#505 S16): the quick strength log on I dag follows §2.** The short
+> log under a strength session's row (_Som planlagt_ / _Endre_) writes each set
+> through the same upsert at the weight `buildWorkingLoad` resolves — the one a
+> circle posts — and its editor changes reps (or a hold's seconds) and marks a
+> set not done, but has **no weight field**. It says so where a weight field
+> would be (_"Vekta står som planlagt. En annen vekt kan ikke logges her."_). So
+> §2's cost now reaches a second surface, stated there as here; the load editor
+> §2 names is still the honest fix and is still not built. A lift whose weight
+> does not resolve (§3) is not logged from I dag at all: the whole session goes
+> to the runner.
 
 **Supersedes
 [ADR 0060](./0060-the-session-runner-is-a-grid-with-a-deadline-and-a-rack-that-cannot-make-the-number-says-so.md)

@@ -18,13 +18,14 @@ import { PATTERN_WEEKDAYS, type PatternWeekday } from './week-pattern.ts'
  * any session read by its **Effort Word**: a track's stamped session (its
  * zone's word) or a Simple Activity (its own word); `long` marks the track's
  * long day. A `lifting` session is a strength session, which carries no
- * Effort Word here.
+ * Effort Word here. An `effort` of null is a session whose word cannot be read
+ * (#617): not known to be _rolig_, so it is read as not easy — a Hard day.
  */
 export type PlacedSession =
 	| {
 			weekday: PatternWeekday
 			kind: 'session'
-			effort: EffortWord
+			effort: EffortWord | null
 			long?: boolean
 	  }
 	| { weekday: PatternWeekday; kind: 'lifting' }
@@ -63,9 +64,10 @@ export type Clash = { reason: ClashReason; weekday: PatternWeekday }
 /** What a day of the laid week is. */
 export type DayReading = {
 	weekday: PatternWeekday
-	/** The hardest Effort Word of its sessions; null with none. */
+	/** The hardest Effort Word of its sessions; null with none read. */
 	effort: EffortWord | null
-	/** A **Hard day**: a session on it is not _rolig_ (`middels` or `hard`). */
+	/** A **Hard day**: a session on it is not _rolig_ (`middels`, `hard`, or
+	 * one whose word cannot be read). */
 	hard: boolean
 	/** A **Long day**: it carries a track's long session. */
 	long: boolean
@@ -83,6 +85,7 @@ const EFFORT_RANK: Record<EffortWord, number> = {
 export function readDays(week: readonly PlacedSession[]): DayReading[] {
 	return PATTERN_WEEKDAYS.map((weekday) => {
 		let effort: EffortWord | null = null
+		let hard = false
 		let long = false
 		let lifting = false
 		for (const session of week) {
@@ -91,7 +94,11 @@ export function readDays(week: readonly PlacedSession[]): DayReading[] {
 				lifting = true
 				continue
 			}
-			if (effort == null || EFFORT_RANK[session.effort] > EFFORT_RANK[effort]) {
+			if (isHard(session)) hard = true
+			if (
+				session.effort != null &&
+				(effort == null || EFFORT_RANK[session.effort] > EFFORT_RANK[effort])
+			) {
 				effort = session.effort
 			}
 			if (session.long) long = true
@@ -99,7 +106,7 @@ export function readDays(week: readonly PlacedSession[]): DayReading[] {
 		return {
 			weekday,
 			effort,
-			hard: effort != null && effort !== 'rolig',
+			hard,
 			long,
 			lifting,
 		}

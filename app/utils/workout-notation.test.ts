@@ -1231,6 +1231,133 @@ describe('token model invariants', () => {
 		expect(notationSentence(notation)).toBe('10 min → 3 × 1 min')
 	})
 
+	test('a block repeated in series draws the series as its own token, apart from the reps (#466)', () => {
+		const input: NotationInput = {
+			blocks: [
+				{
+					repeatCount: 13,
+					seriesRepeatCount: 3,
+					steps: [
+						{ kind: 'cardio', durationSec: 30 },
+						{ kind: 'rest', durationSec: 15 },
+					],
+				},
+			],
+		}
+		const notation = deriveWorkoutNotation(input)
+		// Two block-level tokens, because both levels are present at once and
+		// one `repeat` arm cannot say which is which.
+		expect(notation.blocks[0]!.repeat).toMatchObject({
+			type: 'repeat',
+			text: '13',
+			count: 13,
+		})
+		expect(notation.blocks[0]!.series).toMatchObject({
+			type: 'series',
+			text: '3',
+			count: 3,
+			address: { blockIndex: 0, stepIndex: null, field: 'seriesRepeatCount' },
+		})
+		// The series wrap the reps, the way the glossary writes `3 × (13 × 30/15)`.
+		expect(notationSentence(notation)).toBe('3 × (13 × 30 s (15 s pause))')
+	})
+
+	test('a block repeated only in series draws its series and no reps', () => {
+		const input: NotationInput = {
+			blocks: [
+				{
+					repeatCount: 1,
+					seriesRepeatCount: 3,
+					steps: [
+						{ kind: 'cardio', durationSec: 600 },
+						{ kind: 'rest', durationSec: 180 },
+					],
+				},
+			],
+		}
+		const notation = deriveWorkoutNotation(input)
+		// Three efforts, not one — and no `1 ×` nobody wrote.
+		expect(notation.blocks[0]!.repeat).toBeNull()
+		expect(notation.blocks[0]!.series).toMatchObject({ text: '3', count: 3 })
+		expect(notationSentence(notation)).toBe('3 × 10 min (3 min pause)')
+	})
+
+	test('a series of grouped reps keeps both pairs of parens', () => {
+		const notation = deriveWorkoutNotation({
+			blocks: [
+				{
+					repeatCount: 13,
+					seriesRepeatCount: 3,
+					steps: [
+						{ kind: 'cardio', durationSec: 30 },
+						{ kind: 'cardio', durationSec: 15 },
+					],
+				},
+			],
+		})
+		expect(notationSentence(notation)).toBe('3 × (13 × (30 s → 15 s))')
+	})
+
+	test('a series alone over two steps groups them once', () => {
+		const notation = deriveWorkoutNotation({
+			blocks: [
+				{
+					repeatCount: 1,
+					seriesRepeatCount: 2,
+					steps: [
+						{ kind: 'cardio', durationSec: 600 },
+						{ kind: 'cardio', durationSec: 300 },
+					],
+				},
+			],
+		})
+		expect(notationSentence(notation)).toBe('2 × (10 min → 5 min)')
+	})
+
+	test('the rest between series is drawn after the series it separates', () => {
+		const notation = deriveWorkoutNotation({
+			blocks: [
+				{
+					repeatCount: 13,
+					seriesRepeatCount: 3,
+					betweenSeriesRestSec: 600,
+					steps: [
+						{ kind: 'cardio', durationSec: 30 },
+						{ kind: 'rest', durationSec: 15 },
+					],
+				},
+			],
+		})
+		expect(notation.blocks[0]!.seriesRest).toMatchObject({
+			type: 'rest',
+			text: '10 min seriepause',
+			address: {
+				blockIndex: 0,
+				stepIndex: null,
+				field: 'betweenSeriesRestSec',
+			},
+		})
+		expect(notationSentence(notation)).toBe(
+			'3 × (13 × 30 s (15 s pause)) (10 min seriepause)',
+		)
+	})
+
+	test('one series draws no series token, even with a stray rest between none', () => {
+		const notation = deriveWorkoutNotation({
+			blocks: [
+				{
+					repeatCount: 4,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: 300,
+					steps: [{ kind: 'cardio', durationSec: 360 }],
+				},
+			],
+		})
+		expect(notation.blocks[0]!.series).toBeNull()
+		expect(notation.blocks[0]!.seriesRest).toBeNull()
+		expect(notationSentence(notation)).toBe('4 × 6 min')
+	})
+
 	test('tokenText composes intensity facets; stepSentence wraps parenthesized tokens', () => {
 		const input: NotationInput = {
 			blocks: [
@@ -1517,4 +1644,172 @@ test('a send-off that asks the swimmer to beat their own CSS reads as a minus', 
 		],
 	})
 	expect(notationSentence(notation)).toBe('4 × 50 m (på CSS − 2 s)')
+})
+
+// ——— Step Parameters: cadence and grade (#466) ——————————————————————————
+
+function oneStep(step: NotationInput['blocks'][number]['steps'][number]) {
+	return deriveWorkoutNotation({ blocks: [{ repeatCount: 1, steps: [step] }] })
+}
+
+test('cadence is drawn as its own token, so a cadence ladder is four different rungs', () => {
+	const rungs = [70, 85, 100, 115].map((rpm) =>
+		notationSentence(
+			oneStep({
+				kind: 'cardio',
+				discipline: 'bike',
+				durationSec: 120,
+				cadenceRpmMin: rpm,
+				cadenceRpmMax: rpm,
+			}),
+		),
+	)
+	expect(rungs).toEqual([
+		'2 min · 70 rpm',
+		'2 min · 85 rpm',
+		'2 min · 100 rpm',
+		'2 min · 115 rpm',
+	])
+})
+
+test('a cadence band follows the intensity, after a facet dot', () => {
+	const notation = oneStep({
+		kind: 'cardio',
+		discipline: 'bike',
+		durationSec: 360,
+		intensity: { kind: 'powerPct', ref: 'ftp', minPct: 80, maxPct: 90 },
+		cadenceRpmMin: 50,
+		cadenceRpmMax: 60,
+	})
+	const tokens = notation.blocks[0]!.steps[0]!.tokens
+	expect(tokens.map((t) => t.token.type)).toEqual([
+		'quantity',
+		'intensity',
+		'cadence',
+	])
+	expect(tokens[2]).toMatchObject({
+		separator: NOTATION_SEPARATORS.facet,
+		parenthesized: false,
+		token: {
+			type: 'cadence',
+			text: '50–60 rpm',
+			value: '50–60',
+			word: 'rpm',
+			address: { blockIndex: 0, stepIndex: 0, field: 'cadence' },
+		},
+	})
+})
+
+test('a cadence with one end states which end it is', () => {
+	const floor = oneStep({ kind: 'cardio', durationSec: 60, cadenceRpmMin: 90 })
+	const ceiling = oneStep({
+		kind: 'cardio',
+		durationSec: 60,
+		cadenceRpmMax: 60,
+	})
+	expect(notationSentence(floor)).toBe('1 min · ≥ 90 rpm')
+	expect(notationSentence(ceiling)).toBe('1 min · ≤ 60 rpm')
+})
+
+test('a step with no cadence and no grade draws neither', () => {
+	const notation = oneStep({ kind: 'cardio', durationSec: 60 })
+	expect(notation.blocks[0]!.steps[0]!.tokens.map((t) => t.token.type)).toEqual(
+		['quantity'],
+	)
+})
+
+test('a grade band is drawn uphill and downhill in its own words', () => {
+	const up = oneStep({
+		kind: 'cardio',
+		discipline: 'run',
+		durationSec: 90,
+		gradePctMin: 4,
+		gradePctMax: 7,
+	})
+	const down = oneStep({
+		kind: 'cardio',
+		discipline: 'run',
+		durationSec: 90,
+		gradePctMin: -6,
+		gradePctMax: -3,
+	})
+	expect(notationSentence(up)).toBe('1 min 30 s · 4–7 % motbakke')
+	expect(notationSentence(down)).toBe('1 min 30 s · 3–6 % utforbakke')
+	expect(up.blocks[0]!.steps[0]!.tokens[1]!.token).toMatchObject({
+		type: 'grade',
+		value: '4–7 %',
+		word: 'motbakke',
+		address: { blockIndex: 0, stepIndex: 0, field: 'grade' },
+	})
+})
+
+test('a single grade, a band across level ground and a one-ended grade', () => {
+	const sentence = (gradePctMin?: number, gradePctMax?: number) =>
+		notationSentence(
+			oneStep({ kind: 'cardio', durationSec: 60, gradePctMin, gradePctMax }),
+		)
+	expect(sentence(8, 8)).toBe('1 min · 8 % motbakke')
+	expect(sentence(-8, -8)).toBe('1 min · 8 % utforbakke')
+	expect(sentence(0, 0)).toBe('1 min · 0 %')
+	// Across level ground there is no one direction to name.
+	expect(sentence(-2, 3)).toBe('1 min · −2 til +3 %')
+	// One end only: the signed bound, never a direction it did not state.
+	expect(sentence(4, undefined)).toBe('1 min · ≥ 4 %')
+	expect(sentence(undefined, -3)).toBe('1 min · ≤ −3 %')
+	// The notation's machine digits, like every other number in it.
+	expect(sentence(2.5, 2.5)).toBe('1 min · 2.5 % motbakke')
+	// A float column: drawn to a tenth, and a sign that rounds away is dropped.
+	expect(sentence(4.333, 6.6666)).toBe('1 min · 4.3–6.7 % motbakke')
+	expect(sentence(-0.04, 2)).toBe('1 min · 0 til +2 %')
+})
+
+test('grade comes before cadence, and both before a note', () => {
+	const notation = oneStep({
+		kind: 'cardio',
+		discipline: 'bike',
+		durationSec: 300,
+		intensity: { kind: 'zoneLabel', label: 'Z3' },
+		gradePctMin: 6,
+		gradePctMax: 8,
+		cadenceRpmMin: 60,
+		cadenceRpmMax: 70,
+		notes: 'Seated.',
+	})
+	expect(notation.blocks[0]!.steps[0]!.tokens.map((t) => t.token.type)).toEqual(
+		['quantity', 'intensity', 'grade', 'cadence', 'notes'],
+	)
+	expect(notationSentence(notation)).toBe(
+		'5 min Z3 · 6–8 % motbakke · 60–70 rpm*',
+	)
+})
+
+test('the persisted adapter carries the grade band and the cadence through', () => {
+	const input = workoutToNotationInput({
+		blocks: [
+			{
+				orderIndex: 0,
+				repeatCount: 1,
+				steps: [
+					{
+						kind: 'cardio',
+						orderIndex: 0,
+						durationSec: 60,
+						gradePctMin: 4,
+						gradePctMax: 7,
+						cadenceRpmMin: 80,
+						cadenceRpmMax: 90,
+					},
+				],
+			},
+		],
+	})
+	expect(input.blocks[0]!.steps[0]).toMatchObject({
+		gradePctMin: 4,
+		gradePctMax: 7,
+		cadenceRpmMin: 80,
+		cadenceRpmMax: 90,
+	})
+	expect(notationSentence(deriveWorkoutNotation(input))).toBe(
+		'1 min · 4–7 % motbakke · 80–90 rpm',
+	)
 })

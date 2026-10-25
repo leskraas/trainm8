@@ -225,7 +225,10 @@ export function buildTodayCard(
 	const todayKey = localDate(now, timezone)
 	const todayStart = dayBoundsUTC(todayKey, timezone).start.getTime()
 	const next = ledger
-		.map((session) => ({ session, entry: toSessionLedgerEntry(session, now) }))
+		.map((session) => ({
+			session,
+			entry: toSessionLedgerEntry(session, now, undefined, thresholds),
+		}))
 		.filter(
 			({ session, entry }) =>
 				entry.status === 'planned' &&
@@ -310,7 +313,12 @@ export function buildSessionNudge(input: {
 	// The miss signal is structural, from the same ledger — never assembled by
 	// callers, so the miss the card names is the miss the applier acts on
 	// (#185/#186); the display and the applier can't drift.
-	const recentMiss = selectQualifyingMiss(input.ledger, now, timezone)
+	const recentMiss = selectQualifyingMiss(
+		input.ledger,
+		now,
+		timezone,
+		thresholds,
+	)
 
 	// `decisionInput` deliberately excludes the miss: the honesty guard below
 	// re-runs the decision on it to learn whether an ease is miss-driven.

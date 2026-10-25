@@ -26,7 +26,7 @@
  *
  * ## What the transcription cost
  *
- * Three losses, each written into the affected row's description too:
+ * Two losses, each written into the affected row's description too:
  *
  * - **`% vVO2max` has no anchor kind.** D3 (Billat 30/30) is prescribed at
  *   100 % / 50 % of velocity at VO2max, and F5 at 95 % of maximal speed.
@@ -34,13 +34,14 @@
  *   breach `workout-taxonomy.md` §13's rule about named protocols. D3's work
  *   bout therefore carries **no intensity target at all** — an Unavailable
  *   Metric — rather than a borrowed one.
- * - **`gradePct` is a scalar and every hill row states a band.** F4 is "a 6–10 %
- *   hill", G1 "4–7 %", G5 "a controlled 3–6 % descent". A single number would
- *   be a midpoint nobody prescribed, so the grade lives in the step's notes and
- *   the column stays null. Cadence got a min/max pair; grade did not.
  * - **A two-a-day is not a container the model has.** A4 and E5 are one
  *   *session pair*, AM and PM. They seed as one Workout with blocks named `AM`
  *   and `PM`, and their descriptions say to schedule them as two sessions.
+ *
+ * Grade was a third until #466: every hill row states a band (F4 "a 6–10 %
+ * hill", G1 "4–7 %", G5 "a controlled 3–6 % descent") and the column was a
+ * scalar. It is a signed band now, so those rows store their grade instead of
+ * writing it into notes. G4's "steep" hill states no number, so it stays prose.
  */
 import {
 	BAKKEN,
@@ -883,7 +884,7 @@ export const RUN_CORPUS: CorpusSession[] = [
 		key: 'run-F4',
 		title: 'Hill sprints (bakkesprint)',
 		description:
-			'A maximal-force, low-impact strength stimulus that is also injury-prophylactic. Run up a 6–10 % hill — the grade is a band, and a step carries one grade number, so it is stated here rather than stored. Walk down and take a full two minutes; introduce in base and maintain year-round.',
+			'A maximal-force, low-impact strength stimulus that is also injury-prophylactic. Run up a 6–10 % hill. Walk down and take a full two minutes; introduce in base and maintain year-round.',
 		discipline: 'run',
 		intent: 'neuromuscular',
 		archetype: 'neuromuscular',
@@ -899,7 +900,9 @@ export const RUN_CORPUS: CorpusSession[] = [
 					run({
 						durationSec: 10,
 						intensity: rpe(10),
-						notes: 'Maximal, up a 6–10 % hill.',
+						gradePctMin: 6,
+						gradePctMax: 10,
+						notes: 'Maximal.',
 					}),
 					rest(min(2)),
 				],
@@ -958,7 +961,8 @@ export const RUN_CORPUS: CorpusSession[] = [
 					run({
 						durationSec: min(3),
 						intensity: hrPct('max', 92, 95),
-						notes: 'Uphill, 4–7 % grade.',
+						gradePctMin: 4,
+						gradePctMax: 7,
 					}),
 					jogBack,
 				],
@@ -1064,7 +1068,10 @@ export const RUN_CORPUS: CorpusSession[] = [
 					run({
 						durationSec: 90,
 						intensity: rpe(7),
-						notes: 'Controlled 3–6 % descent.',
+						// A descent is negative, and the band runs low to high.
+						gradePctMin: -6,
+						gradePctMax: -3,
+						notes: 'Controlled.',
 					}),
 					jogBack,
 				],

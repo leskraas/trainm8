@@ -20,9 +20,10 @@
  * here by our own pure functions.
  */
 
+import { readHardestZone } from '#app/utils/effort-word.ts'
 import { formatNbWeekday, formatSignedTsb } from '#app/utils/format.ts'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { SESSION_NUDGE_LABELS as L } from '#app/utils/labels.ts'
-import { expandWorkoutSteps } from '#app/utils/session-profile.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
 import {
 	deriveLedgerStatus,
@@ -107,15 +108,18 @@ export type RecentMiss = {
 /**
  * A missed prescription is "key" when it carried intensity above the
  * endurance/Z2 zone (PRD #163, assumption A3) — judged from the workout's real
- * steps via the same zone mapping the Workout Shape uses. A session whose
- * intensity can't be truthfully zoned (including strength, which has no cardio
- * zone model) is never "key": a skipped easy or recovery session never moves
- * the plan.
+ * steps via the same zone mapping the Workout Shape uses, its intent where a
+ * step states no intensity, and an absolute pace, watts or heart rate read
+ * against the athlete's thresholds (#617). A session whose intensity can't be
+ * truthfully zoned (including strength, which has no cardio zone model) is
+ * never "key": a skipped easy or recovery session never moves the plan.
  */
-function isKeySession(workout: LedgerSession['workout']): boolean {
-	return expandWorkoutSteps(workout).some(
-		({ zone }) => zone != null && zone > 2,
-	)
+function isKeySession(
+	workout: LedgerSession['workout'],
+	thresholds: DisciplineThresholdMap,
+): boolean {
+	const { zone } = readHardestZone(workout, thresholds)
+	return zone != null && zone > 2
 }
 
 /**
@@ -135,13 +139,15 @@ export function selectQualifyingMiss(
 	ledger: LedgerSession[],
 	now: Date,
 	timezone: string = 'UTC',
+	/** What an absolute target is zoned against to call a miss key (#617). */
+	thresholds: DisciplineThresholdMap = {},
 ): RecentMiss | null {
 	const windowStart = now.getTime() - MISS_LOOKBACK_DAYS * DAY_MS
 	const mostRecent = ledger
 		.filter((session) => {
 			if (deriveLedgerStatus(session, now) !== 'missed') return false
 			if (new Date(session.scheduledAt).getTime() < windowStart) return false
-			return isKeySession(session.workout)
+			return isKeySession(session.workout, thresholds)
 		})
 		.sort(
 			(a, b) =>
