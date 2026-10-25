@@ -43,11 +43,9 @@ import {
 } from '#app/utils/intensity-target.ts'
 import { nbDurationLabel, WORKOUT_DETAIL_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
-import {
-	deriveSessionProfile,
-	expandWorkoutSteps,
-} from '#app/utils/session-profile.ts'
+import { deriveSessionProfile } from '#app/utils/session-profile.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
+import { workoutReps } from '#app/utils/workout-reps.ts'
 
 const L = WORKOUT_DETAIL_LABELS.telemetry
 
@@ -65,12 +63,6 @@ type PlannedSegment = {
 	target: PlannedTarget | null
 }
 
-/**
- * Past this many segments a plan's reps are far narrower than a pixel of the
- * chart, so drawing them one by one only costs: `100x100x10 s` is 10 000 reps.
- */
-const MAX_PLANNED_SEGMENTS = 400
-
 const sameTarget = (a: PlannedTarget | null, b: PlannedTarget | null) =>
 	a === b || (a != null && b != null && a.min === b.min && a.max === b.max)
 
@@ -81,10 +73,10 @@ const sameTarget = (a: PlannedTarget | null, b: PlannedTarget | null) =>
  * telemetry-to-step alignment is out of scope per PRD #135), so we never assert a
  * per-step verdict; the athlete eyeballs the comparison.
  *
- * Built a block at a time from one rep, never by expanding every rep: each step
- * resolves once, a block with one target throughout is one segment, and a block
- * too dense to draw rep by rep reads as its one target (or as none, when its
- * reps target different things). Neighbours with the same target merge.
+ * Walks the steps `workoutReps` draws, the ones the Workout Shape draws: every
+ * rep while that fits, a dense block thinned to the reps that do, so its work
+ * and its recoveries keep their own targets. Each step resolves once, and
+ * neighbours with the same target merge.
  */
 function buildPlannedSegments(
 	workout: WorkoutDetail | null,
@@ -92,78 +84,38 @@ function buildPlannedSegments(
 	channel: BandChannel | null,
 ): PlannedSegment[] {
 	if (!workout) return []
-	const blocks = workout.blocks
-		.slice()
-		.sort((a, b) => a.orderIndex - b.orderIndex)
-		.map((block) => {
-			// One rep of the block, laid out as the profile lays out every rep.
-			const rep = expandWorkoutSteps({
-				...workout,
-				blocks: [{ ...block, repeatCount: 1, seriesRepeatCount: 1 }],
-			}).map((e) => ({
-				id: e.id,
-				durationSec: e.durationSec,
-				// Resolved now, never off the cached range columns, which fill only
-				// on a threshold change and so are empty on most new sessions (#616).
-				target: channel
-					? resolveStepBand(e.step, workout.discipline, thresholds, channel)
-					: null,
-			}))
-			const reps =
-				Math.max(1, block.repeatCount) *
-				Math.max(1, block.seriesRepeatCount ?? 1)
-			const repSec = rep.reduce((sum, e) => sum + e.durationSec, 0)
-			return { id: block.id, rep, reps, repSec }
-		})
-	const total = blocks.reduce((sum, b) => sum + b.reps * b.repSec, 0)
+	const { steps } = workoutReps(workout)
+	const total = steps.reduce((sum, s) => sum + s.durationSec, 0)
 	if (total <= 0) return []
-
-	const raw: Array<
-		Omit<PlannedSegment, 'startFrac' | 'endFrac'> & {
-			sec: number
-		}
-	> = []
-	let budget = MAX_PLANNED_SEGMENTS
-	for (const block of blocks) {
-		const first = block.rep[0]?.target ?? null
-		const uniform = block.rep.every((e) => sameTarget(e.target, first))
-		const targets = block.rep
-			.map((e) => e.target)
-			.filter((t, i, all): t is PlannedTarget =>
-				t != null ? all.findIndex((u) => sameTarget(u, t)) === i : false,
+	// Resolved now, never off the cached range columns, which fill only on a
+	// threshold change and so are empty on most new sessions (#616).
+	const targets = new Map<
+		(typeof steps)[number]['step'],
+		PlannedTarget | null
+	>()
+	const targetOf = (step: (typeof steps)[number]['step']) => {
+		if (!targets.has(step)) {
+			targets.set(
+				step,
+				channel
+					? resolveStepBand(step, workout.discipline, thresholds, channel)
+					: null,
 			)
-		const count = block.reps * block.rep.length
-		if (uniform || count > budget) {
-			raw.push({
-				id: block.id,
-				sec: block.reps * block.repSec,
-				target: uniform ? first : targets.length === 1 ? targets[0]! : null,
-			})
-			continue
 		}
-		budget -= count
-		for (let r = 0; r < block.reps; r++) {
-			for (const e of block.rep) {
-				raw.push({ id: `${e.id}-r${r}`, sec: e.durationSec, target: e.target })
-			}
-		}
+		return targets.get(step)!
 	}
 
 	const segments: PlannedSegment[] = []
 	let cum = 0
-	for (const s of raw) {
+	for (const s of steps) {
+		const target = targetOf(s.step)
 		const startFrac = cum / total
-		cum += s.sec
+		cum += s.durationSec
 		const last = segments.at(-1)
-		if (last && sameTarget(last.target, s.target)) {
+		if (last && sameTarget(last.target, target)) {
 			last.endFrac = cum / total
 		} else {
-			segments.push({
-				id: s.id,
-				startFrac,
-				endFrac: cum / total,
-				target: s.target,
-			})
+			segments.push({ id: s.id, startFrac, endFrac: cum / total, target })
 		}
 	}
 	return segments

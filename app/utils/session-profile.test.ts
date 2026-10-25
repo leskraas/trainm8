@@ -319,11 +319,17 @@ test('the Workout Shape expands both repeat levels into bars', () => {
 	expect(profile.groups).toEqual([{ startIndex: 0, span: 78, repeatCount: 39 }])
 })
 
-test('a block too long to draw rep by rep is drawn once, at its full time', () => {
+test('a block too long to draw rep by rep is thinned, still work then recovery', () => {
 	// 100 × 100 reps of 10 s would be 20,000 bars, far past any screen's pixels.
+	// Drawn once it read as one long threshold effort; thinned, it alternates.
 	const [block] = oneBlock([
 		cardioStep({ id: 'on', intensity: 'threshold', durationSec: 10 }),
-		cardioStep({ id: 'off', intensity: 'recovery', durationSec: 10 }),
+		cardioStep({
+			id: 'off',
+			intensity: 'recovery',
+			orderIndex: 1,
+			durationSec: 10,
+		}),
 	])
 	const workout = workoutWithBlocks([
 		{ ...block!, repeatCount: 100, seriesRepeatCount: 100 },
@@ -331,8 +337,45 @@ test('a block too long to draw rep by rep is drawn once, at its full time', () =
 
 	const { bars, groups } = deriveSessionProfile(workout)
 
-	expect(bars.map((b) => b.id)).toEqual(['on', 'off'])
-	// Width is time, so each bar carries all its reps' time.
-	expect(bars.map((b) => b.durationSec)).toEqual([100_000, 100_000])
-	expect(groups).toEqual([{ startIndex: 0, span: 2, repeatCount: 10_000 }])
+	expect(bars).toHaveLength(400)
+	expect(bars.slice(0, 4).map((b) => b.zone)).toEqual([4, 1, 4, 1])
+	// Width is time, so the drawn reps carry all 10,000 reps' time.
+	expect(bars.reduce((sum, b) => sum + b.durationSec, 0)).toBeCloseTo(200_000)
+	expect(groups).toEqual([{ startIndex: 0, span: 400, repeatCount: 10_000 }])
+})
+
+test('a short block beside a huge one keeps every rep', () => {
+	const small = {
+		...oneBlock([
+			cardioStep({ id: 's-on', intensity: 'threshold', durationSec: 60 }),
+			cardioStep({
+				id: 's-off',
+				intensity: 'recovery',
+				orderIndex: 1,
+				durationSec: 60,
+			}),
+		])[0]!,
+		id: 'small',
+		repeatCount: 5,
+	}
+	const huge = {
+		...oneBlock([
+			cardioStep({ id: 'h', intensity: 'easy', durationSec: 10 }),
+		])[0]!,
+		id: 'huge',
+		orderIndex: 1,
+		repeatCount: 100,
+		seriesRepeatCount: 100,
+	}
+
+	const { bars, groups } = deriveSessionProfile(
+		workoutWithBlocks([small, huge]),
+	)
+
+	expect(bars.slice(0, 10).map((b) => b.id)).toEqual(
+		[0, 1, 2, 3, 4].flatMap((r) => ['s-on-r' + r, 's-off-r' + r]),
+	)
+	expect(bars.length).toBeLessThanOrEqual(400)
+	expect(groups[0]).toEqual({ startIndex: 0, span: 10, repeatCount: 5 })
+	expect(groups[1]).toMatchObject({ startIndex: 10, repeatCount: 10_000 })
 })

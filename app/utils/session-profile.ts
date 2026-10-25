@@ -1,5 +1,6 @@
 import { z } from 'zod/v3'
 import { type LedgerSession } from './training.server.ts'
+import { stepDurationSec, workoutReps } from './workout-reps.ts'
 import {
 	blockRepeatTotal,
 	IntensityTargetSchema,
@@ -193,22 +194,6 @@ function stepToZone(step: WorkoutStep): TrainingZone | null {
 	return zoneLabelToZone(step.intensity)
 }
 
-function stepDurationSec(step: WorkoutStep): number {
-	if (step.kind === 'strength') {
-		const setsDuration = step.sets.reduce(
-			(sum, s) =>
-				sum + (s.kind === 'timed' && s.durationSec ? s.durationSec : 0),
-			0,
-		)
-		const restContribution =
-			step.restBetweenSetsSec && step.sets.length > 1
-				? step.restBetweenSetsSec * (step.sets.length - 1)
-				: 0
-		return setsDuration + restContribution
-	}
-	return step.durationSec ?? 0
-}
-
 /** One executed step in workout order, carrying the original Step so callers can
  * read its resolved Intensity Target alongside the derived zone and duration. */
 export type ExpandedStep = {
@@ -220,10 +205,10 @@ export type ExpandedStep = {
 
 /**
  * Expand a workout into the ordered sequence of steps it actually executes:
- * blocks in order, each repeated `repeatCount` times, steps in order. The single
- * source of truth for "what happens, in what order, for how long" — both the
- * Workout Shape (`deriveSessionProfile`) and the telemetry overlay's planned
- * target bands walk this, so they stay aligned with each other by construction.
+ * blocks in order, each repeated `repeatCount` times, steps in order. Every rep,
+ * unbounded, so bound the workout before calling it; what is *drawn* — the
+ * Workout Shape and the telemetry overlay's planned bands — reads
+ * `workoutReps`, which thins a dense plan the same way for both.
  */
 export function expandWorkoutSteps(workout: Workout | null): ExpandedStep[] {
 	if (!workout) return []
@@ -278,9 +263,20 @@ export function intentToZone(
 }
 
 /**
+ * The repeat-group brackets over a workout's bars: one per block with
+ * `repeatCount > 1`, spanning the bars that block is drawn with. Read off the
+ * same `workoutReps` walk as the bars, so the `startIndex`/`span` line up with
+ * them by construction, thinned block or not.
+ */
+export function deriveRepeatGroups(workout: Workout | null): ProfileBarGroup[] {
+	return workoutReps(workout).groups
+}
+
+/**
  * Derive the per-session intensity profile from a workout's real steps: one bar
- * per executed step (blocks expanded by repeatCount), colored by training zone
- * and weighted by Step Duration.
+ * per drawn step (`workoutReps`: every rep while that fits, a dense block
+ * thinned to the reps that do, each carrying its share of the time), colored
+ * by training zone and weighted by Step Duration.
  *
  * So every workout carries a shape: a cardio step with *no authored intensity
  * at all* falls back to the workout's intent zone (the only prescription that
@@ -289,94 +285,31 @@ export function intentToZone(
  * thresholds (absolute pace/HR/watts) stays honestly unzoned — the fallback
  * never overrides an explicit target.
  */
-/**
- * The repeat-group brackets over a workout's expanded bars: one per block with
- * `repeatCount > 1`, spanning the `repeatCount × steps` bars that block expands
- * into. Walks the same block order (sorted by `orderIndex`) as
- * `expandWorkoutSteps`, and every step yields exactly one bar there, so the
- * `startIndex`/`span` line up with the bars by construction.
- */
-export function deriveRepeatGroups(workout: Workout | null): ProfileBarGroup[] {
-	if (!workout) return []
-	const groups: ProfileBarGroup[] = []
-	let index = 0
-	for (const block of workout.blocks
-		.slice()
-		.sort((a, b) => a.orderIndex - b.orderIndex)) {
-		const repeats = blockRepeatTotal(block)
-		const span = repeats * block.steps.length
-		if (span > 0 && repeats > 1) {
-			groups.push({ startIndex: index, span, repeatCount: repeats })
-		}
-		index += span
-	}
-	return groups
-}
-
-/**
- * More bars than any screen has pixels for. A session past it (`100 × 100 ×
- * 10 s`) is drawn one rep per block instead, each bar carrying all its reps'
- * time, so width stays time and the `N ×` bracket says the rest.
- */
-const MAX_PROFILE_BARS = 400
-
-/** Each block drawn once: its steps at their full time, bracketed `N ×`. */
-function deriveCollapsedProfile(
-	workout: Workout,
-	fallbackZone: TrainingZone | null,
-): SessionProfile {
-	const bars: SessionProfile['bars'] = []
-	const groups: ProfileBarGroup[] = []
-	for (const block of workout.blocks
-		.slice()
-		.sort((a, b) => a.orderIndex - b.orderIndex)) {
-		const repeats = blockRepeatTotal(block)
-		const steps = block.steps
-			.slice()
-			.sort((a, b) => a.orderIndex - b.orderIndex)
-		if (steps.length > 0 && repeats > 1) {
-			groups.push({
-				startIndex: bars.length,
-				span: steps.length,
-				repeatCount: repeats,
-			})
-		}
-		for (const step of steps) {
-			bars.push({
-				id: step.id,
-				zone:
-					stepToZone(step) ??
-					(step.kind === 'cardio' && !step.intensity ? fallbackZone : null),
-				durationSec: stepDurationSec(step) * repeats,
-			})
-		}
-	}
-	return { bars, groups }
-}
-
 export function deriveSessionProfile(workout: Workout | null): SessionProfile {
 	const fallbackZone = intentToZone(workout?.intent)
-	const drawn = (workout?.blocks ?? []).reduce(
-		(sum, block) => sum + blockRepeatTotal(block) * block.steps.length,
-		0,
-	)
-	if (workout && drawn > MAX_PROFILE_BARS) {
-		return deriveCollapsedProfile(workout, fallbackZone)
+	const { steps, groups } = workoutReps(workout)
+	// Each step's zone once, not once per rep: a rep repeats its step.
+	const zones = new Map<WorkoutStep, TrainingZone | null>()
+	const zoneOf = (step: WorkoutStep) => {
+		if (!zones.has(step)) {
+			zones.set(
+				step,
+				stepToZone(step) ??
+					(step.kind === 'cardio' && !step.intensity ? fallbackZone : null),
+			)
+		}
+		return zones.get(step)!
 	}
-	const bars = expandWorkoutSteps(workout).map(
-		({ id, zone, durationSec, step }) => ({
-			id,
-			zone:
-				zone ??
-				(step.kind === 'cardio' && !step.intensity ? fallbackZone : null),
-			durationSec,
-		}),
-	)
+	const bars = steps.map(({ id, step, durationSec }) => ({
+		id,
+		zone: zoneOf(step),
+		durationSec,
+	}))
 	if (bars.length === 0 && workout && fallbackZone != null) {
 		return {
 			bars: [{ id: 'intent', zone: fallbackZone, durationSec: 1 }],
 			groups: [],
 		}
 	}
-	return { bars, groups: deriveRepeatGroups(workout) }
+	return { bars, groups }
 }
