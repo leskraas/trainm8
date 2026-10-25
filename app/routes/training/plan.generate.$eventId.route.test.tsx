@@ -82,6 +82,7 @@ function preview(overrides: Partial<SeasonPreview['season']> = {}) {
 			weekdaySource: 'default',
 			levelFloor: 'intermediate',
 			goalEvent: '10k',
+			capacity: { kind: 'unset' },
 			...overrides,
 		},
 		choice: {
@@ -273,4 +274,118 @@ test('the one question and the pre-selected shape read in Norwegian, as Sesong n
 	expect(screen.getByText(/Ditt eget tall/)).toBeInTheDocument()
 	// The phase line reads the stored English name in Norwegian.
 	expect(screen.getByText(/Grunntrening 4 uker/)).toBeInTheDocument()
+})
+
+// The Weekly Capacity reading (ADR 0110 §2): where generation lowered the
+// anchors, or could not make the season fit, the preview says so; where it
+// fits or the check did not run, it says nothing.
+
+/** A paragraph's text with no-break spaces read as spaces. */
+function paragraph(expected: string) {
+	return screen.findByText((_, element) =>
+		element?.tagName === 'P'
+			? element.textContent?.replaceAll('\u00a0', ' ') === expected
+			: false,
+	)
+}
+
+test('a lowered season says it was scaled to the athlete’s hours, before and after', async () => {
+	renderScreen({
+		capacity: {
+			kind: 'lowered',
+			fromPeakHours: 7.84,
+			peakHours: 5.94,
+			weeklyCapacityHours: 6,
+			estimated: true,
+			anchors: [{ discipline: 'run', currency: 'km', from: 50, to: 38 }],
+		},
+	})
+	expect(
+		await paragraph(
+			'Skalert ned til kapasiteten din på 6 t/uke: den tyngste uka er nå ≈ 5,9 t/uke, ned fra ≈ 7,8 t/uke.',
+		),
+	).toBeInTheDocument()
+})
+
+test('hours the athlete authored in hours carry no ≈', async () => {
+	renderScreen({
+		capacity: {
+			kind: 'lowered',
+			fromPeakHours: 7.84,
+			peakHours: 5.94,
+			weeklyCapacityHours: 6,
+			estimated: false,
+			anchors: [{ discipline: 'run', currency: 'hours', from: 6, to: 4.5 }],
+		},
+	})
+	expect(
+		await paragraph(
+			'Skalert ned til kapasiteten din på 6 t/uke: den tyngste uka er nå 5,9 t/uke, ned fra 7,8 t/uke.',
+		),
+	).toBeInTheDocument()
+})
+
+test('a season that still does not fit says so, where, and why', async () => {
+	renderScreen({
+		capacity: {
+			kind: 'over',
+			weeklyCapacityHours: 6,
+			estimated: true,
+			warnings: [
+				{
+					fromWeekIndex: 2,
+					toWeekIndex: 4,
+					peakHours: 9.6,
+					weeklyCapacityHours: 6,
+				},
+				{
+					fromWeekIndex: 7,
+					toWeekIndex: 7,
+					peakHours: 8.1,
+					weeklyCapacityHours: 6,
+				},
+			],
+		},
+	})
+	// The season starts in ISO week 2, so plan weeks 3–5 and 8 are ISO 4–6 and 9.
+	expect(
+		await paragraph(
+			'Sesongen passer fortsatt ikke timene dine. Uke 4–6 og uke 9 ber om opptil ≈ 9,6 t/uke utholdenhetstrening, og kapasiteten din er 6 t/uke. Kvalitetsøktene alene krever mer enn det, så et lavere startvolum hjelper ikke – startvolumet står som det er.',
+		),
+	).toBeInTheDocument()
+})
+
+test('a breach in every week is said as the whole season, not as a span', async () => {
+	renderScreen({
+		weeks: [week(), week({ weekIndex: 1, weekKey: '2026-01-12' })],
+		capacity: {
+			kind: 'over',
+			weeklyCapacityHours: 0.5,
+			estimated: false,
+			warnings: [
+				{
+					fromWeekIndex: 0,
+					toWeekIndex: 1,
+					peakHours: 2.25,
+					weeklyCapacityHours: 0.5,
+				},
+			],
+		},
+	})
+	expect(
+		await paragraph(
+			'Sesongen passer fortsatt ikke timene dine. Hver uke i sesongen ber om opptil 2,3 t/uke utholdenhetstrening, og kapasiteten din er 0,5 t/uke. Kvalitetsøktene alene krever mer enn det, så et lavere startvolum hjelper ikke – startvolumet står som det er.',
+		),
+	).toBeInTheDocument()
+})
+
+test.each([
+	{ kind: 'unset' as const },
+	{ kind: 'unpriced' as const, weeklyCapacityHours: 6 },
+	{ kind: 'fits' as const, peakHours: 5, weeklyCapacityHours: 6 },
+])('a $kind reading adds nothing to the preview', async (capacity) => {
+	renderScreen({ capacity })
+	await screen.findByRole('heading', { name: /sesongen din, klar/i })
+	expect(screen.queryByText(/kapasitet/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/skalert ned/i)).not.toBeInTheDocument()
 })

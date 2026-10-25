@@ -80,6 +80,28 @@ export const PLAN_GENERATE_LABELS = {
 		'Ingenting i treningen din de siste ukene å lese dette fra, så det er ditt å oppgi. Til du gjør det, står det «—» i hver uke.',
 	rebuild: 'Bygg sesongen på nytt',
 
+	/**
+	 * The **Weekly Capacity** reading (ADR 0110 §2), under the season's heading.
+	 * Said only where it changed or could not change the season; a season that
+	 * fits, or a check that did not run, adds nothing. Every figure arrives
+	 * formatted (`6 t/uke`, `≈ 5,9 t/uke`), the `≈` where the hours were read
+	 * through a pace (#638).
+	 */
+	capacityLowered: (capacity: string, after: string, before: string) =>
+		`Skalert ned til kapasiteten din på ${capacity}: den tyngste uka er nå ${after}, ned fra ${before}.`,
+	/** The lead of the breach: bold, then the span and why. */
+	capacityOverLead: 'Sesongen passer fortsatt ikke timene dine.',
+	/** The span when every week of the season outruns the capacity. */
+	capacityEveryWeek: 'Hver uke i sesongen',
+	/** `Uke 4–6 og uke 9 ber om opptil ≈ 9,6 t/uke utholdenhetstrening, …`. */
+	capacityOver: (
+		spans: string,
+		single: boolean,
+		peak: string,
+		capacity: string,
+	) =>
+		`${spans} ber om ${single ? '' : 'opptil '}${peak} utholdenhetstrening, og kapasiteten din er ${capacity}. Kvalitetsøktene alene krever mer enn det, så et lavere startvolum hjelper ikke – startvolumet står som det er.`,
+
 	seasonTitle: 'Sesongen',
 	/** `Grunntrening 4 uker`, in the line of phases. */
 	phase: (name: string, weeks: number) => `${name} ${nbWeeks(weeks)}`,

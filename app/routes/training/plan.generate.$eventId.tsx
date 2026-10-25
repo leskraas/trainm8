@@ -54,15 +54,18 @@ import {
 } from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { RadioGroup } from '#app/components/ui/radio-group.tsx'
-import { isoWeekNumber } from '#app/utils/athlete-calendar.ts'
+import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	formatNbDate,
 	formatNbDayMonth,
 	formatNbVolumeTotal,
+	formatNbWeeklyVolume,
 } from '#app/utils/format.ts'
 import {
 	APP_TAB_LABELS,
+	approxLabel,
+	isoWeekSpanLabel,
 	NB_CATALOGUE_PHASE_LABELS,
 	NB_DISCIPLINE_LABELS,
 	NB_PATTERN_WEEKDAY_LABELS,
@@ -72,7 +75,9 @@ import {
 	nbPhaseName,
 	PLAN_GENERATE_LABELS,
 	PLAN_SHAPE_STEP_LABELS,
+	SESONG_NOTICE_LABELS,
 } from '#app/utils/labels.ts'
+import { type CapacityFit } from '#app/utils/plan-generation/capacity.ts'
 import {
 	approveSeason,
 	defaultPresetFor,
@@ -336,6 +341,11 @@ export default function GenerateSeasonRoute({
 							.map((phase) => L.phase(nbPhaseName(phase.name), phase.weeks))
 							.join(' · ')}
 					</p>
+					<CapacityNotice
+						capacity={season.capacity}
+						startWeekKey={season.startWeekKey}
+						weeks={weeks.length}
+					/>
 				</div>
 				<ul className="space-y-3">
 					{weeks.slice(0, WEEKS_SHOWN).map((week) => (
@@ -499,6 +509,95 @@ function Absences({ season }: { season: SeasonPreview['season'] }) {
 			) : null}
 		</section>
 	)
+}
+
+/**
+ * What the **Weekly Capacity** did to the season (ADR 0110 §2), under its
+ * heading, where the weeks it speaks of start.
+ *
+ * Only two readings say anything. `lowered` is one quiet line: the season was
+ * scaled to the athlete's hours, with the heaviest week before and after, so the
+ * anchor box above (which keeps the figure they gave) and the smaller weeks
+ * below do not read as a contradiction. `over` is said in full and in the
+ * foreground: where, by how much, and why lowering could not help. `fits`,
+ * `unset` and `unpriced` add nothing here: nothing was changed, and silence
+ * claims no pass — the preview never says a check ran that did not (ADR 0050).
+ *
+ * Static, no motion: it arrives with the page and changes only on a rebuild,
+ * which is a navigation.
+ */
+function CapacityNotice({
+	capacity,
+	startWeekKey,
+	weeks,
+}: {
+	capacity: CapacityFit
+	startWeekKey: string
+	/** How many weeks the season has, so a breach in all of them says so. */
+	weeks: number
+}) {
+	if (capacity.kind === 'lowered') {
+		return (
+			<p
+				className="text-footnote text-muted-foreground tabular-nums"
+				data-capacity="lowered"
+			>
+				{L.capacityLowered(
+					weeklyHours(capacity.weeklyCapacityHours, false),
+					weeklyHours(capacity.peakHours, capacity.estimated),
+					weeklyHours(capacity.fromPeakHours, capacity.estimated),
+				)}
+			</p>
+		)
+	}
+	if (capacity.kind !== 'over') return null
+	const { warnings } = capacity
+	// A breach in every week is said as one, not as an ISO span that may run
+	// across New Year (`Uke 43–16`).
+	const everyWeek =
+		warnings.length === 1 &&
+		warnings[0]!.fromWeekIndex === 0 &&
+		warnings[0]!.toWeekIndex === weeks - 1
+	const spans = everyWeek
+		? L.capacityEveryWeek
+		: SESONG_NOTICE_LABELS.weekSpans(
+				warnings.map((warning) =>
+					isoWeekSpanLabel(
+						isoWeekNumber(addDays(startWeekKey, 7 * warning.fromWeekIndex)),
+						isoWeekNumber(addDays(startWeekKey, 7 * warning.toWeekIndex)),
+					),
+				),
+			)
+	// "opptil" unless the breach is one single week: the figure is the worst week
+	// of all the spans, never what every week in them asks for.
+	const single =
+		warnings.length === 1 &&
+		warnings[0]!.fromWeekIndex === warnings[0]!.toWeekIndex
+	return (
+		<p className="text-footnote tabular-nums" data-capacity="over">
+			<span className="font-semibold">{L.capacityOverLead}</span>{' '}
+			{L.capacityOver(
+				spans,
+				single,
+				weeklyHours(
+					Math.max(...warnings.map((warning) => warning.peakHours)),
+					capacity.estimated,
+				),
+				weeklyHours(capacity.weeklyCapacityHours, false),
+			)}
+		</p>
+	)
+}
+
+/**
+ * `6 t/uke`, or `≈ 5,9 t/uke` where the hours were read through a pace. Rounded
+ * once, here, from the unrounded figure (#638), and kept on one line.
+ */
+function weeklyHours(hours: number, estimated: boolean): string {
+	return approxLabel(
+		formatNbWeeklyVolume(hours, 'hours'),
+		estimated,
+	).replaceAll(' ', '\u00a0')
 }
 
 /**
