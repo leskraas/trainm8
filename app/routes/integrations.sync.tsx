@@ -3,6 +3,10 @@ import { syncIntervalsIcuActivities } from '#app/integrations/intervalsicu/sync.
 import { INTERVALSICU_PROVIDER } from '#app/integrations/intervalsicu/types.ts'
 import { syncStravaActivities } from '#app/integrations/strava/sync.server.ts'
 import { STRAVA_PROVIDER } from '#app/integrations/strava/types.ts'
+import {
+	summariseSyncs,
+	type SyncResult,
+} from '#app/integrations/sync-summary.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -25,12 +29,7 @@ const T = INTEGRATION_TOAST_LABELS
 const PROVIDER_SYNCS: Array<{
 	provider: string
 	label: string
-	run: (athleteId: string) => Promise<{
-		ok: boolean
-		created?: number
-		reason?: string
-		retryAt?: Date
-	}>
+	run: (athleteId: string) => Promise<SyncResult>
 }> = [
 	{
 		provider: STRAVA_PROVIDER,
@@ -62,22 +61,13 @@ export async function action({ request }: Route.ActionArgs) {
 		})
 	}
 
-	let created = 0
-	const failed: string[] = []
+	const results: Array<{ label: string; result: SyncResult }> = []
+	for (const sync of syncs) {
+		results.push({ label: sync.label, result: await sync.run(userId) })
+	}
 	// A spent Strava budget is not broken: say when to try again, as Strava's
 	// own "Sync now" does (#638).
-	let retryAt: Date | null = null
-	for (const sync of syncs) {
-		const result = await sync.run(userId)
-		if (result.ok) {
-			created += result.created ?? 0
-		} else {
-			failed.push(sync.label)
-			if (result.reason === 'rate-limited' && result.retryAt) {
-				retryAt = result.retryAt
-			}
-		}
-	}
+	const { created, failed, retryAt } = summariseSyncs(results)
 	// The rate-limited line names Strava itself, so Strava alone needs no
 	// "could not sync" ahead of it.
 	const failedLines: string[] = []
