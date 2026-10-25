@@ -28,6 +28,31 @@ export function isWorkoutVisibility(value: string): value is WorkoutVisibility {
 }
 
 /**
+ * **Published, and still somebody's** — the only `public` a reader may be served
+ * (#468, ADR 0051 §5 amendment).
+ *
+ * `Workout.ownerId` is `SetNull`, so an author who deletes their account leaves an
+ * orphan that is still `public`. The account-deletion purge erases those rows, but
+ * the read path does not lean on it: an orphan that predates the purge, or that a
+ * future path creates by deleting a `User` some other way, is unreadable here
+ * whatever state it was left in. Every non-owner-scoped read of a `public` row
+ * goes through this predicate or {@link isPublished}, never through
+ * `visibility: 'public'` alone.
+ */
+export const PUBLISHED_WORKOUT_WHERE = {
+	visibility: 'public',
+	ownerId: { not: null },
+} as const
+
+/** {@link PUBLISHED_WORKOUT_WHERE} for a row already in hand. */
+export function isPublished(workout: {
+	visibility: string
+	ownerId: string | null
+}): boolean {
+	return workout.visibility === 'public' && workout.ownerId != null
+}
+
+/**
  * **The non-vouch.** trainm8's standing statement about every community row,
  * held in code rather than in a column.
  *

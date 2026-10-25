@@ -251,6 +251,9 @@ and is not one this ticket owed.
   correct as _attribution_ (the Attribution is snapshotted) and unexamined as
   _deletion policy_. A "delete my account" flow does not exist yet; when it
   does, it must decide whether it withdraws that athlete's published sessions.
+  **Decided by #468** (ADR 0051 §5, "Account erasure"): the read path never
+  serves an ownerless `public` row, and deleting an account deletes its
+  published sessions — proposed, owner to confirm.
 - **For #456 (the deterministic generator)**: retrieval through `listCatalogue`
   now returns community rows to every athlete. A generated plan may therefore
   cite a row trainm8 does not vouch for, so anything that renders a generated
