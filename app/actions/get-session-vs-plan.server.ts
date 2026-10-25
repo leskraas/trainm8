@@ -127,8 +127,10 @@ export const getSessionVsPlanAction = defineAction({
 		const missing: UnavailableReason = recording
 			? 'not-resolved'
 			: 'no-recording'
+		// The Recording's own figures: they owe its source line, not the
+		// derived one (ADR 0098 §3).
 		const actual = (value: number | null | undefined) =>
-			reading(value ?? unavailable(missing), own, ctx)
+			reading(value ?? unavailable(missing), own, ctx, { origin: 'recording' })
 
 		const review = buildReviewComparison(session)
 		const plannedTss = plannedReading(review.tss.plannedRead, ctx, {

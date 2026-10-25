@@ -22,6 +22,7 @@
  */
 
 import * as Sentry from '@sentry/react-router'
+import { SOURCE_ATTRIBUTION_LABELS } from '#app/utils/labels.ts'
 import { ATTRIBUTIONS } from '#app/utils/source-terms.ts'
 import { type ActionCtx, type AnyActionResult, type RunCtx } from './define.ts'
 import { type Credit } from './reading.ts'
@@ -75,12 +76,7 @@ async function run(
 		return {
 			outcome: 'done',
 			value,
-			// In the platforms' fixed order, and each platform's lines in the
-			// order the action first owed them, so a result reads the same each time.
-			credits: [...owed.values()].sort(
-				(a, b) =>
-					ATTRIBUTIONS.indexOf(a.platform) - ATTRIBUTIONS.indexOf(b.platform),
-			),
+			credits: [...owed.values()].sort(byCreditOrder),
 		}
 	} catch (error) {
 		console.error(`[actions] ${name} failed`, error)
@@ -95,6 +91,19 @@ async function run(
 						'The action failed after it started and may have changed something. Read before retrying.',
 				}
 	}
+}
+
+/**
+ * Credits in the platforms' fixed order, and within a platform the recording's
+ * line before the derived one, so a result reads the same each time.
+ */
+function byCreditOrder(a: Credit, b: Credit): number {
+	const derived = (c: Credit) =>
+		c.text === SOURCE_ATTRIBUTION_LABELS.derived[c.platform] ? 1 : 0
+	return (
+		ATTRIBUTIONS.indexOf(a.platform) - ATTRIBUTIONS.indexOf(b.platform) ||
+		derived(a) - derived(b)
+	)
 }
 
 function refused(refusal: Refusal): AnyActionResult {

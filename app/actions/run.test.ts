@@ -102,6 +102,28 @@ test('a Garmin value reaches a model with Garmin’s credit on the result', asyn
 	])
 })
 
+test('Garmin’s credit is worded for what the value is (ADR 0098 §3): the recording’s own figures carry its source line, derived ones the derived line', async () => {
+	const { userId, session } = await createGarminOnlyAthlete()
+	const ctx = ctxFor(userId, 'mcp')
+	const recordingLine = { platform: 'garmin', text: 'Garmin' }
+
+	const vsPlan = await runAction(ctx, 'get_session_vs_plan', {
+		sessionId: session,
+	})
+	expect(vsPlan.outcome === 'done' && vsPlan.value.durationS.actual).toEqual({
+		status: 'available',
+		value: 3500,
+	})
+	expect(vsPlan.outcome === 'done' && vsPlan.credits).toEqual([
+		recordingLine,
+		GARMIN_CREDIT,
+	])
+
+	// Load is computed from the recordings, never one of them: derived only.
+	const load = await runAction(ctx, 'get_training_load', { weeks: 1 })
+	expect(load.outcome === 'done' && load.credits).toEqual([GARMIN_CREDIT])
+})
+
 test('a Strava value never reaches a model: it is source-terms, while the plan beside it still goes', async () => {
 	const world = await createWorld()
 	const model = await runAction(ctxFor(world.userId, 'mcp'), 'get_session', {
