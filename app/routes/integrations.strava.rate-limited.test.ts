@@ -31,8 +31,8 @@ const daySpent = () =>
 		},
 	})
 
-/** The day resets at midnight UTC: hours, and maybe minutes, from now. */
-const TRY_AGAIN_LATER = /Prøv igjen om \d+ t( \d+ min)?\.$/
+/** The day resets at midnight UTC: about some hours from now, or minutes. */
+const TRY_AGAIN_LATER = /Prøv igjen om (ca\. \d+ t|\d+ min)\.$/
 
 async function setupUser() {
 	return prisma.session.create({
@@ -48,15 +48,24 @@ test('the rate-limited copy says when to try again, relative', () => {
 	const now = new Date('2026-10-24T17:20:00Z')
 	const T = INTEGRATION_TOAST_LABELS
 
+	// Usually it's trainm8's own share of the budget that is spent, not
+	// Strava's limit for the athlete: the copy says the sync quota is used up.
 	expect(T.stravaRateLimited(new Date('2026-10-24T17:30:00Z'), now)).toBe(
-		'Strava har nådd grensen for oppslag. Prøv igjen om 10 min.',
+		'Strava-kvoten for synk er brukt opp for nå. Prøv igjen om 10 min.',
 	)
+	// Over an hour, whole hours read better than "6 t 40 min".
 	expect(T.stravaRateLimited(new Date('2026-10-25T00:00:00Z'), now)).toBe(
-		'Strava har nådd grensen for oppslag. Prøv igjen om 6 t 40 min.',
+		'Strava-kvoten for synk er brukt opp for nå. Prøv igjen om ca. 7 t.',
+	)
+	expect(T.stravaRateLimited(new Date('2026-10-25T02:30:00Z'), now)).toBe(
+		'Strava-kvoten for synk er brukt opp for nå. Prøv igjen om ca. 9 t.',
+	)
+	expect(T.stravaRateLimited(new Date('2026-10-24T18:20:00Z'), now)).toBe(
+		'Strava-kvoten for synk er brukt opp for nå. Prøv igjen om ca. 1 t.',
 	)
 	// Never "om 0 min": a reset seconds away still reads as a minute.
 	expect(T.stravaRateLimited(new Date('2026-10-24T17:20:05Z'), now)).toBe(
-		'Strava har nådd grensen for oppslag. Prøv igjen om 1 min.',
+		'Strava-kvoten for synk er brukt opp for nå. Prøv igjen om 1 min.',
 	)
 })
 
