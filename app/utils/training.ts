@@ -115,14 +115,6 @@ export function getSessionDuration(
 	return null
 }
 
-/** {@link getSessionDuration}'s minutes alone. */
-export function getSessionDurationMin(
-	session: DurationSession,
-	thresholds: DisciplineThresholdMap = {},
-): number | null {
-	return getSessionDuration(session, thresholds)?.minutes ?? null
-}
-
 /** The normalized shape each ledger row carries: date, discipline, title, duration, load, status, and RPE. */
 export type SessionLedgerEntry = {
 	id: string
@@ -192,7 +184,7 @@ export function toSessionLedgerEntry(
 	now: Date = new Date(),
 	/** Passed on to `deriveLedgerStatus`: today's sessions stay planned. */
 	timezone?: string,
-	/** Passed on to `getSessionDurationMin`: a distance step's pace (#615). */
+	/** Passed on to `getSessionDuration`: a distance step's pace (#615). */
 	thresholds: DisciplineThresholdMap = {},
 ): SessionLedgerEntry {
 	const load = session.tssValue ?? null

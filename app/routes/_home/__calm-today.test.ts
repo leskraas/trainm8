@@ -320,15 +320,15 @@ test('a distance written in a zone word is timed through the threshold pace on t
 	])
 
 	expect(card.session.durationLabel).not.toBeNull()
-	expect(row.externalLoad).toMatch(/\d+ min/)
+	expect(row.externalLoad).toMatch(/\d+\smin/)
 })
 
 test('minutes timed through a pace read as a translation, with ≈, on the card and the row (#638)', () => {
 	const { card, row } = calmWithSteps([
 		step({ durationSec: null, distanceM: 10_000, intensity: ROLIG }),
 	])
-	expect(card.session.durationLabel).toMatch(/^≈\u00a0\d+ min$/)
-	expect(row.externalLoad).toMatch(/^≈\u00a0\d+ min/)
+	expect(card.session.durationLabel).toMatch(/^≈\u00a0\d+\u00a0min$/)
+	expect(row.externalLoad).toMatch(/^≈\u00a0\d+\u00a0min/)
 
 	const timed = calmWithSteps([
 		step({ durationSec: 50 * 60, intensity: ROLIG }),
@@ -350,7 +350,7 @@ test('a timed warm-up and a distance in a zone word total both (#615)', () => {
 		distance,
 	])
 
-	const minutes = (line: string | null) => Number(/(\d+) min/.exec(line!)![1])
+	const minutes = (line: string | null) => Number(/(\d+)\smin/.exec(line!)![1])
 	expect(minutes(row.externalLoad)).toBe(minutes(alone.row.externalLoad) + 15)
 	expect(card.session.durationLabel).not.toBe('15 min')
 })

@@ -2004,11 +2004,11 @@ export const SESONG_ENTRY_LABELS = {
 /**
  * A figure the app translated rather than read: minutes timed through a pace
  * say so with `≈` (`≈ 57 min`), the mark a Lactate Anchor's zone and an
- * Intensity Target's equivalent carry. A no-break space keeps the mark on
- * its figure's line.
+ * Intensity Target's equivalent carry. No-break spaces keep the mark and
+ * its figure on one line: `≈ 1 t 50 min` never wraps as `≈ 1 t 50` / `min`.
  */
 export function approxLabel(text: string, estimated: boolean): string {
-	return estimated ? `≈\u00a0${text}` : text
+	return estimated ? `≈\u00a0${text.replaceAll(' ', '\u00a0')}` : text
 }
 
 /** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */

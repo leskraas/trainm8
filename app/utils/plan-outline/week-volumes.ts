@@ -28,11 +28,7 @@
 // applies it — so `labels.ts` can name these codes by type alone.
 
 import { addDays, weekdayIndex } from '../athlete-calendar.ts'
-import {
-	type DurationReading,
-	prescribedDuration,
-	sumBlockSets,
-} from '../dashboard.ts'
+import { sumBlockSets } from '../dashboard.ts'
 import { type DisciplineThresholdMap } from '../intensity-target.ts'
 import {
 	ADHERENCE_ON_TARGET_AT_OR_ABOVE,
@@ -265,9 +261,8 @@ export type VolumeSession = {
 }
 
 /**
- * One ledger row as the week model reads it. Planned km are read by
- * `fixedDayVolume` and hours by `prescribedDuration`, the Week Pattern's own
- * readings: only a prescription that carries the unit from end to end has a
+ * One ledger row as the week model reads it. Planned km and hours are read by
+ * `fixedDayVolume`, the Week Pattern's own reading: only a prescription that carries the unit from end to end has a
  * figure, so "20 min warm-up + 5×1000 m" is unmeasured in km rather than 5 km.
  */
 export function volumeSessionOf(
@@ -296,7 +291,9 @@ export function volumeSessionOf(
 	const prescribed = workout
 		? prescribedFigures(discipline, {
 				km: fixedDayVolume(workout.blocks, 'km', reading),
-				hours: prescribedHours(workout.blocks, reading),
+				// Unrounded: the week rounds its sum once, and a row says its own
+				// minutes, so a 50-minute run reads `50 min` there as in the drawer.
+				hours: fixedDayVolume(workout.blocks, 'hours', reading),
 				// A Planned TSS of zero is one that did not resolve — the week's
 				// TSS line reads it the same way — so it is unmeasured, not 0.
 				tss:
@@ -348,20 +345,6 @@ export function volumeSessionOf(
 	}
 }
 
-/**
- * A prescription's hours, timed end to end (`prescribedDuration`) and left
- * unrounded: the week rounds its sum once, and a row says its own minutes, so
- * a 50-minute run reads `50 min` there as in the drawer, not the `48 min` a
- * tenth of an hour would make of it.
- */
-function prescribedHours(
-	blocks: Parameters<typeof prescribedDuration>[0],
-	reading: DurationReading,
-): number | null {
-	const duration = prescribedDuration(blocks, reading)
-	return duration?.complete ? duration.seconds / 3600 : null
-}
-
 function prescribedFigures(
 	discipline: string,
 	figures: CurrencyFigures,
@@ -398,6 +381,11 @@ export type TrackWeekVolume = {
 	 * planned; null when sessions are planned but none has a number.
 	 */
 	planned: number | null
+	/**
+	 * The measured sessions' sum before {@link planned} rounds it, so a
+	 * preview that adds a session rounds the new sum once, as the week will.
+	 */
+	plannedSum: number
 	plannedUnmeasured: UnmeasuredCount[]
 	/** How many planned sessions have no number — the n of "+n uten km". */
 	plannedUnmeasuredCount: number
@@ -639,6 +627,7 @@ function trackWeek(
 		targetAbsence:
 			target != null ? null : inPlan ? 'no-anchor' : 'outside-plan',
 		planned,
+		plannedSum: plannedTally.sum,
 		plannedUnmeasured: plannedTally.unmeasured,
 		plannedUnmeasuredCount: unmeasuredTotal(plannedTally.unmeasured),
 		actual,

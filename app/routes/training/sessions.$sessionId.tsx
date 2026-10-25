@@ -103,6 +103,7 @@ import {
 	NB_SESSION_ARCHETYPE_LABELS,
 	SIMPLE_ACTIVITY_LABELS,
 	WORKOUT_DETAIL_LABELS,
+	approxLabel,
 	nbConfidenceLabel,
 	nbDisciplineLabel,
 	nbDurationLabel,
@@ -1769,7 +1770,13 @@ function PlannedVsActualSummary({
 		{
 			label: P.duration,
 			actual: dur(comparison.duration.actual),
-			planned: dur(comparison.duration.planned),
+			planned:
+				comparison.duration.planned != null
+					? approxLabel(
+							dur(comparison.duration.planned),
+							comparison.duration.plannedEstimated,
+						)
+					: EM_DASH,
 		},
 		{
 			label: P.distance,

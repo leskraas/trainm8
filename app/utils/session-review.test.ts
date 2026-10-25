@@ -57,6 +57,8 @@ test('sums prescribed duration (× repeatCount) and reads actual moving time', (
 	)
 	expect(c.duration.planned).toBe(1200) // 4 × 5 min
 	expect(c.duration.actual).toBe(1260)
+	// Every step states its time: no translation, no `≈`.
+	expect(c.duration.plannedEstimated).toBe(false)
 })
 
 test('planned duration is null when a step cannot be timed, never a short total', () => {
@@ -112,6 +114,8 @@ test('planned duration times a distance step at the athlete’s threshold pace',
 		},
 	)
 	expect(c.duration.planned).toBe(900 + 8 * 240)
+	// Timed through a pace: the cell reads `≈`, as the row and the tiles do.
+	expect(c.duration.plannedEstimated).toBe(true)
 })
 
 test('planned duration is null when no step authors a duration', () => {
