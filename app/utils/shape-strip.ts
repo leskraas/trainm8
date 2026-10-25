@@ -28,7 +28,7 @@ import {
 } from './workout-notation.ts'
 import { blockRepeatTotal, type IntensityTarget } from './workout-schema.ts'
 import { zoneEquivalent } from './zone-equivalent.ts'
-import { resolveIntensity } from './zones/index.ts'
+import { type PaceUnit, resolveIntensity } from './zones/index.ts'
 import { distanceDurationSec } from './zones/pace-unit.ts'
 
 /** Heights of the five zone steps, % of the strip (Z1 30 % → Z5 100 %). */
@@ -91,19 +91,20 @@ const NO_THRESHOLDS: NonNullable<DisciplineThresholdMap[string]> = {
 	zoneOverrides: null,
 }
 
-/** The pace a step's intensity resolves to (midpoint), in the resolver's own
- * unit — sec/km for pace-anchored recipes, sec/100 m for CSS. */
+/** The pace a step's intensity resolves to (midpoint), with the unit the
+ * resolver handed it back in (`ResolvedIntensity.paceUnit`). */
 function resolvedPaceMid(
 	intensity: IntensityTarget | null | undefined,
 	profile: DisciplineThresholdMap[string],
-): number | null {
+): { sec: number; unit: PaceUnit | undefined } | null {
 	if (!intensity) return null
 	const resolved = resolveIntensity(intensity, profile ?? NO_THRESHOLDS)
 	if (resolved.unavailable) return null
-	if (resolved.paceMin != null && resolved.paceMax != null) {
-		return (resolved.paceMin + resolved.paceMax) / 2
-	}
-	return resolved.paceMin ?? resolved.paceMax ?? null
+	const sec =
+		resolved.paceMin != null && resolved.paceMax != null
+			? (resolved.paceMin + resolved.paceMax) / 2
+			: (resolved.paceMin ?? resolved.paceMax)
+	return sec == null ? null : { sec, unit: resolved.paceUnit }
 }
 
 /**
@@ -120,9 +121,9 @@ export function stepDistanceDurationSec(
 	if (resolved != null) {
 		return distanceDurationSec(
 			step.distanceM,
-			resolved,
+			resolved.sec,
 			step.discipline,
-			step.intensity?.kind,
+			resolved.unit,
 		)
 	}
 	const fallback =

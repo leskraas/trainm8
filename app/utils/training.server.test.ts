@@ -2491,7 +2491,12 @@ test('getDisciplineThresholds hands each discipline its race anchor paces, so a 
 	expect(thresholds.bike?.raceAnchorPaces).toEqual({})
 	expect(
 		resolveIntensity({ kind: 'racePace', event: '10k' }, thresholds.run!),
-	).toEqual({ paceMin: 240, paceMax: 240, approximate: true })
+	).toEqual({
+		paceMin: 240,
+		paceMax: 240,
+		paceUnit: 'secPerKm',
+		approximate: true,
+	})
 })
 
 /** The round trips `read` sends, counted as `countLedgerQueries` counts them. */

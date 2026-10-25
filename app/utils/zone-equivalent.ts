@@ -44,11 +44,11 @@ import { powerPctRef, type IntensityTarget } from './workout-schema.ts'
 import {
 	formatMmol,
 	getRecipe,
-	resolvedPaceUnit,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 	type ZoneRecipe,
 } from './zones/index.ts'
+import { paceIn } from './zones/pace-unit.ts'
 
 export type ZoneEquivalent =
 	| { step: TrainingZone; reason: null }
@@ -268,15 +268,13 @@ export function zoneEquivalent(
 			channelValue = mid(resolved.hrMin ?? resolved.hrMax!, resolved.hrMax)
 		}
 	} else if (resolved.paceMin != null || resolved.paceMax != null) {
-		channelValue = mid(resolved.paceMin ?? resolved.paceMax!, resolved.paceMax)
 		// A CSS-anchored recipe's bands are ratios to sec/100 m; a pace the
 		// resolver hands back per km converts (1 km = 10 × 100 m).
-		if (
-			recipe.anchor === 'css' &&
-			resolvedPaceUnit(target.kind, recipe.anchor) === 'secPerKm'
-		) {
-			channelValue = channelValue / 10
-		}
+		channelValue = paceIn(
+			mid(resolved.paceMin ?? resolved.paceMax!, resolved.paceMax),
+			resolved.paceUnit ?? 'secPerKm',
+			recipe.anchor === 'css' ? 'secPer100m' : 'secPerKm',
+		)
 	}
 	if (channelValue == null) {
 		return unresolvable(
@@ -437,10 +435,7 @@ export function resolvedRangeText(
 			: `${resolved.hrMin}+ bpm`
 	}
 	if (resolved.paceMin != null) {
-		const unit =
-			resolvedPaceUnit(target.kind, recipeFor(profile)?.anchor) === 'secPer100m'
-				? '/100m'
-				: '/km'
+		const unit = resolved.paceUnit === 'secPer100m' ? '/100m' : '/km'
 		return resolved.paceMax != null
 			? `${formatPaceClock(resolved.paceMin)}–${formatPaceClock(resolved.paceMax)} ${unit}`
 			: `${formatPaceClock(resolved.paceMin)}+ ${unit}`

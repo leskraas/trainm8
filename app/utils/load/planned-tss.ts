@@ -1,6 +1,6 @@
-import { parseAuthoredIntensity } from '../intensity-target.ts'
 import { type PlannedMetric, readPlannedMetric } from '../planned-discipline.ts'
 import { blockRepeatTotal } from '../workout-schema.ts'
+import { type PaceUnit } from '../zones/index.ts'
 import { distanceDurationSec, paceInDistanceUnit } from '../zones/pace-unit.ts'
 import { coggan, hrTSS, rTSS, sTSS } from './formulas.ts'
 
@@ -33,6 +33,8 @@ export type PlannedTssStep = {
 	intensityPowerMax: number | null
 	intensityPaceMin: number | null
 	intensityPaceMax: number | null
+	/** The unit the pace range is in, as the resolver named it; null with none. */
+	intensityPaceUnit: PaceUnit | null
 }
 
 export type PlannedTssBlock = {
@@ -108,15 +110,11 @@ function stepOutcome(
 	// Pace used both as the formula's intensity and (for distance-only steps) to
 	// derive the missing duration. Run/threshold pace is sec/km; swim/CSS pace is
 	// sec/100m — mirroring the actual-TSS formula inputs. A swim step's `pace`
-	// target is cached in sec/km, so it converts first (#613).
+	// target resolves in sec/km, so it converts first (#613).
 	const paceMid =
 		cachedPaceMid == null
 			? null
-			: paceInDistanceUnit(
-					cachedPaceMid,
-					discipline,
-					parseAuthoredIntensity(step.intensity)?.kind,
-				)
+			: paceInDistanceUnit(cachedPaceMid, discipline, step.intensityPaceUnit)
 	const durationSec = resolveDurationSec(step, discipline, paceMid)
 	if (durationSec == null) return { kind: 'unresolved' }
 
