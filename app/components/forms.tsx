@@ -104,6 +104,8 @@ function moveToNextControl(event: React.KeyboardEvent<HTMLInputElement>) {
 	if (
 		event.key !== 'Enter' ||
 		event.nativeEvent.isComposing ||
+		// Safari ends a composition with Enter as keyCode 229 after isComposing clears.
+		event.keyCode === 229 ||
 		input.getAttribute('enterkeyhint') !== 'next' ||
 		!input.form
 	) {
