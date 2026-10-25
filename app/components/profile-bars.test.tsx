@@ -51,3 +51,21 @@ test('renders one bracket per group', () => {
 	expect(brackets[0]).toHaveTextContent('× 3')
 	expect(brackets[1]).toHaveTextContent('× 5')
 })
+
+test('sizes every bar and gap so the whole session fits its width', () => {
+	// 3 × 20 × 50 m with warm-up and cool-down: 122 bars. At a 1px floor and a
+	// 1px gap that is 243px, past the 140px a timeline row gives the profile,
+	// so the floor shrinks to fit 2n - 1 slots in the container's width.
+	const many: ProfileBar[] = Array.from({ length: 122 }, (_, i) => ({
+		id: `bar-${i}`,
+		zone: 1,
+		durationSec: 15,
+	}))
+	const { container } = render(<ProfileBars bars={many} />)
+	const fit = container.querySelector<HTMLElement>('[data-profile-fit]')
+	expect(fit).not.toBeNull()
+	expect(fit!.style.getPropertyValue('--profile-bar-px')).toBe(
+		'min(1px, 100cqw / 243)',
+	)
+	expect(container.querySelectorAll('[data-profile-bar]')).toHaveLength(122)
+})

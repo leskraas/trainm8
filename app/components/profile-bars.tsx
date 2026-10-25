@@ -1,3 +1,4 @@
+import { type CSSProperties } from 'react'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	type ProfileBar,
@@ -76,7 +77,7 @@ export function ProfileBars({
 		<span
 			aria-hidden
 			className={cn(
-				'flex w-full items-end gap-px overflow-hidden',
+				'flex w-full items-end gap-(--profile-bar-px) overflow-hidden',
 				scale === 'row' ? 'h-3.5' : 'h-6',
 				className,
 			)}
@@ -84,11 +85,12 @@ export function ProfileBars({
 			{bars.map((bar) => (
 				<span
 					key={bar.id}
+					data-profile-bar
 					style={
 						hasDuration ? { flexGrow: bar.durationSec || 0.001 } : undefined
 					}
 					className={cn(
-						'block min-w-px rounded-[1px]',
+						'block min-w-(--profile-bar-px) rounded-[1px]',
 						hasDuration ? '' : 'flex-1',
 						bar.zone == null
 							? cn(
@@ -102,9 +104,27 @@ export function ProfileBars({
 			))}
 		</span>
 	)
-	if (!groups || groups.length === 0) return barsRow
+	// Every bar has a floor and a gap after it, 1px each, so n bars need 2n - 1
+	// pixels. Past half the width (122 bars in a 140px timeline row) the end of
+	// the session was clipped, cool-down first. The floor is the smaller of 1px
+	// and the width over 2n - 1, read off the container, so the whole session
+	// always fits and anything that already fit draws exactly as before.
+	const fit = {
+		'--profile-bar-px': `min(1px, 100cqw / ${2 * bars.length - 1})`,
+	} as CSSProperties
+	if (!groups || groups.length === 0) {
+		return (
+			<span data-profile-fit style={fit} className="@container block w-full">
+				{barsRow}
+			</span>
+		)
+	}
 	return (
-		<span className="flex w-full flex-col gap-0.5">
+		<span
+			data-profile-fit
+			style={fit}
+			className="@container flex w-full flex-col gap-0.5"
+		>
 			<RepeatBracketTrack
 				bars={bars}
 				groups={groups}
@@ -169,7 +189,7 @@ function RepeatBracketTrack({
 		})
 	}
 	return (
-		<span aria-hidden className="flex w-full items-end gap-px">
+		<span aria-hidden className="flex w-full items-end gap-(--profile-bar-px)">
 			{segments.map((segment) =>
 				segment.repeatCount == null ? (
 					<span key={segment.key} style={{ flexGrow: segment.grow }} />
