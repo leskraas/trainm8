@@ -25,7 +25,12 @@ const T = INTEGRATION_TOAST_LABELS
 const PROVIDER_SYNCS: Array<{
 	provider: string
 	label: string
-	run: (athleteId: string) => Promise<{ ok: boolean; created?: number }>
+	run: (athleteId: string) => Promise<{
+		ok: boolean
+		created?: number
+		reason?: string
+		retryAt?: Date
+	}>
 }> = [
 	{
 		provider: STRAVA_PROVIDER,
@@ -59,19 +64,32 @@ export async function action({ request }: Route.ActionArgs) {
 
 	let created = 0
 	const failed: string[] = []
+	// A spent Strava budget is not broken: say when to try again, as Strava's
+	// own "Sync now" does (#638).
+	let retryAt: Date | null = null
 	for (const sync of syncs) {
 		const result = await sync.run(userId)
 		if (result.ok) {
 			created += result.created ?? 0
 		} else {
 			failed.push(sync.label)
+			if (result.reason === 'rate-limited' && result.retryAt) {
+				retryAt = result.retryAt
+			}
 		}
 	}
+	// The rate-limited line names Strava itself, so Strava alone needs no
+	// "could not sync" ahead of it.
+	const failedLines: string[] = []
+	const onlyRateLimited = retryAt != null && failed.length === 1
+	if (!onlyRateLimited) failedLines.push(T.couldNotSync(T.and(failed)))
+	if (retryAt) failedLines.push(T.stravaRateLimited(retryAt))
+	const failedLine = failedLines.join(' ')
 
 	if (failed.length === syncs.length) {
 		return redirectWithToast('/settings/integrations', {
 			title: T.syncFailed,
-			description: T.couldNotSync(T.and(failed)),
+			description: failedLine,
 			type: 'error',
 		})
 	}
@@ -82,9 +100,7 @@ export async function action({ request }: Route.ActionArgs) {
 	return redirectWithToast('/settings/integrations', {
 		title: T.synced,
 		description:
-			failed.length > 0
-				? `${importedLine} ${T.couldNotSync(T.and(failed))}`
-				: importedLine,
+			failed.length > 0 ? `${importedLine} ${failedLine}` : importedLine,
 		type: failed.length > 0 ? 'error' : 'success',
 	})
 }

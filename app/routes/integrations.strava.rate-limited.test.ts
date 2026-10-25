@@ -11,6 +11,7 @@ import { server } from '#tests/mocks/index.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { loader as callback } from './integrations.strava.callback.tsx'
 import { action as sync } from './integrations.strava.sync.tsx'
+import { action as hubSync } from './integrations.sync.tsx'
 
 /**
  * The request paths that call Strava answer at once when its read budget is
@@ -135,6 +136,47 @@ test('a rate-limited manual sync says when to try again', async () => {
 		unstable_pattern: '/integrations/strava/sync',
 	})
 
+	await expect(response).toSendToast(
+		expect.objectContaining({
+			title: 'Synkroniseringen feilet',
+			description: expect.stringMatching(TRY_AGAIN_LATER),
+			type: 'error',
+		}),
+	)
+})
+
+test("the hub's Sync now says when to try again when Strava is rate limited", async () => {
+	server.use(
+		http.get('https://www.strava.com/api/v3/athlete/activities', daySpent),
+	)
+	const session = await setupUser()
+	await prisma.accountConnection.create({
+		data: {
+			athleteId: session.userId,
+			provider: 'strava',
+			externalAthleteId: '12345678',
+			accessToken: 'tok',
+			refreshToken: 'ref',
+			expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000),
+			status: 'active',
+			connectedAt: new Date('2026-05-01T00:00:00.000Z'),
+		},
+	})
+	const request = new Request(
+		new URL('/integrations/sync', BASE_URL).toString(),
+		{
+			method: 'POST',
+			headers: { cookie: await getSessionCookieHeader(session) },
+		},
+	)
+
+	const response = await hubSync({
+		request,
+		...ARGS,
+		unstable_pattern: '/integrations/sync',
+	})
+
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			title: 'Synkroniseringen feilet',
