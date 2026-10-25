@@ -135,3 +135,56 @@ test('athlete builds a season from the catalogue, answers its question, and adds
 	})
 	expect(outline).not.toBeNull()
 })
+
+/**
+ * The Weekly Capacity on the preview (#473, ADR 0110 §2): an athlete whose
+ * anchor would outrun the hours they have sees the season scaled to fit, and
+ * the preview says so in one line, with the heaviest week before and after.
+ * Checked at 320 px, the narrowest phone, for the no-overflow gate.
+ */
+test('a season over the athlete’s weekly hours is scaled to fit, and says so', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.id,
+			weeklyCapacityHours: 4,
+			// 5:00/km at threshold: enough to read a km week in hours.
+			disciplineProfiles: {
+				create: { discipline: 'run', thresholdPaceSecPerKm: 300 },
+			},
+		},
+	})
+	const event = await prisma.event.create({
+		data: {
+			athleteId: user.id,
+			name: `Høstløpet ${faker.string.alphanumeric(6)}`,
+			kind: 'race',
+			priority: 'A',
+			startDate: new Date(Date.now() + 17 * 7 * 24 * 60 * 60 * 1000),
+			disciplines: JSON.stringify(['run']),
+		},
+	})
+
+	await page.setViewportSize({ width: 320, height: 720 })
+	// 80 km a week is far more than four hours at 5:00/km.
+	await page.goto(`/training/plan/generate/${event.id}?anchor-run=80`)
+	const notice = page.getByText(/^Skalert ned til kapasiteten din/)
+	await expect(notice).toHaveText(
+		/^Skalert ned til kapasiteten din på 4 t\/uke: den tyngste uka er nå ≈ \d+(,\d)? t\/uke, ned fra ≈ \d+(,\d)? t\/uke\.$/,
+	)
+	// The anchor box keeps the athlete's own figure; the weeks below are lowered.
+	await expect(page.getByLabel(/^Startvolum per uke i løping/)).toHaveValue(
+		'80',
+	)
+
+	const overflow = await page.evaluate(
+		() =>
+			document.documentElement.scrollWidth -
+			document.documentElement.clientWidth,
+	)
+	expect(overflow).toBeLessThanOrEqual(0)
+})
