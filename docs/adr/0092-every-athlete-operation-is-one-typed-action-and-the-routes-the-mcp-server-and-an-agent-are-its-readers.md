@@ -374,10 +374,17 @@ type SessionSummary = {
 | --------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `get_today`           | none                               | `{ date, sessions: SessionSummary[], load: { ctl, atl, tsb: Reading<number> }, week: { tracks: { discipline, planned, actual, target: Reading<number> }[] }, openProposals: Reading<number> }`                                                 |
 | `list_sessions`       | `{ from, to, cursor? }`, ≤ 28 days | `{ sessions: SessionSummary[], nextCursor: string \| null }`                                                                                                                                                                                   |
-| `get_session`         | `{ sessionId }`                    | `SessionSummary & { workout: { title, blocks } \| null, recording: { originPlatform, device: string \| null } \| null, rpe: Reading<number>, log: AthleteText \| null }`                                                                       |
+| `get_session`         | `{ sessionId }`                    | `SessionSummary & { workout: { title, blocks } \| null, recording: { originPlatform } \| null, rpe: Reading<number>, log: AthleteText \| null }`                                                                                               |
 | `get_session_vs_plan` | `{ sessionId }`                    | `{ tss, durationS, distanceM: { planned, actual: Reading<number> }, band: Reading<AdherenceBand>, structure: Reading<StructureAdherence>, vsLast: { sessionId, date, deltas: Record<string, Reading<number>> } \| null }`                      |
 | `get_training_load`   | `{ weeks: 1–26 }`                  | `{ days: { date, tss, ctl, atl, tsb: Reading<number> }[], weeks: { weekKey, plannedTss, actualTss: Reading<number>, adherence: Reading<AdherenceBand> }[], tsbTrust: { trustworthy: boolean, daysOfHistory, requiredDays: Reading<number> } }` |
-| `get_season`          | none                               | `{ plan: { name, openEnded, event: { name, date } \| null } \| null, weeks: { weekKey, phase, tracks: { discipline, target, planned, actual: Reading<number> }[] }[] }`                                                                        |
+| `get_season`          | none                               | `{ plan: { name, openEnded, event: { name, date } \| null } \| null, weeks: { weekKey, phase: AthleteText \| null, tracks: { discipline, target, planned, actual: Reading<number> }[] }[] }`                                                   |
+
+A Workout detected from a Recording is that Recording's data, so its title,
+blocks and totals bind to the Recording's set (`workoutBindingSet`), and so does
+the Planned Volume they count in. Every stored title and phase name crosses as
+`AthleteText`. `get_week_change` sends no stored reason (they are sentences
+built from measurements and titles); it sends the week's `outcome` and the
+`adherence` and `tsb` the decision read, as Readings.
 
 `get_week_change` (read) wraps `readWeekChange` and the card model, which moves
 out of `app/routes/_home/timeline/week-change.ts` into `app/utils/load/`. The
@@ -456,3 +463,10 @@ a reason here, before anyone else connects one. Tracked in #639.
   a test proves production refuses it (#639 H6).
 - **The rate limiter keys on IP.** Every Anthropic call shares one `/21`. Closes
   with Phase 2's limit per token subject (#639 H7).
+- **A model's Garmin credit names no device model.** ADR 0098 §3 words a
+  recorded value's credit "Garmin [device model]", but the device name is
+  provider text, which §7 keeps from a model, so `get_session` sends only the
+  recording's Origin Platform and the recording's figures carry the plain
+  "Garmin" line (0098 §3's wording when the device is unknown). Closes when
+  Garmin confirms the brand alone is enough for an assistant, or device names
+  reach a model only as a closed vocabulary trainm8 owns (#639).
