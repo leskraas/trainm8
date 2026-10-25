@@ -71,7 +71,9 @@ export async function claimNextJob(): Promise<ClaimedJob | null> {
  * provider's spent read budget. The job goes back to `pending` at `until`
  * without spending an attempt, so the single worker is free for other jobs in
  * the meantime (#637). `progressed` says the run settled some of its work
- * before the budget ran out. A job older than `DEFERRAL_CAP_MS` whose deferral
+ * before the budget ran out; only `markProgressed()` sets it, since the
+ * deferral is thrown deep down (the rate limiter) and only the callers it
+ * passes through on the way up know what the run settled. A job older than `DEFERRAL_CAP_MS` whose deferral
  * made no progress spends its attempts like a failure, so one that keeps
  * deferring without getting anywhere dead-letters (#638), while a long heal
  * that reads a day's budget at a time runs to the end.
@@ -80,17 +82,12 @@ export class DeferJob extends Error {
 	// Plain fields, not parameter properties: the server runs this file
 	// through Node's type stripping, which can't rewrite one.
 	readonly until: Date
-	#progressed: boolean
+	#progressed = false
 
-	constructor(
-		until: Date,
-		message: string,
-		{ progressed = false }: { progressed?: boolean } = {},
-	) {
+	constructor(until: Date, message: string) {
 		super(message)
 		this.name = 'DeferJob'
 		this.until = until
-		this.#progressed = progressed
 	}
 
 	get progressed(): boolean {

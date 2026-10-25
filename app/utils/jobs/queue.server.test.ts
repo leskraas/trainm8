@@ -167,9 +167,7 @@ test('past the cap, a deferral that made progress still gives its attempt back',
 
 	await processNextJob({
 		'strava-backfill': async () => {
-			throw new DeferJob(until, 'Strava read budget spent', {
-				progressed: true,
-			})
+			throw new DeferJob(until, 'Strava read budget spent').markProgressed()
 		},
 	})
 
