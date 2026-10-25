@@ -2,6 +2,7 @@ import { type FieldMetadata, useInputControl } from '@conform-to/react'
 import { REGEXP_ONLY_DIGITS_AND_CHARS, type OTPInputProps } from 'input-otp'
 import React, { createContext, useContext, useId, useState } from 'react'
 import { cn } from '#app/utils/misc.tsx'
+import { moveToNextControl } from './return-key.ts'
 import { Checkbox, type CheckboxProps } from './ui/checkbox.tsx'
 import {
 	Field as FormField,
@@ -61,71 +62,6 @@ const ERROR_TEXT = 'text-footnote text-foreground-destructive'
  */
 const ERROR_LINE = 'min-h-(--text-footnote--line-height)'
 
-/** What a return key can reach in a form: tabbable, enabled, not hidden. */
-const FORM_CONTROLS =
-	'input:not([type=hidden]), select, textarea, button, [role=checkbox], [tabindex]'
-
-/**
- * A control still to do: an empty field, or a required box left unticked.
- * An optional box (Remember me) is never to do.
- */
-function isStillToDo(control: HTMLElement) {
-	if (control instanceof HTMLInputElement) {
-		if (control.type === 'checkbox' || control.type === 'radio') {
-			return control.required && !control.checked
-		}
-		return control.type !== 'submit' && control.type !== 'button'
-			? control.value === ''
-			: false
-	}
-	if (
-		control instanceof HTMLTextAreaElement ||
-		control instanceof HTMLSelectElement
-	) {
-		return control.value === ''
-	}
-	// Base UI's checkbox is a span with the role; its input is hidden.
-	return (
-		control.getAttribute('role') === 'checkbox' &&
-		control.getAttribute('aria-required') === 'true' &&
-		control.getAttribute('aria-checked') !== 'true'
-	)
-}
-
-/**
- * Return on a field whose key reads "next" (`enterKeyHint: 'next'`) moves to
- * the form's next control, as the key says, instead of submitting the form
- * half filled. Once nothing after the field is still to do (a password
- * manager filled the password before the username was typed), return
- * submits, as it always did. Any other hint keeps the browser's submit.
- */
-function moveToNextControl(event: React.KeyboardEvent<HTMLInputElement>) {
-	const input = event.currentTarget
-	if (
-		event.key !== 'Enter' ||
-		event.nativeEvent.isComposing ||
-		// Safari ends a composition with Enter as keyCode 229 after isComposing clears.
-		event.keyCode === 229 ||
-		input.getAttribute('enterkeyhint') !== 'next' ||
-		!input.form
-	) {
-		return
-	}
-	const controls = Array.from(
-		input.form.querySelectorAll<HTMLElement>(FORM_CONTROLS),
-	).filter(
-		(control) =>
-			control.tabIndex >= 0 &&
-			!control.matches(':disabled') &&
-			!control.closest('[aria-hidden="true"]'),
-	)
-	const later = controls.slice(controls.indexOf(input) + 1)
-	const next = later[0]
-	if (!next || !later.some(isStillToDo)) return
-	event.preventDefault()
-	next.focus()
-}
-
 function getErrorsToRender(errors?: ListOfErrors) {
 	return errors?.filter(Boolean) ?? []
 }
@@ -145,18 +81,38 @@ export function ReserveErrorLines({ children }: { children: React.ReactNode }) {
 	)
 }
 
+/**
+ * The form's own error (the server's answer, `form.errors`), shown on the last
+ * field's line while that field has none of its own. The server only answers
+ * once every field is valid, and any input clears its answer, so the two
+ * never meet: the last field's line holds both, and no second empty line
+ * waits above the button. It keeps the form's id, so the form's
+ * `aria-describedby` still finds it, and leaves the field unmarked.
+ */
+type FormErrorsOnLine = {
+	formErrors?: ListOfErrors
+	formErrorId?: string
+}
+
 function InlineFieldErrors({
 	errorId,
-	errors,
+	errors: fieldErrors,
+	formErrors,
+	formErrorId,
 	reserveErrorLine: ownReserveErrorLine,
 }: {
 	errorId?: string
 	errors: string[]
 	/** The field's own say; unset, the form's {@link ReserveErrorLines}. */
 	reserveErrorLine?: boolean
-}) {
+} & FormErrorsOnLine) {
 	const formReservesErrorLines = useContext(ReserveErrorLineContext)
 	const reserveErrorLine = ownReserveErrorLine ?? formReservesErrorLines
+	const formErrorsToRender = fieldErrors.length
+		? []
+		: getErrorsToRender(formErrors)
+	const errors = formErrorsToRender.length ? formErrorsToRender : fieldErrors
+	const firstId = formErrorsToRender.length ? formErrorId : errorId
 	if (!errors.length && !reserveErrorLine) return null
 	const shown = reserveErrorLine ? errors.slice(0, 1) : errors
 
@@ -169,7 +125,7 @@ function InlineFieldErrors({
 			{shown.map((error, index) => (
 				<FieldDescription
 					key={`${error}-${index}`}
-					id={index === 0 ? errorId : undefined}
+					id={index === 0 ? firstId : undefined}
 					className={ERROR_TEXT}
 				>
 					{error}
@@ -216,25 +172,12 @@ export function Field({
 	 * Unset, as the form says ({@link ReserveErrorLines}).
 	 */
 	reserveErrorLine?: boolean
-	/**
-	 * The form's own error (the server's answer, `form.errors`), shown on this
-	 * field's line while the field has none of its own. The server only answers
-	 * once every field is valid, and any input clears its answer, so the two
-	 * never meet: the last field's line holds both, and no second empty line
-	 * waits above the button. It keeps the form's id, so the form's
-	 * `aria-describedby` still finds it, and leaves the field unmarked.
-	 */
-	formErrors?: ListOfErrors
-	formErrorId?: string
 	className?: string
-}) {
+} & FormErrorsOnLine) {
 	const fallbackId = useId()
 	const id = inputProps.id ?? fallbackId
 	const errorsToRender = getErrorsToRender(errors)
 	const errorId = errorsToRender.length ? `${id}-error` : undefined
-	const formErrorsToRender = errorsToRender.length
-		? []
-		: getErrorsToRender(formErrors)
 	return (
 		<FieldGroup className={className}>
 			<FormField
@@ -254,10 +197,10 @@ export function Field({
 						}}
 					/>
 					<InlineFieldErrors
-						errorId={formErrorsToRender.length ? formErrorId : errorId}
-						errors={
-							formErrorsToRender.length ? formErrorsToRender : errorsToRender
-						}
+						errorId={errorId}
+						errors={errorsToRender}
+						formErrors={formErrors}
+						formErrorId={formErrorId}
 						reserveErrorLine={reserveErrorLine}
 					/>
 				</FieldContent>
@@ -340,6 +283,8 @@ export function OTPField({
 	inputProps,
 	errors,
 	reserveErrorLine,
+	formErrors,
+	formErrorId,
 	className,
 }: {
 	labelProps: React.LabelHTMLAttributes<HTMLLabelElement>
@@ -351,7 +296,7 @@ export function OTPField({
 	 */
 	reserveErrorLine?: boolean
 	className?: string
-}) {
+} & FormErrorsOnLine) {
 	const fallbackId = useId()
 	const id = inputProps.id ?? fallbackId
 	const errorsToRender = getErrorsToRender(errors)
@@ -387,6 +332,8 @@ export function OTPField({
 					<InlineFieldErrors
 						errorId={errorId}
 						errors={errorsToRender}
+						formErrors={formErrors}
+						formErrorId={formErrorId}
 						reserveErrorLine={reserveErrorLine}
 					/>
 				</FieldContent>
@@ -436,6 +383,8 @@ export function CheckboxField({
 	buttonProps,
 	errors,
 	reserveErrorLine,
+	formErrors,
+	formErrorId,
 	className,
 }: {
 	labelProps: React.ComponentProps<'label'>
@@ -451,7 +400,7 @@ export function CheckboxField({
 	 */
 	reserveErrorLine?: boolean
 	className?: string
-}) {
+} & FormErrorsOnLine) {
 	const { key, defaultChecked, ...checkboxProps } = buttonProps
 	const fallbackId = useId()
 	const checkedValue = buttonProps.value ?? 'on'
@@ -500,6 +449,8 @@ export function CheckboxField({
 					<InlineFieldErrors
 						errorId={errorId}
 						errors={errorsToRender}
+						formErrors={formErrors}
+						formErrorId={formErrorId}
 						reserveErrorLine={reserveErrorLine}
 					/>
 				</FieldContent>

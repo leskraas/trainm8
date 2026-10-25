@@ -4,7 +4,7 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { data, redirect, Form } from 'react-router'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { ErrorList, Field, ReserveErrorLines } from '#app/components/forms.tsx'
+import { Field, ReserveErrorLines } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	checkIsCommonPassword,
@@ -130,9 +130,9 @@ export default function ResetPasswordPage({
 							enterKeyHint: 'go',
 						}}
 						errors={fields.confirmPassword.errors}
+						formErrors={form.errors}
+						formErrorId={form.errorId}
 					/>
-
-					<ErrorList errors={form.errors} id={form.errorId} />
 
 					<StatusButton
 						className="w-full"

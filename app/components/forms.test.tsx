@@ -10,12 +10,20 @@ import {
 	CheckboxField,
 	ErrorList,
 	Field,
+	OTPField,
 	RadioGroupField,
 	ReserveErrorLines,
 	TextareaField,
 	ToggleGroupField,
 } from './forms.tsx'
 import { StatusButton } from './ui/status-button.tsx'
+
+// input-otp measures its box; jsdom has no ResizeObserver.
+window.ResizeObserver ??= class ResizeObserver {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+}
 
 describe('forms field wrappers', () => {
 	test('applies invalid state to input fields and ties aria-describedby', () => {
@@ -335,6 +343,62 @@ describe('forms field wrappers', () => {
 		expect(screen.queryByText('Invalid username or password')).toBeNull()
 		expect(screen.getByText('Password is too short')).toBeInTheDocument()
 		expect(input).toHaveAttribute('aria-invalid', 'true')
+	})
+
+	// The onboarding forms end on the terms box, and verify on its code: their
+	// lines hold the form's error the same way, so it shifts nothing either.
+	test("a checkbox's line holds the form's error while it has none of its own", () => {
+		const { container } = render(
+			<form id="onboarding">
+				<CheckboxField
+					labelProps={{ children: 'Agree to terms' }}
+					buttonProps={{ name: 'terms', form: 'onboarding' }}
+					reserveErrorLine
+					formErrors={['Something went wrong']}
+					formErrorId="form-error"
+				/>
+			</form>,
+		)
+		const checkbox = screen.getByRole('checkbox', { name: 'Agree to terms' })
+		const error = screen.getByText('Something went wrong')
+		expect(error).toHaveAttribute('id', 'form-error')
+		expect(error.parentElement).toHaveClass(
+			'min-h-(--text-footnote--line-height)',
+		)
+		expect(checkbox).not.toHaveAttribute('aria-invalid')
+		expect(container.querySelectorAll('[aria-live]')).toHaveLength(1)
+	})
+
+	test("the code's line holds the form's error while it has none of its own", () => {
+		const { rerender } = render(
+			<OTPField
+				labelProps={{ children: 'Code' }}
+				inputProps={{}}
+				reserveErrorLine
+				formErrors={['Something went wrong']}
+				formErrorId="form-error"
+			/>,
+		)
+		expect(screen.getByText('Something went wrong')).toHaveAttribute(
+			'id',
+			'form-error',
+		)
+		expect(screen.getByRole('textbox', { name: 'Code' })).not.toHaveAttribute(
+			'aria-invalid',
+		)
+
+		rerender(
+			<OTPField
+				labelProps={{ children: 'Code' }}
+				inputProps={{}}
+				reserveErrorLine
+				errors={['Invalid code']}
+				formErrors={['Something went wrong']}
+				formErrorId="form-error"
+			/>,
+		)
+		expect(screen.queryByText('Something went wrong')).toBeNull()
+		expect(screen.getByText('Invalid code')).toBeInTheDocument()
 	})
 })
 
