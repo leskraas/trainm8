@@ -82,16 +82,23 @@ export function createRateLimiter({
 		return lane === 'live' ? w.limit : Math.floor(w.limit * (1 - liveReserve))
 	}
 
+	/**
+	 * When `lane`'s next request may go, as the windows stand: `null` while
+	 * every window has room, else when the last of the full ones resets.
+	 * Reads the windows only; the caller rolls them to now first.
+	 */
+	function resumeAt(lane: RateLimitLane): Date | null {
+		const full = state.filter((w) => w.used >= cap(w, lane))
+		if (full.length === 0) return null
+		return new Date(Math.max(...full.map((w) => w.start + w.windowMs)))
+	}
+
 	async function acquire(lane: RateLimitLane = 'bulk'): Promise<void> {
 		roll(clock.now())
-		const full = state.filter((w) => w.used >= cap(w, lane))
-		if (full.length === 0) {
-			for (const w of state) w.used++
-			return
-		}
-		// Hand the job back until the last of the full windows resets.
-		const resumeAt = Math.max(...full.map((w) => w.start + w.windowMs))
-		throw new StravaRateLimitedError(new Date(resumeAt))
+		const until = resumeAt(lane)
+		// Hand the job back until the window it needs resets.
+		if (until) throw new StravaRateLimitedError(until)
+		for (const w of state) w.used++
 	}
 
 	/**
@@ -125,13 +132,13 @@ export function createRateLimiter({
 		observe(response.headers)
 		if (response.status !== 429) return response
 		// Spent, says Strava. When its headers don't say which window, assume
-		// the shortest, so the acquire below defers to the next quarter-hour.
+		// the shortest, so the job defers to the next quarter-hour.
 		if (!state.some((w) => w.used >= w.limit) && state[0]) {
 			state[0].used = state[0].limit
 		}
-		await acquire(lane)
-		// Unreachable while a window is spent; a limiter with no windows hands
-		// the 429 back as it came.
+		const until = resumeAt(lane)
+		if (until) throw new StravaRateLimitedError(until)
+		// A limiter with no windows hands the 429 back as it came.
 		return response
 	}
 
