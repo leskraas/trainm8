@@ -194,8 +194,10 @@ test('a repeat block whose work step has no quantity never dangles a bare "4 ×"
 		},
 	])
 	// No duration/distance to multiply, so the rep count is dropped rather than
-	// left dangling; the honest zone word still names it.
-	expect(deriveWorkoutTitle(s)).toBe('terskel')
+	// left dangling; the honest zone word still names it. A title starts with a
+	// capital, so the word that leads it is capitalised — only there: mid-title
+	// it stays lowercase (`45 min rolig`).
+	expect(deriveWorkoutTitle(s)).toBe('Terskel')
 })
 
 test('a recipe code keeps its spelling; a stored word stays lowercase', () => {

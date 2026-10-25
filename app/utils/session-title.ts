@@ -145,7 +145,12 @@ export function deriveWorkoutTitle(structure: WorkoutStructure): string {
 		: null
 
 	const title = [core, word].filter(Boolean).join(' ').trim()
-	return title || getDisciplineLabel(structure.discipline)
+	// A title starts with a capital: a zone word leading it (`Terskel`) is
+	// capitalised there and only there — mid-title it stays `45 min rolig`.
+	return (
+		title.charAt(0).toUpperCase() + title.slice(1) ||
+		getDisciplineLabel(structure.discipline)
+	)
 }
 
 /**
