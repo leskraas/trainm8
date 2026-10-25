@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser } from '#tests/db-utils.ts'
+import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import {
 	isPlausibleFinishTime,
 	parseFinishTime,
@@ -204,6 +205,74 @@ test('a typed 10k becomes the race anchor a 10k-pace step resolves against', asy
 	expect(
 		resolveIntensity({ kind: 'racePace', event: '10k' }, thresholds.run!),
 	).toEqual({ paceMin: 240, paceMax: 240, approximate: true })
+})
+
+test('a typed result moves the Planned TSS of a race-pace session, and deleting it moves it back', async () => {
+	const user = await athlete()
+	await prisma.disciplineProfile.updateMany({
+		where: { athleteProfile: { userId: user.id }, discipline: 'run' },
+		data: { preferRTSS: true, thresholdPaceSecPerKm: 240 },
+	})
+	const workout = await prisma.workout.create({
+		data: {
+			title: '30 min at 10k pace',
+			discipline: 'run',
+			intent: 'threshold',
+			ownerId: user.id,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 1,
+						steps: {
+							create: [
+								{
+									orderIndex: 0,
+									kind: 'cardio',
+									discipline: 'run',
+									durationSec: 1800,
+									intensity: JSON.stringify({ kind: 'racePace', event: '10k' }),
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+		select: { id: true },
+	})
+	const session = await prisma.workoutSession.create({
+		data: {
+			userId: user.id,
+			workoutId: workout.id,
+			scheduledAt: new Date('2026-06-01T08:00:00Z'),
+			status: 'scheduled',
+		},
+		select: { id: true },
+	})
+	const plannedTss = async () =>
+		(
+			await prisma.workoutSession.findUniqueOrThrow({
+				where: { id: session.id },
+				select: { plannedTssValue: true },
+			})
+		).plannedTssValue
+	await recomputePlannedTssForSession(user.id, session.id)
+	expect(await plannedTss()).toBeNull()
+
+	// A 10k in 40:00 is 4:00/km, the athlete's threshold pace: 30 minutes at
+	// threshold is 50 rTSS.
+	await addPerformanceResult(user.id, {
+		anchor: '10k',
+		timeSec: 2400,
+		date: MAY_3,
+		source: 'race',
+	})
+	expect(await plannedTss()).toBe(50)
+
+	const [row] = await listPerformanceResults(user.id)
+	await deletePerformanceResult(user.id, row!.id)
+	expect(await plannedTss()).toBeNull()
 })
 
 test('a typed result is never marked as measured by the app', async () => {

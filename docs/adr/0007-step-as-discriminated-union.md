@@ -62,6 +62,11 @@
 > - **One result per distance and day.** A second result at the same anchor on
 >   the same day replaces the first: it is a correction, and two rows on one day
 >   would leave the resolver to pick between them.
+> - **A result moves Planned TSS.** Planned TSS resolves a `racePace` step
+>   against the same race anchors the screen does, and adding, replacing or
+>   deleting a result recomputes the Planned TSS of the athlete's `scheduled`
+>   sessions (ADR 0019). A session already done or skipped keeps the stress it
+>   was planned with.
 > - **Delete is scoped to the owner** (`deleteMany` keyed on id _and_ the
 >   athlete's profile), so a guessed id deletes nothing.
 >

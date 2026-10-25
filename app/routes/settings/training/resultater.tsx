@@ -151,6 +151,9 @@ export default function PerformanceResultsSettings({
 	loaderData,
 }: Route.ComponentProps) {
 	const { results, today } = loaderData
+	// Where focus lands when a row leaves under it: the list's own heading, which
+	// stays put whatever is deleted, so a keyboard user is never left on <body>.
+	const listHeading = useRef<HTMLHeadingElement>(null)
 	return (
 		<div className="flex flex-col gap-10">
 			<div className="flex flex-col gap-2">
@@ -161,7 +164,12 @@ export default function PerformanceResultsSettings({
 				aria-labelledby="meg-results-list"
 				className="flex flex-col gap-2"
 			>
-				<h2 id="meg-results-list" className="text-heading">
+				<h2
+					ref={listHeading}
+					id="meg-results-list"
+					tabIndex={-1}
+					className="text-heading outline-none"
+				>
 					{L.title}
 				</h2>
 				{results.length === 0 ? (
@@ -169,7 +177,14 @@ export default function PerformanceResultsSettings({
 				) : (
 					<ul className="divide-border/60 flex flex-col divide-y">
 						{results.map((result) => (
-							<ResultRow key={result.id} result={result} />
+							<ResultRow
+								key={result.id}
+								result={result}
+								onDelete={() =>
+									// No scroll: a thumb deleting the tenth row keeps its place.
+									listHeading.current?.focus({ preventScroll: true })
+								}
+							/>
 						))}
 					</ul>
 				)}
@@ -180,14 +195,28 @@ export default function PerformanceResultsSettings({
 
 type ResultView = Route.ComponentProps['loaderData']['results'][number]
 
-function ResultRow({ result }: { result: ResultView }) {
+function ResultRow({
+	result,
+	onDelete,
+}: {
+	result: ResultView
+	/** Called as the delete is sent, before the row leaves. */
+	onDelete: () => void
+}) {
 	const fetcher = useFetcher<typeof action>()
 	// Delete is a second tap: one result drives every step at its distance.
 	const confirm = useDoubleCheck()
+	const deleteButton = useRef<HTMLButtonElement>(null)
+	const failed = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null
+	const pending = fetcher.state !== 'idle'
+	// A failed delete brings the row back, and focus with it to the button the
+	// athlete pressed, so the error under it is where they are.
+	useEffect(() => {
+		if (!pending && failed) deleteButton.current?.focus()
+	}, [pending, failed])
 	// Optimistic: the row leaves on the tap, and returns, saying why, if the
 	// delete fails.
-	if (fetcher.state !== 'idle') return null
-	const failed = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null
+	if (pending) return null
 	return (
 		<li data-testid="performance-result" className="flex flex-col gap-1 py-3">
 			<div className="flex items-center gap-3">
@@ -206,10 +235,11 @@ function ResultRow({ result }: { result: ResultView }) {
 						</span>
 					) : null}
 				</span>
-				<fetcher.Form method="POST" className="shrink-0">
+				<fetcher.Form method="POST" className="shrink-0" onSubmit={onDelete}>
 					<input type="hidden" name="intent" value="delete" />
 					<input type="hidden" name="id" value={result.id} />
 					<Button
+						ref={deleteButton}
 						variant={confirm.doubleCheck ? 'destructive' : 'ghost'}
 						size="sm"
 						aria-label={
@@ -329,6 +359,14 @@ function AddResultForm({ today }: { today: string }) {
 			<MegFormErrors
 				errors={refusal && refusal.field == null ? [refusal.error] : null}
 			/>
+			{/* A field's refusal shows once, under its field, but the save button
+			    keeps focus, so it is also announced here; saying it twice on
+			    screen would read as two problems. */}
+			{refusal?.field != null ? (
+				<p role="alert" className="sr-only">
+					{refusal.error}
+				</p>
+			) : null}
 			<MegResult
 				result={
 					reply?.ok

@@ -20,9 +20,15 @@
  * midnight as an Event date is, and "in the future" is judged against today in
  * the athlete's timezone — a race finished just after local midnight is not
  * refused because the server is still on yesterday.
+ *
+ * **A result moves Planned TSS.** A `racePace` step resolves against the newest
+ * result at its distance, so adding, replacing or deleting one recomputes the
+ * Planned TSS of the athlete's scheduled sessions before it returns (ADR 0019);
+ * a session already done keeps the stress it was planned with.
  */
 import { localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
+import { recomputeScheduledPlannedTss } from './load/planned-tss.server.ts'
 import {
 	isCalendarDay,
 	isPlausibleFinishTime,
@@ -113,6 +119,7 @@ export async function addPerformanceResult(
 			},
 		}),
 	])
+	await recomputeScheduledPlannedTss(userId)
 	return { ok: true, replaced: count > 0 }
 }
 
@@ -151,5 +158,7 @@ export async function deletePerformanceResult(
 	const { count } = await prisma.performanceResult.deleteMany({
 		where: { id, athleteProfile: { userId } },
 	})
-	return count === 1
+	if (count !== 1) return false
+	await recomputeScheduledPlannedTss(userId)
+	return true
 }
