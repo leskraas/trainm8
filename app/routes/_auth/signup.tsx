@@ -7,7 +7,7 @@ import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod/v3'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { ErrorList, Field } from '#app/components/forms.tsx'
+import { Field } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireAnonymous } from '#app/utils/auth.server.ts'
 import {
@@ -160,8 +160,9 @@ export default function SignupRoute({ actionData }: Route.ComponentProps) {
 						autoComplete: 'email',
 					}}
 					errors={fields.email.errors}
+					formErrors={form.errors}
+					formErrorId={form.errorId}
 				/>
-				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
 				<StatusButton
 					className="w-full"
 					status={isPending ? 'pending' : (form.status ?? 'idle')}

@@ -170,7 +170,6 @@ export default function OnboardingRoute({
 			<Form method="POST" {...getFormProps(form)}>
 				<HoneypotInputs />
 				<Field
-					className="pb-2"
 					reserveErrorLine
 					labelProps={{ htmlFor: fields.username.id, children: 'Username' }}
 					inputProps={{
@@ -184,7 +183,6 @@ export default function OnboardingRoute({
 					errors={fields.username.errors}
 				/>
 				<Field
-					className="pb-2"
 					reserveErrorLine
 					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
 					inputProps={{
@@ -195,7 +193,6 @@ export default function OnboardingRoute({
 					errors={fields.name.errors}
 				/>
 				<Field
-					className="pb-2"
 					reserveErrorLine
 					labelProps={{ htmlFor: fields.password.id, children: 'Password' }}
 					inputProps={{
@@ -206,7 +203,6 @@ export default function OnboardingRoute({
 				/>
 
 				<Field
-					className="pb-2"
 					reserveErrorLine
 					labelProps={{
 						htmlFor: fields.confirmPassword.id,
@@ -242,7 +238,7 @@ export default function OnboardingRoute({
 				/>
 
 				<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
-				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
+				<ErrorList errors={form.errors} id={form.errorId} />
 
 				<StatusButton
 					className="w-full"

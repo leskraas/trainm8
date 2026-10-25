@@ -218,7 +218,6 @@ export default function OnboardingProviderRoute({
 					</div>
 				) : null}
 				<Field
-					className="pb-2"
 					reserveErrorLine
 					labelProps={{ htmlFor: fields.username.id, children: 'Username' }}
 					inputProps={{
@@ -232,7 +231,6 @@ export default function OnboardingProviderRoute({
 					errors={fields.username.errors}
 				/>
 				<Field
-					className="pb-2"
 					reserveErrorLine
 					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
 					inputProps={{
@@ -269,7 +267,7 @@ export default function OnboardingProviderRoute({
 					<input type="hidden" name="redirectTo" value={redirectTo} />
 				) : null}
 
-				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
+				<ErrorList errors={form.errors} id={form.errorId} />
 
 				<StatusButton
 					className="w-full"

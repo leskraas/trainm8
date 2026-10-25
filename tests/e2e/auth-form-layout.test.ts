@@ -70,6 +70,49 @@ test('the login form holds still as errors appear and clear', async ({
 	expect(await tops(page, watched)).toEqual(still)
 })
 
+/** The space between two controls, top of `below` less bottom of `above`. */
+async function gap(above: Locator, below: Locator) {
+	const a = await above.boundingBox()
+	const b = await below.boundingBox()
+	if (!a || !b) throw new Error('not laid out')
+	return Math.round(b.y - (a.y + a.height))
+}
+
+// The reserved line is the field's spacing, not added to it: 4px and one
+// footnote line (18px) from an input to what follows, against 16px before any
+// line was reserved and 42px once an error showed. The form's own error
+// shares the last field's line, so no empty line waits above the button.
+test('the reserved lines keep the auth forms close-set', async ({
+	page,
+	navigate,
+}) => {
+	await navigate('/login')
+	const main = page.getByRole('main')
+	const username = main.getByRole('textbox', { name: /^username/i })
+	const password = main.getByLabel(/^password/i)
+	expect(await gap(username, main.getByText('Password', { exact: true }))).toBe(
+		22,
+	)
+	expect(await gap(password, main.getByText('Remember me'))).toBeLessThan(36)
+
+	for (const { path, field, button } of [
+		{ path: '/signup', field: /^email/i, button: /^submit$/i },
+		{
+			path: '/forgot-password',
+			field: /^username or email/i,
+			button: /^recover password$/i,
+		},
+	]) {
+		await page.goto(path)
+		expect(
+			await gap(
+				main.getByRole('textbox', { name: field }),
+				main.getByRole('button', { name: button }),
+			),
+		).toBe(22)
+	}
+})
+
 for (const { path, field, button, error, fix } of [
 	{
 		path: '/signup',

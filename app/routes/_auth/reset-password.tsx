@@ -106,7 +106,6 @@ export default function ResetPasswordPage({
 		>
 			<Form method="POST" {...getFormProps(form)}>
 				<Field
-					className="pb-2"
 					reserveErrorLine
 					labelProps={{
 						htmlFor: fields.password.id,
@@ -132,7 +131,7 @@ export default function ResetPasswordPage({
 					errors={fields.confirmPassword.errors}
 				/>
 
-				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
+				<ErrorList errors={form.errors} id={form.errorId} />
 
 				<StatusButton
 					className="w-full"

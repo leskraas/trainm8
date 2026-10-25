@@ -107,7 +107,6 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 				<Form method="POST" {...getFormProps(form)}>
 					<HoneypotInputs />
 					<Field
-						className="pb-2"
 						reserveErrorLine
 						labelProps={{ children: 'Username' }}
 						inputProps={{
@@ -123,7 +122,6 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 					/>
 
 					<Field
-						className="pb-2"
 						reserveErrorLine
 						labelProps={{ children: 'Password' }}
 						inputProps={{
@@ -133,6 +131,8 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 							autoComplete: 'current-password',
 						}}
 						errors={fields.password.errors}
+						formErrors={form.errors}
+						formErrorId={form.errorId}
 					/>
 
 					<div className="flex items-center justify-between gap-4">
@@ -155,7 +155,6 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 					</div>
 
 					<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
-					<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
 
 					<StatusButton
 						className="mt-2 w-full"

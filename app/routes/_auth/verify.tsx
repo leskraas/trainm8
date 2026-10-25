@@ -92,12 +92,13 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 			subtitle={heading?.subtitle}
 		>
 			<div className="space-y-4">
-				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
+				<ErrorList errors={form.errors} id={form.errorId} />
 				<Form method="POST" {...getFormProps(form)}>
 					<HoneypotInputs />
 					<div className="flex items-center justify-center">
+						{/* No reserved error line: this form only validates on submit, so
+						    nothing comes or goes while the code is typed. */}
 						<OTPField
-							reserveErrorLine
 							labelProps={{
 								htmlFor: fields[codeQueryParam].id,
 								children: 'Code',
@@ -132,7 +133,7 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 						})}
 					/>
 					<StatusButton
-						className="w-full"
+						className="mt-4 w-full"
 						status={isPending ? 'pending' : (form.status ?? 'idle')}
 						type="submit"
 						disabled={isPending}

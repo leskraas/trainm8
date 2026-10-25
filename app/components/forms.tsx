@@ -46,13 +46,15 @@ const ERROR_TEXT = 'text-footnote text-foreground-destructive'
  * One error line's height, kept whether an error shows or not, where a form
  * revalidates as the athlete types (the auth forms): an error that appears on
  * submit, or clears as the field is fixed, then never moves the fields below
- * it or the submit button under the thumb. A second line, or a long error
- * wrapping on a narrow phone, still grows it.
+ * it or the submit button under the thumb. A long error wrapping on a narrow
+ * phone, or text at 200%, still grows it.
+ *
+ * The line is the field's spacing, not added to it: no padding of its own
+ * (the field content's 4px gap sits above it) and none under the field, so
+ * input to the next label is 22px — near the 16px it was with nothing
+ * reserved, where an error then pushed it to 42px.
  */
 const ERROR_LINE = 'min-h-(--text-footnote--line-height)'
-/** {@link ERROR_LINE} under a field, past the error's `pt-1`. */
-const FIELD_ERROR_LINE =
-	'min-h-[calc(var(--text-footnote--line-height)+--spacing(1))]'
 
 function getErrorsToRender(errors?: ListOfErrors) {
 	return errors?.filter(Boolean) ?? []
@@ -71,7 +73,7 @@ function InlineFieldErrors({
 
 	return (
 		<div
-			className={cn('pt-1', reserveErrorLine && FIELD_ERROR_LINE)}
+			className={reserveErrorLine ? ERROR_LINE : 'pt-1'}
 			// The reserved line stays mounted, so it can announce what fills it.
 			aria-live={reserveErrorLine ? 'polite' : undefined}
 		>
@@ -91,23 +93,14 @@ function InlineFieldErrors({
 export function ErrorList({
 	id,
 	errors,
-	reserveErrorLine = false,
 }: {
 	errors?: ListOfErrors
 	id?: string
-	/** Keep one error line's height while there is none ({@link ERROR_LINE}). */
-	reserveErrorLine?: boolean
 }) {
 	const errorsToRender = getErrorsToRender(errors)
-	if (!errorsToRender?.length && !reserveErrorLine) return null
+	if (!errorsToRender?.length) return null
 	return (
-		// A reserved line is one element, empty or not, so the error that fills
-		// it is announced and keeps its id.
-		<ul
-			id={id}
-			className={cn('flex flex-col gap-1', reserveErrorLine && ERROR_LINE)}
-			aria-live={reserveErrorLine ? 'polite' : undefined}
-		>
+		<ul id={id} className="flex flex-col gap-1">
 			{errorsToRender.map((e) => (
 				<li key={e} className={ERROR_TEXT}>
 					{e}
@@ -122,6 +115,8 @@ export function Field({
 	inputProps,
 	errors,
 	reserveErrorLine,
+	formErrors,
+	formErrorId,
 	className,
 }: {
 	labelProps: React.LabelHTMLAttributes<HTMLLabelElement>
@@ -129,12 +124,25 @@ export function Field({
 	errors?: ListOfErrors
 	/** Keep one error line's height while there is none ({@link ERROR_LINE}). */
 	reserveErrorLine?: boolean
+	/**
+	 * The form's own error (the server's answer, `form.errors`), shown on this
+	 * field's line while the field has none of its own. The server only answers
+	 * once every field is valid, and any input clears its answer, so the two
+	 * never meet: the last field's line holds both, and no second empty line
+	 * waits above the button. It keeps the form's id, so the form's
+	 * `aria-describedby` still finds it, and leaves the field unmarked.
+	 */
+	formErrors?: ListOfErrors
+	formErrorId?: string
 	className?: string
 }) {
 	const fallbackId = useId()
 	const id = inputProps.id ?? fallbackId
 	const errorsToRender = getErrorsToRender(errors)
 	const errorId = errorsToRender.length ? `${id}-error` : undefined
+	const formErrorsToRender = errorsToRender.length
+		? []
+		: getErrorsToRender(formErrors)
 	return (
 		<FieldGroup className={className}>
 			<FormField
@@ -150,8 +158,10 @@ export function Field({
 						{...inputProps}
 					/>
 					<InlineFieldErrors
-						errorId={errorId}
-						errors={errorsToRender}
+						errorId={formErrorsToRender.length ? formErrorId : errorId}
+						errors={
+							formErrorsToRender.length ? formErrorsToRender : errorsToRender
+						}
 						reserveErrorLine={reserveErrorLine}
 					/>
 				</FieldContent>

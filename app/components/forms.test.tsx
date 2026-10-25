@@ -100,7 +100,7 @@ describe('forms field wrappers', () => {
 	// An auth form keeps one error line's height with no error, so an error
 	// that comes or goes mid-typing moves nothing (tests/e2e/auth-form-layout).
 	// Every other form keeps its height to its errors.
-	test('only a form that reserves the error line keeps it without an error', () => {
+	test('only a field that reserves the error line keeps it without an error', () => {
 		const { container, rerender } = render(
 			<>
 				<Field labelProps={{ children: 'Email' }} inputProps={{}} />
@@ -113,16 +113,68 @@ describe('forms field wrappers', () => {
 		).toHaveLength(1)
 
 		rerender(
-			<>
-				<Field
-					labelProps={{ children: 'Email' }}
-					inputProps={{}}
-					reserveErrorLine
-				/>
-				<ErrorList errors={[]} reserveErrorLine />
-			</>,
+			<Field
+				labelProps={{ children: 'Email' }}
+				inputProps={{}}
+				reserveErrorLine
+			/>,
 		)
-		expect(container.querySelectorAll('[class*="min-h-"]')).toHaveLength(2)
+		expect(container.querySelectorAll('[class*="min-h-"]')).toHaveLength(1)
+	})
+
+	// The reserved line is the field's spacing, not added to it: one footnote
+	// line and no padding of its own, so the gap to the next field stays near
+	// the 16px it was before any line was reserved.
+	test('a reserved line is one footnote line and no padding', () => {
+		const { container } = render(
+			<Field
+				labelProps={{ children: 'Email' }}
+				inputProps={{}}
+				reserveErrorLine
+			/>,
+		)
+		const line = container.querySelector('[aria-live="polite"]')
+		expect(line).toHaveClass('min-h-(--text-footnote--line-height)')
+		expect(line?.className).not.toMatch(/\bp[tb]?-/)
+	})
+
+	// A form's own error (the server's answer) is never there while a field
+	// has one, so the last field's line holds it: no second empty line above
+	// the button. It is the form's error, not the field's, so the field is not
+	// marked invalid by it.
+	test("a field's line holds the form's error while it has none of its own", () => {
+		const { rerender } = render(
+			<Field
+				labelProps={{ children: 'Password' }}
+				inputProps={{ type: 'text' }}
+				reserveErrorLine
+				formErrors={['Invalid username or password']}
+				formErrorId="form-error"
+			/>,
+		)
+		const input = screen.getByRole('textbox', { name: 'Password' })
+		expect(screen.getByText('Invalid username or password')).toHaveAttribute(
+			'id',
+			'form-error',
+		)
+		expect(input).not.toHaveAttribute('aria-invalid')
+		expect(input.closest('[data-slot="field"]')).not.toHaveAttribute(
+			'data-invalid',
+		)
+
+		rerender(
+			<Field
+				labelProps={{ children: 'Password' }}
+				inputProps={{ type: 'text' }}
+				reserveErrorLine
+				errors={['Password is too short']}
+				formErrors={['Invalid username or password']}
+				formErrorId="form-error"
+			/>,
+		)
+		expect(screen.queryByText('Invalid username or password')).toBeNull()
+		expect(screen.getByText('Password is too short')).toBeInTheDocument()
+		expect(input).toHaveAttribute('aria-invalid', 'true')
 	})
 })
 

@@ -7,7 +7,7 @@ import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod/v3'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { ErrorList, Field } from '#app/components/forms.tsx'
+import { Field } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { sendEmail } from '#app/utils/email.server.ts'
@@ -156,8 +156,9 @@ export default function ForgotPasswordRoute() {
 						spellCheck: false,
 					}}
 					errors={fields.usernameOrEmail.errors}
+					formErrors={form.errors}
+					formErrorId={form.errorId}
 				/>
-				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
 
 				<StatusButton
 					className="w-full"
