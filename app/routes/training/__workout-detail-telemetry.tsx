@@ -35,9 +35,11 @@ import {
 import { type ActivityStream, isNum } from '#app/utils/activity-stream.ts'
 import { formatClockDuration, formatPace } from '#app/utils/format.ts'
 import {
-	parseAuthoredIntensity,
+	resolveStepBand,
 	resolveStepRange,
+	type BandChannel,
 	type DisciplineThresholdMap,
+	type StepBand,
 } from '#app/utils/intensity-target.ts'
 import { nbDurationLabel, WORKOUT_DETAIL_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
@@ -51,13 +53,8 @@ const L = WORKOUT_DETAIL_LABELS.telemetry
 
 type WorkoutDetail = NonNullable<SessionDetail['workout']>
 
-type BandChannel = 'power' | 'heartrate'
-
-type Step = WorkoutDetail['blocks'][number]['steps'][number]
-
-/** A planned target on the band channel. `max` is null for an open-ended zone
- * (`172+ bpm`): a floor with no ceiling. */
-type PlannedTarget = { min: number; max: number | null }
+/** A planned target on the band channel; `max` is null when it is open above. */
+type PlannedTarget = StepBand
 
 /** A planned step laid out as a fraction of the workout's planned duration,
  * carrying its resolved Intensity Target on the chosen channel (when any). */
@@ -66,28 +63,6 @@ type PlannedSegment = {
 	startFrac: number
 	endFrac: number
 	target: PlannedTarget | null
-}
-
-/** Authored metrics whose missing top means one value (`150 bpm`), not an
- * open band; a zone with no top resolves the same way and means `172+`. */
-const POINT_TARGET_KINDS = new Set(['hrBpm', 'hrPct', 'power', 'powerPct'])
-
-/** A step's target on `channel`, resolved from what it authors against the
- * athlete's thresholds now — never the cached range columns, which fill only on
- * a threshold change and so are empty on most new sessions (#616). */
-function resolveStepTarget(
-	step: Step,
-	workout: WorkoutDetail,
-	thresholds: DisciplineThresholdMap,
-	channel: BandChannel,
-): PlannedTarget | null {
-	const r = resolveStepRange(step, workout.discipline, thresholds)
-	const [min, max] =
-		channel === 'power' ? [r.powerMin, r.powerMax] : [r.hrMin, r.hrMax]
-	if (!isNum(min)) return null
-	if (isNum(max)) return { min, max }
-	const kind = parseAuthoredIntensity(step.intensity)?.kind
-	return { min, max: kind && POINT_TARGET_KINDS.has(kind) ? min : null }
 }
 
 /**
@@ -128,8 +103,10 @@ function buildPlannedSegments(
 			}).map((e) => ({
 				id: e.id,
 				durationSec: e.durationSec,
+				// Resolved now, never off the cached range columns, which fill only
+				// on a threshold change and so are empty on most new sessions (#616).
 				target: channel
-					? resolveStepTarget(e.step, workout, thresholds, channel)
+					? resolveStepBand(e.step, workout.discipline, thresholds, channel)
 					: null,
 			}))
 			const reps =

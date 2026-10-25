@@ -537,6 +537,52 @@ export function resolveStepRange(
 	return resolved.unavailable ? {} : resolved
 }
 
+/** The channel a target band is drawn on. */
+export type BandChannel = 'power' | 'heartrate'
+
+/** A step's target on one channel, as a band. `max` is null for an open-ended
+ * zone (`172+ bpm`): a floor with no ceiling. A point target (`150 bpm`) is a
+ * band whose top is its floor. */
+export type StepBand = { min: number; max: number | null }
+
+/** Authored metrics whose missing top means one value (`150 bpm`), not an
+ * open band; a zone with no top resolves the same way and means `172+`. */
+const POINT_TARGET_KINDS = new Set<IntensityTarget['kind']>([
+	'hrBpm',
+	'hrPct',
+	'power',
+	'powerPct',
+])
+
+/**
+ * A step's target band on `channel`, resolved as {@link resolveStepRange}
+ * resolves it, or null when it has none there. Whether a missing top is one
+ * value or open above is read off what the step authors, here, so a reader
+ * that draws the band only draws it.
+ */
+export function resolveStepBand(
+	step: { kind: string; discipline?: string | null; intensity?: string | null },
+	workoutDiscipline: string,
+	thresholds: DisciplineThresholdMap,
+	channel: BandChannel,
+): StepBand | null {
+	if (step.kind !== 'cardio') return null
+	const target = parseAuthoredIntensity(step.intensity)
+	if (!target) return null
+	const resolved = resolveIntensity(
+		target,
+		thresholds[step.discipline ?? workoutDiscipline] ?? EMPTY_PROFILE,
+	)
+	if (resolved.unavailable) return null
+	const [min, max] =
+		channel === 'power'
+			? [resolved.powerMin, resolved.powerMax]
+			: [resolved.hrMin, resolved.hrMax]
+	if (min == null || !Number.isFinite(min)) return null
+	if (max != null && Number.isFinite(max)) return { min, max }
+	return { min, max: POINT_TARGET_KINDS.has(target.kind) ? min : null }
+}
+
 type StepForTarget = {
 	kind: string
 	discipline?: string | null
