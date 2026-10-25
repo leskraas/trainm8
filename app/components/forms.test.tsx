@@ -238,6 +238,66 @@ describe('forms field wrappers', () => {
 		expect(submitted).toBe(1)
 	})
 
+	// A password manager often fills the password before the athlete types
+	// the username; return in the username then logs in, as it always did.
+	// "next" only moves on while something after this field is still to do.
+	test('return on a "next" field submits once the fields after it are filled', async () => {
+		const user = userEvent.setup()
+		let submitted = 0
+		render(
+			<form
+				onSubmit={(event) => {
+					event.preventDefault()
+					submitted += 1
+				}}
+			>
+				<Field
+					labelProps={{ children: 'Username' }}
+					inputProps={{ enterKeyHint: 'next' }}
+				/>
+				<Field
+					labelProps={{ children: 'Password' }}
+					inputProps={{ enterKeyHint: 'go', defaultValue: 'filled' }}
+				/>
+				<input type="checkbox" name="remember" aria-label="Remember me" />
+				<button type="submit">Log in</button>
+			</form>,
+		)
+		const username = screen.getByRole('textbox', { name: 'Username' })
+
+		await user.click(username)
+		await user.keyboard('kody{Enter}')
+		expect(submitted).toBe(1)
+		expect(username).toHaveFocus()
+	})
+
+	// A required box left unticked is still to do, as an empty field is.
+	test('return on a "next" field moves on while a required box is unticked', async () => {
+		const user = userEvent.setup()
+		let submitted = 0
+		render(
+			<form
+				onSubmit={(event) => {
+					event.preventDefault()
+					submitted += 1
+				}}
+			>
+				<Field
+					labelProps={{ children: 'Name' }}
+					inputProps={{ enterKeyHint: 'next' }}
+				/>
+				<input type="checkbox" required aria-label="Agree to the terms" />
+				<button type="submit">Create an account</button>
+			</form>,
+		)
+		await user.click(screen.getByRole('textbox', { name: 'Name' }))
+		await user.keyboard('Kody{Enter}')
+		expect(
+			screen.getByRole('checkbox', { name: 'Agree to the terms' }),
+		).toHaveFocus()
+		expect(submitted).toBe(0)
+	})
+
 	// A form's own error (the server's answer) is never there while a field
 	// has one, so the last field's line holds it: no second empty line above
 	// the button. It is the form's error, not the field's, so the field is not
