@@ -1,0 +1,46 @@
+{
+	"name": "trainm8",
+	"image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
+	"features": {
+		"ghcr.io/devcontainers/features/apt-packages:1": {
+			"packages": ["openssl", "sqlite3", "ca-certificates"]
+		}
+	},
+	"postCreateCommand": "npm ci && cp -n .env.example .env && npm exec prisma migrate deploy && npm exec prisma generate --sql",
+	"forwardPorts": [3000],
+	"portsAttributes": {
+		"3000": {
+			"label": "App (dev)",
+			"onAutoForward": "notify"
+		}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"bradlc.vscode-tailwindcss",
+				"dbaeumer.vscode-eslint",
+				"esbenp.prettier-vscode",
+				"prisma.prisma",
+				"qwtel.sqlite-viewer",
+				"yoavbls.pretty-ts-errors",
+				"github.vscode-github-actions"
+			],
+			"settings": {
+				"typescript.preferences.autoImportFileExcludePatterns": [
+					"@remix-run/server-runtime",
+					"express",
+					"@radix-ui/**",
+					"@react-email/**",
+					"node:stream/consumers",
+					"node:test",
+					"node:console"
+				],
+				"workbench.editorAssociations": {
+					"*.db": "sqlite-viewer.view"
+				},
+				"editor.formatOnSave": true,
+				"editor.defaultFormatter": "esbenp.prettier-vscode"
+			}
+		}
+	}
+}
