@@ -80,7 +80,7 @@ export class DeferJob extends Error {
 	// Plain fields, not parameter properties: the server runs this file
 	// through Node's type stripping, which can't rewrite one.
 	readonly until: Date
-	readonly progressed: boolean
+	#progressed: boolean
 
 	constructor(
 		until: Date,
@@ -90,7 +90,21 @@ export class DeferJob extends Error {
 		super(message)
 		this.name = 'DeferJob'
 		this.until = until
-		this.progressed = progressed
+		this.#progressed = progressed
+	}
+
+	get progressed(): boolean {
+		return this.#progressed
+	}
+
+	/**
+	 * Record that the run settled work before this deferral reached it. Marks
+	 * this same error, so a subclass a request path catches by name (such as
+	 * `StravaRateLimitedError`) stays what it was. Progress is never unmarked.
+	 */
+	markProgressed(): this {
+		this.#progressed = true
+		return this
 	}
 }
 
@@ -105,9 +119,7 @@ export function rethrowDeferral(
 	{ progressed = false }: { progressed?: boolean } = {},
 ): void {
 	if (!(err instanceof DeferJob)) return
-	if (progressed && !err.progressed) {
-		throw new DeferJob(err.until, err.message, { progressed: true })
-	}
+	if (progressed) err.markProgressed()
 	throw err
 }
 

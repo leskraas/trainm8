@@ -485,6 +485,28 @@ test('a 429 answers the manual sync at once with the next window (#637)', async 
 
 const MIN_15 = 15 * 60 * 1000
 
+test('a budget spent partway through the streams keeps the saved activities', async () => {
+	const { user, connection } = await setupConnection()
+	// The first activity's streams are settled (nothing usable), then Strava
+	// says the quarter-hour is spent: a deferral that made progress.
+	let calls = 0
+	server.use(
+		http.get(STREAMS_URL, () =>
+			++calls === 1
+				? HttpResponse.json({})
+				: new HttpResponse(null, { status: 429 }),
+		),
+	)
+
+	const result = await syncStravaActivities(user.id)
+
+	expect(result).toEqual({ ok: true, created: 4, skipped: 0 })
+	const after = await prisma.accountConnection.findUniqueOrThrow({
+		where: { id: connection.id },
+	})
+	expect(after.lastSyncedAt).toBeNull()
+})
+
 test('a 403 (missing activity scope) returns insufficient-scope, not a throw', async () => {
 	const { user, connection } = await setupConnection()
 	server.use(

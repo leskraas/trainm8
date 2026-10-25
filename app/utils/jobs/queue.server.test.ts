@@ -188,10 +188,10 @@ test('rethrowDeferral marks a deferral as progressed when the caller did work', 
 	} catch (e) {
 		thrown = e
 	}
-	expect(thrown).toBeInstanceOf(DeferJob)
-	expect((thrown as DeferJob).progressed).toBe(true)
-	expect((thrown as DeferJob).until).toBe(deferral.until)
-	expect(deferral.progressed).toBe(false)
+	// The same error, marked: a subclass a request path catches by name (a
+	// Strava rate limit) must stay that subclass.
+	expect(thrown).toBe(deferral)
+	expect(deferral.progressed).toBe(true)
 
 	// Progress recorded deeper down is never lost by a caller that did none.
 	const progressed = new DeferJob(new Date(), 'spent', { progressed: true })

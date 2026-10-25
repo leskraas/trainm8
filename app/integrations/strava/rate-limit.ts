@@ -1,7 +1,7 @@
 /**
  * A rate limiter for Strava's per-app read budget (100 requests / 15 min and
  * 1,000 / day — ADR 0013). `acquire()` resolves immediately while every window
- * has room and otherwise throws `DeferJob` for when the full window resets, so
+ * has room and otherwise throws `StravaRateLimitedError` (a `DeferJob`) for when the full window resets, so
  * throttling delays calls rather than dropping them (#74).
  *
  * Windows are fixed, as Strava counts them (#637): the 15-minute ones reset at
@@ -14,7 +14,7 @@
  *
  * The limiter never sleeps. A wait would hold the single job worker, or the
  * request a callback or manual sync runs in, for up to a day; instead it throws
- * `DeferJob`. The queue runs a deferred job again when the window resets
+ * `StravaRateLimitedError`. The queue runs a deferred job again when the window resets
  * (ADR 0013), and a request path answers at once with when to try again.
  *
  * It is intentionally not concurrency-safe: the job worker runs single-threaded
@@ -24,6 +24,18 @@
  */
 
 import { DeferJob } from '#app/utils/jobs/queue.server.ts'
+
+/**
+ * Strava's read budget is spent until `until`. A request path (the OAuth
+ * callback, manual sync) catches it by this name and says when to try again;
+ * it is a `DeferJob`, so a job that hits it is deferred to `until`.
+ */
+export class StravaRateLimitedError extends DeferJob {
+	constructor(until: Date) {
+		super(until, `Strava read budget spent until ${until.toISOString()}`)
+		this.name = 'StravaRateLimitedError'
+	}
+}
 
 /** Injectable time source so tests can move virtual time without waiting. */
 export type Clock = { now: () => number }
@@ -79,10 +91,7 @@ export function createRateLimiter({
 		}
 		// Hand the job back until the last of the full windows resets.
 		const resumeAt = Math.max(...full.map((w) => w.start + w.windowMs))
-		throw new DeferJob(
-			new Date(resumeAt),
-			`Strava read budget spent until ${new Date(resumeAt).toISOString()}`,
-		)
+		throw new StravaRateLimitedError(new Date(resumeAt))
 	}
 
 	/**

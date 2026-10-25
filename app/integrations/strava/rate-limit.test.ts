@@ -3,6 +3,7 @@ import { DeferJob } from '#app/utils/jobs/queue.server.ts'
 import {
 	createRateLimiter,
 	STRAVA_RATE_LIMIT,
+	StravaRateLimitedError,
 	type Clock,
 } from './rate-limit.ts'
 
@@ -90,6 +91,22 @@ test('a live request facing a full quarter-hour defers instead of sleeping', asy
 	expect(deferred).toBeInstanceOf(DeferJob)
 	expect((deferred as DeferJob).until.getTime()).toBe(MIN_15)
 	expect(clock.ms).toBe(5 * 60 * 1000)
+})
+
+test('a spent window throws a Strava-named error the queue still defers on', async () => {
+	const limiter = createRateLimiter({
+		windows: [{ limit: 1, windowMs: MIN_15 }],
+		clock: fakeClock(),
+	})
+	await limiter.acquire('live')
+
+	// Request paths catch it by its Strava name; the queue sees a deferral.
+	const deferred = await limiter.acquire('live').catch((e: unknown) => e)
+	expect(deferred).toBeInstanceOf(StravaRateLimitedError)
+	expect(deferred).toBeInstanceOf(DeferJob)
+	expect((deferred as StravaRateLimitedError).name).toBe(
+		'StravaRateLimitedError',
+	)
 })
 
 // ── Strava's read budget (#637) ─────────────────────────────────────────────

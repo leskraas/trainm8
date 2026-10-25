@@ -5,10 +5,11 @@ import {
 	stravaScopeGrantsActivityRead,
 	verifyStravaOAuthState,
 } from '#app/integrations/strava/oauth.server.ts'
+import { StravaRateLimitedError } from '#app/integrations/strava/rate-limit.ts'
 import { STRAVA_PROVIDER } from '#app/integrations/strava/types.ts'
 import { connectAccountConnection } from '#app/utils/account-connection.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { DeferJob, enqueueJob } from '#app/utils/jobs/queue.server.ts'
+import { enqueueJob } from '#app/utils/jobs/queue.server.ts'
 import {
 	INTEGRATION_TOAST_LABELS,
 	INTEGRATIONS_LABELS,
@@ -67,7 +68,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 	} catch (err) {
 		// The `/athlete` fallback found Strava's read budget spent. The athlete
 		// is waiting on this redirect, so say when to try again, not wait.
-		if (err instanceof DeferJob) return failure(T.stravaRateLimited(err.until))
+		if (err instanceof StravaRateLimitedError)
+			return failure(T.stravaRateLimited(err.until))
 		return failure(T.stravaCouldNotConnect)
 	}
 

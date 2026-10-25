@@ -176,7 +176,7 @@ export async function getValidAccessToken(
 
 /**
  * Authenticated GET against the Strava API, paced by the shared rate limiter
- * in `lane`: a spent window, or a `429`, throws `DeferJob` for its reset. Refreshes proactively
+ * in `lane`: a spent window, or a `429`, throws `StravaRateLimitedError` for its reset. Refreshes proactively
  * when the stored token is near expiry, and reactively retries once on a 401
  * (the token was rejected despite looking valid). A permanent refresh failure
  * surfaces as `StravaConnectionRevokedError`.
