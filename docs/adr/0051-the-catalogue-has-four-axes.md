@@ -190,6 +190,96 @@ The walk is capped at the same 16 hops as `resolveCatalogueOrigin`, and it stops
 at the first row it may not take rather than skipping past it: everything above
 a kept row is still reachable through it.
 
+#### Account erasure: deleting an account deletes what the athlete wrote
+
+_Added by [#468](https://github.com/leskraas/trainm8/issues/468), which the
+field's `SetNull` left open and #452's `public` arm made reachable._ A bare
+`prisma.user.delete` erased the account and left every Workout the athlete wrote
+behind as an ownerless row; a `public` one stayed in everybody's Catalogue under
+the name its author published as. The settings screen promises the opposite:
+_"Kontoen, treningen og alt annet slettes for godt."_
+
+**The read path holds on its own.** A `public` row is served to a non-owner only
+while it is still somebody's: `PUBLISHED_WORKOUT_WHERE` / `isPublished`
+(`community.ts`) is `visibility = 'public' AND ownerId IS NOT NULL`, and every
+non-owner-scoped read of `public` uses it — the Catalogue guard and its
+`community` tier arm, the report route and `reportWorkout`, and the Week
+Change's add (which takes the Catalogue guard itself). The two Week Pattern undo
+guards (`checkedRestore` in `track-days.server.ts`, `checkedLiftingRestore` in
+`lifting-days.server.ts`) take a client-sent payload, and accept only the
+athlete's own rows or `authorship = 'system'`, never `ownerId IS NULL` (§2).
+
+**The purge is a policy on account deletion, not a sweep.** `deleteAccount`
+(`account-deletion.server.ts`) is the only place an account is deleted, and in
+one transaction it erases **every Workout the athlete owns — published ones
+included** — then the account. What survives:
+
+- **Stock Workouts** — never owned, so an owner-scoped purge cannot reach one.
+- **Another athlete's adoption or plan.** Placing, forking and stamping all
+  deep-copy into a Workout _that athlete_ owns; it is theirs and is untouched.
+  Its `copiedFromId` is **spliced** past the erased rows to the nearest
+  surviving ancestor (capped at `MAX_LINEAGE_HOPS`), so a fork of a fork of a
+  cited Stock Workout keeps its citation.
+- **A row another athlete's session, Week Pattern slot or a Program day points
+  at directly.** No shipped path writes one, but deleting it would cascade into
+  somebody else's training. It is kept, **withdrawn**: `private`, its entry
+  retired, its **Attribution** deleted because that row holds the published
+  name.
+
+A `CatalogueSave` does not keep a row alive: it is a pointer, not a copy, and it
+cascades away with the row.
+
+**How this sits with the retention rule's four guards.** Those guards govern a
+walk that collects rows _on the athlete's behalf while the account lives_, and
+they are unchanged. Erasure is a different act: the author asked for their
+content to go. Guards 2 and 3 hold as they are (a Stock Workout is never
+touched; only the deleter's own rows are). Guard 4 holds in the only form that
+protects another athlete — a direct reference from their training keeps the row.
+Guard 1 (**"in the Catalogue → never"**) is **overridden for one actor only**: a
+community row is deleted when, and only when, its own author erases their
+account. Retire-never-delete exists so plans that used a row keep it and a
+fork's back-pointer keeps resolving; plans hold copies, and the splice keeps the
+back-pointer resolving to the corpus. ADR 0052 §2's "the row is never deleted"
+is about a moderator's takedown and is unchanged.
+
+**Reconciling with the retention ADR drafted in parallel.** Stated as an
+assumption, because that ADR was not visible when this was written: it decides
+how long data is kept _while an account exists_, and it does not keep an
+athlete's authored content after the athlete asks for erasure. If it decides
+moderation records must outlive an erased account, that is the first item under
+Deferred hardening below, and it changes what is _kept beside_ the purge, not
+whether the purge happens.
+
+**Confirmed by the owner on 2026-10-25:** deleting an account **deletes** its
+published Workouts rather than withdrawing them to an ownerless `private` row.
+Withdrawal would retain the athlete's text with no reader and no purpose.
+
+##### Deferred hardening
+
+- **Moderation evidence goes with the row.** Erasing a published Workout
+  cascades its open `WorkoutReport`s and its Attribution's takedown record, so
+  an author can erase the evidence of a report by deleting their account. A
+  de-identified tombstone (reason, dates, no content) would close it.
+- **No recurring sweep.** Orphans stop being created only because
+  `deleteAccount` is the one deletion path. A future path that deletes a `User`
+  directly re-creates them silently; the read path stays safe, but the data is
+  retained. Nothing pins the one-path rule yet.
+- **Pre-existing orphans are not yet purged in production.** The guarded cleanup
+  migration is not in this change; the read path makes them unreadable, but they
+  are still stored. Run this read-only count first. An orphan is an
+  athlete-authored row with no owner; Stock Workouts are excluded by
+  `authorship`, never by `ownerId` (§2):
+
+  ```sql
+  SELECT "visibility", COUNT(*) AS orphans
+  FROM "Workout"
+  WHERE "ownerId" IS NULL AND "authorship" <> 'system'
+  GROUP BY "visibility";
+  ```
+
+- **Custom Exercises** (`Exercise.createdByAthleteId`, also `SetNull`) are not
+  purged by `deleteAccount`; their names outlive the account.
+
 ### 6. The save count is a ranking input, never a displayed number
 
 `GOAL.md`'s permanent no is on _"followers, kudos, comments"_ — the vanity
@@ -373,7 +463,7 @@ the Catalogue cannot honour.
   outstanding work rather than something this decision handles. (#460 collects
   the one class of orphan it creates — a preserved pre-edit Workout whose
   session is deleted — under the retention rule in §5. The author-deleted orphan
-  is a different case and still outstanding.)
+  is a different case, decided by #468 under "Account erasure" in §5.)
 - **`Exercise` still has the bug this decision names.** It is left standing on
   purpose: fixing it is a second table rebuild plus an `authorship` column on
   `Exercise`, it is not what #448 was scoped to, and doing it silently inside a
@@ -395,17 +485,17 @@ the Catalogue cannot honour.
   session). Four gaps the transcription found and could not close, each recorded
   on the affected row rather than silently smoothed over: `% vVO2max` and
   `% of maximal speed` have no `IntensityTarget` kind, so Billat's 30/30 states
-  its structure and leaves its intensity **unavailable**; `gradePct` is a scalar
-  where every hill row states a band, so grade lives in notes and the column
-  stays null; `verticalM` is exclusive with duration and distance, which is
-  right for a vertical rep and wrong for a mountain long run that has both; and
-  there is no two-a-day container, so a double day seeds as one Workout with
-  `AM` and `PM` blocks. `CATALOGUE_GOAL_EVENTS` is also a list of _running_
-  distances — the cycling corpus is unscoped by goal event because road racing,
-  gran fondo and time trial are not in the vocabulary. And the **Session
-  Archetype** vocabulary has no strength member at all: its sixteen values are
-  every one of them an endurance archetype, so a heavy squat day is filed as
-  `neuromuscular` and an anatomical-adaptation day as `technique`, which is the
-  nearest honest member rather than a good fit. The research made the same
-  complaint about the Strength Goal enum, which "cannot label 10 of these 25
-  sessions".
+  its structure and leaves its intensity **unavailable**; `gradePct` was a
+  scalar where every hill row states a band, so grade lived in notes and the
+  column stayed null (closed by #466: grade is a band now and the hill rows
+  store it); `verticalM` is exclusive with duration and distance, which is right
+  for a vertical rep and wrong for a mountain long run that has both; and there
+  is no two-a-day container, so a double day seeds as one Workout with `AM` and
+  `PM` blocks. `CATALOGUE_GOAL_EVENTS` is also a list of _running_ distances —
+  the cycling corpus is unscoped by goal event because road racing, gran fondo
+  and time trial are not in the vocabulary. And the **Session Archetype**
+  vocabulary has no strength member at all: its sixteen values are every one of
+  them an endurance archetype, so a heavy squat day is filed as `neuromuscular`
+  and an anatomical-adaptation day as `technique`, which is the nearest honest
+  member rather than a good fit. The research made the same complaint about the
+  Strength Goal enum, which "cannot label 10 of these 25 sessions".

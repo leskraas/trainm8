@@ -59,7 +59,7 @@ test('repeat renders only as the gutter badge — repeat parentheses leave the l
 	expect(stanza).toHaveTextContent('(1 min pause)')
 })
 
-test('a block in series badges its series as well as its reps', () => {
+test('a block in series badges its series and its reps as two badges, outer first (#466)', () => {
 	render(
 		<ScoreStanza
 			notation={deriveWorkoutNotation({
@@ -67,6 +67,7 @@ test('a block in series badges its series as well as its reps', () => {
 					{
 						repeatCount: 13,
 						seriesRepeatCount: 3,
+						betweenSeriesRestSec: 600,
 						steps: [
 							{ kind: 'cardio', durationSec: 30 },
 							{ kind: 'rest', durationSec: 15 },
@@ -77,10 +78,118 @@ test('a block in series badges its series as well as its reps', () => {
 		/>,
 	)
 
-	const badge = document.querySelector(
-		'[data-stanza-gutter] [data-token-type="repeat"]',
+	const gutter = document.querySelector('[data-stanza-gutter]')!
+	const badges = gutter.querySelectorAll('[data-token-type]')
+	expect([...badges].map((b) => b.getAttribute('data-token-type'))).toEqual([
+		'series',
+		'repeat',
+	])
+	// Seen as `3×`, heard as what it is — two `×` badges side by side would
+	// otherwise read as one number times another.
+	expect(badges[0]!.querySelector('[aria-hidden]')).toHaveTextContent(/^3×$/)
+	expect(badges[0]).toHaveTextContent('3 serier')
+	expect(badges[1]).toHaveTextContent(/^13×$/)
+
+	// The rest between series closes the line, in a rest's inks.
+	const line = document.querySelector('[data-stanza-line]')!
+	const seriesRest = line.querySelector('[data-series-rest]')!
+	expect(seriesRest).toHaveTextContent('(10 min seriepause)')
+	expect(seriesRest.querySelector('.font-semibold')).toHaveTextContent(
+		/^10 min$/,
 	)
-	expect(badge).toHaveTextContent('3 × 13×')
+})
+
+test('a block repeated only in series badges the series and nothing else', () => {
+	render(
+		<ScoreStanza
+			notation={deriveWorkoutNotation({
+				blocks: [
+					{
+						repeatCount: 1,
+						seriesRepeatCount: 3,
+						steps: [{ kind: 'cardio', durationSec: 600 }],
+					},
+				],
+			})}
+		/>,
+	)
+	const gutter = document.querySelector('[data-stanza-gutter]')!
+	expect(gutter.querySelector('[data-token-type="series"]')).not.toBeNull()
+	expect(gutter.querySelector('[data-token-type="repeat"]')).toBeNull()
+	expect(document.querySelector('[data-series-rest]')).toBeNull()
+})
+
+test('cadence and grade draw on the step after a facet dot, the figure weighing and the word quiet (#466)', () => {
+	render(
+		<ScoreStanza
+			notation={deriveWorkoutNotation({
+				blocks: [
+					{
+						repeatCount: 1,
+						steps: [
+							{
+								kind: 'cardio',
+								discipline: 'bike',
+								durationSec: 300,
+								gradePctMin: 4,
+								gradePctMax: 7,
+								cadenceRpmMin: 50,
+								cadenceRpmMax: 60,
+							},
+						],
+					},
+				],
+			})}
+		/>,
+	)
+
+	const step = document.querySelector('[data-stanza-step]')!
+	// Tokens are spaced by the layout's gap, not by text.
+	expect(step.textContent).toBe('5 min·4–7 % motbakke·50–60 rpm')
+	const grade = step.querySelector('[data-token-type="grade"]')!
+	expect(grade.querySelector('.font-semibold')).toHaveTextContent(/^4–7 %$/)
+	expect(grade).toHaveTextContent('4–7 % motbakke')
+	const cadence = step.querySelector('[data-token-type="cadence"]')!
+	expect(cadence.querySelector('.font-semibold')).toHaveTextContent(/^50–60$/)
+	expect(cadence).toHaveTextContent('50–60 rpm')
+})
+
+test('a cadence ladder reads as four different rungs, not four identical steps', () => {
+	render(
+		<ScoreStanza
+			notation={deriveWorkoutNotation({
+				blocks: [
+					{
+						repeatCount: 1,
+						steps: [70, 85, 100, 115].map((rpm) => ({
+							kind: 'cardio' as const,
+							durationSec: 120,
+							cadenceRpmMin: rpm,
+							cadenceRpmMax: rpm,
+						})),
+					},
+				],
+			})}
+		/>,
+	)
+	const rungs = [...document.querySelectorAll('[data-stanza-step]')].map(
+		(step) => step.textContent,
+	)
+	expect(new Set(rungs).size).toBe(4)
+})
+
+test('a step that states only a cadence has no dangling dot', () => {
+	render(
+		<ScoreStanza
+			notation={deriveWorkoutNotation({
+				blocks: [
+					{ repeatCount: 1, steps: [{ kind: 'cardio', cadenceRpmMin: 90 }] },
+				],
+			})}
+		/>,
+	)
+	const step = document.querySelector('[data-stanza-step]')!
+	expect(step.textContent).toBe('≥ 90 rpm')
 })
 
 test('a rest value takes the semibold ink and its word recedes (ADR 0089: the word is `pause`)', () => {
@@ -109,10 +218,13 @@ test('a block repeated only in series badges its series alone, never `3 × 1×`'
 		/>,
 	)
 
-	const badge = document.querySelector(
-		'[data-stanza-gutter] [data-token-type="repeat"]',
-	)
-	expect(badge?.textContent).toBe('3×')
+	// The series is its own badge (#466); the reps it would lead are 1 and
+	// draw nothing, so the gutter reads `3×`, heard as `3 serier`.
+	const gutter = document.querySelector('[data-stanza-gutter]')!
+	const badge = gutter.querySelector('[data-token-type="series"]')
+	expect(badge?.querySelector('[aria-hidden]')?.textContent).toBe('3×')
+	expect(gutter.querySelector('[data-token-type="repeat"]')).toBeNull()
+	expect(gutter).not.toHaveTextContent('1×')
 })
 
 test('every rest form splits its value from its words, not only `<value> pause`', () => {

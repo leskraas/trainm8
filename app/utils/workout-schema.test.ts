@@ -799,7 +799,12 @@ test('grade and cadence are parameters, so they coexist with a quantity', () => 
 						cadenceRpmMax: 60,
 					}),
 					// A descent is a real prescription, so grade is signed.
-					validCardioStep({ discipline: 'run', distanceM: 800, gradePct: -8 }),
+					validCardioStep({
+						discipline: 'run',
+						distanceM: 800,
+						gradePctMin: -8,
+						gradePctMax: -8,
+					}),
 				],
 			},
 		],
@@ -823,6 +828,30 @@ test('a cadence range must run low to high', () => {
 		],
 	})
 	expect(result.success).toBe(false)
+})
+
+test('a grade is a signed band that runs low to high (#466)', () => {
+	const parse = (gradePctMin: number, gradePctMax: number) =>
+		WorkoutStructureSchema.safeParse({
+			discipline: 'run',
+			blocks: [
+				{
+					steps: [
+						validCardioStep({
+							discipline: 'run',
+							durationSec: 90,
+							gradePctMin,
+							gradePctMax,
+						}),
+					],
+				},
+			],
+		}).success
+	expect(parse(4, 7)).toBe(true)
+	// A 3–6 % descent: the steeper end is the lower number.
+	expect(parse(-6, -3)).toBe(true)
+	expect(parse(7, 4)).toBe(false)
+	expect(parse(-3, -6)).toBe(false)
 })
 
 test('two repeat levels express 3 x (13 x 30/15), and multiply', () => {

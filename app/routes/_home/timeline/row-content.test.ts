@@ -43,7 +43,8 @@ function step(overrides: Partial<WorkoutStep> = {}): WorkoutStep {
 		durationSec: null,
 		distanceM: null,
 		verticalM: null,
-		gradePct: null,
+		gradePctMin: null,
+		gradePctMax: null,
 		cadenceRpmMin: null,
 		cadenceRpmMax: null,
 		rest: null,
@@ -145,6 +146,9 @@ function recording(overrides: Partial<Recording> = {}): Recording {
 		phaseBarsJson: null,
 		linkAnsweredAt: null,
 		unlinkedFromSessionId: null,
+		originPlatform: 'unknown',
+		deviceName: null,
+		aliases: [],
 		...overrides,
 	}
 }
@@ -679,9 +683,24 @@ describe('rule 7: planned rows are instructions', () => {
 			),
 			PLANNED_WEEK,
 		)
-		// 9 km at 5:25–5:40 /km is timed through its pace (#615).
-		expect(content.externalLoad).toBe('50 min · 42 TSS planlagt')
+		// 9 km at 5:25–5:40 /km is timed through its pace (#615), but the
+		// open step under 145 bpm has no length: the minutes are not known, and
+		// a total without it is not shown as the session's (#638).
+		expect(content.externalLoad).toBe('42 TSS planlagt')
 		expect(content.internalLoad).toBe('9 km i 5:25–5:40 /km · under 145 bpm')
+	})
+
+	test('minutes timed through a pace read with ≈, a translation (#638)', () => {
+		const content = buildRowContent(
+			plannedRow(
+				workout([
+					block([step({ distanceM: 9000, intensity: pace(325, 340) })]),
+				]),
+			),
+			PLANNED_WEEK,
+		)
+		// 9 km at the middle of 5:25–5:40 /km is about 50 minutes.
+		expect(content.externalLoad).toBe('≈\u00a050\u00a0min · 42 TSS planlagt')
 	})
 
 	test('a repeated block multiplies both the duration and the distance', () => {
@@ -877,7 +896,7 @@ describe('rule 7: planned rows are instructions', () => {
 				},
 			},
 		)
-		expect(content.internalLoad).toBe('≈ 4:00 /km')
+		expect(content.internalLoad).toBe('≈\u00a04:00 /km')
 	})
 
 	test('a lactate target states the pace it reads as with ≈', () => {
@@ -906,7 +925,7 @@ describe('rule 7: planned rows are instructions', () => {
 				},
 			},
 		)
-		expect(content.internalLoad).toMatch(/^≈ \d:\d\d–\d:\d\d \/km$/)
+		expect(content.internalLoad).toMatch(/^≈\u00a0\d:\d\d–\d:\d\d \/km$/)
 	})
 
 	test('a stale cached range is not what the row states', () => {

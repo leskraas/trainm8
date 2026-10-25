@@ -25,7 +25,7 @@ test('a repeat in series is named by its series and its reps, not the reps alone
 	)
 })
 
-test('a repeat in series only is named by its series, as it reads', () => {
+test('a block in series only has no repeat button, never one that says 1', () => {
 	const notation = deriveWorkoutNotation({
 		blocks: [
 			{
@@ -35,8 +35,8 @@ test('a repeat in series only is named by its series, as it reads', () => {
 			},
 		],
 	})
-	const repeat = notation.blocks[0]!.repeat!
-	expect(tokenAccessibleName(repeat, 'repeat', notation)).toBe(
-		'gjentas 3 ganger, blokk 1 av 1',
-	)
+	// The series is its own token, drawn as the inert badge heard as
+	// `3 serier` (#466); there are no reps to name.
+	expect(notation.blocks[0]!.repeat).toBeNull()
+	expect(notation.blocks[0]!.series).toMatchObject({ count: 3 })
 })

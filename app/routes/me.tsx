@@ -37,6 +37,7 @@ import {
 	APP_TAB_LABELS,
 	CONNECTION_HUB_STATUS_LABELS,
 	ME_LABELS,
+	MEG_RESULTS_LABELS,
 	MEG_STRENGTH_LABELS,
 	providerLabel,
 	SESSION_PREFERENCE_LABELS,
@@ -48,6 +49,7 @@ import {
 	getTsbTrust,
 } from '#app/utils/load/snapshot.server.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
+import { countPerformanceResults } from '#app/utils/performance-result-writer.server.ts'
 import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import { derivedAttributionLines } from '#app/utils/source-attribution.ts'
 import { readRecordedBindingSet } from '#app/utils/source-terms.server.ts'
@@ -131,6 +133,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 				select: { strengthPerWeek: true },
 			})
 		)?.strengthPerWeek ?? null
+	// How many performance results the athlete has (#464), for the row's detail.
+	const performanceResultCount = await countPerformanceResults(userId)
 	const startAnswersDetail = SESSION_PREFERENCE_LABELS.meg.row(
 		startAnswers.level
 			? SIMPLE_START_LABELS.levels[startAnswers.level].name
@@ -150,6 +154,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		strengthPerWeek,
 		startAnswersDetail,
 		autopilot: profile?.autopilot ?? true,
+		performanceResultCount,
 	}
 }
 
@@ -226,6 +231,7 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 		strengthPerWeek,
 		startAnswersDetail,
 		autopilot,
+		performanceResultCount,
 	} = loaderData
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
@@ -288,6 +294,12 @@ export default function MeRoute({ loaderData }: Route.ComponentProps) {
 					icon="barbell"
 					title={MEG_STRENGTH_LABELS.title}
 					detail={MEG_STRENGTH_LABELS.detail(strengthPerWeek)}
+				/>
+				<MeLink
+					to="/settings/training/resultater"
+					icon="clock"
+					title={MEG_RESULTS_LABELS.title}
+					detail={MEG_RESULTS_LABELS.detail(performanceResultCount)}
 				/>
 			</MeSection>
 

@@ -26,7 +26,13 @@ const VerificationTypeSchema = z.enum(types)
 export type VerificationTypes = z.infer<typeof VerificationTypeSchema>
 
 export const VerifySchema = z.object({
-	[codeQueryParam]: z.string().min(6).max(6),
+	// The emailed code is uppercase; a keyboard that ignores the capitals hint
+	// (hardware, desktop, some Android) must not make it "Invalid code".
+	[codeQueryParam]: z
+		.string()
+		.min(6)
+		.max(6)
+		.transform((code) => code.toUpperCase()),
 	[typeQueryParam]: VerificationTypeSchema,
 	[targetQueryParam]: z.string(),
 	[redirectToQueryParam]: z.string().optional(),

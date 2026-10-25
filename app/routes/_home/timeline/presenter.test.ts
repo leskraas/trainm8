@@ -49,7 +49,8 @@ function step(overrides: Partial<WorkoutStep> = {}): WorkoutStep {
 		durationSec: 3000,
 		distanceM: null,
 		verticalM: null,
-		gradePct: null,
+		gradePctMin: null,
+		gradePctMax: null,
 		cadenceRpmMin: null,
 		cadenceRpmMax: null,
 		rest: null,
@@ -111,6 +112,9 @@ function session(overrides: Partial<LedgerSession> = {}): LedgerSession {
 			phaseBarsJson: null,
 			linkAnsweredAt: null,
 			unlinkedFromSessionId: null,
+			originPlatform: 'unknown',
+			deviceName: null,
+			aliases: [],
 		},
 		sessionLog: null,
 		setLogs: [],
@@ -911,6 +915,26 @@ describe('every planned session says whose it is (#505 story 29)', () => {
 		).toMatchObject({ owner: 'athlete', ownerLabel: 'din økt' })
 	})
 
+	test('a session the strength program wrote is the app’s, not a second kind of owner', () => {
+		// The strength program writes `generated` too (`strength-program.server.ts`),
+		// so the rule is athlete versus machine, never "which generator".
+		const programDay = {
+			source: 'generated',
+			plannedTssValue: null,
+			plannedTssConfidence: null,
+			workout: workout({ discipline: 'strength', title: 'Workout A' }),
+		}
+		expect(planned(programDay)).toMatchObject({
+			discipline: 'strength',
+			owner: 'machine',
+			ownerLabel: 'appens økt',
+			release: null,
+		})
+		expect(
+			planned({ ...programDay, adoptedAt: new Date('2030-02-19') }),
+		).toMatchObject({ owner: 'athlete', ownerLabel: 'din økt' })
+	})
+
 	test('a done or missed session is history, and carries no mark', () => {
 		// Nothing changes a session that already happened, so whose it is no
 		// longer tells the athlete anything.
@@ -1190,6 +1214,9 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 						phaseBarsJson: null,
 						linkAnsweredAt: null,
 						unlinkedFromSessionId: null,
+						originPlatform: 'unknown',
+						deviceName: null,
+						aliases: [],
 					},
 				}),
 				// Tuesday: a lift with 12 sets logged of 12.
@@ -1219,6 +1246,9 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 						phaseBarsJson: null,
 						linkAnsweredAt: null,
 						unlinkedFromSessionId: null,
+						originPlatform: 'unknown',
+						deviceName: null,
+						aliases: [],
 					},
 				}),
 			],
@@ -1302,6 +1332,9 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 						]),
 						linkAnsweredAt: null,
 						unlinkedFromSessionId: null,
+						originPlatform: 'unknown',
+						deviceName: null,
+						aliases: [],
 					},
 				}),
 				// Friday: 2 t easy ahead.
@@ -1496,6 +1529,9 @@ describe('a week header says one true thing per track (#505 S9 review)', () => {
 		phaseBarsJson: null,
 		linkAnsweredAt: null,
 		unlinkedFromSessionId: null,
+		originPlatform: 'unknown',
+		deviceName: null,
+		aliases: [],
 	})
 	const thisWeek = (result: ReturnType<typeof season>) =>
 		result.weeks.find((week) => week.key === THIS_MONDAY)!
@@ -1746,6 +1782,9 @@ describe('a folded week and its verdict agree (#505 story 31, S9 review S3)', ()
 				phaseBarsJson: null,
 				linkAnsweredAt: null,
 				unlinkedFromSessionId: null,
+				originPlatform: 'unknown',
+				deviceName: null,
+				aliases: [],
 			},
 		})
 	const lastWeek = (result: ReturnType<typeof season>) =>
@@ -1884,6 +1923,9 @@ describe('a week header says which week, what kind, and its numbers (#505 storie
 							phaseBarsJson: null,
 							linkAnsweredAt: null,
 							unlinkedFromSessionId: null,
+							originPlatform: 'unknown',
+							deviceName: null,
+							aliases: [],
 						},
 					}),
 					on(1, {
@@ -1963,6 +2005,9 @@ describe('past weeks are whole weeks, with their numbers and verdict (ADR 0086)'
 				phaseBarsJson: null,
 				linkAnsweredAt: null,
 				unlinkedFromSessionId: null,
+				originPlatform: 'unknown',
+				deviceName: null,
+				aliases: [],
 			},
 		})
 
@@ -2386,6 +2431,74 @@ describe('a session row says its own volume in its track’s unit (#505 D6)', ()
 			runPlan(),
 		)
 		expect(sessionOn(result, 'run').volumeLabel).toBe('6,1 km')
+	})
+
+	test('a zone-word distance is timed through the thresholds, as the drawer times it (#638)', () => {
+		// `10 km rolig`, its step naming no Discipline of its own, in an hours
+		// track: the row, the week header and line 1 all read it at the
+		// athlete's pace rather than leaving it empty.
+		const easyTen = workout({
+			blocks: [
+				{
+					id: 'block-easy',
+					name: 'Main',
+					orderIndex: 0,
+					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
+					steps: [
+						step({
+							discipline: null,
+							distanceM: 10_000,
+							durationSec: null,
+							intensity: JSON.stringify({ kind: 'zoneLabel', label: 'Z4' }),
+						}),
+					],
+				},
+			],
+		})
+		const result = buildTimelineSeason({
+			ledger: [
+				on(1, {
+					id: 'run',
+					status: 'scheduled',
+					recording: null,
+					workout: easyTen,
+				}),
+			],
+			now: NOW,
+			timezone: 'UTC',
+			activePlan: plan({
+				tracks: [
+					{
+						trackId: 'track-run',
+						discipline: 'run',
+						currency: 'hours',
+						targets: Array<number>(12).fill(4),
+						overridden: Array<boolean>(12).fill(false),
+						sessionTargets: null,
+					},
+				],
+			}),
+			thresholds: {
+				run: {
+					lthr: null,
+					maxHr: null,
+					ftp: null,
+					runPowerThresholdW: null,
+					thresholdPaceSecPerKm: 300,
+					cssSecPer100m: null,
+					zoneSystem: null,
+					zoneOverrides: null,
+				},
+			},
+		})
+		const run = sessionOn(result, 'run')
+		// 10 km at the 5:00 /km threshold pace: 50 min, on the right edge as
+		// on line 1 — never the 48 min a tenth of an hour would make of it.
+		expect(run.volumeLabel).toBe('≈\u00a050\u00a0min')
+		expect(run.externalLoad).toBe('≈\u00a050\u00a0min · 50 TSS planlagt')
 	})
 
 	test('a missed session says nothing: nothing was done', () => {
@@ -3124,6 +3237,9 @@ describe('imports on the row: ekstra, hva var dette?, Angre kobling, Gjort (#505
 		phaseBarsJson: null,
 		linkAnsweredAt: null,
 		unlinkedFromSessionId: null,
+		originPlatform: 'unknown',
+		deviceName: null,
+		aliases: [],
 		...overrides,
 	})
 	/** Yesterday's run, recorded with no plan behind it. */
@@ -3305,6 +3421,9 @@ describe('imports on the row: ekstra, hva var dette?, Angre kobling, Gjort (#505
 			recording: recording('import-1', {
 				linkAnsweredAt: NOW,
 				unlinkedFromSessionId: 'morning',
+				originPlatform: 'unknown',
+				deviceName: null,
+				aliases: [],
 			}),
 		})
 		const result = season(
@@ -3562,3 +3681,105 @@ function runPlanned(km: number | null) {
 		planned: km,
 	}
 }
+
+describe('a row built on Garmin data credits Garmin by its title (#557, ADR 0098 §3)', () => {
+	type Recording = NonNullable<LedgerSession['recording']>
+	const recorded = (provenance: Partial<Recording>): LedgerSession =>
+		on(-1, {
+			id: 'run',
+			recording: {
+				id: 'rec-run',
+				discipline: 'run',
+				durationSec: 3000,
+				distanceM: 9200,
+				startedAt: NOW,
+				endedAt: NOW,
+				phaseBarsJson: null,
+				linkAnsweredAt: null,
+				unlinkedFromSessionId: null,
+				originPlatform: 'unknown',
+				deviceName: null,
+				aliases: [],
+				...provenance,
+			},
+		})
+	const creditOf = (ledgerSession: LedgerSession) =>
+		season([ledgerSession])
+			.weeks.flatMap((week) => week.rows)
+			.flatMap((day) => day.sessions)
+			.find((row) => row.id === ledgerSession.id)!.sourceCredit
+
+	test('a Garmin recording says "Garmin [device model]"', () => {
+		expect(
+			creditOf(
+				recorded({ originPlatform: 'garmin', deviceName: 'Forerunner 965' }),
+			),
+		).toBe('Garmin Forerunner 965')
+	})
+
+	test('a device name that repeats the brand says it once', () => {
+		expect(
+			creditOf(
+				recorded({ originPlatform: 'garmin', deviceName: 'Garmin fēnix 8' }),
+			),
+		).toBe('Garmin fēnix 8')
+	})
+
+	test('an uploaded file with a Garmin alias from Intervals.icu is credited through the alias', () => {
+		expect(
+			creditOf(
+				recorded({
+					originPlatform: 'upload',
+					deviceName: 'Edge 1050',
+					aliases: [{ originPlatform: 'garmin' }],
+				}),
+			),
+		).toBe('Garmin Edge 1050')
+	})
+
+	test('with no device name the credit is plain "Garmin"', () => {
+		expect(
+			creditOf(recorded({ originPlatform: 'garmin', deviceName: null })),
+		).toBe('Garmin')
+		expect(
+			creditOf(recorded({ originPlatform: 'garmin', deviceName: '   ' })),
+		).toBe('Garmin')
+	})
+
+	test('a very long device name is kept whole: the credit is never cut', () => {
+		const device =
+			'Forerunner 965 Music Edition (Triathlon Bundle, Whitestone/Powder Gray) 🏃‍♀️'
+		expect(
+			creditOf(recorded({ originPlatform: 'garmin', deviceName: device })),
+		).toBe(`Garmin ${device}`)
+	})
+
+	test('Polar is credited too: its terms owe the credit on the data', () => {
+		expect(
+			creditOf(
+				recorded({ originPlatform: 'polar', deviceName: 'Polar Vantage V3' }),
+			),
+		).toBe('Polar Vantage V3')
+	})
+
+	test('a non-Garmin recording owes nothing, so the row stays quiet', () => {
+		expect(
+			creditOf(
+				recorded({ originPlatform: 'suunto', deviceName: 'Suunto Race' }),
+			),
+		).toBeNull()
+		expect(
+			creditOf(recorded({ originPlatform: 'intervalsicu', deviceName: null })),
+		).toBeNull()
+		expect(
+			creditOf(recorded({ originPlatform: 'unknown', deviceName: null })),
+		).toBeNull()
+	})
+
+	test('a session with no recording carries no credit', () => {
+		expect(
+			creditOf(on(1, { id: 'run', status: 'scheduled', recording: null })),
+		).toBeNull()
+		expect(creditOf(on(-1, { id: 'run', recording: null }))).toBeNull()
+	})
+})

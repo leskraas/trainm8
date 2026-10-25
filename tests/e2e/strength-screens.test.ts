@@ -1136,7 +1136,7 @@ test('a gym day is logged som planlagt from I dag in one tap, and the week count
 	expect(errors).toEqual([])
 })
 
-test('Endre logs the set that went differently, at the planned weight', async ({
+test('Endre logs the set that went differently, at the weight that was lifted', async ({
 	page,
 	navigate,
 	login,
@@ -1153,13 +1153,19 @@ test('Endre logs the set that went differently, at the planned weight', async ({
 	await expect(log.getByText('Knebøy')).toBeVisible()
 	await log.getByRole('button', { name: 'Endre' }).click()
 
-	// One field per set, pre-filled; no weight field — ADR 0064 §2, said here.
+	// One field per set, pre-filled, and one weight per lift (#530): the rack
+	// had no 60, so − takes it one 2,5 kg step down.
 	const third = log.getByRole('spinbutton', {
 		name: 'Sett 3 av Knebøy, repetisjoner',
 	})
 	await expect(third).toHaveValue('5')
-	await expect(log.getByText(/Vekta står som planlagt/)).toBeVisible()
+	const weight = log.getByRole('textbox', { name: 'Vekt for Knebøy, kilo' })
+	await expect(weight).toHaveValue('60')
+	await log.getByRole('button', { name: '2,5 kg lettere på Knebøy' }).click()
+	await expect(weight).toHaveValue('57,5')
+	await expect(log.getByText('fra 60 kg')).toBeVisible()
 	await expectEveryControlTappable(log)
+	await expectNoHorizontalOverflow(page)
 	await log
 		.getByRole('spinbutton', { name: 'Sett 2 av Knebøy, repetisjoner' })
 		.fill('3')
@@ -1179,8 +1185,8 @@ test('Endre logs the set that went differently, at the planned weight', async ({
 		select: { orderIndex: true, reps: true, effectiveKg: true },
 	})
 	expect(sets).toEqual([
-		{ orderIndex: 0, reps: 5, effectiveKg: 60 },
-		{ orderIndex: 1, reps: 3, effectiveKg: 60 },
+		{ orderIndex: 0, reps: 5, effectiveKg: 57.5 },
+		{ orderIndex: 1, reps: 3, effectiveKg: 57.5 },
 	])
 })
 

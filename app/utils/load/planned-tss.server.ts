@@ -1,9 +1,11 @@
 import { prisma } from '#app/utils/db.server.ts'
+import { raceAnchorPacesFrom } from '#app/utils/performance-result.server.ts'
 import { plannedMetricValue } from '#app/utils/planned-discipline.ts'
 import { type IntensityTarget } from '#app/utils/workout-schema.ts'
 import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,
+	type RaceAnchorPaces,
 } from '#app/utils/zones/index.ts'
 import {
 	readPlannedTss,
@@ -14,7 +16,8 @@ import {
 
 // Planned TSS is materialized on the Workout Session (ADR 0019), never computed
 // per render. It is kept fresh by recomputing on prescription edits (the steps
-// changed) and on threshold changes (the resolved ranges shifted). Like the
+// changed), on threshold changes (the resolved ranges shifted) and on a typed
+// Performance Result (a `racePace` step's anchor moved). Like the
 // rest of the load math this is synchronous — fine for a SQLite hobby project.
 
 const disciplineProfileSelect = {
@@ -43,6 +46,9 @@ type DbDisciplineProfile = {
 	zoneOverrides: string | null
 	preferCogganTss: boolean
 	preferRTSS: boolean
+	/** The newest result at each Race Anchor in this discipline, so a `racePace`
+	 * step counts toward Planned TSS exactly as it resolves on screen. */
+	raceAnchorPaces: RaceAnchorPaces
 }
 
 type DbStep = {
@@ -106,6 +112,7 @@ function resolveStepRanges(
 		cssSecPer100m: dp.cssSecPer100m,
 		zoneSystem: dp.zoneSystem,
 		zoneOverrides: dp.zoneOverrides,
+		raceAnchorPaces: dp.raceAnchorPaces,
 	}
 	const r = resolveIntensity(authored, resolverProfile)
 	if (r.unavailable) return EMPTY_RANGES
@@ -163,9 +170,27 @@ function toPlannedProfile(profiles: DbDisciplineProfile[]): PlannedTssProfile {
 async function getProfiles(userId: string): Promise<DbDisciplineProfile[]> {
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId },
-		select: { disciplineProfiles: { select: disciplineProfileSelect } },
+		select: {
+			disciplineProfiles: { select: disciplineProfileSelect },
+			performanceResults: {
+				select: {
+					discipline: true,
+					distanceM: true,
+					timeSec: true,
+					occurredAt: true,
+				},
+			},
+		},
 	})
-	return profile?.disciplineProfiles ?? []
+	if (!profile) return []
+	return profile.disciplineProfiles.map((dp) => ({
+		...dp,
+		raceAnchorPaces: raceAnchorPacesFrom(
+			profile.performanceResults.filter(
+				(result) => result.discipline === dp.discipline,
+			),
+		),
+	}))
 }
 
 const workoutInclude = {
@@ -211,6 +236,28 @@ export async function recomputePlannedTssForUser(
 	const profiles = await getProfiles(userId)
 	const sessions = await prisma.workoutSession.findMany({
 		where: { userId },
+		select: {
+			id: true,
+			source: true,
+			workout: { select: { discipline: true, ...workoutInclude } },
+		},
+	})
+	await Promise.all(
+		sessions.map((s) => persist(s.id, s.source, s.workout, profiles)),
+	)
+}
+
+/**
+ * Recompute and persist Planned TSS for the athlete's sessions still ahead of
+ * them (`scheduled`), after a typed Performance Result moved a Race Anchor. A
+ * session already done or skipped keeps the stress it was planned with.
+ */
+export async function recomputeScheduledPlannedTss(
+	userId: string,
+): Promise<void> {
+	const profiles = await getProfiles(userId)
+	const sessions = await prisma.workoutSession.findMany({
+		where: { userId, status: 'scheduled' },
 		select: {
 			id: true,
 			source: true,

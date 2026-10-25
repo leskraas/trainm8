@@ -22,6 +22,7 @@
  * (#567), and the _rolig_ a _For sliten i dag_ gives a lift (#575). It was
  * said on purpose, so nothing is derived over it.
  */
+import { type EffortWord, isEffortWord } from './effort-words.ts'
 import {
 	parseAuthoredIntensity,
 	type DisciplineThresholdMap,
@@ -38,12 +39,7 @@ import { type ClassifyChannel } from './structure-detection/constants.ts'
 import { type IntensityTarget } from './workout-schema.ts'
 import { zoneEquivalent } from './zone-equivalent.ts'
 
-export const EFFORT_WORDS = ['rolig', 'middels', 'hard'] as const
-export type EffortWord = (typeof EFFORT_WORDS)[number]
-
-export function isEffortWord(value: unknown): value is EffortWord {
-	return (EFFORT_WORDS as readonly unknown[]).includes(value)
-}
+export { EFFORT_WORDS, type EffortWord, isEffortWord } from './effort-words.ts'
 
 /**
  * The one reading of a Training Zone as an Effort Word, for I dag and the
