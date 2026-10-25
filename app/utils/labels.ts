@@ -6456,11 +6456,15 @@ export const MEG_PROFILE_LABELS = {
 	onlySession: 'Dette er den eneste innloggingen din.',
 	signedOut: 'Logget ut av de andre øktene.',
 	logout: 'Logg ut',
-	deleteData: 'Slett alle dataene dine',
+	// Promise only what `deleteAccount` deletes (#641 UI-1): the profile image in
+	// Tigris, Custom Exercises and filed reports outlive it, so never "alle dataene".
+	deleteData: 'Slett kontoen din',
 	deleteDataDetail:
-		'Kontoen, treningen og alt annet slettes for godt. Det kan ikke angres.',
-	deletedTitle: 'Dataene er slettet',
-	deletedBody: 'Alle dataene dine er slettet.',
+		'Kontoen, øktene og planene dine slettes for godt. Det kan ikke angres.',
+	deleting: 'Sletter kontoen …',
+	deleteFailed: 'Kontoen ble ikke slettet. Ingenting er fjernet — prøv igjen.',
+	deletedTitle: 'Kontoen er slettet',
+	deletedBody: 'Kontoen, øktene og planene dine er slettet.',
 } as const
 
 /**

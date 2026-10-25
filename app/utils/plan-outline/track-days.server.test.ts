@@ -463,6 +463,7 @@ test('undoing puts back a day shaped by a Stock Workout exactly as it was', asyn
 		select: { id: true },
 		data: {
 			ownerId: null,
+			authorship: 'system',
 			title: 'Rolig langtur',
 			discipline: 'bike',
 			intent: 'endurance',
@@ -502,6 +503,52 @@ test('undoing puts back a day shaped by a Stock Workout exactly as it was', asyn
 	)
 	expect(undone.ok).toBe(true)
 	expect(await bikeRows()).toEqual(before)
+})
+
+test("an undo cannot put an orphaned athlete's Workout into the week (#639 H26)", async () => {
+	const { userId, outlineId } = await setup()
+	// An athlete deleted their account; their Workout lost its owner but is
+	// still an athlete's, not the Catalogue's.
+	const orphan = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId: null,
+			authorship: 'athlete',
+			title: 'Noens økt',
+			discipline: 'bike',
+			intent: 'endurance',
+		},
+	})
+	const bike = await unit(userId, outlineId, { discipline: 'bike' })
+	const written = await setTrackDays(
+		userId,
+		{ outlineId, key: bike.key, choice: [WED, SUN], version: bike.version },
+		NOW,
+	)
+	if (!written.ok) throw new Error(written.reason)
+	const forged = {
+		...written.previous,
+		rows: written.previous.rows.map((row) => ({
+			...row,
+			kind: 'fixed' as const,
+			workoutId: orphan.id,
+		})),
+	}
+	const undone = await setTrackDays(
+		userId,
+		{
+			outlineId,
+			key: bike.key,
+			choice: written.previous.pinned,
+			version: written.version,
+			restore: forged,
+		},
+		NOW,
+	)
+	expect(undone.ok).toBe(false)
+	expect(
+		await prisma.weekPatternDay.count({ where: { workoutId: orphan.id } }),
+	).toBe(0)
 })
 
 test('a choice made against a plan that changed since is refused', async () => {
