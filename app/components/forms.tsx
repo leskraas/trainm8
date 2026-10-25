@@ -2,6 +2,7 @@ import { type FieldMetadata, useInputControl } from '@conform-to/react'
 import { REGEXP_ONLY_DIGITS_AND_CHARS, type OTPInputProps } from 'input-otp'
 import React, { createContext, useContext, useId, useState } from 'react'
 import { cn } from '#app/utils/misc.tsx'
+import { moveToNextControl } from './return-key.ts'
 import { Checkbox, type CheckboxProps } from './ui/checkbox.tsx'
 import {
 	Field as FormField,
@@ -60,71 +61,6 @@ const ERROR_TEXT = 'text-footnote text-foreground-destructive'
  * reserved, where an error then pushed it to 42px.
  */
 const ERROR_LINE = 'min-h-(--text-footnote--line-height)'
-
-/** What a return key can reach in a form: tabbable, enabled, not hidden. */
-const FORM_CONTROLS =
-	'input:not([type=hidden]), select, textarea, button, [role=checkbox], [tabindex]'
-
-/**
- * A control still to do: an empty field, or a required box left unticked.
- * An optional box (Remember me) is never to do.
- */
-function isStillToDo(control: HTMLElement) {
-	if (control instanceof HTMLInputElement) {
-		if (control.type === 'checkbox' || control.type === 'radio') {
-			return control.required && !control.checked
-		}
-		return control.type !== 'submit' && control.type !== 'button'
-			? control.value === ''
-			: false
-	}
-	if (
-		control instanceof HTMLTextAreaElement ||
-		control instanceof HTMLSelectElement
-	) {
-		return control.value === ''
-	}
-	// Base UI's checkbox is a span with the role; its input is hidden.
-	return (
-		control.getAttribute('role') === 'checkbox' &&
-		control.getAttribute('aria-required') === 'true' &&
-		control.getAttribute('aria-checked') !== 'true'
-	)
-}
-
-/**
- * Return on a field whose key reads "next" (`enterKeyHint: 'next'`) moves to
- * the form's next control, as the key says, instead of submitting the form
- * half filled. Once nothing after the field is still to do (a password
- * manager filled the password before the username was typed), return
- * submits, as it always did. Any other hint keeps the browser's submit.
- */
-function moveToNextControl(event: React.KeyboardEvent<HTMLInputElement>) {
-	const input = event.currentTarget
-	if (
-		event.key !== 'Enter' ||
-		event.nativeEvent.isComposing ||
-		// Safari ends a composition with Enter as keyCode 229 after isComposing clears.
-		event.keyCode === 229 ||
-		input.getAttribute('enterkeyhint') !== 'next' ||
-		!input.form
-	) {
-		return
-	}
-	const controls = Array.from(
-		input.form.querySelectorAll<HTMLElement>(FORM_CONTROLS),
-	).filter(
-		(control) =>
-			control.tabIndex >= 0 &&
-			!control.matches(':disabled') &&
-			!control.closest('[aria-hidden="true"]'),
-	)
-	const later = controls.slice(controls.indexOf(input) + 1)
-	const next = later[0]
-	if (!next || !later.some(isStillToDo)) return
-	event.preventDefault()
-	next.focus()
-}
 
 function getErrorsToRender(errors?: ListOfErrors) {
 	return errors?.filter(Boolean) ?? []
