@@ -1,5 +1,8 @@
 import { z } from 'zod/v3'
-import { type LedgerSession } from './training.server.ts'
+// Type-only at the top level, so Node's type stripping drops the import
+// entirely and this module never loads training.server.ts (#638).
+// eslint-disable-next-line import/consistent-type-specifier-style
+import type { LedgerSession } from './training.server.ts'
 import { stepDurationSec, workoutReps } from './workout-reps.ts'
 import {
 	blockRepeatTotal,
