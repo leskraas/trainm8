@@ -7,6 +7,7 @@ import {
 	enqueueJob,
 	failJob,
 	processNextJob,
+	rethrowDeferral,
 } from './queue.server.ts'
 
 test('enqueued job can be claimed once', async () => {
@@ -124,6 +125,42 @@ test('a handler that defers its job reschedules it without spending an attempt',
 	expect(row.attempts).toBe(0)
 	expect(row.runAt.getTime()).toBe(until.getTime())
 	expect(row.lastError).toBe('Strava read budget spent')
+})
+
+test('a job deferred for more than 7 days spends its attempts and dead-letters', async () => {
+	const enqueued = await enqueueJob({ kind: 'strava-backfill', maxAttempts: 2 })
+	await prisma.job.update({
+		where: { id: enqueued.id },
+		data: { createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) },
+	})
+	const until = new Date(Date.now() - 1000)
+	const handlers = {
+		'strava-backfill': async () => {
+			throw new DeferJob(until, 'Strava read budget spent')
+		},
+	}
+
+	// Past the cap a deferral keeps the attempt it was claimed with, but still
+	// runs again at the time it asked for, not after a backoff.
+	await processNextJob(handlers)
+	let row = await prisma.job.findUniqueOrThrow({ where: { id: enqueued.id } })
+	expect(row.status).toBe('pending')
+	expect(row.attempts).toBe(1)
+	expect(row.runAt.getTime()).toBe(until.getTime())
+
+	// Once they are spent, the job is terminal like any failure.
+	await processNextJob(handlers)
+	row = await prisma.job.findUniqueOrThrow({ where: { id: enqueued.id } })
+	expect(row.status).toBe('failed')
+	expect(row.lastError).toBe('Strava read budget spent')
+})
+
+test('rethrowDeferral passes a deferral on and lets any other error be swallowed', () => {
+	const deferral = new DeferJob(new Date(), 'Strava read budget spent')
+
+	expect(() => rethrowDeferral(deferral)).toThrow(deferral)
+	expect(() => rethrowDeferral(new Error('one activity failed'))).not.toThrow()
+	expect(() => rethrowDeferral('not even an error')).not.toThrow()
 })
 
 test('a job with no registered handler fails rather than spinning', async () => {

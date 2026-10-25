@@ -1249,6 +1249,7 @@ describe('token model invariants', () => {
 		expect(notation.blocks[0]!.repeat).toMatchObject({
 			text: '3 × 13',
 			count: 13,
+			series: 3,
 		})
 		expect(notationSentence(notation)).toBe('3 × 13 × 30 s (15 s pause)')
 	})
@@ -1267,11 +1268,13 @@ describe('token model invariants', () => {
 			],
 		}
 		const notation = deriveWorkoutNotation(input)
-		// Three efforts, not one; the count is still the reps it edits.
+		// Three efforts, not one, and read as its series: `3 ×`, never `3 × 1`.
 		expect(notation.blocks[0]!.repeat).toMatchObject({
-			text: '3 × 1',
-			count: 1,
+			text: '3',
+			count: 3,
+			series: null,
 		})
+		expect(notationSentence(notation)).toBe('3 × 10 min (3 min pause)')
 	})
 
 	test('tokenText composes intensity facets; stepSentence wraps parenthesized tokens', () => {

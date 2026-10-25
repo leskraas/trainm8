@@ -1,6 +1,6 @@
 import { persistActivityLaps } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { DeferJob, enqueueJob } from '#app/utils/jobs/queue.server.ts'
+import { enqueueJob, rethrowDeferral } from '#app/utils/jobs/queue.server.ts'
 import { runStructureDetection } from '#app/utils/structure-detection/detect-job.server.ts'
 import { DETECTION_DISCIPLINES } from '#app/utils/structure-detection/types.ts'
 import {
@@ -102,8 +102,8 @@ export async function runStravaLapsBackfill(): Promise<void> {
 				// unpromoted import's detection re-computes with the lap-edged path.
 				await runStructureDetection({ activityImportId: imp.id })
 			} catch (err) {
-				// A spent Strava day: the queue resumes the backfill later (#637).
-				if (err instanceof DeferJob) throw err
+				// A spent Strava budget: the queue resumes the backfill later (#637).
+				rethrowDeferral(err)
 				if (
 					err instanceof StravaConnectionRevokedError ||
 					err instanceof StravaInsufficientScopeError ||

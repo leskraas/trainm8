@@ -161,7 +161,7 @@ test('tapping an empty day commits a real session on that date', async () => {
 			intensity: JSON.stringify({ kind: 'zoneLabel', label: 'rolig' }),
 		},
 	])
-	expect(stamped.workout!.title).toBe('45 min Rolig')
+	expect(stamped.workout!.title).toBe('45 min rolig')
 })
 
 test('a past day takes the same gesture, and authors a prescription rather than a recording', async () => {
@@ -221,7 +221,7 @@ test('what a cell writes is what the full route writes', async () => {
 				'content-type': 'application/x-www-form-urlencoded',
 			}),
 			body: new URLSearchParams([
-				['title', '45 min Rolig'],
+				['title', '45 min rolig'],
 				['discipline', 'run'],
 				['intent', 'endurance'],
 				['scheduledAtDate', IN_WINDOW],

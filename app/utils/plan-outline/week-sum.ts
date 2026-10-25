@@ -19,8 +19,9 @@
  * model's are the presenter's.
  */
 import { sumBlockSets } from '../dashboard.ts'
+import { type DisciplineThresholdMap } from '../intensity-target.ts'
 import { type Discipline, type WorkoutStructure } from '../workout-schema.ts'
-import { type VolumeCurrency } from './derive.ts'
+import { roundToCurrency, type VolumeCurrency } from './derive.ts'
 import { fixedDayVolume } from './week-pattern.ts'
 import { type TrackWeekVolume, type WeekVolumes } from './week-volumes.ts'
 
@@ -62,6 +63,7 @@ export function trackForDiscipline(
 function addedIn(
 	workout: SummedWorkout,
 	currency: VolumeCurrency,
+	thresholds: DisciplineThresholdMap,
 ): { added: number | null; absence: AddedAbsence | null } {
 	// A Planned TSS is priced against the athlete's thresholds when the session
 	// is written (ADR 0019); before that there is no honest number to show.
@@ -87,16 +89,25 @@ function addedIn(
 		workout.blocks.map((block) => ({
 			repeatCount: block.repeatCount,
 			seriesRepeatCount: block.seriesRepeatCount,
+			betweenSeriesRestSec: block.betweenSeriesRestSec,
 			// A lift states no distance or time, so a strength step carries
 			// neither and the session reads as unmeasured in km and hours.
 			steps: block.steps.map((step) => ({
 				kind: step.kind,
+				discipline: step.kind === 'cardio' ? step.discipline : null,
+				// Stored as the database holds it, so a distance step is timed
+				// through its pace exactly as the saved session will be.
+				intensity:
+					step.kind === 'cardio' && step.intensity
+						? JSON.stringify(step.intensity)
+						: null,
 				durationSec:
 					step.kind === 'strength' ? null : (step.durationSec ?? null),
 				distanceM: step.kind === 'cardio' ? (step.distanceM ?? null) : null,
 			})),
 		})),
 		currency,
+		{ thresholds, discipline: workout.discipline },
 	)
 	return added == null
 		? { added: null, absence: 'no-number' }
@@ -113,21 +124,28 @@ export function weekSumPreview(
 	weekVolumes: WeekVolumes,
 	workout: SummedWorkout,
 	track: TrackWeekVolume | null,
+	/** The athlete's thresholds, which time a distance step as the week does. */
+	thresholds: DisciplineThresholdMap,
 ): WeekSumPreview {
 	if (!track) {
 		return weekVolumes.tracks.length === 0
 			? { kind: 'no-plan', discipline: workout.discipline }
 			: { kind: 'annet', discipline: workout.discipline }
 	}
-	const { added, absence } = addedIn(workout, track.currency)
+	const { added, absence } = addedIn(workout, track.currency, thresholds)
 	const before = track.planned
 	return {
 		kind: 'track',
 		discipline: track.discipline,
 		currency: track.currency,
 		before,
-		after: added == null ? before : (before ?? 0) + added,
-		added,
+		// The unrounded week plus the unrounded session, rounded once — the sum
+		// the header reads once the session is saved (#638).
+		after:
+			added == null
+				? before
+				: roundToCurrency(track.plannedSum + added, track.currency),
+		added: added == null ? null : roundToCurrency(added, track.currency),
 		addedAbsence: absence,
 		unmeasuredAdded: absence === 'no-number' ? 1 : 0,
 		target: track.target,

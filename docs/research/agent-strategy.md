@@ -170,8 +170,12 @@ from weeks 4–7 to weeks 13–22
 
 **Fallbacks.** If Phase 1 slips or `@better-auth/mcp` fails against Claude, the
 authorization server is node-oidc-provider on today's session, about 2–4 weeks
-([MCP §3.3](mcp-server-for-trainm8.md#33-what-trainm8-would-build)). React
-Router 8 moves on its own schedule
+([MCP §3.3](mcp-server-for-trainm8.md#33-what-trainm8-would-build)). The #552
+spike found no failing check short of the connector click, and showed that an
+Epic session can issue a Better Auth session, so a slipping Phase 1 need not
+hold MCP OAuth back
+([spike §7, §9](better-auth-mcp-spike.md#9-fallback-verdict-node-oidc-provider)).
+React Router 8 moves on its own schedule
 ([SM §1.2](stack-migration.md#12-the-order-and-why)).
 
 ## Do now, independent of AI
@@ -254,13 +258,15 @@ when 1.0 ships.
 
 **Risks.** Garmin cuts the Intervals.icu feed with no date
 ([WS §1.6](watch-data-sources.md#16-the-undisclosed-septemberoctober-2026-change)).
-Better Auth breaks APIs in minors, and its MCP advice (`legacy: "reject"`)
-conflicts with serving both protocol eras
-([SM §8](stack-migration.md#8-migration-risk-register)). Postgres's Read
-Committed can let two claims pass
-([SM §8](stack-migration.md#8-migration-risk-register)). trainm8 cannot control
-the host model's prose ([AN §5.5](agent-native.md#55-trainm8-as-an-mcp-server)),
-and athlete-written text reaches the model
+Better Auth breaks APIs in minors
+([SM §8](stack-migration.md#8-migration-risk-register)). Its MCP advice
+(`legacy: "reject"`) is safe to ignore: the spike served both eras behind
+`requireMcpAuth` on `legacy: 'stateless'` ([spike](better-auth-mcp-spike.md),
+#552; the connector click is pending). Postgres's Read Committed can let two
+claims pass ([SM §8](stack-migration.md#8-migration-risk-register)). trainm8
+cannot control the host model's prose
+([AN §5.5](agent-native.md#55-trainm8-as-an-mcp-server)), and athlete-written
+text reaches the model
 ([MCP §6.7](mcp-server-for-trainm8.md#67-prompt-injection-whose-text-reaches-the-model)).
 COROS, AI Endurance and Tredict already write plans over MCP, without a preview
 or a yes; that is the gap trainm8 owns

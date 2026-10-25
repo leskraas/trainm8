@@ -47,6 +47,7 @@ import {
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
 	ANNET_ACTION_LABELS,
+	approxLabel,
 	ANNET_TRACK_LABELS,
 	BEFORE_PLAN_LABEL,
 	eventCountdownWhen,
@@ -923,6 +924,7 @@ function buildWeek({
 			volumeSessionOf(session, {
 				dayKey: localDate(new Date(session.scheduledAt), timezone),
 				status: entry.status,
+				thresholds,
 			}),
 		),
 	})
@@ -1184,6 +1186,8 @@ function buildSession({
 			entry.discipline,
 			dayKey,
 			trackCurrencies,
+			thresholds,
+			entry.durationEstimated,
 		),
 		annet: annetOf(
 			session.countsInNoTrack,
@@ -1246,16 +1250,24 @@ function sessionVolume(
 	discipline: string,
 	dayKey: string,
 	currencies: ReadonlyMap<string, VolumeCurrency>,
+	thresholds: DisciplineThresholdMap,
+	/** The planned minutes were timed through a pace (line 1's `≈`). */
+	estimated: boolean,
 ): string | null {
 	if (status === 'missed') return null
-	const read = volumeSessionOf(session, { dayKey, status })
+	const read = volumeSessionOf(session, { dayKey, status, thresholds })
 	const figures = status === 'completed' ? read.recorded : read.prescribed
 	if (!figures) return null
 	const currency =
 		currencies.get(discipline) ??
 		(discipline === 'strength' ? 'sets' : figures.km != null ? 'km' : 'hours')
 	const value = figures[currency]
-	return value != null && value > 0 ? sessionVolumeLabel(value, currency) : null
+	if (value == null || value <= 0) return null
+	const label = sessionVolumeLabel(value, currency)
+	// Planned minutes timed through a pace read `≈ 50 min`, as line 1 does.
+	return currency === 'hours' && status === 'planned'
+		? approxLabel(label, estimated)
+		: label
 }
 
 /**
