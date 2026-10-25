@@ -1,7 +1,8 @@
 import { faker } from '@faker-js/faker/locale/en'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { parseFit } from '#app/utils/fit-parser.server.ts'
+import { enqueueJob, processNextJob } from '#app/utils/jobs/queue.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { encodePoolSwim } from '#tests/fixtures/fit/pool-swim.ts'
 import { recomputeLoadFrom } from './snapshot.server.ts'
@@ -11,6 +12,7 @@ import {
 	SWIM_PACE_BACKFILL_JOB_KIND,
 	SWIM_REST_LEFT_THE_PACE_NOTICE,
 	swimPaceCorrection,
+	type SwimPaceBackfillRecord,
 } from './swim-pace-backfill.server.ts'
 
 // ── the one-shot pool-swim pace recompute (#628, ADR 0107) ────────────────────
@@ -278,4 +280,62 @@ test('a swimmer without CSS still gets the notice: the pace they read changed', 
 	})
 	expect(notice.kind).toBe(SWIM_REST_LEFT_THE_PACE_NOTICE)
 	expect(Math.round(notice.ctlAfter)).toBe(Math.round(notice.ctlBefore))
+})
+
+/** Run the one-shot through the queue, as the worker does, and read its row. */
+async function runAsJob() {
+	await processNextJob({ [SWIM_PACE_BACKFILL_JOB_KIND]: runSwimPaceBackfill })
+	const job = await prisma.job.findFirstOrThrow({
+		where: { kind: SWIM_PACE_BACKFILL_JOB_KIND },
+	})
+	return {
+		job,
+		record: (JSON.parse(job.payload) as { corrected?: SwimPaceBackfillRecord })
+			.corrected,
+	}
+}
+
+test('the job row records which swims it corrected, with their old and new pace', async () => {
+	// The before-count is not run in production (ADR 0107 §6): the job's own
+	// row is the audit of what it changed.
+	await prisma.job.deleteMany({})
+	const user = await createSwimmer()
+	const ids = await createSwimMonth(user.id)
+	const left = await createPoolSwim(user.id, {
+		start: daysAgo(40),
+		paceAvgSecPerKm: 1050,
+	})
+	await enqueueJob({ kind: SWIM_PACE_BACKFILL_JOB_KIND })
+	const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+	const { job, record } = await runAsJob()
+
+	expect(job.status).toBe('completed')
+	const mine = record!.swims.filter((s) => s.athleteId === user.id)
+	expect(mine.map((s) => s.importId).sort()).toEqual([...ids].sort())
+	expect(mine.map((s) => s.importId)).not.toContain(left.id)
+	for (const swim of mine) {
+		expect(swim.paceBefore).toBeCloseTo(TIMER_PACE, 6)
+		expect(swim.paceAfter).toBeCloseTo(SWUM_PACE, 6)
+	}
+	expect(record!.count).toBe(record!.swims.length)
+	expect(info).toHaveBeenCalledWith(
+		expect.stringContaining(`corrected ${record!.count} pool swim`),
+		expect.anything(),
+	)
+
+	// A retry (a crash after the paces were written) keeps the first run's
+	// old pace: the record is never rewritten into "nothing changed".
+	await prisma.job.update({
+		where: { id: job.id },
+		data: { status: 'pending', runAt: new Date(0) },
+	})
+	const retry = await runAsJob()
+	const again = retry.record!.swims.filter((s) => s.athleteId === user.id)
+	expect(again).toHaveLength(ids.length)
+	for (const swim of again) {
+		expect(swim.paceBefore).toBeCloseTo(TIMER_PACE, 6)
+		expect(swim.paceAfter).toBeCloseTo(SWUM_PACE, 6)
+	}
+	info.mockRestore()
 })

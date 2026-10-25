@@ -157,6 +157,14 @@ It is retry-safe. A swim whose stored pace is already the pace swum still counts
 as corrected, so a crash between the write and the recompute is healed by the
 retry. The notice is create-only, so the first run's `ctlBefore` stands.
 
+**The job keeps its own record of what it changed.** In the same transaction as
+each athlete's paces, it writes `payload.corrected` on its own `Job` row:
+`{ count, swims: [{ importId, athleteId, paceBefore, paceAfter }] }`, with paces
+in s/km. When it finishes it logs the same count. A retry adds to the record and
+never rewrites an entry, so the first run's old pace stands. The notice rows
+alone could not answer "which imports, from what to what": they hold one CTL
+pair per athlete.
+
 No schema change and no migration. Nothing is seeded
 (`production-seed-data.md`).
 
@@ -180,22 +188,22 @@ No schema change and no migration. Nothing is seeded
 
 - Every athlete who uploaded a pool swim with rest before #638 sees their swim
   pace get faster and their sTSS rise, and one notice on _Se hele sesongen_.
-- Before checking it in production, count what it will touch (read-only):
+- **The before-count was replaced by the job's own record.** This ADR first
+  asked for a read-only count of candidate swims in production before the
+  deploy. The owner merged without it; instead the job records which imports it
+  changed, with their old and new pace (§6). After the deploy, check the job row
+  and the notice rows (read-only):
 
   ```sql
-  SELECT i.externalProvider, f.fetchedVia, COUNT(*) AS swims,
-         COUNT(DISTINCT i.athleteId) AS athletes
-  FROM ActivityImport i JOIN ActivityFile f ON f.activityImportId = i.id
-  WHERE i.discipline = 'swim' GROUP BY 1, 2;
+  SELECT status, attempts, lastError, payload FROM Job
+  WHERE kind = 'swim-pace-backfill';
 
   SELECT kind, COUNT(*), AVG(ctlAfter - ctlBefore) FROM LoadRecomputeNotice
   WHERE kind = 'swim-rest-left-the-pace' GROUP BY kind;
-
-  SELECT status, attempts, lastError FROM Job WHERE kind = 'swim-pace-backfill';
   ```
 
-  The first counts candidates (a superset; the pace check narrows it). The
-  second and third are for after the deploy.
+  `payload.corrected.count` is the number of swims corrected, and each entry
+  names the import and its pace before and after.
 
 - Stored lap edges on old FIT imports stay rounded to whole seconds. Only new
   imports get unrounded edges. Re-writing old laps would re-run detection on

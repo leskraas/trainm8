@@ -39,6 +39,11 @@ import { recomputeLoadFrom } from './snapshot.server.ts'
  * Retry-safe: a swim already carrying the pace swum still counts as corrected,
  * so a crash between writing paces and recomputing is healed by the retry, and
  * the notice is create-only, so the first run's `ctlBefore` stands.
+ *
+ * **Its own audit (ADR 0107 §6).** The job writes which swims it corrected, with
+ * the old and new pace, into its own row's `payload` (`corrected`), in the same
+ * transaction as the paces, and logs the count. A retry adds to that record and
+ * never rewrites an entry, so the first run's old pace stands.
  */
 export const SWIM_PACE_BACKFILL_JOB_KIND = 'swim-pace-backfill'
 
@@ -115,7 +120,28 @@ export async function ensureSwimPaceBackfillEnqueued(): Promise<void> {
 	await enqueueJob({ kind: SWIM_PACE_BACKFILL_JOB_KIND })
 }
 
-type Correction = { importId: string; startedAt: Date; pace: number | null }
+type Correction = {
+	importId: string
+	startedAt: Date
+	/** The pace stored before this run. */
+	paceBefore: number | null
+	/** The pace swum to write, or null when it is already written. */
+	pace: number | null
+}
+
+/** One swim the job changed: the import, its athlete, and the pace both ways. */
+export type CorrectedSwim = {
+	importId: string
+	athleteId: string
+	paceBefore: number
+	paceAfter: number
+}
+
+/** What the job changed, kept on its own row as `payload.corrected`. */
+export type SwimPaceBackfillRecord = {
+	count: number
+	swims: CorrectedSwim[]
+}
 
 /**
  * The swims to correct, by athlete. Reads one file at a time: the bytes are
@@ -153,7 +179,12 @@ async function findCorrections(): Promise<Map<string, Correction[]>> {
 		if (pace == null && !alreadySwum(swim.paceAvgSecPerKm, legs)) continue
 
 		const list = byAthlete.get(swim.athleteId) ?? []
-		list.push({ importId: swim.id, startedAt: swim.startedAt, pace })
+		list.push({
+			importId: swim.id,
+			startedAt: swim.startedAt,
+			paceBefore: swim.paceAvgSecPerKm,
+			pace,
+		})
 		byAthlete.set(swim.athleteId, list)
 	}
 	return byAthlete
@@ -172,6 +203,17 @@ function latestCtl(ctlByDate: Map<string, number>): CtlMovement {
  * one notice naming the widest CTL rise.
  */
 export async function runSwimPaceBackfill(): Promise<void> {
+	// The job's own row, which carries the record. Boot enqueues exactly one of
+	// this kind, so the running one is this run.
+	const job = await prisma.job.findFirst({
+		where: { kind: SWIM_PACE_BACKFILL_JOB_KIND, status: 'running' },
+		select: { id: true, payload: true },
+	})
+	const payload = parsePayload(job?.payload)
+	const corrected = new Map(
+		(payload.corrected?.swims ?? []).map((s) => [s.importId, s]),
+	)
+
 	for (const [athleteId, corrections] of await findCorrections()) {
 		const profile = await prisma.athleteProfile.findUnique({
 			where: { userId: athleteId },
@@ -180,14 +222,36 @@ export async function runSwimPaceBackfill(): Promise<void> {
 
 		const before = await readCtlByDate(athleteId)
 		const toWrite = corrections.filter((c) => c.pace != null)
-		await prisma.$transaction(
-			toWrite.map((c) =>
+		for (const c of toWrite) {
+			// A retry never rewrites an entry: the first run's old pace stands.
+			if (corrected.has(c.importId) || c.paceBefore == null) continue
+			corrected.set(c.importId, {
+				importId: c.importId,
+				athleteId,
+				paceBefore: c.paceBefore,
+				paceAfter: c.pace!,
+			})
+		}
+		const record = toRecord(corrected)
+		await prisma.$transaction([
+			...toWrite.map((c) =>
 				prisma.activityImport.update({
 					where: { id: c.importId },
 					data: { paceAvgSecPerKm: c.pace },
 				}),
 			),
-		)
+			// The record lands with the paces it describes, never apart from them.
+			...(job
+				? [
+						prisma.job.update({
+							where: { id: job.id },
+							data: {
+								payload: JSON.stringify({ ...payload, corrected: record }),
+							},
+						}),
+					]
+				: []),
+		])
 		// A retry that wrote nothing new still recomputes (a crash may have left
 		// the paces ahead of the load). No Athlete Profile → no thresholds →
 		// nothing to recompute.
@@ -209,5 +273,34 @@ export async function runSwimPaceBackfill(): Promise<void> {
 			kind: SWIM_REST_LEFT_THE_PACE_NOTICE,
 			...(widestCtlMovement(before, after, 'rise') ?? latestCtl(after)),
 		})
+	}
+
+	const record = toRecord(corrected)
+	console.info(
+		`swim pace backfill: corrected ${record.count} pool swim${record.count === 1 ? '' : 's'}`,
+		record,
+	)
+}
+
+function toRecord(
+	corrected: Map<string, CorrectedSwim>,
+): SwimPaceBackfillRecord {
+	const swims = [...corrected.values()]
+	return { count: swims.length, swims }
+}
+
+/** The job row's payload, with the record a previous run left, if any. */
+function parsePayload(raw: string | undefined): {
+	corrected?: SwimPaceBackfillRecord
+	[key: string]: unknown
+} {
+	if (!raw) return {}
+	try {
+		const parsed: unknown = JSON.parse(raw)
+		return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+			? (parsed as { corrected?: SwimPaceBackfillRecord })
+			: {}
+	} catch {
+		return {}
 	}
 }
