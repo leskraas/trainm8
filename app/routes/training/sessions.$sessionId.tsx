@@ -103,6 +103,7 @@ import {
 	NB_SESSION_ARCHETYPE_LABELS,
 	SIMPLE_ACTIVITY_LABELS,
 	WORKOUT_DETAIL_LABELS,
+	approxLabel,
 	nbConfidenceLabel,
 	nbDisciplineLabel,
 	nbDurationLabel,
@@ -1046,7 +1047,10 @@ export default function SessionDetailRoute({
 					    plan and a recording — scheduled and recording-only sessions
 					    skip it and render their one coherent side below. */}
 					{session.workout && session.recording && !simpleActivity ? (
-						<PlannedVsActualSummary session={session} />
+						<PlannedVsActualSummary
+							session={session}
+							thresholds={thresholds ?? NO_THRESHOLDS}
+						/>
 					) : null}
 
 					{/* "Mot forrige gang" (PRD #129): how this completed effort
@@ -1737,8 +1741,14 @@ function FigureTile({
 	)
 }
 
-function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
-	const comparison = buildReviewComparison(session)
+function PlannedVsActualSummary({
+	session,
+	thresholds,
+}: {
+	session: SessionDetail
+	thresholds: DisciplineThresholdMap
+}) {
+	const comparison = buildReviewComparison(session, thresholds)
 	const structureVerdict = resolveStructureAdherence(session)
 	const num = (v: number | null) => (v != null ? formatLoad(v) : EM_DASH)
 	const dur = (v: number | null) => (v != null ? nbDurationLabel(v) : EM_DASH)
@@ -1760,7 +1770,13 @@ function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
 		{
 			label: P.duration,
 			actual: dur(comparison.duration.actual),
-			planned: dur(comparison.duration.planned),
+			planned:
+				comparison.duration.planned != null
+					? approxLabel(
+							dur(comparison.duration.planned),
+							comparison.duration.plannedEstimated,
+						)
+					: EM_DASH,
 		},
 		{
 			label: P.distance,

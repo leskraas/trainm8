@@ -6,9 +6,13 @@ import {
 	isoDayKey,
 	paletteFor,
 	planArc,
+	plannedMinutes,
 	prescribedDuration,
 	sumBlockDurationMin,
 } from './dashboard.ts'
+
+/** A reading with no thresholds: only authored times and paces count. */
+const NO_THRESHOLDS = { thresholds: {} }
 
 // --- paletteFor ---
 
@@ -48,11 +52,11 @@ test('sumBlockDurationMin returns null when no steps have durationSec', () => {
 		{ repeatCount: 1, steps: [{ durationSec: null }, { durationSec: null }] },
 		{ repeatCount: 2, steps: [{ durationSec: null }] },
 	]
-	expect(sumBlockDurationMin(blocks)).toBeNull()
+	expect(sumBlockDurationMin(blocks, NO_THRESHOLDS)).toBeNull()
 })
 
 test('sumBlockDurationMin returns null for empty blocks array', () => {
-	expect(sumBlockDurationMin([])).toBeNull()
+	expect(sumBlockDurationMin([], NO_THRESHOLDS)).toBeNull()
 })
 
 test('sumBlockDurationMin sums step durations across multiple blocks', () => {
@@ -60,32 +64,38 @@ test('sumBlockDurationMin sums step durations across multiple blocks', () => {
 		{ repeatCount: 1, steps: [{ durationSec: 600 }, { durationSec: 300 }] }, // 900s = 15min
 		{ repeatCount: 1, steps: [{ durationSec: 1200 }] }, // 1200s = 20min
 	]
-	expect(sumBlockDurationMin(blocks)).toBe(35)
+	expect(sumBlockDurationMin(blocks, NO_THRESHOLDS)).toBe(35)
 })
 
 test('sumBlockDurationMin multiplies each block by its repeatCount', () => {
 	const blocks = [
 		{ repeatCount: 4, steps: [{ durationSec: 180 }, { durationSec: 60 }] }, // 4 * 240s = 960s = 16min
 	]
-	expect(sumBlockDurationMin(blocks)).toBe(16)
+	expect(sumBlockDurationMin(blocks, NO_THRESHOLDS)).toBe(16)
 })
 
 test('sumBlockDurationMin rounds to nearest minute', () => {
 	// 90s = 1.5min → rounds to 2
 	expect(
-		sumBlockDurationMin([{ repeatCount: 1, steps: [{ durationSec: 90 }] }]),
+		sumBlockDurationMin(
+			[{ repeatCount: 1, steps: [{ durationSec: 90 }] }],
+			NO_THRESHOLDS,
+		),
 	).toBe(2)
 	// 89s → rounds to 1
 	expect(
-		sumBlockDurationMin([{ repeatCount: 1, steps: [{ durationSec: 89 }] }]),
+		sumBlockDurationMin(
+			[{ repeatCount: 1, steps: [{ durationSec: 89 }] }],
+			NO_THRESHOLDS,
+		),
 	).toBe(1)
 })
 
-test('sumBlockDurationMin ignores steps with null durationSec when others have values', () => {
+test('sumBlockDurationMin hides a total that leaves an untimed step out', () => {
 	const blocks = [
 		{ repeatCount: 1, steps: [{ durationSec: 600 }, { durationSec: null }] },
 	]
-	expect(sumBlockDurationMin(blocks)).toBe(10)
+	expect(sumBlockDurationMin(blocks, NO_THRESHOLDS)).toBeNull()
 })
 
 // --- prescribedDuration (#615) ---
@@ -93,6 +103,7 @@ test('sumBlockDurationMin ignores steps with null durationSec when others have v
 const zone = (label: string) => JSON.stringify({ kind: 'zoneLabel', label })
 const run = (step: {
 	kind?: string
+	discipline?: string | null
 	intensity?: string | null
 	durationSec?: number | null
 	distanceM?: number | null
@@ -133,11 +144,12 @@ const seriesBlock = {
 }
 
 test('prescribedDuration times a distance rep through the pace it is run at', () => {
-	expect(prescribedDuration(distanceReps)).toEqual({
+	expect(prescribedDuration(distanceReps, NO_THRESHOLDS)).toEqual({
 		seconds: 3360,
 		complete: true,
+		estimated: true,
 	})
-	expect(sumBlockDurationMin(distanceReps)).toBe(56)
+	expect(sumBlockDurationMin(distanceReps, NO_THRESHOLDS)).toBe(56)
 })
 
 test('prescribedDuration falls back to the threshold pace for a distance rep with no pace of its own', () => {
@@ -159,18 +171,31 @@ test('prescribedDuration falls back to the threshold pace for a distance rep wit
 			zoneOverrides: null,
 		},
 	}
-	expect(prescribedDuration(blocks, thresholds)).toEqual({
+	expect(prescribedDuration(blocks, { thresholds })).toEqual({
 		seconds: 1200,
 		complete: true,
+		estimated: true,
+	})
+})
+
+test('prescribedDuration says when a distance step was timed through a pace', () => {
+	expect(prescribedDuration(distanceReps, NO_THRESHOLDS)?.estimated).toBe(true)
+	expect(prescribedDuration([seriesBlock], NO_THRESHOLDS)?.estimated).toBe(
+		false,
+	)
+	expect(plannedMinutes(distanceReps, NO_THRESHOLDS)).toEqual({
+		minutes: 56,
+		estimated: true,
 	})
 })
 
 test('prescribedDuration adds the rests between series', () => {
-	expect(prescribedDuration([seriesBlock])).toEqual({
+	expect(prescribedDuration([seriesBlock], NO_THRESHOLDS)).toEqual({
 		seconds: 39 * 45 + 2 * 360,
 		complete: true,
+		estimated: false,
 	})
-	expect(sumBlockDurationMin([seriesBlock])).toBe(41)
+	expect(sumBlockDurationMin([seriesBlock], NO_THRESHOLDS)).toBe(41)
 })
 
 test('prescribedDuration says when a step it cannot time leaves the total short', () => {
@@ -178,8 +203,57 @@ test('prescribedDuration says when a step it cannot time leaves the total short'
 		{ repeatCount: 1, steps: [run({ durationSec: 600 })] },
 		{ repeatCount: 5, steps: [run({ distanceM: 1000 })] },
 	]
-	expect(prescribedDuration(blocks)).toEqual({ seconds: 600, complete: false })
-	expect(prescribedDuration([{ repeatCount: 1, steps: [run({})] }])).toBeNull()
+	expect(prescribedDuration(blocks, NO_THRESHOLDS)).toEqual({
+		seconds: 600,
+		complete: false,
+		estimated: false,
+	})
+	expect(
+		prescribedDuration([{ repeatCount: 1, steps: [run({})] }], NO_THRESHOLDS),
+	).toBeNull()
+})
+
+const runProfile = {
+	lthr: null,
+	maxHr: null,
+	ftp: null,
+	runPowerThresholdW: null,
+	thresholdPaceSecPerKm: 240,
+	cssSecPer100m: null,
+	zoneSystem: null,
+	zoneOverrides: null,
+}
+
+test('sumBlockDurationMin hides a session whose distance step has no pace to time it by', () => {
+	// `15 min · 8 km terskel · 10 min` with no threshold pace is not 25 min.
+	const blocks = [
+		{ repeatCount: 1, steps: [run({ durationSec: 900 })] },
+		{
+			repeatCount: 1,
+			steps: [run({ intensity: zone('Z4'), distanceM: 8000 })],
+		},
+		{ repeatCount: 1, steps: [run({ durationSec: 600 })] },
+	]
+	expect(sumBlockDurationMin(blocks, NO_THRESHOLDS)).toBeNull()
+	expect(sumBlockDurationMin(blocks, { thresholds: { run: runProfile } })).toBe(
+		57,
+	)
+})
+
+test('prescribedDuration times a step with no Discipline of its own as the Workout’s', () => {
+	const blocks = [
+		{
+			repeatCount: 5,
+			steps: [
+				run({ discipline: null, intensity: zone('Z4'), distanceM: 1000 }),
+			],
+		},
+	]
+	const thresholds = { run: runProfile }
+	expect(prescribedDuration(blocks, { thresholds })).toBeNull()
+	expect(prescribedDuration(blocks, { thresholds, discipline: 'run' })).toEqual(
+		{ seconds: 1200, complete: true, estimated: true },
+	)
 })
 
 // --- countdownLabel ---

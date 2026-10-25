@@ -71,6 +71,7 @@ import {
 	type DisciplineThresholdMap,
 } from '#app/utils/intensity-target.ts'
 import {
+	approxLabel,
 	NB_ADHERENCE_CHIP_LABELS,
 	NB_LOAD_WORDS,
 	nbStoredReplanReason,
@@ -424,9 +425,10 @@ function rateClause(
  * with that pace, on line 2.
  */
 function plannedLine(entry: SessionLedgerEntry): string | null {
+	// Minutes timed through a pace are a translation: `≈ 50 min` (#638).
 	const duration =
 		entry.durationMin != null && entry.durationMin > 0
-			? `${entry.durationMin} min`
+			? approxLabel(`${entry.durationMin} min`, entry.durationEstimated)
 			: null
 	if (entry.plannedTss == null) {
 		return duration ? ROW_LABELS.planned(duration) : null
@@ -597,7 +599,7 @@ function powerWindow(steps: ResolvedIntensity[]): string | null {
  * Anchor*, *Target Resolution*) — when any step it stands for is one.
  */
 function approx(steps: ResolvedIntensity[], text: string): string {
-	return steps.some((step) => step.approximate) ? `≈ ${text}` : text
+	return steps.some((step) => step.approximate) ? `≈\u00a0${text}` : text
 }
 
 /**

@@ -10,7 +10,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { sessionOwner } from '#app/utils/session-ownership.ts'
-import { getSessionDurationMin } from '#app/utils/training.ts'
+import { getSessionDuration } from '#app/utils/training.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action } from './session-adjust.tsx'
@@ -304,10 +304,9 @@ async function picture(sessionId: string) {
 	})
 	return {
 		...session,
-		minutes: getSessionDurationMin({
-			recording: null,
-			workout: session.workout,
-		}),
+		minutes:
+			getSessionDuration({ recording: null, workout: session.workout })
+				?.minutes ?? null,
 		owner: sessionOwner(session),
 	}
 }

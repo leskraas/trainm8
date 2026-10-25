@@ -2009,6 +2009,16 @@ export const SESONG_ENTRY_LABELS = {
 	group: 'Start noe nytt',
 } as const
 
+/**
+ * A figure the app translated rather than read: minutes timed through a pace
+ * say so with `≈` (`≈ 57 min`), the mark a Lactate Anchor's zone and an
+ * Intensity Target's equivalent carry. No-break spaces keep the mark and
+ * its figure on one line: `≈ 1 t 50 min` never wraps as `≈ 1 t 50` / `min`.
+ */
+export function approxLabel(text: string, estimated: boolean): string {
+	return estimated ? `≈\u00a0${text.replaceAll(' ', '\u00a0')}` : text
+}
+
 /** A duration the Norwegian way: `33 min`, `1 t 30 min`, `7 min 30 s`. */
 export function nbDurationLabel(seconds: number): string {
 	const hours = Math.floor(seconds / 3600)
@@ -3671,13 +3681,16 @@ export const WORKOUT_DETAIL_LABELS = {
 		plannedShape: 'Planlagt form',
 		inspectHint:
 			'Dra over grafen for å lese hver kanal — trykk og dra på mobil, hold pekeren over på PC.',
-		/** A planned target band; an open-ended zone has a floor only. */
+		/** A planned target band; an open-ended zone has a floor only, and a
+		 * single-value target (`150 bpm`) reads as its one value. */
 		targetRange: (min: number, max: number | null) =>
-			max != null ? `${min}–${max}` : `over ${min}`,
+			max == null ? `over ${min}` : max === min ? `${min}` : `${min}–${max}`,
 		plannedRange: (min: number, max: number | null, unit: string) =>
-			max != null
-				? `Planlagt ${min}–${max} ${unit}`
-				: `Planlagt over ${min} ${unit}`,
+			max == null
+				? `Planlagt over ${min} ${unit}`
+				: max === min
+					? `Planlagt ${min} ${unit}`
+					: `Planlagt ${min}–${max} ${unit}`,
 		missing: 'mangler',
 		tableCaption:
 			'Data fra opptaket, et utvalg gjennom økta, fra start til slutt.',
@@ -4176,8 +4189,15 @@ export const JUSTER_LABELS = {
 	working: 'Endrer …',
 	/** The toast: what changed. The session's title is quoted under it. */
 	done: {
-		tired: (duration: string) => `Dagens økt er rolig nå, ${duration}.`,
-		short: (duration: string) => `Dagens økt er kortet ned til ${duration}.`,
+		/** A lift states no time, so it says none. */
+		tired: (duration: string | null) =>
+			duration
+				? `Dagens økt er rolig nå, ${duration}.`
+				: 'Dagens økt er rolig nå.',
+		short: (duration: string | null) =>
+			duration
+				? `Dagens økt er kortet ned til ${duration}.`
+				: 'Dagens økt er kortet ned.',
 		moved: (day: string) => `Økta er flyttet til ${day}.`,
 		swapped: (day: string, other: string) =>
 			`Økta er flyttet til ${day}, og «${other}» er i dag.`,

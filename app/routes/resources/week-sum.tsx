@@ -7,6 +7,7 @@ import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { getWeekVolumes } from '#app/utils/plan-outline/week-volumes.server.ts'
 import { relativeWeekName } from '#app/utils/relative-week.ts'
+import { getDisciplineThresholds } from '#app/utils/training.server.ts'
 import { WeekSumQuerySchema } from '#app/utils/writing-line-schema.ts'
 import { type Route } from './+types/week-sum.ts'
 
@@ -38,11 +39,15 @@ export async function loader({ request }: Route.LoaderArgs) {
 			return { day, week: null }
 		}
 		const weekKey = mondayOfDay(day)
+		// The typed session is timed by these, as the week's are — read once,
+		// for both.
+		const thresholds = await getDisciplineThresholds(userId)
 		return {
 			day,
 			week: {
 				weekName: relativeWeekName(weekKey, weekMonday(new Date(), timezone)),
-				volumes: await getWeekVolumes(userId, { weekKey }),
+				volumes: await getWeekVolumes(userId, { weekKey, thresholds }),
+				thresholds,
 			},
 		}
 	} catch (error) {

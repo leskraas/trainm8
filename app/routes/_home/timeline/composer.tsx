@@ -510,6 +510,7 @@ function weekSumLine(
 		week.volumes,
 		shape,
 		trackForDiscipline(week.volumes, shape.discipline),
+		week.thresholds,
 	)
 	const line = weekSumPreviewLine(preview)
 	return preview.kind === 'track'
