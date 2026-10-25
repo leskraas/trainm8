@@ -155,6 +155,51 @@ test('a job deferred for more than 7 days spends its attempts and dead-letters',
 	expect(row.lastError).toBe('Strava read budget spent')
 })
 
+test('past the cap, a deferral that made progress still gives its attempt back', async () => {
+	// A large heal that reads a day's budget, then defers, is doing its job:
+	// counting from creation would dead-letter it with work left (#638).
+	const enqueued = await enqueueJob({ kind: 'strava-backfill', maxAttempts: 1 })
+	await prisma.job.update({
+		where: { id: enqueued.id },
+		data: { createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+	})
+	const until = new Date(Date.now() + 60 * 60 * 1000)
+
+	await processNextJob({
+		'strava-backfill': async () => {
+			throw new DeferJob(until, 'Strava read budget spent', {
+				progressed: true,
+			})
+		},
+	})
+
+	const row = await prisma.job.findUniqueOrThrow({ where: { id: enqueued.id } })
+	expect(row.status).toBe('pending')
+	expect(row.attempts).toBe(0)
+	expect(row.runAt.getTime()).toBe(until.getTime())
+})
+
+test('rethrowDeferral marks a deferral as progressed when the caller did work', () => {
+	const deferral = new DeferJob(new Date(), 'Strava read budget spent')
+
+	let thrown: unknown
+	try {
+		rethrowDeferral(deferral, { progressed: true })
+	} catch (e) {
+		thrown = e
+	}
+	expect(thrown).toBeInstanceOf(DeferJob)
+	expect((thrown as DeferJob).progressed).toBe(true)
+	expect((thrown as DeferJob).until).toBe(deferral.until)
+	expect(deferral.progressed).toBe(false)
+
+	// Progress recorded deeper down is never lost by a caller that did none.
+	const progressed = new DeferJob(new Date(), 'spent', { progressed: true })
+	expect(() => rethrowDeferral(progressed, { progressed: false })).toThrow(
+		progressed,
+	)
+})
+
 test('rethrowDeferral passes a deferral on and lets any other error be swallowed', () => {
 	const deferral = new DeferJob(new Date(), 'Strava read budget spent')
 

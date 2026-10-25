@@ -70,28 +70,45 @@ export async function claimNextJob(): Promise<ClaimedJob | null> {
  * Thrown by a handler that can't make progress until a known time, such as a
  * provider's spent read budget. The job goes back to `pending` at `until`
  * without spending an attempt, so the single worker is free for other jobs in
- * the meantime (#637). A job older than `DEFERRAL_CAP_MS` spends its attempts
- * like a failure, so one that keeps deferring dead-letters (#638).
+ * the meantime (#637). `progressed` says the run settled some of its work
+ * before the budget ran out. A job older than `DEFERRAL_CAP_MS` whose deferral
+ * made no progress spends its attempts like a failure, so one that keeps
+ * deferring without getting anywhere dead-letters (#638), while a long heal
+ * that reads a day's budget at a time runs to the end.
  */
 export class DeferJob extends Error {
-	// A plain field, not a parameter property: the server runs this file
+	// Plain fields, not parameter properties: the server runs this file
 	// through Node's type stripping, which can't rewrite one.
 	readonly until: Date
+	readonly progressed: boolean
 
-	constructor(until: Date, message: string) {
+	constructor(
+		until: Date,
+		message: string,
+		{ progressed = false }: { progressed?: boolean } = {},
+	) {
 		super(message)
 		this.name = 'DeferJob'
 		this.until = until
+		this.progressed = progressed
 	}
 }
 
 /**
  * For a best-effort `catch` that swallows what it catches: pass a deferral on
  * to the queue, so a spent budget pauses the job instead of skipping the rest
- * of its work.
+ * of its work. `progressed` marks the deferral when the caller settled work
+ * before it; progress a deeper call already recorded is kept.
  */
-export function rethrowDeferral(err: unknown): void {
-	if (err instanceof DeferJob) throw err
+export function rethrowDeferral(
+	err: unknown,
+	{ progressed = false }: { progressed?: boolean } = {},
+): void {
+	if (!(err instanceof DeferJob)) return
+	if (progressed && !err.progressed) {
+		throw new DeferJob(err.until, err.message, { progressed: true })
+	}
+	throw err
 }
 
 /** A handler runs one job kind. It receives the job's parsed JSON payload. */
@@ -105,7 +122,7 @@ export type JobHandlers = Record<string, JobHandler>
  * is completed; a throwing handler (or a missing handler) fails the job, which
  * either reschedules it with backoff or dead-letters it once attempts are spent.
  * A handler that throws `DeferJob` is rescheduled to its time instead (and,
- * past the deferral cap, spends its attempt).
+ * past the deferral cap with no progress made, spends its attempt).
  * Returns `'idle'` when nothing was runnable so the worker loop can back off.
  */
 export async function processNextJob(
@@ -167,18 +184,25 @@ export async function failJob(id: string, error: unknown): Promise<void> {
 	})
 }
 
-/** How long a job may keep deferring before its deferrals count as attempts. */
+/**
+ * How long a job may keep deferring before a deferral that made no progress
+ * counts as an attempt.
+ */
 export const DEFERRAL_CAP_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
  * Put a deferred job back to `pending` at the time it asked for. The claim
  * counted an attempt; a deferral is not a failure, so it is given back — until
- * the job is older than the cap. From then on it keeps the attempt, and once
- * they are spent the job is terminally `failed`.
+ * the job is older than the cap and the run made no progress. Such a deferral
+ * keeps the attempt, and once they are spent the job is terminally `failed`.
+ * A run that made progress always gets its attempt back: its work is finite,
+ * so it can't defer forever.
  */
 async function deferJob(id: string, deferral: DeferJob): Promise<void> {
 	const job = await prisma.job.findUniqueOrThrow({ where: { id } })
-	const capped = Date.now() - job.createdAt.getTime() > DEFERRAL_CAP_MS
+	const capped =
+		!deferral.progressed &&
+		Date.now() - job.createdAt.getTime() > DEFERRAL_CAP_MS
 	if (capped && job.attempts >= job.maxAttempts) {
 		await prisma.job.update({
 			where: { id },

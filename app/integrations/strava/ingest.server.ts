@@ -356,6 +356,9 @@ export async function ingestActivityStreams(
 	activities: StravaActivity[],
 	lane: RateLimitLane = 'bulk',
 ): Promise<void> {
+	// Whether this pass settled any activity, so a deferral says it made
+	// progress and the queue's deferral cap doesn't dead-letter it (#638).
+	let progressed = false
 	for (const activity of activities) {
 		const discipline = stravaTypeToDiscipline(
 			activity.sport_type ?? activity.type ?? '',
@@ -386,6 +389,7 @@ export async function ingestActivityStreams(
 			)
 			if (!raw) {
 				await markStreamsChecked(existing.id)
+				progressed = true
 				continue
 			}
 			// Provider laps first (#356): ground-truth edges for the lap-edged path,
@@ -408,11 +412,12 @@ export async function ingestActivityStreams(
 			)
 			// A stream too short to keep is as good as none.
 			await markStreamsChecked(existing.id)
+			progressed = true
 		} catch (err) {
 			// One activity's stream failing (fetch error, or a concurrent trigger
 			// that already inserted the row) must not abort the rest. A spent
 			// Strava budget would fail every one of them, so the job waits instead.
-			rethrowDeferral(err)
+			rethrowDeferral(err, { progressed })
 		}
 	}
 }

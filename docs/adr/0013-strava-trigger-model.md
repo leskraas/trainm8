@@ -29,21 +29,28 @@
 > and failing, a handler can throw `DeferJob(until)`
 > (`app/utils/jobs/queue.server.ts`). The job goes back to `pending` with
 > `runAt = until`, and the attempt its claim counted is given back, since
-> waiting for a budget is not a failure. Once the job is older than 7 days (its
-> own `createdAt`), a deferral keeps the attempt, so a job that keeps deferring
-> dead-letters after `maxAttempts`. The Strava limiter never sleeps: any request
-> that would have to wait, bulk or live, throws `DeferJob` for the moment the
-> full window resets (the next quarter-hour of 100 reads, of which bulk may use
-> 80, or midnight UTC for the day's 1,000, of which bulk may use 800), and a
-> `429` marks the window spent and defers the same way. Sleeping would hold the
-> single worker, or the request. The request paths that call Strava, the OAuth
-> callback's `/athlete` fallback and manual sync, can't be deferred: they answer
-> at once and tell the athlete when to try again. A rerun starts over, so
-> everything a job does must be idempotent: imports dedupe on their key, and an
-> import whose streams Strava answered with nothing usable carries
-> `streamsCheckedAt`, so neither a rerun nor a webhook redelivery asks again. A
-> best-effort `catch` on these paths passes a deferral on with
-> `rethrowDeferral(err)` instead of swallowing it.
+> waiting for a budget is not a failure. A deferral says whether the run made
+> progress (`DeferJob(until, message, { progressed })`): the loops that page
+> through work (the streams ingest behind backfill, reconciliation and the
+> webhook, the backfill's and the sweep's filing, and the laps heal) set it when
+> they settled something before the budget ran out. A deferral that made
+> progress always gets its attempt back: its work is finite, so it can't defer
+> forever, and a large lap heal at ~800 reads a day runs to the end. Only once
+> the job is older than 7 days (its own `createdAt`) does a deferral that made
+> no progress keep the attempt, so a job that keeps deferring without getting
+> anywhere dead-letters after `maxAttempts`. The Strava limiter never sleeps:
+> any request that would have to wait, bulk or live, throws `DeferJob` for the
+> moment the full window resets (the next quarter-hour of 100 reads, of which
+> bulk may use 80, or midnight UTC for the day's 1,000, of which bulk may use
+> 800), and a `429` marks the window spent and defers the same way. Sleeping
+> would hold the single worker, or the request. The request paths that call
+> Strava, the OAuth callback's `/athlete` fallback and manual sync, can't be
+> deferred: they answer at once and tell the athlete when to try again. A rerun
+> starts over, so everything a job does must be idempotent: imports dedupe on
+> their key, and an import whose streams Strava answered with nothing usable
+> carries `streamsCheckedAt`, so neither a rerun nor a webhook redelivery asks
+> again. A best-effort `catch` on these paths passes a deferral on with
+> `rethrowDeferral(err, { progressed })` instead of swallowing it.
 
 For the Strava integration (and future Garmin/Polar integrations), trainm8 needs
 to decide how new activities flow from the source provider into our **Activity

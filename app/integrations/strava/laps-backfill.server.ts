@@ -65,6 +65,10 @@ export async function runStravaLapsBackfill(): Promise<void> {
 		},
 	})
 
+	// Whether this run settled any import, so a deferral says it made progress
+	// and the queue's deferral cap doesn't dead-letter a long heal (#638).
+	let progressed = false
+
 	for (const connection of connections) {
 		const imports = await prisma.activityImport.findMany({
 			where: {
@@ -96,14 +100,16 @@ export async function runStravaLapsBackfill(): Promise<void> {
 						where: { id: imp.id },
 						data: { lapsJson: '[]' },
 					})
+					progressed = true
 					continue
 				}
+				progressed = true
 				// Re-run detection against the fresh laps (idempotent upsert): an
 				// unpromoted import's detection re-computes with the lap-edged path.
 				await runStructureDetection({ activityImportId: imp.id })
 			} catch (err) {
 				// A spent Strava budget: the queue resumes the backfill later (#637).
-				rethrowDeferral(err)
+				rethrowDeferral(err, { progressed })
 				if (
 					err instanceof StravaConnectionRevokedError ||
 					err instanceof StravaInsufficientScopeError ||
