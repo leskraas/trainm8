@@ -106,9 +106,6 @@ import {
 	formatRateField,
 } from '#app/utils/format.ts'
 import {
-	ATTACH_EVENT_LABELS,
-	ATTACH_EVENT_REFUSAL_LABELS,
-	attachedEventSentence,
 	APP_TAB_LABELS,
 	isoWeekSpanLabel,
 	NB_ACCUMULATED_SPAN_LABELS,
@@ -147,7 +144,6 @@ import {
 } from '#app/utils/labels.ts'
 import { fillPlanWeeksToHorizon } from '#app/utils/load/horizon-fill.server.ts'
 import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
-import { AttachEventFormSchema } from '#app/utils/plan-outline/attach-event-schema.ts'
 import {
 	EnduranceSegmentSetSchema,
 	MAX_QUALITY_SESSIONS_PER_WEEK,
@@ -222,10 +218,6 @@ import {
 	readStrengthTrackOffer,
 } from '#app/utils/plan-outline/history.server.ts'
 import {
-	addRaceToOpenEndedPlan,
-	attachEventToOutline,
-} from '#app/utils/plan-outline/open-ended.server.ts'
-import {
 	PhilosophySwitchFormSchema,
 	TRENINGSFORM_SURFACE,
 	StrengthOfferFormSchema,
@@ -283,6 +275,7 @@ import {
 	type Discipline,
 } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.ts'
+import { attachEventAction } from './__attach-event.server.ts'
 import { CopyWeekSection, type PendingCopy } from './__copy-week.tsx'
 import { readLibraryLifts } from './__library-section.server.ts'
 import { LibrarySection } from './__library-section.tsx'
@@ -1241,39 +1234,10 @@ export async function action({ request }: Route.ActionArgs) {
 				description: `${fitProposalSentence(fitted.proposal)}${SESONG_REFUSAL_LABELS.fitTail}`,
 			})
 		}
-		case 'attach-event': {
-			const submission = parseWithZod(formData, {
-				schema: AttachEventFormSchema,
-			})
-			if (submission.status !== 'success') {
-				return data(
-					{ intent: 'attach-event', result: submission.reply() },
-					{ status: 400 },
-				)
-			}
-			const { outlineId: attachTo, choice } = submission.value
-			const attached =
-				choice.kind === 'event'
-					? await attachEventToOutline(userId, attachTo, choice.eventId)
-					: await addRaceToOpenEndedPlan(userId, attachTo, choice)
-			if (!attached.ok) {
-				return data(
-					{
-						intent: 'attach-event',
-						result: submission.reply({
-							formErrors: [ATTACH_EVENT_REFUSAL_LABELS[attached.reason]],
-						}),
-					},
-					{ status: 400 },
-				)
-			}
-			// To the plan by its Event now: it is an ordinary plan toward it.
-			return redirectWithToast(`/training/plan?event=${attached.eventId}`, {
-				type: 'success',
-				title: ATTACH_EVENT_LABELS.done,
-				description: attachedEventSentence(attached.ended, attached.phases),
-			})
-		}
+		// _Legg til et løp_ (#505 stories 7–8, #518): preview, then attach.
+		case 'preview-attach-event':
+		case 'attach-event':
+			return attachEventAction(userId, formData)
 		case 'preview-philosophy':
 		case 'switch-philosophy': {
 			// The same preview and switch serve _Bytt filosofi_ in Avansert and
@@ -2183,11 +2147,10 @@ export default function PlanRoute({
 		actionData && 'error' in actionData && trackError === undefined
 			? actionData.error
 			: undefined
-	// _Legg til et løp_ answers inside its own form, with what was typed kept.
-	const attachResult =
-		actionData && 'intent' in actionData && actionData.intent === 'attach-event'
-			? actionData.result
-			: undefined
+	// _Legg til et løp_ answers inside its own form, with what was typed kept,
+	// and its preview under it (#518).
+	const attachReply =
+		actionData && 'attachEvent' in actionData ? actionData.attachEvent : null
 	// _Bytt filosofi_ and the strength offer answer inside their own forms.
 	const philosophy =
 		actionData && 'philosophy' in actionData ? actionData.philosophy : null
@@ -2207,7 +2170,7 @@ export default function PlanRoute({
 	// refusal or a preview is read where it was asked (`__plan-advanced.tsx`).
 	// The lead's own two answer in the lead and leave Avansert closed.
 	const advancedReply =
-		actionData && attachResult === undefined && treningsformReply == null
+		actionData && attachReply == null && treningsformReply == null
 			? actionData
 			: null
 	// The same, for a week copy aimed at a week that already holds sessions (#415).
@@ -2290,7 +2253,7 @@ export default function PlanRoute({
 				attach={{
 					outlineId: season.outlineId,
 					events: attachableEvents,
-					lastResult: attachResult,
+					reply: attachReply,
 				}}
 				resting={
 					season.resting ? (

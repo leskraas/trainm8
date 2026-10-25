@@ -914,6 +914,26 @@ describe('every planned session says whose it is (#505 story 29)', () => {
 		).toMatchObject({ owner: 'athlete', ownerLabel: 'din økt' })
 	})
 
+	test('a session the strength program wrote is the app’s, not a second kind of owner', () => {
+		// The strength program writes `generated` too (`strength-program.server.ts`),
+		// so the rule is athlete versus machine, never "which generator".
+		const programDay = {
+			source: 'generated',
+			plannedTssValue: null,
+			plannedTssConfidence: null,
+			workout: workout({ discipline: 'strength', title: 'Workout A' }),
+		}
+		expect(planned(programDay)).toMatchObject({
+			discipline: 'strength',
+			owner: 'machine',
+			ownerLabel: 'appens økt',
+			release: null,
+		})
+		expect(
+			planned({ ...programDay, adoptedAt: new Date('2030-02-19') }),
+		).toMatchObject({ owner: 'athlete', ownerLabel: 'din økt' })
+	})
+
 	test('a done or missed session is history, and carries no mark', () => {
 		// Nothing changes a session that already happened, so whose it is no
 		// longer tells the athlete anything.

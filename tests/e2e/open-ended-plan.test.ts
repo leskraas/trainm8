@@ -1,4 +1,5 @@
 import { HOME_TIMELINE_HREF } from '#app/utils/app-tabs.ts'
+import { isoWeekNumber as isoWeek } from '#app/utils/athlete-calendar.ts'
 import { expect, openPlanAdvanced, test } from '#tests/playwright-utils.ts'
 
 /**
@@ -89,7 +90,45 @@ test('Legg til et løp turns an open-ended plan into a plan toward the race, wit
 	).toBeVisible()
 	await offer.getByLabel('Navn på løpet').fill('Vårmilen')
 	await offer.getByLabel('Dato').fill(raceDay)
-	await offer.getByRole('button', { name: 'Legg til løpet' }).click()
+	await offer.getByRole('button', { name: 'Vis forhåndsvisning' }).click()
+
+	// The preview (#518): nothing is written until it is confirmed.
+	const preview = page.getByRole('region', { name: 'Forhåndsvisning' })
+	await expect(preview).toBeVisible()
+	await expect(page.getByText('blokk 1 av ∞')).toBeVisible()
+	// The round being lived ends after this week …
+	await expect(
+		preview.getByText(/^Blokk 1 slutter etter denne uka/),
+	).toBeVisible()
+	// … and the run-up is laid from next week to the race.
+	await expect(preview.getByText(/bygger planen mot Vårmilen/)).toBeVisible()
+	for (const phase of ['Oppbygging', 'Spissing', 'Nedtrapping']) {
+		await expect(
+			preview.getByRole('listitem').filter({ hasText: phase }),
+		).toBeVisible()
+	}
+	// What stays: the lived weeks and the athlete's own sessions.
+	await expect(
+		preview.getByText('Ukene du har trent blir stående.'),
+	).toBeVisible()
+	// Week by week, before and after, to the race's own ISO week.
+	const weeks = preview.getByRole('table')
+	await expect(weeks.getByRole('columnheader', { name: 'Nå' })).toBeVisible()
+	await expect(
+		weeks.getByRole('columnheader', { name: 'Mot løpet' }),
+	).toBeVisible()
+	await expect(
+		weeks.getByRole('rowheader', {
+			name: new RegExp(`^Uke ${isoWeek(raceDay)}(?!\\d)`),
+		}),
+	).toBeVisible()
+	// Nothing on the page is wider than the phone.
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth,
+		),
+	).toBe(true)
+	await preview.getByRole('button', { name: 'Legg til løpet' }).click()
 
 	// Now an ordinary plan toward that race, addressed by it.
 	await expect(page).toHaveURL(/\/training\/plan\?event=[a-z0-9]+$/i)
