@@ -2139,16 +2139,17 @@ session the runner has started is finished in the runner. It lists the planned
 lifts and sets as the prescription resolves today — a program session is
 re-stamped first, as opening it does, so the weight is the run's current one.
 _Som planlagt_ logs every planned set at its target in one tap; _Endre_ changes
-a set's reps (a hold's seconds) or leaves it empty for not done. The sets go in
-through the set log's upsert at the **weight the prescription resolved**, the
-same one a tap on the runner's circle logs (ADR 0064 §2: an off-program weight
-still has no way in), and the finish follows — one transaction, opened by a
-claim that matches only while no working set is logged, so a double tap or a
-runner tap in between cannot log twice. A lift whose weight or count does not
-resolve, or a repeated block (the set log has one row per prescribed set, not
-per repeat), sends the whole session to the runner rather than logging part of
-it as all of it. _Avoid_: Quick log (bare), log as planned (that is the button),
-Gjort (that is for cardio, whose numbers an import brings).
+a set's reps (a hold's seconds) or leaves it empty for not done, and changes a
+weighted lift's **weight, once per lift**, stepped by what the rack can make
+(ADR 0064 as amended by #530). The sets go in through the set log's upsert at
+the **weight the prescription resolved** unless _Endre_ changed it, and the
+finish follows — one transaction, opened by a claim that matches only while no
+working set is logged, so a double tap or a runner tap in between cannot log
+twice. A lift whose weight or count does not resolve, or a repeated block (the
+set log has one row per prescribed set, not per repeat), sends the whole session
+to the runner rather than logging part of it as all of it. _Avoid_: Quick log
+(bare), log as planned (that is the button), Gjort (that is for cardio, whose
+numbers an import brings).
 
 **Auto-Save Mirror**: An **Activity Import** the athlete has not built anything
 on — its recording-only session is still structureless, carries no **Session
