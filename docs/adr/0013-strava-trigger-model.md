@@ -49,9 +49,13 @@
 > starts over, so everything a job does must be idempotent: imports dedupe on
 > their key, and an import whose streams Strava answered with nothing usable
 > carries `streamsCheckedAt`, so neither a rerun nor a webhook redelivery asks
-> again. A best-effort step on these paths runs through
-> `bestEffort(step, { progressed })`, which hands back any other error for the
-> caller to narrow or log but passes a deferral on instead of swallowing it.
+> again. A `200` whose body doesn't parse is a glitch, not an answer: it throws,
+> the import (or, in the laps heal, its `lapsJson`) is left unmarked, and the
+> next pass that reaches it asks again; each pass is finite and such an answer
+> is no progress, so it can't loop. A best-effort step on these paths runs
+> through `bestEffort(step, { progressed })`, which hands back any other error
+> for the caller to narrow or log but passes a deferral on instead of swallowing
+> it.
 
 For the Strava integration (and future Garmin/Polar integrations), trainm8 needs
 to decide how new activities flow from the source provider into our **Activity

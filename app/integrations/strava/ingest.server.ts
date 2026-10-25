@@ -190,6 +190,8 @@ export async function fetchStravaActivityById(
  * Fetch an activity's per-sample telemetry and adapt it to the provider-neutral
  * `RawStream` the downsampler consumes, or `null` when the activity carries no
  * usable streams (manual upload, no device, or Strava omits every channel).
+ * A body that doesn't parse throws `StravaUnparseableResponseError` instead:
+ * that is a glitch to ask again about, not an answer to settle on (#638).
  * Requests the elapsed-time axis plus the modeled channels: heart rate, power
  * (`watts`), and speed (`velocity_smooth`, converted per sample to pace in
  * sec/km — a stop reads as a `null` gap, not an infinite pace). Shares the
@@ -207,7 +209,11 @@ export async function fetchStravaActivityStreams(
 			lane,
 		),
 	)
-	if (!parsed.success) return null
+	if (!parsed.success) {
+		throw new StravaUnparseableResponseError(
+			`/activities/${externalId}/streams`,
+		)
+	}
 	const time = parsed.data.time?.data
 	if (!time?.length) return null
 
@@ -224,21 +230,38 @@ export async function fetchStravaActivityStreams(
 }
 
 /**
- * Fetch an activity's provider laps via `GET /activities/{id}/laps`. Returns
- * `null` on a shape that doesn't parse (never throws for a bad body) so a
- * missing/malformed laps response degrades to stream-only detection (#356).
+ * Fetch an activity's provider laps via `GET /activities/{id}/laps`. Throws
+ * `StravaUnparseableResponseError` on a shape that doesn't parse, which the
+ * best-effort callers swallow, so a malformed laps response degrades to
+ * stream-only detection (#356) without settling the import for good.
  * Shares the process-wide rate limiter like every other Strava fetch, in `lane`.
  */
 export async function fetchStravaActivityLaps(
 	connection: ConnectionRef,
 	externalId: string,
 	lane: RateLimitLane = 'bulk',
-): Promise<StravaLap[] | null> {
+): Promise<StravaLap[]> {
+	const path = `/activities/${externalId}/laps`
 	const parsed = StravaLapsSchema.safeParse(
-		await stravaApiGet(connection, `/activities/${externalId}/laps`, lane),
+		await stravaApiGet(connection, path, lane),
 	)
-	if (!parsed.success) return null
+	if (!parsed.success) throw new StravaUnparseableResponseError(path)
 	return parsed.data
+}
+
+/**
+ * Strava answered `200` with a body that doesn't parse: a glitch, not its
+ * answer, so the import is not marked as asked (#638). Nothing retries it on
+ * its own: a best-effort loop moves on and the next pass that reaches the
+ * import (a rerun, the reconciliation sweep's overlap, a webhook retry) asks
+ * again. Each of those is finite, and an unparseable answer is no progress
+ * for the deferral cap, so it can't loop forever.
+ */
+export class StravaUnparseableResponseError extends Error {
+	constructor(path: string) {
+		super(`Strava API GET ${path} returned a body that doesn't parse`)
+		this.name = 'StravaUnparseableResponseError'
+	}
 }
 
 /**
@@ -327,7 +350,6 @@ export async function ingestActivityLaps(
 	// A spent Strava budget is not a failure: the job waits for it (#637).
 	await bestEffort(async () => {
 		const laps = await fetchStravaActivityLaps(connection, externalId, lane)
-		if (!laps) return
 		const markers = stravaLapsToMarkers(laps, {
 			time: streamTime,
 			activityStartMs,

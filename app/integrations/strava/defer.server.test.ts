@@ -3,6 +3,7 @@ import { persistActivityStream } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { DeferJob } from '#app/utils/jobs/queue.server.ts'
 import { createUser } from '#tests/db-utils.ts'
+import { consoleError } from '#tests/setup/setup-test-env.ts'
 import { runStravaBackfill } from './backfill.server.ts'
 import { stravaApiGet } from './client.server.ts'
 import { ingestActivityStreams } from './ingest.server.ts'
@@ -125,7 +126,7 @@ test('the laps backfill marks its deferral as progressed after healing an import
 		heartrate: time.map(() => 150),
 	})
 	// The first answer has no laps (settled as `[]`); the next defers.
-	vi.mocked(stravaApiGet).mockResolvedValueOnce(null)
+	vi.mocked(stravaApiGet).mockResolvedValueOnce([])
 
 	expect((await caughtDeferral(runStravaLapsBackfill)).progressed).toBe(true)
 })
@@ -155,7 +156,7 @@ test('the streams loop marks its deferral as progressed after settling an activi
 			start_date: start,
 		})
 	// The first activity has no usable streams (checked and settled); the next defers.
-	vi.mocked(stravaApiGet).mockResolvedValueOnce(null)
+	vi.mocked(stravaApiGet).mockResolvedValueOnce({})
 
 	const deferral = await caughtDeferral(() =>
 		ingestActivityStreams(connection, [
@@ -193,4 +194,46 @@ test('the backfill and the reconciliation sweep count filed activities as progre
 		runStravaReconciliation(connection.athleteId),
 	)
 	expect(rerun.progressed).toBe(false)
+})
+
+/**
+ * A 200 whose body doesn't parse is a glitch, not Strava's answer (#638): the
+ * import is left for the next pass to ask again, never settled for good. Each
+ * pass is finite and an unparseable answer is no progress, so it can't loop.
+ */
+test('an unparseable streams body leaves the import for a retry', async () => {
+	const connection = await setupImport({ withStream: false })
+	vi.mocked(stravaApiGet).mockResolvedValueOnce({ time: 'not a stream' })
+
+	await ingestActivityStreams(connection, [
+		StravaActivitySchema.parse({
+			id: 90042,
+			sport_type: 'Run',
+			type: 'Run',
+			distance: 800,
+			moving_time: 120,
+			elapsed_time: 120,
+			start_date: '2026-05-21T11:00:00Z',
+		}),
+	])
+
+	const imp = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: connection.athleteId, externalId: '90042' },
+		select: { streamsCheckedAt: true },
+	})
+	expect(imp.streamsCheckedAt).toBeNull()
+})
+
+test('an unparseable laps body leaves the import for a retry', async () => {
+	const connection = await setupImport({ withStream: true })
+	vi.mocked(stravaApiGet).mockResolvedValueOnce({ not: 'laps' })
+	consoleError.mockImplementation(() => {})
+
+	await runStravaLapsBackfill()
+
+	const imp = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: connection.athleteId, externalId: '90042' },
+		select: { lapsJson: true },
+	})
+	expect(imp.lapsJson).toBeNull()
 })

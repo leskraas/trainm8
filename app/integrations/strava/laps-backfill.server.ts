@@ -119,21 +119,22 @@ export async function runStravaLapsBackfill(): Promise<void> {
 
 /**
  * Fetch one import's laps and persist them, re-running its detection; or,
- * when Strava has no interior laps for it, mark it settled.
+ * when Strava has no interior laps for it, mark it settled. A body that
+ * doesn't parse throws, leaving the import for a later run to ask again
+ * (#638).
  */
 async function healImportLaps(
 	connection: Parameters<typeof fetchStravaActivityLaps>[0],
 	imp: { id: string; externalId: string; startedAt: Date },
 ): Promise<void> {
 	const laps = await fetchStravaActivityLaps(connection, imp.externalId)
-	const markers = laps
-		? stravaLapsToMarkers(laps, { activityStartMs: imp.startedAt.getTime() })
-		: []
+	const markers = stravaLapsToMarkers(laps, {
+		activityStartMs: imp.startedAt.getTime(),
+	})
 	if (!(await persistActivityLaps(imp.id, markers))) {
-		// Asked, and Strava has no interior laps for it (or a body that
-		// doesn't parse, which a retry would get again). Mark it so a
-		// deferred run (#637), which starts over, doesn't spend the budget on
-		// it again; detection reads `[]` as no laps.
+		// Asked, and Strava has no interior laps for it. Mark it so a deferred
+		// run (#637), which starts over, doesn't spend the budget on it again;
+		// detection reads `[]` as no laps.
 		await prisma.activityImport.update({
 			where: { id: imp.id },
 			data: { lapsJson: '[]' },
