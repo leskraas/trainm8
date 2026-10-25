@@ -41,7 +41,7 @@ import {
 } from '../plan-outline/derive.ts'
 import { type QualitySessionMixEntry } from '../plan-outline/quality-mix.ts'
 import { type ConversionContext } from '../plan-outline/volume-conversion.ts'
-import { type Discipline } from '../workout-schema.ts'
+import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import { type GenerationTrack } from './season.ts'
 
 /** What the capacity check did to a generated season. Carries no wording. */
@@ -51,8 +51,16 @@ export type CapacityFit =
 	| { kind: 'fits'; peakHours: number; weeklyCapacityHours: number }
 	| {
 			kind: 'lowered'
+			/** The heaviest week's hours as the anchors were given, unrounded. */
+			fromPeakHours: number
+			/** The heaviest week's hours once lowered, unrounded. */
 			peakHours: number
 			weeklyCapacityHours: number
+			/**
+			 * Some hours were read through a pace or speed rather than authored in
+			 * hours, so the surface marks them as a translation (`≈`, #638).
+			 */
+			estimated: boolean
 			/** Each track's anchor before and after, in its own currency. */
 			anchors: Array<{
 				discipline: GenerationTrack['discipline']
@@ -64,6 +72,8 @@ export type CapacityFit =
 	| {
 			kind: 'over'
 			weeklyCapacityHours: number
+			/** As on `lowered`: the hours were read through a pace somewhere. */
+			estimated: boolean
 			/** The spans that outrun it, 0-based, as the plan page's check states them. */
 			warnings: HoursFitWarning[]
 	  }
@@ -102,7 +112,11 @@ export function fitToCapacity(input: CapacityInput): {
 	if (hoursFitWarnings(hours, capacity).length === 0) {
 		return {
 			tracks,
-			fit: { kind: 'fits', peakHours: peak(hours), weeklyCapacityHours: capacity },
+			fit: {
+				kind: 'fits',
+				peakHours: peak(hours),
+				weeklyCapacityHours: capacity,
+			},
 		}
 	}
 
@@ -123,6 +137,7 @@ export function fitToCapacity(input: CapacityInput): {
 			fit: {
 				kind: 'over',
 				weeklyCapacityHours: capacity,
+				estimated: estimated(tracks),
 				warnings: hoursFitWarnings(hours, capacity),
 			},
 		}
@@ -139,8 +154,10 @@ export function fitToCapacity(input: CapacityInput): {
 		tracks: lowered,
 		fit: {
 			kind: 'lowered',
+			fromPeakHours: peak(hours),
 			peakHours: peak(weekHours(input, lowered)),
 			weeklyCapacityHours: capacity,
+			estimated: estimated(tracks),
 			anchors: tracks.map((track, at) => ({
 				discipline: track.discipline,
 				currency: track.currency,
@@ -190,6 +207,17 @@ function weekHours(
 			segments: input.mixes.map((mix, phaseIndex) => ({ phaseIndex, mix })),
 		})),
 	})
+}
+
+/**
+ * Whether any endurance track's hours are a translation: a track authored in
+ * hours reads its own figure, every other currency goes through a pace or speed.
+ */
+function estimated(tracks: readonly GenerationTrack[]): boolean {
+	return tracks.some(
+		(track) =>
+			isCardioDiscipline(track.discipline) && track.currency !== 'hours',
+	)
 }
 
 function peak(hours: ReadonlyArray<number | null>): number {

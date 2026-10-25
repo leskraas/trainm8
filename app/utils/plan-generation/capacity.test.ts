@@ -214,3 +214,43 @@ test('two tracks are lowered by one common factor', () => {
 	expect(run!.anchorValue).toBe(bike!.anchorValue)
 	expect(hoursFitWarnings(hoursTargets(season), 8)).toEqual([])
 })
+
+// The preview states what lowering did (ADR 0110 §2): the heaviest week before
+// and after, and whether those hours were read through a pace (`≈`, #638).
+test('a lowered season carries its heaviest week before and after', () => {
+	const free = generateDeterministicSeason(
+		request({ weeklyCapacityHours: null }),
+		CORPUS,
+	)
+	const season = generateDeterministicSeason(request(), CORPUS)
+	const fit = season.capacity
+	if (fit.kind !== 'lowered')
+		throw new Error(`expected lowered, got ${fit.kind}`)
+	expect(fit.fromPeakHours).toBeCloseTo(Math.max(...hoursTargets(free)), 6)
+	expect(fit.peakHours).toBeCloseTo(Math.max(...hoursTargets(season)), 6)
+	expect(fit.peakHours).toBeLessThan(fit.fromPeakHours)
+	// An hours track's hours are the athlete's own figures, not a translation.
+	expect(fit.estimated).toBe(false)
+})
+
+test('hours read off a km track through a pace are marked as estimated', () => {
+	const lowered = generateDeterministicSeason(
+		request({
+			tracks: [{ discipline: 'run', currency: 'km', anchorValue: 90 }],
+			weeklyCapacityHours: 7,
+		}),
+		CORPUS,
+	).capacity
+	if (lowered.kind !== 'lowered') throw new Error(`got ${lowered.kind}`)
+	expect(lowered.estimated).toBe(true)
+
+	const over = generateDeterministicSeason(
+		request({
+			tracks: [{ discipline: 'run', currency: 'km', anchorValue: 40 }],
+			weeklyCapacityHours: 0.5,
+		}),
+		CORPUS,
+	).capacity
+	if (over.kind !== 'over') throw new Error(`got ${over.kind}`)
+	expect(over.estimated).toBe(true)
+})
