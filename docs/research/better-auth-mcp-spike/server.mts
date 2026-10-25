@@ -58,8 +58,9 @@ const mcpHandler = createMcpHandler(
 )
 
 // Per-tool step-up. A throw inside a tool handler becomes a tool error in the
-// SDK, so the 403 is raised before dispatch: the tool name comes from the
-// 2026-07-28 `Mcp-Name` header, or from the JSON-RPC body on the 2025 era.
+// SDK, so the 403 is raised before dispatch. Dispatch runs the body's
+// `params.name` on both eras, so the gate checks every body call; `Mcp-Name`
+// only adds a name when it disagrees (stepup.mts has the bypass cases).
 const TOOL_SCOPES: Record<string, string> = {
 	propose_week_change: 'training:propose',
 }

@@ -1,5 +1,8 @@
 // PROTOTYPE, wipe me (#552). Per-tool step-up on both eras: training:read token calls
 // propose_week_change -> 403 insufficient_scope; then a stepped-up token works.
+// The bypass cases (Copilot on #644) try to smuggle propose_week_change past the
+// gate with a lying, encoded or batched name; each must end in a non-2xx, never
+// in "proposal created".
 import { createHash, randomBytes } from 'node:crypto'
 import {
 	Client,
@@ -57,7 +60,18 @@ async function tokenFor(scope: string) {
 	return (await r.json()).access_token as string
 }
 
-async function legacyCall(token: string, name: string) {
+const call = (name: string, id = 1) => ({
+	jsonrpc: '2.0',
+	id,
+	method: 'tools/call',
+	params: { name, arguments: {} },
+})
+
+async function legacyCall(
+	token: string,
+	name: string,
+	extra: { headers?: Record<string, string>; body?: unknown } = {},
+) {
 	const r = await fetch(MCP, {
 		method: 'POST',
 		headers: {
@@ -65,13 +79,9 @@ async function legacyCall(token: string, name: string) {
 			accept: 'application/json, text/event-stream',
 			authorization: `Bearer ${token}`,
 			'mcp-protocol-version': '2025-06-18',
+			...extra.headers,
 		},
-		body: JSON.stringify({
-			jsonrpc: '2.0',
-			id: 1,
-			method: 'tools/call',
-			params: { name, arguments: {} },
-		}),
+		body: JSON.stringify(extra.body ?? call(name)),
 	})
 	return {
 		status: r.status,
@@ -80,10 +90,17 @@ async function legacyCall(token: string, name: string) {
 	}
 }
 
-async function modernCall(token: string, name: string) {
+async function modernCall(
+	token: string,
+	name: string,
+	mcpName?: (sent: string) => string,
+) {
 	const seen: { status: number; wwwAuth: string | null }[] = []
 	const f: typeof fetch = async (input, init) => {
-		const res = await fetch(input, init)
+		const headers = new Headers(init?.headers)
+		const sent = headers.get('mcp-name')
+		if (mcpName && sent) headers.set('mcp-name', mcpName(sent))
+		const res = await fetch(input, { ...init, headers })
 		seen.push({
 			status: res.status,
 			wwwAuth: res.headers.get('www-authenticate'),
@@ -129,4 +146,27 @@ out(
 out(
 	'2026-07-28 propose_week_change after step-up',
 	await modernCall(stepped, 'propose_week_change'),
+)
+
+// Bypass attempts, all with the training:read token.
+const b64 = (v: string) => `=?base64?${Buffer.from(v).toString('base64')}?=`
+out(
+	'bypass: 2025-06-18 propose_week_change with Mcp-Name: get_week',
+	await legacyCall(readOnly, 'propose_week_change', {
+		headers: { 'mcp-name': 'get_week' },
+	}),
+)
+out(
+	'bypass: 2025-06-18 batch [get_week, propose_week_change]',
+	await legacyCall(readOnly, 'propose_week_change', {
+		body: [call('get_week', 1), call('propose_week_change', 2)],
+	}),
+)
+out(
+	'bypass: 2026-07-28 propose_week_change with Base64-encoded Mcp-Name',
+	await modernCall(readOnly, 'propose_week_change', b64),
+)
+out(
+	'bypass: 2026-07-28 propose_week_change with Mcp-Name: get_week',
+	await modernCall(readOnly, 'propose_week_change', () => 'get_week'),
 )

@@ -233,12 +233,20 @@ calls.
 per tool, the gate must run **before** the SDK dispatches, because a throw
 inside a tool handler becomes a tool error, not an HTTP `403`.
 
-The spike reads the tool name and throws Better Auth's
+The spike reads the tool names and throws Better Auth's
 `createInsufficientScopeError`
-([`server.mts`](better-auth-mcp-spike/server.mts), `TOOL_SCOPES`):
+([`server.mts`](better-auth-mcp-spike/server.mts), `TOOL_SCOPES`, `toolNames`):
 
-- on 2026-07-28, from the `Mcp-Name` header;
-- on the 2025 era, from the JSON-RPC body.
+- from every `tools/call` in the JSON-RPC body, batches included, on both eras,
+  because dispatch runs the body's `params.name`;
+- plus the `Mcp-Name` header when it disagrees with the body. The 2025 era
+  ignores the header, and 2026-07-28 decodes `=?base64?…?=` before its own
+  cross-check, so a header-first gate could be lied to.
+
+Run 6 sends four bypasses with a `training:read` token: a legacy call with
+`Mcp-Name: get_week`, a legacy batch `[get_week, propose_week_change]`, and a
+2026-07-28 call with a Base64-encoded or lying `Mcp-Name`. All four get the
+`403`. Before 50960a4, the first three ran the proposal (Run 6, before the fix).
 
 `requireMcpAuth` turns the throw into
 `403 Bearer error="insufficient_scope", scope="training:read training:propose", resource_metadata=…`
@@ -439,11 +447,16 @@ Free, Pro or Max account.
    ```
 
 4. **Smoke-test the public URL before clicking.** Every section should print
-   `200`s and `"negotiated": "2026-07-28"`, the same as Run 2.
+   `200`s, `"cimdOk": true` and `"negotiated": "2026-07-28"`, the same as Run 1.
 
    ```sh
-   MCP_URL=$BASE_URL/mcp CLIENT=claude-web SKIP_REFRESH_WAIT=1 SPIKE_PASSWORD='<same>' npm run smoke
+   MCP_URL=$BASE_URL/mcp CLIENT=dcr SKIP_REFRESH_WAIT=1 SPIKE_PASSWORD='<same>' npm run smoke
    ```
+
+   Use the disposable DCR client here, not `CLIENT=claude-web`. Consent is saved
+   per `(user, client)`, so a preflight as claude.ai's CIMD client would save
+   consent for the athlete and the click in step 5 would skip the consent page
+   that step 6 checks (Run 4b).
 
 5. **Add the connector in Claude.**
    - Go to **Customize → Connectors → Add custom connector**. On a Team or
@@ -502,11 +515,19 @@ anyone sign in on a public URL.
 
 ## 11. Reproduce locally
 
-The locally runnable part of §10 needs no tunnel:
+The locally runnable part of §10 needs no tunnel.
+
+In the first terminal, install, set up and start the server in the foreground:
 
 ```sh
 cp -r docs/research/better-auth-mcp-spike /tmp/ba-spike && cd /tmp/ba-spike
-npm install && npm run setup && npm start &      # http://localhost:3000
+npm install && npm run setup && npm start        # http://localhost:3000
+```
+
+Once it logs that it is listening, run the clients from a second terminal:
+
+```sh
+cd /tmp/ba-spike
 CLIENT=claude-web node claude-sim.mts            # Run 2; also claude-code, dcr
 LOGIN=epic CLIENT=dcr node claude-sim.mts        # Run 4, the bridge
 LEGACY=reject npm start                          # restart, then claude-sim: Run 7

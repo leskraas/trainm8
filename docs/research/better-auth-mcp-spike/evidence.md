@@ -754,7 +754,7 @@ resource === MCP_URL: true
 }
 ```
 
-## Run 6. Per-tool step-up on both eras (`stepup.mts`)
+## Run 6. Per-tool step-up on both eras, with the bypass attempts (`stepup.mts`)
 
 ```text
 ### 2025-06-18 propose_week_change with training:read only
@@ -778,7 +778,7 @@ resource === MCP_URL: true
   "ok": [
     {
       "type": "text",
-      "text": "week for athlete (era=modern, client=MCLfkvIXJsbtbotiQbLWwxbGSlnclPEU, scopes=training:read offline_access)"
+      "text": "week for athlete (era=modern, client=IoADGCiJOPCwxsFrEHXDPzCelEswgTnP, scopes=training:read offline_access)"
     }
   ],
   "http": {
@@ -804,6 +804,79 @@ resource === MCP_URL: true
   ],
   "http": {
     "status": 200,
+    "wwwAuth": null
+  }
+}
+
+### bypass: 2025-06-18 propose_week_change with Mcp-Name: get_week
+{
+  "status": 403,
+  "www-authenticate": "Bearer error=\"insufficient_scope\", scope=\"training:read training:propose\", resource_metadata=\"http://localhost:3000/.well-known/oauth-protected-resource/mcp\", error_description=\"access token is missing required scope: training:read training:propose\"",
+  "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"access token is missing required scope: training:read training:propose\"},\"id\":null}"
+}
+
+### bypass: 2025-06-18 batch [get_week, propose_week_change]
+{
+  "status": 403,
+  "www-authenticate": "Bearer error=\"insufficient_scope\", scope=\"training:read training:propose\", resource_metadata=\"http://localhost:3000/.well-known/oauth-protected-resource/mcp\", error_description=\"access token is missing required scope: training:read training:propose\"",
+  "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"access token is missing required scope: training:read training:propose\"},\"id\":null}"
+}
+
+### bypass: 2026-07-28 propose_week_change with Base64-encoded Mcp-Name
+{
+  "error": "InsufficientScopeError: Insufficient scope: required \"training:read training:propose\"",
+  "http": {
+    "status": 403,
+    "wwwAuth": "Bearer error=\"insufficient_scope\", scope=\"training:read training:propose\", resource_metadata=\"http://localhost:3000/.well-known/oauth-protected-resource/mcp\", error_description=\"access token is missing required scope: training:read training:propose\""
+  }
+}
+
+### bypass: 2026-07-28 propose_week_change with Mcp-Name: get_week
+{
+  "error": "InsufficientScopeError: Insufficient scope: required \"training:read training:propose\"",
+  "http": {
+    "status": 403,
+    "wwwAuth": "Bearer error=\"insufficient_scope\", scope=\"training:read training:propose\", resource_metadata=\"http://localhost:3000/.well-known/oauth-protected-resource/mcp\", error_description=\"access token is missing required scope: training:read training:propose\""
+  }
+}
+```
+
+## Run 6, before the fix. The same bypass attempts against the header-first gate of ab893fd
+
+```text
+### bypass: 2025-06-18 propose_week_change with Mcp-Name: get_week
+{
+  "status": 200,
+  "www-authenticate": null,
+  "body": "event: message\ndata: {\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"proposal created (stub)\"}]},\"jsonrpc\":\"2.0\",\"id\":1}\n\n"
+}
+
+### bypass: 2025-06-18 batch [get_week, propose_week_change]
+{
+  "status": 200,
+  "www-authenticate": null,
+  "body": "event: message\ndata: {\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"proposal created (stub)\"}]},\"jsonrpc\":\"2.0\",\"id\":2}\n\nevent: message\ndata: {\"result\":{\"content\""
+}
+
+### bypass: 2026-07-28 propose_week_change with Base64-encoded Mcp-Name
+{
+  "ok": [
+    {
+      "type": "text",
+      "text": "proposal created (stub)"
+    }
+  ],
+  "http": {
+    "status": 200,
+    "wwwAuth": null
+  }
+}
+
+### bypass: 2026-07-28 propose_week_change with Mcp-Name: get_week
+{
+  "error": "ProtocolError: Bad Request: the request headers and body disagree: the body carries params.name=\"propose_week_change\" but the Mcp-Name header names \"get_week\"",
+  "http": {
+    "status": 400,
     "wwwAuth": null
   }
 }
