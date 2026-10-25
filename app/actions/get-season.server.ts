@@ -135,12 +135,15 @@ export const getSeasonAction = defineAction({
 						(s) => s.dayKey >= weekKey && s.dayKey <= sunday,
 					),
 				})
-				const recorded = platformsOver(byDay, weekKey, 7)
+				const bindingSets = {
+					recorded: platformsOver(byDay.recorded, weekKey, 7),
+					detected: platformsOver(byDay.detected, weekKey, 7),
+				}
 				return {
 					weekKey,
 					phase: phaseOfWeek[i] ?? '',
 					tracks: volumes.tracks.map((track) =>
-						toWeekTrack(track, recorded, ctx),
+						toWeekTrack(track, bindingSets, ctx),
 					),
 				}
 			}),

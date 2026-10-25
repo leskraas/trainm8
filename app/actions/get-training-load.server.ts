@@ -118,7 +118,7 @@ export const getTrainingLoadAction = defineAction({
 				// The day's own load reads only that day's Recordings.
 				tss: reading(
 					snapshot?.tssTotal ?? noHistory,
-					platformsOver(byDay, date, 1),
+					platformsOver(byDay.recorded, date, 1),
 					ctx,
 				),
 				ctl: reading(snapshot?.ctl ?? noHistory, history, ctx),
@@ -140,7 +140,7 @@ export const getTrainingLoadAction = defineAction({
 			days,
 			weeks: build.map((week, i) => {
 				const weekKey = addDays(firstMonday, 7 * i)
-				const recorded = platformsOver(byDay, weekKey, 7)
+				const recorded = platformsOver(byDay.recorded, weekKey, 7)
 				return {
 					weekKey,
 					plannedTss: reading(

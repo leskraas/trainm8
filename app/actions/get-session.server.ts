@@ -1,6 +1,7 @@
 import { z } from 'zod/v4'
 import {
 	ORIGIN_PLATFORMS,
+	type OriginPlatform,
 	originPlatformOf,
 } from '#app/integrations/shared/origin-platform.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -18,6 +19,7 @@ import { defineAction } from './define.ts'
 import {
 	athleteText,
 	AthleteTextSchema,
+	gate,
 	NumberReading,
 	type Reading,
 	reading,
@@ -29,6 +31,7 @@ import {
 	SessionSummarySchema,
 	sessionTitle,
 	toSessionSummary,
+	workoutBindingSet,
 } from './session-summary.server.ts'
 
 /** A zone label the athlete typed is capped like a title. */
@@ -82,15 +85,19 @@ type Intensity = z.infer<typeof IntensitySchema>
 
 function toIntensity(
 	stored: string | null,
+	/** The Workout's binding set: nothing for an independent prescription. */
+	bindingSet: readonly OriginPlatform[],
 	ctx: ReadingContext,
 ): Intensity | null {
 	const target = parseAuthoredIntensity(stored)
 	if (!target) return null
-	// Plan-side, so it binds to nothing.
 	const bound = (value: number | undefined): Reading<number> | null =>
-		value === undefined ? null : reading(value, [], ctx)
+		value === undefined ? null : reading(value, bindingSet, ctx)
 	switch (target.kind) {
 		case 'zoneLabel':
+			// A label is text, not a Reading: where the terms close the Workout,
+			// nothing of it is sent.
+			if (gate(bindingSet, ctx)) return null
 			return {
 				kind: 'zoneLabel',
 				label: athleteText(target.label, ZONE_LABEL_MAX),
@@ -238,9 +245,9 @@ export const getSessionAction = defineAction({
 					]),
 				]
 			: []
-		// Plan-side, so it binds to nothing.
+		const prescribed = workoutBindingSet(session, bindingSet)
 		const planned = (value: number | null) =>
-			reading(value ?? unavailable('not-resolved'), [], ctx)
+			reading(value ?? unavailable('not-resolved'), prescribed, ctx)
 		return {
 			...toSessionSummary(
 				session,
@@ -250,7 +257,7 @@ export const getSessionAction = defineAction({
 			),
 			workout: workout
 				? {
-						title: sessionTitle(session),
+						title: sessionTitle(session, prescribed, ctx),
 						blocks: workout.blocks.map((block) => ({
 							repeatCount: planned(block.repeatCount),
 							seriesRepeatCount: planned(block.seriesRepeatCount ?? 1),
@@ -261,7 +268,7 @@ export const getSessionAction = defineAction({
 							),
 							steps: block.steps.map((step) => ({
 								kind: step.kind,
-								intensity: toIntensity(step.intensity, ctx),
+								intensity: toIntensity(step.intensity, prescribed, ctx),
 								durationS: planned(step.durationSec),
 								distanceM: planned(step.distanceM),
 								sets: planned(step.sets.length > 0 ? step.sets.length : null),

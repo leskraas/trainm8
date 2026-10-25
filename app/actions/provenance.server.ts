@@ -4,6 +4,10 @@
  * session's Recording, keyed by the session's day in the Athlete Timezone.
  * One query for the whole window, so a season's weeks each get their own
  * set — one Strava run closes only its own week, not the season.
+ *
+ * `detected` is the same, for the sessions whose Workout was detected from
+ * their Recording: their prescribed figures are that Recording's data, so a
+ * week's Planned Volume binds to them (`workoutBindingSet`).
  */
 
 import {
@@ -15,11 +19,18 @@ import { prisma } from '#app/utils/db.server.ts'
 
 export type PlatformsByDay = Map<string, Set<OriginPlatform>>
 
+export type RecordedPlatforms = {
+	/** Every completed session's Recording: what Actual Volume reads. */
+	recorded: PlatformsByDay
+	/** Only the detected sessions': what their Planned Volume reads. */
+	detected: PlatformsByDay
+}
+
 export async function readRecordedPlatformsByDay(
 	userId: string,
 	window: { from: Date; to: Date },
 	timezone: string,
-): Promise<PlatformsByDay> {
+): Promise<RecordedPlatforms> {
 	const rows = await prisma.workoutSession.findMany({
 		where: {
 			userId,
@@ -29,6 +40,7 @@ export async function readRecordedPlatformsByDay(
 		},
 		select: {
 			scheduledAt: true,
+			source: true,
 			recording: {
 				select: {
 					originPlatform: true,
@@ -37,18 +49,24 @@ export async function readRecordedPlatformsByDay(
 			},
 		},
 	})
-	const byDay: PlatformsByDay = new Map()
+	const recorded: PlatformsByDay = new Map()
+	const detected: PlatformsByDay = new Map()
+	const add = (byDay: PlatformsByDay, day: string, platforms: string[]) => {
+		const set = byDay.get(day) ?? new Set<OriginPlatform>()
+		for (const platform of platforms) set.add(originPlatformOf(platform))
+		byDay.set(day, set)
+	}
 	for (const row of rows) {
 		if (!row.recording) continue
 		const day = localDate(row.scheduledAt, timezone)
-		const set = byDay.get(day) ?? new Set<OriginPlatform>()
-		set.add(originPlatformOf(row.recording.originPlatform))
-		for (const alias of row.recording.aliases) {
-			set.add(originPlatformOf(alias.originPlatform))
-		}
-		byDay.set(day, set)
+		const platforms = [
+			row.recording.originPlatform,
+			...row.recording.aliases.map((alias) => alias.originPlatform),
+		]
+		add(recorded, day, platforms)
+		if (row.source === 'detected') add(detected, day, platforms)
 	}
-	return byDay
+	return { recorded, detected }
 }
 
 /** The binding set of the days `from` … `from + days - 1`. */

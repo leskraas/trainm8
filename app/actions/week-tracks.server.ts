@@ -29,13 +29,21 @@ export const WeekTrackSchema = z.object({
 export type WeekTrack = z.infer<typeof WeekTrackSchema>
 
 /**
- * One track's week. `recorded` is the binding set of the week's Recordings
- * (ADR 0098 §1): the Actual Volume is derived from them. Targets and planned
- * volume are plan-side and bind to nothing.
+ * One track's week, with its binding sets (ADR 0098 §1): `recorded`, the
+ * week's Recordings, which the Actual Volume is derived from; `detected`, the
+ * Recordings of the week's detected sessions, whose measured Workouts count in
+ * the Planned Volume (`volumeSessionOf`). The target is plan-side and binds to
+ * nothing.
  */
 export function toWeekTrack(
 	track: TrackWeekVolume,
-	recorded: readonly OriginPlatform[],
+	{
+		recorded,
+		detected,
+	}: {
+		recorded: readonly OriginPlatform[]
+		detected: readonly OriginPlatform[]
+	},
 	ctx: ReadingContext,
 ): WeekTrack {
 	return {
@@ -55,7 +63,11 @@ export function toWeekTrack(
 		),
 		// `0` is a true zero here — nothing planned, nothing done — and null
 		// means sessions are there but none has a number in the currency.
-		planned: reading(track.planned ?? unavailable('not-resolved'), [], ctx),
+		planned: reading(
+			track.planned ?? unavailable('not-resolved'),
+			detected,
+			ctx,
+		),
 		actual: reading(track.actual ?? unavailable('not-resolved'), recorded, ctx),
 	}
 }

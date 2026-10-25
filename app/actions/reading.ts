@@ -123,22 +123,38 @@ export function reading<T>(
 	if (typeof value === 'number' && !Number.isFinite(value)) {
 		throw new Error('reading() was given a number that is not finite.')
 	}
-	const verdict = sourceTerms(
-		bindingSet,
-		isModelCaller(ctx.caller) ? 'model' : 'screen',
-	)
-	if (!verdict.allowed) {
+	const closedBy = gate(bindingSet, ctx, { origin })
+	if (closedBy) {
 		return {
 			status: 'unavailable',
 			reason: 'source-terms',
 			label: READING_UNAVAILABLE_LABELS['source-terms'],
-			platforms: verdict.platforms,
+			platforms: closedBy,
 		}
 	}
+	return { status: 'available', value: value as Exclude<T, Unavailable> }
+}
+
+/**
+ * The provenance gate itself, for what is not a number: text built from the
+ * data, such as a detected Workout's title. Null when the caller's surface is
+ * open to `bindingSet`, and then the credits it owes are on the result; else
+ * the platforms that closed it, and the caller must send nothing of the value.
+ */
+export function gate(
+	bindingSet: Iterable<OriginPlatform>,
+	ctx: ReadingContext,
+	{ origin = 'derived' }: { origin?: ValueOrigin } = {},
+): OriginPlatform[] | null {
+	const verdict = sourceTerms(
+		bindingSet,
+		isModelCaller(ctx.caller) ? 'model' : 'screen',
+	)
+	if (!verdict.allowed) return verdict.platforms
 	for (const attribution of verdict.attributions) {
 		ctx.credit(creditFor(attribution, origin))
 	}
-	return { status: 'available', value: value as Exclude<T, Unavailable> }
+	return null
 }
 
 function unavailableReading(reason: UnavailableReason): Reading<never> {

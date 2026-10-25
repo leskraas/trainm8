@@ -261,3 +261,61 @@ export async function createGarminOnlyAthlete() {
 	})
 	return { userId, session: session.id }
 }
+
+/**
+ * A session whose Workout was detected from its Recording
+ * (`materializeDetectedStructure`, ADR 0032/0033): 4 × 6 min at 150–160 bpm,
+ * titled from the measurements the way detection titles it. Every figure in
+ * it is the Recording's, measured — not an independent prescription.
+ */
+export async function createDetectedSession(
+	userId: string,
+	{ originPlatform, day }: { originPlatform: string; day: string },
+) {
+	const startedAt = new Date(`${day}T06:00:00.000Z`)
+	const imp = await recording(userId, {
+		originPlatform,
+		startedAt,
+		durationSec: 2400,
+	})
+	const detected = await prisma.workout.create({
+		data: {
+			title: '4 × 6 min',
+			discipline: 'run',
+			intent: 'threshold',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 4,
+						steps: {
+							create: [
+								{
+									orderIndex: 0,
+									kind: 'cardio',
+									discipline: 'run',
+									durationSec: 360,
+									intensity: '{"kind":"hrBpm","min":150,"max":160}',
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+		select: { id: true },
+	})
+	const session = await prisma.workoutSession.create({
+		data: {
+			userId,
+			workoutId: detected.id,
+			recordingId: imp.id,
+			scheduledAt: startedAt,
+			status: 'completed',
+			source: 'detected',
+		},
+		select: { id: true },
+	})
+	return session.id
+}

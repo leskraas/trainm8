@@ -5,6 +5,8 @@ import { recordProposals } from '#app/utils/load/week-replan-proposals.server.ts
 import { createPlanOutline } from '#app/utils/plan-outline/authoring.server.ts'
 import {
 	createAthlete,
+	createDetectedSession,
+	createGarminOnlyAthlete,
 	createWorld,
 	ctxFor,
 	ORIGIN,
@@ -216,6 +218,66 @@ test('a series block crosses whole: get_session gives its series count and rest,
 		value: 4320,
 	})
 	expect(vs.durationS.planned).toEqual(session.planned.durationS)
+})
+
+test('a Workout detected from a Strava recording is the recording’s data: nothing of it reaches a model', async () => {
+	const world = await createWorld()
+	const sessionId = await createDetectedSession(world.userId, {
+		originPlatform: 'strava',
+		day: TODAY,
+	})
+	const ctx = ctxFor(world.userId, 'mcp')
+	const closed = { status: 'unavailable', reason: 'source-terms' }
+
+	const result = await runAction(ctx, 'get_session', { sessionId })
+	const session = await done(Promise.resolve(result))
+	// The detected title is made of the measurements: the discipline instead.
+	expect(session.title).toBe('Løping')
+	expect(JSON.stringify(result)).not.toContain('6 min')
+	expect(session.planned.durationS).toMatchObject(closed)
+	const block = session.workout?.blocks[0]
+	expect(block?.repeatCount).toMatchObject(closed)
+	expect(block?.steps[0]?.durationS).toMatchObject(closed)
+	expect(block?.steps[0]?.intensity).toMatchObject({
+		kind: 'hrBpm',
+		min: closed,
+		max: closed,
+	})
+
+	const vs = await done(runAction(ctx, 'get_session_vs_plan', { sessionId }))
+	expect(vs.durationS.planned).toMatchObject(closed)
+
+	// Its measured volume does not reach a model through the week's plan either.
+	const created = await createPlanOutline(world.userId, {
+		startWeekKey: '2026-10-12',
+		structure: { phases: [{ name: 'Blokk 1', weeks: 4, rhythm: '3:1' }] },
+		tracks: [{ discipline: 'run', currency: 'hours', anchorValue: 5 }],
+	})
+	expect(created.ok).toBe(true)
+	const season = await done(runAction(ctx, 'get_season', {}))
+	expect(season.weeks[1]?.tracks[0]?.planned).toMatchObject(closed)
+	const today = await done(runAction(ctx, 'get_today', {}))
+	expect(today.week.tracks[0]?.planned).toMatchObject(closed)
+})
+
+test('a Workout detected from a Garmin recording reaches a model with Garmin’s credit', async () => {
+	const { userId } = await createGarminOnlyAthlete()
+	const sessionId = await createDetectedSession(userId, {
+		originPlatform: 'garmin',
+		day: TODAY,
+	})
+	const result = await runAction(ctxFor(userId, 'mcp'), 'get_session', {
+		sessionId,
+	})
+	const session = await done(Promise.resolve(result))
+	expect(session.planned.durationS).toEqual({
+		status: 'available',
+		value: 1440,
+	})
+	expect(result.outcome === 'done' && result.credits).toContainEqual({
+		platform: 'garmin',
+		text: 'Insights derived in part from Garmin device-sourced data.',
+	})
 })
 
 test('get_session_vs_plan: planned against actual, the band, and the structure honestly unverified', async () => {

@@ -13,6 +13,10 @@ import { readRecordedBindingSet } from '#app/utils/source-terms.server.ts'
 import { ledgerSessionSelect } from '#app/utils/training.server.ts'
 import { defineAction } from './define.ts'
 import { waitingCount } from './get-week-change.server.ts'
+import {
+	platformsOver,
+	readRecordedPlatformsByDay,
+} from './provenance.server.ts'
 import { NumberReading, reading, unavailable } from './reading.ts'
 import {
 	SessionSummarySchema,
@@ -54,6 +58,7 @@ export const getTodayAction = defineAction({
 		const today = localDate(ctx.now, ctx.timezone)
 		const { start, end } = dayBoundsUTC(today, ctx.timezone)
 		const week = weekBoundsUTC(ctx.now, ctx.timezone)
+		const weekKey = localDate(week.start, ctx.timezone)
 		const [rows, current, trust, history, weekVolumes, weekRecorded, card] =
 			await Promise.all([
 				prisma.workoutSession.findMany({
@@ -65,7 +70,11 @@ export const getTodayAction = defineAction({
 				getTsbTrust(ctx.userId, ctx.now),
 				readRecordedBindingSet(ctx.userId),
 				getWeekVolumes(ctx.userId, { now: ctx.now }),
-				readRecordedBindingSet(ctx.userId, { from: week.start, to: week.end }),
+				readRecordedPlatformsByDay(
+					ctx.userId,
+					{ from: week.start, to: week.end },
+					ctx.timezone,
+				),
 				readWeekChange(ctx.userId, { now: ctx.now, onlyOpen: true }),
 			])
 		const noHistory = unavailable('insufficient-data')
@@ -87,7 +96,14 @@ export const getTodayAction = defineAction({
 			},
 			week: {
 				tracks: weekVolumes.tracks.map((track) =>
-					toWeekTrack(track, weekRecorded, ctx),
+					toWeekTrack(
+						track,
+						{
+							recorded: platformsOver(weekRecorded.recorded, weekKey, 7),
+							detected: platformsOver(weekRecorded.detected, weekKey, 7),
+						},
+						ctx,
+					),
 				),
 			},
 			// A count of the athlete's own questions: plan-side, so it binds to nothing.

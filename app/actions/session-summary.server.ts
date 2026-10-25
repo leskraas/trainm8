@@ -33,6 +33,7 @@ import { sessionPath } from './paths.ts'
 import {
 	athleteText,
 	AthleteTextSchema,
+	gate,
 	NumberReading,
 	reading,
 	type Reading,
@@ -118,20 +119,45 @@ export async function readRecordingBindingSets(
 	)
 }
 
-/** A planned figure, as a Reading: plan-side, so it binds to nothing. */
+/**
+ * The binding set of a session's Workout (ADR 0098 §1), the one answer every
+ * read asks before it states anything of the prescription. An independent
+ * prescription (authored, generated) binds to nothing. A Workout detected
+ * from the session's Recording (`materializeDetectedStructure`) is that
+ * Recording's data — its title, repeats, durations and intensities were
+ * measured — so it binds to the Recording's set, adopted or not: adopting it
+ * keeps the measured figures the athlete did not change.
+ */
+export function workoutBindingSet(
+	session: { source: string },
+	recordingBindingSet: readonly OriginPlatform[],
+): readonly OriginPlatform[] {
+	return session.source === 'detected' ? recordingBindingSet : []
+}
+
+/**
+ * A planned figure, as a Reading. It binds to `bindingSet`, the Workout's
+ * ({@link workoutBindingSet}): nothing for an independent prescription.
+ */
 export function plannedReading(
 	metric: PlannedMetric<number>,
 	ctx: ReadingContext,
-	{ zeroIsUnresolved = false }: { zeroIsUnresolved?: boolean } = {},
+	{
+		zeroIsUnresolved = false,
+		bindingSet = [],
+	}: {
+		zeroIsUnresolved?: boolean
+		bindingSet?: readonly OriginPlatform[]
+	} = {},
 ): Reading<number> {
 	if (metric.status === 'unavailable') {
-		return reading(unavailable(metric.reason), [], ctx)
+		return reading(unavailable(metric.reason), bindingSet, ctx)
 	}
 	// A Planned TSS of zero is one that did not resolve (`week-volumes.ts`
 	// reads it the same way), so it is never sent as a zero.
 	return zeroIsUnresolved && metric.value <= 0
-		? reading(unavailable('not-resolved'), [], ctx)
-		: reading(metric.value, [], ctx)
+		? reading(unavailable('not-resolved'), bindingSet, ctx)
+		: reading(metric.value, bindingSet, ctx)
 }
 
 export function sessionStatus(
@@ -157,9 +183,19 @@ export function sessionTitle(
 		LedgerSession,
 		'source' | 'adoptedAt' | 'workout' | 'recording'
 	>,
+	/** The Workout's binding set ({@link workoutBindingSet}). */
+	bindingSet: readonly OriginPlatform[],
+	ctx: ReadingContext,
 ): SessionSummary['title'] {
 	const { workout } = session
-	if (!workout) return nbDisciplineLabel(getSessionDiscipline(session))
+	const disciplineLabel = () => nbDisciplineLabel(getSessionDiscipline(session))
+	if (!workout) return disciplineLabel()
+	// A detected title is made of the measurements ("4 × 6 min"): it passes
+	// the gate like any of them, and where the terms close it the discipline
+	// stands in.
+	if (session.source === 'detected' && gate(bindingSet, ctx)) {
+		return disciplineLabel()
+	}
 	return athleteWroteIt(session)
 		? athleteText(workout.title, TITLE_MAX)
 		: workout.title
@@ -180,6 +216,7 @@ export function toSessionSummary(
 ): SessionSummary {
 	const status = sessionStatus(session, ctx.now, ctx.timezone)
 	const review = buildReviewComparison(session, thresholds)
+	const prescribed = workoutBindingSet(session, bindingSet)
 	const { recording } = session
 	const missing = recording ? 'not-resolved' : 'no-recording'
 	// The Recording's own figures: they owe its source line, not the derived one.
@@ -191,14 +228,19 @@ export function toSessionSummary(
 		id: session.id,
 		date: localDate(session.scheduledAt, ctx.timezone),
 		discipline: getSessionDiscipline(session),
-		title: sessionTitle(session),
+		title: sessionTitle(session, prescribed, ctx),
 		status,
 		owner: sessionOwner(session),
 		planned: {
-			durationS: plannedReading(review.duration.plannedRead, ctx),
-			distanceM: plannedReading(review.distance.plannedRead, ctx),
+			durationS: plannedReading(review.duration.plannedRead, ctx, {
+				bindingSet: prescribed,
+			}),
+			distanceM: plannedReading(review.distance.plannedRead, ctx, {
+				bindingSet: prescribed,
+			}),
 			tss: plannedReading(review.tss.plannedRead, ctx, {
 				zeroIsUnresolved: true,
+				bindingSet: prescribed,
 			}),
 		},
 		actual: {

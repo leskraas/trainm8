@@ -20,6 +20,7 @@ import {
 import { refuse } from './refusals.ts'
 import {
 	plannedReading,
+	workoutBindingSet,
 	readRecordingBindingSets,
 } from './session-summary.server.ts'
 import { type UnavailableReason } from './vocabulary.ts'
@@ -141,8 +142,10 @@ export const getSessionVsPlanAction = defineAction({
 			session,
 			await getDisciplineThresholds(ctx.userId),
 		)
+		const prescribed = workoutBindingSet(session, own)
 		const plannedTss = plannedReading(review.tss.plannedRead, ctx, {
 			zeroIsUnresolved: true,
+			bindingSet: prescribed,
 		})
 		const actualTss = reading(
 			session.tssValue ??
@@ -192,11 +195,15 @@ export const getSessionVsPlanAction = defineAction({
 		return {
 			tss: { planned: plannedTss, actual: actualTss },
 			durationS: {
-				planned: plannedReading(review.duration.plannedRead, ctx),
+				planned: plannedReading(review.duration.plannedRead, ctx, {
+					bindingSet: prescribed,
+				}),
 				actual: actual(recording?.durationSec),
 			},
 			distanceM: {
-				planned: plannedReading(review.distance.plannedRead, ctx),
+				planned: plannedReading(review.distance.plannedRead, ctx, {
+					bindingSet: prescribed,
+				}),
 				actual: actual(recording?.distanceM),
 			},
 			band,
