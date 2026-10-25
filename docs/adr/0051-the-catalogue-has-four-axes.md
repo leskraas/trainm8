@@ -204,7 +204,10 @@ while it is still somebody's: `PUBLISHED_WORKOUT_WHERE` / `isPublished`
 (`community.ts`) is `visibility = 'public' AND ownerId IS NOT NULL`, and every
 non-owner-scoped read of `public` uses it — the Catalogue guard and its
 `community` tier arm, the report route and `reportWorkout`, and the Week
-Change's add.
+Change's add (which takes the Catalogue guard itself). The two Week Pattern undo
+guards (`checkedRestore` in `track-days.server.ts`, `checkedLiftingRestore` in
+`lifting-days.server.ts`) take a client-sent payload, and accept only the
+athlete's own rows or `authorship = 'system'`, never `ownerId IS NULL` (§2).
 
 **The purge is a policy on account deletion, not a sweep.** `deleteAccount`
 (`account-deletion.server.ts`) is the only place an account is deleted, and in
@@ -264,13 +267,6 @@ would retain the athlete's text with no reader and no purpose.
 - **Pre-existing orphans are not yet purged in production.** The guarded cleanup
   migration is not in this change; the read path makes them unreadable, but they
   are still stored. The read-only count to run first is in #468's report.
-- **Two Week Pattern undo guards still read `ownerId IS NULL` as "a Stock
-  Workout"** — the inference §2 forbids (`checkedRestore` in
-  `track-days.server.ts`, `checkedLiftingRestore` in `lifting-days.server.ts`).
-  An undo payload is client-sent, so an athlete who knows an orphan's id could
-  stamp a copy of it into their own week. Fix: `authorship = 'system'`; their
-  test fixtures build "stock" rows with only `ownerId: null` and must state
-  `authorship: 'system'` first.
 - **Custom Exercises** (`Exercise.createdByAthleteId`, also `SetNull`) are not
   purged by `deleteAccount`; their names outlive the account.
 

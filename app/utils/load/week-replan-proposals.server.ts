@@ -46,7 +46,7 @@ import {
 	weekdayIndex,
 } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
-import { PUBLISHED_WORKOUT_WHERE } from '#app/utils/community.ts'
+import { visibleToViewer } from '#app/utils/catalogue.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { appendOpenEndedRound } from '#app/utils/plan-outline/open-ended.server.ts'
 import {
@@ -772,10 +772,9 @@ async function applyAdd(
 	const when = localTimeUTC(payload.date, payload.time, ctx.timezone)
 	if (when <= ctx.now) return NOTHING
 	const source = await tx.workout.findFirst({
-		where: {
-			id: payload.workoutId,
-			OR: [{ ownerId: ctx.userId }, PUBLISHED_WORKOUT_WHERE],
-		},
+		// The Catalogue's own guard: what the athlete may see is what they may
+		// place, so a row they reported or an orphan is never copied in (#468).
+		where: { id: payload.workoutId, ...visibleToViewer(ctx.userId) },
 		select: workoutCopySelect,
 	})
 	if (!source) return NOTHING

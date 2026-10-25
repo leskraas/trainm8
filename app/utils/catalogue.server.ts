@@ -85,7 +85,7 @@ export type CatalogueEntryRow = Prisma.CatalogueEntryGetPayload<{
  * moderator: a row this viewer reported is gone **for this viewer** at once
  * (ADR 0052). It is not a moderation state and never becomes one.
  */
-function visibleToViewer(viewerId: string): Prisma.WorkoutWhereInput {
+export function visibleToViewer(viewerId: string): Prisma.WorkoutWhereInput {
 	return {
 		OR: [
 			{ authorship: 'system' },

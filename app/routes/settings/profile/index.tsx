@@ -784,7 +784,14 @@ function SignOutOfSessions({
 async function deleteDataAction({ userId }: ProfileActionArgs) {
 	// Never a bare `prisma.user.delete`: `Workout.ownerId` is `SetNull`, so that
 	// would leave every Workout the athlete wrote behind as an orphan (#468).
-	await deleteAccount(userId)
+	try {
+		await deleteAccount(userId)
+	} catch (error) {
+		// One transaction, so a failure rolled every write back: say on the page
+		// that nothing was deleted rather than replace the app with the root boundary.
+		console.error(error)
+		return data({ status: 'error' } as const, { status: 500 })
+	}
 	return redirectWithToast('/', {
 		type: 'success',
 		title: MEG_PROFILE_LABELS.deletedTitle,
@@ -797,21 +804,36 @@ function DeleteData() {
 	const L = MEG_PROFILE_LABELS
 
 	const fetcher = useFetcher<typeof deleteDataAction>()
+	// Busy until the redirect lands, which can take seconds for a big purge.
+	const deleting = fetcher.state !== 'idle'
 	return (
 		<li>
-			<fetcher.Form method="POST">
+			<fetcher.Form method="POST" aria-busy={deleting}>
 				<MegButtonRow
 					{...dc.getButtonProps({
 						type: 'submit',
 						name: 'intent',
 						value: deleteDataActionIntent,
 					})}
-					disabled={fetcher.state !== 'idle'}
+					disabled={deleting}
 					icon="trash"
 					tone="destructive"
-					title={dc.doubleCheck ? MEG_COMMON_LABELS.areYouSure : L.deleteData}
+					title={
+						deleting ? (
+							<span role="status">{L.deleting}</span>
+						) : dc.doubleCheck ? (
+							MEG_COMMON_LABELS.areYouSure
+						) : (
+							L.deleteData
+						)
+					}
 					detail={L.deleteDataDetail}
 				/>
+				{!deleting && fetcher.data?.status === 'error' ? (
+					<p role="alert" className="text-footnote text-destructive pb-3">
+						{L.deleteFailed}
+					</p>
+				) : null}
 			</fetcher.Form>
 		</li>
 	)

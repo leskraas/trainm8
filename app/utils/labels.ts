@@ -6304,6 +6304,8 @@ export const MEG_PROFILE_LABELS = {
 	deleteData: 'Slett alle dataene dine',
 	deleteDataDetail:
 		'Kontoen, treningen og alt annet slettes for godt. Det kan ikke angres.',
+	deleting: 'Sletter kontoen …',
+	deleteFailed: 'Kontoen ble ikke slettet. Ingenting er fjernet — prøv igjen.',
 	deletedTitle: 'Dataene er slettet',
 	deletedBody: 'Alle dataene dine er slettet.',
 } as const

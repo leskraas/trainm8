@@ -37,12 +37,12 @@ export type AccountErasure = {
 	erased: number
 	/** Workouts kept ownerless because someone else's training points at them. */
 	withdrawn: number
-	/** Other athletes' Workouts whose back-pointer was spliced past an erased row. */
+	/** Surviving Workouts whose back-pointer was spliced past an erased row. */
 	spliced: number
 }
 
 // A prolific athlete's purge (many Workouts, a big fork tree) outruns Prisma's 5 s default.
-const TRANSACTION_TIMEOUT_MS = { timeout: 30_000 }
+const TRANSACTION_OPTIONS = { timeout: 30_000 }
 
 export async function deleteAccount(userId: string): Promise<AccountErasure> {
 	return prisma.$transaction(async (tx) => {
@@ -85,7 +85,7 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 		})
 		await tx.user.delete({ where: { id: userId } })
 		return { erased, withdrawn: kept.size, spliced }
-	}, TRANSACTION_TIMEOUT_MS)
+	}, TRANSACTION_OPTIONS)
 }
 
 async function withdraw(tx: Prisma.TransactionClient, ids: string[]) {
