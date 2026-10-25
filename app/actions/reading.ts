@@ -9,7 +9,8 @@
  * binding set, and the gate asks `sourceTerms` (ADR 0098) for the caller's
  * surface. For a model caller a closed platform withholds the value
  * (`source-terms`); an open one sends it and puts the platform's credit on the
- * result. No action decides terms on its own.
+ * result, worded for what the value is (`origin`). No action decides terms
+ * on its own.
  */
 
 import { z } from 'zod/v4'
@@ -17,7 +18,11 @@ import {
 	ORIGIN_PLATFORMS,
 	type OriginPlatform,
 } from '#app/integrations/shared/origin-platform.ts'
-import { READING_UNAVAILABLE_LABELS } from '#app/utils/labels.ts'
+import {
+	READING_UNAVAILABLE_LABELS,
+	SOURCE_ATTRIBUTION_LABELS,
+} from '#app/utils/labels.ts'
+import { recordingSource } from '#app/utils/source-attribution.ts'
 import {
 	ATTRIBUTIONS,
 	type Attribution,
@@ -69,7 +74,29 @@ export type Credit = { platform: Attribution; text: string }
  */
 export type ReadingContext = {
 	caller: Caller
-	credit: (attribution: Attribution) => void
+	credit: (credit: Credit) => void
+}
+
+/**
+ * What a value is, for the credit it owes (ADR 0098 §3): a figure the
+ * Recording itself states (its duration, its distance) owes the recording's
+ * source line; anything computed from the data owes the derived-data line.
+ */
+export type ValueOrigin = 'recording' | 'derived'
+
+/**
+ * The credit a value of this origin owes this platform, in the platform's own
+ * words, through the same helpers the screens use. A recording's line names
+ * no device: the device name is provider text, which never crosses to a model
+ * (ADR 0092 §7), so it is ADR 0098 §3's plain brand line.
+ */
+function creditFor(attribution: Attribution, origin: ValueOrigin): Credit {
+	const text =
+		origin === 'recording'
+			? (recordingSource({ originPlatform: attribution, deviceName: null })
+					?.text ?? SOURCE_ATTRIBUTION_LABELS.derived[attribution])
+			: SOURCE_ATTRIBUTION_LABELS.derived[attribution]
+	return { platform: attribution, text }
 }
 
 /**
@@ -85,6 +112,7 @@ export function reading<T>(
 	value: T | Unavailable,
 	bindingSet: Iterable<OriginPlatform>,
 	ctx: ReadingContext,
+	{ origin = 'derived' }: { origin?: ValueOrigin } = {},
 ): Reading<Exclude<T, Unavailable>> {
 	if (isUnavailable(value)) return unavailableReading(value.unavailable)
 	if (value === null || value === undefined) {
@@ -107,7 +135,9 @@ export function reading<T>(
 			platforms: verdict.platforms,
 		}
 	}
-	for (const attribution of verdict.attributions) ctx.credit(attribution)
+	for (const attribution of verdict.attributions) {
+		ctx.credit(creditFor(attribution, origin))
+	}
 	return { status: 'available', value: value as Exclude<T, Unavailable> }
 }
 

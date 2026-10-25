@@ -94,11 +94,12 @@ test('a Garmin value reaches a model with Garmin’s credit on the result', asyn
 		status: 'available',
 		value: 3500,
 	})
-	expect(result.value.recording).toEqual({
-		originPlatform: 'garmin',
-		device: null,
-	})
-	expect(result.credits).toEqual([GARMIN_CREDIT])
+	expect(result.value.recording).toEqual({ originPlatform: 'garmin' })
+	// The recorded figures owe the source line; TSS, computed, the derived one.
+	expect(result.credits).toEqual([
+		{ platform: 'garmin', text: 'Garmin' },
+		GARMIN_CREDIT,
+	])
 })
 
 test('a Strava value never reaches a model: it is source-terms, while the plan beside it still goes', async () => {

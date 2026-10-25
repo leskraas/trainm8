@@ -176,8 +176,11 @@ export function toSessionSummary(
 	const review = buildReviewComparison(session)
 	const { recording } = session
 	const missing = recording ? 'not-resolved' : 'no-recording'
+	// The Recording's own figures: they owe its source line, not the derived one.
 	const recorded = (value: number | null | undefined) =>
-		reading(value ?? unavailable(missing), bindingSet, ctx)
+		reading(value ?? unavailable(missing), bindingSet, ctx, {
+			origin: 'recording',
+		})
 	return {
 		id: session.id,
 		date: localDate(session.scheduledAt, ctx.timezone),

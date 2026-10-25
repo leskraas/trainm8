@@ -1,6 +1,5 @@
 import { z } from 'zod/v4'
 import {
-	normalizeDeviceName,
 	ORIGIN_PLATFORMS,
 	originPlatformOf,
 } from '#app/integrations/shared/origin-platform.ts'
@@ -169,7 +168,9 @@ const StepSchema = z.object({
  * where the recording came from, the athlete's RPE and their Session Log.
  *
  * The log crosses as the athlete's text, never in trainm8's voice; provider
- * text (activity names, `rawJson`) never crosses (ADR 0092 §7). RPE and the
+ * text (activity names, `rawJson`, the device name) never crosses (ADR 0092
+ * §7): the recording says only its Origin Platform, and the credit its
+ * figures owe names the source (ADR 0098 §3). RPE and the
  * log are health data: Phase 0 serves them on the owner's own dev token, and
  * the per-purpose consent gates them before anyone else connects (ADR 0092,
  * Owner's decisions 1; #639 H5).
@@ -196,10 +197,7 @@ export const getSessionAction = defineAction({
 			})
 			.nullable(),
 		recording: z
-			.object({
-				originPlatform: z.enum(ORIGIN_PLATFORMS),
-				device: z.string().nullable(),
-			})
+			.object({ originPlatform: z.enum(ORIGIN_PLATFORMS) })
 			.nullable(),
 		rpe: NumberReading(),
 		log: AthleteTextSchema.nullable(),
@@ -214,7 +212,6 @@ export const getSessionAction = defineAction({
 					select: {
 						...ledgerSessionSelect.recording.select,
 						originPlatform: true,
-						deviceName: true,
 						aliases: { select: { originPlatform: true } },
 					},
 				},
@@ -252,10 +249,7 @@ export const getSessionAction = defineAction({
 					}
 				: null,
 			recording: recording
-				? {
-						originPlatform: originPlatformOf(recording.originPlatform),
-						device: normalizeDeviceName(recording.deviceName),
-					}
+				? { originPlatform: originPlatformOf(recording.originPlatform) }
 				: null,
 			// Health data (Art. 9): consent gating for rpe and the log is owed by
 			// #639 H5 (#549). The athlete's own report, so it binds to nothing.

@@ -7,7 +7,6 @@
  */
 
 import { z } from 'zod/v4'
-import { type Attribution } from '#app/utils/source-terms.ts'
 import { CreditSchema, type Credit } from './reading.ts'
 import { type Refusal } from './refusals.ts'
 import {
@@ -49,7 +48,7 @@ export type ActionCtx = {
 
 /** The context `run` receives: the caller's, plus the gate's credit sink. */
 export type RunCtx = ActionCtx & {
-	credit: (attribution: Attribution) => void
+	credit: (credit: Credit) => void
 	/** An absolute deep link into trainm8 for `path`. */
 	link: (path: string) => string
 }

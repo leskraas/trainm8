@@ -1936,17 +1936,10 @@
 														"upload",
 														"unknown"
 													]
-												},
-												"device": {
-													"type": [
-														"string",
-														"null"
-													]
 												}
 											},
 											"required": [
-												"originPlatform",
-												"device"
+												"originPlatform"
 											],
 											"additionalProperties": false
 										},

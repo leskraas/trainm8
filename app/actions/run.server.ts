@@ -22,9 +22,9 @@
  */
 
 import * as Sentry from '@sentry/react-router'
-import { SOURCE_ATTRIBUTION_LABELS } from '#app/utils/labels.ts'
-import { ATTRIBUTIONS, type Attribution } from '#app/utils/source-terms.ts'
+import { ATTRIBUTIONS } from '#app/utils/source-terms.ts'
 import { type ActionCtx, type AnyActionResult, type RunCtx } from './define.ts'
+import { type Credit } from './reading.ts'
 import { ATHLETE_YES_PATH } from './paths.ts'
 import { Refusal, nextOf, refuse } from './refusals.ts'
 import { type ActionName, getAction, type ResultOf } from './registry.server.ts'
@@ -62,10 +62,11 @@ async function run(
 	const parsed = action.input.safeParse(rawInput ?? {})
 	if (!parsed.success) return refused(refuse('invalid-input'))
 
-	const owed = new Set<Attribution>()
+	// One of each line, however many values owe it.
+	const owed = new Map<string, Credit>()
 	const runCtx: RunCtx = {
 		...ctx,
-		credit: (attribution) => owed.add(attribution),
+		credit: (credit) => owed.set(`${credit.platform}\0${credit.text}`, credit),
 		link,
 	}
 	try {
@@ -74,11 +75,12 @@ async function run(
 		return {
 			outcome: 'done',
 			value,
-			// In the platforms' fixed order, so a result reads the same each time.
-			credits: ATTRIBUTIONS.filter((a) => owed.has(a)).map((platform) => ({
-				platform,
-				text: SOURCE_ATTRIBUTION_LABELS.derived[platform],
-			})),
+			// In the platforms' fixed order, and each platform's lines in the
+			// order the action first owed them, so a result reads the same each time.
+			credits: [...owed.values()].sort(
+				(a, b) =>
+					ATTRIBUTIONS.indexOf(a.platform) - ATTRIBUTIONS.indexOf(b.platform),
+			),
 		}
 	} catch (error) {
 		console.error(`[actions] ${name} failed`, error)

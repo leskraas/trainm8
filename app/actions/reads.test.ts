@@ -124,6 +124,14 @@ test("get_session: the athlete's own text is marked theirs, and provider text ne
 		},
 	})
 	expect(JSON.stringify(result)).not.toContain('PROVIDER ACTIVITY NAME')
+	// The device name is provider text too (ADR 0092 §7): only the source
+	// crosses, and the Garmin credit says where the numbers came from.
+	expect(session.recording).toEqual({ originPlatform: 'garmin' })
+	expect(JSON.stringify(result)).not.toContain('Forerunner')
+	expect(result.outcome === 'done' && result.credits).toContainEqual({
+		platform: 'garmin',
+		text: 'Garmin',
+	})
 
 	// A session with no log: RPE is not logged, said so.
 	const planned = await done(
