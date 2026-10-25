@@ -72,8 +72,30 @@ URL loops through the public URL, and two upstream bugs are open.
 - **Bcrypt hashes are kept, and bcrypt stays the hash.** Better Auth's default
   is scrypt, but `emailAndPassword.password.hash` and `.verify` are overridable.
   Both are set to `bcryptjs` (cost 10, as today), so every migrated hash
-  verifies with no rehash-on-login and a rollback still reads new hashes. Moving
-  to scrypt or argon2 is a later, separate decision.
+  verifies with no rehash-on-login, and the rollback below can copy a new hash
+  back. Moving to scrypt or argon2 is a later, separate decision.
+- **A rollback copies the current credentials back before Epic serves a
+  request.** The Epic tables are a snapshot from the cutover, so serving them as
+  they are would accept a password the athlete has since changed or reset, and
+  reject the new one. The rollback release therefore starts with a Prisma
+  migration, in one transaction, that:
+  - sets `Password.hash` from `AuthAccount(providerId 'credential').password`,
+    inserts a `Password` row for a user who set a password after the cutover,
+    and deletes the row of a user who no longer has a credential account;
+  - rebuilds `Connection` (GitHub) and `Passkey` from `AuthAccount` and
+    `AuthPasskey`, so a link or passkey removed after the cutover does not come
+    back;
+  - deletes every Epic `Session` row, so no pre-cutover session revives;
+  - deletes the Epic `2fa` verification of every user whose Better Auth 2FA
+    changed after the cutover (re-enrolled or turned off). Only a user still
+    flagged `mustReenrolTwoFactor` keeps the Epic secret they had.
+
+  A test runs the cutover and this migration on a fixture database: a password
+  reset after the cutover leaves the old password rejected and the new one
+  accepted on Epic. **Without that migration, rollback is not allowed** once any
+  athlete has signed in on Better Auth. The re-enrolled users who lose 2FA on a
+  rollback are listed under Deferred hardening.
+
 - **A test diffs `npx auth generate` output against `prisma/schema.prisma`**,
   after normalising the two known CLI faults (the invalid `@default([])` on a
   SQLite `String?`, P1012, and `@@map("user")`).
@@ -81,12 +103,20 @@ URL loops through the public URL, and two upstream bugs are open.
 ### 3. 2FA is enforced on every sign-in path, as Epic does today
 
 - Better Auth's `twoFactor` gates only `/sign-in/email`, `/sign-in/username` and
-  `/sign-in/phone-number`. trainm8 adds a `hooks.after` on the passkey sign-in
-  (`/passkey/verify-authentication`) and the social callback (`/callback/:id`)
-  that, for a user with `twoFactorEnabled`, does what the plugin's own hook
-  does: delete the fresh session, set the signed `two_factor` cookie with a
-  verification row, and send the browser to the 2FA page. The hook lives in one
-  module with a test per path.
+  `/sign-in/phone-number`. trainm8 adds a `hooks.after` on every other path that
+  creates a session: the email-code sign-in (`/sign-in/email-otp`, which
+  `emailOTP` exposes and `disableSignUp` does not close), the passkey sign-in
+  (`/passkey/verify-authentication`), the social callback (`/callback/:id`) and
+  any verification that signs the user in. For a user with `twoFactorEnabled` or
+  `mustReenrolTwoFactor`, it does what the plugin's own hook does: delete the
+  fresh session, set the signed `two_factor` cookie with a verification row, and
+  send the browser to the 2FA page. An email code is a first factor, never a way
+  past the second.
+- **The gate fails closed on a new path.** The hook lives in one module with a
+  test per path, and a test walks every endpoint of the configured `auth` and
+  fails if one that sets a session cookie is neither gated by `twoFactor` nor in
+  the hook's list. A plugin or upgrade that adds a sign-in path breaks that
+  test, not 2FA.
 - **Trusted device: off.** Epic re-asks for 2FA after two hours of a new
   verification window; Better Auth's 30-day trusted device is a weaker default
   and is not offered (_Proposed, owner to confirm_).
@@ -95,10 +125,18 @@ URL loops through the public URL, and two upstream bugs are open.
   (`stack-migration.md` §4.5). Writing a legacy-TOTP verify path would keep a
   second 2FA implementation alive in the most security-sensitive code, so it is
   rejected. On the migration, each user with an Epic `2fa` verification gets
-  `twoFactorEnabled = false` and a `mustReenrolTwoFactor` flag; their first
-  sign-in after the cutover asks for an email code (emailOTP) and then lands on
-  the 2FA set-up page until they re-enrol or dismiss it. _Proposed, owner to
-  confirm_; it is a weaker window, listed under Deferred hardening.
+  `twoFactorEnabled = false` and a `mustReenrolTwoFactor` flag. Their sign-in
+  after the cutover is a primary sign-in (password, passkey or GitHub) followed
+  by an email code as the second factor, through `twoFactor`'s OTP method
+  (`/two-factor/send-otp`, `/two-factor/verify-otp`), which is bound to the
+  `two_factor` cookie that only a successful primary sign-in sets. The email
+  code is never both of their factors: `/sign-in/email-otp` is refused for a
+  flagged user, and `/two-factor/verify-otp` is refused for a user with
+  `twoFactorEnabled`, so it can never stand in for their TOTP. They then land on
+  the 2FA set-up page until they re-enrol or dismiss it. Tests prove that a
+  flagged user cannot get a session with email codes alone, and that a user with
+  `twoFactorEnabled` cannot get one without TOTP or a backup code. _Proposed,
+  owner to confirm_; it is a weaker window, listed under Deferred hardening.
 
 ### 4. Email codes (amends 013)
 
@@ -127,18 +165,33 @@ _Proposed, owner to confirm._
 Better Auth remembers consent per `(user, client)`, and with CIMD every
 claude.ai connection shares one `client_id`, so a second connection would skip
 the page. trainm8 sends `prompt=consent` semantics for every authorization that
-is not a refresh: a `hooks.before` on `/oauth2/authorize` deletes the
-`(user, client)` `oauthConsent` row before the plugin reads it. The
-connected-assistants page lists every live grant. This is the stricter of H9's
-two options.
+is not a refresh: a `hooks.before` on `/oauth2/authorize` sends the request to
+the consent page whatever the stored consent says. It does not delete or change
+the `(user, client)` `oauthConsent` row, because that row is the live grant of
+every existing connection and §8 checks it on each call. The row is written only
+when the athlete approves, and a denied or abandoned request leaves it and every
+existing connection as they were. If the pinned plugin cannot be made to show
+the page without deleting the row, the hook keeps its own "consent asked" marker
+per authorization request instead; deleting the live row is not an option. A
+test starts a second authorization, denies it and abandons another, and proves
+the first connection's next `/mcp` call still succeeds. The connected-assistants
+page lists every live grant. This is the stricter of H9's two options.
 
 ### 8. Disconnect revokes at once (H8)
 
 Disconnect on the connected-assistants page deletes, in one transaction, the
 `(user, client)` rows in `oauthConsent`, `oauthRefreshToken` and
-`oauthAccessToken`. Because a JWT access token cannot be revoked, `/mcp` checks
-per call that a live consent for `(sub, azp)` exists, and `accessTokenExpiresIn`
-is 600 s. A test proves a disconnected client gets 401 on its next call.
+`oauthAccessToken`, and records the disconnect time for `(user, client)` in a
+trainm8 table (`McpGrantRevocation`, one row per pair, only ever moved forward).
+Because a JWT access token cannot be revoked, `/mcp` checks per call that a live
+consent for `(sub, azp)` exists **and** that the token's `iat` is later than the
+recorded disconnect time; a token issued in the same second as the disconnect is
+rejected. The consent check alone is not enough: an athlete who disconnects and
+reconnects within the token lifetime gets a new consent row for the same
+`(sub, azp)`, and an old JWT would pass again. `accessTokenExpiresIn` is 600 s.
+Tests prove a disconnected client gets 401 on its next call, and that a JWT from
+before the disconnect still gets 401 after the athlete reconnects, while the new
+connection's token succeeds.
 
 ### 9. Canonical URLs (H11)
 
@@ -154,10 +207,21 @@ refuses to boot if `APP_ORIGIN` is not canonical; a test pins both values.
   CIMD fetch accepts only allow-listed `https://` client-id hosts (`claude.ai`,
   `claude.com`, and loopback for Claude Code), until a pinned release contains
   PR #11964.
-- **#11629** (refresh-family revocation not atomic): until a pinned release
-  contains PR #11704, the refresh grant is serialised per family with a SQLite
-  transaction in a `hooks.before`, and a test replays a refresh token
-  concurrently.
+- **#11629** (refresh-family revocation not atomic): the family can survive even
+  serial requests, because a cleanup delete can fail after the successor token
+  is written. A transaction in a `hooks.before` does not cover the grant
+  handler's later writes, so the fix sits where the token rows are written,
+  until a pinned release contains PR #11704:
+  - On a reuse, the family is revoked durably **before** any cleanup: one
+    `UPDATE` sets `revoked` on every `oauthRefreshToken` row of the
+    `(user, client)` family, and a failure there fails the request. Cleanup runs
+    afterwards and may fail without reopening anything.
+  - The refresh grant refuses a token whose row has `revoked` set, or whose
+    family has a revoked row, whatever the cleanup did. This check is in the
+    adapter that reads the row, so it does not depend on the handler.
+  - Tests: a serial replay with a failure injected into the cleanup delete
+    leaves the successor token rejected; a concurrent replay of one token yields
+    at most one success and then a revoked family.
 - Each workaround is removed in the upgrade PR that pins the fixed version.
 
 ### 11. MCP transport and scopes (recorded from the spike)
@@ -193,13 +257,22 @@ Each item is a shortcut or a known gap to be tracked on #639.
    client IP (`fly-client-ip`, set explicitly). Per-account lockout beyond
    `twoFactor`'s own counter is not added. Closes with H7.
 3. **H14. Workarounds for #11949 and #11629 are app code over plugin
-   internals.** They break silently on an upgrade. Closes when a pinned version
-   carries both fixes and the hooks are deleted.
+   internals.** The #11629 one wraps the adapter's refresh-token reads and
+   writes (§10), the plugin's own table layout. They break silently on an
+   upgrade, which is why each has a test that fails if the workaround stops
+   applying. Closes when a pinned version carries both fixes and the workarounds
+   are deleted.
 4. **H15. The bridge exception in §6**, if it is ever used, runs a second
    session system for the owner's account. Closes when it is deleted at the
    cutover.
 5. **H16. bcrypt at cost 10** is kept for continuity. Closes when a rehash on
    sign-in moves hashes to a stronger cost or algorithm.
+6. **H31. A rollback drops 2FA for users who re-enrolled after the cutover.**
+   Epic cannot read a Better Auth TOTP secret, and reviving the Epic secret they
+   replaced is worse, so §2's rollback deletes it. Those users have
+   password-only accounts on Epic until they set up 2FA again. Closes when the
+   Epic tables are dropped one release after the cutover, which ends the
+   rollback window.
 
 ## Open for the owner
 
