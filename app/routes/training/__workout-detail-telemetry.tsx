@@ -45,7 +45,7 @@ import { nbDurationLabel, WORKOUT_DETAIL_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { deriveSessionProfile } from '#app/utils/session-profile.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
-import { workoutReps } from '#app/utils/workout-reps.ts'
+import { perStep, workoutReps } from '#app/utils/workout-reps.ts'
 
 const L = WORKOUT_DETAIL_LABELS.telemetry
 
@@ -89,21 +89,12 @@ function buildPlannedSegments(
 	if (total <= 0) return []
 	// Resolved now, never off the cached range columns, which fill only on a
 	// threshold change and so are empty on most new sessions (#616).
-	const targets = new Map<
-		(typeof steps)[number]['step'],
-		PlannedTarget | null
-	>()
-	const targetOf = (step: (typeof steps)[number]['step']) => {
-		if (!targets.has(step)) {
-			targets.set(
-				step,
-				channel
-					? resolveStepBand(step, workout.discipline, thresholds, channel)
-					: null,
-			)
-		}
-		return targets.get(step)!
-	}
+	const targetOf = perStep(
+		(step: (typeof steps)[number]['step']): PlannedTarget | null =>
+			channel
+				? resolveStepBand(step, workout.discipline, thresholds, channel)
+				: null,
+	)
 
 	const segments: PlannedSegment[] = []
 	let cum = 0

@@ -1,9 +1,6 @@
 import { z } from 'zod/v3'
-// Type-only at the top level, so Node's type stripping drops the import
-// entirely and this module never loads training.server.ts (#638).
-// eslint-disable-next-line import/consistent-type-specifier-style
-import type { LedgerSession } from './training.server.ts'
-import { stepDurationSec, workoutReps } from './workout-reps.ts'
+import { type LedgerSession } from './ledger-session.ts'
+import { perStep, stepDurationSec, workoutReps } from './workout-reps.ts'
 import {
 	blockRepeatTotal,
 	IntensityTargetSchema,
@@ -306,14 +303,7 @@ export function deriveRepeatGroups(workout: Workout | null): ProfileBarGroup[] {
 export function deriveSessionProfile(workout: Workout | null): SessionProfile {
 	const fallbackZone = intentToZone(workout?.intent)
 	const { steps, groups } = workoutReps(workout)
-	// Each step's zone once, not once per rep: a rep repeats its step.
-	const zones = new Map<WorkoutStep, TrainingZone | null>()
-	const zoneOf = (step: WorkoutStep) => {
-		if (!zones.has(step)) {
-			zones.set(step, shapeZone(step, fallbackZone))
-		}
-		return zones.get(step)!
-	}
+	const zoneOf = perStep((step: WorkoutStep) => shapeZone(step, fallbackZone))
 	const bars = steps.map(({ id, step, durationSec }) => ({
 		id,
 		zone: zoneOf(step),

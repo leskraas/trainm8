@@ -71,6 +71,19 @@ export function stepDurationSec(step: RepStep): number {
 	return step.durationSec ?? 0
 }
 
+/**
+ * `read` memoized per step: a drawn rep repeats its step, so whatever a
+ * reader derives from a step (its zone, its target band) is worked out once
+ * per step, not once per rep. Keyed by the step itself.
+ */
+export function perStep<S, T>(read: (step: S) => T): (step: S) => T {
+	const memo = new Map<S, T>()
+	return (step) => {
+		if (!memo.has(step)) memo.set(step, read(step))
+		return memo.get(step)!
+	}
+}
+
 const byOrder = (a: { orderIndex: number }, b: { orderIndex: number }) =>
 	a.orderIndex - b.orderIndex
 
