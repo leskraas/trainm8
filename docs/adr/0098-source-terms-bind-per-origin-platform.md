@@ -8,12 +8,14 @@ Not legal advice: each rule below records a reading of the vendor's text, and
 the readings marked _owner/legal_ need a person's sign-off before an athlete
 other than the owner connects an assistant.
 
-Numbering: 0092–0095 and 0097 are reserved by the agent-strategy roadmap
+Numbering: 0094, 0095 and 0097 are reserved by the agent-strategy roadmap
 ([`agent-strategy.md`, "The ADR roadmap"](../research/agent-strategy.md#the-adr-roadmap)).
 
-**Defines the `source-terms` reason.** ADR 0092 (the action registry, #550) is
-not written yet; when it lands it cites this ADR for the reason and widens its
-model-facing gate from Strava to every Origin Platform. **Builds on
+**Defines the `source-terms` reason.**
+[ADR 0092](./0092-every-athlete-operation-is-one-typed-action-and-the-routes-the-mcp-server-and-an-agent-are-its-readers.md)
+(the action registry, #550) cites this ADR for the reason, makes it one value of
+the one `UnavailableReason` a **Reading** carries (§6 there), and puts every
+model-facing number through `sourceTerms` (§7 there). **Builds on
 [ADR 0096](./0096-every-import-records-its-origin-platform-and-one-activity-is-one-row.md)**,
 which records the Origin Platform this ADR keys on. **Carries the per-vendor
 retention rule** [ADR 0012](./0012-disconnect-preserves-recordings.md) needs,
