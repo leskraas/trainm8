@@ -6,7 +6,7 @@ import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod/v3'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { ErrorList, OTPField } from '#app/components/forms.tsx'
+import { OTPField } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
@@ -92,13 +92,13 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 			subtitle={heading?.subtitle}
 		>
 			<div className="space-y-4">
-				<ErrorList errors={form.errors} id={form.errorId} />
 				<Form method="POST" {...getFormProps(form)}>
 					<HoneypotInputs />
 					<div className="flex items-center justify-center">
-						{/* No reserved error line: this form only validates on submit, so
-						    nothing comes or goes while the code is typed. */}
+						{/* The code's line is reserved and holds the form's error too, so
+						    the answer to a submit moves neither the code nor the button. */}
 						<OTPField
+							reserveErrorLine
 							labelProps={{
 								htmlFor: fields[codeQueryParam].id,
 								children: 'Code',
@@ -120,6 +120,8 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 										}),
 							}}
 							errors={fields[codeQueryParam].errors}
+							formErrors={form.errors}
+							formErrorId={form.errorId}
 						/>
 					</div>
 					<input

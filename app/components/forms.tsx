@@ -145,18 +145,38 @@ export function ReserveErrorLines({ children }: { children: React.ReactNode }) {
 	)
 }
 
+/**
+ * The form's own error (the server's answer, `form.errors`), shown on the last
+ * field's line while that field has none of its own. The server only answers
+ * once every field is valid, and any input clears its answer, so the two
+ * never meet: the last field's line holds both, and no second empty line
+ * waits above the button. It keeps the form's id, so the form's
+ * `aria-describedby` still finds it, and leaves the field unmarked.
+ */
+type FormErrorsOnLine = {
+	formErrors?: ListOfErrors
+	formErrorId?: string
+}
+
 function InlineFieldErrors({
 	errorId,
-	errors,
+	errors: fieldErrors,
+	formErrors,
+	formErrorId,
 	reserveErrorLine: ownReserveErrorLine,
 }: {
 	errorId?: string
 	errors: string[]
 	/** The field's own say; unset, the form's {@link ReserveErrorLines}. */
 	reserveErrorLine?: boolean
-}) {
+} & FormErrorsOnLine) {
 	const formReservesErrorLines = useContext(ReserveErrorLineContext)
 	const reserveErrorLine = ownReserveErrorLine ?? formReservesErrorLines
+	const formErrorsToRender = fieldErrors.length
+		? []
+		: getErrorsToRender(formErrors)
+	const errors = formErrorsToRender.length ? formErrorsToRender : fieldErrors
+	const firstId = formErrorsToRender.length ? formErrorId : errorId
 	if (!errors.length && !reserveErrorLine) return null
 	const shown = reserveErrorLine ? errors.slice(0, 1) : errors
 
@@ -169,7 +189,7 @@ function InlineFieldErrors({
 			{shown.map((error, index) => (
 				<FieldDescription
 					key={`${error}-${index}`}
-					id={index === 0 ? errorId : undefined}
+					id={index === 0 ? firstId : undefined}
 					className={ERROR_TEXT}
 				>
 					{error}
@@ -216,25 +236,12 @@ export function Field({
 	 * Unset, as the form says ({@link ReserveErrorLines}).
 	 */
 	reserveErrorLine?: boolean
-	/**
-	 * The form's own error (the server's answer, `form.errors`), shown on this
-	 * field's line while the field has none of its own. The server only answers
-	 * once every field is valid, and any input clears its answer, so the two
-	 * never meet: the last field's line holds both, and no second empty line
-	 * waits above the button. It keeps the form's id, so the form's
-	 * `aria-describedby` still finds it, and leaves the field unmarked.
-	 */
-	formErrors?: ListOfErrors
-	formErrorId?: string
 	className?: string
-}) {
+} & FormErrorsOnLine) {
 	const fallbackId = useId()
 	const id = inputProps.id ?? fallbackId
 	const errorsToRender = getErrorsToRender(errors)
 	const errorId = errorsToRender.length ? `${id}-error` : undefined
-	const formErrorsToRender = errorsToRender.length
-		? []
-		: getErrorsToRender(formErrors)
 	return (
 		<FieldGroup className={className}>
 			<FormField
@@ -254,10 +261,10 @@ export function Field({
 						}}
 					/>
 					<InlineFieldErrors
-						errorId={formErrorsToRender.length ? formErrorId : errorId}
-						errors={
-							formErrorsToRender.length ? formErrorsToRender : errorsToRender
-						}
+						errorId={errorId}
+						errors={errorsToRender}
+						formErrors={formErrors}
+						formErrorId={formErrorId}
 						reserveErrorLine={reserveErrorLine}
 					/>
 				</FieldContent>
@@ -340,6 +347,8 @@ export function OTPField({
 	inputProps,
 	errors,
 	reserveErrorLine,
+	formErrors,
+	formErrorId,
 	className,
 }: {
 	labelProps: React.LabelHTMLAttributes<HTMLLabelElement>
@@ -351,7 +360,7 @@ export function OTPField({
 	 */
 	reserveErrorLine?: boolean
 	className?: string
-}) {
+} & FormErrorsOnLine) {
 	const fallbackId = useId()
 	const id = inputProps.id ?? fallbackId
 	const errorsToRender = getErrorsToRender(errors)
@@ -387,6 +396,8 @@ export function OTPField({
 					<InlineFieldErrors
 						errorId={errorId}
 						errors={errorsToRender}
+						formErrors={formErrors}
+						formErrorId={formErrorId}
 						reserveErrorLine={reserveErrorLine}
 					/>
 				</FieldContent>
@@ -436,6 +447,8 @@ export function CheckboxField({
 	buttonProps,
 	errors,
 	reserveErrorLine,
+	formErrors,
+	formErrorId,
 	className,
 }: {
 	labelProps: React.ComponentProps<'label'>
@@ -451,7 +464,7 @@ export function CheckboxField({
 	 */
 	reserveErrorLine?: boolean
 	className?: string
-}) {
+} & FormErrorsOnLine) {
 	const { key, defaultChecked, ...checkboxProps } = buttonProps
 	const fallbackId = useId()
 	const checkedValue = buttonProps.value ?? 'on'
@@ -500,6 +513,8 @@ export function CheckboxField({
 					<InlineFieldErrors
 						errorId={errorId}
 						errors={errorsToRender}
+						formErrors={formErrors}
+						formErrorId={formErrorId}
 						reserveErrorLine={reserveErrorLine}
 					/>
 				</FieldContent>

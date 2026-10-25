@@ -7,7 +7,6 @@ import { z } from 'zod/v3'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import {
 	CheckboxField,
-	ErrorList,
 	Field,
 	ReserveErrorLines,
 } from '#app/components/forms.tsx'
@@ -231,6 +230,8 @@ export default function OnboardingRoute({
 							{ type: 'checkbox' },
 						)}
 						errors={fields.agreeToTermsOfServiceAndPrivacyPolicy.errors}
+						formErrors={form.errors}
+						formErrorId={form.errorId}
 					/>
 					<CheckboxField
 						reserveErrorLine={false}
@@ -243,7 +244,6 @@ export default function OnboardingRoute({
 					/>
 
 					<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
-					<ErrorList errors={form.errors} id={form.errorId} />
 
 					<StatusButton
 						className="w-full"
