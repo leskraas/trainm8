@@ -168,6 +168,44 @@ describe('forms field wrappers', () => {
 		expect(screen.getByText('Use only letters, numbers')).toBeInTheDocument()
 	})
 
+	// A return key that says "next" must go to the next field: left alone, a
+	// form submits on Enter from any field, half filled, and every field
+	// after this one turns red. "go" keeps the submit.
+	test('return on a "next" field moves to the next control, not submit', async () => {
+		const user = userEvent.setup()
+		let submitted = 0
+		render(
+			<form
+				onSubmit={(event) => {
+					event.preventDefault()
+					submitted += 1
+				}}
+			>
+				<input tabIndex={-1} aria-hidden name="honeypot" />
+				<Field
+					labelProps={{ children: 'Username' }}
+					inputProps={{ enterKeyHint: 'next' }}
+				/>
+				<input type="hidden" name="redirectTo" />
+				<Field
+					labelProps={{ children: 'Password' }}
+					inputProps={{ enterKeyHint: 'go' }}
+				/>
+				<button type="submit">Log in</button>
+			</form>,
+		)
+		const username = screen.getByRole('textbox', { name: 'Username' })
+		const password = screen.getByRole('textbox', { name: 'Password' })
+
+		await user.click(username)
+		await user.keyboard('kody{Enter}')
+		expect(password).toHaveFocus()
+		expect(submitted).toBe(0)
+
+		await user.keyboard('secret{Enter}')
+		expect(submitted).toBe(1)
+	})
+
 	// A form's own error (the server's answer) is never there while a field
 	// has one, so the last field's line holds it: no second empty line above
 	// the button. It is the form's error, not the field's, so the field is not

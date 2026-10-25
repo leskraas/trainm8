@@ -117,6 +117,7 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 							autoFocus: true,
 							className: 'lowercase',
 							autoComplete: 'username',
+							enterKeyHint: 'next',
 						}}
 						errors={fields.username.errors}
 					/>
@@ -129,6 +130,7 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 								type: 'password',
 							}),
 							autoComplete: 'current-password',
+							enterKeyHint: 'go',
 						}}
 						errors={fields.password.errors}
 						formErrors={form.errors}

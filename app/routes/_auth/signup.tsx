@@ -158,6 +158,7 @@ export default function SignupRoute({ actionData }: Route.ComponentProps) {
 						...getInputProps(fields.email, { type: 'email' }),
 						autoFocus: true,
 						autoComplete: 'email',
+						enterKeyHint: 'go',
 					}}
 					errors={fields.email.errors}
 					formErrors={form.errors}

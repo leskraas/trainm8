@@ -114,6 +114,7 @@ export default function ResetPasswordPage({
 					inputProps={{
 						...getInputProps(fields.password, { type: 'password' }),
 						autoComplete: 'new-password',
+						enterKeyHint: 'next',
 						autoFocus: true,
 					}}
 					errors={fields.password.errors}
@@ -127,6 +128,7 @@ export default function ResetPasswordPage({
 					inputProps={{
 						...getInputProps(fields.confirmPassword, { type: 'password' }),
 						autoComplete: 'new-password',
+						enterKeyHint: 'go',
 					}}
 					errors={fields.confirmPassword.errors}
 				/>

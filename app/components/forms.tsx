@@ -61,6 +61,39 @@ const ERROR_TEXT = 'text-footnote text-foreground-destructive'
  */
 const ERROR_LINE = 'min-h-(--text-footnote--line-height)'
 
+/** What a return key can reach in a form: tabbable, enabled, not hidden. */
+const FORM_CONTROLS =
+	'input:not([type=hidden]), select, textarea, button, [role=checkbox], [tabindex]'
+
+/**
+ * Return on a field whose key reads "next" (`enterKeyHint: 'next'`) moves to
+ * the form's next control, as the key says, instead of submitting the form
+ * half filled. Any other hint keeps the browser's submit.
+ */
+function moveToNextControl(event: React.KeyboardEvent<HTMLInputElement>) {
+	const input = event.currentTarget
+	if (
+		event.key !== 'Enter' ||
+		event.nativeEvent.isComposing ||
+		input.getAttribute('enterkeyhint') !== 'next' ||
+		!input.form
+	) {
+		return
+	}
+	const controls = Array.from(
+		input.form.querySelectorAll<HTMLElement>(FORM_CONTROLS),
+	).filter(
+		(control) =>
+			control.tabIndex >= 0 &&
+			!control.matches(':disabled') &&
+			!control.closest('[aria-hidden="true"]'),
+	)
+	const next = controls[controls.indexOf(input) + 1]
+	if (!next) return
+	event.preventDefault()
+	next.focus()
+}
+
 function getErrorsToRender(errors?: ListOfErrors) {
 	return errors?.filter(Boolean) ?? []
 }
@@ -162,6 +195,10 @@ export function Field({
 						aria-invalid={errorId ? true : undefined}
 						aria-describedby={errorId}
 						{...inputProps}
+						onKeyDown={(event) => {
+							inputProps.onKeyDown?.(event)
+							if (!event.defaultPrevented) moveToNextControl(event)
+						}}
 					/>
 					<InlineFieldErrors
 						errorId={formErrorsToRender.length ? formErrorId : errorId}

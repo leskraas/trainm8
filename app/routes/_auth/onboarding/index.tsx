@@ -177,6 +177,7 @@ export default function OnboardingRoute({
 						autoCorrect: 'off',
 						spellCheck: false,
 						autoComplete: 'username',
+						enterKeyHint: 'next',
 						className: 'lowercase',
 					}}
 					errors={fields.username.errors}
@@ -187,6 +188,7 @@ export default function OnboardingRoute({
 					inputProps={{
 						...getInputProps(fields.name, { type: 'text' }),
 						autoComplete: 'name',
+						enterKeyHint: 'next',
 						autoCapitalize: 'words',
 					}}
 					errors={fields.name.errors}
@@ -197,6 +199,7 @@ export default function OnboardingRoute({
 					inputProps={{
 						...getInputProps(fields.password, { type: 'password' }),
 						autoComplete: 'new-password',
+						enterKeyHint: 'next',
 					}}
 					errors={fields.password.errors}
 				/>
@@ -210,6 +213,7 @@ export default function OnboardingRoute({
 					inputProps={{
 						...getInputProps(fields.confirmPassword, { type: 'password' }),
 						autoComplete: 'new-password',
+						enterKeyHint: 'next',
 					}}
 					errors={fields.confirmPassword.errors}
 				/>

@@ -149,8 +149,12 @@ export default function ForgotPasswordRoute() {
 					}}
 					inputProps={{
 						autoFocus: true,
+						// A username or an email, so the standard keyboard: the email
+						// one (and type="email") would say only an address is taken.
+						// Return sends the reset email.
 						...getInputProps(fields.usernameOrEmail, { type: 'text' }),
 						autoComplete: 'username',
+						enterKeyHint: 'send',
 						autoCapitalize: 'none',
 						autoCorrect: 'off',
 						spellCheck: false,

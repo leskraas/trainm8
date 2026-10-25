@@ -226,6 +226,7 @@ export default function OnboardingProviderRoute({
 						autoCorrect: 'off',
 						spellCheck: false,
 						autoComplete: 'username',
+						enterKeyHint: 'next',
 						className: 'lowercase',
 					}}
 					errors={fields.username.errors}
@@ -236,6 +237,7 @@ export default function OnboardingProviderRoute({
 					inputProps={{
 						...getInputProps(fields.name, { type: 'text' }),
 						autoComplete: 'name',
+						enterKeyHint: 'next',
 						autoCapitalize: 'words',
 					}}
 					errors={fields.name.errors}
