@@ -497,18 +497,37 @@ export function parseAuthoredIntensity(
  * of its own is the workout's.
  */
 export function resolveStepRange(
-	step: { kind: string; discipline?: string | null; intensity?: string | null },
+	step: StepWithIntensity,
 	workoutDiscipline: string,
 	thresholds: DisciplineThresholdMap = {},
 ): ResolvedIntensity {
-	if (step.kind !== 'cardio') return {}
+	return (
+		resolveAuthoredStep(step, workoutDiscipline, thresholds)?.resolved ?? {}
+	)
+}
+
+type StepWithIntensity = {
+	kind: string
+	discipline?: string | null
+	intensity?: string | null
+}
+
+/** What a cardio step authors and what it resolves to now, parsed and
+ * resolved once for {@link resolveStepRange} and {@link resolveStepBand};
+ * null when it authors nothing a threshold can resolve. */
+function resolveAuthoredStep(
+	step: StepWithIntensity,
+	workoutDiscipline: string,
+	thresholds: DisciplineThresholdMap,
+): { target: IntensityTarget; resolved: ResolvedIntensity } | null {
+	if (step.kind !== 'cardio') return null
 	const target = parseAuthoredIntensity(step.intensity)
-	if (!target) return {}
+	if (!target) return null
 	const resolved = resolveIntensity(
 		target,
 		thresholds[step.discipline ?? workoutDiscipline] ?? EMPTY_PROFILE,
 	)
-	return resolved.unavailable ? {} : resolved
+	return resolved.unavailable ? null : { target, resolved }
 }
 
 /** The channel a target band is drawn on. */
@@ -535,19 +554,14 @@ const POINT_TARGET_KINDS = new Set<IntensityTarget['kind']>([
  * that draws the band only draws it.
  */
 export function resolveStepBand(
-	step: { kind: string; discipline?: string | null; intensity?: string | null },
+	step: StepWithIntensity,
 	workoutDiscipline: string,
 	thresholds: DisciplineThresholdMap,
 	channel: BandChannel,
 ): StepBand | null {
-	if (step.kind !== 'cardio') return null
-	const target = parseAuthoredIntensity(step.intensity)
-	if (!target) return null
-	const resolved = resolveIntensity(
-		target,
-		thresholds[step.discipline ?? workoutDiscipline] ?? EMPTY_PROFILE,
-	)
-	if (resolved.unavailable) return null
+	const authored = resolveAuthoredStep(step, workoutDiscipline, thresholds)
+	if (!authored) return null
+	const { target, resolved } = authored
 	const [min, max] =
 		channel === 'power'
 			? [resolved.powerMin, resolved.powerMax]
