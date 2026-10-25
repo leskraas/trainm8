@@ -14,6 +14,7 @@
  */
 import { Link, useFetcher } from 'react-router'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
+import { SourceCredits } from '#app/components/source-credits.tsx'
 import { buttonVariants } from '#app/components/ui/button.tsx'
 import {
 	ANNET_ACTION_LABELS,
@@ -58,6 +59,11 @@ export function SessionDetail({
 			data-session-detail={session.id}
 			className="flex min-w-0 flex-col gap-2.5"
 		>
+			{/* First, straight under the title the Drawer and the day pane
+			    set above this body: the row's own credit (#557). */}
+			{session.sourceCredit ? (
+				<SourceCredits credits={[session.sourceCredit]} />
+			) : null}
 			<dl className="text-footnote grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5">
 				<dt className="text-muted-foreground">{DAY_PANE_LABELS.track}</dt>
 				<dd>{session.disciplineLabel}</dd>

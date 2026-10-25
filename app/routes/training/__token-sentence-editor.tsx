@@ -308,6 +308,9 @@ function editorKindFor(token: NotationToken): EditorKind | null {
 		case 'repeat':
 			return 'repeat'
 		case 'rest':
+			// The rest between series is drawn but has no control on the form
+			// yet (#466), so it reads like the series badge: inert.
+			if (token.address.field === 'betweenSeriesRestSec') return null
 			return token.address.field === 'restBetweenSetsSec'
 				? 'restSeconds'
 				: 'rest'
@@ -320,7 +323,9 @@ function editorKindFor(token: NotationToken): EditorKind | null {
 		case 'discipline':
 			return 'discipline'
 		// The exercise token keeps its own instrument (the combobox IS the
-		// token); block labels never render on the line (G2).
+		// token); block labels never render on the line (G2). The series badge
+		// and the Step Parameters (grade, cadence) are drawn with no control
+		// behind them: the form does not carry them yet (#466).
 		default:
 			return null
 	}
@@ -418,12 +423,17 @@ export function tokenAccessibleName(
 			case 'distance':
 				return N.distance(token.text)
 			case 'repeat':
-				// Named from what the badge shows: `3 × 13` is three series of 13.
-				return token.type !== 'repeat'
-					? N.repeat(token.text)
-					: token.series != null
-						? N.repeatSeries(token.series, token.count)
-						: N.repeat(token.count)
+				// Named from what its badge shows. A block in series names its
+				// series too, `3 × 13` being three series of 13: the series badge
+				// above it is inert, so the button is where a screen reader
+				// stops (#466).
+				if (token.type !== 'repeat') return N.repeat(token.text)
+				return notation.blocks[blockIndex]?.series
+					? N.repeatSeries(
+							notation.blocks[blockIndex]!.series!.count,
+							token.count,
+						)
+					: N.repeat(token.count)
 			case 'rest':
 				return token.text
 			case 'restSeconds':

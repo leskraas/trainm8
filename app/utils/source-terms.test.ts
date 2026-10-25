@@ -33,6 +33,36 @@ test('Polar data is shown crediting Polar, and closed to a model without its opt
 	})
 })
 
+test('Polar data reaches a model once the athlete has opted in to Polar, with the Polar credit (#555)', () => {
+	expect(sourceTerms(['polar'], 'model', { optIns: ['polar'] })).toEqual({
+		allowed: true,
+		attributions: ['polar'],
+	})
+	// The opt-in is Polar's alone: it opens nothing else in the binding set.
+	expect(
+		sourceTerms(['polar', 'strava'], 'model', { optIns: ['polar'] }),
+	).toEqual({ allowed: false, platforms: ['strava'] })
+	expect(sourceTerms(['polar', 'garmin'], 'model', { optIns: [] })).toEqual({
+		allowed: false,
+		platforms: ['polar'],
+	})
+})
+
+test('an opt-in cannot open a platform whose terms bar a model whatever the athlete says', () => {
+	for (const platform of [
+		'strava',
+		'apple-health',
+		'health-connect',
+		'unknown',
+		'coros',
+	] as const) {
+		expect(sourceTerms([platform], 'model', { optIns: [platform] })).toEqual({
+			allowed: false,
+			platforms: [platform],
+		})
+	}
+})
+
 test('Strava data is shown and never reaches a model', () => {
 	expect(sourceTerms(['strava'], 'screen')).toEqual({
 		allowed: true,

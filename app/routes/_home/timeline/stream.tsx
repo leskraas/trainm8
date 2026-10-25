@@ -1239,33 +1239,43 @@ function SessionRow({
 						}}
 						className="pressable relative flex min-h-8 min-w-0 flex-1 items-start gap-2 py-1 after:absolute after:inset-x-0 after:-inset-y-1.5"
 					>
-						<span
-							data-session-title
-							className={cn(
-								'text-callout min-w-0 flex-1 font-normal [text-wrap:pretty] [overflow-wrap:anywhere]',
-								missed
-									? 'text-muted-foreground line-through decoration-1'
-									: past
-										? 'text-foreground/80'
-										: 'text-foreground',
-								day.isToday && !missed ? 'font-medium' : null,
-							)}
-						>
-							{session.title}
-							{session.rowMark ? (
-								<>
-									{' '}
-									{/* The import's one word on the row (audit PR D): what
+						<div className="flex min-w-0 flex-1 flex-col">
+							<span
+								data-session-title
+								className={cn(
+									'text-callout min-w-0 font-normal [text-wrap:pretty] [overflow-wrap:anywhere]',
+									missed
+										? 'text-muted-foreground line-through decoration-1'
+										: past
+											? 'text-foreground/80'
+											: 'text-foreground',
+									day.isToday && !missed ? 'font-medium' : null,
+								)}
+							>
+								{session.title}
+								{session.rowMark ? (
+									<>
+										{' '}
+										{/* The import's one word on the row (audit PR D): what
 									    the athlete should see without asking the glyph. */}
-									<span
-										data-row-mark
-										className="text-caption text-muted-foreground bg-muted ml-0.5 inline-block rounded-full px-1.5 py-px align-[0.1em] font-medium whitespace-nowrap no-underline"
-									>
-										{session.rowMark}
-									</span>
-								</>
+										<span
+											data-row-mark
+											className="text-caption text-muted-foreground bg-muted ml-0.5 inline-block rounded-full px-1.5 py-px align-[0.1em] font-medium whitespace-nowrap no-underline"
+										>
+											{session.rowMark}
+										</span>
+									</>
+								) : null}
+							</span>
+							{/* The credit the recording owes by its title (#557, ADR 0098
+						    §3): "Garmin [device model]", one quiet caption line under
+						    it, in the row itself — never behind the glyph, a tooltip
+						    or the details. It wraps rather than truncates, and the
+						    volume and done dot keep the first line. */}
+							{session.sourceCredit ? (
+								<SourceCredits credits={[session.sourceCredit]} />
 							) : null}
-						</span>{' '}
+						</div>{' '}
 						<span className="text-footnote flex flex-none items-center gap-1.5 pt-0.5 text-right whitespace-nowrap tabular-nums">
 							{missed ? (
 								<span className="text-status-missed italic">

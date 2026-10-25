@@ -395,17 +395,17 @@ the Catalogue cannot honour.
   session). Four gaps the transcription found and could not close, each recorded
   on the affected row rather than silently smoothed over: `% vVO2max` and
   `% of maximal speed` have no `IntensityTarget` kind, so Billat's 30/30 states
-  its structure and leaves its intensity **unavailable**; `gradePct` is a scalar
-  where every hill row states a band, so grade lives in notes and the column
-  stays null; `verticalM` is exclusive with duration and distance, which is
-  right for a vertical rep and wrong for a mountain long run that has both; and
-  there is no two-a-day container, so a double day seeds as one Workout with
-  `AM` and `PM` blocks. `CATALOGUE_GOAL_EVENTS` is also a list of _running_
-  distances — the cycling corpus is unscoped by goal event because road racing,
-  gran fondo and time trial are not in the vocabulary. And the **Session
-  Archetype** vocabulary has no strength member at all: its sixteen values are
-  every one of them an endurance archetype, so a heavy squat day is filed as
-  `neuromuscular` and an anatomical-adaptation day as `technique`, which is the
-  nearest honest member rather than a good fit. The research made the same
-  complaint about the Strength Goal enum, which "cannot label 10 of these 25
-  sessions".
+  its structure and leaves its intensity **unavailable**; `gradePct` was a
+  scalar where every hill row states a band, so grade lived in notes and the
+  column stayed null (closed by #466: grade is a band now and the hill rows
+  store it); `verticalM` is exclusive with duration and distance, which is right
+  for a vertical rep and wrong for a mountain long run that has both; and there
+  is no two-a-day container, so a double day seeds as one Workout with `AM` and
+  `PM` blocks. `CATALOGUE_GOAL_EVENTS` is also a list of _running_ distances —
+  the cycling corpus is unscoped by goal event because road racing, gran fondo
+  and time trial are not in the vocabulary. And the **Session Archetype**
+  vocabulary has no strength member at all: its sixteen values are every one of
+  them an endurance archetype, so a heavy squat day is filed as `neuromuscular`
+  and an anatomical-adaptation day as `technique`, which is the nearest honest
+  member rather than a good fit. The research made the same complaint about the
+  Strength Goal enum, which "cannot label 10 of these 25 sessions".

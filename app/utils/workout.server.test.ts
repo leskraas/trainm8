@@ -17,6 +17,7 @@ import {
 	createCustomExercise,
 	copyWorkout,
 	materializeDetectedStructure,
+	prescriptionFingerprint,
 	replaceDetectedStructure,
 	workoutCopySelect,
 } from './workout.server.ts'
@@ -1121,7 +1122,8 @@ test('a full-expressiveness session round-trips through create, read and copy', 
 							durationSec: 30,
 							cadenceRpmMin: 95,
 							cadenceRpmMax: 105,
-							gradePct: 4.5,
+							gradePctMin: 4,
+							gradePctMax: 7.5,
 						},
 						{ kind: 'rest', rest: { kind: 'toHr', belowBpm: 120 } },
 					],
@@ -1150,7 +1152,8 @@ test('a full-expressiveness session round-trips through create, read and copy', 
 	const [interval, rest] = work!.steps
 	expect(interval!.cadenceRpmMin).toBe(95)
 	expect(interval!.cadenceRpmMax).toBe(105)
-	expect(interval!.gradePct).toBe(4.5)
+	expect(interval!.gradePctMin).toBe(4)
+	expect(interval!.gradePctMax).toBe(7.5)
 	expect(vertical!.steps[0]!.verticalM).toBe(1000)
 	// An HR recovery has no duration, so the column every duration reader
 	// trusts stays empty rather than carrying a guess.
@@ -1723,4 +1726,50 @@ test('a power-detected 5 × 4 min is zoned on running power, not the pace recipe
 	await materializeDetectedStructure(user.id, session.id, onPower)
 
 	expect(await detectedIntent(session.id)).toBe('threshold')
+})
+
+test('a grade whose ends agree fingerprints as the scalar it was before the band (#466)', () => {
+	const step = (grade: Record<string, number | null>) => [
+		{ steps: { create: [{ kind: 'cardio', durationSec: 60, ...grade }] } },
+	]
+	// What a Juster image stored before the migration fingerprinted: the old
+	// scalar slot, written here as the literal it was.
+	const before = (gradePct: number | null) =>
+		JSON.stringify([
+			[
+				null,
+				1,
+				1,
+				null,
+				null,
+				[
+					[
+						'cardio',
+						null,
+						null,
+						null,
+						60,
+						null,
+						null,
+						gradePct,
+						null,
+						null,
+						null,
+						null,
+						null,
+						[],
+					],
+				],
+			],
+		])
+	expect(
+		prescriptionFingerprint(step({ gradePctMin: 4.5, gradePctMax: 4.5 })),
+	).toBe(before(4.5))
+	expect(
+		prescriptionFingerprint(step({ gradePctMin: null, gradePctMax: null })),
+	).toBe(before(null))
+	// A true band is a different prescription from either of its ends.
+	expect(
+		prescriptionFingerprint(step({ gradePctMin: 4, gradePctMax: 7 })),
+	).not.toBe(before(4))
 })

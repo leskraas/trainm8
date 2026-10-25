@@ -28,7 +28,11 @@ import {
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type PresetFamily } from '#app/utils/plan-outline/presets.ts'
-import { AttachEventOffer, type AttachableEvent } from './__attach-event.tsx'
+import {
+	AttachEventOffer,
+	type AttachableEvent,
+	type AttachEventReply,
+} from './__attach-event.tsx'
 import { PillLink, PlanCard } from './__plan-chrome.tsx'
 import { type NextEasyWeek, planPlainName } from './__plan-lead.ts'
 import { type SeasonPicture as SeasonPictureData } from './__season-picture.server.ts'
@@ -68,11 +72,14 @@ export function PlanLeadCard({
 	/** The curve; null when the plan reads no season (it then says no curve). */
 	picture: SeasonPictureData | null
 	nextEasyWeek: NextEasyWeek | null
-	/** _Legg til et løp_'s choices and its last answer, for a plan with no race. */
+	/**
+	 * _Legg til et løp_'s choices and its last answer — a refusal, or the
+	 * preview to confirm under (#518) — for a plan with no race.
+	 */
 	attach: {
 		outlineId: string
 		events: AttachableEvent[]
-		lastResult: Parameters<typeof AttachEventOffer>[0]['lastResult']
+		reply: AttachEventReply | null
 	}
 	/** A line under the card when this plan rests or another one does. */
 	resting?: ReactNode
@@ -153,7 +160,7 @@ export function PlanLeadCard({
 					<AttachEventOffer
 						outlineId={attach.outlineId}
 						events={attach.events}
-						lastResult={attach.lastResult}
+						reply={attach.reply}
 					/>
 				) : (
 					<PillLink to={`/training/events/${toward.eventId}`}>

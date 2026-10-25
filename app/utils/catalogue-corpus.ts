@@ -112,8 +112,7 @@ export type CorpusSession = {
 	 * What the row is for, and — where the transcription cost something — what
 	 * it cost. Every compromise this corpus makes is written here rather than
 	 * left for a reader to discover: a missing anchor family, a two-a-day
-	 * session flattened into named blocks, a grade band no scalar column can
-	 * hold.
+	 * session flattened into named blocks.
 	 */
 	description: string
 	discipline: Discipline
@@ -220,7 +219,8 @@ type CardioSpec = {
 	intensity?: IntensityTarget
 	cadenceRpmMin?: number
 	cadenceRpmMax?: number
-	gradePct?: number
+	gradePctMin?: number
+	gradePctMax?: number
 	notes?: string
 }
 

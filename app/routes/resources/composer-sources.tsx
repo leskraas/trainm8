@@ -72,7 +72,8 @@ const workoutSelect = {
 					durationSec: true,
 					distanceM: true,
 					verticalM: true,
-					gradePct: true,
+					gradePctMin: true,
+					gradePctMax: true,
 					cadenceRpmMin: true,
 					cadenceRpmMax: true,
 					rest: true,
@@ -131,7 +132,8 @@ function readShape(
 			steps: block.steps.map((step) => {
 				if (
 					step.verticalM != null ||
-					step.gradePct != null ||
+					step.gradePctMin != null ||
+					step.gradePctMax != null ||
 					step.cadenceRpmMin != null ||
 					step.cadenceRpmMax != null ||
 					// A timed rest is the line's own `p 90 s`; any other form is not.

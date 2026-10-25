@@ -1069,16 +1069,16 @@ test('easeWeek softens every session still ahead in the week by 15 %, the athlet
 			planned: 3,
 		}),
 	])
-	// 0.85 × 60 min = 51 min, twice; Tuesday's hour stands. Each session is
-	// read at the track's tenth (0.9 t), as the week header reads it: 2.8 t.
+	// 0.85 × 60 min = 51 min, twice; Tuesday's hour stands. The week rounds
+	// its sum once, as the week header reads it: 162 min is 2.7 t.
 	expect(result.after.tracks).toEqual([
-		expect.objectContaining({ discipline: 'bike', planned: 2.8 }),
+		expect.objectContaining({ discipline: 'bike', planned: 2.7 }),
 	])
 	const header = await getWeekVolumes(user.id, {
 		weekKey: CURRENT_MONDAY,
 		now: NOW,
 	})
-	expect(header.tracks[0]!.planned).toBe(2.8)
+	expect(header.tracks[0]!.planned).toBe(2.7)
 
 	expect((await readSession(machine.id)).durationSec).toBe(3060)
 	expect((await readSession(own.id)).durationSec).toBe(3060)

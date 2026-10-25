@@ -238,6 +238,7 @@ export default function OnboardingProviderRoute({
 					inputProps={{
 						...getInputProps(fields.name, { type: 'text' }),
 						autoComplete: 'name',
+						autoCapitalize: 'words',
 					}}
 					errors={fields.name.errors}
 				/>

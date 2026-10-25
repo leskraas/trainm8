@@ -40,6 +40,34 @@
 > need a new token type or a second block-level token, which is a change to the
 > stanza component and its own verifiable slice — where these three were
 > corrections to text the component already renders.
+>
+> **Amended (#466): all three are drawn now.** Grade first got its band
+> (`gradePctMin`/`gradePctMax`, ADR 0002's amendment) and the hill rows store
+> it. The token model then grew three arms, each because no existing one could
+> say it:
+>
+> - **`series`**, a second block-level token beside `repeat`, for the outer
+>   **Series Repeat**. Both are present at once, so one arm could not say which
+>   is which (#615 had folded the series into the repeat token's text, `3 × 13`,
+>   which edited as the reps and read as one number). The sentence writes the
+>   series around the reps, `3 × (13 × 30 s (15 s pause))`, and the rest between
+>   series after them, `(10 min seriepause)`, as a block-level `rest` token. A
+>   block repeated only in series draws the series and no `1 ×`. The stanza
+>   badges the series in the gutter, stacked above the reps so the gutter keeps
+>   its width, outlined where the reps are filled, and reads it aloud as
+>   `3 serier`.
+> - **`grade`** and **`cadence`**, the two **Step Parameters**, after the
+>   intensity with a facet dot: `90 s @ 92–95% HRmax · 4–7 % motbakke`,
+>   `2 min @ 65% FTP · 70 rpm`. A grade on one side of level ground names its
+>   direction (`motbakke`, `utforbakke`, a descent read by its magnitude); a
+>   band across level ground or a single bound is written signed, because a
+>   direction there would be one nobody stated. Each token carries its figure
+>   and its word apart, so the stanza weighs the figure and quiets the word
+>   without parsing text.
+>
+> None of the three has a control on the editor's form yet — the draft carries
+> none of them — so like `vertical` they are drawn for reading and bind to no
+> popover.
 
 Status: accepted · Feature issue: #219 · Slug: text-first-authoring
 

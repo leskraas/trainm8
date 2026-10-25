@@ -14,6 +14,8 @@ import {
 } from '../labels.ts'
 import { type LogExercise, type LogRow } from '../strength-log.server.ts'
 import { type LoadValue } from '../strength-log.ts'
+import { plateOptionsForKind } from './plates.ts'
+import { DEFAULT_LOADABLE_STEP_KG } from './program.constants.ts'
 
 /** What a set counts in: reps, or seconds for a timed hold. */
 export type SetUnit = 'reps' | 'seconds'
@@ -183,6 +185,33 @@ export function workingLoadValue(
 		case 'unloaded':
 			return { kind: 'unloaded' }
 	}
+}
+
+/**
+ * **The smallest change this rack can make to this lift** (#530): a pair of
+ * the smallest plates the athlete owns on a bar, one on a dip belt — the
+ * kind's own multiplier, `plateOptionsForKind`'s — and otherwise the app's
+ * stated {@link DEFAULT_LOADABLE_STEP_KG}. Loadability, never the program's
+ * increment: the two stay independent (GLOSSARY: Plate Inventory).
+ */
+export function loadStepKg(
+	working: Extract<WorkingLoad, { kind: 'resolved' }>,
+	plateContext: LogExercise['plateContext'],
+): number {
+	if (
+		plateContext == null ||
+		(working.loadKind !== 'external' && working.loadKind !== 'bodyweightPlus')
+	) {
+		return DEFAULT_LOADABLE_STEP_KG
+	}
+	const options = plateOptionsForKind(working.loadKind, plateContext.options)
+	const owned = plateContext.inventory.plates
+		.filter((plate) => plate.count > 0)
+		.map((plate) => plate.weightKg)
+	if (options == null || owned.length === 0) return DEFAULT_LOADABLE_STEP_KG
+	const multiplier =
+		options.multiplier ?? (working.loadKind === 'external' ? 2 : 1)
+	return Number((multiplier * Math.min(...owned)).toFixed(2))
 }
 
 /** One prescribed row as the circles count it: a timed hold in seconds,

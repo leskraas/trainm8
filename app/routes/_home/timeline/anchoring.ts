@@ -175,6 +175,16 @@ export const WEEK_HEIGHTS = {
 	addAnother: 28,
 	/** Roughly how many characters a session's sentence sets on one line. */
 	charsPerLine: 30,
+	/**
+	 * The credit line under a title built on Garmin (or Polar) data (#557):
+	 * 12/16 caption. Less than its leading under a first session, whose
+	 * floor the gutter's two lines already set.
+	 */
+	credit: 12,
+	/** Each further line a long credit wraps onto. */
+	creditWrap: 16,
+	/** Roughly how many characters the credit's caption sets on one line. */
+	creditCharsPerLine: 38,
 } as const
 
 /** The model a week's height is estimated from: only what changes it. */
@@ -184,7 +194,11 @@ export type WeekHeightInput = {
 	planStart: boolean
 	opensHorizon: boolean
 	rows: ReadonlyArray<{
-		sessions: ReadonlyArray<{ title: string; markDone?: unknown }>
+		sessions: ReadonlyArray<{
+			title: string
+			markDone?: unknown
+			sourceCredit?: string | null
+		}>
 		/** The day ends in "legg til en til". */
 		addAnother?: boolean
 	}>
@@ -210,9 +224,13 @@ export function weekHeightEstimate(week: WeekHeightInput): number {
 				1,
 				Math.ceil(session.title.length / h.charsPerLine),
 			)
+			const creditLines = session.sourceCredit
+				? Math.ceil(session.sourceCredit.length / h.creditCharsPerLine)
+				: 0
 			total +=
 				(index === 0 ? h.session : h.extraSession) +
 				(lines - 1) * h.wrap +
+				(creditLines > 0 ? h.credit + (creditLines - 1) * h.creditWrap : 0) +
 				(session.markDone ? h.actions : 0)
 		})
 		if (day.addAnother) total += h.addAnother

@@ -1,6 +1,10 @@
 # The planning redesign speaks Norwegian, and `labels.ts` still owns every word
 
-Status: Accepted
+Status: Accepted · **Scoped for model-facing output by
+[ADR 0092](./0092-every-athlete-operation-is-one-typed-action-and-the-routes-the-mcp-server-and-an-agent-are-its-readers.md)
+§10**: action names, codes and enums a model reads are English, every word the
+athlete reads in a tool result still comes from `labels.ts`, and an assistant's
+prose is never `labels.ts`-owned and is always marked as the assistant's.
 
 **Amends [ADR 0023](./0023-shared-display-formatting-layer.md) §1** (_"The
 operator is Norwegian; English-language, European-style is the chosen house

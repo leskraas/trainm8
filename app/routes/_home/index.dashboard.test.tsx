@@ -108,7 +108,8 @@ function step(overrides: Partial<WorkoutStep> = {}): WorkoutStep {
 		durationSec: 3000,
 		distanceM: null,
 		verticalM: null,
-		gradePct: null,
+		gradePctMin: null,
+		gradePctMax: null,
 		cadenceRpmMin: null,
 		cadenceRpmMax: null,
 		rest: null,
@@ -146,6 +147,9 @@ function recording(overrides: Partial<Recording> = {}): Recording {
 		phaseBarsJson: null,
 		linkAnsweredAt: null,
 		unlinkedFromSessionId: null,
+		originPlatform: 'unknown',
+		deviceName: null,
+		aliases: [],
 		...overrides,
 	}
 }
