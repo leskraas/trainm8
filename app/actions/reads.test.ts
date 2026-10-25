@@ -182,6 +182,42 @@ test("get_session: a step's intensity crosses typed: numbers as Readings, a zone
 	).toBeLessThanOrEqual(200)
 })
 
+test('a series block crosses whole: get_session gives its series count and rest, and get_session_vs_plan plans the same duration', async () => {
+	const world = await createWorld()
+	const ctx = ctxFor(world.userId, 'mcp')
+	const { workoutId } = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: world.run },
+		select: { workoutId: true },
+	})
+	// 3 × (2 × 10 min) with six minutes between the series.
+	await prisma.workoutBlock.updateMany({
+		where: { workoutId: workoutId! },
+		data: { repeatCount: 2, seriesRepeatCount: 3, betweenSeriesRestSec: 360 },
+	})
+	await prisma.workoutStep.updateMany({
+		where: { block: { workoutId: workoutId! } },
+		data: { durationSec: 600 },
+	})
+
+	const session = await done(
+		runAction(ctx, 'get_session', { sessionId: world.run }),
+	)
+	expect(session.workout?.blocks[0]).toMatchObject({
+		repeatCount: { status: 'available', value: 2 },
+		seriesRepeatCount: { status: 'available', value: 3 },
+		betweenSeriesRestS: { status: 'available', value: 360 },
+	})
+	const vs = await done(
+		runAction(ctx, 'get_session_vs_plan', { sessionId: world.run }),
+	)
+	// 6 × 10 min of work and two six-minute rests between the series.
+	expect(session.planned.durationS).toEqual({
+		status: 'available',
+		value: 4320,
+	})
+	expect(vs.durationS.planned).toEqual(session.planned.durationS)
+})
+
 test('get_session_vs_plan: planned against actual, the band, and the structure honestly unverified', async () => {
 	const world = await createWorld()
 	const vs = await done(

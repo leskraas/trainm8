@@ -1339,6 +1339,178 @@
 																	}
 																]
 															},
+															"seriesRepeatCount": {
+																"oneOf": [
+																	{
+																		"type": "object",
+																		"properties": {
+																			"status": {
+																				"type": "string",
+																				"const": "available"
+																			},
+																			"value": {
+																				"type": "number"
+																			}
+																		},
+																		"required": [
+																			"status",
+																			"value"
+																		],
+																		"additionalProperties": false
+																	},
+																	{
+																		"type": "object",
+																		"properties": {
+																			"status": {
+																				"type": "string",
+																				"const": "unavailable"
+																			},
+																			"reason": {
+																				"type": "string",
+																				"enum": [
+																					"simple-activity",
+																					"not-resolved",
+																					"hours-calendar-cost",
+																					"combined-cross-track-load",
+																					"strength-ctl",
+																					"sets-has-no-reading",
+																					"not-an-endurance-discipline",
+																					"no-zone-recipe",
+																					"no-intensity-source",
+																					"no-heart-rate-anchor",
+																					"no-threshold-pace",
+																					"no-critical-swim-speed",
+																					"no-ride-history",
+																					"no-season-anchor",
+																					"no-recording",
+																					"building-baseline",
+																					"insufficient-data",
+																					"source-terms",
+																					"outside-plan",
+																					"no-plan",
+																					"not-logged",
+																					"structure-not-verifiable"
+																				]
+																			},
+																			"label": {
+																				"type": "string"
+																			},
+																			"platforms": {
+																				"type": "array",
+																				"items": {
+																					"type": "string",
+																					"enum": [
+																						"garmin",
+																						"polar",
+																						"suunto",
+																						"coros",
+																						"wahoo",
+																						"strava",
+																						"zwift",
+																						"apple-health",
+																						"health-connect",
+																						"intervalsicu",
+																						"upload",
+																						"unknown"
+																					]
+																				}
+																			}
+																		},
+																		"required": [
+																			"status",
+																			"reason",
+																			"label"
+																		],
+																		"additionalProperties": false
+																	}
+																]
+															},
+															"betweenSeriesRestS": {
+																"oneOf": [
+																	{
+																		"type": "object",
+																		"properties": {
+																			"status": {
+																				"type": "string",
+																				"const": "available"
+																			},
+																			"value": {
+																				"type": "number"
+																			}
+																		},
+																		"required": [
+																			"status",
+																			"value"
+																		],
+																		"additionalProperties": false
+																	},
+																	{
+																		"type": "object",
+																		"properties": {
+																			"status": {
+																				"type": "string",
+																				"const": "unavailable"
+																			},
+																			"reason": {
+																				"type": "string",
+																				"enum": [
+																					"simple-activity",
+																					"not-resolved",
+																					"hours-calendar-cost",
+																					"combined-cross-track-load",
+																					"strength-ctl",
+																					"sets-has-no-reading",
+																					"not-an-endurance-discipline",
+																					"no-zone-recipe",
+																					"no-intensity-source",
+																					"no-heart-rate-anchor",
+																					"no-threshold-pace",
+																					"no-critical-swim-speed",
+																					"no-ride-history",
+																					"no-season-anchor",
+																					"no-recording",
+																					"building-baseline",
+																					"insufficient-data",
+																					"source-terms",
+																					"outside-plan",
+																					"no-plan",
+																					"not-logged",
+																					"structure-not-verifiable"
+																				]
+																			},
+																			"label": {
+																				"type": "string"
+																			},
+																			"platforms": {
+																				"type": "array",
+																				"items": {
+																					"type": "string",
+																					"enum": [
+																						"garmin",
+																						"polar",
+																						"suunto",
+																						"coros",
+																						"wahoo",
+																						"strava",
+																						"zwift",
+																						"apple-health",
+																						"health-connect",
+																						"intervalsicu",
+																						"upload",
+																						"unknown"
+																					]
+																				}
+																			}
+																		},
+																		"required": [
+																			"status",
+																			"reason",
+																			"label"
+																		],
+																		"additionalProperties": false
+																	}
+																]
+															},
 															"steps": {
 																"type": "array",
 																"items": {
@@ -1898,6 +2070,8 @@
 														},
 														"required": [
 															"repeatCount",
+															"seriesRepeatCount",
+															"betweenSeriesRestS",
 															"steps"
 														],
 														"additionalProperties": false

@@ -194,6 +194,13 @@ export const getSessionAction = defineAction({
 				blocks: z.array(
 					z.object({
 						repeatCount: NumberReading(),
+						/**
+						 * The series level of `3 × (13 × 30/15)` (#634): how many times
+						 * the repeated steps run as a whole, `1` for a plain block.
+						 */
+						seriesRepeatCount: NumberReading(),
+						/** The rest between two series, in seconds. */
+						betweenSeriesRestS: NumberReading(),
 						steps: z.array(StepSchema),
 					}),
 				),
@@ -246,6 +253,12 @@ export const getSessionAction = defineAction({
 						title: sessionTitle(session),
 						blocks: workout.blocks.map((block) => ({
 							repeatCount: planned(block.repeatCount),
+							seriesRepeatCount: planned(block.seriesRepeatCount ?? 1),
+							betweenSeriesRestS: planned(
+								(block.seriesRepeatCount ?? 1) > 1
+									? block.betweenSeriesRestSec
+									: null,
+							),
 							steps: block.steps.map((step) => ({
 								kind: step.kind,
 								intensity: toIntensity(step.intensity, ctx),

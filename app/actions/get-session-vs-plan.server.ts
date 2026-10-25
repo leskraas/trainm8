@@ -86,6 +86,7 @@ export const getSessionVsPlanAction = defineAction({
 							select: {
 								repeatCount: true,
 								seriesRepeatCount: true,
+								betweenSeriesRestSec: true,
 								steps: {
 									orderBy: { orderIndex: 'asc' },
 									select: {
