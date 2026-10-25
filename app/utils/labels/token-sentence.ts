@@ -36,6 +36,18 @@ export const TOKEN_SENTENCE_WORDS = {
 	sendOff: (clock: string) => `på ${clock}`,
 	/** Metres of climb: `200 hm`. */
 	vertical: (metres: number) => `${metres} hm`,
+	/** The rest between two series of a block: `10 min seriepause`. */
+	betweenSeries: (duration: string) => `${duration} seriepause`,
+	/** The series badge, read aloud: `3 serier`. */
+	seriesCount: (count: number) => `${count} serier`,
+	/** Cadence's unit — the number before it is the prescription (#466). */
+	cadence: 'rpm',
+	/** A grade band's direction: `4–7 % motbakke`, `3–6 % utforbakke`. */
+	uphill: 'motbakke',
+	downhill: 'utforbakke',
+	/** Between the ends of a grade band across level ground, which has no one
+	 * direction to name: `−2 til +3 %`. */
+	gradeTo: 'til',
 	/** The placeholders a step shows before its exercise or sets are chosen. */
 	exercise: 'øvelse',
 	sets: 'sett',

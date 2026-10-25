@@ -408,7 +408,8 @@ const EMPTY_STEP: Omit<
 	notes: null,
 	distanceM: null,
 	verticalM: null,
-	gradePct: null,
+	gradePctMin: null,
+	gradePctMax: null,
 	cadenceRpmMin: null,
 	cadenceRpmMax: null,
 	rest: null,
@@ -1162,8 +1163,28 @@ async function restore(
 			intent: prescription.intent,
 			effortWord: prescription.effortWord,
 			blocks: {
-				create: buildBlocksCopy(prescription.blocks as unknown as Blocks),
+				create: buildBlocksCopy(
+					imageBlocksWithGradeBand(prescription.blocks as unknown as Blocks),
+				),
 			},
 		},
 	})
+}
+
+/**
+ * An image's stored rows, with the scalar grade an image written before #466
+ * carries read as the band the migration made of it — both ends that number —
+ * so undoing a change made before the migration writes the grade back rather
+ * than dropping it. An image written since carries the band and passes as is.
+ */
+export function imageBlocksWithGradeBand(blocks: Blocks): Blocks {
+	return blocks.map((block) => ({
+		...block,
+		steps: block.steps.map((step) => {
+			const stored: Record<string, unknown> = step
+			const legacy = stored.gradePct
+			if (typeof legacy !== 'number' || 'gradePctMin' in stored) return step
+			return { ...step, gradePctMin: legacy, gradePctMax: legacy }
+		}),
+	}))
 }

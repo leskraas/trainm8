@@ -528,6 +528,51 @@ test('added load never applies on silence, even on the machine’s own session �
 	})
 })
 
+test('an added session is never copied from a Workout the athlete reported — the Catalogue’s own guard', async () => {
+	// A report hides a Shared Workout from its reporter at once (ADR 0052). May
+	// see and may place are one guard (`catalogue.server.ts`), so an `add` naming
+	// a reported row places nothing, even on a yes.
+	const user = await createBiker()
+	const authorData = createUser()
+	const author = await prisma.user.create({
+		select: { id: true },
+		data: { ...authorData },
+	})
+	const shared = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Doble terskler',
+			discipline: 'bike',
+			intent: 'threshold',
+			ownerId: author.id,
+			visibility: 'public',
+		},
+	})
+	await prisma.workoutReport.create({
+		data: { workoutId: shared.id, reporterId: user.id, reason: 'unsafe' },
+	})
+	await prisma.$transaction((tx) =>
+		recordProposals(tx, user.id, [
+			{
+				payload: {
+					kind: 'add',
+					workoutId: shared.id,
+					date: SATURDAY,
+					time: '09:00',
+				},
+				targetSessionId: null,
+				targetWeekKey: CURRENT_MONDAY,
+				reason: 'En ekstra økt lørdag?',
+			},
+		]),
+	)
+	const add = (await readProposals(user.id)).find((p) => p.kind === 'add')
+
+	await answerProposal(user.id, add!.id, 'accepted', undefined, NOW)
+
+	expect(await sessionsOn(user.id, SATURDAY)).toHaveLength(0)
+})
+
 test('a proposal whose session was deleted applies nothing on Ok — it never widens to the week', async () => {
 	const user = await createBiker()
 	await createDoneSession(user.id)

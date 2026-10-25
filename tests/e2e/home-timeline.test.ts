@@ -2856,13 +2856,29 @@ test('a row built on a Garmin recording credits "Garmin [device model]" under it
 	await navigate(HOME_TIMELINE_HREF)
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	const row = page.locator(`[data-session-row="${session.id}"]`)
-	await row.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+	// The stream scrolls smoothly (`scroll-behavior: smooth`), so a plain
+	// scrollIntoView animates; jump instead, like the app's own jumps do.
+	await row.evaluate((el) =>
+		el.scrollIntoView({ block: 'center', behavior: 'instant' }),
+	)
 	const credit = row.locator('[data-source-credit]')
 	await expect(credit).toBeVisible()
 	await expect(credit).toHaveText(`Garmin ${device}`)
-	// Under the title, in the row, never cut short or past the edge.
-	const title = (await row.locator('[data-session-title]').boundingBox())!
-	const box = (await credit.boundingBox())!
+	// Under the title, in the row, never cut short or past the edge. Both
+	// boxes are read in one frame: read one call apart, a scroll still
+	// settling between them shifts the second box and fakes an overlap.
+	const { title, box } = await row.evaluate((el) => {
+		const rect = (selector: string) => {
+			const { x, y, width, height } = el
+				.querySelector(selector)!
+				.getBoundingClientRect()
+			return { x, y, width, height }
+		}
+		return {
+			title: rect('[data-session-title]'),
+			box: rect('[data-source-credit]'),
+		}
+	})
 	expect(box.y).toBeGreaterThanOrEqual(title.y + title.height - 1)
 	expect(box.x + box.width).toBeLessThanOrEqual(390)
 	expect(

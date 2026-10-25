@@ -636,6 +636,7 @@ export const WORKOUT_SCHEMA_MESSAGES = {
 	durationXorDistance: 'Et steg kan ha tid eller distanse, ikke begge',
 	oneQuantity: 'Et steg oppgir én mengde: tid, distanse eller høydemeter',
 	cadenceOrder: 'Kadensen må gå fra lav til høy',
+	gradeOrder: 'Stigningen må gå fra lav til høy',
 	exercise: 'Velg en øvelse',
 	setsMin: 'Legg til minst ett sett',
 	restOnce: 'En pause oppgir formen sin bare én gang',
