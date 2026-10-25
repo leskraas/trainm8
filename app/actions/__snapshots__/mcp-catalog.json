@@ -115,7 +115,29 @@
 												"type": "string"
 											},
 											"phase": {
-												"type": "string"
+												"anyOf": [
+													{
+														"type": "object",
+														"properties": {
+															"by": {
+																"type": "string",
+																"const": "athlete"
+															},
+															"text": {
+																"type": "string",
+																"maxLength": 2000
+															}
+														},
+														"required": [
+															"by",
+															"text"
+														],
+														"additionalProperties": false
+													},
+													{
+														"type": "null"
+													}
+												]
 											},
 											"tracks": {
 												"type": "array",

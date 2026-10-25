@@ -56,7 +56,10 @@ export const SessionSummarySchema = z.object({
 	/** `YYYY-MM-DD` in the Athlete Timezone. */
 	date: z.string(),
 	discipline: z.string(),
-	/** The athlete's text when theirs; trainm8's words otherwise. */
+	/**
+	 * A stored title, as the athlete's text; the discipline in trainm8's
+	 * words when there is none, or when a detected title's terms close it.
+	 */
 	title: z.union([AthleteTextSchema, z.string()]),
 	status: z.enum(SESSION_STATUSES),
 	/** **Session Ownership**: whose session it is to change. */
@@ -170,14 +173,6 @@ export function sessionStatus(
 	return status === 'completed' ? 'done' : status
 }
 
-/** Whether the athlete wrote the session's text: their own, or adopted. */
-function athleteWroteIt(session: {
-	source: string
-	adoptedAt: Date | null
-}): boolean {
-	return session.source === 'authored' || session.adoptedAt != null
-}
-
 export function sessionTitle(
 	session: Pick<
 		LedgerSession,
@@ -196,9 +191,10 @@ export function sessionTitle(
 	if (session.source === 'detected' && gate(bindingSet, ctx)) {
 		return disciplineLabel()
 	}
-	return athleteWroteIt(session)
-		? athleteText(workout.title, TITLE_MAX)
-		: workout.title
+	// Ownership does not say who wrote the title: a title-only edit leaves a
+	// machine's session unadopted. So every stored title crosses as the
+	// athlete's, marked and capped — the safe side of not knowing.
+	return athleteText(workout.title, TITLE_MAX)
 }
 
 /**

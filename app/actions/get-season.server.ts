@@ -29,6 +29,9 @@ import { toWeekTrack, WeekTrackSchema } from './week-tracks.server.ts'
 /** An event's name is the athlete's text, capped like a workout title. */
 const EVENT_NAME_MAX = 200
 
+/** A phase's name is the athlete's text too (`renamePhase`), capped alike. */
+const PHASE_NAME_MAX = 200
+
 /** The most weeks one call states: two years of plan. */
 export const SEASON_MAX_WEEKS = 104
 
@@ -65,7 +68,8 @@ export const getSeasonAction = defineAction({
 		weeks: z.array(
 			z.object({
 				weekKey: z.string(),
-				phase: z.string(),
+				/** The phase's name: the athlete can rename it, so it is theirs. */
+				phase: AthleteTextSchema.nullable(),
 				tracks: z.array(WeekTrackSchema),
 			}),
 		),
@@ -141,7 +145,10 @@ export const getSeasonAction = defineAction({
 				}
 				return {
 					weekKey,
-					phase: phaseOfWeek[i] ?? '',
+					phase:
+						phaseOfWeek[i] != null
+							? athleteText(phaseOfWeek[i], PHASE_NAME_MAX)
+							: null,
 					tracks: volumes.tracks.map((track) =>
 						toWeekTrack(track, bindingSets, ctx),
 					),
