@@ -92,6 +92,40 @@ test('an open-ended zone draws an "above" band to the top of the chart and says 
 	expect(card.textContent).toContain('Planlagt puls: over 172 slag/min.')
 })
 
+test('an open-ended band fades out toward the top, so it reads as open above', () => {
+	render(
+		<TelemetryOverlay
+			stream={hrStream(600)}
+			workout={workout([
+				{
+					repeatCount: 1,
+					steps: [{ kind: 'cardio', durationSec: 600, intensity: zone('Z5') }],
+				},
+			])}
+			thresholds={thresholds}
+		/>,
+	)
+
+	const [band] = bandRects()
+	const fill = band!.getAttribute('fill') ?? ''
+	const id = /^url\(#(.+)\)$/.exec(fill)?.[1]
+	expect(id).toBeTruthy()
+	const gradient = document.getElementById(id!)!
+	expect(gradient.tagName.toLowerCase()).toBe('lineargradient')
+	// Bottom to top: as strong as a bounded band's fill at the floor, gone at
+	// the top, in the primary token so it follows the theme.
+	expect(gradient.getAttribute('y1')).toBe('1')
+	expect(gradient.getAttribute('y2')).toBe('0')
+	const stops = Array.from(gradient.querySelectorAll('stop'))
+	expect(stops.map((s) => s.getAttribute('stop-opacity'))).toEqual([
+		'0.15',
+		'0',
+	])
+	for (const stop of stops) {
+		expect(stop.style.stopColor).toBe('var(--primary)')
+	}
+})
+
 test('a hundred series of a hundred reps draw a bounded number of bands', () => {
 	// `100x100x10 s` at Z4: one target the whole block, so one band.
 	render(

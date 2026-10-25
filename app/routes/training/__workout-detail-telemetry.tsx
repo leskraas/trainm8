@@ -17,7 +17,7 @@
  * bands, the pauses) are built once per stream; a move re-renders only the
  * crosshair, the dots and the readout.
  */
-import { memo, useMemo } from 'react'
+import { memo, useId, useMemo } from 'react'
 import {
 	ChartFigure,
 	useChartInspect,
@@ -600,6 +600,9 @@ const StaticMarks = memo(function StaticMarks({
 	const scales = buildScales(channels, bands, bandChannel, baselineY, plotH)
 	const bandIdx = channels.findIndex((c) => c.key === bandChannel)
 	const bandScale = bandIdx >= 0 ? scales[bandIdx]! : null
+	// One fade for every open-ended band, unique per chart (an id is global).
+	const openFadeId = `open-band-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+	const hasOpenBand = bands.some((b) => b.target!.max == null)
 
 	const gappedPath = (
 		values: Array<number | null>,
@@ -640,6 +643,27 @@ const StaticMarks = memo(function StaticMarks({
 				) : null
 			})}
 
+			{/* An open-ended band fades from a bounded band's fill at its floor to
+			    nothing at the top: a fill that stops reads as a ceiling, and an
+			    "over 172" target has none. Painted in the primary token, so it
+			    follows the theme. */}
+			{bandScale && hasOpenBand ? (
+				<defs>
+					<linearGradient id={openFadeId} x1="0" y1="1" x2="0" y2="0">
+						<stop
+							offset="0"
+							style={{ stopColor: 'var(--primary)' }}
+							stopOpacity="0.15"
+						/>
+						<stop
+							offset="1"
+							style={{ stopColor: 'var(--primary)' }}
+							stopOpacity="0"
+						/>
+					</linearGradient>
+				</defs>
+			) : null}
+
 			{/* Planned target bands on the channel the plan targets. */}
 			{bandScale
 				? bands.map((b) => {
@@ -664,8 +688,8 @@ const StaticMarks = memo(function StaticMarks({
 							)
 						}
 						// An open-ended zone (`172+`) has a floor and no ceiling: the band
-						// fills to the top of the plot, edged only at its floor, so it
-						// never draws a ceiling the plan does not have.
+						// fades out toward the top of the plot, edged only at its floor,
+						// so it never draws a ceiling the plan does not have.
 						return (
 							<g key={`band-${b.id}`}>
 								<rect
@@ -675,7 +699,7 @@ const StaticMarks = memo(function StaticMarks({
 									height={Math.max(0, floor - top)}
 									data-planned-band
 									data-open-ended
-									className="fill-primary/15"
+									fill={`url(#${openFadeId})`}
 								/>
 								<line
 									x1={x0}
