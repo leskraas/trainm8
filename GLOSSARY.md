@@ -1105,6 +1105,14 @@ exists; it is an **Unavailable Metric** on that surface only, and the reason
 names the platforms that closed it (ADR 0098). Never used for a value that does
 not exist. _Avoid_: Blocked, redacted, licence error, missing
 
+**Reading**: One number as trainm8 states it to anything outside its own screens
+— an athlete's **Assistant** above all — either _available_ with its value or
+_unavailable_ with its reason and the athlete's words for it, never a zero, a
+blank or an omitted field (ADR 0092). An **Unavailable Metric** is a Reading
+that is unavailable; `source-terms` is one of its reasons. Distinct from a
+**Workout Reading**, which is a whole account of one session whose numbers are
+Readings. _Avoid_: Value, data point, nullable number, metric (alone)
+
 **Summary Count**: A truthful aggregate derived from existing sessions, such as
 number of sessions or number of days in the horizon. The **Strength Summary
 Count** is the shipped instance (ADR 0046 §4, built by ADR 0056): lifting
@@ -1273,11 +1281,21 @@ its target is the machine's when it applies. A missed session is never moved: a
 make-up proposal places a copy on a free day (only _bare denne gangen_ — a copy
 has no slot to move onward) and the missed session stays on its own day as _ikke
 gjort_. A proposal aimed at a session that has since been deleted applies
-nothing. "Keep" is a real proposal, never the absence of one. Written by a
-**proposal author** — a deterministic rule set today, AI later — and the apply
-rules do not depend on which (ADR 0080). The athlete's "Gjør uka lettere −15 %"
-is a proposal they create and accept in one tap. _Avoid_: Suggestion,
-recommendation, adjustment (that is the old in-place rescale)
+nothing. "Keep" is a real proposal, never the absence of one. Every proposal
+records its **Proposal Author**, and the rules above are the rules author's: an
+**Assistant**'s proposal applies only on the athlete's Ok in trainm8, under
+either mode (ADR 0093). The athlete's "Gjør uka lettere −15 %" is a proposal
+they create and accept in one tap. _Avoid_: Suggestion, recommendation,
+adjustment (that is the old in-place rescale)
+
+**Proposal Author**: Who wrote a **Week Replan Proposal**, stored on it: the
+**rules** (the Week Change's deterministic rule set, at a week's close), the
+**athlete** (their own one-tap proposals, such as "Gjør uka lettere −15 %"), or
+the athlete's **Assistant** (ADR 0093). Silence and the **Autopilot** apply only
+the rules' proposals; an assistant's is always a question, shown as the
+assistant's, and only the athlete's explicit yes in trainm8 applies it — never a
+host's tool-approval click. _Avoid_: Proposer, source (that is **Session
+Source**), AI, "the app" for an assistant's proposal
 
 **Week Change**: The one server step that turns a week over (UI word:
 _Ukeskiftet_; `runWeekChangeForUser`, ADR 0080) — run hourly for every athlete
@@ -1596,6 +1614,14 @@ discipline filter. _Avoid_: Local filter state, tab state
 **Self-Coaching Athlete**: The primary user who plans and reviews their own
 training without coach workflows. _Avoid_: Coach-managed athlete, team user
 
+**Assistant**: An AI the athlete connects to trainm8 to act for them — their own
+Claude or ChatGPT over MCP, or later an agent inside trainm8 (ADR 0092). It
+reads through **Readings**, proposes as a **Proposal Author**, and writes only
+the athlete's own acts, each with an **Undo Handle**; what it writes on the
+athlete's say-so is the athlete's. It never gives the athlete's yes (ADR 0093).
+_Avoid_: Agent (fine in code), bot, coach, AI coach, Claude (one assistant among
+several)
+
 **Authenticated User**: The signed-in identity used for data ownership and
 access control. _Avoid_: Viewer; _avoid bare_ "account" (use **Authenticated
 User** for internal identity, **Account Connection** for an external service
@@ -1660,6 +1686,14 @@ the machine's — the one documented exception to **Session Adoption**. _Bytt ø
 not Juster: the first adopts as any chosen session does, the second opens the
 editors. _Avoid_: Adjust (as a code term for the athlete's tap — the Week
 Replan's scale is not this), quick fix, tweak
+
+**Undo Handle**: The way back from a write the athlete's **Assistant** made for
+them — a name trainm8 hands back with the write's result and keeps the undo's
+state behind, so the state never passes through the model (ADR 0093). It belongs
+to one athlete, undoes one write once, and lasts 24 hours or until the write can
+no longer be taken back (something landed on top). On I dag the athlete's own
+writes are undone from the toast and the landed row instead (ADR 0088). _Avoid_:
+Undo token (the web's restore stamp), receipt, redo
 
 **Every-Day Grid**: The home stream's row model (ADR 0065, ADR 0086): the row is
 a **day** and a day owns **zero or more Workout Sessions**, so every date the
