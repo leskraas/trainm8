@@ -5,7 +5,12 @@ import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { safeRedirect } from 'remix-utils/safe-redirect'
 import { z } from 'zod/v3'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
-import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
+import {
+	CheckboxField,
+	ErrorList,
+	Field,
+	ReserveErrorLines,
+} from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	checkIsCommonPassword,
@@ -167,90 +172,88 @@ export default function OnboardingRoute({
 			}
 		>
 			<Form method="POST" {...getFormProps(form)}>
-				<HoneypotInputs />
-				<Field
-					reserveErrorLine
-					labelProps={{ htmlFor: fields.username.id, children: 'Username' }}
-					inputProps={{
-						...getInputProps(fields.username, { type: 'text' }),
-						autoCapitalize: 'none',
-						autoCorrect: 'off',
-						spellCheck: false,
-						autoComplete: 'username',
-						enterKeyHint: 'next',
-						className: 'lowercase',
-					}}
-					errors={fields.username.errors}
-				/>
-				<Field
-					reserveErrorLine
-					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
-					inputProps={{
-						...getInputProps(fields.name, { type: 'text' }),
-						autoComplete: 'name',
-						enterKeyHint: 'next',
-						autoCapitalize: 'words',
-					}}
-					errors={fields.name.errors}
-				/>
-				<Field
-					reserveErrorLine
-					labelProps={{ htmlFor: fields.password.id, children: 'Password' }}
-					inputProps={{
-						...getInputProps(fields.password, { type: 'password' }),
-						autoComplete: 'new-password',
-						enterKeyHint: 'next',
-					}}
-					errors={fields.password.errors}
-				/>
+				<ReserveErrorLines>
+					<HoneypotInputs />
+					<Field
+						labelProps={{ htmlFor: fields.username.id, children: 'Username' }}
+						inputProps={{
+							...getInputProps(fields.username, { type: 'text' }),
+							autoCapitalize: 'none',
+							autoCorrect: 'off',
+							spellCheck: false,
+							autoComplete: 'username',
+							enterKeyHint: 'next',
+							className: 'lowercase',
+						}}
+						errors={fields.username.errors}
+					/>
+					<Field
+						labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
+						inputProps={{
+							...getInputProps(fields.name, { type: 'text' }),
+							autoComplete: 'name',
+							enterKeyHint: 'next',
+							autoCapitalize: 'words',
+						}}
+						errors={fields.name.errors}
+					/>
+					<Field
+						labelProps={{ htmlFor: fields.password.id, children: 'Password' }}
+						inputProps={{
+							...getInputProps(fields.password, { type: 'password' }),
+							autoComplete: 'new-password',
+							enterKeyHint: 'next',
+						}}
+						errors={fields.password.errors}
+					/>
 
-				<Field
-					reserveErrorLine
-					labelProps={{
-						htmlFor: fields.confirmPassword.id,
-						children: 'Confirm Password',
-					}}
-					inputProps={{
-						...getInputProps(fields.confirmPassword, { type: 'password' }),
-						autoComplete: 'new-password',
-						enterKeyHint: 'next',
-					}}
-					errors={fields.confirmPassword.errors}
-				/>
+					<Field
+						labelProps={{
+							htmlFor: fields.confirmPassword.id,
+							children: 'Confirm Password',
+						}}
+						inputProps={{
+							...getInputProps(fields.confirmPassword, { type: 'password' }),
+							autoComplete: 'new-password',
+							enterKeyHint: 'next',
+						}}
+						errors={fields.confirmPassword.errors}
+					/>
 
-				<CheckboxField
-					reserveErrorLine
-					labelProps={{
-						htmlFor: fields.agreeToTermsOfServiceAndPrivacyPolicy.id,
-						children:
-							'Do you agree to our Terms of Service and Privacy Policy?',
-					}}
-					buttonProps={getInputProps(
-						fields.agreeToTermsOfServiceAndPrivacyPolicy,
-						{ type: 'checkbox' },
-					)}
-					errors={fields.agreeToTermsOfServiceAndPrivacyPolicy.errors}
-				/>
-				<CheckboxField
-					labelProps={{
-						htmlFor: fields.remember.id,
-						children: 'Remember me',
-					}}
-					buttonProps={getInputProps(fields.remember, { type: 'checkbox' })}
-					errors={fields.remember.errors}
-				/>
+					<CheckboxField
+						labelProps={{
+							htmlFor: fields.agreeToTermsOfServiceAndPrivacyPolicy.id,
+							children:
+								'Do you agree to our Terms of Service and Privacy Policy?',
+						}}
+						buttonProps={getInputProps(
+							fields.agreeToTermsOfServiceAndPrivacyPolicy,
+							{ type: 'checkbox' },
+						)}
+						errors={fields.agreeToTermsOfServiceAndPrivacyPolicy.errors}
+					/>
+					<CheckboxField
+						reserveErrorLine={false}
+						labelProps={{
+							htmlFor: fields.remember.id,
+							children: 'Remember me',
+						}}
+						buttonProps={getInputProps(fields.remember, { type: 'checkbox' })}
+						errors={fields.remember.errors}
+					/>
 
-				<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
-				<ErrorList errors={form.errors} id={form.errorId} />
+					<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
+					<ErrorList errors={form.errors} id={form.errorId} />
 
-				<StatusButton
-					className="w-full"
-					status={isPending ? 'pending' : (form.status ?? 'idle')}
-					type="submit"
-					disabled={isPending}
-				>
-					Create an account
-				</StatusButton>
+					<StatusButton
+						className="w-full"
+						status={isPending ? 'pending' : (form.status ?? 'idle')}
+						type="submit"
+						disabled={isPending}
+					>
+						Create an account
+					</StatusButton>
+				</ReserveErrorLines>
 			</Form>
 		</AuthLayout>
 	)

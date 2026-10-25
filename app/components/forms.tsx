@@ -1,6 +1,6 @@
 import { type FieldMetadata, useInputControl } from '@conform-to/react'
 import { REGEXP_ONLY_DIGITS_AND_CHARS, type OTPInputProps } from 'input-otp'
-import React, { useId, useState } from 'react'
+import React, { createContext, useContext, useId, useState } from 'react'
 import { cn } from '#app/utils/misc.tsx'
 import { Checkbox, type CheckboxProps } from './ui/checkbox.tsx'
 import {
@@ -98,15 +98,33 @@ function getErrorsToRender(errors?: ListOfErrors) {
 	return errors?.filter(Boolean) ?? []
 }
 
+const ReserveErrorLineContext = createContext(false)
+
+/**
+ * Around the fields of a form that revalidates as the athlete types
+ * (`shouldRevalidate: 'onInput'`, the auth forms): every Field, OTPField and
+ * CheckboxField inside keeps its {@link ERROR_LINE}, said once for the form
+ * rather than on each field. A field that can't be wrong (Remember me) opts
+ * out with `reserveErrorLine={false}`.
+ */
+export function ReserveErrorLines({ children }: { children: React.ReactNode }) {
+	return (
+		<ReserveErrorLineContext value={true}>{children}</ReserveErrorLineContext>
+	)
+}
+
 function InlineFieldErrors({
 	errorId,
 	errors,
-	reserveErrorLine = false,
+	reserveErrorLine: ownReserveErrorLine,
 }: {
 	errorId?: string
 	errors: string[]
+	/** The field's own say; unset, the form's {@link ReserveErrorLines}. */
 	reserveErrorLine?: boolean
 }) {
+	const formReservesErrorLines = useContext(ReserveErrorLineContext)
+	const reserveErrorLine = ownReserveErrorLine ?? formReservesErrorLines
 	if (!errors.length && !reserveErrorLine) return null
 	const shown = reserveErrorLine ? errors.slice(0, 1) : errors
 
@@ -161,7 +179,10 @@ export function Field({
 	labelProps: React.LabelHTMLAttributes<HTMLLabelElement>
 	inputProps: React.InputHTMLAttributes<HTMLInputElement>
 	errors?: ListOfErrors
-	/** Keep one error line's height while there is none ({@link ERROR_LINE}). */
+	/**
+	 * Keep one error line's height while there is none ({@link ERROR_LINE}).
+	 * Unset, as the form says ({@link ReserveErrorLines}).
+	 */
 	reserveErrorLine?: boolean
 	/**
 	 * The form's own error (the server's answer, `form.errors`), shown on this
@@ -292,7 +313,10 @@ export function OTPField({
 	labelProps: React.LabelHTMLAttributes<HTMLLabelElement>
 	inputProps: Partial<OTPInputProps & { render: never }>
 	errors?: ListOfErrors
-	/** Keep one error line's height while there is none ({@link ERROR_LINE}). */
+	/**
+	 * Keep one error line's height while there is none ({@link ERROR_LINE}).
+	 * Unset, as the form says ({@link ReserveErrorLines}).
+	 */
 	reserveErrorLine?: boolean
 	className?: string
 }) {
@@ -389,7 +413,10 @@ export function CheckboxField({
 		value?: string
 	}
 	errors?: ListOfErrors
-	/** Keep one error line's height while there is none ({@link ERROR_LINE}). */
+	/**
+	 * Keep one error line's height while there is none ({@link ERROR_LINE}).
+	 * Unset, as the form says ({@link ReserveErrorLines}).
+	 */
 	reserveErrorLine?: boolean
 	className?: string
 }) {

@@ -7,7 +7,7 @@ import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod/v3'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { Field } from '#app/components/forms.tsx'
+import { Field, ReserveErrorLines } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { sendEmail } from '#app/utils/email.server.ts'
@@ -140,42 +140,43 @@ export default function ForgotPasswordRoute() {
 			subtitle="No worries, we'll send you reset instructions."
 		>
 			<forgotPassword.Form method="POST" {...getFormProps(form)}>
-				<HoneypotInputs />
-				<Field
-					reserveErrorLine
-					labelProps={{
-						htmlFor: fields.usernameOrEmail.id,
-						children: 'Username or Email',
-					}}
-					inputProps={{
-						autoFocus: true,
-						// A username or an email, so the standard keyboard: the email
-						// one (and type="email") would say only an address is taken.
-						// Return sends the reset email.
-						...getInputProps(fields.usernameOrEmail, { type: 'text' }),
-						autoComplete: 'username',
-						enterKeyHint: 'send',
-						autoCapitalize: 'none',
-						autoCorrect: 'off',
-						spellCheck: false,
-					}}
-					errors={fields.usernameOrEmail.errors}
-					formErrors={form.errors}
-					formErrorId={form.errorId}
-				/>
+				<ReserveErrorLines>
+					<HoneypotInputs />
+					<Field
+						labelProps={{
+							htmlFor: fields.usernameOrEmail.id,
+							children: 'Username or Email',
+						}}
+						inputProps={{
+							autoFocus: true,
+							// A username or an email, so the standard keyboard: the email
+							// one (and type="email") would say only an address is taken.
+							// Return sends the reset email.
+							...getInputProps(fields.usernameOrEmail, { type: 'text' }),
+							autoComplete: 'username',
+							enterKeyHint: 'send',
+							autoCapitalize: 'none',
+							autoCorrect: 'off',
+							spellCheck: false,
+						}}
+						errors={fields.usernameOrEmail.errors}
+						formErrors={form.errors}
+						formErrorId={form.errorId}
+					/>
 
-				<StatusButton
-					className="w-full"
-					status={
-						forgotPassword.state === 'submitting'
-							? 'pending'
-							: (form.status ?? 'idle')
-					}
-					type="submit"
-					disabled={forgotPassword.state !== 'idle'}
-				>
-					Recover password
-				</StatusButton>
+					<StatusButton
+						className="w-full"
+						status={
+							forgotPassword.state === 'submitting'
+								? 'pending'
+								: (form.status ?? 'idle')
+						}
+						type="submit"
+						disabled={forgotPassword.state !== 'idle'}
+					>
+						Recover password
+					</StatusButton>
+				</ReserveErrorLines>
 			</forgotPassword.Form>
 			<div className="flex justify-center">
 				<Link

@@ -11,6 +11,7 @@ import {
 	ErrorList,
 	Field,
 	RadioGroupField,
+	ReserveErrorLines,
 	TextareaField,
 	ToggleGroupField,
 } from './forms.tsx'
@@ -120,6 +121,37 @@ describe('forms field wrappers', () => {
 			/>,
 		)
 		expect(container.querySelectorAll('[class*="min-h-"]')).toHaveLength(1)
+	})
+
+	// A form that revalidates as the athlete types says so once, around its
+	// fields, and every field in it keeps its line; one that can't be wrong
+	// (Remember me) opts out.
+	test('every field inside ReserveErrorLines keeps its line unless it opts out', () => {
+		const { container } = render(
+			<form id="auth-form">
+				<ReserveErrorLines>
+					<Field labelProps={{ children: 'Username' }} inputProps={{}} />
+					<CheckboxField
+						labelProps={{ children: 'Agree to the terms' }}
+						buttonProps={{ name: 'terms', form: 'auth-form' }}
+					/>
+					<CheckboxField
+						labelProps={{ children: 'Remember me' }}
+						buttonProps={{ name: 'remember', form: 'auth-form' }}
+						reserveErrorLine={false}
+					/>
+				</ReserveErrorLines>
+				<Field labelProps={{ children: 'Elsewhere' }} inputProps={{}} />
+			</form>,
+		)
+		const lines = container.querySelectorAll('[aria-live="polite"]')
+		expect(lines).toHaveLength(2)
+		expect(lines[0]?.closest('[data-slot="field"]')).toContainElement(
+			screen.getByRole('textbox', { name: 'Username' }),
+		)
+		expect(lines[1]?.closest('[data-slot="field"]')).toContainElement(
+			screen.getByRole('checkbox', { name: 'Agree to the terms' }),
+		)
 	})
 
 	// The reserved line is the field's spacing, not added to it: one footnote
