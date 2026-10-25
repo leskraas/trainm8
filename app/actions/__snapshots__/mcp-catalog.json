@@ -6126,7 +6126,7 @@
 	{
 		"name": "get_week_change",
 		"title": "Ukeskiftet",
-		"description": "The latest week change (Ukeskiftet): the closed week's replan decision and its proposals for the coming week, whether each still waits for the athlete's answer, and whose session each targets. Only the athlete can answer a proposal, in trainm8; each proposal carries the link to where they do. Null when no week has closed with a replan yet.",
+		"description": "The latest week change (Ukeskiftet): the closed week's replan outcome, the adherence and form it read (as Readings), and its proposals for the coming week, whether each still waits for the athlete's answer, and whose session each targets. Only the athlete can answer a proposal, in trainm8; each proposal carries the link to where they do. Null when no week has closed with a replan yet.",
 		"inputSchema": {
 			"$schema": "https://json-schema.org/draft/2020-12/schema",
 			"type": "object",
@@ -6154,8 +6154,180 @@
 										"comingWeekKey": {
 											"type": "string"
 										},
-										"reason": {
+										"outcome": {
 											"type": "string"
+										},
+										"adherence": {
+											"oneOf": [
+												{
+													"type": "object",
+													"properties": {
+														"status": {
+															"type": "string",
+															"const": "available"
+														},
+														"value": {
+															"type": "number"
+														}
+													},
+													"required": [
+														"status",
+														"value"
+													],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"status": {
+															"type": "string",
+															"const": "unavailable"
+														},
+														"reason": {
+															"type": "string",
+															"enum": [
+																"simple-activity",
+																"not-resolved",
+																"hours-calendar-cost",
+																"combined-cross-track-load",
+																"strength-ctl",
+																"sets-has-no-reading",
+																"not-an-endurance-discipline",
+																"no-zone-recipe",
+																"no-intensity-source",
+																"no-heart-rate-anchor",
+																"no-threshold-pace",
+																"no-critical-swim-speed",
+																"no-ride-history",
+																"no-season-anchor",
+																"no-recording",
+																"building-baseline",
+																"insufficient-data",
+																"source-terms",
+																"outside-plan",
+																"no-plan",
+																"not-logged",
+																"structure-not-verifiable"
+															]
+														},
+														"label": {
+															"type": "string"
+														},
+														"platforms": {
+															"type": "array",
+															"items": {
+																"type": "string",
+																"enum": [
+																	"garmin",
+																	"polar",
+																	"suunto",
+																	"coros",
+																	"wahoo",
+																	"strava",
+																	"zwift",
+																	"apple-health",
+																	"health-connect",
+																	"intervalsicu",
+																	"upload",
+																	"unknown"
+																]
+															}
+														}
+													},
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
+													"additionalProperties": false
+												}
+											]
+										},
+										"tsb": {
+											"oneOf": [
+												{
+													"type": "object",
+													"properties": {
+														"status": {
+															"type": "string",
+															"const": "available"
+														},
+														"value": {
+															"type": "number"
+														}
+													},
+													"required": [
+														"status",
+														"value"
+													],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"status": {
+															"type": "string",
+															"const": "unavailable"
+														},
+														"reason": {
+															"type": "string",
+															"enum": [
+																"simple-activity",
+																"not-resolved",
+																"hours-calendar-cost",
+																"combined-cross-track-load",
+																"strength-ctl",
+																"sets-has-no-reading",
+																"not-an-endurance-discipline",
+																"no-zone-recipe",
+																"no-intensity-source",
+																"no-heart-rate-anchor",
+																"no-threshold-pace",
+																"no-critical-swim-speed",
+																"no-ride-history",
+																"no-season-anchor",
+																"no-recording",
+																"building-baseline",
+																"insufficient-data",
+																"source-terms",
+																"outside-plan",
+																"no-plan",
+																"not-logged",
+																"structure-not-verifiable"
+															]
+														},
+														"label": {
+															"type": "string"
+														},
+														"platforms": {
+															"type": "array",
+															"items": {
+																"type": "string",
+																"enum": [
+																	"garmin",
+																	"polar",
+																	"suunto",
+																	"coros",
+																	"wahoo",
+																	"strava",
+																	"zwift",
+																	"apple-health",
+																	"health-connect",
+																	"intervalsicu",
+																	"upload",
+																	"unknown"
+																]
+															}
+														}
+													},
+													"required": [
+														"status",
+														"reason",
+														"label"
+													],
+													"additionalProperties": false
+												}
+											]
 										},
 										"open": {
 											"type": "boolean"
@@ -6199,9 +6371,6 @@
 													},
 													"waiting": {
 														"type": "boolean"
-													},
-													"reason": {
-														"type": "string"
 													},
 													"target": {
 														"anyOf": [
@@ -6252,7 +6421,6 @@
 													"answer",
 													"applied",
 													"waiting",
-													"reason",
 													"target",
 													"link"
 												],
@@ -6266,7 +6434,9 @@
 									"required": [
 										"closedWeekKey",
 										"comingWeekKey",
-										"reason",
+										"outcome",
+										"adherence",
+										"tsb",
 										"open",
 										"proposals",
 										"eased"

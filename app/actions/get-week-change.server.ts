@@ -1,5 +1,10 @@
 import { z } from 'zod/v4'
-import { localDate } from '#app/utils/athlete-calendar.ts'
+import {
+	addDays,
+	dayBoundsUTC,
+	localDate,
+} from '#app/utils/athlete-calendar.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import { ACTION_TITLE_LABELS } from '#app/utils/labels.ts'
 import { readWeekChange } from '#app/utils/load/week-change-card.server.ts'
 import {
@@ -8,8 +13,10 @@ import {
 	type WeekChangeProposal,
 } from '#app/utils/load/week-change-card.ts'
 import { SESSION_OWNERS } from '#app/utils/session-ownership.ts'
+import { readRecordedBindingSet } from '#app/utils/source-terms.server.ts'
 import { defineAction } from './define.ts'
 import { ATHLETE_YES_PATH } from './paths.ts'
+import { NumberReading, reading, unavailable } from './reading.ts'
 
 const PROPOSAL_KINDS = [
 	'keep',
@@ -48,7 +55,10 @@ export function waitingCount(card: WeekChangeData | null, todayKey: string) {
  *
  * Wraps `readWeekChange`, the reader behind the card. The card's own view
  * model (`buildWeekChangeCard`) is Norwegian presentation for the screen and
- * is not lifted: a model reads the data, not the card's sentences.
+ * is not lifted: a model reads the data, not the card's sentences. The stored
+ * reasons are such sentences too — composed with measured adherence and form,
+ * and with the athlete's session titles — so they never cross: the week's
+ * outcome code and its facts, each a gated Reading, do instead (ADR 0092 §7).
  */
 export const getWeekChangeAction = defineAction({
 	name: 'get_week_change',
@@ -57,14 +67,21 @@ export const getWeekChangeAction = defineAction({
 	callers: ['web', 'mcp', 'agent'],
 	title: ACTION_TITLE_LABELS.get_week_change,
 	description:
-		"The latest week change (Ukeskiftet): the closed week's replan decision and its proposals for the coming week, whether each still waits for the athlete's answer, and whose session each targets. Only the athlete can answer a proposal, in trainm8; each proposal carries the link to where they do. Null when no week has closed with a replan yet.",
+		"The latest week change (Ukeskiftet): the closed week's replan outcome, the adherence and form it read (as Readings), and its proposals for the coming week, whether each still waits for the athlete's answer, and whose session each targets. Only the athlete can answer a proposal, in trainm8; each proposal carries the link to where they do. Null when no week has closed with a replan yet.",
 	input: z.object({}),
 	output: z
 		.object({
 			closedWeekKey: z.string(),
 			comingWeekKey: z.string(),
-			/** The Week Replan's own sentence, in trainm8's words. */
-			reason: z.string(),
+			/**
+			 * What the week's close decided: `proposed`, `no-change`,
+			 * `insufficient-data` or `adjusted` (an older in-place rescale).
+			 */
+			outcome: z.string(),
+			/** The closed week's Weekly Plan Adherence, as a ratio (1 = as planned). */
+			adherence: NumberReading(),
+			/** The form (TSB) the decision read. */
+			tsb: NumberReading(),
 			/** Some proposal still waits for the athlete's answer. */
 			open: z.boolean(),
 			proposals: z.array(
@@ -75,8 +92,6 @@ export const getWeekChangeAction = defineAction({
 					answer: z.enum(['pending', 'accepted', 'declined']),
 					applied: z.boolean(),
 					waiting: z.boolean(),
-					/** The rules' reason, in trainm8's words. */
-					reason: z.string(),
 					target: z
 						.object({
 							sessionId: z.string(),
@@ -96,10 +111,40 @@ export const getWeekChangeAction = defineAction({
 		const card = await readWeekChange(ctx.userId, { now: ctx.now })
 		if (!card) return null
 		const todayKey = localDate(ctx.now, ctx.timezone)
+		const closedWeek = {
+			from: dayBoundsUTC(card.closedWeekKey, ctx.timezone).start,
+			to: dayBoundsUTC(addDays(card.closedWeekKey, 6), ctx.timezone).end,
+		}
+		const [replan, closedWeekRecorded, history] = await Promise.all([
+			prisma.weekReplan.findUniqueOrThrow({
+				where: {
+					athleteId_weekKey: {
+						athleteId: ctx.userId,
+						weekKey: card.closedWeekKey,
+					},
+				},
+				select: { outcome: true, adherenceRatio: true, tsb: true },
+			}),
+			readRecordedBindingSet(ctx.userId, closedWeek),
+			readRecordedBindingSet(ctx.userId),
+		])
 		return {
 			closedWeekKey: card.closedWeekKey,
 			comingWeekKey: card.comingWeekKey,
-			reason: card.reason,
+			outcome: replan.outcome,
+			// The facts the decision read, each through the gate with what it was
+			// measured from: adherence from the closed week's Recordings, form
+			// from the whole load history (ADR 0098 §1).
+			adherence: reading(
+				replan.adherenceRatio ?? unavailable('insufficient-data'),
+				closedWeekRecorded,
+				ctx,
+			),
+			tsb: reading(
+				replan.tsb ?? unavailable('insufficient-data'),
+				history,
+				ctx,
+			),
 			open: card.open,
 			proposals: card.proposals.map((proposal) => ({
 				id: proposal.id,
@@ -108,7 +153,6 @@ export const getWeekChangeAction = defineAction({
 				answer: proposal.answer,
 				applied: proposal.appliedAt != null,
 				waiting: !card.open ? false : isWaiting(proposal, todayKey),
-				reason: proposal.reason,
 				target: proposal.target
 					? {
 							sessionId: proposal.target.id,
