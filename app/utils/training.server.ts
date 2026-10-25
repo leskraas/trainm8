@@ -23,7 +23,7 @@ import {
 	type WeeklyLoad,
 } from './load/adherence.ts'
 import { lastClosedWeekKey } from './load/week-change.ts'
-import { raceAnchorPacesFor } from './performance-result.server.ts'
+import { raceAnchorPacesByDiscipline } from './performance-result.server.ts'
 import {
 	anchoredActiveOutlineWhere,
 	isOutlineResting,
@@ -2171,15 +2171,19 @@ export async function getDisciplineThresholds(
 		},
 	})
 	if (!profile) return {}
-	const map: DisciplineThresholdMap = {}
-	await Promise.all(
-		profile.disciplineProfiles.map(async ({ discipline, ...thresholds }) => {
-			map[discipline] = {
-				...thresholds,
-				raceAnchorPaces: await raceAnchorPacesFor(profile.id, discipline),
-			}
-		}),
+	// Every discipline's Race Anchor paces in one query, not one per profile:
+	// this runs on the home timeline, the week sum and structure detection.
+	const paces = await raceAnchorPacesByDiscipline(
+		profile.id,
+		profile.disciplineProfiles.map(({ discipline }) => discipline),
 	)
+	const map: DisciplineThresholdMap = {}
+	for (const { discipline, ...thresholds } of profile.disciplineProfiles) {
+		map[discipline] = {
+			...thresholds,
+			raceAnchorPaces: paces.get(discipline) ?? {},
+		}
+	}
 	return map
 }
 
