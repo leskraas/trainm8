@@ -469,6 +469,9 @@ function prescribedTotal(
  * athlete's thresholds in `reading`, and the rests between series count
  * (`prescribedDuration`) — the reading every surface that says a session's
  * time shares, so a fixed day, the week header, the row and the drawer agree.
+ * Hours are left unrounded: a 50-minute run is 50 minutes, not the 48 a
+ * tenth of an hour would make of it, and whoever sums them rounds the sum once
+ * (#638).
  *
  * `km` and `hours` are read off the prescription, and only where it prescribes
  * that unit from end to end ({@link prescribedTotal}). `tss` and `sets` return
@@ -494,9 +497,7 @@ export function fixedDayVolume(
 		case 'hours': {
 			// Timed end to end, a distance rep through its pace (#615).
 			const duration = prescribedDuration(blocks, reading)
-			return duration?.complete
-				? roundToCurrency(duration.seconds / 3600, 'hours')
-				: null
+			return duration?.complete ? duration.seconds / 3600 : null
 		}
 		case 'tss':
 		case 'sets':

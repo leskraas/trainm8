@@ -279,6 +279,8 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 		}
 	}
 
+	// A lift's run warm-up is timed through its pace as a run's own steps are.
+	const thresholds = await getDisciplineThresholds(userId)
 	if (workout.discipline === 'strength') {
 		const blocks = workout.blocks.map((block) => ({
 			...block,
@@ -305,13 +307,12 @@ async function tiredChange(userId: string, workout: Workout): Promise<Change> {
 			effortWord: 'rolig',
 			blocks,
 			minutes: sumBlockDurationMin(blocks, {
-				thresholds: {},
+				thresholds,
 				discipline: workout.discipline,
 			}),
 		}
 	}
 
-	const thresholds = await getDisciplineThresholds(userId)
 	// A session it cannot time end to end has no length to ease from: a short
 	// total would make the easy session shorter than the one it replaces.
 	const current = sumBlockDurationMin(workout.blocks, {

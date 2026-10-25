@@ -21,7 +21,7 @@
 import { sumBlockSets } from '../dashboard.ts'
 import { type DisciplineThresholdMap } from '../intensity-target.ts'
 import { type Discipline, type WorkoutStructure } from '../workout-schema.ts'
-import { type VolumeCurrency } from './derive.ts'
+import { roundToCurrency, type VolumeCurrency } from './derive.ts'
 import { fixedDayVolume } from './week-pattern.ts'
 import { type TrackWeekVolume, type WeekVolumes } from './week-volumes.ts'
 
@@ -139,8 +139,13 @@ export function weekSumPreview(
 		discipline: track.discipline,
 		currency: track.currency,
 		before,
-		after: added == null ? before : (before ?? 0) + added,
-		added,
+		// The unrounded week plus the unrounded session, rounded once — the sum
+		// the header reads once the session is saved (#638).
+		after:
+			added == null
+				? before
+				: roundToCurrency(track.plannedSum + added, track.currency),
+		added: added == null ? null : roundToCurrency(added, track.currency),
 		addedAbsence: absence,
 		unmeasuredAdded: absence === 'no-number' ? 1 : 0,
 		target: track.target,

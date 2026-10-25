@@ -5,7 +5,7 @@
 // content without reading a chart. Honesty over guessing (ADR 0008): a side the
 // model can't supply stays `null` (the caller renders "—"), never a fabricated
 // number, and the Adherence Band only resolves when both TSS values exist.
-import { sumBlockDistanceM, sumBlockDurationMin } from './dashboard.ts'
+import { plannedMinutes, sumBlockDistanceM } from './dashboard.ts'
 import { type DisciplineThresholdMap } from './intensity-target.ts'
 import { type AdherenceBand, sessionAdherence } from './load/adherence.ts'
 import {
@@ -31,7 +31,10 @@ export type ReviewComparison = {
 	/** Actual vs Planned TSS, with the Adherence Band when both are present. */
 	tss: ReviewMetric & { band: AdherenceBand | null }
 	/** Prescribed vs recorded moving time, in seconds. */
-	duration: ReviewMetric
+	duration: ReviewMetric & {
+		/** The planned time was timed through a pace: it reads `≈ 50 min`. */
+		plannedEstimated: boolean
+	}
 	/** Prescribed vs recorded distance, in metres. */
 	distance: ReviewMetric
 }
@@ -79,15 +82,15 @@ export function buildReviewComparison(
 		readPlannedMetric(discipline, metric, measure)
 
 	const plannedTss = read('planned-tss', () => session.plannedTssValue)
-	const plannedTime = read('planned-time', () => {
-		const minutes = session.workout
-			? sumBlockDurationMin(session.workout.blocks, {
-					thresholds,
-					discipline: session.workout.discipline,
-				})
-			: null
-		return minutes != null ? minutes * 60 : null
-	})
+	const planned = session.workout
+		? plannedMinutes(session.workout.blocks, {
+				thresholds,
+				discipline: session.workout.discipline,
+			})
+		: null
+	const plannedTime = read('planned-time', () =>
+		planned != null ? planned.minutes * 60 : null,
+	)
 	const plannedDistance = read('planned-distance', () =>
 		session.workout ? sumBlockDistanceM(session.workout.blocks) : null,
 	)
@@ -105,6 +108,7 @@ export function buildReviewComparison(
 		duration: {
 			planned: plannedMetricValue(plannedTime),
 			plannedRead: plannedTime,
+			plannedEstimated: planned?.estimated ?? false,
 			actual: session.recording?.durationSec ?? null,
 		},
 		distance: {

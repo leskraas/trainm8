@@ -10,7 +10,7 @@ import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createFirstRunPlan } from '#app/utils/first-run/plan.server.ts'
 import { sessionOwner } from '#app/utils/session-ownership.ts'
-import { getSessionDurationMin } from '#app/utils/training.ts'
+import { getSessionDuration } from '#app/utils/training.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action } from './session-adjust.tsx'
@@ -55,6 +55,8 @@ async function signedIn() {
 
 type Step = {
 	kind?: string
+	/** The step's own Discipline; the Workout's when left out. */
+	discipline?: string
 	durationSec?: number
 	distanceM?: number
 	intensity?: string
@@ -102,7 +104,7 @@ async function planned(
 						create: block.steps.map((step, stepIndex) => ({
 							orderIndex: stepIndex,
 							kind: step.kind ?? 'cardio',
-							discipline,
+							discipline: step.discipline ?? discipline,
 							durationSec: step.durationSec ?? null,
 							distanceM: step.distanceM ?? null,
 							intensity: step.intensity ?? null,
@@ -258,10 +260,9 @@ async function picture(sessionId: string) {
 	})
 	return {
 		...session,
-		minutes: getSessionDurationMin({
-			recording: null,
-			workout: session.workout,
-		}),
+		minutes:
+			getSessionDuration({ recording: null, workout: session.workout })
+				?.minutes ?? null,
 		owner: sessionOwner(session),
 	}
 }
@@ -390,6 +391,46 @@ test('For sliten i dag keeps a lift a lift, rolig with fewer sets', async () => 
 	const step = after.workout!.blocks[0]!.steps[0]!
 	expect(step.exerciseId).toBe(exercise.id)
 	expect(step.sets).toHaveLength(3)
+})
+
+test('For sliten i dag times a lift’s run warm-up through the athlete’s pace (#638)', async () => {
+	const { userId, cookie } = await signedIn()
+	await prisma.athleteProfile.create({
+		data: {
+			userId,
+			disciplineProfiles: {
+				create: { discipline: 'run', thresholdPaceSecPerKm: 300 },
+			},
+		},
+	})
+	// `2 km @ terskel` on the treadmill, then a 20-minute timed circuit.
+	const lift = await planned(userId, '2030-01-02T17:00:00Z', {
+		title: 'Styrke',
+		discipline: 'strength',
+		intent: 'strength-hypertrophy',
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [
+					{
+						discipline: 'run',
+						distanceM: 2000,
+						intensity: JSON.stringify({ kind: 'zoneLabel', label: 'Z4' }),
+					},
+				],
+			},
+			{ repeatCount: 1, steps: [{ kind: 'strength', durationSec: 1200 }] },
+		],
+	})
+
+	const reply = await juster(cookie, 'tired', lift)
+
+	// 10 minutes at threshold pace and the 20-minute circuit: the toast says
+	// so, not a sentence with no time.
+	expect(reply.data.result).toMatchObject({
+		ok: true,
+		toast: 'Dagens økt er rolig nå, 30 min.',
+	})
 })
 
 test('For sliten i dag on a session already easy and short says why, and changes nothing', async () => {

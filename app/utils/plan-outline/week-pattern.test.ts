@@ -1,4 +1,5 @@
 import { expect, test, describe } from 'vitest'
+import { roundToCurrency } from './derive.ts'
 import {
 	calendarWeekdayOf,
 	fixedDayVolume,
@@ -418,7 +419,18 @@ describe('reading a fixed day in the track currency', () => {
 		expect(fixedDayVolume(tenk, 'hours', NO_THRESHOLDS)).toBeNull()
 		expect(
 			fixedDayVolume(tenk, 'hours', { thresholds, discipline: 'run' }),
-		).toBe(0.8)
+		).toBeCloseTo(50 / 60)
+	})
+
+	test('an hours track leaves a session unrounded, so a week of them rounds its sum once (#638)', () => {
+		const fifty = [
+			{ repeatCount: 1, steps: [{ durationSec: 3000, distanceM: null }] },
+		]
+		const hours = fixedDayVolume(fifty, 'hours', NO_THRESHOLDS)
+		expect(hours).toBeCloseTo(50 / 60)
+		// Three 50-minute runs are 2,5 t, as the week header sums them — not
+		// the 2,4 t three rounded 0,8 t would make.
+		expect(roundToCurrency((hours ?? 0) * 3, 'hours')).toBe(2.5)
 	})
 
 	test('a distance-only prescription is unavailable in hours, not zero', () => {
@@ -485,7 +497,9 @@ describe('reading a fixed day in the track currency', () => {
 			},
 			{ repeatCount: 1, steps: [{ durationSec: 600, distanceM: null }] },
 		]
-		expect(fixedDayVolume(distanceReps, 'hours', NO_THRESHOLDS)).toBe(0.9)
+		expect(fixedDayVolume(distanceReps, 'hours', NO_THRESHOLDS)).toBeCloseTo(
+			56 / 60,
+		)
 		// `3 × 13 × 30/15 s` with 6 min between series: 41 min 15 s, not 39 × 45 s.
 		const series = [
 			{
@@ -498,7 +512,9 @@ describe('reading a fixed day in the track currency', () => {
 				],
 			},
 		]
-		expect(fixedDayVolume(series, 'hours', NO_THRESHOLDS)).toBe(0.7)
+		expect(fixedDayVolume(series, 'hours', NO_THRESHOLDS)).toBeCloseTo(
+			41.25 / 60,
+		)
 	})
 
 	test('a tss or sets track cannot price a prescription yet, and says so', () => {

@@ -6,6 +6,7 @@
 
 import { localDate, weekMonday } from '../athlete-calendar.ts'
 import { getAthleteTimezone } from '../athlete.server.ts'
+import { type DisciplineThresholdMap } from '../intensity-target.ts'
 import { lastClosedWeekKey } from '../load/week-change.ts'
 import {
 	getActivePlan,
@@ -22,17 +23,27 @@ import {
 /**
  * The three numbers per track for the Training Week holding `weekKey` (its
  * Monday), or this week when none is given. Days are graded against `now`.
+ * A caller that already holds the athlete's thresholds passes them, so they
+ * are not read twice.
  */
 export async function getWeekVolumes(
 	userId: string,
-	{ weekKey, now = new Date() }: { weekKey?: string; now?: Date } = {},
+	{
+		weekKey,
+		now = new Date(),
+		thresholds: known,
+	}: {
+		weekKey?: string
+		now?: Date
+		thresholds?: DisciplineThresholdMap
+	} = {},
 ): Promise<WeekVolumes> {
 	const timezone = await getAthleteTimezone(userId)
 	const monday = weekKey ?? weekMonday(now, timezone)
 	const [plan, sessions, thresholds] = await Promise.all([
 		getActivePlan(userId, now),
 		getLedgerWeek(userId, monday, timezone),
-		getDisciplineThresholds(userId),
+		known ?? getDisciplineThresholds(userId),
 	])
 	return buildWeekVolumes({
 		weekKey: monday,

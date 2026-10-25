@@ -3,7 +3,7 @@ import { sessionAdherence } from './load/adherence.ts'
 import {
 	deriveLedgerStatus,
 	getDisciplineLabel,
-	getSessionDurationMin,
+	getSessionDuration,
 	getStatusLabel,
 	getStatusVariant,
 	toSessionLedgerEntry,
@@ -68,28 +68,28 @@ test('deriveLedgerStatus treats past scheduled sessions as missed', () => {
 	).toBe('missed')
 })
 
-test('getSessionDurationMin prefers the recording actual duration', () => {
-	const min = getSessionDurationMin({
+test('getSessionDuration prefers the recording actual duration', () => {
+	const min = getSessionDuration({
 		recording: { durationSec: 1800 },
 		workout: {
 			blocks: [{ repeatCount: 1, steps: [{ durationSec: 600 }] }],
 		},
-	})
+	})?.minutes
 	expect(min).toBe(30)
 })
 
-test('getSessionDurationMin falls back to planned step duration', () => {
-	const min = getSessionDurationMin({
+test('getSessionDuration falls back to planned step duration', () => {
+	const min = getSessionDuration({
 		recording: null,
 		workout: {
 			blocks: [{ repeatCount: 2, steps: [{ durationSec: 600 }] }],
 		},
-	})
+	})?.minutes
 	expect(min).toBe(20)
 })
 
-test('getSessionDurationMin returns null with no recording or workout', () => {
-	expect(getSessionDurationMin({ recording: null, workout: null })).toBeNull()
+test('getSessionDuration returns null with no recording or workout', () => {
+	expect(getSessionDuration({ recording: null, workout: null })).toBeNull()
 })
 
 test('toSessionLedgerEntry projects the normalized ledger fields', () => {

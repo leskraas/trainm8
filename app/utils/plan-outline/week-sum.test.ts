@@ -176,6 +176,24 @@ describe('weekSumPreview', () => {
 		expect(weekSumPreviewLine(preview)).toBe('0 → 1,5 t, målet står på 7')
 	})
 
+	test('an hours track rounds the week once, as the header will after saving (#638)', () => {
+		const runHours = { ...runTrack, currency: 'hours' as const }
+		const twentyFive: VolumeSession = {
+			...run(MONDAY, null),
+			prescribed: { km: null, hours: 25 / 60, tss: null, sets: null },
+		}
+		const volumes = weekOf([twentyFive], [runHours])
+		const preview = weekSumPreview(
+			volumes,
+			structure('50 min rolig'),
+			trackForDiscipline(volumes, 'run'),
+			{},
+		)
+		// 25 + 50 min is 1,25 t: the header reads 1,3 t once it is saved, so
+		// the preview says so too — not 0,4 + 0,8.
+		expect(preview).toMatchObject({ before: 0.4, after: 1.3 })
+	})
+
 	test('a TSS track is priced only once the session is saved', () => {
 		const volumes = weekOf([], [swimTss])
 		const preview = weekSumPreview(

@@ -39,13 +39,15 @@ export async function loader({ request }: Route.LoaderArgs) {
 			return { day, week: null }
 		}
 		const weekKey = mondayOfDay(day)
+		// The typed session is timed by these, as the week's are — read once,
+		// for both.
+		const thresholds = await getDisciplineThresholds(userId)
 		return {
 			day,
 			week: {
 				weekName: relativeWeekName(weekKey, weekMonday(new Date(), timezone)),
-				volumes: await getWeekVolumes(userId, { weekKey }),
-				// The typed session is timed by these, as the week's are.
-				thresholds: await getDisciplineThresholds(userId),
+				volumes: await getWeekVolumes(userId, { weekKey, thresholds }),
+				thresholds,
 			},
 		}
 	} catch (error) {
