@@ -262,6 +262,122 @@ test('zoneLabel Z1 resolves via css-5 to a two-sided easy range', () => {
 	expect(result).toEqual({ paceMin: 113, paceMax: 126 })
 })
 
+// zoneLabel — canonical labels on every default recipe (#614) ————————————
+
+const defaultRunProfile: DisciplineProfileForResolver = {
+	...fullRunProfile,
+	zoneSystem: 'daniels-pace-5',
+}
+
+/** What a band label resolves to, with nothing substituted. */
+function bandRange(profile: DisciplineProfileForResolver, label: string) {
+	const result = resolveIntensity({ kind: 'zoneLabel', label }, profile)
+	expect(result.unavailable).toBeUndefined()
+	expect(result.substitution).toBeUndefined()
+	return result
+}
+
+// Canonical label → the band each default recipe reads it as, through the
+// band's declared zone. Daniels declares no zone 1, so Z1 lands on E as a
+// named substitution. `easy` is zone 2 (#607).
+const canonicalCases: Array<{
+	profile: DisciplineProfileForResolver
+	cases: Array<[label: string, band: string]>
+}> = [
+	{
+		profile: defaultRunProfile,
+		cases: [
+			['Z1', 'E'],
+			['Z2', 'E'],
+			['Z3', 'M'],
+			['Z4', 'T'],
+			['Z5', 'I'],
+			['easy', 'E'],
+			['endurance', 'E'],
+			['tempo', 'M'],
+			['threshold', 'T'],
+			['max', 'I'],
+		],
+	},
+	{
+		profile: fullBikeProfile,
+		cases: [
+			['Z1', 'Z1'],
+			['Z2', 'Z2'],
+			['Z3', 'Z3'],
+			['Z4', 'Z4'],
+			['Z5', 'Z5'],
+			['easy', 'Z2'],
+			['endurance', 'Z2'],
+			['tempo', 'Z3'],
+			['threshold', 'Z4'],
+			['max', 'Z5'],
+		],
+	},
+	{
+		profile: fullSwim5Profile,
+		cases: [
+			['Z1', 'Z1'],
+			['Z2', 'Z2'],
+			['Z3', 'Z3'],
+			['Z4', 'Z4'],
+			['Z5', 'Z5'],
+			['easy', 'Z2'],
+			['endurance', 'Z2'],
+			['tempo', 'Z3'],
+			['threshold', 'Z4'],
+			['max', 'Z5'],
+		],
+	},
+]
+
+for (const { profile, cases } of canonicalCases) {
+	for (const [label, band] of cases) {
+		test(`zoneLabel ${label} on ${profile.zoneSystem} resolves to band ${band}`, () => {
+			const result = resolveIntensity({ kind: 'zoneLabel', label }, profile)
+			const { substitution: _named, ...range } = result
+			expect(range).toEqual(bandRange(profile, band))
+			// A label that is the band's own needs no naming; any other is named.
+			if (label === band) expect(result.substitution).toBeUndefined()
+			else expect(result.substitution).toMatch(new RegExp(`${band}\\b`))
+		})
+	}
+}
+
+test('on daniels-pace-5, Z2 gets E’s pace range and threshold/Z4 get T’s', () => {
+	// threshold pace 240: E 1.15–1.31 → 276–314, T 0.97–1.04 → 233–250
+	expect(
+		resolveIntensity({ kind: 'zoneLabel', label: 'Z2' }, defaultRunProfile),
+	).toMatchObject({ paceMin: 276, paceMax: 314 })
+	for (const label of ['threshold', 'Z4']) {
+		expect(
+			resolveIntensity({ kind: 'zoneLabel', label }, defaultRunProfile),
+		).toMatchObject({ paceMin: 233, paceMax: 250 })
+	}
+})
+
+test('a zone the recipe does not declare names the nearest-band substitution', () => {
+	const result = resolveIntensity(
+		{ kind: 'zoneLabel', label: 'Z1' },
+		defaultRunProfile,
+	)
+	expect(result.substitution).toMatch(/no zone 1/)
+})
+
+test('coggan-power-7 band labels resolve exactly as before, unsubstituted', () => {
+	for (const label of ['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7']) {
+		const result = resolveIntensity(
+			{ kind: 'zoneLabel', label },
+			fullBikeProfile,
+		)
+		expect(result.unavailable).toBeUndefined()
+		expect(result.substitution).toBeUndefined()
+	}
+	expect(
+		resolveIntensity({ kind: 'zoneLabel', label: 'Z6' }, fullBikeProfile),
+	).toEqual({ powerMin: 339, powerMax: 420 })
+})
+
 // zoneLabel — missing config —————————————————————————————————————
 
 test('zoneLabel with no zoneSystem returns unavailable', () => {

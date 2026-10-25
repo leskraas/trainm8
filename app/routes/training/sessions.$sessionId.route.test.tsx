@@ -86,7 +86,8 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 							durationSec: 1800,
 							distanceM: null,
 							verticalM: null,
-							gradePct: null,
+							gradePctMin: null,
+							gradePctMax: null,
 							cadenceRpmMin: null,
 							cadenceRpmMax: null,
 							rest: null,
@@ -150,6 +151,7 @@ function summaryOf(session: SessionDetail, loggedSets = 0) {
 			session.workout?.discipline ?? session.recording?.discipline ?? '',
 		status: session.status,
 		currency: null,
+		thresholds: {},
 		workout: session.workout,
 		recording: session.recording,
 		loggedSets,
@@ -226,7 +228,8 @@ test('the strip never fabricates: a workout whose steps state nothing renders no
 		durationSec: null,
 		distanceM: null,
 		verticalM: null,
-		gradePct: null,
+		gradePctMin: null,
+		gradePctMax: null,
 		cadenceRpmMin: null,
 		cadenceRpmMax: null,
 		rest: null,
@@ -391,7 +394,8 @@ function makeBikeWorkoutWithPowerTarget(): NonNullable<
 		intensity: null,
 		distanceM: null,
 		verticalM: null,
-		gradePct: null,
+		gradePctMin: null,
+		gradePctMax: null,
 		cadenceRpmMin: null,
 		cadenceRpmMax: null,
 		rest: null,
@@ -449,8 +453,13 @@ function makeBikeWorkoutWithPowerTarget(): NonNullable<
 						notes: '12 min at threshold',
 						orderIndex: 0,
 						durationSec: 720,
-						intensityPowerMin: 238,
-						intensityPowerMax: 263,
+						// Authored only: its cached range columns are empty, as they
+						// are on every session made since the last threshold change.
+						intensity: JSON.stringify({
+							kind: 'powerPct',
+							minPct: 95,
+							maxPct: 105,
+						}),
 					},
 				],
 			},
@@ -476,14 +485,28 @@ test('completed session with a telemetry stream renders the overlay, not the una
 			},
 		}),
 	})
-	renderRoute(sessionDetailLoader(session))
+	renderRoute(
+		sessionDetailLoader(session, {
+			bike: {
+				lthr: null,
+				maxHr: null,
+				ftp: 250,
+				runPowerThresholdW: null,
+				thresholdPaceSecPerKm: null,
+				cssSecPer100m: null,
+				zoneSystem: null,
+				zoneOverrides: null,
+			},
+		}),
+	)
 
 	await screen.findByText(/Data fra opptaket over/)
 	// The honest placeholder is gone once a real stream exists.
 	expect(screen.queryByText('Ingen data over tid')).not.toBeInTheDocument()
 	// The overlay is not chart-only: a non-visual summary states the pause…
 	expect(screen.getByText(/pause vist som hull/i)).toBeInTheDocument()
-	// …and the planned power target, surfaced as text.
+	// …and the planned power target, resolved from the %FTP against today's
+	// thresholds and surfaced as text (#616).
 	expect(screen.getByText(/Planlagt watt: 238–263 W/)).toBeInTheDocument()
 	// The planned Workout Shape rail rides beneath the chart.
 	expect(screen.getByText('Planlagt form')).toBeInTheDocument()
@@ -672,7 +695,8 @@ function makeIntervalWorkout(): NonNullable<SessionDetail['workout']> {
 		durationSec: null,
 		distanceM: null,
 		verticalM: null,
-		gradePct: null,
+		gradePctMin: null,
+		gradePctMax: null,
 		cadenceRpmMin: null,
 		cadenceRpmMax: null,
 		rest: null,
@@ -823,6 +847,42 @@ test('a matched planned session with surplus detected structure reads "Diverged"
 	const slot = document.querySelector('[data-structure-adherence]')!
 	expect(slot).toHaveAttribute('data-structure-verdict', 'diverged')
 	expect(slot).toHaveTextContent('Avvek')
+	// Doing more than planned is not the amber "under" warning (#634).
+	expect(slot.querySelector('[class*="status-under"]')).toBeNull()
+})
+
+test('a planned 3 × (13 × 30/15) against a 39-rep detection reads "As prescribed" (#634)', async () => {
+	// The series level multiplies the rep count: 3 series of 13 is 39 reps,
+	// not 13 with 26 surplus.
+	const workout = makeIntervalWorkout()
+	const [warmUp, work] = workout.blocks
+	const series = {
+		...work!,
+		repeatCount: 13,
+		seriesRepeatCount: 3,
+		betweenSeriesRestSec: 360,
+		steps: [
+			{ ...work!.steps[0]!, durationSec: 30 },
+			{ ...work!.steps[1]!, durationSec: 15 },
+		],
+	}
+	const session = makeSession({
+		status: 'completed',
+		plannedTssValue: 90,
+		tssValue: 88,
+		workout: { ...workout, blocks: [warmUp!, series] },
+		recording: makeRecording({
+			detection: {
+				confidence: 'high',
+				structureJson: detectedIntervalJson({ reps: 39, workSec: 30 }),
+			},
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Plan mot gjennomført')
+	const slot = document.querySelector('[data-structure-adherence]')!
+	expect(slot).toHaveAttribute('data-structure-verdict', 'as-prescribed')
 })
 
 test('a matched structured plan with no gate-clearing detection reads the honest "not confidently verifiable" state', async () => {

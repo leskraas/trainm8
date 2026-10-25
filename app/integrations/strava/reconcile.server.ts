@@ -3,6 +3,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import {
 	fetchStravaActivitiesAfter,
 	fileActivitiesWithAutoSave,
+	ingestActivityStreams,
 } from './ingest.server.ts'
 import { STRAVA_PROVIDER } from './types.ts'
 
@@ -11,7 +12,8 @@ import { STRAVA_PROVIDER } from './types.ts'
  * daily sweep re-fetches each active Account Connection's recent Strava
  * activities and files any the webhook (#76) dropped during downtime or that
  * Strava retried-and-gave-up on. It reuses the same fetch path and idempotent
- * `(athlete, provider, externalId)` guard as manual sync and backfill.
+ * `(athlete, provider, externalId)` guard as manual sync and backfill, and
+ * the same streams ingest, so what it files carries the same telemetry.
  */
 
 /**
@@ -51,6 +53,12 @@ export async function runStravaReconciliation(
 	const activities = await fetchStravaActivitiesAfter(connection, after)
 	const { created, skipped, latestActivityAt } =
 		await fileActivitiesWithAutoSave(athleteId, activities, timezone)
+
+	// The same telemetry as sync (#611): stream, HR phase bars and Structure
+	// Detection for what this sweep filed, and for any import in the overlap
+	// still missing its stream. A spent budget defers the job before the
+	// watermark moves, and the rerun picks up where this one stopped.
+	await ingestActivityStreams(connection, activities)
 
 	// Advance the watermark forward-only: the 48h overlap reaches back before
 	// `lastSyncedAt`, so a sweep that only finds older activities must not pull it

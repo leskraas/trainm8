@@ -87,6 +87,7 @@ import {
 	formatSigned,
 	formatTime,
 } from '#app/utils/format.ts'
+import { isRecordingOnlySource } from '#app/utils/import-fit.ts'
 import { undoImportLink } from '#app/utils/import-link.server.ts'
 import {
 	type DisciplineThresholdMap,
@@ -101,6 +102,7 @@ import {
 	NB_SESSION_ARCHETYPE_LABELS,
 	SIMPLE_ACTIVITY_LABELS,
 	WORKOUT_DETAIL_LABELS,
+	approxLabel,
 	nbConfidenceLabel,
 	nbDisciplineLabel,
 	nbDurationLabel,
@@ -170,6 +172,9 @@ import {
 } from './__workout-detail-summary.ts'
 
 const L = WORKOUT_DETAIL_LABELS
+
+/** One empty map, so a session without thresholds keeps the telemetry memo. */
+const NO_THRESHOLDS: DisciplineThresholdMap = {}
 
 /**
  * The telemetry card is its own chunk, mounted when it nears the viewport
@@ -394,6 +399,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 			status: session.status,
 			currency: isSummaryCurrency(trackCurrency) ? trackCurrency : null,
 			workout: session.workout,
+			thresholds,
 			recording: session.recording,
 			loggedSets: loggedSetCount,
 			simpleActivity: simpleActivity != null,
@@ -572,6 +578,21 @@ export async function action({ request, params }: Route.ActionArgs) {
 	// The dispatch rides a dedicated `saveWorkout` control field, not the domain
 	// `intent` the workout form already carries (which would collide).
 	if (formData.get('saveWorkout')) {
+		// The editor only opens on a scheduled session, so a recording-only one
+		// never posts here from the page — but a hand-made POST would adopt its
+		// `detected` Workout and end detection's compare-and-swap for it (#630).
+		// The athlete layer is the only way to correct a recording (#624).
+		const target = await prisma.workoutSession.findFirst({
+			where: { id: params.sessionId, userId },
+			select: { source: true, adoptedAt: true },
+		})
+		invariantResponse(target, L.errors.notFound, { status: 404 })
+		invariantResponse(
+			!isRecordingOnlySource(target),
+			L.errors.recordingNotEditable,
+			{ status: 400 },
+		)
+
 		const submission = parseWithZod(formData, { schema: FormSchema })
 
 		if (submission.status !== 'success') {
@@ -821,7 +842,10 @@ export default function SessionDetailRoute({
 	// thresholds; null when there's no prescription or no truthful target. A
 	// Training Zone the thresholds cannot resolve is captioned ("E —
 	// easy/endurance"), never a bare code (#180).
-	const target = sessionMetricTarget(session.workout, thresholds ?? {})
+	const target = sessionMetricTarget(
+		session.workout,
+		thresholds ?? NO_THRESHOLDS,
+	)
 	const headlineTarget =
 		target?.kind === 'zone' && target.caption
 			? `${target.text} — ${target.caption}`
@@ -944,7 +968,7 @@ export default function SessionDetailRoute({
 						) : session.workout ? (
 							<WorkoutPrescription
 								session={{ ...session, workout: session.workout }}
-								thresholds={thresholds ?? {}}
+								thresholds={thresholds ?? NO_THRESHOLDS}
 								loadContexts={loadContexts ?? {}}
 								exercises={exercises ?? []}
 								recentExerciseIds={recentExerciseIds ?? []}
@@ -1018,7 +1042,10 @@ export default function SessionDetailRoute({
 					    plan and a recording — scheduled and recording-only sessions
 					    skip it and render their one coherent side below. */}
 					{session.workout && session.recording && !simpleActivity ? (
-						<PlannedVsActualSummary session={session} />
+						<PlannedVsActualSummary
+							session={session}
+							thresholds={thresholds ?? NO_THRESHOLDS}
+						/>
 					) : null}
 
 					{/* "Mot forrige gang" (PRD #129): how this completed effort
@@ -1045,6 +1072,7 @@ export default function SessionDetailRoute({
 							<DeferredTelemetry
 								stream={session.recording.stream}
 								workout={session.workout}
+								thresholds={thresholds ?? NO_THRESHOLDS}
 							/>
 						) : (
 							<TelemetryUnavailable />
@@ -1117,9 +1145,11 @@ function SummaryFigures({ figures }: { figures: SummaryFigure[] }) {
 function DeferredTelemetry({
 	stream,
 	workout,
+	thresholds,
 }: {
 	stream: ActivityStream
 	workout: SessionDetail['workout']
+	thresholds: DisciplineThresholdMap
 }) {
 	const placeholderRef = useRef<HTMLDivElement>(null)
 	const [mounted, setMounted] = useState(false)
@@ -1172,7 +1202,11 @@ function DeferredTelemetry({
 	if (!mounted) return placeholder
 	return (
 		<Suspense fallback={placeholder}>
-			<TelemetryOverlay stream={stream} workout={workout} />
+			<TelemetryOverlay
+				stream={stream}
+				workout={workout}
+				thresholds={thresholds}
+			/>
 		</Suspense>
 	)
 }
@@ -1493,14 +1527,17 @@ function AdherenceBandChip({ band }: { band: AdherenceBand }) {
 
 const EM_DASH = '—'
 
-// The two asserting verdicts get a coloured chip; `not-verifiable` renders as an
-// honest muted Unavailable Metric, never a red "you failed" grade (ADR 0008).
+// Only `as-prescribed` gets a coloured chip; `diverged` is neutral (#634) and
+// `not-verifiable` renders as an honest muted Unavailable Metric, never a red
+// "you failed" grade (ADR 0008).
 const STRUCTURE_TONE: Record<
 	'as-prescribed' | 'diverged',
 	{ dot: string; wash: string }
 > = {
 	'as-prescribed': { dot: 'bg-status-on', wash: 'bg-status-on/12' },
-	diverged: { dot: 'bg-status-under', wash: 'bg-status-under/12' },
+	// Neutral, not the amber `status-under`: diverging means doing something
+	// other than (often more than) the plan, never the "under" warning (#634).
+	diverged: { dot: 'bg-muted-foreground', wash: 'bg-muted' },
 }
 
 /**
@@ -1591,8 +1628,14 @@ function FigureTile({
 	)
 }
 
-function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
-	const comparison = buildReviewComparison(session)
+function PlannedVsActualSummary({
+	session,
+	thresholds,
+}: {
+	session: SessionDetail
+	thresholds: DisciplineThresholdMap
+}) {
+	const comparison = buildReviewComparison(session, thresholds)
 	const structureVerdict = resolveStructureAdherence(session)
 	const num = (v: number | null) => (v != null ? formatLoad(v) : EM_DASH)
 	const dur = (v: number | null) => (v != null ? nbDurationLabel(v) : EM_DASH)
@@ -1614,7 +1657,13 @@ function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
 		{
 			label: P.duration,
 			actual: dur(comparison.duration.actual),
-			planned: dur(comparison.duration.planned),
+			planned:
+				comparison.duration.planned != null
+					? approxLabel(
+							dur(comparison.duration.planned),
+							comparison.duration.plannedEstimated,
+						)
+					: EM_DASH,
 		},
 		{
 			label: P.distance,

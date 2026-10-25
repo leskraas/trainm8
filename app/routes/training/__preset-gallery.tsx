@@ -329,6 +329,14 @@ const STRIP_HEIGHT = 48
 const BAR_FRAC = 0.72
 
 /**
+ * Quantise a coordinate to two decimals where it becomes an attribute (#462).
+ * React hydrates by comparing attribute strings, so a raw `48 - (1 / 7) * 48`
+ * or `25 - 3.6` must not reach the markup; a hundredth of a user unit is far
+ * below a device pixel on a 56px strip.
+ */
+const svgUnit = (value: number) => Math.round(value * 100) / 100
+
+/**
  * The load profile a preset lays down, as a bar per Training Week.
  *
  * **Why a bespoke strip and not `ChartFigure`.** ADR 0029 keeps charts
@@ -406,14 +414,14 @@ export function LoadProfile({
 					// produces one can arise from a preset. So there is no "no value" branch
 					// to draw here — and no unreachable one either, which is the kind ADR 0030
 					// rule 1 is hardest to satisfy honestly precisely because nobody sees it.
-					const y = scaleY(value)
+					const y = svgUnit(scaleY(value))
 					return (
 						<rect
 							key={index}
-							x={cx - barW / 2}
+							x={svgUnit(cx - barW / 2)}
 							y={y}
-							width={barW}
-							height={STRIP_HEIGHT - y}
+							width={svgUnit(barW)}
+							height={svgUnit(STRIP_HEIGHT - y)}
 							rx={1}
 							// Loading weeks carry the season's climb; recovery weeks and the
 							// taper are drawn back, so the rhythm reads as rhythm and not as a

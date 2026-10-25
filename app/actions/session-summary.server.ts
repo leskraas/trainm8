@@ -18,8 +18,12 @@ import { prisma } from '#app/utils/db.server.ts'
 import { nbDisciplineLabel } from '#app/utils/labels.ts'
 import { type PlannedMetric } from '#app/utils/planned-discipline.ts'
 import { SESSION_OWNERS, sessionOwner } from '#app/utils/session-ownership.ts'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { buildReviewComparison } from '#app/utils/session-review.ts'
-import { type LedgerSession } from '#app/utils/training.server.ts'
+import {
+	getDisciplineThresholds,
+	type LedgerSession,
+} from '#app/utils/training.server.ts'
 import {
 	deriveLedgerStatus,
 	getSessionDiscipline,
@@ -170,10 +174,12 @@ export function sessionTitle(
 export function toSessionSummary(
 	session: LedgerSession,
 	bindingSet: readonly OriginPlatform[],
+	/** What a distance step's pace resolves against (#615). */
+	thresholds: DisciplineThresholdMap,
 	ctx: RunCtx,
 ): SessionSummary {
 	const status = sessionStatus(session, ctx.now, ctx.timezone)
-	const review = buildReviewComparison(session)
+	const review = buildReviewComparison(session, thresholds)
 	const { recording } = session
 	const missing = recording ? 'not-resolved' : 'no-recording'
 	// The Recording's own figures: they owe its source line, not the derived one.
@@ -218,11 +224,19 @@ export async function toSessionSummaries(
 	sessions: readonly LedgerSession[],
 	ctx: RunCtx,
 ): Promise<SessionSummary[]> {
-	const bindingSets = await readRecordingBindingSets(
-		ctx.userId,
-		sessions.map((s) => s.id),
-	)
+	const [bindingSets, thresholds] = await Promise.all([
+		readRecordingBindingSets(
+			ctx.userId,
+			sessions.map((s) => s.id),
+		),
+		getDisciplineThresholds(ctx.userId),
+	])
 	return sessions.map((session) =>
-		toSessionSummary(session, bindingSets.get(session.id) ?? [], ctx),
+		toSessionSummary(
+			session,
+			bindingSets.get(session.id) ?? [],
+			thresholds,
+			ctx,
+		),
 	)
 }

@@ -39,6 +39,7 @@ import {
 } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { readPinnedDaysByDiscipline } from '#app/utils/plan-outline/pinned-days.server.ts'
 import {
 	isTrainedStatus,
@@ -49,7 +50,10 @@ import {
 	MACHINE_OWNED_SESSION,
 	sessionOwner,
 } from '#app/utils/session-ownership.ts'
-import { sessionWorkoutSelect } from '#app/utils/training.server.ts'
+import {
+	getDisciplineThresholds,
+	sessionWorkoutSelect,
+} from '#app/utils/training.server.ts'
 import { deriveLedgerStatus } from '#app/utils/training.ts'
 import { weeklyAdherence } from './adherence.ts'
 import { readRoundFacts } from './open-ended-round.server.ts'
@@ -109,6 +113,9 @@ export async function applyWeekReplanForUser(
 	// Each track's Pinned days (ADR 0104 §4): a make-up is put on one of its
 	// track's own days first, when one is free and fits (#596, #597).
 	const pinned = await readPinnedDaysByDiscipline(userId, now)
+	// What a session's Effort Word reads an absolute target by, so the day rule
+	// places a threshold session written as pace as hard (#617).
+	const thresholds = await getDisciplineThresholds(userId)
 	const [
 		adherence,
 		currentLoad,
@@ -122,10 +129,10 @@ export async function applyWeekReplanForUser(
 		getClosedWeekAdherence(userId, weekKey, timezone),
 		getCurrentLoad(userId),
 		getTsbTrust(userId, now),
-		getComingWeek(userId, targetWeekKey, timezone, now),
-		getMissedSessions(userId, weekKey, timezone, now, pinned),
+		getComingWeek(userId, targetWeekKey, timezone, now, thresholds),
+		getMissedSessions(userId, weekKey, timezone, now, thresholds, pinned),
 		readRoundFacts(userId, weekKey, timezone, now),
-		getRepeatMisses(userId, weekKey, timezone, now, pinned),
+		getRepeatMisses(userId, weekKey, timezone, now, thresholds, pinned),
 		// The mode this week closes under (ADR 0100 §6): read here, at the
 		// close, and stored with the decision — so a switch in Meg applies
 		// from the next close and never to proposals already written.
@@ -239,6 +246,7 @@ async function getComingWeek(
 	targetMonday: string,
 	timezone: string,
 	now: Date,
+	thresholds: DisciplineThresholdMap,
 ): Promise<{
 	adjustable: WeekChangeFacts['adjustableSessions']
 	freeDays: string[]
@@ -288,7 +296,7 @@ async function getComingWeek(
 		.map((session) => ({
 			id: session.id,
 			date: localDate(session.scheduledAt, timezone),
-			placement: readPlacement(session.workout),
+			placement: readPlacement(session.workout, thresholds),
 		}))
 	return { adjustable, freeDays, week }
 }
@@ -304,6 +312,7 @@ async function getMissedSessions(
 	weekKey: string,
 	timezone: string,
 	now: Date,
+	thresholds: DisciplineThresholdMap,
 	pinned: PinnedDaysByDiscipline = new Map(),
 ): Promise<WeekChangeFacts['missedSessions']> {
 	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
@@ -330,7 +339,7 @@ async function getMissedSessions(
 			title: session.workout?.title ?? 'Økta',
 			date: localDate(session.scheduledAt, timezone),
 			plannedTss: session.plannedTssValue,
-			placement: readPlacement(session.workout),
+			placement: readPlacement(session.workout, thresholds),
 			...pinnedDaysOf(pinned, session.workout?.discipline),
 		}))
 }
@@ -349,6 +358,7 @@ async function getRepeatMisses(
 	closedWeekKey: string,
 	timezone: string,
 	now: Date,
+	thresholds: DisciplineThresholdMap,
 	pinned: PinnedDaysByDiscipline = new Map(),
 ): Promise<NonNullable<WeekChangeFacts['repeatMisses']>> {
 	const from = weekBoundsFromMondayUTC(addDays(closedWeekKey, -7), timezone)
@@ -372,7 +382,7 @@ async function getRepeatMisses(
 		const date = localDate(session.scheduledAt, timezone)
 		return {
 			id: session.id,
-			placement: readPlacement(session.workout),
+			placement: readPlacement(session.workout, thresholds),
 			date,
 			week: addDays(date, -weekdayIndex(date)),
 			slot: `${weekdayIndex(date)}|${session.workout?.title}|${session.workout?.discipline}`,

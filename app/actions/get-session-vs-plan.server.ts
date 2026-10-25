@@ -5,7 +5,10 @@ import { ACTION_TITLE_LABELS } from '#app/utils/labels.ts'
 import { buildVsLastComparison } from '#app/utils/session-comparison.ts'
 import { buildReviewComparison } from '#app/utils/session-review.ts'
 import { resolveStructureAdherence } from '#app/utils/session-structure-adherence.ts'
-import { getLastSimilarSession } from '#app/utils/training.server.ts'
+import {
+	getDisciplineThresholds,
+	getLastSimilarSession,
+} from '#app/utils/training.server.ts'
 import { defineAction } from './define.ts'
 import {
 	NumberReading,
@@ -82,6 +85,7 @@ export const getSessionVsPlanAction = defineAction({
 							orderBy: { orderIndex: 'asc' },
 							select: {
 								repeatCount: true,
+								seriesRepeatCount: true,
 								steps: {
 									orderBy: { orderIndex: 'asc' },
 									select: {
@@ -132,7 +136,10 @@ export const getSessionVsPlanAction = defineAction({
 		const actual = (value: number | null | undefined) =>
 			reading(value ?? unavailable(missing), own, ctx, { origin: 'recording' })
 
-		const review = buildReviewComparison(session)
+		const review = buildReviewComparison(
+			session,
+			await getDisciplineThresholds(ctx.userId),
+		)
 		const plannedTss = plannedReading(review.tss.plannedRead, ctx, {
 			zeroIsUnresolved: true,
 		})

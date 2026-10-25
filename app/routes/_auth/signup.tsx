@@ -135,7 +135,10 @@ export default function SignupRoute({ actionData }: Route.ComponentProps) {
 			const result = parseWithZod(formData, { schema: SignupSchema })
 			return result
 		},
-		shouldRevalidate: 'onBlur',
+		// A fixed field clears its error as it is fixed. On blur, the error line
+		// above the button would vanish as the athlete presses it, moving the
+		// button out from under the click (#532).
+		shouldRevalidate: 'onInput',
 	})
 
 	return (
@@ -146,6 +149,7 @@ export default function SignupRoute({ actionData }: Route.ComponentProps) {
 			<Form method="POST" {...getFormProps(form)}>
 				<HoneypotInputs />
 				<Field
+					reserveErrorLine
 					labelProps={{
 						htmlFor: fields.email.id,
 						children: 'Email',
@@ -157,7 +161,7 @@ export default function SignupRoute({ actionData }: Route.ComponentProps) {
 					}}
 					errors={fields.email.errors}
 				/>
-				<ErrorList errors={form.errors} id={form.errorId} />
+				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
 				<StatusButton
 					className="w-full"
 					status={isPending ? 'pending' : (form.status ?? 'idle')}

@@ -266,9 +266,10 @@ would not recognise the name, it is wrong.
 **two repeat levels** — an inner one (the reps inside one series) and an outer
 **Series Repeat** — so `3 × (13 × 30/15)` is one block rather than a shape the
 model cannot say (ADR 0007, #450). Effective passes are the _product_ of the
-two, read through `blockRepeatTotal()` by every piece of block arithmetic. A
-block may also carry a **Send-Off**, and then it carries no rest steps. _Avoid_:
-Set group, segment
+two, read through `blockRepeatTotal()` by every piece of block arithmetic. The
+rest between two series is the **seriepause** the athlete reads
+(`(10 min seriepause)`). A block may also carry a **Send-Off**, and then it
+carries no rest steps. _Avoid_: Set group, segment
 
 **Step**: A single ordered instruction within a block, optionally including a
 discipline, intensity, and quantity. _Avoid_: Interval, action
@@ -346,7 +347,13 @@ baking path does exist, `deriveMetricTarget`, which resolves the per-discipline
 default (run → threshold pace, bike → `%FTP`) into a stored metric target and
 falls back to the Training Zone label when no threshold resolves it; its only
 live caller is the seed script, since **Plan Generation**, its other intended
-caller, was deleted (ADR 0044). _Avoid_: Zone target, effort
+caller, was deleted (ADR 0044). A zone the app writes for the athlete — the
+writing line's typed zone, the day stamp, an eased session — is stored as its
+canonical Norwegian zone word (_lett_, _rolig_, _moderat_, _terskel_, _hardt_),
+never as a zone code: a code such as `Z2` is a recipe's band label and names a
+different zone on another recipe (Stryd's `Z2` is zone 3). `easy` is zone 2, as
+the Daniels band of that name declares. A stored label is never rewritten (ADR
+0089, amended by #627). _Avoid_: Zone target, effort
 
 **Lactate Anchor**: A prescription in **blood lactate** (mmol·L⁻¹) — the
 Norwegian sub-threshold tradition's defining parameter, and the arm of the
@@ -367,8 +374,10 @@ carried honestly — Casado et al. 2023 say 2–4.5 mmol·L⁻¹ across the fami
 Bakken 2.3–3.0 for the Ingebrigtsen practice — and neither is presented as _the_
 number. Storing the source anchor is what **retired `intensityFidelity` before
 it was built**: a flag asserting "this row is a lossy translation" is
-unnecessary once the translation is visible in the resolution. _Avoid_: Lactate
-threshold (that is a **Threshold**), mmol target, blood test
+unnecessary once the translation is visible in the resolution. A session's
+planned minutes timed through a pace (a distance step at its zone's or authored
+pace) carry it too: `≈ 57 min` (#638). _Avoid_: Lactate threshold (that is a
+**Threshold**), mmol target, blood test
 
 **Portable Anchor**: _Future (not yet built)._ A prescription target that means
 the same thing for every athlete and resolves against that athlete's own
@@ -603,18 +612,21 @@ distance, so without it they are not merely awkward but unrepresentable
 counterpart), climb, D+
 
 **Step Parameter**: A condition the work happens under rather than a magnitude
-of it — a signed **Grade** (`gradePct`) and a **Cadence** range — so a step
-states one beside its **Step Quantity** instead of choosing between them (ADR
-0002, #450). Both were previously free text in `notes`, which reads correctly to
-a human and is invisible to every filter, planner and adherence check: all five
-of the running research's hill rows seed today and are indistinguishable from a
-flat session. Grade is signed because a descent is a real prescription. Cadence
-is the **defining variable** of six cycling sessions and exists for
-_prescription fidelity_, not because low-cadence work is a proven lever — the
-best trial in the literature (12 weeks at 40 rpm) found no gain in VO₂max,
-performance or leg strength while the free-cadence control improved, so no
-seeded description may claim it builds strength. _Avoid_: Step metadata, step
-options, gradient (say **Grade**)
+of it — a signed **Grade** band (`gradePctMin`/`gradePctMax`) and a **Cadence**
+range — so a step states one beside its **Step Quantity** instead of choosing
+between them (ADR 0002, #450). Grade is a band because every hill session states
+one (`4–7 %`); a single grade states both ends equal (#466). The Token Sentence
+draws both after the intensity: `· 4–7 % motbakke`, `· 50–60 rpm`. Both were
+previously free text in `notes`, which reads correctly to a human and is
+invisible to every filter, planner and adherence check: all five of the running
+research's hill rows seeded that way and were indistinguishable from a flat
+session. Grade is signed because a descent is a real prescription. Cadence is
+the **defining variable** of six cycling sessions and exists for _prescription
+fidelity_, not because low-cadence work is a proven lever — the best trial in
+the literature (12 weeks at 40 rpm) found no gain in VO₂max, performance or leg
+strength while the free-cadence control improved, so no seeded description may
+claim it builds strength. _Avoid_: Step metadata, step options, gradient (say
+**Grade**)
 
 **Rest Spec**: The four forms rest actually takes in the field, as a
 discriminated union on the rest step (ADR 0007, #450; research:
@@ -853,17 +865,20 @@ _Avoid_: Shorthand, syntax
 
 **Token Sentence**: The rendering of a workout in the Workout Notation where
 every value is a **Token**. Rendered as the **Score stanza** (#251): one Block
-per line at every width, the block's repeat count as a gutter badge, and the
-Intensity Target chip as the line's only chip-shaped element. The same sentence
-is the read view and, for scheduled sessions, the edit view. _Avoid_: Summary
-line, formula, text editor
+per line at every width, the block's repeat count as a gutter badge — led by its
+**Series Repeat** as a second, outlined badge when the block has more than one
+series (#466) — and the Intensity Target chip as the line's only chip-shaped
+element. The same sentence is the read view and, for scheduled sessions, the
+edit view. _Avoid_: Summary line, formula, text editor
 
 **Token**: A single tappable value within a Token Sentence — a Step Quantity,
-repeat count, Intensity Target, rest, or exercise/sets summary — edited via a
-picker popover that can only produce valid values. Simple value tokens share one
-**retargeting popover** (#252): caret-anchored, type-to-edit with ± nudges,
-gliding to whichever token is activated next instead of closing and reopening.
-_Avoid_: Chip, pill, field
+repeat count, series count, Intensity Target, Step Parameter, rest, or
+exercise/sets summary — edited via a picker popover that can only produce valid
+values. A token the editor's form does not carry yet (the series count, the rest
+between series, grade, cadence, Step Vertical) is drawn and not tappable. Simple
+value tokens share one **retargeting popover** (#252): caret-anchored,
+type-to-edit with ± nudges, gliding to whichever token is activated next instead
+of closing and reopening. _Avoid_: Chip, pill, field
 
 ### The Catalogue
 
@@ -2131,16 +2146,17 @@ session the runner has started is finished in the runner. It lists the planned
 lifts and sets as the prescription resolves today — a program session is
 re-stamped first, as opening it does, so the weight is the run's current one.
 _Som planlagt_ logs every planned set at its target in one tap; _Endre_ changes
-a set's reps (a hold's seconds) or leaves it empty for not done. The sets go in
-through the set log's upsert at the **weight the prescription resolved**, the
-same one a tap on the runner's circle logs (ADR 0064 §2: an off-program weight
-still has no way in), and the finish follows — one transaction, opened by a
-claim that matches only while no working set is logged, so a double tap or a
-runner tap in between cannot log twice. A lift whose weight or count does not
-resolve, or a repeated block (the set log has one row per prescribed set, not
-per repeat), sends the whole session to the runner rather than logging part of
-it as all of it. _Avoid_: Quick log (bare), log as planned (that is the button),
-Gjort (that is for cardio, whose numbers an import brings).
+a set's reps (a hold's seconds) or leaves it empty for not done, and changes a
+weighted lift's **weight, once per lift**, stepped by what the rack can make
+(ADR 0064 as amended by #530). The sets go in through the set log's upsert at
+the **weight the prescription resolved** unless _Endre_ changed it, and the
+finish follows — one transaction, opened by a claim that matches only while no
+working set is logged, so a double tap or a runner tap in between cannot log
+twice. A lift whose weight or count does not resolve, or a repeated block (the
+set log has one row per prescribed set, not per repeat), sends the whole session
+to the runner rather than logging part of it as all of it. _Avoid_: Quick log
+(bare), log as planned (that is the button), Gjort (that is for cardio, whose
+numbers an import brings).
 
 **Auto-Save Mirror**: An **Activity Import** the athlete has not built anything
 on — its recording-only session is still structureless, carries no **Session
@@ -2223,9 +2239,12 @@ verdict, interval grade, compliance score, "X of Y intervals".
 
 **Job Queue**: The in-process background-work primitive (ADR 0013). A `Job` row
 carries a `kind` (which handler runs it) and an opaque JSON `payload`, with
-retry/backoff and a terminal `failed` state. A single polling worker drains the
-queue one job at a time. The Backfill Window is its first `kind`; webhook-fetch
-and reconciliation-poll reuse it. _Avoid_: Task queue, worker pool, scheduler
+retry/backoff, a terminal `failed` state, and deferral: a handler that can't
+proceed until a known time (a spent read budget) goes back to `pending` then
+without spending an attempt, for up to 7 days. A single polling worker drains
+the queue one job at a time. The Backfill Window is its first `kind`;
+webhook-fetch and reconciliation-poll reuse it. _Avoid_: Task queue, worker
+pool, scheduler
 
 **Live Imports Stream**: The per-athlete Server-Sent Events channel that pushes
 "a new Activity Import landed" to the athlete's open tabs so the home surface
@@ -2800,13 +2819,16 @@ number), goal, sum.
 prescription, per **Training Track**, in the track's **Volume Currency** — km or
 hours read off the prescription only where every step carries the unit (the
 **Week Pattern**'s own reading; in km a timed rest between reps carries none and
-is skipped, so `6x1 km p 1 min` is 6 km), **Planned TSS** on a TSS track,
-prescribed sets on a strength track. A missed session still counts: it was
-planned. A session with no number in the currency is **counted apart with its
-reason** ("+2 uten km") and never added as zero, so a week whose sessions are
-all unmeasured has no Planned Volume rather than a planned zero. Writing, moving
-or editing a session moves this number and never the **Week Target**. _Avoid_:
-Planned load (that is Planned TSS, per session), week sum.
+is skipped, so `6x1 km p 1 min` is 6 km; in hours a distance step is timed
+through its pace against the athlete's thresholds, the same reading the row, I
+dag and the detail view give a session's minutes, and a session with a step it
+cannot time has none), **Planned TSS** on a TSS track, prescribed sets on a
+strength track. A missed session still counts: it was planned. A session with no
+number in the currency is **counted apart with its reason** ("+2 uten km") and
+never added as zero, so a week whose sessions are all unmeasured has no Planned
+Volume rather than a planned zero. Writing, moving or editing a session moves
+this number and never the **Week Target**. _Avoid_: Planned load (that is
+Planned TSS, per session), week sum.
 
 **Actual Volume**: The same sum over the week's **completed** sessions, from
 what was recorded or logged — the recording's distance or duration, the

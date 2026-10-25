@@ -6,7 +6,10 @@ import {
 import { prisma } from '#app/utils/db.server.ts'
 import { parseAuthoredIntensity } from '#app/utils/intensity-target.ts'
 import { ACTION_TITLE_LABELS } from '#app/utils/labels.ts'
-import { ledgerSessionSelect } from '#app/utils/training.server.ts'
+import {
+	getDisciplineThresholds,
+	ledgerSessionSelect,
+} from '#app/utils/training.server.ts'
 import {
 	type IntensityTarget,
 	RACE_ANCHORS,
@@ -232,7 +235,12 @@ export const getSessionAction = defineAction({
 		const planned = (value: number | null) =>
 			reading(value ?? unavailable('not-resolved'), [], ctx)
 		return {
-			...toSessionSummary(session, bindingSet, ctx),
+			...toSessionSummary(
+				session,
+				bindingSet,
+				await getDisciplineThresholds(ctx.userId),
+				ctx,
+			),
 			workout: workout
 				? {
 						title: sessionTitle(session),

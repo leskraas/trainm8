@@ -14,6 +14,7 @@ import {
 } from '#app/utils/plan-outline/week-volumes.ts'
 import {
 	getActivePlan,
+	getDisciplineThresholds,
 	ledgerSessionSelect,
 } from '#app/utils/training.server.ts'
 import { deriveLedgerStatus } from '#app/utils/training.ts'
@@ -82,7 +83,7 @@ export const getSeasonAction = defineAction({
 			from: dayBoundsUTC(startKey, ctx.timezone).start,
 			to: dayBoundsUTC(addDays(startKey, 7 * weekCount - 1), ctx.timezone).end,
 		}
-		const [rows, byDay] = await Promise.all([
+		const [rows, byDay, thresholds] = await Promise.all([
 			prisma.workoutSession.findMany({
 				where: {
 					userId: ctx.userId,
@@ -92,6 +93,7 @@ export const getSeasonAction = defineAction({
 				select: ledgerSessionSelect,
 			}),
 			readRecordedPlatformsByDay(ctx.userId, window, ctx.timezone),
+			getDisciplineThresholds(ctx.userId),
 		])
 		const todayKey = localDate(ctx.now, ctx.timezone)
 		const closedKey = lastClosedWeekKey(ctx.now, ctx.timezone)
@@ -100,6 +102,7 @@ export const getSeasonAction = defineAction({
 			return volumeSessionOf(session, {
 				dayKey,
 				status: deriveLedgerStatus(session, ctx.now, ctx.timezone),
+				thresholds,
 			})
 		})
 

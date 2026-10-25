@@ -78,6 +78,28 @@ test('repairs a missed activity by filing it as an ActivityImport', async () => 
 	expect(imports[0]!.externalProvider).toBe('strava')
 })
 
+test('a repaired activity gets its telemetry, as a synced one does', async () => {
+	const { user } = await setupConnection()
+	server.use(
+		http.get(ACTIVITIES_URL, () => HttpResponse.json([missedActivity()])),
+	)
+
+	await runStravaReconciliation(user.id)
+
+	const imp = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: user.id, externalId: '5001' },
+		select: { id: true, stream: { select: { id: true } } },
+	})
+	expect(imp.stream).not.toBeNull()
+	const detection = await prisma.job.findMany({
+		where: { kind: 'structure-detection' },
+		select: { payload: true },
+	})
+	expect(detection.map((j) => JSON.parse(j.payload))).toContainEqual({
+		activityImportId: imp.id,
+	})
+})
+
 test('fetches with a 48h overlap before lastSyncedAt to catch late edits', async () => {
 	const lastSyncedAt = new Date('2026-05-20T00:00:00.000Z')
 	const { user } = await setupConnection({ lastSyncedAt })

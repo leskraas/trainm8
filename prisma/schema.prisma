@@ -588,10 +588,13 @@ model WorkoutStep {
   // climb and in neither time nor ground distance.
   verticalM   Int?
 
-  // Step parameters — not quantities, so they coexist with one. Grade may be
-  // negative (a descent). Cadence is a prescription in its own right: six
-  // cycling sessions have it as their defining variable.
-  gradePct      Float?
+  // Step parameters — not quantities, so they coexist with one. Grade is a
+  // signed band (a descent is negative) because every hill session states one
+  // (`4–7 %`); a single grade stores both ends equal (#466). Cadence is a
+  // prescription in its own right: six cycling sessions have it as their
+  // defining variable.
+  gradePctMin   Float?
+  gradePctMax   Float?
   cadenceRpmMin Int?
   cadenceRpmMax Int?
 
@@ -1701,6 +1704,10 @@ model ActivityImport {
   /// file, whatever the answer: the harvest's resume marker. Null until asked;
   /// never set for imports from other transports.
   fitHarvestedAt        DateTime?
+  /// When a Strava streams fetch for this import answered with nothing usable
+  /// (#638): the streams ingest skips it, so a deferred rerun or a webhook
+  /// redelivery doesn't ask again. Null until so answered.
+  streamsCheckedAt      DateTime?
   startedAt             DateTime
   endedAt               DateTime
   durationSec           Int
@@ -1842,8 +1849,10 @@ model ActivityStream {
 /// keyed to the import and cascade-deleted with it — it rides with a promoted
 /// Recording on disconnect exactly like the stream (ADR 0012). Only the winning
 /// structure is persisted (no ranked candidates); the internal 0–1 score is not
-/// stored (ADR 0032/0033) — only the graded confidence label. Inert groundwork:
-/// no engine, job, or write path populates this yet.
+/// stored (ADR 0032/0033) — only the graded confidence label. Written by the
+/// `structure-detection` background job (`structure-detection/detect-job.server.ts`)
+/// when an import's analysis clears the honesty gate; below the gate it writes
+/// nothing.
 model WorkoutDetection {
   id String @id @default(cuid())
 

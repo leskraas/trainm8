@@ -37,8 +37,21 @@ function serializeInput(input: EventAuthoringInput) {
 		location: input.location ?? null,
 		status: input.status,
 		notes: input.notes ?? null,
-		resultSessionId: input.resultSessionId ?? null,
 	}
+}
+
+// An Event Result is one of the athlete's own sessions. A session id from a
+// form is only an id, so check its owner before an Event points at it.
+async function ownSessionIdOrNull(
+	athleteId: string,
+	sessionId: string | null | undefined,
+): Promise<string | null> {
+	if (!sessionId) return null
+	const session = await prisma.workoutSession.findFirst({
+		where: { id: sessionId, userId: athleteId },
+		select: { id: true },
+	})
+	return session?.id ?? null
 }
 
 export async function createEvent(
@@ -46,7 +59,14 @@ export async function createEvent(
 	input: EventAuthoringInput,
 ): Promise<EventRecord> {
 	return prisma.event.create({
-		data: { athleteId, ...serializeInput(input) },
+		data: {
+			athleteId,
+			...serializeInput(input),
+			resultSessionId: await ownSessionIdOrNull(
+				athleteId,
+				input.resultSessionId,
+			),
+		},
 		select: eventSelect,
 	})
 }
@@ -64,7 +84,13 @@ export async function updateEvent(
 
 	return prisma.event.update({
 		where: { id: eventId },
-		data: serializeInput(input),
+		data: {
+			...serializeInput(input),
+			resultSessionId: await ownSessionIdOrNull(
+				athleteId,
+				input.resultSessionId,
+			),
+		},
 		select: eventSelect,
 	})
 }
@@ -160,6 +186,7 @@ export async function setEventResult(
 		select: { id: true },
 	})
 	if (!existing) return null
+	if (!(await ownSessionIdOrNull(athleteId, sessionId))) return null
 
 	return prisma.event.update({
 		where: { id: eventId },

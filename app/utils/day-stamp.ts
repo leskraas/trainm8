@@ -26,6 +26,7 @@ import {
 	parseWorkoutSentence,
 	type SentenceExercise,
 } from './workout-sentence.ts'
+import { ZONE_WORDS } from './zones/words.ts'
 
 /**
  * The stamped step's duration. Three quarters of an hour is the shape of an
@@ -39,15 +40,19 @@ export const STAMP_DURATION_SEC = 45 * 60
  * The stamped step's intensity, as an authored **Zone Label**. A zone is the
  * one intensity statement that needs nothing of the athlete to be legible: a
  * pace or a power target would either fabricate a number or refuse to render,
- * where `Z2` reads as itself and *additionally* resolves to concrete bpm/watts
- * for an athlete whose Discipline Profile can say so.
+ * where `rolig` reads as itself and *additionally* resolves to concrete
+ * bpm/watts for an athlete whose Discipline Profile can say so.
+ *
+ * Zone 2's word and never the code `Z2`: a code is a recipe's band label, and
+ * Stryd's `Z2` is zone 3 (#627). The word reads through the band the athlete's
+ * recipe declares for zone 2.
  */
-export const STAMP_ZONE_LABEL = 'Z2'
+export const STAMP_ZONE_LABEL = ZONE_WORDS[2]
 
 /**
  * The stamped session's **Workout Intent**. `endurance` is not a guess about the
  * athlete — it is the reading of the prescription that was just stamped: 45
- * minutes in Z2 *is* an endurance session, and the intent moves with the
+ * minutes in zone 2 *is* an endurance session, and the intent moves with the
  * intensity token the moment the athlete changes it on the full route.
  */
 export const STAMP_INTENT = 'endurance' as const
@@ -56,7 +61,7 @@ export const STAMP_INTENT = 'endurance' as const
  * What the cell offers, in the notation's own words — so the button says the
  * sentence the row is about to render rather than a description of it.
  */
-export const STAMP_SENTENCE = '45 min Z2'
+export const STAMP_SENTENCE = `45 min ${STAMP_ZONE_LABEL}`
 
 /**
  * Whether a Discipline is one the line can say. A cardio step states a duration
@@ -79,7 +84,7 @@ export function isStampableDiscipline(
  * indistinguishable from one authored on the full route, deliberately (ADR 0065).
  *
  * The title is **derived** from the structure by the shared deriver, not typed
- * and not invented: `45 min Z2` is what the session is.
+ * and not invented: `45 min rolig` is what the session is.
  */
 export function buildDayStamp({
 	discipline,

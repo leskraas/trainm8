@@ -96,6 +96,34 @@ describe('forms field wrappers', () => {
 			expect(error.className).not.toMatch(/text-\[10px\]/)
 		}
 	})
+
+	// An auth form keeps one error line's height with no error, so an error
+	// that comes or goes mid-typing moves nothing (tests/e2e/auth-form-layout).
+	// Every other form keeps its height to its errors.
+	test('only a form that reserves the error line keeps it without an error', () => {
+		const { container, rerender } = render(
+			<>
+				<Field labelProps={{ children: 'Email' }} inputProps={{}} />
+				<ErrorList errors={[]} />
+			</>,
+		)
+		expect(container.querySelector('[class*="min-h-"]')).toBeNull()
+		expect(
+			container.querySelector('[data-slot="field-content"]')?.children,
+		).toHaveLength(1)
+
+		rerender(
+			<>
+				<Field
+					labelProps={{ children: 'Email' }}
+					inputProps={{}}
+					reserveErrorLine
+				/>
+				<ErrorList errors={[]} reserveErrorLine />
+			</>,
+		)
+		expect(container.querySelectorAll('[class*="min-h-"]')).toHaveLength(2)
+	})
 })
 
 describe('choice fields on the ui primitives', () => {

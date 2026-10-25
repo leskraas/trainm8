@@ -170,9 +170,15 @@ type ActionResult<O> =
 			credits: Credit[]
 	  }
 	| { outcome: 'proposed'; proposalIds: string[]; link: string }
-	| { outcome: 'refused'; code: RefusalCode; next: Next; message: string }
+	| {
+			outcome: 'refused'
+			code: RefusalCode
+			next: Next
+			message: string
+			link?: string
+	  }
 	| { outcome: 'not-run'; reason: 'rate-limited' | 'switched-off' | 'internal' }
-	| { outcome: 'unknown'; message: string } // writes only: may have happened; read first
+	| { outcome: 'unknown'; message: string } // propose and write only: may have happened; read first
 
 type Next = 'fix-input' | 'ask-athlete' | 'reread' | 'stop'
 ```
@@ -185,11 +191,12 @@ type Next = 'fix-input' | 'ask-athlete' | 'reread' | 'stop'
   shows today. The seed list: `invalid-input`, `not-found`, `not-allowed`,
   `needs-athlete-yes`, `needs-scope`, `stale`, `too-late`, `already-answered`,
   `not-undoable`, `undo-expired`, and the domain's own codes as each slice lands
-  (`not-the-coming-week`, `no-before-image`).
+  (`not-the-coming-week`, `no-before-image`). `link` is where the athlete can
+  act instead; `needs-athlete-yes` always carries it (0093 §3).
 - **`not-run`** means nothing happened and the same call may succeed later.
-- **`unknown`** is only for a write whose handler started and then failed: it
-  may have committed, so the model reads before it retries. A failed read is
-  `not-run`.
+- **`unknown`** is only for a `propose` or a `write` whose handler started and
+  then failed: it may have committed, so the model reads before it retries. A
+  failed read is `not-run`.
 - `ok: true` does not exist. A `proposed` result is not success-shaped, so a
   model cannot read "proposed" as "done".
 - `UndoRef` (an opaque handle id and its expiry) is ADR 0093 §6's.
@@ -337,8 +344,9 @@ text is not copied into the row.
 
 ## The first slice: six reads and Ukeskiftet (#553)
 
-Every number below is a `Reading`. `link` is a deep link into trainm8. Durations
-are seconds, distances metres. `owner` is **Session Ownership**.
+Every number below is a `Reading`, counts included. `link` is a deep link into
+trainm8. Durations are seconds, distances metres. `owner` is **Session
+Ownership**.
 
 ```ts
 type SessionSummary = {
@@ -362,14 +370,14 @@ type SessionSummary = {
 }
 ```
 
-| Action                | Input                              | Output                                                                                                                                                                                                                    |
-| --------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get_today`           | none                               | `{ date, sessions: SessionSummary[], load: { ctl, atl, tsb: Reading<number> }, week: { tracks: { discipline, planned, actual, target: Reading<number> }[] }, openProposals: number }`                                     |
-| `list_sessions`       | `{ from, to, cursor? }`, ≤ 28 days | `{ sessions: SessionSummary[], nextCursor: string \| null }`                                                                                                                                                              |
-| `get_session`         | `{ sessionId }`                    | `SessionSummary & { workout: { title, blocks } \| null, recording: { originPlatform, device: string \| null } \| null, rpe: Reading<number>, log: AthleteText \| null }`                                                  |
-| `get_session_vs_plan` | `{ sessionId }`                    | `{ tss, durationS, distanceM: { planned, actual: Reading<number> }, band: Reading<AdherenceBand>, structure: Reading<StructureAdherence>, vsLast: { sessionId, date, deltas: Record<string, Reading<number>> } \| null }` |
-| `get_training_load`   | `{ weeks: 1–26 }`                  | `{ days: { date, tss, ctl, atl, tsb: Reading<number> }[], weeks: { weekKey, plannedTss, actualTss: Reading<number>, adherence: Reading<AdherenceBand> }[], tsbTrust: { trustworthy, daysOfHistory, requiredDays } }`      |
-| `get_season`          | none                               | `{ plan: { name, openEnded, event: { name, date } \| null } \| null, weeks: { weekKey, phase, tracks: { discipline, target, planned, actual: Reading<number> }[] }[] }`                                                   |
+| Action                | Input                              | Output                                                                                                                                                                                                                                         |
+| --------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_today`           | none                               | `{ date, sessions: SessionSummary[], load: { ctl, atl, tsb: Reading<number> }, week: { tracks: { discipline, planned, actual, target: Reading<number> }[] }, openProposals: Reading<number> }`                                                 |
+| `list_sessions`       | `{ from, to, cursor? }`, ≤ 28 days | `{ sessions: SessionSummary[], nextCursor: string \| null }`                                                                                                                                                                                   |
+| `get_session`         | `{ sessionId }`                    | `SessionSummary & { workout: { title, blocks } \| null, recording: { originPlatform, device: string \| null } \| null, rpe: Reading<number>, log: AthleteText \| null }`                                                                       |
+| `get_session_vs_plan` | `{ sessionId }`                    | `{ tss, durationS, distanceM: { planned, actual: Reading<number> }, band: Reading<AdherenceBand>, structure: Reading<StructureAdherence>, vsLast: { sessionId, date, deltas: Record<string, Reading<number>> } \| null }`                      |
+| `get_training_load`   | `{ weeks: 1–26 }`                  | `{ days: { date, tss, ctl, atl, tsb: Reading<number> }[], weeks: { weekKey, plannedTss, actualTss: Reading<number>, adherence: Reading<AdherenceBand> }[], tsbTrust: { trustworthy: boolean, daysOfHistory, requiredDays: Reading<number> } }` |
+| `get_season`          | none                               | `{ plan: { name, openEnded, event: { name, date } \| null } \| null, weeks: { weekKey, phase, tracks: { discipline, target, planned, actual: Reading<number> }[] }[] }`                                                                        |
 
 `get_week_change` (read) wraps `readWeekChange` and the card model, which moves
 out of `app/routes/_home/timeline/week-change.ts` into `app/utils/load/`. The
@@ -448,44 +456,3 @@ a reason here, before anyone else connects one. Tracked in #639.
   a test proves production refuses it (#639 H6).
 - **The rate limiter keys on IP.** Every Anthropic call shares one `/21`. Closes
   with Phase 2's limit per token subject (#639 H7).
-
-## As built in #553
-
-Where the first slice departs from the text above, and why:
-
-- **SDK.** `@modelcontextprotocol/server` 2.3.1, pinned exactly (2.4.0 was a day
-  old); `createMcpHandler` with `legacy: 'stateless'` and
-  `responseMode: 'json'`, tested on both eras with
-  `@modelcontextprotocol/client` 2.3.1. The factory registers every action
-  through `McpServer.registerTool` with pass-through Standard Schemas (JSON
-  Schema from `zod/v4`, identity validation) so `runAction` validates once and
-  an invalid input is a `refused`/`invalid-input` envelope. `web`-only actions
-  are registered too, so a model calling one hears `needs-athlete-yes` (§9.2);
-  `tools/list` is answered from the registry filtered by caller, so they never
-  appear in it. The envelope's JSON Schema root carries `type: object` beside
-  its `oneOf`.
-- **`ActionCtx` gains `origin` and `scopes`.** Deep links must be absolute for a
-  model; scopes come from the credential (absent for `web`).
-- **`refused` gains an optional `link`**, which ADR 0093 §3 already requires on
-  `needs-athlete-yes`. Ukeskiftet's service reasons are refusal codes one to
-  one, so the route's replies are unchanged.
-- **New Unavailable reasons:** `outside-plan`, `no-plan`, `not-logged`,
-  `structure-not-verifiable`.
-- **Counts are Readings too** (`openProposals`, `daysOfHistory`,
-  `requiredDays`), so the "every number is a Reading" walk has no exceptions.
-  Week tracks carry their `currency`; `vsLast.deltas` has the keys `tss` and
-  `durationS`.
-- **Lifts.** Only `resolveStructureAdherence` moved out of a route
-  (`app/utils/session-structure-adherence.ts`). `get_week_change` projects
-  `readWeekChange` (already in `app/utils/load/`); `buildWeekChangeCard` and
-  `buildSessionNudge` are Norwegian screen models no action reads, so they stay.
-- **`/mcp` is 404 in production** until OAuth, and accepts only localhost-class
-  Host and Origin. The catalog snapshot is one file, since the list does not
-  vary by scope; the compatibility test against `origin/main` is still later.
-- **Typed intensity and event names.** A step's `intensity` is the parsed
-  Intensity Target, not the stored string: its bounds are Readings in the kind's
-  unit, and a zone label crosses as `AthleteText`. `get_season`'s event name
-  (and the plan's name when it is the event's) is `AthleteText`, capped at 200
-  characters.
-- **Over-closing by week.** A week's actual volume binds to every Recording in
-  that week, so a Strava ride in Annet closes that week's run track for a model.

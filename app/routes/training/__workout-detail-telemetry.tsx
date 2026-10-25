@@ -33,10 +33,12 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { type ActivityStream, isNum } from '#app/utils/activity-stream.ts'
+import { formatClockDuration, formatPace } from '#app/utils/format.ts'
 import {
-	formatClockDuration,
-	formatPace,
-} from '#app/utils/format.ts'
+	parseAuthoredIntensity,
+	resolveStepRange,
+	type DisciplineThresholdMap,
+} from '#app/utils/intensity-target.ts'
 import { nbDurationLabel, WORKOUT_DETAIL_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
@@ -53,33 +55,49 @@ type BandChannel = 'power' | 'heartrate'
 
 type Step = WorkoutDetail['blocks'][number]['steps'][number]
 
+/** A planned target on the band channel. `max` is null for an open-ended zone
+ * (`172+ bpm`): a floor with no ceiling. */
+type PlannedTarget = { min: number; max: number | null }
+
 /** A planned step laid out as a fraction of the workout's planned duration,
  * carrying its resolved Intensity Target on the chosen channel (when any). */
 type PlannedSegment = {
 	id: string
 	startFrac: number
 	endFrac: number
-	target: { min: number; max: number } | null
+	target: PlannedTarget | null
 }
 
+/** Authored metrics whose missing top means one value (`150 bpm`), not an
+ * open band; a zone with no top resolves the same way and means `172+`. */
+const POINT_TARGET_KINDS = new Set(['hrBpm', 'hrPct', 'power', 'powerPct'])
+
+/** A step's target on `channel`, resolved from what it authors against the
+ * athlete's thresholds now — never the cached range columns, which fill only on
+ * a threshold change and so are empty on most new sessions (#616). */
 function resolveStepTarget(
 	step: Step,
+	workout: WorkoutDetail,
+	thresholds: DisciplineThresholdMap,
 	channel: BandChannel,
-): { min: number; max: number } | null {
-	if (step.kind !== 'cardio') return null
-	if (channel === 'power') {
-		if (!isNum(step.intensityPowerMin)) return null
-		return {
-			min: step.intensityPowerMin,
-			max: step.intensityPowerMax ?? step.intensityPowerMin,
-		}
-	}
-	if (!isNum(step.intensityHrMin)) return null
-	return {
-		min: step.intensityHrMin,
-		max: step.intensityHrMax ?? step.intensityHrMin,
-	}
+): PlannedTarget | null {
+	const r = resolveStepRange(step, workout.discipline, thresholds)
+	const [min, max] =
+		channel === 'power' ? [r.powerMin, r.powerMax] : [r.hrMin, r.hrMax]
+	if (!isNum(min)) return null
+	if (isNum(max)) return { min, max }
+	const kind = parseAuthoredIntensity(step.intensity)?.kind
+	return { min, max: kind && POINT_TARGET_KINDS.has(kind) ? min : null }
 }
+
+/**
+ * Past this many segments a plan's reps are far narrower than a pixel of the
+ * chart, so drawing them one by one only costs: `100x100x10 s` is 10 000 reps.
+ */
+const MAX_PLANNED_SEGMENTS = 400
+
+const sameTarget = (a: PlannedTarget | null, b: PlannedTarget | null) =>
+	a === b || (a != null && b != null && a.min === b.min && a.max === b.max)
 
 /**
  * Lay the workout's planned steps out as fractions of its total planned
@@ -87,25 +105,91 @@ function resolveStepTarget(
  * is deliberately not aligned sample-by-sample to the recording (that fragile
  * telemetry-to-step alignment is out of scope per PRD #135), so we never assert a
  * per-step verdict; the athlete eyeballs the comparison.
+ *
+ * Built a block at a time from one rep, never by expanding every rep: each step
+ * resolves once, a block with one target throughout is one segment, and a block
+ * too dense to draw rep by rep reads as its one target (or as none, when its
+ * reps target different things). Neighbours with the same target merge.
  */
 function buildPlannedSegments(
 	workout: WorkoutDetail | null,
+	thresholds: DisciplineThresholdMap,
 	channel: BandChannel | null,
 ): PlannedSegment[] {
-	const expanded = expandWorkoutSteps(workout)
-	const total = expanded.reduce((sum, e) => sum + e.durationSec, 0)
+	if (!workout) return []
+	const blocks = workout.blocks
+		.slice()
+		.sort((a, b) => a.orderIndex - b.orderIndex)
+		.map((block) => {
+			// One rep of the block, laid out as the profile lays out every rep.
+			const rep = expandWorkoutSteps({
+				...workout,
+				blocks: [{ ...block, repeatCount: 1, seriesRepeatCount: 1 }],
+			}).map((e) => ({
+				id: e.id,
+				durationSec: e.durationSec,
+				target: channel
+					? resolveStepTarget(e.step, workout, thresholds, channel)
+					: null,
+			}))
+			const reps =
+				Math.max(1, block.repeatCount) *
+				Math.max(1, block.seriesRepeatCount ?? 1)
+			const repSec = rep.reduce((sum, e) => sum + e.durationSec, 0)
+			return { id: block.id, rep, reps, repSec }
+		})
+	const total = blocks.reduce((sum, b) => sum + b.reps * b.repSec, 0)
 	if (total <= 0) return []
-	let cum = 0
-	return expanded.map((e) => {
-		const startFrac = cum / total
-		cum += e.durationSec
-		return {
-			id: e.id,
-			startFrac,
-			endFrac: cum / total,
-			target: channel ? resolveStepTarget(e.step, channel) : null,
+
+	const raw: Array<
+		Omit<PlannedSegment, 'startFrac' | 'endFrac'> & {
+			sec: number
 		}
-	})
+	> = []
+	let budget = MAX_PLANNED_SEGMENTS
+	for (const block of blocks) {
+		const first = block.rep[0]?.target ?? null
+		const uniform = block.rep.every((e) => sameTarget(e.target, first))
+		const targets = block.rep
+			.map((e) => e.target)
+			.filter((t, i, all): t is PlannedTarget =>
+				t != null ? all.findIndex((u) => sameTarget(u, t)) === i : false,
+			)
+		const count = block.reps * block.rep.length
+		if (uniform || count > budget) {
+			raw.push({
+				id: block.id,
+				sec: block.reps * block.repSec,
+				target: uniform ? first : targets.length === 1 ? targets[0]! : null,
+			})
+			continue
+		}
+		budget -= count
+		for (let r = 0; r < block.reps; r++) {
+			for (const e of block.rep) {
+				raw.push({ id: `${e.id}-r${r}`, sec: e.durationSec, target: e.target })
+			}
+		}
+	}
+
+	const segments: PlannedSegment[] = []
+	let cum = 0
+	for (const s of raw) {
+		const startFrac = cum / total
+		cum += s.sec
+		const last = segments.at(-1)
+		if (last && sameTarget(last.target, s.target)) {
+			last.endFrac = cum / total
+		} else {
+			segments.push({
+				id: s.id,
+				startFrac,
+				endFrac: cum / total,
+				target: s.target,
+			})
+		}
+	}
+	return segments
 }
 
 /** Plot bands on the channel the plan targets *and* the stream actually carries;
@@ -113,10 +197,18 @@ function buildPlannedSegments(
 function pickBandChannel(
 	stream: ActivityStream,
 	workout: WorkoutDetail | null,
+	thresholds: DisciplineThresholdMap,
 ): BandChannel | null {
-	const expanded = expandWorkoutSteps(workout)
-	const hasPowerTarget = expanded.some((e) => isNum(e.step.intensityPowerMin))
-	const hasHrTarget = expanded.some((e) => isNum(e.step.intensityHrMin))
+	// Each authored step once, not once per rep: a rep repeats its step.
+	const targets = workout
+		? workout.blocks.flatMap((block) =>
+				block.steps.map((step) =>
+					resolveStepRange(step, workout.discipline, thresholds),
+				),
+			)
+		: []
+	const hasPowerTarget = targets.some((r) => isNum(r.powerMin))
+	const hasHrTarget = targets.some((r) => isNum(r.hrMin))
 	if ((stream.power?.some(isNum) ?? false) && hasPowerTarget) return 'power'
 	if ((stream.heartrate?.some(isNum) ?? false) && hasHrTarget)
 		return 'heartrate'
@@ -271,7 +363,11 @@ function buildScales(
 			baselineY,
 			plotH,
 			c.key === bandChannel
-				? bands.flatMap((b) => [b.target!.min, b.target!.max])
+				? bands.flatMap((b) =>
+						b.target!.max != null
+							? [b.target!.min, b.target!.max]
+							: [b.target!.min],
+					)
 				: [],
 		),
 	)
@@ -282,9 +378,10 @@ function buildScales(
 function useTelemetryModel(
 	stream: ActivityStream,
 	workout: WorkoutDetail | null,
+	thresholds: DisciplineThresholdMap,
 ) {
 	return useMemo(() => {
-		const bandChannel = pickBandChannel(stream, workout)
+		const bandChannel = pickBandChannel(stream, workout, thresholds)
 		const time = stream.timeSec
 		const totalSec = time[time.length - 1] ?? 0
 		// The channels actually carried, in a stable read order (effort first,
@@ -302,10 +399,12 @@ function useTelemetryModel(
 		).length
 		const bands =
 			bandChannel != null
-				? buildPlannedSegments(workout, bandChannel).filter((s) => s.target)
+				? buildPlannedSegments(workout, thresholds, bandChannel).filter(
+						(s) => s.target,
+					)
 				: []
 		const targetLabels = Array.from(
-			new Set(bands.map((b) => `${b.target!.min}–${b.target!.max}`)),
+			new Set(bands.map((b) => L.targetRange(b.target!.min, b.target!.max))),
 		)
 		const targetUnit = bandChannel === 'power' ? 'W' : L.bpm
 		return {
@@ -323,7 +422,7 @@ function useTelemetryModel(
 			paceRange: paceChannel?.range ?? null,
 			profile: deriveSessionProfile(workout),
 		}
-	}, [stream, workout])
+	}, [stream, workout, thresholds])
 }
 
 type TelemetryModel = ReturnType<typeof useTelemetryModel>
@@ -335,19 +434,22 @@ function targetAt(model: TelemetryModel, i: number): PlannedSegment['target'] {
 	if (model.totalSec <= 0) return null
 	const frac = (model.time[i] ?? 0) / model.totalSec
 	return (
-		model.bands.find((b) => frac >= b.startFrac && frac <= b.endFrac)
-			?.target ?? null
+		model.bands.find((b) => frac >= b.startFrac && frac <= b.endFrac)?.target ??
+		null
 	)
 }
 
 export default function TelemetryOverlay({
 	stream,
 	workout,
+	thresholds,
 }: {
 	stream: ActivityStream
 	workout: WorkoutDetail | null
+	/** What the plan's targets resolve against for their bands (#616). */
+	thresholds: DisciplineThresholdMap
 }) {
-	const model = useTelemetryModel(stream, workout)
+	const model = useTelemetryModel(stream, workout, thresholds)
 	const { time, totalSec, channels, bands, pauseCount, profile } = model
 
 	// The Chart Inspect controller scrubs sample-by-sample across the whole
@@ -399,7 +501,7 @@ export default function TelemetryOverlay({
 					? [
 							(() => {
 								const t = targetAt(model, i)
-								return t ? `${t.min}–${t.max}` : '—'
+								return t ? L.targetRange(t.min, t.max) : '—'
 							})(),
 						]
 					: []),
@@ -564,8 +666,7 @@ const StaticMarks = memo(function StaticMarks({
 	baselineY: number
 }) {
 	const { time, totalSec, channels, bands, bandChannel, pauseRuns } = model
-	const x = (sec: number) =>
-		left + (totalSec > 0 ? sec / totalSec : 0) * plotW
+	const x = (sec: number) => left + (totalSec > 0 ? sec / totalSec : 0) * plotW
 	const xFrac = (frac: number) => left + frac * plotW
 	const scales = buildScales(channels, bands, bandChannel, baselineY, plotH)
 	const bandIdx = channels.findIndex((c) => c.key === bandChannel)
@@ -615,20 +716,48 @@ const StaticMarks = memo(function StaticMarks({
 				? bands.map((b) => {
 						const x0 = xFrac(b.startFrac)
 						const x1 = xFrac(b.endFrac)
+						const width = Math.max(0, x1 - x0)
+						const floor = bandScale(b.target!.min)
+						const { max } = b.target!
+						if (max != null) {
+							return (
+								<rect
+									key={`band-${b.id}`}
+									x={x0}
+									y={bandScale(max)}
+									width={width}
+									height={Math.max(0, floor - bandScale(max))}
+									data-planned-band
+									className="fill-primary/15 stroke-primary/40"
+									strokeWidth={1}
+									vectorEffect="non-scaling-stroke"
+								/>
+							)
+						}
+						// An open-ended zone (`172+`) has a floor and no ceiling: the band
+						// fills to the top of the plot, edged only at its floor, so it
+						// never draws a ceiling the plan does not have.
 						return (
-							<rect
-								key={`band-${b.id}`}
-								x={x0}
-								y={bandScale(b.target!.max)}
-								width={Math.max(0, x1 - x0)}
-								height={Math.max(
-									0,
-									bandScale(b.target!.min) - bandScale(b.target!.max),
-								)}
-								className="fill-primary/15 stroke-primary/40"
-								strokeWidth={1}
-								vectorEffect="non-scaling-stroke"
-							/>
+							<g key={`band-${b.id}`}>
+								<rect
+									x={x0}
+									y={top}
+									width={width}
+									height={Math.max(0, floor - top)}
+									data-planned-band
+									data-open-ended
+									className="fill-primary/15"
+								/>
+								<line
+									x1={x0}
+									x2={x0 + width}
+									y1={floor}
+									y2={floor}
+									className="stroke-primary/40"
+									strokeWidth={1}
+									vectorEffect="non-scaling-stroke"
+								/>
+							</g>
 						)
 					})
 				: null}
@@ -664,8 +793,7 @@ function Crosshair({
 	const { padding, plotW, plotH } = geom
 	const x =
 		padding.left +
-		(model.totalSec > 0 ? (model.time[index] ?? 0) / model.totalSec : 0) *
-			plotW
+		(model.totalSec > 0 ? (model.time[index] ?? 0) / model.totalSec : 0) * plotW
 	return (
 		<line
 			x1={x}

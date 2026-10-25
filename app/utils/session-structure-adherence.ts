@@ -21,6 +21,8 @@ type PrescribedWorkout = {
 	discipline: string
 	blocks: Array<{
 		repeatCount: number | null
+		/** The series level of `3 × (13 × 30/15)` (#634), if any. */
+		seriesRepeatCount: number | null
 		steps: Array<{
 			kind: string
 			discipline: string | null
@@ -74,7 +76,9 @@ function plannedStructureFromWorkout(
 		discipline: workout.discipline,
 		blocks: workout.blocks
 			.map((block) => ({
-				repeatCount: block.repeatCount ?? 1,
+				// The comparator has one repeat level, so `3 × (13 × 30/15)` reaches
+				// it as 39 reps (#634); the series rests do not enter its count.
+				repeatCount: (block.repeatCount ?? 1) * (block.seriesRepeatCount ?? 1),
 				steps: block.steps.flatMap((step) => {
 					if (step.kind === 'rest') {
 						return step.durationSec != null

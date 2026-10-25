@@ -440,6 +440,11 @@ export function isMissedSet(set: {
  * and an unloaded carry stay fully loggable, and the other side of a unilateral
  * set counts as a count of its own.
  *
+ * **Zero is a count.** The runner's tap cycle counts a set down to `0` before
+ * the tap that clears it (ADR 0064 §1), and a set that got no rep up is a miss
+ * the program has to read — refusing it left a logged set with no way to clear
+ * (#531). A blank field arrives as `null`, never `0`, so the defect stays shut.
+ *
  * Two exemptions, each for its own reason.
  *
  * **An abandoned set** is the honest record of a rack-and-walk-away, and of an
@@ -462,7 +467,7 @@ export function statesWhatWasPerformed(set: {
 	if (set.outcome !== 'completed') return true
 	if (set.role === 'warmup') return true
 	return [set.reps, set.repsLeft, set.durationSec].some(
-		(count) => count != null && count > 0,
+		(count) => count != null && count >= 0,
 	)
 }
 

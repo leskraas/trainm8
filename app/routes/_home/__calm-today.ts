@@ -22,9 +22,18 @@
  *   start.
  */
 import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
-import { type EffortWord, readEffortWord } from '#app/utils/effort-word.ts'
+import {
+	type EffortWord,
+	readEffortWord,
+	titleStatesEffort,
+} from '#app/utils/effort-word.ts'
 import { formatNbDayMonth, formatNbWeekday } from '#app/utils/format.ts'
-import { CALM_TODAY_LABELS as L, nbDurationLabel } from '#app/utils/labels.ts'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
+import {
+	approxLabel,
+	CALM_TODAY_LABELS as L,
+	nbDurationLabel,
+} from '#app/utils/labels.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -49,6 +58,7 @@ export type CalmSession = {
 	/** `45 min`, `1 t 30 min`; null where the session states no time. */
 	durationLabel: string | null
 	effort: EffortWord | null
+	/** The Effort Word as shown; null where the title already says it. */
 	effortLabel: string | null
 	/** _Gjort_, where `canMarkDone` allows it; null on anything still ahead. */
 	markDone: TimelineSession['markDone']
@@ -136,6 +146,7 @@ export function buildCalmToday({
 	timezone,
 	activePlan,
 	strengthCta,
+	thresholds = {},
 }: {
 	season: TimelineSeason
 	ledger: readonly LedgerSession[]
@@ -144,15 +155,18 @@ export function buildCalmToday({
 	activePlan: ActivePlan | null
 	/** Today's runner link for a lift (`buildTodayRow`'s cta), by session. */
 	strengthCta?: { sessionId: string; label: string; to: string } | null
+	/** What an Effort Word reads an absolute pace, watts or bpm by (#617). */
+	thresholds?: DisciplineThresholdMap
 }): CalmToday {
 	const todayKey = season.todayKey
 	const byId = new Map(ledger.map((session) => [session.id, session]))
 	const toCalm = (session: TimelineSession, dayKey: string): CalmSession => {
 		const source = byId.get(session.id)
-		const minutes = source
-			? toSessionLedgerEntry(source, now, timezone).durationMin
+		const entry = source
+			? toSessionLedgerEntry(source, now, timezone, thresholds)
 			: null
-		const effort = source ? readEffortWord(source.workout) : null
+		const minutes = entry?.durationMin ?? null
+		const effort = source ? readEffortWord(source.workout, thresholds) : null
 		return {
 			id: session.id,
 			dayKey,
@@ -161,12 +175,21 @@ export function buildCalmToday({
 			discipline: session.discipline,
 			disciplineLabel: session.disciplineLabel,
 			status: session.status,
+			// Minutes timed through a pace read `≈ 57 min`, as on the row (#638).
 			durationLabel:
 				minutes != null && minutes > 0
-					? nbDurationLabel(Math.round(minutes) * 60)
+					? approxLabel(
+							nbDurationLabel(Math.round(minutes) * 60),
+							entry?.durationEstimated ?? false,
+						)
 					: null,
 			effort,
-			effortLabel: effort ? L.effort[effort] : null,
+			// A title that already says how hard (`Rolig løpetur`, `45 min
+			// moderat`) is not told it again in another word beside it (#638).
+			effortLabel:
+				effort && !titleStatesEffort(session.title, effort)
+					? L.effort[effort]
+					: null,
 			markDone: session.markDone,
 		}
 	}

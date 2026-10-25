@@ -7,16 +7,15 @@ import {
 } from '#app/utils/activity-import.server.ts'
 import { isNum, type RawStream } from '#app/utils/activity-stream.ts'
 import {
-	getLthrByDiscipline,
+	enrichImportTelemetry,
 	persistActivityLaps,
-	persistActivityStream,
-	persistHrPhaseBars,
 } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { rethrowDeferral } from '#app/utils/jobs/queue.server.ts'
 import { type Lap } from '#app/utils/structure-detection/types.ts'
 import { stravaApiGet } from './client.server.ts'
 import { stravaTypeToDiscipline } from './discipline-map.ts'
-import { createRateLimiter, STRAVA_RATE_LIMIT } from './rate-limit.ts'
+import { type RateLimitLane } from './rate-limit.ts'
 import {
 	STRAVA_PROVIDER,
 	StravaActivitiesSchema,
@@ -38,14 +37,6 @@ import {
 const PER_PAGE = 100
 /** Safety cap so a misbehaving cursor can never loop forever. */
 const MAX_PAGES = 20
-
-/**
- * Process-wide limiter shared by every Strava fetch (manual sync + backfill), so
- * the per-app 600/15min budget is honoured across all athletes' activity. The
- * single-worker design serialises concurrent backfills; this paces the requests
- * within and across them.
- */
-const stravaRateLimiter = createRateLimiter(STRAVA_RATE_LIMIT)
 
 /** Map one Strava summary activity onto the provider-neutral import shape. */
 export function mapActivityToImportInput(
@@ -167,7 +158,6 @@ export async function fetchStravaActivitiesAfter(
 ): Promise<StravaActivity[]> {
 	const all: StravaActivity[] = []
 	for (let page = 1; page <= MAX_PAGES; page++) {
-		await stravaRateLimiter.acquire()
 		const activities = StravaActivitiesSchema.parse(
 			await stravaApiGet(
 				connection,
@@ -184,94 +174,16 @@ export async function fetchStravaActivitiesAfter(
 /**
  * Fetch a single Strava activity by its external id. Used by the webhook fetch
  * worker (#76), which receives only `{ object_id }` and must pull the body out
- * of band. Shares the process-wide rate limiter so a burst of webhook events
- * stays within the per-app budget.
+ * of band. Paced in the limiter's `live` lane, so a burst of webhook events
+ * stays within the per-app budget without waiting behind a backfill.
  */
 export async function fetchStravaActivityById(
 	connection: ConnectionRef,
 	externalId: string,
 ): Promise<StravaActivity> {
-	await stravaRateLimiter.acquire()
 	return StravaActivitySchema.parse(
-		await stravaApiGet(connection, `/activities/${externalId}`),
+		await stravaApiGet(connection, `/activities/${externalId}`, 'live'),
 	)
-}
-
-/**
- * Fetch an activity's time + heart-rate streams. Returns `null` when the
- * activity carries no usable HR data (no strap, or Strava omits the channel).
- * Shares the process-wide rate limiter like every other Strava fetch.
- */
-export async function fetchStravaHrStream(
-	connection: ConnectionRef,
-	externalId: string,
-): Promise<{ time: number[]; heartrate: number[] } | null> {
-	await stravaRateLimiter.acquire()
-	const parsed = StravaStreamSetSchema.safeParse(
-		await stravaApiGet(
-			connection,
-			`/activities/${externalId}/streams?keys=time,heartrate&key_by_type=true`,
-		),
-	)
-	if (!parsed.success) return null
-	const time = parsed.data.time?.data
-	const heartrate = parsed.data.heartrate?.data
-	if (!time?.length || !heartrate?.length) return null
-	return { time, heartrate }
-}
-
-/**
- * Best-effort: derive each recording's intensity profile (zone phases) from its
- * HR stream and store it on the import, so recordings show the same phase bars
- * as planned workouts. Uses the athlete's per-discipline threshold HR; skips
- * activities without HR, without a threshold for that discipline, or already
- * enriched (idempotent + avoids redundant stream calls on re-sync). Never throws
- * — phase bars are an adornment, never load-bearing for a sync's success.
- */
-export async function enrichRecordingPhaseBars(
-	connection: ConnectionRef,
-	athleteId: string,
-	activities: StravaActivity[],
-): Promise<void> {
-	try {
-		const lthrByDiscipline = await getLthrByDiscipline(athleteId)
-		if (lthrByDiscipline.size === 0) return
-
-		for (const activity of activities) {
-			const discipline = stravaTypeToDiscipline(
-				activity.sport_type ?? activity.type ?? '',
-			)
-			const thresholdHr = lthrByDiscipline.get(discipline)
-			if (thresholdHr == null) continue
-
-			const existing = await prisma.activityImport.findUnique({
-				where: {
-					athleteId_externalProvider_externalId: {
-						athleteId,
-						externalProvider: STRAVA_PROVIDER,
-						externalId: activity.id,
-					},
-				},
-				select: { id: true, phaseBarsJson: true },
-			})
-			if (!existing || existing.phaseBarsJson != null) continue
-
-			try {
-				const stream = await fetchStravaHrStream(connection, activity.id)
-				if (!stream) continue
-				await persistHrPhaseBars(
-					existing.id,
-					stream.time,
-					stream.heartrate,
-					thresholdHr,
-				)
-			} catch {
-				// One activity's stream failing must not abort the rest.
-			}
-		}
-	} catch {
-		// Profile lookup / DB issue — phase bars are best-effort.
-	}
 }
 
 /**
@@ -281,17 +193,18 @@ export async function enrichRecordingPhaseBars(
  * Requests the elapsed-time axis plus the modeled channels: heart rate, power
  * (`watts`), and speed (`velocity_smooth`, converted per sample to pace in
  * sec/km — a stop reads as a `null` gap, not an infinite pace). Shares the
- * process-wide rate limiter like every other Strava fetch.
+ * process-wide rate limiter like every other Strava fetch, in `lane`.
  */
 export async function fetchStravaActivityStreams(
 	connection: ConnectionRef,
 	externalId: string,
+	lane: RateLimitLane = 'bulk',
 ): Promise<RawStream | null> {
-	await stravaRateLimiter.acquire()
 	const parsed = StravaStreamSetSchema.safeParse(
 		await stravaApiGet(
 			connection,
 			`/activities/${externalId}/streams?keys=time,heartrate,watts,velocity_smooth&key_by_type=true`,
+			lane,
 		),
 	)
 	if (!parsed.success) return null
@@ -314,15 +227,15 @@ export async function fetchStravaActivityStreams(
  * Fetch an activity's provider laps via `GET /activities/{id}/laps`. Returns
  * `null` on a shape that doesn't parse (never throws for a bad body) so a
  * missing/malformed laps response degrades to stream-only detection (#356).
- * Shares the process-wide rate limiter like every other Strava fetch.
+ * Shares the process-wide rate limiter like every other Strava fetch, in `lane`.
  */
 export async function fetchStravaActivityLaps(
 	connection: ConnectionRef,
 	externalId: string,
+	lane: RateLimitLane = 'bulk',
 ): Promise<StravaLap[] | null> {
-	await stravaRateLimiter.acquire()
 	const parsed = StravaLapsSchema.safeParse(
-		await stravaApiGet(connection, `/activities/${externalId}/laps`),
+		await stravaApiGet(connection, `/activities/${externalId}/laps`, lane),
 	)
 	if (!parsed.success) return null
 	return parsed.data
@@ -408,17 +321,20 @@ export async function ingestActivityLaps(
 	activityImportId: string,
 	streamTime: number[],
 	activityStartMs?: number,
+	lane: RateLimitLane = 'bulk',
 ): Promise<void> {
 	try {
-		const laps = await fetchStravaActivityLaps(connection, externalId)
+		const laps = await fetchStravaActivityLaps(connection, externalId, lane)
 		if (!laps) return
 		const markers = stravaLapsToMarkers(laps, {
 			time: streamTime,
 			activityStartMs,
 		})
 		if (markers.length > 0) await persistActivityLaps(activityImportId, markers)
-	} catch {
+	} catch (err) {
 		// Laps are a refinement; a failure must never abort the enclosing ingest.
+		// A spent Strava budget is not a failure: the job waits for it (#637).
+		rethrowDeferral(err)
 	}
 }
 
@@ -426,14 +342,19 @@ export async function ingestActivityLaps(
  * Best-effort: for each modeled-discipline activity, fetch its per-sample
  * telemetry, downsample it (ADR 0020), and persist it as the Activity Import's
  * Activity Stream — the data the Workout Detail View overlays against the plan
- * (#139). Skips `'other'` activities (no overlay), imports we don't have, and
- * imports already carrying a stream (idempotent + spares a redundant stream call
- * on re-sync). An activity with no usable streams persists nothing. Never throws
- * — telemetry is an enrichment, never load-bearing for a sync's success.
+ * (#139) — with its HR phase bars, then enqueue Structure Detection. Skips
+ * `'other'` activities (no overlay), imports we don't have, and imports already
+ * carrying a stream (idempotent + spares a redundant stream call on re-sync).
+ * An activity with no usable streams persists nothing but `streamsCheckedAt`,
+ * and is skipped from then on too. Never throws —
+ * telemetry is an enrichment, never load-bearing for a sync's success — except
+ * `DeferJob` when Strava's budget is spent, so the job resumes later. `lane`
+ * is the rate-limit lane its Strava calls are paced in.
  */
 export async function ingestActivityStreams(
 	connection: ConnectionRef & { athleteId: string },
 	activities: StravaActivity[],
+	lane: RateLimitLane = 'bulk',
 ): Promise<void> {
 	for (const activity of activities) {
 		const discipline = stravaTypeToDiscipline(
@@ -450,12 +371,23 @@ export async function ingestActivityStreams(
 						externalId: activity.id,
 					},
 				},
-				select: { id: true, stream: { select: { id: true } } },
+				select: {
+					id: true,
+					streamsCheckedAt: true,
+					stream: { select: { id: true } },
+				},
 			})
-			if (!existing || existing.stream) continue
+			if (!existing || existing.stream || existing.streamsCheckedAt) continue
 
-			const raw = await fetchStravaActivityStreams(connection, activity.id)
-			if (!raw) continue
+			const raw = await fetchStravaActivityStreams(
+				connection,
+				activity.id,
+				lane,
+			)
+			if (!raw) {
+				await markStreamsChecked(existing.id)
+				continue
+			}
 			// Provider laps first (#356): ground-truth edges for the lap-edged path,
 			// persisted before the stream so any detection reads them on first compute.
 			await ingestActivityLaps(
@@ -464,11 +396,35 @@ export async function ingestActivityStreams(
 				existing.id,
 				raw.time,
 				new Date(activity.start_date).getTime(),
+				lane,
 			)
-			await persistActivityStream(existing.id, raw)
-		} catch {
+			// The shared enrichment (#611): stream, HR phase bars and the detection
+			// enqueue, all from this one streams call.
+			await enrichImportTelemetry(
+				connection.athleteId,
+				existing.id,
+				discipline,
+				raw,
+			)
+			// A stream too short to keep is as good as none.
+			await markStreamsChecked(existing.id)
+		} catch (err) {
 			// One activity's stream failing (fetch error, or a concurrent trigger
-			// that already inserted the row) must not abort the rest.
+			// that already inserted the row) must not abort the rest. A spent
+			// Strava budget would fail every one of them, so the job waits instead.
+			rethrowDeferral(err)
 		}
 	}
+}
+
+/**
+ * Strava answered the import's streams fetch with nothing usable: mark it, so
+ * a deferred job that starts over, or a webhook redelivery, doesn't spend a
+ * read asking again (#638). A no-op when a stream landed.
+ */
+async function markStreamsChecked(activityImportId: string): Promise<void> {
+	await prisma.activityImport.updateMany({
+		where: { id: activityImportId, stream: { is: null } },
+		data: { streamsCheckedAt: new Date() },
+	})
 }

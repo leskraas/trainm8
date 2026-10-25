@@ -202,6 +202,8 @@ export type AnchorActionData =
 	| { strengthOffer: unknown }
 	/** The Sesong edits' reply (#505 S13); read by `__season-edits.tsx`. */
 	| { seasonEdit: unknown }
+	/** _Legg til et løp_'s reply (#518); read by `__attach-event.tsx`. */
+	| { attachEvent: unknown }
 	| undefined
 
 /**

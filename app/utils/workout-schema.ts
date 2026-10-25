@@ -376,13 +376,16 @@ export type ExerciseSet = z.infer<typeof ExerciseSetSchema>
 /**
  * The **Step Parameters** every cardio step may carry beside its quantity.
  * These are not quantities and do not compete with one: a hill session is
- * `6 min @ 8 %`, and a torque interval is `6 min @ 80–90 % FTP · 50–60 rpm`.
- * Grade is signed — a descent is a real prescription — and cadence is a
- * prescription rather than telemetry, which is why it lives on the step and not
- * only on the recording.
+ * `90 s · 4–7 % motbakke`, and a torque interval is
+ * `6 min @ 80–90 % FTP · 50–60 rpm`. Grade is a signed band — a descent is a
+ * real prescription, and every hill row states a band, never one number
+ * (#466); a single grade states both ends equal. Cadence is a prescription
+ * rather than telemetry, which is why it lives on the step and not only on the
+ * recording.
  */
 const StepParameterFields = {
-	gradePct: z.number().min(-100).max(100).optional(),
+	gradePctMin: z.number().min(-100).max(100).optional(),
+	gradePctMax: z.number().min(-100).max(100).optional(),
 	cadenceRpmMin: z.number().int().positive().max(300).optional(),
 	cadenceRpmMax: z.number().int().positive().max(300).optional(),
 }
@@ -394,6 +397,13 @@ const cadenceOrdered = (step: {
 	step.cadenceRpmMin == null ||
 	step.cadenceRpmMax == null ||
 	step.cadenceRpmMax >= step.cadenceRpmMin
+
+/** A grade band runs low to high on the signed scale: a 3–6 % descent is
+ * `gradePctMin: -6, gradePctMax: -3`. */
+const gradeOrdered = (step: { gradePctMin?: number; gradePctMax?: number }) =>
+	step.gradePctMin == null ||
+	step.gradePctMax == null ||
+	step.gradePctMax >= step.gradePctMin
 
 // Step schemas — discriminated union over kind
 export const CardioStepSchema = z
@@ -426,6 +436,10 @@ export const CardioStepSchema = z
 	.refine(cadenceOrdered, {
 		message: WORKOUT_SCHEMA_MESSAGES.cadenceOrder,
 		path: ['cadenceRpmMax'],
+	})
+	.refine(gradeOrdered, {
+		message: WORKOUT_SCHEMA_MESSAGES.gradeOrder,
+		path: ['gradePctMax'],
 	})
 
 export const StrengthStepSchema = z.object({
