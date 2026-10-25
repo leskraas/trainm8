@@ -49,3 +49,14 @@ test('the notice has no repeated heading or line within a section', () => {
 		expect(new Set(section.body).size).toBe(section.body.length)
 	}
 })
+
+// Account deletion removes the user row, not everything (ADR 0105 §3): the
+// profile image stays in object storage, and workouts and exercises the athlete
+// wrote are kept without an owner (`onDelete: SetNull`). The notice says so.
+test('the notice does not promise more deletion than account deletion does', () => {
+	render(<PrivacyRoute />)
+
+	expect(screen.queryByText(/slettes alt/)).toBeNull()
+	expect(screen.getByText(/Profilbildet ditt/)).toBeTruthy()
+	expect(screen.getByText(/Økter og øvelser du har laget selv/)).toBeTruthy()
+})

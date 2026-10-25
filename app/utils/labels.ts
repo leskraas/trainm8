@@ -8438,7 +8438,9 @@ export const PRIVACY_NOTICE_LABELS = {
 		{
 			heading: 'Hvor lenge vi lagrer',
 			body: [
-				'Treningsdata, aktivitetsfiler og kurver: så lenge du har konto. Sletter du kontoen, forsvinner det fra den aktive databasen med en gang. Kopier i sikkerhetskopier følger neste linje.',
+				'Treningsdata, aktivitetsfiler og kurver: så lenge du har konto. Sletter du kontoen, forsvinner de fra den aktive databasen med en gang. Kopier i sikkerhetskopier følger nedenfor.',
+				'Profilbildet ditt blir i dag ikke slettet fra bildelageret (Tigris) når du sletter kontoen. Vi bygger slettingen; til den er på plass, fjerner vi bildet når du ber om det.',
+				'Økter og øvelser du har laget selv (oppskriftene, ikke loggen over det du har trent), blir i dag liggende uten kobling til deg når du sletter kontoen. Har du delt en økt, står den igjen under visningsnavnet du delte den med. [BEHANDLINGSANSVARLIG AVGJØR HVOR LENGE DE LAGRES.]',
 				'Sikkerhetskopier: inntil 5 dager. Slettede data forsvinner når kopiene utløper.',
 				'Tilgangsnøkler til tilkoblede tjenester: til du kobler fra, eller etter 90 dager uten at koblingen virker.',
 				'Strava: trainm8 henter ikke lenger fra Strava. Bufrede Strava-data slettes etter 7 dager.',

@@ -73,29 +73,44 @@ route and the webhook (both report "not configured" without them).
   now so the athlete's Training Load history does not shift (ADR 0012's reason).
   _Proposed, owner to confirm, and a question for legal_: Strava's agreement may
   require deleting **all** Strava data once trainm8 stops using the API. If
-  legal reads it that way, the athlete first re-imports the same history from
-  Strava's bulk export (origin `upload`), then the summary rows are deleted and
-  load is recomputed. Order matters: an upload made while the Strava row exists
-  dedupes into an alias of it and would go with it.
+  legal reads it that way, the summary rows are replaced, not just deleted, by a
+  **staged replacement** (_not built_; it graduates with the removal ticket):
+  1. The athlete uploads Strava's bulk export. Today `fileActivityImport()`
+     dedupes a file matching an existing import into an `ActivityImportAlias` of
+     it, and the alias cascades away with the Strava import, so a plain upload
+     before deletion is lost and a plain upload after deletion drops the session
+     links. The replacement therefore runs in its own mode: for a file that
+     matches a Strava import it creates an **independent** `upload`
+     `ActivityImport` (with its `ActivityFile` and streams) instead of an alias.
+  2. In the same transaction it moves what pointed at the Strava import onto the
+     new one (`promotedSessionId`, the session's link, any aliases), then
+     deletes the Strava import.
+  3. Training Load is recomputed from the earliest replaced date.
+
+  A Strava import with no matching file is deleted after the athlete has seen
+  the list, and load is recomputed the same way.
 
 ### 3. Retention per data class
 
-| Data class                                               | Kept                                                                                                                                           | Then                                                                                |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| The training record (sessions, logs, RPE, profile, load) | While the account exists                                                                                                                       | Deleted with the account (cascade)                                                  |
-| Original files (`ActivityFile`, TCX/GPX in `rawJson`)    | While the import exists                                                                                                                        | Deleted with the import or the account                                              |
-| Activity streams                                         | While the import exists                                                                                                                        | As above                                                                            |
-| Provider payload `rawJson`, Intervals.icu                | While the import exists. _Proposed, owner to confirm_: no cache term binds it, and it is the fallback record where the FIT harvest got no file | As above                                                                            |
-| Anything with Origin Platform `strava`                   | Payloads seven days (§2)                                                                                                                       | Purged; summary per §2                                                              |
-| Provider tokens (`AccountConnection`)                    | While connected. A connection that has not been `active` for 90 days is disconnected (ADR 0012's quiet timeout)                                | Deleted on disconnect, timeout or account deletion                                  |
-| Health-data consent records (#549)                       | While the account exists, every version and withdrawal                                                                                         | Deleted with the account                                                            |
-| MCP audit log (ADR 0092 §11, from Phase 2)               | 12 months rolling. _Proposed, owner to confirm_                                                                                                | Deleted at 12 months or with the account                                            |
-| Agent transcripts and tool payloads                      | **Not stored.** An assistant's chat lives with its provider. An in-app agent (ADR 0095) would get 30 days and a new decision here              | Never written to logs or the error tracker                                          |
-| Login sessions, verifications                            | Until they expire (Epic Stack defaults)                                                                                                        | Deleted                                                                             |
-| Job rows                                                 | 30 days after they finish. _Proposed_                                                                                                          | Deleted                                                                             |
-| Deleted accounts                                         | Gone from the live database at once (`onDelete: Cascade`)                                                                                      | Survive only in backups, below                                                      |
-| Backups                                                  | Fly's daily volume snapshots, kept 5 days (Fly's default; the owner verifies with `fly volumes snapshots list`)                                | Expire. A restore must re-delete accounts deleted after the snapshot (runbook owed) |
-| Server logs and Sentry (if `SENTRY_DSN` is set)          | The provider's retention; the owner fills in the figure                                                                                        | Expire                                                                              |
+| Data class                                               | Kept                                                                                                                                                    | Then                                                                                          |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| The training record (sessions, logs, RPE, profile, load) | While the account exists                                                                                                                                | Deleted with the account (cascade)                                                            |
+| Original files (`ActivityFile`, TCX/GPX in `rawJson`)    | While the import exists                                                                                                                                 | Deleted with the import or the account                                                        |
+| Activity streams                                         | While the import exists                                                                                                                                 | As above                                                                                      |
+| Provider payload `rawJson`, Intervals.icu                | While the import exists. _Proposed, owner to confirm_: no cache term binds it, and it is the fallback record where the FIT harvest got no file          | As above                                                                                      |
+| Anything with Origin Platform `strava`                   | Payloads seven days (§2)                                                                                                                                | Purged; summary per §2                                                                        |
+| Provider tokens (`AccountConnection`)                    | While connected. A connection that has not been `active` for 90 days is disconnected (ADR 0012's quiet timeout)                                         | Deleted on disconnect, timeout or account deletion                                            |
+| Health-data consent records (#549)                       | While the account exists, every version and withdrawal                                                                                                  | Deleted with the account                                                                      |
+| MCP audit log (ADR 0092 §11, from Phase 2)               | 12 months rolling. _Proposed, owner to confirm_                                                                                                         | Deleted at 12 months or with the account                                                      |
+| Agent transcripts and tool payloads                      | **Not stored.** An assistant's chat lives with its provider. An in-app agent (ADR 0095) would get 30 days and a new decision here                       | Never written to logs or the error tracker                                                    |
+| Login sessions, verifications                            | Until they expire (Epic Stack defaults)                                                                                                                 | Deleted                                                                                       |
+| Job rows                                                 | 30 days after they finish. _Proposed_                                                                                                                   | Deleted                                                                                       |
+| Deleted accounts                                         | The user row and everything that cascades from it go from the live database at once. Three classes below do not                                         | Survive only in backups, below                                                                |
+| Profile images (Tigris object behind `UserImage`)        | Account deletion removes the `UserImage` row only; the object stays in the bucket. _Not built_: delete the object with the account                      | Until then, removed on request (Art. 17)                                                      |
+| Workouts and exercises the athlete authored              | `Workout.owner` and `Exercise.createdBy` are `onDelete: SetNull`: the definitions stay, ownerless. A shared workout keeps its `Attribution.displayName` | _Proposed, owner to confirm_: delete unshared ones with the account; shared ones per ADR 0052 |
+| Reports the athlete filed (`WorkoutReport`)              | `reporterId` is `SetNull` (ADR 0052): the report stays, without the reporter                                                                            | With the reported workout                                                                     |
+| Backups                                                  | Fly's daily volume snapshots, kept 5 days (Fly's default; the owner verifies with `fly volumes snapshots list`)                                         | Expire. A restore must re-delete accounts deleted after the snapshot (runbook owed)           |
+| Server logs and Sentry (if `SENTRY_DSN` is set)          | The provider's retention; the owner fills in the figure                                                                                                 | Expire                                                                                        |
 
 The periods are enforced by a daily **retention sweep** beside the reconcile
 sweep (`server/index.ts`), one query per row of the table that has a clock. _Not
@@ -152,6 +167,9 @@ is moot and the removal is code only.
   seeds development. Recommended: rebuild the seed and the detection corpus from
   `intervals-real-history.json` or the owner's bulk export.
 - Fill in Fly's log retention and Sentry's (if enabled) for the notice.
+- _Proposed, owner to confirm:_ what happens to workouts and exercises an
+  athlete authored when they delete the account (§3); the notice carries a
+  placeholder until then.
 
 ## Deferred hardening
 
@@ -165,3 +183,9 @@ Tracked for #639.
   this ADR and the notice say.
 - **A backup restore resurrects deleted accounts** for up to five days of
   deletions, with no runbook to re-delete them.
+- **Account deletion leaves the profile image in Tigris.** The `UserImage` row
+  goes, the object does not, and nothing reaches it again. The notice says so
+  and promises removal on request until deletion is built.
+- **Account deletion leaves authored workouts and exercises ownerless**
+  (`SetNull`), and a shared one keeps the author's display name. The notice says
+  so; the owner decides their retention (Open for the owner).
