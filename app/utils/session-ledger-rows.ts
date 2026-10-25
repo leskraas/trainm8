@@ -1,3 +1,4 @@
+import { type DisciplineThresholdMap } from './intensity-target.ts'
 import {
 	deriveSessionProfile,
 	parseRecordingPhaseBars,
@@ -48,6 +49,8 @@ export function buildLedgerRows(
 	now: Date = new Date(),
 	/** The Athlete Timezone: today's sessions stay planned (`deriveLedgerStatus`). */
 	timezone?: string,
+	/** What a distance step's duration is timed against (#615). */
+	thresholds: DisciplineThresholdMap = {},
 ): LedgerRow[] {
 	const nowMs = now.getTime()
 	const rows: LedgerRow[] = []
@@ -63,7 +66,7 @@ export function buildLedgerRows(
 			kind: 'session',
 			id: s.id,
 			session: s,
-			entry: toSessionLedgerEntry(s, now, timezone),
+			entry: toSessionLedgerEntry(s, now, timezone, thresholds),
 			bars: profile.bars,
 			groups: profile.groups,
 			isPast,

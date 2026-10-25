@@ -7,7 +7,11 @@ import {
 	addWeekPatternDay,
 	createPlanOutline,
 } from './authoring.server.ts'
-import { attachEventToOutline } from './open-ended.server.ts'
+import {
+	addRaceToOpenEndedPlan,
+	attachEventToOutline,
+	readAttachEvent,
+} from './open-ended.server.ts'
 import { stampWeekPattern } from './stamp.server.ts'
 
 // Seam 1 for adding an Event to an open-ended plan (#505 stories 7–8, ADR 0079
@@ -312,4 +316,214 @@ test('after an Event is added, weeks up to the horizon the plan never laid get t
 			select: { answer: true, appliedAt: true },
 		}),
 	).toEqual({ answer: 'declined', appliedAt: null })
+})
+
+// ── The preview (#518) ──────────────────────────────────────────────────────
+
+async function phasesOf(outlineId: string) {
+	return prisma.planOutlinePhase.findMany({
+		where: { outlineId },
+		orderBy: { orderIndex: 'asc' },
+		select: { name: true, weeks: true, rhythm: true, tapers: true },
+	})
+}
+
+async function sessionsOf(userId: string) {
+	return prisma.workoutSession.findMany({
+		where: { userId },
+		select: { id: true, updatedAt: true },
+		orderBy: { id: 'asc' },
+	})
+}
+
+test('the preview writes nothing, counts the athlete’s sessions it keeps, and is what the attach then applies', async () => {
+	const { userId, outlineId, eventId } = await setUp()
+	// One session the athlete took over and one they wrote, both ahead; one of
+	// their own already this week, which is lived and not counted.
+	const [adopted] = await sessionOn(userId, '2030-01-21')
+	await prisma.workoutSession.update({
+		where: { id: adopted!.id },
+		data: { adoptedAt: new Date('2030-01-05T12:00:00Z') },
+	})
+	await prisma.workoutSession.createMany({
+		data: [
+			{
+				userId,
+				scheduledAt: new Date('2030-01-15T16:00:00Z'),
+				status: 'scheduled',
+				source: 'authored',
+			},
+			{
+				userId,
+				scheduledAt: new Date('2030-01-10T16:00:00Z'),
+				status: 'scheduled',
+				source: 'authored',
+			},
+		],
+	})
+	const phasesBefore = await phasesOf(outlineId)
+	const sessionsBefore = await sessionsOf(userId)
+
+	const preview = await readAttachEvent(
+		userId,
+		outlineId,
+		{ kind: 'event', eventId },
+		WEDNESDAY,
+	)
+	if (!preview.ok) throw new Error(preview.reason)
+
+	// Nothing moved, and asking twice gives the same answer.
+	expect(await phasesOf(outlineId)).toEqual(phasesBefore)
+	expect(await sessionsOf(userId)).toEqual(sessionsBefore)
+	expect(
+		(await prisma.planOutline.findUniqueOrThrow({ where: { id: outlineId } }))
+			.eventId,
+	).toBeNull()
+	expect(
+		await readAttachEvent(
+			userId,
+			outlineId,
+			{ kind: 'event', eventId },
+			WEDNESDAY,
+		),
+	).toEqual(preview)
+
+	expect(preview).toMatchObject({
+		event: { name: 'Vårløpet', dayKey: '2030-03-10', weekKey: '2030-03-04' },
+		ended: { name: 'Blokk 1', weeks: 2, wasWeeks: 4 },
+		removed: ['Blokk 2'],
+		fromWeekKey: '2030-01-14',
+		keptSessions: 2,
+	})
+
+	const applied = await attachEventToOutline(
+		userId,
+		outlineId,
+		eventId,
+		WEDNESDAY,
+		{ digest: preview.digest },
+	)
+	expect(applied).toEqual({
+		ok: true,
+		eventId,
+		ended: { name: 'Blokk 1', weeks: 2 },
+		phases: preview.edit.add.map(({ name, weeks }) => ({ name, weeks })),
+	})
+	expect((await phasesOf(outlineId)).map((p) => [p.name, p.weeks])).toEqual(
+		preview.rows.phases.map((p) => [p.name, p.weeks]),
+	)
+})
+
+test('a race named on the spot is previewed without being made, and made only by the confirm', async () => {
+	const { userId, outlineId } = await setUp()
+	const race = { name: 'Vårmilen', startDate: new Date('2030-03-10') }
+
+	const preview = await readAttachEvent(
+		userId,
+		outlineId,
+		{ kind: 'race', ...race },
+		WEDNESDAY,
+	)
+	if (!preview.ok) throw new Error(preview.reason)
+	expect(preview.event).toEqual({
+		name: 'Vårmilen',
+		dayKey: '2030-03-10',
+		weekKey: '2030-03-04',
+	})
+	// Only the race the set-up made is on the calendar.
+	expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(1)
+
+	expect(
+		await addRaceToOpenEndedPlan(userId, outlineId, race, WEDNESDAY, {
+			digest: preview.digest,
+		}),
+	).toMatchObject({ ok: true, ended: { name: 'Blokk 1', weeks: 2 } })
+	expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(2)
+})
+
+test('a confirm whose preview no longer matches is refused, nothing moves, and no race is left behind', async () => {
+	const { userId, outlineId, eventId } = await setUp()
+	const preview = await readAttachEvent(
+		userId,
+		outlineId,
+		{ kind: 'event', eventId },
+		WEDNESDAY,
+	)
+	if (!preview.ok) throw new Error(preview.reason)
+	const before = await phasesOf(outlineId)
+
+	// A week later the round would end a week later: not what was shown.
+	const nextWeek = new Date('2030-01-16T12:00:00Z')
+	expect(
+		await attachEventToOutline(userId, outlineId, eventId, nextWeek, {
+			digest: preview.digest,
+		}),
+	).toEqual({ ok: false, reason: 'preview-stale' })
+	expect(
+		await addRaceToOpenEndedPlan(
+			userId,
+			outlineId,
+			{ name: 'Vårløpet', startDate: new Date('2030-03-10') },
+			nextWeek,
+			{ digest: preview.digest },
+		),
+	).toEqual({ ok: false, reason: 'preview-stale' })
+	expect(await phasesOf(outlineId)).toEqual(before)
+	expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(1)
+
+	// The same preview, confirmed on time, applies.
+	expect(
+		await attachEventToOutline(userId, outlineId, eventId, WEDNESDAY, {
+			digest: preview.digest,
+		}),
+	).toMatchObject({ ok: true })
+})
+
+test('a race dated for a Monday counts in that week, for an athlete west of UTC too', async () => {
+	const { userId, outlineId } = await setUp()
+	// A date-only race is stored at UTC midnight, which is Sunday evening in New
+	// York: read in the athlete's zone it fell in the week before.
+	await prisma.athleteProfile.update({
+		where: { userId },
+		data: { timezone: 'America/New_York' },
+	})
+	const monday = { name: 'Mandagsløpet', startDate: new Date('2030-01-14') }
+
+	const preview = await readAttachEvent(
+		userId,
+		outlineId,
+		{ kind: 'race', ...monday },
+		WEDNESDAY,
+	)
+	expect(preview).toMatchObject({
+		ok: true,
+		event: { dayKey: '2030-01-14', weekKey: '2030-01-14' },
+		phases: { after: [{ name: 'Blokk 1' }, { name: 'Taper', weeks: 1 }] },
+	})
+})
+
+test('the preview refuses as the attach does: a past race, a race too far out', async () => {
+	const { userId, outlineId } = await setUp()
+	expect(
+		await readAttachEvent(
+			userId,
+			outlineId,
+			{ kind: 'race', name: 'Gammelt', startDate: new Date('2029-05-01') },
+			WEDNESDAY,
+		),
+	).toEqual({ ok: false, reason: 'event-past' })
+	// More than two years from the plan's start: no Sesong edit could change it.
+	const far = { name: 'Langt fram', startDate: new Date('2032-01-04') }
+	expect(
+		await readAttachEvent(
+			userId,
+			outlineId,
+			{ kind: 'race', ...far },
+			WEDNESDAY,
+		),
+	).toEqual({ ok: false, reason: 'plan-too-long' })
+	expect(
+		await addRaceToOpenEndedPlan(userId, outlineId, far, WEDNESDAY),
+	).toEqual({ ok: false, reason: 'plan-too-long' })
+	expect(await prisma.event.count({ where: { athleteId: userId } })).toBe(1)
 })

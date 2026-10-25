@@ -5,7 +5,7 @@
  *
  * - `deriveWorkoutTitle` names a session that has a **structure** (a Structure
  *   Detection's materialized Workout, or an authored/generated one) from its
- *   headline block — `4 × 6 min`, `45 min Easy`.
+ *   headline block — `4 × 6 min`, `45 min rolig`.
  * - `deriveRecordingTitle` names a **structureless recording** (a steady run/
  *   ride Structure Detection left `recorded`) from its duration/distance and
  *   discipline — `45 min run`, `8.2 km ride`.
@@ -23,6 +23,7 @@ import {
 	getDisciplineLabel,
 	NB_DISCIPLINE_LABELS,
 	STAMPED_SESSION_LABELS,
+	zoneLabelWord,
 } from './labels.ts'
 import { type QualityZone } from './plan-outline/quality-mix.ts'
 import { intensityTargetToZone } from './session-profile.ts'
@@ -30,25 +31,33 @@ import {
 	type IntensityTarget,
 	type WorkoutStructure,
 } from './workout-schema.ts'
+import { ZONE_WORDS } from './zones/words.ts'
 
 type WorkoutBlock = WorkoutStructure['blocks'][number]
 type CardioStep = Extract<WorkoutBlock['steps'][number], { kind: 'cardio' }>
 
-function capitalize(label: string): string {
-	const trimmed = label.trim()
-	return trimmed ? trimmed[0]!.toUpperCase() + trimmed.slice(1) : trimmed
-}
-
 /**
  * The zone word a target contributes to a title, or null when none can be named
- * honestly. A zone label is its own word (`Threshold`, `Z4`); RPE and %-targets
- * carry an intrinsic zone (`Z3`); a measured power/pace/HR target does not, so
+ * honestly — lowercase, as the stamp and the sentence write it (`45 min rolig`
+ * under `Legg til 45 min rolig`). A zone label is its own word in Norwegian
+ * (`threshold` → `terskel`), and a recipe's code (`Z4`, `T`) stays as written;
+ * RPE and %-targets carry an intrinsic zone, written as that zone's word
+ * (`zones/words.ts`), never `Z3`; a measured power/pace/HR target does not, so
  * it stays wordless — never guessed from the raw value.
  */
+/** The shape of a recipe band's code: `Z4`, `I-3`, `T`, `sub-T` (`zones/recipes.ts`). */
+const RECIPE_CODE = /^(?:[A-Z](?:-?\d)?|sub-T)$/
+
 function intensityWord(target: IntensityTarget): string | null {
-	if (target.kind === 'zoneLabel') return capitalize(target.label)
+	if (target.kind === 'zoneLabel') {
+		const label = target.label.trim()
+		const word = zoneLabelWord(label)
+		// A code is its own spelling; a word is the lowercase word it reads as,
+		// however it was typed (`Rolig`, `Terskel`).
+		return RECIPE_CODE.test(label) ? label : word.toLowerCase() || null
+	}
 	const zone = intensityTargetToZone(target)
-	return zone != null ? `Z${zone}` : null
+	return zone != null ? ZONE_WORDS[zone] : null
 }
 
 function isCardioStep(step: WorkoutBlock['steps'][number]): step is CardioStep {
@@ -107,18 +116,30 @@ export function deriveWorkoutTitle(structure: WorkoutStructure): string {
 	const informative = withCardio.filter(({ step }) => stepContributes(step))
 	const pool = informative.length > 0 ? informative : withCardio
 
+	// Either repeat level makes a block the repeated one: `1 × … × 3 series`
+	// is three efforts.
+	const repeated = (block: (typeof pool)[number]['block']) =>
+		block.repeatCount >= 2 || (block.seriesRepeatCount ?? 1) >= 2
 	const headline =
-		pool.find(({ block }) => block.repeatCount >= 2) ??
+		pool.find(({ block }) => repeated(block)) ??
 		pool.reduce((best, entry) =>
 			stepMagnitude(entry.step) > stepMagnitude(best.step) ? entry : best,
 		)
 
 	const quantity = stepQuantity(headline.step)
 	const reps = headline.block.repeatCount
+	// The series lead the reps: `3 × 13 × 30 s` is three series of 13 (#615).
+	const series = headline.block.seriesRepeatCount ?? 1
+	const count =
+		series >= 2 ? (reps >= 2 ? `${series} × ${reps}` : `${series}`) : `${reps}`
 	// A dangling `4 ×` (a repeat block whose work step states no quantity) reads
 	// worse than the plain zone word or discipline fallback, so the rep count
 	// only appears when it has a quantity to multiply.
-	const core = quantity ? (reps >= 2 ? `${reps} × ${quantity}` : quantity) : ''
+	const core = quantity
+		? repeated(headline.block)
+			? `${count} × ${quantity}`
+			: quantity
+		: ''
 	const word = headline.step.intensity
 		? intensityWord(headline.step.intensity)
 		: null

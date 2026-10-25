@@ -658,58 +658,45 @@ test('a set circle logs and counts the reps down — from the keyboard', async (
 	await expect(page.getByText('1 av 5 logget').first()).toBeVisible()
 })
 
-test.fail(
-	'a set counted down to zero clears, and the circle goes back to its target',
-	async ({ page, login }) => {
-		test.setTimeout(120_000)
-		const user = await login()
-		await seedAthlete(user.id)
-		const run = await startRun(user.id, await strongLifts())
+test('a set counted down to zero clears, and the circle goes back to its target', async ({
+	page,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedAthlete(user.id)
+	const run = await startRun(user.id, await strongLifts())
 
-		await page.goto(`/training/sessions/${run.sessionId}/log`)
-		await waitForHydration(page, '[data-set-circle]')
-		const first = page.getByRole('button', {
-			name: 'Logg sett 1 av Knebøy',
-		})
-		await expect(first).toBeVisible()
-		await tabTo(page, first)
+	await page.goto(`/training/sessions/${run.sessionId}/log`)
+	await waitForHydration(page, '[data-set-circle]')
+	const first = page.getByRole('button', {
+		name: 'Logg sett 1 av Knebøy',
+	})
+	await expect(first).toBeVisible()
+	await tabTo(page, first)
 
-		// ADR 0064 §1's tap cycle, stated in full: *"each further tap counts the
-		// reps down — target → target−1 → … → 0 … A tap past zero clears the
-		// set."*
-		const circle = page.locator('[data-set-circle="0"]').first()
-		await pressAndSettle(page, 'Enter')
-		for (const count of ['4', '3', '2', '1', '0']) {
-			await tabTo(page, circle)
-			const answer = await pressAndSettle(page, 'Space')
-			// **The server's answer, not the optimistic face.** The circle shows
-			// the new count before the write is answered, so reading only the
-			// circle let this test pass on a thumb fast enough to tap again inside
-			// that window (S9 saw it "pass unexpectedly"; at #505 S16 it passed
-			// every run). At a human pace the refusal lands first and puts `1`
-			// back, so the write itself is what the rung is checked by.
-			expect(answer.ok(), `the write of ${count} was refused`).toBe(true)
-			await expect(circle).toHaveText(count)
-		}
+	// ADR 0064 §1's tap cycle, stated in full: *"each further tap counts the
+	// reps down — target → target−1 → … → 0 … A tap past zero clears the
+	// set."*
+	const circle = page.locator('[data-set-circle="0"]').first()
+	await pressAndSettle(page, 'Enter')
+	for (const count of ['4', '3', '2', '1', '0']) {
 		await tabTo(page, circle)
-		await pressAndSettle(page, 'Space')
-		await expect(first).toBeVisible()
-		await expect(page.getByText('0 av 5 logget').first()).toBeVisible()
-
-		// **This one fails against the product, and is marked rather than
-		// softened.** The tap that would make it `0` is refused by the write seam:
-		// `statesWhatWasPerformed` requires a completed working set to state a
-		// positive count, so the save comes back `no-count`, the circle is put back
-		// to `1` and the card prints *"That set recorded no count."*
-		//
-		// The consequence is bigger than the missing rung. **A working set logged
-		// on the runner cannot be cleared at all** — the clear is only reachable
-		// through zero (`nextSetReps`), and zero is unreachable — so ADR 0064 §1's
-		// last sentence describes a behaviour the athlete has no way to perform.
-		// Fixing it is not this ticket's business (#489 adds the coverage); the day
-		// it is fixed this test goes red and says so.
-	},
-)
+		const answer = await pressAndSettle(page, 'Space')
+		// **The server's answer, not the optimistic face.** The circle shows
+		// the new count before the write is answered, so reading only the
+		// circle let this test pass on a thumb fast enough to tap again inside
+		// that window (S9 saw it "pass unexpectedly"; at #505 S16 it passed
+		// every run). At a human pace the refusal lands first and puts `1`
+		// back, so the write itself is what the rung is checked by.
+		expect(answer.ok(), `the write of ${count} was refused`).toBe(true)
+		await expect(circle).toHaveText(count)
+	}
+	await tabTo(page, circle)
+	await pressAndSettle(page, 'Space')
+	await expect(first).toBeVisible()
+	await expect(page.getByText('0 av 5 logget').first()).toBeVisible()
+})
 
 test('the rest bar starts on a logged set, adjusts and dismisses from the keyboard', async ({
 	page,
@@ -1149,7 +1136,7 @@ test('a gym day is logged som planlagt from I dag in one tap, and the week count
 	expect(errors).toEqual([])
 })
 
-test('Endre logs the set that went differently, at the planned weight', async ({
+test('Endre logs the set that went differently, at the weight that was lifted', async ({
 	page,
 	navigate,
 	login,
@@ -1166,13 +1153,19 @@ test('Endre logs the set that went differently, at the planned weight', async ({
 	await expect(log.getByText('Knebøy')).toBeVisible()
 	await log.getByRole('button', { name: 'Endre' }).click()
 
-	// One field per set, pre-filled; no weight field — ADR 0064 §2, said here.
+	// One field per set, pre-filled, and one weight per lift (#530): the rack
+	// had no 60, so − takes it one 2,5 kg step down.
 	const third = log.getByRole('spinbutton', {
 		name: 'Sett 3 av Knebøy, repetisjoner',
 	})
 	await expect(third).toHaveValue('5')
-	await expect(log.getByText(/Vekta står som planlagt/)).toBeVisible()
+	const weight = log.getByRole('textbox', { name: 'Vekt for Knebøy, kilo' })
+	await expect(weight).toHaveValue('60')
+	await log.getByRole('button', { name: '2,5 kg lettere på Knebøy' }).click()
+	await expect(weight).toHaveValue('57,5')
+	await expect(log.getByText('fra 60 kg')).toBeVisible()
 	await expectEveryControlTappable(log)
+	await expectNoHorizontalOverflow(page)
 	await log
 		.getByRole('spinbutton', { name: 'Sett 2 av Knebøy, repetisjoner' })
 		.fill('3')
@@ -1192,8 +1185,8 @@ test('Endre logs the set that went differently, at the planned weight', async ({
 		select: { orderIndex: true, reps: true, effectiveKg: true },
 	})
 	expect(sets).toEqual([
-		{ orderIndex: 0, reps: 5, effectiveKg: 60 },
-		{ orderIndex: 1, reps: 3, effectiveKg: 60 },
+		{ orderIndex: 0, reps: 5, effectiveKg: 57.5 },
+		{ orderIndex: 1, reps: 3, effectiveKg: 57.5 },
 	])
 })
 

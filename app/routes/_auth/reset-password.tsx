@@ -93,7 +93,10 @@ export default function ResetPasswordPage({
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: ResetPasswordSchema })
 		},
-		shouldRevalidate: 'onBlur',
+		// A fixed field clears its error as it is fixed. On blur, the error line
+		// above the button would vanish as the athlete presses it, moving the
+		// button out from under the click (#532).
+		shouldRevalidate: 'onInput',
 	})
 
 	return (
@@ -103,7 +106,8 @@ export default function ResetPasswordPage({
 		>
 			<Form method="POST" {...getFormProps(form)}>
 				<Field
-					className="pb-4"
+					className="pb-2"
+					reserveErrorLine
 					labelProps={{
 						htmlFor: fields.password.id,
 						children: 'New Password',
@@ -116,6 +120,7 @@ export default function ResetPasswordPage({
 					errors={fields.password.errors}
 				/>
 				<Field
+					reserveErrorLine
 					labelProps={{
 						htmlFor: fields.confirmPassword.id,
 						children: 'Confirm Password',
@@ -127,7 +132,7 @@ export default function ResetPasswordPage({
 					errors={fields.confirmPassword.errors}
 				/>
 
-				<ErrorList errors={form.errors} id={form.errorId} />
+				<ErrorList errors={form.errors} id={form.errorId} reserveErrorLine />
 
 				<StatusButton
 					className="w-full"

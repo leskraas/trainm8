@@ -187,7 +187,7 @@ export function needsExercises(
 
 /** What one tap on _Legg til_ would write, or why nothing yet. */
 export type ComposerPlan =
-	/** The empty state: the stamp, `45 min Z2` in the chip's sport. */
+	/** The empty state: the stamp, `45 min rolig` in the chip's sport. */
 	| { kind: 'stamp'; discipline: CardioDiscipline }
 	| { kind: 'sentence'; parsed: ParsedSentence }
 	/** A pick the athlete has not changed: placed or copied whole. */

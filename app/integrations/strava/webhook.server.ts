@@ -247,7 +247,7 @@ async function refreshUpdatedActivity(
 
 	// Re-snapshot the stream and re-compute the detection. A missing stream leaves
 	// the prior telemetry in place rather than wiping it.
-	const raw = await fetchStravaActivityStreams(connection, externalId)
+	const raw = await fetchStravaActivityStreams(connection, externalId, 'live')
 	if (!raw) return
 	// Re-fetch provider laps before enrichment enqueues detection (#356): the
 	// snapshot update above cleared `lapsJson`, so this repopulates it so the
@@ -258,6 +258,7 @@ async function refreshUpdatedActivity(
 		existing.id,
 		raw.time,
 		input.startedAt.getTime(),
+		'live',
 	)
 	await enrichImportTelemetry(
 		connection.athleteId,
@@ -291,7 +292,16 @@ async function ingestCreatedActivity(
 	// The dedupe choke point (ADR 0096 §4): a redelivery, or the same activity
 	// another source already brought (kept as an alias), files nothing new.
 	const filed = await fileActivityImport(connection.athleteId, input)
-	if (filed.kind === 'duplicate') return
+	if (filed.kind === 'duplicate') {
+		// A retry of a job deferred mid-telemetry (#637) lands here with the
+		// import saved and its stream still missing. The streams ingest finishes
+		// it for this provider's own import, and is a no-op when the stream is
+		// there or the activity is another source's alias.
+		if (filed.matchedBy === 'transport-key' && input.discipline !== 'other') {
+			await ingestActivityStreams(connection, [activity], 'live')
+		}
+		return
+	}
 	const importId = filed.importId
 
 	const timezone =
@@ -308,8 +318,9 @@ async function ingestCreatedActivity(
 	if (input.discipline === 'other') return
 
 	// Ingest the activity's downsampled telemetry as an Activity Stream so the
-	// session's Workout Detail View overlay works end-to-end (#139, best-effort).
-	await ingestActivityStreams(connection, [activity])
+	// session's Workout Detail View overlay works end-to-end (#139, best-effort),
+	// with its HR phase bars and a Structure Detection enqueue (#611).
+	await ingestActivityStreams(connection, [activity], 'live')
 }
 
 const StravaSubscriptionSchema = z.object({

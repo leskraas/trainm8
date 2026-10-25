@@ -5,8 +5,8 @@
 //
 // Pure, and fed two ways: the home presenter hands it the ledger rows it already
 // has, and `week-volumes.server.ts` reads one week for the surfaces that need a
-// week on its own. Both go through {@link volumeSessionOf}, so a session reads
-// the same number on every surface.
+// week on its own. Both go through {@link volumeSessionOf}, with the athlete's
+// thresholds, so a session reads the same number on every surface.
 //
 // What this module holds to:
 //
@@ -29,6 +29,7 @@
 
 import { addDays, weekdayIndex } from '../athlete-calendar.ts'
 import { sumBlockSets } from '../dashboard.ts'
+import { type DisciplineThresholdMap } from '../intensity-target.ts'
 import {
 	ADHERENCE_ON_TARGET_AT_OR_ABOVE,
 	ADHERENCE_OVER_ABOVE,
@@ -261,16 +262,25 @@ export type VolumeSession = {
 
 /**
  * One ledger row as the week model reads it. Planned km and hours are read by
- * `fixedDayVolume`, the Week Pattern's own reading: only a prescription that
- * carries the unit from end to end has a figure, so "20 min warm-up + 5×1000 m"
- * is unmeasured in km rather than 5 km.
+ * `fixedDayVolume`, the Week Pattern's own reading: only a prescription that carries the unit from end to end has a
+ * figure, so "20 min warm-up + 5×1000 m" is unmeasured in km rather than 5 km.
  */
 export function volumeSessionOf(
 	session: LedgerSession,
-	{ dayKey, status }: { dayKey: string; status: LedgerStatus },
+	{
+		dayKey,
+		status,
+		thresholds,
+	}: {
+		dayKey: string
+		status: LedgerStatus
+		/** What a distance step's pace resolves against (`fixedDayVolume`). */
+		thresholds: DisciplineThresholdMap
+	},
 ): VolumeSession {
 	const { workout, recording } = session
 	const discipline = getSessionDiscipline(session)
+	const reading = { thresholds, discipline: workout?.discipline }
 	const logged = session.setLogs.length
 	const intentZone = intentToZone(workout?.intent)
 	// A lifting session that names no sets (a stamped `Styrke`, a sentence) has
@@ -280,8 +290,10 @@ export function volumeSessionOf(
 		discipline === 'strength' && workout ? sumBlockSets(workout.blocks) : 0
 	const prescribed = workout
 		? prescribedFigures(discipline, {
-				km: fixedDayVolume(workout.blocks, 'km'),
-				hours: fixedDayVolume(workout.blocks, 'hours'),
+				km: fixedDayVolume(workout.blocks, 'km', reading),
+				// Unrounded: the week rounds its sum once, and a row says its own
+				// minutes, so a 50-minute run reads `50 min` there as in the drawer.
+				hours: fixedDayVolume(workout.blocks, 'hours', reading),
 				// A Planned TSS of zero is one that did not resolve — the week's
 				// TSS line reads it the same way — so it is unmeasured, not 0.
 				tss:
@@ -369,6 +381,11 @@ export type TrackWeekVolume = {
 	 * planned; null when sessions are planned but none has a number.
 	 */
 	planned: number | null
+	/**
+	 * The measured sessions' sum before {@link planned} rounds it, so a
+	 * preview that adds a session rounds the new sum once, as the week will.
+	 */
+	plannedSum: number
 	plannedUnmeasured: UnmeasuredCount[]
 	/** How many planned sessions have no number — the n of "+n uten km". */
 	plannedUnmeasuredCount: number
@@ -610,6 +627,7 @@ function trackWeek(
 		targetAbsence:
 			target != null ? null : inPlan ? 'no-anchor' : 'outside-plan',
 		planned,
+		plannedSum: plannedTally.sum,
 		plannedUnmeasured: plannedTally.unmeasured,
 		plannedUnmeasuredCount: unmeasuredTotal(plannedTally.unmeasured),
 		actual,

@@ -9,7 +9,7 @@
  * sport (with **Annet**), the line, and under it what the reader understood,
  * the week's sum before → after against its target, and _Legg til_ ·
  * _Gjør grundigere_ · _Avbryt_. With the line empty, _Legg til_ is the stamp
- * (`Legg til 45 min Z2`, ADR 0065 §5). On a day gone by, _Allerede gjort_.
+ * (`Legg til 45 min rolig`, ADR 0065 §5). On a day gone by, _Allerede gjort_.
  *
  * The **full** part ("Gjør grundigere") is the line's blocks and steps, with
  * steppers for a repeat and a rest that write back into the line, a part
@@ -510,6 +510,7 @@ function weekSumLine(
 		week.volumes,
 		shape,
 		trackForDiscipline(week.volumes, shape.discipline),
+		week.thresholds,
 	)
 	const line = weekSumPreviewLine(preview)
 	return preview.kind === 'track'

@@ -181,7 +181,7 @@ test('a typed sentence becomes an authored session with the structure it says', 
 					{
 						kind: 'cardio',
 						durationSec: 600,
-						intensity: JSON.stringify({ kind: 'zoneLabel', label: 'Z4' }),
+						intensity: JSON.stringify({ kind: 'zoneLabel', label: 'terskel' }),
 					},
 					{ kind: 'rest', durationSec: 60, intensity: null },
 				],

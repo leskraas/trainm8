@@ -2,7 +2,10 @@ import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import { saveLoggedSet } from './strength-log.server.ts'
-import { type WorkoutAuthoringInput } from './workout-schema.ts'
+import {
+	type WorkoutAuthoringInput,
+	type WorkoutStructure,
+} from './workout-schema.ts'
 import {
 	createWorkoutSession,
 	deleteWorkoutSession,
@@ -13,6 +16,9 @@ import {
 	getRecentExerciseIds,
 	createCustomExercise,
 	copyWorkout,
+	materializeDetectedStructure,
+	prescriptionFingerprint,
+	replaceDetectedStructure,
 	workoutCopySelect,
 } from './workout.server.ts'
 
@@ -1116,7 +1122,8 @@ test('a full-expressiveness session round-trips through create, read and copy', 
 							durationSec: 30,
 							cadenceRpmMin: 95,
 							cadenceRpmMax: 105,
-							gradePct: 4.5,
+							gradePctMin: 4,
+							gradePctMax: 7.5,
 						},
 						{ kind: 'rest', rest: { kind: 'toHr', belowBpm: 120 } },
 					],
@@ -1145,7 +1152,8 @@ test('a full-expressiveness session round-trips through create, read and copy', 
 	const [interval, rest] = work!.steps
 	expect(interval!.cadenceRpmMin).toBe(95)
 	expect(interval!.cadenceRpmMax).toBe(105)
-	expect(interval!.gradePct).toBe(4.5)
+	expect(interval!.gradePctMin).toBe(4)
+	expect(interval!.gradePctMax).toBe(7.5)
 	expect(vertical!.steps[0]!.verticalM).toBe(1000)
 	// An HR recovery has no duration, so the column every duration reader
 	// trusts stays empty rather than carrying a guess.
@@ -1576,4 +1584,192 @@ test('adopting a generated session carries the sets already logged onto the fork
 		select: { stepId: true, reps: true },
 	})
 	expect(after).toEqual({ stepId: forkedStep.id, reps: 8 })
+})
+
+// ─── A detected session's intent (#617) ─────────────────────────────────────
+// A materialized detection carries absolute measured targets; its intent is
+// read from its hardest step against the athlete's thresholds, never a
+// hard-coded `endurance` that made every detected session an easy one.
+
+/** 5 × 4 min at threshold pace, after an easy warm-up. */
+const FIVE_BY_FOUR_AT_Z4: WorkoutStructure = {
+	discipline: 'run',
+	blocks: [
+		{
+			repeatCount: 1,
+			steps: [
+				{
+					kind: 'cardio',
+					discipline: 'run',
+					durationSec: 600,
+					intensity: { kind: 'pace', minSecPerKm: 300 },
+				},
+			],
+		},
+		{
+			repeatCount: 5,
+			steps: [
+				{
+					kind: 'cardio',
+					discipline: 'run',
+					durationSec: 240,
+					intensity: { kind: 'pace', minSecPerKm: 222 },
+				},
+				{ kind: 'rest', durationSec: 120 },
+			],
+		},
+	],
+}
+
+/** A runner with T-pace 3:40/km on the default run recipe. */
+async function thresholdRunner() {
+	const user = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.id,
+			disciplineProfiles: {
+				create: [
+					{
+						discipline: 'run',
+						thresholdPaceSecPerKm: 220,
+						zoneSystem: 'daniels-pace-5',
+					},
+				],
+			},
+		},
+	})
+	return user
+}
+
+async function recordingOnlySession(userId: string) {
+	return prisma.workoutSession.create({
+		data: {
+			userId,
+			scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
+			status: 'completed',
+		},
+		select: { id: true },
+	})
+}
+
+async function detectedIntent(sessionId: string) {
+	const session = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: sessionId },
+		select: { workout: { select: { intent: true } } },
+	})
+	return session.workout?.intent
+}
+
+test('a detected 5 × 4 min at Z4 materializes as a threshold session', async () => {
+	const user = await thresholdRunner()
+	const session = await recordingOnlySession(user.id)
+
+	await materializeDetectedStructure(user.id, session.id, FIVE_BY_FOUR_AT_Z4)
+
+	expect(await detectedIntent(session.id)).toBe('threshold')
+})
+
+test('a re-detected 5 × 4 min at Z4 is a threshold session too', async () => {
+	const user = await thresholdRunner()
+	const session = await recordingOnlySession(user.id)
+	const easy: WorkoutStructure = {
+		discipline: 'run',
+		blocks: [FIVE_BY_FOUR_AT_Z4.blocks[0]!],
+	}
+	await materializeDetectedStructure(user.id, session.id, easy)
+	expect(await detectedIntent(session.id)).toBe('endurance')
+
+	await replaceDetectedStructure(user.id, session.id, FIVE_BY_FOUR_AT_Z4)
+
+	expect(await detectedIntent(session.id)).toBe('threshold')
+})
+
+test('a power-detected 5 × 4 min is zoned on running power, not the pace recipe', async () => {
+	// A Daniels runner with a critical-power threshold: detection classified the
+	// run on Stryd power bands (ADR 0038), so its absolute watts are zoned the
+	// same way — the pace recipe cannot place them at all.
+	const user = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.id,
+			disciplineProfiles: {
+				create: [
+					{
+						discipline: 'run',
+						thresholdPaceSecPerKm: 220,
+						runPowerThresholdW: 300,
+						zoneSystem: 'daniels-pace-5',
+					},
+				],
+			},
+		},
+	})
+	const session = await recordingOnlySession(user.id)
+	const onPower: WorkoutStructure = {
+		discipline: 'run',
+		blocks: [
+			{
+				repeatCount: 5,
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						durationSec: 240,
+						intensity: { kind: 'power', minW: 290 },
+					},
+					{ kind: 'rest', durationSec: 120 },
+				],
+			},
+		],
+	}
+
+	await materializeDetectedStructure(user.id, session.id, onPower)
+
+	expect(await detectedIntent(session.id)).toBe('threshold')
+})
+
+test('a grade whose ends agree fingerprints as the scalar it was before the band (#466)', () => {
+	const step = (grade: Record<string, number | null>) => [
+		{ steps: { create: [{ kind: 'cardio', durationSec: 60, ...grade }] } },
+	]
+	// What a Juster image stored before the migration fingerprinted: the old
+	// scalar slot, written here as the literal it was.
+	const before = (gradePct: number | null) =>
+		JSON.stringify([
+			[
+				null,
+				1,
+				1,
+				null,
+				null,
+				[
+					[
+						'cardio',
+						null,
+						null,
+						null,
+						60,
+						null,
+						null,
+						gradePct,
+						null,
+						null,
+						null,
+						null,
+						null,
+						[],
+					],
+				],
+			],
+		])
+	expect(
+		prescriptionFingerprint(step({ gradePctMin: 4.5, gradePctMax: 4.5 })),
+	).toBe(before(4.5))
+	expect(
+		prescriptionFingerprint(step({ gradePctMin: null, gradePctMax: null })),
+	).toBe(before(null))
+	// A true band is a different prescription from either of its ends.
+	expect(
+		prescriptionFingerprint(step({ gradePctMin: 4, gradePctMax: 7 })),
+	).not.toBe(before(4))
 })

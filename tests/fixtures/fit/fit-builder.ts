@@ -10,7 +10,7 @@ import { CrcCalculator, Encoder, Profile, type Mesg } from '@garmin/fitsdk'
 // The SDK's .d.ts types enum fields (sport, type, …) as numbers, but its
 // runtime encoder/decoder use the Profile enum *strings* ('running',
 // 'activity', …) — so message literals are written untyped and cast here.
-function writeMesg(
+export function writeMesg(
 	encoder: Encoder,
 	name: keyof typeof Profile.MesgNum,
 	mesg: Record<string, unknown>,

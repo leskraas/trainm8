@@ -19,7 +19,7 @@ import {
 	type SessionArchetype,
 	readCitation,
 } from './catalogue.ts'
-import { type ReportReason } from './community.ts'
+import { type ReportReason, isPublished } from './community.ts'
 import { prisma } from './db.server.ts'
 
 export const attributionSelect = {
@@ -267,8 +267,7 @@ export async function reportWorkout({
 	})
 	if (workout == null) return { ok: false, reason: 'not-found' }
 	if (workout.ownerId === reporterId) return { ok: false, reason: 'your-own' }
-	if (workout.visibility !== 'public')
-		return { ok: false, reason: 'not-public' }
+	if (!isPublished(workout)) return { ok: false, reason: 'not-public' }
 
 	const existing = await prisma.workoutReport.findUnique({
 		where: { workoutId_reporterId: { workoutId, reporterId } },

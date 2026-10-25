@@ -17,15 +17,18 @@ import {
 	nbZoneCaption,
 	zoneLabelWord,
 } from './labels.ts'
+import { stepDistanceDurationSec } from './shape-strip.ts'
 import {
 	blockRepeatTotal,
 	IntensityTargetSchema,
 	powerPctRef,
 	type IntensityTarget,
 } from './workout-schema.ts'
+import { zoneEquivalent } from './zone-equivalent.ts'
 import { DANIELS_PACE_5, getRecipe } from './zones/index.ts'
 import {
 	formatMmol,
+	resolvedPaceUnit,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 	type ResolvedIntensity,
@@ -87,13 +90,19 @@ function range(min: number, max: number | null | undefined, unit: string) {
 }
 
 /**
- * Pace zone bands resolve in the recipe anchor's own unit: seconds per 100 m
- * for a CSS-anchored recipe, seconds per km otherwise — so a swim range is
- * never mislabelled `/km`.
+ * The unit a target's resolved pace is labelled in: the one the resolver
+ * hands it back in (`resolvedPaceUnit`) — per 100 m for a band on a
+ * CSS-anchored recipe, per km otherwise — so a swim range is never
+ * mislabelled `/km`, nor a per-km pace `/100m`.
  */
-function paceUnitFor(profile: DisciplineProfileForResolver): 'km' | '100m' {
+function paceUnitFor(
+	target: IntensityTarget,
+	profile: DisciplineProfileForResolver,
+): 'km' | '100m' {
 	const recipe = profile.zoneSystem ? getRecipe(profile.zoneSystem) : undefined
-	return recipe?.anchor === 'css' ? '100m' : 'km'
+	return resolvedPaceUnit(target.kind, recipe?.anchor) === 'secPer100m'
+		? '100m'
+		: 'km'
 }
 
 // Daniels letters (E/M/T/I/R) are the one built-in code set that is cryptic
@@ -280,7 +289,7 @@ export function formatIntensityTarget(
 			// A percentage of threshold pace is arithmetic on a number the athlete
 			// authored, so the resolved pace is exact and wears no `≈`.
 			const resolved = resolveIntensity(target, profile)
-			const text = resolvedRangeText(resolved, paceUnitFor(profile))
+			const text = resolvedRangeText(resolved, paceUnitFor(target, profile))
 			if (!text) return { kind: 'unavailable' }
 			return { kind: 'metric', metric: 'pace', text: text.text }
 		}
@@ -295,7 +304,8 @@ export function formatIntensityTarget(
 				metric: 'lactate',
 				text: withApproxFacet(
 					formatMmol(target.minMmol, target.maxMmol),
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved, paceUnitFor(target, profile))?.text ??
+						null,
 				),
 			}
 		}
@@ -306,7 +316,8 @@ export function formatIntensityTarget(
 				metric: 'pace',
 				text: withApproxFacet(
 					racePaceLabel(target),
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved, paceUnitFor(target, profile))?.text ??
+						null,
 				),
 			}
 		}
@@ -316,7 +327,7 @@ export function formatIntensityTarget(
 			// threshold resolves it, the honest display is the captioned Training
 			// Zone — never a fabricated range.
 			const resolved = resolveIntensity(target, profile)
-			const range = resolvedRangeText(resolved, paceUnitFor(profile))
+			const range = resolvedRangeText(resolved, paceUnitFor(target, profile))
 			if (range) {
 				return { kind: 'metric', metric: range.metric, text: range.text }
 			}
@@ -434,7 +445,8 @@ export function describeStepTarget(
 					INTENSITY_DISPLAY_WORDS.thresholdPace,
 				),
 				resolved:
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved, paceUnitFor(target, profile))?.text ??
+					null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: false,
 			}
@@ -445,7 +457,8 @@ export function describeStepTarget(
 			return {
 				label: formatMmol(target.minMmol, target.maxMmol),
 				resolved:
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved, paceUnitFor(target, profile))?.text ??
+					null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: true,
 			}
@@ -455,7 +468,8 @@ export function describeStepTarget(
 			return {
 				label: racePaceLabel(target),
 				resolved:
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved, paceUnitFor(target, profile))?.text ??
+					null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: true,
 			}
@@ -468,7 +482,8 @@ export function describeStepTarget(
 					? `${zoneLabelWord(target.label)} — ${caption}`
 					: zoneLabelWord(target.label),
 				resolved:
-					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+					resolvedRangeText(resolved, paceUnitFor(target, profile))?.text ??
+					null,
 				missingThreshold: missingThresholdReason(resolved),
 				approximate: false,
 			}
@@ -497,11 +512,37 @@ export function parseAuthoredIntensity(
 	return label ? { kind: 'zoneLabel', label } : null
 }
 
+/**
+ * A step's concrete range, resolved from what it authors against the athlete's
+ * thresholds **now** — empty when it authors nothing a threshold can resolve.
+ *
+ * The readers that draw a target (I dag's row, the telemetry overlay) resolve
+ * here rather than reading the cached `intensity*` columns: those are written
+ * only when a threshold changes, so a session made since has none (#616).
+ * Planned TSS bypasses the cache for the same reason. A step with no discipline
+ * of its own is the workout's.
+ */
+export function resolveStepRange(
+	step: { kind: string; discipline?: string | null; intensity?: string | null },
+	workoutDiscipline: string,
+	thresholds: DisciplineThresholdMap = {},
+): ResolvedIntensity {
+	if (step.kind !== 'cardio') return {}
+	const target = parseAuthoredIntensity(step.intensity)
+	if (!target) return {}
+	const resolved = resolveIntensity(
+		target,
+		thresholds[step.discipline ?? workoutDiscipline] ?? EMPTY_PROFILE,
+	)
+	return resolved.unavailable ? {} : resolved
+}
+
 type StepForTarget = {
 	kind: string
 	discipline?: string | null
 	intensity?: string | null
 	durationSec?: number | null
+	distanceM?: number | null
 	orderIndex?: number
 }
 
@@ -516,10 +557,12 @@ type WorkoutForTarget = {
 /**
  * The single headline target for a whole session — what the Today card, Week
  * timeline stop, and session detail show. A workout can mix zone / pace / HR
- * steps, so we surface the *primary work step*: the cardio step with the most
- * effective work time (`durationSec × block repeatCount`, so interval reps
- * outweigh a long single warm-up), formatted against its own discipline's
- * thresholds. Null when no cardio step carries an intensity target.
+ * steps, so we surface the *primary work step*: the **hardest** cardio step,
+ * by its Zone Equivalent, formatted against its own discipline's thresholds
+ * (#615). Hardness only decides when every candidate has a zone; otherwise the
+ * step with the most effective work time wins (`time × block repeats`, a
+ * distance step timed through its pace), so interval reps still outweigh a
+ * long single warm-up. Null when no cardio step carries an intensity target.
  */
 export function sessionMetricTarget(
 	workout: WorkoutForTarget | null | undefined,
@@ -530,6 +573,7 @@ export function sessionMetricTarget(
 	type Candidate = {
 		target: IntensityTarget
 		discipline: string | null
+		zone: number | null
 		effDurationSec: number
 		order: number
 	}
@@ -542,20 +586,39 @@ export function sessionMetricTarget(
 			if (step.kind !== 'cardio') continue
 			const target = parseAuthoredIntensity(step.intensity)
 			if (!target) continue
+			const profile = step.discipline ? thresholds[step.discipline] : undefined
+			const stepSec =
+				step.durationSec ??
+				stepDistanceDurationSec(
+					{
+						discipline: step.discipline,
+						distanceM: step.distanceM,
+						intensity: target,
+					},
+					profile,
+				) ??
+				0
 			candidates.push({
 				target,
 				discipline: step.discipline ?? null,
-				effDurationSec: (step.durationSec ?? 0) * reps,
+				zone: zoneEquivalent(target, profile).step,
+				effDurationSec: stepSec * reps,
 				order: stepOrder,
 			})
 		}
 	}
 	if (candidates.length === 0) return null
 
-	// Longest effective effort defines the session; ties resolve to the earlier
-	// step so the choice is deterministic.
+	// Hardest first, then the longest effective effort; ties resolve to the
+	// earlier step so the choice is deterministic. A step that can't say how
+	// hard it is is not easy (#617): it ranks above Z2 and below Z3, so a short
+	// set of pace reps still beats a longer Z2 warm-up.
+	const rank = (c: Candidate) => c.zone ?? 2.5
 	candidates.sort(
-		(a, b) => b.effDurationSec - a.effDurationSec || a.order - b.order,
+		(a, b) =>
+			rank(b) - rank(a) ||
+			b.effDurationSec - a.effDurationSec ||
+			a.order - b.order,
 	)
 	const chosen = candidates[0]!
 	const profile =

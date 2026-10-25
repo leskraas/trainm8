@@ -245,6 +245,70 @@ test('setEventResult links a session and marks completed', async () => {
 	expect(updated!.status).toBe('completed')
 })
 
+test("setEventResult refuses another athlete's session", async () => {
+	const { userId } = await setupUser()
+	const { userId: otherId } = await setupUser()
+
+	const event = await createEvent(userId, {
+		name: 'Race Day',
+		kind: 'race',
+		priority: 'A',
+		startDate: new Date('2026-06-15'),
+		disciplines: ['run'],
+		status: 'planned',
+	})
+	const foreign = await createWorkoutSession(
+		otherId,
+		new Date('2026-06-15T08:00:00Z'),
+	)
+
+	expect(await setEventResult(userId, event.id, foreign.id)).toBeNull()
+	const stored = await prisma.event.findUniqueOrThrow({
+		where: { id: event.id },
+		select: { resultSessionId: true, status: true },
+	})
+	expect(stored).toEqual({ resultSessionId: null, status: 'planned' })
+})
+
+test("createEvent and updateEvent never store another athlete's session as the result", async () => {
+	const { userId } = await setupUser()
+	const { userId: otherId } = await setupUser()
+	const foreign = await createWorkoutSession(
+		otherId,
+		new Date('2026-06-15T08:00:00Z'),
+	)
+	const own = await createWorkoutSession(
+		userId,
+		new Date('2026-06-15T09:00:00Z'),
+	)
+	const input = {
+		name: 'Race Day',
+		kind: 'race' as const,
+		priority: 'A' as const,
+		startDate: new Date('2026-06-15'),
+		disciplines: ['run' as const],
+		status: 'planned' as const,
+	}
+
+	const created = await createEvent(userId, {
+		...input,
+		resultSessionId: foreign.id,
+	})
+	expect(created.resultSessionId).toBeNull()
+
+	const updated = await updateEvent(userId, created.id, {
+		...input,
+		resultSessionId: foreign.id,
+	})
+	expect(updated!.resultSessionId).toBeNull()
+
+	const linked = await updateEvent(userId, created.id, {
+		...input,
+		resultSessionId: own.id,
+	})
+	expect(linked!.resultSessionId).toBe(own.id)
+})
+
 test('cancelEvent sets status to cancelled and clears resultSessionId', async () => {
 	const { userId } = await setupUser()
 

@@ -90,7 +90,8 @@ function cardioStep(
 		durationSec,
 		distanceM: null,
 		verticalM: null,
-		gradePct: null,
+		gradePctMin: null,
+		gradePctMax: null,
 		cadenceRpmMin: null,
 		cadenceRpmMax: null,
 		rest: null,
@@ -639,11 +640,16 @@ describe('buildSessionNudge', () => {
 	}
 
 	/** The canonical eased prescription as the applier persists it (#158/#186):
-	 * one endurance-intent block, a single Z2 cardio step, capped at an hour. */
+	 * one endurance-intent block, a single zone-2 cardio step, capped at an
+	 * hour. With no recipe to read a band off, zone 2 is stored as its word. */
 	function persistedEasedWorkout(): NonNullable<LedgerSession['workout']> {
 		return {
 			...runWorkout([
-				cardioStep(JSON.stringify({ kind: 'zoneLabel', label: 'Z2' }), 3600, 0),
+				cardioStep(
+					JSON.stringify({ kind: 'zoneLabel', label: 'rolig' }),
+					3600,
+					0,
+				),
 			]),
 			intent: 'endurance',
 		}
