@@ -266,7 +266,17 @@ would retain the athlete's text with no reader and no purpose.
   retained. Nothing pins the one-path rule yet.
 - **Pre-existing orphans are not yet purged in production.** The guarded cleanup
   migration is not in this change; the read path makes them unreadable, but they
-  are still stored. The read-only count to run first is in #468's report.
+  are still stored. Run this read-only count first. An orphan is an
+  athlete-authored row with no owner; Stock Workouts are excluded by
+  `authorship`, never by `ownerId` (§2):
+
+  ```sql
+  SELECT "visibility", COUNT(*) AS orphans
+  FROM "Workout"
+  WHERE "ownerId" IS NULL AND "authorship" <> 'system'
+  GROUP BY "visibility";
+  ```
+
 - **Custom Exercises** (`Exercise.createdByAthleteId`, also `SetNull`) are not
   purged by `deleteAccount`; their names outlive the account.
 
