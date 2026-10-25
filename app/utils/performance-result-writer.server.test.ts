@@ -204,7 +204,12 @@ test('a typed 10k becomes the race anchor a 10k-pace step resolves against', asy
 	const thresholds = await getDisciplineThresholds(user.id)
 	expect(
 		resolveIntensity({ kind: 'racePace', event: '10k' }, thresholds.run!),
-	).toEqual({ paceMin: 240, paceMax: 240, approximate: true })
+	).toEqual({
+		paceMin: 240,
+		paceMax: 240,
+		approximate: true,
+		paceUnit: 'secPerKm',
+	})
 })
 
 test('a typed result moves the Planned TSS of a race-pace session, and deleting it moves it back', async () => {
