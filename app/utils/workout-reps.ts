@@ -89,7 +89,9 @@ function repCap(
 	let lo = 1
 	let hi = most
 	while (lo < hi) {
-		const mid = (lo + hi + 1) >> 1
+		// Arithmetic, not `>> 1`: reps × series can pass 2³¹ and wrap a bitwise
+		// midpoint, which then never moves.
+		const mid = Math.floor((lo + hi + 1) / 2)
 		if (drawnAt(mid) <= max) lo = mid
 		else hi = mid - 1
 	}

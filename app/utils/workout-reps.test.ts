@@ -113,3 +113,20 @@ test('a big block is thinned, never the small one beside it, whichever comes fir
 test('no workout draws nothing', () => {
 	expect(workoutReps(null)).toEqual({ steps: [], groups: [] })
 })
+
+test('a block repeated past 32-bit reps is still thinned, and in time', () => {
+	// 65 536 × 65 536 reps is 2³²: a bitwise midpoint wraps to 1 there and the
+	// cap search never ends, so the profile and telemetry never render.
+	const huge = {
+		...block('b', 0, 65_536, [
+			['work', 30],
+			['rest', 15],
+		]),
+		seriesRepeatCount: 65_536,
+	}
+	const started = performance.now()
+	const { steps } = workoutReps({ blocks: [huge] })
+	expect(performance.now() - started).toBeLessThan(1000)
+	expect(steps.length).toBeLessThanOrEqual(MAX_DRAWN_STEPS)
+	expect(steps.length).toBeGreaterThan(0)
+})
