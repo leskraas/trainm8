@@ -232,3 +232,136 @@ starts from a list rather than a trace:
   is not touched here.
 - **`ADR 0065`'s open question is closed**, and the two remaining items in §5
   are performance work with numbers attached rather than an architectural fork.
+
+## Reopened (#503, 2026-10-24): the 364 rows are real again, measured 2026-10-25
+
+ADR 0086 removed the bands this ADR's finding 1 relied on. Every past day is a
+row again, so a 52-week season is **exactly 364 day rows**, the number #503 was
+written about. The approach in place is ADR 0086 §4's:
+
+- the past is mounted up front;
+- weeks ahead are appended in chunks;
+- `WeekBlock` and `DayRow` are memoised;
+- where the browser anchors scrolling, each week is `content-visibility: auto`
+  with an estimated `contain-intrinsic-size`.
+
+No virtualiser is added, so `use-timeline-scroll.ts` keeps owning scroll
+position (§1 stands).
+
+### The fixture and the script
+
+- **`scripts/home-stream-fixture.ts`** builds the season on a freshly seeded
+  local database. The stream draws whole weeks from the first Monday inside the
+  query's 182-day reach, so the fixture stretches kody's plan (34 or 35 weeks,
+  by the weekday it is run) and moves his race until the stream is 52 weeks,
+  with four sessions a week across the span. Run it with
+  `npx tsx --env-file=.env scripts/home-stream-fixture.ts`. The consequence
+  above, _"the fixture was thrown away"_, no longer holds.
+- **`scripts/measure-home-stream.ts`** takes the numbers below against a local
+  `npm run start:mocks`:
+  `npx tsx scripts/measure-home-stream.ts http://localhost:3000 5`.
+- Both are local only: each refuses `NODE_ENV=production`, and the script
+  refuses a base URL that is not `localhost`. A production-mode server refuses
+  the `CREDENTIALS_ENCRYPTION_KEY` published in `.env.example`, so a local
+  `.env` needs its own key (`openssl rand -base64 32`), and the database paths
+  in it must be absolute for the built server to find them.
+
+### What was measured
+
+The stream is the full view, `/season`, since ADR 0101 gave I dag a calm today
+card. Production build, mocks on, Chromium at 390×844 (mobile emulation, DPR 3),
+CPU throttled 4× with `Emulation.setCPUThrottlingRate`, a fresh browser context
+per run. Each figure is the median of 5 runs, the fixture and the plain seed
+season interleaved on an otherwise idle 4-core container.
+
+- **First contentful paint**: the `first-contentful-paint` entry.
+- **Hydrated**: the first animation frame at which the stream element carries
+  React's props (`__reactProps$…`). React has no hydration-complete event; this
+  is a proxy for "the stream's handlers are attached".
+- **Long tasks on load**: `longtask` entries from navigation until 2s pass
+  without one. Blocking time is the sum of each task over 50ms.
+- **Scroll**: one key press first, as a reader's first touch would be, because
+  the landing re-lands on late layout until the first input (ADR 0086 §4). Then
+  the stream is scrolled from its top to its end, 40px a frame with instant
+  writes, appended weeks included, recording every frame's duration.
+
+| 390×844, 4× CPU, median of 5      | seed season      | 364-row season   |
+| --------------------------------- | ---------------- | ---------------- |
+| weeks / day rows / DOM nodes      | 28 / 196 / 3,982 | 52 / 364 / 8,843 |
+| first contentful paint            | 968ms            | 1,380ms          |
+| hydrated (proxy above)            | 3,560ms          | 6,228ms          |
+| long tasks on load                | 12               | 14               |
+| long-task time / blocking time    | 1,957 / 1,418ms  | 4,101 / 3,386ms  |
+| longest task (median of 3)        | 963ms            | 2,423ms          |
+| scroll frames                     | 313              | 659              |
+| scroll median / p90               | 16.7 / 22.4ms    | 16.9 / 28.1ms    |
+| scroll frames over 32ms           | 19 (6.1%)        | 55 (8.3%)        |
+| scroll position moved backwards   | 0                | 0                |
+| today's row from the stream's top | 122px            | 122px            |
+
+The spread across runs was small: at 364 rows, hydrated 5.6–6.3s, p90
+26.0–28.7ms, over 32ms 53–57 frames. Runs taken while another job loaded the
+container read up to 50% slower and were discarded.
+
+**A container is not a phone.** 4× on a desktop CPU stands in for a mid-range
+phone's main thread and says nothing about its GPU, its memory or touch
+scrolling. #503's _"on a mid-range phone, not only on a desktop browser"_ is not
+met by this, and stays for a real device.
+
+### What it says
+
+**Scrolling is not where 364 rows cost.** The median frame is 60fps at both
+sizes, the p90 is under 32ms, and the long-frame share moves from 6.1% to 8.3%
+for twice the rows. That is better than ADR 0086 §4's 196-row figure (p90
+41–49ms, scrolling up), and no write moved the reader: the scroll position never
+went backwards and today lands at the same 122px at both sizes.
+
+**The cost is on load, and it is linear in the rows.** Mounting the whole past
+up front means hydrating it: the longest task grows from 0.96s to 2.4s, the
+blocking time from 1.4s to 3.4s, and the stream answers a tap about 2.7s later
+than on the seed season. FCP moves by 0.4s, because the server renders the same
+rows too.
+
+### Decision: no virtualiser (confirmed)
+
+ADR 0086 §4's answer stands, now with the number it lacked: **at 364 rows the
+stream scrolls at 60fps median with a p90 under 32ms on a 4× CPU, so a
+virtualiser has nothing to fix in scrolling**, and §1's reasons against it (it
+takes scroll position from `use-timeline-scroll.ts` and rewrites the landing)
+still hold.
+
+### Proposed (owner to decide): make the load cost not grow with the past
+
+Status: **Proposed**, not built. The load numbers are the one thing at 364 rows
+that a virtualiser would have helped, and it is not the fix this proposes:
+
+- **Server-render and hydrate only the weeks near today** (today's week, the
+  weeks a landing can show, and the first chunk ahead), and mount the rest of
+  the past after hydration in a `startTransition`, oldest last.
+- It is growth above the reader, which ADR 0086 §4 removed. Where the browser
+  anchors scrolling, the anchoring absorbs it as it already absorbs a
+  `content-visibility` estimate that is off; where it does not (Safari),
+  `ReadingHold` makes the one write, as it does for a revalidation.
+- The trade: a strip jump to a far past week before the transition lands has
+  nothing to land on, so the strip would wait for it.
+- What would decide it: the same table on a real mid-range phone. If the
+  hydration task there is under the budget the owner sets, nothing is done.
+
+### The strip criterion (proposed, owner to confirm)
+
+#503 asks that the strip not render the whole season at once. ADR 0082 §5 and
+ADR 0086 §5 are later owner decisions:
+
+- the strip is fixed;
+- it draws every week as two spans;
+- it switches to a window only when bars would be narrower than 6px.
+
+At 52 weeks on a 390px phone, every bar is drawn. The measurement does not put
+the strip in the cost: scrolling holds, and the load cost follows the stream's
+rows. So the criterion is proposed as superseded, for the owner to confirm.
+
+### Deferred hardening
+
+None. The fixture and the script are local scripts with a production guard; the
+fixture writes only to the database `DATABASE_URL` names, and the script only
+reads a page on `localhost`.
