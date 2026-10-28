@@ -18,5 +18,16 @@
 				]
 			}
 		]
+	},
+	"extraKnownMarketplaces": {
+		"bredvid": {
+			"source": {
+				"source": "github",
+				"repo": "Bredvid/skills"
+			}
+		}
+	},
+	"enabledPlugins": {
+		"bredvid-engineering@bredvid": true
 	}
 }
