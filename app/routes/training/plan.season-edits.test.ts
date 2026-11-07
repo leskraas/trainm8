@@ -538,3 +538,35 @@ test('a stale Season Anchor confirm says nothing was saved and shows no new numb
 	])
 	expect(await prisma.seasonAnchorSegment.count({ where: { trackId } })).toBe(1)
 })
+
+test('a Season Anchor fresh start on a day that is not a Monday is refused and writes nothing', async () => {
+	const { outlineId, trackId, thirdWeek, cookie } = await setUp()
+	// The Wednesday of week 43: rounded into that week, it would key a second
+	// segment beside one on its Monday (ADR 0044 §3: week rows key on Mondays).
+	const wednesday = new Date(Date.parse(thirdWeek) + 2 * 86_400_000)
+		.toISOString()
+		.slice(0, 10)
+	const fields: Array<[string, string]> = [
+		['edit', 'season-anchor'],
+		['outlineId', outlineId],
+		['trackId', trackId],
+		['action', 'add'],
+		['addWeekKey', wednesday],
+		['addValue', '5'],
+	]
+	const preview = replyOf(
+		await send([['intent', 'preview-season-edit'], ...fields], cookie),
+	)
+	expect(preview.init?.status).toBe(400)
+	expect(preview.data.seasonEdit?.preview).toBeUndefined()
+	expect(preview.data.seasonEdit?.result?.error?.addWeekKey).toBeTruthy()
+	await send(
+		[['intent', 'apply-season-edit'], ...fields, ['digest', 'any']],
+		cookie,
+	)
+	expect(
+		await prisma.seasonAnchorSegment.count({
+			where: { trackId, fromWeekKey: wednesday },
+		}),
+	).toBe(0)
+})

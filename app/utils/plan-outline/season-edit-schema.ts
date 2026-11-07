@@ -15,7 +15,7 @@ import {
 	SEASON_ANCHOR_EDIT_LABELS,
 	SEASON_EDIT_LABELS,
 } from '#app/utils/labels.ts'
-import { PhaseWeeksSchema } from './authoring-schema.ts'
+import { PhaseWeeksSchema, WeekKeySchema } from './authoring-schema.ts'
 import { RHYTHMS } from './derive.ts'
 import { type SeasonEdit, type SeasonEditKind } from './season-edit.ts'
 
@@ -143,6 +143,18 @@ const AnchorValueField = z
 		return value
 	})
 
+/**
+ * A segment's week as posted: a week key, so a Monday (ADR 0044 §3), the rule
+ * the direct anchor editor's schemas hold too. Any other day would round into
+ * a week and key a second segment beside the one on its Monday.
+ */
+const AnchorWeekField = z
+	.string()
+	.refine(
+		(key) => WeekKeySchema.safeParse(key).success,
+		SEASON_EDIT_LABELS.pickWeek,
+	)
+
 export const SEASON_ANCHOR_ACTIONS = ['add', 'set', 'remove'] as const
 
 /**
@@ -157,11 +169,11 @@ export const SeasonAnchorEditFormSchema = z
 		edit: z.literal('season-anchor'),
 		trackId: required(SEASON_EDIT_LABELS.pickTrack),
 		action: z.enum(SEASON_ANCHOR_ACTIONS),
-		addWeekKey: blankIsKeep(z.string()),
+		addWeekKey: blankIsKeep(AnchorWeekField),
 		addValue: blankIsKeep(AnchorValueField),
-		setWeekKey: blankIsKeep(z.string()),
+		setWeekKey: blankIsKeep(AnchorWeekField),
 		setValue: blankIsKeep(AnchorValueField),
-		removeWeekKey: blankIsKeep(z.string()),
+		removeWeekKey: blankIsKeep(AnchorWeekField),
 	})
 	.superRefine((value, ctx) => {
 		const missing = (path: string, message: string) =>
