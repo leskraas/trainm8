@@ -6,7 +6,10 @@ import {
 	raceAnchorFields,
 } from '#app/utils/performance-result.server.ts'
 import { plannedMetricValue } from '#app/utils/planned-discipline.ts'
-import { type IntensityTarget, type RaceAnchor  } from '#app/utils/workout-schema.ts'
+import {
+	type IntensityTarget,
+	type RaceAnchor,
+} from '#app/utils/workout-schema.ts'
 import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,
