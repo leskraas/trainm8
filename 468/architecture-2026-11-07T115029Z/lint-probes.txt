@@ -1,0 +1,37 @@
+Probes run by the architecture task on #468, on main @ 6ec5b58 (worktree, `npm ci --ignore-scripts`).
+
+1. Does a second `no-restricted-syntax` block for app/** and server/** shadow the
+   route-file `<select>` guard in eslint.config.js?
+
+   Ran: a throwaway config that spreads eslint.config.js and appends
+   { files: ['app/**/*.{ts,tsx}','server/**/*.ts'], rules: { 'no-restricted-syntax': [user.delete selector] } },
+   then `npx eslint -c <probe> --print-config app/routes/settings/profile/index.tsx`.
+
+   Effective rule on the route file with the probe config:
+     [2, {"selector":"CallExpression[...user...delete...]","message":"Use deleteAccount"}]
+   Effective rule with the shipped config:
+     [2, {"selector":"JSXOpeningElement[name.name='select']", ...}]
+
+   Showed: yes. Flat config replaces a rule's options per matching block; it does
+   not merge them. Whichever block comes last wins, so adding the new rule as its
+   own block silently drops the native-<select> guard on every route file (or the
+   reverse, depending on order). Both restrictions must be listed together in the
+   block that covers route files.
+
+2. Does the selector catch the call shapes it must, and nothing else?
+
+   Selector:
+     CallExpression[callee.type='MemberExpression'][callee.property.name=/^(delete|deleteMany)$/][callee.object.type='MemberExpression'][callee.object.property.name='user']
+   Ran ESLint.lintText on:
+     prisma.user.delete({}); tx.user.deleteMany({});
+     await prisma.$transaction([prisma.user.delete({})]);
+     prisma.userImage.delete({}); prisma.session.deleteMany({}); user.delete();
+   Reported at columns 1, 25, 76: the two direct calls and the one inside a batch
+   transaction. Not reported: userImage, session, a bare `user.delete()`.
+
+3. Direct `user.delete` / `user.deleteMany` calls in the repo today (git grep):
+   app/utils/account-deletion.server.ts:86 (the one path);
+   test files only otherwise: app/utils/{catalogue.constraints,catalogue.server,
+   community.constraints,community.server,exercise-seed.server}.test.ts,
+   tests/e2e/onboarding.test.ts, tests/playwright-utils.ts.
+   Nothing in server/. With the exemptions in the issue, the rule passes on main.
