@@ -169,6 +169,32 @@ test('sign-up is closed even from the app itself', async () => {
 	).toBe(0)
 })
 
+test('an email code cannot create an account', async () => {
+	const email = 'code@example.test'
+	const send = await action({
+		request: authRequest('/email-otp/send-verification-otp', {
+			method: 'POST',
+			headers: { Origin: APP_ORIGIN },
+			body: { email, type: 'sign-in' },
+		}),
+		...ARGS_BASE,
+	})
+	const signIn = await action({
+		request: authRequest('/sign-in/email-otp', {
+			method: 'POST',
+			headers: { Origin: APP_ORIGIN },
+			body: { email, otp: '000000' },
+		}),
+		...ARGS_BASE,
+	})
+
+	expect(send.status).toBe(200)
+	expect(signIn.ok).toBe(false)
+	// No code was even issued for an address with no account.
+	expect(await prisma.authVerification.count()).toBe(0)
+	expect(await prisma.user.count({ where: { email } })).toBe(0)
+})
+
 test('GitHub cannot create an account, even when the client asks to sign up', async () => {
 	const githubUser = await insertGitHubUser()
 	// The shared mock answers the token exchange with a form content type that
