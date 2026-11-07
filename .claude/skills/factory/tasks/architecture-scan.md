@@ -7,6 +7,14 @@ it every `scan-every` merges.
 
 Read-only on the repo: your writes are evidence and proposals.
 
+0. **Earlier proposals.** List this scan's open proposals: the open issues
+   whose body holds `<!-- agent:proposal-from architecture-scan -->`
+   (`python3 <base>/scripts/conductor.py list 'repos/<o>/<r>/issues?state=open&labels=agent:proposal'`).
+   For each, check whether it still holds at the default branch's head. One
+   that merged work made true, or that no longer holds, goes in `resolved`
+   with the reason, and the conductor closes it. One that still holds you
+   don't propose again; name it in your comment, with how long it has waited.
+   Done when every open proposal of this scan is resolved or named.
 1. **Scope.** List what merged since the brief's `since`:
    `git log --since=<since> --merges --stat origin/<default>`. The files and
    areas that keep coming up are where to look first; a deep module pays off
@@ -41,14 +49,29 @@ Read-only on the repo: your writes are evidence and proposals.
 
    A finding that contradicts an ADR says so, and why the ADR is worth
    reopening.
+
+   Give each proposal, beside its title and body, its `door` (`one-way` or
+   `two-way`), its `size` (`S`, `M` or `L`) and the `paths` it would change.
+   Under `doors` or `full` autonomy, a two-way door of size S or M that
+   touches no guarded path goes straight to `agent:spec` and gets built, so
+   make the three honest: they decide whether a human sees it first.
+
+   **Drift is always proposed**, outside the three: a place where the code
+   no longer does what an ADR decided, a promise an ADR makes ("comes in its
+   own issue") that no open issue tracks, and a glossary term the code uses
+   differently. One proposal per ADR or term, size and door as the fix needs.
+   Drift left only in a comment is forgotten.
 5. **Report.** Optionally write the full report as HTML in the evidence
    folder, as `improve-codebase-architecture`'s step 2 describes.
 
 ## Result
 
 - **outcome**: `done`, or `blocked`.
-- **proposals**: at most three, `{title, body}`, the title the change in a
-  few words.
+- **proposals**: at most three deepening opportunities, plus one per drift,
+  each `{title, body, door, size, paths}`, the title the change in a few
+  words.
+- **resolved**: from step 0, `{number, reason}`.
 - **evidence**: the evidence folder, when you wrote the report.
-- **comment**: the scope (merges, areas), every candidate you weighed in one
-  line each with its strength, the ADR drift, and which you proposed.
+- **comment**: the earlier proposals still open, the scope (merges, areas),
+  every candidate you weighed in one line each with its strength, the ADR
+  drift, and which you proposed.
