@@ -1,0 +1,9 @@
+
+Oops! Something went wrong! :(
+
+ESLint: 9.39.2
+
+No files matching the pattern "app/routes/settings/__activities-edit.server.ts" were found.
+Please check for typing mistakes in the pattern.
+
+eslint exit 2
