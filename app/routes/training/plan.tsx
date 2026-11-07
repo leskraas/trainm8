@@ -156,7 +156,10 @@ import { seasonFitnessOf } from './__season-chart.tsx'
 import { seasonEditAction } from './__season-edits.server.ts'
 import { SeasonEditsCard } from './__season-edits.tsx'
 import { SEASON_EVENTS_SHOWN, SeasonEvents } from './__season-events.tsx'
-import { UnavailableReadingsNotice } from './__season-notices.tsx'
+import {
+	PlanGuardNotices,
+	UnavailableReadingsNotice,
+} from './__season-notices.tsx'
 import { readSeasonPicture } from './__season-picture.server.ts'
 import { SeasonPicture } from './__season-picture.tsx'
 import {
@@ -756,6 +759,11 @@ export default function PlanRoute({
 						</p>
 					) : null
 				}
+				// The plan's Guard Notices, under the card and before Bibliotek (ADR
+				// 0112). Keyed by the plan, so a dismissal belongs to one plan: the
+				// next `?outline=` or `?event=` page brings its notices back open
+				// even where their words match.
+				notices={<PlanGuardNotices key={season.outlineId} season={season} />}
 				className="lg:mx-auto lg:max-w-2xl"
 			>
 				{/* Bytt treningsform, after Legg til et løp (ADR 0101 §2): the Start

@@ -3,7 +3,7 @@
  */
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { createRoutesStub } from 'react-router'
+import { createRoutesStub, Link } from 'react-router'
 import { expect, test } from 'vitest'
 import { draftStart } from '#app/utils/first-run/start-draft.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
@@ -673,6 +673,14 @@ function renderPlan(
 		at?: string
 		/** _Bytt treningsform_'s options (#581); none unless a test says so. */
 		treningsform?: TreningsformView
+		/**
+		 * The plan the loader reads for this URL, as the real loader picks one
+		 * from `?outline=` and `?event=`; `season` for every URL unless a test
+		 * says so.
+		 */
+		seasonAt?: (url: URL) => Season
+		/** Links rendered beside the route, for a test that moves between plans. */
+		links?: string[]
 	} = {},
 ) {
 	const week =
@@ -686,10 +694,17 @@ function renderPlan(
 		{
 			path: '/training/plan',
 			Component: (props: Record<string, unknown>) => (
-				<PlanRoute {...(props as any)} />
+				<>
+					<PlanRoute {...(props as any)} />
+					{extra.links?.map((to) => (
+						<Link key={to} to={to}>
+							{to}
+						</Link>
+					))}
+				</>
 			),
-			loader: () => ({
-				season,
+			loader: ({ request }: { request: Request }) => ({
+				season: extra.seasonAt?.(new URL(request.url)) ?? season,
 				tab,
 				seasonQuery: eventQuery ? { name: 'event', value: eventQuery } : null,
 				week,
@@ -2307,6 +2322,194 @@ test('a guard the athlete has read and decided about closes, alone', async () =>
 		),
 	).toHaveValue(12)
 })
+
+// ── The Guard Notices stand in Plan's lead (ADR 0112, #672) ─────────────────
+
+/** The three Guard Notices, by what each one's close button names. */
+const GUARD_NAMES = [
+	'Lukk merknaden om stigning',
+	'Lukk merknaden om treningsdager',
+	'Lukk merknaden om belastning',
+]
+
+test('the Guard Notices stand in Plan’s lead with Avansert closed, under the card and before Bibliotek', async () => {
+	renderPlan(guardedSeason(), 'blocks', null, undefined, {
+		at: '/training/plan',
+	})
+
+	const advanced = await screen.findByRole('button', {
+		name: /^Avansert\s*Filosofi/,
+	})
+	expect(advanced).toHaveAttribute('aria-expanded', 'false')
+	const lead = document.querySelector<HTMLElement>('[data-plan-lead]')!
+	// Read with no tap, all three, with the words the Blokker reading had.
+	expect(within(lead).getByText(/Vanlig praksis er \+8 %/)).toBeInTheDocument()
+	expect(within(lead).getByText(/Det er dager mot dager/)).toBeInTheDocument()
+	expect(
+		within(lead).getByText(/Det spennet er utledet fra styrkemålet/),
+	).toBeInTheDocument()
+	// Standing content, not news: a live region would read all three aloud on
+	// every visit to Plan.
+	const notes = within(lead).getAllByRole('note')
+	expect(notes).toHaveLength(3)
+	expect(within(lead).queryByRole('alert')).not.toBeInTheDocument()
+	// Ramp, availability, band, in that order.
+	GUARD_NAMES.forEach((name, position) => {
+		expect(within(notes[position]!).getByRole('button', { name })).toBeEnabled()
+	})
+	// One stack outside the card, after it: a notice follows the card it is
+	// about, and the card stays a one-glance read.
+	const stack = lead.querySelector<HTMLElement>('[data-plan-guards]')!
+	expect(stack.parentElement).toBe(lead)
+	const heading = within(lead).getByRole('heading', { level: 1 })
+	expect(stack.contains(heading)).toBe(false)
+	expect(
+		heading.compareDocumentPosition(stack) & Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+	expect(
+		stack.compareDocumentPosition(
+			screen.getByRole('region', { name: 'Bibliotek' }),
+		) & Node.DOCUMENT_POSITION_FOLLOWING,
+	).toBeTruthy()
+	// No heading of its own.
+	expect(within(stack).queryByRole('heading')).not.toBeInTheDocument()
+})
+
+test('each Guard Notice is on the page once: the Blokker reading under Avansert holds none', async () => {
+	// Lands on Avansert open, as the editor suites do.
+	renderPlan(guardedSeason())
+
+	const blocks = await waitForElement('[data-blocks-reading]')
+	await openAllIn(blocks)
+	expect(within(blocks).queryAllByRole('note')).toHaveLength(0)
+	for (const name of GUARD_NAMES) {
+		expect(screen.getAllByRole('button', { name })).toHaveLength(1)
+	}
+	expect(screen.getAllByText(/Vanlig praksis er \+8 %/)).toHaveLength(1)
+	const lead = document.querySelector<HTMLElement>('[data-plan-lead]')!
+	expect(within(lead).getAllByRole('note')).toHaveLength(3)
+})
+
+test('a plan with no warnings has no Guard Notice, no stack and no heading for them', async () => {
+	renderPlan(SEASON, 'blocks', null, undefined, { at: '/training/plan' })
+
+	const lead = await waitForElement('[data-plan-lead]')
+	expect(within(lead).queryAllByRole('note')).toHaveLength(0)
+	expect(lead.querySelector('[data-plan-guards]')).toBeNull()
+	// The lead is the card and nothing after it: no wrapper, so no gap.
+	expect(lead.lastElementChild?.matches('[data-plan-guards]')).toBe(false)
+})
+
+/** The guarded season as another plan, its ramp a number of its own. */
+function otherPlan(outlineId: string, authored: number): Season {
+	const guarded = guardedSeason()
+	return {
+		...guarded,
+		outlineId,
+		tracks: [
+			{
+				...guarded.tracks[0]!,
+				segments: [segment(0, { ramp: authored }), segment(1)],
+				warnings: [{ subject: 'ramp', phaseIndex: 0, authored }],
+			},
+		],
+	}
+}
+
+test('`?outline=` and `?event=` show the guards of the plan being viewed, in the lead', async () => {
+	const plans: Record<string, Season> = {
+		'outline-active': otherPlan('outline-active', 0.12),
+		'outline-resting': otherPlan('outline-resting', 0.2),
+		'outline-event': { ...otherPlan('outline-event', 0.3), eventId: 'event-2' },
+	}
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		at: '/training/plan?outline=outline-resting',
+		seasonAt: (url) =>
+			url.searchParams.get('event') === 'event-2'
+				? plans['outline-event']!
+				: (plans[url.searchParams.get('outline') ?? 'outline-active'] ??
+					plans['outline-active']!),
+		links: ['/training/plan?event=event-2'],
+	})
+
+	const lead = await waitForElement('[data-plan-lead]')
+	expect(
+		await within(lead).findByText(/stiger \+20 % per harde uke\.$/),
+	).toBeInTheDocument()
+	expect(
+		within(lead).queryByText(/stiger \+12 % per harde uke\.$/),
+	).not.toBeInTheDocument()
+
+	await userEvent.click(
+		screen.getByRole('link', { name: '/training/plan?event=event-2' }),
+	)
+
+	const eventLead = document.querySelector<HTMLElement>('[data-plan-lead]')!
+	expect(
+		await within(eventLead).findByText(/stiger \+30 % per harde uke\.$/),
+	).toBeInTheDocument()
+	expect(
+		within(eventLead).queryByText(/stiger \+20 % per harde uke\.$/),
+	).not.toBeInTheDocument()
+})
+
+test('a dismissal belongs to one plan: the next plan’s notice opens even where the words match', async () => {
+	// Two plans whose guards read exactly the same: only the plan tells them apart.
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		at: '/training/plan?outline=outline-a',
+		seasonAt: (url) =>
+			otherPlan(url.searchParams.get('outline') ?? 'outline-a', 0.12),
+		links: ['/training/plan?outline=outline-b'],
+	})
+
+	await userEvent.click(
+		await screen.findByRole('button', { name: 'Lukk merknaden om stigning' }),
+	)
+	expect(screen.queryByText(/Vanlig praksis er \+8 %/)).not.toBeInTheDocument()
+
+	await userEvent.click(
+		screen.getByRole('link', { name: '/training/plan?outline=outline-b' }),
+	)
+
+	expect(
+		await screen.findByRole('button', { name: 'Lukk merknaden om stigning' }),
+	).toBeEnabled()
+	expect(screen.getByText(/Vanlig praksis er \+8 %/)).toBeInTheDocument()
+})
+
+test('the links inside a Guard Notice lead where the fix is, from the lead', async () => {
+	renderPlan(
+		{ ...guardedSeason(), weeklyCapacityHours: null },
+		'blocks',
+		null,
+		undefined,
+		{
+			at: '/training/plan',
+		},
+	)
+
+	const lead = await waitForElement('[data-plan-lead]')
+	const notes = within(lead).getAllByRole('note')
+	expect(
+		within(notes[1]!).getByRole('link', { name: 'utøverprofilen' }),
+	).toHaveAttribute('href', '/settings/profile')
+	expect(within(notes[2]!).getByRole('link', { name: /^Uke/ })).toHaveAttribute(
+		'href',
+		'/training/sessions/session-1',
+	)
+})
+
+/** The first element matching `selector`, once the route has rendered it. */
+async function waitForElement(selector: string) {
+	await screen.findAllByRole(
+		'heading',
+		{ level: 1 },
+		{ timeout: REFUSAL_TIMEOUT },
+	)
+	const element = document.querySelector<HTMLElement>(selector)
+	expect(element, `${selector} is not on the page`).not.toBeNull()
+	return element!
+}
 
 // ── The Quality Session Mix and its derived readings (ADR 0042 §3–§7) ────────
 
