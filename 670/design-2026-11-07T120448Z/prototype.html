@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Event result prototype</title>
+<!-- PROTOTYPE for leskraas/trainm8#670, throwaway. Tokens copied from app/styles/tailwind.css. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;650;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --background: oklch(0.975 0.003 197);
+  --foreground: oklch(0.148 0.004 228.8);
+  --card: oklch(1 0 0);
+  --primary: #0d7a68;
+  --primary-foreground: #ffffff;
+  --secondary: oklch(0.955 0.004 197);
+  --muted: oklch(0.948 0.004 197);
+  --muted-foreground: oklch(0.52 0.016 213.5);
+  --border: oklch(0.915 0.005 214.3);
+  --input: oklch(0.915 0.005 214.3);
+  --destructive: oklch(0.577 0.245 27.325);
+  --ring: color-mix(in oklab, var(--primary) 55%, transparent);
+  --status-under: oklch(0.55 0.13 65);
+  --track-run: oklch(0.63 0.16 32);
+  --radius: 6px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  color-scheme: light;
+}
+.dark {
+  --background: oklch(0.148 0.004 228.8);
+  --foreground: oklch(0.987 0.002 197.1);
+  --card: oklch(0.205 0.007 223.9);
+  --primary: #35b89c;
+  --primary-foreground: #0c1512;
+  --secondary: oklch(0.275 0.011 216.9);
+  --muted: oklch(0.255 0.01 216.9);
+  --muted-foreground: oklch(0.723 0.014 214.4);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --destructive: oklch(0.704 0.191 22.216);
+  --ring: color-mix(in oklab, var(--primary) 60%, transparent);
+  --status-under: oklch(0.82 0.12 65);
+  --track-run: oklch(0.7 0.14 32);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: "Public Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button, a, label, [role=radio], [role=checkbox] { touch-action: manipulation; }
+button, label { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+
+/* Type steps (design-system.md) */
+.t-display { font-size: 32px; line-height: 38px; font-weight: 700; letter-spacing: -0.025em; }
+.t-title { font-size: 24px; line-height: 30px; font-weight: 650; letter-spacing: -0.02em; }
+.t-heading { font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.012em; }
+.t-body { font-size: 16px; line-height: 24px; font-weight: 400; letter-spacing: -0.004em; }
+.t-callout { font-size: 15px; line-height: 21px; font-weight: 500; letter-spacing: -0.004em; }
+.t-footnote { font-size: 13px; line-height: 18px; font-weight: 400; letter-spacing: 0.002em; }
+.t-caption { font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.01em; }
+.t-overline { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.muted { color: var(--muted-foreground); }
+.num { font-variant-numeric: tabular-nums; }
+.wrap-any { overflow-wrap: anywhere; }
+.medium { font-weight: 500; }
+.semibold { font-weight: 600; }
+
+/* Page */
+.page { max-width: 672px; margin: 0 auto; padding: 24px 16px 140px; }
+@media (min-width: 768px) { .page { padding: 32px 32px 140px; } }
+.page-header { display: flex; align-items: center; gap: 4px; margin-bottom: 24px; }
+.page-header h1 { margin: 0; font-size: 18px; line-height: 24px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.icon-btn { position: relative; width: 32px; height: 32px; border: 0; border-radius: 999px; background: transparent; color: var(--foreground); display: grid; place-items: center; cursor: pointer; }
+.icon-btn::after { content: ""; position: absolute; inset: -6px; }
+.card { background: var(--card); border-radius: 15.6px; padding: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / .06), 0 2px 4px -2px rgb(0 0 0 / .06); }
+.dark .card { box-shadow: 0 0 0 1px oklch(1 0 0 / 10%); }
+@media (min-width: 768px) { .card { padding: 24px; } }
+.stack-6 { display: flex; flex-direction: column; gap: 24px; }
+.stack-6 > .collapse:not([data-open]) { margin-top: -24px; }
+.stack-6 > .collapse { transition-property: grid-template-rows, opacity, margin-top; }
+.stack-4 > * + * { margin-top: 16px; }
+.stack-2 > * + * { margin-top: 8px; }
+.stack-1 > * + * { margin-top: 4px; }
+.row { display: flex; align-items: center; gap: 12px; }
+.sep { height: 1px; background: var(--border); border: 0; margin: 0; }
+p { margin: 0; }
+h2, h3 { margin: 0; }
+
+.disc { flex: none; width: 32px; height: 32px; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); display: grid; place-items: center; font-weight: 600; font-size: 15px; margin-top: 2px; }
+.badge { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; flex: none; background: var(--secondary); color: var(--foreground); }
+.badge.primary { background: color-mix(in oklab, var(--primary) 14%, transparent); color: var(--primary); }
+.badge.outline { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+
+/* Buttons */
+.btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 44px; padding: 0 16px; border-radius: 15.6px; font: 500 14px/1 "Public Sans", system-ui, sans-serif; border: 0; cursor: pointer; text-decoration: none; transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), color 160ms var(--ease-out); }
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--primary); color: var(--primary-foreground); }
+.btn-outline { background: var(--card); color: var(--foreground); box-shadow: inset 0 0 0 1px var(--border); }
+.btn-ghost { background: transparent; color: var(--foreground); }
+.btn-destructive { background: color-mix(in oklab, var(--destructive) 12%, transparent); color: var(--destructive); }
+.btn-sm { height: 32px; padding: 0 12px; border-radius: 13.2px; font-size: 13px; }
+.btn-sm::after { content: ""; position: absolute; inset: -6px 0; }
+@media (hover: hover) and (pointer: fine) {
+  .btn-outline:hover, .btn-ghost:hover { background: var(--muted); }
+  .btn-primary:hover { background: color-mix(in oklab, var(--primary) 90%, black); }
+  .link:hover { text-decoration: underline; }
+}
+.btn:focus-visible, .pill:focus-visible, .link:focus-visible, .tile:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+.link { color: var(--primary); font-weight: 500; text-decoration: none; text-underline-offset: 4px; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; }
+
+/* Pills: the Event Distance choice (ToggleGroupField, a row of pills) */
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { position: relative; height: 44px; padding: 0 16px; border-radius: 999px; border: 0; cursor: pointer; background: color-mix(in oklab, var(--input) 50%, transparent); color: var(--foreground); font: 500 15px/1 "Public Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out); }
+.pill:active { transform: scale(0.97); }
+.pill[aria-pressed="true"] { background: color-mix(in oklab, var(--primary) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 45%, transparent); color: var(--primary); }
+
+/* Form */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.label { font-size: 14px; font-weight: 500; line-height: 20px; }
+.optional { color: var(--muted-foreground); font-weight: 400; }
+.input { height: 44px; width: 100%; border-radius: 13.2px; border: 0; padding: 0 12px; background: color-mix(in oklab, var(--input) 50%, transparent); color: var(--foreground); font: 400 16px "Public Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+@media (min-width: 768px) and (pointer: fine) { .input { font-size: 14px; } }
+.input:focus { outline: 2px solid var(--ring); outline-offset: 0; }
+.input.short { width: 8.5em; }
+.desc { font-size: 13px; line-height: 18px; color: var(--muted-foreground); }
+.err { font-size: 13px; line-height: 18px; color: var(--destructive); }
+.tiles { display: grid; grid-template-columns: 1fr; gap: 8px; }
+@media (min-width: 400px) { .tiles.three { grid-template-columns: repeat(3, 1fr); } }
+.tiles.two { grid-template-columns: 1fr 1fr; }
+.tile { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 10px 12px; border-radius: 13.2px; background: color-mix(in oklab, var(--input) 50%, transparent); box-shadow: inset 0 0 0 1px transparent; cursor: pointer; transition: background-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out); }
+.tile:has(input:checked) { background: color-mix(in oklab, var(--primary) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 40%, transparent); }
+.tile input { accent-color: var(--primary); width: 16px; height: 16px; margin: 0; flex: none; }
+
+/* motion-collapse: height + opacity, 200 in / 150 out (the sanctioned layout animation) */
+.collapse { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 150ms var(--ease-out), opacity 150ms var(--ease-out); }
+.collapse > .inner { overflow: hidden; min-height: 0; }
+.collapse[data-open] { grid-template-rows: 1fr; opacity: 1; transition-duration: 200ms; }
+.collapse:not([data-open]) .inner { visibility: hidden; transition: visibility 0s 150ms; }
+
+/* Result block */
+.well { background: color-mix(in oklab, var(--muted) 60%, transparent); border-radius: 13.2px; padding: 12px; }
+.result-figure { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.measured { display: inline-flex; align-items: center; gap: 6px; }
+.measured svg { flex: none; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.submit { width: 100%; }
+@media (min-width: 640px) { .submit { width: auto; } }
+.note-under { color: var(--status-under); }
+
+/* starting: landing (ADR 0088): rises 4px and fades in, 200ms ease-out */
+.lands { transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); }
+@starting-style { .lands { opacity: 0; transform: translateY(4px); } }
+
+/* Løpsresultater list */
+.list { list-style: none; margin: 0; padding: 0; }
+.list > li { padding: 12px 0; border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
+.list > li:first-child { border-top: 0; }
+.res-row { display: flex; align-items: flex-start; gap: 12px; }
+.res-row .text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.event-link { position: relative; display: inline; min-height: 0; margin-top: 2px; align-self: flex-start; }
+.event-link::after { content: ""; position: absolute; inset: -12px -4px; }
+.event-link .chev svg { vertical-align: -3px; margin-left: 2px; }
+.res-row .trail { flex: none; display: flex; align-items: center; min-height: 44px; margin-top: -11px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active, .pill:active { transform: none; }
+  @starting-style { .lands { transform: none; } }
+  .collapse, .collapse[data-open] { transition-property: opacity; }
+}
+
+/* Harness chrome: neutral, not part of the design */
+.harness { position: sticky; top: 0; z-index: 50; background: #f4f4f5; border-bottom: 1px solid #e4e4e7; font: 12px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #3f3f46; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.harness select, .harness button { font: inherit; height: 28px; border-radius: 6px; border: 1px solid #d4d4d8; background: #fff; color: #18181b; padding: 0 8px; }
+.harness .seg { display: inline-flex; background: #e4e4e7; border-radius: 7px; padding: 2px; }
+.harness .seg button { border: 0; background: transparent; height: 24px; }
+.harness .seg button[aria-pressed="true"] { background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .1); }
+.datatoggle { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); z-index: 2147483646; display: inline-flex; background: #e4e4e7; border-radius: 8px; padding: 2px; font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; box-shadow: 0 2px 8px rgb(0 0 0 / .12); }
+.datatoggle button { border: 0; background: transparent; height: 26px; padding: 0 10px; border-radius: 6px; font: inherit; color: #3f3f46; cursor: pointer; }
+.datatoggle button[aria-pressed="true"] { background: #fff; color: #18181b; box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+
+/* The picker (PICKER.md, verbatim) */
+.proto-picker { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 2147483647; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: rgba(10, 10, 10, 0.82); -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset, 0 8px 24px rgba(0, 0, 0, 0.24), 0 2px 6px rgba(0, 0, 0, 0.12); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px; line-height: 1; -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; }
+.proto-picker-highlight { position: absolute; top: 4px; left: 0; height: 28px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); will-change: transform; }
+.proto-picker[data-ready] .proto-picker-highlight { transition: transform 250ms cubic-bezier(0.23, 1, 0.32, 1), width 250ms cubic-bezier(0.23, 1, 0.32, 1); }
+@media (prefers-reduced-motion: reduce) { .proto-picker[data-ready] .proto-picker-highlight { transition: none; } }
+.proto-picker-item { position: relative; display: flex; align-items: center; height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: rgba(255, 255, 255, 0.55); font: inherit; cursor: pointer; transition: color 150ms ease-out; }
+.proto-picker-item:hover { color: rgba(255, 255, 255, 0.85); }
+.proto-picker-item:active { transform: scale(0.97); }
+.proto-picker-item:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.4); outline-offset: 2px; }
+.proto-picker-item[data-active] { color: #fff; }
+.proto-picker-divider { width: 1px; height: 16px; margin: 0 4px; background: rgba(255, 255, 255, 0.12); }
+.proto-picker-replay { padding: 0 10px; font-size: 14px; }
+.proto-picker[data-position="top"] { bottom: auto; top: 24px; }
+</style>
+</head>
+<body>
+<div class="harness" role="region" aria-label="Prototype controls">
+  <strong>PROTOTYPE #670</strong>
+  <span class="seg" id="screens">
+    <button data-screen="event" aria-pressed="true">Løpssiden</button>
+    <button data-screen="form">Skjemaet</button>
+    <button data-screen="results">Løpsresultater</button>
+  </span>
+  <label id="stateWrap">Tilstand
+    <select id="state">
+      <option value="saved">Lagret · Garmin</option>
+      <option value="polar">Lagret · Polar</option>
+      <option value="typedWins">Lagret · skrevet-inn tid samme dag brukes</option>
+      <option value="other">Lagret · ikke standarddistanse (7,5 km)</option>
+      <option value="noDistance">Gjennomført · løpet mangler distanse</option>
+      <option value="mismatch">Gjennomført · klokka målte 11,4 km</option>
+      <option value="noRecDistance">Gjennomført · opptaket har ingen distanse</option>
+      <option value="notRun">Gjennomført · opptaket er ikke løping</option>
+      <option value="noRecording">Gjennomført · ingen opptak ennå</option>
+      <option value="candidates">Gjennomført · økta ikke valgt ennå</option>
+      <option value="planned">Planlagt · med distanse</option>
+    </select>
+  </label>
+  <span class="seg" id="theme">
+    <button data-theme="light" aria-pressed="true">Lys</button>
+    <button data-theme="dark">Mørk</button>
+  </span>
+</div>
+
+<div id="stage"></div>
+
+<div class="datatoggle" role="group" aria-label="Data">
+  <button data-data="demo" aria-pressed="true">Demo data</button>
+  <button data-data="worst">Worst case</button>
+</div>
+
+<nav class="proto-picker" aria-label="Prototype variants">
+  <span class="proto-picker-highlight" aria-hidden="true"></span>
+  <button class="proto-picker-item" data-active aria-current="true">Målt</button>
+</nav>
+
+<script>
+// ---------------------------------------------------------------------------
+// Data: the issue's real content, and break-ui's worst case at the same boundary.
+// ---------------------------------------------------------------------------
+const ANCHORS = [
+  { key: '1500m', label: '1500 m', m: 1500 },
+  { key: '3k', label: '3 km', m: 3000 },
+  { key: '5k', label: '5 km', m: 5000 },
+  { key: '10k', label: '10 km', m: 10000 },
+  { key: 'hm', label: 'Halvmaraton', m: 21097.5 },
+  { key: 'marathon', label: 'Maraton', m: 42195 },
+];
+const RACE_PACE = { '1500m': '1500 m-fart', '3k': '3 km-fart', '5k': '5 km-fart', '10k': '10 km-fart', hm: 'halvmaratonfart', marathon: 'maratonfart' };
+
+const FIXTURES = {
+  demo: {
+    event: { name: 'Sentrumsløpet', location: 'Oslo', day: 'lørdag 25. apr 2026', dayShort: '25. apr 2026', priority: 'A', kind: 'Løp', source: 'Løp' },
+    session: { title: 'Sentrumsløpet 10 km', time: '10:00' },
+    device: { garmin: 'Garmin Forerunner 265', polar: 'Polar Vantage V3' },
+    run: { anchor: '10k', measuredKm: 10.21, sec: 41 * 60 + 12 },
+    hm: { anchor: 'hm', measuredKm: 21.3, sec: 1 * 3600 + 31 * 60 + 47 },
+    other: { km: 7.5, measuredKm: 7.62, sec: 31 * 60 + 2, name: 'Bymarka testløp', kind: 'Testløp' },
+    mismatchKm: 11.4,
+    typed: { sec: 41 * 60 + 5 },
+  },
+  worst: {
+    event: { name: 'Sentrumsløpet – Norgesmesterskap i gateløp for veteraner og mosjonister, start og mål på Rådhusplassen i Oslo sentrum', location: 'Rådhusplassen, Fridtjof Nansens plass, 0160 Oslo, Norge (oppmøte ved bagasjeteltet)', day: 'onsdag 30. sep 2026', dayShort: '30. sep 2026', priority: 'C', kind: 'Testløp', source: 'Testløp' },
+    session: { title: 'Ekstra', time: '23:58' },
+    device: { garmin: 'Garmin Forerunner 965 Solar Sapphire Edition (Asia)', polar: 'Polar Grit X2 Pro Titan' },
+    run: { anchor: 'marathon', measuredKm: 44.29, sec: 6 * 3600 + 58 * 60 + 41 },
+    hm: { anchor: '1500m', measuredKm: 1.52, sec: 3 * 60 + 59 },
+    other: { km: 100, measuredKm: 104.9, sec: 13 * 3600 + 45 * 60 + 10, name: 'Nordmarka Ultra 100 km – Frognerseteren til Sognsvann og tilbake via Kikut og Bjørnholt', kind: 'Løp' },
+    mismatchKm: 44.4,
+    typed: { sec: 6 * 3600 + 58 * 60 + 41 },
+  },
+};
+
+let data = 'demo';
+let screen = 'event';
+let stateKey = 'saved';
+// Event page state, rebuilt from the scenario and changed by the athlete's taps.
+let ev = null;
+let landed = false;
+
+const F = () => FIXTURES[data];
+const anchorOf = (key) => ANCHORS.find((a) => a.key === key);
+const nbKm = (km) => (Number.isInteger(km) ? String(km) : km.toFixed(1)).replace('.', ',');
+const clock = (s) => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; const mm = String(m).padStart(2, '0'), ss = String(x).padStart(2, '0'); return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`; };
+const pace = (s, m) => { const p = Math.round(s / (m / 1000)); return `${Math.floor(p / 60)}:${String(p % 60).padStart(2, '0')} /km`; };
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const distLabel = (d) => d == null ? null : d.anchor ? anchorOf(d.anchor).label : `${nbKm(d.km)} km`;
+const distM = (d) => d.anchor ? anchorOf(d.anchor).m : d.km * 1000;
+
+function scenario(key) {
+  const f = F();
+  const base = { status: 'completed', linked: true, distance: { anchor: f.run.anchor }, rec: { kind: 'run', km: f.run.measuredKm, sec: f.run.sec, origin: 'garmin' }, effect: 'inUse' };
+  switch (key) {
+    case 'saved': return base;
+    case 'polar': return { ...base, distance: { anchor: f.hm.anchor }, rec: { kind: 'run', km: f.hm.measuredKm, sec: f.hm.sec, origin: 'polar' } };
+    case 'typedWins': return { ...base, effect: 'typed' };
+    case 'other': return { ...base, distance: { km: f.other.km }, rec: { kind: 'run', km: f.other.measuredKm, sec: f.other.sec, origin: 'upload' } };
+    case 'noDistance': return { ...base, distance: null };
+    case 'mismatch': return { ...base, rec: { ...base.rec, km: f.mismatchKm } };
+    case 'noRecDistance': return { ...base, rec: { kind: 'run', km: null, sec: f.run.sec, origin: 'garmin' } };
+    case 'notRun': return { ...base, rec: { kind: 'bike', km: 38.2, sec: f.run.sec, origin: 'garmin' } };
+    case 'noRecording': return { ...base, rec: null };
+    case 'candidates': return { ...base, linked: false };
+    case 'planned': return { ...base, status: 'planned', linked: false, rec: null };
+  }
+}
+
+// The writer's rule, as the issue states it: one result when the Recording is a
+// run with a distance within ±5 % of the Event Distance.
+function verdict(e) {
+  if (!e.linked) return { kind: 'unlinked' };
+  if (!e.distance) return { kind: 'noDistance' };
+  if (!e.rec) return { kind: 'noRecording' };
+  if (e.rec.kind !== 'run') return { kind: 'notRun' };
+  if (e.rec.km == null) return { kind: 'noRecDistance' };
+  const target = distM(e.distance) / 1000;
+  if (Math.abs(e.rec.km - target) > target * 0.05) return { kind: 'mismatch', measured: e.rec.km, target };
+  return { kind: 'result', m: distM(e.distance), sec: e.rec.sec };
+}
+
+// ---------------------------------------------------------------------------
+// Pieces
+// ---------------------------------------------------------------------------
+const back = `<button class="icon-btn" aria-label="Tilbake"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6l6 6"/></svg></button>`;
+const watchIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6a3 3 0 0 1-3-3z"/><path d="M9 18v3h6v-3"/><path d="M9 6v-3h6v3"/></svg>`;
+const chevron = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6l-6 6"/></svg>`;
+const overline = (t) => `<h2 class="t-overline muted" style="margin-bottom:8px">${t}</h2>`;
+
+// "Målt av klokka" and the platform's credit, by the figure (ADR 0098 §3: above the fold, never collapsed).
+function measuredLine(origin) {
+  const f = F();
+  const credit = origin === 'garmin' ? f.device.garmin : origin === 'polar' ? f.device.polar : null;
+  return `<p class="t-footnote muted measured wrap-any" data-source-attribution="${credit ? 'owed' : 'none'}">${watchIcon}<span>Målt av klokka${credit ? ` · ${esc(credit)}` : ''}</span></p>`;
+}
+
+// Event Distance pills; `name` scopes them, `sel` is {anchor}|{km}|null, 'other' opens km.
+function distancePicker(id, sel, otherOpen, otherVal, err) {
+  const selKey = sel ? (sel.anchor ?? 'other') : (otherOpen ? 'other' : null);
+  const pills = ANCHORS.map((a) => `<button type="button" class="pill" data-pick="${id}" data-val="${a.key}" aria-pressed="${selKey === a.key}">${a.label}</button>`).join('')
+    + `<button type="button" class="pill" data-pick="${id}" data-val="other" aria-pressed="${selKey === 'other'}">Annen</button>`;
+  return `
+    <div class="pills" role="group" aria-labelledby="${id}-label">${pills}</div>
+    <div class="collapse" ${selKey === 'other' ? 'data-open' : ''}><div class="inner"><div class="field" style="padding-top:12px">
+      <label class="label" for="${id}-km">Distanse i km</label>
+      <input class="input short" id="${id}-km" inputmode="decimal" autocomplete="off" placeholder="7,5" value="${esc(otherVal ?? '')}" ${err ? 'aria-invalid="true"' : ''}>
+      ${err ? `<p class="err">${err}</p>` : `<p class="desc">I km, f.eks. 7,5.</p>`}
+    </div></div></div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Screen 1: the Event page
+// ---------------------------------------------------------------------------
+function resultSection() {
+  const f = F();
+  const v = verdict(ev);
+  if (ev.status === 'planned') return '';
+  if (v.kind === 'unlinked') {
+    return `<section>${overline('Velg resultat')}
+      <div class="stack-2">
+        <p class="t-footnote muted">Økter ${f.event.dayShort} i løpets idrett:</p>
+        <div class="well row" style="flex-wrap:wrap;justify-content:space-between">
+          <div style="min-width:0" class="wrap-any"><p class="t-callout medium">${esc(f.session.title)}</p><p class="t-footnote muted num">Løping · ${f.session.time}</p></div>
+          <button class="btn btn-outline" data-act="link">Bruk som resultat</button>
+        </div>
+        ${ev.distance ? `<p class="t-footnote muted">Tida fra klokka lagres som resultat på ${distLabel(ev.distance)}.</p>` : ''}
+      </div></section>`;
+  }
+
+  const sessionLinks = `<div class="actions">
+      <a class="btn btn-outline" href="#" onclick="return false">Se økta</a>
+      <button class="btn btn-ghost" data-act="unlink">Fjern koblingen</button>
+    </div>`;
+
+  if (v.kind === 'result') {
+    const effect = ev.distance.anchor
+      ? (ev.effect === 'typed'
+          ? `Du skrev inn en tid på ${distLabel(ev.distance)} samme dag. Øktene med ${RACE_PACE[ev.distance.anchor]} bruker den. <a class="link" style="min-height:0;display:inline" href="#" onclick="return false">Løpsresultater</a>`
+          : `Øktene med ${RACE_PACE[ev.distance.anchor]} regner farten fra denne tida.`)
+      : `${distLabel(ev.distance)} er ingen standarddistanse, så ingen økt regner fart fra den.`;
+    return `<section>${overline('Resultat')}
+      <div class="well stack-4 ${landed ? 'lands' : ''}" data-event-result>
+        <div class="stack-1">
+          <div class="result-figure"><span class="t-display num">${clock(v.sec)}</span><span class="t-callout muted num">${pace(v.sec, v.m)} · ${distLabel(ev.distance)}</span></div>
+          ${measuredLine(ev.rec.origin)}
+        </div>
+        <p class="t-footnote">${effect}</p>
+        ${sessionLinks}
+      </div></section>`;
+  }
+
+  // Linked, but no result: say why in the athlete's terms, and offer the one fix the page can make.
+  let why = '', fix = '';
+  if (v.kind === 'noDistance') {
+    why = `<p class="t-callout medium">Hvor langt var løpet?</p><p class="t-footnote muted">Velg distansen, så lagres tida fra klokka som et resultat.</p>`;
+    fix = distanceFix(true);
+  } else if (v.kind === 'mismatch') {
+    why = `<p class="t-callout medium">Ingen tid er lagret</p><p class="t-footnote muted num">Klokka målte ${nbKm(v.measured)} km, men løpet er ${distLabel(ev.distance)}. Tida lagres bare når de to stemmer.</p>`;
+    fix = ev.fixOpen ? distanceFix(false) : `<button class="btn btn-outline" data-act="openFix">Endre distansen</button>`;
+  } else if (v.kind === 'noRecDistance') {
+    why = `<p class="t-callout medium">Ingen tid er lagret</p><p class="t-footnote muted">Opptaket fra klokka har ingen distanse, så det kan ikke måles mot ${distLabel(ev.distance)}.</p>`;
+  } else if (v.kind === 'notRun') {
+    why = `<p class="t-callout medium">Ingen tid er lagret</p><p class="t-footnote muted">Opptaket er en sykkeltur, ikke løping.</p>`;
+  } else if (v.kind === 'noRecording') {
+    why = `<p class="t-callout medium">Venter på klokka</p><p class="t-footnote muted">Økta har ikke noe opptak ennå. Tida lagres når det kommer.</p>`;
+  }
+  return `<section>${overline('Resultat')}
+    <div class="well stack-4">
+      <div class="stack-1" role="status">${why}</div>
+      ${fix}
+      ${sessionLinks}
+    </div></section>`;
+}
+
+function distanceFix(primaryAsk) {
+  const sel = ev.draft ?? (primaryAsk ? null : ev.distance);
+  return `<div class="stack-4" data-distance-fix>
+    ${primaryAsk ? '' : `<p class="label" id="fix-label">Løpets distanse</p>`}
+    <div>${distancePicker('fix', sel && sel.km != null && !sel.anchor ? { km: sel.km } : sel, ev.draftOther, ev.draftKm, ev.draftErr)}</div>
+    <button class="btn btn-primary" data-act="saveDistance" ${sel || ev.draftOther ? '' : 'disabled style="opacity:.5"'}>Lagre distansen</button>
+  </div>`;
+}
+
+function eventPage() {
+  const f = F();
+  const dist = distLabel(ev.distance);
+  const meta = [dist, f.event.day, f.event.location].filter(Boolean).map(esc).join(' · ');
+  const statusBadge = ev.status === 'planned' ? 'Planlagt' : 'Gjennomført';
+  return `<main class="page">
+    <div class="page-header">${back}<h1>${f.event.kind}</h1></div>
+    <div class="card stack-6">
+      <header class="row" style="align-items:flex-start">
+        <span class="disc" role="img" aria-label="Prioritet ${f.event.priority}">${f.event.priority}</span>
+        <div class="stack-1 wrap-any" style="min-width:0;flex:1">
+          <h2 class="t-title">${esc(f.event.name)}</h2>
+          <p class="t-footnote muted num" data-event-meta>${meta}</p>
+          <span class="badge ${ev.status === 'planned' ? 'outline' : 'primary'}">${statusBadge}</span>
+        </div>
+      </header>
+      <ul class="pills" style="list-style:none;margin:0;padding:0"><li><span class="badge">Løping</span></li></ul>
+      <section>${overline('Mål')}<p class="t-heading num">${data === 'demo' ? 'Under 42:00' : 'Fullføre'}</p></section>
+      ${ev.status !== 'planned' ? `<hr class="sep">${resultSection()}` : ''}
+    </div>
+    <div class="actions" style="margin-top:24px">
+      ${ev.status === 'planned' ? `<button class="btn btn-outline">Endre</button><button class="btn btn-outline">Avlys</button>` : ''}
+      <button class="btn btn-destructive">Slett</button>
+    </div>
+  </main>`;
+}
+
+// ---------------------------------------------------------------------------
+// Screen 2: the Event form, with the Event Distance field
+// ---------------------------------------------------------------------------
+let form = { kind: 'race', disc: ['run'], dist: { anchor: '10k' }, otherOpen: false, km: '' };
+function formPage() {
+  const f = F();
+  const shows = form.kind !== 'fitness-goal' && form.disc.length === 1 && form.disc[0] === 'run';
+  const kinds = [['race', 'Løp'], ['time-trial', 'Testløp'], ['fitness-goal', 'Datomål']];
+  const discs = [['run', 'Løping'], ['bike', 'Sykling'], ['swim', 'Svømming'], ['strength', 'Styrke']];
+  return `<main class="page">
+    <div class="page-header">${back}<h1>Endre løpet</h1></div>
+    <form class="stack-6" onsubmit="return false">
+      <div class="card stack-6">
+        <div class="field"><label class="label" for="name">Navn</label><input class="input" id="name" value="${esc(f.event.name)}" maxlength="120"></div>
+        <fieldset class="field" style="border:0;padding:0;margin:0"><legend class="label" style="margin-bottom:6px">Type</legend>
+          <div class="tiles three" role="radiogroup">${kinds.map(([k, l]) => `<label class="tile"><input type="radio" name="kind" value="${k}" ${form.kind === k ? 'checked' : ''} data-form="kind"><span class="t-callout">${l}</span></label>`).join('')}</div>
+        </fieldset>
+        <div class="field"><label class="label" for="date">Dato</label><input class="input" id="date" type="date" value="${data === 'demo' ? '2026-04-25' : '2026-09-30'}"></div>
+        <fieldset class="field" style="border:0;padding:0;margin:0"><legend class="label" style="margin-bottom:6px">Idrett</legend>
+          <div class="tiles two">${discs.map(([k, l]) => `<label class="tile"><input type="checkbox" value="${k}" ${form.disc.includes(k) ? 'checked' : ''} data-form="disc"><span class="t-callout">${l}</span></label>`).join('')}</div>
+        </fieldset>
+        <div class="collapse" ${shows ? 'data-open' : ''} data-event-distance-field><div class="inner">
+          <fieldset class="field" style="border:0;padding:0;margin:0">
+            <legend class="label" id="form-label" style="margin-bottom:6px">Distanse<span class="optional"> · valgfritt</span></legend>
+            ${distancePicker('form', form.dist, form.otherOpen, form.km, null)}
+            <p class="desc" style="margin-top:8px">Når du velger økta som er resultatet, lagres tida fra klokka på denne distansen.</p>
+          </fieldset>
+        </div></div>
+        <div class="field"><label class="label" for="loc">Sted<span class="optional"> · valgfritt</span></label><input class="input" id="loc" value="${esc(f.event.location)}"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end"><button class="btn btn-primary submit" id="save">Lagre endringene</button></div>
+    </form>
+  </main>`;
+}
+
+// ---------------------------------------------------------------------------
+// Screen 3: Løpsresultater, where an Event's result sits beside typed ones
+// ---------------------------------------------------------------------------
+function resultsPage() {
+  const f = F();
+  const a = anchorOf(f.run.anchor);
+  const h = anchorOf(f.hm.anchor);
+  const rows = [
+    { dist: h.label, sec: f.hm.sec, m: h.m, source: f.event.source, date: '3. mai 2026', event: f.event.name, origin: 'polar' },
+    { dist: a.label, sec: f.typed.sec, m: a.m, source: 'Løp', date: f.event.dayShort, typed: true, inUse: true },
+    { dist: a.label, sec: f.run.sec, m: a.m, source: f.event.source, date: f.event.dayShort, event: f.event.name, origin: 'garmin', shadowed: true },
+    { dist: `${nbKm(f.other.km)} km`, sec: f.other.sec, m: f.other.km * 1000, source: f.other.kind, date: '12. apr 2026', event: f.other.name, origin: 'upload' },
+    { dist: '5 km', sec: 19 * 60 + 58, m: 5000, source: 'Testløp', date: '22. mar 2026', typed: true },
+  ];
+  const row = (r) => `<li data-testid="performance-result"><div class="res-row">
+      <span class="text">
+        <span class="t-callout num">${r.dist} · ${clock(r.sec)}</span>
+        <span class="t-footnote muted num">${[pace(r.sec, r.m), r.source, r.date].join(' · ')}</span>
+        ${r.typed ? `<span class="t-caption muted">Skrevet inn av deg — ikke målt av appen.</span>` : measuredLine(r.origin).replace('t-footnote', 't-caption')}
+        ${r.shadowed ? `<span class="t-caption note-under">Ikke i bruk: tida du skrev inn samme dag brukes.</span>` : ''}
+        ${r.event ? `<a class="link event-link t-footnote wrap-any" href="#" onclick="return false"><span>${esc(r.event)}<span class="chev">${chevron}</span></span></a>` : ''}
+      </span>
+      <span class="trail">${r.inUse ? `<span class="badge primary">I bruk</span>` : r.typed ? `<button class="btn btn-ghost btn-sm">Slett</button>` : ''}</span>
+    </div></li>`;
+  return `<main class="page">
+    <div class="page-header">${back}<h1>Løpsresultater</h1></div>
+    <div class="stack-6" style="display:flex;flex-direction:column;gap:40px">
+      <p class="t-body">Løp og testløp du har gjort. Økter som sier «10 km-fart» regner farten sin fra ditt nyeste resultat på den distansen.</p>
+      <div class="stack-4"><h2 class="t-heading">Legg til resultat</h2>
+        <div class="field"><span class="t-footnote medium">Distanse</span><div class="input" style="display:flex;align-items:center;justify-content:space-between">5 km <span class="muted">⌄</span></div></div>
+        <div class="field"><span class="t-footnote medium">Tid</span><input class="input" placeholder="41:30"><p class="desc">Som klokka viste den: 41:30 eller 1:32:00</p></div>
+        <button class="btn btn-primary" style="width:100%">Lagre resultat</button>
+      </div>
+      <section class="stack-2"><h2 class="t-heading">Løpsresultater</h2><ul class="list">${rows.map(row).join('')}</ul></section>
+    </div>
+  </main>`;
+}
+
+// ---------------------------------------------------------------------------
+// Wiring
+// ---------------------------------------------------------------------------
+// In a srcdoc iframe (the canvas) the URL cannot change; selection then lives only in memory.
+{ const rs = history.replaceState.bind(history); history.replaceState = (...a) => { try { rs(...a) } catch {} } }
+const stage = document.getElementById('stage');
+function render() {
+  document.getElementById('stateWrap').style.display = screen === 'event' ? '' : 'none';
+  stage.innerHTML = screen === 'event' ? eventPage() : screen === 'form' ? formPage() : resultsPage();
+}
+function reset() { ev = { ...scenario(stateKey), draft: null, draftOther: false, draftKm: '', draftErr: null, fixOpen: false }; landed = false; render(); }
+
+function parseKm(t) { const n = Number(String(t).trim().replace(',', '.')); return Number.isFinite(n) && n > 0 && n <= 1000 ? Math.round(n * 1000) / 1000 : null; }
+
+stage.addEventListener('click', (e) => {
+  const pick = e.target.closest('[data-pick]');
+  if (pick) {
+    const id = pick.dataset.pick, val = pick.dataset.val;
+    if (id === 'form') {
+      if (val === 'other') { form.otherOpen = !(form.otherOpen && !form.dist?.anchor); form.dist = null; }
+      else { const same = form.dist?.anchor === val; form.dist = same ? null : { anchor: val }; form.otherOpen = false; }
+      patchPills('form', form.dist ? form.dist.anchor : form.otherOpen ? 'other' : null);
+    } else {
+      if (val === 'other') { ev.draftOther = true; ev.draft = null; }
+      else { ev.draft = { anchor: val }; ev.draftOther = false; }
+      ev.draftErr = null;
+      patchPills('fix', ev.draft ? ev.draft.anchor : 'other');
+      const save = stage.querySelector('[data-act="saveDistance"]'); if (save) { save.disabled = false; save.style.opacity = ''; }
+    }
+    return;
+  }
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (!act) return;
+  if (act === 'unlink') { ev.linked = false; landed = false; render(); }
+  if (act === 'link') { ev.linked = true; ev.rec = ev.rec ?? scenario('saved').rec; landed = true; render(); }
+  if (act === 'openFix') { ev.fixOpen = true; render(); stage.querySelector('[data-distance-fix] .pill')?.focus(); }
+  if (act === 'saveDistance') {
+    let next = ev.draft;
+    if (ev.draftOther) {
+      const raw = stage.querySelector('#fix-km')?.value ?? '';
+      const km = parseKm(raw);
+      if (km == null) { ev.draftKm = raw; ev.draftErr = 'Skriv distansen i km, f.eks. 7,5'; render(); return; }
+      next = { km };
+    }
+    if (!next) return;
+    ev.distance = next; ev.effect = 'inUse'; ev.draft = null; ev.draftOther = false; ev.fixOpen = false;
+    landed = verdict(ev).kind === 'result';
+    render();
+  }
+});
+// Pressed state changes in place, so the "Annen" field opens with motion-collapse rather than re-mounting.
+function patchPills(id, key) {
+  stage.querySelectorAll(`[data-pick="${id}"]`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.val === key)));
+  const col = stage.querySelector(`#${id}-km`)?.closest('.collapse');
+  if (col) col.toggleAttribute('data-open', key === 'other');
+  if (key === 'other') setTimeout(() => stage.querySelector(`#${id}-km`)?.focus({ preventScroll: true }), 0);
+}
+stage.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.dataset.form === 'kind') form.kind = t.value;
+  if (t.dataset.form === 'disc') form.disc = [...stage.querySelectorAll('[data-form="disc"]:checked')].map((x) => x.value);
+  const shows = form.kind !== 'fitness-goal' && form.disc.length === 1 && form.disc[0] === 'run';
+  stage.querySelector('[data-event-distance-field]')?.toggleAttribute('data-open', shows);
+});
+stage.addEventListener('input', (e) => { if (e.target.id === 'form-km') form.km = e.target.value; if (e.target.id === 'fix-km') ev.draftKm = e.target.value; });
+
+document.getElementById('screens').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  screen = b.dataset.screen;
+  document.querySelectorAll('#screens button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  const u = new URL(location); u.searchParams.set('screen', screen); history.replaceState(null, '', u);
+  render();
+});
+document.getElementById('state').addEventListener('change', (e) => { stateKey = e.target.value; const u = new URL(location); u.searchParams.set('state', stateKey); history.replaceState(null, '', u); reset(); });
+document.getElementById('theme').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.documentElement.classList.toggle('dark', b.dataset.theme === 'dark');
+  document.querySelectorAll('#theme button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+});
+document.querySelector('.datatoggle').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  data = b.dataset.data;
+  document.querySelectorAll('.datatoggle button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  const u = new URL(location); u.searchParams.set('data', data); history.replaceState(null, '', u);
+  reset();
+});
+
+// Initial state from the URL (screen, state, data, theme), so a screenshot can name it.
+const q = new URLSearchParams(location.search);
+if (q.get('screen')) { screen = q.get('screen'); document.querySelectorAll('#screens button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.screen === screen))); }
+if (q.get('state')) { stateKey = q.get('state'); document.getElementById('state').value = stateKey; }
+if (q.get('data')) { data = q.get('data'); document.querySelectorAll('.datatoggle button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.data === data))); }
+if (q.get('theme') === 'dark') { document.documentElement.classList.add('dark'); document.querySelectorAll('#theme button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.theme === 'dark'))); }
+if (q.get('chrome') === 'off') { document.querySelector('.harness').style.display = 'none'; document.querySelector('.datatoggle').style.display = 'none'; document.querySelector('.proto-picker').style.display = 'none'; }
+
+// Picker wiring (PICKER.md): one variant, so 1/←/→ all land on it.
+const picker = document.querySelector('.proto-picker');
+const highlight = picker.querySelector('.proto-picker-highlight');
+const items = [...picker.querySelectorAll('.proto-picker-item')];
+function moveHighlight() { const el = items[0]; highlight.style.width = el.offsetWidth + 'px'; highlight.style.transform = `translateX(${el.offsetLeft}px)`; }
+items[0].addEventListener('click', () => reset());
+window.addEventListener('resize', moveHighlight);
+document.addEventListener('keydown', (e) => {
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === '1' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') reset();
+});
+const u0 = new URL(location); u0.searchParams.set('v', 1); history.replaceState(null, '', u0);
+reset();
+moveHighlight();
+requestAnimationFrame(() => requestAnimationFrame(() => picker.setAttribute('data-ready', '')));
+</script>
+</body>
+</html>
