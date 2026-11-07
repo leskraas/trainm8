@@ -1,0 +1,1408 @@
+diff --git a/app/components/chart/chart.tsx b/app/components/chart/chart.tsx
+index 48fe7d6..29d7cf2 100644
+--- a/app/components/chart/chart.tsx
++++ b/app/components/chart/chart.tsx
+@@ -440,7 +440,7 @@ export function ChartFigure({
+ 			    promise a reading that tapping never produces. */}
+ 			{inspect && renderInspect ? (
+ 				<figcaption
+-					className="bg-muted/40 text-foreground mt-3 min-h-16 rounded-xl p-3 text-sm"
++					className="bg-muted/40 text-foreground mt-3 min-h-16 rounded-3xl p-3 text-footnote"
+ 					aria-live="polite"
+ 				>
+ 					{renderInspect(inspect.index)}
+diff --git a/app/components/forms.tsx b/app/components/forms.tsx
+index 05177c2..2623f2b 100644
+--- a/app/components/forms.tsx
++++ b/app/components/forms.tsx
+@@ -444,7 +444,7 @@ export function CheckboxField({
+ 					<FieldLabel
+ 						htmlFor={id}
+ 						{...labelProps}
+-						className="text-muted-foreground text-sm"
++						className="text-muted-foreground text-footnote"
+ 					/>
+ 					<InlineFieldErrors
+ 						errorId={errorId}
+diff --git a/app/components/load-legend.tsx b/app/components/load-legend.tsx
+index 774c20a..2b60772 100644
+--- a/app/components/load-legend.tsx
++++ b/app/components/load-legend.tsx
+@@ -38,7 +38,7 @@ export function LoadLegendLabel({
+ 				aria-label={legend.term}
+ 				className={cn(
+ 					// The word is small; the hit area is not (`after:`, 44px tall).
+-					'decoration-muted-foreground/50 aria-expanded:text-foreground relative cursor-help rounded-sm underline decoration-dotted underline-offset-2 after:absolute after:-inset-x-1 after:-inset-y-3.5',
++					'decoration-muted-foreground/50 aria-expanded:text-foreground relative cursor-help rounded-2xl underline decoration-dotted underline-offset-2 after:absolute after:-inset-x-1 after:-inset-y-3.5',
+ 					className,
+ 				)}
+ 			>
+diff --git a/app/components/load-metric-badge.tsx b/app/components/load-metric-badge.tsx
+index 2c04b36..bf44a56 100644
+--- a/app/components/load-metric-badge.tsx
++++ b/app/components/load-metric-badge.tsx
+@@ -50,7 +50,7 @@ export function LoadMetricBadge({
+ 	return (
+ 		<div
+ 			className={cn(
+-				'rounded-3xl px-2.5 py-1 text-xs font-medium tabular-nums',
++				'rounded-3xl px-2.5 py-1 text-caption font-medium tabular-nums',
+ 				colorClassName,
+ 			)}
+ 		>
+diff --git a/app/components/overlay-header.tsx b/app/components/overlay-header.tsx
+index 6233751..b6480d2 100644
+--- a/app/components/overlay-header.tsx
++++ b/app/components/overlay-header.tsx
+@@ -19,9 +19,9 @@ export function OverlayHeader({
+ 	return (
+ 		<div className="flex items-start justify-between gap-4">
+ 			<div className="min-w-0">
+-				<Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
++				<Dialog.Title className="text-heading">{title}</Dialog.Title>
+ 				{description ? (
+-					<Dialog.Description className="text-muted-foreground text-sm">
++					<Dialog.Description className="text-muted-foreground text-footnote">
+ 						{description}
+ 					</Dialog.Description>
+ 				) : null}
+diff --git a/app/components/page-header.tsx b/app/components/page-header.tsx
+index 158dc2c..7344d56 100644
+--- a/app/components/page-header.tsx
++++ b/app/components/page-header.tsx
+@@ -52,7 +52,7 @@ export function PageHeader({
+ 					<Icon name="arrow-left" size="md" />
+ 				</Link>
+ 			) : null}
+-			<h1 className="min-w-0 flex-1 basis-40 truncate text-lg font-semibold">
++			<h1 className="min-w-0 flex-1 basis-40 truncate text-heading">
+ 				{title}
+ 			</h1>
+ 			{actions ? (
+diff --git a/app/components/profile-bars.tsx b/app/components/profile-bars.tsx
+index c3a9370..4bbed7a 100644
+--- a/app/components/profile-bars.tsx
++++ b/app/components/profile-bars.tsx
+@@ -179,7 +179,7 @@ export function ProfileBars({
+ 	scale?: ProfileBarsScale
+ }) {
+ 	if (givenBars.length === 0) {
+-		return <span className="text-muted-foreground text-xs">—</span>
++		return <span className="text-muted-foreground text-caption">—</span>
+ 	}
+ 	const { bars, groups } = fitBars(givenBars, givenGroups, MAX_PROFILE_BARS)
+ 	const hasDuration = bars.some((b) => b.durationSec > 0)
+diff --git a/app/components/score-stanza.tsx b/app/components/score-stanza.tsx
+index 66caaae..930feae 100644
+--- a/app/components/score-stanza.tsx
++++ b/app/components/score-stanza.tsx
+@@ -143,7 +143,7 @@ function StanzaLine({
+ 						<Wrapped token={block.series} renderToken={renderToken}>
+ 							<span
+ 								data-token-type="series"
+-								className="text-muted-foreground ring-border rounded-lg px-1.5 py-0.5 text-xs font-bold whitespace-nowrap tabular-nums ring-1 ring-inset"
++								className="text-muted-foreground ring-border rounded-full px-1.5 py-0.5 text-caption font-bold whitespace-nowrap tabular-nums ring-1 ring-inset"
+ 							>
+ 								<span aria-hidden>
+ 									{block.series.text}
+@@ -159,7 +159,7 @@ function StanzaLine({
+ 						<Wrapped token={block.repeat} renderToken={renderToken}>
+ 							<span
+ 								data-token-type="repeat"
+-								className="bg-muted text-muted-foreground rounded-lg px-1.5 py-0.5 text-xs font-bold whitespace-nowrap tabular-nums"
++								className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-caption font-bold whitespace-nowrap tabular-nums"
+ 							>
+ 								{block.repeat.text}
+ 								{NOTATION_SEPARATORS.repeat}
+@@ -310,7 +310,7 @@ export const ZONE_CHIP_TINT: Record<TrainingZone, string> = {
+ }
+ 
+ const CHIP_BASE =
+-	'inline-flex items-baseline whitespace-nowrap rounded-md px-2 py-px text-[0.8em] font-semibold tabular-nums [font-variant-caps:small-caps]'
++	'inline-flex items-baseline whitespace-nowrap rounded-full px-2 py-px text-[0.8em] font-semibold tabular-nums [font-variant-caps:small-caps]'
+ 
+ /**
+  * The intensity chip — the line's ONLY chip-shaped element: authored value as
+diff --git a/app/components/tab-bar.tsx b/app/components/tab-bar.tsx
+index 5c82b0b..6050667 100644
+--- a/app/components/tab-bar.tsx
++++ b/app/components/tab-bar.tsx
+@@ -76,7 +76,7 @@ export function TabBar({ className }: { className?: string }) {
+ 									// neither selects its label nor pops the link callout.
+ 									'focus-visible:outline-ring active:bg-muted/60 flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px]/[1.1] font-semibold select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:-outline-offset-2',
+ 									// 44px to a pointer or a thumb on a tablet (ui-conventions §2.2).
+-									'md:h-11 md:flex-row md:gap-1.5 md:rounded-full md:px-3.5 md:text-sm',
++									'md:h-11 md:flex-row md:gap-1.5 md:rounded-full md:px-3.5 md:text-footnote',
+ 									active
+ 										? 'text-primary md:bg-primary/10'
+ 										: 'text-muted-foreground hover:text-foreground',
+diff --git a/app/components/token-popover.tsx b/app/components/token-popover.tsx
+index 2f97e08..ac02a85 100644
+--- a/app/components/token-popover.tsx
++++ b/app/components/token-popover.tsx
+@@ -87,7 +87,7 @@ export function TokenPopoverTrigger<Payload>({
+ 			payload={payload}
+ 			data-token-trigger
+ 			className={cn(
+-				'focus-visible:ring-ring hover:bg-muted data-popup-open:bg-muted -mx-1 -my-1 cursor-pointer rounded-lg px-1 py-1 outline-none focus-visible:ring-2',
++				'focus-visible:ring-ring hover:bg-muted data-popup-open:bg-muted -mx-1 -my-1 cursor-pointer rounded-2xl px-1 py-1 outline-none focus-visible:ring-2',
+ 				className,
+ 			)}
+ 			{...props}
+diff --git a/app/routes/_home/__autopilot-notice.tsx b/app/routes/_home/__autopilot-notice.tsx
+index 4c36a77..fbe74f7 100644
+--- a/app/routes/_home/__autopilot-notice.tsx
++++ b/app/routes/_home/__autopilot-notice.tsx
+@@ -320,7 +320,7 @@ function UndoAll({ weekKey, count }: { weekKey: string; count: number }) {
+ 				aria-label={L.undoAllFor(count)}
+ 				className={cn(
+ 					buttonVariants({ variant: 'outline' }),
+-					'pressable h-12 w-full rounded-full text-base',
++					'pressable h-12 w-full rounded-full text-body',
+ 				)}
+ 			>
+ 				{busy ? L.undoing : L.undoAll}
+diff --git a/app/routes/_home/__bytt-okt.tsx b/app/routes/_home/__bytt-okt.tsx
+index 0fc36ca..760b7e2 100644
+--- a/app/routes/_home/__bytt-okt.tsx
++++ b/app/routes/_home/__bytt-okt.tsx
+@@ -191,7 +191,7 @@ function SwapPicker({
+ 					enterKeyHint="search"
+ 					autoComplete="off"
+ 					// 16px, so iOS never zooms the page into the field.
+-					className="text-base"
++					className="text-body"
+ 				/>
+ 				{from === 'exercise' ? (
+ 					<p className="text-footnote text-muted-foreground [text-wrap:pretty]">
+diff --git a/app/routes/_home/__calm-today-view.tsx b/app/routes/_home/__calm-today-view.tsx
+index 670521c..5d268fd 100644
+--- a/app/routes/_home/__calm-today-view.tsx
++++ b/app/routes/_home/__calm-today-view.tsx
+@@ -350,7 +350,7 @@ function SessionCard({
+ 						data-today-cta
+ 						className={cn(
+ 							buttonVariants({ size: 'default' }),
+-							'h-12 w-full text-base font-semibold',
++							'h-12 w-full text-body font-semibold',
+ 						)}
+ 					>
+ 						{card.logTo.label}
+@@ -426,7 +426,7 @@ function DoneCard({
+ 					onClick={() => composer.undo(landed.id)}
+ 					className={cn(
+ 						buttonVariants({ variant: 'outline' }),
+-						'mt-1 h-12 w-full rounded-full text-base',
++						'mt-1 h-12 w-full rounded-full text-body',
+ 					)}
+ 				>
+ 					{undoingSessionId === landed.id
+@@ -482,7 +482,7 @@ function NoPlanCard({
+ 				data-calm-start
+ 				className={cn(
+ 					buttonVariants({ size: 'default' }),
+-					'mt-1 h-12 w-full text-base font-semibold',
++					'mt-1 h-12 w-full text-body font-semibold',
+ 				)}
+ 			>
+ 				{L.noPlanAction}
+diff --git a/app/routes/_home/timeline/composer.tsx b/app/routes/_home/timeline/composer.tsx
+index 5069685..d993f98 100644
+--- a/app/routes/_home/timeline/composer.tsx
++++ b/app/routes/_home/timeline/composer.tsx
+@@ -623,7 +623,7 @@ function DayStrip({
+ 							if (next) onDay(next)
+ 						}}
+ 						// 16px so iOS never zooms; the platform's own picker.
+-						className="border-border bg-background h-9 rounded-xl border px-2 text-[16px]"
++						className="border-border bg-background h-9 rounded-3xl border px-2 text-[16px]"
+ 					/>
+ 				</span>
+ 			</label>
+@@ -1330,7 +1330,7 @@ function RestField({
+ 					event.preventDefault()
+ 					commit()
+ 				}}
+-				className="border-border bg-background text-foreground h-11 w-20 rounded-xl border px-3 text-[16px] tabular-nums"
++				className="border-border bg-background text-foreground h-11 w-20 rounded-3xl border px-3 text-[16px] tabular-nums"
+ 			/>
+ 		</label>
+ 	)
+diff --git a/app/routes/_home/timeline/import-actions.tsx b/app/routes/_home/timeline/import-actions.tsx
+index 5da0188..05d3c48 100644
+--- a/app/routes/_home/timeline/import-actions.tsx
++++ b/app/routes/_home/timeline/import-actions.tsx
+@@ -283,7 +283,7 @@ export function MarkDoneAction({
+ 					data-today-done
+ 					className={cn(
+ 						buttonVariants({ size: 'default' }),
+-						'h-12 w-full gap-2 text-base font-semibold disabled:opacity-70',
++						'h-12 w-full gap-2 text-body font-semibold disabled:opacity-70',
+ 					)}
+ 				>
+ 					<Icon name="check" size="sm" />
+diff --git a/app/routes/_home/timeline/season-pane.tsx b/app/routes/_home/timeline/season-pane.tsx
+index 287e07d..d12e21c 100644
+--- a/app/routes/_home/timeline/season-pane.tsx
++++ b/app/routes/_home/timeline/season-pane.tsx
+@@ -436,7 +436,7 @@ const SeasonRow = memo(function SeasonRow({
+ 								onJump(row.key)
+ 							}}
+ 							aria-label={rowLabel(row.name)}
+-							className="pressable focus-visible:outline-ring w-full rounded-sm text-left tabular-nums focus-visible:outline-2"
++							className="pressable focus-visible:outline-ring w-full rounded-2xl text-left tabular-nums focus-visible:outline-2"
+ 						>
+ 							{row.weekNumber}
+ 						</button>
+diff --git a/app/routes/_home/timeline/strength-log-panel.tsx b/app/routes/_home/timeline/strength-log-panel.tsx
+index bd53b29..c6ded08 100644
+--- a/app/routes/_home/timeline/strength-log-panel.tsx
++++ b/app/routes/_home/timeline/strength-log-panel.tsx
+@@ -420,7 +420,7 @@ function WeightStepper({
+ 					onClick={() =>
+ 						setText(formatNbKg(stepKilo(kg ?? planned, stepKg, -1)))
+ 					}
+-					className="size-11 shrink-0 rounded-full text-lg"
++					className="size-11 shrink-0 rounded-full text-heading"
+ 				>
+ 					−
+ 				</Button>
+@@ -457,7 +457,7 @@ function WeightStepper({
+ 					onClick={() =>
+ 						setText(formatNbKg(stepKilo(kg ?? planned, stepKg, 1)))
+ 					}
+-					className="size-11 shrink-0 rounded-full text-lg"
++					className="size-11 shrink-0 rounded-full text-heading"
+ 				>
+ 					+
+ 				</Button>
+diff --git a/app/routes/_home/timeline/week-strip.tsx b/app/routes/_home/timeline/week-strip.tsx
+index 5620cb1..ae99240 100644
+--- a/app/routes/_home/timeline/week-strip.tsx
++++ b/app/routes/_home/timeline/week-strip.tsx
+@@ -358,7 +358,7 @@ export function WeekStrip({
+ 							scrubRef.current = null
+ 							setScrubbing(false)
+ 						}}
+-						className="relative flex h-11 [touch-action:none] items-stretch overflow-hidden rounded-xl"
++						className="relative flex h-11 [touch-action:none] items-stretch overflow-hidden rounded-3xl"
+ 					>
+ 						{visible.map((week) => (
+ 							<StripWeek
+@@ -386,7 +386,7 @@ export function WeekStrip({
+ 							<span
+ 								aria-hidden
+ 								data-strip-frame
+-								className="border-primary pointer-events-none absolute inset-y-0 rounded-lg border-2"
++								className="border-primary pointer-events-none absolute inset-y-0 rounded-2xl border-2"
+ 								style={{
+ 									left: pct(frameStart),
+ 									width: `${((frameEnd - frameStart + 1) / n) * 100}%`,
+@@ -467,7 +467,7 @@ function EdgeButton({
+ 					? SEASON_STRIP_LABELS.earlierName(weeks)
+ 					: SEASON_STRIP_LABELS.laterName(weeks)
+ 			}
+-			className="text-muted-foreground pressable relative flex h-11 w-7 flex-none flex-col items-center justify-center rounded-lg text-[10px]/[1] font-semibold tabular-nums after:absolute after:-inset-x-2 after:inset-y-0 disabled:opacity-40"
++			className="text-muted-foreground pressable relative flex h-11 w-7 flex-none flex-col items-center justify-center rounded-2xl text-[10px]/[1] font-semibold tabular-nums after:absolute after:-inset-x-2 after:inset-y-0 disabled:opacity-40"
+ 		>
+ 			<Icon
+ 				name="chevron-right"
+diff --git a/app/routes/settings/__meg-ui.tsx b/app/routes/settings/__meg-ui.tsx
+index 6825728..618b062 100644
+--- a/app/routes/settings/__meg-ui.tsx
++++ b/app/routes/settings/__meg-ui.tsx
+@@ -62,7 +62,7 @@ export function MegRows({
+ 	return (
+ 		<ul
+ 			aria-label={label}
+-			className="bg-card ring-foreground/5 dark:ring-foreground/10 divide-border/70 divide-y rounded-4xl px-4 shadow-xs ring-1"
++			className="bg-card ring-foreground/5 dark:ring-foreground/10 divide-border/60 divide-y rounded-4xl px-4 shadow-md ring-1"
+ 		>
+ 			{children}
+ 		</ul>
+@@ -251,7 +251,7 @@ export function MegField({
+ 				id={id}
+ 				aria-invalid={words.length ? true : undefined}
+ 				aria-describedby={describedBy}
+-				className={cn('md:text-base', inputProps.className)}
++				className={cn('md:text-body', inputProps.className)}
+ 			/>
+ 			<FieldErrors id={errorId} errors={words} />
+ 			{hint ? <MegNote id={hintId}>{hint}</MegNote> : null}
+@@ -294,7 +294,7 @@ export function MegSelectField({
+ 			>
+ 				<SelectTrigger
+ 					id={id}
+-					className="w-full md:text-base"
++					className="w-full md:text-body"
+ 					aria-invalid={words.length ? true : undefined}
+ 					aria-describedby={words.length ? errorId : undefined}
+ 					onFocus={() => control.focus()}
+diff --git a/app/routes/settings/integrations.tsx b/app/routes/settings/integrations.tsx
+index a3fd90b..4d99eaa 100644
+--- a/app/routes/settings/integrations.tsx
++++ b/app/routes/settings/integrations.tsx
+@@ -243,7 +243,7 @@ function ProviderTile({ entry }: { entry: ProviderDirectoryEntry }) {
+ 		<span
+ 			aria-hidden="true"
+ 			className={cn(
+-				'grid size-10 flex-none place-items-center rounded-2xl text-sm font-bold',
++				'grid size-10 flex-none place-items-center rounded-2xl text-footnote font-bold',
+ 				entry.monogramClassName,
+ 			)}
+ 		>
+diff --git a/app/routes/settings/training/lifts.$exerciseId.tsx b/app/routes/settings/training/lifts.$exerciseId.tsx
+index beca276..36b722e 100644
+--- a/app/routes/settings/training/lifts.$exerciseId.tsx
++++ b/app/routes/settings/training/lifts.$exerciseId.tsx
+@@ -314,7 +314,7 @@ export default function ExerciseAnchorsRoute({
+ 				{prescriptions.length === 0 ? (
+ 					<MegNote>{L.notPrescribed}</MegNote>
+ 				) : (
+-					<ul className="bg-card ring-foreground/5 dark:ring-foreground/10 divide-border/70 divide-y rounded-4xl px-4 shadow-xs ring-1">
++					<ul className="bg-card ring-foreground/5 dark:ring-foreground/10 divide-border/60 divide-y rounded-4xl px-4 shadow-md ring-1">
+ 						{prescriptions.map((prescription) => (
+ 							<li key={prescription.sessionId}>
+ 								<Link
+@@ -450,7 +450,7 @@ function AddAnchorForm({
+ 								setConstruct(value as 'oneRm' | 'repMax')
+ 							}
+ 						>
+-							<SelectTrigger id="construct" className="w-full md:text-base">
++							<SelectTrigger id="construct" className="w-full md:text-body">
+ 								{/* Base UI's `Select.Value` renders the *value* unless it is
+ 								    told how to read a label off it — so a bare
+ 								    `<SelectValue />` showed the athlete `oneRm`. */}
+diff --git a/app/routes/settings/training/resultater.tsx b/app/routes/settings/training/resultater.tsx
+index a218e6b..996b6f9 100644
+--- a/app/routes/settings/training/resultater.tsx
++++ b/app/routes/settings/training/resultater.tsx
+@@ -289,7 +289,7 @@ function AddResultForm({ today }: { today: string }) {
+ 					onValueChange={(value) => setAnchor((value as string) ?? '5k')}
+ 					items={items}
+ 				>
+-					<SelectTrigger id="result-anchor" className="w-full md:text-base">
++					<SelectTrigger id="result-anchor" className="w-full md:text-body">
+ 						<SelectValue />
+ 					</SelectTrigger>
+ 					<SelectContent>
+diff --git a/app/routes/start/niva.tsx b/app/routes/start/niva.tsx
+index 4c8e2ca..006f163 100644
+--- a/app/routes/start/niva.tsx
++++ b/app/routes/start/niva.tsx
+@@ -422,7 +422,7 @@ export default function LevelStep({
+  * without a button's weight. An instant tint on press; no motion.
+  */
+ const QUIET_LINK =
+-	'text-footnote text-muted-foreground decoration-muted-foreground/40 hover:text-foreground active:bg-muted/60 focus-visible:ring-ring/30 -mx-2 flex min-h-11 max-w-full items-center rounded-lg px-2 py-2 underline underline-offset-4 outline-none [text-wrap:pretty] [-webkit-tap-highlight-color:transparent] focus-visible:ring-3'
++	'text-footnote text-muted-foreground decoration-muted-foreground/40 hover:text-foreground active:bg-muted/60 focus-visible:ring-ring/30 -mx-2 flex min-h-11 max-w-full items-center rounded-2xl px-2 py-2 underline underline-offset-4 outline-none [text-wrap:pretty] [-webkit-tap-highlight-color:transparent] focus-visible:ring-3'
+ 
+ /** Look again every few seconds while the history is on its way. */
+ function useImportPoll(importing: boolean) {
+diff --git a/app/routes/training/__attach-event.tsx b/app/routes/training/__attach-event.tsx
+index 3a339d5..bd241f0 100644
+--- a/app/routes/training/__attach-event.tsx
++++ b/app/routes/training/__attach-event.tsx
+@@ -157,7 +157,7 @@ export function AttachEventOffer({
+ 						labelProps={{ children: ATTACH_EVENT_LABELS.name }}
+ 						inputProps={{
+ 							...getInputProps(fields.name, { type: 'text' }),
+-							className: 'text-base',
++							className: 'text-body',
+ 						}}
+ 						errors={fields.name.errors as string[] | undefined}
+ 					/>
+@@ -165,7 +165,7 @@ export function AttachEventOffer({
+ 						labelProps={{ children: ATTACH_EVENT_LABELS.date }}
+ 						inputProps={{
+ 							...getInputProps(fields.startDate, { type: 'date' }),
+-							className: 'text-base',
++							className: 'text-body',
+ 						}}
+ 						errors={fields.startDate.errors as string[] | undefined}
+ 					/>
+diff --git a/app/routes/training/__blocks-reading.tsx b/app/routes/training/__blocks-reading.tsx
+index ee6ac88..dcfcc99 100644
+--- a/app/routes/training/__blocks-reading.tsx
++++ b/app/routes/training/__blocks-reading.tsx
+@@ -139,7 +139,7 @@ export function BlocksReading({
+ 	return (
+ 		<div className="space-y-6">
+ 			{error ? (
+-				<p role="alert" className="text-destructive text-sm">
++				<p role="alert" className="text-foreground-destructive text-footnote">
+ 					{error}
+ 				</p>
+ 			) : null}
+@@ -320,10 +320,10 @@ export function BlocksReading({
+ 							className="border-border/70 space-y-1 border-t py-3"
+ 							data-preset-gallery-begun
+ 						>
+-							<p className="text-sm font-medium">
++							<p className="text-callout">
+ 								{SESONG_PAGE_LABELS.shapeTitle}
+ 							</p>
+-							<p className="text-muted-foreground text-sm">
++							<p className="text-muted-foreground text-footnote">
+ 								{PRESET_GALLERY_LABELS.begun}
+ 							</p>
+ 							{/* A line of text and the only way there, so it carries an
+diff --git a/app/routes/training/__empty-state.tsx b/app/routes/training/__empty-state.tsx
+index de3e29e..b61014f 100644
+--- a/app/routes/training/__empty-state.tsx
++++ b/app/routes/training/__empty-state.tsx
+@@ -51,7 +51,7 @@ export function KindChooserItems({
+ 				<DropdownMenuItem key={kind} onClick={() => onChoose(kind)}>
+ 					<span className="flex flex-col">
+ 						<span className="font-medium">{NB_STEP_KIND_LABELS[kind]}</span>
+-						<span className="text-muted-foreground text-xs">
++						<span className="text-muted-foreground text-caption">
+ 							{STEP_KIND_HINTS[kind]}
+ 						</span>
+ 					</span>
+@@ -159,7 +159,7 @@ export const ARCHETYPE_SEEDS: ArchetypeSeed[] = [
+ // ——— The composition —————————————————————————————————————————————————————
+ 
+ const SCRATCH_TRIGGER_CLASS =
+-	'text-muted-foreground hover:bg-accent hover:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring inline-flex min-h-11 cursor-pointer items-center rounded-2xl px-2 text-sm outline-none focus-visible:ring-2'
++	'text-muted-foreground hover:bg-accent hover:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring inline-flex min-h-11 cursor-pointer items-center rounded-2xl px-2 text-footnote outline-none focus-visible:ring-2'
+ 
+ /**
+  * The zero-step composition (§11.2): three seed buttons — native tab stops
+@@ -184,7 +184,7 @@ export function WorkoutEmptyState({
+ 					onClick={() => onSeed(seed)}
+ 					className="hover:bg-accent/40 focus-visible:ring-ring group flex min-h-11 w-full cursor-pointer flex-col items-start gap-0.5 rounded-2xl px-2 py-1.5 text-left outline-none focus-visible:ring-2"
+ 				>
+-					<span className="text-muted-foreground group-hover:text-foreground text-xs font-medium">
++					<span className="text-muted-foreground group-hover:text-foreground text-caption font-medium">
+ 						{seed.name}
+ 					</span>
+ 					{seed.lines.map((line, index) => (
+@@ -213,7 +213,7 @@ function GhostNotationLine({ line }: { line: GhostLine }): ReactNode {
+ 	return (
+ 		<span className="text-muted-foreground/70 flex items-baseline gap-1.5 font-medium tabular-nums">
+ 			{line.badge ? (
+-				<span className="bg-muted rounded-sm px-1.5 py-0.5 font-mono text-xs font-bold tabular-nums">
++				<span className="bg-muted rounded-full px-1.5 py-0.5 font-mono text-caption font-bold tabular-nums">
+ 					{line.badge}
+ 				</span>
+ 			) : null}
+diff --git a/app/routes/training/__exercise-combobox.tsx b/app/routes/training/__exercise-combobox.tsx
+index 36aea2d..70648c8 100644
+--- a/app/routes/training/__exercise-combobox.tsx
++++ b/app/routes/training/__exercise-combobox.tsx
+@@ -75,7 +75,7 @@ function FilterChip({
+  * select. No scale: it owns a popup (`pressable`'s `aria-haspopup` rule).
+  */
+ const TRIGGER_CLASS =
+-	'bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 duration-press flex h-11 w-full items-center justify-between gap-1.5 rounded-3xl border border-transparent px-3 py-2 text-base whitespace-nowrap transition-[color,box-shadow,background-color] ease-out outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 md:text-sm'
++	'bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 duration-press flex min-h-11 w-full items-center justify-between gap-1.5 rounded-3xl border border-transparent px-3 py-2 text-base transition-[color,box-shadow,background-color] ease-out outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 md:text-sm'
+ 
+ /**
+  * Searchable exercise picker for strength steps (ADR 0027 §8, PRD R8):
+@@ -240,7 +240,7 @@ export function ExerciseCombobox({
+ 				onBlur={onBlur}
+ 				className={cn(TRIGGER_CLASS, !selected && 'text-muted-foreground')}
+ 			>
+-				<span className="line-clamp-1 flex-1 text-left">
++				<span className="flex-1 text-left [overflow-wrap:anywhere]">
+ 					{selected ? selected.name : L.placeholder}
+ 				</span>
+ 				<Icon
+diff --git a/app/routes/training/__fit-to-event.tsx b/app/routes/training/__fit-to-event.tsx
+index 80ea4bc..861a95c 100644
+--- a/app/routes/training/__fit-to-event.tsx
++++ b/app/routes/training/__fit-to-event.tsx
+@@ -36,7 +36,7 @@ export function FitToEventOffer({
+ 		<Form method="POST" className="space-y-2">
+ 			<input type="hidden" name="intent" value="fit-to-event" />
+ 			<input type="hidden" name="outlineId" value={outlineId} />
+-			<p className="text-muted-foreground text-sm">
++			<p className="text-muted-foreground text-footnote">
+ 				{fitProposalSentence(proposal)}
+ 			</p>
+ 			<Button type="submit" variant="outline" size="sm">
+diff --git a/app/routes/training/__intensity-popover.tsx b/app/routes/training/__intensity-popover.tsx
+index 37e0ae6..969efbd 100644
+--- a/app/routes/training/__intensity-popover.tsx
++++ b/app/routes/training/__intensity-popover.tsx
+@@ -237,7 +237,7 @@ export function IntensityPopoverEditor({
+ 							aria-pressed={group === activeGroup}
+ 							onClick={() => selectGroup(group)}
+ 							className={cn(
+-								'hover:text-foreground focus-visible:ring-ring pressable min-h-11 cursor-pointer rounded-lg px-1.5 text-sm outline-none focus-visible:ring-2',
++								'hover:text-foreground focus-visible:ring-ring pressable min-h-11 cursor-pointer rounded-2xl px-1.5 text-footnote outline-none focus-visible:ring-2',
+ 								group === activeGroup && 'text-foreground font-medium',
+ 							)}
+ 						>
+@@ -339,7 +339,7 @@ function ZoneChips({
+ 						aria-pressed={active}
+ 						onClick={() => onSelect(label)}
+ 						className={cn(
+-							'pressable min-h-11 min-w-11 flex-1 cursor-pointer rounded-2xl px-2 text-sm font-semibold outline-none [font-variant-caps:small-caps]',
++							'pressable min-h-11 min-w-11 flex-1 cursor-pointer rounded-2xl px-2 text-footnote font-semibold outline-none [font-variant-caps:small-caps]',
+ 							ZONE_CHIP_TINT[chipStep(index)],
+ 							'focus-visible:ring-ring text-foreground focus-visible:ring-2',
+ 							// The pressed chip carries a ring; the others keep full ink.
+@@ -650,7 +650,7 @@ export function UnitToggle({
+ 					aria-pressed={option.id === active}
+ 					onClick={() => onSelect(option.id)}
+ 					className={cn(
+-						'focus-visible:ring-ring pressable min-h-11 cursor-pointer rounded-full px-3 text-sm outline-none focus-visible:ring-2',
++						'focus-visible:ring-ring pressable min-h-11 cursor-pointer rounded-full px-3 text-footnote outline-none focus-visible:ring-2',
+ 						option.id === active
+ 							? 'bg-background text-foreground font-medium shadow-sm'
+ 							: 'text-muted-foreground hover:text-foreground',
+@@ -779,7 +779,7 @@ function NudgeField({
+ 					aria-label={L.decrease(label)}
+ 					disabled={parsed == null || parsed <= nudge.min}
+ 					onClick={decrease}
+-					className="size-11 shrink-0 rounded-3xl text-lg"
++					className="size-11 shrink-0 rounded-3xl text-heading"
+ 				>
+ 					−
+ 				</Button>
+@@ -790,7 +790,7 @@ function NudgeField({
+ 					placeholder={placeholder ?? '—'}
+ 					value={value}
+ 					onChange={(event) => onChange(event.target.value)}
+-					className="bg-input/50 focus-visible:ring-ring/30 duration-press h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-1 text-center text-base font-medium tabular-nums transition-[box-shadow] ease-out outline-none focus-visible:ring-3"
++					className="bg-input/50 focus-visible:ring-ring/30 duration-press h-11 w-full min-w-0 flex-1 rounded-3xl border border-transparent px-1 text-center text-body font-medium tabular-nums transition-[box-shadow] ease-out outline-none focus-visible:ring-3"
+ 				/>
+ 				<Button
+ 					type="button"
+@@ -798,7 +798,7 @@ function NudgeField({
+ 					aria-label={L.increase(label)}
+ 					disabled={nudge.max != null && parsed != null && parsed >= nudge.max}
+ 					onClick={increase}
+-					className="size-11 shrink-0 rounded-3xl text-lg"
++					className="size-11 shrink-0 rounded-3xl text-heading"
+ 				>
+ 					+
+ 				</Button>
+diff --git a/app/routes/training/__library-section.tsx b/app/routes/training/__library-section.tsx
+index 4626330..b5e5ae1 100644
+--- a/app/routes/training/__library-section.tsx
++++ b/app/routes/training/__library-section.tsx
+@@ -101,7 +101,7 @@ export function LibrarySection({
+ 					{LIBRARY_LABELS.recentLifts}
+ 				</h3>
+ 				{lifts.length > 0 ? (
+-					<ul className="bg-card divide-border/60 divide-y overflow-hidden rounded-4xl shadow-xs">
++					<ul className="bg-card divide-border/60 divide-y overflow-hidden rounded-4xl shadow-md ring-1 ring-foreground/5 dark:ring-foreground/10">
+ 						{lifts.map((lift) => (
+ 							<li key={lift.id}>
+ 								<Link
+diff --git a/app/routes/training/__phase-editor.tsx b/app/routes/training/__phase-editor.tsx
+index 62bf397..68c8e93 100644
+--- a/app/routes/training/__phase-editor.tsx
++++ b/app/routes/training/__phase-editor.tsx
+@@ -168,7 +168,7 @@ export function PhaseCard({
+ 			    used to begin with a Name field: the first thing an athlete saw on the
+ 			    block they came to understand was a text box. */}
+ 			{reading ? (
+-				<p className="text-muted-foreground pb-2 text-sm">{reading}</p>
++				<p className="text-muted-foreground pb-2 text-footnote">{reading}</p>
+ 			) : null}
+ 
+ 			{/* The Sesong edits first: name, length, rhythm and the easy week are
+@@ -179,7 +179,7 @@ export function PhaseCard({
+ 				detail={SESONG_PHASE_LABELS.editDetail}
+ 			>
+ 				{phase.tapers ? null : (
+-					<p className="text-sm">{NB_RHYTHM_CHOICE_LABELS[phase.rhythm]}</p>
++					<p className="text-footnote">{NB_RHYTHM_CHOICE_LABELS[phase.rhythm]}</p>
+ 				)}
+ 				<RecoveryPreview phase={phase} />
+ 				<div className="flex flex-col gap-1">
+@@ -287,7 +287,7 @@ function RhythmFields({
+ 					// place: `weekRole` answers `taper` for every week of one before it
+ 					// ever looks at the rhythm. Said out loud rather than left as a choice
+ 					// that changes no week (ADR 0044 §8).
+-					<p className="text-muted-foreground text-sm">
++					<p className="text-muted-foreground text-footnote">
+ 						{SESONG_PHASE_LABELS.taperRhythm}
+ 					</p>
+ 				) : (
+@@ -389,7 +389,7 @@ function RecoveryPreview({ phase }: { phase: PhaseSpec }) {
+ 					</span>
+ 				))}
+ 			</div>
+-			<p className="text-muted-foreground text-sm">
++			<p className="text-muted-foreground text-footnote">
+ 				{phase.tapers
+ 					? SESONG_PHASE_LABELS.tapersAll
+ 					: recoveryWeeks.length === 0
+@@ -484,7 +484,7 @@ export function AddPhaseForm({
+ 					</SelectContent>
+ 				</Select>
+ 				<input type="hidden" name="atIndex" value={atIndex} />
+-				<p className="text-muted-foreground text-sm">
++				<p className="text-muted-foreground text-footnote">
+ 					{SESONG_PHASE_LABELS.growsForward}
+ 				</p>
+ 			</div>
+@@ -528,7 +528,7 @@ export function DeletePlanSection({
+ 			<h2 id="delete-plan" className="sr-only">
+ 				{SESONG_PHASE_LABELS.delete}
+ 			</h2>
+-			<p className="text-muted-foreground text-sm">
++			<p className="text-muted-foreground text-footnote">
+ 				{SESONG_PHASE_LABELS.deleteIntro(eventName)}
+ 			</p>
+ 			<AlertDialog>
+diff --git a/app/routes/training/__plan-chrome.tsx b/app/routes/training/__plan-chrome.tsx
+index cb0d89f..42f8982 100644
+--- a/app/routes/training/__plan-chrome.tsx
++++ b/app/routes/training/__plan-chrome.tsx
+@@ -187,7 +187,7 @@ export function PlanCard({
+ 			aria-labelledby={titleId}
+ 			// 16px inside on a phone, luma's 24px from `md` (ui-conventions §1.4).
+ 			className={cn(
+-				'text-foreground gap-4 text-base [--card-spacing:--spacing(4)] md:[--card-spacing:--spacing(6)]',
++				'text-foreground gap-4 text-body [--card-spacing:--spacing(4)] md:[--card-spacing:--spacing(6)]',
+ 				className,
+ 			)}
+ 		>
+@@ -311,9 +311,9 @@ export function Disclosure({
+ 				)}
+ 			>
+ 				<span className="min-w-0 flex-1">
+-					<span className="block text-sm font-medium">{summary}</span>
++					<span className="block text-callout">{summary}</span>
+ 					{detail ? (
+-						<span className="text-muted-foreground block text-xs">
++						<span className="text-muted-foreground block text-caption">
+ 							{detail}
+ 						</span>
+ 					) : null}
+diff --git a/app/routes/training/__season-anchor-editor.tsx b/app/routes/training/__season-anchor-editor.tsx
+index 016c873..f273728 100644
+--- a/app/routes/training/__season-anchor-editor.tsx
++++ b/app/routes/training/__season-anchor-editor.tsx
+@@ -398,7 +398,7 @@ function AnchorCard({
+ 	return (
+ 		<Card>
+ 			<CardHeader className="gap-1">
+-				<CardTitle className="flex flex-wrap items-center gap-2 text-base">
++				<CardTitle className="flex flex-wrap items-center gap-2 text-heading">
+ 					{where}
+ 					<Badge variant={anchor.earliest ? 'outline' : 'secondary'}>
+ 						{anchor.earliest
+@@ -406,7 +406,7 @@ function AnchorCard({
+ 							: SESONG_ANCHOR_LABELS.reAnchored}
+ 					</Badge>
+ 				</CardTitle>
+-				<p className="text-muted-foreground text-sm">
++				<p className="text-muted-foreground text-footnote">
+ 					{anchor.weekInPlan == null
+ 						? SESONG_ANCHOR_LABELS.outsideNote
+ 						: `${formatNbWeeklyVolume(anchor.value, track.currency)}${
+diff --git a/app/routes/training/__season-edits.tsx b/app/routes/training/__season-edits.tsx
+index 7e58568..e05aa2a 100644
+--- a/app/routes/training/__season-edits.tsx
++++ b/app/routes/training/__season-edits.tsx
+@@ -148,7 +148,7 @@ function targetsLabel(targets: TargetView[]): string {
+  * running text the margin does nothing.
+  */
+ const SEASON_EDIT_LINK_CLASS =
+-	'relative my-2.5 w-fit text-sm underline touch-manipulation after:absolute after:inset-x-0 after:-inset-y-3'
++	'relative my-2.5 w-fit text-footnote underline touch-manipulation after:absolute after:inset-x-0 after:-inset-y-3'
+ 
+ /**
+  * A link from a read-only reading (Blocks, Weeks) to the edit that changes
+@@ -344,7 +344,7 @@ function WeekTargetEdit({
+ 				meta={fields.weekKey}
+ 				labelProps={{
+ 					children: SEASON_EDIT_LABELS.week,
+-					className: 'text-sm font-medium',
++					className: 'text-callout',
+ 				}}
+ 				items={weeks.map((week) => ({
+ 					value: week.weekKey,
+@@ -352,7 +352,7 @@ function WeekTargetEdit({
+ 				}))}
+ 			/>
+ 			{chosen ? (
+-				<p className="text-muted-foreground text-sm" data-season-edit-current>
++				<p className="text-muted-foreground text-footnote" data-season-edit-current>
+ 					{SEASON_EDIT_LABELS.now}: {targetsLabel(chosen.targets)}
+ 				</p>
+ 			) : null}
+@@ -367,7 +367,7 @@ function WeekTargetEdit({
+ 					meta={fields.trackId}
+ 					labelProps={{
+ 						children: SEASON_EDIT_LABELS.track,
+-						className: 'text-sm font-medium',
++						className: 'text-callout',
+ 					}}
+ 					items={tracks.map((track) => ({
+ 						value: track.trackId,
+@@ -385,7 +385,7 @@ function WeekTargetEdit({
+ 					...getInputProps(fields.value, { type: 'text' }),
+ 					inputMode: 'decimal',
+ 					autoComplete: 'off',
+-					className: 'text-base',
++					className: 'text-body',
+ 				}}
+ 				errors={fields.value.errors}
+ 			/>
+@@ -429,7 +429,7 @@ function PhaseEdit({
+ 				meta={fields.phaseId}
+ 				labelProps={{
+ 					children: SEASON_EDIT_LABELS.phase,
+-					className: 'text-sm font-medium',
++					className: 'text-callout',
+ 				}}
+ 				items={phases.map((phase) => ({
+ 					value: phase.id,
+@@ -444,7 +444,7 @@ function PhaseEdit({
+ 				inputProps={{
+ 					...getInputProps(fields.name, { type: 'text' }),
+ 					autoComplete: 'off',
+-					className: 'text-base',
++					className: 'text-body',
+ 				}}
+ 				errors={fields.name.errors}
+ 			/>
+@@ -454,7 +454,7 @@ function PhaseEdit({
+ 					...getInputProps(fields.weeks, { type: 'text' }),
+ 					inputMode: 'numeric',
+ 					autoComplete: 'off',
+-					className: 'text-base',
++					className: 'text-body',
+ 				}}
+ 				errors={fields.weeks.errors}
+ 			/>
+@@ -462,7 +462,7 @@ function PhaseEdit({
+ 				meta={fields.rhythm}
+ 				labelProps={{
+ 					children: SEASON_EDIT_LABELS.phaseRhythm,
+-					className: 'text-sm font-medium',
++					className: 'text-callout',
+ 				}}
+ 				placeholder={SEASON_EDIT_LABELS.keep}
+ 				items={[
+@@ -477,7 +477,7 @@ function PhaseEdit({
+ 				meta={fields.tapers}
+ 				labelProps={{
+ 					children: SEASON_EDIT_LABELS.phaseTapers,
+-					className: 'text-sm font-medium',
++					className: 'text-callout',
+ 				}}
+ 				placeholder={SEASON_EDIT_LABELS.keep}
+ 				items={[
+@@ -529,7 +529,7 @@ function EasyWeekEdit({
+ 				meta={fields.weekKey}
+ 				labelProps={{
+ 					children: SEASON_EDIT_LABELS.easyWeek,
+-					className: 'text-sm font-medium',
++					className: 'text-callout',
+ 				}}
+ 				items={weeks.map((week) => ({
+ 					value: week.weekKey,
+@@ -537,7 +537,7 @@ function EasyWeekEdit({
+ 				}))}
+ 			/>
+ 			{chosen ? (
+-				<p className="text-muted-foreground text-sm" data-season-edit-current>
++				<p className="text-muted-foreground text-footnote" data-season-edit-current>
+ 					{weekLabel(chosen.weekKey)} ·{' '}
+ 					{nbPhaseName(phases[chosen.phaseIndex]?.name ?? '')}
+ 				</p>
+diff --git a/app/routes/training/__segment-editor.tsx b/app/routes/training/__segment-editor.tsx
+index b771f8a..2453067 100644
+--- a/app/routes/training/__segment-editor.tsx
++++ b/app/routes/training/__segment-editor.tsx
+@@ -192,7 +192,7 @@ function RateField({
+ 				}}
+ 				errors={meta.errors as string[] | undefined}
+ 			/>
+-			<p className="text-muted-foreground mt-1 text-sm">{meaning}</p>
++			<p className="text-muted-foreground mt-1 text-footnote">{meaning}</p>
+ 		</div>
+ 	)
+ }
+@@ -338,7 +338,7 @@ export function SegmentProgressionForm({
+ 			<input type="hidden" name="intent" value="set-segment-rates" />
+ 			<input type="hidden" name="segmentId" value={segment.segmentId} />
+ 			{trackLabel ? (
+-				<p className="text-sm font-medium">
++				<p className="text-callout">
+ 					{SESONG_SEGMENT_LABELS.progression(trackLabel)}
+ 				</p>
+ 			) : null}
+@@ -381,7 +381,7 @@ export function SegmentProgressionForm({
+ 							meta={fields.boundaryStep}
+ 							fraction={segment.boundaryStep}
+ 						/>
+-						<p className="text-muted-foreground self-end text-sm">
++						<p className="text-muted-foreground self-end text-footnote">
+ 							{NB_BOUNDARY_STEP_OUT_OF_FORCE_LABELS[boundaryStep.reason]}
+ 						</p>
+ 					</>
+@@ -513,10 +513,10 @@ export function SegmentMixForm({
+ 		<Form method="POST" {...getFormProps(form)} className="space-y-4">
+ 			<input type="hidden" name="intent" value="set-quality-mix" />
+ 			<input type="hidden" name="segmentId" value={segment.segmentId} />
+-			<p className="text-sm font-medium">
++			<p className="text-callout">
+ 				{SESONG_SEGMENT_LABELS.mix(trackLabel)}
+ 			</p>
+-			<p className="text-muted-foreground text-sm">
++			<p className="text-muted-foreground text-footnote">
+ 				{SESONG_SEGMENT_LABELS.mixIntro}
+ 			</p>
+ 
+@@ -558,7 +558,7 @@ export function SegmentMixForm({
+ 			    (ADR 0042 §5) and nobody can hand-set a sum. Marked in the words rather
+ 			    than in new chrome — the same way the Season Span says where it is read
+ 			    from. */}
+-			<dl className="text-sm">
++			<dl className="text-footnote">
+ 				<div className="flex flex-wrap gap-x-2">
+ 					<dt className="text-muted-foreground">
+ 						{SESONG_SEGMENT_LABELS.emphasis}
+@@ -572,7 +572,7 @@ export function SegmentMixForm({
+ 					<dd className="font-medium tabular-nums">{count}</dd>
+ 				</div>
+ 			</dl>
+-			<p className="text-muted-foreground text-sm">
++			<p className="text-muted-foreground text-footnote">
+ 				{SESONG_SEGMENT_LABELS.derivedNote}
+ 			</p>
+ 
+diff --git a/app/routes/training/__sets-popover.tsx b/app/routes/training/__sets-popover.tsx
+index 2c3881c..3ea51f1 100644
+--- a/app/routes/training/__sets-popover.tsx
++++ b/app/routes/training/__sets-popover.tsx
+@@ -76,7 +76,7 @@ import {
+  * share — ≥44 px tall, ink-muted until hovered (§2.3's quiet end). Exported
+  * for the §6.1 neighbour add-links, which speak in the same register. */
+ export const QUIET_TEXT_BUTTON_CLASS =
+-	'text-muted-foreground hover:text-foreground focus-visible:ring-ring min-h-11 cursor-pointer rounded-sm px-1 text-sm outline-none focus-visible:ring-2'
++	'text-muted-foreground hover:text-foreground focus-visible:ring-ring min-h-11 cursor-pointer rounded-2xl px-1 text-footnote outline-none focus-visible:ring-2'
+ 
+ // ——— Uniform-control codecs —————————————————————————————————————————————
+ 
+@@ -258,14 +258,14 @@ function UniformSetsControls({
+ 						className="flex min-w-0 flex-1 items-center gap-1"
+ 					/>
+ 				) : (
+-					<span className="text-foreground flex-1 text-center text-base font-semibold">
++					<span className="text-foreground flex-1 text-center text-body font-semibold">
+ 						AMRAP
+ 					</span>
+ 				)}
+ 			</div>
+ 
+ 			<div className="flex items-center gap-2">
+-				<span className="text-muted-foreground text-xs">{S.of}</span>
++				<span className="text-muted-foreground text-caption">{S.of}</span>
+ 				<Select
+ 					value={template.kind}
+ 					onValueChange={(kind) =>
+@@ -369,10 +369,10 @@ function UniformLoadField({
+ 				<span aria-hidden className="text-muted-foreground shrink-0 px-0.5">
+ 					@
+ 				</span>
+-				<span className="text-foreground text-base font-medium">
++				<span className="text-foreground text-body font-medium">
+ 					{authoredLoadLabel(authored!)}
+ 				</span>
+-				<span className="text-muted-foreground text-xs">
++				<span className="text-muted-foreground text-caption">
+ 					{S.keptAsAuthored}
+ 				</span>
+ 			</div>
+@@ -426,7 +426,7 @@ function UniformLoadField({
+ 				onClick={() =>
+ 					parsed != null && nudgeTo(Math.max(nudges.step, parsed - nudges.step))
+ 				}
+-				className="size-11 shrink-0 rounded-lg text-lg"
++				className="size-11 shrink-0 rounded-3xl text-heading"
+ 			>
+ 				−
+ 			</Button>
+@@ -437,7 +437,7 @@ function UniformLoadField({
+ 				placeholder="—"
+ 				value={text}
+ 				onChange={(event) => handleTyped(event.target.value)}
+-				className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-2 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
++				className="bg-input/50 border-transparent focus-visible:ring-ring/30 h-11 w-full min-w-0 flex-1 rounded-3xl border px-2 text-center text-body font-medium tabular-nums outline-none focus-visible:ring-3"
+ 			/>
+ 			<Button
+ 				type="button"
+@@ -453,7 +453,7 @@ function UniformLoadField({
+ 								: parsed + nudges.step,
+ 					)
+ 				}
+-				className="size-11 shrink-0 rounded-lg text-lg"
++				className="size-11 shrink-0 rounded-3xl text-heading"
+ 			>
+ 				+
+ 			</Button>
+@@ -575,7 +575,7 @@ function SetGridRow({
+ 		typeof load.value === 'string' ? load.value : undefined,
+ 	)
+ 	const inputClass =
+-		'border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 rounded-lg border px-2 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2'
++		'bg-input/50 border-transparent focus-visible:ring-ring/30 h-11 w-full min-w-0 rounded-3xl border px-2 text-center text-body font-medium tabular-nums outline-none focus-visible:ring-3'
+ 
+ 	// kg and %1RM are mutually exclusive per set (schema `weightXorPct`): the UI
+ 	// enforces it by clearing the other field the moment one is given a value,
+@@ -600,7 +600,7 @@ function SetGridRow({
+ 	return (
+ 		<div
+ 			data-slot="set-grid-row"
+-			className="border-border/70 flex flex-col gap-1.5 rounded-lg border p-2"
++			className="flex flex-col gap-1.5 bg-muted/50 rounded-3xl p-2"
+ 		>
+ 			<div className="flex items-center gap-1.5">
+ 				<span className="text-body-2xs text-muted-foreground w-4 shrink-0 font-mono font-semibold tabular-nums">
+@@ -671,7 +671,7 @@ function SetGridRow({
+ 						className={cn(inputClass, 'flex-1')}
+ 					/>
+ 				) : (
+-					<span className="text-muted-foreground flex-1 text-center text-sm">
++					<span className="text-muted-foreground flex-1 text-center text-footnote">
+ 						AMRAP
+ 					</span>
+ 				)}
+@@ -708,7 +708,7 @@ function SetGridRow({
+ 					// `loadIsExpressible`) — the row keeps what its author wrote.
+ 					<span
+ 						data-slot="authored-load"
+-						className="text-foreground flex-1 text-center text-sm font-medium"
++						className="text-foreground flex-1 text-center text-callout"
+ 					>
+ 						{authoredLoadLabel(authored!)}
+ 					</span>
+@@ -744,7 +744,7 @@ function RestBetweenSetsFooter({
+ 		>
+ 			{isSet ? (
+ 				<div className="flex flex-col gap-1">
+-					<span className="text-muted-foreground text-xs">{S.restBetween}</span>
++					<span className="text-muted-foreground text-caption">{S.restBetween}</span>
+ 					<div className="flex items-center gap-1.5">
+ 						<TypeToEditStepper
+ 							// The line's `· … rest` token and this footer edit the same
+diff --git a/app/routes/training/__strength-segment-editor.tsx b/app/routes/training/__strength-segment-editor.tsx
+index 0e646f4..af5d067 100644
+--- a/app/routes/training/__strength-segment-editor.tsx
++++ b/app/routes/training/__strength-segment-editor.tsx
+@@ -484,7 +484,7 @@ function StrengthSegmentCard({
+ 	return (
+ 		<Card>
+ 			<CardHeader className="gap-1">
+-				<CardTitle className="flex flex-wrap items-center gap-2 text-base">
++				<CardTitle className="flex flex-wrap items-center gap-2 text-heading">
+ 					{segment.startWeekInPlan == null
+ 						? SESONG_LIFTING_LABELS.outside
+ 						: span}
+@@ -773,7 +773,7 @@ function StrengthSegmentFields({
+ 					// sentence.
+ 					<>
+ 						<CarriedRate meta={fields.boundaryStep} />
+-						<p className="text-muted-foreground self-end text-sm">
++						<p className="text-muted-foreground self-end text-footnote">
+ 							{NB_BOUNDARY_STEP_OUT_OF_FORCE_LABELS[standing.reason]}
+ 						</p>
+ 					</>
+@@ -797,7 +797,7 @@ function StrengthSegmentFields({
+ 					errors={fields.deloadWeeks.errors as string[] | undefined}
+ 				/>
+ 			</div>
+-			<p className="text-muted-foreground text-sm">
++			<p className="text-muted-foreground text-footnote">
+ 				{deloadWeeksMeaning(fields.deloadWeeks.value)}
+ 			</p>
+ 		</div>
+@@ -855,7 +855,7 @@ export function DerivedPrescription({ goal }: { goal?: StrengthGoal }) {
+ 
+ 	return (
+ 		<div className="space-y-1">
+-			<dl className="text-sm">
++			<dl className="text-footnote">
+ 				<div className="flex flex-wrap gap-x-2">
+ 					<dt className="text-muted-foreground">
+ 						{SESONG_LIFTING_LABELS.band}
+@@ -916,7 +916,7 @@ function RateField({
+ 				}}
+ 				errors={meta.errors as string[] | undefined}
+ 			/>
+-			<p className="text-muted-foreground mt-1 text-sm">{meaning}</p>
++			<p className="text-muted-foreground mt-1 text-footnote">{meaning}</p>
+ 		</div>
+ 	)
+ }
+diff --git a/app/routes/training/__token-editor-controls.tsx b/app/routes/training/__token-editor-controls.tsx
+index 190fd0d..14be271 100644
+--- a/app/routes/training/__token-editor-controls.tsx
++++ b/app/routes/training/__token-editor-controls.tsx
+@@ -213,7 +213,7 @@ export function TypeToEditStepper({
+ 				aria-label={C.decrease(label)}
+ 				disabled={fieldValue == null || fieldValue <= config.min}
+ 				onClick={decrease}
+-				className="size-11 shrink-0 rounded-lg text-lg"
++				className="size-11 shrink-0 rounded-3xl text-heading"
+ 			>
+ 				−
+ 			</Button>
+@@ -223,7 +223,7 @@ export function TypeToEditStepper({
+ 				aria-label={C.value(label)}
+ 				value={text}
+ 				onChange={(event) => handleTyped(event.target.value)}
+-				className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-3 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
++				className="bg-input/50 border-transparent focus-visible:ring-ring/30 h-11 w-full min-w-0 flex-1 rounded-3xl border px-3 text-center text-body font-medium tabular-nums outline-none focus-visible:ring-3"
+ 			/>
+ 			<Button
+ 				type="button"
+@@ -233,7 +233,7 @@ export function TypeToEditStepper({
+ 					config.max != null && fieldValue != null && fieldValue >= config.max
+ 				}
+ 				onClick={increase}
+-				className="size-11 shrink-0 rounded-lg text-lg"
++				className="size-11 shrink-0 rounded-3xl text-heading"
+ 			>
+ 				+
+ 			</Button>
+diff --git a/app/routes/training/__token-sentence-editor.tsx b/app/routes/training/__token-sentence-editor.tsx
+index 47e26b1..2e0afed 100644
+--- a/app/routes/training/__token-sentence-editor.tsx
++++ b/app/routes/training/__token-sentence-editor.tsx
+@@ -523,7 +523,7 @@ export function sentenceBlockOfKind(kind: StepKind) {
+  * never shifts, and a visible focus ring — every mark is a native tab stop.
+  */
+ const CHROME_MARK_CLASS =
+-	'text-muted-foreground/60 hover:bg-accent hover:text-accent-foreground active:bg-accent active:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring relative -my-1.5 inline-flex min-h-[22px] min-w-[22px] cursor-pointer items-center justify-center self-center rounded-sm px-0.5 text-[0.85em] leading-none select-none outline-none after:absolute after:inset-x-0 after:-inset-y-2 focus-visible:ring-2 max-sm:min-h-[30px] max-sm:min-w-[30px]'
++	'text-muted-foreground/60 hover:bg-accent hover:text-accent-foreground active:bg-accent active:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring relative -my-1.5 inline-flex min-h-[22px] min-w-[22px] cursor-pointer items-center justify-center self-center rounded-2xl px-0.5 text-[0.85em] leading-none select-none outline-none after:absolute after:inset-x-0 after:-inset-y-2 focus-visible:ring-2 max-sm:min-h-[30px] max-sm:min-w-[30px]'
+ 
+ // ——— The editor ————————————————————————————————————————————————————————
+ 
+@@ -1545,7 +1545,7 @@ export function TokenSentenceEditor({
+ 												<span className="flex max-w-64 flex-col">
+ 													<span>{M.makeKind(NB_STEP_KIND_LABELS[kind])}</span>
+ 													{draftStep ? (
+-														<span className="text-muted-foreground text-xs text-wrap">
++														<span className="text-muted-foreground text-caption text-wrap">
+ 															{previewKindSwitch(draftStep, kind, {
+ 																exerciseNames,
+ 															})}
+@@ -1854,7 +1854,7 @@ function BlockNameEditor({
+ 				placeholder={BLOCK_SHEET_LABELS.namePlaceholder}
+ 				maxLength={60}
+ 				// 16 px text so mobile browsers never zoom the field (§9.2).
+-				className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-lg border px-3 text-base outline-none focus-visible:ring-2"
++				className="bg-input/50 border-transparent focus-visible:ring-ring/30 h-11 w-full rounded-3xl border px-3 text-body outline-none focus-visible:ring-3"
+ 				onChange={(event) => {
+ 					control.change(event.target.value)
+ 					announce(
+@@ -2132,7 +2132,7 @@ function ActiveTokenEditor({
+ 						rows={3}
+ 						defaultValue={rawValue}
+ 						// 16 px text so mobile browsers never zoom the field (§9.2).
+-						className="text-base"
++						className="text-body"
+ 						onChange={(event) => {
+ 							control.change(event.target.value)
+ 							announce(C.noteUpdated)
+@@ -2271,7 +2271,7 @@ function QuantityEditor({
+ 					}
+ 				/>
+ 			) : (
+-				<p className="text-muted-foreground text-xs">{C.noQuantity}</p>
++				<p className="text-muted-foreground text-caption">{C.noQuantity}</p>
+ 			)}
+ 			{unit != null ? (
+ 				<div className="flex justify-center">
+@@ -2351,7 +2351,7 @@ function StepDisciplineSelect({
+ 			data-slot="step-discipline"
+ 			className="flex items-center gap-2 self-start"
+ 		>
+-			<span className="text-muted-foreground text-xs">{C.discipline}</span>
++			<span className="text-muted-foreground text-caption">{C.discipline}</span>
+ 			<Select value={selected} onValueChange={(value) => select(value)}>
+ 				<SelectTrigger aria-label={C.stepDiscipline} size="sm">
+ 					<SelectValue>
+diff --git a/app/routes/training/__track-editor.tsx b/app/routes/training/__track-editor.tsx
+index 8ff9a33..7067ac8 100644
+--- a/app/routes/training/__track-editor.tsx
++++ b/app/routes/training/__track-editor.tsx
+@@ -155,7 +155,7 @@ export function TrackRoster({
+ 				{tracks.map((track) => (
+ 					<li
+ 						key={track.trackId}
+-						className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
++						className="flex flex-wrap items-center gap-x-2 gap-y-1 text-footnote"
+ 					>
+ 						{/* One run of text, not two flex items: as items, the detail wrapped
+ 						    whole onto its own line at 390 px and opened it with an orphaned
+diff --git a/app/routes/training/__validation-summary.tsx b/app/routes/training/__validation-summary.tsx
+index 19f8b64..096b0b1 100644
+--- a/app/routes/training/__validation-summary.tsx
++++ b/app/routes/training/__validation-summary.tsx
+@@ -227,7 +227,7 @@ export function MenuErrorLead({ message }: { message: string | null }) {
+ 	return (
+ 		<div
+ 			data-slot="menu-error"
+-			className="text-destructive max-w-64 px-2 py-1.5 text-xs font-normal text-wrap"
++			className="text-foreground-destructive max-w-64 px-2 py-1.5 text-footnote font-normal text-wrap"
+ 		>
+ 			{message}
+ 		</div>
+@@ -250,7 +250,7 @@ export function PopoverErrorLead({
+ 	return (
+ 		<div data-slot="popover-error" className="flex flex-col gap-1">
+ 			{present.map((message) => (
+-				<p key={message} className="text-destructive text-xs">
++				<p key={message} className="text-foreground-destructive text-footnote">
+ 					{message}
+ 				</p>
+ 			))}
+diff --git a/app/routes/training/__week-pattern-editor.tsx b/app/routes/training/__week-pattern-editor.tsx
+index 7a0e620..5eb5e15 100644
+--- a/app/routes/training/__week-pattern-editor.tsx
++++ b/app/routes/training/__week-pattern-editor.tsx
+@@ -382,7 +382,7 @@ function PatternCard({
+ 				) : (
+ 					<ol
+ 						aria-label={SESONG_PATTERN_LABELS.days(pattern.name)}
+-						className="divide-border divide-y"
++						className="divide-border/60 divide-y"
+ 					>
+ 						{pattern.days.map((day) => {
+ 							const resolved = dayReadings.get(day.dayId)
+@@ -470,7 +470,7 @@ function PatternDayRow({
+ 	return (
+ 		<div className="space-y-2">
+ 			<div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+-				<div className="text-sm">
++				<div className="text-footnote">
+ 					<span className="font-medium">
+ 						{NB_PATTERN_WEEKDAY_LABELS[day.weekday]}
+ 					</span>{' '}
+@@ -493,7 +493,7 @@ function PatternDayRow({
+ 							: null}
+ 					</span>
+ 				</div>
+-				<p className="text-sm font-medium tabular-nums">
++				<p className="text-callout tabular-nums">
+ 					{reading == null || reading.value == null || track == null ? (
+ 						<span className="text-muted-foreground font-normal">
+ 							{SESONG_PAGE_LABELS.unavailable}
+@@ -507,7 +507,7 @@ function PatternDayRow({
+ 			</div>
+ 
+ 			{reading?.value == null && track ? (
+-				<p className="text-muted-foreground text-sm">
++				<p className="text-muted-foreground text-footnote">
+ 					{dayUnavailableReason(day, track, trackReading)}
+ 				</p>
+ 			) : null}
+diff --git a/app/routes/training/__weeks-reading.tsx b/app/routes/training/__weeks-reading.tsx
+index 595d05b..008d0f7 100644
+--- a/app/routes/training/__weeks-reading.tsx
++++ b/app/routes/training/__weeks-reading.tsx
+@@ -56,11 +56,11 @@ function WeekTargetLine({
+ 	const discipline = nbTrackName(target.discipline)
+ 	return (
+ 		<div className="space-y-1">
+-			<p className="text-sm font-medium">
++			<p className="text-callout">
+ 				{discipline}, {NB_WEEKLY_UNITS[target.currency]}
+ 			</p>
+ 			{target.overridden ? (
+-				<p className="text-muted-foreground text-sm">
++				<p className="text-muted-foreground text-footnote">
+ 					{target.derivedValue == null
+ 						? SESONG_PAGE_LABELS.handSetNoRule
+ 						: SESONG_PAGE_LABELS.handSetRule(
+@@ -104,7 +104,7 @@ function WeekTargetsReading({
+ 	tracks: number
+ }) {
+ 	return (
+-		<span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
++		<span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-footnote">
+ 			{week.targets.map((target) => (
+ 				<span
+ 					key={target.trackId}
+@@ -213,7 +213,7 @@ export function WeeksReading({
+ 		// and by no margins of their own (§1.7).
+ 		<div className="space-y-8">
+ 			{error ? (
+-				<p role="alert" className="text-destructive text-sm">
++				<p role="alert" className="text-foreground-destructive text-footnote">
+ 					{error}
+ 				</p>
+ 			) : null}
+@@ -311,7 +311,7 @@ export function WeeksReading({
+ 				    meaning of blank on this page**, and the one number an athlete is most
+ 				    likely to doubt — `0` — is spelled out beside it. */}
+ 				<div className="border-border/70 space-y-3 border-t pt-4">
+-					<p className="text-muted-foreground text-sm">
++					<p className="text-muted-foreground text-footnote">
+ 						{SESONG_PAGE_LABELS.weeksFootnote}
+ 					</p>
+ 					{/* Since ADR 0047 §1 **both** walks price their weeks — a strength track
+@@ -320,12 +320,12 @@ export function WeeksReading({
+ 					    covers the plan. The old reason, that a strength track's weekly sets
+ 					    were not derived yet, is false and gone with it. */}
+ 					{unpricedTracks.map((track) => (
+-						<p key={track.discipline} className="text-muted-foreground text-sm">
++						<p key={track.discipline} className="text-muted-foreground text-footnote">
+ 							{SESONG_PAGE_LABELS.unpricedTrack(nbTrackName(track.discipline))}
+ 						</p>
+ 					))}
+ 					{anyDeload ? (
+-						<p className="text-muted-foreground text-sm">
++						<p className="text-muted-foreground text-footnote">
+ 							{SESONG_PAGE_LABELS.deloadFootnote}
+ 						</p>
+ 					) : null}
+diff --git a/app/routes/training/__workout-detail-telemetry.tsx b/app/routes/training/__workout-detail-telemetry.tsx
+index 1db2cfa..272d490 100644
+--- a/app/routes/training/__workout-detail-telemetry.tsx
++++ b/app/routes/training/__workout-detail-telemetry.tsx
+@@ -456,13 +456,13 @@ export default function TelemetryOverlay({
+ 					))}
+ 					{bands.length > 0 ? (
+ 						<span className="flex items-center gap-1.5">
+-							<span className="bg-primary/20 ring-primary/50 size-3 rounded-sm ring-1" />{' '}
++							<span className="bg-primary/20 ring-primary/50 size-3 rounded-[3px] ring-1" />{' '}
+ 							{L.plannedTarget}
+ 						</span>
+ 					) : null}
+ 					{pauseCount > 0 ? (
+ 						<span className="text-muted-foreground flex items-center gap-1.5">
+-							<span className="bg-muted-foreground/20 size-3 rounded-sm" />{' '}
++							<span className="bg-muted-foreground/20 size-3 rounded-[3px]" />{' '}
+ 							{L.paused}
+ 						</span>
+ 					) : null}
+@@ -836,7 +836,7 @@ function TelemetryReading({
+ 				<span className="inline-flex items-center gap-1.5">
+ 					<span
+ 						aria-hidden
+-						className="bg-primary/30 ring-primary/60 size-2 shrink-0 rounded-sm ring-1"
++						className="bg-primary/30 ring-primary/60 size-2 shrink-0 rounded-[3px] ring-1"
+ 					/>
+ 					{L.plannedRange(target.min, target.max, model.targetUnit)}
+ 				</span>
+diff --git a/app/routes/training/__workout-editor.tsx b/app/routes/training/__workout-editor.tsx
+index f7ce3aa..5f33bc4 100644
+--- a/app/routes/training/__workout-editor.tsx
++++ b/app/routes/training/__workout-editor.tsx
+@@ -120,7 +120,7 @@ export function WorkoutStructureEditor({
+ 		<div className="space-y-4">
+ 			{/* The editable Token Sentence: the draft rendered as tappable notation —
+ 			    the sole authoring surface (§0). */}
+-			<div className="border-border/70 bg-muted/20 rounded-lg border p-3">
++			<div className="bg-muted/50 rounded-3xl p-3">
+ 				<TokenSentenceEditor
+ 					form={form}
+ 					blocksField={blocksField}
+@@ -140,7 +140,7 @@ export function WorkoutStructureEditor({
+ 			{shapeSegments.length > 0 ? (
+ 				<div
+ 					data-testid="editor-workout-shape"
+-					className="border-border/70 bg-muted/20 rounded-lg border p-3"
++					className="bg-muted/50 rounded-3xl p-3"
+ 				>
+ 					<ShapeStrip segments={shapeSegments} />
+ 				</div>
+diff --git a/app/routes/training/plan.new.tsx b/app/routes/training/plan.new.tsx
+index 5777805..f90bd30 100644
+--- a/app/routes/training/plan.new.tsx
++++ b/app/routes/training/plan.new.tsx
+@@ -352,7 +352,7 @@ function StartInvite() {
+ 				data-plan-start-invite
+ 				className={cn(
+ 					buttonVariants({ size: 'default' }),
+-					'h-12 w-full text-base font-semibold sm:w-auto sm:px-8',
++					'h-12 w-full text-body font-semibold sm:w-auto sm:px-8',
+ 				)}
+ 			>
+ 				{PLAN_LEAD_LABELS.noPlanAction}
+diff --git a/app/routes/training/plan.tsx b/app/routes/training/plan.tsx
+index 640bce0..8fe7dec 100644
+--- a/app/routes/training/plan.tsx
++++ b/app/routes/training/plan.tsx
+@@ -1113,7 +1113,7 @@ function SeasonSpanHeadline({
+ 				return (
+ 					<li key={group.key} className="space-y-1">
+ 						{named ? (
+-							<p className="flex flex-wrap items-center gap-2 text-sm font-medium">
++							<p className="flex flex-wrap items-center gap-2 text-callout">
+ 								<span>
+ 									{SESONG_PAGE_LABELS.spanTracks(
+ 										group.disciplines.map(nbTrackName),
+@@ -1132,11 +1132,11 @@ function SeasonSpanHeadline({
+ 						    this card, and at 24px a figure like `55.0 km/wk → 73.8 km/wk` wraps
+ 						    mid-arrow in a half-width column — which reads as two numbers rather
+ 						    than as one span. */}
+-						<p className="text-xl font-semibold tracking-tight text-balance tabular-nums">
++						<p className="text-heading text-balance tabular-nums">
+ 							{formatNbWeeklyVolume(group.span.anchor, group.currency)} →{' '}
+ 							{formatNbWeeklyVolume(group.span.peak, group.currency)}
+ 						</p>
+-						<p className="text-muted-foreground text-sm">
++						<p className="text-muted-foreground text-footnote">
+ 							{group.marker === 'derived' &&
+ 							accumulatesAcrossDisciplines(group.currency)
+ 								? `${NB_ACCUMULATED_SPAN_LABELS[group.currency]} `
+diff --git a/app/routes/training/sessions.$sessionId.tsx b/app/routes/training/sessions.$sessionId.tsx
+index 580e66a..a1743c9 100644
+--- a/app/routes/training/sessions.$sessionId.tsx
++++ b/app/routes/training/sessions.$sessionId.tsx
+@@ -1259,7 +1259,7 @@ function ArchetypeToken({ view }: { view: SessionArchetypeView }) {
+ 	return (
+ 		<Popover>
+ 			<PopoverTrigger
+-				className="focus-visible:ring-ring decoration-muted-foreground text-foreground relative rounded-sm font-medium underline decoration-dotted underline-offset-2 outline-none after:absolute after:top-1/2 after:left-1/2 after:size-11 after:min-w-full after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:ring-2"
++				className="focus-visible:ring-ring decoration-muted-foreground text-foreground relative rounded-2xl font-medium underline decoration-dotted underline-offset-2 outline-none after:absolute after:top-1/2 after:left-1/2 after:size-11 after:min-w-full after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:ring-2"
+ 				data-archetype={view.kind}
+ 			>
+ 				{word}
+@@ -1478,7 +1478,7 @@ function SimpleActivityFacts({
+ 				>
+ 					{S.notMeasuredHeading}
+ 				</h3>
+-				<dl className="divide-border mt-1 divide-y" data-not-measured>
++				<dl className="divide-border/60 mt-1 divide-y" data-not-measured>
+ 					{withheld.map((label) => (
+ 						<div
+ 							key={label}
+diff --git a/app/styles/tailwind.css b/app/styles/tailwind.css
+index f8be6f1..3251bde 100644
+--- a/app/styles/tailwind.css
++++ b/app/styles/tailwind.css
+@@ -180,11 +180,11 @@
+ 	/* ── Older app token, still read outside home ─────────────────────── */
+ 
+ 	/* The Score direction's Z1–Z5 hues (workout-editor spec §2.5/§7). */
+-	--zone-1: #5f9fe0;
+-	--zone-2: #3fae7d;
+-	--zone-3: #d9b13b;
+-	--zone-4: #e08a3c;
+-	--zone-5: #d95757;
++	--zone-1: oklch(0.6 0.12 250);
++	--zone-2: oklch(0.59 0.12 160);
++	--zone-3: oklch(0.65 0.13 95);
++	--zone-4: oklch(0.61 0.14 58);
++	--zone-5: oklch(0.55 0.19 22);
+ }
+ 
+ .dark {
+@@ -238,6 +238,11 @@
+ 	 * so a caption-sized track name reads as crisply as `foreground` beside it
+ 	 * (≥ 7.3:1 on the card, ≥ 8.1:1 on the page). */
+ 	--track-run-ink: oklch(0.74 0.13 32);
++	--zone-1: oklch(0.72 0.11 250);
++	--zone-2: oklch(0.72 0.12 160);
++	--zone-3: oklch(0.76 0.12 95);
++	--zone-4: oklch(0.74 0.14 58);
++	--zone-5: oklch(0.67 0.16 22);
+ 	--track-bike-ink: oklch(0.8 0.12 78);
+ 	--track-swim-ink: oklch(0.76 0.09 225);
+ 	--track-strength-ink: oklch(0.74 0.1 300);
