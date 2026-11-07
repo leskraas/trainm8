@@ -1,0 +1,31 @@
+$ git rev-parse HEAD
+4c0bc03f8da55eb019f6256b3fcb8a5d175356f5
+$ node -e heap_size_limit (MB)
+2096
+$ npm run lint   (default heap, NODE_OPTIONS unset)
+
+> lint
+> eslint .
+
+
+<--- Last few GCs --->
+
+[833:0x7ef0000]    86137 ms: Scavenge 2005.7 (2075.9) -> 1993.1 (2077.4) MB, pooled: 7 MB, 12.74 / 0.00 ms  (average mu = 0.161, current mu = 0.032) allocation failure; 
+[833:0x7ef0000]    87235 ms: Mark-Compact 2012.8 (2079.5) -> 1992.5 (2080.1) MB, pooled: 5 MB, 1051.52 / 0.01 ms  (average mu = 0.207, current mu = 0.254) allocation failure; scavenge might not succeed
+
+
+<--- JS stacktrace --->
+
+FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 0xe48bbe node::OOMErrorHandler(char const*, v8::OOMDetails const&) [node]
+ 2: 0x1248d00 v8::Utils::ReportOOMFailure(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [node]
+ 3: 0x1248fd7 v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [node]
+ 4: 0x1477ee5  [node]
+ 5: 0x1477f13  [node]
+ 6: 0x1490fea  [node]
+ 7: 0x14941b8  [node]
+ 8: 0x1cfcc61  [node]
+Aborted
+exit: 134  seconds: 88

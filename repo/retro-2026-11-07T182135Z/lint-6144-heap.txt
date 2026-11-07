@@ -1,0 +1,7 @@
+$ git rev-parse HEAD
+4c0bc03f8da55eb019f6256b3fcb8a5d175356f5
+$ NODE_OPTIONS=--max-old-space-size=6144 npm run lint
+warning lines: 146
+✖ 146 problems (0 errors, 146 warnings)
+  0 errors and 7 warnings potentially fixable with the `--fix` option.
+exit: 0  seconds: 71
