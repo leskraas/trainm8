@@ -41,5 +41,13 @@ This repository is public. Notes that must not be public live in the private
 repository `leskraas/trainm8-private` (attach it to the session to read them);
 its `README.md` lists what is there. Today that is
 `docs/research/agent-native-security-findings.md`, the 15 candidate security
-issues behind §17 of `docs/research/agent-native-deep-dive.md`. Never copy
-their contents into this repository.
+issues behind §17 of `docs/research/agent-native-deep-dive.md`. Never copy their
+contents into this repository.
+
+### Rules for agents
+
+- Guard files: agents never change `.github/**`, `.claude/**`, `AGENTS.md`,
+  `CLAUDE.md`, `fly.toml` or `other/**` on their own; a human makes or approves
+  those changes.
+- Never run git with `--no-verify`: every hook runs.
+- New dependencies get an exact version (no `^` or `~`).
