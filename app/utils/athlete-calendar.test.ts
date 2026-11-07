@@ -236,3 +236,42 @@ test('localTimeOfDay round-trips localTimeUTC across a DST boundary', () => {
 		'2030-07-10T05:00:00.000Z',
 	)
 })
+
+// ── formatter cache (ADR 0112 §1) ──────────────────────────────────────────
+
+test('the calendar builds one formatter per timezone and shape, however often it is called', () => {
+	// Building an Intl.DateTimeFormat was two thirds of the longest task on
+	// opening the full view of a 52-week season; the presenter calls these per
+	// day and per session. A zone no other test uses, so the cache starts cold.
+	const timezone = 'Pacific/Chatham'
+	const Real = Intl.DateTimeFormat
+	const built: Array<string | undefined> = []
+	class Counting extends Real {
+		constructor(
+			locales?: Intl.LocalesArgument,
+			options?: Intl.DateTimeFormatOptions,
+		) {
+			super(locales, options)
+			built.push(options?.timeZone)
+		}
+	}
+	Intl.DateTimeFormat = Counting as typeof Intl.DateTimeFormat
+	try {
+		for (let day = 1; day <= 28; day++) {
+			const dateStr = `2030-02-${String(day).padStart(2, '0')}`
+			const instant = localTimeUTC(dateStr, '07:00', timezone)
+			expect(localDate(instant, timezone)).toBe(dateStr)
+			expect(localTimeOfDay(instant, timezone)).toBe('07:00')
+			dayBoundsUTC(dateStr, timezone)
+		}
+	} finally {
+		Intl.DateTimeFormat = Real
+	}
+	// One for the date, one for the wall clock, one for the time of day.
+	expect(built.filter((zone) => zone === timezone)).toHaveLength(3)
+})
+
+test('an unknown timezone still throws on every call, and is never cached', () => {
+	expect(() => localDate(new Date(), 'Nowhere/Atlantis')).toThrow(RangeError)
+	expect(() => localDate(new Date(), 'Nowhere/Atlantis')).toThrow(RangeError)
+})
