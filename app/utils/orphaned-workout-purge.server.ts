@@ -50,7 +50,7 @@ export async function runOrphanedWorkoutPurge(): Promise<AccountErasure> {
 		})
 		if (!job) return erasure
 		const payload = parsePayload(job.payload)
-		if (payload.purged) return payload.purged
+		if (isErasureRecord(payload.purged)) return payload.purged
 		await tx.job.update({
 			where: { id: job.id },
 			data: { payload: JSON.stringify({ ...payload, purged: erasure }) },
@@ -63,17 +63,23 @@ export async function runOrphanedWorkoutPurge(): Promise<AccountErasure> {
 	return record
 }
 
-/** The job row's payload, with the record a committed run left, if any. */
-function parsePayload(raw: string): {
-	purged?: AccountErasure
-	[key: string]: unknown
-} {
+/** The job row's payload as an object; `{}` when it is not one. */
+function parsePayload(raw: string): Record<string, unknown> {
 	try {
 		const parsed: unknown = JSON.parse(raw)
 		return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-			? (parsed as { purged?: AccountErasure })
+			? (parsed as Record<string, unknown>)
 			: {}
 	} catch {
 		return {}
 	}
+}
+
+/** The record a committed run left: three counts, nothing else counts as one. */
+function isErasureRecord(value: unknown): value is AccountErasure {
+	if (!value || typeof value !== 'object') return false
+	const record = value as Record<string, unknown>
+	return (['erased', 'keptUnattributed', 'spliced'] as const).every(
+		(key) => typeof record[key] === 'number',
+	)
 }

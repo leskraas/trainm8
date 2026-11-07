@@ -149,6 +149,26 @@ test('a run after one that committed keeps the first record, never zeros', async
 	info.mockRestore()
 })
 
+test('a record that is not three counts is not taken as the first run’s', async () => {
+	await prisma.job.deleteMany({})
+	await createOrphans()
+	const job = await enqueueJob({
+		kind: ORPHANED_WORKOUT_PURGE_JOB_KIND,
+		payload: { purged: { erased: 'all' } },
+	})
+	const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+	await processNextJob(jobHandlers)
+
+	expect((await readJob(job.id)).payload).toEqual({
+		purged: { erased: 2, keptUnattributed: 1, spliced: 0 },
+	})
+	expect(info).toHaveBeenCalledWith(
+		'[orphaned-workout-purge] erased 2, kept unattributed 1, spliced 0',
+	)
+	info.mockRestore()
+})
+
 test('a purge that fails partway erases nothing and is retried', async () => {
 	await prisma.job.deleteMany({})
 	const { erasable, held } = await createOrphans()
