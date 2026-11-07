@@ -4,7 +4,9 @@ import { CONVENTION_NOTICE } from '../catalogue-corpus.ts'
 import { resolveCatalogueOrigin } from '../catalogue.server.ts'
 import { readCitation } from '../catalogue.ts'
 import { prisma } from '../db.server.ts'
-import { getSeasonForEvent } from '../training.server.ts'
+import { getWeekVolumes } from '../plan-outline/week-volumes.server.ts'
+import { getLedgerWeek, getSeasonForEvent } from '../training.server.ts'
+import { workoutCopySelect } from '../workout.server.ts'
 import {
 	approveSeason,
 	defaultPresetFor,
@@ -34,6 +36,7 @@ async function seedStock({
 	discipline = 'run',
 	authorship = 'system',
 	ownerId = null,
+	distanceM = null,
 }: {
 	key: string
 	archetype: string
@@ -41,6 +44,8 @@ async function seedStock({
 	discipline?: string
 	authorship?: string
 	ownerId?: string | null
+	/** A step of distance instead of the hour: a session with a km figure. */
+	distanceM?: number | null
 }) {
 	const workout = await prisma.workout.create({
 		select: { id: true },
@@ -66,7 +71,8 @@ async function seedStock({
 									orderIndex: 0,
 									kind: 'cardio',
 									discipline,
-									durationSec: 3600,
+									durationSec: distanceM == null ? 3600 : null,
+									distanceM,
 									intensity: JSON.stringify({
 										kind: 'zoneLabel',
 										label: 'easy',
@@ -398,4 +404,143 @@ test('approving under a Weekly Capacity writes the lowered season, and the plan�
 	const season = await getSeasonForEvent(athlete.id, event.id, NOW)
 	expect(season?.weeklyCapacityHours).toBe(3)
 	expect(season?.hoursWarnings).toEqual([])
+})
+
+// The generate preview's Planned Volume (#472, ADR 0112): read outside the seam,
+// off the Stock Workouts approval copies, over the week as approval leaves it.
+
+/** A corpus whose easy and long rows carry a km figure and the rest do not. */
+async function seedMeasurableCorpus() {
+	await seedStock({ key: 'easy1', archetype: 'easy', distanceM: 8000 })
+	await seedStock({ key: 'long1', archetype: 'long', distanceM: 16000 })
+	await seedStock({ key: 'tempo1', archetype: 'tempo', cited: false })
+	await seedStock({ key: 'thr1', archetype: 'threshold' })
+	await seedStock({ key: 'vo2a', archetype: 'vo2max-short' })
+	await seedStock({ key: 'race1', archetype: 'race-simulation', cited: false })
+}
+
+/** A run the athlete wrote themselves, `km` long, at noon UTC on `day`. */
+async function addOwnRun(athleteId: string, day: string, km: number) {
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId: athleteId,
+			title: 'Egen tur',
+			discipline: 'run',
+			intent: 'endurance',
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 1,
+						steps: {
+							create: [
+								{
+									orderIndex: 0,
+									kind: 'cardio',
+									discipline: 'run',
+									distanceM: km * 1000,
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	await prisma.workoutSession.create({
+		data: {
+			userId: athleteId,
+			workoutId: workout.id,
+			scheduledAt: new Date(`${day}T12:00:00Z`),
+			status: 'scheduled',
+		},
+	})
+}
+
+test('a preview week’s Planned Volume is the one Sesong reads for that week once the season is approved unchanged', async () => {
+	const athlete = await createAthlete()
+	await seedMeasurableCorpus()
+	const event = await createEvent(athlete.id, new Date('2026-04-04T09:00:00Z'))
+	// A session the athlete already had, in the season's third week: approval
+	// deletes none, so the preview counts it as Sesong will.
+	await addOwnRun(athlete.id, '2026-01-24', 12)
+
+	const preview = await previewSeason(athlete.id, event.id, choice(), {
+		now: NOW,
+	})
+	if (!preview.ok) throw new Error(preview.reason)
+	// Reading writes nothing.
+	expect(await prisma.workoutSession.count()).toBe(1)
+	const { season, weekVolumes } = preview.preview
+	expect(weekVolumes.map((week) => week.weekKey)).toEqual(
+		season.weeks.map((week) => week.weekKey),
+	)
+	const third = weekVolumes.find((week) => week.weekKey === '2026-01-19')!
+	expect(third.existingSessions).toBe(1)
+
+	const approved = await approveSeason(athlete.id, event.id, choice(), {
+		now: NOW,
+	})
+	if (!approved.ok) throw new Error(approved.reason)
+
+	let measured = 0
+	let unmeasured = 0
+	for (const week of weekVolumes) {
+		const sesong = await getWeekVolumes(athlete.id, {
+			weekKey: week.weekKey,
+			now: NOW,
+		})
+		const rows = await getLedgerWeek(athlete.id, week.weekKey, 'UTC')
+		expect(week.hasSessions).toBe(rows.length > 0)
+		const read = (volumes: typeof sesong) =>
+			volumes.tracks.map((track) => ({
+				discipline: track.discipline,
+				target: track.target,
+				planned: track.planned,
+				plannedUnmeasuredCount: track.plannedUnmeasuredCount,
+				driftMark: track.driftMark,
+			}))
+		expect({ week: week.weekKey, tracks: read(week.volumes) }).toEqual({
+			week: week.weekKey,
+			tracks: read(sesong),
+		})
+		for (const track of week.volumes.tracks) {
+			if ((track.planned ?? 0) > 0) measured++
+			unmeasured += track.plannedUnmeasuredCount
+		}
+	}
+	// The comparison is not vacuous: weeks with a km sum, and sessions counted apart.
+	expect(measured).toBeGreaterThan(0)
+	expect(unmeasured).toBeGreaterThan(0)
+	// The athlete's own 12 km is in its week's figure.
+	const placedOnly = season.sessions.filter(
+		(session) => session.weekKey === '2026-01-19',
+	)
+	expect(third.volumes.tracks[0]!.planned).toBeGreaterThanOrEqual(12)
+	expect(placedOnly.length + third.existingSessions).toBe(
+		(await getLedgerWeek(athlete.id, '2026-01-19', 'UTC')).length,
+	)
+})
+
+test('a placed session is not rescaled: its copy carries its Stock Workout’s blocks and steps field by field', async () => {
+	const athlete = await createAthlete()
+	await seedMeasurableCorpus()
+	const event = await createEvent(athlete.id, new Date('2026-04-04T09:00:00Z'))
+	await approveSeason(athlete.id, event.id, choice(), { now: NOW })
+
+	const copies = await prisma.workout.findMany({
+		where: { ownerId: athlete.id, copiedFromId: { not: null } },
+		select: { ...workoutCopySelect, copiedFromId: true },
+	})
+	expect(copies.length).toBeGreaterThan(0)
+	for (const copy of copies) {
+		const stock = await prisma.workout.findUniqueOrThrow({
+			where: { id: copy.copiedFromId! },
+			select: workoutCopySelect,
+		})
+		expect(copy.blocks).toEqual(stock.blocks)
+		expect(copy.title).toBe(stock.title)
+		expect(copy.intent).toBe(stock.intent)
+	}
 })

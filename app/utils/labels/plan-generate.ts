@@ -103,6 +103,23 @@ export const PLAN_GENERATE_LABELS = {
 		`${spans} ber om ${single ? '' : 'opptil '}${peak} utholdenhetstrening, og kapasiteten din er ${capacity}. Kvalitetsøktene alene krever mer enn det, så et lavere startvolum hjelper ikke – startvolumet står som det er.`,
 
 	seasonTitle: 'Sesongen',
+	/**
+	 * Said once under «Sesongen», never on a card (#472): why a week's target and
+	 * the sum of its sessions can be two numbers (ADR 0053 §6), and what `≠`
+	 * means, since the preview has no meter or tooltip to teach it. `≠ betyr` and
+	 * `10 %` are held together by no-break spaces.
+	 */
+	placedAsPublished:
+		'Øktene legges inn slik kilden publiserte dem og skaleres aldri for å treffe ukemålet, så målet og summen av øktene kan være to ulike tall. ≠\u00a0betyr at planlagt er mer enn 10\u00a0% unna målet.',
+	/** The name of a week card's list of tracks, for a screen reader. */
+	weekFiguresLabel: 'Mål og planlagt per idrett',
+	/**
+	 * Under a week's figures, where the athlete already has sessions in it:
+	 * approval deletes none, so `planlagt` counts them too (ADR 0112 §4), and the
+	 * figure is never larger than the rows under it without a reason.
+	 */
+	alreadyInWeek: (count: number) =>
+		`Planlagt teller også med ${nbSessionCount(count)} du allerede har denne uka.`,
 	/** `Grunntrening 4 uker`, in the line of phases. */
 	phase: (name: string, weeks: number) => `${name} ${nbWeeks(weeks)}`,
 	/** A week by its ISO number, as every week on Sesong is named. */

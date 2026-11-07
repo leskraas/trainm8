@@ -41,7 +41,12 @@
  * express.
  */
 import { type Prisma } from '@prisma/client'
-import { addDays, localTimeUTC, weekMonday } from '../athlete-calendar.ts'
+import {
+	addDays,
+	localDate,
+	localTimeUTC,
+	weekMonday,
+} from '../athlete-calendar.ts'
 import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
 import { catalogueEntrySelect } from '../catalogue.server.ts'
 import {
@@ -72,6 +77,12 @@ import {
 import { readConversionContexts } from '../plan-outline/volume-conversion.server.ts'
 import { type ConversionContext } from '../plan-outline/volume-conversion.ts'
 import {
+	prescriptionVolumeOf,
+	volumeSessionOf,
+} from '../plan-outline/week-volumes.ts'
+import { getDisciplineThresholds, getLedgerWeeks } from '../training.server.ts'
+import { deriveLedgerStatus } from '../training.ts'
+import {
 	isCardioDiscipline,
 	RACE_ANCHOR_DISTANCE_M,
 	type CardioDiscipline,
@@ -80,9 +91,14 @@ import {
 } from '../workout-schema.ts'
 import { copyWorkout, workoutCopySelect } from '../workout.server.ts'
 import { generateSeason, type SeasonGenerator } from './generator.ts'
+import {
+	previewWeekVolumes,
+	type PreviewWeekVolumes,
+} from './planned-volume.ts'
 import { type RetrievableEntry } from './retrieval.ts'
 import {
 	type GeneratedSeason,
+	type GeneratedSession,
 	type GenerationIntent,
 	type GenerationTrack,
 	type SeasonRequest,
@@ -160,6 +176,13 @@ export type SeasonPreview = {
 	proposals: TrackProposal[]
 	/** Hours per Training Week the athlete authored, or null where they never did. */
 	weeklyCapacityHours: number | null
+	/**
+	 * Per season week, the three numbers per track over the week as approval
+	 * would leave it (ADR 0112): the Week Target beside the **Planned Volume** of
+	 * the sessions placed and the athlete's sessions already there, read through
+	 * the week model _Sesong_ reads. Numbers and codes; the route words them.
+	 */
+	weekVolumes: PreviewWeekVolumes[]
 }
 
 /**
@@ -423,11 +446,8 @@ export async function previewSeason(
 	answers: GenerationAnswers = {},
 	options: { now?: Date; generator?: SeasonGenerator } = {},
 ): Promise<PreviewResult> {
-	const context = await readContext(
-		athleteId,
-		eventId,
-		options.now ?? new Date(),
-	)
+	const now = options.now ?? new Date()
+	const context = await readContext(athleteId, eventId, now)
 	if (!context) return { ok: false, reason: 'event-not-found' }
 	const choice = resolveChoice(context, answers)
 	if (choice.tracks.length === 0) {
@@ -438,6 +458,12 @@ export async function previewSeason(
 		await buildRequest(context, choice),
 		context.corpus,
 		options.generator,
+	)
+	const weekVolumes = await readPreviewWeekVolumes(
+		athleteId,
+		season,
+		context.timezone,
+		now,
 	)
 
 	return {
@@ -456,8 +482,74 @@ export async function previewSeason(
 			timezone: context.timezone,
 			proposals: context.proposals,
 			weeklyCapacityHours: context.weeklyCapacityHours,
+			weekVolumes,
 		},
 	}
+}
+
+/**
+ * Read a generated season's weeks as _Sesong_ will read them once it is
+ * approved unchanged (ADR 0112). **Reads only.**
+ *
+ * Each placed session is read off the **Stock Workout** approval copies
+ * ({@link readStockWorkouts}, the one reader `writeSessions` uses too), on the
+ * day and with the status it will have once written ({@link placedAt}). The
+ * athlete's sessions already in the season's weeks come in one range read with
+ * the ledger's select and through `volumeSessionOf`, as _Sesong_ reads them:
+ * approval deletes none of them, so the week's planned figure counts them. A
+ * placed session whose Stock Workout is gone is left out, as approval leaves it
+ * out. Nothing is resolved, rescaled or written (ADR 0053 §6, §8).
+ */
+async function readPreviewWeekVolumes(
+	athleteId: string,
+	season: GeneratedSeason,
+	timezone: string,
+	now: Date,
+): Promise<PreviewWeekVolumes[]> {
+	if (season.weeks.length === 0) return []
+	const [stock, existing, thresholds, trainingTime] = await Promise.all([
+		readStockWorkouts(season.sessions.map((session) => session.workoutId)),
+		getLedgerWeeks(
+			athleteId,
+			{
+				fromWeekKey: season.weeks[0]!.weekKey,
+				toWeekKey: season.weeks.at(-1)!.weekKey,
+			},
+			timezone,
+		),
+		getDisciplineThresholds(athleteId),
+		defaultTrainingTime(athleteId),
+	])
+	return previewWeekVolumes({
+		season,
+		todayKey: localDate(now, timezone),
+		placed: season.sessions.flatMap((session) => {
+			const workout = stock.get(session.workoutId)
+			if (!workout) return []
+			const scheduledAt = placedAt(session, trainingTime, timezone)
+			return [
+				{
+					...prescriptionVolumeOf(workout, { thresholds }),
+					dayKey: addDays(session.weekKey, session.weekday),
+					status: deriveLedgerStatus(
+						{ status: 'scheduled', scheduledAt },
+						now,
+						timezone,
+					),
+					recorded: null,
+					doneZones: [],
+					countsInNoTrack: false,
+				},
+			]
+		}),
+		existing: existing.map((session) =>
+			volumeSessionOf(session, {
+				dayKey: localDate(session.scheduledAt, timezone),
+				status: deriveLedgerStatus(session, now, timezone),
+				thresholds,
+			}),
+		),
+	})
 }
 
 /**
@@ -592,12 +684,7 @@ async function writeSessions(
 	timezone: string,
 	trainingTime: string,
 ): Promise<string[]> {
-	const workoutIds = [...new Set(season.sessions.map((s) => s.workoutId))]
-	const sources = await prisma.workout.findMany({
-		where: { id: { in: workoutIds } },
-		select: workoutCopySelect,
-	})
-	const byId = new Map(sources.map((source) => [source.id, source]))
+	const byId = await readStockWorkouts(season.sessions.map((s) => s.workoutId))
 
 	return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
 		const ids: string[] = []
@@ -614,13 +701,7 @@ async function writeSessions(
 				data: {
 					userId: athleteId,
 					workoutId: copy.id,
-					// A pattern weekday is Monday-first and so is the Training Week, so
-					// the weekday *is* the offset from the week's own Monday (ADR 0019).
-					scheduledAt: localTimeUTC(
-						addDays(session.weekKey, session.weekday),
-						trainingTime,
-						timezone,
-					),
+					scheduledAt: placedAt(session, trainingTime, timezone),
 					status: 'scheduled',
 					source: 'generated',
 					targetEventId: eventId,
@@ -633,4 +714,58 @@ async function writeSessions(
 		}
 		return ids
 	})
+}
+
+/**
+ * The **Stock Workouts** a season's sessions copy, by id: the columns and rows
+ * `copyWorkout` writes (`workoutCopySelect`), plus the block and step ids the
+ * Workout Shape keys its bars by, which a copy never writes. One reader for the
+ * preview and the approval, so the figure the athlete reviews is read off the
+ * very rows the approval copies (ADR 0112 §2).
+ */
+async function readStockWorkouts(
+	workoutIds: readonly string[],
+): Promise<Map<string, StockWorkout>> {
+	const rows = await prisma.workout.findMany({
+		where: { id: { in: [...new Set(workoutIds)] } },
+		select: stockWorkoutSelect,
+	})
+	return new Map(rows.map((row) => [row.id, row]))
+}
+
+const stockWorkoutSelect = {
+	...workoutCopySelect,
+	blocks: {
+		...workoutCopySelect.blocks,
+		select: {
+			...workoutCopySelect.blocks.select,
+			id: true,
+			steps: {
+				...workoutCopySelect.blocks.select.steps,
+				select: { ...workoutCopySelect.blocks.select.steps.select, id: true },
+			},
+		},
+	},
+} satisfies Prisma.WorkoutSelect
+
+type StockWorkout = Prisma.WorkoutGetPayload<{
+	select: typeof stockWorkoutSelect
+}>
+
+/**
+ * When a placed session is written: its weekday in its week, at the athlete's
+ * training time. A pattern weekday is Monday-first and so is the Training Week,
+ * so the weekday *is* the offset from the week's own Monday (ADR 0019). The
+ * preview reads a session on the day and with the status this gives it.
+ */
+function placedAt(
+	session: Pick<GeneratedSession, 'weekKey' | 'weekday'>,
+	trainingTime: string,
+	timezone: string,
+): Date {
+	return localTimeUTC(
+		addDays(session.weekKey, session.weekday),
+		trainingTime,
+		timezone,
+	)
 }

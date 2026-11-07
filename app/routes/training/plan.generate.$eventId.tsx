@@ -54,17 +54,21 @@ import {
 } from '#app/components/ui/collapsible.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { RadioGroup } from '#app/components/ui/radio-group.tsx'
+import {
+	wordTrackWeek,
+	type TimelineTrackWeek,
+} from '#app/routes/_home/timeline/week-words.ts'
 import { addDays, isoWeekNumber } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	formatNbDate,
 	formatNbDayMonth,
-	formatNbVolumeTotal,
 	formatNbWeeklyVolume,
 } from '#app/utils/format.ts'
 import {
 	APP_TAB_LABELS,
 	approxLabel,
+	DRIFT_MARK,
 	isoWeekSpanLabel,
 	NB_CATALOGUE_PHASE_LABELS,
 	NB_DISCIPLINE_LABELS,
@@ -76,7 +80,10 @@ import {
 	PLAN_GENERATE_LABELS,
 	PLAN_SHAPE_STEP_LABELS,
 	SESONG_NOTICE_LABELS,
+	unmeasuredCountLabel,
+	WEEK_FIGURE_LABELS,
 } from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
 import { type CapacityFit } from '#app/utils/plan-generation/capacity.ts'
 import {
 	approveSeason,
@@ -86,6 +93,7 @@ import {
 	type GenerationRefusal,
 	type SeasonPreview,
 } from '#app/utils/plan-generation/generate.server.ts'
+import { type PreviewWeekVolumes } from '#app/utils/plan-generation/planned-volume.ts'
 import {
 	GENERATION_INTENTS,
 	type GeneratedSession,
@@ -236,6 +244,15 @@ export default function GenerateSeasonRoute({
 	const { event, season, choice } = preview
 	const weeks = season.weeks
 	const fit = eventFit(season.startWeekKey, weeks.length, preview.eventWeekKey)
+	// Each week's tracks, worded as Sesong words them (`wordTrackWeek`), with the
+	// `≠` gated on the whole week holding a session, as Sesong gates it.
+	const byWeek = new Map(
+		preview.weekVolumes.map((entry) => [entry.weekKey, entry]),
+	)
+	const figuresOf = (week: SeasonPreview['season']['weeks'][number]) => {
+		const entry = byWeek.get(week.weekKey)
+		return entry ? weekFigures(entry, preview.currentWeekKey) : null
+	}
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
@@ -346,11 +363,15 @@ export default function GenerateSeasonRoute({
 						startWeekKey={season.startWeekKey}
 						weeks={weeks.length}
 					/>
+					{/* Once, above the weeks, never on a card (#472). */}
+					<p className="text-footnote text-muted-foreground">
+						{L.placedAsPublished}
+					</p>
 				</div>
 				<ul className="space-y-3">
 					{weeks.slice(0, WEEKS_SHOWN).map((week) => (
 						<li key={week.weekKey}>
-							<WeekCard week={week} season={season} />
+							<WeekCard week={week} season={season} figures={figuresOf(week)} />
 						</li>
 					))}
 				</ul>
@@ -363,7 +384,11 @@ export default function GenerateSeasonRoute({
 						<ul className="space-y-3">
 							{weeks.slice(WEEKS_SHOWN).map((week) => (
 								<li key={week.weekKey}>
-									<WeekCard week={week} season={season} />
+									<WeekCard
+										week={week}
+										season={season}
+										figures={figuresOf(week)}
+									/>
 								</li>
 							))}
 						</ul>
@@ -608,9 +633,12 @@ function weeklyHours(hours: number, estimated: boolean): string {
 function WeekCard({
 	week,
 	season,
+	figures,
 }: {
 	week: SeasonPreview['season']['weeks'][number]
 	season: SeasonPreview['season']
+	/** The week's tracks, worded; null only if the read has no such week. */
+	figures: WeekFigures | null
 }) {
 	const phase = season.phases[week.phaseIndex]!
 	const sessions = season.sessions.filter(
@@ -648,22 +676,7 @@ function WeekCard({
 					{L.weekOf(week.weekIndex + 1, season.weeks.length)} ·{' '}
 					{nbPhaseName(phase.name)}
 				</p>
-				{/* One figure per track, each kept whole on its line: a sport and its
-				    figure split across a wrap read as two facts (`1 270,5 km`). */}
-				<p className="text-footnote flex flex-wrap gap-x-1.5 tabular-nums">
-					{week.targets.map((target, index) => (
-						<span key={target.discipline} className="contents">
-							{index > 0 ? <span aria-hidden>·</span> : null}
-							<span className="whitespace-nowrap">
-								{`${NB_DISCIPLINE_LABELS[target.discipline]} ${
-									target.value == null
-										? '—'
-										: formatNbVolumeTotal(target.value, target.currency)
-								}`}
-							</span>
-						</span>
-					))}
-				</p>
+				{figures ? <TrackFigures figures={figures} /> : null}
 			</div>
 			{sessions.length + unfilled.length > 0 ? (
 				<ul className="divide-border/60 divide-y px-(--card-spacing)">
@@ -686,6 +699,154 @@ function WeekCard({
 				</ul>
 			) : null}
 		</Card>
+	)
+}
+
+/** A preview week's tracks as the card reads them, and what it says beside them. */
+type WeekFigures = {
+	tracks: TimelineTrackWeek[]
+	existingSessions: number
+}
+
+/**
+ * A preview week's numbers, worded by the same call _Sesong_ words its weeks
+ * with (`wordTrackWeek`), so the drift rule, the unmeasured counts and the
+ * empty-week rule are _Sesong_'s and not a copy of them (ADR 0112 §5).
+ */
+function weekFigures(
+	entry: PreviewWeekVolumes,
+	currentWeekKey: string,
+): WeekFigures {
+	return {
+		tracks: entry.volumes.tracks.map((track) =>
+			wordTrackWeek(track, {
+				ahead: entry.weekKey > currentWeekKey,
+				hasSessions: entry.hasSessions,
+			}),
+		),
+		existingSessions: entry.existingSessions,
+	}
+}
+
+/**
+ * A track's name in its own colour: the `-ink` step of the hue, AA as text in
+ * both themes (ADR 0085, #505 round 2), as on Sesong. Literal classes, for
+ * Tailwind.
+ */
+const TRACK_INK: Record<string, string> = {
+	run: 'text-track-run-ink',
+	bike: 'text-track-bike-ink',
+	swim: 'text-track-swim-ink',
+	strength: 'text-track-strength-ink',
+}
+
+/**
+ * One row per Training Track (#472): the track's name in its ink, then
+ * `mål 32 km · planlagt 24 km +1 uten km ≠`. The **Week Target** and the
+ * **Planned Volume** are two labelled figures, each with its unit, never blended.
+ *
+ * The names share a column so the figures line up down the card: each row is a
+ * subgrid of the list's two columns, never `display: contents`, which WebKit has
+ * dropped from the accessibility tree. Where the card is narrow (large text) the
+ * name stacks above its figures. Only a value and its unit never break, the `·`
+ * hangs at the end of the target, and the `≠` sits inside the last figure, so a
+ * wrapped line starts with a label and the mark never stands alone.
+ *
+ * Static: the figures change only on a rebuild, which is a navigation.
+ */
+function TrackFigures({ figures }: { figures: WeekFigures }) {
+	return (
+		<div className="@container space-y-0.5">
+			<ul
+				aria-label={L.weekFiguresLabel}
+				className="text-footnote grid grid-cols-[max-content_minmax(0,1fr)] gap-x-2.5 gap-y-0.5 tabular-nums @max-[300px]:grid-cols-1"
+			>
+				{figures.tracks.map((track) => (
+					<li
+						key={track.trackId}
+						data-week-track={track.discipline}
+						className="col-span-full grid grid-cols-subgrid"
+					>
+						<span
+							className={cn(
+								'font-semibold [overflow-wrap:anywhere]',
+								TRACK_INK[track.discipline] ?? 'text-foreground',
+							)}
+						>
+							{track.name}
+						</span>
+						<TrackFigureLine track={track} />
+					</li>
+				))}
+			</ul>
+			{figures.existingSessions > 0 ? (
+				<p className="text-footnote text-muted-foreground">
+					{L.alreadyInWeek(figures.existingSessions)}
+				</p>
+			) : null}
+		</div>
+	)
+}
+
+/** `mål 32 km · planlagt 24 km +1 uten km ≠`, broken only between its parts. */
+function TrackFigureLine({ track }: { track: TimelineTrackWeek }) {
+	const withUnit = (figure: string) => `${figure}\u00a0${track.unit}`
+	const target =
+		track.figures.target == null ? '—' : withUnit(track.figures.target)
+	// A sum, or, where every planned session lacks a number, what stands in its
+	// place (`2 økter uten km`); never `0 km` for sessions that are there.
+	const planned =
+		track.figures.planned != null
+			? withUnit(track.figures.planned)
+			: (track.figureNotes.planned ?? '—')
+	const beside =
+		track.figures.planned != null && track.plannedUnmeasuredCount > 0
+			? unmeasuredCountLabel(track.plannedUnmeasuredCount, track.currency)
+			: null
+	const drift = track.driftLabel ? (
+		<>
+			{'\u2009'}
+			<span
+				role="img"
+				aria-label={track.driftLabel}
+				title={track.driftLabel}
+				className="text-status-under font-bold"
+			>
+				{DRIFT_MARK}
+			</span>
+		</>
+	) : null
+	return (
+		<span className="min-w-0">
+			<span className="text-muted-foreground">{WEEK_FIGURE_LABELS.target}</span>{' '}
+			<span className="whitespace-nowrap">
+				<span className="font-medium">{target}</span>
+				<span className="text-muted-foreground" aria-hidden>
+					{'\u00a0·'}
+				</span>
+			</span>{' '}
+			<span className="text-muted-foreground">
+				{WEEK_FIGURE_LABELS.planned}
+			</span>{' '}
+			<span
+				className={cn(
+					'font-medium',
+					track.figures.planned != null && 'whitespace-nowrap',
+				)}
+			>
+				{planned}
+				{beside ? null : drift}
+			</span>
+			{beside ? (
+				<>
+					{' '}
+					<span className="text-muted-foreground whitespace-nowrap">
+						{beside}
+						{drift}
+					</span>
+				</>
+			) : null}
+		</span>
 	)
 }
 
