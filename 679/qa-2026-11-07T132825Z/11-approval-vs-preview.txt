@@ -1,0 +1,5 @@
+outlines for QA 5 km: [('cmw6fp4h100uf7d11c99izbro',)]
+preview sessions: 48  written sessions: 48
+stock workout sequence identical (season order): True
+written copies whose blocks/steps differ from their stock source: 0
+first 6 written: [('2026-11-03', 'stock_run-G1'), ('2026-11-05', 'stock_run-A3'), ('2026-11-07', 'stock_run-A2'), ('2026-11-08', 'stock_run-A3'), ('2026-11-10', 'stock_run-G1'), ('2026-11-12', 'stock_run-A2')]

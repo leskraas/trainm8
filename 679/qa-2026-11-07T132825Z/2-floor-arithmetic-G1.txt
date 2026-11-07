@@ -1,0 +1,12 @@
+stock_run-G1 blocks: [{"repeatCount":1,"seriesRepeatCount":1,"betweenSeriesRestSec":null,"sendOff":null,"steps":[{"kind":"cardio","discipline":"run","intensity":"{\"kind\":\"zoneLabel\",\"label\":\"easy\"}","durationSec":null,"distanceM":3000}]},{"repeatCount":6,"seriesRepeatCount":1,"betweenSeriesRestSec":null,"sendOff":null,"steps":[{"kind":"cardio","discipline":"run","intensity":"{\"kind\":\"hrPct\",\"ref\":\"max\",\"minPct\":92,\"maxPct\":95}","durationSec":180,"distanceM":null},{"kind":"rest","discipline":null,"intensity":null,"durationSec":null,"distanceM":null}]},{"repeatCount":1,"seriesRepeatCount":1,"betweenSeriesRestSec":null,"sendOff":null,"steps":[{"kind":"cardio","discipline":"run","intensity":"{\"kind\":\"zoneLabel\",\"label\":\"easy\"}","durationSec":null,"distanceM":2000}]}]
+whole session: {"seconds":2555,"complete":false,"estimated":true}
+block 0 alone: {"seconds":885,"complete":true,"estimated":true}
+   step 0 cardio dur null dist 3000 alone x1: {"seconds":885,"complete":true,"estimated":true}
+block 1 alone: {"seconds":1080,"complete":false,"estimated":false}
+   step 0 cardio dur 180 dist null alone x1: {"seconds":180,"complete":true,"estimated":false}
+   step 1 rest dur null dist null alone x1: null
+block 2 alone: {"seconds":590,"complete":true,"estimated":true}
+   step 0 cardio dur null dist 2000 alone x1: {"seconds":590,"complete":true,"estimated":true}
+stock_run-A3 {"seconds":3480,"complete":true,"estimated":false}
+stock_run-D6 {"seconds":3635,"complete":true,"estimated":true}
+stock_run-C2 {"seconds":3280,"complete":true,"estimated":true}

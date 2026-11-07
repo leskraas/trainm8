@@ -1,0 +1,51 @@
+QA run, PR #679 at 7a07257d12511b38fb2e7175bea0337b48d85030. Isolated dev server (npm run dev, MOCKS) on PORT=3100, DB /tmp/trainm8-verify/db, seeded kody.
+All state set through the UI: Weekly Capacity in /settings/profile ("Timer i uka du har til trening"), events via /training/events/new.
+Placed-hours per week were read with previewSeason (read-only) to choose capacities; ⍽ = U+00A0 no-break space in the DOM text.
+
+== Spring Half Marathon (run), capacity UNSET (AC 9)
+[data-placed] nodes: 0, [data-capacity] nodes: 0   -> 9-no-capacity-silent.png
+
+== Spring Half Marathon, capacity 5 (per-week placed hours: 7.133 5.133 4.800 4.467 4.761~ 4.561~ 5.217 4.703~ 5.276~ 3.933 2.078; ~ = through a pace)
+trigger «7 uker til» aria-expanded on load: false
+[data-placed="season"] visible=true Øktene alene tar mer tid enn du har. Uke 45–46, uke 51 og uke 53 har økter som til sammen tar lengre tid enn kapasiteten din på 5⍽t/uke. Ingen økt er kortet ned eller byttet ut – hver av ukene viser hvor mye.
+[data-placed="remaining"] visible=true Uke 51 og uke 53 ligger her, og øktene der tar mer tid enn du har.
+card Uke 45  Øktene alene tar 7,1⍽t, kapasiteten din er 5⍽t/uke.
+card Uke 46  Øktene alene tar 5,1⍽t, kapasiteten din er 5⍽t/uke.
+card Uke 47..50, 52, 1, 2  (no line)        <- 4,8 / 4,5 / 4,8 / 4,6 / 4,7 / 3,9 / 2,1 t fit
+card Uke 51  Øktene alene tar 5,2⍽t, kapasiteten din er 5⍽t/uke.
+card Uke 53  Øktene alene tar ≈⍽5,3⍽t, kapasiteten din er 5⍽t/uke.
+
+== Spring Half Marathon, capacity 5.1 (AC 5 boundary: week 46 = 5.133 h rounds to 5,1)
+[data-placed="season"] ... Uke 45, uke 51 og uke 53 har økter ... kapasiteten din på 5,1⍽t/uke ...
+card Uke 46  (no line)
+
+== Spring Half Marathon, ?anchor-run=40, capacity 2 (AC 6: beside `lowered`)
+[data-capacity] Skalert ned til kapasiteten din på 2⍽t/uke: den tyngste uka er nå ≈⍽2⍽t/uke, ned fra ≈⍽4⍽t/uke.
+[data-placed="season"] Øktene alene tar mer tid enn du har. Hver uke i sesongen har økter som ... 2⍽t/uke ...
+(no [data-placed="remaining"]: left out when every week breaches)
+
+== QA Triatlon Olympisk (run/swim/bike), capacity 3; capacity.kind = unpriced (AC 9), placed.kind = read
+[data-placed="season"] Øktene alene tar mer tid enn du har. Uke 45–10 har økter ... 3⍽t/uke ...
+[data-placed="remaining"] Uke 49–10 ligger her, og øktene der tar mer tid enn du har.
+Uke 45..8: ≈⍽6,6 / 6 / 8,8 / 6,7 ... ⍽t;  Uke 9: minst ≈⍽3,2⍽t (unfilled swim slot);  Uke 10: minst ≈⍽3,2⍽t (unfilled swim slot)
+Uke 11 (2.746 h) no line;  Uke 12 (2.956 h -> 3,0 vs 3) no line  (AC 5)
+capacity 2: "Hver uke i sesongen", every card has a line.
+
+== QA 5 km (run, distance target 5 km), ?shape=polarized-short, capacity 3.5 (AC 3: untimed open rest)
+[data-placed="season"] Øktene alene tar mer tid enn du har. Uke 45–48 og uke 52–2 har økter ... 3,5⍽t/uke ...
+[data-placed="remaining"] Uke 52–2 ligger her, og øktene der tar mer tid enn du har.
+Uke 45 minst ≈⍽3,6⍽t | Uke 46 minst ≈⍽3,7⍽t | Uke 47 minst ≈⍽3,6⍽t  (each holds Long hill reps: 6× jog-back open rest)
+Uke 48 3,9⍽t (plain: every session timed end to end, no pace) | Uke 49–51 no line (3,3 t) | Uke 52 3,9⍽t | Uke 53 ≈⍽4⍽t | Uke 1 ≈⍽4⍽t | Uke 2 3,9⍽t | Uke 3 no line
+pageerror events in every drive: none
+
+== AC 12 measurements (section «N uker til» opened, root font-size 100 % and 200 %)
+For every [role=article] week card, [data-placed] and [data-capacity] node: scrollWidth<=clientWidth, box inside viewport, every text node's client rects inside the viewport; every figure (≈⍽n,n⍽t, n⍽t/uke) on a single line.
+run cap5   390/320 x 100/200 %: cards 11, over 4,  bad [], splits []
+tri cap3   390/320 x 100/200 %: cards 21, over 19, bad [], splits []
+5k  cap3.5 390/320 x 100/200 %: cards 12, over 8,  bad [], splits []
+Whole document at 200 %: documentElement.scrollWidth - clientWidth = 64 px (320) / 29 px (390). Cause, by text-node scan with the dev-only
+React Router devtools removed: the approve button's label «Legg disse 44 øktene i kalenderen» (unchanged by this PR); nothing in a week card or the season line.
+
+== AC 11 approval (QA 5 km, polarized-short, capacity 3.5), via the «Legg disse 48 øktene i kalenderen» button
+POST /training/plan/generate/<id>.data?shape=polarized-short with an empty body (no figure posted) -> redirect /training/plan?event=<id>
+see 11-approval-vs-preview.txt

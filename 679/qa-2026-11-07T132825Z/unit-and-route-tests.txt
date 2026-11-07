@@ -1,0 +1,271 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/tmp/claude-0/-home-user-trainm8/1c2c6ef9-a20d-5ebf-852c-fe8535461858/scratchpad/f473/wt/679-qa[39m
+
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": SQLite database "base.db.23793.tmp" at "file:/tmp/claude-0/-home-user-trainm8/1c2c6ef9-a20d-5ebf-852c-fe8535461858/scratchpad/f473/wt/679-qa/tests/prisma/base.db.23793.tmp"
+
+SQLite database base.db.23793.tmp created at file:/tmp/claude-0/-home-user-trainm8/1c2c6ef9-a20d-5ebf-852c-fe8535461858/scratchpad/f473/wt/679-qa/tests/prisma/base.db.23793.tmp
+
+Applying migration `20250221233640_init`
+Applying migration `20260416140410_add_training_domain`
+Applying migration `20260508093352_remove_notes_domain`
+Applying migration `20260508095402_add_session_log`
+Applying migration `20260514074656_add_workout_authoring_fields`
+Applying migration `20260519120108_rename_scheduled_session_to_workout_session`
+Applying migration `20260519120112_rename_activity_to_discipline`
+Applying migration `20260519120706_add_workout_intent`
+Applying migration `20260519125819_add_activity_import_inbox`
+Applying migration `20260519125835_add_event_entity`
+Applying migration `20260519125854_add_athlete_profile_thresholds`
+Applying migration `20260519130231_add_step_discriminated_union`
+Applying migration `20260520000001_backfill_intensity_json`
+Applying migration `20260520065953_tss_triad_load_snapshot`
+Applying migration `20260528184726_add_account_connection`
+Applying migration `20260528200421_add_job_queue`
+Applying migration `20260606120000_add_training_availability`
+Applying migration `20260607071940_add_generated_plan_persistence`
+Applying migration `20260608055031_add_planned_tss`
+Applying migration `20260626140523_add_activity_import_metrics`
+Applying migration `20260626150459_add_activity_import_phase_bars`
+Applying migration `20260629100206_add_activity_stream`
+Applying migration `20260705212920_add_week_replan`
+Applying migration `20260707141528_relax_account_connection_for_key_providers`
+Applying migration `20260715150052_add_structure_detection_groundwork`
+Applying migration `20260716065940_add_run_power_threshold`
+Applying migration `20260727190451_relational_plan_outline`
+Applying migration `20260727202553_drop_redundant_plan_outline_indexes`
+Applying migration `20260730141217_retire_volume_landmarks`
+Applying migration `20260731070614_add_load_recompute_notice`
+Applying migration `20260731100000_backfill_endurance_segments`
+Applying migration `20260731203000_require_strength_goal_and_frequency`
+Applying migration `20260808162757_add_weekly_capacity`
+Applying migration `20260808173119_default_zone_recipe_per_discipline`
+Applying migration `20260809053306_add_structure_and_quantities`
+Applying migration `20260809065500_add_performance_result`
+Applying migration `20260809073956_add_catalogue_four_axes`
+Applying migration `20260809081502_add_session_adoption`
+Applying migration `20260809090000_add_community_tier`
+Applying migration `20260813120000_threshold_provenance_construct_and_protocol`
+Applying migration `20260813130000_session_archetype_on_workout`
+Applying migration `20260813140000_exercise_set_log`
+Applying migration `20260814120000_strength_anchors_programs_and_variants`
+Applying migration `20260817090000_exercise_laterality_is_a_statement_not_a_default`
+Applying migration `20260817140000_program_session_application`
+Applying migration `20260818120000_ship_the_exercise_corpus_and_the_three_programs`
+Applying migration `20260818160000_an_orphaned_exercise_belongs_to_nobody_and_is_healed_only_where_the_corpus_knows_it`
+Applying migration `20260819090000_a_logged_set_outlives_the_prescription_it_answered`
+Applying migration `20260819140000_a_logged_set_states_which_realization_it_was`
+Applying migration `20261007175838_the_week_replan_proposes_and_a_session_can_be_handed_back`
+Applying migration `20261007182406_legacy_plan_rows_are_the_machines_unless_the_athlete_edited_them`
+Applying migration `20261007190320_the_week_change_runs_each_step_once`
+Applying migration `20261007191933_an_open_ended_plan_owns_itself_and_the_sessions_it_laid`
+Applying migration `20261007212213_a_plan_records_the_philosophy_it_follows`
+Applying migration `20261007225432_a_session_may_count_in_no_track`
+Applying migration `20261008041623_an_import_remembers_what_the_athlete_said_about_it`
+Applying migration `20261011061500_an_account_connection_remembers_when_it_last_checked`
+Applying migration `20261011120000_the_lifts_answer_to_their_norwegian_names`
+Applying migration `20261013120000_an_import_is_keyed_by_its_athlete`
+Applying migration `20261013130000_every_import_records_its_origin_platform`
+Applying migration `20261013140000_one_activity_is_one_row`
+Applying migration `20261013150000_the_harvest_budget_is_the_keys`
+Applying migration `20261017130000_an_applied_proposal_keeps_its_before_image`
+Applying migration `20261017160000_the_athlete_keeps_their_training_level`
+Applying migration `20261017170000_a_simple_activity_is_a_planned_session`
+Applying migration `20261017185740_the_athlete_answers_how_often_they_lift`
+Applying migration `20261017185741_the_start_lifts_a_full_body_stock_workout`
+Applying migration `20261017185742_the_athlete_keeps_their_session_preferences`
+Applying migration `20261017190000_the_simple_activities_share_a_track_on_other`
+Applying migration `20261018060000_the_autopilot_applies_at_the_close`
+Applying migration `20261018070000_a_juster_keeps_what_it_replaced`
+Applying migration `20261018080000_the_autopilot_notice_is_seen_and_kept`
+Applying migration `20261018090000_the_autopilot_is_on_for_everyone`
+Applying migration `20261018100000_lifting_is_laid_per_week`
+Applying migration `20261018110000_a_track_names_its_own_days`
+Applying migration `20261024120000_strava_streams_checked`
+Applying migration `20261025090000_grade_is_a_band`
+Applying migration `20261025090100_the_hill_rows_state_their_grade`
+
+Database reset successful
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20250221233640_init/
+    └─ migration.sql
+  └─ 20260416140410_add_training_domain/
+    └─ migration.sql
+  └─ 20260508093352_remove_notes_domain/
+    └─ migration.sql
+  └─ 20260508095402_add_session_log/
+    └─ migration.sql
+  └─ 20260514074656_add_workout_authoring_fields/
+    └─ migration.sql
+  └─ 20260519120108_rename_scheduled_session_to_workout_session/
+    └─ migration.sql
+  └─ 20260519120112_rename_activity_to_discipline/
+    └─ migration.sql
+  └─ 20260519120706_add_workout_intent/
+    └─ migration.sql
+  └─ 20260519125819_add_activity_import_inbox/
+    └─ migration.sql
+  └─ 20260519125835_add_event_entity/
+    └─ migration.sql
+  └─ 20260519125854_add_athlete_profile_thresholds/
+    └─ migration.sql
+  └─ 20260519130231_add_step_discriminated_union/
+    └─ migration.sql
+  └─ 20260520000001_backfill_intensity_json/
+    └─ migration.sql
+  └─ 20260520065953_tss_triad_load_snapshot/
+    └─ migration.sql
+  └─ 20260528184726_add_account_connection/
+    └─ migration.sql
+  └─ 20260528200421_add_job_queue/
+    └─ migration.sql
+  └─ 20260606120000_add_training_availability/
+    └─ migration.sql
+  └─ 20260607071940_add_generated_plan_persistence/
+    └─ migration.sql
+  └─ 20260608055031_add_planned_tss/
+    └─ migration.sql
+  └─ 20260626140523_add_activity_import_metrics/
+    └─ migration.sql
+  └─ 20260626150459_add_activity_import_phase_bars/
+    └─ migration.sql
+  └─ 20260629100206_add_activity_stream/
+    └─ migration.sql
+  └─ 20260705212920_add_week_replan/
+    └─ migration.sql
+  └─ 20260707141528_relax_account_connection_for_key_providers/
+    └─ migration.sql
+  └─ 20260715150052_add_structure_detection_groundwork/
+    └─ migration.sql
+  └─ 20260716065940_add_run_power_threshold/
+    └─ migration.sql
+  └─ 20260727190451_relational_plan_outline/
+    └─ migration.sql
+  └─ 20260727202553_drop_redundant_plan_outline_indexes/
+    └─ migration.sql
+  └─ 20260730141217_retire_volume_landmarks/
+    └─ migration.sql
+  └─ 20260731070614_add_load_recompute_notice/
+    └─ migration.sql
+  └─ 20260731100000_backfill_endurance_segments/
+    └─ migration.sql
+  └─ 20260731203000_require_strength_goal_and_frequency/
+    └─ migration.sql
+  └─ 20260808162757_add_weekly_capacity/
+    └─ migration.sql
+  └─ 20260808173119_default_zone_recipe_per_discipline/
+    └─ migration.sql
+  └─ 20260809053306_add_structure_and_quantities/
+    └─ migration.sql
+  └─ 20260809065500_add_performance_result/
+    └─ migration.sql
+  └─ 20260809073956_add_catalogue_four_axes/
+    └─ migration.sql
+  └─ 20260809081502_add_session_adoption/
+    └─ migration.sql
+  └─ 20260809090000_add_community_tier/
+    └─ migration.sql
+  └─ 20260813120000_threshold_provenance_construct_and_protocol/
+    └─ migration.sql
+  └─ 20260813130000_session_archetype_on_workout/
+    └─ migration.sql
+  └─ 20260813140000_exercise_set_log/
+    └─ migration.sql
+  └─ 20260814120000_strength_anchors_programs_and_variants/
+    └─ migration.sql
+  └─ 20260817090000_exercise_laterality_is_a_statement_not_a_default/
+    └─ migration.sql
+  └─ 20260817140000_program_session_application/
+    └─ migration.sql
+  └─ 20260818120000_ship_the_exercise_corpus_and_the_three_programs/
+    └─ migration.sql
+  └─ 20260818160000_an_orphaned_exercise_belongs_to_nobody_and_is_healed_only_where_the_corpus_knows_it/
+    └─ migration.sql
+  └─ 20260819090000_a_logged_set_outlives_the_prescription_it_answered/
+    └─ migration.sql
+  └─ 20260819140000_a_logged_set_states_which_realization_it_was/
+    └─ migration.sql
+  └─ 20261007175838_the_week_replan_proposes_and_a_session_can_be_handed_back/
+    └─ migration.sql
+  └─ 20261007182406_legacy_plan_rows_are_the_machines_unless_the_athlete_edited_them/
+    └─ migration.sql
+  └─ 20261007190320_the_week_change_runs_each_step_once/
+    └─ migration.sql
+  └─ 20261007191933_an_open_ended_plan_owns_itself_and_the_sessions_it_laid/
+    └─ migration.sql
+  └─ 20261007212213_a_plan_records_the_philosophy_it_follows/
+    └─ migration.sql
+  └─ 20261007225432_a_session_may_count_in_no_track/
+    └─ migration.sql
+  └─ 20261008041623_an_import_remembers_what_the_athlete_said_about_it/
+    └─ migration.sql
+  └─ 20261011061500_an_account_connection_remembers_when_it_last_checked/
+    └─ migration.sql
+  └─ 20261011120000_the_lifts_answer_to_their_norwegian_names/
+    └─ migration.sql
+  └─ 20261013120000_an_import_is_keyed_by_its_athlete/
+    └─ migration.sql
+  └─ 20261013130000_every_import_records_its_origin_platform/
+    └─ migration.sql
+  └─ 20261013140000_one_activity_is_one_row/
+    └─ migration.sql
+  └─ 20261013150000_the_harvest_budget_is_the_keys/
+    └─ migration.sql
+  └─ 20261017130000_an_applied_proposal_keeps_its_before_image/
+    └─ migration.sql
+  └─ 20261017160000_the_athlete_keeps_their_training_level/
+    └─ migration.sql
+  └─ 20261017170000_a_simple_activity_is_a_planned_session/
+    └─ migration.sql
+  └─ 20261017185740_the_athlete_answers_how_often_they_lift/
+    └─ migration.sql
+  └─ 20261017185741_the_start_lifts_a_full_body_stock_workout/
+    └─ migration.sql
+  └─ 20261017185742_the_athlete_keeps_their_session_preferences/
+    └─ migration.sql
+  └─ 20261017190000_the_simple_activities_share_a_track_on_other/
+    └─ migration.sql
+  └─ 20261018060000_the_autopilot_applies_at_the_close/
+    └─ migration.sql
+  └─ 20261018070000_a_juster_keeps_what_it_replaced/
+    └─ migration.sql
+  └─ 20261018080000_the_autopilot_notice_is_seen_and_kept/
+    └─ migration.sql
+  └─ 20261018090000_the_autopilot_is_on_for_everyone/
+    └─ migration.sql
+  └─ 20261018100000_lifting_is_laid_per_week/
+    └─ migration.sql
+  └─ 20261018110000_a_track_names_its_own_days/
+    └─ migration.sql
+  └─ 20261024120000_strava_streams_checked/
+    └─ migration.sql
+  └─ 20261025090000_grade_is_a_band/
+    └─ migration.sql
+  └─ 20261025090100_the_hill_rows_state_their_grade/
+    └─ migration.sql
+
+ [32m✓[39m app/utils/prescribed-duration.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generator.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/placed-hours.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m app/utils/plan-generation/generate.server.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 3558[2mms[22m[39m
+   [33m[2m✓[22m[39m approving writes the Plan Outline and the sessions under it [33m 497[2mms[22m[39m
+   [33m[2m✓[22m[39m a placed session is generated, anchored, and owns a fresh copy of the corpus row [33m 406[2mms[22m[39m
+   [33m[2m✓[22m[39m a placed session reaches its Citation through the chain, never a copy of it [33m 452[2mms[22m[39m
+   [33m[2m✓[22m[39m an Event already carrying a plan is refused rather than doubled [33m 463[2mms[22m[39m
+   [33m[2m✓[22m[39m approving under a Weekly Capacity writes the lowered season, and the plan’s own hours check stays quiet (#473) [33m 442[2mms[22m[39m
+   [33m[2m✓[22m[39m the preview states the weeks whose placed sessions outrun the Weekly Capacity, and approval reads them again on the server (#473) [33m 477[2mms[22m[39m
+ [32m✓[39m app/routes/training/plan.generate.$eventId.route.test.tsx [2m([22m[2m26 tests[22m[2m)[22m[33m 4203[2mms[22m[39m
+   [33m[2m✓[22m[39m the season is already there — the screen opens on a plan, not a blank form [33m 479[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m      Tests [22m [1m[32m70 passed[39m[22m[90m (70)[39m
+[2m   Start at [22m 13:25:36
+[2m   Duration [22m 11.57s[2m (transform 3.70s, setup 3.80s, import 3.43s, tests 7.87s, environment 370ms)[22m
+
