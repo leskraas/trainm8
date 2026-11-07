@@ -1,8 +1,10 @@
 # A generated season fits the Weekly Capacity by lowering its anchor, and the Week Target is the number that wins
 
 Status: Accepted (agent decision on delegated issues #473 and #472, 2026-10-24).
-§1–§2 are built, and the preview states what §2 did; §3–§4 are decided and **not
-yet built**. The owner confirmed §1–§2 on 2026-10-25; §3–§4 stay open below.
+§1–§2 are built, and the preview states what §2 did. §4 is built, by
+[ADR 0112](./0112-a-generated-weeks-placed-hours-are-a-floor-carried-on-the-payload.md)
+(#473). §3 is decided and **not yet built** (#472). The owner confirmed §1–§2 on
+2026-10-25; §3 stays open below.
 
 **Amends**
 [ADR 0053](./0053-season-generation-is-deterministic-behind-the-seam.md) §6 by
@@ -88,7 +90,8 @@ shortens a cited session to make the week fit.
   the change before anything is saved, so the athlete still decides.
 - **Confirmed by the owner on 2026-10-25:** one common factor across tracks,
   rather than lowering the largest track first. It keeps the athlete's mix.
-- **Proposed, owner to confirm:** §3 and §4, which are not yet built.
+- **Proposed, owner to confirm:** §3, which is not yet built. §4 is built, by
+  ADR 0112 (#473).
 
 ## Deferred hardening
 
@@ -106,5 +109,6 @@ shortens a cited session to make the week fit.
   week before and after (`fromPeakHours`, `peakHours`); `over` says where, by
   how much, and that the **Quality Session Mix** alone outruns the capacity.
   `fits`, `unset` and `unpriced` add nothing. Hours read through a pace carry
-  `≈` (`estimated`), rounded once at the surface. §3–§4 remain the open work on
-  #472 and #473.
+  `≈` (`estimated`), rounded once at the surface. §4 is built by ADR 0112
+  (`GeneratedSeason.placed`, stated on the week card and under the season's
+  heading). §3 remains the open work on #472.

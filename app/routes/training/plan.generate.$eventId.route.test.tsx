@@ -246,7 +246,7 @@ test('a week with no Season Anchor reads “—” rather than a number nobody t
 			week({ targets: [{ discipline: 'run', currency: 'km', value: null }] }),
 		],
 	})
-	expect(await screen.findByText(/Løping —/)).toBeInTheDocument()
+	expect(await paragraph('Løping —')).toBeInTheDocument()
 })
 
 test('the one question and the pre-selected shape read in Norwegian, as Sesong names them', async () => {
@@ -390,4 +390,175 @@ test.each([
 	await screen.findByRole('heading', { name: /sesongen din, klar/i })
 	expect(screen.queryByText(/kapasitet/i)).not.toBeInTheDocument()
 	expect(screen.queryByText(/skalert ned/i)).not.toBeInTheDocument()
+})
+
+// --- Placed Hours over the Weekly Capacity (#473, ADR 0110 §4, ADR 0112) ---
+
+/** Weeks `count` long from 2026-01-05 (ISO week 2), all loading weeks. */
+function weeksOf(count: number): GeneratedWeek[] {
+	return Array.from({ length: count }, (_, weekIndex) =>
+		week({
+			weekIndex,
+			weekKey: new Date(Date.UTC(2026, 0, 5 + 7 * weekIndex))
+				.toISOString()
+				.slice(0, 10),
+		}),
+	)
+}
+
+type PlacedRead = Extract<SeasonPreview['season']['placed'], { kind: 'read' }>
+
+function placedRead(
+	hours: Array<number | null>,
+	breaches: Array<[number, number]>,
+	shape: { exact?: boolean; estimated?: boolean } = {},
+): PlacedRead {
+	return {
+		kind: 'read',
+		weeklyCapacityHours: 6,
+		weeks: hours.map((h) =>
+			h == null
+				? null
+				: {
+						hours: h,
+						exact: shape.exact ?? false,
+						estimated: shape.estimated ?? true,
+					},
+		),
+		breaches: breaches.map(([fromWeekIndex, toWeekIndex]) => ({
+			fromWeekIndex,
+			toWeekIndex,
+			peakHours: 7.5,
+			weeklyCapacityHours: 6,
+		})),
+	}
+}
+
+test('a week whose placed sessions outrun the capacity says so on its card, as a floor read through a pace', async () => {
+	renderScreen({ placed: placedRead([7.46], [[0, 0]]) })
+	const line = await paragraph(
+		'Øktene alene tar minst ≈ 7,5 t, kapasiteten din er 6 t/uke.',
+	)
+	expect(line).toHaveAttribute('data-placed', 'over')
+	// In the foreground, on the card itself: never muted, never behind a tap.
+	expect(line.className).not.toMatch(/muted/)
+	expect(
+		within(screen.getByRole('article', { name: /uke 2/i })).getByText(
+			/Øktene alene tar/,
+		),
+	).toBeInTheDocument()
+	// The figure is held together with no-break spaces, and `minst` may wrap.
+	expect(line.textContent).toContain('minst ≈\u00a07,5\u00a0t')
+})
+
+test('a week timed end to end reads a plain figure, with no minst and no ≈', async () => {
+	renderScreen({
+		placed: placedRead([7.5], [[0, 0]], { exact: true, estimated: false }),
+	})
+	expect(
+		await paragraph('Øktene alene tar 7,5 t, kapasiteten din er 6 t/uke.'),
+	).toBeInTheDocument()
+})
+
+test('the season line names the breaching weeks beside the over line, and neither replaces the other', async () => {
+	renderScreen({
+		weeks: weeksOf(10),
+		capacity: {
+			kind: 'over',
+			weeklyCapacityHours: 6,
+			estimated: true,
+			warnings: [
+				{
+					fromWeekIndex: 7,
+					toWeekIndex: 7,
+					peakHours: 8.1,
+					weeklyCapacityHours: 6,
+				},
+			],
+		},
+		placed: placedRead(
+			[7, 7, 7, 5, 5, 5, 5, 5, 7, 5],
+			[
+				[0, 2],
+				[8, 8],
+			],
+		),
+	})
+	expect(
+		await paragraph(
+			'Øktene alene tar mer tid enn du har. Uke 2–4 og uke 10 har økter som til sammen tar lengre tid enn kapasiteten din på 6 t/uke. Ingen økt er kortet ned eller byttet ut – hver av ukene viser hvor mye.',
+		),
+	).toHaveAttribute('data-placed', 'season')
+	expect(document.querySelector('[data-capacity="over"]')).not.toBeNull()
+})
+
+test('one breaching week is told as that week', async () => {
+	renderScreen({ weeks: weeksOf(3), placed: placedRead([5, 7, 5], [[1, 1]]) })
+	expect(
+		await paragraph(
+			'Øktene alene tar mer tid enn du har. Uke 3 har økter som til sammen tar lengre tid enn kapasiteten din på 6 t/uke. Ingen økt er kortet ned eller byttet ut – uka viser hvor mye.',
+		),
+	).toBeInTheDocument()
+})
+
+test('breaching weeks behind «N uker til» are named on its row, in the foreground, with the section closed', async () => {
+	renderScreen({
+		weeks: weeksOf(8),
+		placed: placedRead(
+			[7, 5, 5, 5, 5, 7, 7, 5],
+			[
+				[0, 0],
+				[5, 6],
+			],
+		),
+	})
+	const trigger = await screen.findByRole('button', { name: /4 uker til/i })
+	expect(trigger).toHaveAttribute('aria-expanded', 'false')
+	const breach = within(trigger).getByText(
+		'Uke 7–8 ligger her, og øktene der tar mer tid enn du har.',
+	)
+	expect(breach).toHaveClass('text-foreground')
+	expect(breach).toHaveAttribute('data-placed', 'remaining')
+})
+
+test('past three hidden spans the row counts the weeks instead of listing them', async () => {
+	renderScreen({
+		weeks: weeksOf(12),
+		placed: placedRead(
+			[5, 5, 5, 5, 7, 5, 7, 5, 7, 5, 7, 7],
+			[
+				[4, 4],
+				[6, 6],
+				[8, 8],
+				[10, 11],
+			],
+		),
+	})
+	const trigger = await screen.findByRole('button', { name: /8 uker til/i })
+	expect(
+		within(trigger).getByText('5 av ukene her tar mer tid enn du har'),
+	).toBeInTheDocument()
+})
+
+test('a breach in every week leaves the row to the season line', async () => {
+	renderScreen({
+		weeks: weeksOf(6),
+		placed: placedRead([7, 7, 7, 7, 7, 7], [[0, 5]]),
+	})
+	const trigger = await screen.findByRole('button', { name: /2 uker til/i })
+	expect(within(trigger).queryByText(/ligger her/)).not.toBeInTheDocument()
+	expect(
+		await screen.findByText(/Hver uke i sesongen har økter/),
+	).toBeInTheDocument()
+})
+
+test.each([
+	{ name: 'no capacity', placed: { kind: 'unset' as const } },
+	{ name: 'weeks that fit', placed: placedRead([5.9], []) },
+	{ name: 'a week with nothing timed', placed: placedRead([null], []) },
+])('$name adds nothing about the placed sessions', async ({ placed }) => {
+	renderScreen({ placed })
+	await screen.findByRole('heading', { name: /sesongen din, klar/i })
+	expect(screen.queryByText(/Øktene alene/)).not.toBeInTheDocument()
+	expect(document.querySelector('[data-placed]')).toBeNull()
 })

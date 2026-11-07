@@ -15,7 +15,16 @@ generation, and Bibliotek (catalogue, programs, exercises). Specs to copy from:
 - Events: the region _Løp og arrangementer_, _Alle løp_ (`/training/events`),
   `/training/events/new`, `/training/events/:id`.
 - Plan generation from an event: `/training/plan/generate/:eventId` (uses the
-  deterministic stub model client when `ANTHROPIC_API_KEY` is empty).
+  deterministic stub model client when `ANTHROPIC_API_KEY` is empty). With a
+  **Weekly Capacity** set on the Athlete Profile, the preview states **Placed
+  Hours** (ADR 0112): a week whose placed sessions alone take longer than the
+  capacity carries an amber line on its card (`[data-placed="over"]`,
+  `Øktene alene tar minst ≈ 7,5 t, kapasiteten din er 6 t/uke.`), a line under
+  _Sesongen_ names the weeks (`[data-placed="season"]`), and the closed _N uker
+  til_ row names the hidden ones (`[data-placed="remaining"]`). To see it, set
+  kody's `weeklyCapacityHours` a little under a week's placed hours (a 20-week
+  10 km run season with a 4:30/km threshold reads about 3,9 t a week, so 3,8
+  shows a mix) and open the preview.
 - Bibliotek, the region _Bibliotek_: catalogue (`/training/catalogue`), programs
   (`/training/programs`), exercises (`/library/exercises`).
 
