@@ -739,9 +739,7 @@ export const WEATHER_LABELS = {
 		celsius: number
 		mm: number
 	}) => {
-		const rounded = Math.round(celsius)
-		const degrees =
-			rounded < 0 ? `minus ${Math.abs(rounded)}` : String(Math.abs(rounded))
+		const degrees = nbSigned(celsius).replace('−', 'minus ')
 		const rain = nbPrecipitation(mm)
 		return `Vær kl. ${hour}: ${word}, ${degrees} grader, ${
 			rain === '0' ? 'ingen nedbør' : `${rain} millimeter nedbør`
