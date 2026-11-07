@@ -18,7 +18,11 @@
 //   (ADR 0112 §4). Deleting the plan, its Event or the athlete cascades.
 
 import { type Prisma } from '@prisma/client'
-import { copyWorkout, workoutCopySelect } from '../workout.server.ts'
+import {
+	type CopyableWorkout,
+	copyWorkout,
+	workoutCopySelect,
+} from '../workout.server.ts'
 
 /**
  * The `where` fragment every reader of "the athlete's own Workouts" shares, so
@@ -109,10 +113,22 @@ export function heldWorkouts(
 				where: { id: row.id },
 				select: workoutCopySelect,
 			})
-			const copy = await copyWorkout(tx, source, athleteId, {
-				copiedFromId: source.id,
-				heldByOutlineId: outlineId,
+			// The plan may already hold a copy of this source that still says what
+			// it says: an earlier write picked it. Reuse it, so the same pick on
+			// another day, or in another of the plan's Week Patterns, is one unit
+			// with one id (ADR 0112 §2). A source edited since gets a new copy.
+			const earlier = await tx.workout.findMany({
+				where: { heldByOutlineId: outlineId, copiedFromId: source.id },
+				orderBy: { createdAt: 'asc' },
+				select: workoutCopySelect,
 			})
+			const same = earlier.find((held) => sameContent(held, source))
+			const copy =
+				same ??
+				(await copyWorkout(tx, source, athleteId, {
+					copiedFromId: source.id,
+					heldByOutlineId: outlineId,
+				}))
 			copies.set(workoutId, copy.id)
 			return { ok: true, workoutId: copy.id }
 		},
@@ -144,4 +160,18 @@ export function heldWorkouts(
 			return count
 		},
 	}
+}
+
+/**
+ * Whether a held copy still says what its source says: every column
+ * `copyWorkout` carries, blocks, steps and sets, but the id and `visibility`,
+ * which a copy never takes.
+ */
+function sameContent(copy: CopyableWorkout, source: CopyableWorkout) {
+	const content = ({
+		id: _id,
+		visibility: _visibility,
+		...rest
+	}: CopyableWorkout) => JSON.stringify(rest)
+	return content(copy) === content(source)
 }

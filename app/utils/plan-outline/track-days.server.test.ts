@@ -259,6 +259,34 @@ test('every endurance track and Simple Activity can have its days chosen, La app
 	])
 })
 
+test('a Simple Activity picked again for another day stays one unit (ADR 0112 §2)', async () => {
+	const { userId, outlineId, skiWorkoutId } = await setup()
+	const pattern = await prisma.weekPattern.findFirstOrThrow({
+		where: { outlineId },
+		select: { id: true },
+	})
+	const ski = await unit(userId, outlineId, { kind: 'activity' })
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId, discipline: 'other' },
+		select: { id: true },
+	})
+	// A second, separate write picks the same Workout for Friday.
+	const friday = await addWeekPatternDay(userId, {
+		patternId: pattern.id,
+		kind: 'fixed',
+		trackId: track.id,
+		weekday: FRI,
+		workoutId: skiWorkoutId,
+	})
+	expect(friday).toEqual({ ok: true })
+
+	const state = await readTrackDays(userId, outlineId)
+	const activities = state?.units.filter((each) => each.kind === 'activity')
+	expect(activities?.map(({ key, days }) => ({ key, days }))).toEqual([
+		{ key: ski.key, days: [WED, FRI] },
+	])
+})
+
 test('a Langrenn day moved to Saturday stays on Saturday, and the run’s hard session is laid around it', async () => {
 	const { userId, outlineId } = await setup()
 	// Before: the ski on Wednesday, the threshold run on Friday.

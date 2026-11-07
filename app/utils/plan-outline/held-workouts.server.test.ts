@@ -254,6 +254,53 @@ test('hold copies the athlete’s own Workout once per write, and returns a row 
 	expect(again).toEqual({ ok: true, workoutId: first.workoutId })
 })
 
+test('a later write holding the same unchanged Workout reuses the plan’s copy, and an edited one gets a new copy', async () => {
+	const userId = await athlete()
+	const { outlineId } = await racePlan(userId)
+	const session = await authoredSession(userId)
+	const holdOnce = () =>
+		prisma.$transaction((tx) =>
+			heldWorkouts(tx, { outlineId, athleteId: userId }).hold(
+				session.workoutId,
+				'run',
+			),
+		)
+
+	const first = await holdOnce()
+	const second = await holdOnce()
+	if (!first.ok || !second.ok) throw new Error('not held')
+	// Separate writes share the copy, so the same pick is one unit (ADR 0112 §2).
+	expect(second.workoutId).toBe(first.workoutId)
+
+	await updateWorkoutSession(
+		userId,
+		session.sessionId,
+		threshold('Terskel 5×6', 6),
+	)
+	const edited = await holdOnce()
+	if (!edited.ok) throw new Error(edited.reason)
+	// The session changed since: the plan holds what it says now, beside the
+	// copy its earlier days hold as it was.
+	expect(edited.workoutId).not.toBe(first.workoutId)
+	expect((await prescription(edited.workoutId)).title).toBe('Terskel 5×6')
+	expect((await prescription(first.workoutId)).title).toBe('Terskel 4×8')
+	// A Workout held in another plan is never reused here.
+	const other = await createOpenEndedPlan(
+		userId,
+		{ discipline: 'run', weeklyHours: 4 },
+		NOW,
+	)
+	if (!other.ok) throw new Error(other.reason)
+	const elsewhere = await prisma.$transaction((tx) =>
+		heldWorkouts(tx, { outlineId: other.outlineId, athleteId: userId }).hold(
+			session.workoutId,
+			'run',
+		),
+	)
+	if (!elsewhere.ok) throw new Error(elsewhere.reason)
+	expect(elsewhere.workoutId).not.toBe(edited.workoutId)
+})
+
 test('hold copies a Stock Workout in, and refuses a stranger’s, another plan’s or another Discipline’s', async () => {
 	const userId = await athlete()
 	const { outlineId } = await racePlan(userId)
