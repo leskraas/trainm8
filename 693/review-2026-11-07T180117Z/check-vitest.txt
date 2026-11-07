@@ -1,0 +1,9 @@
+   [33m[2m✓[22m[39m weeks before the first anchor are named as Unavailable, never guessed [33m 1259[2mms[22m[39m
+   [33m[2m✓[22m[39m Bibliotek is a section of Plan: the catalogue, programs, every exercise and the athlete’s own lifts (ADR 0101) [33m 452[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m144 passed[39m[22m[90m (144)[39m
+[2m   Start at [22m 17:52:30
+[2m   Duration [22m 167.49s[2m (transform 5.13s, setup 1.81s, import 6.33s, tests 135.30s, environment 1.11s)[22m
+
+vitest exit 0

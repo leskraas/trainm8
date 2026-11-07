@@ -1,0 +1,6 @@
+> typecheck
+> react-router typegen && tsc
+
+🖼️  Generated SVG spritesheet in app/components/ui/icons
+TS Generated icon types in app/components/ui/icons/types.ts
+typecheck exit 0

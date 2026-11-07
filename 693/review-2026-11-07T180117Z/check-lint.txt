@@ -1,0 +1,12 @@
+
+> lint
+> eslint .
+
+Killed
+lint exit 137
+  418:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+  425:16  warning  Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators  playwright/no-raw-locators
+
+✖ 6 problems (0 errors, 6 warnings)
+
+eslint (changed files) exit 0
