@@ -1,0 +1,79 @@
+---
+name: factory-setup
+description: "Check whether a repo is ready for the factory: one green or red line per check, a PR for what an agent may fix, a wizard for what only a human can do. Safe to rerun as a health check. Takes `<owner>/<repo>`."
+disable-model-invocation: true
+---
+
+You check one repo for `/factory` and fix what you are allowed to fix. Each run is safe to repeat (Q32). A repo that passed before ends with every line green and **nothing changed**: no PR, no labels, no wizard.
+
+`scripts/readiness.py` in this skill's base directory makes every judgement: which checks pass, what each fix is, and which paths are guard files. You gather the facts, run it, and carry out the fixes it names. Below, `$O` means `python3 <base directory>/scripts/readiness.py`, `$L` means `python3 <base directory>/../factory/scripts/conductor.py list`, which prints every page of a REST listing as one JSON list, and `$S` a fresh scratch directory. Run `$O --help` for its commands. It reads the role mapping with the conductor's own parser, so it needs the `factory` skill next to this one. Both ship in `bredvid-factory`.
+
+## 1. Get the repo
+
+The argument is `<owner>/<repo>`. Every GitHub call below uses `gh api` and the REST API, because a cloud session blocks GraphQL, which `gh label list`, `gh issue list`, `gh pr list/create` and `gh repo clone` use, and lists with `$L` rather than `gh api --paginate`, whose next links the cloud refuses (see [references/runtime.md](references/runtime.md)). The default branch is `gh api repos/<owner>/<repo> --jq .default_branch`. If the current directory is a clone of the repo, work there. Otherwise run `git clone https://github.com/<owner>/<repo> $S/repo`. Read its `AGENTS.md`, `CLAUDE.md` and `docs/agents/*.md`. Their rules bind you: guard files stay untouched, hooks always run, dependencies get exact versions (Q25).
+
+## 2. Gather the facts
+
+Write `$S/facts.json` with these eight keys:
+
+- `labels`: `$L 'repos/<owner>/<repo>/labels' | jq '[.[].name]'`
+- `apps`: `gh api repos/<owner>/<repo>/commits/<default branch>/check-suites --jq '[.check_suites[].app.slug] | unique'`. An app installed with checks access shows up once it has made a check suite on that commit, and the Claude GitHub App shows as `claude`.
+- `environment`: `cloud` when `$CLAUDE_CODE_REMOTE` is `true`, otherwise `local`.
+- `playwright`: `absent` when neither `playwright` nor `@playwright/test` is a dependency in the repo's `package.json` files. Otherwise `true` when Chromium launches under the repo's own Playwright, else `false`. Install the repo's dependencies as its README says, then run `NODE_PATH= node -e "require('playwright').chromium.launch().then(b => b.close())"` from the repo root, with `@playwright/test` in place of `playwright` when only that is a dependency. The empty `NODE_PATH` hides the cloud image's global Playwright, which would otherwise answer for a repo that has none, so only the repo's own Playwright counts.
+- `design`: the result of the `/design` probe below: `holds`, `fails`, or `null` when you can't run it.
+- `legacy`: how many open issues and PRs still carry the old `factory:*` labels: `python3 <base directory>/../factory/scripts/conductor.py migrate <owner>/<repo> --dry-run | jq '.moved | length'`.
+- `issues`: whether GitHub Issues are on: `gh api repos/<owner>/<repo> --jq .has_issues`.
+- `merge_methods`: the merge methods the repo allows: `gh api repos/<owner>/<repo> --jq '[(if .allow_merge_commit then "merge" else empty end), (if .allow_squash_merge then "squash" else empty end), (if .allow_rebase_merge then "rebase" else empty end)]'`.
+
+### The `/design` probe
+
+The designer needs to know whether `/design` can make and update a canvas with no human approving each step, and whether the factory can read a human's edits back (Q55). Run the probe only in an interactive session where `/design` exists. In a headless or cloud run, set `null`: the verdict recorded in the repo stays, or the default from [references/runtime.md](references/runtime.md).
+
+1. Run `/design` with the brief "factory-setup probe: one artboard with a single button labelled BEFORE". Note the canvas URL.
+2. Republish the same canvas with the label changed to AFTER. Check that the URL didn't change.
+3. Ask the human to open the canvas, change the button label to HUMAN, and say when done. Also ask whether any of steps 1–2 asked them to approve anything.
+4. Read the canvas by its URL, and open the full source Claude Code saved locally.
+
+The probe `holds` when the canvas was created and updated at the same URL without an approval, and the source from step 4 contains HUMAN. Otherwise it `fails`. When `/design` doesn't exist in an interactive session, that also `fails`.
+
+## 3. Check
+
+Run `$O check <repo dir> --facts $S/facts.json` and show its lines to the human exactly as printed. Then run it again with `--json` to plan the fixes. Every red line names its fix. A line marked `–` was skipped and says why: a local run can't check the cloud.
+
+Then settle these with the human, unless the config already answers them. Recommend an answer for each, with its reason in one line; the human decides.
+
+1. **Tracker**: where the factory's issues live. The `tracker` line's `value` is the recommendation: `local` when GitHub Issues are off or the repo keeps its work in `.scratch/`, else `github`. With `local`, say what it costs: the factory runs only when someone types `/factory` in this clone ([config.md](../factory/references/config.md), `tracker`).
+2. **Autonomy**: how far the factory may go on its own in this project. Explain the three levels in one line each, and recommend by the project's risk: `supervised` for a large client project (a human approves the spec, every one-way door and every merge), `doors` for most projects (one-way doors wait for a human, the factory merges the rest), `full` for a sandbox or a solo project (the factory decides and merges everything, and logs its decisions). The `factory` skill's [references/config.md](../factory/references/config.md) has the details.
+3. **Merge**: who merges once QA passes, `agent` or `human`; recommend what the level implies, and `human` when the repo's own rules say a person merges. Take `merge-method` from the `merge-method` line: one the repo allows, the one its rules name (`AGENTS.md`, CONTRIBUTING) first.
+4. **Scans**: which run on their own, every `scan-every` merges. Say each in one line: `architecture` proposes refactors, `design` walks the running app and proposes UI fixes, `retro` reads the log and proposes changes to the factory. Recommend all three for a product with UI, and `architecture, retro` without one. Any scan left out still runs on demand with `/factory --scan <scan>`; `none` turns all of them off.
+5. **Capacity**: recommend `parallel`, `build-parallel`, `scan-every` and `budget` as [references/capacity.md](references/capacity.md) says, and write what the human picks.
+6. **Scheduled task**, only under `tracker: github`: whether three issues have already gone through `/factory` by hand without the flow needing a fix (Q38). Only a yes adds the scheduled-task stages to the wizard: the cloud environment setup script and the scheduled tasks. Under `tracker: local` the schedule is `none`.
+
+If no line is red and the answer to the scheduled task was no (or the tracker is local), the repo is ready for phase 1. Say so and stop, without changing anything.
+
+## 4. Fix what an agent may fix
+
+- **`labels`**: `python3 <base directory>/../factory/scripts/conductor.py labels <owner>/<repo>`, which creates every `agent:*` label that is missing. Under `tracker: local` the line is green: labels live in the tracker directory, and GitHub gets none.
+- **`legacy-labels`**: the repo still has the labels of the factory before ADR-0011. First ask whether a session still runs the old `/factory` on this repo: moving labels under it breaks its run, so wait until it is done. Then run `conductor.py migrate <owner>/<repo>`: it moves each open issue's `factory:<stage>` label to `agent:<task>` (build, review and QA onto the issue's PR), `factory:waiting-human` to `agent:needs-human`, and the PR label `factory` to `agent`. Old `ask-po` and `ask-dev` issues stay as they are; the human closes them. Delete the old labels afterwards only when the human says so.
+- **`local`**: the path is git-ignored in this clone, so it stays out of the PR. Write it in the clone as the `pr` fix below says (for `agent-rules`, add the missing rules to `CLAUDE.local.md` and show them to the human first), leave it uncommitted, and say in the report that the setting is this person's alone: a teammate runs `/factory-setup` in their own clone.
+- **`pr`**: one PR, from branch `factory-setup`. If `gh api 'repos/<owner>/<repo>/pulls?head=<owner>:factory-setup&state=open' --jq '.[0].html_url'` prints a PR, push to it rather than opening a second one. Otherwise open it with `gh api -X POST repos/<owner>/<repo>/pulls -f head=factory-setup -f base=<default branch> -f title=<title> -F body=@<file>`. Make one change per red check:
+  - `tracker`: write `tracker: <value>` in the `factory` block (and `tracker-dir` when it isn't `.scratch`). When `docs/agents/issue-tracker.md` is missing, write it the way `bredvid-engineering:setup-matt-pocock-skills` does, from its GitHub template for `github` and its local-markdown template for `local`, and add to the local one that the factory's own files sit in `<key>-<slug>/factory/` ([config.md](../factory/references/config.md), "A local issue"). An existing `issue-tracker.md` stays: it may describe more than the factory uses, such as Linear as the source of tickets.
+  - `merge-method`: write `merge-method: <value>`, or the allowed method the human chose in step 3.
+  - `schedule`: write `schedule: none`.
+  - `roles`, `autonomy`, `capacity`: write or complete the `factory` block in `docs/agents/factory.md`, in the format of the `factory` skill's [references/config.md](../factory/references/config.md), with the human's answers from step 3. Fill `human-paths` with the guard files the agent rules list (`$O guarded` reads the same list) whose change reaches past the repo or rewrites the agents' rules: CI workflows, infrastructure, database roles, registry and package config, `AGENTS.md` and `CLAUDE.md`. Put guard tests and lint config in `human-edits` instead, so a new guard test merges while an edited or removed one waits. Fill `serial` with the tasks that start the app on fixed ports, when the verify guide uses fixed ones (`qa`, `design-scan`). Fill `start`, `check` and `regenerate` from the README, `package.json` and CI when the repo has them, and `deploy-check` only when the repo has a command that builds and starts what it deploys. Ask the human for the GitHub logins of `po` and `dev`. `fallback` defaults to the person running setup (`gh api user --jq .login`). Check each login with `gh api repos/<owner>/<repo>/assignees/<login>` before you write it: it succeeds only for someone a wait can be assigned to. Write it without `@`. Leave out a role the human can't name yet, so its waits go to `fallback`. Set `schedule: hourly` when the human said yes to the scheduled task in step 3, else `schedule: none`. Write `merge` and `scans` as the human settled them in step 3.
+  - `design`: set `design: <value>` in that same block, with `value` from the check.
+  - `glossary`: draft `GLOSSARY.md` from the README and the code's domain terms with `bredvid-engineering:domain-modeling`.
+  - `vision`: draft `docs/product/vision.md` in the format and with the sources `factory-propose` step 2 describes, marking every inference "(draft: assumed)". The PO human owns it (Q10, Q37), so say in the PR body that it is a draft for them.
+  - `adrs`: draft ADRs in `docs/adr/` for decisions the code already shows (stack, data store, hosting), with `bredvid-engineering:domain-modeling`. Mark each one as recorded after the fact.
+  - `verify`: write the verification guide and its feature map in `docs/agents/verify/`, as [references/verify.md](references/verify.md) describes, and prove it once before you commit.
+
+  Before you commit, run `$O guarded <repo dir> <every path you changed>`. Drop every path it prints from the PR and give it to the wizard instead. Let every hook run. Write the PR body with `bredvid-engineering:pr`, and list every red line it fixes.
+- **`issue`**: the repo has no tests or no Playwright, and building that test foundation is the factory's own first task (Q18). Look for an open issue whose body holds `<!-- factory-setup:test-foundation -->`: `$L 'repos/<owner>/<repo>/issues?state=open' | jq -r '.[] | select(.pull_request == null and (.body // "" | contains("factory-setup:test-foundation"))) | .html_url'`. If there is none, open one that asks for what the red lines name (tests, Playwright or both), with that marker as the body's last line: `gh api -X POST repos/<owner>/<repo>/issues -f title=<title> -F body=@<file>`. Leave it unlabelled: a human starts the factory on it by setting `agent:spec`. Under `tracker: local`, look for the marker with `grep -rl factory-setup:test-foundation <tracker-dir>/*/factory/issue.md` instead, and open it with `conductor.py new <owner>/<repo> --title <title> --body-file <file> --me <login>`, which numbers it `local-<n>`.
+
+## 5. Wizard for what only a human can do
+
+Collect the stages: every red line with `fix: wizard`, every path `guarded` held back, and the cloud environment and scheduled-task stages if the human said yes in step 3. Build the wizard with `bredvid-engineering:wizard`, using the journeys in [references/wizard.md](references/wizard.md) for those stages, in that file's order. Fill in `<owner>`, `<repo>` and the default branch. Save the wizard as `$S/factory-setup-wizard.sh`, outside the repo, and tell the human to run it with `bash $S/factory-setup-wizard.sh`.
+
+## 6. Report
+
+Show the check lines again, then the PR URL, the files written in the clone without a commit (`local` fixes, this person's alone), the labels created, the issue opened and the wizard path, leaving out what didn't happen. End with the **handoff** from `/factory`'s [references/handoff.md](../factory/references/handoff.md). **You** lists what remains, in order: merge the setup PR, run the wizard, then `/factory-setup <owner>/<repo>` again; on a green repo, the first piece of work: put `agent:spec` (or `agent:explore` for a rough idea) on an issue, then type `/factory`, or wait for the scheduled task under `schedule: hourly`. Under `tracker: local`, the first piece of work is `/factory <KEY>` with a ticket's key, such as `/factory SEAL-522`.
