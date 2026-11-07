@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest'
 import {
 	buildWeekVolumes,
+	prescriptionVolumeOf,
 	type PlanTrackTargets,
+	type PrescriptionWorkout,
 	type VolumeSession,
 } from './week-volumes.ts'
 
@@ -842,5 +844,85 @@ describe('strength reported honestly when the data is partial (story 85)', () =>
 		expect(lift.partial).toBeNull()
 		expect(lift.actual).toBe(10)
 		expect(lift.actualUnmeasuredCount).toBe(1)
+	})
+})
+
+// A prescription read with no session (#472, ADR 0112 §3): the generate preview
+// reads a Stock Workout it has only placed, through the reading every ledger row
+// goes through.
+describe('a prescription read on its own', () => {
+	/** A Stock Workout as the preview reads it: stored rows, no session. */
+	function stock(
+		steps: Array<{ durationSec?: number | null; distanceM?: number | null }>,
+		discipline = 'run',
+	): PrescriptionWorkout {
+		return {
+			discipline,
+			intent: 'endurance',
+			activityKind: null,
+			effortWord: null,
+			blocks: [
+				{
+					orderIndex: 0,
+					repeatCount: 1,
+					seriesRepeatCount: null,
+					betweenSeriesRestSec: null,
+					steps: steps.map((step, index) => ({
+						id: `s${index}`,
+						orderIndex: index,
+						kind: 'cardio',
+						discipline,
+						intensity: JSON.stringify({ kind: 'zoneLabel', label: 'Z4' }),
+						durationSec: step.durationSec ?? null,
+						distanceM: step.distanceM ?? null,
+						restBetweenSetsSec: null,
+						sets: [],
+					})),
+				},
+			],
+		}
+	}
+	const THRESHOLDS = {
+		run: {
+			lthr: null,
+			maxHr: null,
+			ftp: null,
+			runPowerThresholdW: null,
+			thresholdPaceSecPerKm: 300,
+			cssSecPer100m: null,
+			zoneSystem: null,
+			zoneOverrides: null,
+		},
+	}
+
+	test('a km figure only where every step carries distance', () => {
+		expect(
+			prescriptionVolumeOf(stock([{ distanceM: 10_000 }]), { thresholds: {} })
+				.prescribed.km,
+		).toBe(10)
+		expect(
+			prescriptionVolumeOf(
+				stock([{ durationSec: 1200 }, { distanceM: 5000 }]),
+				{ thresholds: {} },
+			).prescribed.km,
+		).toBeNull()
+	})
+
+	test('an hours figure times a distance step through the athlete’s own thresholds, and assumes no pace without one', () => {
+		const tenK = stock([{ distanceM: 10_000 }])
+		expect(
+			prescriptionVolumeOf(tenK, { thresholds: THRESHOLDS }).prescribed.hours,
+		).toBeCloseTo(50 / 60)
+		expect(
+			prescriptionVolumeOf(tenK, { thresholds: {} }).prescribed.hours,
+		).toBeNull()
+	})
+
+	test('a session not yet written has no Planned TSS, so it is unmeasured in TSS', () => {
+		const read = prescriptionVolumeOf(stock([{ durationSec: 3600 }]), {
+			thresholds: {},
+		})
+		expect(read.prescribed.tss).toBeNull()
+		expect(read.plannedZones.length).toBeGreaterThan(0)
 	})
 })

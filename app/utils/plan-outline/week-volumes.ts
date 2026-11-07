@@ -44,8 +44,12 @@ import {
 	intentToZone,
 	parseRecordingPhaseBars,
 	type ProfileBar,
+	type ShapeWorkout,
 } from '../session-profile.ts'
-import { isSimpleActivity } from '../simple-activity.ts'
+import {
+	isSimpleActivity,
+	type SimpleActivityWorkout,
+} from '../simple-activity.ts'
 import { type LedgerSession } from '../training.server.ts'
 import { getSessionDiscipline, type LedgerStatus } from '../training.ts'
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
@@ -261,9 +265,86 @@ export type VolumeSession = {
 }
 
 /**
- * One ledger row as the week model reads it. Planned km and hours are read by
- * `fixedDayVolume`, the Week Pattern's own reading: only a prescription that carries the unit from end to end has a
+ * A Workout as {@link prescriptionVolumeOf} reads it: its own columns and its
+ * stored block and step rows. Any select that carries what the four readings
+ * need fits: the ledger's (`ledgerSessionSelect`) and a Stock Workout's
+ * (`workoutCopySelect` plus its row ids), so a session that is only previewed
+ * reads as it will once it is written (ADR 0112 §3).
+ */
+export type PrescriptionWorkout = ShapeWorkout &
+	SimpleActivityWorkout & {
+		discipline: string
+		intent: string | null
+		blocks: Parameters<typeof fixedDayVolume>[0] &
+			Parameters<typeof sumBlockSets>[0]
+	}
+
+/** The half of a {@link VolumeSession} a prescription alone decides. */
+export type PrescriptionVolume = Pick<
+	VolumeSession,
+	'discipline' | 'easy' | 'simpleActivity' | 'plannedZones'
+> & { prescribed: CurrencyFigures }
+
+/**
+ * What a Workout prescribes, as the week model reads it: its figure in each
+ * currency, its planned zones, and whether it is easy or a Simple Activity.
+ * Planned km and hours are read by `fixedDayVolume`, the Week Pattern's own
+ * reading: only a prescription that carries the unit from end to end has a
  * figure, so "20 min warm-up + 5×1000 m" is unmeasured in km rather than 5 km.
+ *
+ * It needs no session. {@link volumeSessionOf} reads a ledger row's Workout
+ * through it, and the generate preview reads each session it places through it
+ * (#472), so the preview and _Sesong_ cannot read one prescription two ways.
+ * Planned TSS is the session's, materialized on write (ADR 0019); a session not
+ * yet written passes none and is unmeasured on a TSS track.
+ */
+export function prescriptionVolumeOf(
+	workout: PrescriptionWorkout,
+	{
+		thresholds,
+		plannedTss = null,
+	}: {
+		/** What a distance step's pace resolves against (`fixedDayVolume`). */
+		thresholds: DisciplineThresholdMap
+		plannedTss?: number | null
+	},
+): PrescriptionVolume {
+	const { discipline } = workout
+	const reading = { thresholds, discipline }
+	const intentZone = intentToZone(workout.intent)
+	// A lifting session that names no sets (a stamped `Styrke`, a sentence) has
+	// no number in sets — it is unmeasured, never `0 sett`, or a week with two
+	// such sessions would read `planlagt 0 sett` beside `0 av 2 økter`.
+	const prescribedSets =
+		discipline === 'strength' ? sumBlockSets(workout.blocks) : 0
+	return {
+		discipline,
+		easy: intentZone != null && intentZone <= 2,
+		simpleActivity: isSimpleActivity(workout),
+		prescribed: prescribedFigures(discipline, {
+			km: fixedDayVolume(workout.blocks, 'km', reading),
+			// Unrounded: the week rounds its sum once, and a row says its own
+			// minutes, so a 50-minute run reads `50 min` there as in the drawer.
+			hours: fixedDayVolume(workout.blocks, 'hours', reading),
+			// A Planned TSS of zero is one that did not resolve — the week's
+			// TSS line reads it the same way — so it is unmeasured, not 0.
+			tss: plannedTss != null && plannedTss > 0 ? plannedTss : null,
+			sets: prescribedSets > 0 ? prescribedSets : null,
+		}),
+		plannedZones:
+			plannedMetricValue(
+				readPlannedMetric(
+					discipline,
+					'planned-zones',
+					() => deriveSessionProfile(workout).bars,
+				),
+			) ?? [],
+	}
+}
+
+/**
+ * One ledger row as the week model reads it: its Workout through
+ * {@link prescriptionVolumeOf}, and what was recorded or logged against it.
  */
 export function volumeSessionOf(
 	session: LedgerSession,
@@ -279,43 +360,27 @@ export function volumeSessionOf(
 	},
 ): VolumeSession {
 	const { workout, recording } = session
-	const discipline = getSessionDiscipline(session)
-	const reading = { thresholds, discipline: workout?.discipline }
 	const logged = session.setLogs.length
-	const intentZone = intentToZone(workout?.intent)
-	// A lifting session that names no sets (a stamped `Styrke`, a sentence) has
-	// no number in sets — it is unmeasured, never `0 sett`, or a week with two
-	// such sessions would read `planlagt 0 sett` beside `0 av 2 økter`.
-	const prescribedSets =
-		discipline === 'strength' && workout ? sumBlockSets(workout.blocks) : 0
-	const prescribed = workout
-		? prescribedFigures(discipline, {
-				km: fixedDayVolume(workout.blocks, 'km', reading),
-				// Unrounded: the week rounds its sum once, and a row says its own
-				// minutes, so a 50-minute run reads `50 min` there as in the drawer.
-				hours: fixedDayVolume(workout.blocks, 'hours', reading),
-				// A Planned TSS of zero is one that did not resolve — the week's
-				// TSS line reads it the same way — so it is unmeasured, not 0.
-				tss:
-					session.plannedTssValue != null && session.plannedTssValue > 0
-						? session.plannedTssValue
-						: null,
-				sets: prescribedSets > 0 ? prescribedSets : null,
+	const read = workout
+		? prescriptionVolumeOf(workout, {
+				thresholds,
+				plannedTss: session.plannedTssValue,
 			})
 		: null
+	const prescribed = read?.prescribed ?? null
 	// A Simple Activity marked _Gjort_ by hand counts its planned time as done
 	// (ADR 0015 §A); a Recording linked to it later replaces that below.
 	const doneByHand =
 		status === 'completed' &&
 		recording == null &&
-		isSimpleActivity(workout) &&
+		read?.simpleActivity === true &&
 		prescribed?.hours != null
 	return {
 		dayKey,
 		status,
-		discipline,
-		easy: intentZone != null && intentZone <= 2,
-		simpleActivity: isSimpleActivity(workout),
+		discipline: read?.discipline ?? getSessionDiscipline(session),
+		easy: read?.easy ?? false,
+		simpleActivity: read?.simpleActivity ?? false,
 		prescribed,
 		recorded: doneByHand
 			? { km: null, hours: prescribed?.hours ?? null, tss: null, sets: null }
@@ -331,15 +396,7 @@ export function volumeSessionOf(
 						sets: logged > 0 ? logged : null,
 					}
 				: null,
-		plannedZones: workout
-			? (plannedMetricValue(
-					readPlannedMetric(
-						discipline,
-						'planned-zones',
-						() => deriveSessionProfile(workout).bars,
-					),
-				) ?? [])
-			: [],
+		plannedZones: read?.plannedZones ?? [],
 		doneZones: parseRecordingPhaseBars(recording?.phaseBarsJson),
 		countsInNoTrack: session.countsInNoTrack,
 	}

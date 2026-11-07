@@ -13,6 +13,33 @@ import { ZONE_WORDS } from './zones/words.ts'
 export type Workout = NonNullable<LedgerSession['workout']>
 type WorkoutStep = Workout['blocks'][number]['steps'][number]
 
+/** What a step's zone is read from: its kind and its stored Intensity Target. */
+type ZonedStep = { kind: string; intensity: string | null }
+
+/**
+ * What the Workout Shape reads off a Workout: its intent and its stored block and
+ * step rows. Narrower than {@link Workout} so a Workout read through another select
+ * (a **Stock Workout** read as `workoutCopySelect` plus its row ids, #472) draws
+ * the same shape as the ledger's.
+ */
+export type ShapeWorkout = {
+	intent: string | null
+	blocks: ReadonlyArray<{
+		orderIndex: number
+		repeatCount: number
+		seriesRepeatCount?: number | null
+		steps: ReadonlyArray<
+			ZonedStep & {
+				id: string
+				orderIndex: number
+				durationSec?: number | null
+				restBetweenSetsSec?: number | null
+				sets?: ReadonlyArray<{ kind: string; durationSec?: number | null }>
+			}
+		>
+	}>
+}
+
 /** A normalized training zone, 1 (easiest) through 5 (hardest). */
 export type TrainingZone = 1 | 2 | 3 | 4 | 5
 
@@ -180,7 +207,7 @@ export function intensityTargetToZone(
 	}
 }
 
-function stepToZone(step: WorkoutStep): TrainingZone | null {
+function stepToZone(step: ZonedStep): TrainingZone | null {
 	if (step.kind !== 'cardio') return null
 	if (!step.intensity) return null
 
@@ -202,7 +229,7 @@ function stepToZone(step: WorkoutStep): TrainingZone | null {
  * dag's Effort Word both read (#638).
  */
 export function shapeZone(
-	step: WorkoutStep,
+	step: ZonedStep,
 	fallback: TrainingZone | null,
 ): TrainingZone | null {
 	if (step.kind !== 'cardio') return null
@@ -300,10 +327,12 @@ export function deriveRepeatGroups(workout: Workout | null): ProfileBarGroup[] {
  * thresholds (absolute pace/HR/watts) stays honestly unzoned — the fallback
  * never overrides an explicit target.
  */
-export function deriveSessionProfile(workout: Workout | null): SessionProfile {
+export function deriveSessionProfile<W extends ShapeWorkout>(
+	workout: W | null,
+): SessionProfile {
 	const fallbackZone = intentToZone(workout?.intent)
 	const { steps, groups } = workoutReps(workout)
-	const zoneOf = perStep((step: WorkoutStep) => shapeZone(step, fallbackZone))
+	const zoneOf = perStep((step: ZonedStep) => shapeZone(step, fallbackZone))
 	const bars = steps.map(({ id, step, durationSec }) => ({
 		id,
 		zone: zoneOf(step),
