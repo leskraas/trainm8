@@ -25,8 +25,9 @@
  * and it cascades away with the row.
  *
  * The athlete's own Week Pattern slots are deleted before the purge, not left to
- * the `User` cascade: `WeekPatternDay.workoutId` is the one `SetNull` into an
- * erased Workout, and a `fixed` or `lifting` slot with no Workout fails its CHECK.
+ * the `User` cascade: `WeekPatternDay.workoutId` is `NO ACTION` (ADR 0113 §7),
+ * so deleting a Workout a slot still uses fails. A plan's **Held Workouts**
+ * are the athlete's own (`ownerId`), so they are purged with the rest.
  */
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
@@ -50,7 +51,7 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 			where: { ownerId: userId },
 			select: { id: true, copiedFromId: true },
 		})
-		const heldElsewhere = await tx.workout.findMany({
+		const keptForOthers = await tx.workout.findMany({
 			where: {
 				ownerId: userId,
 				OR: [
@@ -65,7 +66,7 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 			},
 			select: { id: true },
 		})
-		const kept = new Set(heldElsewhere.map((row) => row.id))
+		const kept = new Set(keptForOthers.map((row) => row.id))
 		const parentOf = new Map(
 			owned
 				.filter((row) => !kept.has(row.id))
@@ -74,9 +75,12 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 
 		await withdraw(tx, [...kept])
 		const spliced = await spliceLineage(tx, userId, parentOf)
-		// The athlete's own plan goes with the account anyway; it goes first because
-		// a `fixed` or `lifting` slot on an erased Workout would be `SetNull`ed into
-		// a row the `WeekPatternDay_kind_fields` CHECK refuses, rolling it all back.
+		// The athlete's own plan goes with the account anyway; its days go first
+		// because a day's Workout is `NO ACTION` (ADR 0113 §7): erasing a Workout
+		// a day still uses would fail and roll it all back. Since ADR 0113 a day
+		// only uses its own plan's Held Workout, so the `patternDays` clause in
+		// `keptForOthers` above is unreachable; it stays for a database that
+		// predates that migration.
 		await tx.weekPatternDay.deleteMany({
 			where: { pattern: { outline: { athleteId: userId } } },
 		})
