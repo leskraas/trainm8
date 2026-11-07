@@ -20,8 +20,16 @@
  * - **Before the Plan Start Week** the card says when the plan starts and
  *   names its first session; with **no plan** it invites the athlete to the
  *   start.
+ * - **The weather** (#433, ADR 0112 §6): with a **Home Place**, the card
+ *   carries today's **Day Forecast** and each row from tomorrow on its day's;
+ *   today's row, past days and days without a forecast carry nothing. With no
+ *   Home Place nothing changes at all.
  */
-import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
+import {
+	addDays,
+	localTimeOfDay,
+	weekMonday,
+} from '#app/utils/athlete-calendar.ts'
 import {
 	type EffortWord,
 	readEffortWord,
@@ -33,6 +41,7 @@ import {
 	approxLabel,
 	CALM_TODAY_LABELS as L,
 	nbDurationLabel,
+	WEATHER_LABELS,
 } from '#app/utils/labels.ts'
 import {
 	type ActivePlan,
@@ -40,10 +49,30 @@ import {
 } from '#app/utils/training.server.ts'
 import { toSessionLedgerEntry } from '#app/utils/training.ts'
 import {
+	type DayForecast,
+	type WeatherGlyph,
+	weatherGlyph,
+} from '#app/utils/weather/day-forecast.ts'
+import {
 	type TimelineDay,
 	type TimelineSeason,
 	type TimelineSession,
 } from './timeline/presenter.ts'
+
+/** A **Day Forecast** as I dag shows it: the glyph, the words, the numbers. */
+export type CalmWeather = {
+	glyph: WeatherGlyph
+	/** `Lett regn`. */
+	word: string
+	/** `kl. 17`. */
+	hourLabel: string
+	/** `6°`, `−23°`. */
+	temperatureLabel: string
+	/** `0,6 mm`, `0 mm`. */
+	precipitationLabel: string
+	/** What a screen reader hears instead of the numbers. */
+	spoken: string
+}
 
 /** One session as the calm view says it. */
 export type CalmSession = {
@@ -108,6 +137,8 @@ export type CalmDay = {
 	sessions: CalmSession[]
 	/** `fri`, or `hviledag` where the plan prescribes recovery; null with sessions. */
 	freeLabel: string | null
+	/** From tomorrow on, the day's Day Forecast; null today, before, or with none. */
+	weather: CalmWeather | null
 }
 
 export type CalmWeek = {
@@ -137,6 +168,13 @@ export type CalmToday = {
 	invite: boolean
 	week: CalmWeek
 	todayKey: string
+	/** Today's Day Forecast, for the card; null with none. */
+	cardWeather: CalmWeather | null
+	/**
+	 * Any weather on the page: the week's rows take their weather column and
+	 * MET Norway is credited once. False is I dag exactly as without weather.
+	 */
+	weatherShown: boolean
 }
 
 export function buildCalmToday({
@@ -147,6 +185,7 @@ export function buildCalmToday({
 	activePlan,
 	strengthCta,
 	thresholds = {},
+	weather = null,
 }: {
 	season: TimelineSeason
 	ledger: readonly LedgerSession[]
@@ -157,6 +196,11 @@ export function buildCalmToday({
 	strengthCta?: { sessionId: string; label: string; to: string } | null
 	/** What an Effort Word reads an absolute pace, watts or bpm by (#617). */
 	thresholds?: DisciplineThresholdMap
+	/**
+	 * The Day Forecasts the `/` loader read, by day (ADR 0112 §6): only the
+	 * days that have one. Null or absent with no Home Place.
+	 */
+	weather?: Readonly<Record<string, DayForecast>> | null
 }): CalmToday {
 	const todayKey = season.todayKey
 	const byId = new Map(ledger.map((session) => [session.id, session]))
@@ -195,9 +239,14 @@ export function buildCalmToday({
 	}
 
 	const thisWeek = season.weeks[season.todayWeekIndex]
+	const weatherOf = (dayKey: string): CalmWeather | null => {
+		const forecast = weather?.[dayKey]
+		return forecast ? calmWeather(forecast, timezone) : null
+	}
 	const days: CalmDay[] = (thisWeek?.rows ?? []).map((day) =>
-		calmDay(day, todayKey, toCalm),
+		calmDay(day, todayKey, toCalm, weatherOf),
 	)
+	const cardWeather = weatherOf(todayKey)
 	const sessions = days.flatMap((day) => day.sessions)
 	const done = sessions.filter((session) => session.status === 'completed')
 
@@ -278,6 +327,8 @@ export function buildCalmToday({
 			days,
 		},
 		todayKey,
+		cardWeather,
+		weatherShown: cardWeather != null || days.some((day) => day.weather),
 	}
 }
 
@@ -285,6 +336,7 @@ function calmDay(
 	day: TimelineDay,
 	todayKey: string,
 	toCalm: (session: TimelineSession, dayKey: string) => CalmSession,
+	weatherOf: (dayKey: string) => CalmWeather | null,
 ): CalmDay {
 	const sessions = day.sessions.map((session) => toCalm(session, day.key))
 	return {
@@ -297,6 +349,27 @@ function calmDay(
 		sessions,
 		freeLabel:
 			sessions.length > 0 ? null : day.restPrescribed ? L.restDay : L.free,
+		// Today's weather is the card's; a past day has none.
+		weather: day.key > todayKey ? weatherOf(day.key) : null,
+	}
+}
+
+/** A Day Forecast in I dag's words, at its hour in the Athlete Timezone. */
+function calmWeather(forecast: DayForecast, timezone: string): CalmWeather {
+	const word = WEATHER_LABELS.symbol[forecast.symbol]
+	const hour = localTimeOfDay(new Date(forecast.at), timezone).slice(0, 2)
+	return {
+		glyph: weatherGlyph(forecast.symbol, forecast.night),
+		word,
+		hourLabel: WEATHER_LABELS.hour(hour),
+		temperatureLabel: WEATHER_LABELS.temperature(forecast.temperatureC),
+		precipitationLabel: WEATHER_LABELS.precipitation(forecast.precipitationMm),
+		spoken: WEATHER_LABELS.spoken({
+			hour,
+			word,
+			celsius: forecast.temperatureC,
+			mm: forecast.precipitationMm,
+		}),
 	}
 }
 

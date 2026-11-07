@@ -18,6 +18,7 @@ import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
+import { type DayForecast } from '#app/utils/weather/day-forecast.ts'
 import IndexRoute from './index.tsx'
 
 vi.mock('remix-utils/sse/react', () => ({
@@ -95,14 +96,17 @@ function renderToday({
 	autopilotNotice = null,
 	onAutopilotPost = () => {},
 	onAdjustPost = () => {},
+	weather = null,
 }: {
 	ledger?: LedgerSession[]
 	activePlan?: ActivePlan | null
 	autopilotNotice?: AutopilotNotice | null
 	onAutopilotPost?: (form: FormData) => void
 	onAdjustPost?: (form: FormData) => void
+	weather?: Record<string, DayForecast> | null
 } = {}) {
 	const loader = async (_args: LoaderFunctionArgs) => ({
+		weather,
 		autopilotNotice,
 		isAuthenticated: true as const,
 		now: NOW,
@@ -564,4 +568,87 @@ test('Avansert leads to the session, the composer and Plan’s Avansert', async 
 	).toHaveAttribute('href', '/training/plan#avansert')
 	await user.click(within(menu).getByRole('menuitem', { name: 'Ny økt i dag' }))
 	expect(await screen.findByRole('dialog')).toBeInTheDocument()
+})
+
+// ── the weather (#433, ADR 0112 §6) ──────────────────────────────────────
+
+const WEATHER: Record<string, DayForecast> = {
+	'2030-01-02': {
+		at: '2030-01-02T17:00:00Z',
+		symbol: 'light-rain',
+		night: false,
+		temperatureC: 6,
+		precipitationMm: 0.6,
+	},
+	'2030-01-03': {
+		at: '2030-01-03T07:00:00Z',
+		symbol: 'cloudy',
+		night: false,
+		temperatureC: -23,
+		precipitationMm: 12.4,
+	},
+	'2030-01-04': {
+		at: '2030-01-04T07:00:00Z',
+		symbol: 'clear-sky',
+		night: false,
+		temperatureC: 2,
+		precipitationMm: 0,
+	},
+}
+
+test('with a Home Place: one weather line on the card, a column from tomorrow on, MET credited once', async () => {
+	const { container } = renderToday({
+		ledger: [
+			session('today', '2030-01-02T17:00:00Z', 'Rolig løpetur'),
+			session('fri', '2030-01-04T07:00:00Z', 'Fredagsintervaller'),
+		],
+		weather: WEATHER,
+	})
+	const card = await screen.findByRole('region', { name: 'Rolig løpetur' })
+	// The card's weather is heard as one sentence, units in full.
+	expect(
+		within(card).getByText(
+			'Vær kl. 17: Lett regn, 6 grader, 0,6 millimeter nedbør',
+		),
+	).toHaveClass('sr-only')
+	// A row with a session says its weather in its name; a free day too.
+	expect(
+		screen.getByRole('link', {
+			name: /^fredag 4\. jan: Fredagsintervaller.*Vær kl\. 07: Klarvær, 2 grader, ingen nedbør$/,
+		}),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('button', {
+			name: /^torsdag 3\. jan, fri\. Vær kl\. 07: Skyet, minus 23 grader, 12,4 millimeter nedbør\./,
+		}),
+	).toBeInTheDocument()
+	// Today's row and the past have no weather column; tomorrow on do.
+	const columns = [...container.querySelectorAll('[data-calm-day-weather]')]
+	expect(
+		columns.map((cell) =>
+			cell.closest('[data-calm-day]')?.getAttribute('data-calm-day'),
+		),
+	).toEqual(['2030-01-03', '2030-01-04'])
+	expect(columns[0]?.textContent).toBe('−23°12,4 mm')
+	const credits = screen.getAllByRole('link', {
+		name: 'Værvarsel fra MET Norway',
+	})
+	expect(credits).toHaveLength(1)
+	expect(credits[0]).toHaveAttribute('href', 'https://www.met.no/')
+})
+
+test('without a Home Place I dag is as it was: no weather, no credit, no empty slot', async () => {
+	const { container } = renderToday({
+		ledger: [session('today', '2030-01-02T07:00:00Z', 'Rolig løpetur')],
+	})
+	await screen.findByRole('region', { name: 'Rolig løpetur' })
+	expect(container.querySelector('[data-calm-weather]')).toBeNull()
+	expect(container.querySelector('[data-calm-day-weather]')).toBeNull()
+	expect(container.querySelector('[data-weather-glyph]')).toBeNull()
+	expect(screen.queryByText('Værvarsel fra MET Norway')).toBeNull()
+	// Every row keeps the grid it had: no weather column, no fixed mark.
+	for (const row of container.querySelectorAll('[data-calm-day] > *')) {
+		const grid = row.matches('a, button') ? row : row.querySelector('a')
+		expect(grid?.className).toContain('grid-cols-[2.75rem_minmax(0,1fr)_auto]')
+	}
 })

@@ -14,6 +14,7 @@ import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 import { CalmToday } from './__calm-today-view.tsx'
 import { homeTimelineAction, readHomeTimeline } from './home-timeline.server.ts'
+import { readWeekWeather } from './week-weather.server.ts'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 
@@ -22,7 +23,14 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (!userId) {
 		return { isAuthenticated: false as const }
 	}
-	return { isAuthenticated: true as const, ...(await readHomeTimeline(userId)) }
+	// The weather is read beside the timeline, never inside it (ADR 0112 §3):
+	// the full view shares `readHomeTimeline` and shows no weather. A MET that
+	// errors or is slow costs I dag at most its 2-second cut, never an error.
+	const [timeline, weather] = await Promise.all([
+		readHomeTimeline(userId),
+		readWeekWeather(userId, new Date()),
+	])
+	return { isAuthenticated: true as const, ...timeline, weather }
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -60,7 +68,7 @@ function AuthenticatedHome({
 	// a queue of things to link — is what refreshes when one arrives (#75).
 	useRevalidateOnImportEvent()
 
-	return <CalmToday data={data} />
+	return <CalmToday data={data} weather={data.weather} />
 }
 
 const columnClasses: Record<(typeof logos)[number]['column'], string> = {
