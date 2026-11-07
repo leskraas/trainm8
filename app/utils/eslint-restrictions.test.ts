@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { ESLint } from 'eslint'
-import { expect, test } from 'vitest'
+import { beforeAll, expect, test } from 'vitest'
 
 /**
  * The `no-restricted-syntax` restrictions in `eslint.config.js` share one rule,
@@ -36,6 +36,12 @@ export function Picker() {
 	return <select name="sport" />
 }
 `
+
+// The first lint builds the typed parser's program for the whole repo, which
+// can outlast the default test timeout on a loaded machine; pay it once here.
+beforeAll(async () => {
+	await eslint.lintText('export {}\n', { filePath: UTILS_FILE })
+}, 180_000)
 
 async function restrictions(code: string, filePath: string) {
 	const [result] = await eslint.lintText(code, { filePath })
