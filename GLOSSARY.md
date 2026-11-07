@@ -404,13 +404,13 @@ power goes as `pace⁻³`. The shipped **Intensity Target** is this union minus
 added a **Lactate Anchor** the six variants did not anticipate). _Avoid_:
 Relative target, scaled pace, generic target
 
-**Target Resolution**: _Partly built (#449): the `≈` rule and the honest-absence
-rule ship for the anchors that need them — a **Lactate Anchor** and a `racePace`
-target render the portable name primary with the number as an `≈` facet, and
-degrade to the bare authored name rather than to a fabricated number. The
-`Resolution` record itself — `via`, `confidence`, the anchor snapshot, and the
-two stamps — is not built, so a resolution still cannot say **how** it got its
-number beyond that binary hedge._ The concrete number a **Portable Anchor**
+**Target Resolution**: _Partly built (#449, #674): the `≈` rule and the
+honest-absence rule ship for the anchors that need them — a **Lactate Anchor**
+and a `racePace` target render the portable name primary with the number as an
+`≈` facet, and degrade to the bare authored name rather than to a fabricated
+number. A `racePace` resolution also carries its `via`, confidence and source
+result, derived on every read (ADR 0112); the anchor snapshot and the frozen
+completion stamp are not built._ The concrete number a **Portable Anchor**
 resolves to for one athlete at one moment, carrying its own provenance: the
 value (or an **Unavailable Metric** with a stated reason _and_ what would fix
 it), the `via` it was arrived at
@@ -433,13 +433,14 @@ Recompute Notice** pattern moved from load to prescription. A recompute is
 announced, never offered. _Avoid_: Resolved intensity (the current
 provenance-free shape), baked range, effective target
 
-**Race Equivalence**: _Rung 1 built (#449); the conversion models are not._ The
-athlete's own **Performance Result** at the named distance resolves a `racePace`
-**Intensity Target** today. Everything below that rung — a result at another
-distance converted, a **Threshold** read as a virtual race result, a
-mean-maximal-curve fit — waits on the models described here, because a
-resolution that cannot say which rung produced it cannot carry its `≈` or its
-confidence honestly. The model family that converts one performance into an
+**Race Equivalence**: _Rungs 1 and 2 built, for run (#449, #674, ADR 0112)._ A
+`racePace` **Intensity Target** resolves against the athlete's own **Performance
+Result** at the named distance, or, with none there, against the run result
+nearest it by distance ratio, converted through Riegel at exponent 1.06
+(`riegel-1.06`). A **Threshold** read as a virtual race result and a
+mean-maximal-curve fit still wait. Which rung and which result are chosen
+depends only on the stored results; the source's age lowers the confidence and
+never moves the pace. The model family that converts one performance into an
 equivalent performance at another distance — Riegel's `T₂ = T₁ × (d₂/d₁)^b`, the
 Daniels–Gilbert VDOT curves, and the Critical Speed line — three independently
 derived models that agree within 32 s on a 3:11 marathon (research:
@@ -449,18 +450,18 @@ recreational runners moves that same runner's predicted marathon from 3:11:49 to
 3:52:25. So trust keys off the **distance ratio**, not the model — ratio ≤ 2
 resolves at `high` confidence, ≤ 4 at `medium`, > 4 at `low`, reusing the **Load
 Confidence** vocabulary rather than inventing a second scale, and never as a
-gate. Resolves down a five-rung ladder: the athlete's own recent **Performance
-Result** for that event; a converted result at another distance; a stored
-**Threshold** treated as a virtual race result (threshold pace ≈ the 60-minute
-performance, CS ≈ 30–40 min, CSS ≈ 20–30 min) at `medium`; a mean-maximal-curve
-fit, capped at `medium` because a window best is not a maximal effort and
-systematically under-estimates; then nothing truthful to say. A named race pace
-is the right _authoring_ and _display_ vocabulary and the wrong _storage_
-anchor: `5k pace` is duration-relative — a 16:00 runner holds it for 16 minutes
-and a 30:00 runner for 30 — while a threshold is duration-invariant by
-construction. Anchors are an enumerated set, not a free distance, so `3.7k pace`
-cannot appear in a plan. _Avoid_: Pace calculator, predicted time, VDOT (one
-model, not the family)
+gate; the confidence is also never higher than the source's age allows. Resolves
+down a five-rung ladder: the athlete's own newest **Performance Result** for
+that event; a converted result at another distance; a stored **Threshold**
+treated as a virtual race result (threshold pace ≈ the 60-minute performance, CS
+≈ 30–40 min, CSS ≈ 20–30 min) at `medium`; a mean-maximal-curve fit, capped at
+`medium` because a window best is not a maximal effort and systematically
+under-estimates; then nothing truthful to say. A named race pace is the right
+_authoring_ and _display_ vocabulary and the wrong _storage_ anchor: `5k pace`
+is duration-relative — a 16:00 runner holds it for 16 minutes and a 30:00 runner
+for 30 — while a threshold is duration-invariant by construction. Anchors are an
+enumerated set, not a free distance, so `3.7k pace` cannot appear in a plan.
+_Avoid_: Pace calculator, predicted time, VDOT (one model, not the family)
 
 **Threshold**: The athlete's per-discipline anchor that a **Zone Recipe** is a
 ratio table over and that a **Portable Anchor**'s `pctThreshold` divides by.

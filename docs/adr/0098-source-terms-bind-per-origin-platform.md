@@ -144,6 +144,11 @@ Kowalski's skills against the design system (ADR 0085):
 - **Rejected: only in the row's details.** That is an expandable container,
   which the guidelines exclude.
 
+A row showing a value **derived** from a Garmin or Polar result (a race pace
+resolved from it, #674) carries that value's derived credit in the same line
+([ADR 0112](./0112-a-race-pace-converts-from-the-nearest-result-picks-it-from-stored-results-alone-and-binds-to-the-result-it-read.md)
+§5).
+
 ## Considered options
 
 - **Gate on `externalProvider`.** Rejected: it gates the pipe. Garmin data

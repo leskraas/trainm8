@@ -321,7 +321,12 @@ Snapshot**, so it owes an explanation nowhere (ADR 0006's own test).
   converted, a **Threshold** read as a virtual race result, a mean-maximal-curve
   fit, then nothing) each need an equivalence model shipped as versioned
   reference data with a distance-ratio confidence rule, and a resolution that
-  cannot state which rung produced it cannot be rendered honestly.
+  cannot state which rung produced it cannot be rendered honestly. **Amended
+  (#674):** rung 2 walks. A run result at another distance converts through
+  `riegel-1.06`, shipped as versioned reference data, and the resolution states
+  its rung, source result, ratio and confidence; see
+  [ADR 0112](./0112-a-race-pace-converts-from-the-nearest-result-picks-it-from-stored-results-alone-and-binds-to-the-result-it-read.md).
+  Rungs 3–5 still wait.
 - The **notation's `equivalent` facet stays reserved**, for a narrower reason
   than ADR 0027 A2 gave. The race-_authored_ direction ships and needs no slot —
   a `racePace` target renders its portable name as the token text with the
