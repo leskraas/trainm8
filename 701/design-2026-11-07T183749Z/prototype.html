@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+<title>Polar-kortet – prototype (#701)</title>
+<!--
+  PROTOTYPE, throwaway (#701, design task). One variant, "I mønsteret" (in the
+  hub's pattern): the Polar card on the Integration Hub in each state, with the
+  issue's real words, in trainm8's tokens (app/styles/tailwind.css, base-luma).
+  URL params: state=<see STATES> data=demo|worst theme=light|dark view=hub|recording chrome=0
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;650;700&display=swap" rel="stylesheet" />
+<style>
+:root {
+	--radius: 0.375rem;
+	--background: oklch(0.975 0.003 197);
+	--foreground: oklch(0.148 0.004 228.8);
+	--card: oklch(1 0 0);
+	--popover: oklch(1 0 0);
+	--primary: #0d7a68;
+	--primary-foreground: #ffffff;
+	--secondary: oklch(0.955 0.004 197);
+	--secondary-foreground: oklch(0.21 0.006 285.885);
+	--muted: oklch(0.948 0.004 197);
+	--muted-foreground: oklch(0.52 0.016 213.5);
+	--border: oklch(0.915 0.005 214.3);
+	--destructive: oklch(0.577 0.245 27.325);
+	--foreground-destructive: oklch(51.46% 0.1979 16.57);
+	--ring: color-mix(in oklab, var(--primary) 55%, transparent);
+	--ring-card: color-mix(in oklab, var(--foreground) 5%, transparent);
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--r-2xl: calc(var(--radius) * 1.8);
+	--r-3xl: calc(var(--radius) * 2.2);
+	--r-4xl: calc(var(--radius) * 2.6);
+	color-scheme: light;
+}
+:root[data-theme='dark'] {
+	--background: oklch(0.148 0.004 228.8);
+	--foreground: oklch(0.987 0.002 197.1);
+	--card: oklch(0.205 0.007 223.9);
+	--popover: oklch(0.235 0.008 223.9);
+	--primary: #35b89c;
+	--primary-foreground: #0c1512;
+	--secondary: oklch(0.275 0.011 216.9);
+	--secondary-foreground: oklch(0.985 0 0);
+	--muted: oklch(0.255 0.01 216.9);
+	--muted-foreground: oklch(0.723 0.014 214.4);
+	--border: oklch(1 0 0 / 10%);
+	--destructive: oklch(0.704 0.191 22.216);
+	--foreground-destructive: oklch(63.72% 0.2071 21.89);
+	--ring: color-mix(in oklab, var(--primary) 60%, transparent);
+	--ring-card: color-mix(in oklab, var(--foreground) 10%, transparent);
+	color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
+body {
+	margin: 0; background: var(--background); color: var(--foreground);
+	font-family: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+	-webkit-font-smoothing: antialiased; min-height: 100dvh;
+}
+button, a, label { touch-action: manipulation; }
+button { font: inherit; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+/* type steps (design-system.md) */
+.t-title { font-size: 1.5rem; line-height: 1.875rem; font-weight: 650; letter-spacing: -0.02em; }
+.t-heading { font-size: 1.125rem; line-height: 1.5rem; font-weight: 600; letter-spacing: -0.012em; }
+.t-body { font-size: 1rem; line-height: 1.5rem; letter-spacing: -0.004em; }
+.t-callout { font-size: 0.9375rem; line-height: 1.3125rem; font-weight: 500; letter-spacing: -0.004em; }
+.t-footnote { font-size: 0.8125rem; line-height: 1.125rem; letter-spacing: 0.002em; }
+.t-caption { font-size: 0.75rem; line-height: 1rem; font-weight: 500; letter-spacing: 0.01em; }
+.t-overline { font-size: 0.6875rem; line-height: 1rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.muted { color: var(--muted-foreground); }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* app chrome */
+.topbar { padding: calc(env(safe-area-inset-top, 0px) + 0.75rem) 1rem 0.75rem; font-weight: 700; letter-spacing: -0.02em; font-size: 1.0625rem; }
+.topbar span { color: var(--primary); }
+main { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1rem 8rem; }
+@media (min-width: 768px) { main { padding: 2rem 2rem 8rem; } }
+.page-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.back { display: inline-flex; align-items: center; gap: 0.25rem; min-height: 2.75rem; color: var(--muted-foreground); text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+.page-header h1 { margin: 0; flex: 1 1 10rem; min-width: 0; font-size: 1.125rem; font-weight: 600; }
+.intro { margin: 1rem 0 0; }
+.section-label { margin: 2rem 0 0.75rem; }
+.stack { display: grid; gap: 0.75rem; }
+
+/* card (ui/card.tsx, base-luma) */
+.card { background: var(--card); border-radius: var(--r-4xl); box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07), 0 0 0 1px var(--ring-card); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; font-size: 0.875rem; }
+.card.soon { background: color-mix(in oklab, var(--muted) 50%, transparent); box-shadow: 0 0 0 1px var(--ring-card); }
+.head { display: flex; align-items: flex-start; gap: 0.75rem; min-width: 0; }
+.tile { flex: none; width: 2.5rem; height: 2.5rem; border-radius: var(--r-2xl); display: grid; place-items: center; font-weight: 700; font-size: 0.875rem; }
+.tile.polar { background: #d10a11; color: #fff; }
+.tile.ii { background: #4653b0; color: #fff; }
+.tile.up { border: 2px dashed var(--muted-foreground); color: var(--muted-foreground); }
+.tile.g { background: #0a6cad; color: #fff; }
+.tile.su { background: #33444e; color: #fff; }
+.head-text { min-width: 0; display: grid; gap: 0.125rem; }
+/* Worst case (200% zoom = 195px wide): the tile beside the text left the badge
+   ~60px, so "Må kobles til på nytt" ran past the card. Below 17rem of card the
+   tile sits above the text instead (container query on the card). */
+.card { container-type: inline-size; }
+@container (max-width: 17rem) { .head { flex-direction: column; } }
+.name-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.name-row .name { font-weight: 600; }
+.lines { color: var(--muted-foreground); }
+.lines > span { display: block; }
+.wrap-any { overflow-wrap: anywhere; }
+
+/* badge */
+.badge { display: inline-flex; align-items: center; height: 1.25rem; padding: 0.125rem 0.5rem; border-radius: var(--r-3xl); font-size: 0.75rem; font-weight: 500; white-space: nowrap; flex-shrink: 0; font-variant-numeric: tabular-nums; border: 1px solid transparent; }
+.badge.default { background: var(--primary); color: var(--primary-foreground); }
+.badge.secondary { background: var(--secondary); color: var(--secondary-foreground); }
+.badge.destructive { background: color-mix(in oklab, var(--destructive) 10%, transparent); color: var(--destructive); }
+:root[data-theme='dark'] .badge.destructive { background: color-mix(in oklab, var(--destructive) 20%, transparent); }
+.badge.outline { border-color: var(--border); }
+
+/* button (ui/button.tsx): 44px, pressable */
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem; height: 2.75rem; padding: 0 0.75rem; border-radius: var(--r-4xl); border: 1px solid transparent; font-size: 0.875rem; font-weight: 500; white-space: nowrap; cursor: pointer; text-decoration: none; color: inherit; background: transparent;
+	transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), color 160ms var(--ease-out); }
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.5; pointer-events: none; }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 30%, transparent); border-color: var(--ring); }
+.btn.default { background: var(--primary); color: var(--primary-foreground); }
+.btn.secondary { background: var(--secondary); color: var(--secondary-foreground); }
+.btn.outline { border-color: var(--border); background: var(--background); }
+.btn.destructive { background: color-mix(in oklab, var(--destructive) 10%, transparent); color: var(--destructive); }
+@media (hover: hover) and (pointer: fine) {
+	.btn.default:hover { background: color-mix(in oklab, var(--primary) 80%, transparent); }
+	.btn.ghost:hover, .btn.outline:hover { background: var(--muted); }
+}
+@media (prefers-reduced-motion: reduce) { .btn:active { transform: none; } }
+
+/* the "what Polar shares" well: tone, not a border (luma) */
+.well { background: var(--muted); border-radius: var(--r-2xl); padding: 0.75rem; color: var(--muted-foreground); }
+.well p { margin: 0; }
+.link { color: var(--primary); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.alert { border: 1px solid var(--border); border-radius: var(--r-2xl); padding: 0.75rem 1rem; background: var(--card); }
+.alert.destructive { color: var(--foreground-destructive); }
+.alert p { margin: 0; }
+
+/* toast (sonner, D15: bottom-centre above the tab bar below md) */
+.toaster { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem); display: grid; justify-items: center; pointer-events: none; z-index: 40; padding: 0 1rem; }
+.toast { pointer-events: auto; width: min(22rem, 100%); background: var(--popover); color: var(--foreground); border-radius: var(--r-3xl); padding: 0.875rem 1rem; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.12), 0 0 0 1px var(--ring-card);
+	transition: transform 200ms var(--ease-out), opacity 200ms var(--ease-out); }
+.toast[data-hidden] { transform: translateY(100%); opacity: 0; transition-duration: 150ms; }
+.toast strong { display: block; font-size: 0.875rem; }
+@media (prefers-reduced-motion: reduce) { .toast[data-hidden] { transform: none; } }
+
+/* alert dialog (motion-modal: centred, from 0.96, 250 in / 200 out) */
+.backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.35); z-index: 50; display: grid; place-items: center; padding: 1rem; transition: opacity 250ms var(--ease-out); }
+.backdrop[data-hidden] { opacity: 0; pointer-events: none; transition-duration: 200ms; }
+.dialog { background: var(--popover); border-radius: var(--r-4xl); padding: 1.5rem; max-width: 24rem; width: 100%; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15); transition: transform 250ms var(--ease-out); }
+.backdrop[data-hidden] .dialog { transform: scale(0.96); transition-duration: 200ms; }
+.dialog h2 { margin: 0 0 0.5rem; }
+.dialog p { margin: 0 0 1.25rem; }
+.dialog .actions { justify-content: flex-end; }
+@media (prefers-reduced-motion: reduce) { .backdrop[data-hidden] .dialog { transform: none; } }
+
+/* tab bar (phones only) */
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-around; padding: 0.5rem 0 calc(env(safe-area-inset-bottom, 0px) + 0.5rem); background: color-mix(in oklab, var(--background) 92%, transparent); border-top: 1px solid var(--border); font-size: 0.6875rem; font-weight: 500; color: var(--muted-foreground); z-index: 30; }
+.tabbar .on { color: var(--primary); }
+@media (min-width: 768px) { .tabbar { display: none; } .toaster { bottom: 1.5rem; } }
+
+/* session preview (AC 10) */
+.figures { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+.figures b { display: block; font-size: 1.125rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; column-gap: 0.75rem; row-gap: 0.125rem; }
+
+/* prototype chrome: plain, obviously not the design */
+.proto { position: fixed; z-index: 60; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 4.25rem); width: min(40rem, calc(100% - 1rem)); background: #111; color: #eee; border-radius: 12px; padding: 0.5rem; font: 12px/1.3 system-ui, sans-serif; display: grid; gap: 0.375rem; }
+@media (min-width: 768px) { .proto { bottom: 1rem; } }
+.proto .row { display: flex; gap: 0.25rem; overflow-x: auto; scrollbar-width: none; }
+.proto button { flex: none; border: 0; border-radius: 999px; padding: 0.375rem 0.625rem; background: #2a2a2a; color: #ddd; font: inherit; cursor: pointer; }
+.proto button[aria-pressed='true'] { background: #fff; color: #111; }
+.proto .note { color: #aaa; padding: 0 0.25rem; }
+[data-chrome='0'] .proto { display: none; }
+[data-chrome='0'] .tabbar { position: static; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="topbar" aria-hidden="true">train<span>m8</span></div>
+<main id="app"></main>
+<nav class="tabbar" aria-label="Faner (kulisse)"><span>I dag</span><span>Plan</span><span>Logg</span><span class="on">Meg</span></nav>
+<div class="toaster" aria-live="polite"><div class="toast" id="toast" data-hidden><strong id="toast-title"></strong><span class="t-footnote muted" id="toast-body"></span></div></div>
+<div class="backdrop" id="dialog" data-hidden role="alertdialog" aria-modal="true" aria-labelledby="dlg-title" aria-describedby="dlg-body">
+	<div class="dialog">
+		<h2 class="t-heading" id="dlg-title">Koble fra Polar?</h2>
+		<p class="t-footnote muted" id="dlg-body">Øktene du har importert fra Polar, blir i treningshistorikken din. Å koble fra stopper bare nye fra å komme. Du kan koble til igjen når som helst.</p>
+		<div class="actions">
+			<button class="btn outline" data-act="keep">Behold tilkoblingen</button>
+			<button class="btn destructive" data-act="confirm-disconnect">Koble fra Polar</button>
+		</div>
+	</div>
+</div>
+<div class="proto" id="proto"></div>
+
+<script>
+// ---- the words, as labels.ts would hold them (INTEGRATIONS_LABELS.polar) ----
+const P = {
+	name: 'Polar',
+	tagline: 'Øktene fra Polar-klokka, hentet fra Polar Flow.',
+	shares: 'Polar deler bare økter som synkroniseres til Flow etter at du kobler til, og ingen eldre enn 30 dager.',
+	older: 'Eldre historikk laster du opp som filer.',
+	sharesConnected: 'Polar deler bare økter fra de siste 30 dagene. Trykk Synkroniser nå for det nyeste fra Flow.',
+	upload: 'Last opp filer',
+	connect: 'Koble til',
+	redirecting: 'Sender deg til Polar …',
+	backfilling: 'Henter øktene Polar har fra de siste 30 dagene … Det skjer i bakgrunnen.',
+	lastDevice: 'Siste økt fra',
+	revoked: 'Polar trakk tilbake tilgangen. Koble til på nytt for å fortsette importen – øktene du har, blir liggende.',
+	refusal: {
+		denied: 'Du sa nei til tilgangen hos Polar, så ingenting ble koblet til.',
+		state: 'Sikkerhetssjekken feilet, så ingenting ble koblet til. Prøv å koble til på nytt.',
+		failed: 'Vi fikk ikke koblet til Polar, og ingenting ble lagret. Prøv igjen om litt.',
+		taken: 'Denne Polar-kontoen er allerede koblet til en annen trainm8-bruker. Én Polar-konto kan bare kobles til én bruker.',
+	},
+}
+const L = {
+	lastChecked: 'Sist synkronisert', syncNow: 'Synkroniser nå', syncing: 'Synkroniserer …',
+	reconnect: 'Koble til på nytt', disconnect: 'Koble fra',
+	badge: { revoked: 'Må kobles til på nytt', backfilling: 'Henter historikk', connected: 'Tilkoblet', comingSoon: 'Kommer' },
+	dualSource: 'Flere kilder er koblet til. En økt som kommer fra mer enn én av dem, lagres som én økt. Kjenner vi den ikke igjen, kan den likevel komme to ganger – da sletter du den du ikke vil beholde.',
+}
+const DATA = {
+	demo: { device: 'Polar Vantage V3', checked: 'lør 7. nov. kl.\u00a019.42', checkedAfter: 'lør 7. nov. kl.\u00a019.48', imported: 6, otherSourceActive: false, title: 'Rolig langtur', recDevice: 'Polar Vantage V3' },
+	worst: { device: 'Polar Grit X2 Pro Titan', checked: 'tor 30. september kl.\u00a023.59', checkedAfter: 'tor 30. september kl.\u00a023.59', imported: 1, otherSourceActive: true, title: 'Langtur med 3 × 15 min i maratonfart, siste i motbakke (Nordmarka)', recDevice: 'Polar Grit X2 Pro Titan' },
+}
+const STATES = [
+	['unconfigured', 'Ikke satt opp'], ['available', 'Ikke koblet til'], ['redirecting', 'Sender til Polar'],
+	['denied', 'Sa nei hos Polar'], ['failed', 'Feilet'], ['state', 'Feil state'], ['taken', 'Koblet til annen bruker'],
+	['backfilling', 'Første synk'], ['connected', 'Tilkoblet'], ['syncing', 'Synkroniserer'], ['revoked', 'Tilgang trukket'],
+]
+const q = new URLSearchParams(location.search)
+const D0 = window.PROTO_DEFAULTS || {}
+const S = { state: q.get('state') || D0.state || 'available', data: q.get('data') || D0.data || 'demo', view: q.get('view') || D0.view || 'hub', theme: q.get('theme') || D0.theme || 'light' }
+document.body.dataset.chrome = q.get('chrome') ?? '1'
+
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]) }
+const polarConnected = () => ['backfilling', 'connected', 'syncing', 'revoked'].includes(S.state)
+
+function head(tile, cls, name, badge, lines) {
+	return `<div class="head"><span class="tile ${cls}" aria-hidden="true">${tile}</span><div class="head-text">
+		<div class="name-row"><span class="t-callout name">${esc(name)}</span>${badge || ''}</div>
+		<div class="t-footnote lines">${lines}</div></div></div>`
+}
+const sharesWell = () => `<div class="well t-footnote" data-polar-shares><p>${P.shares} ${P.older} <a class="link" href="#upload">${P.upload}</a></p></div>`
+
+function polarCard() {
+	const d = DATA[S.data]
+	const st = S.state
+	let badge = '', lines = '', body = '', actions = ''
+	if (st === 'backfilling') {
+		badge = `<span class="badge secondary">${L.badge.backfilling}</span>`
+		lines = `<span>${P.backfilling}</span>`
+		body = sharesWell()
+		actions = `<button class="btn ghost" data-act="disconnect">${L.disconnect}</button>`
+	} else if (st === 'connected' || st === 'syncing') {
+		badge = `<span class="badge default">${L.badge.connected}</span>`
+		lines = `<span class="tnum">${L.lastChecked} <time>${d.checked}</time></span>
+			<span class="wrap-any">${P.lastDevice} ${esc(d.device)}</span>`
+		body = `<div class="well t-footnote" data-polar-shares><p>${P.sharesConnected} ${P.older} <a class="link" href="#upload">${P.upload}</a></p></div>`
+		actions = `<button class="btn secondary" data-act="sync" ${st === 'syncing' ? 'disabled' : ''}>${st === 'syncing' ? L.syncing : L.syncNow}</button>
+			<button class="btn ghost" data-act="disconnect">${L.disconnect}</button>`
+	} else if (st === 'revoked') {
+		badge = `<span class="badge destructive">${L.badge.revoked}</span>`
+		lines = `<span class="tnum">${L.lastChecked} <time>${d.checked}</time></span><span>${P.revoked}</span>`
+		actions = `<button class="btn default" data-act="connect">${L.reconnect}</button>
+			<button class="btn ghost" data-act="disconnect">${L.disconnect}</button>`
+	} else {
+		lines = `<span>${P.tagline}</span>`
+		const refusal = P.refusal[st]
+		body = (refusal ? `<div class="alert destructive t-footnote" role="alert"><p>${refusal}</p></div>` : '') + sharesWell()
+		actions = `<button class="btn default" data-act="connect" ${st === 'redirecting' ? 'disabled' : ''}>${st === 'redirecting' ? P.redirecting : P.connect}</button>`
+	}
+	return `<div class="card" data-provider="polar">${head('P', 'polar', P.name, badge, lines)}${body}<div class="actions">${actions}</div></div>`
+}
+function intervalsCard(connected) {
+	const d = DATA[S.data]
+	return connected
+		? `<div class="card" data-provider="intervalsicu">${head('i', 'ii', 'intervals.icu', `<span class="badge default">${L.badge.connected}</span>`,
+			`<span class="tnum">${L.lastChecked} <time>${d.checked}</time></span><span>Synkroniseres av seg selv én gang i døgnet. Trykk Synkroniser nå for det nyeste.</span>`)}
+			<div class="actions"><button class="btn secondary">${L.syncNow}</button><button class="btn ghost">${L.disconnect}</button></div></div>`
+		: `<div class="card" data-provider="intervalsicu">${head('i', 'ii', 'intervals.icu', '', '<span>Gratis import med din personlige API-nøkkel: øktene som ligger i intervals.icu-kontoen din. Sjekkes daglig, og du kan synkronisere selv for det nyeste.</span>')}
+			<div class="actions"><button class="btn default">Koble til intervals.icu</button></div></div>`
+}
+const uploadCard = () => `<div class="card" data-provider="file-upload" id="upload">${head('↑', 'up', 'Filopplasting', '', '<span>FIT-, TCX- eller GPX-filer. Alltid tilgjengelig.</span>')}
+	<div class="actions"><a class="btn outline" href="#upload">Last opp økter</a></div></div>`
+const soonCard = (tile, cls, name, tag) => `<div class="card soon">${head(tile, cls, name, `<span class="badge outline">${L.badge.comingSoon}</span>`, `<span>${tag}</span>`)}</div>`
+
+function hub() {
+	const d = DATA[S.data]
+	const iiConnected = d.otherSourceActive
+	const polarIn = S.state !== 'unconfigured'
+	const connectedCards = []
+	if (polarIn && polarConnected()) connectedCards.push(polarCard())
+	if (iiConnected) connectedCards.push(intervalsCard(true))
+	const dual = iiConnected && polarIn && ['connected', 'syncing', 'backfilling'].includes(S.state)
+	const available = []
+	if (!iiConnected) available.push(intervalsCard(false))
+	if (polarIn && !polarConnected()) available.push(polarCard())
+	available.push(uploadCard())
+	return `
+	<div class="page-header"><a class="back" href="#meg">‹ Meg</a><h1>Integrasjoner</h1></div>
+	<p class="t-body muted intro">Her kommer øktene dine fra. En tilkoblet kilde importerer øktene av seg selv.</p>
+	${connectedCards.length ? `<section aria-labelledby="sec-conn"><h2 id="sec-conn" class="t-overline muted section-label">Tilkoblet</h2>
+		${dual ? `<div class="alert t-footnote" role="status" style="margin-bottom:.75rem"><p>${L.dualSource}</p></div>` : ''}
+		<div class="stack">${connectedCards.join('')}</div></section>` : ''}
+	<section aria-labelledby="sec-av"><h2 id="sec-av" class="t-overline muted section-label">Tilgjengelig</h2><div class="stack">${available.join('')}</div></section>
+	<section aria-labelledby="sec-soon"><h2 id="sec-soon" class="t-overline muted section-label">Kommer</h2><div class="stack">
+		${soonCard('G', 'g', 'Garmin Connect', 'Garmins API krever opptak i partnerprogrammet deres. Til da kan du laste opp FIT-filen fra klokka.')}
+		${soonCard('Su', 'su', 'Suunto', 'Suuntos API er også bare for partnere. Til da kan du laste opp FIT-filen fra klokka.')}
+	</div></section>`
+}
+
+function recording() {
+	const d = DATA[S.data]
+	return `
+	<div class="page-header"><a class="back" href="#logg">‹ Logg</a><h1>Økt</h1></div>
+	<div class="stack" style="margin-top:1rem">
+	<div class="card">
+		<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem">
+			<div class="t-title wrap-any" style="min-width:0">${esc(d.title)}</div><span class="badge default" style="margin-top:.25rem">Gjort</span></div>
+		<div class="figures"><div><b>18,4 km</b><span class="t-caption muted">Distanse</span></div><div><b>1:42:10</b><span class="t-caption muted">Tid</span></div><div><b>112</b><span class="t-caption muted">TSS</span></div></div>
+		<p class="t-footnote muted wrap-any" data-source-attribution style="margin:0">${esc(d.recDevice)}</p>
+		<p class="t-footnote muted" style="margin:0"><span style="color:var(--foreground);font-weight:500">Løping</span> · søn 1. nov.</p>
+	</div>
+	<div class="card">
+		<div class="rec-head"><span class="t-heading">Opptak</span><span class="t-footnote muted wrap-any" data-source-attribution="owed">${esc(d.recDevice)}</span></div>
+		<p class="t-footnote muted" style="margin:0">Pulssoner, kart og runder som i dag – uendret av #701.</p>
+	</div>
+	<div class="card">
+		<div class="t-heading">Form</div>
+		<p class="t-body" style="margin:0">Du er uthvilt nok for en hard økt i morgen.</p>
+		<p class="t-footnote muted" style="margin:0" data-derived-attribution>Bygger delvis på data fra Polar.</p>
+	</div></div>`
+}
+
+function render() {
+	document.documentElement.dataset.theme = S.theme
+	document.getElementById('app').innerHTML = S.view === 'recording' ? recording() : hub()
+	renderProto()
+	const u = new URL(location.href)
+	for (const k of ['state', 'data', 'view', 'theme']) u.searchParams.set(k, S[k])
+	try { if (location.protocol !== 'about:') history.replaceState(null, '', u) } catch {}
+}
+function renderProto() {
+	const b = (k, v, label) => `<button data-set="${k}" data-val="${v}" aria-pressed="${S[k] === v}">${label}</button>`
+	document.getElementById('proto').innerHTML = `
+		<div class="row">${STATES.map(([v, l]) => b('state', v, l)).join('')}</div>
+		<div class="row">${b('data', 'demo', 'Demo data')}${b('data', 'worst', 'Worst case')}
+			<span style="width:.5rem"></span>${b('view', 'hub', 'Hub')}${b('view', 'recording', 'Økt (AC 10)')}
+			<span style="width:.5rem"></span>${b('theme', 'light', 'Lys')}${b('theme', 'dark', 'Mørk')}</div>
+		${S.state === 'unconfigured' && S.view === 'hub' ? '<div class="note">POLAR_* mangler: ingen Polar-kort, og /integrations/polar/connect svarer 404.</div>' : ''}`
+}
+
+let toastTimer
+function toast(title, body) {
+	const t = document.getElementById('toast')
+	document.getElementById('toast-title').textContent = title
+	document.getElementById('toast-body').textContent = body
+	t.removeAttribute('data-hidden')
+	clearTimeout(toastTimer)
+	toastTimer = setTimeout(() => t.setAttribute('data-hidden', ''), 4000)
+}
+const dialog = document.getElementById('dialog')
+let flow
+document.addEventListener('click', (e) => {
+	const set = e.target.closest('[data-set]')
+	if (set) { clearTimeout(flow); S[set.dataset.set] = set.dataset.val; render(); return }
+	const act = e.target.closest('[data-act]')?.dataset.act
+	if (!act) return
+	const d = DATA[S.data]
+	if (act === 'connect') {
+		// Real flow: POST /integrations/polar/connect -> Polar Flow -> callback -> hub.
+		S.state = 'redirecting'; render()
+		flow = setTimeout(() => { S.state = 'backfilling'; render(); toast('Koblet til Polar', 'Polar-kontoen din er nå koblet til.')
+			flow = setTimeout(() => { S.state = 'connected'; render() }, 3500) }, 1200)
+	} else if (act === 'sync') {
+		S.state = 'syncing'; render()
+		flow = setTimeout(() => { S.state = 'connected'; d.checked = d.checkedAfter; render()
+			toast('Synkronisert med Polar', d.imported === 1 ? '1 ny økt importert.' : `${d.imported} nye økter importert.`) }, 1200)
+	} else if (act === 'disconnect') {
+		dialog.removeAttribute('data-hidden'); dialog.querySelector('[data-act="keep"]').focus()
+	} else if (act === 'keep') {
+		dialog.setAttribute('data-hidden', '')
+	} else if (act === 'confirm-disconnect') {
+		dialog.setAttribute('data-hidden', ''); S.state = 'available'; render()
+		toast('Koblet fra Polar', 'Øktene du har importert, blir i treningshistorikken din.')
+	}
+})
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') dialog.setAttribute('data-hidden', '') })
+dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.setAttribute('data-hidden', '') })
+render()
+</script>
+</body>
+</html>
