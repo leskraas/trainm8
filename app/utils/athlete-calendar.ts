@@ -15,7 +15,7 @@
 
 /**
  * One `Intl.DateTimeFormat` per timezone and shape, built on first use and kept
- * for the life of the process (ADR 0112 §1).
+ * for the life of the process (ADR 0113 §1).
  *
  * Constructing a formatter is the expensive part of a call — it resolves the
  * locale and loads the zone's rules — and the timeline's presenter calls these

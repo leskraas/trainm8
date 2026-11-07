@@ -183,7 +183,7 @@ season, scrolled top to end 40px a frame at 4×, has a median of 16.9ms, a p90 o
 28.1ms and 8.3% of frames over 32ms, with no backward move of the reader; **no
 virtualiser is confirmed**. The cost of mounting the past up front shows on load
 instead: hydration's longest task is 2.4s against 0.96s on the seed season.
-[ADR 0112](0112-opening-the-full-view-costs-what-it-mounts-and-the-weeks-hydrate-one-by-one.md)
+[ADR 0113](0113-opening-the-full-view-costs-what-it-mounts-and-the-weeks-hydrate-one-by-one.md)
 attributes it to the season presenter and keeps this section whole: every week
 is still server-rendered and mounted up front, and each hydrates on its own.
 

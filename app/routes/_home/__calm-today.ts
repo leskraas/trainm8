@@ -205,7 +205,7 @@ export function buildCalmToday({
 
 	// The next planned session after `fromKey`, found by walking the weeks in
 	// order and stopping at the first hit: a week's days are built when read
-	// (ADR 0112 §2), so the weeks past the hit, and those before `fromKey`,
+	// (ADR 0113 §2), so the weeks past the hit, and those before `fromKey`,
 	// are never built.
 	const nextAfter = (
 		fromKey: string,

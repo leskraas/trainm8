@@ -29,7 +29,7 @@ export function sessionProfile(s: LedgerSession): {
  * A session's row without its Profile bars: what it is (status, load, band)
  * and nothing that is only drawn. The home timeline reads every session's
  * entry to build its week skeleton, and only a mounted row's bars, so it
- * derives those (`sessionProfile`) when it builds the row (ADR 0112 §2).
+ * derives those (`sessionProfile`) when it builds the row (ADR 0113 §2).
  */
 export type SessionEntryRow = {
 	kind: 'session'

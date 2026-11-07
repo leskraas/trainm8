@@ -1,6 +1,6 @@
 /**
  * The measurement ADR 0078's "Reopened (#503)" section asks for, and #503's
- * budget is held to (ADR 0112): the full Home Timeline at full span, on a
+ * budget is held to (ADR 0113): the full Home Timeline at full span, on a
  * production build, at 390×844 with the CPU throttled 4×, so the numbers can
  * be taken again by anyone.
  *
@@ -11,7 +11,7 @@
  *   - **hydrated**: the first animation frame at which the stream element
  *     carries React's props (`__reactProps$…`), i.e. hydration has committed
  *     over it, and a tap on it is answered (a tap on a week still to hydrate
- *     hydrates that week first and is replayed, ADR 0112 §3). A proxy, named
+ *     hydrates that week first and is replayed, ADR 0113 §3). A proxy, named
  *     so: React exposes no hydration-complete event;
  *   - **weeksHydrated**: the first frame at which every mounted week carries
  *     React's props as well, the end of the week-by-week hydration;

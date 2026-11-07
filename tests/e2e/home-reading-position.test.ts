@@ -7,7 +7,7 @@ import { expect, middayTimezone, test } from '#tests/playwright-utils.ts'
 
 /**
  * The row the reader is reading never moves when content arrives above it
- * (#503 criterion 7, ADR 0086 §4, ADR 0112).
+ * (#503 criterion 7, ADR 0086 §4, ADR 0113).
  *
  * Two ways content arrives on the full Home Timeline after the first paint:
  * a **live import** lands on a day the reader has already scrolled past, and

@@ -43,7 +43,7 @@ await tabs.getByRole('link', { name: 'I dag' }).click()
 - What I dag shows depends on today's date against kody's seeded history and
   plan, so a journey that needs a session today should create one first (see
   `session-authoring.md`).
-- Each week of the stream hydrates on its own, after the frame (ADR 0112): a
+- Each week of the stream hydrates on its own, after the frame (ADR 0113): a
   week's controls answer once the week carries React's props. Wait with
   `untilHydrated` on the control before a tap that writes.
 - How fast the full view opens on a long season is measured, not driven:

@@ -459,7 +459,7 @@ test('a week header keeps three lines and a summary; the qualifying notes sit be
 })
 
 test('each week of the Stream is its own Suspense boundary in the server markup, so the weeks hydrate one by one', () => {
-	// ADR 0112 §3: React hydrates a dehydrated boundary on its own, at idle
+	// ADR 0113 §3: React hydrates a dehydrated boundary on its own, at idle
 	// priority, after its parent commits. The boundary's markers sit right
 	// around the week's own section.
 	const weeks = [
