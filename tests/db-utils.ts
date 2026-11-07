@@ -1,6 +1,7 @@
 import { faker } from '@faker-js/faker/locale/en'
 import bcrypt from 'bcryptjs'
 import { UniqueEnforcer } from 'enforce-unique'
+import { PASSWORD_HASH_COST } from '#app/utils/auth/password-hash.server.ts'
 
 const uniqueUsernameEnforcer = new UniqueEnforcer()
 
@@ -32,7 +33,7 @@ export function createUser() {
 
 export function createPassword(password: string = faker.internet.password()) {
 	return {
-		hash: bcrypt.hashSync(password, 10),
+		hash: bcrypt.hashSync(password, PASSWORD_HASH_COST),
 	}
 }
 

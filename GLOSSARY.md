@@ -1663,6 +1663,19 @@ access control. _Avoid_: Viewer; _avoid bare_ "account" (use **Authenticated
 User** for internal identity, **Account Connection** for an external service
 account)
 
+**Sign-in Method**: One way an **Authenticated User** proves who they are: a
+password, a passkey, or a linked GitHub identity. Two-factor authentication is
+not a method of its own but a second step on top of one. An emailed code is a
+second step for an athlete who must set up two-factor again, never a method that
+signs anyone in alone (ADR 0094 §3). _Avoid_: Account, login provider,
+connection (an **Account Connection** links a training service, not a way to
+sign in)
+
+**Sign-in Session**: The period an **Authenticated User** stays signed in on one
+browser, ended by signing out, by expiry, or by the one forced sign-out at the
+login cutover (ADR 0094 §1). _Avoid_: bare "session" (that is a **Workout
+Session** in this domain)
+
 **Owner**: The authenticated user who owns workouts and workout sessions.
 _Avoid_: Creator, participant, "the session's owner" for athlete-versus-machine
 (that is **Session Ownership**: every session has one Owner, the athlete, and
@@ -3361,6 +3374,12 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 
 ## Flagged ambiguities
 
+- **"account" and "session" in auth code are not the domain's words.** Better
+  Auth calls each **Sign-in Method** an "account" (`AuthAccount`) and each
+  **Sign-in Session** a "session" (`AuthSession`). Neither is an **Account
+  Connection** or a **Workout Session**; say **Sign-in Method** and **Sign-in
+  Session** outside the auth module, and **Authenticated User** for "the
+  account" as a whole.
 - "workout" has been used to mean both the structural definition and the
   scheduled instance; use **Workout** for the structure and **Workout Session**
   for the scheduled instance. The old advice here said "**Workout Template** for

@@ -21,6 +21,10 @@
  *   somebody else's training, so it is kept — withdrawn (`private`, entry retired)
  *   with its **Attribution** deleted, since that holds the published name.
  *
+ * Sign-in data goes too: Better Auth's tables cascade from `User`, except
+ * `AuthVerification`, which names its user only by id or email and is cleared
+ * by `eraseAuthVerifications` (ADR 0114 §6).
+ *
  * A bookmark (`CatalogueSave`) does not keep a row: it is a pointer, not a copy,
  * and it cascades away with the row.
  *
@@ -30,6 +34,7 @@
  * are the athlete's own (`ownerId`), so they are purged with the rest.
  */
 import { type Prisma } from '@prisma/client'
+import { eraseAuthVerifications } from './auth/erase.server.ts'
 import { prisma } from './db.server.ts'
 import { MAX_LINEAGE_HOPS } from './workout.server.ts'
 
@@ -87,6 +92,14 @@ export async function deleteAccount(userId: string): Promise<AccountErasure> {
 		const { count: erased } = await tx.workout.deleteMany({
 			where: { ownerId: userId, id: { notIn: [...kept] } },
 		})
+		// Better Auth's verification rows name the user by id or email, not by a
+		// foreign key, so the `User` cascade misses them (ADR 0114 §6). Its other
+		// tables cascade.
+		const { email } = await tx.user.findUniqueOrThrow({
+			where: { id: userId },
+			select: { email: true },
+		})
+		await eraseAuthVerifications(tx, { userId, email })
 		await tx.user.delete({ where: { id: userId } })
 		return { erased, withdrawn: kept.size, spliced }
 	}, TRANSACTION_OPTIONS)
